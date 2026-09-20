@@ -54,11 +54,18 @@ Se o dono preferir literalmente um commit só, a alternativa é fazer as tarefas
 
 ### Regras do kit da forja (valem dos cards F0k em diante)
 
-Verificado em 2026-09-19, não suposto:
+Verificado em 2026-09-20, não suposto:
 
-- **O kit não está sob controle de versão.** `~/Workspace/forja` não é repositório git; `forja-infra`, `forja-ds` e `sitio` são repositórios próprios, e `ferramentas/` — onde vivem `docs/sitio.py`, `docs/trilha/*` e `seed_chave_forja.sh` — está fora de todos eles. Consequências, obrigatórias:
-  - **nenhuma tarefa do kit termina em `git commit`.** Termina em "salvar o arquivo" mais o portão do F0k (`python3 -m py_compile` para `.py`, `bash -n` para `.sh`);
-  - **antes de alterar um arquivo que já existe**, copie: `cp -p <arq> <arq>.bak-fase2`. Os quatro nesta situação são `docs/trilha/cartao.sh`, `docs/trilha/deploy.sh`, `docs/trilha/nova_chave.py` e `seed_chave_forja.sh`. Sem isso não há desfazer: os `.bak-*` que o `deploy.sh` cria ficam **na forja**, e um erro de edição na cópia do Mac sobrevive e viaja no próximo `K`.
+- **O kit está sob controle de versão desde 2026-09-20.** `~/Workspace/forja/ferramentas` é um repositório git próprio (commit inicial `ec51833`, 116 arquivos, `.gitignore` com `__pycache__/` e `*.pyc`), criado pelo dono antes do F0k justamente porque esta fase cria 8 arquivos e altera 4, e o `.bak` protege uma edição de profundidade, não uma sequência. Consequências, obrigatórias:
+  - **toda tarefa do kit termina em `git commit`**, com mensagem no padrão `tipo: descrição curta` (`feat`, `fix`, `chore`, `refactor`, `docs`), depois do teste verde. Repositório **local, sem remoto e sem push**;
+  - `git add` sempre por **caminho explícito**, nunca `git add -A` nem `git add .`;
+  - **não há passo de `.bak` no Mac.** O git substitui, e cópias `.bak` só poluiriam o `git status`. Os `.bak-*` que o `deploy.sh` cria **na forja** (`proxy.py.bak-*-S4`, `pulso.sh.bak-F4`, `crontab.bak-F4`, `fila_intel.py.bak`) são outra coisa e continuam;
+  - o `.git` fica em `ferramentas/`, **fora de `docs/`**: o `scp -r sitio.py trilha` do card K não o leva, e o `find sitio.py trilha -type f` do portão `KIT-IGUAL` não o vê. O card K não muda;
+  - o portão do F0k exige **árvore limpa ao fim** — é o que pega o arquivo novo que ninguém lembrou de `git add` e que o `scp -r` levaria assim mesmo, sem estar versionado;
+  - **nenhum arquivo versionado pode conter chave real**, em fixture, exemplo ou saída esperada. O repositório é local hoje, mas um `git init` costuma virar `git remote add` meses depois, e o histórico vai junto: uma chave commitada não sai com um `rm`;
+  - **o repositório guarda código e decisão curada, não dado puxado da produção.** Entram: os `.py`/`.sh` do kit e `fase2/series.json` (a escolha das séries que o dono faz no F0.5 — perdê-la significa refazer o card, e ela não tem dado de audiência). **Ficam de fora, no `.gitignore`:** `fase2/fixture_pt.json` e `fase2/sombra-f2/`. A fixture carrega `recent.views` por vídeo, que é dado da YouTube Analytics — não é público como título e view count — e é regenerável por `capturar_fixture.py`; a sombra é saída de execução, muda a cada rodada e não é insumo de nada depois do julgamento do F2;
+  - `git add fase2/` (o diretório inteiro) é proibido justamente por isso: some com a distinção acima. Some também com a regra do caminho explícito.
+- **`~/Workspace/forja` (a raiz) continua fora de git** — `forja-infra`, `forja-ds` e `sitio` são repositórios próprios, e agora `ferramentas/` também. Não confunda: os comandos deste plano operam em `ferramentas/`.
 - **`ferramentas/fase2/` não existe** — o `mkdir -p` do card F0k é obrigatório, não decorativo. Ele fica **fora** do kit: o `scp -r trilha` do `K` não o leva, e é por isso que `fixture_pt.json` e `series.json` moram lá.
 - **O `python3` do Mac não tem `httpx`.** Consequência exata, medida: `teste_fila.py` **não** roda no Mac, porque carrega o worker, que importa `httpx`. Já `teste_s4.py`, `teste_calculo.py` e `teste_fila_redacao.py` **rodam**, porque são stdlib puro e não tocam no worker. (O §5/F0k do spec diz que o `teste_s4.py` não roda no Mac; está errado, e a correção está anotada na seção de divergências no fim deste plano.)
 - **Escrita na forja é do dono**, sem exceção — vale para `scp`, `install`, `mv`, `crontab -`, `systemctl`, `deploy.sh`, `nova_chave.py` e qualquer coisa que grave. O plano prepara os comandos, curtos, um por linha, em bloco de código; o dono cola. Conferência depois só por leitura (`ssh forja '<comando de leitura>'`).
@@ -2972,9 +2979,18 @@ harness `teste_fila.py` (§4.6, frente A6) · pulso (§6, frente A7) · cartões
 - **Escrita na forja é do dono.** Nenhum passo roda `ssh`, `scp`, `install`, `mv`, `crontab` ou
   `systemctl` na forja. Os passos que precisam da forja **preparam** o comando — curto, um por linha,
   em bloco de código — e o dono cola. Conferência depois só por leitura.
-- **`~/Workspace/forja` não é repositório git.** Conferido:
-  `git -C ~/Workspace/forja status --short` → `fatal: not a git repository`. Todo passo final é
-  **salvar o arquivo** + `python3 -m py_compile`; **não há commit em nenhuma tarefa desta frente**.
+- **O kit é repositório git desde 20/09/2026.** O dono rodou `git init` em
+  `~/Workspace/forja/ferramentas`; conferido: commit `ec51833`, 116 arquivos rastreados, árvore
+  limpa, `.gitignore` com `__pycache__/` e `*.pyc`. O `.git` fica em `ferramentas/`, **fora de
+  `docs/`**, então o `scp -r sitio.py trilha` do card K não o leva e o portão `KIT-IGUAL` (md5) não
+  o vê. Portanto:
+  - **toda tarefa desta frente termina em `git commit`**, mensagem no padrão `tipo: descrição curta`
+    (`feat`, `fix`, `chore`, `refactor`, `docs`), **repositório local, sem remoto e sem push**;
+  - `git add` sempre por **caminho explícito**, nunca `git add -A` nem `git add .`: dois ou mais
+    terminais mexem no kit em paralelo, e o `-A` arrastaria o trabalho das outras frentes;
+  - **nenhum passo desta frente faz cópia `.bak` no Mac** — o git substitui isso, e um `.bak` só
+    sujaria o `git status`. Os `.bak-*` que o `deploy.sh` e a instalação do worker criam **na forja**
+    são outra coisa e continuam (§4.6).
 - **Python 3 + só biblioteca padrão + `httpx`.** `import httpx` é de módulo, mas **todo uso fica
   dentro de função** (contrato do A5, item 5): é o que deixa o Mac carregar o módulo com o stub
   `docs/trilha/st/httpx.py` (`class AsyncClient: pass`).
@@ -3022,17 +3038,24 @@ e F1P-4 abaixo rodam contra os grupos que o A6 já tem.
 # ---- §4.2 / §4.3 — frente A2 -----------------------------------------------
 def features(snapshot, series, hoje) -> dict
     # hoje: datetime.date em UTC. Pura. Devolve, entre outras:
-    #   {"canal": {"nome","videos","views_90d"|None,"data_base"|None,
+    #   {"canal": {"nome","videos","views_90d"|None,"data_base",
     #              "ultimo_video"|None,"dias_sem_publicar"|None},
     #    "videos": [...], "series": [...], "sem_serie": [...], "orfas": bool}
-    # NOTA: o A3 lê feats["hoje"]; esta frente passa `hoje` e o A2 o devolve no dict.
+    # `data_base` NUNCA e None: o fallback do §4.4 (recent_window nulo -> hoje) mora aqui,
+    # num lugar so. O None sobra em views_90d, ultimo_video e dias_sem_publicar.
+    # NAO existe a chave `hoje` no dict: `hoje` e parametro, e ja sai aplicado em data_base.
 
 def escolher(feats) -> dict
     # {"channel_insights": {"patterns_detected": [...], "analysis_text": str},
     #  "coaching": {"priorities": []},
     #  "series": [...],            # MESMA ordem de patterns_detected
-    #  "motivos": [...]}           # 'padrao_neutro', 'series_orfas'
+    #  "motivos": [...]}           # 'padrao_neutro', 'series_orfas', 'coorte_fina'
     # SEM `entrada`, SEM `task_id`, SEM `coaching.summary` — quem os acrescenta é esta frente.
+    # `coorte_fina` (C4, aprovado em 20/09): a serie nao virou padrao porque a coorte do ano tem
+    # menos de 4 videos elegiveis. O laco NAO filtra, ordena nem trunca `motivos`: ele faz
+    # `estado["motivos"].extend(escolhido.get("motivos", ()))` e a lista inteira chega ao jsonl,
+    # onde o §6 e o dono a leem. Vale para os tres modos que chamam `escolher`
+    # (normal, `--sombra`, `--canario`).
 
 # ---- §4.4 / §4.5 — frente A3 -----------------------------------------------
 AVISO_ESTREITO: str     # "Sem CTR/retenção nesta fase; base: views e séries." (50 caracteres)
@@ -3273,12 +3296,16 @@ EOF
 ```
 Expected: `PY-OK` e `IMPORT-LIMPO`. (O `st/` no `sys.path` é o stub de `httpx`, como o A5 usa.)
 
-- [ ] **Step 4: Salvar o arquivo**
+- [ ] **Step 4: Commit**
 
 ```bash
 cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py && echo PY-OK
+git -C /Users/figueiredo/Workspace/forja/ferramentas add docs/trilha/fila_intel.py
+git -C /Users/figueiredo/Workspace/forja/ferramentas commit -m "feat: esqueleto do fila_intel.py — constantes, carregar_sitio e analisar
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
-(`~/Workspace/forja` não é repo git — não há commit em nenhuma tarefa desta frente.)
+`git add` por caminho explícito, nunca `-A` nem `.` — dois ou mais terminais mexem no kit.
 
 ---
 
@@ -3414,11 +3441,16 @@ grep -c "sys.exit(" docs/trilha/fila_intel.py
 Expected: `PY-OK` e `0` — `main()` **devolve**, e quem sai é o `if __name__`. Os grupos `lock`,
 `jsonl` e `rotacao` do A6 passam na rodada da forja (Task F1P-12).
 
-- [ ] **Step 5: Salvar o arquivo**
+- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py && echo PY-OK
+git -C /Users/figueiredo/Workspace/forja/ferramentas add docs/trilha/fila_intel.py
+git -C /Users/figueiredo/Workspace/forja/ferramentas commit -m "feat: lock, rotacao e a linha unica do jsonl no fila_intel
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
+`git add` por caminho explícito, nunca `-A` nem `.` — dois ou mais terminais mexem no kit.
 
 ---
 
@@ -3512,11 +3544,16 @@ python3 -c "import ast,sys; a=ast.parse(open('docs/trilha/fila_intel.py').read()
 ```
 Expected: `PY-OK`. O grupo `sigterm` do A6 passa na rodada da forja.
 
-- [ ] **Step 5: Salvar o arquivo**
+- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py && echo PY-OK
+git -C /Users/figueiredo/Workspace/forja/ferramentas add docs/trilha/fila_intel.py
+git -C /Users/figueiredo/Workspace/forja/ferramentas commit -m "feat: morte por sinal e desfecho bug no fila_intel
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
+`git add` por caminho explícito, nunca `-A` nem `.` — dois ou mais terminais mexem no kit.
 
 ---
 
@@ -3604,11 +3641,16 @@ grep -c "def ler_env(" docs/trilha/fila_intel.py
 Expected: `PY-OK` e `0` — **não existe leitor genérico nesta frente**. O grupo `portaria` passa na
 rodada da forja.
 
-- [ ] **Step 5: Salvar o arquivo**
+- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py && echo PY-OK
+git -C /Users/figueiredo/Workspace/forja/ferramentas add docs/trilha/fila_intel.py
+git -C /Users/figueiredo/Workspace/forja/ferramentas commit -m "feat: ler_config do laco sobre o leitor de segredo
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
+`git add` por caminho explícito, nunca `-A` nem `.` — dois ou mais terminais mexem no kit.
 
 ---
 
@@ -3714,12 +3756,20 @@ def na_janela_sync(agora):
 
 
 async def slots_livres(cli):
-    """Fecha no campo ausente: o inventario do kit lista /slots SEM citar is_processing
-    (spec-site/secoes/07-seguranca.md:22), e tratar ausente como livre faria a fila gerar em cima
-    do chat depois de qualquer atualizacao do llama-server.
+    """Fecha no campo ausente.
 
-    SUPOSICAO A CONFIRMAR NO F1 contra o llama real: /slots devolve uma LISTA de objetos. O portao
-    do F1 (`curl -fsS 127.0.0.1:8080/slots` -> 2 entradas com is_processing) e quem a confirma."""
+    FORMA VERIFICADA no llama real em 2026-09-20 (leitura, sem tocar em prompt):
+      tipo do corpo: list    n de slots: 2
+      chaves: id, id_task, is_processing, n_ctx, n_prompt_tokens, n_prompt_tokens_cache,
+              n_prompt_tokens_processed, next_token, params, speculative
+      is_processing: [(False, 'bool'), (False, 'bool')]
+    O inventario do kit (spec-site/secoes/07-seguranca.md:22) lista as chaves SEM is_processing:
+    e ele que esta incompleto, nao o endpoint.
+
+    A guarda continua fail-closed de proposito. O risco nunca foi "o campo nao existe hoje", e sim
+    "o campo some numa atualizacao do llama-server": ali, tratar ausente como slot livre faria a
+    fila clamar e gerar EM CIMA DO CHAT, com o claim em 200 e sem motivo no log — invisivel para o
+    §6, que so olha `claim` e `desfecho`. O curl do portao do F1 confere uma vez; esta guarda dura."""
     try:
         r = await cli.get(LLAMA + "/slots", timeout=T_SLOTS)
     except Exception:
@@ -3812,11 +3862,16 @@ cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/t
 Expected: `PY-OK`. Na forja, o grupo `laco: passo 2` verde (18 asserções) e o `portaria` do A6
 continua verde.
 
-- [ ] **Step 5: Salvar o arquivo**
+- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_fila.py && echo PY-OK
+git -C /Users/figueiredo/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_fila.py
+git -C /Users/figueiredo/Workspace/forja/ferramentas commit -m "feat: janela do sync, slots e chat recente no passo 2 do laco
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
+`git add` por caminho explícito, nunca `-A` nem `.` — dois ou mais terminais mexem no kit.
 
 ---
 
@@ -3975,11 +4030,16 @@ cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/t
 ```
 Expected: `PY-OK`. Na forja, o grupo `laco: passo 3` verde.
 
-- [ ] **Step 5: Salvar o arquivo**
+- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_fila.py && echo PY-OK
+git -C /Users/figueiredo/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_fila.py
+git -C /Users/figueiredo/Workspace/forja/ferramentas commit -m "feat: claim da fila, orcamento de 20 min e transitoria
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
+`git add` por caminho explícito, nunca `-A` nem `.` — dois ou mais terminais mexem no kit.
 
 ---
 
@@ -4127,11 +4187,16 @@ cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/t
 Expected: `PY-OK`. Na forja, o grupo `laco: passos 4-5` verde, menos o caso `recent_window nulo`,
 que fecha na Task F1P-9 (é ele que envia o PATCH).
 
-- [ ] **Step 5: Salvar o arquivo**
+- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_fila.py && echo PY-OK
+git -C /Users/figueiredo/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_fila.py
+git -C /Users/figueiredo/Workspace/forja/ferramentas commit -m "feat: fail unico, snapshot e guarda de janela de 90 dias
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
+`git add` por caminho explícito, nunca `-A` nem `.` — dois ou mais terminais mexem no kit.
 
 ---
 
@@ -4222,6 +4287,19 @@ def g_geracao():
     exige("escopo" in " ".join(e.campo("motivos")), "escopo violado: motivos escopo")
     exige(e.patches == [], "escopo violado: zero PATCH")
     exige(len(e.fails) == 1 and "retry" not in e.fails[0][2], "escopo violado: fail SEM retry")
+
+    # os `motivos` do escolher chegam INTEIROS ao jsonl: nada e filtrado, ordenado nem truncado
+    zerar()
+    original = W.escolher
+    W.escolher = lambda feats: {**original(feats),
+                                "motivos": ["coorte_fina", "padrao_neutro", "series_orfas"]}
+    try:
+        e = rodar(site=cli_ok(), llama=LlamaFalso(respostas=[("texto", BOM)]))
+    finally:
+        W.escolher = original
+    for m in ("coorte_fina", "padrao_neutro", "series_orfas"):
+        exige(m in e.campo("motivos"), "motivo %s do escolher chega ao jsonl" % m)
+    exige(e.desfecho == "ok", "motivos do escolher nao mudam o desfecho")
 
     # excecao em features depois do claim: bug + fail SEM retry
     zerar()
@@ -4319,11 +4397,16 @@ Expected: `PY-OK`, `F2R: 0 falha(s)` e `CALCULO: 0 falha(s)` — esta tarefa é 
 A2 e A3, e os dois testes deles rodam no Mac. Na forja, o grupo `laco: passos 4-5 (geracao)` verde,
 e o grupo `sigterm` do A6 também (agora o llama é chamado de verdade).
 
-- [ ] **Step 5: Salvar o arquivo**
+- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_fila.py && echo PY-OK
+git -C /Users/figueiredo/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_fila.py
+git -C /Users/figueiredo/Workspace/forja/ferramentas commit -m "feat: passos 4-5 do laco — features, escolher, redigir e validar
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
+`git add` por caminho explícito, nunca `-A` nem `.` — dois ou mais terminais mexem no kit.
 
 ---
 
@@ -4469,11 +4552,16 @@ grep -n "httpx\." docs/trilha/fila_intel.py
 Expected: `PY-OK`, e todo uso de `httpx.` dentro de função (nenhum em nível de módulo além do
 `import`). Na forja, o grupo `laco: passo 6` verde e o caso `recent_window nulo` da Task F1P-7 fecha.
 
-- [ ] **Step 5: Salvar o arquivo**
+- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_fila.py && echo PY-OK
+git -C /Users/figueiredo/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_fila.py
+git -C /Users/figueiredo/Workspace/forja/ferramentas commit -m "feat: PATCH da analise e a tabela de desfechos do passo 6
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
+`git add` por caminho explícito, nunca `-A` nem `.` — dois ou mais terminais mexem no kit.
 
 ---
 
@@ -4701,11 +4789,16 @@ cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/t
 Expected: `PY-OK`. Na forja, o grupo `modos auxiliares` verde nos casos de `--escolher`/`--sombra`
 (os do `--canario` fecham na Task F1P-11).
 
-- [ ] **Step 5: Salvar o arquivo**
+- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_fila.py && echo PY-OK
+git -C /Users/figueiredo/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_fila.py
+git -C /Users/figueiredo/Workspace/forja/ferramentas commit -m "feat: modos --escolher e --sombra do fila_intel
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
+`git add` por caminho explícito, nunca `-A` nem `.` — dois ou mais terminais mexem no kit.
 
 ---
 
@@ -4868,11 +4961,16 @@ cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/t
 ```
 Expected: `PY-OK`. Na forja, o grupo `modos auxiliares` inteiro verde.
 
-- [ ] **Step 5: Salvar o arquivo**
+- [ ] **Step 5: Commit**
 
 ```bash
 cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_fila.py && echo PY-OK
+git -C /Users/figueiredo/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_fila.py
+git -C /Users/figueiredo/Workspace/forja/ferramentas commit -m "feat: modo --canario do fila_intel
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
+`git add` por caminho explícito, nunca `-A` nem `.` — dois ou mais terminais mexem no kit.
 
 ---
 
@@ -4927,8 +5025,9 @@ ssh forja 'curl -fsS 127.0.0.1:8080/slots | head -c 200'
 ```
 Expected: os dois arquivos presentes; a última linha do jsonl com os seis campos do pulso; o
 `grep -c` → `0` (a chave da fila nunca mora no `/etc/default/proxy-agente`); e o `/slots` devolvendo
-uma **lista de 2 objetos com `is_processing`** — é este comando que confirma a suposição marcada em
-`slots_livres()`.
+uma **lista de 2 objetos com `is_processing` booleano** — a mesma forma verificada em 2026-09-20 e
+registrada em `slots_livres()`. Este comando é a reconferência do portão do F1, não a descoberta da
+forma; a guarda fail-closed do código é o que protege a fila de uma mudança futura do llama-server.
 
 - [ ] **Step 5: Prova de que nenhum segredo vazou para o log nem para a sombra**
 
@@ -4950,6 +5049,9 @@ Expected: `0`. (Comando do dono; o valor não passa por argv.)
 | 5 | `ler_env(caminho) -> dict` genérico | `ler_env_fila` + `ler_default` do A5 dentro de `ler_config()`; motivos `env_ausente`/`env_ilegivel`/`chave_ausente`/`chave_duplicada`/`chave_formato` (mais `canais_vazio`/`canal_<R>`, que não são do leitor) | A5 |
 | 6 | `congelado_em` sem forma fixa; sombra sem esquema; `capturar_fixture.py`/`sonda_f0.py` escritos aqui | `congelado_em` = data UTC `AAAA-MM-DD`; esquema da sombra com `payload` e `tempos` no topo; os dois scripts saem desta frente e ficam nas Tasks F0k-2/F0k-3 | A8 |
 | 7 | venv descartável no scratchpad; `LOCK`/`LOG_DIR`; `main()` posicional | venv cortado (A2/A3 rodam no Mac); constantes `TRAVA`/`LOG`; `main(argv=None, *, ...)` com `abrir_*` como async context manager e `main()` devolvendo o código | A6 |
+| 8 | "`~/Workspace/forja` não é repo git", 11 passos em "salvar o arquivo" | o kit é repo git desde 20/09 (`ec51833`, `.git` em `ferramentas/`, fora de `docs/`): **11 passos terminam em `git commit`**, `tipo: descrição curta`, `git add` por caminho explícito, sem remoto e sem push | dono |
+| 9 | `/slots` "suposição a confirmar no F1" | **forma verificada em 2026-09-20**: `list` de 2 objetos, `is_processing` presente e `bool`; o incompleto era o inventário do kit. A guarda fail-closed **fica como está** — ela protege contra o campo sumir numa atualização do llama-server, não contra ele não existir hoje | merger |
+| 10 | `motivos` do `escolher` só com `padrao_neutro`/`series_orfas` | entra `coorte_fina` (C4). O laço não filtra, ordena nem trunca `motivos` em nenhum dos três modos que chamam `escolher`; há caso no grupo `laco: passos 4-5 (geracao)` provando que os três chegam ao jsonl | A2 |
 
 
 ---
@@ -4974,8 +5076,14 @@ Valem as **Global Constraints** do plano principal, mais estas:
 
 - **Escrita na forja é do dono.** Nenhum passo aqui roda `ssh`, `scp`, `install` ou `crontab` na forja.
   Tudo acontece em `~/Workspace/forja/ferramentas/docs/trilha/` **no Mac**; o card **K** leva o kit.
-- **`~/Workspace/forja` não é repositório git** (conferido: `git -C ~/Workspace/forja status` → `fatal: not a git repository`).
-  Por isso cada tarefa termina em **"salvar o arquivo"**, e não em `git commit`. Não criar repositório.
+- **O kit está sob git** (`~/Workspace/forja/ferramentas`, `git init` do dono; base `ec51833`, 116 arquivos
+  rastreados, `.gitignore` com `__pycache__/` e `*.pyc`). O `.git` mora em `ferramentas/`, **fora de
+  `docs/`**: o `scp -r trilha` do card **K** não o leva e o portão md5 não o vê. Repositório **local** —
+  **sem remoto e sem push**. Cada tarefa fecha em `git commit` com mensagem `tipo: descrição curta`
+  (`feat`, `fix`, `chore`, `refactor`, `docs`), **depois** do teste verde: o `teste_calculo.py` roda no
+  Mac, então a árvore nunca fica com teste vermelho e cada commit é bissectável. `git add` sempre por
+  **caminho explícito**, nunca `git add -A`. Nada de cópias `.bak`/`.bak-fase2` no Mac — o git substitui,
+  e elas só sujariam o `git status`.
 - **Python 3, só biblioteca padrão:** `datetime`, `decimal`, `statistics`, `zoneinfo`, `os`, `importlib`.
   Nada de `httpx`, de rede, de leitura de arquivo dentro de `features`/`escolher`.
 - **Funções puras.** `hoje` é **parâmetro**; `date.today()`/`datetime.now()` são proibidos nesta seção.
@@ -5181,12 +5289,14 @@ cd ~/Workspace/forja/ferramentas/docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITI
 ```
 Expected: `F2C: 0 falha(s)` — 6 asserções.
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Portão de sintaxe e commit**
 
-Os dois arquivos ficam salvos em `~/Workspace/forja/ferramentas/docs/trilha/` (o diretório **não é repo
-git** — nada de commit aqui). Conferir a sintaxe (portão do F0k):
 ```bash
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_calculo.py && echo PY-OK
+git -C ~/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_calculo.py
+git -C ~/Workspace/forja/ferramentas commit -m "feat: arnes casos(F, exige) e conversores de data do calculo
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ### Task F2F-2: `features` — vídeos e canal
@@ -5340,10 +5450,14 @@ cd ~/Workspace/forja/ferramentas/docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITI
 ```
 Expected: `F2C: 0 falha(s)` — 23 asserções.
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Portão de sintaxe e commit**
 
 ```bash
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_calculo.py && echo PY-OK
+git -C ~/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_calculo.py
+git -C ~/Workspace/forja/ferramentas commit -m "feat: features — videos e canal (§4.2)
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -5487,10 +5601,14 @@ cd ~/Workspace/forja/ferramentas/docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITI
 ```
 Expected: `F2C: 0 falha(s)` — 40 asserções.
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Portão de sintaxe e commit**
 
 ```bash
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_calculo.py && echo PY-OK
+git -C ~/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_calculo.py
+git -C ~/Workspace/forja/ferramentas commit -m "feat: features — series a partir do series.json (§4.2)
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -5509,7 +5627,7 @@ vídeos de **outras** séries continuam na coorte) e o piso de 4.
 - Produces: cada item de `features(...)["series"]` ganha
   `{"n_coorte": int, "mediana_coorte": int|float|None, "aplica": bool}`.
   `aplica = n_coorte >= MIN_COORTE`; com `aplica False` a comparação **não se aplica** e a série
-  não vira padrão (§4.2) — quem decide isso é `escolher`.
+  não vira padrão (§4.2) — quem decide isso é `escolher`, que emite `coorte_fina:<slug>` nos `motivos`.
 
 - [ ] **Step 1: Escrever o teste que falha**
 
@@ -5592,10 +5710,14 @@ cd ~/Workspace/forja/ferramentas/docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITI
 ```
 Expected: `F2C: 0 falha(s)` — 49 asserções.
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Portão de sintaxe e commit**
 
 ```bash
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_calculo.py && echo PY-OK
+git -C ~/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_calculo.py
+git -C ~/Workspace/forja/ferramentas commit -m "feat: features — coorte do ano e as duas medianas (§4.2)
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -5716,10 +5838,14 @@ cd ~/Workspace/forja/ferramentas/docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITI
 ```
 Expected: `F2C: 0 falha(s)` — 57 asserções.
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Portão de sintaxe e commit**
 
 ```bash
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_calculo.py && echo PY-OK
+git -C ~/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_calculo.py
+git -C ~/Workspace/forja/ferramentas commit -m "feat: razao, piso de efeito, leitura e confidence (§4.3)
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -5742,7 +5868,13 @@ a ordem por `|razao − 1|` decrescente com desempate alfabético pelo slug, e o
   - `series`: a **mesma lista** enriquecida (insumo da `ENTRADA` do §4.4), item a item na mesma ordem:
     o item de `features` mais `{"razao": Decimal, "leitura": str, "confidence", "sample_size",
     "pattern_id", "finding"}`.
-  - `motivos`: subconjunto ordenado de `{"padrao_neutro", "series_orfas"}`.
+  - `motivos`: lista ordenada, sem repetição, de `"padrao_neutro"`, `"series_orfas"` e
+    **`"coorte_fina:<slug>"` — um por série afetada**. `padrao_neutro` e `series_orfas` são os nomes
+    literais do spec e ficam sem sufixo; `coorte_fina` é decisão do dono (19/09) e leva o slug porque
+    ele nomeia uma comparação **ausente**: o dono precisa saber *qual* série consertar no `series.json`
+    (ou qual ano alargar na 2b), e o slug é a chave estável que ele mesmo edita. Sem o motivo,
+    "nenhum padrão por coorte fina" é indistinguível de "nenhum padrão por canal saudável" — o dono
+    veria `desfecho: ok`, zero padrão e nada que explicasse.
   - `escolher` lê **só** `feats["series"]` e `feats["orfas"]`, e não muta `feats`.
 
 - [ ] **Step 1: Escrever o teste que falha**
@@ -5817,8 +5949,8 @@ Acrescentar ao **fim do corpo de `casos(F, exige)`** (antes do `if __name__`), i
 
     # 12. coorte fina: a comparacao nao se aplica e a serie nao vira padrao
     rf = F.escolher(feats_de(fserie("vlogzeira", "Vlogzeira", 6, 2018, 171, 1, 171)))
-    exige(pats(rf) == [] and rf["motivos"] == [],
-          "coorte abaixo do piso de 4: sem padrao (e o spec nao nomeia motivo para isso)")
+    exige(pats(rf) == [] and rf["motivos"] == ["coorte_fina:vlogzeira"],
+          "coorte abaixo do piso de 4: sem padrao, e um motivo por serie com o slug")
 
     # 13. ordem fixa: |razao-1| decrescente, desempate alfabetico pelo slug
     ordem = F.escolher(feats_de(
@@ -5881,7 +6013,10 @@ def escolher(feats):
     itens, motivos = [], []
     for s in feats["series"]:
         if not s["aplica"]:
-            continue                      # coorte abaixo do piso: a comparacao nao se aplica
+            # coorte abaixo do piso: a comparacao nao se aplica. Um motivo POR SERIE, com o slug:
+            # sem ele, "nenhum padrao por coorte fina" e indistinguivel de "canal saudavel" no jsonl.
+            motivos.append("coorte_fina:" + s["slug"])
+            continue
         razao = _razao(s["mediana"], s["mediana_coorte"])
         if PISO_BAIXO < razao < PISO_ALTO:
             motivos.append("padrao_neutro")
@@ -5930,10 +6065,14 @@ cd ~/Workspace/forja/ferramentas/docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITI
 ```
 Expected: `F2C: 0 falha(s)` — 83 asserções.
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Portão de sintaxe e commit**
 
 ```bash
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_calculo.py && echo PY-OK
+git -C ~/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_calculo.py
+git -C ~/Workspace/forja/ferramentas commit -m "feat: escolher — patterns_detected, ordem fixa e motivos (§4.3)
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -6057,10 +6196,14 @@ cd ~/Workspace/forja/ferramentas/docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITI
 ```
 Expected: `F2C: 0 falha(s)` — 98 asserções.
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Portão de sintaxe e commit**
 
 ```bash
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_calculo.py && echo PY-OK
+git -C ~/Workspace/forja/ferramentas add docs/trilha/fila_intel.py docs/trilha/teste_calculo.py
+git -C ~/Workspace/forja/ferramentas commit -m "feat: escolher — analysis_text e o escopo 2a (§4.3)
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -6157,8 +6300,21 @@ Acrescentar ao **fim do corpo de `casos(F, exige)`** (antes do `if __name__`), i
     exige(fc["series"][0]["ano"] == 2018 and fc["series"][0]["n_coorte"] == 1
           and fc["series"][0]["aplica"] is False,
           "terceira leitura: ano 2018 pelo episodio mediano, coorte de 1")
-    exige(F.escolher(fc)["channel_insights"]["patterns_detected"] == [],
-          "terceira leitura: nenhum padrao, como nas outras duas")
+    rc = F.escolher(fc)
+    exige(pats(rc) == [] and rc["motivos"] == ["coorte_fina:vlogzeira"],
+          "terceira leitura: nenhum padrao, e o motivo diz que foi a coorte fina")
+
+    # (c2) o caso que fechou a decisao: as duas series de 2018 caem juntas em "nao se aplica"
+    SJ_DUAS = {"videos": {"t1": "vlog", "t2": "vlog", "t3": "vlog",
+                          "t4": "vlogzeira", "t5": "vlogzeira", "t6": "vlogzeira"},
+               "nomes": {"vlog": "VLOG - ", "vlogzeira": "Vlogzeira"}}
+    fd = F.features(snap(TERC[:6]), SJ_DUAS, HOJE)
+    exige([(x["slug"], x["ano"], x["n_coorte"], x["aplica"]) for x in fd["series"]]
+          == [("vlog", 2018, 3, False), ("vlogzeira", 2018, 2, False)],
+          "duas series de 2018: as duas sem coorte (3 e 2, abaixo do piso de 4)")
+    rd = F.escolher(fd)
+    exige(pats(rd) == [] and rd["motivos"] == ["coorte_fina:vlog", "coorte_fina:vlogzeira"],
+          "duas series caladas viram dois motivos, um por slug, em ordem")
 
     # (d) "Vlogzeira" sozinha fica abaixo do piso de efeito (1,42x), nas tres leituras
     rv = F.escolher(feats_de(fserie("vlogzeira", "Vlogzeira", 3, 2019, 156, 18, 109.5)))
@@ -6206,7 +6362,7 @@ Run:
 ```bash
 cd ~/Workspace/forja/ferramentas/docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITIO="$PWD/../sitio.py" AGENTE_FILA="$PWD/fila_intel.py" python3 -B teste_calculo.py
 ```
-Expected: `F2C: 0 falha(s)` — 113 asserções, mais a linha do portão da fixture real (pulado no Mac).
+Expected: `F2C: 0 falha(s)` — 115 asserções, mais a linha do portão da fixture real (pulado no Mac).
 
 - [ ] **Step 4: Portão do F0k**
 
@@ -6216,10 +6372,19 @@ cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel
 ```
 Expected: `PY-OK`.
 
-- [ ] **Step 5: Salvar e preparar os comandos do dono**
+- [ ] **Step 5: Commit e comandos do dono**
 
-Os arquivos ficam em `~/Workspace/forja/ferramentas/docs/trilha/`. Eles viajam no `scp -r trilha` do
-card **K** sem passo novo. Comandos para o dono colar **na forja**, depois do K (nenhum deles escreve):
+```bash
+cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/teste_calculo.py && echo PY-OK
+git -C ~/Workspace/forja/ferramentas add docs/trilha/teste_calculo.py
+git -C ~/Workspace/forja/ferramentas commit -m "test: as tres leituras da fixture PT de ponta a ponta (§4.3)
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+
+Os arquivos ficam em `~/Workspace/forja/ferramentas/docs/trilha/` e viajam no `scp -r trilha` do
+card **K** sem passo novo (o `.git` fica em `ferramentas/`, fora de `docs/`, e não vai junto).
+Comandos para o dono colar **na forja**, depois do K (nenhum deles escreve):
 
 ```
 # teste do calculo, na forja (a cópia de trabalho do kit)
@@ -6245,7 +6410,7 @@ cd /opt/agente/docs/trilha && AGENTE_SITIO=/opt/agente/sitio.py AGENTE_FILA=/opt
   `escolher(...)["series"]`), §4.5 (o validador roda sobre o payload montado), §4.1 (o laço chama
   `features` → `escolher` entre o snapshot e a redação) e o `teste_fila.py` do A6, que importa
   `casos` deste arquivo.
-- **Nenhum passo desta seção termina em commit:** `~/Workspace/forja` não é repositório git.
+- **Os 8 passos finais de tarefa terminam em `git commit`** no repositório local do kit (`~/Workspace/forja/ferramentas`), sempre depois do teste verde e sempre com `git add` por caminho explícito.
 
 ### O que o §4.4 recebe daqui, campo a campo
 
@@ -6275,13 +6440,17 @@ Card de código na **forja**, escrito e testado no **Mac**. Cobre o §4.4 (mensa
 
 **Nada aqui toca o site.** Nenhuma tarefa deste card roda `npm`, `vitest` ou `supabase`.
 
-### Regra de entrega deste card (o diretório do kit não é repositório git)
+### Regra de entrega deste card (o kit está sob git)
 
-`git -C ~/Workspace/forja status --short` → `fatal: not a git repository`. **O kit não está sob git.** Portanto, onde as tarefas do F0 terminam em `git commit`, as deste card terminam em **salvar o arquivo** (o passo "Salvar" de cada tarefa), e a proteção contra perda é a cópia `.bak` que cada tarefa faz **antes** de editar:
+O dono rodou `git init` em `~/Workspace/forja/ferramentas`. Verificado por este card: commit `ec51833` ("chore: estado do kit antes da fase 2a"), **116 arquivos rastreados**, árvore limpa, `.gitignore` com `__pycache__/` e `*.pyc`, e `git rev-parse --show-toplevel` → `/Users/figueiredo/Workspace/forja/ferramentas`. O `.git` mora em `ferramentas/`, **fora de `docs/`**: o `scp -r` do card K não o leva e o portão md5 não o vê.
 
-```bash
-cd ~/Workspace/forja/ferramentas/docs/trilha && cp -p fila_intel.py fila_intel.py.bak-$(date +%H%M%S) 2>/dev/null || true
-```
+Portanto, como no card F0, **toda tarefa termina em `git commit`**:
+
+- mensagem no padrão `tipo: descrição curta` (`feat`, `fix`, `chore`, `refactor`, `docs`);
+- **repositório local, sem remoto e sem push** — nada sai do Mac por aqui; quem leva o kit à forja é o card K;
+- `git add` sempre por **caminho explícito**, nunca `git add -A` nem `git add .`;
+- a ordem é **rodar o teste → commitar**, nunca o contrário: o `teste_fila_redacao.py` roda no Mac, e nenhum commit deste card nasce com a tabela vermelha;
+- sem cópias `.bak` antes de editar — o git já é a rede de segurança, e elas só sujariam o `git status`.
 
 **Escrita na forja é do dono.** Nenhuma tarefa deste card faz `ssh`, `scp`, `install`, `mv` ou `crontab` na forja. O `fila_intel.py` e o `teste_fila_redacao.py` ficam na **cópia de trabalho do Mac**, em `~/Workspace/forja/ferramentas/docs/trilha/`; quem os leva à forja é o card **K**, e quem os instala é o dono, pelo bloco do §4.6.
 
@@ -6604,13 +6773,16 @@ def montar_entrada(feats, escolhido):
 
 O comando do Step 2. Expected: 9 linhas `OK`, `F2R: 0 falha(s)`.
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Commit**
 
-O kit não é repositório git (verificado: `git -C ~/Workspace/forja status --short` → `fatal: not a git repository`). Salvar os dois arquivos e conferir:
+Só depois da tabela verde no Step 4.
 
 ```bash
-ls -l ~/Workspace/forja/ferramentas/docs/trilha/fila_intel.py \
-      ~/Workspace/forja/ferramentas/docs/trilha/teste_fila_redacao.py
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/fila_intel.py docs/trilha/teste_fila_redacao.py
+git commit -m "feat: ENTRADA do 12B a partir de features e escolher
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
@@ -6735,7 +6907,17 @@ def mensagens(entrada):
 
 Expected: PASS em todas, inclusive `MAX == 440` e `50 + 1 + 440 = 491 ≤ 500`.
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Commit**
+
+Só depois da tabela verde no Step 4.
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/fila_intel.py docs/trilha/teste_fila_redacao.py
+git commit -m "feat: SISTEMA_FILA, gramatica S e faixa do summary
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
 
 ---
 
@@ -6885,7 +7067,17 @@ async def gerar(cli_llama, msgs, restante_s, seed=None):
 
 - [ ] **Step 4: Rodar e ver passar**
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Commit**
+
+Só depois da tabela verde no Step 4.
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/fila_intel.py docs/trilha/teste_fila_redacao.py
+git commit -m "feat: pedido ao llama e Aceite da resposta
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
 
 ---
 
@@ -7016,7 +7208,17 @@ def aplicar_summary(payload, summary):
 
 - [ ] **Step 4: Rodar e ver passar**
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Commit**
+
+Só depois da tabela verde no Step 4.
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/fila_intel.py docs/trilha/teste_fila_redacao.py
+git commit -m "feat: aparo do summary e corte em frases
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
 
 ---
 
@@ -7243,7 +7445,17 @@ def numeros(limpo, entrada):
 
 Conferir na saída que os 7 casos que passam e os 3 que reprovam da tabela (b) saem exatamente como o spec manda, e que `0,63 ×` e `0,63 x` passam junto de `0,63×`.
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Commit**
+
+Só depois da tabela verde no Step 4.
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/fila_intel.py docs/trilha/teste_fila_redacao.py
+git commit -m "feat: normalizacao do validador (nomes, datas e numeros)
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
 
 ---
 
@@ -7322,7 +7534,17 @@ def papel(texto, entrada):
 
 - [ ] **Step 4: Rodar e ver passar**
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Commit**
+
+Só depois da tabela verde no Step 4.
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/fila_intel.py docs/trilha/teste_fila_redacao.py
+git commit -m "feat: papel das views no validador
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
 
 ---
 
@@ -7388,7 +7610,17 @@ def proibidos(limpo):
 
 Conferir em particular que `a nota e o titulo` **passa** (o `[a-f]` casa o "e", mas o `(no|na|do|da|de)` seguinte não casa "o titulo") e que `nota b no eixo` reprova.
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Commit**
+
+Só depois da tabela verde no Step 4.
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/fila_intel.py docs/trilha/teste_fila_redacao.py
+git commit -m "feat: proibidos e rotulos crus no validador
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
 
 ---
 
@@ -7473,7 +7705,17 @@ def direcao(texto, entrada):
 
 - [ ] **Step 4: Rodar e ver passar**
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Commit**
+
+Só depois da tabela verde no Step 4.
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/fila_intel.py docs/trilha/teste_fila_redacao.py
+git commit -m "feat: direcao das series no validador
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
 
 ---
 
@@ -7603,7 +7845,17 @@ def validar(payload, entrada, texto):
 
 - [ ] **Step 4: Rodar e ver passar**
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Commit**
+
+Só depois da tabela verde no Step 4.
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/fila_intel.py docs/trilha/teste_fila_redacao.py
+git commit -m "feat: limites de texto e escopo 2a do payload
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
 
 ---
 
@@ -7833,21 +8085,25 @@ cd ~/Workspace/forja/ferramentas/docs/trilha && \
 ```
 Expected: `F2R: 0 falha(s)`, saída 0.
 
-- [ ] **Step 5: Ligar ao harness**
+- [ ] **Step 5: Conferir a ligação com o harness**
 
-Uma linha em `teste_fila.py` (arquivo do agente do §4.6; se ele ainda não existir, este passo fica anotado no relato e a linha entra quando o arquivo nascer):
+O `teste_fila.py` é do **A6**, e ele já planeja chamar os dois irmãos (`casos` deste arquivo e o do A2). Este passo é só de conferência — a linha abaixo é **commitada pelo A6**, nunca por este card, e por isso `teste_fila.py` não entra no `git add` do Step 6:
 
 ```python
 from teste_fila_redacao import casos as casos_redacao
 casos_redacao(F, exige)
 ```
 
-- [ ] **Step 6: Salvar**
+- [ ] **Step 6: Commit**
+
+Só depois da tabela verde no Step 4.
 
 ```bash
-ls -l ~/Workspace/forja/ferramentas/docs/trilha/fila_intel.py \
-      ~/Workspace/forja/ferramentas/docs/trilha/teste_fila_redacao.py
-rm -f ~/Workspace/forja/ferramentas/docs/trilha/fila_intel.py.bak-*
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/fila_intel.py docs/trilha/teste_fila_redacao.py
+git commit -m "feat: template do summary e lacinho das duas tentativas
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 
 O `fila_intel.py` e o `teste_fila_redacao.py` seguem para a forja **pelo card K**, e a instalação é o bloco do §4.6, colado **pelo dono**. Nenhuma tarefa deste card faz isso.
@@ -7891,9 +8147,20 @@ cada tarefa desta frente: `python3 -m py_compile`. O portão de verdade é sempr
 
 ### Regras desta frente (além das Global Constraints)
 
-- **`~/Workspace/forja` não é repositório git** (`git -C ~/Workspace/forja status` → `fatal: not a git repository`).
-  Não há commit nesta frente: cada tarefa termina em **salvar o arquivo** + `python3 -m py_compile`.
-  O versionamento do kit é o par `scp` (card K) + `md5sum -c` (`KIT-IGUAL`).
+- **`~/Workspace/forja/ferramentas` é repositório git** desde 2026-09-20 (`ec51833`, 116 arquivos
+  rastreados, `.gitignore` com `__pycache__/` e `*.pyc`). **Cada tarefa desta frente termina em
+  `git commit`**, padrão `tipo: descrição curta`, repositório **local — sem remoto e sem push**.
+  `git add` sempre por **caminho explícito**, nunca `-A`/`.`. Nenhum arquivo `.bak` no Mac: o git
+  substitui (os `.bak` que sobram nos comandos da forja são outra coisa — §4.6, e a forja não é o repo).
+  O `.git` mora em `ferramentas/`, **fora de `docs/`**: o `scp -r docs` do card K não o leva e o portão
+  `md5sum -c` (`KIT-IGUAL`) não o vê. O par `scp` + md5 continua sendo o que sincroniza o kit com a forja.
+- **Nada que o `teste_fila.py` escreve cai em `ferramentas/` rastreável.** Verificado hoje:
+  todo arquivo do harness nasce no tmpdir de `tempfile.mkdtemp` (`$TMPDIR` → `/private/var/folders/…`
+  no Mac, `/tmp` na forja), fora do repo, e o laço final faz `shutil.rmtree(TMP)`; no Mac o harness nem
+  chega a rodar (sai 1 sem `AGENTE_FILA`, TF-1); o único resíduo local é o `docs/trilha/__pycache__/`
+  do `python3 -m py_compile`, que `git check-ignore -v` resolve em `.gitignore:1:__pycache__/`
+  (`git status --short` fica vazio depois de compilar). **Não há artefato a acrescentar ao `.gitignore`.**
+  É o mesmo fato que as sentinelas `(existe, mtime)` (TF-6) e o `addaudithook` (TF-3) provam por dentro.
 - **Escrita na forja é do dono.** Nenhum `ssh`/`scp`/`install` parte do agente. Todo comando da forja
   aparece em bloco de código, curto, para o dono colar.
 - **Estilo do kit:** script Python simples, **nunca pytest**, no molde de `teste_s1.py`/`teste_s2.py`:
@@ -8105,6 +8372,18 @@ Expected: `COMPILA`; e a segunda linha imprime `teste_fila: falta AGENTE_FILA (�
 a recusa acontece **antes** de qualquer import de `httpx`, então este check roda no Mac. Um harness que
 saísse 0 aqui viraria um portão que passa por omissão quando `AGENTE_FILA` some do `cartao.sh`.
 
+- [ ] **Step 5: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_fila.py
+git commit -m "test: teste_fila — ambiente isolado e carregamento por AGENTE_FILA
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local do kit (`ec51833`), **sem remoto e sem push**. `git status --short` tem de
+ficar vazio depois — o `__pycache__/` do `py_compile` já está no `.gitignore`.
+
 ---
 
 ### Task TF-2: como um caso é declarado, afirmado e reportado
@@ -8221,6 +8500,18 @@ abortar o portão.
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/teste_fila.py && echo COMPILA
 ```
 Expected: `COMPILA`. O arquivo só executa na forja (Task TF-13, Step 5).
+
+- [ ] **Step 6: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_fila.py
+git commit -m "test: teste_fila — registro de grupos, zerar e relatorio
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local do kit (`ec51833`), **sem remoto e sem push**. `git status --short` tem de
+ficar vazio depois — o `__pycache__/` do `py_compile` já está no `.gitignore`.
 
 ---
 
@@ -8359,6 +8650,18 @@ sentinelas continuam valendo, mas a cobertura encolhe).
 ```bash
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/teste_fila.py && echo COMPILA
 ```
+
+- [ ] **Step 6: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_fila.py
+git commit -m "test: teste_fila — auditor de escrita fora do tmpdir
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local do kit (`ec51833`), **sem remoto e sem push**. `git status --short` tem de
+ficar vazio depois — o `__pycache__/` do `py_compile` já está no `.gitignore`.
 
 ---
 
@@ -8503,6 +8806,18 @@ def g_llama():
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/teste_fila.py && echo COMPILA
 ```
 Expected: `COMPILA`. As 6 asserções deste grupo saem verdes na primeira execução na forja (TF-13).
+
+- [ ] **Step 6: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_fila.py
+git commit -m "test: teste_fila — llama falso em processo
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local do kit (`ec51833`), **sem remoto e sem push**. `git status --short` tem de
+ficar vazio depois — o `__pycache__/` do `py_compile` já está no `.gitignore`.
 
 ---
 
@@ -8655,6 +8970,18 @@ cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/teste_fila
 ```
 Expected: `COMPILA`. Com esta tarefa o harness está completo: os grupos de casos entram a seguir.
 
+- [ ] **Step 6: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_fila.py
+git commit -m "test: teste_fila — relogios injetados e rodar()
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local do kit (`ec51833`), **sem remoto e sem push**. `git status --short` tem de
+ficar vazio depois — o `__pycache__/` do `py_compile` já está no `.gitignore`.
+
 ---
 
 ### Task TF-6: grupo `isolamento` — nada resolve nem grava fora do tmpdir
@@ -8751,6 +9078,18 @@ cd /opt/agente/docs/trilha && flock -w 1800 /opt/agente/fila_intel.lock env -u P
 ```
 Expected: o grupo `isolamento` todo `OK`.
 
+- [ ] **Step 7: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_fila.py
+git commit -m "test: teste_fila — grupo isolamento
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local do kit (`ec51833`), **sem remoto e sem push**. `git status --short` tem de
+ficar vazio depois — o `__pycache__/` do `py_compile` já está no `.gitignore`.
+
 ---
 
 ### Task TF-7: grupo `lock` — exclusão mútua nos dois sentidos
@@ -8827,6 +9166,18 @@ soltaria a trava — e aí a sonda voltaria `0`.
 ```bash
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/teste_fila.py && echo COMPILA
 ```
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_fila.py
+git commit -m "test: teste_fila — grupo lock
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local do kit (`ec51833`), **sem remoto e sem push**. `git status --short` tem de
+ficar vazio depois — o `__pycache__/` do `py_compile` já está no `.gitignore`.
 
 ---
 
@@ -8921,6 +9272,18 @@ O caso vale mesmo quando o `escolher` desta execução não gerar padrão: o que
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/teste_fila.py && echo COMPILA
 ```
 
+- [ ] **Step 7: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_fila.py
+git commit -m "test: teste_fila — grupo jsonl e segredo
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local do kit (`ec51833`), **sem remoto e sem push**. `git status --short` tem de
+ficar vazio depois — o `__pycache__/` do `py_compile` já está no `.gitignore`.
+
 ---
 
 ### Task TF-9: grupo `rotacao` — jsonl por `os.replace`, `.err` truncado no lugar
@@ -9007,6 +9370,18 @@ inode velho e o arquivo voltaria a crescer invisível.
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/teste_fila.py && echo COMPILA
 ```
 
+- [ ] **Step 6: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_fila.py
+git commit -m "test: teste_fila — grupo rotacao
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local do kit (`ec51833`), **sem remoto e sem push**. `git status --short` tem de
+ficar vazio depois — o `__pycache__/` do `py_compile` já está no `.gitignore`.
+
 ---
 
 ### Task TF-10: grupo `sigterm` — morte por sinal grava `morto` e não chama `fail`
@@ -9074,6 +9449,18 @@ igual, sem duplicar.
 ```bash
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/teste_fila.py && echo COMPILA
 ```
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_fila.py
+git commit -m "test: teste_fila — grupo sigterm
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local do kit (`ec51833`), **sem remoto e sem push**. `git status --short` tem de
+ficar vazio depois — o `__pycache__/` do `py_compile` já está no `.gitignore`.
 
 ---
 
@@ -9179,6 +9566,18 @@ llama-server.
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/teste_fila.py && echo COMPILA
 ```
 
+- [ ] **Step 7: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_fila.py
+git commit -m "test: teste_fila — grupo portaria
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local do kit (`ec51833`), **sem remoto e sem push**. `git status --short` tem de
+ficar vazio depois — o `__pycache__/` do `py_compile` já está no `.gitignore`.
+
 ---
 
 ### Task TF-12: os dois arquivos irmãos sob o mesmo comando
@@ -9255,6 +9654,18 @@ cd ~/Workspace/forja/ferramentas/docs/trilha && python3 -B teste_fila_redacao.py
 ```
 Expected: `calculo: 0` e `redacao: 0`. Se o `teste_calculo.py` ainda não tiver o `casos(F, exige)`,
 o Step 2 fica bloqueado nele — é a dependência declarada nas *Interfaces*.
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_fila.py
+git commit -m "test: teste_fila — chama teste_calculo e teste_fila_redacao
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local do kit (`ec51833`), **sem remoto e sem push**. `git status --short` tem de
+ficar vazio depois — o `__pycache__/` do `py_compile` já está no `.gitignore`.
 
 ---
 
@@ -9364,12 +9775,28 @@ cd /opt/agente/docs/trilha && flock -w 1800 /opt/agente/fila_intel.lock env -u P
 Expected: `FILA: 0 falha(s)`, com os grupos do harness, os seis de infraestrutura, `calculo`,
 `redacao` e os de extensão — os 3 arquivos sob um comando só.
 
-- [ ] **Step 6: Salvar e registrar no relato**
+- [ ] **Step 6: Árvore limpa e relato**
 
-Não há commit: `~/Workspace/forja` não é repositório git (`fatal: not a git repository`), e **nenhum
-passo desta frente termina em `git commit`**. O relato anota: os arquivos salvos, a saída do bloco do
-Step 4, a versão de Python em que o auditor foi validado (TF-3), e que o primeiro portão real é o
-`cartao.sh S4` na forja, pelo dono.
+```bash
+cd ~/Workspace/forja/ferramentas && git status --short && git log --oneline ec51833..HEAD
+```
+Expected: `git status --short` **vazio** (o `__pycache__/` do `py_compile` está no `.gitignore`;
+os tmpdirs do harness nascem em `$TMPDIR`, fora do repo, e são removidos no fim do arquivo), e o
+`git log` com os 13 commits desta frente — locais, **sem remoto e sem push**. O relato anota: a lista
+de commits, a saída do bloco do Step 4, a versão de Python em que o auditor foi validado (TF-3) e que
+o primeiro portão real é o `cartao.sh S4` na forja, pelo dono.
+
+- [ ] **Step 7: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_fila.py
+git commit -m "test: teste_fila — ponto de extensao GRUPOS e invocacao
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local do kit (`ec51833`), **sem remoto e sem push**. `git status --short` tem de
+ficar vazio depois — o `__pycache__/` do `py_compile` já está no `.gitignore`.
 
 ---
 
@@ -9400,10 +9827,23 @@ roda `scp`, `ssh forja '<comando que escreve>'`, `bash docs/trilha/cartao.sh`, `
 `mv` ou `systemctl` na forja. As Tasks S4-6 e S4-7 **preparam** os comandos, curtos, um por linha, em
 bloco de código, e o dono os cola. A conferência depois é por leitura (`ssh forja '<comando de leitura>'`).
 
-### `~/Workspace/forja` não é repositório git
+### O kit está sob git — cada tarefa de código termina num commit
 
-`git -C ~/Workspace/forja status` → `fatal: not a git repository`. Não há commit nas tarefas deste card:
-onde o plano do F0 diz "Commit", aqui o passo é **salvar o arquivo** e rodar o portão local.
+O dono rodou `git init` em `~/Workspace/forja/ferramentas` (commit `ec51833`, 116 arquivos, árvore
+limpa, `.gitignore` com `__pycache__/` e `*.pyc`). O `.git` mora em `ferramentas/`, **fora de `docs/`**:
+o `scp -r sitio.py trilha` do card **K** não o leva, e o portão md5 (`find sitio.py trilha -type f`)
+não o vê.
+
+- **Cada tarefa de código termina em `git commit`**, padrão `tipo: descrição curta`, **repositório
+  local, sem remoto e sem push**. Seis passos deste card terminam assim: S4-1 a S4-5 e o Step 7 do
+  rollback (que edita a cópia do kit no Mac).
+- **`git add` por caminho explícito**, nunca `git add -A`/`git add .`.
+- **O commit vem depois do teste verde**, nunca antes — o loop de TDD deste card roda no Mac (abaixo).
+- **Nenhum `.bak` no Mac.** O git substitui cópia de segurança de arquivo do kit. Isso **não** vale
+  para os `proxy.py.bak-*-S4` e `…​.bak-*-S4.sitio` que o `deploy.sh` cria **na forja**: eles são o
+  único caminho de volta do rollback (Task S4-7) e continuam existindo.
+- Fim de cada mensagem de commit:
+  `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
 
 ### Loop de TDD deste card — roda no Mac
 
@@ -9558,12 +9998,20 @@ print('CLIFALSO-OK')"
 ```
 Expected: `CLIFALSO-OK`.
 
-- [ ] **Step 5: Salvar e compilar**
+- [ ] **Step 5: Compilar e commitar**
 
 ```bash
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/sitio_falso.py && echo PY-OK
 ```
 Expected: `PY-OK`. (Portão do F0k para os `.py` do kit.)
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/sitio_falso.py
+git commit -m "test: CliFalso ganha request, pedidos e respostas
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
 
 ---
 
@@ -9790,6 +10238,20 @@ cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/teste_s4.p
 ```
 Expected: `PY-OK`.
 
+- [ ] **Step 8: Commit do teste vermelho**
+
+O teste entra na árvore **antes** da implementação, e é isso que torna o par de commits bissectável:
+o vermelho documenta o contrato, o verde da Task S4-3 o cumpre. Nada aqui é código de produção — o
+`sitio.py` ainda é o da fase 1 —, então a árvore não fica com o kit quebrado.
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/teste_s4.py
+git commit -m "test: teste_s4 — o contrato da fase 2 do sitio.py
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+
 ---
 
 ### Task S4-3: `sitio.py` fase 2 — `FalhaSite`, `ROTAS_FASE[2]`, `_falha2` e `pedir`
@@ -9955,6 +10417,16 @@ cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/sitio.py docs/tri
 ```
 Expected: `PY-OK`.
 
+- [ ] **Step 7: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/sitio.py
+git commit -m "feat: sitio.py fase 2 — metodos nao-GET, chave explicita e timeout
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+
 ---
 
 ### Task S4-4: `trilha/s4.py` — o script do cartão
@@ -10001,6 +10473,16 @@ Expected: dois arquivos `-rw-------` e `S4PY-OK`.
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/s4.py && echo PY-OK
 ```
 Expected: `PY-OK`.
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/s4.py
+git commit -m "feat: s4.py — cartao da Trilha que instala o sitio.py da fase 2
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
 
 ---
 
@@ -10094,6 +10576,20 @@ cd ~/Workspace/forja/ferramentas/docs/trilha && grep -n 'flock\|teste_s1\|teste_
 Expected: em `deploy.sh`, o `flock -n 9` **antes** da linha do `M=` (guarda de mídia) e dois
 `sitio.py.tmp`; em `cartao.sh`, `teste_s1` e `teste_fila` **entre** a linha do `teste_$t` e o
 `echo "CARTAO $T: APROVADO"`.
+
+- [ ] **Step 7: Commit**
+
+Os dois arquivos vão no **mesmo** commit: o lock do `deploy.sh` e o `teste_fila` do `cartao.sh` são o
+mesmo contrato com a trava do worker, e separá-los deixaria um commit intermediário em que o cartão
+roda o `teste_fila` mas o deploy ainda troca o `sitio.py` sem lock.
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/cartao.sh docs/trilha/deploy.sh
+git commit -m "chore: cartao.sh e deploy.sh — lock, troca por mv e portoes do S4
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
 
 ---
 
@@ -10238,10 +10734,19 @@ novo que já carrega o `sitio.py` da fase 2. O `ls -lt` está aí para o dono co
 
 ```
 cd /opt/agente
-flock /opt/agente/fila_intel.lock sh -c "cp -p $B.sitio sitio.py.tmp && mv sitio.py.tmp sitio.py"
+flock -w 1800 /opt/agente/fila_intel.lock sh -c "cp -p $B.sitio sitio.py.tmp && mv sitio.py.tmp sitio.py" || echo 'PARE: lock ocupado por 30 min — nada foi trocado'
 ```
-Literal do spec. Como o Step 1 já imprimiu `LOCK-LIVRE`, o `flock` aqui pega a trava na hora; se ele
-pendurar, o dono corta com Ctrl-C e volta ao Step 1 (`pgrep -af fila_intel.py`).
+
+O `-w 1800` e a mensagem própria seguem a regra do §4.6 ("nenhum `flock` de shell espera sem limite"),
+no mesmo molde dos comandos de instalação e de volta do worker. O §5 do spec traz este comando **seco**;
+o dono normalizou, e a correção vai para a v12 do spec. A razão: depois do F4 o cron está vivo e uma
+execução segura a trava por até 25 min, e um `flock` sem limite pendura o rollback sem dizer por quê —
+no meio de um rollback, que é o pior momento possível.
+
+O `LOCK-LIVRE` do Step 1 continua valendo e não é redundante: ele mostra ao dono que a execução em curso
+**terminou** antes de ele começar a mexer nos arquivos, enquanto o `-w 1800` aqui é só a rede de
+proteção para o caso de uma execução nova ter entrado entre um passo e outro. Se sair a mensagem
+`PARE:`, nada foi trocado — o dono volta ao Step 1.
 
 - [ ] **Step 4: Reiniciar o proxy sem sudo, esperando o PID mudar**
 
@@ -10289,6 +10794,17 @@ bash -n ~/Workspace/forja/ferramentas/docs/trilha/cartao.sh && echo SH-OK
 ```
 Expected: `0` e `SH-OK`. (`sed -i ''` é a forma do BSD sed do macOS; na forja, GNU, é `sed -i` seco.)
 
+O kit está sob git, então a retirada vira commit — é ele que deixa registrado **por que** a linha saiu,
+e é o que o `git log docs/trilha/cartao.sh` vai mostrar a quem for escrever o S5:
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/cartao.sh
+git commit -m "chore: rollback do S4 — tira o teste_fila do cartao.sh
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+
 - [ ] **Step 8: Conferência final, por leitura**
 
 ```bash
@@ -10299,7 +10815,10 @@ Depois disto, o rollback segue para o **F0** (§5 do spec), que é do dono e nã
 
 ---
 
-### Lacunas e divergências achadas (levar ao dono antes de executar)
+### Lacunas e divergências achadas
+
+As nº 1 e nº 2 estão na lista de patches da **v12 do spec**; a nº 4 já virou decisão do dono e está
+aplicada acima. As demais continuam abertas.
 
 1. **`FalhaSite(caminho, …)` do tipo `sem_chave`** (§4.6, bullet "Com `fase=2`"): o primeiro posicional
    de `FalhaSite` é `tipo`, não `rota`. Este plano escreve `FalhaSite("sem_chave", caminho)`, igual ao
@@ -10310,9 +10829,10 @@ Depois disto, o rollback segue para o **F0** (§5 do spec), que é do dono e nã
    muda o portão do F0k; só usa o Mac como loop de TDD.
 3. **2xx que não seja 200/204** não aparece na tabela do §4.6. O `_falha2` os manda para `recusa`
    (fecha). Se o dono quiser outro tratamento, é uma linha.
-4. **`flock` sem limite no rollback do S4** (§5): o §4.6 diz que "nenhum `flock` de shell desta seção
-   espera sem limite", e o rollback do F4 usa `-w 1800`, mas o comando do rollback do S4 no §5 é `flock`
-   seco. O plano reproduz o literal do spec e protege o dono com o `LOCK-LIVRE` do Step 1.
+4. ~~`flock` sem limite no rollback do S4~~ — **resolvida: o dono decidiu normalizar** (19/09). O
+   comando do Step 3 da Task S4-7 leva `-w 1800` e mensagem própria, como manda o §4.6; o §5 do spec
+   é corrigido na v12. Razão registrada no próprio passo: depois do F4 o cron está vivo, uma execução
+   segura a trava por até 25 min, e um `flock` sem limite pendura o rollback sem dizer por quê.
 5. **O S4 depende do F0k/K terem levado `fila_intel.py` e `teste_fila.py`.** O §5 lista o S4 depois do
    K, mas a dependência não está escrita na célula do S4 — e o bloco novo do `cartao.sh` **falha** o
    cartão sem eles. Está nas pré-condições deste card.
@@ -10349,7 +10869,18 @@ Cobre o bloco **Segredo** e o **Kit da chave** do §4.6 do spec, a linha **F1** 
 - **Escrita na forja é do dono.** Nenhum agente roda `ssh forja '<escreve>'`, `scp` para a forja, `install`, `mv`, `crontab -` ou `nova_chave.py` lá. Conferência por leitura (`ssh forja '<comando de leitura>'`) é permitida.
 - **Banco de produção: só leitura pelo agente**, e só por `cd ~/Workspace/bythiagofigueiredo && npx --yes supabase@2.98.2 db query --linked --agent=no "<select>"`. Todo `insert`/`update` — inclusive o do seed e o do rollback — é comando **preparado** para o dono.
 - **O valor da chave nunca aparece em argv, env do cron, log, exceção ou saída de comando.** Onde este plano mostra um comando, ele mostra o **SHA-256** ou nada. O SHA não é segredo; a chave é.
-- **`~/Workspace/forja` não é repositório git** (`git -C ~/Workspace/forja status --short` → `fatal: not a git repository`). Onde as tarefas do F0 dizem "commit", aqui se diz **"salvar o arquivo"**. Nada de `git init` — a decisão de versionar a forja não é deste card.
+- **`~/Workspace/forja/ferramentas` é repositório git desde 19/09** (commit inicial `ec51833`, 116 arquivos, árvore limpa; `.gitignore` com `__pycache__/` e `*.pyc`). O `.git` fica em `ferramentas/`, **fora de `docs/`**: o `scp -r docs/...` do card K não o leva e o portão `KIT-IGUAL` não o vê. Repositório **local, sem remoto e sem push**. Toda tarefa de código deste card termina em `git commit` com mensagem `tipo: descrição curta`.
+- **`git add` sempre por caminho explícito.** Nunca `git add -A`, `git add .` nem `git add fase2/`: o `fase2/` também recebe a `fixture_pt.json` (F0.5) e o `sombra-f2/` (F2), que são dado real trazido da forja e não são deste card.
+- **Nada do que roda na forja vira commit.** `/opt/agente/*` e `/etc/default/proxy-agente` continuam fora de qualquer repositório — o `fila_intel.env`, o `fila_intel.py` instalado e os `.bak` de `/opt/agente` são estado de máquina, não de kit.
+
+### A regra do segredo num repositório de verdade
+
+O repositório é local e sem remoto **hoje**. Um `git init` costuma virar `git remote add` meses depois, e o histórico vai junto: uma chave commitada não sai do histórico com um `rm`. Por isso, e porque este é o único card cujos testes mexem com chaves:
+
+- **Nenhum arquivo versionado contém uma chave real** — nem em fixture, nem em exemplo, nem em saída esperada de teste. Onde um teste precisa de algo com a forma de chave, usa a **sentinela sintética** `SENT = "forja_" + "A" * 43`, que casa `^forja_[A-Za-z0-9_-]{43}$` e não é chave de nada. É o único literal com a forma `forja_…` que entra no repositório.
+- **Chave de verdade só existe em dois lugares:** dentro de `/opt/agente/fila_intel.env` na forja (0600, fora de repositório) e, por instantes, na memória do `nova_chave.py --fila`, que a apaga com `del chave` sem nunca imprimi-la. Nos testes, o `nova_chave.py` gera chaves reais — mas sempre dentro de um `tempfile.mkdtemp()`, que morre com o teste e nunca esteve sob o `ferramentas/`.
+- **Nada a acrescentar ao `.gitignore`:** conferido arquivo por arquivo, os três testes deste card escrevem **só** em `tempfile.mkdtemp()` / `mktemp -d` — `teste_leitor_env.py` (`RAIZ`), `teste_nova_chave_fila.py` (`novo_base`) e `teste_seed_fila.sh` (`RAIZ`, mais um `npx` falso e um SHA de `a`/`b` repetidos, sem chave nenhuma). Nenhum deixa `.env`, log ou fixture dentro da árvore. O único resíduo é `__pycache__/`, que o `.gitignore` do commit inicial já cobre.
+- **Antes de cada commit deste card**, o passo de commit roda uma varredura no que está *staged* — não no disco inteiro — e recusa qualquer coisa com a forma de chave que não seja a sentinela.
 
 ### Mapa de arquivos
 
@@ -10416,7 +10947,10 @@ def ler_default(caminho):
 3. `--sombra` lê deste arquivo **só** `canais` (rótulo do arquivo de sombra) e ignora `chave`/`motivo`: ali a falta de `SITIO_CHAVE_FILA` **não** é `config`. `--escolher` não chama este leitor.
 4. `--canario` usa `ler_env_fila` para a chave da fila (com a checagem do item 2) e `ler_default` para a `{read}`.
 5. **O módulo não toca em `httpx` na importação** — só `import httpx`, e todo uso fica dentro de função. É o que já exige "importar o módulo não tem efeito colateral" (§4.1, Lock), e é o que deixa o `teste_leitor_env.py` carregá-lo no Mac com o stub `docs/trilha/st/httpx.py` (`class AsyncClient: pass`).
-6. Asserção que o harness do `teste_fila.py` acrescenta ao caso do caminho normal:
+6. **`ler_config()` chama `ler_env_fila` como global do módulo** — `ler_env_fila(ENV_FILA)`, nunca
+   `from fila_intel import ler_env_fila` nem um alias local. Com o import por nome, o monkey-patch do
+   item 7 conta zero e a asserção de "uma chamada por execução" passa por omissão, provando nada.
+7. Asserção que o harness do `teste_fila.py` acrescenta ao caso do caminho normal:
 
 ```python
 _orig = FI.ler_env_fila
@@ -10666,9 +11200,21 @@ python3 -m py_compile ~/Workspace/forja/ferramentas/docs/trilha/fila_intel.py &&
 ```
 Expected: `leitor de segredos: 0 falha(s)`, saída 0, e `COMPILA`.
 
-- [ ] **Step 5: Salvar e avisar o agente do laço**
+- [ ] **Step 5: Commit**
 
-`~/Workspace/forja` não é repositório git — só salvar os dois arquivos. No relato da tarefa, repetir as três assinaturas e os seis itens do **Contrato com o agente do laço**, para que o `teste_fila.py` nasça já com a asserção de "uma chamada por execução".
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/fila_intel.py fase2/teste_leitor_env.py
+git diff --cached | python3 -c "import re,sys;S='forja_'+'A'*43;a={m for m in re.findall(r'forja_[A-Za-z0-9_-]{43}',sys.stdin.read()) if m!=S};print('PARE: literal com forma de chave no staged (%d)'%len(a) if a else 'SEM-CHAVE-NO-STAGED');sys.exit(1 if a else 0)"
+git commit -m "feat: leitor do fila_intel.env e do proxy-agente no fila_intel.py
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Expected: `SEM-CHAVE-NO-STAGED` e depois o commit. A varredura olha **só o que está staged** e só recusa um literal com a forma `forja_<43>` que não seja a sentinela — se ela imprimir `PARE:`, desfaça com `git restore --staged docs/trilha/fila_intel.py fase2/teste_leitor_env.py` e ache de onde veio o valor antes de qualquer commit.
+
+- [ ] **Step 6: Avisar o agente do laço**
+
+No relato da tarefa, repetir as três assinaturas e os **sete** itens do *Contrato com o agente do laço* — em especial o item 6 (`ler_env_fila` como global do módulo) e o 7 (a asserção de "uma chamada por execução"), sem os quais o `teste_fila.py` nasce passando por omissão.
 
 ---
 
@@ -10863,9 +11409,19 @@ python3 -m py_compile ~/Workspace/forja/ferramentas/docs/trilha/nova_chave.py &&
 ```
 Expected: `nova_chave --fila: 0 falha(s)`, saída 0, e `COMPILA`.
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Commit**
 
-Salvar os dois arquivos (sem git neste diretório). O `nova_chave.py` é arquivo do kit: ele vai à forja pelo **K**, e o portão `KIT-IGUAL` compara o md5 dos dois lados.
+O `nova_chave.py` é arquivo do kit: ele vai à forja pelo **K**, e o portão `KIT-IGUAL` compara o md5 dos dois lados — o commit é do lado Mac e não muda esse md5.
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/nova_chave.py fase2/teste_nova_chave_fila.py
+git diff --cached | python3 -c "import re,sys;S='forja_'+'A'*43;a={m for m in re.findall(r'forja_[A-Za-z0-9_-]{43}',sys.stdin.read()) if m!=S};print('PARE: literal com forma de chave no staged (%d)'%len(a) if a else 'SEM-CHAVE-NO-STAGED');sys.exit(1 if a else 0)"
+git commit -m "feat: nova_chave.py --fila gera a chave da fila fora do ambiente do proxy
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Expected: `SEM-CHAVE-NO-STAGED` e depois o commit. A varredura olha **só o que está staged** e só recusa um literal com a forma `forja_<43>` que não seja a sentinela — se ela imprimir `PARE:`, desfaça com `git restore --staged docs/trilha/nova_chave.py fase2/teste_nova_chave_fila.py` e ache de onde veio o valor antes de qualquer commit.
 
 ---
 
@@ -11098,9 +11654,19 @@ bash -n ~/Workspace/forja/ferramentas/seed_chave_forja.sh && echo SH-OK
 ```
 Expected: `seed fila: 0 falha(s)`, saída 0, e `SH-OK`. **Nenhuma** destas linhas fala com o banco: o `npx` falso está na frente do `PATH` e o teste confere que as formas recusadas nem chegam a chamá-lo.
 
-- [ ] **Step 5: Salvar**
+- [ ] **Step 5: Commit**
 
-Salvar os dois arquivos. O `seed_chave_forja.sh` fica **fora do kit** (mora em `ferramentas/`, é 0644 e roda no Mac) — o `scp -r trilha` do K não o leva, e ele não entra no `KIT-IGUAL`.
+O `seed_chave_forja.sh` fica **fora do kit** (mora em `ferramentas/`, é 0644 e roda no Mac) — o `scp -r trilha` do K não o leva, e ele não entra no `KIT-IGUAL`. Versionado ele fica, porque é ele que escreve no banco de produção.
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add seed_chave_forja.sh fase2/teste_seed_fila.sh
+git diff --cached | python3 -c "import re,sys;S='forja_'+'A'*43;a={m for m in re.findall(r'forja_[A-Za-z0-9_-]{43}',sys.stdin.read()) if m!=S};print('PARE: literal com forma de chave no staged (%d)'%len(a) if a else 'SEM-CHAVE-NO-STAGED');sys.exit(1 if a else 0)"
+git commit -m "feat: seed_chave_forja.sh aceita a forma fila <sha>
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Expected: `SEM-CHAVE-NO-STAGED` e depois o commit. A varredura olha **só o que está staged** e só recusa um literal com a forma `forja_<43>` que não seja a sentinela — se ela imprimir `PARE:`, desfaça com `git restore --staged seed_chave_forja.sh fase2/teste_seed_fila.sh` e ache de onde veio o valor antes de qualquer commit.
 
 ---
 
@@ -11368,10 +11934,18 @@ Esperado: `ativas = 0` e `No such file or directory`. Qualquer outra coisa repro
 à forja (`PULSO-IGUAL`). Três passos do dono, nesta ordem: (1) execução manual sobre a task PT
 pendente; (2) a linha do crontab; (3) o check `URL_FILA` no healthchecks e a regra no `pulso.sh` vivo.
 
-**`~/Workspace/forja` não é repositório git** (`git -C ~/Workspace/forja status --short` →
-`fatal: not a git repository`). Nenhum passo deste card faz commit dos arquivos da forja: onde o card
-F0 diria "Commit", aqui se diz **salvar o arquivo**. Só o próprio plano (este arquivo, em
-`docs/superpowers/plans/` do repo do site) é commitado, com `--no-verify` (regra de plano/doc).
+**O kit está sob git.** `~/Workspace/forja/ferramentas` é repositório desde `ec51833`
+(*chore: estado do kit antes da fase 2a*), 116 arquivos rastreados, árvore limpa, `.gitignore` com
+`__pycache__/` e `*.pyc`. O `.git` fica em `ferramentas/`, **fora de `docs/`** — o `scp -r
+sitio.py trilha` do card `K` não o leva e o portão md5 não o vê. `ferramentas/fase2/`, onde moram
+`pulso_f4.py` e `teste_pulso_fila.py`, está coberto.
+
+Portanto: **toda tarefa de código deste card termina em `git commit`**, no padrão `tipo: descrição
+curta`, **repositório local — sem remoto e sem push**, com `git add` por **caminho explícito**
+(nunca `git add -A`/`.`). Não se faz cópia `.bak`/`.bak-fase2` no Mac: o histórico é o backup.
+O `cp -p pulso.sh pulso.sh.bak-F4` da Task F4-5 é **outra coisa** e continua — ele protege o arquivo
+**vivo na forja**, que git nenhum cobre. O plano em si (este arquivo, em `docs/superpowers/plans/`
+do repo do site) é commitado à parte, com `--no-verify` (regra de plano/doc).
 
 ### O que o `pulso.sh` vivo é hoje
 
@@ -11435,27 +12009,50 @@ as condições 3 e 4 disparam juntas e o spec manda sair `fila-parada:chave`, lo
 | # | Condição | Motivo |
 |---|---|---|
 | 0 | qualquer exceção do `python3 -` embutido | `fila-leitura-<Tipo>` |
-| 1 | mtime de `fila_intel.jsonl` > 70 min; **arquivo ausente conta como vermelho** | `fila-jsonl-<n>s` / `fila-jsonl-ausente` ⚠️ |
+| 1 | mtime de `fila_intel.jsonl` > 70 min; **arquivo ausente conta como vermelho** | `fila-jsonl-<n>s` / `fila-jsonl-ausente` |
 | 2 | a linha `modo: cron` mais recente tem `desfecho` em (`chave`, `config`) | `fila-parada:<desfecho>` |
-| 3 | a linha `modo: cron` mais recente **com `task` não nulo** tem < 24 h e não é `ok` | `fila-task-<desfecho>` ⚠️ |
+| 3 | a linha `modo: cron` mais recente **com `task` não nulo** tem < 24 h e não é `ok` | `fila-task-<desfecho>` |
 | 4 | nenhuma linha `modo: cron` das últimas 24 h tem `claim` em (200, 204) | `fila-sem-claim-24h:<desfecho>` · `…:<desfecho>:<motivos[0]>` quando o desfecho é `ocupado` · `fila-sem-claim-24h:nenhuma` sem nenhuma linha `cron` em 24 h |
 
-⚠️ **Lacuna do spec:** o §6 nomeia só `fila-parada:`, `fila-sem-claim-24h:` e `fila-leitura-`. Os
-motivos das condições 1 e 3 (`fila-jsonl-*`, `fila-task-*`) são **proposta deste plano**, no molde do
-`nas-estado-${idade}s` / `nas-estado-ausente` do próprio `pulso.sh` (`:41-46`). Confirmar com o dono
-antes do passo (3); se ele preferir outros nomes, mudam duas linhas do `BLOCO` e duas do harness.
+**C1 — nomes dos motivos (decidido pelo dono, 20/09).** O §6 nomeia só `fila-parada:`,
+`fila-sem-claim-24h:` e `fila-leitura-`. Os das condições 1 e 3 são **`fila-jsonl-<n>s` /
+`fila-jsonl-ausente`** e **`fila-task-<desfecho>`**, no molde do `nas-estado-${idade}s` /
+`nas-estado-ausente` do próprio `pulso.sh` (`:41-46`). A idade fica em **segundos**, não em minutos:
+`fila-jsonl-4500s` se lê pior que `fila-jsonl-75min`, mas a consistência com o `nas-estado-${idade}s`
+que o pulso já usa vale mais do que dois dígitos num alerta lido com sono.
 
-**Custo do bloco no pulso principal.** Ele roda **antes** do ping principal (é inserido antes da
-linha 78). No pior caso — healthchecks fora do ar — são 5 tentativas de `curl -m 20` mais os
-`sleep 10/20/30/40/50`: ~4,2 min a mais antes do ping principal. O check principal tem período de
-1 h, então a folga cobre com sobra; é o preço de usar "as mesmas tentativas do pulso" (§6). Se o
-`curl` da fila falhar nas 5, **nada é registrado** — só o próprio check `URL_FILA` fica atrasado.
-⚠️ O §6 não diz o que fazer nesse caso; este plano não acrescenta motivo, para não pintar de
-vermelho uma falha de rede que o healthchecks já pega pelo atraso.
+**C2 — precedência (decidida pelo dono, 20/09).** A ordem acima é normativa: se não dá para ler o
+arquivo, não se sabe nada; se o cron morreu, as outras três leem linhas velhas; e `parada`
+(`chave`/`config`) é falha **permanente**, mais acionável que "não clamou". Ela está escrita **em
+comentário dentro do `BLOCO`**, logo acima do encadeamento (Task F4-1, Step 3), porque no shell ela
+é implícita e sumiria no primeiro refactor. O caso `chave` do `teste_pulso_fila.py` prende o
+comportamento; o comentário é para quem for ler o shell daqui a um ano.
+
+**C3 — o custo no ping principal (aceito pelo dono, 20/09).** O bloco roda **antes** do ping
+principal (é inserido antes da linha 78). No pior caso — healthchecks fora do ar — são 5 tentativas
+de `curl -m 20` mais os `sleep 10/20/30/40/50`: **~4,2 min** a mais antes do ping principal. É o
+preço de usar "as mesmas tentativas do pulso" (§6). O argumento que fechou a decisão, registrado
+aqui porque não é óbvio e alguém vai querer "consertar" isto depois:
+
+- **Os dois pings vão para o mesmo host.** Se o `hc-ping.com` está fora, a fila gasta as 5
+  tentativas *e* o principal falha depois de qualquer jeito — o atraso não cria alarme nenhum que
+  já não fosse acontecer. O único caso ruim é o intermitente, e 4,2 min num check de período 1 h
+  cabem em qualquer folga configurada.
+- **Alternativa recusada:** calcular o motivo antes da âncora e pingar a fila **depois** do ping
+  principal zeraria o atraso, mas quebraria o bloco em dois pares de marcadores — e o `--remover`
+  perderia a prova por `cmp -s`, que é justamente o que torna o rollback do F4 confiável.
+- **Saída barata, se o teto um dia incomodar:** cortar as tentativas da fila de 5 para 2 (~1 min de
+  pior caso). É mudar um número no `for tentativa_fila in 1 2 3 4 5` do `BLOCO`.
+
+Se o `curl` da fila falhar nas 5, **nada é registrado** — só o próprio check `URL_FILA` fica
+atrasado. ⚠️ O §6 não diz o que fazer nesse caso; este plano não acrescenta motivo, para não pintar
+de vermelho uma falha de rede que o healthchecks já pega pelo atraso.
 
 **Código conferido.** Os dois scripts deste card foram montados e rodados de ponta a ponta numa
-cópia de `pulso.sh.novo` antes de o plano ser escrito: `F4: 0 falha(s)` nos 16 casos, `bash -n`
-limpo, `py_compile` limpo, e o `cmp -s` do ciclo inserir/`--remover` verde na primeira tentativa.
+cópia de `pulso.sh.novo` antes de o plano ser escrito, e **reconferidos depois do patch de 20/09**
+(comentário de precedência dentro do `BLOCO`): `F4: 0 falha(s)` nos 16 casos, `bash -n` limpo,
+`py_compile` limpo, `cmp -s` do ciclo inserir/`--remover` verde, e as invariantes do Step 5 da Task
+F4-2 dando `1 / 0 / 3 / 0`.
 
 **A conta da margem dos 70 min** (§6, reproduzida aqui porque é o que justifica o `4200`): a linha só
 é escrita no fim da execução (§4.1), uma execução pode durar 25 min, e os tiques de 10 min que pegam o
@@ -11573,6 +12170,16 @@ URL_FILA="@URL@"
 # Check PROPRIO (§6): a fila nunca pinta o check principal. Este bloco mexe em
 # ok_fila e em $motivo, nunca em $ok — uma task reprovada nao pode calar proxy,
 # llama ou esteira caidos por ate 24 h.
+#
+# PRECEDENCIA dos motivos, nesta ordem, e so o primeiro sai (o alarme traz um
+# motivo so):  leitura -> jsonl -> parada -> task -> sem-claim-24h.
+#   leitura  nao deu para ler o arquivo: nao se sabe nada, o resto seria chute
+#   jsonl    o cron morreu: as tres regras abaixo leriam linhas velhas
+#   parada   chave/config: falha PERMANENTE, nada a esperar — por isso vem antes
+#            de task, que costuma disparar junto e e menos acionavel
+#   task     a ultima execucao que clamou nao terminou em ok
+#   sem-claim-24h  ninguem clamou nada nas ultimas 24 h
+# O caso "chave" do teste_pulso_fila.py prende esta ordem; nao reordene sem ele.
 FILA_LOG="${FILA_LOG:-/opt/agente/log/fila_intel.jsonl}"
 fila=$(python3 - "$FILA_LOG" <<'EOF' 2>/dev/null
 # VER F4-2
@@ -11648,10 +12255,16 @@ cd ~/Workspace/forja/ferramentas && python3 -m py_compile fase2/pulso_f4.py fase
 ```
 Expected: `PY-OK` (é a mesma checagem que o laço do card F0k roda sobre o kit inteiro).
 
-- [ ] **Step 5: Salvar o arquivo**
+- [ ] **Step 5: Commit**
 
-`~/Workspace/forja` não é repositório git — não há commit. Basta os dois arquivos salvos em
-`~/Workspace/forja/ferramentas/fase2/`. Nada vai para a forja nesta tarefa (isso é o `K`).
+```bash
+cd ~/Workspace/forja/ferramentas
+git add fase2/pulso_f4.py fase2/teste_pulso_fila.py
+git commit -m "feat: pulso_f4 insere e remove o bloco da fila no pulso.sh
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local, **sem push** (não há remoto). Nada vai para a forja nesta tarefa — isso é o `K`.
 
 ---
 
@@ -11882,12 +12495,20 @@ Expected, nesta ordem: `1` (a âncora continua única), `0` (**nenhuma linha de 
 (nenhum caminho absoluto de binário). O `awk` mostra o marcador, o `URL_FILA="…"` e o comentário,
 nessa ordem — o `URL_FILA=` **tem** de ser a linha logo depois da abertura, é o que o harness troca.
 
-- [ ] **Step 6: Salvar os arquivos e rodar o `py_compile`**
+- [ ] **Step 6: `py_compile` e commit**
 
 ```bash
 cd ~/Workspace/forja/ferramentas && python3 -m py_compile fase2/pulso_f4.py fase2/teste_pulso_fila.py && echo PY-OK
 ```
-Sem commit (`~/Workspace/forja` não é git). Os dois arquivos entram no card `F0k` (o laço de
+```bash
+cd ~/Workspace/forja/ferramentas
+git add fase2/pulso_f4.py fase2/teste_pulso_fila.py
+git commit -m "feat: bloco da fila no pulso com as quatro condicoes de vermelho
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
+Repositório local, **sem push**. `git status --short` deve ficar limpo — o `.gitignore` já cobre o
+`__pycache__/` que o `py_compile` deixa. Os dois arquivos entram no card `F0k` (o laço de
 `py_compile`) e são levados à forja pelo `K` que antecede o F4 (`PULSO-IGUAL`).
 
 ---
@@ -12258,7 +12879,7 @@ Estes cards são os de logística (F0k, K) e de julgamento (F0.5, F2), mais o **
 
 **Terreno conferido em 19/09 (só leitura):**
 
-- `~/Workspace/forja` **não é repositório git** (`fatal: not a git repository`). Não há `git checkout` para desfazer uma edição errada no kit — por isso a Task F0k-1 exige backup em scratchpad antes de alterar arquivo existente.
+- `~/Workspace/forja/ferramentas` **é repositório git** desde 20/09 (`git init` do dono): commit inicial `ec51833` "chore: estado do kit antes da fase 2a", 116 arquivos rastreados, árvore limpa, `.gitignore` com `__pycache__/` e `*.pyc`. O `.git` fica em `ferramentas/`, **fora de `docs/`** — conferido: `ferramentas/docs/.git` não existe, então o `scp -r sitio.py trilha` do card K não o leva e o `find sitio.py trilha -type f` do portão `KIT-IGUAL` não o vê. **O card K não muda por causa disso.** O que muda é o F0k: toda tarefa de código do kit termina em commit, e o portão passa a exigir árvore limpa. O repositório é **local, sem remoto e sem push**.
 - `~/Workspace/forja/ferramentas/fase2/` **não existe** ainda (`ls` → `No such file or directory`). Quem o cria é o `mkdir -p` da Task F0k-1.
 - O kit vive em `~/Workspace/forja/ferramentas/docs/` (`sitio.py`, `replay2.py`, `grill.json`, `midia/`, `trilha/`) e `~/Workspace/forja/ferramentas/docs/trilha/` já tem `cartao.sh`, `deploy.sh`, `nova_chave.py`, `s1.py`…`s3.py`, `teste_s1.py`…`teste_s3.py`, `sitio_falso.py`, `fixtures_site/`, `st/` e um `__pycache__/`.
 - `~/Workspace/forja/ferramentas/seed_chave_forja.sh` está na forma da fase 1 (`$1` = sha256 de 64 hex, nome `forja (so leitura)`, `array['read']`).
@@ -12269,7 +12890,7 @@ Estes cards são os de logística (F0k, K) e de julgamento (F0.5, F2), mais o **
 
 ---
 
-## Card F0k — o kit escrito no Mac (portão)
+### Card F0k — o kit escrito no Mac (portão)
 
 Claude escreve e altera, **no Mac**, os arquivos que o K levará à forja. **Nada é instalado aqui.** O card é, antes de tudo, um **portão**: o bloco "F0k — para colar" do §5 tem de passar sobre os 9 `.py` e os 3 `.sh`, e o inventário tem de estar completo antes de o dono rodar o K.
 
@@ -12294,39 +12915,61 @@ Claude escreve e altera, **no Mac**, os arquivos que o K levará à forja. **Nad
 
 ---
 
-### Task F0k-1: preparar a área do kit e travar o inventário
+### Task F0k-1: pré-condição do repositório, área do kit e inventário
 
 **Files:**
 - Create: `~/Workspace/forja/ferramentas/fase2/` (diretório vazio, por `mkdir -p`)
-- Create: `/private/tmp/claude-501/-Users-figueiredo-Workspace-bythiagofigueiredo/9e4ef126-9796-4af1-98f8-bd072597eeca/scratchpad/kit-backup/` (cópias de segurança dos 4 arquivos alterados)
+- Modify: `~/Workspace/forja/ferramentas/.gitignore` (acrescenta `fase2/fixture_pt.json` e `fase2/sombra-f2/`)
 - Read-only: `~/Workspace/forja/ferramentas/docs/trilha/`, `~/Workspace/forja/ferramentas/seed_chave_forja.sh`
 
 **Interfaces:**
 - Consumes: nada.
-- Produces: `fase2/` criado; backup dos 4 arquivos que serão alterados; a lista de pendências do inventário, que as Tasks F0k-2/3 e os cards do worker, do S4, da chave e do F4 zeram.
+- Produces: pré-condição provada (repositório com árvore limpa); `fase2/` criado; fixture e `sombra-f2/` ignorados (só `fase2/series.json` será versionado, no F0.5); a lista de pendências do inventário, que as Tasks F0k-2/3 e os cards do worker, do S4, da chave e do F4 zeram.
 
-- [ ] **Step 1: Criar `fase2/` e provar que o kit está onde o plano supõe**
+- [ ] **Step 1: Pré-condição — o repositório existe e a árvore está limpa**
+
+O kit é repositório git desde 19/09 (`ec51833`). **Nenhuma linha é escrita com a árvore suja:** começar a fase com mudanças pendentes de outra sessão misturaria trabalho alheio no primeiro commit — e vale aqui a mesma regra do repo do site, **nunca `git stash` nem `git reset --hard`**.
+
+```bash
+git -C ~/Workspace/forja/ferramentas rev-parse --is-inside-work-tree
+git -C ~/Workspace/forja/ferramentas log --oneline -1
+git -C ~/Workspace/forja/ferramentas status --short
+```
+Expected: `true`, uma linha de log (na primeira vez, `ec51833 chore: estado do kit antes da fase 2a`) e o `status --short` **vazio**. Saída não vazia no `status`: **pare** e pergunte ao dono de quem é a mudança pendente. `fatal: not a git repository`: **pare** — o `git init` do dono não está onde este plano supõe, e o backup em scratchpad que este passo substituiu já não existe como rede.
+
+- [ ] **Step 2: Criar `fase2/`, ignorar o que é dado, e provar que o kit está onde o plano supõe**
+
+**O repositório guarda código e decisão curada, não dado puxado da produção.** Aplicado a `fase2/`:
+
+| Arquivo | Git | Por quê |
+|---|---|---|
+| `fase2/series.json` | **versionado** (F0.5) | é a escolha do dono; perdê-la significa refazer o card. Não tem dado de audiência: só slug e nome exibível |
+| `fase2/fixture_pt.json` | **ignorado** | carrega `recent.views` por vídeo — dado da **YouTube Analytics**, não público como título e `view_count` — e é regenerável a qualquer momento por `capturar_fixture.py`. O repositório é local hoje, mas um `git init` vira `git remote add` meses depois, e o histórico vai junto |
+| `fase2/sombra-f2/` | **ignorado** | saída de execução: muda a cada rodada e não é insumo de nada depois do julgamento do F2 |
+
+Custo aceito, dito aqui para não ser lido como esquecimento: a fixture continua **no disco**, então o F2 e o `--escolher` seguem funcionando; o que se perde é recuperá-la por `git checkout` se alguém a apagar — e nesse caso o `capturar_fixture.py` a refaz, com um `congelado_em` novo (e o F2, que compara contra ela, é refeito junto).
 
 ```bash
 mkdir -p ~/Workspace/forja/ferramentas/fase2
-ls -d ~/Workspace/forja/ferramentas/fase2
+for l in 'fase2/fixture_pt.json' 'fase2/sombra-f2/'; do grep -qxF "$l" ~/Workspace/forja/ferramentas/.gitignore || printf '%s\n' "$l" >> ~/Workspace/forja/ferramentas/.gitignore; done
+cat ~/Workspace/forja/ferramentas/.gitignore
 ls ~/Workspace/forja/ferramentas/docs/trilha/cartao.sh ~/Workspace/forja/ferramentas/docs/trilha/deploy.sh ~/Workspace/forja/ferramentas/docs/trilha/nova_chave.py ~/Workspace/forja/ferramentas/seed_chave_forja.sh
 ```
-Expected: o diretório listado e os 4 caminhos existindo. Um `No such file` em qualquer um deles: **pare** — o kit não é o que este plano leu, e o K levaria outra coisa.
+Expected: o `.gitignore` com **quatro** linhas — `__pycache__/`, `*.pyc`, `fase2/fixture_pt.json` e `fase2/sombra-f2/` — e os 4 caminhos do kit existindo. Um `No such file` em qualquer um deles: **pare** — o kit não é o que este plano leu, e o K levaria outra coisa.
 
-- [ ] **Step 2: Backup dos 4 arquivos alterados, FORA do kit**
-
-`~/Workspace/forja` não é repositório git: sem backup, uma edição errada não volta. O backup vai para o scratchpad, **nunca** para `ferramentas/docs/` nem `ferramentas/fase2/` — qualquer arquivo ali dentro entraria no `scp -r` e no md5 do K.
+- [ ] **Step 3: Commit da pré-condição**
 
 ```bash
-D=/private/tmp/claude-501/-Users-figueiredo-Workspace-bythiagofigueiredo/9e4ef126-9796-4af1-98f8-bd072597eeca/scratchpad/kit-backup
-mkdir -p "$D"
-cp -p ~/Workspace/forja/ferramentas/docs/trilha/cartao.sh ~/Workspace/forja/ferramentas/docs/trilha/deploy.sh ~/Workspace/forja/ferramentas/docs/trilha/nova_chave.py ~/Workspace/forja/ferramentas/seed_chave_forja.sh "$D"/
-ls -la "$D"
-```
-Expected: 4 arquivos copiados, com o mtime preservado.
+cd ~/Workspace/forja/ferramentas
+git add .gitignore
+git commit -m "chore: ignora a fixture do PT e a saida de sombra do F2
 
-- [ ] **Step 3: Registrar o inventário e as pendências**
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+git status --short
+```
+Expected: um commit novo e `status --short` vazio. `git add` **sempre por caminho explícito de arquivo**, nunca `git add -A`/`.` e **nunca `git add fase2/`** — o diretório mistura arquivo versionável (`series.json`) com dado real (fixture, sombra), e a frente dos segredos (A5) proíbe o `add` do diretório pelo mesmo motivo. Repositório local: **sem remoto, sem push**.
+
+- [ ] **Step 4: Registrar o inventário e as pendências**
 
 Anotar no relato da tarefa a tabela de inventário acima com uma coluna "estado", preenchida por:
 
@@ -12336,7 +12979,7 @@ for f in docs/trilha/fila_intel.py docs/trilha/teste_fila.py docs/trilha/s4.py d
 ```
 Expected agora: os 8 como `FALTA` (ou os já escritos por outro card como `existe`). O portão da Task F0k-4 só roda com zero `FALTA`.
 
-- [ ] **Step 4: Conferir que nenhum arquivo de dado ficou no kit**
+- [ ] **Step 5: Conferir que nenhum arquivo de dado ficou no kit**
 
 ```bash
 ls ~/Workspace/forja/ferramentas/docs/trilha/fixture_pt.json ~/Workspace/forja/ferramentas/docs/trilha/series.json 2>&1
@@ -12352,8 +12995,8 @@ Expected: `No such file or directory` para os dois. Se algum existir, **apague-o
 - Create: `/private/tmp/claude-501/-Users-figueiredo-Workspace-bythiagofigueiredo/9e4ef126-9796-4af1-98f8-bd072597eeca/scratchpad/teste_capturar_fixture.py` (descartável, **fora do kit** — não entra no `scp` nem no md5)
 
 **Interfaces:**
-- Consumes: Task F0k-1 (backup e inventário).
-- Produces: o script que o dono roda no F0.5, gravando `/opt/agente/docs/trilha/fixture_pt.json` com `congelado_em`, e imprimindo nº de vídeos e `recent_window`.
+- Consumes: Task F0k-1 (árvore limpa e inventário).
+- Produces: o script que o dono roda no F0.5, gravando `/opt/agente/docs/trilha/fixture_pt.json` com `congelado_em`, e imprimindo nº de vídeos e `recent_window`; commitado no kit.
 
 **Decisão de estrutura (com motivo).** `import httpx` fica **dentro de `main()`**, não no topo: o `python3` do Mac não tem `httpx` (§5, portão do F0k), e com o import no topo o teste de scratchpad abaixo não conseguiria nem carregar o módulo. Na forja o script roda sempre por `venv/bin/python`, que tem `httpx` (§4.7).
 
@@ -12519,6 +13162,18 @@ grep -nE "open\(|os\.replace|cli\.(post|patch|put|delete)|X-Pipeline-Key" ~/Work
 ```
 Expected: só os `open()` de leitura do DEFAULT, o `open(tmp, "w")`, o `os.replace` do destino e o header da chave. **Nenhum** `cli.post/patch/put/delete` — o §4.7 exige "só GET".
 
+- [ ] **Step 6: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/capturar_fixture.py
+git commit -m "feat: capturar_fixture.py congela o snapshot do PT (F0.5)
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+git status --short
+```
+Expected: um commit novo e `status --short` vazio. O teste desta tarefa mora no scratchpad e **não** entra no kit nem no commit — não é arquivo do kit e o K não o levaria.
+
 ---
 
 ### Task F0k-3: `sonda_f0.py` — o portão pós-promoção do F0 (TDD)
@@ -12528,7 +13183,7 @@ Expected: só os `open()` de leitura do DEFAULT, o `open(tmp, "w")`, o `os.repla
 - Create: `/private/tmp/claude-501/-Users-figueiredo-Workspace-bythiagofigueiredo/9e4ef126-9796-4af1-98f8-bd072597eeca/scratchpad/teste_sonda_f0.py` (descartável, fora do kit)
 
 **Interfaces:**
-- Consumes: Task F0k-2 (mesmas funções `ler_chave`/`desembrulha`, copiadas — os dois scripts são independentes por decisão do §4.7: nenhum importa o outro nem o `sitio.py`).
+- Consumes: Task F0k-2 (mesmas funções `ler_chave`/`desembrulha`, copiadas — os dois scripts são independentes por decisão do §4.7: nenhum importa o outro nem o `sitio.py`); commitado no kit.
 - Produces: o script do Step 6 da Task 15 (card F0): `GET` snapshot 200 com `recent_window` → `POST …/task/claim` 403 → `PATCH …/intelligence` 403; qualquer outro status imprime `REPROVADO` e sai 1.
 
 - [ ] **Step 1: Escrever o teste que falha**
@@ -12694,6 +13349,18 @@ grep -nE "print|sys.exit" ~/Workspace/forja/ferramentas/docs/trilha/sonda_f0.py 
 ```
 Expected: **nenhuma linha** que interpole `chave`. As únicas menções a `chave` em mensagem são o nome da variável de ambiente, nunca o valor.
 
+- [ ] **Step 6: Commit**
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add docs/trilha/sonda_f0.py
+git commit -m "feat: sonda_f0.py sonda o portao pos-promocao do F0
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+git status --short
+```
+Expected: um commit novo e `status --short` vazio.
+
 ---
 
 ### Task F0k-4: o portão do F0k
@@ -12704,7 +13371,9 @@ Expected: **nenhuma linha** que interpole `chave`. As únicas menções a `chave
 
 **Interfaces:**
 - Consumes: Tasks F0k-1..3 e os cards que escrevem `fila_intel.py`, `teste_fila.py`, `s4.py`, `teste_s4.py`, `pulso_f4.py`, `teste_pulso_fila.py`, `nova_chave.py`, `cartao.sh`, `deploy.sh`, `seed_chave_forja.sh`.
-- Produces: kit compilável, pronto para o K. **Sem este portão verde, o dono não roda o K.**
+- Produces: kit compilável **e inteiramente versionado**, pronto para o K. **Sem este portão verde, o dono não roda o K.**
+
+**O portão tem três partes:** inventário completo (Step 1), o bloco "F0k — para colar" do §5 (Step 2) e **árvore limpa ao fim** (Step 5). A terceira pega o que as outras duas não pegam: um arquivo novo do kit que ninguém lembrou de `git add` compila igual e o `scp -r` do K o levaria assim mesmo, sem estar versionado — e aí a única cópia dele passa a ser a da forja.
 
 - [ ] **Step 1: Zero pendências no inventário**
 
@@ -12736,20 +13405,30 @@ Expected: `ModuleNotFoundError: No module named 'httpx'`. Se **não** der erro, 
 
 - [ ] **Step 4: Limpar o `__pycache__` que o `py_compile` deixou**
 
-O `py_compile` grava `__pycache__/` ao lado dos arquivos. O `find` do portão do K já o exclui (`! -path '*__pycache__*'`), mas o `scp -r` do K **leva** o diretório. Limpar mantém a forja igual ao Mac:
+O `py_compile` grava `__pycache__/` ao lado dos arquivos. O `.gitignore` do kit já o mantém fora do git (`__pycache__/`, `*.pyc`) e o `find` do portão do K já o exclui (`! -path '*__pycache__*'`), mas o `scp -r` do K **leva** o diretório. Limpar mantém a forja igual ao Mac:
 
 ```bash
 find ~/Workspace/forja/ferramentas/docs ~/Workspace/forja/ferramentas/fase2 -name __pycache__ -type d -print -exec rm -rf {} +
 ```
 Expected: os `__pycache__` listados e removidos (ou saída vazia).
 
-- [ ] **Step 5: Entregar ao dono a lista do K**
+- [ ] **Step 5: Árvore limpa — todo arquivo do kit commitado ou ignorado de propósito**
 
-Anotar no relato: portão verde, os 12 arquivos do inventário, e a observação de que o `scp` de `fase2/` (Task K-2) só é necessário no K **que antecede o F4**.
+```bash
+cd ~/Workspace/forja/ferramentas
+git status --short
+git status --short --ignored | grep '^!!' || echo '(nada ignorado)'
+git log --oneline "$(git rev-list --max-parents=0 HEAD)"..HEAD
+```
+Expected: `git status --short` **vazio**; a lista de ignorados só com `__pycache__`/`.pyc`, `fase2/fixture_pt.json` e `fase2/sombra-f2/`; e o log mostrando os commits da fase 2a (um por tarefa de código do kit). Qualquer linha `??` (arquivo novo não rastreado) ou ` M` (modificado não commitado) **reprova o portão** — commite por caminho explícito, ou acrescente ao `.gitignore` se for saída de execução, e rode o Step 5 de novo.
+
+- [ ] **Step 6: Entregar ao dono a lista do K**
+
+Anotar no relato: portão verde nas três partes, os 12 arquivos do inventário, o SHA do último commit do kit, e a observação de que o `scp` de `fase2/` (Task K-2) só é necessário no K **que antecede o F4**.
 
 ---
 
-## Card K — o dono leva o kit à forja
+### Card K — o dono leva o kit à forja
 
 Dono, no Mac. Roda **antes do portão pós-promoção do F0** e de novo **sempre que o kit mudar**. Claude prepara as linhas; o dono cola. A conferência depois é por leitura.
 
@@ -12863,11 +13542,11 @@ Esperado: os dois hashes **iguais** antes e depois do K. Diferença no `fixture_
 
 - [ ] **Step 3: Anotar a regra no relato**
 
-"`fixture_pt.json` e `series.json` nunca entram em `ferramentas/docs/trilha/`." Esta é a única defesa: não há `.gitignore` a proteger — `~/Workspace/forja` não é repositório git.
+"`fixture_pt.json` e `series.json` nunca entram em `ferramentas/docs/trilha/`." O lugar dos dois é `ferramentas/fase2/` (card F0.5), que o `scp -r sitio.py trilha` do K não alcança — e lá só o `series.json` é versionado; a fixture fica ignorada. O git do kit **não** substitui esta guarda: ele preserva a cópia do Mac, não a da forja — se a fixture entrasse no kit, o K a sobrescreveria na forja e o git nem notaria.
 
 ---
 
-## Card F0.5 — a fixture do PT e a escolha das séries
+### Card F0.5 — a fixture do PT e a escolha das séries
 
 Dono + Claude, **depois** do portão pós-promoção do F0 (a fixture tem de vir do build novo: sem ele não há `recent_window`). Portões da célula F0.5 do §5: **fixture com 35 vídeos e `recent_window` não nulo · `series.json` e lista conferidos**.
 
@@ -12925,6 +13604,8 @@ Esperado: `0`.
 mkdir -p ~/Workspace/forja/ferramentas/fase2 && scp forja:/opt/agente/docs/trilha/fixture_pt.json ~/Workspace/forja/ferramentas/fase2/
 ```
 Esperado: um arquivo transferido. O destino é `fase2/`, **nunca** `docs/trilha/` (Task K-3).
+
+A fixture **nunca é versionada** (`.gitignore`, Task F0k-1): ela traz `recent.views` por vídeo, que é dado da YouTube Analytics, e o `capturar_fixture.py` a refaz quando preciso. Então o `git status --short` do kit continua **vazio** depois deste passo — nem `??` ela produz. Se ela aparecer como `??`, o `.gitignore` não tem a linha `fase2/fixture_pt.json`: volte à Task F0k-1 antes de seguir.
 
 - [ ] **Step 2 (Claude): conferir a cópia contra a origem**
 
@@ -12993,7 +13674,7 @@ Ao dono, em uma frase cada:
 ### Task F05-4: escrever o `series.json` no Mac
 
 **Files:**
-- Create: `~/Workspace/forja/ferramentas/fase2/series.json` (fora do kit)
+- Create: `~/Workspace/forja/ferramentas/fase2/series.json` (fora do kit, **versionado** no Step 5 — e é o **único** arquivo de `fase2/` que entra no git)
 - Create: `/private/tmp/claude-501/-Users-figueiredo-Workspace-bythiagofigueiredo/9e4ef126-9796-4af1-98f8-bd072597eeca/scratchpad/valida_series.py` (descartável)
 
 **Interfaces:**
@@ -13083,6 +13764,21 @@ Esperado: `FALHAS: 0 []`, cada slug com "maduros e visiveis ≥ 3" marcado `seri
 
 O dono confere: (a) o agrupamento é o que ele escolheu; (b) nenhum vídeo que ele considera da série ficou fora; (c) os nomes exibíveis estão como ele quer. **Pare** até o "conferido".
 
+- [ ] **Step 5: Commit do `series.json` — só ele —, depois do "conferido"**
+
+O `series.json` é a **curadoria do dono**: perdê-lo significa refazer o card inteiro, e ele não tem dado de audiência (só slug e nome exibível). A `fixture_pt.json` **não** entra no commit: ela carrega `recent.views` por vídeo, que é dado da YouTube Analytics, e é regenerável por `capturar_fixture.py` — está no `.gitignore` desde a Task F0k-1. Os dois ficam **fora do kit**, em `ferramentas/fase2/`, então o `scp -r trilha` do K segue sem levá-los (Task K-3).
+
+```bash
+cd ~/Workspace/forja/ferramentas
+git add fase2/series.json
+git commit -m "feat: series.json do PT conferido pelo dono no F0.5
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+git show --stat --oneline HEAD
+git status --short
+```
+Expected: um commit com **exatamente um** arquivo (`fase2/series.json`) no `--stat`, e `status --short` vazio — a fixture não aparece nem como `??`, porque está ignorada. Se `fase2/fixture_pt.json` aparecer no `--stat`, **desfaça** (`git reset --soft HEAD~1 && git restore --staged fase2/fixture_pt.json`) e confira o `.gitignore` da Task F0k-1. O commit vem **depois** do "conferido" do Step 4: versionar antes gravaria uma curadoria que o dono ainda não aprovou. `git add` por caminho de arquivo — **nunca `git add fase2/`**.
+
 ---
 
 ### Task F05-5: levar o `series.json` à forja e conferir por `--escolher`
@@ -13129,7 +13825,7 @@ Anotar no relato: leitura escolhida, slugs e nomes, os números do padrão, `con
 
 ---
 
-## Card F2 — sombra: 3 rodadas e o julgamento do dono
+### Card F2 — sombra: 3 rodadas e o julgamento do dono
 
 O dono roda na forja; Claude lê no Mac. **Nada é gravado no site**: o `--sombra` não clama, não dá PATCH e não dá `fail` (§4.7). Portões: todos os da célula F2 do §5.
 
@@ -13163,6 +13859,8 @@ mkdir -p ~/Workspace/forja/ferramentas/fase2/sombra-f2
 scp $(ssh forja 'cd /opt/agente/sombra && ls -t PT-*.json | head -3' | sed 's#^#forja:/opt/agente/sombra/#') ~/Workspace/forja/ferramentas/fase2/sombra-f2/
 ```
 Esperado: 3 arquivos transferidos, com nomes `PT-%Y%m%dT%H%M%S.json` (sem `:`, que o scp trataria como host). Menos de 3 reprova: alguma rodada saiu por `ocupado`/`chat`/`llama_fora` e tem de ser repetida.
+
+`fase2/sombra-f2/` está no `.gitignore` do kit (Task F0k-1): os arquivos de sombra são saída de execução, mudam a cada rodada e não são insumo de nada depois do julgamento do F2 — então **não** são commitados, e o `git status --short` do kit continua vazio durante todo este card. O que fica registrado da sombra é o relato da Task F2-5 (os 3 `summary`, `tentativas`, tempos e os md5).
 
 - [ ] **Step 3 (Claude, leitura): conferir que são as três rodadas certas**
 
@@ -13441,7 +14139,7 @@ Anotar no relato: data, os 3 `summary` aprovados, `tentativas` de cada, os tempo
 
 ---
 
-## Rollback do F0 (RB0)
+### Rollback do F0 (RB0)
 
 Último passo da ordem inversa `F4 → Qualidade → F1 → S4 → F0` (§5). **Os dois passos são do dono**: o agente só prepara os comandos e confere por leitura.
 
@@ -13591,19 +14289,45 @@ O spec v11 é a fonte da verdade e passou por 10 rodadas de revisão. Ao transfo
 | B16 | §5, F2 | quais são os "campos numéricos idênticos" nas 3 rodadas | o payload inteiro menos `coaching.summary` — decorre da decisão A e é estritamente mais forte |
 | B17 | §5, F0 | "200 com `recent_window`" × `recent_window: null` legítimo (§3.5) | a sonda reprova por **ausência da chave** (prova do build novo) e só avisa no valor nulo; quem reprova nulo é o portão do F0.5 |
 
-## C. Decisões que esperam o dono **[DONO]**
+## C. Decisões tomadas pelo dono em 2026-09-20
 
-| # | Assunto | Situação | Proposta |
+As seis que o plano deixou em aberto foram decididas. Ficam registradas com o argumento, não só com o veredito, para ninguém "consertá-las" depois sem saber por que estão assim.
+
+| # | Assunto | Decisão | Argumento |
 |---|---|---|---|
-| C1 | §6, motivos de alerta | O §6 nomeia `fila-parada:`, `fila-sem-claim-24h:` e `fila-leitura-`. As outras **duas** condições de vermelho — "mtime > 70 min / arquivo ausente" e "última cron com task, < 24 h, não-`ok`" — **não têm motivo nomeado** | `fila-jsonl-<n>s` / `fila-jsonl-ausente` e `fila-task-<desfecho>`, no molde do `nas-estado-*` que o pulso já usa |
-| C2 | §6, precedência | O spec não ordena as quatro condições, mas o teste exige "um `MOTIVO` e nada mais". `desfecho: chave` dispara duas ao mesmo tempo e tem de sair `fila-parada:chave` | exceção → mtime → parada → task → sem-claim-24h |
-| C3 | §6, custo colateral | Se as 5 tentativas de `curl` da fila falharem, o bloco **atrasa o ping do check principal em até ~4,2 min**. Ele não toca em `ok`, então não pinta o principal de vermelho — mas atrasa | aceitar, ou mandar o ping da fila para segundo plano |
-| C4 | §4.3, coorte fina | Coorte com menos de 4 vídeos não vira padrão, mas **não tem motivo nomeado** no log, ao contrário do `padrao_neutro` — um canal some do padrão em silêncio | acrescentar `coorte_fina` aos `motivos` |
-| C5 | §4.1, `/slots` | O spec descreve "JSON sem exatamente 2 slots" sem dizer que o corpo é uma lista | assumido lista de 2 dicts; **confirmar no F1 contra o llama real** antes de confiar na guarda |
-| C6 | kit sem git | `ferramentas/` está fora de qualquer repositório; a mitigação deste plano é `cp -p` para `.bak-fase2` antes de cada edição | opcional: `git init` em `~/Workspace/forja/ferramentas` antes do F0k, o que daria desfazer de verdade |
+| C1 | §6, motivos de alerta | `fila-jsonl-<n>s` / `fila-jsonl-ausente` e `fila-task-<desfecho>` | molde do `nas-estado-${idade}s` que o pulso já usa. Segundos, não minutos: consistência com o arquivo vale mais que dois dígitos num alerta lido com sono |
+| C2 | §6, precedência | `exceção → mtime → parada → task → sem-claim-24h`, **escrita como comentário** acima do encadeamento | se não dá para ler o arquivo não se sabe nada; se o cron morreu, as outras três leem linhas velhas; `parada` (chave/config) é falha permanente, mais acionável que "não clamou". O comentário existe porque a ordem é implícita no shell e some no primeiro refactor |
+| C3 | §6, custo colateral | **aceito** o atraso de até ~4,2 min no ping principal | o ping da fila e o principal vão para o **mesmo host**: se o hc-ping.com está fora, o principal falha depois de qualquer jeito, e o atraso não cria alarme que já não aconteceria. O caso ruim é só o intermitente, e 4,2 min num check de 1 h cabem em qualquer folga. **Recusado** pingar a fila depois do principal: zeraria o atraso, mas quebraria o bloco em dois pares de marcadores e o `--remover` perderia a prova por `cmp -s`. Se um dia o teto incomodar, a versão barata é cortar as tentativas da fila de 5 para 2 (~1 min) |
+| C4 | §4.3, coorte fina | entra o motivo **`coorte_fina`** | sem ele, "nenhum padrão por coorte fina" é indistinguível de "nenhum padrão por canal saudável": `desfecho: ok`, nenhum padrão, nada que explique. E acontece de verdade — na terceira leitura do §4.3, 2018 fica com 1 vídeo elegível fora da série e **as duas** séries caem em "não se aplica" caladas. Precedente: `series_orfas` |
+| C5 | §4.1, `/slots` | **resolvido por leitura**, não por suposição | ver abaixo |
+| C6 | kit sem git | `git init` em `~/Workspace/forja/ferramentas`, feito antes do F0k | a fase cria 8 arquivos e altera 4; o `.bak` protege uma edição de profundidade, não uma sequência, e o portão md5 do K só prova que Mac e forja são iguais, não que a cópia do Mac está certa — um erro de edição atravessaria o K com o md5 verde |
+
+### C5 — a forma do `/slots`, medida
+
+Lido na forja em 2026-09-20 (só leitura, sem tocar em conteúdo de prompt):
+
+```
+tipo do corpo: list      n de slots: 2
+chaves: id, id_task, is_processing, n_ctx, n_prompt_tokens, n_prompt_tokens_cache,
+        n_prompt_tokens_processed, next_token, params, speculative
+is_processing: [(False, 'bool'), (False, 'bool')]
+```
+
+É lista, são exatamente 2, e `is_processing` existe e é booleano. **O inventário do kit está incompleto:** `spec-site/secoes/07-seguranca.md:22` lista as chaves de `/slots` sem `is_processing`, e era ele que gerava a dúvida do spec.
+
+**A guarda fail-closed continua como está**, e isso não é redundância: o risco nunca foi "o campo não existe hoje", e sim "o campo some numa atualização do llama-server". Se sumir e o código tratar ausente como slot livre, a fila clama e gera **em cima do chat**, com o claim em 200 e sem motivo no log — invisível para o pulso, que só olha `claim` e `desfecho`. O `curl` do portão do F1 confere uma vez; a guarda é o que dura.
 
 ## D. Coisas que o spec manda e o plano cumpre sem alterar
 
-- `flock` de shell: o §4.6 exige `-w 1800` em todo lugar, mas o comando de rollback do S4 no §5 aparece seco. O plano **reproduz o literal do §5** e o protege com o `LOCK-LIVRE` prévio, em vez de "consertar" um comando que o dono vai colar. **[DONO]** se quiser normalizar para `-w 1800`, é uma linha.
 - O SQL "nenhum claim antes do F4" é o único do spec **sem** `and site_id = …`. O plano mantém o literal: um zero sobre todos os sites é mais forte, não mais fraco.
 - `ls proxy.py.bak-*-S4 | head -1` só ordena certo dentro do mesmo ano (carimbo `%m%d-%H%M`). O plano mantém o comando e acrescenta um `ls -lt` de conferência ao lado.
+
+## E. Patches para a v12 do spec
+
+Três correções que o plano já aplica e que o spec precisa receber, para os dois pararem de divergir. Enquanto não entrarem, **o plano é que está certo** nestes três pontos.
+
+| # | Onde | Trocar | Por |
+|---|---|---|---|
+| E1 | §4.6, bloco `pedir` | `FalhaSite(caminho, …)` do tipo `sem_chave` | `FalhaSite("sem_chave", caminho)` — o primeiro posicional é `tipo`, não a rota (`sitio.py:45-48`), e o próprio `sitio.py:101` já faz assim. Ao pé da letra, o spec constrói a exceção com o tipo trocado pela rota |
+| E2 | §5, card F0k | "`teste_fila.py` e `teste_s4.py` **não** rodam no Mac (o `python3` do Mac não tem `httpx`, e o worker o importa)" | a justificativa vale só para o `teste_fila.py`. O `teste_s4.py` não toca no worker — testa o `sitio.py` — e roda no Mac com `AGENTE_SITIO` setado (verificado: `S4: 0 falha(s)`, 29 asserções) |
+| E3 | §5, rollback do S4 | `flock /opt/agente/fila_intel.lock sh -c "…"` | `flock -w 1800 …`, com mensagem própria na falha. O §4.6 já exige `-w 1800` em todo `flock` de shell; o §5 contradiz o §4.6. Depois do F4 o cron está vivo, uma execução segura a trava por até 25 min, e um `flock` sem limite pendura o rollback sem dizer por quê — no meio de um rollback |
