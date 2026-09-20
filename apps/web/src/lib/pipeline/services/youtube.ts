@@ -280,6 +280,20 @@ export async function getIntelligenceSnapshot(
 // ---------------------------------------------------------------------------
 
 /**
+ * Where a row's `source` comes from: the key, never the body.
+ *
+ * Written by exclusion — everything that is not a wide key or a session is 'forja' —
+ * so it fails closed. `source` is optional on ServiceContext, and a future path that
+ * forgot to set it would otherwise label a narrow key as 'cowork' and switch OFF the
+ * four scope refusals below. Mirrors deriveSource in items/[id]/recording/service.ts.
+ */
+export function deriveSource(ctx: ServiceContext): 'cowork' | 'forja' {
+  if (ctx.source === 'session') return 'cowork'
+  if (ctx.permissions.includes('write') || ctx.permissions.includes('admin')) return 'cowork'
+  return 'forja'
+}
+
+/**
  * Submit intelligence recommendations, coaching and insights for a running task.
  *
  * The payload arrives as `unknown` and is validated HERE, not at the route: REST and MCP
@@ -303,6 +317,19 @@ export async function submitIntelRecommendations(
   }
 
   const { task_id, video_recommendations, coaching, notifications, channel_insights } = parsed.data
+
+  const source = deriveSource(ctx)
+
+  // Phase 2a scope. We refuse instead of rewriting: a forja payload outside the scope is a
+  // worker bug and has to surface (the worker treats it as `reprovada`). Running here — before
+  // any DB read — means a rejected body never costs a round trip, and the refusal only ever
+  // talks about the caller's own payload.
+  if (source === 'forja') {
+    if (notifications?.length) return err('VALIDATION_ERROR', 'notifications: not allowed for this key', 400)
+    if (video_recommendations?.length) return err('VALIDATION_ERROR', 'video_recommendations: not allowed for this key', 400)
+    if (!coaching) return err('VALIDATION_ERROR', 'coaching: required for this key', 400)
+    if (coaching.priorities.length) return err('VALIDATION_ERROR', 'coaching.priorities: must be empty for this key', 400)
+  }
 
   // Validate task
   const { data: task } = await supabase
@@ -346,7 +373,7 @@ export async function submitIntelRecommendations(
         .eq('site_id', siteId)
         .eq('channel_id', task.channel_id)
         .eq('video_id', rec.video_id)
-        .eq('source', 'cowork')
+        .eq('source', source)
         .maybeSingle()
 
       const intelPayload = {
@@ -355,7 +382,7 @@ export async function submitIntelRecommendations(
         video_id: rec.video_id,
         type: 'video' as const,
         recommendations: rec,
-        source: 'cowork',
+        source,
         generated_at: new Date().toISOString(),
       }
 
@@ -396,7 +423,7 @@ export async function submitIntelRecommendations(
       .eq('site_id', siteId)
       .eq('channel_id', task.channel_id)
       .is('video_id', null)
-      .eq('source', 'cowork')
+      .eq('source', source)
       .maybeSingle()
 
     const channelPayload = {
@@ -407,7 +434,7 @@ export async function submitIntelRecommendations(
       coaching: coaching ?? null,
       patterns_detected: channel_insights?.patterns_detected ?? null,
       analysis_text: channel_insights?.analysis_text ?? null,
-      source: 'cowork',
+      source,
       generated_at: new Date().toISOString(),
     }
 

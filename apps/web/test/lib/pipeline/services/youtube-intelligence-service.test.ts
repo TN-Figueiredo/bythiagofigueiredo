@@ -4,8 +4,10 @@ import { claimNextTask, failTask, submitIntelRecommendations } from '@/lib/pipel
 import { PatchPayloadSchema } from '@/lib/youtube/intelligence-schemas'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import fixture from '../../../fixtures/intel-cowork-2026-05-18.json'
+import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
+vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdmins: vi.fn() }))
 
 type Call = { op: string; args: unknown[] }
 
@@ -15,12 +17,16 @@ function makeSupabase(results: Array<{ data: unknown; error: unknown }>) {
   const tables: string[] = []
   let i = 0
   const chain: Record<string, unknown> = {}
-  for (const op of ['select', 'eq', 'in', 'order', 'limit', 'update', 'is', 'not', 'gte']) {
+  for (const op of ['select', 'eq', 'in', 'order', 'limit', 'update', 'is', 'not', 'gte', 'insert']) {
     chain[op] = vi.fn((...args: unknown[]) => { calls.push({ op, args }); return chain })
   }
   chain.maybeSingle = vi.fn(async () => results[i++] ?? { data: null, error: null })
   chain.single = vi.fn(async () => results[i++] ?? { data: null, error: null })
-  chain.then = undefined
+  // Real supabase-js resolves ANY filter builder when awaited, not just one ending in
+  // `.single()`/`.maybeSingle()` — `.insert(x)` and a bare `.select().eq().in(...)` are both
+  // awaited directly in the service. Without this, such a call would resolve to the chain
+  // object itself instead of the queued `{ data, error }`, silently starving later assertions.
+  chain.then = (resolve: (value: unknown) => void) => resolve(results[i++] ?? { data: null, error: null })
   return {
     calls,
     tables,
@@ -49,6 +55,20 @@ function ctxOf(sb: { client: unknown }, over: Partial<ServiceContext> = {}): Ser
     source: 'api_key',
     ...over,
   }
+}
+
+const TASK_ID = '22222222-2222-4222-8222-222222222222'
+
+/** The only payload shape the forja ever sends in 2a: channel coaching, no video rows. */
+const CHANNEL_ONLY = {
+  task_id: TASK_ID,
+  coaching: { summary: 'ok', priorities: [] },
+  channel_insights: { patterns_detected: [], analysis_text: 'texto' },
+}
+
+const runningTask = {
+  data: { id: TASK_ID, channel_id: 'ch-1', status: 'running', result_summary: { claimed_by: 'key-forja' }, started_at: '2026-09-19T10:00:00Z' },
+  error: null,
 }
 
 describe('claimNextTask', () => {
@@ -221,5 +241,67 @@ describe('submitIntelRecommendations — schema', () => {
       .filter((v: string | undefined): v is string => typeof v === 'string' && v.length === 200)
     expect(variants).toHaveLength(5)
     expect(PatchPayloadSchema.safeParse(fixture).success).toBe(true)
+  })
+})
+
+describe('deriveSource and the forja scope guards', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('writes source=forja for a narrow key, even with source:cowork in the body', async () => {
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: '22222222-2222-4222-8222-222222222222' }, error: null }])
+    await submitIntelRecommendations(ctxOf(sb), { ...CHANNEL_ONLY, source: 'cowork' })
+    const insert = sb.calls.find(c => c.op === 'insert')!.args[0] as Record<string, unknown>
+    expect(insert.source).toBe('forja')
+    expect(insert).not.toHaveProperty('__extra')
+  })
+
+  it('writes source=cowork for a session context', async () => {
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: 'x' }, error: null }])
+    await submitIntelRecommendations(ctxOf(sb, { source: 'session', permissions: ['read', 'write'], keyId: undefined }), CHANNEL_ONLY)
+    expect((sb.calls.find(c => c.op === 'insert')!.args[0] as Record<string, unknown>).source).toBe('cowork')
+  })
+
+  it.each([
+    ['notifications', { ...CHANNEL_ONLY, notifications: [{ type: 'grade_drop', priority: 1, title: 't', message: 'm' }] }],
+    ['video_recommendations', { ...CHANNEL_ONLY, video_recommendations: [{ video_id: '33333333-3333-4333-8333-333333333333', action_type: 'title_test', priority: 'low', confidence: 0.5, reasoning: 'r' }] }],
+    ['coaching', { task_id: CHANNEL_ONLY.task_id }],
+    ['coaching.priorities', { ...CHANNEL_ONLY, coaching: { summary: 'ok', priorities: [{ axis: 'reach', score: 4, diagnosis: 'd', action: 'a' }] } }],
+  ])('400s a forja payload carrying %s, before any DB read or write', async (_label, payload) => {
+    const sb = makeSupabase([])
+    await expect(submitIntelRecommendations(ctxOf(sb), payload)).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 400 })
+    expect(sb.tables).toHaveLength(0)
+  })
+
+  it('400s before the task lookup even when the task_id does not exist — never 404', async () => {
+    const sb = makeSupabase([{ data: null, error: null }])
+    await expect(submitIntelRecommendations(ctxOf(sb), {
+      task_id: '44444444-4444-4444-8444-444444444444',
+      coaching: { summary: 'ok', priorities: [] },
+      video_recommendations: [{ video_id: '33333333-3333-4333-8333-333333333333', action_type: 'title_test', priority: 'low', confidence: 0.5, reasoning: 'r' }],
+    })).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 400 })
+    expect(sb.tables).not.toContain('youtube_intelligence_tasks')
+  })
+
+  it('strips unknown keys from a recommendation before writing (write key)', async () => {
+    const sb = makeSupabase([
+      { data: { id: 't', channel_id: 'ch-1', status: 'running', result_summary: {}, started_at: 's' }, error: null },
+      { data: [{ id: '33333333-3333-4333-8333-333333333333' }], error: null },
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: { id: 't' }, error: null },
+    ])
+    await submitIntelRecommendations(ctxOf(sb, { permissions: ['read', 'write'], keyId: 'key-cowork' }), {
+      task_id: '22222222-2222-4222-8222-222222222222',
+      video_recommendations: [{ video_id: '33333333-3333-4333-8333-333333333333', action_type: 'title_test', priority: 'low', confidence: 0.5, reasoning: 'r', smuggled: 'x' }],
+    })
+    const written = sb.calls.filter(c => c.op === 'insert').map(c => JSON.stringify(c.args[0])).join('')
+    expect(written).not.toContain('smuggled')
+  })
+
+  it('never notifies on a forja PATCH', async () => {
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: 'x' }, error: null }])
+    await submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)
+    expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
   })
 })
