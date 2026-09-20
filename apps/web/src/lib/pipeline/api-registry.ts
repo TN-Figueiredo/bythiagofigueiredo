@@ -170,7 +170,7 @@ const YOUTUBE: CapabilityDomain = {
   endpoints: [
     { method: 'GET', path: '/api/pipeline/youtube/intelligence', summary: 'Get channel intelligence snapshot', auth: 'read' },
     { method: 'PATCH', path: '/api/pipeline/youtube/intelligence', summary: 'Submit AI analysis recommendations', auth: 'write' },
-    { method: 'GET', path: '/api/pipeline/youtube/intelligence/task', summary: 'Claim next pending intelligence task', auth: 'read' },
+    { method: 'GET', path: '/api/pipeline/youtube/intelligence/task', summary: 'Claim next pending intelligence task', auth: 'write' },
     { method: 'GET', path: '/api/pipeline/youtube/videos', summary: 'List videos with category join and cursor pagination', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/videos/:id', summary: 'Get video detail with 6-axis scoring and grade trend', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/categories', summary: 'List categories with match_keywords and video counts', auth: 'read' },

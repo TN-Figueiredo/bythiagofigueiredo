@@ -49,12 +49,26 @@ describe('claimNextTask', () => {
 
     expect(res.data).toMatchObject({ id: 't1', started_at: '2026-09-19T10:00:00Z' })
     expect(sb.calls).toContainEqual({ op: 'in', args: ['channel_id', ['ch-1']] })
-    expect(sb.calls).toContainEqual({ op: 'eq', args: ['status', 'pending'] })
-    const update = sb.calls.find(c => c.op === 'update')!
-    expect(update.args[0]).toMatchObject({ status: 'running', result_summary: { claimed_by: 'key-forja' } })
-    // the CAS carries site_id, and the returned row comes from a closed column list
-    expect(sb.calls).toContainEqual({ op: 'eq', args: ['site_id', 'site-1'] })
-    expect(sb.calls.some(c => c.op === 'select' && c.args[0] === '*')).toBe(false)
+
+    // The double shares one `calls` array and one chain object across the SELECT and
+    // the UPDATE, so an assertion against `sb.calls` as a whole is satisfied by either
+    // call — it would stay green even if the UPDATE's own `.eq(...)` were deleted. Slice
+    // from the `update` call onward so these assertions can only be satisfied by clauses
+    // chained AFTER `.update(...)`, i.e. by the CAS itself.
+    const updateIdx = sb.calls.findIndex(c => c.op === 'update')
+    expect(updateIdx).toBeGreaterThanOrEqual(0)
+    const casCalls = sb.calls.slice(updateIdx)
+
+    expect(casCalls[0]!.args[0]).toMatchObject({ status: 'running', result_summary: { claimed_by: 'key-forja' } })
+    expect(casCalls).toContainEqual({ op: 'eq', args: ['site_id', 'site-1'] })
+    expect(casCalls).toContainEqual({ op: 'eq', args: ['status', 'pending'] })
+    // Closed column list, never '*': error_message and result_summary can carry text
+    // written by a narrow key and must not travel back to whoever claims next. The
+    // exact string (not just "not '*'") also catches those columns creeping back in.
+    expect(casCalls).toContainEqual({
+      op: 'select',
+      args: ['id, site_id, channel_id, trigger_type, requested_at, started_at'],
+    })
   })
 
   it('returns null (204 upstream) when the queue is empty', async () => {
