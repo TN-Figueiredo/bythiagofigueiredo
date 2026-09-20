@@ -37,11 +37,13 @@ describe('POST .../intelligence/task/claim', () => {
     expect(vi.mocked(claimNextTask).mock.calls[0]![1]).toEqual([CH])
   })
 
-  it('204s on an empty queue', async () => {
+  it('204s on an empty queue, still carrying the rate-limit headers', async () => {
     vi.mocked(claimNextTask).mockResolvedValue({ data: null } as never)
     const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/claim/route')
     const res = await POST(post({ channel_ids: [CH] }))
     expect(res.status).toBe(204)
+    expect(res.headers.get('X-RateLimit-Remaining')).not.toBeNull()
+    expect(res.headers.get('X-RateLimit-Reset')).not.toBeNull()
   })
 
   it('400s without a body, with an empty list, with 11 ids or with a non-uuid — and never reaches the service', async () => {

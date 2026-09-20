@@ -24,16 +24,15 @@ function makeSupabase(results: Array<{ data: unknown; error: unknown }>) {
     tables,
     client: { from: vi.fn((t: string) => { tables.push(t); return chain }) },
     /**
-     * Slice of `calls` starting at the nth (1-indexed) occurrence of `op` — use this,
-     * never a bare `expect(calls).toContainEqual(...)`, for a CAS/UPDATE clause. The
-     * double shares one `calls` array and one chain object across every query the
-     * service makes in a test, so a SELECT that happens to touch the same column
-     * (e.g. `site_id`) can silently satisfy an assertion meant for the UPDATE, and a
+     * Slice of `calls` starting at the first occurrence of `op` — use this, never a
+     * bare `expect(calls).toContainEqual(...)`, for a CAS/UPDATE clause. The double
+     * shares one `calls` array and one chain object across every query the service
+     * makes in a test, so a SELECT that happens to touch the same column (e.g.
+     * `site_id`) can silently satisfy an assertion meant for the UPDATE, and a
      * dropped filter on the real CAS would never fail the test.
      */
-    from(op: string, nth = 1): Call[] {
-      let seen = 0
-      const idx = calls.findIndex((c) => c.op === op && ++seen === nth)
+    from(op: string): Call[] {
+      const idx = calls.findIndex((c) => c.op === op)
       return idx === -1 ? [] : calls.slice(idx)
     },
   }
@@ -63,15 +62,8 @@ describe('claimNextTask', () => {
     expect(res.data).toMatchObject({ id: 't1', started_at: '2026-09-19T10:00:00Z' })
     expect(sb.calls).toContainEqual({ op: 'in', args: ['channel_id', ['ch-1']] })
 
-    // The double shares one `calls` array and one chain object across the SELECT and
-    // the UPDATE, so an assertion against `sb.calls` as a whole is satisfied by either
-    // call — it would stay green even if the UPDATE's own `.eq(...)` were deleted. Slice
-    // from the `update` call onward so these assertions can only be satisfied by clauses
-    // chained AFTER `.update(...)`, i.e. by the CAS itself.
-    const updateIdx = sb.calls.findIndex(c => c.op === 'update')
-    expect(updateIdx).toBeGreaterThanOrEqual(0)
-    const casCalls = sb.calls.slice(updateIdx)
-
+    const casCalls = sb.from('update')
+    expect(casCalls.length).toBeGreaterThan(0)
     expect(casCalls[0]!.args[0]).toMatchObject({ status: 'running', result_summary: { claimed_by: 'key-forja' } })
     expect(casCalls).toContainEqual({ op: 'eq', args: ['site_id', 'site-1'] })
     expect(casCalls).toContainEqual({ op: 'eq', args: ['status', 'pending'] })
@@ -184,6 +176,7 @@ describe('failTask', () => {
 
     const noKey = makeSupabase([running()])
     await expect(failTask(ctxOf(noKey, { keyId: undefined }), 't1', { reason: 'x' })).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING' })
+    expect(noKey.calls.some(c => c.op === 'update')).toBe(false)
   })
 
   it('lets a write key close a task claimed by the forja', async () => {

@@ -565,12 +565,6 @@ export async function failTask(
         result_summary: { ...previous, closed_by: keyId ?? null },
       }
 
-  if (requeue) {
-    // The reason never lands on the row when the task goes back to the queue — the next
-    // claimant would read it — so it goes to Sentry instead.
-    Sentry.captureMessage(`intelligence task requeued: ${input.reason}`, { extra: { taskId } })
-  }
-
   let cas = supabase
     .from('youtube_intelligence_tasks')
     .update(patch)
@@ -585,6 +579,14 @@ export async function failTask(
 
   if (updateError) return err('INTERNAL_ERROR', 'Failed to close the task', 500)
   if (!closed) return err('TASK_NOT_RUNNING', 'The task is no longer held by this key', 409)
+
+  if (requeue) {
+    // The reason never lands on the row when the task goes back to the queue — the next
+    // claimant would read it — so it goes to Sentry instead. Logged only once the CAS has
+    // actually landed: logging before it lands would record a requeue that never happened
+    // whenever the CAS is lost and the caller gets a 409 instead.
+    Sentry.captureMessage(`intelligence task requeued: ${input.reason}`, { extra: { taskId } })
+  }
 
   return ok(closed as FailTaskResult)
 }
