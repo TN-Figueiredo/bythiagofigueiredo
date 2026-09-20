@@ -405,12 +405,17 @@ function makeSupabase(results: Array<{ data: unknown; error: unknown }>) {
   const tables: string[] = []
   let i = 0
   const chain: Record<string, unknown> = {}
-  for (const op of ['select', 'eq', 'in', 'order', 'limit', 'update', 'is', 'not', 'gte']) {
+  for (const op of ['select', 'eq', 'in', 'order', 'limit', 'update', 'is', 'not', 'gte', 'insert']) {
     chain[op] = vi.fn((...args: unknown[]) => { calls.push({ op, args }); return chain })
   }
   chain.maybeSingle = vi.fn(async () => results[i++] ?? { data: null, error: null })
   chain.single = vi.fn(async () => results[i++] ?? { data: null, error: null })
-  chain.then = undefined
+  // Real supabase-js resolves ANY filter builder when awaited, not just one ending in
+  // `.single()`/`.maybeSingle()` — `.insert(x)` and a bare `.select().eq().in(...)` are both
+  // awaited directly in the service. With `then = undefined`, such a call resolves to the
+  // chain object instead of the queued `{ data, error }`, silently starving every later
+  // assertion in the same test.
+  chain.then = (resolve: (value: unknown) => void) => resolve(results[i++] ?? { data: null, error: null })
   return {
     calls,
     tables,
