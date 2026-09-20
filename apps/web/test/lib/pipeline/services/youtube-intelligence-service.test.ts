@@ -1,6 +1,6 @@
 // @vitest-environment node
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { claimNextTask, failTask, submitIntelRecommendations } from '@/lib/pipeline/services/youtube'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { claimNextTask, failTask, submitIntelRecommendations, getIntelligenceSnapshot } from '@/lib/pipeline/services/youtube'
 import { PatchPayloadSchema } from '@/lib/youtube/intelligence-schemas'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import fixture from '../../../fixtures/intel-cowork-2026-05-18.json'
@@ -427,5 +427,134 @@ describe('submitIntelRecommendations — closing the task', () => {
     const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: { message: 'x' } }])
     await submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY).catch(() => {})
     expect(JSON.stringify(sb.calls)).not.toContain('partial_failure')
+  })
+})
+
+/**
+ * Snapshot double: `from(table)` hands back a per-table chain so the five parallel reads
+ * and the two analytics reads can be told apart. `results` is keyed by table, in call order.
+ */
+function makeSnapshotSupabase(results: Record<string, Array<{ data: unknown; error: unknown }>>) {
+  const calls: Array<{ table: string; op: string; args: unknown[] }> = []
+  const counters: Record<string, number> = {}
+  const client = {
+    from: (table: string) => {
+      const next = () => {
+        counters[table] = (counters[table] ?? 0) + 1
+        return results[table]?.[counters[table] - 1] ?? { data: [], error: null }
+      }
+      const chain: Record<string, unknown> = {}
+      for (const op of ['select', 'eq', 'in', 'gte', 'order', 'limit', 'not', 'is']) {
+        chain[op] = (...args: unknown[]) => { calls.push({ table, op, args }); return chain }
+      }
+      chain.single = async () => next()
+      chain.maybeSingle = async () => next()
+      // the five parallel reads are awaited directly, without a terminal method
+      chain.then = (resolve: (v: unknown) => unknown) => Promise.resolve(next()).then(resolve)
+      return chain
+    },
+  }
+  return { calls, client, argsOf: (table: string, op: string) => calls.filter(c => c.table === table && c.op === op).map(c => c.args) }
+}
+
+const NOW = Date.UTC(2026, 8, 19, 15, 0, 0) // 2026-09-19T15:00:00Z
+const V1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
+const V2 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2'
+
+function snapshotResults(over: Partial<Record<string, Array<{ data: unknown; error: unknown }>>> = {}) {
+  return {
+    youtube_channels: [{ data: { id: 'ch-1', channel_id: 'UC…', name: 'tnFigueiredo', subscriber_count: 1160 }, error: null }],
+    youtube_videos: [{ data: [
+      { id: V1, youtube_video_id: 'yt1', title: 'a', thumbnail_url: null, published_at: '2024-12-10T15:57:00Z', view_count: 100, ctr: null, impressions: null, avg_view_percentage: null, avg_view_duration_seconds: null, retention_curve: null, traffic_sources: null, is_hidden: false },
+      { id: V2, youtube_video_id: 'yt2', title: 'b', thumbnail_url: null, published_at: '2024-11-10T15:57:00Z', view_count: 50, ctr: null, impressions: null, avg_view_percentage: null, avg_view_duration_seconds: null, retention_curve: null, traffic_sources: null, is_hidden: true },
+    ], error: null }],
+    video_grade_history: [{ data: [], error: null }],
+    optimization_cycles: [{ data: [], error: null }],
+    ab_tests: [{ data: [], error: null }],
+    youtube_intelligence: [{ data: [], error: null }],
+    ...over,
+  } as Record<string, Array<{ data: unknown; error: unknown }>>
+}
+
+describe('getIntelligenceSnapshot — recent window', () => {
+  beforeEach(() => { vi.useFakeTimers({ now: NOW, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('reads the latest analytics date within 3 days, scoped by site and by the channel video ids', async () => {
+    const sb = makeSnapshotSupabase(snapshotResults({
+      youtube_video_analytics: [
+        { data: { date: '2026-09-18' }, error: null },
+        { data: [{ youtube_video_id: V1, views: 6, subscribers_gained: 0 }], error: null },
+      ],
+    }))
+    await getIntelligenceSnapshot(ctxOf(sb), 'ch-1')
+
+    const analytics = sb.calls.filter(c => c.table === 'youtube_video_analytics')
+    expect(analytics).toContainEqual({ table: 'youtube_video_analytics', op: 'gte', args: ['date', '2026-09-16'] })
+    expect(analytics).toContainEqual({ table: 'youtube_video_analytics', op: 'order', args: ['date', { ascending: false }] })
+    expect(analytics).toContainEqual({ table: 'youtube_video_analytics', op: 'limit', args: [1] })
+    expect(analytics).toContainEqual({ table: 'youtube_video_analytics', op: 'eq', args: ['site_id', 'site-1'] })
+    // the internal uuid of youtube_videos, never the textual youtube_video_id
+    expect(analytics).toContainEqual({ table: 'youtube_video_analytics', op: 'in', args: ['youtube_video_id', [V1, V2]] })
+    expect(analytics).toContainEqual({ table: 'youtube_video_analytics', op: 'eq', args: ['date', '2026-09-18'] })
+  })
+
+  it('fills recent from the row of that single date, without summing, and zeroes missing videos', async () => {
+    const sb = makeSnapshotSupabase(snapshotResults({
+      youtube_video_analytics: [
+        { data: { date: '2026-09-18' }, error: null },
+        { data: [{ youtube_video_id: V1, views: 6, subscribers_gained: 0 }], error: null },
+      ],
+    }))
+    const { data } = await getIntelligenceSnapshot(ctxOf(sb), 'ch-1')
+
+    expect(data.recent_window).toEqual({ date: '2026-09-18', days: 90 })
+    expect(data.videos.find(v => v.id === V1)!.recent).toEqual({ views: 6, subscribers_gained: 0 })
+    expect(data.videos.find(v => v.id === V2)!.recent).toEqual({ views: 0, subscribers_gained: 0 })
+  })
+
+  it('returns recent_window as a whole null — never {date: null} — when no row is within 3 days', async () => {
+    const sb = makeSnapshotSupabase(snapshotResults({
+      youtube_video_analytics: [{ data: null, error: null }],
+    }))
+    const { data } = await getIntelligenceSnapshot(ctxOf(sb), 'ch-1')
+
+    expect(data.recent_window).toBeNull()
+    expect(data.videos.every(v => v.recent.views === 0 && v.recent.subscribers_gained === 0)).toBe(true)
+    // only the date probe ran; the per-video read never did
+    expect(sb.calls.filter(c => c.table === 'youtube_video_analytics' && c.op === 'select')).toHaveLength(1)
+  })
+
+  it('makes zero calls to youtube_video_analytics when the channel has no videos (the EN channel)', async () => {
+    const sb = makeSnapshotSupabase(snapshotResults({ youtube_videos: [{ data: [], error: null }] }))
+    const { data } = await getIntelligenceSnapshot(ctxOf(sb), 'ch-1')
+
+    expect(data.recent_window).toBeNull()
+    expect(sb.calls.some(c => c.table === 'youtube_video_analytics')).toBe(false)
+  })
+
+  it('exposes videos[].is_hidden and scopes the video SELECT by site_id too', async () => {
+    const sb = makeSnapshotSupabase(snapshotResults({
+      youtube_video_analytics: [{ data: null, error: null }],
+    }))
+    const { data } = await getIntelligenceSnapshot(ctxOf(sb), 'ch-1')
+
+    expect(data.videos.map(v => v.is_hidden)).toEqual([false, true])
+    expect(sb.argsOf('youtube_videos', 'eq')).toContainEqual(['site_id', 'site-1'])
+    expect(sb.argsOf('youtube_videos', 'eq')).toContainEqual(['channel_id', 'ch-1'])
+  })
+
+  it.each([
+    ['narrow key', { permissions: ['read', 'intelligence'] as const }],
+    ['write key', { permissions: ['read', 'write'] as const }],
+    ['session', { source: 'session' as const, permissions: ['read', 'write'] as const }],
+  ])('filters the intelligence array to source=cowork for a %s', async (_label, over) => {
+    const sb = makeSnapshotSupabase(snapshotResults({
+      youtube_video_analytics: [{ data: null, error: null }],
+    }))
+    await getIntelligenceSnapshot(ctxOf(sb, over as never), 'ch-1')
+
+    expect(sb.argsOf('youtube_intelligence', 'eq')).toContainEqual(['source', 'cowork'])
+    expect(sb.argsOf('youtube_intelligence', 'eq')).toContainEqual(['site_id', 'site-1'])
   })
 })

@@ -10,6 +10,7 @@ import { fetchYtDemographics, fetchYtSearchTerms } from '@/lib/youtube/analytics
 import type { VideoScoreInput, TrafficSources, TrendData } from '@/lib/youtube/scoring-types'
 import type { TestType, VariantMetadata } from '@/lib/youtube/ab-types'
 import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
+import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import type { ServiceContext, ServiceResult } from './types'
 import { ok, err } from './types'
 
@@ -43,6 +44,9 @@ export interface VideoSnapshot {
   avg_view_percentage: number | null
   retention_curve: unknown
   traffic_sources: unknown
+  is_hidden: boolean
+  /** The row of that one 90-day-total date, never a sum. Zeroed when the video has no row. */
+  recent: { views: number; subscribers_gained: number }
 }
 
 export interface GradeHistoryRow {
@@ -60,6 +64,8 @@ export interface GradeHistoryRow {
 
 export interface IntelSnapshot {
   channel: ChannelSummary
+  /** null as a whole when no analytics row lands within 3 days — never { date: null }. */
+  recent_window: { date: string; days: number } | null
   videos: VideoSnapshot[]
   grade_history: GradeHistoryRow[]
   optimization_cycles: Record<string, unknown>[]
@@ -217,8 +223,9 @@ export async function getIntelligenceSnapshot(
   const [videosRes, gradesRes, cyclesRes, abTestsRes, intelligenceRes] = await Promise.all([
     supabase
       .from('youtube_videos')
-      .select('id, youtube_video_id, title, thumbnail_url, published_at, view_count, ctr, impressions, avg_view_percentage, avg_view_duration_seconds, retention_curve, traffic_sources')
+      .select('id, youtube_video_id, title, thumbnail_url, published_at, view_count, ctr, impressions, avg_view_percentage, avg_view_duration_seconds, retention_curve, traffic_sources, is_hidden')
       .eq('channel_id', channel.id)
+      .eq('site_id', siteId)
       .order('published_at', { ascending: false })
       .limit(50),
     supabase
@@ -242,9 +249,50 @@ export async function getIntelligenceSnapshot(
       .from('youtube_intelligence')
       .select('*')
       .eq('channel_id', channel.id)
+      .eq('site_id', siteId)
+      .eq('source', 'cowork')
       .order('generated_at', { ascending: false })
       .limit(50),
   ])
+
+  // Every analytics read is date-bounded and site-scoped. PostgREST caps at 1000 rows, and
+  // with ~14 rows a day the whole history stops fitting around mid-November.
+  const videoIds = (videosRes.data ?? []).map(v => v.id)
+  let recentWindow: { date: string; days: number } | null = null
+  const recentByVideo = new Map<string, { views: number; subscribers_gained: number }>()
+
+  // With no videos neither query runs: no PostgREST round trip, and no dependence on how it
+  // treats the `youtube_video_id=in.()` that `.in(col, [])` would generate. Not hypothetical:
+  // the EN channel has zero videos in production and its snapshot is a live path.
+  if (videoIds.length > 0) {
+    const floor = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10)
+    const { data: latest } = await supabase
+      .from('youtube_video_analytics')
+      .select('date')
+      .eq('site_id', siteId)
+      .in('youtube_video_id', videoIds)
+      .gte('date', floor)
+      .order('date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (latest?.date) {
+      recentWindow = { date: latest.date as string, days: SYNC_WINDOW_DAYS }
+      const { data: rows } = await supabase
+        .from('youtube_video_analytics')
+        .select('youtube_video_id, views, subscribers_gained')
+        .eq('site_id', siteId)
+        .in('youtube_video_id', videoIds)
+        .eq('date', latest.date)
+
+      for (const r of rows ?? []) {
+        recentByVideo.set(r.youtube_video_id as string, {
+          views: (r.views as number) ?? 0,
+          subscribers_gained: (r.subscribers_gained as number) ?? 0,
+        })
+      }
+    }
+  }
 
   const response: IntelSnapshot = {
     channel: {
@@ -253,6 +301,7 @@ export async function getIntelligenceSnapshot(
       name: channel.name,
       subscriber_count: channel.subscriber_count,
     },
+    recent_window: recentWindow,
     videos: (videosRes.data ?? []).map(v => ({
       id: v.id,
       video_id: v.youtube_video_id,
@@ -265,6 +314,10 @@ export async function getIntelligenceSnapshot(
       avg_view_percentage: v.avg_view_percentage,
       retention_curve: v.retention_curve,
       traffic_sources: v.traffic_sources,
+      is_hidden: v.is_hidden,
+      // The row of that one date, never a sum: each row is already a 90-day total.
+      // The Analytics API omits videos with no activity, so an absent video is {0, 0}.
+      recent: recentByVideo.get(v.id) ?? { views: 0, subscribers_gained: 0 },
     })),
     grade_history: gradesRes.data ?? [],
     optimization_cycles: cyclesRes.data ?? [],
