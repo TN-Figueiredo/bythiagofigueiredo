@@ -16,7 +16,7 @@ O módulo Intelligence Engine analisa performance de canais YouTube e gera:
 
 ## Endpoints Pipeline
 
-**Envelope:** toda resposta de sucesso vem em `{"data": ...}`; toda recusa vem em `{"error": {"code", "message"}}` — vale para todo endpoint deste arquivo.
+**Envelope:** toda resposta de sucesso vem em `{"data": ...}`; toda recusa vem em `{"error": {"code", "message"}}`, com `details` opcional (lista `[{path, message}]` por campo) quando a recusa é de corpo inválido — vale para todo endpoint deste arquivo. Cabeçalhos `X-RateLimit-*` acompanham a resposta sempre que a chave já foi autenticada antes da recusa (inclui corpo inválido pós-auth, não só sucesso).
 
 ### GET /api/pipeline/youtube/intelligence?channel_id={id}
 

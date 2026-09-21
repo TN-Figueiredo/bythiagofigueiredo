@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params
   if (!UUID_REGEX.test(id)) return pipelineError('VALIDATION_ERROR', 'id: invalid uuid', 400, auth)
 
-  const body = await parseBody(req, FailSchema)
+  const body = await parseBody(req, FailSchema, auth)
   if (body instanceof Response) return body
 
   try {

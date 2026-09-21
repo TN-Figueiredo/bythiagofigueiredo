@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   if (result instanceof Response) return result
   const { auth } = result
 
-  const body = await parseBody(req, ClaimSchema)
+  const body = await parseBody(req, ClaimSchema, auth)
   if (body instanceof Response) return body
 
   try {

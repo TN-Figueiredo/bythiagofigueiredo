@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest) {
   if (result instanceof Response) return result
   const { auth } = result
 
-  const body = await parseBody(req)
+  const body = await parseBody(req, undefined, auth)
   if (body instanceof Response) return body
 
   try {
