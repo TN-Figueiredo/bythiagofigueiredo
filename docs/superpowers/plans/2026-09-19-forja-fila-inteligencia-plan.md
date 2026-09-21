@@ -4424,10 +4424,10 @@ async def _mandar_patch(S, estado, payload, chave, cli, tid, dormir, agora_mono)
 
 ```bash
 cd /Users/figueiredo/Workspace/forja/ferramentas && python3 -m py_compile docs/trilha/fila_intel.py docs/trilha/teste_fila.py && echo PY-OK
-cd docs/trilha && AGENTE_SITIO="$PWD/../sitio.py" AGENTE_FILA="$PWD/fila_intel.py" python3 -B teste_fila_redacao.py
-cd ~/Workspace/forja/ferramentas/docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITIO="$PWD/../sitio.py" python3 -B teste_calculo.py
+cd docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITIO="$PWD/../sitio.py" AGENTE_FILA="$PWD/fila_intel.py" python3 -B teste_fila_redacao.py
+cd ~/Workspace/forja/ferramentas/docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITIO="$PWD/../sitio.py" AGENTE_FILA="$PWD/fila_intel.py" python3 -B teste_calculo.py
 ```
-Expected: `PY-OK`, `F2R: 0 falha(s)` e `CALCULO: 0 falha(s)` — esta tarefa é a que mais depende de
+Expected: `PY-OK`, `F2R: 0 falha(s)` e `F2C: 0 falha(s)` — esta tarefa é a que mais depende de
 A2 e A3, e os dois testes deles rodam no Mac. Na forja, o grupo `laco: passos 4-5 (geracao)` verde,
 e o grupo `sigterm` do A6 também (agora o llama é chamado de verdade).
 
@@ -5028,12 +5028,14 @@ instalação do `fila_intel.py`, e **só roda na forja**.
 ```bash
 cd /Users/figueiredo/Workspace/forja/ferramentas
 for f in docs/trilha/fila_intel.py docs/trilha/teste_fila.py docs/trilha/teste_calculo.py docs/trilha/teste_fila_redacao.py; do python3 -m py_compile "$f" || echo "FALHOU $f"; done
-cd docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITIO="$PWD/../sitio.py" python3 -B teste_calculo.py
-cd /Users/figueiredo/Workspace/forja/ferramentas/docs/trilha && AGENTE_SITIO="$PWD/../sitio.py" AGENTE_FILA="$PWD/fila_intel.py" python3 -B teste_fila_redacao.py
-cd /Users/figueiredo/Workspace/forja/ferramentas/docs/trilha && python3 -B teste_fila.py --dubles
+cd docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITIO="$PWD/../sitio.py" AGENTE_FILA="$PWD/fila_intel.py" python3 -B teste_calculo.py
+cd /Users/figueiredo/Workspace/forja/ferramentas/docs/trilha && PYTHONPATH="$PWD/st" AGENTE_SITIO="$PWD/../sitio.py" AGENTE_FILA="$PWD/fila_intel.py" python3 -B teste_fila_redacao.py
 ```
-Expected: nenhum `FALHOU`; `CALCULO: 0 falha(s)`; `F2R: 0 falha(s)`; `FILA: 0 falha(s)` no modo
-`--dubles` (que roda só as peças do próprio harness, sem o worker).
+Expected: nenhum `FALHOU`; **`F2C: 0 falha(s)`** e **`F2R: 0 falha(s)`** — os rótulos são esses,
+não `CALCULO:`. **Os dois irmãos exigem `AGENTE_FILA`**, e o de redação exige também o stub de
+`httpx` em `st/`; sem isso não rodam. Não existe modo `--dubles` no harness: ele foi cortado na
+reconciliação, e hoje `teste_fila.py` ignora `argv` em silêncio — passar a flag roda a suíte
+inteira, não um subconjunto. O `teste_fila.py` só roda com o `httpx` real, na forja.
 
 - [ ] **Step 2: O dono leva o kit (card K, §5)**
 
