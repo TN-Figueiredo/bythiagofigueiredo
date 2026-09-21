@@ -578,4 +578,27 @@ describe('getIntelligenceSnapshot — recent window', () => {
     expect(sb.argsOf('youtube_intelligence', 'eq')).toContainEqual(['source', 'cowork'])
     expect(sb.argsOf('youtube_intelligence', 'eq')).toContainEqual(['site_id', 'site-1'])
   })
+
+  // A DB error on either of these two reads must surface as a 500, never as a quiet
+  // "no recent activity" snapshot — see the comment above the checks in youtube.ts.
+  it('throws INTERNAL_ERROR 500 when the date-probe read fails', async () => {
+    const sb = makeSnapshotSupabase(snapshotResults({
+      youtube_video_analytics: [{ data: null, error: { message: 'statement timeout' } }],
+    }))
+
+    await expect(getIntelligenceSnapshot(ctxOf(sb), 'ch-1')).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
+    // the per-video read must never run off a failed probe
+    expect(sb.calls.filter(c => c.table === 'youtube_video_analytics' && c.op === 'select')).toHaveLength(1)
+  })
+
+  it('throws INTERNAL_ERROR 500 when the per-video read fails', async () => {
+    const sb = makeSnapshotSupabase(snapshotResults({
+      youtube_video_analytics: [
+        { data: { date: '2026-09-18' }, error: null },
+        { data: null, error: { message: 'statement timeout' } },
+      ],
+    }))
+
+    await expect(getIntelligenceSnapshot(ctxOf(sb), 'ch-1')).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
+  })
 })

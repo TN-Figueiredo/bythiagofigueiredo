@@ -266,7 +266,7 @@ export async function getIntelligenceSnapshot(
   // the EN channel has zero videos in production and its snapshot is a live path.
   if (videoIds.length > 0) {
     const floor = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10)
-    const { data: latest } = await supabase
+    const { data: latest, error: latestError } = await supabase
       .from('youtube_video_analytics')
       .select('date')
       .eq('site_id', siteId)
@@ -276,14 +276,21 @@ export async function getIntelligenceSnapshot(
       .limit(1)
       .maybeSingle()
 
+    // A DB error here must never fall through to "no recent activity": that shape is
+    // indistinguishable from a healthy, quiet channel, and the forja worker would read it
+    // as a valid snapshot, analyze on top of zeros, and close the task as `completed`.
+    if (latestError) return err('INTERNAL_ERROR', 'Failed to read the analytics window', 500)
+
     if (latest?.date) {
       recentWindow = { date: latest.date as string, days: SYNC_WINDOW_DAYS }
-      const { data: rows } = await supabase
+      const { data: rows, error: rowsError } = await supabase
         .from('youtube_video_analytics')
         .select('youtube_video_id, views, subscribers_gained')
         .eq('site_id', siteId)
         .in('youtube_video_id', videoIds)
         .eq('date', latest.date)
+
+      if (rowsError) return err('INTERNAL_ERROR', 'Failed to read per-video analytics', 500)
 
       for (const r of rows ?? []) {
         recentByVideo.set(r.youtube_video_id as string, {
