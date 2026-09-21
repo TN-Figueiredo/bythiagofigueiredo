@@ -139,10 +139,20 @@ Recebe resultados de análise do Cowork.
 **Erros:**
 | Code | HTTP | Quando |
 |------|------|--------|
-| VALIDATION_ERROR | 400 | Corpo inválido, ou `video_id` referenciado não existe no canal |
+| VALIDATION_ERROR | 400 | Corpo inválido |
+| VALIDATION_ERROR | 422 | `video_id` referenciado não existe no canal (falha de integridade referencial) |
 | NOT_FOUND | 404 | `task_id` não existe |
 | TASK_NOT_RUNNING | 409 | Task não está `running`, ou pertence a outra chave — **não reenviar** |
 | PARTIAL_FAILURE | 500 | Uma ou mais escritas falharam; a task **continua `running`** e nada foi fechado — feche com `fail` (`retry: true`) |
+
+**Fechamento explícito da task** (quando o worker não conseguiu terminar, ou levou 409/500 acima): dois endpoints REST — contrato essencial abaixo, detalhe completo mais adiante neste doc.
+
+| Endpoint | Corpo | Respostas |
+|---|---|---|
+| `POST .../intelligence/task/claim` | `{"channel_ids": ["uuid", …]}` (1–10, obrigatório) | 200 `{"data":{"id","site_id","channel_id","trigger_type","requested_at","started_at"}}` · 204 fila vazia · 400 `VALIDATION_ERROR` · 403 `FORBIDDEN` · 500 `INTERNAL_ERROR` |
+| `POST .../intelligence/task/{id}/fail` | `{"reason": "…", "retry": true}` | 200 `{"data":{"id","status","retry_count"}}` · 400 `VALIDATION_ERROR` · 404 `NOT_FOUND` · 409 `TASK_NOT_RUNNING` · 500 `INTERNAL_ERROR` |
+
+**Via MCP (`manage_ab_test`):** existe `claim_task`, mas **não existe ação `fail`** — quem clamou pelo MCP e levou 409/500 fecha via REST (`POST .../task/{id}/fail`) ou espera o watchdog (30–60min). Ver "Retry & Backoff" e o workflow "Via MCP" abaixo.
 
 ### GET /api/pipeline/youtube/intelligence/task (legado)
 
@@ -300,6 +310,7 @@ Canais menores recebem "benefício da dúvida" — CTR e retenção naturalmente
 | 400 | Invalid request body or parameters | Check field types and required fields |
 | 401 | Missing or invalid X-Pipeline-Key | Verify header is present in request |
 | 404 | Resource not found | Verify the ID exists — for channel_id, note that 404 can mean the YouTube channel hasn't been synced yet (run a sync first) |
+| 422 `VALIDATION_ERROR` | Referential integrity failed (e.g. `video_id` not found in the channel) | Check the ID against `GET .../intelligence` — do not retry with the same body |
 | 409 | Revision conflict (rev mismatch) | Re-GET the resource, use current rev, retry |
 | 409 `TASK_NOT_RUNNING` | Task não está `running`, ou está presa em outra chave | **Não reenviar** — reclame outra task (`claim_task` / `POST .../task/claim`) |
 | 412 | Version conflict (X-Expected-Version mismatch) | Re-GET the item to refresh version, retry |
@@ -1443,6 +1454,7 @@ Workflow completo de análise e coaching de canal via Intelligence Engine:
 2. `manage_ab_test` action: `get_intelligence` com `channel_id`
 3. Cowork processa os dados
 4. `manage_ab_test` action: `submit_intelligence` com `intel_payload` — `task_id` obrigatório; `source` da linha vem da chave, não do payload
+   - Não deu para terminar, ou `submit_intelligence` voltou 409/500? **O MCP não tem ação `fail`.** Feche via REST, `POST /api/pipeline/youtube/intelligence/task/{id}/fail` ({reason, retry}), ou espere o watchdog (30–60min) — nunca reenvie o `submit_intelligence`.
 
 ### 2. Competitor Monitoring
 
