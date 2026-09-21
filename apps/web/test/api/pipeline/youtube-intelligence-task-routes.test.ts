@@ -57,6 +57,18 @@ describe('POST .../intelligence/task/claim', () => {
     expect(claimNextTask).not.toHaveBeenCalled()
   })
 
+  // Regression for the 2026-09-20 fix: parseBody(req, ClaimSchema, auth) threads the
+  // already-authenticated `auth` through so its 400 carries the same X-RateLimit-* the
+  // 204 branch below already sends — an api_key caller shouldn't lose rate-limit
+  // visibility just because its body happened to be invalid.
+  it("400s an invalid body with X-RateLimit-* for an api_key caller — parseBody's `auth` wiring", async () => {
+    const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/claim/route')
+    const res = await POST(post({ channel_ids: [] }))
+    expect(res.status).toBe(400)
+    expect(res.headers.get('X-RateLimit-Remaining')).not.toBeNull()
+    expect(res.headers.get('X-RateLimit-Reset')).not.toBeNull()
+  })
+
   it('500s when the service reports a DB error — never a silent 204', async () => {
     vi.mocked(claimNextTask).mockRejectedValue(new PipelineServiceError('INTERNAL_ERROR', 'Failed to read the task queue', 500))
     const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/claim/route')
@@ -96,6 +108,17 @@ describe('POST .../intelligence/task/:id/fail', () => {
     expect(failTask).not.toHaveBeenCalled()
   })
 
+  // Regression for the 2026-09-20 fix: parseBody(req, FailSchema, auth) threads `auth`
+  // through so a bad-reason 400 carries X-RateLimit-* for an api_key caller, same as the
+  // claim route's 400 and 204.
+  it("400s an invalid body with X-RateLimit-* for an api_key caller — parseBody's `auth` wiring", async () => {
+    const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/[id]/fail/route')
+    const res = await POST(postFail({}), { params: Promise.resolve({ id: TASK }) })
+    expect(res.status).toBe(400)
+    expect(res.headers.get('X-RateLimit-Remaining')).not.toBeNull()
+    expect(res.headers.get('X-RateLimit-Reset')).not.toBeNull()
+  })
+
   it('maps service errors to 404, 409 and 500', async () => {
     const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/[id]/fail/route')
     for (const [code, status] of [['NOT_FOUND', 404], ['TASK_NOT_RUNNING', 409], ['INTERNAL_ERROR', 500]] as const) {
@@ -103,5 +126,46 @@ describe('POST .../intelligence/task/:id/fail', () => {
       const res = await POST(postFail({ reason: 'x' }), { params: Promise.resolve({ id: TASK }) })
       expect(res.status).toBe(status)
     }
+  })
+})
+
+// ─── PATCH .../intelligence — real parseBody, wiring of the `auth` 3rd arg ──
+
+const SESSION_AUTH = { ok: true as const, auth: { siteId: 'site-1', permissions: ['read', 'intelligence'], source: 'session' as const } }
+
+function patchIntel(rawBody: string) {
+  return new Request('http://localhost/api/pipeline/youtube/intelligence', {
+    method: 'PATCH', body: rawBody, headers: { 'content-type': 'application/json' },
+  }) as never
+}
+
+describe('PATCH .../intelligence — parseBody(req, undefined, auth) wiring', () => {
+  beforeEach(() => { vi.clearAllMocks(); vi.mocked(authenticateIntel).mockResolvedValue(AUTH) })
+
+  // Regression for the 2026-09-20 fix: PATCH now calls parseBody(req, undefined, auth) —
+  // schema is undefined here (the service layer validates the shape), so the only way to
+  // hit parseBody's 400 from this route is invalid JSON. Mirrors the claim/fail coverage
+  // above: an api_key caller keeps its rate-limit visibility on a bad body, same as a
+  // valid one.
+  it('400s invalid JSON with X-RateLimit-* for an api_key caller', async () => {
+    const { PATCH } = await import('@/app/api/pipeline/youtube/intelligence/route')
+    const res = await PATCH(patchIntel('not json'))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe('VALIDATION_ERROR')
+    expect(res.headers.get('X-RateLimit-Remaining')).not.toBeNull()
+    expect(res.headers.get('X-RateLimit-Reset')).not.toBeNull()
+  })
+
+  // buildRateLimitHeaders only attaches headers for source === 'api_key' (it needs a
+  // keyHash to look up the rate-limit bucket by). Unlike claim/fail, PATCH's
+  // authenticateIntel call has no `apiKeyOnly` gate, so a session caller reaches
+  // parseBody — and must NOT get rate-limit headers it has no bucket for.
+  it('400s invalid JSON with NO rate-limit headers for a session caller', async () => {
+    vi.mocked(authenticateIntel).mockResolvedValue(SESSION_AUTH)
+    const { PATCH } = await import('@/app/api/pipeline/youtube/intelligence/route')
+    const res = await PATCH(patchIntel('not json'))
+    expect(res.status).toBe(400)
+    expect(res.headers.get('X-RateLimit-Remaining')).toBeNull()
+    expect(res.headers.get('X-RateLimit-Reset')).toBeNull()
   })
 })

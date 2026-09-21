@@ -594,3 +594,39 @@ describe('MCP Errors — PARTIAL_FAILURE classification', () => {
     expect(result._meta?.retryable).toBe(false)
   })
 })
+
+describe('MCP Errors — recovery_action never sends the caller after a nonexistent action', () => {
+  let pair: McpTestPair
+
+  afterEach(async () => {
+    if (pair) await pair.cleanup()
+  })
+
+  it("PARTIAL_FAILURE and TASK_NOT_RUNNING don't tell the caller to send/call a `fail` action on manage_ab_test", async () => {
+    // Derive the real action enum from the REAL (unmocked) tool registration — not a
+    // hardcoded copy — so this stays valid if someone adds an action later. This is what
+    // shipped the bug: manage_ab_test never grew a `fail` action, only `claim_task`.
+    const { registerTools } = await import('@/lib/pipeline/mcp/tools')
+    pair = await createTestMcpPair({ setupServer: registerTools })
+    const { tools } = await pair.client.listTools()
+    const abTestTool = tools.find((t) => t.name === 'manage_ab_test')
+    expect(abTestTool).toBeDefined()
+    const actionEnum = (abTestTool!.inputSchema.properties as Record<string, { enum?: string[] }>).action.enum ?? []
+    expect(actionEnum).toContain('claim_task')
+    expect(actionEnum).not.toContain('fail')
+
+    // The property that matters — "no recovery_action instructs an action outside the MCP
+    // enum" — can't be checked generically against free text without NLP; the regression
+    // that actually shipped had a specific, checkable shape: "send/call ... fail" (i.e.
+    // telling the MCP caller to invoke a `fail` action manage_ab_test never had). That
+    // shape is what this asserts directly, per code, rather than parsing prose against
+    // the enum. Text that references the REST fail *endpoint* (e.g. "task/{id}/fail")
+    // is allowed — only "send/call ... fail" as an instruction to act is disallowed.
+    const { toMcpError } = await import('@/lib/pipeline/mcp/errors')
+    for (const code of ['PARTIAL_FAILURE', 'TASK_NOT_RUNNING'] as const) {
+      const result = toMcpError({ code, message: 'x' })
+      const recoveryAction = result._meta?.recovery_action ?? ''
+      expect(recoveryAction).not.toMatch(/\bsend\b[^.]*\bfail\b/i)
+    }
+  })
+})
