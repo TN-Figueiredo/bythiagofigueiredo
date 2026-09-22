@@ -22,6 +22,8 @@ interface Props {
   coachingCards: CoachingCard[]
   videoCount: number
   lastAnalysisAt: string | null
+  /** Non-null whenever a real analysis (Cowork or forja) exists for this channel. */
+  coachingMeta: { source: 'cowork' | 'forja'; generatedLabel: string; summary: string } | null
   onRequestAnalysis?: () => void
   analysisState: 'idle' | 'pending' | 'cooldown' | 'success'
 }
@@ -53,12 +55,12 @@ export function YtHealthCoach({
   coachingCards,
   videoCount,
   lastAnalysisAt,
+  coachingMeta,
   onRequestAnalysis,
   analysisState,
 }: Props) {
   const router = useRouter()
   const sortedCards = [...coachingCards].sort((a, b) => a.score - b.score)
-  const hasCoworkCoaching = sortedCards.some(c => c.source === 'cowork')
 
   const potentialScore = sortedCards.length > 0
     ? Math.min(100, healthScore + sortedCards.reduce((sum, c) => sum + Math.max(0, Math.round((c.benchmark - c.score) * 1.5)), 0))
@@ -94,15 +96,25 @@ export function YtHealthCoach({
           </svg>
         </div>
         <div className="flex-1">
-          <span className="section-label">{hasCoworkCoaching ? 'Diagnostico do Cowork' : 'Diagnostico heuristico'}</span>
-          <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 6 }}>
-            {sortedCards.length > 0
-              ? `O canal esta em ${healthScore}/100. ${sortedCards.length} eixo${sortedCards.length > 1 ? 's' : ''} puxa${sortedCards.length > 1 ? 'm' : ''} pra baixo. Resolver levaria o score pra ~${potentialScore}.`
-              : 'Canal saudavel em todos os eixos — continue monitorando.'}
-          </p>
-          {!hasCoworkCoaching && sortedCards.length > 0 && (
+          <span className="section-label">
+            {coachingMeta
+              ? `Diagnostico · por ${coachingMeta.source === 'forja' ? 'forja' : 'Cowork'} · ${coachingMeta.generatedLabel}`
+              : 'Diagnostico heuristico'}
+          </span>
+          {coachingMeta ? (
+            coachingMeta.summary.trim() !== '' && (
+              <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 6 }}>{coachingMeta.summary}</p>
+            )
+          ) : (
+            <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 6 }}>
+              {sortedCards.length > 0
+                ? `O canal esta em ${healthScore}/100. ${sortedCards.length} eixo${sortedCards.length > 1 ? 's' : ''} puxa${sortedCards.length > 1 ? 'm' : ''} pra baixo. Resolver levaria o score pra ~${potentialScore}.`
+                : 'Canal saudavel em todos os eixos — continue monitorando.'}
+            </p>
+          )}
+          {!coachingMeta && sortedCards.length > 0 && (
             <p className="dim" style={{ fontSize: 11, marginTop: 4 }}>
-              Baseado em regras fixas — ainda sem analise do Cowork para este canal.
+              Baseado em regras fixas — ainda sem analise para este canal.
             </p>
           )}
         </div>
@@ -166,7 +178,7 @@ export function YtHealthCoach({
         )
       })}
 
-      {sortedCards.length === 0 && (
+      {!coachingMeta && sortedCards.length === 0 && (
         <div className="card" style={{ padding: 16, textAlign: 'center' }}>
           <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--green)' }}>Canal saudavel em todos os eixos</p>
           <p className="dim" style={{ fontSize: 12, marginTop: 4 }}>
