@@ -5,6 +5,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { scoreVideo, computeOutliers, computeTrend, computeBaseline } from '@/lib/youtube/scoring'
 import type { VideoScoreInput } from '@/lib/youtube/scoring-types'
+import { latestRow } from '@/lib/youtube/rolling-window'
 import type { CoachingOutput } from '@/lib/youtube/intelligence-types'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -199,9 +200,12 @@ export async function fetchGradesData(channelId: string) {
   const scoredVideos = videos.map(video => {
     const daily = dailyByVideo.get(video.id) ?? []
     const last28 = daily.filter(d => new Date(d.date).getTime() > Date.now() - 28 * 86400000)
-    const totalViews = last28.reduce((s, d) => s + d.views, 0)
-    const totalEng = last28.reduce((s, d) => s + d.likes + d.comments + d.shares, 0)
-    const totalSubs = last28.reduce((s, d) => s + d.subscribers_gained, 0)
+    // Every row already holds the rolling-window TOTAL, so the newest row is the
+    // answer. Summing 28 rows reported ~17x the real views to the Health Coach.
+    const newest = latestRow(last28)
+    const totalViews = newest?.views ?? 0
+    const totalEng = newest ? newest.likes + newest.comments + newest.shares : 0
+    const totalSubs = newest?.subscribers_gained ?? 0
 
     const input: VideoScoreInput = {
       videoId: video.id,
@@ -213,7 +217,7 @@ export async function fetchGradesData(channelId: string) {
         ? video.traffic_sources as VideoScoreInput['trafficSources']
         : null,
       engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : 0,
-      dailyViews: last28.map(d => ({ date: d.date, views: d.views })),
+      rollingViews: last28.map(d => ({ date: d.date, windowViews: d.views })),
       subscribersGained: totalSubs,
       viewCount: video.view_count ?? 0,
     }
@@ -243,10 +247,13 @@ export async function fetchGradesData(channelId: string) {
 
   const axes: Array<'ctr' | 'retention' | 'reach' | 'engagement' | 'growth' | 'sub_impact'> = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
   const outliers = axes.flatMap(axis => {
-    const axisScores = scoredVideos.map(v => ({
-      videoId: v.videoId,
-      score: v.axes.find(a => a.axis === axis)?.normalized ?? 50,
-    }))
+    // A video without a score on this axis is dropped, not scored 50. `?? 50`
+    // fed a made-up median into the outlier statistics and let an unmeasured
+    // axis (growth) decide which videos looked anomalous.
+    const axisScores = scoredVideos.flatMap(v => {
+      const found = v.axes.find(a => a.axis === axis)
+      return found === undefined ? [] : [{ videoId: v.videoId, score: found.normalized }]
+    })
     return computeOutliers(axisScores, axis)
   })
 

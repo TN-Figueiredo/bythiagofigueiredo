@@ -357,11 +357,18 @@ export function YtAnalyticsTabs({
 
 function computeRadarData(videos: VideoGradeRow[]): Array<{ label: string; value: number; grade: string }> {
   const axes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
-  return axes.map(axis => {
-    const scores = videos.map(v => v.axes.find(a => a.axis === axis)?.normalized ?? 0)
-    const avg = scores.length > 0 ? scores.reduce((s, v) => s + v, 0) / scores.length : 0
+  // Same rule as `computeCoachingCards` below: an axis missing from a video's
+  // `axes` was not measured, so it is left out — `?? 0` would draw a spoke at
+  // zero and make "we never measured growth" look like "growth is terrible".
+  return axes.flatMap(axis => {
+    const scores = videos
+      .map(v => v.axes.find(a => a.axis === axis))
+      .filter((a): a is NonNullable<typeof a> => a !== undefined)
+      .map(a => a.normalized)
+    if (scores.length === 0) return []
+    const avg = scores.reduce((s, v) => s + v, 0) / scores.length
     const grade = avg >= 85 ? 'A' : avg >= 65 ? 'B' : avg >= 40 ? 'C' : 'D'
-    return { label: AXIS_LABELS[axis], value: avg, grade }
+    return [{ label: AXIS_LABELS[axis], value: avg, grade }]
   })
 }
 

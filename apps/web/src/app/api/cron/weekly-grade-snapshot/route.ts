@@ -5,6 +5,7 @@ import { getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { buildNotification, buildGroupNotification, shouldAggregate } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import type { VideoScoreInput } from '@/lib/youtube/scoring-types'
+import { latestRow } from '@/lib/youtube/rolling-window'
 import * as Sentry from '@sentry/nextjs'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
@@ -96,10 +97,13 @@ export async function GET(req: NextRequest) {
       for (const video of videos) {
         const daily = dailyByVideo.get(video.id) ?? []
         const last28 = daily.filter(d => new Date(d.date).getTime() > Date.now() - 28 * 86400000)
-        const totalViews = last28.reduce((s, d) => s + d.views, 0)
-        const totalEngagement = last28.reduce((s, d) => s + d.likes + d.comments + d.shares, 0)
+        // The newest row is the rolling-window total; the rows are not daily
+        // counts and summing them inflated every weekly grade snapshot.
+        const newest = latestRow(last28)
+        const totalViews = newest?.views ?? 0
+        const totalEngagement = newest ? newest.likes + newest.comments + newest.shares : 0
         const engagementRate = totalViews > 0 ? (totalEngagement / totalViews) * 100 : 0
-        const totalSubs = last28.reduce((s, d) => s + d.subscribers_gained, 0)
+        const totalSubs = newest?.subscribers_gained ?? 0
 
         const input: VideoScoreInput = {
           videoId: video.id,
@@ -111,7 +115,7 @@ export async function GET(req: NextRequest) {
             ? video.traffic_sources as VideoScoreInput['trafficSources']
             : null,
           engagementRate,
-          dailyViews: last28.map(d => ({ date: d.date, views: d.views })),
+          rollingViews: last28.map(d => ({ date: d.date, windowViews: d.views })),
           subscribersGained: totalSubs,
           viewCount: video.view_count ?? 0,
         }

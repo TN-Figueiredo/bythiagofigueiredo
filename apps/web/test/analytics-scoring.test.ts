@@ -134,7 +134,7 @@ describe('computeEvergreenBonus', () => {
     const views = [10, 200, 5, 300, 8, 250, 3, 180, 15, 220, 7, 190, 4, 210]
     expect(computeEvergreenBonus(200, views, 50)).toBe(0)
   })
-  it('returns 0 bonus when channelDailyMean is 0', () => {
+  it('returns 0 bonus when channelMeanWindowViews is 0', () => {
     const bonus = computeEvergreenBonus(200, [100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100], 0)
     expect(bonus).toBe(0)
   })
@@ -206,9 +206,8 @@ describe('scoreVideo', () => {
     medianRetention: 45,
     medianReach: 60,
     medianEngagement: 4.0,
-    medianGrowth: 0,
     medianSubImpact: 0.5,
-    channelDailyMean: 100,
+    channelMeanWindowViews: 100,
     subscriberCount: 50000,
     medianViewCount: 3000,
   }
@@ -222,14 +221,14 @@ describe('scoreVideo', () => {
       impressions: 10000,
       trafficSources: { browse: 40, search: 25, suggested: 20, external: 10, direct: 3, notifications: 1, playlists: 1 },
       engagementRate: 6.5,
-      dailyViews: Array.from({ length: 28 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, views: 200 + i * 10 })),
+      rollingViews: Array.from({ length: 28 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, windowViews: 200 + i * 10 })),
       subscribersGained: 50,
       viewCount: 5000,
     }
     const result = scoreVideo(input, baseline)
     expect(result.grade).toMatch(/^[AB]$/)
     expect(result.overall).toBeGreaterThan(60)
-    expect(result.axes).toHaveLength(6)
+    expect(result.axes).toHaveLength(5)
   })
 
   it('scores a low-performing video as C or D', () => {
@@ -241,7 +240,7 @@ describe('scoreVideo', () => {
       impressions: 8000,
       trafficSources: { browse: 85, search: 5, suggested: 5, external: 3, direct: 1, notifications: 1, playlists: 0 },
       engagementRate: 1.5,
-      dailyViews: Array.from({ length: 28 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, views: 200 - i * 5 })),
+      rollingViews: Array.from({ length: 28 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, windowViews: 200 - i * 5 })),
       subscribersGained: 2,
       viewCount: 3000,
     }
@@ -259,7 +258,7 @@ describe('scoreVideo', () => {
       impressions: 5000,
       trafficSources: { browse: 30, search: 20, suggested: 20, external: 15, direct: 5, notifications: 5, playlists: 5 },
       engagementRate: 4.0,
-      dailyViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, views: 100 })),
+      rollingViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, windowViews: 100 })),
       subscribersGained: 10,
       viewCount: 1400,
     }
@@ -279,7 +278,7 @@ describe('scoreVideo', () => {
       impressions: 5000,
       trafficSources: { browse: 30, search: 20, suggested: 20, external: 15, direct: 5, notifications: 5, playlists: 5 },
       engagementRate: 4.0,
-      dailyViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, views: 100 })),
+      rollingViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, windowViews: 100 })),
       subscribersGained: 10,
       viewCount: 1400,
     }
@@ -303,7 +302,7 @@ describe('scoreVideo', () => {
       impressions: 5000,
       trafficSources: { browse: 30, search: 20, suggested: 20, external: 15, direct: 5, notifications: 5, playlists: 5 },
       engagementRate: 4.0,
-      dailyViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, views: 100 })),
+      rollingViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, windowViews: 100 })),
       subscribersGained: 10,
       viewCount: 1400,
     }
@@ -329,7 +328,7 @@ describe('scoreVideo', () => {
         impressions: 10000,
         trafficSources: { browse: 40, search: 25, suggested: 20, external: 10, direct: 3, notifications: 1, playlists: 1 },
         engagementRate: 4.0,
-        dailyViews: Array.from({ length: 28 }, (_, i) => ({ date: `2026-04-${String(i + 1).padStart(2, '0')}`, views: 500 + i * 10 })),
+        rollingViews: Array.from({ length: 28 }, (_, i) => ({ date: `2026-04-${String(i + 1).padStart(2, '0')}`, windowViews: 500 + i * 10 })),
         subscribersGained: 50,
         viewCount: 15000,
       }
@@ -338,17 +337,21 @@ describe('scoreVideo', () => {
         medianRetention: 45,
         medianReach: 50,
         medianEngagement: 4.0,
-        medianGrowth: 0,
         medianSubImpact: 0.5,
-        channelDailyMean: 500,
+        channelMeanWindowViews: 500,
         subscriberCount: 50000,
         medianViewCount: 10000,
       }
       const result = scoreVideo(input, goldenBaseline)
-      expect(result.grade).toBe('B')
-      expect(result.overall).toBeGreaterThan(60)
-      expect(result.overall).toBeLessThan(75)
-      expect(result.axes).toHaveLength(6)
+      // Was 'B' (~68) while the growth axis existed: the rising `rollingViews`
+      // series scored ~99 on growth at weight 0.12, worth ~11.9 points. That
+      // series is 28 overlapping window totals, not 28 daily counts, so the
+      // growth score was invented — and it was what carried this video over the
+      // B threshold of 65. Without it the video scores 62.8 and is a C.
+      expect(result.grade).toBe('C')
+      expect(result.overall).toBeCloseTo(62.81, 1)
+      expect(result.axes).toHaveLength(5)
+      expect(result.axes.find(a => a.axis === 'growth')).toBeUndefined()
       for (const axis of result.axes) {
         expect(axis.normalized).toBeGreaterThanOrEqual(1)
         expect(axis.normalized).toBeLessThanOrEqual(99)
@@ -367,7 +370,7 @@ describe('scoreVideo', () => {
       impressions: 10000,
       trafficSources: null,
       engagementRate: 4.0,
-      dailyViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, views: 100 })),
+      rollingViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, windowViews: 100 })),
       subscribersGained: 10,
       viewCount: 10000,
     }
@@ -386,7 +389,7 @@ describe('scoreVideo', () => {
       impressions: 10000,
       trafficSources: { browse: 40, search: 25, suggested: 20, external: 10, direct: 3, notifications: 1, playlists: 1 },
       engagementRate: 4.0,
-      dailyViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, views: 100 })),
+      rollingViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, windowViews: 100 })),
       subscribersGained: 10,
       viewCount: 5000,
     }
@@ -405,7 +408,7 @@ describe('scoreVideo', () => {
       impressions: 10000,
       trafficSources: { browse: 40, search: 25, suggested: 20, external: 10, direct: 3, notifications: 1, playlists: 1 },
       engagementRate: 4.0,
-      dailyViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, views: 100 })),
+      rollingViews: Array.from({ length: 14 }, (_, i) => ({ date: `2026-05-${String(i + 1).padStart(2, '0')}`, windowViews: 100 })),
       subscribersGained: -50,
       viewCount: 5000,
     }

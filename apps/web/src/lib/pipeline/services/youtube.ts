@@ -8,6 +8,7 @@ import { scoreVideo, computeBaseline, computeTrend, assignGrade } from '@/lib/yo
 import type { BaselineVideoInput } from '@/lib/youtube/scoring'
 import { fetchYtDemographics, fetchYtSearchTerms } from '@/lib/youtube/analytics-client'
 import type { VideoScoreInput, TrafficSources, TrendData } from '@/lib/youtube/scoring-types'
+import { latestRow } from '@/lib/youtube/rolling-window'
 import type { TestType, VariantMetadata } from '@/lib/youtube/ab-types'
 import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
@@ -1886,9 +1887,11 @@ export async function getVideoDetail(
   const commentCount = video.comment_count ?? 0
   const totalImpressions = video.impressions ?? 0
   const engagementRate = viewCount > 0 ? ((likeCount + commentCount) / viewCount) * 100 : 0
-  const subscribersGained = dailyRows.reduce((s: number, r: { subscribers_gained?: number }) => s + (r.subscribers_gained ?? 0), 0)
+  // Newest row = current rolling-window total; rows must not be summed.
+  const newestRow = latestRow(dailyRows as Array<{ date: string; views: number; subscribers_gained?: number }>)
+  const subscribersGained = newestRow?.subscribers_gained ?? 0
 
-  const dailyViews = dailyRows.map((r: { date: string; views: number }) => ({ date: r.date, views: r.views }))
+  const rollingViews = dailyRows.map((r: { date: string; views: number }) => ({ date: r.date, windowViews: r.views }))
 
   const scoreInput: VideoScoreInput = {
     videoId,
@@ -1898,7 +1901,7 @@ export async function getVideoDetail(
     impressions: totalImpressions,
     trafficSources: (video.traffic_sources as TrafficSources) ?? null,
     engagementRate,
-    dailyViews,
+    rollingViews,
     subscribersGained,
     viewCount,
   }
@@ -1906,12 +1909,13 @@ export async function getVideoDetail(
   const videoScore = scoreVideo(scoreInput, baseline)
 
   // Map axes with channel medians
+  // No `growth` entry: the axis is not scored (see GROWTH_UNAVAILABLE), so it
+  // never appears in `videoScore.axes` and needs no median.
   const medianMap: Record<string, number> = {
     ctr: baseline.medianCtr,
     retention: baseline.medianRetention,
     reach: baseline.medianReach,
     engagement: baseline.medianEngagement,
-    growth: baseline.medianGrowth,
     sub_impact: baseline.medianSubImpact,
   }
 
@@ -2142,9 +2146,12 @@ export async function getAnalyticsOverview(
 
   for (const video of videos) {
     const daily = dailyByVideo.get(video.id) ?? []
-    const totalViews = daily.reduce((s, d) => s + d.views, 0)
-    const totalEng = daily.reduce((s, d) => s + d.likes + d.comments + d.shares, 0)
-    const totalSubs = daily.reduce((s, d) => s + d.subscribers_gained, 0)
+    // Each row is the total over the rolling sync window; the newest row IS the
+    // window total. Summing rows counted the same views once per sync date.
+    const newest = latestRow(daily)
+    const totalViews = newest?.views ?? 0
+    const totalEng = newest ? newest.likes + newest.comments + newest.shares : 0
+    const totalSubs = newest?.subscribers_gained ?? 0
 
     const input: VideoScoreInput = {
       videoId: video.id,
@@ -2156,7 +2163,7 @@ export async function getAnalyticsOverview(
         ? video.traffic_sources as VideoScoreInput['trafficSources']
         : null,
       engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : 0,
-      dailyViews: daily.map(d => ({ date: d.date, views: d.views })),
+      rollingViews: daily.map(d => ({ date: d.date, windowViews: d.views })),
       subscribersGained: totalSubs,
       viewCount: video.view_count ?? 0,
     }
@@ -2179,9 +2186,17 @@ export async function getAnalyticsOverview(
 
   const overallHealth = Math.round(overallSum / videos.length)
 
-  const allDaily = Array.from(dailyByVideo.values()).flat()
-  const totalViews = allDaily.reduce((s, d) => s + d.views, 0)
-  const totalSubs = allDaily.reduce((s, d) => s + d.subscribers_gained, 0)
+  // Channel KPIs: one contribution per video (its current window total), never
+  // one per sync date. Summing every row is the "428 views in 28 days" bug —
+  // measured on 2026-09-22 it reported 543 where the truth was 32.
+  let totalViews = 0
+  let totalSubs = 0
+  for (const rows of dailyByVideo.values()) {
+    const newest = latestRow(rows)
+    if (newest === null) continue
+    totalViews += newest.views
+    totalSubs += newest.subscribers_gained
+  }
 
   const ctrs = videos.map(v => v.ctr ?? 0).filter(c => c > 0)
   const retentions = videos.map(v => v.avg_view_percentage ?? 0).filter(r => r > 0)
@@ -2299,9 +2314,10 @@ export async function getAnalyticsGrades(
   const scored: VideoGradeRow[] = videos.map(video => {
     const daily = dailyByVideo.get(video.id) ?? []
     const last28 = daily.filter(d => new Date(d.date).getTime() > Date.now() - 28 * 86400000)
-    const totalViews = last28.reduce((s, d) => s + d.views, 0)
-    const totalEng = last28.reduce((s, d) => s + d.likes + d.comments + d.shares, 0)
-    const totalSubs = last28.reduce((s, d) => s + d.subscribers_gained, 0)
+    const newest = latestRow(last28)
+    const totalViews = newest?.views ?? 0
+    const totalEng = newest ? newest.likes + newest.comments + newest.shares : 0
+    const totalSubs = newest?.subscribers_gained ?? 0
 
     const input: VideoScoreInput = {
       videoId: video.id,
@@ -2313,7 +2329,7 @@ export async function getAnalyticsGrades(
         ? video.traffic_sources as VideoScoreInput['trafficSources']
         : null,
       engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : 0,
-      dailyViews: last28.map(d => ({ date: d.date, views: d.views })),
+      rollingViews: last28.map(d => ({ date: d.date, windowViews: d.views })),
       subscribersGained: totalSubs,
       viewCount: video.view_count ?? 0,
     }

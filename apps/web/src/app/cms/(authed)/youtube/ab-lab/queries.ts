@@ -32,6 +32,7 @@ import { computeGates } from '@/lib/youtube/ab-gates'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { computeOutlierScore, computeRevenueRange, computeDaysRemaining } from '@/lib/youtube/ab-computed'
 import { toDisplayLabel, variantColor } from './_components/ab-constants'
+import { latestRow, latestRowPerVideo } from '@/lib/youtube/rolling-window'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -877,17 +878,18 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
   const twentyEightDaysAgo = new Date(Date.now() - 28 * 86400000).toISOString().slice(0, 10)
   const { data: recentAnalytics } = await supabase
     .from('youtube_video_analytics')
-    .select('youtube_video_id, views')
+    .select('youtube_video_id, date, views')
     .eq('site_id', siteId)
     .gte('date', twentyEightDaysAgo)
 
-  // Compute total views per video in last 28d
+  // Window total per video = the value on its most recent row. Accumulating
+  // `+= row.views` across dates re-counted the same views once per sync (17x on
+  // production data), inflating the channel average every video is judged against.
   const viewsLast28d = new Map<string, number>()
-  for (const row of recentAnalytics ?? []) {
-    viewsLast28d.set(
-      row.youtube_video_id as string,
-      (viewsLast28d.get(row.youtube_video_id as string) ?? 0) + (row.views as number),
-    )
+  for (const [videoId, row] of latestRowPerVideo(
+    (recentAnalytics ?? []) as Array<{ youtube_video_id: string; date: string; views: number }>,
+  )) {
+    viewsLast28d.set(videoId, row.views)
   }
 
   // channelAvgViews28d = average across videos with data
@@ -1273,27 +1275,29 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
         )
       }
 
-      // Revenue: compute from last 28 days of views, annualized
+      // Revenue: the video's rolling-window view total, annualized.
+      // Every row is already the total over the window, so the newest row IS
+      // views-in-window. Summing the rows multiplied it by the number of syncs
+      // (17x on production, 2026-09-22) and the error went straight into a
+      // revenue figure shown to the owner.
       const { data: recentViews } = await supabase
         .from('youtube_video_analytics')
-        .select('views')
+        .select('date, views')
         .eq('youtube_video_id', test.youtube_video_id)
         .gte('date', new Date(Date.now() - 28 * 86400000).toISOString().slice(0, 10))
 
-      const views28d = (recentViews ?? []).reduce((sum, r) => sum + ((r.views as number) ?? 0), 0)
+      const newestRecent = latestRow((recentViews ?? []) as Array<{ date: string; views: number | null }>)
+      const views28d = newestRecent?.views ?? 0
       revenue = computeRevenueRange(views28d * 13) // annualize: 28d × 13 ≈ 365d
 
-      // Days remaining (from last 5 daily analytics)
-      const { data: dailyStats } = await supabase
-        .from('youtube_video_analytics')
-        .select('views')
-        .eq('youtube_video_id', test.youtube_video_id)
-        .order('date', { ascending: false })
-        .limit(5)
-
-      if (dailyStats && dailyStats.length >= 5) {
-        daysRemaining = computeDaysRemaining(dailyStats.map(d => d.views).reverse())
-      }
+      // Days remaining stays unknown. `computeDaysRemaining` fits a DECAY curve
+      // to a series of daily view counts; `youtube_video_analytics` holds
+      // overlapping rolling-window totals, which decay only when a busier day
+      // falls off the back of the window. Feeding it those rows produced a
+      // near-flat series, so it answered `{ days: 999 }` — rendered as "~∞" —
+      // for every test, every time. That is a claim, not a measurement. The
+      // view already has an empty state for `undefined`, so it shows that
+      // instead until a true daily series exists.
     }
 
     return {

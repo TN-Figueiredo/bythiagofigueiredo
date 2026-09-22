@@ -31,6 +31,7 @@ import type {
   OutlierRow,
 } from '@/lib/youtube/prompt-types'
 import type { YtDemographics } from '@/lib/youtube/analytics-types'
+import { latestRow } from '@/lib/youtube/rolling-window'
 
 type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string }
 
@@ -318,13 +319,14 @@ export async function fetchChannelHealthData(
     const scored = videos.map(
       (v: { id: string; youtube_video_id: string; title: string; view_count: number; avg_view_percentage: number | null; ctr: number | null; traffic_sources: unknown; published_at: string; impressions: number | null }) => {
         const videoDaily = dailyByVideo.get(v.id as string) ?? []
-        const dailyViews = videoDaily.map(d => ({ date: d.date, views: d.views }))
-        const totalViews = videoDaily.reduce((s, d) => s + d.views, 0)
-        const totalLikes = videoDaily.reduce((s, d) => s + (d.likes ?? 0), 0)
-        const totalComments = videoDaily.reduce((s, d) => s + (d.comments ?? 0), 0)
-        const totalShares = videoDaily.reduce((s, d) => s + (d.shares ?? 0), 0)
-        const totalSubsGained = videoDaily.reduce((s, d) => s + (d.subscribers_gained ?? 0), 0)
-        const engRate = totalViews > 0 ? ((totalLikes + totalComments + totalShares) / totalViews) * 100 : 0
+        const rollingViews = videoDaily.map(d => ({ date: d.date, windowViews: d.views }))
+        // Newest row = the rolling-window total. Summing rows counted the same
+        // views once per sync date and sent the inflated figure into the prompt.
+        const newest = latestRow(videoDaily)
+        const totalViews = newest?.views ?? 0
+        const windowEngagement = (newest?.likes ?? 0) + (newest?.comments ?? 0) + (newest?.shares ?? 0)
+        const totalSubsGained = newest?.subscribers_gained ?? 0
+        const engRate = totalViews > 0 ? (windowEngagement / totalViews) * 100 : 0
 
         const rawTs = v.traffic_sources as Record<string, number> | null
         const ts = rawTs
@@ -348,7 +350,7 @@ export async function fetchChannelHealthData(
             impressions: (v.impressions as number | null) ?? 0,
             trafficSources: ts,
             engagementRate: engRate,
-            dailyViews,
+            rollingViews,
             subscribersGained: totalSubsGained,
             viewCount: (v.view_count as number) ?? 0,
           },
@@ -403,25 +405,30 @@ export async function fetchChannelHealthData(
         }
       }
 
-      const baselineMedians: Record<Axis, number> = {
+      // `growth` has no median: the axis is not scored (see GROWTH_UNAVAILABLE).
+      const baselineMedians: Partial<Record<Axis, number>> = {
         ctr: baseline.medianCtr,
         retention: baseline.medianRetention,
         reach: baseline.medianReach,
         engagement: baseline.medianEngagement,
-        growth: baseline.medianGrowth,
         sub_impact: baseline.medianSubImpact,
       }
 
-      const healthAxes = axisNames.map(axis => {
+      // An axis no video could be scored on is OMITTED, not reported as 0.
+      // `count === 0` used to collapse "nothing measured this" into "the channel
+      // scores 0 here", which then fed the overall health number and the prompt.
+      const healthAxes = axisNames.flatMap(axis => {
         const s = axisSums.get(axis)!
-        const avgScore = s.count > 0 ? Math.round((s.total / s.count) * 10) / 10 : 0
-        return {
+        const benchmark = baselineMedians[axis]
+        if (s.count === 0 || benchmark === undefined) return []
+        const avgScore = Math.round((s.total / s.count) * 10) / 10
+        return [{
           axis,
           score: avgScore,
           grade: assignGrade(avgScore),
-          benchmark: Math.round(baselineMedians[axis] * 10) / 10,
+          benchmark: Math.round(benchmark * 10) / 10,
           weight: scored[0]?._axes.find(a => a.axis === axis)?.weight ?? 0,
-        }
+        }]
       })
 
       const overallHealth = Math.round(
@@ -617,15 +624,16 @@ export async function fetchVideoOptimizerData(
     const baseline = computeBaseline(peerInputs, dailyByVideo, info.subscribers)
 
     // --- Score the target video ---
-    const videoDailyViews = (dailyByVideo.get(videoId) ?? []).map(d => ({ date: d.date, views: d.views }))
     const videoDaily = dailyByVideo.get(videoId) ?? []
-    const totalVideoViews = videoDaily.reduce((s, d) => s + d.views, 0)
-    const totalVideoLikes = videoDaily.reduce((s, d) => s + (d.likes ?? 0), 0)
-    const totalVideoComments = videoDaily.reduce((s, d) => s + (d.comments ?? 0), 0)
-    const totalVideoShares = videoDaily.reduce((s, d) => s + (d.shares ?? 0), 0)
-    const totalVideoSubsGained = videoDaily.reduce((s, d) => s + (d.subscribers_gained ?? 0), 0)
+    const videoRollingViews = videoDaily.map(d => ({ date: d.date, windowViews: d.views }))
+    // Newest row = the rolling-window total; the rows are not daily counts.
+    const newestVideoRow = latestRow(videoDaily)
+    const totalVideoViews = newestVideoRow?.views ?? 0
+    const videoWindowEngagement =
+      (newestVideoRow?.likes ?? 0) + (newestVideoRow?.comments ?? 0) + (newestVideoRow?.shares ?? 0)
+    const totalVideoSubsGained = newestVideoRow?.subscribers_gained ?? 0
     const engagementRate = totalVideoViews > 0
-      ? ((totalVideoLikes + totalVideoComments + totalVideoShares) / totalVideoViews) * 100
+      ? (videoWindowEngagement / totalVideoViews) * 100
       : 0
 
     const rawTraffic = video.traffic_sources as Record<string, number> | null
@@ -649,7 +657,7 @@ export async function fetchVideoOptimizerData(
             }
           : null,
         engagementRate,
-        dailyViews: videoDailyViews,
+        rollingViews: videoRollingViews,
         subscribersGained: totalVideoSubsGained,
         viewCount: (video.view_count as number) ?? 0,
       },
@@ -665,7 +673,6 @@ export async function fetchVideoOptimizerData(
           : a.axis === 'retention' ? baseline.medianRetention
           : a.axis === 'reach' ? baseline.medianReach
           : a.axis === 'engagement' ? baseline.medianEngagement
-          : a.axis === 'growth' ? baseline.medianGrowth
           : baseline.medianSubImpact) * 10,
       ) / 10,
       status: (a.normalized >= 50 ? 'above' : 'below') as 'above' | 'below',

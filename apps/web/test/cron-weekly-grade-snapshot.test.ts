@@ -128,9 +128,9 @@ describe('computeBaseline (used by weekly-grade-snapshot)', () => {
     expect(baseline.medianReach).toBeGreaterThan(0)
     expect(baseline.medianReach).toBeLessThanOrEqual(100)
 
-    // channelDailyMean: total views across both videos' daily arrays / unique days
-    // 30 days × (100..245 avg ~172.5) × 2 videos = ~10350 total views / 30 days ≈ 345
-    expect(baseline.channelDailyMean).toBeGreaterThan(0)
+    // channelMeanWindowViews: mean, across videos, of each video's CURRENT
+    // rolling-window total (its newest row) — never the sum of its rows.
+    expect(baseline.channelMeanWindowViews).toBeGreaterThan(0)
 
     expect(baseline.subscriberCount).toBe(8500)
   })
