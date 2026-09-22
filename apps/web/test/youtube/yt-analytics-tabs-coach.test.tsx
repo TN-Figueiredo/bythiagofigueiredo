@@ -13,7 +13,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 // test/youtube/yt-search-terms.test.tsx:17.
 vi.mock('@/app/cms/(authed)/pipeline/actions', () => ({ createPipelineItem: vi.fn() }))
 
-import { YtAnalyticsTabs } from '@/app/cms/(authed)/youtube/analytics/_components/yt-analytics-tabs'
+import { YtAnalyticsTabs, computeCoachingCards } from '@/app/cms/(authed)/youtube/analytics/_components/yt-analytics-tabs'
 
 const AXES: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
 
@@ -141,5 +141,57 @@ describe('Health Coach — source badge and summary line', () => {
     render(<YtAnalyticsTabs {...BASE} channelCoaching={channelCoaching as never} onRequestAnalysis={vi.fn()} />)
     expect(screen.getByRole('button', { name: 'Pedir diagnostico' })).toBeTruthy()
     expect(screen.queryByText(/ao Cowork/)).toBeNull()
+  })
+})
+
+/** A video scored on exactly the axes given — an axis absent from `axes` is an axis with
+ *  no sample, which `VideoGradeRow.axes` (Array<{axis, normalized: number}>) expresses by
+ *  omission, since `normalized` itself is non-nullable. */
+function videoWithAxes(entries: Array<{ axis: Axis; normalized: number }>): VideoGradeRow {
+  return { ...videoWithAllAxesAt(0), axes: entries } as unknown as VideoGradeRow
+}
+
+describe('computeCoachingCards — heuristic branch never invents a card without a sample', () => {
+  it('a genuine 0 on an axis still produces a card (the zero IS data)', () => {
+    const cards = computeCoachingCards([videoWithAllAxesAt(0)], null)
+    expect(cards).toHaveLength(3)
+    expect(cards.every(c => c.score === 0)).toBe(true)
+    expect(cards.every(c => c.source === 'fallback')).toBe(true)
+  })
+
+  it('a channel with zero videos produces no card at all', () => {
+    // The live bug: [] scored 0 on all six axes, all six passed the < 6.5 filter, and the
+    // tab badge said 3 while the panel below said "Nenhuma analise ... disponivel ainda".
+    expect(computeCoachingCards([], null)).toEqual([])
+  })
+
+  it('an axis no video carries produces no card, even when other axes do', () => {
+    const cards = computeCoachingCards([videoWithAxes([{ axis: 'ctr', normalized: 0 }])], null)
+    expect(cards.map(c => c.axis)).toEqual(['ctr'])
+  })
+
+  it('an axis averages over the videos that carry it, not over the whole channel', () => {
+    // ctr: one video at 90 (9.0 — healthy, no card). The second video has no ctr sample and
+    // must not drag it to (90+0)/2 = 45 → 4.5, which would invent a "CTR abaixo" card.
+    const cards = computeCoachingCards(
+      [
+        videoWithAxes([{ axis: 'ctr', normalized: 90 }]),
+        videoWithAxes([{ axis: 'retention', normalized: 10 }]),
+      ],
+      null,
+    )
+    expect(cards.map(c => c.axis)).toEqual(['retention'])
+    expect(cards[0].score).toBe(1)
+  })
+})
+
+describe('Health Coach — badge agrees with the panel on an empty channel', () => {
+  it('zero videos and no coaching row: no badge, and the panel states the emptiness', async () => {
+    render(<YtAnalyticsTabs {...BASE} intelligenceVideos={[] as never} channelCoaching={null} />)
+    const coachTab = screen.getByRole('tab', { name: /Health Coach/ })
+    expect(within(coachTab).queryByText('3')).toBeNull()
+
+    await openCoach()
+    expect(screen.getByText('Nenhuma analise de inteligencia disponivel ainda.')).toBeTruthy()
   })
 })

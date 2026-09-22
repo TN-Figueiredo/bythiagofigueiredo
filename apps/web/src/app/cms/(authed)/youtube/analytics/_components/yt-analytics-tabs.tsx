@@ -404,14 +404,26 @@ export function computeCoachingCards(
       .slice(0, 3)
   }
 
+  // Every card asserts something concrete and negative about the channel, so it needs a
+  // sample behind it. `?? 0` used to collapse "this video has no score on this axis" into
+  // "this video scores 0": a channel with zero videos averaged 0 on all six axes, all six
+  // cleared the < 6.5 filter, and the tab badge said 3 while the panel below said "Nenhuma
+  // analise ... disponivel ainda". `VideoGradeRow.axes` carries a non-nullable `normalized`,
+  // so absence is expressed by the entry missing from the array — `find()` returning
+  // undefined is the distinction, and it is the one preserved here. A video that genuinely
+  // scores 0 on an axis is a sample and still earns its card.
   const axes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
   return axes
-    .map(axis => {
-      const scores = videos.map(v => v.axes.find(a => a.axis === axis)?.normalized ?? 0)
-      const avg = scores.length > 0 ? scores.reduce((s, v) => s + v, 0) / scores.length : 0
+    .flatMap(axis => {
+      const scores = videos
+        .map(v => v.axes.find(a => a.axis === axis))
+        .filter((a): a is { axis: Axis; normalized: number } => a !== undefined)
+        .map(a => a.normalized)
+      if (scores.length === 0) return []
+      const avg = scores.reduce((s, v) => s + v, 0) / scores.length
       const normalized10 = avg / 10
       const coaching = COACHING_DIAGNOSTICS[axis]
-      return {
+      return [{
         axis,
         score: Math.round(normalized10 * 10) / 10,
         benchmark: COACHING_BENCHMARK,
@@ -419,7 +431,7 @@ export function computeCoachingCards(
         diagnosis: coaching.diagnosis,
         action: coaching.action,
         source: 'fallback' as const,
-      }
+      }]
     })
     .filter(c => c.score < COACHING_BENCHMARK)
     .sort((a, b) => a.score - b.score)
