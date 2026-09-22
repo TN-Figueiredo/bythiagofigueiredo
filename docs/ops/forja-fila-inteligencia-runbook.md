@@ -71,24 +71,32 @@ leria `views_90d` parcial. Sai `ocupado` com `motivos: janela_sync`.
 
 Antes de reinstalar ou depurar qualquer coisa, saiba o que de fato está na máquina.
 
-**O kit do Mac está à frente da forja em dois commits.** Nenhum dos dois foi instalado:
+**O kit do Mac está à frente da forja.** **Não confie numa lista escrita aqui — rode o portão.**
+Em 22/09 o número de commits não instalados passou de 2 para 4 em três horas, porque outros
+terminais continuaram commitando no kit. A autoridade é o `KIT-IGUAL` do card K, e ele é só leitura:
+
+```
+cd ~/Workspace/forja/ferramentas
+```
+```
+{ (cd docs && find sitio.py trilha -type f ! -path '*__pycache__*' | sort | xargs md5 -r); (cd fase2 && md5 -r pulso_f4.py teste_pulso_fila.py); } | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo KIT-IGUAL
+```
+
+Saída vazia + `KIT-IGUAL` = a forja está em dia. Cada linha `FAILED` nomeia um arquivo que chegou
+diferente (ou nunca chegou). **Medido em 22/09 18:50:** reprova em `trilha/fila_intel.py`,
+`trilha/teste_fila.py`, `trilha/teste_calculo.py` e `trilha/capturar_fixture.py`.
+
+O que cada commit não instalado custa, para saber o que esperar antes de atualizar:
 
 | Commit do kit | O que conserta | Efeito de não estar instalado |
 |---|---|---|
 | `646447e` | `carregar_sitio()` acha o `docs/sitio.py` do diretório **pai** | a linha do cron **precisa** do `AGENTE_SITIO=` |
 | `3dde429` | `--sombra` sem `--snapshot` cai na fixture, igual ao `--canario` | `--sombra` sem a flag estoura `TypeError` → `desfecho: bug` |
+| `d9f1079` | `capturar_fixture.py` usa a chave **da fila**, não a `{read}` da fase 1 | a captura da fixture (§2, receita do `series.json`) pode ir com a chave errada |
+| `591e7c8` | `dias_sem_publicar` sem sinal; coorte sem os `view_count` não importados | `-1 dias sem publicar` no texto, e zeros parciais invertendo o veredito da série |
 
-Prova, a qualquer momento:
-
-```
-md5 ~/Workspace/forja/ferramentas/docs/trilha/fila_intel.py
-```
-```
-ssh forja 'md5sum /opt/agente/docs/trilha/fila_intel.py'
-```
-
-Iguais = a forja está em dia e esta seção pode ser reescrita. Diferentes = leia o `git log` do kit
-entre as duas versões antes de concluir qualquer coisa sobre o comportamento da forja.
+Depois de atualizar, `git log --oneline` no kit e o portão de novo — **o `git log` diz o que mudou,
+o portão diz o que chegou.**
 
 Para atualizar a forja (o dono cola; **nenhum agente escreve na forja**):
 

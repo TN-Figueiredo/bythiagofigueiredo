@@ -10654,7 +10654,7 @@ comandos e, depois, confere por leitura.
 O K é um card próprio; aqui só entra a conferência de que o S4 tem o que precisa. O dono cola:
 
 ```
-cd ~/Workspace/forja/ferramentas/docs && find sitio.py trilha -type f ! -path '*__pycache__*' | sort | xargs md5 -r | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo KIT-IGUAL
+cd ~/Workspace/forja/ferramentas && { (cd docs && find sitio.py trilha -type f ! -path '*__pycache__*' | sort | xargs md5 -r); (cd fase2 && md5 -r pulso_f4.py teste_pulso_fila.py); } | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo KIT-IGUAL
 ```
 
 E o agente confere, só leitura:
@@ -10939,7 +10939,7 @@ O repositório é local e sem remoto **hoje**. Um `git init` costuma virar `git 
 
 > **Os três arquivos deste card já foram ensaiados** num rascunho fora do repo, antes de o plano ser escrito: o leitor passa nos 22 casos da tabela (`0 falha(s)`), o `nova_chave.py --fila` nos 25 (`0 falha(s)`), o `seed_chave_forja.sh` nos 28 (`0 falha(s)`, inclusive o golden byte a byte da fase 1), e o SQL de conferência do seed foi validado contra produção **só de leitura** com um hash inexistente (devolveu `ativas: 0, minha: 0, perms: ""`, o que também confirma que **ainda não há** chave `forja (fila)` no banco). O código abaixo é o que passou; quem executar a tarefa refaz o ciclo TDD mesmo assim, porque os arquivos de destino ainda não existem.
 
-`fase2/` é lado-Mac e **não entra no kit** (o `scp -r trilha` do K não o leva; só `pulso_f4.py` e `teste_pulso_fila.py` vão à forja, e só no K que antecede o F4). Por isso estes três não mudam o portão `KIT-IGUAL`.
+`fase2/` é lado-Mac e **não entra no `scp -r trilha`** do K; `pulso_f4.py` e `teste_pulso_fila.py` vão à forja por linha própria, **em todo K** (Task K-2, deriva de 22/09), e **entram** no portão `KIT-IGUAL`, que foi fundido. Os outros três (`teste_leitor_env.py`, `teste_nova_chave_fila.py`, `teste_seed_fila.sh`) rodam no Mac, não vão à forja e não mudam o portão.
 
 **Modificados**
 
@@ -11985,7 +11985,7 @@ Esperado: `ativas = 0` e `No such file or directory`. Qualquer outra coisa repro
 ## F0k + F4 · pulso, crontab e a vigilância da fila (§6, §5)
 
 Último card da 2a. Entra **depois** do F2 aprovado e do `K` que leva `pulso_f4.py`/`teste_pulso_fila.py`
-à forja (`PULSO-IGUAL`). Três passos do dono, nesta ordem: (1) execução manual sobre a task PT
+à forja (Task K-2, em todo K, e cobertos pelo `KIT-IGUAL`). Três passos do dono, nesta ordem: (1) execução manual sobre a task PT
 pendente; (2) a linha do crontab; (3) o check `URL_FILA` no healthchecks e a regra no `pulso.sh` vivo.
 
 **O kit está sob git.** `~/Workspace/forja/ferramentas` é repositório desde `ec51833`
@@ -12563,7 +12563,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 Repositório local, **sem push**. `git status --short` deve ficar limpo — o `.gitignore` já cobre o
 `__pycache__/` que o `py_compile` deixa. Os dois arquivos entram no card `F0k` (o laço de
-`py_compile`) e são levados à forja pelo `K` que antecede o F4 (`PULSO-IGUAL`).
+`py_compile`) e são levados à forja **por todo `K`** (Task K-2), cobertos pelo `KIT-IGUAL`.
 
 ---
 
@@ -12677,7 +12677,7 @@ repetido a cada 10 min é falha de import (§4.1) — pare e faça o rollback do
 - Create (na forja, pelo dono): `/opt/agente/docs/pulso.sh.bak-F4`
 
 **Interfaces:**
-- Consumes: `pulso_f4.py` e `teste_pulso_fila.py` em `/opt/agente/docs/` (card `K`, `PULSO-IGUAL`);
+- Consumes: `pulso_f4.py` e `teste_pulso_fila.py` em `/opt/agente/docs/` (card `K`, Task K-2, cobertos pelo `KIT-IGUAL`);
   o check `URL_FILA` criado no healthchecks.
 - Produces: o bloco `# >>> fila_intel (F4)` vivo no pulso, reportando no check próprio.
 
@@ -12932,7 +12932,7 @@ Cowork (`forja_retirada_…` fica fora dela), e o Cowork já não lia a forja (�
 ### Ordem de execução deste card
 
 ```
-K (PULSO-IGUAL)  ->  F4-3 (manual)  ->  F4-4 (crontab)  ->  F4-5 (pulso)  ->  F4-6 (portões)
+K (KIT-IGUAL)    ->  F4-3 (manual)  ->  F4-4 (crontab)  ->  F4-5 (pulso)  ->  F4-6 (portões)
 rollback:            F4-7 (F4)      ->  F4-8 (Qualidade) ->  F1 -> S4 -> F0   (cards de outros agentes)
 ```
 As Tasks F4-1 e F4-2 são de escrita no Mac e acontecem **antes** do `K` — sem elas o `K` não tem o
@@ -13507,7 +13507,7 @@ Expected: `git status --short` **vazio**; a lista de ignorados só com `__pycach
 
 - [ ] **Step 6: Entregar ao dono a lista do K**
 
-Anotar no relato: portão verde nas três partes, os 12 arquivos do inventário, o SHA do último commit do kit, e a observação de que o `scp` de `fase2/` (Task K-2) só é necessário no K **que antecede o F4**.
+Anotar no relato: portão verde nas três partes, os 12 arquivos do inventário e o SHA do último commit do kit. O `scp` de `fase2/` (Task K-2) roda **em todo K**, sem condicional — a versão anterior desta linha dizia o contrário e travou o dono no F4-5.
 
 ---
 
@@ -13538,7 +13538,7 @@ Isto leva, em `trilha/`: `sonda_f0.py`, `capturar_fixture.py`, `s4.py`, `teste_s
 - [ ] **Step 2 (dono, no Mac): o portão de igualdade por md5**
 
 ```
-cd ~/Workspace/forja/ferramentas/docs && find sitio.py trilha -type f ! -path '*__pycache__*' | sort | xargs md5 -r | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo KIT-IGUAL
+cd ~/Workspace/forja/ferramentas && { (cd docs && find sitio.py trilha -type f ! -path '*__pycache__*' | sort | xargs md5 -r); (cd fase2 && md5 -r pulso_f4.py teste_pulso_fila.py); } | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo KIT-IGUAL
 ```
 Esperado: **só** `KIT-IGUAL`. Qualquer linha `FAILED` antes dele reprova: o arquivo listado não chegou igual, e o dono repete o Step 1 antes de seguir.
 
@@ -13559,19 +13559,21 @@ Esperado: antes do F0.5, as duas contagens **iguais**. Depois do F0.5, a forja t
 
 ---
 
-### Task K-2: o `scp` de `fase2/` — só no K que antecede o F4
+### Task K-2: o `scp` de `fase2/` — em todo K, sem condicional
 
 **Files:** nenhum no Mac.
 
 **Interfaces:**
 - Consumes: Task F0k-4 e o card F4 (que escreve `pulso_f4.py` e `teste_pulso_fila.py`).
-- Produces: `/opt/agente/docs/pulso_f4.py` e `/opt/agente/docs/teste_pulso_fila.py`; `PULSO-IGUAL` impresso.
+- Produces: `/opt/agente/docs/pulso_f4.py` e `/opt/agente/docs/teste_pulso_fila.py`, cobertos pelo `KIT-IGUAL` da Task K-1.
 
-- [ ] **Step 1: Decidir se este K precisa do passo**
+- [ ] **Step 1: Sem decisão — este passo roda SEMPRE**
 
-Os dois arquivos vão para `/opt/agente/docs/` (ao lado do `pulso.sh` vivo), **não** para `docs/trilha/`, e só servem ao passo (3) do F4. Nos K anteriores (antes do F0, do F0.5, do S4, do F1, do F2) este passo **não roda**.
+> **Deriva (22/09) — aqui dizia "rode a Task K-2 só quando o próximo card for o F4", e foi isso que travou o dono ao vivo.** No F4-5 os dois arquivos não estavam em `/opt/agente/docs/`: o K executado tinha feito só o `scp -r sitio.py trilha`, o passo parou no meio do procedimento (com o dono já a caminho de mexer no `pulso.sh` vivo) e foi preciso um `scp` avulso. É o PATCH 10 do ledger. **A condicional sai.**
+>
+> Custo de levar cedo demais: dois arquivos inertes em `/opt/agente/docs/` que nenhum cartão invoca antes do F4. Custo de não levar: o procedimento para no pior momento. O portão do Step 3 saiu daqui e foi **fundido** no `KIT-IGUAL` da Task K-1, justamente para que não exista mais um portão separado que dê para esquecer de rodar.
 
-Regra: rode a Task K-2 **só quando o próximo card for o F4**.
+Os dois arquivos vão para `/opt/agente/docs/` (ao lado do `pulso.sh` vivo), **não** para `docs/trilha/`. Eles só são *invocados* no passo (3) do F4, mas são *levados* em todo K.
 
 - [ ] **Step 2 (dono, no Mac): levar os dois arquivos**
 
@@ -13580,12 +13582,21 @@ scp ~/Workspace/forja/ferramentas/fase2/pulso_f4.py ~/Workspace/forja/ferramenta
 ```
 Esperado: dois arquivos transferidos.
 
-- [ ] **Step 3 (dono, no Mac): portão `PULSO-IGUAL`**
+- [ ] **Step 3 (dono, no Mac): o portão é o `KIT-IGUAL` da Task K-1**
+
+Não há mais um `PULSO-IGUAL` separado. Rode de novo o portão único da Task K-1 — ele agora inclui
+`pulso_f4.py` e `teste_pulso_fila.py`:
 
 ```
-cd ~/Workspace/forja/ferramentas/fase2 && md5 -r pulso_f4.py teste_pulso_fila.py | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo PULSO-IGUAL
+cd ~/Workspace/forja/ferramentas && { (cd docs && find sitio.py trilha -type f ! -path '*__pycache__*' | sort | xargs md5 -r); (cd fase2 && md5 -r pulso_f4.py teste_pulso_fila.py); } | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo KIT-IGUAL
 ```
-Esperado: só `PULSO-IGUAL`. Uma linha `FAILED` reprova.
+Esperado: só `KIT-IGUAL`. Qualquer linha `FAILED` reprova e nomeia o arquivo que não chegou igual.
+
+**Conferido em 22/09:** com os dois arquivos do pulso já na forja (pelo `scp` avulso do F4-5), este
+portão reprova em 4 arquivos de `trilha/` — `fila_intel.py`, `teste_fila.py`, `teste_calculo.py` e
+`capturar_fixture.py` —, que são os commits do kit ainda não instalados. **Era exatamente isso que o
+portão antigo não via:** ele nunca foi rodado depois desses commits, e o `PULSO-IGUAL`, quando
+rodado, passava verde sem dizer nada sobre `trilha/`.
 
 - [ ] **Step 4 (Claude, leitura): conferir que nada mais foi para `docs/`**
 
