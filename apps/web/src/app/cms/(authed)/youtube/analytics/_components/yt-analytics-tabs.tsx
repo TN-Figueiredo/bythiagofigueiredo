@@ -75,7 +75,19 @@ interface Props {
   channelInternalId?: string
   intelligenceVideos?: VideoGradeRow[]
   intelligenceOutliers?: OutlierVideo[]
-  channelCoaching?: { coaching: CoachingOutput; source: 'cowork' | 'forja'; generatedLabel: string } | null
+  /**
+   * `cards` is the analysis the coaching cards come from, set only when it is NOT the row
+   * carrying the banner — the forja writes a summary with `priorities: []` by design, and
+   * without it the newest row buries the last analysis that had cards. Mirrors
+   * ChannelCoachingResult in ../actions.ts (re-declared, not imported: a client component
+   * must not reach into a 'use server' module).
+   */
+  channelCoaching?: {
+    coaching: CoachingOutput
+    source: 'cowork' | 'forja'
+    generatedLabel: string
+    cards?: { coaching: CoachingOutput; source: 'cowork' | 'forja'; generatedLabel: string } | null
+  } | null
   notes?: NoteEntry[]
   healthScore?: number
   onCreateNote?: (input: { channelId: string; text: string }) => Promise<{ ok: boolean; error?: string }>
@@ -162,7 +174,11 @@ export function YtAnalyticsTabs({
     [intelligenceVideos]
   )
   const coachingCards = useMemo(
-    () => computeCoachingCards(intelligenceVideos ?? [], channelCoaching?.coaching ?? null),
+    () => computeCoachingCards(
+      intelligenceVideos ?? [],
+      channelCoaching?.coaching ?? null,
+      channelCoaching?.cards?.coaching ?? null,
+    ),
     [intelligenceVideos, channelCoaching]
   )
 
@@ -176,6 +192,10 @@ export function YtAnalyticsTabs({
           source: channelCoaching.source,
           generatedLabel: channelCoaching.generatedLabel,
           summary: typeof channelCoaching.coaching.summary === 'string' ? channelCoaching.coaching.summary : '',
+          // Null whenever banner and cards are the same analysis, so the label prints one
+          // provenance, never the same source and date twice.
+          cardsSource: channelCoaching.cards?.source ?? null,
+          cardsGeneratedLabel: channelCoaching.cards?.generatedLabel ?? null,
         }
       : null,
     [channelCoaching],
@@ -376,6 +396,13 @@ const COACHING_DIAGNOSTICS: Record<Axis, { diagnosis: string; action: string }> 
 export function computeCoachingCards(
   videos: VideoGradeRow[],
   channelCoaching: CoachingOutput | null,
+  /**
+   * The newest analysis that carries priorities, when that is not `channelCoaching` itself.
+   * Kept separate because the two arguments answer different questions: `channelCoaching`
+   * answers "does a real analysis exist?" (its presence is what suppresses the heuristic),
+   * this one answers "which analysis has cards to show?".
+   */
+  prioritiesCoaching: CoachingOutput | null = null,
 ): Array<{
   axis: Axis
   score: number
@@ -390,7 +417,10 @@ export function computeCoachingCards(
   // of a real analysis. `?? []` because `coaching` is an `as CoachingOutput` over jsonb —
   // a row written before this commit never went through Zod.
   if (channelCoaching != null) {
-    return (channelCoaching.priorities ?? [])
+    // A forja row is a real analysis with `priorities: []` — it suppresses the heuristic (the
+    // guard above) but has no cards of its own, so the cards come from the newest analysis
+    // that has them. Falling back to `channelCoaching` keeps the single-row case identical.
+    return ((prioritiesCoaching ?? channelCoaching).priorities ?? [])
       .map(p => ({
         axis: p.axis,
         score: p.score,

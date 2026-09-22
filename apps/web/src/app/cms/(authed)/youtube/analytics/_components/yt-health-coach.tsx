@@ -22,8 +22,19 @@ interface Props {
   coachingCards: CoachingCard[]
   videoCount: number
   lastAnalysisAt: string | null
-  /** Non-null whenever a real analysis (Cowork or forja) exists for this channel. */
-  coachingMeta: { source: 'cowork' | 'forja'; generatedLabel: string; summary: string } | null
+  /**
+   * Non-null whenever a real analysis (Cowork or forja) exists for this channel.
+   * `cardsSource`/`cardsGeneratedLabel` are non-null only when the cards below come from a
+   * different analysis than the summary above — the forja writes summary-only rows, so the
+   * banner can be today's while the cards are still the last analysis that had priorities.
+   */
+  coachingMeta: {
+    source: 'cowork' | 'forja'
+    generatedLabel: string
+    summary: string
+    cardsSource?: 'cowork' | 'forja' | null
+    cardsGeneratedLabel?: string | null
+  } | null
   onRequestAnalysis?: () => void
   analysisState: 'idle' | 'pending' | 'cooldown' | 'success'
 }
@@ -33,6 +44,11 @@ const SEV_COLORS = {
   warning: 'var(--amber)',
   healthy: 'var(--green)',
 } as const
+
+/** The badge spells the forja lowercase and Cowork capitalised, as the owner approved it. */
+function sourceLabel(source: 'cowork' | 'forja'): string {
+  return source === 'forja' ? 'forja' : 'Cowork'
+}
 
 function getSeverity(score: number): 'critical' | 'warning' | 'healthy' {
   if (score < 3) return 'critical'
@@ -103,7 +119,10 @@ export function YtHealthCoach({
         <div className="flex-1">
           <span className="section-label">
             {coachingMeta
-              ? `Diagnostico · por ${coachingMeta.source === 'forja' ? 'forja' : 'Cowork'} · ${coachingMeta.generatedLabel}`
+              ? `Diagnostico · por ${sourceLabel(coachingMeta.source)} · ${coachingMeta.generatedLabel}`
+                + (coachingMeta.cardsSource
+                    ? ` · cards por ${sourceLabel(coachingMeta.cardsSource)} · ${coachingMeta.cardsGeneratedLabel}`
+                    : '')
               : 'Diagnostico heuristico'}
           </span>
           {coachingMeta ? (

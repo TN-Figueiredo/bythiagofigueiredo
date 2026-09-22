@@ -3,11 +3,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 /* ─── Mock chain builders ───
  * Call order mirrors the query in actions.ts:
  * select → eq(site_id) → eq(channel_id) → is(video_id) → in(source)
- *        → not(coaching) → eq(type) → order → limit → maybeSingle
+ *        → not(coaching) → eq(type) → order → limit
+ *
+ * `.limit()` is now the awaited terminal (it was `.maybeSingle()` before the fix): the read
+ * returns the whole channel-level history — at most one row per allowlisted source, by the
+ * UNIQUE idx_youtube_intelligence_channel_dedup — so the banner and the cards can come from
+ * different rows.
  */
 
-const mockMaybeSingle = vi.fn()
-const mockLimit = vi.fn(() => ({ maybeSingle: mockMaybeSingle }))
+const mockLimit = vi.fn()
 const mockOrder = vi.fn(() => ({ limit: mockLimit }))
 const mockEqType = vi.fn(() => ({ order: mockOrder }))
 const mockNot = vi.fn(() => ({ eq: mockEqType }))
@@ -67,17 +71,32 @@ function videoWithAllAxesAt(normalized: number): VideoGradeRow {
   return { axes: AXES.map(axis => ({ axis, normalized, raw: 0 })) } as unknown as VideoGradeRow
 }
 
+const PRIORITIES = AXES.map((axis, i) => ({ axis, score: i, diagnosis: `d${i}`, action: `a${i}` }))
+
+/** The row the forja writes by design: a summary, and no priorities at all. */
+const FORJA_ROW = {
+  coaching: { summary: 'resumo da forja', priorities: [] },
+  source: 'forja',
+  generated_at: '2026-09-22T20:10:42Z',
+}
+/** The Cowork analysis of May: six priorities, which the screen turns into three cards. */
+const COWORK_ROW = {
+  coaching: { summary: 'analise de maio', priorities: PRIORITIES },
+  source: 'cowork',
+  generated_at: '2026-05-18T13:34:10Z',
+}
+
 describe('fetchChannelCoaching', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('queries the cowork+forja allowlist, scoped by site and channel, newest first', async () => {
-    mockMaybeSingle.mockResolvedValueOnce({
-      data: { coaching: { summary: 's', priorities: [] }, source: 'forja', generated_at: '2026-09-18T13:34:00Z' },
-    })
+    mockLimit.mockResolvedValueOnce({ data: [FORJA_ROW], error: null })
     const result = await fetchChannelCoaching(VALID_CHANNEL)
-    expect(result).toEqual({ coaching: { summary: 's', priorities: [] }, source: 'forja', generatedLabel: '18/09' })
+    expect(result).toEqual({
+      coaching: FORJA_ROW.coaching, source: 'forja', generatedLabel: '22/09', cards: null,
+    })
     expect(mockEqSite).toHaveBeenCalledWith('site_id', 'site-1')
     expect(mockEqChannel).toHaveBeenCalledWith('channel_id', VALID_CHANNEL)
     expect(mockIs).toHaveBeenCalledWith('video_id', null)
@@ -85,6 +104,75 @@ describe('fetchChannelCoaching', () => {
     expect(mockNot).toHaveBeenCalledWith('coaching', 'is', null)
     expect(mockEqType).toHaveBeenCalledWith('type', 'channel')
     expect(mockOrder).toHaveBeenCalledWith('generated_at', { ascending: false })
+  })
+
+  it('asks for the whole channel-level history, not a single row — one row per allowlisted source', async () => {
+    // The regression was `.limit(1)`: the forja row buried the Cowork analysis the second it
+    // landed. The bound is not a guess — idx_youtube_intelligence_channel_dedup is UNIQUE on
+    // (site_id, channel_id, source) WHERE video_id IS NULL, so two sources mean two rows max.
+    mockLimit.mockResolvedValueOnce({ data: [FORJA_ROW, COWORK_ROW], error: null })
+    await fetchChannelCoaching(VALID_CHANNEL)
+    expect(mockLimit).toHaveBeenCalledWith(2)
+  })
+
+  it(
+    'THE REGRESSION: a new forja row with priorities:[] over an older cowork row with ' +
+      'priorities — the banner is the forja, the cards stay the cowork analysis',
+    async () => {
+      mockLimit.mockResolvedValueOnce({ data: [FORJA_ROW, COWORK_ROW], error: null })
+      const result = await fetchChannelCoaching(VALID_CHANNEL)
+
+      // Banner: today's forja summary, badged as forja.
+      expect(result!.source).toBe('forja')
+      expect(result!.generatedLabel).toBe('22/09')
+      expect(result!.coaching.summary).toBe('resumo da forja')
+
+      // Cards: the May analysis, with its own date label — not buried, not relabelled.
+      expect(result!.cards).not.toBeNull()
+      expect(result!.cards!.source).toBe('cowork')
+      expect(result!.cards!.generatedLabel).toBe('18/05')
+      expect(result!.cards!.coaching.priorities).toHaveLength(6)
+    },
+  )
+
+  it('same row: the newest row already carries the priorities — `cards` stays null, nothing duplicates', async () => {
+    mockLimit.mockResolvedValueOnce({ data: [COWORK_ROW], error: null })
+    const result = await fetchChannelCoaching(VALID_CHANNEL)
+    expect(result!.source).toBe('cowork')
+    expect(result!.coaching.priorities).toHaveLength(6)
+    expect(result!.cards).toBeNull()
+  })
+
+  it('no row anywhere carries priorities: `cards` is null and the screen keeps today\'s behaviour', async () => {
+    mockLimit.mockResolvedValueOnce({
+      data: [FORJA_ROW, { ...COWORK_ROW, coaching: { summary: 'cowork vazio', priorities: [] } }],
+      error: null,
+    })
+    const result = await fetchChannelCoaching(VALID_CHANNEL)
+    expect(result!.source).toBe('forja')
+    expect(result!.cards).toBeNull()
+  })
+
+  it('a legacy row without a priorities key is not mistaken for one that has cards', async () => {
+    // jsonb, not TypeScript: `priorities` can be absent on a row written before the schema.
+    mockLimit.mockResolvedValueOnce({
+      data: [FORJA_ROW, { ...COWORK_ROW, coaching: { summary: 'sem chave' } }],
+      error: null,
+    })
+    expect((await fetchChannelCoaching(VALID_CHANNEL))!.cards).toBeNull()
+  })
+
+  it('raises instead of reporting "no analysis" when the read fails', async () => {
+    // A statement timeout used to be indistinguishable from a channel that was never
+    // analysed: `const { data }` with no error check, and the heuristic diagnosis rendered
+    // as if it were the whole truth. Same rule the rest of this phase closed in 02b4d7f9.
+    mockLimit.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'canceling statement due to statement timeout' },
+    })
+    await expect(fetchChannelCoaching(VALID_CHANNEL)).rejects.toThrow(
+      /Failed to read the channel coaching rows/,
+    )
   })
 
   /*
@@ -105,22 +193,24 @@ describe('fetchChannelCoaching', () => {
    */
   it('drops a row whose source is outside the allowlist instead of badging it as cowork ' +
     '(defense in depth — the query already excludes it)', async () => {
-    mockMaybeSingle.mockResolvedValueOnce({
-      data: { coaching: { summary: 's', priorities: [] }, source: 'forja_retirada_202609181200', generated_at: '2026-09-18T13:34:00Z' },
+    mockLimit.mockResolvedValueOnce({
+      data: [{ ...FORJA_ROW, source: 'forja_retirada_202609181200' }],
+      error: null,
     })
     expect(await fetchChannelCoaching(VALID_CHANNEL)).toBeNull()
   })
 
   it('formats generatedLabel in Sao Paulo time — 01:30Z is the previous day', async () => {
-    mockMaybeSingle.mockResolvedValueOnce({
-      data: { coaching: { summary: 's', priorities: [] }, source: 'cowork', generated_at: '2026-09-19T01:30:00Z' },
+    mockLimit.mockResolvedValueOnce({
+      data: [{ ...FORJA_ROW, source: 'cowork', generated_at: '2026-09-19T01:30:00Z' }],
+      error: null,
     })
     expect((await fetchChannelCoaching(VALID_CHANNEL))!.generatedLabel).toBe('18/09')
   })
 
   it('returns the channel coaching row when it exists', async () => {
-    mockMaybeSingle.mockResolvedValueOnce({
-      data: {
+    mockLimit.mockResolvedValueOnce({
+      data: [{
         coaching: {
           summary: 'Canal em boa forma geral',
           priorities: [
@@ -129,7 +219,8 @@ describe('fetchChannelCoaching', () => {
         },
         source: 'cowork',
         generated_at: '2026-08-01T12:00:00Z',
-      },
+      }],
+      error: null,
     })
 
     const result = await fetchChannelCoaching(VALID_CHANNEL)
@@ -143,11 +234,12 @@ describe('fetchChannelCoaching', () => {
       },
       source: 'cowork',
       generatedLabel: '01/08',
+      cards: null,
     })
   })
 
   it('returns null when no channel coaching row exists', async () => {
-    mockMaybeSingle.mockResolvedValueOnce({ data: null })
+    mockLimit.mockResolvedValueOnce({ data: [], error: null })
 
     const result = await fetchChannelCoaching(VALID_CHANNEL)
 
@@ -168,5 +260,19 @@ describe('computeCoachingCards', () => {
 
   it('tolerates a legacy row without a priorities key (jsonb, not TypeScript)', () => {
     expect(computeCoachingCards([videoWithAllAxesAt(0)], { summary: 's' } as never)).toEqual([])
+  })
+
+  it('a summary-only newest analysis still gets its cards from the older one that has them', () => {
+    const videos = [videoWithAllAxesAt(0)]
+    const forja = { summary: 'resumo da forja', priorities: [] }
+    const cowork = {
+      summary: 'analise de maio',
+      priorities: AXES.map((axis, i) => ({ axis, score: i, diagnosis: `d${i}`, action: `a${i}` })),
+    }
+    const cards = computeCoachingCards(videos, forja, cowork)
+    expect(cards).toHaveLength(3)
+    expect(cards.map(c => c.diagnosis)).toEqual(['d0', 'd1', 'd2'])
+    // Still never the heuristic: a real analysis exists, so no invented card slips in.
+    expect(cards.every(c => c.source === 'cowork')).toBe(true)
   })
 })

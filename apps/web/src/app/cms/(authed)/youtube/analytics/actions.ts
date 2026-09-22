@@ -22,8 +22,40 @@ function isCoachingSource(value: unknown): value is CoachingSource {
   return typeof value === 'string' && (COACHING_SOURCES as readonly string[]).includes(value)
 }
 
+export interface ChannelCoachingRow {
+  coaching: CoachingOutput
+  source: CoachingSource
+  generatedLabel: string
+}
+
+export interface ChannelCoachingResult extends ChannelCoachingRow {
+  /**
+   * The newest analysis that actually carries priorities, and only when it is NOT the row
+   * above. The screen needs both at once: the banner speaks for the newest analysis, the
+   * cards for the newest one with something to show. Null covers the two cases where there
+   * is a single provenance to print — no analysis carries priorities, or the newest one
+   * already does — so the label can never render the same source and date twice.
+   */
+  cards: ChannelCoachingRow | null
+}
+
+/** jsonb, not TypeScript: `priorities` can be absent, null or a non-array on an old row. */
+function hasPriorities(coaching: CoachingOutput): boolean {
+  return Array.isArray(coaching.priorities) && coaching.priorities.length > 0
+}
+
 /**
- * Reads the most recent channel-level coaching row from the allowlist {cowork, forja}.
+ * Reads the channel-level coaching rows from the allowlist {cowork, forja} and returns two
+ * things: the newest row (the banner) and the newest row that carries priorities (the cards).
+ *
+ * One read, not two, because `idx_youtube_intelligence_channel_dedup` is UNIQUE on
+ * (site_id, channel_id, source) WHERE video_id IS NULL: with a two-value allowlist the whole
+ * channel-level history is at most two rows, so `.limit(COACHING_SOURCES.length)` is exhaustive
+ * by construction, not a guess at a window size.
+ *
+ * `.limit(1)` was the regression: the forja writes a summary with `priorities: []` by design,
+ * so the moment it landed it buried the Cowork analysis and the Health Coach tab went from
+ * three cards to a single sentence.
  *
  * The rollback guard is the `.in('source', COACHING_SOURCES)` filter, not app-layer
  * narrowing: the column is plain TEXT with no CHECK, and a retired `forja_retirada_*` row
@@ -31,20 +63,20 @@ function isCoachingSource(value: unknown): value is CoachingSource {
  * the heuristic branch — proven against a real Postgres in
  * test/integration/youtube-intelligence-forja.test.ts, case 7.
  *
- * The runtime check below is the `any` → union boundary of the untyped service client, and
+ * The runtime check below is the `any` -> union boundary of the untyped service client, and
  * fail-closed defense in depth: should that filter ever regress, an unknown source is
  * dropped rather than badged as "por Cowork".
  */
 export async function fetchChannelCoaching(
   channelId: string,
-): Promise<{ coaching: CoachingOutput; source: CoachingSource; generatedLabel: string } | null> {
+): Promise<ChannelCoachingResult | null> {
   if (!UUID_RE.test(channelId)) throw new Error('invalid_input')
   const { siteId } = await getSiteContext()
   const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
   if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   const supabase = getSupabaseServiceClient()
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('youtube_intelligence')
     .select('coaching, generated_at, source')
     .eq('site_id', siteId)
@@ -54,23 +86,41 @@ export async function fetchChannelCoaching(
     .not('coaching', 'is', null)
     .eq('type', 'channel')
     .order('generated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+    .limit(COACHING_SOURCES.length)
 
-  if (!data?.coaching) return null
+  // A DB error must never fall through as "no analysis": `data` is null on failure, and the
+  // empty return below is the caller's signal for "this channel was never analysed", so a
+  // statement timeout would render the heuristic diagnosis and claim it is all there is.
+  // Throwing keeps the `| null` contract intact — the page still renders the empty state for
+  // a real absence, and an outage is now an outage. Same rule as getConnectedYouTubeChannels.
+  if (error) {
+    throw new Error(`Failed to read the channel coaching rows: ${error.message}`)
+  }
 
-  const source: unknown = data.source
-  if (!isCoachingSource(source)) return null
+  const rows: ChannelCoachingRow[] = []
+  for (const row of (data ?? []) as Array<{ coaching: unknown; generated_at: unknown; source: unknown }>) {
+    if (row.coaching == null) continue
+    if (!isCoachingSource(row.source)) continue
+    if (typeof row.generated_at !== 'string') continue
+    rows.push({
+      coaching: row.coaching as CoachingOutput,
+      source: row.source,
+      // Formatted on the server so the label does not depend on the viewer's timezone.
+      generatedLabel: new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo',
+      }).format(new Date(row.generated_at)),
+    })
+  }
 
-  // Formatted on the server so the label does not depend on the viewer's timezone.
-  const generatedLabel = new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo',
-  }).format(new Date(data.generated_at as string))
+  const latest = rows[0]
+  if (!latest) return null
+
+  // `rows` is already newest-first, so the first match is the newest analysis with priorities.
+  const withPriorities = rows.find(r => hasPriorities(r.coaching))
 
   return {
-    coaching: data.coaching as CoachingOutput,
-    source,
-    generatedLabel,
+    ...latest,
+    cards: withPriorities !== undefined && withPriorities !== latest ? withPriorities : null,
   }
 }
 

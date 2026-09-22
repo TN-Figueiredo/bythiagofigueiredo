@@ -536,6 +536,48 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
   )
 
   it(
+    'THE REGRESSION: the newest row is a forja summary with priorities:[] and the older cowork ' +
+      'row has six — one read returns both, the banner is the forja, the cards are the cowork',
+    async () => {
+      // Production, 2026-09-22: the forja wrote its first channel row and `.limit(1)` buried
+      // the May analysis. Only a real Postgres proves the two rows come back in one read and
+      // in the right order — the unit double replays whatever it is handed.
+      const siteId = await freshSite()
+      const channelId = await freshChannelOnly(siteId)
+      const now = Date.now()
+
+      const priorities = [
+        { axis: 'ctr', score: 3, diagnosis: 'CTR baixo', action: 'Testar thumbnails' },
+        { axis: 'retention', score: 4, diagnosis: 'Retencao baixa', action: 'Cortar a intro' },
+      ]
+      const { error } = await svc.from('youtube_intelligence').insert([
+        {
+          site_id: siteId, channel_id: channelId, video_id: null, type: 'channel',
+          source: 'cowork',
+          coaching: { summary: 'analise de maio', priorities },
+          generated_at: new Date(now - 120 * 86_400_000).toISOString(),
+        },
+        {
+          site_id: siteId, channel_id: channelId, video_id: null, type: 'channel',
+          source: 'forja',
+          coaching: { summary: 'resumo da forja', priorities: [] },
+          generated_at: new Date(now).toISOString(),
+        },
+      ])
+      if (error) throw new Error(`seed forja-over-cowork pair: ${error.message}`)
+
+      _mockSiteId = siteId
+      const result = await fetchChannelCoaching(channelId)
+
+      expect(result?.source).toBe('forja')
+      expect(result?.coaching.summary).toBe('resumo da forja')
+      expect(result?.cards?.source).toBe('cowork')
+      expect(result?.cards?.coaching.summary).toBe('analise de maio')
+      expect(result?.cards?.coaching.priorities).toHaveLength(2)
+    },
+  )
+
+  it(
     'a forja_retirada_* row is excluded by the source allowlist even when it is the newest row ' +
       '— the older cowork row wins as the rollback guard, not app-layer narrowing',
     async () => {

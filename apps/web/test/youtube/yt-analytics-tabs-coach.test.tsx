@@ -103,6 +103,50 @@ describe('Health Coach — source badge and summary line', () => {
     expect(screen.getByText(summary)).toBeTruthy()
   })
 
+  it(
+    'THE REGRESSION: a forja summary row over an older Cowork analysis — the banner is the ' +
+      'forja, the cards are the Cowork ones, and the label carries both dates',
+    async () => {
+      // 2026-09-22 in production: the forja wrote its first `priorities: []` row and the owner
+      // opened the tab to one sentence where three cards used to be.
+      const forjaSummary = 'Sem CTR/retenção nesta fase; base: views e séries.'
+      render(
+        <YtAnalyticsTabs
+          {...BASE}
+          channelCoaching={{
+            coaching: { summary: forjaSummary, priorities: [] },
+            source: 'forja',
+            generatedLabel: '22/09',
+            cards: { coaching: MAY_COACHING, source: 'cowork', generatedLabel: '18/05' },
+          }}
+        />,
+      )
+      const coachTab = screen.getByRole('tab', { name: /Health Coach/ })
+      expect(within(coachTab).getByText('3')).toBeTruthy()
+
+      await openCoach()
+      // Banner: the forja summary, badged forja, dated today — and the cards' own provenance
+      // on the same approved label, so the May date is never passed off as today's.
+      expect(screen.getByText('Diagnostico · por forja · 22/09 · cards por Cowork · 18/05')).toBeTruthy()
+      expect(screen.getByText(forjaSummary)).toBeTruthy()
+      expect(screen.queryByText(MAY_SUMMARY)).toBeNull()
+
+      // Cards: the three worst priorities of the May analysis, back on screen.
+      expect(screen.getByText('d0')).toBeTruthy()
+      expect(screen.getByText('d1')).toBeTruthy()
+      expect(screen.getByText('d2')).toBeTruthy()
+      // And still never the heuristic: a real analysis exists.
+      expect(screen.queryByText(/Baseado em regras fixas/)).toBeNull()
+    },
+  )
+
+  it('same analysis for banner and cards: the label prints one provenance, never twice', async () => {
+    render(<YtAnalyticsTabs {...BASE} channelCoaching={{ coaching: MAY_COACHING, source: 'cowork', generatedLabel: '18/05', cards: null }} />)
+    await openCoach()
+    expect(screen.getByText('Diagnostico · por Cowork · 18/05')).toBeTruthy()
+    expect(screen.queryByText(/cards por/)).toBeNull()
+  })
+
   it('C: no row falls back to the heuristic label, 3 cards and badge 3', async () => {
     render(<YtAnalyticsTabs {...BASE} channelCoaching={null} />)
     const coachTab = screen.getByRole('tab', { name: /Health Coach/ })
