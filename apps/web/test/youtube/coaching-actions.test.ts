@@ -87,11 +87,28 @@ describe('fetchChannelCoaching', () => {
     expect(mockOrder).toHaveBeenCalledWith('generated_at', { ascending: false })
   })
 
-  it('narrows any other source to cowork — forja_retirada_* never gets the forja badge', async () => {
+  /*
+   * What a forja_retirada_* row really does in production is NOT tested here, on purpose:
+   * the row never reaches this code, because `.in('source', COACHING_SOURCES)` excludes it
+   * in the database — the UI then falls back to the next allowlisted row (the dedup index
+   * allows one cowork + one forja row per channel) or to the heuristic branch. That is
+   * proven against a real PostgREST `.in()` in test/integration/youtube-intelligence-forja
+   * .test.ts, case 7 ('a forja_retirada_* row is excluded by the source allowlist even when
+   * it is the newest row'), and the heuristic half in
+   * test/youtube/yt-analytics-tabs-coach.test.tsx, case C ('no row falls back to the
+   * heuristic label').
+   *
+   * This double hand-wires every link of the chain, so it cannot model a filter at all: it
+   * can only prove the filter is REQUESTED (the `.in()` assertion above) and that the
+   * narrowing is fail-closed if that filter ever regresses — which is what the case below
+   * asserts, with a deliberately out-of-contract row the real query could not return.
+   */
+  it('drops a row whose source is outside the allowlist instead of badging it as cowork ' +
+    '(defense in depth — the query already excludes it)', async () => {
     mockMaybeSingle.mockResolvedValueOnce({
       data: { coaching: { summary: 's', priorities: [] }, source: 'forja_retirada_202609181200', generated_at: '2026-09-18T13:34:00Z' },
     })
-    expect((await fetchChannelCoaching(VALID_CHANNEL))!.source).toBe('cowork')
+    expect(await fetchChannelCoaching(VALID_CHANNEL)).toBeNull()
   })
 
   it('formats generatedLabel in Sao Paulo time — 01:30Z is the previous day', async () => {
