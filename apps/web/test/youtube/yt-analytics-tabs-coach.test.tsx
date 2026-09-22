@@ -85,6 +85,24 @@ describe('Health Coach — source badge and summary line', () => {
     expect(screen.queryByText(/pts/)).toBeNull()
   })
 
+  it('B with zero synced videos: still state B, never "Nenhuma analise de inteligencia disponivel ainda."', async () => {
+    // videoCount is wired from intelligenceVideos.length (youtube_videos), while the analysis
+    // comes from youtube_intelligence — the two are independent, so a real forja row can land
+    // on a channel with no synced video. The empty state would then assert something false.
+    const summary = 'Analise real da forja, sem video sincronizado.'
+    render(
+      <YtAnalyticsTabs
+        {...BASE}
+        intelligenceVideos={[] as never}
+        channelCoaching={{ coaching: { summary, priorities: [] }, source: 'forja', generatedLabel: '19/09' }}
+      />,
+    )
+    await openCoach()
+    expect(screen.queryByText('Nenhuma analise de inteligencia disponivel ainda.')).toBeNull()
+    expect(screen.getByText('Diagnostico · por forja · 19/09')).toBeTruthy()
+    expect(screen.getByText(summary)).toBeTruthy()
+  })
+
   it('C: no row falls back to the heuristic label, 3 cards and badge 3', async () => {
     render(<YtAnalyticsTabs {...BASE} channelCoaching={null} />)
     const coachTab = screen.getByRole('tab', { name: /Health Coach/ })

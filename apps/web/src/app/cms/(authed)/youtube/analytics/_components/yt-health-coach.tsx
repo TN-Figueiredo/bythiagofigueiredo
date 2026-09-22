@@ -67,7 +67,12 @@ export function YtHealthCoach({
     : healthScore
   const potentialGain = potentialScore - healthScore
 
-  if (videoCount === 0) {
+  // `videoCount` counts rows in youtube_videos, not analyses: a channel can hold a real
+  // Cowork/forja coaching row with zero synced videos. Claiming "nenhuma analise" while
+  // `coachingMeta` holds one is actively false, so the empty state is reserved for the case
+  // where there is genuinely nothing to show. With coaching present the normal render runs
+  // (mockup state B: summary banner, no cards).
+  if (videoCount === 0 && !coachingMeta) {
     return (
       <div className="fade-in flex flex-col items-center justify-center gap-3 rounded border border-dashed border-cms-border p-12 text-center">
         <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
