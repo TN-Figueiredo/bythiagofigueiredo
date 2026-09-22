@@ -4983,7 +4983,7 @@ async def _modo_canario(S, estado, args, chave, cli, llama, agora_mono, restante
 ```
 
 > **Lacuna do spec preenchida aqui.** O portão do F1 roda `--canario` **sem** `--snapshot`
-> (`venv/bin/python fila_intel.py --canario`), e o §4.7 não diz de onde vem a `ENTRADA` da sonda de
+> (`venv/bin/python -B docs/trilha/fila_intel.py --canario`), e o §4.7 não diz de onde vem a `ENTRADA` da sonda de
 > schema. Este plano usa `args.snapshot or FIXTURE`, com
 > `FIXTURE = <BASE>/docs/trilha/fixture_pt.json` — a mesma fixture que o F0.5 (A8) grava e que o
 > `--sombra` usa.
@@ -5045,9 +5045,20 @@ cd ~/Workspace/forja/ferramentas/docs && scp -r sitio.py trilha forja:/opt/agent
 
 - [ ] **Step 3: O dono roda o `teste_fila.py` na forja, sob a trava**
 
+Comandos curtos, um por linha (um `env -u ... -u ... VAR=v VAR2=v2 python -B script` de uma linha
+só já quebrou no terminal do dono: o `env -u PYTHONPATH -u AGENTE_BASE` virou comando próprio e o
+`python -B` sozinho abriu um REPL):
 ```
-cd /opt/agente/docs/trilha && flock -w 1800 /opt/agente/fila_intel.lock env -u PYTHONPATH -u AGENTE_BASE AGENTE_SITIO=/opt/agente/sitio.py.novo AGENTE_FILA=/opt/agente/docs/trilha/fila_intel.py /opt/agente/venv/bin/python -B teste_fila.py
+cd /opt/agente/docs/trilha
+unset PYTHONPATH AGENTE_BASE
+export AGENTE_SITIO=/opt/agente/docs/sitio.py
+export AGENTE_FILA=/opt/agente/docs/trilha/fila_intel.py
+flock -w 1800 /opt/agente/fila_intel.lock /opt/agente/venv/bin/python -B teste_fila.py
 ```
+`AGENTE_SITIO=/opt/agente/docs/sitio.py`, não `/opt/agente/sitio.py.novo`: o `scp` do Step 2 (card K)
+deixa o kit em `/opt/agente/docs/`, e `sitio.py.novo` só existe depois que o S4 rodar — nesta rodada,
+antes do S4, ele não existe ainda. (`/opt/agente/sitio.py`, sem `docs/`, também existe, mas é o
+`sitio.py` **antigo**, da fase 1 — não confundir, e não sobrescrever.)
 Expected: `FILA: 0 falha(s)`. Se sair `PARE: lock ocupado por 30 min`, uma execução do cron está viva
 — esperar e repetir. **Nenhum agente roda esta linha**; ela é do dono.
 
@@ -11691,7 +11702,7 @@ echo
 echo "Pronto se a tabela acima mostra: $NOME | {$(echo "$PERMS" | sed "s/array\[//;s/\]//;s/'//g")} | ativa = t | site bythiagofigueiredo.com"
 if [ "$MODO" = fila ]; then
   echo "Proximo, na forja (portao do F1):"
-  echo "  cd /opt/agente && timeout -k 30s 25m venv/bin/python fila_intel.py --canario"
+  echo "  cd /opt/agente && timeout -k 30s 25m venv/bin/python -B docs/trilha/fila_intel.py --canario"
 else
   echo "Proximo, na forja: bash docs/trilha/canario.sh"
 fi
@@ -11835,7 +11846,7 @@ Esperado: `2 ['bool']`. Qualquer outra coisa reprova — `2 ['NoneType']` quer d
 - [ ] **Step 2: `--canario` — as três sondas de escopo e a de schema**
 
 ```
-cd /opt/agente && timeout -k 30s 25m venv/bin/python fila_intel.py --canario
+cd /opt/agente && timeout -k 30s 25m venv/bin/python -B docs/trilha/fila_intel.py --canario
 ```
 Esperado, na saída impressa: `POST …/task/00000000-0000-4000-8000-000000000000/fail` com a **chave da fila** → **404**; o mesmo pedido com a **chave `{read}`** → **403** (um **401 reprova**: seria chave recusada, não permissão faltando); `PATCH …/intelligence` com `video_recommendations` → **400** (um **404 reprova**: quer dizer que a guarda de escopo ficou depois do SELECT da task, §3.3); e a sonda de schema na 8080 aprovada pelo Aceite do §4.4, com `reasoning_content` vazio. Nada é gravado no banco: o `task_id` não existe e a guarda recusa antes de qualquer escrita.
 
@@ -12597,7 +12608,7 @@ houver, o dono pede uma pelo botão "Pedir diagnostico" do Health Coach, no cana
 
 Fora da janela 11:58–12:05 UTC (§4.1 passo 2). **Um comando:**
 ```
-cd /opt/agente && timeout -k 30s 25m venv/bin/python fila_intel.py
+cd /opt/agente && timeout -k 30s 25m venv/bin/python -B docs/trilha/fila_intel.py
 ```
 Aprovação: imprime `desfecho: ok`. Se sair `chat`, `ocupado` ou `llama_fora`, **nada foi clamado**
 (§4.1 passo 2) — espere 5 min, ainda fora da janela 11:58–12:05 UTC, e repita **o mesmo comando**.
@@ -12635,7 +12646,7 @@ Bloco literal do §5 do spec, em subshell — ele **guarda o backup e confere co
   grep -q pulso /opt/agente/crontab.bak-F4 && grep -q retentar /opt/agente/crontab.bak-F4 || { echo 'PARE: backup do crontab sem pulso/retentar — nao instalar'; exit 1; }
   grep -q fila_intel /opt/agente/crontab.bak-F4 && { echo 'PARE: ja existe linha fila_intel no crontab'; exit 1; }
   N0=$(grep -c -e retentar -e pulso /opt/agente/crontab.bak-F4)
-  (cat /opt/agente/crontab.bak-F4; echo '*/10 * * * * timeout -k 30s 25m /opt/agente/venv/bin/python /opt/agente/fila_intel.py --cron >>/opt/agente/log/fila_intel.err 2>&1') | crontab -
+  (cat /opt/agente/crontab.bak-F4; echo '*/10 * * * * timeout -k 30s 25m /opt/agente/venv/bin/python -B /opt/agente/docs/trilha/fila_intel.py --cron >>/opt/agente/log/fila_intel.err 2>&1') | crontab -
   [ "$(crontab -l | grep -c -e retentar -e pulso)" = "$N0" ] && [ "$(crontab -l | grep -c fila_intel)" = 1 ] && echo CRON-OK || echo 'PARE: crontab divergente — restaure com  crontab /opt/agente/crontab.bak-F4'
 )
 ```
@@ -12808,7 +12819,7 @@ Quatro passos, **nesta ordem**. É a primeira etapa do rollback da fase inteira 
 - [ ] **Step 1: Tirar só a linha da fila do crontab**
 
 ```
-crontab -l | grep -vF '/opt/agente/fila_intel.py' | crontab -
+crontab -l | grep -vF 'docs/trilha/fila_intel.py' | crontab -
 ```
 ```
 crontab -l | grep -c fila_intel; crontab -l | grep -c -e retentar -e pulso
@@ -13445,11 +13456,21 @@ bash -n docs/trilha/cartao.sh && bash -n docs/trilha/deploy.sh && bash -n seed_c
 ```
 Expected: nenhuma linha `FALHOU` e `SH-OK` impresso. Qualquer outra coisa reprova.
 
-- [ ] **Step 3: Não rodar `teste_fila.py` nem `teste_s4.py` aqui**
+- [ ] **Step 3: Não rodar `teste_fila.py` aqui; rodar `teste_s4.py`, sim**
 
-Regra do §5, célula F0k: **os dois não rodam no Mac**. O `python3` do Mac não tem `httpx` e o worker o importa (§4.1, §4.6), então uma execução aqui falharia por ambiente e não diria nada sobre o código. Eles são portão **na forja**: `teste_s4.py` dentro do `cartao.sh S4`, `teste_fila.py` dentro do `cartao.sh S4` (sobre `sitio.py.novo`) e antes de cada instalação do worker no F1 (§4.6).
+Regra do §5, célula F0k, **corrigida na v12** (a v11 dizia que os dois não rodavam no Mac; estava
+errado): só `teste_fila.py` não roda aqui — carrega o worker, que importa `httpx`, e o `python3` do
+Mac não o tem. Ele é portão **na forja**, dentro do `cartao.sh S4` (sobre `sitio.py.novo`) e antes de
+cada instalação do worker no F1 (§4.6). **`teste_s4.py` não toca no worker** — testa só o `sitio.py`,
+é stdlib puro, e roda aqui com `AGENTE_SITIO` setado:
 
-Prova de que o ambiente é esse mesmo, e não um engano:
+```bash
+cd ~/Workspace/forja/ferramentas/docs/trilha && AGENTE_SITIO=$HOME/Workspace/forja/ferramentas/docs/sitio.py python3 -B teste_s4.py; echo "saida=$?"
+```
+Expected: `S4: 0 falha(s)` com `saida=0` (29 asserções). Entra no ciclo de TDD do Mac como os demais;
+o portão do F0k não muda por causa dele.
+
+Prova de que o ambiente é esse mesmo para `teste_fila.py`, e não um engano:
 
 ```bash
 python3 -c "import httpx" 2>&1 | tail -1
