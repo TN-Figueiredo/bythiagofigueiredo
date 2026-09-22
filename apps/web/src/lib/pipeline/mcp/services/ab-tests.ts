@@ -10,7 +10,7 @@ import { mcpRequirePermission } from '@/lib/pipeline/mcp/auth'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { PipelineServiceError } from '@/lib/pipeline/services/types'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
-import type { VariantInput, IntelRecommendations } from '@/lib/pipeline/services/youtube'
+import type { VariantInput } from '@/lib/pipeline/services/youtube'
 import * as youtube from '@/lib/pipeline/services/youtube'
 import { toMcpError, toMcpSuccess } from '../errors'
 
@@ -22,6 +22,7 @@ function buildCtx(): ServiceContext {
     siteId: mcp.siteId,
     permissions: mcp.permissions as ServiceContext['permissions'],
     keyHash: mcp.keyHash,
+    keyId: mcp.keyId,
     supabase: getSupabaseServiceClient(),
     source: 'api_key',
   }
@@ -32,7 +33,9 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
 
   try {
     // Write permission guard for mutation actions
-    const WRITE_ACTIONS = ['upsert_variants', 'delete_variant', 'submit_intelligence']
+    // claim_task hands a task to a worker, so over MCP it needs write like submit_intelligence.
+    // The narrow {read,intelligence} key claims only over REST, where channel_ids is required.
+    const WRITE_ACTIONS = ['upsert_variants', 'delete_variant', 'submit_intelligence', 'claim_task']
     if (action && WRITE_ACTIONS.includes(action)) {
       const mcp = getMcpContext()
       if (!mcpRequirePermission(mcp, 'write')) {
@@ -146,7 +149,7 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
       }
 
       case 'submit_intelligence': {
-        const payload = params.intel_payload as IntelRecommendations | undefined
+        const payload = params.intel_payload
         if (!payload) return toMcpError({ code: 'VALIDATION_ERROR', message: 'intel_payload is required for submit_intelligence' })
         const result = await youtube.submitIntelRecommendations(buildCtx(), payload)
         return toMcpSuccess(result.data)

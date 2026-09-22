@@ -59,6 +59,20 @@ const ERROR_MAP: Record<string, ErrorClassification> = {
     retryable: false,
     recovery_action: 'The API key lacks the required permission level. Use a key with write or admin permissions.',
   },
+  TASK_NOT_RUNNING: {
+    severity: 'recoverable',
+    retryable: false,
+    recovery_action: 'The task is no longer held by this session (closed, stale or owned by another key). Do not resend; claim another task.',
+  },
+  PARTIAL_FAILURE: {
+    severity: 'recoverable',
+    retryable: false,
+    // The MCP `manage_ab_test` tool has no `fail` action (only `claim_task`) — telling an MCP
+    // caller to "send an explicit fail" here gives an instruction it cannot carry out, and the
+    // task would then sit `running` until the watchdog releases it 30-60 min later. The explicit
+    // close is REST-only: POST .../intelligence/task/{id}/fail with retry.
+    recovery_action: 'Some writes failed and the task is still running — nothing was closed. This MCP tool cannot close it explicitly (no `fail` action): call REST POST .../intelligence/task/{id}/fail with retry, or wait for the watchdog (30-60 min). Do not resend the submit_intelligence payload.',
+  },
 
   // Transient -- retry after delay
   RATE_LIMITED: {

@@ -46,6 +46,7 @@ const baseProps = {
   coachingCards: [] as CoachingCard[],
   videoCount: 10,
   lastAnalysisAt: '2026-01-01T00:00:00Z',
+  coachingMeta: null,
   analysisState: 'idle' as const,
 }
 

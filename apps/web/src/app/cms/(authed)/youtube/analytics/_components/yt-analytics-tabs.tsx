@@ -2,7 +2,7 @@
  * YtAnalyticsTabs — Performance tab container.
  *
  * Refactored per spec 4.3:
- * - page-head with: title "Desempenho", description, demo-switch, "Pedir diagnostico ao Cowork" button
+ * - page-head with: title "Desempenho", description, demo-switch, "Pedir diagnostico" button
  * - key={activeTab} on tabpanel for .fade-in re-animation
  * - Replaced "grades"/"Notas" tab with NotesView
  * - Demo-switch toggles Overview / PerfNewChannel
@@ -75,7 +75,7 @@ interface Props {
   channelInternalId?: string
   intelligenceVideos?: VideoGradeRow[]
   intelligenceOutliers?: OutlierVideo[]
-  channelCoaching?: { coaching: CoachingOutput; generatedAt: string } | null
+  channelCoaching?: { coaching: CoachingOutput; source: 'cowork' | 'forja'; generatedLabel: string } | null
   notes?: NoteEntry[]
   healthScore?: number
   onCreateNote?: (input: { channelId: string; text: string }) => Promise<{ ok: boolean; error?: string }>
@@ -166,6 +166,21 @@ export function YtAnalyticsTabs({
     [intelligenceVideos, channelCoaching]
   )
 
+  // `coaching` is an `as CoachingOutput` over jsonb and `summary: string` is a TypeScript
+  // promise, not a database one: no row written before this commit went through Zod, and
+  // `.not('coaching','is',null)` does not exclude `{}`. Without this narrowing, `.trim()`
+  // of undefined is a TypeError inside a client component.
+  const coachingMeta = useMemo(
+    () => channelCoaching
+      ? {
+          source: channelCoaching.source,
+          generatedLabel: channelCoaching.generatedLabel,
+          summary: typeof channelCoaching.coaching.summary === 'string' ? channelCoaching.coaching.summary : '',
+        }
+      : null,
+    [channelCoaching],
+  )
+
   /** Tab badge counts — only shown when > 0 */
   const tabCounts = useMemo(() => {
     const outlierCount = intelligenceOutliers?.length ?? 0
@@ -220,7 +235,7 @@ export function YtAnalyticsTabs({
         <div className="flex items-center" style={{ gap: 10 }}>
           <button
             type="button"
-            className="btn cowork"
+            className="btn"
             disabled={!onRequestAnalysis || !channelInternalId || analysisState !== 'idle'}
             onClick={handleRequestAnalysis}
           >
@@ -228,7 +243,7 @@ export function YtAnalyticsTabs({
               <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
               <path d="M5 18l.7 1.8L7.5 20l-1.8.7L5 22l-.7-1.3L2.5 20l1.8-.2z" />
             </svg>
-            {analysisState === 'pending' ? 'Solicitando...' : analysisState === 'success' ? 'Solicitado!' : analysisState === 'cooldown' ? 'Aguarde...' : 'Pedir diagnostico ao Cowork'}
+            {analysisState === 'pending' ? 'Solicitando...' : analysisState === 'success' ? 'Solicitado!' : analysisState === 'cooldown' ? 'Aguarde...' : 'Pedir diagnostico'}
           </button>
         </div>
       </div>
@@ -298,6 +313,7 @@ export function YtAnalyticsTabs({
             coachingCards={coachingCards}
             videoCount={intelligenceVideos?.length ?? 0}
             lastAnalysisAt={lastAnalysisAt ?? null}
+            coachingMeta={coachingMeta}
             onRequestAnalysis={onRequestAnalysis && channelInternalId ? handleRequestAnalysis : undefined}
             analysisState={analysisState}
           />
@@ -357,7 +373,7 @@ const COACHING_DIAGNOSTICS: Record<Axis, { diagnosis: string; action: string }> 
   },
 }
 
-function computeCoachingCards(
+export function computeCoachingCards(
   videos: VideoGradeRow[],
   channelCoaching: CoachingOutput | null,
 ): Array<{
@@ -369,8 +385,12 @@ function computeCoachingCards(
   action: string
   source: 'cowork' | 'fallback'
 }> {
-  if (channelCoaching?.priorities?.length) {
-    return channelCoaching.priorities
+  // Tested for null, not for a non-empty priorities array: with `priorities: []` the old
+  // guard fell through to the heuristic branch and invented up to 3 fallback cards on top
+  // of a real analysis. `?? []` because `coaching` is an `as CoachingOutput` over jsonb —
+  // a row written before this commit never went through Zod.
+  if (channelCoaching != null) {
+    return (channelCoaching.priorities ?? [])
       .map(p => ({
         axis: p.axis,
         score: p.score,

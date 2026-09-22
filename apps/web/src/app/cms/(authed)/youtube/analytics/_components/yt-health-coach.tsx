@@ -22,6 +22,8 @@ interface Props {
   coachingCards: CoachingCard[]
   videoCount: number
   lastAnalysisAt: string | null
+  /** Non-null whenever a real analysis (Cowork or forja) exists for this channel. */
+  coachingMeta: { source: 'cowork' | 'forja'; generatedLabel: string; summary: string } | null
   onRequestAnalysis?: () => void
   analysisState: 'idle' | 'pending' | 'cooldown' | 'success'
 }
@@ -53,19 +55,24 @@ export function YtHealthCoach({
   coachingCards,
   videoCount,
   lastAnalysisAt,
+  coachingMeta,
   onRequestAnalysis,
   analysisState,
 }: Props) {
   const router = useRouter()
   const sortedCards = [...coachingCards].sort((a, b) => a.score - b.score)
-  const hasCoworkCoaching = sortedCards.some(c => c.source === 'cowork')
 
   const potentialScore = sortedCards.length > 0
     ? Math.min(100, healthScore + sortedCards.reduce((sum, c) => sum + Math.max(0, Math.round((c.benchmark - c.score) * 1.5)), 0))
     : healthScore
   const potentialGain = potentialScore - healthScore
 
-  if (videoCount === 0) {
+  // `videoCount` counts rows in youtube_videos, not analyses: a channel can hold a real
+  // Cowork/forja coaching row with zero synced videos. Claiming "nenhuma analise" while
+  // `coachingMeta` holds one is actively false, so the empty state is reserved for the case
+  // where there is genuinely nothing to show. With coaching present the normal render runs
+  // (mockup state B: summary banner, no cards).
+  if (videoCount === 0 && !coachingMeta) {
     return (
       <div className="fade-in flex flex-col items-center justify-center gap-3 rounded border border-dashed border-cms-border p-12 text-center">
         <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
@@ -94,15 +101,25 @@ export function YtHealthCoach({
           </svg>
         </div>
         <div className="flex-1">
-          <span className="section-label">{hasCoworkCoaching ? 'Diagnostico do Cowork' : 'Diagnostico heuristico'}</span>
-          <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 6 }}>
-            {sortedCards.length > 0
-              ? `O canal esta em ${healthScore}/100. ${sortedCards.length} eixo${sortedCards.length > 1 ? 's' : ''} puxa${sortedCards.length > 1 ? 'm' : ''} pra baixo. Resolver levaria o score pra ~${potentialScore}.`
-              : 'Canal saudavel em todos os eixos — continue monitorando.'}
-          </p>
-          {!hasCoworkCoaching && sortedCards.length > 0 && (
+          <span className="section-label">
+            {coachingMeta
+              ? `Diagnostico · por ${coachingMeta.source === 'forja' ? 'forja' : 'Cowork'} · ${coachingMeta.generatedLabel}`
+              : 'Diagnostico heuristico'}
+          </span>
+          {coachingMeta ? (
+            coachingMeta.summary.trim() !== '' && (
+              <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 6 }}>{coachingMeta.summary}</p>
+            )
+          ) : (
+            <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 6 }}>
+              {sortedCards.length > 0
+                ? `O canal esta em ${healthScore}/100. ${sortedCards.length} eixo${sortedCards.length > 1 ? 's' : ''} puxa${sortedCards.length > 1 ? 'm' : ''} pra baixo. Resolver levaria o score pra ~${potentialScore}.`
+                : 'Canal saudavel em todos os eixos — continue monitorando.'}
+            </p>
+          )}
+          {!coachingMeta && sortedCards.length > 0 && (
             <p className="dim" style={{ fontSize: 11, marginTop: 4 }}>
-              Baseado em regras fixas — ainda sem analise do Cowork para este canal.
+              Baseado em regras fixas — ainda sem analise para este canal.
             </p>
           )}
         </div>
@@ -166,7 +183,7 @@ export function YtHealthCoach({
         )
       })}
 
-      {sortedCards.length === 0 && (
+      {!coachingMeta && sortedCards.length === 0 && (
         <div className="card" style={{ padding: 16, textAlign: 'center' }}>
           <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--green)' }}>Canal saudavel em todos os eixos</p>
           <p className="dim" style={{ fontSize: 12, marginTop: 4 }}>

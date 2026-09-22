@@ -41,12 +41,12 @@ export const PatchPayloadSchema = z.object({
   notifications: z.array(NotificationSchema).max(20).optional(),
   channel_insights: z.object({
     patterns_detected: z.array(z.object({
-      pattern_id: z.string(),
-      category: z.string(),
+      pattern_id: z.string().max(80),
+      category: z.string().max(40),
       finding: z.string().max(300),
       confidence: z.number().min(0).max(1),
-      sample_size: z.number().int(),
-    })).optional(),
+      sample_size: z.number().int().min(0),
+    })).max(30).optional(),
     analysis_text: z.string().max(2000).optional(),
   }).optional(),
 })

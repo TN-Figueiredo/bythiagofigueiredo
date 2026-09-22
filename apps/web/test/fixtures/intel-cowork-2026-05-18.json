@@ -1,0 +1,173 @@
+{
+  "task_id": "00000000-0000-4000-8000-000000000000",
+  "video_recommendations": [
+    {
+      "action_type": "thumbnail_test",
+      "confidence": 0.76,
+      "priority": "high",
+      "reasoning": "3º em views (644) e 2º em views/day (0.258 vpd). Crossover tech + vida no exterior é nicho lucrativo. Thumbnail com setup montado + reação facial performa melhor em tech content — padrão validado em canais como Lucas Montano e Fabio Akita.",
+      "suggested_variant_description": "Thumbnail A: close-up do setup com rosto surpreso + '1º PC NO CANADÁ' em texto bold amarelo. Thumbnail B: antes/depois (caixa fechada vs setup pronto) em split screen.",
+      "video_id": "2e8c45d0-0a4c-4584-b496-85020e636420"
+    },
+    {
+      "action_type": "combo_test",
+      "confidence": 0.77,
+      "priority": "high",
+      "reasoning": "Vídeo #1 do canal (929 views, 0.287 vpd). Melhor views/day absoluto apesar de 3238 dias de vida — sinal fortíssimo de tráfego evergreen. Título '[Comunicado Importante] - Mudanças' não explica o conteúdo; quem clica já conhece o canal. Otimizar título + thumbnail pode captar público novo que nunca viu o canal.",
+      "suggested_variant_description": "Combo: título 'Saí do Brasil e Mudei Minha Vida — A Decisão Mais Difícil' + thumbnail com split Brasil/Canadá + expressão emocional. Posicionar como conteúdo de descoberta, não update de canal.",
+      "video_id": "5516d9b0-d4e7-4df5-8065-4375803935ae"
+    },
+    {
+      "action_type": "title_test",
+      "confidence": 0.74,
+      "priority": "medium",
+      "reasoning": "Porta de entrada da série (238 views, 0.097 vpd). Série perde 74% da audiência até ep.5. Reposicionar ep.1 como standalone pode resgatar tráfego sem depender de retenção entre episódios. Tema 'armas de influência' (Cialdini) tem busca consistente.",
+      "suggested_variant_description": "Remover numeração e dependência de série: 'As 6 Armas de Influência Que Controlam Você (Sem Você Perceber)'. Adicionar tags: 'robert cialdini', 'armas de persuasão', 'psicologia influência'. Descri...",
+      "video_id": "693542fe-75b3-46c3-8a64-a5948817d6fd"
+    },
+    {
+      "action_type": "title_test",
+      "confidence": 0.62,
+      "priority": "low",
+      "reasoning": "85 views (0.035 vpd) — 2º pior da série 'Como somos controlados'. Título '9 - Fatos sobre a inteligência' é vago e a numeração afasta público novo. Tema 'inteligência' é altamente buscável se bem embalado. Potencial de standalone alto mas exige rebranding completo do vídeo.",
+      "suggested_variant_description": "Título: '9 Fatos Sobre Inteligência Que a Maioria Não Sabe'. Remover '9 -' que indica série. Descrição com bullets dos 9 fatos como gancho. Tags: 'inteligência', 'QI', 'fatos curiosos'.",
+      "video_id": "7748b6ba-e766-4c3d-97c8-2a13670a68d8"
+    },
+    {
+      "action_type": "seo_optimization",
+      "confidence": 0.8,
+      "priority": "high",
+      "reasoning": "4º melhor views/day (0.226 vpd) e mais recente do canal (523 dias). Conteúdo sobre MBK Center é altamente buscável. Título já tem emoji e gancho, mas pode melhorar SEO com keywords específicas. Performance forte para canal de 1.1k subs valida a direção Tailândia.",
+      "suggested_variant_description": "Otimizar descrição com keywords: 'mbk center bangkok preço', 'compras bangkok', 'bangkok barato'. Adicionar timestamps. Tags em PT-BR e EN. End screen linkando Sukhumvit.",
+      "video_id": "7ccf18dd-1ffc-49bd-b866-cc4d74452a7a"
+    },
+    {
+      "action_type": "seo_optimization",
+      "confidence": 0.72,
+      "priority": "medium",
+      "reasoning": "322 views (4º absoluto). 'Plano Canadá Parte 1' tem busca direta mas título sugere série incompleta — Parte 2 nunca saiu, o que pode frustrar espectadores e prejudicar retenção e recomendação. Reposicionar como conteúdo completo.",
+      "suggested_variant_description": "Remover 'Parte 1' do título: 'Como Planejei Minha Mudança Para o Canadá — Passo a Passo'. Descrição detalhada com custos, timeline, documentação. Tags: 'imigrar canadá', 'morar no canadá', 'plano d...",
+      "video_id": "8497b007-3351-4285-affe-634f131cd7a9"
+    },
+    {
+      "action_type": "combo_test",
+      "confidence": 0.65,
+      "priority": "medium",
+      "reasoning": "Apenas 86 views (0.035 vpd) apesar de tema universal 'mudança de casa'. Título 'Mudança para nova residência!' não gera curiosidade nem tem valor de busca. Subperformance massiva comparada a outros vlogs (média 138 views). Combo title+thumb pode triplicar.",
+      "suggested_variant_description": "Título: 'Tour Pelo Meu Novo Apartamento no Canadá — Quanto Pago de Aluguel'. Thumbnail: tour visual do espaço com preço em destaque. Tags: 'aluguel canadá', 'apartamento toronto', 'custo de vida ca...",
+      "video_id": "a73e944d-cfe3-4951-abfd-7721933cf1d5"
+    },
+    {
+      "action_type": "seo_optimization",
+      "confidence": 0.82,
+      "priority": "high",
+      "reasoning": "2º melhor views/day do canal (0.240 vpd) com apenas 563 dias de vida — vídeo mais recente junto com MBK e único no nicho 'brasileiro na Tailândia'. Título atual 'Sukhumvit Road: Um mergulho profundo...' é descritivo mas não otimizado para busca em PT-BR. Nicho tem baixíssima competição. SEO completo (título, tags, descrição com timestamps) pode dobrar tráfego orgânico.",
+      "suggested_variant_description": "Título SEO: 'SUKHUMVIT ROAD Bangkok — O Que Ninguém Te Conta Sobre a Rua Mais Famosa'. Tags bilíngues PT-BR/EN. Descrição com timestamps, keywords 'bangkok vida noturna', 'sukhumvit guia'. Adiciona...",
+      "video_id": "b8836a34-8dcd-4978-b4c1-4bd07b2fb18b"
+    },
+    {
+      "action_type": "title_test",
+      "confidence": 0.7,
+      "priority": "medium",
+      "reasoning": "209 views com 0.068 vpd — performance mediana para conteúdo Canadá. Título 'VLOG - Vida de Trabalhador em Toronto' é genérico. Tema 'trabalhar no exterior' tem alta busca mas saturação alta. Diferenciação via especificidade.",
+      "suggested_variant_description": "Testar: 'Minha Rotina de Trabalho em Toronto — Salário, Horários e Realidade' ou 'Um Dia Trabalhando em Toronto Sendo Brasileiro'. Incluir keywords: 'trabalhar em toronto', 'emprego canadá'.",
+      "video_id": "ef39436e-39e0-4213-9757-89f5356cd611"
+    },
+    {
+      "action_type": "title_test",
+      "confidence": 0.78,
+      "priority": "high",
+      "reasoning": "702 views (2º absoluto) com 0.221 vpd mesmo após 3180 dias — tráfego evergreen consistente. Título 'Primeira semana em Toronto e minhas impressões' é genérico e compete com centenas de vídeos similares. Reescrita pode reativar descoberta via busca e recomendação.",
+      "suggested_variant_description": "Testar: '7 Coisas Que Me Surpreenderam na Primeira Semana em Toronto' ou 'Cheguei em Toronto SOZINHO — Primeira Semana Inteira'. Manter tráfego evergreen com keywords 'morar em toronto', 'primeira ...",
+      "video_id": "f8df47e4-ea44-4590-8f35-225ab7d20ca0"
+    }
+  ],
+  "coaching": {
+    "priorities": [
+      {
+        "action": "Produzir 2-3 vídeos/mês sobre Tailândia com SEO bilíngue (PT-BR + EN). Focar em temas buscáveis: custo de vida, comida, bairros, visto. Otimizar SEO completo nos 2 vídeos existentes.",
+        "axis": "reach",
+        "diagnosis": "Conteúdo Tailândia tem 0.233 vpd médio (3.5x acima da média geral de 0.078 vpd) com apenas 2 vídeos. Nicho 'brasileiro na Tailândia' tem baixíssima competição no YouTube BR. Canal tem apenas 2 vídeos nesse segmento vs 29 de Canadá — oportunidade massiva de captura de tráfego orgânico.",
+        "score": 4.2
+      },
+      {
+        "action": "Reescrever títulos dos top 10 vídeos por views/day. Padrão: hook emocional ou número + keyword de busca + diferenciador pessoal. Remover numeração de série que limita alcance.",
+        "axis": "ctr",
+        "diagnosis": "Sem dados de CTR diretos. Proxy: títulos genéricos em 60% dos vídeos ('Moradia e tecnologia', 'Novo rumo do canal', 'Mudança para nova residência'). Vídeos com títulos específicos e emocionais (ex: '[Comunicado Importante]', 929 views) performam 2-4x melhor que títulos vagos.",
+        "score": 3.5
+      },
+      {
+        "action": "Converter episódios da série em conteúdo standalone com títulos autossuficientes. Usar cards e end screens ao invés de depender de sequência. Cada vídeo deve funcionar como ponto de entrada.",
+        "axis": "retention",
+        "diagnosis": "Série 'Como somos controlados' mostra queda de 74% entre ep.1 (238 views) e ep.4 (62 views). Formato seriado sequencial não retém audiência entre episódios num canal de 1.1k subs. Sem avg_view_percentage para medir retenção intra-vídeo.",
+        "score": 3
+      },
+      {
+        "action": "Estabelecer cadência mínima de 1 vídeo/semana no nicho Tailândia. Usar Shorts de 30-60s entre vídeos longos para manter presença. Community posts com enquetes e updates para engajar inscritos existentes.",
+        "axis": "growth",
+        "diagnosis": "1.160 subs com 35 vídeos em 11 anos. Gap de 5 anos entre era Canadá (2019) e Tailândia (2024). Frequência irregular mata recomendação algorítmica. Views/day médio de 0.078 sugere quase zero tráfego de Suggested/Browse.",
+        "score": 2.8
+      },
+      {
+        "action": "Criar 3 playlists temáticas (Tailândia, Canadá/Imigração, Reflexões). Adicionar end screens em todos os vídeos. Iniciar série de Shorts com cortes dos melhores momentos dos 35 vídeos.",
+        "axis": "engagement",
+        "diagnosis": "Dados de likes e comments não disponíveis na API. 35 vídeos sem Shorts — formato que mais cresce no YouTube e é porta de entrada para inscrições. Canal não explora community posts, playlists organizadas, ou end screens interconectadas.",
+        "score": 3
+      },
+      {
+        "action": "Manter 1 vídeo pessoal/behind-the-scenes por mês para fortalecer conexão. Usar tom pessoal mesmo em conteúdo de nicho. Episódio sobre a transição Canadá→Tailândia pode ser o gateway entre as duas audiências.",
+        "axis": "sub_impact",
+        "diagnosis": "Comunicados pessoais (avg 399 views) têm o maior impacto na base — 3.2x acima da média geral. Sinal de que inscritos são altamente engajados com a pessoa, não com o tema. Isso é vantagem competitiva: facilita transição de nicho (Canadá→Tailândia).",
+        "score": 4
+      }
+    ],
+    "summary": "Canal micro (1.160 subs) em transição geográfica Canadá→Tailândia com 35 vídeos e 3 eras distintas: gaming (2015-17), Canadá (2017-19) e Tailândia (2024+). Sem dados de CTR/impressions/retention (limitação da YouTube Analytics API v2). Análise baseada em views absolutas e views/day normalizadas por idade. Descoberta principal: conteúdo Tailândia (0.233 vpd médio) performa 3.5x melhor que a média do canal (0.078 vpd) mesmo com apenas 2 vídeos e 500 dias de vida vs 2500+ dos demais. Conteúdo de..."
+  },
+  "channel_insights": {
+    "patterns_detected": [
+      {
+        "category": "content",
+        "confidence": 0.78,
+        "finding": "Vídeos Tailândia (2 vídeos, 0.233 vpd médio) performam 3.5x melhor que média do canal (0.078 vpd) em views/day normalizado. Validação forte de nicho com competição baixa no YouTube BR.",
+        "pattern_id": "thailand_niche_validation",
+        "sample_size": 2
+      },
+      {
+        "category": "engagement",
+        "confidence": 0.85,
+        "finding": "Comunicados pessoais e mudanças de vida (avg 399 views) superam todos os outros formatos em 3.8x. Audiência tem conexão com a pessoa — ativo transferível entre nichos.",
+        "pattern_id": "personal_content_premium",
+        "sample_size": 3
+      },
+      {
+        "category": "retention",
+        "confidence": 0.88,
+        "finding": "Série 'Como Somos Controlados' perdeu 74% entre ep.1 (238 views) e ep.4 (62 views). Formato seriado sequencial inviável para canal micro. Queda mais acentuada em eps com títulos genéricos.",
+        "pattern_id": "series_sequential_decay",
+        "sample_size": 6
+      },
+      {
+        "category": "reach",
+        "confidence": 0.82,
+        "finding": "Canal mantém 0.078 vpd médio em vídeos com 2500+ dias — tráfego evergreen ativo em conteúdo Canadá/imigração. SEO optimization pode multiplicar esse long tail.",
+        "pattern_id": "evergreen_traffic_base",
+        "sample_size": 33
+      },
+      {
+        "category": "ctr",
+        "confidence": 0.75,
+        "finding": "Títulos com especificidade (nomes de lugares, números, emoção) correlacionam com 2-4x mais views que títulos genéricos. Ex: 'Primeira semana em Toronto' (702) vs 'Moradia e tecnologia' (177) vs 'Mudança para nova residência' (86).",
+        "pattern_id": "title_specificity_correlation",
+        "sample_size": 35
+      },
+      {
+        "category": "growth",
+        "confidence": 0.7,
+        "finding": "Gap de 5 anos sem uploads (2019-2024). Canal perdeu momento algorítmico mas manteve base de inscritos. Retomada em 2024 com nicho diferente — requer 3-6 meses de consistência para reativar recomendação.",
+        "pattern_id": "five_year_gap_recovery",
+        "sample_size": 35
+      }
+    ],
+    "analysis_text": "Análise aprofundada do canal tnFigueiredo (1.160 subs, 35 vídeos, 11 anos de atividade). O canal viveu 3 eras: gaming/LoL (2015-17, 4 vídeos, avg 127 views), vida no Canadá (2017-19, 29 vídeos, avg 186 views) e Tailândia (2024+, 2 vídeos, avg 126 views absolutas mas 0.233 vpd — métrica normalizada por idade que revela performance real 3.5x superior à média).\n\nDescoberta-chave #1: Views/day normalizado inverte o ranking. Os 2 vídeos da Tailândia (0.240 e 0.226 vpd) superam todos os 29 do Canadá em eficiência, exceto os 2 mega-performers (Comunicado 0.287, Primeiro PC 0.258). Isso valida a transição de nicho.\n\nDescoberta-chave #2: Conteúdo pessoal/emocional (comunicados, mudanças) gera 399 views médias vs 105 de conteúdo educacional — 3.8x. A audiência se conecta com a pessoa, não com o tema. Isso é o ativo mais valioso do canal e facilita transições de nicho.\n\nDescoberta-chave #3: A série 'Como Somos Controlados' (6 eps) perde 74% entre ep.1 e ep.4. O formato seriado sequencial não funciona para canais micro. Cada episódio numerado cria barreira de entrada para público novo. Mesmos temas (Cialdini, psicologia social) teriam 2-3x mais alcance como standalone.\n\nDescoberta-chave #4: Gap de 5 anos (2019-2024) sem uploads. Canal sobreviveu com tráfego evergreen (avg 0.078 vpd nos 33 vídeos pré-gap). Retomada em 2024 com nicho Tailândia mostra sinais positivos, mas cadência precisa ser consistente para reativar algoritmo.\n\nLimitação: Sem CTR, impressions, retenção e engagement (likes/comments) — todos os scores de coaching são estimativas baseadas em views. Uma re-análise completa é necessária quando dados de analytics ficarem disponíveis."
+  }
+}

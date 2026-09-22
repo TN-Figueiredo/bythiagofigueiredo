@@ -38,6 +38,27 @@ export async function authenticateRead(req: NextRequest): Promise<
 }
 
 /**
+ * Authenticate a request against the narrow `intelligence` scope.
+ *
+ * `apiKeyOnly` exists because the queue routes hand a task to a worker: a session
+ * has no worker to hand it to and would leave the task orphaned, so it gets a 403.
+ */
+export async function authenticateIntel(
+  req: NextRequest,
+  opts?: { apiKeyOnly?: boolean },
+): Promise<{ ok: true; auth: PipelineAuth } | NextResponse> {
+  const authResult = await authenticatePipeline(req)
+  if (!authResult.ok) return pipelineError('UNAUTHORIZED', authResult.error, authResult.status)
+  if (opts?.apiKeyOnly && authResult.auth.source !== 'api_key') {
+    return pipelineError('FORBIDDEN', 'API key required', 403, authResult.auth)
+  }
+  if (!requirePermission(authResult.auth, 'intelligence')) {
+    return pipelineError('FORBIDDEN', 'Insufficient permissions', 403, authResult.auth)
+  }
+  return { ok: true, auth: authResult.auth }
+}
+
+/**
  * Read + optionally validate a JSON request body at the transport boundary.
  *
  * Backward compatible with the domain's existing contract: on failure it returns a
@@ -49,24 +70,37 @@ export async function authenticateRead(req: NextRequest): Promise<
  *   or a 400 `NextResponse` whose body carries `{ error: { code, message, details } }`,
  *   where `details` is the per-field issue list. This lets a route drop the unchecked
  *   `body as T` cast and get a real, typed, validated payload.
+ * - `parseBody(req, schema, auth)` — same, plus attaches rate-limit headers to the 400
+ *   when validation fails. `auth` is optional and third because most call sites already
+ *   have it in scope by the time they call this (auth runs first); passing it costs
+ *   nothing and closes the one real inconsistency in this family of routes — the claim
+ *   route already sends rate-limit headers on its 204, and a caller's *invalid* request
+ *   deserves the same visibility into its remaining quota as a valid one.
  *
  * Deep per-item / preprocessing validation that already lives in the service layer is left
  * intact — boundary schemas here are the envelope/shape guard, not a duplicate of those.
  */
 export async function parseBody(req: NextRequest): Promise<unknown | NextResponse>
+export async function parseBody(
+  req: NextRequest,
+  schema: undefined,
+  auth: PipelineAuth,
+): Promise<unknown | NextResponse>
 export async function parseBody<S extends z.ZodTypeAny>(
   req: NextRequest,
   schema: S,
+  auth?: PipelineAuth,
 ): Promise<z.output<S> | NextResponse>
 export async function parseBody(
   req: NextRequest,
   schema?: z.ZodTypeAny,
+  auth?: PipelineAuth,
 ): Promise<unknown | NextResponse> {
   let raw: unknown
   try {
     raw = await req.json()
   } catch {
-    return pipelineError('VALIDATION_ERROR', 'Invalid JSON body', 400)
+    return pipelineError('VALIDATION_ERROR', 'Invalid JSON body', 400, auth)
   }
   if (!schema) return raw
 
@@ -79,7 +113,7 @@ export async function parseBody(
     const message = parsed.error.issues
       .map((i) => (i.path.length ? `${i.path.join('.')}: ${i.message}` : i.message))
       .join('; ')
-    return pipelineError('VALIDATION_ERROR', message || 'Request body validation failed', 400, undefined, issues)
+    return pipelineError('VALIDATION_ERROR', message || 'Request body validation failed', 400, auth, issues)
   }
   return parsed.data
 }

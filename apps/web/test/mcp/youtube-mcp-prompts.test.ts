@@ -221,6 +221,17 @@ describe('youtube-analyst prompt', () => {
     expect(text).toMatch(/B\s*>=?\s*65/)
     expect(text).toMatch(/C\s*>=?\s*40/)
   })
+
+  it('filters the snapshot-age query by source=cowork', async () => {
+    await pair.client.getPrompt({
+      name: 'youtube-analyst',
+      arguments: { channel_id: 'test-channel-uuid' },
+    })
+
+    // fetchSnapshotAge must never let a forja row make the Cowork analysis
+    // look fresh — it has to scope the query to source='cowork'.
+    expect(mockSupabase.eq).toHaveBeenCalledWith('source', 'cowork')
+  })
 })
 
 // ---------------------------------------------------------------------------

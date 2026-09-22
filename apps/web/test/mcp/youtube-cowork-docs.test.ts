@@ -13,6 +13,49 @@ const docs = readFileSync(
 )
 
 // ---------------------------------------------------------------------------
+// MCP prompt injection budget (youtube-analyst injects only the first 8000
+// characters of this file — see src/lib/pipeline/mcp/prompts.ts)
+// ---------------------------------------------------------------------------
+
+describe('cowork-docs-youtube MCP injection budget', () => {
+  it('keeps the whole "Coaching (por canal)" section inside the 8000-char prompt slice', () => {
+    const doc = docs
+    const start = doc.indexOf('### Coaching (por canal)')
+    expect(start).toBeGreaterThan(-1)
+    const next = doc.indexOf('\n## ', start)
+    expect(next).toBeGreaterThan(-1)
+    // `youtube-analyst` injects only the first 8000 characters of this file. Without this
+    // assertion an edit earlier in the doc silently pushes the coaching/priorities format —
+    // exactly what produces the three cards the owner sees — out of the prompt.
+    expect(next).toBeLessThan(8000)
+  })
+
+  it('keeps the essential contract (method, path, body, response codes) of claim and fail inside the 8000-char slice', () => {
+    const doc = docs
+    // The full, detailed sections for these two endpoints live further down the file
+    // (outside the 8000-char slice on purpose — see the compact recap this asserts on).
+    // Without a copy of method/path/body/codes inside the slice, an agent reading only the
+    // injected prefix is told to call two endpoints whose contract it never receives.
+    const claimIdx = doc.indexOf('`POST .../intelligence/task/claim`')
+    const failIdx = doc.indexOf('`POST .../intelligence/task/{id}/fail`')
+    expect(claimIdx).toBeGreaterThan(-1)
+    expect(failIdx).toBeGreaterThan(-1)
+    expect(claimIdx).toBeLessThan(8000)
+    expect(failIdx).toBeLessThan(8000)
+
+    // The recap row itself must carry body shape and response codes, not just the path.
+    const recapStart = Math.min(claimIdx, failIdx)
+    const recapEnd = Math.max(claimIdx, failIdx) + 200
+    const recap = doc.slice(recapStart, recapEnd)
+    expect(recap).toContain('channel_ids')
+    expect(recap).toContain('reason')
+    expect(recap).toContain('retry')
+    expect(recap).toMatch(/204/)
+    expect(recap).toMatch(/409/)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Section completeness
 // ---------------------------------------------------------------------------
 

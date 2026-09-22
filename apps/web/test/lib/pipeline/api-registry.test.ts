@@ -35,7 +35,7 @@ describe('API_REGISTRY', () => {
         expect(ep.method).toMatch(/^(GET|POST|PATCH|PUT|DELETE)$/)
         expect(ep.path).toMatch(/^\//)
         expect(ep.summary.length).toBeGreaterThan(5)
-        expect(ep.auth).toMatch(/^(read|write)$/)
+        expect(ep.auth).toMatch(/^(read|write|intelligence)$/)
       }
     }
   })

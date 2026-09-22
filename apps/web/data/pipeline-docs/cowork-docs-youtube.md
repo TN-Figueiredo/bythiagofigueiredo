@@ -16,67 +16,76 @@ O módulo Intelligence Engine analisa performance de canais YouTube e gera:
 
 ## Endpoints Pipeline
 
+**Envelope:** toda resposta de sucesso vem em `{"data": ...}`; toda recusa vem em `{"error": {"code", "message"}}`, com `details` opcional (lista `[{path, message}]` por campo) quando a recusa é de corpo inválido — vale para todo endpoint deste arquivo. Cabeçalhos `X-RateLimit-*` acompanham a resposta sempre que a chave já foi autenticada antes da recusa (inclui corpo inválido pós-auth, não só sucesso).
+
 ### GET /api/pipeline/youtube/intelligence?channel_id={id}
 
 Retorna snapshot completo de inteligência do canal.
 
 **Headers:** `X-Pipeline-Key: {api_key}`
+**Query:** `channel_id` (uuid) — **obrigatório**; sem ele, `400 VALIDATION_ERROR`.
 
-**Response:**
+**Response 200:**
 ```json
 {
-  "channel": {
-    "id": "uuid",
-    "channel_id": "UC...",
-    "name": "Canal Nome",
-    "subscriber_count": 12500
-  },
-  "videos": [
-    {
+  "data": {
+    "channel": {
       "id": "uuid",
-      "video_id": "dQw4w9WgXcQ",
-      "title": "Título do Vídeo",
-      "published_at": "2026-01-15T10:00:00Z",
-      "view_count": 45000,
-      "ctr": 4.8,
-      "impressions": 120000,
-      "avg_view_percentage": 42.5,
-      "avg_view_duration_seconds": 312,
-      "retention_curve": [100, 95, 88, 72, 60, 48, 35, 28],
-      "traffic_sources": {
-        "browse": 35,
-        "search": 25,
-        "suggested": 20,
-        "external": 12,
-        "direct": 5,
-        "notifications": 3
-      },
-      "view_count_yesterday": 150,
-      "view_count_delta_today": 45
-    }
-  ],
-  "grade_history": [
-    {
-      "youtube_video_id": "uuid",
-      "week_iso": "2026-W19",
-      "grade": "C",
-      "score": 52.3
-    }
-  ],
-  "optimization_cycles": [
-    {
-      "youtube_video_id": "uuid",
-      "state": "flagged",
-      "consecutive_low_weeks": 2,
-      "cycle_number": 1
-    }
-  ],
-  "existing_intelligence": {
-    "channel_coaching": null,
-    "video_recommendations": []
+      "channel_id": "UC...",
+      "name": "Canal Nome",
+      "subscriber_count": 12500
+    },
+    "recent_window": { "date": "2026-09-17", "days": 90 },
+    "videos": [
+      {
+        "id": "uuid",
+        "video_id": "dQw4w9WgXcQ",
+        "title": "Título do Vídeo",
+        "published_at": "2026-01-15T10:00:00Z",
+        "view_count": 45000,
+        "ctr": 4.8,
+        "impressions": 120000,
+        "avg_view_percentage": 42.5,
+        "avg_view_duration_seconds": 312,
+        "retention_curve": [100, 95, 88, 72, 60, 48, 35, 28],
+        "traffic_sources": {
+          "browse": 35,
+          "search": 25,
+          "suggested": 20,
+          "external": 12,
+          "direct": 5,
+          "notifications": 3
+        },
+        "is_hidden": false,
+        "recent": { "views": 150, "subscribers_gained": 2 }
+      }
+    ],
+    "grade_history": [
+      {
+        "youtube_video_id": "uuid",
+        "week_iso": "2026-W19",
+        "grade": "C",
+        "score": 52.3
+      }
+    ],
+    "optimization_cycles": [
+      {
+        "youtube_video_id": "uuid",
+        "state": "flagged",
+        "consecutive_low_weeks": 2,
+        "cycle_number": 1
+      }
+    ],
+    "intelligence": []
   }
 }
 ```
+
+**Campos novos (fase 2a):**
+- `recent_window` — `{ date, days }` da data mais recente com analytics dentro de 3 dias; `null` inteiro (nunca `{ date: null }`) quando nada cai nesse prazo.
+- `videos[].recent` — a linha daquela ÚNICA data de `recent_window` (nunca uma soma); vídeo sem atividade nela vem como `{ views: 0, subscribers_gained: 0 }`.
+- `videos[].is_hidden` — vídeo ocultado (não deletado) no CMS.
+- `intelligence` — substitui o antigo `existing_intelligence`; agora é um array, e contém **só** linhas com `source: "cowork"` — as análises da forja nunca aparecem aqui.
 
 ### PATCH /api/pipeline/youtube/intelligence
 
@@ -120,13 +129,83 @@ Recebe resultados de análise do Cowork.
 }
 ```
 
-### GET /api/pipeline/youtube/intelligence/task
+**Response 200:**
+```json
+{ "data": { "status": "ok", "processed": true } }
+```
 
-Pickup de tasks pendentes (transição atômica para 'running').
+**Fonte da linha:** vem da chave que autentica a chamada, nunca de um campo `source` no corpo (ignorado se presente) — chaves largas (`write`/`admin`) ou sessão gravam `source: "cowork"`.
+
+**Erros:**
+| Code | HTTP | Quando |
+|------|------|--------|
+| VALIDATION_ERROR | 400 | Corpo inválido |
+| VALIDATION_ERROR | 422 | `video_id` referenciado não existe no canal (falha de integridade referencial) |
+| NOT_FOUND | 404 | `task_id` não existe |
+| TASK_NOT_RUNNING | 409 | Task não está `running`, ou pertence a outra chave — **não reenviar** |
+| PARTIAL_FAILURE | 500 | Uma ou mais escritas falharam; a task **continua `running`** e nada foi fechado — feche com `fail` (`retry: true`) |
+
+**Fechamento explícito da task** (quando o worker não conseguiu terminar, ou levou 409/500 acima): dois endpoints REST — contrato essencial abaixo, detalhe completo mais adiante neste doc.
+
+| Endpoint | Corpo | Respostas |
+|---|---|---|
+| `POST .../intelligence/task/claim` | `{"channel_ids": ["uuid", …]}` (1–10, obrigatório) | 200 `{"data":{"id","site_id","channel_id","trigger_type","requested_at","started_at"}}` · 204 fila vazia · 400 `VALIDATION_ERROR` · 403 `FORBIDDEN` · 500 `INTERNAL_ERROR` |
+| `POST .../intelligence/task/{id}/fail` | `{"reason": "…", "retry": true}` | 200 `{"data":{"id","status","retry_count"}}` · 400 `VALIDATION_ERROR` · 404 `NOT_FOUND` · 409 `TASK_NOT_RUNNING` · 500 `INTERNAL_ERROR` |
+
+**Via MCP (`manage_ab_test`):** existe `claim_task`, mas **não existe ação `fail`** — quem clamou pelo MCP e levou 409/500 fecha via REST (`POST .../task/{id}/fail`) ou espera o watchdog (30–60min). Ver "Retry & Backoff" e o workflow "Via MCP" abaixo.
+
+### GET /api/pipeline/youtube/intelligence/task (legado)
+
+Pickup de tasks pendentes (transição atômica para 'running'). **Endpoint legado** — exige permissão `write` (a chave estreita `{read,intelligence}` não pode usá-lo; use `POST .../intelligence/task/claim` com `channel_ids`).
 
 **Headers:** `X-Pipeline-Key: {api_key}`
 
-**Response:** `{ "task": { "id": "uuid", "channel_id": "uuid", "trigger_type": "weekly" } }` ou `{ "task": null }`
+**Response 200:** `{ "data": { "id": "uuid", "site_id": "uuid", "channel_id": "uuid", "trigger_type": "weekly", "requested_at": "...", "started_at": "..." } }`
+**Response 204:** corpo vazio — fila vazia
+**Response 403:** `FORBIDDEN` — chave sem `write`
+
+---
+
+## Formato de Análise (Cowork -> PATCH)
+
+### Recommendations (por vídeo)
+
+```json
+{
+  "video_id": "uuid",
+  "action_type": "thumbnail_test | title_test | description_test | combo_test | retention_fix | seo_optimization | engagement_boost | distribution_expand | content_series | publish_timing | community_post | end_screen_optimize",
+  "priority": "high | medium | low",
+  "confidence": 0.0-1.0,
+  "reasoning": "Explicação em até 500 chars, PT-BR, acionável"
+}
+```
+
+**Regras:**
+- Máximo 25 recommendations por PATCH
+- `confidence` deve refletir certeza da análise (0.9+ = padrão claro, 0.5-0.7 = hipótese)
+- `reasoning` deve ser específico e incluir dados quando possível
+- Não sugerir `thumbnail_test` se vídeo já está em ciclo `testing`
+
+### Coaching (por canal)
+
+```json
+{
+  "summary": "Resumo de 1-2 frases sobre estado geral do canal. PT-BR.",
+  "priorities": [
+    {
+      "axis": "ctr | retention | reach | engagement | growth | sub_impact",
+      "score": 0-10,
+      "diagnosis": "O que está acontecendo (max 300 chars)",
+      "action": "O que fazer para melhorar (max 300 chars)"
+    }
+  ]
+}
+```
+
+**Regras:**
+- Máximo 6 priorities (uma por eixo)
+- Ordenar por score crescente (pior primeiro)
+- `action` deve ser concreta e executável em 7 dias
 
 ---
 
@@ -217,53 +296,10 @@ Canais menores recebem "benefício da dúvida" — CTR e retenção naturalmente
 
 ---
 
-## Formato de Análise (Cowork -> PATCH)
-
-### Recommendations (por vídeo)
-
-```json
-{
-  "video_id": "uuid",
-  "action_type": "thumbnail_test | title_test | description_test | combo_test | retention_fix | seo_optimization | engagement_boost | distribution_expand | content_series | publish_timing | community_post | end_screen_optimize",
-  "priority": "high | medium | low",
-  "confidence": 0.0-1.0,
-  "reasoning": "Explicação em até 500 chars, PT-BR, acionável"
-}
-```
-
-**Regras:**
-- Máximo 25 recommendations por PATCH
-- `confidence` deve refletir certeza da análise (0.9+ = padrão claro, 0.5-0.7 = hipótese)
-- `reasoning` deve ser específico e incluir dados quando possível
-- Não sugerir `thumbnail_test` se vídeo já está em ciclo `testing`
-
-### Coaching (por canal)
-
-```json
-{
-  "summary": "Resumo de 1-2 frases sobre estado geral do canal. PT-BR.",
-  "priorities": [
-    {
-      "axis": "ctr | retention | reach | engagement | growth | sub_impact",
-      "score": 0-10,
-      "diagnosis": "O que está acontecendo (max 300 chars)",
-      "action": "O que fazer para melhorar (max 300 chars)"
-    }
-  ]
-}
-```
-
-**Regras:**
-- Máximo 6 priorities (uma por eixo)
-- Ordenar por score crescente (pior primeiro)
-- `action` deve ser concreta e executável em 7 dias
-
----
-
 ## Retry & Backoff
 
-- Tasks em `running` há > 30min: marcadas como `failed`, re-enfileiradas
-- Máximo 3 retries por task antes de `abandoned`
+- Tasks em `running` há > 30min: o watchdog (`/api/cron/youtube-intelligence-watchdog`) marca como `stale` — nunca reenfileira sozinho, só libera a linha para outra claim
+- `fail` com `retry: true` reenfileira a task (volta para `pending`) — até **2** vezes (`retry_count < 2`); na 3ª falha o status vira `failed` definitivo
 - Rate limit: 100 requests/minuto por API key
 - Headers: `X-RateLimit-Remaining`, `X-RateLimit-Reset`
 
@@ -274,9 +310,67 @@ Canais menores recebem "benefício da dúvida" — CTR e retenção naturalmente
 | 400 | Invalid request body or parameters | Check field types and required fields |
 | 401 | Missing or invalid X-Pipeline-Key | Verify header is present in request |
 | 404 | Resource not found | Verify the ID exists — for channel_id, note that 404 can mean the YouTube channel hasn't been synced yet (run a sync first) |
+| 422 `VALIDATION_ERROR` | Referential integrity failed (e.g. `video_id` not found in the channel) | Check the ID against `GET .../intelligence` — do not retry with the same body |
 | 409 | Revision conflict (rev mismatch) | Re-GET the resource, use current rev, retry |
+| 409 `TASK_NOT_RUNNING` | Task não está `running`, ou está presa em outra chave | **Não reenviar** — reclame outra task (`claim_task` / `POST .../task/claim`) |
 | 412 | Version conflict (X-Expected-Version mismatch) | Re-GET the item to refresh version, retry |
 | 429 | Rate limit exceeded (100/min) | Wait and retry |
+| 500 `PARTIAL_FAILURE` | Uma ou mais escritas do PATCH falharam | A task **continua `running`** e nada foi fechado — feche com `fail` (`retry: true`) para o worker tentar de novo |
+
+---
+
+### POST /api/pipeline/youtube/intelligence/task/claim
+
+Pickup de tasks pendentes com CAS (compare-and-swap) — endpoint atual; funciona com a chave estreita `{read,intelligence}` (o `GET .../intelligence/task` legado exige `write`).
+
+**Headers:** `X-Pipeline-Key: {api_key}`
+
+**Payload:**
+```json
+{ "channel_ids": ["uuid", "uuid"] }
+```
+`channel_ids`: 1 a 10 uuids, obrigatório — o worker nunca reivindica uma task fora da lista que está processando.
+
+**Response 200:**
+```json
+{
+  "data": {
+    "id": "uuid",
+    "site_id": "uuid",
+    "channel_id": "uuid",
+    "trigger_type": "weekly",
+    "requested_at": "2026-09-17T10:00:00Z",
+    "started_at": "2026-09-17T10:00:03Z"
+  }
+}
+```
+**Response 204:** corpo vazio — fila vazia para esses canais, ou a CAS perdeu para outra claim concorrente
+**Response 400:** `VALIDATION_ERROR` — `channel_ids` ausente, vazio ou com mais de 10 ids
+**Response 403:** `FORBIDDEN` — chave sem `read`+`intelligence` (nem `write`/`admin`)
+**Response 500:** `INTERNAL_ERROR` — falha ao ler a fila
+
+---
+
+### POST /api/pipeline/youtube/intelligence/task/{id}/fail
+
+Fecha explicitamente uma task `running` que o worker não conseguiu terminar — nunca deixe uma task presa esperando o watchdog (30min).
+
+**Headers:** `X-Pipeline-Key: {api_key}`
+
+**Payload:**
+```json
+{ "reason": "motivo em até 500 chars", "retry": true }
+```
+`retry: true` reenfileira a task (até 2 vezes); omitido ou `false` fecha como `failed` definitivo.
+
+**Response 200:**
+```json
+{ "data": { "id": "uuid", "status": "pending", "retry_count": 1 } }
+```
+**Response 400:** `VALIDATION_ERROR` — corpo inválido (`reason` obrigatório, ≤500 chars)
+**Response 404:** `NOT_FOUND` — task não existe
+**Response 409:** `TASK_NOT_RUNNING` — task não está `running`, ou pertence a outra chave — não reenviar
+**Response 500:** `INTERNAL_ERROR` — falha ao fechar a task
 
 ---
 
@@ -1348,17 +1442,19 @@ Retorna tendências de fadiga de thumbnails — análise de declínio de CTR ao 
 Workflow completo de análise e coaching de canal via Intelligence Engine:
 
 ```
-1. GET  /api/pipeline/youtube/intelligence/task     → claim_task (transição atômica para running)
-2. GET  /api/pipeline/youtube/intelligence          → get_intelligence (snapshot completo do canal)
+1. POST  /api/pipeline/youtube/intelligence/task/claim     → claim_task ({channel_ids}, CAS para running)
+2. GET   /api/pipeline/youtube/intelligence                → get_intelligence (snapshot completo do canal)
 3. [Cowork analisa: scoring, outliers, trends]
-4. PATCH /api/pipeline/youtube/intelligence          → submit_intelligence (recommendations + coaching + notifications)
+4. PATCH /api/pipeline/youtube/intelligence                → submit_intelligence (recommendations + coaching + notifications)
+   - Não deu para terminar? POST /api/pipeline/youtube/intelligence/task/{id}/fail ({reason, retry}) — nunca deixe a task presa em `running`
 ```
 
 **Via MCP:**
-1. `manage_ab_test` action: `claim_task`
+1. `manage_ab_test` action: `claim_task` (requer chave `write` sobre MCP)
 2. `manage_ab_test` action: `get_intelligence` com `channel_id`
 3. Cowork processa os dados
-4. `manage_ab_test` action: `submit_intelligence` com `intel_payload`
+4. `manage_ab_test` action: `submit_intelligence` com `intel_payload` — `task_id` obrigatório; `source` da linha vem da chave, não do payload
+   - Não deu para terminar, ou `submit_intelligence` voltou 409/500? **O MCP não tem ação `fail`.** Feche via REST, `POST /api/pipeline/youtube/intelligence/task/{id}/fail` ({reason, retry}), ou espere o watchdog (30–60min) — nunca reenvie o `submit_intelligence`.
 
 ### 2. Competitor Monitoring
 

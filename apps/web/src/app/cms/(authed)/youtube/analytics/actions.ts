@@ -12,15 +12,32 @@ import { z } from 'zod'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
- * Reads the channel-level coaching diagnosis the Cowork pipeline already writes to
- * `youtube_intelligence` (type='channel', video_id IS NULL, source='cowork'). Before this
- * (F12), the UI never queried this row — `.not('video_id','is',null)` in the video-level
- * fetch excluded it by construction, so the Health Coach showed a fixed heuristic text
- * mislabeled as "Diagnostico do Cowork" even when Cowork had already analyzed the channel.
+ * Single source of truth for the coaching source allowlist: the same constant feeds the
+ * `.in()` filter and the runtime narrowing, so the two can never drift apart.
+ */
+const COACHING_SOURCES = ['cowork', 'forja'] as const
+type CoachingSource = (typeof COACHING_SOURCES)[number]
+
+function isCoachingSource(value: unknown): value is CoachingSource {
+  return typeof value === 'string' && (COACHING_SOURCES as readonly string[]).includes(value)
+}
+
+/**
+ * Reads the most recent channel-level coaching row from the allowlist {cowork, forja}.
+ *
+ * The rollback guard is the `.in('source', COACHING_SOURCES)` filter, not app-layer
+ * narrowing: the column is plain TEXT with no CHECK, and a retired `forja_retirada_*` row
+ * is excluded by the query itself, so the UI falls back to the next allowlisted row or to
+ * the heuristic branch — proven against a real Postgres in
+ * test/integration/youtube-intelligence-forja.test.ts, case 7.
+ *
+ * The runtime check below is the `any` → union boundary of the untyped service client, and
+ * fail-closed defense in depth: should that filter ever regress, an unknown source is
+ * dropped rather than badged as "por Cowork".
  */
 export async function fetchChannelCoaching(
   channelId: string,
-): Promise<{ coaching: CoachingOutput; generatedAt: string } | null> {
+): Promise<{ coaching: CoachingOutput; source: CoachingSource; generatedLabel: string } | null> {
   if (!UUID_RE.test(channelId)) throw new Error('invalid_input')
   const { siteId } = await getSiteContext()
   const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
@@ -29,18 +46,32 @@ export async function fetchChannelCoaching(
 
   const { data } = await supabase
     .from('youtube_intelligence')
-    .select('coaching, generated_at')
+    .select('coaching, generated_at, source')
     .eq('site_id', siteId)
     .eq('channel_id', channelId)
     .is('video_id', null)
-    .eq('source', 'cowork')
+    .in('source', COACHING_SOURCES)
+    .not('coaching', 'is', null)
     .eq('type', 'channel')
     .order('generated_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
   if (!data?.coaching) return null
-  return { coaching: data.coaching as CoachingOutput, generatedAt: data.generated_at }
+
+  const source: unknown = data.source
+  if (!isCoachingSource(source)) return null
+
+  // Formatted on the server so the label does not depend on the viewer's timezone.
+  const generatedLabel = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo',
+  }).format(new Date(data.generated_at as string))
+
+  return {
+    coaching: data.coaching as CoachingOutput,
+    source,
+    generatedLabel,
+  }
 }
 
 export async function fetchGradesData(channelId: string) {

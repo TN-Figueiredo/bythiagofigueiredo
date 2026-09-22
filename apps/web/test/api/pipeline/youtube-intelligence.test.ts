@@ -12,6 +12,7 @@ const MOCK_VIDEO_ID = '44444444-4444-4444-4444-444444444444'
 vi.mock('@/lib/pipeline/helpers', () => ({
   authenticateRead: vi.fn(),
   authenticateWrite: vi.fn(),
+  authenticateIntel: vi.fn(),
   pipelineError: vi.fn(
     (code: string, msg: string, status: number) =>
       new Response(JSON.stringify({ error: { code, message: msg } }), { status }),
@@ -23,9 +24,9 @@ vi.mock('@/lib/pipeline/helpers', () => ({
   parseBody: vi.fn(),
 }))
 
-vi.mock('@/lib/pipeline/auth', () => ({
+vi.mock('@/lib/pipeline/auth', async (orig) => ({
+  ...(await orig<typeof import('@/lib/pipeline/auth')>()),
   buildRateLimitHeaders: vi.fn().mockReturnValue(undefined),
-  UUID_REGEX: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 }))
 
 vi.mock('@/lib/pipeline/logger', () => ({
@@ -62,7 +63,7 @@ vi.mock('@/lib/pipeline/services/youtube', () => ({
   claimNextTask: vi.fn(),
 }))
 
-import { authenticateRead, authenticateWrite, parseBody } from '@/lib/pipeline/helpers'
+import { authenticateRead, authenticateWrite, authenticateIntel, parseBody } from '@/lib/pipeline/helpers'
 import {
   getIntelligenceSnapshot,
   submitIntelRecommendations,
@@ -81,10 +82,17 @@ function mockAuthWrite() {
     auth: { siteId: MOCK_SITE_ID, permissions: ['read', 'write'], source: 'api_key' as const, keyHash: 'test' },
   } as any)
 }
-function mockAuthFail(mode: 'read' | 'write' = 'read') {
+function mockAuthIntel() {
+  vi.mocked(authenticateIntel).mockResolvedValue({
+    ok: true,
+    auth: { siteId: MOCK_SITE_ID, permissions: ['read', 'write'], source: 'api_key' as const, keyHash: 'test', keyId: 'k' },
+  } as any)
+}
+function mockAuthFail(mode: 'read' | 'write' | 'intel' = 'read') {
   const resp = new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED' } }), { status: 401 }) as any
   if (mode === 'read') vi.mocked(authenticateRead).mockResolvedValue(resp)
-  else vi.mocked(authenticateWrite).mockResolvedValue(resp)
+  else if (mode === 'write') vi.mocked(authenticateWrite).mockResolvedValue(resp)
+  else vi.mocked(authenticateIntel).mockResolvedValue(resp)
 }
 
 // ─── GET /api/pipeline/youtube/intelligence ─────────────────────────────────
@@ -177,8 +185,13 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
     PATCH = mod.PATCH
   })
 
+  it('declares maxDuration = 60 — the other end of the watchdog budget', async () => {
+    const mod = await import('../../../src/app/api/pipeline/youtube/intelligence/route')
+    expect(mod.maxDuration).toBe(60)
+  })
+
   it('returns 401 when auth fails', async () => {
-    mockAuthFail('write')
+    mockAuthFail('intel')
     const req = new NextRequest('http://localhost/x', {
       method: 'PATCH',
       body: '{}',
@@ -188,14 +201,12 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 422 on validation failure', async () => {
-    mockAuthWrite()
+  it('returns 400 VALIDATION_ERROR with a path-qualified message on schema failure', async () => {
+    mockAuthIntel()
     vi.mocked(parseBody).mockResolvedValue({ bad: 'data' })
 
     vi.mocked(submitIntelRecommendations).mockRejectedValue(
-      new PipelineServiceError('VALIDATION_FAILED', 'Validation failed', 422, {
-        details: [{ path: ['task_id'], code: 'invalid_type', message: 'Required' }],
-      }),
+      new PipelineServiceError('VALIDATION_ERROR', 'task_id: Required', 400),
     )
 
     const req = new NextRequest('http://localhost/x', {
@@ -204,13 +215,14 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
       headers: { 'Content-Type': 'application/json' },
     })
     const res = await PATCH(req)
-    expect(res.status).toBe(422)
+    expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.error).toBe('validation_failed')
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+    expect(body.error.message).toContain('task_id:')
   })
 
   it('returns 404 when task not found', async () => {
-    mockAuthWrite()
+    mockAuthIntel()
     vi.mocked(parseBody).mockResolvedValue({ task_id: MOCK_TASK_ID })
 
     vi.mocked(submitIntelRecommendations).mockRejectedValue(
@@ -227,11 +239,11 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
   })
 
   it('returns 409 when task status is not running', async () => {
-    mockAuthWrite()
+    mockAuthIntel()
     vi.mocked(parseBody).mockResolvedValue({ task_id: MOCK_TASK_ID })
 
     vi.mocked(submitIntelRecommendations).mockRejectedValue(
-      new PipelineServiceError('VERSION_CONFLICT', "Task status is 'completed', expected 'running'", 409),
+      new PipelineServiceError('TASK_NOT_RUNNING', "Task status is 'completed', expected 'running'", 409),
     )
 
     const req = new NextRequest('http://localhost/x', {
@@ -244,7 +256,7 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
   })
 
   it('completes successfully with minimal payload (no recommendations)', async () => {
-    mockAuthWrite()
+    mockAuthIntel()
     vi.mocked(parseBody).mockResolvedValue({ task_id: MOCK_TASK_ID })
 
     vi.mocked(submitIntelRecommendations).mockResolvedValue({
@@ -264,7 +276,7 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
   })
 
   it('returns 422 when video_recommendations reference missing videos', async () => {
-    mockAuthWrite()
+    mockAuthIntel()
     const payload = {
       task_id: MOCK_TASK_ID,
       video_recommendations: [
@@ -280,9 +292,7 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
     vi.mocked(parseBody).mockResolvedValue(payload)
 
     vi.mocked(submitIntelRecommendations).mockRejectedValue(
-      new PipelineServiceError('VALIDATION_FAILED', 'Referential integrity check failed', 422, {
-        details: [{ code: 'referential_integrity', video_ids: [MOCK_VIDEO_ID] }],
-      }),
+      new PipelineServiceError('VALIDATION_ERROR', 'Referential integrity check failed: videos not found: ' + MOCK_VIDEO_ID, 422),
     )
 
     const req = new NextRequest('http://localhost/x', {
@@ -293,8 +303,8 @@ describe('PATCH /api/pipeline/youtube/intelligence', () => {
     const res = await PATCH(req)
     expect(res.status).toBe(422)
     const body = await res.json()
-    expect(body.error).toBe('validation_failed')
-    expect(body.details[0].code).toBe('referential_integrity')
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+    expect(body.error.message).toContain('Referential integrity check failed')
   })
 })
 
@@ -310,13 +320,13 @@ describe('GET /api/pipeline/youtube/intelligence/task', () => {
   })
 
   it('returns 401 when auth fails', async () => {
-    mockAuthFail()
+    mockAuthFail('intel')
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/intelligence/task'))
     expect(res.status).toBe(401)
   })
 
   it('returns 204 when no pending task exists', async () => {
-    mockAuthRead()
+    mockAuthIntel()
     vi.mocked(claimNextTask).mockResolvedValue({ data: null } as any)
 
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/intelligence/task'))
@@ -324,7 +334,7 @@ describe('GET /api/pipeline/youtube/intelligence/task', () => {
   })
 
   it('returns 204 when CAS claim fails (race condition)', async () => {
-    mockAuthRead()
+    mockAuthIntel()
     // CAS claim returns null (task was claimed by another worker)
     vi.mocked(claimNextTask).mockResolvedValue({ data: null } as any)
 
@@ -333,13 +343,14 @@ describe('GET /api/pipeline/youtube/intelligence/task', () => {
   })
 
   it('claims and returns pending task', async () => {
-    mockAuthRead()
+    mockAuthIntel()
     const task = {
       id: MOCK_TASK_ID,
       site_id: MOCK_SITE_ID,
       channel_id: MOCK_CHANNEL_ID,
       trigger_type: 'scheduled',
       requested_at: '2026-05-24T10:00:00Z',
+      started_at: '2026-05-24T10:00:01Z',
     }
     vi.mocked(claimNextTask).mockResolvedValue({ data: task } as any)
 
@@ -350,11 +361,12 @@ describe('GET /api/pipeline/youtube/intelligence/task', () => {
     expect(body.data.channel_id).toBe(MOCK_CHANNEL_ID)
   })
 
-  it('uses status query param (defaults to pending)', async () => {
-    mockAuthRead()
+  it('ignores the (removed) status query param and claims with no channel filter', async () => {
+    mockAuthIntel()
     vi.mocked(claimNextTask).mockResolvedValue({ data: null } as any)
 
     await GET(new NextRequest('http://localhost/api/pipeline/youtube/intelligence/task?status=failed'))
-    expect(claimNextTask).toHaveBeenCalledWith(expect.anything(), 'failed')
+    expect(claimNextTask).toHaveBeenCalledWith(expect.objectContaining({ siteId: MOCK_SITE_ID }))
+    expect(vi.mocked(claimNextTask).mock.calls[0]).toHaveLength(1)
   })
 })

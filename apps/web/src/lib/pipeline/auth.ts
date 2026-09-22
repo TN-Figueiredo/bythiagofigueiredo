@@ -96,8 +96,11 @@ export function buildRateLimitHeaders(auth: PipelineAuth): HeadersInit | undefin
   return getRateLimitHeaders(auth.keyHash)
 }
 
-export function requirePermission(auth: PipelineAuth, required: 'read' | 'write' | 'admin'): boolean {
+export function requirePermission(auth: PipelineAuth, required: 'read' | 'write' | 'admin' | 'intelligence'): boolean {
   if (required === 'read') return auth.permissions.includes('read') || auth.permissions.includes('write') || auth.permissions.includes('admin')
+  // 'intelligence' is the narrow write scope for the YouTube intelligence queue: the
+  // forja key holds it alone, and the wider write/admin keys subsume it.
+  if (required === 'intelligence') return auth.permissions.includes('intelligence') || auth.permissions.includes('write') || auth.permissions.includes('admin')
   if (required === 'write') return auth.permissions.includes('write') || auth.permissions.includes('admin')
   return auth.permissions.includes('admin')
 }

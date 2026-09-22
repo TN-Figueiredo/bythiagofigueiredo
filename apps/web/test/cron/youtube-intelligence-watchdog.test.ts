@@ -7,7 +7,7 @@
  * again. The `stale` status already exists in the CHECK constraint but nothing ever wrote it.
  * This watchdog releases tasks that have been `running` past a threshold.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const CRON_SECRET = 'test-secret'
 process.env.CRON_SECRET = CRON_SECRET
@@ -74,6 +74,11 @@ describe('GET /api/cron/youtube-intelligence-watchdog — auth gate', () => {
 })
 
 describe('GET /api/cron/youtube-intelligence-watchdog — releases stale tasks', () => {
+  const now = Date.UTC(2026, 8, 19, 15, 0, 0)
+
+  beforeEach(() => { vi.useFakeTimers({ now, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+
   it('filters on status=running and releases only tasks past the threshold', async () => {
     const supabase = makeSupabase([{ id: 'task-1', channel_id: 'ch-1' }])
     vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
@@ -86,6 +91,9 @@ describe('GET /api/cron/youtube-intelligence-watchdog — releases stale tasks',
     expect(supabase.eqCalls).toContainEqual(['status', 'running'])
     expect(supabase.ltCalls).toHaveLength(1)
     expect(supabase.ltCalls[0]![0]).toBe('started_at')
+    // The other end of the timing invariant: at 15 min the watchdog would mark a live forja
+    // run stale, every PATCH would come back 409 and the queue would loop — invisible to CI.
+    expect(supabase.ltCalls[0]![1]).toBe(new Date(now - 30 * 60_000).toISOString())
   })
 
   it('reports 0 released when nothing is stale', async () => {

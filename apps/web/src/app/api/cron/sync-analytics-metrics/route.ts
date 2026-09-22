@@ -6,16 +6,10 @@ import { buildNotification } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { detectFatigue, filterFatigueCandidates } from '@/lib/youtube/ab-fatigue'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
+import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import * as Sentry from '@sentry/nextjs'
 
 const YT_ANALYTICS_BASE = 'https://youtubeanalytics.googleapis.com/v2/reports'
-
-// The Analytics API omits any video row with zero activity in the requested window — a
-// tight window under-reports on low-volume channels even when the request itself succeeds
-// (this is exactly how youtube_video_analytics stayed empty in production while the cron
-// reported errors:0 every day). 90 days trades a slightly heavier request for actually
-// backfilling history. Configurable so it can be widened further without a code change.
-const SYNC_WINDOW_DAYS = Number(process.env.YT_ANALYTICS_SYNC_WINDOW_DAYS ?? '90')
 
 // dimensions=video + sort=-views means each row is one distinct video. A wider window pulls
 // in more distinct videos than a 2-day window ever could, and 50 risked silently truncating

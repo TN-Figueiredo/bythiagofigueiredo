@@ -10,6 +10,7 @@ import { fetchYtDemographics, fetchYtSearchTerms } from '@/lib/youtube/analytics
 import type { VideoScoreInput, TrafficSources, TrendData } from '@/lib/youtube/scoring-types'
 import type { TestType, VariantMetadata } from '@/lib/youtube/ab-types'
 import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
+import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import type { ServiceContext, ServiceResult } from './types'
 import { ok, err } from './types'
 
@@ -43,6 +44,9 @@ export interface VideoSnapshot {
   avg_view_percentage: number | null
   retention_curve: unknown
   traffic_sources: unknown
+  is_hidden: boolean
+  /** The row of that one 90-day-total date, never a sum. Zeroed when the video has no row. */
+  recent: { views: number; subscribers_gained: number }
 }
 
 export interface GradeHistoryRow {
@@ -60,6 +64,8 @@ export interface GradeHistoryRow {
 
 export interface IntelSnapshot {
   channel: ChannelSummary
+  /** null as a whole when no analytics row lands within 3 days — never { date: null }. */
+  recent_window: { date: string; days: number } | null
   videos: VideoSnapshot[]
   grade_history: GradeHistoryRow[]
   optimization_cycles: Record<string, unknown>[]
@@ -80,6 +86,7 @@ export interface IntelTask {
   channel_id: string
   trigger_type: string
   requested_at: string
+  started_at: string
 }
 
 // ---------------------------------------------------------------------------
@@ -216,8 +223,9 @@ export async function getIntelligenceSnapshot(
   const [videosRes, gradesRes, cyclesRes, abTestsRes, intelligenceRes] = await Promise.all([
     supabase
       .from('youtube_videos')
-      .select('id, youtube_video_id, title, thumbnail_url, published_at, view_count, ctr, impressions, avg_view_percentage, avg_view_duration_seconds, retention_curve, traffic_sources')
+      .select('id, youtube_video_id, title, thumbnail_url, published_at, view_count, ctr, impressions, avg_view_percentage, avg_view_duration_seconds, retention_curve, traffic_sources, is_hidden')
       .eq('channel_id', channel.id)
+      .eq('site_id', siteId)
       .order('published_at', { ascending: false })
       .limit(50),
     supabase
@@ -241,9 +249,57 @@ export async function getIntelligenceSnapshot(
       .from('youtube_intelligence')
       .select('*')
       .eq('channel_id', channel.id)
+      .eq('site_id', siteId)
+      .eq('source', 'cowork')
       .order('generated_at', { ascending: false })
       .limit(50),
   ])
+
+  // Every analytics read is date-bounded and site-scoped. PostgREST caps at 1000 rows, and
+  // with ~14 rows a day the whole history stops fitting around mid-November.
+  const videoIds = (videosRes.data ?? []).map(v => v.id)
+  let recentWindow: { date: string; days: number } | null = null
+  const recentByVideo = new Map<string, { views: number; subscribers_gained: number }>()
+
+  // With no videos neither query runs: no PostgREST round trip, and no dependence on how it
+  // treats the `youtube_video_id=in.()` that `.in(col, [])` would generate. Not hypothetical:
+  // the EN channel has zero videos in production and its snapshot is a live path.
+  if (videoIds.length > 0) {
+    const floor = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10)
+    const { data: latest, error: latestError } = await supabase
+      .from('youtube_video_analytics')
+      .select('date')
+      .eq('site_id', siteId)
+      .in('youtube_video_id', videoIds)
+      .gte('date', floor)
+      .order('date', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    // A DB error here must never fall through to "no recent activity": that shape is
+    // indistinguishable from a healthy, quiet channel, and the forja worker would read it
+    // as a valid snapshot, analyze on top of zeros, and close the task as `completed`.
+    if (latestError) return err('INTERNAL_ERROR', 'Failed to read the analytics window', 500)
+
+    if (latest?.date) {
+      recentWindow = { date: latest.date as string, days: SYNC_WINDOW_DAYS }
+      const { data: rows, error: rowsError } = await supabase
+        .from('youtube_video_analytics')
+        .select('youtube_video_id, views, subscribers_gained')
+        .eq('site_id', siteId)
+        .in('youtube_video_id', videoIds)
+        .eq('date', latest.date)
+
+      if (rowsError) return err('INTERNAL_ERROR', 'Failed to read per-video analytics', 500)
+
+      for (const r of rows ?? []) {
+        recentByVideo.set(r.youtube_video_id as string, {
+          views: (r.views as number) ?? 0,
+          subscribers_gained: (r.subscribers_gained as number) ?? 0,
+        })
+      }
+    }
+  }
 
   const response: IntelSnapshot = {
     channel: {
@@ -252,6 +308,7 @@ export async function getIntelligenceSnapshot(
       name: channel.name,
       subscriber_count: channel.subscriber_count,
     },
+    recent_window: recentWindow,
     videos: (videosRes.data ?? []).map(v => ({
       id: v.id,
       video_id: v.youtube_video_id,
@@ -264,6 +321,10 @@ export async function getIntelligenceSnapshot(
       avg_view_percentage: v.avg_view_percentage,
       retention_curve: v.retention_curve,
       traffic_sources: v.traffic_sources,
+      is_hidden: v.is_hidden,
+      // The row of that one date, never a sum: each row is already a 90-day total.
+      // The Analytics API omits videos with no activity, so an absent video is {0, 0}.
+      recent: recentByVideo.get(v.id) ?? { views: 0, subscribers_gained: 0 },
     })),
     grade_history: gradesRes.data ?? [],
     optimization_cycles: cyclesRes.data ?? [],
@@ -278,38 +339,100 @@ export async function getIntelligenceSnapshot(
 // Intelligence — PATCH recommendations
 // ---------------------------------------------------------------------------
 
-/** Submit Cowork intelligence recommendations, coaching, and notifications for a running task. */
+/**
+ * Where a row's `source` comes from: the key, never the body.
+ *
+ * Written by exclusion — everything that is not a wide key or a session is 'forja' —
+ * so it fails closed. `source` is optional on ServiceContext, and a future path that
+ * forgot to set it would otherwise label a narrow key as 'cowork' and switch OFF the
+ * four scope refusals below. Unlike deriveSource in items/[id]/recording/service.ts
+ * (`ctx.source === 'api_key' ? 'cowork' : 'user'`, written by inclusion): that function
+ * has only two outcomes and either one is safe to default into, so inclusion vs.
+ * exclusion doesn't matter there. Here a missed case must fall to 'forja', so exclusion
+ * is required — the same inclusion pattern would fail OPEN instead of closed.
+ */
+export function deriveSource(ctx: ServiceContext): 'cowork' | 'forja' {
+  if (ctx.source === 'session') return 'cowork'
+  if (ctx.permissions.includes('write') || ctx.permissions.includes('admin')) return 'cowork'
+  return 'forja'
+}
+
+/**
+ * Submit intelligence recommendations, coaching and insights for a running task.
+ *
+ * The payload arrives as `unknown` and is validated HERE, not at the route: REST and MCP
+ * both reach this function, and until now neither validated at all (PatchPayloadSchema
+ * existed only in a `z.infer`). Everything downstream reads `parsed.data`, never the raw
+ * body, so Zod's strip drops a `source` field and any extra key a caller invents.
+ */
 export async function submitIntelRecommendations(
   ctx: ServiceContext,
-  data: IntelRecommendations,
+  data: unknown,
 ): Promise<ServiceResult<TaskResult>> {
   const { supabase, siteId } = ctx
-  const { task_id, video_recommendations, coaching, notifications, channel_insights } = data
 
-  // Validate task
-  const { data: task } = await supabase
-    .from('youtube_intelligence_tasks')
-    .select('id, channel_id, status')
-    .eq('id', task_id)
-    .eq('site_id', siteId)
-    .single()
-
-  if (!task) return err('NOT_FOUND', 'Task not found', 404)
-  if (task.status !== 'running') {
-    return err('VERSION_CONFLICT', `Task status is '${task.status}', expected 'running'`, 409)
+  const parsed = PatchPayloadSchema.safeParse(data)
+  if (!parsed.success) {
+    const message = parsed.error.issues
+      .slice(0, 3)
+      .map((i) => (i.path.length ? `${i.path.join('.')}: ${i.message}` : i.message))
+      .join('; ')
+    return err('VALIDATION_ERROR', message || 'Request body validation failed', 400)
   }
 
-  // Track DB write failures for partial-failure reporting
-  const dbErrors: string[] = []
+  const { task_id, video_recommendations, coaching, notifications, channel_insights } = parsed.data
+
+  const source = deriveSource(ctx)
+
+  // Phase 2a scope. We refuse instead of rewriting: a forja payload outside the scope is a
+  // worker bug and has to surface (the worker treats it as `reprovada`). Running here — before
+  // any DB read — means a rejected body never costs a round trip, and the refusal only ever
+  // talks about the caller's own payload.
+  if (source === 'forja') {
+    if (notifications?.length) return err('VALIDATION_ERROR', 'notifications: not allowed for this key', 400)
+    if (video_recommendations?.length) return err('VALIDATION_ERROR', 'video_recommendations: not allowed for this key', 400)
+    if (!coaching) return err('VALIDATION_ERROR', 'coaching: required for this key', 400)
+    if (coaching.priorities.length) return err('VALIDATION_ERROR', 'coaching.priorities: must be empty for this key', 400)
+  }
+
+  // Validate task
+  // maybeSingle, not single: with single() zero rows come back as an error (PGRST116) and
+  // would turn a plain "task not found" into a 500 under the rule below.
+  const { data: task, error: taskError } = await supabase
+    .from('youtube_intelligence_tasks')
+    .select('id, channel_id, status, result_summary, started_at')
+    .eq('id', task_id)
+    .eq('site_id', siteId)
+    .maybeSingle()
+
+  if (taskError) return err('INTERNAL_ERROR', 'Failed to read the task', 500)
+  if (!task) return err('NOT_FOUND', 'Task not found', 404)
+  if (task.status !== 'running') {
+    return err('TASK_NOT_RUNNING', `Task status is '${task.status}', expected 'running'`, 409)
+  }
+
+  const previousSummary = (task.result_summary ?? {}) as Record<string, unknown>
+  const isWideKey = ctx.permissions.includes('write') || ctx.permissions.includes('admin')
+  if (!isWideKey && (!ctx.keyId || previousSummary.claimed_by !== ctx.keyId)) {
+    return err('TASK_NOT_RUNNING', 'Task is held by another key', 409)
+  }
+
+  // Track DB write failures for partial-failure reporting. The raw error.message never
+  // leaves this function — it goes to Sentry inline, at the point of failure, via
+  // captureMessage — so only the response-safe target ("video <uuid>: write_failed" /
+  // "channel: write_failed") is collected here.
+  const dbTargets: string[] = []
 
   // Process video recommendations
   if (video_recommendations?.length) {
     const videoIds = video_recommendations.map(r => r.video_id)
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from('youtube_videos')
       .select('id')
       .eq('channel_id', task.channel_id)
       .in('id', videoIds)
+
+    if (existingError) return err('INTERNAL_ERROR', 'Failed to verify video references', 500)
 
     const existingIds = new Set((existing ?? []).map(v => v.id))
     const missing = videoIds.filter(id => !existingIds.has(id))
@@ -328,7 +451,7 @@ export async function submitIntelRecommendations(
         .eq('site_id', siteId)
         .eq('channel_id', task.channel_id)
         .eq('video_id', rec.video_id)
-        .eq('source', 'cowork')
+        .eq('source', source)
         .maybeSingle()
 
       const intelPayload = {
@@ -337,7 +460,7 @@ export async function submitIntelRecommendations(
         video_id: rec.video_id,
         type: 'video' as const,
         recommendations: rec,
-        source: 'cowork',
+        source,
         generated_at: new Date().toISOString(),
       }
 
@@ -345,13 +468,13 @@ export async function submitIntelRecommendations(
         const { error } = await supabase.from('youtube_intelligence').update(intelPayload).eq('id', existingIntel.id)
         if (error) {
           Sentry.captureMessage(`intelligence update failed: ${error.message}`, { extra: { videoId: rec.video_id } })
-          dbErrors.push(`video ${rec.video_id}: ${error.message}`)
+          dbTargets.push(`video ${rec.video_id}: write_failed`)
         }
       } else {
         const { error } = await supabase.from('youtube_intelligence').insert(intelPayload)
         if (error) {
           Sentry.captureMessage(`intelligence insert failed: ${error.message}`, { extra: { videoId: rec.video_id } })
-          dbErrors.push(`video ${rec.video_id}: ${error.message}`)
+          dbTargets.push(`video ${rec.video_id}: write_failed`)
         }
       }
 
@@ -378,7 +501,7 @@ export async function submitIntelRecommendations(
       .eq('site_id', siteId)
       .eq('channel_id', task.channel_id)
       .is('video_id', null)
-      .eq('source', 'cowork')
+      .eq('source', source)
       .maybeSingle()
 
     const channelPayload = {
@@ -389,7 +512,7 @@ export async function submitIntelRecommendations(
       coaching: coaching ?? null,
       patterns_detected: channel_insights?.patterns_detected ?? null,
       analysis_text: channel_insights?.analysis_text ?? null,
-      source: 'cowork',
+      source,
       generated_at: new Date().toISOString(),
     }
 
@@ -397,13 +520,13 @@ export async function submitIntelRecommendations(
       const { error } = await supabase.from('youtube_intelligence').update(channelPayload).eq('id', existingChannel.id)
       if (error) {
         Sentry.captureMessage(`channel intelligence update failed: ${error.message}`)
-        dbErrors.push(`channel coaching: ${error.message}`)
+        dbTargets.push('channel: write_failed')
       }
     } else {
       const { error } = await supabase.from('youtube_intelligence').insert(channelPayload)
       if (error) {
         Sentry.captureMessage(`channel intelligence insert failed: ${error.message}`)
-        dbErrors.push(`channel coaching: ${error.message}`)
+        dbTargets.push('channel: write_failed')
       }
     }
   }
@@ -428,63 +551,185 @@ export async function submitIntelRecommendations(
     }
   }
 
-  // Mark task status based on whether all writes succeeded
-  const finalStatus = dbErrors.length > 0 ? 'partial_failure' : 'completed'
-  await supabase.from('youtube_intelligence_tasks').update({
-    status: finalStatus,
-    completed_at: new Date().toISOString(),
-    result_summary: {
-      recommendations: video_recommendations?.length ?? 0,
-      has_coaching: !!coaching,
-      ...(dbErrors.length > 0 && { failed_writes: dbErrors.length }),
-    },
-  }).eq('id', task_id)
-
-  const result: ServiceResult<TaskResult> = ok({ status: 'ok' as const, processed: true })
-  if (dbErrors.length > 0) {
-    result.warnings = dbErrors
+  // A partial write never touches the task: it stays `running`, and whoever called closes it
+  // with the explicit `fail` (retry) the 500 already asks for — or the watchdog does, in 30–60 min.
+  // `partial_failure` is not even a legal status: the CHECK on the table allows only
+  // pending/running/completed/failed/stale.
+  if (dbTargets.length > 0) {
+    return err('PARTIAL_FAILURE', dbTargets.join('; '), 500)
   }
-  return result
+
+  let closing = supabase
+    .from('youtube_intelligence_tasks')
+    .update({
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      result_summary: {
+        ...previousSummary,
+        recommendations: video_recommendations?.length ?? 0,
+        has_coaching: !!coaching,
+        source,
+        closed_by: ctx.keyId ?? null,
+      },
+    })
+    .eq('id', task_id)
+    .eq('site_id', siteId)
+    .eq('status', 'running')
+    .eq('started_at', task.started_at)
+
+  if (!isWideKey) closing = closing.eq('result_summary->>claimed_by', ctx.keyId as string)
+
+  const { data: closed, error: closeError } = await closing.select('id').maybeSingle()
+
+  if (closeError) return err('INTERNAL_ERROR', 'Failed to close the task', 500)
+  // 409 means "the task is no longer yours", not "nothing was written": rows already written
+  // by this PATCH stay, and the next run overwrites the forja channel row.
+  if (!closed) return err('TASK_NOT_RUNNING', 'The task is no longer held by this key', 409)
+
+  return ok({ status: 'ok' as const, processed: true })
 }
 
 // ---------------------------------------------------------------------------
 // Intelligence — GET claim next task
 // ---------------------------------------------------------------------------
 
-/** Claim the next pending intelligence task via optimistic CAS. Returns null if none available. */
+/**
+ * Claim the next pending intelligence task via optimistic CAS.
+ *
+ * This is the ONLY place the claim CAS lives: the POST route, the legacy GET and the
+ * MCP `claim_task` all funnel through here, so every claim records who holds the task
+ * (`result_summary.claimed_by`) and every claim writes `started_at` from the server clock.
+ * A DB error is never flattened into "queue empty" — that used to turn an outage into a
+ * silent 204 and left the worker looping against a broken queue.
+ */
 export async function claimNextTask(
   ctx: ServiceContext,
-  statusFilter?: string,
+  channelIds?: string[],
 ): Promise<ServiceResult<IntelTask | null>> {
   const { supabase, siteId } = ctx
-  const status = statusFilter ?? 'pending'
 
-  const { data: task } = await supabase
+  let pending = supabase
     .from('youtube_intelligence_tasks')
-    .select('id, site_id, channel_id, trigger_type, requested_at')
+    .select('id')
     .eq('site_id', siteId)
-    .eq('status', status)
+    .eq('status', 'pending')
+
+  if (channelIds?.length) pending = pending.in('channel_id', channelIds)
+
+  const { data: task, error: selectError } = await pending
     .order('requested_at', { ascending: true })
     .limit(1)
-    .single()
+    .maybeSingle()
 
+  if (selectError) return err('INTERNAL_ERROR', 'Failed to read the task queue', 500)
   if (!task) return ok(null)
 
-  // Optimistic CAS: only claim if still in the expected status
-  const { data: claimed } = await supabase
+  const { data: claimed, error: updateError } = await supabase
     .from('youtube_intelligence_tasks')
     .update({
       status: 'running',
       started_at: new Date().toISOString(),
+      result_summary: { claimed_by: ctx.keyId ?? null },
     })
     .eq('id', task.id)
-    .eq('status', status)
-    .select('id')
+    .eq('site_id', siteId)
+    .eq('status', 'pending')
+    // Closed column list, never '*': error_message and result_summary can carry text
+    // written by a narrow key and must not travel back to whoever claims next.
+    .select('id, site_id, channel_id, trigger_type, requested_at, started_at')
     .maybeSingle()
 
+  if (updateError) return err('INTERNAL_ERROR', 'Failed to claim the task', 500)
   if (!claimed) return ok(null)
 
-  return ok(task as IntelTask)
+  return ok(claimed as IntelTask)
+}
+
+// ---------------------------------------------------------------------------
+// Intelligence — POST fail task
+// ---------------------------------------------------------------------------
+
+export interface FailTaskResult {
+  id: string
+  status: string
+  retry_count: number
+}
+
+/**
+ * Close a running task explicitly — the worker's way of saying "I could not finish this".
+ *
+ * The CAS pins `started_at` to the value THIS request read, not just status + owner:
+ * `claimed_by` is the key id and is identical across every claim the forja makes, so
+ * status + owner alone would let a late `fail` close a claim that started afterwards.
+ */
+export async function failTask(
+  ctx: ServiceContext,
+  taskId: string,
+  input: { reason: string; retry?: boolean },
+): Promise<ServiceResult<FailTaskResult>> {
+  const { supabase, siteId, keyId, permissions } = ctx
+  const isWide = permissions.includes('write') || permissions.includes('admin')
+
+  const { data: task, error: selectError } = await supabase
+    .from('youtube_intelligence_tasks')
+    .select('id, status, retry_count, result_summary, started_at')
+    .eq('id', taskId)
+    .eq('site_id', siteId)
+    .maybeSingle()
+
+  if (selectError) return err('INTERNAL_ERROR', 'Failed to read the task', 500)
+  if (!task) return err('NOT_FOUND', 'Task not found', 404)
+  if (task.status !== 'running') {
+    return err('TASK_NOT_RUNNING', `Task status is '${task.status}', expected 'running'`, 409)
+  }
+
+  const previous = (task.result_summary ?? {}) as Record<string, unknown>
+  if (!isWide && (!keyId || previous.claimed_by !== keyId)) {
+    return err('TASK_NOT_RUNNING', 'Task is held by another key', 409)
+  }
+
+  // supabase-js cannot increment a column in place, so the new value is computed from the
+  // row we just read, and `retry_count < 2` is judged on that same read value.
+  const requeue = input.retry === true && task.retry_count < 2
+  const patch = requeue
+    ? {
+        status: 'pending',
+        retry_count: task.retry_count + 1,
+        started_at: null,
+        error_message: null,
+        result_summary: { ...previous, closed_by: keyId ?? null },
+      }
+    : {
+        status: 'failed',
+        failed_at: new Date().toISOString(),
+        error_message: input.reason,
+        result_summary: { ...previous, closed_by: keyId ?? null },
+      }
+
+  let cas = supabase
+    .from('youtube_intelligence_tasks')
+    .update(patch)
+    .eq('id', taskId)
+    .eq('site_id', siteId)
+    .eq('status', 'running')
+    .eq('started_at', task.started_at)
+
+  if (!isWide) cas = cas.eq('result_summary->>claimed_by', keyId as string)
+
+  const { data: closed, error: updateError } = await cas.select('id, status, retry_count').maybeSingle()
+
+  if (updateError) return err('INTERNAL_ERROR', 'Failed to close the task', 500)
+  if (!closed) return err('TASK_NOT_RUNNING', 'The task is no longer held by this key', 409)
+
+  if (requeue) {
+    // The reason never lands on the row when the task goes back to the queue — the next
+    // claimant would read it — so it goes to Sentry instead. Logged only once the CAS has
+    // actually landed: logging before it lands would record a requeue that never happened
+    // whenever the CAS is lost and the caller gets a 409 instead.
+    Sentry.captureMessage(`intelligence task requeued: ${input.reason}`, { extra: { taskId } })
+  }
+
+  return ok(closed as FailTaskResult)
 }
 
 // ---------------------------------------------------------------------------
