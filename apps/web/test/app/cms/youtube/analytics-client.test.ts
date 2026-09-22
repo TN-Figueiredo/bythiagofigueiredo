@@ -17,7 +17,7 @@ vi.mock('@/lib/social/token-refresh', () => ({
   ensureFreshToken: vi.fn(),
 }))
 
-import { YouTubeAnalyticsError, fetchYtSearchTerms, fetchYtDemographics, fetchYtChannelMetrics } from '@/lib/youtube/analytics-client'
+import { YouTubeAnalyticsError, fetchYtSearchTerms, fetchYtDemographics, fetchYtChannelMetrics, getConnectedYouTubeChannels } from '@/lib/youtube/analytics-client'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import * as Sentry from '@sentry/nextjs'
@@ -466,5 +466,81 @@ describe('fetchYtDemographics', () => {
 
     // 3 analytics calls (age/gender, country, device)
     expect(global.fetch).toHaveBeenCalledTimes(3)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// getConnectedYouTubeChannels — a DB error is never an empty channel list
+// ---------------------------------------------------------------------------
+
+type TableResult = { data: unknown; error: { message: string } | null }
+
+/**
+ * Per-table PostgREST double: both reads in getConnectedYouTubeChannels are awaited
+ * directly (no `.single()`), so the chain itself is the thenable.
+ */
+function makeConnectionsSupabase(results: Record<string, TableResult>) {
+  const tables: string[] = []
+  const client = {
+    from: (table: string) => {
+      tables.push(table)
+      const chain: Record<string, unknown> = {}
+      for (const op of ['select', 'eq', 'in', 'is', 'order']) {
+        chain[op] = () => chain
+      }
+      chain.then = (resolve: (v: unknown) => unknown) =>
+        Promise.resolve(results[table] ?? { data: [], error: null }).then(resolve)
+      return chain
+    },
+  }
+  return { tables, client: client as unknown as ReturnType<typeof getSupabaseServiceClient> }
+}
+
+describe('getConnectedYouTubeChannels', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('returns the connected channels on the happy path', async () => {
+    const sb = makeConnectionsSupabase({
+      social_connections: { data: [{ account_id: 'UC123' }], error: null },
+      youtube_channels: {
+        data: [{ id: 'int-1', channel_id: 'UC123', name: 'tnFigueiredo', handle: '@tn', thumbnail_url: null }],
+        error: null,
+      },
+    })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(sb.client)
+
+    await expect(getConnectedYouTubeChannels('site-1')).resolves.toEqual([
+      { internalId: 'int-1', channelId: 'UC123', name: 'tnFigueiredo', handle: '@tn', thumbnailUrl: null },
+    ])
+  })
+
+  it('returns [] when the site really has no YouTube connection', async () => {
+    const sb = makeConnectionsSupabase({ social_connections: { data: [], error: null } })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(sb.client)
+
+    await expect(getConnectedYouTubeChannels('site-1')).resolves.toEqual([])
+    // the second read never runs off an empty connection list
+    expect(sb.tables).toEqual(['social_connections'])
+  })
+
+  // A DB error on either read must never come back as `[]`: the page renders that as
+  // "Nenhuma conexão YouTube encontrada" and blames the user for an outage.
+  it('throws when the social_connections read fails — never an empty list', async () => {
+    const sb = makeConnectionsSupabase({
+      social_connections: { data: null, error: { message: 'statement timeout' } },
+    })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(sb.client)
+
+    await expect(getConnectedYouTubeChannels('site-1')).rejects.toThrow(/statement timeout/)
+  })
+
+  it('throws when the youtube_channels read fails — never an empty list', async () => {
+    const sb = makeConnectionsSupabase({
+      social_connections: { data: [{ account_id: 'UC123' }], error: null },
+      youtube_channels: { data: null, error: { message: 'statement timeout' } },
+    })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(sb.client)
+
+    await expect(getConnectedYouTubeChannels('site-1')).rejects.toThrow(/statement timeout/)
   })
 })

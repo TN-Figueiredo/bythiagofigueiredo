@@ -211,13 +211,20 @@ export async function getIntelligenceSnapshot(
 ): Promise<ServiceResult<IntelSnapshot>> {
   const { supabase, siteId } = ctx
 
-  const { data: channel } = await supabase
+  const { data: channel, error: channelError } = await supabase
     .from('youtube_channels')
     .select('id, channel_id, name, subscriber_count')
     .eq('id', channelId)
     .eq('site_id', siteId)
     .single()
 
+  // Same rule as the analytics reads below: a DB error must never be flattened into a
+  // plain 404. single() reports zero rows as PGRST116 — that one really is "no such
+  // channel"; anything else (statement timeout, RLS failure) is an outage and owes a 500,
+  // so the forja retries instead of treating the channel as gone.
+  if (channelError && channelError.code !== 'PGRST116') {
+    return err('INTERNAL_ERROR', 'Failed to read the channel', 500)
+  }
   if (!channel) return err('NOT_FOUND', 'Channel not found', 404)
 
   const [videosRes, gradesRes, cyclesRes, abTestsRes, intelligenceRes] = await Promise.all([
@@ -254,6 +261,15 @@ export async function getIntelligenceSnapshot(
       .order('generated_at', { ascending: false })
       .limit(50),
   ])
+
+  // Same rule for the five parallel reads: PostgREST hands back `{data: null, error}` on a
+  // failure, and `?? []` below would turn each one into an empty array — a 200 snapshot the
+  // forja cannot tell apart from a channel with no videos, no grades and no history.
+  if (videosRes.error) return err('INTERNAL_ERROR', 'Failed to read the channel videos', 500)
+  if (gradesRes.error) return err('INTERNAL_ERROR', 'Failed to read the grade history', 500)
+  if (cyclesRes.error) return err('INTERNAL_ERROR', 'Failed to read the optimization cycles', 500)
+  if (abTestsRes.error) return err('INTERNAL_ERROR', 'Failed to read the A/B tests', 500)
+  if (intelligenceRes.error) return err('INTERNAL_ERROR', 'Failed to read the intelligence rows', 500)
 
   // Every analytics read is date-bounded and site-scoped. PostgREST caps at 1000 rows, and
   // with ~14 rows a day the whole history stops fitting around mid-November.

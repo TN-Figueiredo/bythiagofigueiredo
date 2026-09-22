@@ -82,23 +82,37 @@ export interface YtConnectedChannel {
 export async function getConnectedYouTubeChannels(siteId: string): Promise<YtConnectedChannel[]> {
   const supabase = getSupabaseServiceClient()
 
-  const { data: connections } = await supabase
+  const { data: connections, error: connectionsError } = await supabase
     .from('social_connections')
     .select('account_id')
     .eq('site_id', siteId)
     .eq('provider', 'youtube')
     .is('revoked_at', null)
 
+  // A DB error must never fall through as `[]`: an empty list is the caller's signal for
+  // "this site never connected a YouTube account", so a statement timeout would render
+  // "Nenhuma conexão YouTube encontrada" and blame the user for an outage. Throwing keeps
+  // the `YtConnectedChannel[]` contract intact — the /cms/youtube error boundary catches it.
+  if (connectionsError) {
+    throw new Error(`Failed to read YouTube connections: ${connectionsError.message}`)
+  }
+
   if (!connections || connections.length === 0) return []
 
   const connectedIds = connections.map(c => c.account_id as string)
 
-  const { data: channels } = await supabase
+  const { data: channels, error: channelsError } = await supabase
     .from('youtube_channels')
     .select('id, channel_id, name, handle, thumbnail_url')
     .eq('site_id', siteId)
     .in('channel_id', connectedIds)
     .order('name')
+
+  // Same rule: with a connection on record, an empty channel list here is a real state
+  // (never synced), so a swallowed error would look exactly like it.
+  if (channelsError) {
+    throw new Error(`Failed to read YouTube channels: ${channelsError.message}`)
+  }
 
   return (channels ?? []).map(ch => ({
     internalId: ch.id as string,

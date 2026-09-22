@@ -601,4 +601,39 @@ describe('getIntelligenceSnapshot — recent window', () => {
 
     await expect(getIntelligenceSnapshot(ctxOf(sb), 'ch-1')).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
   })
+
+  // Same invariant for the channel read and the five parallel reads: each one owes a 500
+  // on a DB error, never a 200 with an empty/missing section. One test per read.
+  it('throws INTERNAL_ERROR 500 when the channel read fails — never a 404', async () => {
+    const sb = makeSnapshotSupabase(snapshotResults({
+      youtube_channels: [{ data: null, error: { message: 'statement timeout' } }],
+    }))
+
+    await expect(getIntelligenceSnapshot(ctxOf(sb), 'ch-1')).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
+  })
+
+  it('still answers NOT_FOUND 404 when the channel read reports zero rows (PGRST116)', async () => {
+    const sb = makeSnapshotSupabase(snapshotResults({
+      youtube_channels: [{ data: null, error: { code: 'PGRST116', message: 'no rows' } }],
+    }))
+
+    await expect(getIntelligenceSnapshot(ctxOf(sb), 'ch-1')).rejects.toMatchObject({ code: 'NOT_FOUND', status: 404 })
+  })
+
+  it.each([
+    ['youtube_videos', 'Failed to read the channel videos'],
+    ['video_grade_history', 'Failed to read the grade history'],
+    ['optimization_cycles', 'Failed to read the optimization cycles'],
+    ['ab_tests', 'Failed to read the A/B tests'],
+    ['youtube_intelligence', 'Failed to read the intelligence rows'],
+  ])('throws INTERNAL_ERROR 500 when the %s read fails', async (table, message) => {
+    const sb = makeSnapshotSupabase(snapshotResults({
+      [table]: [{ data: null, error: { message: 'statement timeout' } }],
+      youtube_video_analytics: [{ data: null, error: null }],
+    }))
+
+    // the message pins WHICH read raised it: one shared check covering all five would pass
+    // this test while four of the reads stayed unguarded.
+    await expect(getIntelligenceSnapshot(ctxOf(sb), 'ch-1')).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500, message })
+  })
 })
