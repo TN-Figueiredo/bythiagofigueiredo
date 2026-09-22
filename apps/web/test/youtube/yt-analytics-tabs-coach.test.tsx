@@ -227,6 +227,19 @@ describe('computeCoachingCards — heuristic branch never invents a card without
     expect(cards.map(c => c.axis)).toEqual(['retention'])
     expect(cards[0].score).toBe(1)
   })
+
+  // The cut is strictly `< COACHING_BENCHMARK`. An axis sitting exactly ON the benchmark is
+  // healthy by definition: relax it to `<=` and the panel starts nagging about an axis that
+  // already meets the target. These two pin both sides of the 6.5 boundary.
+  it('an axis exactly at the benchmark (6.5) is healthy and produces no card', () => {
+    expect(computeCoachingCards([videoWithAxes([{ axis: 'ctr', normalized: 65 }])], null)).toEqual([])
+  })
+
+  it('an axis one tenth below the benchmark (6.4) still earns its card', () => {
+    const cards = computeCoachingCards([videoWithAxes([{ axis: 'ctr', normalized: 64 }])], null)
+    expect(cards.map(c => c.axis)).toEqual(['ctr'])
+    expect(cards[0].score).toBe(6.4)
+  })
 })
 
 describe('Health Coach — badge agrees with the panel on an empty channel', () => {

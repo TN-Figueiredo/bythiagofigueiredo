@@ -599,6 +599,10 @@ describe('getIntelligenceSnapshot — recent window', () => {
 
     expect(sb.argsOf('youtube_intelligence', 'eq')).toContainEqual(['source', 'cowork'])
     expect(sb.argsOf('youtube_intelligence', 'eq')).toContainEqual(['site_id', 'site-1'])
+    // The 50-row cap is only safe paired with a NEWEST-first order: flip the order (or shrink
+    // the limit) and past 50 rows the /cms pins the OLDEST coaching forever, silently.
+    expect(sb.argsOf('youtube_intelligence', 'order')).toContainEqual(['generated_at', { ascending: false }])
+    expect(sb.argsOf('youtube_intelligence', 'limit')).toContainEqual([50])
   })
 
   // A DB error on either of these two reads must surface as a 500, never as a quiet
