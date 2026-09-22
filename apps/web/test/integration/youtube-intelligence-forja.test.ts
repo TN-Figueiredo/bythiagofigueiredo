@@ -3,16 +3,21 @@
  * DB-gated integration tests for the forja intelligence queue (F0 Task 14).
  *
  * The unit suite (test/lib/pipeline/services/youtube-intelligence-service.test.ts) covers every
- * branch against an in-memory PostgREST double. A double cannot model three things a real
- * Supabase/PostgREST stack does, and this file exists to prove exactly those three:
+ * branch against an in-memory PostgREST double. A double cannot model four things a real
+ * Supabase/PostgREST stack does, and this file exists to prove exactly those four:
  *
  *   1. `.single()` on zero rows returns PGRST116 (an error), not an empty result — a route that
  *      used `.single()` where the service uses `.maybeSingle()` would turn a legitimate 404 into
  *      a 500. Case 6 below.
- *   2. Real `order by` on `requested_at` / `date` — the double just replays queued fixtures in
- *      call order, so it can never catch a wrong `ascending` flag. Cases 3 and 4.
+ *   2. Real `order by` on `requested_at` / `date` / `generated_at` — the double just replays
+ *      queued fixtures in call order, so it can never catch a wrong `ascending` flag. Cases 3, 4
+ *      and 7.
  *   3. The `result_summary->>claimed_by` PostgREST JSON arrow filter actually matches (or
  *      doesn't) against a real JSONB column. Case 2.
+ *   4. A real `.in('source', [...])` filter actually excludes a row whose text value isn't in
+ *      the list — the coaching-actions.test.ts unit double hand-wires each chain link to return
+ *      a fixed fixture, so it can't tell an allowlist filter that works from one that's a no-op.
+ *      Case 7.
  *
  * Run with:
  *   npm run db:start
@@ -22,20 +27,17 @@
  * MUST live in test/integration/ — the CI selects DB-gated suites by path.
  *
  * ---------------------------------------------------------------------------------------------
- * DIVERGENCE FROM THE BRIEF (see final report): brief-14.md §Step 2 case 7 asks for a test of
- * `fetchChannelCoaching` merging `cowork` + `forja` rows by recency (and refusing a row whose id
- * is literally `forja_retirada_202609181200`). That merge behavior belongs to Task 10
- * (`docs/superpowers/plans/2026-09-19-forja-fila-inteligencia-plan.md:2240`), which is explicitly
- * "Gated pela Task 0" (the Health Coach mockup) and — per progress.md, Rodada 1 — still
- * "AGUARDA APROVACAO DO DONO". The function as it exists today
- * (apps/web/src/app/cms/(authed)/youtube/analytics/actions.ts:21-44) hard-filters
- * `.eq('source', 'cowork')` and never reads a `forja` row at all, so case 7 cannot be written as
- * a passing test against real code without first implementing Task 10 — which is out of scope
- * for a test-only task and, per project rule, requires visual approval before any code lands.
- * Left as `it.todo` below with the same explanation, instead of silently dropped or faked green.
+ * Case 7 update: Task 10 (`fetchChannelCoaching` allowlist of {cowork, forja}, commit 8a1b485a)
+ * landed. The production query does NOT merge/dedupe cowork+forja — it is a plain
+ * `.in('source', ['cowork','forja']).order('generated_at', {ascending:false}).limit(1)`, so
+ * "prefers the newer of cowork/forja" falls out of ordinary recency ordering (proven in both
+ * directions below), and "treats forja_retirada_* as a rollback guard" falls out of the `.in()`
+ * allowlist excluding it from the query entirely — not app-layer narrowing (the narrowing in
+ * yt-analytics-tabs.tsx only ever sees rows the query already let through). No longer blocked;
+ * `it.todo` replaced with real assertions.
  */
 import { randomUUID } from 'node:crypto'
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import {
@@ -45,6 +47,18 @@ import {
   seedYoutubeChannelAndVideo,
   type YoutubeChannelLocale,
 } from '../helpers/db-seed'
+
+// fetchChannelCoaching is a 'use server' action gated by getSiteContext + requireSiteScope
+// (same pattern as test/integration/waitlist-cms-actions.test.ts). Mocked at that layer only —
+// the DB access underneath (getSupabaseServiceClient) is untouched and hits the real local DB.
+let _mockSiteId = 'unset'
+vi.mock('@/lib/cms/site-context', () => ({
+  getSiteContext: vi.fn(async () => ({ siteId: _mockSiteId })),
+}))
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
+  requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'user-mock' } })),
+}))
+
 import {
   claimNextTask,
   submitIntelRecommendations,
@@ -53,6 +67,7 @@ import {
 } from '@/lib/pipeline/services/youtube'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
+import { fetchChannelCoaching } from '../../src/app/cms/(authed)/youtube/analytics/actions'
 
 describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real Supabase local DB', () => {
   const svc: SupabaseClient = createClient(SUPABASE_URL, SERVICE_KEY, {
@@ -470,11 +485,86 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
     ).rejects.toMatchObject({ code: 'NOT_FOUND', status: 404 })
   })
 
-  // ── Case 7 — fetchChannelCoaching cowork/forja merge — BLOCKED, see file header ────────────
+  // ── Case 7 — fetchChannelCoaching: real generated_at ordering + real .in() allowlist ──────
 
-  it.todo(
-    'fetchChannelCoaching prefers the newer of cowork/forja, falls back to cowork when forja is ' +
-      'older, and treats a forja_retirada_* row as a rollback guard back to cowork ' +
-      '(blocked: Task 10 not implemented yet — gated on mockup approval, see file header)',
+  it(
+    'returns whichever of cowork/forja carries the newer generated_at — proven in both ' +
+      'directions, against real timestamptz ordering',
+    async () => {
+      const siteId = await freshSite()
+      // One PT + one EN channel under the same site (max one channel per locale) so both
+      // directions run in a single test without a third site.
+      const channelForjaWins = await freshChannelOnly(siteId, 'pt')
+      const channelCoworkWins = await freshChannelOnly(siteId, 'en')
+      const now = Date.now()
+      const daysAgoISO = (n: number) => new Date(now - n * 86_400_000).toISOString()
+
+      const { error } = await svc.from('youtube_intelligence').insert([
+        {
+          site_id: siteId, channel_id: channelForjaWins, video_id: null, type: 'channel',
+          source: 'cowork', coaching: { summary: 'forjaWins: cowork velho', priorities: [] },
+          generated_at: daysAgoISO(3),
+        },
+        {
+          site_id: siteId, channel_id: channelForjaWins, video_id: null, type: 'channel',
+          source: 'forja', coaching: { summary: 'forjaWins: forja novo', priorities: [] },
+          generated_at: daysAgoISO(1),
+        },
+        {
+          site_id: siteId, channel_id: channelCoworkWins, video_id: null, type: 'channel',
+          source: 'forja', coaching: { summary: 'coworkWins: forja velho', priorities: [] },
+          generated_at: daysAgoISO(3),
+        },
+        {
+          site_id: siteId, channel_id: channelCoworkWins, video_id: null, type: 'channel',
+          source: 'cowork', coaching: { summary: 'coworkWins: cowork novo', priorities: [] },
+          generated_at: daysAgoISO(1),
+        },
+      ])
+      if (error) throw new Error(`seed cowork/forja pairs: ${error.message}`)
+
+      _mockSiteId = siteId
+
+      const resultForjaWins = await fetchChannelCoaching(channelForjaWins)
+      expect(resultForjaWins?.source).toBe('forja')
+      expect(resultForjaWins?.coaching.summary).toBe('forjaWins: forja novo')
+
+      const resultCoworkWins = await fetchChannelCoaching(channelCoworkWins)
+      expect(resultCoworkWins?.source).toBe('cowork')
+      expect(resultCoworkWins?.coaching.summary).toBe('coworkWins: cowork novo')
+    },
+  )
+
+  it(
+    'a forja_retirada_* row is excluded by the source allowlist even when it is the newest row ' +
+      '— the older cowork row wins as the rollback guard, not app-layer narrowing',
+    async () => {
+      const siteId = await freshSite()
+      const channelId = await freshChannelOnly(siteId)
+      const now = Date.now()
+
+      // idx_youtube_intelligence_channel_dedup is (site_id, channel_id, source) WHERE
+      // video_id IS NULL — 'cowork' and 'forja_retirada_202609181200' are distinct source
+      // values, so both rows coexist under the same channel without a 23505 conflict.
+      const { error } = await svc.from('youtube_intelligence').insert([
+        {
+          site_id: siteId, channel_id: channelId, video_id: null, type: 'channel',
+          source: 'cowork', coaching: { summary: 'cowork antes da retirada', priorities: [] },
+          generated_at: new Date(now - 2 * 86_400_000).toISOString(),
+        },
+        {
+          site_id: siteId, channel_id: channelId, video_id: null, type: 'channel',
+          source: 'forja_retirada_202609181200',
+          coaching: { summary: 'retirada — nunca deveria ser lido', priorities: [] },
+          generated_at: new Date(now).toISOString(),
+        },
+      ])
+      if (error) throw new Error(`seed retirada row: ${error.message}`)
+
+      _mockSiteId = siteId
+      const result = await fetchChannelCoaching(channelId)
+      expect(result?.source).toBe('cowork')
+      expect(result?.coaching.summary).toBe('cowork antes da retirada')
+    },
   )
 })
