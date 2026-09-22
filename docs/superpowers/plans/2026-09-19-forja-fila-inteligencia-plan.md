@@ -12011,7 +12011,7 @@ do repo do site) é commitado à parte, com `--no-verify` (regra de plano/doc).
 | 27 | `URL="https://hc-ping.com/af566211-…"` | precedente: o pulso já guarda a própria URL no arquivo |
 | 28-29 | `LOG=/opt/agente/log/pulso.log` · `mkdir -p "$(dirname "$LOG")"` | o `log/` existe desde a O2 |
 | 31-32 | `ok=1` · `motivo=""` | ficam **fora** do bloco novo; o harness os reproduz |
-| 50 | `yt_hints-sem-200-15min` | marca da O2 — a pré-condição do passo (3) |
+| 50 | `yt_hints-sem-200-15min` | ~~marca da O2 — a pré-condição do passo (3)~~ — **deriva (22/09): não existe no pulso vivo (`grep -c` = 0); o portão real é a âncora da linha 78, Ruling R28** |
 | 56-75 | `site=$(python3 - <<'EOF' … EOF)` com `print(type(e).__name__)` | o padrão que o bloco novo copia |
 | 76 | `[ "$site" = "ok" ] \|\| { ok=0; motivo="$motivo site-${site:-mudo}"; }` | o padrão **fecha fechado**: saída vazia = vermelho |
 | 78 | `[ "$ok" -eq 1 ] && alvo="$URL" \|\| alvo="$URL/fail"` | **a âncora**. `grep -c` no arquivo real = **1** |
@@ -12629,6 +12629,14 @@ Expected: a task em `completed`, com `name` = `forja (fila)`.
 
 - [ ] **Step 1: O dono cola o bloco "F4 (2)" na forja**
 
+> **Deriva (22/09) — a linha leva `AGENTE_SITIO=/opt/agente/docs/sitio.py` no início.** O bloco abaixo
+> já foi corrigido, e é a linha **viva** no crontab da forja. O prefixo existe porque o worker
+> instalado é anterior a `646447e` do kit e resolve o `sitio.py` com um `dirname` só. Instalar sem o
+> prefixo recria o crashloop de 22/09 (traceback a cada 10 min, jsonl mudo, `URL_FILA` vermelho em
+> 70 min). Ele sai no dia em que a forja receber um worker ≥ `646447e`; prova:
+> `ssh forja 'grep -c "dirname(os.path.dirname" /opt/agente/docs/trilha/fila_intel.py'` → `1`.
+> Operação em `docs/ops/forja-fila-inteligencia-runbook.md`.
+
 Bloco literal do §5 do spec, em subshell — ele **guarda o backup e confere contra ele**:
 ```
 (
@@ -12636,7 +12644,7 @@ Bloco literal do §5 do spec, em subshell — ele **guarda o backup e confere co
   grep -q pulso /opt/agente/crontab.bak-F4 && grep -q retentar /opt/agente/crontab.bak-F4 || { echo 'PARE: backup do crontab sem pulso/retentar — nao instalar'; exit 1; }
   grep -q fila_intel /opt/agente/crontab.bak-F4 && { echo 'PARE: ja existe linha fila_intel no crontab'; exit 1; }
   N0=$(grep -c -e retentar -e pulso /opt/agente/crontab.bak-F4)
-  (cat /opt/agente/crontab.bak-F4; echo '*/10 * * * * timeout -k 30s 25m /opt/agente/venv/bin/python -B /opt/agente/docs/trilha/fila_intel.py --cron >>/opt/agente/log/fila_intel.err 2>&1') | crontab -
+  (cat /opt/agente/crontab.bak-F4; echo '*/10 * * * * AGENTE_SITIO=/opt/agente/docs/sitio.py timeout -k 30s 25m /opt/agente/venv/bin/python -B /opt/agente/docs/trilha/fila_intel.py --cron >>/opt/agente/log/fila_intel.err 2>&1') | crontab -
   [ "$(crontab -l | grep -c -e retentar -e pulso)" = "$N0" ] && [ "$(crontab -l | grep -c fila_intel)" = 1 ] && echo CRON-OK || echo 'PARE: crontab divergente — restaure com  crontab /opt/agente/crontab.bak-F4'
 )
 ```
@@ -12682,13 +12690,24 @@ python3 -c "import json,sys;sys.exit(0 if any(d.get('modo')=='cron' and d.get('d
 Aprovação: `saida=0`. `saida=1` → **espere o próximo ciclo de 10 min** e repita. Não siga sem isso:
 sem uma execução `cron` sadia no arquivo, o bloco entraria já vermelho.
 
-- [ ] **Step 2: Pré-condição da O2 — o pulso vivo é o da onda 0b**
+- [ ] **Step 2: Pré-condição — a âncora que o `pulso_f4.py` realmente usa**
+
+> **Deriva (22/09) — este portão conferia a âncora errada e mandava PARAR sem motivo.** O Step
+> original pedia `grep -c 'yt_hints-sem-200-15min' /opt/agente/docs/pulso.sh` → `1`. **Na forja isso
+> dá `0`:** o `pulso.sh` vivo é de 03/08/2026 e nunca recebeu a onda 0b. Mas o `pulso_f4.py` **não
+> usa essa marca**: `ANCORA = '[ "$ok" -eq 1 ]'` (`fase2/pulso_f4.py:10`), que existe **exatamente 1
+> vez** no pulso vivo. O `yt_hints` era um proxy para "este é o pulso que o bloco pressupõe"; a
+> âncora direta mede o que de fato importa. **Ruling R28 do ledger:** pular o portão do `yt_hints` e
+> confiar na guarda do próprio script, que é mais estrita (recusa se a âncora não aparecer
+> exatamente 1×, se os marcadores já existirem, ou se a URL não casar
+> `^https://hc-ping\.com/[0-9a-f-]{36}$`) e fail-closed por construção — se errado, ele recusa e nada
+> é gravado.
 
 ```
-grep -c 'yt_hints-sem-200-15min' /opt/agente/docs/pulso.sh
+grep -c '\[ "$ok" -eq 1 \]' /opt/agente/docs/pulso.sh
 ```
-Aprovação: **`1`**. Qualquer outro valor (0, ou mais de 1) → **pare**: o `pulso.sh` vivo não é o que
-este bloco pressupõe, e a âncora pode não ser única.
+Aprovação: **`1`**. Qualquer outro valor (0, ou mais de 1) → **pare**: a âncora não é única e o
+`pulso_f4.py` vai recusar de qualquer forma.
 
 - [ ] **Step 3: O dono cria o check `URL_FILA` no healthchecks**
 
