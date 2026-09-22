@@ -389,6 +389,28 @@ describe('submitIntelRecommendations — task state and ownership', () => {
       video_recommendations: [{ video_id: '33333333-3333-4333-8333-333333333333', action_type: 'title_test', priority: 'low', confidence: 0.5, reasoning: 'r' }],
     })).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 422 })
   })
+
+  it('scopes the integrity SELECT to the caller site, not just to the channel', async () => {
+    const sb = makeSupabase([
+      { data: { id: 't', channel_id: 'ch-1', status: 'running', result_summary: {}, started_at: 's' }, error: null },
+      { data: [], error: null },
+    ])
+    await expect(submitIntelRecommendations(ctxOf(sb, { permissions: ['read', 'write'] }), {
+      task_id: '22222222-2222-4222-8222-222222222222',
+      video_recommendations: [{ video_id: '33333333-3333-4333-8333-333333333333', action_type: 'title_test', priority: 'low', confidence: 0.5, reasoning: 'r' }],
+    })).rejects.toMatchObject({ status: 422 })
+
+    expect(sb.tables).toContain('youtube_videos')
+    // Isolate just the integrity query: the chain double shares one `calls` array, and the
+    // task read right before it also filters `site_id`, so a bare toContainEqual would pass
+    // even with the filter dropped. Slice from that query's own `.select()` to its `.in()`.
+    const inIdx = sb.calls.findIndex((c) => c.op === 'in')
+    expect(inIdx).toBeGreaterThan(-1)
+    const selIdx = sb.calls.slice(0, inIdx).map((c) => c.op).lastIndexOf('select')
+    const integrity = sb.calls.slice(selIdx, inIdx + 1)
+    expect(integrity).toContainEqual({ op: 'eq', args: ['site_id', 'site-1'] })
+    expect(integrity).toContainEqual({ op: 'eq', args: ['channel_id', 'ch-1'] })
+  })
 })
 
 describe('submitIntelRecommendations — closing the task', () => {

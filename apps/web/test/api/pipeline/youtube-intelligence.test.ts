@@ -63,19 +63,13 @@ vi.mock('@/lib/pipeline/services/youtube', () => ({
   claimNextTask: vi.fn(),
 }))
 
-import { authenticateRead, authenticateWrite, authenticateIntel, parseBody } from '@/lib/pipeline/helpers'
+import { authenticateWrite, authenticateIntel, parseBody } from '@/lib/pipeline/helpers'
 import {
   getIntelligenceSnapshot,
   submitIntelRecommendations,
   claimNextTask,
 } from '@/lib/pipeline/services/youtube'
 
-function mockAuthRead() {
-  vi.mocked(authenticateRead).mockResolvedValue({
-    ok: true,
-    auth: { siteId: MOCK_SITE_ID, permissions: ['read', 'write'], source: 'api_key' as const, keyHash: 'test' },
-  } as any)
-}
 function mockAuthWrite() {
   vi.mocked(authenticateWrite).mockResolvedValue({
     ok: true,
@@ -88,10 +82,9 @@ function mockAuthIntel() {
     auth: { siteId: MOCK_SITE_ID, permissions: ['read', 'write'], source: 'api_key' as const, keyHash: 'test', keyId: 'k' },
   } as any)
 }
-function mockAuthFail(mode: 'read' | 'write' | 'intel' = 'read') {
+function mockAuthFail(mode: 'write' | 'intel' = 'intel') {
   const resp = new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED' } }), { status: 401 }) as any
-  if (mode === 'read') vi.mocked(authenticateRead).mockResolvedValue(resp)
-  else if (mode === 'write') vi.mocked(authenticateWrite).mockResolvedValue(resp)
+  if (mode === 'write') vi.mocked(authenticateWrite).mockResolvedValue(resp)
   else vi.mocked(authenticateIntel).mockResolvedValue(resp)
 }
 
@@ -107,19 +100,19 @@ describe('GET /api/pipeline/youtube/intelligence', () => {
   })
 
   it('returns 401 when auth fails', async () => {
-    mockAuthFail()
+    mockAuthFail('intel')
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/intelligence?channel_id=abc'))
     expect(res.status).toBe(401)
   })
 
   it('returns 400 when channel_id is missing', async () => {
-    mockAuthRead()
+    mockAuthIntel()
     const res = await GET(new NextRequest('http://localhost/api/pipeline/youtube/intelligence'))
     expect(res.status).toBe(400)
   })
 
   it('returns 404 when channel not found', async () => {
-    mockAuthRead()
+    mockAuthIntel()
     vi.mocked(getIntelligenceSnapshot).mockRejectedValue(
       new PipelineServiceError('NOT_FOUND', 'Channel not found', 404),
     )
@@ -129,7 +122,7 @@ describe('GET /api/pipeline/youtube/intelligence', () => {
   })
 
   it('returns full intelligence payload', async () => {
-    mockAuthRead()
+    mockAuthIntel()
     const snapshot = {
       channel: {
         id: MOCK_CHANNEL_ID,

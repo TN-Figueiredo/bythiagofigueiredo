@@ -168,7 +168,7 @@ const YOUTUBE: CapabilityDomain = {
   docs: '/api/pipeline/docs/youtube',
   endpoint_count: 33,
   endpoints: [
-    { method: 'GET', path: '/api/pipeline/youtube/intelligence', summary: 'Get channel intelligence snapshot', auth: 'read' },
+    { method: 'GET', path: '/api/pipeline/youtube/intelligence', summary: 'Get channel intelligence snapshot — accepts intelligence, write or admin', auth: 'intelligence' },
     { method: 'PATCH', path: '/api/pipeline/youtube/intelligence', summary: 'Submit AI analysis recommendations', auth: 'write' },
     { method: 'GET', path: '/api/pipeline/youtube/intelligence/task', summary: 'Claim next pending intelligence task', auth: 'write' },
     { method: 'POST', path: '/api/pipeline/youtube/intelligence/task/claim', summary: 'Claim next pending intelligence task by channel_ids (API key only) — accepts intelligence, write or admin', auth: 'intelligence' },

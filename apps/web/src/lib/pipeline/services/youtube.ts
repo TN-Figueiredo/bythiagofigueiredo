@@ -442,9 +442,13 @@ export async function submitIntelRecommendations(
   // Process video recommendations
   if (video_recommendations?.length) {
     const videoIds = video_recommendations.map(r => r.video_id)
+    // site_id is redundant today (task.channel_id already came from a site-scoped read),
+    // but it is the one query on this path that relied on that inference instead of
+    // stating the scope. Defense in depth: keep every service-client read explicit.
     const { data: existing, error: existingError } = await supabase
       .from('youtube_videos')
       .select('id')
+      .eq('site_id', siteId)
       .eq('channel_id', task.channel_id)
       .in('id', videoIds)
 

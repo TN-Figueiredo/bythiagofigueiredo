@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { NextRequest } from 'next/server'
 import { requirePermission, type PipelineAuth } from '@/lib/pipeline/auth'
 
 vi.mock('@/lib/pipeline/auth', async (orig) => ({
@@ -85,5 +86,46 @@ describe('POST .../intelligence/task/:id/fail — auth', () => {
     const res = await POST(postFail(), { params: Promise.resolve({ id: '22222222-2222-4222-8222-222222222222' }) })
     expect(res.status).toBe(403)
     expect((await res.json()).error.code).toBe('FORBIDDEN')
+  })
+})
+
+describe('GET /api/pipeline/youtube/intelligence — snapshot needs intelligence, not read', () => {
+  const url = 'http://localhost/api/pipeline/youtube/intelligence?channel_id=11111111-1111-4111-8111-111111111111'
+
+  it('403s a key that holds only {read} — this is what lets the forja key drop `read`', async () => {
+    vi.mocked(authenticatePipeline).mockResolvedValue({ ok: true, auth: { siteId: 'site-1', permissions: ['read'], source: 'api_key', keyHash: 'h', keyId: 'k' } })
+    const { GET } = await import('@/app/api/pipeline/youtube/intelligence/route')
+    const res = await GET(new Request(url) as never)
+    expect(res.status).toBe(403)
+    expect((await res.json()).error.code).toBe('FORBIDDEN')
+  })
+
+  it('403s a {read} session too — no scope escapes the gate', async () => {
+    vi.mocked(authenticatePipeline).mockResolvedValue({ ok: true, auth: { siteId: 'site-1', permissions: ['read'], source: 'session' } })
+    const { GET } = await import('@/app/api/pipeline/youtube/intelligence/route')
+    const res = await GET(new Request(url) as never)
+    expect(res.status).toBe(403)
+  })
+
+  it('lets the forja key past the gate with {intelligence} alone', async () => {
+    vi.mocked(authenticatePipeline).mockResolvedValue({ ok: true, auth: { siteId: 'site-1', permissions: ['intelligence'], source: 'api_key', keyHash: 'h', keyId: 'k' } })
+    const { GET } = await import('@/app/api/pipeline/youtube/intelligence/route')
+    // It reaches the service (which explodes on the mocked db client) instead of 403ing:
+    // proof the gate passed, without needing a live snapshot.
+    const res = await GET(new NextRequest(url) as never)
+    expect(res.status).not.toBe(403)
+    expect(res.status).not.toBe(401)
+  })
+
+  it('still lets a cms session (read+write) and an admin key read the snapshot', async () => {
+    for (const auth of [
+      { siteId: 'site-1', permissions: ['read', 'write'], source: 'session' as const },
+      { siteId: 'site-1', permissions: ['admin'], source: 'api_key' as const, keyHash: 'h', keyId: 'k' },
+    ]) {
+      vi.mocked(authenticatePipeline).mockResolvedValue({ ok: true, auth })
+      const { GET } = await import('@/app/api/pipeline/youtube/intelligence/route')
+      const res = await GET(new NextRequest(url) as never)
+      expect(res.status).not.toBe(403)
+    }
   })
 })

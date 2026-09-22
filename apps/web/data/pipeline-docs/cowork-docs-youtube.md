@@ -22,6 +22,8 @@ O módulo Intelligence Engine analisa performance de canais YouTube e gera:
 
 Retorna snapshot completo de inteligência do canal.
 
+Exige `intelligence` (ou `write`/`admin`) — **não** `read`, escopo amplo que abriria todo GET do pipeline.
+
 **Headers:** `X-Pipeline-Key: {api_key}`
 **Query:** `channel_id` (uuid) — **obrigatório**; sem ele, `400 VALIDATION_ERROR`.
 
