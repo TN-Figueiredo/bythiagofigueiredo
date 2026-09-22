@@ -12,15 +12,15 @@ import { z } from 'zod'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
- * Reads the channel-level coaching diagnosis the Cowork pipeline already writes to
- * `youtube_intelligence` (type='channel', video_id IS NULL, source='cowork'). Before this
- * (F12), the UI never queried this row — `.not('video_id','is',null)` in the video-level
- * fetch excluded it by construction, so the Health Coach showed a fixed heuristic text
- * mislabeled as "Diagnostico do Cowork" even when Cowork had already analyzed the channel.
+ * Reads the most recent channel-level coaching row from the allowlist {cowork, forja}.
+ *
+ * The badge is derived from `source` here on the server, and any value outside the
+ * allowlist is narrowed to 'cowork' — the column is plain TEXT with no CHECK, so a
+ * retired `forja_retirada_*` row must never render as "por forja".
  */
 export async function fetchChannelCoaching(
   channelId: string,
-): Promise<{ coaching: CoachingOutput; generatedAt: string } | null> {
+): Promise<{ coaching: CoachingOutput; source: 'cowork' | 'forja'; generatedLabel: string } | null> {
   if (!UUID_RE.test(channelId)) throw new Error('invalid_input')
   const { siteId } = await getSiteContext()
   const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
@@ -29,18 +29,29 @@ export async function fetchChannelCoaching(
 
   const { data } = await supabase
     .from('youtube_intelligence')
-    .select('coaching, generated_at')
+    .select('coaching, generated_at, source')
     .eq('site_id', siteId)
     .eq('channel_id', channelId)
     .is('video_id', null)
-    .eq('source', 'cowork')
+    .in('source', ['cowork', 'forja'])
+    .not('coaching', 'is', null)
     .eq('type', 'channel')
     .order('generated_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
   if (!data?.coaching) return null
-  return { coaching: data.coaching as CoachingOutput, generatedAt: data.generated_at }
+
+  // Formatted on the server so the label does not depend on the viewer's timezone.
+  const generatedLabel = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo',
+  }).format(new Date(data.generated_at as string))
+
+  return {
+    coaching: data.coaching as CoachingOutput,
+    source: data.source === 'forja' ? 'forja' : 'cowork',
+    generatedLabel,
+  }
 }
 
 export async function fetchGradesData(channelId: string) {

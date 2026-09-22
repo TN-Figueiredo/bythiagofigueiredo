@@ -75,7 +75,7 @@ interface Props {
   channelInternalId?: string
   intelligenceVideos?: VideoGradeRow[]
   intelligenceOutliers?: OutlierVideo[]
-  channelCoaching?: { coaching: CoachingOutput; generatedAt: string } | null
+  channelCoaching?: { coaching: CoachingOutput; source: 'cowork' | 'forja'; generatedLabel: string } | null
   notes?: NoteEntry[]
   healthScore?: number
   onCreateNote?: (input: { channelId: string; text: string }) => Promise<{ ok: boolean; error?: string }>
@@ -357,7 +357,7 @@ const COACHING_DIAGNOSTICS: Record<Axis, { diagnosis: string; action: string }> 
   },
 }
 
-function computeCoachingCards(
+export function computeCoachingCards(
   videos: VideoGradeRow[],
   channelCoaching: CoachingOutput | null,
 ): Array<{
@@ -369,8 +369,12 @@ function computeCoachingCards(
   action: string
   source: 'cowork' | 'fallback'
 }> {
-  if (channelCoaching?.priorities?.length) {
-    return channelCoaching.priorities
+  // Tested for null, not for a non-empty priorities array: with `priorities: []` the old
+  // guard fell through to the heuristic branch and invented up to 3 fallback cards on top
+  // of a real analysis. `?? []` because `coaching` is an `as CoachingOutput` over jsonb —
+  // a row written before this commit never went through Zod.
+  if (channelCoaching != null) {
+    return (channelCoaching.priorities ?? [])
       .map(p => ({
         axis: p.axis,
         score: p.score,
