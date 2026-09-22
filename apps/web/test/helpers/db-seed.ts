@@ -748,11 +748,19 @@ export async function seedFutureScheduledPost(
  * columns are `channel_id` (text) on youtube_channels and `youtube_video_id`
  * on youtube_videos; `locale`, `handle`, `name` and `uploads_playlist_id` are
  * NOT NULL on channels.
+ *
+ * `locale` is part of `youtube_channels_site_id_locale_key` UNIQUE (site_id,
+ * locale) and is CHECK-constrained to 'pt' | 'en' — so a site holds at most two
+ * channels, one per locale. A test that needs two channels on the SAME site must
+ * pass distinct locales (that is the real design: a PT channel and an EN one);
+ * a test that needs more than two needs more than one site.
  */
+export type YoutubeChannelLocale = 'pt' | 'en'
+
 export async function seedYoutubeChannelAndVideo(
   db: SupabaseClient,
   siteId: string,
-  opts: { durationSeconds?: number; title?: string } = {},
+  opts: { durationSeconds?: number; title?: string; locale?: YoutubeChannelLocale } = {},
 ): Promise<{ channelId: string; videoId: string; youtubeVideoId: string }> {
   const suffix = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`
   const { data: channel, error: chErr } = await db
@@ -760,7 +768,7 @@ export async function seedYoutubeChannelAndVideo(
     .insert({
       site_id: siteId,
       channel_id: `UCseed${suffix}`.slice(0, 24),
-      locale: 'pt',
+      locale: opts.locale ?? 'pt',
       handle: `@seed-${suffix}`,
       name: 'Seed Channel',
       uploads_playlist_id: `UUseed${suffix}`.slice(0, 24),

@@ -38,7 +38,13 @@ import { randomUUID } from 'node:crypto'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { SUPABASE_URL, SERVICE_KEY, seedSite, seedYoutubeChannelAndVideo } from '../helpers/db-seed'
+import {
+  SUPABASE_URL,
+  SERVICE_KEY,
+  seedSite,
+  seedYoutubeChannelAndVideo,
+  type YoutubeChannelLocale,
+} from '../helpers/db-seed'
 import {
   claimNextTask,
   submitIntelRecommendations,
@@ -81,15 +87,22 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
     return channelId
   }
 
-  /** Only a channel, no video — cheaper than seedYoutubeChannelAndVideo when a video isn't needed. */
-  async function freshChannelOnly(siteId: string): Promise<string> {
+  /**
+   * Only a channel, no video — cheaper than seedYoutubeChannelAndVideo when a video isn't needed.
+   *
+   * `locale` is explicit because of `youtube_channels_site_id_locale_key` UNIQUE (site_id, locale)
+   * with `locale` CHECK-constrained to 'pt' | 'en': a site holds at most ONE channel per locale.
+   * Two channels on the same site therefore mean one PT and one EN — which is the production
+   * shape, not a workaround. A third channel needs a third site.
+   */
+  async function freshChannelOnly(siteId: string, locale: YoutubeChannelLocale = 'pt'): Promise<string> {
     const suffix = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`
     const { data, error } = await svc
       .from('youtube_channels')
       .insert({
         site_id: siteId,
         channel_id: `UCseed${suffix}`.slice(0, 24),
-        locale: 'pt',
+        locale,
         handle: `@seed-${suffix}`,
         name: 'Seed Channel',
         uploads_playlist_id: `UUseed${suffix}`.slice(0, 24),
@@ -179,9 +192,13 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
     async () => {
       const siteId = await freshSite()
       const otherSiteId = await freshSite()
-      const channelId = await freshChannelOnly(siteId)
-      const otherChannelId = await freshChannelOnly(siteId)
-      const otherSiteChannelId = await freshChannelOnly(otherSiteId)
+      // The dedup key is (site_id, channel_id, source) WHERE video_id IS NULL, so proving it
+      // needs BOTH neighbours: a second channel under the SAME site (→ channel_id is really in
+      // the key) and a channel under another site (→ site_id is really in the key). The same-site
+      // pair varies the locale because one site holds at most one channel per locale.
+      const channelId = await freshChannelOnly(siteId, 'pt')
+      const otherChannelId = await freshChannelOnly(siteId, 'en')
+      const otherSiteChannelId = await freshChannelOnly(otherSiteId, 'pt')
 
       await seedChannelIntelligence(siteId, channelId, 'cowork', 'cowork original')
       await seedChannelIntelligence(siteId, otherChannelId, 'forja', 'forja outro canal')
@@ -278,27 +295,35 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
     'pending task and a channel from another site all resolve to null (204), never throw', async () => {
     const siteId = await freshSite()
     const otherSiteId = await freshSite()
+    const emptySiteId = await freshSite()
 
-    const eligibleChannel = await freshChannelOnly(siteId)
+    // The eligible channel and the not-pending one share a site ON PURPOSE: that is what makes
+    // r1 a test of the `channel_ids`/status filter rather than of site isolation. One site holds
+    // at most one channel per locale, so the pair is PT + EN.
+    const eligibleChannel = await freshChannelOnly(siteId, 'pt')
     const eligibleTask = await seedTask(siteId, eligibleChannel)
 
-    const noPendingChannel = await freshChannelOnly(siteId)
+    const noPendingChannel = await freshChannelOnly(siteId, 'en')
     await seedTask(siteId, noPendingChannel, { status: 'completed' })
 
-    const emptyChannel = await freshChannelOnly(siteId)
+    // The empty-queue channel gets its OWN site (siteId is full at two locales) and is queried
+    // with that site's ctx — so it exercises the zero-rows branch alone. Parking it under
+    // otherSiteId and claiming with siteId's ctx would silently turn it into a second copy of
+    // r3 (site isolation) and stop testing the empty queue at all.
+    const emptyChannel = await freshChannelOnly(emptySiteId, 'pt')
     // zero tasks at all for emptyChannel
 
-    const otherSiteChannel = await freshChannelOnly(otherSiteId)
+    const otherSiteChannel = await freshChannelOnly(otherSiteId, 'pt')
     await seedTask(otherSiteId, otherSiteChannel)
 
     const ctx = forjaCtx(siteId, 'key-scope')
 
-    // "channel_ids sem pending" — the row exists but isn't pending.
+    // "channel_ids sem pending" — the row exists, in this very site, but isn't pending.
     const r1 = await claimNextTask(ctx, [noPendingChannel])
     expect(r1.data).toBeNull()
 
-    // "fila vazia" — channel has zero rows.
-    const r2 = await claimNextTask(ctx, [emptyChannel])
+    // "fila vazia" — channel has zero rows, under its own site's ctx.
+    const r2 = await claimNextTask(forjaCtx(emptySiteId, 'key-scope'), [emptyChannel])
     expect(r2.data).toBeNull()
 
     // "channel_ids de outro site" — the task exists, but not under this ctx.siteId.
@@ -330,8 +355,11 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
   it('recent_window is null when the newest analytics row is 4 days old, and videos of another ' +
     'channel never leak in', async () => {
     const siteId = await freshSite()
-    const { channelId, videoId } = await seedYoutubeChannelAndVideo(svc, siteId)
-    const { videoId: otherVideoId } = await seedYoutubeChannelAndVideo(svc, siteId)
+    // Both channels stay under the SAME site: the leak this guards against is a sibling channel
+    // inside the same site (the snapshot already filters by site_id, so a cross-site video would
+    // prove nothing here). Same site ⇒ one PT channel and one EN channel.
+    const { channelId, videoId } = await seedYoutubeChannelAndVideo(svc, siteId, { locale: 'pt' })
+    const { videoId: otherVideoId } = await seedYoutubeChannelAndVideo(svc, siteId, { locale: 'en' })
 
     const { error: e1 } = await svc.from('youtube_video_analytics').insert({
       site_id: siteId,
