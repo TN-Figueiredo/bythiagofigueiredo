@@ -249,6 +249,28 @@ describe('submitIntelRecommendations — schema', () => {
     expect(PatchPayloadSchema.safeParse({ ...base, channel_insights: { patterns_detected: [pattern] } }).success).toBe(true)
   })
 
+  it('patterns_detected is discriminated on tipo: an examined series needs serie/leitura/motivo, ' +
+    'a pattern cannot claim a neutral reading, and the old shape still validates', () => {
+    const base = { task_id: '22222222-2222-4222-8222-222222222222' }
+    const parse = (item: Record<string, unknown>) =>
+      PatchPayloadSchema.safeParse({ ...base, channel_insights: { patterns_detected: [item] } })
+    const examinada = { tipo: 'examinada', serie: 'canada', leitura: 'sem_coorte', motivo: 'coorte_fina' }
+    expect(parse(examinada).success).toBe(true)
+    expect(parse({ ...examinada, motivo: undefined }).success).toBe(false)
+    expect(parse({ ...examinada, serie: undefined }).success).toBe(false)
+    expect(parse({ ...examinada, leitura: 'abaixo' }).success).toBe(false)
+    const pattern = { pattern_id: 'p', category: 'series', finding: 'f', confidence: 0.5, sample_size: 4 }
+    expect(parse(pattern).success).toBe(true)
+    expect(parse({ ...pattern, tipo: 'padrao', leitura: 'abaixo', mediana: 91, mediana_coorte: 143.5 }).success).toBe(true)
+    expect(parse({ ...pattern, leitura: 'neutra' }).success).toBe(false)
+    expect(parse({ ...pattern, anos: { de: 2017 } }).success).toBe(false)
+    expect(parse({ ...pattern, periodo: { de: '2017-1-2', ate: '2019-06-14' } }).success).toBe(false)
+    expect(parse({ ...pattern, episodios: ['nao-uuid'] }).success).toBe(false)
+    // exact ratio travels unrounded: the parse keeps every digit
+    const ok = parse({ ...pattern, razao: 0.6341463414634146 })
+    expect(ok.success && ok.data.channel_insights?.patterns_detected?.[0]).toMatchObject({ razao: 0.6341463414634146 })
+  })
+
   it('accepts the real May payload from Cowork unchanged', () => {
     // These two lengths sit exactly on the Zod ceilings. If a remount added an ellipsis or a
     // space the fixture would fail the parse — or be "fixed" and start measuring another payload.

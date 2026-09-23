@@ -730,4 +730,113 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
       expect(result?.coaching.summary).toBe('cowork antes da retirada')
     },
   )
+
+  // ── Per-series numbers survive the round trip (2026-09-22) ──────────────────────────────
+
+  it(
+    'the per-series numbers and the examined-without-verdict series reach the jsonb column ' +
+      'INTACT — nothing stripped, nothing rounded',
+    async () => {
+      // Why this runs against Postgres and not the double: the loss this guards is Zod's STRIP.
+      // The schema is z.object() without .strict(), so a field it doesn't declare is dropped in
+      // silence on the way to the insert — no error anywhere. Only reading the row back proves the
+      // declared fields are the ones that land. Values are the real channel's (snapshot of
+      // 2026-09-22): 0–10 at 91 against a cohort of 143,5 — reconstructing 143,5 from the
+      // rounded "0,63×" gives 144,4, which is why the exact numbers have to travel.
+      const siteId = await freshSite()
+      const channelId = await freshChannelOnly(siteId)
+      const key = `key-forja-${randomUUID()}`
+      const taskId = await seedTask(siteId, channelId)
+      const claim = await claimNextTask(forjaCtx(siteId, key), [channelId])
+      expect(claim.data?.id).toBe(taskId)
+
+      const episodios = [randomUUID(), randomUUID(), randomUUID()]
+      const padrao = {
+        tipo: 'padrao',
+        pattern_id: 'serie:zero-dez',
+        category: 'series',
+        finding: 'Série "0–10": 11 vídeos, mediana de 91 views na vida (0,63× da coorte de 2019)',
+        confidence: 0.6,
+        sample_size: 10,
+        serie: 'zero-dez',
+        nome: '0–10',
+        n: 11,
+        ano: 2019,
+        anos: { de: 2017, ate: 2019 },
+        periodo: { de: '2017-11-02', ate: '2019-06-14' },
+        mediana: 91,
+        mediana_coorte: 143.5,
+        n_coorte: 10,
+        razao: 0.6341463414634146,
+        leitura: 'abaixo',
+        episodios,
+      }
+      const semCoorte = {
+        tipo: 'examinada',
+        serie: 'canada',
+        nome: 'Canadá',
+        n: 9,
+        ano: 2018,
+        anos: { de: 2017, ate: 2019 },
+        periodo: { de: '2017-08-01', ate: '2019-02-10' },
+        mediana: 120,
+        n_coorte: 2,
+        leitura: 'sem_coorte',
+        motivo: 'coorte_fina',
+        episodios: [randomUUID()],
+      }
+      const neutra = {
+        tipo: 'examinada',
+        serie: 'vlogzeira',
+        nome: 'Vlogzeira',
+        n: 3,
+        ano: 2018,
+        anos: { de: 2018, ate: 2018 },
+        periodo: { de: '2018-01-05', ate: '2018-04-20' },
+        mediana: 213,
+        mediana_coorte: 150,
+        n_coorte: 5,
+        razao: 1.42,
+        leitura: 'neutra',
+        motivo: 'padrao_neutro',
+        episodios: [randomUUID()],
+      }
+      // An old-shape pattern (no `tipo`, none of the new fields) still goes through untouched:
+      // the rows already in production look like this and must keep validating.
+      const antigo = {
+        pattern_id: 'legado', category: 'series', finding: 'achado antigo', confidence: 0.5, sample_size: 4,
+      }
+
+      const submit = await submitIntelRecommendations(forjaCtx(siteId, key), {
+        task_id: taskId,
+        coaching: { summary: 'resumo', priorities: [] },
+        channel_insights: { patterns_detected: [padrao, semCoorte, neutra, antigo], analysis_text: 'texto' },
+      })
+      expect(submit.data.status).toBe('ok')
+
+      const { data, error } = await svc
+        .from('youtube_intelligence')
+        .select('patterns_detected')
+        .eq('site_id', siteId)
+        .eq('channel_id', channelId)
+        .is('video_id', null)
+        .eq('source', 'forja')
+      if (error) throw new Error(`read back: ${error.message}`)
+      expect(data).toHaveLength(1)
+      const lidos = data?.[0]?.patterns_detected as Array<Record<string, unknown>>
+
+      // Whole-object equality, in order: a single stripped field or a rounded number fails here.
+      expect(lidos).toEqual([padrao, semCoorte, neutra, antigo])
+      // And the two numbers the screen needs, spelled out so a failure names them.
+      expect(lidos[0]?.mediana).toBe(91)
+      expect(lidos[0]?.mediana_coorte).toBe(143.5)
+      expect(lidos[0]?.razao).toBe(0.6341463414634146)
+      expect(lidos[0]?.anos).toEqual({ de: 2017, ate: 2019 })
+      expect(lidos[0]?.episodios).toEqual(episodios)
+      expect(lidos.filter(p => p.tipo === 'examinada').map(p => [p.serie, p.leitura, p.motivo])).toEqual([
+        ['canada', 'sem_coorte', 'coorte_fina'],
+        ['vlogzeira', 'neutra', 'padrao_neutro'],
+      ])
+    },
+  )
 })
