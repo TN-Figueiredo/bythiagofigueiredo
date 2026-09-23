@@ -82,7 +82,9 @@ cd ~/Workspace/forja/ferramentas
 { (cd docs && find sitio.py trilha -type f ! -path '*__pycache__*' | sort | xargs md5 -r); (cd fase2 && md5 -r pulso_f4.py teste_pulso_fila.py); } | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo KIT-IGUAL
 ```
 
-Saída vazia + `KIT-IGUAL` = a forja está em dia. Cada linha `FAILED` nomeia um arquivo que chegou
+Saída vazia + `KIT-IGUAL` = a forja está em dia. **Em 23/09 08:50 ela ficou em dia** (kit `0927c06`,
+`series.json` instalado, pulso com o bloco `fila-fallback`, chave da fila só com `{intelligence}`); a
+medição abaixo é a de antes, mantida para mostrar o que cada commit custa. Cada linha `FAILED` nomeia um arquivo que chegou
 diferente (ou nunca chegou). **Medido em 22/09 23:10:** `sitio.py` igual; reprova em
 `trilha/fila_intel.py`, `trilha/teste_fila.py`, `trilha/teste_fila_redacao.py`,
 `trilha/teste_calculo.py`, `trilha/capturar_fixture.py`, `trilha/nova_chave.py`, `pulso_f4.py` e
