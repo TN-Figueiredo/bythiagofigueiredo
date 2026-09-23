@@ -111,22 +111,42 @@ describe('GET /api/cron/waitlist-retention-sweep', () => {
       vi.stubEnv('CRON_SECRET', 'test-secret')
       vi.stubEnv('WAITLIST_RETENTION_SWEEP_ENABLED', 'true')
 
-      // Seed a real site so the route finds at least one site
+      // Seed a real site so the route has something real to sweep.
       const { siteId } = await seedSite(db)
-      // siteId seeded but not directly used — route queries all sites from the DB
-      void siteId
 
-      // Wire up the service client to use the real local DB
-      ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(db)
+      // O route varre TODAS as linhas de `sites` com um RPC sequencial por
+      // site. O banco local é compartilhado por ~60 arquivos de test/integration/
+      // que semeiam sites e nunca os apagam, então "todas as linhas" cresce sem
+      // teto (2 mil sites depois de algumas rodadas da suíte inteira) e este
+      // caso passa a estourar os 5 s — e a estourar para sempre, por lixo que
+      // ele nem criou. Não é lentidão: é um caso cujo custo é proporcional a
+      // estado global que ele não possui.
+      // O que ele prova é o elo DB-gated — que o RPC `waitlist_retention_sweep`
+      // existe e roda de verdade contra o Postgres local para um site de
+      // verdade. A varredura da tabela inteira já é coberta pelo caso 100%
+      // stubado mais abaixo. Então escopamos SÓ a listagem de sites ao site
+      // semeado e deixamos `rpc` no cliente real: custo O(1) e contagem
+      // determinística (1), que é uma asserção mais forte que `>= 1`.
+      const scopedDb = {
+        from: (table: string) =>
+          table === 'sites'
+            ? {
+                select: () => ({
+                  eq: () => Promise.resolve({ data: [{ id: siteId }], error: null }),
+                }),
+              }
+            : db.from(table),
+        rpc: (name: string, args: Record<string, unknown>) => db.rpc(name, args),
+      }
+      ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(scopedDb)
 
       const req = makeRequest({ authorization: 'Bearer test-secret' })
       const res = await GET(req)
       expect(res.status).toBe(200)
 
       const body = await res.json()
-      // withCronLock strips `status` from fn's return value → body = { sites: N }
-      expect(typeof body.sites).toBe('number')
-      expect(body.sites).toBeGreaterThanOrEqual(1)
+      // withCronLock strips `status` from fn's return value → body = { sites, failed }
+      expect(body).toMatchObject({ sites: 1, failed: 0 })
 
       expect(Sentry.addBreadcrumb).toHaveBeenCalledWith(
         expect.objectContaining({

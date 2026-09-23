@@ -425,6 +425,25 @@ describe.skipIf(skipIfNoLocalDb())('M1 — ops_alert_claim, consents e as unique
     try {
       await client.query('begin')
 
+      // A receita é de tabela inteira (DELETE sem WHERE de site + DDL), e o
+      // vitest roda os arquivos de test/integration/ em paralelo contra ESTE
+      // mesmo banco. Sem tomar o lock mais forte ANTES de tocar em qualquer
+      // linha, a ordem de aquisição se inverte: nós pegamos RowExclusive no
+      // DELETE e só pedimos o AccessExclusive no `add constraint`, enquanto um
+      // INSERT concorrente (instagram-accounts-public-view.test.ts) já espera
+      // pelo nosso xid num índice unique — ciclo fechado, o Postgres mata um
+      // dos dois e o outro arquivo vê 40P01 onde esperava 23505 (flake de
+      // ~1 em 2 rodadas da suíte inteira). Travar as duas tabelas aqui, com a
+      // transação ainda sem lock nenhum, torna o ciclo impossível: ninguém
+      // pode esperar por nós antes desta linha. De quebra fecha a janela entre
+      // o DELETE e o `add constraint`, em que uma duplicata inserida por outro
+      // arquivo faria a própria DDL falhar.
+      // Ordem = a do cascade (posts → feed_slots), a mesma que qualquer outra
+      // transação percorre, então não há inversão possível entre as duas.
+      await client.query(
+        'lock table public.instagram_posts, public.instagram_feed_slots in access exclusive mode',
+      )
+
       // ── receita, passo 1: apagar as cópias extras (mantém a mais nova) ──
       await client.query(`
         delete from public.instagram_posts
