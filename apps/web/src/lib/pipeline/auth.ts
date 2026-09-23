@@ -19,14 +19,34 @@ const rateLimitMap = new Map<string, { count: number; window_start: number }>()
 const RATE_LIMIT = 100
 const WINDOW_MS = 60_000
 
+/**
+ * Hard ceiling on distinct hashes held in memory.
+ *
+ * The rate-limit bucket is keyed by sha256(header) and filled *before* the key is looked
+ * up, so an anonymous caller rotating `X-Pipeline-Key` mints a brand-new, non-expired
+ * entry on every request. Sweeping only expired entries never reclaims those, so the map
+ * grew without bound and the sweep itself turned into O(n) work on every request of every
+ * pipeline endpoint.
+ *
+ * At the ceiling we sweep expired entries first, and if that did not get us back under it
+ * we drop the whole map. 10k entries is ~2 MB — small next to a lambda's budget, and far
+ * above what the real key population (a handful) ever needs, so only an attacker reaches
+ * it. Clearing is the right response over evicting the oldest: the only cost to a
+ * legitimate caller is that its current 60 s window restarts early, which can loosen its
+ * limit for one window but never denies it a request; and it bounds the O(n) scan to once
+ * per RATE_LIMIT_MAX_ENTRIES insertions instead of once per request.
+ */
+export const RATE_LIMIT_MAX_ENTRIES = 10_000
+
 function checkRateLimit(keyHash: string): boolean {
   const now = Date.now()
   const entry = rateLimitMap.get(keyHash)
 
-  if (rateLimitMap.size > 1000) {
+  if (!entry && rateLimitMap.size >= RATE_LIMIT_MAX_ENTRIES) {
     for (const [key, val] of rateLimitMap) {
       if (now - val.window_start > WINDOW_MS) rateLimitMap.delete(key)
     }
+    if (rateLimitMap.size >= RATE_LIMIT_MAX_ENTRIES) rateLimitMap.clear()
   }
 
   if (!entry || now - entry.window_start > WINDOW_MS) {

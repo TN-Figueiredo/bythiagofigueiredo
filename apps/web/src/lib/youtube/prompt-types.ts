@@ -1,4 +1,5 @@
-import type { Axis, Grade, VideoLifecycle, TrendDirection, ChannelTier } from './scoring-types'
+import type { Axis, Grade, VideoLifecycle, TrendDirection, ChannelTier, UnavailableAxis } from './scoring-types'
+import type { CategoryPerformance } from './prompt-query-helpers'
 
 export type ContextPreset = 'content-calendar' | 'channel-health' | 'video-optimizer'
 
@@ -42,7 +43,8 @@ export interface PromptChannelInfo {
 export interface ContentCalendarData {
   channel: PromptChannelInfo
   searchTerms: { term: string; views: number; estimatedMinutesWatched: number }[]
-  topPerformingCategories: { categorySlug: string; categoryName: string; avgViews: number; avgRetention: number; videoCount: number }[]
+  /** `avgRetention` is omitted (not 0) when no video in the category has retention data. */
+  topPerformingCategories: CategoryPerformance[]
   demographics: { topAge: string; topCountry: string; topDevice: string }
   outlierSuccesses: OutlierRow[]
   bestPerformingDay: string | null
@@ -58,6 +60,8 @@ export interface ChannelHealthData {
   healthScore: {
     overall: number
     axes: { axis: Axis; score: number; grade: Grade; benchmark: number; weight: number }[]
+    /** Axes no video could be scored on. Not measured is not a low score. */
+    unavailableAxes: UnavailableAxis[]
   } | null
   topVideos: VideoGradeRow[]
   bottomVideos: VideoGradeRow[]
@@ -80,6 +84,7 @@ export interface VideoOptimizerData {
     score: number
     grade: Grade
     axes: { axis: Axis; score: number; channelMedian: number; status: 'above' | 'below' }[]
+    unavailableAxes: UnavailableAxis[]
     trend: TrendDirection
     streak: number
   }
@@ -90,7 +95,8 @@ export interface VideoOptimizerData {
   maxCycles: number
   cooldownUntil: string | null
   previousDiagnosis: string | null
-  channelBaseline: { medianCtr: number; medianRetention: number }
+  /** `null` = no peer video has the metric (not a 0% median). */
+  channelBaseline: { medianCtr: number | null; medianRetention: number | null }
   snapshotAt: string
   snapshotAgeHours: number
   truncated?: boolean
@@ -102,7 +108,8 @@ export interface VideoGradeRow {
   title: string
   score: number
   grade: Grade
-  retention: number
+  /** `null` = not measured. */
+  retention: number | null
   trend: TrendDirection
   lifecycleStage?: VideoLifecycle
 }

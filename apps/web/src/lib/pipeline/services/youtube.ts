@@ -7,7 +7,8 @@ import { BatchVariantUpsertSchema, TestTypeSchema } from '@/lib/youtube/ab-schem
 import { scoreVideo, computeBaseline, computeTrend, assignGrade } from '@/lib/youtube/scoring'
 import type { BaselineVideoInput } from '@/lib/youtube/scoring'
 import { fetchYtDemographics, fetchYtSearchTerms } from '@/lib/youtube/analytics-client'
-import type { VideoScoreInput, TrafficSources, TrendData } from '@/lib/youtube/scoring-types'
+import type { Axis, VideoScoreInput, TrafficSources, TrendData, UnavailableAxis } from '@/lib/youtube/scoring-types'
+import { latestRow } from '@/lib/youtube/rolling-window'
 import type { TestType, VariantMetadata } from '@/lib/youtube/ab-types'
 import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
@@ -211,13 +212,20 @@ export async function getIntelligenceSnapshot(
 ): Promise<ServiceResult<IntelSnapshot>> {
   const { supabase, siteId } = ctx
 
-  const { data: channel } = await supabase
+  const { data: channel, error: channelError } = await supabase
     .from('youtube_channels')
     .select('id, channel_id, name, subscriber_count')
     .eq('id', channelId)
     .eq('site_id', siteId)
     .single()
 
+  // Same rule as the analytics reads below: a DB error must never be flattened into a
+  // plain 404. single() reports zero rows as PGRST116 — that one really is "no such
+  // channel"; anything else (statement timeout, RLS failure) is an outage and owes a 500,
+  // so the forja retries instead of treating the channel as gone.
+  if (channelError && channelError.code !== 'PGRST116') {
+    return err('INTERNAL_ERROR', 'Failed to read the channel', 500)
+  }
   if (!channel) return err('NOT_FOUND', 'Channel not found', 404)
 
   const [videosRes, gradesRes, cyclesRes, abTestsRes, intelligenceRes] = await Promise.all([
@@ -254,6 +262,15 @@ export async function getIntelligenceSnapshot(
       .order('generated_at', { ascending: false })
       .limit(50),
   ])
+
+  // Same rule for the five parallel reads: PostgREST hands back `{data: null, error}` on a
+  // failure, and `?? []` below would turn each one into an empty array — a 200 snapshot the
+  // forja cannot tell apart from a channel with no videos, no grades and no history.
+  if (videosRes.error) return err('INTERNAL_ERROR', 'Failed to read the channel videos', 500)
+  if (gradesRes.error) return err('INTERNAL_ERROR', 'Failed to read the grade history', 500)
+  if (cyclesRes.error) return err('INTERNAL_ERROR', 'Failed to read the optimization cycles', 500)
+  if (abTestsRes.error) return err('INTERNAL_ERROR', 'Failed to read the A/B tests', 500)
+  if (intelligenceRes.error) return err('INTERNAL_ERROR', 'Failed to read the intelligence rows', 500)
 
   // Every analytics read is date-bounded and site-scoped. PostgREST caps at 1000 rows, and
   // with ~14 rows a day the whole history stops fitting around mid-November.
@@ -426,9 +443,13 @@ export async function submitIntelRecommendations(
   // Process video recommendations
   if (video_recommendations?.length) {
     const videoIds = video_recommendations.map(r => r.video_id)
+    // site_id is redundant today (task.channel_id already came from a site-scoped read),
+    // but it is the one query on this path that relied on that inference instead of
+    // stating the scope. Defense in depth: keep every service-client read explicit.
     const { data: existing, error: existingError } = await supabase
       .from('youtube_videos')
       .select('id')
+      .eq('site_id', siteId)
       .eq('channel_id', task.channel_id)
       .in('id', videoIds)
 
@@ -445,6 +466,12 @@ export async function submitIntelRecommendations(
     }
 
     for (const rec of video_recommendations) {
+      // `.maybeSingle()` is still safe HERE, unlike the channel path below: this read is
+      // keyed on a non-null `video_id`, and `idx_youtube_intelligence_dedup`
+      // (site_id, channel_id, video_id, source) WHERE video_id IS NOT NULL is still UNIQUE.
+      // Migration 20260922000001 only dropped the uniqueness of the CHANNEL index. The video
+      // analysis keeps overwriting itself on purpose — it is the per-video verdict, not a
+      // measurement series.
       const { data: existingIntel } = await supabase
         .from('youtube_intelligence')
         .select('id')
@@ -493,17 +520,23 @@ export async function submitIntelRecommendations(
     }
   }
 
-  // Process channel-level coaching/insights
+  // Process channel-level coaching/insights.
+  //
+  // ALWAYS INSERT — never update. Migration 20260922000001 dropped the UNIQUE from
+  // `idx_youtube_intelligence_channel_dedup` so the channel analysis ACCUMULATES, like
+  // `video_grade_history` / `playlist_snapshots` / `competitor_channel_snapshots` /
+  // `content_pipeline_history` already do. The old read-then-update-or-insert meant the
+  // weekly run overwrote the previous one: no trend, and a bad run destroyed the good
+  // measurement before it. Each submit is now one immutable row stamped with its own
+  // `generated_at`; `fetchChannelCoaching` reads the newest per source.
+  //
+  // Note the read that USED to be here is gone on purpose, not just unused: `.maybeSingle()`
+  // ERRORS (PGRST116) when the query matches more than one row, so keeping it would have
+  // broken on the second run of every source.
+  //
+  // The video-level path above keeps its update-in-place: `idx_youtube_intelligence_dedup`
+  // (WHERE video_id IS NOT NULL) is still UNIQUE and this change is channel-scoped only.
   if (coaching || channel_insights) {
-    const { data: existingChannel } = await supabase
-      .from('youtube_intelligence')
-      .select('id')
-      .eq('site_id', siteId)
-      .eq('channel_id', task.channel_id)
-      .is('video_id', null)
-      .eq('source', source)
-      .maybeSingle()
-
     const channelPayload = {
       site_id: siteId,
       channel_id: task.channel_id,
@@ -516,18 +549,10 @@ export async function submitIntelRecommendations(
       generated_at: new Date().toISOString(),
     }
 
-    if (existingChannel) {
-      const { error } = await supabase.from('youtube_intelligence').update(channelPayload).eq('id', existingChannel.id)
-      if (error) {
-        Sentry.captureMessage(`channel intelligence update failed: ${error.message}`)
-        dbTargets.push('channel: write_failed')
-      }
-    } else {
-      const { error } = await supabase.from('youtube_intelligence').insert(channelPayload)
-      if (error) {
-        Sentry.captureMessage(`channel intelligence insert failed: ${error.message}`)
-        dbTargets.push('channel: write_failed')
-      }
+    const { error } = await supabase.from('youtube_intelligence').insert(channelPayload)
+    if (error) {
+      Sentry.captureMessage(`channel intelligence insert failed: ${error.message}`)
+      dbTargets.push('channel: write_failed')
     }
   }
 
@@ -1779,12 +1804,21 @@ export interface VideoAxisDetail {
 export interface VideoDetailResult {
   id: string
   title: string
+  /** Only measured axes. An absent axis is listed in `unavailableAxes`, never scored 0. */
   axes: VideoAxisDetail[]
+  unavailableAxes: UnavailableAxis[]
   retentionCurve: unknown
   trafficSources: unknown
   optimizationState: string | null
   trend: TrendData
   gradeHistory: Array<{ week: string; score: number }>
+}
+
+/** A DB numeric that may be NULL: NULL stays `null` (not measured), never 0. */
+function nullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
 }
 
 /** Fetch a single video with full 6-axis scoring breakdown, retention, traffic, optimization state, and grade trend. */
@@ -1864,21 +1898,24 @@ export async function getVideoDetail(
   const viewCount = video.view_count ?? 0
   const likeCount = video.like_count ?? 0
   const commentCount = video.comment_count ?? 0
-  const totalImpressions = video.impressions ?? 0
-  const engagementRate = viewCount > 0 ? ((likeCount + commentCount) / viewCount) * 100 : 0
-  const subscribersGained = dailyRows.reduce((s: number, r: { subscribers_gained?: number }) => s + (r.subscribers_gained ?? 0), 0)
+  // No views = no engagement measurement; the axis drops out instead of scoring 0.
+  const engagementRate = viewCount > 0 ? ((likeCount + commentCount) / viewCount) * 100 : null
+  // Newest row = current rolling-window total; rows must not be summed.
+  const newestRow = latestRow(dailyRows as Array<{ date: string; views: number; subscribers_gained?: number }>)
+  const subscribersGained = newestRow?.subscribers_gained ?? 0
 
-  const dailyViews = dailyRows.map((r: { date: string; views: number }) => ({ date: r.date, views: r.views }))
+  const rollingViews = dailyRows.map((r: { date: string; views: number }) => ({ date: r.date, windowViews: r.views }))
 
   const scoreInput: VideoScoreInput = {
     videoId,
     publishedAt: video.published_at,
-    ctr: Number(video.ctr) || 0,
-    avgViewPercentage: Number(video.avg_view_percentage) || 0,
-    impressions: totalImpressions,
+    // NULL stays NULL: `Number(x) || 0` turned "never measured" into a score.
+    ctr: nullableNumber(video.ctr),
+    avgViewPercentage: nullableNumber(video.avg_view_percentage),
+    impressions: nullableNumber(video.impressions),
     trafficSources: (video.traffic_sources as TrafficSources) ?? null,
     engagementRate,
-    dailyViews,
+    rollingViews,
     subscribersGained,
     viewCount,
   }
@@ -1886,12 +1923,13 @@ export async function getVideoDetail(
   const videoScore = scoreVideo(scoreInput, baseline)
 
   // Map axes with channel medians
+  // No `growth` entry: the axis is not scored (see GROWTH_UNAVAILABLE), so it
+  // never appears in `videoScore.axes` and needs no median.
   const medianMap: Record<string, number> = {
     ctr: baseline.medianCtr,
     retention: baseline.medianRetention,
     reach: baseline.medianReach,
     engagement: baseline.medianEngagement,
-    growth: baseline.medianGrowth,
     sub_impact: baseline.medianSubImpact,
   }
 
@@ -1913,6 +1951,7 @@ export async function getVideoDetail(
     id: video.id,
     title: video.title,
     axes,
+    unavailableAxes: videoScore.unavailableAxes,
     retentionCurve: video.retention_curve,
     trafficSources: video.traffic_sources,
     optimizationState,
@@ -2043,18 +2082,27 @@ export interface HealthAxis {
 export interface AnalyticsOverview {
   health: {
     overall: number
+    /** Only axes at least one video was scored on. */
     axes: HealthAxis[]
+    /**
+     * Axes NO video could be scored on, with the reason. An axis here is "not
+     * measured", which is not the same claim as a low score — so it is never
+     * reported in `axes` with a 0.
+     */
+    unavailableAxes: UnavailableAxis[]
   }
   kpis: {
     views: number
     watchTime: number
     subscribers: number
-    avgCtr: number
-    avgRetention: number
+    /** `null` = no video has a ctr (the YouTube Analytics API v2 does not serve it). */
+    avgCtr: number | null
+    /** `null` = no video has avg_view_percentage. */
+    avgRetention: number | null
   }
   baseline: {
-    medianCtr: number
-    medianRetention: number
+    medianCtr: number | null
+    medianRetention: number | null
   }
 }
 
@@ -2092,9 +2140,9 @@ export async function getAnalyticsOverview(
 
   if (!videos?.length) {
     return ok({
-      health: { overall: 0, axes: [] },
-      kpis: { views: 0, watchTime: 0, subscribers: 0, avgCtr: 0, avgRetention: 0 },
-      baseline: { medianCtr: 0, medianRetention: 0 },
+      health: { overall: 0, axes: [], unavailableAxes: [] },
+      kpis: { views: 0, watchTime: 0, subscribers: 0, avgCtr: null, avgRetention: null },
+      baseline: { medianCtr: null, medianRetention: null },
     })
   }
 
@@ -2118,25 +2166,31 @@ export async function getAnalyticsOverview(
   const baseline = computeBaseline(videos, dailyByVideo, channel.subscriber_count ?? 0)
 
   const axisAccum: Record<string, { total: number; count: number }> = {}
+  const unavailableByAxis = new Map<Axis, UnavailableAxis>()
   let overallSum = 0
 
   for (const video of videos) {
     const daily = dailyByVideo.get(video.id) ?? []
-    const totalViews = daily.reduce((s, d) => s + d.views, 0)
-    const totalEng = daily.reduce((s, d) => s + d.likes + d.comments + d.shares, 0)
-    const totalSubs = daily.reduce((s, d) => s + d.subscribers_gained, 0)
+    // Each row is the total over the rolling sync window; the newest row IS the
+    // window total. Summing rows counted the same views once per sync date.
+    const newest = latestRow(daily)
+    const totalViews = newest?.views ?? 0
+    const totalEng = newest ? newest.likes + newest.comments + newest.shares : 0
+    const totalSubs = newest?.subscribers_gained ?? 0
 
     const input: VideoScoreInput = {
       videoId: video.id,
       publishedAt: video.published_at ?? new Date().toISOString(),
-      ctr: video.ctr ?? 0,
-      avgViewPercentage: video.avg_view_percentage ?? 0,
-      impressions: video.impressions ?? 0,
+      // NULL passes through: `?? 0` scored CTR ~63 and retention 99 for every
+      // video, because with all of them NULL the channel medians are 0 too.
+      ctr: video.ctr,
+      avgViewPercentage: video.avg_view_percentage,
+      impressions: video.impressions,
       trafficSources: (video.traffic_sources && typeof video.traffic_sources === 'object' && !Array.isArray(video.traffic_sources))
         ? video.traffic_sources as VideoScoreInput['trafficSources']
         : null,
-      engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : 0,
-      dailyViews: daily.map(d => ({ date: d.date, views: d.views })),
+      engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : null,
+      rollingViews: daily.map(d => ({ date: d.date, windowViews: d.views })),
       subscribersGained: totalSubs,
       viewCount: video.view_count ?? 0,
     }
@@ -2150,7 +2204,14 @@ export async function getAnalyticsOverview(
       acc.count++
       axisAccum[a.axis] = acc
     }
+    for (const u of scored.unavailableAxes) {
+      if (!unavailableByAxis.has(u.axis)) unavailableByAxis.set(u.axis, u)
+    }
   }
+
+  // Channel-level: unavailable only if NO video could be scored on it.
+  const unavailableAxes: UnavailableAxis[] = [...unavailableByAxis.values()]
+    .filter(u => axisAccum[u.axis] === undefined)
 
   const axes: HealthAxis[] = Object.entries(axisAccum).map(([axis, acc]) => {
     const score = Math.round(acc.total / acc.count)
@@ -2159,14 +2220,25 @@ export async function getAnalyticsOverview(
 
   const overallHealth = Math.round(overallSum / videos.length)
 
-  const allDaily = Array.from(dailyByVideo.values()).flat()
-  const totalViews = allDaily.reduce((s, d) => s + d.views, 0)
-  const totalSubs = allDaily.reduce((s, d) => s + d.subscribers_gained, 0)
+  // Channel KPIs: one contribution per video (its current window total), never
+  // one per sync date. Summing every row is the "428 views in 28 days" bug —
+  // measured on 2026-09-22 it reported 543 where the truth was 32.
+  let totalViews = 0
+  let totalSubs = 0
+  for (const rows of dailyByVideo.values()) {
+    const newest = latestRow(rows)
+    if (newest === null) continue
+    totalViews += newest.views
+    totalSubs += newest.subscribers_gained
+  }
 
-  const ctrs = videos.map(v => v.ctr ?? 0).filter(c => c > 0)
-  const retentions = videos.map(v => v.avg_view_percentage ?? 0).filter(r => r > 0)
-  const avgCtr = ctrs.length > 0 ? ctrs.reduce((a, b) => a + b, 0) / ctrs.length : 0
-  const avgRetention = retentions.length > 0 ? retentions.reduce((a, b) => a + b, 0) / retentions.length : 0
+  // `null` when nothing was measured: a `0` in an API response is a claim
+  // ("the channel's CTR is 0%"), not an absence of data.
+  const ctrs = videos.map(v => v.ctr).filter((c): c is number => c !== null && c > 0)
+  const retentions = videos.map(v => v.avg_view_percentage).filter((r): r is number => r !== null && r > 0)
+  const avgCtr = ctrs.length > 0 ? ctrs.reduce((a, b) => a + b, 0) / ctrs.length : null
+  const avgRetention = retentions.length > 0 ? retentions.reduce((a, b) => a + b, 0) / retentions.length : null
+  const round2 = (n: number | null) => (n === null ? null : Math.round(n * 100) / 100)
 
   const watchTime = videos.reduce((s, v) => {
     const dur = (v.avg_view_duration_seconds as number | null) ?? 0
@@ -2174,17 +2246,18 @@ export async function getAnalyticsOverview(
   }, 0)
 
   return ok({
-    health: { overall: overallHealth, axes },
+    health: { overall: overallHealth, axes, unavailableAxes },
     kpis: {
       views: totalViews,
       watchTime: Math.round(watchTime / 60),
       subscribers: totalSubs,
-      avgCtr: Math.round(avgCtr * 100) / 100,
-      avgRetention: Math.round(avgRetention * 100) / 100,
+      avgCtr: round2(avgCtr),
+      avgRetention: round2(avgRetention),
     },
     baseline: {
-      medianCtr: Math.round(baseline.medianCtr * 100) / 100,
-      medianRetention: Math.round(baseline.medianRetention * 100) / 100,
+      // computeBaseline returns 0 for an empty median; here that means "no data".
+      medianCtr: ctrs.length > 0 ? round2(baseline.medianCtr) : null,
+      medianRetention: retentions.length > 0 ? round2(baseline.medianRetention) : null,
     },
   })
 }
@@ -2199,8 +2272,10 @@ export interface VideoGradeRow {
   score: number
   grade: string
   trend: { direction: string; velocity: number }
-  ctr: number
-  retention: number
+  /** `null` = not measured (never 0 as a stand-in). */
+  ctr: number | null
+  /** `null` = not measured (never 0 as a stand-in). */
+  retention: number | null
   views: number
   published_at: string
 }
@@ -2279,21 +2354,24 @@ export async function getAnalyticsGrades(
   const scored: VideoGradeRow[] = videos.map(video => {
     const daily = dailyByVideo.get(video.id) ?? []
     const last28 = daily.filter(d => new Date(d.date).getTime() > Date.now() - 28 * 86400000)
-    const totalViews = last28.reduce((s, d) => s + d.views, 0)
-    const totalEng = last28.reduce((s, d) => s + d.likes + d.comments + d.shares, 0)
-    const totalSubs = last28.reduce((s, d) => s + d.subscribers_gained, 0)
+    const newest = latestRow(last28)
+    const totalViews = newest?.views ?? 0
+    const totalEng = newest ? newest.likes + newest.comments + newest.shares : 0
+    const totalSubs = newest?.subscribers_gained ?? 0
 
     const input: VideoScoreInput = {
       videoId: video.id,
       publishedAt: video.published_at ?? new Date().toISOString(),
-      ctr: video.ctr ?? 0,
-      avgViewPercentage: video.avg_view_percentage ?? 0,
-      impressions: video.impressions ?? 0,
+      // NULL passes through: `?? 0` scored CTR ~63 and retention 99 for every
+      // video, because with all of them NULL the channel medians are 0 too.
+      ctr: video.ctr,
+      avgViewPercentage: video.avg_view_percentage,
+      impressions: video.impressions,
       trafficSources: (video.traffic_sources && typeof video.traffic_sources === 'object' && !Array.isArray(video.traffic_sources))
         ? video.traffic_sources as VideoScoreInput['trafficSources']
         : null,
-      engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : 0,
-      dailyViews: last28.map(d => ({ date: d.date, views: d.views })),
+      engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : null,
+      rollingViews: last28.map(d => ({ date: d.date, windowViews: d.views })),
       subscribersGained: totalSubs,
       viewCount: video.view_count ?? 0,
     }
@@ -2308,8 +2386,8 @@ export async function getAnalyticsGrades(
       score: Math.round(result.overall * 10) / 10,
       grade: result.grade,
       trend: { direction: trend.direction, velocity: Math.round(trend.velocity * 10) / 10 },
-      ctr: Math.round((video.ctr ?? 0) * 100) / 100,
-      retention: Math.round((video.avg_view_percentage ?? 0) * 100) / 100,
+      ctr: video.ctr === null ? null : Math.round(video.ctr * 100) / 100,
+      retention: video.avg_view_percentage === null ? null : Math.round(video.avg_view_percentage * 100) / 100,
       views: video.view_count ?? 0,
       published_at: video.published_at ?? '',
     }

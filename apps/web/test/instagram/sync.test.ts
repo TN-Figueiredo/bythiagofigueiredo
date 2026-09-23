@@ -231,25 +231,45 @@ describe('syncInstagramAccount', () => {
   it('aborts a hung download and closes the batch on the remaining deadline', async () => {
     // Prova que o prazo limita o LOTE, não só o intervalo entre lotes: o fetch
     // nunca resolve e só termina pelo próprio AbortSignal.timeout.
-    mockFetch.mockImplementation((_url: string, init?: { signal?: AbortSignal }) =>
-      new Promise((_resolve, reject) => {
-        init?.signal?.addEventListener('abort', () => reject(new Error('TimeoutError')))
-      }),
-    )
-    mockFetchMedia.mockResolvedValueOnce([{
-      // Deviation (documented in the block report): numeric-only id.
-      id: '10000000000004', media_type: 'IMAGE', media_url: 'https://scontent.cdninstagram.com/1.jpg',
-      caption: null, permalink: 'p1', like_count: 0, comments_count: 0,
-      timestamp: '2026-05-01T00:00:00+0000',
-    }])
-    const { supabase } = mockSupabase()
-    const result = await syncInstagramAccount(
-      supabase as never, makeAccount(), 'tok', { deadlineAt: Date.now() + 1_000 },
-    )
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-    expect(mockBlobPut).not.toHaveBeenCalled()
-    expect(result.partial).toBe(true)
-    expect(result.mediaFailed).toBe(1)
+    //
+    // O relógio é congelado (`toFake: ['Date']` — setTimeout continua REAL, é
+    // dele que o AbortSignal.timeout depende). Com `deadlineAt = now + 1_000` e
+    // `Date.now()` parado, a checagem de prazo que roda ANTES do lote
+    // (cacheImagesInBatches) é deterministicamente falsa. Com o relógio de
+    // parede ela não era: bastava o event loop engasgar 1 s entre montar o
+    // `deadlineAt` e entrar no laço — coisa rotineira na suíte inteira, com 8+
+    // workers disputando CPU — para o lote nem começar, `mockFetch` ficar com
+    // zero chamadas e o caso falhar. Sozinho ele sempre passava; era esse o
+    // sintoma. O relógio só avança no instante do abort, que é exatamente o que
+    // o caso descreve: o lote fecha porque o prazo venceu DURANTE o download.
+    const now = Date.now()
+    vi.useFakeTimers({ now, toFake: ['Date'] })
+    try {
+      mockFetch.mockImplementation((_url: string, init?: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            vi.setSystemTime(now + 2_000)
+            reject(new Error('TimeoutError'))
+          })
+        }),
+      )
+      mockFetchMedia.mockResolvedValueOnce([{
+        // Deviation (documented in the block report): numeric-only id.
+        id: '10000000000004', media_type: 'IMAGE', media_url: 'https://scontent.cdninstagram.com/1.jpg',
+        caption: null, permalink: 'p1', like_count: 0, comments_count: 0,
+        timestamp: '2026-05-01T00:00:00+0000',
+      }])
+      const { supabase } = mockSupabase()
+      const result = await syncInstagramAccount(
+        supabase as never, makeAccount(), 'tok', { deadlineAt: now + 1_000 },
+      )
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      expect(mockBlobPut).not.toHaveBeenCalled()
+      expect(result.partial).toBe(true)
+      expect(result.mediaFailed).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
   }, 10_000)
 
   it('throws when the posts upsert fails', async () => {

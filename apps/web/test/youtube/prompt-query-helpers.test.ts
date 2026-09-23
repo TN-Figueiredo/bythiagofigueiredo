@@ -5,6 +5,7 @@ import {
   computeBestPerformingDay,
   computeBestPerformingHour,
 } from '@/lib/youtube/prompt-query-helpers'
+import { serializeContentCalendarContext } from '@/lib/youtube/prompt-builders'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -92,7 +93,7 @@ describe('aggregateCategoryPerformance', () => {
     expect(result[2]!.avgRetention).toBe(80)
   })
 
-  it('handles null avg_view_percentage by treating as 0', () => {
+  it('averages retention only over the videos that have it, and says how many', () => {
     const videos = [
       makeVideo({ category_id: 'cat-a', view_count: 100, avg_view_percentage: null }),
       makeVideo({ category_id: 'cat-a', view_count: 100, avg_view_percentage: 60 }),
@@ -101,8 +102,45 @@ describe('aggregateCategoryPerformance', () => {
     const result = aggregateCategoryPerformance(videos, defaultMap)
 
     expect(result).toHaveLength(1)
-    // (0 + 60) / 2 = 30
-    expect(result[0]!.avgRetention).toBe(30)
+    // 60 over the one measured video — not (0 + 60) / 2 = 30
+    expect(result[0]!.avgRetention).toBe(60)
+    expect(result[0]!.retentionVideoCount).toBe(1)
+    expect(result[0]!.videoCount).toBe(2)
+  })
+
+  it('production shape (avg_view_percentage NULL everywhere): the prompt says nothing about retention', () => {
+    // 2026-09-22: 0 of 35 production videos have avg_view_percentage — the
+    // analytics sync never requests it. "avgRetention: 0" in a prompt is read
+    // by the model as "nobody watches past the first second".
+    const videos = [
+      makeVideo({ category_id: 'cat-a', view_count: 900, avg_view_percentage: null }),
+      makeVideo({ category_id: 'cat-a', view_count: 300, avg_view_percentage: null }),
+      makeVideo({ category_id: 'cat-b', view_count: 200, avg_view_percentage: null }),
+    ]
+
+    const result = aggregateCategoryPerformance(videos, defaultMap)
+
+    expect(result).toHaveLength(2)
+    for (const cat of result) {
+      expect('avgRetention' in cat).toBe(false)
+      expect('retentionVideoCount' in cat).toBe(false)
+    }
+    expect(result[0]!.avgViews).toBe(600)
+
+    const json = serializeContentCalendarContext({
+      channel: { name: 'C', subscribers: 100, videoCount: 35, tier: 'nano' },
+      searchTerms: [],
+      topPerformingCategories: result,
+      demographics: { topAge: '25-34', topCountry: 'BR', topDevice: 'mobile' },
+      outlierSuccesses: [],
+      bestPerformingDay: null,
+      bestPerformingHour: null,
+      recentUploads: [],
+      snapshotAt: new Date().toISOString(),
+      snapshotAgeHours: 1,
+    })
+    expect(json).toContain('"avgViews": 600')
+    expect(json).not.toMatch(/retention/i)
   })
 
   it('caps results at 5 categories', () => {

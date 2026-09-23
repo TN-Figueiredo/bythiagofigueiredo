@@ -75,7 +75,19 @@ interface Props {
   channelInternalId?: string
   intelligenceVideos?: VideoGradeRow[]
   intelligenceOutliers?: OutlierVideo[]
-  channelCoaching?: { coaching: CoachingOutput; source: 'cowork' | 'forja'; generatedLabel: string } | null
+  /**
+   * `cards` is the analysis the coaching cards come from, set only when it is NOT the row
+   * carrying the banner — the forja writes a summary with `priorities: []` by design, and
+   * without it the newest row buries the last analysis that had cards. Mirrors
+   * ChannelCoachingResult in ../actions.ts (re-declared, not imported: a client component
+   * must not reach into a 'use server' module).
+   */
+  channelCoaching?: {
+    coaching: CoachingOutput
+    source: 'cowork' | 'forja'
+    generatedLabel: string
+    cards?: { coaching: CoachingOutput; source: 'cowork' | 'forja'; generatedLabel: string } | null
+  } | null
   notes?: NoteEntry[]
   healthScore?: number
   onCreateNote?: (input: { channelId: string; text: string }) => Promise<{ ok: boolean; error?: string }>
@@ -161,8 +173,16 @@ export function YtAnalyticsTabs({
     () => intelligenceVideos ? computeRadarData(intelligenceVideos) : [],
     [intelligenceVideos]
   )
+  const unavailableAxes = useMemo(
+    () => intelligenceVideos ? computeUnavailableAxes(intelligenceVideos) : [],
+    [intelligenceVideos]
+  )
   const coachingCards = useMemo(
-    () => computeCoachingCards(intelligenceVideos ?? [], channelCoaching?.coaching ?? null),
+    () => computeCoachingCards(
+      intelligenceVideos ?? [],
+      channelCoaching?.coaching ?? null,
+      channelCoaching?.cards?.coaching ?? null,
+    ),
     [intelligenceVideos, channelCoaching]
   )
 
@@ -176,6 +196,10 @@ export function YtAnalyticsTabs({
           source: channelCoaching.source,
           generatedLabel: channelCoaching.generatedLabel,
           summary: typeof channelCoaching.coaching.summary === 'string' ? channelCoaching.coaching.summary : '',
+          // Null whenever banner and cards are the same analysis, so the label prints one
+          // provenance, never the same source and date twice.
+          cardsSource: channelCoaching.cards?.source ?? null,
+          cardsGeneratedLabel: channelCoaching.cards?.generatedLabel ?? null,
         }
       : null,
     [channelCoaching],
@@ -295,6 +319,7 @@ export function YtAnalyticsTabs({
               dailyMetrics={dailyMetrics}
               intelligenceHealthScore={healthScore}
               intelligenceRadar={radarData.length > 0 ? radarData : undefined}
+              intelligenceUnavailable={unavailableAxes}
             />
           )
         )}
@@ -310,6 +335,7 @@ export function YtAnalyticsTabs({
           <YtHealthCoach
             healthScore={healthScore ?? 0}
             radarData={radarData}
+            unavailableAxes={unavailableAxes}
             coachingCards={coachingCards}
             videoCount={intelligenceVideos?.length ?? 0}
             lastAnalysisAt={lastAnalysisAt ?? null}
@@ -324,7 +350,7 @@ export function YtAnalyticsTabs({
             : intelligenceVideos && intelligenceVideos.length > 0
               ? <YtOutliersV2
                   outliers={[]}
-                  hasAnalyticsData={intelligenceVideos.some(v => v.avgViewPercentage > 0 || (v.trafficSources !== null && Object.keys(v.trafficSources).length > 0))}
+                  hasAnalyticsData={intelligenceVideos.some(v => (v.avgViewPercentage !== null && v.avgViewPercentage > 0) || (v.trafficSources !== null && Object.keys(v.trafficSources).length > 0))}
                 />
               : <YtOutliers grades={grades} />
         )}
@@ -335,13 +361,60 @@ export function YtAnalyticsTabs({
   )
 }
 
-function computeRadarData(videos: VideoGradeRow[]): Array<{ label: string; value: number; grade: string }> {
+export function computeRadarData(videos: VideoGradeRow[]): Array<{ label: string; value: number; grade: string }> {
   const axes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
-  return axes.map(axis => {
-    const scores = videos.map(v => v.axes.find(a => a.axis === axis)?.normalized ?? 0)
-    const avg = scores.length > 0 ? scores.reduce((s, v) => s + v, 0) / scores.length : 0
+  // Same rule as `computeCoachingCards` below: an axis missing from a video's
+  // `axes` was not measured, so it is left out — `?? 0` would draw a spoke at
+  // zero and make "we never measured growth" look like "growth is terrible".
+  return axes.flatMap(axis => {
+    const scores = videos
+      .map(v => v.axes.find(a => a.axis === axis))
+      .filter((a): a is NonNullable<typeof a> => a !== undefined)
+      .map(a => a.normalized)
+    if (scores.length === 0) return []
+    const avg = scores.reduce((s, v) => s + v, 0) / scores.length
     const grade = avg >= 85 ? 'A' : avg >= 65 ? 'B' : avg >= 40 ? 'C' : 'D'
-    return { label: AXIS_LABELS[axis], value: avg, grade }
+    return [{ label: AXIS_LABELS[axis], value: avg, grade }]
+  })
+}
+
+/**
+ * What the screen says in place of a score, per axis. The scoring reasons are
+ * written for engineers (and the Cowork API); this is the owner-facing short
+ * form, with the technical reason kept for the tooltip.
+ */
+const UNAVAILABLE_NOTES: Record<Axis, string> = {
+  ctr: 'a API do YouTube nao fornece CTR',
+  retention: 'o sync nao coleta a % assistida',
+  reach: 'sem dado de alcance',
+  engagement: 'nenhum video com analytics na janela',
+  growth: 'o historico guarda totais, nao views diarias',
+  sub_impact: 'a API do YouTube nao fornece impressoes',
+}
+
+export interface UnavailableAxisView {
+  axis: Axis
+  label: string
+  note: string
+  reason: string
+}
+
+/**
+ * Axes that NO video could be scored on — the channel-level counterpart of
+ * `VideoScore.unavailableAxes`. They are listed as "indisponivel" instead of
+ * vanishing from the radar (which hides that anything is missing) or being
+ * averaged in as 0 (which claims the channel is bad at them). An axis that at
+ * least one video has a score on is measured, and belongs to the radar.
+ */
+export function computeUnavailableAxes(videos: VideoGradeRow[]): UnavailableAxisView[] {
+  const axes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
+  return axes.flatMap(axis => {
+    if (videos.some(v => v.axes.some(a => a.axis === axis))) return []
+    const reported = videos
+      .flatMap(v => v.unavailableAxes)
+      .find(u => u.axis === axis)
+    if (reported === undefined) return []
+    return [{ axis, label: AXIS_LABELS[axis], note: UNAVAILABLE_NOTES[axis], reason: reported.reason }]
   })
 }
 
@@ -376,6 +449,13 @@ const COACHING_DIAGNOSTICS: Record<Axis, { diagnosis: string; action: string }> 
 export function computeCoachingCards(
   videos: VideoGradeRow[],
   channelCoaching: CoachingOutput | null,
+  /**
+   * The newest analysis that carries priorities, when that is not `channelCoaching` itself.
+   * Kept separate because the two arguments answer different questions: `channelCoaching`
+   * answers "does a real analysis exist?" (its presence is what suppresses the heuristic),
+   * this one answers "which analysis has cards to show?".
+   */
+  prioritiesCoaching: CoachingOutput | null = null,
 ): Array<{
   axis: Axis
   score: number
@@ -390,7 +470,10 @@ export function computeCoachingCards(
   // of a real analysis. `?? []` because `coaching` is an `as CoachingOutput` over jsonb —
   // a row written before this commit never went through Zod.
   if (channelCoaching != null) {
-    return (channelCoaching.priorities ?? [])
+    // A forja row is a real analysis with `priorities: []` — it suppresses the heuristic (the
+    // guard above) but has no cards of its own, so the cards come from the newest analysis
+    // that has them. Falling back to `channelCoaching` keeps the single-row case identical.
+    return ((prioritiesCoaching ?? channelCoaching).priorities ?? [])
       .map(p => ({
         axis: p.axis,
         score: p.score,
@@ -404,14 +487,26 @@ export function computeCoachingCards(
       .slice(0, 3)
   }
 
+  // Every card asserts something concrete and negative about the channel, so it needs a
+  // sample behind it. `?? 0` used to collapse "this video has no score on this axis" into
+  // "this video scores 0": a channel with zero videos averaged 0 on all six axes, all six
+  // cleared the < 6.5 filter, and the tab badge said 3 while the panel below said "Nenhuma
+  // analise ... disponivel ainda". `VideoGradeRow.axes` carries a non-nullable `normalized`,
+  // so absence is expressed by the entry missing from the array — `find()` returning
+  // undefined is the distinction, and it is the one preserved here. A video that genuinely
+  // scores 0 on an axis is a sample and still earns its card.
   const axes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
   return axes
-    .map(axis => {
-      const scores = videos.map(v => v.axes.find(a => a.axis === axis)?.normalized ?? 0)
-      const avg = scores.length > 0 ? scores.reduce((s, v) => s + v, 0) / scores.length : 0
+    .flatMap(axis => {
+      const scores = videos
+        .map(v => v.axes.find(a => a.axis === axis))
+        .filter((a): a is { axis: Axis; normalized: number } => a !== undefined)
+        .map(a => a.normalized)
+      if (scores.length === 0) return []
+      const avg = scores.reduce((s, v) => s + v, 0) / scores.length
       const normalized10 = avg / 10
       const coaching = COACHING_DIAGNOSTICS[axis]
-      return {
+      return [{
         axis,
         score: Math.round(normalized10 * 10) / 10,
         benchmark: COACHING_BENCHMARK,
@@ -419,7 +514,7 @@ export function computeCoachingCards(
         diagnosis: coaching.diagnosis,
         action: coaching.action,
         source: 'fallback' as const,
-      }
+      }]
     })
     .filter(c => c.score < COACHING_BENCHMARK)
     .sort((a, b) => a.score - b.score)

@@ -86,6 +86,7 @@ Convenção: `describe.skipIf(skipIfNoLocalDb())('<suite>', () => { ... })`. Int
 - **Fix que exige mudança em teste vai no MESMO commit do bump** (bisectabilidade — a árvore nunca fica com testes vermelhos).
 - **Next 16: nunca passar `next/link` (ou qualquer componente importado num Server Component) como prop para um client component.** Em Server Components `next/link` resolve para o build react-server (função, não client reference) → `Functions cannot be passed directly to Client Components` → `/cms` em 500 (2026-09-06). Envolva num módulo `'use client'` (`src/app/cms/(authed)/_shared/cms-link.tsx`).
 - **Upgrade de framework/pacote que toca o CMS exige validação AUTENTICADA antes da promoção** — CI, `next build` e smoke público não têm sessão. Receita de 5 min: `docs/ops/runbook-cms-e2e-local.md`.
+- **Um ramo-padrão de variável de ambiente que todo teste sobrescreve nunca é exercitado.** `os.environ.get('X') or <default>` (ou `process.env.X ?? <default>`) com **todos** os testes setando `X` significa que o `<default>` — o único caminho que a produção usa — nunca roda. A suíte fica verde e a produção quebra no primeiro boot. Custou um crashloop de cron na forja em 22/09 com **687 asserções verdes**: o worker resolvia `sitio.py` pelo fallback de `AGENTE_SITIO`, e todo teste passava `AGENTE_SITIO` explicitamente. **Regra:** ao ler env com fallback, escreva um teste que **apaga** a variável (`delete process.env.X` / `monkeypatch.delenv`) e afirma sobre o valor padrão. Vale igual para "invocação sem a flag" — `--sombra` sem `--snapshot` estourou `TypeError` pelo mesmo motivo: o grupo de testes sempre passava a flag.
 
 ## Database RLS helpers
 
@@ -144,6 +145,40 @@ Links: `LINKS_SHORT_DOMAIN` (string)
 Tracking: `GEO_PROVIDER` (string — default `auto`, set `stub` for dev/test)
 Ads: `AD_GOOGLE_ENABLED`, `AD_TRACKING_ENABLED`, `AD_REVENUE_SYNC_ENABLED` (require external Google setup)
 YouTube A/B Lab: `AB_AUTO_APPLY_WINNER` (default off — a confiança bayesiana do teste roda sobre cliques que são sempre zero, então o vencedor é só sugerido e espera confirmação humana antes de ser aplicado no canal)
+
+## A forja — fila de inteligência do YouTube (em produção desde 2026-09-22)
+
+Uma máquina Ubuntu na casa do dono (`ssh forja`, usuário `thiago`) drena a cada 10 min, por **cron
+do `thiago`**, a fila `youtube_intelligence_tasks` do site: claim → snapshot → **Gemma 12B local** →
+validador → `PATCH /api/pipeline/youtube/intelligence` → Health Coach. É o único consumidor da fila.
+
+| | |
+|---|---|
+| Worker | `/opt/agente/docs/trilha/fila_intel.py` (cópia única) · venv em `/opt/agente/venv` |
+| Segredo | `/opt/agente/fila_intel.env` 0600 — `SITIO_CHAVE_FILA`, `CANAIS_FILA` |
+| Log | `/opt/agente/log/fila_intel.jsonl` (1 linha por execução) · `.err` = traceback |
+| Vigilância | bloco no `pulso.sh` → check `URL_FILA` no healthchecks (período 1 h, grace 45 min), **separado** do principal |
+| Chave no site | `pipeline_api_keys` `name='forja (fila)'`, escopo `{read,intelligence}` |
+| Escopo da fase 2a | **só views e séries** — sem CTR, sem retenção, sem recomendação por vídeo |
+
+- **Runbook (desligar, religar, trocar a chave, canal EN, ler o jsonl, `URL_FILA` vermelho, "o texto
+  saiu pobre"): `docs/ops/forja-fila-inteligencia-runbook.md`.** Spec e plano em
+  `docs/superpowers/{specs,plans}/2026-09-1{8,9}-forja-fila-inteligencia-*`; o que de fato aconteceu
+  está no ledger `.superpowers/sdd/2026-09-19-forja-fila-inteligencia-plan/progress.md`.
+- **O kit da forja é `~/Workspace/forja/ferramentas` — git LOCAL, sem remoto.** Se o Mac morrer, o
+  único backup é a cópia na forja, e ela **já está atrás** (dois commits nunca instalados, §2 do
+  runbook). Toda mudança no kit termina em `git commit -- <caminhos>`.
+- **Escrita na forja é do dono, sem exceção.** Nenhum agente roda `ssh forja '<escreve>'`, `scp` para
+  a forja, `crontab -`, `install`, `mv` ou `systemctl` lá. O agente **prepara** os comandos — curtos,
+  **um por linha** — e o dono cola. Leitura por `ssh forja '<comando de leitura>'` é permitida e
+  esperada: confira contra a máquina antes de afirmar.
+- **Este sistema falha em VERDE.** `series.json` ausente, fallback para template, `recent_window`
+  nula e o `fail` descartado no `indeterminado` produzem `desfecho: ok` e check verde com saída vazia
+  de conteúdo. Quem detectou na primeira vez foi o dono olhando a tela. Ao mexer aqui, pergunte
+  sempre *"o que acontece quando o dado não existe?"* antes de *"o que acontece quando dá erro?"*.
+- **Orçamento acoplado em três lugares:** 20 min do claim < `timeout -k 30s 25m` do cron <
+  `STALE_THRESHOLD_MINUTES` (30 min) do watchdog, e o pulso corta em 70 min. Mexer em um exige
+  refazer a conta dos outros.
 
 ## Pipeline Integrity
 

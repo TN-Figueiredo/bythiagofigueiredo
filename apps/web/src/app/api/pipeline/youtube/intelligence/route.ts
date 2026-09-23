@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { authenticateIntel, authenticateRead, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
+import { authenticateIntel, pipelineError, pipelineSuccess, parseBody } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
 import { getIntelligenceSnapshot, submitIntelRecommendations } from '@/lib/pipeline/services/youtube'
 
@@ -11,8 +11,19 @@ export const dynamic = 'force-dynamic'
  */
 export const maxDuration = 60
 
+/**
+ * Requires `intelligence`, not `read`.
+ *
+ * This GET was the single reason the forja queue key carried `read`, and `read` is a
+ * pipeline-wide scope: it opens every other GET (items, research, links, playlists,
+ * b-roll, audio, stats). The client-side allowlist that keeps the forja to 13 routes
+ * lives in the worker, so a compromised worker simply ignores it. Gating the snapshot on
+ * the same narrow scope the worker already holds for its PATCH lets the key drop `read`
+ * entirely. Sessions and wide write/admin keys still pass — `intelligence` is subsumed by
+ * `write`/`admin` (see requirePermission).
+ */
 export async function GET(req: NextRequest) {
-  const result = await authenticateRead(req)
+  const result = await authenticateIntel(req)
   if (result instanceof Response) return result
   const { auth } = result
 

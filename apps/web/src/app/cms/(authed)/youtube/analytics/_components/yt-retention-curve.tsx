@@ -13,7 +13,8 @@ export interface RetentionMark {
 }
 
 interface Props {
-  avgViewPercentage: number
+  /** `null` = not measured; renders the "no data" state, never a 0% curve. */
+  avgViewPercentage: number | null
   avgViewDuration?: number
   retentionCurve?: number[] | null
   marks?: RetentionMark[]
@@ -89,7 +90,7 @@ export function YtRetentionCurve({ avgViewPercentage, avgViewDuration = 0, reten
   const activeMarks = marks ?? DEFAULT_MARKS
   const data = retentionCurve && retentionCurve.length >= 2
     ? retentionCurve
-    : avgViewPercentage > 0
+    : avgViewPercentage !== null && avgViewPercentage > 0
       ? buildCurve(avgViewPercentage, avgViewDuration)
       : null
 
@@ -116,7 +117,7 @@ export function YtRetentionCurve({ avgViewPercentage, avgViewDuration = 0, reten
         viewBox={`0 0 ${W} ${H}`}
         className="w-full"
         role="img"
-        aria-label={`Curva de retencao — media ${avgViewPercentage.toFixed(0)}%`}
+        aria-label={avgViewPercentage !== null ? `Curva de retencao — media ${avgViewPercentage.toFixed(0)}%` : 'Curva de retencao'}
       >
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">

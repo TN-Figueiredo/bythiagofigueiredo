@@ -19,11 +19,24 @@ interface CoachingCard {
 interface Props {
   healthScore: number
   radarData: Array<{ label: string; value: number; grade: string }>
+  /** Axes no video could be scored on: listed as unmeasured, so "saudavel" never covers them. */
+  unavailableAxes?: Array<{ label: string; note: string; reason: string }>
   coachingCards: CoachingCard[]
   videoCount: number
   lastAnalysisAt: string | null
-  /** Non-null whenever a real analysis (Cowork or forja) exists for this channel. */
-  coachingMeta: { source: 'cowork' | 'forja'; generatedLabel: string; summary: string } | null
+  /**
+   * Non-null whenever a real analysis (Cowork or forja) exists for this channel.
+   * `cardsSource`/`cardsGeneratedLabel` are non-null only when the cards below come from a
+   * different analysis than the summary above — the forja writes summary-only rows, so the
+   * banner can be today's while the cards are still the last analysis that had priorities.
+   */
+  coachingMeta: {
+    source: 'cowork' | 'forja'
+    generatedLabel: string
+    summary: string
+    cardsSource?: 'cowork' | 'forja' | null
+    cardsGeneratedLabel?: string | null
+  } | null
   onRequestAnalysis?: () => void
   analysisState: 'idle' | 'pending' | 'cooldown' | 'success'
 }
@@ -33,6 +46,11 @@ const SEV_COLORS = {
   warning: 'var(--amber)',
   healthy: 'var(--green)',
 } as const
+
+/** The badge spells the forja lowercase and Cowork capitalised, as the owner approved it. */
+function sourceLabel(source: 'cowork' | 'forja'): string {
+  return source === 'forja' ? 'forja' : 'Cowork'
+}
 
 function getSeverity(score: number): 'critical' | 'warning' | 'healthy' {
   if (score < 3) return 'critical'
@@ -52,6 +70,7 @@ function SeverityIcon({ severity }: { severity: 'critical' | 'warning' | 'health
 export function YtHealthCoach({
   healthScore,
   radarData: _radarData,
+  unavailableAxes = [],
   coachingCards,
   videoCount,
   lastAnalysisAt,
@@ -103,7 +122,10 @@ export function YtHealthCoach({
         <div className="flex-1">
           <span className="section-label">
             {coachingMeta
-              ? `Diagnostico · por ${coachingMeta.source === 'forja' ? 'forja' : 'Cowork'} · ${coachingMeta.generatedLabel}`
+              ? `Diagnostico · por ${sourceLabel(coachingMeta.source)} · ${coachingMeta.generatedLabel}`
+                + (coachingMeta.cardsSource
+                    ? ` · cards por ${sourceLabel(coachingMeta.cardsSource)} · ${coachingMeta.cardsGeneratedLabel}`
+                    : '')
               : 'Diagnostico heuristico'}
           </span>
           {coachingMeta ? (
@@ -114,7 +136,9 @@ export function YtHealthCoach({
             <p style={{ fontSize: 14, lineHeight: 1.55, marginTop: 6 }}>
               {sortedCards.length > 0
                 ? `O canal esta em ${healthScore}/100. ${sortedCards.length} eixo${sortedCards.length > 1 ? 's' : ''} puxa${sortedCards.length > 1 ? 'm' : ''} pra baixo. Resolver levaria o score pra ~${potentialScore}.`
-                : 'Canal saudavel em todos os eixos — continue monitorando.'}
+                : unavailableAxes.length > 0
+                  ? 'Canal saudavel nos eixos medidos — continue monitorando.'
+                  : 'Canal saudavel em todos os eixos — continue monitorando.'}
             </p>
           )}
           {!coachingMeta && sortedCards.length > 0 && (
@@ -134,6 +158,20 @@ export function YtHealthCoach({
           </div>
         )}
       </div>
+
+      {unavailableAxes.length > 0 && (
+        <div className="card" data-testid="coach-unavailable" style={{ padding: 14 }}>
+          <span className="section-label">Sem dado · fora da nota</span>
+          <ul style={{ marginTop: 6, fontSize: 12.5, lineHeight: 1.55 }}>
+            {unavailableAxes.map(a => (
+              <li key={a.label} title={a.reason}>
+                <span style={{ fontWeight: 600 }}>{a.label}</span>
+                <span className="dim"> — indisponivel: {a.note}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Coaching Cards */}
       {sortedCards.map((card) => {
@@ -185,9 +223,13 @@ export function YtHealthCoach({
 
       {!coachingMeta && sortedCards.length === 0 && (
         <div className="card" style={{ padding: 16, textAlign: 'center' }}>
-          <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--green)' }}>Canal saudavel em todos os eixos</p>
+          <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--green)' }}>
+            {unavailableAxes.length > 0 ? 'Canal saudavel nos eixos medidos' : 'Canal saudavel em todos os eixos'}
+          </p>
           <p className="dim" style={{ fontSize: 12, marginTop: 4 }}>
-            Todos os indicadores estao acima do benchmark. Continue monitorando.
+            {unavailableAxes.length > 0
+              ? 'Os indicadores medidos estao acima do benchmark. Os eixos sem dado acima nao foram avaliados.'
+              : 'Todos os indicadores estao acima do benchmark. Continue monitorando.'}
           </p>
         </div>
       )}

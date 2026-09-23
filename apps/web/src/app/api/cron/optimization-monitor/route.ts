@@ -62,7 +62,12 @@ export async function GET(req: NextRequest) {
         .eq('site_id', cycle.site_id)
         .single()
 
-      const currentCtr = video?.ctr ?? 0
+      // `ctr` is NULL for every video in production (the YouTube Analytics
+      // API v2 does not serve impressions/CTR). The monitoring result is a
+      // record of what was observed on day N — an absent CTR is recorded as
+      // `null`, never as 0%, which would read as "the title/thumbnail change
+      // killed every click" to anyone comparing day 7 against day 30.
+      const currentCtr: number | null = video?.ctr ?? null
 
       for (const checkDay of OPTIMIZATION_CONFIG.monitoring_check_days) {
         if (daysSinceApplied >= checkDay) {
@@ -78,7 +83,8 @@ export async function GET(req: NextRequest) {
             .limit(1)
             .single()
 
-          const result = { score: latestGrade?.score ?? 0, grade: latestGrade?.grade ?? 'D', ctr: currentCtr }
+          // No grade history row = the video was never graded, not graded D/0.
+          const result = { score: latestGrade?.score ?? null, grade: latestGrade?.grade ?? null, ctr: currentCtr }
 
           await supabase.from('optimization_cycles').update({
             [`monitoring_day${checkDay}_at`]: now.toISOString(),

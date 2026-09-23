@@ -31,6 +31,7 @@ import type {
   OutlierRow,
 } from '@/lib/youtube/prompt-types'
 import type { YtDemographics } from '@/lib/youtube/analytics-types'
+import { latestRow } from '@/lib/youtube/rolling-window'
 
 type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string }
 
@@ -318,13 +319,15 @@ export async function fetchChannelHealthData(
     const scored = videos.map(
       (v: { id: string; youtube_video_id: string; title: string; view_count: number; avg_view_percentage: number | null; ctr: number | null; traffic_sources: unknown; published_at: string; impressions: number | null }) => {
         const videoDaily = dailyByVideo.get(v.id as string) ?? []
-        const dailyViews = videoDaily.map(d => ({ date: d.date, views: d.views }))
-        const totalViews = videoDaily.reduce((s, d) => s + d.views, 0)
-        const totalLikes = videoDaily.reduce((s, d) => s + (d.likes ?? 0), 0)
-        const totalComments = videoDaily.reduce((s, d) => s + (d.comments ?? 0), 0)
-        const totalShares = videoDaily.reduce((s, d) => s + (d.shares ?? 0), 0)
-        const totalSubsGained = videoDaily.reduce((s, d) => s + (d.subscribers_gained ?? 0), 0)
-        const engRate = totalViews > 0 ? ((totalLikes + totalComments + totalShares) / totalViews) * 100 : 0
+        const rollingViews = videoDaily.map(d => ({ date: d.date, windowViews: d.views }))
+        // Newest row = the rolling-window total. Summing rows counted the same
+        // views once per sync date and sent the inflated figure into the prompt.
+        const newest = latestRow(videoDaily)
+        const totalViews = newest?.views ?? 0
+        const windowEngagement = (newest?.likes ?? 0) + (newest?.comments ?? 0) + (newest?.shares ?? 0)
+        const totalSubsGained = newest?.subscribers_gained ?? 0
+        // No analytics row = engagement not measured (axis drops out), not 0%.
+        const engRate = totalViews > 0 ? (windowEngagement / totalViews) * 100 : null
 
         const rawTs = v.traffic_sources as Record<string, number> | null
         const ts = rawTs
@@ -343,12 +346,14 @@ export async function fetchChannelHealthData(
           {
             videoId: v.id as string,
             publishedAt: v.published_at as string,
-            ctr: (v.ctr as number | null) ?? 0,
-            avgViewPercentage: (v.avg_view_percentage as number | null) ?? 0,
-            impressions: (v.impressions as number | null) ?? 0,
+            // NULL passes through: `?? 0` scored CTR ~63 / retention 99 for
+            // every video and sent those invented numbers into the prompt.
+            ctr: v.ctr as number | null,
+            avgViewPercentage: v.avg_view_percentage as number | null,
+            impressions: v.impressions as number | null,
             trafficSources: ts,
             engagementRate: engRate,
-            dailyViews,
+            rollingViews,
             subscribersGained: totalSubsGained,
             viewCount: (v.view_count as number) ?? 0,
           },
@@ -368,10 +373,11 @@ export async function fetchChannelHealthData(
           title: v.title as string,
           score: result.overall,
           grade,
-          retention: (v.avg_view_percentage as number | null) ?? 0,
+          retention: v.avg_view_percentage as number | null,
           trend: trend.direction,
           lifecycleStage: result.lifecycle,
           _axes: result.axes,
+          _unavailable: result.unavailableAxes,
         }
       },
     )
@@ -380,12 +386,12 @@ export async function fetchChannelHealthData(
       .slice()
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)
-      .map(({ _axes: _, ...rest }) => rest)
+      .map(({ _axes: _, _unavailable: __, ...rest }) => rest)
     const bottomVideos = scored
       .slice()
       .sort((a, b) => a.score - b.score)
       .slice(0, 5)
-      .map(({ _axes: _, ...rest }) => rest)
+      .map(({ _axes: _, _unavailable: __, ...rest }) => rest)
     const truncated = rawSearchTerms.length > 10
 
     // --- Health score: average 6-axis scores across all videos ---
@@ -403,32 +409,46 @@ export async function fetchChannelHealthData(
         }
       }
 
-      const baselineMedians: Record<Axis, number> = {
+      // `growth` has no median: the axis is not scored (see GROWTH_UNAVAILABLE).
+      const baselineMedians: Partial<Record<Axis, number>> = {
         ctr: baseline.medianCtr,
         retention: baseline.medianRetention,
         reach: baseline.medianReach,
         engagement: baseline.medianEngagement,
-        growth: baseline.medianGrowth,
         sub_impact: baseline.medianSubImpact,
       }
 
-      const healthAxes = axisNames.map(axis => {
+      // An axis no video could be scored on is OMITTED, not reported as 0.
+      // `count === 0` used to collapse "nothing measured this" into "the channel
+      // scores 0 here", which then fed the overall health number and the prompt.
+      const healthAxes = axisNames.flatMap(axis => {
         const s = axisSums.get(axis)!
-        const avgScore = s.count > 0 ? Math.round((s.total / s.count) * 10) / 10 : 0
-        return {
+        const benchmark = baselineMedians[axis]
+        if (s.count === 0 || benchmark === undefined) return []
+        const avgScore = Math.round((s.total / s.count) * 10) / 10
+        return [{
           axis,
           score: avgScore,
           grade: assignGrade(avgScore),
-          benchmark: Math.round(baselineMedians[axis] * 10) / 10,
+          benchmark: Math.round(benchmark * 10) / 10,
           weight: scored[0]?._axes.find(a => a.axis === axis)?.weight ?? 0,
-        }
+        }]
       })
 
       const overallHealth = Math.round(
         healthAxes.reduce((sum, a) => sum + a.score * a.weight, 0) * 10,
       ) / 10
 
-      healthScore = { overall: overallHealth, axes: healthAxes }
+      // Axes no video could be scored on, with the reason — so the prompt says
+      // "not measured" instead of the axis silently vanishing.
+      const scoredAxes = new Set(healthAxes.map(a => a.axis))
+      const unavailableAxes = axisNames.flatMap(axis => {
+        if (scoredAxes.has(axis)) return []
+        const reported = scored.flatMap(v => v._unavailable).find(u => u.axis === axis)
+        return reported === undefined ? [] : [reported]
+      })
+
+      healthScore = { overall: overallHealth, axes: healthAxes, unavailableAxes }
     }
 
     // --- Outliers per axis ---
@@ -436,10 +456,11 @@ export async function fetchChannelHealthData(
     const negativeOutliers: OutlierRow[] = []
     const outlierAxes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
     for (const axis of outlierAxes) {
-      const axisScores = scored.map(v => ({
-        videoId: v.id,
-        score: v._axes.find(a => a.axis === axis)?.normalized ?? 0,
-      }))
+      // A video without a score on this axis is left out, not scored 0.
+      const axisScores = scored.flatMap(v => {
+        const found = v._axes.find(a => a.axis === axis)
+        return found === undefined ? [] : [{ videoId: v.id, score: found.normalized }]
+      })
       const outlierResults = computeOutliers(axisScores, axis)
       for (const o of outlierResults) {
         const v = scored.find(s => s.id === o.videoId)
@@ -555,7 +576,8 @@ export async function fetchVideoOptimizerData(
         .eq('site_id', siteId)
         .eq('channel_id', channelDbId)
         .eq('is_hidden', false)
-        .not('ctr', 'is', null)
+        // No `.not('ctr', 'is', null)`: nothing writes ctr, so that filter
+        // left the baseline with zero peers. A NULL ctr drops the ctr axis.
         .order('published_at', { ascending: false })
         .limit(50),
       supabase
@@ -617,16 +639,17 @@ export async function fetchVideoOptimizerData(
     const baseline = computeBaseline(peerInputs, dailyByVideo, info.subscribers)
 
     // --- Score the target video ---
-    const videoDailyViews = (dailyByVideo.get(videoId) ?? []).map(d => ({ date: d.date, views: d.views }))
     const videoDaily = dailyByVideo.get(videoId) ?? []
-    const totalVideoViews = videoDaily.reduce((s, d) => s + d.views, 0)
-    const totalVideoLikes = videoDaily.reduce((s, d) => s + (d.likes ?? 0), 0)
-    const totalVideoComments = videoDaily.reduce((s, d) => s + (d.comments ?? 0), 0)
-    const totalVideoShares = videoDaily.reduce((s, d) => s + (d.shares ?? 0), 0)
-    const totalVideoSubsGained = videoDaily.reduce((s, d) => s + (d.subscribers_gained ?? 0), 0)
+    const videoRollingViews = videoDaily.map(d => ({ date: d.date, windowViews: d.views }))
+    // Newest row = the rolling-window total; the rows are not daily counts.
+    const newestVideoRow = latestRow(videoDaily)
+    const totalVideoViews = newestVideoRow?.views ?? 0
+    const videoWindowEngagement =
+      (newestVideoRow?.likes ?? 0) + (newestVideoRow?.comments ?? 0) + (newestVideoRow?.shares ?? 0)
+    const totalVideoSubsGained = newestVideoRow?.subscribers_gained ?? 0
     const engagementRate = totalVideoViews > 0
-      ? ((totalVideoLikes + totalVideoComments + totalVideoShares) / totalVideoViews) * 100
-      : 0
+      ? (videoWindowEngagement / totalVideoViews) * 100
+      : null
 
     const rawTraffic = video.traffic_sources as Record<string, number> | null
 
@@ -634,9 +657,9 @@ export async function fetchVideoOptimizerData(
       {
         videoId,
         publishedAt: video.published_at as string,
-        ctr: (video.ctr as number | null) ?? 0,
-        avgViewPercentage: (video.avg_view_percentage as number | null) ?? 0,
-        impressions: (video.impressions as number | null) ?? 0,
+        ctr: video.ctr as number | null,
+        avgViewPercentage: video.avg_view_percentage as number | null,
+        impressions: video.impressions as number | null,
         trafficSources: rawTraffic
           ? {
               browse: rawTraffic.browse ?? 0,
@@ -649,7 +672,7 @@ export async function fetchVideoOptimizerData(
             }
           : null,
         engagementRate,
-        dailyViews: videoDailyViews,
+        rollingViews: videoRollingViews,
         subscribersGained: totalVideoSubsGained,
         viewCount: (video.view_count as number) ?? 0,
       },
@@ -665,7 +688,6 @@ export async function fetchVideoOptimizerData(
           : a.axis === 'retention' ? baseline.medianRetention
           : a.axis === 'reach' ? baseline.medianReach
           : a.axis === 'engagement' ? baseline.medianEngagement
-          : a.axis === 'growth' ? baseline.medianGrowth
           : baseline.medianSubImpact) * 10,
       ) / 10,
       status: (a.normalized >= 50 ? 'above' : 'below') as 'above' | 'below',
@@ -711,6 +733,7 @@ export async function fetchVideoOptimizerData(
         score: videoScoreResult.overall,
         grade: videoScoreResult.grade,
         axes,
+        unavailableAxes: videoScoreResult.unavailableAxes,
         trend: trendData.direction,
         streak: trendData.streak,
       },
@@ -721,9 +744,15 @@ export async function fetchVideoOptimizerData(
       maxCycles: getMaxCycles(),
       cooldownUntil: cycle?.cooldown_until ?? null,
       previousDiagnosis: cycle?.diagnosis_summary ?? null,
+      // computeBaseline reports an empty median as 0; with no measured peer
+      // that 0 is not a median, it is an absence.
       channelBaseline: {
-        medianCtr: Math.round(baseline.medianCtr * 100) / 100,
-        medianRetention: Math.round(baseline.medianRetention * 100) / 100,
+        medianCtr: peers.some((p: { ctr: number | null }) => p.ctr !== null && p.ctr > 0)
+          ? Math.round(baseline.medianCtr * 100) / 100
+          : null,
+        medianRetention: peers.some((p: { avg_view_percentage: number | null }) => p.avg_view_percentage !== null && p.avg_view_percentage > 0)
+          ? Math.round(baseline.medianRetention * 100) / 100
+          : null,
       },
       snapshotAt,
       snapshotAgeHours,

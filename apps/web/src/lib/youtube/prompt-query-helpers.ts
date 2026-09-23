@@ -29,7 +29,16 @@ export interface CategoryPerformance {
   categorySlug: string
   categoryName: string
   avgViews: number
-  avgRetention: number
+  /**
+   * Mean `avg_view_percentage` over the videos that HAVE it. The key is absent
+   * (not 0, not null) when no video in the category was measured — which in
+   * production is every video: the analytics sync never requests
+   * averageViewPercentage. This object is serialized into an LLM prompt, and a
+   * model reads "avgRetention: 0" as a fact about the audience.
+   */
+  avgRetention?: number
+  /** How many of `videoCount` videos the retention average covers. Present iff `avgRetention` is. */
+  retentionVideoCount?: number
   videoCount: number
 }
 
@@ -47,26 +56,34 @@ export function aggregateCategoryPerformance(
   videos: VideoWithCategory[],
   categoryMap: Map<string, CategoryInfo>,
 ): CategoryPerformance[] {
-  const buckets = new Map<string, { slug: string; name: string; totalViews: number; totalRetention: number; count: number }>()
+  const buckets = new Map<string, { slug: string; name: string; totalViews: number; totalRetention: number; retentionCount: number; count: number }>()
 
   for (const v of videos) {
     if (!v.category_id) continue
     const cat = categoryMap.get(v.category_id)
     if (!cat) continue
 
-    const bucket = buckets.get(v.category_id) ?? { slug: cat.slug, name: cat.name_pt, totalViews: 0, totalRetention: 0, count: 0 }
+    const bucket = buckets.get(v.category_id) ?? { slug: cat.slug, name: cat.name_pt, totalViews: 0, totalRetention: 0, retentionCount: 0, count: 0 }
     bucket.totalViews += v.view_count
-    bucket.totalRetention += v.avg_view_percentage ?? 0
+    if (v.avg_view_percentage !== null) {
+      bucket.totalRetention += v.avg_view_percentage
+      bucket.retentionCount++
+    }
     bucket.count++
     buckets.set(v.category_id, bucket)
   }
 
   return Array.from(buckets.values())
-    .map(b => ({
+    .map((b): CategoryPerformance => ({
       categorySlug: b.slug,
       categoryName: b.name,
       avgViews: Math.round(b.totalViews / b.count),
-      avgRetention: Math.round((b.totalRetention / b.count) * 10) / 10,
+      ...(b.retentionCount > 0
+        ? {
+            avgRetention: Math.round((b.totalRetention / b.retentionCount) * 10) / 10,
+            retentionVideoCount: b.retentionCount,
+          }
+        : {}),
       videoCount: b.count,
     }))
     .sort((a, b) => b.avgViews - a.avgViews)

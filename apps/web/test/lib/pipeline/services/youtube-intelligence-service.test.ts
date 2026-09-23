@@ -20,8 +20,11 @@ function makeSupabase(results: Array<{ data: unknown; error: unknown }>) {
   for (const op of ['select', 'eq', 'in', 'order', 'limit', 'update', 'is', 'not', 'gte', 'insert']) {
     chain[op] = vi.fn((...args: unknown[]) => { calls.push({ op, args }); return chain })
   }
-  chain.maybeSingle = vi.fn(async () => results[i++] ?? { data: null, error: null })
-  chain.single = vi.fn(async () => results[i++] ?? { data: null, error: null })
+  // Recorded in `calls` like every other op, so a test can assert a query is NOT a
+  // single-object read — `.maybeSingle()` raises PGRST116 on more than one row, which is now
+  // a live hazard on any query over the accumulating channel history.
+  chain.maybeSingle = vi.fn(async () => { calls.push({ op: 'maybeSingle', args: [] }); return results[i++] ?? { data: null, error: null } })
+  chain.single = vi.fn(async () => { calls.push({ op: 'single', args: [] }); return results[i++] ?? { data: null, error: null } })
   // Real supabase-js resolves ANY filter builder when awaited, not just one ending in
   // `.single()`/`.maybeSingle()` — `.insert(x)` and a bare `.select().eq().in(...)` are both
   // awaited directly in the service. Without this, such a call would resolve to the chain
@@ -30,7 +33,9 @@ function makeSupabase(results: Array<{ data: unknown; error: unknown }>) {
   return {
     calls,
     tables,
-    client: { from: vi.fn((t: string) => { tables.push(t); return chain }) },
+    // `from` is recorded in `calls` too, so a test can slice the ops belonging to ONE table
+    // out of the shared chain (see `opsOnTable`).
+    client: { from: vi.fn((t: string) => { tables.push(t); calls.push({ op: 'from', args: [t] }); return chain }) },
     /**
      * Slice of `calls` starting at the first occurrence of `op` — use this, never a
      * bare `expect(calls).toContainEqual(...)`, for a CAS/UPDATE clause. The double
@@ -42,6 +47,18 @@ function makeSupabase(results: Array<{ data: unknown; error: unknown }>) {
     from(op: string): Call[] {
       const idx = calls.findIndex((c) => c.op === op)
       return idx === -1 ? [] : calls.slice(idx)
+    },
+    /**
+     * The ops issued against ONE table, from its `from(table)` up to the next `from(...)`.
+     * The double shares a single chain object across every query, so this is the only way to
+     * say "youtube_intelligence was never read with .maybeSingle()" without the task lookup
+     * — which legitimately uses it — satisfying the assertion instead.
+     */
+    opsOnTable(table: string): Call[] {
+      const start = calls.findIndex((c) => c.op === 'from' && c.args[0] === table)
+      if (start === -1) return []
+      const rel = calls.slice(start + 1).findIndex((c) => c.op === 'from')
+      return rel === -1 ? calls.slice(start + 1) : calls.slice(start + 1, start + 1 + rel)
     },
   }
 }
@@ -232,6 +249,28 @@ describe('submitIntelRecommendations — schema', () => {
     expect(PatchPayloadSchema.safeParse({ ...base, channel_insights: { patterns_detected: [pattern] } }).success).toBe(true)
   })
 
+  it('patterns_detected is discriminated on tipo: an examined series needs serie/leitura/motivo, ' +
+    'a pattern cannot claim a neutral reading, and the old shape still validates', () => {
+    const base = { task_id: '22222222-2222-4222-8222-222222222222' }
+    const parse = (item: Record<string, unknown>) =>
+      PatchPayloadSchema.safeParse({ ...base, channel_insights: { patterns_detected: [item] } })
+    const examinada = { tipo: 'examinada', serie: 'canada', leitura: 'sem_coorte', motivo: 'coorte_fina' }
+    expect(parse(examinada).success).toBe(true)
+    expect(parse({ ...examinada, motivo: undefined }).success).toBe(false)
+    expect(parse({ ...examinada, serie: undefined }).success).toBe(false)
+    expect(parse({ ...examinada, leitura: 'abaixo' }).success).toBe(false)
+    const pattern = { pattern_id: 'p', category: 'series', finding: 'f', confidence: 0.5, sample_size: 4 }
+    expect(parse(pattern).success).toBe(true)
+    expect(parse({ ...pattern, tipo: 'padrao', leitura: 'abaixo', mediana: 91, mediana_coorte: 143.5 }).success).toBe(true)
+    expect(parse({ ...pattern, leitura: 'neutra' }).success).toBe(false)
+    expect(parse({ ...pattern, anos: { de: 2017 } }).success).toBe(false)
+    expect(parse({ ...pattern, periodo: { de: '2017-1-2', ate: '2019-06-14' } }).success).toBe(false)
+    expect(parse({ ...pattern, episodios: ['nao-uuid'] }).success).toBe(false)
+    // exact ratio travels unrounded: the parse keeps every digit
+    const ok = parse({ ...pattern, razao: 0.6341463414634146 })
+    expect(ok.success && ok.data.channel_insights?.patterns_detected?.[0]).toMatchObject({ razao: 0.6341463414634146 })
+  })
+
   it('accepts the real May payload from Cowork unchanged', () => {
     // These two lengths sit exactly on the Zod ceilings. If a remount added an ellipsis or a
     // space the fixture would fail the parse — or be "fixed" and start measuring another payload.
@@ -248,29 +287,55 @@ describe('deriveSource and the forja scope guards', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('writes source=forja for a narrow key, even with source:cowork in the body', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: '22222222-2222-4222-8222-222222222222' }, error: null }])
+    // Three queued results, not four: the channel path lost its pre-read. Migration
+    // 20260922000001 made the channel analysis accumulate, so submitIntelRecommendations
+    // always INSERTs — the `.maybeSingle()` dedup lookup that used to sit here would now
+    // raise PGRST116 ("more than one row") on the second run of any source.
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: { id: '22222222-2222-4222-8222-222222222222' }, error: null }])
     await submitIntelRecommendations(ctxOf(sb), { ...CHANNEL_ONLY, source: 'cowork', __extra: 'smuggled-top-level' })
     const insert = sb.calls.find(c => c.op === 'insert')!.args[0] as Record<string, unknown>
     expect(insert.source).toBe('forja')
     expect(insert).not.toHaveProperty('__extra')
-    // The dedup lookup for the existing channel row must key on the SAME derived source —
-    // otherwise a forja PATCH can find and silently overwrite the Cowork-authored row
-    // (result_summary from the May analysis) instead of writing its own.
-    expect(sb.calls).toContainEqual({ op: 'eq', args: ['source', 'forja'] })
   })
+
+  it(
+    'the channel row is always INSERTed, never read-then-updated — the history depends on it',
+    async () => {
+      const sb = makeSupabase([runningTask, { data: null, error: null }, { data: { id: TASK_ID }, error: null }])
+      await submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)
+
+      // youtube_intelligence is touched exactly once, to write — no lookup first. A
+      // read-then-update here is what erased the previous week's measurement, and the
+      // `.maybeSingle()` it used would now error outright once a second row exists.
+      expect(sb.tables.filter(t => t === 'youtube_intelligence')).toHaveLength(1)
+      const intelOps = sb.opsOnTable('youtube_intelligence')
+      expect(intelOps.some(c => c.op === 'maybeSingle' || c.op === 'single')).toBe(false)
+      expect(intelOps.some(c => c.op === 'select')).toBe(false)
+      expect(intelOps.some(c => c.op === 'update')).toBe(false)
+      expect(intelOps.filter(c => c.op === 'insert')).toHaveLength(1)
+
+      const insert = sb.calls.find(c => c.op === 'insert')!.args[0] as Record<string, unknown>
+      expect(insert).toMatchObject({ channel_id: 'ch-1', video_id: null, type: 'channel', source: 'forja' })
+      // Its own timestamp: every run is a distinct point in the series, not an overwrite.
+      expect(typeof insert.generated_at).toBe('string')
+
+      // The only UPDATE in the whole call is the closing CAS on the task table.
+      expect(sb.calls.filter(c => c.op === 'update')).toHaveLength(1)
+    },
+  )
 
   it('writes source=forja even when the context never sets `source` at all — the fail-closed default', async () => {
     // Regression for the exact failure mode the deriveSource comment warns about: a
     // future call site that forgets to populate ServiceContext.source. Written by
     // inclusion (`ctx.source === 'api_key' && !wide ? 'forja' : 'cowork'`) this would
     // read as 'cowork' and silently switch off all four forja scope refusals.
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: 'x' }, error: null }])
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: { id: 'x' }, error: null }])
     await submitIntelRecommendations(ctxOf(sb, { source: undefined }), CHANNEL_ONLY)
     expect((sb.calls.find(c => c.op === 'insert')!.args[0] as Record<string, unknown>).source).toBe('forja')
   })
 
   it('writes source=cowork for a session context', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: 'x' }, error: null }])
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: { id: 'x' }, error: null }])
     await submitIntelRecommendations(ctxOf(sb, { source: 'session', permissions: ['read', 'write'], keyId: undefined }), CHANNEL_ONLY)
     expect((sb.calls.find(c => c.op === 'insert')!.args[0] as Record<string, unknown>).source).toBe('cowork')
   })
@@ -323,7 +388,7 @@ describe('deriveSource and the forja scope guards', () => {
   })
 
   it('never notifies on a forja PATCH', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: 'x' }, error: null }])
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: { id: 'x' }, error: null }])
     await submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)
     expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
   })
@@ -389,16 +454,38 @@ describe('submitIntelRecommendations — task state and ownership', () => {
       video_recommendations: [{ video_id: '33333333-3333-4333-8333-333333333333', action_type: 'title_test', priority: 'low', confidence: 0.5, reasoning: 'r' }],
     })).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 422 })
   })
+
+  it('scopes the integrity SELECT to the caller site, not just to the channel', async () => {
+    const sb = makeSupabase([
+      { data: { id: 't', channel_id: 'ch-1', status: 'running', result_summary: {}, started_at: 's' }, error: null },
+      { data: [], error: null },
+    ])
+    await expect(submitIntelRecommendations(ctxOf(sb, { permissions: ['read', 'write'] }), {
+      task_id: '22222222-2222-4222-8222-222222222222',
+      video_recommendations: [{ video_id: '33333333-3333-4333-8333-333333333333', action_type: 'title_test', priority: 'low', confidence: 0.5, reasoning: 'r' }],
+    })).rejects.toMatchObject({ status: 422 })
+
+    expect(sb.tables).toContain('youtube_videos')
+    // Isolate just the integrity query: the chain double shares one `calls` array, and the
+    // task read right before it also filters `site_id`, so a bare toContainEqual would pass
+    // even with the filter dropped. Slice from that query's own `.select()` to its `.in()`.
+    const inIdx = sb.calls.findIndex((c) => c.op === 'in')
+    expect(inIdx).toBeGreaterThan(-1)
+    const selIdx = sb.calls.slice(0, inIdx).map((c) => c.op).lastIndexOf('select')
+    const integrity = sb.calls.slice(selIdx, inIdx + 1)
+    expect(integrity).toContainEqual({ op: 'eq', args: ['site_id', 'site-1'] })
+    expect(integrity).toContainEqual({ op: 'eq', args: ['channel_id', 'ch-1'] })
+  })
 })
 
 describe('submitIntelRecommendations — closing the task', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('closes with a CAS pinned to status, site, started_at and owner, preserving claimed_by', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: TASK_ID }, error: null }])
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: { id: TASK_ID }, error: null }])
     await submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)
-    // CHANNEL_ONLY never hits the coaching UPDATE branch (existingChannel is null in this
-    // fixture), so the first — and only — 'update' op is the closing CAS itself.
+    // The channel path only ever INSERTs (it accumulates history), so the first — and only —
+    // 'update' op in the whole call is the closing CAS itself.
     const cas = sb.from('update')
     const close = cas[0]!.args[0] as Record<string, unknown>
     expect(close).toMatchObject({ status: 'completed' })
@@ -411,17 +498,17 @@ describe('submitIntelRecommendations — closing the task', () => {
   })
 
   it('409s when the closing CAS returns no row', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: null, error: null }])
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }])
     await expect(submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING', status: 409 })
   })
 
   it('500s INTERNAL_ERROR when the closing UPDATE itself errors', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: null, error: { message: 'boom' } }])
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: { message: 'boom' } }])
     await expect(submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
   })
 
   it('500s PARTIAL_FAILURE listing only targets, and leaves the task untouched', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: { message: 'disk on fire' } }])
+    const sb = makeSupabase([runningTask, { data: null, error: { message: 'disk on fire' } }])
     await expect(submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)).rejects.toMatchObject({
       code: 'PARTIAL_FAILURE', status: 500, message: 'channel: write_failed',
     })
@@ -430,7 +517,7 @@ describe('submitIntelRecommendations — closing the task', () => {
   })
 
   it('never writes the status partial_failure — the DB CHECK forbids it', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: { message: 'x' } }])
+    const sb = makeSupabase([runningTask, { data: null, error: { message: 'x' } }])
     await submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY).catch(() => {})
     expect(JSON.stringify(sb.calls)).not.toContain('partial_failure')
   })
@@ -577,6 +664,10 @@ describe('getIntelligenceSnapshot — recent window', () => {
 
     expect(sb.argsOf('youtube_intelligence', 'eq')).toContainEqual(['source', 'cowork'])
     expect(sb.argsOf('youtube_intelligence', 'eq')).toContainEqual(['site_id', 'site-1'])
+    // The 50-row cap is only safe paired with a NEWEST-first order: flip the order (or shrink
+    // the limit) and past 50 rows the /cms pins the OLDEST coaching forever, silently.
+    expect(sb.argsOf('youtube_intelligence', 'order')).toContainEqual(['generated_at', { ascending: false }])
+    expect(sb.argsOf('youtube_intelligence', 'limit')).toContainEqual([50])
   })
 
   // A DB error on either of these two reads must surface as a 500, never as a quiet
@@ -600,5 +691,40 @@ describe('getIntelligenceSnapshot — recent window', () => {
     }))
 
     await expect(getIntelligenceSnapshot(ctxOf(sb), 'ch-1')).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
+  })
+
+  // Same invariant for the channel read and the five parallel reads: each one owes a 500
+  // on a DB error, never a 200 with an empty/missing section. One test per read.
+  it('throws INTERNAL_ERROR 500 when the channel read fails — never a 404', async () => {
+    const sb = makeSnapshotSupabase(snapshotResults({
+      youtube_channels: [{ data: null, error: { message: 'statement timeout' } }],
+    }))
+
+    await expect(getIntelligenceSnapshot(ctxOf(sb), 'ch-1')).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
+  })
+
+  it('still answers NOT_FOUND 404 when the channel read reports zero rows (PGRST116)', async () => {
+    const sb = makeSnapshotSupabase(snapshotResults({
+      youtube_channels: [{ data: null, error: { code: 'PGRST116', message: 'no rows' } }],
+    }))
+
+    await expect(getIntelligenceSnapshot(ctxOf(sb), 'ch-1')).rejects.toMatchObject({ code: 'NOT_FOUND', status: 404 })
+  })
+
+  it.each([
+    ['youtube_videos', 'Failed to read the channel videos'],
+    ['video_grade_history', 'Failed to read the grade history'],
+    ['optimization_cycles', 'Failed to read the optimization cycles'],
+    ['ab_tests', 'Failed to read the A/B tests'],
+    ['youtube_intelligence', 'Failed to read the intelligence rows'],
+  ])('throws INTERNAL_ERROR 500 when the %s read fails', async (table, message) => {
+    const sb = makeSnapshotSupabase(snapshotResults({
+      [table]: [{ data: null, error: { message: 'statement timeout' } }],
+      youtube_video_analytics: [{ data: null, error: null }],
+    }))
+
+    // the message pins WHICH read raised it: one shared check covering all five would pass
+    // this test while four of the reads stayed unguarded.
+    await expect(getIntelligenceSnapshot(ctxOf(sb), 'ch-1')).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500, message })
   })
 })

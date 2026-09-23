@@ -4,7 +4,7 @@
 
 **Goal:** pôr de pé o circuito em que a forja (Gemma 12B local) clama tarefas de `youtube_intelligence_tasks`, grava a análise do canal com `source='forja'` ao lado das do Cowork, e o Health Coach mostra a mais recente com selo da fonte.
 
-**Architecture:** o site ganha uma permissão estreita (`intelligence`), duas rotas REST novas (claim e fail), um PATCH com portão único dentro do serviço (Zod + fonte derivada da chave + trava de dono + CAS de fechamento) e um snapshot que passa a expor a janela de 90 dias sem somar fotos. O worker da forja (`/opt/agente/fila_intel.py`) calcula tudo em código determinístico e usa o 12B só para redigir um campo (`coaching.summary`), sob validador local. A convivência com o Cowork é garantida pelos índices únicos por `source`.
+**Architecture:** o site ganha uma permissão estreita (`intelligence`), duas rotas REST novas (claim e fail), um PATCH com portão único dentro do serviço (Zod + fonte derivada da chave + trava de dono + CAS de fechamento) e um snapshot que passa a expor a janela de 90 dias sem somar fotos. O worker da forja (`/opt/agente/docs/trilha/fila_intel.py`, sem segunda cópia instalada) calcula tudo em código determinístico e usa o 12B só para redigir um campo (`coaching.summary`), sob validador local. A convivência com o Cowork é garantida pelos índices únicos por `source`.
 
 **Tech Stack:** Next.js 15 (App Router) + TypeScript strict + Zod + Supabase (PostgREST, service client) no site; Python 3 + httpx + llama.cpp (`/v1/chat/completions` com `response_format: json_schema`) na forja; Vitest no site.
 
@@ -3205,8 +3205,8 @@ Expected: `False` (ou `True` com o arquivo das outras frentes, sem as constantes
 ```python
 """fila_intel.py — a forja drena a fila de inteligencia do bythiagofigueiredo (fase 2a).
 
-Uso [NA FORJA], sempre pelo venv (este modulo importa httpx):
-  /opt/agente/venv/bin/python /opt/agente/fila_intel.py --cron
+Uso [NA FORJA], sempre pelo venv, de /opt/agente (este modulo importa httpx):
+  AGENTE_SITIO=/opt/agente/docs/sitio.py /opt/agente/venv/bin/python -B docs/trilha/fila_intel.py --cron
   ... --sombra --snapshot docs/trilha/fixture_pt.json
   ... --escolher --snapshot docs/trilha/fixture_pt.json
   ... --canario
@@ -4983,7 +4983,7 @@ async def _modo_canario(S, estado, args, chave, cli, llama, agora_mono, restante
 ```
 
 > **Lacuna do spec preenchida aqui.** O portão do F1 roda `--canario` **sem** `--snapshot`
-> (`venv/bin/python fila_intel.py --canario`), e o §4.7 não diz de onde vem a `ENTRADA` da sonda de
+> (`venv/bin/python -B docs/trilha/fila_intel.py --canario`), e o §4.7 não diz de onde vem a `ENTRADA` da sonda de
 > schema. Este plano usa `args.snapshot or FIXTURE`, com
 > `FIXTURE = <BASE>/docs/trilha/fixture_pt.json` — a mesma fixture que o F0.5 (A8) grava e que o
 > `--sombra` usa.
@@ -5045,9 +5045,20 @@ cd ~/Workspace/forja/ferramentas/docs && scp -r sitio.py trilha forja:/opt/agent
 
 - [ ] **Step 3: O dono roda o `teste_fila.py` na forja, sob a trava**
 
+Comandos curtos, um por linha (um `env -u ... -u ... VAR=v VAR2=v2 python -B script` de uma linha
+só já quebrou no terminal do dono: o `env -u PYTHONPATH -u AGENTE_BASE` virou comando próprio e o
+`python -B` sozinho abriu um REPL):
 ```
-cd /opt/agente/docs/trilha && flock -w 1800 /opt/agente/fila_intel.lock env -u PYTHONPATH -u AGENTE_BASE AGENTE_SITIO=/opt/agente/sitio.py.novo AGENTE_FILA=/opt/agente/docs/trilha/fila_intel.py /opt/agente/venv/bin/python -B teste_fila.py
+cd /opt/agente/docs/trilha
+unset PYTHONPATH AGENTE_BASE
+export AGENTE_SITIO=/opt/agente/docs/sitio.py
+export AGENTE_FILA=/opt/agente/docs/trilha/fila_intel.py
+flock -w 1800 /opt/agente/fila_intel.lock /opt/agente/venv/bin/python -B teste_fila.py
 ```
+`AGENTE_SITIO=/opt/agente/docs/sitio.py`, não `/opt/agente/sitio.py.novo`: o `scp` do Step 2 (card K)
+deixa o kit em `/opt/agente/docs/`, e `sitio.py.novo` só existe depois que o S4 rodar — nesta rodada,
+antes do S4, ele não existe ainda. (`/opt/agente/sitio.py`, sem `docs/`, também existe, mas é o
+`sitio.py` **antigo**, da fase 1 — não confundir, e não sobrescrever.)
 Expected: `FILA: 0 falha(s)`. Se sair `PARE: lock ocupado por 30 min`, uma execução do cron está viva
 — esperar e repetir. **Nenhum agente roda esta linha**; ela é do dono.
 
@@ -8284,10 +8295,12 @@ SOMBRA     = os.path.join(BASE, 'sombra')
 ```python
 """teste_fila.py — portao do fila_intel.py (§4.6). Roda SO na forja: o worker importa httpx.
 
-Uso:
-  cd /opt/agente/docs/trilha && flock -w 1800 /opt/agente/fila_intel.lock \
-    env -u PYTHONPATH -u AGENTE_BASE AGENTE_SITIO=/opt/agente/sitio.py \
-    AGENTE_FILA=/opt/agente/fila_intel.py /opt/agente/venv/bin/python -B teste_fila.py
+Uso (comandos curtos, um por linha):
+  cd /opt/agente/docs/trilha
+  unset PYTHONPATH AGENTE_BASE
+  export AGENTE_SITIO=/opt/agente/docs/sitio.py
+  export AGENTE_FILA=/opt/agente/docs/trilha/fila_intel.py
+  flock -w 1800 /opt/agente/fila_intel.lock /opt/agente/venv/bin/python -B teste_fila.py
 
 Chama tambem os dois irmaos, que rodam no Mac sozinhos: teste_calculo.py (§4.2/§4.3) e
 teste_fila_redacao.py (§4.4/§4.5), pelo hook casos(F, exige).
@@ -9770,24 +9783,18 @@ cd ~/Workspace/forja/ferramentas && bash -n docs/trilha/cartao.sh && grep -c tes
 ```
 Expected: sem saída do `bash -n` e contagem `1`.
 
-- [ ] **Step 3: Os comandos de instalação e de volta (dono cola; §4.6)**
+- [ ] **Step 3: O comando de verificação (dono cola; §4.6)**
 
-Antes de **cada** instalação ou atualização do worker:
+Não há instalação: `fila_intel.py` roda sempre de `docs/trilha/`, nunca de uma segunda cópia em
+`/opt/agente/fila_intel.py` (essa cópia nunca existiu na forja de verdade — duas cópias do mesmo
+worker é a ambiguidade que já custou uma rodada perdida ao dono). Antes de **cada** atualização do
+worker, e antes de habilitar/reabilitar o crontab (§5):
 ```
-(cd /opt/agente/docs/trilha && flock -w 1800 /opt/agente/fila_intel.lock env -u PYTHONPATH -u AGENTE_BASE AGENTE_SITIO=/opt/agente/sitio.py AGENTE_FILA=/opt/agente/docs/trilha/fila_intel.py /opt/agente/venv/bin/python -B teste_fila.py) || echo 'PARE: teste_fila reprovou ou lock ocupado por 30 min'
+(cd /opt/agente/docs/trilha && flock -w 1800 /opt/agente/fila_intel.lock env -u PYTHONPATH -u AGENTE_BASE AGENTE_SITIO=/opt/agente/docs/sitio.py AGENTE_FILA=/opt/agente/docs/trilha/fila_intel.py /opt/agente/venv/bin/python -B teste_fila.py) || echo 'PARE: teste_fila reprovou ou lock ocupado por 30 min'
 ```
-Só com ele verde, a instalação:
-```
-cd /opt/agente && flock -w 1800 /opt/agente/fila_intel.lock sh -c 'cp -p fila_intel.py fila_intel.py.bak 2>/dev/null; install -m 600 docs/trilha/fila_intel.py fila_intel.py.tmp && mv fila_intel.py.tmp fila_intel.py' || echo 'PARE: lock ocupado por 30 min ou instalacao falhou — nada foi trocado'
-```
-Depois de instalado, o mesmo teste sobre o **instalado**:
-```
-(cd /opt/agente/docs/trilha && flock -w 1800 /opt/agente/fila_intel.lock env -u PYTHONPATH -u AGENTE_BASE AGENTE_SITIO=/opt/agente/sitio.py AGENTE_FILA=/opt/agente/fila_intel.py /opt/agente/venv/bin/python -B teste_fila.py) || echo 'PARE: teste_fila reprovou ou lock ocupado por 30 min'
-```
-Voltar uma atualização:
-```
-cd /opt/agente && flock -w 1800 /opt/agente/fila_intel.lock sh -c 'cp -p fila_intel.py.bak fila_intel.py.tmp && mv fila_intel.py.tmp fila_intel.py' || echo 'PARE: lock ocupado por 30 min ou volta falhou — nada foi trocado'
-```
+Voltar uma atualização: sem segunda cópia não há `.bak` de worker para restaurar — a volta é o
+`git checkout` da versão anterior no kit (Mac, repo git) seguido de um novo `scp` (card K) e do
+mesmo comando de verificação acima.
 Nenhum destes comandos parte do agente: todos são do dono. O `-w 1800` está em todos pelo motivo do
 §4.6 — depois do F4 o cron está vivo e uma execução pode segurar a trava por 25 min.
 
@@ -10647,7 +10654,7 @@ comandos e, depois, confere por leitura.
 O K é um card próprio; aqui só entra a conferência de que o S4 tem o que precisa. O dono cola:
 
 ```
-cd ~/Workspace/forja/ferramentas/docs && find sitio.py trilha -type f ! -path '*__pycache__*' | sort | xargs md5 -r | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo KIT-IGUAL
+cd ~/Workspace/forja/ferramentas && { (cd docs && find sitio.py trilha -type f ! -path '*__pycache__*' | sort | xargs md5 -r); (cd fase2 && md5 -r pulso_f4.py teste_pulso_fila.py); } | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo KIT-IGUAL
 ```
 
 E o agente confere, só leitura:
@@ -10813,10 +10820,10 @@ Sem isto, o próximo cartão que escrever `sitio.py.novo` — o **S5** do §10 d
 ```
 sed -i '/teste_fila/d' /opt/agente/docs/trilha/cartao.sh
 grep -c teste_fila /opt/agente/docs/trilha/cartao.sh
-rm -f /opt/agente/fila_intel.py /opt/agente/fila_intel.py.bak
 ```
-Expected: `grep -c` → `0`. O `rm` tira o worker que o **F1** instalou e que o rollback do F1 não apagou
-(ele só apagou o `fila_intel.env`).
+Expected: `grep -c` → `0`. Não há worker instalado para remover (não existe segunda cópia, §4.6):
+`docs/trilha/fila_intel.py` sem crontab e sem chave viva fica inerte, e o rollback do F1 já apagou o
+`fila_intel.env`.
 
 - [ ] **Step 7: Limpar a mesma linha na cópia do kit, no Mac**
 
@@ -10844,9 +10851,11 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 8: Conferência final, por leitura**
 
 ```bash
-ssh forja 'grep -c teste_fila /opt/agente/docs/trilha/cartao.sh; ls /opt/agente/fila_intel.py 2>&1; python3 -c "import importlib.util as u;s=u.spec_from_file_location(\"s\",\"/opt/agente/sitio.py\");m=u.module_from_spec(s);s.loader.exec_module(m);print(sorted(m.ROTAS_FASE))"'
+ssh forja 'grep -c teste_fila /opt/agente/docs/trilha/cartao.sh; python3 -c "import importlib.util as u;s=u.spec_from_file_location(\"s\",\"/opt/agente/sitio.py\");m=u.module_from_spec(s);s.loader.exec_module(m);print(sorted(m.ROTAS_FASE))"'
 ```
-Expected: `0`; `No such file or directory` para o worker; e `[1]` — só a fase 1 no `ROTAS_FASE`.
+Expected: `0`; e `[1]` — só a fase 1 no `ROTAS_FASE`. (Não há worker instalado para conferir ausência —
+`docs/trilha/fila_intel.py` continua no disco, inerte sem crontab e sem chave viva; não é o que este
+passo prova.)
 Depois disto, o rollback segue para o **F0** (§5 do spec), que é do dono e não é deste card.
 
 ---
@@ -10892,7 +10901,7 @@ Cobre o bloco **Segredo** e o **Kit da chave** do §4.6 do spec, a linha **F1** 
 | F1-2 · `nova_chave.py --fila` | Claude | Mac |
 | F1-3 · `seed_chave_forja.sh fila <sha>` | Claude | Mac |
 | F1-4 · bloco **F1 — para colar** + seed em produção | **dono** | forja + Mac |
-| F1-5 · instalação do `fila_intel.py` sob o lock | **dono** | forja |
+| F1-5 · confirmar `teste_fila.py` verde, sob o lock | **dono** | forja |
 | F1-6 · portões do F1 | **dono** roda, Claude lê | forja + leitura do banco |
 | F1-7 · provas de vazamento | **dono** roda, Claude lê | forja |
 | F1-8 · rollback do F1 (preparado, não executado) | **dono** | Mac (SQL) + forja |
@@ -10930,7 +10939,7 @@ O repositório é local e sem remoto **hoje**. Um `git init` costuma virar `git 
 
 > **Os três arquivos deste card já foram ensaiados** num rascunho fora do repo, antes de o plano ser escrito: o leitor passa nos 22 casos da tabela (`0 falha(s)`), o `nova_chave.py --fila` nos 25 (`0 falha(s)`), o `seed_chave_forja.sh` nos 28 (`0 falha(s)`, inclusive o golden byte a byte da fase 1), e o SQL de conferência do seed foi validado contra produção **só de leitura** com um hash inexistente (devolveu `ativas: 0, minha: 0, perms: ""`, o que também confirma que **ainda não há** chave `forja (fila)` no banco). O código abaixo é o que passou; quem executar a tarefa refaz o ciclo TDD mesmo assim, porque os arquivos de destino ainda não existem.
 
-`fase2/` é lado-Mac e **não entra no kit** (o `scp -r trilha` do K não o leva; só `pulso_f4.py` e `teste_pulso_fila.py` vão à forja, e só no K que antecede o F4). Por isso estes três não mudam o portão `KIT-IGUAL`.
+`fase2/` é lado-Mac e **não entra no `scp -r trilha`** do K; `pulso_f4.py` e `teste_pulso_fila.py` vão à forja por linha própria, **em todo K** (Task K-2, deriva de 22/09), e **entram** no portão `KIT-IGUAL`, que foi fundido. Os outros três (`teste_leitor_env.py`, `teste_nova_chave_fila.py`, `teste_seed_fila.sh`) rodam no Mac, não vão à forja e não mudam o portão.
 
 **Modificados**
 
@@ -11165,7 +11174,7 @@ Em `~/Workspace/forja/ferramentas/docs/trilha/fila_intel.py`. Se o arquivo ainda
 
 ```python
 """Worker da fila de inteligencia do YouTube (fase 2a). Uma execucao por tique de 10 min.
-Instalado em /opt/agente/fila_intel.py; a copia de trabalho vive em docs/trilha/.
+Sem instalacao: roda sempre de /opt/agente/docs/trilha/fila_intel.py, nao ha segunda copia.
 Importar este modulo nao tem efeito colateral: nao toma lock, nao instala handler de sinal,
 nao le nem grava arquivo e nao chama httpx."""
 import os, re
@@ -11691,7 +11700,7 @@ echo
 echo "Pronto se a tabela acima mostra: $NOME | {$(echo "$PERMS" | sed "s/array\[//;s/\]//;s/'//g")} | ativa = t | site bythiagofigueiredo.com"
 if [ "$MODO" = fila ]; then
   echo "Proximo, na forja (portao do F1):"
-  echo "  cd /opt/agente && timeout -k 30s 25m venv/bin/python fila_intel.py --canario"
+  echo "  cd /opt/agente && timeout -k 30s 25m venv/bin/python -B docs/trilha/fila_intel.py --canario"
 else
   echo "Proximo, na forja: bash docs/trilha/canario.sh"
 fi
@@ -11783,35 +11792,27 @@ Esperado: exatamente duas linhas ativas — `forja (so leitura) | {read}` (de 18
 
 ---
 
-### Task F1-5: instalar o `fila_intel.py` sob o lock (dono)
+### Task F1-5: confirmar `teste_fila.py` verde, sob o lock (dono)
 
-**Files:** na forja, `/opt/agente/fila_intel.py` (novo), `/opt/agente/fila_intel.py.bak` (só a partir da segunda instalação).
+**Não há instalação.** `fila_intel.py` roda sempre de `docs/trilha/` — uma segunda cópia em
+`/opt/agente/fila_intel.py` foi um desenho anterior que nunca chegou a existir na forja de verdade
+(o worker vivo sempre foi `docs/trilha/fila_intel.py`, como prova o crontab real). Duas cópias do
+mesmo worker seriam a ambiguidade — "qual delas está rodando?" — que já custou uma rodada perdida ao
+dono. Este card, antes um "instalar", vira só a confirmação de que a cópia de trabalho passa sob o
+lock, o mesmo comando que F4 vai exigir antes de cada atualização (§4.6).
+
+**Files:** nenhum.
 
 **Interfaces:**
 - Consumes: Task F1-4; `docs/trilha/fila_intel.py` na forja (pelo K); `teste_fila.py`; `fixture_pt.json` e `/opt/agente/series.json` (F0.5).
-- Produces: o worker instalado, 0600, idêntico à cópia de trabalho testada.
+- Produces: a confirmação de que o worker está pronto para o F2; nada é instalado.
 
 - [ ] **Step 1: `teste_fila.py` verde na forja, sobre a cópia de trabalho**
 
 ```
-(cd /opt/agente/docs/trilha && flock -w 1800 /opt/agente/fila_intel.lock env -u PYTHONPATH -u AGENTE_BASE AGENTE_SITIO=/opt/agente/sitio.py AGENTE_FILA=/opt/agente/docs/trilha/fila_intel.py /opt/agente/venv/bin/python -B teste_fila.py) || echo 'PARE: teste_fila reprovou ou lock ocupado por 30 min'
+(cd /opt/agente/docs/trilha && flock -w 1800 /opt/agente/fila_intel.lock env -u PYTHONPATH -u AGENTE_BASE AGENTE_SITIO=/opt/agente/docs/sitio.py AGENTE_FILA=/opt/agente/docs/trilha/fila_intel.py /opt/agente/venv/bin/python -B teste_fila.py) || echo 'PARE: teste_fila reprovou ou lock ocupado por 30 min'
 ```
-O `env -u PYTHONPATH` tira o stub `st/httpx.py` do caminho — na forja o worker fala com o `httpx` de verdade. Esperado: a última linha do teste com `0 falha(s)` e saída 0; **qualquer `PARE:` reprova** e nada é instalado.
-
-- [ ] **Step 2: Instalar, sob o lock**
-
-```
-cd /opt/agente && flock -w 1800 /opt/agente/fila_intel.lock sh -c 'cp -p fila_intel.py fila_intel.py.bak 2>/dev/null; install -m 600 docs/trilha/fila_intel.py fila_intel.py.tmp && mv fila_intel.py.tmp fila_intel.py' || echo 'PARE: lock ocupado por 30 min ou instalacao falhou — nada foi trocado'
-```
-Nesta primeira instalação o `cp -p` falha em silêncio (não há `fila_intel.py` ainda) — é o que o `2>/dev/null; ` cobre. O `install` + `mv` troca por rename porque o cron importa o arquivo a cada execução (aqui o cron ainda não existe; a receita é a mesma do F4 em diante). Esperado: nenhuma saída. `PARE:` reprova.
-
-- [ ] **Step 3: Provar que o instalado é o testado**
-
-```
-ls -l /opt/agente/fila_intel.py
-cmp -s /opt/agente/fila_intel.py /opt/agente/docs/trilha/fila_intel.py && echo INSTALADO-IGUAL || echo 'PARE: o instalado difere da copia testada'
-```
-Esperado: `-rw------- 1 thiago thiago` e `INSTALADO-IGUAL`. Qualquer outra coisa reprova.
+O `env -u PYTHONPATH` tira o stub `st/httpx.py` do caminho — na forja o worker fala com o `httpx` de verdade. Esperado: a última linha do teste com `0 falha(s)` e saída 0; **qualquer `PARE:` reprova**.
 
 ---
 
@@ -11835,7 +11836,7 @@ Esperado: `2 ['bool']`. Qualquer outra coisa reprova — `2 ['NoneType']` quer d
 - [ ] **Step 2: `--canario` — as três sondas de escopo e a de schema**
 
 ```
-cd /opt/agente && timeout -k 30s 25m venv/bin/python fila_intel.py --canario
+cd /opt/agente && timeout -k 30s 25m venv/bin/python -B docs/trilha/fila_intel.py --canario
 ```
 Esperado, na saída impressa: `POST …/task/00000000-0000-4000-8000-000000000000/fail` com a **chave da fila** → **404**; o mesmo pedido com a **chave `{read}`** → **403** (um **401 reprova**: seria chave recusada, não permissão faltando); `PATCH …/intelligence` com `video_recommendations` → **400** (um **404 reprova**: quer dizer que a guarda de escopo ficou depois do SELECT da task, §3.3); e a sonda de schema na 8080 aprovada pelo Aceite do §4.4, com `reasoning_content` vazio. Nada é gravado no banco: o `task_id` não existe e a guarda recusa antes de qualquer escrita.
 
@@ -11964,7 +11965,7 @@ cd ~/Workspace/bythiagofigueiredo && npx --yes supabase@2.98.2 db query --linked
 ```
 rm -f /opt/agente/fila_intel.env
 ```
-Só o `.env`. O worker (`/opt/agente/fila_intel.py` e o `.bak`) sai no rollback do **S4**, junto com a linha do `teste_fila` no `cartao.sh` — não o apague aqui, ou o rollback do S4 tropeça no próprio `rm`.
+Só o `.env`. Não há worker instalado para tirar (§4.6, sem segunda cópia): `docs/trilha/fila_intel.py` fica no disco, inerte, e sai só se o rollback do **S4** tirar a linha do `teste_fila` no `cartao.sh` — não mexa nele aqui.
 
 - [ ] **Step 4: Provar (leitura)**
 
@@ -11984,7 +11985,7 @@ Esperado: `ativas = 0` e `No such file or directory`. Qualquer outra coisa repro
 ## F0k + F4 · pulso, crontab e a vigilância da fila (§6, §5)
 
 Último card da 2a. Entra **depois** do F2 aprovado e do `K` que leva `pulso_f4.py`/`teste_pulso_fila.py`
-à forja (`PULSO-IGUAL`). Três passos do dono, nesta ordem: (1) execução manual sobre a task PT
+à forja (Task K-2, em todo K, e cobertos pelo `KIT-IGUAL`). Três passos do dono, nesta ordem: (1) execução manual sobre a task PT
 pendente; (2) a linha do crontab; (3) o check `URL_FILA` no healthchecks e a regra no `pulso.sh` vivo.
 
 **O kit está sob git.** `~/Workspace/forja/ferramentas` é repositório desde `ec51833`
@@ -12010,7 +12011,7 @@ do repo do site) é commitado à parte, com `--no-verify` (regra de plano/doc).
 | 27 | `URL="https://hc-ping.com/af566211-…"` | precedente: o pulso já guarda a própria URL no arquivo |
 | 28-29 | `LOG=/opt/agente/log/pulso.log` · `mkdir -p "$(dirname "$LOG")"` | o `log/` existe desde a O2 |
 | 31-32 | `ok=1` · `motivo=""` | ficam **fora** do bloco novo; o harness os reproduz |
-| 50 | `yt_hints-sem-200-15min` | marca da O2 — a pré-condição do passo (3) |
+| 50 | `yt_hints-sem-200-15min` | ~~marca da O2 — a pré-condição do passo (3)~~ — **deriva (22/09): não existe no pulso vivo (`grep -c` = 0); o portão real é a âncora da linha 78, Ruling R28** |
 | 56-75 | `site=$(python3 - <<'EOF' … EOF)` com `print(type(e).__name__)` | o padrão que o bloco novo copia |
 | 76 | `[ "$site" = "ok" ] \|\| { ok=0; motivo="$motivo site-${site:-mudo}"; }` | o padrão **fecha fechado**: saída vazia = vermelho |
 | 78 | `[ "$ok" -eq 1 ] && alvo="$URL" \|\| alvo="$URL/fail"` | **a âncora**. `grep -c` no arquivo real = **1** |
@@ -12562,7 +12563,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
 Repositório local, **sem push**. `git status --short` deve ficar limpo — o `.gitignore` já cobre o
 `__pycache__/` que o `py_compile` deixa. Os dois arquivos entram no card `F0k` (o laço de
-`py_compile`) e são levados à forja pelo `K` que antecede o F4 (`PULSO-IGUAL`).
+`py_compile`) e são levados à forja **por todo `K`** (Task K-2), cobertos pelo `KIT-IGUAL`.
 
 ---
 
@@ -12597,7 +12598,7 @@ houver, o dono pede uma pelo botão "Pedir diagnostico" do Health Coach, no cana
 
 Fora da janela 11:58–12:05 UTC (§4.1 passo 2). **Um comando:**
 ```
-cd /opt/agente && timeout -k 30s 25m venv/bin/python fila_intel.py
+cd /opt/agente && timeout -k 30s 25m venv/bin/python -B docs/trilha/fila_intel.py
 ```
 Aprovação: imprime `desfecho: ok`. Se sair `chat`, `ocupado` ou `llama_fora`, **nada foi clamado**
 (§4.1 passo 2) — espere 5 min, ainda fora da janela 11:58–12:05 UTC, e repita **o mesmo comando**.
@@ -12628,6 +12629,14 @@ Expected: a task em `completed`, com `name` = `forja (fila)`.
 
 - [ ] **Step 1: O dono cola o bloco "F4 (2)" na forja**
 
+> **Deriva (22/09) — a linha leva `AGENTE_SITIO=/opt/agente/docs/sitio.py` no início.** O bloco abaixo
+> já foi corrigido, e é a linha **viva** no crontab da forja. O prefixo existe porque o worker
+> instalado é anterior a `646447e` do kit e resolve o `sitio.py` com um `dirname` só. Instalar sem o
+> prefixo recria o crashloop de 22/09 (traceback a cada 10 min, jsonl mudo, `URL_FILA` vermelho em
+> 70 min). Ele sai no dia em que a forja receber um worker ≥ `646447e`; prova:
+> `ssh forja 'grep -c "dirname(os.path.dirname" /opt/agente/docs/trilha/fila_intel.py'` → `1`.
+> Operação em `docs/ops/forja-fila-inteligencia-runbook.md`.
+
 Bloco literal do §5 do spec, em subshell — ele **guarda o backup e confere contra ele**:
 ```
 (
@@ -12635,7 +12644,7 @@ Bloco literal do §5 do spec, em subshell — ele **guarda o backup e confere co
   grep -q pulso /opt/agente/crontab.bak-F4 && grep -q retentar /opt/agente/crontab.bak-F4 || { echo 'PARE: backup do crontab sem pulso/retentar — nao instalar'; exit 1; }
   grep -q fila_intel /opt/agente/crontab.bak-F4 && { echo 'PARE: ja existe linha fila_intel no crontab'; exit 1; }
   N0=$(grep -c -e retentar -e pulso /opt/agente/crontab.bak-F4)
-  (cat /opt/agente/crontab.bak-F4; echo '*/10 * * * * timeout -k 30s 25m /opt/agente/venv/bin/python /opt/agente/fila_intel.py --cron >>/opt/agente/log/fila_intel.err 2>&1') | crontab -
+  (cat /opt/agente/crontab.bak-F4; echo '*/10 * * * * AGENTE_SITIO=/opt/agente/docs/sitio.py timeout -k 30s 25m /opt/agente/venv/bin/python -B /opt/agente/docs/trilha/fila_intel.py --cron >>/opt/agente/log/fila_intel.err 2>&1') | crontab -
   [ "$(crontab -l | grep -c -e retentar -e pulso)" = "$N0" ] && [ "$(crontab -l | grep -c fila_intel)" = 1 ] && echo CRON-OK || echo 'PARE: crontab divergente — restaure com  crontab /opt/agente/crontab.bak-F4'
 )
 ```
@@ -12668,7 +12677,7 @@ repetido a cada 10 min é falha de import (§4.1) — pare e faça o rollback do
 - Create (na forja, pelo dono): `/opt/agente/docs/pulso.sh.bak-F4`
 
 **Interfaces:**
-- Consumes: `pulso_f4.py` e `teste_pulso_fila.py` em `/opt/agente/docs/` (card `K`, `PULSO-IGUAL`);
+- Consumes: `pulso_f4.py` e `teste_pulso_fila.py` em `/opt/agente/docs/` (card `K`, Task K-2, cobertos pelo `KIT-IGUAL`);
   o check `URL_FILA` criado no healthchecks.
 - Produces: o bloco `# >>> fila_intel (F4)` vivo no pulso, reportando no check próprio.
 
@@ -12681,13 +12690,24 @@ python3 -c "import json,sys;sys.exit(0 if any(d.get('modo')=='cron' and d.get('d
 Aprovação: `saida=0`. `saida=1` → **espere o próximo ciclo de 10 min** e repita. Não siga sem isso:
 sem uma execução `cron` sadia no arquivo, o bloco entraria já vermelho.
 
-- [ ] **Step 2: Pré-condição da O2 — o pulso vivo é o da onda 0b**
+- [ ] **Step 2: Pré-condição — a âncora que o `pulso_f4.py` realmente usa**
+
+> **Deriva (22/09) — este portão conferia a âncora errada e mandava PARAR sem motivo.** O Step
+> original pedia `grep -c 'yt_hints-sem-200-15min' /opt/agente/docs/pulso.sh` → `1`. **Na forja isso
+> dá `0`:** o `pulso.sh` vivo é de 03/08/2026 e nunca recebeu a onda 0b. Mas o `pulso_f4.py` **não
+> usa essa marca**: `ANCORA = '[ "$ok" -eq 1 ]'` (`fase2/pulso_f4.py:10`), que existe **exatamente 1
+> vez** no pulso vivo. O `yt_hints` era um proxy para "este é o pulso que o bloco pressupõe"; a
+> âncora direta mede o que de fato importa. **Ruling R28 do ledger:** pular o portão do `yt_hints` e
+> confiar na guarda do próprio script, que é mais estrita (recusa se a âncora não aparecer
+> exatamente 1×, se os marcadores já existirem, ou se a URL não casar
+> `^https://hc-ping\.com/[0-9a-f-]{36}$`) e fail-closed por construção — se errado, ele recusa e nada
+> é gravado.
 
 ```
-grep -c 'yt_hints-sem-200-15min' /opt/agente/docs/pulso.sh
+grep -c '\[ "$ok" -eq 1 \]' /opt/agente/docs/pulso.sh
 ```
-Aprovação: **`1`**. Qualquer outro valor (0, ou mais de 1) → **pare**: o `pulso.sh` vivo não é o que
-este bloco pressupõe, e a âncora pode não ser única.
+Aprovação: **`1`**. Qualquer outro valor (0, ou mais de 1) → **pare**: a âncora não é única e o
+`pulso_f4.py` vai recusar de qualquer forma.
 
 - [ ] **Step 3: O dono cria o check `URL_FILA` no healthchecks**
 
@@ -12808,7 +12828,7 @@ Quatro passos, **nesta ordem**. É a primeira etapa do rollback da fase inteira 
 - [ ] **Step 1: Tirar só a linha da fila do crontab**
 
 ```
-crontab -l | grep -vF '/opt/agente/fila_intel.py' | crontab -
+crontab -l | grep -vF 'docs/trilha/fila_intel.py' | crontab -
 ```
 ```
 crontab -l | grep -c fila_intel; crontab -l | grep -c -e retentar -e pulso
@@ -12912,7 +12932,7 @@ Cowork (`forja_retirada_…` fica fora dela), e o Cowork já não lia a forja (�
 ### Ordem de execução deste card
 
 ```
-K (PULSO-IGUAL)  ->  F4-3 (manual)  ->  F4-4 (crontab)  ->  F4-5 (pulso)  ->  F4-6 (portões)
+K (KIT-IGUAL)    ->  F4-3 (manual)  ->  F4-4 (crontab)  ->  F4-5 (pulso)  ->  F4-6 (portões)
 rollback:            F4-7 (F4)      ->  F4-8 (Qualidade) ->  F1 -> S4 -> F0   (cards de outros agentes)
 ```
 As Tasks F4-1 e F4-2 são de escrita no Mac e acontecem **antes** do `K` — sem elas o `K` não tem o
@@ -13445,11 +13465,21 @@ bash -n docs/trilha/cartao.sh && bash -n docs/trilha/deploy.sh && bash -n seed_c
 ```
 Expected: nenhuma linha `FALHOU` e `SH-OK` impresso. Qualquer outra coisa reprova.
 
-- [ ] **Step 3: Não rodar `teste_fila.py` nem `teste_s4.py` aqui**
+- [ ] **Step 3: Não rodar `teste_fila.py` aqui; rodar `teste_s4.py`, sim**
 
-Regra do §5, célula F0k: **os dois não rodam no Mac**. O `python3` do Mac não tem `httpx` e o worker o importa (§4.1, §4.6), então uma execução aqui falharia por ambiente e não diria nada sobre o código. Eles são portão **na forja**: `teste_s4.py` dentro do `cartao.sh S4`, `teste_fila.py` dentro do `cartao.sh S4` (sobre `sitio.py.novo`) e antes de cada instalação do worker no F1 (§4.6).
+Regra do §5, célula F0k, **corrigida na v12** (a v11 dizia que os dois não rodavam no Mac; estava
+errado): só `teste_fila.py` não roda aqui — carrega o worker, que importa `httpx`, e o `python3` do
+Mac não o tem. Ele é portão **na forja**, dentro do `cartao.sh S4` (sobre `sitio.py.novo`) e antes de
+cada instalação do worker no F1 (§4.6). **`teste_s4.py` não toca no worker** — testa só o `sitio.py`,
+é stdlib puro, e roda aqui com `AGENTE_SITIO` setado:
 
-Prova de que o ambiente é esse mesmo, e não um engano:
+```bash
+cd ~/Workspace/forja/ferramentas/docs/trilha && AGENTE_SITIO=$HOME/Workspace/forja/ferramentas/docs/sitio.py python3 -B teste_s4.py; echo "saida=$?"
+```
+Expected: `S4: 0 falha(s)` com `saida=0` (29 asserções). Entra no ciclo de TDD do Mac como os demais;
+o portão do F0k não muda por causa dele.
+
+Prova de que o ambiente é esse mesmo para `teste_fila.py`, e não um engano:
 
 ```bash
 python3 -c "import httpx" 2>&1 | tail -1
@@ -13477,7 +13507,7 @@ Expected: `git status --short` **vazio**; a lista de ignorados só com `__pycach
 
 - [ ] **Step 6: Entregar ao dono a lista do K**
 
-Anotar no relato: portão verde nas três partes, os 12 arquivos do inventário, o SHA do último commit do kit, e a observação de que o `scp` de `fase2/` (Task K-2) só é necessário no K **que antecede o F4**.
+Anotar no relato: portão verde nas três partes, os 12 arquivos do inventário e o SHA do último commit do kit. O `scp` de `fase2/` (Task K-2) roda **em todo K**, sem condicional — a versão anterior desta linha dizia o contrário e travou o dono no F4-5.
 
 ---
 
@@ -13508,7 +13538,7 @@ Isto leva, em `trilha/`: `sonda_f0.py`, `capturar_fixture.py`, `s4.py`, `teste_s
 - [ ] **Step 2 (dono, no Mac): o portão de igualdade por md5**
 
 ```
-cd ~/Workspace/forja/ferramentas/docs && find sitio.py trilha -type f ! -path '*__pycache__*' | sort | xargs md5 -r | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo KIT-IGUAL
+cd ~/Workspace/forja/ferramentas && { (cd docs && find sitio.py trilha -type f ! -path '*__pycache__*' | sort | xargs md5 -r); (cd fase2 && md5 -r pulso_f4.py teste_pulso_fila.py); } | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo KIT-IGUAL
 ```
 Esperado: **só** `KIT-IGUAL`. Qualquer linha `FAILED` antes dele reprova: o arquivo listado não chegou igual, e o dono repete o Step 1 antes de seguir.
 
@@ -13529,19 +13559,21 @@ Esperado: antes do F0.5, as duas contagens **iguais**. Depois do F0.5, a forja t
 
 ---
 
-### Task K-2: o `scp` de `fase2/` — só no K que antecede o F4
+### Task K-2: o `scp` de `fase2/` — em todo K, sem condicional
 
 **Files:** nenhum no Mac.
 
 **Interfaces:**
 - Consumes: Task F0k-4 e o card F4 (que escreve `pulso_f4.py` e `teste_pulso_fila.py`).
-- Produces: `/opt/agente/docs/pulso_f4.py` e `/opt/agente/docs/teste_pulso_fila.py`; `PULSO-IGUAL` impresso.
+- Produces: `/opt/agente/docs/pulso_f4.py` e `/opt/agente/docs/teste_pulso_fila.py`, cobertos pelo `KIT-IGUAL` da Task K-1.
 
-- [ ] **Step 1: Decidir se este K precisa do passo**
+- [ ] **Step 1: Sem decisão — este passo roda SEMPRE**
 
-Os dois arquivos vão para `/opt/agente/docs/` (ao lado do `pulso.sh` vivo), **não** para `docs/trilha/`, e só servem ao passo (3) do F4. Nos K anteriores (antes do F0, do F0.5, do S4, do F1, do F2) este passo **não roda**.
+> **Deriva (22/09) — aqui dizia "rode a Task K-2 só quando o próximo card for o F4", e foi isso que travou o dono ao vivo.** No F4-5 os dois arquivos não estavam em `/opt/agente/docs/`: o K executado tinha feito só o `scp -r sitio.py trilha`, o passo parou no meio do procedimento (com o dono já a caminho de mexer no `pulso.sh` vivo) e foi preciso um `scp` avulso. É o PATCH 10 do ledger. **A condicional sai.**
+>
+> Custo de levar cedo demais: dois arquivos inertes em `/opt/agente/docs/` que nenhum cartão invoca antes do F4. Custo de não levar: o procedimento para no pior momento. O portão do Step 3 saiu daqui e foi **fundido** no `KIT-IGUAL` da Task K-1, justamente para que não exista mais um portão separado que dê para esquecer de rodar.
 
-Regra: rode a Task K-2 **só quando o próximo card for o F4**.
+Os dois arquivos vão para `/opt/agente/docs/` (ao lado do `pulso.sh` vivo), **não** para `docs/trilha/`. Eles só são *invocados* no passo (3) do F4, mas são *levados* em todo K.
 
 - [ ] **Step 2 (dono, no Mac): levar os dois arquivos**
 
@@ -13550,12 +13582,21 @@ scp ~/Workspace/forja/ferramentas/fase2/pulso_f4.py ~/Workspace/forja/ferramenta
 ```
 Esperado: dois arquivos transferidos.
 
-- [ ] **Step 3 (dono, no Mac): portão `PULSO-IGUAL`**
+- [ ] **Step 3 (dono, no Mac): o portão é o `KIT-IGUAL` da Task K-1**
+
+Não há mais um `PULSO-IGUAL` separado. Rode de novo o portão único da Task K-1 — ele agora inclui
+`pulso_f4.py` e `teste_pulso_fila.py`:
 
 ```
-cd ~/Workspace/forja/ferramentas/fase2 && md5 -r pulso_f4.py teste_pulso_fila.py | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo PULSO-IGUAL
+cd ~/Workspace/forja/ferramentas && { (cd docs && find sitio.py trilha -type f ! -path '*__pycache__*' | sort | xargs md5 -r); (cd fase2 && md5 -r pulso_f4.py teste_pulso_fila.py); } | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo KIT-IGUAL
 ```
-Esperado: só `PULSO-IGUAL`. Uma linha `FAILED` reprova.
+Esperado: só `KIT-IGUAL`. Qualquer linha `FAILED` reprova e nomeia o arquivo que não chegou igual.
+
+**Conferido em 22/09:** com os dois arquivos do pulso já na forja (pelo `scp` avulso do F4-5), este
+portão reprova em 4 arquivos de `trilha/` — `fila_intel.py`, `teste_fila.py`, `teste_calculo.py` e
+`capturar_fixture.py` —, que são os commits do kit ainda não instalados. **Era exatamente isso que o
+portão antigo não via:** ele nunca foi rodado depois desses commits, e o `PULSO-IGUAL`, quando
+rodado, passava verde sem dizer nada sobre `trilha/`.
 
 - [ ] **Step 4 (Claude, leitura): conferir que nada mais foi para `docs/`**
 
@@ -13889,19 +13930,19 @@ O dono roda na forja; Claude lê no Mac. **Nada é gravado no site**: o `--sombr
 - Create: `~/Workspace/forja/ferramentas/fase2/sombra-f2/` (3 arquivos trazidos ao Mac)
 
 **Interfaces:**
-- Consumes: F1 (worker instalado, `fila_intel.env` com `CANAIS_FILA`), F0.5 (fixture e `series.json`).
+- Consumes: F1 (`teste_fila.py` verde, `fila_intel.env` com `CANAIS_FILA`), F0.5 (fixture e `series.json`).
 - Produces: os 3 payloads e as 3 linhas `modo: sombra` do jsonl, entrada das Tasks F2-2, F2-3 e F2-4.
 
 - [ ] **Step 1 (dono, na forja): rodar a sombra três vezes, uma por vez**
 
 ```
-cd /opt/agente && timeout -k 30s 25m venv/bin/python fila_intel.py --sombra --snapshot docs/trilha/fixture_pt.json
+cd /opt/agente && timeout -k 30s 25m venv/bin/python -B docs/trilha/fila_intel.py --sombra --snapshot docs/trilha/fixture_pt.json
 ```
 Esperado, nas três: o desfecho `ok` impresso e um arquivo novo em `/opt/agente/sombra/`.
 
 Se sair `ocupado`, `llama_fora` ou `chat`, **nada foi gerado** (§4.7: as checagens de `/slots` e de chat recente rodam antes): espere 5 min e repita **o mesmo comando**. Essa rodada não conta — o portão são 3 rodadas com geração.
 
-É o **worker instalado** (`/opt/agente/fila_intel.py`), que carrega `/opt/agente/sitio.py`, não a cópia de trabalho de `docs/trilha/`.
+É o único worker (`/opt/agente/docs/trilha/fila_intel.py` — não há segunda cópia, §4.6), que carrega `/opt/agente/docs/sitio.py`.
 
 - [ ] **Step 2 (dono, no Mac): trazer os três mais recentes — bloco "F2 — para colar" do §5**
 

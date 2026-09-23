@@ -16,8 +16,9 @@ export interface AxisWeights {
 export interface AxisScore {
   axis: Axis
   raw: number
-  normalized: number
+  /** Effective weight after unavailable axes were dropped and the rest renormalized. */
   weight: number
+  normalized: number
   weighted: number
 }
 
@@ -25,21 +26,47 @@ export interface VideoScore {
   videoId: string
   overall: number
   grade: Grade
+  /**
+   * Only the axes that could actually be measured. An axis with no usable
+   * input is ABSENT from this array — it is never present with a zero, which
+   * would turn missing data into the claim "this video scores 0 here".
+   * Consumers distinguish the two by `find()` returning `undefined`.
+   */
   axes: AxisScore[]
+  /** Axes deliberately left out of `axes`, and why. */
+  unavailableAxes: UnavailableAxis[]
   evergreenBonus: number
   lifecycle: VideoLifecycle
   ageDays: number
 }
 
+export interface UnavailableAxis {
+  axis: Axis
+  reason: string
+}
+
 export interface VideoScoreInput {
   videoId: string
   publishedAt: string
-  ctr: number
-  avgViewPercentage: number
-  impressions: number
+  /**
+   * `null` = not measured, NOT zero. The axis that needs it is then reported in
+   * `unavailableAxes` and the others are renormalized. Passing `?? 0` instead
+   * is how a missing measurement became a mid-scale score (see scoring.ts).
+   */
+  ctr: number | null
+  /** `null` = not measured; the retention axis is then unavailable. */
+  avgViewPercentage: number | null
+  /** `null` or 0 = no denominator; the sub_impact axis is then unavailable. */
+  impressions: number | null
   trafficSources: TrafficSources | null
-  engagementRate: number
-  dailyViews: DailyViewPoint[]
+  /** `null` = no analytics row in the window; the engagement axis is then unavailable. */
+  engagementRate: number | null
+  /**
+   * Rows of `youtube_video_analytics` for this video: each one the TOTAL over
+   * the rolling sync window as of its date, NOT that date's count. Named
+   * `windowViews` precisely so that summing them cannot type-check.
+   */
+  rollingViews: RollingViewPoint[]
   subscribersGained: number
   viewCount: number
 }
@@ -54,9 +81,20 @@ export interface TrafficSources {
   playlists: number
 }
 
+/** A TRUE per-day view count. Nothing in this codebase can produce one yet. */
 export interface DailyViewPoint {
   date: string
   views: number
+}
+
+/**
+ * One `youtube_video_analytics` row: the total over the rolling sync window as
+ * of `date`. Consecutive points are overlapping windows, not a time series of
+ * daily counts, so they must not be summed and must not be differenced.
+ */
+export interface RollingViewPoint {
+  date: string
+  windowViews: number
 }
 
 export interface ChannelBaseline {
@@ -64,9 +102,16 @@ export interface ChannelBaseline {
   medianRetention: number
   medianReach: number
   medianEngagement: number
-  medianGrowth: number
   medianSubImpact: number
-  channelDailyMean: number
+  /**
+   * Mean, across videos with data, of the video's CURRENT rolling-window view
+   * total. Same unit as a single video's window total, so the two are
+   * comparable. Replaces `channelDailyMean`, which divided a summed-and-thus-
+   * inflated channel total by the number of sync dates and then compared that
+   * channel-wide figure against a SINGLE video's mean — an error of scale on
+   * top of the error of aggregation.
+   */
+  channelMeanWindowViews: number
   subscriberCount: number
   medianViewCount: number
 }

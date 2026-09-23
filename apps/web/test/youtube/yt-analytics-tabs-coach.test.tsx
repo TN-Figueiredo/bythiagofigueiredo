@@ -13,7 +13,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 // test/youtube/yt-search-terms.test.tsx:17.
 vi.mock('@/app/cms/(authed)/pipeline/actions', () => ({ createPipelineItem: vi.fn() }))
 
-import { YtAnalyticsTabs } from '@/app/cms/(authed)/youtube/analytics/_components/yt-analytics-tabs'
+import { YtAnalyticsTabs, computeCoachingCards } from '@/app/cms/(authed)/youtube/analytics/_components/yt-analytics-tabs'
 
 const AXES: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
 
@@ -103,6 +103,50 @@ describe('Health Coach — source badge and summary line', () => {
     expect(screen.getByText(summary)).toBeTruthy()
   })
 
+  it(
+    'THE REGRESSION: a forja summary row over an older Cowork analysis — the banner is the ' +
+      'forja, the cards are the Cowork ones, and the label carries both dates',
+    async () => {
+      // 2026-09-22 in production: the forja wrote its first `priorities: []` row and the owner
+      // opened the tab to one sentence where three cards used to be.
+      const forjaSummary = 'Sem CTR/retenção nesta fase; base: views e séries.'
+      render(
+        <YtAnalyticsTabs
+          {...BASE}
+          channelCoaching={{
+            coaching: { summary: forjaSummary, priorities: [] },
+            source: 'forja',
+            generatedLabel: '22/09',
+            cards: { coaching: MAY_COACHING, source: 'cowork', generatedLabel: '18/05' },
+          }}
+        />,
+      )
+      const coachTab = screen.getByRole('tab', { name: /Health Coach/ })
+      expect(within(coachTab).getByText('3')).toBeTruthy()
+
+      await openCoach()
+      // Banner: the forja summary, badged forja, dated today — and the cards' own provenance
+      // on the same approved label, so the May date is never passed off as today's.
+      expect(screen.getByText('Diagnostico · por forja · 22/09 · cards por Cowork · 18/05')).toBeTruthy()
+      expect(screen.getByText(forjaSummary)).toBeTruthy()
+      expect(screen.queryByText(MAY_SUMMARY)).toBeNull()
+
+      // Cards: the three worst priorities of the May analysis, back on screen.
+      expect(screen.getByText('d0')).toBeTruthy()
+      expect(screen.getByText('d1')).toBeTruthy()
+      expect(screen.getByText('d2')).toBeTruthy()
+      // And still never the heuristic: a real analysis exists.
+      expect(screen.queryByText(/Baseado em regras fixas/)).toBeNull()
+    },
+  )
+
+  it('same analysis for banner and cards: the label prints one provenance, never twice', async () => {
+    render(<YtAnalyticsTabs {...BASE} channelCoaching={{ coaching: MAY_COACHING, source: 'cowork', generatedLabel: '18/05', cards: null }} />)
+    await openCoach()
+    expect(screen.getByText('Diagnostico · por Cowork · 18/05')).toBeTruthy()
+    expect(screen.queryByText(/cards por/)).toBeNull()
+  })
+
   it('C: no row falls back to the heuristic label, 3 cards and badge 3', async () => {
     render(<YtAnalyticsTabs {...BASE} channelCoaching={null} />)
     const coachTab = screen.getByRole('tab', { name: /Health Coach/ })
@@ -141,5 +185,70 @@ describe('Health Coach — source badge and summary line', () => {
     render(<YtAnalyticsTabs {...BASE} channelCoaching={channelCoaching as never} onRequestAnalysis={vi.fn()} />)
     expect(screen.getByRole('button', { name: 'Pedir diagnostico' })).toBeTruthy()
     expect(screen.queryByText(/ao Cowork/)).toBeNull()
+  })
+})
+
+/** A video scored on exactly the axes given — an axis absent from `axes` is an axis with
+ *  no sample, which `VideoGradeRow.axes` (Array<{axis, normalized: number}>) expresses by
+ *  omission, since `normalized` itself is non-nullable. */
+function videoWithAxes(entries: Array<{ axis: Axis; normalized: number }>): VideoGradeRow {
+  return { ...videoWithAllAxesAt(0), axes: entries } as unknown as VideoGradeRow
+}
+
+describe('computeCoachingCards — heuristic branch never invents a card without a sample', () => {
+  it('a genuine 0 on an axis still produces a card (the zero IS data)', () => {
+    const cards = computeCoachingCards([videoWithAllAxesAt(0)], null)
+    expect(cards).toHaveLength(3)
+    expect(cards.every(c => c.score === 0)).toBe(true)
+    expect(cards.every(c => c.source === 'fallback')).toBe(true)
+  })
+
+  it('a channel with zero videos produces no card at all', () => {
+    // The live bug: [] scored 0 on all six axes, all six passed the < 6.5 filter, and the
+    // tab badge said 3 while the panel below said "Nenhuma analise ... disponivel ainda".
+    expect(computeCoachingCards([], null)).toEqual([])
+  })
+
+  it('an axis no video carries produces no card, even when other axes do', () => {
+    const cards = computeCoachingCards([videoWithAxes([{ axis: 'ctr', normalized: 0 }])], null)
+    expect(cards.map(c => c.axis)).toEqual(['ctr'])
+  })
+
+  it('an axis averages over the videos that carry it, not over the whole channel', () => {
+    // ctr: one video at 90 (9.0 — healthy, no card). The second video has no ctr sample and
+    // must not drag it to (90+0)/2 = 45 → 4.5, which would invent a "CTR abaixo" card.
+    const cards = computeCoachingCards(
+      [
+        videoWithAxes([{ axis: 'ctr', normalized: 90 }]),
+        videoWithAxes([{ axis: 'retention', normalized: 10 }]),
+      ],
+      null,
+    )
+    expect(cards.map(c => c.axis)).toEqual(['retention'])
+    expect(cards[0].score).toBe(1)
+  })
+
+  // The cut is strictly `< COACHING_BENCHMARK`. An axis sitting exactly ON the benchmark is
+  // healthy by definition: relax it to `<=` and the panel starts nagging about an axis that
+  // already meets the target. These two pin both sides of the 6.5 boundary.
+  it('an axis exactly at the benchmark (6.5) is healthy and produces no card', () => {
+    expect(computeCoachingCards([videoWithAxes([{ axis: 'ctr', normalized: 65 }])], null)).toEqual([])
+  })
+
+  it('an axis one tenth below the benchmark (6.4) still earns its card', () => {
+    const cards = computeCoachingCards([videoWithAxes([{ axis: 'ctr', normalized: 64 }])], null)
+    expect(cards.map(c => c.axis)).toEqual(['ctr'])
+    expect(cards[0].score).toBe(6.4)
+  })
+})
+
+describe('Health Coach — badge agrees with the panel on an empty channel', () => {
+  it('zero videos and no coaching row: no badge, and the panel states the emptiness', async () => {
+    render(<YtAnalyticsTabs {...BASE} intelligenceVideos={[] as never} channelCoaching={null} />)
+    const coachTab = screen.getByRole('tab', { name: /Health Coach/ })
+    expect(within(coachTab).queryByText('3')).toBeNull()
+
+    await openCoach()
+    expect(screen.getByText('Nenhuma analise de inteligencia disponivel ainda.')).toBeTruthy()
   })
 })

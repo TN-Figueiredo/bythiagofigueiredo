@@ -5,6 +5,7 @@ import { getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { buildNotification, buildGroupNotification, shouldAggregate } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import type { VideoScoreInput } from '@/lib/youtube/scoring-types'
+import { latestRow } from '@/lib/youtube/rolling-window'
 import * as Sentry from '@sentry/nextjs'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
@@ -51,7 +52,10 @@ export async function GET(req: NextRequest) {
         .from('youtube_videos')
         .select('id, youtube_video_id, title, published_at, view_count, ctr, impressions, avg_view_percentage, avg_view_duration_seconds, traffic_sources')
         .eq('channel_id', channel.id)
-        .not('ctr', 'is', null)
+        // No `.not('ctr', 'is', null)`: nothing can fill `ctr` (YouTube
+        // Analytics API v2 does not serve impressions/CTR), so that filter
+        // matched 0 of 35 videos and this cron wrote ZERO rows every week.
+        // A missing ctr now makes the ctr axis unavailable, not the video.
         .order('published_at', { ascending: false })
         .limit(50)
 
@@ -96,22 +100,28 @@ export async function GET(req: NextRequest) {
       for (const video of videos) {
         const daily = dailyByVideo.get(video.id) ?? []
         const last28 = daily.filter(d => new Date(d.date).getTime() > Date.now() - 28 * 86400000)
-        const totalViews = last28.reduce((s, d) => s + d.views, 0)
-        const totalEngagement = last28.reduce((s, d) => s + d.likes + d.comments + d.shares, 0)
-        const engagementRate = totalViews > 0 ? (totalEngagement / totalViews) * 100 : 0
-        const totalSubs = last28.reduce((s, d) => s + d.subscribers_gained, 0)
+        // The newest row is the rolling-window total; the rows are not daily
+        // counts and summing them inflated every weekly grade snapshot.
+        const newest = latestRow(last28)
+        const totalViews = newest?.views ?? 0
+        const totalEngagement = newest ? newest.likes + newest.comments + newest.shares : 0
+        // null = no measurement in the window (the axis drops out); 0 would
+        // claim "nobody engaged".
+        const engagementRate = totalViews > 0 ? (totalEngagement / totalViews) * 100 : null
+        const totalSubs = newest?.subscribers_gained ?? 0
 
         const input: VideoScoreInput = {
           videoId: video.id,
           publishedAt: video.published_at ?? new Date().toISOString(),
-          ctr: video.ctr ?? 0,
-          avgViewPercentage: video.avg_view_percentage ?? 0,
-          impressions: video.impressions ?? 0,
+          // Pass NULL through: `?? 0` turned "not measured" into a score.
+          ctr: video.ctr,
+          avgViewPercentage: video.avg_view_percentage,
+          impressions: video.impressions,
           trafficSources: (video.traffic_sources && typeof video.traffic_sources === 'object' && !Array.isArray(video.traffic_sources))
             ? video.traffic_sources as VideoScoreInput['trafficSources']
             : null,
           engagementRate,
-          dailyViews: last28.map(d => ({ date: d.date, views: d.views })),
+          rollingViews: last28.map(d => ({ date: d.date, windowViews: d.views })),
           subscribersGained: totalSubs,
           viewCount: video.view_count ?? 0,
         }

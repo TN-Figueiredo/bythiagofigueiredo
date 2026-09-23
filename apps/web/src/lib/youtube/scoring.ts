@@ -12,7 +12,9 @@ import type {
   VideoLifecycle,
   VideoScore,
   VideoScoreInput,
+  UnavailableAxis,
 } from './scoring-types'
+import { latestRow, latestRowPerVideo } from './rolling-window'
 import { GRADE_THRESHOLDS, LOG_TRANSFORM_AXES, SIGMOID_K } from './scoring-types'
 
 export function sigmoid(x: number, k: number, midpoint: number): number {
@@ -45,6 +47,15 @@ export function getChannelTier(subscriberCount: number): ChannelTier {
   return 'large'
 }
 
+/**
+ * Weighted least-squares slope of TRUE daily view counts, as a percentage of
+ * the mean.
+ *
+ * Kept correct and exported for the day a genuine daily source exists, but
+ * nothing calls it with real data today: `youtube_video_analytics` stores
+ * rolling-window totals, and those are neither summable nor differenceable
+ * into daily counts (see `GROWTH_UNAVAILABLE` in `scoreVideo`).
+ */
 export function computeGrowthVelocity(dailyViews: DailyViewPoint[], recencyExponent: number): number {
   if (dailyViews.length < 7) return 0
 
@@ -72,14 +83,27 @@ export function computeGrowthVelocity(dailyViews: DailyViewPoint[], recencyExpon
   return (slope / meanViews) * 100
 }
 
-export function computeEvergreenBonus(ageDays: number, dailyViews: number[], channelDailyMean: number): number {
-  if (ageDays <= 180 || dailyViews.length < 14) return 0
-  if (channelDailyMean <= 0) return 0
-  const videoMean = dailyViews.reduce((a, b) => a + b, 0) / dailyViews.length
-  if (videoMean < channelDailyMean) return 0
-  const stdDev = Math.sqrt(dailyViews.reduce((sum, v) => sum + Math.pow(v - videoMean, 2), 0) / dailyViews.length)
+/**
+ * Bonus for an old video that still pulls more than the channel's typical video.
+ *
+ * Both sides are now the SAME unit — views over one rolling sync window. The
+ * previous version compared one video's mean against `channelDailyMean`, which
+ * was the summed (inflated) channel-wide total divided by the number of sync
+ * dates: a channel figure weighed against a per-video figure, so the bonus was
+ * decided by how many videos the channel had and how often the cron had run.
+ */
+export function computeEvergreenBonus(
+  ageDays: number,
+  windowViews: number[],
+  channelMeanWindowViews: number,
+): number {
+  if (ageDays <= 180 || windowViews.length < 14) return 0
+  if (channelMeanWindowViews <= 0) return 0
+  const videoMean = windowViews.reduce((a, b) => a + b, 0) / windowViews.length
+  if (videoMean < channelMeanWindowViews) return 0
+  const stdDev = Math.sqrt(windowViews.reduce((sum, v) => sum + Math.pow(v - videoMean, 2), 0) / windowViews.length)
   if (videoMean === 0 || stdDev / videoMean > 0.8) return 0
-  return Math.min(8, Math.max(3, Math.round((videoMean / channelDailyMean) * 2.5)))
+  return Math.min(8, Math.max(3, Math.round((videoMean / channelMeanWindowViews) * 2.5)))
 }
 
 export function getAxisWeights(videoAgeDays: number): AxisWeights {
@@ -114,6 +138,54 @@ function computeReachDiversity(sources: VideoScoreInput['trafficSources']): numb
   return computeReachDiversityFromRecord(sources as unknown as Record<string, number>)
 }
 
+/**
+ * Why the growth axis carries no score.
+ *
+ * `computeGrowthVelocity` needs a series of TRUE daily view counts. Every row
+ * of `youtube_video_analytics` is instead the total over a ROLLING window, so:
+ *
+ *   - summing the rows multiplies the same views by the number of syncs, and
+ *   - differencing them gives `daily(D) - daily(D - windowLength)`, not
+ *     `daily(D)`. Production proves it: on 2026-09-22, 7 of 233 consecutive
+ *     differences on UCRHtzTwaEpcjspAS2hbqmrA were NEGATIVE, and one video's
+ *     series ran 10,10,9,9,8,...,4. Daily view counts cannot be negative.
+ *
+ * Feeding the regression a flat series returned velocity 0 for every video,
+ * which sigmoid turned into a definite mid-scale score weighted at 12% of the
+ * grade — a measurement manufactured out of nothing. The axis is therefore
+ * reported as unavailable and excluded from the weighted sum. It revives on
+ * its own the day a genuine daily source fills `dailyViews`.
+ */
+export const GROWTH_UNAVAILABLE =
+  'youtube_video_analytics stores rolling-window totals, not daily counts: a growth rate cannot be derived from them'
+
+/**
+ * Why CTR (and, with it, sub_impact) carries no score today.
+ *
+ * YouTube Analytics API v2 does not serve `impressions` or
+ * `impressionClickThroughRate` — requesting them answers "Unknown identifier"
+ * (see sync-analytics-metrics/route.ts). They exist only inside YouTube
+ * Studio. Nothing in this codebase writes `youtube_videos.ctr` or
+ * `.impressions`; on 2026-09-22 production had 0 of 35 videos with either.
+ */
+export const CTR_UNAVAILABLE =
+  'no ctr: YouTube Analytics API v2 does not expose impressionClickThroughRate, so youtube_videos.ctr is never written'
+export const SUB_IMPACT_UNAVAILABLE =
+  'no impressions: YouTube Analytics API v2 does not expose impressions, so subscribers-per-impression has no denominator'
+export const RETENTION_UNAVAILABLE =
+  'no avg_view_percentage: the analytics sync does not request averageViewPercentage, so the column is never written'
+export const ENGAGEMENT_UNAVAILABLE =
+  'no youtube_video_analytics row with views in the window'
+
+const UNAVAILABLE_REASONS: Record<Axis, string> = {
+  ctr: CTR_UNAVAILABLE,
+  retention: RETENTION_UNAVAILABLE,
+  reach: 'no input',
+  engagement: ENGAGEMENT_UNAVAILABLE,
+  growth: GROWTH_UNAVAILABLE,
+  sub_impact: SUB_IMPACT_UNAVAILABLE,
+}
+
 export function scoreVideo(input: VideoScoreInput, baseline: ChannelBaseline): VideoScore {
   const rawAge = (Date.now() - new Date(input.publishedAt).getTime()) / 86400000
   const ageDays = Number.isFinite(rawAge) && rawAge >= 0 ? Math.floor(rawAge) : 0
@@ -124,9 +196,7 @@ export function scoreVideo(input: VideoScoreInput, baseline: ChannelBaseline): V
   const tier = getChannelTier(baseline.subscriberCount)
   const tierMod = TIER_MODIFIERS[tier]
 
-  const velocity = computeGrowthVelocity(input.dailyViews, recencyExp)
   const reachDiversity = computeReachDiversity(input.trafficSources)
-  const subImpactRaw = input.impressions > 0 ? (input.subscribersGained / input.impressions) * 1000 : 0
 
   // When traffic sources are unavailable, fall back to view_count relative performance.
   // Log-scale the ratio so outlier detection can differentiate videos by actual views.
@@ -137,31 +207,58 @@ export function scoreVideo(input: VideoScoreInput, baseline: ChannelBaseline): V
     reachMidpoint = Math.log2(baseline.medianViewCount + 1)
   }
 
-  const axisInputs: Record<Axis, { raw: number; midpoint: number }> = {
-    ctr: { raw: input.ctr, midpoint: baseline.medianCtr - tierMod.ctr },
-    retention: { raw: input.avgViewPercentage, midpoint: baseline.medianRetention - tierMod.retention },
+  // `axisInputs` omits an axis entirely when its input does not exist. Adding a
+  // key here with a placeholder value is how missing data becomes a claim —
+  // and not a harmless one: with every ctr/avg_view_percentage NULL the channel
+  // medians are 0 too, so a placeholder 0 lands ABOVE the tier-shifted midpoint
+  // and sigmoid scores it ~63-71 (ctr) and 99 (retention) for every video.
+  const axisInputs: Partial<Record<Axis, { raw: number; midpoint: number }>> = {
     reach: { raw: reachRaw, midpoint: reachMidpoint },
-    engagement: { raw: input.engagementRate, midpoint: baseline.medianEngagement },
-    growth: { raw: velocity, midpoint: prepareAxisInput('growth', baseline.medianGrowth) },
-    sub_impact: { raw: subImpactRaw, midpoint: baseline.medianSubImpact },
+  }
+  if (input.ctr !== null) {
+    axisInputs.ctr = { raw: input.ctr, midpoint: baseline.medianCtr - tierMod.ctr }
+  }
+  if (input.avgViewPercentage !== null) {
+    axisInputs.retention = { raw: input.avgViewPercentage, midpoint: baseline.medianRetention - tierMod.retention }
+  }
+  if (input.engagementRate !== null) {
+    axisInputs.engagement = { raw: input.engagementRate, midpoint: baseline.medianEngagement }
+  }
+  if (input.impressions !== null && input.impressions > 0) {
+    axisInputs.sub_impact = {
+      raw: (input.subscribersGained / input.impressions) * 1000,
+      midpoint: baseline.medianSubImpact,
+    }
   }
 
-  const axes: AxisScore[] = (Object.keys(weights) as Axis[]).map(axis => {
+  const unavailableAxes: UnavailableAxis[] = []
+  for (const axis of Object.keys(weights) as Axis[]) {
+    if (axisInputs[axis] === undefined) {
+      unavailableAxes.push({ axis, reason: UNAVAILABLE_REASONS[axis] })
+    }
+  }
+
+  // Renormalize over the axes that survived, so `overall` stays on the same
+  // 0-100 scale instead of being silently capped by the missing axis's weight.
+  const availableAxes = (Object.keys(weights) as Axis[]).filter(a => axisInputs[a] !== undefined)
+  const weightSum = availableAxes.reduce((sum, a) => sum + weights[a]!, 0)
+
+  const axes: AxisScore[] = availableAxes.map(axis => {
     const { raw, midpoint } = axisInputs[axis]!
     const prepared = prepareAxisInput(axis, raw)
     let normalized = sigmoid(prepared, SIGMOID_K[axis]!, midpoint)
     if (Number.isNaN(normalized)) normalized = 50
-    const weight = weights[axis]!
-    return { axis, raw, normalized, weight, weighted: normalized * weight }
+    const weight = weightSum > 0 ? weights[axis]! / weightSum : 0
+    return { axis, raw, weight, normalized, weighted: normalized * weight }
   })
 
-  const dailyViewValues = input.dailyViews.map(d => d.views)
-  const evergreenBonus = computeEvergreenBonus(ageDays, dailyViewValues, baseline.channelDailyMean)
+  const windowViewValues = input.rollingViews.map(d => d.windowViews)
+  const evergreenBonus = computeEvergreenBonus(ageDays, windowViewValues, baseline.channelMeanWindowViews)
 
   const overall = Math.min(100, axes.reduce((sum, a) => sum + a.weighted, 0) + evergreenBonus)
   const grade = assignGrade(overall)
 
-  return { videoId: input.videoId, overall, grade, axes, evergreenBonus, lifecycle, ageDays }
+  return { videoId: input.videoId, overall, grade, axes, unavailableAxes, evergreenBonus, lifecycle, ageDays }
 }
 
 export function computeOutliers(
@@ -244,50 +341,55 @@ export function computeBaseline(
     .filter(r => r > 0)
     .sort((a, b) => a - b)
   const viewCounts = videos.map(v => v.view_count ?? 0).filter(c => c > 0).sort((a, b) => a - b)
-  const allDaily = Array.from(dailyByVideo.values()).flat()
-  const totalViews = allDaily.reduce((s, d) => s + d.views, 0)
-  const totalDays = new Set(allDaily.map(d => d.date)).size || 1
+
+  // Each video contributes its CURRENT window total exactly once. The old code
+  // flattened every row of every video and summed them, then divided by the
+  // number of distinct sync dates — inflating by the sync count AND mixing a
+  // channel-wide figure with the per-video figure it was later compared to.
+  const latestWindowTotals: number[] = []
+  for (const rows of dailyByVideo.values()) {
+    const newest = latestRow(rows)
+    if (newest !== null) latestWindowTotals.push(newest.views)
+  }
+  const channelMeanWindowViews = latestWindowTotals.length > 0
+    ? latestWindowTotals.reduce((a, b) => a + b, 0) / latestWindowTotals.length
+    : 0
+
   const median = (arr: number[]) => {
     if (arr.length === 0) return 0
     const mid = Math.floor(arr.length / 2)
     return arr.length % 2 === 0 ? (arr[mid - 1]! + arr[mid]!) / 2 : arr[mid]!
   }
 
-  // Compute medianEngagement from actual data: (likes+comments+shares)/views*100 per video
+  // Per-video engagement / sub-impact, read off each video's most recent row.
+  // Every metric on a row covers the same rolling window, so the ratios between
+  // them are meaningful — whereas summing rows inflated numerator and
+  // denominator by the sync count each and drowned the real figure in noise.
   const cutoff28d = Date.now() - 28 * 86400000
   const engagementRates: number[] = []
-  const growthVelocities: number[] = []
   const subImpacts: number[] = []
 
   for (const [, rows] of dailyByVideo) {
     const recent = rows.filter(r => new Date(r.date).getTime() > cutoff28d)
-    if (recent.length === 0) continue
+    const newest = latestRow(recent)
+    if (newest === null) continue
 
-    const totalViewsVideo = recent.reduce((s, r) => s + r.views, 0)
-    const totalLikes = recent.reduce((s, r) => s + (r.likes ?? 0), 0)
-    const totalComments = recent.reduce((s, r) => s + (r.comments ?? 0), 0)
-    const totalShares = recent.reduce((s, r) => s + (r.shares ?? 0), 0)
-    const totalSubsGained = recent.reduce((s, r) => s + (r.subscribers_gained ?? 0), 0)
+    const windowViews = newest.views
+    const windowEngagement = (newest.likes ?? 0) + (newest.comments ?? 0) + (newest.shares ?? 0)
 
-    if (totalViewsVideo > 0) {
-      engagementRates.push(((totalLikes + totalComments + totalShares) / totalViewsVideo) * 100)
+    if (windowViews > 0) {
+      engagementRates.push((windowEngagement / windowViews) * 100)
     }
-    const totalImpressions = recent.reduce((s, r) => s + (r.impressions ?? 0), 0)
-    if (totalImpressions > 0) {
-      subImpacts.push((totalSubsGained / totalImpressions) * 1000)
+    const windowImpressions = newest.impressions ?? 0
+    if (windowImpressions > 0) {
+      subImpacts.push(((newest.subscribers_gained ?? 0) / windowImpressions) * 1000)
     }
 
-    // Growth velocity per video
-    const dailyPoints: DailyViewPoint[] = recent
-      .map(r => ({ date: r.date, views: r.views }))
-      .sort((a, b) => a.date.localeCompare(b.date))
-    if (dailyPoints.length >= 7) {
-      growthVelocities.push(computeGrowthVelocity(dailyPoints, 1.0))
-    }
+    // No growth velocity: see GROWTH_UNAVAILABLE. A median built from a metric
+    // that is always 0 is not a baseline, it is a fiction with a mean.
   }
 
   engagementRates.sort((a, b) => a - b)
-  growthVelocities.sort((a, b) => a - b)
   subImpacts.sort((a, b) => a - b)
 
   return {
@@ -295,9 +397,8 @@ export function computeBaseline(
     medianRetention: median(retentions),
     medianReach: median(reachDiversities),
     medianEngagement: engagementRates.length > 0 ? median(engagementRates) : 4.0,
-    medianGrowth: growthVelocities.length > 0 ? median(growthVelocities) : 0,
     medianSubImpact: subImpacts.length > 0 ? median(subImpacts) : 0.5,
-    channelDailyMean: totalViews / totalDays,
+    channelMeanWindowViews,
     subscriberCount,
     medianViewCount: median(viewCounts),
   }
