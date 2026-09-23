@@ -7,7 +7,7 @@ import { BatchVariantUpsertSchema, TestTypeSchema } from '@/lib/youtube/ab-schem
 import { scoreVideo, computeBaseline, computeTrend, assignGrade } from '@/lib/youtube/scoring'
 import type { BaselineVideoInput } from '@/lib/youtube/scoring'
 import { fetchYtDemographics, fetchYtSearchTerms } from '@/lib/youtube/analytics-client'
-import type { VideoScoreInput, TrafficSources, TrendData } from '@/lib/youtube/scoring-types'
+import type { Axis, VideoScoreInput, TrafficSources, TrendData, UnavailableAxis } from '@/lib/youtube/scoring-types'
 import { latestRow } from '@/lib/youtube/rolling-window'
 import type { TestType, VariantMetadata } from '@/lib/youtube/ab-types'
 import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
@@ -1804,12 +1804,21 @@ export interface VideoAxisDetail {
 export interface VideoDetailResult {
   id: string
   title: string
+  /** Only measured axes. An absent axis is listed in `unavailableAxes`, never scored 0. */
   axes: VideoAxisDetail[]
+  unavailableAxes: UnavailableAxis[]
   retentionCurve: unknown
   trafficSources: unknown
   optimizationState: string | null
   trend: TrendData
   gradeHistory: Array<{ week: string; score: number }>
+}
+
+/** A DB numeric that may be NULL: NULL stays `null` (not measured), never 0. */
+function nullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
 }
 
 /** Fetch a single video with full 6-axis scoring breakdown, retention, traffic, optimization state, and grade trend. */
@@ -1889,8 +1898,8 @@ export async function getVideoDetail(
   const viewCount = video.view_count ?? 0
   const likeCount = video.like_count ?? 0
   const commentCount = video.comment_count ?? 0
-  const totalImpressions = video.impressions ?? 0
-  const engagementRate = viewCount > 0 ? ((likeCount + commentCount) / viewCount) * 100 : 0
+  // No views = no engagement measurement; the axis drops out instead of scoring 0.
+  const engagementRate = viewCount > 0 ? ((likeCount + commentCount) / viewCount) * 100 : null
   // Newest row = current rolling-window total; rows must not be summed.
   const newestRow = latestRow(dailyRows as Array<{ date: string; views: number; subscribers_gained?: number }>)
   const subscribersGained = newestRow?.subscribers_gained ?? 0
@@ -1900,9 +1909,10 @@ export async function getVideoDetail(
   const scoreInput: VideoScoreInput = {
     videoId,
     publishedAt: video.published_at,
-    ctr: Number(video.ctr) || 0,
-    avgViewPercentage: Number(video.avg_view_percentage) || 0,
-    impressions: totalImpressions,
+    // NULL stays NULL: `Number(x) || 0` turned "never measured" into a score.
+    ctr: nullableNumber(video.ctr),
+    avgViewPercentage: nullableNumber(video.avg_view_percentage),
+    impressions: nullableNumber(video.impressions),
     trafficSources: (video.traffic_sources as TrafficSources) ?? null,
     engagementRate,
     rollingViews,
@@ -1941,6 +1951,7 @@ export async function getVideoDetail(
     id: video.id,
     title: video.title,
     axes,
+    unavailableAxes: videoScore.unavailableAxes,
     retentionCurve: video.retention_curve,
     trafficSources: video.traffic_sources,
     optimizationState,
@@ -2071,18 +2082,27 @@ export interface HealthAxis {
 export interface AnalyticsOverview {
   health: {
     overall: number
+    /** Only axes at least one video was scored on. */
     axes: HealthAxis[]
+    /**
+     * Axes NO video could be scored on, with the reason. An axis here is "not
+     * measured", which is not the same claim as a low score — so it is never
+     * reported in `axes` with a 0.
+     */
+    unavailableAxes: UnavailableAxis[]
   }
   kpis: {
     views: number
     watchTime: number
     subscribers: number
-    avgCtr: number
-    avgRetention: number
+    /** `null` = no video has a ctr (the YouTube Analytics API v2 does not serve it). */
+    avgCtr: number | null
+    /** `null` = no video has avg_view_percentage. */
+    avgRetention: number | null
   }
   baseline: {
-    medianCtr: number
-    medianRetention: number
+    medianCtr: number | null
+    medianRetention: number | null
   }
 }
 
@@ -2120,9 +2140,9 @@ export async function getAnalyticsOverview(
 
   if (!videos?.length) {
     return ok({
-      health: { overall: 0, axes: [] },
-      kpis: { views: 0, watchTime: 0, subscribers: 0, avgCtr: 0, avgRetention: 0 },
-      baseline: { medianCtr: 0, medianRetention: 0 },
+      health: { overall: 0, axes: [], unavailableAxes: [] },
+      kpis: { views: 0, watchTime: 0, subscribers: 0, avgCtr: null, avgRetention: null },
+      baseline: { medianCtr: null, medianRetention: null },
     })
   }
 
@@ -2146,6 +2166,7 @@ export async function getAnalyticsOverview(
   const baseline = computeBaseline(videos, dailyByVideo, channel.subscriber_count ?? 0)
 
   const axisAccum: Record<string, { total: number; count: number }> = {}
+  const unavailableByAxis = new Map<Axis, UnavailableAxis>()
   let overallSum = 0
 
   for (const video of videos) {
@@ -2160,13 +2181,15 @@ export async function getAnalyticsOverview(
     const input: VideoScoreInput = {
       videoId: video.id,
       publishedAt: video.published_at ?? new Date().toISOString(),
-      ctr: video.ctr ?? 0,
-      avgViewPercentage: video.avg_view_percentage ?? 0,
-      impressions: video.impressions ?? 0,
+      // NULL passes through: `?? 0` scored CTR ~63 and retention 99 for every
+      // video, because with all of them NULL the channel medians are 0 too.
+      ctr: video.ctr,
+      avgViewPercentage: video.avg_view_percentage,
+      impressions: video.impressions,
       trafficSources: (video.traffic_sources && typeof video.traffic_sources === 'object' && !Array.isArray(video.traffic_sources))
         ? video.traffic_sources as VideoScoreInput['trafficSources']
         : null,
-      engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : 0,
+      engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : null,
       rollingViews: daily.map(d => ({ date: d.date, windowViews: d.views })),
       subscribersGained: totalSubs,
       viewCount: video.view_count ?? 0,
@@ -2181,7 +2204,14 @@ export async function getAnalyticsOverview(
       acc.count++
       axisAccum[a.axis] = acc
     }
+    for (const u of scored.unavailableAxes) {
+      if (!unavailableByAxis.has(u.axis)) unavailableByAxis.set(u.axis, u)
+    }
   }
+
+  // Channel-level: unavailable only if NO video could be scored on it.
+  const unavailableAxes: UnavailableAxis[] = [...unavailableByAxis.values()]
+    .filter(u => axisAccum[u.axis] === undefined)
 
   const axes: HealthAxis[] = Object.entries(axisAccum).map(([axis, acc]) => {
     const score = Math.round(acc.total / acc.count)
@@ -2202,10 +2232,13 @@ export async function getAnalyticsOverview(
     totalSubs += newest.subscribers_gained
   }
 
-  const ctrs = videos.map(v => v.ctr ?? 0).filter(c => c > 0)
-  const retentions = videos.map(v => v.avg_view_percentage ?? 0).filter(r => r > 0)
-  const avgCtr = ctrs.length > 0 ? ctrs.reduce((a, b) => a + b, 0) / ctrs.length : 0
-  const avgRetention = retentions.length > 0 ? retentions.reduce((a, b) => a + b, 0) / retentions.length : 0
+  // `null` when nothing was measured: a `0` in an API response is a claim
+  // ("the channel's CTR is 0%"), not an absence of data.
+  const ctrs = videos.map(v => v.ctr).filter((c): c is number => c !== null && c > 0)
+  const retentions = videos.map(v => v.avg_view_percentage).filter((r): r is number => r !== null && r > 0)
+  const avgCtr = ctrs.length > 0 ? ctrs.reduce((a, b) => a + b, 0) / ctrs.length : null
+  const avgRetention = retentions.length > 0 ? retentions.reduce((a, b) => a + b, 0) / retentions.length : null
+  const round2 = (n: number | null) => (n === null ? null : Math.round(n * 100) / 100)
 
   const watchTime = videos.reduce((s, v) => {
     const dur = (v.avg_view_duration_seconds as number | null) ?? 0
@@ -2213,17 +2246,18 @@ export async function getAnalyticsOverview(
   }, 0)
 
   return ok({
-    health: { overall: overallHealth, axes },
+    health: { overall: overallHealth, axes, unavailableAxes },
     kpis: {
       views: totalViews,
       watchTime: Math.round(watchTime / 60),
       subscribers: totalSubs,
-      avgCtr: Math.round(avgCtr * 100) / 100,
-      avgRetention: Math.round(avgRetention * 100) / 100,
+      avgCtr: round2(avgCtr),
+      avgRetention: round2(avgRetention),
     },
     baseline: {
-      medianCtr: Math.round(baseline.medianCtr * 100) / 100,
-      medianRetention: Math.round(baseline.medianRetention * 100) / 100,
+      // computeBaseline returns 0 for an empty median; here that means "no data".
+      medianCtr: ctrs.length > 0 ? round2(baseline.medianCtr) : null,
+      medianRetention: retentions.length > 0 ? round2(baseline.medianRetention) : null,
     },
   })
 }
@@ -2238,8 +2272,10 @@ export interface VideoGradeRow {
   score: number
   grade: string
   trend: { direction: string; velocity: number }
-  ctr: number
-  retention: number
+  /** `null` = not measured (never 0 as a stand-in). */
+  ctr: number | null
+  /** `null` = not measured (never 0 as a stand-in). */
+  retention: number | null
   views: number
   published_at: string
 }
@@ -2326,13 +2362,15 @@ export async function getAnalyticsGrades(
     const input: VideoScoreInput = {
       videoId: video.id,
       publishedAt: video.published_at ?? new Date().toISOString(),
-      ctr: video.ctr ?? 0,
-      avgViewPercentage: video.avg_view_percentage ?? 0,
-      impressions: video.impressions ?? 0,
+      // NULL passes through: `?? 0` scored CTR ~63 and retention 99 for every
+      // video, because with all of them NULL the channel medians are 0 too.
+      ctr: video.ctr,
+      avgViewPercentage: video.avg_view_percentage,
+      impressions: video.impressions,
       trafficSources: (video.traffic_sources && typeof video.traffic_sources === 'object' && !Array.isArray(video.traffic_sources))
         ? video.traffic_sources as VideoScoreInput['trafficSources']
         : null,
-      engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : 0,
+      engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : null,
       rollingViews: last28.map(d => ({ date: d.date, windowViews: d.views })),
       subscribersGained: totalSubs,
       viewCount: video.view_count ?? 0,
@@ -2348,8 +2386,8 @@ export async function getAnalyticsGrades(
       score: Math.round(result.overall * 10) / 10,
       grade: result.grade,
       trend: { direction: trend.direction, velocity: Math.round(trend.velocity * 10) / 10 },
-      ctr: Math.round((video.ctr ?? 0) * 100) / 100,
-      retention: Math.round((video.avg_view_percentage ?? 0) * 100) / 100,
+      ctr: video.ctr === null ? null : Math.round(video.ctr * 100) / 100,
+      retention: video.avg_view_percentage === null ? null : Math.round(video.avg_view_percentage * 100) / 100,
       views: video.view_count ?? 0,
       published_at: video.published_at ?? '',
     }

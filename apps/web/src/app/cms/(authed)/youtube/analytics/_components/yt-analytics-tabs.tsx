@@ -173,6 +173,10 @@ export function YtAnalyticsTabs({
     () => intelligenceVideos ? computeRadarData(intelligenceVideos) : [],
     [intelligenceVideos]
   )
+  const unavailableAxes = useMemo(
+    () => intelligenceVideos ? computeUnavailableAxes(intelligenceVideos) : [],
+    [intelligenceVideos]
+  )
   const coachingCards = useMemo(
     () => computeCoachingCards(
       intelligenceVideos ?? [],
@@ -315,6 +319,7 @@ export function YtAnalyticsTabs({
               dailyMetrics={dailyMetrics}
               intelligenceHealthScore={healthScore}
               intelligenceRadar={radarData.length > 0 ? radarData : undefined}
+              intelligenceUnavailable={unavailableAxes}
             />
           )
         )}
@@ -330,6 +335,7 @@ export function YtAnalyticsTabs({
           <YtHealthCoach
             healthScore={healthScore ?? 0}
             radarData={radarData}
+            unavailableAxes={unavailableAxes}
             coachingCards={coachingCards}
             videoCount={intelligenceVideos?.length ?? 0}
             lastAnalysisAt={lastAnalysisAt ?? null}
@@ -344,7 +350,7 @@ export function YtAnalyticsTabs({
             : intelligenceVideos && intelligenceVideos.length > 0
               ? <YtOutliersV2
                   outliers={[]}
-                  hasAnalyticsData={intelligenceVideos.some(v => v.avgViewPercentage > 0 || (v.trafficSources !== null && Object.keys(v.trafficSources).length > 0))}
+                  hasAnalyticsData={intelligenceVideos.some(v => (v.avgViewPercentage !== null && v.avgViewPercentage > 0) || (v.trafficSources !== null && Object.keys(v.trafficSources).length > 0))}
                 />
               : <YtOutliers grades={grades} />
         )}
@@ -355,7 +361,7 @@ export function YtAnalyticsTabs({
   )
 }
 
-function computeRadarData(videos: VideoGradeRow[]): Array<{ label: string; value: number; grade: string }> {
+export function computeRadarData(videos: VideoGradeRow[]): Array<{ label: string; value: number; grade: string }> {
   const axes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
   // Same rule as `computeCoachingCards` below: an axis missing from a video's
   // `axes` was not measured, so it is left out — `?? 0` would draw a spoke at
@@ -369,6 +375,46 @@ function computeRadarData(videos: VideoGradeRow[]): Array<{ label: string; value
     const avg = scores.reduce((s, v) => s + v, 0) / scores.length
     const grade = avg >= 85 ? 'A' : avg >= 65 ? 'B' : avg >= 40 ? 'C' : 'D'
     return [{ label: AXIS_LABELS[axis], value: avg, grade }]
+  })
+}
+
+/**
+ * What the screen says in place of a score, per axis. The scoring reasons are
+ * written for engineers (and the Cowork API); this is the owner-facing short
+ * form, with the technical reason kept for the tooltip.
+ */
+const UNAVAILABLE_NOTES: Record<Axis, string> = {
+  ctr: 'a API do YouTube nao fornece CTR',
+  retention: 'o sync nao coleta a % assistida',
+  reach: 'sem dado de alcance',
+  engagement: 'nenhum video com analytics na janela',
+  growth: 'o historico guarda totais, nao views diarias',
+  sub_impact: 'a API do YouTube nao fornece impressoes',
+}
+
+export interface UnavailableAxisView {
+  axis: Axis
+  label: string
+  note: string
+  reason: string
+}
+
+/**
+ * Axes that NO video could be scored on — the channel-level counterpart of
+ * `VideoScore.unavailableAxes`. They are listed as "indisponivel" instead of
+ * vanishing from the radar (which hides that anything is missing) or being
+ * averaged in as 0 (which claims the channel is bad at them). An axis that at
+ * least one video has a score on is measured, and belongs to the radar.
+ */
+export function computeUnavailableAxes(videos: VideoGradeRow[]): UnavailableAxisView[] {
+  const axes: Axis[] = ['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']
+  return axes.flatMap(axis => {
+    if (videos.some(v => v.axes.some(a => a.axis === axis))) return []
+    const reported = videos
+      .flatMap(v => v.unavailableAxes)
+      .find(u => u.axis === axis)
+    if (reported === undefined) return []
+    return [{ axis, label: AXIS_LABELS[axis], note: UNAVAILABLE_NOTES[axis], reason: reported.reason }]
   })
 }
 

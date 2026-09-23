@@ -1,4 +1,4 @@
-import type { Axis, Grade, TrendDirection } from '@/lib/youtube/scoring-types'
+import type { Axis, Grade, TrendDirection, UnavailableAxis } from '@/lib/youtube/scoring-types'
 
 export interface VideoGradeRow {
   videoId: string
@@ -6,11 +6,15 @@ export interface VideoGradeRow {
   thumbnailUrl: string
   grade: Grade
   score: number
+  /** Only the axes that were measured. A missing axis is NOT a zero — see `unavailableAxes`. */
   axes: Array<{ axis: Axis; normalized: number }>
+  /** Axes this video could not be scored on, with the reason. Rendered as "indisponível". */
+  unavailableAxes: UnavailableAxis[]
   trend: { direction: TrendDirection; velocity: number }
   optimizationState: string | null
   retentionCurve: number[] | null
-  avgViewPercentage: number
+  /** `null` = never measured (the analytics sync does not request it), not 0%. */
+  avgViewPercentage: number | null
   diagnosis: string | null
   recommendation: string | null
   trafficSources: Record<string, number> | null

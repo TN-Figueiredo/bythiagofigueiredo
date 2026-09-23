@@ -249,13 +249,19 @@ export async function fetchGradesData(channelId: string) {
     const input: VideoScoreInput = {
       videoId: video.id,
       publishedAt: video.published_at ?? new Date().toISOString(),
-      ctr: video.ctr ?? 0,
-      avgViewPercentage: video.avg_view_percentage ?? 0,
-      impressions: video.impressions ?? 0,
+      // NULL passes through as NULL. In production 0 of 35 videos have ctr,
+      // impressions or avg_view_percentage (the YouTube Analytics API v2 does
+      // not serve them). `?? 0` turned that absence into CTR ~63 and retention
+      // 99 on this very tab — the channel medians are 0 too, so a placeholder
+      // 0 lands above the tier-shifted sigmoid midpoint for every video.
+      ctr: video.ctr,
+      avgViewPercentage: video.avg_view_percentage,
+      impressions: video.impressions,
       trafficSources: (video.traffic_sources && typeof video.traffic_sources === 'object' && !Array.isArray(video.traffic_sources))
         ? video.traffic_sources as VideoScoreInput['trafficSources']
         : null,
-      engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : 0,
+      // No analytics row in the window = no measurement, not "nobody engaged".
+      engagementRate: totalViews > 0 ? (totalEng / totalViews) * 100 : null,
       rollingViews: last28.map(d => ({ date: d.date, windowViews: d.views })),
       subscribersGained: totalSubs,
       viewCount: video.view_count ?? 0,
@@ -274,10 +280,13 @@ export async function fetchGradesData(channelId: string) {
       grade: scored.grade,
       score: scored.overall,
       axes: scored.axes.map(a => ({ axis: a.axis, normalized: a.normalized })),
+      // What could NOT be scored, and why — the screen shows these as
+      // "indisponível" instead of letting the axis vanish or read as 0.
+      unavailableAxes: scored.unavailableAxes,
       trend: { direction: trend.direction, velocity: trend.velocity },
       optimizationState: cycleByVideo.get(video.id) ?? null,
       retentionCurve: video.retention_curve as number[] | null,
-      avgViewPercentage: video.avg_view_percentage ?? 0,
+      avgViewPercentage: video.avg_view_percentage,
       diagnosis: rec?.reasoning ?? null,
       recommendation: rec?.suggested_variant_description ?? null,
       trafficSources: video.traffic_sources as Record<string, number> | null,

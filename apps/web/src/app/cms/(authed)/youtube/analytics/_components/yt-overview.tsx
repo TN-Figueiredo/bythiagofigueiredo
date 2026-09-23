@@ -20,6 +20,11 @@ interface Props {
   dailyMetrics: YtDailyMetric[]
   intelligenceHealthScore?: number
   intelligenceRadar?: Array<{ label: string; value: number; grade: string }>
+  /**
+   * Axes no video could be scored on. Shown as "indisponivel" rows — never
+   * dropped silently, never drawn as 0. Only meaningful with `intelligenceRadar`.
+   */
+  intelligenceUnavailable?: Array<{ label: string; note: string; reason: string }>
 }
 
 const GRADE_COLORS: Record<string, string> = {
@@ -163,11 +168,16 @@ function KpiIcon({ name }: { name: string }) {
   }
 }
 
-export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, intelligenceRadar }: Props) {
+/** Below this many measured axes a radar is not a shape, it is a line or a dot. */
+const MIN_RADAR_AXES = 3
+
+export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, intelligenceRadar, intelligenceUnavailable }: Props) {
   const useIntelligence = intelligenceRadar && intelligenceRadar.length > 0 && intelligenceHealthScore !== undefined
   const health = useIntelligence
     ? { overall: intelligenceHealthScore!, axes: intelligenceRadar! }
     : computeFallbackHealth(metrics)
+  const unavailable = useIntelligence ? (intelligenceUnavailable ?? []) : []
+  const axisTotal = health.axes.length + unavailable.length
 
   const kpis = buildKpiData(metrics, dailyMetrics)
 
@@ -209,6 +219,19 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
                   </div>
                 )
               })}
+              {unavailable.map((axis) => (
+                <div key={axis.label} className="hb-row" title={axis.reason} data-testid="axis-unavailable">
+                  <span className="hb-label">{axis.label}</span>
+                  <div className="bar" aria-hidden="true" />
+                  <span className="mono hb-score dim">—</span>
+                  <span className="hb-note dim">indisponivel</span>
+                </div>
+              ))}
+              {unavailable.length > 0 && (
+                <p className="dim" style={{ fontSize: 11, marginTop: 6, lineHeight: 1.45 }}>
+                  Fora da nota, sem dado: {unavailable.map(a => `${a.label} (${a.note})`).join('; ')}.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -218,10 +241,23 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
           <div className="card-head">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
             <span className="card-title">Radar &middot; canal vs meta</span>
-            <span className="dim" style={{ fontSize: 11.5, marginLeft: 'auto' }}>6 eixos</span>
+            <span className="dim" style={{ fontSize: 11.5, marginLeft: 'auto' }}>
+              {unavailable.length > 0 ? `${health.axes.length} de ${axisTotal} eixos medidos` : `${health.axes.length} eixos`}
+            </span>
           </div>
           <div className="card-pad">
-            <YtRadarChart axes={health.axes} />
+            {health.axes.length < MIN_RADAR_AXES ? (
+              // Not forced into a drawing: with two spokes the "polygon" is a
+              // line, and it would look like a shape the data does not have.
+              <p className="dim" data-testid="radar-insufficient" style={{ fontSize: 12.5, lineHeight: 1.5, padding: '24px 8px', textAlign: 'center' }}>
+                Radar precisa de pelo menos {MIN_RADAR_AXES} eixos medidos. Hoje so{' '}
+                {health.axes.map(a => a.label).join(' e ')} tem dado
+                {unavailable.length > 0 ? `; ${unavailable.map(a => a.label).join(', ')} estao indisponiveis` : ''}.
+              </p>
+            ) : (
+              <YtRadarChart axes={health.axes} />
+            )}
+            {health.axes.length >= MIN_RADAR_AXES && (
             <div className="flex items-center justify-center gap-4" style={{ marginTop: 6 }}>
               <span className="flex items-center gap-1.5" style={{ fontSize: 12 }}>
                 <span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--accent)' }} />
@@ -232,6 +268,7 @@ export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, int
                 Meta
               </span>
             </div>
+            )}
           </div>
         </div>
       </div>

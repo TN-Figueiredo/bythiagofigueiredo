@@ -10,7 +10,7 @@ interface VideoAnalytics {
   title: string
   axes: Array<{ axis: Axis; normalized: number }>
   retentionCurve: number[] | null
-  avgViewPercentage: number
+  avgViewPercentage: number | null
   diagnosis: string | null
   recommendation: string | null
   optimizationState: string | null

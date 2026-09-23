@@ -224,7 +224,7 @@ Cada vídeo é avaliado em 6 eixos, normalizados via sigmoid para 0-100:
 | Crescimento | 12% | 0.6 | Velocidade de crescimento diário (log2, sign-preserving) |
 | Impacto Sub | 8% | 1.5 | Novos inscritos atribuídos ao vídeo |
 
-**Score final:** soma ponderada dos 6 eixos normalizados.
+**Score final:** soma ponderada dos eixos **medidos**, pesos renormalizados. Eixo sem entrada (hoje: CTR, Retenção, Impacto Sub, Crescimento) sai da soma e vai para `unavailableAxes` com o motivo — nunca entra como 0.
 
 **Grades:** A >= 85, B >= 65, C >= 40, D < 40.
 
@@ -803,51 +803,28 @@ Retorna health score do canal com KPIs agregados.
 ```json
 {
   "data": {
-    "healthScore": {
-      "overall": 68,
-      "ctr": { "value": 4.2, "grade": "B" },
-      "retention": { "value": 45.0, "grade": "C" },
-      "growth": { "value": 2.1, "grade": "B" },
-      "engagement": { "value": 3.8, "grade": "B" },
-      "frequency": { "value": 1.5, "grade": "C" }
+    "health": {
+      "overall": 53,
+      "axes": [
+        { "axis": "reach", "score": 52, "grade": "C" },
+        { "axis": "engagement", "score": 56, "grade": "C" }
+      ],
+      "unavailableAxes": [
+        { "axis": "ctr", "reason": "no ctr: YouTube Analytics API v2 does not expose impressionClickThroughRate, ..." },
+        { "axis": "retention", "reason": "no avg_view_percentage: ..." }
+      ]
     },
-    "metrics": {
-      "views": 125000,
-      "estimatedMinutesWatched": 85000,
-      "averageViewDuration": 245,
-      "averageViewPercentage": 45.0,
-      "subscribersGained": 350,
-      "subscribersLost": 45,
-      "impressions": 950000,
-      "impressionClickThroughRate": 4.2,
-      "likes": 5200,
-      "comments": 380,
-      "shares": 120
-    },
-    "daily": [
-      {
-        "date": "2026-06-01",
-        "views": 4500,
-        "estimatedMinutesWatched": 3200,
-        "subscribersGained": 12,
-        "subscribersLost": 2,
-        "impressions": 35000,
-        "impressionClickThroughRate": 4.1,
-        "likes": 180,
-        "comments": 14,
-        "shares": 5
-      }
-    ]
+    "kpis": { "views": 32, "watchTime": 410, "subscribers": 3, "avgCtr": null, "avgRetention": null },
+    "baseline": { "medianCtr": null, "medianRetention": null }
   }
 }
 ```
 
 **Notas:**
-- `healthScore.overall` é a média ponderada dos 5 eixos (0-100)
+- **Ausência é `null`, nunca `0`.** `avgCtr`/`avgRetention`/`medianCtr`/`medianRetention` = `null` quando nenhum vídeo tem o dado (hoje: sempre — a YouTube Analytics API v2 não expõe CTR/impressões e o sync não coleta `averageViewPercentage`). Não diga "CTR 0%" nem "retenção baixa": diga "não medido".
+- `health.axes` traz só eixos medidos. Eixo em `health.unavailableAxes` NÃO é nota baixa — não crie priority/diagnóstico para ele.
+- `health.overall` é a média ponderada renormalizada sobre os eixos medidos (0-100)
 - Grades individuais: A >= 85, B >= 65, C >= 40, D < 40
-- `daily` retorna uma série temporal para sparklines e trend charts
-- Dados cacheados por 5 minutos (`revalidate: 300`)
-
 ---
 
 ### GET /api/pipeline/youtube/analytics/grades
@@ -880,6 +857,7 @@ Lista grades de performance por vídeo (scoring de 6 eixos).
 ```
 
 **Notas:**
+- `ctr` e `retention` por vídeo vêm `null` quando não medidos (hoje, todos) — `null` é ausência, não zero
 - Grade por vídeo: A >= 85, B >= 65, C >= 40, D < 40
 - `views7d` = views nos primeiros 7 dias (métrica de lançamento)
 - Vídeos com menos de 3 no canal não geram grades (dados insuficientes)
@@ -1108,6 +1086,9 @@ Retorna detalhes completos de um vídeo, incluindo métricas históricas e grade
   }
 }
 ```
+
+**Notas:**
+- A resposta real traz `axes` (só eixos medidos: `axis`, `score`, `grade`, `channelMedian`) e `unavailableAxes` (`axis` + `reason`) — eixo não medido nunca aparece com score 0.
 
 ---
 
