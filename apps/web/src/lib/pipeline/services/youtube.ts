@@ -466,6 +466,12 @@ export async function submitIntelRecommendations(
     }
 
     for (const rec of video_recommendations) {
+      // `.maybeSingle()` is still safe HERE, unlike the channel path below: this read is
+      // keyed on a non-null `video_id`, and `idx_youtube_intelligence_dedup`
+      // (site_id, channel_id, video_id, source) WHERE video_id IS NOT NULL is still UNIQUE.
+      // Migration 20260922000001 only dropped the uniqueness of the CHANNEL index. The video
+      // analysis keeps overwriting itself on purpose — it is the per-video verdict, not a
+      // measurement series.
       const { data: existingIntel } = await supabase
         .from('youtube_intelligence')
         .select('id')
@@ -514,17 +520,23 @@ export async function submitIntelRecommendations(
     }
   }
 
-  // Process channel-level coaching/insights
+  // Process channel-level coaching/insights.
+  //
+  // ALWAYS INSERT — never update. Migration 20260922000001 dropped the UNIQUE from
+  // `idx_youtube_intelligence_channel_dedup` so the channel analysis ACCUMULATES, like
+  // `video_grade_history` / `playlist_snapshots` / `competitor_channel_snapshots` /
+  // `content_pipeline_history` already do. The old read-then-update-or-insert meant the
+  // weekly run overwrote the previous one: no trend, and a bad run destroyed the good
+  // measurement before it. Each submit is now one immutable row stamped with its own
+  // `generated_at`; `fetchChannelCoaching` reads the newest per source.
+  //
+  // Note the read that USED to be here is gone on purpose, not just unused: `.maybeSingle()`
+  // ERRORS (PGRST116) when the query matches more than one row, so keeping it would have
+  // broken on the second run of every source.
+  //
+  // The video-level path above keeps its update-in-place: `idx_youtube_intelligence_dedup`
+  // (WHERE video_id IS NOT NULL) is still UNIQUE and this change is channel-scoped only.
   if (coaching || channel_insights) {
-    const { data: existingChannel } = await supabase
-      .from('youtube_intelligence')
-      .select('id')
-      .eq('site_id', siteId)
-      .eq('channel_id', task.channel_id)
-      .is('video_id', null)
-      .eq('source', source)
-      .maybeSingle()
-
     const channelPayload = {
       site_id: siteId,
       channel_id: task.channel_id,
@@ -537,18 +549,10 @@ export async function submitIntelRecommendations(
       generated_at: new Date().toISOString(),
     }
 
-    if (existingChannel) {
-      const { error } = await supabase.from('youtube_intelligence').update(channelPayload).eq('id', existingChannel.id)
-      if (error) {
-        Sentry.captureMessage(`channel intelligence update failed: ${error.message}`)
-        dbTargets.push('channel: write_failed')
-      }
-    } else {
-      const { error } = await supabase.from('youtube_intelligence').insert(channelPayload)
-      if (error) {
-        Sentry.captureMessage(`channel intelligence insert failed: ${error.message}`)
-        dbTargets.push('channel: write_failed')
-      }
+    const { error } = await supabase.from('youtube_intelligence').insert(channelPayload)
+    if (error) {
+      Sentry.captureMessage(`channel intelligence insert failed: ${error.message}`)
+      dbTargets.push('channel: write_failed')
     }
   }
 

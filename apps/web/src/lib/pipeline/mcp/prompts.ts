@@ -98,7 +98,16 @@ async function fetchChannelInfo(): Promise<AbBriefingData['channel']> {
   }
 }
 
-/** Fetch the latest YouTube intelligence snapshot age. */
+/**
+ * Fetch the latest YouTube intelligence snapshot age.
+ *
+ * `.limit(1)` BEFORE the single-object read is load-bearing, not decoration: PostgREST
+ * applies the limit and only then asks for one object, so this survived migration
+ * 20260922000001 dropping the UNIQUE that used to cap channel analyses at one row per
+ * source. Without the limit this would now be a PGRST116 ("more than one row") on the second
+ * weekly run. `.maybeSingle()` rather than `.single()` for the empty case: zero rows is a
+ * legitimate answer here (no analysis yet -> 999h), not an error to be swallowed.
+ */
 async function fetchSnapshotAge(): Promise<number> {
   const supabase = getSupabaseServiceClient()
   const { data } = await supabase
@@ -107,7 +116,7 @@ async function fetchSnapshotAge(): Promise<number> {
     .eq('source', 'cowork')
     .order('generated_at', { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (!data?.generated_at) return 999
   return Math.floor((Date.now() - new Date(data.generated_at as string).getTime()) / 3600000)

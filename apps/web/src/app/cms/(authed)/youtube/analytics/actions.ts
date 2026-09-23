@@ -13,8 +13,9 @@ import { z } from 'zod'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
- * Single source of truth for the coaching source allowlist: the same constant feeds the
- * `.in()` filter and the runtime narrowing, so the two can never drift apart.
+ * Single source of truth for the coaching source allowlist: the same constant decides which
+ * per-source queries are issued and feeds the runtime narrowing, so the two can never drift
+ * apart. Adding a source here adds a query — the read stays exhaustive without a second edit.
  */
 const COACHING_SOURCES = ['cowork', 'forja'] as const
 type CoachingSource = (typeof COACHING_SOURCES)[number]
@@ -49,20 +50,36 @@ function hasPriorities(coaching: CoachingOutput): boolean {
  * Reads the channel-level coaching rows from the allowlist {cowork, forja} and returns two
  * things: the newest row (the banner) and the newest row that carries priorities (the cards).
  *
- * One read, not two, because `idx_youtube_intelligence_channel_dedup` is UNIQUE on
- * (site_id, channel_id, source) WHERE video_id IS NULL: with a two-value allowlist the whole
- * channel-level history is at most two rows, so `.limit(COACHING_SOURCES.length)` is exhaustive
- * by construction, not a guess at a window size.
+ * ONE READ PER SOURCE, each `.limit(1)`, run in parallel — this replaced a single
+ * `.limit(COACHING_SOURCES.length)` read. That read leaned on a guarantee that no longer
+ * exists: `idx_youtube_intelligence_channel_dedup` used to be UNIQUE on
+ * (site_id, channel_id, source) WHERE video_id IS NULL, so the whole channel-level history
+ * was at most one row per source and `.limit(2)` was exhaustive by construction. Migration
+ * 20260922000001 dropped that uniqueness on purpose, so the channel analysis could
+ * accumulate a history instead of each weekly run erasing the one before it. Against a
+ * growing history `.limit(2)` becomes "the two newest rows overall" — after two forja runs
+ * it would return two forja rows and bury the Cowork analysis, the exact regression below.
  *
- * `.limit(1)` was the regression: the forja writes a summary with `priorities: []` by design,
- * so the moment it landed it buried the Cowork analysis and the Health Coach tab went from
- * three cards to a single sentence.
+ * Why not one query: "the newest row per source" is `DISTINCT ON (source)`, and PostgREST
+ * exposes no DISTINCT ON. The alternatives were a SQL view/RPC (new DB surface plus its own
+ * RLS story, for a two-value allowlist) or one wide read deduped in app code (a guess at a
+ * window size — the same failure mode, just later). `COACHING_SOURCES.length` single-row
+ * reads are exact by construction, scale with the allowlist and not with the history, and
+ * each one is served straight off `idx_youtube_intelligence_channel_history`
+ * (site_id, channel_id, source, generated_at DESC) with no sort.
  *
- * The rollback guard is the `.in('source', COACHING_SOURCES)` filter, not app-layer
- * narrowing: the column is plain TEXT with no CHECK, and a retired `forja_retirada_*` row
- * is excluded by the query itself, so the UI falls back to the next allowlisted row or to
- * the heuristic branch — proven against a real Postgres in
- * test/integration/youtube-intelligence-forja.test.ts, case 7.
+ * Semantics: per-source LATEST. An older row of the same source is history — it is kept, and
+ * readable, but it never speaks for that source again. Scanning the full history for the
+ * newest row with priorities would resurrect an arbitrarily old analysis as today's cards.
+ *
+ * `.limit(1)` across both sources was the original regression: the forja writes a summary
+ * with `priorities: []` by design, so the moment it landed it buried the Cowork analysis and
+ * the Health Coach tab went from three cards to a single sentence.
+ *
+ * The rollback guard is the per-source query itself, not app-layer narrowing: the column is
+ * plain TEXT with no CHECK, and a retired `forja_retirada_*` row matches no source in the
+ * allowlist, so the UI falls back to the next allowlisted row or to the heuristic branch —
+ * proven against a real Postgres in test/integration/youtube-intelligence-forja.test.ts.
  *
  * The runtime check below is the `any` -> union boundary of the untyped service client, and
  * fail-closed defense in depth: should that filter ever regress, an unknown source is
@@ -77,41 +94,63 @@ export async function fetchChannelCoaching(
   if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   const supabase = getSupabaseServiceClient()
 
-  const { data, error } = await supabase
-    .from('youtube_intelligence')
-    .select('coaching, generated_at, source')
-    .eq('site_id', siteId)
-    .eq('channel_id', channelId)
-    .is('video_id', null)
-    .in('source', COACHING_SOURCES)
-    .not('coaching', 'is', null)
-    .eq('type', 'channel')
-    .order('generated_at', { ascending: false })
-    .limit(COACHING_SOURCES.length)
+  const perSource = await Promise.all(
+    COACHING_SOURCES.map(src =>
+      supabase
+        .from('youtube_intelligence')
+        .select('coaching, generated_at, source')
+        .eq('site_id', siteId)
+        .eq('channel_id', channelId)
+        .is('video_id', null)
+        .eq('source', src)
+        .not('coaching', 'is', null)
+        .eq('type', 'channel')
+        .order('generated_at', { ascending: false })
+        .limit(1),
+    ),
+  )
 
   // A DB error must never fall through as "no analysis": `data` is null on failure, and the
   // empty return below is the caller's signal for "this channel was never analysed", so a
   // statement timeout would render the heuristic diagnosis and claim it is all there is.
   // Throwing keeps the `| null` contract intact — the page still renders the empty state for
   // a real absence, and an outage is now an outage. Same rule as getConnectedYouTubeChannels.
-  if (error) {
-    throw new Error(`Failed to read the channel coaching rows: ${error.message}`)
+  // One failed source is enough to throw: a partial answer is a wrong answer here, because
+  // the surviving source would silently become "the newest analysis".
+  for (const res of perSource) {
+    if (res.error) {
+      throw new Error(`Failed to read the channel coaching rows: ${res.error.message}`)
+    }
   }
 
-  const rows: ChannelCoachingRow[] = []
-  for (const row of (data ?? []) as Array<{ coaching: unknown; generated_at: unknown; source: unknown }>) {
-    if (row.coaching == null) continue
-    if (!isCoachingSource(row.source)) continue
-    if (typeof row.generated_at !== 'string') continue
-    rows.push({
-      coaching: row.coaching as CoachingOutput,
-      source: row.source,
-      // Formatted on the server so the label does not depend on the viewer's timezone.
-      generatedLabel: new Intl.DateTimeFormat('pt-BR', {
-        day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo',
-      }).format(new Date(row.generated_at)),
-    })
+  // `generatedAt` is the merge key only — it stays out of ChannelCoachingRow so the shape
+  // the UI consumes does not grow a field just because the read needs two queries now.
+  const ranked: Array<{ row: ChannelCoachingRow; generatedAt: number }> = []
+  for (const res of perSource) {
+    for (const row of (res.data ?? []) as Array<{ coaching: unknown; generated_at: unknown; source: unknown }>) {
+      if (row.coaching == null) continue
+      if (!isCoachingSource(row.source)) continue
+      if (typeof row.generated_at !== 'string') continue
+      const generatedAt = Date.parse(row.generated_at)
+      if (Number.isNaN(generatedAt)) continue
+      ranked.push({
+        generatedAt,
+        row: {
+          coaching: row.coaching as CoachingOutput,
+          source: row.source,
+          // Formatted on the server so the label does not depend on the viewer's timezone.
+          generatedLabel: new Intl.DateTimeFormat('pt-BR', {
+            day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo',
+          }).format(new Date(row.generated_at)),
+        },
+      })
+    }
   }
+
+  // The per-source reads come back in allowlist order, not recency order — this merge is
+  // what makes `rows[0]` the newest again, which everything below depends on.
+  ranked.sort((a, b) => b.generatedAt - a.generatedAt)
+  const rows: ChannelCoachingRow[] = ranked.map(r => r.row)
 
   const latest = rows[0]
   if (!latest) return null

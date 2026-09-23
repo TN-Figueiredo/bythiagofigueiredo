@@ -14,10 +14,14 @@
  *      and 7.
  *   3. The `result_summary->>claimed_by` PostgREST JSON arrow filter actually matches (or
  *      doesn't) against a real JSONB column. Case 2.
- *   4. A real `.in('source', [...])` filter actually excludes a row whose text value isn't in
- *      the list — the coaching-actions.test.ts unit double hand-wires each chain link to return
- *      a fixed fixture, so it can't tell an allowlist filter that works from one that's a no-op.
- *      Case 7.
+ *   4. A real `.eq('source', ...)` filter actually excludes a row whose text value isn't in
+ *      the allowlist — the coaching-actions.test.ts unit double hand-wires each chain link to
+ *      return a fixed fixture, so it can't tell a source filter that works from one that's a
+ *      no-op. Case 7.
+ *   5. A partial UNIQUE index, which an in-memory double cannot model at all: case 1 proves
+ *      that the second channel-level write of a source now lands as a SECOND ROW instead of
+ *      overwriting the first (migration 20260922000001), and that the accumulation stays
+ *      scoped to (site_id, channel_id, source).
  *
  * Run with:
  *   npm run db:start
@@ -28,13 +32,19 @@
  *
  * ---------------------------------------------------------------------------------------------
  * Case 7 update: Task 10 (`fetchChannelCoaching` allowlist of {cowork, forja}, commit 8a1b485a)
- * landed. The production query does NOT merge/dedupe cowork+forja — it is a plain
- * `.in('source', ['cowork','forja']).order('generated_at', {ascending:false}).limit(1)`, so
- * "prefers the newer of cowork/forja" falls out of ordinary recency ordering (proven in both
- * directions below), and "treats forja_retirada_* as a rollback guard" falls out of the `.in()`
- * allowlist excluding it from the query entirely — not app-layer narrowing (the narrowing in
- * yt-analytics-tabs.tsx only ever sees rows the query already let through). No longer blocked;
- * `it.todo` replaced with real assertions.
+ * landed. The production query does NOT merge/dedupe cowork+forja: it asks each allowlisted
+ * source for its own newest row and merges the answers by recency, so "prefers the newer of
+ * cowork/forja" falls out of ordinary recency ordering (proven in both directions below), and
+ * "treats forja_retirada_* as a rollback guard" falls out of no query ever asking for that
+ * source — not app-layer narrowing (the narrowing in yt-analytics-tabs.tsx only ever sees rows
+ * the query already let through).
+ *
+ * 2026-09-22: the channel analysis now ACCUMULATES (migration 20260922000001 dropped the UNIQUE
+ * from idx_youtube_intelligence_channel_dedup). That killed the invariant the read used to lean
+ * on — "at most one row per source, so `.limit(2)` over both sources is exhaustive" — and case 1
+ * below asserts the opposite of what it asserted before. The per-source read is what replaced
+ * it, and the four-row case proves `.limit(2)` over both sources would have buried the cowork
+ * analysis behind two forja rows.
  */
 import { randomUUID } from 'node:crypto'
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
@@ -177,16 +187,16 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
     siteId: string,
     channelId: string,
     source: 'cowork' | 'forja',
-  ): Promise<Array<{ id: string; coaching: { summary: string } | null }>> {
+  ): Promise<Array<{ id: string; generated_at: string; coaching: { summary: string } | null }>> {
     const { data, error } = await svc
       .from('youtube_intelligence')
-      .select('id, coaching')
+      .select('id, generated_at, coaching')
       .eq('site_id', siteId)
       .eq('channel_id', channelId)
       .is('video_id', null)
       .eq('source', source)
     if (error) throw new Error(`readChannelIntelligence: ${error.message}`)
-    return (data ?? []) as Array<{ id: string; coaching: { summary: string } | null }>
+    return (data ?? []) as Array<{ id: string; generated_at: string; coaching: { summary: string } | null }>
   }
 
   const CHANNEL_ONLY_PAYLOAD = (taskId: string, summary: string) => ({
@@ -199,18 +209,25 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
     return new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10)
   }
 
-  // ── Case 1 — channel-row upsert dedup (idx_youtube_intelligence_channel_dedup) ────────────
+  // ── Case 1 — the channel analysis ACCUMULATES (migration 20260922000001) ─────────────────
 
   it(
-    'two forja PATCHes on the same channel (distinct tasks) collapse into ONE channel row with the ' +
-      'second text; the cowork row, another channel\'s forja row and another site\'s forja row stay intact',
+    'two forja PATCHes on the same channel (distinct tasks) leave TWO rows, oldest text intact ' +
+      'and newest text added; the cowork row, another channel\'s and another site\'s stay untouched',
     async () => {
+      // This asserted the exact OPPOSITE until 2026-09-22: `idx_youtube_intelligence_channel_dedup`
+      // was UNIQUE (site_id, channel_id, source) WHERE video_id IS NULL and the write path did
+      // read-then-update, so the second run OVERWROTE the first. One row per source, for ever:
+      // no trend, and a bad run destroyed the good measurement before it. The owner decided the
+      // channel analysis should accumulate like video_grade_history / playlist_snapshots /
+      // competitor_channel_snapshots / content_pipeline_history already do. The in-memory double
+      // cannot model a unique index at all, which is why this case has to run against Postgres.
       const siteId = await freshSite()
       const otherSiteId = await freshSite()
-      // The dedup key is (site_id, channel_id, source) WHERE video_id IS NULL, so proving it
-      // needs BOTH neighbours: a second channel under the SAME site (→ channel_id is really in
-      // the key) and a channel under another site (→ site_id is really in the key). The same-site
-      // pair varies the locale because one site holds at most one channel per locale.
+      // The neighbours still matter, now for the opposite reason: they prove the accumulation is
+      // scoped, not a free-for-all. A second channel under the SAME site and a channel under
+      // ANOTHER site must each keep exactly their own single row. The same-site pair varies the
+      // locale because one site holds at most one channel per locale.
       const channelId = await freshChannelOnly(siteId, 'pt')
       const otherChannelId = await freshChannelOnly(siteId, 'en')
       const otherSiteChannelId = await freshChannelOnly(otherSiteId, 'pt')
@@ -237,15 +254,21 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
         forjaCtx(siteId, key),
         CHANNEL_ONLY_PAYLOAD(task2, 'segunda'),
       )
+      // The second run used to be impossible to distinguish from the first because it
+      // overwrote it. If the UNIQUE index ever comes back, this INSERT raises 23505 and the
+      // submit degrades to PARTIAL_FAILURE instead of 'ok' — the regression is loud, not silent.
       expect(submit2.data.status).toBe('ok')
 
-      // Exactly one forja row for this channel, carrying the SECOND text — proves the
-      // idx_youtube_intelligence_channel_dedup partial unique index (site_id, channel_id,
-      // source WHERE video_id IS NULL) is what the update path relies on, against a real DB.
+      // TWO forja rows for this channel, both texts present — a series, not a slot.
       const forjaRows = await readChannelIntelligence(siteId, channelId, 'forja')
-      expect(forjaRows).toHaveLength(1)
-      expect(forjaRows[0]?.coaching?.summary).toBe('segunda')
+      expect(forjaRows).toHaveLength(2)
+      expect(forjaRows.map(r => r.coaching?.summary).sort()).toEqual(['primeira', 'segunda'])
+      // Each run carries its own timestamp: without distinct generated_at there is no
+      // "most recent" to read, and the whole point of keeping the history collapses.
+      expect(new Set(forjaRows.map(r => r.generated_at)).size).toBe(2)
 
+      // Accumulation is per (site, channel, source): the neighbours keep exactly one row each,
+      // and the cowork row of this very channel is untouched by the two forja runs.
       const cowork = await readChannelIntelligence(siteId, channelId, 'cowork')
       expect(cowork).toHaveLength(1)
       expect(cowork[0]?.coaching?.summary).toBe('cowork original')
@@ -257,6 +280,103 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
       const otherSite = await readChannelIntelligence(otherSiteId, otherSiteChannelId, 'forja')
       expect(otherSite).toHaveLength(1)
       expect(otherSite[0]?.coaching?.summary).toBe('forja outro site')
+    },
+  )
+
+  it(
+    'THE CASE THAT MUST EXIST: two runs of the same source are two rows, and the read returns ' +
+      'the NEWER one — the older stays readable as history',
+    async () => {
+      // Write and read in one test, end to end against Postgres: the write path accumulates,
+      // and `fetchChannelCoaching` — whose old `.limit(COACHING_SOURCES.length)` leaned on the
+      // dead "at most two rows ever" invariant — still answers with the newest per source.
+      const siteId = await freshSite()
+      const channelId = await freshChannelOnly(siteId)
+      const key = `key-forja-${randomUUID()}`
+
+      const task1 = await seedTask(siteId, channelId)
+      await claimNextTask(forjaCtx(siteId, key), [channelId])
+      await submitIntelRecommendations(forjaCtx(siteId, key), CHANNEL_ONLY_PAYLOAD(task1, 'medicao da semana 1'))
+
+      // `generated_at` is `now()` on both submits and Postgres timestamptz is microsecond
+      // resolution, but ordering must not depend on how fast the two calls happen to run.
+      // Backdating the first row makes "the newer one" a fact, not a race.
+      const first = await readChannelIntelligence(siteId, channelId, 'forja')
+      expect(first).toHaveLength(1)
+      const { error: backdateError } = await svc
+        .from('youtube_intelligence')
+        .update({ generated_at: new Date(Date.now() - 7 * 86_400_000).toISOString() })
+        .eq('id', first[0]!.id)
+      if (backdateError) throw new Error(`backdate: ${backdateError.message}`)
+
+      const task2 = await seedTask(siteId, channelId)
+      await claimNextTask(forjaCtx(siteId, key), [channelId])
+      const submit2 = await submitIntelRecommendations(
+        forjaCtx(siteId, key),
+        CHANNEL_ONLY_PAYLOAD(task2, 'medicao da semana 2'),
+      )
+      expect(submit2.data.status).toBe('ok')
+
+      // Two rows: last week's measurement was not destroyed by this week's.
+      const rows = await readChannelIntelligence(siteId, channelId, 'forja')
+      expect(rows).toHaveLength(2)
+      expect(rows.map(r => r.coaching?.summary).sort()).toEqual([
+        'medicao da semana 1',
+        'medicao da semana 2',
+      ])
+
+      // And the screen reads the newer one.
+      _mockSiteId = siteId
+      const result = await fetchChannelCoaching(channelId)
+      expect(result?.source).toBe('forja')
+      expect(result?.coaching.summary).toBe('medicao da semana 2')
+      // Nothing else to show: the older forja row is history, not today's cards, and no
+      // cowork row exists on this channel at all.
+      expect(result?.cards).toBeNull()
+    },
+  )
+
+  it(
+    'history on BOTH sources: the read returns the newest of each, never an older row and ' +
+      'never two rows of the same source',
+    async () => {
+      // The precise failure mode the old query acquired the moment history became possible:
+      // `.limit(2)` over `.in('source', [cowork, forja])` returns THE TWO NEWEST ROWS OVERALL.
+      // With two recent forja rows it returns two forja rows and buries the cowork analysis —
+      // the exact regression this suite already has a case for, resurrected by a different
+      // cause. Four rows, deliberately interleaved in time so the two newest overall are both
+      // forja.
+      const siteId = await freshSite()
+      const channelId = await freshChannelOnly(siteId)
+      const now = Date.now()
+      const at = (days: number) => new Date(now - days * 86_400_000).toISOString()
+      const priorities = [
+        { axis: 'ctr', score: 3, diagnosis: 'CTR baixo', action: 'Testar thumbnails' },
+        { axis: 'retention', score: 4, diagnosis: 'Retencao baixa', action: 'Cortar a intro' },
+      ]
+
+      const { error } = await svc.from('youtube_intelligence').insert([
+        { site_id: siteId, channel_id: channelId, video_id: null, type: 'channel',
+          source: 'cowork', coaching: { summary: 'cowork antigo', priorities }, generated_at: at(40) },
+        { site_id: siteId, channel_id: channelId, video_id: null, type: 'channel',
+          source: 'cowork', coaching: { summary: 'cowork recente', priorities }, generated_at: at(20) },
+        { site_id: siteId, channel_id: channelId, video_id: null, type: 'channel',
+          source: 'forja', coaching: { summary: 'forja semana passada', priorities: [] }, generated_at: at(7) },
+        { site_id: siteId, channel_id: channelId, video_id: null, type: 'channel',
+          source: 'forja', coaching: { summary: 'forja desta semana', priorities: [] }, generated_at: at(0) },
+      ])
+      if (error) throw new Error(`seed four-row history: ${error.message}`)
+
+      _mockSiteId = siteId
+      const result = await fetchChannelCoaching(channelId)
+
+      // Banner: the newest forja. Cards: the newest COWORK — not the second-newest forja,
+      // which is what a `.limit(2)` over both sources would have handed back.
+      expect(result?.source).toBe('forja')
+      expect(result?.coaching.summary).toBe('forja desta semana')
+      expect(result?.cards?.source).toBe('cowork')
+      expect(result?.cards?.coaching.summary).toBe('cowork recente')
+      expect(result?.cards?.coaching.priorities).toHaveLength(2)
     },
   )
 
@@ -585,9 +705,10 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
       const channelId = await freshChannelOnly(siteId)
       const now = Date.now()
 
-      // idx_youtube_intelligence_channel_dedup is (site_id, channel_id, source) WHERE
-      // video_id IS NULL — 'cowork' and 'forja_retirada_202609181200' are distinct source
-      // values, so both rows coexist under the same channel without a 23505 conflict.
+      // Since migration 20260922000001 the channel index is no longer UNIQUE, so any number
+      // of rows coexist under the same channel regardless of source — 'cowork' and
+      // 'forja_retirada_202609181200' included. What keeps the retirada row off the screen is
+      // the query, which never asks for a source outside the allowlist.
       const { error } = await svc.from('youtube_intelligence').insert([
         {
           site_id: siteId, channel_id: channelId, video_id: null, type: 'channel',

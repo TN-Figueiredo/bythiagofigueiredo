@@ -20,8 +20,11 @@ function makeSupabase(results: Array<{ data: unknown; error: unknown }>) {
   for (const op of ['select', 'eq', 'in', 'order', 'limit', 'update', 'is', 'not', 'gte', 'insert']) {
     chain[op] = vi.fn((...args: unknown[]) => { calls.push({ op, args }); return chain })
   }
-  chain.maybeSingle = vi.fn(async () => results[i++] ?? { data: null, error: null })
-  chain.single = vi.fn(async () => results[i++] ?? { data: null, error: null })
+  // Recorded in `calls` like every other op, so a test can assert a query is NOT a
+  // single-object read — `.maybeSingle()` raises PGRST116 on more than one row, which is now
+  // a live hazard on any query over the accumulating channel history.
+  chain.maybeSingle = vi.fn(async () => { calls.push({ op: 'maybeSingle', args: [] }); return results[i++] ?? { data: null, error: null } })
+  chain.single = vi.fn(async () => { calls.push({ op: 'single', args: [] }); return results[i++] ?? { data: null, error: null } })
   // Real supabase-js resolves ANY filter builder when awaited, not just one ending in
   // `.single()`/`.maybeSingle()` — `.insert(x)` and a bare `.select().eq().in(...)` are both
   // awaited directly in the service. Without this, such a call would resolve to the chain
@@ -30,7 +33,9 @@ function makeSupabase(results: Array<{ data: unknown; error: unknown }>) {
   return {
     calls,
     tables,
-    client: { from: vi.fn((t: string) => { tables.push(t); return chain }) },
+    // `from` is recorded in `calls` too, so a test can slice the ops belonging to ONE table
+    // out of the shared chain (see `opsOnTable`).
+    client: { from: vi.fn((t: string) => { tables.push(t); calls.push({ op: 'from', args: [t] }); return chain }) },
     /**
      * Slice of `calls` starting at the first occurrence of `op` — use this, never a
      * bare `expect(calls).toContainEqual(...)`, for a CAS/UPDATE clause. The double
@@ -42,6 +47,18 @@ function makeSupabase(results: Array<{ data: unknown; error: unknown }>) {
     from(op: string): Call[] {
       const idx = calls.findIndex((c) => c.op === op)
       return idx === -1 ? [] : calls.slice(idx)
+    },
+    /**
+     * The ops issued against ONE table, from its `from(table)` up to the next `from(...)`.
+     * The double shares a single chain object across every query, so this is the only way to
+     * say "youtube_intelligence was never read with .maybeSingle()" without the task lookup
+     * — which legitimately uses it — satisfying the assertion instead.
+     */
+    opsOnTable(table: string): Call[] {
+      const start = calls.findIndex((c) => c.op === 'from' && c.args[0] === table)
+      if (start === -1) return []
+      const rel = calls.slice(start + 1).findIndex((c) => c.op === 'from')
+      return rel === -1 ? calls.slice(start + 1) : calls.slice(start + 1, start + 1 + rel)
     },
   }
 }
@@ -248,29 +265,55 @@ describe('deriveSource and the forja scope guards', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('writes source=forja for a narrow key, even with source:cowork in the body', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: '22222222-2222-4222-8222-222222222222' }, error: null }])
+    // Three queued results, not four: the channel path lost its pre-read. Migration
+    // 20260922000001 made the channel analysis accumulate, so submitIntelRecommendations
+    // always INSERTs — the `.maybeSingle()` dedup lookup that used to sit here would now
+    // raise PGRST116 ("more than one row") on the second run of any source.
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: { id: '22222222-2222-4222-8222-222222222222' }, error: null }])
     await submitIntelRecommendations(ctxOf(sb), { ...CHANNEL_ONLY, source: 'cowork', __extra: 'smuggled-top-level' })
     const insert = sb.calls.find(c => c.op === 'insert')!.args[0] as Record<string, unknown>
     expect(insert.source).toBe('forja')
     expect(insert).not.toHaveProperty('__extra')
-    // The dedup lookup for the existing channel row must key on the SAME derived source —
-    // otherwise a forja PATCH can find and silently overwrite the Cowork-authored row
-    // (result_summary from the May analysis) instead of writing its own.
-    expect(sb.calls).toContainEqual({ op: 'eq', args: ['source', 'forja'] })
   })
+
+  it(
+    'the channel row is always INSERTed, never read-then-updated — the history depends on it',
+    async () => {
+      const sb = makeSupabase([runningTask, { data: null, error: null }, { data: { id: TASK_ID }, error: null }])
+      await submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)
+
+      // youtube_intelligence is touched exactly once, to write — no lookup first. A
+      // read-then-update here is what erased the previous week's measurement, and the
+      // `.maybeSingle()` it used would now error outright once a second row exists.
+      expect(sb.tables.filter(t => t === 'youtube_intelligence')).toHaveLength(1)
+      const intelOps = sb.opsOnTable('youtube_intelligence')
+      expect(intelOps.some(c => c.op === 'maybeSingle' || c.op === 'single')).toBe(false)
+      expect(intelOps.some(c => c.op === 'select')).toBe(false)
+      expect(intelOps.some(c => c.op === 'update')).toBe(false)
+      expect(intelOps.filter(c => c.op === 'insert')).toHaveLength(1)
+
+      const insert = sb.calls.find(c => c.op === 'insert')!.args[0] as Record<string, unknown>
+      expect(insert).toMatchObject({ channel_id: 'ch-1', video_id: null, type: 'channel', source: 'forja' })
+      // Its own timestamp: every run is a distinct point in the series, not an overwrite.
+      expect(typeof insert.generated_at).toBe('string')
+
+      // The only UPDATE in the whole call is the closing CAS on the task table.
+      expect(sb.calls.filter(c => c.op === 'update')).toHaveLength(1)
+    },
+  )
 
   it('writes source=forja even when the context never sets `source` at all — the fail-closed default', async () => {
     // Regression for the exact failure mode the deriveSource comment warns about: a
     // future call site that forgets to populate ServiceContext.source. Written by
     // inclusion (`ctx.source === 'api_key' && !wide ? 'forja' : 'cowork'`) this would
     // read as 'cowork' and silently switch off all four forja scope refusals.
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: 'x' }, error: null }])
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: { id: 'x' }, error: null }])
     await submitIntelRecommendations(ctxOf(sb, { source: undefined }), CHANNEL_ONLY)
     expect((sb.calls.find(c => c.op === 'insert')!.args[0] as Record<string, unknown>).source).toBe('forja')
   })
 
   it('writes source=cowork for a session context', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: 'x' }, error: null }])
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: { id: 'x' }, error: null }])
     await submitIntelRecommendations(ctxOf(sb, { source: 'session', permissions: ['read', 'write'], keyId: undefined }), CHANNEL_ONLY)
     expect((sb.calls.find(c => c.op === 'insert')!.args[0] as Record<string, unknown>).source).toBe('cowork')
   })
@@ -323,7 +366,7 @@ describe('deriveSource and the forja scope guards', () => {
   })
 
   it('never notifies on a forja PATCH', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: 'x' }, error: null }])
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: { id: 'x' }, error: null }])
     await submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)
     expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
   })
@@ -417,10 +460,10 @@ describe('submitIntelRecommendations — closing the task', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('closes with a CAS pinned to status, site, started_at and owner, preserving claimed_by', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: { id: TASK_ID }, error: null }])
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: { id: TASK_ID }, error: null }])
     await submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)
-    // CHANNEL_ONLY never hits the coaching UPDATE branch (existingChannel is null in this
-    // fixture), so the first — and only — 'update' op is the closing CAS itself.
+    // The channel path only ever INSERTs (it accumulates history), so the first — and only —
+    // 'update' op in the whole call is the closing CAS itself.
     const cas = sb.from('update')
     const close = cas[0]!.args[0] as Record<string, unknown>
     expect(close).toMatchObject({ status: 'completed' })
@@ -433,17 +476,17 @@ describe('submitIntelRecommendations — closing the task', () => {
   })
 
   it('409s when the closing CAS returns no row', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: null, error: null }])
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }])
     await expect(submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING', status: 409 })
   })
 
   it('500s INTERNAL_ERROR when the closing UPDATE itself errors', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: null }, { data: null, error: { message: 'boom' } }])
+    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: { message: 'boom' } }])
     await expect(submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
   })
 
   it('500s PARTIAL_FAILURE listing only targets, and leaves the task untouched', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: { message: 'disk on fire' } }])
+    const sb = makeSupabase([runningTask, { data: null, error: { message: 'disk on fire' } }])
     await expect(submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY)).rejects.toMatchObject({
       code: 'PARTIAL_FAILURE', status: 500, message: 'channel: write_failed',
     })
@@ -452,7 +495,7 @@ describe('submitIntelRecommendations — closing the task', () => {
   })
 
   it('never writes the status partial_failure — the DB CHECK forbids it', async () => {
-    const sb = makeSupabase([runningTask, { data: null, error: null }, { data: null, error: { message: 'x' } }])
+    const sb = makeSupabase([runningTask, { data: null, error: { message: 'x' } }])
     await submitIntelRecommendations(ctxOf(sb), CHANNEL_ONLY).catch(() => {})
     expect(JSON.stringify(sb.calls)).not.toContain('partial_failure')
   })
