@@ -52,7 +52,10 @@ export async function GET(req: NextRequest) {
         .from('youtube_videos')
         .select('id, youtube_video_id, title, published_at, view_count, ctr, impressions, avg_view_percentage, avg_view_duration_seconds, traffic_sources')
         .eq('channel_id', channel.id)
-        .not('ctr', 'is', null)
+        // No `.not('ctr', 'is', null)`: nothing can fill `ctr` (YouTube
+        // Analytics API v2 does not serve impressions/CTR), so that filter
+        // matched 0 of 35 videos and this cron wrote ZERO rows every week.
+        // A missing ctr now makes the ctr axis unavailable, not the video.
         .order('published_at', { ascending: false })
         .limit(50)
 
@@ -102,15 +105,18 @@ export async function GET(req: NextRequest) {
         const newest = latestRow(last28)
         const totalViews = newest?.views ?? 0
         const totalEngagement = newest ? newest.likes + newest.comments + newest.shares : 0
-        const engagementRate = totalViews > 0 ? (totalEngagement / totalViews) * 100 : 0
+        // null = no measurement in the window (the axis drops out); 0 would
+        // claim "nobody engaged".
+        const engagementRate = totalViews > 0 ? (totalEngagement / totalViews) * 100 : null
         const totalSubs = newest?.subscribers_gained ?? 0
 
         const input: VideoScoreInput = {
           videoId: video.id,
           publishedAt: video.published_at ?? new Date().toISOString(),
-          ctr: video.ctr ?? 0,
-          avgViewPercentage: video.avg_view_percentage ?? 0,
-          impressions: video.impressions ?? 0,
+          // Pass NULL through: `?? 0` turned "not measured" into a score.
+          ctr: video.ctr,
+          avgViewPercentage: video.avg_view_percentage,
+          impressions: video.impressions,
           trafficSources: (video.traffic_sources && typeof video.traffic_sources === 'object' && !Array.isArray(video.traffic_sources))
             ? video.traffic_sources as VideoScoreInput['trafficSources']
             : null,

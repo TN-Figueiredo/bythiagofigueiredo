@@ -159,6 +159,33 @@ function computeReachDiversity(sources: VideoScoreInput['trafficSources']): numb
 export const GROWTH_UNAVAILABLE =
   'youtube_video_analytics stores rolling-window totals, not daily counts: a growth rate cannot be derived from them'
 
+/**
+ * Why CTR (and, with it, sub_impact) carries no score today.
+ *
+ * YouTube Analytics API v2 does not serve `impressions` or
+ * `impressionClickThroughRate` — requesting them answers "Unknown identifier"
+ * (see sync-analytics-metrics/route.ts). They exist only inside YouTube
+ * Studio. Nothing in this codebase writes `youtube_videos.ctr` or
+ * `.impressions`; on 2026-09-22 production had 0 of 35 videos with either.
+ */
+export const CTR_UNAVAILABLE =
+  'no ctr: YouTube Analytics API v2 does not expose impressionClickThroughRate, so youtube_videos.ctr is never written'
+export const SUB_IMPACT_UNAVAILABLE =
+  'no impressions: YouTube Analytics API v2 does not expose impressions, so subscribers-per-impression has no denominator'
+export const RETENTION_UNAVAILABLE =
+  'no avg_view_percentage: the analytics sync does not request averageViewPercentage, so the column is never written'
+export const ENGAGEMENT_UNAVAILABLE =
+  'no youtube_video_analytics row with views in the window'
+
+const UNAVAILABLE_REASONS: Record<Axis, string> = {
+  ctr: CTR_UNAVAILABLE,
+  retention: RETENTION_UNAVAILABLE,
+  reach: 'no input',
+  engagement: ENGAGEMENT_UNAVAILABLE,
+  growth: GROWTH_UNAVAILABLE,
+  sub_impact: SUB_IMPACT_UNAVAILABLE,
+}
+
 export function scoreVideo(input: VideoScoreInput, baseline: ChannelBaseline): VideoScore {
   const rawAge = (Date.now() - new Date(input.publishedAt).getTime()) / 86400000
   const ageDays = Number.isFinite(rawAge) && rawAge >= 0 ? Math.floor(rawAge) : 0
@@ -170,7 +197,6 @@ export function scoreVideo(input: VideoScoreInput, baseline: ChannelBaseline): V
   const tierMod = TIER_MODIFIERS[tier]
 
   const reachDiversity = computeReachDiversity(input.trafficSources)
-  const subImpactRaw = input.impressions > 0 ? (input.subscribersGained / input.impressions) * 1000 : 0
 
   // When traffic sources are unavailable, fall back to view_count relative performance.
   // Log-scale the ratio so outlier detection can differentiate videos by actual views.
@@ -182,19 +208,33 @@ export function scoreVideo(input: VideoScoreInput, baseline: ChannelBaseline): V
   }
 
   // `axisInputs` omits an axis entirely when its input does not exist. Adding a
-  // key here with a placeholder value is how missing data becomes a claim.
+  // key here with a placeholder value is how missing data becomes a claim —
+  // and not a harmless one: with every ctr/avg_view_percentage NULL the channel
+  // medians are 0 too, so a placeholder 0 lands ABOVE the tier-shifted midpoint
+  // and sigmoid scores it ~63-71 (ctr) and 99 (retention) for every video.
   const axisInputs: Partial<Record<Axis, { raw: number; midpoint: number }>> = {
-    ctr: { raw: input.ctr, midpoint: baseline.medianCtr - tierMod.ctr },
-    retention: { raw: input.avgViewPercentage, midpoint: baseline.medianRetention - tierMod.retention },
     reach: { raw: reachRaw, midpoint: reachMidpoint },
-    engagement: { raw: input.engagementRate, midpoint: baseline.medianEngagement },
-    sub_impact: { raw: subImpactRaw, midpoint: baseline.medianSubImpact },
+  }
+  if (input.ctr !== null) {
+    axisInputs.ctr = { raw: input.ctr, midpoint: baseline.medianCtr - tierMod.ctr }
+  }
+  if (input.avgViewPercentage !== null) {
+    axisInputs.retention = { raw: input.avgViewPercentage, midpoint: baseline.medianRetention - tierMod.retention }
+  }
+  if (input.engagementRate !== null) {
+    axisInputs.engagement = { raw: input.engagementRate, midpoint: baseline.medianEngagement }
+  }
+  if (input.impressions !== null && input.impressions > 0) {
+    axisInputs.sub_impact = {
+      raw: (input.subscribersGained / input.impressions) * 1000,
+      midpoint: baseline.medianSubImpact,
+    }
   }
 
   const unavailableAxes: UnavailableAxis[] = []
   for (const axis of Object.keys(weights) as Axis[]) {
     if (axisInputs[axis] === undefined) {
-      unavailableAxes.push({ axis, reason: axis === 'growth' ? GROWTH_UNAVAILABLE : 'no input' })
+      unavailableAxes.push({ axis, reason: UNAVAILABLE_REASONS[axis] })
     }
   }
 

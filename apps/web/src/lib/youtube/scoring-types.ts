@@ -48,11 +48,19 @@ export interface UnavailableAxis {
 export interface VideoScoreInput {
   videoId: string
   publishedAt: string
-  ctr: number
-  avgViewPercentage: number
-  impressions: number
+  /**
+   * `null` = not measured, NOT zero. The axis that needs it is then reported in
+   * `unavailableAxes` and the others are renormalized. Passing `?? 0` instead
+   * is how a missing measurement became a mid-scale score (see scoring.ts).
+   */
+  ctr: number | null
+  /** `null` = not measured; the retention axis is then unavailable. */
+  avgViewPercentage: number | null
+  /** `null` or 0 = no denominator; the sub_impact axis is then unavailable. */
+  impressions: number | null
   trafficSources: TrafficSources | null
-  engagementRate: number
+  /** `null` = no analytics row in the window; the engagement axis is then unavailable. */
+  engagementRate: number | null
   /**
    * Rows of `youtube_video_analytics` for this video: each one the TOTAL over
    * the rolling sync window as of its date, NOT that date's count. Named

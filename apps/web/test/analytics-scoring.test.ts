@@ -507,3 +507,61 @@ describe('computeTrend', () => {
     expect(result.velocity).toBe(0)
   })
 })
+
+describe('scoreVideo with the axes production cannot measure (NULL input)', () => {
+  // The baseline computeBaseline builds when every ctr/avg_view_percentage is
+  // NULL, as on all 35 production videos: those medians collapse to 0.
+  const prodBaseline: ChannelBaseline = computeBaseline(
+    [{ ctr: null, avg_view_percentage: null, traffic_sources: null, view_count: 300 }],
+    new Map(),
+    400,
+  )
+  const input: VideoScoreInput = {
+    videoId: 'prod-shaped',
+    publishedAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+    ctr: null,
+    avgViewPercentage: null,
+    impressions: null,
+    trafficSources: null,
+    engagementRate: 3.0,
+    rollingViews: [],
+    subscribersGained: 3,
+    viewCount: 500,
+  }
+
+  it('omits ctr, retention and sub_impact instead of scoring a placeholder', () => {
+    const result = scoreVideo(input, prodBaseline)
+    expect(result.axes.map(a => a.axis).sort()).toEqual(['engagement', 'reach'])
+    expect(result.unavailableAxes.map(u => u.axis).sort()).toEqual(['ctr', 'growth', 'retention', 'sub_impact'])
+    expect(result.unavailableAxes.find(u => u.axis === 'ctr')!.reason).toMatch(/impressionClickThroughRate/)
+  })
+
+  it('renormalizes the surviving weights to 1 so the grade stays on the 0-100 scale', () => {
+    const result = scoreVideo(input, prodBaseline)
+    expect(result.axes.reduce((s, a) => s + a.weight, 0)).toBeCloseTo(1, 10)
+    const expected = result.axes.reduce((s, a) => s + a.normalized, 0) / 2
+    expect(result.overall).toBeCloseTo(expected, 10)
+  })
+
+  it('a placeholder 0 would NOT have been neutral: it scores far above the midpoint', () => {
+    // Documents why `?? 0` was fiction, not a conservative default: with the
+    // medians at 0 the tier shift puts the midpoint BELOW 0.
+    const withZeros = scoreVideo({ ...input, ctr: 0, avgViewPercentage: 0 }, prodBaseline)
+    expect(withZeros.axes.find(a => a.axis === 'ctr')!.normalized).toBeGreaterThan(70)
+    expect(withZeros.axes.find(a => a.axis === 'retention')!.normalized).toBe(99)
+  })
+
+  it('an engagementRate of null drops the axis; 0 keeps it as a real zero', () => {
+    const none = scoreVideo({ ...input, engagementRate: null }, prodBaseline)
+    expect(none.axes.map(a => a.axis)).toEqual(['reach'])
+    const zero = scoreVideo({ ...input, engagementRate: 0 }, prodBaseline)
+    expect(zero.axes.map(a => a.axis)).toContain('engagement')
+  })
+
+  it('impressions of 0 is no denominator: sub_impact is unavailable, not 0', () => {
+    const result = scoreVideo({ ...input, impressions: 0 }, prodBaseline)
+    expect(result.axes.find(a => a.axis === 'sub_impact')).toBeUndefined()
+    const measured = scoreVideo({ ...input, impressions: 1000 }, prodBaseline)
+    expect(measured.axes.find(a => a.axis === 'sub_impact')).toBeDefined()
+  })
+})

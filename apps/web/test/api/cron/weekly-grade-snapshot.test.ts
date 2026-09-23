@@ -93,11 +93,11 @@ function channelsQuery(data: unknown[]) {
 function videosQuery(data: unknown[]) {
   return {
     select: vi.fn().mockReturnValue({
+      // No `.not('ctr', 'is', null)` link: that filter matched 0 of 35
+      // production videos (ctr is never written) and graded nothing.
       eq: vi.fn().mockReturnValue({
-        not: vi.fn().mockReturnValue({
-          order: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue({ data, error: null }),
-          }),
+        order: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue({ data, error: null }),
         }),
       }),
     }),
