@@ -294,6 +294,35 @@ describe('the screen shows unavailable axes as unavailable', () => {
     expect(screen.getByText('2 de 4 eixos medidos')).toBeTruthy()
   })
 
+  it('Visao geral without scored videos (fallback): CTR is "indisponivel", not an engagement proxy labelled CTR', async () => {
+    // Channel-level metrics in production shape: impressions and CTR arrive as
+    // 0 because the Analytics API v2 does not serve them. The fallback used to
+    // fill the "CTR" row with (likes+comments)/views*500 = 25 here.
+    const { YtOverview } = await import('@/app/cms/(authed)/youtube/analytics/_components/yt-overview')
+    const { container } = render(
+      <YtOverview
+        metrics={{
+          views: 1000, estimatedMinutesWatched: 3000, averageViewDuration: 120, averageViewPercentage: 40,
+          subscribersGained: 10, subscribersLost: 0, impressions: 0, impressionClickThroughRate: 0,
+          likes: 40, comments: 10, shares: 0,
+        }}
+        dailyMetrics={[]}
+      />,
+    )
+    const rows = screen.getAllByTestId('axis-unavailable')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]!.textContent).toContain('CTR')
+    expect(rows[0]!.textContent).toContain('indisponivel')
+    expect(rows[0]!.textContent).not.toMatch(/\d/)
+    const measured = Array.from(container.querySelectorAll('.hb-row:not([data-testid="axis-unavailable"]) .hb-label'))
+      .map(el => el.textContent)
+    expect(measured).not.toContain('CTR')
+    expect(measured).toHaveLength(5)
+    // (retencao 80 + watch 30 + frequencia 100 + engajamento 50 + crescimento 5) / 5 — CTR out of the mean
+    expect(screen.getByRole('img', { name: 'Saude do canal: 53 de 100' })).toBeTruthy()
+    expect(screen.getByText('5 de 6 eixos medidos')).toBeTruthy()
+  })
+
   it('Health Coach: lists them as "sem dado", and "saudavel" only covers what was measured', async () => {
     const { YtHealthCoach } = await import('@/app/cms/(authed)/youtube/analytics/_components/yt-health-coach')
     render(

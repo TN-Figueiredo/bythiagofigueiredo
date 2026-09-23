@@ -1,4 +1,5 @@
 import type { Axis, Grade, VideoLifecycle, TrendDirection, ChannelTier, UnavailableAxis } from './scoring-types'
+import type { CategoryPerformance } from './prompt-query-helpers'
 
 export type ContextPreset = 'content-calendar' | 'channel-health' | 'video-optimizer'
 
@@ -42,7 +43,8 @@ export interface PromptChannelInfo {
 export interface ContentCalendarData {
   channel: PromptChannelInfo
   searchTerms: { term: string; views: number; estimatedMinutesWatched: number }[]
-  topPerformingCategories: { categorySlug: string; categoryName: string; avgViews: number; avgRetention: number; videoCount: number }[]
+  /** `avgRetention` is omitted (not 0) when no video in the category has retention data. */
+  topPerformingCategories: CategoryPerformance[]
   demographics: { topAge: string; topCountry: string; topDevice: string }
   outlierSuccesses: OutlierRow[]
   bestPerformingDay: string | null

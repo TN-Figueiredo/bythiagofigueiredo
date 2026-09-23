@@ -34,18 +34,22 @@ const GRADE_COLORS: Record<string, string> = {
   D: 'var(--red)',
 }
 
+type HealthAxis = { label: string; value: number; grade: string }
+type UnavailableHealthAxis = { label: string; note: string; reason: string }
+
 function computeFallbackHealth(m: YtChannelMetrics): {
   overall: number
-  axes: { label: string; value: number; grade: string }[]
+  axes: HealthAxis[]
+  unavailable: UnavailableHealthAxis[]
 } {
   // impressions/impressionClickThroughRate are unavailable from the Analytics
-  // Reporting API (YouTube Studio-only metrics). When zero, use engagement-based
-  // proxies so the health score still has 6 meaningful axes.
-  const ctrScore = m.impressionClickThroughRate > 0
-    ? Math.min(m.impressionClickThroughRate * 10, 100)
-    : m.views > 0
-      ? Math.min(((m.likes + m.comments) / m.views) * 500, 100) // engagement proxy
-      : 0
+  // Reporting API (YouTube Studio-only metrics), so they arrive as 0. A CTR
+  // needs impressions as its denominator: without them the axis is NOT
+  // measured and goes to `unavailable` — it used to be filled with a
+  // likes+comments proxy shown under the label "CTR", i.e. engagement counted
+  // twice and presented as click-through.
+  const ctrMeasured = m.impressions > 0
+  const ctrScore = Math.min(m.impressionClickThroughRate * 10, 100)
   const retentionScore = Math.min(m.averageViewPercentage * 2, 100)
   const growthScore = Math.min(
     ((m.subscribersGained - m.subscribersLost) / Math.max(m.subscribersGained, 1)) * 100,
@@ -60,25 +64,31 @@ function computeFallbackHealth(m: YtChannelMetrics): {
     : Math.min(m.views > 0 ? (m.estimatedMinutesWatched / m.views) * 10 : 0, 100) // watch-depth proxy
   const subImpactScore = Math.min((m.subscribersGained / Math.max(m.views, 1)) * 500, 100)
 
-  const overall = Math.round(
-    (ctrScore + retentionScore + growthScore + engagementScore + reachScore + subImpactScore) / 6,
-  )
-
   function grade(v: number) {
     return v >= 85 ? 'A' : v >= 65 ? 'B' : v >= 40 ? 'C' : 'D'
   }
 
-  return {
-    overall,
-    axes: [
-      { label: 'CTR', value: ctrScore, grade: grade(ctrScore) },
-      { label: 'Retencao', value: retentionScore, grade: grade(retentionScore) },
-      { label: 'Watch time', value: reachScore, grade: grade(reachScore) },
-      { label: 'Frequencia', value: growthScore, grade: grade(growthScore) },
-      { label: 'Engajamento', value: engagementScore, grade: grade(engagementScore) },
-      { label: 'Crescimento', value: subImpactScore, grade: grade(subImpactScore) },
-    ],
-  }
+  const axes: HealthAxis[] = [
+    ...(ctrMeasured ? [{ label: 'CTR', value: ctrScore, grade: grade(ctrScore) }] : []),
+    { label: 'Retencao', value: retentionScore, grade: grade(retentionScore) },
+    { label: 'Watch time', value: reachScore, grade: grade(reachScore) },
+    { label: 'Frequencia', value: growthScore, grade: grade(growthScore) },
+    { label: 'Engajamento', value: engagementScore, grade: grade(engagementScore) },
+    { label: 'Crescimento', value: subImpactScore, grade: grade(subImpactScore) },
+  ]
+  const unavailable: UnavailableHealthAxis[] = ctrMeasured
+    ? []
+    : [{
+        label: 'CTR',
+        note: 'a API do YouTube nao fornece impressoes',
+        reason: 'no impressions: the YouTube Analytics API v2 does not serve impressions/impressionClickThroughRate, so CTR has no denominator',
+      }]
+
+  // Mean over the measured axes only — an unmeasured axis is out of the score,
+  // not a 0 dragging it down nor a proxy propping it up.
+  const overall = Math.round(axes.reduce((sum, a) => sum + a.value, 0) / axes.length)
+
+  return { overall, axes, unavailable }
 }
 
 /** Build sparklines from daily metrics for each KPI */
@@ -174,9 +184,9 @@ const MIN_RADAR_AXES = 3
 export function YtOverview({ metrics, dailyMetrics, intelligenceHealthScore, intelligenceRadar, intelligenceUnavailable }: Props) {
   const useIntelligence = intelligenceRadar && intelligenceRadar.length > 0 && intelligenceHealthScore !== undefined
   const health = useIntelligence
-    ? { overall: intelligenceHealthScore!, axes: intelligenceRadar! }
+    ? { overall: intelligenceHealthScore!, axes: intelligenceRadar!, unavailable: intelligenceUnavailable ?? [] }
     : computeFallbackHealth(metrics)
-  const unavailable = useIntelligence ? (intelligenceUnavailable ?? []) : []
+  const unavailable = health.unavailable
   const axisTotal = health.axes.length + unavailable.length
 
   const kpis = buildKpiData(metrics, dailyMetrics)

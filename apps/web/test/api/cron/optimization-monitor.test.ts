@@ -240,6 +240,34 @@ describe('GET /api/cron/optimization-monitor', () => {
     expect(mockFanOut).toHaveBeenCalled()
   })
 
+  it('production shape: NULL ctr and no grade history are recorded as null, never as 0% / 0 / D', async () => {
+    // 2026-09-22: 0 of 35 videos in production have `ctr` (the YouTube
+    // Analytics API v2 does not serve it) and video_grade_history was empty.
+    const eightDaysAgo = new Date(Date.now() - 8 * 86400000).toISOString()
+    const cycle = {
+      id: 'cycle-null',
+      youtube_video_id: 'vid-null',
+      site_id: 'site-null',
+      test_winner_applied_at: eightDaysAgo,
+      monitoring_day7_at: null,
+      monitoring_day14_at: null,
+      monitoring_day30_at: null,
+    }
+    const update = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'optimization_cycles') return { ...monitoringQuery([cycle]), update }
+      if (table === 'youtube_videos') return videoQuery({ title: 'Prod Video', ctr: null })
+      if (table === 'video_grade_history') return gradeHistoryQuery(null)
+      return {}
+    })
+
+    const res = await GET(makeRequest(`Bearer ${CRON_SECRET}`))
+    expect(res.status).toBe(200)
+    expect(update).toHaveBeenCalledTimes(1)
+    const written = update.mock.calls[0]![0] as Record<string, unknown>
+    expect(written.monitoring_day7_result).toEqual({ score: null, grade: null, ctr: null })
+  })
+
   it('captures Sentry exception on cycle processing error', async () => {
     const eightDaysAgo = new Date(Date.now() - 8 * 86400000).toISOString()
     const cycle = {
