@@ -204,6 +204,8 @@ Pickup de tasks pendentes (transição atômica para 'running'). **Endpoint lega
 }
 ```
 
+`summary_source` (opcional, `model|template`): só a forja envia; o Cowork omite.
+
 **Regras:**
 - Máximo 6 priorities (uma por eixo)
 - Ordenar por score crescente (pior primeiro)

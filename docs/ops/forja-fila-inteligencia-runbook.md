@@ -83,8 +83,10 @@ cd ~/Workspace/forja/ferramentas
 ```
 
 Saída vazia + `KIT-IGUAL` = a forja está em dia. Cada linha `FAILED` nomeia um arquivo que chegou
-diferente (ou nunca chegou). **Medido em 22/09 18:50:** reprova em `trilha/fila_intel.py`,
-`trilha/teste_fila.py`, `trilha/teste_calculo.py` e `trilha/capturar_fixture.py`.
+diferente (ou nunca chegou). **Medido em 22/09 23:10:** `sitio.py` igual; reprova em
+`trilha/fila_intel.py`, `trilha/teste_fila.py`, `trilha/teste_fila_redacao.py`,
+`trilha/teste_calculo.py`, `trilha/capturar_fixture.py`, `trilha/nova_chave.py`, `pulso_f4.py` e
+`teste_pulso_fila.py` — e `/opt/agente/series.json` ausente.
 
 O que cada commit não instalado custa, para saber o que esperar antes de atualizar:
 
@@ -94,6 +96,10 @@ O que cada commit não instalado custa, para saber o que esperar antes de atuali
 | `3dde429` | `--sombra` sem `--snapshot` cai na fixture, igual ao `--canario` | `--sombra` sem a flag estoura `TypeError` → `desfecho: bug` |
 | `d9f1079` | `capturar_fixture.py` usa a chave **da fila**, não a `{read}` da fase 1 | a captura da fixture (§2, receita do `series.json`) pode ir com a chave errada |
 | `591e7c8` | `dias_sem_publicar` sem sinal; coorte sem os `view_count` não importados | `-1 dias sem publicar` no texto, e zeros parciais invertendo o veredito da série |
+| `d3025ed` | `series_ausente`, `janela_ausente`, `fila-fallback` no pulso, `fail_*` no `indeterminado` | as quatro falhas que chegavam ao jsonl como verde continuam verdes |
+| `30ed71c` / `5775278` | vídeo oculto fora de todo fato de canal; "vídeos públicos no banco" | ocultos entram na contagem e na coorte |
+| `d118e9d` | o PATCH leva os números de cada série e as séries examinadas sem veredito | o card do site mostra só o texto, sem mediana/coorte/razão |
+| `d592797` | `nova_chave.py` e o seed criam a chave da fila só com `intelligence` | a próxima rotação devolve o `read` largo à chave |
 
 Depois de atualizar, `git log --oneline` no kit e o portão de novo — **o `git log` diz o que mudou,
 o portão diz o que chegou.**
@@ -119,10 +125,12 @@ justamente para não serem sobrescritos.
 Depois de qualquer `scp` do worker, rode o `teste_fila.py` **na forja**, sob a trava, antes de
 confiar no cron (§4, passo 3).
 
-### Pendência aberta: `series.json` não existe
+### `series.json`: pronto no kit, ainda não na forja (22/09 23:10)
 
-`/opt/agente/series.json` é, pelo spec §4.2, **a verdade das séries**. Ele nunca foi criado — nem na
-forja, nem no kit. Consequência: `ler_series()` devolve `{}`, `series: []`, e o núcleo analítico da
+`/opt/agente/series.json` é, pelo spec §4.2, **a verdade das séries**. O do PT está no kit desde
+`09f437c` (`fase2/series.json`, 28 vídeos em 5 séries: `zero-dez`, `vlogzeira`, `canada`,
+`tailandia`, `main-ad-diamante`), montado com as escolhas do dono. **Na forja ele ainda não existe**
+— leve-o com o passo 4 abaixo. Enquanto não existir, a consequência é: `ler_series()` devolve `{}`, `series: []`, e o núcleo analítico da
 fase 2a (comparar a mediana de cada série com a coorte do mesmo ano) roda sobre nada. A saída fica
 tecnicamente correta e editorialmente vazia: "Nenhuma série se afasta da coorte do mesmo período."
 é verdade trivial quando não há série nenhuma. **E isso não pinta o check de vermelho** —
@@ -134,7 +142,8 @@ Diagnóstico em uma linha:
 ssh forja 'ls -l /opt/agente/series.json 2>/dev/null || echo AUSENTE'
 ```
 
-Receita para criar (o agrupamento é **decisão editorial do dono**, não do agente):
+Receita para criar ou refazer (o agrupamento é **decisão editorial do dono**, não do agente — vale
+para o EN e para quando entrarem vídeos novos numa série):
 
 1. Na forja, capturar a fixture, se ela não existir:
    ```
@@ -169,10 +178,9 @@ Receita para criar (o agrupamento é **decisão editorial do dono**, não do age
    ```
    Ele imprime os vídeos **fora** do `series.json` e a saída de `escolher`.
 
-Candidatas óbvias lidas na produção de 22/09 (35 vídeos no PT): `0-10 "Como somos controlados"`
-(11 episódios, ago–out/2019 — exatamente o caso de uso), `Vlogzeira #1–#3` (3, jun–jul/2019),
-`Main AD Diamante` (3, abr/2017 — **os três `is_hidden`**, então não vira série), `Tailândia` (2,
-out–dez/2024), `Toronto/chegada` (~4, ago–set/2017).
+`main-ad-diamante` está no arquivo mas os três episódios são `is_hidden` — nunca vira série, e é
+de propósito: se um dia forem publicados, entram sem editar nada. `tailandia` tem 2 episódios e só
+vira série no terceiro.
 
 ---
 
