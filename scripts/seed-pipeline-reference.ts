@@ -210,6 +210,28 @@ async function seed(): Promise<void> {
       console.log(`Inline entry: ${entry.key}`)
     }
 
+    // Memória do Cowork NÃO é documentação: o Cowork a acumula pelo banco
+    // (PUT /api/pipeline/context/{skill}-memory, instruído na linha 5 do
+    // system_prompt_template acima). O arquivo do repositório é só o molde
+    // vazio de partida. Sobrescrever apagaria o que ele aprendeu — este seed
+    // roda sozinho no pre-commit a cada mudança em docs/cowork-* ou
+    // data/pipeline-docs/, e fez exatamente isso em 22/09/2026.
+    // Por isso: memória só é INSERIDA quando ainda não existe. Nunca atualizada.
+    const isMemory = entry.key.endsWith('-memory')
+    if (isMemory) {
+      const { data: existing, error: readError } = await supabase
+        .from('reference_content')
+        .select('id, version, updated_at')
+        .eq('site_id', site.id)
+        .eq('key', entry.key)
+        .maybeSingle()
+      if (readError) throw new Error(`Read failed for ${entry.key}: ${readError.message}`)
+      if (existing) {
+        console.log(`= ${entry.key} (v${existing.version}) preservada — memória do Cowork nunca é sobrescrita\n`)
+        continue
+      }
+    }
+
     const { data, error } = await supabase
       .from('reference_content')
       .upsert(
