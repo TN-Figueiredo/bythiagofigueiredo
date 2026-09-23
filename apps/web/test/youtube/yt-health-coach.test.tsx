@@ -127,7 +127,7 @@ describe('YtHealthCoach', () => {
     render(
       <YtHealthCoach {...baseProps} onRequestAnalysis={fn} analysisState="pending" />,
     )
-    const btn = screen.getByRole('button', { name: 'Em fila...' })
+    const btn = screen.getByRole('button', { name: 'Pedido em andamento' })
     expect(btn).toBeDefined()
     expect((btn as HTMLButtonElement).disabled).toBe(true)
   })

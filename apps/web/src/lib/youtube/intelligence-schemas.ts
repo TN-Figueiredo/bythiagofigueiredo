@@ -15,6 +15,10 @@ export const RecommendationSchema = z.object({
 
 export const CoachingSchema = z.object({
   summary: z.string().max(500),
+  /** Who wrote `summary`: the model, or the fixed template it falls back to when both of its
+   *  attempts fail validation. The history shows "texto do template" from this. Optional:
+   *  Cowork never sends it, and a row without it simply shows no origin. */
+  summary_source: z.enum(['model', 'template']).optional(),
   priorities: z.array(z.object({
     axis: z.enum(['ctr', 'retention', 'reach', 'engagement', 'growth', 'sub_impact']),
     score: z.number().min(0).max(10),

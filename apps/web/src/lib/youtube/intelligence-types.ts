@@ -370,6 +370,7 @@ export type PatternCategory =
 
 export interface CoachingOutput {
   summary: string
+  summary_source?: 'model' | 'template'
   priorities: Array<{
     axis: 'ctr' | 'retention' | 'reach' | 'engagement' | 'growth' | 'sub_impact'
     score: number

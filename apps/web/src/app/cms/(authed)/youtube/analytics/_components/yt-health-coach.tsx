@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { brDec } from '@/lib/youtube/format'
@@ -39,6 +40,12 @@ interface Props {
   } | null
   onRequestAnalysis?: () => void
   analysisState: 'idle' | 'pending' | 'cooldown' | 'success'
+  /** The open request's progress card, rendered above everything else. */
+  progressSlot?: ReactNode
+  /** The analysis history, rendered at the bottom. */
+  historySlot?: ReactNode
+  /** A new analysis arrived while this page watched: flash the banner and tag it NOVO. */
+  bannerArrived?: boolean
 }
 
 const SEV_COLORS = {
@@ -77,6 +84,9 @@ export function YtHealthCoach({
   coachingMeta,
   onRequestAnalysis,
   analysisState,
+  progressSlot,
+  historySlot,
+  bannerArrived = false,
 }: Props) {
   const router = useRouter()
   const sortedCards = [...coachingCards].sort((a, b) => a.score - b.score)
@@ -93,6 +103,8 @@ export function YtHealthCoach({
   // (mockup state B: summary banner, no cards).
   if (videoCount === 0 && !coachingMeta) {
     return (
+      <div className="flex flex-col" style={{ gap: 16 }}>
+      {progressSlot}
       <div className="fade-in flex flex-col items-center justify-center gap-3 rounded border border-dashed border-cms-border p-12 text-center">
         <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
           Nenhuma analise de inteligencia disponivel ainda.
@@ -106,13 +118,15 @@ export function YtHealthCoach({
           </button>
         )}
       </div>
+      </div>
     )
   }
 
   return (
     <div className="fade-in flex flex-col" style={{ gap: 16 }}>
+      {progressSlot}
       {/* Coach summary banner */}
-      <div className="card coach-summary">
+      <div className={`card coach-summary${bannerArrived ? ' recem' : ''}`}>
         <div className="coach-sum-ico">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/>
@@ -127,6 +141,7 @@ export function YtHealthCoach({
                     ? ` · cards por ${sourceLabel(coachingMeta.cardsSource)} · ${coachingMeta.cardsGeneratedLabel}`
                     : '')
               : 'Diagnostico heuristico'}
+            {bannerArrived && <span className="tag-novo">NOVO</span>}
           </span>
           {coachingMeta ? (
             coachingMeta.summary.trim() !== '' && (
@@ -243,13 +258,14 @@ export function YtHealthCoach({
             disabled={analysisState !== 'idle'}
             className="btn sm"
           >
-            {analysisState === 'pending' ? 'Em fila...'
+            {analysisState === 'pending' ? 'Pedido em andamento'
               : analysisState === 'cooldown' ? 'Disponivel em breve'
               : analysisState === 'success' ? 'Analise solicitada!'
               : 'Solicitar Nova Analise'}
           </button>
         </div>
       )}
+      {historySlot}
     </div>
   )
 }

@@ -20,6 +20,16 @@ import { YtSearchTermsView } from './yt-search-terms'
 import { NotesView } from './notes-view'
 import type { NoteEntry } from './notes-view'
 import { PerfNewChannel } from './perf-new-channel'
+import { toast } from 'sonner'
+import {
+  useAnalysisTask,
+  progressButtonLabel,
+  progressAnnouncement,
+  YtAnalysisProgress,
+} from './yt-analysis-progress'
+import { YtAnalysisHistory } from './yt-analysis-history'
+import { isActive as isTaskActive, type AnalysisTaskSnapshot } from '@/lib/youtube/analysis-progress'
+import type { HistoryEntry } from '@/lib/youtube/analysis-history'
 import type {
   YtChannelMetrics,
   YtDailyMetric,
@@ -93,6 +103,11 @@ interface Props {
   onCreateNote?: (input: { channelId: string; text: string }) => Promise<{ ok: boolean; error?: string }>
   onDeleteNote?: (noteId: string) => Promise<{ ok: boolean; error?: string }>
   onRequestAnalysis?: (channelId: string) => Promise<unknown>
+  /** The channel's newest task at render time, and the action that re-reads it. */
+  initialTask?: AnalysisTaskSnapshot | null
+  onPollTask?: (channelId: string) => Promise<AnalysisTaskSnapshot | null>
+  /** Channel-level analyses, newest first (fetchAnalysisHistory). */
+  history?: HistoryEntry[]
   lastAnalysisAt?: string | null
   searchTermsError?: string
   demographicsError?: string
@@ -115,6 +130,9 @@ export function YtAnalyticsTabs({
   onCreateNote,
   onDeleteNote,
   onRequestAnalysis,
+  initialTask,
+  onPollTask,
+  history,
   lastAnalysisAt,
   searchTermsError,
   demographicsError,
@@ -123,6 +141,13 @@ export function YtAnalyticsTabs({
   const [activeTab, setActiveTab] = useState<TabId>('overview')
   const isNewChannel = metrics.views === 0 && dailyMetrics.length < 7
   const [analysisState, setAnalysisState] = useState<'idle' | 'pending' | 'cooldown' | 'success'>('idle')
+  const progress = useAnalysisTask(channelInternalId, initialTask ?? null, onPollTask)
+  const refreshTask = progress.refresh
+  // Busy while the request call is in flight AND for as long as the task is open: the button
+  // used to fall back to "Pedir diagnostico" after 5 s while the forja had not even started.
+  const busy = analysisState === 'pending' || isTaskActive(progress.task)
+  const buttonProgress = progressButtonLabel(progress.view, progress.now)
+  const activeChannelName = channels?.find(c => c.internalId === channelInternalId)?.name ?? 'canal'
   const tablistRef = useRef<HTMLDivElement>(null)
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -149,25 +174,30 @@ export function YtAnalyticsTabs({
   }, [activeTab])
 
   const handleRequestAnalysis = useCallback(async () => {
-    if (!onRequestAnalysis || !channelInternalId || analysisState !== 'idle') return
+    if (!onRequestAnalysis || !channelInternalId || busy) return
     setAnalysisState('pending')
     try {
-      const result = await onRequestAnalysis(channelInternalId) as { error?: string; ok?: boolean } | null
+      const result = await onRequestAnalysis(channelInternalId) as { error?: string; ok?: boolean; hours_remaining?: number } | null
       if (result && typeof result === 'object' && 'error' in result) {
-        if (result.error === 'cooldown' || result.error === 'already_active') {
-          setAnalysisState('cooldown')
-          setTimeout(() => setAnalysisState('idle'), 10_000)
+        if (result.error === 'cooldown') {
+          const h = typeof result.hours_remaining === 'number' ? result.hours_remaining : null
+          toast.info(h !== null
+            ? `Um diagnóstico foi pedido há menos de 24 h. Novo pedido liberado em ~${h} h.`
+            : 'Um diagnóstico foi pedido há menos de 24 h.')
+        } else if (result.error === 'already_active') {
+          toast.info('Já existe um pedido aberto para este canal.')
         } else {
-          setAnalysisState('idle')
+          toast.error('Não foi possível registrar o pedido. Tente de novo.')
         }
-      } else {
-        setAnalysisState('success')
-        setTimeout(() => setAnalysisState('idle'), 5_000)
       }
+      // Success or "already active": the card shows the task from here on.
+      await refreshTask()
     } catch {
+      toast.error('Não foi possível registrar o pedido. Tente de novo.')
+    } finally {
       setAnalysisState('idle')
     }
-  }, [onRequestAnalysis, channelInternalId, analysisState])
+  }, [onRequestAnalysis, channelInternalId, busy, refreshTask])
 
   const radarData = useMemo(
     () => intelligenceVideos ? computeRadarData(intelligenceVideos) : [],
@@ -260,15 +290,21 @@ export function YtAnalyticsTabs({
           <button
             type="button"
             className="btn"
-            disabled={!onRequestAnalysis || !channelInternalId || analysisState !== 'idle'}
+            disabled={!onRequestAnalysis || !channelInternalId || busy}
             onClick={handleRequestAnalysis}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
-              <path d="M5 18l.7 1.8L7.5 20l-1.8.7L5 22l-.7-1.3L2.5 20l1.8-.2z" />
-            </svg>
-            {analysisState === 'pending' ? 'Solicitando...' : analysisState === 'success' ? 'Solicitado!' : analysisState === 'cooldown' ? 'Aguarde...' : 'Pedir diagnostico'}
+            {buttonProgress ? <span className="run-dot" aria-hidden="true" /> : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
+                <path d="M5 18l.7 1.8L7.5 20l-1.8.7L5 22l-.7-1.3L2.5 20l1.8-.2z" />
+              </svg>
+            )}
+            {buttonProgress
+              ? <>{buttonProgress.text}{buttonProgress.small && <span className="run-sm">{buttonProgress.small}</span>}</>
+              : analysisState === 'pending' ? 'Solicitando...' : 'Pedir diagnostico'}
           </button>
+          {/* One sentence per STATE, never per second: the countdown lives outside this region. */}
+          <span className="sr-only" aria-live="polite">{progressAnnouncement(progress.view)}</span>
         </div>
       </div>
 
@@ -341,7 +377,19 @@ export function YtAnalyticsTabs({
             lastAnalysisAt={lastAnalysisAt ?? null}
             coachingMeta={coachingMeta}
             onRequestAnalysis={onRequestAnalysis && channelInternalId ? handleRequestAnalysis : undefined}
-            analysisState={analysisState}
+            analysisState={busy ? 'pending' : 'idle'}
+            bannerArrived={progress.arrivedTaskId !== null}
+            progressSlot={progress.view && progress.now && progress.task ? (
+              <YtAnalysisProgress
+                view={progress.view}
+                now={progress.now}
+                channelName={activeChannelName}
+                requestedAt={new Date(progress.task.requestedAt)}
+                retryCount={progress.task.retryCount}
+                onRequestAgain={onRequestAnalysis && channelInternalId ? handleRequestAnalysis : undefined}
+              />
+            ) : null}
+            historySlot={history && history.length > 0 ? <YtAnalysisHistory entries={history} /> : null}
           />
         )}
         {activeTab === 'outliers' && (

@@ -8,6 +8,8 @@ import type { VideoScoreInput } from '@/lib/youtube/scoring-types'
 import { latestRow } from '@/lib/youtube/rolling-window'
 import type { CoachingOutput } from '@/lib/youtube/intelligence-types'
 import { revalidatePath } from 'next/cache'
+import type { AnalysisTaskSnapshot, AnalysisTaskStatus } from '@/lib/youtube/analysis-progress'
+import { HISTORY_SOURCES, toHistoryEntry, type HistoryEntry } from '@/lib/youtube/analysis-history'
 import { z } from 'zod'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -349,13 +351,89 @@ export async function requestIntelligenceAnalysis(channelId: string) {
     if (hoursSince < 24) return { error: 'cooldown', hours_remaining: Math.ceil(24 - hoursSince) }
   }
 
-  await supabase.from('youtube_intelligence_tasks').insert({
+  // Checked: an unchecked insert answered `ok` on failure, the button said "Solicitado!" and
+  // the request simply never existed — the "it just disappears" the owner saw on 23/09.
+  const { error: insertError } = await supabase.from('youtube_intelligence_tasks').insert({
     site_id: siteId,
     channel_id: channelId,
     trigger_type: 'manual',
   })
+  if (insertError) return { error: 'insert_failed' }
 
   return { ok: true }
+}
+
+/**
+ * The newest task for the channel, for the progress card. Polled every 15 s while a task is
+ * pending or running. Closed column list: `result_summary` carries the claimer's key id and
+ * never goes to the browser; `error_message` is the forja's short reason code.
+ */
+export async function fetchLatestAnalysisTask(channelId: string): Promise<AnalysisTaskSnapshot | null> {
+  if (!UUID_RE.test(channelId)) throw new Error('invalid_input')
+  const { siteId } = await getSiteContext()
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  const supabase = getSupabaseServiceClient()
+
+  const { data, error } = await supabase
+    .from('youtube_intelligence_tasks')
+    .select('id, status, requested_at, started_at, completed_at, failed_at, updated_at, retry_count, error_message')
+    .eq('site_id', siteId)
+    .eq('channel_id', channelId)
+    .order('requested_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error(`Failed to read the analysis task: ${error.message}`)
+  if (!data) return null
+  if (!isTaskStatus(data.status)) return null
+  return {
+    id: data.id,
+    status: data.status,
+    requestedAt: data.requested_at,
+    startedAt: data.started_at,
+    completedAt: data.completed_at,
+    failedAt: data.failed_at,
+    updatedAt: data.updated_at,
+    retryCount: data.retry_count,
+    errorMessage: data.error_message,
+  }
+}
+
+const TASK_STATUSES: readonly AnalysisTaskStatus[] = ['pending', 'running', 'completed', 'failed', 'stale']
+function isTaskStatus(v: unknown): v is AnalysisTaskStatus {
+  return (TASK_STATUSES as readonly unknown[]).includes(v)
+}
+
+/** How many analyses the history lists. The mockup's "ver todas" is deferred until a channel
+ *  actually has more than this — at a weekly cadence that is ten weeks away. */
+const HISTORY_LIMIT = 10
+
+/**
+ * The channel-level analyses, newest first, from both producers. Only allowlisted sources: a
+ * retired `forja_retirada_*` row (the rollback path) never reappears here as history.
+ */
+export async function fetchAnalysisHistory(channelId: string): Promise<HistoryEntry[]> {
+  if (!UUID_RE.test(channelId)) throw new Error('invalid_input')
+  const { siteId } = await getSiteContext()
+  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!auth.ok) throw new Error(auth.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  const supabase = getSupabaseServiceClient()
+
+  const { data, error } = await supabase
+    .from('youtube_intelligence')
+    .select('id, source, generated_at, coaching, patterns_detected')
+    .eq('site_id', siteId)
+    .eq('channel_id', channelId)
+    .is('video_id', null)
+    .eq('type', 'channel')
+    .in('source', [...HISTORY_SOURCES])
+    .order('generated_at', { ascending: false })
+    .limit(HISTORY_LIMIT)
+  if (error) throw new Error(`Failed to read the analysis history: ${error.message}`)
+  return (data ?? []).flatMap(row => {
+    const entry = toHistoryEntry(row)
+    return entry ? [entry] : []
+  })
 }
 
 /* ─── Notes ─── */

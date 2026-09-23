@@ -15,6 +15,8 @@ import {
   createNote,
   deleteNote,
   requestIntelligenceAnalysis,
+  fetchLatestAnalysisTask,
+  fetchAnalysisHistory,
 } from './actions'
 import { YtAnalyticsTabs } from './_components/yt-analytics-tabs'
 
@@ -49,7 +51,7 @@ export default async function YouTubeAnalyticsPage({
   const activeChannel = channels.find(c => c.channelId === selectedChannelId) ?? channels[0]!
 
   const supabaseForLastAnalysis = getSupabaseServiceClient()
-  const [metrics, dailyMetrics, grades, searchTermsResult, demographicsResult, intelligenceData, channelCoaching, notes, lastAnalysisRow] = await Promise.all([
+  const [metrics, dailyMetrics, grades, searchTermsResult, demographicsResult, intelligenceData, channelCoaching, notes, lastAnalysisRow, latestTask, history] = await Promise.all([
     fetchYtChannelMetrics(siteId, 30, activeChannel.channelId),
     fetchYtDailyMetrics(siteId, 30, activeChannel.channelId),
     fetchVideoGrades(siteId, activeChannel.internalId),
@@ -68,6 +70,10 @@ export default async function YouTubeAnalyticsPage({
       .limit(1)
       .maybeSingle()
       .then(r => r.data, () => null),
+    // Both degrade to "nothing to show" on failure: the progress card and the history are
+    // additions to the tab, and an outage there must not take the whole page down.
+    fetchLatestAnalysisTask(activeChannel.internalId).catch(() => null),
+    fetchAnalysisHistory(activeChannel.internalId).catch(() => []),
   ])
 
   if (!metrics) {
@@ -112,6 +118,9 @@ export default async function YouTubeAnalyticsPage({
       onCreateNote={createNote}
       onDeleteNote={deleteNote}
       onRequestAnalysis={requestIntelligenceAnalysis}
+      initialTask={latestTask}
+      onPollTask={fetchLatestAnalysisTask}
+      history={history}
     />
   )
 }
