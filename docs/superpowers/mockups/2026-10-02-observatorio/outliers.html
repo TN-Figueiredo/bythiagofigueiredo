@@ -366,6 +366,22 @@
 #screen .grid > .card{align-self:stretch}
 #screen .card > .foot{margin-top:auto}
 #screen .card.lead{grid-template-rows:1fr auto;align-content:stretch}
+/* espaçamento e card principal (ajuste do dono 02/10) */
+#screen .sumbar{margin-top:10px}
+#screen #probs{margin-top:8px}
+#screen #notices > *{margin-top:8px}
+#screen .group{margin-top:24px}
+#screen .group:first-of-type{margin-top:16px}
+#screen .grid{margin-top:10px}
+@media (min-width:821px){
+  #screen .card.lead{grid-template-columns:44% minmax(0,1fr)!important;grid-template-rows:1fr auto}
+  #screen .card.lead > .thumb{grid-row:1/-1!important;height:100%;aspect-ratio:auto;min-height:100%;border-radius:7px 0 0 7px}
+  #screen .card.lead > .thumb img,#screen .card.lead > .thumb svg{width:100%;height:100%;object-fit:cover}
+  #screen .card.lead > .body{grid-column:2;padding:14px 16px 6px;gap:10px}
+  #screen .card.lead > .foot{grid-column:2!important;grid-row:2!important;padding:6px 16px 12px}
+  #screen .card.lead .ttl{font-size:19px;line-height:1.3;-webkit-line-clamp:3}
+  #screen .card.lead .mult .x{font-size:44px}
+}
 </style>
 </head>
 <body>
