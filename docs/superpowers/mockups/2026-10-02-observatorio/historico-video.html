@@ -1,0 +1,1078 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Histórico do vídeo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="chrome.css">
+<style>
+/* histórico: só tokens desta tela; base, tema e chrome vêm de chrome.css */
+#screen{
+  --well:#181511; --forja-solid:#5CC3B2; --utm:#f59e0b;
+  --t-title:#60A5FA; --t-thumb:#A78BFA; --t-desc:#22D3EE;
+  --t-title-a:rgba(96,165,250,.16); --t-desc-a:rgba(34,211,238,.14);
+  --ins-bg:rgba(34,197,94,.16); --ins-fg:#86EFAC; --del-bg:rgba(242,107,107,.14); --del-fg:#FCA5A5;
+  --curve:#F5EFE6; --curve-fill:rgba(245,239,230,.07); --grid:#2A251F; --shadow-pop:0 12px 32px rgba(0,0,0,.45);
+}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) #screen{
+  --well:#F2EBDF; --forja-solid:#17695C; --utm:#8A3F06;
+  --t-title:#1D4ED8; --t-thumb:#6D28D9; --t-desc:#0E7490; --t-title-a:rgba(29,78,216,.10); --t-desc-a:rgba(14,116,144,.10);
+  --ins-bg:rgba(17,105,47,.12); --ins-fg:#11692F; --del-bg:rgba(180,35,24,.10); --del-fg:#B42318;
+  --curve:#231C14; --curve-fill:rgba(35,28,20,.06); --grid:#E8DFCF; --shadow-pop:0 12px 28px rgba(60,40,10,.16);
+}}
+:root[data-theme="light"] #screen{
+  --well:#F2EBDF; --forja-solid:#17695C; --utm:#8A3F06;
+  --t-title:#1D4ED8; --t-thumb:#6D28D9; --t-desc:#0E7490; --t-title-a:rgba(29,78,216,.10); --t-desc-a:rgba(14,116,144,.10);
+  --ins-bg:rgba(17,105,47,.12); --ins-fg:#11692F; --del-bg:rgba(180,35,24,.10); --del-fg:#B42318;
+  --curve:#231C14; --curve-fill:rgba(35,28,20,.06); --grid:#E8DFCF; --shadow-pop:0 12px 28px rgba(60,40,10,.16);
+}
+#screen button{font:inherit;color:inherit}
+#screen a{color:inherit}
+#screen .mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+#screen :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+#screen [hidden]{display:none!important}
+#screen .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+#screen .page{max-width:1240px;margin:0 auto;padding:0 0 64px}
+
+
+#screen .crumbs{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-bottom:8px}
+#screen .crumbs ol{display:flex;gap:6px;list-style:none;margin:0;padding:0;flex-wrap:wrap}
+#screen .crumbs li{display:flex;align-items:center;min-height:32px}
+#screen .crumbs li+li::before{content:"/";margin-right:6px;color:var(--dim)}
+#screen .crumbs a{text-decoration:none;display:inline-flex;align-items:center;min-height:32px}#screen .crumbs a:hover{color:var(--text)}
+#screen .tz{color:var(--dim);font-size:12.5px}
+#screen .pager{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+#screen .pager span{padding:0 6px;color:var(--dim);font-size:12.5px}
+#screen .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:0 13px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);cursor:pointer;font-size:13px;font-weight:500;text-decoration:none;white-space:nowrap}
+#screen .btn:hover{background:var(--surface-2)}
+#screen .btn svg{width:15px;height:15px;flex:none}
+#screen .btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+#screen .btn.ghost:hover{color:var(--text);background:var(--surface)}
+#screen .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+#screen .btn.primary:hover{background:var(--accent-hover)}
+#screen .btn.forja-solid{background:var(--forja-solid);border-color:var(--forja-solid);color:var(--on-forja);font-weight:600}
+#screen .btn.forja-solid:hover{filter:brightness(1.06)}
+#screen .btn.forja-solid[aria-disabled="true"]{background:transparent;color:var(--muted);border-style:dashed;border-color:var(--border-strong);cursor:not-allowed}
+#screen .btn.pending{border-style:dashed;color:var(--muted);cursor:default;background:transparent}
+#screen .btn.pending .st{color:var(--forja);font-weight:600}
+#screen .btn[aria-pressed="true"]{border-color:var(--success);color:var(--success)}
+
+#screen .vhead{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:18px;align-items:start;margin-bottom:8px}
+#screen .vhead .cur{width:176px}
+#screen .vhead h2{font-family:Inter,sans-serif;font-weight:700;font-size:21px;line-height:1.2;margin:2px 0 4px;letter-spacing:-.015em;max-width:40ch;text-wrap:balance}
+#screen .chan{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+#screen .chan .av{width:22px;height:22px;border-radius:6px;background:#3B2F8F;display:grid;place-items:center;font-size:9.5px;font-weight:700;color:#fff}
+#screen .chan .niche{font-size:11.5px;padding:1px 7px;border-radius:999px;border:1px solid var(--border-strong)}
+#screen .facts{display:flex;flex-wrap:wrap;gap:2px 18px;margin-top:4px;font-size:12.5px;color:var(--muted)}
+#screen .facts b{color:var(--text);font-weight:500}
+#screen .counts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+#screen .count{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 9px;border-radius:999px;background:var(--surface);border:1px solid var(--border)}
+#screen .count i{width:7px;height:7px;border-radius:2px}
+#screen .actions{display:flex;flex-direction:column;gap:6px;align-items:stretch;min-width:330px}
+#screen .multl{font-size:12.5px;color:var(--muted);align-self:center;margin-left:6px}
+#screen .arow{display:flex;gap:8px}
+#screen .arow > .btn{flex:1}
+
+#screen .th{position:relative;aspect-ratio:16/9;border-radius:6px;overflow:hidden;isolation:isolate;container-type:inline-size;background:#222}
+#screen .th .sil{position:absolute;bottom:0;width:30cqw;height:46cqw}
+#screen .th .sil::before{content:"";position:absolute;left:24%;top:0;width:52%;aspect-ratio:1;border-radius:50%;background:var(--sc)}
+#screen .th .sil::after{content:"";position:absolute;left:0;bottom:0;width:100%;height:44%;border-radius:50% 50% 0 0/70% 70% 0 0;background:var(--sc)}
+#screen .th .tx{position:absolute;font:900 11cqw/0.92 Inter,sans-serif;letter-spacing:-.02em;text-transform:uppercase;color:#fff}
+#screen .th .bd{position:absolute;font:800 6cqw/1 Inter,sans-serif;padding:1.2cqw 2.4cqw;border-radius:1.5cqw}
+#screen .th.missing{background:repeating-linear-gradient(135deg,var(--surface) 0 8px,var(--well) 8px 16px);border:1px dashed var(--border-strong);display:grid;place-items:center;text-align:center;color:var(--muted);padding:4%;line-height:1.25}
+#screen .th.missing span{font-size:max(10px,6.5cqw)}
+#screen .lane .th.missing span{display:none}
+#screen .th .dur{position:absolute;right:2cqw;bottom:2cqw;background:rgba(0,0,0,.8);color:#fff;font:500 max(8px,4.6cqw)/1 "JetBrains Mono",monospace;padding:.8cqw 1.4cqw;border-radius:1cqw}
+
+#screen .card{background:var(--surface);border:1px solid var(--border);border-radius:8px}
+#screen .sec-h{display:flex;justify-content:space-between;align-items:baseline;gap:6px 12px;flex-wrap:wrap;margin:0 0 4px}
+#screen .sec-h h3{font-size:15px;font-weight:600;margin:0}
+#screen .src{font-size:12px;color:var(--dim)}
+#screen .src b{font-weight:500;color:var(--muted)}
+
+#screen .timeline{padding:6px 20px 12px;margin-bottom:16px}
+#screen .tl-wrap{position:relative;margin-top:4px}
+#screen #chart{display:block;width:100%;height:200px;overflow:visible;position:relative;z-index:1}
+#screen #chart text{paint-order:stroke;stroke:var(--surface);stroke-width:7px;stroke-linejoin:round;font:11px "JetBrains Mono",monospace;fill:var(--dim)}
+#screen #chart .vl{font:500 11px "JetBrains Mono",monospace;fill:var(--muted)}
+#screen #chart .note{font:12px Inter,sans-serif;fill:var(--dim)}
+#screen .lanes{position:relative;margin-top:4px;z-index:1}
+#screen .lane-axis{position:relative;height:22px;font:11px "JetBrains Mono",monospace;color:var(--dim)}
+#screen .lane-axis span{position:absolute;top:4px;transform:translateX(-50%);white-space:nowrap}
+#screen .lane-axis span:first-child{transform:none}
+#screen .lane-axis span:last-child{transform:translateX(-100%)}
+#screen .lane{position:relative;height:47px;border-top:1px solid var(--border-subtle)}
+#screen .lane.thumbs{height:54px}
+#screen .lane-l{position:absolute;left:0;top:12px;bottom:2px;width:84px;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+#screen .lane-l i{width:8px;height:8px;border-radius:2px;flex:none}
+#screen .clip{position:absolute;top:12px;bottom:2px;border-radius:4px;background:var(--well);border:1px solid var(--border);overflow:hidden;display:flex;align-items:center;gap:6px;padding:0 8px;font-size:12px;color:var(--muted);white-space:nowrap;cursor:pointer;text-align:left;transition:border-color .15s,background .15s}
+#screen .clip .vid{font:600 11px "JetBrains Mono",monospace;color:var(--text);flex:none}
+#screen .clip .tt{overflow:hidden;text-overflow:ellipsis;min-width:0}
+#screen .clip.cur{border-color:var(--border-strong)}
+#screen .lane.thumbs .clip{padding:0 6px 0 0}
+#screen .lane.thumbs .clip .th{height:100%;flex:none;border-radius:3px 0 0 3px}
+#screen .lane.thumbs .clip.narrow{padding:0;justify-content:center}
+#screen .clip.tiny{padding:0;justify-content:center;background:transparent;border-color:transparent;overflow:visible;z-index:2}
+#screen .clip.tiny .bar{position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);width:var(--bw);border-radius:3px;background:var(--well);border:1px solid var(--border-strong)}
+#screen .clip.tiny .vid{position:relative}
+#screen .clip.tiny.is-hl{border:0;background:transparent}
+#screen .clip.tiny.is-hl .bar{border:2px solid var(--hl)}
+#screen .ret{font-size:11px;color:var(--t-thumb)}
+#screen .clip.is-hl{border:2px solid var(--hl);background:var(--surface-2);color:var(--text)}
+#screen .lane .pre{position:absolute;top:12px;bottom:2px;border:1px dashed var(--border-strong);border-radius:4px;background:repeating-linear-gradient(135deg,transparent 0 6px,var(--border-subtle) 6px 8px);display:flex;align-items:center;padding:0 8px;font-size:12px;color:var(--muted);overflow:hidden;white-space:nowrap}
+#screen .lane .pre span{background:var(--surface);padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+#screen .lane .stale{position:absolute;top:12px;bottom:2px;border:1px dashed var(--border-strong);border-radius:4px;background:repeating-linear-gradient(135deg,transparent 0 6px,var(--border-subtle) 6px 8px);z-index:1}
+#screen .lane .win{position:absolute;top:12px;bottom:2px;border-left:1px dashed var(--c);border-right:1px dashed var(--c);background:var(--wa)}
+#screen .mk{position:absolute;top:-4px;width:32px;height:32px;margin-left:-16px;border:0;background:transparent;padding:0;cursor:pointer;z-index:3;display:grid;place-items:center}
+#screen .mk span{width:22px;height:22px;border-radius:50%;border:2px solid var(--c);background:var(--surface);display:grid;place-items:center;color:var(--c)}
+#screen .mk svg{width:11px;height:11px}
+#screen .mk:hover span,#screen .mk:focus-visible span,#screen .mk.on span{background:var(--c);color:var(--surface)}
+#screen .vlines{position:absolute;left:0;right:0;bottom:0;top:0;pointer-events:none;z-index:0}
+#screen .vline{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed var(--c);opacity:.55}
+#screen .vband{position:absolute;top:0;bottom:0;background:var(--wa);border-inline:1px dashed var(--c)}
+#screen .vline.on{opacity:1;border-left-style:solid}
+#screen .vband.on{border-inline-style:solid}
+#screen .tip{position:absolute;z-index:10;width:310px;max-width:calc(100% - 8px);background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow-pop);padding:12px 14px;font-size:12.5px;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
+#screen .tip.show{opacity:1;transform:none}
+#screen .tip h4{margin:0 0 2px;font-size:12px;font-weight:600;color:var(--c)}
+#screen .tip .when{color:var(--muted);margin:0 0 6px}
+#screen .tip .bef{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--del-fg)}
+#screen .tip .aft{color:var(--text);margin-top:3px}
+#screen .tip .thpair{display:grid;grid-template-columns:1fr 18px 1fr;align-items:center;gap:6px;color:var(--dim)}
+#screen .legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;font-size:12px;color:var(--muted)}
+#screen .legend > span{display:inline-flex;align-items:center;gap:6px}
+#screen .sw{display:inline-block;width:18px;height:0;border-top:2px solid var(--curve)}
+#screen .sw.shade{width:14px;height:10px;background:var(--text);opacity:.18}
+#screen .sw.dash{border-top:2px dashed var(--muted)}
+#screen .sw.hatch{height:10px;border:1px solid var(--border-strong);background:repeating-linear-gradient(135deg,transparent 0 3px,var(--border-strong) 3px 4px)}
+#screen .sw.swwin{width:14px;height:10px;border:1px dashed var(--t-title);background:var(--t-title-a)}
+#screen .empty-chart{display:grid;place-items:center;min-height:180px;border:1px dashed var(--border-strong);border-radius:6px;text-align:center;color:var(--muted);font-size:13px;padding:20px}
+#screen .empty-chart strong{display:block;color:var(--text);font-weight:600;margin-bottom:4px}
+#screen details.data{margin-top:10px;font-size:12px;color:var(--dim)}
+#screen details.data summary{cursor:pointer;width:max-content;min-height:32px;display:flex;align-items:center}
+#screen details.data .tw{overflow-x:auto}
+#screen details.data table{border-collapse:collapse;margin-top:6px}
+#screen details.data td,#screen details.data th{padding:3px 14px 3px 0;text-align:left;font-weight:400;white-space:nowrap}
+#screen details.data th{color:var(--muted)}
+#screen details.data td{color:var(--text)}
+
+#screen .compare{padding:18px 20px;margin-bottom:16px}
+#screen .pairs{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 16px}
+#screen .pair{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--border-strong);background:transparent;cursor:pointer;font-size:12.5px;color:var(--muted)}
+#screen .pair svg{width:13px;height:13px;flex:none}
+#screen .pair[aria-pressed="true"]{background:var(--text);color:var(--bg);border-color:var(--text)}
+#screen .ba{display:grid;grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr);gap:12px;align-items:center;margin-bottom:18px}
+#screen .ba .side{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;align-items:center;padding:10px;border-radius:6px;background:var(--well);border:1px solid var(--border-subtle)}
+#screen .ba .side.solo{grid-template-columns:minmax(0,1fr)}
+#screen .ba .lbl{font-size:11.5px;color:var(--dim);margin-bottom:2px}
+#screen .ba .ttl{font-size:14px;line-height:1.35}
+#screen .ba .arr{color:var(--dim);font-size:20px;text-align:center}
+#screen .cmp{display:grid;grid-template-columns:minmax(240px,1fr) minmax(0,1.4fr);gap:28px;align-items:start}
+#screen .big{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+#screen .big .n{font:500 28px/1 "JetBrains Mono",monospace;letter-spacing:-.02em}
+#screen .big .arr{color:var(--dim);font-size:20px}
+#screen .big .u{font-size:12px;color:var(--dim)}
+#screen .cmp .what{font-size:13px;color:var(--muted);margin:0 0 10px}
+#screen .cmp .what b{color:var(--text);font-weight:500}
+#screen .vd{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid var(--border-strong);margin-top:10px}
+#screen .vd svg{width:14px;height:14px}
+#screen .verdict{font-size:14px;line-height:1.55;margin:0 0 10px;max-width:62ch}
+#screen .verdict strong{font-weight:600}
+#screen .scale{position:relative;height:58px;margin:6px 0 2px}
+#screen .scale .axis{position:absolute;left:0;right:0;top:28px;height:1px;background:var(--border-strong)}
+#screen .scale .iqr{position:absolute;top:20px;height:16px;background:var(--border);border:1px solid var(--border-strong);border-radius:3px}
+#screen .scale .med{position:absolute;top:14px;height:28px;width:0;border-left:2px dashed var(--muted)}
+#screen .scale .obs{position:absolute;top:21px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--text);border:3px solid var(--surface)}
+#screen .scale .lbr{text-align:right}
+@media (max-width:640px){#screen .scale .lbr{display:none}}
+#screen .scale .lb{position:absolute;font:11px "JetBrains Mono",monospace;color:var(--dim);white-space:nowrap}
+#screen .caveats{margin:10px 0 0;padding:0;list-style:none;font-size:12.5px;color:var(--muted)}
+#screen .caveats li{display:flex;gap:8px;padding:3px 0}
+#screen .caveats svg{width:14px;height:14px;flex:none;margin-top:3px;color:var(--warning-text)}
+#screen .nobase{padding:14px 16px;border:1px dashed var(--border-strong);border-radius:6px;color:var(--muted);font-size:13.5px;max-width:76ch}
+#screen .nobase strong{color:var(--text);font-weight:600;display:block;margin-bottom:2px}
+
+#screen .forja{padding:16px 20px;margin-bottom:16px;border-left:3px solid var(--forja)}
+#screen .forja .fh{display:flex;justify-content:space-between;gap:10px 16px;align-items:center;flex-wrap:wrap}
+#screen .forja .fh h3{margin:0;font-size:15px;font-weight:600}
+#screen .state{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;border:1px solid var(--forja-line);color:var(--forja);background:var(--forja-subtle)}
+#screen .state.warn{color:var(--warning-text);border-color:var(--warning-text);background:transparent}
+#screen .state.bad{color:var(--danger);border-color:var(--danger);background:transparent}
+#screen .forja p.ex{margin:6px 0 0;color:var(--muted);font-size:13px;max-width:80ch}
+#screen .steps{display:flex;align-items:center;font-size:12px;color:var(--dim);margin-top:10px;flex-wrap:wrap;gap:4px 0}
+#screen .steps span{display:inline-flex;align-items:center;gap:6px}
+#screen .steps span+span::before{content:"";width:22px;height:1px;background:var(--border-strong);margin:0 8px}
+#screen .steps .dot{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--dim)}
+#screen .steps .done .dot{background:var(--forja);border-color:var(--forja)}
+#screen .steps .now{color:var(--text);font-weight:500}
+#screen .steps .now .dot{border-color:var(--forja);background:var(--forja);animation:hv-pulse 1.6s ease-in-out infinite}
+@keyframes hv-pulse{50%{transform:scale(.6)}}
+#screen .seal{display:inline-flex;gap:6px;align-items:center;font-size:11.5px;color:var(--forja);border:1px solid var(--forja-line);background:var(--forja-subtle);border-radius:999px;padding:1px 9px}
+#screen .reading{margin-top:14px;padding-top:12px;border-top:1px solid var(--border-subtle)}
+#screen .since-short{margin:4px 0 0}
+#screen .lit{margin:0 0 12px}
+#screen .from-site{border-top:1px dashed var(--border-strong);padding-top:10px;margin-top:10px}
+#screen .from-site .fs-h{margin:0 0 6px;font:600 11px/1.4 Inter,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#screen .from-site ul{margin:6px 0 0;padding-left:20px;font-family:Inter,sans-serif;font-size:13px;line-height:1.5}
+#screen .from-site a{display:inline-flex;align-items:center;min-height:32px;color:var(--forja);font-size:12.5px;font-weight:500}
+#screen .from-site.nb{margin-top:14px}
+#screen .rh .rlead{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60ch;min-width:0}
+#screen .reading .rh{display:flex;gap:8px 12px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+#screen .reading .body{font-family:Fraunces,serif;font-size:16px;line-height:1.6;max-width:70ch;margin:10px 0 0}
+#screen .reading ul{margin:8px 0 0;padding-left:20px;font-family:Fraunces,serif;font-size:15px;line-height:1.55;max-width:70ch}
+#screen .reading li{margin:3px 0}
+#screen .reading a{display:inline-flex;align-items:center;min-height:32px;color:var(--forja);font-family:Inter,sans-serif;font-size:12.5px;font-weight:500}
+#screen .f-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+#screen .versions{padding:18px 20px;margin-bottom:16px}
+#screen .film{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin-top:14px}
+#screen .fcard{border-radius:6px;padding:8px;border:1px solid transparent;transition:border-color .15s,background .15s}
+#screen .fcard.is-hl,#screen .fcard:focus-visible{border-color:var(--t-thumb);background:var(--surface-2)}
+#screen .fcard .meta{margin-top:8px;font-size:12px;color:var(--muted);display:grid;gap:2px}
+#screen .fcard .vt{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--text);font-weight:500}
+#screen .tag{font-size:11px;font-weight:500;padding:1px 7px;border-radius:999px;border:1px solid var(--border-strong);color:var(--muted)}
+#screen .tag.now{border-color:var(--success);color:var(--success)}
+#screen .tag.ret{border-color:var(--t-thumb);color:var(--t-thumb)}
+#screen .note{display:flex;gap:10px;margin-top:12px;padding:10px 12px;background:var(--well);border-radius:6px;font-size:12.5px;color:var(--muted);max-width:90ch}
+#screen .note svg{width:15px;height:15px;flex:none;margin-top:2px}
+#screen .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+#screen .tlist{list-style:none;margin:14px 0 0;padding:0}
+#screen .tlist li{display:grid;grid-template-columns:30px minmax(0,1fr);gap:4px 10px;padding:12px 8px;border-top:1px solid var(--border-subtle);border-radius:4px}
+#screen .tlist li.is-hl,#screen .tlist li:focus-visible{background:var(--surface-2);box-shadow:inset 2px 0 0 var(--t-title)}
+#screen .tlist .id{font:600 12px "JetBrains Mono",monospace;color:var(--t-title);padding-top:2px}
+#screen .tlist .mv{text-decoration:underline dotted;text-underline-offset:3px}
+#screen .tlist .cs{border-bottom:1px dashed var(--muted)}
+#screen .tlist .gone{display:block;font-size:13px;color:var(--muted)}
+#screen .tlist .txt{font-size:14.5px;line-height:1.5}
+#screen .m{grid-column:2;display:flex;flex-wrap:wrap;gap:2px 16px;font-size:12px;color:var(--dim)}
+#screen ins,#screen del{text-decoration:none;border-radius:3px;padding:0 2px}
+#screen ins{background:var(--ins-bg);color:var(--ins-fg)}
+#screen del{background:var(--del-bg);color:var(--del-fg);text-decoration:line-through}
+#screen .dhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--border-subtle)}
+#screen .dsum{font-size:12.5px;color:var(--muted)}
+#screen .toggle{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);cursor:pointer;min-height:32px}
+#screen .toggle input{width:16px;height:16px;accent-color:var(--text)}
+#screen .diff{margin-top:10px;border:1px solid var(--border);border-radius:6px;overflow:hidden;font-size:13px;background:var(--well)}
+#screen .diff .ln{display:grid;grid-template-columns:24px minmax(0,1fr);padding:3px 10px 3px 0;line-height:1.5;overflow-wrap:anywhere}
+#screen .diff .ln > span:first-child{text-align:center;color:var(--dim);font-family:"JetBrains Mono",monospace;user-select:none}
+#screen .diff .add{background:var(--ins-bg)}
+#screen .diff .add > span:first-child{color:var(--ins-fg)}
+#screen .diff .add ins{background:none;color:inherit;font-weight:600;text-decoration:underline 2px;text-decoration-color:var(--ins-fg);text-underline-offset:3px;padding:0}
+#screen .diff .rem{background:var(--del-bg)}
+#screen .diff .rem > span:first-child,#screen .diff .rem > span:last-child{color:var(--del-fg)}
+#screen .diff .ctx{color:var(--muted)}
+#screen .diff .noise{display:none}
+#screen .diff.shownoise .noise{display:grid}
+#screen .diff .fold{padding:4px 34px;color:var(--dim);font-size:12px;border-block:1px solid var(--border-subtle)}
+#screen .diff .utm{background:rgba(245,158,11,.12);color:var(--utm);border-radius:2px}
+#screen .dver{display:grid;gap:6px;margin-top:12px}
+#screen .dver > div{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 10px;font-size:12.5px;color:var(--muted);padding:8px 10px;border-radius:4px;border:1px solid var(--border-subtle)}
+#screen .dver > div.is-hl,#screen .dver > div:focus-visible{border-color:var(--t-desc);background:var(--surface-2)}
+#screen .dver b{font:600 12px "JetBrains Mono",monospace;color:var(--t-desc);margin-right:8px}
+#screen .expander{margin-top:10px}
+#screen .expander summary{cursor:pointer;min-height:32px;display:flex;align-items:center}
+
+#screen .fstatus{font-size:12px;color:var(--muted);max-width:260px;line-height:1.35;text-decoration:none;min-height:32px;display:flex;align-items:center}
+#screen a.fstatus:hover{color:var(--text)}
+#screen .syncbad{color:var(--warning-text);display:inline-flex;gap:5px;align-items:center}#screen .syncbad svg{width:13px;height:13px}
+#screen .warnline{display:flex;gap:8px;color:var(--muted)}#screen .warnline svg{width:15px;height:15px;flex:none;margin-top:3px;color:var(--warning-text)}
+#screen details.reading > summary{list-style:none;cursor:pointer;min-height:32px}
+#screen details.reading > summary::-webkit-details-marker{display:none}
+#screen .rh .rlead{color:var(--text);font-size:13px}
+#screen .rh .rmore{color:var(--forja);font-weight:500;font-size:12.5px;margin-left:auto}
+#screen details.reading[open] .rlead{display:none}
+#screen details.reading[open] .rmore .rm-open{display:none}
+#screen details.reading:not([open]) .rmore .rm-close{display:none}
+
+#screen .since{margin-top:10px}#screen .since ul{font-family:Inter,sans-serif;font-size:13px}
+
+@media (max-width:1100px){
+  #screen .vhead{grid-template-columns:auto minmax(0,1fr)}
+  #screen .actions{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;min-width:0}
+  #screen .two{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:900px){
+  #screen .page{padding:0 0 48px}
+  #screen .cmp{grid-template-columns:minmax(0,1fr);gap:18px}
+  #screen .ba .side{grid-template-columns:110px minmax(0,1fr)}
+}
+@media (max-width:640px){
+  #screen .vhead{grid-template-columns:minmax(0,1fr)}
+  #screen .vhead .cur{width:100%;max-width:360px}
+  #screen .ba{grid-template-columns:minmax(0,1fr)}
+  #screen .ba .arr{transform:rotate(90deg)}
+}
+@media (prefers-reduced-motion:reduce){#screen *{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+
+#screen .btn.forja-outline{background:transparent;border-color:var(--forja-line);color:var(--forja);font-weight:600}
+#screen .btn.forja-outline:hover{background:var(--forja-subtle);border-color:var(--forja)}
+#screen .scale .zero{position:absolute;top:22px;height:12px;width:0;border-left:1px solid var(--muted)}
+#screen .facts>span,#screen .facts .mono,#screen .big .n,#screen .lb{white-space:nowrap}
+#screen .facts>span:last-child{white-space:normal}
+#screen .facts>span.syncbad{white-space:normal;flex-basis:100%}
+#screen .fallback{font-size:12px;color:var(--muted);margin-top:2px}
+#screen .nfin strong{display:block;margin-bottom:2px}
+#screen .nfin{color:var(--muted);font-size:13.5px}
+#screen .nobase-card{padding:14px 16px;margin-bottom:16px}
+#screen a.inl{display:inline-flex;align-items:center;min-height:32px;color:var(--text);text-decoration:underline;text-underline-offset:2px}
+</style>
+</head>
+<body>
+<div id="screen">
+    <div class="page">
+      <nav class="crumbs" aria-label="Caminho">
+        <ol>
+          
+          <li><a id="crumbMud" href="mudancas.html">Mudanças</a></li>
+          <li aria-current="page">Histórico do vídeo</li>
+        </ol>
+        <div class="pager" id="pager">
+          <a class="btn ghost" aria-label="Vídeo anterior na lista de Mudanças"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Anterior</a>
+          <span id="pagerPos"></span>
+          <a class="btn ghost" aria-label="Próximo vídeo na lista de Mudanças">Próximo<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
+        </div>
+      </nav>
+
+      <section class="vhead" id="vhead" aria-label="Vídeo"></section>
+
+      <section class="card timeline" aria-labelledby="tlh">
+        <div class="sec-h">
+          <h3 id="tlh">Views por dia e cada troca</h3>
+          <span class="src" id="tlsrc"></span>
+        </div>
+        <div class="tl-wrap" id="tlwrap">
+          <svg id="chart" role="img"></svg>
+          <div class="lanes" id="lanes"></div>
+          <div class="vlines" id="vlines" aria-hidden="true"></div>
+          <div class="tip" id="tip" role="tooltip"></div>
+        </div>
+        <div class="legend" id="legend"></div>
+        <details class="data" id="datatable"></details>
+      </section>
+
+      <section class="card compare" id="compare" aria-labelledby="cmph"></section>
+
+      <section class="card forja" id="forja" aria-labelledby="fjh" tabindex="-1" data-forja-anchor></section>
+
+      <section class="card versions" id="thumbsSec" aria-labelledby="thh"></section>
+
+      <div class="two">
+        <section class="card versions" id="titlesSec" aria-labelledby="tih"></section>
+        <section class="card versions" id="descSec" aria-labelledby="deh"></section>
+      </div>
+    </div>
+</div>
+
+<script src="dados.js"></script>
+<script src="chrome.js"></script>
+<script>
+/* Histórico do vídeo — tudo vem de window.OBS (dados.js). Aqui só há apresentação e derivações da série do vídeo. */
+const D=OBS.date, F=OBS.fmt, S03=OBS.date.dm(OBS.SERIES_START), dmhmY=ms=>D.dmOrDmy(ms)+' '+D.hm(ms), MINUS='−', H_MS=3600e3, DAY=24*H_MS;
+
+/* ===================== ícones ===================== */
+const IC = {
+  title:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 6h14M12 6v13"/></svg>',
+  thumb:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/></svg>',
+  desc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
+  ext:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+  bm:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4z"/></svg>',
+  bmok:'<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4z"/></svg>',
+  forja:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 15h11l3-5H7zM9 15v4M14 15v4M6 19h11"/></svg>',
+  warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3 2 20h20L12 3zM12 10v4M12 17h.01"/></svg>',
+  ab:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9h13l-3-3M20 15H7l3 3"/></svg>',
+  more:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/></svg>',
+  neutro:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 9h14M5 15h14"/></svg>',
+  ganhou:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m5 15 7-7 7 7"/></svg>',
+  perdeu:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m5 9 7 7 7-7"/></svg>',
+  inconclusivo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6M12 17h.01"/></svg>',
+  aguardando:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  'sem-serie':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>',
+};
+IC['sem-antes']=IC['sem-serie'];
+const TYPE = {title:{c:'var(--t-title)',a:'var(--t-title-a)',n:'Título'},thumb:{c:'var(--t-thumb)',a:'transparent',n:'Thumbnail'},desc:{c:'var(--t-desc)',a:'var(--t-desc-a)',n:'Descrição'}};
+const NICHE={ia:'IA',viagem:'Viagem'};
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+/* ===================== thumbnail placeholder a partir de OBS art ===================== */
+function art(a, opts={}){
+  if(!a||opts.missing) return `<div class="th missing"><span>${opts.missingText||'Imagem não registrada'}</span></div>`;
+  const words=String(a.text).split(/\s+/), lines=[]; let cur='';
+  words.forEach(w=>{if((cur+' '+w).trim().length>8&&cur){lines.push(cur);cur=w}else cur=(cur+' '+w).trim()}); if(cur) lines.push(cur);
+  const longest=Math.max(...lines.map(l=>l.length)), fs=Math.min(13,Math.floor(50/(longest*0.7)*10)/10), right=a.face!=='l';
+  const dur=opts.dur?`<span class="dur">${opts.dur}</span>`:'';
+  return `<div class="th" style="background:linear-gradient(90deg,${a.bg} 0 62%,${a.fg} 62% 100%)"><div class="sil" style="${right?'right:3cqw':'left:3cqw'};--sc:rgba(0,0,0,.55)"></div><div class="tx" style="${right?'left:5cqw':'right:5cqw;text-align:right'};top:${lines.length>2?10:14}cqw;color:${a.ink};font-size:${fs}cqw">${lines.map(esc).join('<br>')}</div>${dur}</div>`;
+}
+
+/* ===================== estado ===================== */
+const q=new URLSearchParams(location.search);
+function pickStates(){
+  const sc=OBS.video(OBS.SHOWCASE);
+  const byVid=new Map(); OBS.changes.forEach(c=>{if(!byVid.has(c.video))byVid.set(c.video,[]);byVid.get(c.video).push(c)});
+  const few=OBS.videos.find(v=>v.tracked&&v.series.length<2&&byVid.has(v.id));
+  const none=OBS.videos.filter(v=>v.tracked&&v.fmt==='long'&&!byVid.has(v.id)&&v.ch===sc.ch&&v.series.length>=10).sort((a,b)=>(b.named?1:0)-(a.named?1:0)||b.series.length-a.series.length)[0];
+  const preC=OBS.changes.filter(c=>c.preSeries).sort((a,b)=>(b.niche===sc.niche)-(a.niche===sc.niche)||b.at-a.at)[0];
+  const noreg=OBS.videos.find(v=>v.tracked&&v.series.length===0);
+  const untr=OBS.videos.find(v=>!v.tracked&&v.ch===OBS.channels.find(c=>!c.own).id)||OBS.videos.find(v=>!v.tracked);
+  const old=OBS.videos.filter(v=>v.tracked&&v.named&&v.pub<OBS.SERIES_START&&!OBS.changes.some(c=>c.video===v.id)&&v.ch!==sc.ch).sort((a,b)=>(b.niche===sc.niche)-(a.niche===sc.niche)||a.pub-b.pub)[0];
+  const err=OBS.videos.find(v=>v.tracked&&OBS.channel(v.ch).sync.state==='erro'&&v.named)||OBS.videos.find(v=>v.tracked&&OBS.channel(v.ch).sync.state==='erro');
+  const bf=OBS.videos.find(v=>OBS.channel(v.ch).sync.state==='backfill'&&v.tracked);
+  return {full:sc.id, few:few&&few.id, none:none&&none.id, pre:preC&&preC.video, noreg:noreg&&noreg.id, untr:untr&&untr.id, old:old&&old.id, err:err&&err.id, bf:bf&&bf.id};
+}
+const PICK=pickStates();
+const STATE_LABEL={untr:'Fora dos acompanhados',old:'Antigo sem trocas',err:'Canal com erro de sincronização',bf:'Canal ainda buscando vídeos',noreg:'Sem registro diário (canal atrasado)',full:'Vitrine com trocas medidas',pre:`Histórico anterior a ${S03}`,few:'Registros diários insuficientes',none:'Vídeo sem trocas'};
+let BADVID=q.get('video')&&!OBS.video(q.get('video'))?q.get('video'):null;
+let VID=q.get('video')&&OBS.video(q.get('video'))?q.get('video'):(PICK[q.get('state')==='notarch'?'pre':q.get('state')]||OBS.SHOWCASE);
+let S, forjaState='idle', pairK=null;
+
+/* ===================== modelo de tela derivado de OBS ===================== */
+function build(id){
+  const v=OBS.video(id), ch=OBS.channel(v.ch), now=OBS.NOW;
+  const t0=v.pub, H=(now-t0)/H_MS, hx=ms=>(ms-t0)/H_MS;
+  // série → bins (views/dia entre registros). Antes do 1º registro só existe bin se o vídeo saiu depois de ${S03}.
+  const pts=v.series.slice(), bins=[];
+  let firstNote=null; // 1º intervalo (publicação → 1º registro) com menos de 24 h não vira views/dia
+  if(pts.length&&v.pub>=OBS.SERIES_START){const fh=(pts[0].t-v.pub)/H_MS; if(fh>=24) bins.push({a:0,b:hx(pts[0].t),v:pts[0].views/(fh/24),from0:true}); else firstNote={views:pts[0].views,h:fh,t:pts[0].t};}
+  for(let i=1;i<pts.length;i++) bins.push({a:hx(pts[i-1].t),b:hx(pts[i].t),v:(pts[i].views-pts[i-1].views)/((pts[i].t-pts[i-1].t)/DAY)});
+  const seriesStart=bins.length?bins[0].a:(pts.length?hx(pts[0].t):H);
+  const changes=OBS.changes.filter(c=>c.video===id).sort((a,b)=>a.at-b.at);
+  const obsSince=ch.sync&&ch.sync.added?ch.sync.added:(ch.snapshots[0]&&ch.snapshots[0].t);
+  const stalled=!!(ch.sync&&(ch.sync.state==='atrasado'||ch.sync.state==='erro')&&ch.sync.last), endNow=stalled?Math.min(now,ch.sync.last):now;
+  const lateObs=x=>x.prec==='publicacao'&&obsSince&&obsSince>v.pub&&x.first_seen<=v.pub;
+  const recentAdd=!!(ch.sync&&ch.sync.added&&ch.sync.added>v.pub);
+  const startLbl=(x,g)=>{const o=g==='f'?'a':'o';
+    if(lateObs(x)) return recentAdd?`vist${o} na 1ª conferência, ${dmhmY(obsSince)}`:`vist${o} desde ${D.dmOrDmy(obsSince)}`;
+    if(x.prec==='publicacao') return `${dmhmY(v.pub)} (publicação)`;
+    if(x.prec==='min') return dmhmY(x.first_seen);
+    if(x.prec==='desde-arquivo') return `vist${o} desde ${D.dmOrDmy(x.first_seen)}`;
+    return `vist${o} pela 1ª vez ${D.dmOrDmy(x.first_seen)} ${D.hh(x.first_seen)}`;};
+  const vers=(arr,g)=>arr.map((x,i)=>{const nx=arr[i+1];
+    const toMs=nx?(nx.window?nx.window[0]:nx.first_seen):endNow;
+    const sObs=lateObs(x)?obsSince:x.first_seen, sLo=x.window?x.window[0]:sObs, sHi=sObs, eLo=nx?(nx.window?nx.window[0]:nx.first_seen):endNow, eHi=nx?nx.first_seen:endNow;
+    const du=ms=>D.dur(ms).replace(/ 0 h$/,'').replace(/ 0 min$/,'');
+    const openStart=lateObs(x)||x.prec==='desde-arquivo', openEnd=!nx&&stalled;
+    const dMin=eLo-sHi, dMax=eHi-sLo, rng=dMax-dMin<H_MS?du(dMax):`${du(Math.max(0,dMin))} a ${du(dMax)}`;
+    const durTxt=(openStart||openEnd)?`pelo menos ${du(Math.max(0,dMin))}`:rng;
+    return {...x, fromMs:x.first_seen, toMs, from:hx(x.first_seen), to:hx(toMs), win:x.window?[hx(x.window[0]),hx(x.window[1])]:null,
+      start:startLbl(x,g), end:nx?(nx.window?`trocad${g==='f'?'a':'o'} ${D.windowText(nx.window[0],nx.window[1])}`:dmhmY(nx.first_seen)):(stalled?`até ${dmhmY(endNow)} (última conferência)`:'agora'),
+      dur:durTxt, cur:!nx}});
+  const thumbs=vers(v.thumbs,'f');
+  const thumbPre=v.thumbs[0]&&v.thumbs[0].seenSinceArchive?hx(v.thumbs[0].first_seen):null;
+  // ticks: até 7 datas uniformes
+  const compress=v.pub<OBS.SERIES_START&&(OBS.SERIES_START-v.pub)/(now-v.pub)>0.14;
+  const tStart=compress?OBS.SERIES_START:t0, days=Math.ceil((now-tStart)/DAY), stepD=Math.max(1,Math.ceil(days/6)), ticks=compress?[[0,D.dmOrDmy(t0)]]:[];
+  for(let d=0;d<=days;d+=stepD){const ms=tStart+d*DAY; if(ms<=now) ticks.push([hx(ms),D.dmOrDmy(ms)])}
+  if(H-ticks[ticks.length-1][0]>stepD*12) ticks.push([H,D.dmOrDmy(now)]);
+  const expected=OBS.expectedCurve(id).filter(p=>p.vpdAnchored!=null&&p.t-p.from>=DAY-60e3).map(p=>({a:hx(p.from),b:hx(p.t),v:p.vpdAnchored,n:p.nAnchored,t:p.t}));
+  return {v,ch,id,t0,H,hx,bins,stalled,endNowH:hx(endNow),firstNote,stale:pts.length>0&&pts[pts.length-1].idx<OBS.LAST_IDX,compress,expected,preDays:Math.round((OBS.SERIES_START-t0)/DAY),pts,seriesStart,changes,titles:vers(v.titles,'m'),thumbs,descs:vers(v.descs,'f'),thumbPre,ticks,
+    few:pts.length<2, nextSnap:(()=>{const ms=D.snapTime(OBS.LAST_IDX+1);return `${D.dm(ms)} ${D.hh(ms)}`})()};
+}
+
+/* ===================== derivações da série ===================== */
+const span=x=>/^trocad[ao] /.test(x.end)?`${x.start}; ${x.end}`:x.end.startsWith('até ')?`${x.start} ${x.end}`:`${x.start} até ${x.end}`;
+const periodText=x=>OBS.periodRate(S.id,x.fromMs,x.toMs).text;
+function titleDiffHTML(a,b){ // OBS.titleDiff: mesma comparação de Mudanças
+  const d=OBS.titleDiff(a,b);
+  const seg=p=>p.op==='add'?`<ins>${esc(p.text)}</ins>`:p.op==='move'?`<span class="mv" title="${d.labels.move}">${esc(p.text)}</span>`:p.op==='case'?`<span class="cs" title="${d.labels.case}">${esc(p.text)}</span>`:esc(p.text);
+  const after=d.after.map(seg).join('');
+  const lines=[]; if(d.removed&&d.removed.length) lines.push(`${d.labels.rem}: ${d.removed.map(w=>`<del>${esc(w)}</del>`).join(', ')}`); if(d.added&&d.added.length) lines.push(`${d.labels.add}: ${d.added.map(w=>`<ins>${esc(w)}</ins>`).join(', ')}`);
+  const mv=d.after.filter(p=>p.op==='move').map(p=>p.text.trim()), cs=d.after.filter(p=>p.op==='case').map(p=>p.text.trim());
+  if(mv.length) lines.push(`${d.labels.move}: ${esc(mv.join(', '))}`); if(cs.length) lines.push(`${d.labels.case}: ${esc(cs.join(', '))}`);
+  return after+(lines.length?`<span class="gone">${lines.join('; ')}</span>`:'');
+}
+function arrOf(t){return t==='title'?S.titles:t==='thumb'?S.thumbs:S.descs}
+function changeOf(type,i){const id=arrOf(type)[i].id;return S.changes.find(c=>c.type===type&&c.toId===id)}
+function versionAt(type,ms){const a=arrOf(type);let r=a[0];a.forEach(x=>{if(x.first_seen<=ms)r=x});return r}
+
+/* ===================== pares para comparação (de OBS.changes) ===================== */
+function pairs(){
+  const used=new Set(), out=[];
+  S.changes.forEach(c=>{ if(used.has(c.id)) return;
+    let group=[c];
+    const ord={title:0,thumb:1,desc:2};
+    if(c.type==='thumb'&&c.revertedBy){const r=OBS.change(c.revertedBy); group=[c,r];}
+    else (c.sameWindow||[]).forEach(id=>{const o=OBS.change(id); if(o&&o.video===c.video) group.push(o)});
+    group.forEach(g=>used.add(g.id)); if(!(group.length===2&&group.every(g=>g.type==='thumb'))) group.sort((a,b)=>ord[a.type]-ord[b.type]);
+    const lab=g=>g.type==='thumb'?`Thumbnail ${g.before.key} → ${g.after.key}`:`${g.typeLabel} ${g.fromId} → ${g.toId}`;
+    let label;
+    if(group.length===2&&group[0].type==='thumb'&&group[1].type==='thumb') label=`Thumbnail ${group[0].before.key} → ${group[0].after.key} → ${group[1].after.key}`;
+    else label=group.map(lab).join(' + ')+(group.length>1?' (mesma janela)':'');
+    const rev=group.length===2&&group.every(g=>g.type==='thumb');
+    out.push({k:group[0].id,label,group,e:OBS.effect(group[0].id),e2:rev?OBS.effect(group[1].id):null,labs:rev?group.map(g=>`${g.before.key} → ${g.after.key}`):null});
+  });
+  return out;
+}
+function effLabel(e){return e.status==='aguardando'?`aguardando (${e.collected} de 7 dias)`:e.label}
+function chipText(p){return effLabel(p.e)}
+function chipHTML(q){return q.e2?`Thumbnail ${q.labs[0]}: ${effLabel(q.e)} · ${q.labs[1]}: ${effLabel(q.e2)}`:`${q.label}: ${chipText(q)}`}
+
+/* ===================== cabeçalho ===================== */
+const FSTATE={queued:'na fila',working:'trabalhando',done:'publicado',late:'atrasado',nomachine:'sem máquina',retry:'nova tentativa',vigil:'liberado pelo vigia',failed:'falhou',refused:'recusado (dado velho)'};
+const PENDING={queued:1,working:1,late:1,nomachine:1,retry:1,vigil:1};
+let newRequestAt=null; // pedido feito agora nesta tela → requestScenario('na fila', {createdAt: OBS.NOW})
+const SESSION=OBS.forja.session||null; let askRefused=null; const VO=()=>({type:'leitura-video',video:S?S.id:VID});
+const INVF=Object.fromEntries(Object.entries(FSTATE).map(([k,v])=>[v,k]));
+function pullSession(){ if(!SESSION||!S) return; const c=SESSION.current(null,VO()); forjaState=c&&!c.empty&&c.request?(INVF[c.request.state]||'idle'):'idle'; }
+const scen=()=>{ if(excluded()) return null; if(SESSION){ const c=SESSION.current(null,VO()); return c&&!c.empty&&c.request?c:null; } return forjaState==='idle'?null:OBS.forja.requestScenario(FSTATE[forjaState],{type:'leitura-video',video:S.id,niche:S.v.niche,...(forjaState==='queued'&&newRequestAt?{createdAt:newRequestAt}:{})}); };
+const videoReading=()=>Object.values(OBS.forja.readings).filter(r=>r.type==='leitura-video'&&r.target&&r.target.video===S.id).sort((a,b)=>b.generatedAt-a.generatedAt)[0]||null;
+const sealDate=r=>r.seal.replace('forja · Gemma 12B · ','').replace(' (SP)','');
+const excluded=()=>(!S.v.tracked?{id:S.v.ch,reason:'Vídeo fora dos acompanhados: não há dados para a forja ler'}:null)||OBS.forja.eligibleChannels(S.v.niche).out.find(o=>o.id===S.v.ch)||null;
+function quotaNow(sc){ // cota: o motor informa no cenário; sem pedido, os pedidos reais de hoje
+  if(sc) return sc.quota;
+  const day0=new Date(OBS.NOW); day0.setHours(0,0,0,0);
+  const used=OBS.forja.requests.filter(r=>!r.scenario&&r.type==='leitura-video'&&r.niche===S.v.niche&&r.createdAt>=+day0&&!['falhou','recusado (dado velho)'].includes(r.state)).length;
+  return {usedToday:used,perTypePerNiche:1,text:used?'cota de hoje usada':''};
+}
+function ctxHref(id){ const u=new URL(location.href); u.searchParams.set('video',id); ['state','forja'].forEach(k=>u.searchParams.delete(k)); if(FROM!=='mudancas') u.searchParams.set('from',FROM); return u.pathname.split('/').pop()+u.search; }
+function blockedNow(){ return !PENDING[forjaState]&&SESSION&&S.v.tracked?(SESSION.current(null,VO()).blockedBy||null):null; }
+function bbMsg(bb){ const ttl=`“${bb.title}”`, lk=`<a class="inl" data-go="${bb.video}" href="${ctxHref(bb.video)}">${esc(bb.title)}</a>`; return esc(cap(bb.reason.replace(/^Nada enviado:\s*/,''))).replace(esc(ttl),`“${lk}”`); }
+function forjaButton(){ // ação primária da tela (cabeçalho do vídeo). Pedido em andamento: só a linha de status (o status também está no cabeçalho do chrome)
+  const sc=scen(), q=quotaNow(sc), ex=excluded();
+  if(PENDING[forjaState]&&sc) return {html:`<button class="btn forja-solid" type="button" aria-disabled="true" id="askForja">${IC.forja}Pedido em andamento</button>`,pending:true};
+  if(ex) return {html:`<button class="btn forja-solid" type="button" aria-disabled="true" id="askForja" aria-describedby="askStatus">${IC.forja}Pedir leitura à forja</button><span class="fstatus" id="askStatus">${ex.reason}</span>`};
+  const bb=blockedNow();
+  if(bb){ const msg=bbMsg(bb);
+    return {html:`<button class="btn forja-solid" type="button" aria-disabled="true" id="askForja" aria-describedby="askStatus">${IC.forja}${videoReading()?'Pedir nova leitura à forja':'Pedir leitura à forja'}</button><span class="fstatus" id="askStatus">${msg}</span>`,blocked:true}; }
+  if(q.usedToday>=q.perTypePerNiche) return {html:`<button class="btn forja-solid" type="button" aria-disabled="true" id="askForja" aria-describedby="askStatus">${IC.forja}Pedir nova leitura à forja</button><span class="fstatus" id="askStatus">${cap(q.text)}</span>`};
+  return {html:`<button class="btn forja-solid" type="button" id="askForja"${askRefused?' aria-describedby="askStatus"':''}>${IC.forja}${videoReading()?'Pedir nova leitura à forja':'Pedir leitura à forja'}</button>${askRefused?`<span class="fstatus" id="askStatus" role="status">${endDot(cap(askRefused))}</span>`:''}`,ok:true};
+}
+const CHANGES_DAYS=(OBS.forja.readingTypes.find(t=>t.id==='resumo-trocas')||{windowDays:30}).windowDays;
+const endDot=t=>{t=String(t).trim(); return /[.!?…]$/.test(t)?t:t+'.'};
+function watchSince(){const ch=S.ch; return ch.sync&&ch.sync.added?ch.sync.added:(ch.snapshots[0]&&ch.snapshots[0].t)}
+function syncOk(){return !S.ch.sync||S.ch.sync.state==='ok'}
+function syncTail(){ const sy=S.ch.sync||{}; return (sy.state==='backfill'||(sy.added&&OBS.NOW-sy.added<48*H_MS))?`, ${syncPhrase()}`:''; } // a frase do problema já traz a data da última sincronização; não repetir
+function syncPhrase(){ // frase única do motor (channel.sync.problemPhrase); canal recém-adicionado em dia
+  const sy=S.ch.sync||{}; if(sy.added&&OBS.NOW-sy.added<48*H_MS) return `canal adicionado ${D.ago(sy.added)}${sy.state==='backfill'?`, ${sy.problemPhrase||'ainda buscando vídeos'}`:''}`; if(sy.problemPhrase) return sy.problemPhrase;
+  return `canal ${sy.label||''}`.trim();
+}
+function sameSinceText(field){ // H-a: só afirma "desde a publicação" se a observação cobre a publicação e o canal está em dia
+  const since=watchSince();
+  if(since&&S.v.pub>=since&&syncOk()) return `Mesm${field==='descrição'?'a':'o'} ${field} desde a publicação.`;
+  const from=since?Math.max(since,S.v.pub):S.v.pub;
+  return `Sem troca de ${field} vista desde ${D.dmOrDmy(from)}${syncOk()?'':`; não conferid${field==='descrição'?'a':'o'} desde ${dmhmY(S.ch.sync.last)}${syncTail()}`}.`;
+}
+function watchText(){ // cobertura derivada do dado: desde quando o canal é observado e se as trocas estão sendo conferidas
+  const ch=S.ch, since=watchSince();
+  const sinceTxt=since?`Observamos ${ch.name} desde ${D.dmOrDmy(since)}`:`Observamos ${ch.name}`;
+  if(ch.sync&&ch.sync.added&&OBS.NOW-ch.sync.added<48*H_MS) return `Canal adicionado ${D.ago(ch.sync.added)}: as trocas são conferidas a partir de ${dmhmY(ch.sync.added)}, ${OBS.SYNC.cadence}`;
+  if(!syncOk()) return `${sinceTxt}, mas as trocas não estão sendo conferidas desde ${dmhmY(ch.sync.last)}${syncTail()}`;
+  return `${sinceTxt}; título, thumbnail e descrição são conferidos a cada sincronização, ${OBS.SYNC.cadence}`;
+}
+function multText(v){
+  const m=v.mult||{}; const lab=String(m.label||'').replace('vs vídeos do canal',v.fmt==='short'?'vs Shorts do canal':'vs vídeos do canal');
+  if(m.value==null&&!v.tracked) return 'sem multiplicador'; if(m.value==null){ const why=m.reason==='sem série'?'nenhum registro diário ainda':(m.reason||m.label||'sem base'); return `sem multiplicador: ${why}`; }
+  const lastP=S.pts[S.pts.length-1];
+  const core=`${lab}${m.weak?' (base fraca)':''}${m.fallback&&m.fallbackText?'':`, método: ${m.method}`}`;
+  return syncOk()||!lastP?core:`${core}, até o registro diário de ${dmhmY(lastP.t)}`;
+}
+const GEN={title:'m',thumb:'f',desc:'f'};
+const partAgo=c=>{const o=GEN[c.type]==='f'?'a':'o'; return c.window?`vist${o} pela 1ª vez ${c.agoShort}`:`trocad${o} ${c.agoShort}`};
+const CURL=(t)=>S.stalled?(GEN[t]==='m'?'último visto':'última vista'):'no ar';
+const cap=t=>t?t[0].toUpperCase()+t.slice(1):'';
+const FROM=['mudancas','outliers','canais','insights'].includes(q.get('from'))?q.get('from'):'mudancas';
+function ctxNiche(){const n=CHROME.niche(); return n!=='todos'&&n!==S.v.niche?S.v.niche:n}
+function persistedNiche(){const n=CHROME.store.get('obs-niche'); return ['todos','viagem','ia'].includes(n)?n:'todos';}
+function backHref(page,def){ if(def&&'niche' in def) def={...def,niche:persistedNiche()}; // back= traz a query da tela de origem (filtros preservados)
+  const b=q.get('back'); if(b){const base=CHROME.link(page,{}).split('?')[0]; const m=b.match(/^([\w.-]+\.html)?(\?.*)?$/)||[]; const qs=(m[2]||(b.includes('=')&&!m[1]?'?'+b.replace(/^\?/,''):'')); return (m[1]||base)+(qs||'');}
+  return CHROME.link(page,def);
+}
+function backParams(){const b=q.get('back')||''; const i=b.indexOf('?'); return new URLSearchParams(i>=0?b.slice(i+1):(b.includes('=')?b:''));}
+const QIDS=(q.get('ids')||'').split(',').map(x=>x.trim()).filter(x=>x&&OBS.video(x));
+function context(){
+  const n=ctxNiche(), nl=n==='todos'?'todos os nichos':`nicho ${NICHE[n]}`, nn=n==='todos'?undefined:n;
+  if(FROM==='outliers'){
+    if(QIDS.length) return {from:FROM,crumb:'Outliers',href:backHref('outliers',{niche:n,fmt:S.v.fmt}),ids:QIDS,keepIds:QIDS,of:'em Outliers, na ordem da lista aberta',outside:'fora da lista de Outliers aberta'};
+    const bp=backParams(), o={niche:(bp.get('niche')&&bp.get('niche')!=='todos')?bp.get('niche'):n, fmt:bp.get('fmt')||S.v.fmt};
+    const a=bp.get('ages')||bp.get('age'); const ALL=OBS.OUT_WINDOWS.map(w=>w.id);
+    o.ages=!a||a==='90'?OBS.DEFAULT_AGES:(a==='all'||a==='todos')?ALL:a.split(',').map(x=>x.trim()).map(x=>x==='365'||x==='mais-de-1-ano'?'365+':x).filter(x=>ALL.includes(x));
+    if(!o.ages.length) o.ages=OBS.DEFAULT_AGES;
+    if(bp.get('min')!=null&&bp.get('min')!==''){const mm=parseFloat(String(bp.get('min')).replace(',','.')); if(!isNaN(mm)&&mm>=0) o.min=mm;}
+    ['channel','formula','reading'].forEach(k=>{if(bp.get(k)) o[k]=bp.get(k)}); if(bp.get('topic')) o.topic=bp.get('topic');
+    const so=bp.get('sort')||'mult', oq={niche:o.niche,fmt:o.fmt,ages:o.ages,min:o.min!=null?o.min:OBS.RULES.outlierMin,theme:o.topic||null,formula:o.formula||null,channel:o.channel||null,includeWeak:true};
+    if(o.reading) oq.reading=o.reading;
+    const ids=OBS.outliers(oq).orderedIds(so);
+    const ageTxt=o.ages.length===ALL.length?'todas as idades':o.ages.map(id=>OBS.OUT_WINDOWS.find(w=>w.id===id).label).join(' + ');
+    const minTxt=o.min===0?'todos os vídeos':`${F.mult(o.min!=null?o.min:OBS.RULES.outlierMin)} ou mais`;
+    const desc=[o.niche&&o.niche!=='todos'?`nicho ${NICHE[o.niche]}`:'todos os nichos', o.fmt==='short'?'Shorts':'longos', ageTxt, minTxt, o.channel?(OBS.channel(o.channel)||{}).name:null, o.formula?(OBS.formula(o.formula)||{}).label:null, o.topic?((OBS.theme(o.topic)||{}).label||o.topic):null, o.reading?'escopo da leitura':null, so==='vpd'?'por views/dia':so==='recent'?'mais recentes primeiro':'por fase'].filter(Boolean).join(', ');
+    return {from:FROM,crumb:'Outliers',href:backHref('outliers',{niche:n,fmt:S.v.fmt}),ids,of:`em Outliers (${desc})`,outside:`fora da lista de Outliers (${desc})`};
+  }
+  if(FROM==='canais'){const ids=QIDS.length?QIDS:S.ch.videos.filter(x=>x.tracked&&x.fmt===S.v.fmt).map(x=>x.id); return {from:FROM,crumb:'Canais',href:backParams().get('channel')?(()=>{const bp=backParams(); bp.delete('channel'); const qs=bp.toString(); return CHROME.link('canais',{}).split('?')[0]+(qs?'?'+qs:'');})():backHref('canais',{}),sub:{text:S.ch.name,href:backParams().get('channel')?backHref('canais',{channel:S.v.ch}):CHROME.link('canais',{channel:S.v.ch})},keepIds:QIDS.length?QIDS:null,ids,
+    of:`de ${S.ch.name} (${S.v.fmt==='short'?'Shorts':'longos'} acompanhados, do mais novo ao mais antigo)`,outside:`fora dos vídeos acompanhados de ${S.ch.name}`};}
+  if(FROM==='insights') return {from:FROM,crumb:'Insights',href:backHref('insights',{niche:n}),ids:[],of:'',outside:'aberto a partir de Insights'};
+  if(QIDS.length) return {from:FROM,crumb:'Mudanças',href:backHref('mudancas',{video:S.v.id}),ids:QIDS,keepIds:QIDS,of:'em Mudanças, na ordem da lista aberta',outside:'fora da lista de Mudanças aberta'};
+  const bp=backParams(), rd0=bp.get('reading')&&OBS.forja.byId[bp.get('reading')];
+  const f={days:+bp.get('win')||+bp.get('days')||(bp.get('video')?90:CHANGES_DAYS)};
+  const bn=bp.get('niche'); const nf=bn&&bn!=='todos'?bn:(!bn&&rd0&&rd0.niche&&rd0.niche!=='todos'?rd0.niche:nn); if(nf) f.niche=nf;
+  ['type','channel','fmt','video'].forEach(k=>{const val=bp.get(k); if(val&&val!=='todos'&&val!=='all') f[k]=val;});
+  const only=(bp.get('changes')||'').split(',').filter(Boolean);
+  let list=only.length?OBS.changesIn({days:90,niche:'todos',type:f.type||null}).filter(c=>only.includes(c.id)):OBS.changesIn(f);
+  const MEAS=['ganhou','perdeu','neutro','inconclusivo'], DEC=['ganhou','perdeu','neutro'], qq=(bp.get('q')||'').toLowerCase();
+  if(bp.get('measured')==='1') list=list.filter(c=>MEAS.includes(OBS.effect(c.id).status));
+  if(bp.get('saved')==='1') list=list.filter(c=>OBS.swipe.saved(c.id));
+  if(qq) list=list.filter(c=>{const vv=OBS.video(c.video);return [vv.title,OBS.channel(c.ch).name,typeof c.before==='string'?c.before:'',typeof c.after==='string'?c.after:''].join(' ').toLowerCase().includes(qq)});
+  const sort=bp.get('sort')||'recent', key=c=>{const e=OBS.effect(c.id);return DEC.includes(e.status)?e.effectPp:null};
+  list=list.slice().sort((a,b)=>{ if(sort==='recent') return b.at-a.at; const ka=key(a),kb=key(b); if(ka==null&&kb==null) return b.at-a.at; if(ka==null) return 1; if(kb==null) return -1; return sort==='gain'?kb-ka:ka-kb; });
+  const ids=[...new Set(list.map(c=>c.video))];
+  const TL={title:'títulos',thumb:'thumbnails',desc:'descrições'}, SL={recent:null,gain:'maior ganho primeiro',loss:'maior perda primeiro'};
+  const desc=[f.niche?`nicho ${NICHE[f.niche]}`:'todos os nichos', f.type?TL[f.type]||f.type:null, f.channel?(OBS.channel(f.channel)||{}).name:null, f.fmt?(f.fmt==='short'?'Shorts':'longos'):null, f.video?'um vídeo':null, only.length?F.plural(only.length,'troca marcada','trocas marcadas'):`${f.days} dias`, bp.get('measured')==='1'?'só efeito medido':null, bp.get('saved')==='1'?'só salvas':null, qq?`busca “${esc(qq)}”`:null, SL[sort]||null, F.plural(list.length,'troca','trocas')].filter(Boolean).join(', ');
+  return {from:FROM,crumb:'Mudanças',href:backHref('mudancas',{video:S.v.id}),ids,
+    of:`com trocas em Mudanças (${desc})`,outside:`fora da lista de Mudanças (${desc})`};
+}
+function renderHead(){ pullSession();
+  const v=S.v, cur=S.thumbs[S.thumbs.length-1];
+  const nT=S.titles.length, distinct=new Set(S.thumbs.map(t=>t.key)).size, nD=S.descs.length, ret=S.changes.some(c=>c.revertTo);
+  const cnt=(type,txt)=>`<span class="count"><i style="background:${TYPE[type].c}" aria-hidden="true"></i>${txt}</span>`;
+  const counts=!S.v.tracked?'':!S.changes.length?`<span class="count">Nenhuma troca registrada</span>`
+    : cnt('title',F.plural(nT,'título','títulos'))+cnt('thumb',S.thumbs.length>1?`${distinct} thumbnails em ${S.thumbs.length} períodos${ret?' (uma voltou)':''}`:(S.thumbPre!=null?`1 thumbnail (vista desde ${S03})`:'1 thumbnail'))+cnt('desc',F.plural(nD,'descrição','descrições'));
+  const fb=forjaButton(), cs=OBS.channelStats(v.ch,v.fmt), late=S.ch.sync&&S.ch.sync.state!=='ok';
+  document.getElementById('vhead').innerHTML=`
+    <div class="cur">${art(cur.art,{dur:v.dur})}</div>
+    <div>
+      <h2>${esc(v.title)}</h2>
+      <div class="facts">
+        <span class="chan"><span class="av" aria-hidden="true" style="background:${S.ch.color||'#3B2F8F'}">${S.ch.ini||S.ch.name.slice(0,2).toUpperCase()}</span>${S.ch.name}<span class="niche">${NICHE[v.niche]}</span></span>
+        <span>${v.views!=null?`<b class="mono">${F.num(v.views)}</b> views${syncOk()?'':` até o registro diário de ${dmhmY(v.viewsAt)}`}`:'views ainda não registradas'}</span>
+        <span>publicado <b title="${dmhmY(v.pub)}">${OBS.fmt.age(v)}</b> <span class="mono">(${dmhmY(v.pub)})</span></span>
+        <span>${v.fmt==='short'?'Short':'Vídeo longo'}</span>
+        <span class="${late?'syncbad':''}" title="${S.ch.sync&&S.ch.sync.msg?esc(S.ch.sync.msg):''}">${late?IC.warn:''}${S.ch.sync.problemPhrase||cs.syncText}</span>
+        <span title="${esc(v.mult.method?`Método do multiplicador: ${v.mult.method}${v.mult.fallbackText?`. ${cap(v.mult.fallbackText)}`:''}. O efeito de cada troca tem método próprio, no card de comparação.`:'')}">${multText(v)}</span>
+      </div>
+      ${v.mult.fallback&&v.mult.fallbackText?`<div class="fallback">${esc(endDot(cap(v.mult.fallbackText)))}</div>`:''}
+      ${counts?`<div class="counts">${counts}</div>`:''}
+    </div>
+    <div class="actions">
+      ${fb.html}
+      <div class="arow"><button class="btn" id="saveBtn" type="button" aria-pressed="${OBS.swipe.saved(v.id)}">${(OBS.swipe.saved(v.id)?IC.bmok:IC.bm)+OBS.swipe.label(v.id)}</button>
+      <a class="btn" href="${v.url}" target="_blank" rel="noopener">${IC.ext}Abrir no YouTube</a></div>
+    </div>`;
+  // contexto de origem (from=): breadcrumb e paginador; sem from, Mudanças. Sem volta nas pontas.
+  const cx=context(), pg=document.getElementById('pager'), pos=document.getElementById('pagerPos'), [prev,next]=pg.querySelectorAll('a');
+  const cm=document.getElementById('crumbMud'); cm.textContent=cx.crumb; cm.href=cx.href;
+  let sub=document.getElementById('crumbSub'); if(cx.sub){ if(!sub){sub=document.createElement('li'); sub.id='crumbSub'; sub.innerHTML='<a></a>'; cm.parentElement.after(sub);} const sa=sub.querySelector('a'); sa.textContent=cx.sub.text; sa.href=cx.sub.href; } else if(sub) sub.remove();
+  const k=cx.ids.indexOf(v.id);
+  if(k<0){prev.hidden=next.hidden=true; pos.textContent=cx.outside}
+  else{ pos.textContent=`vídeo ${k+1} de ${cx.ids.length} ${cx.of}`;
+    const setNav=(el,j)=>{ if(j<0||j>=cx.ids.length){el.hidden=true;return} el.hidden=false; el.dataset.pager='1'; el.href=CHROME.link('historico',cx.ids[j])+'&from='+cx.from+(cx.keepIds?'&ids='+encodeURIComponent(cx.keepIds.join(',')):'')+(q.get('back')?'&back='+encodeURIComponent(q.get('back')):''); el.onclick=e=>{e.preventDefault();go(cx.ids[j]);const h=document.querySelector('#vhead h2'); if(h){h.tabIndex=-1;h.focus();}}; };
+    setNav(prev,k-1); setNav(next,k+1); }
+  prev.setAttribute('aria-label',`Vídeo anterior em ${cx.crumb}`); next.setAttribute('aria-label',`Próximo vídeo em ${cx.crumb}`);
+  document.getElementById('saveBtn').onclick=()=>{OBS.swipe.toggle(v.id);renderHead();document.getElementById('saveBtn').focus();toast(OBS.swipe.saved(v.id)?OBS.swipe.label(v.id):'Tirado do swipe file')};
+  if(fb.ok) document.getElementById('askForja').onclick=()=>askForja();
+  syncChromeForja();
+}
+function syncChromeForja(){
+  const sc=scen(), fb=forjaButton(), q=quotaNow(sc), m=sc?sc.machine:null;
+  if(sc) CHROME.setForja(CHROME.forjaFromScenario(sc));
+  else if(!fb.ok) CHROME.setForja({active:false,disabled:true,label:videoReading()?'Pedir nova leitura à forja':'Pedir leitura à forja',disabledText:excluded()?excluded().reason:fb.blocked?(SESSION.current(null,VO()).blockedBy||{}).reason:q.text,machine:m||undefined});
+  else CHROME.setForja({active:false,disabled:false,label:videoReading()?'Pedir nova leitura à forja':'Pedir leitura à forja',machine:m||undefined});
+}
+function askForja(){ if(SESSION){ const r=SESSION.ask(S.v.niche,VO()); if(!r.ok){ askRefused=r.reason||'não foi possível pedir agora'; renderHead(); renderForja(); focusAsk(false); return; } askRefused=null; pullSession(); CHROME.setMockPressed({1:forjaState}); renderHead(); renderForja(); toast('Pedido enviado à forja'); focusAsk(true); return; } setForjaState('queued',true);toast('Pedido enviado à forja');focusAsk(true)}
+function focusAsk(afterAsk){const t=afterAsk?(document.getElementById('ch-req-status')||document.getElementById('askForja')):document.getElementById('askForja'); if(t) t.focus({preventScroll:true});}
+function setForjaState(f,byClick){forjaState=f; askRefused=null; if(SESSION&&!byClick) SESSION.setBase(f==='idle'?'sem pedido':FSTATE[f],VO());{const u=new URL(location.href); if(u.searchParams.has('forja')){u.searchParams.delete('forja'); history.replaceState(null,'',u);}}newRequestAt=(f==='queued'&&byClick)?OBS.NOW:null;CHROME.setMockPressed({1:f});renderHead();renderForja()}
+function toast(t){CHROME.toast('ok',t,'')}
+
+/* ===================== forja ===================== */
+const reqActive=()=>!!(PENDING[forjaState]&&scen());
+const sinceTxt=sn=>esc(reqActive()&&sn.textNoAsk?sn.textNoAsk:sn.text);
+function fromSite(r,sn,id){ // tudo o que é do site, fora do selo (estrutura da moldura)
+  return `<section class="from-site" aria-labelledby="fs-${id}"><h4 class="fs-h" id="fs-${id}">Do site</h4>
+    <p class="src">Leitura de ${D.dmOrDmy(r.generatedAt)}, ${D.ago(r.generatedAt)}. ${cap(r.sent.text)}.</p>
+    ${sn?`<p class="src">${sinceTxt(sn)}</p>${sn.items&&sn.items.length?`<ul class="since-items">${sn.items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul>`:''}`:''}</section>`;
+}
+function readingBlock(r,label,withSince,open){
+  const sn=withSince?OBS.forja.since(r.id):null, uid=r.id+(label?'-a':'');
+  return `<details class="reading" data-reading="${r.id}"${open?' open':''}>
+    <summary class="rh">${label?`<span class="rlabel">${label}</span>`:''}<span class="seal">${IC.forja.replace('<svg','<svg width="12" height="12"')}${r.seal}</span><span class="rlead">${esc(r.text.lead)}</span><span class="rmore"><span class="rm-open">Ver leitura</span><span class="rm-close">Recolher leitura</span></span></summary>
+    <div class="lit"><p class="body">${esc(r.text.lead)}</p>${(r.text.items||[]).length?`<ul>${r.text.items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul>`:''}</div>
+    ${fromSite(r,sn,uid)}
+  </details>${sn?`<p class="src since-short">${esc(cap(sn.shortText).replace(/\.$/,''))}</p>`:''}`;
+}
+function nicheBlock(){ // sem leitura do vídeo: o que a leitura de padrões do nicho diz sobre o título (conteúdo do site, sem selo)
+  const r=OBS.forja.latest('padroes-titulo',S.v.niche); if(!r) return '';
+  const pats=r.analysis.patterns.filter(p=>(p.evidence||[]).includes(S.v.id));
+  if(!pats.length) return `<p class="ex">Ainda não há leitura deste vídeo, e a leitura de padrões do nicho de ${sealDate(r).replace('gerada ','')} não o cita.</p>`;
+  if(pats.every(p=>p.verdict.id==='sem-diferenca')) return `<p class="ex">Ainda não há leitura deste vídeo. A leitura de padrões do nicho de ${sealDate(r).replace('gerada ','')} não viu diferença para as fórmulas deste título: ${pats.map(p=>F.lcfirst(OBS.formula(p.formula).label)).join(', ')}.</p>`;
+  const sn=OBS.forja.since(r.id);
+  return `<section class="from-site nb" aria-labelledby="fs-nb"><h4 class="fs-h" id="fs-nb">Do site</h4>
+      <p class="src">Ainda não há leitura deste vídeo. O que a leitura de padrões do nicho de ${D.dmOrDmy(r.generatedAt)} diz sobre as fórmulas deste título:</p>
+      <ul>${pats.map(p=>`<li>${endDot(p.verdict.text+(p.attribution&&p.verdict.id==='padrao'?`. ${p.attribution.text}`:''))} <a href="${CHROME.link('outliers',{niche:S.v.niche,fmt:r.fmt||'long',formula:p.formula,reading:r.id,min:OBS.RULES.outlierMin})}">${(()=>{const nN=OBS.outliers({niche:S.v.niche,fmt:r.fmt||'long',formula:p.formula,reading:r.id}).count; return nN===1?'Ver o outlier':`Ver os ${nN} outliers`})()}</a></li>`).join('')}</ul>
+      <p class="src">${cap(r.sent.text)}. ${sn?sinceTxt(sn):''}</p></section>`;
+}
+function renderForja(){
+  const el=document.getElementById('forja'), Q=OBS.forja.queue, sc=scen(), rq=sc&&sc.request;
+  const steps=i=>`<div class="steps">${['na fila','trabalhando','publicado'].map((s,k)=>`<span class="${k<i?'done':k===i?'now':''}"><i class="dot" aria-hidden="true"></i>${s}</span>`).join('')}</div>`;
+  const vr=videoReading(), tm=OBS.forja.timing('leitura-video',S.v.niche);
+  const prior=vr?readingBlock(vr,'Leitura anterior',true,false):nicheBlock();
+  const intro=`<p class="ex">A leitura deste vídeo resume as trocas e diz o que os números permitem concluir. A forja (Gemma 12B) não julga thumbnails e não afirma causa.</p>`;
+  const cancel=`<button class="btn ghost" type="button" data-act="cancel">Cancelar pedido</button>`;
+  const fb=forjaButton();
+  const ex=excluded();
+  const exAct=!S.v.tracked?'':S.ch.sync.state==='erro'?`Corrija o canal em <a class="inl" href="${CHROME.link('canais',{channel:S.v.ch})}">Canais</a> antes de pedir uma leitura.`:S.ch.sync.state==='backfill'?'Espere a busca de vídeos terminar antes de pedir uma leitura.':'Sincronize o canal antes de pedir uma leitura deste vídeo.';
+  const exNote=ex?`<p class="ex warnline">${IC.warn}<span>${endDot(ex.reason)} ${exAct}</span></p>`:'';
+  let st='', body='', act='';
+  const pill=(cls)=>`<span class="state ${cls||''}">${esc(CHROME.statusLabel(sc))}</span>`;
+  const btnLabel=(()=>{const t=document.createElement('div');t.innerHTML=forjaButton().html;const b=t.querySelector('#askForja');return b?b.textContent.trim():'Pedir leitura à forja'})();
+  const toTop=`Para pedir de novo, use <a class="inl" href="#vhead" data-act="top">${btnLabel}</a> no cabeçalho do vídeo.`;
+  const stx=sc?`<p class="ex">${esc(sc.statusText)}</p>`:'';
+  if(ex&&forjaState!=='idle') { body=`${exNote}<p class="ex">Enquanto o canal estiver fora das leituras da forja, este vídeo não pode ser lido. <a class="inl" href="${CHROME.link('canais',{channel:S.v.ch})}">Ver o canal em Canais</a></p>`+(vr?readingBlock(vr,'',true,false):nicheBlock()); }
+  else switch(forjaState){
+    case 'idle': { const bb=!ex&&blockedNow(); body=exNote+(bb?`<p class="ex warnline">${IC.warn}<span>${bbMsg(bb)}</span></p>`:'')+(vr?'':intro)+(vr?readingBlock(vr,'',true,false):nicheBlock()); break; }
+    case 'queued': st=pill(''); body=`${stx}<p class="ex">${cap(tm.text)}.</p>${steps(0)}${prior}`; act=cancel; break;
+    case 'working': st=pill(''); body=`${stx}<p class="ex">${OBS.forja.preview('leitura-video',S.v.niche).text}.</p>${steps(1)}${prior}`; break;
+    case 'done': { const nr=OBS.forja.byId[rq.readingId]; st=pill(''); body=`${stx}<p class="ex">${endDot(cap(sc.quota.text))}</p>${steps(3)}${nr?readingBlock(nr,'',false,true):''}${vr?readingBlock(vr,'Leitura anterior',false,false):''}`; break; }
+    case 'late': st=pill('warn'); body=`${stx}${rq.busyWith?`<p class="ex">${cap(rq.busyWith)}.</p>`:''}${steps(0)}${prior}`; act=cancel; break;
+    case 'nomachine': st=pill('warn'); body=`${stx}<p class="ex">${sc.machine.text}.</p>${steps(0)}${prior}`; act=cancel; break;
+    case 'retry': st=pill(''); body=`${stx}${steps(0)}${prior}`; act=cancel; break;
+    case 'vigil': st=pill(''); body=`${stx}${steps(0)}${prior}`; act=cancel; break;
+    case 'failed': st=pill('bad'); body=`${stx}<p class="ex">Nada foi publicado. ${toTop}</p>${prior}`; break;
+    case 'refused': st=pill('warn'); body=`${stx}<p class="ex">${endDot(cap(sc.quota.text))} ${/peça de novo|pedir de novo/i.test(sc.statusText)?`<a class="inl" href="#vhead" data-act="top">Ir para o botão “${btnLabel}”</a>`:toTop}</p>${prior}`; break;
+  }
+  el.innerHTML=`<div class="fh"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><h3 id="fjh">Leitura da forja</h3>${st}</div><div class="f-actions">${act}</div></div>${body}`;
+  el.querySelectorAll('[data-act]').forEach(b=>b.onclick=(ev)=>{ if(b.dataset.act==='top') ev.preventDefault();
+    if(b.dataset.act==='cancel'){newRequestAt=null; askRefused=null; if(SESSION){ SESSION.cancel(S.v.niche,VO()); pullSession(); CHROME.setMockPressed({1:forjaState}); renderHead(); renderForja(); } else setForjaState('idle');toast('Pedido cancelado');const h=document.getElementById('fjh'); if(h){h.tabIndex=-1;h.focus();}}
+    if(b.dataset.act==='top'){const a=document.getElementById('askForja'); if(a){a.scrollIntoView({block:'center'}); a.focus();}}
+  });
+}
+
+/* ===================== herói: curva + faixas ===================== */
+const PADL=92, PADR=14;
+function geom(){const w=document.getElementById('tlwrap').clientWidth, pw=w-PADL-PADR;
+  if(!S.compress) return {w,x:h=>PADL+(h/S.H)*pw};
+  const B0=S.hx(OBS.SERIES_START), preW=Math.min(120,pw*.14);
+  return {w,preW,x:h=>h<=B0?PADL+(h/B0)*preW:PADL+preW+((h-B0)/(S.H-B0))*(pw-preW)};}
+function events(){
+  return S.changes.map(c=>{const arr=arrOf(c.type), idx=arr.findIndex(x=>x.id===c.toId);
+    const win=c.window?[S.hx(c.window[0]),S.hx(c.window[1])]:null;
+    return {type:c.type,idx,c,h:win?(win[0]+win[1])/2:S.hx(c.at),win,label:c.whenText}});
+}
+let hlPair=null;
+function renderChart(){
+  const svg=document.getElementById('chart'), {w,x}=geom(), Hh=200, top=22, bot=26, ph=Hh-top-bot;
+  const ec=document.getElementById('emptyChart'); if(ec) ec.remove();
+  if(S.few){
+    document.getElementById('tlsrc').textContent='registro diário de views às 12h';
+    svg.style.display='none';
+    const e=document.createElement('div');e.id='emptyChart';e.className='empty-chart';svg.after(e);
+    const lastP=S.pts[S.pts.length-1], bad=S.ch.sync&&S.ch.sync.state!=='ok', cst=OBS.channelStats(S.v.ch,S.v.fmt);
+    e.innerHTML=`<div><strong>Ainda não há curva: ${S.pts.length?'só 1 registro diário':'nenhum registro diário'}.</strong>O vídeo saiu ${OBS.fmt.age(S.v)}, em ${dmhmY(S.v.pub)}. A curva precisa de pelo menos 2 registros. ${bad?`O próximo registro depende da sincronização do canal, hoje com problema: ${syncPhrase()}.`:`O próximo é ${S.nextSnap}.`}${lastP?`<br>Último valor: <span class="mono">${F.num(lastP.views)}</span> views, em ${dmhmY(lastP.t)}.`:''}${S.changes.length?' As trocas já aparecem nas faixas abaixo.':''}${bad?`<br><a class="inl" href="${CHROME.link('canais',{channel:S.v.ch})}">Ver o canal em Canais</a>`:''}</div>`;
+    return;
+  }
+  svg.style.display='';
+  const pre=S.v.pub<OBS.SERIES_START;
+  document.getElementById('tlsrc').innerHTML=`<b>${F.plural(S.pts.length,'registro diário','registros diários')}</b> (às 12h${pre?`, desde ${S03}`:''}); views ganhas entre um registro e outro; último ${dmhmY(S.pts[S.pts.length-1].t)}`;
+  svg.setAttribute('viewBox',`0 0 ${w} ${Hh}`); svg.setAttribute('height',Hh);
+  const B=S.bins, vmax=Math.max(...B.map(b=>b.v),...S.expected.map(e=>e.v),1)*1.12;
+  const mag=Math.pow(10,Math.floor(Math.log10(vmax/4))), step=[1,2,5,10].map(m=>m*mag).find(st=>vmax/st<=5), ymax=Math.ceil(vmax/step)*step;
+  const y=v=>top+ph-(v/ymax)*ph;
+  let g='<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="6" fill="var(--border-strong)"/></pattern></defs>';
+  for(let k=0;k<=ymax+1e-9;k+=step) g+=`<line x1="${PADL}" x2="${w-PADR}" y1="${y(k)}" y2="${y(k)}" stroke="var(--grid)"/><text x="${PADL-10}" y="${y(k)+4}" text-anchor="end">${k===0?'0':F.num(k)}</text>`;
+  g+=`<text x="${PADL}" y="${top-10}">views/dia</text>`;
+  if(pre){const xb=S.compress?x(S.hx(OBS.SERIES_START)):x(S.seriesStart);
+    g+=`<rect x="${x(0)}" y="${top}" width="${Math.max(0,xb-x(0))}" height="${ph}" fill="var(--well)"/>`;
+    g+=S.compress?`<line x1="${xb}" x2="${xb}" y1="${top}" y2="${top+ph}" stroke="var(--border-strong)" stroke-dasharray="2 3"/><text class="note" x="${x(0)+6}" y="${top+18}">antes de ${S03}</text><text class="note" x="${x(0)+6}" y="${top+34}">${S.preDays} dias</text><text class="note" x="${x(0)+6}" y="${top+50}">comprimidos,</text><text class="note" x="${x(0)+6}" y="${top+66}">sem registro</text>`
+      :`<text class="note" x="${x(0)+8}" y="${top+18}">sem registro por vídeo antes de ${S03}</text>`}
+  g+=`<rect id="hlrect" x="0" y="${top}" width="0" height="${ph}" fill="var(--text)" opacity="0"/>`;
+  // janelas antes/depois da troca selecionada (de OBS.effect)
+  if(hlPair&&hlPair.e.observed!=null&&hlPair.e.expected!=null){const e=hlPair.e, fa=S.hx(e.firstPointAfter), aEnd=fa+e.afterDays*24, bEnd=S.hx(D.snapTime(e.k-1)), bStart=Math.max(0,bEnd-e.beforeDays*24);
+    g+=`<rect x="${x(bStart)}" y="${top}" width="${Math.max(0,x(bEnd)-x(bStart))}" height="${ph}" fill="var(--text)" opacity=".05"/><rect x="${x(fa)}" y="${top}" width="${Math.max(0,x(aEnd)-x(fa))}" height="${ph}" fill="var(--text)" opacity=".05"/>`;
+}
+  if(B.length){
+    let d=`M${x(B[0].a)},${y(0)}`; B.forEach(b=>{d+=` L${x(b.a)},${y(b.v)} L${x(b.b)},${y(b.v)}`}); d+=` L${x(B[B.length-1].b)},${y(0)}Z`;
+    let l=''; B.forEach((b,i)=>{l+=`${i?'L':'M'}${x(b.a)},${y(b.v)} L${x(b.b)},${y(b.v)} `});
+    g+=`<path d="${d}" fill="var(--curve-fill)"/>`;
+    if(S.expected.length){let e='';S.expected.forEach((p,i)=>{const prev=S.expected[i-1];e+=`${prev&&Math.abs(prev.b-p.a)<0.5?'L':'M'}${x(p.a)},${y(p.v)} L${x(p.b)},${y(p.v)} `});g+=`<path d="${e}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="5 4"/>`}
+    g+=`<path d="${l}" fill="none" stroke="var(--curve)" stroke-width="2" stroke-linejoin="round"/>`;
+    const last=B[B.length-1].b; if(S.H>last){ g+=`<rect x="${x(last)}" y="${top}" width="${Math.max(3,x(S.H)-x(last))}" height="${ph}" fill="url(#hatch)"/>`;
+      if(S.stale) g+=`<text class="note" x="${x(last)-6}" y="${top+18}" text-anchor="end">sem registro desde ${D.dm(S.pts[S.pts.length-1].t)}</text>`; }
+    const per=(w-PADL-PADR)/(S.H/24);
+    if(per>=56){let last=null; B.forEach(b=>{const ex=S.expected.find(e=>Math.abs(e.b-b.b)<0.5), top2=Math.max(b.v,ex?ex.v:0), t=F.num(b.v), cx=(x(b.a)+x(b.b))/2, wt=t.length*6.7, yy=Math.max(top+10,y(top2)-7);
+      if(last&&cx-wt/2<last.r+6&&Math.abs(yy-last.y)<14) return; last={r:cx+wt/2,y:yy}; g+=`<text class="vl" x="${cx}" y="${yy}" text-anchor="middle">${t}</text>`})}
+    if(S.firstNote){const fx=x(S.hx(S.firstNote.t)); g+=`<line x1="${x(0)}" x2="${fx}" y1="${top+ph-1}" y2="${top+ph-1}" stroke="var(--muted)" stroke-width="2"/><text class="note" x="${x(0)+4}" y="${top+ph-8}">${F.num(S.firstNote.views)} em ${Math.round(S.firstNote.h)} h</text>`}
+  }
+  const tk=[];S.ticks.forEach(t=>{if(tk.length&&x(t[0])-x(tk[tk.length-1][0])<56){ if(t===S.ticks[S.ticks.length-1]) tk[tk.length-1]=t; return } tk.push(t)});
+  tk.forEach(([h,lb],i)=>{ g+=`<line x1="${x(h)}" x2="${x(h)}" y1="${top+ph}" y2="${top+ph+5}" stroke="var(--border-strong)"/><text x="${x(h)}" y="${Hh-6}" text-anchor="${i===0?'start':i===tk.length-1?'end':'middle'}">${lb}</text>`});
+  svg.innerHTML=g;
+  svg.setAttribute('aria-label',`Views por dia de ${S.v.title}, ${S.pts.length} registros diários. ${events().length} trocas marcadas. Valores na tabela abaixo.`);
+}
+function spread(evs,x){evs.forEach(e=>e.px=x(e.h));for(let i=1;i<evs.length;i++){if(evs[i].px-evs[i-1].px<32){const c=(evs[i].px+evs[i-1].px)/2;evs[i-1].px=c-16;evs[i].px=c+16}}return evs}
+function renderLanes(){
+  const {x,w}=geom(), lanes=document.getElementById('lanes');
+  const rows=[['title','Título'],['thumb','Thumbnail'],['desc','Descrição']];
+  lanes.innerHTML=rows.map(([type,lab])=>{const arr=arrOf(type);
+    return `<div class="lane ${type==='thumb'?'thumbs':''}">
+    <div class="lane-l"><i style="background:${TYPE[type].c}" aria-hidden="true"></i>${lab}</div>
+    ${type==='thumb'&&S.thumbPre!=null?`<div class="pre" title="Thumbnail antes de ${S03}: não registrada" style="left:${x(0)}px;width:${Math.max(0,x(S.thumbPre)-x(0)-2)}px"><span>${S.compress?`antes de ${S03}`:`antes de ${S03}: não registrada`}</span></div>`:''}
+    ${S.stalled&&S.endNowH<S.H?`<div class="stale" style="left:${x(S.endNowH)}px;width:${Math.max(0,x(S.H)-x(S.endNowH))}px" title="sem conferência desde ${dmhmY(S.ch.sync.last)}"></div>`:''}
+    ${arr.map(v=>v.win?`<div class="win" style="left:${x(v.win[0])}px;width:${Math.max(2,x(v.win[1])-x(v.win[0]))}px;--c:${TYPE[type].c};--wa:${type==='desc'?'var(--t-desc-a)':'var(--t-title-a)'}" title="janela entre duas sincronizações"></div>`:'').join('')}
+    ${arr.map((v,i)=>{let L=x(v.from)+1,W=Math.max(8,x(v.to)-x(v.from)-2); const nm=TYPE[type].n, vid=type==='thumb'?v.key:v.id;
+      const lbl=`${nm} ${vid}${type==='desc'&&v.lines==null?' (texto não guardado)':''}: ${span(v)}`;
+      if(W<32){const bw=W; L=L+W/2-16; W=32; return `<button type="button" class="clip tiny" data-k="${type}:${i}" style="left:${L}px;width:${W}px;--hl:${TYPE[type].c};--bw:${bw}px" title="${lbl}" aria-label="${lbl}"><span class="bar" aria-hidden="true"></span><span class="vid">${vid}</span></button>`}
+      let inner;
+      if(type==='thumb'){const narrow=W<70, retd=S.changes.some(c=>c.toId===v.id&&c.revertTo); inner=narrow?`<span class="vid">${vid}</span>`:`${art(v.art)}<span class="vid">${vid}</span>${retd&&W>150?'<span class="ret">voltou</span>':''}`;
+        return `<button type="button" class="clip ${v.cur?'cur':''} ${narrow?'narrow':''}" data-k="${type}:${i}" style="left:${L}px;width:${W}px;--hl:${TYPE[type].c}" title="${lbl}" aria-label="${lbl}">${inner}</button>`}
+      inner=`<span class="vid">${vid}</span>${W>60?`<span class="tt">${type==='title'?esc(v.text):(v.lines==null?'texto não guardado':(v.cur?CURL(type):''))}</span>`:''}`;
+      return `<button type="button" class="clip ${v.cur?'cur':''}" data-k="${type}:${i}" style="left:${L}px;width:${W}px;--hl:${TYPE[type].c}" aria-label="${lbl}">${inner}</button>`}).join('')}
+    ${spread(events().filter(e=>e.type===type),x).map(e=>`<button class="mk" type="button" style="left:${e.px}px;--c:${TYPE[type].c}" data-ev="${type}:${e.idx}" aria-label="${TYPE[type].n} ${type==='title'?'trocado':'trocada'} ${e.win?e.label:'em '+e.label}" aria-describedby="tip"><span>${IC[type]}</span></button>`).join('')}
+  </div>`}).join('');
+  if(S.few){const marks=[[0,dmhmY(S.v.pub)]]; S.changes.forEach(c=>{if(c.window){marks.push([S.hx(c.window[0]),D.hh(c.window[0])]);marks.push([S.hx(c.window[1]),D.hh(c.window[1])])}}); marks.push([S.H,'agora '+D.hm(OBS.NOW)]);
+    lanes.insertAdjacentHTML('beforeend',`<div class="lane-axis" aria-hidden="true">${marks.map(([h,l])=>`<span style="left:${x(h)}px">${l}</span>`).join('')}</div>`);}
+  const vl=document.getElementById('vlines');
+  vl.style.top=S.few?(lanes.offsetTop+'px'):'22px';
+  vl.innerHTML=events().map(e=>e.win
+    ?`<div class="vband" data-ev="${e.type}:${e.idx}" style="left:${x(e.win[0])}px;width:${Math.max(2,x(e.win[1])-x(e.win[0]))}px;--c:${TYPE[e.type].c};--wa:${e.type==='desc'?'var(--t-desc-a)':'var(--t-title-a)'}"></div>`
+    :`<div class="vline" data-ev="${e.type}:${e.idx}" style="left:${x(e.h)}px;--c:${TYPE[e.type].c}"></div>`).join('');
+  bindLanes();
+}
+function legend(){
+  const ev=events(), has=t=>ev.some(e=>e.type===t);
+  let h='';
+  if(!S.few) h+=`<span><i class="sw" aria-hidden="true"></i>views/dia (degrau = 1 dia entre registros)</span>`;
+  if(!S.few&&!S.expected.length&&S.bins.length) h+=`<span><i class="sw dash" aria-hidden="true"></i>esperado pela idade: sem base, menos de 3 outros vídeos do canal com registro na mesma idade em dias${hlPair&&hlPair.e.n>0&&hlPair.e.method==='aproximação por faixa'?'; a comparação abaixo usa a faixa de idade, que junta mais vídeos':''}</span>`;
+  if(!S.few&&S.expected.length){const ns=S.expected.map(p=>p.n), lo=Math.min(...ns), hi=Math.max(...ns); h+=`<span><i class="sw dash" aria-hidden="true"></i>esperado pela idade: mediana dos outros ${S.v.fmt==='short'?'Shorts':'vídeos longos'} do canal sem trocas, na mesma idade em dias, sem contar este, ${S.v.pub<OBS.SERIES_START?`ancorada no 1º registro deste vídeo (${D.dm(S.pts[0].t)})`:'ancorada no 1º dia completo deste vídeo'} (n = ${lo===hi?lo:lo+' a '+hi}; some quando n < 3)</span>`}
+  if(hlPair&&hlPair.e.observed!=null&&hlPair.e.expected!=null) h+=`<span><i class="sw shade" aria-hidden="true"></i>janelas antes e depois de ${hlPair.label}</span>`;
+  if(S.compress) h+=`<span>${S.preDays} dias antes de ${S03} comprimidos à esquerda (sem registro por vídeo)</span>`;
+  if(!S.few&&S.bins.length&&S.H>S.bins[S.bins.length-1].b) h+=S.stale?`<span><i class="sw hatch" aria-hidden="true"></i>sem registro desde ${D.dm(S.pts[S.pts.length-1].t)}, ${syncPhrase()}</span>`:`<span><i class="sw hatch" aria-hidden="true"></i>dia em coleta, fecha ${S.nextSnap}</span>`;
+  if(S.thumbPre!=null) h+=`<span><i class="sw hatch" aria-hidden="true"></i>thumbnail antes de ${S03}: não registrada</span>`;
+  if(ev.some(e=>e.win)) h+=`<span><i class="sw swwin" aria-hidden="true"></i>janela entre duas sincronizações: título e descrição não têm minuto; sincronização ${OBS.SYNC.cadence}</span>`;
+  if(has('thumb')) h+=`<span style="color:var(--t-thumb)">${IC.thumb.replace('<svg','<svg width="13" height="13"')}<span style="color:var(--muted)">troca de thumbnail com horário exato (detectada pela mudança do arquivo da imagem)</span></span>`;
+  if(!ev.length) h+=`<span>Nenhuma troca registrada.</span>`;
+  document.getElementById('legend').innerHTML=h;
+  const dt=document.getElementById('datatable');
+  if(S.few){dt.innerHTML='';dt.hidden=true;return} dt.hidden=false;
+  dt.innerHTML=`<summary>Ver os registros diários em tabela</summary><div class="tw"><table class="mono"><caption class="sr">Views em cada registro diário</caption><thead><tr><th scope="col">registro</th><th scope="col">views acumuladas</th><th scope="col">views/dia desde o anterior</th><th scope="col">esperado (n)</th></tr></thead><tbody>${S.pts.map((p,i)=>{const b=S.bins.find(b=>Math.abs(b.b-S.hx(p.t))<0.01), ex=S.expected.find(e=>e.t===p.t);return `<tr><td>${dmhmY(p.t)}</td><td>${F.num(p.views)}</td><td>${b?F.num(b.v)+(b.from0?' (desde a publicação)':''):(i===0?'1º registro':'sem registro anterior')}</td><td>${ex?`${F.num(ex.v)} (${ex.n})`:(b&&b.from0===undefined&&i===0&&S.firstNote?'sem média (menos de 24 h desde a publicação)':(i===0&&S.firstNote?'sem média (menos de 24 h desde a publicação)':'menos de 3 vídeos para comparar'))}</td></tr>`}).join('')}</tbody></table></div>`;
+}
+
+/* ===================== destaque cruzado ===================== */
+function highlight(type,i,evIdx){
+  clearHL();
+  const arr=arrOf(type), v=arr[i];
+  arr.forEach((o,k)=>{if(k===i||(type==='thumb'&&o.key===v.key)){
+    {const e1=document.querySelector(`.clip[data-k="${type}:${k}"]`); if(e1) e1.classList.add('is-hl');}
+    {const e2=document.querySelector(`[data-ver="${type}:${k}"]`); if(e2) e2.classList.add('is-hl');}}});
+  const r=document.getElementById('hlrect'); if(r){const {x}=geom();r.setAttribute('x',x(Math.max(0,v.from)));r.setAttribute('width',Math.max(0,x(v.to)-x(Math.max(0,v.from))));r.setAttribute('opacity','.07')}
+  if(evIdx!=null){(document.querySelector(`.vlines [data-ev="${type}:${evIdx}"]`)||{classList:{add(){}}}).classList.add('on');(document.querySelector(`.mk[data-ev="${type}:${evIdx}"]`)||{classList:{add(){}}}).classList.add('on')}
+}
+function clearHL(){
+  document.querySelectorAll('.is-hl,.vlines .on,.mk.on').forEach(e=>e.classList.remove('is-hl','on'));
+  const r=document.getElementById('hlrect'); if(r) r.setAttribute('opacity','0');
+  document.getElementById('tip').classList.remove('show');
+}
+function showTip(btn,type,i){
+  const arr=arrOf(type), b=arr[i-1], a=arr[i], c=changeOf(type,i);
+  const tip=document.getElementById('tip'); tip.style.setProperty('--c',TYPE[type].c);
+  let body='';
+  if(type==='title') body=`<div class="bef">${esc(b.text)}</div><div class="aft">${esc(a.text)}</div>`;
+  if(type==='thumb') body=`<div class="thpair">${art(b.art)}<span aria-hidden="true">→</span>${art(a.art)}</div>${c.revertTo?`<div class="aft" style="color:var(--t-thumb)">Voltou para a versão ${c.revertTo} (mesma imagem).</div>`:''}`;
+  if(type==='desc') body=`<div class="aft">${c.diff?c.diff.label:`A descrição mudou; o texto antigo não foi guardado (antes de ${S03}).`}</div>${c.diff?'<div class="src" style="margin-top:4px">Comparação linha a linha em Descrições, abaixo.</div>':''}`;
+  const when=c.window?`${c.whenText} (janela de ${c.prec==='1d'?'1 dia, sincronização antiga':'6 h'})`:`${c.whenText}, horário exato`;
+  tip.innerHTML=`<h4>${TYPE[type].n}: ${type==='thumb'?b.key:b.id} → ${type==='thumb'?a.key:a.id}</h4><div class="when">${when}, ${partAgo(c)}</div>${body}`;
+  const wrap=document.getElementById('tlwrap').getBoundingClientRect(), r=btn.getBoundingClientRect();
+  const tw=Math.min(310,wrap.width-8);
+  let left=r.left-wrap.left+r.width/2-tw/2; left=Math.max(0,Math.min(left,wrap.width-tw));
+  tip.style.left=left+'px'; tip.classList.add('show');
+  tip.style.top=(r.top-wrap.top-tip.offsetHeight-8)+'px';
+}
+function bindLanes(){
+  document.querySelectorAll('.mk').forEach(m=>{
+    const [type,i]=m.dataset.ev.split(':'), n=+i;
+    const on=()=>{highlight(type,n,n);showTip(m,type,n)};
+    m.addEventListener('mouseenter',on);m.addEventListener('focus',on);
+    m.addEventListener('mouseleave',clearHL);m.addEventListener('blur',clearHL);
+    m.addEventListener('click',()=>{const c=changeOf(type,n); const p=pairs().find(p=>p.group.some(g=>g.id===c.id)); if(p){pairK=p.k;renderCompare();renderChart();legend();const ch2=document.querySelector('#compare .pair[aria-pressed="true"]'); if(ch2) setTimeout(()=>ch2.focus(),0);document.getElementById('compare').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})}});
+  });
+  document.querySelectorAll('.clip').forEach(c=>{
+    const [type,i]=c.dataset.k.split(':');
+    const on=()=>highlight(type,+i,null);
+    c.addEventListener('mouseenter',on);c.addEventListener('focus',on);
+    c.addEventListener('mouseleave',clearHL);c.addEventListener('blur',clearHL);
+    c.addEventListener('click',()=>goVer(type,+i));
+  });
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ const t=document.getElementById('tip'); if(t&&t.classList.contains('show')) clearHL(); } });
+function goVer(type,n){const t=document.querySelector(`[data-ver="${type}:${n}"]`); if(t){t.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});t.focus({preventScroll:true})}}
+function bindVer(){
+  document.querySelectorAll('[data-ver]').forEach(c=>{
+    const [type,i]=c.dataset.ver.split(':'), n=+i;
+    const on=()=>highlight(type,n,n>0?n:null);
+    c.addEventListener('mouseenter',on);c.addEventListener('focus',on);
+    c.addEventListener('mouseleave',clearHL);c.addEventListener('blur',clearHL);
+  });
+}
+
+/* ===================== comparação (OBS.effect) ===================== */
+function sideHTML(s){
+  const th=s.art?art(s.art):(s.missing?art(null,{missingText:'Imagem não registrada'}):'');
+  return `<div class="side ${s.t&&th?'':'solo'}">${th}${s.t?`<div><div class="lbl">${s.l}</div><div class="ttl">${esc(s.t)}</div></div>`:`<div class="lbl">${s.l}</div>`}</div>`;
+}
+function baFor(p){
+  const c=p.group[0], last=p.group[p.group.length-1];
+  if(c.type==='desc') return '';
+  if(p.group.length===2&&p.group.every(g=>g.type==='thumb')) return [
+    {art:c.before.art,l:`${c.before.key} até ${c.whenText}`},{art:c.after.art,l:`${c.after.key} por ${D.dur(c.nextLivedMs)}`},{art:last.after.art,l:`${last.after.key} de volta em ${dmhmY(last.at)}`}];
+  const preMs=(c.window?c.window[0]:c.at)-60e3, postMs=Math.max(...p.group.map(g=>g.at))+60e3;
+  const tb=versionAt('thumb',preMs), ta=versionAt('thumb',postMs), Tb=versionAt('title',preMs), Ta=versionAt('title',postMs);
+  const thumbKnown=x=>!(x.seenSinceArchive&&x.first_seen>preMs);
+  return [{art:thumbKnown(tb)?tb.art:null,missing:!thumbKnown(tb),t:Tb.text,l:`Antes (${Tb.id}${thumbKnown(tb)?`, thumbnail ${tb.key}`:''})`},{art:ta.art,t:Ta.text,l:`Depois (${Ta.id}, thumbnail ${ta.key})`}];
+}
+function renderCompare(){
+  const el=document.getElementById('compare'), P=pairs();
+  const head=`<div class="sec-h"><h3 id="cmph">Antes e depois de cada troca</h3><span class="src">média de views/dia, 7 dias depois contra até 7 dias antes, ajustada pela idade</span></div>`;
+  if(!P.length){el.innerHTML=head+`<div class="nobase" style="margin-top:12px"><strong>Nada para comparar: nenhuma troca registrada.</strong>${endDot(watchText())} Se o canal trocar título, thumbnail ou descrição, a troca aparece na curva acima e entra em Mudanças.</div>`;hlPair=null;return}
+  if(!pairK||!P.find(p=>p.k===pairK)) pairK=(P.find(p=>['neutro','ganhou','perdeu'].includes(p.e.status))||P[0]).k;
+  const p=P.find(x=>x.k===pairK), e=p.e; hlPair=p;
+  const ba=baFor(p), baH=ba?`<div class="ba" ${ba.length===3?'style="grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr) 28px minmax(0,1fr)"':''}>${ba.map((s,i)=>(i?'<span class="arr" aria-hidden="true">→</span>':'')+sideHTML(s)).join('')}</div>`:'';
+  let body;
+  const descLink=p.group[0].type==='desc'&&p.group[0].diff?`<p class="src"><a class="inl" href="#descSec" data-desc="1">Ver comparação linha a linha</a></p>`:'';
+  if(e.observed==null){
+    if(e.status==='aguardando'&&e.waitText) body=`<div class="nobase"><strong>${esc(e.waitText)}</strong></div>`; else body=`<div class="nobase"><strong>${e.status==='aguardando'&&e.readyText?F.labelReason(e.label,e.reason,{sentence:true}).replace(/leitura em \d{2}\/\d{2}/,e.readyText):F.labelReason(e.label,e.reason,{sentence:true})}</strong>${e.willBeInconclusive?`Quando completar, o veredito será inconclusivo: ${e.willBeInconclusive[0].toLowerCase()+e.willBeInconclusive.slice(1)}`:''}${e.readyOn&&e.status!=='aguardando'&&e.status!=='sem-serie'&&e.status!=='sem-antes'?` Primeira leitura possível em ${D.dmOrDmy(e.readyOn)}.`:''}</div>`;
+  }else{
+    const hasBase=e.expected!=null&&e.iqr&&e.iqr[0]!=null;
+    const q1=hasBase?Math.min(...e.iqr):null, q3=hasBase?Math.max(...e.iqr):null;
+    const vals=[e.observed,0,...(hasBase?[e.expected,q1,q3]:[])].map(v=>v*100);
+    const lo=Math.floor((Math.min(...vals)-6)/5)*5, hi=Math.ceil((Math.max(...vals)+6)/5)*5, pos=v=>((v*100-lo)/(hi-lo)*100);
+    const cDate=t=>{const m=String(t).match(/(\d{2})\/(\d{2})(?: (\d{2})(?::(\d{2})|h))?/);return m?((+m[2])*1e6+(+m[1])*1e4+(+(m[3]||0))*100+(+(m[4]||0))):0};
+    const cav=[...OBS.caveats(e.id)].sort((a,b)=>cDate(a)-cDate(b)); if(p.group.some(g=>g.testCompare)) cav.unshift('Alternância compatível com Testar e comparar (teste A/B do YouTube), não confirmada: o YouTube não informa o teste nem o vencedor.');
+    body=`<div class="cmp">
+      <div>
+        <p class="what"><b>${p.e2?`Thumbnail ${p.labs[0]}`:p.label}</b>, ${p.group[0].whenText} (${partAgo(p.group[0])})</p>
+        <div class="big"><span class="n">${F.num(e.beforeAvg)}</span><span class="arr" aria-hidden="true">→</span><span class="n">${F.num(e.afterAvg)}</span><span class="u">média de views/dia</span></div>
+        <div class="src" style="margin-top:6px">antes: ${F.plural(e.beforeDays,'dia','dias')}; depois: ${F.plural(e.afterDays,'dia','dias')}; o dia da troca fica de fora</div>
+        <div class="vd">${IC[e.status]||''}${e.label}</div>
+      </div>
+      <div>
+        <p class="verdict"><strong>${hasBase?cap(e.numbersFlat):`Observado ${F.pct(e.observed)}; ${e.noBaseText}`}.</strong> ${endDot(F.labelReason(e.label,e.reason,{sentence:true}))}${e.status==='neutro'?' Não dá para dizer que a troca ajudou ou atrapalhou.':''}</p>
+        <div class="scale" role="img" aria-label="${hasBase?`Observado ${F.pct(e.observed)}, esperado ${F.pct(e.expected)}, faixa normal de ${F.pct(q1)} a ${F.pct(q3)}`:`Observado ${F.pct(e.observed)}`}">
+          <div class="axis"></div>
+          ${hasBase?`<div class="iqr" style="left:${pos(q1)}%;width:${Math.max(.6,pos(q3)-pos(q1))}%"></div><div class="med" style="left:${pos(e.expected)}%"></div>`:''}
+          <div class="obs" style="left:${pos(e.observed)}%"></div>
+          ${hasBase?`<span class="lb" style="left:0;top:-2px">faixa normal ${F.pct(q1)} a ${F.pct(q3)}, esperado ${F.pct(e.expected)}</span>`:''}
+          <span class="lb" style="left:${Math.min(85,Math.max(15,pos(e.observed)))}%;top:42px;transform:translateX(-50%);color:var(--text)">observado ${F.pct(e.observed)}</span>
+          <span class="lb lbr" style="right:0;top:-2px">escala ${F.pct(lo/100)} a ${F.pct(hi/100)}</span><span class="zero" style="left:${pos(0)}%" aria-hidden="true"></span>
+        </div>
+        <div class="src">${hasBase?`Faixa normal: metade dos outros ${S.v.fmt==='short'?'Shorts':'vídeos longos'} de ${S.ch.name} ficou entre ${F.pct(q1)} e ${F.pct(q3)} na mesma idade (${e.band} em ${D.dm(p.group[0].at)}; n = ${e.n}, sem contar este vídeo; método: ${e.method}).${e.fallbackText?' '+e.fallbackText+'.':''}`:''}</div>
+        ${p.e2?`<p class="verdict"><strong>${p.labs[1]}:</strong> ${p.e2.observed!=null?`${p.e2.numbersFlat}. `:''}${F.labelReason(p.e2.label,p.e2.reason,{sentence:true})}</p>`:''}
+        ${cav.length?`<ul class="caveats">${cav.map(c=>`<li>${IC.warn}<span>${c}</span></li>`).join('')}</ul>`:''}
+      </div></div>`;
+  }
+  body+=descLink;
+  el.innerHTML=head+`<div class="pairs" role="group" aria-label="Escolher troca">${P.map(q=>`<button class="pair" type="button" aria-pressed="${q.k===pairK}" data-k="${q.k}">${IC[q.e.status]||''}${chipHTML(q)}</button>`).join('')}</div>${baH}${body}`;
+  const dl=el.querySelector('[data-desc]'); if(dl) dl.onclick=ev=>{ev.preventDefault();const sec=document.getElementById('descSec');sec.querySelectorAll('details').forEach(d=>d.open=true);const h=document.getElementById('deh'); h.tabIndex=-1; h.focus(); h.scrollIntoView({block:'start'});};
+  el.querySelectorAll('.pair[data-k]').forEach(b=>b.onclick=()=>{pairK=b.dataset.k;renderCompare();renderChart();legend();el.querySelector(`.pair[data-k="${CSS.escape(pairK)}"]`).focus()});
+}
+
+/* ===================== versões ===================== */
+function renderVersions(){
+  const ts=document.getElementById('thumbsSec'), multi=S.thumbs.length>1;
+  const tc=S.changes.filter(c=>c.type==='thumb'&&c.testCompare);
+  ts.innerHTML=`<div class="sec-h"><h3 id="thh">Thumbnails</h3><span class="src">${multi?`${new Set(S.thumbs.map(t=>t.key)).size} imagens em ${S.thumbs.length} períodos, em ordem`:'sem troca vista'}</span></div>
+    <div class="film">${S.thumbs.map((t,i)=>`<div class="fcard" role="group" data-ver="thumb:${i}" tabindex="-1" aria-label="Thumbnail ${t.key}, ${span(t)}">
+      ${art(t.art)}
+      <div class="meta">
+        <div class="vt"><span>Versão ${t.key}</span>${t.cur?`<span class="tag now">${CURL('thumb')}</span>`:S.changes.some(c=>c.toId===t.id&&c.revertTo)?'<span class="tag ret">voltou</span>':''}</div>
+        <span class="mono">${cap(span(t))}</span>
+        <span>no ar por ${t.dur}</span>
+        <span>média de views/dia: ${periodText(t)}</span>
+      </div></div>`).join('')}</div>
+    ${tc.length?`<div class="note"><span style="color:var(--t-thumb)">${IC.ab}</span><span>${tc[0].before.key} → ${tc[0].after.key} → ${tc[0].before.key} em ${D.dur(tc[0].cycleMs)}: alternância típica do Testar e comparar (teste A/B do YouTube). Compatível, não confirmado — o YouTube não informa o teste nem o vencedor.</span></div>`:''}
+    ${S.thumbPre!=null?`<div class="note"><span style="color:var(--warning-text)">${IC.warn}</span><span>Thumbnail vista desde ${S03}, quando o arquivo de imagens começou. Trocas de thumbnail anteriores vinham de um método antigo (pela URL), que não é confiável, então não aparecem como troca.</span></div>`:''}`;
+
+  const ti=document.getElementById('titlesSec');
+  ti.innerHTML=`<div class="sec-h"><h3 id="tih">Títulos</h3><span class="src">${S.titles.length>1?'trechos alterados contra o anterior':'sem troca vista'}</span></div>${S.titles.length>1?'':`<p class="src" style="margin:8px 0 0">${sameSinceText('título')}</p>`}
+    <ol class="tlist">${S.titles.map((t,i)=>`<li data-ver="title:${i}" tabindex="-1"><span class="id">${t.id}</span><span class="txt">${i?titleDiffHTML(S.titles[i-1].text,t.text):esc(t.text)}</span>
+      <span class="m"><span>${cap(span(t))}</span><span>no ar por ${t.dur}</span><span>média de views/dia: ${periodText(t)}</span>${t.cur?`<span style="color:var(--success)">${CURL('title')}</span>`:''}</span></li>`).join('')}</ol>`;
+
+  const de=document.getElementById('descSec');
+  const dRow=(d,i)=>`<div data-ver="desc:${i}" tabindex="-1"><span><b>${d.id}</b>${cap(span(d))}${d.lines==null?' (texto não guardado)':''}</span><span>no ar por ${d.dur}${d.cur?` <span style="color:var(--success)">${CURL('desc')}</span>`:''}</span></div>`;
+  if(S.descs.length<2){de.innerHTML=`<div class="sec-h"><h3 id="deh">Descrições</h3><span class="src">sem troca vista</span></div><div class="dver">${S.descs.map(dRow).join('')}</div><p class="src" style="margin-top:10px">${sameSinceText('descrição')}</p>`;return}
+  const dc=S.changes.filter(c=>c.type==='desc');
+  const withText=dc.filter(c=>c.diff);
+  let html=`<div class="sec-h"><h3 id="deh">Descrições</h3><span class="src">${withText.length?'comparação linha a linha':'texto antigo não guardado'}</span></div><div class="dver">${S.descs.map(dRow).join('')}</div>`;
+  dc.filter(c=>!c.diff).forEach(c=>{html+=`<div class="note"><span style="color:var(--warning-text)">${IC.warn}</span><span>${c.fromId} → ${c.toId} (${c.whenText}): antes de ${S03} a sincronização só registrava que a descrição mudou, sem guardar o texto. Não há comparação linha a linha para esta troca.</span></div>`});
+  withText.forEach(c=>{
+    const L=c.diff.lines; let rows='', run=[];
+    const flush=()=>{ if(run.length>=3&&run.every(r=>r.text)) rows+=`<div class="fold">${F.plural(run.length,'linha sem mudança','linhas sem mudança')} (${run.map(r=>esc(r.text)).join(', ')})</div>`; else run.forEach(r=>rows+=`<div class="ln ctx"><span aria-hidden="true"></span><span>${esc(r.text)||'&nbsp;'}</span></div>`); run=[]; };
+    L.forEach(l=>{
+      if(l.op==='ctx'&&l.text){run.push(l);return} flush();
+      if(l.op==='ctx') rows+=`<div class="ln ctx"><span aria-hidden="true"></span><span>&nbsp;</span></div>`;
+      else if(l.op==='utm'){const extra=l.text.slice(l.from.length);
+        rows+=`<div class="ln rem noise"><span aria-hidden="true">${MINUS}</span><span><span class="sr">removida: </span>${esc(l.from)}</span></div><div class="ln add noise"><span aria-hidden="true">+</span><span><span class="sr">adicionada: </span>${esc(l.from)}<span class="utm">${esc(extra)}</span></span></div>`}
+      else rows+=`<div class="ln ${l.op}"><span aria-hidden="true">${l.op==='add'?'+':MINUS}</span><span><span class="sr">${l.op==='add'?'adicionada':'removida'}: </span>${esc(l.text)}</span></div>`;
+    }); flush();
+    html+=`<div class="dhead"><span class="dsum">${c.fromId} → ${c.toId}: ${c.diff.label}</span>
+      <label class="toggle"><input type="checkbox" class="hideNoise" checked>Ocultar mudanças só de link/UTM</label></div>
+      <details class="expander" open><summary class="src">Ver a comparação linha a linha</summary>
+      <div class="diff">${rows}${c.diff.utm?`<div class="fold noiseNote">${F.plural(c.diff.utm,'mudança só de link/UTM oculta','mudanças só de link/UTM ocultas')}</div>`:''}</div></details>`;
+  });
+  de.innerHTML=html;
+  de.querySelectorAll('.hideNoise').forEach(hn=>hn.onchange=()=>{const box=hn.closest('.dhead').nextElementSibling.querySelector('.diff');box.classList.toggle('shownoise',!hn.checked);const nn=box.querySelector('.noiseNote');if(nn)nn.hidden=!hn.checked});
+}
+
+/* ===================== barra de estados ===================== */
+const FORJA_IDS=['idle','queued','working','done','late','nomachine','retry','vigil','failed','refused'];
+function demoVideos(){
+  const withChanges=[...new Set(OBS.changes.map(c=>c.video))];
+  const picks=['full','pre','few','none','noreg','untr','old','err','bf'].filter(k=>PICK[k]).map(k=>({id:PICK[k],label:STATE_LABEL[k]}));
+  const others=withChanges.filter(id=>!picks.some(p=>p.id===id)).map(id=>{const v=OBS.video(id);return {id,label:`${OBS.channel(v.ch).name}: ${v.title.length>26?v.title.slice(0,26)+'…':v.title}`}});
+  const all=[...picks,...others]; if(!all.some(x=>x.id===VID)) all.push({id:VID,label:OBS.video(VID).title.slice(0,30)});
+  return all;
+}
+const NICHE_NO_PERSIST=/persist/.test(String(CHROME.setNiche));
+function fitNiche(){ // ?video de outro nicho: muda o nicho só na exibição desta tela (persist:false); sem suporte no chrome, não chama setNiche
+  if(BADVID) return;
+  const n=CHROME.niche(), vn=OBS.video(VID).niche;
+  if(n==='todos'||n===vn) return;
+  if(NICHE_NO_PERSIST){CHROME.setNiche(vn,{silent:true,persist:false}); CHROME.toast('',`Nicho mudou para ${NICHE[vn]} para mostrar este vídeo`,'');}
+  else CHROME.toast('',`Este vídeo é do nicho ${NICHE[vn]}; o paginador usa o nicho do vídeo`,'');
+}
+function go(id){if(BADVID){BADVID=null;['#vhead','.timeline','#compare','#forja','#thumbsSec','.two','#pager'].forEach(sel=>{const e=document.querySelector('#screen '+sel); if(e) e.hidden=false;}); const nf=document.getElementById('notfound'); if(nf) nf.remove();}VID=id;pairK=null;askRefused=null;clearHL();CHROME.setMockPressed({0:id});const u=new URL(location.href);u.searchParams.set('video',id);u.searchParams.delete('state');if(FROM!=='mudancas')u.searchParams.set('from',FROM);history.replaceState(null,'',u);fitNiche();renderAll()}
+
+/* ===================== render geral ===================== */
+function renderNotFound(){
+  ['#vhead','.timeline','#compare','#forja','#thumbsSec','.two','#pager'].forEach(sel=>{const e=document.querySelector('#screen '+sel); if(e) e.hidden=true;});
+  const page=document.querySelector('#screen .page'); let nf=document.getElementById('notfound'); if(!nf){nf=document.createElement('section');nf.id='notfound';nf.className='card nobase-card';page.appendChild(nf);}
+  const base=({mudancas:'Mudanças',outliers:'Outliers',canais:'Canais',insights:'Insights'})[FROM];
+  const href=backHref(FROM,{}); const cm=document.getElementById('crumbMud'); cm.textContent=base; cm.href=href;
+  try{CHROME.setMockPressed({0:'__none__'})}catch(e){}
+  nf.innerHTML=`<div class="nfin"><strong>Vídeo não encontrado: “${esc(BADVID)}”.</strong>Ele não está entre os vídeos observados: o link pode estar errado ou o vídeo saiu da lista do canal. <a class="inl" href="${href}">Voltar para ${base}</a></div>`;
+}
+function renderAll(){if(BADVID){renderNotFound();return}S=build(VID);renderHead();
+  const untracked=!S.v.tracked, hideSel=['.timeline','#compare','#forja','#thumbsSec','.two'];
+  hideSel.forEach(sel=>{const e=document.querySelector('#screen '+sel); if(e) e.hidden=untracked;});
+  let u=document.getElementById('untracked');
+  if(untracked){ if(!u){u=document.createElement('section');u.id='untracked';u.className='card nobase-card';document.getElementById('vhead').after(u);}
+    u.hidden=false; u.innerHTML=`<div class="nfin"><strong>Vídeo fora dos acompanhados.</strong>${S.ch.name} tem ${F.plural(S.ch.video_limit,'vídeo acompanhado','vídeos acompanhados')}, os mais recentes; este ficou de fora. Sem registro diário de views e sem versões de título, thumbnail ou descrição para mostrar. <a class="inl" href="${CHROME.link('canais',{channel:S.v.ch})}">Ver o canal em Canais</a></div>`; return; }
+  if(u) u.hidden=true;
+  renderCompare();renderChart();renderLanes();legend();renderForja();renderVersions();bindVer()}
+if(q.get('forja')&&FORJA_IDS.includes(q.get('forja'))){ forjaState=q.get('forja'); if(SESSION&&!BADVID) SESSION.setBase(forjaState==='idle'?'sem pedido':FSTATE[forjaState],VO()); }
+CHROME.mount({tab:'historico', content:'#screen', forjaVariant:'none',
+  mockStates:[
+    {label:'Vídeo', items:demoVideos().map(x=>({id:x.id,label:x.label,pressed:!BADVID&&x.id===VID})), note:`Os primeiros são escolhidos pela API para cada caso de borda: trocas medidas, histórico anterior a ${S03}, poucos registros, sem trocas, sem registro, fora dos acompanhados, antigo sem trocas, canal com erro e canal buscando vídeos.`},
+    {label:'Pedido de leitura do vídeo', items:FORJA_IDS.map(f=>({id:f,label:f==='idle'?'sem pedido':FSTATE[f],pressed:f===forjaState})), note:`Os estados do pedido são simulações marcadas no dado. Fila real: última consulta da máquina ${D.ago(OBS.forja.queue.lastPollAt)}.`},
+  ],
+  deps:[
+    ['<code>leitura-video</code>','tipo de pedido na fila da forja com escopo de 1 vídeo; leituras congeladas por vídeo e "desde então" por troca.'],
+    ['Cota',OBS.forja.queue.quotaScope.text],
+    ['Estado do pedido por alvo','na fila, trabalhando, atrasado, sem máquina, nova tentativa, liberado pelo vigia, falhou, recusado, com motivo e horários.'],
+    ['Frescor por canal','um canal atrasado tira o vídeo da leitura e é dito na tela.'],
+    ['Série e versões',`tabela de versões por vídeo, registro diário de views desde ${S03} e curva esperada pela idade (mesma idade em dias).`],
+  ],
+  onMock:(id,g)=>{ if(g===0) go(id); else setForjaState(id); },
+  onSynced:()=>{ renderAll(); },
+  onNiche:n=>{ if(BADVID||!S){ if(BADVID) renderNotFound(); return; } if(n!=='todos'&&n!==S.v.niche) CHROME.toast('',`Este vídeo é do nicho ${NICHE[S.v.niche]}; o paginador continua no nicho do vídeo`,''); renderHead(); },
+  onTheme:()=>{ if(BADVID||!S) return; renderChart();renderLanes()},
+  onForja:()=>{ document.getElementById('forja').scrollIntoView({block:'start'}); },
+  onStatus:()=>{ const f=document.getElementById('forja'); f.scrollIntoView({block:'start'}); f.focus({preventScroll:true}); },
+});
+fitNiche();
+window.__hist={ctxIds:()=>context().ids, videos:()=>demoVideos().map(x=>x.id), forjaStates:FORJA_IDS, forjaLabel:f=>f==='idle'?'sem pedido':FSTATE[f], setVideo:id=>go(id), setForja:f=>setForjaState(f), state:()=>({video:VID,forja:forjaState})};
+let rt, lastW=0; new ResizeObserver(en=>{if(BADVID||!S) return; const w=Math.round(en[0].contentRect.width); if(w===lastW) return; lastW=w; clearTimeout(rt); rt=setTimeout(()=>{renderChart();renderLanes()},60)}).observe(document.getElementById('tlwrap'));
+renderAll();
+if(!BADVID) CHROME.setMockPressed({0:VID,1:forjaState});
+document.addEventListener('click',ev=>{const a=ev.target.closest&&ev.target.closest('a[data-go]'); if(!a||ev.metaKey||ev.ctrlKey||ev.shiftKey) return; ev.preventDefault(); go(a.dataset.go); window.scrollTo(0,0); const h=document.querySelector('#vhead h2'); if(h){h.tabIndex=-1;h.focus({preventScroll:true});}});
+
+</script>
+</body>
+</html>

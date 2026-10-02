@@ -1,0 +1,1207 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Observatório e forja</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="chrome.css">
+<style id="screen-css">
+/* moldura-forja: só o que é desta tela. Tokens, sidebar, cabeçalhos, nicho, abas, barra de estados e toasts vêm de chrome.css. */
+:is(#screen,#drawer) .num{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:.92em;letter-spacing:-.01em}
+:is(#screen,#drawer) :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+:is(#screen,#drawer) .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:is(#screen,#drawer) .muted{color:var(--muted)}:is(#screen,#drawer) .dim{color:var(--dim)}
+/* ---------- buttons ---------- */
+:is(#screen,#drawer) .btn{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:0 13px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;text-decoration:none}
+:is(#screen,#drawer) .btn:hover{background:var(--surface-hover)}
+:is(#screen,#drawer) .btn svg{width:15px;height:15px;flex:none}
+:is(#screen,#drawer) .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+:is(#screen,#drawer) .btn.primary:hover{background:var(--accent-hover)}
+:is(#screen,#drawer) .btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+:is(#screen,#drawer) .btn.ghost:hover{background:var(--surface-hover);color:var(--text)}
+:is(#screen,#drawer) .btn.forja{border-color:var(--forja-line);color:var(--forja);background:transparent}
+:is(#screen,#drawer) .btn.forja:hover{background:var(--forja-subtle);border-color:var(--forja)}
+:is(#screen,#drawer) .btn.forja.warnst{border-color:var(--warning);color:var(--warning-text)}
+:is(#screen,#drawer) .btn.forja-solid{background:var(--forja);border-color:var(--forja);color:var(--on-forja);font-weight:600}
+:is(#screen,#drawer) .btn.forja-solid:hover{background:var(--forja-hover)}
+:is(#screen,#drawer) .btn.icon{width:34px;padding:0;justify-content:center}
+:is(#screen,#drawer) .btn[disabled]{cursor:not-allowed;background:var(--surface-2);border-color:var(--border);color:var(--dim)}
+:is(#screen,#drawer) .btn small{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:400}
+
+:is(#screen,#drawer) .btn.forja-solid,:is(#screen,#drawer) .btn.primary{font-weight:600}
+:is(#screen,#drawer) a.btn{text-decoration:none}
+:is(#screen,#drawer) .dot{width:8px;height:8px;border-radius:50%;background:var(--success);flex:none}:is(#screen,#drawer) .dot.warn{background:var(--warning)}:is(#screen,#drawer) .dot.forja{background:var(--forja)}
+:is(#screen,#drawer) .seg-ctl{display:inline-flex;border:1px solid var(--border-strong);border-radius:6px;overflow:hidden;background:var(--surface)}
+:is(#screen,#drawer) .seg-ctl button{border:0;background:none;padding:0 12px;min-height:32px;cursor:pointer;color:var(--muted);font-size:13px}
+:is(#screen,#drawer) .seg-ctl button+button{border-left:1px solid var(--border-strong)}
+:is(#screen,#drawer) .seg-ctl button[aria-pressed="true"]{background:var(--surface-2);color:var(--text);font-weight:600;box-shadow:inset 0 -2px 0 var(--text)}
+:is(#screen,#drawer) .seg-ctl button[disabled]{cursor:not-allowed;color:var(--dim);text-decoration:line-through}
+:is(#screen,#drawer) .seg-ctl button{min-width:36px}
+:is(#screen,#drawer) .tabctx{display:flex;justify-content:space-between;align-items:center;gap:12px 16px;flex-wrap:wrap;padding:0 0 14px;border-bottom:1px solid var(--border-subtle);min-height:54px;box-sizing:border-box}   /* M6: duas linhas de contexto ou uma altura de controle (34 px), mais o respiro de 14 px: igual em toda aba */
+:is(#screen,#drawer) .tabctx p{margin:0;color:var(--muted);font-size:13px;max-width:70ch}
+:is(#screen,#drawer) .tabctx p b{color:var(--text);font-weight:500}
+:is(#screen,#drawer) .ctls{display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap}
+:is(#screen,#drawer) .win{display:flex;align-items:center;gap:8px}
+:is(#screen,#drawer) .win>span.lbl{font-size:12.5px;color:var(--muted)}
+:is(#screen,#drawer) .win .seg-ctl button{padding:0 10px;font-size:12.5px}
+
+/* ---------- tab bodies ---------- */
+:is(#screen,#drawer) .body{padding-top:14px}
+:is(#screen,#drawer) .tbl{width:100%;border-collapse:collapse;font-size:13px}
+:is(#screen,#drawer) .tbl th{text-align:left;font-weight:500;color:var(--dim);font-size:12px;padding:6px 10px;border-bottom:1px solid var(--border)}
+:is(#screen,#drawer) .tbl td{padding:9px 10px;border-bottom:1px solid var(--border-subtle);vertical-align:top}
+:is(#screen,#drawer) .tbl td.n,:is(#screen,#drawer) .tbl th.n{text-align:right;white-space:nowrap}
+:is(#screen,#drawer) .tbl tr:hover td{background:var(--surface-hover)}
+:is(#screen,#drawer) .tbl .ttl{display:block;max-width:56ch}
+:is(#screen,#drawer) .tbl .old{color:var(--dim);text-decoration:line-through;text-decoration-color:var(--dim)}
+:is(#screen,#drawer) .tbl .sub{display:block;color:var(--dim);font-size:12px}
+:is(#screen,#drawer) .tbl .when{font-size:12.5px;color:var(--muted);min-width:150px}
+:is(#screen,#drawer) .tag{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:1px 7px;border-radius:4px;border:1px solid var(--border-strong);color:var(--muted);white-space:nowrap}
+:is(#screen,#drawer) .tag.wait{border-style:dashed}
+:is(#screen,#drawer) .chip{display:inline-flex;gap:6px;align-items:center;font-size:12px;margin-top:3px}
+:is(#screen,#drawer) .chip .add{color:var(--success)}:is(#screen,#drawer) .chip .rem{color:var(--danger)}
+:is(#screen,#drawer) .linkbtn{background:none;border:0;padding:0 2px;color:var(--text);text-decoration:underline;text-underline-offset:2px;cursor:pointer;font-size:12px;min-height:32px;min-width:32px;display:inline-flex;align-items:center;vertical-align:middle}
+:is(#screen,#drawer) .eff{font-size:12.5px;min-width:190px}
+:is(#screen,#drawer) .eff .v{font-weight:600;display:inline-flex;gap:5px;align-items:center}
+:is(#screen,#drawer) .eff .v.up{color:var(--success)}:is(#screen,#drawer) .eff .v.down{color:var(--danger)}
+:is(#screen,#drawer) .eff small{display:block;color:var(--dim);font-size:12px}
+:is(#screen,#drawer) .tbl-wrap{overflow-x:auto}
+:is(#screen,#drawer) .tbl-wrap.more{-webkit-mask-image:linear-gradient(to right,#000 88%,transparent);mask-image:linear-gradient(to right,#000 88%,transparent)}
+:is(#screen,#drawer) .scrollhint{font-size:12px;color:var(--muted);margin:0 0 6px}
+:is(#screen,#drawer) .nic-ia{color:var(--ia)}:is(#screen,#drawer) .nic-viagem{color:var(--viagem)}
+:is(#screen,#drawer) .since{margin:0 0 16px;font-size:13px;color:var(--text);border-left:2px solid var(--forja-line);padding:4px 10px}
+:is(#screen,#drawer) .pat-claim{font-size:12px;color:var(--muted);margin:6px 0 0}
+:is(#screen,#drawer) .attr{font-size:12px;color:var(--muted);margin:4px 0 0}
+:is(#screen,#drawer) .mocknote{margin-top:12px;font-size:12px;color:var(--dim);border:1px dashed var(--border-strong);border-radius:5px;padding:6px 10px;width:fit-content}
+:is(#screen,#drawer) .tabtop{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+:is(#screen,#drawer) .tabtop p{margin:0;color:var(--muted);font-size:13px}
+
+/* Insights: reading */
+:is(#screen,#drawer) .inflight{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--forja-line);border-radius:7px;padding:9px 12px;margin-bottom:14px;font-size:13px;background:var(--forja-subtle)}
+:is(#screen,#drawer) .inflight.warn{border-color:var(--warning);background:var(--warn-subtle)}
+:is(#screen,#drawer) .inflight b{font-weight:600}
+:is(#screen,#drawer) .reading{border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:20px 22px;margin-bottom:22px}
+:is(#screen,#drawer) .reading.isnew{border-color:var(--forja)}
+:is(#screen,#drawer) .seal{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--forja);border:1px solid var(--forja-line);border-radius:4px;padding:2px 8px;font-weight:500}
+:is(#screen,#drawer) .seal svg{width:13px;height:13px}
+:is(#screen,#drawer) .reading header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}
+:is(#screen,#drawer) .reading .when{font-size:12.5px;color:var(--muted)}
+:is(#screen,#drawer) .reading h3{font-family:Fraunces,serif;font-weight:600;font-size:21px;margin:12px 0 6px;letter-spacing:-.005em}
+:is(#screen,#drawer) .reading .base{color:var(--muted);font-size:13px;margin:0 0 16px;max-width:82ch}
+:is(#screen,#drawer) .reading .base b{color:var(--text);font-weight:500}
+:is(#screen,#drawer) .pattern{border-top:1px solid var(--border-subtle);padding:14px 0;display:grid;grid-template-columns:minmax(200px,280px) minmax(0,1fr);gap:20px}
+:is(#screen,#drawer) .pattern h4{margin:0 0 6px;font-size:14.5px;font-weight:600}
+:is(#screen,#drawer) .freqbar{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px}
+:is(#screen,#drawer) .freqbar .bar{height:6px;background:var(--border-subtle);border-radius:3px;overflow:hidden}
+:is(#screen,#drawer) .freqbar .bar i{display:block;height:100%;background:var(--forja)}
+:is(#screen,#drawer) .freqbar .bar.base i{background:var(--dim)}
+:is(#screen,#drawer) .small-n{display:inline-block;margin-top:8px;font-size:12px;color:var(--warning-text);border:1px dashed var(--warning);border-radius:4px;padding:1px 7px}
+:is(#screen,#drawer) .ev{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+:is(#screen,#drawer) .ev li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:7px 10px;background:var(--sunk);border-radius:5px;border-left:2px solid var(--border-strong)}
+:is(#screen,#drawer) .ev q{quotes:"“" "”";font-size:13px}
+:is(#screen,#drawer) .ev small{display:block;color:var(--muted);font-size:12px}
+:is(#screen,#drawer) .ev .mult{color:var(--text);font-size:13px;text-align:right}
+:is(#screen,#drawer) .ev .mult small{text-align:right}
+:is(#screen,#drawer) .ev-more{margin-top:6px}
+:is(#screen,#drawer) .cant{margin-top:6px;border:1px dashed var(--border-strong);border-radius:6px;padding:12px 14px}
+:is(#screen,#drawer) .cant h4{margin:0 0 6px;font-size:13px;font-weight:600}
+:is(#screen,#drawer) .cant ul{margin:0;padding-left:18px;color:var(--muted);font-size:13px;display:grid;gap:3px}
+:is(#screen,#drawer) .cant b{color:var(--text);font-weight:500}
+:is(#screen,#drawer) .reading .acts{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+
+:is(#screen,#drawer) .hist h3{font-size:14px;margin:0 0 8px;font-weight:600}
+:is(#screen,#drawer) .hist ol{list-style:none;margin:0;padding:0;border-top:1px solid var(--border-subtle)}
+:is(#screen,#drawer) .hist li{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:14px;padding:10px 4px;border-bottom:1px solid var(--border-subtle);align-items:baseline}
+:is(#screen,#drawer) .hist .t{font-size:12px;color:var(--muted)}
+:is(#screen,#drawer) .hist .what{font-size:13px}
+:is(#screen,#drawer) .hist .what small{display:block;color:var(--dim);font-size:12px}
+:is(#screen,#drawer) .st{font-size:12px;display:inline-flex;gap:5px;align-items:center;white-space:nowrap}
+:is(#screen,#drawer) .st.ok{color:var(--success)}:is(#screen,#drawer) .st.bad{color:var(--danger)}
+:is(#screen,#drawer) .st svg{width:13px;height:13px}
+:is(#screen,#drawer) .empty{border:1px dashed var(--border-strong);border-radius:8px;padding:22px;color:var(--muted);margin-bottom:20px}
+:is(#screen,#drawer) .empty b{color:var(--text);display:block;margin-bottom:4px;font-weight:600}
+
+/* ---------- drawer ---------- */
+#drawer{border-left:1px solid var(--border);background:var(--surface);min-height:100%}
+:is(#screen,#drawer) .drawer-in{position:sticky;top:0;max-height:100vh;overflow-y:auto;padding:18px 20px 0}
+:is(#screen,#drawer) .drawer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+:is(#screen,#drawer) .drawer-head h3{font-family:Inter,sans-serif;font-weight:600;font-size:17px;margin:0}
+:is(#screen,#drawer) .drawer-head h3:focus{outline:none}
+:is(#screen,#drawer) .drawer-head .btn.icon{width:32px;min-width:32px;min-height:32px;height:32px;flex:none}
+:is(#screen,#drawer) .drawer-head p{margin:3px 0 0;font-size:12.5px;color:var(--muted)}
+:is(#screen,#drawer) .machine{margin:14px 0 16px;display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--muted);padding:9px 11px;background:var(--sunk);border-radius:6px}
+:is(#screen,#drawer) .machine .dot{margin-top:5px}
+:is(#screen,#drawer) .machine b{color:var(--text);font-weight:500}
+:is(#screen,#drawer) .backdrop{display:none}
+
+:is(#screen,#drawer) .opts{display:grid;gap:8px;margin:0;padding:0;border:0;min-width:0}
+:is(#screen,#drawer) .opts legend{font-size:13px;font-weight:600;margin-bottom:8px;padding:0}
+:is(#screen,#drawer) .opt{border:1px solid var(--border);border-radius:7px;padding:12px 12px 12px 40px;position:relative;background:var(--bg)}
+:is(#screen,#drawer) .opt:hover{border-color:var(--border-strong)}
+:is(#screen,#drawer) .opt input{position:absolute;left:13px;top:15px;accent-color:var(--forja);width:16px;height:16px;margin:0}
+:is(#screen,#drawer) .opt label{cursor:pointer;display:block}
+:is(#screen,#drawer) .opt.sel{border-color:var(--forja);background:var(--forja-subtle)}
+:is(#screen,#drawer) .opt.off{background:var(--sunk)}
+:is(#screen,#drawer) .opt.off label{cursor:default}
+:is(#screen,#drawer) .opt strong{display:block;font-weight:600;font-size:13.5px}
+:is(#screen,#drawer) .opt .desc{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+:is(#screen,#drawer) .opt .meta{display:block;font-size:12px;color:var(--muted);margin:6px 0 0}
+:is(#screen,#drawer) .warnline{display:flex;gap:6px;font-size:12px;color:var(--warning-text);margin:6px 0 0}
+:is(#screen,#drawer) .warnline svg{width:13px;height:13px;flex:none;margin-top:2px}
+:is(#screen,#drawer) .opt .param{display:flex;gap:8px;align-items:center;margin-top:9px;font-size:12px;color:var(--muted)}
+:is(#screen,#drawer) .opt .param .seg-ctl button{font-size:12px;padding:0 9px}
+:is(#screen,#drawer) .drawer-foot{display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap}
+:is(#screen,#drawer) .drawer-foot .note{font-size:12px;color:var(--dim);flex-basis:100%}
+:is(#screen,#drawer) .drawer-more{margin:22px 0 0;font-size:12.5px;color:var(--muted);border-top:1px solid var(--border-subtle);padding:12px 0 24px}
+
+:is(#screen,#drawer) .confirm{border:1px solid var(--forja);border-radius:8px;padding:14px;background:var(--forja-subtle)}
+:is(#screen,#drawer) .confirm h4{margin:0 0 10px;font-size:14.5px;font-weight:600}
+:is(#screen,#drawer) .confirm dl{margin:0;display:grid;grid-template-columns:62px minmax(0,1fr);gap:8px 10px;font-size:12.8px}
+:is(#screen,#drawer) .confirm dt{color:var(--muted)}
+:is(#screen,#drawer) .confirm dd{margin:0;color:var(--text)}
+
+/* progress card — mirrors the Health Coach run card */
+:is(#screen,#drawer) .run{border:1px solid var(--border-strong);border-radius:8px;padding:14px;background:var(--bg)}
+:is(#screen,#drawer) .run[data-st="done"]{border-color:var(--success)}
+:is(#screen,#drawer) .run[data-st="late"],:is(#screen,#drawer) .run[data-st="nomachine"],:is(#screen,#drawer) .run[data-st="retry"],:is(#screen,#drawer) .run[data-st="released"]{border-color:var(--warning)}
+:is(#screen,#drawer) .run[data-st="failed"]{border-color:var(--danger)}
+:is(#screen,#drawer) .run[data-st="refused"]{border-color:var(--warning);border-style:dashed}
+:is(#screen,#drawer) .run-lbl{display:flex;align-items:center;gap:8px;margin:0;font-size:12.5px;color:var(--muted)}
+:is(#screen,#drawer) .run-lbl svg{width:14px;height:14px}
+:is(#screen,#drawer) .run-lbl .state{margin-left:auto;font-weight:600;font-size:12px;padding:1px 7px;border-radius:4px;background:var(--forja-subtle);color:var(--forja)}
+:is(#screen,#drawer) .run[data-st="done"] .state{background:var(--ok-subtle);color:var(--success)}
+:is(#screen,#drawer) .run[data-st="late"] .state,:is(#screen,#drawer) .run[data-st="nomachine"] .state,:is(#screen,#drawer) .run[data-st="retry"] .state,:is(#screen,#drawer) .run[data-st="released"] .state,:is(#screen,#drawer) .run[data-st="refused"] .state{background:var(--warn-subtle);color:var(--warning-text)}
+:is(#screen,#drawer) .run[data-st="failed"] .state{background:var(--danger-subtle);color:var(--danger)}
+:is(#screen,#drawer) .run-what{margin:8px 0 0;font-weight:600;font-size:13.5px}
+:is(#screen,#drawer) .run-eta{display:flex;align-items:baseline;gap:8px;margin-top:10px}
+:is(#screen,#drawer) .run-eta b{white-space:nowrap;flex:none;font-family:Inter,system-ui,sans-serif;font-size:24px;font-weight:500;letter-spacing:-.02em;line-height:1}
+:is(#screen,#drawer) .run-eta span{font-size:12.5px;color:var(--muted)}
+:is(#screen,#drawer) .run-tit{margin:10px 0 2px;font-size:13.5px;font-weight:500}
+:is(#screen,#drawer) .run-sub{margin:0;font-size:12.5px;color:var(--muted)}
+:is(#screen,#drawer) .run-steps{list-style:none;margin:12px 0 0;padding:0}
+:is(#screen,#drawer) .run-step{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:2px 8px;font-size:12.5px;padding:5px 0}
+:is(#screen,#drawer) .run-step::before{content:"";width:10px;height:10px;border-radius:50%;border:2px solid var(--dim);margin-top:4px;grid-row:span 2;box-sizing:border-box}
+:is(#screen,#drawer) .run-step[data-s="feito"]::before{background:var(--success);border-color:var(--success)}
+:is(#screen,#drawer) .run-step[data-s="agora"]::before{border-color:var(--forja);background:var(--forja-subtle);animation:pulse 1.6s ease-in-out infinite}
+:is(#screen,#drawer) .run-step[data-s="parado"]::before{border-color:var(--warning)}
+:is(#screen,#drawer) .run-step[data-s="erro"]::before{background:var(--danger);border-color:var(--danger)}
+:is(#screen,#drawer) .run-step b{font-weight:500}
+:is(#screen,#drawer) .run-step time,:is(#screen,#drawer) .run-step .tm{font-family:Inter,system-ui,sans-serif;font-size:11.5px;color:var(--muted);text-align:right}
+:is(#screen,#drawer) .run-step small{grid-column:2 / 4;color:var(--dim);font-size:12px}
+:is(#screen,#drawer) .run-step .sr-state{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+:is(#screen,#drawer) .run-acoes{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
+:is(#screen,#drawer) .run-acoes .note{font-size:12px;color:var(--dim);flex-basis:100%}
+@keyframes pulse{50%{box-shadow:0 0 0 4px var(--forja-subtle)}}
+
+/* the queue clock */
+:is(#screen,#drawer) .clock{margin:14px 0 4px;padding:30px 6px 26px;position:relative}
+:is(#screen,#drawer) .clock .track{position:relative;height:2px}
+:is(#screen,#drawer) .clock .track::before{content:"";position:absolute;inset:0;background:var(--border-strong)}
+:is(#screen,#drawer) .clock .tk{position:absolute;top:-6px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center}
+:is(#screen,#drawer) .clock .tk i{width:2px;height:14px;background:var(--dim);display:block}
+:is(#screen,#drawer) .clock .tk em{font-style:normal;font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--dim);margin-top:5px;white-space:nowrap}
+:is(#screen,#drawer) .clock .tk[data-s="seen"] i{background:var(--success)}
+:is(#screen,#drawer) .clock .tk[data-s="busy"] i{background:var(--muted);height:10px;margin-top:2px}
+:is(#screen,#drawer) .clock .tk[data-s="busy"] em{color:var(--muted)}
+:is(#screen,#drawer) .clock .tk[data-s="next"] i{background:var(--forja);height:18px;margin-top:-2px;width:3px}
+:is(#screen,#drawer) .clock .tk[data-s="next"] em{color:var(--forja);font-weight:500}
+:is(#screen,#drawer) .clock .tk[data-s="missed"] i{background:var(--warning)}
+:is(#screen,#drawer) .clock .tk[data-s="missed"] em{color:var(--warning-text);text-decoration:line-through}
+:is(#screen,#drawer) .clock .gapseg{position:absolute;top:-1px;height:4px;border-top:2px dashed var(--warning)}
+:is(#screen,#drawer) .clock .evt{position:absolute;bottom:14px;transform:translateX(-50%);font-size:11px;color:var(--text);white-space:nowrap;display:flex;flex-direction:column;align-items:center}
+:is(#screen,#drawer) .clock .evt::after{content:"";width:1px;height:9px;background:var(--text);margin-top:2px}
+:is(#screen,#drawer) .clock .evt.now{color:var(--muted)}
+:is(#screen,#drawer) .clock .evt.now::after{background:none;height:20px;border-left:1px dashed var(--muted);width:0}
+:is(#screen,#drawer) .clock .fill{position:absolute;top:0;height:2px;background:var(--forja)}
+:is(#screen,#drawer) .clock .fill.late{background:var(--warning)}
+:is(#screen,#drawer) .clock-cap{font-size:12px;color:var(--dim);margin:0}
+
+@media (max-width:1279px){ #drawer .drawer-in{max-height:100vh;height:100%} }
+@media (max-width:900px){ :is(#screen,#drawer) .pattern{grid-template-columns:1fr;gap:10px} :is(#screen,#drawer) .hist li{grid-template-columns:80px minmax(0,1fr)} :is(#screen,#drawer) .hist li .st{grid-column:2} }
+:is(#screen,#drawer) .btn.status{border-color:var(--forja-line);color:var(--forja);font-weight:500}
+:is(#screen,#drawer) .btn.status.warnst{border-color:var(--warning);color:var(--warning-text)}
+:is(#screen,#drawer) .run-step[data-s="proximo"]::before{border-color:var(--forja);background:transparent}
+:is(#screen,#drawer) details.reading{padding:0;margin-bottom:12px}
+:is(#screen,#drawer) details.reading>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;align-items:start;padding:14px 18px;min-height:44px}
+:is(#screen,#drawer) details.reading>summary::-webkit-details-marker{display:none}
+:is(#screen,#drawer) details.reading .sum-s{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+:is(#screen,#drawer) details.reading .sum-t{grid-column:1;font-weight:600;font-size:14.5px}
+:is(#screen,#drawer) details.reading .sum-l{grid-column:1;color:var(--muted);font-size:13px}
+:is(#screen,#drawer) .lit{margin:0 0 14px}
+:is(#screen,#drawer) .lit-items{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13.5px;line-height:1.5}
+:is(#screen,#drawer) .lit-theme{margin:8px 0 0;font-size:13.5px}
+:is(#screen,#drawer) .from-site{border-top:1px dashed var(--border-strong);padding-top:12px;font-family:Inter,system-ui,sans-serif}
+:is(#screen,#drawer) .from-site .fs-h{margin:0 0 6px;font:600 12px/1.4 Inter,system-ui,sans-serif;letter-spacing:normal;text-transform:none;color:var(--muted)}
+:is(#screen,#drawer) .tabctx p{align-self:flex-start}
+:is(#screen,#drawer) .since-short{margin:-6px 0 12px;padding:0 2px;color:var(--muted);font:12.5px/1.45 Inter,system-ui,sans-serif}
+:is(#screen,#drawer) details.reading[open]+.since-short{display:none}
+:is(#screen,#drawer) details.reading .sum-open{grid-column:2;grid-row:1 / 4;align-self:center;font-size:12.5px;text-decoration:underline;text-underline-offset:2px}
+:is(#screen,#drawer) details.reading[open] .sum-open{visibility:hidden}
+:is(#screen,#drawer) details.reading .newmark{font-size:11px}
+:is(#screen,#drawer) .reading-in{padding:0 22px 20px}
+:is(#screen,#drawer) .reading-in .when{font-size:12.5px;color:var(--muted);margin:0 0 8px}
+
+:is(#screen,#drawer) .nowrap{white-space:nowrap}
+:is(#screen,#drawer) .drawer-foot{position:sticky;bottom:0;background:var(--surface);padding:10px 0 12px;margin-bottom:0;border-top:1px solid var(--border-subtle);z-index:1}
+:is(#screen,#drawer) .drawer-note{font-size:12px;color:var(--dim);margin:12px 0 0}
+:is(#screen,#drawer) .clock.stacked{padding-top:46px}
+:is(#screen,#drawer) .clock .evt.hi{bottom:32px}
+:is(#screen,#drawer) .inflight .linkbtn{white-space:nowrap}
+:is(#screen,#drawer) .eff small.warnline{display:flex}
+:is(#screen,#drawer) .run-step .tm.num{font-family:"JetBrains Mono",monospace}
+:is(#screen,#drawer) .tbl th{white-space:nowrap}
+:is(#screen,#drawer) .chip .linkbtn{white-space:nowrap}
+:is(#screen,#drawer) .inflight>span{flex:1 1 14rem;min-width:0}
+:is(#screen,#drawer) .inflight .run-lines{margin:4px 0}
+:is(#screen,#drawer) .inflight-txt{display:block}
+:is(#screen,#drawer) .probline{display:inline-flex;gap:6px;align-items:flex-start;color:var(--warning-text);font-size:12.5px;line-height:1.4}
+:is(#screen,#drawer) .probline svg{flex:none;margin-top:2px}
+:is(#screen,#drawer) .inflight>svg{flex:none;align-self:flex-start;margin-top:2px}
+/* drawer em coluna (≥ 1280): o andamento já está à vista, "Ver andamento" sai */
+@media (min-width:1280px){ .ch-with-drawer #screen .inflight [data-act="openForja"]{display:none} }
+:is(#screen,#drawer) .run-lines{margin:8px 0 0;padding-left:18px;font-size:13px;display:grid;gap:2px}
+</style>
+</head>
+<body>
+<div id="screen"><div id="content"></div></div>
+<aside class="drawer" id="drawer" hidden></aside>
+<script src="dados.js"></script>
+<script src="chrome.js"></script>
+<script>
+
+/* Moldura do Observatório + fluxo da forja.
+   Todos os dados e cálculos vêm de window.OBS (dados.js). Nada de número digitado aqui:
+   o que falta na API está em PEDIDOS-API.md. */
+const ICON = {
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  anvil:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M3 7h13a5 5 0 0 1-5 5H9v3h6v3H6v-3h1v-3H7A4 4 0 0 1 3 8z"/></svg>',
+  warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  up:'<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 5l8 12H4z"/></svg>',
+  down:'<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 19L4 7h16z"/></svg>',
+  dash:'<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="10" width="14" height="4"/></svg>',
+  close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+};
+const SEM_MAQUINA = ts=>`Seu pedido das ${OBS.date.hm(ts)} está na fila e roda quando a máquina voltar.`;
+const SEM_MAQUINA_N = (ts,ns)=>`Seus pedidos das ${OBS.date.hm(ts)} (${ns.join(' e ')}) estão na fila e rodam quando a máquina voltar.`;
+const period = t=>{t=String(t||'').trim();return !t||/[.!?]$/.test(t)?t:t+'.'};
+const sentenceCase = t=>{t=String(t||'').trim();return t?t[0].toUpperCase()+t.slice(1):''};
+const sentence = t=>{t=String(t||'').trim();if(!t)return '';t=t[0].toUpperCase()+t.slice(1);return /[.!?]$/.test(t)?t:t+'.'};
+const esc = s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const D = OBS.date, F = OBS.fmt, FJ = OBS.forja, Q = OBS.forja.queue;
+const M = 60e3, HOUR = 36e5, DAY = OBS.DAY;
+const hm = D.hm, wdm = ts=>`${D.weekdayShort(ts)} ${D.dm(ts)}`;
+
+/* ============================================================ FILA: tudo de OBS.forja (queue, requestScenario, requests) */
+const NOW = OBS.NOW;
+const TICK = Q.tickMinutes * M;
+const FLOW_STATE = {queued:'na fila',running:'trabalhando',done:'publicado',late:'atrasado',nomachine:'sem máquina',retry:'nova tentativa',released:'liberado pelo vigia',failed:'falhou',refused:'recusado (dado velho)'};
+/* ESTADO DE PEDIDOS: um só, no motor (OBS.forja.session, CONVENCOES F9). A moldura não guarda pedido próprio:
+   lê session.current(nicho da tela), pede com session.ask(nicho) e cancela com session.cancel(nicho).
+   A barra de estados do mockup só define a base (session.setBase(estado)). Trocar de nicho ou de tela não cria nem apaga pedido. */
+const SS = FJ.session;
+const DEAD = ['falhou','recusado (dado velho)'];
+const ACTIVE_ST = ['na fila','trabalhando','atrasado','sem máquina','nova tentativa','liberado pelo vigia'];
+/** cenário que a tela mostra: o do nicho da tela (Todos = todos os pedidos) */
+/* CONVENCOES F9: a sessão é por (tipo, alvo); toda chamada passa {type}. A moldura pede vários tipos: o painel e o
+   cabeçalho acompanham o tipo do último pedido ou do estado escolhido na barra (S.trackType). */
+/** tipo acompanhado: o do último pedido/estado escolhido; se ele não tem pedido (cancelado), o mais recente que tenha, senão o da base */
+const trackType = ()=>{ const st=SS.state(); const cand=[S.trackType].concat(st.asks.slice().sort((a,b)=>b.seq-a.seq).map(a=>a.type), [st.type]);
+  return cand.find(t=>t&&t!=='leitura-video'&&!SS.current('todos',{type:t}).empty) || S.trackType; };
+/** B1 (F10): todos os tipos com pedido no nicho da tela, cada um com o próprio cenário; o mais antigo ativo primeiro */
+// ordem entre tipos: a fila global do motor (queuePos, F10); sem ela, o pedido ativo mais antigo
+const oldestActive = sc=>Math.min(...sc.requests.filter(x=>ACTIVE_ST.includes(x.state)).map(x=>x.queuePos!=null?x.queuePos*1e15:x.createdAt));
+/** K2 (F11): pedidos de leitura de vídeo da sessão (feitos no Histórico), um cenário por vídeo, filtrados pelo nicho do vídeo */
+function videoScens(niche=S.niche){
+  const st=SS.state(), vids=new Set([].concat(st.base!=='sem pedido'&&st.type==='leitura-video'&&st.video?[st.video]:[], (st.asks||[]).filter(a=>a.type==='leitura-video').map(a=>a.video)));
+  return [...vids].filter(v=>OBS.video(v)&&(niche==='todos'||OBS.video(v).niche===niche))
+    .map(v=>Object.assign(SS.current(null,{type:'leitura-video',video:v}),{type:'leitura-video',video:v})).filter(hasReq);
+}
+function scens(niche=S.niche){
+  const tt=trackType();
+  return REQ_TYPES().map(type=>Object.assign(SS.current(niche,{type}),{type})).filter(hasReq).concat(videoScens(niche))
+    .sort((a,b)=>(b.anyActive-a.anyActive)||(a.anyActive?oldestActive(a)-oldestActive(b):(b.type===tt)-(a.type===tt)));
+}
+/** cenário principal (cabeçalho, auditoria): o ativo mais antigo entre os tipos; sem ativo, o do tipo acompanhado */
+const cur = ()=>{ const l=scens(); return l.length?l[0]:Object.assign(SS.current(S.niche,{type:trackType()}),{type:trackType()}); };
+const shortType = t=>({'padroes-titulo':'Padrões de título','padroes-titulo-shorts':'Padrões de título (Shorts)','temas':'Temas','resumo-trocas':'Resumo das trocas','leitura-video':'Leitura de vídeo'})[t]||typeName(t);
+/** nichos do escopo da tela sem pedido ativo em nenhum tipo (CONVENCOES F10: o botão segue habilitado para eles) */
+const busyNiche = n=>REQ_TYPES().some(t=>allReqs(t).some(x=>x.niche===n&&ACTIVE_ST.includes(x.state)));
+/** tipos que ainda dá para pedir no nicho (mesma regra de session.ask: só o mesmo tipo bloqueia) */
+const askableTypes = n=>REQ_TYPES().filter(t=>!blockOf(n,t));
+/** K3 (F11): nicho livre = nicho com algum TIPO pedível (por nicho+tipo, regra M8); nicho sem tipo livre não é oferecido */
+const freeNiches = ()=>(S.niche==='todos'?['ia','viagem']:[S.niche]).filter(n=>askableTypes(n).length);
+const scen = cur;   // nome antigo, usado pela auditoria
+const allReqs = (type=trackType())=>{ const a=SS.current('todos',{type}); return a.empty?[]:a.requests.map(x=>Object.assign({type},x)); };
+const REQ_TYPES = ()=>[...new Set(TYPES.map(t=>t.id).concat(['padroes-titulo-shorts']))];
+const hasReq = sc=>!!(sc&&!sc.empty&&sc.requests&&sc.requests.length);
+const activeReq = sc=>(sc.requests||[]).find(x=>ACTIVE_ST.includes(x.state))||sc.request;
+const isSplit = sc=>!!(sc&&sc.requests&&sc.requests.length>1);
+/** pedido que o card acompanha: o que terminou mal (pede ação), senão o ativo, senão o publicado */
+const trackedReq = sc=>(sc.requests||[]).find(x=>DEAD.includes(x.state))||activeReq(sc);
+/** publicado + outro ainda ativo (Todos): card próprio com "1 de 2 publicadas" */
+const splitDone = (sc=cur())=>hasReq(sc)&&isSplit(sc)&&sc.anyActive&&sc.requests.some(x=>x.state==='publicado')&&!sc.requests.some(x=>DEAD.includes(x.state));
+/** pedido publicado na sessão para o nicho (cota usada, leitura nova em Insights) */
+const pubReq = (n,type=FJ.readingTypeFor('long'))=>allReqs(type).find(x=>x.state==='publicado'&&x.niche===n&&x.readingId);
+const anyPub = ()=>REQ_TYPES().some(t=>allReqs(t).some(x=>x.state==='publicado'));
+const STATE_CASE = {'na fila':'queued','trabalhando':'running','publicado':'done','atrasado':'late','sem máquina':'nomachine','nova tentativa':'retry','liberado pelo vigia':'released','falhou':'failed','recusado (dado velho)':'refused'};
+const nextPoll = m=>{let t=m.lastPollAt;while(t<=NOW)t+=m.tickMinutes*M;return t};
+const pollsBetween = (m,a,b)=>{const out=[];const step=m.tickMinutes*M;let t=m.lastPollAt;while(t>a)t-=step;for(t+=step;t<=b;t+=step)out.push(t);return out};
+
+/* ============================================================ CÓPIA DE INTERFACE POR TIPO DE PEDIDO */
+const TYPE_COPY = {
+  'padroes-titulo':{desc:'Classifica os títulos dos vídeos longos que estouraram em fórmulas nomeadas, com contagem e exemplos.',
+    entrega:`Fórmulas de título com mediana do multiplicador de quem usa vs quem não usa, n dos dois lados, exemplos citados e quem assina. Fórmula com n < ${FJ.rules.pattern.minN} sai como “recorrência observada — pouco para concluir”.`,
+    naoFaz:'Não olha thumbnails e não afirma causa.', dados:'títulos e views da última sincronização'},
+  'temas':{desc:'Nomeia os assuntos dos vídeos que estouraram e diz se algum domina.',
+    entrega:'Temas nomeados, com quantos outliers e canais tocam cada um e exemplos citados.',
+    naoFaz:'Não prevê se o tema vai crescer e não afirma por que ele apareceu.', dados:'títulos e descrições dos vídeos longos'},
+  'resumo-trocas':{desc:'Agrupa as trocas de título, thumbnail e descrição dos concorrentes.',
+    entrega:'Trocas agrupadas por tipo e canal; as com efeito medido (observado vs esperado, n) separadas das que aguardam os 7 dias.',
+    naoFaz:'Não julga a thumbnail nova (não vê imagens) e não diz que a troca causou a variação.', dados:'textos antigos e novos e a média de views/dia de cada vídeo trocado'},
+};
+TYPE_COPY['padroes-titulo-shorts'] = {desc:'Classifica os títulos dos Shorts que estouraram em fórmulas nomeadas, com contagem e exemplos.',
+  entrega:`Fórmulas de título dos Shorts com mediana do multiplicador de quem usa vs quem não usa (comparando só Shorts com Shorts), exemplos citados e quem assina. Fórmula com n < ${FJ.rules.pattern.minN} sai como “recorrência observada — pouco para concluir”.`,
+  naoFaz:'Não olha thumbnails nem o vídeo, não afirma causa e não mistura Shorts com vídeos longos.', dados:'títulos e views dos Shorts da última sincronização'};
+const TYPES = FJ.readingTypes.filter(t=>t.target!=='video'&&!t.shorts);   // Shorts entram pelo formato (readingTypeFor)
+const typeOf = id=>FJ.readingTypes.find(t=>t.id===id);
+const typeName = id=>typeOf(id).label;
+
+/* ============================================================ STATE */
+const NICHES = ['todos','viagem','ia'];
+const nicheLabel = n=>n==='todos'?'Todos':OBS.NICHES[n].label;
+const S = {
+  tab:'mudancas', niche:'todos',
+  drawer:false, flow:'choose', mockId:null, trackType:'padroes-titulo', req:'padroes-titulo', reqNiche:'ia', reqFmt:'long',
+  pop:null, published:false, toasts:[], focusKey:null
+};
+const qs = new URLSearchParams(location.search);
+/* nicho e tema: o chrome compartilhado lê e grava localStorage['obs-niche'] e ['obs-theme'] (?niche= e ?theme= vencem) */
+const store = CHROME.store;
+if(['canais','mudancas','outliers','insights'].includes(qs.get('tab'))) S.tab = qs.get('tab');
+/** em andamento: algum pedido ativo no cenário da tela */
+const isActive = ()=>scens().some(sc=>sc.anyActive);
+/** M4 (F11): com Todos e um só nicho livre, o seletor nasce nele (prévias só do nicho livre) */
+const reqNicheFor = n=>{ if(n!=='todos'||!isActive()) return n; const f=freeNiches(); return f.length===1?f[0]:n; };
+/** nicho que o pedido realmente leva: com Todos e cota usada num nicho, só o outro */
+const effNiche = ()=>{ const q=S.reqNiche==='todos'?quotaFor(S.req,'todos'):null; return q&&q.only?q.only:S.reqNiche; };
+/** rótulo do que está sendo pedido no seletor/confirmação */
+const reqLabel = ()=>{ const n=effNiche(); return `${typeName(S.req)} · ${nicheLabel(n)}${n==='todos'?' · um pedido por nicho':''}`; };
+/** rótulo do pedido existente: tipo + nicho, ou Todos quando há um pedido por nicho */
+const scLabel = sc=>{ const r=trackedReq(sc); if(sc.type==='leitura-video'){ const v=OBS.video(sc.video); return `Leitura do vídeo “${v?v.title:sc.video}” · ${nicheLabel(r.niche)}`; } return `${typeName(r.type||'padroes-titulo')} · ${isSplit(sc)?'Todos · um pedido por nicho':nicheLabel(r.niche)}`; };
+const competitors = ()=>OBS.channels.filter(c=>!c.own);
+const syncProblems = ()=>competitors().filter(c=>c.sync.state!=='ok');
+const syncText = c=>c.sync.state==='ok'?'ok':c.sync.state==='backfill'?`${c.sync.backfill.done} de ${c.sync.backfill.total} vídeos buscados`:c.sync.msg;
+/** link entre telas: sempre OBS.link.*, sem "?" sobrando (o tema vai pelo localStorage) */
+const L = CHROME.link;
+const nicheParam = ()=>S.niche==='todos'?{}:{niche:S.niche};
+
+/* ============================================================ HEADER */
+function machine(){ const sc=cur(); return hasReq(sc)&&sc.machine?sc.machine:{lastPollAt:Q.lastPollAt,alive:true,tickMinutes:Q.tickMinutes}; }
+function forjaSeen(){ const m=machine(); return {off:!m.alive,t:m.lastPollAt}; }
+function featuredFor(niche){
+  const pr=pubReq(niche); if(pr && (pr.type||'padroes-titulo')===FJ.readingTypeFor('long') && FJ.byId[pr.readingId]) return FJ.byId[pr.readingId];
+  return FJ.latest(FJ.readingTypeFor('long'), niche);
+}
+function featured(){ return featuredFor(S.niche==='todos'?'ia':S.niche); }
+/** só a aba Insights tem texto próprio (cita a leitura em exibição); as outras usam o texto padrão do chrome */
+function coworkText(){
+  if(S.tab!=='insights') return null;
+  const r = featured();
+  return `Leia ${S.niche==='todos'?`as leituras da forja "${featuredFor('ia').text.title}" e "${featuredFor('viagem').text.title}"`:`a leitura da forja "${r.text.title}" (${r.seal})`} via youtube_observatory e proponha 3 títulos para o meu próximo vídeo que sigam só as fórmulas que passam a regra, dizendo de qual exemplo cada um parte. Use o MCP bythiagofigueiredo.`;
+}
+/* ============================================================ ABAS (links reais para as telas irmãs) */
+const TABS = ['canais','mudancas','outliers','insights'];
+const TABNAME = {canais:'Canais',mudancas:'Mudanças',outliers:'Outliers',insights:'Insights'};
+const TABKEY = {canais:'canais',mudancas:'mud',outliers:'out'};
+function means(t){
+  const c = OBS.tabCounts(S.niche);
+  if(t==='canais') return `<b>${OBS.TAB_TITLES.canais(c.canais)}</b>; ${syncProblems().filter(x=>S.niche==='todos'||x.niche===S.niche).length} com problema de sincronização. Abaixo, uma amostra; a aba completa tem nicho, cadência e ações por canal.`;
+  if(t==='mudancas') return `<b>${OBS.TAB_TITLES.mud(c.mud)}</b>. Abaixo, as mais recentes; o efeito sai ${OBS.RULES.effect.afterDays} dias depois de cada troca.`;
+  if(t==='outliers') return `<b>${OBS.TAB_TITLES.out(c.out)}</b>, ajustado pela idade.`;
+  return `Leituras publicadas pela forja${S.niche==='todos'?'':' para '+nicheLabel(S.niche)}. Cada leitura fica congelada na data dos dados enviados.`;
+}
+
+/* ---------- amostras das abas (todas de OBS) ---------- */
+function bodyCanais(){
+  const list = competitors().filter(c=>S.niche==='todos'||c.niche===S.niche).sort((a,b)=>(b.sync.state!=='ok')-(a.sync.state!=='ok'));
+  const rows = list.map(c=>{
+    const bad = c.sync.state!=='ok';
+    const cell = bad?`<span class="probline">${ICON.warn.replace('<svg','<svg width="12" height="12"')}<span>${esc(c.sync.problemPhrase||c.sync.label)}</span></span>`
+      :`<span class="tag"><span class="dot" aria-hidden="true"></span>${c.sync.last>=NOW?'Sincronizado agora':D.dm(c.sync.last)===D.dm(NOW)?'hoje '+hm(c.sync.last):D.dmhm(c.sync.last)}</span>`;   // D5: mesma regra de Canais
+    return `<tr><td>${esc(c.name)}</td><td class="nic-${c.niche}">${nicheLabel(c.niche)}</td><td class="n num">${F.subs?F.subs(c.subs):F.num(c.subs)}</td><td>${cell}</td></tr>`;
+  }).join('');
+  return `<div class="tabtop"><p>Canal novo entra na próxima sincronização (${OBS.SYNC.nextText.replace('próxima às ','')}).</p><a class="btn ${S.drawer?'':'primary'}" href="${L('canais',{add:1})}" data-k="addPrimary">${ICON.plus}Adicionar canal</a></div>
+  <div class="tbl-wrap"><table class="tbl"><thead><tr><th scope="col">Canal</th><th scope="col">Nicho</th><th scope="col" class="n">Inscritos</th><th scope="col">Sincronização</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+const EFF_ICON = {ganhou:['up','up'],perdeu:['down','down']};
+function effCell(e){
+  const ic = EFF_ICON[e.status];
+  const lr = F.labelReason(e.label,e.reason)||'';
+  // textos canônicos do motor (CONVENCOES F8 conjunto): readyText (aguardando), noBaseText (n = 0), numbersFlat + "efeito N pp"
+  const why = e.waitText?e.waitText   // D4: texto do motor, como vem
+    : e.status==='aguardando'&&e.readyText?`${e.collected} de ${OBS.RULES.effect.afterDays} dias coletados · ${e.readyText}`
+    : e.noBaseText?e.noBaseText
+    : (lr.toLowerCase().startsWith(String(e.label).toLowerCase())?lr.slice(e.label.length):lr).replace(/^\s*[—:.,-]\s*/,'');
+  const nums = e.numbersFlat?`${esc(e.numbersFlat)}${e.effectPp!=null?` · <span class="nowrap">efeito ${esc(F.pp(e.effectPp))}</span>`:''}`:'';
+  return `<span class="v ${ic?ic[1]:''}">${ic?ICON[ic[0]]:ICON.dash}${esc(e.label)}</span>${nums?`<small class="num">${nums}</small>`:''}${why?`<small>${esc(why)}</small>`:''}${e.willBeInconclusive&&!e.waitText?`<small class="warnline">${ICON.warn}<span>Vai sair inconclusivo: ${esc(F.lcfirst(e.willBeInconclusive))}</span></small>`:''}`;
+}
+function bodyMud(){
+  const all = OBS.changesIn({days:30, niche:S.niche==='todos'?undefined:S.niche});
+  const list = all.slice(0,6);
+  if(!list.length) return `<div class="empty"><b>Nenhuma troca nos últimos 30 dias.</b></div>`;
+  const rows = list.map(c=>{
+    const v = OBS.video(c.video), ch = OBS.channel(c.ch);
+    const what = c.type==='desc'
+      ? `<span class="ttl">${esc(v.title)}</span><span class="chip">${c.diff?`<span class="nowrap">${esc(c.diff.label)}</span>`:'<span class="dim">texto anterior não guardado</span>'}<a class="linkbtn" href="${L('mudancas',{video:c.video,type:'desc'})}">Ver comparação</a></span>`
+      : c.type==='thumb' ? `<span class="ttl">${esc(v.title)}</span><span class="sub">thumbnail trocada</span>`
+      : `<span class="ttl old"><span class="sr">antes: </span>${esc(c.before)}</span><span class="ttl"><span class="sr">depois: </span>${esc(c.after)}</span>`;
+    return `<tr><td>${what}<span class="sub">${esc(ch.name)}</span></td><td><span class="tag">${esc(c.typeLabel)}</span>${c.fmt==='short'?' <span class="tag">Short</span>':''}</td>
+      <td class="when">${esc(c.whenText)}<span class="sub">${esc(c.window?`${c.type==='title'?'visto':'vista'} pela 1ª vez ${c.agoShort}`:c.agoShort)}</span></td><td class="n num">${F.num(v.views)}</td><td class="eff">${effCell(OBS.effect(c.id))}</td></tr>`;
+  }).join('');
+  return `<p class="scrollhint" hidden>Role a tabela para o lado para ver o efeito.</p><div class="tbl-wrap"><table class="tbl"><thead><tr><th scope="col">Antes e depois</th><th scope="col">O que mudou</th><th scope="col">Quando</th><th scope="col" class="n">Views</th><th scope="col">Efeito</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function bodyOut(){
+  const o = OBS.outliers({niche:S.niche, fmt:'long'});
+  if(!o.count) return `<div class="empty"><b>Nenhum outlier longo de até 90 dias.</b></div>`;
+  // mesma ordem da aba Outliers (orderedIds do motor), com o método da comparação e o aviso de base fraca
+  const byId = Object.fromEntries(o.items.map(it=>[it.id,it]));
+  const rows = o.orderedIds().map(id=>byId[id]).filter(Boolean).map(it=>{const v=it.video, m=it.mult;return `<tr data-outlier="${v.id}"><td><span class="ttl">${esc(v.title)}</span><span class="sub">${esc(OBS.channel(v.ch).name)} · ${esc(it.phase.label)}</span></td>
+    <td class="n num">${F.num(v.views)}</td><td class="n">${esc(F.age(v))}</td><td class="n"><span class="num">${F.mult(m.value)}</span><span class="sub">${esc(m.label.replace(/^[^ ]+ /,''))}</span><span class="sub">${esc(m.method)}</span>${it.weak||m.weak?`<span class="sub warnline">${ICON.warn}<span>base fraca</span></span>`:''}</td></tr>`}).join('');
+  return `<div class="tbl-wrap"><table class="tbl"><thead><tr><th scope="col">Vídeo</th><th scope="col" class="n">Views</th><th scope="col" class="n">Idade</th><th scope="col" class="n">vs típico do canal</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+/* ---------- leituras da forja ---------- */
+function histList(){
+  const reqs = FJ.requests.filter(r=>!r.scenario&&(S.niche==='todos'||r.niche===S.niche)).slice().sort((a,b)=>b.createdAt-a.createdAt);
+  const pub = allReqs().filter(r=>(r.state==='publicado'||DEAD.includes(r.state))&&(S.niche==='todos'||r.niche===S.niche));   // pedidos da sessão já terminados
+  const items = pub.concat(reqs);
+  return `<section class="hist" aria-labelledby="hh"><h3 id="hh">Histórico de pedidos</h3><ol>${items.map(r=>{
+    const rd = r.readingId?FJ.byId[r.readingId]:null;
+    const ok = r.status==='completed';
+    const when = r.publishedAt||r.failedAt||r.refusedAt||r.createdAt;
+    return `<li data-request="${r.id}"><span class="t">${D.weekdayShort(when)} <span class="num">${D.dm(when)} ${hm(when)}</span></span><span class="what">${esc(rd?rd.text.title:`${typeName(r.type)} — ${nicheLabel(r.niche)}`)}<small>${esc(sentence(rd?rd.text.lead:(r.failReason||r.refusedReason||'')))}${!ok?' Nada publicado.':''}</small></span>
+    <span class="st ${ok?'ok':'bad'}">${ok?ICON.check+'publicada':ICON.x+esc(r.state)}</span></li>`}).join('')}</ol></section>`;
+}
+function evidenceItem(r,id){
+  const b = r.base.videos.find(v=>v.id===id);
+  return `<li><span><q>${esc(b.title)}</q><small>${esc(OBS.channel(b.ch).name)}</small></span><span class="mult"><span class="num">${F.mult(b.mult)}</span><small>${esc(b.method)} (n = ${b.n}) em ${D.dm(r.sent.asOf)}</small></span></li>`;
+}
+function patternBlock(r,p){
+  const rules = FJ.rules.pattern;
+  const k = p.evidence.length, n = r.analysis.nOutliers;
+  const passes = p.verdict.id==='padrao';
+  const ev = p.evidence.slice(0,3).map(id=>evidenceItem(r,id)).join('');
+  const link = L('outliers',{niche:r.niche,reading:r.id,formula:p.formula});
+  const today = OBS.outliers({reading:r.id,formula:p.formula}).count;
+  return `<div class="pattern" data-verdict="${p.verdict.id}" data-n="${p.nUse}" data-diff="${p.diff.toFixed(3)}"><div><h4>${esc(p.label)}</h4>
+    <div class="freqbar"><span>outliers <span class="num">${k}</span> de <span class="num">${n}</span></span><span class="bar" aria-hidden="true"><i style="width:${Math.round(k/n*100)}%"></i></span></div>
+    <p class="pat-claim">${esc(p.verdict.text)}</p>
+    ${p.attribution&&p.attribution.text?`<p class="attr">${esc(p.attribution.text)}</p>`:''}
+    ${passes?'':`<span class="small-n">${p.verdict.id==='recorrencia'?'pouco para concluir':`não passa a regra (n ≥ ${rules.minN} e diferença ≥ ${F.mult(rules.minDiff)})`}</span>`}</div>
+    <div>${k?`<ul class="ev">${ev}</ul><div class="ev-more"><a class="linkbtn" href="${link}">${today?`Ver ${today===1?'o outlier':`os ${today} outliers`} de hoje`:'Ver no Outliers (nenhum hoje)'}</a></div>`:'<p class="muted" style="margin:0;font-size:13px">Nenhum outlier com esta fórmula.</p>'}</div></div>`;
+}
+function readingCard(r,isNew){
+  const since = FJ.since(r.id);
+  const ORDER={padrao:0,recorrencia:1,'sem-diferenca':2};
+  const shown = r.analysis.patterns.filter(p=>p.evidence.length>0).sort((a,b)=>ORDER[a.verdict.id]-ORDER[b.verdict.id]||b.evidence.length-a.evidence.length);
+  const quiet = r.analysis.patterns.filter(p=>!shown.includes(p));
+  return `<details class="reading ${isNew?'isnew':''}" data-reading="${r.id}" ${isNew&&S.openRead?'open':''}>
+    <summary><span class="sum-s"><span class="seal">${ICON.anvil}${esc(r.seal)}</span>${isNew?'<span class="newmark">nova</span>':''}</span><span class="sum-t">${esc(r.text.title)}</span><span class="sum-l">${esc(r.text.lead)}</span><span class="sum-open">Ver leitura</span></summary>
+    <div class="reading-in">
+    <!-- I5 (CONVENCOES F9): sob o selo, só o texto literal da leitura (reading.text.*) -->
+    <div class="lit">${(r.text.items||[]).length?`<ul class="lit-items">${r.text.items.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}${r.text.theme?`<p class="lit-theme">${esc(r.text.theme)}</p>`:''}</div>
+    <section class="from-site" aria-labelledby="fs-${r.id}"><h4 class="fs-h" id="fs-${r.id}">Do site</h4>
+    <p class="when">Leitura de ${wdm(r.generatedAt)}, ${D.ago(r.generatedAt)}.</p>
+    <p class="base">${esc(r.sent.text[0].toUpperCase()+r.sent.text.slice(1))}.</p>
+    ${since&&since.text?`<p class="since">${esc(isActive()&&since.textNoAsk?since.textNoAsk:since.text)}</p>`:''}
+    ${shown.map(p=>patternBlock(r,p)).join('')}
+    ${quiet.length?`<div class="pattern" data-verdict="lista"><div><h4>Sem outlier com a fórmula</h4></div><p class="muted" style="margin:0;font-size:13px">${quiet.map(p=>`${esc(p.label)} (n = ${p.nUse}${p.verdict.id==='recorrencia'?', pouco para concluir':''})`).join(' · ')}.</p></div>`:''}
+    <div class="cant"><h4>O que esta leitura não faz</h4><ul>
+      <li><b>Não vê thumbnails.</b> O Gemma 12B não lê imagens; padrões de thumbnail ficam com você.</li>
+      <li><b>Não afirma causa.</b> Diz onde a fórmula aparece, não que ela fez o vídeo estourar.</li>
+      <li><b>Não cria números.</b> Cada contagem e multiplicador foi conferido pelo validador contra os dados enviados.</li>
+    </ul></div>
+    </section>
+    <div class="acts"><a class="btn ghost" href="${L('insights',{niche:r.niche})}">Abrir em Insights</a></div>
+  </div></details>${since&&since.shortText?`<p class="since-short">${esc(since.shortText[0].toUpperCase()+since.shortText.slice(1).replace(/\.$/,''))}</p>`:''}`;   // C1: linha recolhida, fora do selo (CONVENCOES F9), some quando a leitura está aberta
+}
+function inflightBar(){ return scens().filter(sc=>sc.anyActive||sc.requests.some(x=>DEAD.includes(x.state))).map((sc,i)=>inflightOne(sc,i===0)).join(''); }
+function inflightOne(sc,anchor){
+  const warn = (sc.requests||[sc.request]).some(x=>!['na fila','trabalhando','publicado'].includes(x.state));
+  // CONVENCOES F8: com pedido dividido, as linhas por nicho e logo abaixo a frase completa do motor
+  const lines = isSplit(sc)&&sc.statusLines?`<ul class="run-lines">${sc.statusLines.map(l=>`<li>${esc(l)}</li>`).join('')}</ul>`:'';
+  return `<div class="inflight ${warn?'warn':''}" data-type="${sc.type}"${anchor?' data-forja-anchor tabindex="-1"':''}>${ICON.anvil.replace('<svg','<svg width="15" height="15"')}<span>Pedido <b>${scLabel(sc)}</b>.${lines?lines:' '}${lines?`<span class="inflight-txt">${esc(period(sc.statusText))}</span>`:esc(period(sc.statusText))}</span><button class="linkbtn" type="button" data-act="openForja">Ver andamento</button></div>`;
+}
+function bodyIns(){
+  const ns = S.niche==='todos'?['ia','viagem']:[S.niche];
+  return ns.map(n=>readingCard(featuredFor(n), !!pubReq(n))).join('') + histList();
+}
+
+/* ============================================================ DRAWER */
+function clock(c){
+  const ticks = c.ticks.map(([p,l,s])=>`<span class="tk" data-s="${s||''}" style="left:${p}%"><i></i><em ${s==='next'||!s?'data-future':''}>${l}</em></span>`).join('');
+  // rótulos de eventos próximos (< 18 %) sobem um degrau para não encavalar
+  const sorted=(c.ev||[]).slice().sort((a,b)=>a[0]-b[0]); let prev=-99, stacked=false;
+  const evs = sorted.map(([p,l,cl])=>{const hi=p-prev<18; prev=hi?-99:p; if(hi) stacked=true; return `<span class="evt ${cl||''} ${hi?'hi':''}" style="left:${p}%">${l}</span>`}).join('');
+  const fill = c.fill?`<span class="fill ${c.fill[2]||''}" style="left:${c.fill[0]}%;width:${c.fill[1]-c.fill[0]}%"></span>`:'';
+  const gap = c.gap?`<span class="gapseg" style="left:${c.gap[0]}%;width:${c.gap[1]-c.gap[0]}%"></span>`:'';
+  return `<div class="clock ${stacked?'stacked':''}" role="img" aria-label="${c.aria}"><div class="track">${fill}${gap}${ticks}${evs}</div></div><p class="clock-cap">${c.cap}</p>`;
+}
+const linear = (a,b)=>t=>+(((t-a)/(b-a))*100).toFixed(2);
+const INSIDE = 'lê os dados enviados à forja, o Gemma escreve, o validador confere cada número citado';
+function step(s,title,time,note){
+  const srs = {feito:'concluído',agora:'em andamento',proximo:'aguardando',pendente:'pendente',erro:'com erro',parado:'parado'}[s];
+  return `<li class="run-step" data-s="${s}"><b>${title}<span class="sr"> (${srs})</span></b>${time?`<span class="tm ${/^\d/.test(time)?'num':''}">${time}</span>`:'<span></span>'}${note?`<small>${note}</small>`:''}</li>`;
+}
+/** um bloco por tipo com pedido no nicho (B1, F10) */
+/** B2 (F10): legenda do atraso só com dado real: ocupada com <busyWith>, ou atrás do pedido de outro nicho; sem os dois, só o fato */
+function lateCap(sc,r){
+  const ahead = r.behind?(sc.requests||[]).find(x=>x.id===r.behind):null;
+  const why = r.busyWith?`A forja está ocupada com ${esc(r.busyWith)}; `:ahead?`O pedido de ${nicheLabel(ahead.niche)} está à frente; `:'';
+  return `${why}${why?'c':'C'}onsultou a fila nesses horários sem pegar este pedido.`;
+}
+function runCards(){ return scens().map(runCard).join(''); }
+function runCard(sc){
+  // o card acompanha o pedido no estado mostrado (Todos recusado: o de IA); num cenário composto, o novo pedido ativo
+  if(!hasReq(sc)) return '';
+  const r = trackedReq(sc), m = sc.machine, NP = m.alive?nextPoll(m):null, kase = splitDone(sc)?'doneTodos':STATE_CASE[r.state];
+  const what = scLabel(sc);
+  const label = st=>`<p class="run-lbl">${ICON.anvil}Leitura pedida<span class="state">${esc(st)}</span></p><p class="run-what">${what}</p>`;
+  // pedido dividido (Todos): uma linha por nicho, do motor (CONVENCOES F8); a frase completa segue no run-tit
+  const others = isSplit(sc)&&sc.statusLines?`<ul class="run-lines">${sc.statusLines.map(l=>`<li>${esc(l)}</li>`).join('')}</ul>`:'';
+  const nAct = (sc.requests||[sc.request]).filter(x=>ACTIVE_ST.includes(x.state)).length;
+  const cancel = `<button class="btn ghost" type="button" data-act="cancelReq" data-type="${sc.type}"${sc.video?` data-video="${sc.video}"`:''}>${nAct>1?'Cancelar pedidos':'Cancelar pedido'}</button>`;
+  // "Pedir nova" nunca habilitado com pedido ativo (de qualquer tipo) no nicho que terminou mal
+  const deadNs = sc.requests.filter(x=>DEAD.includes(x.state)).map(x=>x.niche);
+  const busyN = deadNs.filter(n=>blockOf(n,sc.type));   // F11 M8: só o mesmo tipo bloqueia
+  const again = `<button class="btn forja-solid" type="button" data-act="again" data-type="${sc.type}"${sc.video?` data-video="${sc.video}"`:''} data-k="again"${busyN.length?` disabled aria-describedby="again-why-${sc.type}"`:''}>Pedir nova leitura à forja</button>${busyN.length?`<span class="note" id="again-why-${sc.type}">Já há um pedido deste tipo para ${busyN.map(nicheLabel).join(' e ')}; peça de novo quando ele terminar.</span>`:''}`;
+  const um = timingFor(r.type||'padroes-titulo', sc.requests.filter(x=>ACTIVE_ST.includes(x.state)).map(x=>x.niche));
+  const created = step('feito','Pedido registrado',hm(r.createdAt));
+  switch(kase){
+  case 'queued':{ const x=linear(m.lastPollAt-2*M,NP+TICK+2*M);
+    return `<section class="run" data-st="queued">${label(r.state)}${others}
+    <div class="run-eta"><b data-future>${hm(NP)}</b><span>próxima consulta da forja; ${um}</span></div>
+    ${clock({aria:`Pedido às ${hm(r.createdAt)}; próxima consulta às ${hm(NP)}`,ticks:[[x(m.lastPollAt),hm(m.lastPollAt),'seen'],[x(NP),hm(NP),'next'],[x(NP+TICK),hm(NP+TICK),'']],ev:[[x(r.createdAt),'pedido '+hm(r.createdAt)]],fill:[x(r.createdAt),x(NP)],cap:`A forja consulta a fila a cada ${m.tickMinutes} minutos.`})}
+    <p class="run-tit">${esc(period(sc.statusText))}</p>
+    <p class="run-sub">Você pode fechar este painel ou sair da página; o pedido continua.</p>
+    <ol class="run-steps">${created}${step('proximo','A forja pega o pedido')}${step('pendente','Leitura publicada','',INSIDE)}</ol>
+    <div class="run-acoes">${cancel}</div></section>`;}
+  case 'running': return `<section class="run" data-st="running">${label(r.state)}${others}
+    <div class="run-eta"><b>${Math.round((NOW-r.startedAt)/M)} min</b><span>trabalhando; ${um}</span></div>
+    <p class="run-tit">${esc(period(sc.statusText))}</p>
+    <p class="run-sub">Lendo os dados enviados, classificando com o Gemma e conferindo cada número antes de publicar.</p>
+    <ol class="run-steps">${created}${step('feito','A forja pegou',hm(r.claimedAt))}${step('agora','Leitura publicada','',INSIDE)}</ol></section>`;
+  case 'doneTodos':{ const pubN=(sc.requests.find(x=>x.state==='publicado')||{}).niche, restN=sc.requests.filter(x=>x.state!=='publicado').map(x=>nicheLabel(x.niche)).join(' e ');
+    return `<section class="run" data-st="running">${label('pedido em andamento')}${others}
+    <div class="run-eta"><b>${sc.requests.filter(x=>x.state==='publicado').length} de ${sc.requests.length}</b><span>leituras publicadas; ${um}</span></div>
+    <p class="run-tit">${esc(period(sc.statusText))}</p>
+    <p class="run-sub">A leitura de ${nicheLabel(pubN)} já está em Insights; a de ${restN} sai quando a forja terminar.</p>
+    <div class="run-acoes"><button class="btn forja-solid" type="button" data-act="goInsights" data-k="goRead">Ir até a leitura de ${nicheLabel(pubN)}</button></div></section>`;}
+  case 'done': return `<section class="run" data-st="done">${label(r.state)}${others}
+    <div class="run-eta"><b aria-hidden="true">✓</b><span>em ${Math.round((r.publishedAt-r.createdAt)/M)} min, do pedido à publicação</span></div>
+    <p class="run-tit">${esc(period(sc.statusText))}</p>
+    <p class="run-sub">Está na aba Insights.</p>
+    <ol class="run-steps">${created}${step('feito','A forja pegou',hm(r.claimedAt))}${step('feito','Publicada',hm(r.publishedAt))}</ol>
+    <div class="run-acoes"><button class="btn forja-solid" type="button" data-act="goInsights" data-k="goRead">Ir até a leitura</button>${freeNiches().length?'<button class="btn ghost" type="button" data-act="openForja" data-k="another">Pedir outra leitura</button>':''}</div></section>`;
+  case 'late':{ const busy=pollsBetween(m,r.createdAt,NOW); const x=linear(r.createdAt-6*M,NP+3*M);
+    return `<section class="run" data-st="late">${label(r.state)}${others}
+    <div class="run-eta"><b>${r.waitingMinutes} min</b><span>na fila; o limite é ${Q.LATE_AFTER_MINUTES} min</span></div>
+    ${clock({aria:`Pedido às ${hm(r.createdAt)}; a forja consultou a fila às ${busy.map(hm).join(', ')} sem pegar este pedido; próxima às ${hm(NP)}`,ticks:[...busy.map(t=>[x(t),hm(t),'busy']),[x(NP),hm(NP),'next']],ev:[[x(r.createdAt),'pedido '+hm(r.createdAt)]],fill:[x(r.createdAt),x(NOW),'late'],cap:lateCap(sc,r)})}
+    <p class="run-tit">${esc(period(sc.statusText))}</p>
+    <p class="run-sub">Fica na fila até a forja ficar livre.</p>
+    <ol class="run-steps">${created}${step('parado','A forja pega o pedido','aguardando')}${step('pendente','Leitura publicada')}</ol>
+    <div class="run-acoes">${cancel}</div></section>`;}
+  case 'nomachine':{ const mis=pollsBetween(m,m.lastPollAt,NOW); const x=linear(m.lastPollAt-4*M,NOW+6*M);
+    return `<section class="run" data-st="nomachine">${label(r.state)}${others}
+    <div class="run-eta"><b>${D.dur(NOW-m.lastPollAt,true)}</b><span>sem consulta da forja</span></div>
+    ${clock({aria:`Última consulta da forja às ${hm(m.lastPollAt)}; ${mis.length} consultas perdidas; pedido às ${hm(r.createdAt)}; sem previsão`,ticks:[[x(m.lastPollAt),hm(m.lastPollAt),'seen'],...mis.map(t=>[x(t),'','missed'])],ev:[[x(r.createdAt),'pedido '+hm(r.createdAt)],[x(NOW),'agora','now']],fill:[x(m.lastPollAt),x(NOW),'late'],cap:`${mis.length} consultas perdidas desde a última. Sem previsão: volta quando a máquina consultar a fila.`})}
+    <p class="run-tit">${esc(period(sc.statusText))}</p>
+    <p class="run-sub">Nada se perde; os pedidos saem por ordem de chegada. Religar a forja é com você.</p>
+    <ol class="run-steps">${created}${step('parado','A forja pega o pedido','sem previsão')}${step('pendente','Leitura publicada')}</ol>
+    <div class="run-acoes">${cancel}</div></section>`;}
+  case 'retry': case 'released':{ const a=r.attempts[r.attempts.length-1];
+    return `<section class="run" data-st="${kase}">${label(r.state)}${others}
+    <div class="run-eta"><b data-future>${hm(NP)}</b><span>tentativa ${r.attempt} de ${r.maxAttempts}, na próxima consulta</span></div>
+    <p class="run-tit">${esc(period(sc.statusText))}</p>
+    <p class="run-sub">Nada foi publicado. O pedido voltou para a fila${kase==='released'?' sozinho':''}; se a última tentativa também falhar, ele para e você pode pedir de novo.</p>
+    <ol class="run-steps">${created}${step('erro',`Tentativa ${r.attempt-1}`,`${hm(a.claimedAt)}–${hm(a.endedAt)}`)}${step('proximo',`Tentativa ${r.attempt}`)}${step('pendente','Leitura publicada','',INSIDE)}</ol></section>`;}
+  case 'failed': return `<section class="run" data-st="failed">${label(r.state)}${others}
+    <div class="run-eta"><b aria-hidden="true">!</b><span>${r.attempts.length} de ${r.maxAttempts} tentativas</span></div>
+    <p class="run-tit">${esc(period(sc.statusText))}</p>
+    <p class="run-sub">Nada foi publicado; a leitura anterior continua valendo. ${esc(period(sentenceCase(sc.quota.text)))}</p>
+    <ol class="run-steps">${created}${r.attempts.map((t,i)=>step('erro',`Tentativa ${i+1}`,`${hm(t.claimedAt)}–${hm(t.endedAt)}`)).join('')}</ol>
+    <div class="run-acoes">${again}</div></section>`;
+  case 'refused': return `<section class="run" data-st="refused">${label(r.state)}${others}
+    <div class="run-eta"><b aria-hidden="true">!</b><span>recusado antes de ler</span></div>
+    <p class="run-tit">${esc(period(sc.statusText))}</p>
+    <p class="run-sub">O site não tinha como prever. ${esc(period(sentenceCase(sc.quota.text)))}</p>
+    <ol class="run-steps">${created}${step('feito','A forja pegou',hm(r.claimedAt))}${step('erro','Recusado antes de ler',hm(r.refusedAt))}</ol>
+    <div class="run-acoes">${again}<span class="note">Um pedido novo leva os dados da sincronização das ${hm(OBS.SYNC.last)}.</span></div></section>`;
+  }
+  return '';
+}
+const pvText = pv=>pv.text.includes(pv.window)?pv.text:`${pv.text}, últimos ${pv.window}`;
+const reqType = (tid,fmt)=>tid==='padroes-titulo'?FJ.readingTypeFor(fmt):tid;
+function lastOf(tid,niche){
+  const ns = niche==='todos'?['viagem','ia']:[niche];
+  const one = n=>{const pr=pubReq(n,tid);const r=pr?{generatedAt:pr.publishedAt}:FJ.latest(tid,n);return r?wdm(r.generatedAt):'nunca pedida'};
+  return ns.length>1?`Última leitura: ${ns.map(n=>`${nicheLabel(n)} ${one(n)}`).join(' · ')}.`:`Última leitura: ${one(ns[0])}.`;
+}
+/** o que impede pedir para um nicho, segundo a sessão do motor (mesma regra de session.ask): pedido ativo ou cota usada.
+    Falha e recusa não contam na cota. Sem impedimento: null. */
+function blockOf(n,type){
+  // F11 M8 (CONVENCOES): tipos diferentes no mesmo nicho são permitidos; só o MESMO tipo no mesmo nicho bloqueia
+  const q = allReqs(type).find(x=>x.niche===n); if(!q || DEAD.includes(q.state)) return null;
+  if(ACTIVE_ST.includes(q.state)) return {kind:'active', q, type, text:`já há um pedido de ${nicheLabel(n)} em andamento (${q.statusLabel})`};
+  return {kind:'quota', q, text:`cota de hoje usada para ${nicheLabel(n)}${cur().quota&&cur().quota.releasesAt?` (libera ${D.weekday?D.weekday(cur().quota.releasesAt):''}${D.weekday?', ':''}${D.dm(cur().quota.releasesAt)} às 00:00)`:''}`};
+}
+function quotaFor(tid,niche){
+  if(niche!=='todos'){ const b=blockOf(niche,tid); return b?{blocked:true, text:b.text, kind:b.kind, q:b.q, type:b.type}:{blocked:false}; }
+  const bs=['ia','viagem'].map(n=>[n,blockOf(n,tid)]), blocked=bs.filter(x=>x[1]);
+  if(blocked.length===2) return {blocked:true, text:blocked.map(x=>x[1].text).join('; '), kind:'both'};
+  if(blocked.length===1){ const only=blocked[0][0]==='ia'?'viagem':'ia'; return {blocked:false, only, partial:`${sentenceCase(blocked[0][1].text)}. O pedido vai só para ${nicheLabel(only)}.`}; }
+  return {blocked:false};
+}
+/** aviso de amostra pequena: só descreve a regra (minN vale para os vídeos que usam a fórmula), por nicho */
+/** tempo medido por nicho; com Todos, um texto por nicho (nunca a soma) */
+function timingFor(type,ns){ ns=(ns&&ns.length?ns:['viagem','ia']); if(ns.length===1) return FJ.timing(type,ns[0]).text; const order=['viagem','ia'].filter(x=>ns.includes(x)); const t=order.map(x=>FJ.timing(type,x).text); return t.every(x=>x===t[0])?`${order.map(nicheLabel).join(' e ')}: ${t[0]}`:order.map((x,i)=>`${nicheLabel(x)}: ${t[i]}`).join(' · '); }
+function timingText(){ const n=effNiche(); return timingFor(S.req, n==='todos'?['viagem','ia']:[n]); }
+function thinWarn(tid,pv,niche){
+  if(!tid.startsWith('padroes')) return '';
+  const ns = niche==='todos'?['viagem','ia']:[niche];
+  const per = ns.map(n=>({n, pv:n===niche?pv:FJ.preview(tid,n,typeOf(tid).fmt||undefined)})).filter(x=>x.pv.nOutliers<FJ.rules.pattern.minN);
+  if(!per.length) return '';
+  const lst = per.map(x=>`${ns.length>1?nicheLabel(x.n)+': ':''}${F.plural(x.pv.nOutliers,'outlier','outliers')}`).join(' · ');
+  return `<p class="warnline" data-thin>${ICON.warn}<span>Poucos outliers nessa janela (${lst}). A leitura classifica os títulos deles; fórmulas usadas por menos de ${FJ.rules.pattern.minN} vídeos saem como recorrência observada.</span></p>`;
+}
+function chooser(){
+  const opts = TYPES.map(t=>{
+    const sel = (S.req===t.id)||(t.id==='padroes-titulo'&&S.req==='padroes-titulo-shorts');
+    const tid = t.id==='padroes-titulo'?reqType('padroes-titulo',sel?S.reqFmt:'long'):t.id;
+    const nn = sel?S.reqNiche:reqNicheFor(S.niche);
+    const q = quotaFor(tid,nn);
+    const pn = sel?effNiche():nn;
+    const pv = FJ.preview(tid,pn,typeOf(tid).fmt||undefined);
+    // M6: o grupo de rádios é um só ponto de Tab; os controles de uma opção não escolhida saem da ordem de Tab (o clique continua valendo)
+    const ti = sel?'':' tabindex="-1"';
+    const nic = NICHES.map(n=>`<button type="button" aria-pressed="${nn===n}" data-rn="${n}" data-rq="${tid}" data-k="rn-${t.id}-${n}"${ti}>${nicheLabel(n)}</button>`).join('');
+    const fmts = t.id==='padroes-titulo'?`<div class="param"><span id="pf-${t.id}">Formato</span><span class="seg-ctl" role="group" aria-labelledby="pf-${t.id}">${[['long','Longos'],['short','Shorts']].map(([f,l])=>`<button type="button" aria-pressed="${(sel?S.reqFmt:'long')===f}" data-rf="${f}" data-k="rf-${f}"${ti}>${l}</button>`).join('')}</span></div>`:'';
+    const warn = sel&&!q.blocked&&pv.channelsOut.length?`<div class="warnline">${ICON.warn}<span>${pv.channelsOut.map(o=>esc(o.reason)).join('; ')}.</span></div>`:'';
+    const meta = q.blocked ? `<p class="meta" data-quota="blocked" id="quota-${t.id}">${q.kind==='quota'&&q.q?`Pedido hoje às <span class="num">${hm(q.q.createdAt)}</span> e publicado às <span class="num">${hm(q.q.publishedAt)}</span>. `:''}${esc(period(sentenceCase(q.text)))} ${q.kind==='quota'?'<button class="linkbtn" type="button" data-act="goInsights">Ir até a leitura</button>':`<button class="linkbtn" type="button" data-act="showRun" data-type="${q.type||tid}">Ver andamento</button>`}</p>`
+      : `<p class="meta" data-preview="${tid}|${pn}">${sel&&S.reqNiche==='todos'&&pn!=='todos'?`${nicheLabel(pn)}: `:''}${esc(pvText(pv))}.${pv.channelsOut.length&&!sel?` ${F.plural(pv.channelsOut.length,'canal fica fora','canais ficam fora')}.`:''} ${lastOf(tid,pn)}</p>${q.partial?`<p class="warnline">${ICON.warn}<span>${esc(q.partial)}</span></p>`:''}${sel?thinWarn(tid,pv,pn):''}`;
+    return `<div class="opt ${sel&&!q.blocked?'sel':''} ${q.blocked?'off':''}" data-type="${tid}" data-niche-opt="${nn}">
+      <input type="radio" name="rq" id="rq-${t.id}" value="${tid}" ${sel?'checked':''} data-rq="${tid}" data-k="rq-${t.id}">
+      <label for="rq-${t.id}"><strong>${esc(t.id==='padroes-titulo'&&sel&&S.reqFmt==='short'?typeName(tid):t.label)}</strong><span class="desc">${TYPE_COPY[tid].desc}</span></label>
+      <div class="param"><span id="pn-${t.id}">Nicho</span><span class="seg-ctl" role="group" aria-labelledby="pn-${t.id}">${nic}</span></div>
+      ${fmts}${meta}${warn}</div>`;
+  }).join('');
+  const can = !quotaFor(S.req,S.reqNiche).blocked;
+  const selT = TYPES.find(t=>t.id===S.req||(t.id==='padroes-titulo'&&S.req==='padroes-titulo-shorts'));
+  return `<fieldset class="opts"><legend>O que você quer que a forja leia?</legend>${opts}</fieldset>
+    <p class="drawer-note">${esc(Q.quotaScope.text)} A forja só lê números e textos: não vê thumbnails e não diz por que um vídeo estourou.</p>
+    <div class="drawer-foot"><button class="btn forja-solid" type="button" data-flow="confirm" data-k="cont" ${can?'':`disabled aria-describedby="quota-${selT?selT.id:''}"`}>Continuar</button><button class="btn ghost" type="button" data-act="closeForja">Cancelar</button></div>`;
+}
+function confirmView(){
+  const t = typeOf(S.req), c = TYPE_COPY[S.req];
+  const en = effNiche();
+  const pv = FJ.preview(S.req,en,t.fmt||undefined);
+  const q = quotaFor(S.req,S.reqNiche);
+  const outTxt = pv.channelsOut.map(o=>{const k=OBS.outliers({niche:en,fmt:t.fmt||'long',channels:[o.id],maxAge:t.windowDays||undefined}).count;return `${esc(OBS.channel(o.id).name)} (${k?F.plural(k,'outlier dele não entra','outliers dele não entram'):'sem outliers na janela'})`}).join(', ');
+  return `<div class="confirm" data-type="${t.id}"><h4>${reqLabel()}</h4><dl>
+    <dt>Escopo</dt><dd data-preview="${t.id}|${en}">${esc(pvText(pv).replace(/^Lê /,''))}: ${c.dados}.${t.id.startsWith('padroes')?' Para comparar, os vídeos dos mesmos canais que não estouraram.':''}${pv.channelsOut.length?` Fica fora: ${outTxt}.`:''}</dd>
+    <dt>Entrega</dt><dd>${c.entrega}</dd>
+    <dt>Não faz</dt><dd>${c.naoFaz}</dd>
+    <dt>Quando</dt><dd>A forja consulta a fila às <span class="num" data-future>${hm(nextPoll(Q))}</span>. ${esc(period(sentenceCase(timingText())))}</dd>
+    <dt>Limite</dt><dd>${esc(Q.quotaScope.text)}${q.partial?` ${esc(q.partial)}`:''}</dd>
+  </dl></div>${thinWarn(t.id,pv,effNiche())}
+  <div class="drawer-foot"><button class="btn forja-solid" type="button" data-act="send" data-k="send">Enviar pedido à forja</button><button class="btn ghost" type="button" data-flow="choose" data-k="back">Voltar</button></div>`;
+}
+function drawer(){
+  const fs = forjaSeen();
+  if(S.flow==='run' && !hasReq(cur())) S.flow='choose';   // sem pedido no nicho da tela: o painel volta a perguntar
+  const asking = S.flow==='choose'||S.flow==='confirm';
+  const main = S.flow==='choose'?chooser():S.flow==='confirm'?confirmView():runCards();
+  return `<div class="drawer-in">
+    <div class="drawer-head"><div><h3 id="dh" tabindex="-1">${asking?'Pedir nova leitura à forja':isActive()?'Pedido em andamento':'Leitura pedida à forja'}</h3><p>A máquina de casa, com o Gemma 12B, lê os dados do Observatório e publica em Insights.</p></div>
+      <button class="btn icon ghost" type="button" data-act="closeForja" data-k="closeDrawer" aria-label="Fechar painel da forja">${ICON.close}</button></div>
+    <div class="machine"><span class="dot ${fs.off?'warn':'forja'}" aria-hidden="true"></span><span>${fs.off?`<b>${esc(machine().text)}</b>. Pedidos esperam na fila.`:`<b>forja ligada</b>: consultou a fila às <span class="num">${hm(fs.t)}</span>. Consulta a cada ${Q.tickMinutes} min.`}</span></div>
+    ${main}
+    <p class="drawer-more">As leituras publicadas e o histórico ficam em Insights. <a class="linkbtn" href="${L('insights',nicheParam())}">Abrir Insights</a></p>
+  </div>`;
+}
+
+/* ============================================================ TOASTS */
+function toast(kind,title,text,act){ CHROME.toast(kind,title,text,act?{label:act[0],onClick:()=>ACT[act[1]]&&ACT[act[1]]()}:null); }
+const renderToasts = ()=>CHROME.clearToasts();
+/* ============================================================ BARRA DO MOCKUP */
+const FLOWS = [['choose','Escolher'],['confirm','Confirmar'],['queued','na fila'],['running','trabalhando'],['done','publicado'],['late','atrasado'],['nomachine','sem máquina'],['retry','nova tentativa'],['released','liberado pelo vigia'],['failed','falhou'],['refused','recusado (dado velho)'],['cota','Escolher após publicar (cota)']];
+const DEPS = [
+  ['Hoje a fila só grava o claim','status pending/running/completed/failed/stale por <code>channel_id</code>, sem heartbeat e sem tipo de pedido. Tudo abaixo é novo no backend; o mockup já lê tudo de <code>dados.js</code> (<code>forja.requests</code>, <code>requestScenario</code>, <code>preview</code>, <code>queue.quotaScope</code>).'],
+  ['<code>task_type</code> e <code>niche</code> no pedido','leituras de concorrentes (padrões de título, temas, resumo das trocas) são tipos novos.'],
+  ['Escopo do pedido','janela e lista de canais (incluídos e fora, com motivo) gravadas no pedido, para a leitura ficar congelada.'],
+  ['heartbeat <code>last_poll_at</code>','gravado a cada consulta da forja, mesmo com a fila vazia; sem ele não existem “consultou a fila às …”, o relógio da fila nem “sem máquina” em 30 min (hoje: só após 24 h na fila).'],
+  ['“atrasado” com heartbeat','máquina viva e pedido há mais de 25 min sem ser pego; “sem máquina” = nenhuma consulta há mais de 30 min.'],
+  ['status <code>refused</code> + motivo','a forja recusa dado velho que o site não previu.'],
+  ['cota 1 pedido/dia por tipo e por nicho','com Todos, um pedido por nicho; falhas e recusas não consomem a cota.'],
+  ['registro por tentativa','horário e motivo de cada tentativa (hoje só <code>retry_count</code> e o último erro).'],
+  ['stale volta para a fila','hoje o vigia marca stale e o pedido termina; o design recoloca como tentativa seguinte.'],
+  ['tempo medido por tipo','“mediana das últimas N” só depois de 5 leituras do tipo.'],
+  ['“Sincronizar e pedir de novo”','pedido condicionado ao fim da sincronização.'],
+];
+/* ============================================================ RENDER */
+let lastOpener = null;
+/** cabeçalho (B1 + CONVENCOES F10): status do ativo mais antigo, com o tipo quando há mais de um; os outros tipos em pílulas
+    secundárias; com Todos e um nicho livre, o botão segue habilitado para ele ("Pedir leitura de Viagem à forja") */
+function headerForja(){
+  const l=scens(); if(!l.length) return {};
+  const sc=l[0], f=CHROME.forjaFromScenario(sc), many=l.length>1;
+  if(many){ f.status=`${shortType(sc.type)} · ${f.status}`; f.secondary=(f.secondary||[]).map(x=>`${shortType(sc.type)} · ${x}`).concat(l.slice(1).map(o=>({text:`${shortType(o.type)} · ${o.statusLabel||(o.statusLines||[]).join(' · ')}`, active:!!o.anyActive}))); }
+  const free=freeNiches();
+  if(f.active && free.length){ f.canAsk=true; f.askLabel=`Pedir leitura de ${free.map(nicheLabel).join(' e ')} à forja`; f.askShort=`Ler ${free.map(nicheLabel).join(' e ')}`; /* I5 (F11) */ }
+  return f;
+}
+function render(){
+  const ae = document.activeElement;
+  const key = S.focusKey || (ae && ae.dataset ? ae.dataset.k : null);
+  S.focusKey = null;
+  const fj = headerForja();
+  CHROME.update({tab:S.tab, niche:S.niche, newTab:anyPub()?'insights':null, forja:fj});
+  const body = {canais:bodyCanais,mudancas:bodyMud,outliers:bodyOut,insights:bodyIns}[S.tab]();
+  document.getElementById('content').innerHTML = `<div class="tabctx"><p>${means(S.tab)}</p></div><section class="body" id="panel" aria-label="Amostra da aba ${TABNAME[S.tab]}">${inflightBar()}${body}</section>`;   // M7: pedido ativo visível em toda aba
+  const d = document.getElementById('drawer');
+  d.hidden = !S.drawer;
+  d.innerHTML = S.drawer?drawer():'';
+  if(S.drawer) d.setAttribute('aria-labelledby','dh');
+  CHROME.drawer(S.drawer);
+  fitDrawer();
+  markTables();
+  CHROME.setMockPressed({0:S.tab,1:mockPressed()});
+  if(key){ const el = document.querySelector(`[data-k="${key}"]`); if(el && !el.disabled) el.focus(); }
+}
+function markTables(){
+  document.querySelectorAll('.tbl-wrap').forEach(w=>{const more=w.scrollWidth>w.clientWidth+24;w.classList.toggle('more',more);w.tabIndex=more?0:-1;if(more)w.setAttribute('aria-label','Tabela rolável');const h=w.previousElementSibling&&w.previousElementSibling.classList.contains('scrollhint')?w.previousElementSibling:null;if(h)h.hidden=!more;});
+}
+/** o drawer cabe na janela: a altura útil começa no topo visível dele, para a ação primária não ficar abaixo da dobra */
+function fitDrawer(){ const d=document.querySelector('#drawer .drawer-in'); if(!d) return; const top=Math.max(0,document.getElementById('drawer').getBoundingClientRect().top); d.style.maxHeight = innerWidth<1280?'':`${innerHeight-top}px`; }
+addEventListener('scroll',fitDrawer,{passive:true}); addEventListener('resize',fitDrawer);
+let lastOpenerKey=null;
+function openDrawer(){ const ae=document.activeElement; lastOpener=ae&&ae!==document.body&&!ae.closest('#drawer')?ae:null; lastOpenerKey=lastOpener&&lastOpener.dataset?(lastOpener.dataset.k?`[data-k="${lastOpener.dataset.k}"]`:lastOpener.dataset.ck?`[data-ck="${lastOpener.dataset.ck}"]`:lastOpener.id?`#${lastOpener.id}`:null):null; S.drawer=true; S.pop=null; render(); const h=document.getElementById('dh'); if(h) h.focus(); }
+function closeDrawer(){ S.drawer=false; render();
+  // I4 (F11): o redesenho troca os nós; volta ao mesmo controle pela chave, senão ao botão da forja/status
+  const byKey=lastOpenerKey?document.querySelector(lastOpenerKey):null;
+  const b=[lastOpener&&lastOpener.isConnected?lastOpener:null, byKey, document.querySelector('[data-ck="forja-ask"]'), document.querySelector('[data-ck="forja"]')].find(x=>x&&!x.disabled&&x.getClientRects().length); if(b) b.focus(); }
+/** barra de estados do mockup: Escolher/Confirmar abrem o seletor sem pedido; os estados definem a BASE da sessão do motor
+    (session.setBase), que vale para todas as telas; "cota" = base publicado com o seletor aberto. Sem fromMock (clique
+    interno) só troca a vista do painel. */
+const MOCK_BASE = {queued:'na fila',running:'trabalhando',done:'publicado',late:'atrasado',nomachine:'sem máquina',retry:'nova tentativa',released:'liberado pelo vigia',failed:'falhou',refused:'recusado (dado velho)',cota:'publicado'};
+/** M4: a barra de estados mostra a base persistida da sessão (vale entre telas e recargas); Escolher/Confirmar só com o painel aberto nessas vistas */
+function mockPressed(){
+  if(S.drawer && ['choose','confirm','cota'].includes(S.mockId) && S.flow!=='run') return S.mockId;
+  const b=SS.state().base; if(!b||b==='sem pedido') return null;
+  return Object.keys(MOCK_BASE).find(k=>k!=='cota'&&MOCK_BASE[k]===b)||null;
+}
+function setFlow(f,quiet,fromMock=true){
+  S.drawer=true; S.pop=null; S.toasts=[]; renderToasts();
+  if(fromMock){
+    const hadSync = OBS.SYNC.last>=NOW;
+    if(typeof OBS.resetSync==='function') OBS.resetSync();   // cenário do mock começa da sincronização original
+    if(hadSync && !quiet) toast('','Sincronização do mockup desfeita',`Os estados da barra começam da sincronização das ${hm(OBS.SYNC.last)}.`);   // D5
+    S.trackType='padroes-titulo'; SS.setBase(['choose','confirm'].includes(f)?'sem pedido':MOCK_BASE[f],{type:S.trackType});
+    S.req='padroes-titulo'; S.reqFmt='long'; S.reqNiche=reqNicheFor(S.niche); S.mockId=f;
+  }
+  S.flow = ['choose','confirm','cota'].includes(f)?(f==='cota'?'choose':f):'run';
+  render();
+  const h = document.getElementById('dh'); if(h && (document.activeElement===document.body||!document.activeElement||f==='cota')) h.focus();
+  if(quiet||!fromMock) return;
+  const sc = cur(), r = hasReq(sc)?trackedReq(sc):null;
+  if(f==='done'){ const pr=allReqs('padroes-titulo').find(x=>x.state==='publicado'); if(pr) toast('ok','Leitura publicada',`${typeName(pr.type||'padroes-titulo')} · ${nicheLabel(pr.niche)}`,['Ir até a leitura','goInsights']); }
+  if(f==='failed'&&r) toast('bad','A forja não conseguiu publicar a leitura',period(sentenceCase(r.failReason)));
+  if(f==='refused'){ const rf=allReqs('padroes-titulo').filter(x=>x.state==='recusado (dado velho)').map(x=>nicheLabel(x.niche)); toast('warn',`A forja recusou o pedido${rf.length?` de ${rf.join(' e ')}`:''}`,'Dado velho. Veja o motivo no painel.'); }
+}
+/** pede à forja pela sessão do motor; o motor recusa (pedido ativo, cota) e a moldura mostra o motivo */
+function askForja(niche,type,video){
+  const res = SS.ask(niche,video?{type,video}:{type}); if(res.ok&&type!=='leitura-video') S.trackType=type;
+  if(!res.ok){ toast('warn','Não deu para pedir',period(sentenceCase(res.reason))); render(); return false; }
+  S.flow='run'; S.mockId=null; render();
+  const sc=cur(), m=hasReq(sc)?sc.machine:Q, ok=(res.results||[]).filter(x=>x.ok).map(x=>nicheLabel(x.niche));
+  const skipped=(res.results||[]).filter(x=>!x.ok);
+  toast('forja','Pedido enviado à forja',`${typeName(type)} · ${ok.join(' e ')}. A forja consulta a fila às ${hm(nextPoll(m))}.${skipped.length?` ${period(sentenceCase(skipped.map(x=>x.reason).join('; ')))}`:''}`);
+  const h=document.getElementById('dh'); if(h) h.focus();
+  return true;
+}
+document.addEventListener('click',e=>{
+  const el = e.target.closest('[data-act],[data-flow],[data-rq],[data-rn],[data-rf]');
+  if(!el) return;
+  if(el.disabled) return;
+  const a = el.dataset;
+  if(a.flow){ setFlow(a.flow,false,false); return }
+  if(a.rn){S.req=a.rq;S.reqFmt=typeOf(a.rq).fmt||'long';S.reqNiche=a.rn;render();return}
+  if(a.rf){S.reqFmt=a.rf;S.req=reqType('padroes-titulo',a.rf);render();return}
+  if(a.rq && el.tagName==='INPUT'){const o=el.closest('.opt');S.req=a.rq;S.reqFmt=typeOf(a.rq).fmt||'long';if(o&&o.dataset.nicheOpt)S.reqNiche=o.dataset.nicheOpt;render();return}
+  switch(a.act){
+    case 'openForja': ACT.openForja(); break;
+    case 'closeForja': closeDrawer(); break;
+    case 'send': askForja(effNiche(), S.req); break;
+    // I1 (F9): "Pedir nova" pede SÓ o(s) nicho(s) que terminaram mal; os pedidos dos outros nichos continuam (a sessão compõe)
+    case 'again':{ if(a.video){ askForja(null,'leitura-video',a.video); break; }
+      const sc=Object.assign(SS.current(S.niche,{type:a.type||trackType()}),{type:a.type||trackType()}), dead=(sc.requests||[]).filter(x=>DEAD.includes(x.state)), ns=dead.map(x=>x.niche);
+      if(!ns.length) break; S.req=(dead[0].type||'padroes-titulo'); askForja(ns.length>1?'todos':ns[0], S.req); break; }
+    case 'showRun': if(a.type) S.trackType=a.type; S.flow='run'; render(); { const h=document.getElementById('dh'); if(h) h.focus(); } break;
+    case 'cancelReq':{ const type=a.type||trackType(), o=a.video?{type,video:a.video}:{type}, sc=SS.current(a.video?null:S.niche,o), k=(sc.requests||[]).filter(x=>ACTIVE_ST.includes(x.state)).length;
+      SS.cancel(a.video?null:S.niche,o); S.mockId=null;
+      S.flow=hasReq(cur())?'run':'choose'; S.reqNiche=reqNicheFor(S.niche); render(); document.getElementById('dh').focus();
+      toast('forja',k>1?'Pedidos cancelados':'Pedido cancelado',k>1?'Saíram da fila antes de a forja pegar; a cota continua livre.':'Saiu da fila antes de a forja pegar; a cota continua livre.'); break; }
+    case 'goInsights': e.preventDefault(); ACT.goInsights(); break;
+    case 'goInsightsOld': S.openRead=true; S.tab='insights'; S.pop=null; if(innerWidth<1280) S.drawer=false; render(); { const p=document.getElementById('panel'); p.tabIndex=-1; p.focus(); } break;
+  }
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    if(S.drawer){closeDrawer();return}
+  }
+  if(e.key==='Tab' && S.drawer && innerWidth<1280){
+    const d=document.getElementById('drawer');
+    // M3: avisos com ação ficam alcançáveis com o drawer modal (entram no ciclo de Tab depois do drawer)
+    const f=[...d.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),[tabindex="0"]'),...document.querySelectorAll('#ch-toasts button:not([disabled]),#ch-toasts a[href],#ch-toasts textarea')].filter(x=>x.getClientRects().length);
+    if(!f.length) return;
+    const first=f[0], last=f[f.length-1];
+    if(!f.includes(document.activeElement)){e.preventDefault();(e.shiftKey?last:first).focus();return}
+    if(e.shiftKey && document.activeElement===first){e.preventDefault();last.focus()}
+    else if(!e.shiftKey && document.activeElement===last){e.preventDefault();first.focus()}
+  }
+});
+/* resize: só reaplica o modo do drawer e o encaixe dele; #content não é redesenhado (preserva <details> abertos e foco) */
+let rszRaf=0; window.addEventListener('resize',()=>{ if(rszRaf) return; rszRaf=requestAnimationFrame(()=>{ rszRaf=0; CHROME.drawer(S.drawer); fitDrawer(); markTables(); }); });
+/* ações compartilhadas por cliques internos, toasts e chrome */
+const ACT = {
+  openForja(){ const free=freeNiches();
+    if(!isActive() && S.flow!=='confirm') { S.flow='choose'; S.mockId=null; S.reqNiche=reqNicheFor(S.niche); }
+    else if(isActive() && free.length){ S.flow='choose'; S.mockId=null; S.reqNiche=free.length===1?free[0]:'todos';   // F10: pedir o nicho livre
+      // I3 (F11): já marca um tipo que o nicho livre aceita (nunca abre o seletor num beco de cota)
+      const ok=free.length===1?askableTypes(free[0]):askableTypes('ia').filter(t=>askableTypes('viagem').includes(t));
+      const want=S.req==='padroes-titulo-shorts'?S.req:S.req; if(!ok.includes(want)&&ok.length){ const t=ok.find(x=>x!=='padroes-titulo-shorts')||ok[0]; S.req=t; S.reqFmt=t==='padroes-titulo-shorts'?'short':'long'; } }
+    else if(isActive()) S.flow='run';
+    openDrawer(); },
+  goInsights(){ const pr=pubReq(S.niche)||allReqs(FJ.readingTypeFor('long')).find(x=>x.state==='publicado'); if(pr && S.niche!=='todos' && S.niche!==pr.niche){ S.niche=pr.niche; CHROME.setNiche(S.niche,{silent:true,persist:false}); toast('',`Nicho mudou para ${nicheLabel(S.niche)}`,'Para mostrar a leitura publicada.'); } S.openRead=true; S.tab='insights'; if(innerWidth<1280) S.drawer=false; render(); const p=document.getElementById('panel'); p.tabIndex=-1; p.focus(); },
+};
+CHROME.mount({
+  tab:S.tab, content:'#screen', drawer:'#drawer',
+  mockStates:[
+    {label:'Aba na moldura', items:TABS.map(t=>({id:t,label:TABNAME[t]})), note:'As abas do produto são links para as telas irmãs; aqui só escolhe qual amostra fica sob o painel da forja.'},
+    {label:'Fluxo da forja', items:FLOWS.map(([id,label])=>({id,label}))},
+  ],
+  deps:DEPS,
+  onMock:(id,g)=>{ if(g===0){S.tab=id;render();} else setFlow(id); },
+  onNiche:n=>{ S.niche=n; if(S.flow==='choose') S.reqNiche=reqNicheFor(n); render(); },   // trocar de nicho nunca cria nem apaga pedido (sessão do motor)
+  onTheme:()=>render(),
+  onSynced:()=>render(),   // CONVENCOES F7: a amostra de canais e os avisos dependem da sincronização
+  onForja:()=>ACT.openForja(),
+  onStatus:()=>{ S.flow='run'; openDrawer(); },
+  onBackdrop:()=>closeDrawer(),
+  cowork:()=>coworkText(),
+});
+S.niche = CHROME.niche();
+render();
+
+/* ============================================================ AUTO-TESTE: window.auditMockup()
+   Percorre estado × aba × nicho × tema e compara a tela com OBS. Devolve a lista de falhas. */
+/** I4: distância do primeiro texto visível ao topo do #screen, nas 6 telas (informativo; as outras telas se ajustam em paralelo).
+    Mede esta página direto e as irmãs num iframe (só funciona servido por http; em file:// o navegador bloqueia e o resultado diz "sem acesso"). */
+function firstTextGap(doc){
+  const sc=doc.getElementById('screen'); if(!sc) return null;
+  const top=sc.getBoundingClientRect().top, w=doc.createTreeWalker(sc,NodeFilter.SHOW_TEXT); let n, best=Infinity;
+  while((n=w.nextNode())){ if(!n.textContent.trim()) continue; const el=n.parentElement; if(el.closest('[hidden],.sr,.ch-sr,[aria-hidden="true"]')) continue;
+    const cs=el.ownerDocument.defaultView.getComputedStyle(el); if(cs.visibility==='hidden'||cs.display==='none') continue;
+    const rg=doc.createRange(); rg.selectNodeContents(n); const rs=[...rg.getClientRects()].filter(r=>r.width>0&&r.height>0); if(rs.length){ best=Math.min(best,rs[0].top); break; } }
+  // M2: campos (input/select/textarea) contam como primeiro conteúdo visível
+  sc.querySelectorAll('input:not([type="hidden"]),select,textarea').forEach(el=>{ if(el.closest('[hidden]')) return; const r=el.getBoundingClientRect(); if(r.width>0&&r.height>0) best=Math.min(best,r.top); });
+  return best===Infinity?null:Math.round(best-top);
+}
+window.auditTopo = async function(){
+  const out={'moldura-forja':firstTextGap(document)};
+  for(const p of ['canais','mudancas','outliers','insights','historico-video']){
+    const f=document.createElement('iframe'); f.setAttribute('aria-hidden','true'); f.tabIndex=-1; f.style.cssText=`position:fixed;left:-${innerWidth+50}px;top:0;width:${innerWidth}px;height:${innerHeight}px;border:0`;
+    f.src=p+'.html'; document.body.appendChild(f);
+    await new Promise(r=>{f.onload=r; setTimeout(r,4000);}); await new Promise(r=>setTimeout(r,300));
+    try{ out[p]=firstTextGap(f.contentDocument); }catch(e){ out[p]='sem acesso (file://)'; }
+    f.remove();
+  }
+  return out;
+};
+window.auditMockup = function(){
+  const fails = [];
+  const rgb = c=>c.match(/[\d.]+/g).map(Number);
+  function bgOf(el){
+    const stack=[]; let n=el;
+    while(n && n.nodeType===1){const c=rgb(getComputedStyle(n).backgroundColor);if(c.length<4||c[3]>0)stack.push(c);if(c.length<4||c[3]===1)break;n=n.parentElement;}
+    let base=[0,0,0]; if(!n) base = rgb(getComputedStyle(document.body).backgroundColor);
+    for(let i=stack.length-1;i>=0;i--){const c=stack[i];const a=c.length<4?1:c[3];if(i===stack.length-1&&a===1){base=c.slice(0,3);continue}base=base.map((b,j)=>b*(1-a)+c[j]*a)}
+    return base;
+  }
+  const L = c=>{const f=v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)};return .2126*f(c[0])+.7152*f(c[1])+.0722*f(c[2])};
+  const ratio=(a,b)=>{const x=L(a),y=L(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
+  const visible = el=>{if(el.closest('[hidden]'))return false;const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&getComputedStyle(el).visibility!=='hidden'};
+  const modal = ()=>S.drawer&&innerWidth<1280;
+  const inScope = el=>!modal()||el.closest('#drawer')||el.closest('.ch-toasts');
+  const FUTURE = /(volta às|libera|próxima|consulta|consultar|previsto|esperado|liberad[oa]|tenta|amanhã|limite)/i;
+  const nowDay = D.dm(OBS.NOW), nowMin = (()=>{const [h,m]=hm(OBS.NOW).split(':').map(Number);return h*60+m})();
+  const savedUrl = location.href;
+  if(typeof OBS.resetSync==='function') OBS.resetSync();
+  const savedTheme = document.documentElement.dataset.theme, KEEP=['tab','niche','openRead','req','reqFmt','reqNiche','flow','drawer','mockId','trackType'], saved=JSON.parse(JSON.stringify(Object.fromEntries(KEEP.map(k=>[k,S[k]]))));
+  const savedSession = JSON.stringify(SS.state());   // a auditoria mexe na sessão; no fim ela volta como estava
+  const flows = FLOWS.map(f=>f[0]).concat(['closed','closed-published']);
+  for(const th of ['dark','light']){ document.documentElement.dataset.theme=th;
+  for(const f of flows){ for(const t of TABS){ for(const n of NICHES){ for(const rq of (f==='confirm'?TYPES.map(x=>x.id):[null])){
+    S.tab=t; S.niche=n; S.toasts=[]; renderToasts();
+    setFlow(f.startsWith('closed')?(f==='closed'?'choose':'done'):f,true); if(f.startsWith('closed'))S.drawer=false;
+    S.tab=t; S.niche=n; if(rq){S.req=rq;S.reqNiche=reqNicheFor(n);} render();
+    const tag = `${th}/${f}/${t}/${n}${rq?'/'+rq:''}`;
+    // 1. confirmação só do próprio tipo
+    const cf=document.querySelector('.confirm');
+    if(cf){const own=cf.dataset.type,txt=cf.textContent;
+      for(const [k,c] of Object.entries(TYPE_COPY)){ if(k!==own && c!==TYPE_COPY[own] && txt.includes(c.entrega.slice(0,30))) fails.push(`${tag}: confirmação de ${own} contém texto de ${k}`); }
+      if(!txt.includes(TYPE_COPY[own].entrega.slice(0,30))) fails.push(`${tag}: confirmação de ${own} sem a própria entrega`);}
+    // 2. no máximo um preenchido
+    const filled=[...document.querySelectorAll('.btn.primary,.btn.forja-solid,.ch-btn.ch-forja-solid')].filter(b=>visible(b)&&inScope(b));
+    if(filled.length>1) fails.push(`${tag}: ${filled.length} botões preenchidos`);
+    // 3. horários de eventos passados ≤ agora; 4. dias da semana
+    const fut=[...document.querySelectorAll('[data-future]')];fut.forEach(x=>x.style.display='none');
+    const text=[...document.querySelectorAll('#ch-content,#drawer')].map(x=>x.innerText).join('\n');
+    fut.forEach(x=>x.style.display='');
+    for(const m of text.matchAll(/(\d{2}\/\d{2})?[ ,]*(?:às |de )?\b(\d{2}):(\d{2})\b/g)){
+      const mins=+m[2]*60+(+m[3]), dm=m[1], ctx=text.slice(Math.max(0,m.index-60),m.index+m[0].length+4);
+      const today = !dm || dm===nowDay;
+      const later = dm && (+dm.split('/')[1]*100+(+dm.split('/')[0])) > (+nowDay.split('/')[1]*100+(+nowDay.split('/')[0]));
+      if((later || (today && mins>nowMin)) && !FUTURE.test(ctx)) fails.push(`${tag}: horário futuro ${m[0].trim()} em “${ctx.replace(/\s+/g,' ')}”`);
+    }
+    for(const m of text.matchAll(/\b(dom|seg|ter|qua|qui|sex|sáb)\w*,? (\d{2})\/(\d{2})/g)){
+      const real=D.weekdayShort(OBS.date.spIso?OBS.date.spIso(`2026-${m[3]}-${m[2]}T12:00`):new Date(2026,+m[3]-1,+m[2],12).getTime());
+      if(real!==m[1]) fails.push(`${tag}: ${m[0]} é ${real}`);
+    }
+    // 5. contagens contra OBS
+    const tc=OBS.tabCounts(n);
+    for(const [k,key] of Object.entries(TABKEY)){const c=document.querySelector(`[data-count="${k}"]`);if(!c||+c.textContent!==tc[key])fails.push(`${tag}: contagem ${k}=${c&&c.textContent} ≠ ${tc[key]}`)}
+    if(document.querySelector('[data-tab="insights"] .ct')) fails.push(`${tag}: Insights com contagem`);
+    const fp=document.querySelector('[data-fresh-probs]'); if((fp?+fp.dataset.freshProbs:0)!==syncProblems().length) fails.push(`${tag}: frescor ≠ OBS`);
+    if(t==='outliers' && !modal()){const rows=document.querySelectorAll('[data-outlier]').length;if(rows!==OBS.outliers({niche:n,fmt:'long'}).orderedIds().length)fails.push(`${tag}: ${rows} outliers na amostra ≠ OBS`)}
+    // 6. fórmulas: afirmação só com regra; resto com selo
+    document.querySelectorAll('.pattern[data-verdict]').forEach(p=>{const v=p.dataset.verdict;if(v==='lista')return;
+      const nn=+p.dataset.n,df=+p.dataset.diff,R=FJ.rules.pattern;
+      if(v==='padrao'&&(nn<R.minN||df<R.minDiff))fails.push(`${tag}: fórmula afirmada sem passar a regra (n=${nn}, dif=${df})`);
+      if(v!=='padrao'&&!/pouco para concluir|não passa a regra/.test(p.textContent))fails.push(`${tag}: fórmula sem selo (${v})`);});
+    document.querySelectorAll('[data-reading]').forEach(a=>{const r=FJ.byId[a.dataset.reading];if(!a.textContent.toLowerCase().includes(r.sent.text.toLowerCase()))fails.push(`${tag}: leitura sem o texto de envio de OBS`)});
+    // 6b. fila, histórico e prévia contra OBS
+    if(t==='insights' && !modal()){
+      FJ.requests.filter(r=>!r.scenario&&(n==='todos'||r.niche===n)).forEach(r=>{if(!document.querySelector(`[data-request="${r.id}"]`))fails.push(`${tag}: pedido ${r.id} fora do histórico`)});
+      { const pr=n==='todos'?(pubReq('ia')||pubReq('viagem')):pubReq(n); if(pr&&FJ.byId[pr.readingId]&&(pr.type||'padroes-titulo')===FJ.readingTypeFor('long')){const want=pr.readingId;if(!document.querySelector(`[data-reading="${want}"]`))fails.push(`${tag}: leitura publicada ≠ ${want}`)}}
+    }
+    document.querySelectorAll('[data-preview]').forEach(el=>{const [tp,nc]=el.dataset.preview.split('|');const pv=FJ.preview(tp,nc,typeOf(tp).fmt||undefined);if(!el.textContent.includes(pv.text.replace(/^Lê /,'')))fails.push(`${tag}: prévia ≠ OBS (${tp}/${nc})`)});
+    // 6c. regras da rodada final
+    if(f==='cota'){ document.querySelectorAll('.opt').forEach(o=>{const shouldBlock=quotaFor(o.dataset.type,o.dataset.nicheOpt).blocked;if(o.classList.contains('off')!==shouldBlock)fails.push(`${tag}: cota bloqueia ${o.dataset.type}/${o.dataset.nicheOpt} indevidamente`)}); }
+    document.querySelectorAll('a[href]').forEach(a=>{const h=a.getAttribute('href');if(h==='#'||/\?$/.test(h))fails.push(`${tag}: href inválido "${h}"`)});
+    if(isActive()&&S.niche==='todos'&&isSplit(cur())){const st=document.getElementById('ch-req-status');if(!st||!/^(?:[^·]+ · )?(IA|Viagem): /.test(st.textContent))fails.push(`${tag}: com Todos o status do cabeçalho não diz o nicho (${st&&st.textContent})`)}
+    // v2.1.1: nenhum botão visível com dois rótulos visíveis (inteiro + curto)
+    document.querySelectorAll('#ch-app button, #ch-app a.ch-btn').forEach(b=>{ if(!b.getClientRects().length) return;
+      const shown=sel=>[...b.querySelectorAll(sel)].filter(x=>{const r=x.getBoundingClientRect(); return getComputedStyle(x).display!=='none'&&r.width>1&&r.height>1;});
+      const pairs=[[shown('.ch-long'),shown('.ch-short')],[shown('.ch-lf'),shown('.ch-ls')]].filter(([a,b])=>a.length&&b.length), vis=pairs.flat(2);
+      if(pairs.length) fails.push(`${tag}: botão com dois rótulos visíveis (${vis.map(x=>x.textContent).join(' + ')})`); });
+    // ativo: "Pedido em andamento" desabilitado, ou (Todos com nicho livre, F10) o botão habilitado para o nicho livre
+    if(isActive()){const b=[...document.querySelectorAll('.ch-actions .ch-btn.ch-forja,.ch-actions .ch-btn.ch-forja-solid')].find(x=>x.id!=='ch-req-status'&&(x.disabled?/Pedido em andamento/.test(x.textContent):/^Pedir leitura de (IA|Viagem)/.test(x.textContent.trim())&&freeNiches().length));if(!b)fails.push(`${tag}: falta "Pedido em andamento" desabilitado`)}
+    if(f==='nomachine'&&S.drawer){const tt=document.querySelector('.run-tit'), sc=scen();if(!tt||tt.textContent!==(isSplit(sc)?SEM_MAQUINA_N(sc.request.createdAt,sc.requests.map(x=>nicheLabel(x.niche))):SEM_MAQUINA(sc.request.createdAt)))fails.push(`${tag}: frase de sem máquina diferente da CONVENCOES`)}
+    if(S.drawer&&!['choose','confirm','cota'].includes(f)){const sc=scen();if(sc.request.createdAt>OBS.NOW)fails.push(`${tag}: pedido criado no futuro`)}
+    if(store.get('obs-niche')!==S.niche) fails.push(`${tag}: obs-niche não persistido`);
+    { const h=document.createElement('div');h.hidden=true;document.body.appendChild(h);if(getComputedStyle(h).display!=='none')fails.push(`${tag}: [hidden] sem display:none`);h.remove(); }
+    // 7. contraste e alvos
+    document.querySelectorAll('#ch-app *, #ch-mock *, #ch-toasts *').forEach(el=>{
+      if(!visible(el)||!inScope(el)) return;
+      const own=[...el.childNodes].some(c=>c.nodeType===3&&c.textContent.trim());
+      if(own && !el.closest('[disabled],.sr,.ch-sr,svg')){
+        const cs=getComputedStyle(el); const fg=rgb(cs.color); const bg=bgOf(el);
+        const fa=fg[3]===undefined?1:fg[3]; const col=fg.slice(0,3).map((v,i)=>v*fa+bg[i]*(1-fa));
+        const size=parseFloat(cs.fontSize), bold=+cs.fontWeight>=600, need=(size>=24||(size>=18.66&&bold))?3:4.5;
+        const r=ratio(col,bg); if(r<need) fails.push(`${tag}: contraste ${r.toFixed(2)} em <${el.tagName.toLowerCase()} class="${el.className}">${el.textContent.trim().slice(0,30)}`);
+      }
+      if(el.matches('button,a[href],input,[role=menuitem]')){const r=el.getBoundingClientRect();
+        const lbl = el.tagName==='INPUT' && el.labels && el.labels.length;
+        if(!lbl && (r.width<32||r.height<32)) fails.push(`${tag}: alvo ${Math.round(r.width)}×${Math.round(r.height)} “${(el.textContent||el.getAttribute('aria-label')||'').trim().slice(0,24)}”`);}
+    });
+    // 7b. layout: abaixo de 1100 px a coluna principal ocupa a largura toda
+    if(innerWidth<=1100){const w=document.querySelector('#ch-app .ch-main').getBoundingClientRect().width;if(w<innerWidth-1)fails.push(`${tag}: coluna principal com ${Math.round(w)}px de ${innerWidth}`)}
+    // 7c. aba atual inteira à vista no trilho de abas
+    { const tb=document.querySelector('#ch-app .ch-tabs'), cur=tb&&tb.querySelector('[aria-current]'); if(cur&&!modal()){ const a=tb.getBoundingClientRect(), b=cur.getBoundingClientRect(); if(b.left<a.left-1||b.right>a.right+1) fails.push(`${tag}: aba atual cortada no trilho`); } }
+    // 8. overflow
+    if(document.documentElement.scrollWidth>innerWidth+1) fails.push(`${tag}: overflow ${document.documentElement.scrollWidth}>${innerWidth}`);
+  }}}}}
+  // clique-em-tudo no estado de cota (base publicado): o bloqueio de cada opção segue a sessão do motor, e clicar não mexe na sessão
+  for(const n of NICHES){
+    S.niche=n; setFlow('cota',true);
+    const sessKey = JSON.stringify(SS.state());
+    const seen = new Set(); let guard=0;
+    while(guard++<80){
+      const next = [...document.querySelectorAll('#drawer [data-rn],#drawer [data-rf],#drawer input[data-rq]')].find(b=>!seen.has(b.dataset.k)&&!b.disabled);
+      if(!next) break;
+      seen.add(next.dataset.k); next.click();
+      const tag = `cota/clique ${next.dataset.k}/${n}`;
+      document.querySelectorAll('#drawer .opt').forEach(o=>{const want=quotaFor(o.dataset.type,o.dataset.nicheOpt).blocked;if(o.classList.contains('off')!==want)fails.push(`${tag}: ${o.dataset.type}/${o.dataset.nicheOpt} ${o.classList.contains('off')?'bloqueado':'livre'} indevidamente`)});
+      if(JSON.stringify(SS.state())!==sessKey) fails.push(`${tag}: clicar no seletor mudou a sessão de pedidos`);
+      const cont=document.querySelector('#drawer [data-k="cont"]'); const selBlocked=quotaFor(S.req,S.reqNiche).blocked;
+      if(cont && cont.disabled!==selBlocked) fails.push(`${tag}: Continuar ${cont.disabled?'desabilitado':'habilitado'} com seleção ${selBlocked?'bloqueada':'livre'}`);
+    }
+    if(seen.size<10) fails.push(`cota/${n}: clique-em-tudo só alcançou ${seen.size} controles`);
+  }
+  // B2/I2: com a cota de IA usada (base publicado, Viagem cancelado), Todos vira pedido só de Viagem e compõe com o publicado
+  { S.niche='todos'; CHROME.setNiche('todos',{silent:true}); setFlow('cota',true); SS.cancel('viagem',{type:'padroes-titulo'});
+    S.req='padroes-titulo'; S.reqFmt='long'; S.reqNiche='todos'; setFlow('confirm',true,false);
+    const h4=document.querySelector('#drawer .confirm h4');
+    if(effNiche()!=='viagem'||!h4||/IA/.test(h4.textContent)) fails.push(`B2: confirmação com Todos não ficou só em Viagem (${h4&&h4.textContent})`);
+    document.querySelector('#drawer [data-k="send"]').click();
+    const sc=cur(), via=(sc.requests||[]).find(x=>x.niche==='viagem'), ia=(sc.requests||[]).find(x=>x.niche==='ia');
+    if(!via||via.state!=='na fila'||via.createdAt!==NOW) fails.push(`B2: pedido de Viagem não entrou na fila agora (${via?via.state+' '+hm(via.createdAt):'sumiu'})`);
+    if(!ia||ia.state!=='publicado') fails.push('I2: pedido novo não compôs com o publicado de IA');
+    setFlow('queued',true); if((cur().requests||[]).some(x=>x.createdAt===NOW)) fails.push('mock "na fila" deveria usar a hora do cenário, não agora');
+    // trocar de nicho não cria nem apaga pedido
+    const k0=JSON.stringify(SS.state()); for(const n of NICHES){ S.niche=n; render(); } S.niche='todos'; render();
+    if(JSON.stringify(SS.state())!==k0) fails.push('F9: trocar de nicho mexeu na sessão de pedidos');
+  }
+  // F10 B1: dois tipos com pedido na sessão → os dois aparecem (cabeçalho + pílula, uma barra e um bloco por tipo); nada de null/undefined
+  { S.niche='todos'; CHROME.setNiche('todos',{silent:true}); setFlow('queued',true);
+    S.req='temas'; S.reqNiche='ia'; const ok=SS.ask('ia',{type:'temas'}); render();
+    if(!ok.ok) fails.push('F10: não deu para pedir Temas com Padrões na fila: '+ok.reason);
+    for(const tab of TABS){ S.tab=tab; S.flow='run'; S.drawer=true; render();
+      const head=[document.getElementById('ch-req-status'),...document.querySelectorAll('.ch-pill-2')].map(x=>x?x.textContent:'').join(' | ');
+      if(!/Padrões de título/.test(head)||!/Temas/.test(head)) fails.push(`F10/${tab}: cabeçalho não mostra os dois tipos (${head})`);
+      const bars=[...document.querySelectorAll('#panel .inflight')].map(x=>x.dataset.type); if(!(bars.includes('padroes-titulo')&&bars.includes('temas'))) fails.push(`F10/${tab}: barra de pedido não mostra os dois tipos (${bars})`);
+      const runs=document.querySelectorAll('#drawer .run').length; if(runs<2) fails.push(`F10/${tab}: painel com ${runs} bloco(s) para dois tipos`);
+      const txt=document.getElementById('ch-content').innerText+' '+document.getElementById('drawer').innerText+' '+head;
+      if(/\b(null|undefined|NaN)\b/.test(txt)) fails.push(`F10/${tab}: "null"/"undefined" no painel`);
+      const fb=[...document.querySelectorAll('.ch-actions .ch-btn.ch-forja,.ch-actions .ch-btn.ch-forja-solid')].filter(b=>!b.disabled&&b.id!=='ch-req-status');
+      if(fb.length&&!freeNiches().length) fails.push(`F10/${tab}: botão de pedir habilitado sem nicho livre`);
+      if(!fb.length&&freeNiches().length) fails.push(`F11 K3/${tab}: há tipo livre (${freeNiches()}) e o botão de pedir não aparece`);
+      // F11 I1: com dois tipos, a fila de ações continua numa linha de 34 px (1280 e acima)
+      if(innerWidth>=1280){ const h=Math.round(document.querySelector('.ch-actions').getBoundingClientRect().height); if(h>35) fails.push(`F11/${tab}: ações com dois tipos em ${h} px (esperado 34) a ${innerWidth}`); }
+    }
+    // F10 regra: com Todos e um nicho livre, o botão segue habilitado para ele
+    setFlow('done',true); S.flow='run'; render(); const askB=[...document.querySelectorAll('.ch-actions [data-ch-act="forja"]')].find(b=>!b.disabled);
+    const wantAsk=`Pedir leitura de ${freeNiches().map(nicheLabel).join(' e ')} à forja`;
+    if(!askB||askB.getAttribute('aria-label')!==wantAsk) fails.push(`F10: botão do nicho livre não diz "${wantAsk}" (${askB&&askB.getAttribute('aria-label')})`);
+    { const st=document.getElementById('ch-req-status'), d=document.getElementById('ch-req-desc');
+      if(!st) fails.push('F10: ativo + nicho livre sem a linha de status ativa (#ch-req-status)');
+      if(document.querySelector('.ch-actions .ch-pill:not(.ch-pill-2)')) fails.push('F10: ativo + nicho livre virou pílula terminal');
+      if(!d||!/^Pedido em andamento/.test(d.textContent)||/Último pedido/.test(document.querySelector('.ch-actions').textContent)) fails.push(`F10: leitor de tela não diz "Pedido em andamento" (${d&&d.textContent})`); }
+    // F11 I3: o botão do nicho livre nunca abre um seletor bloqueado (tipo pedível já marcado, Continuar habilitado)
+    if(askB){ askB.click(); const sel=document.querySelector('#drawer .opt.sel'), cont=document.querySelector('#drawer [data-k="cont"]');
+      if(!sel||sel.classList.contains('off')||!cont||cont.disabled) fails.push(`F11: botão do nicho livre abriu seletor bloqueado (${S.req}/${S.reqNiche})`);
+      const fr=freeNiches(), wantN=fr.length===1?fr[0]:'todos';
+      if(S.reqNiche!==wantN) fails.push(`F11: seletor aberto pelo botão do nicho livre não está em ${wantN} (${S.reqNiche})`);
+      document.querySelectorAll('#drawer [data-preview]').forEach(el=>{ const nc=el.dataset.preview.split('|')[1]; if(!(nc===wantN||fr.includes(nc))) fails.push(`F11 M4: prévia do seletor fora do nicho livre (${el.dataset.preview})`); });
+      S.drawer=false; render(); }
+    // F11 I2: a linha de frescor fica numa linha só, por nicho (1200 e acima)
+    if(innerWidth>=1200){ for(const nn of NICHES){ S.niche=nn; render(); const h=Math.round(document.querySelector('.ch-fresh-row').getBoundingClientRect().height); if(h>40) fails.push(`F11 I2: frescor em ${h} px com ${nn} a ${innerWidth}`); } S.niche='todos'; render(); }
+    // "atrasado" sem busyWith não monta "ocupada com"
+    setFlow('late',true); const lt=document.getElementById('drawer').innerText; if(/ocupada com (null|undefined)|\bnull\b/.test(lt)) fails.push('B2: legenda do atraso com null');
+    // a 768, pílula terminal não empurra o #screen para baixo de 283
+    if(innerWidth<=800){ setFlow('failed',true); S.drawer=false; render(); const top=Math.round(document.getElementById('screen').getBoundingClientRect().top+scrollY); const ref=Math.round(document.getElementById('ch-nav').getBoundingClientRect().bottom+scrollY+16);
+      setFlow('choose',true); S.drawer=false; render(); const top0=Math.round(document.getElementById('screen').getBoundingClientRect().top+scrollY);
+      if(top>top0) fails.push(`I7: pílula terminal empurra o #screen (${top} > ${top0})`); }
+    S.flow='choose'; S.drawer=false; render();
+  }
+  // K2 (F11): pedido de leitura de vídeo feito no Histórico aparece na moldura (barra + painel) com o título do vídeo
+  { S.niche='todos'; CHROME.setNiche('todos',{silent:true}); setFlow('choose',true); const v=OBS.video('matt-opus55');
+    SS.ask(null,{type:'leitura-video',video:'matt-opus55'}); S.flow='run'; S.drawer=true; S.tab='insights'; render();
+    const bar=[...document.querySelectorAll('#panel .inflight')].map(x=>x.textContent).join(' '), dr=document.getElementById('drawer').textContent;
+    if(!bar.includes(v.title)||!dr.includes(v.title)) fails.push('K2: pedido de leitura de vídeo da sessão não aparece com o título do vídeo');
+    S.niche='viagem'; render(); if([...document.querySelectorAll('#panel .inflight')].some(x=>x.textContent.includes(v.title))) fails.push('K2: leitura de vídeo de IA aparece com o nicho Viagem');
+    S.niche='todos'; S.flow='choose'; S.drawer=false; render(); }
+  // F9: Todos + recusado → "Pedir nova" compõe só para IA; o pedido de Viagem das 14:50 sobrevive
+  { S.niche='todos'; CHROME.setNiche('todos',{silent:true}); setFlow('refused',true);
+    const via0=(scen().requests||[]).find(x=>x.niche==='viagem'); const again=document.querySelector('#drawer [data-k="again"]');
+    if(!again) fails.push('F9: recusado com Todos sem "Pedir nova leitura"'); else { again.click();
+      const sc=scen(), via=(sc.requests||[]).find(x=>x.niche==='viagem'), ia=(sc.requests||[]).find(x=>x.niche==='ia');
+      if(!via||!via0||via.createdAt!==via0.createdAt||via.state!==via0.state) fails.push(`F9: "Pedir nova" com Todos apagou ou mudou o pedido de Viagem (${via?hm(via.createdAt)+' '+via.state:'sumiu'})`);
+      if(!ia||ia.createdAt!==NOW||ia.state!=='na fila') fails.push('F9: o pedido novo de IA não entrou na fila agora');
+      const tt=[...document.querySelectorAll('#ch-toasts .ch-toast')].map(x=>x.textContent).find(x=>/Pedido enviado/.test(x)); if(!tt||!/· IA\./.test(tt)) fails.push(`F9: aviso do pedido novo não diz que foi só para IA (${tt})`);
+      const lines=[...document.querySelectorAll('#drawer .run-lines li')].map(x=>x.textContent); if(!lines.some(l=>/^Viagem: na fila · pedido 14:50/.test(l))) fails.push(`F9: linha de Viagem 14:50 sumiu do painel (${lines.join(' | ')})`); }
+    // Mudanças: particípio por tipo (título → visto)
+    S.flow='choose'; S.drawer=false; S.tab='mudancas'; render();
+    document.querySelectorAll('#panel tbody tr').forEach(tr=>{ const tag=tr.querySelector('.tag'); if(tag&&/^Título$/i.test(tag.textContent.trim())&&/\bvista\b/.test(tr.querySelector('.when').textContent)) fails.push(`F9: "vista" ao lado de título (${tr.querySelector('.when').textContent.trim()})`); });
+    // run-what de "publicado" com Todos não leva " — IA"
+    S.tab='insights'; setFlow('done',true); const w=document.querySelector('.run-what'); if(w&&/ — /.test(w.textContent)) fails.push(`F9: run-what com nicho único num pedido dividido (${w.textContent})`);
+    S.flow='choose'; S.drawer=false; render();
+  }
+  // o CSS da tela não altera o chrome: estilos computados de .ch-* com e sem #screen-css
+  { S.flow='choose'; S.drawer=false; render();
+    const nodes=[...document.querySelectorAll('#ch-app [class*="ch-"],#ch-mock [class*="ch-"]')].filter(el=>!el.closest('#screen,.ch-drawer'));
+    const props=['color','backgroundColor','fontFamily','fontSize','fontWeight','display','padding','margin','borderTopColor','textTransform','position','lineHeight','letterSpacing'];
+    const snap=()=>nodes.map(el=>{const cs=getComputedStyle(el);return props.map(p=>cs[p]).join('|')});
+    const a=snap(); const st=document.getElementById('screen-css'); st.disabled=true; const b=snap(); st.disabled=false;
+    a.forEach((v,i)=>{if(v!==b[i])fails.push(`css da tela altera o chrome em .${[...nodes[i].classList].join('.')}`)});
+    // bateria hostil: regras globais que uma tela poderia ter (body, *, elementos, classes genéricas)
+    const BATTERY = [
+      'body{font-family:serif;color:#f0f;letter-spacing:3px;word-spacing:9px;text-transform:uppercase;line-height:3;background:#f0f;font-size:22px}',
+      '*{margin:7px;padding:5px;box-sizing:content-box;line-height:2}',
+      'span,p,a,button,b,div,li,ul,ol,h1,h2,h3,nav,header,main,table,td,th,summary,details{font:italic 20px serif;text-decoration:underline;text-transform:lowercase;display:inline-block}',
+      '.forja,.sw,.n,.ct,.ghost,.icon,.warn,.sub,.m,.bad,.grp,.ctx,.lbl,.open,.btn,.tag,.dot,.tab,.menu,.pop{display:none!important;color:red!important}',
+      'button{all:unset}a{color:red}svg{display:none}',
+      '*::before,*::after{content:"★";display:block;margin:9px;color:red}',
+      'nav,header,main,details,summary{display:grid;gap:30px;padding:20px;border:3px solid red}',
+      '*{color:red}',
+      'svg *{stroke:red;fill:red}svg{color:red}',
+      'svg{border:3px solid red;background:red;box-shadow:0 0 9px red;transform:rotate(45deg);outline:3px solid red;filter:blur(2px);border-radius:50%;transition:all 9s}',
+      'svg{min-width:80px;min-height:80px;max-width:2px;max-height:2px;float:right;clip-path:circle(10%);mask:linear-gradient(transparent,transparent);z-index:99;overflow:visible}svg *{transform:scale(3);filter:blur(3px);clip-path:inset(40%);mask:linear-gradient(transparent,transparent)}',
+      'svg,svg *{scale:3;rotate:45deg;translate:9px 9px;zoom:2;order:-9;mix-blend-mode:difference;content-visibility:hidden}svg *{fill-opacity:0;stroke-opacity:0}',
+      'svg{flex:1 1 300px;align-self:stretch;cursor:wait}svg *{stroke-dasharray:2 9;stroke-dashoffset:5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;paint-order:stroke}',
+    ];
+    const nodes2=[document.getElementById('ch-app'),document.getElementById('ch-mock'),...nodes];
+    const sig=el=>{const cs=getComputedStyle(el),b=getComputedStyle(el,'::before'),af=getComputedStyle(el,'::after');const ic=[...el.querySelectorAll(':scope > svg, :scope > svg > *')].map(x=>{const c=getComputedStyle(x);return [c.stroke,c.fill,c.color,c.borderTopWidth,c.backgroundColor,c.boxShadow,c.transform,c.outlineStyle,c.filter,c.borderTopLeftRadius,c.transitionDuration,c.minWidth,c.minHeight,c.maxWidth,c.maxHeight,c.float,c.clipPath,c.maskImage,c.zIndex,c.overflow,c.scale,c.rotate,c.translate,c.zoom,c.order,c.mixBlendMode,c.contentVisibility,c.fillOpacity,c.strokeOpacity,c.flex,c.alignSelf,c.cursor,c.strokeDasharray,c.strokeDashoffset,c.strokeLinecap,c.strokeLinejoin,c.vectorEffect,c.paintOrder].join('/')}).join(',');return props.map(p=>cs[p]).join('|')+'|'+b.content+b.display+b.margin+'|'+af.content+af.display+af.margin+'|'+ic};
+    for(const th of ['dark','light']) for(const withDrawer of [false,true]){
+      document.documentElement.dataset.theme=th; if(withDrawer) setFlow('queued',true); else { S.flow='choose'; S.drawer=false; render(); }
+      const live=[document.getElementById('ch-app'),document.getElementById('ch-mock'),...[...document.querySelectorAll('#ch-app [class*="ch-"],#ch-mock [class*="ch-"]')].filter(el=>!el.closest('#screen,.ch-drawer'))];
+      const base2=live.map(sig);
+      BATTERY.forEach((css,bi)=>{ const h=document.createElement('style'); h.textContent=css; document.head.appendChild(h);
+        live.forEach((el,i)=>{const v=sig(el);if(v!==base2[i])fails.push(`CSS hostil #${bi+1} (${th}${withDrawer?', drawer':''}) altera o chrome em ${el.id?'#'+el.id:'.'+[...el.classList].join('.')}`)});
+        h.remove(); });
+    }
+    S.drawer=false; S.flow='choose'; render();
+    // D8: o espaço acima da tela é do chrome (16 px abaixo das abas), em toda aba, mesmo com CSS da tela tentando mudar
+    { const gap=()=>Math.round(document.getElementById('screen').getBoundingClientRect().top-document.getElementById('ch-nav').getBoundingClientRect().bottom);
+      const tab0=S.tab; for(const t of TABS){ S.tab=t; render(); if(gap()!==16) fails.push(`topo do #screen na aba ${t}: ${gap()} px abaixo das abas (esperado 16)`); }
+      const h=document.createElement('style'); h.textContent='#screen#screen{margin-top:60px!important;padding-top:30px;border-top:9px solid red;display:grid;float:left;transform:translateY(20px);position:relative;top:40px}#screen>:first-child{margin-top:50px}'; document.head.appendChild(h);
+      if(gap()!==16) fails.push(`CSS da tela muda o topo do #screen: ${gap()} px`); h.remove(); S.tab=tab0; render();
+      // degradê do trilho de abas: à esquerda só quando rolou
+      const tb=document.querySelector('#ch-nav .ch-tabs');
+      if(tb.scrollWidth>tb.clientWidth+2){ const l0=tb.scrollLeft; tb.scrollLeft=tb.scrollWidth; tb.dispatchEvent(new Event('scroll'));
+        if(!tb.classList.contains('ch-less')) fails.push('trilho de abas rolado sem degradê à esquerda');
+        tb.scrollLeft=0; tb.dispatchEvent(new Event('scroll')); if(tb.classList.contains('ch-less')) fails.push('degradê à esquerda com o trilho no início'); tb.scrollLeft=l0; tb.dispatchEvent(new Event('scroll')); }
+    }
+    // popovers não fecham sozinhos: abertos, sobrevivem a um redesenho do chrome; Esc fecha
+    for(const [act,id] of [['fresh','ch-fresh-pop'],['menu','ch-menu']]){
+      document.querySelector(`[data-ch-act="${act}"]`).click(); CHROME.refresh();
+      if(!document.getElementById(id)) fails.push(`popover ${act} fechou sozinho após redesenho`);
+      document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+      if(document.getElementById(id)) fails.push(`popover ${act} não fecha com Esc`);
+    }
+  }
+  if(savedTheme) document.documentElement.dataset.theme=savedTheme; else delete document.documentElement.dataset.theme;
+  // barra de estados aberta e avisos (com ação, de cópia que falhou e simples): contraste e alvos
+  { const mock=document.getElementById('ch-mock'); const wasOpen=mock.open; mock.open=true; S.drawer=false; S.flow='choose'; render();
+    CHROME.clearToasts(); CHROME.toast('ok','Aviso de teste','Texto do aviso.'); CHROME.toast('','Com ação','Texto.',{label:'Abrir',onClick:()=>{}}); CHROME.toast('warn','Não deu para copiar','Selecione o texto.',null,{selectable:'texto de teste'});
+    document.querySelectorAll('#ch-mock *, #ch-toasts *').forEach(el=>{ if(!visible(el)) return;
+      const own=[...el.childNodes].some(c=>c.nodeType===3&&c.textContent.trim());
+      if(own && !el.closest('[disabled],.sr,.ch-sr,svg')){const cs=getComputedStyle(el);const fg=rgb(cs.color);const bg=bgOf(el);const fa=fg[3]===undefined?1:fg[3];const col=fg.slice(0,3).map((v,i)=>v*fa+bg[i]*(1-fa));const r=ratio(col,bg);if(r<4.5)fails.push(`barra/avisos: contraste ${r.toFixed(2)} em ${el.tagName.toLowerCase()} “${el.textContent.trim().slice(0,24)}”`);}
+      if(el.matches('button,a[href],summary,textarea')){const r=el.getBoundingClientRect(); if(r.width<32||r.height<32) fails.push(`barra/avisos: alvo ${Math.round(r.width)}×${Math.round(r.height)} “${(el.textContent||el.getAttribute('aria-label')||'').trim().slice(0,24)}”`);}
+    });
+    CHROME.clearToasts(); mock.open=wasOpen; }
+  KEEP.forEach(k=>{S[k]=saved[k]===undefined?null:saved[k]});
+  try{ sessionStorage.setItem(SS.key, savedSession); }catch(e){} SS.replay();
+  CHROME.setNiche(S.niche,{silent:true}); render();
+  history.replaceState(history.state,'',savedUrl);
+  return [...new Set(fails)];
+};
+</script>
+</body>
+</html>

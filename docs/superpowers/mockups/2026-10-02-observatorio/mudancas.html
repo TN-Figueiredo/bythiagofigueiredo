@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mudanças dos competidores</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="chrome.css">
+<style>
+/* Mudanças: só o que é desta tela. Tokens gerais,sidebar,cabeçalhos,nicho,abas,barra de estados,tema e toasts vêm de chrome.css/chrome.js.
+   Abaixo,só os tokens que existem apenas nesta tela (diff,sparkline,selos). */
+#screen{
+  --success-text:#4ADE80; --success-bg:rgba(34,197,94,.12);
+  --danger-text:#F26B6B; --danger-bg:rgba(239,68,68,.12);
+  --warning-bg:rgba(245,158,11,.10); --warning-line:rgba(245,158,11,.32); --warning-text:#FBBF24;
+  --info-text:#67E8F9; --info-bg:rgba(6,182,212,.10); --info-line:rgba(6,182,212,.30);
+  --utm:#FBBF24; --ins-bg:rgba(34,197,94,.16); --del-color:#D49A8F;
+  --spark-before:#8A7F6B; --spark-after:#F5EFE6; --band:rgba(168,157,136,.18);
+}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) #screen{
+    --success-text:#11692F; --success-bg:rgba(17,105,47,.09);
+    --danger-text:#B42318; --danger-bg:rgba(180,35,24,.07);
+    --warning-bg:rgba(180,83,9,.08); --warning-line:rgba(180,83,9,.30); --warning-text:#92400E;
+    --info-text:#155E75; --info-bg:rgba(14,116,144,.08); --info-line:rgba(14,116,144,.28);
+    --utm:#8A3F06; --ins-bg:rgba(17,105,47,.13); --del-color:#8E4A3E;
+    --spark-before:#7A6E58; --spark-after:#231C14; --band:rgba(94,82,64,.13);
+} }
+:root[data-theme="light"] #screen{
+    --success-text:#11692F; --success-bg:rgba(17,105,47,.09);
+    --danger-text:#B42318; --danger-bg:rgba(180,35,24,.07);
+    --warning-bg:rgba(180,83,9,.08); --warning-line:rgba(180,83,9,.30); --warning-text:#92400E;
+    --info-text:#155E75; --info-bg:rgba(14,116,144,.08); --info-line:rgba(14,116,144,.28);
+    --utm:#8A3F06; --ins-bg:rgba(17,105,47,.13); --del-color:#8E4A3E;
+    --spark-before:#7A6E58; --spark-after:#231C14; --band:rgba(94,82,64,.13);
+}
+#screen .num{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:0}
+:where(#screen) a{color:inherit}
+:where(#screen) button{font:inherit;color:inherit}
+#screen{font-size:14px}
+#screen :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+#screen svg.i{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#screen .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#screen .hidden{display:none !important}
+/* texto pequeno sobre fundos tintos usa --muted (CONVENCOES R2) */
+#screen .effect,#screen .forja,#screen .d-diff,#screen .badge{--dim:var(--muted)}
+
+/* ---------- resumo ---------- */
+#screen .sumbox{margin-top:0}
+#screen .tot{display:block;margin-top:2px}
+#screen .chip-cen{font-size:11.5px;color:var(--muted);border:1px solid var(--border-strong);border-radius:4px;padding:0 6px;line-height:18px}
+#screen .d-peek{list-style:none;margin:10px 0 0;padding:0;font:400 12.5px/1.5 Inter,sans-serif;color:var(--muted)}
+#screen .d-peek li{display:flex;gap:8px;min-width:0}
+#screen .d-peek .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#screen .d-peek .g{flex:none;width:10px}
+#screen .d-peek .a .g{color:var(--success-text)}
+#screen .d-peek .r .g{color:var(--danger-text)}
+#screen .d-peek .more{font-family:Inter,sans-serif;font-size:12px}
+#screen .sumline{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;min-height:40px;padding:6px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:12.5px;color:var(--muted)}
+#screen .sumline::-webkit-details-marker{display:none}
+#screen .sumline b{color:var(--text);font-weight:600}
+#screen .sumline #sumLine{flex:1;min-width:0}
+#screen .sumbox[open] #sumLine{display:none}
+#screen .sumbox[open] > .sumline{min-height:32px;padding:2px 14px;justify-content:flex-end}
+#screen .sumline .sumopen{white-space:nowrap;color:var(--text);text-decoration:underline;text-underline-offset:3px}
+#screen .sumbox[open] > .sumline{border-radius:8px 8px 0 0;border-bottom:0}
+#screen .sumbox .summary{margin-top:0;border-top-left-radius:0;border-top-right-radius:0}
+#screen .summary{margin-top:16px;display:grid;grid-template-columns:minmax(0,.72fr) minmax(0,1.45fr) minmax(0,.9fr);border:1px solid var(--border);border-radius:8px;background:var(--surface);overflow:hidden}
+#screen .summary > section{padding:12px 18px;min-width:0}
+#screen .summary > section + section{border-left:1px solid var(--border-subtle)}
+#screen .summary h2{font-size:13px;font-weight:600;margin:0}
+#screen .summary .win{font-size:12px;color:var(--dim);margin:2px 0 10px}
+#screen .lead{margin:0;font-size:14px;line-height:1.6;color:var(--muted);max-width:62ch}
+#screen .lead strong{color:var(--text);font-weight:600}
+#screen .lead.small{font-size:12.5px;color:var(--dim);margin-top:8px}
+#screen table.led{width:100%;border-collapse:collapse;font-size:13px}
+#screen table.led th{font-weight:500;text-align:left;color:var(--dim);font-size:12px;padding:0 10px 6px 0;border-bottom:1px solid var(--border-subtle)}
+#screen table.led th.r,#screen table.led td.r{text-align:right}
+#screen table.led th.rh{font-weight:400;padding:5px 10px 5px 0;vertical-align:baseline;color:var(--text);font-size:13px}
+#screen table.led td{padding:5px 10px 5px 0;border-bottom:1px solid var(--border-subtle);vertical-align:baseline}
+#screen table.led tr:last-child td,#screen table.led tr:last-child th.rh{border-bottom:0}
+#screen table.led td.read{color:var(--dim);font-size:12px}
+#screen table.led td.r{white-space:nowrap}
+
+#screen .small-n{display:inline-flex;align-items:center;gap:5px;color:var(--warning-text);font-size:12px}
+#screen .ledout{margin:8px 0 0;font-size:12px;color:var(--dim);line-height:1.5}
+#screen .ledout b{color:var(--muted);font-weight:600}
+#screen .method{margin:4px 0 0;font-size:12px;color:var(--dim);max-width:80ch}
+#screen .method summary{cursor:pointer;min-height:32px;display:inline-flex;align-items:center;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+#screen .method p{margin:4px 0 0}
+
+/* ---------- forja ---------- */
+#screen .forja{border-left:1px solid var(--border-subtle);background:var(--forja-subtle);padding:16px 18px;display:flex;flex-direction:column;gap:8px;min-width:0}
+#screen .fj-niche{border-top:1px solid var(--forja-line);padding-top:6px}
+#screen .fj-niche > summary{cursor:pointer;list-style:none;font-size:12.5px;color:var(--text);min-height:32px;display:flex;align-items:center;gap:8px}
+#screen .fj-niche > summary > span:nth-child(2){flex:1;min-width:0}
+#screen .fj-niche > summary::-webkit-details-marker{display:none}
+#screen .fj-niche .since-l{display:block;color:var(--muted)}
+#screen .fj-niche > summary .open{margin-left:auto;color:var(--forja);text-decoration:underline;text-underline-offset:3px;white-space:nowrap}
+
+#screen .forja-h{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;font-size:13px}
+#screen .forja-h b{font-weight:600}
+#screen .stamp{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--forja);border:1px solid var(--forja-line);border-radius:4px;padding:1px 7px;background:var(--surface)}
+#screen .stamp svg{width:13px;height:13px}
+#screen .state{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:1px 8px;border-radius:10px;border:1px solid var(--border-strong);color:var(--muted);background:var(--surface)}
+#screen .state.bad{color:var(--danger-text);border-color:var(--danger-text)}
+#screen .state.warn{color:var(--warning-text);border-color:var(--warning-line)}
+#screen .state.ok{color:var(--forja);border-color:var(--forja-line)}
+#screen .forja-status{font-size:12.5px;color:var(--text);margin:0}
+#screen .forja-read{margin:4px 0 6px}
+#screen .fj-lines{margin:2px 0 4px;padding-left:18px}
+#screen .fj-lines li{margin:1px 0}
+#screen .forja-read .rh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-bottom:6px}
+#screen .forja-voice{font:400 14px/1.55 Fraunces,serif;color:var(--text);max-width:80ch;margin:0}
+#screen .forja-voice ul{margin:6px 0 0;padding-left:18px}
+#screen .forja-voice li{margin:2px 0}
+#screen .lnk{display:inline;font:500 12.5px/1.2 Inter,sans-serif;padding:9px 4px;background:none;border:0;color:var(--forja);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+#screen .forja-note{font-size:12px;color:var(--muted);margin:0}
+#screen .btn{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:0 14px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+#screen .btn:hover{background:var(--surface-2)}
+
+/* alerta */
+
+/* ---------- filtros ---------- */
+#screen .filters{margin-top:12px;padding-bottom:8px;border-bottom:1px solid var(--border-subtle);display:flex;flex-wrap:wrap;gap:10px 12px;align-items:flex-end}
+#screen .field{display:flex;flex-direction:column;gap:4px}
+#screen .field > .lbl{font-size:11.5px;color:var(--dim)}
+#screen .seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--surface)}
+#screen .seg button{border:0;background:transparent;height:32px;padding:0 10px;font-size:12.5px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap}
+#screen .seg button + button{border-left:1px solid var(--border-subtle)}
+#screen .seg button:hover{color:var(--text)}
+#screen .seg button:disabled{cursor:not-allowed;color:var(--muted);background:var(--surface-2)}
+#screen .seg button[aria-pressed="true"]{background:var(--surface-2);color:var(--text);box-shadow:inset 0 -2px 0 var(--text)}
+#screen .seg .c{font-size:11px;color:var(--muted)}
+#screen .sel{height:32px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);padding:0 8px;font-size:12.5px;max-width:190px}
+#screen .check{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:12.5px;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap}
+#screen .check input{accent-color:var(--text);width:15px;height:15px;margin:0}
+#screen .search{position:relative;flex:1 1 130px;max-width:280px;min-width:130px}
+#screen .search svg{position:absolute;left:10px;top:9px;color:var(--dim)}
+#screen .search input{width:100%;height:32px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);padding:0 10px 0 32px;font-size:12.5px}
+#screen .search input::placeholder{color:var(--dim)}
+#screen .fchip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 0 0 10px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);color:var(--text);font-size:12.5px}
+
+#screen .fchip button{width:32px;height:32px;border:0;background:none;cursor:pointer;color:var(--muted);border-radius:4px;display:grid;place-items:center}
+#screen .more{position:relative}
+#screen .more summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:12.5px;color:var(--muted);white-space:nowrap}
+#screen .more summary::-webkit-details-marker{display:none}
+#screen .more summary::after{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);margin:-3px 0 0 2px}
+#screen .more[open] summary{color:var(--text);border-color:var(--border-strong)}
+#screen .more summary.on{color:var(--text);border-color:var(--text)}
+#screen .more-pop{position:absolute;z-index:20;top:calc(100% + 6px);right:0;min-width:260px;padding:12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);box-shadow:0 8px 24px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:10px}
+#screen .more-pop .sel{max-width:none;width:100%}
+#screen .count-row{display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;margin:8px 0 0;font-size:12.5px;color:var(--dim)}
+#screen .count-row b{color:var(--text);font-weight:500}
+#screen .legend{display:flex;gap:14px;flex-wrap:wrap}
+#screen .legend span{display:inline-flex;align-items:center;gap:6px}
+
+/* ---------- grupo por vídeo ---------- */
+#screen .vid{margin-top:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+#screen .vid-h{display:flex;align-items:flex-start;gap:14px;padding:10px 18px 8px;border-bottom:1px solid var(--border-subtle)}
+#screen .av{width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11px;font-weight:700;color:#1A120A}
+#screen .who{min-width:0;flex:1}
+#screen .ch{font-size:12.5px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#screen .ch b{color:var(--text);font-weight:600}
+#screen .tag{font-size:11px;padding:0 6px;border-radius:3px;line-height:18px;border:1px solid currentColor}
+#screen .tag.rv{color:var(--info-text)}
+#screen .syncnote{display:flex;align-items:center;gap:6px;margin:4px 0 0;font-size:12px;color:var(--warning-text)}
+#screen .btn.fj-outline{background:transparent;border-color:var(--forja);color:var(--forja)}
+#screen .btn.fj-outline:hover{background:var(--forja-subtle)}
+#screen .fj-confirm{border-top:1px solid var(--forja-line);padding-top:8px}
+#screen .tag.ia{color:var(--ia)} #screen .tag.viagem{color:var(--viagem)}
+#screen .vid-h h3{margin:1px 0 1px;font-size:15.5px;font-weight:600;line-height:1.35}
+#screen .meta{font-size:12px;color:var(--dim);display:flex;gap:4px 14px;flex-wrap:wrap}
+#screen .acts{display:flex;gap:4px;flex:none;align-items:center}
+#screen .ghost{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--muted);font-size:12.5px;text-decoration:none;cursor:pointer;white-space:nowrap}
+#screen .ghost:hover{border-color:var(--border);background:var(--surface-2);color:var(--text)}
+#screen .save{width:32px;height:32px;padding:0;justify-content:center}
+#screen .save[aria-pressed="true"]{color:var(--text)}
+#screen .save[aria-pressed="true"] svg{fill:currentColor}
+
+/* linha de troca */
+#screen .chg{display:grid;grid-template-columns:160px minmax(0,1fr) 340px;border-top:1px solid var(--border-subtle)}
+#screen .chg:first-of-type{border-top:0}
+#screen .chg > *{padding:16px 18px;min-width:0}
+#screen .when{border-right:1px solid var(--border-subtle)}
+#screen .kind{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600}
+
+#screen .wline{display:block;margin-top:4px;font-size:12.5px;color:var(--muted)}
+#screen .wline .rel{display:block;font-size:12px;color:var(--dim)}
+#screen .when .seq{display:block;margin-top:8px;font-size:12px;color:var(--dim)}
+#screen .when .save{margin-top:8px;margin-left:-8px}
+#screen .effect{border-left:1px solid var(--border-subtle);background:var(--sunk)}
+
+/* diff de título (herói) */
+#screen .t-pair{display:grid;grid-template-columns:38px minmax(0,1fr);row-gap:8px;align-items:baseline}
+#screen .t-pair .lbl{font-size:11.5px;color:var(--dim);font-weight:500}
+#screen .t-pair p{margin:0}
+#screen .t-old{font-size:15px;line-height:1.4;color:var(--dim)}
+#screen .t-old del{text-decoration:line-through;text-decoration-color:var(--danger);text-decoration-thickness:1.5px;color:var(--del-color)}
+#screen .t-new{font-size:18px;line-height:1.35;font-weight:600;letter-spacing:-.01em}
+#screen .t-new ins{text-decoration:none;background:var(--ins-bg);box-shadow:inset 0 -2px 0 var(--success);padding:0 2px;border-radius:2px}
+#screen .tmv{text-decoration:underline dotted;text-decoration-color:var(--muted);text-underline-offset:4px}
+#screen .tcase{text-decoration:underline dashed;text-decoration-color:var(--muted);text-underline-offset:4px}
+#screen .t-stats{margin-top:10px;font-size:12px;color:var(--dim);display:flex;gap:4px 14px;flex-wrap:wrap}
+
+#screen .badge{display:inline-flex;align-items:flex-start;gap:6px;font-size:12px;line-height:1.4;padding:5px 9px;border-radius:5px;margin-bottom:12px}
+#screen .badge svg{margin-top:1px}
+#screen .badge.rev{background:var(--info-bg);color:var(--info-text);border:1px solid var(--info-line)}
+#screen .badge.note{background:var(--warning-bg);color:var(--warning-text);border:1px solid var(--warning-line)}
+
+/* thumbs (herói) */
+#screen .th-pair{display:grid;grid-template-columns:minmax(0,1fr) 30px minmax(0,1fr);align-items:start;max-width:620px}
+
+#screen .th-pair figure{margin:0}
+#screen .th-pair figcaption{margin-top:7px;font-size:12px;color:var(--dim);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+#screen .th-pair figcaption b{color:var(--muted);font-weight:600}
+#screen .th-arrow{display:grid;place-items:center;color:var(--dim)}
+#screen .thumb{position:relative;aspect-ratio:16/9;border-radius:5px;overflow:hidden;background:linear-gradient(135deg,var(--a) 0 60%,var(--b) 60% 100%);box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+#screen .thumb .tx{position:absolute;max-width:56%;font-weight:800;line-height:.95;letter-spacing:-.02em;text-transform:uppercase;text-shadow:0 2px 0 rgba(0,0,0,.35)}
+
+#screen .thumb .person{position:absolute;bottom:0;width:34%;height:80%}
+#screen .thumb .person::before{content:"";position:absolute;left:24%;top:0;width:52%;aspect-ratio:1;border-radius:50%;background:var(--s)}
+#screen .thumb .person::after{content:"";position:absolute;left:0;right:0;bottom:-6%;height:42%;border-radius:48% 48% 0 0;background:var(--sh)}
+#screen .thumb .dur{position:absolute;right:5px;bottom:5px;background:rgba(0,0,0,.82);color:#fff;font:500 10px/1 "JetBrains Mono",monospace;padding:3px 4px;border-radius:3px}
+#screen .hatch{display:grid;place-items:center;text-align:center;background:repeating-linear-gradient(135deg,var(--sunk) 0 10px,var(--surface) 10px 20px);box-shadow:inset 0 0 0 1px var(--border-strong);color:var(--muted);font-size:12.5px;line-height:1.45;padding:14px;border-radius:6px}
+#screen .hatch b{display:block;color:var(--text);font-weight:600;margin-bottom:2px}
+
+/* diff de descrição */
+#screen .d-head{font-size:13px;color:var(--muted);margin:0 0 10px;max-width:70ch}
+#screen .d-sum{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap}
+#screen .d-sum .chip{font-size:12.5px;padding:3px 8px;border-radius:4px;border:1px solid var(--border);color:var(--text)}
+#screen .d-sum .chip .add{color:var(--success-text)} #screen .d-sum .chip .rem{color:var(--danger-text)}
+#screen .d-sum .noise{color:var(--dim);font-size:12px}
+#screen .linkbtn{background:none;border:0;padding:0 4px;min-height:32px;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-size:12.5px}
+#screen .linkbtn:hover{color:var(--text)}
+#screen .d-diff{margin-top:10px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--sunk);font-size:12.5px;line-height:1.55;overflow:hidden}
+#screen .d-diff .ln{display:grid;grid-template-columns:26px minmax(0,1fr);padding:2px 12px 2px 0;overflow-wrap:anywhere;color:var(--text)}
+#screen .d-diff .g{text-align:center;font-family:"JetBrains Mono",monospace;font-weight:500}
+#screen .d-diff .ln.a{background:var(--success-bg)} #screen .d-diff .ln.a .g{color:var(--success-text)}
+#screen .d-diff .ln.r{background:var(--danger-bg)} #screen .d-diff .ln.r .g{color:var(--danger-text)}
+#screen .d-diff .ln.ctx{color:var(--muted)}
+#screen .d-diff .ln.nz{display:none;color:var(--utm);font-style:italic}
+#screen .d-diff.show-noise .ln.nz{display:grid}
+
+#screen .d-diff .bar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:0 10px;border-top:1px solid var(--border-subtle);font-size:12px;color:var(--muted)}
+#screen .d-diff .bar label{display:inline-flex;align-items:center;gap:7px;min-height:32px;cursor:pointer}
+#screen .d-diff .bar input{accent-color:var(--text);width:15px;height:15px;margin:0}
+
+/* painel de efeito */
+#screen .eff-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12px;color:var(--dim);margin-bottom:4px}
+#screen .sparkbox{position:relative;height:64px;margin-bottom:20px}
+#screen .spark{display:block;width:100%;height:64px}
+#screen .spark-lbl{position:absolute;font-size:10.5px;color:var(--muted);top:-1px;pointer-events:none;white-space:nowrap}
+#screen .eff-dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 12px;margin:10px 0 0;font-size:12.5px}
+#screen .eff-dl dt{color:var(--dim)}
+#screen .eff-dl dd{margin:0;text-align:right;color:var(--muted)}
+#screen .eff-dl dd .num{color:var(--text)}
+#screen .eff-dl dd.inc,#screen .eff-dl dd.inc .num{color:var(--muted);font-weight:400;font-size:12px}
+#screen .eff-dl dd small{display:block;font-size:11.5px;color:var(--dim)}
+#screen .verdict{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13.5px;font-weight:600}
+
+#screen .verdict.win{color:var(--success-text)}
+#screen .verdict.loss{color:var(--danger-text)}
+#screen .verdict.flat,#screen .verdict.inc{color:var(--text)}
+#screen .verdict.wait{color:var(--text);font-weight:500}
+#screen .adj{display:inline-block;margin-top:6px;font-size:11.5px;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:1px 7px}
+#screen .eff-foot{margin:6px 0 0;font-size:12px;color:var(--dim);line-height:1.45}
+#screen .progress{display:flex;gap:3px;margin-top:8px}
+#screen .progress i{flex:1;height:5px;border-radius:2px;background:var(--border-strong)}
+#screen .progress i.f{background:var(--muted)}
+#screen .na{font-size:12.5px;color:var(--muted);line-height:1.5;margin:0}
+
+/* vazio e paginação */
+#screen .empty{margin-top:16px;border:1px dashed var(--border-strong);border-radius:8px;padding:36px 24px;text-align:center}
+#screen .empty h3{margin:0 0 6px;font-size:15px;font-weight:600}
+#screen .empty p{margin:0 auto 14px;color:var(--dim);font-size:13px;max-width:56ch}
+#screen .empty .btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+#screen .pager{margin-top:22px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--dim)}
+
+/* ---------- responsivo ---------- */
+@media (max-width:1280px){ #screen .summary{grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr)} #screen .summary > .forja{grid-column:1/-1;border-left:0;border-top:1px solid var(--border-subtle)} }
+@media (max-width:1180px){ #screen .chg{grid-template-columns:150px minmax(0,1fr) 290px}      }
+@media (max-width:1000px){
+  #screen .summary{grid-template-columns:1fr}
+  #screen .summary > section + section{border-left:0;border-top:1px solid var(--border-subtle)}
+  #screen .chg{grid-template-columns:minmax(0,1fr)}
+  #screen .when{border-right:0;display:flex;align-items:center;gap:4px 14px;flex-wrap:wrap;padding-bottom:0 !important}
+  #screen .wline,#screen .when .seq{margin-top:0}
+  #screen .wline .rel{display:inline;margin-left:8px}
+  #screen .when .save{margin:0 0 0 auto}
+  #screen .effect{border-left:0;border-top:1px solid var(--border-subtle)}
+  #screen .vid-h{flex-wrap:wrap}
+  #screen .acts{width:100%;margin-left:36px}
+}
+@media (max-width:820px){
+  
+  #screen .search{max-width:none;flex-basis:100%}
+  #screen .acts{margin-left:0;flex-wrap:wrap}
+}
+@media (prefers-reduced-motion:reduce){ #screen *{transition:none !important;animation:none !important;scroll-behavior:auto !important} }
+</style>
+<script>
+/* Parâmetros desta tela (o chrome trata niche e theme). */
+window.__params=(function(){try{var u=new URLSearchParams(location.search);return {type:u.get('type'),channel:u.get('channel'),video:u.get('video'),changes:u.get('changes'),reading:u.get('reading'),win:u.get('win'),fmt:u.get('fmt'),sort:u.get('sort'),q:u.get('q'),measured:u.get('measured'),saved:u.get('saved')};}catch(e){return {};}})();
+</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-title" viewBox="0 0 24 24"><path d="M4 7V5h16v2M9 19h6M12 5v14"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10M4 18h7"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M7 7l10 10M17 8v9H8"/></symbol>
+  <symbol id="i-flat" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17v.5"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/></symbol>
+  <symbol id="i-revert" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></symbol>
+  <symbol id="i-arrow-r" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-forja" viewBox="0 0 16 16"><path d="M2.5 6.5h8l3-2v3l-3 1H9v2.5l2 2.5H5l2-2.5V8.5H4.5z" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></symbol>
+</svg>
+
+<div id="screen">
+      <details class="sumbox" id="sumBox"><summary class="sumline"><span id="sumLine"></span><span class="sumopen">Ver resumo</span></summary>
+<div class="summary">
+        <section aria-labelledby="sumWeek">
+          <h2 id="sumWeek">Últimos 7 dias</h2>
+          <p class="win" id="weekWin"></p>
+          <p class="lead" id="weekLead"></p>
+        </section>
+        <section aria-labelledby="sumEff">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap"><h2 id="sumEff">Efeito ajustado <span class="win" id="effWin" style="display:inline;font-weight:400"></span></h2><button class="linkbtn" type="button" id="methodBtn" aria-expanded="false" aria-controls="method">Como é calculado</button></div>
+          
+          <table class="led" id="ledger">
+            <thead><tr><th scope="col">Tipo</th><th scope="col" class="r" title="Trocas com veredito (ganhou, perdeu ou neutro), sem reversão e sem ressalva; as demais estão em “Fora das medianas”">n</th><th scope="col" class="r">Mediana</th><th scope="col">Resultado</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <p class="ledout" id="ledOut"></p>
+          <p class="method" id="method" hidden></p>
+        </section>
+        <section class="forja" id="forja" aria-labelledby="forjaH" data-forja-anchor></section>
+      </div>
+</details>
+
+      <div class="filters" role="search" aria-label="Filtrar mudanças">
+        <div class="field"><span class="lbl" id="lWin">Troca feita nos últimos</span>
+          <div class="seg" role="group" aria-labelledby="lWin" id="fWin">
+            <button type="button" data-v="7" aria-pressed="false">7 d</button>
+            <button type="button" data-v="30" aria-pressed="true">30 d</button>
+            <button type="button" data-v="90" aria-pressed="false">90 d</button>
+          </div>
+        </div>
+        <div class="field"><span class="lbl" id="lFmt">Formato</span>
+          <div class="seg" role="group" aria-labelledby="lFmt" id="fFmt">
+            <button type="button" data-v="all" aria-pressed="true" title="Longos e Shorts">Todos</button>
+            <button type="button" data-v="long" aria-pressed="false">Longos</button>
+            <button type="button" data-v="short" aria-pressed="false">Shorts</button>
+          </div>
+        </div>
+        <div class="field"><span class="lbl" id="lType">Tipo</span>
+          <div class="seg" role="group" aria-labelledby="lType" id="fType"></div>
+        </div>
+        <div class="field"><label class="lbl" for="fSort">Ordenar</label>
+          <select class="sel" id="fSort">
+            <option value="recent">Mais recentes</option>
+            <option value="gain">Maior efeito primeiro</option>
+            <option value="loss">Menor efeito primeiro</option>
+          </select>
+        </div>
+        <details class="more" id="moreF">
+          <summary id="moreSum">Mais filtros</summary>
+          <div class="more-pop">
+            <div class="field"><label class="lbl" for="fChannel">Canal</label><select class="sel" id="fChannel"></select></div>
+            <label class="check" title="Ganhou, perdeu, neutro ou inconclusivo; fora ficam as que aguardam 7 dias e as sem série"><input type="checkbox" id="fMeasured">Só com efeito medido</label>
+            <label class="check"><input type="checkbox" id="fSaved"><svg class="i" style="width:13px;height:13px" aria-hidden="true"><use href="#i-bookmark"/></svg>Só o swipe file</label>
+          </div>
+        </details>
+        <div class="search">
+          <svg class="i" aria-hidden="true"><use href="#i-search"/></svg>
+          <label class="sr" for="fSearch">Buscar</label>
+          <input id="fSearch" type="search" placeholder="Buscar trocas" title="Busca em títulos antigos e novos, títulos de vídeo e nomes de canal">
+        </div>
+        <span class="fchip hidden" id="readChip"><span id="readTxt"></span><button type="button" id="readX" aria-label="Fechar a leitura do link"><svg class="i"><use href="#i-x"/></svg></button></span>
+        <span class="fchip hidden" id="chanChip"><span id="chanTxt"></span><button type="button" id="chanX" aria-label="Tirar o filtro de canal"><svg class="i"><use href="#i-x"/></svg></button></span>
+        <span class="fchip hidden" id="videoChip"><span id="videoTxt"></span><button type="button" id="videoX" aria-label="Tirar este filtro"><svg class="i"><use href="#i-x"/></svg></button></span>
+      </div>
+
+      <div class="count-row">
+        <span id="countLine" aria-live="polite"></span>
+        <span class="legend" aria-hidden="true">
+          <span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--spark-before)" stroke-width="2"/></svg>views/dia antes da troca</span>
+          <span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--spark-after)" stroke-width="2"/></svg>depois da troca</span>
+          <span><svg width="22" height="10"><rect x="0" y="0" width="22" height="10" fill="var(--band)"/><line x1="0" y1="5" x2="22" y2="5" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="3 2"/></svg>esperado sem a troca (faixa normal)</span>
+        </span>
+      </div>
+
+      <div id="feed"></div>
+
+      <div class="empty hidden" id="empty" role="status">
+        <h3 id="emptyH"></h3>
+        <p id="emptyWhy"></p>
+        <div class="btns" id="emptyBtns"></div>
+      </div>
+
+      <div class="pager" id="pager">
+        <span id="pagerTxt"></span>
+        <button class="btn" type="button" id="moreBtn"></button>
+      </div>
+</div>
+<script src="dados.js"></script>
+<script src="chrome.js"></script>
+<script>
+(function(){
+'use strict';
+/* Mudanças — tela de leitura. TODO dado e cálculo vem de window.OBS (dados.js): trocas, efeito, esperado, veredito,
+   ressalvas, contagens, sincronização, fila da forja e links. Esta tela só formata e desenha.
+   Realce do título = change.titleDiff · sparkline = effect.daily · swipe file = OBS.swipe · leitura da forja = resumo-trocas congelada
+   · estados do pedido = forja.requestScenario. */
+var O=window.OBS, D=O.date, F=O.fmt, DAY=O.DAY, RE=O.RULES.effect, AFTER=RE.afterDays, SIM=RE.simultHours;
+CHROME.mount({
+  tab:'mudancas', content:'#screen',
+  mockStates:[
+    {label:'Pedido à forja (resumo das trocas)',items:[{id:'nenhum',label:'sem pedido',pressed:true}].concat(O.forja.requestStates.map(function(s){return {id:s,label:s};}))},
+    {label:'Dados',items:[{id:'cheio',label:'Padrão',pressed:true},{id:'vazio-sugestao',label:'Vazio com sugestão'},{id:'vazio-90',label:'Vazio em 90 dias'}]}
+  ],
+  deps:[['Resumo das trocas pela forja','leitura de 30 dias por nicho, com grupos de reescrita e reversões (<code>resumo-trocas</code>).'],['Prévia do pedido','quantas trocas e canais a forja vai ler, e quem fica fora antes de confirmar (<code>forja.preview</code>, <code>eligibleChannels</code>).'],['Andamento do pedido','na fila, trabalhando, atrasado, sem máquina, nova tentativa, falhou, recusado, publicado (<code>requestScenario</code>).'],['Swipe file','trocas salvas, iguais em todas as telas (<code>OBS.swipe</code>).'],['Realce e série diária','palavras trocadas no título e views/dia antes e depois (<code>titleDiff</code>, <code>effect.daily</code>).']],
+  onNiche:function(n){st.niche=n;st.justSent=null;st.limit=8;if(st.video){st.video=null;st.win=30;st.fmt='all';}if(st.changes){st.changes=null;st.win=30;st.fmt='all';toast('Lista da forja fechada ao trocar o nicho');}if(st.channel!=='all'&&n!=='todos'&&O.channel(st.channel).niche!==n)st.channel='all';syncControls();renderAll();},
+  onTheme:function(){drawSparks();},
+  onMock:function(id,g){onMock(id,g);},
+  onForja:function(){onForjaClick();},
+  onStatus:function(){focusForja();},
+  onSynced:function(){renderAll();}
+});
+var root=document.documentElement;
+var TYPES=[['title','Título','i-title'],['thumb','Thumbnail','i-image'],['desc','Descrição','i-text']];
+var MEASURED=['ganhou','perdeu','neutro','inconclusivo'];
+var DECIDED=['ganhou','perdeu','neutro'];
+var NICHE_STORE={todos:'Todos',viagem:'Viagem',ia:'IA'};
+var FMT_LABEL={all:'longos e Shorts',long:'longos',short:'Shorts'};
+function fmtQ(){return st.fmt==='all'?null:st.fmt;}
+function numH(t){return esc(t).replace(/^([−+-]?[\d.,]+)/,'<span class="num">$1</span>');}
+function rangeTxt(arr){var a=arr.slice().sort(function(x,y){return x-y});return a.length===1?F.pp(a[0]):'de '+F.pp(a[0]).replace(' pp','')+' a '+F.pp(a[a.length-1]);}
+function ppTxt(v){return F.pp(v);}
+/* M1: grupos das inconclusivas = effect.inconclusiveKind do motor */
+var INC_KINDS=[['janela-dupla',function(n){return (n===1?'inconclusiva':'inconclusivas')+' por 2 campos em &lt;&nbsp;'+SIM+'&nbsp;h';}],['versao-curta',function(n){return 'com uma das versões menos de 1 dia no ar';}],['antes-curto',function(n){return 'com o antes curto demais (≤ 2 dias)';}],['outro',function(n){return (n===1?'inconclusiva':'inconclusivas')+' por outro motivo';}]];
+function incKind(c){var k=eff(c).inconclusiveKind;return INC_KINDS.some(function(x){return x[0]===k})?k:'outro';}
+function hasCav(c){return O.caveats(c.id).length>0;}
+
+/* ---------- estado da tela ---------- */
+var st={win:30,fmt:'all',niche:'todos',type:'all',channel:'all',sort:'recent',measured:false,saved:false,q:'',video:null,changes:null,limit:8};
+(function(){var p=window.__params||{};
+  if(p.win&&['7','30','90'].indexOf(p.win)>-1)st.win=+p.win;
+  if(p.fmt&&['all','long','short'].indexOf(p.fmt)>-1)st.fmt=p.fmt;
+  if(p.sort&&['recent','gain','loss'].indexOf(p.sort)>-1)st.sort=p.sort;
+  if(p.q)st.q=p.q;if(p.measured==='1')st.measured=true;if(p.saved==='1')st.saved=true;
+  if(p.type&&['title','thumb','desc'].indexOf(p.type)>-1)st.type=p.type;
+  if(p.channel&&O.channel(p.channel)&&!O.channel(p.channel).own)st.channel=p.channel;
+  if(p.video&&O.video(p.video)){st.video=p.video;st.win=90;st.fmt=O.video(p.video).fmt;}
+  if(p.changes){var ids=p.changes.split(',').filter(function(id){return O.change(id)});if(ids.length){st.changes=ids;st.winBefore=st.win;st.win=90;}}
+})();
+var SW=O.swipe;
+
+/* ---------- utilidades de apresentação ---------- */
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function pl(n,one,many){return n+' '+(n===1?one:many);}
+function pctTxt(fr){return fr==null?'—':F.pct(fr);}
+function chName(id){return O.channel(id).name;}
+function eff(c){return O.effect(c.id);}
+function isMeasured(c){var e=eff(c);return MEASURED.indexOf(e.status)>-1;}
+function query(o){o=o||{};
+  if(st.changes&&!o.ignoreChanges){var ids=st.changes;return O.changesIn({days:90,niche:'todos',type:o.ignoreType||st.type==='all'?null:st.type}).filter(function(c){return ids.indexOf(c.id)>-1});}
+  return O.changesIn({days:o.days||st.win,niche:st.niche,fmt:o.anyFmt?null:fmtQ(),
+  type:o.ignoreType||st.type==='all'?null:st.type,channel:o.ignoreChannel||st.channel==='all'?null:st.channel,video:o.ignoreVideo?null:st.video});}
+function extra(list){return list.filter(function(c){
+  if(st.measured&&!isMeasured(c))return false;
+  if(st.saved&&!SW.saved(c.id))return false;
+  if(st.q){var v=O.video(c.video);var hay=[v.title,chName(c.ch),typeof c.before==='string'?c.before:'',typeof c.after==='string'?c.after:''].join(' ').toLowerCase();var qq=st.q.toLowerCase();if(hay.indexOf(qq)<0)return false;}
+  return true;});}
+function durTxt(ms,approx){return D.dur(ms,approx).replace(/≈ /,'cerca de ').replace(/(\d+) d\b/g,function(_,n){return n+(n==='1'?' dia':' dias')}).replace(/(\d+) h\b/g,function(_,n){return n+(n==='1'?' hora':' horas')}).replace(/(\d+) min\b/g,function(_,n){return n+(n==='1'?' minuto':' minutos')}).replace(/(\d+ (?:dias?|horas?)) (\d+ (?:horas?|minutos?))$/,'$1 e $2').replace(/ e 0 (horas|minutos)$/,'');}
+function whenText(at,c){
+  if(c.prec==='min')return D.weekdayShort(at)+', '+D.dm(at)+', '+D.hm(at);
+  if(c.prec==='6h'){var a=c.window[0],b=c.window[1];if(D.dm(a)===D.dm(b-1))return D.weekdayShort(a)+', '+D.dm(a)+', entre '+D.hh(a)+' e '+(D.hm(b)==='00:00'?'24h':D.hh(b));return D.weekdayShort(a)+', '+c.whenText;}
+  if(c.window){var a1=c.window[0],b1=c.window[1];return 'entre '+D.weekdayShort(a1)+', '+D.dm(a1)+' '+D.hh(a1)+' e '+D.weekdayShort(b1)+', '+D.dm(b1)+' '+D.hh(b1);}
+  return c.whenText;}
+/* ---------- cabeçalho, abas, avisos ---------- */
+document.addEventListener('click',function(e){var b=e.target.closest('#methodBtn');if(!b)return;var m=document.getElementById('method'),o=b.getAttribute('aria-expanded')==='true';m.hidden=o;b.setAttribute('aria-expanded',String(!o));});
+function renderHead(){
+  document.getElementById('method').textContent='Precisa de '+AFTER+' dias depois da troca; o antes pode ser mais curto (coleta diária desde '+D.dm(O.SERIES_START)+'). Efeito = variação observada de views/dia ('+O.RULES.effect.afterDays+' dias depois vs até '+O.RULES.effect.maxBeforeDays+' dias antes) menos a esperada: a variação dos vídeos sem troca do mesmo canal e formato, na mesma faixa de idade ou no mesmo dia de vida. Ganhou ou perdeu só com mais de '+O.RULES.effect.pp+' pp e fora da faixa normal (interquartil). Inconclusivo com n < '+O.RULES.effect.minN+', antes curto ou outro campo mudado em menos de '+O.RULES.effect.simultHours+'\u00a0h. Não prova causa.';
+}
+
+/* ---------- resumo e ledger ---------- */
+function renderSummary(){
+  var wk=O.changesIn({days:7,niche:st.niche,fmt:fmtQ()});
+  var cnt={title:0,thumb:0,desc:0},vids={},chs={},per={};
+  wk.forEach(function(c){cnt[c.type]++;vids[c.video]=1;chs[c.ch]=1;per[c.ch]=(per[c.ch]||0)+1;});
+  var top=Object.keys(per).sort(function(a,b){return per[b]-per[a]})[0];
+  var revs=wk.filter(function(c){return c.revertTo}).length;
+  var fmtName={all:'longos e Shorts',long:'vídeos longos',short:'Shorts'}[st.fmt],nicheTxt=st.niche==='todos'?'':', nicho '+NICHE_STORE[st.niche];
+  var from=O.NOW-7*DAY;
+  document.getElementById('weekWin').textContent='De '+D.weekdayShort(from)+', '+D.dm(from)+', a hoje, '+fmtName+nicheTxt+'.';
+  var lead=document.getElementById('weekLead');
+  if(!wk.length){lead.textContent='Nenhuma troca em '+fmtName+nicheTxt+' nesta semana.';return;}
+  var nv=Object.keys(vids).length,nc=Object.keys(chs).length;
+  var parts=[['title','de título'],['thumb','de thumbnail'],['desc','de descrição']].filter(function(x){return cnt[x[0]]}).map(function(x,i){return '<strong class="num">'+cnt[x[0]]+'</strong> '+(i===0?(cnt[x[0]]===1?'troca ':'trocas '):'')+x[1];});
+  var joined=parts.length>1?parts.slice(0,-1).join(', ')+' e '+parts[parts.length-1]:parts[0];
+  lead.innerHTML=joined+', em <strong class="num">'+nv+'</strong> '+(nv===1?'vídeo':'vídeos')+' de <strong class="num">'+nc+'</strong> '+(nc===1?'canal':'canais')+'.'+
+    (per[top]>1?' '+esc(chName(top))+' fez <strong class="num">'+per[top]+'</strong> delas.':'')+
+    (revs?' <strong class="num">'+revs+'</strong> '+(revs===1?'voltou':'voltaram')+' a uma versão anterior.':' Nenhuma voltou a uma versão anterior.')+(function(){var m=wk.filter(function(c){return DECIDED.indexOf(eff(c).status)>-1}).length;return m?' '+m+' já com veredito.':' Nenhuma com veredito ainda (precisa de '+AFTER+' dias depois).';})();
+}
+function renderDigest(){
+  var wk=O.changesIn({days:7,niche:st.niche,fmt:fmtQ()}),cnt={title:0,thumb:0,desc:0};wk.forEach(function(c){cnt[c.type]++;});
+  var parts=[['title','de título'],['thumb','de thumbnail'],['desc','de descrição']].filter(function(x){return cnt[x[0]]}).map(function(x,i){return cnt[x[0]]+' '+(i===0?(cnt[x[0]]===1?'troca ':'trocas '):'')+x[1];});
+  var pool=O.changesIn({days:st.win,niche:st.niche,fmt:fmtQ()}),eff2=TYPES.map(function(T){var m=pool.filter(function(c){return c.type===T[0]&&!c.revertTo&&!hasCav(c)&&DECIDED.indexOf(eff(c).status)>-1});
+    if(!m.length)return null;var vals=m.map(function(c){return eff(c).effectPp});
+    if(m.length<RE.minN)return T[1].toLowerCase()+' '+(m.length===1?F.pp(vals[0])+' (caso isolado)':pl(m.length,'troca','trocas')+', '+rangeTxt(vals)+' (pouco para concluir)');
+    return T[1].toLowerCase()+' '+ppTxt(O.median(vals))+' (n = '+m.length+')';}).filter(Boolean);
+  var sc=currentScenario();
+  var fj=nichesNow().map(function(n){var rq=reqOf(sc,n),fresh=rq&&rq.state==='publicado'&&rq.readingId?F_.byId[rq.readingId]:null,lk=st.linkReading&&st.linkReading.niche===n?st.linkReading:null,r=lk||fresh||F_.latest('resumo-trocas',n);
+    var si=r?F_.since(r.id):null,lab=rq&&rq.state!=='publicado'?reqLabel(sc,n):null;
+    return NICHE_STORE[n]+', '+(r?(lk?'leitura de cenário de '+D.dm(r.generatedAt)+' '+D.hm(r.generatedAt):fresh?'leitura nova às '+D.hm(r.generatedAt):'resumo de '+D.dm(r.generatedAt)):'sem leitura')+(lab?', '+lab:'');});
+  document.getElementById('sumLine').innerHTML='<b>Últimos 7 dias:</b> '+(parts.length?esc(parts.join(', ')):'nenhuma troca')+'. <b>Efeito ('+st.win+' d):</b> '+(eff2.length?esc(eff2.join('; ')):'nada com veredito')+'. <b>Forja.</b> '+esc(fj.join('; '))+'.'+(st.niche==='todos'&&sc&&sc.statusText?' '+esc(sc.statusText):'');
+  var sb=document.getElementById('sumBox');sb.querySelector('.sumopen').textContent=sb.open?'Recolher resumo':'Ver resumo';
+}
+function renderLedger(){
+  var pool=O.changesIn({days:st.win,niche:st.niche,fmt:fmtQ()}),rows=[];
+  document.getElementById('effWin').textContent='('+st.win+' dias, '+FMT_LABEL[st.fmt]+(st.niche==='todos'?', todos os nichos':', nicho '+NICHE_STORE[st.niche])+')';
+  TYPES.forEach(function(T){
+    var m=pool.filter(function(c){return c.type===T[0]&&!c.revertTo&&!hasCav(c)&&DECIDED.indexOf(eff(c).status)>-1});
+    var w=m.filter(function(c){return eff(c).status==='ganhou'}).length,l=m.filter(function(c){return eff(c).status==='perdeu'}).length,f=m.length-w-l;
+    var vals=m.map(function(c){return eff(c).effectPp}),med=m.length>=RE.minN?O.median(vals):null;
+    var read=m.length?(w+' '+(w===1?'ganhou':'ganharam')+', '+l+' '+(l===1?'perdeu':'perderam')+', '+f+' '+(f===1?'neutra':'neutras'))+(m.length<RE.minN?'; '+(m.length===1?F.pp(vals[0])+', caso isolado':'faixa '+rangeTxt(vals)+', pouco para concluir'):''):'nada com veredito';
+    var small=false&&m.length&&m.length<O.RULES.effect.minN?' <span class="small-n" title="n = '+m.length+', pouco para concluir"><svg class="i" style="width:12px;height:12px" aria-hidden="true"><use href="#i-alert"/></svg>'+(m.length===1?'caso isolado':'pouco para concluir')+'</span>':'';
+    rows.push('<tr><th scope="row" class="rh">'+T[1]+'</th><td class="r"><span class="num">'+m.length+'</span>'+small+'</td><td class="r">'+(med==null?'<span title="Mediana só com '+RE.minN+' trocas ou mais">—</span>':'<span class="num">'+esc(ppTxt(med).replace(' pp',''))+'</span>&nbsp;pp')+'</td><td class="read">'+read+'</td></tr>');
+  });
+  /* fora das medianas, em grupos disjuntos: reversão com veredito; com ressalva (caveats) com veredito; inconclusiva por dois campos em < 48 h; inconclusiva por outro motivo */
+  var revs=pool.filter(function(c){return c.revertTo&&DECIDED.indexOf(eff(c).status)>-1});
+  var inc=pool.filter(function(c){return eff(c).status==='inconclusivo'});
+  var incTxt=INC_KINDS.map(function(K){var n=inc.filter(function(c){return incKind(c)===K[0]}).length;return n?'<span class="num">'+n+'</span> '+K[1](n):null;}).filter(Boolean);
+  var noVer=pool.filter(function(c){var s=eff(c).status;return DECIDED.indexOf(s)<0&&s!=='inconclusivo'});
+  var inMed=pool.filter(function(c){return !c.revertTo&&!hasCav(c)&&DECIDED.indexOf(eff(c).status)>-1}).length;
+  var cavs=pool.filter(function(c){return !c.revertTo&&hasCav(c)&&DECIDED.indexOf(eff(c).status)>-1});
+  var rvals=revs.map(function(c){return eff(c).effectPp}),rm=revs.length>=RE.minN?O.median(rvals):null;
+  document.querySelector('#ledger tbody').innerHTML=rows.join('');
+  var lnote=st.changes?'<p class="forja-note" style="margin:0 0 4px">O balanço cobre a janela de '+st.win+' dias'+(st.niche==='todos'?'':' do nicho '+NICHE_STORE[st.niche])+', não só as '+st.changes.length+' trocas da lista citada pela forja.</p>':'';
+  /* M5: itens não vazios unidos com vírgula e "e"; M3: reversão única = caso isolado; M4: balanço vazio = uma frase */
+  var items=[];
+  if(revs.length)items.push('<span class="num">'+revs.length+'</span> '+(revs.length===1?'voltou':'voltaram')+' à versão anterior'+(rm!=null?' (mediana <span class="num">'+esc(ppTxt(rm).replace(' pp',''))+'</span>&nbsp;pp)':revs.length===1?' ('+esc(F.pp(rvals[0]))+', caso isolado)':' ('+esc(rangeTxt(rvals))+', pouco para concluir)'));
+  if(cavs.length)items.push('<span class="num">'+cavs.length+'</span> com ressalva (outra troca no mesmo vídeo nos '+AFTER+' dias depois)');
+  items=items.concat(incTxt);
+  if(noVer.length)items.push('<span class="num">'+noVer.length+'</span> sem veredito ainda (aguardando, sem antes ou sem série)');
+  var joinE=function(a){return a.length>1?a.slice(0,-1).join(', ')+' e '+a[a.length-1]:a[0]||'';};
+  var tbl=document.getElementById('ledger');tbl.hidden=!pool.length;
+  document.getElementById('ledOut').innerHTML=!pool.length?lnote+'Nenhuma troca em '+st.win+' dias ('+FMT_LABEL[st.fmt]+(st.niche==='todos'?'':', nicho '+NICHE_STORE[st.niche])+'): nada para medir.'
+    :lnote+(items.length?'<b>Fora das medianas</b>, '+joinE(items)+'. ':'Nenhuma troca fora das medianas. ')+
+    '<span class="tot">Total: <span class="num">'+inMed+'</span> nas medianas + <span class="num">'+(revs.length+cavs.length+inc.length+noVer.length)+'</span> fora = <span class="num">'+pool.length+'</span> '+(pool.length===1?'troca':'trocas')+' na janela.</span>';
+  document.getElementById('ledOut').dataset.sum=[inMed,revs.length,cavs.length,inc.length,0,noVer.length,pool.length].join(',');
+}
+
+/* ---------- forja: leitura congelada "Resumo das trocas (30 dias)" (recolhida: 1 linha por nicho) + estado do pedido (forja.requestScenario) ---------- */
+var F_=O.forja,RT=F_.readingTypes.filter(function(t){return t.id==='resumo-trocas'})[0];
+function isBusy(sc){return !!sc&&!!sc.anyActive;}
+function activeLine(sc){return sc&&sc.statusLines?sc.statusLines.filter(function(l){return !/publicad/.test(l)})[0]:null;}
+var IN_PROGRESS=['na fila','trabalhando','atrasado','sem máquina','nova tentativa','liberado pelo vigia'];
+var STATE_CLS={'publicado':'ok','atrasado':'warn','sem máquina':'warn','nova tentativa':'warn','liberado pelo vigia':'warn','falhou':'bad','recusado (dado velho)':'bad'};
+function cap(t){return t.charAt(0).toUpperCase()+t.slice(1);}
+function verTrocas(n){return n===1?'Ver a troca':'Ver as '+n+' trocas';}
+function readingBody(r){
+  var groups=r.analysis.groups.map(function(g){
+    return '<li>'+esc(g.verdict.text)+' <a class="lnk" href="'+esc(O.link.mudancas({changes:g.changeIds}))+'">'+esc(verTrocas(g.changeIds.length))+'</a></li>';}).join('');
+  var rv=r.analysis.reverts||[];
+  var rev=rv.length?'<li>'+esc(r.text.items[r.text.items.length-1])+' <a class="lnk" href="'+esc(O.link.mudancas({changes:rv}))+'">'+esc(verTrocas(rv.length))+'</a></li>':'';
+  var since=F_.since(r.id);
+  var q=reqOf(currentScenario(),r.niche),own=!!(q&&IN_PROGRESS.indexOf(q.state)>-1);
+  var sinceTxt=since?(own?since.textNoAsk||since.text:since.text):'';
+  return '<div class="forja-read"><div class="rh"><span class="stamp"><svg aria-hidden="true"><use href="#i-forja"/></svg>'+esc(r.seal)+'</span></div>'+
+    '<div class="forja-voice"><p style="margin:0">'+esc(r.text.lead)+'</p><ul>'+groups+rev+'</ul></div>'+
+    '<p class="forja-note" style="margin-top:6px">'+esc(cap(r.sent.text).replace(/\.$/,''))+'.</p>'+
+    (sinceTxt?'<p class="forja-note">'+esc(sinceTxt)+'</p>':'')+
+    (own?'<p class="forja-note">O pedido de '+NICHE_STORE[r.niche]+' em andamento vai trazer uma leitura nova.</p>':'')+'</div>';
+}
+var fjOpen={};
+/* F9: pedido à forja = estado ÚNICO do motor (OBS.forja.session, persistido entre telas). A tela só lê current() e pede com ask();
+   o mock da barra de estados define a base (setBase). Nenhum estado de pedido local. */
+var SES=F_.session;
+function nichesNow(){return st.niche==='todos'?['ia','viagem']:[st.niche];}
+function scopeNow(){return st.niche==='todos'?'todos':st.niche;}
+function currentScenario(){var sc=SES.current(scopeNow(),{type:'resumo-trocas'});return sc&&!sc.empty&&sc.requests.length?sc:null;}
+function mockOf(base){return base==='sem pedido'?'nenhum':base;}
+function reqOf(sc,n){return sc?sc.requests.filter(function(r){return r.niche===n})[0]||null:null;}
+function sentNow(){return !!(st.justSent&&st.justSent.length);}
+/* B1: dá para pedir em nicho sem pedido hoje ou com pedido que falhou/foi recusado (não contam na cota) */
+function sendable(sc){return nichesNow().filter(function(n){var r=reqOf(sc,n);return !r||r.state==='falhou'||r.state==='recusado (dado velho)';});}
+function reqLabel(sc,n){if(!sc||!reqOf(sc,n))return null;var p=NICHE_STORE[n]+': ';if(sc.statusLines){var l=sc.statusLines.filter(function(x){return x.indexOf(p)===0})[0];if(l)return l.slice(p.length);}var t=CHROME.statusLabel(sc).replace(/<[^>]+>/g,'');return t.indexOf(p)===0?t.slice(p.length):t;}
+function renderForja(){
+  var el=document.getElementById('forja'),niches=st.niche==='todos'?['ia','viagem']:[st.niche];
+  var sc=currentScenario();
+  var busy=isBusy(sc),quotaUsed=sc&&sc.quota.usedToday>=sc.quota.perTypePerNiche;
+  var head='<div class="forja-h"><svg class="i" style="color:var(--forja)" aria-hidden="true"><use href="#i-forja"/></svg><b id="forjaH">'+esc(RT.label)+'</b>'+(sc&&sc.requests.length===1?'<span class="state '+(STATE_CLS[sc.state]||'')+'">'+esc(sc.state)+'</span>':'')+'</div>'+
+'';
+  var split=!!(sc&&sc.statusLines&&(st.niche==='todos'||sc.requests.length>1));
+  var stTxt=sc?(sentNow()&&!split?'Pedido de '+NICHE_STORE[st.justSent[0]]+' enviado agora. '+sc.statusText:sc.statusText):'';
+  var status=!sc?'':split?'<div id="forjaStatus"><p class="forja-status">'+(sentNow()?(st.justSent.length>1?'Pedidos de '+st.justSent.map(function(n){return NICHE_STORE[n]}).join(' e ')+' enviados agora.':'Pedido de '+NICHE_STORE[st.justSent[0]]+' enviado agora.')+' Pedidos:':'Pedidos:')+'</p><ul class="forja-status fj-lines">'+sc.statusLines.map(function(l){return '<li>'+esc(l)+'</li>';}).join('')+nichesNow().filter(function(n){return !reqOf(sc,n)}).map(function(n){return '<li>'+NICHE_STORE[n]+': sem pedido hoje</li>';}).join('')+'</ul><p class="forja-status">'+esc(stTxt)+'</p></div>'+quotaNote(sc)
+    :'<p class="forja-status" id="forjaStatus">'+esc(stTxt)+'</p>'+quotaNote(sc);
+  var sendN=sendable(sc);if(st.forjaConfirm&&sendN.length){var prev=sendN.map(function(n){var pv=F_.preview('resumo-trocas',n);return '<li><b>'+NICHE_STORE[n]+'</b>: '+esc(pv.text)+' de '+pl(pv.channelsIn.length,'canal','canais')+(pv.channelsOut.length?'. Fora: '+pv.channelsOut.map(function(o){return esc(o.reason.replace(/ fica fora: /,' — '))}).join('; '):'')+'.</li>';}).join('');
+    status='<div class="fj-confirm" id="forjaStatus"><p class="forja-status"><b>Pedir nova leitura à forja</b>'+(sendN.length>1?' (um pedido por nicho)':'')+'</p><ul class="forja-note" style="margin:4px 0 6px;padding-left:18px">'+prev+'</ul>'+(sendN.length>1?'<p class="forja-note">A máquina pega um pedido por consulta: o de Viagem fica na fila atrás do de IA.</p>':'')+'<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn fj-outline" type="button" id="fjSend">Confirmar pedido</button><button class="linkbtn" type="button" id="fjCancel">Cancelar</button></div></div>';}
+  var body='',outAll=[];
+  niches.forEach(function(n){
+    var latest=F_.latest('resumo-trocas',n),fresh=null,r;
+    var rq=reqOf(sc,n);if(rq&&rq.state==='publicado'&&rq.readingId)fresh=F_.byId[rq.readingId]||null;
+    var lk=st.linkReading&&st.linkReading.niche===n?st.linkReading:null;
+    r=lk||fresh||latest;
+    var out=F_.eligibleChannels(n).out;
+    outAll=outAll.concat(out);var outTxt='';
+    if(!r){body+='<div class="fj-niche"><p class="forja-note"><b style="color:var(--text)">'+NICHE_STORE[n]+'</b>: ainda não existe leitura deste tipo.</p>'+outTxt+'</div>';return;}
+    var since=F_.since(r.id),nNew=(since&&since.newChanges||[]).length;
+    body+='<details class="fj-niche" data-n="'+n+'"'+(fjOpen[n]?' open':'')+'><summary><b>'+NICHE_STORE[n]+'</b>'+(lk?'<span class="chip-cen" title="Leitura aberta pelo link; não muda o pedido desta sessão">Leitura de cenário</span>':'')+'<span>'+(fresh&&!lk?'nova, ':'')+esc(D.dm(r.generatedAt)+' '+D.hm(r.generatedAt))+', '+pl(r.sent.nChanges,'troca','trocas')+(since&&since.shortText?'<span class="since-l">'+esc(cap(since.shortText).replace(/\.$/,''))+'</span>':'')+'</span><span class="open">'+(fjOpen[n]?'Recolher':'Ver leitura')+'</span></summary>'+readingBody(r)+'</details>'+outTxt;
+  });
+  var shorts='';
+  if(st.fmt==='short'){var t=F_.readingTypeFor('short');
+    shorts='<p class="forja-note">'+esc(F_.shortsNote)+' '+niches.map(function(n){var sr=F_.latest(t,n);return NICHE_STORE[n]+': '+(sr?'última de '+D.dm(sr.generatedAt):'sem leitura');}).join('; ')+'. <a class="lnk" href="'+esc(O.link.insights({niche:st.niche,fmt:'short'}))+'">Ver em Insights</a></p>';}
+  var outLine='<details class="method fj-more"><summary>'+(outAll.length?pl(outAll.length,'canal fora do próximo pedido','canais fora do próximo pedido')+'; o que a forja faz':'O que a forja faz aqui')+'</summary><p>'+outAll.map(function(o){return esc(o.reason)}).join('. ')+(outAll.length?'. ':'')+'A forja classifica o texto das trocas (longos e Shorts); não julga thumbnails nem diz o que funcionou. '+(busy?'':esc(cap(F_.queue.quotaScope.text)))+'</p></details>';
+  el.innerHTML=head+status+body+outLine+shorts;
+  el.querySelectorAll('details.fj-niche').forEach(function(d){d.addEventListener('toggle',function(){fjOpen[d.dataset.n]=d.open;d.querySelector('.open').textContent=d.open?'Recolher':'Ver leitura';});});
+  var fs=document.getElementById('fjSend');if(fs)fs.addEventListener('click',sendForja);
+  var fc=document.getElementById('fjCancel');if(fc)fc.addEventListener('click',function(){st.forjaConfirm=false;renderForja();});
+  renderDeps(sc);
+}
+/* M5: regra única do aviso de cota: só com cota usada e sem pedido em andamento */
+
+function quotaNote(sc){var used=sc.quota.usedToday>=sc.quota.perTypePerNiche;return used&&!isBusy(sc)?'<p class="forja-note">'+esc(cap(sc.quota.text))+'.</p>':'';}
+function renderDeps(sc){
+  var q=F_.queue,r=sc&&sc.request,m=sc?sc.machine:q,slot=CHROME.el&&CHROME.el.mockSlot;if(!slot)return;
+  slot.innerHTML='<p class="forja-note" style="margin:4px 0">Pedido desta tela: <code>resumo-trocas</code>, nicho <code>'+st.niche+'</code>'+(sc&&sc.requests.length>1?' (um pedido por nicho)':'')+', status <code>'+(r?r.status:'—')+'</code>'+(r&&r.refusedReason?' ('+esc(r.refusedReason)+')':'')+(r&&r.failReason?' ('+esc(r.failReason)+')':'')+'. last_poll_at '+D.dm(m.lastPollAt)+' '+D.hm(m.lastPollAt)+' (SP). '+(sc?esc(cap(sc.quota.text))+'.':'')+'</p>';
+  /* botão e heartbeat da forja no cabeçalho do chrome */
+  var busy=isBusy(sc),used=sc&&sc.quota.usedToday>=sc.quota.perTypePerNiche;
+  var f=sc?CHROME.forjaFromScenario(sc):{active:false,machine:{alive:true,lastPollAt:q.lastPollAt}};
+  /* cabeçalho = forjaFromScenario(R) do motor, sem reescrever status; só a cota usada (sem pedido ativo) desliga o botão */
+  var free=sendable(sc);
+  if(sc&&!busy&&!free.length){f.disabled=true;f.disabledText=cap(sc.quota.text);}
+  /* F10: com Todos e um nicho ocupado, o botão segue habilitado para o(s) livre(s); o ocupado segue como "Pedido em andamento" (chrome v2.1: canAsk) */
+  if(busy&&free.length){var fn=free.map(function(n){return NICHE_STORE[n]}).join(' e ');f=Object.assign({},f,{canAsk:true,askLabel:'Pedir leitura de '+fn+' à forja',askShort:'Ler '+fn});}
+  CHROME.setForja(f);
+}
+/* ---------- filtros ---------- */
+function renderTypeSeg(){
+  var pool=extra(query({ignoreType:true})),n={title:0,thumb:0,desc:0};pool.forEach(function(c){n[c.type]++;});
+  var h='<button type="button" data-v="all" aria-pressed="'+(st.type==='all')+'">Todos <span class="c num">'+pool.length+'</span></button>';
+  TYPES.forEach(function(T){h+='<button type="button" data-v="'+T[0]+'" aria-pressed="'+(st.type===T[0])+'"><svg class="i" aria-hidden="true"><use href="#'+T[2]+'"/></svg>'+T[1]+' <span class="c num">'+n[T[0]]+'</span></button>';});
+  document.getElementById('fType').innerHTML=h;
+}
+function renderChannels(){
+  var sel=document.getElementById('fChannel'),per={};
+  query({ignoreChannel:true,ignoreType:true}).forEach(function(c){per[c.ch]=(per[c.ch]||0)+1;});
+  var h='<option value="all">Todos os canais</option>';
+  ['ia','viagem'].forEach(function(ni){if(st.niche!=='todos'&&st.niche!==ni)return;h+='<optgroup label="'+O.NICHES[ni].label+'">';
+    O.channels.filter(function(c){return c.niche===ni&&!c.own}).forEach(function(c){h+='<option value="'+c.id+'">'+esc(c.name)+' ('+(per[c.id]||0)+')</option>';});h+='</optgroup>';});
+  sel.innerHTML=h;sel.value=st.channel;
+}
+
+/* ---------- feed ---------- */
+function thumbHTML(art,dur){
+  var face=art.face==='l'?'left:2%':art.face==='r'?'right:2%':'left:33%';
+  var pos=art.face==='l'?'right:6%;top:12%;text-align:right':'left:6%;top:12%';
+  var words=art.text.split(' '),lines=[],cur='';words.forEach(function(w){if((cur+' '+w).trim().length>11&&cur){lines.push(cur);cur=w;}else cur=(cur+' '+w).trim();});if(cur)lines.push(cur);
+  var sz=lines.length>2?1.6:2.1;
+  return '<div class="thumb" style="--a:'+art.bg+';--b:'+art.fg+'" role="img" aria-label="Thumbnail: '+esc(art.text)+'"><span class="person" style="--s:#D9A57E;--sh:rgba(0,0,0,.55);'+face+'"></span><span class="tx" style="'+pos+';color:'+art.ink+';font-size:clamp(12px,'+sz+'vw,'+Math.round(sz*12.5)+'px)">'+lines.map(esc).join('<br>')+'</span><span class="dur">'+esc(dur)+'</span></div>';
+}
+function keyTag(k){return '<abbr title="Imagem '+k+': cada letra é uma imagem deste vídeo; a mesma letra de novo é a mesma imagem voltando">'+k+'</abbr>';}
+function verCap(v,id){
+  var t=(v.thumbs||[]).filter(function(x){return x.id===id})[0];if(!t)return '';
+  if(t.seenSinceArchive)return 'vista desde '+D.dm(O.ARCHIVE_START)+', até '+D.dm(t.last_seen);
+  return t.current?'desde '+D.dmhm(t.first_seen):D.dmhm(t.first_seen)+' a '+D.dmhm(t.last_seen);
+}
+function readByForja(id){var hit=null;['ia','viagem'].forEach(function(n){var r=O.forja.latest('resumo-trocas',n);if(r&&!hit&&r.analysis.groups.some(function(g){return g.changeIds.indexOf(id)>-1}))hit=r;});return hit;}
+function titleHTML(c){
+  var td=c.titleDiff,old,nw;
+  function seg(x,tag,cls){var t=x.text,sp=/ $/.test(t),lab=x.label||'';t=t.replace(/ $/,'');return '<'+tag+(cls?' class="'+cls+'"':'')+(lab?' title="'+esc(lab)+'"':'')+'>'+esc(t)+(lab?'<span class="sr"> ('+esc(lab)+')</span>':'')+'</'+tag+'>'+(sp?' ':'');}
+  function part(x,side){return x.op==='rem'&&side==='b'?seg(x,'del'):x.op==='add'&&side==='a'?seg(x,'ins'):x.op==='move'?seg(x,'span','tmv'):x.op==='case'?seg(x,'span','tcase'):esc(x.text);}
+  if(td.full){old=esc(c.before);nw=esc(c.after);}
+  else{old=td.before.map(function(x){return part(x,'b')}).join('');nw=td.after.map(function(x){return part(x,'a')}).join('');}
+  var ops={};(td.full?[]:td.before.concat(td.after)).forEach(function(x){if(!ops[x.op])ops[x.op]=x.label||1;});
+  var leg=(ops.move?'<span><span class="tmv">pontilhado</span>: '+esc(ops.move)+'</span>':'')+(ops['case']?'<span><span class="tcase">tracejado</span>: '+esc(ops['case'])+'</span>':'');
+  var grp=c.rewriteGroup&&readByForja(c.id)?O.rewriteGroups.filter(function(g){return g.id===c.rewriteGroup})[0]:null;
+  return '<div class="t-pair"><span class="lbl">de</span><p class="t-old">'+old+'</p><span class="lbl">para</span><p class="t-new">'+nw+'</p></div>'+
+    '<div class="t-stats">'+leg+(td.full?'<span>Título inteiro reescrito</span>':'<span>'+pl(td.keptWords,'palavra mantida','palavras mantidas')+'</span>')+'<span><span class="num">'+c.before.length+'</span> → <span class="num">'+c.after.length+'</span> caracteres</span><span>A versão anterior ficou '+esc(durTxt(c.prevLivedMs,c.prec!=='min'))+' no ar</span>'+(grp?'<span title="Como a forja classificou esta troca na leitura de '+esc(D.dm(readByForja(c.id).generatedAt))+'">Reescrita (forja): '+esc(grp.label.charAt(0).toLowerCase()+grp.label.slice(1))+'</span>':'')+'</div>';
+}
+function thumbPairHTML(c){
+  var v=O.video(c.video);
+  return '<div class="th-pair"><figure>'+thumbHTML(c.before.art,v.dur)+'<figcaption><b>Antes · '+keyTag(c.before.key)+'</b><span>'+verCap(v,c.fromId)+'</span></figcaption></figure><span class="th-arrow" aria-hidden="true"><svg class="i"><use href="#i-arrow-r"/></svg></span><figure>'+thumbHTML(c.after.art,v.dur)+'<figcaption><b>Depois · '+keyTag(c.after.key)+(c.revertTo?' <span class="th-back">(mesma imagem voltando)</span>':'')+'</b><span>'+verCap(v,c.toId)+'</span></figcaption></figure></div>';
+}
+function descHTML(c){
+  if(!c.hasText)return '<div class="hatch"><span><b>A descrição mudou; o texto não foi arquivado</b>'+esc(c.noTextReason)+'</span></div>';
+  var d=c.diff,open=c.id===FIRST_DESC;
+  var lines=d.lines.filter(function(l){return !(l.op==='ctx'&&!l.text)}).map(function(l){
+    var cls={ctx:'ctx',add:'a',rem:'r',utm:'nz'}[l.op],g={ctx:' ',add:'+',rem:'−',utm:'~'}[l.op],sr={ctx:'',add:'Linha nova: ',rem:'Linha removida: ',utm:'Só UTM mudou: '}[l.op];
+    var txt=l.op==='utm'?l.from+' → '+l.text:l.text;
+    return '<div class="ln '+cls+'"><span class="g" aria-hidden="true">'+g+'</span><span><span class="sr">'+sr+'</span>'+esc(txt)+'</span></div>';}).join('');
+  return '<div class="d-sum"><span class="chip"><span class="add num">+'+d.add+'</span> <span class="rem num">−'+d.rem+'</span> linhas</span>'+(d.utm?'<span class="noise">'+pl(d.utm,'troca de UTM oculta','trocas de UTM ocultas')+'</span>':'')+
+    '<button class="linkbtn" type="button" data-toggle-diff aria-expanded="'+open+'" aria-controls="dd-'+esc(c.id)+'">'+(open?'Esconder comparação':'Ver comparação')+'</button></div>'+
+    (function(){var ch=d.lines.filter(function(l){return l.op==='add'||l.op==='rem'}),pk=ch.slice(0,3);return '<ul class="d-peek" id="dp-'+esc(c.id)+'"'+(open?' hidden':'')+'>'+pk.map(function(l){return '<li class="'+(l.op==='add'?'a':'r')+'"><span class="g" aria-hidden="true">'+(l.op==='add'?'+':'−')+'</span><span class="sr">'+(l.op==='add'?'Linha nova: ':'Linha removida: ')+'</span><span class="t">'+esc(l.text)+'</span></li>';}).join('')+(ch.length>3?'<li class="more">e mais '+pl(ch.length-3,'linha','linhas')+'</li>':'')+'</ul>';})()+
+    '<div class="d-diff" id="dd-'+esc(c.id)+'"'+(open?'':' hidden')+'>'+lines+'<div class="bar">'+(d.utm?'<label><input type="checkbox" data-noise>Mostrar ruído (UTM)</label>':'<span></span>')+'<span>Texto inteiro arquivado nas duas versões</span></div></div>';
+}
+function badges(c){
+  var b='';
+  if(c.sameWindow.length||c.within48h.length){var o=O.change((c.sameWindow[0]||c.within48h[0]));
+    b+='<span class="badge note"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg><span>'+(c.sameWindow.length?'Mudou na mesma janela de sincronização que '+(o.type==='thumb'?'a thumbnail':o.type==='title'?'o título':'a descrição'):(o.typeLabel+' mudou menos de 48 h '+(o.at<c.at?'antes':'depois')+' desta troca ('+esc(o.whenText)+')'))+': o efeito não se separa</span></span>';}
+  if(c.revertTo){var cyc=durTxt(c.cycleMs,c.prec!=='min');
+    b+='<span class="badge rev"><svg class="i" aria-hidden="true"><use href="#i-revert"/></svg><span>Voltou à versão '+c.revertTo+' depois de '+cyc+' com a alternativa.'+(c.testCompare?' Compatível com Testar e comparar (teste A/B do YouTube, até '+O.RULES.testCompareMaxDays+' dias).':' A alternativa ficou mais de '+O.RULES.testCompareMaxDays+' dias: não parece teste automático.')+'</span></span>';}
+  else if(c.testCompare&&c.nextLivedMs)b+='<span class="badge rev"><svg class="i" aria-hidden="true"><use href="#i-revert"/></svg><span>Esta versão foi revertida '+esc(durTxt(c.nextLivedMs))+' depois. Compatível com Testar e comparar (teste A/B do YouTube).</span></span>';
+  return b;
+}
+/* série diária = effect.daily (o dia da troca fica de fora, como no cálculo do efeito) */
+function dailyRates(c,e){var d=e.daily||{before:[],after:[]};return {b:d.before.map(function(x){return x.vpd}),a:d.after.map(function(x){return x.vpd})};}
+function sparkHead(c,e){return '<div class="eff-h"><span>Views/dia</span><span>'+e.beforeDays+' antes · '+e.afterDays+' depois</span></div><div class="sparkbox"><svg class="spark" data-id="'+esc(c.id)+'" role="img" aria-label="'+esc(sparkLabel(c,e))+'"></svg></div>';}
+function sparkLabel(c,e){
+  var r=dailyRates(c,e),s='Views por dia: média de '+F.num(e.beforeAvg!=null?e.beforeAvg:avg(r.b))+' em '+pl(e.beforeDays,'dia','dias')+' antes';
+  if(e.status==='aguardando')return s+'; '+pl(r.a.length,'dia','dias')+' depois até agora.';
+  return s+', '+F.num(e.afterAvg)+' nos '+AFTER+' dias depois'+(e.expected!=null?'; esperado sem a troca '+F.num(e.beforeAvg*(1+e.expected))+' (faixa '+F.num(e.beforeAvg*(1+e.iqr[0]))+' a '+F.num(e.beforeAvg*(1+e.iqr[1]))+').':'; '+(e.noBaseText||'sem base de comparação (n = 0)')+'.');
+}
+function avg(a){return a.length?a.reduce(function(s,x){return s+x},0)/a.length:0;}
+function effectHTML(c){
+  var e=eff(c),v=O.video(c.video),cav=O.caveats(c.id);
+  var cavH=cav.length?'<p class="eff-foot"><b style="color:var(--text);font-weight:600">Ressalva:</b> '+cav.map(esc).join(' ')+'</p>':'';
+  if(e.status==='sem-antes'||e.status==='sem-serie')return '<p class="na" data-status="'+e.status+'">'+esc(F.labelReason(e.label,e.reason,{sentence:true}))+'</p>';
+  if(e.status==='aguardando'){
+    var bars='';for(var i=0;i<AFTER;i++)bars+='<i'+(i<e.collected?' class="f"':'')+'></i>';
+    return sparkHead(c,e)+'<div class="verdict wait"><svg class="i" aria-hidden="true"><use href="#i-clock"/></svg>'+esc(e.waitText?e.waitText:e.readyText?cap(e.readyText)+' · '+e.collected+' de '+AFTER+' dias coletados':F.labelReason(e.label,e.reason,{sentence:true}))+'</div><div class="progress" aria-hidden="true">'+bars+'</div>'+
+      (e.willBeInconclusive&&!e.waitText?'<p class="eff-foot">Vai sair inconclusivo: '+esc(e.willBeInconclusive.charAt(0).toLowerCase()+e.willBeInconclusive.slice(1))+'</p>':'')+cavH;
+  }
+  var vm={ganhou:['win','i-up','Ganhou'],perdeu:['loss','i-down','Perdeu'],neutro:['flat','i-flat','Neutro'],inconclusivo:['inc','i-help','Inconclusivo']}[e.status];
+  var dl='<dl class="eff-dl"><dt>Observado</dt><dd><span class="num">'+pctTxt(e.observed)+'</span><small>'+numH(F.num(e.beforeAvg))+' → '+numH(F.num(e.afterAvg))+'/dia</small></dd>'+
+    '<dt>Esperado sem a troca</dt><dd><span class="num">'+pctTxt(e.expected)+'</span><small>'+(e.expected!=null?'faixa <span class="num">'+pctTxt(e.iqr[0])+'</span> a <span class="num">'+pctTxt(e.iqr[1])+'</span>, ':'')+(e.noBaseText?esc(cap(e.noBaseText)):'n = <span class="num">'+e.n+'</span>; '+esc(e.band)+', '+esc((e.methodLabel||e.method).replace(/^método: /,'')))+'</small></dd>'+
+    '<dt>Efeito</dt><dd'+(e.status==='inconclusivo'?' class="inc" title="Inconclusivo: o número não sustenta conclusão"':'')+'>'+(e.effectPp!=null?'<span class="num">'+esc(F.pp(e.effectPp).replace(' pp',''))+'</span> pp':'—')+'</dd></dl>';
+  var verdict='<div class="verdict '+vm[0]+'" data-status="'+e.status+'"><svg class="i" aria-hidden="true"><use href="#'+vm[1]+'"/></svg>'+vm[2]+'</div>';
+  var foot='<p class="eff-foot" title="Esperado: '+pl(e.n,'vídeo','vídeos')+' '+(v.fmt==='long'?'longos':'Shorts')+' sem troca de '+esc(chName(c.ch))+' com '+esc(e.band)+'">'+esc(cap(e.reason))+'</p>';
+  return sparkHead(c,e)+dl+verdict+'<span class="adj">Ajustado pela idade e pelo canal. Não prova causa.</span>'+foot+cavH;
+}
+function whenHTML(c){
+  var v=O.video(c.video),all=O.changes.filter(function(x){return x.video===c.video}).sort(function(a,b){return a.at-b.at}),idx=all.indexOf(c)+1;
+  var T=TYPES.filter(function(x){return x[0]===c.type})[0],sv=SW.saved(c.id),lbl=SW.label(c.id);
+  return '<div class="when"><span class="kind"><svg class="i" aria-hidden="true"><use href="#'+T[2]+'"/></svg>'+esc(c.typeLabel)+'</span><span class="wline" data-kind="'+c.type+'" data-prec="'+c.prec+'" data-at="'+c.at+'">'+esc(whenText(c.at,c))+'<span class="rel">'+esc((c.prec!=='min'?(c.type==='title'?'visto':'vista')+' pela 1ª vez ':(c.type==='title'?'trocado ':'trocada '))+c.agoShort).replace(/(\d) (h|min|dias?)\b/g,'$1&nbsp;$2')+'</span></span>'+
+    (all.length>1?'<span class="seq">'+idx+'ª de '+all.length+' trocas deste vídeo</span>':'')+
+    '<button class="ghost save" type="button" data-save="'+esc(c.id)+'" aria-pressed="'+sv+'" aria-label="'+lbl+'" title="'+lbl+'"><svg class="i" aria-hidden="true"><use href="#i-bookmark"/></svg></button></div>';
+}
+function chgHTML(c){
+  var body=badges(c);
+  if(c.type==='title')body+=titleHTML(c);else if(c.type==='thumb')body+=thumbPairHTML(c);else body+=descHTML(c);
+  return '<div class="chg" data-id="'+esc(c.id)+'">'+whenHTML(c)+'<div class="diff">'+body+'</div><div class="effect">'+effectHTML(c)+'</div></div>';
+}
+function filterParams(forBack){var u=new URLSearchParams();
+  var pn=CHROME.store&&CHROME.store.get('obs-niche');if(forBack&&st.niche!=='todos'&&st.niche===pn&&st.channel==='all'&&!st.changes&&!st.video)u.set('niche',st.niche);
+  if(st.win!==30&&!st.changes&&!st.video)u.set('win',st.win);if(st.fmt!=='all'&&!st.changes&&!st.video)u.set('fmt',st.fmt);if(st.sort!=='recent')u.set('sort',st.sort);
+  if(st.type!=='all')u.set('type',st.type);if(st.channel!=='all')u.set('channel',st.channel);if(st.video)u.set('video',st.video);if(st.changes)u.set('changes',st.changes.join(','));
+  if(st.q)u.set('q',st.q);if(st.measured)u.set('measured','1');if(st.saved)u.set('saved','1');if(st.reading)u.set('reading',st.reading);return u;}
+function backQuery(){return '?'+filterParams(true).toString();}
+/* a URL acompanha os filtros; niche e theme ficam com o chrome */
+function syncUrl(){try{var cur=new URLSearchParams(location.search),u=filterParams(false);if(cur.get('theme'))u.set('theme',cur.get('theme'));if(cur.get('niche')&&cur.get('niche')===st.niche)u.set('niche',st.niche);
+  var q=u.toString();history.replaceState(history.state,'',location.pathname+(q?'?'+q:'')+location.hash);}catch(e){}}
+var VISIBLE_IDS=[],FIRST_DESC=null;
+function histLink(vid){return O.link.historico(vid)+'&from=mudancas'+(VISIBLE_IDS.length?'&ids='+encodeURIComponent(VISIBLE_IDS.join(',')):'')+'&back='+encodeURIComponent(backQuery());}
+function inkOn(hex){var h=String(hex).replace('#','');if(h.length===3)h=h.replace(/(.)/g,'$1$1');var c=[0,2,4].map(function(i){var v=parseInt(h.substr(i,2),16)/255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);});
+  var L=0.2126*c[0]+0.7152*c[1]+0.0722*c[2];return (1.05/(L+0.05))>=((L+0.05)/(0.0118+0.05))?'#FFFFFF':'#14100C';}
+function groupHTML(vid,list){
+  var v=O.video(vid),ch=O.channel(v.ch),total=O.changes.filter(function(x){return x.video===vid}).length;
+  var syncNote=ch.sync.problemPhrase?'<p class="syncnote"><svg class="i" aria-hidden="true"><use href="#i-alert"/></svg>'+esc(ch.sync.problemPhrase?cap(ch.sync.problemPhrase):'')+'</p>':'';
+  var revTag=st.sort!=='recent'&&list.length===1&&list[0].revertTo?'<span class="tag rv">reversão</span>':'';
+  return '<article class="vid"><header class="vid-h"><span class="av" style="background:'+ch.color+';color:'+inkOn(ch.color)+'" aria-hidden="true">'+esc(ch.ini)+'</span><div class="who"><div class="ch"><b>'+esc(ch.name)+'</b><span class="tag '+ch.niche+'">'+O.NICHES[ch.niche].label+'</span>'+revTag+'</div>'+
+    '<h3>'+esc(v.title)+'</h3><div class="meta"><span>'+(v.fmt==='long'?'Longo':'Short')+', '+esc(v.dur)+'</span><span>Publicado '+D.dmOrDmy(v.pub)+'</span><span>'+numH(F.num(v.views))+' views'+(ch.sync.problemPhrase?(function(){var g=O.channelStats(ch.id,'long').growth30;return g&&g.to?', até o registro diário de '+esc(D.dmhm(g.to)):'';})():'')+'</span>'+(total>1?'<span>'+total+' trocas em 90 dias</span>':'')+'</div>'+syncNote+'</div>'+
+    '<div class="acts"><a class="ghost" href="'+esc(histLink(vid))+'"><svg class="i" aria-hidden="true"><use href="#i-history"/></svg>Ver histórico do vídeo</a><a class="ghost" href="'+esc(v.url)+'" target="_blank" rel="noopener" aria-label="Abrir no YouTube: '+esc(v.title)+'"><svg class="i" aria-hidden="true"><use href="#i-external"/></svg>Abrir no YouTube</a></div></header>'+
+    list.map(chgHTML).join('')+'</article>';
+}
+function effKey(c){var e=eff(c);return DECIDED.indexOf(e.status)>-1?e.effectPp:null;}
+function renderFeed(){
+  var list=extra(query()),html='',shown=0,vids={},all={};
+  VISIBLE_IDS=(function(){var srt=list.slice();if(st.sort==='recent')srt.sort(function(a,b){return b.at-a.at});else srt.sort(function(a,b){var ka=effKey(a),kb=effKey(b);if(ka==null&&kb==null)return b.at-a.at;if(ka==null)return 1;if(kb==null)return -1;return st.sort==='gain'?kb-ka:ka-kb;});var seen={},o=[];srt.forEach(function(c){if(!seen[c.video]){seen[c.video]=1;o.push(c.video);}});return o;})();
+  FIRST_DESC=(function(){var d=list.filter(function(c){return c.type==='desc'&&c.hasText});for(var i=0;i<VISIBLE_IDS.length;i++){var h=d.filter(function(c){return c.video===VISIBLE_IDS[i]})[0];if(h)return h.id;}return null;})();
+  list.forEach(function(c){all[c.video]=1;});
+  if(st.sort==='recent'){
+    var groups={},order=[];
+    list.slice().sort(function(a,b){return b.at-a.at}).forEach(function(c){if(!groups[c.video]){groups[c.video]=[];order.push(c.video);}groups[c.video].push(c);});
+    for(var i=0;i<order.length&&shown<st.limit;i++){html+=groupHTML(order[i],groups[order[i]]);shown+=groups[order[i]].length;vids[order[i]]=1;}
+  }else{
+    list.slice().sort(function(a,b){var ka=effKey(a),kb=effKey(b);if(ka==null&&kb==null)return b.at-a.at;if(ka==null)return 1;if(kb==null)return -1;return st.sort==='gain'?kb-ka:ka-kb;})
+      .slice(0,st.limit).forEach(function(c){html+=groupHTML(c.video,[c]);shown++;vids[c.video]=1;});
+  }
+  document.getElementById('feed').innerHTML=html;
+  var total=list.length,nv=Object.keys(vids).length,nvt=Object.keys(all).length;
+  var filtered=st.type!=='all'||st.channel!=='all'||st.measured||st.saved||st.q||st.video||st.changes;
+  document.getElementById('countLine').innerHTML=total?'Mostrando <b class="num">'+shown+'</b> de <b class="num">'+total+'</b> '+(total===1?'troca':'trocas')+(filtered?(total===1?' que bate com os filtros':' que batem com os filtros'):'')+', em <b class="num">'+nv+'</b> de <b class="num">'+nvt+'</b> '+(nvt===1?'vídeo':'vídeos')+(st.changes?'. Lista enviada pelo link da leitura da forja, procurada nos últimos 90 dias (a janela de '+(st.winBefore||30)+' d não se aplica).':'. Janela: últimos '+st.win+' dias, '+FMT_LABEL[st.fmt]+(st.sort==='recent'?'.':'. Ordem: '+(st.sort==='gain'?'maior efeito primeiro':'menor efeito primeiro')+' (uma troca por cartão); trocas sem veredito no fim.')):'';
+  var rest=total-shown;
+  document.getElementById('pager').classList.toggle('hidden',!total);
+  document.getElementById('pagerTxt').textContent=rest>0?pl(rest,'troca ainda não mostrada','trocas ainda não mostradas'):'Fim da lista';
+  var mb=document.getElementById('moreBtn');mb.classList.toggle('hidden',rest<=0);var k=Math.min(8,rest);mb.textContent='Carregar mais';
+  document.querySelector('#screen .legend').hidden=!total;
+  renderEmpty(total);bindFeed();drawSparks();
+}
+function renderEmpty(total){
+  var em=document.getElementById('empty');em.classList.toggle('hidden',total>0);if(total)return;
+  var tpn={title:'título',thumb:'thumbnail',desc:'descrição'},tp=st.type!=='all'?' de '+tpn[st.type]:'';
+  var where=(st.niche!=='todos'?' em canais de '+NICHE_STORE[st.niche]:'')+' ('+FMT_LABEL[st.fmt]+')';
+  /* o que existe sem nenhum filtro local (busca, tipo, canal, efeito medido, swipe, vídeo, lista da forja) */
+  if(st.changes){var lst=O.changesIn({days:90,niche:'todos'}).filter(function(c){return st.changes.indexOf(c.id)>-1});
+    document.getElementById('emptyH').textContent='Nenhuma das '+pl(lst.length,'troca citada','trocas citadas')+' pela forja'+(st.type!=='all'?' é de '+tpn[st.type]:' passa nos filtros');
+    document.getElementById('emptyWhy').textContent='A lista veio do link da leitura da forja. '+(st.type!=='all'?'Ela tem '+lst.map(function(c){return c.typeLabel.toLowerCase()}).filter(function(x,i,a){return a.indexOf(x)===i}).join(' e ')+'.':'');
+    document.getElementById('emptyBtns').innerHTML='<button class="btn" type="button" id="dropList">Tirar a lista da forja</button>'+(st.type!=='all'?'<button class="btn" type="button" id="allTypes">Todos os tipos</button>':'');
+    document.getElementById('dropList').addEventListener('click',function(){st.changes=null;st.win=30;st.fmt='all';syncControls();renderAll();});
+    var at=document.getElementById('allTypes');if(at)at.addEventListener('click',function(){st.type='all';syncControls();renderAll();});return;}
+  var base=O.changesIn({days:st.win,niche:st.niche,fmt:fmtQ()});
+  var FILT=[
+    ['type',st.type!=='all','tipo '+tpn[st.type],'Todos os tipos',function(){st.type='all';}],
+    ['measured',st.measured,'“só com efeito medido”','Mostrar também as sem veredito',function(){st.measured=false;}],
+    ['saved',st.saved,'“só o swipe file”','Tirar “só o swipe file”',function(){st.saved=false;}],
+    ['q',!!st.q,'a busca “'+st.q+'”','Limpar a busca',function(){st.q='';}],
+    ['channel',st.channel!=='all',st.channel!=='all'?'o canal '+chName(st.channel):'','Todos os canais',function(){st.channel='all';}],
+    ['video',!!st.video,'o filtro de vídeo','Tirar o filtro de vídeo',function(){st.video=null;}]
+  ].filter(function(f){return f[1]});
+  function countWithout(f){var keep=JSON.stringify(st);f[4]();var n=extra(query()).length;Object.assign(st,JSON.parse(keep));return n;}
+  var restr=(st.measured?' com efeito medido':'')+(st.saved?' no swipe file':'')+(st.q?' com “'+st.q+'”':'')+(st.channel!=='all'?' de '+chName(st.channel):'');
+  var since=st.type==='thumb'?O.ARCHIVE_START:null,capped=since&&(O.NOW-st.win*DAY)<since,descNote=st.type==='desc'&&(O.NOW-st.win*DAY)<O.ARCHIVE_START;
+  var head='Nenhuma troca'+tp+restr+where+(capped?' desde '+D.dm(since)+' (início da detecção)':' nos últimos '+st.win+' dias');
+  var why,btns='',fix=[];
+  if(base.length){
+    FILT.forEach(function(f){var n=countWithout(f);if(n)fix.push([f,n]);});
+    var typed=st.type!=='all'?base.filter(function(c){return c.type===st.type}):base;
+    if(st.measured&&typed.length){var by={};typed.forEach(function(c){var s=eff(c).label;by[s]=(by[s]||0)+1;});
+      why=(typed.length===1?'A única troca':'As '+typed.length+' trocas')+tp+' desta janela'+where+' ainda não '+(typed.length===1?'tem':'têm')+' efeito medido: '+Object.keys(by).map(function(k){return by[k]+' '+k}).join(', ')+'.';}
+    else if(capped&&!typed.length) why='Trocas de thumbnail só são detectadas desde '+D.dm(since)+' ('+Math.floor((O.NOW-since)/DAY)+' dias); nesse período, nenhuma'+where+'. Há '+pl(base.length,'troca','trocas')+' de outros tipos nesta janela.';
+    else why='Há '+pl(base.length,'troca','trocas')+where+' nesta janela; '+(fix.length?fix.map(function(x){return x[0][2]+' esconde '+(x[1]===base.length?(x[1]===1?'a única':'todas as '+x[1]):(x[1]===1?'1':x[1]))}).join(', '):'a combinação dos filtros esconde todas')+'.';
+    fix.forEach(function(x,i){btns+='<button class="btn" type="button" data-fix="'+i+'">'+esc(x[0][3])+' ('+x[1]+')</button>';});
+  }else{
+    var wider=[30,90].filter(function(w){return w>st.win}).map(function(w){return [w,O.changesIn({days:w,niche:st.niche,fmt:fmtQ()}).length]}).filter(function(x){return x[1]>0})[0];
+    if(wider){why='Nenhuma troca'+where+' nesta janela. Em '+wider[0]+' dias há '+pl(wider[1],'troca.','trocas.');btns+='<button class="btn" type="button" data-widen="'+wider[0]+'">Ampliar para '+wider[0]+' dias</button>';}
+    else why='Nenhuma troca'+where+' nos últimos '+st.win+' dias, com qualquer filtro. Isso é resultado: esses canais não mexeram em títulos, thumbnails nem descrições nesse período'+((O.NOW-st.win*DAY)<O.ARCHIVE_START?' (thumbnails só detectadas desde '+D.dm(O.ARCHIVE_START)+')':'')+'.';
+  }
+  if(descNote)why+=' Descrições anteriores a '+D.dm(O.ARCHIVE_START)+' aparecem sem o texto.';
+  btns+='<button class="btn" type="button" id="clearBtn">Limpar filtros</button>';
+  document.getElementById('emptyH').textContent=head;document.getElementById('emptyWhy').textContent=why;document.getElementById('emptyBtns').innerHTML=btns;
+  document.querySelectorAll('[data-fix]').forEach(function(b){b.addEventListener('click',function(){fix[+b.dataset.fix][0][4]();syncControls();renderAll();});});
+  var w=document.querySelector('[data-widen]');if(w)w.addEventListener('click',function(){st.win=+w.dataset.widen;syncControls();renderAll();});
+  document.getElementById('clearBtn').addEventListener('click',clearFilters);
+}
+
+/* ---------- sparklines: projeção do esperado em --muted (cálculo do site, nunca cor da forja) ---------- */
+var NS='http://www.w3.org/2000/svg';
+function el(n,a){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);return e;}
+function drawSparks(){
+  document.querySelectorAll('svg.spark').forEach(function(s){
+    var c=O.change(s.dataset.id),e=eff(c),r=dailyRates(c,e),b=r.b,a=r.a;
+    while(s.firstChild)s.removeChild(s.firstChild);
+    var box=s.parentNode;box.querySelectorAll('.spark-lbl').forEach(function(x){x.remove()});
+    var W=Math.max(120,Math.round(s.getBoundingClientRect().width)),H=64,pt=14,pb=3;
+    s.setAttribute('viewBox','0 0 '+W+' '+H);
+    var hasExp=e.status!=='aguardando'&&e.expected!=null,rb=e.beforeAvg;
+    var vals=b.concat(a).concat(hasExp?[rb*(1+e.iqr[0]),rb*(1+e.iqr[1])]:[]);
+    var hi=Math.max.apply(null,vals),lo=Math.min.apply(null,vals),pad=(hi-lo)*.12||hi*.05,max=hi+pad,min=Math.max(0,lo-pad);
+    var step=W/13,off=7-b.length;
+    function x(i){return (i+off)*step;} function y(v){return pt+(H-pt-pb)*(1-(v-min)/(max-min));}
+    var xm=(x(b.length-1)+x(b.length))/2,last=x(b.length+6);
+    if(hasExp){
+      s.appendChild(el('polygon',{points:xm+','+y(rb)+' '+last+','+y(rb*(1+e.iqr[1]))+' '+last+','+y(rb*(1+e.iqr[0])),fill:'var(--band)'}));
+      s.appendChild(el('line',{x1:xm,x2:last,y1:y(rb),y2:y(rb*(1+e.expected)),stroke:'var(--muted)','stroke-width':1.5,'stroke-dasharray':'4 3'}));
+    }
+    s.appendChild(el('line',{x1:xm,x2:xm,y1:pt-2,y2:H,stroke:'var(--muted)','stroke-width':1.5,'stroke-dasharray':'3 2'}));
+    function path(arr,start){return arr.map(function(v,i){return (i?'L':'M')+x(start+i).toFixed(1)+' '+y(v).toFixed(1)}).join(' ');}
+    if(b.length)s.appendChild(el('path',{d:path(b,0),fill:'none',stroke:'var(--spark-before)','stroke-width':2,'stroke-linejoin':'round'}));
+    if(b.length===1)s.appendChild(el('circle',{cx:x(0),cy:y(b[0]),r:3,fill:'var(--spark-before)'}));
+    if(a.length)s.appendChild(el('path',{d:path(a,b.length),fill:'none',stroke:'var(--spark-after)','stroke-width':2,'stroke-linejoin':'round'}));
+    if(a.length===1)s.appendChild(el('circle',{cx:x(b.length),cy:y(a[0]),r:3,fill:'var(--spark-after)'}));
+    if(a.length<7)s.appendChild(el('line',{x1:x(b.length+Math.max(0,a.length-1))+4,x2:last,y1:H-4,y2:H-4,stroke:'var(--muted)','stroke-width':1.5,'stroke-dasharray':'2 4'}));
+    function lbl(css,html){var sp=document.createElement('span');sp.className='spark-lbl';sp.style.cssText=css;sp.innerHTML=html;box.appendChild(sp);}
+    lbl('left:'+(xm+4)+'px','troca');
+    lbl('left:0','máx '+numH(F.num(hi)));
+    lbl('left:0;top:auto;bottom:-15px','mín '+numH(F.num(lo))+' (eixo não começa em 0)');
+  });
+}
+if(window.ResizeObserver){new ResizeObserver(function(){drawSparks();}).observe(document.body);}
+
+/* ---------- interações ---------- */
+function bindFeed(){
+  document.querySelectorAll('[data-toggle-diff]').forEach(function(btn){btn.addEventListener('click',function(){
+    var d=document.getElementById(btn.getAttribute('aria-controls'));var open=btn.getAttribute('aria-expanded')==='true';
+    d.hidden=open;var pk=document.getElementById(d.id.replace(/^dd-/,'dp-'));if(pk)pk.hidden=!open;btn.setAttribute('aria-expanded',String(!open));btn.textContent=open?'Ver comparação':'Esconder comparação';});});
+  document.querySelectorAll('[data-noise]').forEach(function(cb){cb.addEventListener('change',function(){cb.closest('.d-diff').classList.toggle('show-noise',cb.checked);});});
+  document.querySelectorAll('[data-save]').forEach(function(b){b.addEventListener('click',function(){
+    var id=b.dataset.save;SW.toggle(id);var on=SW.saved(id),lbl=SW.label(id);b.setAttribute('aria-pressed',String(on));b.setAttribute('aria-label',lbl);b.title=lbl;
+    toast(on?'Salvo no swipe file':'Tirado do swipe file');if(st.saved)renderAll();});});
+}
+function toast(msg,kind){CHROME.toast(kind||'ok',msg,'');}
+function seg(id,key,num){document.getElementById(id).addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;st[key]=num?+b.dataset.v:b.dataset.v;st.limit=8;
+  syncControls();renderAll();});}
+seg('fWin','win',true);seg('fFmt','fmt');seg('fType','type');
+document.getElementById('fChannel').addEventListener('change',function(e){st.channel=e.target.value;st.limit=8;renderAll();});
+document.getElementById('fSort').addEventListener('change',function(e){st.sort=e.target.value;st.limit=8;syncUrl();renderFeed();});
+document.getElementById('fMeasured').addEventListener('change',function(e){st.measured=e.target.checked;st.limit=8;renderAll();});
+document.getElementById('fSaved').addEventListener('change',function(e){st.saved=e.target.checked;st.limit=8;renderAll();});
+document.getElementById('fSearch').addEventListener('input',function(e){st.q=e.target.value.trim();st.limit=8;renderAll();});
+
+document.getElementById('videoX').addEventListener('click',function(){if(st.changes||st.video){st.win=30;st.fmt='all';}st.video=null;st.changes=null;st.limit=8;syncControls();renderAll();});
+document.getElementById('readX').addEventListener('click',function(){st.reading=null;st.linkReading=null;st.readingMissing=false;renderAll();});
+document.getElementById('chanX').addEventListener('click',function(){st.channel='all';st.limit=8;syncControls();renderAll();});
+document.getElementById('moreBtn').addEventListener('click',function(){st.limit+=8;renderFeed();});
+function clearFilters(){st.changes=null;st.fmt='all';st.type='all';st.channel='all';st.measured=false;st.saved=false;st.q='';st.video=null;st.fmt='all';st.win=30;st.limit=8;syncControls();renderAll();MP[1]='cheio';CHROME.setMockPressed(MP);}
+function syncControls(){
+  [['fWin','win'],['fFmt','fmt']].forEach(function(p){document.getElementById(p[0]).querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.v===String(st[p[1]])));});});
+  ['fWin','fFmt'].forEach(function(id){document.getElementById(id).querySelectorAll('button').forEach(function(b){b.disabled=!!st.changes;b.title=st.changes?'Desligado enquanto a lista citada pela forja está aberta. Tire o filtro “Trocas citadas pela forja” para usar.':'';});});
+  document.getElementById('fMeasured').checked=st.measured;document.getElementById('fSaved').checked=st.saved;document.getElementById('fSearch').value=st.q;document.getElementById('fSort').value=st.sort;
+}
+function renderMoreSum(){var k=(st.channel!=='all'?1:0)+(st.measured?1:0)+(st.saved?1:0);var sm=document.getElementById('moreSum');sm.textContent=k?'Mais filtros ('+k+')':'Mais filtros';sm.classList.toggle('on',k>0);}
+function renderAll(){
+  syncUrl();renderMoreSum();renderHead();renderTypeSeg();renderChannels();renderSummary();renderLedger();renderDigest();renderFeed();if(typeof renderForja==='function')renderForja();
+  var rc=document.getElementById('readChip');rc.classList.toggle('hidden',!st.readingMissing&&!st.reading);var rt=document.getElementById('readTxt');
+  if(st.reading&&!st.readingMissing){var lr=F_.byId[st.reading];rt.textContent='Leitura do link: '+NICHE_STORE[lr.niche]+', '+D.dm(lr.generatedAt)+' '+D.hm(lr.generatedAt);}
+  if(st.readingMissing==='invalid')rt.innerHTML='Leitura do link não encontrada — <a class="lnk" href="'+esc(O.link.insights({}).replace(/\?$/,''))+'">veja as leituras em Insights</a>';
+  else if(st.readingMissing)rt.innerHTML='Esse link é de outra leitura ('+esc(st.readingMissing.label)+', '+esc(st.readingMissing.niche)+', '+esc(D.dm(st.readingMissing.at))+') — <a class="lnk" href="'+esc(st.readingMissing.href)+'">abra em Insights</a>';
+  var cc=document.getElementById('chanChip');cc.classList.toggle('hidden',st.channel==='all');if(st.channel!=='all')document.getElementById('chanTxt').textContent='Canal: '+chName(st.channel);
+  var vc=document.getElementById('videoChip');vc.classList.toggle('hidden',!st.video&&!st.changes);
+  if(st.changes)document.getElementById('videoTxt').textContent='Trocas citadas pela forja ('+st.changes.length+')';else if(st.video)document.getElementById('videoTxt').textContent='Vídeo: '+O.video(st.video).title;
+}
+var MP={0:F_.session.state().type==='resumo-trocas'?mockOf(F_.session.state().base):'nenhum',1:'cheio'};
+/* B1: clique no botão ou no status do cabeçalho nunca reenvia um pedido em andamento; abre o resumo e foca o andamento.
+   I5: pedido novo passa por uma prévia do escopo (forja.preview por nicho + canais fora) e confirmação. */
+function focusForja(){var sb=document.getElementById('sumBox');if(!sb.open){sb.open=true;}var t=document.getElementById('forjaStatus')||document.getElementById('forja');t.scrollIntoView({block:'center'});t.setAttribute('tabindex','-1');t.focus({preventScroll:true});}
+function onForjaClick(){var sc=currentScenario();
+  if(!sendable(sc).length){focusForja();return;}
+  st.forjaConfirm=true;renderForja();focusForja();}
+function sendForja(){var res=SES.ask(scopeNow(),{type:'resumo-trocas'});st.justSent=res.ok?res.results.filter(function(x){return x.ok}).map(function(x){return x.niche}):null;st.forjaConfirm=false;renderForja();renderDigest();
+  if(res.ok){var n=res.results.filter(function(r){return r.ok}).length;toast(n>1?'Pedidos enviados à forja (um por nicho)':'Pedido enviado à forja','forja');}else CHROME.toast('warn','Pedido não enviado',cap(res.reason||''));focusForja();}
+function setForja(v){MP[0]=v;CHROME.setMockPressed(MP);renderForja();renderDigest();}
+function onMock(id,g){
+  if(g===0){st.justSent=null;SES.setBase(id==='nenhum'?'sem pedido':id,{type:'resumo-trocas'});st.forjaConfirm=false;setForja(id);return;}
+  if(id==='vazio-sugestao'){Object.assign(st,{q:'',sort:'recent',saved:false,reading:null,readingMissing:false,win:7,type:'desc',measured:true,fmt:'long',video:null,changes:null,channel:'all',limit:8});CHROME.setNiche('ia',{silent:true,persist:false});st.niche='ia';}
+  if(id==='vazio-90'){Object.assign(st,{q:'',sort:'recent',saved:false,reading:null,readingMissing:false,win:90,type:'thumb',measured:false,fmt:'short',video:null,changes:null,channel:'all',limit:8});CHROME.setNiche('viagem',{silent:true,persist:false});st.niche='viagem';}
+  if(id==='cheio'){Object.assign(st,{win:30,type:'all',measured:false,saved:false,fmt:'all',video:null,changes:null,channel:'all',limit:8,q:'',sort:'recent'});CHROME.setNiche('todos',{silent:true,persist:false});st.niche='todos';}
+  MP[1]=id;CHROME.setMockPressed(MP);syncControls();renderAll();
+}
+document.addEventListener('click',function(e){var m=document.getElementById('moreF');if(m.open&&!m.contains(e.target))m.open=false;});
+document.addEventListener('keydown',function(e){var m=document.getElementById('moreF');if(e.key==='Escape'&&m.open){m.open=false;document.getElementById('moreSum').focus();}});
+document.getElementById('sumBox').addEventListener('toggle',function(){this.querySelector('.sumopen').textContent=this.open?'Recolher resumo':'Ver resumo';drawSparks();});
+st.niche=CHROME.niche();
+CHROME.setMockPressed(MP);   /* a base do pedido vem da sessão do motor (persistida entre telas) */
+(function(){var objNiche=st.video?O.video(st.video).niche:st.channel!=='all'?O.channel(st.channel).niche:null;
+  if(st.changes){var ns=st.changes.map(function(id){return O.change(id).niche}).filter(function(x,i,a){return a.indexOf(x)===i});var want=ns.length===1?ns[0]:'todos';if(st.niche!=='todos'&&ns.some(function(n){return n!==st.niche})){CHROME.setNiche(want,{silent:true,persist:false});st.niche=want;CHROME.toast('','Nicho mudou para '+(want==='todos'?'Todos':O.NICHES[want].label)+' para mostrar as trocas citadas','');}}
+  if(objNiche&&st.niche!=='todos'&&st.niche!==objNiche){CHROME.setNiche(objNiche,{silent:true,persist:false});st.niche=objNiche;
+    CHROME.toast('','Nicho mudou para '+O.NICHES[objNiche].label+' para mostrar '+(st.video?'este vídeo':'este canal'),'');}})();
+/* ?reading=<id>: abre o card da forja com essa leitura, no nicho dela (persist:false), e põe o foco nele */
+(function(){var p=window.__params||{};if(!p.reading)return;
+  var r=F_.byId[p.reading];
+  if(!r){st.readingMissing='invalid';return;}   /* id inválido: aviso sem o id cru; não vai para a URL nem para o back= */
+  if(r.type!=='resumo-trocas'){var T=F_.readingTypes.filter(function(t){return t.id===r.type})[0];st.readingMissing={label:T?T.label.replace(/ \(.*\)$/,'').replace(/ dos outliers.*$/,''):'outro tipo',at:r.generatedAt,href:O.link.insights({reading:r.id}),niche:O.NICHES[r.niche].label};return;}
+  st.reading=p.reading;
+  if(!F_.readings.some(function(x){return x.id===r.id})){st.linkReading=r;}   /* leitura de cenário: liga o mock publicado */
+  if(st.niche!=='todos'&&st.niche!==r.niche){var pn=CHROME.store&&CHROME.store.get('obs-niche');CHROME.setNiche(r.niche,{silent:true,persist:r.niche===pn});st.niche=r.niche;
+    CHROME.toast('','Nicho mudou para '+O.NICHES[r.niche].label+' para mostrar esta leitura','');}
+  st.focusReading=r.niche;fjOpen[r.niche]=true;})();
+syncControls();renderAll();
+if(st.focusReading){var sb0=document.getElementById('sumBox');sb0.open=true;var d0=document.querySelector('#forja details.fj-niche[data-n="'+st.focusReading+'"]');if(d0){d0.open=true;var sm=d0.querySelector('summary');sm.scrollIntoView({block:'center'});sm.focus({preventScroll:true});}}
+window.__screen={st:st,renderAll:renderAll,syncControls:syncControls};
+})();
+</script>
+</body>
+</html>
