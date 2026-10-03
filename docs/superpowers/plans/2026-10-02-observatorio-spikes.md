@@ -6,7 +6,7 @@
 
 | question | answer | evidence |
 |---|---|---|
-| ETag changes on every A/B rotation? | **not testable live; 1 rotation consistent** | O ETag de `r_3QZBKHqU8` é `"1780819252"` = epoch 2026-06-07T08:00:52Z; o ciclo 7 (reaplicação do original) começou em 08:00:55.27Z (delta +3 s). Rotações anteriores (ciclos 1–4, 6) foram sobrescritas — não observáveis. 0 rotações ao vivo. |
+| ETag changes on every A/B rotation? | **not testable live; 1 rotation consistent** | O ETag de `r_3QZBKHqU8` é `"1780819252"` = (HIPÓTESE: epoch) 2026-06-07T08:00:52Z; o ciclo 7 (reaplicação do original) começou em 08:00:55.27Z (delta +3 s). Rotações anteriores (ciclos 1–4, 6) foram sobrescritas — não observáveis. 0 rotações ao vivo. |
 | ETag changes WITHOUT a rotation (false flip)? | **0 of 183 (video, variante) pares em ≈13–17 min (3 leituras: T0, T0b, T1)** | nenhum id. Janela curta; T+24h pendente. Observação: ETag idêntico entre as 3 variantes em 61 de 61 vídeos (0 divergências). |
 | dHash Hamming distance on a real rotation (min) | **10** (original → B); outras: original↔C 29, original↔D 29, B↔C 25, B↔D 25, C↔D 0 (C e D são o mesmo arquivo) | variantes do A/B Lab (blob 1280x720) vs `hqdefault` atual (4:3). Comparação entre formatos diferentes → limite inferior pessimista/ruidoso |
 | dHash distance on a false ETag flip (max) | **n/a — 0 false flips**; dHash também estável (0 mudanças) em todos os 183 pares | |
