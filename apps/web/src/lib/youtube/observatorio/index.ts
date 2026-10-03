@@ -12,6 +12,9 @@ import { multiplierAt, type MultiplierResult } from './multiplier'
 import { phaseOf, phases, outliers, tabCounts, TAB_TITLES, type Phase, type OutlierQuery, type OutliersResult } from './outliers'
 import { cadence, channelStats, channelSlots, syncText, runSyncText, problemLabel, problemPhrase, syncLabel } from './channels'
 import { deriveChanges, changesIn, caveats, REWRITE_GROUPS, type ObsChange } from './changes'
+import { link } from './links'
+import { FORMULAS, FORMULA, THEMES, THEME, formulasOf, type Formula, type Theme } from './catalog'
+import { heatmap, nicheStats, themeTrend, ownCoverage, patternsNow } from './insights'
 
 export interface Observatory {
   NOW: number; SERIES_START: number; DAY: number; H: number
@@ -33,6 +36,10 @@ export interface Observatory {
   cadence: (id: string, f?: VideoFmt) => ReturnType<typeof cadence>; channelStats: (id: string, f?: VideoFmt) => ReturnType<typeof channelStats>
   channelSlots(): ReturnType<typeof channelSlots>; syncText(id: string): string; runSyncText: typeof runSyncText
   SYNC: { last: number; next: number | null; text: string; title: string; nextText: string | null; cadence: string; cadenceHours: number; slots: number[]; dailyBefore: string }
+  formulas: ReadonlyArray<Formula>; formula(id: string): Formula | undefined; formulasOf: typeof formulasOf; themes: ReadonlyArray<Theme>; theme(id: string): Theme | undefined
+  heatmap(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof heatmap>; nicheStats(niche?: NicheScope, f?: VideoFmt, ownId?: string): ReturnType<typeof nicheStats>
+  themeTrend(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof themeTrend>; ownCoverage(f?: VideoFmt): ReturnType<typeof ownCoverage>; patternsNow(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof patternsNow>
+  link: typeof link
   LAST_IDX: number; TZ: string; TZ_LABEL: string; SERIES_START_LABEL: string
 }
 export function createObservatory(ds: Dataset, _opts?: { seriesStartLabel?: string }): Observatory {
@@ -86,6 +93,9 @@ export function createObservatory(ds: Dataset, _opts?: { seriesStartLabel?: stri
     LAST_IDX: clock.snapIdxAtOrBefore(maxT), TZ: 'America/Sao_Paulo', TZ_LABEL: 'Horários em São Paulo', SERIES_START_LABEL: clock.dm(ds.seriesStart),
     cadence: (id, f) => cadence(ctx, id, f), channelStats: (id, f) => channelStats(ctx, id, f), channelSlots: () => channelSlots(ctx, RULES.channelLimit),
     syncText: id => syncText(ctx, CH.get(id)!), runSyncText,
+    formulas: FORMULAS, formula: id => FORMULA[id], formulasOf, themes: THEMES, theme: id => THEME[id],
+    heatmap: (n, f) => heatmap(ctx, n, f), nicheStats: (n, f, o) => nicheStats(ctx, n, f, o), themeTrend: (n, f) => themeTrend(ctx, n, f), ownCoverage: f => ownCoverage(ctx, f), patternsNow: (n, f) => patternsNow(ctx, n, f),
+    link,
     changes, forja: { readings: ds.readings },
   }
 }

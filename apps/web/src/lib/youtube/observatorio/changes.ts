@@ -2,6 +2,7 @@ import type { Fmt as VideoFmt, Niche, Precision } from './types'
 import { inNiche, type NicheScope } from './niche'
 import { DAY, H } from './time'
 import { RULES } from './rules'
+import { FORMULA } from './catalog'
 import { diffLines, titleDiff, type LineDiff, type TitleDiff } from './text-diff'
 import type { EngineCtx } from './series'
 
@@ -16,16 +17,12 @@ export interface ObsChange {
 const TYPE_LABEL = { title: 'Título', thumb: 'Thumbnail', desc: 'Descrição' } as const
 type ChangeType = keyof typeof TYPE_LABEL
 
-// Only the two title formulas the rewrite classifier needs (dados.js:137-148); the full catalogue is ported with the patterns task.
-const FIRST_PERSON = /^(I|I'm|I’ve|I've|My|How I|Eu|Fiquei|Fui|Testei|Comi|Dormi|Cruzei|Atravessei|Visitei|Gastei|Fiz|Cheguei)\b/
-const HYPERBOLE = /\b(INSANE|INSANELY|Crazy|Wild|Shocking|Scary|Go This Hard|Dangerous|Unreal|absurd[oa]|insan[oa]|bizarr[oa])\b/i
-
 export const REWRITE_GROUPS: { id: string; label: string; test: (c: ObsChange) => boolean }[] = [
   { id: 'reverteu', label: 'Voltou ao título anterior', test: c => !!c.revertTo },
   { id: 'tirou-segunda-noticia', label: 'Tirou a 2ª notícia', test: c => { const b = c.before as string, a = c.after as string
     return /\b(and|&|e)\b.+|\(and /i.test(b) && (b.match(/\b(and|e)\b/gi) || []).length > (a.match(/\b(and|e)\b/gi) || []).length && a.length <= b.length + 5 } },
-  { id: 'primeira-pessoa', label: 'Passou para primeira pessoa', test: c => FIRST_PERSON.test(c.after as string) && (!FIRST_PERSON.test(c.before as string) || /^how i\b/i.test(c.before as string)) },
-  { id: 'reacao-no-lugar', label: 'Reação no lugar do nome do produto', test: c => HYPERBOLE.test(c.after as string) && !HYPERBOLE.test(c.before as string) },
+  { id: 'primeira-pessoa', label: 'Passou para primeira pessoa', test: c => FORMULA['primeira-pessoa']!.test(c.after as string) && (!FORMULA['primeira-pessoa']!.test(c.before as string) || /^how i\b/i.test(c.before as string)) },
+  { id: 'reacao-no-lugar', label: 'Reação no lugar do nome do produto', test: c => FORMULA['reacao-hiperbole']!.test(c.after as string) && !FORMULA['reacao-hiperbole']!.test(c.before as string) },
   { id: 'encurtou', label: 'Encurtou e tirou o detalhe', test: c => (c.after as string).length <= (c.before as string).length * 0.85 },
   { id: 'sem-padrao', label: 'Sem padrão claro', test: () => true },
 ]
