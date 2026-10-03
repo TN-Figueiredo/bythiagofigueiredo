@@ -22,7 +22,7 @@ vi.mock('@/lib/youtube/observatorio', async () => {
 })
 
 import * as Sentry from '@sentry/nextjs'
-import { claim, recordHeartbeat, refuseTask, completeReading, cancelReading, askReading, type ObsType } from '@/lib/pipeline/services/forja-queue'
+import { claim, recordHeartbeat, refuseTask, completeReading, cancelReading, askReading, ORPHAN_READING_MIN_AGE_MS, type ObsType } from '@/lib/pipeline/services/forja-queue'
 
 interface Op { op: string; args: unknown[] }
 interface Query { table: string; ops: Op[] }
@@ -188,16 +188,18 @@ const submission = (o: Record<string, unknown> = {}) => ({
   evidence: [{ id: V1, note: 'subiu 12 pp' }],
   ...o,
 })
-function completeClient(task: Record<string, unknown> | null, o: { insert?: Res | Res[]; cas?: Res; del?: Res } = {}) {
-  let inserts = 0
+function completeClient(task: Record<string, unknown> | null, o: { insert?: Res | Res[]; cas?: Res; del?: Res; existing?: Res; recheck?: Record<string, unknown> | null } = {}) {
+  let inserts = 0, taskReads = 0
   return fakeClient(q => {
     if (q.table === 'competitor_readings') {
+      if (first(q) === 'select') return o.existing ?? OK
       if (first(q) !== 'insert') return o.del ?? OK
       const r = Array.isArray(o.insert) ? o.insert[Math.min(inserts, o.insert.length - 1)] : o.insert
       inserts++
       return r ?? { data: { id: 'reading-1' }, error: null }
     }
-    return first(q) === 'select' ? { data: task, error: null } : (o.cas ?? { data: { id: TASK_ID }, error: null })
+    if (first(q) === 'select') { taskReads++; return { data: taskReads > 1 && o.recheck !== undefined ? o.recheck : task, error: null } }
+    return o.cas ?? { data: { id: TASK_ID }, error: null }
   })
 }
 
@@ -262,25 +264,47 @@ describe('completeReading', () => {
   })
 
   const DUP: Res = { data: null, error: { code: '23505', message: 'duplicate key' } }
-  it('an orphan reading of this (still running) task is removed by task_id and the insert retried once → published', async () => {
-    const f = completeClient(running(), { insert: [DUP, { data: { id: 'reading-2' }, error: null }] })
+  const conflicting = (ageMs: number): Res => ({ data: { id: 'orphan-1', created_at: new Date(NOW - ageMs).toISOString() }, error: null })
+  const deletes = (f: ReturnType<typeof completeClient>) => f.queries.filter(q => q.table === 'competitor_readings' && first(q) === 'delete')
+  const inserts = (f: ReturnType<typeof completeClient>) => f.queries.filter(q => q.table === 'competitor_readings' && first(q) === 'insert')
+
+  it('R51: a YOUNG conflicting reading (a concurrent POST in flight) → 409 and nothing is deleted', async () => {
+    const f = completeClient(running(), { insert: [DUP, { data: { id: 'reading-2' }, error: null }], existing: conflicting(ORPHAN_READING_MIN_AGE_MS - 1_000) })
+    await expect(completeReading(ctxOf(f.client), submission(), NOW)).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING', status: 409 })
+    expect(deletes(f)).toHaveLength(0)
+    expect(inserts(f)).toHaveLength(1)
+    expect(f.queries.some(q => q.table === 'youtube_intelligence_tasks' && first(q) === 'update')).toBe(false)
+  })
+
+  it('R51: an OLD orphan of a task still running and ours → deleted by its id, the insert retried → published', async () => {
+    const f = completeClient(running(), { insert: [DUP, { data: { id: 'reading-2' }, error: null }], existing: conflicting(ORPHAN_READING_MIN_AGE_MS + 1_000) })
     const res = await completeReading(ctxOf(f.client), submission(), NOW)
     expect(res.data).toEqual({ readingId: 'reading-2' })
-    const del = f.queries.filter(q => q.table === 'competitor_readings' && first(q) === 'delete')
-    expect(del).toHaveLength(1)
-    expect(has(del[0]!, 'eq', 'site_id', 'site-1') && has(del[0]!, 'eq', 'task_id', TASK_ID)).toBe(true)
-    expect(f.queries.filter(q => q.table === 'competitor_readings' && first(q) === 'insert')).toHaveLength(2)
+    expect(deletes(f)).toHaveLength(1)
+    expect(has(deletes(f)[0]!, 'eq', 'id', 'orphan-1') && has(deletes(f)[0]!, 'eq', 'task_id', TASK_ID)).toBe(true)
+    expect(inserts(f)).toHaveLength(2)
+    // the task was re-read right before the delete
+    expect(f.queries.filter(q => q.table === 'youtube_intelligence_tasks' && first(q) === 'select')).toHaveLength(2)
   })
 
-  it('a 23505 again after removing the orphan → 409 (no loop)', async () => {
+  it('R51: an old orphan but the task, re-read, is no longer running or no longer ours → 409, nothing deleted', async () => {
+    for (const recheck of [running({ status: 'completed' }), running({ result_summary: { claimed_by: 'outra' } }), null]) {
+      const f = completeClient(running(), { insert: DUP, existing: conflicting(5 * ORPHAN_READING_MIN_AGE_MS), recheck })
+      await expect(completeReading(ctxOf(f.client), submission(), NOW)).rejects.toMatchObject({ status: 409 })
+      expect(deletes(f)).toHaveLength(0)
+    }
+  })
+
+  it('the conflicting reading vanished in between → the insert is retried; a 23505 again → 409 (no loop)', async () => {
     const f = completeClient(running(), { insert: DUP })
-    await expect(completeReading(ctxOf(f.client), submission())).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING', status: 409 })
-    expect(f.queries.filter(q => q.table === 'competitor_readings' && first(q) === 'insert')).toHaveLength(2)
+    await expect(completeReading(ctxOf(f.client), submission(), NOW)).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING', status: 409 })
+    expect(inserts(f)).toHaveLength(2)
+    expect(deletes(f)).toHaveLength(0)
   })
 
-  it('the orphan cannot be removed → 500, nothing published', async () => {
-    const f = completeClient(running(), { insert: DUP, del: { data: null, error: { message: 'rls' } } })
-    await expect(completeReading(ctxOf(f.client), submission())).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
+  it('the old orphan cannot be removed → 500, nothing published', async () => {
+    const f = completeClient(running(), { insert: DUP, existing: conflicting(5 * ORPHAN_READING_MIN_AGE_MS), del: { data: null, error: { message: 'rls' } } })
+    await expect(completeReading(ctxOf(f.client), submission(), NOW)).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
     expect(f.queries.some(q => q.table === 'youtube_intelligence_tasks' && first(q) === 'update')).toBe(false)
   })
 
