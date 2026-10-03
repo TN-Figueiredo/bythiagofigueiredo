@@ -186,4 +186,21 @@ describe.skipIf(skipIfNoLocalDb())('forja queue service — real Supabase', () =
     expect(await tasksOf(siteId)).toHaveLength(0)
     expect((await askReading(ctx(siteId), { type: 'temas', scope: 'ia', userId: USER }, Date.now())).data.ok).toBe(true)
   })
+
+  it('10. R51: a young conflicting reading → 409 and kept; once abandoned (old) it is replaced and the task completes', async () => {
+    const siteId = await freshSite()
+    const id = await insertTask(siteId, { task_type: 'temas', target_niche: 'ia', target_fmt: 'long' })
+    expect((await claim(ctx(siteId), { channelIds: [], taskTypes: ['temas'] }, Date.now())).data?.id).toBe(id)
+    const sent = { text: 'x', asOf: Date.now(), ids: [], numbers: ['12'], nVideos: 12, nOutliers: 0, channels: [], channelsOut: [], items: [], capped: false }
+    expect((await svc.from('youtube_intelligence_tasks').update({ sent }).eq('id', id)).error).toBeNull()
+    const orphan = (await svc.from('competitor_readings').insert({ site_id: siteId, task_id: id, task_type: 'temas', niche: 'ia', model: 'm', generated_at: new Date().toISOString(), sent, text: { lead: 'antigo' } }).select('id').single()).data!.id as string
+    const body = { task_id: id, model: 'Gemma 12B', generated_at: new Date().toISOString(), text: { lead: 'Dos 12 longos.', items: [] } }
+    await expect(completeReading(ctx(siteId), body)).rejects.toMatchObject({ status: 409 })
+    expect((await svc.from('competitor_readings').select('id').eq('id', orphan)).data).toHaveLength(1)
+    expect((await svc.from('competitor_readings').update({ created_at: new Date(Date.now() - 5 * 60_000).toISOString() }).eq('id', orphan)).error).toBeNull()
+    const res = await completeReading(ctx(siteId), body)
+    expect(res.data.readingId).not.toBe(orphan)
+    expect((await svc.from('competitor_readings').select('id').eq('task_id', id)).data).toEqual([{ id: res.data.readingId }])
+    expect((await svc.from('youtube_intelligence_tasks').select('status').eq('id', id).single()).data).toMatchObject({ status: 'completed' })
+  })
 })

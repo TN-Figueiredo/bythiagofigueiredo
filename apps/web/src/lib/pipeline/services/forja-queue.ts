@@ -44,6 +44,12 @@ const CLAIM_COLS = 'id, site_id, channel_id, trigger_type, requested_at, started
 /** readQueue page size = PostgREST max_rows (supabase/config.toml); a bigger page would be truncated silently. */
 const QUEUE_PAGE = 1000
 const REFUSED_REASON_MAX = 200
+/**
+ * Ruling R51: a conflicting reading (same task_id) is treated as abandoned only when it is older than this. A younger
+ * one may belong to a concurrent POST still between its insert and its CAS; deleting it would complete the task with
+ * no reading. An insert → CAS takes milliseconds, so 60 s leaves a wide margin.
+ */
+export const ORPHAN_READING_MIN_AGE_MS = 60_000
 
 const iso = (ms: number) => new Date(ms).toISOString()
 const isWideKey = (ctx: ServiceContext) => ctx.permissions.includes('write') || ctx.permissions.includes('admin')
@@ -325,14 +331,28 @@ export async function completeReading(ctx: ServiceContext, input: ReadingSubmiss
   }).select('id').single()
   let { data: reading, error: insertError } = await insertReading()
   if (insertError && insertError.code === '23505') {
-    // The task is still running and held by this key (checked above), so a reading already holding its task_id was
-    // never published: it is the orphan of an earlier attempt whose CAS was lost and whose cleanup failed (or that
-    // died between insert and CAS). It is removed by the task key and the insert is retried once. (A published
-    // reading always comes with the task completed, which answers 409 before reaching here.)
-    const { error: orphanError } = await supabase.from('competitor_readings').delete().eq('site_id', siteId).eq('task_id', task.id)
-    if (orphanError) return err('INTERNAL_ERROR', 'Failed to remove an unpublished reading of this task', 500)
+    // Another reading already holds this task_id. Since the task was running and ours above, it was never published
+    // (a published reading completes the task). It is deleted ONLY when unambiguously abandoned (R51): older than
+    // ORPHAN_READING_MIN_AGE_MS AND the task, re-read right now, still running and held by this key. Otherwise it may
+    // be a concurrent POST in flight → 409, nothing deleted.
+    const busy = () => err('TASK_NOT_RUNNING', 'Another reading for this task is being published', 409)
+    const { data: existing, error: existingError } = await supabase.from('competitor_readings')
+      .select('id, created_at').eq('site_id', siteId).eq('task_id', task.id).maybeSingle()
+    if (existingError) return err('INTERNAL_ERROR', 'Failed to read the conflicting reading', 500)
+    if (existing) {
+      const ex = existing as { id: string; created_at: string }
+      const createdAt = Date.parse(ex.created_at)
+      if (!Number.isFinite(createdAt) || now - createdAt < ORPHAN_READING_MIN_AGE_MS) return busy()
+      const { data: again, error: againError } = await supabase.from(TASKS).select('status, result_summary').eq('id', task.id).eq('site_id', siteId).maybeSingle()
+      if (againError) return err('INTERNAL_ERROR', 'Failed to read the task', 500)
+      const st = again as { status: string; result_summary: unknown } | null
+      const holder = ((st?.result_summary ?? {}) as Record<string, unknown>).claimed_by
+      if (!st || st.status !== 'running' || (!isWideKey(ctx) && (!ctx.keyId || holder !== ctx.keyId))) return busy()
+      const { error: orphanError } = await supabase.from('competitor_readings').delete().eq('id', ex.id).eq('site_id', siteId).eq('task_id', task.id)
+      if (orphanError) return err('INTERNAL_ERROR', 'Failed to remove an abandoned reading of this task', 500)
+    }
     ;({ data: reading, error: insertError } = await insertReading())
-    if (insertError && insertError.code === '23505') return err('TASK_NOT_RUNNING', 'A reading for this task was already published', 409)
+    if (insertError && insertError.code === '23505') return busy()
   }
   if (insertError || !reading) return err('INTERNAL_ERROR', 'Failed to write the reading', 500)
   const readingId = (reading as { id: string }).id
@@ -344,7 +364,7 @@ export async function completeReading(ctx: ServiceContext, input: ReadingSubmiss
   const { data: closed, error: closeError } = await cas.select('id').maybeSingle()
   if (closeError || !closed) {
     // the task left 'running' between the read and the CAS (the vigia released it): the reading is not published
-    // by the reading's own id; if this cleanup fails, the next attempt's insert removes the orphan by task_id (above)
+    // by the reading's own id; if this cleanup fails, a later attempt removes it once it is abandoned (R51, above)
     const { error: cleanupError } = await supabase.from('competitor_readings').delete().eq('id', readingId)
     if (cleanupError) Sentry.captureMessage('forja reading cleanup failed: ' + cleanupError.message, { extra: { readingId, taskId: task.id } })
     if (closeError) return err('INTERNAL_ERROR', 'Failed to close the task', 500)
