@@ -1,0 +1,5 @@
+/* Só destes mockups: a faixa "Nota do mockup" (fora do #screen; não é parte do produto). Tokens de ../2026-10-02-observatorio/chrome.css. */
+#mocknote{margin:0;padding:7px 16px;border-bottom:1px dashed var(--border-strong);background:var(--sunk);color:var(--muted);font:12.5px/1.45 Inter,system-ui,sans-serif}
+#mocknote b{color:var(--text);font-weight:600}
+#mocknote a{color:var(--text);text-underline-offset:2px}
+#mocknote a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}

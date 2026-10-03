@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>/cms/youtube — cadastro de canais e de nichos (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ------------------------------------------------------------------ tokens
+   Os mesmos de apps/web/src/app/globals.css (tema do CMS) e de youtube/youtube-motion.css
+   ([data-cms-section="youtube"]). Nenhuma cor nova na área: os elementos que já existem usam as cores
+   que o código usa hoje (emerald/amber/red/indigo do Tailwind, accent do CMS); os elementos novos usam
+   só esses mesmos tokens. A única cor "de dado" é a do nicho, que vem do Observatório. */
+:root{
+  --bg:#1A1714;--side:#100E0B;--surface:#221E1A;--surface-2:#272219;--surface-3:#2E281F;
+  --border:#332D25;--border-strong:#40382D;
+  --text:#F5EFE6;--muted:#958A75;--dim:#928871;
+  --accent:#FF8240;--accent-hover:#FF9559;--accent-soft:rgba(255,130,64,.10);--on-accent:#1A120A;
+  --red:#D9614A;--red-soft:rgba(217,97,74,.13);--red-400:#f87171;--red-600:#dc2626;
+  --amber-400:#fbbf24;--amber-line:rgba(120,53,15,.4);--amber-bg:rgba(120,53,15,.1);
+  --emerald-400:#34d399;--indigo-500:#6366f1;--indigo-400:#818cf8;--slate-700:#334155;--slate-400:#94a3b8;
+  --cowork:#9B93F6;--cowork-soft:rgba(110,99,242,.15);
+  --viagem:#5BBF8A;--ia:#6EA8FE;--n-ameixa:#D29AE8;--n-rosa:#F293C2;--n-lima:#B9CB62;--n-ardosia:#AAB4C0;
+  --radius:2px;--side-w:208px;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#F7F1E8;--side:#EDE5D5;--surface:#FBF6EC;--surface-2:#F5EDD6;--surface-3:#E8DFC9;
+  --border:#CEBFA0;--border-strong:#B9A988;
+  --text:#1F1B17;--muted:#6A5F48;--dim:#756A51;
+  --accent:#B94210;--accent-hover:#9A360D;--accent-soft:rgba(185,66,16,.10);--on-accent:#FFF8F1;
+  --red:#B42318;--red-soft:rgba(180,35,24,.08);--red-400:#B42318;--red-600:#B42318;
+  --amber-400:#92400E;--amber-line:rgba(180,83,9,.35);--amber-bg:rgba(180,83,9,.08);
+  --emerald-400:#11692F;--indigo-500:#4F46E5;--indigo-400:#4338CA;--slate-700:#E2DACA;--slate-400:#6A5F48;
+  --cowork:#5B4FD9;--cowork-soft:rgba(91,79,217,.10);
+  --viagem:#11692F;--ia:#1D4ED8;--n-ameixa:#7B2A91;--n-rosa:#A3216B;--n-lima:#55650B;--n-ardosia:#4B5563;
+  color-scheme:light;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button,input,select{font:inherit;color:inherit}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ------------------------------------------------------------------ moldura do mockup (não é produto) */
+#mocknote{margin:0;padding:8px 16px;border-bottom:1px dashed var(--border-strong);background:var(--side);color:var(--muted);font-size:12.5px;line-height:1.5;display:flex;gap:12px;align-items:flex-start}
+#mocknote p{margin:0;flex:1}
+#mocknote b{color:var(--text);font-weight:600}
+#mocknote a{color:var(--text);text-underline-offset:2px}
+#mocknote button{flex:none;min-height:32px;padding:0 10px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);cursor:pointer;font-size:12.5px}
+.mocknav{display:flex;flex-wrap:wrap;gap:4px 14px;padding:8px 16px;border-bottom:1px dashed var(--border-strong);background:var(--side);font-size:12.5px;color:var(--muted)}
+.mocknav a{color:var(--text);text-underline-offset:2px;min-height:24px;display:inline-flex;align-items:center}
+.states{padding:8px 28px 80px;max-width:1396px}
+.state{margin-top:36px}
+.state>h2{margin:0;font:600 13px/1.4 Inter,sans-serif;color:var(--text);padding:6px 10px;border:1px dashed var(--border-strong);border-bottom:0;border-radius:6px 6px 0 0;background:var(--side);display:inline-block}
+.state>.why{margin:0;padding:8px 10px;border:1px dashed var(--border-strong);border-bottom:0;background:var(--side);color:var(--muted);font-size:12.5px;max-width:none}
+.state>.why b{color:var(--text);font-weight:600}
+.state>.frame{border:1px dashed var(--border-strong);padding:20px;border-radius:0 6px 6px 6px;background:var(--bg)}
+.frame.narrow{max-width:700px}
+.frame .cols{display:grid;gap:24px}
+@media (min-width:768px){.frame .cols{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.lbl-mock{display:block;margin:0 0 6px;font-size:11.5px;color:var(--muted);font-style:italic}
+
+/* ------------------------------------------------------------------ casca do CMS + casca do YouTube (youtube-shell.tsx) */
+.app{display:grid;grid-template-columns:var(--side-w) minmax(0,1fr);min-height:640px;border-bottom:1px dashed var(--border-strong)}
+.side{background:var(--side);padding:18px 10px;font-size:14px}
+.side .logo{display:block;font-family:Fraunces,Georgia,serif;font-weight:600;font-size:15px;padding:2px 10px 14px;text-decoration:none}
+.side p{margin:14px 10px 4px;font-size:12px;color:var(--dim)}
+.side ul{list-style:none;margin:0;padding:0}
+.side li a{display:block;padding:5px 10px;border-radius:6px;color:var(--muted);text-decoration:none}
+.side li a[aria-current]{background:var(--accent-soft);color:var(--accent);box-shadow:inset 2px 0 0 var(--accent)}
+.shell-head{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--border);padding:16px 28px}
+.shell-head h1{margin:0;font:600 22px/1.2 Fraunces,Georgia,serif}
+.shell-head .r{display:flex;align-items:center;gap:12px}
+.menu-btn{display:none}
+.yt-tab-bar{display:flex;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border);padding:0 28px}
+.yt-tab-bar::-webkit-scrollbar{display:none}
+.yt-tab{padding:11px 14px;font-size:13.5px;font-weight:500;line-height:1;color:var(--muted);border-bottom:2px solid transparent;text-decoration:none;white-space:nowrap}
+.yt-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.content{padding:24px 28px 80px;max-width:1340px;margin:0 auto;width:100%}
+@media (max-width:1100px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{display:none}
+  .menu-btn{display:inline-grid;place-items:center;width:34px;height:34px;border:0;background:none;color:var(--muted);cursor:pointer;margin-right:4px}
+}
+@media (max-width:760px){
+  .shell-head,.content{padding-left:16px;padding-right:16px}
+  .yt-tab-bar{padding:0 12px}.yt-tab{padding:9px 10px;font-size:12.5px}
+  .states{padding-left:16px;padding-right:16px}
+}
+
+/* ------------------------------------------------------------------ .btn da área (youtube-motion.css §3.1) */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;font-size:13.5px;font-weight:600;line-height:1;color:var(--text);background:var(--surface-2);border:1px solid var(--border);border-radius:9px;cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.btn.ghost{background:none;border-color:transparent;color:var(--muted)}
+.btn.cowork{background:var(--cowork-soft);color:var(--cowork);border-color:transparent}
+.btn.danger{background:var(--red-soft);color:var(--red);border-color:transparent}
+.btn.sm{padding:6px 11px;font-size:12.5px;border-radius:8px;min-height:32px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn svg{width:14px;height:14px;flex:none}
+
+/* ------------------------------------------------------------------ classes do Painel (dashboard-connected.tsx, Tailwind) */
+.stack{display:flex;flex-direction:column;gap:24px}
+.grid2{display:grid;gap:24px}
+@media (min-width:768px){.grid2{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.card{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);min-width:0}
+.c-head{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--border);padding:12px 16px}
+.c-head .who{display:flex;align-items:center;gap:12px;min-width:0}
+.av{width:48px;height:48px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:15px;color:#fff;letter-spacing:-.02em}
+.av.sm{width:40px;height:40px;font-size:13px}
+.c-head .nm{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.c-head .nm b{font-size:14px;font-weight:600}
+.xs{font-size:12px}.dim{color:var(--dim)}.mut{color:var(--muted)}
+.c-head .act{display:flex;align-items:center;gap:12px;flex:none}
+.dotline{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);white-space:nowrap}
+.dotline i{width:8px;height:8px;border-radius:50%;background:var(--emerald-400)}
+.dotline.never{color:var(--amber-400)}.dotline.never i{background:var(--amber-400)}
+.tbtn{border-radius:4px;border:1px solid var(--border);background:none;padding:4px 10px;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;white-space:nowrap;min-height:28px}
+.tbtn.first{background:var(--accent);border-color:var(--accent);color:#fff}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;border-bottom:1px solid var(--border);padding:12px 16px;font-size:12px;color:var(--muted)}
+.stats b{font-weight:600;color:var(--text)}
+.syncrow{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);padding:8px 16px;font-size:12px;color:var(--dim);flex-wrap:wrap}
+.pick{border-left:3px solid var(--emerald-400);padding:12px 16px}
+.pick.none{border-left-color:#475569}
+.pick .k{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--amber-400)}
+.pick.none .k{color:var(--dim)}
+.pick .top{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}
+.pick .v{display:flex;align-items:center;gap:12px}
+.pick .th{width:72px;height:40px;border-radius:4px;flex:none;background:#3C7A8C linear-gradient(90deg,#3C7A8C 60%,#B8481A 60%)}
+.pick .t{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pick .center{text-align:center;padding:8px 0}
+.pick .center p{margin:0 0 8px;font-size:14px;color:var(--dim)}
+.softlink{display:inline-flex;align-items:center;gap:4px;border-radius:4px;background:var(--accent-soft);padding:6px 12px;font-size:12px;font-weight:500;color:var(--accent);text-decoration:none}
+.empty-sync{padding:24px 16px;text-align:center;font-size:14px;color:var(--dim)}
+.card .ident+.c-foot{border-top:0}
+.c-foot{display:flex;align-items:center;gap:8px;border-top:1px solid var(--border);padding:10px 16px;flex-wrap:wrap}
+.cfg{border-top:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:16px}
+.cfg .h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cap{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.chk{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.chk input{accent-color:var(--indigo-500)}
+.grp{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border:1px solid var(--border);border-radius:6px;padding:8px}
+.days{display:flex;gap:4px}
+.days span{min-height:32px;min-width:32px;border-radius:999px;padding:0 6px;font-size:10px;font-weight:500;display:grid;place-items:center;background:var(--slate-700);color:var(--slate-400)}
+.days span.on{background:var(--indigo-500);color:#fff}
+.in{border:1px solid var(--border);border-radius:4px;background:var(--surface);padding:5px 8px;font-size:12px;color:var(--text);min-height:32px;min-width:0}
+.in::placeholder{color:var(--dim)}
+.in.w12{width:48px}
+.save{display:inline-flex;align-items:center;border:0;border-radius:4px;background:var(--indigo-500);padding:6px 12px;font-size:12px;font-weight:500;color:#fff;cursor:pointer;min-height:32px}
+.right{display:flex;justify-content:flex-end;gap:8px;align-items:center}
+.warnbar{display:flex;align-items:center;gap:8px;border:1px solid var(--amber-line);background:var(--amber-bg);border-radius:var(--radius);padding:10px 16px;font-size:14px;color:var(--amber-400)}
+.warnbar a{margin-left:auto;font-size:12px;font-weight:500;color:var(--accent);text-decoration:none}
+
+/* ------------------------------------------------------------------ NOVO: cadastro (mesmas peças da área) */
+.sec-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sec-head h2{margin:0;font-size:14px;font-weight:600}
+.sec-head h2 span{font-weight:400;color:var(--dim);margin-left:6px}
+.sec-head p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+/* chip de idioma: texto, sem bandeira (bandeira é país, não idioma; o texto cresce com idiomas novos) */
+.lang{text-decoration:none;font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--muted);border:1px solid var(--border-strong);border-radius:4px;padding:0 5px;height:20px;display:inline-flex;align-items:center;flex:none}
+/* faixa de identidade do cartão: nicho e slug, sempre visíveis */
+.ident{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding:8px 16px;font-size:12px;color:var(--muted)}
+.ident .k{color:var(--dim);margin-right:6px}
+.niche{display:inline-flex;align-items:center;gap:6px;color:var(--text);font-weight:500}
+.niche i{width:8px;height:8px;border-radius:50%;flex:none;background:var(--nc)}
+.niche.none{color:var(--amber-400);font-weight:500}
+.slug{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11.5px;color:var(--text)}
+.fields{display:grid;gap:12px}
+/* as colunas saem da largura do cartão, não da janela: num cartão estreito os campos empilham em vez de cortar o texto */
+.fields.three{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.fld{display:flex;flex-direction:column;gap:4px;min-width:0}
+.fld>label,.fld>.l{font-size:12px;font-weight:500;color:var(--muted)}
+.fld .in,.fld select.in{width:100%}
+.fld .in[aria-invalid="true"]{border-color:var(--red-400)}
+.fld .in[readonly]{background:var(--surface-2);color:var(--muted)}
+.help{font-size:11px;color:var(--dim);margin:0;line-height:1.4}
+.err{font-size:12px;color:var(--red-400);margin:0;line-height:1.4}
+.panel{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:14px}
+.lookup{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.lookup .fld{flex:1 1 260px}
+.preview{display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:6px;padding:10px 12px;background:var(--surface-2);min-width:0}
+.preview b{font-size:14px;font-weight:600}
+.danger-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:14px}
+.danger-row p{margin:0;font-size:12px;color:var(--muted);flex:1 1 220px}
+.confirm{border-top:1px solid var(--border);padding:12px 16px}
+.confirm h3{margin:0 0 4px;font-size:14px;font-weight:500}
+.confirm p{margin:0 0 8px;font-size:12px;color:var(--muted);line-height:1.5}
+.confirm ul{margin:0 0 10px;padding:0;list-style:none;border:1px solid var(--border);border-radius:6px}
+.confirm li{display:flex;gap:10px;align-items:baseline;padding:6px 10px;font-size:12px;color:var(--muted)}
+.confirm li+li{border-top:1px solid var(--border)}
+.confirm li b{flex:none;min-width:44px;text-align:right;color:var(--text);font-family:"JetBrains Mono",ui-monospace,monospace;font-weight:500}
+.confirm .keep{color:var(--muted)}
+.confirm .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap}
+.rbtn{border:0;border-radius:4px;background:var(--red-600);padding:6px 12px;font-size:12px;font-weight:500;color:#fff;cursor:pointer;min-height:32px}
+.blocked{border-top:1px solid var(--border);padding:12px 16px;background:var(--red-soft)}
+.blocked h3{margin:0 0 4px;font-size:14px;font-weight:500;color:var(--red-400)}
+.blocked p{margin:0 0 8px;font-size:12px;color:var(--text);line-height:1.5}
+.blocked .acts{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.linkbtn{font-size:12px;font-weight:500;color:var(--accent);text-decoration:none;display:inline-flex;align-items:center;min-height:32px}
+/* nichos */
+.nlist{list-style:none;margin:0;padding:0;border-top:1px solid var(--border)}
+.nlist li{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto;gap:12px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--border);font-size:13px}
+.nlist .u{font-size:12px;color:var(--muted);white-space:nowrap}
+.tag{font-size:11px;color:var(--dim);border:1px solid var(--border);border-radius:4px;padding:0 5px;margin-left:8px;font-weight:400}
+.nform{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.nrow{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.nrow .fld{flex:1 1 200px}
+.sw{display:flex;gap:8px}
+.sw label{position:relative;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;cursor:pointer;border:1px solid transparent}
+.sw input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.sw label i{width:18px;height:18px;border-radius:50%;background:var(--nc)}
+.sw label:has(input:checked){border-color:var(--text)}
+.empty{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);padding:64px 24px;text-align:center}
+.empty .t{margin:0;font-size:18px;font-weight:500}
+.empty .d{margin:8px 0 16px;font-size:14px;color:var(--muted)}
+</style>
+</head>
+<body>
+<aside id="mocknote" aria-label="Nota do mockup">
+  <p><b>Nota do mockup</b> (não é parte do produto) · <b>/cms/youtube, aba Painel</b>, com o cadastro de canais e de nichos. O primeiro quadro é a página inteira; os quadros de baixo mostram um estado cada. Textos em inglês, como o corpo dos cartões desta tela; o que já existe em português na tela (“Configurar”, “Reconectar Token”, “Nunca”) ficou como está. Observatório com N nichos: <a href="observatorio-n-nichos.html">observatorio-n-nichos.html</a> · decisões e perguntas: LEIAME.md.</p>
+  <button type="button" id="themeBtn">Tema claro / escuro</button>
+</aside>
+<nav class="mocknav" aria-label="Estados do mockup">
+  <span>Estados:</span>
+  <a href="#s-page">1 · página com 3 canais</a><a href="#s-zero">2 · zero canais</a><a href="#s-add">3 · Add channel</a><a href="#s-err">4 · erros do cadastro</a><a href="#s-none">5 · canal sem nicho</a><a href="#s-remove">6 · remoção: confirmação</a><a href="#s-blocked">7 · remoção bloqueada</a><a href="#s-niches">8 · nichos</a>
+</nav>
+
+<!-- ======================================================================= 1 · página inteira -->
+<div class="app" id="s-page">
+  <nav class="side" aria-label="CMS">
+    <a class="logo" href="#s-page">ByThiagoFigueiredo</a>
+    <p>Hub</p><ul><li><a href="#s-page">Painel</a></li><li><a href="#s-page">Próximos</a></li><li><a href="#s-page">Agenda</a></li><li><a href="#s-page">Notificações</a></li></ul>
+    <p>Conteúdo</p><ul><li><a href="#s-page">Blog</a></li><li><a href="#s-page">Vídeos</a></li><li><a href="#s-page">Cursos</a></li><li><a href="#s-page">Newsletters</a></li><li><a href="#s-page">Campanhas</a></li><li><a href="#s-page">Listas de espera</a></li><li><a href="#s-page">Playlists</a></li></ul>
+    <p>Biblioteca</p><ul><li><a href="#s-page">Pesquisa</a></li><li><a href="#s-page">Referência</a></li><li><a href="#s-page">Mídia</a></li><li><a href="#s-page">Áudio</a></li></ul>
+    <p>YouTube</p><ul><li><a href="#s-page" aria-current="page">Canais</a></li><li><a href="#s-page">Vídeos</a></li><li><a href="#s-page">A/B Lab</a></li><li><a href="#s-page">Desempenho</a></li><li><a href="#s-page">Competidores</a></li></ul>
+    <p>Social</p><ul><li><a href="#s-page">Posts</a></li><li><a href="#s-page">Links</a></li></ul>
+  </nav>
+  <div style="min-width:0">
+    <div class="shell-head">
+      <div style="display:flex;align-items:center"><button class="menu-btn" type="button" aria-label="Abrir menu do CMS"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg></button><h1>YouTube</h1></div>
+      <div class="r">
+        <button type="button" class="btn ghost sm"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3"/></svg>Sincronizar tudo</button>
+        <button type="button" class="btn cowork sm">Cowork</button>
+      </div>
+    </div>
+    <nav class="yt-tab-bar" aria-label="Seções do YouTube">
+      <a class="yt-tab active" href="#s-page" aria-current="page">Painel</a><a class="yt-tab" href="#s-page">Vídeos</a><a class="yt-tab" href="#s-page">A/B Lab</a><a class="yt-tab" href="#s-page">Categorias</a><a class="yt-tab" href="#s-page">Comentários</a><a class="yt-tab" href="#s-page">Conteúdo</a><a class="yt-tab" href="observatorio-n-nichos.html">Competidores</a><a class="yt-tab" href="#s-page">Desempenho</a>
+    </nav>
+    <div class="content">
+      <div class="stack">
+        <div class="warnbar"><span>4 videos with pending category suggestions</span><a href="#s-page">Review →</a></div>
+
+        <!-- NOVO: cabeçalho da lista, com a ação que faltava à tela -->
+        <div class="sec-head">
+          <div><h2>Channels<span class="mono">3</span></h2><p>Your own YouTube channels. Each one has a language, a niche and a slug.</p></div>
+          <button type="button" class="btn primary sm"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>Add channel</button>
+        </div>
+
+        <div class="grid2" id="pageCards"></div>
+
+        <!-- NOVO: nichos, abaixo dos cartões -->
+        <div id="pageNiches"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="states">
+
+<!-- ======================================================================= 2 · zero canais -->
+<section class="state" id="s-zero">
+  <h2>2 · Zero canais</h2>
+  <p class="why">Hoje a tela diz “Use the YouTube API lookup in the admin panel to add channels.”, que não leva a lugar nenhum. O estado vazio passa a ter a própria ação; os nichos continuam visíveis abaixo (dá para criar o nicho antes do primeiro canal).</p>
+  <div class="frame"><div class="stack">
+    <div class="empty">
+      <p class="t">No YouTube channels yet</p>
+      <p class="d">Add your first channel to sync its videos.</p>
+      <button type="button" class="btn primary"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>Add channel</button>
+    </div>
+    <div data-niches="zero"></div>
+  </div></div>
+</section>
+
+<!-- ======================================================================= 3 · Add channel -->
+<section class="state" id="s-add">
+  <h2>3 · Add channel</h2>
+  <p class="why">O formulário abre <b>na própria página</b>, logo abaixo do cabeçalho “Channels” (a área não usa diálogo: “Configurar” e “Unpin” também abrem no lugar). Dois passos: achar o canal, depois dizer idioma, nicho e slug. <b>Idioma é um seletor comum</b>: hoje tem PT-BR e EN, e um idioma novo é só mais uma opção. Idioma repetido é permitido (não existe mais “um canal por idioma”).</p>
+  <div class="frame"><div class="cols">
+    <div>
+      <span class="lbl-mock">Passo 1: antes do Lookup</span>
+      <div class="panel">
+        <div class="sec-head"><h2>Add channel</h2></div>
+        <div class="lookup">
+          <div class="fld"><label for="a1">Handle or URL</label><input class="in" id="a1" placeholder="@handle or youtube.com/@handle"></div>
+          <button type="button" class="btn sm">Lookup</button>
+        </div>
+        <div class="right"><button type="button" class="btn ghost sm">Cancel</button><button type="button" class="btn primary sm" disabled>Add channel</button></div>
+      </div>
+    </div>
+    <div>
+      <span class="lbl-mock">Passo 2: canal encontrado</span>
+      <div class="panel">
+        <div class="sec-head"><h2>Add channel</h2></div>
+        <div class="lookup">
+          <div class="fld"><label for="a2">Handle or URL</label><input class="in" id="a2" value="@cortes-tnfigueiredo"></div>
+          <button type="button" class="btn sm">Lookup</button>
+        </div>
+        <div class="preview">
+          <div class="av sm" style="background:#8C3B3B" aria-hidden="true">CF</div>
+          <div style="min-width:0"><b>Cortes do tnFigueiredo</b><div class="xs dim">@cortes-tnfigueiredo · 126 subscribers · 41 videos</div></div>
+        </div>
+        <div class="fields three">
+          <div class="fld"><label for="a2l">Language</label><select class="in" id="a2l"><option selected>PT-BR · Português (Brasil)</option><option>EN · English</option></select></div>
+          <div class="fld"><label for="a2n">Niche</label><select class="in" id="a2n"><option selected>Viagem</option><option>IA</option><option>Jogos</option><option>Pessoal</option><option>No niche yet</option></select></div>
+          <div class="fld"><label for="a2s">Slug</label><input class="in mono" id="a2s" value="cortes-tnfigueiredo" aria-describedby="a2sh"></div>
+        </div>
+        <p class="help" id="a2sh">Slug: short id used by the forja and Cowork. It cannot be changed later.</p>
+        <div class="right"><button type="button" class="btn ghost sm">Cancel</button><button type="button" class="btn primary sm">Add channel</button></div>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<!-- ======================================================================= 4 · erros -->
+<section class="state" id="s-err">
+  <h2>4 · Erros do cadastro</h2>
+  <p class="why">O erro aparece embaixo do campo que o causou, em texto, e nada é gravado. Nenhum erro por idioma repetido.</p>
+  <div class="frame"><div class="cols">
+    <div>
+      <span class="lbl-mock">Slug repetido</span>
+      <div class="panel">
+        <div class="preview">
+          <div class="av sm" style="background:#2F6B4F" aria-hidden="true">VB</div>
+          <div style="min-width:0"><b>Viagem BR Cortes</b><div class="xs dim">@Viagem.BR · 2,1K subscribers · 87 videos</div></div>
+        </div>
+        <div class="fields three">
+          <div class="fld"><label for="e1l">Language</label><select class="in" id="e1l"><option>PT-BR · Português (Brasil)</option></select></div>
+          <div class="fld"><label for="e1n">Niche</label><select class="in" id="e1n"><option>Viagem</option></select></div>
+          <div class="fld"><label for="e1s">Slug</label><input class="in mono" id="e1s" value="viagem-br" aria-invalid="true" aria-describedby="e1e"></div>
+        </div>
+        <p class="err" id="e1e" role="alert">Slug “viagem-br” is already used by “Thiago na Estrada”.</p>
+        <div class="right"><button type="button" class="btn ghost sm">Cancel</button><button type="button" class="btn primary sm">Add channel</button></div>
+      </div>
+    </div>
+    <div>
+      <span class="lbl-mock">Canal já cadastrado (dito já no Lookup)</span>
+      <div class="panel">
+        <div class="sec-head"><h2>Add channel</h2></div>
+        <div class="lookup">
+          <div class="fld"><label for="e2">Handle or URL</label><input class="in" id="e2" value="youtube.com/@tnfigueiredo" aria-invalid="true" aria-describedby="e2e"></div>
+          <button type="button" class="btn sm">Lookup</button>
+        </div>
+        <p class="err" id="e2e" role="alert">This channel is already registered as “tnfigueiredo”.</p>
+        <div class="right"><button type="button" class="btn ghost sm">Cancel</button><button type="button" class="btn primary sm" disabled>Add channel</button></div>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<!-- ======================================================================= 5 · sem nicho -->
+<section class="state" id="s-none">
+  <h2>5 · Canal sem nicho</h2>
+  <p class="why">“No niche yet” é um estado válido: o canal sincroniza e a forja o lê. A faixa de identidade avisa em âmbar (a cor de aviso que o cartão já usa em “Nunca”), com o que acontece no Observatório.</p>
+  <div class="frame narrow" data-card="none"></div>
+</section>
+
+<!-- ======================================================================= 6 · remoção: confirmação -->
+<section class="state" id="s-remove">
+  <h2>6 · Remoção: confirmação com o que será apagado</h2>
+  <p class="why">A confirmação abre no cartão, no mesmo desenho do “Remove weekly pick?” que já existe (título, texto, Cancel, botão vermelho). Lista o que some, com as contagens, e diz o que fica. <b>Testes A/B encerrados não bloqueiam</b>: são apagados junto e aparecem na lista. A remoção é tudo ou nada.</p>
+  <div class="frame narrow" data-card="remove"></div>
+</section>
+
+<!-- ======================================================================= 7 · remoção bloqueada -->
+<section class="state" id="s-blocked">
+  <h2>7 · Remoção bloqueada por teste A/B ativo</h2>
+  <p class="why">Com teste rodando em um vídeo do canal, nada é apagado e não há botão de confirmar: a frase diz <b>qual teste parar</b> e leva ao A/B Lab. Com mais de um teste ativo, todos são listados.</p>
+  <div class="frame"><div class="cols">
+    <div><span class="lbl-mock">Um teste ativo</span><div data-card="blocked1"></div></div>
+    <div><span class="lbl-mock">Dois testes ativos</span><div data-card="blocked2"></div></div>
+  </div></div>
+</section>
+
+<!-- ======================================================================= 8 · nichos -->
+<section class="state" id="s-niches">
+  <h2>8 · Nichos</h2>
+  <p class="why">O dono cria nichos aqui; eles aparecem no seletor de nicho dos canais e na barra de nicho do Observatório, nesta ordem. Viagem e IA são de fábrica e mantêm as cores de hoje. <b>Quatro cores</b> para os nichos criados (em vez das seis do plano): são as que não repetem nenhuma cor com significado no Observatório (ver LEIAME). Nesta entrega só se cria: renomear e apagar ficam para depois.</p>
+  <div class="frame"><div class="cols">
+    <div><span class="lbl-mock">Formulário preenchido (o slug sai do nome)</span><div data-niches="form"></div></div>
+    <div><span class="lbl-mock">Seis nichos; nome repetido</span><div data-niches="six"></div></div>
+  </div></div>
+</section>
+
+</div>
+
+<script>
+/* Mockup estático: o script só monta os cartões repetidos e troca o tema. Nenhum dado é calculado. */
+(function(){
+  'use strict';
+  var q=new URLSearchParams(location.search), t=q.get('theme');
+  var cur=(t==='light'||t==='dark')?t:(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');
+  document.documentElement.dataset.theme=cur;
+  document.getElementById('themeBtn').onclick=function(){cur=cur==='light'?'dark':'light';document.documentElement.dataset.theme=cur};
+
+  var NICHE={viagem:['Viagem','--viagem'],ia:['IA','--ia'],jogos:['Jogos','--n-ameixa'],pessoal:['Pessoal','--n-rosa'],culinaria:['Culinária','--n-lima'],financas:['Finanças','--n-ardosia']};
+  var LANG={pt:['PT-BR','Português (Brasil)'],en:['EN','English']};
+  var nicheChip=function(n){return n?'<span class="niche" style="--nc:var('+NICHE[n][1]+')"><i aria-hidden="true"></i>'+NICHE[n][0]+'</span>':'<span class="niche none">No niche yet</span>'};
+  var opts=function(sel,list){return list.map(function(x){return '<option'+(x===sel?' selected':'')+'>'+x+'</option>'}).join('')};
+
+  function head(c){
+    return '<div class="c-head"><div class="who"><div class="av" style="background:'+c.color+'" aria-hidden="true">'+c.ini+'</div><div style="min-width:0"><div class="nm"><b>'+c.name+'</b><abbr class="lang" title="'+LANG[c.lang][1]+'">'+LANG[c.lang][0]+'</abbr></div><span class="xs dim">@'+c.handle+'</span></div></div>'+
+      '<div class="act"><span class="dotline'+(c.never?' never':'')+'"><i aria-hidden="true"></i>'+(c.never?'Nunca':c.synced)+'</span><button type="button" class="tbtn'+(c.never?' first':'')+'">'+(c.never?'⟳ First Sync':'⟳ Sync')+'</button></div></div>';
+  }
+  function ident(c){
+    return '<div class="ident"><span><span class="k">Niche</span>'+nicheChip(c.niche)+'</span><span><span class="k">Slug</span><span class="slug">'+c.slug+'</span></span>'+(c.niche?'':'<span style="flex:1 1 100%">It shows in every Observatório niche tab until you pick one in <b style="font-weight:500;color:var(--text)">Configurar</b>.</span>')+'</div>';
+  }
+  function body(c){
+    if(c.never) return '<div class="empty-sync">Canal sem vídeos — clique em ‘First Sync’ para importar</div>';
+    return '<div class="stats"><div><b>'+c.videos+'</b> videos</div><div><b>'+c.subs+'</b> subscribers</div><div><b>'+c.views+'</b> total views</div><div><b>'+c.likes+'</b> total likes</div></div>'+
+      '<div class="syncrow"><span>Last sync: '+c.videos+' checked, no changes</span><span>'+c.sched+'</span><span>Mais recente: '+c.latest+'</span></div>'+
+      (c.pick?'<div class="pick"><div class="top"><span class="k">★ Weekly Pick</span><span class="xs dim">until '+c.pick[1]+'</span></div><div class="v"><span class="th" aria-hidden="true"></span><div style="min-width:0"><p class="t" style="margin:0">'+c.pick[0]+'</p><p class="xs dim" style="margin:0">'+c.pick[2]+'</p></div></div></div>'
+            :'<div class="pick none"><div class="top"><span class="k">★ Weekly Pick</span></div><div class="center"><p>No video pinned this week</p><a class="softlink" href="#s-page">☆ Choose Weekly Pick →</a></div></div>');
+  }
+  function foot(c,open){return '<div class="c-foot"><button type="button" class="tbtn" aria-expanded="'+!!open+'">'+(open?'Fechar config':'Configurar')+'</button><button type="button" class="tbtn">Reconectar Token</button></div>'}
+  function config(c){
+    var id='cfg-'+c.slug;
+    return '<div class="cfg">'+
+      /* NOVO: identidade, no painel que já configura o canal */
+      '<div class="h"><span class="cap">Channel identity</span></div>'+
+      '<div class="fields three">'+
+        '<div class="fld"><label for="'+id+'-l">Language</label><select class="in" id="'+id+'-l">'+opts(LANG[c.lang][0]+' · '+LANG[c.lang][1],['PT-BR · Português (Brasil)','EN · English'])+'</select></div>'+
+        '<div class="fld"><label for="'+id+'-n">Niche</label><select class="in" id="'+id+'-n">'+opts(c.niche?NICHE[c.niche][0]:'No niche yet',['Viagem','IA','Jogos','Pessoal','No niche yet'])+'</select></div>'+
+        '<div class="fld"><label for="'+id+'-s">Slug</label><input class="in mono" id="'+id+'-s" value="'+c.slug+'" readonly aria-describedby="'+id+'-sh"></div>'+
+      '</div><p class="help" id="'+id+'-sh">The slug is the id the forja and Cowork use. It cannot be changed.</p>'+
+      /* o que já existe (ChannelScheduleEditor), igual */
+      '<div class="h" style="border-top:1px solid var(--border);padding-top:14px"><span class="cap">Schedule Config</span><label class="chk"><input type="checkbox" checked> Sync enabled</label></div>'+
+      '<div class="h"><span class="xs mut" style="font-weight:500">Posting Schedule</span><span class="xs" style="color:var(--indigo-400)">+ Add group</span></div>'+
+      '<div class="grp"><div class="days" role="group" aria-label="Days"><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sab</span><span class="on">Dom</span></div><input class="in w12" value="19" aria-label="Hour group 1"><span class="xs dim">h</span><input class="in" style="flex:1;min-width:60px" value="Domingo 19h" aria-label="Label group 1"></div>'+
+      '<div class="right"><button type="button" class="save">Save</button></div>'+
+      /* NOVO: remoção, por último e separada */
+      '<div class="danger-row"><p>Remove this channel and everything synced from it. You will see what is deleted before confirming.</p><button type="button" class="btn danger sm">Remove channel…</button></div>'+
+    '</div>';
+  }
+  function card(c,extra,open){return '<div class="card">'+head(c)+ident(c)+(extra&&extra.compact?'':body(c))+foot(c,open)+(open?config(c):'')+(extra&&extra.html||'')+'</div>'}
+
+  var CH={
+    tnf:{name:'tnFigueiredo',handle:'tnfigueiredo',slug:'tnfigueiredo',lang:'pt',niche:'viagem',color:'#B8481A',ini:'tF',synced:'3h atrás',videos:58,subs:'3,2K',views:'412,6K',likes:'18,3K',sched:'Domingo 19h',latest:'2d atrás',pick:['Fiquei 3 dias em Tbilisi gastando pouco','24 de out. (5d left)','8,4K views · 612 likes']},
+    en:{name:'Thiago Figueiredo',handle:'thiago-figueiredo',slug:'thiago-figueiredo',lang:'en',niche:'viagem',color:'#3C7A8C',ini:'TF',synced:'3h atrás',videos:12,subs:'412',views:'9,8K',likes:'530',sched:'Thursday 4pm',latest:'6d atrás',pick:null},
+    cortes:{name:'Cortes do tnFigueiredo',handle:'cortes-tnfigueiredo',slug:'cortes-tnfigueiredo',lang:'pt',niche:'viagem',color:'#8C3B3B',ini:'CF',never:true},
+    joga:{name:'tnFigueiredo Joga',handle:'tnfigueiredo-joga',slug:'tnfigueiredo-joga',lang:'pt',niche:null,color:'#5A4A8C',ini:'tJ',synced:'1h atrás',videos:7,subs:'96',views:'1,4K',likes:'88',sched:'Sábado 20h',latest:'4d atrás',pick:null},
+    estrada:{name:'Thiago na Estrada',handle:'Viagem.BR',slug:'viagem-br',lang:'pt',niche:'viagem',color:'#2F6B4F',ini:'TE',synced:'3h atrás'}
+  };
+  document.getElementById('pageCards').innerHTML=card(CH.tnf,null,true)+card(CH.en)+card(CH.cortes);
+
+  var REMOVE='<div class="confirm" role="group" aria-labelledby="rmT"><h3 id="rmT">Remove “Thiago na Estrada”?</h3><p>This permanently deletes:</p><ul>'+
+    '<li><b>212</b><span>videos, with their analytics, grades and optimization cycles</span></li>'+
+    '<li><b>48</b><span>curated comments</span></li>'+
+    '<li><b>864</b><span>sync log entries</span></li>'+
+    '<li><b>3</b><span>finished A/B tests, with their variants and results</span></li>'+
+    '<li><b>9</b><span>intelligence analyses and 2 queued tasks</span></li>'+
+    '<li><b>14</b><span>notes</span></li></ul>'+
+    '<p class="keep"><b style="color:var(--text);font-weight:500">6 pipeline items</b> keep their content and lose the link to their video.</p><p style="margin:0">All of it is removed at once, or nothing is. This cannot be undone.</p>'+
+    '<div class="acts"><button type="button" class="tbtn">Cancel</button><button type="button" class="rbtn">Remove channel</button></div></div>';
+  var blocked=function(tests){return '<div class="blocked" role="alert"><h3>“Thiago na Estrada” cannot be removed yet</h3><p>'+(tests.length>1?'A/B tests are running on its videos. Stop them first:':'An A/B test is running on one of its videos. Stop it first:')+'</p><p>'+tests.map(function(x){return '<b style="font-weight:600">“'+x[0]+'”</b> <span class="mut">· '+x[1]+'</span>'}).join('<br>')+'</p><p style="margin:0 0 4px" class="mut">Finished tests do not block: they are deleted with the channel. Nothing was deleted.</p><div class="acts"><a class="linkbtn" href="#s-blocked">Open A/B Lab →</a><button type="button" class="tbtn">Close</button></div></div>'};
+  var put=function(k,html){document.querySelector('[data-card="'+k+'"]').innerHTML=html};
+  put('none',card(CH.joga));
+  put('remove',card(CH.estrada,{compact:true,html:REMOVE}));
+  put('blocked1',card(CH.estrada,{compact:true,html:blocked([['Thumbnail: mapa vs rosto','running since Oct 18, on “Quanto custa viajar pela Geórgia?”']])}));
+  put('blocked2',card(CH.estrada,{compact:true,html:blocked([['Thumbnail: mapa vs rosto','running since Oct 18, on “Quanto custa viajar pela Geórgia?”'],['Título: pergunta vs número','running since Oct 21, on “7 dias em Baku gastando pouco”']])}));
+
+  /* ---------------- nichos */
+  var PAL=[['ameixa','--n-ameixa','Plum'],['rosa','--n-rosa','Pink'],['lima','--n-lima','Lime'],['ardosia','--n-ardosia','Slate']];
+  function niches(rows,form){
+    var f=form||{};
+    return '<div class="card"><div style="padding:12px 16px"><div class="sec-head"><div><h2>Niches<span class="mono">'+rows.length+'</span></h2><p>A niche groups your channels with the competitors you track in the Observatório. A niche can have more than one channel.</p></div></div></div>'+
+      '<ul class="nlist">'+rows.map(function(r){return '<li><span class="niche" style="--nc:var('+NICHE[r[0]][1]+')"><i aria-hidden="true"></i>'+NICHE[r[0]][0]+(r[2]?'<span class="tag">built-in</span>':'')+'</span><span class="slug">'+r[0]+'</span><span class="u">'+(r[1]===0?'no channels yet':r[1]===1?'1 channel':r[1]+' channels')+'</span></li>'}).join('')+'</ul>'+
+      '<div class="nform"><span class="cap">Add niche</span><div class="nrow">'+
+        '<div class="fld"><label for="nn-'+f.k+'">Name</label><input class="in" id="nn-'+f.k+'" value="'+(f.name||'')+'" placeholder="e.g. Jogos"'+(f.err?' aria-invalid="true" aria-describedby="ne-'+f.k+'"':'')+'></div>'+
+        '<div class="fld" style="flex:none"><span class="l" id="nc-'+f.k+'">Color</span><div class="sw" role="radiogroup" aria-labelledby="nc-'+f.k+'">'+PAL.map(function(p,i){return '<label title="'+p[2]+'" style="--nc:var('+p[1]+')"><input type="radio" name="col-'+f.k+'" aria-label="'+p[2]+'"'+(i===(f.color||0)?' checked':'')+'><i aria-hidden="true"></i></label>'}).join('')+'</div></div>'+
+        '<button type="button" class="btn sm">Add niche</button></div>'+
+        (f.err?'<p class="err" id="ne-'+f.k+'" role="alert">'+f.err+'</p>':'<p class="help">'+(f.name?'Slug: <span class="mono" style="color:var(--text)">'+f.slug+'</span>. ':'')+'New niches start without a theme list in the Observatório. Niches can’t be renamed or deleted yet.</p>')+
+      '</div></div>';
+  }
+  var BASE=[['viagem',3,1],['ia',0,1]];
+  document.getElementById('pageNiches').innerHTML=niches(BASE.concat([['jogos',0,0],['pessoal',0,0]]),{k:'p'});
+  var putN=function(k,html){document.querySelector('[data-niches="'+k+'"]').innerHTML=html};
+  putN('zero',niches([['viagem',0,1],['ia',0,1]],{k:'z'}));
+  putN('form',niches(BASE,{k:'f',name:'Jogos',slug:'jogos',color:0}));
+  putN('six',niches([['viagem',3,1],['ia',1,1],['jogos',1,0],['pessoal',0,0],['culinaria',0,0],['financas',0,0]],{k:'s',name:'Viagem',err:'A niche named “Viagem” already exists.',color:1}));
+})();
+</script>
+</body>
+</html>
