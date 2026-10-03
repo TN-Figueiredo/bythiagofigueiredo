@@ -8,7 +8,7 @@ import { median, quant } from './stats'
 import { viewsAtIdx, rate, vpdSince, vpd7, periodRate, expectedCurve, type Derived, type PeriodRate, type ExpectedCurve } from './series'
 import { diffLines, titleDiff } from './text-diff'
 import { effect, effectAt, type EffectResult } from './effect'
-import { multiplierAt, type MultiplierResult } from './multiplier'
+import { multiplierAt, multiplierCardText, type MultiplierResult, type MultiplierCardText } from './multiplier'
 import { phaseOf, phases, outliers, tabCounts, TAB_TITLES, type Phase, type OutlierQuery, type OutliersResult } from './outliers'
 import type { SyncRun, SyncToast } from './channels'
 import { cadence, channelStats, channelSlots, syncText, runSyncText, syncResultToast, problemLabel, problemPhrase, syncLabel } from './channels'
@@ -83,6 +83,8 @@ export interface Observatory {
   change(id: string): ObsChange | undefined; changesIn(o?: Parameters<typeof changesIn>[1]): ObsChange[]; caveats(id: string): string[]
   effect(id: string): EffectResult | null; effectAt(id: string, Lcap: number | null): EffectResult | null
   multiplier(id: string): MultiplierResult; multiplierAt(id: string, t: number | null): MultiplierResult
+  /** Outliers card wording of the video's multiplier (reference and n note). */
+  multiplierCard(id: string): MultiplierCardText
   /** Accepts the id or the video object (dados.js:2000). */
   phaseOf(x: string | { id: string }, o?: { m7?: number | null }): Phase; PHASES: Phase[]
   outliers(q?: OutlierQuery): OutliersResult; tabCounts(niche?: NicheScope): { canais: number; mud: number; out: number }
@@ -92,7 +94,7 @@ export interface Observatory {
   RULES: typeof RULES; AGE_BANDS: typeof AGE_BANDS; OUT_WINDOWS: typeof OUT_WINDOWS; DEFAULT_AGES: typeof DEFAULT_AGES; NICHES: typeof NICHES
   date: Clock; fmt: Fmt; median: typeof median; quant: typeof quant; bandOf: typeof bandOf; winOf: typeof winOf; tierOf: typeof tierOf
   cadence: (id: string, f?: VideoFmt) => ReturnType<typeof cadence>; channelStats: (id: string, f?: VideoFmt) => ReturnType<typeof channelStats>
-  channelSlots(): ReturnType<typeof channelSlots>; syncText(id: string): string; runSyncText: typeof runSyncText
+  channelSlots(limit?: number): ReturnType<typeof channelSlots>; syncText(id: string): string; runSyncText: typeof runSyncText
   /** Product text of a manual sync run (R40); problems sorted Viagem before IA. */
   syncResultToast(run: SyncRun): SyncToast
   SYNC: { last: number | null; next: number | null; text: string; title: string; nextText: string | null; cadence: string; cadenceHours: number; slots: number[]; dailyBefore: string }
@@ -150,7 +152,7 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
     diffLines, titleDiff, rewriteGroups: REWRITE_GROUPS.map(g => ({ id: g.id, label: g.label })),
     change: id => ctx.CHG.get(id), changesIn: o => changesIn(ctx, o), caveats: id => caveats(ctx, id),
     effect: id => effect(ctx, id), effectAt: (id, L) => effectAt(ctx, id, L),
-    multiplier: id => vid(id).mult!, multiplierAt: (id, t) => multiplierAt(ctx, vid(id), t),
+    multiplier: id => vid(id).mult!, multiplierAt: (id, t) => multiplierAt(ctx, vid(id), t), multiplierCard: id => multiplierCardText(ctx, vid(id).mult!),
     phaseOf: (x, o) => phaseOf(ctx, vid(typeof x === 'string' ? x : x.id), o), PHASES: phases(ctx),
     outliers: q => outliers(ctx, q), tabCounts: n => tabCounts(ctx, n), TAB_TITLES, TAB_COUNTS, integrity,
     RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, NICHES, date: clock, fmt, median, quant, bandOf, winOf, tierOf,
@@ -158,7 +160,7 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
       // 6 h slots rule (dados.js:1963); the mockup fixes it in data, production fixes it in the cron schedule.
       cadence: 'a cada 6 h (00, 06, 12, 18) desde ' + clock.dm(ds.seriesStart) + '; diária às 09:00 antes', cadenceHours: 6, slots: [0, 6, 12, 18], dailyBefore: '09:00' },
     LAST_IDX, TZ: 'America/Sao_Paulo', TZ_LABEL: 'Horários em São Paulo', SERIES_START_LABEL: clock.dm(ds.seriesStart),
-    cadence: (id, f) => cadence(ctx, id, f), channelStats: (id, f) => channelStats(ctx, id, f), channelSlots: () => channelSlots(ctx, RULES.channelLimit),
+    cadence: (id, f) => cadence(ctx, id, f), channelStats: (id, f) => channelStats(ctx, id, f), channelSlots: (limit = RULES.channelLimit) => channelSlots(ctx, limit),
     syncText: id => syncText(ctx, CH.get(id)!), runSyncText,
     syncResultToast: run => syncResultToast(run, id => { const c = CH.get(id); return c ? { name: c.name, niche: c.niche } : undefined }),
     formulas: FORMULAS, formula: id => FORMULA[id], formulasOf, themes: THEMES, theme: id => THEME[id],

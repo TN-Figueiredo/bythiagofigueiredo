@@ -144,6 +144,7 @@ const REASONS: Record<string, string> = {
   bug: 'um erro no programa da forja',
   snapshot: 'a forja não conseguiu ler os números do canal',
   patch: 'o site não aceitou o resultado da forja',
+  'travou-3x': 'travou três vezes: o vigia liberou e a máquina não terminou',
 }
 
 export function failureReason(code: string | null): string {
