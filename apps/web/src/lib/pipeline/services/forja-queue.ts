@@ -5,6 +5,7 @@
  *  - askReading / cancelReading: the screen's "Pedir leitura à forja" (the engine's planAsk decides; this writes).
  *  - claim: the ONLY claim CAS. It records the heartbeat first (every call, even on an empty queue), then shows a
  *    caller only 'diagnostico' unless it announced observatory types — the old worker and the legacy GET are unchanged.
+ *  - readSent: the data sent to the forja for a running task, built once and frozen into `task.sent`.
  *  - refuseTask / completeReading: how the forja ends an observatory task.
  *
  * Quota: 1 request per niche + type per São Paulo day; failure and refusal do not count (forja/quota.ts).
@@ -24,6 +25,7 @@ import { spDayStart } from '@/lib/youtube/observatorio/time'
 import { NICHES } from '@/lib/youtube/observatorio/rules'
 import { loadDataset, taskRowToRequest, TASK_COLS, type TaskRow } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
+import { buildSent, type SentPack } from '@/lib/youtube/observatorio/forja/sent'
 
 export const OBS_TYPES = ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'] as const
 export type ObsType = typeof OBS_TYPES[number]
@@ -272,6 +274,48 @@ export async function refuseTask(ctx: ServiceContext, taskId: string, reason: st
   if (error) return err('INTERNAL_ERROR', 'Failed to refuse the task', 500)
   if (!data) return err('TASK_NOT_RUNNING', 'The task is no longer held by this key', 409)
   return ok({ id: taskId, status: 'refused' as const })
+}
+
+export interface SentRead {
+  task_id: string; task_type: ObsType
+  target: { niche: string | null; video_id: string | null; fmt: string | null }
+  sent: SentPack
+}
+
+/**
+ * The data sent to the forja for a running observatory task (GET …/competitors/readings). Built by the engine on the
+ * first read and frozen into `task.sent` by a CAS (sent IS NULL, same claim, same holder); every later read — and
+ * completeReading — uses that frozen copy, so the numbers the reading may cite never move under the forja. A target
+ * the engine cannot build (e.g. the video is gone) is a 422: not retryable, nothing frozen.
+ */
+export async function readSent(ctx: ServiceContext, taskId: string, now: number = Date.now()): Promise<ServiceResult<SentRead>> {
+  const cols = 'id, status, task_type, target_niche, target_video_id, target_fmt, result_summary, started_at, sent'
+  const { task } = await heldObsTask(ctx, taskId, cols)
+  const out = (sent: unknown): ServiceResult<SentRead> => ok({
+    task_id: task.id, task_type: task.task_type as ObsType,
+    target: { niche: task.target_niche, video_id: task.target_video_id, fmt: task.target_fmt },
+    sent: sent as SentPack,
+  })
+  if (task.sent != null) return out(task.sent)
+
+  const obs = createObservatory(await loadDataset({ siteId: ctx.siteId, now, supabase: ctx.supabase }))
+  let sent: SentPack
+  try {
+    sent = buildSent(obs, task.task_type, { niche: task.target_niche as Niche | null, videoId: task.target_video_id, fmt: task.target_fmt as Fmt | null })
+  } catch (e) {
+    return err('TARGET_UNAVAILABLE', e instanceof Error ? e.message : 'The target of this task cannot be read', 422)
+  }
+
+  let cas = ctx.supabase.from(TASKS).update({ sent })
+    .eq('id', task.id).eq('site_id', ctx.siteId).eq('status', 'running').eq('started_at', task.started_at as string).is('sent', null)
+  if (!isWideKey(ctx)) cas = cas.eq('result_summary->>claimed_by', ctx.keyId as string)
+  const { data: frozen, error } = await cas.select('sent').maybeSingle()
+  if (error) return err('INTERNAL_ERROR', 'Failed to freeze the data sent to the forja', 500)
+  if (frozen) return out((frozen as { sent: unknown }).sent)
+  // Lost the CAS: a concurrent read froze first (return ITS copy), or the task left 'running' / changed hands (409).
+  const again = await heldObsTask(ctx, taskId, cols)
+  if (again.task.started_at !== task.started_at || again.task.sent == null) return err('TASK_NOT_RUNNING', 'The task is no longer held by this key', 409)
+  return out(again.task.sent)
 }
 
 /** What the forja posts for an observatory task (POST …/competitors/readings). Extra analysis keys are kept. */

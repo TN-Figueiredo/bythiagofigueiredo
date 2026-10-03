@@ -166,13 +166,13 @@ const YOUTUBE: CapabilityDomain = {
   description: 'Channel intelligence, video performance analysis, and title/description A/B testing.',
   suggest_when: 'YouTube analytics, performance review, A/B test management, video optimization',
   docs: '/api/pipeline/docs/youtube',
-  endpoint_count: 33,
+  endpoint_count: 35,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/youtube/intelligence', summary: 'Get channel intelligence snapshot — accepts intelligence, write or admin', auth: 'intelligence' },
     { method: 'PATCH', path: '/api/pipeline/youtube/intelligence', summary: 'Submit AI analysis recommendations', auth: 'write' },
     { method: 'GET', path: '/api/pipeline/youtube/intelligence/task', summary: 'Claim next pending intelligence task', auth: 'write' },
-    { method: 'POST', path: '/api/pipeline/youtube/intelligence/task/claim', summary: 'Claim next pending intelligence task by channel_ids (API key only) — accepts intelligence, write or admin', auth: 'intelligence' },
-    { method: 'POST', path: '/api/pipeline/youtube/intelligence/task/:id/fail', summary: 'Fail or requeue a running intelligence task owned by the key — accepts intelligence, write or admin', auth: 'intelligence' },
+    { method: 'POST', path: '/api/pipeline/youtube/intelligence/task/claim', summary: 'Claim next pending intelligence task by channel_ids and optional task_types (observatory; writes the forja heartbeat) (API key only) — accepts intelligence, write or admin', auth: 'intelligence' },
+    { method: 'POST', path: '/api/pipeline/youtube/intelligence/task/:id/fail', summary: 'Fail, requeue or refuse (observatory) a running intelligence task owned by the key — accepts intelligence, write or admin', auth: 'intelligence' },
     { method: 'GET', path: '/api/pipeline/youtube/videos', summary: 'List videos with category join and cursor pagination', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/videos/:id', summary: 'Get video detail with 6-axis scoring and grade trend', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/categories', summary: 'List categories with match_keywords and video counts', auth: 'read' },
@@ -201,6 +201,8 @@ const YOUTUBE: CapabilityDomain = {
     { method: 'GET', path: '/api/pipeline/youtube/competitors/changes', summary: 'List competitor changes with type/bookmarked filters', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/competitors/outliers', summary: 'List competitor outlier videos by tier', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/competitors/insights', summary: 'Aggregate competitor insights (play, cadence, formulas, gaps, heatmap)', auth: 'read' },
+    { method: 'GET', path: '/api/pipeline/youtube/competitors/readings', summary: 'Data sent to the forja for a running observatory task (frozen on first read) — intelligence', auth: 'intelligence' },
+    { method: 'POST', path: '/api/pipeline/youtube/competitors/readings', summary: 'Submit a frozen forja reading for a running observatory task — intelligence', auth: 'intelligence' },
   ],
 }
 

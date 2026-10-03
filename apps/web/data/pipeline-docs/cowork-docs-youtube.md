@@ -335,6 +335,11 @@ Pickup de tasks pendentes com CAS (compare-and-swap) — endpoint atual; funcion
 ```
 `channel_ids`: 1 a 10 uuids, obrigatório — o worker nunca reivindica uma task fora da lista que está processando.
 
+`task_types` (opcional, só a forja com `OBS_TIPOS=1`): até 5 tipos do observatório — `padroes-titulo`, `padroes-titulo-shorts`, `temas`, `resumo-trocas`, `leitura-video`. Com ele, a claim também pega pedidos do observatório desses tipos e grava o batimento da forja (`forja_heartbeat`: hora do poll + esses tipos como capacidades), mesmo com a fila vazia. **Sem `task_types`** a claim é exatamente a de antes: só `diagnostico` dos `channel_ids`, sem batimento.
+```json
+{ "channel_ids": ["uuid"], "task_types": ["padroes-titulo", "padroes-titulo-shorts", "temas", "resumo-trocas", "leitura-video"] }
+```
+
 **Response 200:**
 ```json
 {
@@ -344,12 +349,18 @@ Pickup de tasks pendentes com CAS (compare-and-swap) — endpoint atual; funcion
     "channel_id": "uuid",
     "trigger_type": "weekly",
     "requested_at": "2026-09-17T10:00:00Z",
-    "started_at": "2026-09-17T10:00:03Z"
+    "started_at": "2026-09-17T10:00:03Z",
+    "task_type": "diagnostico",
+    "target_niche": null,
+    "target_video_id": null,
+    "target_fmt": null
   }
 }
 ```
+Num pedido do observatório, `channel_id` é `null` e o alvo vem em `task_type` + `target_niche` (`ia`/`viagem`) ou `target_video_id` (`leitura-video`), com `target_fmt` (`long`/`short`) nos tipos de outliers. Ver "Leituras do observatório (forja)".
+
 **Response 204:** corpo vazio — fila vazia para esses canais, ou a CAS perdeu para outra claim concorrente
-**Response 400:** `VALIDATION_ERROR` — `channel_ids` ausente, vazio ou com mais de 10 ids
+**Response 400:** `VALIDATION_ERROR` — `channel_ids` ausente, vazio ou com mais de 10 ids; `task_types` com tipo desconhecido ou mais de 5
 **Response 403:** `FORBIDDEN` — chave sem `read`+`intelligence` (nem `write`/`admin`)
 **Response 500:** `INTERNAL_ERROR` — falha ao ler a fila
 
@@ -367,11 +378,17 @@ Fecha explicitamente uma task `running` que o worker não conseguiu terminar —
 ```
 `retry: true` reenfileira a task (até 2 vezes); omitido ou `false` fecha como `failed` definitivo.
 
+`refuse: true` (só pedidos do observatório): a forja **recusa** a task — status `refused`, `reason` vira o código da recusa (≤200 chars, ex.: `dado-velho`). A recusa não gasta a cota do dia. `refuse` e `retry` juntos são 400.
+```json
+{ "reason": "dado-velho", "refuse": true }
+```
+Resposta da recusa: `{ "data": { "id": "uuid", "status": "refused" } }`.
+
 **Response 200:**
 ```json
 { "data": { "id": "uuid", "status": "pending", "retry_count": 1 } }
 ```
-**Response 400:** `VALIDATION_ERROR` — corpo inválido (`reason` obrigatório, ≤500 chars)
+**Response 400:** `VALIDATION_ERROR` — corpo inválido (`reason` obrigatório, ≤500 chars; `refuse` + `retry` juntos; recusa de task que não é do observatório)
 **Response 404:** `NOT_FOUND` — task não existe
 **Response 409:** `TASK_NOT_RUNNING` — task não está `running`, ou pertence a outra chave — não reenviar
 **Response 500:** `INTERNAL_ERROR` — falha ao fechar a task
@@ -795,6 +812,79 @@ Retorna insights agregados de todos os canais concorrentes monitorados.
 - `formulas`: padrões de título que performam acima da mediana (com `multiplier`)
 - `play`: a jogada da semana — combinação tópico + fórmula + timing de maior impacto
 - `cadence`: frequência de upload por concorrente (vídeos longos/semana nas últimas 13 semanas); `window` = hábito "Dia Hh" em São Paulo quando o canal costuma publicar no mesmo dia e hora (3+ vídeos e 30%+ deles), senão `—`
+
+---
+
+## Leituras do observatório (forja)
+
+A forja (Gemma 12B local) lê pedidos do observatório de concorrentes feitos na tela ("Pedir leitura à forja"). Só a chave da forja (`intelligence`, API key) usa estes endpoints; o Cowork não. Fluxo de uma execução:
+
+1. `POST .../intelligence/task/claim` com `task_types` → a task (`task_type`, `target_niche`, `target_video_id`, `target_fmt`), ou 204.
+2. `GET .../competitors/readings?task_id=` → os dados enviados à forja (`sent`), congelados na primeira leitura.
+3. Gerar o texto e validar contra `sent`; então **um** de: `POST .../competitors/readings` (publica), `fail` com `refuse: true` (recusa) ou `fail` com/sem `retry`.
+
+**Regras:**
+- **Um pedido = um tipo × um alvo** (um nicho, ou um vídeo em `leitura-video`); uma claim por ciclo. O orçamento acoplado da forja (20 min do claim ao último request < 25 min do cron < 30 min do vigia) cobre GET + modelo + POST — a rota tem `maxDuration` 60 s.
+- **Cota:** 1 pedido por nicho + tipo por dia (dia de São Paulo). Falha e recusa não gastam a cota.
+- **Recusa:** `fail` com `{"reason": "dado-velho", "refuse": true}` quando `sent.asOf` tem mais de 24 h (dado mais velho que a última sincronização). O código vai para `refused_reason`; a tela mostra "recusado às HH:MM" com a frase canônica do código. Códigos de recusa: `dado-velho` → "a máquina recebeu dados anteriores à última sincronização. Peça de novo." Um código desconhecido aparece literal na tela — use só os códigos desta lista.
+- Todo número citado em `title`, `lead`, `items` e `evidence[].note` tem de estar em `sent.numbers` (forma canônica: `1,5 mil`, `8,2×`, `−41%`, `12 pp`, `3 h`, `2º`, `60s`, `1.230`); todo `evidence[].id` tem de estar em `sent.ids`.
+
+### GET /api/pipeline/youtube/competitors/readings?task_id={uuid}
+
+Os dados enviados à forja para uma task `running` desta chave. A primeira leitura monta o pacote e o congela em `task.sent`; as seguintes devolvem **o mesmo objeto** (idempotente).
+
+**Headers:** `X-Pipeline-Key: {api_key}` (escopo `intelligence`, só API key)
+
+**Response 200:**
+```json
+{
+  "data": {
+    "task_id": "uuid",
+    "task_type": "temas",
+    "target": { "niche": "ia", "video_id": null, "fmt": "long" },
+    "sent": {
+      "text": "dados enviados à forja: …",
+      "asOf": 1791043200000,
+      "ids": ["uuid-do-video", "uuid-da-troca"],
+      "numbers": ["3", "1,5 mil", "8,2×", "2º"],
+      "nVideos": 3, "nOutliers": 1,
+      "channels": ["uuid"], "channelsOut": [{ "id": "uuid", "reason": "…" }],
+      "items": [{ "kind": "vídeo", "id": "uuid-do-video", "title": "…", "views": "1,5 mil", "mult": "8,2×" }],
+      "capped": false
+    }
+  }
+}
+```
+**Response 400:** `VALIDATION_ERROR` — `task_id` ausente ou não é uuid; a task não é do observatório
+**Response 404:** `NOT_FOUND` — task não existe
+**Response 409:** `TASK_NOT_RUNNING` — a task não está `running`, ou pertence a outra chave — não insistir
+**Response 422:** `TARGET_UNAVAILABLE` — o alvo não pode ser montado (ex.: o vídeo sumiu); nada é congelado — feche com `fail` sem `retry`
+**Response 500:** `INTERNAL_ERROR` — falha ao carregar os dados (transitória: `fail` com `retry`)
+
+### POST /api/pipeline/youtube/competitors/readings
+
+Publica a leitura da forja para uma task `running` desta chave cujo `sent` já foi congelado (GET acima). A leitura guarda uma cópia do `sent` congelado e a task vai para `completed`.
+
+**Headers:** `X-Pipeline-Key: {api_key}` (escopo `intelligence`, só API key)
+
+**Payload:**
+```json
+{
+  "task_id": "uuid",
+  "model": "Gemma 12B",
+  "generated_at": "2026-10-03T15:00:00Z",
+  "text": { "title": "…", "lead": "…", "items": ["…"] },
+  "analysis": { "tipo": "temas", "tentativas": 1 },
+  "evidence": [{ "id": "uuid-de-sent.ids", "note": "…" }]
+}
+```
+`generated_at`: ISO com `Z` ou offset (`-03:00`). `analysis` aceita chaves extras; `linhas_lidas`/`linhas_enviadas` (inteiros) quando o prompt cortou as linhas.
+
+**Response 200:** `{ "data": { "reading_id": "uuid" } }`
+**Response 400:** `VALIDATION_ERROR` — corpo inválido; número fora de `sent.numbers` (a mensagem lista os números); `evidence[].id` fora de `sent.ids`
+**Response 404:** `NOT_FOUND` — task não existe
+**Response 409:** `TASK_NOT_RUNNING` — a task não está `running` (já publicada, liberada pelo vigia) ou é de outra chave; `TASK_NOT_READY` — `sent` nunca foi lido (faça o GET antes). **Nunca reenviar** o mesmo POST
+**Response 500:** `INTERNAL_ERROR` — o POST pode ou não ter gravado; feche com `fail` (`retry: true`) — um 409 nesse `fail` quer dizer que a leitura foi publicada
 
 ---
 
