@@ -70,7 +70,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja }: { view: His
     <div data-obs-screen="historico" data-state={view.state} ref={root}>
       <div className="page">
         <Crumbs crumbs={view.crumbs} pager={view.pager} />
-        <section className="vhead" aria-label="Vídeo">
+        <section className="vhead" id="vhead" aria-label="Vídeo">
           <div className="cur"><Thumb t={h.thumb} dur={h.dur} /></div>
           <div>
             <h2 tabIndex={-1}>{v.title}</h2>

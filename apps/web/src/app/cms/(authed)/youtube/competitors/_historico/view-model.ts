@@ -182,6 +182,8 @@ export interface HistForjaCard {
   statusText: string | null
   /** One line under the status: timing, preview, quota, machine… (by state). */
   extra: string | null
+  /** After `extra`, a link to the header's forja button (historico-video.html toTop / "Ir para o botão"). */
+  toTop: { pre: string; label: string; post: string } | null
   /** 0 na fila · 1 trabalhando · 3 publicado; null = no steps. */
   step: 0 | 1 | 3 | null
   cancel: boolean
@@ -752,7 +754,8 @@ function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoV
     }
   }
   const label = forja.button.label
-  const toTop = 'Para pedir de novo, use “' + label + '” no cabeçalho do vídeo.'
+  // historico-video.html:718/731: the action name is a link to the header button (#vhead), not a quoted string
+  const toTopLink = { pre: 'Para pedir de novo, use ', label, post: ' no cabeçalho do vídeo.' }
   const st = r?.state ?? null
   const cls: '' | 'warn' | 'bad' = st === 'falhou' ? 'bad' : st && ['atrasado', 'sem máquina', 'recusado (dado velho)'].includes(st) ? 'warn' : ''
   const extra = !r ? null
@@ -761,14 +764,17 @@ function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoV
         : st === 'publicado' ? endDot(cap(sc.quota.text))
           : st === 'atrasado' ? (r.busyWith ? cap(r.busyWith) + '.' : null)
             : st === 'sem máquina' ? sc.machine.text + '.'
-              : st === 'falhou' ? 'Nada foi publicado. ' + toTop
-                : st === 'recusado (dado velho)' ? endDot(cap(sc.quota.text)) + ' ' + toTop : null
+              : st === 'falhou' ? 'Nada foi publicado.'
+                : st === 'recusado (dado velho)' ? endDot(cap(sc.quota.text)) : null
+  const toTop = !r ? null
+    : st === 'falhou' ? toTopLink
+      : st === 'recusado (dado velho)' ? (/peça de novo|pedir de novo/i.test(sc.statusText) ? { pre: '', label: 'Ir para o botão “' + label + '”', post: '' } : toTopLink) : null
   const blocked = forja.blockedBy ? { text: cap(forja.blockedBy.reason.replace(/^Nada enviado:\s*/, '')), title: forja.blockedBy.title, href: forja.blockedBy.href } : null
   return {
     forja,
     forjaCard: {
       pill: r ? { text: sc.statusLabel ?? r.state, cls } : null,
-      statusText: r ? sc.statusText : null, extra,
+      statusText: r ? sc.statusText : null, extra, toTop,
       step: !r ? null : st === 'trabalhando' ? 1 : st === 'publicado' ? 3 : ['falhou', 'recusado (dado velho)'].includes(st!) ? null : 0,
       cancel: forja.cancel.length > 0,
       again: null,

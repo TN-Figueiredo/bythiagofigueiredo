@@ -462,3 +462,37 @@ describe('initials', () => {
     expect(initials('')).toBe('?')
   })
 })
+
+// Task 35b: requests in queue order (dados.js requestScenario), never the rows' uuid order
+describe('orderRequests', () => {
+  it('running, then pending, then finished; same instant → IA before Viagem', async () => {
+    const { orderRequests } = await import('@/lib/youtube/observatorio/load')
+    const r = (id: string, niche: 'ia' | 'viagem', status: string, createdAt = 1000) => ({ id, niche, status, createdAt } as unknown as import('@/lib/youtube/observatorio/types').ForjaRequest)
+    const ids = (xs: ReturnType<typeof r>[]) => orderRequests(xs).map(x => x.id)
+    expect(ids([r('z', 'viagem', 'pending'), r('a', 'ia', 'pending')])).toEqual(['a', 'z'])
+    expect(ids([r('a', 'ia', 'completed'), r('b', 'viagem', 'running')])).toEqual(['b', 'a'])
+    expect(ids([r('a', 'ia', 'refused'), r('b', 'viagem', 'pending')])).toEqual(['b', 'a'])
+    expect(ids([r('b', 'viagem', 'pending', 900), r('a', 'ia', 'pending', 1000)])).toEqual(['b', 'a'])
+  })
+  it('the oracle scenarios already come in that order', async () => {
+    const { orderRequests } = await import('@/lib/youtube/observatorio/load')
+    const { loadOracle } = await import('./oracle')
+    const O = loadOracle() as unknown as { forja: { requestStates: string[]; requestScenario(s: string, t: object): { requests: import('@/lib/youtube/observatorio/types').ForjaRequest[] } } }
+    for (const st of O.forja.requestStates) {
+      const sc = O.forja.requestScenario(st, { niche: 'todos', type: 'resumo-trocas' })
+      expect([st, orderRequests([...sc.requests].reverse()).map(x => x.niche)]).toEqual([st, sc.requests.map(x => x.niche)])
+    }
+  })
+})
+
+// Task 35b: a published request points at the reading it produced (competitor_readings.task_id)
+describe('rowsToDataset — request → reading', () => {
+  it('readingId comes from the reading whose task_id is the task; none → null', () => {
+    const task = (id: string, status: string): TaskRow => ({ id, task_type: 'padroes-titulo', target_niche: 'ia', target_video_id: null, target_fmt: null, status,
+      requested_at: iso(NOW - 3 * H), started_at: iso(NOW - 2 * H), completed_at: status === 'completed' ? iso(NOW - H) : null, failed_at: null, refused_at: null, refused_reason: null, released_at: null, retry_count: 0 })
+    const reading: ReadingRow = { id: 'r1', task_id: 't1', task_type: 'padroes-titulo', niche: 'ia', video_id: null, fmt: null, model: 'Gemma 12B', generated_at: iso(NOW - H), sent: {}, analysis: {}, text: { lead: 'x', items: [] }, evidence: [] }
+    const ds = rowsToDataset(rows({ settings: { series_started_at: SERIES, channel_limit: 75 }, tasks: [task('t1', 'completed'), task('t2', 'completed')], readings: [reading] }), NOW)
+    expect(ds.requests.find(r => r.id === 't1')!.readingId).toBe('r1')
+    expect(ds.requests.find(r => r.id === 't2')!.readingId).toBeNull()
+  })
+})

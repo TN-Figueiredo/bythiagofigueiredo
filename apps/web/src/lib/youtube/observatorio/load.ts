@@ -37,6 +37,8 @@ export interface SnapshotRow { id?: string; competitor_channel_id: string; snaps
 export interface ReadingRow {
   id: string; task_type: string; niche: string | null; video_id: string | null; fmt: string | null; model: string; generated_at: string
   sent: unknown; analysis: unknown; text: unknown; evidence: unknown
+  /** The forja task that produced the reading (completeReading writes it): a published request points at its reading. */
+  task_id?: string | null
 }
 export interface TaskRow {
   id: string; task_type: string; target_niche: string | null; target_video_id: string | null; target_fmt: string | null; status: string
@@ -270,6 +272,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
     })
   }
 
+  const readingOfTask = new Map(rows.readings.filter(r => r.task_id).map(r => [r.task_id!, r.id]))
   const okSyncs = rows.channels.map(c => ms(c.last_ok_synced_at)).filter((x): x is number => x != null)
   const added = rows.channels.map(c => ms(c.added_at)).filter((x): x is number => x != null)
   return {
@@ -277,9 +280,23 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
     channels, videos,
     sync: { last: okSyncs.length ? Math.max(...okSyncs) : null, next },
     readings: rows.readings.map(r => toReading(r)).filter((x): x is FrozenReading => x != null),
-    requests: rows.tasks.map(t => taskRowToRequest(t, ms(rows.heartbeat?.last_poll_at), now)).filter((x): x is ForjaRequest => x != null),
+    // a published request points at the reading it produced (competitor_readings.task_id): "leitura nova às HH:MM"
+    requests: orderRequests(rows.tasks.map(t => taskRowToRequest(t, ms(rows.heartbeat?.last_poll_at), now)).filter((x): x is ForjaRequest => x != null)
+      .map(q => { const rid = readingOfTask.get(q.id); return rid ? { ...q, readingId: rid } : q })),
     queue: { lastPollAt: ms(rows.heartbeat?.last_poll_at), tickMinutes: FORJA_TICK_MINUTES, capabilities: rows.heartbeat?.capabilities ?? [] },
   }
+}
+
+/**
+ * The queue order the screens list requests in (dados.js requestScenario): the one the machine holds (running), then the
+ * waiting ones, then the finished; same instant → IA before Viagem (the order a Todos ask splits in); then id. Never the
+ * rows' uuid order, which put "Viagem … (atrás do de IA)" before IA.
+ */
+const RANK: Record<string, number> = { running: 0, pending: 1 }
+export function orderRequests(rs: ForjaRequest[]): ForjaRequest[] {
+  const NICHE_ORDER: Record<string, number> = { ia: 0, viagem: 1 }
+  return [...rs].sort((a, b) => (RANK[a.status ?? ''] ?? 2) - (RANK[b.status ?? ''] ?? 2) || a.createdAt - b.createdAt
+    || (NICHE_ORDER[a.niche] ?? 9) - (NICHE_ORDER[b.niche] ?? 9) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 
 /** The since() data frozen in `sent` (forja/sent.ts SentPack), shape-checked; a malformed piece is left out, never guessed. */
@@ -403,7 +420,7 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
     readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('is_hidden', false).order('id')),
     readAll<LegacyChangeRow>('competitor_changes', () => sb.from('competitor_changes').select('id, video_id, change_type, old_title, new_title, detected_at')
       .eq('site_id', siteId).is('from_version_id', null).in('change_type', ['title', 'description']).order('id')),
-    readAll<ReadingRow>('competitor_readings', () => sb.from('competitor_readings').select('id, task_type, niche, video_id, fmt, model, generated_at, sent, analysis, text, evidence')
+    readAll<ReadingRow>('competitor_readings', () => sb.from('competitor_readings').select('id, task_id, task_type, niche, video_id, fmt, model, generated_at, sent, analysis, text, evidence')
       .eq('site_id', siteId).gte('generated_at', new Date(now - READING_DAYS * DAY).toISOString()).order('id')),
     readAll<TaskRow>('youtube_intelligence_tasks', () => sb.from('youtube_intelligence_tasks').select(TASK_COLS)
       .eq('site_id', siteId).in('task_type', [...OBS_TASK_TYPES]).gte('requested_at', new Date(now - TASK_DAYS * DAY).toISOString()).order('id')),

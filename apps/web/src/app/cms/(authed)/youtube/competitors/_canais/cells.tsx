@@ -43,7 +43,7 @@ export function Tip({ label, children, left }: { label: string; children: ReactN
 
 export function ThumbView({ t, lg }: { t: Thumb | null; lg?: boolean }) {
   if (!t) return null
-  if (!t.src) return <span className={'thumb ph' + (lg ? ' lg' : '')} aria-hidden="true">{t.text}</span>
+  if (!t.src) return <span className={'thumb ph' + (lg ? ' lg' : '')} aria-hidden="true" data-thumb-missing="">{t.text}</span>
   return (
     <span className={'thumb img' + (lg ? ' lg' : '')} aria-hidden="true" data-thumb="">
       {/* eslint-disable-next-line @next/next/no-img-element -- fixed 16:9 thumb, already sized by YouTube */}

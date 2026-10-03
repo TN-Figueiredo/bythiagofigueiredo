@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { loadOracle, datasetFromOracle } from './oracle'
+import { loadOracle, datasetFromOracle, createTestObservatory } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildHistoricoView } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
 import { buildMudancasView, mudancasList, effectView } from '@/app/cms/(authed)/youtube/competitors/_mudancas/view-model'
@@ -298,5 +298,24 @@ describe('historico view model — production-shaped sync data', () => {
   it('a channel still fetching its videos is unchecked since it was added', () => {
     const v = buildHistoricoView(prodShaped(), PICK.bf, {})
     expect(v.versions!.titles.same).toMatch(/^Sem troca de título vista desde 24\/10; não conferido desde 24\/10 14:20, canal adicionado há \d+ min, buscando vídeos \(18 de 50\)\.$/)
+  })
+})
+
+// Task 35b (historico-video.html:718/731): after a failure or refusal, the action is a link to the header button
+describe('historico view model — forja card "pedir de novo"', () => {
+  const card = (state: string) => {
+    const o = createTestObservatory(datasetFromOracle(loadOracle()))
+    o.forja.session.setBase(state, { type: 'leitura-video', video: PICK.full })
+    return buildHistoricoView(o, PICK.full, {}).forjaCard!
+  }
+  it('falhou: "Nada foi publicado." then the link sentence, no quotes around the action', () => {
+    const c = card('falhou')
+    expect(c.extra).toBe('Nada foi publicado.')
+    expect(c.toTop).toEqual({ pre: 'Para pedir de novo, use ', label: 'Pedir nova leitura à forja', post: ' no cabeçalho do vídeo.' })
+  })
+  it('recusado: when the status already says to ask again, "Ir para o botão “…”"', () => {
+    const c = card('recusado (dado velho)')
+    if (/peça de novo|pedir de novo/i.test(c.statusText ?? '')) expect(c.toTop).toEqual({ pre: '', label: 'Ir para o botão “Pedir nova leitura à forja”', post: '' })
+    else expect(c.toTop!.pre).toBe('Para pedir de novo, use ')
   })
 })

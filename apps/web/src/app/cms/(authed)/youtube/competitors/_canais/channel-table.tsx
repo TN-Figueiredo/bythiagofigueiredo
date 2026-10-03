@@ -1,5 +1,6 @@
 'use client'
 /** Table view of Canais (port of canais.html thead + renderBody rows and group rows). */
+import { useEffect, useRef, useState } from 'react'
 import type { CanaisGroup, CanaisRow, CanaisSort, CanaisView } from './view-model'
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import { CadenceView, ChCell, GrowthView, Ic, OutView, SwapView, SyncView, Tip, VpdView, type LocalSync } from './cells'
@@ -49,8 +50,23 @@ function Row({ r, h }: { r: CanaisRow; h: RowHandlers }) {
 export function ChannelTable({ view, own, groups, h, onSort, empty }: {
   view: CanaisView; own: CanaisRow | null; groups: CanaisGroup[]; h: RowHandlers; onSort: (k: CanaisSort) => void; empty: React.ReactNode
 }) {
+  // canais.html #scrollHint: says the table scrolls sideways only when it really overflows (drawer open, narrow screen)
+  const box = useRef<HTMLDivElement>(null)
+  const [overflow, setOverflow] = useState(false)
+  useEffect(() => {
+    const el = box.current
+    if (!el) return
+    const on = () => setOverflow(el.scrollWidth > el.clientWidth + 2)
+    on()
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(on)
+    ro?.observe(el)
+    window.addEventListener('resize', on)
+    return () => { ro?.disconnect(); window.removeEventListener('resize', on) }
+  }, [groups, own])
   return (
-    <div className="tablebox">
+    <>
+    {overflow ? <p className="cap" data-scroll-hint="" style={{ whiteSpace: 'normal', margin: '0 0 6px' }}>Role a tabela para o lado para ver todas as colunas.</p> : null}
+    <div className="tablebox" ref={box}>
       <table aria-label="Canais acompanhados">
         <thead><tr>
           <th scope="col">Canal<span className="unit">nicho e inscritos</span></th>
@@ -77,5 +93,6 @@ export function ChannelTable({ view, own, groups, h, onSort, empty }: {
         </tbody>
       </table>
     </div>
+    </>
   )
 }

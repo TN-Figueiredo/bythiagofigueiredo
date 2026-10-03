@@ -221,3 +221,18 @@ describe('CanaisScreen', () => {
   })
 })
 
+
+// Task 35b (canais.html #scrollHint): the sideways-scroll hint appears only when the table really overflows
+describe('CanaisScreen — scroll hint', () => {
+  it('absent when the table fits; present when it overflows', () => {
+    const { unmount } = mount()
+    expect(document.querySelector('[data-scroll-hint]')).toBeNull()
+    unmount()
+    const sw = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(1200)
+    const cw = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(700)
+    try {
+      mount()
+      expect(screen.getByText('Role a tabela para o lado para ver todas as colunas.')).toBeInTheDocument()
+    } finally { sw.mockRestore(); cw.mockRestore() }
+  })
+})
