@@ -6,6 +6,7 @@ import { RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, NICHES, bandOf, winOf, tie
 import { median, quant } from './stats'
 import { viewsAtIdx, rate, vpdSince, vpd7, periodRate, expectedCurve, type EngineCtx, type Derived, type PeriodRate, type ExpectedCurve } from './series'
 import { diffLines, titleDiff } from './text-diff'
+import { effect, effectAt, type EffectResult } from './effect'
 import { deriveChanges, changesIn, caveats, REWRITE_GROUPS, type ObsChange } from './changes'
 
 export interface Observatory {
@@ -16,6 +17,7 @@ export interface Observatory {
   periodRate(id: string, fromMs: number, toMs: number): PeriodRate; expectedCurve(id: string): ExpectedCurve
   diffLines: typeof diffLines; titleDiff: typeof titleDiff; rewriteGroups: { id: string; label: string }[]
   change(id: string): ObsChange | undefined; changesIn(o?: Parameters<typeof changesIn>[1]): ObsChange[]; caveats(id: string): string[]
+  effect(id: string): EffectResult | null; effectAt(id: string, Lcap: number | null): EffectResult | null
   TAB_COUNTS: Record<string, { canais: number; mud: number; out: number }>
   changes: ObsChange[]; forja: { readings: unknown[] }
   RULES: typeof RULES; AGE_BANDS: typeof AGE_BANDS; OUT_WINDOWS: typeof OUT_WINDOWS; DEFAULT_AGES: typeof DEFAULT_AGES; NICHES: typeof NICHES
@@ -43,6 +45,7 @@ export function createObservatory(ds: Dataset, _opts?: { seriesStartLabel?: stri
     periodRate: (id, f, t) => periodRate(ctx, id, f, t), expectedCurve: id => expectedCurve(ctx, id),
     diffLines, titleDiff, rewriteGroups: REWRITE_GROUPS.map(g => ({ id: g.id, label: g.label })),
     change: id => ctx.CHG.get(id), changesIn: o => changesIn(ctx, o), caveats: id => caveats(ctx, id),
+    effect: id => effect(ctx, id), effectAt: (id, L) => effectAt(ctx, id, L),
     // STUB — replaced when 'contagens das abas' is ported (Task 16)
     TAB_COUNTS: { todos: { canais: 14, mud: 18, out: 11 }, viagem: { canais: 8, mud: 8, out: 5 }, ia: { canais: 6, mud: 10, out: 6 } },
     RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, NICHES, date: clock, fmt, median, quant, bandOf, winOf, tierOf,

@@ -1,12 +1,12 @@
 /** Sections of dados-teste.html not yet ported. Each P2/P4 task deletes the sections it ports. */
 export const PENDING_SECTIONS = new Set<string>([
   'contagens das abas', 'outliers', 'n possíveis pela cadência', 'limites e sincronização',
-  'efeito', 'exemplos do BRIEF', 'vídeo-vitrine', 'forja', 'catálogos',
+  'exemplos do BRIEF', 'vídeo-vitrine', 'forja', 'catálogos',
   'texto das leituras (singular/plural e status cru)', 'rodada final (reviews/final/*-F1.md, MOTOR)', 'rodada F2 (reviews/f2/*.md, MOTOR)',
   'rodada F3 (reviews/f3/*.md, MOTOR)', 'rodada F4 (CONVENCOES "RODADA F4", reviews/f4)', 'rodada F5 (reviews/f5/fixes.md, MOTOR)',
 ])
 /** Sections ported and enforced verbatim. A port task moves its section from PENDING_SECTIONS to here. */
-export const PORTED_SECTIONS = new Set<string>(['nada depois de NOW', 'calendário', 'série diária', 'trocas: precisão'])
+export const PORTED_SECTIONS = new Set<string>(['nada depois de NOW', 'calendário', 'série diária', 'trocas: precisão', 'efeito'])
 /** Permanently out of the production port, with the reason. */
 export const NOT_PORTED = new Map<string, string>([
   ['determinismo', 'tests the mockup PRNG generator (O._build); production data is not generated'],
@@ -15,8 +15,4 @@ export const NOT_PORTED = new Map<string, string>([
 export const NOT_PORTED_TESTS = new Set<string>([
   '[F8] runSync persiste em sessionStorage["obs-sync"] e é reaplicado na carga; resetSync limpa; seu canal intocado',
   '[F9] forja.session: estado único de pedidos — setBase, ask (só nichos livres, ordem dos cliques), cancel, current(nicho|todos), reset, persistência',
-])
-/** Single tests inside an already-PORTED section that need a later task's facade member. The task that adds the member deletes the entry. */
-export const PENDING_TESTS = new Set<string>([
-  'Trocas antes de 03/10 → "Sem série antes da troca (coleta por vídeo desde 03/10)"', // needs O.effect (Task 15)
 ])
