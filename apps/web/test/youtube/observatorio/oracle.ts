@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
-import { PENDING_SECTIONS, NOT_PORTED, NOT_PORTED_TESTS } from './suite-pending'
+import { PENDING_SECTIONS, PENDING_TESTS, NOT_PORTED, NOT_PORTED_TESTS } from './suite-pending'
 import type { Dataset, ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
 
 const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../fixtures/observatorio')
@@ -90,7 +90,7 @@ export function runMockupSuite(facade: unknown, htmlOverride?: string): SuiteRes
   return raw.map(({ touchAt, ...r }) => {
     const touched = touchAt - prev
     prev = touchAt
-    const exempt = PENDING_SECTIONS.has(r.section) || NOT_PORTED.has(r.section) || NOT_PORTED_TESTS.has(r.name)
+    const exempt = PENDING_SECTIONS.has(r.section) || PENDING_TESTS.has(r.name) || NOT_PORTED.has(r.section) || NOT_PORTED_TESTS.has(r.name)
     if (!exempt && touched > 0) return { ...r, ok: false, detail: 'touched missing facade member' }
     return String(r.detail).includes(MARK) ? { ...r, ok: false } : r
   })

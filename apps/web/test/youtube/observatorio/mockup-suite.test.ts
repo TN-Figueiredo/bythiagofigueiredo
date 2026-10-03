@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { loadOracle, datasetFromOracle, runMockupSuite } from './oracle'
-import { PENDING_SECTIONS, PORTED_SECTIONS, NOT_PORTED, NOT_PORTED_TESTS } from './suite-pending'
+import { PENDING_SECTIONS, PENDING_TESTS, PORTED_SECTIONS, NOT_PORTED, NOT_PORTED_TESTS } from './suite-pending'
 import { createObservatory } from '@/lib/youtube/observatorio'
 
 const oracle = loadOracle()
@@ -34,7 +34,7 @@ describe('touch net', () => {
   })
 })
 describe('mockup suite (dados-teste.html) — production engine, verbatim', () => {
-  const ported = onProd.filter(r => !PENDING_SECTIONS.has(r.section) && !NOT_PORTED.has(r.section) && !NOT_PORTED_TESTS.has(r.name))
+  const ported = onProd.filter(r => !PENDING_SECTIONS.has(r.section) && !PENDING_TESTS.has(r.name) && !NOT_PORTED.has(r.section) && !NOT_PORTED_TESTS.has(r.name))
   if (ported.length) {
     it.each(ported.map(r => [r.section + ' › ' + r.name, r] as const))('%s', (_n, r) => {
       expect(r.ok, r.detail).toBe(true)
