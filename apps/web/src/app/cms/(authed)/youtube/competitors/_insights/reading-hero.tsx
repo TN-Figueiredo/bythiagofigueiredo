@@ -6,8 +6,7 @@
  * from the view model.
  */
 import Link from 'next/link'
-import type { ForjaReadingView } from '../_chrome/forja-view-model'
-import type { HeroPara, InsightsHero } from './view-model'
+import type { HeroBlock, HeroPara, HeroReadingView, InsightsHero } from './view-model'
 
 const RUNBOOK = 'https://github.com/TN-Figueiredo/bythiagofigueiredo/blob/staging/docs/ops/forja-fila-inteligencia-runbook.md'
 const STAMP = (
@@ -19,37 +18,43 @@ function Para({ p }: { p: HeroPara }) {
   return <p>{p.before}<a href={RUNBOOK} target="_blank" rel="noopener noreferrer">runbook da forja</a>{p.after}</p>
 }
 
-function Block({ r, items }: { r: ForjaReadingView; items: string[] }) {
+/** The last word stays glued to its evidence number (insights.html blockHTML). */
+function Sup({ text, n, pre }: { text: string; n: number | null; pre: string }) {
+  if (!n) return <>{text}</>
+  const i = text.lastIndexOf(' ')
+  return <>{text.slice(0, i + 1)}<span className="nw">{text.slice(i + 1)}<sup><a href={'#' + pre + 'ev' + n} aria-label={'Evidência ' + n}>{n}</a></sup></span></>
+}
+
+function Blocks({ blocks, pre }: { blocks: HeroBlock[]; pre: string }) {
   return (
     <>
-      <div className="sealrow"><span className="stamp sm" data-seal-of={r.id}>{STAMP}{r.seal}</span></div>
-      <div className="rtext" data-reading-id={r.id}>
-        {r.lead ? <p>{r.lead}</p> : null}
-        {items.length ? <ul className="ritems">{items.map((t, i) => <li key={i}>{t}</li>)}</ul> : null}
-      </div>
+      {blocks.map(b => (
+        <div key={b.src}>
+          <div className="sealrow"><span className="stamp sm" data-seal-of={b.src}>{STAMP}{b.seal}</span></div>
+          <div className="rtext" data-reading-id={b.src}>
+            {b.parts.map((pt, i) => pt.kind === 'ul'
+              ? <ul className="ritems" key={i}>{pt.items.map((it, j) => <li key={j}><Sup text={it.text} n={it.ev} pre={pre} /></li>)}</ul>
+              : <p key={i}><Sup text={pt.text} n={pt.ev} pre={pre} /></p>)}
+          </div>
+        </div>
+      ))}
     </>
   )
 }
 
-function Since({ r }: { r: ForjaReadingView }) {
-  if (!r.since) return <div className="sl"><b>{r.sinceLabel}:</b> sem comparação com os dados de hoje</div>
-  return <div className="sl"><b>{r.sinceLabel}:</b> {r.since.shortText} <details><summary>ver detalhes</summary><p>{r.since.text}</p></details></div>
-}
-
-export function ReadingView({ hero, r, themes, mode }: { hero: InsightsHero; r: ForjaReadingView; themes: ForjaReadingView | null; mode?: 'old' }) {
+export function ReadingView({ hero, v, mode }: { hero: InsightsHero; v: HeroReadingView; mode?: 'old' }) {
+  const pre = mode ?? ''
   return (
-    <div className={'reading' + (mode ? ' old' : '')} data-reading={mode ? undefined : ''} data-reading-of={r.id}>
+    <div className={'reading' + (mode ? ' old' : '')} data-reading={mode ? undefined : ''} data-reading-of={v.id}>
       <div className="rmain">
-        <div className="prose">
-          {themes ? <Block r={themes} items={[]} /> : null}
-          <Block r={r} items={r.keyItems} />
-        </div>
+        <div className="prose"><Blocks blocks={v.shown} pre={pre} /></div>
         <div className="rside">
-          {r.siteNotes.map(n => <p key={n} className="caveat">{n}</p>)}
+          {v.notes.map(n => <p key={n} className="caveat">{n}</p>)}
           <div className="since">
             <span className="snote">{hero.noteLabel}</span>
-            {themes ? <Since r={themes} /> : null}
-            <Since r={r} />
+            {v.since.map(x => (
+              <div className="sl" key={x.label}><b>{x.label}:</b> {x.shortText ?? 'sem comparação com os dados de hoje'}{x.text ? <> <details><summary>ver detalhes</summary><p>{x.text}</p></details></> : null}</div>
+            ))}
           </div>
         </div>
       </div>
@@ -57,24 +62,14 @@ export function ReadingView({ hero, r, themes, mode }: { hero: InsightsHero; r: 
         <summary>{hero.moreLabel}</summary>
         <div className="moregrid">
           <div>
-            <div className="prose">
-              {r.moreItems.length || r.theme ? (
-                <>
-                  <div className="sealrow"><span className="stamp sm">{STAMP}{r.seal}</span></div>
-                  <div className="rtext">
-                    {r.moreItems.length ? <ul className="ritems">{r.moreItems.map((t, i) => <li key={i}>{t}</li>)}</ul> : null}
-                    {r.theme ? <p>{r.theme}</p> : null}
-                  </div>
-                </>
-              ) : null}
-            </div>
+            <div className="prose"><Blocks blocks={v.more} pre={pre} /></div>
             <p className="caveat">{hero.caveat}</p>
           </div>
           <aside className="evid" aria-label="Evidências">
             <h3>Evidências</h3>
-            {r.evidenceLinks.length ? (
-              <ol>{r.evidenceLinks.map((e, i) => (
-                <li key={e.href} id={(mode ?? '') + 'ev' + (i + 1)}><span className="k">{i + 1}</span><span>{e.text}<br /><Link href={e.href} data-n={e.n}>{e.label}</Link></span></li>
+            {v.ev.length ? (
+              <ol>{v.ev.map(e => (
+                <li key={e.n} id={pre + 'ev' + e.n} data-src={e.src}><span className="k">{e.n}</span><span>{e.text}<br /><Link href={e.href} data-n={e.count}>{e.label}</Link></span></li>
               ))}</ol>
             ) : <p>Esta leitura não cita evidência que o Outliers possa abrir.</p>}
             <p style={{ margin: '12px 0 0', color: 'var(--muted)' }}>Os links abrem o Outliers com o mesmo escopo da leitura (canais e janela) e os números de hoje; o que a leitura viu está no texto de cada evidência.</p>
@@ -112,9 +107,9 @@ export function ReadingHero({ hero }: { hero: InsightsHero }) {
         </div>
       ) : null}
       {hero.publishedNote ? <p className="scopenote">{hero.publishedNote}</p> : null}
-      {hero.reading && !hero.prevLabel && (!hero.box || !hero.box.title) ? <ReadingView hero={hero} r={hero.reading} themes={hero.themes} /> : null}
-      {hero.reading && hero.prevLabel ? (
-        <details className="prev"><summary>{hero.prevLabel}</summary><ReadingView hero={hero} r={hero.reading} themes={hero.themes} mode="old" /></details>
+      {hero.view && !hero.prevLabel ? <ReadingView hero={hero} v={hero.view} /> : null}
+      {hero.view && hero.prevLabel ? (
+        <details className="prev"><summary>{hero.prevLabel}</summary><ReadingView hero={hero} v={hero.view} mode="old" /></details>
       ) : null}
     </section>
   )

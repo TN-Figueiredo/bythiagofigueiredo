@@ -20,6 +20,8 @@ export interface SinceResult {
   items?: string[]; flipped?: number; newPoints?: number
   moved?: Array<{ change: string; then: string; now: string; thenCollected: number | null; nowCollected: number | null }>
   viewsThen?: number | null; viewsNow?: number | null
+  /** Ids the frozen reading cites that the observatory no longer has (removed channel, video out of the list, deleted version). Never a crash. */
+  gone?: { changes: string[]; videos: string[] }
 }
 type Raw = Omit<SinceResult, 'textNoAsk'>
 
@@ -29,12 +31,25 @@ export const noAskText = (text: string): string => text.replace(ASK, '.').replac
 
 const changesOf = (ctx: ForjaCtx): ObsChange[] => [...ctx.CHG.values()]
 const plural = (ctx: ForjaCtx, n: number, one: string, many: string) => ctx.fmt.plural(n, one, many)
+/** "2 trocas citadas não estão mais no observatório" — the part said when the frozen reading cites data that no longer exists. */
+const goneParts = (ctx: ForjaCtx, changes: number, videos: number): { long: string[]; short: string[] } => {
+  const long: string[] = [], short: string[] = []
+  if (changes) { long.push(plural(ctx, changes, 'troca citada não está', 'trocas citadas não estão') + ' mais no observatório'); short.push(plural(ctx, changes, 'troca citada fora', 'trocas citadas fora')) }
+  if (videos) { long.push(plural(ctx, videos, 'vídeo da leitura não está', 'vídeos da leitura não estão') + ' mais no observatório'); short.push(plural(ctx, videos, 'vídeo da leitura fora', 'vídeos da leitura fora')) }
+  return { long, short }
+}
+const CANT = 'Não dá para comparar esta leitura com os dados de hoje: '
 
 function sinceVideo(ctx: ForjaCtx, r: FrozenReading): Raw {
-  const v = ctx.V.get(r.target!.video!)!, ch = ctx.CH.get(v.ch)!
+  const vid = r.target?.video ?? null, v = vid ? ctx.V.get(vid) : undefined, ch = v ? ctx.CH.get(v.ch) : undefined
+  if (!v || !ch) {
+    return { readingId: r.id, newVideos: [], leftWindow: [], nowVideos: 0, sentVideos: 0, items: [], gone: { changes: [], videos: vid ? [vid] : [] },
+      shortText: 'desde então: o vídeo não está mais no observatório', text: CANT + 'o vídeo não está mais no observatório.' }
+  }
+  const goneCh = (r.effects || []).filter(e => !ctx.CHG.get(e.change)).map(e => e.change)
   const newPts = Math.max(0, (ch.lastIdx ?? 0) - (r.sent.asOfIdx ?? 0))
   const newChanges = changesOf(ctx).filter(c => c.video === v.id && c.at > r.generatedAt).map(c => c.id)
-  const moved = (r.effects || []).map(e => { const now = effect(ctx, e.change)!; return { change: e.change, then: e.status, now: now.status as string, thenCollected: e.collected, nowCollected: now.collected != null ? now.collected : null } })
+  const moved = (r.effects || []).filter(e => !goneCh.includes(e.change)).map(e => { const now = effect(ctx, e.change)!; return { change: e.change, then: e.status, now: now.status as string, thenCollected: e.collected, nowCollected: now.collected != null ? now.collected : null } })
     .filter(x => x.then !== x.now || x.thenCollected !== x.nowCollected)
   const lbl = (st: string) => ({ 'sem-serie': 'sem série', 'sem-antes': 'sem base' } as Record<string, string>)[st] || st
   const flipped = moved.filter(x => x.then !== x.now), waiting = moved.filter(x => x.then === x.now)
@@ -43,6 +58,8 @@ function sinceVideo(ctx: ForjaCtx, r: FrozenReading): Raw {
   if (flipped.length) parts.push(plural(ctx, flipped.length, 'troca mudou', 'trocas mudaram') + ' de veredito')
   if (waiting.length) parts.push(plural(ctx, waiting.length, 'troca ganhou', 'trocas ganharam') + ' dias de coleta')
   if (newChanges.length) parts.push(plural(ctx, newChanges.length, 'troca nova', 'trocas novas'))
+  const g = goneParts(ctx, goneCh.length, 0)
+  parts.push(...g.long)
   const items = moved.map(x => {
     const c = ctx.CHG.get(x.change)!
     const idxTxt = c.type === 'thumb' ? (c.before as { key: string }).key + ' → ' + (c.after as { key: string }).key : c.idx + ' → ' + (c.idx + 1)
@@ -53,31 +70,44 @@ function sinceVideo(ctx: ForjaCtx, r: FrozenReading): Raw {
   if (flipped.length) sp.push(plural(ctx, flipped.length, 'veredito mudou', 'vereditos mudaram'))
   if (waiting.length) sp.push(waiting.length + (waiting.length === 1 ? ' ganhou dias de coleta' : ' ganharam dias de coleta'))
   if (newChanges.length) sp.push('+' + plural(ctx, newChanges.length, 'troca nova', 'trocas novas'))
+  sp.push(...g.short)
   return { shortText: 'desde então: ' + (sp.length ? sp.join(' · ') : 'nada mudou'), items, flipped: flipped.length, newVideos: [], leftWindow: [], nowVideos: 0, sentVideos: 0, readingId: r.id,
+    ...(goneCh.length ? { gone: { changes: goneCh, videos: [] } } : {}),
     newPoints: newPts, newChanges, moved, viewsThen: r.viewsThen, viewsNow: v.views,
     text: parts.length ? 'Desde então: ' + parts.join('; ') + '. Peça nova leitura à forja para atualizar.' : 'Nada mudou desde a leitura.' }
 }
 
 function sinceChanges(ctx: ForjaCtx, r: FrozenReading): Raw {
-  const now = changesOf(ctx).filter(c => inNiche(r.niche, c) && !ctx.CH.get(c.ch)!.own && c.at > r.generatedAt)
-  const sentIds = r.sent.changeIds || []
+  const now = changesOf(ctx).filter(c => inNiche(r.niche, c) && !ctx.CH.get(c.ch)?.own && c.at > r.generatedAt)
+  const cited = r.sent.changeIds || []
+  const goneCh = cited.filter(id => !ctx.CHG.get(id)), sentIds = cited.filter(id => !goneCh.includes(id))
   const left = sentIds.filter(id => ctx.CHG.get(id)!.at <= ctx.clock.now - (r.sent.windowDays ?? 30) * DAY)
   const parts: string[] = []
   if (now.length) parts.push('+' + now.length + (now.length === 1 ? ' troca nova' : ' trocas novas'))
   if (left.length) parts.push(left.length + (left.length === 1 ? ' saiu' : ' saíram') + ' da janela de 30 dias')
   const staleNow = eligibleChannels(ctx, r.niche).out.filter(o => sentIds.some(id => ctx.CHG.get(id)!.ch === o.id) || now.some(c => c.ch === o.id))
   if (staleNow.length) parts.push(staleNow.map(o => o.reason.replace(' fica fora', '')).join('; ') + ' — uma nova leitura deixaria ' + (staleNow.length === 1 ? 'esse canal' : 'esses canais') + ' de fora')
+  const g = goneParts(ctx, goneCh.length, 0)
+  parts.push(...g.long)
   const sp: string[] = []
   if (now.length) sp.push('+' + plural(ctx, now.length, 'troca nova', 'trocas novas'))
   if (left.length) sp.push(left.length + (left.length === 1 ? ' saiu da janela' : ' saíram da janela'))
   if (staleNow.length) sp.push(plural(ctx, staleNow.length, 'canal fora', 'canais fora'))
+  sp.push(...g.short)
   return { shortText: 'desde então: ' + (sp.length ? sp.join(' · ') : 'nada mudou'), staleNow, newVideos: [], nowVideos: 0, sentVideos: 0, leftWindowChanges: left, readingId: r.id,
+    ...(goneCh.length ? { gone: { changes: goneCh, videos: [] } } : {}),
     newChanges: now.map(c => c.id), leftWindow: [],
     text: parts.length ? 'Desde então: ' + parts.join(', ') + '. Peça nova leitura à forja para atualizar.' : 'Nada mudou desde a leitura.' }
 }
 
 function sinceOutliers(ctx: ForjaCtx, r: FrozenReading): Raw {
-  const base = r.base!, fmtId = r.fmt || base.fmt || 'long'
+  // a reading stored without its frozen base (old row) has nothing to compare: said, never a crash
+  if (!r.base || r.base.windowDays == null || !Array.isArray(r.base.videos)) {
+    return { readingId: r.id, newVideos: [], leftWindow: [], nowVideos: 0, sentVideos: 0,
+      shortText: 'desde então: sem os dados enviados à forja para comparar', text: CANT + 'os dados enviados à forja não ficaram registrados com ela.' }
+  }
+  const base0 = r.base, goneV = base0.videos.filter(v => !ctx.V.get(v.id)).map(v => v.id)
+  const base = { ...base0, videos: base0.videos.filter(v => !goneV.includes(v.id)) }, fmtId = r.fmt || base.fmt || 'long'
   // same channels and same format as the reading, read at the last daily record
   const now = baseAt(ctx, r.niche ?? undefined, ctx.lastIdx, base.windowDays!, base.channels, fmtId)
   const staleNow = eligibleChannels(ctx, r.niche).out.filter(o => base.channels.includes(o.id) && base.videos.some(x => x.ch === o.id))
@@ -91,7 +121,7 @@ function sinceOutliers(ctx: ForjaCtx, r: FrozenReading): Raw {
   const pub = (v: ReadingBaseVideo) => ctx.V.get(v.id)!.pub
   const fresh = newVideos.filter(v => pub(v) >= r.sent.asOf), older = newVideos.filter(v => pub(v) < r.sent.asOf)
   const thenT = r.sent.asOfIdx ?? 0
-  const noBaseThen = older.filter(v => { const vv = ctx.V.get(v.id)!, ch = ctx.CH.get(vv.ch)!; return multiplierAt(ctx, vv, Math.min(thenT, ch.lastIdx ?? 0)).value == null })
+  const noBaseThen = older.filter(v => { const vv = ctx.V.get(v.id)!, ch = ctx.CH.get(vv.ch); return multiplierAt(ctx, vv, Math.min(thenT, ch?.lastIdx ?? 0)).value == null })
   const foundOld = older.filter(v => !noBaseThen.includes(v))
   const win = base.windowDays === 182 ? '6 meses' : base.windowDays + ' dias'
   const parts: string[] = []
@@ -103,6 +133,8 @@ function sinceOutliers(ctx: ForjaCtx, r: FrozenReading): Raw {
   if (stoppedOut.length) parts.push(plural(ctx, stoppedOut.length, 'deixou', 'deixaram') + ' de ser outlier')
   if (titleChanged.length) parts.push(titleChanged.length + ' com título trocado')
   if (staleNow.length) parts.push(staleNow.map(o => o.reason.replace(' fica fora', '')).join('; ') + ' — uma nova leitura deixaria ' + (staleNow.length === 1 ? 'esse canal' : 'esses canais') + ' de fora')
+  const g = goneParts(ctx, 0, goneV.length)
+  parts.push(...g.long)
   const sp: string[] = []
   if (fresh.length) sp.push('+' + plural(ctx, fresh.length, 'vídeo novo', 'vídeos novos'))
   if (noBaseThen.length) sp.push(noBaseThen.length + (noBaseThen.length === 1 ? ' ganhou base' : ' ganharam base'))
@@ -112,7 +144,8 @@ function sinceOutliers(ctx: ForjaCtx, r: FrozenReading): Raw {
   if (stoppedOut.length) sp.push(stoppedOut.length + (stoppedOut.length === 1 ? ' deixou de ser outlier' : ' deixaram de ser outlier'))
   if (titleChanged.length) sp.push(plural(ctx, titleChanged.length, 'título trocado', 'títulos trocados'))
   if (staleNow.length) sp.push(plural(ctx, staleNow.length, 'canal fora', 'canais fora'))
-  return { staleNow, readingId: r.id, newVideos: newVideos.map(v => v.id), leftWindow: leftWindow.map(v => v.id), becameOutlier: becameOut, stoppedOutlier: stoppedOut, titleChanged,
+  sp.push(...g.short)
+  return { staleNow, readingId: r.id, ...(goneV.length ? { gone: { changes: [], videos: goneV } } : {}), newVideos: newVideos.map(v => v.id), leftWindow: leftWindow.map(v => v.id), becameOutlier: becameOut, stoppedOutlier: stoppedOut, titleChanged,
     nowVideos: now.videos.length, nowOutliers: outNow.size, sentVideos: base.videos.length, sentOutliers: outThen.size,
     freshVideos: fresh.map(v => v.id), noBaseThenVideos: noBaseThen.map(v => v.id), foundOldVideos: foundOld.map(v => v.id),
     countsText: 'vídeos: ' + base.videos.length + ' → ' + now.videos.length + ' · outliers: ' + outThen.size + ' → ' + outNow.size,

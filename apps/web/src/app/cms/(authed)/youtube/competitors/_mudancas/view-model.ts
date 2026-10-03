@@ -93,6 +93,8 @@ export interface MudancasView {
     openNiche: Niche | null
     outSummary: string; outText: string
     shorts: { text: string; href: string } | null
+    /** mudancas.html I5: the header click opens this preview of what the request reads, per niche, before sending. */
+    confirm: { title: string; lines: Array<{ niche: string; text: string }>; note: string | null; scope: NicheScope } | null
   }
 }
 
@@ -584,6 +586,12 @@ function forjaOf(obs: Observatory, f: MudancasFilters): Pick<MudancasView, 'forj
     forja,
     forjaCard: {
       openNiche,
+      confirm: forja.ask ? {
+        title: 'Pedir nova leitura à forja' + (forja.ask.niches.length > 1 ? ' (um pedido por nicho)' : ''),
+        lines: forja.ask.niches.map(n => { const pv = obs.forja.preview('resumo-trocas', n); return { niche: obs.NICHES[n].label, text: pv.text + ' de ' + pl(pv.channelsIn.length, 'canal', 'canais') + (pv.channelsOut.length ? '. Fora: ' + pv.channelsOut.map(o => o.reason.replace(/ fica fora: /, ' — ')).join('; ') : '') + '.' } }),
+        note: forja.ask.niches.length > 1 ? 'A máquina pega um pedido por consulta: o de Viagem fica na fila atrás do de IA.' : null,
+        scope: forja.ask.scope,
+      } : null,
       outSummary: out.length ? pl(out.length, 'canal fora do próximo pedido', 'canais fora do próximo pedido') + '; o que a forja faz' : 'O que a forja faz aqui',
       outText: out.join('. ') + (out.length ? '. ' : '') + 'A forja classifica o texto das trocas (longos e Shorts); não julga thumbnails nem diz o que funcionou.' + (busy ? '' : ' ' + obs.forja.queue.quotaScope.text),
       shorts: f.fmt === 'short' ? {

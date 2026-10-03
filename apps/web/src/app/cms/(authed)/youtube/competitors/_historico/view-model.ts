@@ -12,7 +12,7 @@ import type { Niche, ObsChannel, ObsVideo, SeriesPoint } from '@/lib/youtube/obs
 import type { TitleOp } from '@/lib/youtube/observatorio/text-diff'
 import { mudancasList, effectView, type EffectView } from '../_mudancas/view-model'
 import { buildOutliersView, ages2label } from '../_outliers/view-model'
-import { buildForjaView, forjaReadingView, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
+import { buildForjaView, forjaReadingView, patternsOf, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
 
 export type HistState = 'full' | 'pre' | 'few' | 'none' | 'noreg' | 'untr' | 'old' | 'err' | 'bf' | 'not-found'
 export type LaneType = 'title' | 'thumb' | 'desc'
@@ -731,18 +731,16 @@ function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoV
     if (!v.niche) return null
     const nr = obs.forja.latest('padroes-titulo', v.niche)
     if (!nr) return null
-    const pats = (Array.isArray(nr.analysis.patterns) ? nr.analysis.patterns as Array<{ formula: string; evidence?: string[]; verdict: { id: string; text: string }; attribution?: { text: string } | null }> : [])
-      .filter(p => (p.evidence ?? []).includes(v.id))
+    const pats = patternsOf(nr).filter(p => p.evidence.includes(v.id))
     const when = D.dm(nr.generatedAt) + ' ' + D.hm(nr.generatedAt)
     if (!pats.length) return { text: 'Ainda não há leitura deste vídeo, e a leitura de padrões do nicho de ' + when + ' não o cita.', items: [], foot: null }
     if (pats.every(p => p.verdict.id === 'sem-diferenca')) return { text: 'Ainda não há leitura deste vídeo. A leitura de padrões do nicho de ' + when + ' não viu diferença para as fórmulas deste título: ' + pats.map(p => F.lcfirst(obs.formula(p.formula)?.label ?? p.formula)).join(', ') + '.', items: [], foot: null }
-    let s0: ReturnType<typeof obs.forja.since> = null
-    try { s0 = obs.forja.since(nr.id) } catch { s0 = null }
+    const s0 = obs.forja.since(nr.id)
     return {
       text: 'Ainda não há leitura deste vídeo. O que a leitura de padrões do nicho de ' + D.dmOrDmy(nr.generatedAt) + ' diz sobre as fórmulas deste título:',
       items: pats.map(p => {
         const n = obs.outliers({ niche: v.niche!, fmt: nr.fmt ?? 'long', formula: p.formula, reading: nr.id }).count
-        return { text: endDot(p.verdict.text + (p.attribution && p.verdict.id === 'padrao' ? '. ' + p.attribution.text : '')), label: n === 1 ? 'Ver o outlier' : 'Ver os ' + n + ' outliers',
+        return { text: endDot(p.verdict.text + (p.attribution && p.verdict.id === 'padrao' ? '. ' + p.attribution : '')), label: n === 1 ? 'Ver o outlier' : 'Ver os ' + n + ' outliers',
           href: obs.link.outliers({ niche: v.niche!, fmt: nr.fmt ?? 'long', formula: p.formula, reading: nr.id, min: obs.RULES.outlierMin }) }
       }),
       foot: (nr.sent.text ? cap(nr.sent.text) + '. ' : '') + (s0 ? (forja.status?.active ? s0.textNoAsk : s0.text) : ''),

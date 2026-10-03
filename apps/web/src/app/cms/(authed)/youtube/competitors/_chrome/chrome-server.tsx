@@ -33,8 +33,8 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   const niche = nicheOverride ?? resolved.niche, dropParam = resolved.dropParam
   const engine = obs ?? createObservatory(await loadDataset({ siteId: (await getSiteContext()).siteId, now: observatoryNow() }))
   const view = buildChromeView(engine, { tab, niche, forja })
-  // Histórico keeps its request in the screen (header without button): no drawer there
-  const drawer = view.forja && view.forja.headerVariant !== 'none' ? buildForjaDrawerView(engine, { niche: view.forja.niche, type: view.forja.type }) : null
+  // the selector drawer is the moldura's exception (CONVENCOES:225, R58): built only where the header opens it
+  const drawer = view.forja && view.forja.headerAction === 'drawer' ? buildForjaDrawerView(engine, { niche: view.forja.niche, type: view.forja.type }) : null
   return (
     <ObservatoryChrome view={{ ...view, ...(coworkFor ? { cowork: coworkText(coworkFor, niche) } : {}) }} dropNicheParam={dropParam} onSetNiche={setUserNiche} onSyncNow={syncCompetitorsNow}
       forjaDrawer={drawer} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} readingCopy={readingCopy}>

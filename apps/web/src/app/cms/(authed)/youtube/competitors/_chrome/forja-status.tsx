@@ -92,7 +92,7 @@ export function ForjaMachineSegment({ machine }: { machine: ForjaView['machine']
     <span className={'obs-ch-forja-seg' + (machine.alive ? '' : ' obs-ch-off')} title={machine.title} data-forja-machine="">
       <span className={'obs-ch-dot ' + (machine.alive ? 'obs-ch-forja' : 'obs-ch-warn')} aria-hidden="true" />
       {machine.alive
-        ? <><span>forja<span className="obs-ch-long"> consultou às</span></span><b className="obs-ch-num">{machine.time}</b></>
+        ? <><span>forja<span className="obs-ch-long"> consultou às</span></span>{' '}<b className="obs-ch-num">{machine.time}</b></>
         : <>forja <b>{machine.text.replace(/^forja /, '')}</b></>}
     </span>
   )

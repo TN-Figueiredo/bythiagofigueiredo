@@ -19,6 +19,7 @@ import { Icon } from './icons'
 import type { ForjaDrawerView } from './forja-view-model'
 import { ForjaHeaderButtons, ForjaMachineSegment, goToForjaAnchor } from './forja-status'
 import { ForjaDrawer, type DrawerFlow, type ForjaAsk, type ForjaCancel } from './forja-drawer'
+import { ForjaHeaderContext } from './forja-context'
 
 export interface ObservatoryChromeProps {
   view: ChromeView
@@ -95,6 +96,45 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
       b?.focus()
     }, 0)
   }, [])
+  // R58: the header button follows each screen's mockup (insights.html:819, canais.html:874, outliers.html:997 ask
+  // directly; mudancas.html I5 opens the screen's inline confirm; the drawer only where the moldura opens it)
+  const [confirmSeq, setConfirmSeq] = useState(0)
+  const headerCtx = useMemo(() => ({ seq: confirmSeq }), [confirmSeq])
+  const [asking, setAsking] = useState(false)
+  const askFromHeader = useCallback(async () => {
+    if (!forja || !forja.ask || !onAskForja || asking) return
+    const NLB: Record<string, string> = { viagem: 'Viagem', ia: 'IA' }
+    const fmt = forja.type === 'padroes-titulo-shorts' ? 'short' : forja.type === 'padroes-titulo' || forja.type === 'temas' ? (forja.fmt ?? 'long') : undefined
+    const fail = 'A fila da forja não respondeu. Tente de novo em alguns minutos.'
+    setAsking(true)
+    try {
+      if (forja.screen === 'canais') {
+        // canais.html onForja: only the free niches, one request each, in click order
+        const res = await Promise.all(forja.ask.niches.map(n => onAskForja(forja.type, n, undefined, fmt).catch(() => ({ ok: false, reason: fail, results: [] }))))
+        const ok = forja.ask.niches.filter((_, i) => res[i]!.ok)
+        if (!ok.length) toast('warn', 'Nada enviado: a forja recusou o pedido.', '')
+        else toast('forja', ok.length > 1 ? 'Pedido enviado à forja: ' + ok.length + ' pedidos, um por nicho (' + (['viagem', 'ia'] as const).filter(x => ok.includes(x)).map(x => NLB[x]).join(' e ') + ')' : 'Pedido enviado à forja', '')
+      } else {
+        const r = await onAskForja(forja.type, forja.ask.scope, undefined, fmt).catch(() => ({ ok: false, reason: fail, results: [] }))
+        const cap = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t)
+        if (!r.ok) toast(forja.screen === 'insights' ? 'warn' : '', 'Pedido não enviado', cap(r.reason ?? '').replace(/[.\s]+$/, '') + '.')
+        else if (forja.screen === 'insights') {
+          // insights.html askForja: "Um pedido por nicho: Viagem e IA" or "Leitura dos longos de IA", then any niche skipped
+          const created = r.results.filter(x => x.ok).map(x => x.niche), skipped = r.results.filter(x => !x.ok)
+          const what = created.length > 1 ? 'Um pedido por nicho: Viagem e IA' : 'Leitura dos ' + (fmt === 'short' ? 'Shorts' : 'longos') + ' de ' + NLB[created[0]!]
+          toast('forja', 'Pedido enviado à forja', (what + (skipped.length ? '; ' + skipped.map(x => (x.reason ?? '').replace(/[.\s]+$/, '')).join('; ') : '')).replace(/[.\s]+$/, '') + '.')
+        } else toast('forja', 'Pedido enviado à forja', '')
+      }
+      router.refresh()
+    } finally { setAsking(false) }
+  }, [forja, onAskForja, asking, toast, router])
+  const onForjaHeader = () => {
+    if (!forja) return
+    if (forja.headerAction === 'ask') { void askFromHeader(); return }
+    if (forja.headerAction === 'confirm') { setConfirmSeq(n => n + 1); return }
+    if (forja.headerAction === 'drawer' && forjaDrawer) { openDrawer(forja.status?.active && forja.button.mode !== 'free-niche' ? 'run' : 'choose'); return }
+    goToForjaAnchor()
+  }
   // while a request is in progress the page refreshes itself (the forja polls every 10 min); a request that reaches
   // "publicado" says so once ("Pedido enviado à forja" → "Leitura publicada")
   const active = !!forja?.status?.active
@@ -209,7 +249,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
         <div className="obs-ch-head">
           <div className="obs-ch-title"><h2>{view.title}</h2><p>{view.subtitle}</p></div>
           <div className="obs-ch-actions">
-            {forja ? <ForjaHeaderButtons forja={forja} drawerOpen={!!drawer} modal={modal && !!forjaDrawer} onOpen={() => (forjaDrawer ? openDrawer(forja.status?.active && forja.button.mode !== 'free-niche' ? 'run' : 'choose') : goToForjaAnchor())} onStatus={goToForjaAnchor} /> : null}
+            {forja ? <ForjaHeaderButtons forja={forja} drawerOpen={!!drawer} modal={modal && !!forjaDrawer} onOpen={onForjaHeader} onStatus={goToForjaAnchor} /> : null}
             <button className="obs-ch-btn" type="button" title="Sincronizar concorrentes" aria-disabled={syncing || undefined} onClick={() => sync(false)}>
               {Icon.sync()}<span className="obs-ch-lbl-t">Sincronizar concorrentes</span>
             </button>
@@ -235,7 +275,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
           <NicheBar niches={niches} pending={pendingNiche} onPick={pickNiche} />
         </div>
       </div>
-      <div className="obs-ch-screen"><ChromeSyncContext.Provider value={syncCtx}>{children}</ChromeSyncContext.Provider></div>
+      <div className="obs-ch-screen"><ChromeSyncContext.Provider value={syncCtx}><ForjaHeaderContext.Provider value={headerCtx}>{children}</ForjaHeaderContext.Provider></ChromeSyncContext.Provider></div>
     </div>
     {drawerEl && modal ? <div className="obs-ch-backdrop" aria-hidden="true" onClick={closeDrawer} /> : null}
     {drawerEl}
