@@ -4,7 +4,7 @@
  * Links are plain anchors with hrefs built by the engine (link.historico, video.url).
  */
 import Link from 'next/link'
-import type { Hero } from './view-model'
+import { SWIPE_ARIA, type Hero } from './view-model'
 import { Ic, type IconName } from './icons'
 import { TitleDiffView } from './title-diff'
 import { ThumbCompare } from './thumb-compare'
@@ -13,7 +13,8 @@ import { EffectPanel } from './effect-panel'
 
 const KIND_ICON: Record<Hero['type'], IconName> = { title: 'title', thumb: 'image', desc: 'text' }
 
-export interface SwipeState { saved: boolean; label: string; busy: boolean }
+/** `label` is the visible state (title=); the accessible name stays SWIPE_ARIA and the state is aria-pressed. */
+export interface SwipeState { saved: boolean; label: string; busy: boolean; disabled: boolean }
 
 function ChangeRow({ h, swipe, onSwipe }: { h: Hero; swipe: SwipeState; onSwipe: (h: Hero) => void }) {
   return (
@@ -22,8 +23,9 @@ function ChangeRow({ h, swipe, onSwipe }: { h: Hero; swipe: SwipeState; onSwipe:
         <span className="kind"><Ic name={KIND_ICON[h.type]} />{h.typeLabel}</span>
         <span className="wline" data-kind={h.type} data-prec={h.when.prec}>{h.when.text}<span className="rel">{h.when.rel}</span></span>
         {h.when.seq ? <span className="seq">{h.when.seq}</span> : null}
-        <button className="ghost save" type="button" aria-pressed={swipe.saved} aria-label={swipe.label} title={swipe.label} aria-busy={swipe.busy || undefined}
-          onClick={() => { if (!swipe.busy) onSwipe(h) }}><Ic name="bookmark" /></button>
+        <button className="ghost save" type="button" aria-pressed={swipe.saved} aria-label={SWIPE_ARIA} title={swipe.label} aria-busy={swipe.busy || undefined}
+          disabled={swipe.disabled} data-swipe-disabled={swipe.disabled ? '' : undefined}
+          onClick={() => { if (!swipe.busy && !swipe.disabled) onSwipe(h) }}><Ic name="bookmark" /></button>
       </div>
       <div className="diff">
         {h.badges.map((b, i) => (

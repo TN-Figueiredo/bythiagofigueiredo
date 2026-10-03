@@ -61,7 +61,8 @@ export interface Hero {
   revTag: boolean
   title?: TitleView; thumbs?: ThumbView[]; desc?: DescView
   effect: EffectView
-  swipe: { saved: boolean; label: string; key: string }
+  /** key = the competitor_changes version key; null when this (legacy) change cannot be resolved to a row (R41). */
+  swipe: { saved: boolean; label: string; key: string | null }
 }
 export interface LedgerRow { type: ChangeType; typeLabel: string; median: string | null; n: number; range: string | null; few: boolean; text: string }
 export interface MudancasView {
@@ -93,14 +94,17 @@ const MEASURED: readonly EffectStatus[] = ['ganhou', 'perdeu', 'neutro', 'inconc
 const NICHE_LABEL: Record<NicheScope, string> = { todos: 'Todos', viagem: 'Viagem', ia: 'IA' }
 const FMT_LABEL: Record<'all' | Fmt, string> = { all: 'longos e Shorts', long: 'longos', short: 'Shorts' }
 const TYPE_NAME: Record<ChangeType, string> = { title: 'título', thumb: 'thumbnail', desc: 'descrição' }
-const INC_KINDS: Array<[string, (n: number) => string]> = [
-  ['janela-dupla', n => (n === 1 ? 'inconclusiva' : 'inconclusivas') + ' por 2 campos em < 48 h'],
+const INC_KINDS: Array<[string, (n: number, h: number) => string]> = [
+  ['janela-dupla', (n, h) => (n === 1 ? 'inconclusiva' : 'inconclusivas') + ' por 2 campos em < ' + h + '\u00a0h'],
   ['versao-curta', () => 'com uma das versões menos de 1 dia no ar'],
   ['antes-curto', () => 'com o antes curto demais (≤ 2 dias)'],
   ['outro', n => (n === 1 ? 'inconclusiva' : 'inconclusivas') + ' por outro motivo'],
 ]
 export const PAGE_STEP = 8
 export const SWIPE_LABEL = { on: 'Salvo no swipe file', off: 'Salvar no swipe file' } as const
+/** Stable accessible name of the swipe button; the state is conveyed by aria-pressed only. */
+export const SWIPE_ARIA = 'Salvar no swipe file'
+export const SWIPE_UNAVAILABLE = 'Esta troca antiga não pode ir para o swipe file por aqui'
 
 const cap = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t)
 const pl = (n: number, one: string, many: string) => n + ' ' + (n === 1 ? one : many)
@@ -256,7 +260,7 @@ function badges(obs: Observatory, c: ObsChange): Hero['badges'] {
   if (c.sameWindow.length || c.within48h.length) {
     const o = obs.change(c.sameWindow[0] ?? c.within48h[0]!)
     if (o) out.push({ kind: 'note', text: (c.sameWindow.length ? 'Mudou na mesma janela de sincronização que ' + (o.type === 'thumb' ? 'a thumbnail' : o.type === 'title' ? 'o título' : 'a descrição')
-      : o.typeLabel + ' mudou menos de 48 h ' + (o.at < c.at ? 'antes' : 'depois') + ' desta troca (' + o.whenText + ')') + ': o efeito não se separa' })
+      : o.typeLabel + ' mudou menos de ' + obs.RULES.effect.simultHours + ' h ' + (o.at < c.at ? 'antes' : 'depois') + ' desta troca (' + o.whenText + ')') + ': o efeito não se separa' })
   }
   const T = obs.RULES.testCompareMaxDays
   if (c.revertTo) {
@@ -325,7 +329,11 @@ function effectView(obs: Observatory, c: ObsChange): EffectView {
 }
 
 /* ------------------------------------------------------------------ the view */
-export function buildMudancasView(obs: Observatory, p: Record<string, string | undefined>, saved: Set<string>): MudancasView {
+/**
+ * `swipeKeys` (optional): engine change id → competitor_changes key (null = cannot be resolved). Without it the key is
+ * the change's `toId` (the version it opened = `to_version_id`).
+ */
+export function buildMudancasView(obs: Observatory, p: Record<string, string | undefined>, saved: Set<string>, swipeKeys?: Map<string, string | null>): MudancasView {
   const f = parseFilters(obs, p)
   const { query, extra, fmtQ } = makeQuery(obs, saved)
   const D = obs.date, F = obs.fmt, RE = obs.RULES.effect
@@ -393,7 +401,8 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
       revTag: f.sort !== 'recent' && !!c.revertTo,
       ...(c.type === 'title' ? { title: titleView(obs, c) } : c.type === 'thumb' ? { thumbs: thumbViews(obs, c, v) } : { desc: descView(c, c.id === firstDesc) }),
       effect: effectView(obs, c),
-      swipe: { saved: saw, label: saw ? SWIPE_LABEL.on : SWIPE_LABEL.off, key: c.toId },
+      swipe: (() => { const key = swipeKeys && swipeKeys.has(c.id) ? swipeKeys.get(c.id)! : c.toId
+        return { saved: key != null && saw, label: key == null ? SWIPE_UNAVAILABLE : saw ? SWIPE_LABEL.on : SWIPE_LABEL.off, key } })(),
     }
   })
 
@@ -429,7 +438,7 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
   if (reverts.length) items.push([{ num: String(reverts.length) }, ' ' + (reverts.length === 1 ? 'voltou' : 'voltaram') + ' à versão anterior '
     + (rm != null ? '(mediana ' + F.pp(rm) + ')' : reverts.length === 1 ? '(' + F.pp(rvals[0] ?? null) + ', caso isolado)' : '(' + (rvals.length ? rangeTxt(rvals) : '—') + ', pouco para concluir)')])
   if (withCav.length) items.push([{ num: String(withCav.length) }, ' com ressalva (outra troca no mesmo vídeo nos ' + RE.afterDays + ' dias depois)'])
-  for (const [k, txt] of INC_KINDS) { const n = inconclusiveByType[k]!; if (n) items.push([{ num: String(n) }, ' ' + txt(n)]) }
+  for (const [k, txt] of INC_KINDS) { const n = inconclusiveByType[k]!; if (n) items.push([{ num: String(n) }, ' ' + txt(n, RE.simultHours)]) }
   if (noVer.length) items.push([{ num: String(noVer.length) }, ' sem veredito ainda (aguardando, sem antes ou sem série)'])
   if (items.length) {
     out.push({ b: 'Fora das medianas' }, ', ')
@@ -516,11 +525,13 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
   }
   const filtered = f.type !== 'all' || f.channel !== 'all' || f.measured || f.saved || !!f.q || !!f.video || !!f.changes
   const total = ordered.length, nvt = visibleVideos.length
+  const outOfPool = f.changes ? f.changes.length - obs.changesIn({ days: 90, niche: 'todos' }).filter(c => f.changes!.includes(c.id)).length : 0
   const countLines: Rich[] = cuts.map(shown => {
     const nv = new Set(ordered.slice(0, shown).map(c => c.video)).size
     return ['Mostrando ', { num: String(shown) }, ' de ', { num: String(total) }, ' ' + (total === 1 ? 'troca' : 'trocas') + (filtered ? (total === 1 ? ' que bate com os filtros' : ' que batem com os filtros') : '') + ', em ',
       { num: String(nv) }, ' de ', { num: String(nvt) }, ' ' + (nvt === 1 ? 'vídeo' : 'vídeos')
       + (f.changes ? '. Lista enviada pelo link da leitura da forja, procurada nos últimos 90 dias (a janela de ' + (first(p.win) && ['7', '30', '90'].includes(p.win!) ? p.win : '30') + ' d não se aplica).'
+        + (outOfPool ? ' ' + pl(outOfPool, 'troca citada ficou', 'trocas citadas ficaram') + ' fora da janela de 90 dias.' : '')
         : '. Janela: últimos ' + f.win + ' dias, ' + FMT_LABEL[f.fmt] + (f.sort === 'recent' ? '.' : '. Ordem: ' + (f.sort === 'gain' ? 'maior efeito primeiro' : 'menor efeito primeiro') + ' (uma troca por cartão); trocas sem veredito no fim.'))]
   })
   const restTexts = cuts.map(shown => total - shown > 0 ? pl(total - shown, 'troca ainda não mostrada', 'trocas ainda não mostradas') : 'Fim da lista')
@@ -545,6 +556,12 @@ function emptyView(obs: Observatory, f: MudancasFilters, query: Q['query'], extr
   if (f.changes) {
     const ids = f.changes, lst = obs.changesIn({ days: 90, niche: 'todos' }).filter(c => ids.includes(c.id))
     const kinds = [...new Set(lst.map(c => c.typeLabel.toLowerCase()))]
+    if (!lst.length) return {
+      title: pl(ids.length, 'troca citada', 'trocas citadas') + ' fora da janela de 90 dias',
+      text: 'A lista veio do link da leitura da forja, mas ' + (ids.length === 1 ? 'a troca citada é anterior' : 'as trocas citadas são anteriores') + ' aos últimos 90 dias, a janela que esta tela procura.',
+      hiddenBy: 'a janela de 90 dias',
+      actions: [{ label: 'Tirar a lista da forja', patch: { changes: null, win: null, fmt: null } }],
+    }
     return {
       title: 'Nenhuma das ' + pl(lst.length, 'troca citada', 'trocas citadas') + ' pela forja' + (f.type !== 'all' ? ' é de ' + TYPE_NAME[f.type] : ' passa nos filtros'),
       text: 'A lista veio do link da leitura da forja. ' + (f.type !== 'all' ? 'Ela tem ' + kinds.join(' e ') + '.' : ''),
@@ -572,7 +589,7 @@ function emptyView(obs: Observatory, f: MudancasFilters, query: Q['query'], extr
   if (base.length) {
     const fix = FILT.map(x => ({ x, n: extra({ ...f, ...x.drop }, query({ ...f, ...x.drop })).length })).filter(o => o.n > 0)
     const typed = f.type !== 'all' ? base.filter(c => c.type === f.type) : base
-    if (f.measured && typed.length) {
+    if (f.measured && typed.length && typed.every(c => !MEASURED.includes(obs.effect(c.id)!.status))) {
       const by = new Map<string, number>()
       for (const c of typed) { const s = obs.effect(c.id)!.label; by.set(s, (by.get(s) ?? 0) + 1) }
       text = (typed.length === 1 ? 'A única troca' : 'As ' + typed.length + ' trocas') + tp + ' desta janela' + where + ' ainda não ' + (typed.length === 1 ? 'tem' : 'têm') + ' efeito medido: ' + [...by].map(([k, n]) => n + ' ' + k).join(', ') + '.'

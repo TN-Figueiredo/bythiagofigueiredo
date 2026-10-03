@@ -7,7 +7,7 @@
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useToast } from '../_chrome/toasts'
-import { SWIPE_LABEL, type Hero, type MudancasView } from './view-model'
+import { SWIPE_LABEL, SWIPE_UNAVAILABLE, type Hero, type MudancasView } from './view-model'
 import { Ledger } from './ledger'
 import { Filters, useGo } from './filters'
 import { VideoGroup, type SwipeState } from './change-hero'
@@ -33,15 +33,17 @@ export function MudancasScreen({ view, onToggleSwipe, forjaSlot }: MudancasScree
   useEffect(() => { if (view.nicheNote) toast('', view.nicheNote, '') }, [view.nicheNote, toast])
 
   const swipeOf = useCallback((h: Hero): SwipeState => {
+    if (h.swipe.key == null) return { saved: false, label: SWIPE_UNAVAILABLE, busy: false, disabled: true }
     const saved = over[h.id] ?? h.swipe.saved
-    return { saved, label: saved ? SWIPE_LABEL.on : SWIPE_LABEL.off, busy: !!busy[h.id] }
+    return { saved, label: saved ? SWIPE_LABEL.on : SWIPE_LABEL.off, busy: !!busy[h.id], disabled: false }
   }, [over, busy])
   const onSwipe = useCallback(async (h: Hero) => {
-    if (!onToggleSwipe) return
+    const key = h.swipe.key
+    if (!onToggleSwipe || key == null) return
     const was = over[h.id] ?? h.swipe.saved
     setOver(o => ({ ...o, [h.id]: !was })); setBusy(b => ({ ...b, [h.id]: true }))
     let r: SwipeResult
-    try { r = await onToggleSwipe(h.swipe.key) } catch { r = { ok: false } }
+    try { r = await onToggleSwipe(key) } catch { r = { ok: false } }
     setBusy(b => ({ ...b, [h.id]: false }))
     if (!r.ok) {
       setOver(o => ({ ...o, [h.id]: was }))
