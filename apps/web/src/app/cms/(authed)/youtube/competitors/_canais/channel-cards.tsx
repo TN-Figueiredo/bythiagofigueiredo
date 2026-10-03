@@ -2,13 +2,13 @@
 /** Cards view of Canais (port of canais.html card()). */
 import type { CanaisGroup, CanaisRow, CanaisView } from './view-model'
 import { CadenceView, ChCell, GrowthView, OutView, SwapView, SyncView, VpdView } from './cells'
-import { GroupMeta, type RowHandlers } from './channel-table'
+import { GroupMeta, OwnGroupParts, type RowHandlers } from './channel-table'
 
 function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }) {
   const c = r.cells
   return (
     <article className={'card ' + (r.own ? 'you' : '')} data-id={r.id}>
-      <ChCell r={r} ctx="card" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n)} />
+      <ChCell r={r} ctx="card" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'card')} />
       <div><CadenceView c={c.cadence} /></div>
       <div className="kv">
         <div><div className="l">Views/dia, {view.scale === 'per-mil' ? 'por mil inscritos' : 'mediana'}</div><VpdView c={c.vpd} /></div>
@@ -24,10 +24,11 @@ function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }
   )
 }
 
-export function ChannelCards({ view, own, groups, h, empty }: { view: CanaisView; own: CanaisRow | null; groups: CanaisGroup[]; h: RowHandlers; empty: React.ReactNode }) {
+export function ChannelCards({ view, own, groups, h, empty }: { view: CanaisView; own: CanaisView['own']; groups: CanaisGroup[]; h: RowHandlers; empty: React.ReactNode }) {
   return (
     <div className="cards">
-      {own ? <Card r={own} h={h} view={view} /> : null}
+      {own.group ? <div className="cardsep" data-own-group=""><strong>{own.group.label}</strong> <span className="gin" style={{ position: 'static', padding: '0 0 0 4px' }}><OwnGroupParts parts={own.group.parts} /></span></div> : null}
+      {own.rows.map(r => <Card key={r.id} r={r} h={h} view={view} />)}
       {groups.map(g => [
         <div key={'s-' + g.key} className="cardsep"><strong>{g.label}</strong> {g.count} <span className="gin" style={{ position: 'static', padding: '0 0 0 8px' }}><GroupMeta g={g} /></span></div>,
         ...g.rows.map(r => <Card key={r.id} r={r} h={h} view={view} />),

@@ -29,6 +29,8 @@ export interface CanaisScreenProps {
   onRemove: (id: string) => Promise<{ ok: boolean }>
   onUnlock: () => Promise<{ ok: boolean; error?: string }>
   onSetNiche: (id: string, niche: Niche) => Promise<{ ok: boolean }>
+  /** Niche of an own channel (server action setOwnChannelNiche): another table, so another action. */
+  onSetOwnNiche: (id: string, niche: Niche) => Promise<{ ok: boolean }>
   onSyncOne: (id: string) => Promise<{ ok: boolean }>
   /** "Pedir leitura à forja" in the channel drawer (server action askForjaReading). */
   onAskForja?: ForjaAsk
@@ -54,7 +56,7 @@ function trapTab(e: KeyboardEvent<HTMLElement>) {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
 }
 
-export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSyncOne, onAskForja }: CanaisScreenProps) {
+export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
@@ -132,12 +134,26 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
 
   const rowOf = useCallback((id: string) => view.rows.find(r => r.id === id) ?? view.groups.flatMap(g => g.rows).find(r => r.id === id) ?? null, [view])
 
-  const setNiche = async (r: { id: string; name: string }, n: Niche) => {
-    const res = await onSetNiche(r.id, n)
-    if (!res.ok) { toast('bad', 'Não deu para mudar o nicho', `${r.name} continua no nicho anterior.`); return }
+  // The server said the channel of ?channel= is in another niche than the explicit filter: drop it from the URL.
+  useEffect(() => { if (view.drawerDropped) go({ channel: null, tab: null }) }, [view.drawerDropped]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setNiche = async (r: { id: string; name: string; own: boolean; niche: Niche | null }, n: Niche, ctx: string) => {
+    let ok = false
+    try { ok = (await (r.own ? onSetOwnNiche : onSetNiche)(r.id, n)).ok } catch { ok = false }
+    if (!ok) { toast('bad', 'Não deu para mudar o nicho', r.niche ? `${r.name} continua no nicho anterior.` : `${r.name} continua sem nicho.`); return }
+    const NLn = n === 'ia' ? 'IA' : 'Viagem'
     const left = view.niche !== 'todos' && view.niche !== n
-    toast('ok', `Nicho de ${r.name} alterado para ${n === 'ia' ? 'IA' : 'Viagem'}`, left ? `Ele saiu do filtro ${view.nicheLabel}.` : '')
+    toast('ok', r.own ? `Nicho de ${r.name} definido como ${NLn}` : `Nicho de ${r.name} alterado para ${NLn}`, left ? `Ele saiu do filtro ${view.nicheLabel}.` : '')
+    // the channel left the filter and its drawer is the open one: close it
+    if (left && drawer?.id === r.id) { setClosedDrawer(r.id); go({ channel: null, tab: null }) }
     router.refresh()
+    // canais.html: the focus goes back to the select that changed. A channel that left the filter loses its row (and
+    // its drawer) on the refresh, so the focus goes to the first row that stays; the editor dialog lists every niche.
+    const root = '[data-obs-screen="canais"]'
+    if (left && ctx !== 'editor') {
+      const stay = () => [...document.querySelectorAll<HTMLElement>(`${root} .nmbtn`)].find(b => b.dataset.open !== r.id)?.focus()
+      stay(); requestAnimationFrame(stay) // again after the drawer closed: until then the table is inert
+    } else document.querySelector<HTMLElement>(`${root} select[data-niche="${CSS.escape(r.id)}"][data-ctx="${CSS.escape(ctx)}"]`)?.focus()
   }
   const syncOne = async (id: string) => {
     const r = rowOf(id); if (!r) return
@@ -190,7 +206,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     : view.filter === 'problemas' ? <>{view.emptyText} <Link className="btn small link" href={view.problems.clearHref}>Mostrar todos</Link></> : <>{view.emptyText}</>
 
   const h: RowHandlers = {
-    open: openDrawer, niche: (r, n) => { void setNiche(r, n) },
+    open: openDrawer, niche: (r, n, ctx) => { void setNiche(r, n, ctx) },
     menu: (id, btn) => {
       if (menu?.id === id) { closeMenu(true); return }
       menuTrigger.current = btn
@@ -278,8 +294,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           </div>
 
           {view.layout === 'table'
-            ? <ChannelTable view={view} own={view.own.row} groups={groups} h={h} onSort={onSort} empty={empty} />
-            : <ChannelCards view={view} own={view.own.row} groups={groups} h={h} empty={empty} />}
+            ? <ChannelTable view={view} own={view.own} groups={groups} h={h} onSort={onSort} empty={empty} />
+            : <ChannelCards view={view} own={view.own} groups={groups} h={h} empty={empty} />}
 
           <div className="legend">
             <span><i aria-hidden="true" /> vídeo longo</span>
@@ -293,7 +309,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           <>
             {drawerModal ? <button type="button" className="cn-backdrop" aria-label="Fechar detalhes do canal" tabIndex={-1} onClick={closeDrawer} /> : null}
             <ChannelDrawer d={drawer} modal={drawerModal} upnextHref={UPNEXT} onClose={closeDrawer} closeRef={closeRef} trap={trapTab}
-              onRemove={from => askRemove(drawer.id, from)} onNiche={n => { void setNiche({ id: drawer.id, name: drawer.name }, n) }}
+              onRemove={from => askRemove(drawer.id, from)} onNiche={n => { void setNiche({ id: drawer.id, name: drawer.name, own: drawer.own, niche: drawer.niche }, n, 'drawer') }}
               forjaSlot={view.drawerForja && view.drawerForja.niche === drawer.niche ? <DrawerForjaBox f={view.drawerForja} /> : null}
               forjaFootSlot={view.drawerForja && view.drawerForja.niche === drawer.niche ? <DrawerForjaFoot f={view.drawerForja} onAsk={onAskForja} /> : null} />
           </>
@@ -332,7 +348,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
       ) : null}
 
       {nicheOpen ? (
-        <NicheEditorDialog rows={view.nicheRows} onNiche={(r, n) => { void setNiche(r, n) }} onClose={closeNiche} trap={trapTab} />
+        <NicheEditorDialog rows={view.nicheRows} onNiche={(r, n) => { void setNiche({ ...r, own: false }, n, 'editor') }} onClose={closeNiche} trap={trapTab} />
       ) : null}
     </div>
   )

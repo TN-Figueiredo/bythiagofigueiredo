@@ -133,8 +133,16 @@
 [data-obs-screen="canais"] .ch .sub{display:flex;align-items:center;gap:6px;margin-top:1px;font-size:12px;color:var(--muted)}
 [data-obs-screen="canais"] .niche{appearance:none;-webkit-appearance:none;border:0;border-radius:5px;height:32px;padding:0 20px 0 8px;font-size:12px;font-weight:600;cursor:pointer;background-repeat:no-repeat;background-position:right 7px center;background-size:7px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23958A75'/%3E%3C/svg%3E")}
 [data-obs-screen="canais"] .niche.viagem{background-color:var(--travel-subtle);color:var(--travel)}
+[data-obs-screen="canais"] .niche.none{background-color:transparent;color:var(--muted);border:1px dashed var(--border-strong);padding-left:7px}
 [data-obs-screen="canais"] .niche.ia{background-color:var(--ai-subtle);color:var(--ai)}
 [data-obs-screen="canais"] .niche option{color:#231C14;background:#FBF7F0}
+[data-obs-screen="canais"] .youtag,[data-obs-screen="canais"] .langtag{white-space:nowrap;flex:none}
+[data-obs-screen="canais"] .nmrow{display:flex;align-items:center;gap:7px;min-width:0;max-width:163px}
+[data-obs-screen="canais"] .nmrow .nmbtn{min-width:0;flex:0 1 auto}
+[data-obs-screen="canais"] tr.you .ch .sub,[data-obs-screen="canais"] .card.you .ch .sub{flex-wrap:wrap;row-gap:4px;max-width:163px}
+[data-obs-screen="canais"] tr.you .ch .sub + .sub,[data-obs-screen="canais"] .card.you .ch .sub + .sub{margin-top:3px}
+[data-obs-screen="canais"] .nmrow .langtag{height:20px;padding:0 5px}
+[data-obs-screen="canais"] .langtag{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--muted);border:1px solid var(--border-strong);border-radius:5px;padding:0 6px;height:24px;display:inline-flex;align-items:center;text-decoration:none;cursor:help}
 [data-obs-screen="canais"] .youtag{font-size:12px;font-weight:600;color:var(--youtag-text);background:var(--youtag-bg);border:1px solid var(--youtag-border);border-radius:5px;padding:0 8px;height:24px;display:inline-flex;align-items:center}
 
 /* cadence strip */

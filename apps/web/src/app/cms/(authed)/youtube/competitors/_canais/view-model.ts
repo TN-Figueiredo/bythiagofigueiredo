@@ -11,6 +11,7 @@ import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
 import { humanizeSyncError, type ChannelStats } from '@/lib/youtube/observatorio/channels'
 import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
+import { langChip, ownTexts, type LangChip } from '../_chrome/own-channels'
 
 const NB = ' '
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
@@ -52,6 +53,8 @@ export interface CanaisRow {
   growth: string; growthTitle: string
   sync: { label: string; phrase: string | null; state: SyncState }
   own: boolean
+  /** Language mark of an own channel; null for competitors and when the site has a single own channel. */
+  lang: LangChip | null
   color: string; ini: string; subs: string; subsTip: string; url: string; handle: string; backfill: boolean; paused: boolean
   sortKeys: Record<CanaisSort, number>
   cells: { cadence: CadenceCell; vpd: VpdCell; out: OutCell; swap: SwapCell; growth: GrowthCell; sync: SyncCell }
@@ -59,6 +62,8 @@ export interface CanaisRow {
   /** Toast texts of "Sincronizar só este canal" (the screen builds no text). */
   syncOneText: { start: string; ok: string; okBody: string; fail: string; failBody: string; backfill: string }
 }
+/** One piece of the "Seus canais" group line (canais.html ownParts): a mono number, a sentence, or a warning. */
+export interface OwnGroupPart { num: string | null; text: string; warn: boolean }
 export interface CanaisGroup { key: Niche | 'sem'; label: string; count: string; flags: Array<{ kind: 'erro' | 'atrasado' | 'backfill' | 'parado'; text: string }>; rows: CanaisRow[] }
 
 export interface EffectView { vd: 'won' | 'lost' | 'neu' | 'inc' | 'wait'; icon: 'up' | 'down' | 'eq' | 'q' | 'wait' | 'nodata'; label: string | null; main: Array<{ t: string; mono?: boolean }>; sub: string | null; subWeak: string | null }
@@ -74,6 +79,7 @@ export interface VidRow { id: string; thumb: Thumb; title: string; published: st
 export interface LinkN { n: number; key: string; href: string; text: string }
 export interface DrawerView {
   id: string; tab: DrawerTab; own: boolean; backfill: boolean; name: string; color: string; ini: string; niche: Niche | null
+  lang: LangChip | null
   handle: string; url: string; subsText: string; cov: string
   stats: Array<{ label: string; labelTitle: string | null; value: string; sub: string; subTitle: string | null; subWeak: boolean }>
   swaps: { count: number; intro: string; note: string | null; cards: SwapCard[]; link: LinkN | null }
@@ -86,9 +92,12 @@ export interface CanaisView {
   scale: 'per-mil' | 'abs'; fmt: 'long' | 'short'; layout: 'table' | 'cards'
   sort: CanaisSort; dir: 'asc' | 'desc'; sortNote: string; vpdUnit: string
   rows: CanaisRow[]
-  own: { row: CanaisRow | null; emptyText: string | null }
+  /** Every own channel shown under the current niche scope, in the engine's order (R73); never sorted by the clicked column. */
+  own: { rows: CanaisRow[]; group: { label: string; parts: OwnGroupPart[] } | null; many: boolean }
   groups: CanaisGroup[]
   drawer: DrawerView | null
+  /** The URL asked for the drawer of a channel that is in another niche than the explicit filter: the screen drops ?channel=. */
+  drawerDropped: boolean
   filter: 'todos' | 'problemas'; addOpen: boolean; nicheEditorOpen: boolean
   niche: NicheScope; nicheLabel: string
   problems: { n: number; filterHref: string; clearHref: string }
@@ -120,6 +129,8 @@ export interface CanaisDrawerForja {
 export interface CanaisParams {
   niche: NicheScope; limit: number; channel?: string; tab?: string; add?: string; filter?: string; scale?: string; fmt?: string; layout?: string
   sort?: string; dir?: string; nicheEditor?: string; unlockStep?: number
+  /** ?niche= is in the URL (a click on the niche bar), not only the persisted preference. */
+  nicheExplicit?: boolean
 }
 
 const pick = <T extends string>(v: string | undefined, ok: readonly T[], d: T): T => (v && (ok as readonly string[]).includes(v) ? (v as T) : d)
@@ -196,12 +207,16 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const methodText = (m: MultiplierResult) => (m.fallbackText ? cap(m.fallbackText) : 'Método: ' + m.method)
   const coworkOf = (c: ObsChannel) => `Leia o canal ${c.name}${c.handle ? ` (${c.handle})` : ''} via youtube_observatory: ${obs.link.canais({ channel: c.id })}. Compare ritmo, views/dia e trocas dos últimos 30 dias com os outros canais de ${c.niche ? NL[c.niche] : 'todos os nichos'}. Não afirme causa.`
 
+  /* ---------------------------------------------------------------- own channels (canais.html:620-627) */
+  const allOwns = obs.ownChannels() // R73: subscribers, largest first
+  const many = allOwns.length > 1, T = ownTexts(many)
+
   /* ---------------------------------------------------------------- slots */
   const { used, limit, free } = obs.channelSlots(p.limit)
   const slots = {
     used, limit, free, text: `${used} de ${limit} canais`,
     fullText: free === 0 ? `Sem vagas: ${used} de ${limit} concorrentes. Remova um canal para adicionar outro.` : null,
-    tip: `Até ${limit} concorrentes acompanhados; o seu canal não ocupa vaga. ${free ? (free === 1 ? 'Sobra 1 vaga.' : `Sobram ${free} vagas.`) : 'Sem vagas: para acompanhar outro, remova um.'}`,
+    tip: `Até ${limit} concorrentes acompanhados; ${T.slot}. ${free ? (free === 1 ? 'Sobra 1 vaga.' : `Sobram ${free} vagas.`) : 'Sem vagas: para acompanhar outro, remova um.'}`,
     nearFull: free <= 5, unlockText: `Destravar mais ${p.unlockStep ?? 25} vagas`, unlockDone: `Mais ${p.unlockStep ?? 25} vagas disponíveis.`,
   }
 
@@ -277,7 +292,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     const sync = syncCell(c, S)
     const outN = obs.outliers({ channel: c.id, fmt, includeOwn: c.own }).count
     return {
-      id: c.id, name: c.name, niche: c.niche, own: c.own, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
+      id: c.id, name: c.name, niche: c.niche, own: c.own, lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
       outliers: { n: outN, href: obs.link.outliers({ channel: c.id, fmt }) },
       changes: { n: c.own ? 0 : obs.changesIn({ channel: c.id }).length, href: obs.link.mudancas({ channel: c.id }) },
       growth: growth.kind === 'na' ? growth.text : growth.big, growthTitle: growth.kind === 'ok' ? growth.title : growth.kind === 'na' ? growth.title : growth.cap,
@@ -299,13 +314,22 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   }
 
   const all = obs.channels
-  const ownCh = all.find(c => c.own) ?? null
   const inNiche = (c: ObsChannel) => niche === 'todos' || c.niche === niche
   const comps = all.filter(c => !c.own && inNiche(c))
   const visible = comps.filter(c => filter !== 'problemas' || c.sync.state !== 'ok')
   const sgn = dir === 'desc' ? 1 : -1
   const compRows = visible.map(rowOf).sort((a, b) => (b.sortKeys[sort] - a.sortKeys[sort]) * sgn)
-  const ownRow = ownCh ? rowOf(ownCh) : null
+  // own channels: in Todos, all of them; in a niche, the ones of that niche and the ones still without a niche
+  const ownShown = allOwns.filter(c => niche === 'todos' || c.niche == null || c.niche === niche)
+  const ownNone = ownShown.filter(c => c.niche == null).length, ownIn = ownShown.length - ownNone, ownHidden = allOwns.length - ownShown.length
+  const ownParts: OwnGroupPart[] = [niche === 'todos'
+    ? { num: String(allOwns.length), text: allOwns.length === 1 ? 'canal' : 'canais', warn: false }
+    : ownIn ? { num: String(ownIn), text: `de ${nicheLabel}`, warn: false } : { num: null, text: `nenhum de ${nicheLabel}`, warn: false }]
+  if (ownNone) ownParts.push({ num: null, text: `${ownNone} sem nicho: escolha o nicho na linha do canal`, warn: true })
+  if (ownHidden) ownParts.push({ num: null, text: `${ownHidden} em outro nicho (${ownHidden === 1 ? 'aparece' : 'aparecem'} em Todos)`, warn: false })
+  ownParts.push({ num: null, text: 'fora do limite de concorrentes', warn: false })
+  const ownGroup = allOwns.length && (many || ownShown.length !== allOwns.length || ownNone > 0) ? { label: 'Seus canais', parts: ownParts } : null
+  const ownRows = ownShown.map(rowOf)
   const groupKeys: Array<[Niche | 'sem', string]> = niche === 'todos' ? [['viagem', 'Viagem'], ['ia', 'IA'], ['sem', 'Sem nicho']] : [[niche, NL[niche]]]
   const groups: CanaisGroup[] = groupKeys.map(([key, label]) => {
     const rows = compRows.filter(r => (key === 'sem' ? r.niche == null : r.niche === key))
@@ -324,13 +348,16 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const emptyText = filter === 'problemas'
     ? `Nenhum canal com problema de sincronização${niche !== 'todos' ? ` em ${nicheLabel}` : ''}.`
     : `Nenhum canal${niche !== 'todos' ? ` em ${nicheLabel}` : ''}. Para acompanhar um canal novo, use Adicionar canal.`
-  const ownStats = ownCh ? stats(ownCh.id) : null
-  const window = ownStats?.vpdWindow ?? `desde ${obs.SERIES_START_LABEL}`
+  const firstOwn = allOwns[0]
+  const window = (firstOwn ? stats(firstOwn.id).vpdWindow : null) ?? `desde ${obs.SERIES_START_LABEL}`
   const nextSync = obs.SYNC.next
 
   /* ---------------------------------------------------------------- drawer */
   const dc = p.channel ? obs.channel(p.channel) ?? null : null
-  const drawer = dc ? drawerOf(dc) : null
+  // requisito 9: an explicit ?niche= of another niche closes the drawer; a link from another tab (niche only persisted)
+  // opens it as before, and a channel without a niche opens under any filter
+  const drawerDropped = !!dc && p.nicheExplicit === true && niche !== 'todos' && dc.niche != null && dc.niche !== niche
+  const drawer = dc && !drawerDropped ? drawerOf(dc) : null
 
   function effView(e: EffectResult | null): EffectView | null {
     if (!e) return null
@@ -465,7 +492,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
 
     const tab: DrawerTab = p.tab === 'videos' || p.tab === 'outliers' ? p.tab : 'trocas'
     return {
-      id: c.id, tab, own: c.own, backfill: bf, name: c.name, color: c.color, ini: c.ini, niche: c.niche, handle: c.handle, url: c.url,
+      id: c.id, tab, own: c.own, backfill: bf, name: c.name, color: c.color, ini: c.ini, niche: c.niche, lang: c.own ? langChip(c.lang, many) : null, handle: c.handle, url: c.url,
       subsText: `${subsTxt(c.subs)} inscritos, arredondado pelo YouTube a 3 algarismos`, cov, stats: statsV,
       swaps: {
         count: list.length,
@@ -490,18 +517,18 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   return {
     ...forjaOf(obs, niche, drawer),
     slots, scale, fmt, layout, sort, dir,
-    sortNote: `Ordenado por ${SORTNAME[sort]}, ${dir === 'desc' ? 'maior' : 'menor'} primeiro`,
+    sortNote: `Ordenado por ${SORTNAME[sort]}, ${dir === 'desc' ? 'maior' : 'menor'} primeiro${many ? '; os seus canais ficam sempre no topo' : ''}`,
     vpdUnit: rel ? `por mil inscritos, mediana ${window}` : `mediana dos vídeos, ${window}`,
-    // the problems filter lists only channels in trouble; the screen still pins the own row on top (own.row)
-    rows: [...(ownRow && filter !== 'problemas' ? [ownRow] : []), ...compRows],
-    own: { row: ownRow, emptyText: ownCh && ownLongEmpty(ownCh) && fmt === 'long' ? ownEmptyText(ownCh) : null },
-    groups, drawer, filter, addOpen: p.add === '1', nicheEditorOpen: p.nicheEditor === '1',
+    // the problems filter lists only channels in trouble; the screen still pins the own rows on top (own.rows)
+    rows: [...(filter !== 'problemas' ? ownRows : []), ...compRows],
+    own: { rows: ownRows, group: ownGroup, many },
+    groups, drawer, drawerDropped, filter, addOpen: p.add === '1', nicheEditorOpen: p.nicheEditor === '1',
     niche, nicheLabel,
     problems: { n: np, filterHref: obs.link.canais({ filter: 'problemas' }), clearHref: obs.link.canais() },
     emptyText,
     legend: { mid: `${t.mid}–${t.high}×`, high: `${t.high}–${t.top}×`, top: `${t.top}×+` },
     add: {
-      cap: `${used} de ${limit} concorrentes acompanhados (o seu canal não conta): ${free === 0 ? 'nenhuma vaga. Remova um canal para adicionar outro' : free === 1 ? 'sobra 1 vaga' : `sobram ${free} vagas`}.`,
+      cap: `${used} de ${limit} concorrentes acompanhados (${T.count}): ${free === 0 ? 'nenhuma vaga. Remova um canal para adicionar outro' : free === 1 ? 'sobra 1 vaga' : `sobram ${free} vagas`}.`,
       when: `A busca dos vídeos começa ao adicionar, até o limite escolhido${nextSync != null ? `; o que faltar continua na sincronização das ${D.hm(nextSync)}` : ''}. A contagem diária de views começa no dia seguinte; inscritos precisam de 30 dias para o crescimento.`,
       defaultNiche: niche === 'todos' ? 'viagem' : niche, limitMax: R.videoLimitMax, defaultLimit: 50,
     },
@@ -509,7 +536,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       const comp = all.filter(c => !c.own), inRound = comp.filter(c => c.sync.state === 'ok').length, out = comp.filter(isBf).map(c => c.name)
       return {
         text: `Sincronização em andamento: ${F.plural(inRound, 'concorrente', 'concorrentes')} na rodada${out.length ? `; fora da rodada: ${out.join(', ')} (ainda buscando vídeos)` : ''}. O resultado de cada canal aparece quando a rodada termina.`,
-        meta: 'Seu canal não entra nesta rodada; ele sincroniza pelo Painel. O canal em coleta continua a própria coleta.',
+        meta: `${T.sync} O canal em coleta continua a própria coleta.`,
       }
     })(),
     nicheRows: all.filter(c => !c.own).map(c => ({ id: c.id, name: c.name, niche: c.niche }))

@@ -12,7 +12,7 @@ import { CanaisScreen } from './_canais/canais-screen'
 import { legacyTabRedirect } from './_canais/legacy'
 import { buildCanaisView } from './_canais/view-model'
 import { addChannelFromCanais, removeCompetitorChannel, syncCompetitorNow, unlockMoreChannels } from './actions'
-import { getUserNiche, setChannelNiche } from './niche-actions'
+import { getUserNiche, setChannelNiche, setOwnChannelNiche } from './niche-actions'
 import { askForjaReading } from './forja-actions'
 
 export const metadata = { title: 'Competidores' }
@@ -39,9 +39,10 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   const [rows, canUnlock] = await Promise.all([loadRows({ siteId, now }), canUnlockChannels(siteId)])
   const obs = createObservatory(rowsToDataset(rows, now))
   // The chrome persists a valid ?niche= and drops an invalid one; here it is only read.
-  const niche = parseNiche(one(sp.niche)) ?? await getUserNiche()
+  const urlNiche = parseNiche(one(sp.niche))
+  const niche = urlNiche ?? await getUserNiche()
   const view = buildCanaisView(obs, {
-    niche, limit: rows.settings?.channel_limit ?? DEFAULT_CHANNEL_LIMIT, unlockStep: UNLOCK_STEP,
+    niche, nicheExplicit: urlNiche != null, limit: rows.settings?.channel_limit ?? DEFAULT_CHANNEL_LIMIT, unlockStep: UNLOCK_STEP,
     channel: one(sp.channel), tab: one(sp.tab), add: one(sp.add), filter: one(sp.filter), scale: one(sp.scale), fmt: one(sp.fmt),
     layout: one(sp.layout), sort: one(sp.sort), dir: one(sp.dir), nicheEditor: one(sp.nicheEditor),
   })
@@ -50,7 +51,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
       <CanaisScreen
         view={view} canUnlock={canUnlock}
         onAdd={addChannelFromCanais} onRemove={removeCompetitorChannel} onUnlock={unlockMoreChannels}
-        onSetNiche={setChannelNiche} onSyncOne={syncCompetitorNow} onAskForja={askForjaReading}
+        onSetNiche={setChannelNiche} onSetOwnNiche={setOwnChannelNiche} onSyncOne={syncCompetitorNow} onAskForja={askForjaReading}
       />
     </ObservatoryChromeServer>
   )
