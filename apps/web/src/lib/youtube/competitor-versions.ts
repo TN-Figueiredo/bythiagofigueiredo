@@ -23,9 +23,13 @@ export function hashValue(text: string): string {
   return crypto.createHash('sha256').update(text).digest('hex').slice(0, 16)
 }
 
-function windowPrecision(w: SyncWindow): Precision {
-  if (!w.prevOkAt) return '1d'
-  return Date.parse(w.now) - Date.parse(w.prevOkAt) <= SLOT_MS ? '6h' : '1d'
+/** R16: the window of a change starts when the OLD version was last seen (per field); prevOkAt is only a fallback. */
+function windowStart(prev: StoredVersion, w: SyncWindow): string | null {
+  return prev.last_seen_at || w.prevOkAt
+}
+function windowPrecision(start: string | null, w: SyncWindow): Precision {
+  if (!start) return '1d'
+  return Date.parse(w.now) - Date.parse(start) <= SLOT_MS ? '6h' : '1d'
 }
 
 export function reconcileVideoVersions(current: StoredVersion[], observed: ObservedVideo, w: SyncWindow, opts: { lastModifiedMinute: boolean }): VersionPlan {
@@ -37,10 +41,11 @@ export function reconcileVideoVersions(current: StoredVersion[], observed: Obser
     const hash = hashValue(value), prev = cur(field)
     if (!prev) { plan.open.push({ field, value_text: value, value_hash: hash, has_text: true, precision: 'first', window_start: null, first_seen_at: w.now }); return }
     if (prev.value_hash === hash) { plan.touch.push(prev.id); return }
-    const precision = windowPrecision(w)
+    const start = windowStart(prev, w)
+    const precision = windowPrecision(start, w)
     plan.close.push(prev.id)
-    plan.open.push({ field, value_text: value, value_hash: hash, has_text: true, precision, window_start: w.prevOkAt, first_seen_at: w.now })
-    plan.changes.push({ field, fromId: prev.id, precision, window_start: w.prevOkAt, window_end: w.now })
+    plan.open.push({ field, value_text: value, value_hash: hash, has_text: true, precision, window_start: start, first_seen_at: w.now })
+    plan.changes.push({ field, fromId: prev.id, precision, window_start: start, window_end: w.now })
   }
   textField('title', observed.title)
   textField('desc', observed.description)
@@ -55,12 +60,13 @@ export function reconcileVideoVersions(current: StoredVersion[], observed: Obser
       if (!prev) plan.open.push({ field: 'thumb', value_text: null, value_hash: hash, has_text: false, precision: 'first', window_start: null, first_seen_at: w.now, thumb: t })
       else {
         const lm = t.lastModified ? Date.parse(t.lastModified) : NaN
-        const inWindow = Number.isFinite(lm) && w.prevOkAt !== null && lm > Date.parse(w.prevOkAt) && lm <= Date.parse(w.now)
-        const precision: Precision = opts.lastModifiedMinute && inWindow ? 'min' : windowPrecision(w)
+        const start = windowStart(prev, w)
+        const inWindow = Number.isFinite(lm) && start !== null && lm > Date.parse(start) && lm <= Date.parse(w.now)
+        const precision: Precision = opts.lastModifiedMinute && inWindow ? 'min' : windowPrecision(start, w)
         const firstSeen = precision === 'min' ? new Date(lm).toISOString() : w.now
         plan.close.push(prev.id)
-        plan.open.push({ field: 'thumb', value_text: null, value_hash: hash, has_text: false, precision, window_start: w.prevOkAt, first_seen_at: firstSeen, thumb: t })
-        plan.changes.push({ field: 'thumb', fromId: prev.id, precision, window_start: w.prevOkAt, window_end: firstSeen })
+        plan.open.push({ field: 'thumb', value_text: null, value_hash: hash, has_text: false, precision, window_start: start, first_seen_at: firstSeen, thumb: t })
+        plan.changes.push({ field: 'thumb', fromId: prev.id, precision, window_start: start, window_end: firstSeen })
       }
     }
   }

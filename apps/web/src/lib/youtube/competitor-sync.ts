@@ -115,17 +115,166 @@ export async function syncCompetitorChannel(
   let videosChecked = 0
   let changesDetected = 0
   let dailyRecorded = 0
+  const reconciled = new Set<string>()
+
+  type TrackedRow = { id: string; video_id: string; title: string | null; thumbnail_url: string | null }
+  const loadTracked = async (): Promise<TrackedRow[]> => {
+    const { data } = await supabase
+      .from('competitor_videos')
+      .select('id, video_id, title, thumbnail_url')
+      .eq('competitor_channel_id', channelRow.id)
+      .order('published_at', { ascending: false, nullsFirst: false })
+      .limit(videoLimit)
+    return (data ?? []) as TrackedRow[]
+  }
+  /** tracked uuids with no competitor_video_daily row for snapDate */
+  const missingDaily = async (uuids: string[], snapDate: string): Promise<string[]> => {
+    if (!uuids.length) return []
+    const have = new Set<string>()
+    for (let i = 0; i < uuids.length; i += 200) {
+      const { data } = await supabase.from('competitor_video_daily').select('video_id').eq('snap_date', snapDate).in('video_id', uuids.slice(i, i + 200))
+      for (const r of (data ?? []) as Array<{ video_id: string }>) have.add(r.video_id)
+    }
+    return uuids.filter(u => !have.has(u))
+  }
+  const loadCurrent = async (uuids: string[]): Promise<Map<string, StoredVersion[]>> => {
+    const map = new Map<string, StoredVersion[]>()
+    if (!uuids.length) return map
+    const { data } = await supabase
+      .from('competitor_video_versions')
+      .select('id, video_id, field, value_text, value_hash, thumb_etag, thumb_dhash, first_seen_at, last_seen_at')
+      .in('video_id', uuids)
+      .eq('is_current', true)
+    for (const r of (data ?? []) as Array<StoredVersion & { video_id: string }>) {
+      const list = map.get(r.video_id) ?? []
+      list.push(r)
+      map.set(r.video_id, list)
+    }
+    return map
+  }
+  const fail = (what: string, error: { message?: string } | null | undefined): void => {
+    if (error) throw new Error(`${what}: ${error.message ?? 'database error'}`)
+  }
+
+  /** Reconciles one video's versions and applies the plan. Throws on any database error (compensating first). */
+  const reconcileVideo = async (
+    videoUuid: string, videoId: string,
+    o: { apiTitle: string; apiDescription: string | undefined; thumbnailUrl: string | null; viewCount: number; existingTitle: string | null; existingThumbUrl: string | null },
+    current: StoredVersion[], touchIds: string[],
+  ): Promise<void> => {
+    reconciled.add(videoUuid)
+    const prevThumb = current.find(v => v.field === 'thumb') ?? null
+    let probe: ThumbProbe | null = null
+    try {
+      probe = await probeThumb(videoId, prevThumb ? { etag: prevThumb.thumb_etag, dhash: prevThumb.thumb_dhash } : null, f)
+    } catch {
+      probe = null // network failure: skip the thumbnail this round
+    }
+    const action: ThumbAction = probe ? classifyThumb(prevThumb, probe) : 'skip'
+
+    if (probe && prevThumb && action === 'heal') {
+      const blobUrl = await archiveThumb(videoUuid, probe).catch(() => null)
+      const { error } = await supabase.from('competitor_video_versions').update({
+        thumb_dhash: probe.dhash, thumb_etag: probe.etag, last_seen_at: nowIso,
+        ...(blobUrl ? { thumb_blob_url: blobUrl } : {}),
+      }).eq('id', prevThumb.id)
+      fail('heal thumb version', error)
+    } else if (probe && prevThumb && action === 'etag') {
+      const { error } = await supabase.from('competitor_video_versions').update({
+        thumb_etag: probe.etag, last_seen_at: nowIso,
+      }).eq('id', prevThumb.id)
+      fail('update thumb etag', error)
+    }
+
+    const skip: VersionField[] = []
+    if (!o.apiTitle) skip.push('title')
+    if (o.apiDescription === undefined) skip.push('desc')
+    if (action !== 'reconcile') skip.push('thumb')
+
+    const rawPlan = reconcileVideoVersions(
+      current,
+      { title: o.apiTitle, description: o.apiDescription === undefined ? '' : normalizeDescription(o.apiDescription), thumb: action === 'reconcile' ? probe : null },
+      { prevOkAt, now: nowIso },
+      { lastModifiedMinute: LAST_MODIFIED_MINUTE },
+    )
+    const plan = dropFields(rawPlan, current, skip)
+
+    touchIds.push(...plan.touch)
+    if (plan.close.length) {
+      const { error } = await supabase.from('competitor_video_versions').update({ is_current: false }).in('id', plan.close)
+      fail('close versions', error)
+    }
+    const reopenClosed = async () => {
+      if (plan.close.length) await supabase.from('competitor_video_versions').update({ is_current: true }).in('id', plan.close)
+    }
+    const newIds = new Map<VersionField, string>()
+    if (plan.open.length) {
+      const rows = []
+      for (const op of plan.open) {
+        const blobUrl = op.field === 'thumb' && op.thumb ? await archiveThumb(videoUuid, op.thumb).catch(() => null) : null
+        const lm = op.thumb?.lastModified ? Date.parse(op.thumb.lastModified) : NaN
+        rows.push({
+          video_id: videoUuid,
+          field: op.field,
+          value_text: op.value_text,
+          value_hash: op.value_hash,
+          has_text: op.has_text,
+          thumb_etag: op.thumb?.etag ?? null,
+          thumb_dhash: op.thumb?.dhash ?? null,
+          thumb_blob_url: blobUrl,
+          thumb_last_modified: Number.isFinite(lm) ? new Date(lm).toISOString() : null,
+          first_seen_at: op.first_seen_at,
+          last_seen_at: nowIso,
+          window_start: op.window_start,
+          precision: op.precision,
+          is_current: true,
+        })
+      }
+      const { data: opened, error } = await supabase.from('competitor_video_versions').insert(rows).select('id, field')
+      if (error) { await reopenClosed(); fail('open versions', error) }
+      for (const r of (opened ?? []) as Array<{ id: string; field: VersionField }>) newIds.set(r.field, r.id)
+    }
+    const changeRows = plan.changes.map(c => {
+      const fromV = current.find(v => v.id === c.fromId) as (StoredVersion & { value_text?: string | null }) | undefined
+      const opened = plan.open.find(op => op.field === c.field)
+      return {
+        video_id: videoUuid,
+        site_id: channelRow.site_id,
+        change_type: CHANGE_TYPE[c.field],
+        ...(c.field === 'title' ? { old_title: fromV?.value_text ?? o.existingTitle ?? null, new_title: opened?.value_text ?? o.apiTitle } : {}),
+        ...(c.field === 'thumb' ? { old_thumbnail_url: o.existingThumbUrl, new_thumbnail_url: o.thumbnailUrl } : {}),
+        view_count_at_change: o.viewCount,
+        from_version_id: c.fromId,
+        to_version_id: newIds.get(c.field) ?? null,
+        window_start: c.window_start,
+        window_end: c.window_end,
+        precision: c.precision,
+        detected_at: nowIso,
+      }
+    })
+    if (changeRows.length) {
+      const { error } = await supabase.from('competitor_changes').insert(changeRows)
+      if (error) {
+        // undo: drop the versions just opened, bring the closed ones back
+        const openedIds = [...newIds.values()]
+        if (openedIds.length) await supabase.from('competitor_video_versions').delete().in('id', openedIds)
+        await reopenClosed()
+        fail('insert changes', error)
+      }
+      changesDetected += changeRows.length
+    }
+  }
 
   try {
-    // Daily record due? (12:00 São Paulo, once per SP date)
-    const { data: lastDaily } = await supabase
-      .from('competitor_video_daily')
-      .select('snap_date, competitor_videos!inner(competitor_channel_id)')
-      .eq('competitor_videos.competitor_channel_id', channelRow.id)
-      .order('snap_date', { ascending: false })
-      .limit(1)
-    const lastRecordDate = ((lastDaily as Array<{ snap_date: string }> | null)?.[0]?.snap_date) ?? null
-    const { due: dailyDue, snapDate } = isDailyRecordDue(nowIso, lastRecordDate)
+    // Daily record due? 12:00 São Paulo AND at least one tracked video has no row for today's SP date
+    // (due per video, so a partial record is completed by the next sync).
+    const snapDate = spDate(nowMs)
+    const hourOk = isDailyRecordDue(nowIso, null).due
+    let dailyDue = false
+    if (hourOk) {
+      const tracked = await loadTracked()
+      dailyDue = needsBackfill || (await missingDaily(tracked.map(t => t.id), snapDate)).length > 0
+    }
 
     // ── 1. Channel metadata ──
     const channelRes = await api(
@@ -136,7 +285,7 @@ export async function syncCompetitorChannel(
     const channelData = await channelRes.json()
     const uploadsPlaylistId = channelData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads
     if (!uploadsPlaylistId) {
-      await supabase.from('competitor_channels').update({ sync_status: 'idle' }).eq('id', channelRow.id)
+      await supabase.from('competitor_channels').update({ sync_status: 'idle', last_ok_synced_at: nowIso, sync_error_since: null }).eq('id', channelRow.id)
       return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed }
     }
 
@@ -212,20 +361,7 @@ export async function syncCompetitorChannel(
       const existingMap = new Map((existingVideos ?? []).map(v => [v.video_id, v]))
 
       // Current versions of every known video in this page, one query
-      const currentByVideo = new Map<string, StoredVersion[]>()
-      const knownUuids = (existingVideos ?? []).map(v => v.id as string)
-      if (knownUuids.length) {
-        const { data: versionRows } = await supabase
-          .from('competitor_video_versions')
-          .select('id, video_id, field, value_text, value_hash, thumb_etag, thumb_dhash, first_seen_at, last_seen_at')
-          .in('video_id', knownUuids)
-          .eq('is_current', true)
-        for (const r of (versionRows ?? []) as Array<StoredVersion & { video_id: string }>) {
-          const list = currentByVideo.get(r.video_id) ?? []
-          list.push(r)
-          currentByVideo.set(r.video_id, list)
-        }
-      }
+      const currentByVideo = await loadCurrent((existingVideos ?? []).map(v => v.id as string))
       const touchIds: string[] = []
 
       // Smart incremental: stop if we hit a known video
@@ -290,90 +426,11 @@ export async function syncCompetitorChannel(
         // Versions: <90-day videos every sync, older ones only when the daily record is due
         const shouldReconcile = dailyDue || (publishedAt ? publishedAt > changeDetectionCutoff : true)
         if (videoUuid && shouldReconcile) {
-          const current = currentByVideo.get(videoUuid) ?? []
-          const prevThumb = current.find(v => v.field === 'thumb') ?? null
-          let probe: ThumbProbe | null = null
-          try {
-            probe = await probeThumb(videoId, prevThumb ? { etag: prevThumb.thumb_etag, dhash: prevThumb.thumb_dhash } : null, f)
-          } catch {
-            probe = null // network failure: skip the thumbnail this round
-          }
-          const action: ThumbAction = probe ? classifyThumb(prevThumb, probe) : 'skip'
-
-          if (probe && prevThumb && action === 'heal') {
-            const blobUrl = await archiveThumb(videoUuid, probe).catch(() => null)
-            await supabase.from('competitor_video_versions').update({
-              thumb_dhash: probe.dhash, thumb_etag: probe.etag, last_seen_at: nowIso,
-              ...(blobUrl ? { thumb_blob_url: blobUrl } : {}),
-            }).eq('id', prevThumb.id)
-          } else if (probe && prevThumb && action === 'etag') {
-            await supabase.from('competitor_video_versions').update({
-              thumb_etag: probe.etag, last_seen_at: nowIso,
-            }).eq('id', prevThumb.id)
-          }
-
-          const skip: VersionField[] = []
-          if (!apiTitle) skip.push('title')
-          if (apiDescription === undefined) skip.push('desc')
-          if (action !== 'reconcile') skip.push('thumb')
-
-          const rawPlan = reconcileVideoVersions(
-            current,
-            { title: apiTitle, description: apiDescription === undefined ? '' : normalizeDescription(apiDescription), thumb: action === 'reconcile' ? probe : null },
-            { prevOkAt, now: nowIso },
-            { lastModifiedMinute: LAST_MODIFIED_MINUTE },
-          )
-          const plan = dropFields(rawPlan, current, skip)
-
-          touchIds.push(...plan.touch)
-          if (plan.close.length) {
-            await supabase.from('competitor_video_versions').update({ is_current: false }).in('id', plan.close)
-          }
-          const newIds = new Map<VersionField, string>()
-          if (plan.open.length) {
-            const rows = []
-            for (const o of plan.open) {
-              const blobUrl = o.field === 'thumb' && o.thumb ? await archiveThumb(videoUuid, o.thumb).catch(() => null) : null
-              const lm = o.thumb?.lastModified ? Date.parse(o.thumb.lastModified) : NaN
-              rows.push({
-                video_id: videoUuid,
-                field: o.field,
-                value_text: o.value_text,
-                value_hash: o.value_hash,
-                has_text: o.has_text,
-                thumb_etag: o.thumb?.etag ?? null,
-                thumb_dhash: o.thumb?.dhash ?? null,
-                thumb_blob_url: blobUrl,
-                thumb_last_modified: Number.isFinite(lm) ? new Date(lm).toISOString() : null,
-                first_seen_at: o.first_seen_at,
-                last_seen_at: nowIso,
-                window_start: o.window_start,
-                precision: o.precision,
-                is_current: true,
-              })
-            }
-            const { data: opened } = await supabase.from('competitor_video_versions').insert(rows).select('id, field')
-            for (const r of (opened ?? []) as Array<{ id: string; field: VersionField }>) newIds.set(r.field, r.id)
-          }
-          for (const c of plan.changes) {
-            const fromV = current.find(v => v.id === c.fromId) as (StoredVersion & { value_text?: string | null }) | undefined
-            const opened = plan.open.find(o => o.field === c.field)
-            await supabase.from('competitor_changes').insert({
-              video_id: videoUuid,
-              site_id: channelRow.site_id,
-              change_type: CHANGE_TYPE[c.field],
-              ...(c.field === 'title' ? { old_title: fromV?.value_text ?? existing?.title ?? null, new_title: opened?.value_text ?? title } : {}),
-              ...(c.field === 'thumb' ? { old_thumbnail_url: existing?.thumbnail_url ?? null, new_thumbnail_url: thumbnailUrl } : {}),
-              view_count_at_change: viewCount,
-              from_version_id: c.fromId,
-              to_version_id: newIds.get(c.field) ?? null,
-              window_start: c.window_start,
-              window_end: c.window_end,
-              precision: c.precision,
-              detected_at: nowIso,
-            })
-            changesDetected++
-          }
+          await reconcileVideo(videoUuid, videoId, {
+            apiTitle, apiDescription, thumbnailUrl, viewCount,
+            existingTitle: existing ? (existing.title as string | null) : null,
+            existingThumbUrl: existing ? (existing.thumbnail_url as string | null) : null,
+          }, currentByVideo.get(videoUuid) ?? [], touchIds)
         }
 
         if (!existing) continue
@@ -398,7 +455,8 @@ export async function syncCompetitorChannel(
       }
 
       if (touchIds.length) {
-        await supabase.from('competitor_video_versions').update({ last_seen_at: nowIso }).in('id', touchIds)
+        const { error } = await supabase.from('competitor_video_versions').update({ last_seen_at: nowIso }).in('id', touchIds)
+        fail('touch versions', error)
       }
 
       // Update progress
@@ -420,46 +478,76 @@ export async function syncCompetitorChannel(
       }
     } while (nextPageToken)
 
-    // ── Daily views record (12:00 SP): every tracked video, pages of 50 ──
-    if (dailyDue) {
-      const { data: tracked } = await supabase
-        .from('competitor_videos')
-        .select('id, video_id')
-        .eq('competitor_channel_id', channelRow.id)
-        .order('published_at', { ascending: false })
-        .limit(videoLimit)
-      const trackedRows = (tracked ?? []) as Array<{ id: string; video_id: string }>
-      for (let i = 0; i < trackedRows.length; i += 50) {
-        const chunk = trackedRows.slice(i, i + 50)
-        const res = await api(`${YOUTUBE_API_BASE}/videos?part=statistics&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
-        if (!res.ok) throw new Error(`YouTube API ${res.status} for daily statistics`)
-        const body = await res.json()
-        const uuidByYt = new Map(chunk.map(c => [c.video_id, c.id]))
-        const rows = ((body.items ?? []) as Array<{ id: string; statistics?: Record<string, string> }>)
-          .filter(it => uuidByYt.has(it.id) && it.statistics?.viewCount !== undefined)
-          .map(it => ({
-            video_id: uuidByYt.get(it.id)!,
-            snap_date: snapDate,
-            views: parseInt(it.statistics!.viewCount!, 10),
-            likes: it.statistics!.likeCount !== undefined ? parseInt(it.statistics!.likeCount, 10) : null,
-            comments: it.statistics!.commentCount !== undefined ? parseInt(it.statistics!.commentCount, 10) : null,
-            taken_at: nowIso,
-          }))
-        if (rows.length) {
-          await supabase.from('competitor_video_daily').upsert(rows, { onConflict: 'video_id,snap_date', ignoreDuplicates: true })
-          dailyRecorded += rows.length
+    // ── Daily views record (12:00 SP), due per video; also the once-a-day pass over older videos (R17) ──
+    let dailyFailure: Error | null = null
+    if (hourOk) {
+      const tracked = await loadTracked()
+      const missing = new Set(await missingDaily(tracked.map(t => t.id), snapDate))
+      const todo = tracked.filter(t => missing.has(t.id))
+      for (let i = 0; i < todo.length; i += 50) {
+        const chunk = todo.slice(i, i + 50)
+        try {
+          const res = await api(`${YOUTUBE_API_BASE}/videos?part=snippet,statistics&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
+          if (!res.ok) throw new Error(`YouTube API ${res.status} for daily statistics`)
+          const body = await res.json()
+          const byYt = new Map(chunk.map(c => [c.video_id, c]))
+          const items = ((body.items ?? []) as Array<{ id: string; snippet?: Record<string, unknown>; statistics?: Record<string, string> }>)
+            .filter(it => byYt.has(it.id))
+          const rows = items
+            .filter(it => it.statistics?.viewCount !== undefined)
+            .map(it => ({
+              video_id: byYt.get(it.id)!.id,
+              snap_date: snapDate,
+              views: parseInt(it.statistics!.viewCount!, 10),
+              likes: it.statistics!.likeCount !== undefined ? parseInt(it.statistics!.likeCount, 10) : null,
+              comments: it.statistics!.commentCount !== undefined ? parseInt(it.statistics!.commentCount, 10) : null,
+              taken_at: nowIso,
+            }))
+          if (rows.length) {
+            const { data: inserted, error } = await supabase
+              .from('competitor_video_daily')
+              .upsert(rows, { onConflict: 'video_id,snap_date', ignoreDuplicates: true })
+              .select('video_id')
+            fail('record daily views', error)
+            dailyRecorded += (inserted ?? []).length
+          }
+          // once-a-day pass: reconcile what the incremental pages did not reach
+          const pending = items.filter(it => !reconciled.has(byYt.get(it.id)!.id))
+          const currentMap = await loadCurrent(pending.map(it => byYt.get(it.id)!.id))
+          const touch: string[] = []
+          for (const it of pending) {
+            const row = byYt.get(it.id)!
+            const sn = it.snippet ?? {}
+            const thumbs = sn.thumbnails as { maxres?: { url?: string }; high?: { url?: string } } | undefined
+            await reconcileVideo(row.id, it.id, {
+              apiTitle: (sn.title as string | undefined) ?? '',
+              apiDescription: sn.description as string | undefined,
+              thumbnailUrl: thumbs?.maxres?.url ?? thumbs?.high?.url ?? null,
+              viewCount: parseInt(it.statistics?.viewCount ?? '0', 10),
+              existingTitle: row.title,
+              existingThumbUrl: row.thumbnail_url,
+            }, currentMap.get(row.id) ?? [], touch)
+          }
+          if (touch.length) {
+            const { error } = await supabase.from('competitor_video_versions').update({ last_seen_at: nowIso }).in('id', touch)
+            fail('touch versions', error)
+          }
+        } catch (e) {
+          dailyFailure ??= e instanceof Error ? e : new Error(String(e))
         }
       }
       if (dailyRecorded > 0) {
-        const { data: st } = await supabase
-          .from('competitor_settings').select('series_started_at').eq('site_id', channelRow.site_id).maybeSingle()
-        if (!(st as { series_started_at: string | null } | null)?.series_started_at) {
-          await supabase.from('competitor_settings').upsert(
-            { site_id: channelRow.site_id, series_started_at: nowIso, updated_at: nowIso },
-            { onConflict: 'site_id' },
-          )
-        }
+        // series start: atomic, only while still null
+        const { error: e1 } = await supabase.from('competitor_settings')
+          .upsert({ site_id: channelRow.site_id }, { onConflict: 'site_id', ignoreDuplicates: true })
+        fail('ensure competitor_settings', e1)
+        const { error: e2 } = await supabase.from('competitor_settings')
+          .update({ series_started_at: nowIso, updated_at: nowIso })
+          .eq('site_id', channelRow.site_id)
+          .is('series_started_at', null)
+        fail('start series', e2)
       }
+      if (dailyFailure) throw dailyFailure // the next sync fills in the missing ids
     }
 
     // Mark completion

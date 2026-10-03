@@ -24,7 +24,7 @@ describe('reconcileVideoVersions', () => {
     expect(p.changes).toEqual([{ field: 'title', fromId: 'title1', precision: '6h', window_start: T0, window_end: T1 }])
   })
   it('a wider gap than one slot (missed syncs) degrades to 1d, never invents minutes', () => {
-    const p = reconcileVideoVersions([v('title', 'A')], { title: 'B', description: '', thumb: null }, { prevOkAt: '2026-10-23T09:00:00.000Z', now: T1 }, { lastModifiedMinute: true })
+    const p = reconcileVideoVersions([{ ...v('title', 'A'), last_seen_at: '2026-10-23T09:00:00.000Z' }], { title: 'B', description: '', thumb: null }, { prevOkAt: '2026-10-23T09:00:00.000Z', now: T1 }, { lastModifiedMinute: true })
     expect(p.changes[0]!.precision).toBe('1d')
   })
   it('description CRLF and trailing spaces are not a change', () => {
@@ -41,5 +41,17 @@ describe('reconcileVideoVersions', () => {
     const cur = { ...v('thumb', ''), thumb_etag: 'e1', thumb_dhash: '0000000000000000' }
     const p = reconcileVideoVersions([cur], { title: '', description: '', thumb: { etag: 'e2', dhash: 'ffffffffffffffff', lastModified: null, bytes: null, url: 'u' } }, { prevOkAt: T0, now: T1 }, { lastModifiedMinute: true })
     expect(p.changes.find(c => c.field === 'thumb')!.precision).toBe('6h')
+  })
+  it('R16: title last seen 24 h ago → 1d and window_start = that last_seen_at (not prevOkAt)', () => {
+    const old = '2026-10-23T15:00:00.000Z'
+    const p = reconcileVideoVersions([{ ...v('title', 'A'), last_seen_at: old }], { title: 'B', description: '', thumb: null }, { prevOkAt: T0, now: T1 }, { lastModifiedMinute: true })
+    expect(p.changes).toEqual([{ field: 'title', fromId: 'title1', precision: '1d', window_start: old, window_end: T1 }])
+    expect(p.open[0]!.window_start).toBe(old)
+  })
+  it('R16: thumbnail Last-Modified between prev.last_seen_at and prevOkAt still gets minute precision', () => {
+    const seen = '2026-10-24T03:00:00.000Z' // before prevOkAt (T0 = 09:00)
+    const cur = { ...v('thumb', ''), thumb_etag: 'e1', thumb_dhash: '0000000000000000', last_seen_at: seen }
+    const p = reconcileVideoVersions([cur], { title: '', description: '', thumb: { etag: 'e2', dhash: 'ffffffffffffffff', lastModified: 'Sat, 24 Oct 2026 05:30:00 GMT', bytes: null, url: 'u' } }, { prevOkAt: T0, now: T1 }, { lastModifiedMinute: true })
+    expect(p.changes.find(c => c.field === 'thumb')).toMatchObject({ precision: 'min', window_start: seen })
   })
 })

@@ -100,28 +100,48 @@ const NOW_ISO = NOW.toISOString()
 const ch = { id: 'cc-1', channel_id: 'UC_test', site_id: 'site-1' }
 const lockRow = { id: 'cc-1', sync_mode: 'incremental', full_sync_completed_at: null, video_limit: 50, last_ok_synced_at: '2026-10-24T09:00:00.000Z', sync_error_since: null }
 
-function apiFetch(video: Record<string, unknown> | null, status = 200): typeof fetch {
+interface FetchLog { dailyCalls: string[] }
+function apiFetch(video: Record<string, unknown> | null, status = 200, extra: { daily?: (call: number, url: string) => Response | Record<string, unknown>[]; noUploads?: boolean; log?: FetchLog } = {}): typeof fetch {
+  let dailyN = 0
   return (async (input: RequestInfo | URL) => {
     const u = String(input)
     if (status !== 200) return { ok: false, status }
-    if (u.includes('/channels?')) return Response.json({ items: [{ contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { subscriberCount: '10' } }] })
+    if (u.includes('/channels?')) {
+      return Response.json({ items: [{ contentDetails: { relatedPlaylists: extra.noUploads ? {} : { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { subscriberCount: '10' } }] })
+    }
     if (u.includes('/playlistItems?')) return Response.json({ items: video ? [{ snippet: { resourceId: { videoId: video.id } } }] : [] })
-    if (u.includes('part=statistics&')) return Response.json({ items: video ? [{ id: video.id, statistics: { viewCount: '7' } }] : [] })
+    if (u.includes('part=snippet,statistics&')) {
+      dailyN++
+      extra.log?.dailyCalls.push(u)
+      if (extra.daily) {
+        const r = extra.daily(dailyN, u)
+        return r instanceof Response ? r : Response.json({ items: r })
+      }
+      return Response.json({ items: video ? [{ ...video, statistics: { viewCount: '7' } }] : [] })
+    }
     return Response.json({ items: video ? [video] : [] })
   }) as typeof fetch
 }
 const recent = () => new Date(NOW.getTime() - 86_400_000).toISOString()
 
-function setup(opts: { existing?: Record<string, unknown>[]; versions?: Record<string, unknown>[]; lastDaily?: string | null } = {}) {
+function setup(opts: {
+  existing?: Record<string, unknown>[]; versions?: Record<string, unknown>[]; lastDaily?: string | null
+  tracked?: Array<Record<string, unknown>>; dailyHave?: string[]; versionInsertError?: boolean
+} = {}) {
   const db = fakeDb((c) => {
     if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [lockRow] }
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'in')) return { data: opts.existing ?? [] }
-    if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'limit')) return { data: [{ id: 'v-1', video_id: 'vid-1' }] }
-    if (c.table === 'competitor_videos' && first(c) === 'select') return { count: 0 }
+    if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'limit')) return { data: opts.tracked ?? [{ id: 'v-1', video_id: 'vid-1', title: null, thumbnail_url: null }] }
+    if (c.table === 'competitor_videos' && first(c) === 'select') return { count: 100 }
     if (c.table === 'competitor_videos' && first(c) === 'insert') return { data: { id: 'v-new' } }
-    if (c.table === 'competitor_video_daily' && first(c) === 'select') return { data: opts.lastDaily ? [{ snap_date: opts.lastDaily }] : [] }
+    if (c.table === 'competitor_video_daily' && first(c) === 'select') {
+      const have = opts.dailyHave ?? (opts.lastDaily === '2026-10-24' ? ['v-1', 'v-new'] : [])
+      return { data: have.map(video_id => ({ video_id })) }
+    }
+    if (c.table === 'competitor_video_daily' && first(c) === 'upsert') return { data: c.ops[0]![1][0] }
     if (c.table === 'competitor_video_versions' && first(c) === 'select') return { data: opts.versions ?? [] }
     if (c.table === 'competitor_video_versions' && first(c) === 'insert') {
+      if (opts.versionInsertError) return { data: null, error: { message: 'boom' } }
       const rows = c.ops[0]![1][0] as Array<{ field: string }>
       return { data: rows.map((r, i) => ({ id: `nv-${i}`, field: r.field })) }
     }
@@ -172,7 +192,7 @@ describe('syncCompetitorChannel', () => {
     const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch({ id: 'vid-1', snippet: { title: 'New', publishedAt: recent(), thumbnails: {} }, statistics: { viewCount: '9' } }) })
     expect(r.changesDetected).toBe(1)
     const chg = db.calls.find(c => c.table === 'competitor_changes')!
-    expect(arg(chg, 'insert')).toMatchObject({
+    expect((chg.ops[0]![1][0] as Array<Record<string, unknown>>)[0]).toMatchObject({
       change_type: 'title', old_title: 'Old', new_title: 'New', from_version_id: 'tv1', to_version_id: 'nv-0',
       window_start: '2026-10-24T09:00:00.000Z', window_end: NOW_ISO, precision: '6h', detected_at: NOW_ISO,
     })
@@ -254,7 +274,100 @@ describe('syncCompetitorChannel', () => {
     const up = db.calls.find(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')!
     expect(up.ops[0]![1][1]).toMatchObject({ ignoreDuplicates: true })
     expect((up.ops[0]![1][0] as Array<Record<string, unknown>>)[0]).toMatchObject({ video_id: 'v-1', snap_date: '2026-10-24', views: 7 })
-    const series = db.calls.find(c => c.table === 'competitor_settings' && first(c) === 'upsert')!
-    expect(arg(series, 'upsert')).toMatchObject({ site_id: 'site-1', series_started_at: NOW_ISO })
+    const sets = db.calls.filter(c => c.table === 'competitor_settings')
+    expect(arg(sets[0]!, 'upsert')).toMatchObject({ site_id: 'site-1' })
+    expect(sets[0]!.ops[0]![1][1]).toMatchObject({ ignoreDuplicates: true })
+    expect(arg(sets[1]!, 'update')).toMatchObject({ series_started_at: NOW_ISO })
+    expect(sets[1]!.ops.find(o => o[0] === 'is')![1]).toEqual(['series_started_at', null]) // atomic: only while null
+  })
+
+  it('daily record is ordered by published_at desc, nulls last', async () => {
+    const db = setup({ lastDaily: '2026-10-23' })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch({ id: 'vid-1', snippet: { title: 'T', publishedAt: recent() }, statistics: {} }) })
+    const tracked = db.calls.find(c => c.table === 'competitor_videos' && c.ops.some(o => o[0] === 'limit'))!
+    expect(tracked.ops.find(o => o[0] === 'order')![1]).toEqual(['published_at', { ascending: false, nullsFirst: false }])
+  })
+
+  it('a channel with no uploads playlist is an OK sync', async () => {
+    const db = setup()
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { noUploads: true }) })
+    const last = db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).at(-1)
+    expect(last).toMatchObject({ sync_status: 'idle', last_ok_synced_at: NOW_ISO, sync_error_since: null })
+  })
+
+  it('dailyRecorded counts rows actually inserted (ignored duplicates do not count)', async () => {
+    const base = fakeDb((c) => {
+      if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [lockRow] }
+      if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'limit')) return { data: [{ id: 'v-1', video_id: 'vid-1', title: null, thumbnail_url: null }] }
+      if (c.table === 'competitor_videos' && first(c) === 'select') return { count: 100 }
+      if (c.table === 'competitor_video_daily' && first(c) === 'upsert') return { data: [] }
+      return { data: [] }
+    })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(base.client as never)
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch({ id: 'vid-1', snippet: { title: 'T', publishedAt: recent() }, statistics: {} }) })
+    expect(r.dailyRecorded).toBe(0)
+  })
+
+  it('R17: the daily pass reconciles tracked videos the playlist page did not reach, once each', async () => {
+    const page = { id: 'vid-1', snippet: { title: 'T', description: '', publishedAt: recent() }, statistics: {} }
+    const db = setup({
+      lastDaily: '2026-10-23',
+      tracked: [{ id: 'v-1', video_id: 'vid-1', title: 'T', thumbnail_url: null }, { id: 'v-2', video_id: 'vid-2', title: 'Old', thumbnail_url: null }],
+      existing: [{ id: 'v-1', video_id: 'vid-1', title: 'T', description_hash: 'x', thumbnail_url: null, view_count: 1 }],
+      versions: [
+        { id: 'tv1', video_id: 'v-1', field: 'title', value_text: 'T', value_hash: hashValue('T'), thumb_etag: null, thumb_dhash: null, last_seen_at: '2026-10-24T09:00:00.000Z' },
+        { id: 'tv2', video_id: 'v-2', field: 'title', value_text: 'Old', value_hash: hashValue('Old'), thumb_etag: null, thumb_dhash: null, last_seen_at: '2026-10-24T09:00:00.000Z' },
+      ],
+    })
+    const daily = [
+      { ...page, statistics: { viewCount: '7' } },
+      { id: 'vid-2', snippet: { title: 'Changed', description: '', publishedAt: '2026-01-01T00:00:00Z' }, statistics: { viewCount: '3' } },
+    ]
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page, 200, { daily: () => daily }) })
+    expect(r.dailyRecorded).toBe(2)
+    const changes = db.calls.filter(c => c.table === 'competitor_changes').flatMap(c => c.ops[0]![1][0] as Array<Record<string, unknown>>)
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toMatchObject({ video_id: 'v-2', change_type: 'title', new_title: 'Changed' })
+    expect(r.changesDetected).toBe(1)
+    expect(vi.mocked(probeThumb).mock.calls.map(c => c[0]).sort()).toEqual(['vid-1', 'vid-2']) // v-1 not probed twice
+  })
+
+  it('failure applying the plan: the version insert errors → closed versions re-opened, sync throws, last_ok not written', async () => {
+    const db = setup({
+      lastDaily: '2026-10-24',
+      existing: [{ id: 'v-1', video_id: 'vid-1', title: 'Old', description_hash: 'x', thumbnail_url: null, view_count: 1 }],
+      versions: [{ id: 'tv1', video_id: 'v-1', field: 'title', value_text: 'Old', value_hash: hashValue('Old'), thumb_etag: null, thumb_dhash: null }],
+      versionInsertError: true,
+    })
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch({ id: 'vid-1', snippet: { title: 'New', publishedAt: recent() }, statistics: {} }) })).rejects.toThrow('open versions')
+    const verUpdates = db.calls.filter(c => c.table === 'competitor_video_versions' && c.ops[0]![0] === 'update').map(c => arg(c, 'update')!)
+    expect(verUpdates.map(u => u.is_current)).toEqual([false, true]) // closed, then re-opened
+    expect(db.calls.some(c => c.table === 'competitor_changes')).toBe(false)
+    const chUpdates = db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!)
+    expect(chUpdates.some(u => 'last_ok_synced_at' in u)).toBe(false)
+    expect(chUpdates.at(-1)).toMatchObject({ sync_status: 'error' })
+  })
+
+  it('partial daily record: second page fails → throws after recording page 1; next run asks only for the missing ids', async () => {
+    const tracked = Array.from({ length: 51 }, (_, i) => ({ id: `u${i}`, video_id: `y${i}`, title: null, thumbnail_url: null }))
+    const items = (url: string) => decodeURIComponent(url.match(/id=([^&]*)/)![1]!).split(',').map(id => ({ id, statistics: { viewCount: '1' } }))
+    const log1: FetchLog = { dailyCalls: [] }
+    const db1 = setup({ lastDaily: '2026-10-23', tracked, dailyHave: [] })
+    await expect(syncCompetitorChannel(ch, 'k', {
+      now: NOW,
+      fetchImpl: apiFetch(null, 200, { log: log1, daily: (n, u) => (n === 1 ? items(u) : new Response('x', { status: 500 })) }),
+    })).rejects.toThrow('YouTube API 500 for daily statistics')
+    const ups = db1.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')
+    expect(ups).toHaveLength(1)
+    expect((ups[0]!.ops[0]![1][0] as unknown[]).length).toBe(50)
+    expect(db1.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).some(u => 'last_ok_synced_at' in u)).toBe(false)
+
+    const log2: FetchLog = { dailyCalls: [] }
+    const db2 = setup({ lastDaily: '2026-10-23', tracked, dailyHave: tracked.slice(0, 50).map(t => t.id) })
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { log: log2, daily: (_n, u) => items(u) }) })
+    expect(log2.dailyCalls).toHaveLength(1)
+    expect(decodeURIComponent(log2.dailyCalls[0]!)).toContain('id=y50&')
+    expect(r.dailyRecorded).toBe(1)
+    expect(db2.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).at(-1)).toMatchObject({ last_ok_synced_at: NOW_ISO })
   })
 })
