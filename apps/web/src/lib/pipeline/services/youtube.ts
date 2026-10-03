@@ -637,8 +637,9 @@ export async function claimNextTask(
   ctx: ServiceContext,
   channelIds?: string[],
 ): Promise<ServiceResult<IntelTask | null>> {
-  // Task 30: the single claim lives in forja-queue.claim (heartbeat first, then a filter that only ever shows
-  // 'diagnostico' to a caller that announced no observatory type — the Health Coach and the legacy GET).
+  // Task 30: the single claim lives in forja-queue.claim, with a filter that only ever shows 'diagnostico' to a
+  // caller that announced no observatory type (the Health Coach, the legacy GET, MCP claim_task). No heartbeat
+  // option (ruling R46): only the forja's typed claim path writes forja_heartbeat.
   return claim(ctx, { channelIds: channelIds ?? [], taskTypes: undefined }, Date.now())
 }
 

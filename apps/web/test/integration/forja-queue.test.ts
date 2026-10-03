@@ -115,17 +115,33 @@ describe.skipIf(skipIfNoLocalDb())('forja queue service — real Supabase', () =
     expect(fresh.data).toMatchObject({ id: obs, task_type: 'temas', target_niche: 'ia', channel_id: null, target_video_id: null })
   })
 
-  it('6. a claim on an empty queue still writes the heartbeat (last_poll_at = now, capabilities, key)', async () => {
+  it('6. the forja typed claim (heartbeat option) writes the heartbeat even on an empty queue', async () => {
     const siteId = await freshSite()
     const now = Date.now()
-    const res = await claim(ctx(siteId), { channelIds: [], taskTypes: ['temas', 'resumo-trocas'] }, now)
+    const res = await claim(ctx(siteId), { channelIds: [], taskTypes: ['temas', 'resumo-trocas'] }, now, { heartbeat: { capabilities: ['temas', 'resumo-trocas'] } })
     expect(res.data).toBeNull()
     const hb = (await svc.from('forja_heartbeat').select('last_poll_at, capabilities, key_id').eq('site_id', siteId).single()).data!
     expect(Date.parse(hb.last_poll_at as string)).toBe(now)
     expect(hb.capabilities).toEqual(['temas', 'resumo-trocas'])
     expect(hb.key_id).toBe('00000000-0000-4000-8000-00000000f0f0')
-    await claim(ctx(siteId), { channelIds: [] }, now + 60_000)       // the old worker announces nothing
-    expect((await svc.from('forja_heartbeat').select('capabilities').eq('site_id', siteId).single()).data!.capabilities).toEqual([])
+  })
+
+  it('6b. R46: claims without the option (legacy GET, MCP, Health Coach, Cowork) leave the heartbeat untouched', async () => {
+    const siteId = await freshSite()
+    const at = Date.now() - 2 * 3600_000
+    await seedHeartbeat(siteId, ['temas'], at)
+    const own = await ownChannel(siteId)
+    await claim({ ...ctx(siteId, '00000000-0000-4000-8000-00000000c0c0'), permissions: ['read', 'write', 'intelligence'] }, { channelIds: [] }, Date.now())
+    await claim(ctx(siteId), { channelIds: [own] }, Date.now())
+    await claim(ctx(siteId), { channelIds: [own], taskTypes: ['temas'] }, Date.now())
+    const hb = (await svc.from('forja_heartbeat').select('last_poll_at, capabilities, key_id').eq('site_id', siteId).single()).data!
+    expect(Date.parse(hb.last_poll_at as string)).toBe(at)          // a dead machine stays dead
+    expect(hb.capabilities).toEqual(['temas'])                       // and keeps what it announced
+    expect(hb.key_id).toBeNull()
+    // without a heartbeat row at all, an unflagged claim does not create one
+    const bare = await freshSite()
+    await claim(ctx(bare), { channelIds: [] }, Date.now())
+    expect((await svc.from('forja_heartbeat').select('site_id').eq('site_id', bare)).data).toEqual([])
   })
 
   it('7. completeReading: a number outside sent.numbers → 400; valid → reading + task completed; second POST → 409', async () => {
