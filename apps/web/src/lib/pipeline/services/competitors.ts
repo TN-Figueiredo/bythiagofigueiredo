@@ -4,6 +4,7 @@ import { oneEmbed } from '@/lib/supabase/one-embed'
 import { loadRows, rowsToDataset, type ObservatoryRows } from '@/lib/youtube/observatorio/load'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { createObservatory, type Observatory } from '@/lib/youtube/observatorio'
+import { legacyGrids } from '@/lib/youtube/observatorio/grids'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -308,21 +309,6 @@ export async function listCompetitorOutliers(
 /** Heatmap/hits/cadence come from the engine (São Paulo time); tags, gaps and engagement stay as before. */
 const RECENT_PER_CHANNEL = 200
 
-/** Engine heatmap (7 days × 12 two-hour blocks, SP) spread onto the legacy 7×24 grid: both hours of a block carry its count. */
-function heatmap7x24(obs: Observatory): number[][] {
-  const hm = obs.heatmap('todos', 'long')
-  return hm.cells.map(row => Array.from({ length: 24 }, (_, h) => row[h >> 1]!.n))
-}
-/** Outliers (every age window) per SP weekday (Mon=0) × hour. */
-function hitsHeatmap7x24(obs: Observatory): number[][] {
-  const grid = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0))
-  for (const it of obs.outliers({ ages: 'all', fmt: 'long' }).items) {
-    const p = obs.date.parts(it.video.pub)
-    grid[(p.dow + 6) % 7]![p.h]!++
-  }
-  return grid
-}
-
 /** Aggregate competitor insights (play of week, cadence, formulas, gaps, heatmap, tags, engagement). */
 export async function getCompetitorInsights(
   ctx: ServiceContext,
@@ -346,8 +332,7 @@ export async function getCompetitorInsights(
   const ourEngRate = ownTotalViews > 0 ? ownTotalEng / ownTotalViews : 0
 
   // ── Heatmap: 7x24 (day-of-week x hour, SP) — publication count from the engine ──
-  const heatmap = heatmap7x24(obs)
-  const hitsHeatmap = hitsHeatmap7x24(obs)
+  const { heatmap, hitsHeatmap } = legacyGrids(obs)
 
   // ── Tags ──
   const tagStats = new Map<string, { count: number; totalViews: number; channels: Set<string> }>()

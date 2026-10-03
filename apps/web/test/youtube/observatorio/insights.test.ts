@@ -107,3 +107,45 @@ describe('themes null (production before any temas reading)', () => {
     expect(r.dominantTheme.theme).toBe('tema-livre')
   })
 })
+
+describe('own channel is derived from the dataset (not the literal id)', () => {
+  const renamed = (own: Array<{ from: string; to: string; lang?: string }>): Dataset => {
+    const ds = fresh()
+    const map = new Map(own.map(o => [o.from, o]))
+    return {
+      ...ds,
+      channels: ds.channels.map(c => map.has(c.id) ? { ...c, id: map.get(c.id)!.to, lang: map.get(c.id)!.lang ?? c.lang } : c),
+      videos: ds.videos.map(v => map.has(v.ch) ? { ...v, ch: map.get(v.ch)!.to } : v),
+    }
+  }
+  const UUID = '0b6f7c0e-5f7e-4d7a-9a55-2f5f5a1d9c11'
+  it('a uuid own channel gives non-empty ownCoverage and nicheStats.own', () => {
+    const o = createObservatory(renamed([{ from: 'tnfigueiredo', to: UUID }]))
+    const cov = o.ownCoverage('long')
+    expect(cov.channel).toBe(UUID)
+    expect(cov.n).toBeGreaterThan(0)
+    expect(o.nicheStats('viagem', 'long').own).not.toBeNull()
+    expect((o.nicheStats('viagem', 'long').own as { channel: string }).channel).toBe(UUID)
+  })
+  it('oracle ids keep working and an explicit ownId wins', () => {
+    expect(P.ownCoverage('long').channel).toBe('tnfigueiredo')
+    expect((P.nicheStats('viagem', 'long').own as { channel: string }).channel).toBe('tnfigueiredo')
+    expect(P.nicheStats('viagem', 'long', 'nope').own).toBeNull()
+  })
+  it('two own channels: the one whose lang is the niche dominant language; otherwise the one with most videos', () => {
+    const base = fresh()
+    const tn = base.channels.find(c => c.id === 'tnfigueiredo')!
+    const tnVideos = base.videos.filter(v => v.ch === 'tnfigueiredo')
+    const en = { ...tn, id: 'own-en', lang: 'en' }
+    const twoLang = (ptLang: string): Dataset => ({
+      ...base, channels: [...base.channels.map(c => c.id === 'tnfigueiredo' ? { ...c, lang: ptLang } : c), en],
+      videos: [...base.videos, ...tnVideos.slice(0, 2).map(v => ({ ...v, id: v.id + '-en', ch: 'own-en' }))],
+    })
+    const dom = createObservatory(twoLang('pt'))
+    // viagem competitors are mostly 'en' in the oracle → the en channel is picked even with fewer videos
+    expect(dom.ownCoverage('long').channel).toBe('own-en')
+    // no determinable language (both own channels share the competitors' language) → most tracked videos
+    const tie = createObservatory(twoLang('en'))
+    expect(tie.ownCoverage('long').channel).toBe('tnfigueiredo')
+  })
+})

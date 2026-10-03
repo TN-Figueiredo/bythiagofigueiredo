@@ -45,22 +45,25 @@ export function backfillProgress(row: Pick<SyncRow, 'tracked' | 'video_limit' | 
 
 const vids = (ctx: EngineCtx, ch: Ch): V[] => ch.videos.map(v => ctx.V.get(v.id) ?? (v as V))
 
+export const NEVER_SYNCED = 'nunca sincronizado com sucesso'
+
 /** Owner-facing reason for a channel in trouble; null when ok. */
 export function problemLabel(ctx: EngineCtx, ch: ObsChannel): string | null {
   const s = ch.sync
   if (s.state === 'erro') return s.msg ? humanizeSyncError(s.msg) : 'erro sem mensagem registrada'
-  if (s.state === 'atrasado') return 'sem sincronização boa há ' + Math.round((ctx.clock.now - s.last) / H) + ' h'
+  if (s.state === 'atrasado') return s.last == null ? NEVER_SYNCED : 'sem sincronização boa há ' + Math.round((ctx.clock.now - s.last) / H) + ' h'
   if (s.state === 'backfill') return s.backfill ? 'ainda buscando vídeos (' + s.backfill.done + ' de ' + s.backfill.total + ')' : 'ainda buscando vídeos'
   return null
 }
 
-/** Single problem phrase anchored on the last success (dados.js:1966-1985). */
+/** Single problem phrase anchored on the last success (dados.js:1966-1985); a channel that never synced OK says so, with no date. */
 export function problemPhrase(ctx: EngineCtx, ch: ObsChannel): string | null {
   const s = ch.sync, { clock } = ctx
-  if (s.state === 'atrasado') return 'atrasado · última sincronização ' + clock.dmhm(s.last) + ' (' + clock.ago(s.last) + ')'
-  if (s.state === 'erro') return 'erro desde ' + clock.dmhm(s.errorSince || s.last) + ' · última sincronização boa ' + clock.dmhm(s.last) + ' · ' + problemLabel(ctx, ch)
   if (s.state === 'backfill') return syncLabel('backfill') + (s.backfill ? ' (' + s.backfill.done + ' de ' + s.backfill.total + ')' : '')
-  return null
+  if (s.state === 'ok') return null
+  if (s.last == null) return (s.state === 'erro' ? 'erro' : 'atrasado') + ' · ' + NEVER_SYNCED + (s.state === 'erro' ? ' · ' + problemLabel(ctx, ch) : '')
+  if (s.state === 'atrasado') return 'atrasado · última sincronização ' + clock.dmhm(s.last) + ' (' + clock.ago(s.last) + ')'
+  return 'erro desde ' + clock.dmhm(s.errorSince || s.last) + ' · última sincronização boa ' + clock.dmhm(s.last) + ' · ' + problemLabel(ctx, ch)
 }
 
 export function cadence(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'long') {
@@ -113,7 +116,8 @@ function engagementOf(ctx: EngineCtx, ch: Ch, fmtId: Fmt) {
 
 export function syncText(ctx: EngineCtx, ch: ObsChannel): string {
   const s = ch.sync, { clock } = ctx
-  if (s.state === 'backfill') return 'adicionado ' + clock.ago(s.added) + ' — ' + (s.backfill ? s.backfill.done + ' de ' + s.backfill.total : 'alguns') + ' vídeos buscados'
+  if (s.state === 'backfill') return (s.added != null ? 'adicionado ' + clock.ago(s.added) + ' — ' : '') + (s.backfill ? s.backfill.done + ' de ' + s.backfill.total : 'alguns') + ' vídeos buscados'
+  if (s.last == null) return (s.state === 'erro' ? 'erro — ' : s.state === 'atrasado' ? 'atrasado — ' : '') + NEVER_SYNCED + (s.state === 'erro' && s.msg ? ' — ' + s.msg : '')
   if (s.state === 'erro') return 'sem sincronização desde ' + clock.dm(s.last) + ' ' + clock.hm(s.last) + ' — ' + s.msg
   if (s.state === 'atrasado') return 'atrasado: última sincronização ' + clock.dm(s.last) + ' ' + clock.hm(s.last) + ' (' + clock.agoHours(s.last) + ')'
   return 'sincronizado ' + clock.ago(s.last)
@@ -153,8 +157,39 @@ export function channelSlots(ctx: EngineCtx, limit: number): { used: number; lim
   return { used, limit, free: Math.max(0, limit - used) }
 }
 
+/** @internal mockup parity only; product uses syncResultToast */
 export function runSyncText(ok: string[], problems: Array<{ id: string; label: string }>, outOfRound: Array<{ id: string; label: string }>, names: (id: string) => string): string {
   return (ok.length ? ok.length + ' ' + (ok.length === 1 ? 'canal sincronizado agora' : 'canais sincronizados agora') : 'nenhum canal sincronizado')
     + (problems.length ? '; ' + problems.length + ' com problema' : '')
     + (outOfRound.length ? '; fora da rodada: ' + outOfRound.map(p => names(p.id) + ' (' + p.label + ')').join(', ') : '')
+}
+
+export interface SyncRun { ok: string[]; problems: Array<{ id: string; label: string }>; outOfRound: Array<{ id: string; label: string }> }
+export interface SyncToast { kind: 'ok' | 'warn'; title: string; body: string; more: string; text: string }
+/** Channel lookup for the sync result: a name, or the name and niche (problems are listed Viagem before IA). */
+export type SyncLookup = (id: string) => string | { name: string; niche: string | null } | undefined
+const NICHE_ORDER = ['viagem', 'ia']
+
+/**
+ * Product text of "Sincronizar concorrentes" (ruling R40; CHROME 2.2 M3, spec 2.2). Never a fabricated success.
+ * text = "11 de 13 canais sincronizados agora; 2 com problema · Fora da rodada: Vou sem volta (buscando vídeos)".
+ * The body lists the problems Viagem before IA (the mockup's list()).
+ */
+export function syncResultToast(run: SyncRun, lookup: SyncLookup): SyncToast {
+  const info = (id: string) => { const x = lookup(id); return typeof x === 'string' ? { name: x, niche: null } : x ?? { name: id, niche: null } }
+  const ok = run.ok.length, p = run.problems.length, total = ok + p
+  const out = run.outOfRound.map(x => `${info(x.id).name} (${x.label})`)
+  const moreCore = out.length ? `Fora da rodada: ${out.join('; ')}` : ''
+  const canais = (n: number) => (n === 1 ? 'canal sincronizado' : 'canais sincronizados')
+  if (ok === 0 && p === 0) {
+    return { kind: 'warn', title: 'Nenhum canal sincronizado', body: 'Nenhum concorrente estava pronto para sincronizar.', more: moreCore ? moreCore + '.' : '', text: 'nenhum canal sincronizado' + (moreCore ? ' · ' + moreCore : '') }
+  }
+  if (p === 0) {
+    const head = `${ok} de ${total} ${canais(total)} agora`
+    return { kind: 'ok', title: 'Concorrentes sincronizados', body: head + '.', more: moreCore ? moreCore + '.' : '', text: head + (moreCore ? ' · ' + moreCore : '') }
+  }
+  const head = `${ok} de ${total} ${canais(total)} agora; ${p} com problema`
+  const rank = (id: string) => NICHE_ORDER.indexOf(info(id).niche ?? '')
+  const sorted = run.problems.map((x, i) => ({ x, i })).sort((a, b) => rank(a.x.id) - rank(b.x.id) || a.i - b.i).map(o => o.x)
+  return { kind: 'warn', title: head, body: sorted.map(x => `${info(x.id).name}: ${x.label}`).join('; ') + '.', more: moreCore ? moreCore + '.' : '', text: head + (moreCore ? ' · ' + moreCore : '') }
 }

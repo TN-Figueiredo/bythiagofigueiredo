@@ -10,6 +10,7 @@ import { computeSnapshotDelta } from '@/lib/youtube/snapshot-delta'
 import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { createObservatory } from '@/lib/youtube/observatorio'
+import { legacyGrids } from '@/lib/youtube/observatorio/grids'
 import type {
   CompetitorChannelView,
   CompetitorChangeView,
@@ -381,7 +382,7 @@ export default async function CompetitorsPage({
   const flatVideos = allVideos ?? []
 
   // Heatmap: 7x24 (Mon-first day × hour, São Paulo) — engine count per 2 h block, spread onto both hours
-  const heatmap: number[][] = obs.heatmap('todos', 'long').cells.map(row => Array.from({ length: 24 }, (_, h) => row[h >> 1]!.n))
+  const { heatmap, hitsHeatmap } = legacyGrids(obs)
 
   // Tags
   const tagStats = new Map<string, { count: number; totalViews: number; channels: Set<string> }>()
@@ -477,13 +478,6 @@ export default async function CompetitorsPage({
       lastUploadDays: cad.lastUpload != null ? Math.floor((obs.NOW - cad.lastUpload) / 86_400_000) : -1,
     }
   })
-
-  // ── Hits heatmap: engine outliers (every age window) per São Paulo weekday × hour ──
-  const hitsHeatmap: number[][] = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0))
-  for (const o of obs.outliers({ ages: 'all', fmt: 'long' }).items) {
-    const p = obs.date.parts(o.video.pub)
-    hitsHeatmap[(p.dow + 6) % 7]![p.h]!++
-  }
 
   // ── Formulas (title pattern detection on outlier videos) ──
   const formulaAccum = new Map<string, { label: string; hint: string; totalMult: number; count: number; bestTitle: string; bestMult: number }>()

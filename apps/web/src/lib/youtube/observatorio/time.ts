@@ -14,6 +14,9 @@ export const spDayStart = (ms: number) => Math.floor((ms - SP_OFF) / DAY) * DAY 
 /** 00:00 in São Paulo of a calendar date 'YYYY-MM-DD' (a DB `date` column, already an SP day). */
 export const spDateStart = (date: string) => Date.parse(date.slice(0, 10) + 'T00:00:00Z') + SP_OFF
 
+/** 'YYYY-MM-DD' of the São Paulo calendar day containing `ms`. */
+export const spDateOf = (ms: number) => new Date(ms - SP_OFF).toISOString().slice(0, 10)
+
 export interface Clock {
   now: number; seriesStart: number; snap0: number
   snapTime(i: number): number; snapIdxAtOrAfter(t: number): number; snapIdxAtOrBefore(t: number): number

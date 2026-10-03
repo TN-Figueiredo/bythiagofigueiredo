@@ -2,7 +2,7 @@
 import { RULES, bandOf } from './rules'
 import { median } from './stats'
 import { DAY } from './time'
-import { viewsAtAge, viewsAtIdx } from './series'
+import { viewsAtAge, viewsAtIdx, fromDayZero } from './series'
 import type { EngineCtx } from './series'
 import type { ObsVideo } from './types'
 
@@ -24,9 +24,9 @@ export function multiplierAt(ctx: EngineCtx, v: ObsVideo, t: number | null): Mul
   const totalOf = (u: ObsVideo) => u.series.length ? viewsAtIdx(u, tt!) : u.views
   const others = ch.videos.filter(u => u !== v && u.tracked && u.fmt === v.fmt && u.pub < tTime && (u.series.length ? viewsAtIdx(u, tt!) != null : u.views != null))
   let dayFallbackN: number | null = null
-  if (v.pub >= SS && v.series.length) {
+  if (fromDayZero(ctx, v) && v.series.length) {
     const ageMs = tTime - v.pub, d = Math.floor(ageMs / DAY)
-    const base = others.filter(u => u.pub >= SS && u.series.length).map(u => viewsAtAge(ctx, u, ageMs, t)).filter((x): x is number => x != null)
+    const base = others.filter(u => fromDayZero(ctx, u) && u.series.length).map(u => viewsAtAge(ctx, u, ageMs, t)).filter((x): x is number => x != null)
     // A zero median (every comparable video at 0 views) would make own/m Infinity: no base, never ∞×.
     if (base.length >= RULES.weakBase && median(base)! > 0) {
       const m = median(base)!

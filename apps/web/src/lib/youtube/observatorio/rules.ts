@@ -15,6 +15,9 @@ export const RULES = {
   // New in the production port (plan 2026-10-02-observatorio-competidores, Task 17); the mockup fixes the sync state in data.
   // Two missed 6 h sync slots: an ok sync older than this makes the channel 'atrasado'.
   syncLateHours: 12,
+  // New in the production port (Task 32): the data sent to the forja is capped (most recent first) to keep one request
+  // inside the coupled budget (20 min claim < 25 min cron < 30 min vigia).
+  forja: { maxVideos: 400 },
 }
 export interface AgeBand { id: string; lo: number; hi: number; label: string }
 export const AGE_BANDS: AgeBand[] = [

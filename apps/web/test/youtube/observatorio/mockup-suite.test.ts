@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { loadOracle, datasetFromOracle, runMockupSuite, createTestObservatory } from './oracle'
-import { PENDING_SECTIONS, PORTED_SECTIONS, NOT_PORTED, NOT_PORTED_TESTS } from './suite-pending'
+import { PENDING_SECTIONS, PORTED_SECTIONS, NOT_PORTED, NOT_PORTED_TESTS, BROWSER_ONLY_TESTS } from './suite-pending'
 
 const oracle = loadOracle()
 const onOracle = runMockupSuite(oracle)
@@ -10,7 +10,12 @@ const onProd = runMockupSuite(createTestObservatory(datasetFromOracle(loadOracle
 describe('mockup suite (dados-teste.html) — oracle sanity', () => {
   it('the oracle passes everything except the browser-only tests', () => {
     const fails = onOracle.filter(r => !r.ok).map(r => r.name)
-    expect(fails.sort()).toEqual([...NOT_PORTED_TESTS].sort())
+    expect(fails.sort()).toEqual([...BROWSER_ONLY_TESTS].sort())
+  })
+  it('every not-ported test exists in the suite and says why', () => {
+    const names = new Set(onOracle.map(r => r.name))
+    expect([...NOT_PORTED_TESTS.keys()].filter(n => !names.has(n))).toEqual([])
+    expect([...NOT_PORTED_TESTS.values()].every(r => r.length > 20)).toBe(true)
   })
 })
 describe('touch net', () => {
@@ -39,6 +44,7 @@ describe('mockup suite (dados-teste.html) — production engine, verbatim', () =
       expect(r.ok, r.detail).toBe(true)
     })
   }
+  it('nothing left pending', () => expect([...PENDING_SECTIONS]).toEqual([]))
   it('every section is either ported, pending or explicitly not ported', () => {
     const known = new Set([...PENDING_SECTIONS, ...NOT_PORTED.keys(), ...PORTED_SECTIONS])
     expect([...new Set(onProd.map(r => r.section))].filter(x => !known.has(x))).toEqual([])
