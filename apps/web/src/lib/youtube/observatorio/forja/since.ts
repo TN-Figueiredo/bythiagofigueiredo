@@ -21,7 +21,7 @@ export interface SinceResult {
   moved?: Array<{ change: string; then: string; now: string; thenCollected: number | null; nowCollected: number | null }>
   viewsThen?: number | null; viewsNow?: number | null
   /** Ids the frozen reading cites that the observatory no longer has (removed channel, video out of the list, deleted version). Never a crash. */
-  gone?: { changes: string[]; videos: string[] }
+  gone?: { changes: string[]; videos: string[]; channels?: string[] }
 }
 type Raw = Omit<SinceResult, 'textNoAsk'>
 
@@ -32,10 +32,11 @@ export const noAskText = (text: string): string => text.replace(ASK, '.').replac
 const changesOf = (ctx: ForjaCtx): ObsChange[] => [...ctx.CHG.values()]
 const plural = (ctx: ForjaCtx, n: number, one: string, many: string) => ctx.fmt.plural(n, one, many)
 /** "2 trocas citadas não estão mais no observatório" — the part said when the frozen reading cites data that no longer exists. */
-const goneParts = (ctx: ForjaCtx, changes: number, videos: number): { long: string[]; short: string[] } => {
+const goneParts = (ctx: ForjaCtx, changes: number, videos: number, channels = 0): { long: string[]; short: string[] } => {
   const long: string[] = [], short: string[] = []
   if (changes) { long.push(plural(ctx, changes, 'troca citada não está', 'trocas citadas não estão') + ' mais no observatório'); short.push(plural(ctx, changes, 'troca citada fora', 'trocas citadas fora')) }
   if (videos) { long.push(plural(ctx, videos, 'vídeo da leitura não está', 'vídeos da leitura não estão') + ' mais no observatório'); short.push(plural(ctx, videos, 'vídeo da leitura fora', 'vídeos da leitura fora')) }
+  if (channels) { long.push(plural(ctx, channels, 'canal da leitura não está', 'canais da leitura não estão') + ' mais no observatório'); short.push(plural(ctx, channels, 'canal da leitura fora', 'canais da leitura fora')) }
   return { long, short }
 }
 const CANT = 'Não dá para comparar esta leitura com os dados de hoje: '
@@ -109,7 +110,9 @@ function sinceOutliers(ctx: ForjaCtx, r: FrozenReading): Raw {
       shortText: 'desde então: sem os dados enviados à forja para comparar', text: CANT + 'os dados enviados à forja não ficaram registrados com ela.' }
   }
   const base0 = r.base, goneV = base0.videos.filter(v => !ctx.V.get(v.id)).map(v => v.id)
-  const base = { ...base0, videos: base0.videos.filter(v => !goneV.includes(v.id)) }, fmtId = r.fmt || base.fmt || 'long'
+  // a channel the reading cites may have left the dataset: said (like a removed video), the rest still compares
+  const goneC = base0.channels.filter(id => !ctx.CH.get(id))
+  const base = { ...base0, videos: base0.videos.filter(v => !goneV.includes(v.id)), channels: base0.channels.filter(id => !goneC.includes(id)) }, fmtId = r.fmt || base.fmt || 'long'
   // same channels and same format as the reading, read at the last daily record
   const now = baseAt(ctx, r.niche ?? undefined, ctx.lastIdx, base.windowDays!, base.channels, fmtId)
   const staleNow = eligibleChannels(ctx, r.niche).out.filter(o => base.channels.includes(o.id) && base.videos.some(x => x.ch === o.id))
@@ -135,7 +138,7 @@ function sinceOutliers(ctx: ForjaCtx, r: FrozenReading): Raw {
   if (stoppedOut.length) parts.push(plural(ctx, stoppedOut.length, 'deixou', 'deixaram') + ' de ser outlier')
   if (titleChanged.length) parts.push(titleChanged.length + ' com título trocado')
   if (staleNow.length) parts.push(staleNow.map(o => o.reason.replace(' fica fora', '')).join('; ') + ' — uma nova leitura deixaria ' + (staleNow.length === 1 ? 'esse canal' : 'esses canais') + ' de fora')
-  const g = goneParts(ctx, 0, goneV.length)
+  const g = goneParts(ctx, 0, goneV.length, goneC.length)
   parts.push(...g.long)
   const sp: string[] = []
   if (fresh.length) sp.push('+' + plural(ctx, fresh.length, 'vídeo novo', 'vídeos novos'))
@@ -147,7 +150,7 @@ function sinceOutliers(ctx: ForjaCtx, r: FrozenReading): Raw {
   if (titleChanged.length) sp.push(plural(ctx, titleChanged.length, 'título trocado', 'títulos trocados'))
   if (staleNow.length) sp.push(plural(ctx, staleNow.length, 'canal fora', 'canais fora'))
   sp.push(...g.short)
-  return { staleNow, readingId: r.id, ...(goneV.length ? { gone: { changes: [], videos: goneV } } : {}), newVideos: newVideos.map(v => v.id), leftWindow: leftWindow.map(v => v.id), becameOutlier: becameOut, stoppedOutlier: stoppedOut, titleChanged,
+  return { staleNow, readingId: r.id, ...(goneV.length || goneC.length ? { gone: { changes: [], videos: goneV, ...(goneC.length ? { channels: goneC } : {}) } } : {}), newVideos: newVideos.map(v => v.id), leftWindow: leftWindow.map(v => v.id), becameOutlier: becameOut, stoppedOutlier: stoppedOut, titleChanged,
     nowVideos: now.videos.length, nowOutliers: outNow.size, sentVideos: base.videos.length, sentOutliers: outThen.size,
     freshVideos: fresh.map(v => v.id), noBaseThenVideos: noBaseThen.map(v => v.id), foundOldVideos: foundOld.map(v => v.id),
     countsText: 'vídeos: ' + base.videos.length + ' → ' + now.videos.length + ' · outliers: ' + outThen.size + ' → ' + outNow.size,

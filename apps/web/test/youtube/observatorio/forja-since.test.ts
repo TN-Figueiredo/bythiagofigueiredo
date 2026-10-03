@@ -156,6 +156,20 @@ describe('since — a frozen reading that cites data the observatory no longer h
     expect(s.gone!.videos).toEqual([gone])
     expect(s.text).toMatch(/1 vídeo da leitura não está mais no observatório/)
   })
+  it('a cited channel was removed from the dataset: no throw, the gone channel is named and the rest still compares', () => {
+    const d = datasetFromOracle(loadOracle())
+    const P = d.readings.find(r => r.id === 'padroes-titulo-viagem-20-10')!
+    expect(P.base!.channels.length).toBeGreaterThan(1)
+    const goneCh = P.base!.channels[0]!
+    d.channels = d.channels.filter(c => c.id !== goneCh)
+    d.videos = d.videos.filter(v => v.ch !== goneCh)
+    const s = createObservatory(d).forja.since(P.id)!
+    expect(s.gone!.channels).toEqual([goneCh])
+    expect(s.text).toMatch(/1 canal da leitura não está mais no observatório/)
+    expect(s.shortText).toMatch(/1 canal da leitura fora$/)
+    expect(s.sentVideos).toBeGreaterThan(0)
+    expect(s.textNoAsk).not.toMatch(ASK)
+  })
   it('the video of a video reading is gone: honest sentence, no comparison', () => {
     const d = datasetFromOracle(loadOracle())
     d.videos = d.videos.filter(x => x.id !== 'matt-opus55')
