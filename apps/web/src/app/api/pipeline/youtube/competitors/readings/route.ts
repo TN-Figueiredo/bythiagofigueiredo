@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { authenticateIntel, parseBody, pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
 import { UUID_REGEX } from '@/lib/pipeline/auth'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
-import { completeReading, readSent, type ReadingSubmission } from '@/lib/pipeline/services/forja-queue'
+import { completeReading, readSent, ReadingSubmissionSchema } from '@/lib/pipeline/services/forja-queue'
 
 export const dynamic = 'force-dynamic'
 /**
@@ -33,19 +33,20 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST a reading for a running observatory task → {reading_id}. Thin adapter: completeReading validates the body,
- * the numbers against sent.numbers and the evidence against sent.ids (400), and the task state (409).
+ * POST a reading for a running observatory task → {reading_id}. The body shape is parsed here (the same schema the
+ * service re-checks); completeReading validates the numbers against sent.numbers and the evidence against sent.ids
+ * (400), and the task state (409).
  */
 export async function POST(req: NextRequest) {
   const result = await authenticateIntel(req, { apiKeyOnly: true })
   if (result instanceof Response) return result
   const { auth } = result
 
-  const body = await parseBody(req, undefined, auth)
+  const body = await parseBody(req, ReadingSubmissionSchema, auth)
   if (body instanceof Response) return body
 
   try {
-    const { data } = await completeReading(authToServiceContext(auth), body as ReadingSubmission)
+    const { data } = await completeReading(authToServiceContext(auth), body)
     return pipelineSuccess({ reading_id: data.readingId }, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)

@@ -335,7 +335,7 @@ Pickup de tasks pendentes com CAS (compare-and-swap) — endpoint atual; funcion
 ```
 `channel_ids`: 1 a 10 uuids, obrigatório — o worker nunca reivindica uma task fora da lista que está processando.
 
-`task_types` (opcional, só a forja com `OBS_TIPOS=1`): até 5 tipos do observatório — `padroes-titulo`, `padroes-titulo-shorts`, `temas`, `resumo-trocas`, `leitura-video`. Com ele, a claim também pega pedidos do observatório desses tipos e grava o batimento da forja (`forja_heartbeat`: hora do poll + esses tipos como capacidades), mesmo com a fila vazia. **Sem `task_types`** a claim é exatamente a de antes: só `diagnostico` dos `channel_ids`, sem batimento.
+`task_types` (opcional, só a forja com `OBS_TIPOS=1`): 1 a 5 tipos do observatório — `padroes-titulo`, `padroes-titulo-shorts`, `temas`, `resumo-trocas`, `leitura-video`. Com ele, a claim também pega pedidos do observatório desses tipos e grava o batimento da forja (`forja_heartbeat`: hora do poll + esses tipos como capacidades), mesmo com a fila vazia. **Sem `task_types`** a claim é exatamente a de antes: só `diagnostico` dos `channel_ids`, sem batimento.
 ```json
 { "channel_ids": ["uuid"], "task_types": ["padroes-titulo", "padroes-titulo-shorts", "temas", "resumo-trocas", "leitura-video"] }
 ```
@@ -360,7 +360,7 @@ Pickup de tasks pendentes com CAS (compare-and-swap) — endpoint atual; funcion
 Num pedido do observatório, `channel_id` é `null` e o alvo vem em `task_type` + `target_niche` (`ia`/`viagem`) ou `target_video_id` (`leitura-video`), com `target_fmt` (`long`/`short`) nos tipos de outliers. Ver "Leituras do observatório (forja)".
 
 **Response 204:** corpo vazio — fila vazia para esses canais, ou a CAS perdeu para outra claim concorrente
-**Response 400:** `VALIDATION_ERROR` — `channel_ids` ausente, vazio ou com mais de 10 ids; `task_types` com tipo desconhecido ou mais de 5
+**Response 400:** `VALIDATION_ERROR` — `channel_ids` ausente, vazio ou com mais de 10 ids; `task_types` vazio, com tipo desconhecido ou com mais de 5
 **Response 403:** `FORBIDDEN` — chave sem `read`+`intelligence` (nem `write`/`admin`)
 **Response 500:** `INTERNAL_ERROR` — falha ao ler a fila
 
@@ -833,6 +833,8 @@ A forja (Gemma 12B local) lê pedidos do observatório de concorrentes feitos na
 
 Os dados enviados à forja para uma task `running` desta chave. A primeira leitura monta o pacote e o congela em `task.sent`; as seguintes devolvem **o mesmo objeto** (idempotente).
 
+O congelamento é **por task, não por tentativa**: quando a task volta para a fila (`fail` com `retry`, ou o vigia), o `sent` fica, e a próxima tentativa recebe os mesmos dados, na hora, sem montar de novo — a releitura cita os mesmos números. Só a primeira leitura bem-sucedida de uma task monta o pacote.
+
 **Headers:** `X-Pipeline-Key: {api_key}` (escopo `intelligence`, só API key)
 
 **Response 200:**
@@ -856,10 +858,12 @@ Os dados enviados à forja para uma task `running` desta chave. A primeira leitu
 }
 ```
 **Response 400:** `VALIDATION_ERROR` — `task_id` ausente ou não é uuid; a task não é do observatório
+**Response 401:** `UNAUTHORIZED` — sem `X-Pipeline-Key` ou chave inválida
+**Response 403:** `FORBIDDEN` — sessão (só API key) ou chave sem `intelligence` (nem `write`/`admin`)
 **Response 404:** `NOT_FOUND` — task não existe
-**Response 409:** `TASK_NOT_RUNNING` — a task não está `running`, ou pertence a outra chave — não insistir
-**Response 422:** `TARGET_UNAVAILABLE` — o alvo não pode ser montado (ex.: o vídeo sumiu); nada é congelado — feche com `fail` sem `retry`
-**Response 500:** `INTERNAL_ERROR` — falha ao carregar os dados (transitória: `fail` com `retry`)
+**Response 409:** `TASK_NOT_RUNNING` — a task não está `running`, ou pertence a outra chave (ou foi reclamada de novo enquanto o pacote era montado) — não insistir
+**Response 422:** `TARGET_UNAVAILABLE` — o alvo não existe mais (o vídeo do `leitura-video` sumiu); nada é congelado — feche com `fail` sem `retry`
+**Response 500:** `INTERNAL_ERROR` — falha ao carregar ou montar os dados (mensagem genérica; o detalhe vai para o Sentry); nada é congelado — feche com `fail` com `retry`
 
 ### POST /api/pipeline/youtube/competitors/readings
 
@@ -882,6 +886,8 @@ Publica a leitura da forja para uma task `running` desta chave cujo `sent` já f
 
 **Response 200:** `{ "data": { "reading_id": "uuid" } }`
 **Response 400:** `VALIDATION_ERROR` — corpo inválido; número fora de `sent.numbers` (a mensagem lista os números); `evidence[].id` fora de `sent.ids`
+**Response 401:** `UNAUTHORIZED` — sem `X-Pipeline-Key` ou chave inválida
+**Response 403:** `FORBIDDEN` — sessão (só API key) ou chave sem `intelligence` (nem `write`/`admin`)
 **Response 404:** `NOT_FOUND` — task não existe
 **Response 409:** `TASK_NOT_RUNNING` — a task não está `running` (já publicada, liberada pelo vigia) ou é de outra chave; `TASK_NOT_READY` — `sent` nunca foi lido (faça o GET antes). **Nunca reenviar** o mesmo POST
 **Response 500:** `INTERNAL_ERROR` — o POST pode ou não ter gravado; feche com `fail` (`retry: true`) — um 409 nesse `fail` quer dizer que a leitura foi publicada

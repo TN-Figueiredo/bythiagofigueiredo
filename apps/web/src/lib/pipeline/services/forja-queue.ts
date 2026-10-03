@@ -3,9 +3,11 @@
  * ('diagnostico', per channel) and the observatory readings (one type × one target: a niche, or a video).
  *
  *  - askReading / cancelReading: the screen's "Pedir leitura à forja" (the engine's planAsk decides; this writes).
- *  - claim: the ONLY claim CAS. It records the heartbeat first (every call, even on an empty queue), then shows a
- *    caller only 'diagnostico' unless it announced observatory types — the old worker and the legacy GET are unchanged.
- *  - readSent: the data sent to the forja for a running task, built once and frozen into `task.sent`.
+ *  - claim: the ONLY claim CAS. With `opts.heartbeat` (only the forja's typed claim, R46/R52) it records the
+ *    heartbeat first, even on an empty queue; every other caller never writes it. It shows a caller only
+ *    'diagnostico' unless it announced observatory types — the old worker and the legacy GET are unchanged.
+ *  - readSent: the data sent to the forja, built on the first read and frozen into `task.sent` PER TASK (R55): a
+ *    requeued attempt (fail with retry, the vigia) reads the same frozen data, so a retry cites the same numbers.
  *  - refuseTask / completeReading: how the forja ends an observatory task.
  *
  * Quota: 1 request per niche + type per São Paulo day; failure and refusal do not count (forja/quota.ts).
@@ -25,7 +27,7 @@ import { spDayStart } from '@/lib/youtube/observatorio/time'
 import { NICHES } from '@/lib/youtube/observatorio/rules'
 import { loadDataset, taskRowToRequest, TASK_COLS, type TaskRow } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
-import { buildSent, type SentPack } from '@/lib/youtube/observatorio/forja/sent'
+import { buildSent, TargetUnavailableError, type SentPack } from '@/lib/youtube/observatorio/forja/sent'
 
 export const OBS_TYPES = ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'] as const
 export type ObsType = typeof OBS_TYPES[number]
@@ -284,9 +286,14 @@ export interface SentRead {
 
 /**
  * The data sent to the forja for a running observatory task (GET …/competitors/readings). Built by the engine on the
- * first read and frozen into `task.sent` by a CAS (sent IS NULL, same claim, same holder); every later read — and
- * completeReading — uses that frozen copy, so the numbers the reading may cite never move under the forja. A target
- * the engine cannot build (e.g. the video is gone) is a 422: not retryable, nothing frozen.
+ * first read and frozen into `task.sent`; every later read — and completeReading — uses that frozen copy, so the
+ * numbers the reading may cite never move under the forja.
+ *
+ * The freeze is PER TASK, not per claim (R55): a requeue keeps `sent`, and the next attempt's GET returns it at once.
+ * The CAS that writes it (sent IS NULL, still running, same started_at, same holder) only decides who freezes first.
+ *
+ * A target that no longer exists (TargetUnavailableError: the video is gone) is a 422 — not retryable, nothing
+ * frozen. Any other failure while building is a bug or a broken row: Sentry + a generic 500, which the worker retries.
  */
 export async function readSent(ctx: ServiceContext, taskId: string, now: number = Date.now()): Promise<ServiceResult<SentRead>> {
   const cols = 'id, status, task_type, target_niche, target_video_id, target_fmt, result_summary, started_at, sent'
@@ -298,12 +305,14 @@ export async function readSent(ctx: ServiceContext, taskId: string, now: number 
   })
   if (task.sent != null) return out(task.sent)
 
-  const obs = createObservatory(await loadDataset({ siteId: ctx.siteId, now, supabase: ctx.supabase }))
   let sent: SentPack
   try {
+    const obs = createObservatory(await loadDataset({ siteId: ctx.siteId, now, supabase: ctx.supabase }))
     sent = buildSent(obs, task.task_type, { niche: task.target_niche as Niche | null, videoId: task.target_video_id, fmt: task.target_fmt as Fmt | null })
   } catch (e) {
-    return err('TARGET_UNAVAILABLE', e instanceof Error ? e.message : 'The target of this task cannot be read', 422)
+    if (e instanceof TargetUnavailableError) return err('TARGET_UNAVAILABLE', 'The target of this task is no longer available', 422)
+    Sentry.captureException(e, { extra: { taskId: task.id, taskType: task.task_type, siteId: ctx.siteId } })
+    return err('INTERNAL_ERROR', 'Failed to build the data sent to the forja', 500)
   }
 
   let cas = ctx.supabase.from(TASKS).update({ sent })

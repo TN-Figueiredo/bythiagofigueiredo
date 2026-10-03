@@ -18,7 +18,8 @@ export const dynamic = 'force-dynamic'
  */
 const ClaimSchema = z.object({
   channel_ids: z.array(z.string().uuid()).min(1).max(10),
-  task_types: z.array(z.enum(OBS_TYPES)).max(OBS_TYPES.length).optional(),
+  // min(1): the kit sends all its types (OBS_TIPOS=1) or omits the key; [] would be a heartbeat with no capability
+  task_types: z.array(z.enum(OBS_TYPES)).min(1).max(OBS_TYPES.length).optional(),
 })
 
 export async function POST(req: NextRequest) {
