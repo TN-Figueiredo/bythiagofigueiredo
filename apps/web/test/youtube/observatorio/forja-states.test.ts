@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest'
 import { createClock } from '@/lib/youtube/observatorio/time'
 import type { ForjaRequest, Niche, RequestState } from '@/lib/youtube/observatorio/types'
-import { requestStateOf, statusLabel, summarize, machineOf, queueOrder, compose } from '@/lib/youtube/observatorio/forja/states'
+import { requestStateOf, statusLabel, summarize, machineOf, queueOrder, compose, refusedReasonText } from '@/lib/youtube/observatorio/forja/states'
 import { quotaFor } from '@/lib/youtube/observatorio/forja/quota'
 import { createSession } from '@/lib/youtube/observatorio/forja/session'
 
@@ -256,5 +256,31 @@ describe('fix round 1 — DB-shaped rows', () => {
     expect(q).toEqual({ free: false, usedToday: 0, releasesAt: null, text: 'cota usada pelo pedido de 23/10 23:40, ainda em andamento' })
     const s = createSession(reqs, dead, clock, { capabilities: ['padroes-titulo'], eligible: () => ({ in: [], out: [] }) })
     expect(s.ask('ia', { type: 'padroes-titulo' }).ok).toBe(false)
+  })
+})
+
+describe('refused reason codes → canonical sentence (Task 30: the service stores a short code)', () => {
+  const sentence = 'A máquina recebeu dados anteriores à última sincronização. Peça de novo.'
+  it("'dado-velho' reads as the sentence, one niche", () => {
+    const sc = summarize([req('recusado (dado velho)', { refusedAt: T(14, 56), refusedReason: 'dado-velho' })], alive, false, clock)
+    expect(sc.statusText).toBe(sentence)
+    expect(sc.statusText).not.toContain('dado-velho')
+  })
+  it("'dado-velho' with Todos: the niche sentence without the final 'Peça de novo'", () => {
+    const sc = summarize([
+      req('recusado (dado velho)', { createdAt: T(14, 50), refusedAt: T(14, 56), refusedReason: 'dado-velho' }, 'ia'),
+      req('publicado', { createdAt: T(14, 51), publishedAt: T(14, 59) }, 'viagem'),
+    ], alive, true, clock)
+    expect(sc.statusText).toContain('O pedido de IA foi recusado. A máquina recebeu dados anteriores à última sincronização.')
+    expect(sc.statusText).not.toContain('dado-velho')
+  })
+  it('a free-text reason (not a code) passes through unchanged', () => {
+    const sc = summarize([req('recusado (dado velho)', { refusedAt: T(14, 56), refusedReason: 'outro motivo qualquer.' })], alive, false, clock)
+    expect(sc.statusText).toBe('Outro motivo qualquer.')
+  })
+  it('refusedReasonText maps the code and leaves other text alone', () => {
+    expect(refusedReasonText('dado-velho')).toBe('a máquina recebeu dados anteriores à última sincronização. Peça de novo.')
+    expect(refusedReasonText('x')).toBe('x')
+    expect(refusedReasonText(null)).toBeNull()
   })
 })
