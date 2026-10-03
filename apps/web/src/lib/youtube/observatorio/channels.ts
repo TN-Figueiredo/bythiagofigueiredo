@@ -110,7 +110,7 @@ function maxBelow(ctx: EngineCtx, ch: Ch, fmtId: Fmt) {
 }
 const strong90 = (ctx: EngineCtx, ch: Ch, fmtId: Fmt) => vids(ctx, ch).filter(v => v.tracked && v.fmt === fmtId && v.ageDays <= 90 && v.mult && v.mult.value != null && !v.mult.weak)
 function engagementOf(ctx: EngineCtx, ch: Ch, fmtId: Fmt) {
-  const a = vids(ctx, ch).filter(v => v.tracked && v.fmt === fmtId && v.ageDays <= 90 && v.views != null && v.views > 0 && v.likes != null).map(v => (v.likes + v.comments) / v.views!)
+  const a = vids(ctx, ch).filter(v => v.tracked && v.fmt === fmtId && v.ageDays <= 90 && v.views != null && v.views > 0 && v.likes != null).map(v => (v.likes! + v.comments) / v.views!)
   const m = median(a)
   return { median: m, n: a.length, window: '90 dias', label: a.length ? ctx.fmt.dec1(m! * 100) + '% (n = ' + a.length + ')' : 'sem vídeos com contagem' }
 }

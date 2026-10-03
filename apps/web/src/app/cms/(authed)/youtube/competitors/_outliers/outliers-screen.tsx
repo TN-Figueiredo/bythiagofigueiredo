@@ -19,11 +19,20 @@ export function OutliersScreen({ view: v }: { view: OutliersView }) {
   const router = useRouter()
   const go = (href: string) => router.push(href, { scroll: false })
   const [probsOpen, setProbsOpen] = useState(false)
+  // outliers.html: below 821 px the link's filters move right under the controls (#chips.near), before the summary
+  const [near, setNear] = useState(false)
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const mq = window.matchMedia('(min-width:821px)'), on = () => setNear(!mq.matches)
+    on(); mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
   const toast = useToast()
   // The screen shows another niche than the saved one (channel or reading of that niche): say so; nothing is persisted.
   const notice = v.nicheNotice
   useEffect(() => { if (notice) toast('', notice.title, notice.body) }, [notice?.niche, notice?.title]) // eslint-disable-line react-hooks/exhaustive-deps
   const shorts = v.query.fmt === 'short'
+  const hasChips = v.chips.length > 0 || !!v.chipsLead
   return (
     <div className="obs-out" data-obs-screen="outliers">
       <section className="obs-out-controls" aria-label="Filtros">
@@ -39,13 +48,16 @@ export function OutliersScreen({ view: v }: { view: OutliersView }) {
         </div>
       </section>
 
+      {near ? <ParamChips v={v} near /> : null}
+
       <div className="obs-out-sumbar">
         <details className="obs-out-rule">
           <summary><span className="obs-out-cnt" aria-live="polite"><RichText parts={v.baseParts} /></span> <span className="obs-out-more">Como contamos</span></summary>
           <div>{v.basisMore.map((t, i) => <p key={i}>{t}</p>)}</div>
         </details>
-        {/* Forja bar (Task 35): the request state, the readings and the next request's scope. */}
-        {v.forjaBar ? <div className="obs-out-fbslot" data-forja-slot=""><ForjaBar bar={v.forjaBar} /></div> : null}
+        {/* Forja bar (Task 35): the request state, the readings and the next request's scope. Beside the count only
+            when a link brought filters (outliers.html renderAll: #fbSlot); otherwise in the notices after the bar. */}
+        {v.forjaBar && hasChips ? <div className="obs-out-fbslot" data-forja-slot=""><ForjaBar bar={v.forjaBar} /></div> : null}
         {v.problems ? (
           <div className="obs-out-probs" data-probs="">
             <OutIcon name="warn" />
@@ -66,7 +78,8 @@ export function OutliersScreen({ view: v }: { view: OutliersView }) {
         </div>
       </div>
 
-      <ParamChips v={v} />
+      {near ? null : <ParamChips v={v} />}
+      {v.forjaBar && !hasChips ? <div className="obs-out-notices" data-forja-slot=""><ForjaBar bar={v.forjaBar} /></div> : null}
 
       <div className="obs-out-results">
         {v.empty ? (

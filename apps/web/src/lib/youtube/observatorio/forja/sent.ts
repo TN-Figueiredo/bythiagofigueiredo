@@ -15,7 +15,7 @@ import { viewsAtIdx } from '../series'
 import { THEME, FORMULA } from '../catalog'
 import { DAY } from '../time'
 import type { ObsChange } from '../changes'
-import type { Fmt, Niche } from '../types'
+import type { Fmt, Niche, ReadingBase, ReadingEffect } from '../types'
 import type { Observatory } from '../index'
 import { eligibleChannels, type ForjaCtx } from './scope'
 import { canonicalNumberTokens } from './numbers'
@@ -24,6 +24,17 @@ export type SentCell = string | null
 export interface SentPack {
   text: string; asOf: number; ids: string[]; numbers: string[]; nVideos: number; nOutliers: number
   channels: string[]; channelsOut: Array<{ id: string; reason: string }>; items: Array<Record<string, SentCell>>; capped: boolean
+  /*
+   * What "Desde então" (forja.since) compares today's data with, frozen with the reading (the loader maps it back onto
+   * the FrozenReading). Raw values, never cited: they stay out of `numbers`. Without them a published reading could
+   * only ever say "sem os dados enviados à forja para comparar" (Task 35b).
+   */
+  /** padroes-titulo / temas: the videos and channels read, with their multipliers then. */
+  base?: ReadingBase
+  /** resumo-trocas: the changes read and the window (30 days). */
+  changeIds?: string[]; windowDays?: number
+  /** leitura-video: each change's verdict and the video's views then. */
+  effects?: ReadingEffect[]; viewsThen?: number | null
 }
 export interface SentTarget { niche?: Niche | null; videoId?: string | null; fmt?: Fmt | null }
 /**
@@ -81,7 +92,9 @@ function outlierPack(ctx: ForjaCtx, type: string, niche: Niche, fmtId: Fmt): Sen
     text = 'dados enviados à forja: ' + (capped ? 'os ' + max + ' ' + (short ? 'Shorts' : 'longos') + ' mais recentes de ' + fmt.int(all.length) : vids.length + ' ' + unit(vids.length)) +
       ' até ' + clock.dm(base.asOf) + ' ' + clock.hm(base.asOf) + ' (' + word + ', ' + winText(win) + '; ' + fmt.plural(nOut, 'outlier', 'outliers') + ' de ' + fmt.mult(RULES.outlierMin) + ' ou mais)'
   }
-  return pack({ text, asOf: base.asOf, ids: vids.map(v => v.id), nVideos: vids.length, nOutliers: nOut, channels, channelsOut: el.out, items, capped },
+  const frozen: ReadingBase = { fmt: fmtId, t: base.t, asOf: base.asOf, niche, windowDays: win, channels, excluded: base.excluded,
+    videos: vids.map(v => ({ id: v.id, ch: v.ch, title: v.title, theme: v.theme, formulas: v.formulas, mult: v.mult, weak: v.weak, method: v.method ?? null, n: v.n })) }
+  return pack({ text, asOf: base.asOf, ids: vids.map(v => v.id), nVideos: vids.length, nOutliers: nOut, channels, channelsOut: el.out, items, capped, base: frozen, windowDays: win },
     [vids.length, nOut, all.length, max, withV, channels.length, RULES.outlierMin, RULES.pattern.minN])
 }
 
@@ -103,7 +116,8 @@ function changesPack(ctx: ForjaCtx, niche: Niche): SentPack {
   const text = !cs.length ? 'nenhuma troca para enviar à forja nos últimos 30 dias até ' + clock.dm(asOf) + ' ' + clock.hm(asOf)
     : 'dados enviados à forja: ' + (capped ? 'as ' + max + ' trocas mais recentes de ' + fmt.int(all.length) : fmt.plural(cs.length, 'troca', 'trocas')) +
       ' (' + by('title') + ' de título, ' + by('thumb') + ' de thumbnail, ' + by('desc') + ' de descrição) de ' + clock.dm(asOf - 30 * DAY) + ' a ' + clock.dm(asOf) + ' ' + clock.hm(asOf)
-  return pack({ text, asOf, ids: [...cs.map(c => c.id), ...videos], nVideos: videos.length, nOutliers: 0, channels, channelsOut: el.out, items: cs.map(c => changeItem(ctx, c, null)), capped },
+  return pack({ text, asOf, ids: [...cs.map(c => c.id), ...videos], nVideos: videos.length, nOutliers: 0, channels, channelsOut: el.out, items: cs.map(c => changeItem(ctx, c, null)), capped,
+    changeIds: cs.map(c => c.id), windowDays: 30 },
     [cs.length, all.length, max, videos.length, 0, by('title'), by('thumb'), by('desc'), 30])
 }
 
@@ -126,7 +140,10 @@ function videoPack(ctx: ForjaCtx, videoId: string): SentPack {
     : 'dados enviados à forja: ' + fmt.plural(nT, 'título', 'títulos') + ', ' + fmt.plural(nTh, 'período', 'períodos') + ' de thumbnail, ' + fmt.plural(nD, 'descrição', 'descrições') + ' e ' +
       (capped ? 'os ' + max + ' registros diários de views mais recentes de ' + fmt.int(allPts.length) : fmt.plural(pts.length, 'registro diário', 'registros diários') + ' de views') + ', até ' + clock.dm(asOf) + ' ' + clock.hm(asOf)
   const el = eligibleChannels(ctx, v.niche)
-  return pack({ text, asOf, ids: [v.id, ...cs.map(c => c.id)], nVideos: 1, nOutliers: isOut ? 1 : 0, channels: [v.ch], channelsOut: el.out.filter(o => o.id === v.ch), items, capped },
+  const effects: ReadingEffect[] = cs.map(c => effectAt(ctx, c.id, t)).filter((e): e is NonNullable<typeof e> => !!e)
+    .map(e => ({ change: e.id, status: e.status, numbers: e.numbers ?? null, reason: e.reason, collected: e.collected ?? null }))
+  return pack({ text, asOf, ids: [v.id, ...cs.map(c => c.id)], nVideos: 1, nOutliers: isOut ? 1 : 0, channels: [v.ch], channelsOut: el.out.filter(o => o.id === v.ch), items, capped,
+    effects, viewsThen: viewsAtIdx(v, t) ?? null },
     [1, isOut ? 1 : 0, nT, nTh, nD, pts.length, allPts.length, max])
 }
 

@@ -75,6 +75,8 @@ export interface ForjaFacade {
 
 export interface Observatory {
   NOW: number; SERIES_START: number; DAY: number; H: number
+  /** When the observatory began watching (the earliest channel added; dados.js OBS_START). */
+  OBS_START: number
   channels: ObsChannel[]; videos: (ObsVideo & Derived)[]
   channel(id: string): ObsChannel | undefined; video(id: string): (ObsVideo & Derived) | undefined
   seriesOf(id: string): ObsVideo['series']; viewsAt(id: string, idx: number): number | null; rate(id: string, a: number, b: number): number | null
@@ -145,7 +147,7 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
   const vid = (id: string) => { const v = V.get(id); if (!v) throw new Error('unknown video ' + id); return v }
   const forja = createForja(ctx, ds, clock, CH, V, opts?.testScenarios)
   return {
-    NOW: ds.now, SERIES_START: ds.seriesStart, DAY: 864e5, H: 36e5,
+    NOW: ds.now, SERIES_START: ds.seriesStart, OBS_START: ds.obsStart, DAY: 864e5, H: 36e5,
     channels: [...CH.values()], videos, channel: id => CH.get(id), video: id => V.get(id),
     seriesOf: id => vid(id).series, viewsAt: (id, idx) => viewsAtIdx(vid(id), idx), rate: (id, a, b) => rate(ctx, vid(id), a, b),
     periodRate: (id, f, t) => periodRate(ctx, id, f, t), expectedCurve: id => expectedCurve(ctx, id),

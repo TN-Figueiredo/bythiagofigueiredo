@@ -852,11 +852,15 @@ O congelamento é **por task, não por tentativa**: quando a task volta para a f
       "nVideos": 3, "nOutliers": 1,
       "channels": ["uuid"], "channelsOut": [{ "id": "uuid", "reason": "…" }],
       "items": [{ "kind": "vídeo", "id": "uuid-do-video", "title": "…", "views": "1,5 mil", "mult": "8,2×" }],
-      "capped": false
+      "capped": false,
+      "base": { "videos": [], "channels": ["uuid"], "windowDays": 182, "asOf": 1792857600000 },
+      "changeIds": ["uuid-do-video/title/2"], "windowDays": 30,
+      "effects": [{ "change": "uuid-do-video/title/2", "status": "ganhou", "numbers": "…", "reason": "…", "collected": 7 }], "viewsThen": 207600
     }
   }
 }
 ```
+`base` (padrões de título e temas), `changeIds` + `windowDays` (resumo das trocas) e `effects` + `viewsThen` (leitura de vídeo) são os dados crus que o site usa no "Desde então" da leitura publicada. Ficam congelados junto com o resto; **não são citáveis** (não entram em `numbers`) e a forja pode ignorá-los.
 **Response 400:** `VALIDATION_ERROR` — `task_id` ausente ou não é uuid; a task não é do observatório
 **Response 401:** `UNAUTHORIZED` — sem `X-Pipeline-Key` ou chave inválida
 **Response 403:** `FORBIDDEN` — sessão (só API key) ou chave sem `intelligence` (nem `write`/`admin`)

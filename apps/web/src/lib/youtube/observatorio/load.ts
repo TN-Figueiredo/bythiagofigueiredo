@@ -2,7 +2,7 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ForjaRequest, ChannelSnapshot } from './types'
+import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ReadingBase, ReadingEffect, ForjaRequest, ChannelSnapshot } from './types'
 import { DAY, H, spDayStart, spDateStart, spDateOf } from './time'
 import { RULES } from './rules'
 import { formulasOf, THEME } from './catalog'
@@ -37,11 +37,15 @@ export interface SnapshotRow { id?: string; competitor_channel_id: string; snaps
 export interface ReadingRow {
   id: string; task_type: string; niche: string | null; video_id: string | null; fmt: string | null; model: string; generated_at: string
   sent: unknown; analysis: unknown; text: unknown; evidence: unknown
+  /** The forja task that produced the reading (completeReading writes it): a published request points at its reading. */
+  task_id?: string | null
 }
 export interface TaskRow {
   id: string; task_type: string; target_niche: string | null; target_video_id: string | null; target_fmt: string | null; status: string
   requested_at: string; started_at: string | null; completed_at: string | null; failed_at: string | null; refused_at: string | null
   refused_reason: string | null; released_at: string | null; retry_count: number
+  /** The forja's reason for a final failure (services/youtube.ts fail route); cleared on a requeue. */
+  error_message?: string | null
 }
 export interface HeartbeatRow { last_poll_at: string; capabilities: string[] }
 
@@ -57,7 +61,7 @@ const VIDEO_COLS = 'id, competitor_channel_id, video_id, title, view_count, like
 const VERSION_COLS = 'id, video_id, field, value_text, value_hash, has_text, thumb_blob_url, first_seen_at, last_seen_at, window_start, precision, is_current'
 const OWN_VIDEO_COLS = 'id, channel_id, youtube_video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, updated_at, tags'
 /** The task columns every reader of the observatory queue selects (the loader and services/forja-queue). */
-export const TASK_COLS = 'id, task_type, target_niche, target_video_id, target_fmt, status, requested_at, started_at, completed_at, failed_at, refused_at, refused_reason, released_at, retry_count'
+export const TASK_COLS = 'id, task_type, target_niche, target_video_id, target_fmt, status, requested_at, started_at, completed_at, failed_at, refused_at, refused_reason, released_at, retry_count, error_message'
 /** PostgREST `max_rows` (supabase/config.toml): a bigger read is silently truncated, so every list is paged. */
 const PAGE = 1000
 /**
@@ -97,9 +101,20 @@ function groupBy<T>(xs: readonly T[], key: (x: T) => string): Map<string, T[]> {
   for (const x of xs) { const k = key(x); const l = m.get(k); if (l) l.push(x); else m.set(k, [x]) }
   return m
 }
-const initials = (name: string) => {
-  const w = name.trim().split(/\s+/).filter(Boolean)
-  return (w.length >= 2 ? w[0]![0]! + w[1]![0]! : (w[0] ?? '?').slice(0, 2)).toUpperCase()
+/**
+ * Avatar initials as the mockup draws them (dados.js `ini`): capitals, except for an all-lowercase name ("bald and bankrupt" → "bb"),
+ * English articles/conjunctions are skipped ("The AI Advantage" → "AA"), and one camel-cased word gives its two capitals
+ * ("tnFigueiredo" → "tF").
+ */
+const SKIP_INI = new Set(['the', 'and', 'of', 'a', 'an', '&'])
+export const initials = (name: string): string => {
+  const all = name.trim().split(/\s+/).filter(Boolean)
+  const w = all.filter(x => !SKIP_INI.has(x.toLowerCase()))
+  const words = w.length ? w : all
+  if (words.length >= 2) { const ini = [...words[0]!][0]! + [...words[1]!][0]!; return name === name.toLowerCase() ? ini : ini.toUpperCase() }
+  const one = [...(words[0] ?? '?')]
+  const cap = one.slice(1).find(ch => ch !== ch.toLowerCase())
+  return one[0]! + (cap ?? one[1] ?? '')
 }
 const colorOf = (id: string) => { let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CHANNEL_COLORS[h % CHANNEL_COLORS.length]! }
 /** Whole days since publication; a scheduled premiere (or clock skew) has pub > now → 0, never negative (winOf has no band below 0). */
@@ -153,7 +168,10 @@ function withLegacy<T extends Base>(legacy: readonly LegacyChangeRow[], real: T[
   const ls = legacy.map(l => ({ l, d: ms(l.detected_at) })).filter((x): x is { l: LegacyChangeRow; d: number } => x.d != null).sort((a, b) => a.d - b.d)
   if (!ls.length) return real
   const first = ls[0]!
-  const out: T[] = [{ id: first.l.id + '/antes', first_seen: Math.min(pub, first.d - DAY), last_seen: first.d - DAY, current: false, prec: '1d', window: null, ...before(first.l) } as T]
+  // the value before the first legacy change: when the video came out at least a day earlier, it is the publication's
+  // (the daily sync watched it from then: precision 'first', first_seen = pub); otherwise it was only seen the day before
+  const fromPub = pub <= first.d - DAY
+  const out: T[] = [{ id: first.l.id + '/antes', first_seen: fromPub ? pub : first.d - DAY, last_seen: first.d - DAY, current: false, prec: fromPub ? 'first' : '1d', window: null, ...before(first.l) } as T]
   ls.forEach(({ l, d }, i) => {
     const win: [number, number] = [d - DAY, d], next = ls[i + 1]
     if (!next && real.length && sameAsReal(l, real[0]!)) { out.push({ ...real[0]!, first_seen: d, prec: '1d', window: win }, ...real.slice(1)); return }
@@ -181,7 +199,10 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   const snapsBy = groupBy(rows.snapshots, s => s.competitor_channel_id)
   const channels: ObsChannel[] = [], videos: ObsVideo[] = []
 
-  for (const c of rows.channels) {
+  // the order the channels were added (dados.js lists them so; every per-channel list follows it), never the uuid
+  // order the rows come in; same instant → name, then id, so the order is stable
+  const byAdded = [...rows.channels].sort((a, b) => (ms(a.added_at) ?? Infinity) - (ms(b.added_at) ?? Infinity) || a.channel_name.localeCompare(b.channel_name, 'pt-BR') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  for (const c of byAdded) {
     const limit = Math.min(c.video_limit, RULES.videoLimitMax)
     // a video without published_at cannot be aged or banded: it stays out of the dataset
     const vs = (videosBy.get(c.id) ?? []).map(v => ({ v, pub: ms(v.published_at) })).filter((x): x is { v: VideoRow; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
@@ -208,7 +229,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
         id: v.id, ch: c.id, niche: isNiche(c.niche) ? c.niche : null, fmt, pub, ageDays: ageOf(pub, now), tracked: k < nTracked,
         title, theme: themes.get(v.id) ?? null, formulas: formulasOf(title),
         url: fmt === 'short' ? 'https://www.youtube.com/shorts/' + v.video_id : 'https://www.youtube.com/watch?v=' + v.video_id, ytId: v.video_id, dur: v.duration_seconds,
-        views: v.view_count, viewsAt: ms(v.last_checked_at) ?? ms(c.last_ok_synced_at) ?? now, likes: v.like_count ?? 0, comments: v.comment_count ?? 0,
+        views: v.view_count, viewsAt: ms(v.last_checked_at) ?? ms(c.last_ok_synced_at) ?? now, likes: v.like_count, comments: v.comment_count ?? 0,
         series, firstIdx: series.length ? series[0]!.idx : null, titles, thumbs, descs,
         ...(cappedFrom != null && pub >= seriesStart && pub < cappedFrom ? { truncated: true } : {}),
       })
@@ -253,6 +274,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
     })
   }
 
+  const readingOfTask = new Map(rows.readings.filter(r => r.task_id).map(r => [r.task_id!, r.id]))
   const okSyncs = rows.channels.map(c => ms(c.last_ok_synced_at)).filter((x): x is number => x != null)
   const added = rows.channels.map(c => ms(c.added_at)).filter((x): x is number => x != null)
   return {
@@ -260,12 +282,39 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
     channels, videos,
     sync: { last: okSyncs.length ? Math.max(...okSyncs) : null, next },
     readings: rows.readings.map(r => toReading(r)).filter((x): x is FrozenReading => x != null),
-    requests: rows.tasks.map(t => taskRowToRequest(t, ms(rows.heartbeat?.last_poll_at), now)).filter((x): x is ForjaRequest => x != null),
+    // a published request points at the reading it produced (competitor_readings.task_id): "leitura nova às HH:MM"
+    requests: orderRequests(rows.tasks.map(t => taskRowToRequest(t, ms(rows.heartbeat?.last_poll_at), now)).filter((x): x is ForjaRequest => x != null)
+      .map(q => { const rid = readingOfTask.get(q.id); return rid ? { ...q, readingId: rid } : q })),
     queue: { lastPollAt: ms(rows.heartbeat?.last_poll_at), tickMinutes: FORJA_TICK_MINUTES, capabilities: rows.heartbeat?.capabilities ?? [] },
   }
 }
 
-function toReading(r: ReadingRow): FrozenReading | null {
+/**
+ * The queue order the screens list requests in (dados.js requestScenario): the one the machine holds (running), then the
+ * waiting ones, then the finished; same instant → IA before Viagem (the order a Todos ask splits in); then id. Never the
+ * rows' uuid order, which put "Viagem … (atrás do de IA)" before IA.
+ */
+const RANK: Record<string, number> = { running: 0, pending: 1 }
+export function orderRequests(rs: ForjaRequest[]): ForjaRequest[] {
+  const NICHE_ORDER: Record<string, number> = { ia: 0, viagem: 1 }
+  return [...rs].sort((a, b) => (RANK[a.status ?? ''] ?? 2) - (RANK[b.status ?? ''] ?? 2) || a.createdAt - b.createdAt
+    || (NICHE_ORDER[a.niche] ?? 9) - (NICHE_ORDER[b.niche] ?? 9) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+}
+
+/** The since() data frozen in `sent` (forja/sent.ts SentPack), shape-checked; a malformed piece is left out, never guessed. */
+function frozenOf(sent: Record<string, unknown>): Pick<FrozenReading, 'base' | 'effects' | 'viewsThen'> {
+  const out: Pick<FrozenReading, 'base' | 'effects' | 'viewsThen'> = {}
+  const b = sent.base
+  if (isRecord(b) && Array.isArray(b.videos) && Array.isArray(b.channels) && typeof b.asOf === 'number' && (typeof b.windowDays === 'number' || b.windowDays === null)
+    && b.videos.every(v => isRecord(v) && typeof v.id === 'string' && typeof v.ch === 'string' && typeof v.mult === 'number' && typeof v.weak === 'boolean')) {
+    out.base = b as unknown as ReadingBase
+  }
+  if (Array.isArray(sent.effects) && sent.effects.every(e => isRecord(e) && typeof e.change === 'string' && typeof e.status === 'string')) out.effects = sent.effects as ReadingEffect[]
+  if (typeof sent.viewsThen === 'number' || sent.viewsThen === null) out.viewsThen = sent.viewsThen as number | null
+  return out
+}
+
+export function toReading(r: ReadingRow): FrozenReading | null {
   const generatedAt = ms(r.generated_at)
   if (generatedAt == null) return null
   const niche = isNiche(r.niche) ? r.niche : null, fmt = isFmt(r.fmt) ? r.fmt : null
@@ -278,6 +327,8 @@ function toReading(r: ReadingRow): FrozenReading | null {
     seal: 'forja · ' + r.model + ' · ' + r.task_type, generatedAt, model: r.model,
     sent: { ...sent, text: typeof sent.text === 'string' ? sent.text : '', asOf },
     analysis: isRecord(r.analysis) ? r.analysis : {},
+    // what "Desde então" compares with, frozen inside `sent` by buildSent (absent on an older row: since() says so)
+    ...frozenOf(sent),
     text: {
       ...(typeof text.title === 'string' ? { title: text.title } : {}), lead: typeof text.lead === 'string' ? text.lead : '',
       items: Array.isArray(text.items) ? text.items.filter((x): x is string => typeof x === 'string') : [],
@@ -302,6 +353,8 @@ export function taskRowToRequest(t: TaskRow, lastPollAt: number | null, now: num
     state: requestStateOf(t, { lastPollAt }, now), createdAt, claimedAt: ms(t.started_at), startedAt: ms(t.started_at), publishedAt: ms(t.completed_at),
     failedAt: ms(t.failed_at) ?? ms(t.refused_at), refusedAt: ms(t.refused_at), releasedAt: ms(t.released_at),
     attempt: t.retry_count + 1, refusedReason: t.refused_reason, readingId: null,
+    // R65: the stored reason of a final failure drives the engine's failure sentence (never "(sem código)" when there is one)
+    failReason: (t.status === 'failed' || t.status === 'stale') && t.error_message ? t.error_message : null,
   }
 }
 
@@ -371,7 +424,7 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
     readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('is_hidden', false).order('id')),
     readAll<LegacyChangeRow>('competitor_changes', () => sb.from('competitor_changes').select('id, video_id, change_type, old_title, new_title, detected_at')
       .eq('site_id', siteId).is('from_version_id', null).in('change_type', ['title', 'description']).order('id')),
-    readAll<ReadingRow>('competitor_readings', () => sb.from('competitor_readings').select('id, task_type, niche, video_id, fmt, model, generated_at, sent, analysis, text, evidence')
+    readAll<ReadingRow>('competitor_readings', () => sb.from('competitor_readings').select('id, task_id, task_type, niche, video_id, fmt, model, generated_at, sent, analysis, text, evidence')
       .eq('site_id', siteId).gte('generated_at', new Date(now - READING_DAYS * DAY).toISOString()).order('id')),
     readAll<TaskRow>('youtube_intelligence_tasks', () => sb.from('youtube_intelligence_tasks').select(TASK_COLS)
       .eq('site_id', siteId).in('task_type', [...OBS_TASK_TYPES]).gte('requested_at', new Date(now - TASK_DAYS * DAY).toISOString()).order('id')),

@@ -231,7 +231,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
           onToggle={() => setPop(p => (p === 'fresh' ? null : 'fresh'))} onSync={() => sync(true)} syncing={syncing}
           forjaSeg={forja ? <ForjaMachineSegment machine={forja.machine} /> : null}
         />
-        <div className="obs-ch-nav">
+        <div className="obs-ch-nav" data-obs-tabs="">
           <Tabs tabs={view.tabs} />
           <NicheBar niches={niches} pending={pendingNiche} onPick={pickNiche} />
         </div>

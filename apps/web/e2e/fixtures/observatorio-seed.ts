@@ -46,6 +46,11 @@ export interface SeedOptions {
   emptyWindow?: boolean
   /** Named mockup scenario: only 'own-empty' (= ownEmpty) exists in the oracle. */
   scenario?: string
+  /**
+   * No forja reading at all (Insights "ainda não há leitura"). The video themes come from the latest temas reading's
+   * evidence in production, so they go too: the screen then has no themed video (R49's honest coverage text).
+   */
+  noReadings?: boolean
 }
 
 /** The mockup clock (dados.js NOW_ISO). Also the webServer's OBS_NOW_OVERRIDE. */
@@ -70,14 +75,20 @@ interface ORequest {
   target: { kind: 'niche' | 'video'; video?: string; fmt?: 'long' | 'short' }
   createdAt: number; claimedAt: number | null; publishedAt: number | null; releasedAt?: number | null; releasedBy?: string | null
   failedAt?: number | null; refusedAt?: number | null; refusedReason?: string | null; failReason?: string | null
+  readingId?: string | null
 }
-interface OReading { id: string; type: string; niche: 'viagem' | 'ia'; fmt?: 'long' | 'short'; target?: { kind: string; video?: string }; generatedAt: number; sent: unknown; analysis: unknown; text: unknown }
+interface OReading {
+  id: string; type: string; niche: 'viagem' | 'ia'; fmt?: 'long' | 'short'; target?: { kind: string; video?: string }; generatedAt: number; sent: Record<string, unknown>; analysis: unknown; text: unknown
+  base?: unknown; effects?: unknown; viewsThen?: number | null
+}
 interface OracleData {
   NOW: number; SERIES_START: number; OBS_START: number
   channels: OChannel[]; videos: OVideo[]
   forja: {
     readings: OReading[]; requests: ORequest[]; queue: { lastPollAt: number }
     requestScenario(state: string, target: { niche: string; type: string }): { requests: ORequest[]; machine: { lastPollAt: number | null } } | null
+    /** The readings a published scenario request produced ("…-cenario"), keyed by type|niche|video||at. */
+    scenarioReadings?: Record<string, OReading>
   }
 }
 
@@ -142,9 +153,17 @@ async function check(label: string, p: PromiseLike<{ error: { message: string } 
   if (error) throw new Error('observatorio-seed: ' + label + ' failed: ' + error.message)
 }
 
-/** Rewrites every string equal to an oracle video/channel id into its seeded uuid (readings carry oracle ids). */
-function remapIds(x: unknown, ids: Map<string, string>): unknown {
-  if (typeof x === 'string') return ids.get(x) ?? x
+/**
+ * Rewrites every oracle video/channel id into its seeded uuid (readings carry oracle ids), including inside a change id
+ * "<video>/<title|thumb|desc>/<n>": the engine names a change after its video, so the loader's ids carry the uuid.
+ */
+export function remapIds(x: unknown, ids: Map<string, string>): unknown {
+  if (typeof x === 'string') {
+    const hit = ids.get(x)
+    if (hit) return hit
+    const m = /^(.+)\/(title|thumb|desc)\/(\d+)$/.exec(x)
+    return m && ids.has(m[1]!) ? ids.get(m[1]!) + '/' + m[2] + '/' + m[3] : x
+  }
   if (Array.isArray(x)) return x.map(y => remapIds(y, ids))
   if (x && typeof x === 'object') return Object.fromEntries(Object.entries(x).map(([k, v]) => [k, remapIds(v, ids)]))
   return x
@@ -169,6 +188,15 @@ export async function clearObservatory(siteId: string, client?: SupabaseClient):
   await check('delete competitor_settings', sb.from('competitor_settings').delete().eq('site_id', siteId))
   await check('delete youtube_videos', sb.from('youtube_videos').delete().eq('site_id', siteId).eq('channel_id', ownId))
   await check('delete youtube_channels', sb.from('youtube_channels').delete().eq('id', ownId))
+}
+
+/**
+ * Forgets every viewer's persisted niche on the site (competitor_user_prefs): a mockup tab starts from an empty
+ * localStorage ('todos'), so each fidelity test starts the implementation the same way — a ?niche= of an earlier state
+ * (persisted by the chrome, CHROME.md) must not leak into the next one.
+ */
+export async function resetViewerPrefs(siteId: string, client?: SupabaseClient): Promise<void> {
+  await check('delete competitor_user_prefs', clientOf(client).from('competitor_user_prefs').delete().eq('site_id', siteId))
 }
 
 /* ------------------------------------------------------------------ seed */
@@ -208,7 +236,9 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
       sync_error_since: s.state === 'erro' ? iso(s.errorSince) : null,
       last_ok_synced_at: ok ? iso(s.last) : null, last_synced_at: iso(s.last), full_sync_completed_at: ok ? iso(s.last) : null,
       youtube_video_count: s.backfill ? s.backfill.total : null,
-      added_at: iso(s.added ?? O.OBS_START),
+      // the oracle's founding channels (no `added`) joined at the observatory start, in the oracle's order: one second
+      // apart, so the loader's "order added" is the oracle's list order (production always stores added_at)
+      added_at: iso(s.added ?? O.OBS_START + O.channels.indexOf(c) * 1000),
     }
   }))
 
@@ -285,14 +315,13 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
   const latestTemas = new Map<string, OReading>()
   for (const r of O.forja.readings) if (r.type === 'temas' && (latestTemas.get(r.niche)?.generatedAt ?? -1) < r.generatedAt) latestTemas.set(r.niche, r)
   const nicheOfVideo = (v: OVideo) => O.channels.find(c => c.id === v.ch)!.niche
-  await insertAll(sb, 'competitor_readings', O.forja.readings.map(r => ({
-    id: U('reading', r.id), site_id: siteId, task_type: r.type, niche: r.niche, fmt: r.fmt ?? null,
+  const readingRow = (r: OReading, taskId: string | null) => ({
+    id: U('reading', r.id), site_id: siteId, task_id: taskId, task_type: r.type, niche: r.niche, fmt: r.fmt ?? null,
     video_id: r.target?.video ? ids.get(r.target.video) ?? null : null, model: 'Gemma 12B', generated_at: iso(r.generatedAt),
-    sent: remapIds(r.sent, ids), analysis: remapIds(r.analysis, ids), text: r.text,
-    evidence: latestTemas.get(r.niche) === r
-      ? [...compVideos, ...ownVideos].filter(v => v.theme && nicheOfVideo(v) === r.niche).map(v => ({ id: ids.get(v.id), theme: v.theme }))
-      : [],
-  })))
+    // production freezes since()'s data inside `sent` (forja/sent.ts SentPack: base / effects / viewsThen); the oracle keeps them beside it
+    sent: remapIds({ ...r.sent, ...(r.base !== undefined ? { base: r.base } : {}), ...(r.effects !== undefined ? { effects: r.effects } : {}), ...(r.viewsThen !== undefined ? { viewsThen: r.viewsThen } : {}) }, ids),
+    analysis: remapIds(r.analysis, ids), text: r.text,
+  })
 
   /* forja: history requests always; the scenario's on top when asked */
   let machinePoll: number | null = O.forja.queue.lastPollAt
@@ -315,6 +344,22 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
       released_at: byVigia ? iso(r.releasedAt) : null, error_message: r.failReason ?? null,
     }
   }))
+  const taskOfReading = new Map(reqs.filter(r => r.readingId).map(r => [r.readingId!, U('task', r.id)]))
+  await insertAll(sb, 'competitor_readings', (opts.noReadings ? [] : O.forja.readings).map(r => ({
+    // production links each reading to the task that produced it (completeReading writes task_id)
+    ...readingRow(r, taskOfReading.get(r.id) ?? null),
+    evidence: latestTemas.get(r.niche) === r
+      ? [...compVideos, ...ownVideos].filter(v => v.theme && nicheOfVideo(v) === r.niche).map(v => ({ id: ids.get(v.id), theme: v.theme }))
+      : [],
+  })))
+  // a published scenario request produced a reading (dados.js "…-cenario"): written as production does, linked by task_id
+  const scenarioReadings = Object.values(O.forja.scenarioReadings ?? {})
+  const produced = reqs.filter(r => r.scenario && r.readingId).map(r => {
+    const rd = scenarioReadings.find(x => x.id === r.readingId)
+    if (!rd) throw new Error('observatorio-seed: scenario reading not found: ' + r.readingId)
+    return { ...readingRow(rd, U('task', r.id)), evidence: [] }
+  })
+  if (produced.length && !opts.noReadings) await insertAll(sb, 'competitor_readings', produced)
   if (machinePoll != null) {
     await check('forja_heartbeat', sb.from('forja_heartbeat').upsert(
       { site_id: siteId, last_poll_at: iso(machinePoll), capabilities: ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'] },

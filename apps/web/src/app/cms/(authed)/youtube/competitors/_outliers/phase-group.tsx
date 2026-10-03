@@ -20,7 +20,7 @@ export function PhaseGroup({ g, view, shorts }: { g: OutlierGroupView; view: 'gr
         {g.why ? <p>{g.why}</p> : null}
       </div>
       {view === 'grid'
-        ? <div className={'obs-out-grid' + (shorts ? ' obs-out-shorts' : '')} data-outlier-row="">{g.cards.map(c => <OutlierCard key={c.id} c={c} shorts={shorts} />)}</div>
+        ? <div className={'obs-out-grid' + (shorts ? ' obs-out-shorts' : '')} data-outlier-row="" data-obs-row="outliers">{g.cards.map(c => <OutlierCard key={c.id} c={c} shorts={shorts} />)}</div>
         : <ListTable g={g} />}
       {g.pageNote ? <p className="obs-out-pagenote">{g.pageNote}</p> : null}
     </section>

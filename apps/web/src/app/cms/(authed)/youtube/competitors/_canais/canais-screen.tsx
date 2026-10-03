@@ -286,7 +286,6 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
             <span><i className="s" aria-hidden="true" /> Short</span>
             <span><i className="e" aria-hidden="true" /> semana sem upload</span>
             <span>Outlier: <span><b className="mult mid num">{view.legend.mid}</b> <b className="mult high num">{view.legend.high}</b> <b className="mult top num">{view.legend.top}</b></span> contra os outros vídeos do canal na mesma idade, sem contar o próprio vídeo; abaixo de 2× aparece só como “a mediana”</span>
-            <span>{view.tzLabel}</span>
           </div>
         </div>
 

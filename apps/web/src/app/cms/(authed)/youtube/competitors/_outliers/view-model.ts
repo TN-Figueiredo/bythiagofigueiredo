@@ -43,6 +43,8 @@ export interface OutlierChipView {
   key: string; label: string; invalid: boolean; removeHref: string
   kind: 'link' | 'bad' | 'asof' | 'own' | 'pick'; removeLabel: string
   link?: { label: string; href: string }; picks?: Array<{ label: string; href: string }>; title?: string
+  /** A count drawn bold after the label (the reading chip's "hoje, no mesmo escopo, são <b>41</b>"). */
+  strong?: string
 }
 export interface OutlierEmptyAction { label: string; href: string; n: number; primary: boolean; dest: 'outliers' | 'canais' }
 export interface OutliersView {
@@ -251,7 +253,8 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
 
   /* ---------------- timeline */
   const isDefault = sameSet(effAges, DEFAULT), isAll = effAges.length === ALL_AGES.length
-  const n90 = q({ ages: DEFAULT }).count
+  // outliers.html render0: the shortcut sums the current result's own bands (in reading mode too)
+  const n90 = DEFAULT.reduce((sum, k) => sum + (R.byAge[k] ?? 0), 0)
   const partial = (w: { lo: number; hi: number }) => !!scope && scope.maxAge != null && w.lo <= scope.maxAge && w.hi > scope.maxAge
   const maxCount = Math.max(1, ...ALL_AGES.map(k => R.byAge[k] ?? 0))
   const windows = obs.OUT_WINDOWS.filter(w => !(partial(w) && scope!.maxAge! - w.lo < 7) && !(scope && scope.maxAge != null && w.lo > scope.maxAge))
@@ -323,8 +326,12 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
   const unlinkHref = (k: 'theme' | 'formula' | 'channel' | 'min') => hrefOf({ [k]: null, limit: PAGE } as Nav)
   if (scope && S.reading) {
     const r = obs.forja.byId[S.reading]
-    const note = asofNoteOf(r ? D.dm(r.generatedAt) : (get('asof') ?? '').split('-').reverse().slice(0, 2).join('/'), scope.nThen, R.count)
-    chips.push({ key: 'reading', kind: 'asof', label: note, invalid: false, removeHref: hrefOf({ reading: null }), removeLabel: 'Tirar a referência à leitura', title: readingSent ?? undefined })
+    // outliers.html readChip: the reading's own scope ("A leitura de 20/10 (6 meses, 7 canais)") and what it saw then vs now
+    const N = scope.nThen
+    const viaText = r && scope.text ? cap(scope.text.replace(/ via \d+$/, '')) + (r.type === 'temas' ? ' · temas' : ' · padrões') + ': '
+      + (N ? 'via ' + F.plural(N, unit[0], unit[1]) : 'não via nenhum ' + unit[0]) + '; hoje, no mesmo escopo, ' + (R.count === 1 ? 'é' : 'são') : null
+    const note = viaText ?? asofNoteOf(r ? D.dm(r.generatedAt) : (get('asof') ?? '').split('-').reverse().slice(0, 2).join('/'), N, R.count)
+    chips.push({ key: 'reading', kind: 'asof', label: note, ...(viaText ? { strong: String(R.count) } : {}), invalid: false, removeHref: hrefOf({ reading: null }), removeLabel: 'Tirar a referência à leitura', title: readingSent ?? undefined })
   }
   if (S.asofPick) {
     const pick = S.asofPick
@@ -350,7 +357,7 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
   }
   const linkChips = chips.filter(c => c.kind === 'link').length
   const chipsLead = chips.length || S.from ? (S.from ? (chips.length ? 'Vindo de ' + FROM[S.from] + ':' : 'Vindo de ' + FROM[S.from] + ', sem filtros extras.') : linkChips ? 'Filtros do link:' : null) : null
-  const asofNote = chips.find(c => c.kind === 'asof')?.label ?? null
+  const asofChip = chips.find(c => c.kind === 'asof'), asofNote = asofChip ? asofChip.label + (asofChip.strong ? ' ' + asofChip.strong : '') : null
 
   /* ---------------- groups and cards */
   const itemById = new Map(Rw.items.map(it => [it.id, it]))

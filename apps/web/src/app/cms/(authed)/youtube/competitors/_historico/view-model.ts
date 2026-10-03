@@ -182,6 +182,8 @@ export interface HistForjaCard {
   statusText: string | null
   /** One line under the status: timing, preview, quota, machine… (by state). */
   extra: string | null
+  /** After `extra`, a link to the header's forja button (historico-video.html toTop / "Ir para o botão"). */
+  toTop: { pre: string; label: string; post: string } | null
   /** 0 na fila · 1 trabalhando · 3 publicado; null = no steps. */
   step: 0 | 1 | 3 | null
   cancel: boolean
@@ -267,7 +269,10 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const obsSince: number | null = sy.added ?? ch.snapshots[0]?.t ?? null
   const stalled = (sy.state === 'atrasado' || sy.state === 'erro') && sy.last != null
   const endNow = stalled ? Math.min(now, sy.last!) : now
-  const recentAdd = sy.added != null && sy.added > pub
+  // dados.js keeps sync.added only for a channel that joined AFTER the observatory began (the founding ones have none);
+  // production stores added_at for every channel, so one added on the observatory's first day is a founding channel,
+  // watched "desde DD/MM", not a recent add first checked at that instant
+  const recentAdd = sy.added != null && sy.added > pub && sy.added - obs.OBS_START >= DAY
   const few = pts.length < 2
   const stale = pts.length > 0 && pts[pts.length - 1]!.idx < obs.LAST_IDX
   const nextSnapMs = D.snapTime(obs.LAST_IDX + 1), nextSnap = D.dm(nextSnapMs) + ' ' + D.hh(nextSnapMs)
@@ -477,7 +482,9 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     const fem = field === 'descrição'
     if (obsSince != null && pub >= obsSince && syncOk) return 'Mesm' + (fem ? 'a' : 'o') + ' ' + field + ' desde a publicação.'
     const fromMs = obsSince != null ? Math.max(obsSince, pub) : pub
-    return 'Sem troca de ' + field + ' vista desde ' + D.dmOrDmy(fromMs) + (syncOk || sy.last == null ? '' : '; não conferid' + (fem ? 'a' : 'o') + ' desde ' + dmhmY(sy.last) + syncTail()) + '.'
+    // a channel still fetching its videos has no good sync yet: it is unchecked since it was added
+    const lastCheck = sy.last ?? (sy.state === 'backfill' ? sy.added : null)
+    return 'Sem troca de ' + field + ' vista desde ' + D.dmOrDmy(fromMs) + (syncOk || lastCheck == null ? '' : '; não conferid' + (fem ? 'a' : 'o') + ' desde ' + dmhmY(lastCheck) + syncTail()) + '.'
   }
   const watchText = () => {
     const sinceTxt = obsSince != null ? 'Observamos ' + ch.name + ' desde ' + D.dmOrDmy(obsSince) : 'Observamos ' + ch.name
@@ -722,7 +729,10 @@ function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoV
   const fresh = vr && vr.isNew ? vr : null
   // the reading that existed before the request published (the newest one that is not the fresh one)
   const older = obs.forja.readings.filter(x => x.type === 'leitura-video' && x.target?.video === v.id && x.id !== fresh?.id).sort((a, b) => b.generatedAt - a.generatedAt)[0]
-  const prev = fresh ? (older ? forjaReadingView(obs, older, { active: false, isNew: false, activeNote: null }) : null) : vr
+  // historico-video.html:725 (done): right after a reading is published neither block carries "Desde então" — the new
+  // one has nothing after it, and the previous one's delta is what the new reading already read
+  const noSince = (x: ForjaReadingView): ForjaReadingView => ({ ...x, since: null })
+  const prev = fresh ? (older ? noSince(forjaReadingView(obs, older, { active: false, isNew: false, activeNote: null })) : null) : vr
   const tm = obs.forja.timing('leitura-video', v.niche ?? 'todos')
   const exReason = !v.tracked ? 'Vídeo fora dos acompanhados: não há dados para a forja ler' : v.niche ? obs.forja.eligibleChannels(v.niche).out.find(o => o.id === v.ch)?.reason ?? null : null
   const exAct = !v.tracked ? '' : ch.sync.state === 'erro' ? 'Corrija o canal em Canais antes de pedir uma leitura.' : ch.sync.state === 'backfill' ? 'Espere a busca de vídeos terminar antes de pedir uma leitura.' : 'Sincronize o canal antes de pedir uma leitura deste vídeo.'
@@ -747,7 +757,8 @@ function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoV
     }
   }
   const label = forja.button.label
-  const toTop = 'Para pedir de novo, use “' + label + '” no cabeçalho do vídeo.'
+  // historico-video.html:718/731: the action name is a link to the header button (#vhead), not a quoted string
+  const toTopLink = { pre: 'Para pedir de novo, use ', label, post: ' no cabeçalho do vídeo.' }
   const st = r?.state ?? null
   const cls: '' | 'warn' | 'bad' = st === 'falhou' ? 'bad' : st && ['atrasado', 'sem máquina', 'recusado (dado velho)'].includes(st) ? 'warn' : ''
   const extra = !r ? null
@@ -756,20 +767,23 @@ function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoV
         : st === 'publicado' ? endDot(cap(sc.quota.text))
           : st === 'atrasado' ? (r.busyWith ? cap(r.busyWith) + '.' : null)
             : st === 'sem máquina' ? sc.machine.text + '.'
-              : st === 'falhou' ? 'Nada foi publicado. ' + toTop
-                : st === 'recusado (dado velho)' ? endDot(cap(sc.quota.text)) + ' ' + toTop : null
+              : st === 'falhou' ? 'Nada foi publicado.'
+                : st === 'recusado (dado velho)' ? endDot(cap(sc.quota.text)) : null
+  const toTop = !r ? null
+    : st === 'falhou' ? toTopLink
+      : st === 'recusado (dado velho)' ? (/peça de novo|pedir de novo/i.test(sc.statusText) ? { pre: '', label: 'Ir para o botão “' + label + '”', post: '' } : toTopLink) : null
   const blocked = forja.blockedBy ? { text: cap(forja.blockedBy.reason.replace(/^Nada enviado:\s*/, '')), title: forja.blockedBy.title, href: forja.blockedBy.href } : null
   return {
     forja,
     forjaCard: {
       pill: r ? { text: sc.statusLabel ?? r.state, cls } : null,
-      statusText: r ? sc.statusText : null, extra,
+      statusText: r ? sc.statusText : null, extra, toTop,
       step: !r ? null : st === 'trabalhando' ? 1 : st === 'publicado' ? 3 : ['falhou', 'recusado (dado velho)'].includes(st!) ? null : 0,
       cancel: forja.cancel.length > 0,
       again: null,
       excluded,
       intro: !vr && !r ? 'A leitura deste vídeo resume as trocas e diz o que os números permitem concluir. A forja (Gemma 12B) não julga thumbnails e não afirma causa.' : null,
-      fresh, reading: prev, readingLabel: r ? 'Leitura anterior' : null,
+      fresh: fresh ? noSince(fresh) : null, reading: prev, readingLabel: r ? 'Leitura anterior' : null,
       niche: vr ? null : nicheBlk(),
       blocked,
     },

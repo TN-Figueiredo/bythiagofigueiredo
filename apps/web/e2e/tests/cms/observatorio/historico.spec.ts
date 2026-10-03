@@ -1,11 +1,8 @@
 // apps/web/e2e/tests/cms/observatorio/historico.spec.ts
 // Fidelity of the per-video history against historico-video.html: the 9 demo videos of the mockup state bar
-// (historico-video.html:1015-1021, 1051-1054) × 2 viewports × 2 themes, run by the harness.
-// Ruling R35: enabled when Task 21b's harness lands (seed + ./fidelity with compareSelector in ScreenSpec).
-// Then replace the skipped describe below by a top-level `runFidelity(HISTORICO)` and import it statically:
-//   import { runFidelity } from './fidelity'
-// Each state opens /video/<seeded uuid of PICK[k]>: `videoOf(oracleId)` is the seed's oracle-id → uuid map.
-import { test } from '@playwright/test'
+// (historico-video.html:1015-1021, 1051-1054) × 2 viewports × 2 themes. The "Pedido à forja" states are in forja.spec.ts.
+import { runFidelity, type ScreenSpec } from './fidelity'
+import { SEAL_R57 } from './seal'
 
 /** The mockup's pickStates() over the oracle (dados.js), one video per edge case. */
 export const PICK = {
@@ -19,21 +16,18 @@ const LABEL: Record<keyof typeof PICK, string> = {
   bf: 'Canal ainda buscando vídeos',
 }
 
-export const HISTORICO = {
+
+export const HISTORICO: ScreenSpec = {
   name: 'historico', mockupFile: 'docs/superpowers/mockups/2026-10-02-observatorio/historico-video.html', route: '/cms/youtube/competitors/video',
   mockThumbSelector: '.th', implThumbSelector: '[data-thumb],[data-thumb-missing]',
-  states: (Object.keys(PICK) as Array<keyof typeof PICK>).map(k => ({
-    label: LABEL[k], mockupClicks: [LABEL[k]], seed: {},
-    query: (videoOf: (oracleId: string) => string) => '/' + videoOf(PICK[k]),
-  })),
-  // screen-only text comparison (the chrome has its own spec); the forja block is Task 35
-  compareSelector: { mockup: '#screen .page > :not(#forja)', impl: '[data-obs-screen="historico"] .page' },
+  states: (Object.keys(PICK) as Array<keyof typeof PICK>).map(k => ({ label: LABEL[k], mockupClicks: [LABEL[k]], seed: {}, query: '/<video:' + PICK[k] + '>',
+    // R64: the CMS shell is narrower than the mockup's chrome; the chart's per-day value labels follow the real width
+    // (historico-video.html: only at ≥ 56 px per day) — the value labels of the views chart only
+    ...(k === 'full' ? { exclude: { mockup: ['svg text.vl'], impl: ['svg text.vl'] } } : {}) })),
+  textAllow: SEAL_R57,
+  // R43: the per-video "Salvar no swipe file" is follow-up FU-2 (Task 26 report §5: the header has only "Abrir no YouTube")
+  mockExclude: ['#saveBtn'],
+  compareSelector: { mockup: '#screen', impl: '[data-obs-screen="historico"]' },
 }
 
-// enabled when Task 21b's harness lands
-test.describe.skip('observatório: histórico do vídeo (fidelity + layout audits)', () => {
-  test('runFidelity(HISTORICO)', async () => {
-    const { runFidelity } = await import('./fidelity')
-    runFidelity(HISTORICO)
-  })
-})
+runFidelity(HISTORICO)

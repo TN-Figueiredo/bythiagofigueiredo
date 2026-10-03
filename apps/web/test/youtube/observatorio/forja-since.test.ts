@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadOracle, datasetFromOracle, createTestObservatory } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
+import { toReading, type ReadingRow } from '@/lib/youtube/observatorio/load'
 import type { Dataset, ForjaRequest, FrozenReading, ReadingBase } from '@/lib/youtube/observatorio/types'
 
 const oracle = loadOracle()
@@ -167,5 +168,30 @@ describe('since — a frozen reading that cites data the observatory no longer h
     const P = d.readings.find(r => r.id === 'padroes-titulo-ia-20-10')!
     delete P.base
     expect(createObservatory(d).forja.since(P.id)!.text).toBe('Não dá para comparar esta leitura com os dados de hoje: os dados enviados à forja não ficaram registrados com ela.')
+  })
+})
+
+// Task 35b: a reading published in PRODUCTION carries only `sent` (the frozen SentPack, copied from the task). The
+// data since() compares with must travel inside it, or every "Desde então" says "sem os dados enviados à forja".
+describe('since over a reading the production way (sent = buildSent, mapped back by the loader)', () => {
+  const cases: Array<[string, { niche?: 'ia' | 'viagem'; videoId?: string; fmt?: 'long' | 'short' }]> = [
+    ['padroes-titulo', { niche: 'ia' }], ['padroes-titulo-shorts', { niche: 'viagem', fmt: 'short' }], ['temas', { niche: 'viagem' }],
+    ['resumo-trocas', { niche: 'ia' }], ['leitura-video', { videoId: 'matt-opus55' }],
+  ]
+  it.each(cases)('%s: frozen now → "nada mudou", never "sem os dados enviados"', (type, target) => {
+    const sent = J(obs.forja.buildSent(type, target))
+    expect(sent).not.toHaveProperty('asOfIdx')
+    const r = toReading({ id: 'prod-' + type, task_type: type, niche: target.niche ?? 'ia', video_id: target.videoId ?? null, fmt: target.fmt ?? null, model: 'Gemma 12B',
+      generated_at: new Date(ds.now).toISOString(), sent, analysis: {}, text: { lead: 'x', items: [] }, evidence: [] } as ReadingRow)!
+    const o = createObservatory({ ...datasetFromOracle(loadOracle()), readings: [r] })
+    const s = o.forja.since(r.id)!
+    expect(s.shortText).not.toMatch(/sem os dados enviados/)
+    expect(s.shortText).toBe('desde então: nada mudou')
+  })
+  it('an older row without the frozen data still says so honestly', () => {
+    const r = toReading({ id: 'velha', task_type: 'padroes-titulo', niche: 'ia', video_id: null, fmt: null, model: 'Gemma 12B', generated_at: new Date(ds.now).toISOString(),
+      sent: { text: 'x', asOf: ds.now }, analysis: {}, text: { lead: 'x', items: [] }, evidence: [] } as ReadingRow)!
+    const o = createObservatory({ ...datasetFromOracle(loadOracle()), readings: [r] })
+    expect(o.forja.since('velha')!.shortText).toBe('desde então: sem os dados enviados à forja para comparar')
   })
 })

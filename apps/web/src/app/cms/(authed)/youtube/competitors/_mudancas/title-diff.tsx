@@ -31,6 +31,7 @@ export function TitleDiffView({ t }: { t: TitleView }) {
       <div className="t-stats">
         {t.legend.map(l => <span key={l.cls}><span className={l.cls}>{l.mark}</span>: {l.label}</span>)}
         {t.stats.map(s => <span key={s}>{s}</span>)}
+        {t.rewrite && <span title={t.rewrite.title}>{t.rewrite.text}</span>}
       </div>
     </>
   )

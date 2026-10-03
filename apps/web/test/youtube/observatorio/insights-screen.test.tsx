@@ -92,9 +92,10 @@ describe('InsightsScreen', () => {
     expect(container.querySelector('#forjaCard .statebox h3')!.textContent).toBe('Ainda não há leitura dos longos de Viagem')
     expect(container.querySelector('#formCard .foot')!.textContent).toContain('Ainda não há leitura: a tabela é a análise de hoje')
   })
-  it('with a reading, the Fórmulas foot keeps the plain sentence', () => {
+  it('with a reading, Fórmulas shows the reading\'s numbers and says so (insights.html renderFormulas)', () => {
     const { container } = mount()
-    expect(container.querySelector('#formCard .foot')!.textContent).toContain('A tabela é a análise de hoje (base de')
+    expect(container.querySelector('#formCard .chead .meta.right')!.textContent).toBe('números da leitura de 20/10 06:10')
+    expect(container.querySelector('#formCard .foot')!.textContent).toContain('Os números da linha são da leitura (base de')
     expect(container.querySelector('#formCard .foot')!.textContent).not.toContain('Ainda não há leitura')
   })
   it('formulas: verdict chips and the rule text', () => {
@@ -148,7 +149,8 @@ describe('InsightsScreen', () => {
     const d = structuredClone(ds); d.videos = []
     const { container } = mount('viagem', 'long', createObservatory(d))
     expect(noJunkText(container)).toEqual([])
-    expect(container.querySelectorAll('.empty').length).toBeGreaterThanOrEqual(5)
+    // Fórmulas keeps the frozen reading's rows; every other card is empty
+    expect(container.querySelectorAll('.empty').length).toBeGreaterThanOrEqual(4)
     expect(screen.getByText(/^Nenhum longo dos concorrentes de Viagem nos últimos 90 dias\. Fora da análise: Vou sem volta/)).toBeInTheDocument()
   })
 })

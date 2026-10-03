@@ -47,6 +47,23 @@ describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
     expect(ds.queue.lastPollAt).toBe(Date.parse('2026-10-24T14:55:00-03:00'))
   }, 120_000)
 
+  it('change ids cited by readings ("<video>/<type>/<n>") resolve to loaded changes (Task 35b)', async () => {
+    await seedObservatory(siteId, {}, sb)
+    const obs = createObservatory(await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb }))
+    const cited = obs.forja.readings.filter(r => r.type === 'resumo-trocas')
+      .flatMap(r => (r.analysis.groups as Array<{ changeIds: string[] }>).flatMap(g => g.changeIds))
+    expect(cited.length).toBeGreaterThan(0)
+    for (const id of cited) expect({ id, found: !!obs.change(id) }).toEqual({ id, found: true })
+  }, 120_000)
+
+  it('publicado: the published request points at the reading it produced (task_id), loaded as a fresh reading (Task 35b)', async () => {
+    await seedObservatory(siteId, { forjaState: 'publicado', forjaType: 'padroes-titulo' }, sb)
+    const obs = createObservatory(await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb }))
+    const pub = obs.forja.requests.filter(r => r.state === 'publicado' && r.type === 'padroes-titulo')
+    expect(pub.length).toBeGreaterThan(0)
+    for (const r of pub) expect([r.readingId, obs.forja.readings.map(x => x.id).includes(r.readingId!), obs.forja.byId[r.readingId!]?.type]).toEqual([r.readingId, true, 'padroes-titulo'])
+  }, 120_000)
+
   it('is idempotent: seeding twice gives the same counts (clear runs first)', async () => {
     await seedObservatory(siteId, {}, sb)
     const obs = createObservatory(await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb }))

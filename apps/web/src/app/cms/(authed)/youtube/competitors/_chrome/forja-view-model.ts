@@ -43,6 +43,8 @@ export interface ForjaReadingView {
   /** "Ver os N vídeos com a fórmula (hoje, nos 6 canais da leitura)"; `text` = what the reading saw (site sentence). */
   evidenceLinks: Array<{ label: string; href: string; n: number; text: string }>
   when: string; isNew: boolean
+  /** "DD/MM, há …" — the reading's day and how long ago (historico-video.html:682). */
+  whenAgo: string
   /** "Fórmulas (6 meses, 20/10)" — the label of this reading's "Desde então" line. */
   sinceLabel: string
   /** "7 trocas" — what the reading read (resumo das trocas); null when the frozen data does not say. */
@@ -59,6 +61,8 @@ export interface ForjaNicheBlock {
   emptyText: string | null
   /** "IA: na fila · pedido 14:58" when the niche has a request. */
   statusLine: string | null; active: boolean
+  /** The state of the niche's request (null without one): "publicado" lines are not repeated where the reading is. */
+  requestState: string | null
   /** "Paddy Doyle fica fora: sem sincronização há 39 h". */
   out: string[]
 }
@@ -144,7 +148,7 @@ export function patternsOf(r: FrozenReading): PatternLite[] {
     .map(p => ({ formula: p.formula as string, nUse: typeof p.nUse === 'number' ? p.nUse : 0, evidence: strs(p.evidence),
       attribution: isRec(p.attribution) && typeof p.attribution.text === 'string' ? p.attribution.text : null, diff: typeof p.diff === 'number' ? p.diff : null, verdict: { id: (p.verdict as Record<string, unknown>).id as string, text: String((p.verdict as Record<string, unknown>).text ?? '') } }))
 }
-function groupsOf(r: FrozenReading): GroupLite[] {
+export function groupsOf(r: FrozenReading): GroupLite[] {
   const gs = Array.isArray(r.analysis.groups) ? (r.analysis.groups as unknown[]) : []
   return gs.filter(isRec).map(g => ({ changeIds: strs(g.changeIds), verdict: { text: isRec(g.verdict) ? String(g.verdict.text ?? '') : '' } })).filter(g => g.changeIds.length)
 }
@@ -231,6 +235,7 @@ export function forjaReadingView(obs: Observatory, r: FrozenReading, o: { active
     siteNotes,
     evidenceLinks: evidenceOf(obs, r),
     when: obs.date.dm(r.generatedAt) + ' ' + obs.date.hm(r.generatedAt), isNew: o.isNew,
+    whenAgo: obs.date.dmOrDmy(r.generatedAt) + ', ' + obs.date.ago(r.generatedAt),
   }
 }
 
@@ -295,7 +300,7 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
     const isNew = !!r && !!q && q.state === 'publicado' && (fresh != null || r.generatedAt >= q.createdAt)
     const line = sc.statusLines?.find(l => l.startsWith(NL[n] + ': ')) ?? (q ? q.statusLabel ?? q.state : null)
     return {
-      niche: n, label: NL[n], active, statusLine: q ? line : null,
+      niche: n, label: NL[n], active, statusLine: q ? line : null, requestState: q ? q.state : null,
       reading: r ? forjaReadingView(obs, r, { active, isNew, activeNote: active ? (isVid ? 'O pedido de leitura deste vídeo em andamento vai trazer uma leitura nova.' : 'O pedido de ' + NL[n] + ' em andamento vai trazer uma leitura nova.') : null }) : null,
       emptyText: r ? null : isVid ? 'Ainda não há leitura deste vídeo.' : 'Ainda não há leitura de ' + typeLabel.replace(/ \(.*\)$/, '').toLowerCase() + ' de ' + NL[n] + '.',
       out: obs.forja.eligibleChannels(n).out.map(x => x.reason),
@@ -307,7 +312,7 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
 
   // leitura-video: another video of the same niche with an active request blocks the button (spec 2.6)
   const blockedBy = isVid && sc.blockedBy ? { reason: sc.blockedBy.reason, href: obs.link.historico(sc.blockedBy.video), title: sc.blockedBy.title } : null
-  const untracked = isVid && video && !video.tracked ? 'Vídeo fora dos acompanhados: não há dados para a forja ler.' : null
+  const untracked = isVid && video && !video.tracked ? 'Vídeo fora dos acompanhados: não há dados para a forja ler' : null
   const chOut = isVid && video ? obs.forja.eligibleChannels(video.niche ?? 'todos').out.find(x => x.id === video.ch)?.reason ?? null : null
 
   let button: ForjaButton

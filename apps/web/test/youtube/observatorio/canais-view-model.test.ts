@@ -89,3 +89,13 @@ describe('Canais view model', () => {
   })
 })
 
+
+// Task 35b (fidelity sweep, canais.html:563-564/783)
+describe('Canais view model — fidelity with canais.html', () => {
+  it('the own channel with tracked videos but no daily views says so (never "Nenhum vídeo longo acompanhado")', () => {
+    const ds = datasetFromOracle(loadOracle())
+    for (const v of ds.videos) if (ds.channels.find(c => c.id === v.ch)?.own) v.series = []
+    const own = buildCanaisView(createObservatory(ds), { niche: 'todos', limit: 75 }).own.row!
+    expect(own.cells.vpd).toMatchObject({ kind: 'na', text: 'Sem views diárias do seu canal.' })
+  })
+})

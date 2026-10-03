@@ -221,3 +221,28 @@ describe('CanaisScreen', () => {
   })
 })
 
+
+// Task 35b (canais.html #scrollHint): the sideways-scroll hint appears only when the table really overflows
+describe('CanaisScreen — scroll hint', () => {
+  it('absent when the table fits; present when it overflows', () => {
+    const { unmount } = mount()
+    expect(document.querySelector('[data-scroll-hint]')).toBeNull()
+    unmount()
+    const sw = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(1200)
+    const cw = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(700)
+    try {
+      mount()
+      expect(screen.getByText('Role a tabela para o lado para ver todas as colunas.')).toBeInTheDocument()
+    } finally { sw.mockRestore(); cw.mockRestore() }
+  })
+})
+
+// Task 35b (canais.html:804-805): the drawer's Outliers tab keeps its intro for a channel still fetching videos
+describe('CanaisScreen — drawer Outliers of a backfilling channel', () => {
+  it('intro and the "Sem base de comparação ainda" note, both', () => {
+    mount({}, { channel: 'vou-sem-volta', tab: 'outliers' })
+    const panel = document.getElementById('cn-pOut')!
+    expect(panel.textContent).toContain('Views do vídeo contra a mediana dos outros vídeos do canal na mesma idade')
+    expect(panel.textContent).toContain('Sem base de comparação ainda: a busca tem 18 de 50 vídeos')
+  })
+})

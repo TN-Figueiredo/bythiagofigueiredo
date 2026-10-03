@@ -4,7 +4,7 @@
  * draws what this returns; nothing is computed in the components.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
-import { buildForjaView, forjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
+import { buildForjaView, forjaReadingView, groupsOf, type ForjaView } from '../_chrome/forja-view-model'
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { EffectResult, EffectStatus } from '@/lib/youtube/observatorio/effect'
 import type { TitleDiff, TitleSpan } from '@/lib/youtube/observatorio/text-diff'
@@ -29,6 +29,8 @@ export interface TitleView extends TitleDiff {
   /** Legend of the marks actually used (dotted = moved, dashed = case only). */
   legend: Array<{ cls: 'tmv' | 'tcase'; mark: string; label: string }>
   stats: string[]
+  /** How the latest resumo-trocas reading that cites this change classified the rewrite (mudancas.html titleHTML). */
+  rewrite: { text: string; title: string } | null
 }
 export interface ThumbView {
   key: string; label: string; role: 'Antes' | 'Depois'; src: string | null; period: string; archived: boolean
@@ -234,7 +236,11 @@ function titleView(obs: Observatory, c: ObsChange): TitleView {
     before.length + ' → ' + after.length + ' caracteres',
     'A versão anterior ficou ' + durTxt(obs, c.prevLivedMs, c.prec !== 'min') + ' no ar',
   ]
-  return { ...td, beforeText: before, afterText: after, legend, stats }
+  // the forja's class shows only when a reading of the change's niche actually cites it (mudancas.html readByForja)
+  const read = (['ia', 'viagem'] as const).map(n => obs.forja.latest('resumo-trocas', n)).find(r => !!r && groupsOf(r).some(g => g.changeIds.includes(c.id)))
+  const grp = c.rewriteGroup && read ? obs.rewriteGroups.find(g => g.id === c.rewriteGroup) : undefined
+  const rewrite = grp && read ? { text: 'Reescrita (forja): ' + grp.label.charAt(0).toLowerCase() + grp.label.slice(1), title: 'Como a forja classificou esta troca na leitura de ' + obs.date.dm(read.generatedAt) } : null
+  return { ...td, beforeText: before, afterText: after, legend, stats, rewrite }
 }
 
 function thumbViews(obs: Observatory, c: ObsChange, v: ObsVideo): ThumbView[] {
@@ -510,7 +516,8 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
     if (m.few) return label.toLowerCase() + ' ' + (m.n === 1 ? (m.range ?? '—') + ' (caso isolado)' : pl(m.n, 'troca', 'trocas') + ', ' + (m.range ?? '—') + ' (pouco para concluir)')
     return label.toLowerCase() + ' ' + m.median + ' (n = ' + m.n + ')'
   }).filter((x): x is string => !!x)
-  const digest: Rich = [{ b: 'Últimos 7 dias:' }, ' ' + (parts.length ? joinE(parts) : 'nenhuma troca') + '. ', { b: 'Efeito (' + f.win + ' d):' }, ' ' + (effParts.length ? effParts.join('; ') : 'nada com veredito') + '.']
+  // mudancas.html renderDigest: the collapsed line lists with commas (the open summary's lead says "e")
+  const digest: Rich = [{ b: 'Últimos 7 dias:' }, ' ' + (parts.length ? parts.join(', ') : 'nenhuma troca') + '. ', { b: 'Efeito (' + f.win + ' d):' }, ' ' + (effParts.length ? effParts.join('; ') : 'nada com veredito') + '.']
   const method = 'Precisa de ' + RE.afterDays + ' dias depois da troca; o antes pode ser mais curto (coleta diária desde ' + obs.SERIES_START_LABEL + '). Efeito = variação observada de views/dia ('
     + RE.afterDays + ' dias depois vs até ' + RE.maxBeforeDays + ' dias antes) menos a esperada: a variação dos vídeos sem troca do mesmo canal e formato, na mesma faixa de idade ou no mesmo dia de vida. Ganhou ou perdeu só com mais de '
     + RE.pp + ' pp e fora da faixa normal (interquartil). Inconclusivo com n < ' + RE.minN + ', antes curto ou outro campo mudado em menos de ' + RE.simultHours + ' h. Não prova causa.'
@@ -558,6 +565,8 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
   })
   const restTexts = cuts.map(shown => total - shown > 0 ? pl(total - shown, 'troca ainda não mostrada', 'trocas ainda não mostradas') : 'Fim da lista')
 
+  const fj = forjaOf(obs, f)
+  digest.push(' ', { b: 'Forja.' }, ' ' + forjaDigest(obs, fj.forja) + '.' + (f.niche === 'todos' && fj.forja.card.statusText ? ' ' + fj.forja.card.statusText : ''))
   return {
     filters: f, heroes, groupByVideo, ledger,
     summary: { weekWin, weekLead, digest, method },
@@ -565,8 +574,18 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
     paging: { cuts, countLines, restTexts },
     empty: total ? null : emptyView(obs, f, query, extra, fmtQ),
     nicheNote,
-    ...forjaOf(obs, f),
+    ...fj,
   }
+}
+
+/** mudancas.html renderDigest "Forja.": per niche, the reading it has ("resumo de 20/10", or the new one) and the request's state. */
+export function forjaDigest(obs: Observatory, forja: ForjaView): string {
+  return forja.niches.map(b => {
+    const r = b.reading ? obs.forja.byId[b.reading.id] : undefined
+    const read = !r ? 'sem leitura' : b.reading!.isNew ? 'leitura nova às ' + obs.date.hm(r.generatedAt) : 'resumo de ' + obs.date.dm(r.generatedAt)
+    const lab = b.statusLine && b.requestState !== 'publicado' ? b.statusLine.replace(b.label + ': ', '') : null
+    return b.label + ', ' + read + (lab ? ', ' + lab : '')
+  }).join('; ')
 }
 
 /* ------------------------------------------------------------------ forja card (mudancas.html renderForja) */

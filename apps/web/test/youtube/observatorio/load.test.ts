@@ -75,8 +75,11 @@ describe('rowsToDataset — legacy history', () => {
   const ds = rowsToDataset(base, NOW), obs = createObservatory(ds)
   const v1 = ds.videos.find(v => v.id === 'v1')!, v2 = ds.videos.find(v => v.id === 'v2')!
   const d = sp('2026-09-10T09:00:00')
-  it('a legacy title row becomes a pre-series version pair with 1 d precision; the real first version carries the new title', () => {
-    expect(v1.titles.map(t => [t.text, t.prec])).toEqual([['Antigo', '1d'], ['Novo', '1d']])
+  // Task 35b: the "before" value of a video published ≥ 1 day before its first legacy change is the publication's
+  // ('first', from pub: Histórico prints "25/07 12:00 (publicação)", historico-video.html startLbl)
+  it('a legacy title row becomes a pre-series version pair (before = from publication; after 1 d precision); the real first version carries the new title', () => {
+    expect(v1.titles.map(t => [t.text, t.prec])).toEqual([['Antigo', 'first'], ['Novo', '1d']])
+    expect(v1.titles[0]!.first_seen).toBe(sp('2026-08-01T10:00:00'))
     expect(v1.titles[1]!.window).toEqual([d - DAY, d])
     expect(v1.titles[1]!.id).toBe('real-title')
     expect(v1.titles[1]!.first_seen).toBe(d)
@@ -84,7 +87,13 @@ describe('rowsToDataset — legacy history', () => {
     expect(v1.titles[0]!.current).toBe(false)
   })
   it('without real versions the legacy pair stands alone', () => {
-    expect(v2.titles.map(t => [t.text, t.prec, t.current])).toEqual([['A', '1d', false], ['B', '1d', true]])
+    expect(v2.titles.map(t => [t.text, t.prec, t.current])).toEqual([['A', 'first', false], ['B', '1d', true]])
+  })
+  it('a legacy change less than a day after publication: the before value was only seen the day before (1 d)', () => {
+    const ds2 = rowsToDataset(rows({ settings: { series_started_at: SERIES, channel_limit: 75 }, channels: [channel()],
+      videos: [video({ published_at: iso(d - 6 * H) })], legacyChanges: [legacy({ old_title: 'X', new_title: 'Y' })] }), NOW)
+    const t = ds2.videos[0]!.titles
+    expect([t[0]!.prec, t[0]!.first_seen]).toEqual(['1d', d - DAY])
   })
   it('the change is pre-series and its effect is "sem série … desde <series start>"', () => {
     const c = obs.changes.find(x => x.video === 'v1' && x.type === 'title')!
@@ -200,6 +209,32 @@ describe('rowsToDataset — videos, versions and channels', () => {
   })
   it('channel identity', () => {
     expect(C('ch1')).toMatchObject({ name: 'Canal Um', niche: 'viagem', own: false, subs: 1000, video_limit: 2, url: 'https://www.youtube.com/channel/UC1', ini: 'CU' })
+  })
+})
+
+describe('rowsToDataset — a video whose likes were never read (35b fix 2: "0,0%" in Você no nicho)', () => {
+  // two channels of one niche: ch1 has like counts, ch2 (still being fetched) has views but like_count NULL
+  const ds = rowsToDataset(rows({
+    settings: { series_started_at: SERIES, channel_limit: 75 },
+    channels: [channel(), channel({ id: 'ch2', channel_id: 'UC2', channel_name: 'Dois' })],
+    videos: [
+      video({ view_count: 1000, like_count: 30, comment_count: 4 }),
+      video({ id: 'v2', competitor_channel_id: 'ch2', video_id: 'yt2', view_count: 5000, like_count: null, comment_count: null }),
+    ],
+  }), NOW)
+  const obs = createObservatory(ds)
+  it('the missing count stays null in the dataset, never 0', () => {
+    expect(ds.videos.find(v => v.id === 'v2')!.likes).toBeNull()
+    expect(ds.videos.find(v => v.id === 'v1')!.likes).toBe(30)
+  })
+  it('the channel has no engagement (n = 0, "sem vídeos com contagem"), not 0%', () => {
+    const e = obs.channelStats('ch2', 'long').engagement as { median: number | null; n: number; label: string }
+    expect(e).toMatchObject({ median: null, n: 0, label: 'sem vídeos com contagem' })
+  })
+  it('and it does not drag the niche minimum to 0%', () => {
+    const agg = obs.nicheStats('viagem', 'long').engagement
+    expect(agg.n).toBe(1)
+    expect(agg.min).toBeCloseTo(0.034, 6)
   })
 })
 
@@ -424,5 +459,84 @@ describe('taskRowToRequest — the ONE row → request mapper (loader and servic
   })
   it('leitura-video: target is the video, with the row target_video_id', () => {
     expect(taskRowToRequest(row({ task_type: 'leitura-video', target_video_id: 'v1', target_fmt: null }), NOW - MIN, NOW)).toMatchObject({ video: 'v1', target: { kind: 'video', niche: 'ia', video: 'v1' } })
+  })
+})
+
+// Task 35b: channels come in the order they were added (dados.js order), never the rows' uuid order
+describe('rowsToDataset — channel order', () => {
+  it('by added_at, then name, then id', () => {
+    const ds = rowsToDataset(rows({ settings: { series_started_at: SERIES, channel_limit: 75 }, channels: [
+      channel({ id: 'a', channel_name: 'Zeta', added_at: iso(sp('2026-06-01T10:00:00')) }),
+      channel({ id: 'b', channel_name: 'Beta', added_at: iso(sp('2026-05-31T09:00:01')) }),
+      channel({ id: 'c', channel_name: 'Alfa', added_at: iso(sp('2026-06-01T10:00:00')) }),
+      channel({ id: 'd', channel_name: 'Nulo', added_at: null }),
+    ] }), NOW)
+    expect(ds.channels.map(c => c.name)).toEqual(['Beta', 'Alfa', 'Zeta', 'Nulo'])
+  })
+})
+
+// Task 35b: the avatar initials of every oracle channel, derived from the name alone
+describe('initials', () => {
+  it('match the mockup for every oracle channel name', async () => {
+    const { initials } = await import('@/lib/youtube/observatorio/load')
+    const want: Record<string, string> = {
+      tnFigueiredo: 'tF', 'Luke Damant': 'LD', 'bald and bankrupt': 'bb', 'Dale Philip': 'DP', 'Paddy Doyle': 'PD', 'Leo Khev': 'LK', 'Nômade Raiz': 'NR',
+      'Matheus Fonseca': 'MF', 'Vou sem volta': 'VS', 'Matt Wolfe': 'MW', 'Nate Herk': 'NH', 'Sabrina Ramonov': 'SR', 'The AI Advantage': 'AA',
+      'Preguiça Artificial': 'PA', 'Esq Unltd Daily': 'EU',
+    }
+    for (const [name, ini] of Object.entries(want)) expect([name, initials(name)]).toEqual([name, ini])
+    expect(initials('')).toBe('?')
+  })
+})
+
+// Task 35b: requests in queue order (dados.js requestScenario), never the rows' uuid order
+describe('orderRequests', () => {
+  it('running, then pending, then finished; same instant → IA before Viagem', async () => {
+    const { orderRequests } = await import('@/lib/youtube/observatorio/load')
+    const r = (id: string, niche: 'ia' | 'viagem', status: string, createdAt = 1000) => ({ id, niche, status, createdAt } as unknown as import('@/lib/youtube/observatorio/types').ForjaRequest)
+    const ids = (xs: ReturnType<typeof r>[]) => orderRequests(xs).map(x => x.id)
+    expect(ids([r('z', 'viagem', 'pending'), r('a', 'ia', 'pending')])).toEqual(['a', 'z'])
+    expect(ids([r('a', 'ia', 'completed'), r('b', 'viagem', 'running')])).toEqual(['b', 'a'])
+    expect(ids([r('a', 'ia', 'refused'), r('b', 'viagem', 'pending')])).toEqual(['b', 'a'])
+    expect(ids([r('b', 'viagem', 'pending', 900), r('a', 'ia', 'pending', 1000)])).toEqual(['b', 'a'])
+  })
+  it('the oracle scenarios already come in that order', async () => {
+    const { orderRequests } = await import('@/lib/youtube/observatorio/load')
+    const { loadOracle } = await import('./oracle')
+    const O = loadOracle() as unknown as { forja: { requestStates: string[]; requestScenario(s: string, t: object): { requests: import('@/lib/youtube/observatorio/types').ForjaRequest[] } } }
+    for (const st of O.forja.requestStates) {
+      const sc = O.forja.requestScenario(st, { niche: 'todos', type: 'resumo-trocas' })
+      expect([st, orderRequests([...sc.requests].reverse()).map(x => x.niche)]).toEqual([st, sc.requests.map(x => x.niche)])
+    }
+  })
+})
+
+// Task 35b: a published request points at the reading it produced (competitor_readings.task_id)
+describe('rowsToDataset — request → reading', () => {
+  it('readingId comes from the reading whose task_id is the task; none → null', () => {
+    const task = (id: string, status: string): TaskRow => ({ id, task_type: 'padroes-titulo', target_niche: 'ia', target_video_id: null, target_fmt: null, status,
+      requested_at: iso(NOW - 3 * H), started_at: iso(NOW - 2 * H), completed_at: status === 'completed' ? iso(NOW - H) : null, failed_at: null, refused_at: null, refused_reason: null, released_at: null, retry_count: 0 })
+    const reading: ReadingRow = { id: 'r1', task_id: 't1', task_type: 'padroes-titulo', niche: 'ia', video_id: null, fmt: null, model: 'Gemma 12B', generated_at: iso(NOW - H), sent: {}, analysis: {}, text: { lead: 'x', items: [] }, evidence: [] }
+    const ds = rowsToDataset(rows({ settings: { series_started_at: SERIES, channel_limit: 75 }, tasks: [task('t1', 'completed'), task('t2', 'completed')], readings: [reading] }), NOW)
+    expect(ds.requests.find(r => r.id === 't1')!.readingId).toBe('r1')
+    expect(ds.requests.find(r => r.id === 't2')!.readingId).toBeNull()
+  })
+})
+
+// R65 (Task 35b fix round 1): the stored failure reason reaches the engine; never "(sem código)" when there is one
+describe('taskRowToRequest — failure reason (R65)', () => {
+  const row = (o: Partial<TaskRow>): TaskRow => ({ id: 't', task_type: 'padroes-titulo', target_niche: 'ia', target_video_id: null, target_fmt: null, status: 'failed',
+    requested_at: iso(NOW - 3 * H), started_at: iso(NOW - 2 * H), completed_at: null, failed_at: iso(NOW - H), refused_at: null, refused_reason: null, released_at: null, retry_count: 2, ...o })
+  it('failed + error_message → failReason; a requeued/pending row carries none', () => {
+    expect(taskRowToRequest(row({ error_message: 'o validador recusou a saída da forja nas 3 tentativas' }), NOW, NOW)!.failReason).toBe('o validador recusou a saída da forja nas 3 tentativas')
+    expect(taskRowToRequest(row({ status: 'pending', failed_at: null, error_message: 'velho' }), NOW, NOW)!.failReason).toBeNull()
+    expect(taskRowToRequest(row({}), NOW, NOW)!.failReason).toBeNull()
+  })
+  it('the engine names the stored reason instead of "(sem código)"', () => {
+    const t = row({ error_message: 'o validador recusou a saída da forja nas 3 tentativas' })
+    const ds = rowsToDataset(rows({ settings: { series_started_at: SERIES, channel_limit: 75 }, tasks: [t], heartbeat: { last_poll_at: iso(NOW - 5 * 6e4), capabilities: ['padroes-titulo'] } }), NOW)
+    const sc = createObservatory(ds).forja.session.current('ia', { type: 'padroes-titulo' })
+    expect(sc.statusText).not.toMatch(/sem código/)
+    expect(sc.statusText).toMatch(/validador recusou/)
   })
 })

@@ -199,22 +199,24 @@ describe('Outliers view model', () => {
 
   describe('reading scope (?reading= / ?asof=, engine readingScope)', () => {
     const P = obs.forja.byId['padroes-titulo-viagem-20-10']!
-    it('?asof= resolves the reading of that day and shows "Link da leitura de DD/MM: ela via N; hoje são M"', () => {
+    // Task 35b: the binding mockup's readChip (outliers.html:824), not the shorter CONVENCOES wording
+    it('?asof= resolves the reading of that day and shows the reading scope: "A leitura de 20/10 (…) · padrões: via N; hoje, no mesmo escopo, são M"', () => {
       const v = buildOutliersView(obs, { niche: 'viagem', asof: '2026-10-20', formula: 'preco', min: '0' })
       expect(v.query.reading).toBe(P.id)
       const R = obs.outliers({ niche: 'viagem', fmt: 'long', min: 0, formula: 'preco', reading: P.id })
       const N = R.scope!.nThen, M = R.count
-      expect(v.asofNote).toBe('Link da leitura de 20/10: ela via ' + N + '; hoje ' + (M === 1 ? 'é' : 'são') + ' ' + M)
+      expect(N).toBe(40); expect(M).toBe(41)
+      expect(v.asofNote).toBe('A leitura de 20/10 (6 meses, 7 canais) · padrões: via 40 vídeos; hoje, no mesmo escopo, são 41')
       expect(N).toBe(obs.forja.readingScope(P.id, { formula: 'preco', min: 0 })!.nThen)
       const chip = v.chips.find(c => c.kind === 'asof')!
-      expect(chip.label).toBe(v.asofNote)
+      expect(chip.label + ' ' + chip.strong).toBe(v.asofNote)
       expect(paramsOf(chip.removeHref).reading).toBeUndefined()
       expect(v.shortcut.disabled).toBe(true)
       expect(v.allLabel).toBe('Leitura')
       expect(v.baseText).toContain('no escopo da leitura')
     })
     it('?reading= gives the same note; a reading that is not of outliers says so', () => {
-      expect(buildOutliersView(obs, { niche: 'viagem', reading: P.id }).asofNote).toMatch(/^Link da leitura de 20\/10: ela via \d+; hoje (é|são) \d+$/)
+      expect(buildOutliersView(obs, { niche: 'viagem', reading: P.id }).asofNote).toMatch(/^A leitura de 20\/10 \(6 meses, 7 canais\) · padrões: (via \d+ outliers?|não via nenhum outlier); hoje, no mesmo escopo, (é|são) \d+$/)
       const nr = buildOutliersView(obs, { reading: 'resumo-trocas-ia-20-10' }).chips.find(c => c.key === 'reading')!
       expect(nr.label).toBe('A leitura “resumo-trocas” não é de outliers: mostrando a tela sem ela')
     })
@@ -292,5 +294,13 @@ describe('Outliers view model', () => {
       expect(v.query.sort).toBe('mult')
       expect(v.chips.find(c => c.key === 'sort')!.invalid).toBe(true)
     })
+  })
+})
+
+// Task 35b (fidelity sweep): the shortcut count sums the current result's bands, in reading mode too (outliers.html n90)
+describe('Outliers view model — "Até 90 dias" count', () => {
+  it('= byAge[0-30] + byAge[31-90] of the result shown (reading mode: 5 + 11 = 16, never the whole scope)', () => {
+    const v = buildOutliersView(obs, { fmt: 'long', age: '0-30,31-90,91-180', formula: 'preco', min: '0', reading: 'padroes-titulo-viagem-20-10' })
+    expect(v.shortcut.count).toBe(16)
   })
 })

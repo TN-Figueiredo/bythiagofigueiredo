@@ -14,7 +14,9 @@ export interface DescVersion extends VersionBase { lines: string[] | null; hasTe
 export interface ObsVideo {
   id: string; ch: string; niche: Niche | null; fmt: Fmt; pub: number; ageDays: number; tracked: boolean
   title: string; theme: string | null; formulas: string[]; url: string; ytId: string; dur: number | null
-  views: number | null; viewsAt: number | null; likes: number; comments: number
+  views: number | null; viewsAt: number | null
+  /** null = the count was never read (a video still being fetched): no engagement, never 0% */
+  likes: number | null; comments: number
   series: SeriesPoint[]; firstIdx: number | null
   /** The daily read was cut by the lookback cap (ds.dailyCappedFrom): the series does NOT start at publication, so no day-0 baseline may be assumed. */
   truncated?: boolean

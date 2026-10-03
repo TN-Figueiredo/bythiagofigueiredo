@@ -48,6 +48,7 @@
 .obs-out .obs-out-rule p{margin:6px 0 0;max-width:78ch}
 .obs-out .obs-out-more{color:var(--text);text-decoration:underline;text-underline-offset:3px;font-size:12px;white-space:nowrap}
 .obs-out .obs-out-fbslot{flex:4 1 300px;min-width:0}
+.obs-out .obs-out-notices > *{margin-top:8px}
 .obs-out .obs-out-viewseg{margin-left:auto;padding:0}
 .obs-out .obs-out-probs{flex:1 1 100%;order:4;display:flex;gap:6px;align-items:center;min-height:20px;line-height:1.5;color:var(--warning-text);font-size:12px;margin:8px 0 0}
 .obs-out .obs-out-probs svg{width:13px;height:13px;flex:none}
@@ -228,6 +229,7 @@
 }
 @media (max-width:820px){
   .obs-out .obs-out-timeline{flex-wrap:wrap;max-width:100%;flex:1 1 100%}
+  .obs-out > .obs-out-chips.obs-out-near{margin:8px 0 6px}
   .obs-out .obs-out-tl-group{flex:none}
   .obs-out .obs-out-controls{gap:6px}
   .obs-out .obs-out-filters{margin-left:0}

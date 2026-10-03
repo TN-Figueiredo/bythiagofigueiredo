@@ -75,7 +75,7 @@ function ReadingBlock({ r, label, open }: { r: ForjaReadingView; label: string |
         </div>
         <section className="from-site" aria-labelledby={'fs-' + r.id + (label ? '-a' : '')}>
           <h4 className="fs-h" id={'fs-' + r.id + (label ? '-a' : '')}>Do site</h4>
-          <p className="src">Leitura de {r.when}. {r.sentText}</p>
+          <p className="src">Leitura de {r.whenAgo}. {r.sentText}</p>
           {r.since ? <p className="src">{r.since.text}</p> : null}
           {r.siteNotes.map(n => <p className="src" key={n}>{n}</p>)}
         </section>
@@ -108,7 +108,7 @@ export function VideoReading({ card, forja, onCancel }: { card: HistForjaCard; f
       {card.excluded ? <p className="ex warnline">{WARN}<span>{card.excluded}</span></p> : null}
       {card.blocked && !card.pill ? <p className="ex warnline">{WARN}<span><Blocked b={card.blocked} /></span></p> : null}
       {card.statusText ? <p className="ex">{card.statusText}</p> : null}
-      {card.extra ? <p className="ex">{card.extra}</p> : null}
+      {card.extra || card.toTop ? <p className="ex">{card.extra}{card.extra && card.toTop ? ' ' : null}{card.toTop ? <>{card.toTop.pre}<a className="inl" href="#vhead">{card.toTop.label}</a>{card.toTop.post}</> : null}</p> : null}
       {card.step != null ? (
         <div className="steps">{STEPS.map((s, k) => <span key={s} className={k < card.step! ? 'done' : k === card.step ? 'now' : undefined}><i className="dot" aria-hidden="true" />{s}</span>)}</div>
       ) : null}
