@@ -12,6 +12,7 @@ import { OutliersTab } from './outliers-tab'
 import { InsightsTab } from './insights-tab'
 import { RemoveChannelDialog } from './remove-channel-dialog'
 import { AddChannelModal } from './add-channel-modal'
+import type { ChannelSlots } from '@/lib/youtube/competitor-slots'
 import { removeCompetitorChannel, syncCompetitorNow } from '../actions'
 import type {
   CompetitorChannelView,
@@ -30,7 +31,7 @@ interface CompetitorDashboardV2Props {
   outliers: CompetitorOutlierView[]
   insights: CompetitorInsights
   ourStats: OurChannelStats
-  maxChannels: number
+  slots: ChannelSlots
   activeTab: SubTab
 }
 
@@ -40,7 +41,7 @@ export function CompetitorDashboardV2({
   outliers,
   insights,
   ourStats,
-  maxChannels,
+  slots,
   activeTab: initialTab,
 }: CompetitorDashboardV2Props) {
   const router = useRouter()
@@ -216,7 +217,7 @@ export function CompetitorDashboardV2({
             </div>
 
             <span className="counter-pill text-xs mono" style={{ color: 'var(--text-dim)' }}>
-              {channels.length} / {maxChannels} canais monitorados
+              {slots.used} de {slots.limit} canais
             </span>
           </div>
 
@@ -311,7 +312,7 @@ export function CompetitorDashboardV2({
         open={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         existingChannelIds={channels.map(c => c.channelId).filter(id => !removedChannelIds.has(id))}
-        slotsRemaining={maxChannels - channels.length}
+        slots={slots}
       />
     </div>
   )

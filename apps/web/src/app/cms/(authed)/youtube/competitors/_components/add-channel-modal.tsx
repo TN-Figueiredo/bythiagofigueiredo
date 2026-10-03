@@ -7,6 +7,7 @@ import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import { fmtC } from '@/lib/youtube/format'
 import { addCompetitorChannel } from '../actions'
+import type { ChannelSlots } from '@/lib/youtube/competitor-slots'
 
 interface SearchResult {
   channelId: string
@@ -21,10 +22,10 @@ interface AddChannelModalProps {
   open: boolean
   onClose: () => void
   existingChannelIds: string[]
-  slotsRemaining: number
+  slots: ChannelSlots
 }
 
-export function AddChannelModal({ open, onClose, existingChannelIds, slotsRemaining }: AddChannelModalProps) {
+export function AddChannelModal({ open, onClose, existingChannelIds, slots: slotsProp }: AddChannelModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -33,6 +34,9 @@ export function AddChannelModal({ open, onClose, existingChannelIds, slotsRemain
   const [searching, setSearching] = useState(false)
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
   const [addingId, setAddingId] = useState<string | null>(null)
+  const [slots, setSlots] = useState<ChannelSlots>(slotsProp)
+  const [prevSlotsProp, setPrevSlotsProp] = useState<ChannelSlots>(slotsProp)
+  if (slotsProp !== prevSlotsProp) { setPrevSlotsProp(slotsProp); setSlots(slotsProp) }
 
   const handleClose = useCallback(() => {
     setSearchQuery('')
@@ -68,6 +72,7 @@ export function AddChannelModal({ open, onClose, existingChannelIds, slotsRemain
     if (result.ok) {
       toast.success('Canal adicionado com sucesso.')
       setAddedIds(prev => new Set(prev).add(channelId))
+      if (result.slots) setSlots(result.slots)
     } else {
       toast.error(result.error ?? 'Erro ao adicionar canal.')
     }
@@ -151,7 +156,7 @@ export function AddChannelModal({ open, onClose, existingChannelIds, slotsRemain
                       : ' '}
               </span>
               <span className="mono" style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
-                {slotsRemaining - addedIds.size} vaga{slotsRemaining - addedIds.size !== 1 ? 's' : ''} restante{slotsRemaining - addedIds.size !== 1 ? 's' : ''}
+                {slots.free} vaga{slots.free !== 1 ? 's' : ''} restante{slots.free !== 1 ? 's' : ''}
               </span>
             </div>
 
@@ -161,7 +166,7 @@ export function AddChannelModal({ open, onClose, existingChannelIds, slotsRemain
                 {searchResults.map(result => {
                   const added = isAlreadyAdded(result.channelId)
                   const isAdding = addingId === result.channelId
-                  const noSlots = slotsRemaining - addedIds.size <= 0
+                  const noSlots = slots.free <= 0
 
                   return (
                     <div key={result.channelId} className="om-result">

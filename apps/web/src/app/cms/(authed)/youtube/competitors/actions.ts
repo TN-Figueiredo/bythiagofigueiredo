@@ -5,6 +5,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
+import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/competitor-slots'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -13,7 +14,10 @@ async function requireEditAccess(): Promise<string> {
   return siteId
 }
 
-export async function addCompetitorChannel(channelId: string): Promise<{ ok: boolean; error?: string }> {
+export async function addCompetitorChannel(
+  channelId: string,
+  niche?: 'viagem' | 'ia',
+): Promise<{ ok: boolean; error?: string; slots?: ChannelSlots }> {
   // Validate channel ID format
   const trimmed = channelId.trim()
   if (trimmed.length < 2 || trimmed.length > 50) {
@@ -25,28 +29,27 @@ export async function addCompetitorChannel(channelId: string): Promise<{ ok: boo
 
   const supabase = getSupabaseServiceClient()
 
-  // Check limit (max 15)
-  const { count } = await supabase
-    .from('competitor_channels')
-    .select('id', { count: 'exact', head: true })
-    .eq('site_id', siteId)
-
-  if ((count ?? 0) >= 15) return { ok: false, error: 'Limite de 15 canais atingido' }
+  const before = await getChannelSlots(siteId)
+  if (before.free === 0) return { ok: false, error: 'Sem vagas', slots: before }
 
   // Check duplicate
   const { data: existing } = await supabase
     .from('competitor_channels')
-    .select('id')
+    .select('id, niche')
     .eq('site_id', siteId)
     .eq('channel_id', trimmed)
     .maybeSingle()
 
-  if (existing) return { ok: false, error: 'Canal já adicionado' }
+  if (existing) {
+    const where = existing.niche ? ` em ${existing.niche === 'ia' ? 'IA' : 'Viagem'}` : ''
+    return { ok: false, error: `Canal já adicionado${where}` }
+  }
 
   const { data: inserted, error } = await supabase.from('competitor_channels').insert({
     site_id: siteId,
     channel_id: trimmed,
     channel_name: trimmed,
+    ...(niche ? { niche } : {}),
   }).select('id, channel_id, site_id').single()
 
   if (error) return { ok: false, error: error.message }
@@ -61,7 +64,7 @@ export async function addCompetitorChannel(channelId: string): Promise<{ ok: boo
   }
 
   revalidatePath('/cms/youtube/competitors')
-  return { ok: true }
+  return { ok: true, slots: await getChannelSlots(siteId) }
 }
 
 export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean }> {
@@ -208,4 +211,21 @@ export async function getSyncStatus(channelRowId: string): Promise<{
     youtubeVideoCount: data.youtube_video_count,
     error: data.sync_error,
   }
+}
+
+export async function unlockMoreChannels(): Promise<{ ok: boolean; error?: string; slots?: ChannelSlots }> {
+  const { siteId } = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!res.ok) return { ok: false, error: 'forbidden' }
+  const sb = getSupabaseServiceClient()
+  const { data: me } = await sb.from('site_users').select('role').eq('site_id', siteId).eq('user_id', res.user.id).maybeSingle()
+  if (!me || !['super_admin', 'org_admin'].includes(me.role as string)) return { ok: false, error: 'forbidden' }
+  const cur = await getChannelSlots(siteId)
+  const { error } = await sb.from('competitor_settings').upsert(
+    { site_id: siteId, channel_limit: cur.limit + UNLOCK_STEP, updated_by: res.user.id, updated_at: new Date().toISOString() },
+    { onConflict: 'site_id' },
+  )
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/youtube/competitors', 'layout')
+  return { ok: true, slots: await getChannelSlots(siteId) }
 }

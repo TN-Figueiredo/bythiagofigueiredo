@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { oneEmbed } from '@/lib/supabase/one-embed'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { getChannelSlots } from '@/lib/youtube/competitor-slots'
 import { CompetitorDashboardV2 } from './_components/competitor-dashboard-v2'
 import { computeViewGrowthSparkline } from '@/lib/youtube/sparkline-math'
 import { computeGrowthScore } from '@/lib/youtube/growth-score'
@@ -25,8 +26,6 @@ import type {
 export const metadata = { title: 'Competidores' }
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
-
-const MAX_CHANNELS = 15
 
 const CHANNEL_COLORS = [
   'rgb(232, 130, 60)', 'rgb(167, 124, 232)', 'rgb(63, 169, 192)',
@@ -696,7 +695,7 @@ export default async function CompetitorsPage({
       outliers={outliers}
       insights={insights}
       ourStats={ourStats}
-      maxChannels={MAX_CHANNELS}
+      slots={await getChannelSlots(siteId)}
       activeTab={activeTab}
     />
   )
