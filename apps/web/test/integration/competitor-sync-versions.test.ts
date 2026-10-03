@@ -78,3 +78,35 @@ describe.skipIf(skipIfNoLocalDb())('syncCompetitorChannel versions', () => {
     expect(ch).toMatchObject({ sync_error_since: null, sync_status: 'idle' })
   })
 })
+
+describe.skipIf(skipIfNoLocalDb())('apply_competitor_version_plan atomicity (R22)', () => {
+  const sb = getSupabaseServiceClient()
+  it('a violating change row rolls back the close and the open', async () => {
+    const siteId = (await sb.from('sites').select('id').limit(1).single()).data!.id
+    await sb.from('competitor_channels').delete().eq('site_id', siteId).eq('channel_id', 'UCatom')
+    const chId = (await sb.from('competitor_channels').insert({ site_id: siteId, channel_id: 'UCatom', channel_name: 'C', video_limit: 50 }).select('id').single()).data!.id
+    const vidId = (await sb.from('competitor_videos').insert({ competitor_channel_id: chId, video_id: 'vidatom1', title: 'A' }).select('id').single()).data!.id
+    const seen = new Date().toISOString()
+    const old = (await sb.from('competitor_video_versions').insert({ video_id: vidId, field: 'title', value_text: 'A', value_hash: hashValue('A'), has_text: true, first_seen_at: seen, last_seen_at: seen, precision: 'first' }).select('id').single()).data!.id
+
+    const bad = await sb.rpc('apply_competitor_version_plan', {
+      p_video_id: vidId, p_close: [old],
+      p_open: [{ field: 'title', value_text: 'B', value_hash: hashValue('B'), has_text: true, first_seen_at: seen, last_seen_at: seen, precision: '6h' }],
+      p_changes: [{ field: 'title', site_id: siteId, change_type: 'NOT_A_TYPE', from_version_id: old, precision: '6h', window_end: seen }],
+    })
+    expect(bad.error).not.toBeNull()
+    const { data: rows } = await sb.from('competitor_video_versions').select('id, is_current, value_text').eq('video_id', vidId)
+    expect(rows).toEqual([{ id: old, is_current: true, value_text: 'A' }]) // close rolled back, no new version
+
+    const ok = await sb.rpc('apply_competitor_version_plan', {
+      p_video_id: vidId, p_close: [old],
+      p_open: [{ field: 'title', value_text: 'B', value_hash: hashValue('B'), has_text: true, first_seen_at: seen, last_seen_at: seen, precision: '6h' }],
+      p_changes: [{ field: 'title', site_id: siteId, change_type: 'title', old_title: 'A', new_title: 'B', from_version_id: old, precision: '6h', window_end: seen }],
+    })
+    expect(ok.error).toBeNull()
+    expect((ok.data as { changes: number }).changes).toBe(1)
+    const { data: ch } = await sb.from('competitor_changes').select('from_version_id, to_version_id').eq('video_id', vidId).single()
+    expect(ch!.from_version_id).toBe(old)
+    expect(ch!.to_version_id).toBe((ok.data as { opened: { title: string } }).opened.title)
+  })
+})

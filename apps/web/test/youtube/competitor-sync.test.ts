@@ -15,6 +15,8 @@ import { hashValue } from '@/lib/youtube/competitor-versions'
 import type { StoredVersion, VersionPlan } from '@/lib/youtube/competitor-versions'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
+type Payload = { p_video_id: string; p_close: string[]; p_open: Array<Record<string, unknown>>; p_changes: Array<Record<string, unknown>> }
+
 describe('isDailyRecordDue (12:00 São Paulo)', () => {
   it('before 12:00 SP is not due', () => {
     expect(isDailyRecordDue('2026-10-24T14:59:00.000Z', null)).toEqual({ due: false, snapDate: '2026-10-24' })
@@ -91,8 +93,14 @@ function fakeDb(script: Script) {
     })
     return proxy
   }
-  return { client: { from }, calls }
+  const rpc = (name: string, args: unknown) => {
+    const call: Call = { table: 'rpc:' + name, ops: [['rpc', [args]]] }
+    calls.push(call)
+    return Promise.resolve(script(call) ?? { data: null, error: null })
+  }
+  return { client: { from, rpc }, calls }
 }
+const rpcs = (db: { calls: Call[] }) => db.calls.filter(c => c.table === 'rpc:apply_competitor_version_plan').map(c => c.ops[0]![1][0] as Payload)
 const first = (c: Call) => c.ops[0]![0]
 const arg = (c: Call, op: string) => c.ops.find(o => o[0] === op)?.[1][0] as Record<string, unknown> | undefined
 const NOW = new Date('2026-10-24T15:00:00.000Z') // 12:00 SP
@@ -126,7 +134,7 @@ const recent = () => new Date(NOW.getTime() - 86_400_000).toISOString()
 
 function setup(opts: {
   existing?: Record<string, unknown>[]; versions?: Record<string, unknown>[]; lastDaily?: string | null
-  tracked?: Array<Record<string, unknown>>; dailyHave?: string[]; versionInsertError?: boolean
+  tracked?: Array<Record<string, unknown>>; dailyHave?: string[]; rpcError?: boolean
 } = {}) {
   const db = fakeDb((c) => {
     if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [lockRow] }
@@ -140,10 +148,9 @@ function setup(opts: {
     }
     if (c.table === 'competitor_video_daily' && first(c) === 'upsert') return { data: c.ops[0]![1][0] }
     if (c.table === 'competitor_video_versions' && first(c) === 'select') return { data: opts.versions ?? [] }
-    if (c.table === 'competitor_video_versions' && first(c) === 'insert') {
-      if (opts.versionInsertError) return { data: null, error: { message: 'boom' } }
-      const rows = c.ops[0]![1][0] as Array<{ field: string }>
-      return { data: rows.map((r, i) => ({ id: `nv-${i}`, field: r.field })) }
+    if (c.table === 'rpc:apply_competitor_version_plan') {
+      if (opts.rpcError) return { data: null, error: { message: 'boom' } }
+      return { data: { opened: {}, changes: (c.ops[0]![1][0] as { p_changes: unknown[] }).p_changes.length } }
     }
     return { data: null, error: null }
   })
@@ -191,9 +198,12 @@ describe('syncCompetitorChannel', () => {
     })
     const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch({ id: 'vid-1', snippet: { title: 'New', publishedAt: recent(), thumbnails: {} }, statistics: { viewCount: '9' } }) })
     expect(r.changesDetected).toBe(1)
-    const chg = db.calls.find(c => c.table === 'competitor_changes')!
-    expect((chg.ops[0]![1][0] as Array<Record<string, unknown>>)[0]).toMatchObject({
-      change_type: 'title', old_title: 'Old', new_title: 'New', from_version_id: 'tv1', to_version_id: 'nv-0',
+    const [pl] = rpcs(db)
+    expect(pl).toMatchObject({ p_video_id: 'v-1', p_close: ['tv1'] })
+    expect(pl!.p_open).toHaveLength(1)
+    expect(pl!.p_open[0]).toMatchObject({ field: 'title', value_text: 'New', precision: '6h', first_seen_at: NOW_ISO, last_seen_at: NOW_ISO })
+    expect(pl!.p_changes[0]).toMatchObject({
+      field: 'title', site_id: 'site-1', change_type: 'title', old_title: 'Old', new_title: 'New', from_version_id: 'tv1',
       window_start: '2026-10-24T09:00:00.000Z', window_end: NOW_ISO, precision: '6h', detected_at: NOW_ISO,
     })
   })
@@ -206,9 +216,7 @@ describe('syncCompetitorChannel', () => {
     })
     const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch({ id: 'vid-1', snippet: { publishedAt: recent() }, statistics: {} }) })
     expect(r.changesDetected).toBe(0)
-    expect(db.calls.some(c => c.table === 'competitor_changes')).toBe(false)
-    const closes = db.calls.filter(c => c.table === 'competitor_video_versions' && arg(c, 'update')?.is_current === false)
-    expect(closes).toHaveLength(0)
+    expect(rpcs(db)).toHaveLength(0)
   })
 
   it('inserts a new video and opens its baseline versions (no changes)', async () => {
@@ -217,10 +225,12 @@ describe('syncCompetitorChannel', () => {
     expect(r.changesDetected).toBe(0)
     const vInsert = db.calls.find(c => c.table === 'competitor_videos' && first(c) === 'insert')!
     expect(arg(vInsert, 'insert')).toMatchObject({ video_id: 'vid-new', title: 'Brand New', competitor_channel_id: 'cc-1' })
-    const opened = db.calls.find(c => c.table === 'competitor_video_versions' && first(c) === 'insert')!
-    const rows = opened.ops[0]![1][0] as Array<{ field: string; precision: string; video_id: string }>
-    expect(rows.map(x => x.field).sort()).toEqual(['desc', 'title'])
-    expect(rows.every(x => x.precision === 'first' && x.video_id === 'v-new')).toBe(true)
+    const [pl] = rpcs(db)
+    expect(pl!.p_video_id).toBe('v-new')
+    expect(pl!.p_close).toEqual([])
+    expect(pl!.p_open.map(x => x.field).sort()).toEqual(['desc', 'title'])
+    expect(pl!.p_open.every(x => x.precision === 'first')).toBe(true)
+    expect(pl!.p_changes).toEqual([])
   })
 
   it('(a) heals a current thumb version without dhash instead of recording a change', async () => {
@@ -234,7 +244,7 @@ describe('syncCompetitorChannel', () => {
     const heal = db.calls.find(c => c.table === 'competitor_video_versions' && arg(c, 'update')?.thumb_dhash)!
     expect(arg(heal, 'update')).toMatchObject({ thumb_dhash: 'ffffffffffffffff', thumb_etag: '"e9"', thumb_blob_url: 'https://blob.test/t.jpg' })
     expect(r.changesDetected).toBe(0)
-    expect(db.calls.some(c => c.table === 'competitor_changes')).toBe(false)
+    expect(rpcs(db).every(p => p.p_changes.length === 0 && p.p_open.every(x => x.field !== 'thumb'))).toBe(true)
   })
 
   it('(b) etag moved within DHASH_MAX_SAME updates only thumb_etag', async () => {
@@ -264,7 +274,7 @@ describe('syncCompetitorChannel', () => {
     expect(probeThumb).not.toHaveBeenCalled()
     db = mk('2026-10-23') // due
     expect((await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(video) })).changesDetected).toBe(1)
-    expect(db.calls.some(c => c.table === 'competitor_changes')).toBe(true)
+    expect(rpcs(db).some(p => p.p_changes.length === 1)).toBe(true)
   })
 
   it('daily record upserts with ignoreDuplicates and starts the series once', async () => {
@@ -325,24 +335,24 @@ describe('syncCompetitorChannel', () => {
     ]
     const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page, 200, { daily: () => daily }) })
     expect(r.dailyRecorded).toBe(2)
-    const changes = db.calls.filter(c => c.table === 'competitor_changes').flatMap(c => c.ops[0]![1][0] as Array<Record<string, unknown>>)
-    expect(changes).toHaveLength(1)
-    expect(changes[0]).toMatchObject({ video_id: 'v-2', change_type: 'title', new_title: 'Changed' })
+    const withChanges = rpcs(db).filter(p => p.p_changes.length)
+    expect(withChanges).toHaveLength(1)
+    expect(withChanges[0]).toMatchObject({ p_video_id: 'v-2' })
+    expect(withChanges[0]!.p_changes[0]).toMatchObject({ change_type: 'title', new_title: 'Changed' })
     expect(r.changesDetected).toBe(1)
     expect(vi.mocked(probeThumb).mock.calls.map(c => c[0]).sort()).toEqual(['vid-1', 'vid-2']) // v-1 not probed twice
   })
 
-  it('failure applying the plan: the version insert errors → closed versions re-opened, sync throws, last_ok not written', async () => {
+  it('R22: an RPC error → sync throws, no change counted, last_ok not written, nothing else compensates', async () => {
     const db = setup({
       lastDaily: '2026-10-24',
       existing: [{ id: 'v-1', video_id: 'vid-1', title: 'Old', description_hash: 'x', thumbnail_url: null, view_count: 1 }],
       versions: [{ id: 'tv1', video_id: 'v-1', field: 'title', value_text: 'Old', value_hash: hashValue('Old'), thumb_etag: null, thumb_dhash: null }],
-      versionInsertError: true,
+      rpcError: true,
     })
-    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch({ id: 'vid-1', snippet: { title: 'New', publishedAt: recent() }, statistics: {} }) })).rejects.toThrow('open versions')
-    const verUpdates = db.calls.filter(c => c.table === 'competitor_video_versions' && c.ops[0]![0] === 'update').map(c => arg(c, 'update')!)
-    expect(verUpdates.map(u => u.is_current)).toEqual([false, true]) // closed, then re-opened
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch({ id: 'vid-1', snippet: { title: 'New', publishedAt: recent() }, statistics: {} }) })).rejects.toThrow('apply version plan')
     expect(db.calls.some(c => c.table === 'competitor_changes')).toBe(false)
+    expect(db.calls.some(c => c.table === 'competitor_video_versions' && ['update', 'insert', 'delete'].includes(first(c)))).toBe(false)
     const chUpdates = db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!)
     expect(chUpdates.some(u => 'last_ok_synced_at' in u)).toBe(false)
     expect(chUpdates.at(-1)).toMatchObject({ sync_status: 'error' })

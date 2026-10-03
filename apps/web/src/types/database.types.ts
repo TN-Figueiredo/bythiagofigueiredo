@@ -9780,6 +9780,10 @@ export type Database = {
       }
     }
     Functions: {
+      apply_competitor_version_plan: {
+        Args: { p_changes: Json; p_close: string[]; p_open: Json; p_video_id: string }
+        Returns: Json
+      }
       accept_invitation_atomic:
         | { Args: { p_token: string }; Returns: Json }
         | { Args: { p_token_hash: string; p_user_id: string }; Returns: Json }

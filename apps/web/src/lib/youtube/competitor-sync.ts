@@ -200,69 +200,50 @@ export async function syncCompetitorChannel(
     const plan = dropFields(rawPlan, current, skip)
 
     touchIds.push(...plan.touch)
-    if (plan.close.length) {
-      const { error } = await supabase.from('competitor_video_versions').update({ is_current: false }).in('id', plan.close)
-      fail('close versions', error)
-    }
-    const reopenClosed = async () => {
-      if (plan.close.length) await supabase.from('competitor_video_versions').update({ is_current: true }).in('id', plan.close)
-    }
-    const newIds = new Map<VersionField, string>()
-    if (plan.open.length) {
-      const rows = []
-      for (const op of plan.open) {
-        const blobUrl = op.field === 'thumb' && op.thumb ? await archiveThumb(videoUuid, op.thumb).catch(() => null) : null
-        const lm = op.thumb?.lastModified ? Date.parse(op.thumb.lastModified) : NaN
-        rows.push({
-          video_id: videoUuid,
-          field: op.field,
-          value_text: op.value_text,
-          value_hash: op.value_hash,
-          has_text: op.has_text,
-          thumb_etag: op.thumb?.etag ?? null,
-          thumb_dhash: op.thumb?.dhash ?? null,
-          thumb_blob_url: blobUrl,
-          thumb_last_modified: Number.isFinite(lm) ? new Date(lm).toISOString() : null,
-          first_seen_at: op.first_seen_at,
-          last_seen_at: nowIso,
-          window_start: op.window_start,
-          precision: op.precision,
-          is_current: true,
-        })
-      }
-      const { data: opened, error } = await supabase.from('competitor_video_versions').insert(rows).select('id, field')
-      if (error) { await reopenClosed(); fail('open versions', error) }
-      for (const r of (opened ?? []) as Array<{ id: string; field: VersionField }>) newIds.set(r.field, r.id)
+    if (!plan.close.length && !plan.open.length && !plan.changes.length) return
+
+    // One transaction in the database (R22): close + open + change rows, or nothing.
+    const openRows = []
+    for (const op of plan.open) {
+      const blobUrl = op.field === 'thumb' && op.thumb ? await archiveThumb(videoUuid, op.thumb).catch(() => null) : null
+      const lm = op.thumb?.lastModified ? Date.parse(op.thumb.lastModified) : NaN
+      openRows.push({
+        field: op.field,
+        value_text: op.value_text,
+        value_hash: op.value_hash,
+        has_text: op.has_text,
+        thumb_etag: op.thumb?.etag ?? null,
+        thumb_dhash: op.thumb?.dhash ?? null,
+        thumb_blob_url: blobUrl,
+        thumb_last_modified: Number.isFinite(lm) ? new Date(lm).toISOString() : null,
+        first_seen_at: op.first_seen_at,
+        last_seen_at: nowIso,
+        window_start: op.window_start,
+        precision: op.precision,
+      })
     }
     const changeRows = plan.changes.map(c => {
       const fromV = current.find(v => v.id === c.fromId) as (StoredVersion & { value_text?: string | null }) | undefined
       const opened = plan.open.find(op => op.field === c.field)
       return {
-        video_id: videoUuid,
+        field: c.field,
         site_id: channelRow.site_id,
         change_type: CHANGE_TYPE[c.field],
         ...(c.field === 'title' ? { old_title: fromV?.value_text ?? o.existingTitle ?? null, new_title: opened?.value_text ?? o.apiTitle } : {}),
         ...(c.field === 'thumb' ? { old_thumbnail_url: o.existingThumbUrl, new_thumbnail_url: o.thumbnailUrl } : {}),
         view_count_at_change: o.viewCount,
         from_version_id: c.fromId,
-        to_version_id: newIds.get(c.field) ?? null,
         window_start: c.window_start,
         window_end: c.window_end,
         precision: c.precision,
         detected_at: nowIso,
       }
     })
-    if (changeRows.length) {
-      const { error } = await supabase.from('competitor_changes').insert(changeRows)
-      if (error) {
-        // undo: drop the versions just opened, bring the closed ones back
-        const openedIds = [...newIds.values()]
-        if (openedIds.length) await supabase.from('competitor_video_versions').delete().in('id', openedIds)
-        await reopenClosed()
-        fail('insert changes', error)
-      }
-      changesDetected += changeRows.length
-    }
+    const { data, error } = await supabase.rpc('apply_competitor_version_plan', {
+      p_video_id: videoUuid, p_close: plan.close, p_open: openRows, p_changes: changeRows,
+    })
+    fail('apply version plan', error)
+    changesDetected += (data as { changes?: number } | null)?.changes ?? 0
   }
 
   try {
