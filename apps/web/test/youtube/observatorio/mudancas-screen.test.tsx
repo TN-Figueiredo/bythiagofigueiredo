@@ -108,7 +108,9 @@ describe('MudancasScreen', () => {
     await user.click(btn)
     expect(onToggleSwipe).toHaveBeenCalledWith(view().heroes[0]!.swipe.key)
     await waitFor(() => expect(btn).toHaveAttribute('aria-pressed', 'true'))
-    expect(btn).toHaveAccessibleName('Salvo no swipe file')
+    // the accessible name is stable; only aria-pressed (and the visible title) carry the state
+    expect(btn).toHaveAccessibleName('Salvar no swipe file')
+    expect(btn).toHaveAttribute('title', 'Salvo no swipe file')
     expect(await screen.findByText('Salvo no swipe file', { selector: 'b' })).toBeInTheDocument()
     await user.click(btn)
     await waitFor(() => expect(btn).toHaveAttribute('aria-pressed', 'false'))
@@ -153,5 +155,17 @@ describe('MudancasScreen', () => {
     const ids = [...a.querySelectorAll('[data-hero]')].map(x => x.getAttribute('data-id'))
     const b = mount({}, { reading: 'resumo-trocas-ia-20-10' }).container
     expect([...b.querySelectorAll('[data-hero]')].map(x => x.getAttribute('data-id'))).toEqual(ids)
+  })
+  it('a change without a swipe key renders a disabled button and never calls the action (R41)', async () => {
+    const user = userEvent.setup()
+    const onToggleSwipe = vi.fn()
+    const v0 = view(), id = v0.heroes[0]!.id
+    const { container } = render(<div data-obs=""><ToastProvider><MudancasScreen view={buildMudancasView(obs, {}, new Set(), new Map([[id, null]]))} onToggleSwipe={onToggleSwipe} /></ToastProvider></div>)
+    const btn = container.querySelector(`[data-id="${id}"] button.save`) as HTMLButtonElement
+    expect(btn).toBeDisabled()
+    expect(btn).toHaveAttribute('title', 'Esta troca antiga não pode ir para o swipe file por aqui')
+    await user.click(btn)
+    expect(onToggleSwipe).not.toHaveBeenCalled()
+    expect(screen.queryByText(/Tente de novo/)).toBeNull()
   })
 })

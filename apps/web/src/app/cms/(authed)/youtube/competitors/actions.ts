@@ -133,7 +133,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /**
  * Swipe file of the Observatório (Mudanças): the engine names a change by the version it opened (`toId`), so the
  * row is the `competitor_changes` whose `to_version_id` is that key — or, for a legacy row loaded as a pre-series
- * version, whose own `id` is the key. Toggles `bookmarked` and returns the new state.
+ * version, whose own `id` is the key. Toggles `bookmarked` on every matching row and returns the new state.
  */
 export async function toggleChangeBookmark(key: string): Promise<{ ok: boolean; saved?: boolean }> {
   let siteId: string
@@ -146,13 +146,12 @@ export async function toggleChangeBookmark(key: string): Promise<{ ok: boolean; 
     .select('id, bookmarked')
     .eq('site_id', siteId)
     .or(`to_version_id.eq.${key},id.eq.${key}`)
-    .order('detected_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  if (!data) return { ok: false }
+  const rows = data ?? []
+  if (!rows.length) return { ok: false }
 
-  const saved = !data.bookmarked
-  const { error } = await supabase.from('competitor_changes').update({ bookmarked: saved }).eq('id', data.id).eq('site_id', siteId)
+  // every row of that version moves together, so the state never splits: if any of them is saved, all of them leave
+  const saved = !rows.some(r => r.bookmarked)
+  const { error } = await supabase.from('competitor_changes').update({ bookmarked: saved }).eq('site_id', siteId).in('id', rows.map(r => r.id))
   if (error) return { ok: false }
   revalidatePath('/cms/youtube/competitors/mudancas')
   return { ok: true, saved }

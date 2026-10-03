@@ -294,3 +294,4 @@
 [data-obs-screen="mudancas"] .eff-dl dd.inc .num{color:var(--muted)}
 [data-obs-screen="mudancas"] .vid-h .ghost svg.i{width:15px;height:15px}
 [data-obs-screen="mudancas"] .save svg.i{width:16px;height:16px}
+[data-obs-screen="mudancas"] .save:disabled{cursor:not-allowed;color:var(--dim);background:transparent;border-color:transparent}

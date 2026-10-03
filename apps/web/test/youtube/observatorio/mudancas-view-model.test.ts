@@ -107,3 +107,41 @@ describe('Mudanças view model — extra rules', () => {
     expect(buildMudancasView(obs, { win: '13', type: 'x', fmt: 'y' }, new Set()).filters).toMatchObject({ win: 30, type: 'all', fmt: 'all' })
   })
 })
+
+describe('Mudanças view model — fix round 1', () => {
+  it('measured + search: the filter named is the search, never "ainda não têm efeito medido"', () => {
+    const e = buildMudancasView(obs, { measured: '1', q: 'zzzz' }, new Set()).empty!
+    expect(e.text).not.toMatch(/ainda não t[eê]m? efeito medido/)
+    expect(e.hiddenBy).toContain('a busca “zzzz”')
+    expect(e.text).toMatch(/a busca “zzzz” esconde/)
+  })
+  it('measured alone, when nothing in the window is measured, still explains the waiting verdicts', () => {
+    const e = buildMudancasView(obs, { niche: 'ia', type: 'desc', fmt: 'long', win: '7', measured: '1' }, new Set()).empty!
+    expect(e.text).toMatch(/ainda não tem efeito medido: 1 aguardando/)
+    expect(e.hiddenBy).toBe('“só com efeito medido”')
+  })
+  it('the 2-fields inconclusive group reads RULES.effect.simultHours', () => {
+    const txt = JSON.stringify(v.ledger.out)
+    expect(txt).toContain('por 2 campos em < ' + obs.RULES.effect.simultHours)
+  })
+  it('a null swipe key disables the swipe (never saved)', () => {
+    const id = v.heroes[0]!.id
+    const h = buildMudancasView(obs, {}, new Set([id]), new Map([[id, null]])).heroes[0]!
+    expect(h.swipe).toEqual({ saved: false, label: 'Esta troca antiga não pode ir para o swipe file por aqui', key: null })
+  })
+  it('?changes= ids older than the 90-day pool say so honestly', () => {
+    // the fixture has no change older than 90 days: push one video's title history 100 days back
+    const ds = datasetFromOracle(loadOracle()), D = 864e5
+    const keep = v.heroes.find(h => h.type === 'title')!, moved = v.heroes.find(h => h.type === 'title' && h.video.id !== keep.video.id)!
+    const vd = ds.videos.find(x => x.id === moved.video.id)!
+    for (const t of vd.titles) { t.first_seen -= 100 * D; t.last_seen -= 100 * D; if (t.window) t.window = [t.window[0] - 100 * D, t.window[1] - 100 * D] }
+    const o2 = createObservatory(ds)
+    const oldId = o2.changes.find(c => c.video === vd.id && c.type === 'title' && c.at <= o2.NOW - 90 * D)!.id
+    const e = buildMudancasView(o2, { changes: oldId }, new Set()).empty!
+    expect(e.title).toBe('1 troca citada fora da janela de 90 dias')
+    expect(e.title).not.toMatch(/Nenhuma das 0/)
+    const mixed = buildMudancasView(o2, { changes: [oldId, keep.id].join(',') }, new Set())
+    expect(mixed.heroes.map(h => h.id)).toEqual([keep.id])
+    expect(JSON.stringify(mixed.paging.countLines[0])).toContain('1 troca citada ficou fora da janela de 90 dias.')
+  })
+})
