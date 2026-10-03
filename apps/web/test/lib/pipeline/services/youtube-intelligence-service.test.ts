@@ -91,23 +91,20 @@ const runningTask = {
 describe('claimNextTask', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  // Task 30: the claim lives in forja-queue.claim. It writes the forja heartbeat FIRST (one queued
-  // result), then reads with a PostgREST `.or()` restricted to task_type='diagnostico' — the Health
-  // Coach never sees an observatory task — then runs the same CAS as before.
+  // Task 30: the claim lives in forja-queue.claim. It reads with a PostgREST `.or()` restricted to
+  // task_type='diagnostico' — the Health Coach never sees an observatory task — then runs the same CAS as
+  // before. It never writes forja_heartbeat (ruling R46: only the forja's typed claim path does).
   const CH1 = '11111111-1111-4111-8111-111111111111'
-  const HEARTBEAT = { data: null, error: null }
 
   it('claims the oldest pending diagnostico task of the given channels and records claimed_by', async () => {
     const sb = makeSupabase([
-      HEARTBEAT,
       { data: { id: 't1' }, error: null },
       { data: { id: 't1', site_id: 'site-1', channel_id: CH1, trigger_type: 'cron', requested_at: '2026-09-01T00:00:00Z', started_at: '2026-09-19T10:00:00Z' }, error: null },
     ])
     const res = await claimNextTask(ctxOf(sb), [CH1])
 
     expect(res.data).toMatchObject({ id: 't1', started_at: '2026-09-19T10:00:00Z' })
-    expect(sb.opsOnTable('forja_heartbeat')[0]).toMatchObject({ op: 'upsert' })
-    expect(sb.tables[0]).toBe('forja_heartbeat')
+    expect(sb.tables).not.toContain('forja_heartbeat')
     expect(sb.calls).toContainEqual({ op: 'or', args: [`and(task_type.eq.diagnostico,channel_id.in.(${CH1}))`] })
 
     const casCalls = sb.from('update')
@@ -125,14 +122,13 @@ describe('claimNextTask', () => {
   })
 
   it('returns null (204 upstream) when the queue is empty', async () => {
-    const sb = makeSupabase([HEARTBEAT, { data: null, error: null }])
+    const sb = makeSupabase([{ data: null, error: null }])
     const res = await claimNextTask(ctxOf(sb), [CH1])
     expect(res.data).toBeNull()
   })
 
   it('returns null when the CAS is lost to another consumer', async () => {
     const sb = makeSupabase([
-      HEARTBEAT,
       { data: { id: 't1' }, error: null },
       { data: null, error: null },
     ])
@@ -141,13 +137,12 @@ describe('claimNextTask', () => {
   })
 
   it('throws INTERNAL_ERROR when the SELECT errors — never a silent 204', async () => {
-    const sb = makeSupabase([HEARTBEAT, { data: null, error: { message: 'boom' } }])
+    const sb = makeSupabase([{ data: null, error: { message: 'boom' } }])
     await expect(claimNextTask(ctxOf(sb), [CH1])).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
   })
 
   it('throws INTERNAL_ERROR when the CAS UPDATE errors', async () => {
     const sb = makeSupabase([
-      HEARTBEAT,
       { data: { id: 't1' }, error: null },
       { data: null, error: { message: 'boom' } },
     ])
@@ -155,10 +150,12 @@ describe('claimNextTask', () => {
   })
 
   it('legacy GET path (no ids): no channel filter, but ONLY diagnostico — never an observatory task', async () => {
-    const sb = makeSupabase([HEARTBEAT, { data: null, error: null }])
+    const sb = makeSupabase([{ data: null, error: null }])
     await claimNextTask(ctxOf(sb))
     expect(sb.calls.some(c => c.op === 'in')).toBe(false)
     expect(sb.calls).toContainEqual({ op: 'or', args: ['task_type.eq.diagnostico'] })
+    expect(sb.tables).not.toContain('forja_heartbeat')
+    expect(sb.calls.some(c => c.op === 'upsert')).toBe(false)
   })
 })
 

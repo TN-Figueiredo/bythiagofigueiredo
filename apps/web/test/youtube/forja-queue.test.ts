@@ -11,7 +11,9 @@ import type { ServiceContext } from '@/lib/pipeline/services/types'
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 // askReading loads the dataset lazily; here a minimal observatory stands in (no channels, heartbeat alive with 'temas').
 const OBS_NOW = Date.parse('2026-10-03T15:00:00Z')
-vi.mock('@/lib/youtube/observatorio/load', () => ({
+// only loadDataset is faked: the row mapper (taskRowToRequest) and TASK_COLS are the real ones the service shares with the loader
+vi.mock('@/lib/youtube/observatorio/load', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/youtube/observatorio/load')>()),
   loadDataset: vi.fn(async () => ({ queue: { lastPollAt: OBS_NOW - 60_000, tickMinutes: 10, capabilities: ['temas'] } })),
 }))
 vi.mock('@/lib/youtube/observatorio', async () => {
@@ -20,7 +22,7 @@ vi.mock('@/lib/youtube/observatorio', async () => {
 })
 
 import * as Sentry from '@sentry/nextjs'
-import { claim, recordHeartbeat, refuseTask, completeReading, cancelReading, askReading } from '@/lib/pipeline/services/forja-queue'
+import { claim, recordHeartbeat, refuseTask, completeReading, cancelReading, askReading, type ObsType } from '@/lib/pipeline/services/forja-queue'
 
 interface Op { op: string; args: unknown[] }
 interface Query { table: string; ops: Op[] }
@@ -75,13 +77,12 @@ describe('recordHeartbeat', () => {
 })
 
 describe('claim', () => {
-  it('writes the heartbeat FIRST, even when the queue is empty, with capabilities = [] for the old worker', async () => {
+  it('without the heartbeat option (Health Coach, legacy GET, MCP, Cowork) never touches forja_heartbeat (R46)', async () => {
     const f = fakeClient(() => OK)
     const res = await claim(ctxOf(f.client), { channelIds: [CH] }, NOW)
     expect(res.data).toBeNull()
-    expect(f.queries.map(q => q.table)).toEqual(['forja_heartbeat', 'youtube_intelligence_tasks'])
-    expect((f.queries[0]!.ops[0]!.args[0] as Record<string, unknown>).capabilities).toEqual([])
-    const sel = f.queries[1]!
+    expect(f.queries.map(q => q.table)).toEqual(['youtube_intelligence_tasks'])
+    const sel = f.queries[0]!
     expect(has(sel, 'eq', 'site_id', 'site-1')).toBe(true)
     expect(has(sel, 'eq', 'status', 'pending')).toBe(true)
     expect(has(sel, 'or', `and(task_type.eq.diagnostico,channel_id.in.(${CH}))`)).toBe(true)
@@ -90,24 +91,34 @@ describe('claim', () => {
     expect(sel.ops.some(o => o.op === 'in')).toBe(false)
   })
 
-  it('heartbeat capabilities are the announced types (unknown ones dropped); the filter adds them', async () => {
+  it('even with task_types, no option → no heartbeat (only the forja route passes it)', async () => {
     const f = fakeClient(() => OK)
-    await claim(ctxOf(f.client), { channelIds: [CH], taskTypes: ['temas', 'resumo-trocas', 'nope' as never] }, NOW)
-    expect((f.queries[0]!.ops[0]!.args[0] as Record<string, unknown>).capabilities).toEqual(['temas', 'resumo-trocas'])
+    await claim(ctxOf(f.client), { channelIds: [CH], taskTypes: ['temas'] }, NOW)
+    expect(f.queries.some(q => q.table === 'forja_heartbeat')).toBe(false)
+  })
+
+  it('with the heartbeat option: written FIRST, even on an empty queue; capabilities filtered; the filter adds the types', async () => {
+    const f = fakeClient(() => OK)
+    const types = ['temas', 'resumo-trocas', 'nope' as never] as ObsType[]
+    const res = await claim(ctxOf(f.client), { channelIds: [CH], taskTypes: types }, NOW, { heartbeat: { capabilities: types } })
+    expect(res.data).toBeNull()
+    expect(f.queries.map(q => q.table)).toEqual(['forja_heartbeat', 'youtube_intelligence_tasks'])
+    expect(f.queries[0]!.ops[0]!.args[0]).toEqual({ site_id: 'site-1', last_poll_at: new Date(NOW).toISOString(), capabilities: ['temas', 'resumo-trocas'], key_id: 'key-forja' })
     expect(has(f.queries[1]!, 'or', `and(task_type.eq.diagnostico,channel_id.in.(${CH})),task_type.in.(temas,resumo-trocas)`)).toBe(true)
   })
 
   it('legacy GET (no channel ids, no types) is restricted to diagnostico', async () => {
     const f = fakeClient(() => OK)
     await claim(ctxOf(f.client, { permissions: ['read', 'write', 'intelligence'] }), { channelIds: [] }, NOW)
-    expect(has(f.queries[1]!, 'or', 'task_type.eq.diagnostico')).toBe(true)
+    expect(has(f.queries[0]!, 'or', 'task_type.eq.diagnostico')).toBe(true)
+    expect(f.queries.some(q => q.table === 'forja_heartbeat')).toBe(false)
   })
 
   it('CAS pending → running with claimed_by and a closed column list carrying the target', async () => {
     const f = fakeClient(q => q.table !== 'youtube_intelligence_tasks' ? OK
       : first(q) === 'select' ? { data: { id: TASK_ID }, error: null }
       : { data: { id: TASK_ID, site_id: 'site-1', channel_id: null, trigger_type: 'manual', requested_at: 'x', started_at: 'y', task_type: 'temas', target_niche: 'ia', target_video_id: null, target_fmt: 'long' }, error: null })
-    const res = await claim(ctxOf(f.client), { channelIds: [CH], taskTypes: ['temas'] }, NOW)
+    const res = await claim(ctxOf(f.client), { channelIds: [CH], taskTypes: ['temas'] }, NOW, { heartbeat: { capabilities: ['temas'] } })
     expect(res.data).toMatchObject({ id: TASK_ID, task_type: 'temas', target_niche: 'ia' })
     const cas = f.queries[2]!
     expect(cas.ops[0]!.op).toBe('update')
@@ -118,13 +129,13 @@ describe('claim', () => {
 
   it('a heartbeat write error does not block the claim — it goes to Sentry', async () => {
     const f = fakeClient(q => q.table === 'forja_heartbeat' ? { data: null, error: { message: 'boom' } } : OK)
-    await expect(claim(ctxOf(f.client), { channelIds: [CH] }, NOW)).resolves.toMatchObject({ data: null })
+    await expect(claim(ctxOf(f.client), { channelIds: [CH] }, NOW, { heartbeat: { capabilities: [] } })).resolves.toMatchObject({ data: null })
     expect(Sentry.captureMessage).toHaveBeenCalled()
   })
 
-  it('a non-UUID channel id is a 400, before anything is written', async () => {
+  it('a non-UUID channel id is a 400, before anything is written (heartbeat included)', async () => {
     const f = fakeClient(() => OK)
-    await expect(claim(ctxOf(f.client), { channelIds: ['x),or(y'] }, NOW)).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 400 })
+    await expect(claim(ctxOf(f.client), { channelIds: ['x),or(y'] }, NOW, { heartbeat: { capabilities: [] } })).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 400 })
     expect(f.queries).toHaveLength(0)
   })
 
@@ -144,11 +155,11 @@ const running = (o: Record<string, unknown> = {}) => ({
 describe('refuseTask', () => {
   it('CAS running → refused with the short code, refused_at, the started_at pin and the owner', async () => {
     const f = fakeClient(q => first(q) === 'select' ? { data: running(), error: null } : { data: { id: TASK_ID, status: 'refused' }, error: null })
-    const res = await refuseTask(ctxOf(f.client), TASK_ID, 'dado-velho')
+    const res = await refuseTask(ctxOf(f.client), TASK_ID, 'dado-velho', NOW)
     expect(res.data).toEqual({ id: TASK_ID, status: 'refused' })
     const cas = f.queries[1]!
-    expect(cas.ops[0]!.args[0]).toMatchObject({ status: 'refused', refused_reason: 'dado-velho' })
-    expect(typeof (cas.ops[0]!.args[0] as Record<string, unknown>).refused_at).toBe('string')
+    // refused_at from the injected clock, like claim's started_at
+    expect(cas.ops[0]!.args[0]).toMatchObject({ status: 'refused', refused_reason: 'dado-velho', refused_at: new Date(NOW).toISOString() })
     expect(has(cas, 'eq', 'status', 'running') && has(cas, 'eq', 'started_at', '2026-10-03T14:55:00Z') && has(cas, 'eq', 'result_summary->>claimed_by', 'key-forja')).toBe(true)
   })
   it('409 for a task held by another key; 409 when not running', async () => {
@@ -177,9 +188,15 @@ const submission = (o: Record<string, unknown> = {}) => ({
   evidence: [{ id: V1, note: 'subiu 12 pp' }],
   ...o,
 })
-function completeClient(task: Record<string, unknown> | null, o: { insert?: Res; cas?: Res } = {}) {
+function completeClient(task: Record<string, unknown> | null, o: { insert?: Res | Res[]; cas?: Res; del?: Res } = {}) {
+  let inserts = 0
   return fakeClient(q => {
-    if (q.table === 'competitor_readings') return first(q) === 'insert' ? (o.insert ?? { data: { id: 'reading-1' }, error: null }) : OK
+    if (q.table === 'competitor_readings') {
+      if (first(q) !== 'insert') return o.del ?? OK
+      const r = Array.isArray(o.insert) ? o.insert[Math.min(inserts, o.insert.length - 1)] : o.insert
+      inserts++
+      return r ?? { data: { id: 'reading-1' }, error: null }
+    }
     return first(q) === 'select' ? { data: task, error: null } : (o.cas ?? { data: { id: TASK_ID }, error: null })
   })
 }
@@ -187,7 +204,7 @@ function completeClient(task: Record<string, unknown> | null, o: { insert?: Res;
 describe('completeReading', () => {
   it('inserts the reading with sent copied from the task, the analysis extras and the target; then CAS → completed', async () => {
     const f = completeClient(running())
-    const res = await completeReading(ctxOf(f.client), submission())
+    const res = await completeReading(ctxOf(f.client), submission(), NOW)
     expect(res.data).toEqual({ readingId: 'reading-1' })
     const ins = f.queries.find(q => q.table === 'competitor_readings')!
     expect(ins.ops[0]!.args[0]).toMatchObject({
@@ -196,7 +213,7 @@ describe('completeReading', () => {
       text: submission().text, evidence: [{ id: V1, note: 'subiu 12 pp' }],
     })
     const cas = f.queries[f.queries.length - 1]!
-    expect(cas.ops[0]!.args[0]).toMatchObject({ status: 'completed' })
+    expect(cas.ops[0]!.args[0]).toMatchObject({ status: 'completed', completed_at: new Date(NOW).toISOString() })
     expect(has(cas, 'eq', 'status', 'running') && has(cas, 'eq', 'started_at', '2026-10-03T14:55:00Z') && has(cas, 'eq', 'result_summary->>claimed_by', 'key-forja')).toBe(true)
   })
 
@@ -244,17 +261,41 @@ describe('completeReading', () => {
     await expect(completeReading(ctxOf(completeClient(running({ task_type: 'diagnostico' })).client), submission())).rejects.toMatchObject({ status: 400 })
   })
 
-  it('a duplicate reading for the task (unique task_id) → 409', async () => {
-    const f = completeClient(running(), { insert: { data: null, error: { code: '23505', message: 'duplicate key' } } })
-    await expect(completeReading(ctxOf(f.client), submission())).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING', status: 409 })
+  const DUP: Res = { data: null, error: { code: '23505', message: 'duplicate key' } }
+  it('an orphan reading of this (still running) task is removed by task_id and the insert retried once → published', async () => {
+    const f = completeClient(running(), { insert: [DUP, { data: { id: 'reading-2' }, error: null }] })
+    const res = await completeReading(ctxOf(f.client), submission(), NOW)
+    expect(res.data).toEqual({ readingId: 'reading-2' })
+    const del = f.queries.filter(q => q.table === 'competitor_readings' && first(q) === 'delete')
+    expect(del).toHaveLength(1)
+    expect(has(del[0]!, 'eq', 'site_id', 'site-1') && has(del[0]!, 'eq', 'task_id', TASK_ID)).toBe(true)
+    expect(f.queries.filter(q => q.table === 'competitor_readings' && first(q) === 'insert')).toHaveLength(2)
   })
 
-  it('the CAS lost after the insert → the reading is removed and the answer is 409', async () => {
+  it('a 23505 again after removing the orphan → 409 (no loop)', async () => {
+    const f = completeClient(running(), { insert: DUP })
+    await expect(completeReading(ctxOf(f.client), submission())).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING', status: 409 })
+    expect(f.queries.filter(q => q.table === 'competitor_readings' && first(q) === 'insert')).toHaveLength(2)
+  })
+
+  it('the orphan cannot be removed → 500, nothing published', async () => {
+    const f = completeClient(running(), { insert: DUP, del: { data: null, error: { message: 'rls' } } })
+    await expect(completeReading(ctxOf(f.client), submission())).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
+    expect(f.queries.some(q => q.table === 'youtube_intelligence_tasks' && first(q) === 'update')).toBe(false)
+  })
+
+  it('the CAS lost after the insert → the reading is removed by its id and the answer is 409', async () => {
     const f = completeClient(running(), { cas: OK })
     await expect(completeReading(ctxOf(f.client), submission())).rejects.toMatchObject({ status: 409 })
     const del = f.queries.filter(q => q.table === 'competitor_readings' && first(q) === 'delete')
     expect(del).toHaveLength(1)
     expect(has(del[0]!, 'eq', 'id', 'reading-1')).toBe(true)
+  })
+
+  it('the cleanup after a lost CAS fails → still 409, Sentry told; the next attempt removes that orphan (test above)', async () => {
+    const f = completeClient(running(), { cas: OK, del: { data: null, error: { message: 'down' } } })
+    await expect(completeReading(ctxOf(f.client), submission())).rejects.toMatchObject({ code: 'TASK_NOT_RUNNING', status: 409 })
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('cleanup'), expect.anything())
   })
 })
 

@@ -1,7 +1,7 @@
 // @vitest-environment node
 // apps/web/test/youtube/observatorio/load.test.ts — pure rowsToDataset (Review Focus 2 and 4).
 import { describe, it, expect } from 'vitest'
-import { rowsToDataset, nextSyncSlot, trackedVideoIds, dailyReadFrom, dailyCappedFrom, mapLimit, type ObservatoryRows, type ChannelRow, type VideoRow, type VersionRow, type LegacyChangeRow, type DailyRow, type ReadingRow, type OwnChannelRow, type OwnVideoRow, type TaskRow } from '@/lib/youtube/observatorio/load'
+import { rowsToDataset, taskRowToRequest, nextSyncSlot, trackedVideoIds, dailyReadFrom, dailyCappedFrom, mapLimit, type ObservatoryRows, type ChannelRow, type VideoRow, type VersionRow, type LegacyChangeRow, type DailyRow, type ReadingRow, type OwnChannelRow, type OwnVideoRow, type TaskRow } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { formulasOf } from '@/lib/youtube/observatorio/catalog'
 
@@ -401,4 +401,28 @@ describe('rowsToDataset — request state derived from the row and the heartbeat
     expect(stateOf(task({ status: 'refused', refused_at: iso(NOW - MIN), refused_reason: 'dado-velho' }))).toBe('recusado (dado velho)')
   })
   it('an unknown status is dropped, never a crash', () => expect(rowsToDataset(rows({ tasks: [task({ status: 'weird' })], heartbeat: alive }), NOW).requests).toEqual([]))
+})
+
+describe('taskRowToRequest — the ONE row → request mapper (loader and services/forja-queue)', () => {
+  const MIN = 6e4
+  const row = (o: Partial<TaskRow> = {}): TaskRow => ({
+    id: 't1', task_type: 'temas', target_niche: 'ia', target_video_id: null, target_fmt: 'long', status: 'pending',
+    requested_at: iso(NOW - 4 * MIN), started_at: null, completed_at: null, failed_at: null, refused_at: null, refused_reason: null, released_at: null, retry_count: 0, ...o,
+  })
+  it('a refused row: failedAt falls back to refused_at, refusedAt and the reason code are kept', () => {
+    const q = taskRowToRequest(row({ status: 'refused', started_at: iso(NOW - 3 * MIN), refused_at: iso(NOW - MIN), refused_reason: 'dado-velho' }), NOW - MIN, NOW)!
+    expect(q).toMatchObject({ state: 'recusado (dado velho)', failedAt: NOW - MIN, refusedAt: NOW - MIN, refusedReason: 'dado-velho', status: 'refused' })
+  })
+  it('a failed row keeps its own failed_at', () => {
+    expect(taskRowToRequest(row({ status: 'failed', failed_at: iso(NOW - 2 * MIN) }), NOW - MIN, NOW)!.failedAt).toBe(NOW - 2 * MIN)
+  })
+  it('unknown status, unknown type, no niche or a bad requested_at → null (never a throw from requestStateOf)', () => {
+    expect(taskRowToRequest(row({ status: 'weird' }), null, NOW)).toBeNull()
+    expect(taskRowToRequest(row({ task_type: 'diagnostico' }), null, NOW)).toBeNull()
+    expect(taskRowToRequest(row({ target_niche: null }), null, NOW)).toBeNull()
+    expect(taskRowToRequest(row({ requested_at: 'x' }), null, NOW)).toBeNull()
+  })
+  it('leitura-video: target is the video, with the row target_video_id', () => {
+    expect(taskRowToRequest(row({ task_type: 'leitura-video', target_video_id: 'v1', target_fmt: null }), NOW - MIN, NOW)).toMatchObject({ video: 'v1', target: { kind: 'video', niche: 'ia', video: 'v1' } })
+  })
 })

@@ -56,7 +56,8 @@ const CHANNEL_COLS = 'id, channel_id, channel_name, thumbnail_url, subscriber_co
 const VIDEO_COLS = 'id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url'
 const VERSION_COLS = 'id, video_id, field, value_text, value_hash, has_text, thumb_blob_url, first_seen_at, last_seen_at, window_start, precision, is_current'
 const OWN_VIDEO_COLS = 'id, channel_id, youtube_video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, updated_at, tags'
-const TASK_COLS = 'id, task_type, target_niche, target_video_id, target_fmt, status, requested_at, started_at, completed_at, failed_at, refused_at, refused_reason, released_at, retry_count'
+/** The task columns every reader of the observatory queue selects (the loader and services/forja-queue). */
+export const TASK_COLS = 'id, task_type, target_niche, target_video_id, target_fmt, status, requested_at, started_at, completed_at, failed_at, refused_at, refused_reason, released_at, retry_count'
 /** PostgREST `max_rows` (supabase/config.toml): a bigger read is silently truncated, so every list is paged. */
 const PAGE = 1000
 /**
@@ -259,7 +260,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
     channels, videos,
     sync: { last: okSyncs.length ? Math.max(...okSyncs) : null, next },
     readings: rows.readings.map(r => toReading(r)).filter((x): x is FrozenReading => x != null),
-    requests: rows.tasks.map(t => toRequest(t, ms(rows.heartbeat?.last_poll_at), now)).filter((x): x is ForjaRequest => x != null),
+    requests: rows.tasks.map(t => taskRowToRequest(t, ms(rows.heartbeat?.last_poll_at), now)).filter((x): x is ForjaRequest => x != null),
     queue: { lastPollAt: ms(rows.heartbeat?.last_poll_at), tickMinutes: FORJA_TICK_MINUTES, capabilities: rows.heartbeat?.capabilities ?? [] },
   }
 }
@@ -286,12 +287,12 @@ function toReading(r: ReadingRow): FrozenReading | null {
 }
 
 /**
- * A task row → request. The state comes from requestStateOf (forja/states.ts) — the same rule the queue service
+ * THE task row → request mapper (the loader and services/forja-queue both use it). The state comes from requestStateOf (forja/states.ts) — the same rule the queue service
  * plans with: a pending row is 'atrasado', 'sem máquina' (no poll for > 3 ticks, or waiting > 24 h), 'nova tentativa'
  * or 'liberado pelo vigia' from its attempts, released_at and the heartbeat, never always 'na fila'; 'stale' is 'falhou'.
  */
 const KNOWN_STATUS = new Set(['pending', 'running', 'completed', 'failed', 'stale', 'refused'])
-function toRequest(t: TaskRow, lastPollAt: number | null, now: number): ForjaRequest | null {
+export function taskRowToRequest(t: TaskRow, lastPollAt: number | null, now: number): ForjaRequest | null {
   const createdAt = ms(t.requested_at)
   if (!KNOWN_STATUS.has(t.status) || createdAt == null || !isNiche(t.target_niche) || !(OBS_TASK_TYPES as readonly string[]).includes(t.task_type)) return null
   const fmt = isFmt(t.target_fmt) ? t.target_fmt : undefined

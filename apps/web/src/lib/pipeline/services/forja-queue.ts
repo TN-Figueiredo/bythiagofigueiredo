@@ -17,12 +17,12 @@ import { ok, err } from './types'
 import type { IntelTask } from './youtube'
 import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, ForjaRequest, Niche } from '@/lib/youtube/observatorio/types'
-import { machineOf, requestStateOf } from '@/lib/youtube/observatorio/forja/states'
+import { machineOf } from '@/lib/youtube/observatorio/forja/states'
 import { planAsk, type SessionOpts } from '@/lib/youtube/observatorio/forja/session'
 import { canonicalNumberTokens, normalizeNumberToken } from '@/lib/youtube/observatorio/forja/numbers'
 import { spDayStart } from '@/lib/youtube/observatorio/time'
 import { NICHES } from '@/lib/youtube/observatorio/rules'
-import { loadDataset } from '@/lib/youtube/observatorio/load'
+import { loadDataset, taskRowToRequest, TASK_COLS, type TaskRow } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
 
 export const OBS_TYPES = ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'] as const
@@ -41,12 +41,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SAFE_ID = /^[A-Za-z0-9_-]+$/
 /** Closed column list, never '*': error_message and result_summary may carry text written by a narrow key. */
 const CLAIM_COLS = 'id, site_id, channel_id, trigger_type, requested_at, started_at, task_type, target_niche, target_video_id, target_fmt'
-const QUEUE_COLS = 'id, task_type, target_niche, target_video_id, target_fmt, status, requested_at, started_at, completed_at, failed_at, refused_at, refused_reason, released_at, retry_count'
+/** readQueue page size = PostgREST max_rows (supabase/config.toml); a bigger page would be truncated silently. */
+const QUEUE_PAGE = 1000
 const REFUSED_REASON_MAX = 200
 
 const iso = (ms: number) => new Date(ms).toISOString()
-const msOf = (s: string | null | undefined): number | null => { if (!s) return null; const t = Date.parse(s); return Number.isFinite(t) ? t : null }
-const isNiche = (s: unknown): s is Niche => s === 'ia' || s === 'viagem'
 const isWideKey = (ctx: ServiceContext) => ctx.permissions.includes('write') || ctx.permissions.includes('admin')
 /** Announced types: known ones only, each once, in the order sent. */
 const announced = (types: readonly unknown[] | undefined): ObsType[] => [...new Set((types ?? []).filter(isObsType))]
@@ -80,15 +79,23 @@ export async function recordHeartbeat(ctx: ServiceContext, capabilities: ObsType
 }
 
 /**
- * Claim the oldest pending task the caller may take, via optimistic CAS. A DB error is never flattened into
- * "queue empty" (a 204 would leave the worker looping against a broken queue).
+ * Options of a claim. `heartbeat` is passed ONLY by the forja's typed claim path (POST …/task/claim with task_types,
+ * ruling R46): the legacy GET, MCP claim_task and Cowork claims never touch forja_heartbeat — a Cowork claim must not
+ * make a dead machine look alive nor wipe the capabilities it announced.
  */
-export async function claim(ctx: ServiceContext, input: { channelIds: string[]; taskTypes?: ObsType[] }, now: number): Promise<ServiceResult<IntelTask | null>> {
+export interface ClaimOptions { heartbeat?: { capabilities: ObsType[] } }
+
+/**
+ * Claim the oldest pending task the caller may take, via optimistic CAS. A DB error is never flattened into
+ * "queue empty" (a 204 would leave the worker looping against a broken queue). With `opts.heartbeat`, the heartbeat
+ * is written first — on every such call, even when the queue is empty.
+ */
+export async function claim(ctx: ServiceContext, input: { channelIds: string[]; taskTypes?: ObsType[] }, now: number, opts: ClaimOptions = {}): Promise<ServiceResult<IntelTask | null>> {
   const { supabase, siteId } = ctx
   const bad = input.channelIds.filter(id => !UUID.test(id))
   if (bad.length) return err('VALIDATION_ERROR', 'channel_ids: not a uuid: ' + bad.slice(0, 3).join(', '), 400)
   const types = announced(input.taskTypes)
-  await recordHeartbeat(ctx, types, now)
+  if (opts.heartbeat) await recordHeartbeat(ctx, opts.heartbeat.capabilities, now)
 
   const filter = claimFilter(input.channelIds, types.length ? types : undefined)
   if (filter == null) return ok(null)
@@ -119,37 +126,25 @@ export async function claim(ctx: ServiceContext, input: { channelIds: string[]; 
 
 /* ------------------------------------------------------------------------------------------------ ask / cancel */
 
-interface QueueRow {
-  id: string; task_type: string; target_niche: string | null; target_video_id: string | null; target_fmt: string | null; status: string
-  requested_at: string; started_at: string | null; completed_at: string | null; failed_at: string | null; refused_at: string | null
-  refused_reason: string | null; released_at: string | null; retry_count: number
-}
-
 /** What the planner needs: active observatory requests (any day) and today's (SP) finished ones. */
-async function readQueue(ctx: ServiceContext, now: number): Promise<QueueRow[]> {
-  const { data, error } = await ctx.supabase
-    .from(TASKS)
-    .select(QUEUE_COLS)
-    .eq('site_id', ctx.siteId)
-    .in('task_type', [...OBS_TYPES])
-    .or('status.in.(pending,running),requested_at.gte."' + iso(spDayStart(now)) + '"')
-    .order('requested_at', { ascending: true })
-    .limit(1000)
-  if (error) return err('INTERNAL_ERROR', 'Failed to read the forja queue', 500)
-  return (data ?? []) as QueueRow[]
-}
-
-/** A DB row → the engine's request, with the state from requestStateOf (machine-aware). */
-function toRequest(t: QueueRow, lastPollAt: number | null, now: number): ForjaRequest | null {
-  const createdAt = msOf(t.requested_at)
-  if (!isNiche(t.target_niche) || !isObsType(t.task_type) || createdAt == null) return null
-  const niche = t.target_niche, fmt = t.target_fmt === 'long' || t.target_fmt === 'short' ? t.target_fmt : undefined
-  return {
-    id: t.id, type: t.task_type, niche, status: t.status, video: t.target_video_id,
-    target: t.target_video_id ? { kind: 'video', niche, video: t.target_video_id, ...(fmt ? { fmt } : {}) } : { kind: 'niche', niche, ...(fmt ? { fmt } : {}) },
-    state: requestStateOf(t, { lastPollAt }, now), createdAt, claimedAt: msOf(t.started_at), startedAt: msOf(t.started_at),
-    publishedAt: msOf(t.completed_at), failedAt: msOf(t.failed_at), refusedAt: msOf(t.refused_at), releasedAt: msOf(t.released_at),
-    attempt: t.retry_count + 1, refusedReason: t.refused_reason, readingId: null,
+async function readQueue(ctx: ServiceContext, now: number): Promise<TaskRow[]> {
+  // Paged until a short page: in practice it is a handful of rows (active ones + today's), but a silent cut would
+  // hide an active request from the planner and let a second one through.
+  const out: TaskRow[] = []
+  for (let from = 0; ; from += QUEUE_PAGE) {
+    const { data, error } = await ctx.supabase
+      .from(TASKS)
+      .select(TASK_COLS)
+      .eq('site_id', ctx.siteId)
+      .in('task_type', [...OBS_TYPES])
+      .or('status.in.(pending,running),requested_at.gte."' + iso(spDayStart(now)) + '"')
+      .order('requested_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + QUEUE_PAGE - 1)
+    if (error) return err('INTERNAL_ERROR', 'Failed to read the forja queue', 500)
+    const page = (data ?? []) as TaskRow[]
+    out.push(...page)
+    if (page.length < QUEUE_PAGE) return out
   }
 }
 
@@ -187,7 +182,7 @@ export async function askReading(ctx: ServiceContext, input: AskInput, now: numb
     eligible: n => obs.forja.eligibleChannels(n),
     videoOf: id => { const v = obs.video(id); return v ? { niche: v.niche, title: v.title } : undefined },
   }
-  const toRequests = (rs: QueueRow[]) => rs.map(r => toRequest(r, lastPollAt, now)).filter((q): q is ForjaRequest => q != null)
+  const toRequests = (rs: TaskRow[]) => rs.map(r => taskRowToRequest(r, lastPollAt, now)).filter((q): q is ForjaRequest => q != null)
   const target = { type, video: videoId ?? null }
   const plan = planAsk(toRequests(rows), machine, clock, opts, scope, target)
 
@@ -259,12 +254,12 @@ async function heldObsTask(ctx: ServiceContext, taskId: string, cols: string): P
  * ('dado-velho'); the screen maps it to the canonical sentence (forja/states.ts refusedReasonText). A refusal does not
  * use the quota.
  */
-export async function refuseTask(ctx: ServiceContext, taskId: string, reason: string): Promise<ServiceResult<{ id: string; status: 'refused' }>> {
+export async function refuseTask(ctx: ServiceContext, taskId: string, reason: string, now: number = Date.now()): Promise<ServiceResult<{ id: string; status: 'refused' }>> {
   const code = typeof reason === 'string' ? reason.trim() : ''
   if (!code || code.length > REFUSED_REASON_MAX) return err('VALIDATION_ERROR', `reason: required, at most ${REFUSED_REASON_MAX} characters`, 400)
   const { task, previous } = await heldObsTask(ctx, taskId, 'id, status, task_type, target_niche, target_video_id, target_fmt, result_summary, started_at')
   let cas = ctx.supabase.from(TASKS)
-    .update({ status: 'refused', refused_at: new Date().toISOString(), refused_reason: code, result_summary: { ...previous, closed_by: ctx.keyId ?? null } })
+    .update({ status: 'refused', refused_at: iso(now), refused_reason: code, result_summary: { ...previous, closed_by: ctx.keyId ?? null } })
     .eq('id', taskId).eq('site_id', ctx.siteId).eq('status', 'running').eq('started_at', task.started_at as string)
   if (!isWideKey(ctx)) cas = cas.eq('result_summary->>claimed_by', ctx.keyId as string)
   const { data, error } = await cas.select('id, status').maybeSingle()
@@ -306,7 +301,7 @@ const quoted = (xs: readonly string[]) => xs.slice(0, 20).map(x => '“' + x + '
  * canonical form, R26/R30/R38) and every evidence id in `sent.ids`. Then the reading row (with `sent` copied from
  * the task) and the CAS running → completed; a second POST is a 409.
  */
-export async function completeReading(ctx: ServiceContext, input: ReadingSubmission): Promise<ServiceResult<{ readingId: string }>> {
+export async function completeReading(ctx: ServiceContext, input: ReadingSubmission, now: number = Date.now()): Promise<ServiceResult<{ readingId: string }>> {
   const parsed = ReadingSubmissionSchema.safeParse(input)
   if (!parsed.success) return err('VALIDATION_ERROR', validationMessage(parsed.error), 400)
   const sub = parsed.data
@@ -324,22 +319,34 @@ export async function completeReading(ctx: ServiceContext, input: ReadingSubmiss
   const outside = [...new Set(sub.evidence.map(e => e.id).filter(id => !ids.has(id)))]
   if (outside.length) return err('VALIDATION_ERROR', 'evidence ids not in the data sent to the forja: ' + quoted(outside), 400)
 
-  const { data: reading, error: insertError } = await supabase.from('competitor_readings').insert({
+  const insertReading = () => supabase.from('competitor_readings').insert({
     site_id: siteId, task_id: task.id, task_type: task.task_type, niche: task.target_niche, video_id: task.target_video_id, fmt: task.target_fmt,
     model: sub.model, generated_at: sub.generated_at, sent: task.sent, analysis: sub.analysis, text: sub.text, evidence: sub.evidence,
   }).select('id').single()
-  if (insertError && insertError.code === '23505') return err('TASK_NOT_RUNNING', 'A reading for this task was already published', 409)
+  let { data: reading, error: insertError } = await insertReading()
+  if (insertError && insertError.code === '23505') {
+    // The task is still running and held by this key (checked above), so a reading already holding its task_id was
+    // never published: it is the orphan of an earlier attempt whose CAS was lost and whose cleanup failed (or that
+    // died between insert and CAS). It is removed by the task key and the insert is retried once. (A published
+    // reading always comes with the task completed, which answers 409 before reaching here.)
+    const { error: orphanError } = await supabase.from('competitor_readings').delete().eq('site_id', siteId).eq('task_id', task.id)
+    if (orphanError) return err('INTERNAL_ERROR', 'Failed to remove an unpublished reading of this task', 500)
+    ;({ data: reading, error: insertError } = await insertReading())
+    if (insertError && insertError.code === '23505') return err('TASK_NOT_RUNNING', 'A reading for this task was already published', 409)
+  }
   if (insertError || !reading) return err('INTERNAL_ERROR', 'Failed to write the reading', 500)
   const readingId = (reading as { id: string }).id
 
   let cas = supabase.from(TASKS)
-    .update({ status: 'completed', completed_at: new Date().toISOString(), result_summary: { ...previous, closed_by: ctx.keyId ?? null, reading_id: readingId } })
+    .update({ status: 'completed', completed_at: iso(now), result_summary: { ...previous, closed_by: ctx.keyId ?? null, reading_id: readingId } })
     .eq('id', task.id).eq('site_id', siteId).eq('status', 'running').eq('started_at', task.started_at as string)
   if (!isWideKey(ctx)) cas = cas.eq('result_summary->>claimed_by', ctx.keyId as string)
   const { data: closed, error: closeError } = await cas.select('id').maybeSingle()
   if (closeError || !closed) {
     // the task left 'running' between the read and the CAS (the vigia released it): the reading is not published
-    await supabase.from('competitor_readings').delete().eq('id', readingId)
+    // by the reading's own id; if this cleanup fails, the next attempt's insert removes the orphan by task_id (above)
+    const { error: cleanupError } = await supabase.from('competitor_readings').delete().eq('id', readingId)
+    if (cleanupError) Sentry.captureMessage('forja reading cleanup failed: ' + cleanupError.message, { extra: { readingId, taskId: task.id } })
     if (closeError) return err('INTERNAL_ERROR', 'Failed to close the task', 500)
     return err('TASK_NOT_RUNNING', 'The task is no longer held by this key', 409)
   }
