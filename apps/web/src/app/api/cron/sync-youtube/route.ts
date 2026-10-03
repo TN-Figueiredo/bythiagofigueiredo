@@ -5,7 +5,7 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { syncChannel, YouTubeQuotaError } from '@/lib/youtube/sync'
-import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
+import { runCompetitorBatch } from '@/lib/youtube/competitor-sync-batch'
 import { isInPostingWindow } from '@/lib/youtube/schedule-window'
 import { pollVideoStats, shouldSkipPoll, getLastPollTime, insertPollData } from '@/lib/youtube/ab-polls'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
@@ -128,45 +128,16 @@ export async function GET(req: NextRequest) {
 
     // Competitor observatory mode — separate flow
     if (mode === 'competitors') {
-      const { data: competitorChannels } = await supabase
-        .from('competitor_channels')
-        .select('id, channel_id, site_id')
-
-      if (!competitorChannels?.length) {
-        await recordCronSuccess('sync-youtube-competitors', 'info')
-        return { status: 'ok' as const, mode: 'competitors', synced: 0, health_written: true }
-      }
-
-      let synced = 0
-      let errors = 0
-      for (const channel of competitorChannels) {
-        try {
-          await syncCompetitorChannel(channel, apiKey)
-          synced++
-        } catch (err) {
-          errors++
-          console.error(`[sync-youtube:competitors] Failed ${channel.channel_id}:`, err)
-          Sentry.captureException(err, {
-            tags: { component: 'sync-youtube', mode: 'competitors' },
-            extra: { channelId: channel.channel_id, siteId: channel.site_id },
-          })
-        }
-      }
-
-      if (errors > 0 && synced === 0) {
-        await recordCronFailure('sync-youtube-competitors', `All ${errors} channels failed`)
+      // BATCH_SIZE 15 + cron */20: spike S2 (docs/superpowers/plans/2026-10-02-observatorio-spikes-s2.md)
+      const BATCH_SIZE = 15
+      const result = await runCompetitorBatch({ apiKey, batchSize: BATCH_SIZE, budgetMs: 200_000 })
+      if (result.errors > 0 && result.synced === 0 && result.skipped === 0) {
+        await recordCronFailure('sync-youtube-competitors', `All ${result.errors} channels in the batch failed`)
       } else {
         await recordCronSuccess('sync-youtube-competitors', 'info')
       }
-
-      Sentry.addBreadcrumb({
-        category: 'cron',
-        message: `Competitor sync: ${synced} ok, ${errors} failed`,
-        level: errors > 0 ? 'warning' : 'info',
-        data: { synced, errors },
-      })
-
-      return { status: 'ok' as const, mode: 'competitors', synced, errors, health_written: true }
+      revalidatePath('/cms/youtube/competitors', 'layout')
+      return { status: 'ok' as const, mode: 'competitors', ...result, health_written: true }
     }
 
     let query = supabase
