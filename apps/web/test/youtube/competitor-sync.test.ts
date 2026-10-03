@@ -9,7 +9,7 @@ vi.mock('@/lib/youtube/thumb-fingerprint', async (orig) => ({
   archiveThumb: vi.fn(async () => 'https://blob.test/t.jpg'),
 }))
 
-import { isDailyRecordDue, classifyThumb, dropFields, syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
+import { isDailyRecordDue, classifyThumb, dropFields, syncCompetitorChannel, optCount } from '@/lib/youtube/competitor-sync'
 import { probeThumb } from '@/lib/youtube/thumb-fingerprint'
 import { hashValue } from '@/lib/youtube/competitor-versions'
 import type { StoredVersion, VersionPlan } from '@/lib/youtube/competitor-versions'
@@ -298,11 +298,46 @@ describe('syncCompetitorChannel', () => {
     expect(tracked.ops.find(o => o[0] === 'order')![1]).toEqual(['published_at', { ascending: false, nullsFirst: false }])
   })
 
-  it('a channel with no uploads playlist is an OK sync', async () => {
+  it('F3: a channel YouTube does not know (items: []) is an error, never an ok sync', async () => {
     const db = setup()
-    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { noUploads: true }) })
-    const last = db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).at(-1)
-    expect(last).toMatchObject({ sync_status: 'idle', last_ok_synced_at: NOW_ISO, sync_error_since: null })
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { noUploads: true }) })).rejects.toThrow('YouTube API 404 for channel UC_test')
+    const updates = db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!)
+    expect(updates.some(u => 'last_ok_synced_at' in u)).toBe(false)
+    expect(updates.at(-1)).toMatchObject({ sync_status: 'error', sync_error_since: NOW_ISO })
+    expect(String(updates.at(-1)!.sync_error)).toContain('404')
+  })
+
+  it('F3: channels.list with an empty items array also errors', async () => {
+    const db = setup()
+    const empty = (async () => Response.json({ items: [] })) as typeof fetch
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: empty })).rejects.toThrow('404')
+    expect(db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).some(u => 'last_ok_synced_at' in u)).toBe(false)
+  })
+
+  it('F5: hidden counters are stored as null, never 0', async () => {
+    const db = setup({ lastDaily: '2026-10-24' })
+    const inner = apiFetch({ id: 'vid-1', snippet: { title: 'T', publishedAt: recent() }, statistics: {} })
+    const fetchImpl = (async (input: RequestInfo | URL) => {
+      if (String(input).includes('/channels?')) return Response.json({ items: [{ contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { hiddenSubscriberCount: true, viewCount: '5' } }] })
+      return inner(input)
+    }) as typeof fetch
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl })
+    const chan = db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).find(u => 'subscriber_count' in u)!
+    expect(chan.subscriber_count).toBeNull()
+    const snap = arg(db.calls.find(c => c.table === 'competitor_channel_snapshots')!, 'upsert')!
+    expect(snap.subscriber_count).toBeNull()
+    expect(snap.view_count).toBe(5)
+    const ins = arg(db.calls.find(c => c.table === 'competitor_videos' && first(c) === 'insert')!, 'insert')!
+    expect(ins.like_count).toBeNull()
+    expect(ins.view_count).toBeNull()
+  })
+
+  it('F5: optCount keeps real zeros and turns absent/garbage into null', () => {
+    expect(optCount('0')).toBe(0)
+    expect(optCount('42')).toBe(42)
+    expect(optCount(undefined)).toBeNull()
+    expect(optCount(null)).toBeNull()
+    expect(optCount('abc')).toBeNull()
   })
 
   it('dailyRecorded counts rows actually inserted (ignored duplicates do not count)', async () => {

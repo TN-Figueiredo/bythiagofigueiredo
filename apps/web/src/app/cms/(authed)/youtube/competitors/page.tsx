@@ -1,6 +1,6 @@
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 import { DEFAULT_CHANNEL_LIMIT, UNLOCK_STEP } from '@/lib/youtube/competitor-slots'
 import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
@@ -22,12 +22,11 @@ export const maxDuration = 60
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 
-/** "+25" is for admins only: site_users.role ∈ {super_admin, org_admin} (unlockMoreChannels checks it again). */
+/** "+25" is for admins only: can_admin_site_users() (super_admin / org_admin) (unlockMoreChannels checks it again). */
 async function canUnlockChannels(siteId: string): Promise<boolean> {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!res.ok) return false
-  const { data } = await getSupabaseServiceClient().from('site_users').select('role').eq('site_id', siteId).eq('user_id', res.user.id).maybeSingle()
-  return !!data && ['super_admin', 'org_admin'].includes(data.role as string)
+  return canAdminSiteUsers(siteId)
 }
 
 /** Canais (port of canais.html) inside the Observatório chrome. */

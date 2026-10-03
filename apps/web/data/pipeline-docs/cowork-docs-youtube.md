@@ -716,6 +716,7 @@ Lista vídeos outliers de canais concorrentes — vídeos com multiplicador de 2
 ```
 
 **Notas:**
+- `view_count` e `like_count` são `null` quando o canal oculta o contador (nunca `0`): trate como "sem contagem"
 - `multiplier` indica quantas vezes acima do canal (ex: 8.5×); ordenado do maior para o menor
 - `method`: `mesmo dia de vida` (views no mesmo dia de vida que os outros vídeos do canal) ou `aproximação por faixa` (views totais vs vídeos do canal da mesma faixa de idade)
 - `n`: vídeos do canal na base de comparação; `label`: texto canônico do motor, com método e n

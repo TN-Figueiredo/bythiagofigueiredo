@@ -139,7 +139,7 @@ export function channelStats(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'lo
   return {
     channel: channelId, fmt: fmtId,
     vpdMedian, vpdN: vp.length, vpdWindow: 'desde ' + clock.dm(ctx.ds.seriesStart),
-    perMilSubs: vpdMedian != null ? vpdMedian / (ch.subs / 1000) : null,
+    perMilSubs: vpdMedian != null && ch.subs > 0 ? vpdMedian / (ch.subs / 1000) : null,
     typicalMult: median(mults), typicalMultN: mults.length,
     bestOutlier: outs.items[0] || null, outliers90: outs.count,
     changes30: changesIn(ctx, { days: 30, channel: channelId }).length,

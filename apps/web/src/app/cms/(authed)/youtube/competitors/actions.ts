@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/competitor-slots'
 import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
@@ -296,8 +297,7 @@ export async function unlockMoreChannels(): Promise<{ ok: boolean; error?: strin
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!res.ok) return { ok: false, error: 'forbidden' }
   const sb = getSupabaseServiceClient()
-  const { data: me } = await sb.from('site_users').select('role').eq('site_id', siteId).eq('user_id', res.user.id).maybeSingle()
-  if (!me || !['super_admin', 'org_admin'].includes(me.role as string)) return { ok: false, error: 'forbidden' }
+  if (!(await canAdminSiteUsers(siteId))) return { ok: false, error: 'forbidden' }
   const cur = await getChannelSlots(siteId)
   const { error } = await sb.from('competitor_settings').upsert(
     { site_id: siteId, channel_limit: cur.limit + UNLOCK_STEP, updated_by: res.user.id, updated_at: new Date().toISOString() },

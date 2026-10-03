@@ -41,7 +41,8 @@ export function deriveChanges(ctx: EngineCtx): ObsChange[] {
         if (i === 0) return
         const prev = arr[i - 1]!, pre = ver.first_seen < SS
         if (type === 'thumb' && pre) return // thumbnails before the series start are not reliable changes
-        const prec: Precision = type === 'thumb' ? 'min' : pre ? '1d' : '6h'
+        const stored = (ver as { prec?: Precision | 'first' | null }).prec
+        const prec: Precision = type === 'thumb' ? (stored === 'min' || stored === '6h' || stored === '1d' ? stored : 'min') : pre ? '1d' : '6h'
         const win = ver.window || null
         const c: ObsChange = { id: v.id + '/' + type + '/' + i, video: v.id, ch: v.ch, niche: v.niche, fmt: v.fmt, type, typeLabel: TYPE_LABEL[type], idx: i,
           at: ver.first_seen, prec, window: win, preSeries: pre, before: null, after: null, fromId: prev.id, toId: ver.id, mid: 0,

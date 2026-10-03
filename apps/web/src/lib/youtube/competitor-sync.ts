@@ -16,6 +16,13 @@ const PAGE_DELAY_MS = 300
 /** provisional until spike S1 (Last-Modified granularity) */
 const LAST_MODIFIED_MINUTE = true
 
+/** A counter the API may omit (hidden likes/subscribers): null when absent or not numeric, never 0. */
+export function optCount(v: unknown): number | null {
+  if (v === undefined || v === null || v === '') return null
+  const n = parseInt(String(v), 10)
+  return Number.isFinite(n) ? n : null
+}
+
 export interface SyncResult {
   videosChecked: number
   changesDetected: number
@@ -160,7 +167,7 @@ export async function syncCompetitorChannel(
   /** Reconciles one video's versions and applies the plan. Throws on any database error (compensating first). */
   const reconcileVideo = async (
     videoUuid: string, videoId: string,
-    o: { apiTitle: string; apiDescription: string | undefined; thumbnailUrl: string | null; viewCount: number; existingTitle: string | null; existingThumbUrl: string | null },
+    o: { apiTitle: string; apiDescription: string | undefined; thumbnailUrl: string | null; viewCount: number | null; existingTitle: string | null; existingThumbUrl: string | null },
     current: StoredVersion[], touchIds: string[],
   ): Promise<void> => {
     reconciled.add(videoUuid)
@@ -267,20 +274,23 @@ export async function syncCompetitorChannel(
     const channelData = await channelRes.json()
     const uploadsPlaylistId = channelData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads
     if (!uploadsPlaylistId) {
-      await supabase.from('competitor_channels').update({ sync_status: 'idle', last_ok_synced_at: nowIso, sync_error_since: null }).eq('id', channelRow.id)
-      return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed }
+      // `items: []` = channel removed/closed or a mistyped id. Never stamp last_ok_synced_at; the catch below records the
+      // error and humanizeSyncError turns the 404 into "não encontrado no YouTube".
+      throw new Error(`YouTube API 404 for channel ${channelRow.channel_id}`)
     }
 
     const snippet = channelData.items[0].snippet
     const stats = channelData.items[0].statistics
     const youtubeVideoCount = parseInt(stats?.videoCount ?? '0', 10)
+    // Hidden counters are absent from the API: null, never 0 ("sem contagem").
+    const subscriberCount = optCount(stats?.hiddenSubscriberCount ? undefined : stats?.subscriberCount)
 
     await supabase
       .from('competitor_channels')
       .update({
         channel_name: snippet?.title ?? '',
         thumbnail_url: snippet?.thumbnails?.default?.url ?? null,
-        subscriber_count: parseInt(stats?.subscriberCount ?? '0', 10),
+        subscriber_count: subscriberCount,
         youtube_video_count: youtubeVideoCount,
       })
       .eq('id', channelRow.id)
@@ -291,9 +301,9 @@ export async function syncCompetitorChannel(
         .from('competitor_channel_snapshots')
         .upsert({
           competitor_channel_id: channelRow.id,
-          subscriber_count: parseInt(stats?.subscriberCount ?? '0', 10),
+          subscriber_count: subscriberCount,
           video_count: youtubeVideoCount,
-          view_count: parseInt(stats?.viewCount ?? '0', 10),
+          view_count: optCount(stats?.viewCount),
           snapshot_date: snapDate,
         }, { onConflict: 'competitor_channel_id,snapshot_date' })
     } catch {
@@ -358,9 +368,9 @@ export async function syncCompetitorChannel(
         const description = apiDescription ?? ''
         const descriptionHash = crypto.createHash('sha256').update(description).digest('hex').slice(0, 16)
         const thumbnailUrl = (video.snippet?.thumbnails?.maxres?.url ?? video.snippet?.thumbnails?.high?.url ?? null) as string | null
-        const viewCount = parseInt(video.statistics?.viewCount ?? '0', 10)
+        const viewCount = optCount(video.statistics?.viewCount)
         const publishedAt = (video.snippet?.publishedAt as string) ?? null
-        const likeCount = parseInt(video.statistics?.likeCount ?? '0', 10)
+        const likeCount = optCount(video.statistics?.likeCount)
         const commentCount = parseInt(video.statistics?.commentCount ?? '0', 10)
         const tags: string[] = (video.snippet?.tags as string[]) ?? []
         const categoryId: string | null = (video.snippet?.categoryId as string) ?? null
@@ -505,7 +515,7 @@ export async function syncCompetitorChannel(
               apiTitle: (sn.title as string | undefined) ?? '',
               apiDescription: sn.description as string | undefined,
               thumbnailUrl: thumbs?.maxres?.url ?? thumbs?.high?.url ?? null,
-              viewCount: parseInt(it.statistics?.viewCount ?? '0', 10),
+              viewCount: optCount(it.statistics?.viewCount),
               existingTitle: row.title,
               existingThumbUrl: row.thumbnail_url,
             }, currentMap.get(row.id) ?? [], touch)

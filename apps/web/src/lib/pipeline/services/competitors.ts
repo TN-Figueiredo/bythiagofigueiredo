@@ -53,8 +53,9 @@ export interface CompetitorOutlierRow {
   title: string | null
   thumbnail_url: string | null
   channel_name: string
-  view_count: number
-  like_count: number
+  /** null = the channel hides the counter (never 0). */
+  view_count: number | null
+  like_count: number | null
   comment_count: number
   duration_seconds: number | null
   published_at: string | null
@@ -294,7 +295,7 @@ export async function listCompetitorOutliers(
   const res = obs.outliers({ ages: 'all', fmt: filters.fmt ?? 'long' })
   let rows: CompetitorOutlierRow[] = res.items.map(it => ({
     id: it.video.id, video_id: it.video.ytId, title: it.video.title, thumbnail_url: it.video.thumbs.at(-1)?.blobUrl ?? thumbOf.get(it.video.id) ?? null,
-    channel_name: obs.channel(it.video.ch)!.name, view_count: it.video.views ?? 0, like_count: it.video.likes ?? 0, comment_count: it.video.comments,
+    channel_name: obs.channel(it.video.ch)!.name, view_count: it.video.views ?? null, like_count: it.video.likes ?? null, comment_count: it.video.comments,
     duration_seconds: it.video.dur, published_at: new Date(it.video.pub).toISOString(),
     multiplier: Math.round((it.mult.value ?? 0) * 10) / 10, tier: obs.tierOf(it.mult.value)!, method: it.mult.method, n: it.mult.n, label: it.mult.label ?? null, phase: it.phase.id,
   }))
