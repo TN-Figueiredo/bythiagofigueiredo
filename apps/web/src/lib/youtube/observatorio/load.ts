@@ -2,11 +2,12 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ForjaRequest, RequestState, ChannelSnapshot } from './types'
+import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ForjaRequest, ChannelSnapshot } from './types'
 import { DAY, H, spDayStart, spDateStart, spDateOf } from './time'
 import { RULES } from './rules'
 import { formulasOf, THEME } from './catalog'
 import { deriveSyncState, backfillProgress } from './channels'
+import { requestStateOf } from './forja/states'
 
 /* ------------------------------------------------------------------ row shapes (mirror database.types.ts) */
 export interface SettingsRow { series_started_at: string | null; channel_limit: number }
@@ -258,7 +259,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
     channels, videos,
     sync: { last: okSyncs.length ? Math.max(...okSyncs) : null, next },
     readings: rows.readings.map(r => toReading(r)).filter((x): x is FrozenReading => x != null),
-    requests: rows.tasks.map(toRequest).filter((x): x is ForjaRequest => x != null),
+    requests: rows.tasks.map(t => toRequest(t, ms(rows.heartbeat?.last_poll_at), now)).filter((x): x is ForjaRequest => x != null),
     queue: { lastPollAt: ms(rows.heartbeat?.last_poll_at), tickMinutes: FORJA_TICK_MINUTES, capabilities: rows.heartbeat?.capabilities ?? [] },
   }
 }
@@ -284,16 +285,22 @@ function toReading(r: ReadingRow): FrozenReading | null {
   }
 }
 
-const STATE_OF: Record<string, RequestState> = { pending: 'na fila', running: 'trabalhando', completed: 'publicado', failed: 'falhou', refused: 'recusado (dado velho)', stale: 'liberado pelo vigia' }
-function toRequest(t: TaskRow): ForjaRequest | null {
-  const state = STATE_OF[t.status], createdAt = ms(t.requested_at)
-  if (!state || createdAt == null || !isNiche(t.target_niche) || !(OBS_TASK_TYPES as readonly string[]).includes(t.task_type)) return null
+/**
+ * A task row → request. The state comes from requestStateOf (forja/states.ts) — the same rule the queue service
+ * plans with: a pending row is 'atrasado', 'sem máquina' (no poll for > 3 ticks, or waiting > 24 h), 'nova tentativa'
+ * or 'liberado pelo vigia' from its attempts, released_at and the heartbeat, never always 'na fila'; 'stale' is 'falhou'.
+ */
+const KNOWN_STATUS = new Set(['pending', 'running', 'completed', 'failed', 'stale', 'refused'])
+function toRequest(t: TaskRow, lastPollAt: number | null, now: number): ForjaRequest | null {
+  const createdAt = ms(t.requested_at)
+  if (!KNOWN_STATUS.has(t.status) || createdAt == null || !isNiche(t.target_niche) || !(OBS_TASK_TYPES as readonly string[]).includes(t.task_type)) return null
   const fmt = isFmt(t.target_fmt) ? t.target_fmt : undefined
   return {
-    id: t.id, type: t.task_type, niche: t.target_niche,
+    id: t.id, type: t.task_type, niche: t.target_niche, status: t.status, video: t.target_video_id,
     target: t.target_video_id ? { kind: 'video', niche: t.target_niche, video: t.target_video_id, ...(fmt ? { fmt } : {}) } : { kind: 'niche', niche: t.target_niche, ...(fmt ? { fmt } : {}) },
-    state, createdAt, claimedAt: ms(t.started_at), startedAt: ms(t.started_at), publishedAt: ms(t.completed_at),
-    failedAt: ms(t.failed_at) ?? ms(t.refused_at), attempt: t.retry_count + 1, refusedReason: t.refused_reason, readingId: null,
+    state: requestStateOf(t, { lastPollAt }, now), createdAt, claimedAt: ms(t.started_at), startedAt: ms(t.started_at), publishedAt: ms(t.completed_at),
+    failedAt: ms(t.failed_at) ?? ms(t.refused_at), refusedAt: ms(t.refused_at), releasedAt: ms(t.released_at),
+    attempt: t.retry_count + 1, refusedReason: t.refused_reason, readingId: null,
   }
 }
 
