@@ -608,7 +608,8 @@ function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
 function gapsSection(obs: Observatory, niche: Niche, fmt: VideoFmt): GapsSection {
   const F = obs.fmt, NL = obs.NICHES[niche].label, FL = FMT_LABEL[fmt]
   const s = ownScope(obs, niche)
-  const meta = s.mine.length > 1 ? 'temas dos concorrentes que faltam a algum canal seu de ' + NL : 'temas dos concorrentes sem vídeo seu'
+  // R78: with no competitor in the niche the card holds only the "no reference" block; a header about competitor themes would contradict it
+  const meta = noRefOf(obs, niche) && s.mine.length ? '' : s.mine.length > 1 ? 'temas dos concorrentes que faltam a algum canal seu de ' + NL : 'temas dos concorrentes sem vídeo seu'
   const out = (empty: GapsSection['empty'], noRef: NoRefBlock | null = null): GapsSection => ({ meta, empty, noRef, rows: [], none: null, notes: [], foot: null })
   if (!s.mine.length) {
     return out({

@@ -241,8 +241,11 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     if (g.pending) return { kind: 'na', text: g.pending.replace(/ \(.*\)/, ''), title: `Canal novo no observatório: precisa de 30 d de contagem de inscritos, ${g.pending}` }
     const until = c.sync.state !== 'ok' && !isBf(c) && g.to != null ? `, até ${D.dmhm(g.to)}` : ''
     if (g.withinRounding) return { kind: 'flat', big: `≈${NB}0`, cap: `${(g.text ?? '').replace(/^≈ 0 /, '')}, 30${NB}d` }
-    const up = (g.pct ?? 0) > 0
-    return { kind: 'ok', up, big: `${up ? '+' : '−'}${F.dec1(Math.abs((g.pct ?? 0) * 100))}%`, cap: `${(g.text ?? '').replace(/ (mil|mi)/g, NB + '$1')} em 30${NB}d${until}`, title: 'Calculado sobre inscritos arredondados a 3 algarismos' }
+    const capText = `${(g.text ?? '').replace(/ (mil|mi)/g, NB + '$1')} em 30${NB}d${until}`
+    // no computable percentage (previous snapshot with 0 subscribers, legacy rows): no percent and no arrow, only the absolute
+    if (g.pct == null) return { kind: 'na', text: capText, title: 'Sem percentual: o canal não tinha inscritos na contagem anterior.' }
+    const up = g.pct > 0
+    return { kind: 'ok', up, big: `${up ? '+' : '−'}${F.dec1(Math.abs(g.pct * 100))}%`, cap: capText, title: 'Calculado sobre inscritos arredondados a 3 algarismos' }
   }
   function rowOf(c: ObsChannel): CanaisRow {
     const S = stats(c.id), bf = isBf(c), empty = ownLongEmpty(c) && fmt === 'long'
@@ -352,7 +355,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const np = comps.filter(c => c.sync.state !== 'ok').length
   const emptyText = filter === 'problemas'
     ? `Nenhum canal com problema de sincronização${niche !== 'todos' ? ` em ${nicheLabel}` : ''}.`
-    : `Nenhum canal${niche !== 'todos' ? ` em ${nicheLabel}` : ''}. Para acompanhar um canal novo, use Adicionar canal.`
+    : `Nenhum ${ownRows.length ? 'concorrente' : 'canal'}${niche !== 'todos' ? ` em ${nicheLabel}` : ''}. Para acompanhar um canal novo, use Adicionar canal.`
   const firstOwn = allOwns[0]
   const window = (firstOwn ? stats(firstOwn.id).vpdWindow : null) ?? `desde ${obs.SERIES_START_LABEL}`
   const nextSync = obs.SYNC.next
@@ -394,7 +397,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     const back = `?channel=${encodeURIComponent(c.id)}`
     const hist = (id: string) => obs.link.historico(id, { from: 'canais', back })
     const cov = bf && c.sync.backfill ? `Buscando: ${c.sync.backfill.done} de ${c.sync.backfill.total} vídeos`
-      : `Acompanhando ${S.tracked} vídeos (limite deste canal: ${c.video_limit}; máximo ${R.videoLimitMax}), com views diárias desde ${obs.SERIES_START_LABEL}${st}`
+      : `Acompanhando ${S.tracked} vídeos (limite deste canal: ${c.video_limit}; máximo ${R.videoLimitMax})${c.own ? '' : `, com views diárias desde ${obs.SERIES_START_LABEL}`}${st}`
     const phrase = c.sync.problemPhrase
     const syncLbl = phrase && !bf ? cap(phrase) : cap(c.sync.label ?? c.sync.state)
     const syncSub = phrase && !bf ? '' : phrase ? cap(phrase) : bf ? (c.sync.added != null ? `adicionado ${D.ago(c.sync.added)}` : '') : c.sync.last != null ? D.ago(c.sync.last) : ''
@@ -415,10 +418,10 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
         { label: `Ritmo, 13${NB}sem`, labelTitle: null, value: `${F.dec1(kl.pw)} + ${F.dec1(ks.pw)}`,
           sub: c.activity.state === 'parado' ? `Parado: último vídeo ${nb(kl.lastUploadAgo ?? '')}` : 'longos + Shorts por semana', subTitle: null, subWeak: c.activity.state === 'parado' },
         { label: `Views/dia, ${fmt === 'long' ? 'longos' : 'Shorts'}`, labelTitle: null, value: rel ? vRel : vAbs,
-          sub: S.vpdMedian == null ? `sem vídeos desde ${obs.SERIES_START_LABEL}` : `${rel ? `por mil inscritos (${vAbs}/dia)` : `mediana (${vRel} por mil insc.)`}, ${NEQ(S.vpdN)}, ${S.vpdWindow}${st}`, subTitle: null, subWeak: false },
+          sub: S.vpdMedian == null ? (c.own ? 'sem views diárias do seu canal' : `sem vídeos desde ${obs.SERIES_START_LABEL}`) : `${rel ? `por mil inscritos (${vAbs}/dia)` : `mediana (${vRel} por mil insc.)`}, ${NEQ(S.vpdN)}, ${S.vpdWindow}${st}`, subTitle: null, subWeak: false },
         g.pending
           ? { label: `Crescimento, 30${NB}d`, labelTitle: null, value: '—', sub: g.pending, subTitle: null, subWeak: false }
-          : { label: `Crescimento, 30${NB}d`, labelTitle: null, value: g.withinRounding ? `≈${NB}0` : `${(g.pct ?? 0) > 0 ? '+' : '−'}${F.dec1(Math.abs((g.pct ?? 0) * 100))}%`,
+          : { label: `Crescimento, 30${NB}d`, labelTitle: null, value: g.withinRounding ? `≈${NB}0` : g.pct == null ? '—' : `${g.pct > 0 ? '+' : '−'}${F.dec1(Math.abs(g.pct * 100))}%`,
             sub: `${g.withinRounding ? (g.text ?? '').replace(/^≈ 0 /, '') : g.text ?? ''}${until}`, subTitle: g.text, subWeak: false },
         { label: `Engajamento, ${fmt === 'long' ? 'longos' : 'Shorts'}`, labelTitle: '(curtidas + comentários) ÷ views, por vídeo de até 90 dias',
           value: S.engagement.median != null ? F.dec1(S.engagement.median * 100) + '%' : '—',

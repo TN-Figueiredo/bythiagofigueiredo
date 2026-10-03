@@ -26,6 +26,15 @@ export const OWN_DRAWER_R60: Required<Exclude> = {
   mockup: ['#dStats > div:nth-child(2) > :not(:first-child)', '#dStats > div:nth-child(3) > :not(:first-child)'],
   impl: ['.dstats > div:nth-child(2) > :not(:first-child)', '.dstats > div:nth-child(3) > :not(:first-child)'],
 }
+/**
+ * R79, drawer of an OWN channel: the coverage line (last span of the header meta) drops ", com views diárias desde …" —
+ * production keeps no daily views of an own channel, so the line must not claim them (the mockup does). Only that element,
+ * only the own-channel drawer state; the "Views/dia" sub-line ("sem views diárias do seu canal") is already out via R60.
+ */
+export const OWN_DRAWER_R79: Required<Exclude> = {
+  mockup: ['#dMeta > span:last-child'],
+  impl: ['.cn-drawer .meta > span:last-child'],
+}
 /** R61 (FU-6): competitor_channels has no handle column — the drawer's handle link only. */
 export const HANDLE_R61: Exclude = { mockup: ['#dMeta a.handle'] }
 

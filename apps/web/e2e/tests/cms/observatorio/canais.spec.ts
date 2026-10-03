@@ -7,7 +7,7 @@
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
 import { runFidelity, ensureSeeded, type Allow, type MockupState, type ScreenSpec } from './fidelity'
-import { CANAIS_TABLE_EXCLUDE, BALD_ROW_SUFFIX_F11, HANDLE_R61, OWN_DRAWER_R60 } from './allowances'
+import { CANAIS_TABLE_EXCLUDE, BALD_ROW_SUFFIX_F11, HANDLE_R61, OWN_DRAWER_R60, OWN_DRAWER_R79 } from './allowances'
 
 /** The mockup's drawer channels: [oracle id, state-bar label]. */
 const DRAWERS: Array<[string, string]> = [
@@ -77,7 +77,8 @@ const BASE_STATES: MockupState[] = [
   // an own channel's drawer; no HANDLE_R61 here: an own channel has a handle on both sides
   { label: 'Drawer: tnFigueiredo EN (seu canal) · Trocas', mockupClicks: ['tnFigueiredo EN (seu canal)'], seed: {}, query: '?channel=<own:tnfigueiredo-en>',
     // R60 (FU-5): only the numbers of the drawer's "Views/dia" and "Crescimento, 30 d" stats (allowances.ts)
-    exclude: OWN_DRAWER_R60 },
+    // R79: and the coverage line, which must not claim daily views of an own channel
+    exclude: { mockup: [...OWN_DRAWER_R60.mockup, ...OWN_DRAWER_R79.mockup], impl: [...OWN_DRAWER_R60.impl, ...OWN_DRAWER_R79.impl] } },
 ]
 
 export const CANAIS: ScreenSpec = {
