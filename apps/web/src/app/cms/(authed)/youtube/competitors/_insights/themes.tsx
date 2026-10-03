@@ -11,8 +11,9 @@ export function Themes({ s }: { s: ThemesSection }) {
       <div className="chead"><h2 id="themeH">Temas em alta</h2><span className="meta">{s.meta}</span>
         {s.seal ? <span className="stamp right">{STAMP}{s.seal}</span> : null}</div>
       <div className="cbody">
+        {s.coverageNote ? <p className="empty-note" data-coverage="low">{s.coverageNote}</p> : null}
         {s.empty ? <div className="empty"><h3>{s.empty.title}</h3><p>{s.empty.text}</p></div> : s.rows.map(x => (
-          <div className="trow" key={x.theme} data-trend={x.trend} data-theme={x.theme} data-out={x.outLink.n}>
+          <div className="trow" key={x.theme} data-trend={x.trend ?? 'sem-tendencia'} data-theme={x.theme} data-out={x.outLink.n}>
             <div>
               <div className="tname">{x.label}</div>
               <div className="tsub">
@@ -21,10 +22,12 @@ export function Themes({ s }: { s: ThemesSection }) {
                 <span>{x.outLink.href ? <Link className="vlink" href={x.outLink.href} data-n={x.outLink.n}>{x.outLink.text}</Link> : x.outLink.text}</span>
               </div>
             </div>
-            <div className="spark" role="img" aria-label={x.spark.aria}>
-              <span className="p" style={{ height: x.spark.prev + 'px' }} /><span className="c" style={{ height: x.spark.now + 'px' }} /><em className="mono">{x.spark.text}</em>
-            </div>
-            <div className="trend"><span className={x.trendCls}><RichText parts={x.trendText} /></span></div>
+            {x.spark ? (
+              <div className="spark" role="img" aria-label={x.spark.aria}>
+                <span className="p" style={{ height: x.spark.prev + 'px' }} /><span className="c" style={{ height: x.spark.now + 'px' }} /><em className="mono">{x.spark.text}</em>
+              </div>
+            ) : <div />}
+            <div className="trend">{x.trendText ? <span className={x.trendCls}><RichText parts={x.trendText} /></span> : null}</div>
           </div>
         ))}
       </div>

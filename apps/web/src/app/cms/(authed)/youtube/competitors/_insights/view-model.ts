@@ -50,11 +50,13 @@ export interface HeatmapSection {
 }
 
 export interface ThemeRow {
-  theme: string; label: string; trend: string; trendText: Rich; trendCls: 'up' | 'down' | 'flat'
+  theme: string; label: string
+  /** null when the theme coverage cannot support a trend (ruling R49): no ▲/▼ and no spark. */
+  trend: string | null; trendText: Rich | null; trendCls: 'up' | 'down' | 'flat'
   channels: { text: string; weak: boolean }; median: Rich | null; outLink: LinkOrText
-  spark: { prev: number; now: number; aria: string; text: string }
+  spark: { prev: number; now: number; aria: string; text: string } | null
 }
-export interface ThemesSection { meta: string; seal: string | null; rows: ThemeRow[]; empty: EmptyBlock | null; foot: string | null }
+export interface ThemesSection { meta: string; seal: string | null; coverageNote: string | null; rows: ThemeRow[]; empty: EmptyBlock | null; foot: string | null }
 
 export interface YouRow {
   key: string; label: string; value: string; few: boolean; fewText: string | null
@@ -84,8 +86,6 @@ export interface InsightsView {
 
 const FMT_LABEL: Record<VideoFmt, string> = { long: 'longos', short: 'Shorts' }
 const FMT_ONE: Record<VideoFmt, string> = { long: 'longo', short: 'Short' }
-/** Median shown only with n ≥ 5 (Temas, Lacunas); below it, "pouco para concluir (n = N)" (mockup MED_MIN; site rule). */
-export const MEDIAN_MIN_N = 5
 /** Display bins of the multiplier heatmap (mockup HEAT_BINS; display only, centred on the channel's normal 1,0×). */
 const HEAT_BINS = { low2: 0.7, low1: 0.9, normalHi: 1.1, slightHi: 1.3, high1: 1.5, high2: 2.5 }
 const LV_BG: Record<string, string> = { c2: 'var(--cool-2)', c1: 'var(--cool-1)', nz: 'var(--heat-nz)', l1: 'var(--heat-1)', l2: 'var(--heat-2)', l3: 'var(--heat-3)', l4: 'var(--heat-4)' }
@@ -94,6 +94,12 @@ const DAY = 864e5
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const pctW = (x: number) => (Math.round(x * 10) / 10).toFixed(1) + '%'
 const joinAnd = (xs: string[]) => xs.length <= 1 ? xs.join('') : xs.slice(0, -1).join(', ') + ' e ' + xs[xs.length - 1]
+
+/** " Fora da análise: X: buscando vídeos (18 de 50); …" — channels the engine left out (backfill or stale), with the engine's phrase. */
+function outOf(obs: Observatory, niche: Niche, staleIds: readonly string[]): string {
+  const out = obs.channels.filter(c => !c.own && c.niche === niche && (c.sync.state === 'backfill' || staleIds.includes(c.id)))
+  return out.length ? ' Fora da análise: ' + out.map(c => c.name + (c.sync.problemPhrase ? ': ' + c.sync.problemPhrase : '')).join('; ') + '.' : ''
+}
 
 export interface InsightsParams { niche: NicheScope; fmt?: string | null }
 export function parseFmt(raw: string | null | undefined): VideoFmt { return raw === 'short' ? 'short' : 'long' }
@@ -152,10 +158,13 @@ function formulasSection(obs: Observatory, niche: Niche, fmt: VideoFmt): Formula
   const max = Math.max(...rows0.map(p => Math.max(p.medUse ?? 0, p.medNot ?? 0)), 0.1)
   const rows: FormulaRow[] = rows0.map(p => {
     const q = { niche, fmt, ages: AGES_6M, min: 0, formula: p.formula }, n = obs.outliers(q).count
-    const verdict = formulaChip(obs, p).kind === 'ok' ? 'padrao' : (p.verdict.id as FormulaRow['verdict'])
+    const chip = formulaChip(obs, p)
+    // the row's verdict always follows the chip, both ways
+    const verdict: FormulaRow['verdict'] = chip.kind === 'ok' ? 'padrao' : chip.kind === 'weak' ? 'recorrencia' : 'sem-diferenca'
+    const attr = p.attribution ? (p.attribution.textMid || p.attribution.text) : ''
     return {
-      id: p.formula, label: obs.formula(p.formula)?.label ?? p.label, verdict, verdictText: p.verdict.text, chip: formulaChip(obs, p),
-      sentence: ['Hoje: mediana ', { bmono: F.mult(p.medUse) }, ' com a fórmula, contra ', { bmono: F.mult(p.medNot) }, ' sem ', { mono: '(n = ' + p.nUse + ' vs ' + p.nNot + ')' }, '; ' + (p.attribution?.textMid ?? '') + '.'],
+      id: p.formula, label: obs.formula(p.formula)?.label ?? p.label, verdict, verdictText: p.verdict.text, chip,
+      sentence: ['Hoje: mediana ', { bmono: F.mult(p.medUse) }, ' com a fórmula, contra ', { bmono: F.mult(p.medNot) }, ' sem ', { mono: '(n = ' + p.nUse + ' vs ' + p.nNot + ')' }, (attr ? '; ' + attr + '.' : '.')],
       example: example(p.formula),
       link: n ? { href: obs.link.outliers(q), text: F.verVideos(n) + ' com a fórmula', n } : { href: null, text: 'nenhum vídeo com a fórmula hoje', n: 0 },
       bars: [
@@ -166,7 +175,7 @@ function formulasSection(obs: Observatory, niche: Niche, fmt: VideoFmt): Formula
   })
   const empty: EmptyBlock | null = N.nVideos ? null : {
     title: 'Sem títulos para analisar',
-    text: 'Nenhum ' + FMT_ONE[fmt] + ' dos concorrentes de ' + obs.NICHES[niche].label + ' nos últimos 6 meses com views comparáveis. As fórmulas aparecem a partir do primeiro vídeo; uma fórmula só “passa a regra” com ' + R.pattern.minN + ' vídeos ou mais.',
+    text: 'Nenhum ' + FMT_ONE[fmt] + ' dos concorrentes de ' + obs.NICHES[niche].label + ' nos últimos 6 meses com views comparáveis. As fórmulas aparecem a partir do primeiro vídeo; uma fórmula só “passa a regra” com ' + R.pattern.minN + ' vídeos ou mais.' + outOf(obs, niche, N.excluded),
   }
   return {
     meta, rows, empty,
@@ -227,7 +236,7 @@ function cadenceSection(obs: Observatory, niche: Niche, fmt: VideoFmt): CadenceS
     axis: [{ left: '0', text: t(0) }, { left: '33.33%', text: t(1 / 3) }, { left: '66.66%', text: t(2 / 3) }, { left: '100%', text: 'hoje, ' + DT.weekdayShort(obs.NOW) + ' ' + DT.dm(obs.NOW) }],
     rows,
     empty: !rows.length ? 'Nenhum canal concorrente em ' + obs.NICHES[niche].label + '.'
-      : rows.every(r => !r.ticks.length) ? 'Nenhum ' + kind + ' dos concorrentes de ' + obs.NICHES[niche].label + ' nos últimos 90 dias.' : null,
+      : rows.every(r => !r.ticks.length) ? 'Nenhum ' + kind + ' dos concorrentes de ' + obs.NICHES[niche].label + ' nos últimos 90 dias.' + outOf(obs, niche, []) : null,
     foot: '“Costuma” só aparece quando o mesmo dia da semana e hora somam ' + R.habit.minCount + ' vídeos ou mais e ' + F.int(R.habit.minShare * 100) + '% ou mais dos uploads do canal em ' + W + ' semanas. Hachurado no começo = vídeos que ainda não foram buscados; no fim = período sem sincronização do canal.',
   }
 }
@@ -254,7 +263,11 @@ function heatmapSection(obs: Observatory, niche: Niche, fmt: VideoFmt): HeatmapS
   const flat: Tie[] = cells.flatMap((r, d) => r.map((c, b) => ({ d, b, c, lbl: day(d) + ' ' + blk(b) })))
   const caption = (m: string) => m + ' por dia e bloco de 2 horas'
   const excluded = HM.excluded.length ? 'Fora do mapa: ' + HM.excluded.map(e => e.reason).join('; ') + '.' : null
-  const empty = HM.n ? null : 'Nenhum ' + FMT_ONE[fmt] + ' dos concorrentes de ' + obs.NICHES[niche].label + ' publicado nos últimos 90 dias.'
+  const nComp = obs.channels.filter(c => !c.own && c.niche === niche).length
+  // n = 0 because channels are still fetching is not "nobody published": say so, and show the engine's reasons (excluded)
+  const empty = HM.n ? null
+    : HM.excluded.length && HM.excluded.length === nComp ? 'O mapa espera os canais de ' + obs.NICHES[niche].label + ': todos ainda estão buscando vídeos.'
+    : 'Nenhum ' + FMT_ONE[fmt] + ' dos concorrentes de ' + obs.NICHES[niche].label + ' publicado nos últimos 90 dias.'
 
   // uploads
   const max = Math.max(1, ...cells.flat().map(c => c.n)), pk = HM.peak
@@ -333,49 +346,53 @@ function heatmapSection(obs: Observatory, niche: Niche, fmt: VideoFmt): HeatmapS
 
 /* ------------------------------------------------------------------ temas */
 function medRich(obs: Observatory, m: number | null, n: number): Rich {
-  return n >= MEDIAN_MIN_N ? ['mediana ', { mono: obs.fmt.mult(m) }, ' (n = ' + n + ')'] : ['pouco para concluir (n = ' + n + ')']
+  return n >= obs.RULES.medianMinN ? ['mediana ', { mono: obs.fmt.mult(m) }, ' (n = ' + n + ')'] : ['pouco para concluir (n = ' + n + ')']
 }
 function themesSection(obs: Observatory, niche: Niche, fmt: VideoFmt): ThemesSection {
   const F = obs.fmt, R = obs.RULES, NL = obs.NICHES[niche].label
   const meta = FMT_LABEL[fmt] + ' de ' + NL + ', 90 dias vs os 90 anteriores'
   const reading = obs.forja.latest('temas', niche)
   if (!reading) {
-    return { meta, seal: null, rows: [], foot: null, empty: {
+    return { meta, seal: null, coverageNote: null, rows: [], foot: null, empty: {
       title: 'Ainda não há temas de ' + NL,
       text: 'Os temas saem da leitura de temas da forja, que dá nome aos grupos de vídeos parecidos. Sem essa leitura não há tema para contar; a tendência aparece aqui depois da primeira.',
     } }
   }
-  const seal = 'forja · Gemma 12B · gerada ' + obs.date.dm(reading.generatedAt) + ' ' + obs.date.hm(reading.generatedAt) + ' (SP)'
-  const TT = obs.themeTrend(niche, fmt)
+  // the model comes from the reading itself (DB column `model`, or the reading's own seal); never assumed
+  const fromSeal = reading.seal.startsWith('forja · ') ? reading.seal.split(' · ')[1] : undefined
+  const model = reading.model || fromSeal || 'modelo não registrado'
+  const when = obs.date.dm(reading.generatedAt) + ' ' + obs.date.hm(reading.generatedAt) + ' (SP)'
+  const seal = 'forja · ' + model + ' · gerada ' + when
+  const TT = obs.themeTrend(niche, fmt), cv = TT.coverage, trendable = cv.trendable
   const list = TT.filter(t => t.now + t.prev > 0).sort((a, b) => (b.now - b.prev) - (a.now - a.prev))
   const mx = Math.max(1, ...list.flatMap(x => [x.now, x.prev]))
   const rows: ThemeRow[] = list.map(x => {
     const nc = x.channels.length
-    const trendText: Rich = x.trend === '▲' ? ['▲ ' + x.trendText + ' · +' + x.delta] : x.trend === '▼' ? ['▼ ' + x.trendText + ' · ' + F.int(x.delta).replace('-', '−')] : ['≈ ' + (x.trendText || 'estável')]
+    const trendText: Rich | null = !trendable ? null : x.trend === '▲' ? ['▲ ' + x.trendText + ' · +' + x.delta] : x.trend === '▼' ? ['▼ ' + x.trendText + ' · ' + F.int(x.delta).replace('-', '−')] : ['≈ ' + (x.trendText || 'estável')]
     const q = { niche, fmt, ages: AGES_90, topic: x.theme }
     return {
-      theme: x.theme, label: x.label, trend: x.trend, trendText, trendCls: x.trend === '▲' ? 'up' : x.trend === '▼' ? 'down' : 'flat',
+      theme: x.theme, label: x.label, trend: trendable ? x.trend : null, trendText, trendCls: !trendable ? 'flat' : x.trend === '▲' ? 'up' : x.trend === '▼' ? 'down' : 'flat',
       channels: nc <= 2 && x.now > 0 ? { text: '◌ só ' + F.plural(nc, 'canal', 'canais'), weak: true } : { text: F.plural(nc, 'canal', 'canais'), weak: false },
       median: x.nMult ? medRich(obs, x.medMult, x.nMult) : null,
       outLink: x.outliers ? { href: obs.link.outliers(q), text: (x.outliers === 1 ? 'Ver o outlier' : 'Ver os ' + x.outliers + ' outliers') + ' de hoje', n: x.outliers } : { href: null, text: 'nenhum outlier hoje', n: 0 },
-      spark: { prev: Math.max(3, x.prev / mx * 28), now: Math.max(3, x.now / mx * 28), aria: x.prev + ' vídeos nos 90 dias anteriores, ' + x.now + ' agora', text: x.prev + ' → ' + x.now },
+      spark: !trendable ? null : { prev: Math.max(3, x.prev / mx * 28), now: Math.max(3, x.now / mx * 28), aria: x.prev + ' vídeos nos 90 dias anteriores, ' + x.now + ' agora', text: x.prev + ' → ' + x.now },
     }
   })
   const exc = TT.excluded
   return {
     meta, seal, rows,
+    // ruling R49: the forja named too few videos (or none in the previous 90 days) for ▲/▼ to mean anything
+    coverageNote: trendable ? null : 'A forja ainda não deu tema a vídeos suficientes para comparar com os 90 dias anteriores: tem tema em ' + cv.now.themed + ' de ' + cv.now.total + ' ' + FMT_LABEL[fmt] + ' dos últimos 90 dias e em ' + cv.prev.themed + ' de ' + cv.prev.total + ' dos 90 anteriores (a tendência pede ' + F.int(cv.minShare * 100) + '% em cada janela).',
     empty: rows.length ? null : { title: 'Nenhum tema no recorte', text: 'Nenhum ' + FMT_ONE[fmt] + ' dos concorrentes de ' + NL + ' com tema nos últimos 180 dias.' },
-    foot: 'Compara ' + F.plural(TT.channelsCompared.length, 'canal', 'canais') + ' com vídeos nas duas janelas.' + (exc.length ? ' Fora da comparação: ' + exc.map(e => e.reason).join('; ') + '.' : '') + ' Tendência: ' + R.theme.trend.text + '. A forja dá nome aos grupos toda madrugada; contagens, canais, medianas e outliers vêm dos dados de hoje. Barra forte = agora, apagada = 90 dias anteriores.',
+    foot: 'Compara ' + F.plural(TT.channelsCompared.length, 'canal', 'canais') + ' com vídeos nas duas janelas.' + (exc.length ? ' Fora da comparação: ' + exc.map(e => e.reason).join('; ') + '.' : '') + (trendable ? ' Tendência: ' + R.theme.trend.text + '.' : '') + ' Os nomes dos grupos vêm da leitura de temas da forja de ' + when + '; contagens, canais, medianas e outliers vêm dos dados de hoje.' + (trendable ? ' Barra forte = agora, apagada = 90 dias anteriores.' : ''),
   }
 }
 
 /* ------------------------------------------------------------------ você no nicho */
-interface AggV { median: number | null; min: number | null; max: number | null; n: number }
-interface OwnV { value: number | null; median: number | null; verdict: string | null; verdictText: string; label: string; n: number; few: boolean }
 /** The own channel compared with this niche: derived by the engine; a channel with a niche set elsewhere is not compared. */
 function ownFor(obs: Observatory, niche: Niche) {
   const NS = obs.nicheStats(niche, 'long')
-  const own = NS.own ? obs.channel(String(NS.own.channel)) : undefined
+  const own = NS.own ? obs.channel(NS.own.channel) : undefined
   return own && (own.niche == null || own.niche === niche) ? own : null
 }
 function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
@@ -391,8 +408,11 @@ function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
     const what = !own ? 'vídeos de ' + NL : FMT_LABEL[fmt] + ' nas últimas ' + W + ' semanas'
     return { meta, head: null, rows: [], foot: null, empty: { title: 'Seu canal ainda não tem ' + what, text: emptyText, link: { href: obs.link.canais({ channel: (own ?? anyOwn).id }), text: 'Ver seu canal' } } }
   }
-  const NS = obs.nicheStats(niche, fmt, own.id) as unknown as Record<'pw' | 'perMilSubs' | 'pctOutliers' | 'engagement', AggV> & { channels: string[]; own: Record<'pw' | 'perMilSubs' | 'pctOutliers' | 'engagement', OwnV> & { threshold: number; fewN: number } }
-  const o = NS.own, st = obs.channelStats(own.id, fmt) as { engagement: { window: string }; syncText: string }
+  const NS = obs.nicheStats(niche, fmt, own.id), o = NS.own
+  if (!o) return { meta, head: null, rows: [], foot: null, empty: { title: 'Seu canal ainda não tem vídeos de ' + NL, text: emptyText } }
+  // channelStats is typed loosely by the engine: read the one field needed, narrowly
+  const eng = obs.channelStats(own.id, fmt).engagement
+  const engWindow = eng && typeof eng === 'object' && 'window' in eng && typeof eng.window === 'string' ? eng.window : null
   const pct = (x: number | null) => x == null ? '—' : F.dec1(x * 100) + '%'
   const row = (key: 'pw' | 'perMilSubs' | 'pctOutliers' | 'engagement', label: string, fmtV: (v: number | null) => string, labelOverride?: string): YouRow | null => {
     const me = o[key].value, agg = NS[key]
@@ -412,12 +432,12 @@ function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
     row('pw', 'Ritmo (vídeos por semana)', dec),
     row('perMilSubs', 'Views/dia por mil inscritos (mediana desde ' + obs.SERIES_START_LABEL + ')', dec),
     row('pctOutliers', 'Vídeos com ' + R.outlierMin + '× ou mais (90 d)', pct, pct(o.pctOutliers.value) + ' vs ' + pct(NS.pctOutliers.median) + ' da mediana do nicho'),
-    row('engagement', 'Curtidas + comentários / views (' + st.engagement.window + ')', pct),
+    row('engagement', 'Curtidas + comentários / views' + (engWindow ? ' (' + engWindow + ')' : ''), pct),
   ].filter((r): r is YouRow => r != null)
   const biggest = obs.channels.filter(c => !c.own && c.niche === niche).sort((a, b) => b.subs - a.subs)[0]
   return {
     meta, empty: null, rows,
-    head: { ini: own.ini, title: F.plural(cad.n, 'vídeo seu', 'vídeos seus') + ' (' + FMT_LABEL[fmt] + ', ' + W + ' semanas)', sub: F.subs(own.subs) + ' inscritos · ' + st.syncText },
+    head: { ini: own.ini, title: F.plural(cad.n, 'vídeo seu', 'vídeos seus') + ' (' + FMT_LABEL[fmt] + ', ' + W + ' semanas)', sub: F.subs(own.subs) + ' inscritos · ' + obs.syncText(own.id) },
     foot: 'Ponto laranja = você; traço = mediana dos ' + NS.channels.length + ' canais concorrentes do nicho; extremos rotulados; ▲/▼ só fora de ±' + F.int(o.threshold * 100) + '%; com menos de ' + o.fewN + ' vídeos, “pouco para concluir”. Só métricas relativas' + (biggest ? ': ' + biggest.name + ' tem ' + F.subs(biggest.subs) + ' inscritos; você, ' + F.subs(own.subs) + '.' : '.'),
   }
 }
@@ -434,14 +454,22 @@ function gapsSection(obs: Observatory, niche: Niche, fmt: VideoFmt): GapsSection
   if (!obs.forja.latest('temas', niche)) {
     return { meta, rows: [], none: null, foot: null, empty: { title: 'Ainda não há temas de ' + NL, text: 'Lacunas cruzam os temas dos seus vídeos com os dos concorrentes, e os temas saem da leitura de temas da forja. Sem essa leitura não há lacuna para mostrar.' } }
   }
-  const trend = obs.themeTrend(niche, fmt)
+  // ruling R49: with no theme on the own videos, every competitor theme would look like a gap
+  if (!cov.themed) {
+    return { meta, rows: [], none: null, foot: null, empty: { title: 'A forja ainda não deu tema aos seus vídeos', text: 'Lacunas cruzam os temas dos seus vídeos com os dos concorrentes. Nenhum dos seus ' + F.plural(cov.n, FMT_ONE[fmt], FMT_LABEL[fmt]) + ' dos últimos ' + cov.window + ' tem tema, então não dá para dizer qual tema falta.' } }
+  }
+  const trend = obs.themeTrend(niche, fmt), ccv = trend.coverage.now
+  if (!ccv.total || ccv.themed / ccv.total < obs.RULES.theme.coverage.minShare) {
+    return { meta, rows: [], none: null, foot: null, empty: { title: 'A forja ainda não deu tema a vídeos suficientes dos concorrentes', text: 'Tem tema em ' + ccv.themed + ' de ' + ccv.total + ' ' + FMT_LABEL[fmt] + ' dos concorrentes de ' + NL + ' nos últimos 90 dias; com tão poucos, um tema ausente na lista não quer dizer que ninguém fala dele.' } }
+  }
+  const qualifying = trend.filter(t => t.channels.length >= 2)
   const gaps = trend.filter(t => !cov.byTheme[t.theme] && t.channels.length >= 2).sort((a, b) => b.now - a.now)
   const single = trend.filter(t => !cov.byTheme[t.theme] && t.now > 0 && t.channels.length < 2).length
   const one = FMT_LABEL[fmt].replace(/s$/, '')
   return {
     meta, empty: null,
     rows: gaps.map(t => ({ theme: t.theme, label: t.label, sub: [{ mono: String(t.channels.length) }, ' canais, ', { mono: String(t.now) }, ' vídeos', ...(t.nMult ? [', ' as RichPart, ...medRich(obs, t.medMult, t.nMult)] : []), ' · você: nenhum'] })),
-    none: gaps.length ? null : 'Você já tem vídeo em todos os temas que aparecem em 2 canais ou mais.',
+    none: gaps.length ? null : qualifying.length ? 'Você já tem vídeo em todos os ' + F.plural(qualifying.length, 'tema', 'temas') + ' que aparecem em 2 canais ou mais.' : 'Nenhum tema aparece em 2 canais ou mais nos últimos 90 dias.',
     foot: 'Por tema, não por tag: as tags ficam no idioma de cada canal, e “street food” não casaria com “comida de rua”. Seus ' + F.plural(cov.n, one, FMT_LABEL[fmt]) + ' dos últimos ' + cov.window + ' cobrem ' + F.plural(Object.keys(cov.byTheme).length, 'tema', 'temas') + '.' + (single ? ' Temas de um canal só ficam de fora (' + single + ').' : ''),
   }
 }

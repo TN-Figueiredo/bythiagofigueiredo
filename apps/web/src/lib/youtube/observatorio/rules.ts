@@ -5,7 +5,10 @@ export const RULES = {
   effect: { afterDays: 7, maxBeforeDays: 7, minBeforeDays: 3, minN: 5, pp: 10, simultHours: 48 },
   pattern: { minN: 10, minDiff: 0.3 },
   attribution: { solo: 0.6, second: 0.2 },
-  theme: { minCount: 3, minShare: 0.4, trend: { minDelta: 3, minPct: 0.25, text: '▲/▼ só quando a diferença entre os últimos 90 dias e os 90 anteriores é de 3 vídeos ou mais E de 25% ou mais; senão ≈' } },
+  theme: { minCount: 3, minShare: 0.4, trend: { minDelta: 3, minPct: 0.25, text: '▲/▼ só quando a diferença entre os últimos 90 dias e os 90 anteriores é de 3 vídeos ou mais E de 25% ou mais; senão ≈' },
+    // New in the production port (Task 27, ruling R49): ▲/▼ only when the forja gave a theme to at least this share of the
+    // videos in EACH window (≤ 90 d and 91–180 d), and to at least one video of the previous window; otherwise no trend.
+    coverage: { minShare: 0.8 } },
   habit: { minCount: 3, minShare: 0.3, weeks: 13 },
   tiers: { mid: 2, high: 5, top: 10 },
   testCompareMaxDays: 14,
@@ -18,6 +21,9 @@ export const RULES = {
   // New in the production port (Task 32): the data sent to the forja is capped (most recent first) to keep one request
   // inside the coupled budget (20 min claim < 25 min cron < 30 min vigia).
   forja: { maxVideos: 400 },
+  // New in the production port (Task 27; PEDIDOS-API.md:160): a median is shown only with n ≥ this (Temas, Lacunas);
+  // below it, "pouco para concluir (n = N)".
+  medianMinN: 5,
 }
 export interface AgeBand { id: string; lo: number; hi: number; label: string }
 export const AGE_BANDS: AgeBand[] = [

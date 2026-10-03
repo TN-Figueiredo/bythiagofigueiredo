@@ -19,7 +19,7 @@ export function Heatmap({ s, initialMode = 'uploads' }: { s: HeatmapSection; ini
           </div>
         )}</div>
       <div className="cbody">
-        {s.empty ? <div className="empty"><p>{s.empty}</p></div> : (
+        {s.empty ? <div className="empty"><p>{s.empty}</p>{s.excluded ? <p className="exc">{s.excluded}</p> : null}</div> : (
           <>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{m.intro}</div>
             <div className="hm" role="img" aria-label={m.aria}>

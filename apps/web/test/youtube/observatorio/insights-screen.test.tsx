@@ -103,11 +103,23 @@ describe('InsightsScreen', () => {
     expect(container.querySelector('#grid')).toBeNull()
   })
 
+  it('low theme coverage: Temas shows the honest note and no ▲/▼ or sparks', () => {
+    const d = structuredClone(ds)
+    let kept = 0
+    for (const v of d.videos) if (v.theme && !(v.ageDays <= 90 && v.niche === 'viagem' && v.fmt === 'long' && v.tracked && v.ch !== 'tnfigueiredo' && kept++ < 8)) v.theme = null
+    const { container } = mount('viagem', 'long', createObservatory(d))
+    const card = container.querySelector('#themeCard')!
+    expect(card.querySelector('[data-coverage="low"]')!.textContent).toMatch(/^A forja ainda não deu tema a vídeos suficientes/)
+    expect(card.textContent).not.toMatch(/[▲▼]/)
+    expect(card.querySelectorAll('.spark')).toHaveLength(0)
+    expect(noJunkText(container)).toEqual([])
+  })
+
   it('empty dataset: every card shows its empty text, no junk', () => {
     const d = structuredClone(ds); d.videos = []
     const { container } = mount('viagem', 'long', createObservatory(d))
     expect(noJunkText(container)).toEqual([])
     expect(container.querySelectorAll('.empty').length).toBeGreaterThanOrEqual(5)
-    expect(screen.getByText('Nenhum longo dos concorrentes de Viagem nos últimos 90 dias.')).toBeInTheDocument()
+    expect(screen.getByText(/^Nenhum longo dos concorrentes de Viagem nos últimos 90 dias\. Fora da análise: Vou sem volta/)).toBeInTheDocument()
   })
 })

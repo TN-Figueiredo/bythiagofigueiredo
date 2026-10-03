@@ -166,12 +166,86 @@ describe('insights view model', () => {
     })
   })
 
+  describe('fix round 1: honest texts when the data does not exist', () => {
+    it('Temas: the foot ties the names to the reading date (no "toda madrugada"); the model comes from the reading', () => {
+      const t = view('viagem').themes!
+      expect(t.foot).toContain('Os nomes dos grupos vêm da leitura de temas da forja de 20/10 06:10 (SP)')
+      expect(t.foot).not.toMatch(/madrugada/)
+      expect(t.seal).toBe('forja · Gemma 12B · gerada 20/10 06:10 (SP)')
+      const ds = clone()
+      for (const r of ds.readings) if (r.type === 'temas') { r.model = 'gemma3:12b-it'; r.seal = 'forja · gemma3:12b-it · temas' }
+      expect(view('viagem', 'long', createObservatory(ds)).themes!.seal).toBe('forja · gemma3:12b-it · gerada 20/10 06:10 (SP)')
+      for (const r of ds.readings) if (r.type === 'temas') { delete r.model; r.seal = 'selo antigo' }
+      expect(view('viagem', 'long', createObservatory(ds)).themes!.seal).toBe('forja · modelo não registrado · gerada 20/10 06:10 (SP)')
+    })
+    it('Temas: low theme coverage (production: ≤ 8 videos themed) shows no ▲/▼ and says why', () => {
+      expect(obs.themeTrend('viagem', 'long').coverage.trendable).toBe(true)
+      const ds = clone()
+      let kept = 0
+      for (const v of ds.videos) if (v.theme && !(v.ageDays <= 90 && v.niche === 'viagem' && v.fmt === 'long' && v.tracked && v.ch !== 'tnfigueiredo' && kept++ < 8)) v.theme = null
+      const o = createObservatory(ds), cv = o.themeTrend('viagem', 'long').coverage
+      expect(cv.trendable).toBe(false); expect(cv.prev.themed).toBe(0)
+      const t = view('viagem', 'long', o).themes!
+      expect(t.coverageNote).toMatch(/^A forja ainda não deu tema a vídeos suficientes para comparar com os 90 dias anteriores: tem tema em \d+ de \d+ longos dos últimos 90 dias e em 0 de \d+ dos 90 anteriores \(a tendência pede 80% em cada janela\)\.$/)
+      expect(t.rows.length).toBeGreaterThan(0)
+      for (const r of t.rows) { expect(r.trend).toBeNull(); expect(r.trendText).toBeNull(); expect(r.spark).toBeNull() }
+      expect(JSON.stringify(t)).not.toMatch(/[▲▼]/)
+      expect(t.foot).not.toContain('Tendência')
+      expect(view('viagem').themes!.coverageNote).toBeNull()
+    })
+    it('Lacunas refuse when no own video carries a theme', () => {
+      const ds = clone(); const own = ds.channels.find(c => c.own)!.id
+      for (const v of ds.videos) if (v.ch === own) v.theme = null
+      const g = view('viagem', 'long', createObservatory(ds)).gaps!
+      expect(g.rows).toEqual([]); expect(g.none).toBeNull(); expect(g.foot).toBeNull()
+      expect(g.empty!.title).toBe('A forja ainda não deu tema aos seus vídeos')
+    })
+    it('Lacunas refuse when competitor theme coverage is low', () => {
+      const ds = clone(); const own = ds.channels.find(c => c.own)!.id
+      for (const v of ds.videos) if (v.ch !== own) v.theme = null
+      const g = view('viagem', 'long', createObservatory(ds)).gaps!
+      expect(g.empty!.title).toBe('A forja ainda não deu tema a vídeos suficientes dos concorrentes')
+    })
+    it('Lacunas: no theme in ≥ 2 channels is its own case, never "você já tem vídeo em todos"', () => {
+      const ds = clone()
+      const viagem = ['comida-de-rua', 'lugares-perigosos', 'trens-e-onibus', 'rotina-nomade', 'japao-fora-das-capitais', 'custo-de-viagem']
+      const comps = ds.channels.filter(c => !c.own && c.niche === 'viagem').map(c => c.id)
+      for (const v of ds.videos) { const i = comps.indexOf(v.ch); if (i >= 0) v.theme = i < viagem.length ? viagem[i]! : 'ia-e-emprego' }
+      const g = view('viagem', 'long', createObservatory(ds)).gaps!
+      expect(g.empty).toBeNull(); expect(g.rows).toEqual([])
+      expect(g.none).toBe('Nenhum tema aparece em 2 canais ou mais nos últimos 90 dias.')
+      expect(g.foot).not.toMatch(/cobrem 0 temas/)
+      const ds2 = clone(); const own = ds2.channels.find(c => c.own)!.id
+      const themesOf = new Set(ds2.videos.filter(v => v.niche === 'viagem' && v.ch !== own && v.fmt === 'long').map(v => v.theme))
+      const owned = ds2.videos.filter(v => v.ch === own && v.fmt === 'long' && v.ageDays <= 90)
+      let k = 0; const all = [...themesOf].filter((x): x is string => !!x)
+      for (const v of owned) v.theme = all[k++ % all.length]!
+      const g2 = view('viagem', 'long', createObservatory(ds2)).gaps!
+      if (!g2.rows.length) expect(g2.none).toMatch(/^Você já tem vídeo em todos os \d+ temas que aparecem em 2 canais ou mais\.$/)
+    })
+    it('Heatmap: every channel still fetching → says the map waits and shows the engine reasons', () => {
+      const ds = clone()
+      for (const c of ds.channels) if (!c.own && c.niche === 'viagem') { c.sync.state = 'backfill'; c.sync.backfill = { done: 5, total: 50 }; c.lastIdx = null }
+      const h = view('viagem', 'long', createObservatory(ds)).heatmap!
+      expect(h.empty).toBe('O mapa espera os canais de Viagem: todos ainda estão buscando vídeos.')
+      expect(h.excluded).toMatch(/^Fora do mapa: .*ainda buscando vídeos \(5 de 50\)/)
+      expect(h.empty).not.toMatch(/publicado/)
+    })
+    it('Fórmulas: the row verdict follows the chip; no dangling "; ."', () => {
+      for (const n of ['viagem', 'ia'] as const) for (const r of view(n).formulas!.rows) {
+        expect(r.verdict).toBe(r.chip.kind === 'ok' ? 'padrao' : r.chip.kind === 'weak' ? 'recorrencia' : 'sem-diferenca')
+        expect(textOf(r.sentence)).not.toMatch(/; \.$/)
+      }
+      expect(obs.RULES.medianMinN).toBe(5)
+    })
+  })
+
   it('an empty dataset (no videos): every section has its empty text and no NaN', () => {
     const ds = clone(); ds.videos = []
     const v: InsightsView = view('viagem', 'long', createObservatory(ds))
     expect(v.formulas!.empty).not.toBeNull()
     expect(v.formulas!.rows).toEqual([])
-    expect(v.cadence!.empty).toBe('Nenhum longo dos concorrentes de Viagem nos últimos 90 dias.')
+    expect(v.cadence!.empty).toBe('Nenhum longo dos concorrentes de Viagem nos últimos 90 dias. Fora da análise: Vou sem volta: buscando vídeos (18 de 50).')
     expect(v.heatmap!.empty).toBe('Nenhum longo dos concorrentes de Viagem publicado nos últimos 90 dias.')
     expect(v.themes!.empty).not.toBeNull()
     expect(v.youInNiche!.empty).not.toBeNull()
