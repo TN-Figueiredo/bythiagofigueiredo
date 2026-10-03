@@ -37,6 +37,8 @@ const MENU = { w: 230, h: 189 }
 const VW = 2000, VH = 1100
 let btn = { left: 1694, top: 534, width: 32, height: 32 }
 let origin = { x: 0, y: 0 }
+/** Where the menu would be drawn with no left/top of its own (end of the screen's flow). */
+const STATIC = { x: 777, y: 3333 }
 const rect = (left: number, top: number, width: number, height: number): DOMRect =>
   ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect
 
@@ -48,7 +50,8 @@ beforeEach(() => {
   Object.defineProperty(window, 'innerHeight', { value: VH, configurable: true })
   Object.defineProperty(document.documentElement, 'clientWidth', { value: VW, configurable: true })
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-    if (this.getAttribute('role') === 'menu') return rect(origin.x + (parseFloat(this.style.left) || 0), origin.y + (parseFloat(this.style.top) || 0), MENU.w, MENU.h)
+    // a fixed box with left/top `auto` sits at its static position (where it would be in the flow), not at the origin
+    if (this.getAttribute('role') === 'menu') return rect(this.style.left === '' ? STATIC.x : origin.x + parseFloat(this.style.left), this.style.top === '' ? STATIC.y : origin.y + parseFloat(this.style.top), MENU.w, MENU.h)
     if (this.hasAttribute('data-menu')) return rect(btn.left, btn.top, btn.width, btn.height)
     return rect(0, 0, 0, 0)
   })
@@ -157,6 +160,17 @@ describe('Canais · row menu ⋯', () => {
     expect(menu()).not.toBeNull()
     expect(document.activeElement).toBe(items()[0])
     expect(replace).not.toHaveBeenCalled()
+  })
+
+  it('is placed from its first render without a ResizeObserver: the menu never starts from its static position', async () => {
+    const user = userEvent.setup()
+    // jsdom has no ResizeObserver; a browser's would re-place the menu before the paint and hide a wrong first measure
+    expect(typeof ResizeObserver).toBe('undefined')
+    origin = { x: 495, y: -136 }
+    mount()
+    await user.click(more())
+    expect(menu()!.style.left).not.toBe('')
+    expect(at()).toMatchObject({ right: btn.left + btn.width, top: btn.top + btn.height + 4 })
   })
 
   it('the cards view anchors the same way', async () => {

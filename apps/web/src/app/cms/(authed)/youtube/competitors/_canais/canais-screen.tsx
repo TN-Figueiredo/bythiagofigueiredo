@@ -55,7 +55,7 @@ function useWide(): boolean {
  * What the screen shows ahead of the server while a navigation is in flight. `channel`: the drawer asked for (null:
  * closed). `busy`: the list's numbers or order are about to change (the list is marked aria-busy, never rewritten).
  */
-interface Optimistic { channel?: string | null; fmt?: CanaisView['fmt']; scale?: CanaisView['scale']; layout?: CanaisView['layout']; add?: boolean; sort?: CanaisSort; busy?: boolean }
+interface Optimistic { channel?: string | null; fmt?: CanaisView['fmt']; scale?: CanaisView['scale']; layout?: CanaisView['layout']; add?: boolean; sort?: CanaisSort; dir?: CanaisView['dir']; busy?: boolean }
 const FOCUSABLE = 'button:not([disabled]),a[href],select,input,textarea,[tabindex="0"]'
 /** Tab / Shift+Tab stay inside the dialog (canais.html trapEl). */
 function trapTab(e: KeyboardEvent<HTMLElement>) {
@@ -110,7 +110,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   if (seenDrawer !== drawerId) { setSeenDrawer(drawerId); setClosedDrawer(null) }
   const [seenAdd, setSeenAdd] = useState(view.addOpen)
   if (seenAdd !== view.addOpen) { setSeenAdd(view.addOpen); setAddClosed(false) }
-  const rowOf = useCallback((id: string) => view.rows.find(r => r.id === id) ?? view.groups.flatMap(g => g.rows).find(r => r.id === id) ?? null, [view])
+  // own.rows too: under "só canais com problema" view.rows leaves the own channels out, and they are still on screen
+  const rowOf = useCallback((id: string) => view.rows.find(r => r.id === id) ?? view.own.rows.find(r => r.id === id) ?? view.groups.flatMap(g => g.rows).find(r => r.id === id) ?? null, [view])
   const drawer = view.drawer && closedDrawer !== view.drawer.id && (opt.channel === undefined || opt.channel === view.drawer.id) ? view.drawer : null
   /** The drawer asked for and not yet sent by the server: its head comes from the row that was clicked. */
   const shellRow = opt.channel && !drawer && closedDrawer !== opt.channel ? rowOf(opt.channel) : null
@@ -255,7 +256,13 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     menu: id => { if (menu === id) closeMenu(true); else setMenu(id) },
     retry: id => { void syncOne(id) }, remove: askRemove, local: id => local[id], roundRunning: running, upnextHref: UPNEXT, menuFor: menu, selected: panel?.id ?? null,
   }
-  const onSort = (k: CanaisSort) => go({ sort: k === 'active' && view.sort !== 'active' ? null : k, dir: view.sort === k ? (view.dir === 'desc' ? 'asc' : null) : null }, { sort: k, busy: true })
+  // The order asked for last, even if the server has not answered it yet: a second click on the same header flips it.
+  const sort = opt.sort ?? view.sort, dir = opt.sort ? (opt.dir ?? 'desc') : view.dir
+  const onSort = (k: CanaisSort) => {
+    const asc = sort === k && dir === 'desc'
+    go({ sort: k === 'active' && sort !== 'active' ? null : k, dir: asc ? 'asc' : null }, { sort: k, dir: asc ? 'asc' : 'desc', busy: true })
+  }
+  const onCardSort = (k: CanaisSort) => go({ sort: k === 'active' ? null : k, dir: null }, { sort: k, dir: 'desc', busy: true })
   // Tabela/Cards draws the same rows another way: it swaps at once. Formato and Escala change numbers only the server has.
   const fmt = opt.fmt ?? view.fmt, scale = opt.scale ?? view.scale
   const pickFmt = (v: CanaisView['fmt']) => go({ fmt: v === 'long' ? null : v }, { fmt: v, busy: true })
@@ -301,7 +308,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               <button type="button" aria-pressed={layout === 'cards'} onClick={() => pickLayout('cards')}>Cards</button>
             </div>
             <label className="cardsort"><span className="sr">Ordenar cards por</span>
-              <select className="sel" name="cardSort" value={view.sort} onChange={e => go({ sort: e.target.value === 'active' ? null : e.target.value, dir: null }, { busy: true })}>
+              <select className="sel" name="cardSort" value={sort} onChange={e => onCardSort(e.target.value as CanaisSort)}>
                 <option value="active">Ritmo</option><option value="vpd">Views/dia</option><option value="outliers">Outliers</option><option value="swaps">Trocas</option><option value="growth">Crescimento</option>
               </select>
             </label>

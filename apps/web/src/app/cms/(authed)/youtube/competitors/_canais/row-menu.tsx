@@ -36,6 +36,7 @@ export function RowMenu({ row, onClose, onOpen, onSync, onYoutube, onCopy, onRem
   const place = useCallback(() => {
     const el = ref.current
     if (!el) return
+    if (!el.style.left || !el.style.top) { el.style.left = '0px'; el.style.top = '0px' }
     const btn = rowMenuButton(row.id)
     if (!btn) { close.current(false); return }
     const b = btn.getBoundingClientRect()
@@ -44,8 +45,9 @@ export function RowMenu({ row, onClose, onOpen, onSync, onYoutube, onCopy, onRem
     if ((b.width || b.height) && (b.bottom <= 0 || b.top >= vh || b.right <= 0 || b.left >= vw)) { close.current(false); return }
     const m = el.getBoundingClientRect()
     const want = placeMenu(b, { w: m.width, h: m.height }, { w: vw, h: vh })
-    // m.left - style.left is the origin of whatever block resolves `fixed` here
-    const left = (parseFloat(el.style.left) || 0) + want.left - m.left, top = (parseFloat(el.style.top) || 0) + want.top - m.top
+    // m.left - style.left is the origin of whatever block resolves `fixed` here. The element always has a numeric
+    // left/top (it is rendered at 0,0): with `auto` its rect would be its static position and the sum would be wrong.
+    const left = parseFloat(el.style.left) + want.left - m.left, top = parseFloat(el.style.top) + want.top - m.top
     el.style.left = `${Math.round(left)}px`
     el.style.top = `${Math.round(top)}px`
   }, [row.id])
@@ -76,7 +78,7 @@ export function RowMenu({ row, onClose, onOpen, onSync, onYoutube, onCopy, onRem
   }
 
   return (
-    <div className="menu on" role="menu" aria-label="Ações do canal" ref={ref} data-menu-for={row.id} onKeyDown={onKey}>
+    <div className="menu on" role="menu" aria-label="Ações do canal" ref={ref} data-menu-for={row.id} style={{ left: 0, top: 0 }} onKeyDown={onKey}>
       <button type="button" role="menuitem" onClick={onOpen}>Abrir detalhes</button>
       <button type="button" role="menuitem" disabled={row.backfill} title={row.backfill ? 'Ainda buscando vídeos: a sincronização só depois da busca' : undefined} onClick={onSync}>Sincronizar só este canal</button>
       <button type="button" role="menuitem" onClick={onYoutube}>Abrir no YouTube</button>

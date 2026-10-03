@@ -199,6 +199,64 @@ describe('Canais · immediate feedback', () => {
     expect(push).not.toHaveBeenCalled()
   })
 
+  it('Cards: "Ordenar cards por" keeps the picked option while the new order is on the way', async () => {
+    const user = userEvent.setup()
+    const r = render(tree({ layout: 'cards' }))
+    const sel = () => screen.getByRole('combobox', { name: 'Ordenar cards por' })
+    await user.selectOptions(sel(), 'vpd')
+    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?sort=vpd', { scroll: false })
+    expect(sel()).toHaveValue('vpd')
+    expect(document.querySelector('.cards')).toHaveAttribute('aria-busy', 'true')
+    await answer(r, { layout: 'cards', sort: 'vpd' })
+    expect(sel()).toHaveValue('vpd')
+    expect(document.querySelector('.cards')).not.toHaveAttribute('aria-busy')
+  })
+
+  it('an own channel opens its drawer at once under "só canais com problema" too', async () => {
+    const user = userEvent.setup()
+    render(tree({ filter: 'problemas' }))
+    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo' }))
+    const d = drawerEl()
+    expect(d).not.toBeNull()
+    expect(d).toHaveAttribute('data-drawer', 'tnfigueiredo')
+    expect(d).toHaveAttribute('aria-busy', 'true')
+    expect(within(d!).getByText('seu canal')).toBeInTheDocument()
+  })
+
+  it('the server answers with no drawer after the shell: the shell goes away, nothing breaks', async () => {
+    const user = userEvent.setup()
+    const r = render(tree())
+    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de Luke Damant' }))
+    expect(drawerEl()).toHaveAttribute('aria-busy', 'true')
+    await answer(r, {})
+    expect(drawerEl()).toBeNull()
+    expect(root()).not.toHaveClass('drawer-open')
+    expect(root()).not.toHaveAttribute('data-nav-pending')
+  })
+
+  it('two quick opens A then B: the late answer of A never replaces the shell of B', async () => {
+    const r = render(tree())
+    await act(async () => { screen.getByRole('button', { name: 'Abrir detalhes de Luke Damant' }).click() })
+    await act(async () => { screen.getByRole('button', { name: 'Abrir detalhes de Matt Wolfe', hidden: true }).click() })
+    expect(drawerEl()).toHaveAttribute('data-drawer', 'matt-wolfe')
+    // A's page arrives while B is still in flight
+    await act(async () => { r.rerender(tree({ channel: 'luke-damant' })); await Promise.resolve() })
+    expect(drawerEl()).toHaveAttribute('data-drawer', 'matt-wolfe')
+    expect(drawerEl()).toHaveAttribute('aria-busy', 'true')
+    await answer(r, { channel: 'matt-wolfe' })
+    expect(drawerEl()).toHaveAttribute('data-drawer', 'matt-wolfe')
+    expect(drawerEl()).not.toHaveAttribute('aria-busy')
+  })
+
+  it('two quick clicks on the same column: the second asks for the opposite direction', async () => {
+    const user = userEvent.setup()
+    render(tree())
+    const b = () => within(document.querySelector<HTMLElement>('th.sortable[data-k="vpd"]')!).getByRole('button')
+    await user.click(b())
+    await user.click(b())
+    expect(replace.mock.calls.map(c => c[0])).toEqual(['/cms/youtube/competitors?sort=vpd', '/cms/youtube/competitors?sort=vpd&dir=asc'])
+  })
+
   it('at rest nothing says busy and the loading bar is not in the DOM', () => {
     render(tree({ channel: 'matt-wolfe' }))
     expect(document.querySelector('[aria-busy]')).toBeNull()
