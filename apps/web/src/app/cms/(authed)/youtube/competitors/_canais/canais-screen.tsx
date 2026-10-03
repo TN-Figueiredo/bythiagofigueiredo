@@ -17,6 +17,7 @@ import { ChannelDrawer } from './channel-drawer'
 import { DrawerForjaBox, DrawerForjaFoot } from './drawer-forja'
 import type { ForjaAsk } from '../_chrome/forja-view-model'
 import { AddChannelForm, type AddFn } from './add-channel-form'
+import { RowMenu, rowMenuButton } from './row-menu'
 import { NicheEditorDialog, NichePendingContext, type NichePending } from './niche-editor'
 import { Ic, Tip, type LocalSync } from './cells'
 import './canais.css'
@@ -65,11 +66,12 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const [closedDrawer, setClosedDrawer] = useState<string | null>(null)
   const [addClosed, setAddClosed] = useState(false)
   const [nicheClosed, setNicheClosed] = useState(false)
-  const [menu, setMenu] = useState<null | { id: string; top: number; left: number }>(null)
+  /** The channel whose ⋯ menu is open. Only the id: the menu measures its button itself (row-menu.tsx). */
+  const [menu, setMenu] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<null | { id: string; name: string }>(null)
   const [local, setLocal] = useState<Record<string, LocalSync>>({})
-  const menuTrigger = useRef<HTMLElement | null>(null), returnFocus = useRef<HTMLElement | null>(null)
-  const closeRef = useRef<HTMLButtonElement | null>(null), menuRef = useRef<HTMLDivElement>(null)
+  const returnFocus = useRef<HTMLElement | null>(null)
+  const closeRef = useRef<HTMLButtonElement | null>(null)
 
   const urlWith = useCallback((set: Record<string, string | null>) => {
     const u = new URLSearchParams(search?.toString() ?? '')
@@ -107,7 +109,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   }, [drawer, go])
   const closeAdd = () => { setAddClosed(true); go({ add: null }) }
   const closeNiche = () => { setNicheClosed(true); go({ nicheEditor: null }) }
-  const closeMenu = (focus: boolean) => { setMenu(null); if (focus) menuTrigger.current?.focus() }
+  const closeMenu = (focus: boolean) => { const id = menu; setMenu(null); if (focus && id) rowMenuButton(id)?.focus() }
   const closeConfirm = () => { setConfirm(null); returnFocus.current?.focus() }
 
   // Esc closes the topmost layer (canais.html keydown).
@@ -126,9 +128,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   // Click outside closes the row menu.
   useEffect(() => {
     if (!menu) return
-    const onDown = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node) && !(e.target as HTMLElement).closest('[data-menu]')) setMenu(null) }
+    const onDown = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('[role="menu"],[data-menu]')) setMenu(null) }
     document.addEventListener('mousedown', onDown)
-    menuRef.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus()
     return () => document.removeEventListener('mousedown', onDown)
   }, [menu])
 
@@ -223,27 +224,13 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
 
   const h: RowHandlers = {
     open: openDrawer, niche: (r, n, ctx) => { void setNiche(r, n, ctx) },
-    menu: (id, btn) => {
-      if (menu?.id === id) { closeMenu(true); return }
-      menuTrigger.current = btn
-      const rc = btn.getBoundingClientRect()
-      setMenu({ id, top: Math.min(rc.bottom + 4, (typeof window !== 'undefined' ? window.innerHeight : 800) - 260), left: Math.max(8, rc.right - 230) })
-    },
-    retry: id => { void syncOne(id) }, remove: askRemove, local: id => local[id], roundRunning: running, upnextHref: UPNEXT, menuFor: menu?.id ?? null, selected: drawer?.id ?? null,
+    menu: id => { if (menu === id) closeMenu(true); else setMenu(id) },
+    retry: id => { void syncOne(id) }, remove: askRemove, local: id => local[id], roundRunning: running, upnextHref: UPNEXT, menuFor: menu, selected: drawer?.id ?? null,
   }
   const onSort = (k: CanaisSort) => go({ sort: k === 'active' && view.sort !== 'active' ? null : k, dir: view.sort === k ? (view.dir === 'desc' ? 'asc' : null) : null })
   const seg = (key: 'fmt' | 'scale' | 'layout', val: string, dflt: string) => go({ [key]: val === dflt ? null : val })
 
-  const menuRow = menu ? rowOf(menu.id) : null
-  const onMenuKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    const items = [...e.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled])')]
-    const i = items.indexOf(document.activeElement as HTMLElement)
-    if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus() }
-    if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus() }
-    if (e.key === 'Home') { e.preventDefault(); items[0]?.focus() }
-    if (e.key === 'End') { e.preventDefault(); items[items.length - 1]?.focus() }
-    if (e.key === 'Tab') closeMenu(false)
-  }
+  const menuRow = menu ? rowOf(menu) : null
 
   const s = view.slots, full = s.free === 0
   return (
@@ -333,16 +320,13 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
         ) : null}
       </div>
 
-      {menu && menuRow ? (
-        <div className="menu on" role="menu" aria-label="Ações do canal" ref={menuRef} style={{ top: menu.top, left: menu.left }} onKeyDown={onMenuKey}>
-          <button type="button" role="menuitem" onClick={() => openDrawer(menuRow.id)}>Abrir detalhes</button>
-          <button type="button" role="menuitem" disabled={menuRow.backfill} title={menuRow.backfill ? 'Ainda buscando vídeos: a sincronização só depois da busca' : undefined}
-            onClick={() => { closeMenu(true); void syncOne(menuRow.id) }}>Sincronizar só este canal</button>
-          <button type="button" role="menuitem" onClick={() => { closeMenu(true); window.open(menuRow.url, '_blank', 'noopener') }}>Abrir no YouTube</button>
-          <button type="button" role="menuitem" onClick={() => { closeMenu(true); void copyCowork(menuRow) }}><span className="cw">Copiar pedido para o Cowork</span></button>
-          <hr />
-          <button type="button" role="menuitem" className="del" onClick={() => askRemove(menuRow.id, menuTrigger.current)}>Remover canal…</button>
-        </div>
+      {menuRow ? (
+        <RowMenu row={menuRow} onClose={closeMenu}
+          onOpen={() => openDrawer(menuRow.id)}
+          onSync={() => { closeMenu(true); void syncOne(menuRow.id) }}
+          onYoutube={() => { closeMenu(true); window.open(menuRow.url, '_blank', 'noopener') }}
+          onCopy={() => { closeMenu(true); void copyCowork(menuRow) }}
+          onRemove={() => askRemove(menuRow.id, rowMenuButton(menuRow.id))} />
       ) : null}
 
       {confirm ? (

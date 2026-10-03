@@ -19,7 +19,7 @@ function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }
         <div><div className="l">Trocas, 30{' '}d</div><SwapView c={c.swap} /></div>
         <div className="sync"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} /></div>
       </div>
-      {r.own ? null : <div><button type="button" className="btn small" data-menu={r.id} aria-haspopup="menu" aria-expanded={h.menuFor === r.id} onClick={e => h.menu(r.id, e.currentTarget)}>Mais ações</button></div>}
+      {r.own ? null : <div><button type="button" className="btn small" data-menu={r.id} aria-haspopup="menu" aria-expanded={h.menuFor === r.id} onClick={() => h.menu(r.id)}>Mais ações</button></div>}
     </article>
   )
 }

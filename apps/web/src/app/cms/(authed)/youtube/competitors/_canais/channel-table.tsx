@@ -6,7 +6,7 @@ import type { Niche } from '@/lib/youtube/observatorio/types'
 import { CadenceView, ChCell, GrowthView, Ic, OutView, SwapView, SyncView, Tip, VpdView, type LocalSync } from './cells'
 
 export interface RowHandlers {
-  open: (id: string) => void; niche: (r: CanaisRow, n: Niche, ctx: string) => void; menu: (id: string, btn: HTMLButtonElement) => void
+  open: (id: string) => void; niche: (r: CanaisRow, n: Niche, ctx: string) => void; menu: (id: string) => void
   retry: (id: string) => void; remove: (id: string, from: HTMLElement | null) => void
   local: (id: string) => LocalSync; roundRunning: boolean; upnextHref: string; menuFor: string | null; selected: string | null
 }
@@ -48,7 +48,7 @@ function Row({ r, h }: { r: CanaisRow; h: RowHandlers }) {
       <td className="sync c-hide"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} /></td>
       <td>{r.own ? null : (
         <button type="button" className="more" aria-label={`Mais ações para ${r.name}`} aria-haspopup="menu" aria-expanded={h.menuFor === r.id} data-menu={r.id}
-          onClick={e => { e.stopPropagation(); h.menu(r.id, e.currentTarget) }}>
+          onClick={e => { e.stopPropagation(); h.menu(r.id) }}>
           <svg className="ico" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="8" r="1.4" /><circle cx="8" cy="8" r="1.4" /><circle cx="13" cy="8" r="1.4" /></svg>
         </button>
       )}</td>
