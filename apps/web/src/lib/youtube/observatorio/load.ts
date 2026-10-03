@@ -16,7 +16,7 @@ export interface ChannelRow {
   video_limit: number; youtube_video_count: number | null; sync_status: string; sync_error: string | null; sync_error_since: string | null
   last_ok_synced_at: string | null; last_synced_at: string | null; full_sync_completed_at: string | null; added_at: string | null
 }
-export interface OwnChannelRow { id: string; channel_id: string; name: string; handle: string; subscriber_count: number; last_synced_at: string | null; locale?: string | null; created_at?: string | null }
+export interface OwnChannelRow { id: string; channel_id: string; name: string; handle: string; subscriber_count: number; last_synced_at: string | null; locale?: string | null; created_at?: string | null; niche?: string | null }
 export interface VideoRow {
   id: string; competitor_channel_id: string; video_id: string; title: string | null; view_count: number | null; like_count: number | null
   comment_count: number | null; duration_seconds: number | null; published_at: string | null; is_short: boolean | null; last_checked_at: string | null
@@ -107,12 +107,17 @@ function groupBy<T>(xs: readonly T[], key: (x: T) => string): Map<string, T[]> {
  * ("tnFigueiredo" → "tF").
  */
 const SKIP_INI = new Set(['the', 'and', 'of', 'a', 'an', '&'])
+/** Sufixo de idioma no fim do nome ("tnFigueiredo EN", "Canal (PT)"): não entra nas iniciais; quem identifica é o nome. */
+const LANG_SUFFIX = /\s+(?:[-–|·]\s*)?[(\[]?(?:PT-BR|EN|PT|BR|ES)[)\]]?$/
+const isCap = (w: string) => { const c = [...w][0] ?? ''; return c !== c.toLowerCase() }
 export const initials = (name: string): string => {
-  const all = name.trim().split(/\s+/).filter(Boolean)
-  const w = all.filter(x => !SKIP_INI.has(x.toLowerCase()))
-  const words = w.length ? w : all
-  if (words.length >= 2) { const ini = [...words[0]!][0]! + [...words[1]!][0]!; return name === name.toLowerCase() ? ini : ini.toUpperCase() }
-  const one = [...(words[0] ?? '?')]
+  const trimmed = name.trim(), base = trimmed.replace(LANG_SUFFIX, '').trim() || trimmed
+  const all = base.split(/\s+/).filter(Boolean)
+  const sig = all.filter(x => !SKIP_INI.has(x.toLowerCase())), words = sig.length ? sig : all
+  // duas palavras com maiúscula vencem ("Thiago testa IA" → TI); senão as duas primeiras ("Vou sem volta" → VS)
+  const caps = words.filter(isCap), pick = caps.length >= 2 ? caps : words
+  if (pick.length >= 2) { const ini = [...pick[0]!][0]! + [...pick[1]!][0]!; return base === base.toLowerCase() ? ini : ini.toUpperCase() }
+  const one = [...(pick[0] ?? '?')]
   const cap = one.slice(1).find(ch => ch !== ch.toLowerCase())
   return one[0]! + (cap ?? one[1] ?? '')
 }
@@ -248,8 +253,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
     const snapshots: ChannelSnapshot[] = (snapsBy.get(c.id) ?? []).filter(s => s.subscriber_count != null).sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date))
       .map(s => ({ t: spDateStart(s.snapshot_date) + 12 * H, date: dmyOf(s.snapshot_date), subs: s.subscriber_count!, views: s.view_count ?? 0 }))
     channels.push({
-      // competitor_channels has no language column yet: `lang` stays '' here, so the niche-dominant-language rule of
-      // ownChannelOf is not live (it falls back to the own channel with most tracked videos).
+      // competitor_channels has no language column: `lang` stays '' for competitors (only own channels carry `locale`).
       id: c.id, name: c.channel_name, fullName: c.channel_name, niche: isNiche(c.niche) ? c.niche : null, own: false, lang: '',
       subs: c.subscriber_count ?? 0, video_limit: limit, url: 'https://www.youtube.com/channel/' + c.channel_id, handle: '', gender: 'n', color: colorOf(c.id), ini: initials(c.channel_name),
       sync: {
@@ -264,12 +268,13 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
 
   const ownVideosBy = groupBy(rows.ownVideos, v => v.channel_id)
   for (const oc of rows.ownChannels) {
+    const ownNiche: Niche | null = isNiche(oc.niche) ? oc.niche : null
     const vs = (ownVideosBy.get(oc.id) ?? []).map(v => ({ v, pub: ms(v.published_at) })).filter((x): x is { v: OwnVideoRow; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
     const last = ms(oc.last_synced_at) // null = never synced: no date is invented
     vs.forEach(({ v, pub }, k) => {
       const fmt: Fmt = ownIsShort(v) ? 'short' : 'long'
       videos.push({
-        id: v.id, ch: oc.id, niche: null, fmt, pub, ageDays: ageOf(pub, now), tracked: k < RULES.videoLimitMax,
+        id: v.id, ch: oc.id, niche: ownNiche, fmt, pub, ageDays: ageOf(pub, now), tracked: k < RULES.videoLimitMax,
         title: v.title, theme: themes.get(v.id) ?? null, formulas: formulasOf(v.title),
         url: fmt === 'short' ? 'https://www.youtube.com/shorts/' + v.youtube_video_id : 'https://www.youtube.com/watch?v=' + v.youtube_video_id, ytId: v.youtube_video_id, dur: v.duration_seconds,
         views: v.view_count, viewsAt: ms(v.updated_at) ?? last ?? now, likes: v.like_count, comments: v.comment_count,
@@ -278,7 +283,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       })
     })
     channels.push({
-      id: oc.id, name: oc.name, fullName: oc.name, niche: null, own: true, lang: oc.locale ?? '', subs: oc.subscriber_count, video_limit: RULES.videoLimitMax,
+      id: oc.id, name: oc.name, fullName: oc.name, niche: ownNiche, own: true, lang: oc.locale ?? '', subs: oc.subscriber_count, video_limit: RULES.videoLimitMax,
       url: 'https://www.youtube.com/channel/' + oc.channel_id, handle: oc.handle, gender: 'n', color: OWN_COLOR, ini: initials(oc.name),
       sync: { state: 'ok', last, next, added: ms(oc.created_at) ?? last, errorSince: null, msg: null, backfill: null },
       activity: activityOf(vs.map(x => x.pub), now), lastIdx: null, snapshots: [],
@@ -389,6 +394,18 @@ async function readAll<T>(table: string, build: () => RangeQuery): Promise<T[]> 
     if (page.length < PAGE) return out
   }
 }
+const OWN_CHANNEL_COLS = 'id, channel_id, name, handle, subscriber_count, last_synced_at, locale, created_at'
+/** Postgres 42703 (undefined_column) / PostgREST PGRST204: a migration do nicho ainda não chegou a este banco. */
+const NO_COLUMN = new Set(['42703', 'PGRST204'])
+/** Lê os canais próprios. Se a coluna `niche` ainda não existe neste banco (42703 / PGRST204), relê sem ela: todo canal carrega "sem nicho". Outro erro é lançado. */
+export async function readOwnChannels(sb: SupabaseClient, siteId: string): Promise<OwnChannelRow[]> {
+  const read = (cols: string) => readAll<OwnChannelRow>('youtube_channels', () => sb.from('youtube_channels').select(cols).eq('site_id', siteId).order('id'))
+  try { return await read(OWN_CHANNEL_COLS + ', niche') }
+  catch (e) {
+    if (e instanceof ObservatoryLoadError && e.table === 'youtube_channels' && e.code != null && NO_COLUMN.has(e.code)) return read(OWN_CHANNEL_COLS)
+    throw e
+  }
+}
 /** Runs `fn` over `items` with at most `limit` in flight; results keep the input order. Rejects on the first failure. */
 export async function mapLimit<A, B>(items: readonly A[], limit: number, fn: (a: A) => Promise<B>): Promise<B[]> {
   const out = new Array<B>(items.length)
@@ -434,7 +451,7 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
 
   const [channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeats] = await Promise.all([
     readAll<ChannelRow>('competitor_channels', () => sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).order('id')),
-    readAll<OwnChannelRow>('youtube_channels', () => sb.from('youtube_channels').select('id, channel_id, name, handle, subscriber_count, last_synced_at, locale, created_at').eq('site_id', siteId).order('id')),
+    readOwnChannels(sb, siteId),
     readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('is_hidden', false).order('id')),
     readAll<LegacyChangeRow>('competitor_changes', () => sb.from('competitor_changes').select('id, video_id, change_type, old_title, new_title, detected_at')
       .eq('site_id', siteId).is('from_version_id', null).in('change_type', ['title', 'description']).order('id')),
