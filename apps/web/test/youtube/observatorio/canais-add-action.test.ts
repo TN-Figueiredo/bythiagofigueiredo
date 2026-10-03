@@ -15,7 +15,7 @@ describe('parseChannelInput', () => {
   })
 })
 
-interface Db { own: unknown; existing: unknown; inserted: unknown[]; deleted?: unknown[] | null }
+interface Db { own: Array<{ id: string; channel_id: string }> | null; existing: unknown; inserted: unknown[]; deleted?: unknown[] | null }
 function setup(db: Db, slots = { used: 14, limit: 75, free: 61 }, auth: { ok: boolean; reason?: string; user?: { id: string } } = { ok: true, user: { id: 'u1' } }) {
   vi.resetModules()
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
@@ -26,7 +26,7 @@ function setup(db: Db, slots = { used: 14, limit: 75, free: 61 }, auth: { ok: bo
   const chain = (data: unknown) => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data }) }) }) }) })
   vi.doMock('@/lib/supabase/service', () => ({
     getSupabaseServiceClient: () => ({
-      from: (t: string) => t === 'youtube_channels' ? chain(db.own) : {
+      from: (t: string) => t === 'youtube_channels' ? { select: () => ({ eq: async () => ({ data: db.own }) }) } : {
         ...chain(db.existing),
         delete: () => ({ eq: () => ({ eq: () => ({ select: async () => ({ data: db.deleted ?? null, error: null }) }) }) }),
         insert: (row: unknown) => { db.inserted.push(row); return { select: () => ({ single: async () => ({ data: { id: 'n1', channel_id: 'x', site_id: 's1' }, error: null }) }) } },
@@ -46,9 +46,19 @@ describe('addCompetitorChannel', () => {
     setup({ own: null, existing: { id: 'c1', niche: 'ia', channel_name: 'Matt Wolfe' }, inserted: [] })
     expect(await (await load())(UC)).toEqual({ ok: false, error: 'Matt Wolfe já está no observatório (IA).' })
   })
-  it('the own channel is rejected', async () => {
-    setup({ own: { id: 'o1' }, existing: null, inserted: [] })
+  it('the own channel is rejected (singular with one own channel)', async () => {
+    setup({ own: [{ id: 'o1', channel_id: UC }], existing: null, inserted: [] })
     expect((await (await load())(UC)).error).toBe('Esse é o seu canal: ele já aparece na tabela e não ocupa vaga.')
+  })
+  it('the own channel is rejected (plural with two own channels)', async () => {
+    setup({ own: [{ id: 'o1', channel_id: 'UC' + 'b'.repeat(22) }, { id: 'o2', channel_id: UC }], existing: null, inserted: [] })
+    expect((await (await load())(UC)).error).toBe('Esse é um dos seus canais: ele já aparece na tabela e não ocupa vaga.')
+  })
+  it('zero own channels, or only other ones: the normal flow goes on', async () => {
+    setup({ own: [], existing: null, inserted: [] }, { used: 14, limit: 14, free: 0 })
+    expect((await (await load())(UC)).error).toBe('Sem vagas: 14 de 14 concorrentes. Remova um canal para adicionar outro.')
+    setup({ own: [{ id: 'o1', channel_id: 'UC' + 'b'.repeat(22) }], existing: null, inserted: [] }, { used: 14, limit: 14, free: 0 })
+    expect((await (await load())(UC)).error).toBe('Sem vagas: 14 de 14 concorrentes. Remova um canal para adicionar outro.')
   })
   it('full: the sentence of canais.html', async () => {
     setup({ own: null, existing: null, inserted: [] }, { used: 14, limit: 14, free: 0 })
