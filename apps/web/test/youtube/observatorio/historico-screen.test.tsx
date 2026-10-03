@@ -38,11 +38,13 @@ describe('HistoricoScreen', () => {
     expect(oneFilledButton(root)).toEqual([])
     expect(forbiddenVocabulary(root)).toEqual([])
     expect(brokenLinks(root)).toEqual([])
-    // the forja reading comes in Task 35: a slot, no button
-    expect(root.textContent).not.toMatch(/Pedir (nova )?leitura à forja/)
+    // Task 35: the forja is the screen's single filled button (solid) in the video header
+    const btns = [...root.querySelectorAll('.vhead .actions button')]
+    expect(btns.map(b => b.id)).toEqual(['askForja'])
+    expect(btns[0]).toHaveClass('forja-solid')
+    expect(btns[0]!.textContent).toMatch(/Pedir (nova )?leitura à forja|Pedido em andamento/)
     // R43: no per-video swipe in the header (follow-up FU-2): no control that does nothing
     expect(root.textContent).not.toMatch(/swipe file/i)
-    expect(root.querySelectorAll('.vhead .actions button').length).toBe(0)
   })
 
   it('every interactive element has an accessible name', () => {

@@ -10,6 +10,7 @@ import type { EffectResult } from '@/lib/youtube/observatorio/effect'
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
+import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
 
 const NB = ' '
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
@@ -109,6 +110,20 @@ export interface CanaisView {
   syncbar: { text: string; meta: string }
   /** Every competitor, whatever the niche scope or ?filter: the "Definir nicho dos canais" editor. */
   nicheRows: Array<{ id: string; name: string; niche: Niche | null }>
+  /** The forja ("Resumo das trocas", Task 35): header button/status, the Todos bar and the drawer's forja box. */
+  forja: ForjaView
+  /** Todos with a split request: the engine's lines and sentence outside the drawer (canais.html #forjaBar). */
+  forjaBar: { lines: string; text: string } | null
+  drawerForja: CanaisDrawerForja | null
+}
+/** canais.html forjaState(c): the forja box of the channel drawer (the niche's request, not only this channel). */
+export interface CanaisDrawerForja {
+  niche: Niche; head: string
+  lines: Array<{ text: string; me: boolean }>; chip: string | null; stateText: string | null
+  readingHref: string | null
+  why: string
+  button: { label: string; disabled: boolean; title: string }
+  free: { label: string; niches: Niche[] } | null
 }
 
 export interface CanaisParams {
@@ -473,6 +488,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
 
   const t = R.tiers
   return {
+    ...forjaOf(obs, niche, drawer),
     slots, scale, fmt, layout, sort, dir,
     sortNote: `Ordenado por ${SORTNAME[sort]}, ${dir === 'desc' ? 'maior' : 'menor'} primeiro`,
     vpdUnit: rel ? `por mil inscritos, mediana ${window}` : `mediana dos vídeos, ${window}`,
@@ -501,4 +517,47 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       .sort((a, b) => ['viagem', 'ia', null].indexOf(a.niche) - ['viagem', 'ia', null].indexOf(b.niche) || a.name.localeCompare(b.name, 'pt-BR')),
     syncTip: `Cada canal acompanha os vídeos mais recentes até o limite definido para ele (até ${R.videoLimitMax}). Todos os vídeos acompanhados têm views diárias desde ${obs.SERIES_START_LABEL}. Sincronização automática às ${obs.SYNC.slots.map(h => String(h).padStart(2, '0') + 'h').join(', ').replace(/, (\d\dh)$/, ' e $1')}.`,
   }
+}
+
+/* ------------------------------------------------------------------ forja (canais.html headerForja / forjaBar / forjaState) */
+const RUNNING = ['na fila', 'trabalhando', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia']
+function forjaOf(obs: Observatory, niche: NicheScope, drawer: DrawerView | null): Pick<CanaisView, 'forja' | 'forjaBar' | 'drawerForja'> {
+  const D = obs.date, type = 'resumo-trocas' as const
+  const forja = buildForjaView(obs, { screen: 'canais', niche })
+  const lines = forja.status?.lines ?? []
+  const forjaBar = niche === 'todos' && lines.length > 1 ? { lines: lines.join(' · '), text: forja.card.statusText ?? '' } : null
+  if (!drawer || drawer.own || !drawer.niche) return { forja, forjaBar, drawerForja: null }
+  const n = drawer.niche, NLn = NL[n]
+  const fv = niche === 'todos' ? forja : buildForjaView(obs, { screen: 'canais', niche: n })
+  const sc = obs.forja.session.current(niche === 'todos' ? 'todos' : n, { type })
+  const q = sc.empty ? null : sc.requests.find(x => x.niche === n) ?? null
+  const pv = obs.forja.preview(type, n), prev = obs.forja.latest(type, n)
+  const outs = pv.channelsOut, out = outs.find(x => x.id === drawer.id)
+  const label = prev ? 'Pedir nova leitura à forja' : 'Pedir leitura à forja'
+  const head = 'Resumo das trocas de ' + NLn + ', o nicho inteiro, não só deste canal'
+  let chip: string | null = null, stateText: string | null = null, readingHref: string | null = null
+  const split: Array<{ text: string; me: boolean }> = []
+  if (q) {
+    const pre = q.createdAt >= obs.NOW - 6e4 && q.createdAt <= obs.NOW ? 'Seu pedido foi enviado agora. ' : ''
+    stateText = pre + sc.statusText
+    if (q.state === 'publicado') { const rid = q.readingId ?? obs.forja.latest(type, n)?.id ?? null; readingHref = rid ? obs.link.mudancas({ reading: rid }) : null }
+    if (sc.requests.length > 1 && sc.statusLines) for (const l of sc.statusLines) split.push({ text: l, me: l.startsWith(NLn + ':') })
+    else chip = (sc.statusLines?.find(l => l.startsWith(NLn + ':')) ?? (q.statusLabel ?? sc.statusLabel ?? q.state)).replace(/^[^:]+:\s*/, '')
+  }
+  const outTxt = outs.length ? ' Ficam de fora: ' + outs.map(x => (obs.channel(x.id)?.name ?? x.id) + ': ' + x.reason.replace(/^.*fica fora: /, '')).join('; ') + '.' : ''
+  let why = pv.text + '; este canal entra.' + outTxt + (prev ? ' Última leitura: ' + D.dmhm(prev.generatedAt) + '.' : '')
+  let button = { label, disabled: false, title: 'Resumo das trocas de ' + NLn + ', o nicho inteiro' }
+  let free: CanaisDrawerForja['free'] = null
+  if (!fv.capable) { button = { ...button, disabled: true }; why = fv.incapableText! }
+  else if (out) { button = { label, disabled: true, title: 'Resumo das trocas de ' + NLn + ': ' + out.reason + '. O pedido do nicho continua valendo para os outros canais.' }; why = out.reason + '.' }
+  else if (q && RUNNING.includes(q.state)) {
+    button = { ...button, label: 'Pedido em andamento', disabled: true }
+    const fr = niche === 'todos' ? (forja.ask?.niches ?? []).filter(x => x !== n) : []
+    if (fr.length) { const L = fr.map(x => NL[x]).join(' e '); why += ' O pedido de ' + NLn + ' está em andamento; ' + L + ' está livre.'; free = { label: 'Pedir leitura de ' + L, niches: fr } }
+  } else if (q && q.state === 'publicado') {
+    button = { ...button, disabled: true }
+    const qn = sc.quota.byNiche?.[n]
+    why += ' ' + NLn + ': ' + (qn ? qn.text : sc.quota.text) + '.'
+  }
+  return { forja, forjaBar, drawerForja: { niche: n, head, lines: split, chip, stateText, readingHref, why, button, free } }
 }

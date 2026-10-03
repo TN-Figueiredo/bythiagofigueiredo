@@ -14,6 +14,8 @@ import { useChromeSync } from '../_chrome/sync-context'
 import { ChannelTable, type RowHandlers } from './channel-table'
 import { ChannelCards } from './channel-cards'
 import { ChannelDrawer } from './channel-drawer'
+import { DrawerForjaBox, DrawerForjaFoot } from './drawer-forja'
+import type { ForjaAsk } from '../_chrome/forja-drawer'
 import { AddChannelForm, type AddFn } from './add-channel-form'
 import { NicheEditorDialog } from './niche-editor'
 import { Ic, Tip, type LocalSync } from './cells'
@@ -28,6 +30,8 @@ export interface CanaisScreenProps {
   onUnlock: () => Promise<{ ok: boolean; error?: string }>
   onSetNiche: (id: string, niche: Niche) => Promise<{ ok: boolean }>
   onSyncOne: (id: string) => Promise<{ ok: boolean }>
+  /** "Pedir leitura à forja" in the channel drawer (server action askForjaReading). */
+  onAskForja?: ForjaAsk
 }
 
 const UPNEXT = '/cms/up-next'
@@ -50,7 +54,7 @@ function trapTab(e: KeyboardEvent<HTMLElement>) {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
 }
 
-export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSyncOne }: CanaisScreenProps) {
+export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSyncOne, onAskForja }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
@@ -223,6 +227,9 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               </>
             ) : null}
           </div>
+          {view.forjaBar ? (
+            <details className="fbar" id="forjaBar" data-forja-anchor=""><summary><b>forja</b> <span>{view.forjaBar.lines}</span></summary><p>{view.forjaBar.text}</p></details>
+          ) : null}
           <div className="toolbar">
             <div className="search">
               <Ic n="search" />
@@ -287,7 +294,9 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           <>
             {drawerModal ? <button type="button" className="cn-backdrop" aria-label="Fechar detalhes do canal" tabIndex={-1} onClick={closeDrawer} /> : null}
             <ChannelDrawer d={drawer} modal={drawerModal} upnextHref={UPNEXT} onClose={closeDrawer} closeRef={closeRef} trap={trapTab}
-              onRemove={from => askRemove(drawer.id, from)} onNiche={n => { void setNiche({ id: drawer.id, name: drawer.name }, n) }} />
+              onRemove={from => askRemove(drawer.id, from)} onNiche={n => { void setNiche({ id: drawer.id, name: drawer.name }, n) }}
+              forjaSlot={view.drawerForja && view.drawerForja.niche === drawer.niche ? <DrawerForjaBox f={view.drawerForja} /> : null}
+              forjaFootSlot={view.drawerForja && view.drawerForja.niche === drawer.niche ? <DrawerForjaFoot f={view.drawerForja} onAsk={onAskForja} /> : null} />
           </>
         ) : null}
       </div>

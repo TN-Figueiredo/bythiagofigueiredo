@@ -4,11 +4,13 @@ import Link from 'next/link'
 import { useEffect, useId, useRef, type KeyboardEvent, type RefObject } from 'react'
 import { Icon } from './icons'
 
-export function Menu({ open, focusAt, btnRef, boxRef, cowork, nicheEditorHref, onOpenNicheEditor, onToggle, onOpenAt, onClose, onCopy }: {
+export function Menu({ open, focusAt, btnRef, boxRef, cowork, nicheEditorHref, onOpenNicheEditor, onToggle, onOpenAt, onClose, onCopy, onCopyReading }: {
   open: boolean; focusAt: 'first' | 'last'
   btnRef: RefObject<HTMLButtonElement | null>; boxRef: RefObject<HTMLDivElement | null>
   cowork: string; nicheEditorHref: string; onOpenNicheEditor?: () => void
   onToggle: () => void; onOpenAt: (at: 'first' | 'last') => void; onClose: (focusBtn: boolean) => void; onCopy: () => void
+  /** Insights: "Copiar texto da leitura" (Task 35) — only when a reading is shown. */
+  onCopyReading?: () => void
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
   const prev = useId()
@@ -44,6 +46,11 @@ export function Menu({ open, focusAt, btnRef, boxRef, cowork, nicheEditorHref, o
             <span className="obs-ch-ctx">Copia este texto, montado a partir desta tela e do nicho atual. Depois, cole no Cowork com ⌘V.</span>
             <span className="obs-ch-preview" id={prev}>{cowork}</span>
           </button>
+          {onCopyReading ? (
+            <button className="obs-ch-mi" role="menuitem" type="button" tabIndex={-1} onClick={onCopyReading}>
+              <strong>{Icon.copy()}Copiar texto da leitura</strong><span className="obs-ch-ctx">Um bloco por fonte, com o selo e os dados enviados à forja.</span>
+            </button>
+          ) : null}
           <hr />
           {onOpenNicheEditor ? (
             <button className="obs-ch-mi" role="menuitem" type="button" tabIndex={-1} onClick={() => { onClose(true); onOpenNicheEditor() }}>

@@ -5,6 +5,7 @@
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { ObsChannel } from '@/lib/youtube/observatorio/types'
+import type { ForjaView } from './forja-view-model'
 
 export type ChromeTab = 'canais' | 'mudancas' | 'outliers' | 'insights'
 const TABS: readonly ChromeTab[] = ['canais', 'mudancas', 'outliers', 'insights']
@@ -32,14 +33,15 @@ export interface ChromeView {
     rows: ChromeFreshRow[]; popoverSub: string; problemsHref: string
   }
   addHref: string; nicheEditorHref: string; cowork: string
-  forja: null // P3: no forja segment; Task 35 fills it
+  /** The forja segment (Task 35): button, status and heartbeat of the screen's request type; null when the page has none. */
+  forja: ForjaView | null
 }
 
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
 export const nicheLabelOf = (obs: Observatory, n: NicheScope): string => (n === 'todos' ? 'Todos' : obs.NICHES[n].label)
 const colorOf = (obs: Observatory, n: NicheScope) => (n === 'todos' ? null : { dark: obs.NICHES[n].color.dark, light: obs.NICHES[n].color.light })
 
-export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: NicheScope }): ChromeView {
+export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: NicheScope; forja?: ForjaView | null }): ChromeView {
   const { niche } = o, F = obs.fmt, D = obs.date
   const counts = obs.tabCounts(niche)
   const countOf: Record<ChromeTab, number | null> = { canais: counts.canais, mudancas: counts.mud, outliers: counts.out, insights: null }
@@ -91,7 +93,8 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
     },
     addHref: obs.link.canais({ add: 1 }), nicheEditorHref: obs.link.canais({ nicheEditor: 1 }),
     cowork: coworkText(o.tab, niche),
-    forja: null,
+    // Task 22's guard: the segment exists only when the forja tables are ready
+    forja: o.forja && o.forja.ready ? o.forja : null,
   }
 }
 

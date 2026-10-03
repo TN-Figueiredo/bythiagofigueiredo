@@ -1,17 +1,36 @@
 /**
  * Insights view model (port of insights.html render*): every number and text the screen shows comes from here, computed
  * by the engine (patternsNow, cadence, heatmap, themeTrend, nicheStats, ownCoverage, RULES). The components only lay it
- * out. The frozen-reading hero, "Desde então" and the forja button arrive in Task 35 (`reading: null`).
+ * out. The frozen-reading hero ("Leitura da forja", insights.html renderForja) comes from the forja view model (Task 35).
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt as VideoFmt, Niche } from '@/lib/youtube/observatorio/types'
+import { buildForjaView, forjaReadingView, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
 
 /** Rich text: plain strings, bold and monospace numbers (the mockup's <b> and <span class="mono">). */
 export type RichPart = string | { b: string } | { mono: string } | { bmono: string }
 export type Rich = RichPart[]
 
 export interface LinkOrText { href: string | null; text: string; n: number }
+
+/** A paragraph of the hero's state box; `runbook` puts the runbook link between `before` and `after`. */
+export type HeroPara = string | { before: string; after: string }
+export interface InsightsHero {
+  statusChip: { text: string; dot: string; pulse: boolean } | null
+  quotaLine: string | null; scopeNote: string | null
+  /** The state box (no reading yet, or a request in progress / failed). */
+  box: { title: string; paras: HeroPara[]; steps: boolean; stillNone: string | null } | null
+  /** "publicado": the engine sentence above the new reading. */
+  publishedNote: string | null
+  reading: ForjaReadingView | null
+  /** The temas reading shown with the long-video formulas (its own seal). */
+  themes: ForjaReadingView | null
+  /** "Ver a última leitura publicada (20/10)" while a request is in progress. */
+  prevLabel: string | null
+  noteLabel: string; moreLabel: string
+  caveat: string
+}
 export interface EmptyBlock { title: string; text: string; link?: { href: string; text: string } }
 
 export interface FormulaRow {
@@ -76,10 +95,13 @@ export interface InsightsView {
   niche: NicheScope; fmt: VideoFmt
   window: { label: string; dates: string; title: string }
   fmtOptions: Array<{ key: VideoFmt; label: string; pressed: boolean }>
-  /** The frozen reading hero (Task 35). */
-  reading: null
+  /** The frozen reading of the screen's niche (forja view model; null with Todos or when none exists). */
+  reading: ForjaReadingView | null
+  /** The forja: header button/status (chrome) and the hero. */
+  forja: ForjaView
+  hero: InsightsHero | null
   /** Todos: Insights compares inside one niche. */
-  all: { title: string; text: string; go: Array<{ niche: Niche; label: string; href: string }> } | null
+  all: { title: string; text: string; go: Array<{ niche: Niche; label: string; href: string }>; forja: { title: string; lines: string[]; text: string | null; note: string | null } } | null
   formulas: FormulasSection | null; cadence: CadenceSection | null; heatmap: HeatmapSection | null
   themes: ThemesSection | null; youInNiche: YouSection | null; gaps: GapsSection | null
 }
@@ -106,8 +128,9 @@ export function parseFmt(raw: string | null | undefined): VideoFmt { return raw 
 
 export function buildInsightsView(obs: Observatory, p: InsightsParams): InsightsView {
   const fmt = parseFmt(p.fmt), niche = p.niche, { date: DT } = obs
+  const forja = buildForjaView(obs, { screen: 'insights', niche, fmt })
   const base = {
-    niche, fmt, reading: null,
+    niche, fmt, reading: forja.reading, forja,
     window: { label: 'Últimos 90 dias', dates: DT.dm(obs.NOW - 90 * DAY) + '–' + DT.dm(obs.NOW), title: 'Janela fixa desta aba' },
     fmtOptions: (['long', 'short'] as const).map(k => ({ key: k, label: k === 'long' ? 'Longos' : 'Shorts', pressed: k === fmt })),
   }
@@ -118,13 +141,21 @@ export function buildInsightsView(obs: Observatory, p: InsightsParams): Insights
         title: 'Insights compara dentro de um nicho',
         text: 'Misturar viagem e IA somaria públicos, horários e fórmulas que não têm nada a ver. Escolha um nicho para ver a leitura da forja, as fórmulas e os temas.',
         go: (['viagem', 'ia'] as const).map(n => ({ niche: n, label: 'Ver ' + obs.NICHES[n].label, href: '?niche=' + n + (fmt === 'short' ? '&fmt=short' : '') })),
+        forja: {
+          title: 'Pedido de leitura dos ' + FMT_LABEL[fmt],
+          // the engine's lines as they come; a single request gets its own "<Nicho>: <label>" line
+          lines: forja.status ? (forja.status.lines.length ? forja.status.lines : forja.niches.filter(b => b.statusLine).map(b => b.label + ': ' + b.statusLine)) : [],
+          text: forja.card.statusText,
+          note: !forja.status && !forja.niches.some(b => b.reading) ? 'Ainda não há leitura dos ' + FMT_LABEL[fmt] + ' em nenhum dos dois nichos.' : !forja.status ? 'Pedir uma leitura daqui envia um pedido dos ' + FMT_LABEL[fmt] + ' para cada nicho.' : null,
+        },
       },
+      hero: null,
       formulas: null, cadence: null, heatmap: null, themes: null, youInNiche: null, gaps: null,
     }
   }
   return {
-    ...base, all: null,
-    formulas: formulasSection(obs, niche, fmt), cadence: cadenceSection(obs, niche, fmt), heatmap: heatmapSection(obs, niche, fmt),
+    ...base, all: null, hero: heroOf(obs, forja, niche, fmt),
+    formulas: formulasSection(obs, niche, fmt, !!forja.reading), cadence: cadenceSection(obs, niche, fmt), heatmap: heatmapSection(obs, niche, fmt),
     themes: themesSection(obs, niche, fmt), youInNiche: youSection(obs, niche, fmt), gaps: gapsSection(obs, niche, fmt),
   }
 }
@@ -144,7 +175,7 @@ export function formulaChip(obs: Observatory, p: Pick<Pattern, 'nUse' | 'diff' |
   return { kind: 'neg', text: '≈ diferença abaixo da regra', title: null }
 }
 
-function formulasSection(obs: Observatory, niche: Niche, fmt: VideoFmt): FormulasSection {
+function formulasSection(obs: Observatory, niche: Niche, fmt: VideoFmt, hasReading: boolean): FormulasSection {
   const F = obs.fmt, R = obs.RULES, N = obs.patternsNow(niche, fmt)
   const meta = N.nVideos + ' ' + FMT_LABEL[fmt] + ' até ' + obs.date.dm(N.asOf) + ', 6 meses'
   const used = new Set<string>()
@@ -180,7 +211,7 @@ function formulasSection(obs: Observatory, niche: Niche, fmt: VideoFmt): Formula
   return {
     meta, rows, empty,
     zero: !empty && zero.length ? { ids: zero.map(p => p.formula), text: 'Sem títulos com: ' + zero.map(p => F.lcfirst(p.label)).join(', ') + '.' } : null,
-    foot: [{ b: 'Multiplicador' }, ' = views do vídeo ÷ mediana dos ', { b: 'outros' }, ' vídeos do canal (sem contar este). Publicados depois de ' + obs.SERIES_START_LABEL + ' comparam no mesmo dia de vida; quando o canal tem menos de ' + R.weakBase + ' vídeos com série desde o dia 0, cai para a aproximação por faixa de idade, que também vale para os anteriores a ' + obs.SERIES_START_LABEL + '. Base com menos de ' + R.weakBase + ' vídeos fica fora. “Passa a regra” exige ' + R.pattern.minN + ' vídeos com a fórmula e diferença de ' + F.dec1(R.pattern.minDiff) + '× ou mais. A tabela é a análise de hoje (base de ' + obs.date.dm(N.asOf) + '), sem selo da forja. Exemplos: títulos reais do nicho. Associação, não causa.'],
+    foot: [{ b: 'Multiplicador' }, ' = views do vídeo ÷ mediana dos ', { b: 'outros' }, ' vídeos do canal (sem contar este). Publicados depois de ' + obs.SERIES_START_LABEL + ' comparam no mesmo dia de vida; quando o canal tem menos de ' + R.weakBase + ' vídeos com série desde o dia 0, cai para a aproximação por faixa de idade, que também vale para os anteriores a ' + obs.SERIES_START_LABEL + '. Base com menos de ' + R.weakBase + ' vídeos fica fora. “Passa a regra” exige ' + R.pattern.minN + ' vídeos com a fórmula e diferença de ' + F.dec1(R.pattern.minDiff) + '× ou mais. ' + (hasReading ? 'A tabela é a análise de hoje' : 'Ainda não há leitura: a tabela é a análise de hoje') + ' (base de ' + obs.date.dm(N.asOf) + '), sem selo da forja. Exemplos: títulos reais do nicho. Associação, não causa.'],
   }
 }
 
@@ -471,5 +502,52 @@ function gapsSection(obs: Observatory, niche: Niche, fmt: VideoFmt): GapsSection
     rows: gaps.map(t => ({ theme: t.theme, label: t.label, sub: [{ mono: String(t.channels.length) }, ' canais, ', { mono: String(t.now) }, ' vídeos', ...(t.nMult ? [', ' as RichPart, ...medRich(obs, t.medMult, t.nMult)] : []), ' · você: nenhum'] })),
     none: gaps.length ? null : qualifying.length ? 'Você já tem vídeo em todos os ' + F.plural(qualifying.length, 'tema', 'temas') + ' que aparecem em 2 canais ou mais.' : 'Nenhum tema aparece em 2 canais ou mais nos últimos 90 dias.',
     foot: 'Por tema, não por tag: as tags ficam no idioma de cada canal, e “street food” não casaria com “comida de rua”. Seus ' + F.plural(cov.n, one, FMT_LABEL[fmt]) + ' dos últimos ' + cov.window + ' cobrem ' + F.plural(Object.keys(cov.byTheme).length, 'tema', 'temas') + '.' + (single ? ' Temas de um canal só ficam de fora (' + single + ').' : ''),
+  }
+}
+
+/* ------------------------------------------------------------------ the forja hero (insights.html renderForja) */
+const DOT: Record<string, string> = {
+  'na fila': 'var(--info)', 'trabalhando': 'var(--forja)', 'publicado': 'var(--success)', 'atrasado': 'var(--warning)', 'sem máquina': 'var(--warning)',
+  'nova tentativa': 'var(--info)', 'liberado pelo vigia': 'var(--info)', 'falhou': 'var(--danger)', 'recusado (dado velho)': 'var(--danger)',
+}
+function heroOf(obs: Observatory, f: ForjaView, niche: Niche, fmt: VideoFmt): InsightsHero {
+  const DT = obs.date, Q = obs.forja.queue, NL = obs.NICHES[niche].label, FL = FMT_LABEL[fmt]
+  const sc = obs.forja.session.current(niche, { type: f.type })
+  const r = sc.empty ? null : sc.requests.find(q => q.niche === niche) ?? null
+  const rd = f.reading
+  const tLatest = fmt === 'long' ? obs.forja.latest('temas', niche) : null
+  const themes = tLatest ? forjaReadingView(obs, tLatest, { active: !!f.status?.active, isNew: false, activeNote: null }) : null
+  // no reading yet: the engine says "nenhuma leitura ainda", never "N leituras"
+  const tm = cap(obs.forja.timing(f.type, niche, rd ? undefined : { count: 0 }).text) + '.'
+  const pv = f.card.previewText
+  const st = sc.statusText
+  const visibleSince = (rd?.since?.text ?? '') + ' ' + (themes?.since?.text ?? '')
+  const out = (f.niches[0]?.out ?? []).filter(o => !visibleSince.includes(o.split(' fica fora')[0]!))
+  const stillNone = !rd && r ? 'Ainda não há leitura publicada dos ' + FL + ' de ' + NL + '; ela aparece aqui quando este pedido terminar.' : null
+  let box: InsightsHero['box'] = null, publishedNote: string | null = null
+  if (!rd && !r) {
+    box = { title: 'Ainda não há leitura dos ' + FL + ' de ' + NL, steps: false, stillNone: null,
+      paras: [pv + ' dos canais elegíveis, agrupa por tema e por fórmula de título, e devolve um texto curto em que cada número aponta para os vídeos de onde saiu. ' + tm, 'Roda na máquina local, com Gemma 12B. Não julga thumbnails nem afirma causa.'] }
+  } else if (r) {
+    switch (r.state) {
+      case 'publicado': publishedNote = st; break
+      case 'na fila': box = { title: 'Pedido na fila', paras: [st, pv + '.', tm], steps: false, stillNone }; break
+      case 'trabalhando': box = { title: 'A forja está lendo os ' + FL + ' de ' + NL, paras: [st + ' ' + tm + ' Se travar por mais de ' + Q.STALE_RUNNING_MINUTES + ' minutos, o vigia libera o pedido e ele volta para a fila.'], steps: true, stillNone }; break
+      case 'atrasado': box = { title: 'Pedido atrasado', paras: [st, { before: 'Para investigar, veja o ', after: ', seção do log das execuções.' }], steps: false, stillNone }; break
+      case 'nova tentativa': case 'liberado pelo vigia': box = { title: cap(r.state), paras: [st, tm], steps: false, stillNone }; break
+      case 'sem máquina': box = { title: 'A forja não está consultando a fila', paras: [sc.machine.text + '; o limite é ' + Q.HEARTBEAT_DEAD_MINUTES + ' min.', st, { before: 'Para religar, veja o ', after: ', seção “desligar e religar”.' }], steps: false, stillNone }; break
+      case 'falhou': box = { title: 'O pedido das ' + DT.hm(r.createdAt) + ' não foi publicado', paras: [st, ...(rd ? ['A leitura de ' + DT.dm(obs.forja.byId[rd.id]!.generatedAt) + ' continua valendo.'] : [])], steps: false, stillNone }; break
+      case 'recusado (dado velho)': box = { title: 'A forja recusou o pedido das ' + DT.hm(r.createdAt), paras: [st, { before: cap(sc.quota.text) + '. Se repetir, veja o ', after: '.' }], steps: false, stillNone }; break
+    }
+  }
+  const nMore = rd ? rd.moreItems.length : 0
+  return {
+    statusChip: r ? { text: sc.statusLabel ?? r.state, dot: DOT[r.state] ?? 'var(--muted)', pulse: r.state === 'trabalhando' } : null,
+    quotaLine: f.card.quotaNote, scopeNote: out.length ? out.join('. ') + '.' : null,
+    box, publishedNote, reading: rd, themes: rd ? themes : null,
+    prevLabel: rd && r && r.state !== 'publicado' ? 'Ver a última leitura publicada (' + DT.dm(obs.forja.byId[rd.id]!.generatedAt) + ')' : null,
+    noteLabel: 'Nota do site, ' + DT.dm(obs.NOW),
+    moreLabel: nMore ? 'Ver ' + (nMore === 1 ? 'o outro item' : 'os outros ' + nMore + ' itens') + ' da leitura e as evidências' : 'Ver o resto da leitura e as evidências',
+    caveat: 'A forja agrupa e resume o que está nos dados. Ela não vê as thumbnails e não diz por que um vídeo foi bem.',
   }
 }

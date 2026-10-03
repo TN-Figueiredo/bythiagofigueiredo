@@ -82,7 +82,7 @@ describe('OutliersScreen', () => {
     await user.click(within(tl).getByRole('button', { name: /^91–180 d/ }))
     expect(push).toHaveBeenCalledWith(v.timeline.find(t => t.id === '91-180')!.href, { scroll: false })
   })
-  it('sort and format navigate; the forja slot is there and hidden (Task 35)', () => {
+  it('sort and format navigate; the forja bar fills its slot (Task 35)', () => {
     const { container } = mount()
     fireEvent.change(screen.getByRole('combobox', { name: 'Ordenar por' }), { target: { value: 'vpd' } })
     expect(push).toHaveBeenLastCalledWith(expect.stringContaining('sort=vpd'), { scroll: false })
@@ -90,7 +90,15 @@ describe('OutliersScreen', () => {
     expect(push).toHaveBeenLastCalledWith(expect.stringContaining('fmt=short'), { scroll: false })
     const slot = container.querySelector('[data-forja-slot]') as HTMLElement
     expect(slot).not.toBeNull()
-    expect(slot.hidden).toBe(true)
+    expect(slot.hidden).toBe(false)
+    // collapsed line: the readings' dates, then "Desde então" on its own line (no final period)
+    const bar = slot.querySelector('#forjabar')!
+    expect(bar.querySelector('summary')!.textContent).toMatch(/Leituras da forja: IA 20\/10, Viagem 20\/10/)
+    bar.querySelectorAll('[data-fsince], .obs-out-fsince').forEach(x => expect(x.textContent!.trim().endsWith('.')).toBe(false))
+    // under each seal only the literal reading text
+    const P = obs.forja.byId['padroes-titulo-ia-20-10']!
+    const sealed = bar.querySelector('[data-reading="padroes-titulo-ia-20-10"] [data-sealed]')!
+    expect([...sealed.querySelectorAll('[data-lit]')].map(x => x.textContent)).toEqual([P.text.title, P.text.lead, ...P.text.items, ...(P.text.theme ? [P.text.theme] : [])])
   })
   it('invalid params are dashed removable chips', () => {
     mount({ age: '99-100', formula: 'nope' })

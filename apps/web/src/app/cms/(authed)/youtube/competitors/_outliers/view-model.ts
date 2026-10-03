@@ -8,6 +8,7 @@ import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { OutlierItem, OutlierQuery, OutlierSort } from '@/lib/youtube/observatorio/outliers'
 import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
 import type { Fmt, ObsChannel, ObsVideo, ThumbArt } from '@/lib/youtube/observatorio/types'
+import { buildForjaView, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
 
 /** Inline text with emphasis: strings, bold runs, warning runs and an abbreviation with its explanation. */
 export type RichPart = string | { b: string } | { w: string } | { abbr: string; title: string }
@@ -71,6 +72,20 @@ export interface OutliersView {
   count: number
   /** The video ids the screen shows, in screen order (the list Histórico's pager walks). */
   pageIds: string[]
+  /** The forja (padrões de título): header button/status and the collapsed forja bar (Task 35). */
+  forja: ForjaView
+  forjaBar: OutliersForjaBar | null
+}
+export interface OutliersForjaBar {
+  bad: boolean
+  /** With a request: its state chip and the engine line(s); without: "Leituras da forja: Viagem 20/10, IA 20/10". */
+  summary: { kind: 'request'; chip: string; chipCls: 'bad' | 'warnst' | ''; line: string; split: boolean; statusText: string } | { kind: 'readings'; when: string }
+  /** "Desde então" on its own line (one line, each niche labelled when two). */
+  since: { multi: boolean; items: Array<{ id: string; label: string; body: string }> }
+  req: { cls: 'forja' | 'refused'; text: string; trackHref: string | null } | null
+  sideBad: string[]
+  rows: Array<{ niche: string; isNew: boolean; first: string; reading: ForjaReadingView; href: string }>
+  scope: { text: string; outs: string[] } | null
 }
 
 /* ------------------------------------------------------------------ constants (outliers.html) */
@@ -439,6 +454,55 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
     chipsLead, chips, asofNote,
     baseText: plainOf(baseParts), baseParts, basisMore, nicheNotice,
     problems, groups, more, empty, count: R.count, pageIds,
+    ...forjaBarOf(obs, S.channel ? obs.channel(S.channel)?.niche ?? effNiche : effNiche, effFmt),
+  }
+}
+
+/* ------------------------------------------------------------------ forja bar (outliers.html forjaBar) */
+const BUSY_ST = ['na fila', 'trabalhando', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia']
+const WARN_ST = ['atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia']
+const DEAD_ST = ['falhou', 'recusado (dado velho)']
+function forjaBarOf(obs: Observatory, niche: NicheScope, fmt: Fmt): Pick<OutliersView, 'forja' | 'forjaBar'> {
+  const F = obs.fmt
+  const forja = buildForjaView(obs, { screen: 'outliers', niche, fmt })
+  const sc = obs.forja.session.current(forja.niche, { type: forja.type })
+  const has = !sc.empty && sc.requests.length > 0
+  const rs = forja.niches.filter(b => b.reading).map(b => ({ b, r: b.reading! }))
+  if (!rs.length && !has) return { forja, forjaBar: null }
+  const capT = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
+  const bad = has && sc.terminal && DEAD_ST.includes(sc.state)
+  const anyActive = has && sc.requests.some(x => BUSY_ST.includes(x.state))
+  const split = has && sc.split && !!sc.statusLines
+  const quotaTxt = (): string => {
+    const q = sc.quota, by = q.byNiche
+    const differs = sc.split && by && Object.values(by).some(x => x && !x.free)
+    if (!differs && /cota/i.test(sc.statusText || '')) return ''
+    if (sc.split && by) return (Object.keys(by) as Array<'ia' | 'viagem'>).map(n => obs.NICHES[n].label + ': ' + by[n]!.text).join(' · ') + '.'
+    return capT(q.text) + '.'
+  }
+  const sinceBody = (r: ForjaReadingView) => r.since ? r.since.shortText.replace(/^desde então:\s*/i, '') : 'sem comparação com os dados de hoje'
+  const pv = forja.niches.filter(b => forja.ask?.niches.includes(b.niche) ?? false)
+  const outs = pv.flatMap(b => b.out)
+  const win = obs.forja.preview(forja.type, forja.niche, fmt).window
+  return {
+    forja,
+    forjaBar: {
+      bad,
+      summary: has
+        ? { kind: 'request', chip: anyActive && !BUSY_ST.includes(sc.state) ? 'em andamento' : sc.state, chipCls: bad ? 'bad' : WARN_ST.includes(sc.state) ? 'warnst' : '',
+          line: split ? sc.statusLines!.join(' · ') : sc.statusText, split, statusText: sc.statusText }
+        : { kind: 'readings', when: rs.map(x => x.b.label + ' ' + x.r.when.slice(0, 5)).join(', ') },
+      since: { multi: rs.length > 1, items: rs.map(x => ({ id: x.r.id, label: x.b.label, body: sinceBody(x.r) })) },
+      req: has ? {
+        cls: bad ? 'refused' : 'forja',
+        text: (sc.split && sc.state !== 'publicado' ? F.plural(sc.requests.length, 'pedido enviado', 'pedidos enviados') + ' à forja (' + sc.requests.map(x => obs.NICHES[x.niche].label).join(' e ') + '). ' : '') + (bad ? 'A leitura anterior continua valendo. ' : '') + quotaTxt(),
+        trackHref: sc.terminal ? null : obs.link.insights(forja.niche === 'todos' ? undefined : { niche: forja.niche }),
+      } : null,
+      sideBad: has && !sc.terminal ? sc.requests.filter(x => DEAD_ST.includes(x.state)).map(x => obs.NICHES[x.niche].label + ': ' + (x.statusLabel ?? x.state) + '. A leitura anterior de ' + obs.NICHES[x.niche].label + ' continua valendo.') : [],
+      rows: rs.map(x => ({ niche: x.b.label, isNew: x.r.isNew, first: x.r.keyItems[0] ?? x.r.lead, reading: x.r, href: obs.link.insights({ niche: x.b.niche }) })),
+      // the next request's scope: only free niches (Todos with one busy), never while nothing can be asked
+      scope: forja.ask && pv.length ? { text: 'Próximo pedido (últimos ' + (win ?? '6 meses') + '). ' + pv.map(b => (forja.niche === 'todos' ? b.label + ' · ' : '') + obs.forja.preview(forja.type, b.niche, fmt).text).join('; '), outs: outs } : null,
+    },
   }
 }
 

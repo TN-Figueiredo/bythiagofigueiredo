@@ -4,11 +4,12 @@
  * draws what this returns; nothing is computed in the components.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
+import { buildForjaView, forjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { EffectResult, EffectStatus } from '@/lib/youtube/observatorio/effect'
 import type { TitleDiff, TitleSpan } from '@/lib/youtube/observatorio/text-diff'
 import { parseNiche, type NicheScope } from '@/lib/youtube/observatorio/niche'
-import type { Fmt, ObsVideo, ThumbVersion } from '@/lib/youtube/observatorio/types'
+import type { Fmt, Niche, ObsVideo, ThumbVersion } from '@/lib/youtube/observatorio/types'
 
 /* ------------------------------------------------------------------ public types */
 export type ChangeType = 'title' | 'thumb' | 'desc'
@@ -85,6 +86,14 @@ export interface MudancasView {
   empty: null | { title: string; text: string; hiddenBy: string | null; actions: Array<{ label: string; patch: Patch }> }
   /** Display-only niche change (an object of another niche was asked for): toast text, never persisted. */
   nicheNote: string | null
+  /** The forja ("Resumo das trocas (30 dias)"): header button/status and the card of the summary box (Task 35). */
+  forja: ForjaView
+  forjaCard: {
+    /** ?reading=<id> opens that reading's niche (the list never changes). */
+    openNiche: Niche | null
+    outSummary: string; outText: string
+    shorts: { text: string; href: string } | null
+  }
 }
 
 /* ------------------------------------------------------------------ constants */
@@ -554,6 +563,34 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
     paging: { cuts, countLines, restTexts },
     empty: total ? null : emptyView(obs, f, query, extra, fmtQ),
     nicheNote,
+    ...forjaOf(obs, f),
+  }
+}
+
+/* ------------------------------------------------------------------ forja card (mudancas.html renderForja) */
+function forjaOf(obs: Observatory, f: MudancasFilters): Pick<MudancasView, 'forja' | 'forjaCard'> {
+  const forja = buildForjaView(obs, { screen: 'mudancas', niche: f.niche })
+  // ?reading=<id>: that reading opens in its niche's block (the list does not change)
+  const linked = f.reading ? obs.forja.byId[f.reading] : undefined
+  let openNiche: Niche | null = null
+  if (linked && linked.type === 'resumo-trocas' && linked.niche) {
+    const b = forja.niches.find(x => x.niche === linked.niche)
+    if (b) { b.reading = forjaReadingView(obs, linked, { active: b.active, isNew: false, activeNote: null }); b.emptyText = null; openNiche = linked.niche }
+  }
+  const out = forja.niches.flatMap(b => b.out)
+  const busy = !!forja.status?.active
+  const shortsType = obs.forja.readingTypeFor('short')
+  return {
+    forja,
+    forjaCard: {
+      openNiche,
+      outSummary: out.length ? pl(out.length, 'canal fora do próximo pedido', 'canais fora do próximo pedido') + '; o que a forja faz' : 'O que a forja faz aqui',
+      outText: out.join('. ') + (out.length ? '. ' : '') + 'A forja classifica o texto das trocas (longos e Shorts); não julga thumbnails nem diz o que funcionou.' + (busy ? '' : ' ' + obs.forja.queue.quotaScope.text),
+      shorts: f.fmt === 'short' ? {
+        text: obs.forja.shortsNote + ' ' + forja.niches.map(b => { const sr = obs.forja.latest(shortsType, b.niche); return b.label + ': ' + (sr ? 'última de ' + obs.date.dm(sr.generatedAt) : 'sem leitura') }).join('; ') + '.',
+        href: obs.link.insights(f.niche === 'todos' ? undefined : { niche: f.niche }) + (f.niche === 'todos' ? '?fmt=short' : '&fmt=short'),
+      } : null,
+    },
   }
 }
 

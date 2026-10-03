@@ -1,7 +1,7 @@
 'use client'
 /**
  * The Outliers screen (port of outliers.html #screen): age windows, format and order; the summary with
- * "Como contamos"; the slot of the forja bar (Task 35); the link chips; and the result grouped by phase in PHASES
+ * "Como contamos"; the forja bar (Task 35); the link chips; and the result grouped by phase in PHASES
  * order, or the empty state whose every button carries the N its destination shows.
  */
 import Link from 'next/link'
@@ -13,6 +13,7 @@ import { AgeTimeline } from './age-timeline'
 import { ParamChips } from './param-chips'
 import { PhaseGroup } from './phase-group'
 import { OutIcon, RichText } from './outlier-card'
+import { ForjaBar } from './forja-bar'
 
 export function OutliersScreen({ view: v }: { view: OutliersView }) {
   const router = useRouter()
@@ -43,8 +44,8 @@ export function OutliersScreen({ view: v }: { view: OutliersView }) {
           <summary><span className="obs-out-cnt" aria-live="polite"><RichText parts={v.baseParts} /></span> <span className="obs-out-more">Como contamos</span></summary>
           <div>{v.basisMore.map((t, i) => <p key={i}>{t}</p>)}</div>
         </details>
-        {/* Forja bar (Task 35): the request scope and the readings land here. */}
-        <div className="obs-out-fbslot" data-forja-slot="" hidden />
+        {/* Forja bar (Task 35): the request state, the readings and the next request's scope. */}
+        {v.forjaBar ? <div className="obs-out-fbslot" data-forja-slot=""><ForjaBar bar={v.forjaBar} /></div> : null}
         {v.problems ? (
           <div className="obs-out-probs" data-probs="">
             <OutIcon name="warn" />
