@@ -3,7 +3,7 @@
  * implemented screen, on the SAME oracle data (observatorio-seed.ts) and the same frozen clock (webServer
  * OBS_NOW_OVERRIDE = the mockup's NOW_ISO).
  *
- * Per test: seed (once per state) → implementation (cookie btf_theme, route + query, wait for the compare root) →
+ * Per test: seed (once per state, http routes only; cleared after the state) → implementation (cookie btf_theme, route + query, wait for the compare root) →
  * mockup (file://…?theme=, open #ch-mock, click each mockupClicks label) → visible text equal after normalize →
  * screenshots of both → layoutAudits(implementation) = [].
  * Artefacts: test-results/observatorio/<screen>/<state>-<vp>-<theme>{.diff.txt,-mockup.png,-impl.png}.
@@ -14,7 +14,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { test, expect, type Page } from '@playwright/test'
-import { seedObservatory, type SeedOptions } from '../../../fixtures/observatorio-seed'
+import { seedObservatory, clearObservatory, type SeedOptions } from '../../../fixtures/observatorio-seed'
 import { getSeedSiteId } from '../../../fixtures/seed-helpers'
 
 export interface MockupState { label: string; mockupClicks: string[]; seed: SeedOptions; query?: string }
@@ -153,17 +153,25 @@ export async function layoutAudits(page: Page, opts: { screen: string; root?: st
   }, { screen: opts.screen, root, tabs })
 }
 
-/** Registers the Playwright tests of a screen: state × viewport × theme. Serial: every state re-seeds the same site. */
+/** Registers the Playwright tests of a screen: state × viewport × theme. Serial: every state re-seeds the same site (and clears it after); a file:// route is not seeded. */
 export function runFidelity(spec: ScreenSpec): void {
   const root = spec.compareSelector ?? DEFAULT_ROOT
   test.describe(`fidelidade · ${spec.name}`, () => {
     test.describe.configure({ mode: 'serial' })
     for (const state of spec.states) {
       test.describe(state.label, () => {
-        test.beforeAll(async () => {
-          test.setTimeout(180_000)
-          await seedObservatory(await getSeedSiteId(), state.seed)
-        })
+        // a file:// "implementation" (the self-test) reads no DB: nothing to seed, nothing to clear
+        if (!isUrl(spec.route)) {
+          test.beforeAll(async () => {
+            test.setTimeout(180_000)
+            await seedObservatory(await getSeedSiteId(), state.seed)
+          })
+          // leaves the local dev site without oracle data once the state's tests are done
+          test.afterAll(async () => {
+            test.setTimeout(120_000)
+            await clearObservatory(await getSeedSiteId())
+          })
+        }
         for (const vp of VIEWPORTS) for (const theme of THEMES) {
           test(`${vp.id} · ${theme}`, async ({ browser }) => {
             test.setTimeout(120_000)

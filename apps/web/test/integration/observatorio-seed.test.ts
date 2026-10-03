@@ -10,7 +10,7 @@ import { createObservatory } from '@/lib/youtube/observatorio'
 import { requestStateOf } from '@/lib/youtube/observatorio/forja/states'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
 import { loadOracle } from '../youtube/observatorio/oracle'
-import { seedObservatory, clearObservatory, ORACLE_NOW } from '../../e2e/fixtures/observatorio-seed'
+import { seedObservatory, clearObservatory, seedUuid, ORACLE_NOW } from '../../e2e/fixtures/observatorio-seed'
 
 describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
   let sb: ReturnType<typeof getSupabaseServiceClient>
@@ -87,13 +87,31 @@ describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
       .eq('site_id', siteId).eq('status', 'pending')
     expect(rows.error).toBeNull()
     expect(rows.data).toHaveLength(1)
+    const oracle = loadOracle(), showcase = oracle.videos.find((x: { id: string }) => x.id === oracle.SHOWCASE)
+    expect(rows.data![0]!.target_video_id).toBe(seedUuid(siteId, 'video', oracle.SHOWCASE))
     const v = await sb.from('competitor_videos').select('title').eq('id', rows.data![0]!.target_video_id!).single()
     expect(v.error).toBeNull()
+    expect(v.data!.title).toBe(showcase.title)
     expect(rows.data![0]).toMatchObject({ task_type: 'leitura-video', target_niche: 'ia' })
   }, 120_000)
 
-  it('clearObservatory leaves nothing for the site', async () => {
+  it('clearObservatory leaves nothing for the site, cascaded tables included', async () => {
+    // the site is seeded by the previous test; keep some video ids to check the FK cascades
+    const chs = await sb.from('competitor_channels').select('id').eq('site_id', siteId)
+    expect(chs.error).toBeNull()
+    const vids = await sb.from('competitor_videos').select('id').in('competitor_channel_id', chs.data!.map(c => c.id)).limit(100)
+    expect(vids.error).toBeNull()
+    const ids = vids.data!.map(v => v.id)
+    expect(ids.length).toBeGreaterThan(0)
     await clearObservatory(siteId, sb)
+    for (const [t, col] of [['competitor_videos', 'id'], ['competitor_video_versions', 'video_id'], ['competitor_video_daily', 'video_id']] as const) {
+      const r = await sb.from(t).select(col, { count: 'exact', head: true }).in(col, ids)
+      expect({ t, n: r.count }).toEqual({ t, n: 0 })
+    }
+    const ch = await sb.from('competitor_changes').select('id', { count: 'exact', head: true }).eq('site_id', siteId)
+    expect(ch.count).toBe(0)
+    const tasks = await sb.from('youtube_intelligence_tasks').select('id', { count: 'exact', head: true }).eq('site_id', siteId)
+    expect(tasks.count).toBe(0)
     for (const t of ['competitor_channels', 'competitor_readings', 'forja_heartbeat', 'competitor_settings', 'youtube_channels'] as const) {
       const r = await sb.from(t).select('site_id', { count: 'exact', head: true }).eq('site_id', siteId)
       expect({ t, n: r.count }).toEqual({ t, n: 0 })

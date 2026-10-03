@@ -76,10 +76,9 @@ export async function seedCampaign(
 export async function getSeedSiteId(supabase?: SupabaseClient): Promise<string> {
   let sb = supabase
   if (!sb) {
-    const { createClient } = await import('@supabase/supabase-js')
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!url || !key) throw new Error('getSeedSiteId: NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing (apps/web/.env.test)')
-    sb = createClient(url, key, { auth: { persistSession: false } })
+    // same local-only guard as the seed (apps/web/.env.local points at production)
+    const { localServiceClient } = await import('./observatorio-seed')
+    sb = localServiceClient()
   }
   const { data, error } = await sb.from('sites').select('id').contains('domains', ['localhost']).order('created_at').limit(1).maybeSingle()
   if (error || !data) throw new Error(`getSeedSiteId: no site with 'localhost' in domains: ${error?.message ?? 'none'}`)
