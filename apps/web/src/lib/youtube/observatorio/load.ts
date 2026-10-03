@@ -182,6 +182,12 @@ function withLegacy<T extends Base>(legacy: readonly LegacyChangeRow[], real: T[
   return out
 }
 
+/** taken_at as epoch ms when it is a valid instant inside the record's own SP day; else null (caller falls back to nominal). */
+function realReadAt(d: DailyRow, dayStart: number): number | null {
+  const t = ms(d.taken_at)
+  return t != null && t >= dayStart && t < dayStart + DAY ? t : null
+}
+
 /* ------------------------------------------------------------------ rows → Dataset (pure) */
 export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   const ssAt = ms(rows.settings?.series_started_at)
@@ -211,8 +217,13 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
     let lastIdx: number | null = null
     vs.forEach(({ v, pub }, k) => {
       const fmt: Fmt = v.is_short ? 'short' : 'long'
-      // nominal 12:00 SP per record (like the mockup); the real taken_at stays in the DB
-      const series: SeriesPoint[] = (dailyBy.get(v.id) ?? []).map(d => { const idx = dayIndex(d.snap_date); return { idx, t: snap0 + idx * DAY, views: Number(d.views) } })
+      // the instant of a record is its real taken_at (any rate / elapsed-time math needs it: a read at 14:40 is not a
+      // read at 12:00). The nominal 12:00 SP of the snap_date is only the day label and the fallback for a row without a
+      // usable taken_at (missing, unparseable, or outside its own SP day).
+      const series: SeriesPoint[] = (dailyBy.get(v.id) ?? []).map(d => {
+        const idx = dayIndex(d.snap_date), nominal = snap0 + idx * DAY
+        return { idx, t: realReadAt(d, spDateStart(d.snap_date)) ?? nominal, views: Number(d.views) }
+      })
         .sort((a, b) => a.idx - b.idx)
       for (const p of series) if (lastIdx == null || p.idx > lastIdx) lastIdx = p.idx
       const realTitles: TitleVersion[] = (versionsBy.get(v.id + '|title') ?? []).map(r => ({ ...baseOf(r), text: r.value_text ?? '' }))

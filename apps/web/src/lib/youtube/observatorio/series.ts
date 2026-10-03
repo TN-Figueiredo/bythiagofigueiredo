@@ -30,7 +30,11 @@ export function viewsAtIdx(v: ObsVideo, i: number): number | null {
   return p ? p.views : null
 }
 const virtual = (ctx: EngineCtx, v: ObsVideo, i: number) => v.firstIdx != null && i === v.firstIdx - 1 && fromDayZero(ctx, v)
-export function pointTime(ctx: EngineCtx, v: ObsVideo, i: number): number { return virtual(ctx, v, i) ? v.pub : ctx.clock.snapTime(i) }
+/** Virtual publication point → pub; real record → its real read instant (`t`), nominal 12:00 only when the point is absent. */
+export function pointTime(ctx: EngineCtx, v: ObsVideo, i: number): number { return virtual(ctx, v, i) ? v.pub : pointsOf(v).get(i)?.t ?? ctx.clock.snapTime(i) }
+/** views/day over an elapsed time; null (never negative, never Infinity) when the elapsed time is ≤ 0 — no base, no rate.
+ *  No larger minimum: the mockup oracle (dados.js) rates a video read minutes after its publication, and parity is tested. */
+const ratePerDay = (dv: number, dt: number): number | null => (dt > 0 ? dv / (dt / DAY) : null)
 export function pointViews(ctx: EngineCtx, v: ObsVideo, i: number): number | null { return virtual(ctx, v, i) ? 0 : viewsAtIdx(v, i) }
 /** Published inside the series AND with the whole series read (not cut by the lookback cap): a day-0 baseline exists. */
 export const fromDayZero = (ctx: EngineCtx, v: ObsVideo): boolean => v.pub >= ctx.ds.seriesStart && !v.truncated
@@ -39,7 +43,7 @@ export function earliestIdx(v: ObsVideo, seriesStart: number): number { return v
 export function rate(ctx: EngineCtx, v: ObsVideo, a: number, b: number): number | null {
   const va = pointViews(ctx, v, a), vb = pointViews(ctx, v, b)
   if (va == null || vb == null) return null
-  return (vb - va) / ((pointTime(ctx, v, b) - pointTime(ctx, v, a)) / DAY)
+  return ratePerDay(vb - va, pointTime(ctx, v, b) - pointTime(ctx, v, a))
 }
 export function vpdSince(ctx: EngineCtx, v: ObsVideo): number | null {
   if (!v.series.length) return null
@@ -60,7 +64,7 @@ export const changedSince = (ctx: EngineCtx, v: ObsVideo): boolean =>
 export function viewsAtAge(ctx: EngineCtx, u: ObsVideo, ageMs: number, tMax: number | null): number | null {
   if (!u.series.length) return null
   const T = u.pub + ageMs, lastI = Math.min(lastIdxOf(u), tMax == null ? 1e9 : tMax)
-  if (T > ctx.clock.snapTime(lastI) + 1) return null
+  if (T > pointTime(ctx, u, lastI) + 1) return null
   let a = earliestIdx(u, ctx.ds.seriesStart)
   for (let i = a; i <= lastI; i++) { if (pointTime(ctx, u, i) <= T) a = i; else break }
   const va = pointViews(ctx, u, a)
@@ -78,7 +82,9 @@ function intervalsOf(ctx: EngineCtx, v: ObsVideo): Interval[] {
     const ya = pointViews(ctx, v, i), yb = pointViews(ctx, v, i + 1)
     if (ya == null || yb == null) continue // a hole: no interval across a missing day
     const ta = pointTime(ctx, v, i), tb = pointTime(ctx, v, i + 1)
-    out.push({ a: ta, b: tb, vpd: (yb - ya) / ((tb - ta) / DAY), idxTo: i + 1 })
+    const r = ratePerDay(yb - ya, tb - ta)
+    if (r == null) continue // too short (or non-positive) an interval: no average rather than a wild or negative one
+    out.push({ a: ta, b: tb, vpd: r, idxTo: i + 1 })
   }
   return out
 }
