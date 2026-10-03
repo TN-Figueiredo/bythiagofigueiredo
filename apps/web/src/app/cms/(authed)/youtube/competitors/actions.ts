@@ -11,6 +11,7 @@ import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
 import type { SyncNowResult } from './_chrome/view-model'
+import { parseChannelInput } from './_canais/channel-input'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -19,47 +20,80 @@ async function requireEditAccess(): Promise<string> {
   return siteId
 }
 
+const YT_API = 'https://www.googleapis.com/youtube/v3'
+const NICHE_LABEL = { viagem: 'Viagem', ia: 'IA' } as const
+const BAD_INPUT = 'Use o @handle (ex.: @LukeDamant) ou a URL do canal (youtube.com/@…).'
+
+/** @handle → channel id and title through the YouTube Data API (channels.list forHandle, 1 unit). */
+async function resolveHandle(handle: string, apiKey: string): Promise<{ id: string; title: string } | null> {
+  const res = await fetch(`${YT_API}/channels?part=id,snippet&forHandle=${encodeURIComponent(handle)}&key=${apiKey}`, { cache: 'no-store' })
+  if (!res.ok) throw new Error('YouTube API ' + res.status)
+  const body = (await res.json()) as { items?: Array<{ id?: string; snippet?: { title?: string } }> }
+  const it = body.items?.[0]
+  return it?.id ? { id: it.id, title: it.snippet?.title ?? handle } : null
+}
+
+/**
+ * "Adicionar canal": accepts the forms the Canais dialog accepts (and a bare id from the old modal). Refuses when there
+ * is no free slot, when the channel is the site's own, and when it is already in the observatório (saying its niche).
+ */
 export async function addCompetitorChannel(
-  channelId: string,
+  channelInput: string,
   niche?: 'viagem' | 'ia',
-): Promise<{ ok: boolean; error?: string; slots?: ChannelSlots }> {
-  // Validate channel ID format
-  const trimmed = channelId.trim()
-  if (trimmed.length < 2 || trimmed.length > 50) {
-    return { ok: false, error: 'Channel ID inválido' }
-  }
+  videoLimit?: number,
+): Promise<{ ok: boolean; error?: string; slots?: ChannelSlots; title?: string }> {
+  const parsed = parseChannelInput(channelInput)
+  if (!parsed) return { ok: false, error: BAD_INPUT }
+  if (niche !== undefined && niche !== 'viagem' && niche !== 'ia') return { ok: false, error: 'Nicho inválido.' }
+  const limit = videoLimit === undefined ? undefined : Math.round(videoLimit)
+  if (limit !== undefined && !(limit >= 10 && limit <= 200)) return { ok: false, error: 'Escolha entre 10 e 200 vídeos.' }
 
   let siteId: string
   try { siteId = await requireEditAccess() } catch { return { ok: false, error: 'forbidden' } }
 
   const supabase = getSupabaseServiceClient()
 
-  const before = await getChannelSlots(siteId)
-  if (before.free === 0) return { ok: false, error: 'Sem vagas', slots: before }
+  const apiKey = process.env.YOUTUBE_API_KEY
+  let ytId: string, title: string
+  if (parsed.kind === 'id') { ytId = parsed.id; title = parsed.id }
+  else {
+    if (!apiKey) return { ok: false, error: 'A chave da API do YouTube não está configurada.' }
+    let found: { id: string; title: string } | null
+    try { found = await resolveHandle(parsed.handle, apiKey) } catch { return { ok: false, error: 'O YouTube não respondeu. Tente de novo em alguns minutos.' } }
+    if (!found) return { ok: false, error: `Canal não encontrado no YouTube: confira o ${parsed.handle}.` }
+    ytId = found.id; title = found.title
+  }
 
-  // Check duplicate
+  const { data: own } = await supabase.from('youtube_channels').select('id').eq('site_id', siteId).eq('channel_id', ytId).maybeSingle()
+  if (own) return { ok: false, error: 'Esse é o seu canal: ele já aparece na tabela e não ocupa vaga.' }
+
   const { data: existing } = await supabase
     .from('competitor_channels')
-    .select('id, niche')
+    .select('id, niche, channel_name')
     .eq('site_id', siteId)
-    .eq('channel_id', trimmed)
+    .eq('channel_id', ytId)
     .maybeSingle()
 
   if (existing) {
-    const where = existing.niche ? ` em ${existing.niche === 'ia' ? 'IA' : 'Viagem'}` : ''
-    return { ok: false, error: `Canal já adicionado${where}` }
+    const en = existing.niche as string | null
+    const n = en === 'ia' || en === 'viagem' ? ` (${NICHE_LABEL[en]})` : ''
+    return { ok: false, error: `${existing.channel_name || title} já está no observatório${n}.` }
   }
+
+  // after the duplicate check: a channel already in the observatório says so even when there is no free slot
+  const before = await getChannelSlots(siteId)
+  if (before.free === 0) return { ok: false, error: `Sem vagas: ${before.used} de ${before.limit} concorrentes. Remova um canal para adicionar outro.`, slots: before }
 
   const { data: inserted, error } = await supabase.from('competitor_channels').insert({
     site_id: siteId,
-    channel_id: trimmed,
-    channel_name: trimmed,
+    channel_id: ytId,
+    channel_name: title,
     ...(niche ? { niche } : {}),
+    ...(limit !== undefined ? { video_limit: limit } : {}),
   }).select('id, channel_id, site_id').single()
 
   if (error) return { ok: false, error: error.message }
 
-  const apiKey = process.env.YOUTUBE_API_KEY
   if (apiKey && inserted) {
     try {
       await syncCompetitorChannel(inserted, apiKey)
@@ -68,8 +102,16 @@ export async function addCompetitorChannel(
     }
   }
 
-  revalidatePath('/cms/youtube/competitors')
-  return { ok: true, slots: await getChannelSlots(siteId) }
+  revalidatePath('/cms/youtube/competitors', 'layout')
+  // the resolved YouTube title; a bare id has none until the first sync
+  return { ok: true, slots: await getChannelSlots(siteId), ...(parsed.kind === 'handle' ? { title } : {}) }
+}
+
+/** The Canais dialog's submit (one object, so the client passes what it validated). */
+export async function addChannelFromCanais(input: { channel: string; niche: 'viagem' | 'ia'; videoLimit: number }): Promise<{ ok: boolean; error?: string; title?: string }> {
+  if (!input || typeof input.channel !== 'string' || typeof input.videoLimit !== 'number') return { ok: false, error: 'Pedido inválido.' }
+  const res = await addCompetitorChannel(input.channel, input.niche, input.videoLimit)
+  return { ok: res.ok, ...(res.error ? { error: res.error } : {}), ...(res.title ? { title: res.title } : {}) }
 }
 
 export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean }> {
@@ -77,8 +119,10 @@ export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean
   try { siteId = await requireEditAccess() } catch { return { ok: false } }
 
   const supabase = getSupabaseServiceClient()
-  await supabase.from('competitor_channels').delete().eq('id', id).eq('site_id', siteId)
-  revalidatePath('/cms/youtube/competitors')
+  // a row of another site (or an id that does not exist) deletes nothing: that is not a success
+  const { data, error } = await supabase.from('competitor_channels').delete().eq('id', id).eq('site_id', siteId).select('id')
+  if (error || !data || data.length === 0) return { ok: false }
+  revalidatePath('/cms/youtube/competitors', 'layout')
   return { ok: true }
 }
 

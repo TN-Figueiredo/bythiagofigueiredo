@@ -1,4 +1,5 @@
 // Port of dados.js:858-935, 1035-1058, 1966-1985 (+ sync.label at 415): channel stats, cadence, sync labels, problem phrase.
+import { computeSlots, type ChannelSlots } from '../competitor-slots-math'
 import { RULES, DEFAULT_AGES } from './rules'
 import { median } from './stats'
 import { DAY, H, WD } from './time'
@@ -152,9 +153,9 @@ export function channelStats(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'lo
   }
 }
 
-export function channelSlots(ctx: EngineCtx, limit: number): { used: number; limit: number; free: number } {
-  const used = ctx.ds.channels.filter(c => !c.own).length
-  return { used, limit, free: Math.max(0, limit - used) }
+/** Competitors only (the own channel never takes a slot); the formula is computeSlots, shared with the actions. */
+export function channelSlots(ctx: EngineCtx, limit: number): ChannelSlots {
+  return computeSlots(ctx.ds.channels.filter(c => !c.own).length, limit)
 }
 
 /** @internal mockup parity only; product uses syncResultToast */

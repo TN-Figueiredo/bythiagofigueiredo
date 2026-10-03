@@ -6,7 +6,7 @@
  */
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { ChromeView, SyncNowResult } from './view-model'
 import { Freshness } from './freshness'
@@ -14,6 +14,7 @@ import { Tabs } from './tabs'
 import { NicheBar } from './niche-bar'
 import { Menu } from './menu'
 import { ToastProvider, useToast } from './toasts'
+import { ChromeSyncContext } from './sync-context'
 import { Icon } from './icons'
 
 export interface ObservatoryChromeProps {
@@ -48,6 +49,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
   const [menuAt, setMenuAt] = useState<'first' | 'last'>('first')
   const [pendingNiche, setPendingNiche] = useState<NicheScope | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const syncCtx = useMemo(() => ({ running: syncing }), [syncing])
   const menuBtn = useRef<HTMLButtonElement>(null), freshBtn = useRef<HTMLButtonElement>(null)
   const menuBox = useRef<HTMLDivElement>(null), freshBox = useRef<HTMLDivElement>(null)
 
@@ -158,7 +160,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
           <NicheBar niches={niches} pending={pendingNiche} onPick={pickNiche} />
         </div>
       </div>
-      <div className="obs-ch-screen">{children}</div>
+      <div className="obs-ch-screen"><ChromeSyncContext.Provider value={syncCtx}>{children}</ChromeSyncContext.Provider></div>
     </div>
   )
 }
