@@ -4,13 +4,15 @@ import { loadOracle, datasetFromOracle, createTestObservatory } from './oracle'
 import { forjaScenarios } from './forja-scenarios'
 import { createClock } from '@/lib/youtube/observatorio/time'
 import { summarize } from '@/lib/youtube/observatorio/forja/states'
-import { createObservatory } from '@/lib/youtube/observatorio'
+import { createObservatory, type ScenarioEnv } from '@/lib/youtube/observatorio'
+import type { ForjaRequest } from '@/lib/youtube/observatorio/types'
 
 const oracle = loadOracle()
 const ds = datasetFromOracle(loadOracle())
 const clock = createClock(ds.now, ds.seriesStart, ds.snap0)
 const niches = new Map(ds.videos.map(v => [v.id, v.niche]))
 const gen = forjaScenarios({ clock, videoNiche: id => niches.get(id) ?? null, lastPollAt: ds.queue.lastPollAt!, tickMinutes: ds.queue.tickMinutes })
+const strip = (reqs: ForjaRequest[]) => reqs.map(q => { const { stateNote: _n, behind: _b, ...rest } = q; return rest as ForjaRequest })
 const FIELDS = ['statusLabel', 'statusLines', 'statusText', 'terminal', 'anyActive', 'split'] as const
 const pick = (sc: Record<string, unknown> & { quota: { text: string } }) => ({ ...Object.fromEntries(FIELDS.map(k => [k, sc[k]])), quotaText: sc.quota.text })
 
@@ -31,6 +33,12 @@ describe('forja parity — fixture requests summarised by PRODUCTION code = orac
     const built = gen.build(st, { niche, createdAt })!
     const prod = summarize(built.requests, built.machine, built.scopeTodos, clock)
     expect(pick(prod as never)).toEqual(pick(oracle.forja.requestScenario(st, { niche, createdAt })))
+  })
+  // Fix round 1: DB rows carry no queue relationship — production derives "atrás do …" itself.
+  it.each(cases)('without stateNote/behind: %s × %s × %s', (st, niche, type) => {
+    const built = gen.build(st, { type, niche })!
+    const prod = summarize(strip(built.requests), built.machine, built.scopeTodos, clock)
+    expect(pick(prod as never)).toEqual(pick(oracle.forja.requestScenario(st, { type, niche })))
   })
   it('the facade wires the same thing: forja.requestScenario (test-injected) = oracle', () => {
     const obs = createTestObservatory(ds)
@@ -66,8 +74,12 @@ describe('forja parity — session planner (production createSession behind the 
     return out
   }
   const prod = createTestObservatory(ds)
+  // the same with the session base stripped of stateNote/behind (DB-shaped rows)
+  const stripped = createObservatory(ds, { testScenarios: (env: ScenarioEnv) => { const g = forjaScenarios(env); return { ...g, build: (st, t) => { const b = g.build(st, t); return b && { ...b, requests: strip(b.requests) } } } } })
   it.each(['sem pedido', ...gen.requestStates].flatMap(b => ['padroes-titulo', 'leitura-video'].map(t => [b, t] as const)))('base %s × %s', (base, type) => {
-    expect(script(prod.forja.session as unknown as S, base, type)).toEqual(script(oracle.forja.session, base, type))
+    const want = script(oracle.forja.session, base, type)
+    expect(script(prod.forja.session as unknown as S, base, type)).toEqual(want)
+    expect(script(stripped.forja.session as unknown as S, base, type)).toEqual(want)
   })
 })
 

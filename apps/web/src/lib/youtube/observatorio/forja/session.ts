@@ -9,6 +9,7 @@
 import type { Clock } from '../time'
 import type { ForjaRequest, Niche } from '../types'
 import { NICHES } from '../rules'
+import { liveRequests } from './quota'
 import {
   TYPE_SHORT, aheadNote, composeRaw, describeRequests, isActive, nextSpMidnight, queueOrder, resummarize, withQuota,
   FORJA_QUEUE, type Machine, type Scenario,
@@ -28,6 +29,7 @@ export interface SessionOpts {
   /** Type and video used when a call names none (the mockup's base type). */
   defaultType?: string; defaultVideo?: string | null
   /**
+   * @internal Test seam — production leaves it unset.
    * The requests the base holds when viewed for ONE niche. Default: the base's own request of that niche, so a
    * single-niche view of an untouched request gets the canonical texts. (The mockup's generator builds a single-niche
    * scenario with its own times; the test facade injects it here.)
@@ -36,11 +38,12 @@ export interface SessionOpts {
 }
 
 export const NOT_ANNOUNCED = 'A forja ainda não lê pedidos do observatório.'
+/** ask(null) for a niche type: nothing to send. */
+export const NO_NICHE = 'Nada enviado: escolha um nicho (Viagem, IA ou Todos).'
 const isVid = (t: string) => t === 'leitura-video'
 const vidOf = (q: ForjaRequest) => q.video ?? q.target.video ?? null
 const todosOf = (scope: SessionScope) => scope === 'todos' || scope === 'all'
 const NO_QUOTA = ['falhou', 'recusado (dado velho)']
-const WAITING = ['na fila', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia']
 const stripBehind = (s: string) => s.replace(/ \(atrás do de [^)]+\)$/, '')
 
 interface Ask { niche: Niche; type: string; video: string | null; createdAt: number; seq: number }
@@ -49,12 +52,8 @@ interface Key { type: string; video: string | null }
 
 export function createSession(requests: ForjaRequest[], machine: Machine, clock: Clock, opts: SessionOpts) {
   const NOW = clock.now
-  const dayStart = nextSpMidnight(NOW, clock) - 864e5
   // What exists: active requests, plus today's finished ones (they decide the quota); the latest per (type, niche, video).
-  const latest = new Map<string, ForjaRequest>()
-  for (const q of [...requests].sort((a, b) => a.createdAt - b.createdAt))
-    if (isActive(q) || q.createdAt >= dayStart) latest.set(q.type + '|' + q.niche + '|' + (isVid(q.type) ? vidOf(q) : ''), q)
-  const base0 = [...latest.values()]
+  const base0 = liveRequests(requests, NOW, clock)
   const st = { type: opts.defaultType ?? 'padroes-titulo', video: opts.defaultVideo ?? null, asks: [] as Ask[], cancels: [] as Cancel[], seq: 0 }
   const typeOf = (o?: SessionTarget) => (o && o.type) || st.type
   const sameKey = (x: { type: string; video: string | null }, type: string, video: string | null) => x.type === type && (!isVid(type) || x.video === video)
@@ -107,7 +106,7 @@ export function createSession(requests: ForjaRequest[], machine: Machine, clock:
     const reqs = sc.requests.map(q => {
       const r: ForjaRequest = { ...q }, i = gq.findIndex(g => g.id === q.id)
       if (i >= 0) { r.queuePos = i + 1; r.firstInQueue = i === 0; r.queueSize = gq.length }
-      if (i > 0 && WAITING.includes(q.state) && ['na fila', 'atrasado', 'sem máquina'].includes(q.state)) {
+      if (i > 0 && ['na fila', 'atrasado', 'sem máquina'].includes(q.state)) {
         const ah = gq[i - 1]!, note = aheadNote(ah, { ...r, type })
         if (r.stateNote !== note) { changed = true; r.stateNote = note; r.behind = ah.id; r.statusLabel = (r.statusLabel ?? '').replace(/ \(atrás d[^)]+\)$/, '') + ' (' + note + ')' }
       }
@@ -188,6 +187,7 @@ export function createSession(requests: ForjaRequest[], machine: Machine, clock:
       return { ok, results: res, reason: ok ? null : res[0]!.reason, scenario: current(n, { type, video }) }
     }
     const ns: Niche[] = todosOf(scope) ? ['ia', 'viagem'] : scope ? [scope as Niche] : []
+    if (!ns.length) return { ok: false, reason: NO_NICHE, results: [], scenario: current(scope, { type }) }
     if (!opts.capabilities.includes(type)) return { ok: false, reason: NOT_ANNOUNCED, results: ns.map(n => ({ niche: n, ok: false, reason: NOT_ANNOUNCED })), scenario: current(scope, { type }) }
     for (const n of ns) {
       const q = nicheReqs(n, type)[0]

@@ -79,9 +79,14 @@ export function requestStateOf(task: TaskRow, machine: { lastPollAt: number | nu
     case 'pending': {
       const requested = Date.parse(task.requested_at)
       const dead = machine.lastPollAt == null || now - machine.lastPollAt > FORJA_QUEUE.HEARTBEAT_DEAD_MINUTES * MIN
-      if (dead || now - requested > UNSERVED_AFTER_HOURS * HOUR) return 'sem máquina'
-      if (task.retry_count > 0) return task.released_at ? 'liberado pelo vigia' : 'nova tentativa'
-      return now - requested > LATE_AFTER_MINUTES * MIN ? 'atrasado' : 'na fila'
+      if (dead || now - requested >= UNSERVED_AFTER_HOURS * HOUR) return 'sem máquina'
+      if (task.retry_count > 0) {
+        // Ruling R27: released_at is sticky — the vigia's release only names the state when it is newer than the
+        // row's last failure (a validator retry after a release is a "nova tentativa").
+        const released = task.released_at ? Date.parse(task.released_at) : null, failed = task.failed_at ? Date.parse(task.failed_at) : null
+        return released != null && (failed == null || released > failed) ? 'liberado pelo vigia' : 'nova tentativa'
+      }
+      return now - requested >= LATE_AFTER_MINUTES * MIN ? 'atrasado' : 'na fila'
     }
     default: throw new Error('requestStateOf: unknown task status ' + JSON.stringify(task.status))
   }
@@ -146,6 +151,21 @@ export function queueOrder(reqs: ForjaRequest[]): ForjaRequest[] {
 }
 
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
+/** What a failure was: the validator refused every attempt, the vigia released it every time ('travou-3x'), or another code. */
+export type FailKind = 'validador' | 'travou' | 'outro'
+export const failKindOf = (q: Pick<ForjaRequest, 'failReason'>): FailKind =>
+  q.failReason && /validador/i.test(q.failReason) ? 'validador' : q.failReason && /^travou-3x\b/.test(q.failReason) ? 'travou' : 'outro'
+/**
+ * The canonical failure sentence, driven by the failure reason. `n` names the niche (Todos); without it, the one-niche form.
+ * The validator text is the mockup's; 'travou-3x' and other codes are the DB-shaped branches (fix round 1).
+ */
+export function failText(q: ForjaRequest, clock: Clock, n?: string): string {
+  switch (failKindOf(q)) {
+    case 'validador': return (n ? 'O pedido de ' + n + ' falhou' : 'Falhou') + ' nas ' + q.attempt + ' tentativas. O validador recusou a saída em todas. Falha não conta na cota.'
+    case 'travou': return 'O pedido' + (n ? ' de ' + n : '') + ' travou nas ' + q.attempt + ' tentativas: o vigia liberou e a máquina não terminou. Falha não conta na cota.'
+    default: return 'O pedido' + (n ? ' de ' + n : '') + ' falhou às ' + hmOr(q, 'failedAt', clock) + ' (' + (q.failReason ? 'código ' + q.failReason : 'sem código') + '). Falha não conta na cota.'
+  }
+}
 const waitingOf = (q: ForjaRequest, now: number) => q.waitingMinutes ?? Math.round((now - (q.releasedAt || q.createdAt)) / MIN)
 
 /**
@@ -167,30 +187,34 @@ export function statusText(reqs: ForjaRequest[], machine: Machine, clock: Clock)
       case 'publicado': return r0.publishedAt ? 'Leitura publicada às ' + clock.hm(r0.publishedAt) + '.' : 'Publicação prevista às ' + at_('publishedAt').replace(' (previsto)', '') + '.'
       case 'atrasado': return 'Máquina ativa (última consulta ' + ago + '), mas o pedido está na fila há ' + w0 + ' min — o limite é ' + LATE_AFTER_MINUTES + ' min.'
       case 'sem máquina': return 'Seu pedido das ' + clock.hm(r0.createdAt) + ' está na fila e roda quando a máquina voltar.'
-      case 'nova tentativa': return 'Voltou para a fila (tentativa ' + ord + '). ' + retry
+      case 'nova tentativa': return ('Voltou para a fila (tentativa ' + ord + '). ' + retry).trim()
       case 'liberado pelo vigia': return 'O vigia liberou o pedido (travou > 30 min) — volta para a fila (tentativa ' + ord + ').'
-      case 'falhou': return 'Falhou nas ' + r0.attempt + ' tentativas. O validador recusou a saída em todas. Falha não conta na cota.'
-      case 'recusado (dado velho)': return r0.refusedReason ? cap(r0.refusedReason) : ''
+      case 'falhou': return failText(r0, clock)
+      case 'recusado (dado velho)': return r0.refusedReason ? cap(r0.refusedReason) : 'O pedido foi recusado às ' + hmOr(r0, 'refusedAt', clock) + '.'
     }
   }
   // Todos: the text agrees with the lines — each niche is cited with the state of its own line
   const nm = (q: ForjaRequest) => label(q.niche), others = reqs.filter(q => q !== r0), names = reqs.map(nm).join(' e ')
+  // the plural only when every request failed the same canonical way (validator)
+  const allValidatorFail = others.every(q => q.state === 'falhou') && reqs.every(q => failKindOf(q) === 'validador')
   const first = ({
     'na fila': 'Pedido de ' + nm(r0) + ' na fila desde ' + clock.hm(r0.createdAt) + '. A máquina consulta a cada ' + tick + ' min (próxima às ' + hmLoose(clock, nextPoll) + ').',
     'trabalhando': 'Pedido de ' + nm(r0) + ' em andamento desde ' + (r0.claimedAt ? clock.hm(r0.claimedAt) : at_('claimedAt')) + '.',
     'atrasado': 'Máquina ativa (última consulta ' + ago + '), mas o pedido de ' + nm(r0) + ' está na fila há ' + w0 + ' min — o limite é ' + LATE_AFTER_MINUTES + ' min.',
     'sem máquina': 'Seus pedidos das ' + clock.hm(r0.createdAt) + ' (' + names + ') estão na fila e rodam quando a máquina voltar.',
-    'nova tentativa': 'O pedido de ' + nm(r0) + ' voltou para a fila (tentativa ' + ord + '). ' + retry,
+    'nova tentativa': ('O pedido de ' + nm(r0) + ' voltou para a fila (tentativa ' + ord + '). ' + retry).trim(),
     'liberado pelo vigia': 'O vigia liberou o pedido de ' + nm(r0) + ' (travou > 30 min) — volta para a fila (tentativa ' + ord + ').',
     'publicado': 'Leitura de ' + nm(r0) + ' publicada às ' + hmLoose(clock, r0.publishedAt) + '.',
-    'falhou': others.every(q => q.state === 'falhou') ? 'Os ' + reqs.length + ' pedidos (' + names + ') falharam nas ' + r0.attempt + ' tentativas. O validador recusou a saída em todas. Falha não conta na cota.'
-      : 'O pedido de ' + nm(r0) + ' falhou nas ' + r0.attempt + ' tentativas. O validador recusou a saída em todas. Falha não conta na cota.',
-    'recusado (dado velho)': 'O pedido de ' + nm(r0) + ' foi recusado. ' + (r0.refusedReason ? cap(r0.refusedReason) : '').replace(/\s*Peça de novo\.?$/, ''),
+    'falhou': allValidatorFail ? 'Os ' + reqs.length + ' pedidos (' + names + ') falharam nas ' + r0.attempt + ' tentativas. O validador recusou a saída em todas. Falha não conta na cota.'
+      : failText(r0, clock, nm(r0)),
+    'recusado (dado velho)': r0.refusedReason ? 'O pedido de ' + nm(r0) + ' foi recusado. ' + cap(r0.refusedReason).replace(/\s*Peça de novo\.?$/, '')
+      : 'O pedido de ' + nm(r0) + ' foi recusado às ' + hmOr(r0, 'refusedAt', clock) + '.',
   } as Record<RequestState, string>)[state]
   const other = others.find(isActive)
   if (other && (state === 'falhou' || state === 'recusado (dado velho)')) return [first, againText(other, r0, clock)].join(' ')
-  const tail = others.filter(q => !(state === 'sem máquina' && q.state === 'sem máquina') && !(state === 'falhou' && q.state === 'falhou' && others.every(o => o.state === 'falhou'))).map(q => {
+  const tail = others.filter(q => !(state === 'sem máquina' && q.state === 'sem máquina') && !(state === 'falhou' && q.state === 'falhou' && allValidatorFail)).map(q => {
     const behind = q.stateNote ? ', ' + q.stateNote : ''
+    if (q.state === 'falhou' && state === 'falhou' && failKindOf(q) !== 'validador') return failText(q, clock, nm(q))
     switch (q.state) {
       case 'na fila': return 'O pedido de ' + nm(q) + ' espera na fila desde ' + clock.hm(q.createdAt) + behind + ' (a máquina pega um por consulta).'
       case 'atrasado': return 'O pedido de ' + nm(q) + ' está atrasado, na fila há ' + waitingOf(q, clock.now) + ' min' + behind + '.'
@@ -240,6 +264,9 @@ export function describeRequests(requests: ForjaRequest[], machine: Machine, clo
   const reqs = creationOrder(requests).map(q => ({ ...q }))
   for (const q of reqs) if (q.waitingMinutes == null && isActive(q) && q.state !== 'trabalhando') q.waitingMinutes = waitingOf(q, clock.now)
   const r0 = reqs[0]!, state = r0.state, split = reqs.length > 1
+  // The queue suffix (fix round 1): a waiting request behind an active lead is "atrás do …" the lead, derived here so
+  // DB rows (which carry no stateNote) read exactly like the canonical scenario. Same rule as the mockup's generator.
+  if (isActive(r0)) for (const q of reqs.slice(1)) if (q.stateNote == null && WAITING_FOR_NOTE.includes(q.state)) { q.stateNote = aheadNote(r0, q); q.behind = r0.id }
   const text = statusText(reqs, machine, clock)
   // "atrás do de X" only while the request in front is active
   reqs.forEach((q, i) => { if (i > 0 && q.stateNote && !isActive(r0)) { q.stateNote = null; q.behind = null } })
@@ -288,7 +315,7 @@ export function resummarize(requests: ForjaRequest[], machine: Machine, scopeTod
   const reqs = requests.map(q => ({ ...q, statusLabel: labelled(q, machine, clock) }))
   const capDot = (t: string) => t ? cap(t).replace(/\.$/, '') + '.' : ''
   const one = (q: ForjaRequest) => (!split && q.state === 'sem máquina') ? sentence(q, clock, true)
-    : (!split && q.state === 'falhou') ? sentence(q, clock, false) + (q.failReason ? ' ' + capDot(q.failReason) : '') + ' Falha não conta na cota.'
+    : (!split && q.state === 'falhou') ? (failKindOf(q) === 'validador' ? sentence(q, clock, false) + ' ' + capDot(q.failReason!) + ' Falha não conta na cota.' : failText(q, clock, label(q.niche)))
     : (!split && q.state === 'recusado (dado velho)') ? sentence(q, clock, false) + (q.refusedReason ? ' ' + capDot(q.refusedReason) : '') : sentence(q, clock, false)
   const dead = reqs.find(q => NO_QUOTA.includes(q.state)), act = reqs.find(isActive)
   return {
