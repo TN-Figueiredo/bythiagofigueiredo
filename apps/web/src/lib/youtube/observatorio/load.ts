@@ -58,8 +58,12 @@ const OWN_VIDEO_COLS = 'id, channel_id, youtube_video_id, title, view_count, lik
 const TASK_COLS = 'id, task_type, target_niche, target_video_id, target_fmt, status, requested_at, started_at, completed_at, failed_at, refused_at, refused_reason, released_at, retry_count'
 /** PostgREST `max_rows` (supabase/config.toml): a bigger read is silently truncated, so every list is paged. */
 const PAGE = 1000
-/** ids per `in()` filter, so the URL stays well under the gateway limit. */
-const IN_CHUNK = 500
+/**
+ * ids per `in()` filter, so the URL stays well under the gateway limit. The local gateway answers 414 above ~8 KB
+ * (measured: 200 uuids = 7.9 KB ok, 250 = 9.8 KB → 414); 500 broke any site with more than ~200 videos
+ * (test/integration/observatorio-seed.test.ts). 150 uuids ≈ 5.9 KB plus the select list.
+ */
+const IN_CHUNK = 150
 /** Parallel `in()` chunk reads per table. */
 const IN_CHUNK_CONCURRENCY = 4
 const SNAPSHOT_DAYS = 90
