@@ -2339,6 +2339,79 @@ export type Database = {
           },
         ]
       }
+      competitor_readings: {
+        Row: {
+          analysis: Json
+          created_at: string
+          evidence: Json
+          fmt: string | null
+          generated_at: string
+          id: string
+          model: string
+          niche: string | null
+          sent: Json
+          site_id: string
+          task_id: string | null
+          task_type: string
+          text: Json
+          video_id: string | null
+        }
+        Insert: {
+          analysis?: Json
+          created_at?: string
+          evidence?: Json
+          fmt?: string | null
+          generated_at: string
+          id?: string
+          model: string
+          niche?: string | null
+          sent: Json
+          site_id: string
+          task_id?: string | null
+          task_type: string
+          text: Json
+          video_id?: string | null
+        }
+        Update: {
+          analysis?: Json
+          created_at?: string
+          evidence?: Json
+          fmt?: string | null
+          generated_at?: string
+          id?: string
+          model?: string
+          niche?: string | null
+          sent?: Json
+          site_id?: string
+          task_id?: string | null
+          task_type?: string
+          text?: Json
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_readings_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_readings_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: true
+            referencedRelation: "youtube_intelligence_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_readings_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competitor_settings: {
         Row: {
           channel_limit: number
@@ -3352,6 +3425,38 @@ export type Database = {
             foreignKeyName: "fan_interactions_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forja_heartbeat: {
+        Row: {
+          capabilities: string[]
+          key_id: string | null
+          last_poll_at: string
+          site_id: string
+          updated_at: string
+        }
+        Insert: {
+          capabilities?: string[]
+          key_id?: string | null
+          last_poll_at: string
+          site_id: string
+          updated_at?: string
+        }
+        Update: {
+          capabilities?: string[]
+          key_id?: string | null
+          last_poll_at?: string
+          site_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forja_heartbeat_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: true
             referencedRelation: "sites"
             referencedColumns: ["id"]
           },
@@ -9051,53 +9156,77 @@ export type Database = {
       }
       youtube_intelligence_tasks: {
         Row: {
-          channel_id: string
+          channel_id: string | null
           completed_at: string | null
           created_at: string
           error_message: string | null
           failed_at: string | null
           id: string
+          refused_at: string | null
+          refused_reason: string | null
+          released_at: string | null
           requested_at: string
           requested_by: string | null
           result_summary: Json | null
           retry_count: number
+          sent: Json | null
           site_id: string
           started_at: string | null
           status: string
+          target_fmt: string | null
+          target_niche: string | null
+          target_video_id: string | null
+          task_type: string
           trigger_type: string
           updated_at: string
         }
         Insert: {
-          channel_id: string
+          channel_id?: string | null
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
           failed_at?: string | null
           id?: string
+          refused_at?: string | null
+          refused_reason?: string | null
+          released_at?: string | null
           requested_at?: string
           requested_by?: string | null
           result_summary?: Json | null
           retry_count?: number
+          sent?: Json | null
           site_id: string
           started_at?: string | null
           status?: string
+          target_fmt?: string | null
+          target_niche?: string | null
+          target_video_id?: string | null
+          task_type?: string
           trigger_type: string
           updated_at?: string
         }
         Update: {
-          channel_id?: string
+          channel_id?: string | null
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
           failed_at?: string | null
           id?: string
+          refused_at?: string | null
+          refused_reason?: string | null
+          released_at?: string | null
           requested_at?: string
           requested_by?: string | null
           result_summary?: Json | null
           retry_count?: number
+          sent?: Json | null
           site_id?: string
           started_at?: string | null
           status?: string
+          target_fmt?: string | null
+          target_niche?: string | null
+          target_video_id?: string | null
+          task_type?: string
           trigger_type?: string
           updated_at?: string
         }
@@ -9107,6 +9236,13 @@ export type Database = {
             columns: ["channel_id"]
             isOneToOne: false
             referencedRelation: "youtube_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "youtube_intelligence_tasks_target_video_id_fkey"
+            columns: ["target_video_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_videos"
             referencedColumns: ["id"]
           },
           {

@@ -101,6 +101,17 @@ describe('sync result toast', () => {
     expect(t.title).toBe('Concorrentes sincronizados')
     expect(t.text).toBe('2 de 2 canais sincronizados agora')
   })
+  it('problems listed Viagem before IA; the facade uses the engine channels', () => {
+    const info = (id: string) => ({ i: { name: 'Esq', niche: 'ia' }, v: { name: 'Paddy', niche: 'viagem' } } as Record<string, { name: string; niche: string }>)[id]
+    expect(syncResultToast({ ok: [], problems: [{ id: 'i', label: 'erro' }, { id: 'v', label: 'atrasado' }], outOfRound: [] }, info).body).toBe('Paddy: atrasado; Esq: erro.')
+    const ia = obs.channels.find(c => !c.own && c.niche === 'ia')!, via = obs.channels.find(c => !c.own && c.niche === 'viagem')!
+    const t = obs.syncResultToast({ ok: ['x'], problems: [{ id: ia.id, label: 'a' }, { id: via.id, label: 'b' }], outOfRound: [] })
+    expect(t.body).toBe(`${via.name}: b; ${ia.name}: a.`)
+    expect(t.text).toBe('1 de 3 canais sincronizados agora; 2 com problema')
+  })
+  it('inRound counts only the ok competitors (the ones the action touches)', () => {
+    expect(buildChromeView(obs, { tab: 'canais', niche: 'todos' }).fresh.inRound).toBe(obs.channels.filter(c => !c.own && c.sync.state === 'ok').length)
+  })
   it('nothing synced is never a success', () => {
     const t = syncResultToast({ ok: [], problems: [], outOfRound: [] }, names)
     expect(t.kind).toBe('warn')

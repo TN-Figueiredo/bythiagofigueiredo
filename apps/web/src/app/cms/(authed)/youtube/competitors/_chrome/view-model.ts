@@ -24,7 +24,7 @@ export interface ChromeView {
     channelsInNiche: number; channelsTotal: number; syncText: string; syncTitle: string
     /** "14 canais" or "8 canais em Viagem"; totalText = " · 14 no total" with a niche. */
     channelsText: string; totalText: string | null
-    /** Competitors that enter a manual round (all but the ones still fetching videos). */
+    /** Competitors queued by a manual round: only the ones whose state is ok (the others are not touched). */
     inRound: number
     problems: Array<{ id: string; name: string; phrase: string }>; problemsText: string | null
     /** Compact form ("3" or "2/3") and the per-label breakdown for title=. */
@@ -63,13 +63,13 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
   const byLabel = [...new Set(bad.map(c => c.sync.label ?? ''))].map(l => `${bad.filter(c => (c.sync.label ?? '') === l).length} ${l}`).join(', ')
   // The engine's dates (clock of the dataset): "hoje HH:MM" for today, "DD/MM HH:MM" otherwise; null = never synced.
   const lastText = (ts: number | null) => (ts == null ? null : D.dm(ts) === D.dm(obs.NOW) ? 'hoje ' + D.hm(ts) : D.dmhm(ts))
-  const row = (c: ObsChannel, isBad: boolean): ChromeFreshRow => ({
+  const row = (c: ObsChannel, isBad: boolean): ChromeFreshRow => { const last: number | null = c.sync.last; return {
     id: c.id, name: c.name, niche: c.niche, nicheLabel: c.niche ? obs.NICHES[c.niche].label : null,
     situation: isBad ? phrase(c) : (c.sync.label ?? ''),
     // M5: on a problem row the engine phrase already carries the date (except while fetching videos)
-    last: isBad && c.sync.state !== 'backfill' ? null : lastText(c.sync.last as number | null),
+    last: isBad && c.sync.state !== 'backfill' ? null : lastText(last),
     bad: isBad,
-  })
+  } }
   const next = obs.SYNC.nextText
   return {
     title: CHROME_TITLE, subtitle: CHROME_SUBTITLE, tzLabel: 'Horários em São Paulo',
@@ -80,7 +80,7 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
       channelsInNiche: competitors.filter(inNiche).length, channelsTotal: competitors.length,
       channelsText: niche === 'todos' ? F.plural(competitors.length, 'canal', 'canais') : `${F.plural(competitors.filter(inNiche).length, 'canal', 'canais')} em ${nl}`,
       totalText: niche === 'todos' ? null : ` · ${competitors.length} no total`,
-      inRound: competitors.filter(c => c.sync.state !== 'backfill').length,
+      inRound: good.length,
       syncText: obs.SYNC.text, syncTitle: obs.SYNC.title,
       problems: bad.map(c => ({ id: c.id, name: c.name, phrase: phrase(c) })), problemsText,
       problemsShort: bad.length ? (niche === 'todos' ? String(bad.length) : `${kIn}/${bad.length}`) : null,
@@ -108,31 +108,8 @@ export function coworkText(tab: ChromeTab | 'historico', niche: NicheScope): str
   return base[tab] + ' Use o MCP bythiagofigueiredo.'
 }
 
-export interface SyncRun { ok: string[]; problems: Array<{ id: string; label: string }>; outOfRound: Array<{ id: string; label: string }> }
-export interface SyncToast { kind: 'ok' | 'warn'; title: string; body: string; more: string; text: string }
+// Single source (R40): the engine. Re-exported so the chrome API stays where screens import it.
+export { syncResultToast, type SyncRun, type SyncToast, type SyncLookup } from '@/lib/youtube/observatorio/channels'
+import type { SyncToast } from '@/lib/youtube/observatorio/channels'
 /** What the "Sincronizar concorrentes" server action returns. */
 export interface SyncNowResult { ok: boolean; text: string; problems: Array<{ id: string; label: string }>; outOfRound: Array<{ id: string; label: string }>; toast?: SyncToast }
-
-/**
- * Result of "Sincronizar concorrentes" (CHROME 2.2 M3, spec 2.2): never a fabricated success.
- * text = "11 de 13 canais sincronizados agora; 2 com problema · Fora da rodada: Vou sem volta (buscando vídeos)".
- */
-export function syncResultToast(run: SyncRun, names: (id: string) => string): SyncToast {
-  const ok = run.ok.length, p = run.problems.length, total = ok + p
-  const out = run.outOfRound.map(x => `${names(x.id)} (${x.label})`)
-  const moreCore = out.length ? `Fora da rodada: ${out.join('; ')}` : ''
-  const more = moreCore ? moreCore + '.' : ''
-  const plural = (n: number, one: string, many: string) => (n === 1 ? one : many)
-  let kind: SyncToast['kind'], title: string, body: string, head: string
-  if (ok === 0 && p === 0) {
-    kind = 'warn'; head = 'nenhum canal sincronizado'; title = 'Nenhum canal sincronizado'; body = 'Nenhum concorrente estava pronto para sincronizar.'
-  } else if (p === 0) {
-    kind = 'ok'; title = 'Concorrentes sincronizados'
-    head = `${ok} de ${total} ${plural(total, 'canal sincronizado', 'canais sincronizados')} agora`; body = head + '.'
-  } else {
-    kind = 'warn'
-    head = `${ok} de ${total} ${plural(total, 'canal sincronizado', 'canais sincronizados')} agora; ${p} com problema`; title = head
-    body = run.problems.map(x => `${names(x.id)}: ${x.label}`).join('; ') + '.'
-  }
-  return { kind, title, body, more, text: head + (moreCore ? ' · ' + moreCore : '') }
-}

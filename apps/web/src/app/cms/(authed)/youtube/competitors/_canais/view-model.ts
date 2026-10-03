@@ -128,6 +128,10 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const subsTxt = (n: number) => F.subs(n).replace(/ (mil|mi)$/, NB + '$1')
   const fmtName = fmt === 'long' ? 'longos' : 'Shorts', one = fmt === 'long' ? 'vídeo longo' : 'Short'
   const abs = (t: number) => `${D.dmhm(t)} (São Paulo)`
+  /** sync instants may be null (a channel that never synced OK): no date is invented */
+  const absN = (t: number | null) => (t == null ? null : abs(t))
+  const sinceN = (t: number | null) => (t == null ? '' : ' desde ' + D.dmhm(t))
+  const agoN = (t: number | null) => (t == null ? '' : nb(D.ago(t)))
   const tier = (x: number | null): Tier => obs.tierOf(x) ?? ''
   const thumbOf = (v: ObsVideo): Thumb => ({ src: v.ytId ? `https://i.ytimg.com/vi/${encodeURIComponent(v.ytId)}/mqdefault.jpg` : null, text: null })
   const ageOf = (v: ObsVideo) => ({ text: nb(F.age(v)), title: abs(v.pub) })
@@ -168,8 +172,8 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const viewsTxt = (c: ObsChannel, v: ObsVideo): ViewsText => {
     const S = stats(c.id, 'long')
     if (v.views != null) return { num: num(v.views), text: ` views${stale(c, S) ? ',' + stale(c, S) : ''}` }
-    const why = c.sync.state === 'erro' ? 'sincronização do canal com erro desde ' + D.dmhm(c.sync.errorSince ?? c.sync.last)
-      : c.sync.state === 'atrasado' ? 'sincronização do canal atrasada desde ' + D.dmhm(c.sync.last) : 'sem registro diário ainda'
+    const why = c.sync.state === 'erro' ? 'sincronização do canal com erro' + sinceN(c.sync.errorSince ?? c.sync.last)
+      : c.sync.state === 'atrasado' ? 'sincronização do canal atrasada' + sinceN(c.sync.last) : 'sem registro diário ainda'
     return { num: null, text: `sem contagem: ${why}` }
   }
   const multVs = (m: MultiplierResult) => (m.method === 'mesmo dia de vida' ? 'mesmo dia de vida' : (m.band ?? '').replace(' dias', NB + 'd'))
@@ -189,15 +193,15 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   function syncCell(c: ObsChannel, S: CStats): SyncCell {
     const s = c.sync, covTitle = `Limite deste canal: ${c.video_limit} vídeos (máximo ${R.videoLimitMax})`
     const base = { state: s.state, labelTitle: null, cov: null, covTitle: null, msg: null, progress: null, canRetry: false, canRemove: false }
-    if (s.state === 'backfill' && s.backfill) return { ...base, label: 'Buscando vídeos', progress: { ...s.backfill }, cov: `${s.backfill.done} de ${s.backfill.total} vídeos buscados, adicionado ${nb(D.ago(s.added))}`, covTitle: abs(s.added) }
-    if (s.state === 'backfill') return { ...base, label: 'Buscando vídeos', cov: `adicionado ${nb(D.ago(s.added))}`, covTitle: abs(s.added) }
-    if (s.state === 'atrasado') return { ...base, label: cap(s.problemPhrase ?? s.label ?? ''), labelTitle: `Última sincronização: ${abs(s.last)}`, msg: s.msg, canRetry: true }
+    if (s.state === 'backfill' && s.backfill) return { ...base, label: 'Buscando vídeos', progress: { ...s.backfill }, cov: `${s.backfill.done} de ${s.backfill.total} vídeos buscados${s.added != null ? `, adicionado ${agoN(s.added)}` : ''}`, covTitle: absN(s.added) }
+    if (s.state === 'backfill') return { ...base, label: 'Buscando vídeos', cov: s.added != null ? `adicionado ${agoN(s.added)}` : null, covTitle: absN(s.added) }
+    if (s.state === 'atrasado') return { ...base, label: cap(s.problemPhrase ?? s.label ?? ''), labelTitle: s.last != null ? `Última sincronização: ${abs(s.last)}` : null, msg: s.msg, canRetry: true }
     if (s.state === 'erro') {
       // the engine phrase already says what a known error means; an unknown error text is shown as is
       const msg = s.msg && humanizeSyncError(s.msg) === s.msg ? s.msg : null
       return { ...base, label: cap(s.problemPhrase ?? s.label ?? ''), msg, canRemove: true }
     }
-    return { ...base, label: `Sincronizado ${nb(D.ago(s.last))}`, labelTitle: abs(s.last), cov: `${S.tracked} vídeos acompanhados`, covTitle }
+    return { ...base, label: s.last != null ? `Sincronizado ${agoN(s.last)}` : cap(s.label ?? ''), labelTitle: absN(s.last), cov: `${S.tracked} vídeos acompanhados`, covTitle }
   }
   function growthCell(c: ObsChannel, g: Growth): GrowthCell {
     if (g.pending) return { kind: 'na', text: g.pending.replace(/ \(.*\)/, ''), title: `Canal novo no observatório: precisa de 30 d de contagem de inscritos, ${g.pending}` }
@@ -331,8 +335,8 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       : `Acompanhando ${S.tracked} vídeos (limite deste canal: ${c.video_limit}; máximo ${R.videoLimitMax}), com views diárias desde ${obs.SERIES_START_LABEL}${st}`
     const phrase = c.sync.problemPhrase
     const syncLbl = phrase && !bf ? cap(phrase) : cap(c.sync.label ?? c.sync.state)
-    const syncSub = phrase && !bf ? '' : phrase ? cap(phrase) : bf ? `adicionado ${D.ago(c.sync.added)}` : D.ago(c.sync.last)
-    const syncStat = { label: 'Sincronização', labelTitle: null, value: syncLbl, sub: nb(syncSub), subTitle: abs(bf ? c.sync.added : c.sync.last), subWeak: false }
+    const syncSub = phrase && !bf ? '' : phrase ? cap(phrase) : bf ? (c.sync.added != null ? `adicionado ${D.ago(c.sync.added)}` : '') : c.sync.last != null ? D.ago(c.sync.last) : ''
+    const syncStat = { label: 'Sincronização', labelTitle: null, value: syncLbl, sub: nb(syncSub), subTitle: absN(bf ? c.sync.added : c.sync.last), subWeak: false }
     const kl = obs.cadence(c.id, 'long'), ks = obs.cadence(c.id, 'short')
     let statsV: DrawerView['stats']
     if (bf) {
@@ -392,9 +396,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
         effect: effView(eff), sameNote, histHref: hist(v.id), ytUrl: v.url,
       }
     })
-    const swapNote = bf ? `Canal adicionado ${D.ago(c.sync.added)}. Trocas são detectadas comparando versões entre sincronizações, então ainda não há o que comparar.${nextSync != null ? ` A primeira detecção possível é na sincronização das ${D.hm(nextSync)}.` : ''}`
+    const swapNote = bf ? `${c.sync.added != null ? `Canal adicionado ${D.ago(c.sync.added)}. ` : ''}Trocas são detectadas comparando versões entre sincronizações, então ainda não há o que comparar.${nextSync != null ? ` A primeira detecção possível é na sincronização das ${D.hm(nextSync)}.` : ''}`
       : c.own ? 'Suas trocas de título e thumbnail ficam no A/B Lab.'
-        : !gs.length ? `Nenhuma troca de título, thumbnail ou descrição nos últimos 30 dias.${c.sync.state === 'erro' ? ` Desde ${D.dmhm(c.sync.errorSince ?? c.sync.last)} a sincronização falha, então trocas posteriores a ${D.dmhm(c.sync.last)} não seriam vistas.` : ''}` : null
+        : !gs.length ? `Nenhuma troca de título, thumbnail ou descrição nos últimos 30 dias.${c.sync.state === 'erro' ? (c.sync.errorSince ?? c.sync.last) != null ? ` Desde ${D.dmhm((c.sync.errorSince ?? c.sync.last)!)} a sincronização falha, então trocas posteriores a ${c.sync.last != null ? D.dmhm(c.sync.last) : 'essa data'} não seriam vistas.` : ' A sincronização deste canal nunca deu certo, então trocas não seriam vistas.' : ''}` : null
     const swapsLink: LinkN | null = list.length ? { n: list.length, key: `changes:${c.id}`, href: obs.link.mudancas({ channel: c.id }), text: list.length === 1 ? 'Ver a troca em Mudanças' : `Ver as ${list.length} trocas em Mudanças` } : null
 
     /* outliers */
@@ -423,7 +427,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       const isOut = !!m && m.value != null && m.value >= R.outlierMin && !m.weak
       const relV = m && m.value != null && x.ageDays <= 90 ? { text: isOut ? `${F.mult(m.value)} (outlier)` : `${F.mult(m.value)} a mediana`, tier: isOut ? tier(m.value) : '' as Tier, outlier: isOut } : null
       const vp = x.vpd7 != null ? { num: num(x.vpd7), text: `views/dia, 7${NB}d` }
-        : { num: null, text: x.ageDays < 1 ? 'menos de 1 dia no ar, sem média' : c.sync.state === 'erro' ? `sem média: sincronização com erro desde ${D.dmhm(c.sync.errorSince ?? c.sync.last)}` : c.sync.state === 'atrasado' ? `sem média: sincronização atrasada desde ${D.dmhm(c.sync.last)}` : `${x.ageDays}${NB}d no ar, média sai com 7${NB}d` }
+        : { num: null, text: x.ageDays < 1 ? 'menos de 1 dia no ar, sem média' : c.sync.state === 'erro' ? `sem média: sincronização com erro${sinceN(c.sync.errorSince ?? c.sync.last)}` : c.sync.state === 'atrasado' ? `sem média: sincronização atrasada${sinceN(c.sync.last)}` : `${x.ageDays}${NB}d no ar, média sai com 7${NB}d` }
       return { id: x.id, thumb: thumbOf(x), title: x.title, published: a.text, publishedTitle: a.title, views: viewsTxt(c, x), rel: relV, vp, histHref: hist(x.id), ytUrl: x.url }
     })
     const fNameV = fmt === 'long' ? 'vídeos longos' : 'Shorts'

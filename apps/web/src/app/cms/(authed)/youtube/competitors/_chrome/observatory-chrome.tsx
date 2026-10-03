@@ -89,7 +89,10 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
     setPop(null)
     if (n === (pendingNiche ?? view.niche)) return
     setPendingNiche(n)
-    if (onSetNiche) await onSetNiche(n)
+    if (onSetNiche) {
+      const r = await onSetNiche(n).catch(() => ({ ok: false }))
+      if (!r.ok) toast('warn', 'Não deu para salvar o nicho', 'O nicho mudou só nesta tela; nas outras abas continua o que estava salvo.')
+    }
     router.replace(urlWith('niche', n), { scroll: false })
   }
 
