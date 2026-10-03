@@ -24,9 +24,9 @@ function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }
   )
 }
 
-export function ChannelCards({ view, own, groups, h, empty }: { view: CanaisView; own: CanaisView['own']; groups: CanaisGroup[]; h: RowHandlers; empty: React.ReactNode }) {
+export function ChannelCards({ view, own, groups, h, empty, busy }: { view: CanaisView; own: CanaisView['own']; groups: CanaisGroup[]; h: RowHandlers; empty: React.ReactNode; busy?: boolean }) {
   return (
-    <div className="cards">
+    <div className="cards" aria-busy={busy || undefined}>
       {own.group ? <div className="cardsep" data-own-group=""><strong>{own.group.label}</strong> <span className="gin" style={{ position: 'static', padding: '0 0 0 4px' }}><OwnGroupParts parts={own.group.parts} /></span></div> : null}
       {own.rows.map(r => <Card key={r.id} r={r} h={h} view={view} />)}
       {groups.map(g => [

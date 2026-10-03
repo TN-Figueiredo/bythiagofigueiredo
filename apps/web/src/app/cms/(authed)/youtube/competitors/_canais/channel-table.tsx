@@ -56,8 +56,12 @@ function Row({ r, h }: { r: CanaisRow; h: RowHandlers }) {
   )
 }
 
-export function ChannelTable({ view, own, groups, h, onSort, empty }: {
+export function ChannelTable({ view, own, groups, h, onSort, empty, busy, busySort }: {
   view: CanaisView; own: CanaisView['own']; groups: CanaisGroup[]; h: RowHandlers; onSort: (k: CanaisSort) => void; empty: React.ReactNode
+  /** A navigation that changes these numbers or their order is in flight: the rows are the previous ones. */
+  busy?: boolean
+  /** The column whose header was clicked and whose order has not arrived yet. */
+  busySort?: CanaisSort
 }) {
   // canais.html #scrollHint: says the table scrolls sideways only when it really overflows (drawer open, narrow screen)
   const box = useRef<HTMLDivElement>(null)
@@ -75,7 +79,7 @@ export function ChannelTable({ view, own, groups, h, onSort, empty }: {
   return (
     <>
     {overflow ? <p className="cap" data-scroll-hint="" style={{ whiteSpace: 'normal', margin: '0 0 6px' }}>Role a tabela para o lado para ver todas as colunas.</p> : null}
-    <div className="tablebox" ref={box}>
+    <div className="tablebox" ref={box} aria-busy={busy || undefined}>
       <table aria-label="Canais acompanhados">
         <thead><tr>
           <th scope="col">Canal<span className="unit">nicho e inscritos</span></th>
@@ -84,7 +88,7 @@ export function ChannelTable({ view, own, groups, h, onSort, empty }: {
             return (
               <th key={col.k} scope="col" className={`sortable${col.r ? ' r' : ''}${col.hide ? ' c-hide' : ''}`} data-k={col.k}
                 aria-sort={on ? (view.dir === 'desc' ? 'descending' : 'ascending') : undefined} style={col.minW ? { minWidth: col.minW } : undefined}>
-                <button type="button" onClick={() => onSort(col.k)}>{col.label} <span className="arrow" aria-hidden="true">{on ? (view.dir === 'desc' ? '▼' : '▲') : ''}</span></button>
+                <button type="button" aria-busy={busySort === col.k || undefined} onClick={() => onSort(col.k)}>{col.label} <span className="arrow" aria-hidden="true">{on ? (view.dir === 'desc' ? '▼' : '▲') : ''}</span></button>
                 <span className="unit">{col.unit ?? view.vpdUnit}</span>
               </th>
             )
