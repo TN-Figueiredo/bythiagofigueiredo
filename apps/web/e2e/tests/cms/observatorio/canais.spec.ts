@@ -18,6 +18,9 @@ const TABS: Array<[string, string]> = [['trocas', 'Trocas'], ['videos', 'Vídeos
  * F11 / Task 23 ruling (brief test, CONVENCOES:267): the numbers of a "parado" channel (bald and bankrupt) say "até o
  * registro diário de DD/MM HH:MM"; canais.html prints that suffix only for atrasado/erro. Only in bald's drawer states.
  */
+// R75: with ≤ 5 free slots an admin sees "Destravar mais N vagas" (the +25 unlock works since the F1 fix); canais.html has
+// no wording for it, so the button exists on the implementation side only. Its behaviour is unit-tested (competitor-slots).
+const UNLOCK_R75: Allow = { drop: /Destravar mais \d+ vagas/ }
 const PARADO_SUFFIX_F11: Allow = { drop: / ?,? até o registro diário de 24\/10 12:00(?=,| |$)/ }
 /**
  * The same suffix in the middle of a video's line (drawer · Vídeos: "1,5 mi views, até o registro diário de 24/10
@@ -57,8 +60,8 @@ export const CANAIS: ScreenSpec = {
     { label: 'Só canais com problema', mockupClicks: ['Só canais com problema'], seed: {}, query: '?filter=problemas' },
     // R63: the mockup simulates 74 and 75 channels, the oracle has 14: only the counter's numbers differ by construction
     // (the slot semantics — one free, none free — are asserted below); R64: the scroll hint
-    { label: '74 de 75 canais', mockupClicks: ['74 de 75 canais'], seed: { channelLimit: 15 }, textAllow: [/\d+ de \d+ canais/] },
-    { label: '75 de 75 canais (cheio)', mockupClicks: ['75 de 75 canais (cheio)'], seed: { channelLimit: 14 }, textAllow: [/\d+ de \d+ canais/] },
+    { label: '74 de 75 canais', mockupClicks: ['74 de 75 canais'], seed: { channelLimit: 15 }, textAllow: [/\d+ de \d+ canais/, UNLOCK_R75] },
+    { label: '75 de 75 canais (cheio)', mockupClicks: ['75 de 75 canais (cheio)'], seed: { channelLimit: 14 }, textAllow: [/\d+ de \d+ canais/, UNLOCK_R75] },
     {
       label: 'Adicionar canal (?add=1)', mockupClicks: ['Adicionar canal (?add=1)'], seed: {}, query: '?add=1',
       // R62: the add action syncs right away, so the dialog says the true sentence (Task 23)
