@@ -5,6 +5,8 @@ import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import { PENDING_SECTIONS, NOT_PORTED, NOT_PORTED_TESTS } from './suite-pending'
 import type { Dataset, ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
+import { createObservatory, type Observatory } from '@/lib/youtube/observatorio'
+import { forjaScenarios } from './forja-scenarios'
 
 const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../fixtures/observatorio')
 export type Oracle = Record<string, any>
@@ -34,6 +36,11 @@ export function datasetFromOracle(o: Oracle): Dataset {
     readings: structuredClone(o.forja.readings), requests: structuredClone(o.forja.requests.filter((r: any) => !r.scenario)),
     queue: { lastPollAt: o.forja.queue.lastPollAt, tickMinutes: o.forja.queue.tickMinutes, capabilities: ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'] },
   }
+}
+
+/** The production engine with the mockup's request generator injected (TEST ONLY): forja.requestScenario, session.setBase. */
+export function createTestObservatory(ds: Dataset): Observatory {
+  return createObservatory(ds, { testScenarios: forjaScenarios })
 }
 
 /**

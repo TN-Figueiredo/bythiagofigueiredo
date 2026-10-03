@@ -1,12 +1,11 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { loadOracle, datasetFromOracle, runMockupSuite } from './oracle'
+import { loadOracle, datasetFromOracle, runMockupSuite, createTestObservatory } from './oracle'
 import { PENDING_SECTIONS, PORTED_SECTIONS, NOT_PORTED, NOT_PORTED_TESTS } from './suite-pending'
-import { createObservatory } from '@/lib/youtube/observatorio'
 
 const oracle = loadOracle()
 const onOracle = runMockupSuite(oracle)
-const onProd = runMockupSuite(createObservatory(datasetFromOracle(loadOracle())))
+const onProd = runMockupSuite(createTestObservatory(datasetFromOracle(loadOracle())))
 
 describe('mockup suite (dados-teste.html) — oracle sanity', () => {
   it('the oracle passes everything except the browser-only tests', () => {

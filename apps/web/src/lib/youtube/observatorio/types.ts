@@ -41,10 +41,25 @@ export interface FrozenReading {
   base?: unknown; effects?: unknown[]
 }
 export type RequestState = 'na fila' | 'trabalhando' | 'publicado' | 'atrasado' | 'sem máquina' | 'nova tentativa' | 'falhou' | 'recusado (dado velho)' | 'liberado pelo vigia'
+/** Instants a request names that may still lie in the future: they live here, never in the field (nothing after NOW). */
+export type ForjaForecast = Partial<Record<'claimedAt' | 'startedAt' | 'publishedAt' | 'releasedAt' | 'failedAt' | 'refusedAt' | 'busySince', number>>
 export interface ForjaRequest {
-  id: string; type: string; niche: Niche; target: { kind: 'niche' | 'video'; niche: Niche; video?: string; fmt?: Fmt }
+  id: string; type: string; niche: Niche; target: { kind: 'niche' | 'video'; niche?: Niche; video?: string; fmt?: Fmt }
   state: RequestState; createdAt: number; claimedAt: number | null; startedAt: number | null; publishedAt: number | null
   failedAt: number | null; attempt: number; refusedReason: string | null; readingId: string | null; seq?: number
+  /** Optional detail (Task 31): what the DB row or the queue knows beyond the state. */
+  status?: string; maxAttempts?: number; video?: string | null; scenario?: boolean; composed?: boolean
+  refusedAt?: number | null; releasedAt?: number | null; releasedBy?: string | null; failReason?: string | null; retryReason?: string | null
+  refusedDataAsOf?: number | null; busyWith?: string | null; busySince?: number | null
+  attempts?: Array<{ claimedAt: number; endedAt: number | null; endedAtForecast?: number; result?: string }> | null
+  /** Minutes waiting since the request (or its release) entered the queue; derived from NOW when absent. */
+  waitingMinutes?: number | null
+  /** Queue relationship: "atrás do de IA" and the id of the request ahead. */
+  stateNote?: string | null; behind?: string | null; behindAfter?: string | null
+  forecast?: ForjaForecast | null
+  /** Canonical header label (CONVENCOES line 218), filled by the engine. */
+  statusLabel?: string
+  queuePos?: number; queueSize?: number; firstInQueue?: boolean; quotaConsumed?: boolean
 }
 export interface Dataset {
   now: number; seriesStart: number; snap0: number; obsStart: number
