@@ -39,6 +39,8 @@ const goneParts = (ctx: ForjaCtx, changes: number, videos: number): { long: stri
   return { long, short }
 }
 const CANT = 'Não dá para comparar esta leitura com os dados de hoje: '
+/** The daily record the reading was frozen at: the mockup stores it; production derives it from asOf (snap0 moves with the loaded window). */
+const asOfIdx = (ctx: ForjaCtx, r: FrozenReading) => r.sent.asOfIdx ?? ctx.clock.snapIdxAtOrBefore(r.sent.asOf)
 
 function sinceVideo(ctx: ForjaCtx, r: FrozenReading): Raw {
   const vid = r.target?.video ?? null, v = vid ? ctx.V.get(vid) : undefined, ch = v ? ctx.CH.get(v.ch) : undefined
@@ -47,7 +49,7 @@ function sinceVideo(ctx: ForjaCtx, r: FrozenReading): Raw {
       shortText: 'desde então: o vídeo não está mais no observatório', text: CANT + 'o vídeo não está mais no observatório.' }
   }
   const goneCh = (r.effects || []).filter(e => !ctx.CHG.get(e.change)).map(e => e.change)
-  const newPts = Math.max(0, (ch.lastIdx ?? 0) - (r.sent.asOfIdx ?? 0))
+  const newPts = Math.max(0, (ch.lastIdx ?? 0) - (asOfIdx(ctx, r)))
   const newChanges = changesOf(ctx).filter(c => c.video === v.id && c.at > r.generatedAt).map(c => c.id)
   const moved = (r.effects || []).filter(e => !goneCh.includes(e.change)).map(e => { const now = effect(ctx, e.change)!; return { change: e.change, then: e.status, now: now.status as string, thenCollected: e.collected, nowCollected: now.collected != null ? now.collected : null } })
     .filter(x => x.then !== x.now || x.thenCollected !== x.nowCollected)
@@ -120,7 +122,7 @@ function sinceOutliers(ctx: ForjaCtx, r: FrozenReading): Raw {
   const titleChanged = base.videos.filter(v => nowIds.has(v.id) && ctx.V.get(v.id)!.title !== v.title).map(v => v.id)
   const pub = (v: ReadingBaseVideo) => ctx.V.get(v.id)!.pub
   const fresh = newVideos.filter(v => pub(v) >= r.sent.asOf), older = newVideos.filter(v => pub(v) < r.sent.asOf)
-  const thenT = r.sent.asOfIdx ?? 0
+  const thenT = asOfIdx(ctx, r)
   const noBaseThen = older.filter(v => { const vv = ctx.V.get(v.id)!, ch = ctx.CH.get(vv.ch); return multiplierAt(ctx, vv, Math.min(thenT, ch?.lastIdx ?? 0)).value == null })
   const foundOld = older.filter(v => !noBaseThen.includes(v))
   const win = base.windowDays === 182 ? '6 meses' : base.windowDays + ' dias'

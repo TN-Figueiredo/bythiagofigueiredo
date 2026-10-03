@@ -159,3 +159,24 @@ describe('buildSent — empty niche, resumo-trocas, leitura-video, errors', () =
     expect(buildSent(obs, 'temas', { niche: 'ia' })).toEqual(obs.forja.buildSent('temas', { niche: 'ia' }))
   })
 })
+
+// Task 35b: what "Desde então" compares with travels frozen inside the pack (raw, never citable: not in `numbers`)
+describe('buildSent — frozen data for since()', () => {
+  it('padrões/temas: base = the videos sent, with their multipliers then, the channels and the window', () => {
+    const p = buildSent(obs, 'padroes-titulo', { niche: 'ia' })
+    expect(p.base!.videos.map(v => v.id)).toEqual(p.ids)
+    expect(p.base!.channels).toEqual(p.channels)
+    expect(p.base).toMatchObject({ windowDays: 182, fmt: 'long', asOf: p.asOf })
+    expect(buildSent(obs, 'temas', { niche: 'viagem' }).base!.windowDays).toBe(90)
+  })
+  it('resumo-trocas: changeIds = the changes sent, window 30 days', () => {
+    const p = buildSent(obs, 'resumo-trocas', { niche: 'ia' })
+    expect(p.changeIds).toEqual(p.items.map(i => i.change))
+    expect(p.windowDays).toBe(30)
+  })
+  it('leitura-video: one frozen verdict per change sent, and the views then', () => {
+    const p = buildSent(obs, 'leitura-video', { videoId: 'matt-opus55' })
+    expect(p.effects!.map(e => e.change)).toEqual(p.items.filter(i => i.kind === 'troca').map(i => i.change))
+    expect(typeof p.viewsThen).toBe('number')
+  })
+})

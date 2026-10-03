@@ -75,8 +75,11 @@ describe('rowsToDataset — legacy history', () => {
   const ds = rowsToDataset(base, NOW), obs = createObservatory(ds)
   const v1 = ds.videos.find(v => v.id === 'v1')!, v2 = ds.videos.find(v => v.id === 'v2')!
   const d = sp('2026-09-10T09:00:00')
-  it('a legacy title row becomes a pre-series version pair with 1 d precision; the real first version carries the new title', () => {
-    expect(v1.titles.map(t => [t.text, t.prec])).toEqual([['Antigo', '1d'], ['Novo', '1d']])
+  // Task 35b: the "before" value of a video published ≥ 1 day before its first legacy change is the publication's
+  // ('first', from pub: Histórico prints "25/07 12:00 (publicação)", historico-video.html startLbl)
+  it('a legacy title row becomes a pre-series version pair (before = from publication; after 1 d precision); the real first version carries the new title', () => {
+    expect(v1.titles.map(t => [t.text, t.prec])).toEqual([['Antigo', 'first'], ['Novo', '1d']])
+    expect(v1.titles[0]!.first_seen).toBe(sp('2026-08-01T10:00:00'))
     expect(v1.titles[1]!.window).toEqual([d - DAY, d])
     expect(v1.titles[1]!.id).toBe('real-title')
     expect(v1.titles[1]!.first_seen).toBe(d)
@@ -84,7 +87,13 @@ describe('rowsToDataset — legacy history', () => {
     expect(v1.titles[0]!.current).toBe(false)
   })
   it('without real versions the legacy pair stands alone', () => {
-    expect(v2.titles.map(t => [t.text, t.prec, t.current])).toEqual([['A', '1d', false], ['B', '1d', true]])
+    expect(v2.titles.map(t => [t.text, t.prec, t.current])).toEqual([['A', 'first', false], ['B', '1d', true]])
+  })
+  it('a legacy change less than a day after publication: the before value was only seen the day before (1 d)', () => {
+    const ds2 = rowsToDataset(rows({ settings: { series_started_at: SERIES, channel_limit: 75 }, channels: [channel()],
+      videos: [video({ published_at: iso(d - 6 * H) })], legacyChanges: [legacy({ old_title: 'X', new_title: 'Y' })] }), NOW)
+    const t = ds2.videos[0]!.titles
+    expect([t[0]!.prec, t[0]!.first_seen]).toEqual(['1d', d - DAY])
   })
   it('the change is pre-series and its effect is "sem série … desde <series start>"', () => {
     const c = obs.changes.find(x => x.video === 'v1' && x.type === 'title')!
@@ -424,5 +433,32 @@ describe('taskRowToRequest — the ONE row → request mapper (loader and servic
   })
   it('leitura-video: target is the video, with the row target_video_id', () => {
     expect(taskRowToRequest(row({ task_type: 'leitura-video', target_video_id: 'v1', target_fmt: null }), NOW - MIN, NOW)).toMatchObject({ video: 'v1', target: { kind: 'video', niche: 'ia', video: 'v1' } })
+  })
+})
+
+// Task 35b: channels come in the order they were added (dados.js order), never the rows' uuid order
+describe('rowsToDataset — channel order', () => {
+  it('by added_at, then name, then id', () => {
+    const ds = rowsToDataset(rows({ settings: { series_started_at: SERIES, channel_limit: 75 }, channels: [
+      channel({ id: 'a', channel_name: 'Zeta', added_at: iso(sp('2026-06-01T10:00:00')) }),
+      channel({ id: 'b', channel_name: 'Beta', added_at: iso(sp('2026-05-31T09:00:01')) }),
+      channel({ id: 'c', channel_name: 'Alfa', added_at: iso(sp('2026-06-01T10:00:00')) }),
+      channel({ id: 'd', channel_name: 'Nulo', added_at: null }),
+    ] }), NOW)
+    expect(ds.channels.map(c => c.name)).toEqual(['Beta', 'Alfa', 'Zeta', 'Nulo'])
+  })
+})
+
+// Task 35b: the avatar initials of every oracle channel, derived from the name alone
+describe('initials', () => {
+  it('match the mockup for every oracle channel name', async () => {
+    const { initials } = await import('@/lib/youtube/observatorio/load')
+    const want: Record<string, string> = {
+      tnFigueiredo: 'tF', 'Luke Damant': 'LD', 'bald and bankrupt': 'bb', 'Dale Philip': 'DP', 'Paddy Doyle': 'PD', 'Leo Khev': 'LK', 'Nômade Raiz': 'NR',
+      'Matheus Fonseca': 'MF', 'Vou sem volta': 'VS', 'Matt Wolfe': 'MW', 'Nate Herk': 'NH', 'Sabrina Ramonov': 'SR', 'The AI Advantage': 'AA',
+      'Preguiça Artificial': 'PA', 'Esq Unltd Daily': 'EU',
+    }
+    for (const [name, ini] of Object.entries(want)) expect([name, initials(name)]).toEqual([name, ini])
+    expect(initials('')).toBe('?')
   })
 })

@@ -2,7 +2,7 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ForjaRequest, ChannelSnapshot } from './types'
+import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ReadingBase, ReadingEffect, ForjaRequest, ChannelSnapshot } from './types'
 import { DAY, H, spDayStart, spDateStart, spDateOf } from './time'
 import { RULES } from './rules'
 import { formulasOf, THEME } from './catalog'
@@ -97,9 +97,20 @@ function groupBy<T>(xs: readonly T[], key: (x: T) => string): Map<string, T[]> {
   for (const x of xs) { const k = key(x); const l = m.get(k); if (l) l.push(x); else m.set(k, [x]) }
   return m
 }
-const initials = (name: string) => {
-  const w = name.trim().split(/\s+/).filter(Boolean)
-  return (w.length >= 2 ? w[0]![0]! + w[1]![0]! : (w[0] ?? '?').slice(0, 2)).toUpperCase()
+/**
+ * Avatar initials as the mockup draws them (dados.js `ini`): capitals, except for an all-lowercase name ("bald and bankrupt" → "bb"),
+ * English articles/conjunctions are skipped ("The AI Advantage" → "AA"), and one camel-cased word gives its two capitals
+ * ("tnFigueiredo" → "tF").
+ */
+const SKIP_INI = new Set(['the', 'and', 'of', 'a', 'an', '&'])
+export const initials = (name: string): string => {
+  const all = name.trim().split(/\s+/).filter(Boolean)
+  const w = all.filter(x => !SKIP_INI.has(x.toLowerCase()))
+  const words = w.length ? w : all
+  if (words.length >= 2) { const ini = [...words[0]!][0]! + [...words[1]!][0]!; return name === name.toLowerCase() ? ini : ini.toUpperCase() }
+  const one = [...(words[0] ?? '?')]
+  const cap = one.slice(1).find(ch => ch !== ch.toLowerCase())
+  return one[0]! + (cap ?? one[1] ?? '')
 }
 const colorOf = (id: string) => { let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return CHANNEL_COLORS[h % CHANNEL_COLORS.length]! }
 /** Whole days since publication; a scheduled premiere (or clock skew) has pub > now → 0, never negative (winOf has no band below 0). */
@@ -153,7 +164,10 @@ function withLegacy<T extends Base>(legacy: readonly LegacyChangeRow[], real: T[
   const ls = legacy.map(l => ({ l, d: ms(l.detected_at) })).filter((x): x is { l: LegacyChangeRow; d: number } => x.d != null).sort((a, b) => a.d - b.d)
   if (!ls.length) return real
   const first = ls[0]!
-  const out: T[] = [{ id: first.l.id + '/antes', first_seen: Math.min(pub, first.d - DAY), last_seen: first.d - DAY, current: false, prec: '1d', window: null, ...before(first.l) } as T]
+  // the value before the first legacy change: when the video came out at least a day earlier, it is the publication's
+  // (the daily sync watched it from then: precision 'first', first_seen = pub); otherwise it was only seen the day before
+  const fromPub = pub <= first.d - DAY
+  const out: T[] = [{ id: first.l.id + '/antes', first_seen: fromPub ? pub : first.d - DAY, last_seen: first.d - DAY, current: false, prec: fromPub ? 'first' : '1d', window: null, ...before(first.l) } as T]
   ls.forEach(({ l, d }, i) => {
     const win: [number, number] = [d - DAY, d], next = ls[i + 1]
     if (!next && real.length && sameAsReal(l, real[0]!)) { out.push({ ...real[0]!, first_seen: d, prec: '1d', window: win }, ...real.slice(1)); return }
@@ -181,7 +195,10 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   const snapsBy = groupBy(rows.snapshots, s => s.competitor_channel_id)
   const channels: ObsChannel[] = [], videos: ObsVideo[] = []
 
-  for (const c of rows.channels) {
+  // the order the channels were added (dados.js lists them so; every per-channel list follows it), never the uuid
+  // order the rows come in; same instant → name, then id, so the order is stable
+  const byAdded = [...rows.channels].sort((a, b) => (ms(a.added_at) ?? Infinity) - (ms(b.added_at) ?? Infinity) || a.channel_name.localeCompare(b.channel_name, 'pt-BR') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  for (const c of byAdded) {
     const limit = Math.min(c.video_limit, RULES.videoLimitMax)
     // a video without published_at cannot be aged or banded: it stays out of the dataset
     const vs = (videosBy.get(c.id) ?? []).map(v => ({ v, pub: ms(v.published_at) })).filter((x): x is { v: VideoRow; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
@@ -265,7 +282,20 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   }
 }
 
-function toReading(r: ReadingRow): FrozenReading | null {
+/** The since() data frozen in `sent` (forja/sent.ts SentPack), shape-checked; a malformed piece is left out, never guessed. */
+function frozenOf(sent: Record<string, unknown>): Pick<FrozenReading, 'base' | 'effects' | 'viewsThen'> {
+  const out: Pick<FrozenReading, 'base' | 'effects' | 'viewsThen'> = {}
+  const b = sent.base
+  if (isRecord(b) && Array.isArray(b.videos) && Array.isArray(b.channels) && typeof b.asOf === 'number' && (typeof b.windowDays === 'number' || b.windowDays === null)
+    && b.videos.every(v => isRecord(v) && typeof v.id === 'string' && typeof v.ch === 'string' && typeof v.mult === 'number' && typeof v.weak === 'boolean')) {
+    out.base = b as unknown as ReadingBase
+  }
+  if (Array.isArray(sent.effects) && sent.effects.every(e => isRecord(e) && typeof e.change === 'string' && typeof e.status === 'string')) out.effects = sent.effects as ReadingEffect[]
+  if (typeof sent.viewsThen === 'number' || sent.viewsThen === null) out.viewsThen = sent.viewsThen as number | null
+  return out
+}
+
+export function toReading(r: ReadingRow): FrozenReading | null {
   const generatedAt = ms(r.generated_at)
   if (generatedAt == null) return null
   const niche = isNiche(r.niche) ? r.niche : null, fmt = isFmt(r.fmt) ? r.fmt : null
@@ -278,6 +308,8 @@ function toReading(r: ReadingRow): FrozenReading | null {
     seal: 'forja · ' + r.model + ' · ' + r.task_type, generatedAt, model: r.model,
     sent: { ...sent, text: typeof sent.text === 'string' ? sent.text : '', asOf },
     analysis: isRecord(r.analysis) ? r.analysis : {},
+    // what "Desde então" compares with, frozen inside `sent` by buildSent (absent on an older row: since() says so)
+    ...frozenOf(sent),
     text: {
       ...(typeof text.title === 'string' ? { title: text.title } : {}), lead: typeof text.lead === 'string' ? text.lead : '',
       items: Array.isArray(text.items) ? text.items.filter((x): x is string => typeof x === 'string') : [],
