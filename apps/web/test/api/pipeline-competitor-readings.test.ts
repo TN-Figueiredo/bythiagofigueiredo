@@ -33,7 +33,9 @@ vi.mock('@/lib/youtube/observatorio/forja/sent', async (orig) => ({
 
 import { authenticateIntel } from '@/lib/pipeline/helpers'
 import { loadDataset } from '@/lib/youtube/observatorio/load'
-import { buildSent, type SentPack } from '@/lib/youtube/observatorio/forja/sent'
+import * as Sentry from '@sentry/nextjs'
+import { buildSent, buildSentCtx, TargetUnavailableError, type SentPack } from '@/lib/youtube/observatorio/forja/sent'
+import type { ForjaCtx } from '@/lib/youtube/observatorio/forja/scope'
 import { ORPHAN_READING_MIN_AGE_MS } from '@/lib/pipeline/services/forja-queue'
 
 /* ------------------------------------------------------------------------------------------------ fake PostgREST */
@@ -188,10 +190,11 @@ describe('POST …/intelligence/task/claim with task_types', () => {
     expect(db.queries[0]!.ops.find(o => o.op === 'or')!.args[0]).toBe(`and(task_type.eq.diagnostico,channel_id.in.(${CH}))`)
   })
 
-  it('400s an unknown type or more than 5 types — before anything is written', async () => {
+  it('400s an unknown type, more than 5 types or an empty list — before anything is written', async () => {
     useDb([])
     const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/claim/route')
-    for (const task_types of [['nope'], ['temas', 'temas', 'temas', 'temas', 'temas', 'temas'], 'temas']) {
+    // [] too (M-3): the kit sends all its types or omits the key; an empty list would be a heartbeat with no capability
+    for (const task_types of [['nope'], ['temas', 'temas', 'temas', 'temas', 'temas', 'temas'], 'temas', []]) {
       const res = await POST(claimReq({ channel_ids: [CH], task_types }))
       expect(res.status).toBe(400)
       expect((await res.json()).error.code).toBe('VALIDATION_ERROR')
@@ -310,14 +313,99 @@ describe('GET …/competitors/readings', () => {
     expect((await GET(readGet())).status).toBe(400)
   })
 
-  it('a target the engine cannot build (video gone) is a 422 TARGET_UNAVAILABLE, not a retryable 500, and nothing is frozen', async () => {
+  it('the video is gone (TargetUnavailableError) → 422 TARGET_UNAVAILABLE with a fixed message; nothing frozen, no Sentry', async () => {
     useDb([runningTask({ task_type: 'leitura-video', target_video_id: V1, target_fmt: null })])
-    vi.mocked(buildSent).mockImplementation(() => { throw new Error('buildSent: unknown video ' + V1) })
+    vi.mocked(buildSent).mockImplementation(() => { throw new TargetUnavailableError('buildSent: unknown video ' + V1) })
     const { GET } = await import('@/app/api/pipeline/youtube/competitors/readings/route')
     const res = await GET(readGet())
     expect(res.status).toBe(422)
-    expect((await res.json()).error.code).toBe('TARGET_UNAVAILABLE')
+    const { error } = await res.json()
+    expect(error.code).toBe('TARGET_UNAVAILABLE')
+    expect(error.message).not.toContain(V1)
     expect(db.tables.youtube_intelligence_tasks![0]!.sent).toBeNull()
+    expect(Sentry.captureException).not.toHaveBeenCalled()
+  })
+
+  it('the real engine throws TargetUnavailableError for an unknown video (the 422 is reachable)', () => {
+    const ctx = { V: new Map() } as unknown as ForjaCtx
+    expect(() => buildSentCtx(ctx, 'leitura-video', { videoId: V1 })).toThrow(TargetUnavailableError)
+  })
+
+  it('any other build failure (a bug) → Sentry + a generic 500 the worker retries; no internal text, nothing frozen', async () => {
+    useDb([runningTask()])
+    vi.mocked(buildSent).mockImplementation(() => { throw new TypeError("Cannot read properties of undefined (reading 'lastIdx')") })
+    const { GET } = await import('@/app/api/pipeline/youtube/competitors/readings/route')
+    const res = await GET(readGet())
+    expect(res.status).toBe(500)
+    const { error } = await res.json()
+    expect(error.code).toBe('INTERNAL_ERROR')
+    expect(error.message).not.toContain('lastIdx')
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(Sentry.captureException).mock.calls[0]![0]).toBeInstanceOf(TypeError)
+    expect(db.tables.youtube_intelligence_tasks![0]!.sent).toBeNull()
+  })
+
+  it('a row-shape violation (needs a niche) is a 500 + Sentry too, not a 422', async () => {
+    useDb([runningTask({ target_niche: null })])
+    vi.mocked(buildSent).mockImplementation(() => { throw new Error('buildSent: temas needs a niche (one request per niche)') })
+    const { GET } = await import('@/app/api/pipeline/youtube/competitors/readings/route')
+    expect((await GET(readGet())).status).toBe(500)
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+  })
+
+  it('the dataset loader failing is a 500 + Sentry, with a generic message', async () => {
+    useDb([runningTask()])
+    vi.mocked(loadDataset).mockRejectedValueOnce(new Error('competitor_settings: 42P01 relation does not exist'))
+    const { GET } = await import('@/app/api/pipeline/youtube/competitors/readings/route')
+    const res = await GET(readGet())
+    expect(res.status).toBe(500)
+    expect((await res.json()).error.message).not.toContain('42P01')
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+    expect(buildSent).not.toHaveBeenCalled()
+  })
+
+  it('CAS lost because the task was re-claimed (new started_at) between the read and the freeze → 409, nothing frozen', async () => {
+    useDb([runningTask()])
+    vi.mocked(buildSent).mockImplementation(() => {
+      const row = db.tables.youtube_intelligence_tasks![0]!
+      row.started_at = new Date(Date.now()).toISOString()   // the vigia released it and the forja claimed it again
+      return structuredClone(SENT)
+    })
+    const { GET } = await import('@/app/api/pipeline/youtube/competitors/readings/route')
+    const res = await GET(readGet())
+    expect(res.status).toBe(409)
+    expect((await res.json()).error.code).toBe('TASK_NOT_RUNNING')
+    expect(db.tables.youtube_intelligence_tasks![0]!.sent).toBeNull()
+  })
+
+  it('CAS lost because the task went back to pending (fail with retry) → 409, nothing frozen', async () => {
+    useDb([runningTask()])
+    vi.mocked(buildSent).mockImplementation(() => {
+      Object.assign(db.tables.youtube_intelligence_tasks![0]!, { status: 'pending', started_at: null })
+      return structuredClone(SENT)
+    })
+    const { GET } = await import('@/app/api/pipeline/youtube/competitors/readings/route')
+    const res = await GET(readGet())
+    expect(res.status).toBe(409)
+    expect(db.tables.youtube_intelligence_tasks![0]!.sent).toBeNull()
+  })
+
+  it('R55: sent is frozen per task — after a requeue and a new claim, the GET returns the same frozen data without rebuilding', async () => {
+    useDb([runningTask()])
+    const routes = {
+      read: (await import('@/app/api/pipeline/youtube/competitors/readings/route')).GET,
+      fail: (await import('@/app/api/pipeline/youtube/intelligence/task/[id]/fail/route')).POST,
+      claim: (await import('@/app/api/pipeline/youtube/intelligence/task/claim/route')).POST,
+    }
+    const first = (await (await routes.read(readGet())).json()).data
+    expect((await routes.fail(failReq({ reason: 'llama', retry: true }), params())).status).toBe(200)
+    expect(db.tables.youtube_intelligence_tasks![0]).toMatchObject({ status: 'pending', sent: SENT })
+    expect((await routes.claim(claimReq({ channel_ids: [CH], task_types: ['temas'] }))).status).toBe(200)
+    vi.mocked(buildSent).mockImplementation(() => ({ ...structuredClone(SENT), text: 'rebuilt' }))
+    const again = await routes.read(readGet())
+    expect(again.status).toBe(200)
+    expect((await again.json()).data).toEqual(first)
+    expect(buildSent).toHaveBeenCalledTimes(1)
   })
 
   it('a concurrent read that froze first wins: its sent is returned, ours is dropped', async () => {

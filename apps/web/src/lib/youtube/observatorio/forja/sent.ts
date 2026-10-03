@@ -26,6 +26,14 @@ export interface SentPack {
   channels: string[]; channelsOut: Array<{ id: string; reason: string }>; items: Array<Record<string, SentCell>>; capped: boolean
 }
 export interface SentTarget { niche?: Niche | null; videoId?: string | null; fmt?: Fmt | null }
+/**
+ * The request's target no longer exists in the dataset (the video of a leitura-video is gone). The ONLY buildSent
+ * failure that is about the data and not the code: the readings GET answers it with a non-retryable 422. Every other
+ * throw (a bad row shape, a bug) is a 500 that goes to Sentry and is retried.
+ */
+export class TargetUnavailableError extends Error {
+  constructor(message: string) { super(message); this.name = 'TargetUnavailableError' }
+}
 
 export { canonicalNumberTokens, normalizeNumberToken } from './numbers'
 /** Cells that are identifiers, never cited as numbers. */
@@ -101,7 +109,7 @@ function changesPack(ctx: ForjaCtx, niche: Niche): SentPack {
 
 function videoPack(ctx: ForjaCtx, videoId: string): SentPack {
   const { clock, fmt } = ctx, v = ctx.V.get(videoId)
-  if (!v) throw new Error('buildSent: unknown video ' + videoId)
+  if (!v) throw new TargetUnavailableError('buildSent: unknown video ' + videoId)
   const ch = ctx.CH.get(v.ch)!, lastV = v.series.length ? v.series[v.series.length - 1]!.idx : 0
   const t = Math.min(ctx.lastIdx, lastV), asOf = clock.snapTime(t)   // stalled channel: up to the video's last point
   const cs = [...ctx.CHG.values()].filter(c => c.video === videoId && c.at <= clock.now).sort((a, b) => a.at - b.at)
