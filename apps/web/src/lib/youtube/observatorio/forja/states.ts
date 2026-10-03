@@ -151,6 +151,17 @@ export function queueOrder(reqs: ForjaRequest[]): ForjaRequest[] {
 }
 
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
+/**
+ * Refusal codes the forja sends (POST …/task/<id>/refuse stores the short code in `refused_reason`) → the canonical
+ * sentence. Anything else is shown as written (the test scenarios carry full sentences).
+ */
+export const REFUSED_REASON_TEXT: Readonly<Record<string, string>> = {
+  'dado-velho': 'a máquina recebeu dados anteriores à última sincronização. Peça de novo.',
+}
+export function refusedReasonText(reason: string | null | undefined): string | null {
+  if (reason == null) return null
+  return Object.prototype.hasOwnProperty.call(REFUSED_REASON_TEXT, reason) ? REFUSED_REASON_TEXT[reason]! : reason
+}
 /** What a failure was: the validator refused every attempt, the vigia released it every time ('travou-3x'), or another code. */
 export type FailKind = 'validador' | 'travou' | 'outro'
 export const failKindOf = (q: Pick<ForjaRequest, 'failReason'>): FailKind =>
@@ -190,7 +201,7 @@ export function statusText(reqs: ForjaRequest[], machine: Machine, clock: Clock)
       case 'nova tentativa': return ('Voltou para a fila (tentativa ' + ord + '). ' + retry).trim()
       case 'liberado pelo vigia': return 'O vigia liberou o pedido (travou > 30 min) — volta para a fila (tentativa ' + ord + ').'
       case 'falhou': return failText(r0, clock)
-      case 'recusado (dado velho)': return r0.refusedReason ? cap(r0.refusedReason) : 'O pedido foi recusado às ' + hmOr(r0, 'refusedAt', clock) + '.'
+      case 'recusado (dado velho)': return r0.refusedReason ? cap(refusedReasonText(r0.refusedReason)!) : 'O pedido foi recusado às ' + hmOr(r0, 'refusedAt', clock) + '.'
     }
   }
   // Todos: the text agrees with the lines — each niche is cited with the state of its own line
@@ -207,7 +218,7 @@ export function statusText(reqs: ForjaRequest[], machine: Machine, clock: Clock)
     'publicado': 'Leitura de ' + nm(r0) + ' publicada às ' + hmLoose(clock, r0.publishedAt) + '.',
     'falhou': allValidatorFail ? 'Os ' + reqs.length + ' pedidos (' + names + ') falharam nas ' + r0.attempt + ' tentativas. O validador recusou a saída em todas. Falha não conta na cota.'
       : failText(r0, clock, nm(r0)),
-    'recusado (dado velho)': r0.refusedReason ? 'O pedido de ' + nm(r0) + ' foi recusado. ' + cap(r0.refusedReason).replace(/\s*Peça de novo\.?$/, '')
+    'recusado (dado velho)': r0.refusedReason ? 'O pedido de ' + nm(r0) + ' foi recusado. ' + cap(refusedReasonText(r0.refusedReason)!).replace(/\s*Peça de novo\.?$/, '')
       : 'O pedido de ' + nm(r0) + ' foi recusado às ' + hmOr(r0, 'refusedAt', clock) + '.',
   } as Record<RequestState, string>)[state]
   const other = others.find(isActive)
@@ -316,7 +327,7 @@ export function resummarize(requests: ForjaRequest[], machine: Machine, scopeTod
   const capDot = (t: string) => t ? cap(t).replace(/\.$/, '') + '.' : ''
   const one = (q: ForjaRequest) => (!split && q.state === 'sem máquina') ? sentence(q, clock, true)
     : (!split && q.state === 'falhou') ? (failKindOf(q) === 'validador' ? sentence(q, clock, false) + ' ' + capDot(q.failReason!) + ' Falha não conta na cota.' : failText(q, clock, label(q.niche)))
-    : (!split && q.state === 'recusado (dado velho)') ? sentence(q, clock, false) + (q.refusedReason ? ' ' + capDot(q.refusedReason) : '') : sentence(q, clock, false)
+    : (!split && q.state === 'recusado (dado velho)') ? sentence(q, clock, false) + (q.refusedReason ? ' ' + capDot(refusedReasonText(q.refusedReason)!) : '') : sentence(q, clock, false)
   const dead = reqs.find(q => NO_QUOTA.includes(q.state)), act = reqs.find(isActive)
   return {
     state: anyActive ? reqs.find(q => !isTerm(q))!.state : reqs[0]!.state, requests: reqs, request: reqs[0]!, split, active: anyActive, anyActive, terminal: !anyActive, machine,

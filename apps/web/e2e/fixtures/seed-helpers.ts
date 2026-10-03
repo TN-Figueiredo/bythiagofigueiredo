@@ -68,3 +68,19 @@ export async function seedCampaign(
   })
   return campaign.id
 }
+
+/**
+ * Id of the local site whose `domains` contains `localhost` (the site the dev server resolves for
+ * http://localhost:3099). Without a client it builds one from NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
+ */
+export async function getSeedSiteId(supabase?: SupabaseClient): Promise<string> {
+  let sb = supabase
+  if (!sb) {
+    // same local-only guard as the seed (apps/web/.env.local points at production)
+    const { localServiceClient } = await import('./observatorio-seed')
+    sb = localServiceClient()
+  }
+  const { data, error } = await sb.from('sites').select('id').contains('domains', ['localhost']).order('created_at').limit(1).maybeSingle()
+  if (error || !data) throw new Error(`getSeedSiteId: no site with 'localhost' in domains: ${error?.message ?? 'none'}`)
+  return data.id as string
+}

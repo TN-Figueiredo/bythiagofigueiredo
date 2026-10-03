@@ -7,6 +7,9 @@ import { buildChromeView, coworkText, syncResultToast } from '@/app/cms/(authed)
 const obs = createObservatory(datasetFromOracle(loadOracle()))
 
 describe('chrome view model', () => {
+  it('"Definir nicho dos canais" opens the niche editor on Canais (?nicheEditor=1)', () => {
+    expect(buildChromeView(obs, { tab: 'mudancas', niche: 'ia' }).nicheEditorHref).toBe('/cms/youtube/competitors?nicheEditor=1')
+  })
   it('tab counts follow the niche (Todos 14/18/11, Viagem 8/8/5, IA 6/10/6); Insights has none', () => {
     const t = buildChromeView(obs, { tab: 'canais', niche: 'todos' }).tabs
     expect(t.map(x => x.count)).toEqual([14, 18, 11, null])

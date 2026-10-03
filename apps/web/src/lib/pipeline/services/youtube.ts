@@ -14,6 +14,7 @@ import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import type { ServiceContext, ServiceResult } from './types'
 import { ok, err } from './types'
+import { claim } from './forja-queue'
 
 // ---------------------------------------------------------------------------
 // Shared constants
@@ -84,10 +85,15 @@ export interface TaskResult {
 export interface IntelTask {
   id: string
   site_id: string
-  channel_id: string
+  /** null for an observatory task (task_type <> 'diagnostico'): its target is a niche or a video. */
+  channel_id: string | null
   trigger_type: string
   requested_at: string
   started_at: string
+  task_type: string
+  target_niche: string | null
+  target_video_id: string | null
+  target_fmt: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -631,43 +637,10 @@ export async function claimNextTask(
   ctx: ServiceContext,
   channelIds?: string[],
 ): Promise<ServiceResult<IntelTask | null>> {
-  const { supabase, siteId } = ctx
-
-  let pending = supabase
-    .from('youtube_intelligence_tasks')
-    .select('id')
-    .eq('site_id', siteId)
-    .eq('status', 'pending')
-
-  if (channelIds?.length) pending = pending.in('channel_id', channelIds)
-
-  const { data: task, error: selectError } = await pending
-    .order('requested_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  if (selectError) return err('INTERNAL_ERROR', 'Failed to read the task queue', 500)
-  if (!task) return ok(null)
-
-  const { data: claimed, error: updateError } = await supabase
-    .from('youtube_intelligence_tasks')
-    .update({
-      status: 'running',
-      started_at: new Date().toISOString(),
-      result_summary: { claimed_by: ctx.keyId ?? null },
-    })
-    .eq('id', task.id)
-    .eq('site_id', siteId)
-    .eq('status', 'pending')
-    // Closed column list, never '*': error_message and result_summary can carry text
-    // written by a narrow key and must not travel back to whoever claims next.
-    .select('id, site_id, channel_id, trigger_type, requested_at, started_at')
-    .maybeSingle()
-
-  if (updateError) return err('INTERNAL_ERROR', 'Failed to claim the task', 500)
-  if (!claimed) return ok(null)
-
-  return ok(claimed as IntelTask)
+  // Task 30: the single claim lives in forja-queue.claim, with a filter that only ever shows 'diagnostico' to a
+  // caller that announced no observatory type (the Health Coach, the legacy GET, MCP claim_task). No heartbeat
+  // option (ruling R46): only the forja's typed claim path writes forja_heartbeat.
+  return claim(ctx, { channelIds: channelIds ?? [], taskTypes: undefined }, Date.now())
 }
 
 // ---------------------------------------------------------------------------
@@ -722,6 +695,9 @@ export async function failTask(
         retry_count: task.retry_count + 1,
         started_at: null,
         error_message: null,
+        // R27: a requeue is a new attempt. A released_at left over from an earlier vigia release would
+        // keep naming the state "liberado pelo vigia" on a validator retry.
+        released_at: null,
         result_summary: { ...previous, closed_by: keyId ?? null },
       }
     : {
