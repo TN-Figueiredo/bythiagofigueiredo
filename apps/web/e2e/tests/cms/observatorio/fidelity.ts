@@ -52,9 +52,10 @@ export interface MockupState {
 }
 /**
  * An allowed difference: a RegExp masks every match on BOTH sides with one token (use an alternation of the two exact
- * texts); `{ drop }` removes a text that exists on one side only (a sentence the product cannot print yet).
+ * texts); `{ drop }` removes a text that exists on one side only (a sentence the product cannot print yet), leaving a
+ * space where it was; `{ cut }` removes it leaving nothing (a clause in the middle of a sentence, before its comma).
  */
-export type Allow = RegExp | { drop: RegExp }
+export type Allow = RegExp | { drop: RegExp } | { cut: RegExp }
 /** Selectors whose text is left out, per side. Implementation selectors may carry <channel:ID>/<video:ID> placeholders. */
 export interface Exclude { mockup?: string[]; impl?: string[] }
 /** A CSS selector, or one per side (selector lists allowed: the texts of every match are joined in document order). */
@@ -125,7 +126,7 @@ export function normalizeText(s: string): string {
 /** Masks every match of the allowed patterns (or drops it), so a listed, ruled difference compares equal. */
 export function maskAllowed(s: string, allow: readonly Allow[] = []): string {
   const g = (re: RegExp) => new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g')
-  return normalizeText(allow.reduce<string>((acc, a) => (a instanceof RegExp ? acc.replace(g(a), '⟨permitido⟩') : acc.replace(g(a.drop), ' ')), s))
+  return normalizeText(allow.reduce<string>((acc, a) => (a instanceof RegExp ? acc.replace(g(a), '⟨permitido⟩') : 'cut' in a ? acc.replace(g(a.cut), '') : acc.replace(g(a.drop), ' ')), s))
 }
 const linesOf = (s: string) => s.split('\n').map(l => normalizeText(l)).filter(Boolean)
 /** Line diff (LCS): "  " same, "- " only in the mockup, "+ " only in the implementation. */

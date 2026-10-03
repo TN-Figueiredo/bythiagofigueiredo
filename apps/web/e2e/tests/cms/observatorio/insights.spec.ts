@@ -15,6 +15,11 @@ const THEME_SOURCE_R49: Allow[] = [
 ]
 /** R49 extended (C10): with no reading there are no themes in production — the Temas and Lacunas card bodies. */
 const NO_THEMES_R49 = ['#themeCard > :not(.chead)', '#gapCard > :not(.chead)']
+/**
+ * R49 extended (C9 + C10): the Temas seal is the temas reading's (C9); with no reading there is none to print (C10),
+ * while the mockup's EMPTY state keeps its nightly-labelling seal in the card head — only that seal, by its meta.
+ */
+const NO_THEME_SEAL_R49: Allow = { drop: /(?<=dias vs os 90 anteriores )forja · Gemma 12B · gerada \d\d\/\d\d \d\d:\d\d \(SP\)/ }
 /** R66 (FU-7): the own channel has no niche in production, so in IA it is compared — "Você no nicho" and Lacunas bodies. */
 const OWN_NICHE_R66 = ['#youCard > :not(.chead)', '#gapCard > :not(.chead)']
 const both = (...xs: string[][]): Exclude => ({ mockup: xs.flat(), impl: xs.flat() })
@@ -22,7 +27,7 @@ const both = (...xs: string[][]): Exclude => ({ mockup: xs.flat(), impl: xs.flat
 const nicheState = (n: 'viagem' | 'ia', empty: boolean): MockupState => ({
   label: (empty ? 'EMPTY · ' : 'NONE · ') + n, mockupClicks: [empty ? 'ainda não há leitura' : 'sem pedido hoje'],
   seed: empty ? { noReadings: true } : {}, query: '?niche=' + n, mockupQuery: '?niche=' + n,
-  textAllow: empty ? [] : THEME_SOURCE_R49,
+  textAllow: empty ? [NO_THEME_SEAL_R49] : THEME_SOURCE_R49,
   exclude: both(OWN_METRICS_R60, HATCH_R64, empty ? NO_THEMES_R49 : [], n === 'ia' ? OWN_NICHE_R66 : []),
 })
 
@@ -38,6 +43,10 @@ export const INSIGHTS: ScreenSpec = {
   compareSelector: { mockup: '#screen', impl: '[data-obs-screen="insights"]' },
   // spec §6 (Fora de escopo): "Criar ideia no pipeline" fica para depois (o endpoint não existe) — the Lacunas button
   mockExclude: ['[data-idea]'],
+  // insights.html itself draws both below 32 px, and the screen copies it (measured on the mockup: 16×16 and 73×15):
+  //  - the evidence marks "1" "2" "3" (insights.html:96-98 `.prose sup a`; its ::after, inset −10 px, is the 36 px hit area);
+  //  - the inline "ver detalhes" of a "Desde então" line (insights.html:42 `.since summary`, display:inline).
+  targetExempt: ['.prose sup a', '.since summary'],
 }
 
 runFidelity(INSIGHTS)
