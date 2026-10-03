@@ -281,7 +281,7 @@ describe('historico view model', () => {
 // channel added after the observatory began, and a backfilling channel has no good sync (sync.last null) in production
 describe('historico view model — production-shaped sync data', () => {
   const prodShaped = () => {
-    const ds = datasetFromOracle(loadOracle())
+    const ds = datasetFromOracle(oracle)
     ds.channels.forEach((c, i) => {
       if (c.sync.added == null) c.sync.added = ds.obsStart + i * 60e3 // founding channels: added on the observatory's first day
       if (c.sync.state === 'backfill') c.sync.last = null   // never synced OK yet (loader: last = last_ok_synced_at)
@@ -304,7 +304,7 @@ describe('historico view model — production-shaped sync data', () => {
 // Task 35b (historico-video.html:718/731): after a failure or refusal, the action is a link to the header button
 describe('historico view model — forja card "pedir de novo"', () => {
   const card = (state: string) => {
-    const o = createTestObservatory(datasetFromOracle(loadOracle()))
+    const o = createTestObservatory(datasetFromOracle(oracle))
     o.forja.session.setBase(state, { type: 'leitura-video', video: PICK.full })
     return buildHistoricoView(o, PICK.full, {}).forjaCard!
   }
@@ -323,7 +323,7 @@ describe('historico view model — forja card "pedir de novo"', () => {
 // Task 35b fix 2 (historico-video.html:682, 708, 725): the reading line and "Desde então" of the forja card
 describe('historico view model — forja card readings', () => {
   const card = (state: string) => {
-    const o = createTestObservatory(datasetFromOracle(loadOracle()))
+    const o = createTestObservatory(datasetFromOracle(oracle))
     o.forja.session.setBase(state, { type: 'leitura-video', video: PICK.full })
     return buildHistoricoView(o, PICK.full, {}).forjaCard!
   }

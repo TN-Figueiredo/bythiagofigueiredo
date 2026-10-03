@@ -23,7 +23,9 @@ import type { ChannelBaseline, VideoScoreInput } from '@/lib/youtube/scoring-typ
 function syncedNTimes(videoId: string, views: number, days: number) {
   return Array.from({ length: days }, (_, i) => ({
     youtube_video_id: videoId,
-    date: `2026-09-${String(i + 1).padStart(2, '0')}`,
+    // Relative to the wall clock: computeBaseline drops rows older than 28 days,
+    // so a hardcoded month ages out of the window and the test goes stale.
+    date: new Date(Date.now() - (days - 1 - i) * 86400000).toISOString().slice(0, 10),
     views,
     likes: 2,
     comments: 1,

@@ -3,11 +3,14 @@ import { describe, it, expect } from 'vitest'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 
+// loadOracle() evals the whole mockup dataset in a vm (~370 ms); datasetFromOracle clones, so one load is safe to share.
+const oracle = loadOracle()
+
 type Ds = ReturnType<typeof datasetFromOracle>
 
 /** First thumbnail change after the series start, on a fresh dataset (so mutations never leak across tests). */
 function withThumbChange() {
-  const ds: Ds = datasetFromOracle(loadOracle())
+  const ds: Ds = datasetFromOracle(oracle)
   const base = createObservatory(ds).changes.find(c => c.type === 'thumb' && !c.preSeries)!
   const video = ds.videos.find(v => v.id === base.video)!
   return { ds, video, idx: base.idx, id: base.id }
@@ -40,12 +43,12 @@ describe('F2: thumbnail change precision comes from the stored version', () => {
 
 describe('F5: perMilSubs without subscribers', () => {
   it('is a finite number with subscribers and null (never Infinity/NaN) without them', () => {
-    const probe = datasetFromOracle(loadOracle())
+    const probe = datasetFromOracle(oracle)
     const withMedian = probe.channels.filter(c => !c.own).find(c => createObservatory(probe).channelStats(c.id, 'long').vpdMedian != null)!
     expect(withMedian, 'oracle has a channel with a vpd median').toBeTruthy()
     const ok = createObservatory(probe).channelStats(withMedian.id, 'long').perMilSubs
     expect(Number.isFinite(ok)).toBe(true)
-    const ds: Ds = datasetFromOracle(loadOracle())
+    const ds: Ds = datasetFromOracle(oracle)
     ds.channels.find(c => c.id === withMedian.id)!.subs = 0
     expect(createObservatory(ds).channelStats(withMedian.id, 'long').perMilSubs).toBeNull()
   })

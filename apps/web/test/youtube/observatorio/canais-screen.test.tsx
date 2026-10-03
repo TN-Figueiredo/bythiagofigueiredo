@@ -66,7 +66,7 @@ describe('CanaisScreen', () => {
       }
       unmount()
     }
-  })
+  }, 30_000) // 7 drawers x 3 tabs of jsdom renders + 4 audits each: ~0.9 s locally, ~5 s on the slower CI runner
   it('the stalled channel says "até o registro diário de DD/MM HH:MM"', () => {
     mount({}, { channel: 'bald-and-bankrupt' })
     expect(screen.getAllByText(/até o registro diário de \d\d\/\d\d \d\d:\d\d/).length).toBeGreaterThan(0)
