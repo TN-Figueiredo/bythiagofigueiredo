@@ -26,8 +26,8 @@ alter table youtube_intelligence_tasks add constraint youtube_intelligence_tasks
   check (task_type in ('diagnostico', 'padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'));
 alter table youtube_intelligence_tasks drop constraint if exists youtube_intelligence_tasks_target_check;
 alter table youtube_intelligence_tasks add constraint youtube_intelligence_tasks_target_check
-  check ((task_type = 'diagnostico' and channel_id is not null)
-      or (task_type <> 'diagnostico' and target_niche in ('viagem', 'ia')
+  check ((task_type = 'diagnostico' and channel_id is not null and target_niche is null and target_video_id is null)
+      or (task_type <> 'diagnostico' and target_niche is not null and target_niche in ('viagem', 'ia')
           and ((task_type = 'leitura-video') = (target_video_id is not null))));
 alter table youtube_intelligence_tasks drop constraint if exists youtube_intelligence_tasks_status_check;
 alter table youtube_intelligence_tasks add constraint youtube_intelligence_tasks_status_check
@@ -75,3 +75,8 @@ create table if not exists forja_heartbeat (
 alter table forja_heartbeat enable row level security;
 drop policy if exists "forja_heartbeat_select" on forja_heartbeat;
 create policy "forja_heartbeat_select" on forja_heartbeat for select using (public.can_view_site(forja_heartbeat.site_id));
+
+drop trigger if exists set_forja_heartbeat_updated_at on forja_heartbeat;
+create trigger set_forja_heartbeat_updated_at
+  before update on forja_heartbeat
+  for each row execute function public.tg_set_updated_at();

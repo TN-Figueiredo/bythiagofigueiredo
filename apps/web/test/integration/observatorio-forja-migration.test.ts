@@ -16,6 +16,17 @@ describe.skipIf(skipIfNoLocalDb())('migration observatorio_forja', () => {
     expect((await ask('temas', 'ia')).error).toBeNull()
     expect((await sb.from('youtube_intelligence_tasks').insert({ site_id: siteId, task_type: 'diagnostico', trigger_type: 'manual' })).error?.message).toMatch(/check/i)
   })
+  it('observatory task without niche fails; diagnostico with a niche fails', async () => {
+    expect((await sb.from('youtube_intelligence_tasks').insert({ site_id: siteId, task_type: 'temas', trigger_type: 'manual' })).error?.message).toMatch(/check/i)
+    const sfx = Math.random().toString(36).slice(2, 10)
+    const { data: ch, error: chErr } = await sb.from('youtube_channels').insert({ site_id: siteId, channel_id: `UCfm${sfx}`, locale: 'pt', handle: `@fm-${sfx}`, name: 'Forja migration', uploads_playlist_id: `UUfm${sfx}` }).select('id').single()
+    expect(chErr).toBeNull()
+    try {
+      expect((await sb.from('youtube_intelligence_tasks').insert({ site_id: siteId, channel_id: ch!.id, task_type: 'diagnostico', target_niche: 'ia', trigger_type: 'manual' })).error?.message).toMatch(/check/i)
+    } finally {
+      await sb.from('youtube_channels').delete().eq('id', ch!.id)
+    }
+  })
   it('same type + same niche active twice → unique violation; other type same niche → ok', async () => {
     expect((await ask('temas', 'ia')).error?.message).toMatch(/duplicate|unique/i)
     expect((await ask('padroes-titulo', 'ia')).error).toBeNull()
