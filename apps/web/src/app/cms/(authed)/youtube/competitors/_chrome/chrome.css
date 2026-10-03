@@ -36,8 +36,13 @@
 [data-obs] [hidden]{display:none!important}
 [data-obs],[data-obs] *,[data-obs] *::before,[data-obs] *::after{box-sizing:border-box}
 [data-obs].obs-ch-root{color:var(--text);font:400 14px/1.5 var(--font-sans),system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-/* compact mode decides by the AVAILABLE width of the content (container query), not the window */
-[data-obs] .obs-ch-content{min-width:0;max-width:1240px;width:100%;margin:0 auto;container:obscontent / inline-size}
+/* compact mode decides by the AVAILABLE width of the content (container query), not the window.
+   The container is the chrome block (head, freshness, tabs: everything the queries style), never .obs-ch-content: a
+   size container is the containing block of its position:fixed descendants, and with the screen inside it every fixed
+   layer of a screen (dialogs, backdrops, the drawer below 1280 px, the row menu) was laid out against the content
+   column instead of the viewport. The chrome block is as wide as the content, so the queries read the same width. */
+[data-obs] .obs-ch-content{min-width:0;max-width:1240px;width:100%;margin:0 auto}
+[data-obs] .obs-ch-content>[data-obs-chrome]{container:obscontent / inline-size}
 [data-obs] :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
 [data-obs] .obs-ch-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0;padding:0;border:0}
 [data-obs] .obs-ch-num{font-family:var(--font-jetbrains-var),ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:.92em;letter-spacing:-.01em}
@@ -182,8 +187,11 @@
 
 /* ---------------------------------------------------------------- space above the screen (D8)
    One value on every screen: 16 px below the tabs. The container is its own context (flow-root), so the first
-   child's margin stays inside it; the screen cannot change this. */
-[data-obs] .obs-ch-content>.obs-ch-screen{display:flow-root!important;margin-top:16px!important;padding-top:0!important;border-top:0!important;float:none!important;top:auto!important;transform:none!important;translate:none!important}
+   child's margin stays inside it; the screen cannot change this.
+   No transform/translate reset here: the CSS build folds `transform:none; translate:none` into
+   `transform: translate3d(0,0,0)`, and any transform makes this box the containing block of the screen's
+   position:fixed layers (dialogs, backdrops, drawer, row menu) — they must resolve against the viewport. */
+[data-obs] .obs-ch-content>.obs-ch-screen{display:flow-root!important;margin-top:16px!important;padding-top:0!important;border-top:0!important;float:none!important;top:auto!important}
 
 /* ================================================================ the forja (Task 35)
    Header button/status/pills and the heartbeat segment (chrome.js forjaHtml + headHtml). The moldura's selector

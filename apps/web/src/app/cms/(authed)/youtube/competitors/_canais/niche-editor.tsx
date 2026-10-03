@@ -30,7 +30,8 @@ type NicheRow = { id: string; name: string; niche: Niche | null }
 /** Where the focus goes back: what had it when the dialog opened, else the chrome's menu ⋯ (its usual opener). */
 const opener = (): HTMLElement | null => {
   const a = typeof document === 'undefined' ? null : document.activeElement
-  return a instanceof HTMLElement && a !== document.body && a.isConnected ? a : null
+  // on the server there is no document and no HTMLElement: `null instanceof HTMLElement` would throw a ReferenceError
+  return a != null && a instanceof HTMLElement && a !== document.body && a.isConnected ? a : null
 }
 const chromeMenu = () => document.querySelector<HTMLElement>('[data-obs-chrome] button[aria-label="Mais ações"]')
 
