@@ -47,7 +47,24 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
       dependencies: ['setup'],
-      testIgnore: '**/tests/public/homepage.spec.ts',
+      testIgnore: ['**/tests/public/homepage.spec.ts', '**/tests/cms/observatorio/**'],
+    },
+    {
+      // Observatório fidelity harness: every spec re-seeds the SAME localhost site from the mockup's oracle, so its
+      // tests never run concurrently (one worker, serial). Specs that open a CMS screen use e2e/.auth/admin.json
+      // (run with the 'setup' dependency); seed.spec and the self-test need no session (`--no-deps` is fine).
+      name: 'observatorio',
+      testMatch: '**/tests/cms/observatorio/**/*.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+      dependencies: ['setup'],
+      teardown: 'observatorio-teardown',
+      fullyParallel: false,
+      workers: 1,
+    },
+    {
+      // clears the oracle seed of the local site once the observatorio project ends (ensureSeeded keeps it between states)
+      name: 'observatorio-teardown',
+      testMatch: '**/tests/cms/observatorio/teardown.obs.ts',
     },
   ],
   globalSetup: './e2e/fixtures/global-setup.ts',
@@ -63,6 +80,10 @@ export default defineConfig({
       NODE_ENV: 'test',
       NEXT_PUBLIC_APP_URL: 'http://localhost:3099',
       PLAYWRIGHT_BASE_URL: 'http://localhost:3099',
+      // Frozen observatório clock = the mockup's NOW_ISO (dados.js). observatoryNow() honours it only with OBS_E2E=1
+      // outside production: `next dev` inlines NODE_ENV as 'development', so a NODE_ENV === 'test' gate would be dead.
+      OBS_E2E: '1',
+      OBS_NOW_OVERRIDE: '2026-10-24T15:02:00-03:00',
     },
   },
 })

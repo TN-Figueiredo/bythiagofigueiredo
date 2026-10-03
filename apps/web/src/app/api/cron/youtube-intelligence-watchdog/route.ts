@@ -21,15 +21,25 @@ export const maxDuration = 60
 
 const CRON_NAME = 'youtube-intelligence-watchdog'
 const STALE_THRESHOLD_MINUTES = 30
+const MAX_REQUEUES = 2
+
+async function fail(message: string) {
+  Sentry.captureMessage(`youtube-intelligence-watchdog: ${message}`)
+  await recordCronFailure(CRON_NAME, message).catch((e) => console.error('[cron-health] write failed:', e))
+  return NextResponse.json({ error: message }, { status: 500 })
+}
 
 async function handle(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const secret = process.env.CRON_SECRET
+  // Unset/empty secret must refuse: otherwise `Bearer undefined` / `Bearer ` would authenticate.
+  if (!secret || authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const supabase = getSupabaseServiceClient()
   const cutoff = new Date(Date.now() - STALE_THRESHOLD_MINUTES * 60_000).toISOString()
 
+  // diagnostico keeps today's behaviour: running past the threshold -> stale.
   const { data: released, error } = await supabase
     .from('youtube_intelligence_tasks')
     .update({
@@ -37,16 +47,43 @@ async function handle(req: NextRequest) {
       error_message: `auto-released: running past ${STALE_THRESHOLD_MINUTES}min`,
     })
     .eq('status', 'running')
+    .eq('task_type', 'diagnostico')
     .lt('started_at', cutoff)
     .select('id, channel_id')
 
-  if (error) {
-    Sentry.captureMessage(`youtube-intelligence-watchdog: ${error.message}`)
-    await recordCronFailure(CRON_NAME, error.message).catch((e) => console.error('[cron-health] write failed:', e))
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return fail(error.message)
+
+  // Observatory types: a stuck request goes back to the queue up to MAX_REQUEUES times,
+  // then fails as 'travou-3x'. Only the vigia SETS released_at; the claim clears it
+  // (ruling R27). Each requeue step is its own statement because retry_count + 1 cannot
+  // be expressed in one update; filtering on the current retry_count keeps it atomic.
+  const nowIso = new Date().toISOString()
+  let requeued = 0
+  for (let n = 0; n < MAX_REQUEUES; n++) {
+    const { data, error: e } = await supabase
+      .from('youtube_intelligence_tasks')
+      .update({ status: 'pending', retry_count: n + 1, released_at: nowIso, started_at: null })
+      .eq('status', 'running')
+      .neq('task_type', 'diagnostico')
+      .eq('retry_count', n)
+      .lt('started_at', cutoff)
+      .select('id')
+    if (e) return fail(e.message)
+    requeued += data?.length ?? 0
   }
+
+  const { data: failed, error: failErr } = await supabase
+    .from('youtube_intelligence_tasks')
+    .update({ status: 'failed', error_message: 'travou-3x', failed_at: nowIso })
+    .eq('status', 'running')
+    .neq('task_type', 'diagnostico')
+    .gte('retry_count', MAX_REQUEUES)
+    .lt('started_at', cutoff)
+    .select('id')
+  if (failErr) return fail(failErr.message)
+
   await recordCronSuccess(CRON_NAME).catch((e) => console.error('[cron-health] write failed:', e))
-  return NextResponse.json({ released: released?.length ?? 0 })
+  return NextResponse.json({ released: released?.length ?? 0, requeued, failed: failed?.length ?? 0 })
 }
 
 export const GET = handle

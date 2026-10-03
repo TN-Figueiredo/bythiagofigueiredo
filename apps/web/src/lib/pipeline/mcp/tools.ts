@@ -719,6 +719,8 @@ const YoutubeObservatoryShape = {
     .describe('Competitor channel UUID (filters get_changes and get_outliers)'),
   limit: z.number().int().min(1).max(100).default(50)
     .describe('Max results for get_changes'),
+  fmt: z.enum(['long', 'short']).optional()
+    .describe('get_outliers: long videos (default) or Shorts — never mixed in one comparison'),
 }
 
 // ---- 18. youtube_analytics ----

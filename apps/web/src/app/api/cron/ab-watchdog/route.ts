@@ -186,14 +186,8 @@ export async function GET(req: NextRequest) {
       .lt('polled_at', sevenDaysAgo)
     if (pruneError) console.error('[ab-watchdog] poll prune failed:', pruneError.message)
 
-    // Prune old competitor changes (90-day retention)
-    const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString()
-    const { error: competitorPruneError } = await pruneClient
-      .from('competitor_changes')
-      .delete()
-      .lt('detected_at', ninetyDaysAgo)
-      .eq('bookmarked', false)
-    if (competitorPruneError) console.error('[ab-watchdog] competitor change prune failed:', competitorPruneError.message)
+    // competitor_changes is the observatory's history (Histórico por vídeo depends on it):
+    // never pruned. Only granular channel snapshots below have a retention window.
 
     // Prune old channel snapshots (365-day retention)
     const oneYearAgo = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10)

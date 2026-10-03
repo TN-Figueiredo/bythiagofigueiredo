@@ -13,6 +13,9 @@ async function loginAs(page: import('@playwright/test').Page, area: 'admin' | 'c
   await page.goto(`/${area}/login`)
   await page.locator('input[type="email"]').fill(email)
   await page.locator('input[type="password"]').fill(password)
+  // the Turnstile test widget answers asynchronously; submitting before it does shows "Verificação anti-bot ainda
+  // carregando" and never POSTs (the first login of a cold dev server lost this race every time)
+  await page.waitForFunction(() => !!document.querySelector<HTMLInputElement>('input[name="cf-turnstile-response"]')?.value, null, { timeout: 30_000 })
   const responsePromise = page.waitForResponse(resp =>
     (resp.url().includes('/auth') || resp.url().includes('/login')) && resp.request().method() === 'POST'
   )

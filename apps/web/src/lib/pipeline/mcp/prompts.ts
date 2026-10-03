@@ -1113,7 +1113,7 @@ export function registerPrompts(server: McpServer): void {
       lines.push('### Timing Recommendations')
       lines.push('From `insights.heatmap` and `insights.hitsHeatmap`:')
       lines.push('- Identify the 3 best publishing windows (day + hour)')
-      lines.push('- Cross-reference heatmap (avg views) with hitsHeatmap (outlier concentration)')
+      lines.push('- Cross-reference heatmap (publication count, São Paulo time) with hitsHeatmap (outlier concentration)')
       lines.push('- Compare with our current publishing pattern')
       lines.push('')
 

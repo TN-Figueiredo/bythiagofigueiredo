@@ -335,6 +335,11 @@ Pickup de tasks pendentes com CAS (compare-and-swap) — endpoint atual; funcion
 ```
 `channel_ids`: 1 a 10 uuids, obrigatório — o worker nunca reivindica uma task fora da lista que está processando.
 
+`task_types` (opcional, só a forja com `OBS_TIPOS=1`): 1 a 5 tipos do observatório — `padroes-titulo`, `padroes-titulo-shorts`, `temas`, `resumo-trocas`, `leitura-video`. Com ele, a claim também pega pedidos do observatório desses tipos e grava o batimento da forja (`forja_heartbeat`: hora do poll + esses tipos como capacidades), mesmo com a fila vazia. **Sem `task_types`** a claim é exatamente a de antes: só `diagnostico` dos `channel_ids`, sem batimento.
+```json
+{ "channel_ids": ["uuid"], "task_types": ["padroes-titulo", "padroes-titulo-shorts", "temas", "resumo-trocas", "leitura-video"] }
+```
+
 **Response 200:**
 ```json
 {
@@ -344,12 +349,18 @@ Pickup de tasks pendentes com CAS (compare-and-swap) — endpoint atual; funcion
     "channel_id": "uuid",
     "trigger_type": "weekly",
     "requested_at": "2026-09-17T10:00:00Z",
-    "started_at": "2026-09-17T10:00:03Z"
+    "started_at": "2026-09-17T10:00:03Z",
+    "task_type": "diagnostico",
+    "target_niche": null,
+    "target_video_id": null,
+    "target_fmt": null
   }
 }
 ```
+Num pedido do observatório, `channel_id` é `null` e o alvo vem em `task_type` + `target_niche` (`ia`/`viagem`) ou `target_video_id` (`leitura-video`), com `target_fmt` (`long`/`short`) nos tipos de outliers. Ver "Leituras do observatório (forja)".
+
 **Response 204:** corpo vazio — fila vazia para esses canais, ou a CAS perdeu para outra claim concorrente
-**Response 400:** `VALIDATION_ERROR` — `channel_ids` ausente, vazio ou com mais de 10 ids
+**Response 400:** `VALIDATION_ERROR` — `channel_ids` ausente, vazio ou com mais de 10 ids; `task_types` vazio, com tipo desconhecido ou com mais de 5
 **Response 403:** `FORBIDDEN` — chave sem `read`+`intelligence` (nem `write`/`admin`)
 **Response 500:** `INTERNAL_ERROR` — falha ao ler a fila
 
@@ -367,11 +378,17 @@ Fecha explicitamente uma task `running` que o worker não conseguiu terminar —
 ```
 `retry: true` reenfileira a task (até 2 vezes); omitido ou `false` fecha como `failed` definitivo.
 
+`refuse: true` (só pedidos do observatório): a forja **recusa** a task — status `refused`, `reason` vira o código da recusa (≤200 chars, ex.: `dado-velho`). A recusa não gasta a cota do dia. `refuse` e `retry` juntos são 400.
+```json
+{ "reason": "dado-velho", "refuse": true }
+```
+Resposta da recusa: `{ "data": { "id": "uuid", "status": "refused" } }`.
+
 **Response 200:**
 ```json
 { "data": { "id": "uuid", "status": "pending", "retry_count": 1 } }
 ```
-**Response 400:** `VALIDATION_ERROR` — corpo inválido (`reason` obrigatório, ≤500 chars)
+**Response 400:** `VALIDATION_ERROR` — corpo inválido (`reason` obrigatório, ≤500 chars; `refuse` + `retry` juntos; recusa de task que não é do observatório)
 **Response 404:** `NOT_FOUND` — task não existe
 **Response 409:** `TASK_NOT_RUNNING` — task não está `running`, ou pertence a outra chave — não reenviar
 **Response 500:** `INTERNAL_ERROR` — falha ao fechar a task
@@ -660,40 +677,52 @@ Lista mudanças detectadas em vídeos de concorrentes (títulos, thumbnails, des
 
 ### GET /api/pipeline/youtube/competitors/outliers
 
-Lista vídeos outliers de canais concorrentes — vídeos com performance significativamente acima da mediana do canal.
+Lista vídeos outliers de canais concorrentes — vídeos com multiplicador de 2× ou mais em relação ao próprio canal. O cálculo é o mesmo do Observatório no CMS (uma única camada de cálculo): mesmo dia de vida quando há registro diário de views desde a publicação; senão, aproximação por faixa de idade (0–7, 8–30, 31–90, 91–365, mais de 365 dias). Base fraca (n < 3) não entra. Horários em São Paulo.
 
 **Auth:** read
 
 **Query params:**
-- `tier` (opcional): `mid`, `high`, `top` — filtro por nível de outlier
-- `limit` (opcional, default: 20, max: 50)
+- `tier` (opcional): `mid`, `high`, `top` (ou `B`, `A`, `S`) — filtro por nível de outlier
+- `limit` (opcional, default: 25, max: 100)
+- `fmt` (opcional): `long` (default) ou `short` — vídeos longos e Shorts nunca são comparados entre si
 
 **Response 200:**
 ```json
 {
-  "data": [
-    {
-      "id": "uuid",
-      "videoId": "dQw4w9WgXcQ",
-      "title": "This Video Went Viral",
-      "thumbnailUrl": "https://...",
-      "channelName": "Competitor Channel",
-      "channelThumbnailUrl": "https://...",
-      "viewCount": 500000,
-      "likeCount": 25000,
-      "commentCount": 1800,
-      "durationSeconds": 900,
-      "publishedAt": "2026-05-20T16:00:00Z",
-      "multiplier": 8.5,
-      "tier": "high"
-    }
-  ]
+  "data": {
+    "outliers": [
+      {
+        "id": "uuid",
+        "video_id": "dQw4w9WgXcQ",
+        "title": "This Video Went Viral",
+        "thumbnail_url": "https://...",
+        "channel_name": "Competitor Channel",
+        "view_count": 500000,
+        "like_count": 25000,
+        "comment_count": 1800,
+        "duration_seconds": 900,
+        "published_at": "2026-05-20T16:00:00.000Z",
+        "multiplier": 8.5,
+        "tier": "high",
+        "method": "mesmo dia de vida",
+        "n": 12,
+        "label": "8,5× vs vídeos do canal no mesmo dia de vida (dia 14, n = 12)",
+        "phase": "recente"
+      }
+    ],
+    "count": 1
+  }
 }
 ```
 
 **Notas:**
-- `multiplier` indica quantas vezes acima da mediana do canal (ex: 8.5x)
-- Tiers visuais: `mid` = #60A5FA (2-5x), `high` = #A78BFA (5-10x), `top` = #D9614A (>10x)
+- `view_count` e `like_count` são `null` quando o canal oculta o contador (nunca `0`): trate como "sem contagem"
+- `multiplier` indica quantas vezes acima do canal (ex: 8.5×); ordenado do maior para o menor
+- `method`: `mesmo dia de vida` (views no mesmo dia de vida que os outros vídeos do canal) ou `aproximação por faixa` (views totais vs vídeos do canal da mesma faixa de idade)
+- `n`: vídeos do canal na base de comparação; `label`: texto canônico do motor, com método e n
+- `phase`: `estourando`, `recente`, `perene`, `antigo`, `novos` ou `sem-ritmo` (canal com sincronização atrasada, com erro ou ainda buscando vídeos)
+- `count`: total de outliers depois do filtro de tier (antes do `limit`)
+- Tiers visuais: `mid` = #60A5FA (2-5×), `high` = #A78BFA (5-10×), `top` = #D9614A (10× ou mais)
 - Usado para identificar padrões de conteúdo viral entre concorrentes
 
 ---
@@ -776,14 +805,97 @@ Retorna insights agregados de todos os canais concorrentes monitorados.
 ```
 
 **Campos-chave:**
-- `heatmap`: matriz 7x24 (dias x horas) com média de views — identifica melhores horários de publicação
-- `hitsHeatmap`: matriz 7x24 com contagem de outliers publicados — confirma timing de picos
+- `heatmap`: matriz 7x24 (dias seg→dom x horas, horário de São Paulo) com a contagem de vídeos longos publicados nos últimos 90 dias, em blocos de 2 h (as duas horas do bloco levam o mesmo valor); canais ainda buscando vídeos ficam de fora
+- `hitsHeatmap`: matriz 7x24 (horário de São Paulo) com a contagem de outliers (mesmo cálculo de `/competitors/outliers`, todas as idades) por dia e hora de publicação
 - `tags`: tags mais usadas por concorrentes, ordenadas por frequência
 - `engagement`: comparação de engagement rate entre concorrentes e nosso canal (`isUs: true`)
 - `gaps`: tópicos que concorrentes cobrem e nós não (`weCover: false`)
 - `formulas`: padrões de título que performam acima da mediana (com `multiplier`)
 - `play`: a jogada da semana — combinação tópico + fórmula + timing de maior impacto
-- `cadence`: frequência de upload por concorrente (vídeos/semana)
+- `cadence`: frequência de upload por concorrente (vídeos longos/semana nas últimas 13 semanas); `window` = hábito "Dia Hh" em São Paulo quando o canal costuma publicar no mesmo dia e hora (3+ vídeos e 30%+ deles), senão `—`
+
+---
+
+## Leituras do observatório (forja)
+
+A forja (Gemma 12B local) lê pedidos do observatório de concorrentes feitos na tela ("Pedir leitura à forja"). Só a chave da forja (`intelligence`, API key) usa estes endpoints; o Cowork não. Fluxo de uma execução:
+
+1. `POST .../intelligence/task/claim` com `task_types` → a task (`task_type`, `target_niche`, `target_video_id`, `target_fmt`), ou 204.
+2. `GET .../competitors/readings?task_id=` → os dados enviados à forja (`sent`), congelados na primeira leitura.
+3. Gerar o texto e validar contra `sent`; então **um** de: `POST .../competitors/readings` (publica), `fail` com `refuse: true` (recusa) ou `fail` com/sem `retry`.
+
+**Regras:**
+- **Um pedido = um tipo × um alvo** (um nicho, ou um vídeo em `leitura-video`); uma claim por ciclo. O orçamento acoplado da forja (20 min do claim ao último request < 25 min do cron < 30 min do vigia) cobre GET + modelo + POST — a rota tem `maxDuration` 60 s.
+- **Cota:** 1 pedido por nicho + tipo por dia (dia de São Paulo). Falha e recusa não gastam a cota.
+- **Recusa:** `fail` com `{"reason": "dado-velho", "refuse": true}` quando `sent.asOf` tem mais de 24 h (dado mais velho que a última sincronização). O código vai para `refused_reason`; a tela mostra "recusado às HH:MM" com a frase canônica do código. Códigos de recusa: `dado-velho` → "a máquina recebeu dados anteriores à última sincronização. Peça de novo." Um código desconhecido aparece literal na tela — use só os códigos desta lista.
+- Todo número citado em `title`, `lead`, `items` e `evidence[].note` tem de estar em `sent.numbers` (forma canônica: `1,5 mil`, `8,2×`, `−41%`, `12 pp`, `3 h`, `2º`, `60s`, `1.230`); todo `evidence[].id` tem de estar em `sent.ids`.
+
+### GET /api/pipeline/youtube/competitors/readings?task_id={uuid}
+
+Os dados enviados à forja para uma task `running` desta chave. A primeira leitura monta o pacote e o congela em `task.sent`; as seguintes devolvem **o mesmo objeto** (idempotente).
+
+O congelamento é **por task, não por tentativa**: quando a task volta para a fila (`fail` com `retry`, ou o vigia), o `sent` fica, e a próxima tentativa recebe os mesmos dados, na hora, sem montar de novo — a releitura cita os mesmos números. Só a primeira leitura bem-sucedida de uma task monta o pacote.
+
+**Headers:** `X-Pipeline-Key: {api_key}` (escopo `intelligence`, só API key)
+
+**Response 200:**
+```json
+{
+  "data": {
+    "task_id": "uuid",
+    "task_type": "temas",
+    "target": { "niche": "ia", "video_id": null, "fmt": "long" },
+    "sent": {
+      "text": "dados enviados à forja: …",
+      "asOf": 1791043200000,
+      "ids": ["uuid-do-video", "uuid-da-troca"],
+      "numbers": ["3", "1,5 mil", "8,2×", "2º"],
+      "nVideos": 3, "nOutliers": 1,
+      "channels": ["uuid"], "channelsOut": [{ "id": "uuid", "reason": "…" }],
+      "items": [{ "kind": "vídeo", "id": "uuid-do-video", "title": "…", "views": "1,5 mil", "mult": "8,2×" }],
+      "capped": false,
+      "base": { "videos": [], "channels": ["uuid"], "windowDays": 182, "asOf": 1792857600000 },
+      "changeIds": ["uuid-do-video/title/2"], "windowDays": 30,
+      "effects": [{ "change": "uuid-do-video/title/2", "status": "ganhou", "numbers": "…", "reason": "…", "collected": 7 }], "viewsThen": 207600
+    }
+  }
+}
+```
+`base` (padrões de título e temas), `changeIds` + `windowDays` (resumo das trocas) e `effects` + `viewsThen` (leitura de vídeo) são os dados crus que o site usa no "Desde então" da leitura publicada. Ficam congelados junto com o resto; **não são citáveis** (não entram em `numbers`) e a forja pode ignorá-los.
+**Response 400:** `VALIDATION_ERROR` — `task_id` ausente ou não é uuid; a task não é do observatório
+**Response 401:** `UNAUTHORIZED` — sem `X-Pipeline-Key` ou chave inválida
+**Response 403:** `FORBIDDEN` — sessão (só API key) ou chave sem `intelligence` (nem `write`/`admin`)
+**Response 404:** `NOT_FOUND` — task não existe
+**Response 409:** `TASK_NOT_RUNNING` — a task não está `running`, ou pertence a outra chave (ou foi reclamada de novo enquanto o pacote era montado) — não insistir
+**Response 422:** `TARGET_UNAVAILABLE` — o alvo não existe mais (o vídeo do `leitura-video` sumiu); nada é congelado — feche com `fail` sem `retry`
+**Response 500:** `INTERNAL_ERROR` — falha ao carregar ou montar os dados (mensagem genérica; o detalhe vai para o Sentry); nada é congelado — feche com `fail` com `retry`
+
+### POST /api/pipeline/youtube/competitors/readings
+
+Publica a leitura da forja para uma task `running` desta chave cujo `sent` já foi congelado (GET acima). A leitura guarda uma cópia do `sent` congelado e a task vai para `completed`.
+
+**Headers:** `X-Pipeline-Key: {api_key}` (escopo `intelligence`, só API key)
+
+**Payload:**
+```json
+{
+  "task_id": "uuid",
+  "model": "Gemma 12B",
+  "generated_at": "2026-10-03T15:00:00Z",
+  "text": { "title": "…", "lead": "…", "items": ["…"] },
+  "analysis": { "tipo": "temas", "tentativas": 1 },
+  "evidence": [{ "id": "uuid-de-sent.ids", "note": "…" }]
+}
+```
+`generated_at`: ISO com `Z` ou offset (`-03:00`). `analysis` aceita chaves extras; `linhas_lidas`/`linhas_enviadas` (inteiros) quando o prompt cortou as linhas.
+
+**Response 200:** `{ "data": { "reading_id": "uuid" } }`
+**Response 400:** `VALIDATION_ERROR` — corpo inválido; número fora de `sent.numbers` (a mensagem lista os números); `evidence[].id` fora de `sent.ids`
+**Response 401:** `UNAUTHORIZED` — sem `X-Pipeline-Key` ou chave inválida
+**Response 403:** `FORBIDDEN` — sessão (só API key) ou chave sem `intelligence` (nem `write`/`admin`)
+**Response 404:** `NOT_FOUND` — task não existe
+**Response 409:** `TASK_NOT_RUNNING` — a task não está `running` (já publicada, liberada pelo vigia) ou é de outra chave; `TASK_NOT_READY` — `sent` nunca foi lido (faça o GET antes). **Nunca reenviar** o mesmo POST
+**Response 500:** `INTERNAL_ERROR` — o POST pode ou não ter gravado; feche com `fail` (`retry: true`) — um 409 nesse `fail` quer dizer que a leitura foi publicada
 
 ---
 

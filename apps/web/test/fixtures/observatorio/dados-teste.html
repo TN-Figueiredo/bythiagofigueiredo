@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teste de dados</title>
+<style>
+:root{--bg:#1A1714;--surface:#221E1A;--border:#332D25;--text:#F5EFE6;--muted:#A89D88;--ok:#22c55e;--bad:#F26B6B}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--bg:#F7F2E9;--surface:#FBF7F0;--border:#DDD2BF;--text:#231C14;--muted:#5E5240;--ok:#11692F;--bad:#B42318}}
+:root[data-theme="light"]{--bg:#F7F2E9;--surface:#FBF7F0;--border:#DDD2BF;--text:#231C14;--muted:#5E5240;--ok:#11692F;--bad:#B42318}
+body{margin:0;padding:24px 16px;background:var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,sans-serif}
+main{max-width:1100px;margin:0 auto}
+h1{font-size:20px;margin:0 0 4px}
+p.sub{color:var(--muted);margin:0 0 16px}
+#summary{font:600 16px/1.4 ui-monospace,Menlo,monospace;padding:12px 14px;border:1px solid var(--border);border-radius:6px;background:var(--surface);margin-bottom:16px}
+#summary.pass{color:var(--ok)}#summary.fail{color:var(--bad)}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:6px}
+th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--muted);font-weight:600}
+td.r{font:600 12px ui-monospace,Menlo,monospace;white-space:nowrap}
+td.r.PASS{color:var(--ok)}td.r.FAIL{color:var(--bad)}
+td.d{color:var(--muted);font-size:12px;word-break:break-word}
+</style>
+</head>
+<body>
+<main>
+<h1>Teste de dados (dados.js)</h1>
+<p class="sub">Roda as asserções sobre <code>window.OBS</code> e escreve PASS/FAIL aqui e no console. Horários em São Paulo.</p>
+<div id="summary" role="status">rodando…</div>
+<table><thead><tr><th scope="col">resultado</th><th scope="col">asserção</th><th scope="col">detalhe</th></tr></thead><tbody id="rows"></tbody></table>
+</main>
+<script src="dados.js"></script>
+<script id="tests">
+(function (root) {
+  const O = root.OBS, R = [];
+  const test = (name, fn) => { let ok = false, detail = ''; try { const r = fn(); ok = r === true || (r && r.ok === true); detail = r && r.detail != null ? r.detail : (ok ? '' : JSON.stringify(r)); } catch (e) { detail = 'erro: ' + e.message; } R.push({ name, ok, detail }); };
+  const all = (arr, pred, label) => { const bad = arr.filter(x => !pred(x)); return { ok: bad.length === 0, detail: bad.length ? bad.length + ' violações: ' + bad.slice(0, 4).map(label || (x => x.id || JSON.stringify(x))).join('; ') : arr.length + ' itens conferidos' }; };
+  const { date, fmt, NOW, DAY, H } = O;
+  const D = (s) => date.spIso(s);
+  const V = id => O.video(id), C = id => O.change(id);
+  const median = O.median;
+  const byN = (reqs) => [reqs.find(q => q.niche === 'ia'), reqs.find(q => q.niche === 'viagem')];   // [IA, Viagem], qualquer que seja a ordem da fila
+
+  /* ---------- calendário ---------- */
+  test('24/10/2026 15:02 (SP) é sábado e NOW bate', () => ({ ok: date.weekday(NOW) === 'sábado' && date.dm(NOW) === '24/10' && date.hm(NOW) === '15:02', detail: date.weekday(NOW) + ' ' + date.dmhm(NOW) }));
+  test('Dias da semana pelo calendário real (20/10 terça, 21/10 quarta, 22/10 quinta, 28/10 quarta, 03/10 sábado, 31/05 domingo)', () => {
+    const exp = { '2026-10-20': 'terça', '2026-10-21': 'quarta', '2026-10-22': 'quinta', '2026-10-28': 'quarta', '2026-10-03': 'sábado', '2026-05-31': 'domingo', '2025-12-30': 'terça' };
+    const bad = Object.entries(exp).filter(([d, w]) => date.weekday(D(d + 'T12:00')) !== w || new Date(d + 'T12:00:00-03:00').getUTCDay() !== ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'].indexOf(w));
+    return { ok: !bad.length, detail: bad.length ? JSON.stringify(bad) : '7 datas' };
+  });
+  test('Sincronização: última 24/10 12:00, próxima 18:00, "sincronizado há 3 h"', () => ({ ok: date.dmhm(O.SYNC.last) === '24/10 12:00' && date.hm(O.SYNC.next) === '18:00' && O.SYNC.text === 'sincronizado há 3 h', detail: O.SYNC.text + ' · ' + O.SYNC.title }));
+  test('Série começa em 03/10 e hoje é o índice 21 (24/10 12:00)', () => ({ ok: date.dmhm(O.SERIES_START) === '03/10 00:00' && date.dmhm(date.snapTime(0)) === '03/10 12:00' && date.dmhm(date.snapTime(O.LAST_IDX)) === '24/10 12:00', detail: '' }));
+
+  /* ---------- nada depois de NOW ---------- */
+  test('Nada depois de NOW (publicações, pontos da série, versões, trocas, snapshots, leituras, sincronizações)', () => {
+    const bad = [];
+    O.videos.forEach(v => { if (v.pub > NOW) bad.push(v.id + ' pub'); v.series.forEach(p => { if (p.t > NOW) bad.push(v.id + ' série'); });
+      [v.titles, v.thumbs, v.descs].forEach(a => a.forEach(x => { if (x.first_seen > NOW || x.last_seen > NOW) bad.push(v.id + ' ' + x.id); })); });
+    O.changes.forEach(c => { if (c.at > NOW || (c.window && c.window[1] > NOW)) bad.push(c.id); });
+    O.channels.forEach(c => { if (c.sync.last > NOW) bad.push(c.id + ' sync'); c.snapshots.forEach(s => { if (s.t > NOW) bad.push(c.id + ' snap'); }); });
+    O.forja.readings.forEach(r => { if (r.generatedAt > NOW || r.sent.asOf > r.generatedAt) bad.push(r.id); });
+    return { ok: !bad.length, detail: bad.length ? bad.slice(0, 5).join('; ') : 'ok' };
+  });
+
+  /* ---------- contagens das abas ---------- */
+  ['todos', 'viagem', 'ia'].forEach(n => test('Contagens das abas (' + n + ') = CONVENCOES ' + JSON.stringify(O.TAB_COUNTS[n]), () => {
+    const got = O.tabCounts(n), want = O.TAB_COUNTS[n];
+    // recálculo independente
+    const inN = x => n === 'todos' || x.niche === n;
+    const canais = O.channels.filter(c => !c.own && inN(c)).length;
+    const mud = O.changes.filter(c => c.at > NOW - 30 * DAY && inN(c) && !O.channel(c.ch).own).length;
+    const out = O.videos.filter(v => v.tracked && v.fmt === 'long' && inN(v) && !O.channel(v.ch).own && v.ageDays <= 90 && v.mult.value >= 2 && !v.mult.weak).length;
+    const ok = got.canais === want.canais && got.mud === want.mud && got.out === want.out && canais === want.canais && mud === want.mud && out === want.out;
+    return { ok, detail: 'tabCounts ' + JSON.stringify(got) + ' · recontagem ' + JSON.stringify({ canais, mud, out }) };
+  }));
+  test('Integridade de carga (asserção interna do dados.js) sem erros', () => ({ ok: O.integrity.ok, detail: O.integrity.errors.join('; ') }));
+  test('Mudanças: título + thumbnail na mesma janela contam como 2 eventos (Opus 18/10)', () => {
+    const ev = O.changesIn({ video: 'matt-opus55', days: 30 }).filter(c => c.at >= D('2026-10-18T06:00') && c.at <= D('2026-10-18T12:00'));
+    return { ok: ev.length === 2 && ev.some(c => c.type === 'title') && ev.some(c => c.type === 'thumb') && ev.every(c => c.sameWindow.length === 1), detail: ev.map(c => c.id).join(', ') };
+  });
+
+  /* ---------- outliers ---------- */
+  test('Outliers padrão (longos, até 90 d) são ≥ 2×, base não fraca (n ≥ 3) e com views/dia acima da mediana do canal', () => {
+    const items = O.outliers({}).items;
+    return all(items, x => { const v = x.video, ch = O.channel(v.ch); const med = median(ch.videos.filter(u => u.tracked && u.fmt === v.fmt && u.vpd != null).map(u => u.vpd)); return x.mult.value >= 2 && !x.mult.weak && x.mult.n >= 3 && v.vpd > med; }, x => x.id + ' ' + fmt.mult(x.mult.value));
+  });
+  test('Outliers: viagem 5 e IA 6; contagem por faixa fecha com a lista', () => {
+    const a = O.outliers({ niche: 'viagem' }), b = O.outliers({ niche: 'ia' }), t = O.outliers({});
+    return { ok: a.count === 5 && b.count === 6 && t.byAge['0-30'] + t.byAge['31-90'] === t.count && t.count === 11, detail: 'viagem ' + a.count + ' · IA ' + b.count + ' · 0–30 ' + t.byAge['0-30'] + ' + 31–90 ' + t.byAge['31-90'] };
+  });
+  test('Abaixo de 2× nunca é outlier (nenhum item < 2× em nenhuma faixa/formato)', () => {
+    const items = ['long', 'short'].flatMap(f => O.outliers({ fmt: f, ages: 'all' }).items);
+    return all(items, x => x.mult.value >= 2, x => x.id);
+  });
+  test('Fases dos outliers seguem a regra (estourando ≤ 30 d; recentes ≤ 90 d; perenes/antigos > 90 d)', () => {
+    const items = ['long', 'short'].flatMap(f => O.outliers({ fmt: f, ages: 'all' }).items);
+    return all(items, x => ({ estourando: x.ageDays <= 30, recente: x.ageDays <= 90, perene: x.ageDays > 90, antigo: x.ageDays > 90, 'sem-ritmo': ['atrasado', 'erro', 'backfill'].includes(O.channel(x.video.ch).sync.state), novos: x.video.vpd7 == null && O.channel(x.video.ch).sync.state === 'ok' })[x.phase.id], x => x.id + ' ' + x.phase.id);
+  });
+
+  /* ---------- n possíveis pela cadência ---------- */
+  test('n do multiplicador = recontagem independente (sem contar o vídeo) e possível pela lista do canal', () => {
+    const bad = [];
+    O.videos.filter(v => v.tracked && v.series.length && O.channel(v.ch).lastIdx != null).forEach(v => {
+      const m = v.mult, ch = O.channel(v.ch), t = ch.lastIdx, tt = date.snapTime(t);
+      const others = ch.videos.filter(u => u !== v && u.tracked && u.fmt === v.fmt && u.pub < tt && u.series.length);
+      if (m.method === 'aproximação por faixa') {
+        const b = O.bandOf(Math.floor((tt - v.pub) / DAY)).id;
+        const n = others.filter(u => O.bandOf(Math.floor((tt - u.pub) / DAY)).id === b).length;
+        if (n !== m.n) bad.push(v.id + ' faixa ' + m.n + '≠' + n);
+      } else if (m.method === 'mesmo dia de vida') {
+        const max = others.filter(u => u.pub >= O.SERIES_START).length;
+        if (m.n > max || m.n < 3) bad.push(v.id + ' dia ' + m.n + '>' + max);
+      }
+    });
+    return { ok: !bad.length, detail: bad.length ? bad.slice(0, 5).join('; ') : 'todos os vídeos com série' };
+  });
+  test('Cadência: pw = n/13 (1 casa), semanas somam n, "costuma" só com ≥ 3 vídeos e ≥ 30%', () => {
+    const bad = [];
+    O.channels.forEach(c => ['long', 'short'].forEach(f => { const k = O.cadence(c.id, f);
+      if (Math.abs(k.pw - Math.round(k.n / 13 * 10) / 10) > 1e-9) bad.push(c.id + ' pw');
+      if (k.weeks.reduce((a, w) => a + w.n, 0) !== k.n) bad.push(c.id + ' semanas');
+      if (k.habit.costuma && !(k.habit.n >= 3 && k.habit.n / k.n >= 0.3)) bad.push(c.id + ' costuma'); }));
+    return { ok: !bad.length, detail: bad.join('; ') || '30 combinações canal × formato' };
+  });
+
+  /* ---------- limites e sincronização ---------- */
+  test('≤ 200 vídeos acompanhados por canal; acompanhados = os mais recentes até o video_limit', () => all(O.channels, c => { const tr = c.videos.filter(v => v.tracked); return c.video_limit <= 200 && tr.length <= c.video_limit && tr.every(v => c.videos.indexOf(v) < c.video_limit); }, c => c.id));
+  test('Vídeos fora do video_limit não têm série', () => all(O.videos.filter(v => !v.tracked), v => !v.series.length && v.views == null));
+  test('Estados de sincronização: Paddy atrasado (23/10 00:00), Esq erro 404 (21/10 18:00), Vou sem volta buscando 18 de 50, bald and bankrupt parado, demais ok às 12:00', () => {
+    const c = id => O.channel(id), s = id => c(id).sync;
+    const ok = s('paddy-doyle').state === 'atrasado' && date.dmhm(s('paddy-doyle').last) === '23/10 00:00'
+      && s('esq-unltd-daily').state === 'erro' && date.dmhm(s('esq-unltd-daily').last) === '21/10 18:00' && /404/.test(s('esq-unltd-daily').msg)
+      && s('vou-sem-volta').state === 'backfill' && s('vou-sem-volta').backfill.done === 18 && s('vou-sem-volta').backfill.total === 50 && c('vou-sem-volta').videos.length === 18
+      && c('bald-and-bankrupt').activity.state === 'parado' && O.cadence('bald-and-bankrupt', 'long').lastUpload <= NOW - 35 * DAY
+      && O.channels.filter(x => !['paddy-doyle', 'esq-unltd-daily', 'vou-sem-volta'].includes(x.id)).every(x => x.sync.state === 'ok' && date.dmhm(x.sync.last) === '24/10 12:00');
+    return { ok, detail: O.channels.map(x => x.id + ':' + x.sync.state).join(' ') };
+  });
+  test('Canais: 14 concorrentes (Viagem 8, IA 6) + seu canal tnFigueiredo (own)', () => {
+    const comp = O.channels.filter(c => !c.own);
+    return { ok: comp.length === 14 && comp.filter(c => c.niche === 'viagem').length === 8 && comp.filter(c => c.niche === 'ia').length === 6 && O.channel('tnfigueiredo').own === true, detail: comp.map(c => c.name).join(', ') };
+  });
+  test('Snapshots de canal: 1 por dia desde 31/05 (09:00 até 02/10; 12:00 desde 03/10) até a última sincronização', () => all(O.channels.filter(c => c.sync.state !== 'backfill'), c => {
+    const s = c.snapshots; if (date.dmhm(s[0].t) !== '31/05 09:00') return false;
+    for (let i = 1; i < s.length; i++) { const dd = Math.round((s[i].t - s[i - 1].t) / H); if (dd !== 24 && dd !== 27) return false; const h = date.parts(s[i].t).h; if (h !== (s[i].t < O.SERIES_START ? 9 : 12)) return false; }
+    return date.snapTime(c.lastIdx) === s[s.length - 1].t;
+  }, c => c.id));
+
+  /* ---------- série diária ---------- */
+  test('Série: 1 ponto/dia às 12:00 de max(03/10, publicação) ao último ponto do canal, sem decrescer', () => all(O.videos.filter(v => v.series.length), v => {
+    const ch = O.channel(v.ch); const p = v.series;
+    if (p[0].idx !== Math.max(0, date.snapIdxAtOrAfter(v.pub)) || p[p.length - 1].idx !== ch.lastIdx) return false;
+    return p.every((x, i) => date.hm(x.t) === '12:00' && (i === 0 || (x.idx === p[i - 1].idx + 1 && x.views >= p[i - 1].views)));
+  }));
+
+  /* ---------- trocas: precisão ---------- */
+  test('Precisão: thumbnail com minuto; título/descrição desde 03/10 em janela de 6 h terminando em 00/06/12/18; antes de 03/10 janela de 1 dia às 09:00', () => all(O.changes, c => {
+    if (c.type === 'thumb') return c.prec === 'min' && !c.window;
+    const [a, b] = c.window; const hb = date.parts(b).h;
+    if (c.preSeries) return c.prec === '1d' && b - a === DAY && hb === 9;
+    return c.prec === '6h' && b - a === 6 * H && [0, 6, 12, 18].includes(hb) && date.parts(b).mi === 0;
+  }));
+  test('Nenhuma troca de thumbnail antes de 03/10', () => all(O.changes.filter(c => c.type === 'thumb'), c => c.at >= O.SERIES_START));
+  test('Descrições pré-03/10: só "mudou", sem texto e sem comparação linha a linha', () => {
+    const pre = O.changes.filter(c => c.type === 'desc' && c.preSeries);
+    const vers = O.videos.flatMap(v => v.descs.filter(d => !d.current && d.last_seen < O.SERIES_START));
+    return { ok: pre.length > 0 && pre.every(c => c.hasText === false && c.diff == null) && vers.every(d => d.lines == null && d.hasText === false), detail: pre.length + ' trocas, ' + vers.length + ' versões antigas sem texto' };
+  });
+  test('Trocas antes de 03/10 → "Sem série antes da troca (coleta por vídeo desde 03/10)"', () => all(O.changes.filter(c => c.preSeries), c => O.effect(c.id).status === 'sem-serie' && /coleta por vídeo desde 03\/10/.test(O.effect(c.id).reason)));
+
+  /* ---------- efeito ---------- */
+  test('Efeito: "antes" ≤ 2 dias → inconclusivo (depois de 7 dias)', () => all(O.changes.map(c => O.effect(c.id)).filter(e => e.beforeDays != null && e.beforeDays > 0 && e.beforeDays <= 2 && e.afterDays >= 7), e => e.status === 'inconclusivo', e => e.id));
+  test('Efeito: menos de 7 dias depois → aguardando "N de 7" com data, sem números', () => all(O.changes.map(c => O.effect(c.id)).filter(e => e.afterDays != null && e.afterDays < 7 && e.beforeDays > 0), e => e.status === 'aguardando' && e.observed == null && e.expected == null && new RegExp(e.afterDays + ' de 7 dias coletados, leitura em \\d\\d/\\d\\d').test(e.reason), e => e.id + ' ' + e.status));
+  test('Efeito: ganhou/perdeu só com |efeito| > 10 pp e fora da faixa; veredito medido exige n ≥ 5 e antes ≥ 3 d', () => all(O.changes.map(c => O.effect(c.id)).filter(e => ['ganhou', 'perdeu', 'neutro'].includes(e.status)), e => {
+    if (e.n < 5 || e.beforeDays < 3 || e.afterDays < 7) return false;
+    const out = e.observed < e.iqr[0] || e.observed > e.iqr[1];
+    if (e.status === 'ganhou') return e.effectPp > 10 && out; if (e.status === 'perdeu') return e.effectPp < -10 && out;
+    return !(Math.abs(e.effectPp) > 10 && out) && /^Efeito [+−±]?\d+ pp: /.test(e.reason);
+  }, e => e.id));
+  test('Efeito: campos diferentes na mesma janela ou a < 48 h → inconclusivo (ou aguardando com aviso)', () => all(O.changes.filter(c => c.sameWindow.length || c.within48h.length).map(c => O.effect(c.id)), e => e.status === 'inconclusivo' || (e.status === 'aguardando' && !!e.willBeInconclusive) || e.status === 'sem-serie', e => e.id + ' ' + e.status));
+  test('Efeito: há exemplos de ganhou, perdeu, neutro, inconclusivo, aguardando, sem série e sem base', () => {
+    const st = new Set(O.changes.map(c => O.effect(c.id).status));
+    const want = ['ganhou', 'perdeu', 'neutro', 'inconclusivo', 'aguardando', 'sem-serie', 'sem-antes'];
+    return { ok: want.every(w => st.has(w)), detail: [...st].join(', ') };
+  });
+
+  /* ---------- exemplos do BRIEF ---------- */
+  const brief = [
+    ['matt-fast-cheap', 'This AI Model Is INSANELY Fast & Cheap', '1,5 mil', 'matt-fast-cheap/title/1', 'dev - The New AI model that has people talking', 'há 6 h'],
+    ['sabrina-1m', 'I Forced Myself to Build $1M Business with AI', '19,8 mil', 'sabrina-1m/title/1', 'How I Built a $1M Solo AI Business ($0 to $1M)', 'há 4 dias'],
+    ['matt-opus55', "Claude Opus 5.5 Didn't Need to Go This Hard", '207,6 mil', 'matt-opus55/title/2', 'Opus 5.5 Is Crazy Good and GPT-6 Sol Launched Too', 'há 6 dias'],
+    ['nate-claude-code-danger', 'No, Seriously. Claude Code is Starting To Get Dangerous', '58 mil', 'nate-claude-code-danger/desc/1', null, 'há 3 dias'],
+  ];
+  brief.forEach(([id, title, views, cid, before, ago]) => test('BRIEF: ' + title + ' (' + views + ', troca ' + ago + ')', () => {
+    const v = V(id), c = C(cid);
+    const ok = v && v.title === title && fmt.num(v.views) === views && c && c.agoMidText === ago && c.agoText === (c.window ? 'vista pela 1ª vez ' : '') + date.ago(c.at) && (before == null || (c.before === before && c.after === title)) && (before != null || c.type === 'desc');
+    return { ok, detail: v ? v.title + ' · ' + fmt.num(v.views) + ' · ' + (c ? c.type + ' ' + c.agoText : 'sem troca') : 'vídeo ausente' };
+  }));
+  const briefOut = [['luke-kfc', "Trying a $2.70 Pakistan's version of KFC", '1,9 mi', 21, 'short'], ['dale-ninja-dojo', 'Ninja Training Dojo in Arima Onsen, Japan', '7,4 mi', 298, 'long'],
+    ['preguica-hailuo', 'Como criar vídeos cinematográficos e virais com o Hailuo', '382 mil', 154, 'long'], ['matt-gpt6-astra', 'GPT-6 Astra Is Finally Here', '500 mil', 28, 'long']];
+  briefOut.forEach(([id, title, views, age, f]) => test('BRIEF outlier: ' + title + ' (' + views + ', ' + age + ' d, ' + f + ')', () => {
+    const v = V(id); const inList = O.outliers({ fmt: f, ages: 'all' }).items.some(x => x.id === id);
+    return { ok: v.title === title && fmt.num(v.views) === views && v.ageDays === age && v.fmt === f && inList, detail: fmt.num(v.views) + ' · ' + v.ageDays + ' d · ' + v.mult.label };
+  }));
+  test('Outlier KFC (Short publicado em 03/10) cai para "aproximação por faixa" com o aviso de fallback', () => { const m = V('luke-kfc').mult; return { ok: m.method === 'aproximação por faixa' && m.fallback && /menos de 3 vídeos do canal com série desde o dia 0/.test(m.fallbackText), detail: m.label }; });
+
+  /* ---------- vídeo-vitrine ---------- */
+  test('Vitrine (matt-opus55): publicado depois de 03/10, thumbnail A → B → A em ≤ 14 d (compatível com Testar e comparar)', () => {
+    const v = V('matt-opus55'); const keys = v.thumbs.map(t => t.key).join('');
+    const ba = C('matt-opus55/thumb/2');
+    return { ok: v.pub >= O.SERIES_START && keys === 'ABAC' && ba.revertTo === 'A' && ba.testCompare === true && ba.cycleMs <= 14 * DAY && C('matt-opus55/thumb/1').testCompare === true, detail: keys + ' · B no ar ' + date.dur(ba.cycleMs) };
+  });
+  test('Vitrine: troca de título MEDIDA (≥ 7 d depois, antes ≥ 3 d) e outra aguardando', () => {
+    const e1 = O.effect('matt-opus55/title/1'), e2 = O.effect('matt-opus55/title/2');
+    return { ok: ['ganhou', 'perdeu', 'neutro'].includes(e1.status) && e1.afterDays === 7 && e1.beforeDays >= 3 && e2.status === 'aguardando' && !!e2.willBeInconclusive, detail: e1.status + ' (' + e1.numbers + ', antes ' + e1.beforeDays + ' d) · ' + e2.reason };
+  });
+  test('Vitrine: descrição com comparação linha a linha +4 −3 linhas + 1 UTM', () => { const d = C('matt-opus55/desc/1').diff; return { ok: d.add === 4 && d.rem === 3 && d.utm === 1 && d.label === '+4 −3 linhas + 1 UTM', detail: d.label }; });
+  test('Vitrine: o mesmo objeto alimenta Mudanças, Outliers e Canais', () => {
+    const inMud = O.changesIn({ niche: 'ia', days: 30 }).filter(c => c.video === 'matt-opus55').length;
+    const inOut = O.outliers({ niche: 'ia' }).items.find(x => x.id === 'matt-opus55');
+    const st = O.channelStats('matt-wolfe', 'long');
+    return { ok: inMud === 6 && !!inOut && inOut.video === V('matt-opus55') && st.changes30 === O.changesIn({ channel: 'matt-wolfe' }).length, detail: inMud + ' trocas em 30 d · ' + (inOut ? inOut.mult.label : 'fora dos outliers') + ' · canal ' + st.changes30 + ' trocas' };
+  });
+
+  /* ---------- forja ---------- */
+  test('Leituras publicadas: "Padrões de título dos outliers (6 meses)" em 13/10 06:10 e 20/10 06:10 para Viagem e IA', () => {
+    const ok = ['ia', 'viagem'].every(n => ['13/10 06:10', '20/10 06:10'].every(w => O.forja.readings.some(r => r.type === 'padroes-titulo' && r.niche === n && date.dmhm(r.generatedAt) === w && r.seal === 'forja · Gemma 12B · gerada ' + w + ' (SP)')));
+    return { ok, detail: O.forja.readings.map(r => r.id).join(', ') };
+  });
+  test('Leituras congeladas: base só com vídeos publicados antes do "dados enviados" e janela respeitada', () => all(O.forja.readings, r => r.base.videos.every(x => V(x.id).pub < r.sent.asOf && Math.floor((r.sent.asOf - V(x.id).pub) / DAY) <= r.base.windowDays) && r.sent.asOf <= r.generatedAt, r => r.id));
+  test('Regras de padrão: "padrão" só com n ≥ 10 e diferença ≥ 0,3×; n < 10 vira "recorrência observada — pouco para concluir"', () => all(O.forja.readings.filter(r => r.type === 'padroes-titulo').flatMap(r => r.analysis.patterns), p => p.verdict.id === 'padrao' ? (p.nUse >= 10 && p.diff >= 0.3) : p.verdict.id === 'recorrencia' ? (p.nUse < 10 && /pouco para concluir/.test(p.verdict.text)) : (p.nUse >= 10 && p.diff < 0.3), p => p.formula));
+  test('Atribuição: "sozinho" só com > 60%; "dois canais" só com o 2º ≥ 20%', () => all(O.forja.readings.filter(r => r.type === 'padroes-titulo').flatMap(r => r.analysis.patterns).map(p => p.attribution).filter(a => a.kind !== 'vazio'), a => {
+    if (a.kind === 'unico') return a.total === 1 && !/sozinh|assina/.test(a.text); if (a.kind === 'solo') return a.n1 / a.total > 0.6; if (a.kind === 'dois') return a.n1 / a.total <= 0.6 && a.n2 / a.total >= 0.2; return a.n1 / a.total <= 0.6 && (a.n2 / a.total < 0.2 || a.tie === true); }, a => a.text));
+  test('since(): números fecham (agora = enviados + novos − saíram) e o texto diz para pedir nova leitura', () => all(O.forja.readings, r => { const s = O.forja.since(r.id); return s.nowVideos === s.sentVideos + s.newVideos.length - s.leftWindow.length && /Peça nova leitura à forja/.test(s.text); }, r => r.id));
+  test('Pedido à forja: Esq Unltd Daily e Paddy Doyle ficam fora (sem sincronização > 24 h)', () => { const e = O.forja.eligibleChannels('todos'); return { ok: e.out.some(o => o.id === 'esq-unltd-daily' && /há 3 dias/.test(o.reason)) && e.out.some(o => o.id === 'paddy-doyle'), detail: e.out.map(o => o.reason).join(' · ') }; });
+
+  /* ---------- catálogos ---------- */
+  test('Fórmulas e temas: todo vídeo usa só ids do catálogo; ids de tema não colidem com light/dark', () => {
+    const fids = new Set(O.formulas.map(f => f.id)), tids = new Set(O.themes.map(t => t.id));
+    return { ok: O.videos.every(v => v.formulas.every(f => fids.has(f)) && tids.has(v.theme)) && !tids.has('light') && !tids.has('dark') && ['preco', 'numero', 'pergunta', 'reacao-hiperbole', 'superlativo', 'nome-do-lugar'].every(f => fids.has(f)), detail: [...fids].join(', ') };
+  });
+
+  /* ---------- determinismo ---------- */
+  test('Determinístico: reconstruir dá exatamente os mesmos dados', () => {
+    const B = O._build();
+    const sig = X => JSON.stringify([X.videos.map(v => [v.id, v.pub, v.views, v.title, v.mult.value]), X.changes.map(c => c.id), X.tabCounts('todos'), X.forja.readings.map(r => r.text)]);
+    return { ok: sig(B) === sig(O), detail: O.videos.length + ' vídeos, ' + O.changes.length + ' trocas' };
+  });
+
+
+  /* =================== AMPLIAÇÕES (PEDIDOS-API.md) =================== */
+  /* Canais */
+  test('[novo] setNiche move canal, vídeos e trocas juntos; contagens recalculam; resetNiches restaura', () => {
+    const before = O.tabCounts('ia'); const r = O.setNiche('matt-wolfe', 'viagem');
+    const coherent = O.channel('matt-wolfe').niche === 'viagem' && O.channel('matt-wolfe').videos.every(v => v.niche === 'viagem') && O.changes.filter(c => c.ch === 'matt-wolfe').every(c => c.niche === 'viagem');
+    const moved = O.tabCounts('ia').canais === before.canais - 1 && O.tabCounts('viagem').canais === 9 && r.from === 'ia';
+    O.resetNiches(); const back = JSON.stringify(O.tabCounts('ia')) === JSON.stringify(before) && O.channel('matt-wolfe').niche === 'ia' && O.integrity.ok;
+    return { ok: coherent && moved && back, detail: 'IA com Matt em Viagem: ' + JSON.stringify(r.tabCounts.ia) + ' · restaurado ' + JSON.stringify(O.tabCounts('ia')) };
+  });
+  test('[novo] channelStats.maxMultBelowMin = maior multiplicador < 2× (acompanhados, até 90 d, formato)', () => all(O.channels, c => ['long', 'short'].every(f => {
+    const m = O.channelStats(c.id, f).maxMultBelowMin, cand = c.videos.filter(v => v.tracked && v.fmt === f && v.ageDays <= 90 && v.mult.value != null && v.mult.value < 2);
+    if (!cand.length) return m === null; const best = Math.max(...cand.map(v => v.mult.value)); return m && m.value === best && m.value < 2 && V(m.id).ch === c.id; }), c => c.id));
+  test('[novo] Inscritos: roundingError = meia unidade do 3º algarismo; withinRounding (bald ≈ 0, Luke não)', () => {
+    const b = O.channelStats('bald-and-bankrupt').growth30, l = O.channelStats('luke-damant').growth30, e = O.channelStats('esq-unltd-daily').growth30, vs = O.channelStats('vou-sem-volta').growth30;
+    return { ok: l.roundingError === 5000 && l.roundingText === '±5 mil' && b.withinRounding === true && l.withinRounding === false && e.roundingError === 50 && vs.withinRounding === null, detail: 'bald ' + b.abs + ' (' + b.roundingText + ') · Luke ' + l.abs + ' · Esq ' + e.roundingText };
+  });
+  test('[novo] scenario("own-empty"): sem longo em 90 d, sem mexer nos dados reais', () => {
+    const s = O.scenario('own-empty'), real = O.cadence('tnfigueiredo', 'long');
+    return { ok: s.simulated && s.cadence.n === 0 && s.cadence.pw === 0 && s.lastLong && s.lastLong.ageDays > 90 && s.stats.bestOutlier === null && real.n > 0 && O.scenario('x') === null && O.scenarios.some(x => x.id === 'own-empty'), detail: s.text };
+  });
+  test('[novo] channelStats.engagement (mediana de curtidas+comentários / views, 90 d) e vpd7Median', () => all(O.channels.filter(c => c.lastIdx != null), c => {
+    const st = O.channelStats(c.id, 'long'), a = c.videos.filter(v => v.tracked && v.fmt === 'long' && v.ageDays <= 90 && v.views > 0 && v.likes != null).map(v => (v.likes + v.comments) / v.views);
+    const m7 = median(c.videos.filter(v => v.tracked && v.fmt === 'long' && v.vpd7 != null).map(v => v.vpd7));
+    return st.engagement.n === a.length && (a.length ? Math.abs(st.engagement.median - median(a)) < 1e-12 && st.engagement.median > 0 && st.engagement.median < 0.1 : st.engagement.median == null) && st.vpd7Median === m7; }, c => c.id));
+  /* Outliers */
+  test('[novo] video.url: watch?v= com 11 caracteres, único e estável', () => { const ids = O.videos.map(v => v.ytId), B = O._build(); return { ok: O.videos.every(v => /^https:\/\/www\.youtube\.com\/watch\?v=[A-Za-z0-9_-]{11}$/.test(v.url)) && new Set(ids).size === ids.length && B.video('matt-opus55').url === V('matt-opus55').url, detail: V('matt-opus55').url }; });
+  test('[novo] outliers({includeWeak:true}) traz os de base fraca marcados weak; count continua sem eles', () => {
+    const w = O.outliers({ fmt: 'short', ages: 'all', includeWeak: true }), d = O.outliers({ fmt: 'short', ages: 'all' });
+    const weak = w.items.filter(x => x.weak);
+    return { ok: weak.length > 0 && weak.every(x => x.mult.weak && x.mult.n < 3 && x.mult.value >= 2) && w.count === d.count && w.countWithWeak === d.count + weak.length && d.items.every(x => !x.weak), detail: weak.map(x => x.id + ' ' + fmt.mult(x.mult.value) + ' n=' + x.mult.n).join(', ') };
+  });
+  test('[novo] Atribuição: n = 1 sem frase ("1 outlier: canal"); gênero do canal (Sabrina "sozinha", nunca "sozinho")', () => {
+    const texts = O.forja.readings.flatMap(r => r.analysis.patterns.map(p => p.attribution)).filter(a => a.kind !== 'vazio');
+    return { ok: texts.filter(a => a.total === 1).every(a => a.kind === 'unico' && /^1 outlier[^:]*: /.test(a.text)) && !texts.some(a => /Sabrina Ramonov sozinho/.test(a.text)) && O.channel('sabrina-ramonov').gender === 'f' && O.channels.every(c => ['m', 'f', 'n'].includes(c.gender)), detail: [...new Set(texts.map(a => a.text))].slice(0, 4).join(' · ') };
+  });
+  test('[novo] Leituras de Shorts: "Padrões de título dos outliers — Shorts (6 meses)" em 13/10 e 20/10 por nicho, só com Shorts', () => {
+    const rs = O.forja.readings.filter(r => r.type === 'padroes-titulo-shorts');
+    return { ok: rs.length === 4 && rs.every(r => r.fmt === 'short' && r.base.videos.every(x => V(x.id).fmt === 'short') && r.analysis.patterns.every(p => p.verdict.id !== 'padrao' || (p.nUse >= 10 && p.diff >= 0.3))) && O.forja.readingTypeFor('short') === 'padroes-titulo-shorts' && O.forja.readingTypeFor('long') === 'padroes-titulo', detail: rs.map(r => r.id + ' (' + r.sent.nVideos + ')').join(', ') };
+  });
+  test('[novo] forja.queue: cota por tipo e por nicho; tickMinutes = 10', () => ({ ok: O.forja.queue.quotaScope.perType && O.forja.queue.quotaScope.perNiche && O.forja.queue.tickMinutes === 10 && /falha e recusa não contam/i.test(O.forja.queue.quotaScope.text), detail: O.forja.queue.quotaScope.text }));
+  /* Insights */
+  test('[novo] heatmap: células somam n; pico é a célula mais cheia; melhor multiplicador só com nMult ≥ 3; só concorrentes acompanhados ≤ 90 d', () => all(['todos', 'viagem', 'ia'].flatMap(n => ['long', 'short'].map(f => [n, f])), ([n, f]) => {
+    const h = O.heatmap(n, f), cells = h.cells.flat();
+    const exp = O.videos.filter(v => v.tracked && !O.channel(v.ch).own && O.channel(v.ch).sync.state !== 'backfill' && v.fmt === f && v.ageDays <= 90 && (n === 'todos' || v.niche === n)).length;
+    return cells.reduce((a, c) => a + c.n, 0) === h.n && h.n === exp && (!h.peak || h.peak.n === Math.max(...cells.map(c => c.n))) && (!h.bestMult || h.bestMult.n >= 3) && h.thin.length === cells.filter(c => c.nMult < 3).length
+      && cells.every(c => c.ids.every(id => { const p = date.parts(V(id).pub); return h.cells[(p.dow + 6) % 7][Math.floor(p.h / 2)] === c; })); }, x => x.join('/')));
+  test('[novo] themeTrend: "agora" soma os vídeos de ≤ 90 d; outliers = outliers({theme}).count; ownCoverage fecha', () => {
+    const t = O.themeTrend('viagem', 'long'), n = O.videos.filter(v => v.tracked && t.channelsCompared.includes(v.ch) && v.fmt === 'long' && v.niche === 'viagem' && v.ageDays <= 90).length;
+    const oc = O.ownCoverage('long');
+    return { ok: t.reduce((a, x) => a + x.now, 0) === n && t.every(x => x.outliers === O.outliers({ niche: 'viagem', theme: x.theme }).count) && oc.n === Object.values(oc.byTheme).reduce((a, b) => a + b, 0), detail: t.map(x => x.theme + ' ' + x.now + '/' + x.prev).join(' · ') };
+  });
+  test('[novo] patternsNow: base em 24/10 12:00 (6 meses), mesmas regras; preview conta os mesmos vídeos e deixa Esq fora', () => {
+    const p = O.patternsNow('ia', 'long'), pv = O.forja.preview('padroes-titulo', 'ia');
+    return { ok: date.dmhm(p.asOf) === '24/10 12:00' && p.patterns.every(x => x.verdict.id !== 'padrao' || (x.nUse >= 10 && x.diff >= 0.3)) && pv.nVideos === p.nVideos && pv.videos === p.nVideos && pv.outliers === pv.nOutliers && pv.channelsOut.some(o => o.id === 'esq-unltd-daily') && /^Lê \d+ vídeos longos/.test(pv.text), detail: pv.text + ' · ' + pv.channels + ' canais · ' + pv.window };
+  });
+  test('[novo] link.outliers repassa asof', () => ({ ok: /asof=2026-10-20/.test(O.link.outliers({ niche: 'ia', formula: 'preco', asof: '2026-10-20' })), detail: O.link.outliers({ niche: 'ia', asof: '2026-10-20' }) }));
+  /* Histórico */
+  test('[novo] Leitura do vídeo (matt-opus55, 20/10 06:10): números = effectAt na data, nada depois dela; since() diz o que mudou', () => {
+    const r = O.forja.byId['leitura-video-matt-opus55-20-10'], s = O.forja.since(r.id);
+    const ok = r && r.type === 'leitura-video' && r.seal === 'forja · Gemma 12B · gerada 20/10 06:10 (SP)' && r.effects.every(e => O.change(e.change).at <= r.generatedAt && O.effectAt(e.change, r.sent.asOfIdx).status === e.status)
+      && r.effects.length === O.changes.filter(c => c.video === 'matt-opus55' && c.at <= r.generatedAt).length && s.moved.length > 0 && /Peça nova leitura à forja/.test(s.text) && O.forja.readingTypes.some(t => t.id === 'leitura-video') && !/porque|causou|graças/i.test(r.text.lead + r.text.items.join(' '));
+    return { ok, detail: r ? r.text.lead + ' | ' + s.text : 'ausente' };
+  });
+  test('[novo] expectedCurve: pontos só com n ≥ 3, um por intervalo do vídeo, antes de NOW', () => all(['matt-opus55', 'dale-ninja-dojo', 'luke-kfc', 'sabrina-1m'], id => { const c = O.expectedCurve(id); return c.length > 0 && c.every((p, i) => (p.vpd == null || p.n >= 3) && (p.vpdAnchored == null || p.nAnchored >= 3) && p.t <= NOW && (i === 0 || p.idx > c[i - 1].idx)); }));
+  test('[novo] periodRate: < 24 h sem média; períodos em registros exatos = OBS.rate; antes de 03/10 "só desde 03/10"', () => {
+    const v = V('matt-opus55'), a = O.periodRate('matt-opus55', v.thumbs[1].first_seen, v.thumbs[1].last_seen), b = O.periodRate('matt-opus55', date.snapTime(8), date.snapTime(12)), c = O.periodRate('matt-gpt6-astra', V('matt-gpt6-astra').pub, NOW);
+    return { ok: a.vpd === null && a.text === 'menos de 1 dia no ar, sem média' && Math.abs(b.vpd - O.rate('matt-opus55', 8, 12)) < 1e-6 && !b.sharedDay && c.onlySinceDays === 21 && /só desde 03\/10/.test(c.text), detail: a.text + ' · ' + b.text + ' · ' + c.text };
+  });
+  /* Mudanças */
+  test('[novo] Leitura "Resumo das trocas (30 dias)" por nicho em 20/10 06:10: trocas até a data, grupos < 10 = recorrência', () => {
+    const rs = ['ia', 'viagem'].map(n => O.forja.byId['resumo-trocas-' + n + '-20-10']);
+    return { ok: rs.every(r => r && date.dmhm(r.generatedAt) === '20/10 06:10' && r.sent.changeIds.every(id => O.change(id).at <= r.generatedAt && O.change(id).at > r.generatedAt - 30 * DAY && O.change(id).niche === r.niche)
+      && r.analysis.groups.every(g => g.changeIds.every(id => O.change(id).rewriteGroup === g.id) && (g.id === 'sem-padrao' ? / sem padrão de reescrita$/.test(g.verdict.text) : g.n >= 10 ? g.verdict.id === 'padrao' : g.n === 1 ? /caso isolado \(n = 1\)/.test(g.verdict.text) : /recorrência observada \(n = \d+\) — pouco para concluir/.test(g.verdict.text)))
+      && r.analysis.reverts.every(id => O.change(id).revertTo) && /Peça nova leitura/.test(O.forja.since(r.id).text)), detail: rs.map(r => r.text.items.join(' / ')).join(' || ') };
+  });
+  test('[novo] titleDiff palavra a palavra: keep+rem refaz o antes, keep+add refaz o depois', () => all(O.changes.filter(c => c.type === 'title'), c => { const d = c.titleDiff; const j = a => a.map(x => x.text).join('').trim(); return j(d.before.filter(x => x.op !== 'add')) === c.before.trim() && j(d.after.filter(x => x.op !== 'rem')) === c.after.trim() && d.before.every(x => x.op !== 'add') && d.after.every(x => x.op !== 'rem') && d.full === (d.keptWords === 0); }, c => c.id));
+  test('[novo] effect.daily: before/after com beforeDays/afterDays pontos; média dos 7 depois = afterAvg', () => all(O.changes.map(c => O.effect(c.id)).filter(e => e.daily), e => e.daily.before.length === e.beforeDays && e.daily.after.length === e.afterDays && (e.afterAvg == null || Math.abs(e.daily.after.reduce((a, d) => a + d.vpd, 0) / 7 - e.afterAvg) < 1e-6) && e.daily.after.every(d => d.to <= NOW), e => e.id));
+  test('[novo] swipe: saved/toggle/label coerentes', () => { const id = 'matt-opus55/title/1', was = O.swipe.saved(id); O.swipe.toggle(id); const flipped = O.swipe.saved(id) === !was && O.swipe.label(id) === (was ? 'Salvar no swipe file' : 'Salvo no swipe file'); O.swipe.toggle(id); return { ok: flipped && O.swipe.saved(id) === was && Array.isArray(O.swipe.ids), detail: O.swipe.ids.join(', ') }; });
+  test('[novo] fmt.dec1 usa o sinal de menos U+2212', () => ({ ok: fmt.dec1(-1.5) === '−1,5' && fmt.dec1(2) === '2,0', detail: fmt.dec1(-1.5) }));
+  test('[novo] effectAt(id, LAST_IDX) = effect(id)', () => all(O.changes, c => O.effectAt(c.id, O.LAST_IDX).status === O.effect(c.id).status, c => c.id));
+  /* Moldura / fila */
+  test('[novo] forja.requestScenario: horários ≤ NOW e em ordem; claims nas consultas de 10 min; regras de atrasado, sem máquina, vigia, falha e recusa', () => {
+    const S_ = st => O.forja.requestScenario(st, { type: 'padroes-titulo', niche: 'ia' }), bad = [];
+    O.forja.requestStates.forEach(st => { const s = S_(st), r = s.request; const ts = [r.createdAt, r.claimedAt, r.publishedAt, r.failedAt, r.refusedAt, r.releasedAt].filter(x => x != null);
+      if (ts.some(t => t > NOW)) bad.push(st + ' futuro'); if (r.claimedAt != null && r.claimedAt < r.createdAt) bad.push(st + ' ordem'); if (r.claimedAt != null && date.parts(r.claimedAt).mi % 10 !== 5) bad.push(st + ' tick'); });
+    const late = S_('atrasado'), dead = S_('sem máquina'), retry = S_('liberado pelo vigia'), fail = S_('falhou'), ref = S_('recusado (dado velho)'), pub = S_('publicado');
+    if (!(late.machine.alive && late.request.waitingMinutes > O.forja.queue.LATE_AFTER_MINUTES)) bad.push('atrasado');
+    if (dead.machine.alive || (NOW - dead.machine.lastPollAt) / 6e4 <= O.forja.queue.HEARTBEAT_DEAD_MINUTES) bad.push('sem máquina');
+    if (!(retry.request.attempt === 2 && retry.request.releasedBy === 'vigia' && (retry.request.releasedAt - retry.request.claimedAt) / 6e4 > O.forja.queue.STALE_RUNNING_MINUTES)) bad.push('vigia');
+    if (fail.quota.usedToday !== 0 || ref.quota.usedToday !== 0 || !ref.request.refusedReason || fail.request.attempt !== 3) bad.push('falha/recusa');
+    const rd = O.forja.byId[pub.request.readingId];
+    if (!rd || date.dmhm(rd.generatedAt) !== '24/10 14:50' || O.forja.readings.includes(rd) || O.forja.latest('padroes-titulo', 'ia').id !== 'padroes-titulo-ia-20-10') bad.push('publicado');
+    if (O.forja.requestScenario('na fila', { type: 'padroes-titulo', niche: 'todos' }).requests.length !== 2) bad.push('todos não dividiu');
+    return { ok: !bad.length, detail: bad.join('; ') || O.forja.requestStates.length + ' estados · ' + dead.machine.text };
+  });
+  test('[novo] forja.requests: histórico real (leituras publicadas + Temas de 17/10 que falhou) e um pedido por estado', () => {
+    const rq = O.forja.requests, f = rq.find(r => r.id === 'req-temas-ia-17-10');
+    return { ok: O.forja.readings.every(r => rq.some(q => q.readingId === r.id && !q.scenario)) && f && f.state === 'falhou' && f.attempt === 3 && date.dm(f.createdAt) === '17/10' && rq.every(q => q.createdAt <= NOW) && O.forja.requestStates.filter(s => s !== 'liberado pelo vigia').every(s => rq.some(q => q.scenario && q.state === s)), detail: rq.length + ' pedidos' };
+  });
+
+
+  /* ---------- texto das leituras (singular/plural e status cru) ---------- */
+  const READ_TEXTS = (() => {
+    const out = [];
+    O.videos.filter(v => v.tracked && v.series.length).forEach(v => O.forja.requestScenario('publicado', { type: 'leitura-video', video: v.id }));
+    O.forja.requestStates.forEach(st => ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas'].forEach(t => O.forja.requestScenario(st, { type: t, niche: 'todos' })));
+    const add = r => out.push({ id: r.id, kind: 'sent', t: r.sent.text }, { id: r.id, kind: 'lead', t: r.text.lead }, ...r.text.items.map(i => ({ id: r.id, kind: 'item', t: i })), { id: r.id, kind: 'since', t: O.forja.since(r.id).text });
+    O.forja.readings.forEach(add); Object.values(O.forja.scenarioReadings).forEach(add);
+    ['ia', 'viagem', 'todos'].forEach(n => ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'].forEach(t => out.push({ id: 'preview ' + t + ' ' + n, kind: 'preview', t: O.forja.preview(t, n).text })));
+    return out;
+  })();
+  test('[novo] Nenhum texto de leitura (publicada, de cenário, prévia ou "desde então") contém "1 <plural>"', () => all(READ_TEXTS, x => !/(^|[^\d,.])1 (títulos|períodos|descrições|registros|vídeos|outliers|canais|trocas|longos|Shorts|dias|horas|semanas)\b/.test(x.t), x => x.id + ': ' + x.t));
+  test('[novo] Nenhum item de leitura começa o veredito com id cru de status (sem-serie, sem-antes…)', () => {
+    const ids = ['sem-serie', 'sem-antes', 'aguardando:', 'ganhou (', 'perdeu (', 'neutro (', 'inconclusivo:'];
+    const labels = new Set(O.changes.map(c => O.effect(c.id).label));
+    return all(READ_TEXTS.filter(x => x.kind === 'item'), x => !/\bsem-serie\b|\bsem-antes\b/.test(x.t) && (!/\): /.test(x.t) || [...labels].some(l => x.t.split('): ')[1].startsWith(l)) || /^[^:]+: (recorrência|mediana|sem diferença)/.test(x.t)), x => x.id + ': ' + x.t);
+  });
+  test('[novo] nicheStats: mediana/mín/máx entre os canais do nicho batem com channelStats/cadence', () => all(['todos', 'viagem', 'ia'], n => {
+    const ns = O.nicheStats(n, 'long'), chs = O.channels.filter(c => !c.own && (n === 'todos' || c.niche === n));
+    const pws = chs.map(c => O.cadence(c.id, 'long').pw), tm = chs.map(c => O.channelStats(c.id, 'long').typicalMult).filter(x => x != null);
+    return ns.pw.n === chs.length && ns.pw.median === median(pws) && ns.pw.min === Math.min(...pws) && ns.pw.max === Math.max(...pws) && ns.typicalMult.n === tm.length && ns.typicalMult.median === median(tm) && ns.engagement.n <= chs.length;
+  }));
+
+  test('[novo] channel.handle e channel.url: https://www.youtube.com/@<handle>, únicos, sem acento nem espaço, estáveis', () => {
+    const hs = O.channels.map(c => c.handle), B = O._build();
+    return { ok: O.channels.every(c => /^@[A-Za-z0-9]+$/.test(c.handle) && c.url === 'https://www.youtube.com/' + c.handle && B.channel(c.id).url === c.url) && new Set(hs).size === hs.length, detail: hs.join(' ') };
+  });
+
+  /* ---------- rodada final (reviews/final/*-F1.md, MOTOR) ---------- */
+  test('[final] sent.nPoints = pontos da série até asOfIdx (asOfIdx 21 → 22 pontos para vídeo de antes de 03/10)', () => {
+    const rs = O.videos.filter(v => v.tracked && v.series.length).slice(0, 400).map(v => O.forja.byId[O.forja.requestScenario('publicado', { type: 'leitura-video', video: v.id }).request.readingId]).concat(O.forja.readings.filter(r => r.type === 'leitura-video'));
+    const old = rs.find(r => V(r.target.video).pub < O.SERIES_START && O.channel(V(r.target.video).ch).lastIdx === 21);
+    return { ok: rs.every(r => r.sent.nPoints === V(r.target.video).series.filter(p => p.idx <= r.sent.asOfIdx).length) && old && old.sent.nPoints === 22, detail: old ? old.id + ': ' + old.sent.nPoints : '' };
+  });
+  test('[final] Itens das leituras: "rótulo — motivo" sem repetir o rótulo, motivo em minúscula, sem parênteses aninhados', () => all(READ_TEXTS.filter(x => x.kind === 'item' && /^(Título|Thumbnail|Descrição) /.test(x.t)), x => {
+    const v = x.t.split('): ').slice(1).join('): '); const m = v.match(/^([^—]+) — (.)/) || (/^(sem série|sem base|inconclusivo|aguardando|neutro|ganhou|perdeu) /.test(v) ? [v, v, v.charAt(0)] : null) || (/^(sem série|sem base|inconclusivo|aguardando|neutro|ganhou|perdeu)\. [A-ZÀ-Ú]/.test(v) ? [v, v, 'x'] : null);
+    const depth = (() => { let d = 0, mx = 0; for (const ch of x.t) { if (ch === '(') mx = Math.max(mx, ++d); else if (ch === ')') d--; } return mx; })();
+    return m && m[2] === m[2].toLowerCase() && !/(sem série — sem série|inconclusivo — inconclusivo|sem base — sem base|aguardando — aguardando)/i.test(x.t) && depth <= 1; }, x => x.t));
+  test('[final] Lead da leitura do vídeo cita só os tipos que mudaram (nada de "1 título" quando só a thumbnail mudou)', () => {
+    const rs = Object.values(O.forja.scenarioReadings).filter(r => r.type === 'leitura-video').concat(O.forja.readings.filter(r => r.type === 'leitura-video'));
+    return all(rs, r => { const cs = O.changes.filter(c => c.video === r.target.video && c.at <= r.generatedAt); const has = t => cs.some(c => c.type === t);
+      return /\d+ trocas? de título/.test(r.text.lead) === has('title') && /\d+ trocas? de thumbnail/.test(r.text.lead) === has('thumb') && /\d+ trocas? de descrição/.test(r.text.lead) === has('desc') && !/^\d+ títulos? em/.test(r.text.lead); }, r => r.id + ': ' + r.text.lead);
+  });
+  test('[final] "Desde então" da leitura do vídeo: contagem de trocas que mudaram de veredito + lista por troca', () => { const s = O.forja.since('leitura-video-matt-opus55-20-10'); return { ok: s.items.length === s.moved.length && new RegExp(s.flipped + ' trocas? mudar(am|ou) de veredito').test(s.text) && s.items.every(i => /→/.test(i) && !/sem-serie|sem-antes/.test(i)), detail: s.text }; });
+  test('[final] preview("resumo-trocas") conta só trocas dos canais que entram no pedido', () => all(['ia', 'viagem', 'todos'], n => { const p = O.forja.preview('resumo-trocas', n); return p.changes === O.changesIn({ days: 30, niche: n }).filter(c => p.channelsIn.includes(c.ch)).length && p.channelsOut.every(o => !O.changesIn({ days: 30, niche: n }).some(c => c.ch === o.id) || p.changes < O.changesIn({ days: 30, niche: n }).length); }));
+  test('[final] forja.timing(type, niche) e readingTypes[].timingText: n de leituras publicadas; mediana só com ≥ 5', () => {
+    const t1 = O.forja.timing('temas', 'ia'), t2 = O.forja.timing('resumo-trocas', 'viagem'), t3 = O.forja.timing('padroes-titulo', 'ia');
+    return { ok: t1.n === 1 && /\(1 leitura; mediana a partir de 5\)/.test(t1.text) && t2.n === 1 && t3.n === 2 && t3.medianMinutes === null && O.forja.readingTypes.every(t => typeof t.timingText === 'string' && t.timingByNiche) , detail: O.forja.readingTypes.map(t => t.id + ': ' + t.timingText).join(' · ') };
+  });
+  test('[final] atrasado: o pedido que ocupa a máquina começou ≥ 14:33 e roda há < 30 min', () => { const r = O.forja.requestScenario('atrasado').request; return { ok: r.busySince >= r.createdAt && (NOW - r.busySince) / 6e4 < O.forja.queue.STALE_RUNNING_MINUTES && r.busyWith.includes(date.hm(r.busySince)), detail: r.busyWith }; });
+  test('[final] recusado: motivo que o site não prevê, coerente com 24 h e com a sincronização das 12:00; sem "a forja" repetido', () => {
+    const r = O.forja.requestScenario('recusado (dado velho)').request, stale = O.channels.filter(c => !c.own && c.sync.state === 'ok').every(c => c.syncAgeHours <= O.RULES.staleSyncHours);
+    return { ok: stale && /12:00/.test(r.refusedReason) && r.refusedDataAsOf < O.SYNC.last && (r.refusedReason.match(/forja/g) || []).length === 0, detail: r.refusedReason };
+  });
+  test('[final] requestScenario aceita {createdAt}: demais horários derivam dele e o claim cai numa consulta (xx:x5)', () => {
+    const base = O.forja.requestScenario('publicado').request, c0 = date.spIso('2026-10-24T13:02'), r = O.forja.requestScenario('publicado', { createdAt: c0 }).request;
+    const v = O.forja.requestScenario('liberado pelo vigia', { createdAt: date.spIso('2026-10-24T12:00') }).request;
+    return { ok: r.createdAt === c0 && date.parts(r.claimedAt).mi % 10 === 5 && r.claimedAt >= r.createdAt && r.publishedAt - r.claimedAt === base.publishedAt - base.claimedAt && v.releasedAt - v.claimedAt === O.forja.requestScenario('liberado pelo vigia').request.releasedAt - O.forja.requestScenario('liberado pelo vigia').request.claimedAt && v.retryReason.includes(date.hm(v.releasedAt)), detail: date.hm(r.createdAt) + ' → ' + date.hm(r.claimedAt) + ' → ' + date.hm(r.publishedAt) };
+  });
+  test('[final] "nova tentativa" = validador recusou a tentativa 1 (motivo e horário); "liberado pelo vigia" é outro estado', () => {
+    const n = O.forja.requestScenario('nova tentativa').request, g = O.forja.requestScenario('liberado pelo vigia').request;
+    return { ok: n.attempt === 2 && n.releasedBy === 'validador' && /validador/.test(n.retryReason) && n.retryReason.includes(date.hm(n.releasedAt)) && n.attempts.length === 1 && g.releasedBy === 'vigia' && (g.releasedAt - g.claimedAt) / 6e4 > 30 && n.id !== g.id, detail: n.retryReason + ' | ' + g.retryReason };
+  });
+  test('[final] quota.releasesAt: 00:00 do dia seguinte quando a cota foi usada; nula em falha e recusa', () => {
+    const p = O.forja.requestScenario('publicado').quota, f = O.forja.requestScenario('falhou').quota;
+    return { ok: date.dmhm(p.releasesAt) === '25/10 00:00' && /domingo, 25\/10 às 00:00/.test(p.text) && f.releasesAt === null && f.usedToday === 0, detail: p.text + ' · ' + f.text };
+  });
+  test('[final] n = 1 → "caso isolado (n = 1)"; grupo sem padrão → "N troca(s) sem padrão de reescrita"', () => {
+    const groups = O.forja.readings.concat(Object.values(O.forja.scenarioReadings)).filter(r => r.type === 'resumo-trocas').flatMap(r => r.analysis.groups);
+    const pats = O.forja.readings.concat(Object.values(O.forja.scenarioReadings)).flatMap(r => r.analysis.patterns);
+    return { ok: groups.every(g => g.id === 'sem-padrao' ? /^\d+ trocas? sem padrão de reescrita$/.test(g.verdict.text) && !/recorrência/.test(g.verdict.text) : g.n !== 1 || /caso isolado \(n = 1\)/.test(g.verdict.text)) && pats.every(p => p.nUse !== 1 || /caso isolado \(n = 1\)/.test(p.verdict.text)) && !READ_TEXTS.some(x => /recorrência observada \(n = [01]\)/.test(x.t)), detail: groups.map(g => g.verdict.text).join(' · ') };
+  });
+  test('[final] caveats: "mudou entre …" (janela) e "mudou em 18/10 09:14" (minuto); nunca "mudou em entre"', () => all(O.changes.flatMap(c => O.caveats(c.id)), t => !/mudou em entre/.test(t) && (/mudou entre \d\d\/\d\d \d\dh e /.test(t) || /mudou em \d\d\/\d\d \d\d:\d\d,/.test(t))));
+  test('[final] effect: "mesmo dia de vida" com n < 3 cai para a faixa de idade; nunca método "mesmo dia" com n < 3', () => {
+    const es = O.changes.map(c => O.effect(c.id)).filter(e => e.method);
+    const p = O.effect('paddy-bkk-hotel/title/1');
+    return { ok: es.every(e => e.method !== 'mesmo dia de vida' || e.n >= 3) && es.every(e => !e.methodFallback || (e.method === 'aproximação por faixa' && /aproximação por faixa/.test(e.fallbackText))) && p.n > 0 && p.methodFallback && p.status === 'inconclusivo', detail: 'Paddy: ' + p.numbers + ' · ' + p.fallbackText };
+  });
+  test('[final] Inscritos dos snapshots com 3 algarismos significativos; growth30 a partir deles, com incerteza ("+20 mil (±10 mil)")', () => {
+    const sig3 = x => x < 1000 ? x : (u => Math.round(x / u) * u)(Math.pow(10, Math.floor(Math.log10(x)) - 2));
+    const okSnap = O.channels.every(c => c.snapshots.every(s => s.subs === sig3(s.subs)));
+    const l = O.channelStats('luke-damant').growth30, b = O.channelStats('bald-and-bankrupt').growth30;
+    return { ok: okSnap && l.abs % 10000 === 0 && l.uncertainty === 10000 && /^\+\d+ mil \(±10 mil\)$/.test(l.text) && b.withinRounding === true && /^≈ 0/.test(b.text), detail: 'Luke ' + l.text + ' · bald ' + b.text };
+  });
+  test('[final] fmt.mult sempre com 1 casa ("4,0×", "6,0×")', () => ({ ok: fmt.mult(4) === '4,0×' && fmt.mult(6.04) === '6,0×' && fmt.mult(2.46) === '2,5×' && O.videos.filter(v => v.mult.value != null).every(v => /^\d+,\d×$/.test(fmt.mult(v.mult.value))), detail: fmt.mult(4) + ' ' + fmt.mult(V('matt-gpt6-astra').mult.value) }));
+  test('[final] since() respeita o formato da leitura (Shorts não viram "+366 vídeos novos")', () => all(O.forja.readings.filter(r => r.base && r.base.videos.length), r => { const x = O.forja.since(r.id); const f = r.fmt || r.base.fmt; return x.newVideos.concat(x.leftWindow).every(id => V(id).fmt === f) && x.newVideos.length < 40; }, r => r.id + ': ' + O.forja.since(r.id).text));
+  test('[final] nicheStats.own: razão contra a mediana, veredito ▲/▼/≈ (±15%) e few quando n < 10', () => all(['todos', 'viagem', 'ia'], n => { const ns = O.nicheStats(n, 'long'), o = ns.own;
+    return o && o.channel === 'tnfigueiredo' && ['pw', 'perMilSubs', 'typicalMult', 'engagement'].every(k => { const x = o[k]; if (x.ratio == null) return x.verdict === null; return Math.abs(x.ratio - x.value / ns[k].median) < 1e-12 && x.verdict === (x.ratio >= 1.15 ? '▲' : x.ratio <= 0.85 ? '▼' : '≈') && x.few === (x.n < 10); }); }, n => n + ' ' + JSON.stringify(O.nicheStats(n, 'long').own.pw)));
+  test('[final] themeTrend compara só canais com série nas duas janelas; Vou sem volta (buscando vídeos) fica em excluded com motivo', () => {
+    const t = O.themeTrend('viagem', 'long');
+    return { ok: t.excluded.some(e => e.id === 'vou-sem-volta' && /buscando vídeos/.test(e.reason)) && !t.channelsCompared.includes('vou-sem-volta') && t.every(x => x.channels.every(c => t.channelsCompared.includes(c))), detail: t.excluded.map(e => e.reason).join(' · ') };
+  });
+  test('[conjunto] date.ago em horas abaixo de 48 h ("há 39 h" para Paddy Doyle), em dias a partir daí', () => {
+    const pd = O.channel('paddy-doyle').sync.last;
+    return { ok: date.ago(pd) === 'há 39 h' && date.ago(NOW - 47 * H) === 'há 47 h' && date.ago(NOW - 48 * H) === 'há 2 dias' && date.ago(NOW - 25 * H) === 'há 25 h' && O.forja.eligibleChannels('viagem').out.some(o => o.id === 'paddy-doyle' && /há 39 h/.test(o.reason)) && /há 39 h/.test(O.channelStats('paddy-doyle').syncText), detail: date.ago(pd) + ' · ' + O.channelStats('paddy-doyle').syncText };
+  });
+  test('[conjunto] since() de resumo-trocas avisa os canais que hoje ficariam fora (staleNow), como padroes-titulo', () => {
+    const v = O.forja.since('resumo-trocas-viagem-20-10'), i = O.forja.since('resumo-trocas-ia-20-10');
+    return { ok: v.staleNow.some(o => o.id === 'paddy-doyle') && /Paddy Doyle: sem sincronização há 39 h/.test(v.text) && Array.isArray(i.staleNow) && /Peça nova leitura/.test(v.text), detail: v.text + ' | ' + i.text };
+  });
+
+  /* ---------- rodada F2 (reviews/f2/*.md, MOTOR) ---------- */
+  test('[F2] Leituras nos links: link.outliers repassa reading; outliers({reading}) aplica escopo (canais, formato, janela) e bate com since().nowOutliers', () => all(O.forja.readings.filter(r => r.type.startsWith('padroes-titulo')).concat(Object.values(O.forja.byId).filter(r => r.scenario && r.type.startsWith('padroes-titulo'))), r => {
+    const sc = O.forja.readingScope(r.id), o = O.outliers({ reading: r.id });
+    return sc && sc.channels.length && o.items.every(x => sc.channels.includes(x.video.ch) && x.video.fmt === sc.fmt && x.ageDays <= sc.windowDays) && o.count === O.forja.since(r.id).nowOutliers && sc.nThen === r.analysis.nOutliers && /^\d{4}-\d\d-\d\d$/.test(sc.asof)
+      && /reading=/.test(O.link.outliers({ reading: r.id })) && O.outliers({ channels: [sc.channels[0]] }).items.every(x => x.video.ch === sc.channels[0]); }, r => r.id));
+  test('[F2] forja.byId já tem as leituras de cenário de 24/10 (sem chamar requestScenario antes)', () => { const B = O._build(); const ids = Object.keys(B.forja.byId).filter(k => /-24-10-cenario$/.test(k)); return { ok: ids.length >= 9 && ids.every(k => date.dm(B.forja.byId[k].generatedAt) === '24/10'), detail: ids.join(', ') }; });
+  test('[F2] heatmap e cadence: canal ainda buscando vídeos sai do heatmap e a cadência vem marcada parcial com fetchedSince', () => {
+    const h = O.heatmap('viagem', 'long'), c = O.cadence('vou-sem-volta', 'long'), ok2 = O.cadence('luke-damant', 'long');
+    return { ok: h.excluded.some(e => e.id === 'vou-sem-volta' && e.partial && e.fetchedSince) && !h.cells.flat().some(x => x.ids.some(id => V(id).ch === 'vou-sem-volta')) && c.partial === true && c.fetchedSince === O.channel('vou-sem-volta').videos.at(-1).pub && /ritmo parcial/.test(c.partialText) && ok2.partial === false, detail: c.partialText };
+  });
+  test('[F2] RULES.theme.trend: ▲/▼ só com Δ ≥ 3 vídeos e ≥ 25%; themeTrend devolve o veredito', () => all(['todos', 'viagem', 'ia'].flatMap(n => O.themeTrend(n, 'long')), t => { const d = t.now - t.prev, p = d / Math.max(t.prev, 1), R = O.RULES.theme.trend; return R.minDelta === 3 && R.minPct === 0.25 && t.trend === (d >= 3 && p >= 0.25 ? '▲' : -d >= 3 && -p >= 0.25 ? '▼' : '≈'); }, t => t.theme + ' ' + t.prev + '→' + t.now + ' ' + t.trend));
+  test('[F2] nicheStats.pctOutliers (nicho e seu canal): % de vídeos com 2× ou mais em 90 d', () => all(['todos', 'viagem', 'ia'], n => { const ns = O.nicheStats(n, 'long'); const chs = O.channels.filter(c => !c.own && (n === 'todos' || c.niche === n));
+    const pc = chs.map(c => { const a = c.videos.filter(v => v.tracked && v.fmt === 'long' && v.ageDays <= 90 && v.mult.value != null && !v.mult.weak); return a.length ? a.filter(v => v.mult.value >= 2).length / a.length : null; }).filter(x => x != null);
+    return ns.pctOutliers.median === median(pc) && ns.pctOutliers.n === pc.length && ns.own.pctOutliers && 'verdict' in ns.own.pctOutliers; }));
+  test('[F2] fmt.dec1 sempre com 1 casa ("1,0"); fmt.num continua "58 mil", "1,5 mil"', () => ({ ok: fmt.dec1(1) === '1,0' && fmt.dec1(1.04) === '1,0' && fmt.num(58000) === '58 mil' && fmt.num(1500) === '1,5 mil' && fmt.num(382000) === '382 mil', detail: fmt.dec1(1) }));
+  test('[F2] Atribuição: empate do 2º com o 3º → "espalhado por N canais"; frases dizem o substantivo ("dos 4 outliers com essa fórmula")', () => all(O.forja.readings.flatMap(r => r.analysis.patterns.map(p => p.attribution)).filter(a => a.kind === 'solo' || a.kind === 'dois' || a.kind === 'varios'), a => a.kind === 'varios' ? /^espalhado por \d+ canais$/.test(a.text) : / dos \d+ (outliers|vídeos) com essa fórmula$/.test(a.text), a => a.text));
+  test('[F2] Textos de pedido: sem dois-pontos encadeados; recusado sem jargão; motivos da prévia com minúscula depois de ":"', () => {
+    const texts = O.forja.requestStates.map(st => O.forja.requestScenario(st).statusText);
+    const prevReasons = ['ia', 'viagem', 'todos'].flatMap(n => O.forja.preview('padroes-titulo', n).channelsOut.map(o => o.reason));
+    const rec = O.forja.requestScenario('recusado (dado velho)').request.refusedReason;
+    return { ok: texts.every(t => t && (t.match(/: /g) || []).length <= 1) && rec === 'a máquina recebeu dados de 23/10 18:00, anteriores à sincronização das 12:00. Peça de novo.' && prevReasons.every(r => !/: [A-ZÀ-Ú]/.test(r)) && /Voltou para a fila \(tentativa 2 de 3\)\. O validador recusou a tentativa 1 às \d\d:\d\d porque/.test(O.forja.requestScenario('nova tentativa').statusText), detail: texts.join(' | ') };
+  });
+  test('[F2] fmt.labelReason: {sentence:true} põe maiúscula; rótulo = motivo devolve um só; "Neutro: …" não repete', () => ({ ok: fmt.labelReason('sem série', 'Sem série antes da troca (coleta por vídeo desde 03/10).', { sentence: true }) === 'Sem série antes da troca (coleta por vídeo desde 03/10).' && fmt.labelReason('inconclusivo', 'inconclusivo') === 'inconclusivo' && fmt.labelReason('neutro', 'Neutro: efeito +1 pp') === 'neutro — efeito +1 pp' && fmt.labelReason('aguardando', 'Faltam 3 dias', { sentence: true }) === 'Aguardando — faltam 3 dias', detail: fmt.labelReason('neutro', 'Neutro: efeito +1 pp') }));
+  test('[F2] "Test & Compare" não aparece em nenhum texto; "Testar e comparar" sim', () => { const tx = READ_TEXTS.map(x => x.t).concat(O.forja.readings.map(r => r.text.lead)); return { ok: !tx.some(t => /Test & Compare/i.test(t)) && tx.some(t => /Testar e comparar/.test(t)), detail: '' }; });
+  test('[F2] Relógio dos pedidos: "nova tentativa" volta à fila depois da última consulta (14:55) e espera a próxima; "sem máquina" com última consulta 12:55', () => {
+    const n = O.forja.requestScenario('nova tentativa'), d = O.forja.requestScenario('sem máquina');
+    return { ok: n.request.releasedAt > n.machine.lastPollAt && n.machine.nextPollAt > NOW && date.hm(d.machine.lastPollAt) === '12:55' && n.request.attempts.every(a => date.parts(a.claimedAt).mi % 10 === 5), detail: 'recusada ' + date.hm(n.request.releasedAt) + ', última consulta ' + date.hm(n.machine.lastPollAt) + ', próxima ' + date.hm(n.machine.nextPollAt) };
+  });
+  test('[F2] thumb.text dos vídeos gerados = palavra-chave do título (preço, número + substantivo ou nome), até 2 palavras, sem "HOW"/"QUE"/"NINGUÉM"', () => all(O.videos.filter(v => !v.named), v => { const t = v.thumb.text, w = t.split(' '), T = v.title.toUpperCase().replace(/(R?\$)\s+/g, '$1'); return w.length >= 1 && w.length <= 2 && !w.some(x => /^(HOW|MAKE|QUE|NINGUÉM|THE|WITH|COMO|POR|PARA|WHY|WHAT|THIS|IS|DE)$/.test(x)) && w.every(x => T.includes(x)); }, v => v.title + ' → ' + v.thumb.text));
+  test('[F2] RULES.tiers {mid:2, high:5, top:10} e tierOf', () => ({ ok: JSON.stringify(O.RULES.tiers) === JSON.stringify({ mid: 2, high: 5, top: 10 }) && O.tierOf(1.9) === null && O.tierOf(2) === 'mid' && O.tierOf(5) === 'high' && O.tierOf(10.2) === 'top', detail: '' }));
+  test('[F2] effect.method usa o mesmo rótulo do multiplicador ("mesmo dia de vida" / "aproximação por faixa"); nada de "mesma faixa de idade"', () => {
+    const ms = new Set(O.changes.map(c => O.effect(c.id).method).filter(Boolean)), mm = new Set(O.videos.map(v => v.mult.method).filter(Boolean));
+    const txt = O.changes.map(c => JSON.stringify(O.effect(c.id))).join(' ') + READ_TEXTS.map(x => x.t).join(' ');
+    return { ok: [...ms].every(m => mm.has(m)) && ms.has('aproximação por faixa') && !/mesma faixa de idade/.test(txt) && O.changes.map(c => O.effect(c.id)).filter(e => e.method).every(e => e.methodLabel === 'método: ' + e.method), detail: [...ms].join(', ') + ' · multiplicador: ' + [...mm].join(', ') };
+  });
+  test('[F9] RULES.channelLimit = 75 só para concorrentes (o seu canal não ocupa vaga); channelSlots() = {used: 14, limit: 75, free: 61}', () => { const sl = O.channelSlots(); return { ok: O.RULES.channelLimit === 75 && sl.used === 14 && sl.limit === 75 && sl.free === 61 && sl.free >= 0 && O.channels.filter(c => !c.own).length <= O.RULES.channelLimit, detail: JSON.stringify(sl) }; });
+  test('[F2] fmt.subs: inscritos com 3 algarismos significativos ("3,21 mil", "4,51 mi", "128 mil")', () => ({ ok: fmt.subs(3210) === '3,21 mil' && fmt.subs(4510000) === '4,51 mi' && fmt.subs(128000) === '128 mil' && fmt.subs(96400) === '96,4 mil' && fmt.subs(1930000) === '1,93 mi' && fmt.subs(4500000) === '4,5 mi' && fmt.subs(862000) === '862 mil' && fmt.subs(950) === '950' && O.channels.every(c => /^\d+(,\d+)? (mil|mi)$/.test(fmt.subs(c.subs))), detail: O.channels.map(c => fmt.subs(c.subs)).join(' · ') }));
+  test('[F2] Leitura de cenário: generatedAt = publishedAt do pedido que a gerou (todo estado, nicho e tipo, inclusive "todos" dividido)', () => {
+    const rs = []; ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas'].forEach(t => ['ia', 'viagem', 'todos'].forEach(n => rs.push(...O.forja.requestScenario('publicado', { type: t, niche: n }).requests)));
+    rs.push(...O.forja.requestScenario('publicado', { type: 'leitura-video', video: 'matt-opus55' }).requests, ...O.forja.requestScenario('publicado', { type: 'padroes-titulo', niche: 'todos', createdAt: date.spIso('2026-10-24T13:02') }).requests);
+    rs.push(...O.forja.requests.filter(q => q.readingId));
+    return all(rs.filter(q => q.readingId), q => { const r = O.forja.byId[q.readingId]; return r && r.generatedAt === q.publishedAt && r.seal === 'forja · Gemma 12B · gerada ' + date.dm(q.publishedAt) + ' ' + date.hm(q.publishedAt) + ' (SP)'; }, q => q.id + ' → ' + q.readingId);
+  });
+
+  /* ---------- rodada F3 (reviews/f3/*.md, MOTOR) ---------- */
+  test('[F3] readingScope só para leituras de outliers (null em leitura-video e resumo-trocas); nThen por fórmula/tema/mínimo = outliers({reading, …}) na data', () => {
+    const nulls = O.forja.readings.filter(r => !['padroes-titulo', 'padroes-titulo-shorts', 'temas'].includes(r.type)).every(r => O.forja.readingScope(r.id) === null && O.outliers({ reading: r.id }).readingInvalid === true);
+    const r = O.forja.byId['padroes-titulo-ia-20-10'], f = 'reacao-hiperbole', sc = O.forja.readingScope(r.id, { formula: f });
+    const exp = r.base.videos.filter(v => !v.weak && v.mult >= 2 && v.formulas.includes(f)).length, sc2 = O.forja.readingScope(r.id, { min: 0 });
+    return { ok: nulls && sc.nThen === exp && sc2.nThen === r.base.videos.filter(v => !v.weak).length && O.forja.readingScope(r.id).nThen === r.analysis.nOutliers, detail: 'fórmula ' + f + ': ' + sc.nThen + ' na leitura · hoje ' + O.outliers({ reading: r.id, formula: f }).count };
+  });
+  test('[F3] nicheStats: seu canal e mediana em 0 → "≈" "igual à mediana do nicho (as duas em 0%)"', () => { const x = O.nicheStats('viagem', 'short').own.pctOutliers; return { ok: x.bothZero === true && x.verdict === '≈' && x.verdictText === 'igual à mediana do nicho (as duas em 0%)' && ['todos', 'viagem', 'ia'].every(n => ['long', 'short'].every(f => Object.values(O.nicheStats(n, f).own).filter(y => y && typeof y === 'object').every(y => !(y.value === 0 && y.median === 0) || y.verdict === '≈'))), detail: JSON.stringify(x) }; });
+  test('[F3] sent.text, lead e readingScope dizem o mesmo número de canais', () => all(O.forja.readings.concat(Object.values(O.forja.scenarioReadings)).filter(r => ['padroes-titulo', 'padroes-titulo-shorts', 'temas'].includes(r.type)), r => { const n = O.forja.readingScope(r.id).channels.length; return r.sent.nChannels === n && new RegExp('\\(' + n + ' canais?( com (Shorts|vídeos longos))?,').test(r.sent.text) && O.forja.readingScope(r.id).text.includes(n + (n === 1 ? ' canal' : ' canais')); }, r => r.id + ': ' + r.sent.text));
+  test('[F3] resumo-trocas: sent.text e trocas a partir do asOf (19/10 12:00)', () => all(['ia', 'viagem'].map(n => O.forja.byId['resumo-trocas-' + n + '-20-10']), r => / a 19\/10 12:00$/.test(r.sent.text) && date.dmhm(r.sent.asOf) === '19/10 12:00' && r.sent.changeIds.every(id => O.change(id).at <= r.sent.asOf), r => r.sent.text));
+  test('[F3] leitura-video de canal atrasado: sent.asOf = último ponto do vídeo', () => { const rq = O.forja.requestScenario('publicado', { type: 'leitura-video', video: 'paddy-bkk-hotel' }).request, r = O.forja.byId[rq.readingId], last = V('paddy-bkk-hotel').series.at(-1).t;
+    return { ok: r.sent.asOf === last && date.dmhm(last) === '22/10 12:00' && /até 22\/10 12:00$/.test(r.sent.text) && r.sent.nPoints === V('paddy-bkk-hotel').series.length, detail: r.sent.text }; });
+  test('[F3] labelReason nunca encadeia travessões/dois-pontos; só tira o prefixo quando é o próprio rótulo ("Antes: 1 dia" fica)', () => {
+    const outs = O.changes.map(c => O.effect(c.id)).map(e => fmt.labelReason(e.label, e.reason)).concat(READ_TEXTS.filter(x => x.kind === 'item').map(x => x.t.split('): ').slice(1).join('): ')));
+    const a = fmt.labelReason('inconclusivo', 'Antes: 1 dia — pouco para comparar.');
+    return { ok: outs.every(t => (t.match(/ — /g) || []).length + (t.match(/: /g) || []).length <= 2 && !/ — [^.]*: [^.]* — /.test(t)) && /Antes: 1 dia/.test(a) && (a.match(/ — /g) || []).length === 1, detail: a };
+  });
+  test('[F3] thumb.text sem número + adjetivo ("5 LEGAL"); número de nome de modelo fica com o nome ("GROK 5")', () => all(O.videos.filter(v => !v.named), v => !/\b\d+ (LEGAL|FREE|NEW|BEST|CHEAP|SAFE|REAL|GRÁTIS)\b/.test(v.thumb.text) && !/^\d+ (MINI|PRO)$/.test(v.thumb.text), v => v.title + ' → ' + v.thumb.text));
+  test('[F3] Aspas curvas no shortsNote (sem aspas retas em textos do motor)', () => ({ ok: /“[^”]+”/.test(O.forja.shortsNote) && !/"/.test(O.forja.shortsNote) && !READ_TEXTS.some(x => /"/.test(x.t)), detail: O.forja.shortsNote }));
+  test('[F3] Texto de "sem base" mais claro', () => { const e = O.effect('matt-fast-cheap/title/1'); return { ok: e.status === 'sem-antes' && e.reason === 'A versão anterior durou menos de 1 dia, antes do primeiro registro diário: sem dias antes para comparar.', detail: e.reason }; });
+  test('[F3] Rótulos de estado do canal em termo único: atrasado, erro, buscando vídeos, parado', () => ({ ok: O.channel('paddy-doyle').statusLabel === 'atrasado' && O.channel('esq-unltd-daily').statusLabel === 'erro' && O.channel('vou-sem-volta').statusLabel === 'buscando vídeos' && O.channel('bald-and-bankrupt').statusLabel === 'parado' && O.channels.every(c => !/ /.test(c.statusLabel) || c.statusLabel === 'buscando vídeos'), detail: O.channels.map(c => c.statusLabel).join(', ') }));
+  test('[F3] attribution.textMid / textStart', () => all(O.forja.readings.flatMap(r => r.analysis.patterns.map(p => p.attribution)).filter(a => a.text && a.kind !== 'vazio'), a => a.textMid === a.text && a.textStart.charAt(0) === a.textStart.charAt(0).toUpperCase(), a => a.text));
+  test('[F3] titleDiff marca mudança só de caixa ("AI model" → "AI Model")', () => { const d = O.change('matt-fast-cheap/title/1').titleDiff; return { ok: d.hasCaseChange && d.caseChanges.includes('Model') && d.after.some(x => x.op === 'case' && /Model/.test(x.text)), detail: JSON.stringify(d.after) }; });
+  test('[F3] readingScope(id, {channel}).nThen filtra pelo canal (e combina com fórmula)', () => { const r = O.forja.byId['padroes-titulo-ia-20-10'], c = 'matt-wolfe', f = 'reacao-hiperbole';
+    const e1 = r.base.videos.filter(v => !v.weak && v.mult >= 2 && v.ch === c).length, e2 = r.base.videos.filter(v => !v.weak && v.mult >= 2 && v.ch === c && v.formulas.includes(f)).length;
+    const a = O.forja.readingScope(r.id, { channel: c }).nThen, b = O.forja.readingScope(r.id, { channel: c, formula: f }).nThen;
+    return { ok: a === e1 && b === e2 && a < r.analysis.nOutliers && O.outliers({ reading: r.id, channel: c }).scope.nThen === e1, detail: c + ': ' + a + ' (com ' + f + ': ' + b + ') de ' + r.analysis.nOutliers }; });
+
+  /* ---------- rodada F4 (CONVENCOES "RODADA F4", reviews/f4) ---------- */
+  test('[F4] link.outliers: tema de conteúdo vai em topic= (theme= só light|dark); outliers({topic}) = outliers({theme})', () => {
+    const a = O.link.outliers({ niche: 'viagem', theme: 'comida-de-rua' }), b = O.link.outliers({ topic: 'comida-de-rua' }), c = O.link.outliers({ theme: 'dark' });
+    return { ok: /topic=comida-de-rua/.test(a) && !/theme=/.test(a) && /topic=comida-de-rua/.test(b) && /theme=dark/.test(c) && O.outliers({ topic: 'lugares-perigosos', ages: 'all' }).count === O.outliers({ theme: 'lugares-perigosos', ages: 'all' }).count, detail: a };
+  });
+  test('[F4] Vídeo de canal com sincronização atrasada ou com erro → fase "sem ritmo medido", nunca "estourando agora"', () => {
+    const its = ['long', 'short'].flatMap(f => O.outliers({ fmt: f, ages: 'all', includeWeak: true }).items).filter(x => ['atrasado', 'erro'].includes(O.channel(x.video.ch).sync.state));
+    return { ok: its.length > 0 && its.every(x => x.phase.id === 'sem-ritmo' && x.phase.label === 'sem ritmo medido' && /sincronização/.test(x.phase.why)), detail: its.map(x => x.id + ': ' + x.phase.why).join(' · ') };
+  });
+  test('[F4] agoText de troca com janela: "vista pela 1ª vez há N"; thumbnail (minuto) fica "há N"; agoMidText guarda o meio da janela', () => all(O.changes, c => c.window ? c.agoText === 'vista pela 1ª vez ' + date.ago(c.at) && c.agoMidText === date.ago(c.mid) : c.agoText === date.ago(c.at), c => c.id + ': ' + c.agoText));
+  test('[F4] Títulos PT gerados com preposição contraída por lugar ("Metrô da Mongólia", "pelo Japão", "em Cusco")', () => {
+    const pt = O.videos.filter(v => !v.named && O.channel(v.ch).lang === 'pt' && v.niche === 'viagem');
+    const art = { 'Bolívia': 'a', 'Mongólia': 'a', 'Índia': 'a', 'Geórgia': 'a', 'Quirguistão': 'o', 'Tajiquistão': 'o', 'Japão': 'o', 'Marrocos': 'o', 'Cazaquistão': 'o', 'Vietnã': 'o', 'Nepal': 'o', 'Paquistão': 'o', 'Chile': 'o', 'Pamir': 'o' };
+    const bad = pt.filter(v => Object.entries(art).some(([p, a]) => new RegExp('(^|\\s)(de|em|por) ' + p + '(\\s|$|[?,.)])').test(v.title) || (a === 'a' && new RegExp('\\b(do|no|pelo) ' + p).test(v.title)) || (a === 'o' && new RegExp('\\b(da|na|pela) ' + p).test(v.title))));
+    return { ok: !bad.length && pt.some(v => /da Mongólia|do Japão|pelo |pela |na |no /.test(v.title)), detail: bad.length ? bad.slice(0, 4).map(v => v.title).join(' · ') : pt.slice(0, 5).map(v => v.title).join(' · ') };
+  });
+  test('[F4] Todos dividido: 2º pedido com o mesmo createdAt; em estado ativo ele espera "na fila" atrás do 1º; plural em "sem máquina"', () => {
+    const bad = [];
+    ['na fila', 'trabalhando', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia', 'publicado'].forEach(st => { const sc = O.forja.requestScenario(st, { niche: 'todos' }), [a, b] = byN(sc.requests);
+      if (a.createdAt !== b.createdAt) bad.push(st + ' createdAt');
+      if (st === 'publicado') { if (!(b.state === 'trabalhando' && b.claimedAt > a.publishedAt && b.publishedAt === null)) bad.push(st); }
+      else if (!(['na fila', 'atrasado', 'sem máquina'].includes(b.state) && b.claimedAt === null && b.behind === a.id && /atrás do de|Seus pedidos/.test(sc.statusText))) bad.push(st); });
+    const sm = O.forja.requestScenario('sem máquina', { niche: 'todos' }).statusText;
+    return { ok: !bad.length && sm === 'Seus pedidos das 14:48 (IA e Viagem) estão na fila e rodam quando a máquina voltar.', detail: bad.join('; ') || sm };
+  });
+  test('[F4] statusLabel: espera com hora prevista dita como tal; estados terminais com hora', () => {
+    const L = st => O.forja.requestScenario(st).statusLabel;
+    return { ok: L('nova tentativa') === 'nova tentativa · 15:05' && L('liberado pelo vigia') === 'liberado pelo vigia · 15:05' && L('publicado') === 'publicado às 14:50' && L('falhou') === 'falhou às 14:21' && L('recusado (dado velho)') === 'recusado às 14:56' && O.forja.requestStates.every(st => typeof L(st) === 'string' && L(st).length) && O.forja.requestScenario('falhou').terminal === true, detail: O.forja.requestStates.map(L).join(' · ') };
+  });
+  test('[F4] Links para objeto (vídeo, troca, canal) não levam niche=', () => {
+    const ls = [O.link.mudancas({ video: 'luke-kfc', niche: 'viagem' }), O.link.mudancas({ channel: 'matt-wolfe', niche: 'ia', type: 'title' }), O.link.outliers({ channel: 'luke-damant', niche: 'viagem' }), O.link.canais({ channel: 'paddy-doyle', niche: 'viagem' }), O.link.historico('matt-opus55'), O.link.mudancas({ changes: ['matt-opus55/title/1'], niche: 'ia' })];
+    return { ok: ls.every(l => !/niche=/.test(l)) && /niche=ia/.test(O.link.mudancas({ niche: 'ia', type: 'title' })), detail: ls.join(' · ') };
+  });
+  test('[F4] requestScenario: nenhum horário depois de NOW, a não ser em forecast (previsão explícita, com o campo nulo); publicado só com leitura publicada antes de NOW', () => {
+    const bad = [], TF = ['createdAt', 'claimedAt', 'startedAt', 'publishedAt', 'releasedAt', 'failedAt', 'refusedAt', 'busySince'];
+    const cas = [undefined, NOW, date.spIso('2026-10-24T13:02'), date.spIso('2026-10-24T14:31'), date.spIso('2026-10-24T12:00')];
+    O.forja.requestStates.forEach(st => ['ia', 'viagem', 'todos'].forEach(n => cas.forEach(ca => { const sc = O.forja.requestScenario(st, { niche: n, createdAt: ca });
+      sc.requests.forEach(q => { TF.forEach(k => { if (q[k] != null && q[k] > NOW) bad.push(st + '/' + n + '/' + k); if (q.forecast && q.forecast[k] != null && q[k] != null) bad.push(st + ' forecast+campo ' + k); });
+        (q.attempts || []).forEach(a => { if (a.claimedAt > NOW || (a.endedAt != null && a.endedAt > NOW)) bad.push(st + ' attempts'); });
+        if (q.readingId) { const r = O.forja.byId[q.readingId]; if (!r || r.generatedAt !== q.publishedAt || r.generatedAt > NOW) bad.push(st + ' leitura ' + q.readingId); }
+        if (q.publishedAt == null && q.readingId) bad.push(st + ' leitura sem publicação'); });
+      if (!sc.statusLabel || /null|NaN|undefined/.test(sc.statusLabel + sc.statusText)) bad.push(st + ' texto ' + sc.statusLabel); })));
+    const d = byN(O.forja.requestScenario('publicado', { niche: 'todos' }).requests);
+    return { ok: !bad.length && d[0].publishedAt <= NOW && d[0].readingId && d[1].state === 'trabalhando' && d[1].publishedAt == null && d[1].readingId == null, detail: bad.slice(0, 6).join('; ') || 'IA publicado ' + date.hm(d[0].publishedAt) + ' · Viagem ' + d[1].state + ' desde ' + date.hm(d[1].claimedAt) };
+  });
+  test('[F4] phaseOf (id ou objeto) dá "sem ritmo medido" para vídeo de canal atrasado/com erro, igual a outliers().items[].phase', () => {
+    const lag = O.videos.filter(v => v.tracked && ['atrasado', 'erro'].includes(O.channel(v.ch).sync.state));
+    const p1 = O.phaseOf('paddy-bkk-hotel'), p2 = O.phaseOf(V('paddy-bkk-hotel')), it = O.outliers({}).items.find(x => x.id === 'paddy-bkk-hotel');
+    return { ok: lag.length > 0 && lag.every(v => O.phaseOf(v.id).id === 'sem-ritmo' && O.phaseOf(v).label === 'sem ritmo medido') && p1.id === 'sem-ritmo' && p2.id === 'sem-ritmo' && it && it.phase.id === 'sem-ritmo' && O.phaseOf('matt-gpt6-astra').id === 'estourando', detail: lag.length + ' vídeos de canais atrasados/com erro · ' + p1.why };
+  });
+
+  /* ---------- rodada F5 (reviews/f5/fixes.md, MOTOR) ---------- */
+  test('[F5] M-a: idade única (dias inteiros) — since() fecha com o escopo de hoje do Outliers; contagens diferentes nunca dão "Nada mudou"', () => all(O.forja.readings.concat(Object.values(O.forja.scenarioReadings)).filter(r => ['padroes-titulo', 'padroes-titulo-shorts', 'temas'].includes(r.type)), r => {
+    const s = O.forja.since(r.id), today = O.outliers({ reading: r.id, min: 0, includeWeak: true });
+    const sum = s.sentVideos + s.newVideos.length - s.leftWindow.length;
+    return s.nowVideos === today.countWithWeak && s.nowOutliers === O.outliers({ reading: r.id }).count && sum === s.nowVideos && s.newVideos.length === s.freshVideos.length + s.noBaseThenVideos.length + s.foundOldVideos.length
+      && ((s.nowVideos === s.sentVideos && s.nowOutliers === s.sentOutliers) || !/Nada mudou/.test(s.text)) && /vídeos: \d+ → \d+ · outliers: \d+ → \d+/.test(s.countsText) && (s.stoppedOutlier.length === 0 || /deix(aram|ou) de ser outlier/.test(s.text)); }, r => r.id + ': ' + O.forja.since(r.id).countsText + ' vs hoje ' + O.outliers({ reading: r.id, min: 0, includeWeak: true }).countWithWeak));
+  test('[F5] M-b: Todos — 2º pedido com > 25 min de espera fica "atrasado (atrás do de IA)"; falhou/recusado nunca no mesmo minuto nos dois nichos', () => {
+    const v = O.forja.requestScenario('liberado pelo vigia', { niche: 'todos' }).requests[1], f = O.forja.requestScenario('falhou', { niche: 'todos' }).requests, rc = O.forja.requestScenario('recusado (dado velho)', { niche: 'todos' }).requests;
+    return { ok: v.state === 'atrasado' && v.stateNote === 'atrás do de IA' && v.waitingMinutes > 25 && f[0].failedAt !== f[1].failedAt && f[1].failedAt > f[0].failedAt && (rc[1].state === 'na fila' ? !rc[1].stateNote : rc[1].refusedAt > rc[0].refusedAt) && [f[1].failedAt].every(x => x <= NOW), detail: 'vigia/Viagem: ' + v.state + ' (' + v.stateNote + ', ' + v.waitingMinutes + ' min) · falhou ' + date.hm(f[0].failedAt) + '/' + date.hm(f[1].failedAt) + ' · recusado IA ' + date.hm(rc[0].refusedAt) + ' / Viagem ' + rc[1].state };
+  });
+  test('[F5] M-c: publicado + Todos com um pedido ainda ativo não é terminal: "pedido em andamento" + linha por nicho', () => { const sc = O.forja.requestScenario('publicado', { niche: 'todos' }), one = O.forja.requestScenario('publicado');
+    return { ok: sc.terminal === false && sc.anyActive && sc.statusLabel === 'pedido em andamento' && sc.statusLines[0] === 'Viagem: trabalhando desde 14:55' && sc.statusLines[1] === 'IA: publicado às 14:50' && one.terminal === true && one.statusLabel === 'publicado às 14:50', detail: sc.statusLines.join(' / ') }; });
+  test('[F5] M-d: "antes" do efeito exclui o trecho de < 24 h da estreia (no observado e no esperado); vitrine segue medida com 3 dias antes', () => {
+    const es = O.changes.map(c => O.effect(c.id)).filter(e => e.daily && e.daily.before.length);
+    const okBins = es.every(e => e.daily.before.every(d => d.to - d.from >= 24 * H - 1));
+    const op = O.effect('matt-opus55/title/1'), fast = O.effect('matt-fast-cheap/title/1');
+    return { ok: okBins && ['ganhou', 'perdeu', 'neutro'].includes(op.status) && op.beforeDays === 3 && fast.status === 'sem-antes', detail: 'vitrine: ' + op.status + ' (' + op.numbers + ', antes ' + op.beforeDays + ' d)' };
+  });
+  test('[F5] M-e: expectedCurve traz o método (mesmo dia de vida / aproximação por faixa), igual ao vocabulário de effect e multiplicador', () => { const a = O.expectedCurve('dale-ninja-dojo'), b = O.expectedCurve('matt-opus55');
+    return { ok: a.method === 'aproximação por faixa' && a.methodLabel === 'método: aproximação por faixa' && a.band && b.method === 'mesmo dia de vida' && a.every(p => p.n >= 3 || p.vpd == null), detail: a.methodLabel + ' (' + a.band + ') · ' + b.methodLabel }; });
+  test('[F5] M-f: leituras de Shorts sempre dizem "N canais com Shorts"', () => all(O.forja.readings.concat(Object.values(O.forja.scenarioReadings)).filter(r => r.type === 'padroes-titulo-shorts'), r => / canais? com Shorts,/.test(r.sent.text) && / canais? com Shorts nos/.test(r.text.lead), r => r.sent.text));
+  test('[F5] M-g: nenhum texto do motor com estado cru ("ok", "backfill", "erro," de id); rótulos de sincronização sempre por sync.label', () => {
+    const tx = READ_TEXTS.map(x => x.t).concat(O.channels.map(c => O.channelStats(c.id).syncText), O.forja.eligibleChannels('todos').out.map(o => o.reason), O.forja.requestStates.map(s_ => O.forja.requestScenario(s_).statusText), ['long', 'short'].flatMap(f => O.outliers({ fmt: f, ages: 'all' }).items.map(x => x.phase.why)), O.heatmap('viagem').excluded.map(e => e.reason));
+    return { ok: !tx.some(t => /\bok\b|backfill|\bpending\b|\brunning\b|\brefused\b/.test(t)) && O.channels.every(c => ['sincronizado', 'atrasado', 'erro', 'buscando vídeos'].includes(c.sync.label) && c.sync.stateLabel === c.sync.label), detail: O.channels.map(c => c.sync.label).filter((x, i, a) => a.indexOf(x) === i).join(', ') };
+  });
+  test('[F5] link.outliers({reading}) não leva niche= (a leitura já define o nicho)', () => { const l = O.link.outliers({ reading: 'padroes-titulo-ia-20-10', niche: 'ia', formula: 'preco' }); return { ok: !/niche=/.test(l) && /reading=padroes-titulo-ia-20-10/.test(l) && /formula=preco/.test(l) && /niche=ia/.test(O.link.outliers({ niche: 'ia' })), detail: l }; });
+  test('[F6] statusLines com Todos: "<Nicho>: " + statusLabel do próprio pedido, com a hora do evento (todo estado)', () => {
+    const bad = [];
+    O.forja.requestStates.forEach(st => { const sc = O.forja.requestScenario(st, { niche: 'todos' });
+      sc.requests.forEach((q, i) => { const line = sc.statusLines[i];
+        if (line !== O.NICHES[q.niche].label + ': ' + q.statusLabel) bad.push(st + ' ' + i + ' formato');
+        const ev = { 'na fila': q.createdAt, 'trabalhando': q.claimedAt, 'atrasado': q.createdAt, 'sem máquina': sc.machine.lastPollAt, 'nova tentativa': sc.machine.nextPollAt, 'liberado pelo vigia': sc.machine.nextPollAt, 'publicado': q.publishedAt, 'falhou': q.failedAt, 'recusado (dado velho)': q.refusedAt }[q.state];
+        if (ev == null || !line.includes(date.hm(ev))) bad.push(st + ' ' + i + ' hora ' + line); }); });
+    const s1 = O.forja.requestScenario('sem máquina', { niche: 'todos' }).statusLines, n1 = O.forja.requestScenario('nova tentativa', { niche: 'todos' }).statusLines[0], v1 = O.forja.requestScenario('liberado pelo vigia', { niche: 'todos' }).statusLines[0];
+    return { ok: !bad.length && s1[0] === 'IA: sem máquina desde 12:55' && n1 === 'IA: nova tentativa · 15:05' && v1 === 'IA: liberado pelo vigia · 15:05', detail: bad.slice(0, 5).join('; ') || [s1[0], n1, v1].join(' · ') };
+  });
+  test('[F6] Fase "novos" (Novos, "menos de 7 dias de série") para vídeo de canal em dia; "sem ritmo medido" só para canal atrasado, com erro ou buscando vídeos; OBS.PHASES', () => {
+    const tr = O.videos.filter(v => v.tracked && !O.channel(v.ch).own);
+    const bad = tr.filter(v => { const p = O.phaseOf(v.id), st = O.channel(v.ch).sync.state;
+      if (['atrasado', 'erro', 'backfill'].includes(st)) return p.id !== 'sem-ritmo';
+      if (v.vpd7 == null) return p.id !== 'novos' || p.label !== 'Novos' || p.why !== 'menos de 7 dias de série';
+      return p.id === 'sem-ritmo' || p.id === 'novos'; });
+    const nov = tr.filter(v => O.phaseOf(v.id).id === 'novos');
+    const bp = O.outliers({ fmt: 'short', ages: 'all', includeWeak: true });
+    return { ok: !bad.length && nov.length > 0 && O.PHASES.map(p => p.id).join() === 'estourando,recente,perene,antigo,novos,sem-ritmo' && O.PHASES.find(p => p.id === 'novos').label === 'Novos' && Object.keys(bp.byPhase).every(k => O.PHASES.some(p => p.id === k)) && bp.items.filter(x => !x.weak).length === Object.values(bp.byPhase).reduce((a, b) => a + b, 0), detail: bad.slice(0, 3).map(v => v.id).join(', ') || nov.length + ' vídeos novos · byPhase Shorts ' + JSON.stringify(bp.byPhase) };
+  });
+  test('[F6] titleDiff: palavra presente nos dois títulos nunca "saiu"/"entrou" (sem caixa/acento/pontuação); só caixa = op "case" ("só maiúsculas/minúsculas")', () => {
+    const w = t => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/['’]s\b/g, '').replace(/[^a-z0-9$]+/g, '');
+    const cnt = t => t.split(/\s+/).map(w).filter(Boolean).reduce((m, k) => (m[k] = (m[k] || 0) + 1, m), {});
+    const bad = O.changes.filter(c => c.type === 'title').filter(c => { const d = c.titleDiff, bw = cnt(c.before), aw = cnt(c.after);   // só o excedente de uma palavra repetida pode "sair"/"entrar"
+      return d.removed.some(x => aw[w(x)] && (bw[w(x)] || 0) <= aw[w(x)]) || d.added.some(x => bw[w(x)] && (aw[w(x)] || 0) <= bw[w(x)]) || d.after.concat(d.before).some(x => x.op === 'case' && x.label !== 'só maiúsculas/minúsculas'); });
+    const D = id => O.change(id).titleDiff, has = (d, op, word) => d.after.some(x => x.op === op && x.text.includes(word));
+    const ok = !bad.length && !D('dale-capsule-underground/title/1').removed.includes('Underground') && has(D('dale-capsule-underground/title/1'), 'move', 'Underground')
+      && !D('luke-kfc/title/1').removed.some(x => /KFC/.test(x)) && has(D('luke-kfc/title/1'), 'move', 'KFC')
+      && has(D('matheus-konbini/title/1'), 'case', 'konbini') && !D('matheus-konbini/title/1').removed.some(x => /konbini/i.test(x)) && !D('matheus-konbini/title/1').removed.some(x => /Japão/.test(x));
+    return { ok, detail: bad.map(c => c.id).join(', ') || 'Underground/KFC mudaram de lugar; konbini só caixa' };
+  });
+  test('[F6] runSync(): canais ok viram "agora"; erro/atrasado/buscando mantêm o estado e voltam como problema; resetSync restaura', () => {
+    const r = O.runSync(), okIds = O.channels.filter(c => c.sync.state === 'ok' && !c.own).map(c => c.id);
+    const a = r.at === NOW && r.ok.join() === okIds.join() && r.ok.every(id => O.channel(id).sync.last === NOW) && O.SYNC.last === NOW && O.SYNC.text === 'sincronizado agora' && O.channelStats('luke-damant').syncText === 'sincronizado agora'
+      && r.problems.map(p => p.id).sort().join() === 'esq-unltd-daily,paddy-doyle' && r.outOfRound.map(p => p.id).join() === 'vou-sem-volta' && r.text === '11 canais sincronizados agora; 2 com problema; fora da rodada: Vou sem volta (buscando vídeos)' && O.channel('paddy-doyle').sync.state === 'atrasado' && O.channel('paddy-doyle').sync.last < NOW;
+    const one = O.runSync({ channel: 'esq-unltd-daily' });
+    const b = one.ok.length === 0 && one.problems.length === 1 && one.problems[0].id === 'esq-unltd-daily' && one.problems[0].label === 'não encontrado no YouTube (404)';
+    O.resetSync();
+    const c = date.dmhm(O.SYNC.last) === '24/10 12:00' && O.SYNC.text === 'sincronizado há 3 h' && date.dmhm(O.channel('luke-damant').sync.last) === '24/10 12:00' && O.channelStats('luke-damant').syncText === 'sincronizado há 3 h';
+    return { ok: a && b && c, detail: r.text };
+  });
+  test('[F6] change.agoShort ("há 3 h") ao lado de agoText ("vista pela 1ª vez há 3 h")', () => all(O.changes, c => c.agoShort === date.ago(c.at) && (c.window ? c.agoText === 'vista pela 1ª vez ' + c.agoShort : c.agoText === c.agoShort), c => c.id));
+  test('[F6] statusLabel no formato único da CONVENCOES (9 estados), num nicho e com Todos ("atrás do de IA" só no 2º quando de fato atrás)', () => {
+    const CANON = { 'na fila': 'na fila · pedido 14:58', 'trabalhando': 'trabalhando desde 14:45', 'atrasado': 'atrasado · pedido 14:33', 'sem máquina': 'sem máquina desde 12:55', 'nova tentativa': 'nova tentativa · 15:05', 'liberado pelo vigia': 'liberado pelo vigia · 15:05', 'falhou': 'falhou às 14:21', 'recusado (dado velho)': 'recusado às 14:56', 'publicado': 'publicado às 14:50' };
+    const bad = [];
+    Object.keys(CANON).forEach(st => { const one = O.forja.requestScenario(st, { niche: 'ia' }); if (one.statusLabel !== CANON[st] || one.request.statusLabel !== CANON[st]) bad.push('1 nicho ' + st + ': ' + one.statusLabel);
+      const sc = O.forja.requestScenario(st, { niche: 'todos' }), [a, b] = byN(sc.requests);
+      if (!sc.statusLines.includes('IA: ' + CANON[st])) bad.push('Todos IA ' + st + ': ' + sc.statusLines.join(' / '));
+      if (b.behind) { if (!/ \(atrás do de IA\)$/.test(b.statusLabel)) bad.push('Todos Viagem ' + st + ': ' + b.statusLabel); }
+      else if (/atrás do de/.test(b.statusLabel)) bad.push('sufixo indevido ' + st);
+      if (!sc.statusLines.includes('Viagem: ' + b.statusLabel)) bad.push('linha Viagem ' + st); });
+    return { ok: !bad.length && Object.keys(CANON).length === 9, detail: bad.join(' | ') || Object.values(CANON).join(' · ') };
+  });
+  test('[F7] runSync não mexe no seu canal (sincroniza pelo Painel): fora de ok e da contagem do texto', () => {
+    const before = O.channel('tnfigueiredo').sync.last, r = O.runSync(), r1 = O.runSync({ channel: 'tnfigueiredo' });
+    const ok = !r.ok.includes('tnfigueiredo') && O.channel('tnfigueiredo').sync.last === before && r.ok.length === 11 && /^11 canais sincronizados/.test(r.text) && r1.ok.length === 0 && r1.problems.length === 0;
+    O.resetSync(); return { ok, detail: r.text };
+  });
+  test('[F7] channel.sync.problemPhrase: frase única ancorada no último sucesso (null para canal ok)', () => {
+    const P = id => O.channel(id).sync.problemPhrase;
+    return { ok: P('paddy-doyle') === 'atrasado · última sincronização 23/10 00:00 (há 39 h)' && P('esq-unltd-daily') === 'erro desde 22/10 00:00 · última sincronização boa 21/10 18:00 · não encontrado no YouTube (404)' && !O.channels.some(c => /últimos dados|último registro diário/.test(c.sync.problemPhrase || '')) && P('vou-sem-volta') === 'buscando vídeos (18 de 50)' && O.channels.filter(c => c.sync.state === 'ok').every(c => c.sync.problemPhrase === null), detail: [P('paddy-doyle'), P('esq-unltd-daily'), P('vou-sem-volta')].join(' | ') };
+  });
+  test('[F7] fallbackText não cita o n do método descartado ("menos de 3 vídeos do canal com série desde o dia 0")', () => {
+    const fx = O.changes.map(c => O.effect(c.id).fallbackText).concat(O.videos.map(v => v.mult.fallbackText)).filter(Boolean);
+    return { ok: fx.length > 0 && fx.every(t => t === 'método: aproximação por faixa — menos de 3 vídeos do canal com série desde o dia 0'), detail: fx[0] };
+  });
+  test('[F7] titleDiff conta ocorrências: "$1M" 2× → 1× marca só 1 como mudou de lugar e a outra como saiu', () => {
+    const c = O.change('sabrina-1m/title/1'), d = c.titleDiff, n = t => (t.match(/\$1M/g) || []).length;
+    const remM = d.before.filter(x => x.op === 'rem').map(x => x.text).join(' '), mvB = d.before.filter(x => x.op === 'move' || x.op === 'keep' || x.op === 'case').map(x => x.text).join(' ');
+    const all_ = O.changes.filter(x => x.type === 'title').every(x => { const w = t => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/['’]s\b/g, '').replace(/[^a-z0-9$]+/g, '');
+      const cnt = arr => arr.reduce((m, t) => (m[t] = (m[t] || 0) + 1, m), {}), A = cnt(x.before.split(/\s+/).map(w).filter(Boolean)), B = cnt(x.after.split(/\s+/).map(w).filter(Boolean));
+      const kept = cnt(x.titleDiff.before.filter(s => s.op !== 'rem').flatMap(s => s.text.split(/\s+/)).map(w).filter(Boolean));
+      return Object.keys(kept).every(k => kept[k] <= Math.min(A[k] || 0, B[k] || 0)); });
+    return { ok: n(c.before) === 2 && n(c.after) === 1 && n(remM) === 1 && n(mvB) === 1 && all_, detail: JSON.stringify(d.before) };
+  });
+  test('[F7] reason de ganhou/perdeu/neutro: "Efeito N pp: critério" sem repetir rótulo nem critério', () => {
+    const es = O.changes.map(c => O.effect(c.id)).filter(e => ['ganhou', 'perdeu', 'neutro'].includes(e.status));
+    const st = new Set(es.map(e => e.status));
+    return all(es, e => /^Efeito [+−±]?\d+ pp: /.test(e.reason) && !/^(neutro|ganhou|perdeu)/i.test(e.reason) && (e.reason.match(/10 pp/g) || []).length === 1 && (e.reason.match(/faixa/g) || []).length === 1 && !/\(fora da faixa/.test(e.reason)
+      && (e.status === 'neutro' ? (Math.abs(e.effectPp) < 10 ? /abaixo de 10 pp/.test(e.reason) : /acima de 10 pp, mas dentro/.test(e.reason)) : true) && st.has('ganhou') && st.has('perdeu') && st.has('neutro'), e => e.id + ': ' + e.reason);
+  });
+  test('[F7] fmt.age(v) pela idade inteira (ageDays): bordas 30/90/180 dentro da faixa certa; "há 1 dia"; "há N h"', () => {
+    const mk = d => ({ ageDays: d, pub: NOW - d * DAY - 3 * H });
+    const edges = [30, 90, 180].every(d => fmt.age(mk(d)) === 'há ' + d + ' dias' && O.winOf(d).id === (d === 30 ? '0-30' : d === 90 ? '31-90' : '91-180'));
+    const real = O.videos.every(v => fmt.age(v) === (v.ageDays >= 1 ? 'há ' + v.ageDays + (v.ageDays === 1 ? ' dia' : ' dias') : 'há ' + Math.floor((NOW - v.pub) / H) + ' h'));
+    const ids = fmt.age('matt-gpt6-astra') === 'há 28 dias' && fmt.age(mk(1)) === 'há 1 dia' && fmt.age({ ageDays: 0, pub: NOW - 5 * H - 60e3 }) === 'há 5 h' && fmt.age('matt-fast-cheap') === 'há 11 h';
+    const in30 = O.videos.filter(v => v.ageDays === 30).every(v => fmt.age(v) === 'há 30 dias' && O.winOf(v.ageDays).id === '0-30');
+    return { ok: edges && real && ids && in30, detail: [30, 90, 180].map(d => fmt.age(mk(d))).join(' · ') + ' · ' + fmt.age('matt-fast-cheap') };
+  });
+  test('[F7] Canal em dia sem mediana de views/dia: fase da idade (nunca "sem ritmo medido"); sem-ritmo só para atrasado/erro/buscando', () => {
+    const ok = O.videos.filter(v => v.tracked && O.channel(v.ch).sync.state === 'ok' && v.vpd7 != null);
+    const sim = ok.slice(0, 400).map(v => ({ v, p: O.phaseOf(v.id, { m7: null }) }));
+    const good = sim.every(({ v, p }) => p.id !== 'sem-ritmo' && p.noMedian && (v.ageDays <= 90 ? p.id === 'recente' : p.id === 'antigo'));
+    const none = O.videos.filter(v => v.tracked && O.phaseOf(v.id).id === 'sem-ritmo').every(v => ['atrasado', 'erro', 'backfill'].includes(O.channel(v.ch).sync.state));
+    return { ok: good && none, detail: sim[0].p.why };
+  });
+  test('[F7] outliers(q).orderedIds(sort): ordem oficial (fases na ordem de PHASES; mult/vpd/recent; min < 2 em "2× ou mais" e "abaixo"), igual à do outliers.html', () => {
+    const PO = ['estourando', 'recente', 'perene', 'antigo', 'novos', 'sem-ritmo'], stale = c => c.sync.state === 'atrasado' || c.sync.state === 'erro';
+    const vk = it => stale(O.channel(it.video.ch)) ? -2 : ((it.video.vpd7 ?? it.video.vpd) ?? -1);
+    const replica = (R, sort, min) => { let its = R.items.slice(); if (sort === 'vpd') its.sort((a, b) => vk(b) - vk(a)); else if (sort === 'recent') its.sort((a, b) => b.video.pub - a.video.pub);
+      const nm = min != null && min < 2, flat = sort !== 'mult' || nm;
+      const g = nm ? [its.filter(i => i.mult.value >= 2), its.filter(i => i.mult.value < 2)] : flat ? [its] : PO.map(k => its.filter(i => i.phase.id === k));
+      return g.flat().map(i => i.id); };
+    const qs = [{}, { fmt: 'short', ages: 'all' }, { ages: 'all', includeWeak: true }, { niche: 'viagem', ages: 'all', min: 0, includeWeak: true }, { reading: 'padroes-titulo-ia-20-10', includeWeak: true }];
+    const bad = [];
+    qs.forEach(q => ['mult', 'vpd', 'recent'].forEach(so => { const R = O.outliers(q), a = R.orderedIds(so), b = replica(R, so, q.min);
+      if (a.join() !== b.join()) bad.push(JSON.stringify(q) + ' ' + so); if (new Set(a).size !== R.items.length || a.length !== R.items.length) bad.push('ids ' + so); }));
+    const g = O.outliers({ ages: 'all', fmt: 'short', includeWeak: true }).orderedGroups('mult').map(x => x.k);
+    return { ok: !bad.length && O.PHASES.map(p => p.id).join() === PO.join() && g.every((k, i) => i === 0 || PO.indexOf(k) > PO.indexOf(g[i - 1])), detail: bad.join('; ') || 'grupos Shorts: ' + g.join(' → ') };
+  });
+  test('[F8] mult.ageAtRead (dias inteiros no registro) e rótulo com o momento do registro quando a faixa muda até agora', () => {
+    const cases = ['preguica-artificial-l5', 'matt-wolfe-l15', 'preguica-artificial-s29'].map(V);
+    const ok1 = cases.every(v => { const m = v.mult; return m.ageAtRead === Math.floor((v.viewsAt - v.pub) / DAY) && O.bandOf(m.ageAtRead).id !== O.bandOf(v.ageDays).id && new RegExp(' com ' + O.bandOf(m.ageAtRead).label + ' no registro de ' + date.dmhm(v.viewsAt).replace(/[/:]/g, '.') + ' \\(este tinha ' + m.ageAtRead + ' dias; n = ' + m.n + '\\)').test(m.label); });
+    const all_ = O.videos.filter(v => v.mult && v.mult.value != null).every(v => typeof v.mult.ageAtRead === 'number' && ((O.bandOf(v.mult.ageAtRead).id !== O.bandOf(v.ageDays).id && v.mult.method === 'aproximação por faixa') === /no registro de/.test(v.mult.label)));
+    return { ok: ok1 && all_ && /\(n = 14\)$/.test(V('matt-gpt6-astra').mult.label), detail: cases.map(v => v.mult.label).join(' | ') };
+  });
+  test('[F8] effect.inconclusiveKind: janela-dupla, versao-curta, antes-curto ou outro (só em inconclusivo)', () => {
+    const es = O.changes.map(c => O.effect(c.id)), inc = es.filter(e => e.status === 'inconclusivo');
+    const kinds = new Set(inc.map(e => e.inconclusiveKind));
+    return { ok: inc.every(e => ['janela-dupla', 'versao-curta', 'antes-curto', 'outro'].includes(e.inconclusiveKind)) && es.filter(e => e.status !== 'inconclusivo').every(e => e.inconclusiveKind == null) && O.effect('matt-opus55/thumb/1').inconclusiveKind === 'versao-curta' && O.effect('paddy-bkk-hotel/title/1').inconclusiveKind === 'janela-dupla' && O.effect('matheus-japao-semana/title/1').inconclusiveKind === 'antes-curto', detail: [...kinds].join(', ') };
+  });
+  test('[F8] Fase "estourando agora" com o multiplicador formatado ("2,0× ou mais"); sem "≥ 2×" nos textos', () => ({ ok: /2,0× ou mais/.test(O.PHASES[0].why) && /2,0× ou mais/.test(O.phaseOf('matt-gpt6-astra').why) && !O.PHASES.some(p => /≥ 2×/.test(p.why)), detail: O.PHASES[0].why }));
+  test('[F8] Leituras publicadas são congeladas: o texto das 13 leituras que não são de cenário não muda (inclui "(≥ 2×)" nos leads)', () => {
+    const h = t => { let a = 0; for (const c of t) a = (Math.imul(a, 31) + c.charCodeAt(0)) | 0; return a >>> 0; };
+    const rs = O.forja.readings.filter(r => !r.scenario);
+    const txt = rs.map(r => r.id + '|' + r.seal + '|' + r.sent.text + '|' + r.text.lead + '|' + r.text.items.join('§')).join('\n');
+    const leads = rs.filter(r => r.type.startsWith('padroes-titulo')).every(r => /\(≥ 2×\) em /.test(r.text.lead));
+    return { ok: rs.length === 13 && h(txt) === 850091853 && leads && rs.every(r => !/-cenario$/.test(r.id)), detail: 'assinatura do texto ' + h(txt) + ' (esperada 850091853)' };
+  });
+  test('[F8] "atrás do de X" só enquanto o pedido da frente está ativo (todo estado × Todos); horários em ordem', () => {
+    const ACT = ['na fila', 'trabalhando', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia'], bad = [];
+    O.forja.requestStates.forEach(st => { const [a, b] = byN(O.forja.requestScenario(st, { niche: 'todos' }).requests);
+      if (/atrás do de/.test(b.statusLabel) !== ACT.includes(a.state) && ['na fila', 'atrasado', 'sem máquina'].includes(b.state)) bad.push(st + ': ' + b.statusLabel);
+      [a, b].forEach(q => { const ts = [q.createdAt, q.claimedAt, q.publishedAt || q.failedAt || q.refusedAt].filter(x => x != null); if (ts.some((x, i) => i && x < ts[i - 1])) bad.push(st + ' ordem'); }); });
+    const r = O.forja.requestScenario('recusado (dado velho)', { niche: 'todos' }).statusLines;
+    return { ok: !bad.length && r[0] === 'Viagem: na fila · pedido 14:50' && r[1] === 'IA: recusado às 14:56', detail: bad.join('; ') || r.join(' / ') };
+  });
+  test('[F8] forja.compose: pedido novo compõe sobre o cenário (substitui o do mesmo nicho, mantém os outros)', () => {
+    const c = O.forja.compose(O.forja.requestScenario('publicado'), { niche: 'viagem', createdAt: NOW });
+    const c2 = O.forja.compose(O.forja.requestScenario('trabalhando'), { niche: 'viagem' });
+    const c3 = O.forja.compose(O.forja.requestScenario('na fila', { niche: 'todos' }), { niche: 'viagem', createdAt: date.spIso('2026-10-24T15:00') });
+    const ok = c.split && c.statusLines.join(' / ') === 'Viagem: na fila · pedido 15:02 / IA: publicado às 14:50' && c.statusLabel === 'pedido em andamento' && c.active && !c.terminal && byN(c.requests)[0].readingId === O.forja.requestScenario('publicado').request.readingId
+      && c.statusText === 'O pedido de Viagem está na fila desde 15:02. Leitura de IA publicada às 14:50.' && c.quota.usedToday === 2
+      && c2.statusLines[1] === 'Viagem: na fila · pedido 15:02 (atrás do de IA)' && c3.requests.length === 2 && c3.requests[1].createdAt === date.spIso('2026-10-24T15:00') && c3.requests.filter(q => q.niche === 'viagem').length === 1
+      && O.forja.compose(null, { niche: 'ia' }).statusLabel === 'na fila · pedido 15:02';
+    return { ok, detail: c.statusLines.join(' / ') + ' · ' + c2.statusLines.join(' / ') };
+  });
+  test('[F8] Ordem da fila em requests/statusLines: ativos por createdAt (o da frente primeiro), depois os terminados — compose e requestScenario(todos)', () => {
+    const base = O.forja.requestScenario('na fila', { niche: 'viagem', createdAt: date.spIso('2026-10-24T14:50') }), c = O.forja.compose(base, { niche: 'ia', createdAt: NOW });
+    const act = q => ['na fila', 'trabalhando', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia'].includes(q.state);
+    const ordered = reqs => reqs.every((q, i) => i === 0 || (act(reqs[i - 1]) && !act(q)) || (act(reqs[i - 1]) === act(q) && (!act(q) || reqs[i - 1].createdAt <= q.createdAt)));
+    const scs = O.forja.requestStates.map(st => O.forja.requestScenario(st, { niche: 'todos' }));
+    return { ok: c.requests[0].niche === 'viagem' && c.statusLines[0] === 'Viagem: na fila · pedido 14:50' && c.statusLines[1] === 'IA: na fila · pedido 15:02 (atrás do de Viagem)' && c.request === c.requests[0]
+      && scs.every(sc => ordered(sc.requests) && sc.statusLines.every((l, i) => l.startsWith(O.NICHES[sc.requests[i].niche].label + ': '))) && ordered(c.requests), detail: c.statusLines.join(' / ') };
+  });
+  test('[F8] since(id).shortText: uma linha "desde então: …" com os mesmos números de .text; "nada mudou" só se nada mudou', () => all(O.forja.readings.concat(Object.values(O.forja.scenarioReadings)), r => { const x = O.forja.since(r.id), t = x.shortText;
+    if (!/^desde então: /.test(t) || /\n/.test(t)) return false;
+    if (r.type === 'leitura-video') return (x.newPoints ? t.includes('+' + x.newPoints + ' registro') : true) && (x.flipped ? t.includes(x.flipped + (x.flipped === 1 ? ' veredito mudou' : ' vereditos mudaram')) : true);
+    if (r.type === 'resumo-trocas') return (x.newChanges.length ? t.includes('+' + x.newChanges.length + ' troca') : true) && (x.staleNow.length ? /(canal|canais) fora/.test(t) : true);
+    const parts = [[x.freshVideos.length, '+N vídeo'], [x.noBaseThenVideos.length, 'N ganh'], [x.leftWindow.length, 'N sa'], [x.stoppedOutlier.length, 'N deix'], [x.titleChanged.length, 'N título'], [x.staleNow.length, 'N cana']];
+    const changed = x.nowVideos !== x.sentVideos || x.nowOutliers !== x.sentOutliers || parts.some(p => p[0]);
+    return parts.every(([n, pat]) => !n || t.includes(pat.replace('N', n))) && (/nada mudou/.test(t) ? !changed : true); }, r => r.id + ': ' + O.forja.since(r.id).shortText));
+  test('[F8] runSync persiste em sessionStorage["obs-sync"] e é reaplicado na carga; resetSync limpa; seu canal intocado', () => {
+    const mem = {}; const fake = { getItem: k => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: k => { delete mem[k]; } };
+    const had = typeof window !== 'undefined' && 'sessionStorage' in window, old = had ? window.sessionStorage : undefined;
+    try { Object.defineProperty(window, 'sessionStorage', { value: fake, configurable: true, writable: true }); } catch (e) { return { ok: false, detail: 'sem como simular sessionStorage: ' + e.message }; }
+    let ok = false, detail = '';
+    try {
+      O.runSync(); const saved = JSON.parse(mem['obs-sync'] || 'null');
+      const B = O._build(); B.replaySync();
+      ok = saved && saved.runs.length === 1 && B.SYNC.text === 'sincronizado agora' && B.channel('luke-damant').sync.last === NOW && B.channel('tnfigueiredo').sync.last !== NOW && B.channel('paddy-doyle').sync.state === 'atrasado';
+      O.resetSync(); ok = ok && !('obs-sync' in mem) && O.SYNC.text === 'sincronizado há 3 h';
+      detail = JSON.stringify(saved);
+    } finally { if (had) Object.defineProperty(window, 'sessionStorage', { value: old, configurable: true, writable: true }); else delete window.sessionStorage; O.resetSync(); }
+    return { ok, detail };
+  });
+  test('[F8] effect.noBaseText canônico para n = 0 (e só para n = 0)', () => all(O.changes.map(c => O.effect(c.id)).filter(e => e.n != null), e => e.n === 0 ? e.noBaseText === 'sem base de comparação: nenhum outro vídeo do canal na faixa ' + e.band + ' (n = 0)' : e.noBaseText === null, e => e.id + ': ' + e.noBaseText) );
+  test('[F8] effect.readyText só para "aguardando": "leitura no domingo, 25/10" / "na quinta, 29/10" (calendário real)', () => all(O.changes.map(c => O.effect(c.id)), e => e.status === 'aguardando' ? e.readyText === 'leitura ' + (/^(segunda|terça|quarta|quinta|sexta)/.test(date.weekday(e.readyOn)) ? 'na ' : 'no ') + date.weekday(e.readyOn) + ', ' + date.dm(e.readyOn) && (e.readyText !== 'leitura no domingo, 25/10' || date.weekday(e.readyOn) === 'domingo') : e.readyText == null, e => e.id + ': ' + e.readyText));
+  test('[F9] falhou/recusado com outro pedido ativo: o texto diz quem segue e quando pedir de novo (nunca "Peça de novo" solto)', () => {
+    const ruleRe = /O pedido de Viagem segue na fila desde \d\d:\d\d\. A (recusa|falha) de IA não conta na cota; você pode pedir de novo a de IA agora\.$/, endsRule = t => ruleRe.test(t) && !/quando ele terminar/.test(t);
+    const r = O.forja.requestScenario('recusado (dado velho)', { niche: 'todos' }), f = O.forja.requestScenario('falhou', { niche: 'todos' });
+    const c = O.forja.compose(O.forja.requestScenario('recusado (dado velho)'), { niche: 'viagem' }), c2 = O.forja.compose(O.forja.requestScenario('falhou'), { niche: 'viagem' });
+    const viagemActiveInF = f.requests.some(q => q.niche === 'viagem' && ['na fila', 'trabalhando', 'atrasado'].includes(q.state));
+    const ok = endsRule(r.statusText) && /segue na fila desde 14:50\. A recusa de IA não conta na cota; você pode pedir de novo a de IA agora\.$/.test(r.statusText) && /A falha de IA não conta na cota/.test(c2.statusText) && !/Peça de novo\./.test(r.statusText) && endsRule(c.statusText) && endsRule(c2.statusText) && (c.statusText.match(/Viagem/g) || []).length === 1
+      && (viagemActiveInF ? endsRule(f.statusText) : !/segue na fila/.test(f.statusText)) && /Peça de novo\.$/.test(O.forja.requestScenario('recusado (dado velho)').statusText);
+    return { ok, detail: r.statusText + ' | ' + c.statusText };
+  });
+  test('[F9] Todos: o statusText concorda com as statusLines — cada nicho citado com estado compatível (9 estados)', () => {
+    const KW = { 'na fila': /na fila|espera/, 'trabalhando': /andamento|trabalhando/, 'atrasado': /atrasad|limite/, 'sem máquina': /máquina voltar|sem máquina/, 'nova tentativa': /tentativa/, 'liberado pelo vigia': /vigia/, 'publicado': /publicad/, 'falhou': /falh/, 'recusado (dado velho)': /recusad/ };
+    const bad = [];
+    O.forja.requestStates.forEach(st => { const sc = O.forja.requestScenario(st, { niche: 'todos' }), sent = sc.statusText.split(/(?<=\.)\s+/);
+      sc.requests.forEach(q => { const n = O.NICHES[q.niche].label, mine = sent.filter(x => new RegExp('\\b' + n + '\\b').test(x));
+        if (!mine.length) bad.push(st + ': ' + n + ' não citado'); else if (!mine.some(x => KW[q.state].test(x))) bad.push(st + ': ' + n + ' ' + q.state + ' ≠ "' + mine.join(' ') + '"'); }); });
+    const f = O.forja.requestScenario('falhou', { niche: 'todos' }).statusText, v = O.forja.requestScenario('liberado pelo vigia', { niche: 'todos' }).statusText;
+    return { ok: !bad.length && /^Os 2 pedidos \(IA e Viagem\) falharam/.test(f) && /Viagem está atrasado/.test(v) && !/Viagem espera na fila/.test(v), detail: bad.join(' | ') || f };
+  });
+  test('[F9] timing(type, niche, {count: 0}): sem leitura no cenário → "nenhuma leitura ainda" (nada de "2 leituras" inventado)', () => { const t = O.forja.timing('padroes-titulo', 'ia', { count: 0 }); return { ok: t.n === 0 && t.text === 'tempo deste tipo ainda não medido (nenhuma leitura ainda; mediana a partir de 5)' && O.forja.timing('padroes-titulo', 'ia').n === 2, detail: t.text }; });
+  test('[F9] compose com Todos e só 1 pedido: rótulo e linhas com o prefixo do nicho', () => { const c = O.forja.compose(null, { niche: 'viagem' }, { niche: 'todos' }); return { ok: c.statusLabel === 'Viagem: na fila · pedido 15:02' && c.statusLines && c.statusLines[0] === 'Viagem: na fila · pedido 15:02' && O.forja.compose(null, { niche: 'viagem' }).statusLabel === 'na fila · pedido 15:02', detail: c.statusLabel }; });
+  test('[F9] compose com empate de createdAt: o que entrou antes fica na frente; seq opcional desempata', () => {
+    const base = O.forja.requestScenario('na fila', { niche: 'viagem', createdAt: NOW }), a = O.forja.compose(base, { niche: 'ia', createdAt: NOW }), b = O.forja.compose(base, { niche: 'ia', createdAt: NOW, seq: -1 });
+    return { ok: a.requests[0].niche === 'viagem' && /atrás do de Viagem/.test(a.statusLines[1]) && b.requests[0].niche === 'ia' && /atrás do de IA/.test(b.statusLines[1]) && !/atrás/.test(b.statusLines[0]), detail: a.statusLines.join(' / ') + ' | seq: ' + b.statusLines.join(' / ') };
+  });
+  test('[F9] forja.session: estado único de pedidos — setBase, ask (só nichos livres, ordem dos cliques), cancel, current(nicho|todos), reset, persistência', () => {
+    const S = O.forja.session, mem = {}, fake = { getItem: k => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: k => { delete mem[k]; } };
+    const had = typeof window !== 'undefined' && 'sessionStorage' in window, old = had ? window.sessionStorage : undefined;
+    try { Object.defineProperty(window, 'sessionStorage', { value: fake, configurable: true, writable: true }); } catch (e) { return { ok: false, detail: e.message }; }
+    const bad = [];
+    try {
+      S.reset(); if (!S.current('todos').empty || S.current('ia').request !== null) bad.push('vazio');
+      const a1 = S.ask('viagem'); if (!a1.ok || S.current('todos').requests.length !== 1 || S.current('viagem').statusLabel !== 'na fila · pedido 15:02' || S.current('todos').statusLabel !== 'Viagem: na fila · pedido 15:02') bad.push('ask viagem');
+      if (S.ask('viagem').ok) bad.push('duplicou');
+      const a2 = S.ask('todos'); if (!a2.ok || a2.results.find(r => r.niche === 'viagem').ok) bad.push('todos');
+      const t = S.current('todos'); if (t.requests.map(q => q.niche).join() !== 'viagem,ia' || !/atrás do de Viagem/.test(t.statusLines[1])) bad.push('ordem dos cliques ' + t.statusLines);
+      if (!('obs-forja' in mem)) bad.push('não persistiu');
+      const B = O._build(); B.forja.session.replay(); if (B.forja.session.current('todos').requests.length !== 2) bad.push('replay');
+      S.current('ia'); S.current('todos'); S.current('viagem'); if (S.current('todos').requests.length !== 2) bad.push('trocar de nicho mudou pedidos');
+      S.cancel('viagem'); const tc = S.current('todos'); if (tc.requests.length !== 1 || tc.requests[0].niche !== 'ia' || /atrás/.test(tc.statusLines[0])) bad.push('cancel ' + tc.statusLines);
+      S.setBase('publicado'); const pb = S.current('todos'); if (pb.statusLines.join(' / ') !== O.forja.requestScenario('publicado', { niche: 'todos' }).statusLines.join(' / ')) bad.push('base');
+      if (S.ask('ia').ok || !/cota de hoje usada/.test(S.ask('ia').reason) || S.ask('viagem').ok) bad.push('cota/ativo');
+      if (S.current('ia').statusLabel !== 'publicado às 14:50' || S.current('ia').statusText !== O.forja.requestScenario('publicado').statusText) bad.push('nicho único canônico');
+      S.setBase('recusado (dado velho)'); const r = S.ask('ia'); const rr = S.current('todos'); if (!r.ok || rr.requests.length !== 2 || rr.requests.find(q => q.niche === 'ia').state !== 'na fila') bad.push('pedir de novo após recusa');
+      S.reset(); if (!S.current('todos').empty || 'obs-forja' in mem) bad.push('reset');
+    } finally { if (had) Object.defineProperty(window, 'sessionStorage', { value: old, configurable: true, writable: true }); else delete window.sessionStorage; S.reset(); }
+    return { ok: !bad.length, detail: bad.join(' | ') || 'ok' };
+  });
+  test('[F9] session por (tipo, alvo): leitura-video é por VÍDEO — A pedido → B livre; publicado aponta para a leitura do próprio vídeo; cota e "ocupado" por nicho + tipo', () => {
+    const S = O.forja.session, LV = { type: 'leitura-video' }, bad = [];
+    try {
+      S.reset();
+      if (!S.ask(null, Object.assign({ video: 'matt-opus55' }, LV)).ok) bad.push('ask A');
+      if (S.current(null, Object.assign({ video: 'matt-opus55' }, LV)).statusLabel !== 'na fila · pedido 15:02') bad.push('A');
+      if (!S.current(null, Object.assign({ video: 'matt-gpt6-astra' }, LV)).empty) bad.push('B não está livre');
+      if (!S.current('ia').empty || !S.current('todos').empty) bad.push('pedido de vídeo vazou para padrões do nicho');
+      const bAsk = S.ask(null, Object.assign({ video: 'matt-gpt6-astra' }, LV)); if (bAsk.ok || !/leitura de vídeo de IA em andamento/.test(bAsk.reason)) bad.push('ocupado por nicho + tipo');
+      if (!S.ask(null, Object.assign({ video: 'luke-kfc' }, LV)).ok) bad.push('outro nicho deveria estar livre');
+      if (!S.ask('ia').ok) bad.push('padrões de IA deveria estar livre (outro tipo)');
+      S.setBase('publicado', Object.assign({ video: 'nate-claude-code-danger' }, LV));
+      const c = S.current(null, Object.assign({ video: 'nate-claude-code-danger' }, LV)), r = O.forja.byId[c.request.readingId];
+      if (!r || r.target.video !== 'nate-claude-code-danger' || r.generatedAt !== c.request.publishedAt) bad.push('publicado de outro vídeo');
+      if (!S.current(null, Object.assign({ video: 'matt-opus55' }, LV)).empty) bad.push('base de um vídeo apareceu em outro');
+      S.setBase('publicado', LV); if (O.forja.byId[S.current(null, LV).request.readingId].target.video !== 'matt-opus55') bad.push('sem vídeo usa a vitrine');
+      S.reset(); S.ask('viagem'); if (S.current('todos').statusLabel !== 'Viagem: na fila · pedido 15:02' || !S.current(null, Object.assign({ video: 'luke-kfc' }, LV)).empty) bad.push('compatibilidade sem type');
+    } finally { S.reset(); }
+    return { ok: !bad.length, detail: bad.join(' | ') || 'ok' };
+  });
+  test('[F10] quota.byNiche em requestScenario/compose/session; com Todos, quota.text por nicho ("IA: cota livre (recusa não conta) · Viagem: cota usada pelo pedido das 14:50")', () => {
+    const r = O.forja.requestScenario('recusado (dado velho)', { niche: 'todos' }).quota, p = O.forja.requestScenario('publicado').quota;
+    const c = O.forja.compose(O.forja.requestScenario('falhou'), { niche: 'viagem' }, { niche: 'todos' }).quota;
+    const S = O.forja.session; S.reset(); S.ask('viagem'); const sq = S.current('todos').quota; S.reset();
+    const ok = r.text === 'IA: cota livre (recusa não conta) · Viagem: cota usada pelo pedido das 14:50' && r.byNiche.ia.free === true && r.byNiche.viagem.free === false
+      && p.byNiche.ia && p.byNiche.ia.free === false && !p.byNiche.viagem && /^cota de hoje usada/.test(p.text)
+      && c.byNiche.ia.text === 'cota livre (falha não conta)' && c.byNiche.viagem.free === false && sq.byNiche.ia.text === 'cota livre' && sq.byNiche.viagem.free === false;
+    return { ok, detail: r.text + ' | ' + c.text + ' | ' + sq.text };
+  });
+  test('[F10] session.current(nicho) mantém "(atrás do de X)" quando um pedido ativo de outro nicho está na frente; since(id).textNoAsk sem "Peça nova leitura…"', () => {
+    const S = O.forja.session; S.reset(); S.ask('ia'); S.ask('viagem');
+    const v = S.current('viagem'), i = S.current('ia'); S.reset(); S.setBase('na fila'); const vb = S.current('viagem'); S.reset();
+    const ids = O.forja.readings.map(r => r.id), tn = ids.every(id => { const x = O.forja.since(id); return x.textNoAsk && !/Peça nova leitura/.test(x.textNoAsk) && x.text.startsWith(x.textNoAsk.replace(/\.$/, '')); });
+    return { ok: v.statusLabel === 'na fila · pedido 15:02 (atrás do de IA)' && /atrás do de IA/.test(v.statusText) && i.statusLabel === 'na fila · pedido 15:02' && vb.statusLabel === 'na fila · pedido 14:58 (atrás do de IA)' && tn, detail: v.statusLabel + ' · ' + vb.statusLabel + ' · ' + O.forja.since('padroes-titulo-ia-20-10').textNoAsk.slice(-60) };
+  });
+  test('[F10] session.ask().reason sem parênteses aninhados: "Nada enviado: já há um pedido de IA na fila · pedido 15:02, atrás do de Viagem."', () => {
+    const S = O.forja.session; S.reset(); S.ask('viagem'); S.ask('ia'); const r = S.ask('ia').reason, r2 = S.ask('viagem').reason; S.reset();
+    const depth = t => { let d = 0, m = 0; for (const c of t) { if (c === '(') m = Math.max(m, ++d); else if (c === ')') d--; } return m; };
+    return { ok: r === 'Nada enviado: já há um pedido de IA na fila · pedido 15:02, atrás do de Viagem.' && r2 === 'Nada enviado: já há um pedido de Viagem na fila · pedido 15:02.' && depth(r) === 0, detail: r };
+  });
+  test('[F10] leitura-video: blockedBy quando outro vídeo do nicho tem pedido ativo; texto fala do vídeo; máquina ocupada com outro tipo é dita', () => {
+    const S = O.forja.session, LV = v => ({ type: 'leitura-video', video: v }), bad = [];
+    try {
+      S.reset(); S.ask(null, LV('matt-opus55'));
+      const a = S.current('ia', LV('matt-opus55')), b = S.current('ia', LV('matt-gpt6-astra'));
+      if (a.statusText !== 'O pedido de leitura deste vídeo está na fila desde 15:02.' || a.blockedBy !== null) bad.push('texto do vídeo: ' + a.statusText);
+      if (!b.blockedBy || b.blockedBy.video !== 'matt-opus55' || b.blockedBy.statusLabel !== 'na fila · pedido 15:02' || !/Nada enviado: já há uma leitura de vídeo de IA na fila · pedido 15:02, do vídeo “Claude Opus 5.5/.test(b.blockedBy.reason)) bad.push('blockedBy: ' + JSON.stringify(b.blockedBy));
+      if (S.current('viagem', LV('luke-kfc')).blockedBy !== null) bad.push('outro nicho bloqueado');
+      S.setBase('trabalhando'); S.ask(null, LV('luke-kfc'));
+      const k = S.current('viagem', LV('luke-kfc'));
+      if (!/A máquina está lendo outro pedido \(padrões de título de IA\) desde 14:45\.$/.test(k.statusText) || !k.machineBusy) bad.push('ocupada: ' + k.statusText);
+    } finally { S.reset(); }
+    return { ok: !bad.length, detail: bad.join(' | ') || 'ok' };
+  });
+  test('[F10] session.current(nicho) = o pedido DESSE nicho recortado de Todos (próprios horários); "sem máquina" com um nicho = frase canônica', () => {
+    const S = O.forja.session, bad = [];
+    try { O.forja.requestStates.forEach(st => { S.setBase(st); const t = S.current('todos');
+      ['ia', 'viagem'].forEach(n => { const lab = O.NICHES[n].label, line = t.statusLines.find(l => l.startsWith(lab + ': ')), c = S.current(n);
+        if (!line || c.statusLabel !== line.slice(lab.length + 2)) bad.push(st + '/' + n + ': ' + c.statusLabel + ' ≠ ' + line);
+        const q = t.requests.find(r => r.niche === n), cq = c.requests[0];
+        ['createdAt', 'claimedAt', 'publishedAt', 'failedAt', 'refusedAt', 'releasedAt'].forEach(k => { if ((q[k] || null) !== (cq[k] || null)) bad.push(st + '/' + n + ' ' + k); });
+        if (st === 'sem máquina' && c.statusText !== 'Seu pedido das ' + date.hm(q.createdAt) + ' está na fila e roda quando a máquina voltar.') bad.push('sem máquina ' + n + ': ' + c.statusText); }); });
+    } finally { S.reset(); }
+    const one = O.forja.requestScenario('sem máquina', { niche: 'viagem' }).statusText;
+    return { ok: !bad.length && one === 'Seu pedido das 14:48 está na fila e roda quando a máquina voltar.', detail: bad.slice(0, 6).join(' | ') || 'ok' };
+  });
+  test('[F10] effect.waitText: "Aguardando: N de 7 dias coletados, leitura no domingo, 25/10." (+ "Vai sair inconclusivo: …" quando for o caso)', () => all(O.changes.map(c => O.effect(c.id)).filter(e => e.status === 'aguardando'), e => e.waitText === 'Aguardando: ' + e.collected + ' de 7 dias coletados, ' + e.readyText + '.' + (e.willBeInconclusive ? ' Vai sair inconclusivo: ' + e.willBeInconclusiveShort + '.' : '') && (e.waitText.match(/: /g) || []).length <= 2, e => e.id + ': ' + e.waitText) && O.effect('matt-opus55/title/2').waitText === 'Aguardando: 6 de 7 dias coletados, leitura no domingo, 25/10. Vai sair inconclusivo: dois campos do vídeo mudaram na mesma janela de sincronização.');
+  test('[F10] Fila única entre tipos (uma máquina): ativos ordenados por createdAt/seq; "atrás do pedido de padrões de título de IA"; queuePos/firstInQueue', () => {
+    const S = O.forja.session, bad = [];
+    try {
+      S.reset(); S.ask('ia'); S.ask(null, { type: 'leitura-video', video: 'luke-kfc' }); S.ask('viagem', { type: 'temas' });
+      const a = S.current('ia'), v = S.current(null, { type: 'leitura-video', video: 'luke-kfc' }), t = S.current('viagem', { type: 'temas' });
+      if (!a.request.firstInQueue || a.request.queuePos !== 1 || /atrás/.test(a.statusLabel)) bad.push('1º da fila: ' + a.statusLabel);
+      if (v.statusLabel !== 'na fila · pedido 15:02 (atrás do pedido de padrões de título de IA)' || v.request.queuePos !== 2) bad.push('vídeo: ' + v.statusLabel);
+      if (t.statusLabel !== 'na fila · pedido 15:02 (atrás do pedido de leitura de vídeo de Viagem)' || t.request.queuePos !== 3) bad.push('temas: ' + t.statusLabel);
+      S.setBase('trabalhando'); S.ask(null, { type: 'leitura-video', video: 'luke-kfc' });
+      const w = S.current(null, { type: 'leitura-video', video: 'luke-kfc' });
+      if (!/atrás do pedido de padrões de título de Viagem\)$/.test(w.statusLabel) || S.current('todos').statusLines[1] !== 'Viagem: na fila · pedido 14:41 (atrás do de IA)') bad.push('base trabalhando: ' + w.statusLabel);
+      const c = O.forja.compose({ requests: [Object.assign({}, O.forja.requestScenario('na fila').request, { type: 'temas' })], machine: O.forja.requestScenario('na fila').machine }, { niche: 'viagem', type: 'padroes-titulo' });
+      if (!/atrás do pedido de temas de IA/.test(c.statusLines ? c.statusLines.join() : c.statusLabel + ' ' + c.requests.map(q => q.statusLabel).join())) bad.push('compose: ' + c.requests.map(q => q.statusLabel).join(' / '));
+    } finally { S.reset(); }
+    return { ok: !bad.length, detail: bad.join(' | ') || 'ok' };
+  });
+  test('[F11] heatmap: cells[d][b].dominantChannel = {id, name, share} quando um canal tem ≥ 80% da célula; senão null', () => all(['todos', 'viagem', 'ia'].flatMap(n => O.heatmap(n, 'long').cells.flat()), c => { if (!c.n) return c.dominantChannel === null;
+    const by = {}; c.ids.forEach(id => { by[V(id).ch] = (by[V(id).ch] || 0) + 1; }); const [top, k] = Object.entries(by).sort((a, b) => b[1] - a[1])[0];
+    return k / c.n >= 0.8 ? (c.dominantChannel && c.dominantChannel.id === top && c.dominantChannel.name === O.channel(top).name && Math.abs(c.dominantChannel.share - k / c.n) < 1e-12) : c.dominantChannel === null; }));
+  test('[F11] session.current(nicho) em falhou/recusado leva o motivo completo do próprio pedido', () => {
+    const S = O.forja.session; let v, r;
+    try { S.setBase('falhou'); v = S.current('viagem'); S.setBase('recusado (dado velho)'); S.ask('ia'); S.reset(); S.setBase('falhou'); } finally { }
+    const ok = v.statusText === 'O pedido de Viagem falhou às 14:51. O validador recusou a saída da forja nas 3 tentativas. Falha não conta na cota.' && /falhou às 14:51/.test(v.statusLabel) && S.current('ia').statusText === O.forja.requestScenario('falhou').statusText;
+    S.reset(); return { ok, detail: v.statusText };
+  });
+  /* ---------- saída ---------- */
+  const pass = R.filter(r => r.ok).length, fail = R.length - pass;
+  root.__OBS_TEST = { pass, fail, results: R };
+  if (typeof document !== 'undefined' && document.getElementById('rows')) {
+    const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    document.getElementById('rows').innerHTML = R.map(r => '<tr><td class="r ' + (r.ok ? 'PASS' : 'FAIL') + '">' + (r.ok ? 'PASS' : 'FAIL') + '</td><td>' + esc(r.name) + '</td><td class="d">' + esc(r.detail) + '</td></tr>').join('');
+    const s = document.getElementById('summary'); s.textContent = (fail ? 'FAIL' : 'PASS') + ' — ' + pass + ' de ' + R.length + ' asserções passaram'; s.className = fail ? 'fail' : 'pass';
+  }
+  R.forEach(r => (r.ok ? console.log : console.error)((r.ok ? 'PASS ' : 'FAIL ') + r.name + (r.detail ? ' — ' + r.detail : '')));
+  console.log((fail ? 'FAIL' : 'PASS') + ': ' + pass + '/' + R.length);
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+</body>
+</html>

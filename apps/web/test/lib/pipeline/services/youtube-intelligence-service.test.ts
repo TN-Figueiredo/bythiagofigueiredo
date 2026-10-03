@@ -17,7 +17,7 @@ function makeSupabase(results: Array<{ data: unknown; error: unknown }>) {
   const tables: string[] = []
   let i = 0
   const chain: Record<string, unknown> = {}
-  for (const op of ['select', 'eq', 'in', 'order', 'limit', 'update', 'is', 'not', 'gte', 'insert']) {
+  for (const op of ['select', 'eq', 'in', 'order', 'limit', 'update', 'is', 'not', 'gte', 'insert', 'upsert', 'or']) {
     chain[op] = vi.fn((...args: unknown[]) => { calls.push({ op, args }); return chain })
   }
   // Recorded in `calls` like every other op, so a test can assert a query is NOT a
@@ -91,15 +91,21 @@ const runningTask = {
 describe('claimNextTask', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('claims the oldest pending task filtered by channel_ids and records claimed_by', async () => {
+  // Task 30: the claim lives in forja-queue.claim. It reads with a PostgREST `.or()` restricted to
+  // task_type='diagnostico' — the Health Coach never sees an observatory task — then runs the same CAS as
+  // before. It never writes forja_heartbeat (ruling R46: only the forja's typed claim path does).
+  const CH1 = '11111111-1111-4111-8111-111111111111'
+
+  it('claims the oldest pending diagnostico task of the given channels and records claimed_by', async () => {
     const sb = makeSupabase([
       { data: { id: 't1' }, error: null },
-      { data: { id: 't1', site_id: 'site-1', channel_id: 'ch-1', trigger_type: 'cron', requested_at: '2026-09-01T00:00:00Z', started_at: '2026-09-19T10:00:00Z' }, error: null },
+      { data: { id: 't1', site_id: 'site-1', channel_id: CH1, trigger_type: 'cron', requested_at: '2026-09-01T00:00:00Z', started_at: '2026-09-19T10:00:00Z' }, error: null },
     ])
-    const res = await claimNextTask(ctxOf(sb), ['ch-1'])
+    const res = await claimNextTask(ctxOf(sb), [CH1])
 
     expect(res.data).toMatchObject({ id: 't1', started_at: '2026-09-19T10:00:00Z' })
-    expect(sb.calls).toContainEqual({ op: 'in', args: ['channel_id', ['ch-1']] })
+    expect(sb.tables).not.toContain('forja_heartbeat')
+    expect(sb.calls).toContainEqual({ op: 'or', args: [`and(task_type.eq.diagnostico,channel_id.in.(${CH1}))`] })
 
     const casCalls = sb.from('update')
     expect(casCalls.length).toBeGreaterThan(0)
@@ -111,13 +117,13 @@ describe('claimNextTask', () => {
     // exact string (not just "not '*'") also catches those columns creeping back in.
     expect(casCalls).toContainEqual({
       op: 'select',
-      args: ['id, site_id, channel_id, trigger_type, requested_at, started_at'],
+      args: ['id, site_id, channel_id, trigger_type, requested_at, started_at, task_type, target_niche, target_video_id, target_fmt'],
     })
   })
 
   it('returns null (204 upstream) when the queue is empty', async () => {
     const sb = makeSupabase([{ data: null, error: null }])
-    const res = await claimNextTask(ctxOf(sb), ['ch-1'])
+    const res = await claimNextTask(ctxOf(sb), [CH1])
     expect(res.data).toBeNull()
   })
 
@@ -126,13 +132,13 @@ describe('claimNextTask', () => {
       { data: { id: 't1' }, error: null },
       { data: null, error: null },
     ])
-    const res = await claimNextTask(ctxOf(sb), ['ch-1'])
+    const res = await claimNextTask(ctxOf(sb), [CH1])
     expect(res.data).toBeNull()
   })
 
   it('throws INTERNAL_ERROR when the SELECT errors — never a silent 204', async () => {
     const sb = makeSupabase([{ data: null, error: { message: 'boom' } }])
-    await expect(claimNextTask(ctxOf(sb), ['ch-1'])).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
+    await expect(claimNextTask(ctxOf(sb), [CH1])).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
   })
 
   it('throws INTERNAL_ERROR when the CAS UPDATE errors', async () => {
@@ -140,13 +146,16 @@ describe('claimNextTask', () => {
       { data: { id: 't1' }, error: null },
       { data: null, error: { message: 'boom' } },
     ])
-    await expect(claimNextTask(ctxOf(sb), ['ch-1'])).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
+    await expect(claimNextTask(ctxOf(sb), [CH1])).rejects.toMatchObject({ code: 'INTERNAL_ERROR', status: 500 })
   })
 
-  it('does not filter by channel when no ids are given (legacy GET path)', async () => {
+  it('legacy GET path (no ids): no channel filter, but ONLY diagnostico — never an observatory task', async () => {
     const sb = makeSupabase([{ data: null, error: null }])
     await claimNextTask(ctxOf(sb))
     expect(sb.calls.some(c => c.op === 'in')).toBe(false)
+    expect(sb.calls).toContainEqual({ op: 'or', args: ['task_type.eq.diagnostico'] })
+    expect(sb.tables).not.toContain('forja_heartbeat')
+    expect(sb.calls.some(c => c.op === 'upsert')).toBe(false)
   })
 })
 
@@ -184,6 +193,19 @@ describe('failTask', () => {
     expect(res.data).toMatchObject({ status: 'pending', retry_count: 2 })
     const patch = sb.calls.find(c => c.op === 'update')!.args[0] as Record<string, unknown>
     expect(patch).toMatchObject({ status: 'pending', retry_count: 2, started_at: null, error_message: null })
+  })
+
+  it('R27: a requeue clears released_at — "liberado pelo vigia" never sticks to a later validator retry', async () => {
+    const sb = makeSupabase([running({ retry_count: 1, released_at: '2026-09-19T09:00:00Z' }), { data: { id: 't1', status: 'pending', retry_count: 2 }, error: null }])
+    await failTask(ctxOf(sb), 't1', { reason: 'validador', retry: true })
+    const patch = sb.calls.find(c => c.op === 'update')!.args[0] as Record<string, unknown>
+    expect(patch).toHaveProperty('released_at', null)
+  })
+
+  it('a terminal fail does not touch released_at', async () => {
+    const sb = makeSupabase([running(), { data: { id: 't1', status: 'failed', retry_count: 0 }, error: null }])
+    await failTask(ctxOf(sb), 't1', { reason: 'x' })
+    expect(sb.calls.find(c => c.op === 'update')!.args[0]).not.toHaveProperty('released_at')
   })
 
   it('fails terminally on the third retry', async () => {

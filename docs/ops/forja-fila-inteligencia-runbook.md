@@ -82,7 +82,9 @@ cd ~/Workspace/forja/ferramentas
 { (cd docs && find sitio.py trilha -type f ! -path '*__pycache__*' | sort | xargs md5 -r); (cd fase2 && md5 -r pulso_f4.py teste_pulso_fila.py); } | sed 's/ /  /' | ssh forja 'cd /opt/agente/docs && md5sum -c --quiet' && echo KIT-IGUAL
 ```
 
-Saída vazia + `KIT-IGUAL` = a forja está em dia. Cada linha `FAILED` nomeia um arquivo que chegou
+Saída vazia + `KIT-IGUAL` = a forja está em dia. **Em 23/09 08:50 ela ficou em dia** (kit `0927c06`,
+`series.json` instalado, pulso com o bloco `fila-fallback`, chave da fila só com `{intelligence}`); a
+medição abaixo é a de antes, mantida para mostrar o que cada commit custa. Cada linha `FAILED` nomeia um arquivo que chegou
 diferente (ou nunca chegou). **Medido em 22/09 23:10:** `sitio.py` igual; reprova em
 `trilha/fila_intel.py`, `trilha/teste_fila.py`, `trilha/teste_fila_redacao.py`,
 `trilha/teste_calculo.py`, `trilha/capturar_fixture.py`, `trilha/nova_chave.py`, `pulso_f4.py` e
@@ -645,6 +647,67 @@ mais. A aba "Visão geral" da mesma tela mostra CTR, Retenção, Alcance e Impac
 **tem** esses números e a forja os ignora de propósito, porque cada número novo é uma chance a mais
 de o modelo inventar. Abrir o escopo é decisão do dono, e vem **depois** de consertar o prompt:
 mesmo preso a views + séries, um parágrafo de verdade já bate o template.
+
+---
+
+## 9b. Leituras do observatório
+
+O mesmo worker, o mesmo cron, o mesmo lock: além do `diagnostico`, ele pode atender os pedidos do
+observatório de competidores (`padroes-titulo`, `padroes-titulo-shorts`, `temas`, `resumo-trocas`,
+`leitura-video`). Código no kit: `docs/trilha/leituras_obs.py` (prompt por tipo, validador, `rodar`).
+Comandos de instalação do dono: `~/Workspace/forja/LEIAME-COMANDOS.md`, seção "2026-10-03 — Observatório".
+
+**A chave (opt-in).** Sem `OBS_TIPOS=1` no `/opt/agente/fila_intel.env` o claim sai como sempre, sem
+`task_types`, e o worker só vê diagnóstico. Com a linha, o claim leva os 5 tipos.
+
+```
+ssh forja 'echo OBS_TIPOS=1 >> /opt/agente/fila_intel.env'
+```
+
+Para desligar (rollback), apague a linha — o worker volta ao comportamento anterior no próximo tick:
+
+```
+ssh forja "sed -i '/^OBS_TIPOS=/d' /opt/agente/fila_intel.env; grep -c OBS_TIPOS /opt/agente/fila_intel.env"
+```
+
+(saída `0`). Escrita na forja é do dono; o agente só prepara o comando.
+
+**Ordem de deploy (obrigatória).** (1) `npm run db:push:prod` das migrations `20261003000001..0004`;
+(2) o código do site com as rotas novas no ar; (3) instalar os arquivos do kit (o worker novo sem
+`OBS_TIPOS` não muda nada); (4) só então ligar `OBS_TIPOS=1`. Ligar antes faz o claim mandar
+`task_types` a rotas que ainda não existem. O claim aceita `task_types` (mín. 1, máx. 5) e **o
+heartbeat da forja só é gravado no claim tipado** — é ele que habilita o botão da forja na tela.
+Instalar também `docs/sitio.py` (o do cron, `/opt/agente/docs/sitio.py`, não o do proxy): sem as duas
+rotas novas nele o worker termina em `bug`.
+
+**Desfechos.** Nenhum valor novo (R25): leitura publicada = `ok`; leitura recusada pelo validador, sem
+dados (`nVideos` 0) ou dado velho (`asOf` > 24 h, `fail` com `refuse`, `reason: dado-velho`) =
+`reprovada`. Os demais (`llama`, `orcamento`, `falha_site`, `conflito`, `chave`, `indeterminado`)
+significam o mesmo que no diagnóstico. A linha do jsonl ganha `task_type`; é ele que separa uma leitura
+(`"temas"`) de um diagnóstico (`"diagnostico"`). O pulso não mudou: `ok` com `fallback` vazio é verde,
+`reprovada` vira `fila-task-reprovada`.
+
+**Rotas.** `GET /api/pipeline/youtube/competitors/readings?task_id=…` devolve o `sent` (os dados
+enviados à forja, com `numbers`, `ids`, `asOf`, `nVideos`, `items`); `POST` no mesmo caminho grava a
+leitura (`text {title, lead, items}`, `analysis`, `evidence`). O POST sai **uma vez**, nunca é reenviado.
+
+**Congelamento por task.** O `sent` é congelado na primeira leitura de cada task: um retry da mesma
+task lê exatamente os mesmos dados, e o validador confere os números contra esse `sent`.
+
+**Semântica de retry.** Alvo sumido (vídeo/canal removido) = `422 TARGET_UNAVAILABLE`, **não** é
+retentado. Qualquer outro erro do site na leitura sobe como `500` e **é** retentado (vai ao Sentry).
+`409` no GET/POST = `conflito` (não está `running` ou é de outra chave); `401/403` = `chave`.
+Timeout/5xx no POST = `indeterminado` (o `fail` decide se gravou).
+
+**Orçamento.** Não mudou: 20 min do claim < `timeout -k 30s 25m` < 30 min do vigia. `T_GET` = 15 s
+fica. O GET frio local leva ~0,2 s; depois de ligar, cronometre o primeiro GET real no `ms.sent` do jsonl
+e registre aqui.
+
+**O que o Passo 6 verifica (depois de ligar).** `forja_heartbeat` atualizado em até 10 min com as 5
+capabilities; em `/cms/youtube/competitors/insights` o botão da forja habilitado; uma leitura `temas`
+pedida para IA passa por "na fila" → "trabalhando" → "publicado", com selo e texto literal; a linha do
+jsonl mostra `desfecho: ok` com `task_type` e a duração, bem abaixo de 20 min (acima de 10 min:
+reduzir `RULES.forja.maxVideos`); registrar a duração em §1 "Onde entra o tempo".
 
 ---
 

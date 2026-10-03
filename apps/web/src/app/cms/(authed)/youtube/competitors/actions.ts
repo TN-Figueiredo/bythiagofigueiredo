@@ -4,7 +4,15 @@ import { revalidatePath } from 'next/cache'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
+import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/competitor-slots'
+import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
+import { observatoryNow } from '@/lib/youtube/observatorio/now'
+import { createObservatory } from '@/lib/youtube/observatorio'
+import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
+import type { SyncNowResult } from './_chrome/view-model'
+import { parseChannelInput } from './_canais/channel-input'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -13,45 +21,80 @@ async function requireEditAccess(): Promise<string> {
   return siteId
 }
 
-export async function addCompetitorChannel(channelId: string): Promise<{ ok: boolean; error?: string }> {
-  // Validate channel ID format
-  const trimmed = channelId.trim()
-  if (trimmed.length < 2 || trimmed.length > 50) {
-    return { ok: false, error: 'Channel ID inválido' }
-  }
+const YT_API = 'https://www.googleapis.com/youtube/v3'
+const NICHE_LABEL = { viagem: 'Viagem', ia: 'IA' } as const
+const BAD_INPUT = 'Use o @handle (ex.: @LukeDamant) ou a URL do canal (youtube.com/@…).'
+
+/** @handle → channel id and title through the YouTube Data API (channels.list forHandle, 1 unit). */
+async function resolveHandle(handle: string, apiKey: string): Promise<{ id: string; title: string } | null> {
+  const res = await fetch(`${YT_API}/channels?part=id,snippet&forHandle=${encodeURIComponent(handle)}&key=${apiKey}`, { cache: 'no-store' })
+  if (!res.ok) throw new Error('YouTube API ' + res.status)
+  const body = (await res.json()) as { items?: Array<{ id?: string; snippet?: { title?: string } }> }
+  const it = body.items?.[0]
+  return it?.id ? { id: it.id, title: it.snippet?.title ?? handle } : null
+}
+
+/**
+ * "Adicionar canal": accepts the forms the Canais dialog accepts (and a bare id from the old modal). Refuses when there
+ * is no free slot, when the channel is the site's own, and when it is already in the observatório (saying its niche).
+ */
+export async function addCompetitorChannel(
+  channelInput: string,
+  niche?: 'viagem' | 'ia',
+  videoLimit?: number,
+): Promise<{ ok: boolean; error?: string; slots?: ChannelSlots; title?: string }> {
+  const parsed = parseChannelInput(channelInput)
+  if (!parsed) return { ok: false, error: BAD_INPUT }
+  if (niche !== undefined && niche !== 'viagem' && niche !== 'ia') return { ok: false, error: 'Nicho inválido.' }
+  const limit = videoLimit === undefined ? undefined : Math.round(videoLimit)
+  if (limit !== undefined && !(limit >= 10 && limit <= 200)) return { ok: false, error: 'Escolha entre 10 e 200 vídeos.' }
 
   let siteId: string
   try { siteId = await requireEditAccess() } catch { return { ok: false, error: 'forbidden' } }
 
   const supabase = getSupabaseServiceClient()
 
-  // Check limit (max 15)
-  const { count } = await supabase
-    .from('competitor_channels')
-    .select('id', { count: 'exact', head: true })
-    .eq('site_id', siteId)
+  const apiKey = process.env.YOUTUBE_API_KEY
+  let ytId: string, title: string
+  if (parsed.kind === 'id') { ytId = parsed.id; title = parsed.id }
+  else {
+    if (!apiKey) return { ok: false, error: 'A chave da API do YouTube não está configurada.' }
+    let found: { id: string; title: string } | null
+    try { found = await resolveHandle(parsed.handle, apiKey) } catch { return { ok: false, error: 'O YouTube não respondeu. Tente de novo em alguns minutos.' } }
+    if (!found) return { ok: false, error: `Canal não encontrado no YouTube: confira o ${parsed.handle}.` }
+    ytId = found.id; title = found.title
+  }
 
-  if ((count ?? 0) >= 15) return { ok: false, error: 'Limite de 15 canais atingido' }
+  const { data: own } = await supabase.from('youtube_channels').select('id').eq('site_id', siteId).eq('channel_id', ytId).maybeSingle()
+  if (own) return { ok: false, error: 'Esse é o seu canal: ele já aparece na tabela e não ocupa vaga.' }
 
-  // Check duplicate
   const { data: existing } = await supabase
     .from('competitor_channels')
-    .select('id')
+    .select('id, niche, channel_name')
     .eq('site_id', siteId)
-    .eq('channel_id', trimmed)
+    .eq('channel_id', ytId)
     .maybeSingle()
 
-  if (existing) return { ok: false, error: 'Canal já adicionado' }
+  if (existing) {
+    const en = existing.niche as string | null
+    const n = en === 'ia' || en === 'viagem' ? ` (${NICHE_LABEL[en]})` : ''
+    return { ok: false, error: `${existing.channel_name || title} já está no observatório${n}.` }
+  }
+
+  // after the duplicate check: a channel already in the observatório says so even when there is no free slot
+  const before = await getChannelSlots(siteId)
+  if (before.free === 0) return { ok: false, error: `Sem vagas: ${before.used} de ${before.limit} concorrentes. Remova um canal para adicionar outro.`, slots: before }
 
   const { data: inserted, error } = await supabase.from('competitor_channels').insert({
     site_id: siteId,
-    channel_id: trimmed,
-    channel_name: trimmed,
+    channel_id: ytId,
+    channel_name: title,
+    ...(niche ? { niche } : {}),
+    ...(limit !== undefined ? { video_limit: limit } : {}),
   }).select('id, channel_id, site_id').single()
 
   if (error) return { ok: false, error: error.message }
 
-  const apiKey = process.env.YOUTUBE_API_KEY
   if (apiKey && inserted) {
     try {
       await syncCompetitorChannel(inserted, apiKey)
@@ -60,8 +103,16 @@ export async function addCompetitorChannel(channelId: string): Promise<{ ok: boo
     }
   }
 
-  revalidatePath('/cms/youtube/competitors')
-  return { ok: true }
+  revalidatePath('/cms/youtube/competitors', 'layout')
+  // the resolved YouTube title; a bare id has none until the first sync
+  return { ok: true, slots: await getChannelSlots(siteId), ...(parsed.kind === 'handle' ? { title } : {}) }
+}
+
+/** The Canais dialog's submit (one object, so the client passes what it validated). */
+export async function addChannelFromCanais(input: { channel: string; niche: 'viagem' | 'ia'; videoLimit: number }): Promise<{ ok: boolean; error?: string; title?: string }> {
+  if (!input || typeof input.channel !== 'string' || typeof input.videoLimit !== 'number') return { ok: false, error: 'Pedido inválido.' }
+  const res = await addCompetitorChannel(input.channel, input.niche, input.videoLimit)
+  return { ok: res.ok, ...(res.error ? { error: res.error } : {}), ...(res.title ? { title: res.title } : {}) }
 }
 
 export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean }> {
@@ -69,8 +120,10 @@ export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean
   try { siteId = await requireEditAccess() } catch { return { ok: false } }
 
   const supabase = getSupabaseServiceClient()
-  await supabase.from('competitor_channels').delete().eq('id', id).eq('site_id', siteId)
-  revalidatePath('/cms/youtube/competitors')
+  // a row of another site (or an id that does not exist) deletes nothing: that is not a success
+  const { data, error } = await supabase.from('competitor_channels').delete().eq('id', id).eq('site_id', siteId).select('id')
+  if (error || !data || data.length === 0) return { ok: false }
+  revalidatePath('/cms/youtube/competitors', 'layout')
   return { ok: true }
 }
 
@@ -118,6 +171,35 @@ export async function toggleBookmark(changeId: string): Promise<{ ok: boolean }>
 
   revalidatePath('/cms/youtube/competitors')
   return { ok: true }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Swipe file of the Observatório (Mudanças): the engine names a change by the version it opened (`toId`), so the
+ * row is the `competitor_changes` whose `to_version_id` is that key — or, for a legacy row loaded as a pre-series
+ * version, whose own `id` is the key. Toggles `bookmarked` on every matching row and returns the new state.
+ */
+export async function toggleChangeBookmark(key: string): Promise<{ ok: boolean; saved?: boolean }> {
+  let siteId: string
+  try { siteId = await requireEditAccess() } catch { return { ok: false } }
+  if (!UUID_RE.test(key)) return { ok: false }
+
+  const supabase = getSupabaseServiceClient()
+  const { data } = await supabase
+    .from('competitor_changes')
+    .select('id, bookmarked')
+    .eq('site_id', siteId)
+    .or(`to_version_id.eq.${key},id.eq.${key}`)
+  const rows = data ?? []
+  if (!rows.length) return { ok: false }
+
+  // every row of that version moves together, so the state never splits: if any of them is saved, all of them leave
+  const saved = !rows.some(r => r.bookmarked)
+  const { error } = await supabase.from('competitor_changes').update({ bookmarked: saved }).eq('site_id', siteId).in('id', rows.map(r => r.id))
+  if (error) return { ok: false }
+  revalidatePath('/cms/youtube/competitors/mudancas')
+  return { ok: true, saved }
 }
 
 export async function syncFullHistory(channelRowId: string): Promise<{ ok: boolean; error?: string }> {
@@ -208,4 +290,73 @@ export async function getSyncStatus(channelRowId: string): Promise<{
     youtubeVideoCount: data.youtube_video_count,
     error: data.sync_error,
   }
+}
+
+export async function unlockMoreChannels(): Promise<{ ok: boolean; error?: string; slots?: ChannelSlots }> {
+  const { siteId } = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!res.ok) return { ok: false, error: 'forbidden' }
+  const sb = getSupabaseServiceClient()
+  if (!(await canAdminSiteUsers(siteId))) return { ok: false, error: 'forbidden' }
+  const cur = await getChannelSlots(siteId)
+  const { error } = await sb.from('competitor_settings').upsert(
+    { site_id: siteId, channel_limit: cur.limit + UNLOCK_STEP, updated_by: res.user.id, updated_at: new Date().toISOString() },
+    { onConflict: 'site_id' },
+  )
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/cms/youtube/competitors', 'layout')
+  return { ok: true, slots: await getChannelSlots(siteId) }
+}
+
+/**
+ * The page's maxDuration is 60 s and one channel can take 20–30 s: no new channel STARTS after 30 s, counted from the
+ * top of the action (loading the rows included). syncCompetitorChannel takes no deadline, so a started channel runs.
+ */
+const SYNC_START_CUTOFF_MS = 30_000
+
+/**
+ * "Sincronizar concorrentes" (chrome): syncs, one after the other, this site's competitors whose engine state is ok.
+ * Channels with a problem are not touched and are listed; channels still fetching videos stay out of the round.
+ * The ok count comes from the run, never from the plan: a throw, a lock held by another sync, a missing YouTube id or
+ * the time cutoff turns the channel into a problem. 0 synced is never a success.
+ */
+export async function syncCompetitorsNow(): Promise<SyncNowResult> {
+  const started = Date.now()
+  let siteId: string
+  try { siteId = await requireEditAccess() } catch { return { ok: false, text: 'Sem permissão para sincronizar os concorrentes.', problems: [], outOfRound: [] } }
+  const apiKey = process.env.YOUTUBE_API_KEY
+  if (!apiKey) return { ok: false, text: 'A chave da API do YouTube não está configurada.', problems: [], outOfRound: [] }
+
+  const now = observatoryNow()
+  const rows = await loadRows({ siteId, now })
+  const obs = createObservatory(rowsToDataset(rows, now))
+  const ytId = new Map(rows.channels.map(c => [c.id, c.channel_id]))
+  const competitors = obs.channels.filter(c => !c.own)
+  const problems: Array<{ id: string; label: string }> = []
+  const outOfRound: Array<{ id: string; label: string }> = []
+  const round: string[] = []
+  for (const c of competitors) {
+    if (c.sync.state === 'ok') round.push(c.id)
+    else if (c.sync.state === 'backfill') outOfRound.push({ id: c.id, label: c.sync.label ?? 'buscando vídeos' })
+    else problems.push({ id: c.id, label: c.sync.problemPhrase ?? c.sync.label ?? c.sync.state })
+  }
+
+  const ok: string[] = []
+  let attempted = 0
+  for (const id of round) {
+    if (Date.now() - started > SYNC_START_CUTOFF_MS) { problems.push({ id, label: 'não coube no tempo desta rodada' }); continue }
+    const channelId = ytId.get(id)
+    if (!channelId) { problems.push({ id, label: 'sem o id do canal no YouTube' }); continue }
+    attempted++
+    try {
+      const r = await syncCompetitorChannel({ id, channel_id: channelId, site_id: siteId }, apiKey)
+      if (r.skipped) problems.push({ id, label: 'outra sincronização deste canal já estava em andamento' })
+      else ok.push(id)
+    } catch (e) {
+      problems.push({ id, label: humanizeSyncError(e instanceof Error ? e.message : String(e)) })
+    }
+  }
+  if (attempted > 0) revalidatePath('/cms/youtube/competitors', 'layout')
+  const toast = obs.syncResultToast({ ok, problems, outOfRound })
+  return { ok: ok.length > 0, text: toast.text, problems, outOfRound, toast }
 }

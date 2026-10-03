@@ -1,0 +1,1049 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Outliers dos competidores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="chrome.css">
+<style>
+#screen{--forja-border:rgba(92,195,178,.62);--hot:#FF8A5B;--ever:#5FCB8A;--old:#C2B59A;--tip-bg:#100E0B;--n-ia:var(--ia);--n-viagem:var(--viagem)}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) #screen{--forja-border:rgba(23,105,92,.78);--hot:#A8410F;--ever:#11692F;--old:#5E5240;--tip-bg:#FFFFFF}}
+:root[data-theme="light"] #screen{--forja-border:rgba(23,105,92,.78);--hot:#A8410F;--ever:#11692F;--old:#5E5240;--tip-bg:#FFFFFF}
+
+#screen *{box-sizing:border-box}
+#screen .mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+#screen button{font:inherit;color:inherit}
+#screen a{color:inherit}
+#screen svg.i{width:16px;height:16px;flex:0 0 auto;vertical-align:-3px}
+#screen :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+#screen .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#screen .nw{white-space:nowrap}
+
+
+
+
+#screen .controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px 20px;margin-top:22px;align-items:end}
+#screen .field{display:flex;flex-direction:column;gap:6px;min-width:0}
+#screen .lbl{font-size:12px;color:var(--dim)}
+#screen .timeline{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch}
+#screen .tl-group{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface)}
+#screen .tl-btn{appearance:none;border:0;background:none;cursor:pointer;padding:0 9px;min-height:36px;min-width:0;text-align:left;display:flex;flex-direction:row;align-items:center;gap:6px;border-right:1px solid var(--border-subtle);position:relative}
+#screen .tl-group .tl-btn:last-child{border-right:0}
+#screen .tl-btn .t{font-size:13px;color:var(--muted);white-space:nowrap}
+#screen .tl-btn .c{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dim)}
+#screen .tl-btn .bar{height:3px;border-radius:2px;background:var(--border-strong);flex:0 0 auto}
+#screen .tl-btn[aria-pressed="true"]{background:var(--surface-2)}
+#screen .tl-btn[aria-pressed="true"] .t{color:var(--text);font-weight:600}
+#screen .tl-btn[aria-pressed="true"] .c{color:var(--muted)}
+#screen .tl-btn[aria-pressed="true"] .bar{background:var(--text)}
+#screen .tl-btn[aria-pressed="true"]:after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--accent)}
+#screen .tl-btn:hover{background:var(--surface-hover)}
+#screen .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;justify-content:flex-end}
+#screen .seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;background:var(--surface);padding:2px}
+#screen .seg button{border:0;background:none;padding:0 11px;height:32px;border-radius:4px;cursor:pointer;color:var(--dim);font-size:13px;white-space:nowrap}
+#screen .seg button[aria-pressed="true"]{background:var(--surface-2);color:var(--text);box-shadow:inset 0 0 0 1px var(--border-strong)}
+#screen select{appearance:none;background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23958A75' fill='none' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center;border:1px solid var(--border);border-radius:6px;height:36px;padding:0 30px 0 11px;color:var(--text);font:13px Inter,sans-serif;cursor:pointer}
+
+#screen .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+#screen .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border-strong);background:var(--surface);border-radius:16px;padding:0 4px 0 11px;font-size:12.5px;color:var(--muted);min-height:32px}
+#screen .chip b{color:var(--text);font-weight:500}
+#screen .chip button{width:28px;height:28px;border:0;background:none;border-radius:50%;cursor:pointer;color:var(--dim);font-size:15px;line-height:1}
+#screen .chip button:hover{background:var(--surface-2);color:var(--text)}
+
+#screen .basis{grid-column:1/-1;display:flex;gap:12px 24px;align-items:flex-start;flex-wrap:wrap;border-top:1px solid var(--border-subtle);padding-top:14px;font-size:12.5px;color:var(--dim)}
+#screen .basis b{color:var(--text);font-weight:500}
+#screen .basis .rule{max-width:78ch;flex:1 1 420px;margin:0}
+#screen .basis .rule .note{display:block;margin-top:4px}
+#screen .askbox{flex:1 1 100%;display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left}
+#screen .ask{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 13px;border-radius:6px;border:1px solid var(--forja-border);background:transparent;color:var(--text);cursor:pointer;font-size:13px;white-space:nowrap}
+#screen .ask:hover{background:var(--forja-subtle)}
+#screen .ask svg{color:var(--forja)}
+#screen .ask[disabled]{cursor:not-allowed;color:var(--dim);border-color:var(--border-strong)}
+#screen .ask[disabled] svg{color:var(--dim)}
+#screen .askbox small{font-size:11.5px;color:var(--dim)}
+
+#screen .reading{margin-top:14px;border:1px solid var(--forja-line);border-radius:6px;background:var(--surface);padding:12px 14px;display:flex;gap:10px 20px;flex-wrap:wrap;align-items:flex-start}
+#screen .reading .txt{flex:1 1 460px;min-width:0}
+#screen .reading q{display:block;font-family:Fraunces,serif;font-size:16px;line-height:1.4;quotes:none;margin:6px 0 4px;color:var(--text)}
+#screen .reading small{display:block;font-size:12px;color:var(--dim)}
+#screen .reading .act{min-height:32px;display:inline-flex;align-items:center;font-size:12.5px}
+#screen .seal{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--forja);background:var(--forja-subtle);border-radius:4px;padding:1px 7px;white-space:nowrap}
+#screen .notice{margin-top:14px;display:flex;gap:12px;align-items:flex-start;padding:10px 14px;border:1px solid var(--border);border-left:3px solid var(--warning);border-radius:6px;background:var(--surface);font-size:13px;color:var(--muted);flex-wrap:wrap}
+#screen .notice > svg{color:var(--warning);margin-top:2px}
+#screen .notice > div{flex:1 1 380px;min-width:0}
+#screen .notice b{color:var(--text);font-weight:500}
+#screen .notice.forja{border-left-color:var(--forja)}
+#screen .notice.forja > svg{color:var(--forja)}
+#screen .notice.refused{border-left-color:var(--danger)}
+#screen .notice.refused > svg{color:var(--danger)}
+#screen .notice .act{white-space:nowrap;color:var(--text);font-size:12.5px;align-self:center;min-height:32px;display:inline-flex;align-items:center}
+#screen .state{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--forja);border:1px solid var(--forja-line);border-radius:4px;padding:0 7px;margin-right:6px}
+#screen .state:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+#screen .state.bad{color:var(--danger);border-color:var(--danger)}
+#screen .notice small{display:block;margin-top:4px;font-size:12px;color:var(--dim)}
+
+#screen .viewbar{display:flex;align-items:center;gap:12px;margin:22px 0 4px;flex-wrap:wrap}
+#screen .viewbar .count{font-size:13px;color:var(--dim)}
+#screen .viewbar .count b{color:var(--text);font-weight:600}
+#screen .viewbar .seg{margin-left:auto}
+
+#screen .group{margin-top:26px}
+#screen .ghead{display:flex;align-items:baseline;gap:6px 12px;margin-bottom:12px;flex-wrap:wrap}
+#screen .ghead h2{margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+#screen .ghead p{margin:0;font-size:12.5px;color:var(--dim)}
+#screen .ghead .gn{font-size:12px;color:var(--dim)}
+#screen .g-hot h2{color:var(--hot)} #screen .g-ever h2{color:var(--ever)} #screen .g-old h2{color:var(--old)} #screen .g-mid h2,#screen .g-none h2,#screen .g-flat h2,#screen .g-below h2{color:var(--muted)}
+
+#screen .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:14px}
+#screen .grid.shorts{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+#screen .card{background:var(--surface);border:1px solid var(--border-subtle);border-radius:8px;display:flex;flex-direction:column;position:relative;min-width:0}
+#screen .card:hover{border-color:var(--border-strong)}
+#screen .card > .thumb{border-radius:7px 7px 0 0}
+#screen .card .body{padding:11px 12px 6px;display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}
+#screen .ttl{font-size:13.5px;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0}
+#screen .who{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--dim);min-width:0;flex-wrap:wrap}
+#screen .who .chn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%}
+#screen .niche{font-size:11px;border:1px solid currentColor;border-radius:3px;padding:0 5px;white-space:nowrap}
+#screen .niche.ia{color:var(--n-ia)} #screen .niche.viagem{color:var(--n-viagem)}
+#screen .stagechip{font-size:11.5px;display:inline-flex;gap:4px;align-items:center;white-space:nowrap}
+#screen .stagechip.hot{color:var(--hot)} #screen .stagechip.ever{color:var(--ever)} #screen .stagechip.old{color:var(--old)} #screen .stagechip.mid,#screen .stagechip.none{color:var(--muted)}
+#screen .stagechip svg{width:13px;height:13px}
+
+#screen .card.lead{grid-column:span 2;display:grid;grid-template-columns:60% minmax(0,1fr);align-content:start}
+#screen .card.lead > .thumb{grid-column:1;grid-row:1;border-radius:7px 0 0 0}
+#screen .card.lead > .body{grid-column:2;grid-row:1;padding-bottom:4px}
+#screen .card.lead > .foot{grid-column:1/-1;grid-row:2;padding:4px 12px 4px;display:flex;flex-direction:column;gap:4px}
+#screen .grid.shorts .card.lead{grid-template-columns:36% minmax(0,1fr)}
+#screen .grid.shorts .card.lead > .thumb{grid-row:1/3;border-radius:7px 0 0 7px}
+#screen .grid.shorts .card.lead > .foot{grid-column:2;grid-row:2}
+#screen .card.lead .ttl{-webkit-line-clamp:2;font-size:16px;line-height:1.3}
+#screen .card.lead .mult .x{font-size:32px}
+#screen .why{font-size:12.5px;color:var(--muted);line-height:1.5;margin:0}
+#screen .why b{color:var(--text);font-weight:500}
+#screen .rank{font-size:11.5px;color:var(--dim)}
+#screen .thumb .rankb{position:absolute;left:6px;bottom:6px;font:500 11px Inter,sans-serif;background:rgba(0,0,0,.8);color:#fff;padding:2px 6px;border-radius:3px;white-space:nowrap}
+
+#screen .mult{display:flex;align-items:baseline;gap:4px 8px;flex-wrap:wrap;position:relative}
+#screen .mult .x{font-family:"JetBrains Mono",monospace;font-weight:600;font-size:22px;line-height:1;letter-spacing:-.02em}
+#screen .mult .vs{font-size:12px;color:var(--dim)}
+#screen .tier-mid{color:var(--tier-mid)} #screen .tier-high{color:var(--tier-high)} #screen .tier-top{color:var(--tier-top)}
+#screen .weak .x,#screen .stalev .x{color:var(--dim);text-decoration:underline dashed 1px;text-underline-offset:4px}
+#screen .flag{font-size:11.5px;color:var(--warning-text);display:inline-flex;gap:4px;align-items:center;white-space:normal;min-width:0}
+#screen .flag svg{width:12px;height:12px;flex:none}
+#screen .flag{align-items:flex-start}
+#screen .flag svg{margin-top:2px}
+#screen .info{width:32px;height:32px;margin:-9px -8px -9px -6px;border:0;background:none;padding:0;cursor:help;display:inline-grid;place-items:center;vertical-align:middle;color:var(--dim)}
+#screen .info span{width:17px;height:17px;border-radius:50%;border:1px solid var(--border-strong);display:grid;place-items:center;font-size:10.5px;font-weight:600}
+#screen .info:hover span{color:var(--text);border-color:var(--muted)}
+#screen .tip{position:absolute;left:0;top:calc(100% + 6px);z-index:20;width:min(320px,80vw);background:var(--tip-bg);border:1px solid var(--border-strong);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--muted);line-height:1.5;display:none;box-shadow:0 8px 24px rgba(0,0,0,.3);font-weight:400;text-align:left}
+#screen .tip b{color:var(--text);font-weight:500}
+#screen .tip .w{color:var(--warning-text)}
+#screen .mult:has(.info:hover) .tip,#screen .mult:has(.info:focus-visible) .tip,#screen .mult.open .tip{display:block}
+
+#screen .ruler{position:relative;height:16px;margin-top:-2px}
+#screen .ruler .track{position:absolute;left:0;right:0;top:7px;height:2px;background:var(--border)}
+#screen .ruler .fill{position:absolute;top:6px;height:4px;border-radius:2px}
+#screen .ruler .tick{position:absolute;top:3px;width:1px;height:10px;background:var(--border-strong)}
+#screen .ruler .tick.base{background:var(--muted);height:12px;top:2px;width:2px}
+#screen .ruler .dot{position:absolute;top:3px;width:10px;height:10px;border-radius:50%;margin-left:-5px;border:2px solid var(--surface)}
+#screen .ruler-legend{position:relative;height:14px;font-size:10.5px;color:var(--dim);margin-top:-3px}
+#screen .ruler-legend span{position:absolute;transform:translateX(-50%);font-family:"JetBrains Mono",monospace;white-space:nowrap}
+#screen .ruler-legend span:first-child{transform:none}
+#screen .ruler-legend span:last-child{transform:translateX(-100%)}
+
+#screen .meta{display:flex;align-items:center;gap:4px 12px;flex-wrap:wrap;font-size:12px;color:var(--dim);border-top:1px solid var(--border-subtle);padding-top:4px;margin-top:auto}
+#screen .meta > span{white-space:nowrap}
+#screen .meta > span.wrapok{white-space:normal;min-width:0}
+#screen .meta .vpd{color:var(--text)}
+#screen .meta .warn,#screen .warn{color:var(--warning-text)}
+#screen .acts{margin-left:auto;display:flex;gap:2px}
+#screen .ib{width:32px;height:32px;border:0;background:none;border-radius:5px;display:grid;place-items:center;color:var(--dim);cursor:pointer;position:relative;text-decoration:none}
+#screen .ib:hover{background:var(--surface-2);color:var(--text)}
+#screen .ib[aria-pressed="true"]{color:var(--text)}
+#screen .ib[aria-pressed="true"] svg path{fill:currentColor}
+#screen .ib[data-tip]:hover:after,#screen .ib[data-tip]:focus-visible:after{content:attr(data-tip);position:absolute;bottom:calc(100% + 4px);right:0;background:var(--tip-bg);border:1px solid var(--border-strong);color:var(--text);font-size:11.5px;padding:4px 8px;border-radius:4px;white-space:nowrap;z-index:10}
+#screen .reuse{font-size:12px;color:var(--muted);background:var(--surface-2);border-radius:4px;padding:5px 8px;line-height:1.4}
+#screen .reuse b{color:var(--text);font-weight:500}
+
+#screen .thumb{position:relative;aspect-ratio:16/9;overflow:hidden;display:block;flex:0 0 auto;container-type:inline-size}
+#screen .grid.shorts .thumb{aspect-ratio:9/16}
+#screen .thumb .head{position:absolute;border-radius:50%;background:#E3BE98}
+#screen .thumb .body2{position:absolute;border-radius:50% 50% 0 0;background:rgba(10,8,6,.55)}
+#screen .thumb .word{position:absolute;left:6%;top:9%;max-width:52%;font:800 10.5cqw/.95 Inter,sans-serif;letter-spacing:-.02em;color:#fff;text-transform:uppercase;text-shadow:0 2px 0 rgba(0,0,0,.35)}
+#screen .grid.shorts .thumb .word{max-width:86%;top:auto;bottom:40%;font-size:13cqw}
+#screen .thumb .dur{position:absolute;right:6px;bottom:6px;font:600 11px "JetBrains Mono",monospace;background:rgba(0,0,0,.8);color:#fff;padding:1px 5px;border-radius:3px}
+
+#screen .tablewrap{border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface)}
+#screen table.list{width:100%;border-collapse:collapse;table-layout:fixed}
+#screen table.list th{font-size:11.5px;color:var(--muted);font-weight:500;text-align:right;padding:9px 12px;background:var(--surface-2);border-bottom:1px solid var(--border-subtle)}
+#screen table.list th:first-child{text-align:left;border-radius:7px 0 0 0}
+#screen table.list th:last-child{border-radius:0 7px 0 0}
+#screen table.list td{padding:8px 12px;border-bottom:1px solid var(--border-subtle);vertical-align:middle;text-align:right;font-size:12.5px}
+#screen table.list tr:last-child td{border-bottom:0}
+#screen table.list tbody tr:hover{background:var(--surface-hover)}
+#screen table.list td.v{text-align:left}
+#screen .vcell{display:flex;gap:12px;align-items:center;min-width:0}
+#screen .vcell .thumb{width:104px;border-radius:4px;aspect-ratio:16/9}
+#screen .vcell .thumb .word{font-size:11cqw;max-width:58%}
+#screen .vcell .t1{display:flex;flex-direction:column;gap:3px;min-width:0}
+#screen .vcell .ttl{-webkit-line-clamp:1}
+#screen td .mult{justify-content:flex-end}
+#screen td .mult .x{font-size:16px}
+#screen td .tip{left:auto;right:0}
+#screen td .ruler{margin-top:4px}
+#screen td .acts{justify-content:flex-end}
+
+#screen .empty{margin-top:28px;border:1px dashed var(--border-strong);border-radius:8px;padding:32px 28px;display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start;max-width:780px}
+#screen .empty > svg{width:28px;height:28px;color:var(--dim)}
+#screen .empty h3{margin:0 0 6px;font-size:16px;font-weight:600}
+#screen .empty p{margin:0 0 14px;color:var(--muted);font-size:13.5px;max-width:64ch}
+#screen .empty .opts{display:flex;gap:8px;flex-wrap:wrap}
+#screen .btn{height:36px;padding:0 13px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);cursor:pointer;font-size:13px}
+#screen .btn:hover{background:var(--surface-hover)}
+#screen .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+#screen .btn.primary:hover{background:var(--accent-hover)}
+
+
+@media (max-width:1100px){
+  #screen .controls{grid-template-columns:minmax(0,1fr)}
+  #screen .filters{justify-content:flex-start}
+}
+@media (max-width:820px){
+  #screen .askbox{margin-left:0;align-items:flex-start;text-align:left}
+  #screen td .ruler{display:none}
+  #screen .vcell .thumb{width:80px}
+  #screen .card.lead{grid-template-columns:44% minmax(0,1fr)}
+  #screen .empty{grid-template-columns:1fr;padding:24px 20px}
+}
+@media (prefers-reduced-motion:no-preference){
+  #screen .card,#screen .ib,#screen .tl-btn{transition:background-color .15s,border-color .15s}
+}
+
+#screen .chips{align-items:center}
+#screen .chips .from{font-size:12.5px;color:var(--dim);margin-right:2px}
+#screen .chip.bad{border-style:dashed;color:var(--warning-text)}
+#screen .chip.bad b{color:var(--warning-text)}
+#screen .card.lead-s{border-color:var(--border-strong)}
+#screen .card.lead-s .rank{display:block}
+#screen .reading .rows{display:flex;flex-direction:column;gap:12px;flex:1 1 460px;min-width:0}
+#screen .reading .row{display:flex;gap:10px 20px;flex-wrap:wrap;align-items:flex-start}
+#screen .reading .row + .row{border-top:1px solid var(--border-subtle);padding-top:12px}
+#screen .reading .head{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#screen .reading .head small{display:inline;margin:0}
+#screen .reading ul{margin:6px 0 4px;padding:0;list-style:none}
+#screen .reading li{font-family:Fraunces,serif;font-size:15.5px;line-height:1.4;color:var(--text)}
+#screen .askbox .out{font-size:11.5px;color:var(--warning-text);margin:2px 0 0;padding:0;list-style:none}
+
+[hidden]{display:none!important}
+#screen .rwrap{display:flex;gap:12px;align-items:flex-start}
+#screen .rwrap .rrow{flex:1;min-width:0}
+#screen .rwrap > .act{min-height:32px;display:inline-flex;align-items:center;font-size:12.5px;white-space:nowrap}
+#screen .basis details.rule{flex:1 1 420px;max-width:78ch;margin:0}
+#screen .basis details.rule summary{cursor:pointer;list-style:none;min-height:32px;line-height:1.6}
+#screen .basis details.rule summary::-webkit-details-marker{display:none}
+#screen .basis details.rule p{margin:6px 0 0}
+#screen .more{color:var(--text);text-decoration:underline;text-underline-offset:3px;font-size:12px;white-space:nowrap}
+#screen .askbox small{max-width:none;width:100%}
+#screen .outn{text-decoration:underline dotted;text-underline-offset:3px;color:var(--warning-text);cursor:pointer}
+#screen .outn{background:none;border:0;padding:0;font:inherit;min-height:24px}
+#screen .outd [data-outs]{color:var(--muted)}
+#screen .mult.neutral .x{color:var(--text)}
+#screen .otag{font-size:11px;border:1px solid var(--border-strong);border-radius:3px;padding:0 5px;color:var(--muted)}
+#screen .chip.asof{border-color:var(--forja-line)}
+#screen .reading{padding:8px 14px;align-items:center}
+#screen .reading .rows{gap:4px}
+#screen .rrow > summary{list-style:none;cursor:pointer;display:flex;gap:8px;align-items:center;min-height:32px;min-width:0}
+#screen .rrow > summary::-webkit-details-marker{display:none}
+#screen .rrow .rline{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:Fraunces,serif;font-size:14.5px}
+#screen .rrow .rline b{font-family:Inter,sans-serif;font-weight:600;font-size:12.5px}
+#screen .rrow .sshort{flex:0 1 auto;min-width:0;max-width:42%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;color:var(--muted)}
+#screen .rrow .rn{font-size:12.5px;font-weight:600;color:var(--text);flex:none}
+#screen .rrow[open] > summary .rline{display:none}
+#screen .rrow .sealed{margin:6px 0 0;padding:8px 10px;border-left:2px solid var(--forja-line);background:var(--surface)}
+#screen .rrow .sealed .seal{display:inline-flex;margin-bottom:6px}
+#screen .rrow .lit{font-family:Fraunces,serif;font-size:14px;line-height:1.45;color:var(--text)}
+#screen .rrow .lit p{margin:0 0 4px}
+#screen .rrow .lit ul{margin:2px 0 0;padding-left:18px}
+#screen .rrow .lit li{margin:2px 0}
+#screen .rrow .fromsite{margin-top:8px;font-family:Inter,sans-serif}
+#screen .rrow .fromsite small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+#screen .rrow .fromsite .lbl{font-weight:600;text-transform:none;color:var(--dim)}
+#screen .rrow .rbody{padding:4px 0 8px}
+#screen .rrow .rbody small{display:block;color:var(--dim);font-size:12px;margin-top:3px}
+#screen .notice.late{padding:6px 14px;display:block}
+#screen .notice.late > svg{float:left;margin:8px 10px 0 0}
+#screen .notice.late summary{list-style:none;cursor:pointer;min-height:32px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#screen .notice.late summary::-webkit-details-marker{display:none}
+#screen .notice.late > div{padding:2px 0 6px 26px;font-size:12.5px}
+
+#screen .controls{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-top:0}
+#screen .controls .filters{display:flex;gap:8px;align-items:center;margin-left:auto}
+#screen .sumbar{display:flex;gap:2px 16px;align-items:center;flex-wrap:wrap;margin-top:0;font-size:12.5px;color:var(--dim)}
+#screen .sumbar details.rule{flex:1 1 480px;min-width:0;margin:0}
+#screen .sumbar details.rule summary{cursor:pointer;list-style:none;min-height:32px;line-height:1.6;display:block}
+#screen .sumbar details.rule summary::-webkit-details-marker{display:none}
+#screen .sumbar details.rule b{color:var(--text);font-weight:500}
+#screen .sumbar details.rule p{margin:6px 0 0}
+#screen .sumbar .seg{margin-left:auto}
+#screen .chips:not([hidden]){margin-top:8px}
+#screen #notices > *{margin-top:2px}
+#screen .forjabar{border:1px solid var(--forja-line);border-radius:6px;background:var(--surface);padding:0 12px}
+#screen .forjabar > summary{list-style:none;cursor:pointer;display:flex;gap:8px;align-items:center;min-height:36px;font-size:12.5px;color:var(--muted)}
+#screen .forjabar > summary::-webkit-details-marker{display:none}
+#screen .forjabar > summary svg{color:var(--forja)}
+#screen .forjabar > summary b{color:var(--text);font-weight:500}
+#screen .forjabar > summary .fmain{flex:1;min-width:0;display:block;padding:2px 0;line-height:1.35}
+#screen .forjabar > summary .fhead{display:flex;gap:8px;align-items:baseline;min-width:0}
+#screen .forjabar > summary .fhead > .state{flex:none}
+#screen .forjabar > summary .fhead .rline2{white-space:normal;flex:1;min-width:0}
+#screen .forjabar > summary .fsince{display:block;font-size:12px;color:var(--muted)}
+#screen .forjabar > summary .fsince b{font-weight:600}
+#screen .forjabar > summary .more{margin-left:auto;flex:none}
+#screen .forjabar > summary .rline2{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#screen .forjabar.bad{border-color:var(--danger)}
+#screen .forjabar.bad > summary svg{color:var(--danger)}
+#screen .forjabar .fbody{padding:2px 0 10px}
+#screen .forjabar .scope{margin:6px 0 0}
+#screen .forjabar .scope small{font-size:12px;color:var(--dim)}
+#screen .notice.reqline{padding:6px 12px;align-items:center;font-size:12.5px}
+#screen .notice.reqline > div{flex:1 1 300px}
+#screen .chip button{width:32px;height:32px}
+#screen .outn{min-height:32px}
+#screen .lk32{display:inline-flex;align-items:center;min-height:32px}
+#screen .group:first-child{margin-top:12px}
+#screen .group:first-child .ghead{margin-bottom:4px}
+#screen .group{margin-top:20px}
+#screen .state.warnst{color:var(--warning-text);border-color:var(--warning-text)}
+#screen .pagenote{font-size:12px;color:var(--dim);margin:8px 0 0}
+#screen .morebar{display:flex;gap:12px;align-items:center;margin-top:16px;flex-wrap:wrap}
+#screen .morebar .pagenote{margin:0}
+#screen .tl-btn[aria-disabled="true"]{cursor:not-allowed;color:var(--dim);background:repeating-linear-gradient(135deg,transparent 0 6px,var(--surface-2) 6px 8px)}
+#screen .tl-btn[aria-disabled="true"] .t,#screen .tl-btn[aria-disabled="true"] .c{color:var(--dim)}
+#screen .grid.shorts{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+#screen .grid.shorts .card:not(.lead){display:grid;grid-template-columns:38% minmax(0,1fr)}
+#screen .grid.shorts .card:not(.lead) > .thumb{border-radius:7px 0 0 7px;align-self:start}
+#screen #fbSlot{flex:0 1 auto;min-width:0}
+#screen #fbSlot:has(.forjabar[open]){flex-basis:100%;order:3}
+#screen .sumbar:has(#fbSlot:not([hidden])) details.rule{flex:1 1 360px}
+@media (max-width:820px){
+  #screen .timeline{flex-wrap:wrap;max-width:100%;flex:1 1 100%}   /* a 768 quebra em linhas: "Todos" sempre à vista, sem rolagem lateral */
+  #screen .timeline.ovf{-webkit-mask-image:linear-gradient(to right,#000 92%,transparent);mask-image:linear-gradient(to right,#000 92%,transparent)}
+  #screen > #chips.near{margin:8px 0 6px}
+  #screen .tl-group{flex:none}
+  #screen .controls{gap:6px}
+  #screen .controls .filters{margin-left:0}
+}
+#screen .chip .pickbtn{width:auto;height:32px;padding:0 10px;border-radius:14px;border:1px solid var(--border-strong);margin-left:6px;background:var(--surface-2);cursor:pointer;font-size:12px}
+@media (max-width:820px){ #screen .card.lead{grid-column:1/-1;grid-template-columns:44% minmax(0,1fr)} }
+#screen .mult.tipoff .tip{display:none!important}
+#screen .pwhy{font-size:11.5px;color:var(--dim);margin:0}
+#screen .probs{flex:1 1 100%;order:4;display:flex;gap:6px;align-items:center;min-height:20px;line-height:1.5;color:var(--warning-text);font-size:12px;margin:-6px 0 0}
+#screen .probs[hidden]{display:none}
+#screen .probs > svg{flex:none}
+#screen .probs .ptxt{min-width:0}
+#screen .probs .probbtn::after{content:'';position:absolute;inset:-7px -4px}
+#screen .probs .probbtn{position:relative;font:inherit;color:inherit;background:none;border:0;padding:0;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+#screen .probs b{color:var(--warning-text)!important;font-weight:600}
+#screen .forjabar > summary .rline2.split{white-space:normal;display:flex;flex-direction:column;padding:1px 0;line-height:1.3}
+#screen .forjabar > summary .rline2.split .sttext{font-size:11.5px}
+#screen .probs svg{width:13px;height:13px}
+
+/* F10 I4: 1º card acima da dobra mesmo com chips + pedido */
+#screen .grid:not(.shorts) .card:not(.lead) > .thumb{aspect-ratio:2.6/1}
+#screen .grid:not(.shorts) .card:not(.lead) .body{gap:4px}
+#screen #fbSlot{flex:4 1 300px}
+#screen .sumbar:has(#fbSlot:not([hidden])) details.rule{flex-basis:300px}
+#screen #fbSlot .forjabar > summary .rline2{white-space:normal;line-height:1.3;padding:2px 0}
+#screen .sumbar ~ .chips, #screen #chips{margin-top:3px}
+@media (min-width:821px){ #screen .grid:not(.shorts) > .card.lead{grid-template-columns:36% minmax(0,1fr)} #screen .grid:not(.shorts) > .card.lead > .body{gap:5px} }
+#screen .sumbar .seg{padding:0}
+#screen .forjabar > summary{min-height:32px}
+#screen .sumbar:has(.rline2.split) #fbSlot{flex-basis:100%;order:3}
+/* cards equivalentes com a mesma altura na linha (aprovação 02/10) */
+#screen .grid > .card{align-self:stretch}
+#screen .card > .foot{margin-top:auto}
+#screen .card.lead{grid-template-rows:1fr auto;align-content:stretch}
+/* espaçamento e card principal (ajuste do dono 02/10) */
+#screen .sumbar{margin-top:10px}
+#screen #probs{margin-top:8px}
+#screen #notices > *{margin-top:8px}
+#screen .group{margin-top:24px}
+#screen .group:first-of-type{margin-top:16px}
+#screen .grid{margin-top:10px}
+@media (min-width:821px){
+  #screen .card.lead{grid-template-columns:44% minmax(0,1fr)!important;grid-template-rows:1fr auto}
+  #screen .card.lead > .thumb{grid-row:1/-1!important;height:100%;aspect-ratio:auto;min-height:100%;border-radius:7px 0 0 7px}
+  #screen .card.lead > .thumb img,#screen .card.lead > .thumb svg{width:100%;height:100%;object-fit:cover}
+  #screen .card.lead > .body{grid-column:2;padding:14px 16px 6px;gap:10px}
+  #screen .card.lead > .foot{grid-column:2!important;grid-row:2!important;padding:6px 16px 12px}
+  #screen .card.lead .ttl{font-size:19px;line-height:1.3;-webkit-line-clamp:3}
+  #screen .card.lead .mult .x{font-size:44px}
+}
+</style>
+</head>
+<body>
+<div id="screen">
+<section class="controls" aria-label="Filtros">
+  <span class="sr" id="whenLbl">Idade do vídeo (faixas combináveis)</span>
+  <div class="timeline" role="group" aria-labelledby="whenLbl" id="timeline"></div>
+  <div class="filters">
+    <div class="seg" role="group" aria-label="Formato" id="fmtSeg">
+      <button type="button" data-v="long" aria-pressed="true">Longos</button>
+      <button type="button" data-v="short" aria-pressed="false">Shorts</button>
+    </div>
+    <select id="sort" aria-label="Ordenar por">
+      <option value="mult">Ordenar: multiplicador</option>
+      <option value="vpd">Ordenar: views/dia</option>
+      <option value="recent">Ordenar: mais recente</option>
+    </select>
+  </div>
+</section>
+<div class="sumbar">
+  <details class="rule" id="basis"><summary id="basisSum"></summary><div id="basisMore"></div></details>
+  <div id="fbSlot" hidden></div>
+  <div id="probs" class="probs" hidden></div>
+  <div class="seg" role="group" aria-label="Visualização" id="viewSeg">
+    <button type="button" data-v="grid" aria-pressed="true"><span data-ic="grid"></span> Grade</button>
+    <button type="button" data-v="list" aria-pressed="false"><span data-ic="list"></span> Lista</button>
+  </div>
+</div>
+<div class="chips" id="chips" role="group" aria-label="Filtros vindos do link"></div>
+<div id="notices"></div>
+<div id="results"></div>
+</div>
+<script src="dados.js"></script>
+<script src="chrome.js"></script>
+<script>
+/* ===================== ícones inline ===================== */
+const P = {
+  estourando:'<path d="M8.5 1.5c.4 2.3-1 3.4-2.1 4.6C5.3 7.3 4.5 8.5 4.5 10a3.5 3.5 0 0 0 7 0c0-1.3-.6-2.2-1.2-2.9-.2 1-.8 1.6-1.4 1.8.4-2.6-.1-5.4-.4-7.4z" fill="currentColor"/>',
+  perene:'<path d="M8 14.5V7M8 9c-3.2 0-4.5-2-4.5-4.5C6.5 4.5 8 6 8 9zm0-1.5c0-2.8 1.6-4.5 4.5-4.5 0 2.8-1.6 4.5-4.5 4.5z" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  antigo:'<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 4.5V8l2.5 1.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
+  recente:'<path d="M2.5 11.5l3.5-3.5 2.5 2.5 5-5M10 5.5h3.5V9" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  novos:'<path d="M8 2.5v3M8 10.5v3M2.5 8h3M10.5 8h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  'sem-ritmo':'<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-dasharray="2 2.2"/>',
+  save:'<path d="M4 2.5h8v11l-4-2.8-4 2.8z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none"/>',
+  hist:'<path d="M2.5 13.5h11M4 11l3-3.5 2.5 2 3-4.5" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7.5" r="1.2" fill="currentColor"/>',
+  ext:'<path d="M9 2.5h4.5V7M13.5 2.5L7.5 8.5M11.5 9.5v4h-9v-9h4" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+  forja:'<path d="M2.5 6.5h8l3-2v3l-3 1H9v2.5l2 2.5H5l2-2.5V8.5H4.5z" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/>',
+  warn:'<path d="M8 2l6.5 11.5h-13z" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/><path d="M8 6.5v3.2M8 11.6v.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  grid:'<path d="M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z" stroke="currentColor" stroke-width="1.3" fill="none"/>',
+  list:'<path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+  empty:'<circle cx="7" cy="7" r="4.6" stroke="currentColor" stroke-width="1.1" fill="none"/><path d="M10.4 10.4l3.6 3.6M5 7h4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>',
+  doc:'<path d="M3.5 2.5h9v11h-9zM5.5 5.5h5M5.5 8h5M5.5 10.5h3" stroke="currentColor" stroke-width="1.3" fill="none"/>',
+  lib:'<path d="M3 2.5v11M6 2.5v11M9 3l3.5 10" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/>',
+  yt:'<rect x="1.5" y="3.5" width="13" height="9" rx="2.5" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M6.5 6v4l3.5-2z" fill="currentColor"/>',
+  social:'<circle cx="4" cy="8" r="2" stroke="currentColor" stroke-width="1.3" fill="none"/><circle cx="12" cy="4" r="2" stroke="currentColor" stroke-width="1.3" fill="none"/><circle cx="12" cy="12" r="2" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M5.8 7l4.4-2M5.8 9l4.4 2" stroke="currentColor" stroke-width="1.3"/>',
+};
+const ic = (n,cls='i') => `<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true" focusable="false">${P[n]}</svg>`;
+document.querySelectorAll('[data-ic]').forEach(el=>{el.insertAdjacentHTML('afterbegin',ic(el.dataset.ic))});
+
+/* ===================== fonte única: window.OBS (dados.js) =====================
+   Esta tela NÃO tem dados nem cálculos próprios: multiplicador, n, base, método, fase, contagens,
+   denominadores, leituras da forja, datas e números formatados vêm de OBS. */
+const F = OBS.fmt, D = OBS.date;
+const NICHE_LABEL = {todos:'Todos', viagem:'Viagem', ia:'IA'};
+const NO_LEAD = ['novos','sem-ritmo'];
+
+const PHASE_CLASS = {estourando:'hot', recente:'mid', perene:'ever', antigo:'old', novos:'none', 'sem-ritmo':'none'};
+const PHASE_TITLE = {estourando:'Estourando agora', recente:'Recentes', perene:'Perenes', antigo:'Antigos', novos:'Novos', 'sem-ritmo':'Sem ritmo medido'};
+const ALL_AGES = OBS.OUT_WINDOWS.map(w=>w.id);
+const ch = id => OBS.channel(id);
+
+const S = {ages:new Set(OBS.DEFAULT_AGES), fmt:'long', niche:'todos', sort:'mult', view:'grid', demo:'normal', link:{}, bad:[], asof:null, own:false};
+let SAVED_STATE = null;
+const PAGE = 60;
+
+/* ---------- parâmetros de URL (CONVENCOES: niche, fmt, age, min, theme, formula, channel) ---------- */
+const AGE_ALIASES = {'365':'365+','365 ':'365+','mais-de-1-ano':'365+','365mais':'365+'};
+const FROM = {insights:'Insights',mudancas:'Mudanças',historico:'Histórico do vídeo',canais:'Canais',moldura:'Fila da forja'};
+function applyParams(qs){
+  const p=new URLSearchParams(qs); S.asofPick=null; S.link={}; S.bad=[]; S.asof=null; S.reading=null; S.own=false; S.notOut=null; S.asofNone=null; S.limit=PAGE;
+  const n=p.get('niche');
+  if(n){ const k=n==='all'?'todos':n; if(NICHE_LABEL[k]){ if(window.CHROME&&CHROME.el.content&&CHROME.niche()!==k) CHROME.setNiche(k,{silent:true, persist:!p.get('reading')}); S.niche=k; } else S.bad.push(['niche',n]); }
+  else if(window.CHROME&&CHROME.el.content) S.niche=CHROME.niche();
+  const f=p.get('fmt'); if(f){ if(f==='long'||f==='short') S.fmt=f; else S.bad.push(['fmt',f]); }
+  const a=p.get('age')||p.get('ages');
+  if(a){
+    if(a==='90') S.ages=new Set(OBS.DEFAULT_AGES);
+    else if(a==='all'||a==='todos') S.ages=new Set(ALL_AGES);
+    else { const ok=[],bad=[]; a.split(',').forEach(x=>{const k=AGE_ALIASES[x]||AGE_ALIASES[x.trim()]||x.trim(); ALL_AGES.includes(k)?ok.push(k):bad.push(x.trim())}); if(ok.length) S.ages=new Set(ok); bad.forEach(b=>S.bad.push(['age',b])); }
+  }
+  const m=p.get('min'); if(m!=null&&m!==''){ const x=Number(m.replace(',','.')); if(!isNaN(x)&&x>=0&&x<=100) S.link.min=x; else S.bad.push(['min',m]); }
+  const thA=p.get('theme'), tp=p.get('topic') || ((thA&&!['light','dark'].includes(thA)&&OBS.theme(thA)) ? thA : null);   // theme=<slug> conhecido = alias de topic; desconhecido é ignorado sem chip   // theme=<slug> antigo = alias de topic
+  if(tp){ if(OBS.theme(tp)) S.link.theme=tp; else S.bad.push(['topic',tp]); }
+  const so=p.get('sort'); if(so){ if(['mult','vpd','recent'].includes(so)) S.sort=so; else S.bad.push(['sort',so]); }
+  const vw=p.get('view'); if(vw){ if(['grid','list'].includes(vw)) S.view=vw; else S.bad.push(['view',vw]); }
+  const fo=p.get('formula'); if(fo){ if(OBS.formula(fo)) S.link.formula=fo; else S.bad.push(['formula',fo]); }
+  const c=p.get('channel')||p.get('canal');
+  if(c){ const o=ch(c); if(o && o.own) S.own=true; else if(o){ S.link.channel=c; if(S.niche!=='todos'&&o.niche!==S.niche) moveNiche(o.niche,'este canal'); } else S.bad.push(['channel',c]); }
+  // leitura citada: reading=<id> aplica janela, data e canais da leitura; asof sozinho resolve a leitura do mesmo dia
+  const rd=p.get('reading');
+  if(rd){ const r=OBS.forja.byId[rd];
+    if(r && OBS.forja.readingScope(rd)) useReading(rd);   // o motor devolve null para leituras que não são de outliers
+    else if(r) S.notOut={id:rd, label:(r.typeLabel||r.type)}; else S.bad.push(['reading',rd]); }
+  const af=p.get('asof');
+  if(af && !S.reading){ const rs=/^\d{4}-\d{2}-\d{2}$/.test(af) ? asofCandidates(af) : []; if(rs.length===1) useReading(rs[0].id); else if(rs.length>1) S.asofPick={af, ids:rs.map(r=>r.id)}; else if(rs.length===0 && /^\d{4}-\d{2}-\d{2}$/.test(af)) S.asofNone=af; else S.bad.push(['asof',af]); }
+  S.link.from = FROM[p.get('from')] || null;
+}
+function moveNiche(n,what){ S.niche=n; if(window.CHROME&&CHROME.el.content){ CHROME.setNiche(n,{silent:true, persist:false}); CHROME.clearToasts&&CHROME.clearToasts(); CHROME.toast('', `Mostrando ${NICHE_LABEL[n]} para exibir ${what}`, 'Seu nicho salvo não mudou.'); } }
+function useReading(id){
+  const sc=OBS.forja.readingScope(id); S.reading=id;
+  if(sc.niche!==S.niche) moveNiche(sc.niche,'esta leitura');
+  S.fmt=sc.fmt; S.ages=new Set(sc.ages);
+}
+/* asof sem reading: a leitura de padrões (com fórmula) ou de temas (sem fórmula) daquele dia, no nicho e formato */
+/* asof sem reading: as leituras de outliers daquele dia no formato; se houver mais de uma (nichos ou tipos), a tela pergunta */
+function asofCandidates(af){
+  const dm=af.split('-').reverse().join('/'), ns=S.niche==='todos'?['ia','viagem']:[S.niche];
+  let rs=Object.values(OBS.forja.byId).filter(r=>ns.includes(r.niche) && !r.scenario && OBS.date.dmy(r.generatedAt)===dm && (r.fmt||'long')===S.fmt && OBS.forja.readingScope(r.id));
+  if(S.link.formula) rs=rs.filter(r=>r.type!=='temas');            // fórmula só existe nas leituras de padrões
+  if(S.link.theme){ const tn=OBS.theme(S.link.theme).niche; const byNiche=rs.filter(r=>r.niche===tn); const temas=byNiche.filter(r=>r.type==='temas'); rs = temas.length ? temas : byNiche; }   // tema: nicho e tipo do tema
+  return rs;
+}
+/* N que a leitura viu, contado na base congelada dela, com os mesmos filtros do link */
+function readingN(){
+  return OBS.forja.readingScope(S.reading,{formula:S.link.formula||null, theme:S.link.theme||null, min:S.link.min ?? OBS.RULES.outlierMin, channel:S.link.channel||null}).nThen;
+}
+const minOn = () => S.link.min!=null && S.link.min!==OBS.RULES.outlierMin;
+const allMode = () => S.link.min!=null && S.link.min < OBS.RULES.outlierMin;
+const hasLink = () => minOn() || !!S.link.theme || !!S.link.formula || !!S.link.channel;
+const verOut = n => n===1 ? 'Ver o outlier' : `Ver os ${n} outliers`;
+const BAD_LABEL = {sort:'ordem',view:'visualização',niche:'nicho',fmt:'formato',age:'idade',min:'multiplicador mínimo',theme:'tema',topic:'tema',formula:'fórmula',channel:'canal',asof:'data de leitura',reading:'leitura'};
+const BAD_FEM = ['age','formula','asof','reading','sort','view'];
+
+/* ---------- consultas (todas via OBS.outliers) ---------- */
+const q = (over={}) => OBS.outliers(Object.assign({niche:S.niche, fmt:S.fmt, ages:[...S.ages], min:S.link.min??OBS.RULES.outlierMin, theme:S.link.theme||null, formula:S.link.formula||null, channel:S.link.channel||null}, S.reading?{reading:S.reading}:{}, over));
+
+/* ---------- formatação ---------- */
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const cap = s => s.charAt(0).toUpperCase()+s.slice(1);
+const lcfirst = s => s.charAt(0).toLowerCase()+s.slice(1);
+const tier = m => { const t=OBS.tierOf(m); return t?'tier-'+t:''; };
+const TIERS = OBS.RULES.tiers;
+const fmtWord = v => v.fmt==='short'?'Shorts':'vídeos';
+const fmtWordLong = v => v.fmt==='short'?'Shorts':'vídeos longos';
+const nTxt = (n,m) => `<span class="nw">(${m&&m.readNote?`este tinha ${m.ageAtRead} dias; `:''}n&nbsp;=&nbsp;${n})</span>`;
+const nicheTag = v => `<span class="niche ${v.niche}">${NICHE_LABEL[v.niche]}</span>`;
+const monthYear = ms => D.dm(ms).slice(3) + '/' + D.parts(ms).y;
+const isStaleCh = c => c.sync.state==='atrasado' || c.sync.state==='erro';
+const isPartial = c => c.sync.state==='backfill';
+const ageTxt = v => F.age(v);
+const lastData = c => c.lastIdx!=null ? D.snapTime(c.lastIdx) : c.sync.last;
+function ages2label(set){
+  const a=[...set].sort((x,y)=>ALL_AGES.indexOf(x)-ALL_AGES.indexOf(y)).join();
+  if(set.size===ALL_AGES.length) return 'de qualquer idade';
+  if(a==='0-30,31-90') return 'com até 90 dias';
+  if(a==='0-30,31-90,91-180') return 'com até 6 meses';
+  if(a==='0-30,31-90,91-180,181-365') return 'com até 12 meses';
+  if(set.size===1) { const w=OBS.OUT_WINDOWS.find(x=>x.id===[...set][0]); if(w.hi>=1e6) return 'com '+w.label; }
+  { const idx=[...set].map(x=>ALL_AGES.indexOf(x)).sort((x,y)=>x-y); if(idx[0]>0 && idx[idx.length-1]===ALL_AGES.length-1 && idx.length===ALL_AGES.length-idx[0]) return `com mais de ${OBS.OUT_WINDOWS[idx[0]-1].hi} dias`; }
+  return 'com '+[...set].sort((x,y)=>ALL_AGES.indexOf(x)-ALL_AGES.indexOf(y)).map(id=>OBS.OUT_WINDOWS.find(w=>w.id===id).label.replace(/ d$/,' dias')).join(' ou ');
+}
+
+/* ---------- peças ---------- */
+function refTxt(m){ return m.method==='mesmo dia de vida' ? `no <abbr title="dia de vida = dias desde a publicação; compara com os outros vídeos do canal na mesma idade">dia ${m.lifeDay} de vida</abbr>` : `com ${m.band}${m.readNote?` no registro de ${D.dmhm(m.readAt)}`:''}`; }
+/* faixa da comparação: quando a faixa no registro difere da de hoje, nunca "hoje têm" */
+function bandRef(v,m){ const c=ch(v.ch), st=isStaleCh(c);
+  if(m.readNote||st) return `que tinham ${m.band} no ${st?'último registro diário do canal,':'registro de'} ${st?'o de ':''}${D.dmhm(m.readAt||lastData(c))}${m.readNote?`, quando este vídeo tinha ${m.ageAtRead} dias`:''}`;
+  return `que hoje têm ${m.band}`; }
+const outros = (n,v) => n===1 ? `do único outro ${v.fmt==='short'?'Short':'vídeo longo'}` : `dos outros ${n} ${fmtWordLong(v)}`;
+function fallbackTxt(v,m){
+  if(!m.fallback) return '';
+  const w = v.fmt==='short' ? ['Short','Shorts'] : ['vídeo longo','vídeos longos'];
+  if(m.dayN===0) return `Nenhum outro ${w[0]} do canal tem série desde o dia 0, então `;
+  return `Só ${m.dayN} outro${m.dayN===1?'':'s'} ${m.dayN===1?w[0]:w[1]} do canal ${m.dayN===1?'tem':'têm'} série desde o dia 0, então `;
+}
+function methodTxt(v,m){
+  if(m.method==='mesmo dia de vida') return `Método: mesmo dia de vida (publicado depois de ${OBS.SERIES_START_LABEL}, quando a série diária começou).`;
+  const fb=fallbackTxt(v,m);
+  return `Método: aproximação por faixa. ${fb}${fb?'a':'A'} comparação é com a faixa de ${m.band} ${m.readNote||isStaleCh(ch(v.ch))?'daquele registro':'de hoje'}; os mais velhos da faixa tiveram mais tempo para acumular views.`;
+}
+function staleTxt(v){ const c=ch(v.ch); if(!isStaleCh(c)) return ''; const ld=D.dmhm(lastData(c)); return esc(c.sync.problemPhrase) + (c.sync.problemPhrase.includes(ld)?'':` · views até o registro diário de ${ld}`); }
+function baseSentence(v){
+  const m=v.mult, c=ch(v.ch);
+  const head = m.method==='mesmo dia de vida'
+    ? `<b>${F.mult(m.value)}</b> = ${F.num(v.views)} views de ${D.dmhm(v.viewsAt)} (dia ${m.lifeDay} de vida) ÷ <b>${F.num(m.base)}</b>, ${m.n===1?'as views':'a mediana'} ${outros(m.n,v)} de ${esc(c.name)} no mesmo dia de vida, sem contar este vídeo.`
+    : `<b>${F.mult(m.value)}</b> = ${F.num(v.views)} views de ${D.dmhm(v.viewsAt)} ÷ <b>${F.num(m.base)}</b>, ${m.n===1?'as views':'a mediana'} ${outros(m.n,v)} de ${esc(c.name)} ${bandRef(v,m)}, sem contar este vídeo.`;
+  const stale = isStaleCh(c) ? ` <span class="w">Canal com problema de sincronização: ${esc(c.sync.problemPhrase)}. Views até o registro diário de ${D.dmhm(lastData(c))}.</span>` : '';
+  const weak = m.weak ? ` <span class="w">Base fraca: com menos de ${OBS.RULES.weakBase} vídeos para comparar, um único vídeo distorce a mediana. Por isso ele fica fora da contagem.</span>` : '';
+  return `${head} ${methodTxt(v,m)}${weak}${stale}`;
+}
+function leadWhy(v){
+  const m=v.mult;
+  return `${F.num(v.views)} views de ${D.dmhm(v.viewsAt)} ÷ <b>${F.num(m.base)}</b>, ${m.n===1?'views':'mediana'} ${outros(m.n,v)} do canal ${refTxt(m)}${m.readNote?`, quando este tinha ${m.ageAtRead} dias`:''}, sem contar este. Método: ${m.method}${m.fallback?` (${lcfirst(fallbackTxt(v,m).replace(/, então $/,''))})`:''}.`;
+}
+function multBlock(v,compact,lead){
+  const m=v.mult, c=ch(v.ch), st=isStaleCh(c), wk=!!m.weak, nm=allMode()&&m.value<OBS.RULES.outlierMin, id=`tip-${v.id}${compact?'-l':''}`;
+  const vsTxt = allMode() ? `a mediana do canal ${refTxt(m)}` : `${compact?'vs canal':`vs ${fmtWord(v)} do canal`} ${refTxt(m)}`;
+  return `<div class="mult ${st?'stalev':''} ${wk?'weak':''} ${nm?'neutral':''}" data-id="${v.id}">
+    <span class="x ${st||wk||nm?'':tier(m.value)} mono">${F.mult(m.value)}</span>
+    <span class="vs">${vsTxt} ${nTxt(m.n,m)}${lead?'':` <button class="info" type="button" aria-label="Como o ${F.mult(m.value)} é calculado" aria-describedby="${id}"><span aria-hidden="true">i</span></button>`}</span>
+    ${wk?`<span class="flag">${ic('warn')}<span>base fraca</span></span>`:''}
+    ${st?`<span class="flag">${ic('warn')}<span>${S.link.channel?'sincronização: '+esc(c.sync.label):staleTxt(v)}</span></span>`:''}
+    ${isPartial(c)?`<span class="flag">${ic('warn')}<span>base parcial (${c.sync.backfill.done} de ${c.sync.backfill.total})</span></span>`:''}
+    ${lead?'':`<div class="tip" role="tooltip" id="${id}">${baseSentence(v)}</div>`}
+  </div>`;
+}
+const pos = m => Math.max(0,Math.min(100,Math.log(Math.max(m,1))/Math.log(50)*100));
+function ruler(v,legend){
+  const st=isStaleCh(ch(v.ch))||v.mult.weak||(allMode()&&v.mult.value<OBS.RULES.outlierMin), c = st ? 'var(--muted)' : `var(--${tier(v.mult.value)})`;
+  const p2=pos(OBS.RULES.outlierMin), pv=pos(v.mult.value);
+  return `<div class="ruler" aria-hidden="true"><div class="track"></div>
+    <div class="tick base" style="left:0"></div><div class="tick" style="left:${p2}%"></div><div class="tick" style="left:${pos(TIERS.high)}%"></div><div class="tick" style="left:${pos(TIERS.top)}%"></div>
+    <div class="fill" style="left:${p2}%;width:${Math.max(0,pv-p2)}%;background:${c};opacity:.45"></div>
+    <div class="dot" style="left:${pv}%;background:${c}"></div></div>
+    ${legend?`<div class="ruler-legend" aria-hidden="true"><span style="left:0">base</span><span style="left:${p2}%">${TIERS.mid}×</span><span style="left:${pos(TIERS.high)}%">${TIERS.high}×</span><span style="left:${pos(TIERS.top)}%">${TIERS.top}×</span><span style="left:100%">50× (log)</span></div>`:''}`;
+}
+function thumb(v){
+  const t=v.thumb, sh=v.fmt==='short', r=t.face!=='l';
+  const head = sh ? `width:34%;left:33%;top:16%;aspect-ratio:1` : `width:20%;right:${r?12:8}%;top:22%;aspect-ratio:1`;
+  const body = sh ? `width:66%;left:17%;bottom:0;height:34%` : `width:38%;right:${r?3:-1}%;bottom:0;height:34%`;
+  return `<span class="thumb" style="background:linear-gradient(115deg,${t.bg} 0 58%,${t.fg} 58% 100%)" aria-hidden="true">
+    <span class="body2" style="${body}"></span><span class="head" style="${head}"></span>
+    <span class="word" style="color:${t.ink}">${esc(t.text)}</span><span class="dur">${v.dur}</span></span>`;
+}
+function vpdInfo(v){
+  const c=ch(v.ch);
+  if(isStaleCh(c)) return {html:`<span>sem views/dia recentes</span>`, short:`<span>sem views/dia recentes</span>`};
+  if(v.vpd7!=null) return {html:`<span title="Views/dia nos últimos 7 dias"><span class="vpd mono">${F.num(v.vpd7)}</span>/dia</span>`, short:`<span class="mono">${F.num(v.vpd7)}</span>`};
+  if(v.vpd==null || v.ageDays<1) return {html:`<span>menos de 1 dia no ar, sem média</span>`, short:`<span>menos de 1 dia no ar</span>`};
+  const d=v.ageDays===1?'1 dia':`${v.ageDays} dias`;
+  return {html:`<span class="wrapok" title="Ainda não há 7 dias de série"><span class="vpd mono">${F.num(v.vpd)}</span>/dia, média de ${d} no ar</span>`, short:`<span class="mono">${F.num(v.vpd)}</span><br><span style="font-size:11px;color:var(--dim)">média de ${d}</span>`};
+}
+function ytUrl(v){ return v.url; }
+function persistedNiche(){ try{ return CHROME.store.get('obs-niche')||'todos'; }catch(e){ return 'todos'; } }
+function curQuery(withFrom){ const o={niche:(S.reading||S.niche!==persistedNiche())?null:S.niche, fmt:S.fmt, ages:[...S.ages], min:S.link.min, topic:S.link.theme, formula:S.link.formula, channel:S.link.channel, reading:S.reading, sort:S.sort!=='mult'?S.sort:null, view:S.view!=='grid'?S.view:null, asof:S.asofPick?S.asofPick.af:null, from:withFrom&&S.link.from?Object.keys(FROM).find(k=>FROM[k]===S.link.from):null}; let qs=OBS.link.outliers(o).split('?')[1]||''; if(o.niche===null) qs=qs.replace(/(^|&)niche=[^&]*/,'').replace(/^&/,''); return qs; }
+function histHref(id){ return CHROME.link('historico',id)+'&from=outliers'+(S.pageIds&&S.pageIds.length?'&ids='+encodeURIComponent(S.pageIds.join(',')):'')+'&back='+encodeURIComponent('?'+curQuery(true)); }
+function actions(v){
+  const s=OBS.swipe.saved(v.id), lbl=OBS.swipe.label(v.id);
+  return `<div class="acts">
+    <button class="ib" type="button" data-save="${v.id}" aria-pressed="${s}" aria-label="${lbl}" data-tip="${lbl}">${ic('save')}</button>
+    <a class="ib" data-hist="${v.id}" href="${histHref(v.id)}" aria-label="Ver histórico do vídeo: ${esc(v.title)}" data-tip="Ver histórico do vídeo">${ic('hist')}</a>
+    <a class="ib" data-yt="${v.id}" href="${ytUrl(v)}" target="_blank" rel="noopener" aria-label="Abrir no YouTube: ${esc(v.title)}" data-tip="Abrir no YouTube">${ic('ext')}</a>
+  </div>`;
+}
+function reuseNote(it){
+  if(it.phase.id!=='antigo') return '';
+  const v=it.video, md=OBS.channelStats(v.ch,v.fmt).vpd7Median;
+  return `<div class="reuse">Assunto de ${monthYear(v.pub)}: <b>ainda relevante?</b> <span class="mono" data-vpd7="${v.id}">${F.num(v.vpd7)}</span>/dia contra <span class="mono" data-med7="${v.id}">${F.num(md)}</span>/dia da mediana do canal (últimos 7 dias).</div>`;
+}
+function stageChip(it){const k=it.phase.id;return `<span class="stagechip ${PHASE_CLASS[k]}">${ic(k)}${cap(it.phase.label)}</span>`}
+function ageHtml(v){return `<span title="Publicado em ${D.dmy(v.pub)} às ${D.hm(v.pub)} · dia ${v.ageDays} de vida">${ageTxt(v)}</span>`}
+function who(v,flat,it){return `<div class="who"><span class="chn" title="${esc(ch(v.ch).fullName||ch(v.ch).name)}">${esc(ch(v.ch).name)}</span>${nicheTag(v)}${flat?stageChip(it):''}</div>`}
+function card(it,lead,flat){
+  const v=it.video, vp=vpdInfo(v);
+  if(lead && v.fmt==='long') return `<article class="card lead" data-id="${v.id}" data-phase="${it.phase.id}" data-weak="false">
+    ${thumb(v).trim().replace(/<\/span>$/,'<span class="rankb" title="Maior multiplicador do grupo">Maior multiplicador</span></span>')}
+    <div class="body"><span class="sr">Maior multiplicador do grupo.</span>
+      <h3 class="ttl" title="${esc(v.title)}">${esc(v.title)}</h3>
+      ${who(v,flat,it)}
+      ${multBlock(v,false,true)}
+      ${ruler(v,true)}
+    </div>
+    <div class="foot">
+      <p class="why">${leadWhy(v)}</p>
+      ${reuseNote(it)}
+      <div class="meta">${ageHtml(v)}${vp.html}${actions(v)}</div>
+    </div></article>`;
+  return `<article class="card ${lead?'lead-s':''}" data-id="${v.id}" data-phase="${it.phase.id}" data-weak="${!!it.weak}">
+    ${thumb(v)}
+    <div class="body">
+      ${lead?'<span class="rank">Maior multiplicador do grupo</span>':''}
+      <h3 class="ttl" title="${esc(v.title)}">${esc(v.title)}</h3>
+      ${who(v,flat,it)}
+      ${multBlock(v)}
+      ${ruler(v,false)}
+      ${flat&&NO_LEAD.includes(it.phase.id)?`<p class="pwhy">${esc(cap(it.phase.why))}.</p>`:''}
+      ${reuseNote(it)}
+      <div class="meta">${ageHtml(v)}${vp.html}${actions(v)}</div>
+    </div></article>`;
+}
+const MQ_WIDE = matchMedia('(min-width:1101px)'), MQ_MID = matchMedia('(min-width:821px)');
+function table(items,caption,flat){
+  const wide=MQ_WIDE.matches, mid=MQ_MID.matches;
+  const cols=[`<col>`, wide?`<col style="width:96px">`:'', `<col style="width:${wide?250:mid?220:180}px">`, `<col style="width:${mid?120:92}px">`, wide?`<col style="width:84px">`:'', `<col style="width:128px">`].join('');
+  const rows=items.map(it=>{const v=it.video;return `<tr data-id="${v.id}" data-phase="${it.phase.id}" data-weak="${!!it.weak}">
+      <td class="v"><div class="vcell">${thumb(v)}<div class="t1"><h3 class="ttl" title="${esc(v.title)}">${esc(v.title)}</h3>
+        <div class="who"><span class="chn" title="${esc(ch(v.ch).name)}">${esc(ch(v.ch).name)}</span>${nicheTag(v)}${flat?stageChip(it):''}${it.phase.id==='antigo'?`<span class="stagechip old">assunto de ${monthYear(v.pub)}: ainda relevante?</span>`:''}${!wide?`<span>${ageTxt(v)}</span>`:''}</div></div></div></td>
+      ${wide?`<td class="mono nw">${F.num(v.views)}</td>`:''}
+      <td>${multBlock(v,true)}${ruler(v,false)}</td>
+      <td>${vpdInfo(v).short}</td>
+      ${wide?`<td>${ageHtml(v).replace('há ','')}</td>`:''}
+      <td>${actions(v)}</td></tr>`}).join('');
+  return `<div class="tablewrap"><table class="list"><caption class="sr">${caption}</caption>
+    <colgroup>${cols}</colgroup>
+    <thead><tr><th scope="col">Vídeo</th>${wide?'<th scope="col">Views</th>':''}<th scope="col">Multiplicador ajustado pela idade</th><th scope="col">Views/dia</th>${wide?'<th scope="col">Idade</th>':''}<th scope="col"><span class="sr">Ações</span></th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+/* ---------- forja ---------- */
+const reqType = () => OBS.forja.readingTypeFor(S.fmt);
+const reqNichesOf = () => S.niche==='todos'?['ia','viagem']:[S.niche];
+/* pedidos: estado único no motor (OBS.forja.session), por nicho e persistido entre telas; a tela não guarda pedido */
+const SESSION = {type:'padroes-titulo'};   // CONVENCOES F9: tipo explícito em toda chamada à sessão
+const scenario = () => { const c=OBS.forja.session.current(S.niche, SESSION); return c && !c.empty ? c : null; };
+const readingsFor = niche => (niche==='todos'?['ia','viagem']:[niche]).map(n=>OBS.forja.latest(reqType(),n)).filter(Boolean);
+function readingRows(rs, open, busy){
+  return rs.map(r=>{
+    const pass=r.analysis.patterns.filter(p=>p.verdict.id==='padrao');
+    const since=OBS.forja.since(r.id), T=r.text;
+    // linha recolhida: um trecho LITERAL da leitura (o item da fórmula que passa a regra, ou o lead)
+    const first = (pass.length && (T.items||[]).find(t=>t.startsWith(pass[0].label||'\u0000'))) || (T.items||[]).find(t=>pass.length&&t.includes(pass[0].verdict.text)) || T.lead;
+    return `<div class="rwrap"><details class="rrow" data-reading="${r.id}"${open?' open':''}><summary>
+        ${r.scenario?'<span class="state">leitura nova</span>':''}<b class="rn">${NICHE_LABEL[r.niche]}</b>
+        <span class="rline" data-lit>${esc(first)}</span></summary>
+      <div class="rbody">
+        <div class="sealed" data-sealed><span class="seal">${r.seal}</span>
+          <div class="lit"><p data-lit>${esc(T.title)}</p><p data-lit>${esc(T.lead)}</p>${(T.items||[]).length?`<ul>${T.items.map(t=>`<li data-lit>${esc(t)}</li>`).join('')}</ul>`:''}${T.theme?`<p data-lit>${esc(T.theme)}</p>`:''}</div></div>
+        <div class="fromsite"><small class="lbl">Do site</small><small>${esc(cap(r.sent.text))}.</small><small data-since="${r.id}">${esc(busy&&since.textNoAsk?since.textNoAsk:since.text)}</small></div>
+      </div></details><a class="act" href="${CHROME.link('insights',{niche:r.niche, from:'outliers'})}">Ver leitura</a></div>`;
+  }).join('');
+}
+/* bloco da forja: uma linha recolhida (leituras + próximo pedido); abre para ler */
+/* publicado com nicho Todos: um horário por nicho, cada um da sua leitura de cenário */
+function statusOf(sc){
+  if(sc.split && sc.statusLines) return sc.statusLines.join(' · ');
+  return sc.statusText;
+}
+function forjaBar(sc, scopeHtml){
+  const freshOf = n => { const x=sc&&sc.requests.find(q=>q.niche===n&&q.state==='publicado'&&q.readingId); return x?OBS.forja.byId[x.readingId]:null; };
+  const rs = (n=>(n==='todos'?['ia','viagem']:[n]))(S.link.channel ? ch(S.link.channel).niche : S.niche).map(n=>freshOf(n)||OBS.forja.latest(reqType(),n)).filter(Boolean); if(!rs.length&&!sc) return '';
+  const when = rs.map(r=>`${NICHE_LABEL[r.niche]} ${D.dm(r.generatedAt)}`).join(', ');
+  const bad = sc && sc.terminal && ['falhou','recusado (dado velho)'].includes(sc.state);
+  const sideBad = sc && !sc.terminal ? sc.requests.filter(x=>['falhou','recusado (dado velho)'].includes(x.state)) : [];
+  const tl = OBS.forja.readingTypes.find(t=>t.id===reqType()).label.replace(/ \(.*\)$/,'').toLowerCase();
+  const stTxt = sc ? statusOf(sc) : '';
+  const anyActive = sc && sc.requests.some(x=>BUSY.includes(x.state));
+  // com pedido: a linha recolhida mostra o estado (uma linha só); sem pedido, as leituras
+  const sumHtml = sc
+    ? `<span class="state ${bad?'bad':WARN_ST.includes(sc.state)?'warnst':''}">${esc(anyActive&&!BUSY.includes(sc.state)?'em andamento':sc.state)}</span>${sc.split&&sc.statusLines?`<span class="rline2 split" data-reqline><span>${esc(stTxt)}</span><span class="sttext" data-status-text>${esc(sc.statusText)}</span></span>`:`<span class="rline2" data-reqline>${esc(stTxt)}</span>`}`
+    : `<span><b>Leituras da forja:</b> ${when}</span>`;
+  const reqBody = sc ? `<div class="notice ${bad?'refused':'forja'} reqline" role="status" data-req="${esc(sc.state)}">${ic(bad?'warn':'forja')}<div>${sc.split&&sc.state!=='publicado'?`${F.plural(sc.requests.length,'pedido enviado','pedidos enviados')} à forja (${sc.requests.map(x=>NICHE_LABEL[x.niche]).join(' e ')}). `:''}${bad?'A leitura anterior continua valendo. ':''}${quotaTxt(sc)}</div>${sc.terminal?'':`<a class="act" href="${CHROME.link('insights',{niche:S.niche})}">Acompanhar na fila</a>`}</div>${sideBad.map(x=>`<div class="notice refused reqline" data-side-bad="${x.niche}">${ic('warn')}<div>${NICHE_LABEL[x.niche]}: ${esc(x.statusLabel||x.state)}. A leitura anterior de ${NICHE_LABEL[x.niche]} continua valendo.</div></div>`).join('')}` : '';
+  // "Desde então" em linha própria (CONVENCOES F11 conjunto); com dois nichos, uma linha só com o rótulo de cada nicho
+  const sinceBody = r => esc(OBS.forja.since(r.id).shortText.replace(/^desde então:\s*/i,'').replace(/\.$/,''));
+  const sinceLines = rs.length>1
+    ? `<span class="fsince">Desde então — ${rs.map(r=>`<span data-fsince="${r.id}"><b>${NICHE_LABEL[r.niche]}:</b> ${sinceBody(r)}</span>`).join('; ')}</span>`
+    : rs.map(r=>`<span class="fsince" data-fsince="${r.id}">Desde então: ${sinceBody(r)}</span>`).join('');
+  return `<details class="forjabar ${bad?'bad':''}" id="forjabar"${S.forjaOpen?' open':''}><summary data-fsum="1">${ic(bad?'warn':'forja')}<span class="fmain"><span class="fhead">${sumHtml}</span>${sinceLines}</span><span class="more">${S.forjaOpen?'Recolher':'Abrir'}</span></summary>
+    <div class="fbody">${reqBody}${readingRows(rs, false, !!(sc&&sc.requests.some(x=>BUSY.includes(x.state))))}${scopeHtml?`<p class="scope"><small id="askScope">${scopeHtml}</small></p>`:''}</div></details>`;
+}
+/* cota: por nicho quando o cenário cobre os dois (motor: quota.byNiche); nunca repete a frase de cota do status */
+function quotaTxt(sc){
+  const q=sc.quota, by=q.byNiche;
+  const differs = sc.split && by && Object.values(by).some(x=>!x.free);   // nichos com cotas diferentes: a linha por nicho informa algo novo
+  if(!differs && /cota/i.test(sc.statusText||'')) return '';
+  if(sc.split && by) return Object.keys(by).map(n=>`${NICHE_LABEL[n]}: ${esc(by[n].text)}`).join(' · ')+'.';
+  return cap(esc(q.text))+'.';
+}
+const WARN_ST = ['atrasado','sem máquina','nova tentativa','liberado pelo vigia'];
+const BUSY = ['na fila','trabalhando','atrasado','sem máquina','nova tentativa','liberado pelo vigia'];
+const winTxt = days => days>=180 ? 'nos últimos 6 meses' : `nos últimos ${days} dias`;
+
+/* ---------- render ---------- */
+function syncUrl(){ try{ const u=new URL(location.href), keep=['theme']; const qs=new URLSearchParams(curQuery()); keep.forEach(k=>{ const v=u.searchParams.get(k); if(v&&['light','dark'].includes(v)) qs.set(k,v); }); if(S.link.from) qs.set('from',Object.keys(FROM).find(k=>FROM[k]===S.link.from)||''); history.replaceState(null,'',u.pathname+'?'+qs.toString()); }catch(e){} }
+function focusKey(el){
+  if(!el||!document.getElementById('screen').contains(el)) return null;
+  if(el.id) return '#'+CSS.escape(el.id);
+  for(const a of el.getAttributeNames()) if(a.startsWith('data-')&&a!=='data-tip') return `${el.tagName.toLowerCase()}[${a}="${CSS.escape(el.getAttribute(a))}"]`;
+  return null;
+}
+function render(){
+  const fk = S.focusNext || focusKey(document.activeElement); S.focusNext=null;
+  render0();
+  if(S.focusChip!=null){ const cs=[...document.querySelectorAll('#chips .chip')], t=cs[Math.min(S.focusChip,cs.length-1)]; S.focusChip=null; const b=t&&t.querySelector('button,a'); if(b){ b.focus({preventScroll:true}); S.focusFallback=null; return; } if(!cs.length){ document.getElementById('basisSum').focus(); S.focusFallback=null; return; } }
+  if(fk){ const t=document.querySelector(fk) || document.querySelector(S.focusFallback||'#results .card a, #results .card button, #results .empty .btn'); if(t && t!==document.activeElement) t.focus({preventScroll:true}); }
+  S.focusFallback=null;
+}
+function render0(){
+  syncUrl();
+  S.compactForja = !!(S.link.theme||S.link.formula||S.link.channel||minOn()||allMode()||S.reading||S.own||S.notOut||S.bad.length||S.link.from);
+  const nm=allMode(), unit = nm ? ['vídeo','vídeos'] : ['outlier','outliers'];
+  const R=q(), Rw=q({includeWeak:true}), all=q({ages:'all'});
+  const max=Math.max(1,...ALL_AGES.map(k=>R.byAge[k]));
+  const isDefault=[...S.ages].sort().join()===[...OBS.DEFAULT_AGES].sort().join(), isAll=S.ages.size===ALL_AGES.length;
+  const n90=OBS.DEFAULT_AGES.reduce((s,k)=>s+R.byAge[k],0);
+  const scR=S.reading?OBS.forja.readingScope(S.reading):null;
+  const partial = w => scR && scR.maxAge!=null && w.lo<=scR.maxAge && w.hi>scR.maxAge;   // faixa cortada pela janela da leitura
+  const wLabel = w => partial(w) ? `${OBS.OUT_WINDOWS.find(x=>x.id===w.id).lo}–${scR.maxAge} d` : cap(w.label);
+  document.getElementById('timeline').innerHTML =
+    `<div class="tl-group"><button type="button" class="tl-btn" data-quick="90" aria-pressed="${!scR&&isDefault}" ${scR?`aria-disabled="true" title="Modo leitura: a janela é a da leitura (${scR.windowDays} dias). Tire a leitura para usar os atalhos."`:''} aria-label="Atalho até ${OBS.OUT_WINDOWS[1].hi} dias: ${F.plural(n90,...unit)}"><span class="t">Até ${OBS.OUT_WINDOWS[1].hi} dias</span><span class="c"><span class="mono" data-count="q90">${n90}</span></span></button></div>
+     <div class="tl-group">${OBS.OUT_WINDOWS.filter(w=>!(partial(w)&&scR.maxAge-w.lo<7) && !(scR&&scR.maxAge!=null&&w.lo>scR.maxAge)).map(w=>`<button type="button" class="tl-btn" data-age="${w.id}" aria-pressed="${S.ages.has(w.id)}" ${partial(w)?`title="Faixa cortada pela janela da leitura: só até ${scR.maxAge} dias"`:''} aria-label="${partial(w)?wLabel(w):w.label}: ${F.plural(R.byAge[w.id],...unit)}">
+       <span class="t">${wLabel(w)}</span><span class="c"><span class="mono" data-count="age-${w.id}">${R.byAge[w.id]}</span><span class="bar" style="width:${Math.round(R.byAge[w.id]/max*36)+2}px"></span></span></button>`).join('')}</div>
+     <div class="tl-group">${scR?`<button type="button" class="tl-btn" data-quick="scope" aria-pressed="true" title="${esc(OBS.forja.byId[S.reading].sent.text)}"><span class="t">Leitura</span><span class="c"><span class="mono" data-count="all">${all.count}</span></span></button>`:`<button type="button" class="tl-btn" data-quick="all" aria-pressed="${isAll}" aria-label="Todas as idades: ${F.plural(all.count,...unit)}"><span class="t">Todos</span><span class="c"><span class="mono" data-count="all">${all.count}</span></span></button>`}</div>`;
+
+  // ordem oficial do motor (a mesma do pager do Histórico): Rw usa o mesmo q, com includeWeak
+  const itemById=new Map(Rw.items.map(it=>[it.id,it]));
+  const groups=Rw.orderedGroups(S.sort).map(g=>({k:g.k,items:g.ids.map(id=>itemById.get(id))}));
+  const W=Rw.countWithWeak-Rw.count, flat=S.sort!=='mult'||nm;
+  const fmtName=S.fmt==='short'?'Shorts':'vídeos longos';
+  const nicheTxt=S.niche==='todos'||S.link.channel?'':` de ${S.niche==='ia'?'IA':'viagem'}`;
+  const chTxt=S.link.channel?` de ${esc(ch(S.link.channel).name)}`:'';
+  const scope=S.reading?OBS.forja.readingScope(S.reading):null;
+  const nCh=scope?scope.channels.length:OBS.channels.filter(c=>!c.own&&(S.niche==='todos'||c.niche===S.niche)&&(!S.link.channel||c.id===S.link.channel)).length;
+  const lims=OBS.channels.filter(c=>!c.own).map(c=>c.video_limit);
+  const tf=[S.link.theme?`tema “${esc(OBS.theme(S.link.theme).label)}”`:'', S.link.formula?`fórmula “${esc(OBS.formula(S.link.formula).label)}”`:''].filter(Boolean).join(' e ');
+  const base=tf?q({theme:null,formula:null}):null;   // mesma base do destino: mantém o mínimo do link
+  const outsInList = nm ? q({min:OBS.RULES.outlierMin}).count : null;
+  const noBase = nm ? Math.max(0, R.analyzed - Rw.countWithWeak) : 0;   // sem base nenhuma (n = 0): ficam de fora mesmo com min=0
+  const chOut = S.link.channel && S.niche!=='todos' && ch(S.link.channel).niche!==S.niche;
+  const where = scope ? 'no escopo da leitura' : ages2label(S.ages);
+  const order = !Rw.countWithWeak ? '' : flat ? (S.sort==='vpd'?'ordenados por views/dia, canais atrasados no fim':S.sort==='recent'?'do mais recente ao mais antigo':'') : 'agrupados por fase';
+  const basisEl=document.getElementById('basis'); basisEl.hidden = chOut;
+  const selCh = scope ? scope.channels : OBS.channels.filter(c=>!c.own&&(S.niche==='todos'||c.niche===S.niche)&&(!S.link.channel||c.id===S.link.channel)).map(c=>c.id);
+  const probCh = selCh.map(ch).filter(c=>c.sync.problemPhrase);
+  const joinE = a => a.length<2 ? a.join('') : a.slice(0,-1).join(', ')+' e '+a[a.length-1];
+  const fullP = c => `<b>${esc(c.name)}</b>: ${esc(c.sync.problemPhrase)}`;
+  const shown = (S.link.channel||probCh.length===1) ? probCh : probCh.filter(c=>c.sync.state==='erro');   // canal filtrado/único e canais com erro: frase por extenso
+  const rest = probCh.filter(c=>!shown.includes(c));
+  const restLbl = shown.length||S.compactForja ? F.plural(rest.length,'canal','canais')+' com problema' : joinE(rest.map(c=>esc(c.name)))+' com problema de sincronização';
+  const restBtn = rest.length ? `${shown.length?'. ':''}<button type="button" class="probbtn" data-probs-toggle aria-expanded="${!!S.probsOpen}" aria-controls="probsList">${S.probsOpen?`Ocultar ${F.plural(rest.length,'canal','canais')}`:(shown.length?'+':'')+restLbl}</button><span id="probsList"${S.probsOpen?'':' hidden'}>${S.probsOpen?`. ${rest.map(fullP).join("; ")}`:""}</span>` : '';
+  const probEl=document.getElementById('probs'); probEl.hidden=!probCh.length; probEl.dataset.probs=probCh.map(c=>c.id).join(',');
+  probEl.innerHTML = probCh.length ? `${ic('warn')}<span class="ptxt">${shown.map(fullP).join('; ')}${shown.length?'. ':''}${probCh.length===1?'Outliers dele podem faltar.':'Outliers deles podem faltar.'}${rest.length?' ':''}${restBtn.replace(/^\. /,'')}</span>` : '';
+  const probHtml = '';
+  document.getElementById('basisSum').innerHTML = '<span class="cnt" aria-live="polite">' + (nm
+    ? `<b data-count="list">${R.count}</b>${tf&&!S.compactForja?` com ${tf}`:''} de <span data-count="analyzed">${R.analyzed}</span> ${fmtName}${chTxt}${nicheTxt} ${where}, ${outsInList?`<span data-count="outs">${outsInList}</span>`:'<span data-count="outs" data-n="0">nenhum</span>'} com ${F.mult(OBS.RULES.outlierMin)} ou mais${noBase&&!S.compactForja?`, +<span data-count="nobase">${noBase}</span> sem nenhum vídeo para comparar`:''}`
+    : `<b data-count="list">${R.count}</b><b> ${R.count===1?'outlier':'outliers'}</b>${tf?`${S.compactForja?'':` com ${tf}`} (de <span data-count="tfbase">${base.count}</span> desta janela)`:''} entre <span data-count="analyzed">${R.analyzed}</span> ${fmtName}${chTxt}${nicheTxt} ${where}${minOn()?`, com ${F.mult(S.link.min)} ou mais`:''}`)
+    + `${W&&!S.compactForja?`, +<span data-count="weak">${W}</span> com base fraca`:''}${order&&!S.compactForja?`; ${order}`:''}.</span> <span class="more">Como contamos</span>${probHtml}`;
+  document.getElementById('basisMore').innerHTML =
+    `<p>Acompanhados em ${nCh} ${nCh===1?'canal':'canais'}${R.untracked?` (<span data-count="untracked">+${R.untracked}</span> fora dos acompanhados: cada canal acompanha só os seus ${Math.min(...lims)} a ${Math.max(...lims)} vídeos mais recentes)`:''}. ${S.compactForja&&(W||noBase)?`${W?`Mais <span data-count="weak">${W}</span> com base fraca. `:''}${noBase?`Mais <span data-count="nobase">${noBase}</span> sem nenhum vídeo para comparar. `:''}`:''}Outlier é o vídeo com ${F.mult(OBS.RULES.outlierMin)} ou mais a <b>base</b>: a mediana de views dos outros vídeos do mesmo canal e formato com a mesma idade, sem contar o próprio vídeo.${W?` Os vídeos com base fraca (menos de ${OBS.RULES.weakBase} vídeos para comparar) aparecem em cinza tracejado, fora da contagem.`:''}</p>
+     <p>Publicados desde ${OBS.SERIES_START_LABEL} são comparados no mesmo dia de vida quando há ${OBS.RULES.weakBase} ou mais vídeos para comparar; senão, e para os mais antigos, vale a aproximação por faixa (${OBS.AGE_BANDS.map(b=>b.label.replace(' dias','').replace('mais de 365','365+')).join(', ')} dias). Views/dia: últimos 7 dias; vídeos com menos de 7 dias mostram a média desde a publicação.</p>`;
+
+  // chips
+  const L=S.link, chips=[];
+  if(L.theme) chips.push(['theme',`Tema “${esc(OBS.theme(L.theme).label)}”`]);
+  if(L.formula) chips.push(['formula',`Fórmula “${esc(OBS.formula(L.formula).label)}”`]);
+  if(L.channel) chips.push(['channel',`Canal ${esc(ch(L.channel).name)}`]);
+  if(nm) chips.push(['min','Todos os vídeos']); else if(minOn()) chips.push(['min',`${F.mult(L.min)} ou mais`]);
+  let readChip='';
+  if(scope){
+    const N=readingN();
+    readChip=`<span class="chip asof" data-read-n="${N}" data-read-m="${R.count}" title="${esc(OBS.forja.byId[S.reading].sent.text)}">${esc(cap(scope.text.replace(/ via \d+$/,'')))}${OBS.forja.byId[S.reading].type==='temas'?' · temas':' · padrões'}: ${N?`via ${F.plural(N,...unit)}`:`não via nenhum ${unit[0]}`}; hoje, no mesmo escopo, ${R.count===1?'é':'são'} <b>${R.count}</b><button type="button" data-unread aria-label="Tirar a referência à leitura">✕</button></span>`;
+  }
+  const own = S.own ? `<span class="chip">Seu canal não entra em Outliers: <a class="lk32" href="${CHROME.link('canais',{channel:'tnfigueiredo'})}">veja em Canais</a><button type="button" data-unown aria-label="Dispensar aviso">✕</button></span>` : '';
+  const bad=S.bad.map(([k,v])=>`<span class="chip bad">${cap(BAD_LABEL[k])} “${esc(v)}” não ${BAD_FEM.includes(k)?'reconhecida, ignorada':'reconhecido, ignorado'}<button type="button" data-unbad="${esc(k+'|'+v)}" aria-label="Dispensar aviso do filtro ${esc(v)}">✕</button></span>`);
+  const asofNone = S.asofNone ? `<span class="chip bad">Sem leitura de outliers ${S.niche==='todos'?'':`de ${NICHE_LABEL[S.niche]} `}em ${S.asofNone.split('-').reverse().slice(0,2).join('/')}: mostrando os dados de hoje<button type="button" data-unasof aria-label="Dispensar aviso da data">✕</button></span>` : '';
+  const notOut = S.notOut ? `<span class="chip bad">A leitura “${esc(S.notOut.label)}” não é de outliers: mostrando a tela sem ela<button type="button" data-unnotout aria-label="Dispensar aviso">✕</button></span>` : '';
+  if(scR && S.niche==='todos'){}
+  const pick = S.asofPick ? `<span class="chip pick">A data ${S.asofPick.af.split('-').reverse().slice(0,2).join('/')} tem ${S.asofPick.ids.length} leituras; escolha:${S.asofPick.ids.map(id=>{const r=OBS.forja.byId[id];return `<button type="button" class="pickbtn" data-pick="${id}">${NICHE_LABEL[r.niche]} · ${r.type==='temas'?'temas':'padrões'}</button>`}).join('')}<button type="button" data-unpick aria-label="Ignorar a data da leitura">✕</button></span>` : '';
+  const anyChip = chips.length||bad.length||readChip||own||notOut||pick||asofNone;
+  document.getElementById('chips').innerHTML = anyChip
+    ? `${L.from||chips.length?`<span class="from">${L.from?`Vindo de ${esc(L.from)}:`:'Filtros do link:'}</span>`:''}${readChip}${pick}${chips.map(([k,t])=>`<span class="chip"><b>${t}</b><button type="button" data-unlink="${k}" aria-label="Remover filtro ${t.replace(/<[^>]+>/g,'')}">✕</button></span>`).join('')}${own}${notOut}${asofNone}${bad.join('')}`
+    : (L.from?`<span class="from">Vindo de ${esc(L.from)}, sem filtros extras.</span>`:'');
+  document.getElementById('chips').hidden = !anyChip && !L.from;
+
+  // forja: botão do chrome + bloco recolhido com o escopo do próximo pedido
+  const rs=readingsFor(S.niche), sc=scenario();
+  const pv=reqNichesOf().map(n=>({n,p:OBS.forja.preview(reqType(),n,S.fmt)}));
+  const busy = sc && (BUSY.includes(sc.state) || sc.requests.some(x=>BUSY.includes(x.state)));   // Todos: um nicho ainda rodando = em andamento
+  const quotaUsed = sc && !busy && sc.quota.usedToday>0;
+  const noCh = pv.every(x=>!x.p.channelsIn.length);
+  const label = rs.length ? 'Pedir nova leitura à forja' : 'Pedir leitura à forja';
+  // F10: com Todos e um nicho ocupado, o botão segue para pedir o(s) livre(s) via session.ask('todos')
+  const freeNiches = S.niche==='todos' && sc ? ['ia','viagem'].filter(n=>{ const x=sc.requests.find(q=>q.niche===n); const qn=sc.quota.byNiche&&sc.quota.byNiche[n]; return !(x&&BUSY.includes(x.state)) && (!qn||qn.free); }) : [];
+  const partialBusy = busy && freeNiches.length>0 && freeNiches.length<2;
+  const pvS = partialBusy ? pv.filter(x=>freeNiches.includes(x.n)) : pv;   // escopo do próximo pedido: só nichos livres
+  const outs=pvS.flatMap(x=>x.p.channelsOut);
+  S.forjaState = partialBusy ? Object.assign(CHROME.forjaFromScenario(sc), {canAsk:true, askLabel:`Pedir leitura de ${freeNiches.map(n=>NICHE_LABEL[n]).join(' e ')} à forja`, askShort:`Ler ${freeNiches.map(n=>NICHE_LABEL[n]).join(' e ')}`})
+    : busy ? CHROME.forjaFromScenario(sc)
+    : quotaUsed ? Object.assign(CHROME.forjaFromScenario(sc), {disabled:true, label, disabledText:cap(sc.quota.text)})
+    : sc ? Object.assign(CHROME.forjaFromScenario(sc), {label})
+    : noCh ? {disabled:true, label, disabledText:'Nenhum canal em dia para ler'}
+    : {label, machine: sc?sc.machine:undefined};
+  CHROME.update({niche:S.niche, forja:S.forjaState});
+  const scopeHtml = ((busy&&!partialBusy)||quotaUsed) ? ''
+    : `Próximo pedido (últimos ${pvS[0].p.window}). ${pvS.map(x=>`${S.niche==='todos'?NICHE_LABEL[x.n]+' · ':''}<span data-preview="${x.n}">${x.p.text}</span>`).join('; ')}${outs.length?`. <span class="outd"><button type="button" class="outn" aria-expanded="${!!S.outsOpen}" data-outs-toggle>${F.plural(outs.length,'canal fica fora','canais ficam fora')}</button><span data-outs${S.outsOpen?'':' hidden'}>. ${outs.map(o=>esc(o.reason)).join('. ')}</span></span>`:''}${sc&&/cota/i.test(sc.statusText||'')?'.':`. <span data-quota>${esc(OBS.forja.queue.quotaScope.text)}</span>`}`;
+  const chipsEl=document.getElementById('chips'); const fbHtml=forjaBar(sc, scopeHtml);
+  const slot=document.getElementById('fbSlot'); slot.innerHTML=''; document.getElementById('notices').innerHTML='';
+  if(!chipsEl.hidden) slot.innerHTML=fbHtml; else document.getElementById('notices').innerHTML=fbHtml;
+  slot.hidden=chipsEl.hidden;
+
+  { const tl=document.getElementById('timeline'); tl.classList.toggle('ovf', tl.scrollWidth>tl.clientWidth+1); }
+  { const ce=document.getElementById('chips'), sb=document.querySelector('#screen > .sumbar'), near=!MQ_MID.matches; ce.classList.toggle('near',near); if(near && ce.nextElementSibling!==sb) sb.before(ce); else if(!near && sb.nextElementSibling!==ce) sb.after(ce); }   // a 768, filtros do link logo abaixo dos controles
+  const res=document.getElementById('results');
+  if(!Rw.countWithWeak){ S.order=[]; res.innerHTML=emptyState(R,base,tf,nCh,fmtName); return; }
+  // página: os primeiros S.limit itens na ordem visual
+  let left=S.limit; groups.forEach(g=>{ g.full=g.items; g.items=g.items.slice(0,Math.max(0,left)); left-=g.items.length; });
+  const visGroups=groups.filter(g=>g.items.length);
+  S.order = groups.flatMap(g=>g.items.map(it=>it.id)); S.pageIds=S.order;
+  const total=Rw.countWithWeak, shownN=S.order.length;
+  res.innerHTML = visGroups.map(gr=>{
+    const nIn = gr.full.filter(it=>!it.weak).length, nW = gr.full.length-nIn;
+    const title = gr.k==='above' ? `Com ${F.mult(OBS.RULES.outlierMin)} ou mais (${nIn})` : gr.k==='below' ? `Abaixo de ${F.mult(OBS.RULES.outlierMin)} (${nIn})` : gr.k==='flat' ? 'Todos os outliers' : PHASE_TITLE[gr.k];
+    const lateIn = gr.full.some(it=>isStaleCh(ch(it.video.ch)));
+    const desc = gr.k==='above' ? `Os outliers${tf?` com ${tf}`:''}: ${F.mult(OBS.RULES.outlierMin)} ou mais a mediana do canal.` : gr.k==='below' ? `${tf?`Têm ${tf}`:'Entram na lista'}, mas ficam abaixo de ${F.mult(OBS.RULES.outlierMin)} a mediana do canal. Sem cor de faixa.` : gr.k==='flat' ? '' : cap(OBS.PHASES.find(x=>x.id===gr.k).why)+'.';
+    const countHtml = ['above','below'].includes(gr.k) ? (nW?`<span class="gn">+${nW} com base fraca</span>`:'')
+      : nIn ? `<span class="gn mono" data-count="g-${gr.k}">${nIn}</span>${nW?`<span class="gn">+${nW} com base fraca</span>`:''}`
+      : `<span class="gn" data-count="g-${gr.k}" data-n="0">Só com base fraca (${nW})</span>`;
+    const body = S.view==='grid'
+      ? `<div class="grid ${S.fmt==='short'?'shorts':''}">${gr.items.map((it,i)=>card(it,!flat&&!nm&&i===0&&gr.items.length>1&&!it.weak&&!NO_LEAD.includes(gr.k),flat)).join('')}</div>`
+      : table(gr.items,title,flat&&!nm);
+    return `<section class="group g-${PHASE_CLASS[gr.k]||gr.k}" aria-labelledby="gh-${gr.k}">
+      <div class="ghead"><h2 id="gh-${gr.k}">${['flat','above','below'].includes(gr.k)?'':ic(gr.k)}${title}</h2>${countHtml}${desc?`<p>${desc}</p>`:''}</div>
+      ${body}${gr.items.length<gr.full.length?`<p class="pagenote">Mostrando ${gr.items.length} de ${gr.full.length} deste grupo.</p>`:''}</section>`;
+  }).join('') + (shownN<total ? `<div class="morebar"><button class="btn" type="button" data-more>Mostrar mais ${Math.min(PAGE,total-shownN)} (de ${total-shownN} restantes)</button><span class="pagenote">Mostrando ${shownN} de ${total}.</span></div>` : '');
+}
+function emptyState(R,base,tf,nCh,fmtName){
+  const chTxtE = S.link.channel ? ` de ${esc(ch(S.link.channel).name)}` : '';
+  const noLinkN = () => q({theme:null,formula:null,channel:null,min:OBS.RULES.outlierMin}).count;
+  const nLinks = () => [S.link.theme,S.link.formula,S.link.channel,minOn()].filter(Boolean).length;
+  const unlinkAll = () => { const n=nLinks()>=2?noLinkN():0; return n?`<button class="btn" type="button" data-unlink="all">Tirar filtros do link (${n})</button>`:''; };
+  const nicheName=S.niche==='todos'?'':` de ${S.niche==='ia'?'IA':'viagem'}`;
+  const c=S.link.channel?ch(S.link.channel):null;
+  const fmtOne = S.fmt==='short'?'um Short':'um vídeo longo';
+  if(c && S.niche!=='todos' && c.niche!==S.niche){
+    return `<div class="empty" role="status">${ic('empty')}<div><h3>${esc(c.name)} é de ${NICHE_LABEL[c.niche]}: o nicho ${NICHE_LABEL[S.niche]} o exclui</h3>
+      <p>O filtro de canal veio do link e o nicho escolhido não inclui esse canal.</p>
+      <div class="opts">${(n=>n?`<button class="btn primary" type="button" data-niche="${c.niche}">Ver em ${NICHE_LABEL[c.niche]} (${n})</button>`:'')(q({niche:c.niche}).count)}${(n=>n?`<button class="btn" type="button" data-unlink="channel">Tirar o filtro de canal (${n})</button>`:'')(q({channel:null}).count)}</div></div></div>`;
+  }
+  if(!R.analyzed){
+    const otherFmt=S.fmt==='short'?'long':'short', otherN=q({fmt:otherFmt}).count, allN=S.reading?0:q({ages:'all'}).count;
+    return `<div class="empty" role="status">${ic('empty')}<div><h3>Nenhum ${S.fmt==='short'?'Short':'vídeo longo'} ${S.link.channel?`de ${esc(ch(S.link.channel).name)} `:''}${ages2label(S.ages)} entre os acompanhados</h3>
+      <p>${R.untracked ? `${R.untracked===1?'O único':`Os <span data-count="untracked2">${R.untracked}</span>`} ${S.fmt==='short'?(R.untracked===1?'Short':'Shorts'):(R.untracked===1?'vídeo longo':'vídeos longos')} ${S.link.channel?`de ${esc(ch(S.link.channel).name)} `:`dos canais${nicheName} `}${ages2label(S.ages)} ${R.untracked===1?'está':'estão'} fora dos acompanhados: cada canal acompanha só os seus ${Math.min(...OBS.channels.filter(x=>!x.own).map(x=>x.video_limit))} a ${Math.max(...OBS.channels.filter(x=>!x.own).map(x=>x.video_limit))} vídeos mais recentes.` : `Não há o que comparar nesta janela: nenhum ${S.fmt==='short'?'Short':'vídeo longo'} ${S.link.channel?`de ${esc(ch(S.link.channel).name)}`:'dos canais acompanhados'} foi publicado nessas idades.`}${S.link.channel&&ch(S.link.channel).sync.problemPhrase?` ${esc(ch(S.link.channel).name)} está com problema de sincronização, então pode faltar vídeo; o motivo está no aviso acima.`:''}</p>
+      <div class="opts">${allN&&S.ages.size<ALL_AGES.length?`<button class="btn primary" type="button" data-quick="all">Ver todas as idades (${allN})</button>`:''}${otherN?`<button class="btn" type="button" data-fmt="${otherFmt}">Ver ${otherFmt==='short'?'Shorts':'longos'} desta janela (${otherN})</button>`:''}${unlinkAll()}</div></div></div>`;
+  }
+  if(tf && base.count){
+    const un = allMode() ? ['vídeo','vídeos'] : ['outlier','outliers'];
+    const head = base.count===1 ? `O único ${un[0]}${chTxtE} desta janela não tem ${tf}` : `Nenhum dos <span data-count="tfbase2">${base.count}</span> ${un[1]}${chTxtE} desta janela tem ${tf}`;
+    const allN = q({ages:'all'}).count;
+    return `<div class="empty" role="status">${ic('empty')}<div><h3>${head}</h3>
+      <p>Há ${un[1]} ${ages2label(S.ages)} entre os ${fmtName}${chTxtE||nicheName}, mas nenhum com ${S.link.theme&&S.link.formula?'esse tema e essa fórmula':S.link.theme?'esse tema':'esse tipo de título'}.</p>
+      <div class="opts"><button class="btn primary" type="button" data-unlink="tf">${allMode()?(base.count===1?'Ver o vídeo':`Ver os ${base.count} vídeos`):verOut(base.count)} sem ${S.link.theme&&S.link.formula?'os filtros':'o filtro'}</button>${!S.reading&&S.ages.size<ALL_AGES.length&&allN?`<button class="btn" type="button" data-quick="all">Ver todas as idades (${allN})</button>`:''}</div></div></div>`;
+  }
+  const idx=[...S.ages].map(a=>ALL_AGES.indexOf(a)), lo=Math.min(...idx), hi=Math.max(...idx);
+  let below=-1, above=-1;
+  for(let i=lo-1;i>=0;i--) if(R.byAge[ALL_AGES[i]]>0){below=i;break}
+  for(let i=hi+1;i<ALL_AGES.length;i++) if(R.byAge[ALL_AGES[i]]>0){above=i;break}
+  const nb = i => `<button class="btn ${i===(below>=0?below:above)?'primary':''}" type="button" data-ages="${ALL_AGES[i]}">Ver ${OBS.OUT_WINDOWS[i].label} (${R.byAge[ALL_AGES[i]]})</button>`;
+  const otherFmt=S.fmt==='short'?'long':'short', otherN=q({fmt:otherFmt}).count;
+  const probs = OBS.channels.filter(x=>!x.own&&(S.niche==='todos'||x.niche===S.niche)&&(!c||x.id===c.id)&&x.sync.problemPhrase);
+  const minX = F.mult(S.link.min!=null&&S.link.min>OBS.RULES.outlierMin?S.link.min:OBS.RULES.outlierMin);
+  const scE = S.reading?OBS.forja.readingScope(S.reading):null;
+  const whereE = scE ? `no escopo da leitura (${scE.windowDays>=180?'6 meses':scE.windowDays+' dias'})` : 'nesta janela';
+  const what = allMode() ? `${S.fmt==='short'?'um Short':'um vídeo longo'}${tf?` com ${tf}`:''}` : `${fmtOne}${tf?` com ${tf}`:''} com ${minX} ou mais a base`;
+  const head = c ? `${esc(c.name)} não teve ${what} ${whereE}`
+    : nCh===1 ? `O canal que você monitora${nicheName} não teve ${what} ${whereE}` : `Nenhum dos ${nCh} canais${nicheName} que você monitora teve ${what} ${whereE}`;
+  const probTxt = probs.length ? (c ? ` ${esc(c.name)} está com problema de sincronização, então pode faltar vídeo; o motivo está no aviso acima.` : ` ${F.plural(probs.length,'canal deste recorte está','canais deste recorte estão')} com problema de sincronização; o motivo está no aviso acima.`) : '';
+  return `<div class="empty" role="status">${ic('empty')}<div>
+    <h3>${head}</h3>
+    <p>Foram <span data-count="analyzed2">${R.analyzed}</span> ${fmtName} ${scE?whereE:ages2label(S.ages)} comparados com a base do próprio canal${hasLink()?', já com os filtros do link':''}. Isso diz que não houve estouro ${c?'neste canal':'entre os canais acompanhados'}, não que o tema esteja frio no YouTube.${probTxt}</p>
+    <div class="opts">
+      ${below>=0?nb(below):''}${above>=0?nb(above):''}
+      ${otherN?`<button class="btn" type="button" data-fmt="${otherFmt}">Ver ${otherFmt==='short'?'Shorts':'longos'} desta janela (${otherN})</button>`:''}
+      ${S.niche!=='todos'&&!c?(n=>n?`<button class="btn" type="button" data-niche="todos">Todos os nichos (${n})</button>`:'')(q({niche:'todos'}).count):''}
+      ${minOn()&&S.link.min>OBS.RULES.outlierMin?(n=>n?`<button class="btn primary" type="button" data-unlink="min">Tirar o mínimo de ${F.mult(S.link.min)} (${n})</button>`:'')(q({min:OBS.RULES.outlierMin}).count):''}
+      ${unlinkAll()}
+      ${probs.length?(probs.length===1?`<a class="btn" data-probs-link="1" href="${CHROME.link('canais',{channel:probs[0].id})}">Ver ${esc(probs[0].name)} em Canais</a>`:`<a class="btn" data-probs-link="${probs.length}" data-probs-niche="${S.niche}" href="${CHROME.link('canais',{filter:'problemas',niche:S.niche})}">Ver ${F.plural(probs.length,'canal','canais')} com problema</a>`):''}
+    </div></div></div>`;
+}
+
+/* ---------- eventos ---------- */
+function setSeg(id,val){document.querySelectorAll(`#${id} button`).forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===val))}
+function syncSegs(){setSeg('fmtSeg',S.fmt);setSeg('viewSeg',S.view);document.getElementById('sort').value=S.sort;}
+function setNiche(n){ S.niche=n; S.reading=null; S.limit=PAGE; CHROME.setNiche(n,{silent:true}); }
+function bindSeg(id,key){document.getElementById(id).addEventListener('click',e=>{const b=e.target.closest('button[data-v]');if(!b)return; if(key==='niche') setNiche(b.dataset.v); else {S[key]=b.dataset.v;setSeg(id,S[key]); if(key==='fmt') S.reading=null;} render();})}
+bindSeg('fmtSeg','fmt'); bindSeg('viewSeg','view');
+function quick(k){ if(k==='scope') return; if(S.reading) return; S.ages = new Set(k==='all'?ALL_AGES:OBS.DEFAULT_AGES); S.limit=PAGE; }
+document.getElementById('timeline').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.quick) quick(b.dataset.quick);
+  else {const a=b.dataset.age; if(S.ages.has(a)&&S.ages.size>1) S.ages.delete(a); else S.ages.add(a); if(S.reading){ S.reading=null; CHROME.clearToasts&&CHROME.clearToasts(); CHROME.toast('','Saiu do escopo da leitura','As faixas agora valem para todos os canais acompanhados.'); } S.limit=PAGE;}
+  render();
+});
+document.getElementById('sort').addEventListener('change',e=>{S.sort=e.target.value;S.limit=PAGE;render()});
+const PARAM = {theme:'topic',formula:'formula',channel:'channel',min:'min'}; // a URL é refeita por syncUrl() a cada render
+function unlink(k){
+  const keys = k==='all'?Object.keys(PARAM):k==='tf'?['theme','formula']:[k];
+  keys.forEach(x=>delete S.link[x]);
+  try{const u=new URL(location.href);keys.forEach(x=>{if(x!=='theme'||!['light','dark'].includes(u.searchParams.get('theme')))u.searchParams.delete(PARAM[x]);if(x==='channel')u.searchParams.delete('canal')});history.replaceState(null,'',u)}catch(e){}
+  render();
+}
+function chipFocus(e){
+  const chip=e.target.closest('#chips .chip'); if(!chip) return;
+  const all=[...document.querySelectorAll('#chips .chip')], i=all.indexOf(chip);
+  S.focusChip=i;
+}
+function onClick(e){
+  chipFocus(e);
+  const s=e.target.closest('[data-save]');
+  if(s){const id=s.dataset.save;const on=OBS.swipe.toggle(id);toast(on?'Salvo no swipe file':'Tirado do swipe file');const b=document.querySelector(`[data-save="${id}"]`);b&&b.focus();return;}
+  const a=e.target.closest('[data-ages]'); if(a){S.ages=new Set(a.dataset.ages.split(','));S.reading=null;render();return}
+  const qk=e.target.closest('#results [data-quick]'); if(qk){quick(qk.dataset.quick);render();return}
+  const f=e.target.closest('[data-fmt]'); if(f){S.fmt=f.dataset.fmt;S.reading=null;setSeg('fmtSeg',S.fmt);render();return}
+  const n=e.target.closest('[data-niche]'); if(n){setNiche(n.dataset.niche);render();return}
+  const u=e.target.closest('[data-unlink]'); if(u){S.focusFallback='#chips button, #results .card a, #results .empty .btn'; unlink(u.dataset.unlink);return}
+  if(e.target.closest('[data-unread]')){S.focusFallback='#chips button, #results .card a, #results .empty .btn';S.reading=null;render();return}
+  if(e.target.closest('[data-unpick]')){S.focusFallback='#chips button, #results .card a, #results .empty .btn';S.asofPick=null;render();return}
+  const pk=e.target.closest('[data-pick]'); if(pk){S.focusFallback='#chips button, #results .card a, #results .empty .btn';S.asofPick=null;useReading(pk.dataset.pick);syncSegs();render();return}
+  if(e.target.closest('[data-more]')){const k=S.order.length; S.limit+=PAGE; render(); const nx=document.querySelectorAll('#results [data-id]:not(.mult)')[k]; const f=nx&&nx.querySelector('a,button'); f&&f.focus(); return}
+  if(e.target.closest('[data-unasof]')){S.focusFallback='#chips button, #results .card a, #results .empty .btn';S.asofNone=null;render();return}
+  if(e.target.closest('[data-unnotout]')){S.focusFallback='#chips button, #results .card a, #results .empty .btn';S.notOut=null;render();return}
+  if(e.target.closest('[data-unown]')){S.focusFallback='#chips button, #results .card a, #results .empty .btn';S.own=false;render();return}
+  if(e.target.closest('[data-outs-toggle]')){S.outsOpen=!S.outsOpen;render();const b=document.querySelector('[data-outs-toggle]');b&&b.focus();return}
+  const ub=e.target.closest('[data-unbad]'); if(ub){S.focusFallback='#chips button, #results .card a, #results .empty .btn';S.bad=S.bad.filter(([k,v])=>k+'|'+v!==ub.dataset.unbad);render();return}
+  const i=e.target.closest('.info'); if(i){const m=i.closest('.mult');const o=m.classList.contains('open');document.querySelectorAll('.mult.open').forEach(x=>x.classList.remove('open'));if(!o)m.classList.add('open')}
+}
+['results','chips','notices'].forEach(id=>document.getElementById(id).addEventListener('click',onClick));
+document.getElementById('probs').addEventListener('click',e=>{ const b=e.target.closest('[data-probs-toggle]'); if(!b) return; S.probsOpen=!S.probsOpen; S.focusNext='[data-probs-toggle]'; render(); });
+document.getElementById('screen').addEventListener('toggle',e=>{ if(e.target.id==='forjabar'){ S.forjaOpen=e.target.open; const m=e.target.querySelector('summary .more'); if(m) m.textContent=e.target.open?'Recolher':'Abrir'; } },true);
+OBS.swipe.onChange(()=>render());
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.querySelectorAll('.mult.open').forEach(x=>x.classList.remove('open')); const m=document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.mult'); if(m) m.classList.add('tipoff');}});
+document.addEventListener('focusout',e=>{const m=e.target.closest&&e.target.closest('.mult'); if(m) m.classList.remove('tipoff');});
+document.addEventListener('mouseleave',e=>{const m=e.target.closest&&e.target.closest('.mult'); if(m) m.classList.remove('tipoff');},true);
+function toast(msg){ CHROME.clearToasts&&CHROME.clearToasts(); CHROME.toast('ok', msg, ''); }
+function ask(){ if(S.forjaState&&((S.forjaState.active&&!S.forjaState.canAsk)||S.forjaState.disabled)) return; const r=OBS.forja.session.ask(S.niche, SESSION); render(); if(r.ok) toast('Pedido enviado à forja'); else { CHROME.clearToasts&&CHROME.clearToasts(); CHROME.toast('', 'Pedido não enviado', cap(r.reason)+'.'); } }
+[MQ_WIDE,MQ_MID].forEach(m=>m.addEventListener('change',()=>render()));
+
+/* estados do mockup: guarda e restaura filtros */
+const AGES_6M=['0-30','31-90','91-180'], AGES_90=['0-30','31-90'];
+const DEMO_LINKS = {
+  link: () => { const P=OBS.forja.latest('padroes-titulo','viagem'); const p=P.analysis.patterns.find(x=>x.nUse>0&&x.verdict.id==='padrao')||P.analysis.patterns.find(x=>x.nUse>0);
+    return OBS.link.outliers({niche:'viagem',fmt:'long',formula:p.formula,min:0,ages:AGES_6M,reading:P.id})+'&from=insights'; },
+  linktheme: () => { const T=OBS.forja.latest('temas','viagem'); const th=T.analysis.dominantTheme.theme || (OBS.outliers({niche:'viagem',ages:'all'}).items[0]||{video:{}}).video.theme;
+    return OBS.link.outliers({niche:'viagem',fmt:'long',topic:th,min:OBS.RULES.outlierMin,ages:AGES_90,reading:T.id})+'&from=insights'; },
+  badlink: () => '?from=insights&formula=lista&age=0-30,365%2B,ontem&channel=matt',
+};
+function onMock(id,g){
+  if(g===1){ OBS.forja.session.setBase(id==='nenhum'?'sem pedido':id, SESSION); CHROME.setMockPressed({1:id}); render(); return; }
+  const d=id;
+  CHROME.setMockPressed({0:d});
+  if(SAVED_STATE){Object.assign(S,SAVED_STATE,{ages:new Set(SAVED_STATE.ages),link:{...SAVED_STATE.link},bad:[...SAVED_STATE.bad]});CHROME.setNiche(S.niche,{silent:true,persist:false});SAVED_STATE=null;}
+  S.demo=d; S.fmt='long'; S.niche=persistedNiche(); CHROME.setNiche(S.niche,{silent:true}); S.reading=null; S.asofPick=null; S.notOut=null; S.asofNone=null;
+  if(d!=='normal') SAVED_STATE={ages:[...S.ages],fmt:S.fmt,niche:S.niche,link:{...S.link},bad:[...S.bad],reading:S.reading,own:S.own};
+  if(d==='empty'){S.ages=new Set(['31-90']);S.fmt='short';S.niche='ia';CHROME.setNiche('ia',{silent:true,persist:false});S.link={};S.bad=[];S.reading=null;}
+  if(DEMO_LINKS[d]){ const u=DEMO_LINKS[d](); applyParams(u.includes('?')?u.slice(u.indexOf('?')):u); }
+  if(d==='normal') CHROME.setNiche(S.niche,{silent:true});
+  syncSegs(); render();
+}
+const RAW_QS = location.search;
+CHROME.mount({
+  tab:'outliers', content:'#screen',
+  mockStates:[
+    {label:'Cenário', items:[{id:'normal',label:'Dados de hoje',pressed:true},{id:'empty',label:'Janela sem outliers'},{id:'link',label:'Link de leitura (fórmula, todos os vídeos)'},{id:'linktheme',label:'Link de leitura (tema)'},{id:'badlink',label:'Link com filtro desconhecido'}]},
+    {label:'Pedido à forja', items:[{id:'nenhum',label:'nenhum',pressed:true}].concat(OBS.forja.requestStates.map(st=>({id:st,label:st})))},
+  ],
+  deps:[
+    ['<code>task_type</code>','<code>padroes-titulo</code> (longos) e <code>padroes-titulo-shorts</code>, um pedido por nicho; o payload leva <code>niche</code>.'],
+    ['Escopo do pedido','vídeos do formato da tela, últimos 6 meses, só canais em dia; a leitura fica congelada nessa lista.'],
+    ['<code>refused</code>','status com motivo, para o que muda entre o pedido e a execução.'],
+    ['Cota','1 pedido por dia por tipo e por nicho, checada no servidor; falha e recusa não contam.'],
+    ['<code>last_poll_at</code>','da máquina, para dizer "sem máquina".'],
+    ['<code>video_limit</code>','por canal (50 a 200) e série diária de views desde 03/10.'],
+  ],
+  onNiche:n=>{ S.niche=n; S.reading=null; render(); },
+  onTheme:()=>render(),
+  onSynced:()=>render(),
+  onMock,
+  onForja:()=>ask(),
+  onStatus:()=>{ S.forjaOpen=true; render(); const fb=document.getElementById('forjabar'); if(fb){ fb.scrollIntoView({block:'nearest'}); fb.querySelector('summary').focus(); } },
+});
+window.__S=S;
+S.niche=CHROME.niche(); applyParams(RAW_QS); syncSegs();
+{ const b=OBS.forja.session.state(SESSION).base; if(b&&b!=='sem pedido') CHROME.setMockPressed({1:b}); }
+render();
+</script>
+</body>
+</html>

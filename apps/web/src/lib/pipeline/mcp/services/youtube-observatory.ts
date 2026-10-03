@@ -49,6 +49,7 @@ export async function youtubeObservatory(params: Params): Promise<CallToolResult
         const result = await competitors.listCompetitorOutliers(buildCtx(), {
           tier: (params.tier as string) || 'all',
           limit: (params.limit as number) || 25,
+          fmt: params.fmt === 'short' ? 'short' : 'long',
         })
         return toMcpSuccess(result.data)
       }

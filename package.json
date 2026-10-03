@@ -16,6 +16,7 @@
     "build:packages": "npm run build -w packages/links -w packages/links-admin -w packages/social",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:api && npm run test:web",
+    "test:e2e": "npm run test:e2e -w apps/web",
     "test:api": "npm run test -w apps/api",
     "test:web": "npm run test -w apps/web",
     "test:packages": "npm run test -w packages/links -w packages/links-admin -w packages/social -w packages/shared",

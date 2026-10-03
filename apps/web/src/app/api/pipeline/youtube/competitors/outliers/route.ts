@@ -14,10 +14,11 @@ export async function GET(req: NextRequest) {
   const tier = searchParams.get('tier')
   const limitRaw = searchParams.get('limit')
   const limit = limitRaw ? parseInt(limitRaw, 10) : undefined
+  const fmt = searchParams.get('fmt') === 'short' ? 'short' : 'long'
 
   try {
     const ctx = authToServiceContext(auth)
-    const { data } = await listCompetitorOutliers(ctx, { tier, limit })
+    const { data } = await listCompetitorOutliers(ctx, { tier, limit, fmt })
     return pipelineSuccess(data, 200, auth)
   } catch (err) {
     return serviceErrorToResponse(err, auth)
