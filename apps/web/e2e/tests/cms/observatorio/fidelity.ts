@@ -14,11 +14,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { test, expect, type Page } from '@playwright/test'
-import { seedObservatory, clearObservatory, resetViewerPrefs, seedUuid, type SeedOptions } from '../../../fixtures/observatorio-seed'
+import { seedObservatory, clearObservatory, resetViewerPrefs, seedUuid, ownSeedUuid, type SeedOptions } from '../../../fixtures/observatorio-seed'
 import { getSeedSiteId } from '../../../fixtures/seed-helpers'
 
 /** Seeded uuids of oracle ids (the seed derives them deterministically from the site id). */
-export interface SeedIds { channel(oracleId: string): string; video(oracleId: string): string; reading(oracleId: string): string }
+export interface SeedIds { channel(oracleId: string): string; video(oracleId: string): string; reading(oracleId: string): string; /** a canal próprio (youtube_channels) */ own(oracleId: string): string }
 export interface MockupState {
   label: string
   /** Labels of the mockup's "Estados do mockup" buttons, clicked in order. */
@@ -26,7 +26,7 @@ export interface MockupState {
   seed: SeedOptions
   /**
    * Appended to the implementation route (a path segment "/…" or a query "?…"). A function receives the seeded ids;
-   * a string may carry `<channel:ID>` / `<video:ID>` / `<reading:ID>` placeholders (oracle ids), replaced by the seeded uuids.
+   * a string may carry `<channel:ID>` / `<own:ID>` / `<video:ID>` / `<reading:ID>` placeholders (oracle ids), replaced by the seeded uuids.
    */
   query?: string | ((ids: SeedIds) => string)
   /** Tabs (role=tab, name starting with the label) clicked on the MOCKUP page after the state bar, e.g. a drawer's tab. */
@@ -161,9 +161,9 @@ const sides = (sel: CompareSelector | undefined) => (typeof sel === 'string' ? {
 /** The state's implementation suffix with the seeded ids resolved. */
 export function resolveQuery(q: MockupState['query'], ids: SeedIds): string {
   if (typeof q === 'function') return q(ids)
-  return (q ?? '').replace(/<(channel|video|reading):([^>]+)>/g, (_, kind: 'channel' | 'video' | 'reading', id: string) => ids[kind](id))
+  return (q ?? '').replace(/<(channel|own|video|reading):([^>]+)>/g, (_, kind: 'channel' | 'own' | 'video' | 'reading', id: string) => ids[kind](id))
 }
-const seedIdsOf = (siteId: string): SeedIds => ({ channel: id => seedUuid(siteId, 'channel', id), video: id => seedUuid(siteId, 'video', id), reading: id => seedUuid(siteId, 'reading', id) })
+const seedIdsOf = (siteId: string): SeedIds => ({ channel: id => seedUuid(siteId, 'channel', id), video: id => seedUuid(siteId, 'video', id), reading: id => seedUuid(siteId, 'reading', id), own: id => ownSeedUuid(siteId, id) })
 
 async function openMockup(page: Page, spec: ScreenSpec, state: MockupState, theme: string, root: string): Promise<void> {
   await page.goto(mockupUrl(spec.mockupFile, theme, state.mockupQuery ?? ''))

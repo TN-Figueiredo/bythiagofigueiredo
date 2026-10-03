@@ -12,7 +12,9 @@
  *    'publicacao'/'desde-arquivo' → precision 'first');
  *  - competitor_changes: pre-series TITLE changes as legacy rows (from_version_id null — what production has from before
  *    the series), every other change with its version ids (the loader ignores those; they mirror production);
- *  - competitor_channel_snapshots; the own channel as youtube_channels + youtube_videos (no series: production has none);
+ *  - competitor_channel_snapshots; os canais próprios do preset (opts.ownPreset; sem ele, o único canal do oráculo) as
+ *    youtube_channels (com `niche`) + youtube_videos (no series: production has none). youtube_channels has
+ *    UNIQUE(site_id, locale): a preset whose own channels repeat a locale ('5', 'mix', 'zero') is REFUSED, not bent;
  *  - competitor_readings (model 'Gemma 12B'; oracle ids inside are rewritten to the seeded uuids; the latest `temas`
  *    reading per niche carries the video → theme evidence the loader reads);
  *  - youtube_intelligence_tasks: the oracle's history requests always; with opts.forjaState, also the requests of
@@ -28,6 +30,7 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { RequestState } from '../../src/lib/youtube/observatorio/types'
+import { OWN_PRESETS, OWN_EXTRA_IDS, applyOwnPreset, type OwnPreset } from '../../test/fixtures/observatorio/own-presets'
 
 export interface SeedOptions {
   /** A request state of the forja (P4 screens): writes the scenario's requests and machine. */
@@ -51,6 +54,8 @@ export interface SeedOptions {
    * evidence in production, so they go too: the screen then has no themed video (R49's honest coverage text).
    */
   noReadings?: boolean
+  /** Canais próprios do estado do mockup novo (mockup.js PRESETS). Ausente = o seed de antes: um canal próprio, sem os extras. */
+  ownPreset?: OwnPreset
 }
 
 /** The mockup clock (dados.js NOW_ISO). Also the webServer's OBS_NOW_OVERRIDE. */
@@ -64,9 +69,9 @@ interface OTitle extends OVersion { text: string }
 interface OThumb extends OVersion { key: string }
 interface ODesc extends OVersion { lines: string[] | null; hasText: boolean }
 interface OSync { state: 'ok' | 'atrasado' | 'erro' | 'backfill'; last: number | null; msg: string | null; errorSince: number | null; added: number | null; backfill: { done: number; total: number } | null }
-interface OChannel { id: string; name: string; niche: 'viagem' | 'ia'; own: boolean; lang: string; subs: number; video_limit: number; handle: string; sync: OSync; snapshots: Array<{ date: string; subs: number; views: number }> }
+interface OChannel { id: string; name: string; niche: 'viagem' | 'ia' | null; own: boolean; lang: string; subs: number; video_limit: number; handle: string; sync: OSync; snapshots: Array<{ date: string; subs: number; views: number }> }
 interface OVideo {
-  id: string; ch: string; fmt: 'long' | 'short'; pub: number; ageDays: number; dur: string; ytId: string; title: string; theme: string | null
+  id: string; ch: string; niche?: string | null; fmt: 'long' | 'short'; pub: number; ageDays: number; dur: string; ytId: string; title: string; theme: string | null
   views: number | null; viewsAt: number | null; likes: number | null; comments: number | null
   series: Array<{ idx: number; t: number; views: number }>; titles: OTitle[]; thumbs: OThumb[]; descs: ODesc[]
 }
@@ -97,12 +102,30 @@ interface OracleData {
  * import.meta.url, and Playwright compiles this package (no "type": "module") to CommonJS, where import.meta is a
  * SyntaxError. __dirname works under both Playwright and Vitest.
  */
-function loadOracleData(): OracleData {
+function loadOracleData(preset?: OwnPreset): { O: OracleData; nicheOf: Map<string, 'viagem' | 'ia'> } {
   const ctx: Record<string, unknown> = { console: { log() {}, error() {} } }
+  const dir = path.resolve(__dirname, '../../test/fixtures/observatorio')
   vm.createContext(ctx)
-  vm.runInContext(fs.readFileSync(path.resolve(__dirname, '../../test/fixtures/observatorio/dados.cjs'), 'utf8'), ctx)
-  return ctx.OBS as OracleData
+  // with a preset: segundo-canal.cjs BEFORE dados.cjs, in the same context (as test/youtube/observatorio/oracle.ts loadOracleOwns)
+  if (preset) vm.runInContext(fs.readFileSync(path.join(dir, 'segundo-canal.cjs'), 'utf8'), ctx)
+  vm.runInContext(fs.readFileSync(path.join(dir, 'dados.cjs'), 'utf8'), ctx)
+  const O = ctx.OBS as OracleData
+  if (preset) {
+    const have = new Set(O.channels.map(c => c.id)), missing = OWN_EXTRA_IDS.filter(id => !have.has(id))
+    if (!ctx.__SEGUNDO_CANAL || missing.length) throw new Error('observatorio-seed: segundo-canal.cjs não injetou os canais extras' + (missing.length ? ': ' + missing.join(', ') : ''))
+  }
+  // the oracle's own niche of every channel, kept before the preset empties it for the channels "sem nicho"
+  const nicheOf = new Map<string, 'viagem' | 'ia'>()
+  for (const c of O.channels) if (c.niche) nicheOf.set(c.id, c.niche)
+  if (preset) applyOwnPreset(O, preset)
+  return { O, nicheOf }
 }
+
+/** uuid semeado de um canal próprio do oráculo ('tnfigueiredo' mantém o id de antes). */
+export function ownSeedUuid(siteId: string, oracleId: string): string {
+  return seedUuid(siteId, 'own-channel', oracleId === 'tnfigueiredo' ? 'own' : oracleId)
+}
+const localeOf = (c: { lang: string }): 'pt' | 'en' => (c.lang === 'en' ? 'en' : 'pt')
 
 /* ------------------------------------------------------------------ helpers */
 const DAY = 864e5, SP_OFF = 3 * 36e5
@@ -178,7 +201,8 @@ export function remapIds(x: unknown, ids: Map<string, string>): unknown {
  */
 export async function clearObservatory(siteId: string, client?: SupabaseClient): Promise<void> {
   const sb = clientOf(client)
-  const ownId = seedUuid(siteId, 'own-channel', 'own')
+  // every own channel the seed may have written: the legacy one and each extra of segundo-canal.cjs
+  const ownIds = ['tnfigueiredo', ...OWN_EXTRA_IDS].map(id => ownSeedUuid(siteId, id))
   await check('delete competitor_readings', sb.from('competitor_readings').delete().eq('site_id', siteId))
   await check('delete tasks', sb.from('youtube_intelligence_tasks').delete().eq('site_id', siteId).neq('task_type', 'diagnostico'))
   await check('delete forja_heartbeat', sb.from('forja_heartbeat').delete().eq('site_id', siteId))
@@ -186,8 +210,8 @@ export async function clearObservatory(siteId: string, client?: SupabaseClient):
   // cascades: competitor_videos → versions, daily; snapshots
   await check('delete competitor_channels', sb.from('competitor_channels').delete().eq('site_id', siteId))
   await check('delete competitor_settings', sb.from('competitor_settings').delete().eq('site_id', siteId))
-  await check('delete youtube_videos', sb.from('youtube_videos').delete().eq('site_id', siteId).eq('channel_id', ownId))
-  await check('delete youtube_channels', sb.from('youtube_channels').delete().eq('id', ownId))
+  await check('delete youtube_videos', sb.from('youtube_videos').delete().eq('site_id', siteId).in('channel_id', ownIds))
+  await check('delete youtube_channels', sb.from('youtube_channels').delete().eq('site_id', siteId).in('id', ownIds))
 }
 
 /**
@@ -204,20 +228,27 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
   if (opts.emptyWindow) throw new Error('observatorio-seed: emptyWindow is a filter, not data — use MockupState.query')
   if (opts.scenario && opts.scenario !== 'own-empty') throw new Error('observatorio-seed: unknown scenario ' + JSON.stringify(opts.scenario))
   const ownEmpty = !!opts.ownEmpty || opts.scenario === 'own-empty'
+  if (opts.ownPreset && !OWN_PRESETS[opts.ownPreset]) throw new Error('observatorio-seed: unknown ownPreset ' + JSON.stringify(opts.ownPreset))
   const sb = clientOf(client)
+  const { O, nicheOf } = loadOracleData(opts.ownPreset)
+  const ownChs = O.channels.filter(c => c.own)
+  // refused, never bent: relaxing the constraint or changing a channel's locale would seed a state that is not the mockup's
+  if (new Set(ownChs.map(localeOf)).size !== ownChs.length) {
+    throw new Error(`observatorio-seed: o preset ${opts.ownPreset} precisa de dois canais próprios com o mesmo locale; youtube_channels tem UNIQUE(site_id, locale) (plano multi-canal)`)
+  }
   await clearObservatory(siteId, sb)
 
-  const O = loadOracleData()
   const SS = O.SERIES_START
   const U = (kind: string, id: string) => seedUuid(siteId, kind, id)
-  const ownCh = O.channels.find(c => c.own)!
+  const ownIdSet = new Set(ownChs.map(c => c.id))
   const competitors = O.channels.filter(c => !c.own && (!opts.onlyProblems || c.sync.state !== 'ok'))
   const keptCh = new Set(competitors.map(c => c.id))
-  const ownVideos = O.videos.filter(v => v.ch === ownCh.id && !(ownEmpty && v.fmt === 'long' && v.ageDays <= 90))
+  // ownEmpty is the mockup's one-channel scenario: only tnfigueiredo loses its recent long videos
+  const ownVideos = O.videos.filter(v => ownIdSet.has(v.ch) && !(ownEmpty && v.ch === 'tnfigueiredo' && v.fmt === 'long' && v.ageDays <= 90))
   const compVideos = O.videos.filter(v => keptCh.has(v.ch))
   const ids = new Map<string, string>()
   for (const c of competitors) ids.set(c.id, U('channel', c.id))
-  ids.set(ownCh.id, U('own-channel', 'own'))
+  for (const c of ownChs) ids.set(c.id, ownSeedUuid(siteId, c.id))
   for (const v of compVideos) ids.set(v.id, U('video', v.id))
   for (const v of ownVideos) ids.set(v.id, U('own-video', v.id))
 
@@ -298,15 +329,14 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
   }
   await insertAll(sb, 'competitor_channel_snapshots', snapRows, 2000)
 
-  /* own channel (no series, no versions: production keeps neither for it) */
-  const ownId = ids.get(ownCh.id)!
-  await check('youtube_channels', sb.from('youtube_channels').insert({
-    id: ownId, site_id: siteId, channel_id: 'UC' + sha1('own|' + ownCh.id).slice(0, 22), handle: ownCh.handle, locale: ownCh.lang === 'en' ? 'en' : 'pt',
-    name: ownCh.name, uploads_playlist_id: 'UU' + sha1('own|' + ownCh.id).slice(0, 22), subscriber_count: ownCh.subs,
-    last_synced_at: iso(ownCh.sync.last), created_at: iso(ownCh.sync.added ?? O.OBS_START),
-  }))
+  /* own channels (no series, no versions: production keeps neither for them); `niche` is null for the preset's "sem nicho" */
+  await insertAll(sb, 'youtube_channels', ownChs.map(c => ({
+    id: ids.get(c.id), site_id: siteId, channel_id: 'UC' + sha1('own|' + c.id).slice(0, 22), handle: c.handle, locale: localeOf(c),
+    name: c.name, niche: c.niche, uploads_playlist_id: 'UU' + sha1('own|' + c.id).slice(0, 22), subscriber_count: c.subs,
+    last_synced_at: iso(c.sync.last), created_at: iso(c.sync.added ?? O.OBS_START),
+  })))
   await insertAll(sb, 'youtube_videos', ownVideos.map(v => ({
-    id: ids.get(v.id), site_id: siteId, channel_id: ownId, youtube_video_id: v.ytId, title: v.title, published_at: iso(v.pub),
+    id: ids.get(v.id), site_id: siteId, channel_id: ids.get(v.ch), youtube_video_id: v.ytId, title: v.title, published_at: iso(v.pub),
     view_count: v.views ?? 0, like_count: v.likes ?? 0, comment_count: v.comments ?? 0, duration_seconds: durSeconds(v.dur),
     updated_at: iso(v.viewsAt ?? O.NOW), tags: [],
   })))
@@ -314,7 +344,8 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
   /* readings: oracle ids → seeded uuids; the latest temas reading per niche carries the theme evidence */
   const latestTemas = new Map<string, OReading>()
   for (const r of O.forja.readings) if (r.type === 'temas' && (latestTemas.get(r.niche)?.generatedAt ?? -1) < r.generatedAt) latestTemas.set(r.niche, r)
-  const nicheOfVideo = (v: OVideo) => O.channels.find(c => c.id === v.ch)!.niche
+  // the niche of the video's channel; a channel "sem nicho" keeps the oracle's original one (its themes still exist)
+  const nicheOfVideo = (v: OVideo) => O.channels.find(c => c.id === v.ch)!.niche ?? nicheOf.get(v.ch) ?? null
   const readingRow = (r: OReading, taskId: string | null) => ({
     id: U('reading', r.id), site_id: siteId, task_id: taskId, task_type: r.type, niche: r.niche, fmt: r.fmt ?? null,
     video_id: r.target?.video ? ids.get(r.target.video) ?? null : null, model: 'Gemma 12B', generated_at: iso(r.generatedAt),
