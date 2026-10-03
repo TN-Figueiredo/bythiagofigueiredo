@@ -266,6 +266,26 @@ describe('rowsToDataset — own channel', () => {
   })
 })
 
+describe('rowsToDataset — own channel niche (N canais próprios)', () => {
+  const mk = (id: string, o: Partial<OwnChannelRow> = {}): OwnChannelRow => ({ id, channel_id: 'UC' + id, name: 'Canal ' + id, handle: '@' + id, subscriber_count: 100, last_synced_at: iso(NOW - H), ...o })
+  const ov = (id: string, ch: string): OwnVideoRow => ({ id, channel_id: ch, youtube_video_id: 'y' + id, title: 'V ' + id, view_count: 5, like_count: 1, comment_count: 0, duration_seconds: 700, published_at: iso(NOW - 10 * DAY), updated_at: iso(NOW - H), tags: [] })
+  it("niche 'ia' reaches the channel and every one of its videos", () => {
+    const ds = rowsToDataset(rows({ ownChannels: [mk('a', { niche: 'ia' })], ownVideos: [ov('v1', 'a'), ov('v2', 'a')] }), NOW)
+    expect(ds.channels[0]!.niche).toBe('ia')
+    expect(ds.videos.map(v => v.niche)).toEqual(['ia', 'ia'])
+  })
+  it.each([['absent', undefined], ['null', null], ['unknown', 'culinaria']])('niche %s → null on channel and videos', (_l, niche) => {
+    const ds = rowsToDataset(rows({ ownChannels: [mk('a', { niche })], ownVideos: [ov('v1', 'a')] }), NOW)
+    expect(ds.channels[0]!.niche).toBeNull()
+    expect(ds.videos[0]!.niche).toBeNull()
+  })
+  it('two own channels (pt/en, different niches) are both in, own, and take no slot', () => {
+    const ds = rowsToDataset(rows({ ownChannels: [mk('a', { locale: 'pt', niche: 'viagem' }), mk('b', { locale: 'en', niche: 'ia' })] }), NOW)
+    expect(ds.channels.filter(c => c.own).map(c => [c.id, c.niche])).toEqual([['a', 'viagem'], ['b', 'ia']])
+    expect(createObservatory(ds).channelSlots(75).used).toBe(0)
+  })
+})
+
 describe('expectedCurve — life day is idx-based, a hole does not shift it (Review Focus 4)', () => {
   const now = sp('2026-10-20T15:00:00')
   const dates = Array.from({ length: 9 }, (_, i) => '2026-10-' + String(5 + i).padStart(2, '0'))
@@ -483,6 +503,8 @@ describe('initials', () => {
       tnFigueiredo: 'tF', 'Luke Damant': 'LD', 'bald and bankrupt': 'bb', 'Dale Philip': 'DP', 'Paddy Doyle': 'PD', 'Leo Khev': 'LK', 'Nômade Raiz': 'NR',
       'Matheus Fonseca': 'MF', 'Vou sem volta': 'VS', 'Matt Wolfe': 'MW', 'Nate Herk': 'NH', 'Sabrina Ramonov': 'SR', 'The AI Advantage': 'AA',
       'Preguiça Artificial': 'PA', 'Esq Unltd Daily': 'EU',
+      'tnFigueiredo EN': 'tF', 'Thiago na Estrada': 'TE', 'Slow Roads': 'SR', 'Thiago testa IA': 'TI', 'Mochila Leve': 'ML',
+      'tnFigueiredo (EN)': 'tF', 'Canal PT-BR': 'Ca', EN: 'EN',
     }
     for (const [name, ini] of Object.entries(want)) expect([name, initials(name)]).toEqual([name, ini])
     expect(initials('')).toBe('?')
@@ -538,5 +560,17 @@ describe('taskRowToRequest — failure reason (R65)', () => {
     const sc = createObservatory(ds).forja.session.current('ia', { type: 'padroes-titulo' })
     expect(sc.statusText).not.toMatch(/sem código/)
     expect(sc.statusText).toMatch(/validador recusou/)
+  })
+})
+
+describe('concorrente com inscritos ocultos (Task 10)', () => {
+  it('subscriber_count null vira subs null, nunca 0; o motor não produz NaN', () => {
+    const ds = rowsToDataset(rows({ channels: [channel({ subscriber_count: null }), channel({ id: 'ch2', channel_id: 'UC2', subscriber_count: 0 })], videos: [video()] }), NOW)
+    expect(ds.channels.find(c => c.id === 'ch1')!.subs).toBeNull()
+    expect(ds.channels.find(c => c.id === 'ch2')!.subs).toBe(0)
+    const s = createObservatory(ds).channelStats('ch1', 'long')
+    expect(s.perMilSubs).toBeNull()
+    expect(s.growth30.roundingText).toBe('sem contagem')
+    expect(JSON.stringify(s)).not.toMatch(/NaN|Infinity/)
   })
 })

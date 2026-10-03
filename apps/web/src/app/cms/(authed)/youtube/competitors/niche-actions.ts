@@ -33,3 +33,16 @@ export async function setChannelNiche(channelRowId: string, niche: 'viagem' | 'i
   }
   return { ok: false }
 }
+
+export async function setOwnChannelNiche(channelRowId: string, niche: 'viagem' | 'ia' | null): Promise<{ ok: boolean }> {
+  if (niche !== null && niche !== 'viagem' && niche !== 'ia') return { ok: false }
+  const { siteId } = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!res.ok) return { ok: false }
+  const { error, data } = await getSupabaseServiceClient().from('youtube_channels').update({ niche }).eq('id', channelRowId).eq('site_id', siteId).select('id')
+  if (!error && (data?.length ?? 0) > 0) {
+    revalidatePath('/cms/youtube/competitors', 'layout')
+    return { ok: true }
+  }
+  return { ok: false }
+}

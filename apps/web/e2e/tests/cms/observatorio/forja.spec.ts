@@ -1,5 +1,5 @@
 // apps/web/e2e/tests/cms/observatorio/forja.spec.ts
-// Fidelity of the forja (Task 35) against the forja states of canais.html, mudancas.html, outliers.html, insights.html
+// Fidelity of the forja (Task 35) against the forja states of canais.html (the 03/10 one, N own channels), mudancas.html, outliers.html, insights.html
 // and historico-video.html. The moldura's selector drawer (moldura-forja.html FLOWS, :742) is the chrome's demo, not a
 // product surface (ruling R59): it is not ported, and the per-screen request states below cover the same 9 states.
 // Ruling R54: Task 35 wrote this spec skipped; Task 35b enabled it. Both viewports and both themes come from runFidelity.
@@ -26,14 +26,15 @@ const r67 = (s: RequestState): { textAllow?: Allow[] } =>
 export const REQUEST_STATES: readonly RequestState[] = ['na fila', 'trabalhando', 'publicado', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia', 'falhou', 'recusado (dado velho)']
 /** Canais: the channel drawer's forja box × the 9 request states (resumo-trocas of the open channel's niche). */
 export const CANAIS_FORJA: ScreenSpec = {
-  name: 'forja-canais', mockupFile: DIR + 'canais.html', route: '/cms/youtube/competitors',
+  // the N-own-channels canais.html of 03/10, with two own channels on both sides (?owns=2 / ownPreset '2')
+  name: 'forja-canais', mockupFile: 'docs/superpowers/mockups/2026-10-03-observatorio-seus-canais/canais.html', route: '/cms/youtube/competitors',
   mockThumbSelector: '.thumb', implThumbSelector: '[data-thumb], [data-thumb-missing]',
   compareSelector: { mockup: '#screen, #drawer, #dlgs', impl: '[data-obs-screen="canais"]' },
   textAllow: [...NOT_STORED_FU8, BALD_ROW_SUFFIX_F11],
   exclude: { mockup: [...CANAIS_TABLE_EXCLUDE.mockup, ...HANDLE_R61.mockup!], impl: CANAIS_TABLE_EXCLUDE.impl },
   // the request state, then the drawer of Matt Wolfe (the mockup's forja box lives in the channel drawer; below 1280 px the
   // open drawer is modal and makes the mockup's state bar inert, so the state is picked first)
-  states: REQUEST_STATES.map(s => ({ label: 'canais · ' + s, mockupClicks: [s, 'Matt Wolfe'], seed: { forjaState: s, forjaType: 'resumo-trocas' }, query: '?channel=<channel:matt-wolfe>', ...r67(s) })),
+  states: REQUEST_STATES.map(s => ({ label: 'canais · ' + s, mockupClicks: [s, 'Matt Wolfe'], seed: { forjaState: s, forjaType: 'resumo-trocas', ownPreset: '2' as const }, mockupQuery: '?owns=2', query: '?channel=<channel:matt-wolfe>', ...r67(s) })),
 }
 
 /** Mudanças: the forja card of the summary box × the 9 request states. */
@@ -57,7 +58,10 @@ export const OUTLIERS_FORJA: ScreenSpec = {
   targetExempt: OUTLIERS_TARGET_EXEMPT,
 }
 
-/** Insights: NONE + the 9 request states + EMPTY (insights.html:808 MOCK). */
+/**
+ * Insights: NONE + the 9 request states + EMPTY (insights.html:808 MOCK). Stays on the 02/10 mockup: it runs in Todos,
+ * where there is no own-channel card (the N-channels cards are in insights.spec.ts).
+ */
 export const INSIGHTS_FORJA: ScreenSpec = {
   name: 'forja-insights', mockupFile: DIR + 'insights.html', route: '/cms/youtube/competitors/insights',
   mockThumbSelector: '.thumb', implThumbSelector: '[data-thumb], [data-thumb-missing]',

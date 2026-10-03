@@ -272,8 +272,10 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
   const isVid = type === 'leitura-video'
   const videoId = isVid ? o.videoId ?? null : null
   const video = videoId ? obs.video(videoId) : undefined
-  const scopeNiche: NicheScope = isVid ? (video?.niche ?? o.niche) : o.niche
-  const scopeNiches: Niche[] = isVid ? (video?.niche ? [video.niche] : []) : scopeNiche === 'todos' ? ['ia', 'viagem'] : [scopeNiche]
+  // an own channel's video is never read by the forja (its id is not a competitor_videos id): no niche, nothing to ask
+  const vidNiche: Niche | null = video && !obs.channel(video.ch)?.own ? video.niche : null
+  const scopeNiche: NicheScope = isVid ? (vidNiche ?? o.niche) : o.niche
+  const scopeNiches: Niche[] = isVid ? (vidNiche ? [vidNiche] : []) : scopeNiche === 'todos' ? ['ia', 'viagem'] : [scopeNiche]
   const capabilities = obs.forja.queue.capabilities
   const capable = capabilities.includes(type)
   const sc = scenarioOf(obs, type, scopeNiche, videoId)

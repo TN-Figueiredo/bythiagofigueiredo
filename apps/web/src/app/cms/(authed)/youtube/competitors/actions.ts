@@ -65,8 +65,9 @@ export async function addCompetitorChannel(
     ytId = found.id; title = found.title
   }
 
-  const { data: own } = await supabase.from('youtube_channels').select('id').eq('site_id', siteId).eq('channel_id', ytId).maybeSingle()
-  if (own) return { ok: false, error: 'Esse é o seu canal: ele já aparece na tabela e não ocupa vaga.' }
+  const { data: owns } = await supabase.from('youtube_channels').select('id, channel_id').eq('site_id', siteId)
+  const ownList: Array<{ channel_id: string }> = owns ?? []
+  if (ownList.some(o => o.channel_id === ytId)) return { ok: false, error: (ownList.length > 1 ? 'Esse é um dos seus canais' : 'Esse é o seu canal') + ': ele já aparece na tabela e não ocupa vaga.' }
 
   const { data: existing } = await supabase
     .from('competitor_channels')

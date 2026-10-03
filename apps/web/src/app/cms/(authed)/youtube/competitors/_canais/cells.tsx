@@ -171,15 +171,27 @@ export function SyncView({ c, local, onRetry, onRemove }: { c: SyncCell; local: 
   )
 }
 
-/** Channel cell: avatar, name button (opens the drawer), niche select or "seu canal", subscribers with the rounding tip. */
+/**
+ * Channel cell (canais.html chCell): avatar, name button (opens the drawer) with the language mark of an own channel,
+ * niche select, subscribers with the rounding tip. An own channel takes two .sub lines: "seu canal" + niche, then subscribers.
+ */
 export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string; onOpen: () => void; onNiche: (n: Niche) => void }) {
   return (
     <div className="ch">
       <div className="av" style={{ background: r.color }} aria-hidden="true">{r.ini}</div>
       <div style={{ minWidth: 0 }}>
-        <button type="button" className="nmbtn" data-open={r.id} aria-label={`Abrir detalhes de ${r.name}`} onClick={onOpen}>{r.name}</button>
+        <div className="nmrow">
+          <button type="button" className="nmbtn" data-open={r.id} title={r.name} aria-label={`Abrir detalhes de ${r.name}`} onClick={onOpen}>{r.name}</button>
+          {r.lang ? <abbr className="langtag" title={r.lang.title}>{r.lang.code}</abbr> : null}
+        </div>
+        {r.own ? (
+          <div className="sub">
+            <span className="youtag">seu canal</span>
+            <NicheSelect id={r.id} name={r.name} niche={r.niche} ctx={ctx} onChange={onNiche} />
+          </div>
+        ) : null}
         <div className="sub">
-          {r.own ? <span className="youtag">seu canal</span> : <NicheSelect id={r.id} name={r.name} niche={r.niche} ctx={ctx} onChange={onNiche} />}
+          {r.own ? null : <NicheSelect id={r.id} name={r.name} niche={r.niche} ctx={ctx} onChange={onNiche} />}
           <span className="num">{r.subs}</span>
           <Tip label="Sobre o número de inscritos">{r.subsTip}</Tip>
         </div>

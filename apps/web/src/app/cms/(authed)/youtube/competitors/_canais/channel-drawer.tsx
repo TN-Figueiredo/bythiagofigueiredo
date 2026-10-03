@@ -96,7 +96,9 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
           <div style={{ minWidth: 0 }}>
             <h3 id={nameId}>{d.name}</h3>
             <div className="meta">
-              {d.own ? <span className="youtag">seu canal</span> : <NicheSelect id={d.id} name={d.name} niche={d.niche} ctx="drawer" onChange={onNiche} />}
+              {d.own ? <span className="youtag">seu canal</span> : null}
+              {d.own && d.lang ? <abbr className="langtag" title={d.lang.title}>{d.lang.code}</abbr> : null}
+              <NicheSelect id={d.id} name={d.name} niche={d.niche} ctx="drawer" onChange={onNiche} />
               {d.handle ? <a className="handle" href={d.url} target="_blank" rel="noopener noreferrer">{d.handle}</a> : null}
               <span>{d.subsText}</span>
               <span>{d.cov}</span>

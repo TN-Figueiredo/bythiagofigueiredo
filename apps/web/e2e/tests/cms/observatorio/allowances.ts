@@ -4,7 +4,8 @@ import type { Allow, Exclude } from './fidelity'
 
 /**
  * Canais table (every Canais screen, the forja's channel drawer included):
- *  - R60 (FU-5): no daily views / subscriber history of the own channel — the own row's views/day (3rd) and growth cells;
+ *  - R60 (FU-5): no daily views / subscriber history of an own channel — every own row's views/day (3rd) and growth cells
+ *    (`tr.you` matches each row of the "Seus canais" group);
  *  - R62: the error row's "Atualizar handle…" button and its "Mudou de handle ou foi removido?" message (Task 23);
  *  - R64: the table's sideways-scroll hint follows the CMS shell's real width.
  */
@@ -17,6 +18,23 @@ export const CANAIS_TABLE_EXCLUDE: Required<Exclude> = {
  * diário"; canais.html prints it only for atrasado/erro — only bald's views/day cell suffix.
  */
 export const BALD_ROW_SUFFIX_F11: Allow = { drop: /(?<=8,4 mil\/dia, n = 53), até o registro diário de 24\/10 12:00/ }
+/**
+ * R60 (FU-5), drawer of an OWN channel: no daily views and no subscriber history in production, so the value and the
+ * sub-line of "Views/dia" (2nd stat) and of "Crescimento, 30 d" (3rd stat) differ — the labels stay compared.
+ */
+export const OWN_DRAWER_R60: Required<Exclude> = {
+  mockup: ['#dStats > div:nth-child(2) > :not(:first-child)', '#dStats > div:nth-child(3) > :not(:first-child)'],
+  impl: ['.dstats > div:nth-child(2) > :not(:first-child)', '.dstats > div:nth-child(3) > :not(:first-child)'],
+}
+/**
+ * R79, drawer of an OWN channel: the coverage line (last span of the header meta) drops ", com views diárias desde …" —
+ * production keeps no daily views of an own channel, so the line must not claim them (the mockup does). Only that element,
+ * only the own-channel drawer state; the "Views/dia" sub-line ("sem views diárias do seu canal") is already out via R60.
+ */
+export const OWN_DRAWER_R79: Required<Exclude> = {
+  mockup: ['#dMeta > span:last-child'],
+  impl: ['.cn-drawer .meta > span:last-child'],
+}
 /** R61 (FU-6): competitor_channels has no handle column — the drawer's handle link only. */
 export const HANDLE_R61: Exclude = { mockup: ['#dMeta a.handle'] }
 

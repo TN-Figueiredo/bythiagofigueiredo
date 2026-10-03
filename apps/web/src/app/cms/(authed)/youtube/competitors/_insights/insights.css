@@ -110,20 +110,32 @@
 [data-obs-screen="insights"] .prev{margin:0 18px 16px;border:1px solid var(--border-subtle);border-radius:6px}
 [data-obs-screen="insights"] .prev>summary{cursor:pointer;color:var(--muted);padding:10px 14px;min-height:36px;font-size:12.5px}
 
-/* vs você */
-[data-obs-screen="insights"] .you-row{padding:10px 0;border-top:1px solid var(--border-subtle)}
-[data-obs-screen="insights"] .you-row:first-of-type{border-top:0;padding-top:2px}
-[data-obs-screen="insights"] .you-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
-[data-obs-screen="insights"] .you-top .lbl{color:var(--muted);font-size:12.5px}
-[data-obs-screen="insights"] .you-top .val{font-size:13px;text-align:right;white-space:nowrap}
-[data-obs-screen="insights"] .scale{position:relative;height:16px;margin:6px 0 2px}
-[data-obs-screen="insights"] .scale::before{content:"";position:absolute;left:0;right:0;top:7px;height:2px;background:var(--dim);border-radius:1px}
-[data-obs-screen="insights"] .scale .nich{position:absolute;top:0;width:3px;height:16px;background:var(--text);transform:translateX(-1px);border-radius:1px}
-[data-obs-screen="insights"] .scale .me{position:absolute;top:1px;width:14px;height:14px;border-radius:50%;background:var(--accent);transform:translateX(-7px);border:2px solid var(--surface)}
-[data-obs-screen="insights"] .ends{display:flex;justify-content:space-between;font-size:10.5px;color:var(--dim)}
-[data-obs-screen="insights"] .you-cmp{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--muted);margin-top:2px;flex-wrap:wrap}
+/* Você no nicho para N canais: tabela (uma linha por canal seu, métricas em colunas, nicho uma vez só) */
+[data-obs-screen="insights"] .ybox{overflow-x:auto}
+[data-obs-screen="insights"] .ybox:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[data-obs-screen="insights"] .yhint{margin:0 0 6px;font-size:11.5px;color:var(--muted)}
+[data-obs-screen="insights"] table.yt{border-collapse:collapse;width:100%;min-width:640px}
+[data-obs-screen="insights"] .yt th,[data-obs-screen="insights"] .yt td{text-align:left;vertical-align:top;padding:10px 14px 10px 0;border-top:1px solid var(--border-subtle);font-weight:400}
+[data-obs-screen="insights"] .yt th:last-child,[data-obs-screen="insights"] .yt td:last-child{padding-right:10px}
+[data-obs-screen="insights"] .yt th:first-child{padding-left:10px}
+[data-obs-screen="insights"] .yt thead th{border-top:0;padding-top:0;vertical-align:bottom;font-size:12.5px;font-weight:500;color:var(--text);line-height:1.35}
+[data-obs-screen="insights"] .yt thead .unit{display:block;font-weight:400;font-size:11.5px;color:var(--muted)}
+[data-obs-screen="insights"] .yt tbody th{width:27%;min-width:170px}
+[data-obs-screen="insights"] .yt .nm{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-weight:500;line-height:1.35}
+[data-obs-screen="insights"] .yt .nm a{text-decoration:underline;text-decoration-color:var(--border-strong);text-underline-offset:3px}
+[data-obs-screen="insights"] .yt tr.ref th,[data-obs-screen="insights"] .yt tr.ref td{background:var(--surface-2);border-top-color:var(--border)}
+[data-obs-screen="insights"] .yt tr.ref + tr th,[data-obs-screen="insights"] .yt tr.ref + tr td{border-top-color:var(--border)}
+[data-obs-screen="insights"] .yt .v{font-size:15px;line-height:1.35}
+[data-obs-screen="insights"] .yt .v.nd,[data-obs-screen="insights"] .yt .vb.nd{font-size:13px;color:var(--muted)}
+[data-obs-screen="insights"] .yt .vd{font-size:12.5px;line-height:1.35;white-space:nowrap}
+[data-obs-screen="insights"] .yt .vb{font-size:12px;line-height:1.35;color:var(--muted)}
+[data-obs-screen="insights"] .langtag{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--muted);border:1px solid var(--border-strong);border-radius:5px;padding:0 5px;height:20px;display:inline-flex;align-items:center;text-decoration:none;cursor:help;white-space:nowrap}
+[data-obs-screen="insights"] .ynote{margin:10px 0 0;font-size:12.5px;color:var(--muted)}
+[data-obs-screen="insights"] .ynote a{color:var(--text);text-underline-offset:3px}
+[data-obs-screen="insights"] .empty .btn{font-size:13px}
+/* o card Você no nicho ocupa a largura toda; Cadência e Lacunas dividem a linha seguinte (mesma posição do mockup: antes do bloco min-width:1181px lá embaixo) */
+@media (min-width:1181px){[data-obs-screen="insights"] #cadCard{grid-row:auto}}
 [data-obs-screen="insights"] .up{color:var(--success)} [data-obs-screen="insights"] .down{color:var(--danger)} [data-obs-screen="insights"] .flat{color:var(--muted)}
-[data-obs-screen="insights"] .youhead{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 [data-obs-screen="insights"] .av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:10.5px;font-weight:600;color:#1A1714;flex-shrink:0}
 [data-obs-screen="insights"] .empty{padding:6px 0 4px}
 [data-obs-screen="insights"] .empty h3{font-size:14px;font-weight:600;margin:0 0 6px}
@@ -200,6 +212,8 @@
 [data-obs-screen="insights"] .grow:first-child{border-top:0;padding-top:2px}
 [data-obs-screen="insights"] .gtag{font-weight:500}
 [data-obs-screen="insights"] .gsub{font-size:12px;color:var(--muted)}
+[data-obs-screen="insights"] #gapCard .grow{grid-template-columns:minmax(0,1fr)}
+[data-obs-screen="insights"] #gapCard .glack{font-size:12.5px;margin-top:3px}
 [data-obs-screen="insights"] .link{background:none;border:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:6px 4px;min-height:32px;font-size:12.5px}
 [data-obs-screen="insights"] .link:hover{color:var(--text)}
 

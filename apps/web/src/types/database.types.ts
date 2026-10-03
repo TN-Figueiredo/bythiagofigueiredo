@@ -8895,6 +8895,7 @@ export type Database = {
           last_synced_at: string | null
           locale: string
           name: string
+          niche: string | null
           schedule_label: string | null
           site_id: string
           subscriber_count: number
@@ -8916,6 +8917,7 @@ export type Database = {
           last_synced_at?: string | null
           locale: string
           name: string
+          niche?: string | null
           schedule_label?: string | null
           site_id: string
           subscriber_count?: number
@@ -8937,6 +8939,7 @@ export type Database = {
           last_synced_at?: string | null
           locale?: string
           name?: string
+          niche?: string | null
           schedule_label?: string | null
           site_id?: string
           subscriber_count?: number

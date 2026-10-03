@@ -151,3 +151,72 @@ describe('setChannelNiche', () => {
     expect(revalidatePathMock).not.toHaveBeenCalled()
   })
 })
+
+describe('setOwnChannelNiche', () => {
+  afterEach(() => {
+    vi.resetModules()
+    vi.clearAllMocks()
+  })
+
+  function setup(opts: { auth?: { ok: boolean; user?: { id: string } }; result?: { error: Error | null; data: unknown[] | null } } = {}) {
+    vi.resetModules()
+    vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
+    vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => opts.auth ?? { ok: true, user: { id: 'u1' } } }))
+    const revalidatePathMock = vi.fn()
+    vi.doMock('next/cache', () => ({ revalidatePath: revalidatePathMock }))
+    const selectMock = vi.fn(async () => opts.result ?? { error: null, data: [{ id: 'ch1' }] })
+    const secondEqMock = vi.fn(() => ({ select: selectMock }))
+    const firstEqMock = vi.fn(() => ({ eq: secondEqMock }))
+    const updateMock = vi.fn(() => ({ eq: firstEqMock }))
+    const fromMock = vi.fn(() => ({ update: updateMock }))
+    const clientMock = vi.fn(() => ({ from: fromMock }))
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: clientMock }))
+    return { revalidatePathMock, fromMock, updateMock, firstEqMock, secondEqMock, clientMock }
+  }
+  const load = async () => (await import('@/app/cms/(authed)/youtube/competitors/niche-actions')).setOwnChannelNiche
+
+  it('rejects invalid niche values without touching the DB or revalidating', async () => {
+    const m = setup()
+    // @ts-expect-error testing invalid input
+    expect(await (await load())('ch1', 'culinaria')).toEqual({ ok: false })
+    expect(m.clientMock).not.toHaveBeenCalled()
+    expect(m.revalidatePathMock).not.toHaveBeenCalled()
+  })
+
+  it('without edit permission: refused, the service client is never created', async () => {
+    const m = setup({ auth: { ok: false } })
+    expect(await (await load())('ch1', 'ia')).toEqual({ ok: false })
+    expect(m.clientMock).not.toHaveBeenCalled()
+    expect(m.updateMock).not.toHaveBeenCalled()
+    expect(m.revalidatePathMock).not.toHaveBeenCalled()
+  })
+
+  it('DB error (also: column does not exist yet) -> ok:false, no revalidate', async () => {
+    const m = setup({ result: { error: new Error('42703'), data: null } })
+    expect(await (await load())('ch1', 'viagem')).toEqual({ ok: false })
+    expect(m.revalidatePathMock).not.toHaveBeenCalled()
+  })
+
+  it('a channel id of another site matches zero rows -> ok:false, no revalidate, filtered by site_id', async () => {
+    const m = setup({ result: { error: null, data: [] } })
+    expect(await (await load())('other-site-ch', 'ia')).toEqual({ ok: false })
+    expect(m.secondEqMock).toHaveBeenCalledWith('site_id', 's1')
+    expect(m.revalidatePathMock).not.toHaveBeenCalled()
+  })
+
+  it('success: updates youtube_channels filtered by id and site_id, then revalidates', async () => {
+    const m = setup()
+    expect(await (await load())('ch1', 'ia')).toEqual({ ok: true })
+    expect(m.fromMock).toHaveBeenCalledWith('youtube_channels')
+    expect(m.updateMock).toHaveBeenCalledWith({ niche: 'ia' })
+    expect(m.firstEqMock).toHaveBeenCalledWith('id', 'ch1')
+    expect(m.secondEqMock).toHaveBeenCalledWith('site_id', 's1')
+    expect(m.revalidatePathMock).toHaveBeenCalledWith('/cms/youtube/competitors', 'layout')
+  })
+
+  it('null clears the niche', async () => {
+    const m = setup()
+    expect(await (await load())('ch1', null)).toEqual({ ok: true })
+    expect(m.updateMock).toHaveBeenCalledWith({ niche: null })
+  })
+})

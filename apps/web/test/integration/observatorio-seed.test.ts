@@ -10,7 +10,7 @@ import { createObservatory } from '@/lib/youtube/observatorio'
 import { requestStateOf } from '@/lib/youtube/observatorio/forja/states'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
 import { loadOracle } from '../youtube/observatorio/oracle'
-import { seedObservatory, clearObservatory, seedUuid, ORACLE_NOW } from '../../e2e/fixtures/observatorio-seed'
+import { seedObservatory, clearObservatory, seedUuid, ownSeedUuid, ORACLE_NOW } from '../../e2e/fixtures/observatorio-seed'
 
 describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
   let sb: ReturnType<typeof getSupabaseServiceClient>
@@ -62,6 +62,54 @@ describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
     const pub = obs.forja.requests.filter(r => r.state === 'publicado' && r.type === 'padroes-titulo')
     expect(pub.length).toBeGreaterThan(0)
     for (const r of pub) expect([r.readingId, obs.forja.readings.map(x => x.id).includes(r.readingId!), obs.forja.byId[r.readingId!]?.type]).toEqual([r.readingId, true, 'padroes-titulo'])
+  }, 120_000)
+
+  it('seed legado (sem ownPreset): um canal próprio, com o nicho do oráculo (viagem)', async () => {
+    await seedObservatory(siteId, {}, sb)
+    const ds = await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb })
+    expect(ds.channels.filter(c => c.own).map(c => [c.name, c.niche])).toEqual([['tnFigueiredo', 'viagem']])
+  }, 120_000)
+
+  it("ownPreset '2': dois canais próprios, os dois de Viagem, na ordem R73; os concorrentes não mudam", async () => {
+    await seedObservatory(siteId, { ownPreset: '2' }, sb)
+    const ds = await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb })
+    const owns = ds.channels.filter(c => c.own)
+    expect(owns).toHaveLength(2)
+    expect(owns.map(c => c.niche)).toEqual(['viagem', 'viagem'])
+    expect(owns.map(c => c.id).sort()).toEqual([ownSeedUuid(siteId, 'tnfigueiredo'), ownSeedUuid(siteId, 'tnfigueiredo-en')].sort())
+    const obs = createObservatory(ds)
+    expect(obs.ownChannels().map(c => c.name)).toEqual(['tnFigueiredo', 'tnFigueiredo EN'])
+    // each own channel carries its own videos (the dado que não existe: a channel seeded without videos would pass the counts)
+    for (const c of owns) expect({ c: c.name, n: ds.videos.filter(v => v.ch === c.id).length > 0 }).toEqual({ c: c.name, n: true })
+    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+  }, 120_000)
+
+  it("ownPreset '1': o mesmo canal próprio do seed legado, com o mesmo id", async () => {
+    await seedObservatory(siteId, { ownPreset: '1' }, sb)
+    const ds = await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb })
+    expect(ds.channels.filter(c => c.own).map(c => [c.id, c.name, c.niche])).toEqual([[seedUuid(siteId, 'own-channel', 'own'), 'tnFigueiredo', 'viagem']])
+    expect(createObservatory(ds).tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+  }, 120_000)
+
+  it("ownPreset '5', 'mix' e 'zero' são recusados (UNIQUE(site_id, locale)) ANTES de qualquer escrita", async () => {
+    await seedObservatory(siteId, { ownPreset: '2' }, sb)
+    for (const p of ['5', 'mix', 'zero'] as const) {
+      await expect(seedObservatory(siteId, { ownPreset: p }, sb)).rejects.toThrow(`o preset ${p} precisa de dois canais próprios com o mesmo locale; youtube_channels tem UNIQUE(site_id, locale)`)
+    }
+    // the refusal left the previous seed untouched (it did not clear the site first)
+    const r = await sb.from('youtube_channels').select('id', { count: 'exact', head: true }).eq('site_id', siteId)
+    expect(r.count).toBe(2)
+  }, 120_000)
+
+  it('clearObservatory tira todos os canais próprios semeados (o legado e os extras) e os vídeos deles', async () => {
+    await seedObservatory(siteId, { ownPreset: '2' }, sb)
+    const before = await sb.from('youtube_videos').select('id', { count: 'exact', head: true }).eq('site_id', siteId)
+    expect(before.count).toBeGreaterThan(0)
+    await clearObservatory(siteId, sb)
+    for (const t of ['youtube_channels', 'youtube_videos'] as const) {
+      const r = await sb.from(t).select('id', { count: 'exact', head: true }).eq('site_id', siteId)
+      expect({ t, n: r.count }).toEqual({ t, n: 0 })
+    }
   }, 120_000)
 
   it('is idempotent: seeding twice gives the same counts (clear runs first)', async () => {

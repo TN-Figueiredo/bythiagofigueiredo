@@ -7,6 +7,7 @@ import { PENDING_SECTIONS, NOT_PORTED, NOT_PORTED_TESTS } from './suite-pending'
 import type { Dataset, ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
 import { createObservatory, type Observatory } from '@/lib/youtube/observatorio'
 import { forjaScenarios } from './forja-scenarios'
+import { OWN_EXTRA_IDS, applyOwnPreset, type OwnPreset } from '../../fixtures/observatorio/own-presets'
 
 const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../fixtures/observatorio')
 export type Oracle = Record<string, any>
@@ -16,6 +17,20 @@ export function loadOracle(): Oracle {
   vm.createContext(ctx)
   vm.runInContext(fs.readFileSync(path.join(DIR, 'dados.cjs'), 'utf8'), ctx)
   return ctx.OBS as Oracle
+}
+
+/** O oráculo com os canais próprios extras (segundo-canal.cjs ANTES de dados.cjs, no mesmo contexto vm) e o preset aplicado. */
+export function loadOracleOwns(preset: OwnPreset): Oracle {
+  const ctx: Record<string, unknown> = { console: { log() {}, error() {} } }
+  vm.createContext(ctx)
+  vm.runInContext(fs.readFileSync(path.join(DIR, 'segundo-canal.cjs'), 'utf8'), ctx)
+  vm.runInContext(fs.readFileSync(path.join(DIR, 'dados.cjs'), 'utf8'), ctx)
+  const obs = ctx.OBS as Oracle | undefined
+  if (!ctx.__SEGUNDO_CANAL || !obs) throw new Error('segundo-canal.cjs não injetou os canais extras')
+  const have = new Set((obs.channels as Array<{ id: string }>).map(c => c.id))
+  const missing = OWN_EXTRA_IDS.filter(id => !have.has(id))
+  if (missing.length) throw new Error(`canais extras ausentes do oráculo: ${missing.join(', ')}`)
+  return applyOwnPreset(obs as never, preset) as Oracle
 }
 
 const VIDEO_INPUT: (keyof ObsVideo)[] = ['id', 'ch', 'niche', 'fmt', 'pub', 'ageDays', 'tracked', 'title', 'theme', 'formulas', 'url', 'ytId', 'dur', 'views', 'viewsAt', 'likes', 'comments', 'series', 'firstIdx', 'titles', 'thumbs', 'descs']
