@@ -25,6 +25,7 @@ export function createObservatory(ds: Dataset, _opts?: { seriesStartLabel?: stri
   return {
     NOW: ds.now, SERIES_START: ds.seriesStart, DAY: 864e5, H: 36e5,
     channels: ds.channels, videos: ds.videos, channel: id => CH.get(id), video: id => V.get(id),
+    // STUB — replaced when 'contagens das abas' is ported (Task 16)
     TAB_COUNTS: { todos: { canais: 14, mud: 18, out: 11 }, viagem: { canais: 8, mud: 8, out: 5 }, ia: { canais: 6, mud: 10, out: 6 } },
     RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, NICHES, date: clock, fmt, median, quant, bandOf, winOf, tierOf,
     SYNC: { last, next, text: 'sincronizado ' + clock.ago(last), title: clock.dm(last) + ' ' + clock.hm(last) + ' (SP)', nextText: next ? 'próxima às ' + clock.hm(next) : null },

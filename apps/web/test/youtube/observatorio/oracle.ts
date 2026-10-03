@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
+import { PENDING_SECTIONS, NOT_PORTED, NOT_PORTED_TESTS } from './suite-pending'
 import type { Dataset, ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
 
 const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../fixtures/observatorio')
@@ -39,11 +40,14 @@ export function datasetFromOracle(o: Oracle): Dataset {
  * The suite runs some setup code eagerly (outside test()), e.g. READ_TEXTS calls O.forja.requestScenario.
  * Until the facade is fully ported, a member missing from the facade resolves to an inert "pending" stand-in
  * (callable, chainable, enumerates empty) so registration does not abort. On coercion it yields a MARK string, and
- * runMockupSuite forces ok=false on any result whose detail carries it, so a ported assertion that reaches a
- * missing member fails loudly.
+ * runMockupSuite also counts touches per result and forces ok=false on any non-exempt (ported) result that
+ * touched a stand-in, however it used it (truthiness, iteration, ...).
  */
 const MARK = '\u0000NOT-PORTED:'
+/** Touch counter: every creation of a stand-in (a missing member read, or a call on a stand-in) increments it. */
+let touches = 0
 function pending(label: string): any {
+  touches++
   const fn = () => pending(label + '()')
   return new Proxy(fn, {
     get: (_t, k) => {
@@ -70,16 +74,24 @@ function lenient(target: any, label = 'OBS'): any {
 
 export interface SuiteResult { name: string; section: string; ok: boolean; detail: string }
 /** Runs dados-teste.html's <script id="tests"> VERBATIM with root.OBS = facade. */
-export function runMockupSuite(facade: unknown): SuiteResult[] {
-  const html = fs.readFileSync(path.join(DIR, 'dados-teste.html'), 'utf8')
+export function runMockupSuite(facade: unknown, htmlOverride?: string): SuiteResult[] {
+  const html = htmlOverride ?? fs.readFileSync(path.join(DIR, 'dados-teste.html'), 'utf8')
   let src = html.match(/<script id="tests">([\s\S]*?)<\/script>/)![1]!
   const before = src
   src = src.replace(/\/\* ---------- (.+?) ---------- \*\//g, (_m, s: string) => `root.__SEC = ${JSON.stringify(s)};`)
-  src = src.replace('R.push({ name, ok, detail });', 'R.push({ name, ok, detail, section: root.__SEC });')
+  src = src.replace('R.push({ name, ok, detail });', 'R.push({ name, ok, detail, section: root.__SEC, touchAt: root.__TOUCH() });')
   if (src === before || !src.includes('section: root.__SEC')) throw new Error('mockup suite instrumentation failed — dados-teste.html changed shape')
-  const ctx: Record<string, unknown> = { OBS: lenient(facade as object), console: { log() {}, error() {} } }
+  touches = 0
+  const ctx: Record<string, unknown> = { OBS: lenient(facade as object), __TOUCH: () => touches, console: { log() {}, error() {} } }
   vm.createContext(ctx)
   vm.runInContext(src, ctx)
-  const results = (ctx.__OBS_TEST as { results: SuiteResult[] }).results
-  return results.map(r => (String(r.detail).includes(MARK) ? { ...r, ok: false } : r))
+  const raw = (ctx.__OBS_TEST as { results: (SuiteResult & { touchAt: number })[] }).results
+  let prev = 0
+  return raw.map(({ touchAt, ...r }) => {
+    const touched = touchAt - prev
+    prev = touchAt
+    const exempt = PENDING_SECTIONS.has(r.section) || NOT_PORTED.has(r.section) || NOT_PORTED_TESTS.has(r.name)
+    if (!exempt && touched > 0) return { ...r, ok: false, detail: 'touched missing facade member' }
+    return String(r.detail).includes(MARK) ? { ...r, ok: false } : r
+  })
 }
