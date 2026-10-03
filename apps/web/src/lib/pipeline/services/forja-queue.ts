@@ -190,10 +190,16 @@ export async function askReading(ctx: ServiceContext, input: AskInput, now: numb
   const opts: SessionOpts = {
     capabilities: ds.queue.capabilities,
     eligible: n => obs.forja.eligibleChannels(n),
-    videoOf: id => { const v = obs.video(id); return v ? { niche: v.niche, title: v.title } : undefined },
+    videoOf: id => { const v = obs.video(id); return v ? { niche: obs.channel(v.ch)?.own ? null : v.niche, title: v.title } : undefined },
   }
   const toRequests = (rs: TaskRow[]) => rs.map(r => taskRowToRequest(r, lastPollAt, now)).filter((q): q is ForjaRequest => q != null)
   const target = { type, video: videoId ?? null }
+  // a video of an own channel lives in youtube_videos, not competitor_videos (target_video_id's FK): never inserted
+  const targetVideo = type === 'leitura-video' && videoId ? obs.video(videoId) : undefined
+  if (targetVideo && obs.channel(targetVideo.ch)?.own) {
+    const reason = 'A forja ainda não lê vídeos dos seus canais.'
+    return ok({ ok: false, reason, results: [{ niche: targetVideo.niche ?? scope as Niche, ok: false, reason }] })
+  }
   const plan = planAsk(toRequests(rows), machine, clock, opts, scope, target)
 
   const fmt = fmtFor(type, parsed.data.fmt)

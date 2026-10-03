@@ -720,6 +720,8 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
 
 /* ------------------------------------------------------------------ forja (historico-video.html renderForja) */
 function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoView, 'forja' | 'forjaCard'> {
+  // no product sentence explains "own video" and the untracked one says something else: the block is simply not shown
+  if (ch.own) return { forja: null, forjaCard: null }
   const D = obs.date, F = obs.fmt
   const forja = buildForjaView(obs, { screen: 'historico', niche: v.niche ?? 'todos', videoId: v.id })
   const sc = obs.forja.session.current(null, { type: 'leitura-video', video: v.id })

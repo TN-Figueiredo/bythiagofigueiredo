@@ -185,7 +185,8 @@ function createForja(ctx: ForjaCtx, ds: Dataset, clock: Clock, CH: Map<string, O
   const tests = testScenarios?.({ clock, videoNiche: id => V.get(id)?.niche ?? null, lastPollAt: lastPollAt ?? clock.now, tickMinutes: ds.queue.tickMinutes, registerReading: r => { ctx.READ[r.id] = r } })
   const sessionOpts = (base: string, type: string, video: string | null): SessionOpts => ({
     capabilities: ds.queue.capabilities, eligible: n => eligibleChannels(ctx, n),
-    videoOf: id => { const v = V.get(id); return v ? { niche: v.niche, title: v.title } : undefined },
+    // own videos are not in competitor_videos (the request's target): no niche = nothing to ask (final review F1)
+    videoOf: id => { const v = V.get(id); return v ? { niche: CH.get(v.ch)?.own ? null : v.niche, title: v.title } : undefined },
     defaultType: type, defaultVideo: video,
     // the mockup's single-niche scenario has its own times (see SessionOpts.singleBase); only with test scenarios
     singleBase: tests && base !== 'sem pedido' ? (n, t) => tests.build(base, { niche: n, type: t })?.requests ?? null : undefined,
