@@ -42,9 +42,9 @@ describe('São Paulo clock', () => {
   it('dmOrDmy compares the year with today, not a literal', () => {
     expect(c.dmOrDmy(sp('2026-03-05T12:00:00'))).toBe('05/03')
     expect(c.dmOrDmy(sp('2025-03-05T12:00:00'))).toBe('05/03/2025')
-    const next = createClock(sp('2027-01-10T10:00:00'), START, SNAP0)
-    expect(next.dmOrDmy(sp('2026-03-05T12:00:00'))).toBe('05/03/2026')
-    expect(next.dmOrDmy(sp('2027-03-05T12:00:00'))).toBe('05/03')
+    const prev = createClock(sp('2025-01-10T10:00:00'), START, SNAP0)
+    expect(prev.dmOrDmy(sp('2024-03-05T12:00:00'))).toBe('05/03/2024')
+    expect(prev.dmOrDmy(sp('2025-03-05T12:00:00'))).toBe('05/03')
   })
   it('dur', () => { expect(c.dur(3.2 * DAY, true)).toBe('≈ 3 d'); expect(c.dur(10.5 * 36e5)).toBe('10 h 30 min') })
 })

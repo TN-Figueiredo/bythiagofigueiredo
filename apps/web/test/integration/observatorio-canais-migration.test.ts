@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 describe.skipIf(skipIfNoLocalDb())('migration observatorio_canais', () => {
-  const sb = getSupabaseServiceClient()
+  let sb: ReturnType<typeof getSupabaseServiceClient>
+  beforeAll(() => { sb = getSupabaseServiceClient() })
   it('competitor_channels has niche, last_ok_synced_at, sync_error_since', async () => {
     const { error } = await sb.from('competitor_channels').select('niche, last_ok_synced_at, sync_error_since').limit(1)
     expect(error).toBeNull()

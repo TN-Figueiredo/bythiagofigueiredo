@@ -3,7 +3,8 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 describe.skipIf(skipIfNoLocalDb())('migration observatorio_versoes', () => {
-  const sb = getSupabaseServiceClient()
+  let sb: ReturnType<typeof getSupabaseServiceClient>
+  beforeAll(() => { sb = getSupabaseServiceClient() })
   let videoId = ''
   beforeAll(async () => {
     const { data: site } = await sb.from('sites').select('id').limit(1).single()

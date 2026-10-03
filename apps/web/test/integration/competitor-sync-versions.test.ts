@@ -29,7 +29,8 @@ function apiFetch(newTitle: string, thumbBytes: Buffer): typeof fetch {
 }
 
 describe.skipIf(skipIfNoLocalDb())('syncCompetitorChannel versions', () => {
-  const sb = getSupabaseServiceClient()
+  let sb: ReturnType<typeof getSupabaseServiceClient>
+  beforeAll(() => { sb = getSupabaseServiceClient() })
   let siteId = '', chId = '', vidId = ''
   beforeAll(async () => {
     siteId = (await sb.from('sites').select('id').limit(1).single()).data!.id
@@ -80,7 +81,8 @@ describe.skipIf(skipIfNoLocalDb())('syncCompetitorChannel versions', () => {
 })
 
 describe.skipIf(skipIfNoLocalDb())('apply_competitor_version_plan atomicity (R22)', () => {
-  const sb = getSupabaseServiceClient()
+  let sb: ReturnType<typeof getSupabaseServiceClient>
+  beforeAll(() => { sb = getSupabaseServiceClient() })
   it('a violating change row rolls back the close and the open', async () => {
     const siteId = (await sb.from('sites').select('id').limit(1).single()).data!.id
     await sb.from('competitor_channels').delete().eq('site_id', siteId).eq('channel_id', 'UCatom')
