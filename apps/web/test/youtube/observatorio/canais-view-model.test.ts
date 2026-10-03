@@ -288,3 +288,34 @@ describe('Canais view model — gaveta e filtro de nicho (requisito 9)', () => {
     expect(viewOf('2', { channel: 'luke-damant' }).drawer!.lang).toBeNull()
   })
 })
+
+// Plano "N canais próprios", Task 10 (FU-11): inscritos ocultos
+describe('inscritos ocultos pelo canal (subs === null)', () => {
+  const dsH = datasetFromOracle(loadOracleOwns('1'))
+  const target = (() => {
+    const o = createObservatory(dsH)
+    return dsH.channels.find(c => !c.own && o.channelStats(c.id, 'long').vpdMedian != null)!
+  })()
+  const hidden = structuredClone(dsH)
+  hidden.channels.find(c => c.id === target.id)!.subs = null
+  const oH = createObservatory(hidden)
+  const rowOf = (p: Partial<CanaisParams>) => buildCanaisView(oH, { niche: 'todos', limit: 75, ...p }).groups.flatMap(g => g.rows).find(r => r.id === target.id)!
+  it('a linha diz Inscritos ocultos e a dica diz que o canal esconde a contagem', () => {
+    const r = rowOf({})
+    expect(r.subs).toBe('Inscritos ocultos')
+    expect(r.subsTip).toBe('Este canal esconde a contagem de inscritos no YouTube.')
+    expect(JSON.stringify(r)).not.toMatch(/NaN|Infinity|exato|\b0 inscritos/)
+  })
+  it('escala por mil inscritos: a célula aponta o Absoluto, nunca "Nenhum vídeo longo acompanhado."', () => {
+    expect(rowOf({ scale: 'per-mil' }).vpd).toBe('Inscritos ocultos: veja em Absoluto.')
+    const cell = buildCanaisView(oH, { niche: 'todos', limit: 75 }).groups.flatMap(g => g.rows).find(r => r.id === target.id)!.cells.vpd
+    expect(cell).toMatchObject({ kind: 'na', title: 'O canal não informa os inscritos; veja a escala Absoluto.' })
+  })
+  it('escala Absoluto: a célula mostra o número', () => {
+    expect(rowOf({ scale: 'abs' }).vpd).toMatch(/^[\d.,]+/)
+    expect(rowOf({ scale: 'abs' }).vpd).not.toMatch(/Inscritos ocultos|Nenhum/)
+  })
+  it('gaveta: "inscritos ocultos pelo canal"', () => {
+    expect(buildCanaisView(oH, { niche: 'todos', limit: 75, channel: target.id }).drawer!.subsText).toBe('inscritos ocultos pelo canal')
+  })
+})

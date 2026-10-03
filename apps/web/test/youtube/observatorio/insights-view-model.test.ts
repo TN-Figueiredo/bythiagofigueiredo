@@ -674,3 +674,25 @@ describe('Insights view model — Lacunas with N own channels', () => {
     expect(src.match(/ownCoverage\(/g)!.length).toBeGreaterThan(0)
   })
 })
+
+// Task 10 (FU-11): inscritos ocultos
+describe('Insights — concorrentes com inscritos ocultos', () => {
+  const hide = (pick: (c: Dataset['channels'][number]) => boolean): Dataset => {
+    const ds = structuredClone(DS['2'])
+    for (const c of ds.channels) if (pick(c)) c.subs = null
+    return ds
+  }
+  const foot = (ds: Dataset) => buildInsightsView(createObservatory(ds), { niche: 'viagem' }).youInNiche!.foot!
+  it('o rodapé nomeia o maior concorrente COM contagem, ignorando o oculto', () => {
+    const comps = DS['2'].channels.filter(c => !c.own && c.niche === 'viagem').sort((a, b) => (b.subs ?? 0) - (a.subs ?? 0))
+    expect(comps.length).toBeGreaterThan(1)
+    const f = foot(hide(c => c.id === comps[0]!.id))
+    expect(f).toContain(comps[1]!.name + ' tem ')
+    expect(f).not.toContain(comps[0]!.name + ' tem ')
+  })
+  it('nicho só com canais ocultos: o rodapé termina em "Só métricas relativas."', () => {
+    const f = foot(hide(c => !c.own && c.niche === 'viagem'))
+    expect(f.endsWith('Só métricas relativas.')).toBe(true)
+    expect(f).not.toMatch(/NaN|Infinity|\b0 inscritos/)
+  })
+})

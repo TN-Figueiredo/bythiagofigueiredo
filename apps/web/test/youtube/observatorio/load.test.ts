@@ -562,3 +562,15 @@ describe('taskRowToRequest — failure reason (R65)', () => {
     expect(sc.statusText).toMatch(/validador recusou/)
   })
 })
+
+describe('concorrente com inscritos ocultos (Task 10)', () => {
+  it('subscriber_count null vira subs null, nunca 0; o motor não produz NaN', () => {
+    const ds = rowsToDataset(rows({ channels: [channel({ subscriber_count: null }), channel({ id: 'ch2', channel_id: 'UC2', subscriber_count: 0 })], videos: [video()] }), NOW)
+    expect(ds.channels.find(c => c.id === 'ch1')!.subs).toBeNull()
+    expect(ds.channels.find(c => c.id === 'ch2')!.subs).toBe(0)
+    const s = createObservatory(ds).channelStats('ch1', 'long')
+    expect(s.perMilSubs).toBeNull()
+    expect(s.growth30.roundingText).toBe('sem contagem')
+    expect(JSON.stringify(s)).not.toMatch(/NaN|Infinity/)
+  })
+})

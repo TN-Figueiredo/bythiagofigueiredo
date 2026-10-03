@@ -6,6 +6,7 @@ import { RULES } from '@/lib/youtube/observatorio/rules'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 
+const DS0 = datasetFromOracle(loadOracle())
 const now = Date.parse('2026-10-24T18:02:00Z')
 const base = { sync_status: 'idle', sync_error: null, last_ok_synced_at: '2026-10-24T15:00:00Z', sync_error_since: null, youtube_video_count: 300, video_limit: 50, tracked: 50, full_sync_completed_at: null }
 describe('deriveSyncState', () => {
@@ -55,7 +56,7 @@ describe('runSyncText', () => {
   })
 })
 describe('channels in the facade', () => {
-  const P = createObservatory(datasetFromOracle(loadOracle()))
+  const P = createObservatory(DS0)
   it('channelSlots excludes the own channel and never goes negative', () => {
     expect(channelSlots({ ds: { channels: [{ own: true }, { own: false }] } } as never, 75)).toEqual({ used: 1, limit: 75, free: 74 })
     expect(channelSlots({ ds: { channels: [{ own: false }, { own: false }] } } as never, 1)).toEqual({ used: 2, limit: 1, free: 0 })
@@ -66,5 +67,35 @@ describe('channels in the facade', () => {
     expect(P.channel('paddy-doyle')!.sync.problemLabel).toBe('sem sincronização boa há 39 h')
     expect(P.channel('esq-unltd-daily')!.sync.problemLabel).toBe('não encontrado no YouTube (404)')
     expect(P.channel('luke-damant')!.sync.problemPhrase).toBeNull()
+  })
+})
+
+describe('inscritos ocultos (subs null) e snapshot com 0 inscritos', () => {
+  const DAY = 864e5
+  const ds = DS0
+  const own = ds.channels.find(c => !c.own)!
+  const withSnaps = (subs: number | null, prevSubs: number) => {
+    const d = structuredClone(ds)
+    const c = d.channels.find(x => x.id === own.id)!
+    c.subs = subs
+    c.snapshots = [{ t: d.now - 31 * DAY, date: 'a', subs: prevSubs, views: 0 }, { t: d.now - DAY, date: 'b', subs: 5000, views: 0 }]
+    return createObservatory(d).channelStats(own.id, 'long')
+  }
+  it('subs null: sem divisão, sem NaN/Infinity, texto "sem contagem"', () => {
+    const s = withSnaps(null, 4000)
+    expect(s.perMilSubs).toBeNull()
+    expect(s.growth30).toMatchObject({ roundingUnit: 1, roundingError: 0, roundingText: 'sem contagem', withinRounding: null, uncertainty: 0, text: null })
+    expect(JSON.stringify(s)).not.toMatch(/NaN|Infinity/)
+  })
+  it('snapshot anterior com 0 inscritos: pct null, abs preservado, sem Infinity', () => {
+    const s = withSnaps(5000, 0)
+    expect(s.growth30.pct).toBeNull()
+    expect(s.growth30.abs).toBe(5000)
+    expect(JSON.stringify(s.growth30)).not.toMatch(/NaN|Infinity/)
+  })
+  it('subs numérico continua dando "exato"/arredondamento e perMilSubs', () => {
+    const s = withSnaps(5000, 4000)
+    expect(s.growth30.pct).toBe(0.25)
+    expect(s.growth30.roundingText).not.toBe('sem contagem')
   })
 })

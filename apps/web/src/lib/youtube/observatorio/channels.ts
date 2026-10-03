@@ -94,11 +94,14 @@ export function cadence(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'long') 
 const snapAt = (ch: ObsChannel, ms: number) => { let best = null; for (const x of ch.snapshots) { if (x.t <= ms) best = x; else break } return best }
 function roundingOf(ctx: EngineCtx, ch: ObsChannel, growth: { abs: number | null }) {
   const { fmt } = ctx
-  const unit = ch.subs < 1000 ? 1 : Math.pow(10, Math.floor(Math.log10(ch.subs)) - 2)
-  const err = ch.subs < 1000 ? 0 : unit / 2
+  const subs = ch.subs
+  // subs null = o YouTube esconde a contagem: nada a arredondar, nada a comparar.
+  if (subs == null) return { roundingUnit: 1, roundingError: 0, roundingText: 'sem contagem', withinRounding: null, uncertainty: 0, text: null }
+  const unit = subs < 1000 ? 1 : Math.pow(10, Math.floor(Math.log10(subs)) - 2)
+  const err = subs < 1000 ? 0 : unit / 2
   return {
     roundingUnit: unit, roundingError: err, roundingText: err ? '±' + fmt.num(err) : 'exato',
-    withinRounding: growth.abs == null ? null : Math.abs(growth.abs) <= unit, uncertainty: ch.subs < 1000 ? 0 : unit,
+    withinRounding: growth.abs == null ? null : Math.abs(growth.abs) <= unit, uncertainty: subs < 1000 ? 0 : unit,
     text: growth.abs == null ? null : Math.abs(growth.abs) <= unit ? '≈ 0 (dentro do arredondamento do YouTube, ±' + fmt.num(unit) + ')'
       : (growth.abs > 0 ? '+' : '') + fmt.num(growth.abs) + (unit > 1 ? ' (±' + fmt.num(unit) + ')' : ''),
   }
@@ -131,7 +134,7 @@ export function channelStats(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'lo
   const outs = outliers(ctx, { niche: 'todos', fmt: fmtId, ages: DEFAULT_AGES, channel: channelId, includeOwn: ch.own })
   const now = ch.snapshots.length ? ch.snapshots[ch.snapshots.length - 1]! : null, prev = now ? snapAt(ch, now.t - 30 * DAY) : null
   const growth: { abs: number | null; pct: number | null; from?: number; to?: number; pending?: string } = (now && prev && now.t - prev.t >= 29 * DAY)
-    ? { abs: now.subs - prev.subs, pct: (now.subs - prev.subs) / prev.subs, from: prev.t, to: now.t }
+    ? { abs: now.subs - prev.subs, pct: prev.subs > 0 ? (now.subs - prev.subs) / prev.subs : null, from: prev.t, to: now.t }
     : { abs: null, pct: null, pending: now ? 'faltam ' + Math.ceil(30 - (now.t - ch.snapshots[0]!.t) / DAY) + ' d (primeira contagem ' + clock.dm(ch.snapshots[0]!.t) + ')' : 'sem contagem' }
   const mults = strong90(ctx, ch, fmtId).map(v => v.mult!.value as number)
   const vpdMedian = median(vp)
@@ -139,7 +142,7 @@ export function channelStats(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'lo
   return {
     channel: channelId, fmt: fmtId,
     vpdMedian, vpdN: vp.length, vpdWindow: 'desde ' + clock.dm(ctx.ds.seriesStart),
-    perMilSubs: vpdMedian != null && ch.subs > 0 ? vpdMedian / (ch.subs / 1000) : null,
+    perMilSubs: vpdMedian != null && ch.subs != null && ch.subs > 0 ? vpdMedian / (ch.subs / 1000) : null,
     typicalMult: median(mults), typicalMultN: mults.length,
     bestOutlier: outs.items[0] || null, outliers90: outs.count,
     changes30: changesIn(ctx, { days: 30, channel: channelId }).length,

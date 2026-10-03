@@ -570,7 +570,7 @@ function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
     if (!c) return []
     const head = {
       id: c.id, name: c.name, href: obs.link.canais({ channel: c.id }), lang: langChip(c.lang, s.all.length > 1),
-      sub: (row.videos ? F.plural(row.videos, 'vídeo', 'vídeos') : 'nenhum ' + FMT_ONE[fmt]) + ' em ' + W + ' semanas · ' + F.subs(c.subs) + ' inscritos',
+      sub: (row.videos ? F.plural(row.videos, 'vídeo', 'vídeos') : 'nenhum ' + FMT_ONE[fmt]) + ' em ' + W + ' semanas · ' + (c.subs == null ? 'inscritos ocultos' : F.subs(c.subs) + ' inscritos'),
     }
     // No verdict against a channel with no video in the format (the engine's pw would read "▼ 0,0× a mediana"): the reason instead.
     if (row.empty) return [{ ...head, cells: null, emptyText: 'Sem ' + FMT_LABEL[fmt] + ' nas últimas ' + W + ' semanas: não há o que comparar. A linha se preenche a partir do primeiro vídeo.' }]
@@ -584,7 +584,7 @@ function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
     return [{ ...head, cells, emptyText: null }]
   })
   const sync = [...new Set(NS.owns.map(r => r.syncText))].map(cap).join(' · ')
-  const biggest = obs.channels.filter(c => !c.own && c.niche === niche).sort((a, b) => b.subs - a.subs)[0]
+  const biggest = obs.channels.flatMap(c => !c.own && c.niche === niche && c.subs != null ? [{ name: c.name, subs: c.subs }] : []).sort((a, b) => b.subs - a.subs)[0]
   return {
     meta: F.plural(s.mine.length, 'canal seu', 'canais seus') + ' de ' + NL + ', mesmo formato', empty: null,
     cols: COLS.map(({ key, label, unit }) => ({ key, label, unit })),

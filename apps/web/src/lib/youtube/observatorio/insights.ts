@@ -139,7 +139,7 @@ export function ownChannelOf(ctx: EngineCtx, niche?: NicheScope, explicit?: stri
 export function ownChannels(ctx: EngineCtx, niche?: NicheScope | null): Ch[] {
   const all = [...ctx.CH.values()].filter(c => c.own)
   const list = niche === undefined || niche === 'todos' ? all : all.filter(c => c.niche === niche)
-  return list.sort((a, b) => b.subs - a.subs || a.name.localeCompare(b.name, 'pt-BR') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  return list.sort((a, b) => (b.subs ?? -1) - (a.subs ?? -1) || a.name.localeCompare(b.name, 'pt-BR') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 /** A referência do nicho (mediana e faixa dos concorrentes), calculada uma vez; não depende de canal próprio. */
 export type NicheRef = { niche: string; fmt: VideoFmt; channels: string[]; threshold: number; fewN: number } & Record<NicheMetricKey, NicheAgg>

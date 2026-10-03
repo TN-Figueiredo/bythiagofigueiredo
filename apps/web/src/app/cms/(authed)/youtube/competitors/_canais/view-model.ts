@@ -151,6 +151,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const stats = (id: string, f: Fmt = fmt) => obs.channelStats(id, f)
   const num = (n: number | null) => F.num(n).replace(/ (mil|mi)$/, NB + '$1')
   const subsTxt = (n: number) => F.subs(n).replace(/ (mil|mi)$/, NB + '$1')
+  const HIDDEN_ROW = 'Inscritos ocultos'
   const fmtName = fmt === 'long' ? 'longos' : 'Shorts', one = fmt === 'long' ? 'vídeo longo' : 'Short'
   const abs = (t: number) => `${D.dmhm(t)} (São Paulo)`
   /** sync instants may be null (a channel that never synced OK): no date is invented */
@@ -258,7 +259,10 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     const v = vpdVal(S)
     const vpd: VpdCell = bf
       ? { kind: 'na', text: `1ª contagem ${D.dm(obs.NOW + obs.DAY)}`, title: `Primeira contagem diária de views amanhã, ${D.dm(obs.NOW + obs.DAY)}` }
-      : v == null && c.own && S.tracked > 0
+      : rel && S.vpdMedian != null && S.perMilSubs == null && c.subs == null
+        // the channel hides its subscriber count: per-thousand is undefined, point to the absolute scale instead of "nenhum acompanhado"
+        ? { kind: 'na', text: 'Inscritos ocultos: veja em Absoluto.', title: 'O canal não informa os inscritos; veja a escala Absoluto.' }
+        : v == null && c.own && S.tracked > 0
         // the own channel's videos are tracked but the observatory keeps no daily views for them: never "nenhum acompanhado"
         ? { kind: 'na', text: 'Sem views diárias do seu canal.', title: 'O observatório guarda a contagem diária de views só dos concorrentes.' }
         // tracked videos of this format but no per-day median yet: say what is really missing (the engine's own wording,
@@ -297,8 +301,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       changes: { n: c.own ? 0 : obs.changesIn({ channel: c.id }).length, href: obs.link.mudancas({ channel: c.id }) },
       growth: growth.kind === 'na' ? growth.text : growth.big, growthTitle: growth.kind === 'ok' ? growth.title : growth.kind === 'na' ? growth.title : growth.cap,
       sync: { label: sync.label, phrase: syncPhrase(c), state: c.sync.state },
-      color: c.color, ini: c.ini, subs: subsTxt(c.subs), url: c.url, handle: c.handle, backfill: bf, paused: c.activity.state === 'parado',
-      subsTip: `O YouTube informa inscritos arredondados a 3 algarismos. ${subsTxt(c.subs)} pode estar ${stats(c.id, 'long').growth30.roundingText} do número real.`,
+      color: c.color, ini: c.ini, subs: c.subs == null ? HIDDEN_ROW : subsTxt(c.subs), url: c.url, handle: c.handle, backfill: bf, paused: c.activity.state === 'parado',
+      subsTip: c.subs == null ? 'Este canal esconde a contagem de inscritos no YouTube.'
+        : `O YouTube informa inscritos arredondados a 3 algarismos. ${subsTxt(c.subs)} pode estar ${stats(c.id, 'long').growth30.roundingText} do número real.`,
       sortKeys: {
         active: bf ? -1 : k.pw, outliers: bf ? -1 : S.outliers90, growth: S.growth30.pending ? -99 : S.growth30.pct ?? -99,
         vpd: bf ? -1 : v ?? -1, swaps: bf ? -1 : list.length,
@@ -493,7 +498,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     const tab: DrawerTab = p.tab === 'videos' || p.tab === 'outliers' ? p.tab : 'trocas'
     return {
       id: c.id, tab, own: c.own, backfill: bf, name: c.name, color: c.color, ini: c.ini, niche: c.niche, lang: c.own ? langChip(c.lang, many) : null, handle: c.handle, url: c.url,
-      subsText: `${subsTxt(c.subs)} inscritos, arredondado pelo YouTube a 3 algarismos`, cov, stats: statsV,
+      subsText: c.subs == null ? 'inscritos ocultos pelo canal' : `${subsTxt(c.subs)} inscritos, arredondado pelo YouTube a 3 algarismos`, cov, stats: statsV,
       swaps: {
         count: list.length,
         intro: `Contadas por evento. Desde ${obs.SERIES_START_LABEL} a sincronização roda a cada ${obs.SYNC.cadenceHours}${NB}h (antes, diária às ${obs.SYNC.dailyBefore}): título e descrição têm a janela entre duas sincronizações; thumbnail tem o minuto.`,
