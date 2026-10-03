@@ -3,7 +3,7 @@ import type { Fmt as VideoFmt, ObsChannel, ObsVideo } from './types'
 import { inNiche, type NicheScope } from './niche'
 import { RULES } from './rules'
 import { median } from './stats'
-import { cadence, channelStats, type ChannelStats } from './channels'
+import { cadence, channelStats, syncText, type ChannelStats } from './channels'
 import { outliers } from './outliers'
 import { multiplierAt, type MultiplierResult } from './multiplier'
 import { viewsAtIdx, type EngineCtx, type Derived } from './series'
@@ -100,7 +100,7 @@ export interface OwnMetric {
 export type OwnVsNiche = { channel: string; threshold: number; fewN: number } & Record<NicheMetricKey, OwnMetric>
 export type NicheStats = { niche: string; fmt: VideoFmt; channels: string[] } & Record<NicheMetricKey, NicheAgg> & { own: OwnVsNiche | null }
 
-function ownVsNiche(ctx: EngineCtx, ownId: string, fmtId: VideoFmt, ref: Ref): OwnVsNiche | null {
+function ownVsNiche(ctx: EngineCtx, ownId: string, fmtId: VideoFmt, ref: Record<NicheMetricKey, NicheAgg>): OwnVsNiche | null {
   if (!chOf(ctx, ownId)) return null
   const st = channelStats(ctx, ownId, fmtId), cad = cadence(ctx, ownId, fmtId)
   const vals: Record<keyof Ref, [number | null, number]> = { pw: [cad.pw, cad.n], perMilSubs: [st.perMilSubs, st.vpdN], typicalMult: [st.typicalMult, st.typicalMultN], engagement: [st.engagement.median, st.engagement.n], pctOutliers: [st.pctOutliers, st.pctOutliersN] }
@@ -120,6 +120,7 @@ function ownVsNiche(ctx: EngineCtx, ownId: string, fmtId: VideoFmt, ref: Ref): O
  * uuids and a site can have two: PT and EN). `explicit` wins when given. With several own channels: the one whose `lang` is
  * the niche's dominant competitor language (when that is determinable and picks exactly one); otherwise the one with the
  * most tracked videos (ties: first by id, so the pick is stable).
+ * @internal paridade com o oráculo; telas usam ownChannels()
  */
 export function ownChannelOf(ctx: EngineCtx, niche?: NicheScope, explicit?: string): Ch | undefined {
   if (explicit) return chOf(ctx, explicit)
@@ -134,12 +135,49 @@ export function ownChannelOf(ctx: EngineCtx, niche?: NicheScope, explicit?: stri
   const tracked = (c: Ch) => c.videos.filter(v => v.tracked).length
   return [...owns].sort((a, b) => tracked(b) - tracked(a))[0]
 }
-export function nicheStats(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long', ownId?: string): NicheStats {
-  const own = ownChannelOf(ctx, niche, ownId)
+/** Canais próprios na ordem R73: inscritos, maior primeiro; depois nome (pt-BR); depois id. niche: undefined | 'todos' → todos; 'viagem' | 'ia' → os daquele nicho; null → os sem nicho. */
+export function ownChannels(ctx: EngineCtx, niche?: NicheScope | null): Ch[] {
+  const all = [...ctx.CH.values()].filter(c => c.own)
+  const list = niche === undefined || niche === 'todos' ? all : all.filter(c => c.niche === niche)
+  return list.sort((a, b) => b.subs - a.subs || a.name.localeCompare(b.name, 'pt-BR') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+}
+/** A referência do nicho (mediana e faixa dos concorrentes), calculada uma vez; não depende de canal próprio. */
+export type NicheRef = { niche: string; fmt: VideoFmt; channels: string[]; threshold: number; fewN: number } & Record<NicheMetricKey, NicheAgg>
+export function nicheRef(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long'): NicheRef {
   const chs = [...ctx.CH.values()].filter(c => !c.own && inNiche(niche, c))
   const st = chs.map(c => channelStats(ctx, c.id, fmtId))
-  const ref: Ref = { pw: agg(chs.map(c => cadence(ctx, c.id, fmtId).pw)), perMilSubs: agg(st.map(x => x.perMilSubs)), typicalMult: agg(st.map(x => x.typicalMult)), engagement: agg(st.map(x => x.engagement.median)), pctOutliers: agg(st.map(x => x.pctOutliers)) }
-  return { niche: niche || 'todos', fmt: fmtId, channels: chs.map(c => c.id), ...ref, own: own ? ownVsNiche(ctx, own.id, fmtId, ref) : null }
+  return { niche: niche || 'todos', fmt: fmtId, channels: chs.map(c => c.id), threshold: NICHE_VERDICT_THRESHOLD, fewN: OWN_FEW_N,
+    pw: agg(chs.map(c => cadence(ctx, c.id, fmtId).pw)), perMilSubs: agg(st.map(x => x.perMilSubs)), typicalMult: agg(st.map(x => x.typicalMult)),
+    engagement: agg(st.map(x => x.engagement.median)), pctOutliers: agg(st.map(x => x.pctOutliers)) }
+}
+/** Legacy single-own shape; the key order is the mockup's (parity tests compare the JSON), without threshold/fewN at the top. */
+export function nicheStats(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long', ownId?: string): NicheStats {
+  const own = ownChannelOf(ctx, niche, ownId)
+  const ref = nicheRef(ctx, niche, fmtId)
+  return { niche: ref.niche, fmt: ref.fmt, channels: ref.channels, pw: ref.pw, perMilSubs: ref.perMilSubs, typicalMult: ref.typicalMult, engagement: ref.engagement, pctOutliers: ref.pctOutliers,
+    own: own ? ownVsNiche(ctx, own.id, fmtId, ref) : null }
+}
+/** Texto curto do veredito: a linha "Nicho" já nomeia a referência, então sai sem " do nicho". */
+export function shortVerdict(key: NicheMetricKey, m: OwnMetric): string {
+  const t = key === 'pctOutliers' && !m.bothZero ? m.verdictText : (m.label || m.verdictText)
+  return t.replace(' do nicho', '')
+}
+/** weak = base fraca (sem valor, ou n < fewN): a tela pinta o veredito em cor neutra (R74). */
+export interface OwnCell extends OwnMetric { short: string; weak: boolean }
+export type OwnRow = { channel: string; videos: number; empty: boolean; syncText: string } & Record<NicheMetricKey, OwnCell>
+export interface OwnNicheStats { ref: NicheRef; owns: OwnRow[] }
+const NICHE_KEYS: readonly NicheMetricKey[] = ['pw', 'perMilSubs', 'typicalMult', 'engagement', 'pctOutliers']
+/** Um bloco por canal próprio, na ordem de `ownIds`; id desconhecido ou de concorrente é ignorado. */
+export function ownNicheStats(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long', ownIds: readonly string[]): OwnNicheStats {
+  const ref = nicheRef(ctx, niche, fmtId), owns: OwnRow[] = []
+  for (const id of ownIds) {
+    const ch = chOf(ctx, id); if (!ch || !ch.own) continue
+    const o = ownVsNiche(ctx, id, fmtId, ref); if (!o) continue
+    const n = cadence(ctx, id, fmtId).n
+    const cells = Object.fromEntries(NICHE_KEYS.map(k => [k, { ...o[k], short: shortVerdict(k, o[k]), weak: o[k].value == null || o[k].few }])) as Record<NicheMetricKey, OwnCell>
+    owns.push({ channel: id, videos: n, empty: n === 0, syncText: syncText(ctx, ch), ...cells })
+  }
+  return { ref, owns }
 }
 
 /* ------------------------------------------------------------------ temas */

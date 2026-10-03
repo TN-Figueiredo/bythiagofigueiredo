@@ -15,7 +15,7 @@ import { cadence, channelStats, channelSlots, syncText, runSyncText, syncResultT
 import { deriveChanges, changesIn, caveats, REWRITE_GROUPS, type ObsChange } from './changes'
 import { link } from './links'
 import { FORMULAS, FORMULA, THEMES, THEME, formulasOf, type Formula, type Theme } from './catalog'
-import { heatmap, nicheStats, themeTrend, ownCoverage, patternsNow } from './insights'
+import { heatmap, nicheStats, themeTrend, ownCoverage, patternsNow, ownChannels, nicheRef, ownNicheStats, type NicheRef, type OwnNicheStats } from './insights'
 import type { ForjaRequest, FrozenReading, Niche, RequestState, Fmt as ReadingFmt } from './types'
 import { REQUEST_STATES, STATES, FORJA_QUEUE, machineOf, summarize, compose as composeScenario, statusLabel, queueOrder, type Machine, type Scenario, type NewRequest } from './forja/states'
 import { createSession, type SessionScope, type SessionTarget, type AskOutcome, type SessionOpts } from './forja/session'
@@ -103,6 +103,12 @@ export interface Observatory {
   formulas: ReadonlyArray<Formula>; formula(id: string): Formula | undefined; formulasOf: typeof formulasOf; themes: ReadonlyArray<Theme>; theme(id: string): Theme | undefined
   heatmap(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof heatmap>; nicheStats(niche?: NicheScope, f?: VideoFmt, ownId?: string): ReturnType<typeof nicheStats>
   themeTrend(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof themeTrend>; ownCoverage(f?: VideoFmt, ownId?: string): ReturnType<typeof ownCoverage>; patternsNow(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof patternsNow>
+  /** Own channels in R73 order (subs desc, name, id). undefined | 'todos' → all; a niche → that niche's; null → the ones without niche. */
+  ownChannels(niche?: NicheScope | null): ObsChannel[]
+  /** The niche reference (competitors only), independent of any own channel. */
+  nicheRef(niche?: NicheScope, f?: VideoFmt): NicheRef
+  /** One block per own channel, in the order of `ownIds`; unknown and competitor ids are skipped. */
+  ownNicheStats(niche: NicheScope | undefined, f: VideoFmt | undefined, ownIds: readonly string[]): OwnNicheStats
   link: typeof link
   LAST_IDX: number; TZ: string; TZ_LABEL: string; SERIES_START_LABEL: string
 }
@@ -167,6 +173,7 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
     syncResultToast: run => syncResultToast(run, id => { const c = CH.get(id); return c ? { name: c.name, niche: c.niche } : undefined }),
     formulas: FORMULAS, formula: id => FORMULA[id], formulasOf, themes: THEMES, theme: id => THEME[id],
     heatmap: (n, f) => heatmap(ctx, n, f), nicheStats: (n, f, o) => nicheStats(ctx, n, f, o), themeTrend: (n, f) => themeTrend(ctx, n, f), ownCoverage: (f, o) => ownCoverage(ctx, f, o), patternsNow: (n, f) => patternsNow(ctx, n, f),
+    ownChannels: n => ownChannels(ctx, n), nicheRef: (n, f) => nicheRef(ctx, n, f), ownNicheStats: (n, f, ids) => ownNicheStats(ctx, n, f, ids),
     link,
     changes, forja,
   }
