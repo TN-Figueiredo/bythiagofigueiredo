@@ -29,7 +29,7 @@ export default async function MudancasPage({ searchParams }: { searchParams: Pro
   const { saved, keys } = savedFromRows(obs, rows)
   const view = buildMudancasView(obs, { ...flat, niche }, saved, keys)
   return (
-    <ObservatoryChromeServer tab="mudancas" searchParams={sp} obs={obs}>
+    <ObservatoryChromeServer tab="mudancas" searchParams={sp} obs={obs} forja={view.forja}>
       <MudancasScreen view={view} onToggleSwipe={toggleChangeBookmark} />
     </ObservatoryChromeServer>
   )

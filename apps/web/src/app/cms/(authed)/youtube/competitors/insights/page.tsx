@@ -8,6 +8,7 @@ import type { ObsSearchParams } from '../_chrome/resolve-niche'
 import { getUserNiche } from '../niche-actions'
 import { buildInsightsView } from '../_insights/view-model'
 import { InsightsScreen } from '../_insights/insights-screen'
+import { readingCopyText } from '../_chrome/forja-view-model'
 import '../_insights/insights.css'
 
 export const metadata = { title: 'Insights · Competidores' }
@@ -25,7 +26,8 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   ])
   const view = buildInsightsView(obs, { niche, fmt: flat.fmt })
   return (
-    <ObservatoryChromeServer tab="insights" searchParams={sp} obs={obs}>
+    <ObservatoryChromeServer tab="insights" searchParams={sp} obs={obs} forja={view.forja}
+      readingCopy={view.hero?.reading ? readingCopyText([view.hero.themes, view.hero.reading], view.hero.noteLabel) : null}>
       <InsightsScreen view={view} heatMode={flat.heat === 'views' ? 'views' : 'uploads'} />
     </ObservatoryChromeServer>
   )

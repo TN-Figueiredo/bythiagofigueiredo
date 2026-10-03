@@ -1,8 +1,8 @@
 'use client'
 /**
  * Insights screen (port of insights.html): format filter, the six site-computed cards and the Todos state. Every
- * number and text comes from the view model. The frozen-reading hero and the forja button arrive in Task 35
- * (`view.reading` is null; the slot stays hidden).
+ * number and text comes from the view model. The frozen-reading hero ("Leitura da forja") is the first card; the forja
+ * button lives in the chrome header (solid on this screen).
  */
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -13,6 +13,7 @@ import { Heatmap } from './heatmap'
 import { Themes } from './themes'
 import { YouInNiche } from './you-in-niche'
 import { Gaps } from './gaps'
+import { ReadingHero } from './reading-hero'
 
 export function InsightsScreen({ view, heatMode }: { view: InsightsView; heatMode?: 'uploads' | 'views' }) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
@@ -34,14 +35,20 @@ export function InsightsScreen({ view, heatMode }: { view: InsightsView; heatMod
         <div className="card allstate" id="allState">
           <h2>{view.all.title}</h2>
           <p>{view.all.text}</p>
+          {view.all.forja.lines.length ? (
+            <div data-forja-anchor="" tabIndex={-1}>
+              <p style={{ margin: '0 0 6px' }}><b>{view.all.forja.title}</b></p>
+              <ul className="reqs">{view.all.forja.lines.map(l => <li key={l}>{l}</li>)}</ul>
+              {view.all.forja.text ? <p className="scopenote" style={{ margin: '0 0 12px' }}>{view.all.forja.text}</p> : null}
+            </div>
+          ) : view.all.forja.note ? <p className="scopenote" style={{ margin: '0 0 12px' }}>{view.all.forja.note}</p> : null}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {view.all.go.map(g => <Link key={g.niche} className="btn" href={g.href} data-go={g.niche}>{g.label}</Link>)}
           </div>
         </div>
       ) : (
         <div className="grid" id="grid">
-          {/* Task 35: the frozen-reading hero ("Leitura da forja") fills this slot. */}
-          <section className="card forja c12" id="forjaCard" data-reading-slot="" hidden aria-hidden="true" />
+          {view.hero ? <ReadingHero hero={view.hero} /> : null}
           {view.cadence ? <Cadence s={view.cadence} /> : null}
           {view.youInNiche ? <YouInNiche s={view.youInNiche} /> : null}
           {view.gaps ? <Gaps s={view.gaps} /> : null}

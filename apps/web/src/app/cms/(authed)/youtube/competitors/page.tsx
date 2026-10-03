@@ -13,6 +13,7 @@ import { legacyTabRedirect } from './_canais/legacy'
 import { buildCanaisView } from './_canais/view-model'
 import { addChannelFromCanais, removeCompetitorChannel, syncCompetitorNow, unlockMoreChannels } from './actions'
 import { getUserNiche, setChannelNiche } from './niche-actions'
+import { askForjaReading } from './forja-actions'
 
 export const metadata = { title: 'Competidores' }
 export const dynamic = 'force-dynamic'
@@ -46,11 +47,11 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
     layout: one(sp.layout), sort: one(sp.sort), dir: one(sp.dir), nicheEditor: one(sp.nicheEditor),
   })
   return (
-    <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs}>
+    <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja}>
       <CanaisScreen
         view={view} canUnlock={canUnlock}
         onAdd={addChannelFromCanais} onRemove={removeCompetitorChannel} onUnlock={unlockMoreChannels}
-        onSetNiche={setChannelNiche} onSyncOne={syncCompetitorNow}
+        onSetNiche={setChannelNiche} onSyncOne={syncCompetitorNow} onAskForja={askForjaReading}
       />
     </ObservatoryChromeServer>
   )

@@ -1,12 +1,14 @@
 'use client'
 /** Freshness line + "Frescor por canal" popover (port of chrome.js headHtml fresh row + freshPopHtml). */
 import Link from 'next/link'
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import type { ChromeView } from './view-model'
 import { Icon } from './icons'
 
-export function Freshness({ fresh, tzLabel, open, btnRef, boxRef, onToggle, onSync, syncing }: {
+export function Freshness({ fresh, tzLabel, open, btnRef, boxRef, onToggle, onSync, syncing, forjaSeg }: {
   fresh: ChromeView['fresh']; tzLabel: string; open: boolean
+  /** The forja heartbeat segment (Task 35), after the freshness button. */
+  forjaSeg?: ReactNode
   btnRef: RefObject<HTMLButtonElement | null>; boxRef: RefObject<HTMLDivElement | null>
   onToggle: () => void; onSync: () => void; syncing: boolean
 }) {
@@ -33,6 +35,7 @@ export function Freshness({ fresh, tzLabel, open, btnRef, boxRef, onToggle, onSy
           ) : <span className="obs-ch-seg" data-fresh-probs="0">todos em dia</span>}
           {Icon.chev()}
         </button>
+        {forjaSeg ?? null}
         {open ? <FreshPopover fresh={fresh} onSync={onSync} syncing={syncing} /> : null}
       </div>
       <span className="obs-ch-tz">{tzLabel}</span>

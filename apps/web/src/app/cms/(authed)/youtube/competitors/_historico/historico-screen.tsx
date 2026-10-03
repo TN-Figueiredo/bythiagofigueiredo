@@ -1,8 +1,8 @@
 'use client'
 /**
  * Histórico do vídeo (port of historico-video.html): header, the views/day curve with every version of title,
- * thumbnail and description, the before/after comparison per change, and the versions. The forja reading of the
- * video comes in Task 35 (slot below the comparison, no button here).
+ * thumbnail and description, the before/after comparison per change, and the versions. The forja (Task 35): the
+ * screen's single filled button in the video header and the "Leitura da forja" card below the comparison.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useToast } from '../_chrome/toasts'
@@ -14,10 +14,12 @@ import { Compare } from './compare'
 import { Versions } from './versions'
 import { HIcon, TYPE_COLOR } from './icons'
 import { Thumb } from './thumb'
+import { ForjaAskButton, VideoReading } from './video-reading'
+import type { ForjaAsk, ForjaCancel } from '../_chrome/forja-drawer'
 
 const reduced = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-export function HistoricoScreen({ view }: { view: HistoricoView }) {
+export function HistoricoScreen({ view, onAskForja, onCancelForja }: { view: HistoricoView; onAskForja?: ForjaAsk; onCancelForja?: ForjaCancel }) {
   const toast = useToast()
   const [pairK, setPairK] = useState<string | null>(view.defaultPair)
   const [hl, setHl] = useState<Hl | null>(null)
@@ -91,7 +93,7 @@ export function HistoricoScreen({ view }: { view: HistoricoView }) {
             ) : null}
           </div>
           <div className="actions">
-            {/* Task 35: "Pedir leitura à forja" (the screen's single filled button) and blockedBy go here. */}
+            {view.forja && view.forjaCard ? <div className="arow"><ForjaAskButton forja={view.forja} card={view.forjaCard} onAsk={onAskForja} /></div> : null}
             <div className="arow"><a className="btn" href={v.url} target="_blank" rel="noopener noreferrer"><HIcon name="ext" />Abrir no YouTube</a></div>
           </div>
         </section>
@@ -106,7 +108,7 @@ export function HistoricoScreen({ view }: { view: HistoricoView }) {
                 onSelectPair={selectPair} onGoVersion={goVersion} />
             ) : null}
             <Compare comparisons={view.comparisons} selected={pairK} empty={view.compareEmpty} onSelect={setPairK} onDescLink={openDesc} />
-            <div data-forja-slot="" hidden />
+            {view.forja && view.forjaCard ? <VideoReading card={view.forjaCard} forja={view.forja} onCancel={onCancelForja} /> : null}
             {view.versions ? <Versions versions={view.versions} hl={hl} onHl={onHl} /> : null}
           </>
         )}
