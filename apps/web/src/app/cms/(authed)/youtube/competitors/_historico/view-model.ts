@@ -10,7 +10,8 @@ import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import type { Niche, ObsChannel, ObsVideo, SeriesPoint } from '@/lib/youtube/observatorio/types'
 import type { TitleOp } from '@/lib/youtube/observatorio/text-diff'
-import type { OutlierSort } from '@/lib/youtube/observatorio/outliers'
+import { mudancasList, effectView, type EffectView } from '../_mudancas/view-model'
+import { buildOutliersView, ages2label } from '../_outliers/view-model'
 
 export type HistState = 'full' | 'pre' | 'few' | 'none' | 'noreg' | 'untr' | 'old' | 'err' | 'bf' | 'not-found'
 export type LaneType = 'title' | 'thumb' | 'desc'
@@ -106,13 +107,16 @@ export interface ComparisonView {
   changeId: string
   /** Brief contract: before → after means (media de views/dia) and the scale text. */
   before: string; after: string; scale: string
-  effect: { status: EffectResult['status']; label: string; text: string }
+  /** Mudanças' effect view of the change (R53: one effect text per change across screens). */
+  effect: EffectView
   chip: string
   ba: BaSide[] | null
   /** Effect without measured numbers (waiting, no series, no base…). */
   nobase: { strong: string; text: string } | null
   full: {
     what: string; whatWhen: string; days: string; verdictStrong: string; verdictText: string
+    /** The engine's short verdict label (lower case, as in the mockup pill). */
+    pill: string
     scale: ScaleView; src: string; second: { strong: string; text: string } | null; caveats: string[]
   } | null
   descLink: boolean
@@ -176,7 +180,6 @@ const FROM_LABEL: Record<FromTab, string> = { mudancas: 'Mudanças', outliers: '
 const NICHE_LABEL: Record<Niche, string> = { ia: 'IA', viagem: 'Viagem' }
 const cap = (t: string) => (t ? t[0]!.toUpperCase() + t.slice(1) : '')
 const endDot = (t: string) => { const s = String(t).trim(); return /[.!?…]$/.test(s) ? s : s + '.' }
-const lc = (t: string) => (t ? t[0]!.toLowerCase() + t.slice(1) : t)
 
 export function parseFrom(raw: string | undefined): FromTab {
   return raw === 'canais' || raw === 'outliers' || raw === 'insights' || raw === 'mudancas' ? raw : 'mudancas'
@@ -248,9 +251,16 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
 
   // ---------- versions ----------
   type Ver = { id: string; first_seen: number; last_seen: number; current: boolean; prec: string | null; window: [number, number] | null; seenSinceArchive?: boolean }
-  const isPub = (x: Ver) => x.prec === 'publicacao' || ((x.prec === 'first' || x.prec == null) && x.first_seen <= pub)
+  // Production writes the first version of a video as precision 'first' with first_seen = the sync that saw it
+  // (competitor-versions.ts). The oracle rule (dados.js:524): only a video published BEFORE the archive start
+  // (SERIES_START) has a first version whose start was not observed ("visto desde DD/MM", seenSinceArchive);
+  // a video published after it was watched from publication, so its 'first' version stands from publication.
+  const preArchive = pub < SS
+  const isPub = (x: Ver) => x.prec === 'publicacao' || ((x.prec === 'first' || x.prec == null) && (x.first_seen <= pub || !preArchive))
   const lateObs = (x: Ver) => isPub(x) && obsSince != null && obsSince > pub && x.first_seen <= pub
-  const openStart = (x: Ver) => lateObs(x) || x.prec === 'desde-arquivo' || !!x.seenSinceArchive || (x.prec === 'first' && x.first_seen > pub)
+  const openStart = (x: Ver) => lateObs(x) || x.prec === 'desde-arquivo' || !!x.seenSinceArchive || (x.prec === 'first' && x.first_seen > pub && preArchive)
+  /** Effective start: a 'first' version that stands from publication starts at the publication. */
+  const startMs = (x: Ver) => (isPub(x) ? Math.min(x.first_seen, pub) : x.first_seen)
   const du = (ms: number) => D.dur(ms).replace(/ 0 h$/, '').replace(/ 0 min$/, '')
   const thumbKeys = new Map<string, string>()
   for (const t of v.thumbs) if (!thumbKeys.has(t.key)) { const k = thumbKeys.size; thumbKeys.set(t.key, k < 26 ? String.fromCharCode(65 + k) : 'Z' + (k - 25)) }
@@ -280,7 +290,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
           : x.prec === 'min' ? dmhmY(x.first_seen)
             : openStart(x) ? 'vist' + o + ' desde ' + D.dmOrDmy(x.first_seen)
               : 'vist' + o + ' pela 1ª vez ' + D.dmOrDmy(x.first_seen) + ' ' + D.hh(x.first_seen)
-      const sObs = lateObs(x) ? obsSince! : x.first_seen
+      const sObs = lateObs(x) ? obsSince! : startMs(x)
       const sLo = x.window ? x.window[0] : sObs, sHi = sObs
       const eLo = nx ? (nx.window ? nx.window[0] : nx.first_seen) : endNow, eHi = nx ? nx.first_seen : endNow
       const open = openStart(x), openEnd = !nx && stalled
@@ -299,8 +309,8 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       const tText = type === 'title' ? (x as unknown as { text: string }).text : null
       return {
         id: x.id, label, from: startLbl, to: end, atLeast, participle: 'vist' + o, changedParticiple: 'trocad' + o, precision,
-        fromH: Math.max(0, hx(x.first_seen)), toH: hx(eLo), win: x.window ? [hx(x.window[0]), hx(x.window[1])] : null,
-        span, dur: durTxt, rate: obs.periodRate(v!.id, x.first_seen, eLo).text, cur,
+        fromH: Math.max(0, hx(startMs(x))), toH: hx(eLo), win: x.window ? [hx(x.window[0]), hx(x.window[1])] : null,
+        span, dur: durTxt, rate: obs.periodRate(v!.id, startMs(x), eLo).text, cur,
         aria: TYPE_NAME[type] + ' ' + label + (noText ? ' (texto não guardado)' : '') + ': ' + span,
         clipText: type === 'title' ? tText : type === 'desc' ? (noText ? 'texto não guardado' : cur ? curWord(type) : null) : null,
         tag: cur ? { kind: 'now', text: curWord(type) } : reverted ? { kind: 'ret', text: 'voltou' } : null,
@@ -380,26 +390,19 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   function context(): { crumb: string; href: string; ids: string[]; keepIds: string[] | null; of: string; outside: string; sub: { text: string; href: string } | null } {
     const n = ctxNiche, vv = v!
     if (from === 'outliers') {
-      const href = backHref('outliers', obs.link.outliers({ niche: userNiche, fmt: vv.fmt }))
+      const href = backHref('outliers', obs.link.outliers({ niche: userNiche }))
       if (qids.length) return { crumb: 'Outliers', href, ids: qids, keepIds: qids, of: 'em Outliers, na ordem da lista aberta', outside: 'fora da lista de Outliers aberta', sub: null }
-      const bn = bp.get('niche'), on: NicheScope = bn && bn !== 'todos' ? (parseNiche(bn) ?? n) : n
-      const ofmt = bp.get('fmt') === 'short' ? 'short' : bp.get('fmt') === 'long' ? 'long' : vv.fmt
+      // The list Outliers shows for these params (same parser, defaults, age aliases and reading scope as the screen).
+      const params: Record<string, string | undefined> = Object.fromEntries(bp)
+      if (!params.niche) params.niche = userNiche
+      const ov = buildOutliersView(obs, params), q = ov.query
       const ALL = obs.OUT_WINDOWS.map(w => w.id)
-      const a = bp.get('ages') || bp.get('age')
-      let ages: string[] = !a || a === '90' ? [...obs.DEFAULT_AGES] : a === 'all' || a === 'todos' ? ALL : a.split(',').map(x => x.trim()).map(x => (x === '365' || x === 'mais-de-1-ano' ? '365+' : x)).filter(x => ALL.includes(x))
-      if (!ages.length) ages = [...obs.DEFAULT_AGES]
-      let min: number | null = null
-      const mr = bp.get('min')
-      if (mr != null && mr !== '') { const mm = parseFloat(mr.replace(',', '.')); if (!isNaN(mm) && mm >= 0) min = mm }
-      const channel = bp.get('channel'), formula = bp.get('formula'), reading = bp.get('reading'), topic = bp.get('topic')
-      const so = (['mult', 'vpd', 'recent'].includes(bp.get('sort') ?? '') ? bp.get('sort') : 'mult') as OutlierSort
-      const ids = obs.outliers({ niche: on, fmt: ofmt, ages, min: min ?? obs.RULES.outlierMin, theme: topic || null, formula: formula || null, channel: channel || null, includeWeak: true, ...(reading ? { reading } : {}) }).orderedIds(so)
-      const ageTxt = ages.length === ALL.length ? 'todas as idades' : ages.map(x => obs.OUT_WINDOWS.find(w => w.id === x)!.label).join(' + ')
-      const minTxt = min === 0 ? 'todos os vídeos' : F.mult(min ?? obs.RULES.outlierMin) + ' ou mais'
-      const desc = [on !== 'todos' ? 'nicho ' + NICHE_LABEL[on] : 'todos os nichos', ofmt === 'short' ? 'Shorts' : 'longos', ageTxt, minTxt,
-        channel ? obs.channel(channel)?.name ?? null : null, formula ? obs.formula(formula)?.label ?? null : null, topic ? (obs.theme(topic)?.label ?? topic) : null,
-        reading ? 'escopo da leitura' : null, so === 'vpd' ? 'por views/dia' : so === 'recent' ? 'mais recentes primeiro' : 'por fase'].filter(Boolean).join(', ')
-      return { crumb: 'Outliers', href, ids, keepIds: null, of: 'em Outliers (' + desc + ')', outside: 'fora da lista de Outliers (' + desc + ')', sub: null }
+      const ageTxt = q.ages === 'all' || q.ages.length === ALL.length ? 'todas as idades' : ages2label(obs, q.ages)
+      const minTxt = q.min === 0 ? 'todos os vídeos' : F.mult(q.min) + ' ou mais'
+      const desc = [q.niche !== 'todos' ? 'nicho ' + NICHE_LABEL[q.niche] : 'todos os nichos', q.fmt === 'short' ? 'Shorts' : 'longos', ageTxt, minTxt,
+        q.channel ? obs.channel(q.channel)?.name ?? null : null, q.formula ? obs.formula(q.formula)?.label ?? null : null, q.topic ? (obs.theme(q.topic)?.label ?? q.topic) : null,
+        q.reading ? 'escopo da leitura' : null, q.sort === 'vpd' ? 'por views/dia' : q.sort === 'recent' ? 'mais recentes primeiro' : 'por fase'].filter(Boolean).join(', ')
+      return { crumb: 'Outliers', href, ids: ov.pageIds, keepIds: null, of: 'em Outliers (' + desc + ')', outside: 'fora da lista de Outliers (' + desc + ')', sub: null }
     }
     if (from === 'canais') {
       const own = obs.videos.filter(x => x.ch === vv.ch && x.tracked && x.fmt === vv.fmt).sort((a, b) => b.pub - a.pub).map(x => x.id)
@@ -416,37 +419,16 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     if (from === 'insights') return { crumb: 'Insights', href: backHref('insights', obs.link.insights({ niche: userNiche })), ids: [], keepIds: null, of: '', outside: 'aberto a partir de Insights', sub: null }
     const href = backHref('mudancas', obs.link.mudancas({ video: vv.id }))
     if (qids.length) return { crumb: 'Mudanças', href, ids: qids, keepIds: qids, of: 'em Mudanças, na ordem da lista aberta', outside: 'fora da lista de Mudanças aberta', sub: null }
-    const CHANGES_DAYS = obs.forja.readingTypes.find(t => t.id === 'resumo-trocas')?.windowDays ?? 30
-    const rd0 = bp.get('reading') ? obs.forja.byId[bp.get('reading')!] : undefined
-    const f: { days: number; niche?: Niche; type?: string; channel?: string; fmt?: 'long' | 'short'; video?: string } = { days: Number(bp.get('win')) || Number(bp.get('days')) || (bp.get('video') ? 90 : CHANGES_DAYS) }
-    const bn = bp.get('niche')
-    const nf = bn && bn !== 'todos' ? parseNiche(bn) : !bn && rd0 && rd0.niche ? rd0.niche : n !== 'todos' ? n : null
-    if (nf && nf !== 'todos') f.niche = nf
-    for (const k of ['type', 'channel', 'fmt', 'video'] as const) { const val = bp.get(k); if (val && val !== 'todos' && val !== 'all') (f as Record<string, unknown>)[k] = val }
-    const only = (bp.get('changes') ?? '').split(',').filter(Boolean)
-    let list = only.length
-      ? obs.changesIn({ days: 90, niche: 'todos', type: f.type ?? null }).filter(c => only.includes(c.id))
-      : obs.changesIn({ days: f.days, niche: f.niche ?? 'todos', type: f.type ?? null, channel: f.channel ?? null, fmt: f.fmt ?? null, video: f.video ?? null })
-    const MEAS = ['ganhou', 'perdeu', 'neutro', 'inconclusivo'], DEC = ['ganhou', 'perdeu', 'neutro'], qq = (bp.get('q') ?? '').toLowerCase()
-    if (bp.get('measured') === '1') list = list.filter(c => MEAS.includes(obs.effect(c.id)?.status ?? ''))
-    if (bp.get('saved') === '1') list = list.filter(c => opts?.savedChangeIds?.has(c.id))
-    if (qq) list = list.filter(c => { const x = obs.video(c.video)!; return [x.title, obs.channel(c.ch)!.name, typeof c.before === 'string' ? c.before : '', typeof c.after === 'string' ? c.after : ''].join(' ').toLowerCase().includes(qq) })
-    const sort = bp.get('sort') || 'recent'
-    const key = (c: ObsChange) => { const e = obs.effect(c.id); return e && DEC.includes(e.status) ? (e.effectPp ?? null) : null }
-    list = list.slice().sort((a, b) => {
-      if (sort === 'recent') return b.at - a.at
-      const ka = key(a), kb = key(b)
-      if (ka == null && kb == null) return b.at - a.at
-      if (ka == null) return 1
-      if (kb == null) return -1
-      return sort === 'gain' ? kb - ka : ka - kb
-    })
-    const ids = [...new Set(list.map(c => c.video))]
+    // The list Mudanças shows for these params (same parseFilters, query, search, saved set and sort as the screen).
+    const params: Record<string, string | undefined> = Object.fromEntries(bp)
+    if (!parseNiche(params.niche)) params.niche = userNiche
+    const { f, ordered } = mudancasList(obs, params, new Set(opts?.savedChangeIds ?? []))
+    const ids = [...new Set(ordered.map(c => c.video))]
     const TL: Record<string, string> = { title: 'títulos', thumb: 'thumbnails', desc: 'descrições' }, SL: Record<string, string | null> = { recent: null, gain: 'maior ganho primeiro', loss: 'maior perda primeiro' }
-    const desc = [f.niche ? 'nicho ' + NICHE_LABEL[f.niche] : 'todos os nichos', f.type ? TL[f.type] ?? f.type : null, f.channel ? obs.channel(f.channel)?.name ?? null : null,
-      f.fmt ? (f.fmt === 'short' ? 'Shorts' : 'longos') : null, f.video ? 'um vídeo' : null,
-      only.length ? F.plural(only.length, 'troca marcada', 'trocas marcadas') : f.days + ' dias', bp.get('measured') === '1' ? 'só efeito medido' : null,
-      bp.get('saved') === '1' ? 'só salvas' : null, qq ? 'busca “' + qq + '”' : null, SL[sort] ?? null, F.plural(list.length, 'troca', 'trocas')].filter(Boolean).join(', ')
+    const desc = [f.niche !== 'todos' ? 'nicho ' + NICHE_LABEL[f.niche] : 'todos os nichos', f.type !== 'all' ? TL[f.type] ?? f.type : null, f.channel !== 'all' ? obs.channel(f.channel)?.name ?? null : null,
+      f.fmt !== 'all' && !f.video ? (f.fmt === 'short' ? 'Shorts' : 'longos') : null, f.video ? 'um vídeo' : null,
+      f.changes ? F.plural(f.changes.length, 'troca marcada', 'trocas marcadas') : f.win + ' dias', f.measured ? 'só efeito medido' : null,
+      f.saved ? 'só salvas' : null, f.q ? 'busca “' + f.q + '”' : null, SL[f.sort] ?? null, F.plural(ordered.length, 'troca', 'trocas')].filter(Boolean).join(', ')
     return { crumb: 'Mudanças', href, ids, keepIds: null, of: 'com trocas em Mudanças (' + desc + ')', outside: 'fora da lista de Mudanças (' + desc + ')', sub: null }
   }
   const k = ctx.ids.indexOf(v.id)
@@ -603,15 +585,13 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     }
     let nobase: ComparisonView['nobase'] = null, full: ComparisonView['full'] = null
     let scaleTxt = '', windows: ComparisonView['windows'] = null
+    // R53: the effect text of a change is Mudanças' (effectView), the same on both screens.
+    const ev = effectView(obs, c0)
+    const line = ['sem-antes', 'sem-serie', 'aguardando'].includes(e.status) ? ev.detail : endDot(ev.label + '. ' + ev.detail)
     if (e.observed == null) {
-      if (e.status === 'aguardando' && e.waitText) nobase = { strong: e.waitText, text: '' }
-      else {
-        const lr = F.labelReason(e.label, e.reason, { sentence: true })
-        nobase = {
-          strong: e.status === 'aguardando' && e.readyText ? lr.replace(/leitura em \d{2}\/\d{2}/, e.readyText) : lr,
-          text: (e.willBeInconclusive ? 'Quando completar, o veredito será inconclusivo: ' + lc(e.willBeInconclusive) : '')
-            + (e.readyOn && !['aguardando', 'sem-serie', 'sem-antes'].includes(e.status) ? ' Primeira leitura possível em ' + D.dmOrDmy(e.readyOn) + '.' : ''),
-        }
+      nobase = {
+        strong: line,
+        text: e.readyOn && !['aguardando', 'sem-serie', 'sem-antes'].includes(e.status) ? ' Primeira leitura possível em ' + D.dmOrDmy(e.readyOn) + '.' : '',
       }
     } else {
       const hasBase = e.expected != null && !!e.iqr && e.iqr[0] != null && e.iqr[1] != null
@@ -628,7 +608,8 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
         whatWhen: ', ' + c0.whenText + ' (' + partAgo(c0) + ')',
         days: 'antes: ' + F.plural(e.beforeDays ?? 0, 'dia', 'dias') + '; depois: ' + F.plural(e.afterDays ?? 0, 'dia', 'dias') + '; o dia da troca fica de fora',
         verdictStrong: (hasBase ? cap(e.numbersFlat ?? '') : 'Observado ' + F.pct(e.observed) + '; ' + (e.noBaseText ?? '')) + '.',
-        verdictText: ' ' + endDot(F.labelReason(e.label, e.reason, { sentence: true })) + (e.status === 'neutro' ? ' Não dá para dizer que a troca ajudou ou atrapalhou.' : ''),
+        pill: e.label,
+        verdictText: ' ' + line + (e.status === 'neutro' ? ' Não dá para dizer que a troca ajudou ou atrapalhou.' : ''),
         scale: {
           aria: hasBase ? 'Observado ' + F.pct(e.observed) + ', esperado ' + F.pct(e.expected!) + ', faixa normal de ' + F.pct(q1) + ' a ' + F.pct(q3) : 'Observado ' + F.pct(e.observed),
           hasBase, iqr: hasBase ? { left: pos(q1!), width: Math.max(0.6, pos(q3!) - pos(q1!)) } : null, med: hasBase ? pos(e.expected!) : null,
@@ -647,7 +628,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     }
     return {
       changeId: q.k, before: e.beforeAvg != null ? F.num(e.beforeAvg) : '—', after: e.afterAvg != null ? F.num(e.afterAvg) : '—', scale: scaleTxt,
-      effect: { status: e.status, label: e.label, text: F.labelReason(e.label, e.reason, { sentence: true }) },
+      effect: ev,
       chip: q.e2 ? 'Thumbnail ' + q.labs![0] + ': ' + effLabel(e) + ' · ' + q.labs![1] + ': ' + effLabel(q.e2) : q.label + ': ' + effLabel(e),
       ba, nobase, full, descLink: c0.type === 'desc' && !!c0.diff, windows,
     }
@@ -684,7 +665,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   if (thumbPreAt != null) thumbNotes.push({ kind: 'warn', text: 'Thumbnail vista desde ' + preLabel + ', quando o arquivo de imagens começou. Trocas de thumbnail anteriores vinham de um método antigo (pela URL), que não é confiável, então não aparecem como troca.' })
   const dc = changes.filter(c => c.type === 'desc'), withText = dc.filter(c => c.diff)
   const versions: VersionsView = {
-    thumbs: { src: thumbs.length > 1 ? new Set(v.thumbs.map(t => t.key)).size + ' imagens em ' + thumbs.length + ' períodos, em ordem' : 'sem troca vista', cards: thumbs, notes: thumbNotes },
+    thumbs: { src: thumbs.length > 1 ? new Set(v.thumbs.map(t => t.key)).size + ' imagens em ' + thumbs.length + ' períodos, em ordem' : thumbs.length ? 'sem troca vista' : 'Nenhuma thumbnail registrada', cards: thumbs, notes: thumbNotes },
     titles: { src: titles.length > 1 ? 'trechos alterados contra o anterior' : 'sem troca vista', same: titles.length > 1 ? null : sameSinceText('título'), items: titles },
     descs: {
       src: descs.length < 2 ? 'sem troca vista' : withText.length ? 'comparação linha a linha' : 'texto antigo não guardado',

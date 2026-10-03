@@ -302,7 +302,8 @@ function sparkView(obs: Observatory, e: EffectResult): SparkView | null {
 
 const VERDICT: Record<string, [EffectView['icon'], string]> = { ganhou: ['up', 'Ganhou'], perdeu: ['down', 'Perdeu'], neutro: ['flat', 'Neutro'], inconclusivo: ['help', 'Inconclusivo'] }
 
-function effectView(obs: Observatory, c: ObsChange): EffectView {
+/** The effect of one change as Mudanças shows it; Histórico reuses it (R53: one text per change across screens). */
+export function effectView(obs: Observatory, c: ObsChange): EffectView {
   const e = eff(obs, c), F = obs.fmt, v = obs.video(c.video)!
   const base = {
     status: e.status, demoted: e.status === 'inconclusivo', noBase: e.noBaseText ?? null, method: e.methodLabel ?? null, fallback: e.fallbackText ?? null,
@@ -333,10 +334,13 @@ function effectView(obs: Observatory, c: ObsChange): EffectView {
  * `swipeKeys` (optional): engine change id → competitor_changes key (null = cannot be resolved). Without it the key is
  * the change's `toId` (the version it opened = `to_version_id`).
  */
-export function buildMudancasView(obs: Observatory, p: Record<string, string | undefined>, saved: Set<string>, swipeKeys?: Map<string, string | null>): MudancasView {
+/**
+ * The ordered list of the Mudanças screen for these params (filters, object niche, search, saved, sort): the single
+ * source of the list, shared by the screen and by Histórico's pager (which rebuilds the list the user came from).
+ */
+export function mudancasList(obs: Observatory, p: Record<string, string | undefined>, saved: Set<string>): { f: MudancasFilters; list: ObsChange[]; ordered: ObsChange[]; visibleVideos: string[]; nicheNote: string | null } {
   const f = parseFilters(obs, p)
-  const { query, extra, fmtQ } = makeQuery(obs, saved)
-  const D = obs.date, F = obs.fmt, RE = obs.RULES.effect
+  const { query, extra } = makeQuery(obs, saved)
 
   // Objects of another niche: the display niche follows the object (never persisted), with a toast.
   let nicheNote: string | null = null
@@ -369,6 +373,13 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
     })
   }
   const visibleVideos = [...new Set(ordered.map(c => c.video))]
+  return { f, list, ordered, visibleVideos, nicheNote }
+}
+
+export function buildMudancasView(obs: Observatory, p: Record<string, string | undefined>, saved: Set<string>, swipeKeys?: Map<string, string | null>): MudancasView {
+  const { f, ordered, visibleVideos, nicheNote } = mudancasList(obs, p, saved)
+  const { query, extra, fmtQ } = makeQuery(obs, saved)
+  const D = obs.date, F = obs.fmt, RE = obs.RULES.effect
   const back = '?' + filterQuery(f).toString()
   const firstDesc = ordered.find(c => c.type === 'desc' && c.hasText)?.id ?? null
 

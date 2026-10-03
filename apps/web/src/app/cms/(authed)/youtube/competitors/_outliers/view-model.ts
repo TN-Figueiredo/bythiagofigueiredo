@@ -69,6 +69,8 @@ export interface OutliersView {
   asofNote: string | null
   /** Non-weak outliers in the current query (what the tab and the empty-state buttons count). */
   count: number
+  /** The video ids the screen shows, in screen order (the list Histórico's pager walks). */
+  pageIds: string[]
 }
 
 /* ------------------------------------------------------------------ constants (outliers.html) */
@@ -436,7 +438,7 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
     sortOptions: (['mult', 'vpd', 'recent'] as const).map(v => ({ value: v, label: SORT_LABEL[v], href: hrefOf({ sort: v, limit: PAGE }) })),
     chipsLead, chips, asofNote,
     baseText: plainOf(baseParts), baseParts, basisMore, nicheNotice,
-    problems, groups, more, empty, count: R.count,
+    problems, groups, more, empty, count: R.count, pageIds,
   }
 }
 

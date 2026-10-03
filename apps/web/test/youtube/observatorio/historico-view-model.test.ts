@@ -3,6 +3,8 @@ import { describe, it, expect } from 'vitest'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildHistoricoView } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
+import { buildMudancasView, mudancasList, effectView } from '@/app/cms/(authed)/youtube/competitors/_mudancas/view-model'
+import { buildOutliersView } from '@/app/cms/(authed)/youtube/competitors/_outliers/view-model'
 
 const oracle = loadOracle()
 const obs = createObservatory(datasetFromOracle(oracle))
@@ -143,18 +145,101 @@ describe('historico view model', () => {
     expect(v.chart!.table).toBeNull()
   })
 
-  it('comparisons use the engine effect verbatim', () => {
+  it('R53: the effect of a change is the same object Mudanças shows', () => {
     const v = buildHistoricoView(obs, PICK.full, {})
     expect(v.comparisons.length).toBeGreaterThan(0)
+    const mud = buildMudancasView(obs, { niche: 'todos', win: '90' }, new Set())
+    let compared = 0
     for (const c of v.comparisons) {
-      const e = obs.effect(c.changeId)!
-      expect(c.effect.status).toBe(e.status)
-      expect(c.effect.text).toBe(obs.fmt.labelReason(e.label, e.reason, { sentence: true }))
+      expect(c.effect).toEqual(effectView(obs, obs.change(c.changeId)!))
+      const hero = mud.heroes.find(h => h.id === c.changeId)
+      if (hero) { expect(c.effect).toEqual(hero.effect); compared++ }
     }
+    expect(compared).toBeGreaterThan(0)
     const d = v.comparisons.find(c => c.changeId === v.defaultPair)!
     expect(['neutro', 'ganhou', 'perdeu']).toContain(d.effect.status)
+    expect(d.full!.verdictText).toContain(d.effect.detail)
     // the reverted thumbnail is one comparison A → B → A
     expect(v.comparisons.some(c => /^Thumbnail A → B: .+ · B → A: /.test(c.chip))).toBe(true)
+  })
+
+  describe('production-shaped first versions (precision first, first_seen = sync time)', () => {
+    const H3 = 3 * 36e5
+    /** Rewrites a video's first title/thumbnail/description as the sync writes them (competitor-versions.ts). */
+    const productionShaped = (id: string, firstSeen: (pub: number) => number) => {
+      const ds = datasetFromOracle(oracle)
+      const vv = ds.videos.find(x => x.id === id)!
+      for (const arr of [vv.titles, vv.thumbs, vv.descs] as Array<Array<{ prec: unknown; first_seen: number; seenSinceArchive?: boolean }>>) {
+        if (!arr[0]) continue
+        arr[0].prec = 'first'; arr[0].first_seen = firstSeen(vv.pub); delete arr[0].seenSinceArchive
+      }
+      return createObservatory(ds)
+    }
+    it('published after the archive start: stands from publication, no "pelo menos", no archive region or note', () => {
+      const id = obs.videos.find(x => x.tracked && x.pub >= obs.SERIES_START && x.titles.length === 1 && x.descs.length === 1 && x.thumbs.length === 1
+        && obs.channel(x.ch)!.sync.state === 'ok' && obs.channel(x.ch)!.sync.added == null && x.series.length >= 2)!.id
+      const o2 = productionShaped(id, pub => pub + H3)
+      const v = buildHistoricoView(o2, id, {})
+      for (const l of v.lanes) {
+        const first = l.versions[0]!
+        expect([l.type, first.from]).toEqual([l.type, o2.date.dmOrDmy(o2.video(id)!.pub) + ' ' + o2.date.hm(o2.video(id)!.pub) + ' (publicação)'])
+        expect([l.type, first.atLeast, first.precision]).toEqual([l.type, false, 'publicacao'])
+        expect(first.fromH).toBe(0)
+      }
+      expect(v.lanes.find(l => l.type === 'thumb')!.pre).toBeNull()
+      expect(v.versions!.thumbs.notes.some(n => /Thumbnail vista desde/.test(n.text))).toBe(false)
+      expect(v.versions!.titles.same).toBe('Mesmo título desde a publicação.')
+      expect(JSON.stringify(v)).not.toMatch(/pelo menos|vist[oa] desde|não registrada/)
+    })
+    it('published before the archive start: the start was not observed', () => {
+      const o2 = productionShaped(PICK.old, () => o2SS() + H3)
+      function o2SS() { return obs.SERIES_START }
+      const v = buildHistoricoView(o2, PICK.old, {})
+      const t1 = v.lanes.find(l => l.type === 'title')!.versions[0]!
+      expect(t1.atLeast).toBe(true)
+      expect(t1.from).toMatch(/^visto desde /)
+      const th = v.lanes.find(l => l.type === 'thumb')!
+      expect(th.pre!.title).toBe('Thumbnail antes de 03/10: não registrada')
+      expect(v.versions!.thumbs.notes.some(n => /^Thumbnail vista desde 03\/10, quando o arquivo de imagens começou/.test(n.text))).toBe(true)
+    })
+  })
+
+  describe('pager rebuilds the exact origin list (shared list code)', () => {
+    it('Mudanças: same parseFilters/query/sort as the screen', () => {
+      const back = '?win=90&type=title'
+      const L = mudancasList(obs, { win: '90', type: 'title', niche: 'todos' }, new Set())
+      const id = L.visibleVideos[1]!
+      const v = buildHistoricoView(obs, id, { from: 'mudancas', back })
+      expect(v.pager!.position).toBe('vídeo 2 de ' + L.visibleVideos.length + ' com trocas em Mudanças (todos os nichos, títulos, 90 dias, ' + L.ordered.length + ' trocas)')
+      expect(v.pager!.prev).toBe(obs.link.historico(L.visibleVideos[0]!, { from: 'mudancas', back }))
+      expect(v.crumbs.href).toBe('/cms/youtube/competitors/mudancas' + back)
+    })
+    it('Mudanças "só salvas": the saved set from the swipe rows', () => {
+      const savedIds = obs.changes.filter(c => !obs.channel(c.ch)!.own && c.at > obs.NOW - 30 * 864e5).slice(0, 3).map(c => c.id)
+      const saved = new Set(savedIds)
+      const L = mudancasList(obs, { saved: '1', niche: 'todos' }, saved)
+      expect(L.ordered.length).toBe(3)
+      const id = L.visibleVideos[0]!
+      const v = buildHistoricoView(obs, id, { from: 'mudancas', back: '?saved=1' }, { savedChangeIds: saved })
+      expect(v.pager!.position).toBe('vídeo 1 de ' + L.visibleVideos.length + ' com trocas em Mudanças (todos os nichos, 30 dias, só salvas, 3 trocas)')
+      // without the saved set the list is empty: the video is outside it, never a different list
+      expect(buildHistoricoView(obs, id, { from: 'mudancas', back: '?saved=1' }).pager!.position).toMatch(/^fora da lista de Mudanças/)
+    })
+    it('Outliers: the screen list (defaults, age aliases, sort)', () => {
+      const ov = buildOutliersView(obs, { age: 'all', sort: 'vpd', niche: 'todos' })
+      expect(ov.pageIds.length).toBeGreaterThan(2)
+      const v = buildHistoricoView(obs, ov.pageIds[1]!, { from: 'outliers', back: '?age=all&sort=vpd' })
+      expect(v.pager!.position).toBe('vídeo 2 de ' + ov.pageIds.length + ' em Outliers (todos os nichos, longos, todas as idades, 2,0× ou mais, por views/dia)')
+      expect(v.pager!.next).toBe(obs.link.historico(ov.pageIds[2]!, { from: 'outliers', back: '?age=all&sort=vpd' }))
+    })
+    it('Outliers with a reading: the reading scope applies', () => {
+      const rid = Object.keys(obs.forja.byId).find(id => obs.forja.readingScope(id))!
+      expect(rid).toBeTruthy()
+      const ov = buildOutliersView(obs, { reading: rid, niche: 'todos' })
+      expect(ov.pageIds.length).toBeGreaterThan(0)
+      const v = buildHistoricoView(obs, ov.pageIds[0]!, { from: 'outliers', back: '?reading=' + rid })
+      expect(v.pager!.position).toMatch(new RegExp('^vídeo 1 de ' + ov.pageIds.length + ' em Outliers \\(.*escopo da leitura'))
+    })
   })
 
   it('thumbnails show the archived blob when present, else the honest text', () => {

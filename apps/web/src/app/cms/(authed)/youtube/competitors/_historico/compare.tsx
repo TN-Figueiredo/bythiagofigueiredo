@@ -69,7 +69,7 @@ function Full({ p }: { p: ComparisonView }) {
         <p className="what"><b>{f.what}</b>{f.whatWhen}</p>
         <div className="big"><span className="n">{p.before}</span><span className="arr" aria-hidden="true">→</span><span className="n">{p.after}</span><span className="u">média de views/dia</span></div>
         <div className="src" style={{ marginTop: 6 }}>{f.days}</div>
-        <div className="vd" data-verdict={p.effect.status}>{ic ? <HIcon name={ic} /> : null}{p.effect.label}</div>
+        <div className="vd" data-verdict={p.effect.status}>{ic ? <HIcon name={ic} /> : null}{f.pill}</div>
       </div>
       <div>
         <p className="verdict"><strong>{f.verdictStrong}</strong>{f.verdictText}</p>
