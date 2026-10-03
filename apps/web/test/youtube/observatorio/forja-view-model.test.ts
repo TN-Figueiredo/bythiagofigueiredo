@@ -223,12 +223,12 @@ describe('what happens when the data does not exist', () => {
     for (const r of ds.readings) if (r.id === 'padroes-titulo-ia-20-10') r.sent = { ...r.sent, text: '' }
     expect(buildForjaView(createObservatory(ds), { screen: 'insights', niche: 'ia' }).reading!.sentText).toBe('Os dados enviados à forja não ficaram registrados com esta leitura.')
   })
-  it('a frozen reading that cites a change the observatory no longer has: no crash, since null, said in "Do site"', () => {
+  it('a frozen reading that cites a change the observatory no longer has: the engine says so in "Desde então" (no catch-all)', () => {
     const ds = fresh()
     for (const r of ds.readings) if (r.id === 'resumo-trocas-ia-20-10') r.sent = { ...r.sent, changeIds: [...(r.sent.changeIds ?? []), 'sumiu/title/9'] }
     const r = buildForjaView(createObservatory(ds), { screen: 'mudancas', niche: 'ia' }).reading!
-    expect(r.since).toBeNull()
-    expect(r.siteNotes).toContain('Não deu para comparar esta leitura com os dados de hoje: ela cita dados que o observatório não tem mais.')
+    expect(r.since!.text).toMatch(/1 troca citada não está mais no observatório/)
+    expect(r.since!.shortText).toMatch(/1 troca citada fora$/)
   })
   it('a reading whose since cannot be computed (unknown id) has since null', () => {
     const obs = createObservatory(fresh())
@@ -298,5 +298,31 @@ describe('drawer (moldura)', () => {
     expect(d.runs[0]!.kase).toBe('running')
     expect(d.runs[0]!.cancel).toBeNull()
     expect(buildForjaView(obs, { screen: 'mudancas', niche: 'ia' }).cancel).toEqual([])
+  })
+})
+
+describe('Insights hero — insights.html buildReading port (fix round 1)', () => {
+  it('evidence numbered in reading order: theme (temas lead) first, then the formulas that pass, then the base', async () => {
+    const { buildInsightsView } = await import('@/app/cms/(authed)/youtube/competitors/_insights/view-model')
+    const obs = createObservatory(fresh())
+    const v = buildInsightsView(obs, { niche: 'viagem' }).hero!.view!
+    expect(v.shown[0]!.src).toBe('temas-viagem-20-10')
+    expect(v.shown[0]!.parts[0]).toMatchObject({ kind: 'p', ev: 1 })
+    expect(v.ev[0]!.src).toBe('temas-viagem-20-10')
+    expect(v.ev.map(e => e.n)).toEqual(v.ev.map((_, i) => i + 1))
+    const preco = v.ev.find(e => e.href.includes('formula=preco'))!
+    expect(preco.count).toBe(obs.outliers({ reading: 'padroes-titulo-viagem-20-10', formula: 'preco', min: 0 }).count)
+    expect(preco.label).toMatch(/com a fórmula \(hoje, nos \d+ canais da leitura\)$/)
+    // the theme evidence carries topic= (never theme=, the colour)
+    expect(v.ev[0]!.href).not.toMatch(/[?&]theme=/)
+  })
+  it('no pattern passes: the evidence falls back to the pattern with the largest difference', () => {
+    const ds = fresh()
+    const P = ds.readings.find(r => r.id === 'padroes-titulo-viagem-20-10')!
+    const pats = P.analysis.patterns as Array<{ verdict: { id: string }; diff: number | null; nUse: number; formula: string }>
+    for (const p of pats) if (p.verdict.id === 'padrao') p.verdict.id = 'sem-diferenca'
+    const top = [...pats].filter(p => p.diff != null && p.nUse > 0).sort((a, b) => b.diff! - a.diff!)[0]!
+    const r = buildForjaView(createObservatory(ds), { screen: 'insights', niche: 'viagem' }).reading!
+    expect(r.evidenceLinks[0]!.href).toContain('formula=' + top.formula)
   })
 })

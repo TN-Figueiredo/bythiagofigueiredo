@@ -145,7 +145,7 @@ export function ForjaDrawer({ d, flow0, modal, onClose, onAsk, onCancel, pre }: 
                       </p>
                     ) : (
                       <>
-                        <p className="obs-fj-meta" data-preview={tid + '|' + c.effNiche}>{c.meta.replace(/ Última leitura/, (!sel && c.outCount ? ' ' + c.outCount + (c.outCount === 1 ? ' canal fica fora.' : ' canais ficam fora.') : '') + ' Última leitura')}</p>
+                        <p className="obs-fj-meta" data-preview={tid + '|' + c.effNiche}>{sel ? c.meta : c.metaUnselected}</p>
                         {c.partial ? <p className="obs-fj-warnline">{Icon.warn()}<span>{c.partial}</span></p> : null}
                         {sel && c.thin ? <p className="obs-fj-warnline" data-thin="">{Icon.warn()}<span>{c.thin}</span></p> : null}
                       </>

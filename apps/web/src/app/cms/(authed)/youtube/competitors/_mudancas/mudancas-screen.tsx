@@ -13,6 +13,7 @@ import { Filters, useGo } from './filters'
 import { VideoGroup, type SwipeState } from './change-hero'
 import { RichText } from './rich'
 import { ReadingCard } from './reading-card'
+import type { ForjaAsk } from '../_chrome/forja-drawer'
 
 export interface SwipeResult { ok: boolean; saved?: boolean }
 export interface MudancasScreenProps {
@@ -21,9 +22,11 @@ export interface MudancasScreenProps {
   onToggleSwipe?: (key: string) => Promise<SwipeResult>
   /** Replaces the forja card of the summary box (default: ReadingCard from view.forja). */
   forjaSlot?: ReactNode
+  /** "Confirmar pedido" of the inline preview (server action askForjaReading). */
+  onAskForja?: ForjaAsk
 }
 
-export function MudancasScreen({ view, onToggleSwipe, forjaSlot }: MudancasScreenProps) {
+export function MudancasScreen({ view, onToggleSwipe, forjaSlot, onAskForja }: MudancasScreenProps) {
   const router = useRouter(), toast = useToast(), go = useGo()
   const [page, setPage] = useState(0)
   const [over, setOver] = useState<Record<string, boolean>>({})
@@ -71,7 +74,7 @@ export function MudancasScreen({ view, onToggleSwipe, forjaSlot }: MudancasScree
 
   return (
     <div data-obs-screen="mudancas">
-      <Ledger view={view} forjaSlot={forjaSlot ?? <ReadingCard view={view} />} />
+      <Ledger view={view} forjaSlot={forjaSlot ?? <ReadingCard view={view} onAsk={onAskForja} />} />
       <Filters view={view} />
       <div className="count-row">
         <span aria-live="polite" data-count-line="">{total ? <RichText r={view.paging.countLines[pi]!} /> : null}</span>

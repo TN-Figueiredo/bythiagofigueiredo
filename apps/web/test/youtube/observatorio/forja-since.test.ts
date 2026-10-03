@@ -132,3 +132,40 @@ describe('eligible channels, timing, readings by id', () => {
     for (const f of fs.readdirSync(dir)) expect(fs.readFileSync(path.join(dir, f), 'utf8'), f).not.toMatch(/03\/10/)
   })
 })
+
+describe('since — a frozen reading that cites data the observatory no longer has (Task 35a fix round 1)', () => {
+  it('a cited change was deleted: no throw, the gone change is named and the rest still compares', () => {
+    const d = datasetFromOracle(loadOracle())
+    const v = d.videos.find(x => x.id === 'matt-opus55')!
+    v.titles = v.titles.slice(0, 2)   // 'matt-opus55/title/2' no longer exists
+    const o = createObservatory(d)
+    expect(o.change('matt-opus55/title/2')).toBeUndefined()
+    const s = o.forja.since('resumo-trocas-ia-20-10')!
+    expect(s.gone).toEqual({ changes: ['matt-opus55/title/2'], videos: [] })
+    expect(s.text).toMatch(/1 troca citada não está mais no observatório/)
+    expect(s.shortText).toMatch(/1 troca citada fora$/)
+    expect(s.textNoAsk).not.toMatch(ASK)
+  })
+  it('a cited video was deleted: no throw, the gone video is named', () => {
+    const d = datasetFromOracle(loadOracle())
+    const P = d.readings.find(r => r.id === 'padroes-titulo-viagem-20-10')!
+    const gone = P.base!.videos[0]!.id
+    d.videos = d.videos.filter(x => x.id !== gone)
+    const s = createObservatory(d).forja.since(P.id)!
+    expect(s.gone!.videos).toEqual([gone])
+    expect(s.text).toMatch(/1 vídeo da leitura não está mais no observatório/)
+  })
+  it('the video of a video reading is gone: honest sentence, no comparison', () => {
+    const d = datasetFromOracle(loadOracle())
+    d.videos = d.videos.filter(x => x.id !== 'matt-opus55')
+    const s = createObservatory(d).forja.since('leitura-video-matt-opus55-20-10')!
+    expect(s.text).toBe('Não dá para comparar esta leitura com os dados de hoje: o vídeo não está mais no observatório.')
+    expect(s.gone!.videos).toEqual(['matt-opus55'])
+  })
+  it('a reading stored without its frozen base: said, never a crash', () => {
+    const d = datasetFromOracle(loadOracle())
+    const P = d.readings.find(r => r.id === 'padroes-titulo-ia-20-10')!
+    delete P.base
+    expect(createObservatory(d).forja.since(P.id)!.text).toBe('Não dá para comparar esta leitura com os dados de hoje: os dados enviados à forja não ficaram registrados com ela.')
+  })
+})

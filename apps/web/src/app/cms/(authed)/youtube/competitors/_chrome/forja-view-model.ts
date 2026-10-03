@@ -44,6 +44,11 @@ export interface ForjaReadingView {
   sinceLabel: string
   /** "7 trocas" — what the reading read (resumo das trocas); null when the frozen data does not say. */
   countText: string | null
+  /**
+   * Resumo das trocas: the literal items carry their "Ver as N trocas" inline ONLY when the item count is exactly
+   * groups + (reverts ? 1 : 0); otherwise the links are listed in "Do site" by the group's verdict (never mis-paired).
+   */
+  inlineEvidence: boolean
 }
 export interface ForjaNicheBlock {
   niche: Niche; label: string; reading: ForjaReadingView | null
@@ -67,6 +72,12 @@ export interface ForjaView {
   variant: 'solid' | 'outline' | 'none'
   /** The chrome header's own variant: Histórico keeps the button in the screen (mockup forjaVariant 'none'). */
   headerVariant: 'solid' | 'outline' | 'none'
+  /**
+   * What the header button does (R58, the binding mockups): Insights, Canais and Outliers ASK directly for the screen's
+   * type and niche; Mudanças opens its inline preview + "Confirmar pedido"; Histórico has no header button. The selector
+   * drawer is the moldura's registered exception (CONVENCOES:225): 'drawer' only where the moldura opens it.
+   */
+  headerAction: 'ask' | 'confirm' | 'drawer' | 'none'
   button: ForjaButton
   status: ForjaStatus | null
   machine: { alive: boolean; text: string; time: string | null; title: string }
@@ -119,14 +130,15 @@ export function readingSeal(obs: Observatory, r: FrozenReading): string {
 }
 
 /* ------------------------------------------------------------------ frozen analysis (jsonb, narrowed) */
-interface PatternLite { formula: string; nUse: number; verdict: { id: string; text: string }; evidence: string[] }
+export interface PatternLite { formula: string; nUse: number; verdict: { id: string; text: string }; evidence: string[]; attribution: string | null; diff: number | null }
 interface GroupLite { changeIds: string[]; verdict: { text: string } }
 const isRec = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
 const strs = (x: unknown): string[] => (Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string') : [])
-function patternsOf(r: FrozenReading): PatternLite[] {
+export function patternsOf(r: FrozenReading): PatternLite[] {
   const ps = Array.isArray(r.analysis.patterns) ? (r.analysis.patterns as unknown[]) : []
   return ps.filter(isRec).filter(p => typeof p.formula === 'string' && isRec(p.verdict) && typeof p.verdict.id === 'string')
-    .map(p => ({ formula: p.formula as string, nUse: typeof p.nUse === 'number' ? p.nUse : 0, evidence: strs(p.evidence), verdict: { id: (p.verdict as Record<string, unknown>).id as string, text: String((p.verdict as Record<string, unknown>).text ?? '') } }))
+    .map(p => ({ formula: p.formula as string, nUse: typeof p.nUse === 'number' ? p.nUse : 0, evidence: strs(p.evidence),
+      attribution: isRec(p.attribution) && typeof p.attribution.text === 'string' ? p.attribution.text : null, diff: typeof p.diff === 'number' ? p.diff : null, verdict: { id: (p.verdict as Record<string, unknown>).id as string, text: String((p.verdict as Record<string, unknown>).text ?? '') } }))
 }
 function groupsOf(r: FrozenReading): GroupLite[] {
   const gs = Array.isArray(r.analysis.groups) ? (r.analysis.groups as unknown[]) : []
@@ -137,26 +149,35 @@ function groupsOf(r: FrozenReading): GroupLite[] {
 const verOut = (n: number) => (n === 1 ? 'Ver o outlier' : 'Ver os ' + n + ' outliers')
 const verTrocas = (n: number) => (n === 1 ? 'Ver a troca' : 'Ver as ' + n + ' trocas')
 /** insights.html evLink: reading=<id> plus the reading's own scope (channels, window, asof); N = what Outliers shows. */
-function evLink(obs: Observatory, r: FrozenReading, params: { min: number; formula?: string }): { href: string; n: number; nCh: number } | null {
+export function evLink(obs: Observatory, r: FrozenReading, params: { min: number; formula?: string; theme?: string }): { href: string; n: number; nCh: number } | null {
   const S = obs.forja.readingScope(r.id)
   if (!S) return null
   const q = { reading: r.id, ...params }
   const n = obs.outliers(q).count
   const ages = (S.ages ?? []).filter(id => { const w = obs.OUT_WINDOWS.find(x => x.id === id); return !!w && S.windowDays != null && w.hi <= S.windowDays })
-  const href = obs.link.outliers({ ...(S.niche ? { niche: S.niche } : {}), ...(S.fmt ? { fmt: S.fmt } : {}), ages, ...q })
+  // a content theme travels as topic= (theme= is the colour scheme, CONVENCOES F4)
+  const { theme, ...rest } = q
+  const href = obs.link.outliers({ ...(S.niche ? { niche: S.niche } : {}), ...(S.fmt ? { fmt: S.fmt } : {}), ages, ...rest, ...(theme ? { topic: theme } : {}) })
   return { href, n, nCh: S.channels.length }
+}
+/** insights.html buildReading `best`: the patterns that pass the rule; none → the one with the largest difference (used). */
+export function bestPatterns(r: FrozenReading): PatternLite[] {
+  const pats = patternsOf(r), pass = pats.filter(p => p.verdict.id === 'padrao')
+  if (pass.length) return pass
+  const top = pats.filter(p => p.diff != null && p.nUse > 0).sort((a, b) => b.diff! - a.diff!)[0]
+  return top ? [top] : []
 }
 function evidenceOf(obs: Observatory, r: FrozenReading): ForjaReadingView['evidenceLinks'] {
   const out: ForjaReadingView['evidenceLinks'] = []
   if (r.type === 'resumo-trocas') {
     for (const g of groupsOf(r)) out.push({ label: verTrocas(g.changeIds.length), href: obs.link.mudancas({ changes: g.changeIds }), n: g.changeIds.length, text: g.verdict.text })
     const rv = strs(r.analysis.reverts)
-    if (rv.length) out.push({ label: verTrocas(rv.length), href: obs.link.mudancas({ changes: rv }), n: rv.length, text: 'Reversões' })
+    if (rv.length) out.push({ label: verTrocas(rv.length), href: obs.link.mudancas({ changes: rv }), n: rv.length, text: 'Trocas que voltaram à versão anterior' })
     return out
   }
   if (r.type === 'leitura-video') return out
   const scope = (nCh: number) => ' (hoje, nos ' + nCh + ' canais da leitura)'
-  for (const p of patternsOf(r).filter(p => p.verdict.id === 'padrao')) {
+  for (const p of bestPatterns(r)) {
     const lk = evLink(obs, r, { min: 0, formula: p.formula })
     if (lk) out.push({ label: obs.fmt.verVideos(lk.n) + ' com a fórmula' + scope(lk.nCh), href: lk.href, n: lk.n, text: p.verdict.text + '; a leitura viu ' + obs.fmt.plural(p.nUse, 'vídeo', 'vídeos') + ' com a fórmula.' })
   }
@@ -171,13 +192,10 @@ function videoReading(obs: Observatory, videoId: string): FrozenReading | null {
   return obs.forja.readings.filter(r => r.type === 'leitura-video' && r.target?.video === videoId).sort((a, b) => b.generatedAt - a.generatedAt)[0] ?? null
 }
 export function forjaReadingView(obs: Observatory, r: FrozenReading, o: { active: boolean; isNew: boolean; activeNote: string | null }): ForjaReadingView {
-  // engine since() assumes every change/video the frozen reading cites still exists; one that vanished (a deleted
-  // version row, a channel removed) must not take the page down — it is said instead
-  let s: ReturnType<Observatory['forja']['since']> = null, sinceBroken = false
-  try { s = obs.forja.since(r.id) } catch { sinceBroken = true }
+  // since() says it when the reading cites data that no longer exists (engine `gone`), never throws
+  const s = obs.forja.since(r.id)
   const items = [...r.text.items]
   const siteNotes: string[] = []
-  if (sinceBroken) siteNotes.push('Não deu para comparar esta leitura com os dados de hoje: ela cita dados que o observatório não tem mais.')
   // a reading without items says so; temas readings carry only the lead and the theme by design
   if (!items.length && !r.text.lead) siteNotes.push('A leitura chegou sem texto: a forja não escreveu nada que o validador aceitasse.')
   else if (!items.length && r.type !== 'temas') siteNotes.push('Esta leitura não trouxe itens; só o resumo acima.')
@@ -199,6 +217,7 @@ export function forjaReadingView(obs: Observatory, r: FrozenReading, o: { active
     title: r.text.title || (t ? t.label : r.type) + (r.niche ? ' — ' + NL[r.niche] : ''),
     lead: r.text.lead, items, theme: r.text.theme ?? null,
     keyItems: outlierType ? items.filter((_, i) => pass(i)) : items, moreItems: outlierType ? items.filter((_, i) => !pass(i)) : [],
+    inlineEvidence: r.type === 'resumo-trocas' && items.length === groupsOf(r).length + (strs(r.analysis.reverts).length ? 1 : 0),
     countText: typeof r.sent.nChanges === 'number' ? obs.fmt.plural(r.sent.nChanges, 'troca', 'trocas') : null,
     sinceLabel: kind + ' (' + (windowLabel(r.type === 'leitura-video' ? null : days) ? windowLabel(days) + ', ' : '') + obs.date.dm(r.generatedAt) + ')',
     // the frozen data sent with the reading; missing on an old row → said, never invented
@@ -312,8 +331,10 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
   const headerVariant = o.screen === 'historico' ? 'none' : o.screen === 'insights' ? 'solid' : 'outline'
 
   return {
+    // the forja tables exist after Task 29's migration (the loader throws without them): the chrome guard keys on this
     ready: true, capable, incapableText: capable ? null : INCAPABLE_TEXT,
     variant: o.screen === 'insights' || o.screen === 'historico' ? 'solid' : 'outline', headerVariant,
+    headerAction: o.screen === 'historico' ? 'none' : o.screen === 'mudancas' ? 'confirm' : 'ask',
     button, status, machine: machineView(obs, sc), reading,
     screen: o.screen, type, typeLabel, niche: scopeNiche, videoId, fmt: o.fmt ?? null,
     niches,
@@ -356,6 +377,8 @@ export interface DrawerCombo {
   blocked: null | { kind: 'active' | 'quota' | 'both'; text: string; pubText: string | null; runType: ObsType | null }
   partial: string | null
   meta: string; warn: string | null; thin: string | null; outCount: number
+  /** The meta of an option that is not selected: it also says how many channels stay out. */
+  metaUnselected: string
   confirm: { label: string; escopo: string; entrega: string; naoFaz: string; quando: string; limite: string }
 }
 export interface DrawerOption { id: (typeof DRAWER_TYPES)[number]; label: string; shortsLabel: string | null; desc: string; shortsDesc: string | null }
@@ -453,10 +476,12 @@ export function buildForjaDrawerView(obs: Observatory, o: { niche: NicheScope; t
       return (obs.channel(x.id)?.name ?? x.id) + ' (' + (k ? F.plural(k, 'outlier dele não entra', 'outliers dele não entram') : 'sem outliers na janela') + ')'
     }).join(', ')
     const blocked = q.blocked
+    const preview = (n === 'todos' && eff !== 'todos' ? NL[eff as Niche] + ': ' : '') + period(pvText(pv))
     combos[comboKey(type, n)] = {
       type, niche: n, effNiche: eff, blocked, partial: q.partial,
       meta: blocked ? (blocked.kind === 'quota' && blocked.pubText ? blocked.pubText : '') + period(cap(blocked.text))
-        : (n === 'todos' && eff !== 'todos' ? NL[eff as Niche] + ': ' : '') + period(pvText(pv)) + ' ' + lastOf(type, eff),
+        : preview + ' ' + lastOf(type, eff),
+      metaUnselected: blocked ? '' : preview + (out.length ? ' ' + F.plural(out.length, 'canal fica fora', 'canais ficam fora') + '.' : '') + ' ' + lastOf(type, eff),
       warn: !blocked && out.length ? out.map(x => x.reason).join('; ') + '.' : null, outCount: out.length,
       thin: thinWarn(type, eff),
       confirm: {

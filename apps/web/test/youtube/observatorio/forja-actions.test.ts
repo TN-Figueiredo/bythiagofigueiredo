@@ -11,10 +11,11 @@ import type { ForjaRequest } from '@/lib/youtube/observatorio/types'
 const oracle = loadOracle()
 const UID = '11111111-1111-4111-8111-111111111111'
 
-interface Calls { order: string[]; ask: unknown[]; cancel: unknown[] }
-function setup(o: { auth?: { ok: boolean; reason?: string; user?: { id: string } }; cancelled?: boolean; ds?: Dataset; askThrows?: Error } = {}): Calls {
-  const calls: Calls = { order: [], ask: [], cancel: [] }
+interface Calls { order: string[]; ask: unknown[]; cancel: unknown[]; sentry: Array<{ e: unknown; extra: unknown }> }
+function setup(o: { auth?: { ok: boolean; reason?: string; user?: { id: string } }; cancelled?: boolean; ds?: Dataset; askThrows?: Error; cancelThrows?: Error } = {}): Calls {
+  const calls: Calls = { order: [], ask: [], cancel: [], sentry: [] }
   vi.resetModules()
+  vi.doMock('@sentry/nextjs', () => ({ captureException: (e: unknown, ctx: { extra: unknown }) => { calls.sentry.push({ e, extra: ctx.extra }) } }))
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({
     requireSiteScope: async (a: unknown) => { calls.order.push('guard:' + JSON.stringify(a)); return o.auth ?? { ok: true, user: { id: UID } } },
@@ -26,7 +27,7 @@ function setup(o: { auth?: { ok: boolean; reason?: string; user?: { id: string }
     return {
       ...real,
       askReading: async (_ctx: unknown, input: unknown) => { calls.ask.push(input); if (o.askThrows) throw o.askThrows; return { data: { ok: true, reason: null, results: [{ niche: 'ia', ok: true, reason: null, taskId: 't1' }] } } },
-      cancelReading: async (_ctx: unknown, input: unknown) => { calls.cancel.push(input); return { data: { cancelled: o.cancelled ?? true } } },
+      cancelReading: async (_ctx: unknown, input: unknown) => { calls.cancel.push(input); if (o.cancelThrows) throw o.cancelThrows; return { data: { cancelled: o.cancelled ?? true } } },
     }
   })
   vi.doMock('@/lib/youtube/observatorio/load', async () => {
@@ -62,10 +63,24 @@ describe('askForjaReading', () => {
     expect((await a.askForjaReading('temas', 'tudo' as never)).ok).toBe(false)
     expect(calls.order).toEqual([])
   })
-  it('a queue failure is said honestly (never a silent ok)', async () => {
+  it('a queue failure is said honestly (never a silent ok) AND reported to Sentry, without PII', async () => {
     const { PipelineServiceError } = await import('@/lib/pipeline/services/types')
-    setup({ askThrows: new PipelineServiceError('INTERNAL_ERROR', 'boom', 500) })
+    const err = new PipelineServiceError('INTERNAL_ERROR', 'boom', 500)
+    const calls = setup({ askThrows: err })
     expect(await (await actions()).askForjaReading('temas', 'ia')).toEqual({ ok: false, reason: 'A fila da forja não respondeu. Tente de novo em alguns minutos.', results: [] })
+    expect(calls.sentry).toEqual([{ e: err, extra: { action: 'askForjaReading', taskType: 'temas', niche: 'ia', siteId: 's1' } }])
+    expect(JSON.stringify(calls.sentry[0]!.extra)).not.toContain(UID)
+  })
+  it('a 400 from the queue is the user\'s input: said, not reported', async () => {
+    const { PipelineServiceError } = await import('@/lib/pipeline/services/types')
+    const calls = setup({ askThrows: new PipelineServiceError('VALIDATION_ERROR', 'videoId: required for leitura-video', 400) })
+    expect((await (await actions()).askForjaReading('leitura-video', 'ia')).reason).toBe('Pedido inválido: videoId: required for leitura-video')
+    expect(calls.sentry).toEqual([])
+  })
+  it('a cancel failure is said and reported', async () => {
+    const calls = setup({ cancelThrows: new Error('db down') })
+    expect(await (await actions()).cancelForjaReading('temas', 'viagem')).toEqual({ ok: false, reason: 'A fila da forja não respondeu. Tente de novo em alguns minutos.' })
+    expect(calls.sentry[0]!.extra).toEqual({ action: 'cancelForjaReading', taskType: 'temas', niche: 'viagem', siteId: 's1' })
   })
   it('leitura-video carries the video id', async () => {
     const calls = setup()

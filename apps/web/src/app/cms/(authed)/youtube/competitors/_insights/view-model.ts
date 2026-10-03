@@ -6,7 +6,8 @@
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt as VideoFmt, Niche } from '@/lib/youtube/observatorio/types'
-import { buildForjaView, forjaReadingView, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
+import { bestPatterns, buildForjaView, evLink, forjaReadingView, patternsOf, readingSeal, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
+import type { FrozenReading } from '@/lib/youtube/observatorio/types'
 
 /** Rich text: plain strings, bold and monospace numbers (the mockup's <b> and <span class="mono">). */
 export type RichPart = string | { b: string } | { mono: string } | { bmono: string }
@@ -14,6 +15,16 @@ export type Rich = RichPart[]
 
 export interface LinkOrText { href: string | null; text: string; n: number }
 
+export interface HeroPart { kind: 'p'; text: string; ev: number | null }
+export interface HeroList { kind: 'ul'; items: Array<{ text: string; ev: number | null }> }
+export interface HeroBlock { src: string; seal: string; parts: Array<HeroPart | HeroList> }
+export interface HeroReadingView {
+  id: string; shown: HeroBlock[]; more: HeroBlock[]; nMore: number
+  ev: Array<{ n: number; src: string; text: string; href: string; count: number; label: string }>
+  notes: string[]
+  /** "Desde então" per source, temas first: "Temas (90 dias, 20/10)" / "Fórmulas (6 meses, 20/10)" or "Leitura (…)". */
+  since: Array<{ label: string; shortText: string | null; text: string | null }>
+}
 /** A paragraph of the hero's state box; `runbook` puts the runbook link between `before` and `after`. */
 export type HeroPara = string | { before: string; after: string }
 export interface InsightsHero {
@@ -26,6 +37,8 @@ export interface InsightsHero {
   reading: ForjaReadingView | null
   /** The temas reading shown with the long-video formulas (its own seal). */
   themes: ForjaReadingView | null
+  /** insights.html buildReading: blocks (seal above literal text, evidence numbers in reading order) and the evidence list. */
+  view: HeroReadingView | null
   /** "Ver a última leitura publicada (20/10)" while a request is in progress. */
   prevLabel: string | null
   noteLabel: string; moreLabel: string
@@ -540,8 +553,11 @@ function heroOf(obs: Observatory, f: ForjaView, niche: Niche, fmt: VideoFmt): In
       case 'recusado (dado velho)': box = { title: 'A forja recusou o pedido das ' + DT.hm(r.createdAt), paras: [st, { before: cap(sc.quota.text) + '. Se repetir, veja o ', after: '.' }], steps: false, stillNone }; break
     }
   }
-  const nMore = rd ? rd.moreItems.length : 0
+  const P = rd ? obs.forja.byId[rd.id] ?? null : null
+  const view = P ? heroReading(obs, P, themes && tLatest ? tLatest : null, !!f.status?.active, rd!, themes) : null
+  const nMore = view ? view.nMore : 0
   return {
+    view,
     statusChip: r ? { text: sc.statusLabel ?? r.state, dot: DOT[r.state] ?? 'var(--muted)', pulse: r.state === 'trabalhando' } : null,
     quotaLine: f.card.quotaNote, scopeNote: out.length ? out.join('. ') + '.' : null,
     box, publishedNote, reading: rd, themes: rd ? themes : null,
@@ -549,5 +565,49 @@ function heroOf(obs: Observatory, f: ForjaView, niche: Niche, fmt: VideoFmt): In
     noteLabel: 'Nota do site, ' + DT.dm(obs.NOW),
     moreLabel: nMore ? 'Ver ' + (nMore === 1 ? 'o outro item' : 'os outros ' + nMore + ' itens') + ' da leitura e as evidências' : 'Ver o resto da leitura e as evidências',
     caveat: 'A forja agrupa e resume o que está nos dados. Ela não vê as thumbnails e não diz por que um vídeo foi bem.',
+  }
+}
+
+/** Port of insights.html buildReading (:357-380): evidence keyed by source, numbered in reading order. */
+function heroReading(obs: Observatory, P: FrozenReading, T: FrozenReading | null, active: boolean, rd: ForjaReadingView, td: ForjaReadingView | null): HeroReadingView {
+  const F = obs.fmt, X = obs.RULES.outlierMin
+  const verOut = (n: number) => (n === 1 ? 'Ver o outlier' : 'Ver os ' + n + ' outliers')
+  const scopeTxt = (nCh: number) => 'hoje, nos ' + nCh + ' canais da leitura'
+  const E: Record<string, { src: string; text: string; href: string; count: number; label: string }> = {}
+  const R0 = T ?? P
+  const dom = (R0.analysis as { dominantTheme?: { theme?: string | null; n?: number } }).dominantTheme ?? {}
+  const nOut = (r: FrozenReading) => (typeof r.analysis.nOutliers === 'number' ? r.analysis.nOutliers : 0)
+  const l1 = evLink(obs, R0, { min: X, ...(dom.theme ? { theme: dom.theme } : {}) })
+  if (l1) E.theme = { src: R0.id, text: R0.sent.text + '; a leitura viu ' + (dom.theme ? F.plural(dom.n ?? 0, 'outlier', 'outliers') + ' no tema' : F.plural(nOut(R0), 'outlier', 'outliers')) + '.', href: l1.href, count: l1.n, label: verOut(l1.n) + ' (' + scopeTxt(l1.nCh) + ')' }
+  for (const p of bestPatterns(P)) {
+    const lk = evLink(obs, P, { min: 0, formula: p.formula })
+    if (lk) E['f:' + p.formula] = { src: P.id, text: p.verdict.text + '; a leitura viu ' + F.plural(p.nUse, 'vídeo', 'vídeos') + ' com a fórmula.', href: lk.href, count: lk.n, label: F.verVideos(lk.n) + ' com a fórmula (' + scopeTxt(lk.nCh) + ')' }
+  }
+  if (T) { const lk = evLink(obs, P, { min: X }); if (lk) E.base = { src: P.id, text: P.sent.text + '; a leitura viu ' + F.plural(nOut(P), 'outlier', 'outliers') + '.', href: lk.href, count: lk.n, label: verOut(lk.n) + ' (' + scopeTxt(lk.nCh) + ')' } }
+  const pats = patternsOf(P), items = P.text.items
+  const key = (i: number) => { const p = pats[i]; return p && E['f:' + p.formula] ? 'f:' + p.formula : null }
+  const pass = (i: number) => pats[i]?.verdict.id === 'padrao'
+  const vis = items.map((_, i) => i).filter(pass), rest = items.map((_, i) => i).filter(i => !pass(i))
+  type K = { kind: 'p'; text: string; ev: string | null } | { kind: 'ul'; items: Array<{ text: string; ev: string | null }> }
+  const raw: { shown: Array<{ R: FrozenReading; parts: K[] }>; more: Array<{ R: FrozenReading; parts: K[] }> } = { shown: [], more: [] }
+  if (T) raw.shown.push({ R: T, parts: [{ kind: 'p', text: T.text.lead, ev: 'theme' }] })
+  raw.shown.push({ R: P, parts: [{ kind: 'p', text: P.text.lead, ev: T ? 'base' : null }, ...(vis.length ? [{ kind: 'ul' as const, items: vis.map(i => ({ text: items[i]!, ev: key(i) })) }] : [])] })
+  raw.more.push({ R: P, parts: [...(rest.length ? [{ kind: 'ul' as const, items: rest.map(i => ({ text: items[i]!, ev: key(i) })) }] : []), ...(P.text.theme ? [{ kind: 'p' as const, text: P.text.theme, ev: T ? null : 'theme' }] : [])] })
+  // numbering in reading order, then any evidence not cited in the text
+  const num: Record<string, number> = {}, order: string[] = []
+  const walk = (k: string | null) => { if (k && E[k] && !num[k]) { order.push(k); num[k] = order.length } }
+  for (const b of [...raw.shown, ...raw.more]) for (const pt of b.parts) { if (pt.kind === 'ul') pt.items.forEach(i => walk(i.ev)); else walk(pt.ev) }
+  Object.keys(E).forEach(walk)
+  const conv = (bs: typeof raw.shown): HeroBlock[] => bs.map(b => ({ src: b.R.id, seal: readingSeal(obs, b.R),
+    parts: b.parts.filter(pt => pt.kind === 'ul' || pt.text).map(pt => pt.kind === 'ul' ? { kind: 'ul' as const, items: pt.items.map(i => ({ text: i.text, ev: i.ev ? num[i.ev] ?? null : null })) } : { kind: 'p' as const, text: pt.text, ev: pt.ev ? num[pt.ev] ?? null : null }) }))
+    .filter(b => b.parts.length)
+  const capT = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
+  const sinceOf = (v: ForjaReadingView, label: string) => ({ label, shortText: v.since?.shortText.replace(/^Desde então: /, 'desde então: ') ?? null, text: v.since ? (active ? v.since.text : v.since.text) : null })
+  const win = (r: ForjaReadingView) => r.sinceLabel.replace(/^[^(]+\(/, '(')
+  return {
+    id: P.id, shown: conv(raw.shown), more: conv(raw.more), nMore: rest.length,
+    ev: order.map((k, i) => ({ n: i + 1, ...E[k]!, text: capT(E[k]!.text) })),
+    notes: rd.siteNotes,
+    since: [...(T && td ? [sinceOf(td, 'Temas ' + win(td))] : []), sinceOf(rd, (T ? 'Fórmulas ' : 'Leitura ') + win(rd))],
   }
 }

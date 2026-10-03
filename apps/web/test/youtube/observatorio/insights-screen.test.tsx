@@ -73,7 +73,12 @@ describe('InsightsScreen', () => {
     // under the seal: only the reading's literal text
     const lit = seal.closest('.sealrow')!.nextElementSibling!
     expect(lit).toHaveAttribute('data-reading-id', P.id)
-    expect(lit.querySelector('p')!.textContent).toBe(P.text.lead)
+    // the literal lead, with its evidence number glued to the last word (insights.html blockHTML)
+    const lead = lit.querySelector('p')!
+    const sup = lead.querySelector('sup a')
+    expect(sup).not.toBeNull()
+    expect(lead.textContent!.slice(0, -sup!.textContent!.length)).toBe(P.text.lead)
+    expect(hero.querySelector('#ev' + sup!.textContent)).not.toBeNull()
     // "Desde então" is a site note, outside the seal, without a final period
     const since = hero.querySelector('.since')!
     expect(since.textContent).toContain('Desde então: ')

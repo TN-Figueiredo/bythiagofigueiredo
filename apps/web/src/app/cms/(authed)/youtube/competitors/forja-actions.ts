@@ -4,6 +4,7 @@
  * and take the user from the session — never from the caller. The engine plans (forja-queue → planAsk); a refusal comes
  * back with the engine's own sentence. Client components receive these as props (never import them).
  */
+import * as Sentry from '@sentry/nextjs'
 import { revalidatePath } from 'next/cache'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -30,6 +31,13 @@ async function sessionContext(): Promise<{ ctx: ServiceContext; userId: string }
   return { ctx: { siteId, permissions: ['write'], supabase: getSupabaseServiceClient(), source: 'session' }, userId: res.user.id }
 }
 
+/** Unexpected failures keep the honest sentence for the user AND reach ops (no PII: type, niche, site). */
+const report = (e: unknown, extra: { action: string; taskType: string; niche: string; siteId: string }) =>
+  Sentry.captureException(e, { extra })
+
+/** A queue answer that names the caller's input (400): said to the user, not an outage. */
+const isBadInput = (e: unknown): e is PipelineServiceError => (e instanceof PipelineServiceError || (e instanceof Error && e.name === 'PipelineServiceError')) && (e as PipelineServiceError).status === 400
+
 const revalidate = () => revalidatePath('/cms/youtube/competitors', 'layout')
 
 export async function askForjaReading(type: ObsType, scope: NicheScope, videoId?: string, fmt?: Fmt): Promise<AskOutcome> {
@@ -41,7 +49,8 @@ export async function askForjaReading(type: ObsType, scope: NicheScope, videoId?
     if (r.data.ok) revalidate()
     return r.data
   } catch (e) {
-    if (e instanceof PipelineServiceError) return { ok: false, reason: e.status === 400 ? 'Pedido inválido: ' + e.message : QUEUE_DOWN, results: [] }
+    if (isBadInput(e)) return { ok: false, reason: 'Pedido inválido: ' + e.message, results: [] }
+    report(e, { action: 'askForjaReading', taskType: type, niche: scope, siteId: s.ctx.siteId })
     return { ok: false, reason: QUEUE_DOWN, results: [] }
   }
 }
@@ -57,7 +66,9 @@ export async function cancelForjaReading(type: ObsType, niche: Niche, videoId?: 
   try {
     const r = await cancelReading(s.ctx, { type, niche, ...(videoId ? { videoId } : {}) })
     if (r.data.cancelled) { revalidate(); return { ok: true } }
-  } catch {
+  } catch (e) {
+    if (isBadInput(e)) return { ok: false, reason: 'Pedido inválido: ' + e.message }
+    report(e, { action: 'cancelForjaReading', taskType: type, niche, siteId: s.ctx.siteId })
     return { ok: false, reason: QUEUE_DOWN }
   }
   // nothing was waiting: say what the engine sees now
