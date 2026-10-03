@@ -1,0 +1,85 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- untyped mockup engine used only as a test oracle */
+import fs from 'node:fs'
+import path from 'node:path'
+import vm from 'node:vm'
+import { fileURLToPath } from 'node:url'
+import type { Dataset, ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
+
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../fixtures/observatorio')
+export type Oracle = Record<string, any>
+
+export function loadOracle(): Oracle {
+  const ctx: Record<string, unknown> = { console: { log() {}, error() {} } }
+  vm.createContext(ctx)
+  vm.runInContext(fs.readFileSync(path.join(DIR, 'dados.cjs'), 'utf8'), ctx)
+  return ctx.OBS as Oracle
+}
+
+const VIDEO_INPUT: (keyof ObsVideo)[] = ['id', 'ch', 'niche', 'fmt', 'pub', 'ageDays', 'tracked', 'title', 'theme', 'formulas', 'url', 'ytId', 'dur', 'views', 'viewsAt', 'likes', 'comments', 'series', 'firstIdx', 'titles', 'thumbs', 'descs']
+const pick = <T extends object>(o: any, keys: (keyof T)[]): T => Object.fromEntries(keys.map(k => [k, structuredClone(o[k as string] ?? null)])) as T
+
+/** INPUT fields only — the engine must derive vpd/vpd7/mult/changes/effects itself. */
+export function datasetFromOracle(o: Oracle): Dataset {
+  const channels: ObsChannel[] = o.channels.map((c: any) => ({
+    id: c.id, name: c.name, fullName: c.fullName ?? c.name, niche: c.niche, own: !!c.own, lang: c.lang, subs: c.subs,
+    video_limit: c.video_limit, url: c.url, handle: c.handle, gender: c.gender ?? 'n', color: c.color, ini: c.ini,
+    sync: { state: c.sync.state, last: c.sync.last, next: c.sync.next ?? null, added: c.sync.added, errorSince: c.sync.errorSince ?? null, msg: c.sync.msg ?? null, backfill: c.sync.backfill ?? null },
+    activity: structuredClone(c.activity), lastIdx: c.lastIdx, snapshots: structuredClone(c.snapshots),
+  }))
+  const videos: ObsVideo[] = o.videos.map((v: any) => pick<ObsVideo>(v, VIDEO_INPUT))
+  return {
+    now: o.NOW, seriesStart: o.SERIES_START, snap0: o.date.snapTime(0), obsStart: o.OBS_START, channels, videos,
+    sync: { last: o.SYNC.last, next: o.SYNC.next },
+    readings: structuredClone(o.forja.readings), requests: structuredClone(o.forja.requests.filter((r: any) => !r.scenario)),
+    queue: { lastPollAt: o.forja.queue.lastPollAt, tickMinutes: o.forja.queue.tickMinutes, capabilities: ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'] },
+  }
+}
+
+/**
+ * The suite runs some setup code eagerly (outside test()), e.g. READ_TEXTS calls O.forja.requestScenario.
+ * Until the facade is fully ported, a member missing from the facade resolves to an inert "pending" stand-in
+ * (callable, chainable, enumerates empty) so registration does not abort. On coercion it yields a MARK string, and
+ * runMockupSuite forces ok=false on any result whose detail carries it, so a ported assertion that reaches a
+ * missing member fails loudly.
+ */
+const MARK = '\u0000NOT-PORTED:'
+function pending(label: string): any {
+  const fn = () => pending(label + '()')
+  return new Proxy(fn, {
+    get: (_t, k) => {
+      if (k === Symbol.toPrimitive || k === 'toString' || k === 'valueOf' || k === 'toJSON') {
+        return () => MARK + label
+      }
+      if (typeof k === 'symbol') return undefined
+      return pending(label + '.' + k)
+    },
+    apply: () => pending(label + '()'),
+    ownKeys: () => ['length', 'name'],
+  })
+}
+function lenient(target: any, label = 'OBS'): any {
+  return new Proxy(target, {
+    get: (t, k, r) => {
+      if (typeof k === 'symbol') return Reflect.get(t, k, r)
+      if (!(k in t)) return pending(label + '.' + k)
+      const v = Reflect.get(t, k, r)
+      return v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype ? lenient(v, label + '.' + k) : v
+    },
+  })
+}
+
+export interface SuiteResult { name: string; section: string; ok: boolean; detail: string }
+/** Runs dados-teste.html's <script id="tests"> VERBATIM with root.OBS = facade. */
+export function runMockupSuite(facade: unknown): SuiteResult[] {
+  const html = fs.readFileSync(path.join(DIR, 'dados-teste.html'), 'utf8')
+  let src = html.match(/<script id="tests">([\s\S]*?)<\/script>/)![1]!
+  const before = src
+  src = src.replace(/\/\* ---------- (.+?) ---------- \*\//g, (_m, s: string) => `root.__SEC = ${JSON.stringify(s)};`)
+  src = src.replace('R.push({ name, ok, detail });', 'R.push({ name, ok, detail, section: root.__SEC });')
+  if (src === before || !src.includes('section: root.__SEC')) throw new Error('mockup suite instrumentation failed — dados-teste.html changed shape')
+  const ctx: Record<string, unknown> = { OBS: lenient(facade as object), console: { log() {}, error() {} } }
+  vm.createContext(ctx)
+  vm.runInContext(src, ctx)
+  const results = (ctx.__OBS_TEST as { results: SuiteResult[] }).results
+  return results.map(r => (String(r.detail).includes(MARK) ? { ...r, ok: false } : r))
+}
