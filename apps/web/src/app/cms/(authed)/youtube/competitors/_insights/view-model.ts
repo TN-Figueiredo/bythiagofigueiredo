@@ -7,7 +7,8 @@ import type { Observatory } from '@/lib/youtube/observatorio'
 import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt as VideoFmt, Niche } from '@/lib/youtube/observatorio/types'
 import { bestPatterns, buildForjaView, evLink, forjaReadingView, patternsOf, readingSeal, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
-import type { FrozenReading } from '@/lib/youtube/observatorio/types'
+import type { FrozenReading, ObsChannel } from '@/lib/youtube/observatorio/types'
+import { langChip, listPt, type LangChip } from '../_chrome/own-channels'
 
 /** Rich text: plain strings, bold and monospace numbers (the mockup's <b> and <span class="mono">). */
 export type RichPart = string | { b: string } | { mono: string } | { bmono: string }
@@ -98,15 +99,23 @@ export interface ThemeRow {
 }
 export interface ThemesSection { meta: string; seal: string | null; coverageNote: string | null; rows: ThemeRow[]; empty: EmptyBlock | null; foot: string | null }
 
-export interface YouRow {
-  key: string; label: string; value: string; few: boolean; fewText: string | null
-  scale: { aria: string; niche: string; me: string; lo: string; hi: string }
-  median: string; verdict: { cls: 'up' | 'down' | 'flat'; text: string }
-}
+/** A cell of an own channel's row: the value with its short verdict, or "sem dado · base fraca (n = N)" (never blank). */
+export type YouCell =
+  | { kind: 'value'; value: string; verdict: string; cls: 'up' | 'down' | 'flat'; few: string | null }
+  | { kind: 'nodata'; text: string; base: string; baseTitle: string }
+export type YouColKey = 'pw' | 'perMilSubs' | 'pctOutliers' | 'engagement'
+/** One own channel of the tab's niche. `cells` null = no video in the format: the row stays and `emptyText` says why. */
+export interface YouOwnRow { id: string; name: string; href: string; lang: LangChip | null; sub: string; cells: YouCell[] | null; emptyText: string | null }
+export interface LinkText { href: string; text: string }
 export interface YouSection {
-  meta: string; empty: EmptyBlock | null
-  head: { ini: string; title: string; sub: string } | null
-  rows: YouRow[]; foot: string | null
+  meta: string
+  empty: (EmptyBlock & { links: LinkText[] }) | null
+  cols: Array<{ key: YouColKey; label: string; unit: string }>
+  /** The niche, once: median and range of the competitors (the same for every own channel). */
+  ref: { sub: string; cells: Array<{ value: string; range: string }> } | null
+  rows: YouOwnRow[]
+  noneNote: { text: string; links: LinkText[] } | null
+  foot: string | null
 }
 
 export interface GapRow { theme: string; label: string; sub: Rich }
@@ -482,56 +491,86 @@ function themesSection(obs: Observatory, niche: Niche, fmt: VideoFmt): ThemesSec
 }
 
 /* ------------------------------------------------------------------ você no nicho */
-/** The own channel compared with this niche: derived by the engine; a channel with a niche set elsewhere is not compared. */
-function ownFor(obs: Observatory, niche: Niche) {
-  const NS = obs.nicheStats(niche, 'long')
-  const own = NS.own ? obs.channel(NS.own.channel) : undefined
-  return own && (own.niche == null || own.niche === niche) ? own : null
+export interface OwnScope { all: ObsChannel[]; mine: ObsChannel[]; none: ObsChannel[] }
+/** Canais próprios para a aba: todos, os do nicho e os sem nicho (todos na ordem R73). A Task 9 reutiliza. */
+export function ownScope(obs: Observatory, niche: Niche): OwnScope {
+  return { all: obs.ownChannels(), mine: obs.ownChannels(niche), none: obs.ownChannels(null) }
 }
+/** "Você tem 2 canais: 1 de IA (Thiago testa IA) e 1 sem nicho (Mochila Leve)." — '' quando não há o que dizer. */
+export function whereOwns(obs: Observatory, niche: Niche, s: OwnScope): string {
+  const parts: string[] = []
+  for (const n of (['viagem', 'ia'] as const).filter(x => x !== niche)) {
+    const l = s.all.filter(c => c.niche === n)
+    if (l.length) parts.push(l.length + ' de ' + obs.NICHES[n].label + ' (' + listPt(l.map(c => c.name)) + ')')
+  }
+  if (s.none.length) parts.push(s.none.length + ' sem nicho (' + listPt(s.none.map(c => c.name)) + ')')
+  return parts.length ? 'Você tem ' + obs.fmt.plural(s.all.length, 'canal', 'canais') + ': ' + listPt(parts) + '.' : ''
+}
+const pickNiche = (obs: Observatory, c: ObsChannel): LinkText => ({ href: obs.link.canais({ channel: c.id }), text: 'Escolher o nicho de ' + c.name })
+/** "Escolher o nicho de X" para cada canal sem nicho, depois "Ver seus canais". */
+export function assignLinks(obs: Observatory, s: OwnScope): LinkText[] {
+  return [...s.none.map(c => pickNiche(obs, c)), { href: obs.link.canais({}), text: 'Ver seus canais' }]
+}
+
+/** insights-n-canais.html renderYou: one row per own channel of the niche, the niche once, four relative metrics in columns. */
 function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
   const F = obs.fmt, R = obs.RULES, W = R.habit.weeks, NL = obs.NICHES[niche].label
-  const anyOwn = obs.channels.find(c => c.own)
-  const own = ownFor(obs, niche)
-  const meta = (own ?? anyOwn)?.name ? (own ?? anyOwn)!.name + ', mesmo formato' : 'mesmo formato'
-  const emptyText = 'Sem vídeos seus no recorte não há o que comparar. A comparação aparece a partir do primeiro vídeo; com menos de ' + R.pattern.minN + ', ela vem marcada “pouco para concluir”.'
-  if (!anyOwn) return { meta, head: null, rows: [], foot: null, empty: { title: 'Nenhum canal seu conectado', text: 'Sem um canal seu no Observatório não há o que comparar com o nicho.' } }
-  const cad = own ? obs.cadence(own.id, fmt) : null
-  // No vsYou against a channel with 0 videos (spec D6): the honest empty state.
-  if (!own || !cad || !cad.n) {
-    const what = !own ? 'vídeos de ' + NL : FMT_LABEL[fmt] + ' nas últimas ' + W + ' semanas'
-    return { meta, head: null, rows: [], foot: null, empty: { title: 'Seu canal ainda não tem ' + what, text: emptyText, link: { href: obs.link.canais({ channel: (own ?? anyOwn).id }), text: 'Ver seu canal' } } }
+  const s = ownScope(obs, niche)
+  const none = { cols: [], ref: null, rows: [], noneNote: null, foot: null }
+  if (!s.all.length) return { ...none, meta: 'mesmo formato', empty: { title: 'Nenhum canal seu conectado', text: 'Sem um canal seu no Observatório não há o que comparar com o nicho.', links: [] } }
+  if (!s.mine.length) {
+    return { ...none, meta: 'nenhum canal seu de ' + NL, empty: {
+      title: 'Nenhum canal seu está em ' + NL,
+      text: [whereOwns(obs, niche, s), 'Esta comparação usa só os seus canais do nicho.',
+        s.none.length ? 'Canal sem nicho não entra em nenhuma: escolha o nicho dele na aba Canais, na linha do canal.' : 'Para um canal entrar aqui, troque o nicho dele na aba Canais, na linha do canal.'].filter(Boolean).join(' '),
+      links: assignLinks(obs, s),
+    } }
   }
-  const NS = obs.nicheStats(niche, fmt, own.id), o = NS.own
-  if (!o) return { meta, head: null, rows: [], foot: null, empty: { title: 'Seu canal ainda não tem vídeos de ' + NL, text: emptyText } }
+  // one call: the reference comes once (NS.ref), one block per own channel of the niche, in the R73 order
+  const NS = obs.ownNicheStats(niche, fmt, s.mine.map(c => c.id)), ref = NS.ref
   // channelStats is typed loosely by the engine: read the one field needed, narrowly
-  const eng = obs.channelStats(own.id, fmt).engagement
+  const eng = obs.channelStats(s.mine[0]!.id, fmt).engagement
   const engWindow = eng && typeof eng === 'object' && 'window' in eng && typeof eng.window === 'string' ? eng.window : null
-  const pct = (x: number | null) => x == null ? '—' : F.dec1(x * 100) + '%'
-  const row = (key: 'pw' | 'perMilSubs' | 'pctOutliers' | 'engagement', label: string, fmtV: (v: number | null) => string, labelOverride?: string): YouRow | null => {
-    const me = o[key].value, agg = NS[key]
-    if (me == null || agg.median == null || agg.min == null || agg.max == null) return null
-    const lo = Math.min(agg.min, me), hi = Math.max(agg.max, me), span = hi - lo || 1
-    const p = (v: number) => ((v - lo) / span * 100).toFixed(1) + '%'
-    const ov = o[key], cls = ov.verdict === '▲' ? 'up' : ov.verdict === '▼' ? 'down' : 'flat'
-    const vtxt = ov.verdict ? ov.verdict + ' ' + (labelOverride ?? ov.label ?? ov.verdictText) : '≈ ' + (ov.verdictText || 'igual à mediana do nicho')
-    return {
-      key, label, value: fmtV(me), few: ov.few, fewText: ov.few ? 'n = ' + ov.n + ', pouco para concluir' : null,
-      scale: { aria: 'Você ' + fmtV(me) + '; mediana do nicho ' + fmtV(agg.median) + '; de ' + fmtV(lo) + ' a ' + fmtV(hi) + '. ' + ov.verdictText, niche: p(agg.median), me: p(me), lo: fmtV(lo), hi: fmtV(hi) },
-      median: fmtV(agg.median), verdict: { cls, text: vtxt },
-    }
-  }
   const dec = (v: number | null) => v == null ? '—' : F.dec1(v)
-  const rows = [
-    row('pw', 'Ritmo (vídeos por semana)', dec),
-    row('perMilSubs', 'Views/dia por mil inscritos (mediana desde ' + obs.SERIES_START_LABEL + ')', dec),
-    row('pctOutliers', 'Vídeos com ' + R.outlierMin + '× ou mais (90 d)', pct, pct(o.pctOutliers.value) + ' vs ' + pct(NS.pctOutliers.median) + ' da mediana do nicho'),
-    row('engagement', 'Curtidas + comentários / views' + (engWindow ? ' (' + engWindow + ')' : ''), pct),
-  ].filter((r): r is YouRow => r != null)
+  const pct = (v: number | null) => v == null ? '—' : F.dec1(v * 100) + '%'
+  const COLS: Array<{ key: YouColKey; label: string; unit: string; f: (v: number | null) => string }> = [
+    { key: 'pw', label: 'Ritmo', unit: 'vídeos por semana, ' + W + ' semanas', f: dec },
+    { key: 'perMilSubs', label: 'Views/dia', unit: 'por mil inscritos, mediana desde ' + obs.SERIES_START_LABEL, f: dec },
+    { key: 'pctOutliers', label: 'Vídeos com ' + R.outlierMin + '× ou mais', unit: 'dos últimos 90 dias', f: pct },
+    { key: 'engagement', label: 'Engajamento', unit: 'curtidas + comentários / views' + (engWindow ? ', ' + engWindow : ''), f: pct },
+  ]
+  const byId = new Map(s.mine.map(c => [c.id, c]))
+  const rows: YouOwnRow[] = NS.owns.flatMap((row): YouOwnRow[] => {
+    const c = byId.get(row.channel)
+    if (!c) return []
+    const head = {
+      id: c.id, name: c.name, href: obs.link.canais({ channel: c.id }), lang: langChip(c.lang, s.all.length > 1),
+      sub: (row.videos ? F.plural(row.videos, 'vídeo', 'vídeos') : 'nenhum ' + FMT_ONE[fmt]) + ' em ' + W + ' semanas · ' + F.subs(c.subs) + ' inscritos',
+    }
+    // No verdict against a channel with no video in the format (the engine's pw would read "▼ 0,0× a mediana"): the reason instead.
+    if (row.empty) return [{ ...head, cells: null, emptyText: 'Sem ' + FMT_LABEL[fmt] + ' nas últimas ' + W + ' semanas: não há o que comparar. A linha se preenche a partir do primeiro vídeo.' }]
+    const cells: YouCell[] = COLS.map(col => {
+      const cell = row[col.key]
+      if (cell.value == null) return { kind: 'nodata', text: cell.verdictText, base: 'base fraca (n = ' + cell.n + ')', baseTitle: 'Menos de ' + R.weakBase + ' vídeos deste canal com base de comparação' }
+      // ruling R74: a weak base keeps the arrow and loses the colour
+      return { kind: 'value', value: col.f(cell.value), verdict: (cell.verdict || '≈') + ' ' + cell.short, few: cell.few ? 'n = ' + cell.n + ', pouco para concluir' : null,
+        cls: cell.weak ? 'flat' : cell.verdict === '▲' ? 'up' : cell.verdict === '▼' ? 'down' : 'flat' }
+    })
+    return [{ ...head, cells, emptyText: null }]
+  })
+  const sync = [...new Set(NS.owns.map(r => r.syncText))].map(cap).join(' · ')
   const biggest = obs.channels.filter(c => !c.own && c.niche === niche).sort((a, b) => b.subs - a.subs)[0]
   return {
-    meta, empty: null, rows,
-    head: { ini: own.ini, title: F.plural(cad.n, 'vídeo seu', 'vídeos seus') + ' (' + FMT_LABEL[fmt] + ', ' + W + ' semanas)', sub: F.subs(own.subs) + ' inscritos · ' + obs.syncText(own.id) },
-    foot: 'Ponto laranja = você; traço = mediana dos ' + NS.channels.length + ' canais concorrentes do nicho; extremos rotulados; ▲/▼ só fora de ±' + F.int(o.threshold * 100) + '%; com menos de ' + o.fewN + ' vídeos, “pouco para concluir”. Só métricas relativas' + (biggest ? ': ' + biggest.name + ' tem ' + F.subs(biggest.subs) + ' inscritos; você, ' + F.subs(own.subs) + '.' : '.'),
+    meta: F.plural(s.mine.length, 'canal seu', 'canais seus') + ' de ' + NL + ', mesmo formato', empty: null,
+    cols: COLS.map(({ key, label, unit }) => ({ key, label, unit })),
+    ref: { sub: 'mediana e faixa dos ' + ref.channels.length + ' concorrentes de ' + NL, cells: COLS.map(col => ({ value: col.f(ref[col.key].median), range: 'de ' + col.f(ref[col.key].min) + ' a ' + col.f(ref[col.key].max) })) },
+    rows,
+    noneNote: s.none.length ? {
+      text: listPt(s.none.map(c => c.name)) + ' ' + (s.none.length > 1 ? 'estão' : 'está') + ' sem nicho e fica' + (s.none.length > 1 ? 'm' : '') + ' fora desta comparação.',
+      links: s.none.map(c => pickNiche(obs, c)),
+    } : null,
+    foot: 'Cada linha é um canal seu de ' + NL + '; a linha Nicho é a referência, igual para todos. ▲/▼ só fora de ±' + F.int(ref.threshold * 100) + '% da mediana; com menos de ' + ref.fewN + ' vídeos, “pouco para concluir”; sem vídeos com base de comparação, “base fraca”. '
+      + sync + '. Só métricas relativas' + (biggest ? ': ' + biggest.name + ' tem ' + F.subs(biggest.subs) + ' inscritos.' : '.'),
   }
 }
 
@@ -539,7 +578,7 @@ function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
 function gapsSection(obs: Observatory, niche: Niche, fmt: VideoFmt): GapsSection {
   const F = obs.fmt, NL = obs.NICHES[niche].label
   const meta = 'temas dos concorrentes sem vídeo seu'
-  const own = ownFor(obs, niche)
+  const own = ownScope(obs, niche).mine[0] ?? null
   const cov = own ? obs.ownCoverage(fmt, own.id) : null
   if (!cov || !cov.n) {
     return { meta, rows: [], none: null, foot: null, empty: { title: 'Sem ' + FMT_LABEL[fmt] + ' seus de ' + NL + ' para comparar', text: 'Lacunas cruzam os temas dos seus vídeos com os dos concorrentes. Sem vídeo seu no recorte, todo tema deles viraria lacuna, e a lista não diria nada.' } }

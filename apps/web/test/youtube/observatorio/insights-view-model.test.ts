@@ -3,10 +3,10 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { loadOracle, datasetFromOracle } from './oracle'
+import { loadOracle, loadOracleOwns, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
-import { buildInsightsView, formulaChip, type InsightsView } from '@/app/cms/(authed)/youtube/competitors/_insights/view-model'
+import { assignLinks, buildInsightsView, formulaChip, ownScope, whereOwns, type InsightsView, type YouCell, type YouSection } from '@/app/cms/(authed)/youtube/competitors/_insights/view-model'
 
 const DAY = 864e5
 const ds0 = datasetFromOracle(loadOracle())
@@ -154,26 +154,36 @@ describe('insights view model', () => {
       const g = view('viagem', 'long', createObservatory(ds)).gaps!
       expect(g.rows).toEqual([]); expect(g.empty!.title).toBe('Ainda não há temas de Viagem')
     })
-    it('você no nicho: relative metrics only, verdicts from the engine', () => {
+    it('você no nicho: one own channel → one row, relative metrics only, short verdicts from the engine', () => {
       const y = view('viagem').youInNiche!
       expect(y.empty).toBeNull()
-      expect(y.rows.map(r => r.key)).toEqual(['pw', 'perMilSubs', 'pctOutliers', 'engagement'])
-      expect(y.rows[1]!.verdict.text).toBe('▲ 1,8× a mediana do nicho')
-      expect(y.rows[0]!.fewText).toBe('n = 8, pouco para concluir')
-      expect(y.head!.title).toBe('8 vídeos seus (longos, 13 semanas)')
+      expect(y.cols.map(c => c.key)).toEqual(['pw', 'perMilSubs', 'pctOutliers', 'engagement'])
+      expect(y.rows.map(r => r.name)).toEqual(['tnFigueiredo'])
+      expect(y.rows[0]!.lang).toBeNull()
+      expect(y.rows[0]!.cells![1]).toMatchObject({ kind: 'value', verdict: '▲ 1,8× a mediana', cls: 'up', few: null })
+      expect(y.rows[0]!.cells![0]).toMatchObject({ kind: 'value', few: 'n = 8, pouco para concluir', cls: 'flat' })
+      expect(y.rows[0]!.sub).toMatch(/^8 vídeos em 13 semanas · .+ inscritos$/)
     })
-    it('no vsYou against an own channel with 0 videos: the honest empty state', () => {
+    it('own channel with 0 videos in the format: the row stays, with the reason instead of the metrics', () => {
       const ds = clone(); const own = ds.channels.find(c => c.own)!.id
       ds.videos = ds.videos.filter(v => v.ch !== own)
       const v = view('viagem', 'long', createObservatory(ds))
-      expect(v.youInNiche!.rows).toEqual([])
-      expect(v.youInNiche!.empty!.title).toBe('Seu canal ainda não tem longos nas últimas 13 semanas')
+      const y = v.youInNiche!
+      expect(y.empty).toBeNull()
+      expect(y.rows).toHaveLength(1)
+      expect(y.rows[0]!.cells).toBeNull()
+      expect(y.rows[0]!.emptyText).toBe('Sem longos nas últimas 13 semanas: não há o que comparar. A linha se preenche a partir do primeiro vídeo.')
+      expect(y.rows[0]!.sub).toMatch(/^nenhum longo em 13 semanas · /)
+      expect(JSON.stringify(y.rows)).not.toMatch(/a mediana|▼|▲/)
       expect(v.gaps!.rows).toEqual([])
       expect(v.gaps!.empty!.title).toBe('Sem longos seus de Viagem para comparar')
     })
-    it('own channel set to another niche: no comparison in IA', () => {
+    it('own channel set to another niche: no comparison in IA, and the card says where the channel is', () => {
       const v = view('ia')
-      expect(v.youInNiche!.empty!.title).toBe('Seu canal ainda não tem vídeos de IA')
+      const y = v.youInNiche!
+      expect(y.empty!.title).toBe('Nenhum canal seu está em IA')
+      expect(y.empty!.text).toBe('Você tem 1 canal: 1 de Viagem (tnFigueiredo). Esta comparação usa só os seus canais do nicho. Para um canal entrar aqui, troque o nicho dele na aba Canais, na linha do canal.')
+      expect(y.rows).toEqual([]); expect(y.ref).toBeNull(); expect(y.foot).toBeNull()
       expect(v.gaps!.empty).not.toBeNull()
     })
     it('lacunas: themes of ≥ 2 competitors with no own video, by theme and never by tag', () => {
@@ -267,7 +277,9 @@ describe('insights view model', () => {
     expect(v.cadence!.empty).toBe('Nenhum longo dos concorrentes de Viagem nos últimos 90 dias. Fora da análise: Vou sem volta: buscando vídeos (18 de 50).')
     expect(v.heatmap!.empty).toBe('Nenhum longo dos concorrentes de Viagem publicado nos últimos 90 dias.')
     expect(v.themes!.empty).not.toBeNull()
-    expect(v.youInNiche!.empty).not.toBeNull()
+    // the own channel keeps its row, with the reason instead of the metrics
+    expect(v.youInNiche!.rows.map(r => r.cells)).toEqual([null])
+    expect(v.youInNiche!.rows[0]!.emptyText).toMatch(/^Sem longos nas últimas 13 semanas/)
     expect(v.gaps!.empty).not.toBeNull()
     const json = JSON.stringify(v)
     expect(json).not.toMatch(/NaN|Infinity|undefined|null%/)
@@ -287,5 +299,164 @@ describe('Insights view model — Todos without a request', () => {
     const a = view('todos', undefined, createObservatory({ ...datasetFromOracle(loadOracle()), readings: [] })).all!
     expect(a.text).toBe(MIX + ' Pedir uma leitura daqui envia um pedido dos longos para cada nicho.')
     expect(a.forja.note).toBe('Ainda não há leitura dos longos em nenhum dos dois nichos.')
+  })
+})
+
+// Task 8 (N canais próprios): "Você no nicho" is a table — one row per own channel of the tab's niche, the niche once.
+// The engines are built ONCE per file (the oracle is slow to load).
+describe('Insights view model — Você no nicho with N own channels', () => {
+  const PRESETS = ['1', '2', '5', 'mix', 'zero'] as const
+  const DS = Object.fromEntries(PRESETS.map(p => [p, datasetFromOracle(loadOracleOwns(p))])) as Record<typeof PRESETS[number], Dataset>
+  const OBS = Object.fromEntries(PRESETS.map(p => [p, createObservatory(DS[p])])) as Record<typeof PRESETS[number], ReturnType<typeof createObservatory>>
+  const you = (p: typeof PRESETS[number], niche: 'viagem' | 'ia', fmt?: string): YouSection => buildInsightsView(OBS[p], { niche, fmt }).youInNiche!
+  const rowOf = (y: YouSection, name: string) => y.rows.find(r => r.name === name)!
+  const cellOf = (y: YouSection, name: string, key: string): YouCell => rowOf(y, name).cells![y.cols.findIndex(c => c.key === key)]!
+  const allCells = (y: YouSection) => y.rows.flatMap(r => r.cells ?? [])
+
+  it('preset 2, Viagem, longos: two rows, the niche once, the four columns', () => {
+    const o = OBS['2'], y = you('2', 'viagem')
+    expect(y.empty).toBeNull()
+    expect(y.meta).toBe('2 canais seus de Viagem, mesmo formato')
+    expect(y.rows.map(r => r.name)).toEqual(['tnFigueiredo', 'tnFigueiredo EN'])
+    expect(y.ref!.sub).toBe(`mediana e faixa dos ${o.nicheRef('viagem', 'long').channels.length} concorrentes de Viagem`)
+    expect(y.ref!.cells).toHaveLength(4)
+    y.ref!.cells.forEach(c => { expect(c.value).toMatch(/^\d/); expect(c.range).toMatch(/^de \d.* a \d/) })
+    expect(y.cols.map(c => c.label)).toEqual(['Ritmo', 'Views/dia', 'Vídeos com 2× ou mais', 'Engajamento'])
+    expect(y.cols.map(c => c.unit)).toEqual([
+      'vídeos por semana, 13 semanas', `por mil inscritos, mediana desde ${o.SERIES_START_LABEL}`, 'dos últimos 90 dias',
+      `curtidas + comentários / views, ${o.channelStats('tnfigueiredo', 'long').engagement.window}`,
+    ])
+    expect(cellOf(y, 'tnFigueiredo', 'pw')).toEqual({ kind: 'value', value: '0,6', verdict: '▼ 0,6× a mediana', cls: 'flat', few: 'n = 8, pouco para concluir' })
+    expect(cellOf(y, 'tnFigueiredo', 'perMilSubs')).toMatchObject({ kind: 'value', verdict: '▲ 1,8× a mediana', cls: 'up', few: null })
+    expect(cellOf(y, 'tnFigueiredo EN', 'pctOutliers')).toEqual({ kind: 'nodata', text: 'sem dado', base: 'base fraca (n = 0)', baseTitle: 'Menos de 3 vídeos deste canal com base de comparação' })
+    expect(y.rows.map(r => r.lang)).toEqual([{ code: 'PT', title: 'Canal em português' }, { code: 'EN', title: 'Canal em inglês' }])
+    expect(y.rows.map(r => r.href)).toEqual([o.link.canais({ channel: 'tnfigueiredo' }), o.link.canais({ channel: 'tnfigueiredo-en' })])
+    expect(y.noneNote).toBeNull()
+  })
+
+  it('R74: a weak base (pouco para concluir / base fraca) never paints the verdict green or red', () => {
+    let weak = 0, strong = 0
+    for (const p of PRESETS) for (const n of ['viagem', 'ia'] as const) for (const f of ['long', 'short']) {
+      for (const c of allCells(you(p, n, f))) {
+        if (c.kind === 'nodata') { weak++; expect(c).not.toHaveProperty('cls'); expect(c.text).toBe('sem dado'); expect(c.base).toMatch(/^base fraca \(n = \d+\)$/) }
+        else if (c.few) { weak++; expect(c.cls).toBe('flat') }
+        else { strong++; expect(c.verdict.startsWith('▲') ? c.cls === 'up' : c.verdict.startsWith('▼') ? c.cls === 'down' : c.cls === 'flat').toBe(true) }
+      }
+    }
+    expect(weak).toBeGreaterThan(0); expect(strong).toBeGreaterThan(0)
+  })
+
+  it('a value never disappears: every cell is a value with a verdict, or "sem dado · base fraca (n = N)"', () => {
+    for (const p of PRESETS) for (const n of ['viagem', 'ia'] as const) for (const f of ['long', 'short']) {
+      const y = you(p, n, f)
+      for (const r of y.rows) { if (r.cells) { expect(r.cells).toHaveLength(4); expect(r.emptyText).toBeNull() } else expect(r.emptyText).toMatch(/^Sem (longos|Shorts) nas últimas 13 semanas/) }
+      for (const c of allCells(y)) if (c.kind === 'value') { expect(c.value).not.toBe('—'); expect(c.verdict).toMatch(/^[▲▼≈] \S/) }
+      expect(JSON.stringify(y)).not.toMatch(/NaN|Infinity|undefined|null%/)
+    }
+  })
+
+  it('preset 1: singular meta, one row, no language chip', () => {
+    const y = you('1', 'viagem')
+    expect(y.meta).toBe('1 canal seu de Viagem, mesmo formato')
+    expect(y.rows).toHaveLength(1)
+    expect(y.rows[0]!.lang).toBeNull()
+  })
+
+  it('preset 2, IA: no own channel in the niche — says where they are and how to bring one in', () => {
+    const y = you('2', 'ia')
+    expect(y.empty!.title).toBe('Nenhum canal seu está em IA')
+    expect(y.empty!.text).toBe('Você tem 2 canais: 2 de Viagem (tnFigueiredo e tnFigueiredo EN). Esta comparação usa só os seus canais do nicho. Para um canal entrar aqui, troque o nicho dele na aba Canais, na linha do canal.')
+    expect(y.empty!.links.map(l => l.text)).toEqual(['Ver seus canais'])
+    expect(y.empty!.links[0]!.href).toBe(OBS['2'].link.canais({}))
+    expect(y.meta).toBe('nenhum canal seu de IA')
+    expect(y.rows).toEqual([]); expect(y.ref).toBeNull(); expect(y.noneNote).toBeNull(); expect(y.foot).toBeNull()
+  })
+
+  it('preset zero, Viagem: a channel without a niche is named and gets its own link to the assignment', () => {
+    const o = OBS.zero, y = you('zero', 'viagem')
+    expect(y.empty!.title).toBe('Nenhum canal seu está em Viagem')
+    expect(y.empty!.text).toBe('Você tem 2 canais: 1 de IA (Thiago testa IA) e 1 sem nicho (Mochila Leve). Esta comparação usa só os seus canais do nicho. Canal sem nicho não entra em nenhuma: escolha o nicho dele na aba Canais, na linha do canal.')
+    expect(y.empty!.links).toEqual([
+      { text: 'Escolher o nicho de Mochila Leve', href: o.link.canais({ channel: 'mochila-leve' }) },
+      { text: 'Ver seus canais', href: o.link.canais({}) },
+    ])
+  })
+
+  it('preset mix, Viagem: the channel without a niche stays out of the table, with a note and one link', () => {
+    const y = you('mix', 'viagem')
+    expect(y.rows.map(r => r.name)).toEqual(['Thiago na Estrada', 'tnFigueiredo', 'tnFigueiredo EN'])
+    expect(y.noneNote!.text).toBe('Mochila Leve está sem nicho e fica fora desta comparação.')
+    expect(y.noneNote!.links).toEqual([{ text: 'Escolher o nicho de Mochila Leve', href: OBS.mix.link.canais({ channel: 'mochila-leve' }) }])
+  })
+
+  it('preset 5, Viagem, Shorts: a channel with no Short keeps its row, with the reason and no verdict; order is R73', () => {
+    const o = OBS['5'], y = you('5', 'viagem', 'short')
+    expect(y.rows.map(r => r.id)).toEqual(o.ownChannels('viagem').map(c => c.id))
+    expect(y.rows).toHaveLength(5)
+    const m = rowOf(y, 'Mochila Leve')
+    expect(m.cells).toBeNull()
+    expect(m.emptyText).toBe('Sem Shorts nas últimas 13 semanas: não há o que comparar. A linha se preenche a partir do primeiro vídeo.')
+    expect(m.sub.startsWith('nenhum Short em 13 semanas · ')).toBe(true)
+    // the engine's "▼ 0,0× a mediana" for a channel with no video never reaches the view
+    expect(JSON.stringify(m)).not.toMatch(/a mediana|▼|▲|0,0/)
+    y.rows.filter(r => r !== m).forEach(r => expect(r.cells).toHaveLength(4))
+  })
+
+  it('no own channel at all: the connected-channel empty state, no links', () => {
+    const ds = structuredClone(DS['2']); const own = new Set(ds.channels.filter(c => c.own).map(c => c.id))
+    ds.channels = ds.channels.filter(c => !c.own); ds.videos = ds.videos.filter(v => !own.has(v.ch))
+    const o = createObservatory(ds)
+    for (const n of ['viagem', 'ia'] as const) {
+      const y = buildInsightsView(o, { niche: n }).youInNiche!
+      expect(y.empty).toEqual({ title: 'Nenhum canal seu conectado', text: 'Sem um canal seu no Observatório não há o que comparar com o nicho.', links: [] })
+      expect(y.meta).toBe('mesmo formato')
+      expect(y.rows).toEqual([]); expect(y.ref).toBeNull(); expect(y.foot).toBeNull(); expect(y.noneNote).toBeNull()
+    }
+    const s = ownScope(o, 'viagem')
+    expect(s).toEqual({ all: [], mine: [], none: [] })
+    expect(whereOwns(o, 'viagem', s)).toBe('')
+    expect(assignLinks(o, s)).toEqual([{ text: 'Ver seus canais', href: o.link.canais({}) }])
+  })
+
+  it('foot (preset 2, Viagem): the rule, the sync text once, and relative metrics only', () => {
+    const o = OBS['2'], y = you('2', 'viagem')
+    expect(y.foot!.startsWith('Cada linha é um canal seu de Viagem; a linha Nicho é a referência, igual para todos. ▲/▼ só fora de ±15% da mediana; com menos de 10 vídeos, “pouco para concluir”; sem vídeos com base de comparação, “base fraca”. ')).toBe(true)
+    expect(y.foot).toMatch(/Só métricas relativas: .+ tem .+ inscritos\.$/)
+    const sync = [...new Set(o.ownNicheStats('viagem', 'long', ['tnfigueiredo', 'tnfigueiredo-en']).owns.map(r => r.syncText))]
+    for (const t of sync) { const T = t.charAt(0).toUpperCase() + t.slice(1); expect(y.foot!.split(T)).toHaveLength(2) }
+  })
+
+  it('a niche with own channels and no competitor: no crash, no junk, and the foot ends in "Só métricas relativas."', () => {
+    const ds = structuredClone(DS['2']); const gone = new Set(ds.channels.filter(c => !c.own && c.niche === 'viagem').map(c => c.id))
+    ds.channels = ds.channels.filter(c => !gone.has(c.id)); ds.videos = ds.videos.filter(v => !gone.has(v.ch))
+    ds.readings = []; ds.requests = [] // the frozen readings name the removed channels
+    const y = buildInsightsView(createObservatory(ds), { niche: 'viagem' }).youInNiche!
+    expect(y.rows).toHaveLength(2)
+    expect(y.ref!.sub).toBe('mediana e faixa dos 0 concorrentes de Viagem')
+    expect(y.ref!.cells.map(c => c.value)).toEqual(['—', '—', '—', '—'])
+    expect(y.foot).toMatch(/Só métricas relativas\.$/)
+    expect(JSON.stringify(y)).not.toMatch(/NaN|Infinity|undefined|null%/)
+  })
+
+  it('uuid ids: same rows, links carry the uuid (no literal id anywhere)', () => {
+    const MAP: Record<string, string> = { tnfigueiredo: '0b6f7c0e-5f7e-4d7a-9a55-2f5f5a1d9c11', 'tnfigueiredo-en': '7d1e2a44-91c3-4b0f-8e2a-6c1f0d3b5a22' }
+    const ds = structuredClone(DS['2'])
+    ds.channels = ds.channels.map(c => MAP[c.id] ? { ...c, id: MAP[c.id]! } : c)
+    ds.videos = ds.videos.map(v => MAP[v.ch] ? { ...v, ch: MAP[v.ch]! } : v)
+    const o = createObservatory(ds), y = buildInsightsView(o, { niche: 'viagem' }).youInNiche!, base = you('2', 'viagem')
+    expect(y.rows.map(r => r.id)).toEqual([MAP.tnfigueiredo, MAP['tnfigueiredo-en']])
+    expect(y.rows.map(r => r.href)).toEqual([o.link.canais({ channel: MAP.tnfigueiredo! }), o.link.canais({ channel: MAP['tnfigueiredo-en']! })])
+    expect(y.rows.map(r => ({ name: r.name, sub: r.sub, cells: r.cells, lang: r.lang }))).toEqual(base.rows.map(r => ({ name: r.name, sub: r.sub, cells: r.cells, lang: r.lang })))
+    expect(y.ref).toEqual(base.ref)
+  })
+
+  it('ownScope / whereOwns / assignLinks (reused by Lacunas)', () => {
+    const o = OBS.mix, s = ownScope(o, 'ia')
+    expect(s.all.map(c => c.id)).toEqual(o.ownChannels().map(c => c.id))
+    expect(s.mine.map(c => c.name)).toEqual(['Thiago testa IA'])
+    expect(s.none.map(c => c.name)).toEqual(['Mochila Leve'])
+    expect(whereOwns(o, 'ia', s)).toBe('Você tem 5 canais: 3 de Viagem (Thiago na Estrada, tnFigueiredo e tnFigueiredo EN) e 1 sem nicho (Mochila Leve).')
+    expect(whereOwns(OBS['1'], 'viagem', ownScope(OBS['1'], 'viagem'))).toBe('')
+    expect(assignLinks(o, s).map(l => l.text)).toEqual(['Escolher o nicho de Mochila Leve', 'Ver seus canais'])
   })
 })

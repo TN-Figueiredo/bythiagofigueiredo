@@ -1,6 +1,6 @@
 'use client'
 /**
- * Insights screen (port of insights.html): format filter, the six site-computed cards and the Todos state. Every
+ * Insights screen (port of insights.html): format filter, the six site-computed cards and the Todos state (card order: insights-n-canais.html — Você no nicho, full width, right after the hero). Every
  * number and text comes from the view model. The frozen-reading hero ("Leitura da forja") is the first card; the forja
  * button lives in the chrome header (solid on this screen).
  */
@@ -49,8 +49,8 @@ export function InsightsScreen({ view, heatMode }: { view: InsightsView; heatMod
       ) : (
         <div className="grid" id="grid">
           {view.hero ? <ReadingHero hero={view.hero} /> : null}
-          {view.cadence ? <Cadence s={view.cadence} /> : null}
           {view.youInNiche ? <YouInNiche s={view.youInNiche} /> : null}
+          {view.cadence ? <Cadence s={view.cadence} /> : null}
           {view.gaps ? <Gaps s={view.gaps} /> : null}
           {view.formulas ? <Formulas s={view.formulas} /> : null}
           {view.heatmap ? <Heatmap s={view.heatmap} initialMode={heatMode} /> : null}
