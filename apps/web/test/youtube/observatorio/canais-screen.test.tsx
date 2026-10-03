@@ -467,3 +467,75 @@ describe('CanaisScreen — Seus canais', () => {
     }
   }, 30_000)
 })
+
+describe('CanaisScreen: nicho otimista', () => {
+  type R = { ok: boolean }
+  const deferred = () => { let res: (v: R) => void = () => {}, rej: (e: Error) => void = () => {}; const p = new Promise<R>((a, b) => { res = a; rej = b }); return { p, res, rej } }
+  const sel = (name: string) => screen.getByRole('combobox', { name: `Nicho de ${name}` }) as HTMLSelectElement
+  const toastBad = (t: string) => screen.findByText(t, { selector: '.obs-ch-toast b' })
+
+  it('o seletor mostra o valor novo antes de a action resolver, com aria-busy', async () => {
+    const user = userEvent.setup(), d = deferred()
+    mount({ onSetNiche: vi.fn(() => d.p) })
+    const before = sel('Luke Damant').value
+    const next = before === 'ia' ? 'viagem' : 'ia'
+    await user.selectOptions(sel('Luke Damant'), next)
+    expect(sel('Luke Damant').value).toBe(next)
+    expect(sel('Luke Damant')).toHaveAttribute('aria-busy', 'true')
+    d.res({ ok: true })
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    expect(sel('Luke Damant').value).toBe(next)
+    expect(sel('Luke Damant')).not.toHaveAttribute('aria-busy', 'true')
+  })
+  it('{ ok: false } devolve o valor anterior e mostra o aviso de erro', async () => {
+    const user = userEvent.setup(), d = deferred()
+    mount({ onSetNiche: vi.fn(() => d.p) })
+    const before = sel('Luke Damant').value
+    await user.selectOptions(sel('Luke Damant'), before === 'ia' ? 'viagem' : 'ia')
+    d.res({ ok: false })
+    expect(await toastBad('Não deu para mudar o nicho')).toBeInTheDocument()
+    expect(sel('Luke Damant').value).toBe(before)
+  })
+  it('a action que lança devolve o valor anterior e mostra o aviso de erro', async () => {
+    const user = userEvent.setup(), d = deferred()
+    mount({ onSetNiche: vi.fn(() => d.p) })
+    const before = sel('Luke Damant').value
+    await user.selectOptions(sel('Luke Damant'), before === 'ia' ? 'viagem' : 'ia')
+    d.rej(new Error('rede'))
+    expect(await toastBad('Não deu para mudar o nicho')).toBeInTheDocument()
+    expect(sel('Luke Damant').value).toBe(before)
+  })
+  it('dois canais pendentes ao mesmo tempo: cada um mostra o seu valor', async () => {
+    const user = userEvent.setup(), a = deferred(), b = deferred()
+    const onSetNiche = vi.fn((id: string) => (id === 'luke-damant' ? a.p : b.p))
+    mount({ onSetNiche })
+    const names = ['Luke Damant', 'Matt Wolfe']
+    const before = names.map(n => sel(n).value), next = before.map(v => (v === 'ia' ? 'viagem' : 'ia'))
+    await user.selectOptions(sel(names[0]!), next[0]!)
+    await user.selectOptions(sel(names[1]!), next[1]!)
+    expect(sel(names[0]!).value).toBe(next[0])
+    expect(sel(names[1]!).value).toBe(next[1])
+    b.res({ ok: false })
+    await toastBad('Não deu para mudar o nicho')
+    expect(sel(names[1]!).value).toBe(before[1])
+    expect(sel(names[0]!).value).toBe(next[0])
+    a.res({ ok: true })
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    expect(sel(names[0]!).value).toBe(next[0])
+  })
+  it('duas escolhas seguidas no mesmo canal: vale a última, mesmo se a primeira resolver depois', async () => {
+    const user = userEvent.setup(), first = deferred(), second = deferred()
+    const onSetNiche = vi.fn().mockReturnValueOnce(first.p).mockReturnValueOnce(second.p)
+    mount({ onSetNiche })
+    const before = sel('Luke Damant').value
+    const other = before === 'ia' ? 'viagem' : 'ia'
+    await user.selectOptions(sel('Luke Damant'), other)
+    await user.selectOptions(sel('Luke Damant'), before)
+    expect(sel('Luke Damant').value).toBe(before)
+    second.res({ ok: true })
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
+    first.res({ ok: false })
+    await toastBad('Não deu para mudar o nicho')
+    expect(sel('Luke Damant').value).toBe(before)
+  })
+})

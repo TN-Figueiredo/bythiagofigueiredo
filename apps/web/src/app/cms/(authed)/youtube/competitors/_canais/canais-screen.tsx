@@ -17,7 +17,7 @@ import { ChannelDrawer } from './channel-drawer'
 import { DrawerForjaBox, DrawerForjaFoot } from './drawer-forja'
 import type { ForjaAsk } from '../_chrome/forja-view-model'
 import { AddChannelForm, type AddFn } from './add-channel-form'
-import { NicheEditorDialog } from './niche-editor'
+import { NicheEditorDialog, NichePendingContext, type NichePending } from './niche-editor'
 import { Ic, Tip, type LocalSync } from './cells'
 import './canais.css'
 
@@ -137,9 +137,25 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   // The server said the channel of ?channel= is in another niche than the explicit filter: drop it from the URL.
   useEffect(() => { if (view.drawerDropped) go({ channel: null, tab: null }) }, [view.drawerDropped]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Optimistic niche: per channel id, shown by every NicheSelect at once. It is dropped when the action fails, or (once the
+  // action succeeded) when the server sends new data. nicheSeq makes the last pick of a channel win over late answers.
+  const [pending, setPending] = useState<NichePending>({})
+  const nicheSeq = useRef<Record<string, number>>({})
+  const [seenView, setSeenView] = useState(view)
+  if (seenView !== view) {
+    setSeenView(view)
+    if (Object.values(pending).some(p => !p.busy)) setPending(cur => Object.fromEntries(Object.entries(cur).filter(([, p]) => p.busy)))
+  }
   const setNiche = async (r: { id: string; name: string; own: boolean; niche: Niche | null }, n: Niche, ctx: string) => {
+    const seq = (nicheSeq.current[r.id] ?? 0) + 1
+    nicheSeq.current[r.id] = seq
+    setPending(cur => ({ ...cur, [r.id]: { niche: n, busy: true } }))
     let ok = false
     try { ok = (await (r.own ? onSetOwnNiche : onSetNiche)(r.id, n)).ok } catch { ok = false }
+    if (nicheSeq.current[r.id] === seq) {
+      if (ok) setPending(cur => ({ ...cur, [r.id]: { niche: n, busy: false } }))
+      else setPending(cur => Object.fromEntries(Object.entries(cur).filter(([id]) => id !== r.id)))
+    }
     if (!ok) { toast('bad', 'Não deu para mudar o nicho', r.niche ? `${r.name} continua no nicho anterior.` : `${r.name} continua sem nicho.`); return }
     const NLn = n === 'ia' ? 'IA' : 'Viagem'
     const left = view.niche !== 'todos' && view.niche !== n
@@ -231,6 +247,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
 
   const s = view.slots, full = s.free === 0
   return (
+    <NichePendingContext.Provider value={pending}>
     <div data-obs-screen="canais" className={drawer ? 'drawer-open' : undefined}>
       <div className="cn-page">
         <div className={'wrap' + (view.layout === 'cards' ? ' view-cards' : '')} inert={anyModal || undefined}>
@@ -351,5 +368,6 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
         <NicheEditorDialog rows={view.nicheRows} onNiche={(r, n) => { void setNiche({ ...r, own: false }, n, 'editor') }} onClose={closeNiche} trap={trapTab} />
       ) : null}
     </div>
+    </NichePendingContext.Provider>
   )
 }
