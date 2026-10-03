@@ -12,6 +12,9 @@ export const RULES = {
   staleSyncHours: 24,
   videoLimitMax: 200,
   channelLimit: 75,
+  // New in the production port (plan 2026-10-02-observatorio-competidores, Task 17); the mockup fixes the sync state in data.
+  // Two missed 6 h sync slots: an ok sync older than this makes the channel 'atrasado'.
+  syncLateHours: 12,
 }
 export interface AgeBand { id: string; lo: number; hi: number; label: string }
 export const AGE_BANDS: AgeBand[] = [

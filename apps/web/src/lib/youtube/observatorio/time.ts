@@ -1,7 +1,7 @@
 /** Port of dados.js:20-79 — NOW/SERIES_START/SNAP0 are parameters. All instants are epoch ms; display in America/Sao_Paulo. */
 export const DAY = 864e5, H = 36e5, MINUS = '−'
 const SP_OFF = 3 * H // America/Sao_Paulo is UTC−3, no DST since 2019
-const WD = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
+export const WD = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
 const WDS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 const p2 = (n: number) => (n < 10 ? '0' : '') + n
 

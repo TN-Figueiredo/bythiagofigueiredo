@@ -10,7 +10,7 @@ import type { MultiplierResult } from './multiplier'
 export interface Phase { id: 'estourando' | 'recente' | 'perene' | 'antigo' | 'novos' | 'sem-ritmo'; label: string; why: string; noMedian?: boolean }
 type V = ObsVideo & Derived
 
-const median7 = (ctx: EngineCtx, chId: string, fmtId: Fmt): number | null =>
+export const median7 = (ctx: EngineCtx, chId: string, fmtId: Fmt): number | null =>
   median(ctx.CH.get(chId)!.videos.map(v => ctx.V.get(v.id)!).filter(v => v.tracked && v.fmt === fmtId && v.vpd7 != null).map(v => v.vpd7 as number))
 
 export function phaseOf(ctx: EngineCtx, v: ObsVideo, o?: { m7?: number | null }): Phase {

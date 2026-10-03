@@ -22,12 +22,16 @@ export interface ChannelSnapshot { t: number; date: string; subs: number; views:
 export interface ChannelSync {
   state: SyncState; last: number; next: number | null; added: number; errorSince: number | null
   msg: string | null; backfill: { done: number; total: number } | null
+  /** Derived by the engine (Task 17); absent on the input dataset. */
+  label?: string; stateLabel?: string; problemLabel?: string | null; problemPhrase?: string | null
 }
 export interface ObsChannel {
   id: string; name: string; fullName: string; niche: Niche | null; own: boolean; lang: string
   subs: number; video_limit: number; url: string; handle: string; gender: 'm' | 'f' | 'n'; color: string; ini: string
   sync: ChannelSync; activity: { state: 'ativo' | 'parado'; pausedDays?: number }
   lastIdx: number | null; snapshots: ChannelSnapshot[]
+  /** Derived by the engine (Task 17). */
+  statusLabel?: string; syncAgeHours?: number
 }
 export interface FrozenReading {
   id: string; type: string; niche: Niche | null; fmt: Fmt | null; target: { kind: 'niche' | 'video'; niche?: Niche; video?: string; fmt?: Fmt }
