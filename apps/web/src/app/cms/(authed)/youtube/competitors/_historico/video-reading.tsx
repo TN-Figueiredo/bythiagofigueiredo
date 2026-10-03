@@ -75,7 +75,7 @@ function ReadingBlock({ r, label, open }: { r: ForjaReadingView; label: string |
         </div>
         <section className="from-site" aria-labelledby={'fs-' + r.id + (label ? '-a' : '')}>
           <h4 className="fs-h" id={'fs-' + r.id + (label ? '-a' : '')}>Do site</h4>
-          <p className="src">Leitura de {r.when}. {r.sentText}</p>
+          <p className="src">Leitura de {r.whenAgo}. {r.sentText}</p>
           {r.since ? <p className="src">{r.since.text}</p> : null}
           {r.siteNotes.map(n => <p className="src" key={n}>{n}</p>)}
         </section>

@@ -43,6 +43,8 @@ export interface ForjaReadingView {
   /** "Ver os N vídeos com a fórmula (hoje, nos 6 canais da leitura)"; `text` = what the reading saw (site sentence). */
   evidenceLinks: Array<{ label: string; href: string; n: number; text: string }>
   when: string; isNew: boolean
+  /** "DD/MM, há …" — the reading's day and how long ago (historico-video.html:682). */
+  whenAgo: string
   /** "Fórmulas (6 meses, 20/10)" — the label of this reading's "Desde então" line. */
   sinceLabel: string
   /** "7 trocas" — what the reading read (resumo das trocas); null when the frozen data does not say. */
@@ -233,6 +235,7 @@ export function forjaReadingView(obs: Observatory, r: FrozenReading, o: { active
     siteNotes,
     evidenceLinks: evidenceOf(obs, r),
     when: obs.date.dm(r.generatedAt) + ' ' + obs.date.hm(r.generatedAt), isNew: o.isNew,
+    whenAgo: obs.date.dmOrDmy(r.generatedAt) + ', ' + obs.date.ago(r.generatedAt),
   }
 }
 

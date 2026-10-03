@@ -229,7 +229,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
         id: v.id, ch: c.id, niche: isNiche(c.niche) ? c.niche : null, fmt, pub, ageDays: ageOf(pub, now), tracked: k < nTracked,
         title, theme: themes.get(v.id) ?? null, formulas: formulasOf(title),
         url: fmt === 'short' ? 'https://www.youtube.com/shorts/' + v.video_id : 'https://www.youtube.com/watch?v=' + v.video_id, ytId: v.video_id, dur: v.duration_seconds,
-        views: v.view_count, viewsAt: ms(v.last_checked_at) ?? ms(c.last_ok_synced_at) ?? now, likes: v.like_count ?? 0, comments: v.comment_count ?? 0,
+        views: v.view_count, viewsAt: ms(v.last_checked_at) ?? ms(c.last_ok_synced_at) ?? now, likes: v.like_count, comments: v.comment_count ?? 0,
         series, firstIdx: series.length ? series[0]!.idx : null, titles, thumbs, descs,
         ...(cappedFrom != null && pub >= seriesStart && pub < cappedFrom ? { truncated: true } : {}),
       })

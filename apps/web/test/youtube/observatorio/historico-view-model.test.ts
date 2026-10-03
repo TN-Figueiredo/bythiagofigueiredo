@@ -319,3 +319,31 @@ describe('historico view model — forja card "pedir de novo"', () => {
     else expect(c.toTop!.pre).toBe('Para pedir de novo, use ')
   })
 })
+
+// Task 35b fix 2 (historico-video.html:682, 708, 725): the reading line and "Desde então" of the forja card
+describe('historico view model — forja card readings', () => {
+  const card = (state: string) => {
+    const o = createTestObservatory(datasetFromOracle(loadOracle()))
+    o.forja.session.setBase(state, { type: 'leitura-video', video: PICK.full })
+    return buildHistoricoView(o, PICK.full, {}).forjaCard!
+  }
+  it('the reading line says the day and how long ago ("24/10, há 12 min"), not a clock time', () => {
+    const c = card('publicado')
+    expect(c.fresh!.whenAgo).toBe('24/10, há 12 min')
+    expect(c.reading!.whenAgo).toMatch(/^20\/10, há \d+ dias$/)
+  })
+  it('publicado: neither the new reading nor "Leitura anterior" carries "Desde então"', () => {
+    const c = card('publicado')
+    expect(c.fresh).not.toBeNull()
+    expect(c.fresh!.since).toBeNull()
+    expect(c.reading).not.toBeNull()
+    expect(c.reading!.since).toBeNull()
+  })
+  it('every other state keeps "Desde então" on the reading it shows', () => {
+    for (const s of ['na fila', 'trabalhando', 'atrasado', 'falhou']) {
+      const c = card(s)
+      expect([s, c.fresh]).toEqual([s, null])
+      expect([s, c.reading!.since?.shortText.startsWith('Desde então')]).toEqual([s, true])
+    }
+  })
+})

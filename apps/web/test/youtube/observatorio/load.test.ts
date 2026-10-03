@@ -212,6 +212,32 @@ describe('rowsToDataset — videos, versions and channels', () => {
   })
 })
 
+describe('rowsToDataset — a video whose likes were never read (35b fix 2: "0,0%" in Você no nicho)', () => {
+  // two channels of one niche: ch1 has like counts, ch2 (still being fetched) has views but like_count NULL
+  const ds = rowsToDataset(rows({
+    settings: { series_started_at: SERIES, channel_limit: 75 },
+    channels: [channel(), channel({ id: 'ch2', channel_id: 'UC2', channel_name: 'Dois' })],
+    videos: [
+      video({ view_count: 1000, like_count: 30, comment_count: 4 }),
+      video({ id: 'v2', competitor_channel_id: 'ch2', video_id: 'yt2', view_count: 5000, like_count: null, comment_count: null }),
+    ],
+  }), NOW)
+  const obs = createObservatory(ds)
+  it('the missing count stays null in the dataset, never 0', () => {
+    expect(ds.videos.find(v => v.id === 'v2')!.likes).toBeNull()
+    expect(ds.videos.find(v => v.id === 'v1')!.likes).toBe(30)
+  })
+  it('the channel has no engagement (n = 0, "sem vídeos com contagem"), not 0%', () => {
+    const e = obs.channelStats('ch2', 'long').engagement as { median: number | null; n: number; label: string }
+    expect(e).toMatchObject({ median: null, n: 0, label: 'sem vídeos com contagem' })
+  })
+  it('and it does not drag the niche minimum to 0%', () => {
+    const agg = obs.nicheStats('viagem', 'long').engagement
+    expect(agg.n).toBe(1)
+    expect(agg.min).toBeCloseTo(0.034, 6)
+  })
+})
+
 describe('rowsToDataset — a video published after now (scheduled premiere, clock skew)', () => {
   it('age is clamped to 0, so the engine never sees a negative age', () => {
     const ds = rowsToDataset(rows({ channels: [channel()], videos: [video({ published_at: iso(NOW + 3 * DAY) })] }), NOW)

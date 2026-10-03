@@ -729,7 +729,10 @@ function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoV
   const fresh = vr && vr.isNew ? vr : null
   // the reading that existed before the request published (the newest one that is not the fresh one)
   const older = obs.forja.readings.filter(x => x.type === 'leitura-video' && x.target?.video === v.id && x.id !== fresh?.id).sort((a, b) => b.generatedAt - a.generatedAt)[0]
-  const prev = fresh ? (older ? forjaReadingView(obs, older, { active: false, isNew: false, activeNote: null }) : null) : vr
+  // historico-video.html:725 (done): right after a reading is published neither block carries "Desde então" — the new
+  // one has nothing after it, and the previous one's delta is what the new reading already read
+  const noSince = (x: ForjaReadingView): ForjaReadingView => ({ ...x, since: null })
+  const prev = fresh ? (older ? noSince(forjaReadingView(obs, older, { active: false, isNew: false, activeNote: null })) : null) : vr
   const tm = obs.forja.timing('leitura-video', v.niche ?? 'todos')
   const exReason = !v.tracked ? 'Vídeo fora dos acompanhados: não há dados para a forja ler' : v.niche ? obs.forja.eligibleChannels(v.niche).out.find(o => o.id === v.ch)?.reason ?? null : null
   const exAct = !v.tracked ? '' : ch.sync.state === 'erro' ? 'Corrija o canal em Canais antes de pedir uma leitura.' : ch.sync.state === 'backfill' ? 'Espere a busca de vídeos terminar antes de pedir uma leitura.' : 'Sincronize o canal antes de pedir uma leitura deste vídeo.'
@@ -780,7 +783,7 @@ function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoV
       again: null,
       excluded,
       intro: !vr && !r ? 'A leitura deste vídeo resume as trocas e diz o que os números permitem concluir. A forja (Gemma 12B) não julga thumbnails e não afirma causa.' : null,
-      fresh, reading: prev, readingLabel: r ? 'Leitura anterior' : null,
+      fresh: fresh ? noSince(fresh) : null, reading: prev, readingLabel: r ? 'Leitura anterior' : null,
       niche: vr ? null : nicheBlk(),
       blocked,
     },
