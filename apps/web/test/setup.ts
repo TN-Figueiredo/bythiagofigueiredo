@@ -1,4 +1,10 @@
 import '@testing-library/jest-dom'
+import { expect, vi } from 'vitest'
+
+// The observatório suites evaluate the whole mockup oracle (dados.cjs, ~200 KB) inside a vm. That costs ~0.4 s on a
+// laptop and 3–5 s on the CI runner, right at the default 5 s per-test limit: four different tests timed out there on
+// 2026-10-03 (5031–5330 ms) while passing locally. One limit for that directory instead of chasing each test.
+if (expect.getState().testPath?.includes('/test/youtube/observatorio/')) vi.setConfig({ testTimeout: 20_000 })
 
 // DB-gated integration runs (HAS_LOCAL_DB=1): app code under test resolves
 // Supabase via process.env (e.g. lib/supabase/service.ts). Default the vars to
