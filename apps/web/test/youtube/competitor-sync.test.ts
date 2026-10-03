@@ -144,6 +144,16 @@ describe('syncCompetitorChannel', () => {
     expect(err).toMatchObject({ sync_error_since: NOW_ISO })
   })
 
+  it('R13: a channels call failing with 404 still advances the cursor, keeps last_ok, sets sync_error_since', async () => {
+    const db = setup()
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 404) })).rejects.toThrow('YouTube API 404')
+    const updates = db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!)
+    expect(updates[0]).toMatchObject({ sync_status: 'syncing', last_synced_at: NOW_ISO }) // in the lock itself
+    expect(updates.some(u => 'last_ok_synced_at' in u)).toBe(false)
+    expect(updates.at(-1)).toMatchObject({ sync_status: 'error', sync_error_since: NOW_ISO })
+    expect(updates.at(-1)).not.toHaveProperty('last_synced_at')
+  })
+
   it('stamps the cursor at the lock and last_ok_synced_at on success; empty list is fine', async () => {
     const db = setup({ lastDaily: '2026-10-24' })
     const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null) })
