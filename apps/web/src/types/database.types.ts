@@ -2243,10 +2243,13 @@ export type Database = {
           channel_name: string
           full_sync_completed_at: string | null
           id: string
+          last_ok_synced_at: string | null
           last_synced_at: string | null
+          niche: string | null
           site_id: string
           subscriber_count: number | null
           sync_error: string | null
+          sync_error_since: string | null
           sync_mode: string
           sync_progress: number
           sync_started_at: string | null
@@ -2261,10 +2264,13 @@ export type Database = {
           channel_name?: string
           full_sync_completed_at?: string | null
           id?: string
+          last_ok_synced_at?: string | null
           last_synced_at?: string | null
+          niche?: string | null
           site_id: string
           subscriber_count?: number | null
           sync_error?: string | null
+          sync_error_since?: string | null
           sync_mode?: string
           sync_progress?: number
           sync_started_at?: string | null
@@ -2279,10 +2285,13 @@ export type Database = {
           channel_name?: string
           full_sync_completed_at?: string | null
           id?: string
+          last_ok_synced_at?: string | null
           last_synced_at?: string | null
+          niche?: string | null
           site_id?: string
           subscriber_count?: number | null
           sync_error?: string | null
+          sync_error_since?: string | null
           sync_mode?: string
           sync_progress?: number
           sync_started_at?: string | null
@@ -2294,6 +2303,67 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "competitor_channels_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitor_settings: {
+        Row: {
+          channel_limit: number
+          series_started_at: string | null
+          site_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          channel_limit?: number
+          series_started_at?: string | null
+          site_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          channel_limit?: number
+          series_started_at?: string | null
+          site_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_settings_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: true
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitor_user_prefs: {
+        Row: {
+          niche: string
+          site_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          niche?: string
+          site_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          niche?: string
+          site_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_user_prefs_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
