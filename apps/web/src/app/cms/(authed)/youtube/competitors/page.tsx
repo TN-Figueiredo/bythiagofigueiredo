@@ -9,6 +9,7 @@ import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import { ObservatoryChromeServer } from './_chrome/chrome-server'
 import type { ObsSearchParams } from './_chrome/resolve-niche'
 import { CanaisScreen } from './_canais/canais-screen'
+import { legacyTabRedirect } from './_canais/legacy'
 import { buildCanaisView } from './_canais/view-model'
 import { addChannelFromCanais, removeCompetitorChannel, syncCompetitorNow, unlockMoreChannels } from './actions'
 import { getUserNiche, setChannelNiche } from './niche-actions'
@@ -31,6 +32,8 @@ async function canUnlockChannels(siteId: string): Promise<boolean> {
 /** Canais (port of canais.html) inside the Observatório chrome. */
 export default async function CompetitorsPage({ searchParams }: { searchParams: Promise<ObsSearchParams> }) {
   const sp = await searchParams
+  // The channel drawer reuses ?tab=outliers together with ?channel=; only a bare ?tab= is a legacy dashboard link.
+  if (!one(sp.channel)) legacyTabRedirect(one(sp.tab))
   const { siteId } = await getSiteContext()
   const now = observatoryNow()
   const [rows, canUnlock] = await Promise.all([loadRows({ siteId, now }), canUnlockChannels(siteId)])
