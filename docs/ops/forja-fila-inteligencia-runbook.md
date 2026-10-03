@@ -650,6 +650,67 @@ mesmo preso a views + séries, um parágrafo de verdade já bate o template.
 
 ---
 
+## 9b. Leituras do observatório
+
+O mesmo worker, o mesmo cron, o mesmo lock: além do `diagnostico`, ele pode atender os pedidos do
+observatório de competidores (`padroes-titulo`, `padroes-titulo-shorts`, `temas`, `resumo-trocas`,
+`leitura-video`). Código no kit: `docs/trilha/leituras_obs.py` (prompt por tipo, validador, `rodar`).
+Comandos de instalação do dono: `~/Workspace/forja/LEIAME-COMANDOS.md`, seção "2026-10-03 — Observatório".
+
+**A chave (opt-in).** Sem `OBS_TIPOS=1` no `/opt/agente/fila_intel.env` o claim sai como sempre, sem
+`task_types`, e o worker só vê diagnóstico. Com a linha, o claim leva os 5 tipos.
+
+```
+ssh forja 'echo OBS_TIPOS=1 >> /opt/agente/fila_intel.env'
+```
+
+Para desligar (rollback), apague a linha — o worker volta ao comportamento anterior no próximo tick:
+
+```
+ssh forja "sed -i '/^OBS_TIPOS=/d' /opt/agente/fila_intel.env; grep -c OBS_TIPOS /opt/agente/fila_intel.env"
+```
+
+(saída `0`). Escrita na forja é do dono; o agente só prepara o comando.
+
+**Ordem de deploy (obrigatória).** (1) `npm run db:push:prod` das migrations `20261003000001..0004`;
+(2) o código do site com as rotas novas no ar; (3) instalar os arquivos do kit (o worker novo sem
+`OBS_TIPOS` não muda nada); (4) só então ligar `OBS_TIPOS=1`. Ligar antes faz o claim mandar
+`task_types` a rotas que ainda não existem. O claim aceita `task_types` (mín. 1, máx. 5) e **o
+heartbeat da forja só é gravado no claim tipado** — é ele que habilita o botão da forja na tela.
+Instalar também `docs/sitio.py` (o do cron, `/opt/agente/docs/sitio.py`, não o do proxy): sem as duas
+rotas novas nele o worker termina em `bug`.
+
+**Desfechos.** Nenhum valor novo (R25): leitura publicada = `ok`; leitura recusada pelo validador, sem
+dados (`nVideos` 0) ou dado velho (`asOf` > 24 h, `fail` com `refuse`, `reason: dado-velho`) =
+`reprovada`. Os demais (`llama`, `orcamento`, `falha_site`, `conflito`, `chave`, `indeterminado`)
+significam o mesmo que no diagnóstico. A linha do jsonl ganha `task_type`; é ele que separa uma leitura
+(`"temas"`) de um diagnóstico (`"diagnostico"`). O pulso não mudou: `ok` com `fallback` vazio é verde,
+`reprovada` vira `fila-task-reprovada`.
+
+**Rotas.** `GET /api/pipeline/youtube/competitors/readings?task_id=…` devolve o `sent` (os dados
+enviados à forja, com `numbers`, `ids`, `asOf`, `nVideos`, `items`); `POST` no mesmo caminho grava a
+leitura (`text {title, lead, items}`, `analysis`, `evidence`). O POST sai **uma vez**, nunca é reenviado.
+
+**Congelamento por task.** O `sent` é congelado na primeira leitura de cada task: um retry da mesma
+task lê exatamente os mesmos dados, e o validador confere os números contra esse `sent`.
+
+**Semântica de retry.** Alvo sumido (vídeo/canal removido) = `422 TARGET_UNAVAILABLE`, **não** é
+retentado. Qualquer outro erro do site na leitura sobe como `500` e **é** retentado (vai ao Sentry).
+`409` no GET/POST = `conflito` (não está `running` ou é de outra chave); `401/403` = `chave`.
+Timeout/5xx no POST = `indeterminado` (o `fail` decide se gravou).
+
+**Orçamento.** Não mudou: 20 min do claim < `timeout -k 30s 25m` < 30 min do vigia. `T_GET` = 15 s
+fica. O GET frio local leva ~0,2 s; depois de ligar, cronometre o primeiro GET real no `ms.sent` do jsonl
+e registre aqui.
+
+**O que o Passo 6 verifica (depois de ligar).** `forja_heartbeat` atualizado em até 10 min com as 5
+capabilities; em `/cms/youtube/competitors/insights` o botão da forja habilitado; uma leitura `temas`
+pedida para IA passa por "na fila" → "trabalhando" → "publicado", com selo e texto literal; a linha do
+jsonl mostra `desfecho: ok` com `task_type` e a duração, bem abaixo de 20 min (acima de 10 min:
+reduzir `RULES.forja.maxVideos`); registrar a duração em §1 "Onde entra o tempo".
+
+---
+
 ## 10. Onde está o resto
 
 - **Kit da forja:** `~/Workspace/forja/ferramentas/` — repositório git **local, sem remoto**.
