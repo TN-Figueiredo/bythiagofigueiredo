@@ -236,3 +236,13 @@ describe('CanaisScreen — scroll hint', () => {
     } finally { sw.mockRestore(); cw.mockRestore() }
   })
 })
+
+// Task 35b (canais.html:804-805): the drawer's Outliers tab keeps its intro for a channel still fetching videos
+describe('CanaisScreen — drawer Outliers of a backfilling channel', () => {
+  it('intro and the "Sem base de comparação ainda" note, both', () => {
+    mount({}, { channel: 'vou-sem-volta', tab: 'outliers' })
+    const panel = document.getElementById('cn-pOut')!
+    expect(panel.textContent).toContain('Views do vídeo contra a mediana dos outros vídeos do canal na mesma idade')
+    expect(panel.textContent).toContain('Sem base de comparação ainda: a busca tem 18 de 50 vídeos')
+  })
+})

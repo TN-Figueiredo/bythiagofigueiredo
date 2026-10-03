@@ -134,7 +134,9 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
         </div>
         <div className="dpanel" id="cn-pOut" role="tabpanel" aria-labelledby="cn-t-outliers" tabIndex={0} hidden={tab !== 'outliers'}>
           <p className="sec">Outliers, até 90 dias</p>
-          {d.outliers.note ? <div className="note">{d.outliers.note}</div> : <p className="sech">{d.outliers.intro}</p>}
+          {/* canais.html:804-805: the intro always, then the note of a channel still fetching its videos */}
+          <p className="sech">{d.outliers.intro}</p>
+          {d.outliers.note ? <div className="note">{d.outliers.note}</div> : null}
           {d.outliers.sections.map(s => (
             <div key={s.fmt}>
               <p className="sec" style={{ marginTop: 12 }}>{s.title}</p>
