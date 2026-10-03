@@ -324,19 +324,6 @@ async function readIn<T>(table: string, ids: readonly string[], build: (chunk: s
   for (let i = 0; i < ids.length; i += IN_CHUNK) chunks.push(ids.slice(i, i + IN_CHUNK))
   return (await mapLimit(chunks, IN_CHUNK_CONCURRENCY, chunk => readAll<T>(table, () => build(chunk)))).flat()
 }
-/** undefined table / undefined column, from Postgres or from the PostgREST schema cache. */
-const MISSING = new Set(['42P01', '42703', 'PGRST205', 'PGRST204'])
-/**
- * The P4 tables (`competitor_readings`, `forja_heartbeat`) and the typed `youtube_intelligence_tasks` columns arrive in
- * Task 29. Until then a missing table/column reads as empty. Task 29 removes this guard and reads them normally.
- */
-async function readOptional<T>(table: string, build: () => RangeQuery): Promise<T[]> {
-  try { return await readAll<T>(table, build) } catch (e) {
-    if (e instanceof ObservatoryLoadError && e.code && MISSING.has(e.code)) return []
-    throw e
-  }
-}
-
 /** Ids of the videos the engine marks `tracked`: per channel, the `video_limit` most recent by `published_at` (same rule as rowsToDataset). */
 export function trackedVideoIds(channels: readonly Pick<ChannelRow, 'id' | 'video_limit'>[], videos: readonly Pick<VideoRow, 'id' | 'competitor_channel_id' | 'published_at'>[]): string[] {
   const by = groupBy(videos, v => v.competitor_channel_id), out: string[] = []
@@ -372,11 +359,11 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
     readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('is_hidden', false).order('id')),
     readAll<LegacyChangeRow>('competitor_changes', () => sb.from('competitor_changes').select('id, video_id, change_type, old_title, new_title, detected_at')
       .eq('site_id', siteId).is('from_version_id', null).in('change_type', ['title', 'description']).order('id')),
-    readOptional<ReadingRow>('competitor_readings', () => sb.from('competitor_readings').select('id, task_type, niche, video_id, fmt, model, generated_at, sent, analysis, text, evidence')
+    readAll<ReadingRow>('competitor_readings', () => sb.from('competitor_readings').select('id, task_type, niche, video_id, fmt, model, generated_at, sent, analysis, text, evidence')
       .eq('site_id', siteId).gte('generated_at', new Date(now - READING_DAYS * DAY).toISOString()).order('id')),
-    readOptional<TaskRow>('youtube_intelligence_tasks', () => sb.from('youtube_intelligence_tasks').select(TASK_COLS)
+    readAll<TaskRow>('youtube_intelligence_tasks', () => sb.from('youtube_intelligence_tasks').select(TASK_COLS)
       .eq('site_id', siteId).in('task_type', [...OBS_TASK_TYPES]).gte('requested_at', new Date(now - TASK_DAYS * DAY).toISOString()).order('id')),
-    readOptional<HeartbeatRow>('forja_heartbeat', () => sb.from('forja_heartbeat').select('last_poll_at, capabilities').eq('site_id', siteId).order('site_id')),
+    readAll<HeartbeatRow>('forja_heartbeat', () => sb.from('forja_heartbeat').select('last_poll_at, capabilities').eq('site_id', siteId).order('site_id')),
   ])
   const channelIds = channels.map(c => c.id)
   const [videos, snapshots] = await Promise.all([
