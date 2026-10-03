@@ -158,9 +158,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const thumbOf = (v: ObsVideo): Thumb => ({ src: v.ytId ? `https://i.ytimg.com/vi/${encodeURIComponent(v.ytId)}/mqdefault.jpg` : null, text: null })
   const ageOf = (v: ObsVideo) => ({ text: nb(F.age(v)), title: abs(v.pub) })
   const stale = (c: ObsChannel, S: CStats) =>
-    // canais.html:564/783: only a channel whose SYNC is stalled (atrasado, erro) has views "até o registro diário";
-    // a channel that stopped uploading (parado) is still synced, so its numbers are today's
-    (c.sync.state === 'atrasado' || c.sync.state === 'erro') && S.growth30.to != null
+    // Task 23 ruling (brief test + CONVENCOES:267, confirmed in 35b fix round 1): a "parado" channel's views also say
+    // "até o registro diário"; canais.html shows it only for atrasado/erro — allow-listed in canais.spec
+    (c.sync.state === 'atrasado' || c.sync.state === 'erro' || (c.activity.state === 'parado' && c.sync.state !== 'backfill')) && S.growth30.to != null
       ? ` até o registro diário de ${D.dmhm(S.growth30.to)}` : ''
   const isBf = (c: ObsChannel) => c.sync.state === 'backfill'
   const videosOf = (id: string) => obs.videos.filter(v => v.ch === id).sort((a, b) => b.pub - a.pub)

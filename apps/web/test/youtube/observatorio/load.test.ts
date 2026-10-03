@@ -496,3 +496,21 @@ describe('rowsToDataset — request → reading', () => {
     expect(ds.requests.find(r => r.id === 't2')!.readingId).toBeNull()
   })
 })
+
+// R65 (Task 35b fix round 1): the stored failure reason reaches the engine; never "(sem código)" when there is one
+describe('taskRowToRequest — failure reason (R65)', () => {
+  const row = (o: Partial<TaskRow>): TaskRow => ({ id: 't', task_type: 'padroes-titulo', target_niche: 'ia', target_video_id: null, target_fmt: null, status: 'failed',
+    requested_at: iso(NOW - 3 * H), started_at: iso(NOW - 2 * H), completed_at: null, failed_at: iso(NOW - H), refused_at: null, refused_reason: null, released_at: null, retry_count: 2, ...o })
+  it('failed + error_message → failReason; a requeued/pending row carries none', () => {
+    expect(taskRowToRequest(row({ error_message: 'o validador recusou a saída da forja nas 3 tentativas' }), NOW, NOW)!.failReason).toBe('o validador recusou a saída da forja nas 3 tentativas')
+    expect(taskRowToRequest(row({ status: 'pending', failed_at: null, error_message: 'velho' }), NOW, NOW)!.failReason).toBeNull()
+    expect(taskRowToRequest(row({}), NOW, NOW)!.failReason).toBeNull()
+  })
+  it('the engine names the stored reason instead of "(sem código)"', () => {
+    const t = row({ error_message: 'o validador recusou a saída da forja nas 3 tentativas' })
+    const ds = rowsToDataset(rows({ settings: { series_started_at: SERIES, channel_limit: 75 }, tasks: [t], heartbeat: { last_poll_at: iso(NOW - 5 * 6e4), capabilities: ['padroes-titulo'] } }), NOW)
+    const sc = createObservatory(ds).forja.session.current('ia', { type: 'padroes-titulo' })
+    expect(sc.statusText).not.toMatch(/sem código/)
+    expect(sc.statusText).toMatch(/validador recusou/)
+  })
+})
