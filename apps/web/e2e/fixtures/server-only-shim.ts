@@ -8,6 +8,8 @@ import Module from 'node:module'
 
 type Resolve = (request: string, ...rest: unknown[]) => string
 const M = Module as unknown as { _resolveFilename: Resolve }
+// private Node API: fail with a clear message rather than a confusing resolve error if a Node release changes it
+if (typeof M._resolveFilename !== 'function') throw new Error('server-only-shim: Module._resolveFilename is gone in this Node version; update the shim')
 const original = M._resolveFilename
 const EMPTY = require.resolve('next/dist/compiled/server-only/empty')
 M._resolveFilename = function (this: unknown, request: string, ...rest: unknown[]): string {

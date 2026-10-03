@@ -105,10 +105,12 @@ export function seedUuid(siteId: string, kind: string, oracleId: string): string
 }
 const durSeconds = (dur: string) => dur.split(':').map(Number).reduce((acc, n) => acc * 60 + n, 0)
 const precOf = (p: OPrec): 'first' | 'min' | '6h' | '1d' => (p === 'publicacao' || p === 'desde-arquivo' ? 'first' : p)
+const FIELD_OF = { title: 'title', description: 'desc', thumbnail: 'thumb' } as const
 const changePrec = (p: OPrec): 'min' | '6h' | '1d' | null => (p === 'min' || p === '6h' || p === '1d' ? p : null)
 const dmyToIso = (d: string) => { const [dd, mm, yyyy] = d.split('/'); return `${yyyy}-${mm}-${dd}` }
 
-function assertLocal(url: string): void {
+/** Throws unless the Supabase URL is the local stack (127.0.0.1 / localhost). */
+export function assertLocal(url: string): void {
   const host = new URL(url).hostname
   if (host !== '127.0.0.1' && host !== 'localhost') throw new Error('observatorio-seed: refusing a non-local Supabase (' + host + ')')
 }
@@ -123,7 +125,9 @@ function clientOf(sb?: SupabaseClient): SupabaseClient {
   if (!sb) return localServiceClient()
   // supabaseUrl is public on the client: the guard holds for an injected client too
   const url = (sb as unknown as { supabaseUrl?: string }).supabaseUrl
-  if (url) assertLocal(url)
+  // fail closed: a client whose URL cannot be read is refused rather than trusted
+  if (typeof url !== 'string' || !url) throw new Error('observatorio-seed: cannot read the injected client URL; refusing to write')
+  assertLocal(url)
   return sb
 }
 
@@ -147,6 +151,12 @@ function remapIds(x: unknown, ids: Map<string, string>): unknown {
 }
 
 /* ------------------------------------------------------------------ clear */
+/**
+ * Removes the observatory data of the site, not only what the seed wrote: every competitor channel (and, by cascade,
+ * videos, versions, daily rows, snapshots), changes, readings, heartbeat, settings, and EVERY non-diagnostico forja
+ * task of the site (including one a developer queued by hand). Fine for the local e2e site; never point it elsewhere
+ * (clientOf refuses non-local URLs).
+ */
 export async function clearObservatory(siteId: string, client?: SupabaseClient): Promise<void> {
   const sb = clientOf(client)
   const ownId = seedUuid(siteId, 'own-channel', 'own')
@@ -218,7 +228,7 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
     })
     const changeRow = (type: 'title' | 'description' | 'thumbnail', prev: OVersion | null, x: OVersion, extra: object) => ({
       site_id: siteId, video_id: vid, change_type: type, detected_at: iso(x.first_seen), ...extra,
-      ...(prev ? { from_version_id: U('version', v.id + '/' + (type === 'description' ? 'desc' : type === 'thumbnail' ? 'thumb' : 'title') + '/' + prev.id), to_version_id: U('version', v.id + '/' + (type === 'description' ? 'desc' : type === 'thumbnail' ? 'thumb' : 'title') + '/' + x.id),
+      ...(prev ? { from_version_id: U('version', v.id + '/' + FIELD_OF[type] + '/' + prev.id), to_version_id: U('version', v.id + '/' + FIELD_OF[type] + '/' + x.id),
         window_start: iso(x.window?.[0]), window_end: iso(x.window?.[1]), precision: changePrec(x.prec) } : {}),
     })
     // titles: pre-series changes → legacy rows; real versions from the last pre-series one on
