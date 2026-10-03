@@ -2,7 +2,7 @@
 /**
  * The forja in the chrome header (port of chrome.js forjaHtml + the heartbeat segment of headHtml). Everything comes
  * from ForjaView. Clicking the status NEVER creates a request: it scrolls to the screen's [data-forja-anchor]
- * (CONVENCOES: "Clique no status do pedido no cabeçalho nunca cria pedido"). Only the ask button opens the drawer.
+ * (CONVENCOES:215: "abre/rola até o andamento na tela"; it never creates a request). Only the ask button asks.
  */
 import type { ForjaView } from './forja-view-model'
 import { Icon } from './icons'
@@ -25,22 +25,21 @@ export function goToForjaAnchor(): void {
   a.focus({ preventScroll: true })
 }
 
-export function ForjaHeaderButtons({ forja, drawerOpen, modal, onOpen, onStatus }: {
-  forja: ForjaView; drawerOpen: boolean; modal: boolean
-  /** Opens the forja drawer (the only path to a new request). */
+export function ForjaHeaderButtons({ forja, onOpen, onStatus }: {
+  forja: ForjaView
+  /** The ask (R58): the screen asks directly, or opens its own confirm (Mudanças). */
   onOpen: () => void
   /** The status click: scrolls to the anchor; NEVER asks. */
   onStatus?: () => void
 }) {
-  const v = forja.headerVariant === 'none' ? 'none' : drawerOpen ? 'outline' : forja.headerVariant
+  const v = forja.headerVariant
   const cls = 'obs-ch-btn ' + (v === 'solid' ? 'obs-ch-forja-solid' : 'obs-ch-forja')
-  const popup = modal ? { 'aria-haspopup': 'dialog' as const } : {}
   const st = forja.status, b = forja.button
   const status = onStatus ?? goToForjaAnchor
   if (st && st.active) {
     const ask = b.mode === 'free-niche' && v !== 'none'
       ? (
-        <button className={cls} type="button" data-ck="forja-ask" title={b.label} aria-label={b.ariaLabel} onClick={onOpen} {...popup}>
+        <button className={cls} type="button" data-ck="forja-ask" title={b.label} aria-label={b.ariaLabel} onClick={onOpen}>
           {Icon.anvil()}<span className="obs-ch-lbl-t"><span className="obs-ch-lf" aria-hidden="true">{b.label}</span><span className="obs-ch-ls" aria-hidden="true">{b.short ?? b.label}</span></span>
         </button>
       )
@@ -76,7 +75,7 @@ export function ForjaHeaderButtons({ forja, drawerOpen, modal, onOpen, onStatus 
   return (
     <>
       {pill}
-      <button className={cls} type="button" data-ck="forja" title={b.label} aria-label={pill || b.mode === 'free-niche' ? b.ariaLabel : undefined} onClick={onOpen} {...popup}>
+      <button className={cls} type="button" data-ck="forja" title={b.label} aria-label={pill || b.mode === 'free-niche' ? b.ariaLabel : undefined} onClick={onOpen}>
         {Icon.anvil()}
         <span className="obs-ch-lbl-t">{pill || b.mode === 'free-niche'
           ? <><span className="obs-ch-lf" aria-hidden="true">{b.label}</span><span className="obs-ch-ls" aria-hidden="true">{short}</span></>

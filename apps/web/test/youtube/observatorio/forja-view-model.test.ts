@@ -1,6 +1,6 @@
 // @vitest-environment node
 /**
- * Task 35 — the forja view model (header segment, button, cards, drawer) on the oracle dataset, with requests injected
+ * Task 35 — the forja view model (header segment, button, cards) on the oracle dataset, with requests injected
  * from forja-scenarios.ts (session.setBase) or as DB-shaped requests in the dataset. Every "data does not exist" branch
  * has its own honest text (CLAUDE.md "falha em verde").
  */
@@ -9,7 +9,7 @@ import { loadOracle, datasetFromOracle, createTestObservatory } from './oracle'
 import { SHOWCASE } from './forja-scenarios'
 import { createObservatory, type Dataset } from '@/lib/youtube/observatorio'
 import type { ForjaRequest, Niche } from '@/lib/youtube/observatorio/types'
-import { buildForjaView, buildForjaDrawerView, comboKey, readingSeal, INCAPABLE_TEXT } from '@/app/cms/(authed)/youtube/competitors/_chrome/forja-view-model'
+import { buildForjaView, readingSeal, INCAPABLE_TEXT } from '@/app/cms/(authed)/youtube/competitors/_chrome/forja-view-model'
 import { buildChromeView } from '@/app/cms/(authed)/youtube/competitors/_chrome/view-model'
 
 const oracle = loadOracle()
@@ -266,37 +266,10 @@ describe('a new request is timestamped now', () => {
   })
 })
 
-describe('drawer (moldura)', () => {
-  it('Todos with IA busy: the seletor starts on Viagem and the combo sends only Viagem', () => {
-    const ds = fresh(); ds.requests.push(dbReq(ds, { niche: 'ia' }))
-    const d = buildForjaDrawerView(createObservatory(ds), { niche: 'todos', type: 'padroes-titulo' })
-    expect(d.freeNiches).toEqual(['ia', 'viagem'])
-    const c = d.combos[comboKey('padroes-titulo', 'todos')]!
-    expect(c.effNiche).toBe('viagem')
-    expect(c.partial).toMatch(/^Já há um pedido de IA em andamento \(na fila · pedido \d\d:\d\d\)\. O pedido vai só para Viagem\.$/)
-  })
-  it('one run card per type with a request, with the engine statusText', () => {
-    const obs = createTestObservatory(fresh())
-    const sc = obs.forja.session.setBase('na fila', { type: 'padroes-titulo' })
-    const d = buildForjaDrawerView(obs, { niche: 'todos' })
-    expect(d.runs).toHaveLength(1)
-    expect(d.runs[0]!.kase).toBe('queued')
-    expect(d.runs[0]!.tit).toBe(sc.statusText)
-    expect(d.runs[0]!.eta.big).toBe('15:05')
-    expect(d.runs[0]!.cancel).toEqual({ label: 'Cancelar pedidos', niches: ['ia', 'viagem'] })
-  })
-  it('no heartbeat: the confirm says the forja never polled (no invented hour)', () => {
-    const ds = fresh(); ds.queue.lastPollAt = null
-    const d = buildForjaDrawerView(createObservatory(ds), { niche: 'ia' })
-    expect(d.combos[comboKey('temas', 'ia')]!.confirm.quando).toMatch(/^A forja ainda não consultou a fila; o pedido espera a primeira consulta\. /)
-    expect(d.machine.alive).toBe(false)
-  })
-  it('a running request is not cancellable', () => {
+describe('a running request', () => {
+  it('is not cancellable from the screens (cancel lists only waiting niches)', () => {
     const obs = createTestObservatory(fresh())
     obs.forja.session.setBase('trabalhando', { type: 'resumo-trocas' })
-    const d = buildForjaDrawerView(obs, { niche: 'ia' })
-    expect(d.runs[0]!.kase).toBe('running')
-    expect(d.runs[0]!.cancel).toBeNull()
     expect(buildForjaView(obs, { screen: 'mudancas', niche: 'ia' }).cancel).toEqual([])
   })
 })

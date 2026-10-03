@@ -16,9 +16,8 @@ import { Menu } from './menu'
 import { ToastProvider, useToast } from './toasts'
 import { ChromeSyncContext } from './sync-context'
 import { Icon } from './icons'
-import type { ForjaDrawerView } from './forja-view-model'
+import type { ForjaAsk } from './forja-view-model'
 import { ForjaHeaderButtons, ForjaMachineSegment, goToForjaAnchor } from './forja-status'
-import { ForjaDrawer, type DrawerFlow, type ForjaAsk, type ForjaCancel } from './forja-drawer'
 import { ForjaHeaderContext } from './forja-context'
 
 export interface ObservatoryChromeProps {
@@ -32,10 +31,8 @@ export interface ObservatoryChromeProps {
   dropNicheParam?: boolean
   /** Opens the per-channel niche editor (Task 23); without it the menu item links to Canais. */
   onOpenNicheEditor?: () => void
-  /** The forja drawer (Task 35) and its server actions (askForjaReading / cancelForjaReading). */
-  forjaDrawer?: ForjaDrawerView | null
+  /** The forja header's direct ask (server action askForjaReading; R58). */
   onAskForja?: ForjaAsk
-  onCancelForja?: ForjaCancel
   /** Insights: the shown reading as plain text ("Copiar texto da leitura" in the menu). */
   readingCopy?: string | null
 }
@@ -52,23 +49,10 @@ export function ObservatoryChrome(props: ObservatoryChromeProps) {
 
 type Pop = null | 'menu' | 'fresh'
 
-/** ≥ 1280 px the drawer is a column; below, a modal (moldura-forja.html, CHROME.drawer). */
-function useModalDrawer(): boolean {
-  const [modal, setModal] = useState(false)
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return
-    const mq = window.matchMedia('(max-width: 1279px)')
-    const on = () => setModal(mq.matches)
-    on(); mq.addEventListener?.('change', on)
-    return () => mq.removeEventListener?.('change', on)
-  }, [])
-  return modal
-}
-
 /** Minutes between refreshes while a forja request is in progress (the forja polls every 10 min). */
 const FORJA_REFRESH_MS = 60_000
 
-function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, onOpenNicheEditor, forjaDrawer, onAskForja, onCancelForja, readingCopy }: ObservatoryChromeProps) {
+function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, onOpenNicheEditor, onAskForja, readingCopy }: ObservatoryChromeProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const [pop, setPop] = useState<Pop>(null)
@@ -79,25 +63,8 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
   const menuBtn = useRef<HTMLButtonElement>(null), freshBtn = useRef<HTMLButtonElement>(null)
   const menuBox = useRef<HTMLDivElement>(null), freshBox = useRef<HTMLDivElement>(null)
   const forja = view.forja
-  const modal = useModalDrawer()
-  const [drawer, setDrawer] = useState<DrawerFlow | null>(null)
-  const opener = useRef<HTMLElement | null>(null)
-  const openDrawer = useCallback((flow: DrawerFlow) => {
-    const ae = document.activeElement
-    opener.current = ae instanceof HTMLElement && ae !== document.body && !ae.closest('#obs-forja-drawer') ? ae : null
-    setPop(null); setDrawer(flow)
-  }, [])
-  const closeDrawer = useCallback(() => {
-    setDrawer(null)
-    // the redraw may replace the opener: fall back to the forja button or the status
-    setTimeout(() => {
-      const b = [opener.current && opener.current.isConnected ? opener.current : null, document.querySelector<HTMLElement>('[data-ck="forja-ask"]'), document.querySelector<HTMLElement>('[data-ck="forja"]')]
-        .find((x): x is HTMLElement => !!x && !(x as HTMLButtonElement).disabled)
-      b?.focus()
-    }, 0)
-  }, [])
   // R58: the header button follows each screen's mockup (insights.html:819, canais.html:874, outliers.html:997 ask
-  // directly; mudancas.html I5 opens the screen's inline confirm; the drawer only where the moldura opens it)
+  // directly; mudancas.html I5 opens the screen's inline confirm). The moldura's selector drawer is not ported (R59).
   const [confirmSeq, setConfirmSeq] = useState(0)
   const headerCtx = useMemo(() => ({ seq: confirmSeq }), [confirmSeq])
   const [asking, setAsking] = useState(false)
@@ -132,7 +99,6 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
     if (!forja) return
     if (forja.headerAction === 'ask') { void askFromHeader(); return }
     if (forja.headerAction === 'confirm') { setConfirmSeq(n => n + 1); return }
-    if (forja.headerAction === 'drawer' && forjaDrawer) { openDrawer(forja.status?.active && forja.button.mode !== 'free-niche' ? 'run' : 'choose'); return }
     goToForjaAnchor()
   }
   // while a request is in progress the page refreshes itself (the forja polls every 10 min); a request that reaches
@@ -238,18 +204,13 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
   }
 
   const niches = view.niches
-  const drawerEl = drawer && forjaDrawer ? (
-    <ForjaDrawer d={forjaDrawer} flow0={drawer} modal={modal} onClose={closeDrawer} onAsk={onAskForja} onCancel={onCancelForja}
-      pre={forja ? { type: forja.type, niche: forja.ask?.scope ?? forja.niche } : null} />
-  ) : null
   return (
-    <div className={'obs-ch-page' + (drawerEl ? ' obs-ch-with-drawer' : '')}>
-    <div className="obs-ch-content" onKeyDown={onKey} inert={drawerEl && modal ? true : undefined}>
+    <div className="obs-ch-content" onKeyDown={onKey}>
       <div data-obs-chrome="">
         <div className="obs-ch-head">
           <div className="obs-ch-title"><h2>{view.title}</h2><p>{view.subtitle}</p></div>
           <div className="obs-ch-actions">
-            {forja ? <ForjaHeaderButtons forja={forja} drawerOpen={!!drawer} modal={modal && !!forjaDrawer} onOpen={onForjaHeader} onStatus={goToForjaAnchor} /> : null}
+            {forja ? <ForjaHeaderButtons forja={forja} onOpen={onForjaHeader} onStatus={goToForjaAnchor} /> : null}
             <button className="obs-ch-btn" type="button" title="Sincronizar concorrentes" aria-disabled={syncing || undefined} onClick={() => sync(false)}>
               {Icon.sync()}<span className="obs-ch-lbl-t">Sincronizar concorrentes</span>
             </button>
@@ -276,9 +237,6 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
         </div>
       </div>
       <div className="obs-ch-screen"><ChromeSyncContext.Provider value={syncCtx}><ForjaHeaderContext.Provider value={headerCtx}>{children}</ForjaHeaderContext.Provider></ChromeSyncContext.Provider></div>
-    </div>
-    {drawerEl && modal ? <div className="obs-ch-backdrop" aria-hidden="true" onClick={closeDrawer} /> : null}
-    {drawerEl}
     </div>
   )
 }

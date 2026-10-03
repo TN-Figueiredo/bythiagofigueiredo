@@ -13,7 +13,7 @@ import { Filters, useGo } from './filters'
 import { VideoGroup, type SwipeState } from './change-hero'
 import { RichText } from './rich'
 import { ReadingCard } from './reading-card'
-import type { ForjaAsk } from '../_chrome/forja-drawer'
+import type { ForjaAsk } from '../_chrome/forja-view-model'
 
 export interface SwipeResult { ok: boolean; saved?: boolean }
 export interface MudancasScreenProps {

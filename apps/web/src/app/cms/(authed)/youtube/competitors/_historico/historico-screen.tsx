@@ -15,7 +15,7 @@ import { Versions } from './versions'
 import { HIcon, TYPE_COLOR } from './icons'
 import { Thumb } from './thumb'
 import { ForjaAskButton, VideoReading } from './video-reading'
-import type { ForjaAsk, ForjaCancel } from '../_chrome/forja-drawer'
+import type { ForjaAsk, ForjaCancel } from '../_chrome/forja-view-model'
 
 const reduced = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 

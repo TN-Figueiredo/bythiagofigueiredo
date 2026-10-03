@@ -9,7 +9,7 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import type { MudancasView } from './view-model'
-import type { ForjaAsk } from '../_chrome/forja-drawer'
+import type { ForjaAsk } from '../_chrome/forja-view-model'
 import { useForjaHeaderClick } from '../_chrome/forja-context'
 import { useToast } from '../_chrome/toasts'
 
