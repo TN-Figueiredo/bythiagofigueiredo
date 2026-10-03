@@ -8,6 +8,7 @@ import type { ForjaRequest, Niche, RequestState } from '@/lib/youtube/observator
 import type { ScenarioEnv, ScenarioTarget, TestScenarios } from '@/lib/youtube/observatorio'
 import { NICHES } from '@/lib/youtube/observatorio/rules'
 import { machineOf, ACTIVE_STATES, FORJA_QUEUE } from '@/lib/youtube/observatorio/forja/states'
+import { scenarioReadings } from './forja-scenario-readings'
 
 export const SHOWCASE = 'matt-opus55'
 type Attempt = NonNullable<ForjaRequest['attempts']>[number]
@@ -40,6 +41,7 @@ export function forjaScenarios(env: ScenarioEnv): TestScenarios {
   }
   const states = Object.keys(REQ_SCENARIOS) as RequestState[]
   const tick = FORJA_QUEUE.tickMinutes * 6e4, phase = 5 * 6e4
+  const gen = scenarioReadings(clock, env.registerReading)
   const idOf = (target: Required<Pick<ScenarioTarget, 'type'>> & ScenarioTarget, n: Niche, state: string) =>
     'req-' + target.type + '-' + n + (target.video ? '-' + target.video : '') + '-' + state.replace(/\W+/g, '-')
 
@@ -101,11 +103,14 @@ export function forjaScenarios(env: ScenarioEnv): TestScenarios {
       for (const k of TIME_KEYS) { const v = rq[k]; if (v != null && v > NOW) { (rq.forecast = rq.forecast || {})[k] = v; rq[k] = null } }
       if (rq.attempts) rq.attempts = rq.attempts.filter(a => a.claimedAt <= NOW).map(a => a.endedAt != null && a.endedAt > NOW ? { ...a, endedAt: null, endedAtForecast: a.endedAt } : a)
       if (rq.publishedAt == null) rq.readingId = null
-      else if (rq.readingId == null && i === 0 && sc.publishedAt && env.readingIdOf) rq.readingId = env.readingIdOf(target.type, n, sc.publishedAt + off, target.type === 'leitura-video' ? video : null)
+      else if (rq.readingId == null && i === 0 && sc.publishedAt) rq.readingId = gen.readingFor(target.type, n, sc.publishedAt + off, target.video || (target.type === 'leitura-video' ? SHOWCASE : null)).id
       requests.push(rq)
     })
     return { requests, scopeTodos: !!(target0 && (target0.niche === 'todos' || target0.niche === 'all')), machine: machineOf(sc.lastPollAt || env.lastPollAt, clock) }
   }
-  return { requestStates: states, build, showcase: SHOWCASE }
+  // scenario readings of 24/10 exist from load (dados.js:1630-1632)
+  for (const n of ['ia', 'viagem'] as const) for (const t of ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas']) build('publicado', { type: t, niche: n })
+  build('publicado', { type: 'leitura-video', video: SHOWCASE })
+  return { requestStates: states, build, showcase: SHOWCASE, scenarioReadings: gen.readings }
 }
 

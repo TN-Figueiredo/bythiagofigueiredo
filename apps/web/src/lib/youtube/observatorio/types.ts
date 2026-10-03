@@ -36,12 +36,18 @@ export interface ObsChannel {
   /** Derived by the engine (Task 17). */
   statusLabel?: string; syncAgeHours?: number
 }
+/** A video of the data a reading was made from (dados.js:937 baseAt), frozen with the reading. */
+export interface ReadingBaseVideo { id: string; ch: string; title: string; theme: string | null; formulas: string[]; mult: number; weak: boolean; method?: string | null; n?: number }
+/** The frozen base of a reading: which channels and videos it read, up to when. */
+export interface ReadingBase { fmt?: Fmt; t?: number; asOf: number; niche?: string; windowDays: number | null; channels: string[]; excluded: string[]; videos: ReadingBaseVideo[] }
+/** A video reading's frozen verdict per change (dados.js:1245). */
+export interface ReadingEffect { change: string; status: string; numbers: string | null; reason: string; collected: number | null }
 export interface FrozenReading {
-  id: string; type: string; niche: Niche | null; fmt: Fmt | null; target: { kind: 'niche' | 'video'; niche?: Niche; video?: string; fmt?: Fmt }
-  seal: string; generatedAt: number; model: string
-  sent: Record<string, unknown> & { text: string; asOf: number }
-  analysis: Record<string, unknown>; text: { title?: string; lead: string; items: string[]; theme?: string }
-  base?: unknown; effects?: unknown[]
+  id: string; type: string; niche: Niche | null; fmt?: Fmt | null; target?: { kind: 'niche' | 'video'; niche?: Niche; video?: string; fmt?: Fmt }
+  seal: string; generatedAt: number; model?: string; typeLabel?: string; scenario?: boolean
+  sent: Record<string, unknown> & { text: string; asOf: number; asOfIdx?: number; changeIds?: string[]; windowDays?: number; nChannels?: number; nOutliers?: number }
+  analysis: Record<string, unknown> & { nOutliers?: number }; text: { title?: string; lead: string; items: string[]; theme?: string }
+  base?: ReadingBase; effects?: ReadingEffect[]; viewsThen?: number | null
 }
 export type RequestState = 'na fila' | 'trabalhando' | 'publicado' | 'atrasado' | 'sem máquina' | 'nova tentativa' | 'falhou' | 'recusado (dado velho)' | 'liberado pelo vigia'
 /** Instants a request names that may still lie in the future: they live here, never in the field (nothing after NOW). */

@@ -4,11 +4,12 @@ import { DAY, H, MINUS, type Clock } from './time'
 export interface Fmt {
   num(v: number | null): string; subs(v: number | null): string; int(v: number): string; mult(x: number | null): string; pct(x: number | null): string
   pp(x: number | null): string; dec1(x: number): string; plural(n: number, one: string, many: string): string; verVideos(n: number): string
-  age(v: { ageDays?: number | null; pub: number } | null): string; lcfirst(t: string): string
+  /** Age by whole days (the bands' age); a video id is resolved through the observatory (dados.js:91). */
+  age(v: string | { ageDays?: number | null; pub: number } | null): string; lcfirst(t: string): string
   labelReason(label: string, reason: string, o?: { sentence?: boolean }): string
 }
 
-export function createFmt(clock: Clock): Fmt {
+export function createFmt(clock: Clock, videoOf?: (id: string) => { ageDays?: number | null; pub: number } | undefined): Fmt {
   const now = clock.now
   const dec1t = (x: number) => { const r = Math.round(x * 10) / 10; return (r % 1 === 0 ? String(r) : r.toFixed(1)).replace('.', ',').replace('-', MINUS) }
   return {
@@ -33,7 +34,8 @@ export function createFmt(clock: Clock): Fmt {
     dec1: x => (Math.round(x * 10) / 10).toFixed(1).replace('.', ',').replace('-', MINUS),
     plural: (n, one, many) => n + ' ' + (n === 1 ? one : many),
     verVideos: n => n === 1 ? 'Ver o vídeo' : 'Ver os ' + n + ' vídeos',
-    age: v => {
+    age: x => {
+      const v = typeof x === 'string' ? (videoOf ? videoOf(x) : undefined) : x
       if (!v) return '—'
       const d = v.ageDays != null ? v.ageDays : Math.floor((now - v.pub) / DAY)
       if (d >= 1) return 'há ' + d + (d === 1 ? ' dia' : ' dias')

@@ -5,12 +5,12 @@ import { createClock, type Clock } from './time'
 import { createFmt, type Fmt } from './fmt'
 import { RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, NICHES, bandOf, winOf, tierOf } from './rules'
 import { median, quant } from './stats'
-import { viewsAtIdx, rate, vpdSince, vpd7, periodRate, expectedCurve, type EngineCtx, type Derived, type PeriodRate, type ExpectedCurve } from './series'
+import { viewsAtIdx, rate, vpdSince, vpd7, periodRate, expectedCurve, type Derived, type PeriodRate, type ExpectedCurve } from './series'
 import { diffLines, titleDiff } from './text-diff'
 import { effect, effectAt, type EffectResult } from './effect'
 import { multiplierAt, type MultiplierResult } from './multiplier'
 import { phaseOf, phases, outliers, tabCounts, TAB_TITLES, type Phase, type OutlierQuery, type OutliersResult } from './outliers'
-import { cadence, channelStats, channelSlots, syncText, runSyncText, problemLabel, problemPhrase, syncLabel, NEVER_SYNCED } from './channels'
+import { cadence, channelStats, channelSlots, syncText, runSyncText, problemLabel, problemPhrase, syncLabel } from './channels'
 import { deriveChanges, changesIn, caveats, REWRITE_GROUPS, type ObsChange } from './changes'
 import { link } from './links'
 import { FORMULAS, FORMULA, THEMES, THEME, formulasOf, type Formula, type Theme } from './catalog'
@@ -19,18 +19,25 @@ import type { ForjaRequest, FrozenReading, Niche, RequestState, Fmt as ReadingFm
 import { REQUEST_STATES, STATES, FORJA_QUEUE, machineOf, summarize, compose as composeScenario, statusLabel, queueOrder, type Machine, type Scenario, type NewRequest } from './forja/states'
 import { createSession, type SessionScope, type SessionTarget, type AskOutcome, type SessionOpts } from './forja/session'
 import { quotaFor, type QuotaStatus } from './forja/quota'
+import { eligibleChannels, readingScope, readingTypes, readingTypeFor, latest, timing, SHORTS_NOTE, type ForjaCtx, type Eligible, type ReadingScope, type ScopeFilter, type Timing, type ReadingTypeWithTiming } from './forja/scope'
+import { since, type SinceResult } from './forja/since'
+import { preview, type Preview } from './forja/preview'
+import { buildSentCtx, type SentPack, type SentTarget } from './forja/sent'
 
 /** What a test scenario generator targets (the mockup's requestScenario target). */
 export interface ScenarioTarget { type?: string; niche?: Niche | 'todos' | 'all'; video?: string; fmt?: ReadingFmt; createdAt?: number }
 /** What the facade hands a test scenario generator. */
 export interface ScenarioEnv {
   clock: Clock; videoNiche(id: string): Niche | null; lastPollAt: number; tickMinutes: number
-  readingIdOf?: (type: string, niche: Niche, at: number, video: string | null) => string | null
+  /** A scenario reading the generator produced becomes visible to the engine (forja.byId, since, readingScope). */
+  registerReading?: (r: FrozenReading) => void
 }
 /** TEST-ONLY request generator (the mockup's REQ_SCENARIOS). Production requests come from the DB. */
 export interface TestScenarios {
   requestStates: readonly RequestState[]; showcase: string
   build(state: string, target?: ScenarioTarget): { requests: ForjaRequest[]; machine: Machine; scopeTodos: boolean } | null
+  /** The readings the generator published for 'publicado' scenarios (the mockup's scenarioReadings). */
+  scenarioReadings?: Record<string, FrozenReading>
 }
 export interface FacadeSession {
   key: string; bases: string[]
@@ -48,8 +55,21 @@ export interface ForjaFacade {
   compose(base: Parameters<typeof composeScenario>[0], req: NewRequest, opts?: { niche?: 'todos' | Niche | null; createdAt?: number } | null): Scenario
   session: FacadeSession; quotaFor(type: string, niche: Niche): QuotaStatus
   statusLabel(req: ForjaRequest, o?: { prefixNiche?: boolean; ahead?: ForjaRequest | null }): string; queueOrder: typeof queueOrder
+  /** The frozen readings by id (published readings; with test scenarios also the scenario readings). */
+  byId: Record<string, FrozenReading>
+  latest(type: string, niche: Niche): FrozenReading | null
+  /** "Desde então": what changed since a reading (text / shortText / textNoAsk). */
+  since(readingId: string): SinceResult | null
+  eligibleChannels(niche: Niche | 'todos'): Eligible
+  preview(type: string, niche: Niche | 'todos', fmt?: ReadingFmt | null): Preview
+  readingScope(id: string, filt?: ScopeFilter | null): ReadingScope | null
+  timing(type: string, niche?: Niche | 'todos' | null, o?: { count?: number } | null): Timing
+  readingTypes: ReadingTypeWithTiming[]; readingTypeFor: typeof readingTypeFor; shortsNote: string
+  /** The frozen data one request sends to the forja (capped at RULES.forja.maxVideos). */
+  buildSent(type: string, target: SentTarget): SentPack
   /** Present only when test scenarios are injected (createObservatory(ds, { testScenarios })). */
   requestScenario?: (state: string, target?: ScenarioTarget) => Scenario | null
+  scenarioReadings?: Record<string, FrozenReading>
 }
 
 export interface Observatory {
@@ -62,7 +82,8 @@ export interface Observatory {
   change(id: string): ObsChange | undefined; changesIn(o?: Parameters<typeof changesIn>[1]): ObsChange[]; caveats(id: string): string[]
   effect(id: string): EffectResult | null; effectAt(id: string, Lcap: number | null): EffectResult | null
   multiplier(id: string): MultiplierResult; multiplierAt(id: string, t: number | null): MultiplierResult
-  phaseOf(id: string, o?: { m7?: number | null }): Phase; PHASES: Phase[]
+  /** Accepts the id or the video object (dados.js:2000). */
+  phaseOf(x: string | { id: string }, o?: { m7?: number | null }): Phase; PHASES: Phase[]
   outliers(q?: OutlierQuery): OutliersResult; tabCounts(niche?: NicheScope): { canais: number; mud: number; out: number }
   integrity: { ok: boolean; errors: string[] }
   TAB_TITLES: typeof TAB_TITLES; TAB_COUNTS: Record<NicheScope, { canais: number; mud: number; out: number }>
@@ -79,15 +100,21 @@ export interface Observatory {
   LAST_IDX: number; TZ: string; TZ_LABEL: string; SERIES_START_LABEL: string
 }
 export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: string; testScenarios?: (env: ScenarioEnv) => TestScenarios }): Observatory {
-  const clock = createClock(ds.now, ds.seriesStart, ds.snap0), fmt = createFmt(clock)
+  const clock = createClock(ds.now, ds.seriesStart, ds.snap0)
   let maxT = -Infinity
   for (const v of ds.videos) for (const p of v.series) if (p.t > maxT) maxT = p.t
+  // No series at all (empty dataset): fall back to now, never -Infinity (Review Focus 2).
+  const LAST_IDX = clock.snapIdxAtOrBefore(maxT === -Infinity ? ds.now : maxT)
   const last = ds.sync.last, next = ds.sync.next
   // Derived values live on copies: the input dataset is never mutated.
   const videos: (ObsVideo & Derived)[] = ds.videos.map(v => ({ ...v, vpd: null, vpd7: null, mult: null }))
   const V = new Map(videos.map(v => [v.id, v]))
+  const fmt = createFmt(clock, id => V.get(id))
   const CH = new Map(ds.channels.map(c => [c.id, { ...c, sync: { ...c.sync }, videos: videos.filter(v => v.ch === c.id).sort((a, b) => b.pub - a.pub) }]))
-  const ctx: EngineCtx = { ds: { ...ds, videos }, clock, fmt, CH, V, CHG: new Map() }
+  // The frozen readings by id: since/readingScope/outliers({reading}) read them; scenario readings join it in tests.
+  // A null-prototype dictionary: reading ids are data, never inherited keys ("constructor", "__proto__").
+  const READ: Record<string, FrozenReading> = Object.assign(Object.create(null) as Record<string, FrozenReading>, Object.fromEntries(ds.readings.map(r => [r.id, r])))
+  const ctx: ForjaCtx = { ds: { ...ds, videos }, clock, fmt, CH, V, CHG: new Map(), READ, lastIdx: LAST_IDX }
   for (const v of videos) { v.vpd = vpdSince(ctx, v); v.vpd7 = vpd7(ctx, v) }
   for (const v of videos) v.mult = multiplierAt(ctx, v, null)
   // Derived channel labels (dados.js:415, 1966-1985). Written on the engine's own copies, never on the input.
@@ -111,7 +138,7 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
     for (const k of ['canais', 'mud', 'out'] as const) if (TAB_COUNTS[n][k] !== want[k]) { integrity.ok = false; integrity.errors.push('tabCounts(' + n + ').' + k + ' = ' + TAB_COUNTS[n][k] + ', esperado ' + want[k]) }
   }
   const vid = (id: string) => { const v = V.get(id); if (!v) throw new Error('unknown video ' + id); return v }
-  const forja = createForja(ds, clock, CH, V, opts?.testScenarios)
+  const forja = createForja(ctx, ds, clock, CH, V, opts?.testScenarios)
   return {
     NOW: ds.now, SERIES_START: ds.seriesStart, DAY: 864e5, H: 36e5,
     channels: [...CH.values()], videos, channel: id => CH.get(id), video: id => V.get(id),
@@ -121,14 +148,13 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
     change: id => ctx.CHG.get(id), changesIn: o => changesIn(ctx, o), caveats: id => caveats(ctx, id),
     effect: id => effect(ctx, id), effectAt: (id, L) => effectAt(ctx, id, L),
     multiplier: id => vid(id).mult!, multiplierAt: (id, t) => multiplierAt(ctx, vid(id), t),
-    phaseOf: (id, o) => phaseOf(ctx, vid(id), o), PHASES: phases(ctx),
+    phaseOf: (x, o) => phaseOf(ctx, vid(typeof x === 'string' ? x : x.id), o), PHASES: phases(ctx),
     outliers: q => outliers(ctx, q), tabCounts: n => tabCounts(ctx, n), TAB_TITLES, TAB_COUNTS, integrity,
     RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, NICHES, date: clock, fmt, median, quant, bandOf, winOf, tierOf,
     SYNC: { last, next, text: last == null ? 'nunca sincronizado' : 'sincronizado ' + clock.ago(last), title: last == null ? 'nunca sincronizado' : clock.dm(last) + ' ' + clock.hm(last) + ' (SP)', nextText: next ? 'próxima às ' + clock.hm(next) : null,
       // 6 h slots rule (dados.js:1963); the mockup fixes it in data, production fixes it in the cron schedule.
       cadence: 'a cada 6 h (00, 06, 12, 18) desde ' + clock.dm(ds.seriesStart) + '; diária às 09:00 antes', cadenceHours: 6, slots: [0, 6, 12, 18], dailyBefore: '09:00' },
-    // No series at all (empty dataset): fall back to now, never -Infinity (Review Focus 2).
-    LAST_IDX: clock.snapIdxAtOrBefore(maxT === -Infinity ? ds.now : maxT), TZ: 'America/Sao_Paulo', TZ_LABEL: 'Horários em São Paulo', SERIES_START_LABEL: clock.dm(ds.seriesStart),
+    LAST_IDX, TZ: 'America/Sao_Paulo', TZ_LABEL: 'Horários em São Paulo', SERIES_START_LABEL: clock.dm(ds.seriesStart),
     cadence: (id, f) => cadence(ctx, id, f), channelStats: (id, f) => channelStats(ctx, id, f), channelSlots: () => channelSlots(ctx, RULES.channelLimit),
     syncText: id => syncText(ctx, CH.get(id)!), runSyncText,
     formulas: FORMULAS, formula: id => FORMULA[id], formulasOf, themes: THEMES, theme: id => THEME[id],
@@ -138,29 +164,12 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
   }
 }
 
-/**
- * Channels in / out of a niche's request (port of dados.js:1422-1432 eligibleChannels): a channel still fetching
- * videos or with no sync for more than RULES.staleSyncHours stays out, with the reason.
- */
-function eligibleOf(clock: Clock, CH: Map<string, ObsChannel>, niche: Niche | 'todos') {
-  const inn: string[] = [], out: Array<{ id: string; reason: string }> = []
-  for (const c of CH.values()) {
-    if (c.own || (niche !== 'todos' && c.niche !== niche)) continue
-    const last = c.sync.last, age = last == null ? Infinity : (clock.now - last) / 36e5
-    if (c.sync.state === 'backfill') out.push({ id: c.id, reason: c.name + ' fica fora: ainda buscando vídeos (' + c.sync.backfill!.done + ' de ' + c.sync.backfill!.total + ')' })
-    else if (last == null) out.push({ id: c.id, reason: c.name + ' fica fora: ' + NEVER_SYNCED })
-    else if (age > RULES.staleSyncHours) out.push({ id: c.id, reason: c.name + ' fica fora: sem sincronização ' + (age < 48 ? clock.agoHours(last) : clock.ago(last)) })
-    else inn.push(c.id)
-  }
-  return { in: inn, out }
-}
-
-function createForja(ds: Dataset, clock: Clock, CH: Map<string, ObsChannel>, V: Map<string, ObsVideo>, testScenarios?: (env: ScenarioEnv) => TestScenarios): ForjaFacade {
+function createForja(ctx: ForjaCtx, ds: Dataset, clock: Clock, CH: Map<string, ObsChannel>, V: Map<string, ObsVideo>, testScenarios?: (env: ScenarioEnv) => TestScenarios): ForjaFacade {
   const lastPollAt = ds.queue.lastPollAt
   const machine = machineOf(lastPollAt, clock)
-  const tests = testScenarios?.({ clock, videoNiche: id => V.get(id)?.niche ?? null, lastPollAt: lastPollAt ?? clock.now, tickMinutes: ds.queue.tickMinutes })
+  const tests = testScenarios?.({ clock, videoNiche: id => V.get(id)?.niche ?? null, lastPollAt: lastPollAt ?? clock.now, tickMinutes: ds.queue.tickMinutes, registerReading: r => { ctx.READ[r.id] = r } })
   const sessionOpts = (base: string, type: string, video: string | null): SessionOpts => ({
-    capabilities: ds.queue.capabilities, eligible: n => eligibleOf(clock, CH, n),
+    capabilities: ds.queue.capabilities, eligible: n => eligibleChannels(ctx, n),
     videoOf: id => { const v = V.get(id); return v ? { niche: v.niche, title: v.title } : undefined },
     defaultType: type, defaultVideo: video,
     // the mockup's single-niche scenario has its own times (see SessionOpts.singleBase); only with test scenarios
@@ -198,6 +207,11 @@ function createForja(ds: Dataset, clock: Clock, CH: Map<string, ObsChannel>, V: 
     compose: (b, r, o) => composeScenario(b, r, { ...(o || {}), machine }, clock),
     session, quotaFor: (type, niche) => quotaFor(ds.requests, type, niche, clock.now, clock),
     statusLabel: (r, o) => statusLabel(r, clock, { machine, ...(o || {}) }), queueOrder,
+    byId: ctx.READ, latest: (type, niche) => latest(ds.readings, type, niche), since: id => since(ctx, id), eligibleChannels: n => eligibleChannels(ctx, n),
+    preview: (type, niche, f) => preview(ctx, type, niche, f), readingScope: (id, filt) => readingScope(ctx, id, filt),
+    timing: (type, niche, o) => timing(requests, type, niche, o), readingTypes: readingTypes(requests), readingTypeFor, shortsNote: SHORTS_NOTE,
+    buildSent: (type, target) => buildSentCtx(ctx, type, target),
+    ...(tests && tests.scenarioReadings ? { scenarioReadings: tests.scenarioReadings } : {}),
     ...(tests ? { requestScenario: (st0: string, t?: ScenarioTarget) => { const b = tests.build(st0, t); return b ? summarize(b.requests, b.machine, b.scopeTodos, clock) : null } } : {}),
   }
 }

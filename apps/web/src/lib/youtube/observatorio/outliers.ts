@@ -6,6 +6,8 @@ import { changesIn } from './changes'
 import type { EngineCtx, Derived } from './series'
 import type { ObsVideo, Fmt } from './types'
 import type { MultiplierResult } from './multiplier'
+import type { FrozenReading } from './types'
+import { readingScope, type ReadingScope } from './forja/scope'
 
 export interface Phase { id: 'estourando' | 'recente' | 'perene' | 'antigo' | 'novos' | 'sem-ritmo'; label: string; why: string; noMedian?: boolean }
 type V = ObsVideo & Derived
@@ -48,17 +50,24 @@ export interface OutlierItem { id: string; video: V; mult: MultiplierResult; wea
 export type OutlierSort = 'mult' | 'vpd' | 'recent'
 export interface OutliersResult {
   items: OutlierItem[]; count: number; countWithWeak: number; byAge: Record<string, number>; byPhase: Record<string, number>
-  analyzed: number; untracked: number; weakExcluded: number; scope: unknown; readingInvalid: boolean
+  analyzed: number; untracked: number; weakExcluded: number; scope: ReadingScope | null; readingInvalid: boolean
   orderedIds(sort?: OutlierSort): string[]; orderedGroups(sort?: OutlierSort): Array<{ k: string; ids: string[] }>
 }
 
-export function outliers(ctx: EngineCtx, q: OutlierQuery = {}): OutliersResult {
+export function outliers(ctx: EngineCtx & { READ?: Record<string, FrozenReading> }, q: OutlierQuery = {}): OutliersResult {
   const defaults = { niche: 'todos' as NicheScope, fmt: 'long' as Fmt, ages: DEFAULT_AGES as string[] | 'all', min: RULES.outlierMin, theme: null as string | null, formula: null as string | null, channel: null as string | null, channels: null as string[] | null, maxAge: null as number | null, includeOwn: false }
   const opts = { ...defaults, ...q }
   if (opts.topic && !opts.theme) opts.theme = opts.topic
-  // Until the reading scope is ported (Task 32) any reading is invalid.
-  const scope = null
-  const readingInvalid = !!opts.reading
+  // A reading (reading=<id>) applies its scope: its channels, format and window (dados.js:818).
+  let scope: ReadingScope | null = null, readingInvalid = false
+  if (opts.reading) {
+    scope = ctx.READ ? readingScope({ ...ctx, READ: ctx.READ }, opts.reading, { formula: opts.formula, theme: opts.theme, min: opts.min, channel: opts.channel }) : null
+    if (!scope) readingInvalid = true
+    else {
+      opts.channels = opts.channels || scope.channels; opts.fmt = scope.fmt ?? opts.fmt; opts.niche = scope.niche ?? opts.niche
+      if (!opts.agesExplicit) { opts.ages = scope.ages ?? opts.ages; opts.maxAge = scope.windowDays }
+    }
+  }
   const ages = opts.ages === 'all' ? OUT_WINDOWS.map(w => w.id) : opts.ages
   const videos = ctx.ds.videos as V[]
   const own = (v: ObsVideo) => ctx.CH.get(v.ch)!.own
