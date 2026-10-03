@@ -28,7 +28,7 @@ const version = (o: Partial<VersionRow> = {}): VersionRow => ({
   first_seen_at: iso(sp('2026-10-10T12:00:00')), last_seen_at: iso(NOW - 2 * H), window_start: null, precision: 'first', is_current: true, ...o,
 })
 const legacy = (o: Partial<LegacyChangeRow> = {}): LegacyChangeRow => ({ id: 'lc1', video_id: 'v1', change_type: 'title', old_title: null, new_title: null, detected_at: iso(sp('2026-09-10T09:00:00')), ...o })
-const daily = (video_id: string, snap_date: string, views: number): DailyRow => ({ video_id, snap_date, views, likes: null, comments: null, taken_at: snap_date + 'T09:00:00Z' })
+const daily = (video_id: string, snap_date: string, views: number): DailyRow => ({ video_id, snap_date, views, likes: null, comments: null, taken_at: snap_date + 'T15:00:00Z' /* 12:00 SP: the nominal instant */ })
 
 describe('rowsToDataset — empty rows (Review Focus 2)', () => {
   const ds = rowsToDataset(rows(), NOW)

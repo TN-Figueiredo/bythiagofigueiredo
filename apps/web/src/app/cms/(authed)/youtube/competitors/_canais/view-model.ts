@@ -246,7 +246,11 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       : v == null && c.own && S.tracked > 0
         // the own channel's videos are tracked but the observatory keeps no daily views for them: never "nenhum acompanhado"
         ? { kind: 'na', text: 'Sem views diárias do seu canal.', title: 'O observatório guarda a contagem diária de views só dos concorrentes.' }
-        : v == null ? { kind: 'na', text: `Nenhum ${one} acompanhado.`, title: `${S.tracked} vídeos acompanhados` }
+        // tracked videos of this format but no per-day median yet: say what is really missing (the engine's own wording,
+        // series.ts periodRate), never "nenhum acompanhado" with a title that contradicts it
+        : v == null && S.vpdMedian == null && videosOf(c.id).some(x => x.fmt === fmt && x.tracked)
+          ? { kind: 'na', text: 'Aguardando o 2º registro diário.', title: `${S.tracked} vídeos acompanhados; a média por dia precisa de dois registros diários` }
+          : v == null ? { kind: 'na', text: `Nenhum ${one} acompanhado.`, title: `${S.tracked} vídeos acompanhados` }
         : { kind: 'ok', big: rel ? F.dec1(v) : num(v), abs: rel ? num(S.vpdMedian) : null, n: S.vpdN, weak: S.vpdN < R.weakBase, tail: empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : null }
     let out: OutCell
     const o = S.bestOutlier
