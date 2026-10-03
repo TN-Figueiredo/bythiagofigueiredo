@@ -32,7 +32,7 @@ export default async function OutliersPage({ searchParams }: { searchParams: Pro
   params.niche = niche
   const view = buildOutliersView(obs, params)
   return (
-    <ObservatoryChromeServer tab="outliers" searchParams={sp} obs={obs}>
+    <ObservatoryChromeServer tab="outliers" searchParams={sp} obs={obs} nicheOverride={view.query.niche !== niche ? view.query.niche : undefined}>
       <OutliersScreen view={view} />
     </ObservatoryChromeServer>
   )

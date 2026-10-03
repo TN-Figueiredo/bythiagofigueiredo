@@ -89,6 +89,7 @@ export function Ruler({ c, legend }: { c: OutlierCardView; legend?: boolean }) {
 }
 
 export function Actions({ c }: { c: OutlierCardView }) {
+  // "Salvar no swipe file" per video is follow-up FU-2 (ruling R43): the swipe store is keyed by change/version.
   return (
     <div className="obs-out-acts">
       <a className="obs-out-ib" data-hist={c.id} href={c.historyHref} aria-label={'Ver histórico do vídeo: ' + c.title} data-tip="Ver histórico do vídeo"><OutIcon name="hist" /></a>

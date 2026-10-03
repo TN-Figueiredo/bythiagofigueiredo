@@ -47,8 +47,12 @@ describe('Outliers view model', () => {
       { age: '365+' },
       { age: '31-90', niche: 'ia', fmt: 'short' },
       { topic: 'comida-de-rua', niche: 'viagem', age: '0-30' },
+      // reading mode: the window/format buttons leave the reading, so their N is counted without it
+      { reading: 'padroes-titulo-ia-20-10', niche: 'viagem', min: '50' },
+      { reading: 'temas-viagem-20-10', min: '5' },
+      { reading: 'padroes-titulo-ia-20-10', topic: 'comida-de-rua' },
     ]
-    let checked = 0
+    let checked = 0, leftReading = 0
     for (const p of cases) {
       const v = buildOutliersView(obs, p)
       expect(v.empty, JSON.stringify(p)).not.toBeNull()
@@ -57,6 +61,7 @@ describe('Outliers view model', () => {
         // the niche is persisted server-side (resolveNiche): an href only carries it when it changes it
         const dest = { ...(p.niche ? { niche: p.niche } : {}), ...paramsOf(a.href) }
         expect(buildOutliersView(obs, dest).count, a.label).toBe(a.n)
+        if (p.reading && !paramsOf(a.href).reading) leftReading++
         // CONVENCOES plural: N = 1 reads "Ver o outlier" / "Ver o vídeo"
         if (a.n === 1 && /^Ver o (outlier|vídeo)/.test(a.label)) continue
         expect(a.label).toContain(String(a.n))
@@ -64,6 +69,7 @@ describe('Outliers view model', () => {
       }
     }
     expect(checked).toBeGreaterThan(3)
+    expect(leftReading).toBeGreaterThan(0)
   })
   it('edge-of-band label says the age at the reading', () => {
     const v = buildOutliersView(obs, { ages: 'all' })
@@ -191,34 +197,86 @@ describe('Outliers view model', () => {
     })
   })
 
-  describe('reading scope (?reading= / ?asof=)', () => {
-    // The engine's readingScope (Task 32) fills OutliersResult.scope; a stand-in engine here gives it the documented shape.
-    const reading = obs.forja.readings.find(r => r.type === 'padroes-titulo' && r.niche === 'viagem')!
-    const withScope = (base: Observatory, nThen: number): Observatory => ({
-      ...base,
-      outliers: q => {
-        const r = base.outliers({ ...q, reading: null })
-        if (q?.reading !== reading.id) return q?.reading ? { ...r, readingInvalid: true } : r
-        return { ...r, readingInvalid: false, scope: { readingId: reading.id, niche: 'viagem', fmt: 'long', channels: obs.channels.filter(c => !c.own && c.niche === 'viagem').map(c => c.id), windowDays: 180, maxAge: 180, ages: ['0-30', '31-90', '91-180'], asof: '2026-10-20', asOf: reading.generatedAt, nThen } }
-      },
-    })
+  describe('reading scope (?reading= / ?asof=, engine readingScope)', () => {
+    const P = obs.forja.byId['padroes-titulo-viagem-20-10']!
     it('?asof= resolves the reading of that day and shows "Link da leitura de DD/MM: ela via N; hoje são M"', () => {
-      const e = withScope(obs, 7)
-      const v = buildOutliersView(e, { niche: 'viagem', asof: obs.date.dmy(reading.generatedAt).split('/').reverse().join('-'), formula: 'preco', min: '0' })
-      const M = e.outliers({ niche: 'viagem', fmt: 'long', min: 0, formula: 'preco', reading: reading.id }).count
-      expect(v.asofNote).toBe('Link da leitura de ' + obs.date.dm(reading.generatedAt) + ': ela via 7; hoje ' + (M === 1 ? 'é' : 'são') + ' ' + M)
+      const v = buildOutliersView(obs, { niche: 'viagem', asof: '2026-10-20', formula: 'preco', min: '0' })
+      expect(v.query.reading).toBe(P.id)
+      const R = obs.outliers({ niche: 'viagem', fmt: 'long', min: 0, formula: 'preco', reading: P.id })
+      const N = R.scope!.nThen, M = R.count
+      expect(v.asofNote).toBe('Link da leitura de 20/10: ela via ' + N + '; hoje ' + (M === 1 ? 'é' : 'são') + ' ' + M)
+      expect(N).toBe(obs.forja.readingScope(P.id, { formula: 'preco', min: 0 })!.nThen)
       const chip = v.chips.find(c => c.kind === 'asof')!
       expect(chip.label).toBe(v.asofNote)
       expect(paramsOf(chip.removeHref).reading).toBeUndefined()
       expect(v.shortcut.disabled).toBe(true)
       expect(v.allLabel).toBe('Leitura')
+      expect(v.baseText).toContain('no escopo da leitura')
     })
-    it('?reading= with the same id gives the same note', () => {
-      const v = buildOutliersView(withScope(obs, 3), { reading: reading.id })
-      expect(v.asofNote).toMatch(/^Link da leitura de \d\d\/\d\d: ela via 3; hoje (é|são) \d+$/)
+    it('?reading= gives the same note; a reading that is not of outliers says so', () => {
+      expect(buildOutliersView(obs, { niche: 'viagem', reading: P.id }).asofNote).toMatch(/^Link da leitura de 20\/10: ela via \d+; hoje (é|são) \d+$/)
+      const nr = buildOutliersView(obs, { reading: 'resumo-trocas-ia-20-10' }).chips.find(c => c.key === 'reading')!
+      expect(nr.label).toBe('A leitura “resumo-trocas” não é de outliers: mostrando a tela sem ela')
     })
-    it('without a resolvable reading the note is null', () => {
+    it('?asof= with two readings that day asks which one', () => {
+      const pick = buildOutliersView(obs, { asof: '2026-10-20', formula: 'preco', min: '0' }).chips.find(c => c.kind === 'pick')!
+      expect(pick.label).toBe('A data 20/10 tem 2 leituras; escolha:')
+      expect(pick.picks!.map(x => x.label).sort()).toEqual(['IA · padrões', 'Viagem · padrões'])
+    })
+    it('without a reading the note is null', () => {
       expect(buildOutliersView(obs, {}).asofNote).toBeNull()
+    })
+  })
+
+  describe('niche of this screen (CONVENCOES final round: moveNiche, never persisted)', () => {
+    const iaCh = obs.channels.find(c => !c.own && c.niche === 'ia')!
+    it('a channel of another niche shows that niche, with the toast', () => {
+      const v = buildOutliersView(obs, { niche: 'viagem', channel: iaCh.id })
+      expect(v.query.niche).toBe('ia')
+      expect(v.groups.flatMap(g => g.cards).length).toBeGreaterThan(0)
+      expect(v.empty).toBeNull()
+      expect(v.nicheNotice).toEqual({ niche: 'ia', title: 'Mostrando IA para exibir este canal', body: 'Seu nicho salvo não mudou.' })
+      // hrefs never carry niche=: the move is re-derived from channel= on the next request
+      for (const t of v.timeline) expect(paramsOf(t.href).niche).toBeUndefined()
+    })
+    it('with Todos the channel does not move anything', () => {
+      const v = buildOutliersView(obs, { niche: 'todos', channel: iaCh.id })
+      expect(v.query.niche).toBe('todos')
+      expect(v.nicheNotice).toBeNull()
+    })
+    it('a reading of another niche shows the reading niche, with the toast', () => {
+      const v = buildOutliersView(obs, { niche: 'viagem', reading: 'padroes-titulo-ia-20-10' })
+      expect(v.query.niche).toBe('ia')
+      expect(v.groups.flatMap(g => g.cards).length).toBeGreaterThan(0)
+      expect(v.empty).toBeNull()
+      expect(v.nicheNotice).toEqual({ niche: 'ia', title: 'Mostrando IA para exibir esta leitura', body: 'Seu nicho salvo não mudou.' })
+    })
+  })
+
+  describe('engine counts for the summary', () => {
+    it('?formula=preco&min=0: "sem nenhum vídeo para comparar" is the filtered engine noBase', () => {
+      const v = buildOutliersView(obs, { formula: 'preco', min: '0', age: 'all' })
+      const R = obs.outliers({ formula: 'preco', min: 0, ages: 'all' })
+      const pool = obs.videos.filter(x => x.tracked && x.fmt === 'long' && !obs.channel(x.ch)!.own && x.formulas.includes('preco') && x.mult!.value == null)
+      expect(R.noBase).toBe(pool.length)
+      expect(v.basisMore[0]).toContain(R.noBase ? 'Mais ' + R.noBase + ' sem nenhum vídeo para comparar' : 'Acompanhados em')
+      expect(v.basisMore[0]).not.toContain('Mais 270')
+    })
+    it('weakShown counts the dashed cards shown', () => {
+      const R = obs.outliers({ formula: 'preco', min: 0, ages: 'all', includeWeak: true })
+      expect(R.weakShown).toBe(R.items.filter(i => i.weak).length)
+    })
+  })
+
+  describe('multiplier card wording (engine multiplierCard)', () => {
+    it('reference and n note; the age at the reading uses plural, never "1 dias"', () => {
+      for (const x of obs.videos.filter(v => v.mult?.value != null)) {
+        const t = obs.multiplierCard(x.id)
+        expect(t.nText).toMatch(/^\((este tinha \d+ dias?; )?n = \d+\)$/)
+        expect(t.nText).not.toMatch(/\b1 dias\b/)
+        if (x.mult!.method === 'mesmo dia de vida') expect(t.ref).toBe('no dia ' + x.mult!.lifeDay + ' de vida')
+        else expect(t.ref.startsWith('com ' + x.mult!.band)).toBe(true)
+      }
     })
   })
 

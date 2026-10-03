@@ -9,6 +9,7 @@ import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildOutliersView } from '@/app/cms/(authed)/youtube/competitors/_outliers/view-model'
 import { OutliersScreen } from '@/app/cms/(authed)/youtube/competitors/_outliers/outliers-screen'
+import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
 import { noJunkText, oneFilledButton, forbiddenVocabulary, brokenLinks, linkCountsMatch } from './audits'
 
 const push = vi.fn()
@@ -150,6 +151,16 @@ describe('OutliersScreen', () => {
     await user.click(btn)
     expect(btn.getAttribute('aria-expanded')).toBe('true')
     expect(probs.textContent).toMatch(/Ocultar/)
+  })
+  it('a channel of another niche: the screen says which niche it shows and that the saved one did not change', async () => {
+    const iaCh = obs.channels.find(c => !c.own && c.niche === 'ia')!
+    render(<ToastProvider><OutliersScreen view={buildOutliersView(obs, { niche: 'viagem', channel: iaCh.id })} /></ToastProvider>)
+    expect(await screen.findByText('Mostrando IA para exibir este canal')).toBeTruthy()
+    expect(screen.getByText('Seu nicho salvo não mudou.')).toBeTruthy()
+  })
+  it('the cards have no swipe button (follow-up FU-2)', () => {
+    const { container } = mount()
+    expect(container.querySelector('[data-save]')).toBeNull()
   })
   it('every interactive element has an accessible name', () => {
     const { container } = mount({ formula: 'preco', min: '0', age: 'zzz' })

@@ -6,7 +6,8 @@
  */
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useToast } from '../_chrome/toasts'
 import type { OutliersView } from './view-model'
 import { AgeTimeline } from './age-timeline'
 import { ParamChips } from './param-chips'
@@ -17,6 +18,10 @@ export function OutliersScreen({ view: v }: { view: OutliersView }) {
   const router = useRouter()
   const go = (href: string) => router.push(href, { scroll: false })
   const [probsOpen, setProbsOpen] = useState(false)
+  const toast = useToast()
+  // The screen shows another niche than the saved one (channel or reading of that niche): say so; nothing is persisted.
+  const notice = v.nicheNotice
+  useEffect(() => { if (notice) toast('', notice.title, notice.body) }, [notice?.niche, notice?.title]) // eslint-disable-line react-hooks/exhaustive-deps
   const shorts = v.query.fmt === 'short'
   return (
     <div className="obs-out" data-obs-screen="outliers">
@@ -34,7 +39,7 @@ export function OutliersScreen({ view: v }: { view: OutliersView }) {
       </section>
 
       <div className="obs-out-sumbar">
-        <details className="obs-out-rule" hidden={v.basisHidden}>
+        <details className="obs-out-rule">
           <summary><span className="obs-out-cnt" aria-live="polite"><RichText parts={v.baseParts} /></span> <span className="obs-out-more">Como contamos</span></summary>
           <div>{v.basisMore.map((t, i) => <p key={i}>{t}</p>)}</div>
         </details>

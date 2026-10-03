@@ -5,7 +5,7 @@
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { NicheScope } from '@/lib/youtube/observatorio/niche'
-import type { OutlierItem, OutlierQuery, OutliersResult, OutlierSort } from '@/lib/youtube/observatorio/outliers'
+import type { OutlierItem, OutlierQuery, OutlierSort } from '@/lib/youtube/observatorio/outliers'
 import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
 import type { Fmt, ObsChannel, ObsVideo, ThumbArt } from '@/lib/youtube/observatorio/types'
 
@@ -58,7 +58,9 @@ export interface OutliersView {
   sortOptions: Array<{ value: OutlierSort; label: string; href: string }>
   chipsLead: string | null; chips: OutlierChipView[]
   /** Summary line (plain text and with emphasis) and the "Como contamos" paragraphs. */
-  baseText: string; baseParts: Rich; basisMore: string[]; basisHidden: boolean
+  baseText: string; baseParts: Rich; basisMore: string[]
+  /** The screen shows another niche than the saved one (channel or reading of that niche); toast, not persisted. */
+  nicheNotice: null | { niche: NicheScope; title: string; body: string }
   problems: null | { shown: Array<{ name: string; phrase: string }>; tail: string; rest: Array<{ name: string; phrase: string }>; restLabel: string; hideLabel: string }
   groups: OutlierGroupView[]
   more: null | { href: string; label: string; note: string }
@@ -85,21 +87,6 @@ const SORT_LABEL: Record<OutlierSort, string> = { mult: 'Ordenar: multiplicador'
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
 const lcfirst = (s: string) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s)
 const plainOf = (r: Rich) => r.map(p => (typeof p === 'string' ? p : 'b' in p ? p.b : 'w' in p ? p.w : p.abbr)).join('')
-
-/** What the engine's readingScope (Task 32) puts on OutliersResult.scope; read defensively. */
-interface ScopeLike { niche: NicheScope | null; fmt: Fmt | null; channels: string[]; windowDays: number | null; maxAge: number | null; ages: string[] | null; nThen: number | null }
-function scopeOf(r: OutliersResult): ScopeLike | null {
-  const s = r.scope as Record<string, unknown> | null | undefined
-  if (!s || typeof s !== 'object') return null
-  const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : null)
-  const n = s.niche === 'viagem' || s.niche === 'ia' || s.niche === 'todos' ? (s.niche as NicheScope) : null
-  return {
-    niche: n, fmt: s.fmt === 'long' || s.fmt === 'short' ? (s.fmt as Fmt) : null,
-    channels: Array.isArray(s.channels) ? s.channels.filter((x): x is string => typeof x === 'string') : [],
-    windowDays: num(s.windowDays), maxAge: num(s.maxAge) ?? num(s.windowDays),
-    ages: Array.isArray(s.ages) ? s.ages.filter((x): x is string => typeof x === 'string') : null, nThen: num(s.nThen),
-  }
-}
 
 interface Bad { key: string; value: string }
 interface State {
@@ -150,35 +137,67 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
   S.from = FROM[get('from') ?? ''] ? get('from') : null
 
   const minOf = () => S.min ?? RULES.outlierMin
-  const readingValid = (id: string) => !obs.outliers({ niche: S.niche, fmt: S.fmt, reading: id }).readingInvalid
+  /** The niche the page resolved (URL or saved); this screen may show another one without persisting it. */
+  const saved = S.niche
+  let nicheNotice: OutliersView['nicheNotice'] = null
+  const moveNiche = (n: NicheScope, what: string) => {
+    if (n === S.niche) return
+    S.niche = n
+    nicheNotice = { niche: n, title: 'Mostrando ' + NICHE_LABEL[n] + ' para exibir ' + what, body: 'Seu nicho salvo não mudou.' }
+  }
+  // channel=<id> of another niche: show that niche on this screen only (mockup applyParams/moveNiche)
+  if (S.channel && S.niche !== 'todos') { const c = ch(S.channel)!; if (c.niche !== S.niche) moveNiche(c.niche ?? 'todos', 'este canal') }
+  const scopeOfId = (id: string) => obs.forja.readingScope(id)
+  const useReading = (id: string) => {
+    const sc = scopeOfId(id)!
+    S.reading = id
+    if (sc.niche && sc.niche !== S.niche) moveNiche(sc.niche, 'esta leitura')
+    if (sc.fmt) S.fmt = sc.fmt
+    if (sc.ages) S.ages = sortAges(sc.ages)
+  }
   const rd = get('reading')
   if (rd) {
-    const r = obs.forja.readings.find(x => x.id === rd)
-    if (r && OUT_READING_TYPES.includes(r.type) && readingValid(rd)) S.reading = rd
-    else if (r && !OUT_READING_TYPES.includes(r.type)) S.notOut = { id: rd, label: r.type }
+    const r = obs.forja.byId[rd]
+    if (r && scopeOfId(rd)) useReading(rd)   // the engine returns null for readings that are not of outliers
+    else if (r) S.notOut = { id: rd, label: r.type }
     else S.bad.push({ key: 'reading', value: rd })
   }
   const af = get('asof')
   if (af && !S.reading) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(af)) S.bad.push({ key: 'asof', value: af })
     else {
+      // asof without reading: the outliers readings of that day in the format; more than one (niches or types) → ask
       const dmy = af.split('-').reverse().join('/'), ns = S.niche === 'todos' ? ['ia', 'viagem'] : [S.niche]
-      let rs = obs.forja.readings.filter(r => r.niche != null && ns.includes(r.niche) && OUT_READING_TYPES.includes(r.type) && D.dmy(r.generatedAt) === dmy && (r.fmt ?? 'long') === S.fmt && readingValid(r.id))
+      let rs = Object.values(obs.forja.byId).filter(r => r.niche != null && ns.includes(r.niche) && !(r as { scenario?: boolean }).scenario && D.dmy(r.generatedAt) === dmy && (r.fmt ?? 'long') === S.fmt && !!scopeOfId(r.id))
       if (S.formula) rs = rs.filter(r => r.type !== 'temas')
       if (S.theme) { const tn = obs.theme(S.theme)!.niche, byN = rs.filter(r => r.niche === tn), temas = byN.filter(r => r.type === 'temas'); rs = temas.length ? temas : byN }
-      if (rs.length === 1) S.reading = rs[0]!.id
+      if (rs.length === 1) useReading(rs[0]!.id)
       else if (rs.length > 1) S.asofPick = { af, ids: rs.map(r => r.id) }
       else S.asofNone = af
     }
   }
 
-  /* ---------------- queries (all through obs.outliers) */
-  const baseQ = (): OutlierQuery => ({ niche: S.niche, fmt: S.fmt, ages: S.ages, min: minOf(), theme: S.theme, formula: S.formula, channel: S.channel, ...(S.reading ? { reading: S.reading } : {}) })
-  const q = (over: Partial<OutlierQuery> = {}) => obs.outliers({ ...baseQ(), ...over })
+  /* ---------------- queries (all through obs.outliers), for this state or for a destination href */
+  /** The niche a destination shows: an explicit niche=, else the reading's, else the channel's (when the saved one excludes it), else the saved one. */
+  const nicheFor = (st: { reading: string | null; channel: string | null }): NicheScope => {
+    if (st.reading) { const sc = scopeOfId(st.reading); if (sc?.niche) return sc.niche }
+    if (st.channel && saved !== 'todos') { const c = ch(st.channel); if (c && c.niche !== saved) return c.niche ?? 'todos' }
+    return saved
+  }
+  const queryOf = (nav: Nav = {}, extra: Partial<OutlierQuery> = {}): OutlierQuery => {
+    const st = { ...S, ...nav }
+    return {
+      niche: nav.niche ?? nicheFor(st), fmt: st.fmt, ages: nav.agesAll ? 'all' : st.ages, min: st.min ?? RULES.outlierMin,
+      theme: st.theme, formula: st.formula, channel: st.channel, ...(st.reading ? { reading: st.reading } : {}), ...extra,
+    }
+  }
+  /** Count a destination shows (what an empty-state button promises). */
+  const countAt = (nav: Nav) => obs.outliers(queryOf(nav)).count
+  const q = (over: Partial<OutlierQuery> = {}) => obs.outliers(queryOf({}, over))
   const R = q(), Rw = q({ includeWeak: true }), all = q({ ages: 'all' })
-  const scope = S.reading ? scopeOf(R) : null
-  const effNiche: NicheScope = scope?.niche ?? S.niche, effFmt: Fmt = scope?.fmt ?? S.fmt
-  const effAges = scope?.ages ?? S.ages
+  const scope = S.reading ? R.scope : null
+  const effNiche: NicheScope = S.niche, effFmt: Fmt = S.fmt
+  const effAges = S.ages
   const minOn = () => S.min != null && S.min !== RULES.outlierMin
   const allMode = () => S.min != null && S.min < RULES.outlierMin
   const hasLink = () => minOn() || !!S.theme || !!S.formula || !!S.channel
@@ -236,7 +255,7 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
     title: scope ? 'Modo leitura: a janela é a da leitura (' + scope.windowDays + ' dias). Tire a leitura para usar os atalhos.' : null,
     ariaLabel: 'Atalho até ' + hi90 + ' dias: ' + F.plural(n90, unit[0], unit[1]),
   }
-  const readingSent = S.reading ? obs.forja.readings.find(r => r.id === S.reading)?.sent.text ?? null : null
+  const readingSent = S.reading ? obs.forja.byId[S.reading]?.sent.text ?? null : null
 
   /* ---------------- summary ("Como contamos") */
   const fmtName = effFmt === 'short' ? 'Shorts' : 'vídeos longos'
@@ -249,10 +268,9 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
   const limTxt = (lims.length ? Math.min(...lims) : 0) + ' a ' + (lims.length ? Math.max(...lims) : 0)
   const tf = [S.theme ? 'tema “' + obs.theme(S.theme)!.label + '”' : '', S.formula ? 'fórmula “' + obs.formula(S.formula)!.label + '”' : ''].filter(Boolean).join(' e ')
   const tfBase = tf ? q({ theme: null, formula: null }) : null
-  const W = Rw.countWithWeak - Rw.count
+  const W = R.weakShown
   const outsInList = nm ? q({ min: RULES.outlierMin }).count : 0
-  const noBase = nm ? Math.max(0, R.analyzed - Rw.countWithWeak) : 0
-  const chOut = !!S.channel && effNiche !== 'todos' && ch(S.channel)!.niche !== effNiche
+  const noBase = nm ? R.noBase : 0
   const where = scope ? 'no escopo da leitura' : ages2label(obs, effAges)
   const flat = S.sort !== 'mult' || nm
   const order = !Rw.countWithWeak ? '' : flat ? (S.sort === 'vpd' ? 'ordenados por views/dia, canais atrasados no fim' : S.sort === 'recent' ? 'do mais recente ao mais antigo' : '') : 'agrupados por fase'
@@ -287,7 +305,7 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
   const chips: OutlierChipView[] = []
   const unlinkHref = (k: 'theme' | 'formula' | 'channel' | 'min') => hrefOf({ [k]: null, limit: PAGE } as Nav)
   if (scope && S.reading) {
-    const r = obs.forja.readings.find(x => x.id === S.reading)
+    const r = obs.forja.byId[S.reading]
     const note = asofNoteOf(r ? D.dm(r.generatedAt) : (get('asof') ?? '').split('-').reverse().slice(0, 2).join('/'), scope.nThen, R.count)
     chips.push({ key: 'reading', kind: 'asof', label: note, invalid: false, removeHref: hrefOf({ reading: null }), removeLabel: 'Tirar a referência à leitura', title: readingSent ?? undefined })
   }
@@ -295,7 +313,7 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
     const pick = S.asofPick
     chips.push({
       key: 'asof', kind: 'pick', invalid: false, label: 'A data ' + pick.af.split('-').reverse().slice(0, 2).join('/') + ' tem ' + pick.ids.length + ' leituras; escolha:',
-      picks: pick.ids.map(id => { const r = obs.forja.readings.find(x => x.id === id)!; return { label: NICHE_LABEL[r.niche ?? 'todos'] + ' · ' + (r.type === 'temas' ? 'temas' : 'padrões'), href: hrefOf({ reading: id, asofPick: null }) } }),
+      picks: pick.ids.map(id => { const r = obs.forja.byId[id]!; return { label: NICHE_LABEL[r.niche ?? 'todos'] + ' · ' + (r.type === 'temas' ? 'temas' : 'padrões'), href: hrefOf({ reading: id, asofPick: null }) } }),
       removeHref: hrefOf({ asofPick: null }), removeLabel: 'Ignorar a data da leitura',
     })
   }
@@ -357,23 +375,18 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
   function buildEmpty(): NonNullable<OutliersView['empty']> {
     const actions: OutlierEmptyAction[] = []
     const add = (label: string, href: string, n: number, primary = false, dest: OutlierEmptyAction['dest'] = 'outliers') => { if (n > 0) actions.push({ label, href, n, primary: primary && !actions.some(a => a.primary), dest }) }
+    /** An Outliers destination: the href and its N come from the same navigation, so N is what the destination shows. */
+    const go = (label: (n: number) => string, nav: Nav, primary = false) => { const n = countAt(nav); add(label(n), hrefOf(nav), n, primary) }
     const nicheName = effNiche === 'todos' ? '' : ' de ' + (effNiche === 'ia' ? 'IA' : 'viagem')
     const c = S.channel ? ch(S.channel)! : null
     const chTxtE = c ? ' de ' + c.name : ''
     const nLinks = [S.theme, S.formula, S.channel, minOn()].filter(Boolean).length
-    const unlinkAll = () => { if (nLinks >= 2) add('Tirar filtros do link (' + q({ theme: null, formula: null, channel: null, min: RULES.outlierMin }).count + ')', hrefOf({ theme: null, formula: null, channel: null, min: null, limit: PAGE }), q({ theme: null, formula: null, channel: null, min: RULES.outlierMin }).count) }
+    const unlinkAll = () => { if (nLinks >= 2) go(n => 'Tirar filtros do link (' + n + ')', { theme: null, formula: null, channel: null, min: null, limit: PAGE }) }
     const otherFmt: Fmt = effFmt === 'short' ? 'long' : 'short'
-    const otherFmtBtn = () => { const n = q({ fmt: otherFmt }).count; add('Ver ' + (otherFmt === 'short' ? 'Shorts' : 'longos') + ' desta janela (' + n + ')', hrefOf(off({ fmt: otherFmt, ages: effAges })), n) }
-    if (c && chOut) {
-      const n1 = q({ niche: c.niche ?? 'todos' }).count, n2 = q({ channel: null }).count
-      add('Ver em ' + NICHE_LABEL[c.niche ?? 'todos'] + ' (' + n1 + ')', hrefOf({ niche: c.niche ?? 'todos' }), n1, true)
-      add('Tirar o filtro de canal (' + n2 + ')', unlinkHref('channel'), n2)
-      return { title: c.name + ' é de ' + NICHE_LABEL[c.niche ?? 'todos'] + ': o nicho ' + NICHE_LABEL[effNiche] + ' o exclui', text: 'O filtro de canal veio do link e o nicho escolhido não inclui esse canal.', actions }
-    }
+    const otherFmtBtn = () => go(n => 'Ver ' + (otherFmt === 'short' ? 'Shorts' : 'longos') + ' desta janela (' + n + ')', off({ fmt: otherFmt, ages: effAges }))
     const one = effFmt === 'short' ? 'Short' : 'vídeo longo', many = effFmt === 'short' ? 'Shorts' : 'vídeos longos'
     if (!R.analyzed) {
-      const allN = S.reading ? 0 : all.count
-      if (effAges.length < ALL_AGES.length) add('Ver todas as idades (' + allN + ')', hrefOf(off({ agesAll: true })), allN, true)
+      if (!S.reading && effAges.length < ALL_AGES.length) go(n => 'Ver todas as idades (' + n + ')', off({ agesAll: true }), true)
       otherFmtBtn(); unlinkAll()
       const text = (R.untracked
         ? (R.untracked === 1 ? 'O único' : 'Os ' + R.untracked) + ' ' + (R.untracked === 1 ? one : many) + ' ' + (c ? 'de ' + c.name + ' ' : 'dos canais' + nicheName + ' ') + ages2label(obs, effAges) + ' ' + (R.untracked === 1 ? 'está' : 'estão') + ' fora dos acompanhados: cada canal acompanha só os seus ' + limTxt + ' vídeos mais recentes.'
@@ -385,22 +398,21 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
       const un: [string, string] = nm ? ['vídeo', 'vídeos'] : ['outlier', 'outliers']
       const head = tfBase.count === 1 ? 'O único ' + un[0] + chTxtE + ' desta janela não tem ' + tf : 'Nenhum dos ' + tfBase.count + ' ' + un[1] + chTxtE + ' desta janela tem ' + tf
       const both = !!(S.theme && S.formula)
-      const lbl = (nm ? (tfBase.count === 1 ? 'Ver o vídeo' : 'Ver os ' + tfBase.count + ' vídeos') : tfBase.count === 1 ? 'Ver o outlier' : 'Ver os ' + tfBase.count + ' outliers') + ' sem ' + (both ? 'os filtros' : 'o filtro')
-      add(lbl, hrefOf({ theme: null, formula: null, limit: PAGE }), tfBase.count, true)
-      const allN = q({ ages: 'all' }).count
-      if (!S.reading && effAges.length < ALL_AGES.length) add('Ver todas as idades (' + allN + ')', hrefOf(off({ agesAll: true })), allN)
+      const lbl = (n: number) => (nm ? (n === 1 ? 'Ver o vídeo' : 'Ver os ' + n + ' vídeos') : n === 1 ? 'Ver o outlier' : 'Ver os ' + n + ' outliers') + ' sem ' + (both ? 'os filtros' : 'o filtro')
+      go(lbl, { theme: null, formula: null, limit: PAGE }, true)
+      if (!S.reading && effAges.length < ALL_AGES.length) go(n => 'Ver todas as idades (' + n + ')', off({ agesAll: true }))
       return { title: head, text: 'Há ' + un[1] + ' ' + ages2label(obs, effAges) + ' entre os ' + fmtName + (chTxtE || nicheName) + ', mas nenhum com ' + (both ? 'esse tema e essa fórmula' : S.theme ? 'esse tema' : 'esse tipo de título') + '.', actions }
     }
     const idx = effAges.map(a => ALL_AGES.indexOf(a)), lo = Math.min(...idx), hi = Math.max(...idx)
     let below = -1, above = -1
     for (let i = lo - 1; i >= 0; i--) if ((R.byAge[ALL_AGES[i]!] ?? 0) > 0) { below = i; break }
     for (let i = hi + 1; i < ALL_AGES.length; i++) if ((R.byAge[ALL_AGES[i]!] ?? 0) > 0) { above = i; break }
-    const nb = (i: number) => { const id = ALL_AGES[i]!, n = R.byAge[id] ?? 0; add('Ver ' + obs.OUT_WINDOWS[i]!.label + ' (' + n + ')', hrefOf(off({ ages: [id] })), n, i === (below >= 0 ? below : above)) }
+    const nb = (i: number) => go(n => 'Ver ' + obs.OUT_WINDOWS[i]!.label + ' (' + n + ')', off({ ages: [ALL_AGES[i]!] }), i === (below >= 0 ? below : above))
     if (below >= 0) nb(below)
     if (above >= 0) nb(above)
     otherFmtBtn()
-    if (effNiche !== 'todos' && !c) { const n = q({ niche: 'todos' }).count; add('Todos os nichos (' + n + ')', hrefOf({ niche: 'todos' }), n) }
-    if (minOn() && S.min! > RULES.outlierMin) { const n = q({ min: RULES.outlierMin }).count; add('Tirar o mínimo de ' + F.mult(S.min) + ' (' + n + ')', unlinkHref('min'), n, true) }
+    if (effNiche !== 'todos' && !c) go(n => 'Todos os nichos (' + n + ')', { niche: 'todos' })
+    if (minOn() && S.min! > RULES.outlierMin) go(n => 'Tirar o mínimo de ' + F.mult(S.min) + ' (' + n + ')', { min: null, limit: PAGE }, true)
     unlinkAll()
     const probs = competitors.filter(x => (effNiche === 'todos' || x.niche === effNiche) && (!c || x.id === c.id) && x.sync.problemPhrase)
     if (probs.length === 1) add('Ver ' + probs[0]!.name + ' em Canais', obs.link.canais({ channel: probs[0]!.id }), 1, false, 'canais')
@@ -423,7 +435,7 @@ export function buildOutliersView(obs: Observatory, p: Record<string, string | u
     viewLinks: (['grid', 'list'] as const).map(v => ({ value: v, label: v === 'grid' ? 'Grade' : 'Lista', href: hrefOf({ view: v }), pressed: S.view === v })),
     sortOptions: (['mult', 'vpd', 'recent'] as const).map(v => ({ value: v, label: SORT_LABEL[v], href: hrefOf({ sort: v, limit: PAGE }) })),
     chipsLead, chips, asofNote,
-    baseText: plainOf(baseParts), baseParts, basisMore, basisHidden: chOut,
+    baseText: plainOf(baseParts), baseParts, basisMore, nicheNotice,
     problems, groups, more, empty, count: R.count,
   }
 }
@@ -464,33 +476,37 @@ function buildCard(obs: Observatory, it: OutlierItem, o: { main: boolean; flat: 
   const neutral = o.nm && (m.value ?? 0) < RULES.outlierMin
   const short = v.fmt === 'short'
   const lastData = c.lastIdx != null ? D.snapTime(c.lastIdx) : c.sync.last
-  const viewsAt = v.viewsAt != null ? D.dmhm(v.viewsAt) : D.dmhm(lastData)
+  // a channel never synced has no last record (Task 20b): say so with a dash, never a made-up date
+  const at = (ms: number | null | undefined) => (ms != null ? D.dmhm(ms) : '—')
+  const viewsAt = v.viewsAt != null ? D.dmhm(v.viewsAt) : at(lastData)
   const outros = m.n === 1 ? 'do único outro ' + (short ? 'Short' : 'vídeo longo') : 'dos outros ' + m.n + ' ' + (short ? 'Shorts' : 'vídeos longos')
   const sameDay = m.method === 'mesmo dia de vida'
-  const ref: Rich = sameDay
-    ? ['no ', { abbr: 'dia ' + m.lifeDay + ' de vida', title: 'dia de vida = dias desde a publicação; compara com os outros vídeos do canal na mesma idade' }]
-    : ['com ' + m.band + (m.readNote && m.readAt != null ? ' no registro de ' + D.dmhm(m.readAt) : '')]
-  const nTxt = '(' + (m.readNote ? 'este tinha ' + m.ageAtRead + ' dias; ' : '') + 'n = ' + m.n + ')'
+  // card wording from the engine (reference and n note, fmt.plural for the age at the reading)
+  const ct = obs.multiplierCard(v.id)
+  const ref: Rich = ct.lifeDay != null
+    ? ['no ', { abbr: 'dia ' + ct.lifeDay + ' de vida', title: 'dia de vida = dias desde a publicação; compara com os outros vídeos do canal na mesma idade' }]
+    : [ct.ref]
+  const nTxt = ct.nText
   const multLabel = plainOf([o.nm ? 'a mediana do canal ' : 'vs ' + (short ? 'Shorts' : 'vídeos') + ' do canal ', ...ref, ' ' + nTxt])
   const fb = !m.fallback ? '' : m.dayN === 0 ? 'Nenhum outro ' + (short ? 'Short' : 'vídeo longo') + ' do canal tem série desde o dia 0, então '
     : 'Só ' + m.dayN + ' outro' + (m.dayN === 1 ? '' : 's') + ' ' + (m.dayN === 1 ? (short ? 'Short' : 'vídeo longo') : short ? 'Shorts' : 'vídeos longos') + ' do canal ' + (m.dayN === 1 ? 'tem' : 'têm') + ' série desde o dia 0, então '
   const methodTxt = sameDay ? 'Método: mesmo dia de vida (publicado depois de ' + obs.SERIES_START_LABEL + ', quando a série diária começou).'
     : 'Método: aproximação por faixa. ' + fb + (fb ? 'a' : 'A') + ' comparação é com a faixa de ' + m.band + ' ' + (m.readNote || stale ? 'daquele registro' : 'de hoje') + '; os mais velhos da faixa tiveram mais tempo para acumular views.'
   const bandRef = m.readNote || stale
-    ? 'que tinham ' + m.band + ' no ' + (stale ? 'último registro diário do canal,' : 'registro de') + ' ' + (stale ? 'o de ' : '') + D.dmhm(m.readAt ?? lastData) + (m.readNote ? ', quando este vídeo tinha ' + m.ageAtRead + ' dias' : '')
+    ? 'que tinham ' + m.band + ' no ' + (stale ? 'último registro diário do canal,' : 'registro de') + ' ' + (stale ? 'o de ' : '') + at(m.readAt ?? lastData) + (ct.ageAtRead ? ', quando este vídeo tinha ' + ct.ageAtRead : '')
     : 'que hoje têm ' + m.band
   const tip: Rich = sameDay
     ? [{ b: F.mult(m.value) }, ' = ' + F.num(v.views) + ' views de ' + viewsAt + ' (dia ' + m.lifeDay + ' de vida) ÷ ', { b: F.num(m.base ?? null) }, ', ' + (m.n === 1 ? 'as views' : 'a mediana') + ' ' + outros + ' de ' + c.name + ' no mesmo dia de vida, sem contar este vídeo. ' + methodTxt]
     : [{ b: F.mult(m.value) }, ' = ' + F.num(v.views) + ' views de ' + viewsAt + ' ÷ ', { b: F.num(m.base ?? null) }, ', ' + (m.n === 1 ? 'as views' : 'a mediana') + ' ' + outros + ' de ' + c.name + ' ' + bandRef + ', sem contar este vídeo. ' + methodTxt]
   if (m.weak) tip.push(' ', { w: 'Base fraca: com menos de ' + RULES.weakBase + ' vídeos para comparar, um único vídeo distorce a mediana. Por isso ele fica fora da contagem.' })
-  if (stale) tip.push(' ', { w: 'Canal com problema de sincronização: ' + (c.sync.problemPhrase ?? '') + '. Views até o registro diário de ' + D.dmhm(lastData) + '.' })
+  if (stale) tip.push(' ', { w: 'Canal com problema de sincronização: ' + (c.sync.problemPhrase ?? '') + '. Views até o registro diário de ' + at(lastData) + '.' })
   const why: Rich | null = o.main
-    ? [F.num(v.views) + ' views de ' + viewsAt + ' ÷ ', { b: F.num(m.base ?? null) }, ', ' + (m.n === 1 ? 'views' : 'mediana') + ' ' + outros + ' do canal ', ...ref, (m.readNote ? ', quando este tinha ' + m.ageAtRead + ' dias' : '') + ', sem contar este. Método: ' + m.method + (m.fallback ? ' (' + lcfirst(fb.replace(/, então $/, '')) + ')' : '') + '.']
+    ? [F.num(v.views) + ' views de ' + viewsAt + ' ÷ ', { b: F.num(m.base ?? null) }, ', ' + (m.n === 1 ? 'views' : 'mediana') + ' ' + outros + ' do canal ', ...ref, (ct.ageAtRead ? ', quando este tinha ' + ct.ageAtRead : '') + ', sem contar este. Método: ' + m.method + (m.fallback ? ' (' + lcfirst(fb.replace(/, então $/, '')) + ')' : '') + '.']
     : null
   const flags: string[] = []
   if (m.weak) flags.push('base fraca')
   if (stale) {
-    const ld = D.dmhm(lastData), ph = c.sync.problemPhrase ?? ''
+    const ld = at(lastData), ph = c.sync.problemPhrase ?? ''
     flags.push(o.channelFilter ? 'sincronização: ' + (c.sync.label ?? '') : ph + (ph.includes(ld) ? '' : ' · views até o registro diário de ' + ld))
   }
   if (partial && c.sync.backfill) flags.push('base parcial (' + c.sync.backfill.done + ' de ' + c.sync.backfill.total + ')')
@@ -504,7 +520,7 @@ function buildCard(obs: Observatory, it: OutlierItem, o: { main: boolean; flat: 
   let reuse: OutlierCardView['reuse'] = null
   if (it.phase.id === 'antigo') {
     const md = obs.channelStats(v.ch, v.fmt).vpd7Median
-    reuse = { month: D.dm(v.pub).slice(3) + '/' + D.parts(v.pub).y, vpd7: F.num(v.vpd7), median: F.num(typeof md === 'number' ? md : null) }
+    reuse = { month: D.dmy(v.pub).slice(3), vpd7: F.num(v.vpd7), median: F.num(typeof md === 'number' ? md : null) }
   }
   const pos = (x: number) => Math.max(0, Math.min(100, Math.log(Math.max(x, 1)) / Math.log(50) * 100))
   const tier = stale || m.weak || neutral ? null : obs.tierOf(m.value)
