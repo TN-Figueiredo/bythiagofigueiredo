@@ -71,7 +71,7 @@ export interface Observatory {
   date: Clock; fmt: Fmt; median: typeof median; quant: typeof quant; bandOf: typeof bandOf; winOf: typeof winOf; tierOf: typeof tierOf
   cadence: (id: string, f?: VideoFmt) => ReturnType<typeof cadence>; channelStats: (id: string, f?: VideoFmt) => ReturnType<typeof channelStats>
   channelSlots(): ReturnType<typeof channelSlots>; syncText(id: string): string; runSyncText: typeof runSyncText
-  SYNC: { last: number; next: number | null; text: string; title: string; nextText: string | null; cadence: string; cadenceHours: number; slots: number[]; dailyBefore: string }
+  SYNC: { last: number | null; next: number | null; text: string; title: string; nextText: string | null; cadence: string; cadenceHours: number; slots: number[]; dailyBefore: string }
   formulas: ReadonlyArray<Formula>; formula(id: string): Formula | undefined; formulasOf: typeof formulasOf; themes: ReadonlyArray<Theme>; theme(id: string): Theme | undefined
   heatmap(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof heatmap>; nicheStats(niche?: NicheScope, f?: VideoFmt, ownId?: string): ReturnType<typeof nicheStats>
   themeTrend(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof themeTrend>; ownCoverage(f?: VideoFmt): ReturnType<typeof ownCoverage>; patternsNow(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof patternsNow>
@@ -124,10 +124,11 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
     phaseOf: (id, o) => phaseOf(ctx, vid(id), o), PHASES: phases(ctx),
     outliers: q => outliers(ctx, q), tabCounts: n => tabCounts(ctx, n), TAB_TITLES, TAB_COUNTS, integrity,
     RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, NICHES, date: clock, fmt, median, quant, bandOf, winOf, tierOf,
-    SYNC: { last, next, text: 'sincronizado ' + clock.ago(last), title: clock.dm(last) + ' ' + clock.hm(last) + ' (SP)', nextText: next ? 'próxima às ' + clock.hm(next) : null,
+    SYNC: { last, next, text: last == null ? 'nunca sincronizado' : 'sincronizado ' + clock.ago(last), title: last == null ? 'nunca sincronizado' : clock.dm(last) + ' ' + clock.hm(last) + ' (SP)', nextText: next ? 'próxima às ' + clock.hm(next) : null,
       // 6 h slots rule (dados.js:1963); the mockup fixes it in data, production fixes it in the cron schedule.
       cadence: 'a cada 6 h (00, 06, 12, 18) desde ' + clock.dm(ds.seriesStart) + '; diária às 09:00 antes', cadenceHours: 6, slots: [0, 6, 12, 18], dailyBefore: '09:00' },
-    LAST_IDX: clock.snapIdxAtOrBefore(maxT), TZ: 'America/Sao_Paulo', TZ_LABEL: 'Horários em São Paulo', SERIES_START_LABEL: clock.dm(ds.seriesStart),
+    // No series at all (empty dataset): fall back to now, never -Infinity (Review Focus 2).
+    LAST_IDX: clock.snapIdxAtOrBefore(maxT === -Infinity ? ds.now : maxT), TZ: 'America/Sao_Paulo', TZ_LABEL: 'Horários em São Paulo', SERIES_START_LABEL: clock.dm(ds.seriesStart),
     cadence: (id, f) => cadence(ctx, id, f), channelStats: (id, f) => channelStats(ctx, id, f), channelSlots: () => channelSlots(ctx, RULES.channelLimit),
     syncText: id => syncText(ctx, CH.get(id)!), runSyncText,
     formulas: FORMULAS, formula: id => FORMULA[id], formulasOf, themes: THEMES, theme: id => THEME[id],

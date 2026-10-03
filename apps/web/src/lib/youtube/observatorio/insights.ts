@@ -21,7 +21,7 @@ const chName = (ctx: EngineCtx, id: string) => chOf(ctx, id)?.name ?? id
 const lastIdxOf = (ctx: EngineCtx) => {
   let maxT = -Infinity
   for (const v of ctx.ds.videos) for (const p of v.series) if (p.t > maxT) maxT = p.t
-  return ctx.clock.snapIdxAtOrBefore(maxT)
+  return ctx.clock.snapIdxAtOrBefore(maxT === -Infinity ? ctx.ds.now : maxT) // no series: now, never -Infinity
 }
 
 /* ------------------------------------------------------------------ atribuição */

@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { oneEmbed } from '@/lib/supabase/one-embed'
 import { getSiteContext } from '@/lib/cms/site-context'
@@ -8,6 +7,9 @@ import { computeViewGrowthSparkline } from '@/lib/youtube/sparkline-math'
 import { computeGrowthScore } from '@/lib/youtube/growth-score'
 import { getSubscriberBounds } from '@/lib/youtube/subscriber-resolution'
 import { computeSnapshotDelta } from '@/lib/youtube/snapshot-delta'
+import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
+import { observatoryNow } from '@/lib/youtube/observatorio/now'
+import { createObservatory } from '@/lib/youtube/observatorio'
 import type {
   CompetitorChannelView,
   CompetitorChangeView,
@@ -65,24 +67,23 @@ export default async function CompetitorsPage({
   const safeChannels = rawChannels ?? []
   const channelIds = safeChannels.map(ch => ch.id)
 
-  // ── 2. Fetch videos per-channel (respects per-channel video_limit, default 50, max 200) ──
-  type VideoRow = {
-    id: string; competitor_channel_id: string; video_id: string; title: string | null
-    thumbnail_url: string | null; view_count: number | null; published_at: string | null
-    tags: string[] | null; like_count: number | null; comment_count: number | null
-    duration_seconds: number | null; last_checked_at: string | null
-  }
+  // ── 2. Observatory rows: one query per table (paged), then the engine — the single calculation layer ──
+  const now = observatoryNow()
+  const rows = await loadRows({ siteId, now, supabase })
+  const obs = createObservatory(rowsToDataset(rows, now))
+
+  // Videos per channel, most recent first, within the channel's video_limit (default 50, max 200).
+  type VideoRow = (typeof rows.videos)[number]
   const videoLimitByChannel = new Map(safeChannels.map(ch => [ch.id, Math.min(ch.video_limit ?? 50, 200)]))
   const allVideos: VideoRow[] = []
-  for (const chId of channelIds) {
-    const limit = videoLimitByChannel.get(chId) ?? 50
-    const { data: chVideos } = await supabase
-      .from('competitor_videos')
-      .select('id, competitor_channel_id, video_id, title, thumbnail_url, view_count, published_at, tags, like_count, comment_count, duration_seconds, last_checked_at')
-      .eq('competitor_channel_id', chId)
-      .order('published_at', { ascending: false })
-      .limit(limit)
-    if (chVideos) allVideos.push(...(chVideos as VideoRow[]))
+  {
+    const byCh = new Map<string, VideoRow[]>()
+    for (const v of [...rows.videos].sort((a, b) => (b.published_at ?? '').localeCompare(a.published_at ?? ''))) {
+      const list = byCh.get(v.competitor_channel_id) ?? []
+      if (list.length < (videoLimitByChannel.get(v.competitor_channel_id) ?? 50)) list.push(v)
+      byCh.set(v.competitor_channel_id, list)
+    }
+    for (const chId of channelIds) allVideos.push(...(byCh.get(chId) ?? []))
   }
 
   // ── 3. Fetch changes ──
@@ -93,48 +94,12 @@ export default async function CompetitorsPage({
     .order('detected_at', { ascending: false })
     .limit(50)
 
-  // ── 4. Snapshots por canal (ultimos N de CADA canal) ──
-  // Antes: uma query so, ordenada ascendente, com .limit(500) global. Ao passar
-  // de 500 linhas no total, a pagina passou a ver so as mais ANTIGAS — desde
-  // 2026-07-08 todo o observatorio rodava sobre dados de julho.
-  const SNAPSHOT_LIMIT_PER_CHANNEL = 60
-  const snapshotResults = await Promise.all(
-    channelIds.map(chId =>
-      supabase
-        .from('competitor_channel_snapshots')
-        .select('competitor_channel_id, subscriber_count, view_count, video_count, snapshot_date')
-        .eq('competitor_channel_id', chId)
-        .order('snapshot_date', { ascending: false })
-        .limit(SNAPSHOT_LIMIT_PER_CHANNEL),
-    ),
-  )
-  // Uma query de snapshot que falha por canal não pode sumir em silêncio —
-  // o canal simplesmente desaparece das métricas sem log e sem sinal. A
-  // página segue de pé com os canais que deram certo (degradar é correto),
-  // mas o erro precisa ser reportado para não virar uma falha silenciosa.
-  snapshotResults.forEach((r, idx) => {
-    if (r.error) {
-      Sentry.captureMessage(
-        `competitors: snapshot query failed for channel ${channelIds[idx]}: ${r.error.message}`,
-        { level: 'warning', tags: { component: 'competitors-observatory', siteId } },
-      )
-    }
-  })
-  const snapshots = snapshotResults.flatMap(r => (r.data ?? []).slice().reverse())
+  // ── 4. Snapshots por canal (últimos 90 dias, do loader; ascendente por data) ──
+  const snapshots = [...rows.snapshots].sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date))
 
-  // ── 5. Fetch own channel stats (ALL channels) ──
-  const { data: ownChannels } = await supabase
-    .from('youtube_channels')
-    .select('id, name, channel_id, subscriber_count, video_count')
-    .eq('site_id', siteId)
-
-  const { data: ownVideos } = await supabase
-    .from('youtube_videos')
-    .select('view_count, like_count, comment_count, published_at, channel_id, tags')
-    .eq('site_id', siteId)
-    .eq('is_hidden', false)
-    .order('published_at', { ascending: false })
-    .limit(200)
+  // ── 5. Own channels and their 200 most recent visible videos (from the loader) ──
+  const ownChannels = rows.ownChannels
+  const ownVideos = [...rows.ownVideos].sort((a, b) => b.published_at.localeCompare(a.published_at)).slice(0, 200)
 
   // ── Compute per-channel own stats ──
   const ninetyDaysAgo = Date.now() - 90 * 86_400_000
@@ -295,16 +260,12 @@ export default async function CompetitorsPage({
     }
     const changeFlags = [...flagMap.values()]
 
-    // Recent videos as CompetitorVideoView — exclude stale from median
-    const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString()
-    const freshForMedian = videos.filter(v => v.last_checked_at ? v.last_checked_at > sevenDaysAgo : true)
-    const medianViews = freshForMedian.length > 0
-      ? [...freshForMedian].sort((a, b) => (a.view_count ?? 0) - (b.view_count ?? 0))[Math.floor(freshForMedian.length / 2)]?.view_count ?? 0
-      : 0
-
+    // Recent videos as CompetitorVideoView — the multiplier comes from the engine (no local calculation)
     const recentVideos: CompetitorVideoView[] = videos.map(v => {
       const vc = v.view_count ?? 0
-      const mult = medianViews > 0 ? vc / medianViews : null
+      const m = obs.video(v.id)?.mult
+      const mult = m && m.value != null && !m.weak ? m.value : null
+      const tier = obs.tierOf(mult)
       return {
         id: v.id,
         videoId: v.video_id,
@@ -316,8 +277,8 @@ export default async function CompetitorsPage({
         publishedAt: v.published_at,
         durationSeconds: v.duration_seconds ?? null,
         viewDelta: null,
-        outlierMultiplier: mult != null && mult >= 2 ? mult : null,
-        outlierTier: mult != null && mult >= 10 ? 'top' : mult != null && mult >= 5 ? 'high' : mult != null && mult >= 2 ? 'mid' : null,
+        outlierMultiplier: tier ? mult : null,
+        outlierTier: tier,
       }
     })
 
@@ -394,74 +355,33 @@ export default async function CompetitorsPage({
   // Sort parents by detectedAt DESC
   changes.sort((a, b) => b.detectedAt.localeCompare(a.detectedAt))
 
-  // ── Build outlier views ──
-  const outlierStaleCutoff = new Date(Date.now() - 7 * 86_400_000).toISOString()
-  const outliers: CompetitorOutlierView[] = []
-  for (const ch of safeChannels) {
-    const videos = videosByChannel.get(ch.id) ?? []
-    const freshVids = videos.filter(v => v.last_checked_at ? v.last_checked_at > outlierStaleCutoff : true)
-    if (freshVids.length < 3) continue
-    const sortedViews = [...freshVids]
-      .map(v => v.view_count ?? 0)
-      .sort((a, b) => a - b)
-    const median = sortedViews[Math.floor(sortedViews.length / 2)] ?? 0
-    if (median <= 0) continue
-
-    for (const v of videos) {
-      const vc = v.view_count ?? 0
-      const mult = vc / median
-      if (mult >= 2.0) {
-        outliers.push({
-          id: v.id,
-          videoId: v.video_id,
-          title: v.title,
-          thumbnailUrl: v.thumbnail_url,
-          channelName: ch.channel_name,
-          channelThumbnailUrl: ch.thumbnail_url,
-          viewCount: vc,
-          likeCount: v.like_count ?? 0,
-          commentCount: v.comment_count ?? 0,
-          durationSeconds: v.duration_seconds ?? null,
-          publishedAt: v.published_at,
-          multiplier: Math.round(mult * 10) / 10,
-          tier: mult >= 10 ? 'top' : mult >= 5 ? 'high' : 'mid',
-        })
-      }
+  // ── Build outlier views (engine: every age window, long videos) ──
+  const chById = new Map(safeChannels.map(ch => [ch.id, ch]))
+  const rowThumb = new Map(rows.videos.map(v => [v.id, v.thumbnail_url]))
+  const outliers: CompetitorOutlierView[] = obs.outliers({ ages: 'all', fmt: 'long' }).items.map(it => {
+    const ch = chById.get(it.video.ch)
+    return {
+      id: it.video.id,
+      videoId: it.video.ytId,
+      title: it.video.title,
+      thumbnailUrl: it.video.thumbs.at(-1)?.blobUrl ?? rowThumb.get(it.video.id) ?? null,
+      channelName: ch?.channel_name ?? obs.channel(it.video.ch)?.name ?? '',
+      channelThumbnailUrl: ch?.thumbnail_url ?? null,
+      viewCount: it.video.views ?? 0,
+      likeCount: it.video.likes,
+      commentCount: it.video.comments,
+      durationSeconds: it.video.dur,
+      publishedAt: new Date(it.video.pub).toISOString(),
+      multiplier: Math.round(it.mult.value! * 10) / 10,
+      tier: obs.tierOf(it.mult.value)!,
     }
-  }
-  outliers.sort((a, b) => b.multiplier - a.multiplier)
+  })
 
   // ── Build insights ──
   const flatVideos = allVideos ?? []
 
-  // Heatmap: 7x24 (day-of-week x hour)
-  const heatmap: number[][] = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0))
-  const heatmapCounts: number[][] = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0))
-  for (const v of flatVideos) {
-    if (!v.published_at) continue
-    const d = new Date(v.published_at)
-    // JS getDay: 0=Sun, we want 0=Mon
-    const dayIdx = (d.getDay() + 6) % 7
-    const hourIdx = d.getHours()
-    const dayRow = heatmap[dayIdx]
-    const countRow = heatmapCounts[dayIdx]
-    if (dayRow && countRow) {
-      dayRow[hourIdx] = (dayRow[hourIdx] ?? 0) + (v.view_count ?? 0)
-      countRow[hourIdx] = (countRow[hourIdx] ?? 0) + 1
-    }
-  }
-  // Average views per slot
-  for (let d = 0; d < 7; d++) {
-    const dayRow = heatmap[d]
-    const countRow = heatmapCounts[d]
-    if (!dayRow || !countRow) continue
-    for (let h = 0; h < 24; h++) {
-      const cnt = countRow[h] ?? 0
-      if (cnt > 0) {
-        dayRow[h] = Math.round((dayRow[h] ?? 0) / cnt)
-      }
-    }
-  }
+  // Heatmap: 7x24 (Mon-first day × hour, São Paulo) — engine count per 2 h block, spread onto both hours
+  const heatmap: number[][] = obs.heatmap('todos', 'long').cells.map(row => Array.from({ length: 24 }, (_, h) => row[h >> 1]!.n))
 
   // Tags
   const tagStats = new Map<string, { count: number; totalViews: number; channels: Set<string> }>()
@@ -539,69 +459,30 @@ export default async function CompetitorsPage({
     channelNames: t.channelNames,
   }))
 
-  // ── Cadence per channel ──
-  const twentyOneDaysAgo = Date.now() - 21 * 86_400_000
+  // ── Cadence per channel (engine: long videos, 13 weeks, habit in São Paulo) ──
   const cadence: CadenceChannel[] = safeChannels.map((ch, idx) => {
     const videos = videosByChannel.get(ch.id) ?? []
-    const recentCadence = videos.filter(v => v.published_at && new Date(v.published_at).getTime() > twentyOneDaysAgo)
-    const freq = Math.round((recentCadence.length / 3) * 10) / 10
-
-    const slotCounts = new Map<string, number>()
-    for (const v of videos) {
-      if (!v.published_at) continue
-      const d = new Date(v.published_at)
-      const dayIdx = (d.getDay() + 6) % 7
-      const slot = `${BR_DAY_NAMES[dayIdx]} ${d.getHours()}h`
-      slotCounts.set(slot, (slotCounts.get(slot) ?? 0) + 1)
-    }
-    let window = '—'
-    let maxSlot = 0
-    for (const [slot, count] of slotCounts) {
-      if (count > maxSlot) { maxSlot = count; window = slot }
-    }
-
+    const cad = obs.cadence(ch.id, 'long')
     const cadenceVideos: CadenceVideo[] = videos
       .filter((v): v is VideoRow & { published_at: string } => v.published_at != null)
       .sort((a, b) => b.published_at.localeCompare(a.published_at))
       .map(v => ({ title: v.title ?? '', viewCount: v.view_count ?? 0, publishedAt: v.published_at }))
-
-    const lastUploadDays = cadenceVideos.length > 0
-      ? Math.floor((Date.now() - new Date(cadenceVideos[0]!.publishedAt).getTime()) / 86_400_000)
-      : -1
-
     return {
       channelName: ch.channel_name,
       channelId: ch.channel_id,
       color: CHANNEL_COLORS[idx % CHANNEL_COLORS.length]!,
-      freq,
-      window,
+      freq: cad.pw,
+      window: cad.habit.costuma ? `${BR_DAY_NAMES[(cad.habit.dow! + 6) % 7]} ${cad.habit.hour}h` : '—',
       videos: cadenceVideos,
-      lastUploadDays,
+      lastUploadDays: cad.lastUpload != null ? Math.floor((obs.NOW - cad.lastUpload) / 86_400_000) : -1,
     }
   })
 
-  // ── Hits heatmap (outlier videos only: view_count > 2x channel median) ──
-  const channelMedians = new Map<string, number>()
-  for (const ch of safeChannels) {
-    const videos = videosByChannel.get(ch.id) ?? []
-    const freshVids = videos.filter(v => v.last_checked_at ? v.last_checked_at > outlierStaleCutoff : true)
-    if (freshVids.length < 3) continue
-    const sorted = [...freshVids].map(v => v.view_count ?? 0).sort((a, b) => a - b)
-    const median = sorted[Math.floor(sorted.length / 2)] ?? 0
-    if (median > 0) channelMedians.set(ch.id, median)
-  }
-
+  // ── Hits heatmap: engine outliers (every age window) per São Paulo weekday × hour ──
   const hitsHeatmap: number[][] = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0))
-  for (const v of flatVideos) {
-    if (!v.published_at) continue
-    const median = channelMedians.get(v.competitor_channel_id)
-    if (median == null) continue
-    if ((v.view_count ?? 0) <= 2 * median) continue
-    const d = new Date(v.published_at)
-    const dayIdx = (d.getDay() + 6) % 7
-    const hourIdx = d.getHours()
-    const dayRow = hitsHeatmap[dayIdx]
-    if (dayRow) dayRow[hourIdx] = (dayRow[hourIdx] ?? 0) + 1
+  for (const o of obs.outliers({ ages: 'all', fmt: 'long' }).items) {
+    const p = obs.date.parts(o.video.pub)
+    hitsHeatmap[(p.dow + 6) % 7]![p.h]!++
   }
 
   // ── Formulas (title pattern detection on outlier videos) ──

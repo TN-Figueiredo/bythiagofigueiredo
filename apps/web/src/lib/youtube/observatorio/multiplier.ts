@@ -27,7 +27,8 @@ export function multiplierAt(ctx: EngineCtx, v: ObsVideo, t: number | null): Mul
   if (v.pub >= SS && v.series.length) {
     const ageMs = tTime - v.pub, d = Math.floor(ageMs / DAY)
     const base = others.filter(u => u.pub >= SS && u.series.length).map(u => viewsAtAge(ctx, u, ageMs, t)).filter((x): x is number => x != null)
-    if (base.length >= RULES.weakBase) {
+    // A zero median (every comparable video at 0 views) would make own/m Infinity: no base, never ∞×.
+    if (base.length >= RULES.weakBase && median(base)! > 0) {
       const m = median(base)!
       return { ageAtRead: Math.floor((tTime - v.pub) / DAY), readAt: tTime, readNote: '', value: own / m, method: 'mesmo dia de vida', lifeDay: d, n: base.length, base: m, weak: false, fallback: false,
         label: fmt.mult(own / m) + ' vs vídeos do canal no mesmo dia de vida (dia ' + d + ', n = ' + base.length + ')' }
@@ -38,6 +39,8 @@ export function multiplierAt(ctx: EngineCtx, v: ObsVideo, t: number | null): Mul
   const readDiff = bandOf(age) !== bandOf(v.ageDays), readNote = readDiff ? ' no registro de ' + clock.dmhm(tTime) + ' (este tinha ' + fmt.plural(age, 'dia', 'dias') + ')' : ''
   const bb = others.filter(u => bandOf(Math.floor((tTime - u.pub) / DAY)) === band).map(totalOf) as number[]
   const m = median(bb), weak = bb.length < RULES.weakBase
+  if (bb.length && !(m! > 0)) return { value: null, method: 'aproximação por faixa', band: band.label, bandId: band.id, n: bb.length, base: m, weak: true, fallback: dayFallbackN != null, dayN: dayFallbackN,
+    fallbackText: null, ageAtRead: age, readAt: tTime, readNote, label: 'mediana do canal em 0 views nessa faixa, sem comparação', reason: 'mediana zero' }
   return { value: bb.length ? own / m! : null, method: 'aproximação por faixa', band: band.label, bandId: band.id, n: bb.length, base: m, weak,
     fallback: dayFallbackN != null, dayN: dayFallbackN,
     fallbackText: dayFallbackN != null ? 'método: aproximação por faixa — menos de 3 vídeos do canal com série desde o dia 0' : null,

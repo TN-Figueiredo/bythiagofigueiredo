@@ -116,7 +116,7 @@ export function expectedCurve(ctx: EngineCtx, videoId: string): ExpectedCurve {
   const first = iv[0]!, firstA0 = first.a - v.pub, firstA1 = first.b - v.pub, firstOwn = first.vpd
   const inSeries = v.pub >= SS
   const out = newCurve(inSeries ? 'mesmo dia de vida' : 'aproximação por faixa', inSeries ? null : bandOf(v.ageDays).label)
-  iv.forEach((x, pos) => {
+  iv.forEach(x => {
     const a0 = x.a - v.pub, a1 = x.b - v.pub
     const raw: number[] = [], rel: number[] = []
     for (const u of others) {
@@ -129,7 +129,7 @@ export function expectedCurve(ctx: EngineCtx, videoId: string): ExpectedCurve {
     const vpd = raw.length >= RULES.weakBase ? median(raw) : null
     const anch = rel.length >= RULES.weakBase ? median(rel)! * firstOwn : null
     if (vpd == null && anch == null) return
-    out.push({ idx: x.idxTo, t: x.b, from: x.a, lifeDay: inSeries ? pos : Math.floor(a0 / DAY), ageDaysFrom: a0 / DAY, vpd, n: raw.length, vpdAnchored: anch, nAnchored: rel.length, observed: x.vpd })
+    out.push({ idx: x.idxTo, t: x.b, from: x.a, lifeDay: inSeries ? x.idxTo - v.firstIdx! : Math.floor(a0 / DAY), ageDaysFrom: a0 / DAY, vpd, n: raw.length, vpdAnchored: anch, nAnchored: rel.length, observed: x.vpd })
   })
   return out
 }

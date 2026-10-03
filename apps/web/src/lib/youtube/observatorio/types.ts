@@ -64,7 +64,8 @@ export interface ForjaRequest {
 export interface Dataset {
   now: number; seriesStart: number; snap0: number; obsStart: number
   channels: ObsChannel[]; videos: ObsVideo[]
-  sync: { last: number; next: number | null }
+  /** last = newest OK sync of any competitor channel; null when none ever synced. */
+  sync: { last: number | null; next: number | null }
   readings: FrozenReading[]; requests: ForjaRequest[]
   queue: { lastPollAt: number | null; tickMinutes: number; capabilities: string[] }
 }

@@ -9,6 +9,10 @@ const p2 = (n: number) => (n < 10 ? '0' : '') + n
 export const floorHour = (ms: number) => Math.floor(ms / H) * H
 /** Smallest whole hour >= ms. */
 export const ceilHour = (ms: number) => Math.ceil(ms / H) * H
+/** 00:00 in São Paulo of the SP calendar day that contains `ms`. */
+export const spDayStart = (ms: number) => Math.floor((ms - SP_OFF) / DAY) * DAY + SP_OFF
+/** 00:00 in São Paulo of a calendar date 'YYYY-MM-DD' (a DB `date` column, already an SP day). */
+export const spDateStart = (date: string) => Date.parse(date.slice(0, 10) + 'T00:00:00Z') + SP_OFF
 
 export interface Clock {
   now: number; seriesStart: number; snap0: number

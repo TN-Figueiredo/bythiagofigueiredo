@@ -56,6 +56,12 @@ function buildSupabase(tableResponses: Record<string, Array<{ data: unknown; err
       chain.eq = vi.fn(self)
       chain.order = vi.fn(self)
       chain.limit = vi.fn(self)
+      // observatory loader (one query per table, paged): in/is/gte/range/maybeSingle
+      chain.in = vi.fn(self)
+      chain.is = vi.fn(self)
+      chain.gte = vi.fn(self)
+      chain.range = vi.fn(self)
+      chain.maybeSingle = vi.fn(self)
       // Make it thenable so `await supabase.from(...).select(...)...` works
       chain.then = (resolve: (v: unknown) => void) => resolve(result)
       return chain
@@ -90,6 +96,7 @@ function makeChannel(id: string, name: string, overrides: Record<string, unknown
     subscriber_count: 10000,
     last_synced_at: nowIso,
     added_at: nowIso,
+    video_limit: 50, // NOT NULL default 50 in the DB
     ...overrides,
   }
 }
@@ -481,6 +488,38 @@ describe('listCompetitorOutliers', () => {
     expect(result.data.outliers).toEqual([])
   })
 
+  it('carries the engine fields (method, n, label, phase) and never mixes Shorts into long', async () => {
+    const ch = makeChannel(CH_ID_1, 'TravelBR')
+    const vids = [
+      makeVideo(CH_ID_1, 0, { view_count: 1000 }),
+      makeVideo(CH_ID_1, 1, { view_count: 1000 }),
+      makeVideo(CH_ID_1, 2, { view_count: 1000 }),
+      makeVideo(CH_ID_1, 3, { view_count: 5000 }),
+      makeVideo(CH_ID_1, 4, { view_count: 90000, is_short: true }),
+    ]
+    const sb = buildSupabase({
+      competitor_channels: [{ data: [ch], error: null }],
+      competitor_videos: [{ data: vids, error: null }],
+    })
+    const result = await listCompetitorOutliers(ctx(sb), {})
+    expect(result.data.outliers).toHaveLength(1)
+    expect(result.data.outliers[0]).toMatchObject({ view_count: 5000, multiplier: 5, tier: 'high', method: 'aproximação por faixa', n: 3 })
+    expect(result.data.outliers[0]!.label).toContain('n = 3')
+    expect(typeof result.data.outliers[0]!.phase).toBe('string')
+    expect(result.data.outliers[0]!.thumbnail_url).toBe('https://img/v3.jpg')
+  })
+
+  it('fmt=short compares Shorts only with Shorts', async () => {
+    const ch = makeChannel(CH_ID_1, 'TravelBR')
+    const vids = [0, 1, 2].map(i => makeVideo(CH_ID_1, i, { view_count: 100, is_short: true })).concat([makeVideo(CH_ID_1, 3, { view_count: 900, is_short: true }), makeVideo(CH_ID_1, 4, { view_count: 1 })])
+    const sb = buildSupabase({
+      competitor_channels: [{ data: [ch], error: null }],
+      competitor_videos: [{ data: vids, error: null }],
+    })
+    const result = await listCompetitorOutliers(ctx(sb), { fmt: 'short' })
+    expect(result.data.outliers.map(o => [o.view_count, o.multiplier])).toEqual([[900, 9]])
+  })
+
   it('throws on DB error', async () => {
     const sb = buildSupabase({
       competitor_channels: [{ data: null, error: { message: 'fail' } }],
@@ -603,10 +642,8 @@ describe('getCompetitorInsights', () => {
 
     const sb = buildSupabase({
       competitor_channels: [{ data: [ch1, ch2], error: null }],
-      competitor_videos: [
-        { data: vids1, error: null },
-        { data: vids2, error: null },
-      ],
+      // one query for every channel (observatory loader), not one per channel
+      competitor_videos: [{ data: [...vids1, ...vids2], error: null }],
       youtube_videos: [{ data: ownVids, error: null }],
     })
 

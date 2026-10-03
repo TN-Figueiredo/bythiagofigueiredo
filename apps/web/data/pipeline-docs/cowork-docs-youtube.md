@@ -660,40 +660,51 @@ Lista mudanças detectadas em vídeos de concorrentes (títulos, thumbnails, des
 
 ### GET /api/pipeline/youtube/competitors/outliers
 
-Lista vídeos outliers de canais concorrentes — vídeos com performance significativamente acima da mediana do canal.
+Lista vídeos outliers de canais concorrentes — vídeos com multiplicador de 2× ou mais em relação ao próprio canal. O cálculo é o mesmo do Observatório no CMS (uma única camada de cálculo): mesmo dia de vida quando há registro diário de views desde a publicação; senão, aproximação por faixa de idade (0–7, 8–30, 31–90, 91–365, mais de 365 dias). Base fraca (n < 3) não entra. Horários em São Paulo.
 
 **Auth:** read
 
 **Query params:**
-- `tier` (opcional): `mid`, `high`, `top` — filtro por nível de outlier
-- `limit` (opcional, default: 20, max: 50)
+- `tier` (opcional): `mid`, `high`, `top` (ou `B`, `A`, `S`) — filtro por nível de outlier
+- `limit` (opcional, default: 25, max: 100)
+- `fmt` (opcional): `long` (default) ou `short` — vídeos longos e Shorts nunca são comparados entre si
 
 **Response 200:**
 ```json
 {
-  "data": [
-    {
-      "id": "uuid",
-      "videoId": "dQw4w9WgXcQ",
-      "title": "This Video Went Viral",
-      "thumbnailUrl": "https://...",
-      "channelName": "Competitor Channel",
-      "channelThumbnailUrl": "https://...",
-      "viewCount": 500000,
-      "likeCount": 25000,
-      "commentCount": 1800,
-      "durationSeconds": 900,
-      "publishedAt": "2026-05-20T16:00:00Z",
-      "multiplier": 8.5,
-      "tier": "high"
-    }
-  ]
+  "data": {
+    "outliers": [
+      {
+        "id": "uuid",
+        "video_id": "dQw4w9WgXcQ",
+        "title": "This Video Went Viral",
+        "thumbnail_url": "https://...",
+        "channel_name": "Competitor Channel",
+        "view_count": 500000,
+        "like_count": 25000,
+        "comment_count": 1800,
+        "duration_seconds": 900,
+        "published_at": "2026-05-20T16:00:00.000Z",
+        "multiplier": 8.5,
+        "tier": "high",
+        "method": "mesmo dia de vida",
+        "n": 12,
+        "label": "8,5× vs vídeos do canal no mesmo dia de vida (dia 14, n = 12)",
+        "phase": "recente"
+      }
+    ],
+    "count": 1
+  }
 }
 ```
 
 **Notas:**
-- `multiplier` indica quantas vezes acima da mediana do canal (ex: 8.5x)
-- Tiers visuais: `mid` = #60A5FA (2-5x), `high` = #A78BFA (5-10x), `top` = #D9614A (>10x)
+- `multiplier` indica quantas vezes acima do canal (ex: 8.5×); ordenado do maior para o menor
+- `method`: `mesmo dia de vida` (views no mesmo dia de vida que os outros vídeos do canal) ou `aproximação por faixa` (views totais vs vídeos do canal da mesma faixa de idade)
+- `n`: vídeos do canal na base de comparação; `label`: texto canônico do motor, com método e n
+- `phase`: `estourando`, `recente`, `perene`, `antigo`, `novos` ou `sem-ritmo` (canal com sincronização atrasada, com erro ou ainda buscando vídeos)
+- `count`: total de outliers depois do filtro de tier (antes do `limit`)
+- Tiers visuais: `mid` = #60A5FA (2-5×), `high` = #A78BFA (5-10×), `top` = #D9614A (10× ou mais)
 - Usado para identificar padrões de conteúdo viral entre concorrentes
 
 ---
@@ -776,14 +787,14 @@ Retorna insights agregados de todos os canais concorrentes monitorados.
 ```
 
 **Campos-chave:**
-- `heatmap`: matriz 7x24 (dias x horas) com média de views — identifica melhores horários de publicação
-- `hitsHeatmap`: matriz 7x24 com contagem de outliers publicados — confirma timing de picos
+- `heatmap`: matriz 7x24 (dias seg→dom x horas, horário de São Paulo) com a contagem de vídeos longos publicados nos últimos 90 dias, em blocos de 2 h (as duas horas do bloco levam o mesmo valor); canais ainda buscando vídeos ficam de fora
+- `hitsHeatmap`: matriz 7x24 (horário de São Paulo) com a contagem de outliers (mesmo cálculo de `/competitors/outliers`, todas as idades) por dia e hora de publicação
 - `tags`: tags mais usadas por concorrentes, ordenadas por frequência
 - `engagement`: comparação de engagement rate entre concorrentes e nosso canal (`isUs: true`)
 - `gaps`: tópicos que concorrentes cobrem e nós não (`weCover: false`)
 - `formulas`: padrões de título que performam acima da mediana (com `multiplier`)
 - `play`: a jogada da semana — combinação tópico + fórmula + timing de maior impacto
-- `cadence`: frequência de upload por concorrente (vídeos/semana)
+- `cadence`: frequência de upload por concorrente (vídeos longos/semana nas últimas 13 semanas); `window` = hábito "Dia Hh" em São Paulo quando o canal costuma publicar no mesmo dia e hora (3+ vídeos e 30%+ deles), senão `—`
 
 ---
 
