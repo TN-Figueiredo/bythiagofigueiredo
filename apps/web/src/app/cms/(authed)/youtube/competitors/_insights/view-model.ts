@@ -13,7 +13,11 @@ import type { FrozenReading } from '@/lib/youtube/observatorio/types'
 export type RichPart = string | { b: string } | { mono: string } | { bmono: string }
 export type Rich = RichPart[]
 
-export interface LinkOrText { href: string | null; text: string; n: number }
+export interface LinkOrText {
+  href: string | null; text: string; n: number
+  /** Shown after the link, outside it ("(hoje, nos 7 canais da leitura)"). */
+  after?: string
+}
 
 export interface HeroPart { kind: 'p'; text: string; ev: number | null }
 export interface HeroList { kind: 'ul'; items: Array<{ text: string; ev: number | null }> }
@@ -55,7 +59,11 @@ export interface FormulaRow {
   sentence: Rich; example: string | null; link: LinkOrText
   bars: Array<{ kind: 'a' | 'b'; label: string; width: string; value: string }>
 }
-export interface FormulasSection { meta: string; rows: FormulaRow[]; zero: { ids: string[]; text: string } | null; empty: EmptyBlock | null; foot: Rich }
+export interface FormulasSection {
+  meta: string
+  /** "números da leitura de 20/10 06:10" when the rows are the reading's frozen numbers (insights.html renderFormulas P). */
+  metaRight: string | null
+  rows: FormulaRow[]; zero: { ids: string[]; text: string } | null; empty: EmptyBlock | null; foot: Rich }
 
 export interface CadTick { left: string; height: number; tier: string | null; title: string }
 export interface CadHatch { kind: 'part' | 'sync' | 'parado'; left: string | null; width: string; title: string; text: string; short: string | null }
@@ -152,14 +160,16 @@ export function buildInsightsView(obs: Observatory, p: InsightsParams): Insights
       ...base,
       all: {
         title: 'Insights compara dentro de um nicho',
-        text: 'Misturar viagem e IA somaria públicos, horários e fórmulas que não têm nada a ver. Escolha um nicho para ver a leitura da forja, as fórmulas e os temas.',
+        // insights.html:779: without a request the paragraph also says what a request from here does
+        text: 'Misturar viagem e IA somaria públicos, horários e fórmulas que não têm nada a ver. Escolha um nicho para ver a leitura da forja, as fórmulas e os temas.'
+          + (forja.status ? '' : ' Pedir uma leitura daqui envia um pedido dos ' + FMT_LABEL[fmt] + ' para cada nicho.'),
         go: (['viagem', 'ia'] as const).map(n => ({ niche: n, label: 'Ver ' + obs.NICHES[n].label, href: '?niche=' + n + (fmt === 'short' ? '&fmt=short' : '') })),
         forja: {
           title: 'Pedido de leitura dos ' + FMT_LABEL[fmt],
           // the engine's lines as they come; a single request gets its own "<Nicho>: <label>" line
           lines: forja.status ? (forja.status.lines.length ? forja.status.lines : forja.niches.filter(b => b.statusLine).map(b => b.label + ': ' + b.statusLine)) : [],
           text: forja.card.statusText,
-          note: !forja.status && !forja.niches.some(b => b.reading) ? 'Ainda não há leitura dos ' + FMT_LABEL[fmt] + ' em nenhum dos dois nichos.' : !forja.status ? 'Pedir uma leitura daqui envia um pedido dos ' + FMT_LABEL[fmt] + ' para cada nicho.' : null,
+          note: !forja.status && !forja.niches.some(b => b.reading) ? 'Ainda não há leitura dos ' + FMT_LABEL[fmt] + ' em nenhum dos dois nichos.' : null,
         },
       },
       hero: null,
@@ -168,7 +178,7 @@ export function buildInsightsView(obs: Observatory, p: InsightsParams): Insights
   }
   return {
     ...base, all: null, hero: heroOf(obs, forja, niche, fmt),
-    formulas: formulasSection(obs, niche, fmt, !!forja.reading), cadence: cadenceSection(obs, niche, fmt), heatmap: heatmapSection(obs, niche, fmt),
+    formulas: formulasSection(obs, niche, fmt, forja.reading ? obs.forja.byId[forja.reading.id] ?? null : null), cadence: cadenceSection(obs, niche, fmt), heatmap: heatmapSection(obs, niche, fmt),
     themes: themesSection(obs, niche, fmt), youInNiche: youSection(obs, niche, fmt), gaps: gapsSection(obs, niche, fmt),
   }
 }
@@ -188,43 +198,82 @@ export function formulaChip(obs: Observatory, p: Pick<Pattern, 'nUse' | 'diff' |
   return { kind: 'neg', text: '≈ diferença abaixo da regra', title: null }
 }
 
-function formulasSection(obs: Observatory, niche: Niche, fmt: VideoFmt, hasReading: boolean): FormulasSection {
+/** A frozen pattern with the numbers the row prints (insights.html reads P.analysis.patterns); anything less → null. */
+interface FrozenPattern { formula: string; label: string; nUse: number; nNot: number; medUse: number | null; medNot: number | null; diff: number | null; verdict: { id: string; text: string }; attribution: { text: string; textMid?: string } | null }
+const isRecF = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
+const numOrNull = (x: unknown) => (typeof x === 'number' ? x : x == null ? null : undefined)
+function frozenPatterns(r: FrozenReading | null): FrozenPattern[] | null {
+  const ps = r && Array.isArray(r.analysis.patterns) ? (r.analysis.patterns as unknown[]) : null
+  if (!ps || !ps.length) return null
+  const out: FrozenPattern[] = []
+  for (const p of ps) {
+    if (!isRecF(p) || typeof p.formula !== 'string' || typeof p.nUse !== 'number' || typeof p.nNot !== 'number' || !isRecF(p.verdict) || typeof p.verdict.id !== 'string') return null
+    const medUse = numOrNull(p.medUse), medNot = numOrNull(p.medNot), diff = numOrNull(p.diff)
+    if (medUse === undefined || medNot === undefined || diff === undefined) return null
+    const at = isRecF(p.attribution) && typeof p.attribution.text === 'string' ? { text: p.attribution.text, ...(typeof p.attribution.textMid === 'string' ? { textMid: p.attribution.textMid } : {}) } : null
+    out.push({ formula: p.formula, label: typeof p.label === 'string' ? p.label : p.formula, nUse: p.nUse, nNot: p.nNot, medUse, medNot, diff, verdict: { id: p.verdict.id, text: String(p.verdict.text ?? '') }, attribution: at })
+  }
+  return out
+}
+
+/**
+ * insights.html renderFormulas: with a reading of the niche and format, the rows are the READING's frozen numbers ("Na
+ * leitura", examples from its base, links counting today in the reading's scope); without one, today's analysis
+ * ("Hoje", examples in the niche's video order). A reading whose analysis lacks the numbers falls back to today, said
+ * in the foot.
+ */
+function formulasSection(obs: Observatory, niche: Niche, fmt: VideoFmt, reading: FrozenReading | null): FormulasSection {
   const F = obs.fmt, R = obs.RULES, N = obs.patternsNow(niche, fmt)
-  const meta = N.nVideos + ' ' + FMT_LABEL[fmt] + ' até ' + obs.date.dm(N.asOf) + ', 6 meses'
+  const fp = frozenPatterns(reading), P = fp && reading ? reading : null
+  const meta = P ? P.sent.text.replace(/^dados enviados à forja: /, '') : N.nVideos + ' ' + FMT_LABEL[fmt] + ' até ' + obs.date.dm(N.asOf) + ', 6 meses'
   const used = new Set<string>()
   const example = (formula: string) => {
-    const t = [...N.base.videos].filter(v => v.formulas.includes(formula)).sort((a, b) => b.mult - a.mult).map(v => v.title).find(x => !used.has(x))
+    const pool = P && P.base ? [...P.base.videos].filter(v => v.formulas.includes(formula)).sort((a, b) => b.mult - a.mult).map(v => v.title)
+      : obs.videos.filter(v => v.niche === niche && v.fmt === fmt && !obs.channel(v.ch)?.own && v.formulas.includes(formula)).map(v => v.title)
+    const t = pool.find(x => !used.has(x))
     if (t) used.add(t)
     return t ?? null
   }
-  const withUse = N.patterns.filter(p => p.nUse), zero = N.patterns.filter(p => !p.nUse)
+  type Src = { formula: string; label: string; nUse: number; nNot: number; medUse: number | null; medNot: number | null; diff: number | null; verdict: { id: string; text: string }; attribution: { text: string; textMid?: string } | null }
+  const src: Src[] = fp ?? N.patterns.map(p => ({ formula: p.formula, label: p.label, nUse: p.nUse, nNot: p.nNot, medUse: p.medUse ?? null, medNot: p.medNot ?? null, diff: p.diff ?? null, verdict: p.verdict, attribution: p.attribution ?? null }))
+  const withUse = src.filter(p => p.nUse), zero = src.filter(p => !p.nUse)
   const rows0 = [...withUse].sort((a, b) => (b.diff ?? -9) - (a.diff ?? -9))
   const max = Math.max(...rows0.map(p => Math.max(p.medUse ?? 0, p.medNot ?? 0)), 0.1)
   const rows: FormulaRow[] = rows0.map(p => {
-    const q = { niche, fmt, ages: AGES_6M, min: 0, formula: p.formula }, n = obs.outliers(q).count
-    const chip = formulaChip(obs, p)
+    const chip = formulaChip(obs, p as Parameters<typeof formulaChip>[1])
     // the row's verdict always follows the chip, both ways
     const verdict: FormulaRow['verdict'] = chip.kind === 'ok' ? 'padrao' : chip.kind === 'weak' ? 'recorrencia' : 'sem-diferenca'
     const attr = p.attribution ? (p.attribution.textMid || p.attribution.text) : ''
+    let link: LinkOrText
+    if (P) {
+      const lk = evLink(obs, P, { min: 0, formula: p.formula })
+      const today = lk ? (lk.n ? 'hoje, nos ' : 'nenhum hoje, nos ') + lk.nCh + ' canais da leitura' : null
+      link = lk && lk.n ? { href: lk.href, text: F.verVideos(lk.n) + ' com a fórmula', n: lk.n, after: '(' + today + ')' } : { href: null, text: today ?? 'nenhum vídeo com a fórmula hoje', n: 0 }
+    } else {
+      const q = { niche, fmt, ages: AGES_6M, min: 0, formula: p.formula }, n = obs.outliers(q).count
+      link = n ? { href: obs.link.outliers(q), text: F.verVideos(n) + ' com a fórmula', n } : { href: null, text: 'nenhum vídeo com a fórmula hoje', n: 0 }
+    }
     return {
       id: p.formula, label: obs.formula(p.formula)?.label ?? p.label, verdict, verdictText: p.verdict.text, chip,
-      sentence: ['Hoje: mediana ', { bmono: F.mult(p.medUse) }, ' com a fórmula, contra ', { bmono: F.mult(p.medNot) }, ' sem ', { mono: '(n = ' + p.nUse + ' vs ' + p.nNot + ')' }, (attr ? '; ' + attr + '.' : '.')],
+      sentence: [(P ? 'Na leitura' : 'Hoje') + ': mediana ', { bmono: F.mult(p.medUse) }, ' com a fórmula, contra ', { bmono: F.mult(p.medNot) }, ' sem ', { mono: '(n = ' + p.nUse + ' vs ' + p.nNot + ')' }, (attr ? '; ' + attr + '.' : '.')],
       example: example(p.formula),
-      link: n ? { href: obs.link.outliers(q), text: F.verVideos(n) + ' com a fórmula', n } : { href: null, text: 'nenhum vídeo com a fórmula hoje', n: 0 },
+      link,
       bars: [
         { kind: 'a', label: 'com', width: pctW((p.medUse ?? 0) / max * 100), value: F.mult(p.medUse) },
         { kind: 'b', label: 'sem', width: pctW((p.medNot ?? 0) / max * 100), value: F.mult(p.medNot) },
       ],
     }
   })
-  const empty: EmptyBlock | null = N.nVideos ? null : {
+  const empty: EmptyBlock | null = P || N.nVideos ? null : {
     title: 'Sem títulos para analisar',
     text: 'Nenhum ' + FMT_ONE[fmt] + ' dos concorrentes de ' + obs.NICHES[niche].label + ' nos últimos 6 meses com views comparáveis. As fórmulas aparecem a partir do primeiro vídeo; uma fórmula só “passa a regra” com ' + R.pattern.minN + ' vídeos ou mais.' + outOf(obs, niche, N.excluded),
   }
+  const tail = P ? 'Os números da linha são da leitura (base de ' + obs.date.dm(P.sent.asOf) + '); “hoje” conta no mesmo escopo da leitura (mesmos canais e janela).'
+    : (reading ? 'A leitura não trouxe os números das fórmulas: a tabela é a análise de hoje' : 'Ainda não há leitura: a tabela é a análise de hoje') + ' (base de ' + obs.date.dm(N.asOf) + '), sem selo da forja.'
   return {
-    meta, rows, empty,
+    meta, metaRight: P ? 'números da leitura de ' + obs.date.dm(P.generatedAt) + ' ' + obs.date.hm(P.generatedAt) : null, rows, empty,
     zero: !empty && zero.length ? { ids: zero.map(p => p.formula), text: 'Sem títulos com: ' + zero.map(p => F.lcfirst(p.label)).join(', ') + '.' } : null,
-    foot: [{ b: 'Multiplicador' }, ' = views do vídeo ÷ mediana dos ', { b: 'outros' }, ' vídeos do canal (sem contar este). Publicados depois de ' + obs.SERIES_START_LABEL + ' comparam no mesmo dia de vida; quando o canal tem menos de ' + R.weakBase + ' vídeos com série desde o dia 0, cai para a aproximação por faixa de idade, que também vale para os anteriores a ' + obs.SERIES_START_LABEL + '. Base com menos de ' + R.weakBase + ' vídeos fica fora. “Passa a regra” exige ' + R.pattern.minN + ' vídeos com a fórmula e diferença de ' + F.dec1(R.pattern.minDiff) + '× ou mais. ' + (hasReading ? 'A tabela é a análise de hoje' : 'Ainda não há leitura: a tabela é a análise de hoje') + ' (base de ' + obs.date.dm(N.asOf) + '), sem selo da forja. Exemplos: títulos reais do nicho. Associação, não causa.'],
+    foot: [{ b: 'Multiplicador' }, ' = views do vídeo ÷ mediana dos ', { b: 'outros' }, ' vídeos do canal (sem contar este). Publicados depois de ' + obs.SERIES_START_LABEL + ' comparam no mesmo dia de vida; quando o canal tem menos de ' + R.weakBase + ' vídeos com série desde o dia 0, cai para a aproximação por faixa de idade, que também vale para os anteriores a ' + obs.SERIES_START_LABEL + '. Base com menos de ' + R.weakBase + ' vídeos fica fora. “Passa a regra” exige ' + R.pattern.minN + ' vídeos com a fórmula e diferença de ' + F.dec1(R.pattern.minDiff) + '× ou mais. ' + tail + ' Exemplos: títulos reais do nicho. Associação, não causa.'],
   }
 }
 

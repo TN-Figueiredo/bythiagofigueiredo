@@ -276,3 +276,27 @@ describe('historico view model', () => {
     }
   })
 })
+
+// Task 35b (fidelity sweep): production stores added_at for EVERY channel; the oracle keeps sync.added only for a
+// channel added after the observatory began, and a backfilling channel has no good sync (sync.last null) in production
+describe('historico view model — production-shaped sync data', () => {
+  const prodShaped = () => {
+    const ds = datasetFromOracle(loadOracle())
+    ds.channels.forEach((c, i) => {
+      if (c.sync.added == null) c.sync.added = ds.obsStart + i * 60e3 // founding channels: added on the observatory's first day
+      if (c.sync.state === 'backfill') c.sync.last = null   // never synced OK yet (loader: last = last_ok_synced_at)
+    })
+    return createObservatory(ds)
+  }
+  it('a founding channel (added on the observatory\'s first day) is not a recent add: "Visto desde 31/05", never "na 1ª conferência"', () => {
+    const o = prodShaped()
+    expect(o.OBS_START).toBe(obs.OBS_START)
+    const t = buildHistoricoView(o, PICK.old, {}).lanes.find(l => l.type === 'title')!.versions[0]!
+    expect(t.from).toBe(buildHistoricoView(obs, PICK.old, {}).lanes.find(l => l.type === 'title')!.versions[0]!.from)
+    expect(t.from).toMatch(/^visto desde 31\/05$/)
+  })
+  it('a channel still fetching its videos is unchecked since it was added', () => {
+    const v = buildHistoricoView(prodShaped(), PICK.bf, {})
+    expect(v.versions!.titles.same).toMatch(/^Sem troca de título vista desde 24\/10; não conferido desde 24\/10 14:20, canal adicionado há \d+ min, buscando vídeos \(18 de 50\)\.$/)
+  })
+})

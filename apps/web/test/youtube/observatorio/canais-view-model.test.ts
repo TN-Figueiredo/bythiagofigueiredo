@@ -21,9 +21,12 @@ describe('Canais view model', () => {
   it('?filter=problemas keeps only non-ok channels', () => {
     expect(buildCanaisView(obs, { niche: 'todos', limit: 75, filter: 'problemas' }).rows.every(r => r.sync.state !== 'ok')).toBe(true)
   })
+  // Task 35b: "stalled" = the SYNC is stalled (canais.html:564/783 test erro/atrasado); bald and bankrupt stopped
+  // uploading but is synced, so its numbers are today's
   it('stalled channel numbers say "até o registro diário de DD/MM HH:MM"', () => {
-    const v = buildCanaisView(obs, { niche: 'todos', limit: 75, channel: 'bald-and-bankrupt' })
+    const v = buildCanaisView(obs, { niche: 'todos', limit: 75, channel: 'paddy-doyle' })
     expect(JSON.stringify(v.drawer)).toMatch(/até o registro diário de \d\d\/\d\d \d\d:\d\d/)
+    expect(JSON.stringify(buildCanaisView(obs, { niche: 'todos', limit: 75, channel: 'bald-and-bankrupt' }).drawer)).not.toMatch(/até o registro diário/)
   })
   // ---- beyond the brief's oracle checks
   it('full: "14 de 14 canais", the sentence from canais.html, free 0', () => {
@@ -89,3 +92,19 @@ describe('Canais view model', () => {
   })
 })
 
+
+// Task 35b (fidelity sweep, canais.html:563-564/783)
+describe('Canais view model — fidelity with canais.html', () => {
+  const tailOf = (r: { cells: { vpd: unknown } }) => { const v = r.cells.vpd as { kind: string; tail?: string | null }; return v.kind === 'ok' ? v.tail ?? null : null }
+  it('"até o registro diário" only for a channel whose sync is stalled (atrasado/erro), never for one that stopped uploading', () => {
+    const rows = buildCanaisView(obs, { niche: 'todos', limit: 75 }).rows
+    for (const r of rows) if (/até o registro diário/.test(tailOf(r) ?? '')) expect(['atrasado', 'erro']).toContain(r.sync.state)
+    expect(tailOf(rows.find(r => r.name === 'bald and bankrupt')!)).toBeNull()
+  })
+  it('the own channel with tracked videos but no daily views says so (never "Nenhum vídeo longo acompanhado")', () => {
+    const ds = datasetFromOracle(loadOracle())
+    for (const v of ds.videos) if (ds.channels.find(c => c.id === v.ch)?.own) v.series = []
+    const own = buildCanaisView(createObservatory(ds), { niche: 'todos', limit: 75 }).own.row!
+    expect(own.cells.vpd).toMatchObject({ kind: 'na', text: 'Sem views diárias do seu canal.' })
+  })
+})

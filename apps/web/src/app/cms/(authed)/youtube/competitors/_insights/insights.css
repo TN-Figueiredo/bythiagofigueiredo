@@ -253,3 +253,12 @@
 /* production additions */
 [data-obs-screen="insights"]{font-size:14px}
 [data-obs-screen="insights"] .empty-note{margin:0 0 8px;font-size:12.5px;color:var(--muted)}
+/* Task 35b: youtube-motion.css styles .cad-* for the old YouTube dashboard under [data-cms-section="youtube"] (display:flex
+   on .cad-sub split "1,6/sem", cursor/hover on .cad-row, nowrap 12.5px names). The observatory's cadence is insights.html's
+   own: undo exactly what leaks, with one more ancestor so it wins whatever the stylesheet order. */
+[data-obs] [data-obs-screen="insights"] .cad-sub{display:block;gap:normal;align-items:normal;font-size:11.5px;color:var(--muted)}
+[data-obs] [data-obs-screen="insights"] .cad-row{display:grid;cursor:auto;transition:none}
+[data-obs] [data-obs-screen="insights"] .cad-row:hover{background:transparent}
+[data-obs] [data-obs-screen="insights"] .cad-axis{display:grid}
+[data-obs] [data-obs-screen="insights"] .cad-id{width:auto;flex-shrink:1}
+[data-obs] [data-obs-screen="insights"] .cad-name{font-size:inherit;font-weight:500;color:inherit;white-space:normal;text-overflow:clip;display:-webkit-box}

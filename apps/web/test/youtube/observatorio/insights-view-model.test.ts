@@ -58,12 +58,31 @@ describe('insights view model', () => {
       const f = view('viagem').formulas!
       expect(f.rows[0]!.id).toBe('preco')
       expect(f.rows[0]!.chip.text).toBe('● passa a regra')
-      expect(textOf(f.rows[0]!.sentence)).toBe('Hoje: mediana 1,2× com a fórmula, contra 0,8× sem (n = 34 vs 115); 1 outlier com essa fórmula: Luke Damant.')
+      // Task 35b: with the 20/10 reading, the rows are the reading's frozen numbers (insights.html renderFormulas P)
+      expect(textOf(f.rows[0]!.sentence)).toBe('Na leitura: mediana 1,2× com a fórmula, contra 0,8× sem (n = 40 vs 132); 1 outlier com essa fórmula: Luke Damant.')
       expect(f.rows[0]!.link.href).toContain('/cms/youtube/competitors/outliers?')
       expect(f.rows[0]!.link.href).toContain('formula=preco')
       expect(f.rows[0]!.link.href).toContain('min=0')
-      expect(f.meta).toBe('158 longos até 24/10, 6 meses')
+      expect(f.rows[0]!.link.after).toBe('(hoje, nos 7 canais da leitura)')
+      expect(f.meta).toBe('184 longos até 19/10 12:00 (7 canais, 6 meses)')
+      expect(f.metaRight).toBe('números da leitura de 20/10 06:10')
       expect(f.empty).toBeNull()
+    })
+    it('without a reading: today\'s analysis ("Hoje"), examples in the niche\'s video order, no right meta', () => {
+      const o = createObservatory({ ...clone(), readings: [] })
+      const f = view('viagem', 'long', o).formulas!
+      expect(textOf(f.rows[0]!.sentence)).toBe('Hoje: mediana 1,2× com a fórmula, contra 0,8× sem (n = 34 vs 115); 1 outlier com essa fórmula: Luke Damant.')
+      expect(f.rows[0]!.example).toBe('Living on $9 a Day in Lagos')
+      expect(f.meta).toBe('158 longos até 24/10, 6 meses')
+      expect(f.metaRight).toBeNull()
+      expect(textOf(f.foot)).toContain('Ainda não há leitura: a tabela é a análise de hoje')
+    })
+    it('a reading whose analysis lacks the numbers falls back to today and says why', () => {
+      const ds = clone()
+      ds.readings = ds.readings.map(r => r.type === 'padroes-titulo' ? { ...r, analysis: { patterns: [{ formula: 'preco', verdict: { id: 'padrao', text: 'x' } }] } } : r)
+      const f = view('viagem', 'long', createObservatory(ds)).formulas!
+      expect(textOf(f.rows[0]!.sentence)).toMatch(/^Hoje: /)
+      expect(textOf(f.foot)).toContain('A leitura não trouxe os números das fórmulas: a tabela é a análise de hoje')
     })
   })
 
@@ -243,8 +262,8 @@ describe('insights view model', () => {
   it('an empty dataset (no videos): every section has its empty text and no NaN', () => {
     const ds = clone(); ds.videos = []
     const v: InsightsView = view('viagem', 'long', createObservatory(ds))
-    expect(v.formulas!.empty).not.toBeNull()
-    expect(v.formulas!.rows).toEqual([])
+    // the frozen reading still stands (its own numbers); today's analysis has nothing
+    expect(v.formulas!.metaRight).toBe('números da leitura de 20/10 06:10')
     expect(v.cadence!.empty).toBe('Nenhum longo dos concorrentes de Viagem nos últimos 90 dias. Fora da análise: Vou sem volta: buscando vídeos (18 de 50).')
     expect(v.heatmap!.empty).toBe('Nenhum longo dos concorrentes de Viagem publicado nos últimos 90 dias.')
     expect(v.themes!.empty).not.toBeNull()
@@ -252,5 +271,21 @@ describe('insights view model', () => {
     expect(v.gaps!.empty).not.toBeNull()
     const json = JSON.stringify(v)
     expect(json).not.toMatch(/NaN|Infinity|undefined|null%/)
+  })
+})
+
+// Task 35b (fidelity sweep): insights.html:775-779 — with Todos and no request, the paragraph says what asking does,
+// and with no reading at all the "Ainda não há leitura" note comes as well (both, never one instead of the other)
+describe('Insights view model — Todos without a request', () => {
+  const MIX = 'Misturar viagem e IA somaria públicos, horários e fórmulas que não têm nada a ver. Escolha um nicho para ver a leitura da forja, as fórmulas e os temas.'
+  it('with readings: the ask sentence is part of the paragraph; no note', () => {
+    const a = view('todos').all!
+    expect(a.text).toBe(MIX + ' Pedir uma leitura daqui envia um pedido dos longos para cada nicho.')
+    expect(a.forja.note).toBeNull()
+  })
+  it('without readings: the same paragraph AND the "Ainda não há leitura" note', () => {
+    const a = view('todos', undefined, createObservatory({ ...datasetFromOracle(loadOracle()), readings: [] })).all!
+    expect(a.text).toBe(MIX + ' Pedir uma leitura daqui envia um pedido dos longos para cada nicho.')
+    expect(a.forja.note).toBe('Ainda não há leitura dos longos em nenhum dos dois nichos.')
   })
 })

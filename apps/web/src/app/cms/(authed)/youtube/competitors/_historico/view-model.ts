@@ -267,7 +267,10 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const obsSince: number | null = sy.added ?? ch.snapshots[0]?.t ?? null
   const stalled = (sy.state === 'atrasado' || sy.state === 'erro') && sy.last != null
   const endNow = stalled ? Math.min(now, sy.last!) : now
-  const recentAdd = sy.added != null && sy.added > pub
+  // dados.js keeps sync.added only for a channel that joined AFTER the observatory began (the founding ones have none);
+  // production stores added_at for every channel, so one added on the observatory's first day is a founding channel,
+  // watched "desde DD/MM", not a recent add first checked at that instant
+  const recentAdd = sy.added != null && sy.added > pub && sy.added - obs.OBS_START >= DAY
   const few = pts.length < 2
   const stale = pts.length > 0 && pts[pts.length - 1]!.idx < obs.LAST_IDX
   const nextSnapMs = D.snapTime(obs.LAST_IDX + 1), nextSnap = D.dm(nextSnapMs) + ' ' + D.hh(nextSnapMs)
@@ -477,7 +480,9 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     const fem = field === 'descrição'
     if (obsSince != null && pub >= obsSince && syncOk) return 'Mesm' + (fem ? 'a' : 'o') + ' ' + field + ' desde a publicação.'
     const fromMs = obsSince != null ? Math.max(obsSince, pub) : pub
-    return 'Sem troca de ' + field + ' vista desde ' + D.dmOrDmy(fromMs) + (syncOk || sy.last == null ? '' : '; não conferid' + (fem ? 'a' : 'o') + ' desde ' + dmhmY(sy.last) + syncTail()) + '.'
+    // a channel still fetching its videos has no good sync yet: it is unchecked since it was added
+    const lastCheck = sy.last ?? (sy.state === 'backfill' ? sy.added : null)
+    return 'Sem troca de ' + field + ' vista desde ' + D.dmOrDmy(fromMs) + (syncOk || lastCheck == null ? '' : '; não conferid' + (fem ? 'a' : 'o') + ' desde ' + dmhmY(lastCheck) + syncTail()) + '.'
   }
   const watchText = () => {
     const sinceTxt = obsSince != null ? 'Observamos ' + ch.name + ' desde ' + D.dmOrDmy(obsSince) : 'Observamos ' + ch.name

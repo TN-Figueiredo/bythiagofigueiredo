@@ -1,9 +1,10 @@
 // @vitest-environment node
 // apps/web/test/youtube/observatorio/mudancas-view-model.test.ts
 import { describe, it, expect } from 'vitest'
-import { loadOracle, datasetFromOracle } from './oracle'
+import { loadOracle, datasetFromOracle, createTestObservatory } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildMudancasView } from '@/app/cms/(authed)/youtube/competitors/_mudancas/view-model'
+import { groupsOf } from '@/app/cms/(authed)/youtube/competitors/_chrome/forja-view-model'
 const obs = createObservatory(datasetFromOracle(loadOracle()))
 const v = buildMudancasView(obs, {}, new Set())
 describe('Mudanças view model', () => {
@@ -143,5 +144,35 @@ describe('Mudanças view model — fix round 1', () => {
     const mixed = buildMudancasView(o2, { changes: [oldId, keep.id].join(',') }, new Set())
     expect(mixed.heroes.map(h => h.id)).toEqual([keep.id])
     expect(JSON.stringify(mixed.paging.countLines[0])).toContain('1 troca citada ficou fora da janela de 90 dias.')
+  })
+})
+
+// Task 35b (fidelity sweep): texts the mockup prints that the screen had dropped (mudancas.html renderDigest, titleHTML)
+describe('Mudanças view model — fidelity with mudancas.html', () => {
+  const flat = (r: typeof v.summary.digest) => r.map(x => (typeof x === 'string' ? x : 'num' in x ? x.num : x.b)).join('')
+  it('the collapsed digest lists with commas and ends with the forja per niche (no request)', () => {
+    expect(flat(v.summary.digest)).toBe('Últimos 7 dias: 4 trocas de título, 1 de thumbnail, 1 de descrição. Efeito (30 d): thumbnail 4 trocas, de −20 a +31 pp (pouco para concluir). Forja. IA, resumo de 20/10; Viagem, resumo de 20/10.')
+  })
+  it('one niche: only that niche in the forja part', () => {
+    expect(flat(buildMudancasView(obs, { niche: 'viagem', win: '90', type: 'thumb', fmt: 'short' }, new Set()).summary.digest))
+      .toBe('Últimos 7 dias: 1 troca de título. Efeito (90 d): nada com veredito. Forja. Viagem, resumo de 20/10.')
+  })
+  it('an active request adds its state to the niche, and Todos adds the engine statusText', () => {
+    const o = createTestObservatory(datasetFromOracle(loadOracle()))
+    o.forja.session.setBase('na fila', { type: 'resumo-trocas' })
+    const d = flat(buildMudancasView(o, {}, new Set()).summary.digest)
+    const sc = o.forja.session.current('todos', { type: 'resumo-trocas' })
+    expect(d).toContain('Forja. IA, resumo de 20/10, na fila · pedido 14:58')
+    expect(d.endsWith('. ' + sc.statusText)).toBe(true)
+  })
+  it('a title change cited by the latest resumo-trocas reading carries its rewrite class; others do not', () => {
+    const t = v.heroes.filter(h => h.type === 'title')
+    const tagged = t.filter(h => h.title!.rewrite)
+    // the two on the first page of the mockup (8 cards); the rest of the 18 follow the same rule
+    expect(tagged.slice(0, 2).map(h => h.title!.rewrite!.text)).toEqual(['Reescrita (forja): tirou a 2ª notícia', 'Reescrita (forja): reação no lugar do nome do produto'])
+    const cited = new Set((['ia', 'viagem'] as const).flatMap(n => groupsOf(obs.forja.latest('resumo-trocas', n)!).flatMap(g => g.changeIds)))
+    for (const h of t) expect(!!h.title!.rewrite).toBe(cited.has(h.id) && !!obs.change(h.id)!.rewriteGroup)
+    for (const h of tagged) expect(h.title!.rewrite!.title).toBe('Como a forja classificou esta troca na leitura de 20/10')
+    expect(t.length).toBeGreaterThan(tagged.length)
   })
 })

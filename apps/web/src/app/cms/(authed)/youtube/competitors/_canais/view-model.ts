@@ -103,7 +103,6 @@ export interface CanaisView {
   emptyText: string
   legend: { mid: string; high: string; top: string }
   add: { cap: string; when: string; defaultNiche: Niche; limitMax: number; defaultLimit: number }
-  tzLabel: string
   /** Tooltip of the Sincronização column header. */
   syncTip: string
   /** canais.html .syncbar, shown while the chrome's round runs (R42). */
@@ -159,7 +158,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const thumbOf = (v: ObsVideo): Thumb => ({ src: v.ytId ? `https://i.ytimg.com/vi/${encodeURIComponent(v.ytId)}/mqdefault.jpg` : null, text: null })
   const ageOf = (v: ObsVideo) => ({ text: nb(F.age(v)), title: abs(v.pub) })
   const stale = (c: ObsChannel, S: CStats) =>
-    (c.sync.state === 'atrasado' || c.sync.state === 'erro' || (c.activity.state === 'parado' && c.sync.state !== 'backfill')) && S.growth30.to != null
+    // canais.html:564/783: only a channel whose SYNC is stalled (atrasado, erro) has views "até o registro diário";
+    // a channel that stopped uploading (parado) is still synced, so its numbers are today's
+    (c.sync.state === 'atrasado' || c.sync.state === 'erro') && S.growth30.to != null
       ? ` até o registro diário de ${D.dmhm(S.growth30.to)}` : ''
   const isBf = (c: ObsChannel) => c.sync.state === 'backfill'
   const videosOf = (id: string) => obs.videos.filter(v => v.ch === id).sort((a, b) => b.pub - a.pub)
@@ -250,7 +251,10 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     const v = vpdVal(S)
     const vpd: VpdCell = bf
       ? { kind: 'na', text: `1ª contagem ${D.dm(obs.NOW + obs.DAY)}`, title: `Primeira contagem diária de views amanhã, ${D.dm(obs.NOW + obs.DAY)}` }
-      : v == null ? { kind: 'na', text: `Nenhum ${one} acompanhado.`, title: `${S.tracked} vídeos acompanhados` }
+      : v == null && c.own && S.tracked > 0
+        // the own channel's videos are tracked but the observatory keeps no daily views for them: never "nenhum acompanhado"
+        ? { kind: 'na', text: 'Sem views diárias do seu canal.', title: 'O observatório guarda a contagem diária de views só dos concorrentes.' }
+        : v == null ? { kind: 'na', text: `Nenhum ${one} acompanhado.`, title: `${S.tracked} vídeos acompanhados` }
         : { kind: 'ok', big: rel ? F.dec1(v) : num(v), abs: rel ? num(S.vpdMedian) : null, n: S.vpdN, weak: S.vpdN < R.weakBase, tail: empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : null }
     let out: OutCell
     const o = S.bestOutlier
@@ -505,7 +509,6 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       when: `A busca dos vídeos começa ao adicionar, até o limite escolhido${nextSync != null ? `; o que faltar continua na sincronização das ${D.hm(nextSync)}` : ''}. A contagem diária de views começa no dia seguinte; inscritos precisam de 30 dias para o crescimento.`,
       defaultNiche: niche === 'todos' ? 'viagem' : niche, limitMax: R.videoLimitMax, defaultLimit: 50,
     },
-    tzLabel: obs.TZ_LABEL,
     syncbar: (() => {
       const comp = all.filter(c => !c.own), inRound = comp.filter(c => c.sync.state === 'ok').length, out = comp.filter(isBf).map(c => c.name)
       return {
