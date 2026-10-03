@@ -1,30 +1,23 @@
 // apps/web/e2e/tests/cms/observatorio/insights.spec.ts
-// Fidelity of the Insights screen against insights.html (states at insights.html:808-815: NONE, the 9 request states, EMPTY).
-// Ruling R35: enabled when Task 21b's harness lands (seed + ./fidelity with compareSelector in ScreenSpec).
-// Then replace the skipped describe below by a top-level `runFidelity(INSIGHTS)` and import it statically:
-//   import { runFidelity } from './fidelity'
-// The 9 "Pedido à forja" request states, the frozen-reading hero and the forja button come with Task 35.
-import { test } from '@playwright/test'
+// Fidelity of the Insights screen against insights.html: NONE ("sem pedido hoje") and EMPTY ("ainda não há leitura")
+// (insights.html:808 MOCK). The 9 request states are in forja.spec.ts (INSIGHTS_FORJA).
+import { runFidelity, type ScreenSpec } from './fidelity'
 
-export const INSIGHTS = {
+export const INSIGHTS: ScreenSpec = {
   name: 'insights', mockupFile: 'docs/superpowers/mockups/2026-10-02-observatorio/insights.html', route: '/cms/youtube/competitors/insights',
   mockThumbSelector: '.thumb', implThumbSelector: '[data-thumb]',
   states: [
-    // NONE: the mockup shows the latest reading in the hero and in Fórmulas ("Na leitura"); P3 has no hero yet, so the
-    // hero block and the reading-only Fórmulas texts are removed from the comparison until Task 35 adds them.
-    { label: 'NONE (sem pedido hoje)', mockupClicks: ['sem pedido hoje'], seed: {}, query: '?niche=viagem',
-      textAllow: ['#forjaCard', '#formCard .chead .meta', '#formCard .fsent', '#formCard .frow > div:nth-child(3)', '#formCard .foot'] },
-    // EMPTY: no videos in 90 d.
-    { label: 'EMPTY (ainda não há leitura)', mockupClicks: ['ainda não há leitura'], seed: { scenario: 'empty' }, query: '?niche=viagem',
-      textAllow: ['#forjaCard'] },
+    { label: 'NONE (sem pedido hoje)', mockupClicks: ['sem pedido hoje'], seed: {} },
+    { label: 'EMPTY (ainda não há leitura)', mockupClicks: ['ainda não há leitura'], seed: { noReadings: true } },
+    // the same two states inside a niche (with Todos the screen only asks to pick one): ?niche= on both sides
+    ...(['viagem', 'ia'] as const).flatMap(n => [
+      { label: 'NONE · ' + n, mockupClicks: ['sem pedido hoje'], seed: {}, query: '?niche=' + n, mockupQuery: '?niche=' + n },
+      { label: 'EMPTY · ' + n, mockupClicks: ['ainda não há leitura'], seed: { noReadings: true }, query: '?niche=' + n, mockupQuery: '?niche=' + n },
+    ]),
   ],
   compareSelector: { mockup: '#screen', impl: '[data-obs-screen="insights"]' },
+  // spec §6 (Fora de escopo): "Criar ideia no pipeline" fica para depois (o endpoint não existe) — the Lacunas button
+  mockExclude: ['[data-idea]'],
 }
 
-// enabled when Task 21b's harness lands
-test.describe.skip('observatório: insights (fidelity + layout audits)', () => {
-  test('runFidelity(INSIGHTS)', async () => {
-    const { runFidelity } = await import('./fidelity')
-    runFidelity(INSIGHTS)
-  })
-})
+runFidelity(INSIGHTS)

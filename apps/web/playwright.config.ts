@@ -57,8 +57,14 @@ export default defineConfig({
       testMatch: '**/tests/cms/observatorio/**/*.spec.ts',
       use: { ...devices['Desktop Chrome'] },
       dependencies: ['setup'],
+      teardown: 'observatorio-teardown',
       fullyParallel: false,
       workers: 1,
+    },
+    {
+      // clears the oracle seed of the local site once the observatorio project ends (ensureSeeded keeps it between states)
+      name: 'observatorio-teardown',
+      testMatch: '**/tests/cms/observatorio/teardown.obs.ts',
     },
   ],
   globalSetup: './e2e/fixtures/global-setup.ts',

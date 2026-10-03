@@ -5,7 +5,8 @@ import '../../../fixtures/server-only-shim' // first: load.ts imports 'server-on
 import { test, expect } from '@playwright/test'
 import { loadDataset } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
-import { seedObservatory, clearObservatory, localServiceClient, ORACLE_NOW } from '../../../fixtures/observatorio-seed'
+import { seedObservatory, localServiceClient, ORACLE_NOW } from '../../../fixtures/observatorio-seed'
+import { clearSeeded } from './fidelity'
 import { getSeedSiteId } from '../../../fixtures/seed-helpers'
 
 test('oracle seed loads into the engine with the mockup counts', async () => {
@@ -18,6 +19,7 @@ test('oracle seed loads into the engine with the mockup counts', async () => {
     const obs = createObservatory(await loadDataset({ siteId, now: ORACLE_NOW, supabase }))
     expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
   } finally {
-    await clearObservatory(siteId, supabase)
+    // also forgets the fidelity specs' seed marker: the site no longer holds what it says
+    await clearSeeded()
   }
 })
