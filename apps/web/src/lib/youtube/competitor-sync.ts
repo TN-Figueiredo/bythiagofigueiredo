@@ -1,4 +1,5 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { link } from '@/lib/youtube/observatorio/links'
 import { createNotification } from '@/lib/notifications/create'
 import crypto from 'crypto'
 import { probeThumb, isNewThumb, archiveThumb, type ThumbProbe } from '@/lib/youtube/thumb-fingerprint'
@@ -563,7 +564,7 @@ export async function syncCompetitorChannel(
             priority: 2,
             title: `${changesDetected} mudança(s) em ${snippet?.title ?? channelRow.channel_id}`,
             message: `Detectamos mudanças em vídeos de ${snippet?.title ?? 'competidor'}. Confira no Observatório.`,
-            action_href: '/cms/youtube/competitors?tab=mudancas',
+            action_href: link.mudancas(),
             dedup_key: `competitor-change-${channelRow.id}-${nowIso.slice(0, 10)}`,
           })
         }
