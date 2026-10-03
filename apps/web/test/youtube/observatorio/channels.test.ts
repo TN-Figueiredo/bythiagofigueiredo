@@ -1,7 +1,7 @@
 // @vitest-environment node
 // apps/web/test/youtube/observatorio/channels.test.ts
 import { describe, it, expect } from 'vitest'
-import { deriveSyncState, humanizeSyncError, syncLabel, runSyncText, channelSlots } from '@/lib/youtube/observatorio/channels'
+import { deriveSyncState, backfillProgress, humanizeSyncError, syncLabel, runSyncText, channelSlots } from '@/lib/youtube/observatorio/channels'
 import { RULES } from '@/lib/youtube/observatorio/rules'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
@@ -13,11 +13,20 @@ describe('deriveSyncState', () => {
   it('erro wins', () => expect(deriveSyncState({ ...base, sync_status: 'error', sync_error: 'YouTube API 404 for channel X' }, now)).toBe('erro'))
   it('atrasado after 12 h without an ok sync', () => expect(deriveSyncState({ ...base, last_ok_synced_at: '2026-10-24T05:00:00Z' }, now)).toBe('atrasado'))
   it('exactly 12 h is still ok', () => expect(deriveSyncState({ ...base, last_ok_synced_at: new Date(now - RULES.syncLateHours * 36e5).toISOString() }, now)).toBe('ok'))
-  it('backfill while fewer videos than the limit were fetched', () => expect(deriveSyncState({ ...base, tracked: 18 }, now)).toBe('backfill'))
+  // R21: backfill only until the first OK sync. Shorts/private videos make tracked < youtube_video_count forever.
+  it('after an ok sync, fewer videos than the limit is not backfill', () => expect(deriveSyncState({ ...base, tracked: 18 }, now)).toBe('ok'))
   it('a channel with fewer videos than the limit is not backfilling', () => expect(deriveSyncState({ ...base, youtube_video_count: 18, tracked: 18 }, now)).toBe('ok'))
-  it('a completed full sync ends backfill', () => expect(deriveSyncState({ ...base, tracked: 18, full_sync_completed_at: '2026-10-20T00:00:00Z' }, now)).toBe('ok'))
+  it('a missing full_sync_completed_at never makes a synced channel backfill', () => expect(deriveSyncState({ ...base, tracked: 18, full_sync_completed_at: null }, now)).toBe('ok'))
   it('never synced is backfill, not ok', () => expect(deriveSyncState({ ...base, last_ok_synced_at: null, tracked: 0 }, now)).toBe('backfill'))
-  it('unknown youtube_video_count falls back to the limit', () => expect(deriveSyncState({ ...base, youtube_video_count: null, tracked: 10 }, now)).toBe('backfill'))
+  it('never synced is backfill even with every video fetched', () => expect(deriveSyncState({ ...base, last_ok_synced_at: null, tracked: 50, full_sync_completed_at: '2026-10-20T00:00:00Z' }, now)).toBe('backfill'))
+  it('youtube_video_count null, tracked < limit, last ok set → ok', () => expect(deriveSyncState({ ...base, youtube_video_count: null, tracked: 10 }, now)).toBe('ok'))
+})
+describe('backfillProgress (R21)', () => {
+  it('done/total = tracked / min(video_limit, youtube_video_count ?? video_limit)', () => {
+    expect(backfillProgress({ ...base, tracked: 18, youtube_video_count: 30 })).toEqual({ done: 18, total: 30 })
+    expect(backfillProgress({ ...base, tracked: 18, youtube_video_count: 300 })).toEqual({ done: 18, total: 50 })
+    expect(backfillProgress({ ...base, tracked: 18, youtube_video_count: null })).toEqual({ done: 18, total: 50 })
+  })
 })
 describe('humanizeSyncError', () => {
   it('404', () => expect(humanizeSyncError('YouTube API 404 for channel UCx')).toBe('não encontrado no YouTube (404)'))

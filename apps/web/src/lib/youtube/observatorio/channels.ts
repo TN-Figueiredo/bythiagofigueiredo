@@ -25,16 +25,22 @@ export function humanizeSyncError(msg: string): string {
 
 export interface SyncRow {
   sync_status: string; sync_error: string | null; last_ok_synced_at: string | null; sync_error_since: string | null
-  youtube_video_count: number | null; video_limit: number; tracked: number; full_sync_completed_at: string | null
+  youtube_video_count: number | null; video_limit: number; tracked: number; full_sync_completed_at?: string | null
 }
-/** Sync state from DB columns (used by load.ts). erro > backfill > atrasado > ok. */
+/**
+ * Sync state from DB columns (used by load.ts). erro > backfill > atrasado > ok.
+ * R21: 'backfill' iff the channel never completed an OK sync. After one OK sync a channel is never backfill
+ * because tracked < youtube_video_count (Shorts/private videos are normal) or full_sync_completed_at is null.
+ */
 export function deriveSyncState(row: SyncRow, nowMs: number): SyncState {
   if (row.sync_status === 'error') return 'erro'
   if (row.last_ok_synced_at == null) return 'backfill'
-  const target = Math.min(row.video_limit, row.youtube_video_count ?? row.video_limit)
-  if (row.tracked < target && !row.full_sync_completed_at) return 'backfill'
   if (nowMs - Date.parse(row.last_ok_synced_at) > RULES.syncLateHours * H) return 'atrasado'
   return 'ok'
+}
+/** Backfill progress (R21): tracked / min(video_limit, youtube_video_count ?? video_limit). */
+export function backfillProgress(row: Pick<SyncRow, 'tracked' | 'video_limit' | 'youtube_video_count'>): { done: number; total: number } {
+  return { done: row.tracked, total: Math.min(row.video_limit, row.youtube_video_count ?? row.video_limit) }
 }
 
 const vids = (ctx: EngineCtx, ch: Ch): V[] => ch.videos.map(v => ctx.V.get(v.id) ?? (v as V))
