@@ -1,7 +1,7 @@
 // @vitest-environment node
 // apps/web/test/youtube/observatorio/load.test.ts — pure rowsToDataset (Review Focus 2 and 4).
 import { describe, it, expect } from 'vitest'
-import { rowsToDataset, nextSyncSlot, trackedVideoIds, dailyReadFrom, dailyCappedFrom, mapLimit, type ObservatoryRows, type ChannelRow, type VideoRow, type VersionRow, type LegacyChangeRow, type DailyRow, type ReadingRow, type OwnChannelRow, type OwnVideoRow } from '@/lib/youtube/observatorio/load'
+import { rowsToDataset, nextSyncSlot, trackedVideoIds, dailyReadFrom, dailyCappedFrom, mapLimit, type ObservatoryRows, type ChannelRow, type VideoRow, type VersionRow, type LegacyChangeRow, type DailyRow, type ReadingRow, type OwnChannelRow, type OwnVideoRow, type TaskRow } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { formulasOf } from '@/lib/youtube/observatorio/catalog'
 
@@ -372,4 +372,33 @@ describe('mapLimit', () => {
     await expect(mapLimit([1, 2, 3], 2, async n => { if (n === 2) throw new Error('boom'); return n })).rejects.toThrow('boom')
     expect(await mapLimit([], 4, async n => n)).toEqual([])
   })
+})
+
+describe('rowsToDataset — request state derived from the row and the heartbeat (same rule as requestStateOf)', () => {
+  const MIN = 6e4
+  const task = (o: Partial<TaskRow> = {}): TaskRow => ({
+    id: 't-' + Math.random().toString(36).slice(2, 8), task_type: 'temas', target_niche: 'ia', target_video_id: null, target_fmt: 'long', status: 'pending',
+    requested_at: iso(NOW - 4 * MIN), started_at: null, completed_at: null, failed_at: null, refused_at: null, refused_reason: null, released_at: null, retry_count: 0, ...o,
+  })
+  const alive = { last_poll_at: iso(NOW - 3 * MIN), capabilities: ['temas'] }
+  const stateOf = (t: TaskRow, heartbeat: ObservatoryRows['heartbeat'] = alive) => rowsToDataset(rows({ tasks: [t], heartbeat }), NOW).requests[0]!.state
+  it('pending, recent, machine alive → na fila', () => expect(stateOf(task())).toBe('na fila'))
+  it('pending for more than the late limit, machine alive → atrasado', () => expect(stateOf(task({ requested_at: iso(NOW - 45 * MIN) }))).toBe('atrasado'))
+  it('pending with no heartbeat ever → sem máquina', () => expect(stateOf(task(), null)).toBe('sem máquina'))
+  it('pending with a heartbeat older than 3 ticks → sem máquina', () => expect(stateOf(task(), { last_poll_at: iso(NOW - 2 * H), capabilities: [] })).toBe('sem máquina'))
+  it('pending waiting more than 24 h with the machine alive → sem máquina', () => expect(stateOf(task({ requested_at: iso(NOW - 25 * H) }))).toBe('sem máquina'))
+  it('pending after a validator retry → nova tentativa', () => expect(stateOf(task({ retry_count: 1 }))).toBe('nova tentativa'))
+  it('pending released by the vigia → liberado pelo vigia, with releasedAt on the request', () => {
+    const t = task({ retry_count: 1, released_at: iso(NOW - 6 * MIN) })
+    expect(stateOf(t)).toBe('liberado pelo vigia')
+    expect(rowsToDataset(rows({ tasks: [t], heartbeat: alive }), NOW).requests[0]!.releasedAt).toBe(NOW - 6 * MIN)
+  })
+  it("'stale' is a failure (falhou), never an active 'liberado pelo vigia'", () => expect(stateOf(task({ status: 'stale', started_at: iso(NOW - 40 * MIN) }))).toBe('falhou'))
+  it('running / completed / failed / refused map as before', () => {
+    expect(stateOf(task({ status: 'running', started_at: iso(NOW - 5 * MIN) }))).toBe('trabalhando')
+    expect(stateOf(task({ status: 'completed', completed_at: iso(NOW - MIN) }))).toBe('publicado')
+    expect(stateOf(task({ status: 'failed', failed_at: iso(NOW - MIN) }))).toBe('falhou')
+    expect(stateOf(task({ status: 'refused', refused_at: iso(NOW - MIN), refused_reason: 'dado-velho' }))).toBe('recusado (dado velho)')
+  })
+  it('an unknown status is dropped, never a crash', () => expect(rowsToDataset(rows({ tasks: [task({ status: 'weird' })], heartbeat: alive }), NOW).requests).toEqual([]))
 })
