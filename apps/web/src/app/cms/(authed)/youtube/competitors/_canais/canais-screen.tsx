@@ -203,7 +203,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const groups = useMemo(() => view.groups.map(g => ({ ...g, rows: g.rows.filter(r => r.name.toLowerCase().includes(ql)) })).filter(g => g.rows.length), [view.groups, ql])
   const empty = ql
     ? <>Nenhum canal com “{q}”{view.niche !== 'todos' ? ` em ${view.nicheLabel}` : ''}{view.filter === 'problemas' ? ' entre os que têm problema' : ''}. Para acompanhar um canal novo, use Adicionar canal.</>
-    : view.filter === 'problemas' ? <>{view.emptyText} <Link className="btn small link" href={view.problems.clearHref}>Mostrar todos</Link></> : <>{view.emptyText}</>
+    : view.filter === 'problemas' ? <>{view.emptyText} <Link className="btn small link" href={view.problems.clearHref}>Mostrar todos</Link></> : view.emptyLink ? <>{view.emptyText.slice(0, view.emptyText.lastIndexOf(view.emptyLink.text))}<Link className="inl" href={view.emptyLink.href}>{view.emptyLink.text}</Link>.</> : <>{view.emptyText}</>
 
   const h: RowHandlers = {
     open: openDrawer, niche: (r, n, ctx) => { void setNiche(r, n, ctx) },

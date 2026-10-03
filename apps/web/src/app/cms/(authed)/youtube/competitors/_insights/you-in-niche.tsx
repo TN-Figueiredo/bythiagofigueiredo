@@ -1,3 +1,4 @@
+'use client'
 import { Fragment, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import type { YouCell, YouSection } from './view-model'

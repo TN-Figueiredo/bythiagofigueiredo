@@ -228,7 +228,7 @@ describe('insights view model', () => {
       for (const v of ds.videos) if (v.ch === own) v.theme = null
       const g = view('viagem', 'long', createObservatory(ds)).gaps!
       expect(g.rows).toEqual([]); expect(g.none).toBeNull(); expect(g.foot).toBeNull()
-      expect(g.empty!.title).toBe('A forja ainda não deu tema aos seus vídeos')
+      expect(g.empty!.title).toBe('A leitura de temas da forja ainda não inclui os seus vídeos: sem tema, não há como apontar lacunas.')
     })
     it('Lacunas refuse when competitor theme coverage is low', () => {
       const ds = clone(); const own = ds.channels.find(c => c.own)!.id
@@ -377,7 +377,7 @@ describe('Insights view model — Você no nicho with N own channels', () => {
     expect(y.empty!.title).toBe('Nenhum canal seu está em IA')
     expect(y.empty!.text).toBe('Você tem 2 canais: 2 de Viagem (tnFigueiredo e tnFigueiredo EN). Esta comparação usa só os seus canais do nicho. Para um canal entrar aqui, troque o nicho dele na aba Canais, na linha do canal.')
     expect(y.empty!.links.map(l => l.text)).toEqual(['Ver seus canais'])
-    expect(y.empty!.links[0]!.href).toBe(OBS['2'].link.canais({}))
+    expect(y.empty!.links[0]!.href).toBe(OBS['2'].link.canais({ niche: 'todos' }))
     expect(y.meta).toBe('nenhum canal seu de IA')
     expect(y.rows).toEqual([]); expect(y.ref).toBeNull(); expect(y.noneNote).toBeNull(); expect(y.foot).toBeNull()
   })
@@ -388,7 +388,7 @@ describe('Insights view model — Você no nicho with N own channels', () => {
     expect(y.empty!.text).toBe('Você tem 2 canais: 1 de IA (Thiago testa IA) e 1 sem nicho (Mochila Leve). Esta comparação usa só os seus canais do nicho. Canal sem nicho não entra em nenhuma: escolha o nicho dele na aba Canais, na linha do canal.')
     expect(y.empty!.links).toEqual([
       { text: 'Escolher o nicho de Mochila Leve', href: o.link.canais({ channel: 'mochila-leve' }) },
-      { text: 'Ver seus canais', href: o.link.canais({}) },
+      { text: 'Ver seus canais', href: o.link.canais({ niche: 'todos' }) },
     ])
   })
 
@@ -425,7 +425,7 @@ describe('Insights view model — Você no nicho with N own channels', () => {
     const s = ownScope(o, 'viagem')
     expect(s).toEqual({ all: [], mine: [], none: [] })
     expect(whereOwns(o, 'viagem', s)).toBe('')
-    expect(assignLinks(o, s)).toEqual([{ text: 'Ver seus canais', href: o.link.canais({}) }])
+    expect(assignLinks(o, s)).toEqual([{ text: 'Ver seus canais', href: o.link.canais({ niche: 'todos' }) }])
   })
 
   it('foot (preset 2, Viagem): the rule, the sync text once, and relative metrics only', () => {
@@ -529,7 +529,7 @@ describe('Insights view model — Lacunas with N own channels', () => {
     const g = gaps('2', 'ia')
     expect(g.empty!.title).toBe('Nenhum canal seu está em IA')
     expect(g.empty!.text).toBe('Lacunas cruzam os temas dos seus canais do nicho com os dos concorrentes. Você tem 2 canais: 2 de Viagem (tnFigueiredo e tnFigueiredo EN).')
-    expect(g.empty!.links).toEqual([{ text: 'Ver seus canais', href: OBS['2'].link.canais({}) }])
+    expect(g.empty!.links).toEqual([{ text: 'Ver seus canais', href: OBS['2'].link.canais({ niche: 'todos' }) }])
     expect(g.rows).toEqual([]); expect(g.notes).toEqual([]); expect(g.foot).toBeNull(); expect(g.none).toBeNull()
   })
 
@@ -617,11 +617,11 @@ describe('Insights view model — Lacunas with N own channels', () => {
     expect(n5).toMatch(/^.+ e .+ ficam fora da conta: a forja ainda não deu tema aos vídeos deles\.$/)
   })
 
-  it('R49: no own channel has a themed video → the refusal stands, adding up the videos of every channel', () => {
+  it('R49/R81: no own channel has a themed video → the refusal stands (R81 wording)', () => {
     const ds = structuredClone(DS['2'])
     for (const v of ds.videos) if (v.ch === 'tnfigueiredo' || v.ch === 'tnfigueiredo-en') v.theme = null
     const g = gapsOf(ds)
-    expect(g.empty).toEqual({ title: 'A forja ainda não deu tema aos seus vídeos', text: 'Lacunas cruzam os temas dos seus vídeos com os dos concorrentes. Nenhum dos seus 11 longos dos últimos 90 dias tem tema, então não dá para dizer qual tema falta.' })
+    expect(g.empty).toEqual({ title: 'A leitura de temas da forja ainda não inclui os seus vídeos: sem tema, não há como apontar lacunas.', text: '' })
     expect(g.rows).toEqual([]); expect(g.notes).toEqual([]); expect(g.foot).toBeNull()
   })
 

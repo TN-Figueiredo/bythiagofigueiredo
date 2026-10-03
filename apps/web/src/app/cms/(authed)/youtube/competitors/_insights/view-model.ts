@@ -522,7 +522,8 @@ export function whereOwns(obs: Observatory, niche: Niche, s: OwnScope): string {
 const pickNiche = (obs: Observatory, c: ObsChannel): LinkText => ({ href: obs.link.canais({ channel: c.id }), text: 'Escolher o nicho de ' + c.name })
 /** "Escolher o nicho de X" para cada canal sem nicho, depois "Ver seus canais". */
 export function assignLinks(obs: Observatory, s: OwnScope): LinkText[] {
-  return [...s.none.map(c => pickNiche(obs, c)), { href: obs.link.canais({}), text: 'Ver seus canais' }]
+  return [...s.none.map(c => pickNiche(obs, c)), // Todos: ?niche= is persisted by the chrome, and the niche that has none of the own channels is what brought the reader here
+  { href: obs.link.canais({ niche: 'todos' }), text: 'Ver seus canais' }]
 }
 
 /** Ruling R78: with no competitor in the niche there is no reference; null when there is at least one. */
@@ -576,6 +577,8 @@ function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
     if (row.empty) return [{ ...head, cells: null, emptyText: 'Sem ' + FMT_LABEL[fmt] + ' nas últimas ' + W + ' semanas: não há o que comparar. A linha se preenche a partir do primeiro vídeo.' }]
     const cells: YouCell[] = COLS.map(col => {
       const cell = row[col.key]
+      // R60/FU-5: the observatory keeps no daily views of an own channel — that, not a thin base, is why Views/dia has no value
+      if (cell.value == null && col.key === 'perMilSubs') return { kind: 'nodata', text: cell.verdictText, base: 'sem views diárias do seu canal', baseTitle: 'O observatório guarda a contagem diária de views só dos concorrentes.' }
       if (cell.value == null) return { kind: 'nodata', text: cell.verdictText, base: 'base fraca (n = ' + cell.n + ')', baseTitle: 'Menos de ' + R.weakBase + ' vídeos deste canal com base de comparação' }
       // ruling R74: a weak base keeps the arrow and loses the colour
       return { kind: 'value', value: col.f(cell.value), verdict: (cell.verdict || '≈') + ' ' + cell.short, few: cell.few ? 'n = ' + cell.n + ', pouco para concluir' : null,
@@ -631,8 +634,8 @@ function gapsSection(obs: Observatory, niche: Niche, fmt: VideoFmt): GapsSection
   // ruling R49, per channel: a channel with no themed video would make every competitor theme look like a gap
   const based = withVideos.filter(x => x.cov.themed > 0), noTheme = withVideos.filter(x => !x.cov.themed).map(x => x.c)
   if (!based.length) {
-    const total = withVideos.reduce((n, x) => n + x.cov.n, 0)
-    return out({ title: 'A forja ainda não deu tema aos seus vídeos', text: 'Lacunas cruzam os temas dos seus vídeos com os dos concorrentes. Nenhum dos seus ' + F.plural(total, FMT_ONE[fmt], FL) + ' dos últimos 90 dias tem tema, então não dá para dizer qual tema falta.' })
+    // R81: the temas reading holds competitor videos only, so no own video gets a theme from it; no promise of when
+    return out({ title: 'A leitura de temas da forja ainda não inclui os seus vídeos: sem tema, não há como apontar lacunas.', text: '' })
   }
   const trend = obs.themeTrend(niche, fmt), ccv = trend.coverage.now
   if (!ccv.total || ccv.themed / ccv.total < obs.RULES.theme.coverage.minShare) {

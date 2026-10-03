@@ -15,7 +15,7 @@ export function Gaps({ s }: { s: GapsSection }) {
       <div className="chead"><h2 id="gapH">Lacunas</h2><span className="meta">{s.meta}</span></div>
       <div className="cbody">
         {s.noRef ? <NoRef b={s.noRef} /> : s.empty ? (
-          <div className="empty"><h3>{s.empty.title}</h3><p>{s.empty.text}</p>
+          <div className="empty"><h3>{s.empty.title}</h3>{s.empty.text ? <p>{s.empty.text}</p> : null}
             {s.empty.links?.length ? <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{s.empty.links.map(l => <Link key={l.href} className="btn" href={l.href}>{l.text}</Link>)}</div> : null}
           </div>
         ) : (

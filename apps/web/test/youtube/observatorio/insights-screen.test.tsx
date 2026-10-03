@@ -236,7 +236,7 @@ describe('InsightsScreen — Você no nicho as a table (N own channels)', () => 
     expect(card.querySelector('.empty h3')!.textContent).toBe('Nenhum canal seu está em IA')
     expect(card.querySelector('.empty p')!.textContent).toContain('Você tem 2 canais: 2 de Viagem (tnFigueiredo e tnFigueiredo EN).')
     const links = [...card.querySelectorAll('.empty a.btn')]
-    expect(links.map(a => [a.textContent, a.getAttribute('href')])).toEqual([['Ver seus canais', OWNS['2'].link.canais({})]])
+    expect(links.map(a => [a.textContent, a.getAttribute('href')])).toEqual([['Ver seus canais', OWNS['2'].link.canais({ niche: 'todos' })]])
   })
 
   it('preset zero, Viagem: one link per channel without a niche, then "Ver seus canais"', () => {
@@ -348,7 +348,7 @@ describe('InsightsScreen — Lacunas for N own channels', () => {
     const card = gap(container)
     expect(card.querySelector('.empty h3')!.textContent).toBe('Nenhum canal seu está em IA')
     expect(card.querySelector('.empty p')!.textContent).toBe('Lacunas cruzam os temas dos seus canais do nicho com os dos concorrentes. Você tem 2 canais: 2 de Viagem (tnFigueiredo e tnFigueiredo EN).')
-    expect([...card.querySelectorAll('.empty a.btn')].map(a => [a.textContent, a.getAttribute('href')])).toEqual([['Ver seus canais', OWNS['2'].link.canais({})]])
+    expect([...card.querySelectorAll('.empty a.btn')].map(a => [a.textContent, a.getAttribute('href')])).toEqual([['Ver seus canais', OWNS['2'].link.canais({ niche: 'todos' })]])
     expect(card.querySelectorAll('.grow, .ynote, .foot')).toHaveLength(0)
   })
 

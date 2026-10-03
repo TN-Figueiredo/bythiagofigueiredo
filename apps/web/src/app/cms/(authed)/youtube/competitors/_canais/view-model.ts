@@ -102,6 +102,8 @@ export interface CanaisView {
   niche: NicheScope; nicheLabel: string
   problems: { n: number; filterHref: string; clearHref: string }
   emptyText: string
+  /** F4: the link inside emptyText that opens the niche editor (null: the sentence has none). */
+  emptyLink: { text: string; href: string } | null
   legend: { mid: string; high: string; top: string }
   add: { cap: string; when: string; defaultNiche: Niche; limitMax: number; defaultLimit: number }
   /** Tooltip of the Sincronização column header. */
@@ -353,9 +355,15 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   }).filter(g => g.rows.length)
 
   const np = comps.filter(c => c.sync.state !== 'ok').length
+  // F4: competitors with no niche are invisible in a niche tab; say how many and point at the niche editor (same exit as Insights R78)
+  const unniched = niche !== 'todos' ? all.filter(c => !c.own && c.niche == null).length : 0
+  const nicheLink = unniched ? { text: unniched === 1 ? 'defina o nicho dele' : 'defina o nicho deles', href: obs.link.canais({ nicheEditor: 1 }) } : null
+  const emptyFirst = `Nenhum ${ownRows.length ? 'concorrente' : 'canal'}${niche !== 'todos' ? ` em ${nicheLabel}` : ''}.`
   const emptyText = filter === 'problemas'
     ? `Nenhum canal com problema de sincronização${niche !== 'todos' ? ` em ${nicheLabel}` : ''}.`
-    : `Nenhum ${ownRows.length ? 'concorrente' : 'canal'}${niche !== 'todos' ? ` em ${nicheLabel}` : ''}. Para acompanhar um canal novo, use Adicionar canal.`
+    : nicheLink ? `${emptyFirst} Há ${F.plural(unniched, 'concorrente', 'concorrentes')} sem nicho: ${nicheLink.text}.`
+      : `${emptyFirst} Para acompanhar um canal novo, use Adicionar canal.`
+  const emptyLink = filter === 'problemas' ? null : nicheLink
   const firstOwn = allOwns[0]
   const window = (firstOwn ? stats(firstOwn.id).vpdWindow : null) ?? `desde ${obs.SERIES_START_LABEL}`
   const nextSync = obs.SYNC.next
@@ -418,7 +426,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
         { label: `Ritmo, 13${NB}sem`, labelTitle: null, value: `${F.dec1(kl.pw)} + ${F.dec1(ks.pw)}`,
           sub: c.activity.state === 'parado' ? `Parado: último vídeo ${nb(kl.lastUploadAgo ?? '')}` : 'longos + Shorts por semana', subTitle: null, subWeak: c.activity.state === 'parado' },
         { label: `Views/dia, ${fmt === 'long' ? 'longos' : 'Shorts'}`, labelTitle: null, value: rel ? vRel : vAbs,
-          sub: S.vpdMedian == null ? (c.own ? 'sem views diárias do seu canal' : `sem vídeos desde ${obs.SERIES_START_LABEL}`) : `${rel ? `por mil inscritos (${vAbs}/dia)` : `mediana (${vRel} por mil insc.)`}, ${NEQ(S.vpdN)}, ${S.vpdWindow}${st}`, subTitle: null, subWeak: false },
+          sub: S.vpdMedian == null ? (c.own ? 'sem views diárias do seu canal' : videosOf(c.id).some(x => x.fmt === fmt && x.tracked) ? 'Aguardando o 2º registro diário.' : `sem vídeos desde ${obs.SERIES_START_LABEL}`) : `${rel ? `por mil inscritos (${vAbs}/dia)` : `mediana (${vRel} por mil insc.)`}, ${NEQ(S.vpdN)}, ${S.vpdWindow}${st}`, subTitle: null, subWeak: false },
         g.pending
           ? { label: `Crescimento, 30${NB}d`, labelTitle: null, value: '—', sub: g.pending, subTitle: null, subWeak: false }
           : { label: `Crescimento, 30${NB}d`, labelTitle: null, value: g.withinRounding ? `≈${NB}0` : g.pct == null ? '—' : `${g.pct > 0 ? '+' : '−'}${F.dec1(Math.abs(g.pct * 100))}%`,
@@ -492,7 +500,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       const isOut = !!m && m.value != null && m.value >= R.outlierMin && !m.weak
       const relV = m && m.value != null && x.ageDays <= 90 ? { text: isOut ? `${F.mult(m.value)} (outlier)` : `${F.mult(m.value)} a mediana`, tier: isOut ? tier(m.value) : '' as Tier, outlier: isOut } : null
       const vp = x.vpd7 != null ? { num: num(x.vpd7), text: `views/dia, 7${NB}d` }
-        : { num: null, text: x.ageDays < 1 ? 'menos de 1 dia no ar, sem média' : c.sync.state === 'erro' ? `sem média: sincronização com erro${sinceN(c.sync.errorSince ?? c.sync.last)}` : c.sync.state === 'atrasado' ? `sem média: sincronização atrasada${sinceN(c.sync.last)}` : `${x.ageDays}${NB}d no ar, média sai com 7${NB}d` }
+        : { num: null, text: x.ageDays < 1 ? 'menos de 1 dia no ar, sem média' : c.sync.state === 'erro' ? `sem média: sincronização com erro${sinceN(c.sync.errorSince ?? c.sync.last)}` : c.sync.state === 'atrasado' ? `sem média: sincronização atrasada${sinceN(c.sync.last)}` : c.own ? 'sem views diárias do seu canal' : `${x.ageDays}${NB}d no ar, média sai com 7${NB}d` }
       return { id: x.id, thumb: thumbOf(x), title: x.title, published: a.text, publishedTitle: a.title, views: viewsTxt(c, x), rel: relV, vp, histHref: hist(x.id), ytUrl: x.url }
     })
     const fNameV = fmt === 'long' ? 'vídeos longos' : 'Shorts'
@@ -514,7 +522,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
         note: outNote, sections,
       },
       videos: {
-        title: `${fmt === 'long' ? 'Vídeos longos' : 'Shorts'} mais recentes`, intro: `Média de views/dia nos últimos 7 dias. Lista completa: ${covTxt}.`,
+        title: `${fmt === 'long' ? 'Vídeos longos' : 'Shorts'} mais recentes`, intro: `${c.own ? '' : 'Média de views/dia nos últimos 7 dias. '}Lista completa: ${covTxt}.`,
         preNote: c.own && empty && fmt === 'long' ? ownEmptyText(c) : null, upnext: c.own && empty && fmt === 'long' ? 'Planejar o próximo vídeo longo em Próximos' : null,
         rows: vids, note: rec.length ? null : bf && c.sync.backfill ? `Buscando: ${c.sync.backfill.done} de ${c.sync.backfill.total} vídeos. A lista aparece quando a busca terminar.` : `Nenhum ${fNameV} acompanhado.`,
       },
@@ -533,7 +541,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     groups, drawer, drawerDropped, filter, addOpen: p.add === '1', nicheEditorOpen: p.nicheEditor === '1',
     niche, nicheLabel,
     problems: { n: np, filterHref: obs.link.canais({ filter: 'problemas' }), clearHref: obs.link.canais() },
-    emptyText,
+    emptyText, emptyLink,
     legend: { mid: `${t.mid}–${t.high}×`, high: `${t.high}–${t.top}×`, top: `${t.top}×+` },
     add: {
       cap: `${used} de ${limit} concorrentes acompanhados (${T.count}): ${free === 0 ? 'nenhuma vaga. Remova um canal para adicionar outro' : free === 1 ? 'sobra 1 vaga' : `sobram ${free} vagas`}.`,
