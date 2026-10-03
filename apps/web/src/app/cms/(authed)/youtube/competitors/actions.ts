@@ -6,6 +6,11 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/competitor-slots'
+import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
+import { observatoryNow } from '@/lib/youtube/observatorio/now'
+import { createObservatory } from '@/lib/youtube/observatorio'
+import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
+import { syncResultToast, type SyncNowResult } from './_chrome/view-model'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -228,4 +233,54 @@ export async function unlockMoreChannels(): Promise<{ ok: boolean; error?: strin
   if (error) return { ok: false, error: error.message }
   revalidatePath('/cms/youtube/competitors', 'layout')
   return { ok: true, slots: await getChannelSlots(siteId) }
+}
+
+/** The page's maxDuration is 60 s: the manual round stops starting channels before 50 s. */
+const SYNC_BUDGET_MS = 50_000
+
+/**
+ * "Sincronizar concorrentes" (chrome): syncs, one after the other, this site's competitors whose engine state is ok.
+ * Channels with a problem are not touched and are listed; channels still fetching videos stay out of the round.
+ * The ok count comes from the run, never from the plan: a throw, a lock held by another sync or the time budget
+ * turns the channel into a problem. 0 synced is never a success.
+ */
+export async function syncCompetitorsNow(): Promise<SyncNowResult> {
+  let siteId: string
+  try { siteId = await requireEditAccess() } catch { return { ok: false, text: 'Sem permissão para sincronizar os concorrentes.', problems: [], outOfRound: [] } }
+  const apiKey = process.env.YOUTUBE_API_KEY
+  if (!apiKey) return { ok: false, text: 'A chave da API do YouTube não está configurada.', problems: [], outOfRound: [] }
+
+  const now = observatoryNow()
+  const rows = await loadRows({ siteId, now })
+  const obs = createObservatory(rowsToDataset(rows, now))
+  const ytId = new Map(rows.channels.map(c => [c.id, c.channel_id]))
+  const competitors = obs.channels.filter(c => !c.own)
+  const problems: Array<{ id: string; label: string }> = []
+  const outOfRound: Array<{ id: string; label: string }> = []
+  const round: string[] = []
+  for (const c of competitors) {
+    if (c.sync.state === 'ok') round.push(c.id)
+    else if (c.sync.state === 'backfill') outOfRound.push({ id: c.id, label: c.sync.label ?? 'buscando vídeos' })
+    else problems.push({ id: c.id, label: c.sync.problemPhrase ?? c.sync.label ?? c.sync.state })
+  }
+
+  const ok: string[] = []
+  const started = Date.now()
+  let attempted = 0
+  for (const id of round) {
+    const elapsed = Date.now() - started
+    // the next channel is expected to take as long as the average so far
+    if (attempted > 0 && elapsed + elapsed / attempted > SYNC_BUDGET_MS) { problems.push({ id, label: 'não coube no tempo desta rodada' }); continue }
+    attempted++
+    try {
+      const r = await syncCompetitorChannel({ id, channel_id: ytId.get(id) ?? '', site_id: siteId }, apiKey)
+      if (r.skipped) problems.push({ id, label: 'outra sincronização deste canal já estava em andamento' })
+      else ok.push(id)
+    } catch (e) {
+      problems.push({ id, label: humanizeSyncError(e instanceof Error ? e.message : String(e)) })
+    }
+  }
+  if (attempted > 0) revalidatePath('/cms/youtube/competitors', 'layout')
+  const toast = syncResultToast({ ok, problems, outOfRound }, id => obs.channel(id)?.name ?? id)
+  return { ok: ok.length > 0, text: toast.text, problems, outOfRound, toast }
 }

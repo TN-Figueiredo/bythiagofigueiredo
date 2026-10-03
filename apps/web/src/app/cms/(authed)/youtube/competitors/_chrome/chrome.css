@@ -1,0 +1,186 @@
+/* Observatório chrome — port of docs/superpowers/mockups/2026-10-02-observatorio/chrome.css (v2.2).
+   Tokens live under [data-obs] (dark by default) and follow the CMS theme (<html data-theme>, btf_theme cookie).
+   The CMS sidebar, the YouTube shell, the theme toggle and the mockup state bar are NOT ported (the CMS owns them).
+   Every chrome class carries the .obs-ch- prefix; screens scope their own CSS in [data-obs-screen]. */
+
+/* ---------------------------------------------------------------- tokens (CONVENCOES "Tokens", rodada 3) */
+[data-obs]{
+  --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--surface-hover:#272219;--sunk:#16130F;
+  --border:#332D25;--border-subtle:#2A251F;--border-strong:#40382D;
+  --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;--faint:#5C5345;
+  --accent:#FF8240;--accent-hover:#FF9A60;--accent-subtle:rgba(255,130,64,.12);--on-accent:#1A120A;
+  --success:#22c55e;--warning:#f59e0b;--warning-text:#f59e0b;--danger:#F26B6B;--info:#06b6d4;
+  --forja:#5CC3B2;--forja-hover:#7FD6C7;--forja-soft-bg:#2F5D56;--forja-soft-text:#DCF3EE;--forja-subtle:rgba(92,195,178,.12);--forja-line:rgba(92,195,178,.35);--on-forja:#0E2A25;
+  --ia:#6EA8FE;--viagem:#5BBF8A;--cowork:#9B93F6;
+  --tier-mid:#38BDF8;--tier-high:#A78BFA;--tier-top:#E0735C;--youtube:#FF3333;
+  --warn-subtle:rgba(245,158,11,.12);--danger-subtle:rgba(239,68,68,.12);--ok-subtle:rgba(34,197,94,.12);
+  --shadow:0 12px 32px rgba(0,0,0,.45);
+  --drawer-w:404px;
+  color-scheme:dark;
+}
+[data-theme="light"] [data-obs]{
+  --bg:#F7F2E9;--surface:#FBF7F0;--surface-2:#F2EBDF;--surface-hover:#F2EBDF;--sunk:#F2EBDF;
+  --border:#DDD2BF;--border-subtle:#E7DECF;--border-strong:#C9BBA3;
+  --text:#231C14;--muted:#5E5240;--dim:#6E624E;--faint:#A69A84;
+  --accent:#B8481A;--accent-hover:#A23E14;--accent-subtle:rgba(184,72,26,.10);--on-accent:#FFF8F1;
+  --success:#11692F;--warning:#B45309;--warning-text:#92400E;--danger:#B42318;--info:#0e7490;
+  --forja:#17695C;--forja-hover:#11564B;--forja-soft-bg:#A9D2CA;--forja-soft-text:#0E2A25;--forja-subtle:rgba(23,105,92,.06);--forja-line:rgba(23,105,92,.35);--on-forja:#FFFFFF;
+  --ia:#1D4ED8;--viagem:#11692F;--cowork:#5B4FD9;
+  --tier-mid:#0369A1;--tier-high:#6D28D9;--tier-top:#B4452F;
+  --warn-subtle:rgba(180,83,9,.10);--danger-subtle:rgba(180,35,24,.08);--ok-subtle:rgba(17,105,47,.10);
+  --shadow:0 12px 32px rgba(60,40,10,.14);
+  color-scheme:light;
+}
+
+/* ---------------------------------------------------------------- base */
+[data-obs] [hidden]{display:none!important}
+[data-obs],[data-obs] *,[data-obs] *::before,[data-obs] *::after{box-sizing:border-box}
+[data-obs].obs-ch-root{color:var(--text);font:400 14px/1.5 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+/* compact mode decides by the AVAILABLE width of the content (container query), not the window */
+[data-obs] .obs-ch-content{min-width:0;max-width:1240px;width:100%;margin:0 auto;container:obscontent / inline-size}
+[data-obs] :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+[data-obs] .obs-ch-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0;padding:0;border:0}
+[data-obs] .obs-ch-num{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:.92em;letter-spacing:-.01em}
+@media (prefers-reduced-motion: reduce){[data-obs] *,[data-obs] *::before,[data-obs] *::after{animation:none!important;transition:none!important}}
+
+/* icons: stroke and fill from scoped CSS */
+[data-obs] svg.obs-ch-i-s,[data-obs] svg.obs-ch-i-f{display:inline-block;flex:none;vertical-align:middle}
+[data-obs] svg.obs-ch-i-s,[data-obs] svg.obs-ch-i-s *{fill:none;stroke:currentColor}
+[data-obs] svg.obs-ch-i-f,[data-obs] svg.obs-ch-i-f *{fill:currentColor;stroke:none}
+
+/* ---------------------------------------------------------------- chrome buttons */
+[data-obs] .obs-ch-btn{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:0 13px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);cursor:pointer;font:500 13px/1.2 Inter,system-ui,sans-serif;color:var(--text);white-space:nowrap;text-decoration:none}
+[data-obs] .obs-ch-btn:hover{background:var(--surface-hover)}
+[data-obs] .obs-ch-btn svg{width:15px;height:15px}
+[data-obs] .obs-ch-btn[aria-disabled="true"]{cursor:progress;color:var(--muted)}
+[data-obs] .obs-ch-btn.obs-ch-ghost{background:transparent;border-color:transparent;color:var(--muted)}
+[data-obs] .obs-ch-btn.obs-ch-ghost:hover{background:var(--surface-hover);color:var(--text)}
+[data-obs] .obs-ch-btn.obs-ch-icon{width:34px;min-width:34px;padding:0;justify-content:center}
+/* forja buttons (Task 35 fills the header segment; tokens and classes are ready) */
+[data-obs] .obs-ch-btn.obs-ch-forja{border-color:var(--forja-line);color:var(--forja);background:transparent}
+[data-obs] .obs-ch-btn.obs-ch-forja:hover{background:var(--forja-subtle);border-color:var(--forja)}
+[data-obs] .obs-ch-btn.obs-ch-forja-solid{background:var(--forja);border-color:var(--forja);color:var(--on-forja);font-weight:600}
+[data-obs] .obs-ch-btn.obs-ch-forja-solid:hover{background:var(--forja-hover);border-color:var(--forja-hover)}
+
+/* ---------------------------------------------------------------- Observatório header */
+[data-obs] .obs-ch-head{display:block}
+[data-obs] .obs-ch-title{min-width:0}
+[data-obs] .obs-ch-title h2{font-family:Fraunces,serif;font-weight:600;font-size:30px;line-height:1.15;margin:0;letter-spacing:-.01em;font-variation-settings:"opsz" 72;color:var(--text)}
+[data-obs] .obs-ch-title p{margin:6px 0 0;color:var(--muted);max-width:62ch}
+[data-obs] .obs-ch-actions{display:flex;gap:8px;align-items:center;flex-wrap:nowrap;margin-top:14px;min-height:34px;max-width:100%}
+[data-obs] .obs-ch-menu-wrap{position:relative}
+[data-obs] .obs-ch-fresh-row{margin-top:14px;display:flex;align-items:center;gap:8px 12px;flex-wrap:nowrap}
+[data-obs] .obs-ch-tz{font-size:12.5px;color:var(--muted)}
+@container obscontent (max-width: 1080px){ [data-obs] .obs-ch-tz{display:none} }
+[data-obs] .obs-ch-fresh{display:flex;align-items:stretch;flex-wrap:nowrap;border:1px solid var(--border);border-radius:8px;background:var(--surface);max-width:100%;position:relative}
+[data-obs] .obs-ch-fresh>button{display:flex;align-items:center;gap:8px 10px;padding:4px 12px;background:none;border:0;cursor:pointer;text-align:left;border-radius:8px;min-height:36px;flex-wrap:nowrap;color:var(--text);font:inherit}
+[data-obs] .obs-ch-fresh>button:hover{background:var(--surface-hover)}
+[data-obs] .obs-ch-seg{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;white-space:nowrap}
+[data-obs] .obs-ch-seg b{color:var(--text);font-weight:500}
+[data-obs] .obs-ch-seg.obs-ch-err,[data-obs] .obs-ch-seg.obs-ch-err b{color:var(--warning-text)}
+[data-obs] .obs-ch-seg svg{width:14px;height:14px}
+[data-obs] .obs-ch-sep{width:1px;height:14px;background:var(--border-strong)}
+[data-obs] .obs-ch-dot{width:8px;height:8px;border-radius:50%;background:var(--success);flex:none}
+[data-obs] .obs-ch-dot.obs-ch-warn{background:var(--warning)}
+[data-obs] .obs-ch-dot.obs-ch-forja{background:var(--forja)}
+[data-obs] .obs-ch-chev{width:14px;height:14px;color:var(--muted)}
+[data-obs] .obs-ch-pop{position:absolute;z-index:40;top:calc(100% + 6px);left:0;width:min(600px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);padding:14px 16px;font-size:13px;color:var(--text)}
+[data-obs] .obs-ch-pop h3{font-size:13.5px;margin:0 0 2px;font-weight:600}
+[data-obs] .obs-ch-pop .obs-ch-sub{color:var(--muted);font-size:12.5px;margin:0 0 10px}
+[data-obs] .obs-ch-pop-scroll{max-height:300px;overflow:auto}
+[data-obs] .obs-ch-pop table{width:100%;border-collapse:collapse;font-size:12.5px}
+[data-obs] .obs-ch-pop th{text-align:left;font-weight:500;color:var(--muted);font-size:11.5px;padding:4px}
+[data-obs] .obs-ch-pop td{padding:6px 4px;border-top:1px solid var(--border-subtle);vertical-align:top;color:var(--text)}
+[data-obs] .obs-ch-pop td.obs-ch-m{color:var(--muted)}
+[data-obs] .obs-ch-pop td:first-child{white-space:nowrap}
+[data-obs] .obs-ch-pop td:last-child{text-align:right;white-space:nowrap}
+[data-obs] .obs-ch-pop .obs-ch-bad td{background:var(--warn-subtle)}
+[data-obs] .obs-ch-pop .obs-ch-bad td:first-child{border-left:2px solid var(--warning);padding-left:8px}
+[data-obs] .obs-ch-pop .obs-ch-grp td{background:none;color:var(--muted);font-size:11.5px;padding-top:10px;border-top:0;text-align:left}
+[data-obs] .obs-ch-pop-acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+[data-obs] .obs-ch-menu{right:0;left:auto;width:min(390px,calc(100vw - 32px));padding:6px}
+[data-obs] .obs-ch-mi{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;padding:9px 10px;border:0;background:none;border-radius:6px;cursor:pointer;text-align:left;min-height:36px;color:var(--text);text-decoration:none;font:inherit}
+[data-obs] .obs-ch-mi:hover,[data-obs] .obs-ch-mi:focus-visible{background:var(--surface-hover)}
+[data-obs] .obs-ch-mi strong{font-weight:500;font-size:13px;display:flex;gap:8px;align-items:center}
+[data-obs] .obs-ch-mi strong svg{width:14px;height:14px;color:var(--cowork)}
+[data-obs] .obs-ch-mi .obs-ch-ctx{font-size:12px;color:var(--muted)}
+[data-obs] .obs-ch-mi .obs-ch-preview{font-size:12px;line-height:1.45;color:var(--muted);background:var(--sunk);border:1px solid var(--border-subtle);border-radius:5px;padding:8px 9px}
+[data-obs] .obs-ch-menu hr{border:0;border-top:1px solid var(--border-subtle);margin:4px 2px}
+[data-obs] .obs-ch-nic-viagem{color:var(--viagem)}
+[data-obs] .obs-ch-nic-ia{color:var(--ia)}
+
+/* ---------------------------------------------------------------- tabs + niche bar */
+[data-obs] .obs-ch-nav{margin-top:20px;display:flex;align-items:flex-end;justify-content:space-between;gap:10px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+[data-obs] .obs-ch-tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;max-width:100%}
+[data-obs] .obs-ch-tabs::-webkit-scrollbar{display:none}
+[data-obs] .obs-ch-tabs.obs-ch-more{-webkit-mask-image:linear-gradient(to right,#000 85%,transparent);mask-image:linear-gradient(to right,#000 85%,transparent)}
+[data-obs] .obs-ch-tabs.obs-ch-less{-webkit-mask-image:linear-gradient(to right,transparent,#000 15%);mask-image:linear-gradient(to right,transparent,#000 15%)}
+[data-obs] .obs-ch-tabs.obs-ch-less.obs-ch-more{-webkit-mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent);mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent)}
+[data-obs] .obs-ch-tab{display:flex;align-items:center;gap:8px;padding:0 12px;min-height:42px;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;text-decoration:none}
+[data-obs] .obs-ch-tab:hover{color:var(--text)}
+[data-obs] .obs-ch-tab[aria-current]{color:var(--text);border-color:var(--accent)}
+/* CONVENCOES Tokens: tab counts use --dim, never --faint */
+[data-obs] .obs-ch-tab .obs-ch-ct{font-family:"JetBrains Mono",monospace;font-size:11.5px;padding:1px 6px;border-radius:10px;background:var(--surface-2);color:var(--muted)}
+[data-obs] .obs-ch-tab[aria-current] .obs-ch-ct{color:var(--text)}
+[data-obs] .obs-ch-tab .obs-ch-new{font-size:11px;color:var(--forja);font-weight:600}
+[data-obs] .obs-ch-niche{display:flex;align-items:center;gap:8px;padding-bottom:6px}
+[data-obs] .obs-ch-niche .obs-ch-lbl{font-size:12.5px;color:var(--muted)}
+[data-obs] .obs-ch-seg-ctl{display:inline-flex;border:1px solid var(--border-strong);border-radius:6px;overflow:hidden;background:var(--surface)}
+[data-obs] .obs-ch-seg-ctl button{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:0 11px;min-height:32px;min-width:36px;cursor:pointer;color:var(--muted);font:13px Inter,system-ui,sans-serif}
+[data-obs] .obs-ch-seg-ctl button+button{border-left:1px solid var(--border-strong)}
+[data-obs] .obs-ch-seg-ctl button[aria-pressed="true"]{background:var(--surface-2);color:var(--text);font-weight:600;box-shadow:inset 0 -2px 0 var(--text)}
+[data-obs] .obs-ch-seg-ctl .obs-ch-n{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);font-weight:400}
+[data-obs] .obs-ch-seg-ctl .obs-ch-sw{width:8px;height:8px;border-radius:50%;background:var(--obs-sw-dark)}
+[data-theme="light"] [data-obs] .obs-ch-seg-ctl .obs-ch-sw{background:var(--obs-sw-light)}
+[data-obs] .obs-ch-pin{display:inline-grid;place-items:center;width:32px;height:32px;color:var(--muted)}
+[data-obs] .obs-ch-pin svg{width:15px;height:15px}
+
+/* ---------------------------------------------------------------- toasts */
+[data-obs] .obs-ch-toasts{position:fixed;right:20px;bottom:20px;display:grid;gap:8px;z-index:80;width:min(380px,calc(100vw - 32px))}
+[data-obs] .obs-ch-toast{background:var(--surface);border:1px solid var(--border-strong);border-left:3px solid var(--muted);border-radius:7px;box-shadow:var(--shadow);padding:11px 13px;display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:8px;align-items:start;animation:obs-ch-tin .22s ease-out;color:var(--text)}
+[data-obs] .obs-ch-toast>svg{width:16px;height:16px;margin-top:2px;color:var(--muted)}
+[data-obs] .obs-ch-toast.obs-ch-forja{border-left-color:var(--forja)}
+[data-obs] .obs-ch-toast.obs-ch-forja>svg{color:var(--forja)}
+[data-obs] .obs-ch-toast.obs-ch-ok{border-left-color:var(--success)}
+[data-obs] .obs-ch-toast.obs-ch-ok>svg{color:var(--success)}
+[data-obs] .obs-ch-toast.obs-ch-bad{border-left-color:var(--danger)}
+[data-obs] .obs-ch-toast.obs-ch-bad>svg{color:var(--danger)}
+[data-obs] .obs-ch-toast.obs-ch-warn{border-left-color:var(--warning)}
+[data-obs] .obs-ch-toast.obs-ch-warn>svg{color:var(--warning)}
+[data-obs] .obs-ch-toast b{font-weight:600;font-size:13px;display:block}
+[data-obs] .obs-ch-toast span{font-size:12.5px;color:var(--muted)}
+[data-obs] .obs-ch-toast .obs-ch-tl{display:block;margin-top:4px}
+[data-obs] .obs-ch-toast-acts{display:flex;gap:6px;align-items:center}
+[data-obs] .obs-ch-toast-x{width:32px;min-width:32px;height:32px;min-height:32px;padding:0}
+[data-obs] .obs-ch-toast-x svg{width:14px;height:14px;margin:0;color:var(--muted)}
+[data-obs] .obs-ch-copy{display:block;width:100%;margin-top:6px;font:12px/1.4 "JetBrains Mono",monospace;color:var(--text);background:var(--sunk);border:1px solid var(--border-strong);border-radius:5px;padding:6px;resize:vertical}
+@keyframes obs-ch-tin{from{opacity:0;transform:translateY(6px)}}
+
+/* ---------------------------------------------------------------- compact (available width ≤ 860 px, container query)
+   Tabs and niche share one line; the header height is fixed. */
+[data-obs] .obs-ch-short{display:none}
+@container obscontent (max-width: 860px){
+  [data-obs] .obs-ch-head{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
+  [data-obs] .obs-ch-title h2{font-size:22px}
+  [data-obs] .obs-ch-title p{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0}
+  [data-obs] .obs-ch-actions{margin-top:0;gap:6px;flex-wrap:nowrap}
+  /* icons only for the secondary actions; the forja keeps its label */
+  [data-obs] .obs-ch-actions>.obs-ch-btn:not(.obs-ch-forja):not(.obs-ch-forja-solid){width:34px;min-width:34px;padding:0;justify-content:center}
+  [data-obs] .obs-ch-actions>.obs-ch-btn:not(.obs-ch-forja):not(.obs-ch-forja-solid) .obs-ch-lbl-t{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  [data-obs] .obs-ch-fresh-row{margin-top:10px;flex-wrap:nowrap}
+  [data-obs] .obs-ch-fresh>button{gap:8px;padding:2px 10px;min-height:34px}
+  [data-obs] .obs-ch-long{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  [data-obs] .obs-ch-short{display:inline}
+  [data-obs] .obs-ch-tz{display:none}
+  [data-obs] .obs-ch-nav{margin-top:12px;flex-wrap:nowrap;align-items:center;gap:8px}
+  [data-obs] .obs-ch-tabs{flex:1 1 auto;min-width:0}
+  [data-obs] .obs-ch-tab{padding:0 9px;min-height:40px}
+  [data-obs] .obs-ch-niche{flex:none;padding-bottom:0}
+  [data-obs] .obs-ch-niche .obs-ch-lbl,[data-obs] .obs-ch-pin{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  [data-obs] .obs-ch-seg-ctl button{padding:0 8px}
+}
+
+/* ---------------------------------------------------------------- space above the screen (D8)
+   One value on every screen: 16 px below the tabs. The container is its own context (flow-root), so the first
+   child's margin stays inside it; the screen cannot change this. */
+[data-obs] .obs-ch-content>.obs-ch-screen{display:flow-root!important;margin-top:16px!important;padding-top:0!important;border-top:0!important;float:none!important;top:auto!important;transform:none!important;translate:none!important}
