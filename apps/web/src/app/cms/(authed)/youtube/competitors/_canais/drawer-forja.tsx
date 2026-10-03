@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
-import type { ForjaAsk } from '../_chrome/forja-drawer'
+import type { ForjaAsk } from '../_chrome/forja-view-model'
 import { useToast } from '../_chrome/toasts'
 import type { CanaisDrawerForja } from './view-model'
 

@@ -9,7 +9,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import type { ForjaReadingView, ForjaView } from '../_chrome/forja-view-model'
-import type { ForjaAsk, ForjaCancel } from '../_chrome/forja-drawer'
+import type { ForjaAsk, ForjaCancel } from '../_chrome/forja-view-model'
 import { useToast } from '../_chrome/toasts'
 import type { HistForjaCard } from './view-model'
 

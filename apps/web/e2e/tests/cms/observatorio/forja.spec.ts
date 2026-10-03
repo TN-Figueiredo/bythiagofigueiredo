@@ -1,6 +1,7 @@
 // apps/web/e2e/tests/cms/observatorio/forja.spec.ts
-// Fidelity of the forja (Task 35) against the mockups: the moldura drawer flows (moldura-forja.html FLOWS, :742) and
-// the forja states of canais.html, mudancas.html, outliers.html, insights.html and historico-video.html.
+// Fidelity of the forja (Task 35) against the forja states of canais.html, mudancas.html, outliers.html, insights.html
+// and historico-video.html. The moldura's selector drawer (moldura-forja.html FLOWS, :742) is the chrome's demo, not a
+// product surface (ruling R59): it is not ported, and the per-screen request states below cover the same 9 states.
 // Ruling R54: Task 35 writes this spec SKIPPED; Task 35b enables it (with every other fidelity spec), adds the
 // data-obs-* hooks it needs and runs it. Both viewports and both themes come from runFidelity.
 // The status lines are the engine's own texts on both sides (statusLabel/statusLines/statusText): `textAllow` stays
@@ -12,33 +13,6 @@ import type { ScreenSpec } from './fidelity'
 const DIR = 'docs/superpowers/mockups/2026-10-02-observatorio/'
 /** The 9 request states, in the mockup's order (REQ_SCENARIOS keys; engine REQUEST_STATES). */
 export const REQUEST_STATES: readonly RequestState[] = ['na fila', 'trabalhando', 'publicado', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia', 'falhou', 'recusado (dado velho)']
-/** moldura-forja.html FLOWS (id → the mockup state bar label) and the request state each one seeds. */
-export const FLOWS: ReadonlyArray<{ id: string; label: string; state: RequestState | null }> = [
-  { id: 'choose', label: 'Escolher', state: null }, { id: 'confirm', label: 'Confirmar', state: null },
-  { id: 'queued', label: 'na fila', state: 'na fila' }, { id: 'running', label: 'trabalhando', state: 'trabalhando' },
-  { id: 'done', label: 'publicado', state: 'publicado' }, { id: 'late', label: 'atrasado', state: 'atrasado' },
-  { id: 'nomachine', label: 'sem máquina', state: 'sem máquina' }, { id: 'retry', label: 'nova tentativa', state: 'nova tentativa' },
-  { id: 'released', label: 'liberado pelo vigia', state: 'liberado pelo vigia' }, { id: 'failed', label: 'falhou', state: 'falhou' },
-  { id: 'refused', label: 'recusado (dado velho)', state: 'recusado (dado velho)' }, { id: 'cota', label: 'Escolher após publicar (cota)', state: 'publicado' },
-]
-
-/**
- * Moldura (the drawer over any tab). choose/confirm need clicks on the implementation too: open the drawer
- * (header "Pedir nova leitura à forja"), pick the type and niche, "Continuar" (35b wires `implClicks` in the harness).
- * The drawer is compared at 1440 (column ≥ 1280 px) and 768 (modal below 1280 px).
- */
-export const MOLDURA: ScreenSpec & { implClicks: Record<string, string[]> } = {
-  name: 'forja-moldura', mockupFile: DIR + 'moldura-forja.html', route: '/cms/youtube/competitors/mudancas',
-  mockThumbSelector: '.thumb', implThumbSelector: '[data-thumb]',
-  states: FLOWS.map(f => ({ label: 'moldura · ' + f.id, mockupClicks: [f.label], seed: f.state ? { forjaState: f.state, forjaType: 'padroes-titulo' } : {} })),
-  compareSelector: '#obs-forja-drawer',
-  implClicks: {
-    choose: ['Pedir nova leitura à forja'],
-    confirm: ['Pedir nova leitura à forja', 'Continuar'],
-    cota: ['Pedir nova leitura à forja'],
-  },
-}
-
 /** Canais: the channel drawer's forja box × the 9 request states (resumo-trocas of the open channel's niche). */
 export const CANAIS_FORJA: ScreenSpec = {
   name: 'forja-canais', mockupFile: DIR + 'canais.html', route: '/cms/youtube/competitors',
@@ -81,7 +55,7 @@ export const HISTORICO_FORJA: ScreenSpec = {
   states: REQUEST_STATES.map(s => ({ label: 'histórico · ' + s, mockupClicks: [s], seed: { forjaState: s, forjaType: 'leitura-video' } })),
 }
 
-export const FORJA_SPECS: readonly ScreenSpec[] = [MOLDURA, CANAIS_FORJA, MUDANCAS_FORJA, OUTLIERS_FORJA, INSIGHTS_FORJA, HISTORICO_FORJA]
+export const FORJA_SPECS: readonly ScreenSpec[] = [CANAIS_FORJA, MUDANCAS_FORJA, OUTLIERS_FORJA, INSIGHTS_FORJA, HISTORICO_FORJA]
 
 // R54: enabled by Task 35b (with every fidelity spec). Then replace this skipped describe by top-level
 // `for (const s of FORJA_SPECS) runFidelity(s)` with a static `import { runFidelity } from './fidelity'`.

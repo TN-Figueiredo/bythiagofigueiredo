@@ -10,8 +10,8 @@ import { loadDataset } from '@/lib/youtube/observatorio/load'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { setUserNiche } from '../niche-actions'
 import { syncCompetitorsNow } from '../actions'
-import { askForjaReading, cancelForjaReading } from '../forja-actions'
-import { buildForjaDrawerView, type ForjaView } from './forja-view-model'
+import { askForjaReading } from '../forja-actions'
+import type { ForjaView } from './forja-view-model'
 import { ObservatoryChrome } from './observatory-chrome'
 import { buildChromeView, coworkText, type ChromeTab } from './view-model'
 import { resolveNiche, type ObsSearchParams } from './resolve-niche'
@@ -24,7 +24,7 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   nicheOverride?: NicheScope
   /** Screen outside the tabs whose "Copiar pedido para o Cowork" text differs from its tab's (Histórico). */
   coworkFor?: 'historico'
-  /** The screen's forja view (Task 35): header button, status and heartbeat; the drawer is built here from it. */
+  /** The screen's forja view (Task 35): header button, status and heartbeat. */
   forja?: ForjaView | null
   /** Insights: the shown reading as plain text for the menu's "Copiar texto da leitura". */
   readingCopy?: string | null
@@ -33,11 +33,9 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   const niche = nicheOverride ?? resolved.niche, dropParam = resolved.dropParam
   const engine = obs ?? createObservatory(await loadDataset({ siteId: (await getSiteContext()).siteId, now: observatoryNow() }))
   const view = buildChromeView(engine, { tab, niche, forja })
-  // the selector drawer is the moldura's exception (CONVENCOES:225, R58): built only where the header opens it
-  const drawer = view.forja && view.forja.headerAction === 'drawer' ? buildForjaDrawerView(engine, { niche: view.forja.niche, type: view.forja.type }) : null
   return (
     <ObservatoryChrome view={{ ...view, ...(coworkFor ? { cowork: coworkText(coworkFor, niche) } : {}) }} dropNicheParam={dropParam} onSetNiche={setUserNiche} onSyncNow={syncCompetitorsNow}
-      forjaDrawer={drawer} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} readingCopy={readingCopy}>
+      onAskForja={askForjaReading} readingCopy={readingCopy}>
       {children}
     </ObservatoryChrome>
   )

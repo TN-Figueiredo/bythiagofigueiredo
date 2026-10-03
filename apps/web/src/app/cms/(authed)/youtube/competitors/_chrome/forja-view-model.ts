@@ -11,11 +11,14 @@ import type { Observatory } from '@/lib/youtube/observatorio'
 import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, ForjaRequest, FrozenReading, Niche } from '@/lib/youtube/observatorio/types'
 import type { Scenario } from '@/lib/youtube/observatorio/forja/states'
-import type { ObsType } from '@/lib/pipeline/services/forja-queue'
+import type { AskOutcome, ObsType } from '@/lib/pipeline/services/forja-queue'
 import { ACTIVE_STATES } from '@/lib/youtube/observatorio/forja/states'
 import { NOT_ANNOUNCED } from '@/lib/youtube/observatorio/forja/session'
 
 export type { ObsType }
+/** The server actions as the client components receive them (askForjaReading / cancelForjaReading, passed as props). */
+export type ForjaAsk = (type: ObsType, scope: NicheScope, videoId?: string, fmt?: Fmt) => Promise<AskOutcome>
+export type ForjaCancel = (type: ObsType, niche: Niche, videoId?: string) => Promise<{ ok: boolean; reason?: string }>
 export type ForjaScreen = 'canais' | 'mudancas' | 'outliers' | 'insights' | 'historico'
 export const INCAPABLE_TEXT = NOT_ANNOUNCED
 /** CONVENCOES F9: the type each screen asks. */
@@ -74,10 +77,11 @@ export interface ForjaView {
   headerVariant: 'solid' | 'outline' | 'none'
   /**
    * What the header button does (R58, the binding mockups): Insights, Canais and Outliers ASK directly for the screen's
-   * type and niche; Mudanças opens its inline preview + "Confirmar pedido"; Histórico has no header button. The selector
-   * drawer is the moldura's registered exception (CONVENCOES:225): 'drawer' only where the moldura opens it.
+   * type and niche (with Todos, one request per free niche, in click order); Mudanças opens its inline preview +
+   * "Confirmar pedido"; Histórico has no header button. The moldura's selector drawer is the chrome demo, not a product
+   * surface (R59): it is not ported.
    */
-  headerAction: 'ask' | 'confirm' | 'drawer' | 'none'
+  headerAction: 'ask' | 'confirm' | 'none'
   button: ForjaButton
   status: ForjaStatus | null
   machine: { alive: boolean; text: string; time: string | null; title: string }
@@ -350,303 +354,6 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
   }
 }
 
-/* ================================================================== the drawer (moldura-forja.html) */
-const TYPE_COPY: Record<string, { desc: string; entrega: string; naoFaz: string; dados: string }> = {
-  'padroes-titulo': { desc: 'Classifica os títulos dos vídeos longos que estouraram em fórmulas nomeadas, com contagem e exemplos.',
-    entrega: 'Fórmulas de título com mediana do multiplicador de quem usa vs quem não usa, n dos dois lados, exemplos citados e quem assina. Fórmula com n < {minN} sai como “recorrência observada — pouco para concluir”.',
-    naoFaz: 'Não olha thumbnails e não afirma causa.', dados: 'títulos e views da última sincronização' },
-  'temas': { desc: 'Nomeia os assuntos dos vídeos que estouraram e diz se algum domina.',
-    entrega: 'Temas nomeados, com quantos outliers e canais tocam cada um e exemplos citados.',
-    naoFaz: 'Não prevê se o tema vai crescer e não afirma por que ele apareceu.', dados: 'títulos e descrições dos vídeos longos' },
-  'resumo-trocas': { desc: 'Agrupa as trocas de título, thumbnail e descrição dos concorrentes.',
-    entrega: 'Trocas agrupadas por tipo e canal; as com efeito medido (observado vs esperado, n) separadas das que aguardam os 7 dias.',
-    naoFaz: 'Não julga a thumbnail nova (não vê imagens) e não diz que a troca causou a variação.', dados: 'textos antigos e novos e a média de views/dia de cada vídeo trocado' },
-  'padroes-titulo-shorts': { desc: 'Classifica os títulos dos Shorts que estouraram em fórmulas nomeadas, com contagem e exemplos.',
-    entrega: 'Fórmulas de título dos Shorts com mediana do multiplicador de quem usa vs quem não usa (comparando só Shorts com Shorts), exemplos citados e quem assina. Fórmula com n < {minN} sai como “recorrência observada — pouco para concluir”.',
-    naoFaz: 'Não olha thumbnails nem o vídeo, não afirma causa e não mistura Shorts com vídeos longos.', dados: 'títulos e views dos Shorts da última sincronização' },
-}
-const DRAWER_TYPES = ['padroes-titulo', 'temas', 'resumo-trocas'] as const
-const REQ_TYPES: ObsType[] = ['padroes-titulo', 'temas', 'resumo-trocas', 'padroes-titulo-shorts']
-const INSIDE = 'lê os dados enviados à forja, o Gemma escreve, o validador confere cada número citado'
-const SHORT_TYPE: Record<string, string> = { 'padroes-titulo': 'Padrões de título', 'padroes-titulo-shorts': 'Padrões de título (Shorts)', 'temas': 'Temas', 'resumo-trocas': 'Resumo das trocas', 'leitura-video': 'Leitura de vídeo' }
-
-export interface DrawerCombo {
-  type: ObsType; niche: NicheScope
-  /** Niche the request really takes (Todos with one niche blocked → the other). */
-  effNiche: NicheScope
-  blocked: null | { kind: 'active' | 'quota' | 'both'; text: string; pubText: string | null; runType: ObsType | null }
-  partial: string | null
-  meta: string; warn: string | null; thin: string | null; outCount: number
-  /** The meta of an option that is not selected: it also says how many channels stay out. */
-  metaUnselected: string
-  confirm: { label: string; escopo: string; entrega: string; naoFaz: string; quando: string; limite: string }
-}
-export interface DrawerOption { id: (typeof DRAWER_TYPES)[number]; label: string; shortsLabel: string | null; desc: string; shortsDesc: string | null }
-export interface RunStep { s: 'feito' | 'agora' | 'proximo' | 'pendente' | 'erro' | 'parado'; title: string; time: string; note: string | null }
-export interface RunClock { aria: string; ticks: Array<{ left: number; label: string; s: string }>; evs: Array<{ left: number; label: string; cls: string; hi: boolean }>; fill: { from: number; to: number; cls: string } | null; cap: string; stacked: boolean }
-export interface RunCard {
-  type: ObsType; video: string | null
-  kase: 'queued' | 'running' | 'done' | 'doneTodos' | 'late' | 'nomachine' | 'retry' | 'released' | 'failed' | 'refused'
-  stateLabel: string; what: string; lines: string[]
-  eta: { big: string; text: string; future: boolean; aria: boolean }
-  clock: RunClock | null
-  tit: string; sub: string; steps: RunStep[]
-  cancel: { label: string; niches: Niche[] } | null
-  again: { niches: Niche[]; disabledNote: string | null } | null
-  goInsights: { label: string; niche: Niche; href: string } | null
-  another: boolean
-  note: string | null
-  /** Which state the card shows (for the run-card data-st). */
-  st: string
-}
-export interface ForjaDrawerView {
-  niche: NicheScope
-  /** alive: "forja ligada: consultou a fila às 14:55. Consulta a cada 10 min."; dead: the engine's machine text. */
-  machine: { alive: boolean; strong: string; time: string | null; tickMinutes: number; nextPoll: string | null }
-  options: DrawerOption[]
-  combos: Record<string, DrawerCombo>
-  quotaScope: string
-  runs: RunCard[]
-  /** Scope-free niches with at least one askable type (Todos with one niche busy → the seletor starts on the free one). */
-  freeNiches: Niche[]
-  anyActive: boolean
-  insightsHref: string
-  /** First type a niche still accepts (the seletor never opens in a quota dead end). */
-  defaultType: ObsType
-  defaultNiche: NicheScope
-  capable: Record<string, boolean>
-  incapableText: string
-}
-export const comboKey = (type: string, niche: NicheScope) => type + '|' + niche
-
-export function buildForjaDrawerView(obs: Observatory, o: { niche: NicheScope; type?: ObsType }): ForjaDrawerView {
-  const D = obs.date, F = obs.fmt, Q = obs.forja.queue, NOW = obs.NOW
-  const RP = obs.RULES.pattern
-  const scen = (type: ObsType, n: NicheScope) => obs.forja.session.current(n, { type })
-  const allReqs = (type: ObsType) => { const a = scen(type, 'todos'); return a.empty ? [] : a.requests }
-  const blockOf = (n: Niche, type: ObsType): DrawerCombo['blocked'] => {
-    const q = allReqs(type).find(x => x.niche === n)
-    if (!q || DEAD.includes(q.state)) return null
-    if (isActiveQ(q)) return { kind: 'active', text: 'já há um pedido de ' + NL[n] + ' em andamento (' + (q.statusLabel ?? q.state) + ')', pubText: null, runType: type }
-    const rel = scen(type, 'todos').quota.releasesAt
-    return { kind: 'quota', text: 'cota de hoje usada para ' + NL[n] + (rel ? ' (libera ' + D.weekday(rel) + ', ' + D.dm(rel) + ' às 00:00)' : ''),
-      pubText: q.publishedAt ? 'Pedido hoje às ' + D.hm(q.createdAt) + ' e publicado às ' + D.hm(q.publishedAt) + '. ' : null, runType: null }
-  }
-  const quotaOf = (type: ObsType, n: NicheScope): { blocked: DrawerCombo['blocked']; only: Niche | null; partial: string | null } => {
-    if (n !== 'todos') return { blocked: blockOf(n, type), only: null, partial: null }
-    const bs = (['ia', 'viagem'] as const).map(x => [x, blockOf(x, type)] as const), bl = bs.filter(x => x[1])
-    if (bl.length === 2) return { blocked: { kind: 'both', text: bl.map(x => x[1]!.text).join('; '), pubText: null, runType: null }, only: null, partial: null }
-    if (bl.length === 1) { const only: Niche = bl[0]![0] === 'ia' ? 'viagem' : 'ia'; return { blocked: null, only, partial: cap(bl[0]![1]!.text) + '. O pedido vai só para ' + NL[only] + '.' } }
-    return { blocked: null, only: null, partial: null }
-  }
-  const timingFor = (type: string, ns: Niche[]) => {
-    const list = ns.length ? ns : ['viagem', 'ia'] as Niche[]
-    if (list.length === 1) return obs.forja.timing(type, list[0]!).text
-    const order = (['viagem', 'ia'] as const).filter(x => list.includes(x)), t = order.map(x => obs.forja.timing(type, x).text)
-    return t.every(x => x === t[0]) ? joinE(order.map(x => NL[x])) + ': ' + t[0] : order.map((x, i) => NL[x] + ': ' + t[i]).join(' · ')
-  }
-  const lastOf = (type: ObsType, n: NicheScope) => {
-    const ns: Niche[] = n === 'todos' ? ['viagem', 'ia'] : [n]
-    const one = (x: Niche) => { const pr = allReqs(type).find(q => q.state === 'publicado' && q.niche === x); const at = pr?.publishedAt ?? obs.forja.latest(type, x)?.generatedAt; return at != null ? D.weekdayShort(at) + ' ' + D.dm(at) : 'nunca pedida' }
-    return ns.length > 1 ? 'Última leitura: ' + ns.map(x => NL[x] + ' ' + one(x)).join(' · ') + '.' : 'Última leitura: ' + one(ns[0]!) + '.'
-  }
-  const pvText = (pv: ReturnType<typeof obs.forja.preview>) => (pv.window && !pv.text.includes(pv.window) ? pv.text + ', últimos ' + pv.window : pv.text)
-  const fmtOf = (type: ObsType) => (type === 'padroes-titulo-shorts' ? 'short' : 'long') as Fmt
-  const thinWarn = (type: ObsType, n: NicheScope) => {
-    if (!type.startsWith('padroes')) return null
-    const ns: Niche[] = n === 'todos' ? ['viagem', 'ia'] : [n]
-    const per = ns.map(x => ({ x, pv: obs.forja.preview(type, x, fmtOf(type)) })).filter(p => (p.pv.nOutliers ?? 0) < RP.minN)
-    if (!per.length) return null
-    const lst = per.map(p => (ns.length > 1 ? NL[p.x] + ': ' : '') + F.plural(p.pv.nOutliers ?? 0, 'outlier', 'outliers')).join(' · ')
-    return 'Poucos outliers nessa janela (' + lst + '). A leitura classifica os títulos deles; fórmulas usadas por menos de ' + RP.minN + ' vídeos saem como recorrência observada.'
-  }
-  const nextPollOf = (last: number | null) => { if (last == null) return null; let t = last; while (t <= NOW) t += Q.tickMinutes * MIN; return t }
-  const npQ = nextPollOf(Q.lastPollAt)
-  const qAlive = Q.lastPollAt != null && NOW - Q.lastPollAt <= Q.HEARTBEAT_DEAD_MINUTES * MIN
-
-  const combos: Record<string, DrawerCombo> = {}
-  for (const type of REQ_TYPES) for (const n of ['todos', 'viagem', 'ia'] as const) {
-    const q = quotaOf(type, n), eff: NicheScope = q.only ?? n
-    const pv = obs.forja.preview(type, eff, fmtOf(type))
-    const t = obs.forja.readingTypes.find(x => x.id === type)!
-    const copy = TYPE_COPY[type]!
-    const out = pv.channelsOut
-    const outTxt = out.map(x => {
-      const k = obs.outliers({ niche: eff, fmt: fmtOf(type), channels: [x.id], maxAge: t.windowDays ?? undefined }).count
-      return (obs.channel(x.id)?.name ?? x.id) + ' (' + (k ? F.plural(k, 'outlier dele não entra', 'outliers dele não entram') : 'sem outliers na janela') + ')'
-    }).join(', ')
-    const blocked = q.blocked
-    const preview = (n === 'todos' && eff !== 'todos' ? NL[eff as Niche] + ': ' : '') + period(pvText(pv))
-    combos[comboKey(type, n)] = {
-      type, niche: n, effNiche: eff, blocked, partial: q.partial,
-      meta: blocked ? (blocked.kind === 'quota' && blocked.pubText ? blocked.pubText : '') + period(cap(blocked.text))
-        : preview + ' ' + lastOf(type, eff),
-      metaUnselected: blocked ? '' : preview + (out.length ? ' ' + F.plural(out.length, 'canal fica fora', 'canais ficam fora') + '.' : '') + ' ' + lastOf(type, eff),
-      warn: !blocked && out.length ? out.map(x => x.reason).join('; ') + '.' : null, outCount: out.length,
-      thin: thinWarn(type, eff),
-      confirm: {
-        label: t.label + ' · ' + nicheLabel(eff) + (eff === 'todos' ? ' · um pedido por nicho' : ''),
-        escopo: pvText(pv).replace(/^Lê /, '') + ': ' + copy.dados + '.' + (type.startsWith('padroes') ? ' Para comparar, os vídeos dos mesmos canais que não estouraram.' : '') + (out.length ? ' Fica fora: ' + outTxt + '.' : ''),
-        entrega: copy.entrega.replace('{minN}', String(RP.minN)),
-        naoFaz: copy.naoFaz,
-        quando: (Q.lastPollAt == null ? 'A forja ainda não consultou a fila; o pedido espera a primeira consulta. '
-          : !qAlive ? 'A forja não consulta a fila desde ' + D.hm(Q.lastPollAt) + '; o pedido espera a máquina voltar. '
-            : 'A forja consulta a fila às ' + D.hm(npQ!) + '. ') + period(cap(timingFor(type, eff === 'todos' ? ['viagem', 'ia'] : [eff as Niche]))),
-        limite: Q.quotaScope.text + (q.partial ? ' ' + q.partial : ''),
-      },
-    }
-  }
-
-  // run cards: one per type with a request in the niche, the oldest active first (moldura scens())
-  const scens = REQ_TYPES.map(type => ({ type, sc: scen(type, o.niche) })).filter(x => hasReq(x.sc))
-  const oldest = (sc: Scenario) => Math.min(...sc.requests.filter(isActiveQ).map(x => x.queuePos != null ? x.queuePos * 1e15 : x.createdAt))
-  scens.sort((a, b) => (Number(b.sc.anyActive) - Number(a.sc.anyActive)) || (a.sc.anyActive ? oldest(a.sc) - oldest(b.sc) : 0))
-  const busyType = (n: Niche, type: ObsType) => { const b = blockOf(n, type); return !!b }
-  const askable = (n: Niche) => REQ_TYPES.filter(t => !busyType(n, t))
-  const scopeNs: Niche[] = o.niche === 'todos' ? ['ia', 'viagem'] : [o.niche]
-  const freeNiches = scopeNs.filter(n => askable(n).length > 0)
-
-  const runs: RunCard[] = scens.map(({ type, sc }) => runCard(obs, type, sc, { timingFor, nextPollOf, blockOf, freeNiches }))
-  const anyActive = scens.some(x => x.sc.anyActive)
-  const want = o.type && (DRAWER_TYPES as readonly string[]).includes(o.type === 'padroes-titulo-shorts' ? 'padroes-titulo' : o.type) ? o.type : 'padroes-titulo'
-  const defaultNiche: NicheScope = anyActive && o.niche === 'todos' && freeNiches.length === 1 ? freeNiches[0]! : o.niche
-  const okTypes = defaultNiche === 'todos' ? askable('ia').filter(t => askable('viagem').includes(t)) : askable(defaultNiche)
-  const defaultType: ObsType = okTypes.includes(want) || !okTypes.length ? want : okTypes.find(x => x !== 'padroes-titulo-shorts') ?? okTypes[0]!
-
-  const m = machineView(obs, scens[0]?.sc ?? scen('padroes-titulo', o.niche))
-  const mm = (scens[0]?.sc ?? scen('padroes-titulo', o.niche)).machine
-  return {
-    niche: o.niche,
-    machine: { alive: m.alive, strong: m.alive ? 'forja ligada' : mm.text, time: m.time, tickMinutes: mm.tickMinutes, nextPoll: m.alive && npQ != null ? D.hm(npQ) : null },
-    options: DRAWER_TYPES.map(id => ({
-      id, label: obs.forja.readingTypes.find(t => t.id === id)!.label,
-      shortsLabel: id === 'padroes-titulo' ? obs.forja.readingTypes.find(t => t.id === 'padroes-titulo-shorts')!.label : null,
-      desc: TYPE_COPY[id]!.desc, shortsDesc: id === 'padroes-titulo' ? TYPE_COPY['padroes-titulo-shorts']!.desc : null,
-    })),
-    combos, quotaScope: Q.quotaScope.text, runs, freeNiches, anyActive,
-    insightsHref: obs.link.insights(o.niche === 'todos' ? undefined : { niche: o.niche }),
-    defaultType, defaultNiche,
-    capable: Object.fromEntries(REQ_TYPES.map(t => [t, Q.capabilities.includes(t)])),
-    incapableText: INCAPABLE_TEXT,
-  }
-}
-
-interface RunCtx {
-  timingFor: (type: string, ns: Niche[]) => string
-  nextPollOf: (last: number | null) => number | null
-  blockOf: (n: Niche, type: ObsType) => DrawerCombo['blocked']
-  freeNiches: Niche[]
-}
-const STATE_CASE: Record<string, RunCard['kase']> = { 'na fila': 'queued', 'trabalhando': 'running', 'publicado': 'done', 'atrasado': 'late', 'sem máquina': 'nomachine', 'nova tentativa': 'retry', 'liberado pelo vigia': 'released', 'falhou': 'failed', 'recusado (dado velho)': 'refused' }
-
-function runCard(obs: Observatory, type: ObsType, sc: Scenario, cx: RunCtx): RunCard {
-  const D = obs.date, NOW = obs.NOW, Q = obs.forja.queue, m = sc.machine, TICK = m.tickMinutes * MIN
-  const reqs = sc.requests
-  const active = reqs.find(isActiveQ) ?? sc.request!
-  const r = reqs.find(x => DEAD.includes(x.state)) ?? active
-  const split = reqs.length > 1
-  const doneTodos = split && sc.anyActive && reqs.some(x => x.state === 'publicado') && !reqs.some(x => DEAD.includes(x.state))
-  const kase: RunCard['kase'] = doneTodos ? 'doneTodos' : STATE_CASE[r.state] ?? 'queued'
-  const tl = obs.forja.readingTypes.find(t => t.id === type)?.label ?? type
-  const what = type === 'leitura-video'
-    ? 'Leitura do vídeo “' + (obs.video(r.video ?? r.target.video ?? '')?.title ?? r.video ?? '') + '” · ' + NL[r.niche]
-    : tl + ' · ' + (split ? 'Todos · um pedido por nicho' : NL[r.niche])
-  const lines = split && sc.statusLines ? sc.statusLines : []
-  const NP = m.alive ? cx.nextPollOf(m.lastPollAt) : null
-  const um = cx.timingFor(type, reqs.filter(isActiveQ).map(x => x.niche))
-  const created: RunStep = { s: 'feito', title: 'Pedido registrado', time: D.hm(r.createdAt), note: null }
-  const step = (s: RunStep['s'], title: string, time = '', note: string | null = null): RunStep => ({ s, title, time, note })
-  const nAct = reqs.filter(isActiveQ).filter(x => x.state !== 'trabalhando').map(x => x.niche)
-  const cancel = nAct.length ? { label: nAct.length > 1 ? 'Cancelar pedidos' : 'Cancelar pedido', niches: nAct } : null
-  const deadNs = reqs.filter(x => DEAD.includes(x.state)).map(x => x.niche)
-  const busyN = deadNs.filter(n => cx.blockOf(n, type))
-  const again = { niches: deadNs, disabledNote: busyN.length ? 'Já há um pedido deste tipo para ' + joinE(busyN.map(n => NL[n])) + '; peça de novo quando ele terminar.' : null }
-  const tit = period(sc.statusText)
-  const base = { type, video: type === 'leitura-video' ? (r.video ?? r.target.video ?? null) : null, what, lines, tit, cancel: null, again: null, goInsights: null, another: false, note: null, clock: null }
-  const linear = (a: number, b: number) => (t: number) => +(((t - a) / (b - a)) * 100).toFixed(2)
-  const pollsBetween = (a: number, b: number) => { const out: number[] = []; if (m.lastPollAt == null) return out; let t = m.lastPollAt; while (t > a) t -= TICK; for (t += TICK; t <= b; t += TICK) out.push(t); return out }
-  const clock = (c: Omit<RunClock, 'stacked' | 'evs'> & { evs: Array<[number, string, string?]> }): RunClock => {
-    const sorted = [...c.evs].sort((a, b) => a[0] - b[0]); let prev = -99, stacked = false
-    const evs = sorted.map(([p, l, cl]) => { const hi = p - prev < 18; prev = hi ? -99 : p; if (hi) stacked = true; return { left: p, label: l, cls: cl ?? '', hi } })
-    return { ...c, evs, stacked }
-  }
-  const at = (ms: number | null | undefined) => (ms == null ? '' : D.hm(ms))
-  switch (kase) {
-    case 'queued': {
-      if (NP == null || m.lastPollAt == null) return { ...base, kase, st: 'queued', stateLabel: r.state, cancel, eta: { big: '—', text: 'sem consulta da forja registrada; ' + um, future: false, aria: false }, sub: 'Você pode fechar este painel ou sair da página; o pedido continua.', steps: [created, step('proximo', 'A forja pega o pedido'), step('pendente', 'Leitura publicada', '', INSIDE)] }
-      const x = linear(m.lastPollAt - 2 * MIN, NP + TICK + 2 * MIN)
-      return { ...base, kase, st: 'queued', stateLabel: r.state, cancel,
-        eta: { big: D.hm(NP), text: 'próxima consulta da forja; ' + um, future: true, aria: false },
-        clock: clock({ aria: 'Pedido às ' + D.hm(r.createdAt) + '; próxima consulta às ' + D.hm(NP), ticks: [{ left: x(m.lastPollAt), label: D.hm(m.lastPollAt), s: 'seen' }, { left: x(NP), label: D.hm(NP), s: 'next' }, { left: x(NP + TICK), label: D.hm(NP + TICK), s: '' }], evs: [[x(r.createdAt), 'pedido ' + D.hm(r.createdAt)]], fill: { from: x(r.createdAt), to: x(NP), cls: '' }, cap: 'A forja consulta a fila a cada ' + m.tickMinutes + ' minutos.' }),
-        sub: 'Você pode fechar este painel ou sair da página; o pedido continua.',
-        steps: [created, step('proximo', 'A forja pega o pedido'), step('pendente', 'Leitura publicada', '', INSIDE)] }
-    }
-    case 'running':
-      return { ...base, kase, st: 'running', stateLabel: r.state,
-        eta: { big: r.startedAt != null ? Math.max(0, Math.round((NOW - r.startedAt) / MIN)) + ' min' : '—', text: 'trabalhando; ' + um, future: false, aria: false },
-        sub: 'Lendo os dados enviados, classificando com o Gemma e conferindo cada número antes de publicar.',
-        steps: [created, step('feito', 'A forja pegou', at(r.claimedAt)), step('agora', 'Leitura publicada', '', INSIDE)] }
-    case 'doneTodos': {
-      const pubN = reqs.find(x => x.state === 'publicado')!.niche, restN = joinE(reqs.filter(x => x.state !== 'publicado').map(x => NL[x.niche]))
-      return { ...base, kase, st: 'running', stateLabel: 'pedido em andamento',
-        eta: { big: reqs.filter(x => x.state === 'publicado').length + ' de ' + reqs.length, text: 'leituras publicadas; ' + um, future: false, aria: false },
-        sub: 'A leitura de ' + NL[pubN] + ' já está em Insights; a de ' + restN + ' sai quando a forja terminar.',
-        steps: [], goInsights: { label: 'Ir até a leitura de ' + NL[pubN], niche: pubN, href: obs.link.insights({ niche: pubN }) } }
-    }
-    case 'done':
-      return { ...base, kase, st: 'done', stateLabel: r.state,
-        eta: { big: '✓', text: r.publishedAt != null ? 'em ' + Math.round((r.publishedAt - r.createdAt) / MIN) + ' min, do pedido à publicação' : 'publicada', future: false, aria: true },
-        sub: 'Está na aba Insights.',
-        steps: [created, step('feito', 'A forja pegou', at(r.claimedAt)), step('feito', 'Publicada', at(r.publishedAt))],
-        goInsights: { label: 'Ir até a leitura', niche: r.niche, href: obs.link.insights({ niche: r.niche }) }, another: cx.freeNiches.length > 0 }
-    case 'late': {
-      const busy = pollsBetween(r.createdAt, NOW)
-      const ahead = r.behind ? reqs.find(x => x.id === r.behind) : null
-      const why = r.busyWith ? 'A forja está ocupada com ' + r.busyWith + '; ' : ahead ? 'O pedido de ' + NL[ahead.niche] + ' está à frente; ' : ''
-      const capT = why + (why ? 'c' : 'C') + 'onsultou a fila nesses horários sem pegar este pedido.'
-      const x = NP != null ? linear(r.createdAt - 6 * MIN, NP + 3 * MIN) : null
-      return { ...base, kase, st: 'late', stateLabel: r.state, cancel,
-        eta: { big: (r.waitingMinutes ?? Math.round((NOW - r.createdAt) / MIN)) + ' min', text: 'na fila; o limite é ' + Q.LATE_AFTER_MINUTES + ' min', future: false, aria: false },
-        clock: x && NP != null ? clock({ aria: 'Pedido às ' + D.hm(r.createdAt) + '; a forja consultou a fila às ' + busy.map(D.hm).join(', ') + ' sem pegar este pedido; próxima às ' + D.hm(NP), ticks: [...busy.map(t => ({ left: x(t), label: D.hm(t), s: 'busy' })), { left: x(NP), label: D.hm(NP), s: 'next' }], evs: [[x(r.createdAt), 'pedido ' + D.hm(r.createdAt)]], fill: { from: x(r.createdAt), to: x(NOW), cls: 'late' }, cap: capT }) : null,
-        sub: 'Fica na fila até a forja ficar livre.',
-        steps: [created, step('parado', 'A forja pega o pedido', 'aguardando'), step('pendente', 'Leitura publicada')] }
-    }
-    case 'nomachine': {
-      const last = m.lastPollAt
-      const mis = last != null ? pollsBetween(last, NOW) : []
-      const x = last != null ? linear(last - 4 * MIN, NOW + 6 * MIN) : null
-      return { ...base, kase, st: 'nomachine', stateLabel: r.state, cancel,
-        eta: last != null ? { big: D.dur(NOW - last, true), text: 'sem consulta da forja', future: false, aria: false } : { big: '—', text: 'nenhuma consulta da forja registrada', future: false, aria: false },
-        clock: x && last != null ? clock({ aria: 'Última consulta da forja às ' + D.hm(last) + '; ' + mis.length + ' consultas perdidas; pedido às ' + D.hm(r.createdAt) + '; sem previsão', ticks: [{ left: x(last), label: D.hm(last), s: 'seen' }, ...mis.map(t => ({ left: x(t), label: '', s: 'missed' }))], evs: [[x(r.createdAt), 'pedido ' + D.hm(r.createdAt)], [x(NOW), 'agora', 'now']], fill: { from: x(last), to: x(NOW), cls: 'late' }, cap: mis.length + ' consultas perdidas desde a última. Sem previsão: volta quando a máquina consultar a fila.' }) : null,
-        sub: 'Nada se perde; os pedidos saem por ordem de chegada. Religar a forja é com você.',
-        steps: [created, step('parado', 'A forja pega o pedido', 'sem previsão'), step('pendente', 'Leitura publicada')] }
-    }
-    case 'retry': case 'released': {
-      const a = r.attempts && r.attempts.length ? r.attempts[r.attempts.length - 1]! : null
-      const ma = r.maxAttempts ?? Q.maxAttempts
-      return { ...base, kase, st: kase, stateLabel: r.state,
-        eta: NP != null ? { big: D.hm(NP), text: 'tentativa ' + r.attempt + ' de ' + ma + ', na próxima consulta', future: true, aria: false } : { big: '—', text: 'tentativa ' + r.attempt + ' de ' + ma + ', quando a forja consultar a fila', future: false, aria: false },
-        sub: 'Nada foi publicado. O pedido voltou para a fila' + (kase === 'released' ? ' sozinho' : '') + '; se a última tentativa também falhar, ele para e você pode pedir de novo.',
-        steps: [created, step('erro', 'Tentativa ' + (r.attempt - 1), a ? at(a.claimedAt) + (a.endedAt != null ? '–' + at(a.endedAt) : '') : ''), step('proximo', 'Tentativa ' + r.attempt), step('pendente', 'Leitura publicada', '', INSIDE)] }
-    }
-    case 'failed': {
-      const n = r.attempts?.length ?? r.attempt
-      return { ...base, kase, st: 'failed', stateLabel: r.state,
-        eta: { big: '!', text: n + ' de ' + (r.maxAttempts ?? Q.maxAttempts) + ' tentativas', future: false, aria: true },
-        sub: 'Nada foi publicado; a leitura anterior continua valendo. ' + period(cap(sc.quota.text)),
-        steps: [created, ...(r.attempts?.length ? r.attempts.map((t, i) => step('erro', 'Tentativa ' + (i + 1), at(t.claimedAt) + (t.endedAt != null ? '–' + at(t.endedAt) : ''))) : [step('erro', 'Falhou', at(r.failedAt))])],
-        again }
-    }
-    case 'refused':
-      return { ...base, kase, st: 'refused', stateLabel: r.state,
-        eta: { big: '!', text: 'recusado antes de ler', future: false, aria: true },
-        sub: 'O site não tinha como prever. ' + period(cap(sc.quota.text)),
-        steps: [created, step('feito', 'A forja pegou', at(r.claimedAt)), step('erro', 'Recusado antes de ler', at(r.refusedAt ?? r.failedAt))],
-        again, note: obs.SYNC.last != null ? 'Um pedido novo leva os dados da sincronização das ' + D.hm(obs.SYNC.last) + '.' : null }
-  }
-}
-
-export { SHORT_TYPE }
 
 /**
  * "Copiar texto da leitura" (insights.html readingBlock): one block per source — title, seal, data sent, then the
