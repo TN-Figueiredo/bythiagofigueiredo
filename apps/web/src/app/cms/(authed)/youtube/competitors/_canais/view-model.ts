@@ -9,7 +9,7 @@ import type { OutlierItem } from '@/lib/youtube/observatorio/outliers'
 import type { EffectResult } from '@/lib/youtube/observatorio/effect'
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
-import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
+import { humanizeSyncError, type ChannelStats } from '@/lib/youtube/observatorio/channels'
 import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
 
 const NB = ' '
@@ -17,16 +17,8 @@ const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
 const nb = (s: string) => s.replace(/(\d) (h|d|dias?|min)\b/g, '$1' + NB + '$2').replace(/há /g, 'há' + NB)
 const NEQ = (n: number) => `n${NB}=${NB}${n}`
 
-/** channelStats() is typed loosely by the engine; this is the shape it returns (channels.ts channelStats). */
+type CStats = ChannelStats
 interface Growth { abs: number | null; pct: number | null; from?: number; to?: number; pending?: string; roundingText: string; withinRounding: boolean | null; text: string | null }
-interface CStats {
-  vpdMedian: number | null; vpdN: number; vpdWindow: string; perMilSubs: number | null
-  bestOutlier: OutlierItem | null; outliers90: number
-  growth30: Growth
-  maxMultBelowMin: { id: string; value: number | null; n: number; weak: boolean; label: string } | null
-  engagement: { median: number | null; n: number; window: string; label: string }
-  tracked: number; total: number; video_limit: number
-}
 
 export type CanaisSort = 'active' | 'vpd' | 'outliers' | 'swaps' | 'growth'
 export type DrawerTab = 'trocas' | 'videos' | 'outliers'
@@ -145,7 +137,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const filter = p.filter === 'problemas' ? 'problemas' : 'todos'
   const niche = p.niche
   const nicheLabel = niche === 'todos' ? 'Todos' : NL[niche]
-  const stats = (id: string, f: Fmt = fmt) => obs.channelStats(id, f) as unknown as CStats
+  const stats = (id: string, f: Fmt = fmt) => obs.channelStats(id, f)
   const num = (n: number | null) => F.num(n).replace(/ (mil|mi)$/, NB + '$1')
   const subsTxt = (n: number) => F.subs(n).replace(/ (mil|mi)$/, NB + '$1')
   const fmtName = fmt === 'long' ? 'longos' : 'Shorts', one = fmt === 'long' ? 'vídeo longo' : 'Short'
@@ -444,7 +436,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
         const m = x.mult, vv = x.video, a = ageOf(vv)
         return { id: vv.id, thumb: thumbOf(vv), title: vv.title, mult: m.label ?? F.mult(m.value), tier: tier(m.value), meta: `${x.phase.label}. ${methodText(m)}; sem contar este vídeo.`, phaseTitle: x.phase.why, published: a.text, publishedTitle: a.title, views: viewsTxt(c, vv) }
       })
-      const top = (obs.channelStats(c.id, f) as unknown as CStats).maxMultBelowMin
+      const top = (obs.channelStats(c.id, f)).maxMultBelowMin
       return {
         fmt: f, title: f === 'long' ? 'Vídeos longos' : 'Shorts', rows,
         link: r.count ? { n: r.count, key: `outliers:${c.id}:${f}`, href: obs.link.outliers({ channel: c.id, fmt: f }), text: r.count === 1 ? (f === 'long' ? 'Ver o vídeo longo em Outliers' : 'Ver o Short em Outliers') : (f === 'long' ? `Ver os ${r.count} vídeos longos em Outliers` : `Ver os ${r.count} Shorts em Outliers`) } : null,

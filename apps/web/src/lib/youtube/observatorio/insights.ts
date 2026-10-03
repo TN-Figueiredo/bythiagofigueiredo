@@ -3,7 +3,7 @@ import type { Fmt as VideoFmt, ObsChannel, ObsVideo } from './types'
 import { inNiche, type NicheScope } from './niche'
 import { RULES } from './rules'
 import { median } from './stats'
-import { cadence, channelStats } from './channels'
+import { cadence, channelStats, type ChannelStats } from './channels'
 import { outliers } from './outliers'
 import { multiplierAt, type MultiplierResult } from './multiplier'
 import { viewsAtIdx, type EngineCtx, type Derived } from './series'
@@ -87,7 +87,7 @@ export function heatmap(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: Vi
 /* ------------------------------------------------------------------ referência do nicho + "você" */
 type Agg = NicheAgg
 const agg = (arr: Array<number | null | undefined>): Agg => { const a = arr.filter((x): x is number => x != null && isFinite(x)); return { median: median(a), min: a.length ? Math.min(...a) : null, max: a.length ? Math.max(...a) : null, n: a.length } }
-interface ChStats { perMilSubs: number | null; typicalMult: number | null; typicalMultN: number; vpdN: number; engagement: { median: number | null; n: number }; pctOutliers: number | null; pctOutliersN: number }
+type ChStats = ChannelStats
 const NICHE_VERDICT_THRESHOLD = 0.15, OWN_FEW_N = 10
 type Ref = Record<'pw' | 'perMilSubs' | 'typicalMult' | 'engagement' | 'pctOutliers', Agg>
 
@@ -102,7 +102,7 @@ export type NicheStats = { niche: string; fmt: VideoFmt; channels: string[] } & 
 
 function ownVsNiche(ctx: EngineCtx, ownId: string, fmtId: VideoFmt, ref: Ref): OwnVsNiche | null {
   if (!chOf(ctx, ownId)) return null
-  const st = channelStats(ctx, ownId, fmtId) as unknown as ChStats, cad = cadence(ctx, ownId, fmtId)
+  const st = channelStats(ctx, ownId, fmtId), cad = cadence(ctx, ownId, fmtId)
   const vals: Record<keyof Ref, [number | null, number]> = { pw: [cad.pw, cad.n], perMilSubs: [st.perMilSubs, st.vpdN], typicalMult: [st.typicalMult, st.typicalMultN], engagement: [st.engagement.median, st.engagement.n], pctOutliers: [st.pctOutliers, st.pctOutliersN] }
   const metric = (k: keyof Ref): OwnMetric => {
     const [value, n] = vals[k], med = ref[k].median, ratio = value != null && med ? value / med : null
@@ -137,7 +137,7 @@ export function ownChannelOf(ctx: EngineCtx, niche?: NicheScope, explicit?: stri
 export function nicheStats(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long', ownId?: string): NicheStats {
   const own = ownChannelOf(ctx, niche, ownId)
   const chs = [...ctx.CH.values()].filter(c => !c.own && inNiche(niche, c))
-  const st = chs.map(c => channelStats(ctx, c.id, fmtId) as unknown as ChStats)
+  const st = chs.map(c => channelStats(ctx, c.id, fmtId))
   const ref: Ref = { pw: agg(chs.map(c => cadence(ctx, c.id, fmtId).pw)), perMilSubs: agg(st.map(x => x.perMilSubs)), typicalMult: agg(st.map(x => x.typicalMult)), engagement: agg(st.map(x => x.engagement.median)), pctOutliers: agg(st.map(x => x.pctOutliers)) }
   return { niche: niche || 'todos', fmt: fmtId, channels: chs.map(c => c.id), ...ref, own: own ? ownVsNiche(ctx, own.id, fmtId, ref) : null }
 }

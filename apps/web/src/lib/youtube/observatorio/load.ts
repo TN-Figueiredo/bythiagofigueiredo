@@ -301,14 +301,17 @@ export function orderRequests(rs: ForjaRequest[]): ForjaRequest[] {
     || (NICHE_ORDER[a.niche] ?? 9) - (NICHE_ORDER[b.niche] ?? 9) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 
+/** Shape check for the frozen `base` (the same fields frozenOf has always required). */
+function isReadingBase(b: unknown): b is ReadingBase {
+  return isRecord(b) && Array.isArray(b.videos) && Array.isArray(b.channels) && typeof b.asOf === 'number' && (typeof b.windowDays === 'number' || b.windowDays === null)
+    && b.videos.every(v => isRecord(v) && typeof v.id === 'string' && typeof v.ch === 'string' && typeof v.mult === 'number' && typeof v.weak === 'boolean')
+}
+
 /** The since() data frozen in `sent` (forja/sent.ts SentPack), shape-checked; a malformed piece is left out, never guessed. */
 function frozenOf(sent: Record<string, unknown>): Pick<FrozenReading, 'base' | 'effects' | 'viewsThen'> {
   const out: Pick<FrozenReading, 'base' | 'effects' | 'viewsThen'> = {}
   const b = sent.base
-  if (isRecord(b) && Array.isArray(b.videos) && Array.isArray(b.channels) && typeof b.asOf === 'number' && (typeof b.windowDays === 'number' || b.windowDays === null)
-    && b.videos.every(v => isRecord(v) && typeof v.id === 'string' && typeof v.ch === 'string' && typeof v.mult === 'number' && typeof v.weak === 'boolean')) {
-    out.base = b as unknown as ReadingBase
-  }
+  if (isReadingBase(b)) out.base = b
   if (Array.isArray(sent.effects) && sent.effects.every(e => isRecord(e) && typeof e.change === 'string' && typeof e.status === 'string')) out.effects = sent.effects as ReadingEffect[]
   if (typeof sent.viewsThen === 'number' || sent.viewsThen === null) out.viewsThen = sent.viewsThen as number | null
   return out

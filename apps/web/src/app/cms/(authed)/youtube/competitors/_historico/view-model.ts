@@ -280,7 +280,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const preDays = Math.round((SS - pub) / DAY)
 
   // ---------- versions ----------
-  type Ver = { id: string; first_seen: number; last_seen: number; current: boolean; prec: string | null; window: [number, number] | null; seenSinceArchive?: boolean }
+  type Ver = { id: string; first_seen: number; last_seen: number; current: boolean; prec: string | null; window: [number, number] | null; seenSinceArchive?: boolean; text?: string; lines?: string[] | null; hasText?: boolean }
   // Production writes the first version of a video as precision 'first' with first_seen = the sync that saw it
   // (competitor-versions.ts). The oracle rule (dados.js:524): only a video published BEFORE the archive start
   // (SERIES_START) has a first version whose start was not observed ("visto desde DD/MM", seenSinceArchive);
@@ -331,12 +331,12 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       const end = nx ? (nx.window ? 'trocad' + o + ' ' + D.windowText(nx.window[0], nx.window[1]) : dmhmY(nx.first_seen)) : stalled ? 'até ' + dmhmY(endNow) + ' (última conferência)' : 'agora'
       const span = /^trocad[ao] /.test(end) ? startLbl + '; ' + end : end.startsWith('até ') ? startLbl + ' ' + end : startLbl + ' até ' + end
       const label = verLabel.get(x.id) ?? x.id
-      const desc = type === 'desc' ? (x as unknown as { lines: string[] | null; hasText: boolean }) : null
+      const desc = type === 'desc' ? x : null
       const noText = !!desc && (desc.lines == null || !desc.hasText)
       const precision: VersionPrecision = open ? 'aberto' : isPub(x) ? 'publicacao' : x.prec === 'min' ? 'min' : x.prec === '1d' ? '1d' : '6h'
       const reverted = type === 'thumb' && revertedIds.has(x.id)
       const cur = !nx
-      const tText = type === 'title' ? (x as unknown as { text: string }).text : null
+      const tText = type === 'title' ? x.text ?? null : null
       return {
         id: x.id, label, from: startLbl, to: end, atLeast, participle: 'vist' + o, changedParticiple: 'trocad' + o, precision,
         fromH: Math.max(0, hx(startMs(x))), toH: hx(eLo), win: x.window ? [hx(x.window[0]), hx(x.window[1])] : null,

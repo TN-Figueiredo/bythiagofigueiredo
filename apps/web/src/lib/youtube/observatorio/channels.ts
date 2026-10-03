@@ -124,7 +124,7 @@ export function syncText(ctx: EngineCtx, ch: ObsChannel): string {
   return 'sincronizado ' + clock.ago(s.last)
 }
 
-export function channelStats(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'long'): Record<string, unknown> {
+export function channelStats(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'long') {
   const { clock } = ctx
   const ch = ctx.CH.get(channelId)!
   const vp = vids(ctx, ch).filter(v => v.tracked && v.fmt === fmtId && v.vpd != null).map(v => v.vpd as number)
@@ -152,6 +152,9 @@ export function channelStats(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'lo
     syncText: syncText(ctx, ch),
   }
 }
+
+/** The shape channelStats() returns: single source for the view-models and insights. */
+export type ChannelStats = ReturnType<typeof channelStats>
 
 /** Competitors only (the own channel never takes a slot); the formula is computeSlots, shared with the actions. */
 export function channelSlots(ctx: EngineCtx, limit: number): ChannelSlots {

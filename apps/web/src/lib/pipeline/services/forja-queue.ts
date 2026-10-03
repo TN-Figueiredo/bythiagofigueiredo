@@ -246,12 +246,19 @@ interface HeldTask {
   result_summary: unknown; started_at: string | null; sent?: unknown
 }
 
+/** Shape check for a tasks row read with a dynamic column list (the supabase client cannot type it). */
+function isHeldTask(d: unknown): d is HeldTask {
+  return typeof d === 'object' && d !== null && typeof (d as { id?: unknown }).id === 'string'
+    && typeof (d as { status?: unknown }).status === 'string' && typeof (d as { task_type?: unknown }).task_type === 'string'
+}
+
 /** The running task, held by this key (unless wide), of an observatory type. */
 async function heldObsTask(ctx: ServiceContext, taskId: string, cols: string): Promise<{ task: HeldTask; previous: Record<string, unknown> }> {
   const { data, error } = await ctx.supabase.from(TASKS).select(cols).eq('id', taskId).eq('site_id', ctx.siteId).maybeSingle()
   if (error) return err('INTERNAL_ERROR', 'Failed to read the task', 500)
   if (!data) return err('NOT_FOUND', 'Task not found', 404)
-  const task = data as unknown as HeldTask
+  if (!isHeldTask(data)) return err('INTERNAL_ERROR', 'Failed to read the task', 500)
+  const task = data
   if (task.status !== 'running') return err('TASK_NOT_RUNNING', `Task status is '${task.status}', expected 'running'`, 409)
   const previous = (task.result_summary ?? {}) as Record<string, unknown>
   if (!isWideKey(ctx) && (!ctx.keyId || previous.claimed_by !== ctx.keyId)) return err('TASK_NOT_RUNNING', 'Task is held by another key', 409)
