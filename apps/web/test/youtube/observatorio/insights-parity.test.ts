@@ -15,7 +15,12 @@ describe('insights parity with dados.js', () => {
     const p = P.themeTrend(n, f), o = O.themeTrend(n, f)
     expect(J(p)).toEqual(J(o)); expect(J(p.excluded)).toEqual(J(o.excluded)); expect(p.channelsCompared).toEqual(o.channelsCompared)
   })
-  it.each(['long', 'short'] as const)('ownCoverage %s', f => { expect(J(P.ownCoverage(f))).toEqual(J(O.ownCoverage(f))) })
+  it.each(['long', 'short'] as const)('ownCoverage %s', f => {
+    // `themed` is a production addition (Task 27, ruling R49): the oracle has no such field
+    const { themed, ...rest } = P.ownCoverage(f)
+    expect(J(rest)).toEqual(J(O.ownCoverage(f)))
+    expect(themed).toBe(Object.values(rest.byTheme).reduce((a, b) => a + b, 0))
+  })
   it.each(cases)('patternsNow %s %s', (n, f) => { expect(J(P.patternsNow(n, f))).toEqual(J(O.patternsNow(n, f))) })
   it('catalogues', () => {
     expect(J(P.themes)).toEqual(J(O.themes)); expect(P.formulas.map(x => [x.id, x.label, x.short, x.niches, x.ex])).toEqual(O.formulas.map((x: { id: string; label: string; short: string; niches: string[]; ex: string }) => [x.id, x.label, x.short, x.niches, x.ex]))

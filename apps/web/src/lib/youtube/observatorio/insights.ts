@@ -85,26 +85,35 @@ export function heatmap(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: Vi
 }
 
 /* ------------------------------------------------------------------ referência do nicho + "você" */
-interface Agg { median: number | null; min: number | null; max: number | null; n: number }
+type Agg = NicheAgg
 const agg = (arr: Array<number | null | undefined>): Agg => { const a = arr.filter((x): x is number => x != null && isFinite(x)); return { median: median(a), min: a.length ? Math.min(...a) : null, max: a.length ? Math.max(...a) : null, n: a.length } }
 interface ChStats { perMilSubs: number | null; typicalMult: number | null; typicalMultN: number; vpdN: number; engagement: { median: number | null; n: number }; pctOutliers: number | null; pctOutliersN: number }
 const NICHE_VERDICT_THRESHOLD = 0.15, OWN_FEW_N = 10
 type Ref = Record<'pw' | 'perMilSubs' | 'typicalMult' | 'engagement' | 'pctOutliers', Agg>
 
-function ownVsNiche(ctx: EngineCtx, ownId: string, fmtId: VideoFmt, ref: Ref): Record<string, unknown> | null {
+export type NicheMetricKey = keyof Ref
+export interface NicheAgg { median: number | null; min: number | null; max: number | null; n: number }
+export interface OwnMetric {
+  value: number | null; median: number | null; ratio: number | null; bothZero: boolean; verdict: '▲' | '▼' | '≈' | null
+  verdictText: string; label: string; n: number; few: boolean
+}
+export type OwnVsNiche = { channel: string; threshold: number; fewN: number } & Record<NicheMetricKey, OwnMetric>
+export type NicheStats = { niche: string; fmt: VideoFmt; channels: string[] } & Record<NicheMetricKey, NicheAgg> & { own: OwnVsNiche | null }
+
+function ownVsNiche(ctx: EngineCtx, ownId: string, fmtId: VideoFmt, ref: Ref): OwnVsNiche | null {
   if (!chOf(ctx, ownId)) return null
   const st = channelStats(ctx, ownId, fmtId) as unknown as ChStats, cad = cadence(ctx, ownId, fmtId)
   const vals: Record<keyof Ref, [number | null, number]> = { pw: [cad.pw, cad.n], perMilSubs: [st.perMilSubs, st.vpdN], typicalMult: [st.typicalMult, st.typicalMultN], engagement: [st.engagement.median, st.engagement.n], pctOutliers: [st.pctOutliers, st.pctOutliersN] }
-  const out: Record<string, unknown> = { channel: ownId, threshold: NICHE_VERDICT_THRESHOLD, fewN: OWN_FEW_N }
-  for (const k of Object.keys(vals) as Array<keyof Ref>) {
+  const metric = (k: keyof Ref): OwnMetric => {
     const [value, n] = vals[k], med = ref[k].median, ratio = value != null && med ? value / med : null
     const bothZero = value === 0 && med === 0, aboveZero = value != null && value > 0 && med === 0
     const verdict = bothZero ? '≈' : aboveZero ? '▲' : ratio == null ? null : ratio >= 1 + NICHE_VERDICT_THRESHOLD ? '▲' : ratio <= 1 - NICHE_VERDICT_THRESHOLD ? '▼' : '≈'
-    out[k] = { value, median: med, ratio, bothZero, verdict,
+    return { value, median: med, ratio, bothZero, verdict,
       verdictText: bothZero ? 'igual à mediana do nicho (as duas em 0%)' : aboveZero ? 'acima da mediana do nicho (a mediana está em 0)' : verdict === '▲' ? 'acima da mediana do nicho' : verdict === '▼' ? 'abaixo da mediana do nicho' : verdict === '≈' ? 'na mediana do nicho (±15%)' : 'sem dado',
       label: bothZero ? 'igual à mediana (as duas em 0%)' : aboveZero ? 'acima (mediana em 0)' : ratio == null ? 'sem dado' : ctx.fmt.mult(ratio) + ' a mediana do nicho', n, few: n < OWN_FEW_N }
   }
-  return out
+  // key order = the mockup's (parity tests compare the JSON)
+  return { channel: ownId, threshold: NICHE_VERDICT_THRESHOLD, fewN: OWN_FEW_N, pw: metric('pw'), perMilSubs: metric('perMilSubs'), typicalMult: metric('typicalMult'), engagement: metric('engagement'), pctOutliers: metric('pctOutliers') }
 }
 /**
  * The own channel to compare against the niche, derived from the dataset (`own: true`), never a literal id (real ids are
@@ -125,7 +134,7 @@ export function ownChannelOf(ctx: EngineCtx, niche?: NicheScope, explicit?: stri
   const tracked = (c: Ch) => c.videos.filter(v => v.tracked).length
   return [...owns].sort((a, b) => tracked(b) - tracked(a))[0]
 }
-export function nicheStats(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long', ownId?: string): Record<string, unknown> & { own: Record<string, unknown> | null } {
+export function nicheStats(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long', ownId?: string): NicheStats {
   const own = ownChannelOf(ctx, niche, ownId)
   const chs = [...ctx.CH.values()].filter(c => !c.own && inNiche(niche, c))
   const st = chs.map(c => channelStats(ctx, c.id, fmtId) as unknown as ChStats)
@@ -135,7 +144,11 @@ export function nicheStats(ctx: EngineCtx, niche: NicheScope | undefined, fmtId:
 
 /* ------------------------------------------------------------------ temas */
 export interface ThemeTrendRow { trend: '▲' | '▼' | '≈'; trendText: string; delta: number; deltaPct: number | null; theme: string; label: string; now: number; prev: number; channels: string[]; medMult: number | null; nMult: number; outliers: number; ids: string[] }
-export type ThemeTrend = ThemeTrendRow[] & { excluded: Array<{ id: string; reason: string }>; channelsCompared: string[] }
+/** How many of the compared videos carry a theme, per window (ruling R49: production themes come from a forja reading). */
+export interface ThemeWindowCoverage { themed: number; total: number }
+export interface ThemeCoverage { now: ThemeWindowCoverage; prev: ThemeWindowCoverage; minShare: number; trendable: boolean }
+export type ThemeTrend = ThemeTrendRow[] & { excluded: Array<{ id: string; reason: string }>; channelsCompared: string[]; coverage: ThemeCoverage }
+const winCov = (list: ObsVideo[]): ThemeWindowCoverage => ({ themed: list.filter(v => v.theme != null).length, total: list.length })
 export function themeTrend(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long'): ThemeTrend {
   // só compara canais com série nas DUAS janelas (≤ 90 d e 91–180 d)
   const excluded: Array<{ id: string; reason: string }> = [], okCh = new Set<string>()
@@ -156,13 +169,17 @@ export function themeTrend(ctx: EngineCtx, niche: NicheScope | undefined, fmtId:
     return { trend, trendText: trend === '▲' ? 'subindo' : trend === '▼' ? 'caindo' : 'estável', delta: d, deltaPct: prev.length ? d / prev.length : null, theme: t.id, label: t.label, now: now.length, prev: prev.length, channels: [...new Set(now.map(v => v.ch))], medMult: median(m), nMult: m.length,
       outliers: outliers(ctx, { niche: niche || 'todos', fmt: fmtId, theme: t.id }).count, ids: now.map(v => v.id) } as ThemeTrendRow
   }).sort((a, b) => b.now - a.now) : []
-  return Object.assign(res, { excluded, channelsCompared: [...okCh] })
+  const cNow = winCov(vs.filter(v => v.ageDays <= 90)), cPrev = winCov(vs.filter(v => v.ageDays > 90 && v.ageDays <= 180))
+  const min = RULES.theme.coverage.minShare
+  const trendable = cNow.total > 0 && cPrev.themed > 0 && cNow.themed / cNow.total >= min && cPrev.themed / cPrev.total >= min
+  return Object.assign(res, { excluded, channelsCompared: [...okCh], coverage: { now: cNow, prev: cPrev, minShare: min, trendable } })
 }
-export function ownCoverage(ctx: EngineCtx, fmtId: VideoFmt = 'long', ownId?: string): { channel: string | null; fmt: VideoFmt; window: string; n: number; byTheme: Record<string, number>; ids: string[] } {
+/** `themed` = own videos in the window that carry a theme (ruling R49: 0 means gaps cannot be computed). */
+export function ownCoverage(ctx: EngineCtx, fmtId: VideoFmt = 'long', ownId?: string): { channel: string | null; fmt: VideoFmt; window: string; n: number; themed: number; byTheme: Record<string, number>; ids: string[] } {
   const own = ownChannelOf(ctx, undefined, ownId)
   const vs = own ? own.videos.filter(v => v.fmt === fmtId && v.ageDays <= 90) : []
   const byTheme: Record<string, number> = {}; vs.forEach(v => { if (v.theme != null) byTheme[v.theme] = (byTheme[v.theme] || 0) + 1 })
-  return { channel: own?.id ?? null, fmt: fmtId, window: '90 dias', n: vs.length, byTheme, ids: vs.map(v => v.id) }
+  return { channel: own?.id ?? null, fmt: fmtId, window: '90 dias', n: vs.length, themed: vs.filter(v => v.theme != null).length, byTheme, ids: vs.map(v => v.id) }
 }
 
 /* ------------------------------------------------------------------ padrões (mesmo cálculo das leituras) */
