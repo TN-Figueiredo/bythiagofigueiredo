@@ -19,15 +19,15 @@
 **Precisão por ETag (HIPÓTESE, ruling R20):** o site trata o ETag numérico ≠ 0 como instante do upload (hipótese: n=1 casamento exato de +3 s com o ciclo 7 + 18/60 competidores com ETag ≤ 60 min do `published_at`, consistentes). O instante só é usado quando cai DENTRO da janela de observação da mudança; o erro fica então limitado pela janela, e a precisão em minutos é exibida sob essa hipótese até o re-probe T+24h confirmar. Fora da janela, ou com ETag `"0"`, a precisão é a janela de sync (6h).
 
 **ETag `"0"` — regra e consequências (48 % dos vídeos):**
-- Regra: para ETag `"0"` não há pré-filtro; compara-se SÓ por dHash contra o hash armazenado, com DHASH_MAX_SAME = 6 (distância > 6 = mudança). Para ETag ≠ `"0"`: mudança registrada quando o ETag mudou E a distância > 6.
+- Regra (R23): o ETag é só um PRÉ-FILTRO do download, nunca registra mudança sozinho. ETag ≠ `"0"` e inalterado → não baixa. ETag ≠ `"0"` e mudou → baixa a imagem e compara o dHash. ETag `"0"` → não há pré-filtro: baixa e compara o dHash em todo sync. Em todos os casos, a mudança de thumbnail só é registrada quando a distância dHash contra o hash armazenado é > DHASH_MAX_SAME = 6.
 - Custo: esses vídeos fazem GET + dHash em todo sync. hqdefault medido: mediana 12 754 B, média 15 842 B, máx 45 785 B (183 leituras). ≈48 % dos vídeos × 4 syncs/dia × ≈15,8 KB ≈ 30 KB/dia por vídeo rastreado (≈3 MB/dia a cada 100 vídeos). Desprezível em banda; o custo real é CPU do dHash (sharp) e o número de GETs.
-- Lacuna de detecção: nesses vídeos, re-upload do MESMO arquivo e imagem quase idêntica (distância ≤ 6) são indetectáveis (C e D do A/B Lab, distância 0, ficariam invisíveis). Limitação aceita.
+- Lacuna de detecção (TODOS os vídeos, não só ETag `"0"`): re-upload do MESMO arquivo ou de imagem quase idêntica (distância ≤ 6) nunca é registrado, mesmo com o ETag movido (C e D do A/B Lab, distância 0, ficariam invisíveis). Aceito: o espectador não vê diferença, então não há o que registrar.
 
 Ressalvas:
 - Nenhuma rotação ao vivo; "ETag muda em toda rotação" tem 1 observação (a reaplicação do ciclo 7), não uma amostra.
-- ETag `"0"` (48 %) pode virar timestamp após a primeira troca de thumbnail (provável, não comprovado) — o fluxo etag+dhash cobre esse caso porque 0 → N é flip e dHash confirma.
+- ETag `"0"` (48 %) pode virar timestamp após a primeira troca de thumbnail (provável, não comprovado). Nesse caso o ETag movido (0 → N) apenas dispara o download; quem decide é o dHash (> 6), conforme R23.
 - dHash entre formatos diferentes (blob 16:9 vs `hqdefault` 4:3) não é comparável de forma estrita; as distâncias reais de rotação devem ser re-medidas no mesmo formato (`hqdefault` antes/depois) no T+24h/primeira rotação real.
-- C e D idênticos (distância 0): dHash sozinho não detecta re-upload do mesmo arquivo — o ETag sim.
+- C e D idênticos (distância 0): re-upload do mesmo arquivo não é detectado por ninguém (nem pelo ETag movido, que só dispara o download); consistente com R23.
 
 Para re-sondar (T+24h). Pré-requisito: `apps/web/.env.local` é gitignored e precisa ser copiado para um worktree novo. O passo A sobrescreve `spike-ids.json` (a lista de competidores muda): para comparar com o T0, copie `spike-ids.json` e `spike-etag.jsonl` do T0 antes, ou PULE o passo A.
 
