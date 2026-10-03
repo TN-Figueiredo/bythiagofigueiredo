@@ -1,7 +1,7 @@
 // @vitest-environment node
 // apps/web/test/youtube/observatorio/load.test.ts — pure rowsToDataset (Review Focus 2 and 4).
 import { describe, it, expect } from 'vitest'
-import { rowsToDataset, nextSyncSlot, trackedVideoIds, dailyReadFrom, type ObservatoryRows, type ChannelRow, type VideoRow, type VersionRow, type LegacyChangeRow, type DailyRow, type ReadingRow, type OwnChannelRow, type OwnVideoRow } from '@/lib/youtube/observatorio/load'
+import { rowsToDataset, nextSyncSlot, trackedVideoIds, dailyReadFrom, dailyCappedFrom, mapLimit, type ObservatoryRows, type ChannelRow, type VideoRow, type VersionRow, type LegacyChangeRow, type DailyRow, type ReadingRow, type OwnChannelRow, type OwnVideoRow } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { formulasOf } from '@/lib/youtube/observatorio/catalog'
 
@@ -266,7 +266,7 @@ describe('rowsToDataset — a channel that never synced OK and now errors', () =
     expect(c.sync.problemPhrase).not.toMatch(/última sincronização boa/)
     expect(c.sync.problemPhrase).not.toMatch(/\d\d\/\d\d 0?1[0-9]:\d\d.*sincroniza/)
     expect(obs.syncText(c.id)).toContain('nunca sincronizado com sucesso')
-    expect(Number.isFinite(c.syncAgeHours ?? NaN) || c.syncAgeHours == null).toBe(true)
+    expect(c.syncAgeHours).toBeUndefined()
     expect(JSON.stringify(c.sync)).not.toMatch(/NaN/)
   })
   it('the phase of its videos says no rhythm is measured, without a date', () => {
@@ -302,5 +302,74 @@ describe('daily read bound', () => {
   it('reads from series start − 1 d, never older than 365 d, in SP dates', () => {
     expect(dailyReadFrom(NOW - 30 * DAY, NOW)).toBe('2026-09-23')
     expect(dailyReadFrom(NOW - 900 * DAY, NOW)).toBe(new Date(NOW - 365 * DAY - 3 * H).toISOString().slice(0, 10))
+  })
+})
+
+describe('own channel that never synced', () => {
+  const own: OwnChannelRow = { id: 'own1', channel_id: 'UCown', name: 'tn', handle: '@tn', subscriber_count: 1, last_synced_at: null, locale: 'pt', created_at: iso(sp('2026-09-01T10:00:00')) }
+  const ds = rowsToDataset(rows({ ownChannels: [own] }), NOW)
+  const obs = createObservatory(ds)
+  it('has no sync date, says so, and keeps its locale and creation date', () => {
+    const c = ds.channels[0]!
+    expect(c.sync.last).toBeNull()
+    expect(c.sync.added).toBe(sp('2026-09-01T10:00:00'))
+    expect(c.lang).toBe('pt')
+    expect(obs.syncText('own1')).toBe('nunca sincronizado com sucesso')
+    expect(obs.syncText('own1')).not.toMatch(/sincronizado agora/)
+    expect(obs.channels[0]!.syncAgeHours).toBeUndefined()
+  })
+})
+
+describe('daily lookback cap', () => {
+  it('a series start older than the cap is flagged with the read start; a recent one is not', () => {
+    expect(dailyCappedFrom(NOW - 30 * DAY, NOW)).toBeNull()
+    const f = dailyCappedFrom(NOW - 900 * DAY, NOW)!
+    expect(f).toBe(Date.parse(dailyReadFrom(NOW - 900 * DAY, NOW) + 'T00:00:00-03:00'))
+    const ds = rowsToDataset(rows({ settings: { series_started_at: iso(NOW - 900 * DAY), channel_limit: 75 } }), NOW)
+    expect(ds.dailyCappedFrom).toBe(f)
+    expect(rowsToDataset(rows(), NOW).dailyCappedFrom).toBeNull()
+  })
+  it('a video published after seriesStart but before the cap is truncated: no day-0 baseline; a newer one keeps it', () => {
+    const f = dailyCappedFrom(NOW - 900 * DAY, NOW)!
+    const old = iso(f - 20 * DAY), fresh = iso(f + 20 * DAY)
+    const dayOf = (ms: number) => new Date(ms - 3 * H).toISOString().slice(0, 10)
+    const ds = rowsToDataset(rows({
+      settings: { series_started_at: iso(NOW - 900 * DAY), channel_limit: 75 }, channels: [channel()],
+      videos: [video({ id: 'old', video_id: 'yo', published_at: old }), video({ id: 'new', video_id: 'yn', published_at: fresh })],
+      daily: [daily('old', dayOf(f + DAY), 100), daily('old', dayOf(f + 2 * DAY), 120), daily('new', dayOf(f + 21 * DAY), 10), daily('new', dayOf(f + 22 * DAY), 30)],
+    }), NOW)
+    const o = createObservatory(ds)
+    expect(ds.videos.find(v => v.id === 'old')!.truncated).toBe(true)
+    expect(ds.videos.find(v => v.id === 'new')!.truncated).toBeUndefined()
+    const vo = o.videos.find(v => v.id === 'old')!, vn = o.videos.find(v => v.id === 'new')!
+    // with a baseline the old video would report 100 views over its first day from 0; truncated, its rate is 20/day
+    expect(vo.vpd).toBe(20)
+    expect(vn.vpd).toBeGreaterThan(0)
+  })
+})
+
+describe('R37: untracked video effect', () => {
+  it('an untracked video change is "fora dos vídeos acompanhados", not "sem série diária"', () => {
+    const ds = rowsToDataset(rows({
+      settings: { series_started_at: SERIES, channel_limit: 75 }, channels: [channel({ video_limit: 1 })],
+      videos: [video({ id: 'a', published_at: iso(sp('2026-10-20T10:00:00')) }), video({ id: 'b', video_id: 'yb', published_at: iso(sp('2026-08-01T10:00:00')) })],
+      versions: [version({ id: 'b1', video_id: 'b', value_text: 'Um', first_seen_at: iso(sp('2026-10-06T09:00:00')), is_current: false }), version({ id: 'b2', video_id: 'b', value_text: 'Dois', first_seen_at: iso(sp('2026-10-12T09:00:00')), window_start: iso(sp('2026-10-12T03:00:00')), precision: '6h' })],
+    }), NOW)
+    const obs = createObservatory(ds)
+    const c = obs.changes.find(x => x.video === 'b')!
+    const e = obs.effect(c.id)!
+    expect(e.status).toBe('sem-serie')
+    expect(e.reason).toBe('Fora dos vídeos acompanhados: sem série diária de views.')
+  })
+})
+
+describe('mapLimit', () => {
+  it('keeps input order, never exceeds the limit, and propagates the first rejection', async () => {
+    let inflight = 0, peak = 0
+    const out = await mapLimit([5, 1, 4, 2, 3, 6, 7, 8], 4, async n => { inflight++; peak = Math.max(peak, inflight); await new Promise(r => setTimeout(r, n)); inflight--; return n * 2 })
+    expect(out).toEqual([10, 2, 8, 4, 6, 12, 14, 16])
+    expect(peak).toBeLessThanOrEqual(4); expect(peak).toBeGreaterThan(1)
+    await expect(mapLimit([1, 2, 3], 2, async n => { if (n === 2) throw new Error('boom'); return n })).rejects.toThrow('boom')
+    expect(await mapLimit([], 4, async n => n)).toEqual([])
   })
 })

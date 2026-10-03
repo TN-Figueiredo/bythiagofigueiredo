@@ -31,7 +31,7 @@ export function datasetFromOracle(o: Oracle): Dataset {
   }))
   const videos: ObsVideo[] = o.videos.map((v: any) => pick<ObsVideo>(v, VIDEO_INPUT))
   return {
-    now: o.NOW, seriesStart: o.SERIES_START, snap0: o.date.snapTime(0), obsStart: o.OBS_START, channels, videos,
+    now: o.NOW, seriesStart: o.SERIES_START, snap0: o.date.snapTime(0), obsStart: o.OBS_START, dailyCappedFrom: null, channels, videos,
     sync: { last: o.SYNC.last, next: o.SYNC.next },
     readings: structuredClone(o.forja.readings), requests: structuredClone(o.forja.requests.filter((r: any) => !r.scenario)),
     queue: { lastPollAt: o.forja.queue.lastPollAt, tickMinutes: o.forja.queue.tickMinutes, capabilities: ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'] },

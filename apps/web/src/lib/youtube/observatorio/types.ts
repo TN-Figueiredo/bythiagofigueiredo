@@ -16,12 +16,14 @@ export interface ObsVideo {
   title: string; theme: string | null; formulas: string[]; url: string; ytId: string; dur: number | null
   views: number | null; viewsAt: number | null; likes: number; comments: number
   series: SeriesPoint[]; firstIdx: number | null
+  /** The daily read was cut by the lookback cap (ds.dailyCappedFrom): the series does NOT start at publication, so no day-0 baseline may be assumed. */
+  truncated?: boolean
   titles: TitleVersion[]; thumbs: ThumbVersion[]; descs: DescVersion[]
 }
 export interface ChannelSnapshot { t: number; date: string; subs: number; views: number }
 export interface ChannelSync {
   /** Newest OK sync; null = never synced OK (never invented from added_at). */
-  state: SyncState; last: number | null; next: number | null; added: number; errorSince: number | null
+  state: SyncState; last: number | null; next: number | null; added: number | null; errorSince: number | null
   msg: string | null; backfill: { done: number; total: number } | null
   /** Derived by the engine (Task 17); absent on the input dataset. */
   label?: string; stateLabel?: string; problemLabel?: string | null; problemPhrase?: string | null
@@ -64,6 +66,8 @@ export interface ForjaRequest {
 }
 export interface Dataset {
   now: number; seriesStart: number; snap0: number; obsStart: number
+  /** Start (ms, SP midnight) of the daily lookback when the cap cut into the series (seriesStart older than the cap); null = whole series read. */
+  dailyCappedFrom: number | null
   channels: ObsChannel[]; videos: ObsVideo[]
   /** last = newest OK sync of any competitor channel; null when none ever synced. */
   sync: { last: number | null; next: number | null }

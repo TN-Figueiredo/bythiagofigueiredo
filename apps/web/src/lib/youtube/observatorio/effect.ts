@@ -1,7 +1,7 @@
 // Port of dados.js:656-735
 import { RULES, bandOf } from './rules'
 import { median, quant } from './stats'
-import { rate, pointTime, earliestIdx } from './series'
+import { rate, pointTime, earliestIdx, fromDayZero } from './series'
 import type { EngineCtx } from './series'
 import type { ObsVideo } from './types'
 import { DAY } from './time'
@@ -38,6 +38,8 @@ export function effectAt(ctx: EngineCtx, changeId: string, Lcap: number | null):
   const res = { id: c.id, type: c.type } as EffectResult
   const done = (x: Partial<EffectResult>) => { Object.assign(res, x); memo.set(key, res); return res }
   if (c.preSeries) return done({ status: 'sem-serie', label: 'sem série', reason: 'Sem série antes da troca (coleta por vídeo desde ' + S0 + ').' })
+  // R37: the daily record is read only for tracked videos, so an untracked video (and its changes) has no series by design
+  if (!v.tracked) return done({ status: 'sem-serie', label: 'sem série', reason: 'Fora dos vídeos acompanhados: sem série diária de views.' })
   if (!v.series.length || ch.lastIdx == null) return done({ status: 'sem-serie', label: 'sem série', reason: 'Vídeo sem série diária de views.' })
   const k = clock.snapIdxAtOrAfter(c.at), L = Lcap == null ? ch.lastIdx : Math.min(ch.lastIdx, Lcap)
   const beforeDays = Math.max(0, Math.min(RULES.effect.maxBeforeDays, (k - 1) - firstRealIdx(v)))
@@ -68,8 +70,8 @@ export function effectAt(ctx: EngineCtx, changeId: string, Lcap: number | null):
   // around the change makes the ratio uncomputable. Say so; never crash, never invent.
   if (!ob) return done({ status: 'inconclusivo', inconclusiveKind: 'outro', label: 'inconclusivo', reason: 'Faltam registros diários em volta da troca: não dá para medir.' })
   const ageAtK = (clock.snapTime(k) - v.pub) / DAY, band = bandOf(Math.floor(ageAtK))
-  const sameDay = v.pub >= ctx.ds.seriesStart
-  const peers = ctx.CH.get(v.ch)!.videos.filter(u => u !== v && u.fmt === v.fmt && u.series.length > 0 && !changedSince(ctx, u))
+  const sameDay = fromDayZero(ctx, v)
+  const peers = ctx.CH.get(v.ch)!.videos.filter(u => u !== v && u.tracked && u.fmt === v.fmt && u.series.length > 0 && !changedSince(ctx, u))
   const byBand = (): number[] => {
     const out: number[] = []
     for (const u of peers) {
@@ -84,7 +86,7 @@ export function effectAt(ctx: EngineCtx, changeId: string, Lcap: number | null):
   }
   let rs: number[] = [], methodUsed: 'mesmo dia de vida' | 'aproximação por faixa' = 'aproximação por faixa', sameDayN: number | null = null
   if (sameDay) {
-    for (const u of peers) { if (u.pub < ctx.ds.seriesStart) continue; const x = ratioAt(ctx, u, u.firstIdx! + (k - v.firstIdx!), beforeDays, L); if (x) rs.push(x.r) }
+    for (const u of peers) { if (!fromDayZero(ctx, u)) continue; const x = ratioAt(ctx, u, u.firstIdx! + (k - v.firstIdx!), beforeDays, L); if (x) rs.push(x.r) }
     sameDayN = rs.length
     if (rs.length >= RULES.weakBase) methodUsed = 'mesmo dia de vida'; else rs = byBand()
   } else rs = byBand()

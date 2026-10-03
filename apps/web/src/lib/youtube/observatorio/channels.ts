@@ -116,7 +116,7 @@ function engagementOf(ctx: EngineCtx, ch: Ch, fmtId: Fmt) {
 
 export function syncText(ctx: EngineCtx, ch: ObsChannel): string {
   const s = ch.sync, { clock } = ctx
-  if (s.state === 'backfill') return 'adicionado ' + clock.ago(s.added) + ' — ' + (s.backfill ? s.backfill.done + ' de ' + s.backfill.total : 'alguns') + ' vídeos buscados'
+  if (s.state === 'backfill') return (s.added != null ? 'adicionado ' + clock.ago(s.added) + ' — ' : '') + (s.backfill ? s.backfill.done + ' de ' + s.backfill.total : 'alguns') + ' vídeos buscados'
   if (s.last == null) return (s.state === 'erro' ? 'erro — ' : s.state === 'atrasado' ? 'atrasado — ' : '') + NEVER_SYNCED + (s.state === 'erro' && s.msg ? ' — ' + s.msg : '')
   if (s.state === 'erro') return 'sem sincronização desde ' + clock.dm(s.last) + ' ' + clock.hm(s.last) + ' — ' + s.msg
   if (s.state === 'atrasado') return 'atrasado: última sincronização ' + clock.dm(s.last) + ' ' + clock.hm(s.last) + ' (' + clock.agoHours(s.last) + ')'

@@ -15,7 +15,7 @@ export interface ChannelRow {
   video_limit: number; youtube_video_count: number | null; sync_status: string; sync_error: string | null; sync_error_since: string | null
   last_ok_synced_at: string | null; last_synced_at: string | null; full_sync_completed_at: string | null; added_at: string | null
 }
-export interface OwnChannelRow { id: string; channel_id: string; name: string; handle: string; subscriber_count: number; last_synced_at: string | null }
+export interface OwnChannelRow { id: string; channel_id: string; name: string; handle: string; subscriber_count: number; last_synced_at: string | null; locale?: string | null; created_at?: string | null }
 export interface VideoRow {
   id: string; competitor_channel_id: string; video_id: string; title: string | null; view_count: number | null; like_count: number | null
   comment_count: number | null; duration_seconds: number | null; published_at: string | null; is_short: boolean | null; last_checked_at: string | null
@@ -166,6 +166,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   const snap0 = spDayStart(seriesStart) + 12 * H
   const dayIndex = (date: string) => Math.round((spDateStart(date) + 12 * H - snap0) / DAY)
   const next = nextSyncSlot(now)
+  const cappedFrom = dailyCappedFrom(seriesStart, now)
   const themes = themeMap(rows.readings)
   const versionsBy = groupBy([...rows.versions].sort((a, b) => (ms(a.first_seen_at) ?? 0) - (ms(b.first_seen_at) ?? 0)), v => v.video_id + '|' + v.field)
   const legacyBy = groupBy(rows.legacyChanges, l => l.video_id + '|' + l.change_type)
@@ -203,11 +204,14 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
         url: fmt === 'short' ? 'https://www.youtube.com/shorts/' + v.video_id : 'https://www.youtube.com/watch?v=' + v.video_id, ytId: v.video_id, dur: v.duration_seconds,
         views: v.view_count, viewsAt: ms(v.last_checked_at) ?? ms(c.last_ok_synced_at) ?? now, likes: v.like_count ?? 0, comments: v.comment_count ?? 0,
         series, firstIdx: series.length ? series[0]!.idx : null, titles, thumbs, descs,
+        ...(cappedFrom != null && pub >= seriesStart && pub < cappedFrom ? { truncated: true } : {}),
       })
     })
     const snapshots: ChannelSnapshot[] = (snapsBy.get(c.id) ?? []).filter(s => s.subscriber_count != null).sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date))
       .map(s => ({ t: spDateStart(s.snapshot_date) + 12 * H, date: dmyOf(s.snapshot_date), subs: s.subscriber_count!, views: s.view_count ?? 0 }))
     channels.push({
+      // competitor_channels has no language column yet: `lang` stays '' here, so the niche-dominant-language rule of
+      // ownChannelOf is not live (it falls back to the own channel with most tracked videos).
       id: c.id, name: c.channel_name, fullName: c.channel_name, niche: isNiche(c.niche) ? c.niche : null, own: false, lang: '',
       subs: c.subscriber_count ?? 0, video_limit: limit, url: 'https://www.youtube.com/channel/' + c.channel_id, handle: '', gender: 'n', color: colorOf(c.id), ini: initials(c.channel_name),
       sync: {
@@ -223,22 +227,22 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   const ownVideosBy = groupBy(rows.ownVideos, v => v.channel_id)
   for (const oc of rows.ownChannels) {
     const vs = (ownVideosBy.get(oc.id) ?? []).map(v => ({ v, pub: ms(v.published_at) })).filter((x): x is { v: OwnVideoRow; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
-    const last = ms(oc.last_synced_at) ?? now
+    const last = ms(oc.last_synced_at) // null = never synced: no date is invented
     vs.forEach(({ v, pub }, k) => {
       const fmt: Fmt = ownIsShort(v) ? 'short' : 'long'
       videos.push({
         id: v.id, ch: oc.id, niche: null, fmt, pub, ageDays: ageOf(pub, now), tracked: k < RULES.videoLimitMax,
         title: v.title, theme: themes.get(v.id) ?? null, formulas: formulasOf(v.title),
         url: fmt === 'short' ? 'https://www.youtube.com/shorts/' + v.youtube_video_id : 'https://www.youtube.com/watch?v=' + v.youtube_video_id, ytId: v.youtube_video_id, dur: v.duration_seconds,
-        views: v.view_count, viewsAt: ms(v.updated_at) ?? last, likes: v.like_count, comments: v.comment_count,
+        views: v.view_count, viewsAt: ms(v.updated_at) ?? last ?? now, likes: v.like_count, comments: v.comment_count,
         // own videos have no daily record and no versions: the engine treats them as "sem série"
         series: [], firstIdx: null, titles: [{ id: v.id + '/title', first_seen: pub, last_seen: now, current: true, prec: 'first', window: null, text: v.title }], thumbs: [], descs: [],
       })
     })
     channels.push({
-      id: oc.id, name: oc.name, fullName: oc.name, niche: null, own: true, lang: '', subs: oc.subscriber_count, video_limit: RULES.videoLimitMax,
+      id: oc.id, name: oc.name, fullName: oc.name, niche: null, own: true, lang: oc.locale ?? '', subs: oc.subscriber_count, video_limit: RULES.videoLimitMax,
       url: 'https://www.youtube.com/channel/' + oc.channel_id, handle: oc.handle, gender: 'n', color: OWN_COLOR, ini: initials(oc.name),
-      sync: { state: 'ok', last, next, added: last, errorSince: null, msg: null, backfill: null },
+      sync: { state: 'ok', last, next, added: ms(oc.created_at) ?? last, errorSince: null, msg: null, backfill: null },
       activity: activityOf(vs.map(x => x.pub), now), lastIdx: null, snapshots: [],
     })
   }
@@ -246,7 +250,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   const okSyncs = rows.channels.map(c => ms(c.last_ok_synced_at)).filter((x): x is number => x != null)
   const added = rows.channels.map(c => ms(c.added_at)).filter((x): x is number => x != null)
   return {
-    now, seriesStart, snap0, obsStart: added.length ? Math.min(...added) : seriesStart,
+    now, seriesStart, snap0, dailyCappedFrom: cappedFrom, obsStart: added.length ? Math.min(...added) : seriesStart,
     channels, videos,
     sync: { last: okSyncs.length ? Math.max(...okSyncs) : null, next },
     readings: rows.readings.map(r => toReading(r)).filter((x): x is FrozenReading => x != null),
@@ -307,7 +311,7 @@ async function readAll<T>(table: string, build: () => RangeQuery): Promise<T[]> 
   }
 }
 /** Runs `fn` over `items` with at most `limit` in flight; results keep the input order. Rejects on the first failure. */
-async function mapLimit<A, B>(items: readonly A[], limit: number, fn: (a: A) => Promise<B>): Promise<B[]> {
+export async function mapLimit<A, B>(items: readonly A[], limit: number, fn: (a: A) => Promise<B>): Promise<B[]> {
   const out = new Array<B>(items.length)
   let next = 0
   const worker = async () => { for (let i = next++; i < items.length; i = next++) out[i] = await fn(items[i]!) }
@@ -346,6 +350,11 @@ export function trackedVideoIds(channels: readonly Pick<ChannelRow, 'id' | 'vide
 /** First SP date of the daily read: one day before the series start (the day-0 baseline), never older than DAILY_MAX_DAYS. */
 export function dailyReadFrom(seriesStart: number, now: number): string { return spDate(Math.max(seriesStart - DAY, now - DAILY_MAX_DAYS * DAY)) }
 
+/** SP midnight of the daily read start when the lookback cap cut into the series (seriesStart − 1 d older than the cap); else null. */
+export function dailyCappedFrom(seriesStart: number, now: number): number | null {
+  return seriesStart - DAY < now - DAILY_MAX_DAYS * DAY ? spDateStart(dailyReadFrom(seriesStart, now)) : null
+}
+
 export interface LoadOptions { siteId: string; now: number; supabase?: SupabaseClient }
 
 export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
@@ -359,7 +368,7 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
 
   const [channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeats] = await Promise.all([
     readAll<ChannelRow>('competitor_channels', () => sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).order('id')),
-    readAll<OwnChannelRow>('youtube_channels', () => sb.from('youtube_channels').select('id, channel_id, name, handle, subscriber_count, last_synced_at').eq('site_id', siteId).order('id')),
+    readAll<OwnChannelRow>('youtube_channels', () => sb.from('youtube_channels').select('id, channel_id, name, handle, subscriber_count, last_synced_at, locale, created_at').eq('site_id', siteId).order('id')),
     readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('is_hidden', false).order('id')),
     readAll<LegacyChangeRow>('competitor_changes', () => sb.from('competitor_changes').select('id, video_id, change_type, old_title, new_title, detected_at')
       .eq('site_id', siteId).is('from_version_id', null).in('change_type', ['title', 'description']).order('id')),

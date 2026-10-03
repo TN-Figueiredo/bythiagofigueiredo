@@ -29,11 +29,13 @@ export function viewsAtIdx(v: ObsVideo, i: number): number | null {
   const p = pointsOf(v).get(i)
   return p ? p.views : null
 }
-const virtual = (ctx: EngineCtx, v: ObsVideo, i: number) => v.firstIdx != null && i === v.firstIdx - 1 && v.pub >= ctx.ds.seriesStart
+const virtual = (ctx: EngineCtx, v: ObsVideo, i: number) => v.firstIdx != null && i === v.firstIdx - 1 && fromDayZero(ctx, v)
 export function pointTime(ctx: EngineCtx, v: ObsVideo, i: number): number { return virtual(ctx, v, i) ? v.pub : ctx.clock.snapTime(i) }
 export function pointViews(ctx: EngineCtx, v: ObsVideo, i: number): number | null { return virtual(ctx, v, i) ? 0 : viewsAtIdx(v, i) }
+/** Published inside the series AND with the whole series read (not cut by the lookback cap): a day-0 baseline exists. */
+export const fromDayZero = (ctx: EngineCtx, v: ObsVideo): boolean => v.pub >= ctx.ds.seriesStart && !v.truncated
 /** f−1 = virtual publication point (0 views) for videos published inside the series. */
-export function earliestIdx(v: ObsVideo, seriesStart: number): number { return v.pub >= seriesStart ? v.firstIdx! - 1 : v.firstIdx! }
+export function earliestIdx(v: ObsVideo, seriesStart: number): number { return v.pub >= seriesStart && !v.truncated ? v.firstIdx! - 1 : v.firstIdx! }
 export function rate(ctx: EngineCtx, v: ObsVideo, a: number, b: number): number | null {
   const va = pointViews(ctx, v, a), vb = pointViews(ctx, v, b)
   if (va == null || vb == null) return null
@@ -114,17 +116,17 @@ export function expectedCurve(ctx: EngineCtx, videoId: string): ExpectedCurve {
     return x0 == null || x1 == null ? null : (x1 - x0) / ((a1 - a0) / DAY)
   }
   const first = iv[0]!, firstA0 = first.a - v.pub, firstA1 = first.b - v.pub, firstOwn = first.vpd
-  const inSeries = v.pub >= SS
+  const inSeries = fromDayZero(ctx, v)
   const out = newCurve(inSeries ? 'mesmo dia de vida' : 'aproximação por faixa', inSeries ? null : bandOf(v.ageDays).label)
   iv.forEach(x => {
     const a0 = x.a - v.pub, a1 = x.b - v.pub
     const raw: number[] = [], rel: number[] = []
     for (const u of others) {
-      if (u.pub + a0 < (u.pub >= SS ? u.pub : SNAP0)) continue
+      if (u.pub + a0 < (fromDayZero(ctx, u) ? u.pub : SNAP0)) continue
       const r = rateAtAge(u, a0, a1); if (r == null) continue
       raw.push(r)
       const r0 = rateAtAge(u, firstA0, firstA1)
-      if (r0 != null && r0 > 0 && u.pub + firstA0 >= (u.pub >= SS ? u.pub : SNAP0)) rel.push(r / r0)
+      if (r0 != null && r0 > 0 && u.pub + firstA0 >= (fromDayZero(ctx, u) ? u.pub : SNAP0)) rel.push(r / r0)
     }
     const vpd = raw.length >= RULES.weakBase ? median(raw) : null
     const anch = rel.length >= RULES.weakBase ? median(rel)! * firstOwn : null

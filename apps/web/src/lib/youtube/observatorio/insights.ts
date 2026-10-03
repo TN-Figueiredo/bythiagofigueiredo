@@ -126,10 +126,11 @@ export function ownChannelOf(ctx: EngineCtx, niche?: NicheScope, explicit?: stri
   return [...owns].sort((a, b) => tracked(b) - tracked(a))[0]
 }
 export function nicheStats(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long', ownId?: string): Record<string, unknown> & { own: Record<string, unknown> | null } {
+  const own = ownChannelOf(ctx, niche, ownId)
   const chs = [...ctx.CH.values()].filter(c => !c.own && inNiche(niche, c))
   const st = chs.map(c => channelStats(ctx, c.id, fmtId) as unknown as ChStats)
   const ref: Ref = { pw: agg(chs.map(c => cadence(ctx, c.id, fmtId).pw)), perMilSubs: agg(st.map(x => x.perMilSubs)), typicalMult: agg(st.map(x => x.typicalMult)), engagement: agg(st.map(x => x.engagement.median)), pctOutliers: agg(st.map(x => x.pctOutliers)) }
-  return { niche: niche || 'todos', fmt: fmtId, channels: chs.map(c => c.id), ...ref, own: ownChannelOf(ctx, niche, ownId) ? ownVsNiche(ctx, ownChannelOf(ctx, niche, ownId)!.id, fmtId, ref) : null }
+  return { niche: niche || 'todos', fmt: fmtId, channels: chs.map(c => c.id), ...ref, own: own ? ownVsNiche(ctx, own.id, fmtId, ref) : null }
 }
 
 /* ------------------------------------------------------------------ temas */
@@ -171,7 +172,7 @@ export function baseAt(ctx: EngineCtx, niche: NicheScope | undefined, t: number,
   const { clock } = ctx, LAST = lastIdxOf(ctx), tTime = clock.snapTime(t)
   const ageAt = (v: V) => t >= LAST ? v.ageDays : Math.floor((tTime - v.pub) / DAY)
   const all = [...ctx.CH.values()]
-  const excluded = all.filter(ch => !ch.own && inNiche(niche, ch) && (ch.sync.state === 'backfill' && ch.sync.added > tTime ? false : ch.lastIdx != null && ch.lastIdx < t - 1))
+  const excluded = all.filter(ch => !ch.own && inNiche(niche, ch) && (ch.sync.state === 'backfill' && ch.sync.added != null && ch.sync.added > tTime ? false : ch.lastIdx != null && ch.lastIdx < t - 1))
   const chs = forceChannels ? forceChannels.map(id => chOf(ctx, id)!) : all.filter(ch => !ch.own && inNiche(niche, ch) && ch.lastIdx != null && ch.lastIdx >= t - 1)
   const out: BaseVideo[] = []
   chs.forEach(ch => ch.videos.forEach(vv => {
