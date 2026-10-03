@@ -157,8 +157,39 @@ export function channelSlots(ctx: EngineCtx, limit: number): { used: number; lim
   return { used, limit, free: Math.max(0, limit - used) }
 }
 
+/** @internal mockup parity only; product uses syncResultToast */
 export function runSyncText(ok: string[], problems: Array<{ id: string; label: string }>, outOfRound: Array<{ id: string; label: string }>, names: (id: string) => string): string {
   return (ok.length ? ok.length + ' ' + (ok.length === 1 ? 'canal sincronizado agora' : 'canais sincronizados agora') : 'nenhum canal sincronizado')
     + (problems.length ? '; ' + problems.length + ' com problema' : '')
     + (outOfRound.length ? '; fora da rodada: ' + outOfRound.map(p => names(p.id) + ' (' + p.label + ')').join(', ') : '')
+}
+
+export interface SyncRun { ok: string[]; problems: Array<{ id: string; label: string }>; outOfRound: Array<{ id: string; label: string }> }
+export interface SyncToast { kind: 'ok' | 'warn'; title: string; body: string; more: string; text: string }
+/** Channel lookup for the sync result: a name, or the name and niche (problems are listed Viagem before IA). */
+export type SyncLookup = (id: string) => string | { name: string; niche: string | null } | undefined
+const NICHE_ORDER = ['viagem', 'ia']
+
+/**
+ * Product text of "Sincronizar concorrentes" (ruling R40; CHROME 2.2 M3, spec 2.2). Never a fabricated success.
+ * text = "11 de 13 canais sincronizados agora; 2 com problema · Fora da rodada: Vou sem volta (buscando vídeos)".
+ * The body lists the problems Viagem before IA (the mockup's list()).
+ */
+export function syncResultToast(run: SyncRun, lookup: SyncLookup): SyncToast {
+  const info = (id: string) => { const x = lookup(id); return typeof x === 'string' ? { name: x, niche: null } : x ?? { name: id, niche: null } }
+  const ok = run.ok.length, p = run.problems.length, total = ok + p
+  const out = run.outOfRound.map(x => `${info(x.id).name} (${x.label})`)
+  const moreCore = out.length ? `Fora da rodada: ${out.join('; ')}` : ''
+  const canais = (n: number) => (n === 1 ? 'canal sincronizado' : 'canais sincronizados')
+  if (ok === 0 && p === 0) {
+    return { kind: 'warn', title: 'Nenhum canal sincronizado', body: 'Nenhum concorrente estava pronto para sincronizar.', more: moreCore ? moreCore + '.' : '', text: 'nenhum canal sincronizado' + (moreCore ? ' · ' + moreCore : '') }
+  }
+  if (p === 0) {
+    const head = `${ok} de ${total} ${canais(total)} agora`
+    return { kind: 'ok', title: 'Concorrentes sincronizados', body: head + '.', more: moreCore ? moreCore + '.' : '', text: head + (moreCore ? ' · ' + moreCore : '') }
+  }
+  const head = `${ok} de ${total} ${canais(total)} agora; ${p} com problema`
+  const rank = (id: string) => NICHE_ORDER.indexOf(info(id).niche ?? '')
+  const sorted = run.problems.map((x, i) => ({ x, i })).sort((a, b) => rank(a.x.id) - rank(b.x.id) || a.i - b.i).map(o => o.x)
+  return { kind: 'warn', title: head, body: sorted.map(x => `${info(x.id).name}: ${x.label}`).join('; ') + '.', more: moreCore ? moreCore + '.' : '', text: head + (moreCore ? ' · ' + moreCore : '') }
 }

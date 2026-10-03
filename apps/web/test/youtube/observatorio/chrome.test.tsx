@@ -106,6 +106,13 @@ describe('ObservatoryChrome', () => {
     expect(onSetNiche).toHaveBeenCalledWith('viagem')
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?niche=viagem', { scroll: false }))
   })
+  it('a niche that could not be saved says so (warn) and still changes the view', async () => {
+    const user = userEvent.setup()
+    mount({ onSetNiche: vi.fn(async () => ({ ok: false })) })
+    await user.click(within(screen.getByRole('group', { name: 'Nicho' })).getByRole('button', { name: /IA/ }))
+    expect(await screen.findByText('Não deu para salvar o nicho')).toBeInTheDocument()
+    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?niche=ia', { scroll: false })
+  })
   it('an invalid ?niche= is removed with router.replace', async () => {
     search = 'niche=xpto&add=1'
     mount({ dropNicheParam: true })
@@ -120,6 +127,8 @@ describe('ObservatoryChrome', () => {
     mount({ onSyncNow })
     await user.click(screen.getByRole('button', { name: 'Sincronizar concorrentes' }))
     expect(onSyncNow).toHaveBeenCalledTimes(1)
+    const queued = obs.channels.filter(c => !c.own && c.sync.state === 'ok').length
+    expect(screen.getByText(`${queued} canais na fila de sincronização.`)).toBeInTheDocument()
     expect(await screen.findByText('1 de 2 canais sincronizados agora; 1 com problema')).toBeInTheDocument()
     expect(screen.getByText('Fora da rodada: c (buscando vídeos).')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Avisos' }).querySelector('.obs-ch-toast.obs-ch-warn')).not.toBeNull()

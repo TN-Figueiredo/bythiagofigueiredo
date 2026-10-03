@@ -10,7 +10,8 @@ import { diffLines, titleDiff } from './text-diff'
 import { effect, effectAt, type EffectResult } from './effect'
 import { multiplierAt, type MultiplierResult } from './multiplier'
 import { phaseOf, phases, outliers, tabCounts, TAB_TITLES, type Phase, type OutlierQuery, type OutliersResult } from './outliers'
-import { cadence, channelStats, channelSlots, syncText, runSyncText, problemLabel, problemPhrase, syncLabel } from './channels'
+import type { SyncRun, SyncToast } from './channels'
+import { cadence, channelStats, channelSlots, syncText, runSyncText, syncResultToast, problemLabel, problemPhrase, syncLabel } from './channels'
 import { deriveChanges, changesIn, caveats, REWRITE_GROUPS, type ObsChange } from './changes'
 import { link } from './links'
 import { FORMULAS, FORMULA, THEMES, THEME, formulasOf, type Formula, type Theme } from './catalog'
@@ -92,6 +93,8 @@ export interface Observatory {
   date: Clock; fmt: Fmt; median: typeof median; quant: typeof quant; bandOf: typeof bandOf; winOf: typeof winOf; tierOf: typeof tierOf
   cadence: (id: string, f?: VideoFmt) => ReturnType<typeof cadence>; channelStats: (id: string, f?: VideoFmt) => ReturnType<typeof channelStats>
   channelSlots(): ReturnType<typeof channelSlots>; syncText(id: string): string; runSyncText: typeof runSyncText
+  /** Product text of a manual sync run (R40); problems sorted Viagem before IA. */
+  syncResultToast(run: SyncRun): SyncToast
   SYNC: { last: number | null; next: number | null; text: string; title: string; nextText: string | null; cadence: string; cadenceHours: number; slots: number[]; dailyBefore: string }
   formulas: ReadonlyArray<Formula>; formula(id: string): Formula | undefined; formulasOf: typeof formulasOf; themes: ReadonlyArray<Theme>; theme(id: string): Theme | undefined
   heatmap(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof heatmap>; nicheStats(niche?: NicheScope, f?: VideoFmt, ownId?: string): ReturnType<typeof nicheStats>
@@ -157,6 +160,7 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
     LAST_IDX, TZ: 'America/Sao_Paulo', TZ_LABEL: 'Horários em São Paulo', SERIES_START_LABEL: clock.dm(ds.seriesStart),
     cadence: (id, f) => cadence(ctx, id, f), channelStats: (id, f) => channelStats(ctx, id, f), channelSlots: () => channelSlots(ctx, RULES.channelLimit),
     syncText: id => syncText(ctx, CH.get(id)!), runSyncText,
+    syncResultToast: run => syncResultToast(run, id => { const c = CH.get(id); return c ? { name: c.name, niche: c.niche } : undefined }),
     formulas: FORMULAS, formula: id => FORMULA[id], formulasOf, themes: THEMES, theme: id => THEME[id],
     heatmap: (n, f) => heatmap(ctx, n, f), nicheStats: (n, f, o) => nicheStats(ctx, n, f, o), themeTrend: (n, f) => themeTrend(ctx, n, f), ownCoverage: (f, o) => ownCoverage(ctx, f, o), patternsNow: (n, f) => patternsNow(ctx, n, f),
     link,

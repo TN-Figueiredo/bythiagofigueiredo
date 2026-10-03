@@ -1,5 +1,5 @@
 /**
- * Global niche of the Observatório (CHROME.md "Nicho"): a valid ?niche= wins and is persisted; an invalid one is
+ * Global niche of the Observatório (CHROME.md "Nicho"): a valid ?niche= wins and is persisted (only when it differs from the saved one); an invalid one is
  * ignored (the persisted niche is used) and the client removes it from the URL with router.replace.
  */
 import { getUserNiche, setUserNiche } from '../niche-actions'
@@ -12,7 +12,8 @@ export async function resolveNiche(searchParams: ObsSearchParams | undefined): P
   const value = Array.isArray(raw) ? raw[0] : raw
   if (value == null) return { niche: await getUserNiche(), dropParam: false }
   const parsed = parseNiche(value)
-  if (!parsed) return { niche: await getUserNiche(), dropParam: true }
-  await setUserNiche(parsed)
+  const saved = await getUserNiche()
+  if (!parsed) return { niche: saved, dropParam: true }
+  if (parsed !== saved) await setUserNiche(parsed)
   return { niche: parsed, dropParam: false }
 }

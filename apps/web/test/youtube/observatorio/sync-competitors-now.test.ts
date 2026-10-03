@@ -8,7 +8,7 @@ const okIds = comps.filter(c => c.sync.state === 'ok').map(c => c.id)
 const badIds = comps.filter(c => c.sync.state === 'erro' || c.sync.state === 'atrasado').map(c => c.id)
 const backfillIds = comps.filter(c => c.sync.state === 'backfill').map(c => c.id)
 
-async function load(o: { allowed?: boolean; sync?: (row: { id: string; channel_id: string; site_id: string }) => Promise<{ skipped?: boolean }> } = {}) {
+async function load(o: { allowed?: boolean; noYtId?: string; loadMs?: number; sync?: (row: { id: string; channel_id: string; site_id: string }) => Promise<{ skipped?: boolean }> } = {}) {
   vi.resetModules()
   const syncFn = vi.fn(o.sync ?? (async () => ({ videosChecked: 1, changesDetected: 0, dailyRecorded: 0, unitsUsed: 1 })))
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
@@ -17,7 +17,7 @@ async function load(o: { allowed?: boolean; sync?: (row: { id: string; channel_i
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { throw new Error('no db in this test') } }))
   vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: syncFn }))
   vi.doMock('@/lib/youtube/observatorio/load', () => ({
-    loadRows: async () => ({ channels: comps.map(c => ({ id: c.id, channel_id: 'UC-' + c.id })) }),
+    loadRows: async () => { if (o.loadMs) vi.setSystemTime(Date.now() + o.loadMs); return { channels: comps.map(c => ({ id: c.id, channel_id: c.id === o.noYtId ? '' : 'UC-' + c.id })) } },
     rowsToDataset: () => structuredClone(ds),
   }))
   const { syncCompetitorsNow } = await import('@/app/cms/(authed)/youtube/competitors/actions')
@@ -26,7 +26,7 @@ async function load(o: { allowed?: boolean; sync?: (row: { id: string; channel_i
 
 describe('syncCompetitorsNow', () => {
   beforeEach(() => { process.env.YOUTUBE_API_KEY = 'k' })
-  afterEach(() => { vi.doUnmock('@/lib/youtube/observatorio/load'); vi.doUnmock('@/lib/youtube/competitor-sync') })
+  afterEach(() => { vi.useRealTimers(); vi.doUnmock('@/lib/youtube/observatorio/load'); vi.doUnmock('@/lib/youtube/competitor-sync') })
 
   it('the fixture has ok, problem and backfill competitors', () => {
     expect(okIds.length).toBeGreaterThan(0); expect(badIds.length).toBeGreaterThan(0); expect(backfillIds.length).toBeGreaterThan(0)
@@ -56,6 +56,31 @@ describe('syncCompetitorsNow', () => {
     expect(r.ok).toBe(false)
     expect(r.toast?.kind).toBe('warn')
     expect(r.text.startsWith('0 de ')).toBe(true)
+  })
+  it('no channel STARTS after 30 s from the top of the action; the rest is reported honestly', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.parse('2026-10-03T12:00:00Z') })
+    // each channel takes 20 s: starts at 0 s and 20 s; at 40 s nothing else starts
+    const { syncCompetitorsNow, syncFn } = await load({ sync: async () => { vi.setSystemTime(Date.now() + 20_000); return {} } })
+    const r = await syncCompetitorsNow()
+    expect(syncFn).toHaveBeenCalledTimes(2)
+    const late = okIds.slice(2)
+    expect(late.length).toBeGreaterThan(0)
+    for (const id of late) expect(r.problems).toContainEqual({ id, label: 'não coube no tempo desta rodada' })
+    expect(r.text.startsWith(`2 de ${okIds.length + badIds.length} `)).toBe(true)
+  })
+  it('the clock includes loading the rows: a slow load leaves no time to start', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.parse('2026-10-03T12:00:00Z') })
+    const { syncCompetitorsNow, syncFn } = await load({ loadMs: 31_000 })
+    const r = await syncCompetitorsNow()
+    expect(syncFn).not.toHaveBeenCalled()
+    expect(r.ok).toBe(false)
+    expect(r.toast?.kind).toBe('warn')
+  })
+  it('a channel without a YouTube id is skipped under its own label, never called with ""', async () => {
+    const { syncCompetitorsNow, syncFn } = await load({ noYtId: okIds[0] })
+    const r = await syncCompetitorsNow()
+    expect(syncFn.mock.calls.map(c => c[0].id)).not.toContain(okIds[0])
+    expect(r.problems).toContainEqual({ id: okIds[0], label: 'sem o id do canal no YouTube' })
   })
   it('refuses without edit access and touches nothing', async () => {
     const { syncCompetitorsNow, syncFn } = await load({ allowed: false })
