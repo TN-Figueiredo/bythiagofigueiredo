@@ -115,11 +115,24 @@ export interface YouSection {
   ref: { sub: string; cells: Array<{ value: string; range: string }> } | null
   rows: YouOwnRow[]
   noneNote: { text: string; links: LinkText[] } | null
+  /** Ruling R78: own channels in the niche and no competitor — this sentence and link replace the whole comparison. */
+  noRef: NoRefBlock | null
   foot: string | null
 }
+/** "Nenhum concorrente em Viagem ainda: sem referência para comparar." + the link to the competitors' niche editor. */
+export interface NoRefBlock { text: string; link: LinkText }
 
-export interface GapRow { theme: string; label: string; sub: Rich }
-export interface GapsSection { meta: string; empty: EmptyBlock | null; rows: GapRow[]; none: string | null; foot: string | null }
+/** `lacks`: the own channels (R73 order) with no video of the theme — the destinations of a future "Criar ideia" (FU-16). */
+export interface GapRow { theme: string; label: string; sub: Rich; lack: string; have: string | null; lacks: Array<{ id: string; name: string }> }
+export interface GapsSection {
+  meta: string
+  empty: (EmptyBlock & { links?: LinkText[] }) | null
+  /** Ruling R78: own channels in the niche and no competitor — this sentence and link replace the list. */
+  noRef: NoRefBlock | null
+  rows: GapRow[]; none: string | null
+  notes: Array<{ text: string; links: LinkText[] }>
+  foot: string | null
+}
 
 export interface InsightsView {
   niche: NicheScope; fmt: VideoFmt
@@ -512,11 +525,20 @@ export function assignLinks(obs: Observatory, s: OwnScope): LinkText[] {
   return [...s.none.map(c => pickNiche(obs, c)), { href: obs.link.canais({}), text: 'Ver seus canais' }]
 }
 
+/** Ruling R78: with no competitor in the niche there is no reference; null when there is at least one. */
+function noRefOf(obs: Observatory, niche: Niche): NoRefBlock | null {
+  if (obs.channels.some(c => !c.own && c.niche === niche)) return null
+  return {
+    text: 'Nenhum concorrente em ' + obs.NICHES[niche].label + ' ainda: sem referência para comparar.',
+    link: { href: obs.link.canais({ nicheEditor: 1 }), text: 'Definir nicho dos concorrentes' },
+  }
+}
+
 /** insights-n-canais.html renderYou: one row per own channel of the niche, the niche once, four relative metrics in columns. */
 function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
   const F = obs.fmt, R = obs.RULES, W = R.habit.weeks, NL = obs.NICHES[niche].label
   const s = ownScope(obs, niche)
-  const none = { cols: [], ref: null, rows: [], noneNote: null, foot: null }
+  const none = { cols: [], ref: null, rows: [], noneNote: null, noRef: null, foot: null }
   if (!s.all.length) return { ...none, meta: 'mesmo formato', empty: { title: 'Nenhum canal seu conectado', text: 'Sem um canal seu no Observatório não há o que comparar com o nicho.', links: [] } }
   if (!s.mine.length) {
     return { ...none, meta: 'nenhum canal seu de ' + NL, empty: {
@@ -526,6 +548,9 @@ function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
       links: assignLinks(obs, s),
     } }
   }
+  // ruling R78: no competitor → no Nicho row, no cell, no "▲/▼" foot; only the sentence and the link
+  const noRef = noRefOf(obs, niche)
+  if (noRef) return { ...none, meta: F.plural(s.mine.length, 'canal seu', 'canais seus') + ' de ' + NL + ', mesmo formato', empty: null, noRef }
   // one call: the reference comes once (NS.ref), one block per own channel of the niche, in the R73 order
   const NS = obs.ownNicheStats(niche, fmt, s.mine.map(c => c.id)), ref = NS.ref
   // channelStats is typed loosely by the engine: read the one field needed, narrowly
@@ -564,7 +589,7 @@ function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
     meta: F.plural(s.mine.length, 'canal seu', 'canais seus') + ' de ' + NL + ', mesmo formato', empty: null,
     cols: COLS.map(({ key, label, unit }) => ({ key, label, unit })),
     ref: { sub: 'mediana e faixa dos ' + ref.channels.length + ' concorrentes de ' + NL, cells: COLS.map(col => ({ value: col.f(ref[col.key].median), range: 'de ' + col.f(ref[col.key].min) + ' a ' + col.f(ref[col.key].max) })) },
-    rows,
+    rows, noRef: null,
     noneNote: s.none.length ? {
       text: listPt(s.none.map(c => c.name)) + ' ' + (s.none.length > 1 ? 'estão' : 'está') + ' sem nicho e fica' + (s.none.length > 1 ? 'm' : '') + ' fora desta comparação.',
       links: s.none.map(c => pickNiche(obs, c)),
@@ -575,34 +600,73 @@ function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
 }
 
 /* ------------------------------------------------------------------ lacunas */
+/**
+ * insights-n-canais.html renderGaps: one list; each theme says in how many and in which own channels of the niche it is
+ * missing, and who already has it. The R49 refusals stay, now per channel. No "Criar ideia" here (FU-16): `lacks` carries
+ * the channels a future button would target.
+ */
 function gapsSection(obs: Observatory, niche: Niche, fmt: VideoFmt): GapsSection {
-  const F = obs.fmt, NL = obs.NICHES[niche].label
-  const meta = 'temas dos concorrentes sem vídeo seu'
-  const own = ownScope(obs, niche).mine[0] ?? null
-  const cov = own ? obs.ownCoverage(fmt, own.id) : null
-  if (!cov || !cov.n) {
-    return { meta, rows: [], none: null, foot: null, empty: { title: 'Sem ' + FMT_LABEL[fmt] + ' seus de ' + NL + ' para comparar', text: 'Lacunas cruzam os temas dos seus vídeos com os dos concorrentes. Sem vídeo seu no recorte, todo tema deles viraria lacuna, e a lista não diria nada.' } }
+  const F = obs.fmt, NL = obs.NICHES[niche].label, FL = FMT_LABEL[fmt]
+  const s = ownScope(obs, niche)
+  const meta = s.mine.length > 1 ? 'temas dos concorrentes que faltam a algum canal seu de ' + NL : 'temas dos concorrentes sem vídeo seu'
+  const out = (empty: GapsSection['empty'], noRef: NoRefBlock | null = null): GapsSection => ({ meta, empty, noRef, rows: [], none: null, notes: [], foot: null })
+  if (!s.mine.length) {
+    return out({
+      title: 'Nenhum canal seu está em ' + NL,
+      text: ['Lacunas cruzam os temas dos seus canais do nicho com os dos concorrentes.', whereOwns(obs, niche, s)].filter(Boolean).join(' '),
+      links: s.all.length ? assignLinks(obs, s) : [],
+    })
+  }
+  const noRef = noRefOf(obs, niche)
+  if (noRef) return out(null, noRef)
+  const covs = s.mine.map(c => ({ c, cov: obs.ownCoverage(fmt, c.id) }))
+  const withVideos = covs.filter(x => x.cov.n > 0), noBase = covs.filter(x => !x.cov.n).map(x => x.c)
+  if (!withVideos.length) {
+    return out({ title: 'Sem ' + FL + ' seus de ' + NL + ' para comparar', text: 'Lacunas cruzam os temas dos vídeos dos seus canais com os dos concorrentes. Sem vídeo seu no recorte, todo tema deles viraria lacuna, e a lista não diria nada.' })
   }
   if (!obs.forja.latest('temas', niche)) {
-    return { meta, rows: [], none: null, foot: null, empty: { title: 'Ainda não há temas de ' + NL, text: 'Lacunas cruzam os temas dos seus vídeos com os dos concorrentes, e os temas saem da leitura de temas da forja. Sem essa leitura não há lacuna para mostrar.' } }
+    return out({ title: 'Ainda não há temas de ' + NL, text: 'Lacunas cruzam os temas dos seus vídeos com os dos concorrentes, e os temas saem da leitura de temas da forja. Sem essa leitura não há lacuna para mostrar.' })
   }
-  // ruling R49: with no theme on the own videos, every competitor theme would look like a gap
-  if (!cov.themed) {
-    return { meta, rows: [], none: null, foot: null, empty: { title: 'A forja ainda não deu tema aos seus vídeos', text: 'Lacunas cruzam os temas dos seus vídeos com os dos concorrentes. Nenhum dos seus ' + F.plural(cov.n, FMT_ONE[fmt], FMT_LABEL[fmt]) + ' dos últimos ' + cov.window + ' tem tema, então não dá para dizer qual tema falta.' } }
+  // ruling R49, per channel: a channel with no themed video would make every competitor theme look like a gap
+  const based = withVideos.filter(x => x.cov.themed > 0), noTheme = withVideos.filter(x => !x.cov.themed).map(x => x.c)
+  if (!based.length) {
+    const total = withVideos.reduce((n, x) => n + x.cov.n, 0)
+    return out({ title: 'A forja ainda não deu tema aos seus vídeos', text: 'Lacunas cruzam os temas dos seus vídeos com os dos concorrentes. Nenhum dos seus ' + F.plural(total, FMT_ONE[fmt], FL) + ' dos últimos 90 dias tem tema, então não dá para dizer qual tema falta.' })
   }
   const trend = obs.themeTrend(niche, fmt), ccv = trend.coverage.now
   if (!ccv.total || ccv.themed / ccv.total < obs.RULES.theme.coverage.minShare) {
-    return { meta, rows: [], none: null, foot: null, empty: { title: 'A forja ainda não deu tema a vídeos suficientes dos concorrentes', text: 'Tem tema em ' + ccv.themed + ' de ' + ccv.total + ' ' + FMT_LABEL[fmt] + ' dos concorrentes de ' + NL + ' nos últimos 90 dias; com tão poucos, um tema ausente na lista não quer dizer que ninguém fala dele.' } }
+    return out({ title: 'A forja ainda não deu tema a vídeos suficientes dos concorrentes', text: 'Tem tema em ' + ccv.themed + ' de ' + ccv.total + ' ' + FL + ' dos concorrentes de ' + NL + ' nos últimos 90 dias; com tão poucos, um tema ausente na lista não quer dizer que ninguém fala dele.' })
   }
-  const qualifying = trend.filter(t => t.channels.length >= 2)
-  const gaps = trend.filter(t => !cov.byTheme[t.theme] && t.channels.length >= 2).sort((a, b) => b.now - a.now)
-  const single = trend.filter(t => !cov.byTheme[t.theme] && t.now > 0 && t.channels.length < 2).length
-  const one = FMT_LABEL[fmt].replace(/s$/, '')
+  const N = based.length
+  const rowsOf = trend.map(t => ({ t, ms: based.filter(x => !x.cov.byTheme[t.theme]), hs: based.filter(x => x.cov.byTheme[t.theme]) }))
+  const qualifying = rowsOf.filter(r => r.t.channels.length >= 2)
+  // most channels lacking first, then most competitor videos (the sort is stable: ties keep the engine's order)
+  const gaps = qualifying.filter(r => r.ms.length).sort((a, b) => (b.ms.length - a.ms.length) || (b.t.now - a.t.now))
+  const covered = qualifying.filter(r => !r.ms.length).length
+  const single = rowsOf.filter(r => r.ms.length && r.t.now > 0 && r.t.channels.length < 2).length
+  const one = FL.replace(/s$/, '')
+  const names = (cs: ObsChannel[]) => listPt(cs.map(c => c.name)), m = (n: number) => (n > 1 ? 'm' : '')
+  const notes: GapsSection['notes'] = []
+  if (noBase.length) notes.push({ text: names(noBase) + ' fica' + m(noBase.length) + ' fora da conta: sem ' + FL + ' nos últimos 90 dias.', links: [] })
+  if (noTheme.length) notes.push({ text: names(noTheme) + ' fica' + m(noTheme.length) + ' fora da conta: a forja ainda não deu tema aos vídeos ' + (noTheme.length > 1 ? 'deles' : 'dele') + '.', links: [] })
+  if (s.none.length) notes.push({ text: names(s.none) + ' ' + (s.none.length > 1 ? 'estão' : 'está') + ' sem nicho e fica' + m(s.none.length) + ' fora.', links: s.none.map(c => pickNiche(obs, c)) })
   return {
-    meta, empty: null,
-    rows: gaps.map(t => ({ theme: t.theme, label: t.label, sub: [{ mono: String(t.channels.length) }, ' canais, ', { mono: String(t.now) }, ' vídeos', ...(t.nMult ? [', ' as RichPart, ...medRich(obs, t.medMult, t.nMult)] : []), ' · você: nenhum'] })),
-    none: gaps.length ? null : qualifying.length ? 'Você já tem vídeo em todos os ' + F.plural(qualifying.length, 'tema', 'temas') + ' que aparecem em 2 canais ou mais.' : 'Nenhum tema aparece em 2 canais ou mais nos últimos 90 dias.',
-    foot: 'Por tema, não por tag: as tags ficam no idioma de cada canal, e “street food” não casaria com “comida de rua”. Seus ' + F.plural(cov.n, one, FMT_LABEL[fmt]) + ' dos últimos ' + cov.window + ' cobrem ' + F.plural(Object.keys(cov.byTheme).length, 'tema', 'temas') + '.' + (single ? ' Temas de um canal só ficam de fora (' + single + ').' : ''),
+    meta, empty: null, noRef: null, notes,
+    rows: gaps.map(({ t, ms, hs }) => ({
+      theme: t.theme, label: t.label,
+      sub: [{ mono: String(t.channels.length) }, ' canais, ', { mono: String(t.now) }, ' vídeos', ...(t.nMult ? [', ' as RichPart, ...medRich(obs, t.medMult, t.nMult)] : [])],
+      lack: N === 1 ? ms[0]!.c.name + ': nenhum vídeo'
+        : ms.length === N ? 'falta ' + (N === 2 ? 'nos seus 2 canais' : 'em todos os seus ' + N + ' canais') + ': ' + names(ms.map(x => x.c))
+        : 'falta em ' + ms.length + ' dos seus ' + N + ' canais: ' + names(ms.map(x => x.c)),
+      have: hs.length ? 'já tem: ' + listPt(hs.map(x => x.c.name + ' (' + x.cov.byTheme[t.theme] + ')')) : null,
+      lacks: ms.map(x => ({ id: x.c.id, name: x.c.name })),
+    })),
+    none: gaps.length ? null : !qualifying.length ? 'Nenhum tema aparece em 2 canais ou mais nos últimos 90 dias.'
+      : (N > 1 ? 'Seus canais já têm' : based[0]!.c.name + ' já tem') + ' vídeo em todos os temas que aparecem em 2 canais ou mais.',
+    foot: (N > 1 ? 'Entram os temas que faltam a pelo menos um dos seus ' + N + ' canais de ' + NL + ' com ' + FL + ' em 90 dias' + (covered ? '; os que todos já cobrem ficam de fora (' + covered + ')' : '') + '. ' : '')
+      + 'Por tema, não por tag: as tags ficam no idioma de cada canal, e “street food” não casaria com “comida de rua”. '
+      + based.map(x => x.c.name + ': ' + F.plural(x.cov.n, one, FL) + ', ' + F.plural(Object.keys(x.cov.byTheme).length, 'tema', 'temas')).join('; ') + '.'
+      + (single ? ' Temas de um canal concorrente só ficam de fora (' + single + ').' : ''),
   }
 }
 

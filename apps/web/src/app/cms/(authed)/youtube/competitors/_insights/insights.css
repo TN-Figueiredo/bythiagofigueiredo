@@ -212,6 +212,8 @@
 [data-obs-screen="insights"] .grow:first-child{border-top:0;padding-top:2px}
 [data-obs-screen="insights"] .gtag{font-weight:500}
 [data-obs-screen="insights"] .gsub{font-size:12px;color:var(--muted)}
+[data-obs-screen="insights"] #gapCard .grow{grid-template-columns:minmax(0,1fr)}
+[data-obs-screen="insights"] #gapCard .glack{font-size:12.5px;margin-top:3px}
 [data-obs-screen="insights"] .link{background:none;border:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:6px 4px;min-height:32px;font-size:12.5px}
 [data-obs-screen="insights"] .link:hover{color:var(--text)}
 

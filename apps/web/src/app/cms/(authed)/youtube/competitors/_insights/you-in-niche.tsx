@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import type { YouCell, YouSection } from './view-model'
+import { NoRef } from './no-ref'
 
 function Cell({ c }: { c: YouCell }) {
   if (c.kind === 'nodata') return <td data-nodata="1"><div className="v nd">{c.text}</div><div className="vb" title={c.baseTitle}>{c.base}</div></td>
@@ -36,7 +37,7 @@ export function YouInNiche({ s }: { s: YouSection }) {
     <section className="card c12" id="youCard" aria-labelledby="youH">
       <div className="chead"><h2 id="youH">Você no nicho</h2><span className="meta">{s.meta}</span></div>
       <div className="cbody">
-        {s.empty ? (
+        {s.noRef ? <NoRef b={s.noRef} /> : s.empty ? (
           <div className="empty"><h3>{s.empty.title}</h3><p>{s.empty.text}</p>
             {s.empty.links.length ? <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{s.empty.links.map(l => <Link key={l.href} className="btn" href={l.href}>{l.text}</Link>)}</div> : null}
           </div>
