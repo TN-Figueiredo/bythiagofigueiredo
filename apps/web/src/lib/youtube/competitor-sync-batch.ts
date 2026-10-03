@@ -28,6 +28,15 @@ export interface BatchResult {
   stoppedForTime: boolean
 }
 
+/** Health verdict: fail when at least half of the attempted channels errored. */
+export function batchHealth(r: BatchResult): { ok: boolean; message?: string } {
+  const attempted = r.errors + r.synced
+  if (r.errors > 0 && r.errors >= r.synced) {
+    return { ok: false, message: `${r.errors} of ${attempted} channels failed` }
+  }
+  return { ok: true }
+}
+
 export async function runCompetitorBatch(opts: {
   apiKey: string
   batchSize: number
@@ -39,10 +48,15 @@ export async function runCompetitorBatch(opts: {
   const sb = getSupabaseServiceClient()
   const { data, error } = await sb
     .from('competitor_channels')
-    .select('id, channel_id, site_id, last_synced_at')
+    .select('id, channel_id, site_id, last_synced_at, sync_status')
     .order('last_synced_at', { ascending: true, nullsFirst: true })
   if (error) throw new Error(`competitor batch: ${error.message}`)
-  const due = (data ?? []).filter((r) => isDue(r.last_synced_at, started))
+  // Defensive: channels stuck in 'error' go after the healthy ones so they can
+  // never starve the cursor. Array.sort is stable, so the oldest-first order
+  // (nulls first) is kept within each group.
+  const due = (data ?? [])
+    .filter((r) => isDue(r.last_synced_at, started))
+    .sort((a, b) => Number(a.sync_status === 'error') - Number(b.sync_status === 'error'))
   const res: BatchResult = { synced: 0, errors: 0, skipped: 0, remainingDue: 0, stoppedForTime: false }
   let taken = 0
   for (const row of due) {
