@@ -20,7 +20,10 @@ const LABEL: Record<keyof typeof PICK, string> = {
 export const HISTORICO: ScreenSpec = {
   name: 'historico', mockupFile: 'docs/superpowers/mockups/2026-10-02-observatorio/historico-video.html', route: '/cms/youtube/competitors/video',
   mockThumbSelector: '.th', implThumbSelector: '[data-thumb],[data-thumb-missing]',
-  states: (Object.keys(PICK) as Array<keyof typeof PICK>).map(k => ({ label: LABEL[k], mockupClicks: [LABEL[k]], seed: {}, query: '/<video:' + PICK[k] + '>' })),
+  states: (Object.keys(PICK) as Array<keyof typeof PICK>).map(k => ({ label: LABEL[k], mockupClicks: [LABEL[k]], seed: {}, query: '/<video:' + PICK[k] + '>',
+    // R64: the CMS shell is narrower than the mockup's chrome; the chart's per-day value labels follow the real width
+    // (historico-video.html: only at ≥ 56 px per day) — the value labels of the views chart only
+    ...(k === 'full' ? { exclude: { mockup: ['svg text.vl'], impl: ['svg text.vl'] } } : {}) })),
   textAllow: SEAL_R57,
   // R43: the per-video "Salvar no swipe file" is follow-up FU-2 (Task 26 report §5: the header has only "Abrir no YouTube")
   mockExclude: ['#saveBtn'],

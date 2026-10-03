@@ -33,8 +33,12 @@ export interface MockupState {
   mockupTabClicks?: string[]
   /** Query given to the MOCKUP too (its URL parameters, e.g. ?niche=viagem, which every mockup screen honours). */
   mockupQuery?: string
+  /** The state cannot run locally: its tests are registered as skipped with this reason (an external dependency). */
+  skip?: string
+  /** Elements left out of the text comparison in THIS state only, each with its ruling at the call site. */
+  exclude?: Exclude
   /** Real-data differences of THIS state only (added to the screen's), each justified at the call site. */
-  textAllow?: RegExp[]
+  textAllow?: Allow[]
   /** Buttons (exact accessible name) clicked on the implementation after it loads, in order. */
   implClicks?: string[]
   /**
@@ -46,6 +50,13 @@ export interface MockupState {
   /** Text the implementation shows once the clicks have settled (waited for before reading). */
   settledText?: string
 }
+/**
+ * An allowed difference: a RegExp masks every match on BOTH sides with one token (use an alternation of the two exact
+ * texts); `{ drop }` removes a text that exists on one side only (a sentence the product cannot print yet).
+ */
+export type Allow = RegExp | { drop: RegExp }
+/** Selectors whose text is left out, per side. Implementation selectors may carry <channel:ID>/<video:ID> placeholders. */
+export interface Exclude { mockup?: string[]; impl?: string[] }
 /** A CSS selector, or one per side (selector lists allowed: the texts of every match are joined in document order). */
 export type CompareSelector = string | { mockup: string; impl: string }
 export interface ScreenSpec {
@@ -58,7 +69,9 @@ export interface ScreenSpec {
   implThumbSelector: string
   states: MockupState[]
   /** Known "real data" differences, each with a comment at the call site; matches are masked on both sides. */
-  textAllow?: RegExp[]
+  textAllow?: Allow[]
+  /** Elements left out of the text comparison on each side, each with its ruling at the call site. */
+  exclude?: Exclude
   /** Compared roots: mockup default #screen, implementation default [data-obs-screen]. */
   compareSelector?: CompareSelector
   /** Root of the layout audits (default [data-obs-screen]); the chrome spec compares the chrome but audits the screen. */
@@ -109,9 +122,10 @@ export const mockupUrl = (file: string, theme: string, query = '') => {
 export function normalizeText(s: string): string {
   return s.replace(/[​-‍⁠﻿­]/g, '').replace(/\s+/g, ' ').trim()
 }
-/** Masks every match of the allowed patterns, so a listed real-data difference compares equal. */
-export function maskAllowed(s: string, allow: readonly RegExp[] = []): string {
-  return allow.reduce((acc, re) => acc.replace(new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g'), '⟨permitido⟩'), s)
+/** Masks every match of the allowed patterns (or drops it), so a listed, ruled difference compares equal. */
+export function maskAllowed(s: string, allow: readonly Allow[] = []): string {
+  const g = (re: RegExp) => new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g')
+  return normalizeText(allow.reduce<string>((acc, a) => (a instanceof RegExp ? acc.replace(g(a), '⟨permitido⟩') : acc.replace(g(a.drop), ' ')), s))
 }
 const linesOf = (s: string) => s.split('\n').map(l => normalizeText(l)).filter(Boolean)
 /** Line diff (LCS): "  " same, "- " only in the mockup, "+ " only in the implementation. */
@@ -258,6 +272,13 @@ export function runFidelity(spec: ScreenSpec): void {
   const auditRoot = spec.auditRoot ?? (typeof spec.compareSelector === 'string' ? spec.compareSelector : DEFAULT_ROOT)
   test.describe(`fidelidade · ${spec.name}`, () => {
     for (const state of spec.states) {
+      if (state.skip) {
+        const reason = state.skip
+        test.describe(state.label, () => {
+          for (const vp of VIEWPORTS) for (const theme of THEMES) test.skip(`${vp.id} · ${theme}`, { annotation: { type: 'skip', description: reason } }, () => {})
+        })
+        continue
+      }
       test.describe(state.label, () => {
         let ids: SeedIds | null = null
         // a file:// "implementation" (the self-test) reads no DB: nothing to seed
@@ -282,10 +303,17 @@ export function runFidelity(spec: ScreenSpec): void {
               await openMockup(mock, spec, state, theme, mockRoot)
               await impl.screenshot({ path: path.join(dir, base + '-impl.png'), fullPage: true })
               await mock.screenshot({ path: path.join(dir, base + '-mockup.png'), fullPage: true })
-              const implText = await textOf(impl, implRoot, spec.implThumbSelector)
-              const mockText = await textOf(mock, mockRoot, [spec.mockThumbSelector, ...(spec.mockExclude ?? [])].join(','))
+              const exImpl = [...(spec.exclude?.impl ?? []), ...(state.exclude?.impl ?? [])].map(x => resolveQuery(x, ids ?? seedIdsOf('')))
+              const exMock = [...(spec.mockExclude ?? []), ...(spec.exclude?.mockup ?? []), ...(state.exclude?.mockup ?? [])]
+              const implText = await textOf(impl, implRoot, [spec.implThumbSelector, ...exImpl].join(','))
+              const mockText = await textOf(mock, mockRoot, [spec.mockThumbSelector, ...exMock].join(','))
               const allow = [...(spec.textAllow ?? []), ...(state.textAllow ?? [])]
               const a = maskAllowed(normalizeText(mockText), allow), b = maskAllowed(normalizeText(implText), allow)
+              // equal only thanks to a ruled exclusion or mask → the test is reported as allow-listed, never as a plain pass
+              if (a === b && (exImpl.length || exMock.length || allow.length)) {
+                const rawI = normalizeText(await textOf(impl, implRoot, spec.implThumbSelector)), rawM = normalizeText(await textOf(mock, mockRoot, spec.mockThumbSelector))
+                if (rawI !== rawM) test.info().annotations.push({ type: 'allow-listed', description: spec.name + ' · ' + state.label })
+              }
               const diffPath = path.join(dir, base + '.diff.txt')
               if (a !== b) fs.writeFileSync(diffPath, `# mockup × implementação — ${spec.name} · ${state.label} · ${vp.id} · ${theme}\n\n## diff (- mockup, + implementação)\n${lineDiff(maskLines(mockText, allow), maskLines(implText, allow))}\n\n## mockup\n${mockText}\n\n## implementação\n${implText}\n`)
               else if (fs.existsSync(diffPath)) fs.rmSync(diffPath)
@@ -302,4 +330,4 @@ export function runFidelity(spec: ScreenSpec): void {
   })
 }
 /** Per line masking, so the written diff shows only the differences the comparison actually fails on. */
-const maskLines = (s: string, allow: readonly RegExp[]) => s.split('\n').map(l => maskAllowed(normalizeText(l), allow)).join('\n')
+const maskLines = (s: string, allow: readonly Allow[]) => s.split('\n').map(l => maskAllowed(normalizeText(l), allow)).join('\n')
