@@ -64,7 +64,7 @@ function pending(label: string): any {
 function lenient(target: any, label = 'OBS'): any {
   return new Proxy(target, {
     get: (t, k, r) => {
-      if (typeof k === 'symbol') return Reflect.get(t, k, r)
+      if (typeof k === 'symbol' || k === 'toJSON') return Reflect.get(t, k, r) // JSON.stringify probes toJSON: not a facade touch
       if (!(k in t)) return pending(label + '.' + k)
       const v = Reflect.get(t, k, r)
       return v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype ? lenient(v, label + '.' + k) : v

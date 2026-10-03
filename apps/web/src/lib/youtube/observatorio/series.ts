@@ -2,12 +2,11 @@ import type { Dataset, ObsChannel, ObsVideo, SeriesPoint } from './types'
 import type { ObsChange } from './changes'
 import type { Clock } from './time'
 import type { Fmt } from './fmt'
+import type { MultiplierResult } from './multiplier'
 import { DAY, H } from './time'
 import { RULES, bandOf } from './rules'
 import { median } from './stats'
 
-/** Filled by the multiplier task; until then every video carries `null`. */
-export type MultiplierResult = unknown
 export interface Derived { vpd: number | null; vpd7: number | null; mult: MultiplierResult | null }
 export interface EngineCtx {
   ds: Dataset; clock: Clock; fmt: Fmt
