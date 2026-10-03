@@ -148,9 +148,22 @@ describe('env without a default', () => {
   const saved = process.env.CRON_SECRET
   afterEach(() => { process.env.CRON_SECRET = saved })
 
-  it('with CRON_SECRET deleted there is no fallback: a request without auth is 401', async () => {
+  it('with CRON_SECRET deleted, "Bearer undefined" and an empty bearer are 401', async () => {
     delete process.env.CRON_SECRET
-    const res = await GET(req() as never)
-    expect(res.status).toBe(401)
+    for (const header of ['Bearer undefined', 'Bearer ', 'Bearer']) {
+      const r = new Request('http://localhost/api/cron/youtube-intelligence-watchdog', {
+        method: 'GET', headers: { authorization: header },
+      })
+      expect((await GET(r as never)).status).toBe(401)
+    }
+    expect((await GET(req() as never)).status).toBe(401)
+  })
+
+  it('with CRON_SECRET empty, "Bearer " is 401', async () => {
+    process.env.CRON_SECRET = ''
+    const r = new Request('http://localhost/api/cron/youtube-intelligence-watchdog', {
+      method: 'GET', headers: { authorization: 'Bearer ' },
+    })
+    expect((await GET(r as never)).status).toBe(401)
   })
 })

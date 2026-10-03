@@ -31,7 +31,9 @@ async function fail(message: string) {
 
 async function handle(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const secret = process.env.CRON_SECRET
+  // Unset/empty secret must refuse: otherwise `Bearer undefined` / `Bearer ` would authenticate.
+  if (!secret || authHeader !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   const supabase = getSupabaseServiceClient()
