@@ -41,7 +41,7 @@ export async function addCompetitorChannel(
   channelInput: string,
   niche?: 'viagem' | 'ia',
   videoLimit?: number,
-): Promise<{ ok: boolean; error?: string; slots?: ChannelSlots }> {
+): Promise<{ ok: boolean; error?: string; slots?: ChannelSlots; title?: string }> {
   const parsed = parseChannelInput(channelInput)
   if (!parsed) return { ok: false, error: BAD_INPUT }
   if (niche !== undefined && niche !== 'viagem' && niche !== 'ia') return { ok: false, error: 'Nicho inválido.' }
@@ -52,9 +52,6 @@ export async function addCompetitorChannel(
   try { siteId = await requireEditAccess() } catch { return { ok: false, error: 'forbidden' } }
 
   const supabase = getSupabaseServiceClient()
-
-  const before = await getChannelSlots(siteId)
-  if (before.free === 0) return { ok: false, error: `Sem vagas: ${before.used} de ${before.limit} concorrentes. Remova um canal para adicionar outro.`, slots: before }
 
   const apiKey = process.env.YOUTUBE_API_KEY
   let ytId: string, title: string
@@ -83,6 +80,10 @@ export async function addCompetitorChannel(
     return { ok: false, error: `${existing.channel_name || title} já está no observatório${n}.` }
   }
 
+  // after the duplicate check: a channel already in the observatório says so even when there is no free slot
+  const before = await getChannelSlots(siteId)
+  if (before.free === 0) return { ok: false, error: `Sem vagas: ${before.used} de ${before.limit} concorrentes. Remova um canal para adicionar outro.`, slots: before }
+
   const { data: inserted, error } = await supabase.from('competitor_channels').insert({
     site_id: siteId,
     channel_id: ytId,
@@ -102,14 +103,15 @@ export async function addCompetitorChannel(
   }
 
   revalidatePath('/cms/youtube/competitors', 'layout')
-  return { ok: true, slots: await getChannelSlots(siteId) }
+  // the resolved YouTube title; a bare id has none until the first sync
+  return { ok: true, slots: await getChannelSlots(siteId), ...(parsed.kind === 'handle' ? { title } : {}) }
 }
 
 /** The Canais dialog's submit (one object, so the client passes what it validated). */
-export async function addChannelFromCanais(input: { channel: string; niche: 'viagem' | 'ia'; videoLimit: number }): Promise<{ ok: boolean; error?: string }> {
+export async function addChannelFromCanais(input: { channel: string; niche: 'viagem' | 'ia'; videoLimit: number }): Promise<{ ok: boolean; error?: string; title?: string }> {
   if (!input || typeof input.channel !== 'string' || typeof input.videoLimit !== 'number') return { ok: false, error: 'Pedido inválido.' }
   const res = await addCompetitorChannel(input.channel, input.niche, input.videoLimit)
-  return { ok: res.ok, ...(res.error ? { error: res.error } : {}) }
+  return { ok: res.ok, ...(res.error ? { error: res.error } : {}), ...(res.title ? { title: res.title } : {}) }
 }
 
 export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean }> {
@@ -117,9 +119,11 @@ export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean
   try { siteId = await requireEditAccess() } catch { return { ok: false } }
 
   const supabase = getSupabaseServiceClient()
-  const { error } = await supabase.from('competitor_channels').delete().eq('id', id).eq('site_id', siteId)
+  // a row of another site (or an id that does not exist) deletes nothing: that is not a success
+  const { data, error } = await supabase.from('competitor_channels').delete().eq('id', id).eq('site_id', siteId).select('id')
+  if (error || !data || data.length === 0) return { ok: false }
   revalidatePath('/cms/youtube/competitors', 'layout')
-  return { ok: !error }
+  return { ok: true }
 }
 
 export async function syncCompetitorNow(channelRowId: string): Promise<{ ok: boolean; result?: { videosChecked: number; changesDetected: number } }> {

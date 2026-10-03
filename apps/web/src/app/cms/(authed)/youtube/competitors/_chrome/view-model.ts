@@ -89,7 +89,7 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
       popoverSub: `Sincronização ${obs.SYNC.cadence}.${next ? ' ' + cap(next) + '.' : ''} ${obs.TZ_LABEL}.`,
       problemsHref: obs.link.canais({ filter: 'problemas' }),
     },
-    addHref: obs.link.canais({ add: 1 }), nicheEditorHref: obs.link.canais(),
+    addHref: obs.link.canais({ add: 1 }), nicheEditorHref: obs.link.canais({ nicheEditor: 1 }),
     cowork: coworkText(o.tab, niche),
     forja: null,
   }

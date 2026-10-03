@@ -3,9 +3,8 @@
  * Niche of each competitor: the per-row select (canais.html nicheSel) and the "Definir nicho dos canais" editor,
  * opened by ?nicheEditor=1 (the chrome's menu item links there). Both call setChannelNiche through the screen.
  */
-import { useRef, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
-import type { CanaisRow } from './view-model'
 
 export function NicheSelect({ id, name, niche, ctx, onChange }: { id: string; name: string; niche: Niche | null; ctx: string; onChange: (n: Niche) => void }) {
   return (
@@ -20,10 +19,24 @@ export function NicheSelect({ id, name, niche, ctx, onChange }: { id: string; na
   )
 }
 
+type NicheRow = { id: string; name: string; niche: Niche | null }
+/** Where the focus goes back: what had it when the dialog opened, else the chrome's menu ⋯ (its usual opener). */
+const opener = (): HTMLElement | null => {
+  const a = typeof document === 'undefined' ? null : document.activeElement
+  return a instanceof HTMLElement && a !== document.body && a.isConnected ? a : null
+}
+const chromeMenu = () => document.querySelector<HTMLElement>('[data-obs-chrome] button[aria-label="Mais ações"]')
+
 export function NicheEditorDialog({ rows, onNiche, onClose, trap }: {
-  rows: CanaisRow[]; onNiche: (r: CanaisRow, n: Niche) => void; onClose: () => void; trap: (e: KeyboardEvent<HTMLElement>) => void
+  rows: NicheRow[]; onNiche: (r: NicheRow, n: Niche) => void; onClose: () => void; trap: (e: KeyboardEvent<HTMLElement>) => void
 }) {
   const box = useRef<HTMLDivElement>(null)
+  // read during the first render, before the dialog takes the focus
+  const [back] = useState(opener)
+  useEffect(() => {
+    box.current?.querySelector<HTMLElement>('select')?.focus()
+    return () => { const t = back && back.isConnected ? back : chromeMenu(); t?.focus() }
+  }, [back])
   return (
     <div className="modal on" role="dialog" aria-modal="true" aria-labelledby="cn-ne-t" onKeyDown={trap}>
       <div className="box" ref={box} style={{ width: 'min(520px,100%)' }}>

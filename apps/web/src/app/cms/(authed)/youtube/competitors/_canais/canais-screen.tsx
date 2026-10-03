@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import type { CanaisRow, CanaisSort, CanaisView } from './view-model'
 import { useToast } from '../_chrome/toasts'
+import { useChromeSync } from '../_chrome/sync-context'
 import { ChannelTable, type RowHandlers } from './channel-table'
 import { ChannelCards } from './channel-cards'
 import { ChannelDrawer } from './channel-drawer'
@@ -53,6 +54,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
+  const { running } = useChromeSync()
   const [q, setQ] = useState(search?.get('q') ?? '')
   const [closedDrawer, setClosedDrawer] = useState<string | null>(null)
   const [addClosed, setAddClosed] = useState(false)
@@ -135,14 +137,15 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   }
   const syncOne = async (id: string) => {
     const r = rowOf(id); if (!r) return
-    if (r.backfill) { toast('warn', `${r.name} ainda está buscando vídeos; sincronize depois que a busca terminar.`, ''); return }
+    const T = r.syncOneText
+    if (r.backfill) { toast('warn', T.backfill, ''); return }
     setLocal(s => ({ ...s, [id]: 'now' }))
-    toast('', `Sincronizando ${r.name}…`, '')
+    toast('', T.start, '')
     let ok = false
     try { ok = (await onSyncOne(id)).ok } catch { ok = false }
     setLocal(s => ({ ...s, [id]: ok ? 'just' : undefined }))
-    if (ok) toast('ok', `${r.name} sincronizado`, 'Dados atualizados agora.')
-    else toast('bad', `${r.name} não sincronizou`, r.sync.phrase ? r.sync.phrase[0]!.toUpperCase() + r.sync.phrase.slice(1) + '.' : 'A sincronização não respondeu. Tente de novo em alguns minutos.')
+    if (ok) toast('ok', T.ok, T.okBody)
+    else toast('bad', T.fail, T.failBody)
     router.refresh()
   }
   const askRemove = (id: string, from: HTMLElement | null) => {
@@ -163,7 +166,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const unlock = async () => {
     const res = await onUnlock()
     if (!res.ok) { toast('bad', 'Não deu para destravar vagas', res.error === 'forbidden' ? 'Só administradores destravam vagas.' : res.error ?? ''); return }
-    toast('ok', 'Vagas destravadas', view.slots.unlockText.replace('Destravar mais', 'Mais') + ' disponíveis.')
+    toast('ok', 'Vagas destravadas', view.slots.unlockDone)
     router.refresh()
   }
   const copyCowork = async (r: CanaisRow) => {
@@ -190,7 +193,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
       const rc = btn.getBoundingClientRect()
       setMenu({ id, top: Math.min(rc.bottom + 4, (typeof window !== 'undefined' ? window.innerHeight : 800) - 260), left: Math.max(8, rc.right - 230) })
     },
-    retry: id => { void syncOne(id) }, remove: askRemove, local: id => local[id], upnextHref: UPNEXT, menuFor: menu?.id ?? null, selected: drawer?.id ?? null,
+    retry: id => { void syncOne(id) }, remove: askRemove, local: id => local[id], roundRunning: running, upnextHref: UPNEXT, menuFor: menu?.id ?? null, selected: drawer?.id ?? null,
   }
   const onSort = (k: CanaisSort) => go({ sort: k === 'active' && view.sort !== 'active' ? null : k, dir: view.sort === k ? (view.dir === 'desc' ? 'asc' : null) : null })
   const seg = (key: 'fmt' | 'scale' | 'layout', val: string, dflt: string) => go({ [key]: val === dflt ? null : val })
@@ -211,6 +214,15 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     <div data-obs-screen="canais" className={drawer ? 'drawer-open' : undefined}>
       <div className="cn-page">
         <div className={'wrap' + (view.layout === 'cards' ? ' view-cards' : '')} inert={anyModal || undefined}>
+          <div className={'syncbar' + (running ? ' on' : '')} role="status" aria-live="polite" data-k="syncbar">
+            {running ? (
+              <>
+                <span style={{ color: 'var(--info)' }}><Ic n="spin" spin /></span>
+                <div><strong>{view.syncbar.text}</strong><div className="meta">{view.syncbar.meta}</div></div>
+                <div className="track" aria-hidden="true"><i /></div>
+              </>
+            ) : null}
+          </div>
           <div className="toolbar">
             <div className="search">
               <Ic n="search" />
@@ -308,11 +320,11 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
 
       {addOpen ? (
         <AddChannelForm view={view} onAdd={onAdd} onClose={closeAdd} trap={trapTab}
-          onAdded={input => { closeAdd(); toast('ok', 'Canal adicionado', `${input.channel} entrou em ${input.niche === 'ia' ? 'IA' : 'Viagem'}; a busca dos vídeos começou.`); router.refresh() }} />
+          onAdded={(input, title) => { closeAdd(); toast('ok', 'Canal adicionado', `${title ?? input.channel} entrou em ${input.niche === 'ia' ? 'IA' : 'Viagem'}; a busca dos vídeos começou.`); router.refresh() }} />
       ) : null}
 
       {nicheOpen ? (
-        <NicheEditorDialog rows={view.groups.flatMap(g => g.rows)} onNiche={(r, n) => { void setNiche(r, n) }} onClose={closeNiche} trap={trapTab} />
+        <NicheEditorDialog rows={view.nicheRows} onNiche={(r, n) => { void setNiche(r, n) }} onClose={closeNiche} trap={trapTab} />
       ) : null}
     </div>
   )

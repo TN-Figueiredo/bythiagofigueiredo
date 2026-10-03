@@ -49,6 +49,8 @@ export type GrowthCell =
 export interface SyncCell {
   state: SyncState; label: string; labelTitle: string | null; cov: string | null; covTitle: string | null
   msg: string | null; progress: { done: number; total: number } | null; canRetry: boolean; canRemove: boolean
+  /** While the chrome's round runs, a channel that enters it shows "Na fila desta rodada" (canais.html syncCell 'queued'). */
+  queued: null | { label: string; cov: string | null; covTitle: string | null }
 }
 
 export interface CanaisRow {
@@ -61,6 +63,8 @@ export interface CanaisRow {
   sortKeys: Record<CanaisSort, number>
   cells: { cadence: CadenceCell; vpd: VpdCell; out: OutCell; swap: SwapCell; growth: GrowthCell; sync: SyncCell }
   cowork: string
+  /** Toast texts of "Sincronizar só este canal" (the screen builds no text). */
+  syncOneText: { start: string; ok: string; okBody: string; fail: string; failBody: string; backfill: string }
 }
 export interface CanaisGroup { key: Niche | 'sem'; label: string; count: string; flags: Array<{ kind: 'erro' | 'atrasado' | 'backfill' | 'parado'; text: string }>; rows: CanaisRow[] }
 
@@ -85,7 +89,7 @@ export interface DrawerView {
 }
 
 export interface CanaisView {
-  slots: { used: number; limit: number; free: number; text: string; fullText: string | null; tip: string; nearFull: boolean; unlockText: string }
+  slots: { used: number; limit: number; free: number; text: string; fullText: string | null; tip: string; nearFull: boolean; unlockText: string; unlockDone: string }
   scale: 'per-mil' | 'abs'; fmt: 'long' | 'short'; layout: 'table' | 'cards'
   sort: CanaisSort; dir: 'asc' | 'desc'; sortNote: string; vpdUnit: string
   rows: CanaisRow[]
@@ -101,6 +105,10 @@ export interface CanaisView {
   tzLabel: string
   /** Tooltip of the Sincronização column header. */
   syncTip: string
+  /** canais.html .syncbar, shown while the chrome's round runs (R42). */
+  syncbar: { text: string; meta: string }
+  /** Every competitor, whatever the niche scope or ?filter: the "Definir nicho dos canais" editor. */
+  nicheRows: Array<{ id: string; name: string; niche: Niche | null }>
 }
 
 export interface CanaisParams {
@@ -181,18 +189,20 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const coworkOf = (c: ObsChannel) => `Leia o canal ${c.name}${c.handle ? ` (${c.handle})` : ''} via youtube_observatory: ${obs.link.canais({ channel: c.id })}. Compare ritmo, views/dia e trocas dos últimos 30 dias com os outros canais de ${c.niche ? NL[c.niche] : 'todos os nichos'}. Não afirme causa.`
 
   /* ---------------------------------------------------------------- slots */
-  const used = obs.channelSlots().used, limit = p.limit, free = Math.max(0, limit - used)
+  const { used, limit, free } = obs.channelSlots(p.limit)
   const slots = {
     used, limit, free, text: `${used} de ${limit} canais`,
     fullText: free === 0 ? `Sem vagas: ${used} de ${limit} concorrentes. Remova um canal para adicionar outro.` : null,
     tip: `Até ${limit} concorrentes acompanhados; o seu canal não ocupa vaga. ${free ? (free === 1 ? 'Sobra 1 vaga.' : `Sobram ${free} vagas.`) : 'Sem vagas: para acompanhar outro, remova um.'}`,
-    nearFull: free <= 5, unlockText: `Destravar mais ${p.unlockStep ?? 25} vagas`,
+    nearFull: free <= 5, unlockText: `Destravar mais ${p.unlockStep ?? 25} vagas`, unlockDone: `Mais ${p.unlockStep ?? 25} vagas disponíveis.`,
   }
 
   /* ---------------------------------------------------------------- rows */
   function syncCell(c: ObsChannel, S: CStats): SyncCell {
     const s = c.sync, covTitle = `Limite deste canal: ${c.video_limit} vídeos (máximo ${R.videoLimitMax})`
-    const base = { state: s.state, labelTitle: null, cov: null, covTitle: null, msg: null, progress: null, canRetry: false, canRemove: false }
+    // the manual round (syncCompetitorsNow) only takes channels whose state is ok
+    const queued = !c.own && s.state === 'ok' ? { label: 'Na fila desta rodada', cov: s.last != null ? `última: ${agoN(s.last)}` : null, covTitle: absN(s.last) } : null
+    const base = { state: s.state, labelTitle: null, cov: null, covTitle: null, msg: null, progress: null, canRetry: false, canRemove: false, queued }
     if (s.state === 'backfill' && s.backfill) return { ...base, label: 'Buscando vídeos', progress: { ...s.backfill }, cov: `${s.backfill.done} de ${s.backfill.total} vídeos buscados${s.added != null ? `, adicionado ${agoN(s.added)}` : ''}`, covTitle: absN(s.added) }
     if (s.state === 'backfill') return { ...base, label: 'Buscando vídeos', cov: s.added != null ? `adicionado ${agoN(s.added)}` : null, covTitle: absN(s.added) }
     if (s.state === 'atrasado') return { ...base, label: cap(s.problemPhrase ?? s.label ?? ''), labelTitle: s.last != null ? `Última sincronização: ${abs(s.last)}` : null, msg: s.msg, canRetry: true }
@@ -265,6 +275,11 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       },
       cells: { cadence, vpd, out, swap, growth, sync },
       cowork: coworkOf(c),
+      syncOneText: {
+        start: `Sincronizando ${c.name}…`, ok: `${c.name} sincronizado`, okBody: 'Dados atualizados agora.', fail: `${c.name} não sincronizou`,
+        failBody: c.sync.problemPhrase ? cap(c.sync.problemPhrase) + '.' : 'A sincronização não respondeu. Tente de novo em alguns minutos.',
+        backfill: `${c.name} ainda está buscando vídeos; sincronize depois que a busca terminar.`,
+      },
     }
   }
 
@@ -475,6 +490,15 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       defaultNiche: niche === 'todos' ? 'viagem' : niche, limitMax: R.videoLimitMax, defaultLimit: 50,
     },
     tzLabel: obs.TZ_LABEL,
+    syncbar: (() => {
+      const comp = all.filter(c => !c.own), inRound = comp.filter(c => c.sync.state === 'ok').length, out = comp.filter(isBf).map(c => c.name)
+      return {
+        text: `Sincronização em andamento: ${F.plural(inRound, 'concorrente', 'concorrentes')} na rodada${out.length ? `; fora da rodada: ${out.join(', ')} (ainda buscando vídeos)` : ''}. O resultado de cada canal aparece quando a rodada termina.`,
+        meta: 'Seu canal não entra nesta rodada; ele sincroniza pelo Painel. O canal em coleta continua a própria coleta.',
+      }
+    })(),
+    nicheRows: all.filter(c => !c.own).map(c => ({ id: c.id, name: c.name, niche: c.niche }))
+      .sort((a, b) => ['viagem', 'ia', null].indexOf(a.niche) - ['viagem', 'ia', null].indexOf(b.niche) || a.name.localeCompare(b.name, 'pt-BR')),
     syncTip: `Cada canal acompanha os vídeos mais recentes até o limite definido para ele (até ${R.videoLimitMax}). Todos os vídeos acompanhados têm views diárias desde ${obs.SERIES_START_LABEL}. Sincronização automática às ${obs.SYNC.slots.map(h => String(h).padStart(2, '0') + 'h').join(', ').replace(/, (\d\dh)$/, ' e $1')}.`,
   }
 }

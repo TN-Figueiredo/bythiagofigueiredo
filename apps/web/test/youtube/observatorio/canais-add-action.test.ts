@@ -15,11 +15,11 @@ describe('parseChannelInput', () => {
   })
 })
 
-interface Db { own: unknown; existing: unknown; inserted: unknown[] }
-function setup(db: Db, slots = { used: 14, limit: 75, free: 61 }) {
+interface Db { own: unknown; existing: unknown; inserted: unknown[]; deleted?: unknown[] | null }
+function setup(db: Db, slots = { used: 14, limit: 75, free: 61 }, auth: { ok: boolean; reason?: string; user?: { id: string } } = { ok: true, user: { id: 'u1' } }) {
   vi.resetModules()
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
-  vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
+  vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => auth }))
   vi.doMock('next/cache', () => ({ revalidatePath: vi.fn() }))
   vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async () => ({})) }))
   vi.doMock('@/lib/youtube/competitor-slots', () => ({ getChannelSlots: async () => slots, UNLOCK_STEP: 25 }))
@@ -28,12 +28,14 @@ function setup(db: Db, slots = { used: 14, limit: 75, free: 61 }) {
     getSupabaseServiceClient: () => ({
       from: (t: string) => t === 'youtube_channels' ? chain(db.own) : {
         ...chain(db.existing),
+        delete: () => ({ eq: () => ({ eq: () => ({ select: async () => ({ data: db.deleted ?? null, error: null }) }) }) }),
         insert: (row: unknown) => { db.inserted.push(row); return { select: () => ({ single: async () => ({ data: { id: 'n1', channel_id: 'x', site_id: 's1' }, error: null }) }) } },
       },
     }),
   }))
 }
-const load = async () => (await import('@/app/cms/(authed)/youtube/competitors/actions')).addCompetitorChannel
+const actions = async () => await import('@/app/cms/(authed)/youtube/competitors/actions')
+const load = async () => (await actions()).addCompetitorChannel
 
 describe('addCompetitorChannel', () => {
   const env = process.env.YOUTUBE_API_KEY
@@ -57,7 +59,9 @@ describe('addCompetitorChannel', () => {
     setup(db)
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ items: [{ id: UC, snippet: { title: 'Luke Damant' } }] })))
     vi.stubGlobal('fetch', fetchMock)
-    expect((await (await load())('@LukeDamant', 'viagem', 120)).ok).toBe(true)
+    const res = await (await load())('@LukeDamant', 'viagem', 120)
+    expect(res.ok).toBe(true)
+    expect(res.title).toBe('Luke Damant')
     expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toContain('forHandle=%40LukeDamant')
     expect(db.inserted).toEqual([{ site_id: 's1', channel_id: UC, channel_name: 'Luke Damant', niche: 'viagem', video_limit: 120 }])
   })
@@ -74,5 +78,24 @@ describe('addCompetitorChannel', () => {
     const add = await load()
     expect((await add('xx')).error).toBe('Use o @handle (ex.: @LukeDamant) ou a URL do canal (youtube.com/@…).')
     expect((await add(UC, 'ia', 500)).error).toBe('Escolha entre 10 e 200 vídeos.')
+  })
+  it('a duplicate is reported even when there is no free slot', async () => {
+    setup({ own: null, existing: { id: 'c1', niche: 'viagem', channel_name: 'Luke Damant' }, inserted: [] }, { used: 14, limit: 14, free: 0 })
+    expect((await (await load())(UC)).error).toBe('Luke Damant já está no observatório (Viagem).')
+  })
+  it('without edit access nothing is read or written', async () => {
+    const db: Db = { own: null, existing: null, inserted: [] }
+    setup(db, undefined, { ok: false, reason: 'forbidden' })
+    expect(await (await load())(UC)).toEqual({ ok: false, error: 'forbidden' })
+    expect(db.inserted).toEqual([])
+  })
+})
+
+describe('removeCompetitorChannel', () => {
+  it('ok only when a row of this site was deleted', async () => {
+    setup({ own: null, existing: null, inserted: [], deleted: [] })
+    expect(await (await actions()).removeCompetitorChannel('other-site-row')).toEqual({ ok: false })
+    setup({ own: null, existing: null, inserted: [], deleted: [{ id: 'c1' }] })
+    expect(await (await actions()).removeCompetitorChannel('c1')).toEqual({ ok: true })
   })
 })

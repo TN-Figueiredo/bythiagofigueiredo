@@ -92,7 +92,7 @@ export interface Observatory {
   RULES: typeof RULES; AGE_BANDS: typeof AGE_BANDS; OUT_WINDOWS: typeof OUT_WINDOWS; DEFAULT_AGES: typeof DEFAULT_AGES; NICHES: typeof NICHES
   date: Clock; fmt: Fmt; median: typeof median; quant: typeof quant; bandOf: typeof bandOf; winOf: typeof winOf; tierOf: typeof tierOf
   cadence: (id: string, f?: VideoFmt) => ReturnType<typeof cadence>; channelStats: (id: string, f?: VideoFmt) => ReturnType<typeof channelStats>
-  channelSlots(): ReturnType<typeof channelSlots>; syncText(id: string): string; runSyncText: typeof runSyncText
+  channelSlots(limit?: number): ReturnType<typeof channelSlots>; syncText(id: string): string; runSyncText: typeof runSyncText
   /** Product text of a manual sync run (R40); problems sorted Viagem before IA. */
   syncResultToast(run: SyncRun): SyncToast
   SYNC: { last: number | null; next: number | null; text: string; title: string; nextText: string | null; cadence: string; cadenceHours: number; slots: number[]; dailyBefore: string }
@@ -158,7 +158,7 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
       // 6 h slots rule (dados.js:1963); the mockup fixes it in data, production fixes it in the cron schedule.
       cadence: 'a cada 6 h (00, 06, 12, 18) desde ' + clock.dm(ds.seriesStart) + '; diária às 09:00 antes', cadenceHours: 6, slots: [0, 6, 12, 18], dailyBefore: '09:00' },
     LAST_IDX, TZ: 'America/Sao_Paulo', TZ_LABEL: 'Horários em São Paulo', SERIES_START_LABEL: clock.dm(ds.seriesStart),
-    cadence: (id, f) => cadence(ctx, id, f), channelStats: (id, f) => channelStats(ctx, id, f), channelSlots: () => channelSlots(ctx, RULES.channelLimit),
+    cadence: (id, f) => cadence(ctx, id, f), channelStats: (id, f) => channelStats(ctx, id, f), channelSlots: (limit = RULES.channelLimit) => channelSlots(ctx, limit),
     syncText: id => syncText(ctx, CH.get(id)!), runSyncText,
     syncResultToast: run => syncResultToast(run, id => { const c = CH.get(id); return c ? { name: c.name, niche: c.niche } : undefined }),
     formulas: FORMULAS, formula: id => FORMULA[id], formulasOf, themes: THEMES, theme: id => THEME[id],

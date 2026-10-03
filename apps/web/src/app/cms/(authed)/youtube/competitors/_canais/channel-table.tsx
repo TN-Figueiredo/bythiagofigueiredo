@@ -7,7 +7,7 @@ import { CadenceView, ChCell, GrowthView, Ic, OutView, SwapView, SyncView, Tip, 
 export interface RowHandlers {
   open: (id: string) => void; niche: (r: CanaisRow, n: Niche) => void; menu: (id: string, btn: HTMLButtonElement) => void
   retry: (id: string) => void; remove: (id: string, from: HTMLElement | null) => void
-  local: (id: string) => LocalSync; upnextHref: string; menuFor: string | null; selected: string | null
+  local: (id: string) => LocalSync; roundRunning: boolean; upnextHref: string; menuFor: string | null; selected: string | null
 }
 
 const COLS: Array<{ k: CanaisSort; label: string; unit: string | null; r?: boolean; hide?: boolean; minW?: number }> = [
@@ -35,7 +35,7 @@ function Row({ r, h }: { r: CanaisRow; h: RowHandlers }) {
       <td><OutView c={c.out} upnextHref={h.upnextHref} /></td>
       <td><SwapView c={c.swap} /></td>
       <td className="r grow c-hide"><GrowthView c={c.growth} /></td>
-      <td className="sync c-hide"><SyncView c={c.sync} local={h.local(r.id)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} /></td>
+      <td className="sync c-hide"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} /></td>
       <td>{r.own ? null : (
         <button type="button" className="more" aria-label={`Mais ações para ${r.name}`} aria-haspopup="menu" aria-expanded={h.menuFor === r.id} data-menu={r.id}
           onClick={e => { e.stopPropagation(); h.menu(r.id, e.currentTarget) }}>

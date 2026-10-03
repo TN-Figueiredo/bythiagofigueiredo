@@ -7,6 +7,7 @@ import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildCanaisView, type CanaisParams } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { CanaisScreen, type CanaisScreenProps } from '@/app/cms/(authed)/youtube/competitors/_canais/canais-screen'
 import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
+import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrome/sync-context'
 import { noJunkText, oneFilledButton, linkCountsMatch, forbiddenVocabulary, brokenLinks } from './audits'
 
 const replace = vi.fn(), refresh = vi.fn()
@@ -20,9 +21,9 @@ vi.mock('next/navigation', () => ({
 const obs = createObservatory(datasetFromOracle(loadOracle()))
 const view = (p: Partial<CanaisParams> = {}) => buildCanaisView(obs, { niche: 'todos', limit: 75, ...p })
 const ok = async () => ({ ok: true })
-function mount(props: Partial<CanaisScreenProps> = {}, p: Partial<CanaisParams> = {}) {
+function mount(props: Partial<CanaisScreenProps> = {}, p: Partial<CanaisParams> = {}, running = false) {
   // the screen lives inside the chrome, which owns the toasts
-  return render(<ToastProvider><div data-obs=""><CanaisScreen view={view(p)} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSyncOne={ok} {...props} /></div></ToastProvider>)
+  return render(<ToastProvider><ChromeSyncContext.Provider value={{ running }}><div data-obs=""><div data-obs-chrome=""><button type="button" aria-label="Mais ações">⋯</button></div><CanaisScreen view={view(p)} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
 }
 /** Every "Ver os N…" link must say the count its destination shows. */
 function destCounts() {
@@ -184,4 +185,39 @@ describe('CanaisScreen', () => {
     done({ ok: true })
     expect(await screen.findByText('Luke Damant sincronizado')).toBeInTheDocument()
   })
+  it('while the chrome runs the round: the sync bar and "Na fila desta rodada"', () => {
+    const { container, unmount } = mount({}, {}, true)
+    const bar = container.querySelector('.syncbar')!
+    expect(bar).toHaveClass('on')
+    expect(within(bar as HTMLElement).getByText(/^Sincronização em andamento: 11 concorrentes na rodada/)).toBeInTheDocument()
+    expect(screen.getAllByText('Na fila desta rodada').length).toBe(11)
+    expect(noJunkText(container)).toEqual([])
+    unmount()
+    const r = mount()
+    expect(r.container.querySelector('.syncbar')).not.toHaveClass('on')
+    expect(screen.queryByText('Na fila desta rodada')).toBeNull()
+  })
+  it('niche editor (?nicheEditor=1): all competitors even in IA, focus on the first select, back to the opener on close', async () => {
+    const user = userEvent.setup()
+    const opener = document.createElement('button'); opener.textContent = 'abrir'; document.body.appendChild(opener); opener.focus()
+    mount({}, { niche: 'ia', nicheEditor: '1' })
+    const dlg = screen.getByRole('dialog', { name: 'Definir nicho dos canais' })
+    const selects = within(dlg).getAllByRole('combobox')
+    expect(selects).toHaveLength(14)
+    expect(within(dlg).getByRole('combobox', { name: 'Nicho de Luke Damant' })).toBeInTheDocument()
+    expect(document.activeElement).toBe(selects[0])
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Definir nicho dos canais' })).toBeNull()
+    expect(document.activeElement).toBe(opener)
+    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors', { scroll: false })
+    opener.remove()
+  })
+  it('niche editor with no focused opener returns the focus to the chrome menu ⋯', async () => {
+    const user = userEvent.setup()
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    mount({}, { nicheEditor: '1' })
+    await user.click(within(screen.getByRole('dialog', { name: 'Definir nicho dos canais' })).getByRole('button', { name: 'Fechar' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Mais ações' }))
+  })
 })
+

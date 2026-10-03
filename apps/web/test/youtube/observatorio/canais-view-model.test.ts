@@ -66,4 +66,26 @@ describe('Canais view model', () => {
     expect(buildCanaisView(obs, { niche: 'todos', limit: 75 }).slots.nearFull).toBe(false)
     expect(v.add.cap).toBe('14 de 16 concorrentes acompanhados (o seu canal não conta): sobram 2 vagas.')
   })
+  it('niche editor rows: every competitor, whatever the scope or ?filter', () => {
+    const v = buildCanaisView(obs, { niche: 'ia', limit: 75, filter: 'problemas' })
+    const all = obs.channels.filter(c => !c.own)
+    expect(v.nicheRows.map(r => r.id).sort()).toEqual(all.map(c => c.id).sort())
+    expect(v.nicheRows.some(r => r.niche === 'viagem')).toBe(true)
+    expect(v.nicheRows.find(r => r.id === 'tnfigueiredo')).toBeUndefined()
+  })
+  it('slots come from the engine with the site limit', () => {
+    expect(obs.channelSlots(16)).toEqual({ used: 14, limit: 16, free: 2 })
+    expect(obs.channelSlots()).toEqual({ used: 14, limit: 75, free: 61 })
+    expect(buildCanaisView(obs, { niche: 'todos', limit: 16 }).slots).toMatchObject(obs.channelSlots(16))
+  })
+  it('sync-in-progress bar (canais.html copy) and the queued state of the channels in the round', () => {
+    const v = buildCanaisView(obs, { niche: 'todos', limit: 75 })
+    expect(v.syncbar.text).toBe('Sincronização em andamento: 11 concorrentes na rodada; fora da rodada: Vou sem volta (ainda buscando vídeos). O resultado de cada canal aparece quando a rodada termina.')
+    expect(v.syncbar.meta).toBe('Seu canal não entra nesta rodada; ele sincroniza pelo Painel. O canal em coleta continua a própria coleta.')
+    const row = (id: string) => v.groups.flatMap(g => g.rows).find(r => r.id === id)!
+    expect(row('matt-wolfe').cells.sync.queued?.label).toBe('Na fila desta rodada')
+    expect(row('paddy-doyle').cells.sync.queued).toBeNull()
+    expect(v.own.row!.cells.sync.queued).toBeNull()
+  })
 })
+

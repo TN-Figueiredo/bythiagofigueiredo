@@ -6,11 +6,11 @@ import type { CanaisView } from './view-model'
 import { parseChannelInput } from './channel-input'
 
 export interface AddInput { channel: string; niche: Niche; videoLimit: number }
-export type AddFn = (input: AddInput) => Promise<{ ok: boolean; error?: string }>
+export type AddFn = (input: AddInput) => Promise<{ ok: boolean; error?: string; title?: string }>
 
 
 export function AddChannelForm({ view, onAdd, onClose, onAdded, trap }: {
-  view: CanaisView; onAdd: AddFn; onClose: () => void; onAdded: (input: AddInput) => void; trap: (e: KeyboardEvent<HTMLElement>) => void
+  view: CanaisView; onAdd: AddFn; onClose: () => void; onAdded: (input: AddInput, title?: string) => void; trap: (e: KeyboardEvent<HTMLElement>) => void
 }) {
   const [h, setH] = useState('')
   const [lim, setLim] = useState(String(view.add.defaultLimit))
@@ -33,7 +33,7 @@ export function AddChannelForm({ view, onAdd, onClose, onAdded, trap }: {
     try {
       const input = { channel: v, niche, videoLimit: n }
       const res = await onAdd(input)
-      if (res.ok) onAdded(input)
+      if (res.ok) onAdded(input, res.title)
       else { setHErr(res.error ?? 'Não deu para adicionar o canal.'); hRef.current?.focus() }
     } finally { setBusy(false) }
   }

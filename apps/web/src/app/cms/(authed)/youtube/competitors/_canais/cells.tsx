@@ -137,10 +137,11 @@ export function GrowthView({ c }: { c: GrowthCell }) {
   )
 }
 
-export type LocalSync = 'now' | 'just' | undefined
+export type LocalSync = 'now' | 'just' | 'queued' | undefined
 export function SyncView({ c, local, onRetry, onRemove }: { c: SyncCell; local: LocalSync; onRetry: () => void; onRemove: () => void }) {
   const cov = c.cov ? <div className="cov" title={c.covTitle ?? undefined}>{c.cov}</div> : null
   if (local === 'now') return <><div className="st" style={{ color: 'var(--info)' }}><Ic n="spin" spin />Sincronizando agora</div>{cov}</>
+  if (local === 'queued' && c.queued) return <><div className="st" style={{ color: 'var(--muted)' }}><Ic n="clock" />{c.queued.label}</div>{c.queued.cov ? <div className="cov" title={c.queued.covTitle ?? undefined}>{c.queued.cov}</div> : null}</>
   if (local === 'just') return <><div className="st"><Ic n="ok" /><span style={{ color: 'var(--success)' }}>Sincronizado agora</span></div>{cov}</>
   if (c.state === 'ok') return <><div className="st"><span className="dot" style={{ background: 'var(--success)' }} /><span title={c.labelTitle ?? undefined}>{c.label}</span></div>{cov}</>
   if (c.state === 'atrasado') return (
