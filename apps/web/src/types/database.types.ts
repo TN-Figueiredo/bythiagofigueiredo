@@ -2149,47 +2149,76 @@ export type Database = {
           bookmarked: boolean | null
           change_type: string
           detected_at: string | null
+          from_version_id: string | null
           id: string
           new_thumbnail_url: string | null
           new_title: string | null
           old_thumbnail_url: string | null
           old_title: string | null
+          precision: string | null
           site_id: string
+          to_version_id: string | null
           video_id: string
           view_count_at_change: number | null
+          window_end: string | null
+          window_start: string | null
         }
         Insert: {
           bookmarked?: boolean | null
           change_type: string
           detected_at?: string | null
+          from_version_id?: string | null
           id?: string
           new_thumbnail_url?: string | null
           new_title?: string | null
           old_thumbnail_url?: string | null
           old_title?: string | null
+          precision?: string | null
           site_id: string
+          to_version_id?: string | null
           video_id: string
           view_count_at_change?: number | null
+          window_end?: string | null
+          window_start?: string | null
         }
         Update: {
           bookmarked?: boolean | null
           change_type?: string
           detected_at?: string | null
+          from_version_id?: string | null
           id?: string
           new_thumbnail_url?: string | null
           new_title?: string | null
           old_thumbnail_url?: string | null
           old_title?: string | null
+          precision?: string | null
           site_id?: string
+          to_version_id?: string | null
           video_id?: string
           view_count_at_change?: number | null
+          window_end?: string | null
+          window_start?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "competitor_changes_from_version_id_fkey"
+            columns: ["from_version_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_video_versions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "competitor_changes_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_changes_to_version_id_fkey"
+            columns: ["to_version_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_video_versions"
             referencedColumns: ["id"]
           },
           {
@@ -2367,6 +2396,106 @@ export type Database = {
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitor_video_daily: {
+        Row: {
+          comments: number | null
+          likes: number | null
+          snap_date: string
+          taken_at: string
+          video_id: string
+          views: number
+        }
+        Insert: {
+          comments?: number | null
+          likes?: number | null
+          snap_date: string
+          taken_at: string
+          video_id: string
+          views: number
+        }
+        Update: {
+          comments?: number | null
+          likes?: number | null
+          snap_date?: string
+          taken_at?: string
+          video_id?: string
+          views?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_video_daily_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitor_video_versions: {
+        Row: {
+          created_at: string
+          field: string
+          first_seen_at: string
+          has_text: boolean
+          id: string
+          is_current: boolean
+          last_seen_at: string
+          precision: string
+          thumb_blob_url: string | null
+          thumb_dhash: string | null
+          thumb_etag: string | null
+          thumb_last_modified: string | null
+          value_hash: string
+          value_text: string | null
+          video_id: string
+          window_start: string | null
+        }
+        Insert: {
+          created_at?: string
+          field: string
+          first_seen_at: string
+          has_text?: boolean
+          id?: string
+          is_current?: boolean
+          last_seen_at: string
+          precision: string
+          thumb_blob_url?: string | null
+          thumb_dhash?: string | null
+          thumb_etag?: string | null
+          thumb_last_modified?: string | null
+          value_hash: string
+          value_text?: string | null
+          video_id: string
+          window_start?: string | null
+        }
+        Update: {
+          created_at?: string
+          field?: string
+          first_seen_at?: string
+          has_text?: boolean
+          id?: string
+          is_current?: boolean
+          last_seen_at?: string
+          precision?: string
+          thumb_blob_url?: string | null
+          thumb_dhash?: string | null
+          thumb_etag?: string | null
+          thumb_last_modified?: string | null
+          value_hash?: string
+          value_text?: string | null
+          video_id?: string
+          window_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_video_versions_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_videos"
             referencedColumns: ["id"]
           },
         ]
