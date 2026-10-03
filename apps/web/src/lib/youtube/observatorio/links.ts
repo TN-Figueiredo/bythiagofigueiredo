@@ -7,15 +7,6 @@ export const OBS_BASE = '/cms/youtube/competitors'
 const OBJ_KEYS = ['video', 'change', 'changes', 'channel', 'reading'] as const
 
 /**
- * Encodes a query string value using URLSearchParams-style encoding.
- * Matches the behavior from dados.js query string encoding.
- */
-function encodeQsValue(value: unknown): string {
-  const stringValue = Array.isArray(value) ? value.join(',') : String(value ?? '')
-  return new URLSearchParams({ x: stringValue }).toString().slice(2) // Remove 'x='
-}
-
-/**
  * Converts an object to a query string, filtering out null/empty values
  * and applying URLSearchParams-style encoding.
  */
@@ -24,12 +15,15 @@ function qs(obj: Record<string, unknown> | undefined): string {
   const params = new URLSearchParams()
 
   Object.entries(obj).forEach(([key, value]) => {
-    if (value != null && value !== '' && (typeof value !== 'boolean' || value === true)) {
-      if (Array.isArray(value)) {
-        params.set(key, value.join(','))
-      } else {
-        params.set(key, String(value))
-      }
+    // Filter out null, empty string, empty arrays, and false values
+    if (value == null || value === '' || (Array.isArray(value) && value.length === 0) || value === false) {
+      return
+    }
+
+    if (Array.isArray(value)) {
+      params.set(key, value.join(','))
+    } else {
+      params.set(key, String(value))
     }
   })
 
@@ -101,6 +95,7 @@ export const link = {
 
   /**
    * Link to outliers screen.
+   * Per CONVENCOES "Links entre telas": the input parameter `ages` is emitted as query param `age=`.
    */
   outliers(p?: {
     niche?: NicheScope
@@ -115,6 +110,13 @@ export const link = {
     reading?: string
   }): string {
     const cleaned = cleanLink(p)
+
+    // Map ages input parameter to age query parameter
+    if (cleaned.ages != null) {
+      cleaned.age = cleaned.ages
+      delete cleaned.ages
+    }
+
     const query = buildQuery(cleaned)
     return OBS_BASE + '/outliers' + query
   },
@@ -140,6 +142,12 @@ export const link = {
     },
   ): string {
     const cleaned = cleanLink(p)
+
+    // Ignore back parameter if it doesn't start with '?'
+    if (cleaned.back != null && typeof cleaned.back === 'string' && !cleaned.back.startsWith('?')) {
+      delete cleaned.back
+    }
+
     const query = buildQuery(cleaned)
     return OBS_BASE + '/video/' + encodeURIComponent(videoId) + query
   },
