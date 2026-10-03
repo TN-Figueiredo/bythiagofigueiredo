@@ -1,0 +1,935 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canais dos competidores (dois canais próprios)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../2026-10-02-observatorio/chrome.css">
+<link rel="stylesheet" href="mockup.css">
+<style>
+/* tokens só desta tela, escopados em #screen; os comuns vêm de chrome.css */
+:is(#screen,#drawer,#dlgs){
+  --danger-text:#F26B6B;--warning-subtle:var(--warn-subtle);
+  --mid:var(--tier-mid);--high:var(--tier-high);--top:var(--tier-top);
+  --travel:var(--viagem);--travel-subtle:rgba(91,191,138,.13);--ai:var(--ia);--ai-subtle:rgba(110,168,254,.14);
+  --youtag-bg:rgba(255,130,64,.12);--youtag-text:#FF9A60;--youtag-border:transparent;
+  --you:#FF8240;--you-row:#251E18;--you-cell:#2A2018;
+  --strip-long:#E9DFCF;--strip-short:#C29A5B;--strip-empty:#7A6E5D;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]) :is(#screen,#drawer,#dlgs){
+    --info:#0B6177;
+    --danger-text:#B42318;--travel-subtle:rgba(17,105,47,.08);--ai-subtle:rgba(29,78,216,.07);
+    --youtag-bg:transparent;--youtag-text:#9A3A12;--youtag-border:#9A3A12;
+    --you:#9A3A12;--you-row:#FAF0E6;--you-cell:#F8EBDF;
+    --strip-long:#3A3127;--strip-short:#A86E22;--strip-empty:#968872;
+  }
+}
+:root[data-theme="light"] :is(#screen,#drawer,#dlgs){
+  --info:#0B6177;
+  --danger-text:#B42318;--travel-subtle:rgba(17,105,47,.08);--ai-subtle:rgba(29,78,216,.07);
+  --youtag-bg:transparent;--youtag-text:#9A3A12;--youtag-border:#9A3A12;
+  --you:#9A3A12;--you-row:#FAF0E6;--you-cell:#F8EBDF;
+  --strip-long:#3A3127;--strip-short:#A86E22;--strip-empty:#968872;
+}
+:is(#screen,#drawer,#dlgs) *{box-sizing:border-box}
+:is(#screen,#drawer,#dlgs){color:var(--text);font:14px/1.45 Inter,system-ui,sans-serif}
+:is(#screen,#drawer,#dlgs) button,:is(#screen,#drawer,#dlgs) select,:is(#screen,#drawer,#dlgs) input{font:inherit;color:inherit}
+:is(#screen,#drawer,#dlgs) a{color:inherit}
+:is(#screen,#drawer,#dlgs) :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+:is(#screen,#drawer,#dlgs) .num{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+:is(#screen,#drawer,#dlgs) .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:is(#screen,#drawer,#dlgs) .ico{width:14px;height:14px;flex:none;vertical-align:-2px}
+:is(#screen,#drawer,#dlgs) .spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+:is(#screen,#drawer,#dlgs) .wrap{padding:0 0 40px}
+
+:is(#screen,#drawer,#dlgs) .btn{min-height:36px;padding:0 14px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-weight:500;font-size:13.5px;white-space:nowrap;text-decoration:none}
+:is(#screen,#drawer,#dlgs) .btn:hover{background:var(--surface-hover)}
+:is(#screen,#drawer,#dlgs) .btn[disabled]{cursor:default;color:var(--muted)}
+:is(#screen,#drawer,#dlgs) .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+:is(#screen,#drawer,#dlgs) .btn.primary:hover{background:var(--accent-hover)}
+:is(#screen,#drawer,#dlgs) .btn.outline{border-color:var(--accent);color:var(--accent);font-weight:600}
+:is(#screen,#drawer,#dlgs) .btn.is-off{background:var(--surface);border-color:var(--border-strong);color:var(--muted);cursor:not-allowed;font-weight:500}
+:is(#screen,#drawer,#dlgs) .btn.small{min-height:32px;padding:0 10px;font-size:12.5px}
+:is(#screen,#drawer,#dlgs) .btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+:is(#screen,#drawer,#dlgs) .btn.ghost:hover{color:var(--text);background:var(--surface-hover)}
+:is(#screen,#drawer,#dlgs) .btn.link{background:transparent;border-color:transparent;padding:0 6px;color:var(--text);text-decoration:underline;text-decoration-color:var(--border-strong);text-underline-offset:3px}
+:is(#screen,#drawer,#dlgs) .btn.forja{background:transparent;border-color:var(--forja-line);color:var(--forja)}
+:is(#screen,#drawer,#dlgs) .btn.forja:hover{background:var(--forja-subtle)}
+:is(#screen,#drawer,#dlgs) .btn.forja[disabled]{color:var(--muted);border-color:var(--border-strong);background:transparent}
+:is(#screen,#drawer,#dlgs) .dhead .handle{color:var(--text);text-decoration:underline;text-decoration-color:var(--border-strong);text-underline-offset:3px;min-height:32px;display:inline-flex;align-items:center}
+:is(#screen,#drawer,#dlgs) .forjastate{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+:is(#screen,#drawer,#dlgs) .forjastate b{color:var(--forja);font-weight:600}
+:is(#screen,#drawer,#dlgs) .btn.danger{background:#B42318;border-color:#B42318;color:#fff}
+:is(#screen,#drawer,#dlgs) .btn.danger:hover{background:#9A1D14}
+:is(#screen,#drawer,#dlgs) .quota{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:2px}
+:is(#screen,#drawer,#dlgs) .tip{position:relative;display:inline-grid;place-items:center;width:32px;height:32px;margin:-8px -8px -8px -6px;cursor:help;flex:none;background:none;border:0;padding:0;vertical-align:middle}
+:is(#screen,#drawer,#dlgs) .tip::before{content:"?";display:grid;place-items:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--border-strong);color:var(--muted);font-size:10px;font-weight:700}
+:is(#screen,#drawer,#dlgs) .tip .tt{display:none;position:absolute;z-index:40;top:30px;left:50%;transform:translateX(-50%);width:270px;padding:9px 11px;background:var(--surface);border:1px solid var(--border-strong);border-radius:7px;box-shadow:var(--shadow);color:var(--text);font:400 12.5px/1.45 Inter,sans-serif;text-align:left;white-space:normal;cursor:auto}
+:is(#screen,#drawer,#dlgs) .tip:hover .tt,:is(#screen,#drawer,#dlgs) .tip:focus .tt,:is(#screen,#drawer,#dlgs) .tip:focus-within .tt{display:block}
+:is(#screen,#drawer,#dlgs) .tip.left .tt{left:auto;right:-6px;transform:none}
+
+:is(#screen,#drawer,#dlgs) .toolbar2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 10px;min-height:32px}
+:is(#screen,#drawer,#dlgs) .toolbar2 .spacer{flex:1}
+
+:is(#screen,#drawer,#dlgs) .syncbar{display:none;margin:0 0 12px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);align-items:center;gap:14px;flex-wrap:wrap}
+:is(#screen,#drawer,#dlgs) .syncbar.on{display:flex}
+:is(#screen,#drawer,#dlgs) .fbar{margin:0 0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13px}
+:is(#screen,#drawer,#dlgs) .fbar summary{cursor:pointer;padding:8px 14px;min-height:36px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;list-style:none}
+:is(#screen,#drawer,#dlgs) .fbar summary::-webkit-details-marker{display:none}
+:is(#screen,#drawer,#dlgs) .fbar summary::after{content:"▸";margin-left:auto;color:var(--muted)}
+:is(#screen,#drawer,#dlgs) .fbar[open] summary::after{content:"▾"}
+:is(#screen,#drawer,#dlgs) .fbar summary b{font-weight:600;color:var(--forja)}
+:is(#screen,#drawer,#dlgs) .fbar p{margin:0;padding:0 14px 10px;color:var(--muted)}
+:is(#screen,#drawer,#dlgs) .slines{margin:6px 0 4px;padding-left:18px}
+:is(#screen,#drawer,#dlgs) .slines li{margin:2px 0}
+:is(#screen,#drawer,#dlgs) .slines li.me{font-weight:600}
+:is(#screen,#drawer,#dlgs) .syncbar .track{flex:1 1 240px;height:6px;border-radius:3px;background:var(--border);overflow:hidden}
+:is(#screen,#drawer,#dlgs) .syncbar .track{position:relative}
+:is(#screen,#drawer,#dlgs) .syncbar .track i{position:absolute;top:0;bottom:0;width:30%;background:var(--info);animation:chIndet 1.6s ease-in-out infinite}
+@keyframes chIndet{0%{left:-30%}100%{left:100%}}
+@media (prefers-reduced-motion:reduce){:is(#screen,#drawer,#dlgs) .syncbar .track i{animation:none;left:0;width:100%;opacity:.45}}
+:is(#screen,#drawer,#dlgs) .syncbar strong{font-weight:600}
+:is(#screen,#drawer,#dlgs) .syncbar .meta{color:var(--muted);font-size:12.5px}
+
+:is(#screen,#drawer,#dlgs) .toolbar{display:flex;align-items:center;gap:10px;margin:0 0 12px;flex-wrap:wrap}
+:is(#screen,#drawer,#dlgs) .search{flex:0 1 240px;height:36px;border:1px solid var(--border);border-radius:7px;background:var(--surface);padding:0 10px 0 32px;position:relative;display:flex;align-items:center}
+:is(#screen,#drawer,#dlgs) .search svg{position:absolute;left:10px;color:var(--dim)}
+:is(#screen,#drawer,#dlgs) .search input{border:0;background:transparent;outline:0;width:100%;font-size:13px;height:100%}
+:is(#screen,#drawer,#dlgs) .search input::placeholder{color:var(--dim)}
+:is(#screen,#drawer,#dlgs) .search:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+:is(#screen,#drawer,#dlgs) .seg{display:inline-flex;border:1px solid var(--border);border-radius:7px;background:var(--surface);padding:2px;gap:2px}
+:is(#screen,#drawer,#dlgs) .seg button{min-height:32px;padding:0 10px;border:0;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer;font-size:12.5px;display:inline-flex;align-items:center;gap:6px}
+:is(#screen,#drawer,#dlgs) .seg button[aria-pressed="true"]{background:var(--surface-hover);color:var(--text);box-shadow:inset 0 0 0 1px var(--border-strong);font-weight:500}
+:is(#screen,#drawer,#dlgs) .seg .n{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--dim)}
+:is(#screen,#drawer,#dlgs) .dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none}
+:is(#screen,#drawer,#dlgs) .toolbar .spacer{flex:1}
+:is(#screen,#drawer,#dlgs) .sortnote{font-size:12.5px;color:var(--muted)}
+:is(#screen,#drawer,#dlgs) .cardsort{display:none}:is(#screen,#drawer,#dlgs) .view-cards .cardsort{display:inline-flex}
+:is(#screen,#drawer,#dlgs) .sel{height:36px;border:1px solid var(--border);border-radius:7px;background:var(--surface);padding:0 8px;font-size:12.5px;color:var(--text)}
+
+/* table */
+:is(#screen,#drawer,#dlgs) .tablebox{position:relative;border:1px solid var(--border);border-radius:9px;background:var(--surface);overflow-x:auto}
+:is(#screen,#drawer,#dlgs) table{border-collapse:collapse;width:100%;min-width:1080px}
+:is(#screen,#drawer,#dlgs) th,:is(#screen,#drawer,#dlgs) td{text-align:left;vertical-align:middle;padding:9px 8px;border-bottom:1px solid var(--border-subtle)}
+:is(#screen,#drawer,#dlgs) thead th{font-weight:500;font-size:12px;color:var(--muted);background:var(--surface-2);vertical-align:bottom;line-height:1.3}
+:is(#screen,#drawer,#dlgs) thead th .unit{display:block;color:var(--muted);font-weight:400;font-size:11.5px}
+:is(#screen,#drawer,#dlgs) th.sortable button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;min-height:32px;margin:-4px 0;color:var(--muted);font-weight:500}
+:is(#screen,#drawer,#dlgs) th.sortable button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+:is(#screen,#drawer,#dlgs) th .arrow{color:var(--muted);font-size:10px;width:10px}
+:is(#screen,#drawer,#dlgs) th[aria-sort] button{color:var(--text);font-weight:600}
+:is(#screen,#drawer,#dlgs) th[aria-sort] .arrow{color:var(--text)}
+:is(#screen,#drawer,#dlgs) td.r,:is(#screen,#drawer,#dlgs) th.r{text-align:right}
+:is(#screen,#drawer,#dlgs) th.r button{justify-content:flex-end}
+:is(#screen,#drawer,#dlgs) tbody tr.row{cursor:pointer}
+:is(#screen,#drawer,#dlgs) tbody tr.row:hover td{background:var(--surface-hover)}
+:is(#screen,#drawer,#dlgs) tbody tr.row.sel td{background:var(--accent-subtle)}
+:is(#screen,#drawer,#dlgs) td:first-child,:is(#screen,#drawer,#dlgs) th:first-child{position:sticky;left:0;z-index:1}
+:is(#screen,#drawer,#dlgs) thead th:first-child{z-index:2;background:var(--surface-2)}
+:is(#screen,#drawer,#dlgs) tbody td:first-child{background:var(--surface)}
+:is(#screen,#drawer,#dlgs) tbody tr.row:hover td:first-child{background:var(--surface-hover)}
+:is(#screen,#drawer,#dlgs) tr.group td{background:var(--surface-2);padding:7px 0;font-size:12.5px;color:var(--muted);border-bottom:1px solid var(--border)}
+:is(#screen,#drawer,#dlgs) .cardsep .gin{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+:is(#screen,#drawer,#dlgs) tr.group .gin{position:sticky;left:0;display:inline-flex;align-items:center;gap:8px;padding:0 12px;flex-wrap:wrap}
+:is(#screen,#drawer,#dlgs) tr.group strong{color:var(--text);font-weight:600}
+:is(#screen,#drawer,#dlgs) tr.group .flag{display:inline-flex;align-items:center;gap:4px}
+:is(#screen,#drawer,#dlgs) tr.you td{background:var(--you-row)}
+:is(#screen,#drawer,#dlgs) tr.you td:first-child{box-shadow:inset 3px 0 0 var(--you);background:var(--you-cell)}
+:is(#screen,#drawer,#dlgs) tr.you:hover td{background:var(--you-row)}
+:is(#screen,#drawer,#dlgs) tr.you:hover td:first-child{background:var(--you-cell)}
+
+:is(#screen,#drawer,#dlgs) .ch{display:flex;gap:10px;align-items:center;min-width:205px}
+:is(#screen,#drawer,#dlgs) .av{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:12px;color:#fff;letter-spacing:-.02em}
+:is(#screen,#drawer,#dlgs) .nmbtn{all:unset;cursor:pointer;font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;display:block;min-height:32px;line-height:32px;margin:-5px 0}
+:is(#screen,#drawer,#dlgs) .nmbtn:hover{text-decoration:underline;text-underline-offset:3px}
+:is(#screen,#drawer,#dlgs) .nmbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+:is(#screen,#drawer,#dlgs) .ch .sub{display:flex;align-items:center;gap:6px;margin-top:1px;font-size:12px;color:var(--muted)}
+:is(#screen,#drawer,#dlgs) .niche{appearance:none;-webkit-appearance:none;border:0;border-radius:5px;height:32px;padding:0 20px 0 8px;font-size:12px;font-weight:600;cursor:pointer;background-repeat:no-repeat;background-position:right 7px center;background-size:7px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23958A75'/%3E%3C/svg%3E")}
+:is(#screen,#drawer,#dlgs) .niche.viagem{background-color:var(--travel-subtle);color:var(--travel)}
+:is(#screen,#drawer,#dlgs) .niche.none{background-color:transparent;color:var(--muted);border:1px dashed var(--border-strong);padding-left:7px}
+:is(#screen,#drawer,#dlgs) .niche.ia{background-color:var(--ai-subtle);color:var(--ai)}
+:is(#screen,#drawer,#dlgs) .niche option{color:#231C14;background:#FBF7F0}
+:is(#screen,#drawer,#dlgs) .youtag,:is(#screen,#drawer,#dlgs) .langtag{white-space:nowrap;flex:none}
+:is(#screen,#drawer,#dlgs) .nmrow{display:flex;align-items:center;gap:7px;min-width:0;max-width:163px}
+:is(#screen,#drawer,#dlgs) .nmrow .nmbtn{min-width:0;flex:0 1 auto}
+:is(#screen,#drawer,#dlgs) tr.you .ch .sub,:is(#screen,#drawer,#dlgs) .card.you .ch .sub{flex-wrap:wrap;row-gap:4px;max-width:163px}
+:is(#screen,#drawer,#dlgs) tr.you .ch .sub + .sub,:is(#screen,#drawer,#dlgs) .card.you .ch .sub + .sub{margin-top:3px}
+:is(#screen,#drawer,#dlgs) .nmrow .langtag{height:20px;padding:0 5px}
+:is(#screen,#drawer,#dlgs) .langtag{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--muted);border:1px solid var(--border-strong);border-radius:5px;padding:0 6px;height:24px;display:inline-flex;align-items:center;text-decoration:none;cursor:help}
+:is(#screen,#drawer,#dlgs) .youtag{font-size:12px;font-weight:600;color:var(--youtag-text);background:var(--youtag-bg);border:1px solid var(--youtag-border);border-radius:5px;padding:0 8px;height:24px;display:inline-flex;align-items:center}
+
+/* cadence strip */
+:is(#screen,#drawer,#dlgs) .cad{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:135px}
+:is(#screen,#drawer,#dlgs) .cad svg{flex:none;display:block}
+:is(#screen,#drawer,#dlgs) .cad .v{font-size:13px;white-space:nowrap}
+:is(#screen,#drawer,#dlgs) .cad .v .u{font-size:12px;color:var(--muted)}
+:is(#screen,#drawer,#dlgs) .cad .v small{display:block;color:var(--muted);font-size:11.5px}
+:is(#screen,#drawer,#dlgs) .paused .ico{width:12px;height:12px;flex:none;margin-top:2px}
+:is(#screen,#drawer,#dlgs) .paused{color:var(--warning-text);font-size:11.5px;display:flex;gap:4px;align-items:flex-start;white-space:normal;max-width:155px;line-height:1.3}
+
+:is(#screen,#drawer,#dlgs) .big{font-size:14px;font-weight:500}
+:is(#screen,#drawer,#dlgs) .cap{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap}
+:is(#screen,#drawer,#dlgs) .weak{color:var(--warning-text)}
+:is(#screen,#drawer,#dlgs) .out{display:flex;align-items:center;gap:8px;min-width:200px}
+:is(#screen,#drawer,#dlgs) .out .thumb{width:64px}
+:is(#screen,#drawer,#dlgs) .out .cap{white-space:normal;max-width:150px}
+:is(#screen,#drawer,#dlgs) .out .t{font-size:12.5px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:150px}
+
+/* thumbnails: 2 solid blocks, big caps text, silhouette */
+:is(#screen,#drawer,#dlgs) .thumb{display:block;position:relative;width:80px;aspect-ratio:16/9;border-radius:4px;overflow:hidden;flex:none;container-type:inline-size;}
+:is(#screen,#drawer,#dlgs) .thumb .w{position:absolute;left:6%;bottom:8%;max-width:52%;font-weight:800;font-size:10cqw;line-height:.95;color:var(--ink,#fff);text-transform:uppercase;letter-spacing:-.02em;text-shadow:0 1px 0 rgba(0,0,0,.45)}
+:is(#screen,#drawer,#dlgs) .thumb .sil{position:absolute;right:9%;bottom:0;width:30%;height:78%}
+:is(#screen,#drawer,#dlgs) .thumb .sil::before{content:"";position:absolute;left:50%;top:0;width:50%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:#E9CDAE}
+:is(#screen,#drawer,#dlgs) .thumb .sil::after{content:"";position:absolute;left:0;right:0;bottom:-18%;height:58%;border-radius:50% 50% 0 0;background:#1C1A18}
+:is(#screen,#drawer,#dlgs) .thumb.lg{width:100%}
+:is(#screen,#drawer,#dlgs) .thumb.face-l .sil{right:auto;left:9%}
+:is(#screen,#drawer,#dlgs) .thumb.face-l .w{left:auto;right:6%;text-align:right}
+:is(#screen,#drawer,#dlgs) .thumb.face-c .sil{right:35%}
+:is(#screen,#drawer,#dlgs) .thumb.face-c .w{bottom:auto;top:8%;max-width:88%}
+:is(#screen,#drawer,#dlgs) .thumb.ph{display:grid;place-items:center;background:var(--surface-2);border:1px dashed var(--border-strong);color:var(--muted);font-size:11.5px;text-align:center;padding:6px;line-height:1.3}
+:is(#screen,#drawer,#dlgs) .mult{font-weight:600;font-size:13px}
+:is(#screen,#drawer,#dlgs) .mult.mid{color:var(--mid)}:is(#screen,#drawer,#dlgs) .mult.high{color:var(--high)}:is(#screen,#drawer,#dlgs) .mult.top{color:var(--top)}
+:is(#screen,#drawer,#dlgs) .swap{min-width:120px;max-width:160px}
+:is(#screen,#drawer,#dlgs) .swap .k{font-size:14px;font-weight:500}
+:is(#screen,#drawer,#dlgs) .swap .last{font-size:12px;color:var(--muted);line-height:1.3}
+:is(#screen,#drawer,#dlgs) .grow .up{color:var(--success)}
+:is(#screen,#drawer,#dlgs) .grow .down{color:var(--danger-text)}
+:is(#screen,#drawer,#dlgs) .grow .flat{color:var(--muted)}
+
+:is(#screen,#drawer,#dlgs) .sync{min-width:160px;max-width:185px}
+:is(#screen,#drawer,#dlgs) .sync .st{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;font-weight:500}
+:is(#screen,#drawer,#dlgs) .sync .st .ico,:is(#screen,#drawer,#dlgs) .sync .st .dot{margin-top:3px}
+:is(#screen,#drawer,#dlgs) .sync .cov{font-size:11.5px;color:var(--muted);margin-top:1px}
+:is(#screen,#drawer,#dlgs) .sync .msg{font-size:11.5px;color:var(--danger-text);margin-top:2px;line-height:1.35}
+:is(#screen,#drawer,#dlgs) .sync .msg.late{color:var(--warning-text)}
+:is(#screen,#drawer,#dlgs) .sync .act{margin-top:4px;display:flex;flex-wrap:wrap;gap:6px}
+:is(#screen,#drawer,#dlgs) .pbar{height:4px;border-radius:2px;background:var(--border);overflow:hidden;margin-top:5px;width:150px}
+:is(#screen,#drawer,#dlgs) .pbar i{display:block;height:100%;background:var(--info)}
+:is(#screen,#drawer,#dlgs) .more{width:32px;height:32px;min-width:32px;flex:none;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center}
+:is(#screen,#drawer,#dlgs) .more:hover{border-color:var(--border-strong);color:var(--text)}
+:is(#screen,#drawer,#dlgs) .menu{position:fixed;z-index:30;min-width:230px;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);padding:4px;display:none}
+:is(#screen,#drawer,#dlgs) .menu.on{display:block}
+:is(#screen,#drawer,#dlgs) .menu button{display:flex;width:100%;text-align:left;gap:8px;align-items:center;border:0;background:transparent;padding:0 10px;min-height:34px;border-radius:5px;cursor:pointer;font-size:13px}
+:is(#screen,#drawer,#dlgs) .menu button:hover,:is(#screen,#drawer,#dlgs) .menu button:focus-visible{background:var(--surface-hover);outline:none}
+:is(#screen,#drawer,#dlgs) .menu button.del{color:var(--danger-text)}
+:is(#screen,#drawer,#dlgs) .menu .cw{color:var(--cowork)}
+:is(#screen,#drawer,#dlgs) .menu hr{border:0;border-top:1px solid var(--border-subtle);margin:4px 0}
+:is(#screen,#drawer,#dlgs) .na{color:var(--muted);font-size:12px;line-height:1.35;max-width:220px;display:block}
+:is(#screen,#drawer,#dlgs) .na.r{text-align:right;max-width:135px}
+:is(#screen,#drawer,#dlgs) td.r .na.r,:is(#screen,#drawer,#dlgs) td.r .capr{margin-left:auto}
+
+:is(#screen,#drawer,#dlgs) .legend{display:flex;gap:6px 18px;flex-wrap:wrap;margin-top:10px;color:var(--muted);font-size:12px;align-items:center}
+:is(#screen,#drawer,#dlgs) .legend span{display:inline-flex;align-items:center;gap:6px}
+:is(#screen,#drawer,#dlgs) .legend b{white-space:nowrap}
+:is(#screen,#drawer,#dlgs) .legend i{display:inline-block;width:5px;height:12px;background:var(--strip-long);border-radius:1px}
+:is(#screen,#drawer,#dlgs) .legend i.s{width:3px;height:6px;background:var(--strip-short)}
+:is(#screen,#drawer,#dlgs) .legend i.e{width:3px;height:2px;background:var(--strip-empty)}
+
+/* cards alt view */
+:is(#screen,#drawer,#dlgs) .cards{display:none;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+:is(#screen,#drawer,#dlgs) .view-cards .cards{display:grid}
+:is(#screen,#drawer,#dlgs) .view-cards .tablebox{display:none}
+@media (min-width:1280px){body.drawer-open #screen table{min-width:0}body.drawer-open #screen .out .thumb,body.drawer-open #screen .cad small{display:none}body.drawer-open #screen .out{min-width:120px}body.drawer-open #screen .ch{min-width:140px}body.drawer-open #screen .ch .sub{flex-wrap:wrap;row-gap:4px}body.drawer-open #screen .cad{min-width:104px}body.drawer-open #screen .cad > svg{width:104px;height:auto}body.drawer-open #screen .cad .v,body.drawer-open #screen .cad .paused{white-space:normal}body.drawer-open #screen .paused{max-width:118px}body.drawer-open #screen thead th,body.drawer-open #screen thead th *{white-space:normal}body.drawer-open #screen .swap{min-width:100px}body.drawer-open #screen th,body.drawer-open #screen td{padding-left:10px;padding-right:10px}}
+:is(#screen,#drawer,#dlgs) .card{border:1px solid var(--border);border-radius:9px;background:var(--surface);padding:14px;display:flex;flex-direction:column;gap:12px}
+:is(#screen,#drawer,#dlgs) .card.you{box-shadow:inset 3px 0 0 var(--you);background:var(--you-row)}
+:is(#screen,#drawer,#dlgs) .card .kv{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;align-items:start}
+:is(#screen,#drawer,#dlgs) .card .l{font-size:11.5px;color:var(--muted)}
+:is(#screen,#drawer,#dlgs) .card .cap,:is(#screen,#drawer,#dlgs) .card .na{margin-left:0;max-width:none;text-align:left}
+:is(#screen,#drawer,#dlgs) .cardsep{grid-column:1/-1;font-size:12.5px;color:var(--muted);padding:6px 2px 0}
+:is(#screen,#drawer,#dlgs) .cardsep strong{color:var(--text)}
+
+/* drawer */
+#drawer{display:flex;flex-direction:column;background:var(--bg);border-left:1px solid var(--border-strong);position:sticky;top:0;height:100vh;min-width:0}
+#drawer[hidden]{display:none!important}
+:is(#screen,#drawer,#dlgs) .dhead{padding:16px 22px 14px;border-bottom:1px solid var(--border-subtle);background:var(--surface)}
+:is(#screen,#drawer,#dlgs) .dhead .row1{display:flex;gap:12px;align-items:flex-start}
+:is(#screen,#drawer,#dlgs) .dhead h3{margin:0;font-family:Inter,sans-serif;font-weight:600;font-size:19px}
+:is(#screen,#drawer,#dlgs) .dhead .meta{color:var(--muted);font-size:12.5px;margin-top:4px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+:is(#screen,#drawer,#dlgs) .dhead .close{margin-left:auto}
+:is(#screen,#drawer,#dlgs) .dstats{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border-subtle);border:1px solid var(--border-subtle);border-radius:8px;overflow:hidden;margin-top:12px}
+:is(#screen,#drawer,#dlgs) .dstats > div{background:var(--surface-2);padding:8px 10px;grid-column:span 2}
+:is(#screen,#drawer,#dlgs) .dstats > div:nth-child(n+4){grid-column:span 3}
+:is(#screen,#drawer,#dlgs) .dstats .l{white-space:normal}
+:is(#screen,#drawer,#dlgs) .dstats .l{font-size:11.5px;color:var(--muted);line-height:1.3}
+:is(#screen,#drawer,#dlgs) .dstats .v{font-size:15px;font-weight:500;margin:1px 0}
+:is(#screen,#drawer,#dlgs) .dtabs{display:flex;gap:2px;padding:0 22px;border-bottom:1px solid var(--border-subtle);background:var(--surface)}
+:is(#screen,#drawer,#dlgs) .dtabs button{border:0;background:transparent;padding:0 10px;min-height:40px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;font-size:13px}
+:is(#screen,#drawer,#dlgs) .dtabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--text);font-weight:600}
+:is(#screen,#drawer,#dlgs) .dtabs .n{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--dim);margin-left:4px}
+:is(#screen,#drawer,#dlgs) .dbody{flex:1;overflow-y:auto;padding:16px 22px 26px}
+:is(#screen,#drawer,#dlgs) [hidden]{display:none!important}
+:is(#screen,#drawer,#dlgs) .sec{font-size:13px;font-weight:600;margin:0 0 3px}
+:is(#screen,#drawer,#dlgs) .sech{color:var(--muted);font-size:12px;margin:0 0 12px}
+:is(#screen,#drawer,#dlgs) .swapcard{border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:12px;margin-bottom:10px}
+:is(#screen,#drawer,#dlgs) .swapcard .when{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+:is(#screen,#drawer,#dlgs) .swapcard .when strong{color:var(--text)}
+:is(#screen,#drawer,#dlgs) .swapcard .vt{font-size:13px;margin-top:5px}
+:is(#screen,#drawer,#dlgs) .ba{display:grid;grid-template-columns:1fr 18px 1fr;gap:8px;align-items:start;margin-top:9px}
+:is(#screen,#drawer,#dlgs) .ba .side{font-size:12.5px;line-height:1.35}
+:is(#screen,#drawer,#dlgs) .ba .lab{font-size:11.5px;color:var(--muted);margin-bottom:4px;font-weight:500}
+:is(#screen,#drawer,#dlgs) .ba .old .tt{color:var(--muted)}
+:is(#screen,#drawer,#dlgs) .ba .arr{color:var(--dim);text-align:center;padding-top:18px}
+:is(#screen,#drawer,#dlgs) .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid var(--border);border-radius:5px;padding:2px 7px;background:var(--surface-2)}
+:is(#screen,#drawer,#dlgs) .chip .add{color:var(--success)}:is(#screen,#drawer,#dlgs) .chip .rem{color:var(--danger-text)}
+:is(#screen,#drawer,#dlgs) .effect{margin-top:10px;font-size:12.5px;padding:8px 10px;border-radius:6px;background:var(--surface-2);line-height:1.45}
+:is(#screen,#drawer,#dlgs) .effect .vd{display:inline-flex;align-items:center;gap:5px;font-weight:600;margin-right:6px}
+:is(#screen,#drawer,#dlgs) .effect .vd.won{color:var(--success)}:is(#screen,#drawer,#dlgs) .effect .vd.lost{color:var(--danger-text)}:is(#screen,#drawer,#dlgs) .effect .vd.neu{color:var(--text)}:is(#screen,#drawer,#dlgs) .effect .vd.inc{color:var(--warning-text)}:is(#screen,#drawer,#dlgs) .effect .vd.wait{color:var(--muted)}
+:is(#screen,#drawer,#dlgs) .effect .sub{color:var(--muted);font-size:12px;display:block;margin-top:2px}
+:is(#screen,#drawer,#dlgs) .vlist{display:flex;flex-direction:column}
+:is(#screen,#drawer,#dlgs) .vrow{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border-subtle)}
+:is(#screen,#drawer,#dlgs) .vrow .t{font-size:13px;line-height:1.3}
+:is(#screen,#drawer,#dlgs) .vrow .m{font-size:11.5px;color:var(--muted);margin-top:2px}
+:is(#screen,#drawer,#dlgs) .vrow .r{text-align:right;font-size:13px;min-width:110px}
+:is(#screen,#drawer,#dlgs) .vrow .thumb{width:96px}
+:is(#screen,#drawer,#dlgs) .note{font-size:12.5px;color:var(--muted);border-left:2px solid var(--border-strong);padding:4px 10px;margin:8px 0 14px}
+:is(#screen,#drawer,#dlgs) .bridge{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+:is(#screen,#drawer,#dlgs) .dfoot .spacer{flex:1}
+#drawer .dfoot{padding:10px 14px;gap:6px}
+#drawer .dfoot .btn.small{padding:0 8px}
+:is(#screen,#drawer,#dlgs) .forjabox{border:1px solid var(--forja-line);border-radius:8px;padding:8px 10px;margin:0 0 14px;background:var(--forja-subtle)}
+:is(#screen,#drawer,#dlgs) .forjabox .cap{white-space:normal;margin:2px 0 0;font-size:12px;color:var(--muted)}
+:is(#screen,#drawer,#dlgs) .forjabox:empty{display:none}
+:is(#screen,#drawer,#dlgs) .dfoot{padding:10px 22px;border-top:1px solid var(--border-subtle);display:flex;gap:8px;justify-content:space-between;align-items:center;background:var(--surface);flex-wrap:wrap}
+
+/* modal + toast */
+:is(#screen,#drawer,#dlgs) .modal{position:fixed;inset:0;z-index:90;display:none;place-items:center;background:rgba(0,0,0,.5);padding:16px}
+:is(#screen,#drawer,#dlgs) .modal.on{display:grid}
+:is(#screen,#drawer,#dlgs) .modal .box{width:min(440px,100%);background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;box-shadow:var(--shadow);padding:20px}
+:is(#screen,#drawer,#dlgs) .modal h4{margin:0 0 8px;font-size:16px}
+:is(#screen,#drawer,#dlgs) .modal p{margin:0 0 10px;color:var(--muted);font-size:13.5px}
+:is(#screen,#drawer,#dlgs) .modal .fld{display:flex;flex-direction:column;gap:5px;margin-top:12px;font-size:13px;color:var(--muted)}
+:is(#screen,#drawer,#dlgs) .modal .fld input{min-height:36px;border:1px solid var(--border-strong);border-radius:7px;background:var(--bg);color:var(--text);padding:0 10px;font-size:14px}
+:is(#screen,#drawer,#dlgs) .modal .fld input:focus{outline:2px solid var(--accent);outline-offset:1px}
+:is(#screen,#drawer,#dlgs) .modal .fld .seg{align-self:flex-start}
+:is(#screen,#drawer,#dlgs) .modal .err{display:block;color:var(--danger-text);font-size:12.5px;min-height:0;margin-top:4px}
+:is(#screen,#drawer,#dlgs) .modal .hint{display:block;color:var(--muted);font-size:12px;margin:4px 0 0}
+:is(#screen,#drawer,#dlgs) .modal .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+
+@media (max-width:900px){
+    :is(#screen,#drawer,#dlgs) .dstats{grid-template-columns:repeat(2,1fr)}
+  :is(#screen,#drawer,#dlgs) .dstats > div,:is(#screen,#drawer,#dlgs) .dstats > div:nth-child(n+4){grid-column:auto}
+  :is(#screen,#drawer,#dlgs) .dstats > div:last-child:nth-child(odd){grid-column:1/-1}
+  :is(#screen,#drawer,#dlgs) .dhead{padding:12px 16px 10px}
+  :is(#screen,#drawer,#dlgs) .dhead .meta{gap:2px 10px}
+  :is(#screen,#drawer,#dlgs) .search{flex:1 1 100%}
+}
+@media (prefers-reduced-motion:reduce){:is(#screen,#drawer,#dlgs) *{animation:none!important;transition:none!important}}
+@media (min-width:1280px){body.drawer-open #screen .c-hide{display:none}}
+</style>
+
+</head>
+<body>
+<aside id="mocknote" aria-label="Nota do mockup"><b>Nota do mockup</b> (não é parte do produto) · Tela Canais com <b>N canais próprios, cada um com o seu nicho</b>. Mudou em relação ao original: grupo “Seus canais” que segue a aba de nicho (em Todos, todos; num nicho, só os dele), seletor de nicho também nos seus canais (canal sem nicho aparece em todas as abas pedindo o nicho), chip de idioma ao lado do nome e textos no plural. Troque entre 1, 2 e 5 canais em “Estados do mockup”. Insights: <a href="insights-n-canais.html">insights-n-canais.html</a>.</aside>
+<div id="screen">
+<div class="wrap" id="wrap">
+      <div class="syncbar" id="syncbar" role="status" aria-live="polite">
+        <span id="syncSpin"></span>
+        <div><strong id="syncTxt"></strong>
+          <div class="meta"><span id="syncOwnTxt"></span> O canal em coleta continua a própria coleta.</div></div>
+        <div class="track" aria-hidden="true"><i id="syncTrack"></i></div>
+      </div>
+
+      <details class="fbar" id="forjaBar" hidden><summary><b>forja</b> <span id="forjaBarLines"></span></summary><p id="forjaBarText"></p></details>
+
+      <div class="toolbar">
+        <div class="search">
+          <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+          <input id="q" name="q" type="search" placeholder="Buscar canal" aria-label="Buscar canal">
+        </div>
+        <div class="seg" role="group" aria-label="Formato" id="fmtSeg">
+          <button type="button" aria-pressed="true" data-v="long">Longos</button>
+          <button type="button" aria-pressed="false" data-v="short">Shorts</button>
+        </div>
+        <div class="seg" role="group" aria-label="Escala de views/dia" id="scaleSeg">
+          <button type="button" aria-pressed="false" data-v="abs">Absoluto</button>
+          <button type="button" aria-pressed="true" data-v="rel">Por mil inscritos</button>
+        </div>
+        <div class="seg" role="group" aria-label="Visualização" id="viewSeg">
+          <button type="button" aria-pressed="true" data-v="table">Tabela</button>
+          <button type="button" aria-pressed="false" data-v="cards">Cards</button>
+        </div>
+        <label class="cardsort"><span class="sr">Ordenar cards por</span><select class="sel" id="cardSort" name="cardSort"><option value="active">Ritmo</option><option value="vpd">Views/dia</option><option value="outliers">Outliers</option><option value="swaps">Trocas</option><option value="growth">Crescimento</option></select></label>
+      </div>
+      <div class="toolbar2"><span class="sortnote" id="sortNote" aria-live="polite"></span>
+        <span id="probChip"></span>
+        <span class="spacer"></span>
+        <span class="quota"><span class="num" id="nCh"></span>&nbsp;de&nbsp;<span class="num" id="nLim"></span>&nbsp;canais
+          <span class="tip left" tabindex="0" role="button" aria-label="Sobre o limite de canais"><span class="tt" role="tooltip" id="limTip"></span></span></span>
+        <a class="btn primary" id="addBtn2" href="canais.html?add=1"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>Adicionar canal</a>
+      </div>
+
+      <p class="cap" id="scrollHint" hidden style="white-space:normal;margin:0 0 6px">Role a tabela para o lado para ver todas as colunas.</p>
+      <div class="tablebox">
+        <table aria-label="Canais acompanhados">
+          <thead><tr>
+            <th scope="col">Canal<span class="unit">nicho e inscritos</span></th>
+            <th scope="col" class="sortable" data-k="active"><button type="button">Ritmo <span class="arrow" aria-hidden="true"></span></button><span class="unit">uploads por semana, 13&nbsp;sem</span></th>
+            <th scope="col" class="sortable r" data-k="vpd" style="min-width:118px"><button type="button">Views/dia <span class="arrow" aria-hidden="true"></span></button><span class="unit" id="vpdUnit"></span></th>
+            <th scope="col" class="sortable" data-k="outliers"><button type="button">Outliers <span class="arrow" aria-hidden="true"></span></button><span class="unit">2× ou mais, até 90 dias</span></th>
+            <th scope="col" class="sortable" data-k="swaps"><button type="button">Trocas <span class="arrow" aria-hidden="true"></span></button><span class="unit">30 d, por evento, longos e Shorts</span></th>
+            <th scope="col" class="sortable r c-hide" data-k="growth"><button type="button">Crescimento <span class="arrow" aria-hidden="true"></span></button><span class="unit">inscritos, 30 d</span></th>
+            <th scope="col" class="c-hide">Sincronização <span class="tip left" tabindex="0" role="button" aria-label="Sobre a cobertura"><span class="tt" role="tooltip">Cada canal acompanha os vídeos mais recentes até o limite definido para ele (até 200). Todos os vídeos acompanhados têm views diárias desde 03/10. Sincronização automática às 00h, 06h, 12h e 18h.</span></span><span class="unit">e vídeos acompanhados</span></th>
+            <th scope="col"><span class="sr">Ações</span></th>
+          </tr></thead>
+          <tbody id="tb"></tbody>
+        </table>
+      </div>
+      <div class="cards" id="cards"></div>
+
+      <div class="legend">
+        <span><i aria-hidden="true"></i> vídeo longo</span>
+        <span><i class="s" aria-hidden="true"></i> Short</span>
+        <span><i class="e" aria-hidden="true"></i> semana sem upload</span>
+        <span>Outlier: <span id="legTiers"><b class="mult mid num">2–5×</b> <b class="mult high num">5–10×</b> <b class="mult top num">10×+</b></span> contra os outros vídeos do canal na mesma idade, sem contar o próprio vídeo; abaixo de 2× aparece só como “a mediana”</span>
+      </div>
+
+</div>
+<div class="menu" id="menu" role="menu" aria-label="Ações do canal">
+  <button type="button" role="menuitem" data-a="open">Abrir detalhes</button>
+  <button type="button" role="menuitem" data-a="syncone">Sincronizar só este canal</button>
+  <button type="button" role="menuitem" data-a="yt">Abrir no YouTube</button>
+  <button type="button" role="menuitem" data-a="cowork"><span class="cw">Copiar pedido para o Cowork</span></button>
+  <hr>
+  <button type="button" role="menuitem" class="del" data-a="remove">Remover canal…</button>
+</div>
+
+
+
+</div>
+<div id="dlgs">
+<div class="modal" id="confirm" role="dialog" aria-modal="true" aria-labelledby="cfT">
+  <div class="box">
+    <h4 id="cfT">Remover <span id="cfName">canal</span>?</h4>
+    <p>O canal sai do observatório e para de sincronizar. Os vídeos, as versões de título, thumbnail e descrição e as views diárias já coletados dele são apagados.</p>
+    <p>Não dá para desfazer. Se adicionar de novo, a coleta recomeça do zero.</p>
+    <div class="acts"><button type="button" class="btn" id="cfNo">Cancelar</button><button type="button" class="btn danger" id="cfYes">Remover canal</button></div>
+  </div>
+</div>
+
+<div class="modal" id="addDlg" role="dialog" aria-modal="true" aria-labelledby="addT">
+  <form class="box" id="addForm" novalidate>
+    <h4 id="addT">Adicionar canal</h4>
+    <p id="addCap"></p>
+    <label class="fld"><span>Canal do YouTube</span><input id="addH" name="addH" type="text" placeholder="@handle ou URL do canal" autocomplete="off" aria-describedby="addHErr" aria-errormessage="addHErr"></label>
+    <span class="err" id="addHErr" role="alert"></span>
+    <div class="fld"><span id="addNL">Nicho</span><div class="seg" role="group" aria-labelledby="addNL" id="addNiche"><button type="button" data-v="viagem" aria-pressed="true">Viagem</button><button type="button" data-v="ia" aria-pressed="false">IA</button></div></div>
+    <label class="fld"><span>Vídeos acompanhados</span><input id="addLim" name="addLim" type="number" min="10" max="200" step="10" value="50" aria-describedby="addLimErr addLimH"></label>
+    <span class="err" id="addLimErr" role="alert"></span>
+    <span class="hint" id="addLimH">Os vídeos mais recentes, até 200. Cada vídeo acompanhado ganha uma contagem diária de views.</span>
+    <p class="hint" id="addWhen"></p>
+    <div class="acts"><button type="button" class="btn" id="addNo">Cancelar</button><button type="submit" class="btn primary" id="addYes">Adicionar canal</button></div>
+  </form>
+</div>
+</div>
+<aside id="drawer" aria-labelledby="dName" hidden>
+  <div class="dhead">
+    <div class="row1">
+      <div class="av" id="dAv" aria-hidden="true"></div>
+      <div style="min-width:0">
+        <h3 id="dName">Canal</h3>
+        <div class="meta" id="dMeta"></div>
+      </div>
+      <button type="button" class="more close" id="dClose" aria-label="Fechar detalhes do canal">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </div>
+    <div class="dstats" id="dStats"></div>
+  </div>
+  <div class="dtabs" role="tablist" aria-label="Detalhes do canal" id="dTabs">
+    <button type="button" role="tab" id="t-sw" aria-controls="pSwaps" aria-selected="true">Trocas<span class="n" id="nSw"></span></button>
+    <button type="button" role="tab" id="t-out" aria-controls="pOut" aria-selected="false" tabindex="-1">Outliers<span class="n" id="nOut"></span></button>
+    <button type="button" role="tab" id="t-vid" aria-controls="pVid" aria-selected="false" tabindex="-1">Vídeos</button>
+  </div>
+  <div class="dbody">
+    <div class="dpanel" id="pSwaps" role="tabpanel" aria-labelledby="t-sw" tabindex="0"><div class="forjabox" id="dForjaBox" data-forja-anchor tabindex="-1"><div class="forjastate" id="dForjaSt" aria-live="polite"></div><p class="cap" id="dForjaWhy"></p></div><div id="pSwapsBody"></div></div>
+    <div class="dpanel" id="pOut" role="tabpanel" aria-labelledby="t-out" tabindex="0" hidden></div>
+    <div class="dpanel" id="pVid" role="tabpanel" aria-labelledby="t-vid" tabindex="0" hidden></div>
+  </div>
+  <div class="dfoot">
+    <button type="button" class="btn small ghost icon" id="dRemove" aria-label="Remover canal…" title="Remover canal…"><svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5"/></svg></button>
+    <span class="spacer"></span>
+    <button type="button" class="btn small" id="dForjaFree" hidden></button><button type="button" class="btn small forja" id="dForja" aria-describedby="dForjaWhy">Pedir leitura à forja</button>
+    <a class="btn small" id="dYt" target="_blank" rel="noopener">Abrir no YouTube</a>
+  </div>
+</aside>
+<script src="segundo-canal.js"></script>
+<script src="../2026-10-02-observatorio/dados.js"></script>
+<script src="mockup.js"></script>
+<script src="../2026-10-02-observatorio/chrome.js"></script>
+<script>
+/* ===== Aba Canais: interface. TODOS os dados e cálculos vêm de window.OBS (dados.js). ===== */
+const D=OBS.date,FM=OBS.fmt,NB=' ',MINUS='−';
+const ICONS={
+ wait:'<path d="M4 1.5h8M4 14.5h8M5 1.5c0 3 6 3.5 6 6.5s-6 3.5-6 6.5M11 1.5c0 3-6 3.5-6 6.5s6 3.5 6 6.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+ up:'<path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+ down:'<path d="M8 3v10M3.5 8.5 8 13l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+ eq:'<path d="M3 6h10M3 10h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+ q:'<circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6.3 6.3a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1M8 11.3v.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+ warn:'<path d="M8 2 1.5 13.5h13z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 6.5v3.2M8 11.6v.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+ clock:'<circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5V8l2.3 1.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+ pause:'<path d="M5.5 3.5v9M10.5 3.5v9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+ spin:'<path d="M8 2a6 6 0 1 1-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+ ok:'<circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.3 8.2 7.2 10l3.5-3.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+ nodata:'<circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 12 12 4" stroke="currentColor" stroke-width="1.5"/>'};
+const ic=(id,cls='ico')=>`<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[id]}</svg>`;
+
+/* canais: o seu primeiro, depois os concorrentes (ordem de OBS) */
+const C=[...OBS.channels.filter(c=>c.own),...OBS.channels.filter(c=>!c.own)];
+const OWNS=C.filter(c=>c.own),own=OWNS[0],MANY=OWNS.length>1;
+/* canal próprio tem nicho como qualquer concorrente; pode estar sem nicho (null) até o dono escolher */
+const nicheOf=c=>c.own?MOCKOWN.nicheOf(c):c.niche;
+/* dois canais próprios: marca de idioma (texto neutro, sem cor nova) e frases que concordam com a quantidade */
+const LANG={pt:['PT','Canal em português'],en:['EN','Canal em inglês']};
+const langTag=c=>{const l=LANG[c.lang];return MANY&&l?`<abbr class="langtag" title="${l[1]}">${l[0]}</abbr>`:''};
+const OWN_TXT=MANY?{slot:'os seus canais não ocupam vaga',count:'os seus canais não contam',sync:'Seus canais não entram nesta rodada; eles sincronizam pelo Painel.',dup:'Esse é um dos seus canais'}:{slot:'o seu canal não ocupa vaga',count:'o seu canal não conta',sync:'Seu canal não entra nesta rodada; ele sincroniza pelo Painel.',dup:'Esse é o seu canal'};
+/* o cenário "sem vídeo longo" do motor vale para UM canal (o que o motor nomeia), não para todo canal próprio */
+const EMPTY_ID=OBS.scenario('own-empty').channel;const emptyMock=c=>st.youEmpty&&c.id===EMPTY_ID;
+document.getElementById('syncOwnTxt').textContent=OWN_TXT.sync;
+const isBackfill=c=>c.sync.state==='backfill';
+const hasProblem=c=>c.sync.state!=='ok';
+
+/* estado de interface (não é dado) */
+const NLBL={todos:'Todos',viagem:'Viagem',ia:'IA'};
+let gNiche='Todos';   /* definido por CHROME.niche() depois do mount */
+const URLP=new URLSearchParams(location.search);
+const UV=(k,ok,d)=>{const v=URLP.get(k);return v&&ok.includes(v)?v:d};
+const st={justAsked:new Set(),forjaMock:(x=>x&&x.type==='resumo-trocas'&&x.base&&x.base!=='sem pedido'?x.base:'')(OBS.forja.session.state()),problems:URLP.get('filter')==='problemas',fmt:UV('fmt',['long','short'],'long'),scale:UV('scale',['rel','abs'],'rel'),sort:UV('sort',['active','vpd','outliers','swaps','growth'],'active'),dir:UV('dir',['asc','desc'],'desc'),view:UV('view',['table','cards'],'table'),q:(URLP.get('q')||'').toLowerCase(),qRaw:URLP.get('q')||'',youEmpty:false,sel:null,sync:false,forja:{}};
+const NK={Todos:'todos',Viagem:'viagem',IA:'ia'};
+const SORTNAME={active:'Ritmo',vpd:'Views/dia',outliers:'Outliers',swaps:'Trocas',growth:'Crescimento'};
+
+/* apresentação */
+const dec=(n,d=1)=>(n<0?MINUS:'')+Math.abs(n).toFixed(d).replace('.',',');
+const num=n=>n==null?'—':FM.num(n).replace(/ (mil|mi)$/,NB+'$1');
+const subsTxt=n=>FM.subs?FM.subs(n).replace(/ (mil|mi)$/,NB+'$1'):_subsTxt(n);const _subsTxt=n=>{if(n>=1e6)return (n/1e6).toFixed(2).replace('.',',')+NB+'mi';if(n>=1e5)return Math.round(n/1e3)+NB+'mil';if(n>=1e4)return (n/1e3).toFixed(1).replace('.',',')+NB+'mil';return (n/1e3).toFixed(2).replace('.',',')+NB+'mil'};
+const nb=s=>String(s).replace(/(\d) (h|d|dias?|min)\b/g,'$1'+NB+'$2').replace(/há /g,'há'+NB);
+const tier=m=>OBS.tierOf(m)||'';
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const plural=(n,one,many)=>n===1?one:many;
+function toast(m,kind=''){if(window.CHROME)CHROME.toast(kind,m,'')}
+function thumb(a,cls=''){if(!a)return '';const f=a.face||'r';const bgI=f==='l'?`linear-gradient(100deg,${a.fg} 0 42%,${a.bg} 42% 100%)`:`linear-gradient(100deg,${a.bg} 0 58%,${a.fg} 58% 100%)`;
+  return `<span class="thumb face-${f} ${cls}" style="background:${bgI};--ink:${a.ink||'#fff'}" aria-hidden="true"><span class="sil"></span><span class="w">${esc(a.text)}</span></span>`}
+
+/* leitura de OBS por canal e formato */
+const stats=(c,fmt=st.fmt)=>OBS.channelStats(c.id,fmt);
+const cad=(c,fmt)=>OBS.cadence(c.id,fmt);
+const outs=(c,fmt=st.fmt)=>OBS.outliers({channel:c.id,fmt,niche:'todos',includeOwn:!!c.own});
+const ch30=c=>OBS.changesIn({days:30,channel:c.id});
+const groupsOf=list=>{const seen=new Set(),gs=[];for(const x of list){if(seen.has(x.id))continue;const items=[x,...(x.sameWindow||[]).map(id=>OBS.change(id)).filter(Boolean)];items.forEach(i=>seen.add(i.id));gs.push(items)}return gs};
+const agoS=i=>i.agoShort||(D.agoShort?D.agoShort(i.at):D.ago(i.at));
+const whenPh=items=>{const i=items[0],win=i.prec&&i.prec!=='min',ago=nb(agoS(i));if(!win)return ago;const g=items.length>1?'vistos':(i.type==='title'?'visto':'vista');return `${g} pela 1ª vez ${ago}`};
+const verb=items=>{if(items.length>1)return {label:items.map(i=>i.typeLabel).join(' e ').replace(/ e T/,' e t'),verb:'trocados na mesma janela'};const i=items[0];
+  return {label:i.typeLabel,verb:i.type==='desc'&&!i.hasText?'mudou':(i.type==='title'?'trocado':'trocada')}};
+const vpdVal=c=>{const s=stats(c);if(s.vpdMedian==null)return null;return st.scale==='rel'?s.perMilSubs:s.vpdMedian};
+
+function strip(c){
+  const W=130,H=30;
+  if(!c||isBackfill(c))return `<svg width="${W}" height="${H}" aria-hidden="true">${Array.from({length:13},(_,i)=>`<rect x="${i*10+3}" y="${H-2}" width="3" height="2" fill="var(--strip-empty)"/>`).join('')}</svg>`;
+  const L=cad(c,'long').weeks.map(w=>w.n),S=cad(c,'short').weeks.map(w=>w.n);
+  const youEmpty=emptyMock(c);const LL=youEmpty?OBS.scenario('own-empty').cadence.weeks.map(w=>w.n):L;
+  let s='';LL.forEach((l,i)=>{const sh=S[i],x=i*10;
+    if(!l&&!sh){s+=`<rect x="${x+3}" y="${H-2}" width="3" height="2" fill="var(--strip-empty)"/>`;return}
+    const hl=Math.min(l,5)*5.2,hs=Math.min(sh,6)*2.2;
+    if(l)s+=`<rect x="${x}" y="${H-hl}" width="5" height="${hl}" rx="1" fill="var(--strip-long)" opacity="${st.fmt==='long'?1:.4}"/>`;
+    if(sh)s+=`<rect x="${x+6}" y="${H-hs}" width="3" height="${hs}" rx="1" fill="var(--strip-short)" opacity="${st.fmt==='short'?1:.6}"/>`;});
+  const lp=LL.reduce((a,b)=>a+b,0),sp=S.reduce((a,b)=>a+b,0);
+  return `<svg width="${W}" height="${H}" role="img" aria-label="${lp} vídeos longos e ${sp} Shorts nas últimas 13 semanas">${s}</svg>`;
+}
+const backQ=()=>{const u=new URLSearchParams(location.search);u.delete('add');u.delete('theme');if(st.sel)u.set('channel',st.sel);else u.delete('channel');const q=u.toString();return q?'?'+q:''};
+const HIST=id=>CHROME.link('historico',id)+'&from=canais'+(backQ()?'&back='+encodeURIComponent(backQ()):'');
+const NEQ=n=>`n${NB}=${NB}${n}`;
+const agoV=v=>`<span title="${D.dmhm(v.pub)} (São Paulo)">${nb(FM.age?FM.age(v):D.ago(v.pub))}</span>`;
+const viewsTxt=(c,v)=>v.views!=null?`<span class="num">${num(v.views)}</span> views${['atrasado','erro'].includes(c.sync.state)?`, até o registro diário de ${D.dmhm(stats(c,'long').growth30.to)}`:''}`:`sem contagem: ${c.sync.state==='erro'?'sincronização do canal com erro desde '+D.dmhm(c.sync.errorSince):c.sync.state==='atrasado'?'sincronização do canal atrasada desde '+D.dmhm(c.sync.last):'sem registro diário ainda'}`;
+const covTxt=c=>isBackfill(c)?`${c.sync.backfill.done} de ${c.sync.backfill.total} vídeos buscados`:`${stats(c).tracked} vídeos acompanhados`;
+let ORDER=[];
+function syncState(c){if(st.syncOne&&st.syncOne[c.id])return st.syncOne[c.id];if(st.sync&&!c.own&&!isBackfill(c))return 'queued';return c.sync.state}
+const abs=t=>`${D.dmhm(t)} (São Paulo)`;
+function syncCell(c){
+  const s=c.sync,ss=syncState(c),covT=`title="Limite deste canal: ${c.video_limit} vídeos (máximo 200)"`;
+  if(ss==='just')return `<div class="st">${ic('ok')}<span style="color:var(--success)">Sincronizado agora</span></div><div class="cov" ${covT}>${covTxt(c)}</div>`;
+  if(ss==='now')return `<div class="st" style="color:var(--info)">${ic('spin','ico spin')}Sincronizando agora</div><div class="cov" ${covT}>${covTxt(c)}</div>`;
+  if(ss==='queued')return `<div class="st" style="color:var(--muted)">${ic('clock')}Na fila desta rodada</div><div class="cov">última: <span title="${abs(s.last)}">${nb(D.ago(s.last))}</span></div>`;
+  if(ss==='ok')return `<div class="st"><span class="dot" style="background:var(--success)"></span><span>Sincronizado <span title="${abs(s.last)}">${nb(D.ago(s.last))}</span></span></div><div class="cov" ${covT}>${covTxt(c)}</div>`;
+  if(ss==='atrasado')return `<div class="st" style="color:var(--warning-text)">${ic('clock')}<span title="Última sincronização: ${abs(s.last)}">${esc((x=>x.replace(/^./,y=>y.toUpperCase()))(s.problemPhrase))}</span></div><div class="msg late">${esc(s.msg)}</div><div class="act"><button type="button" class="btn small" data-retry="${c.id}">Tentar de novo</button></div>`;
+  if(ss==='erro')return `<div class="st" style="color:var(--danger-text)">${ic('warn')}<span>${esc((x=>x.replace(/^./,y=>y.toUpperCase()))(s.problemPhrase))}</span></div><div class="msg">${esc(s.msg.split(/(?<=[.?!])\s+/).filter(x=>!(/\(\d{3}\)/.test(x)&&(s.problemPhrase||'').includes((x.match(/\(\d{3}\)/)||[''])[0]))).join(' '))}</div><div class="act"><button type="button" class="btn small outline" data-fixhandle="${c.id}">Atualizar handle…</button><button type="button" class="btn small" data-askremove="${c.id}">Remover canal…</button></div>`;
+  if(ss==='backfill')return `<div class="st" style="color:var(--info)">${ic('spin','ico spin')}Buscando vídeos</div><div class="pbar" role="progressbar" aria-valuemin="0" aria-valuemax="${s.backfill.total}" aria-valuenow="${s.backfill.done}" aria-label="Busca de vídeos"><i style="width:${s.backfill.done/s.backfill.total*100}%"></i></div><div class="cov">${covTxt(c)}, adicionado <span title="${abs(s.added)}">${nb(D.ago(s.added))}</span></div>`;
+}
+function growthCell(c,g){
+  if(g.pending)return `<span class="na r" title="Canal novo no observatório: precisa de 30 d de contagem de inscritos, ${esc(g.pending)}">${esc(g.pending.replace(/ \(.*\)/,''))}</span>`;
+  const until=c.sync.state!=='ok'&&!isBackfill(c)?`, até ${D.dmhm(g.to)}`:'';
+  if(g.withinRounding)return `<span class="big num flat">≈${NB}0</span><span class="cap capr" style="white-space:normal;max-width:135px"><span data-k="growth">${esc(g.text.replace(/^≈ 0 /,''))}</span>, 30${NB}d</span>`;
+  const up=g.pct>0;return `<span class="big num ${up?'up':'down'}" title="Calculado sobre inscritos arredondados a 3 algarismos">${ic(up?'up':'down')} ${up?'+':MINUS}${dec(Math.abs(g.pct*100))}%</span><span class="cap num capr" data-k="growth" style="white-space:normal;max-width:118px">${esc(g.text).replace(/ (mil|mi)/g,NB+'$1')} em 30${NB}d${until}</span>`;
+}
+function cells(c){
+  const fmtName=st.fmt==='long'?'longos':'Shorts',one=st.fmt==='long'?'vídeo longo':'Short';
+  const S=stats(c);
+  if(isBackfill(c))return {
+    rit:`<div class="cad">${strip(null)}<span class="na" style="max-width:150px" title="${esc(cad(c,'long').partialText||'')}">Ritmo após a busca</span></div>`,
+    vpd:`<span class="na r" title="Primeira contagem diária de views amanhã, ${D.dm(OBS.NOW+OBS.DAY)}">1ª contagem ${D.dm(OBS.NOW+OBS.DAY)}</span>`,
+    out:`<span class="na" title="Precisa das views do canal para comparar; aparece depois da busca">Após a busca</span>`,
+    sw:`<span class="na">Trocas são detectadas a partir de agora.</span>`,gr:growthCell(c,S.growth30)};
+  const OEc=emptyMock(c)?OBS.scenario('own-empty').cadence:null;
+  const k=cad(c,st.fmt),other=st.fmt==='short'&&OEc?OEc:cad(c,st.fmt==='long'?'short':'long');
+  const youEmpty=emptyMock(c)&&st.fmt==='long';
+  let rit;
+  const SC=youEmpty?OBS.scenario('own-empty'):null;
+  if(youEmpty)rit=`<div class="cad">${strip(c)}<div class="v"><span class="num big">${dec(SC.cadence.pw)}</span> <span class="u">longos/sem</span><small>nenhum em 13 semanas</small></div></div>`;
+  else rit=`<div class="cad">${strip(c)}<div class="v"><span class="num big" data-k="pw">${dec(k.pw)}</span> <span class="u">${fmtName}/sem</span>${c.activity.state==='parado'?`<span class="paused">${ic('pause')}<span>Parado: último vídeo em ${D.dm(cad(c,'long').lastUpload)}, ${nb(cad(c,'long').lastUploadAgo)}</span></span>`:`<small>${other.pw?`e ${dec(other.pw)} ${st.fmt==='long'?'Shorts':'longos'}/sem`:`sem ${st.fmt==='long'?'Shorts':'longos'}`}</small>`}</div></div>`;
+  let vpd;const v=vpdVal(c);
+  if(youEmpty){const oe=SC.stats,pm=oe.perMilSubs!=null?oe.perMilSubs:(oe.vpdMedian!=null?oe.vpdMedian/(c.subs/1000):null);vpd=pm==null?`<span class="na r">${esc(SC.text)}</span>`:`<span class="big num">${st.scale==='rel'?dec(pm,1):num(oe.vpdMedian)}</span><span class="cap" style="white-space:normal">${st.scale==='rel'?`<span class="num">${num(oe.vpdMedian)}</span>/dia, `:''}${NEQ(oe.vpdN)}, nenhum longo novo em 90${NB}d</span>`}
+  else if(v==null)vpd=`<span class="na r" title="${S.tracked} vídeos acompanhados">Nenhum ${one} acompanhado.</span>`;
+  else{const weak=S.vpdN<3;vpd=`<span class="big num" data-k="vpd">${st.scale==='rel'?dec(v,1):num(v)}</span><span class="cap" style="white-space:normal">${st.scale==='rel'?`<span class="num">${num(S.vpdMedian)}</span>/dia, `:''}<span class="${weak?'weak':''}">n${NB}=${NB}<span data-k="n">${S.vpdN}</span>${weak?', base fraca':''}</span>${c.sync.state==='atrasado'||c.sync.state==='erro'?`, até o registro diário de ${D.dmhm(S.growth30.to)}`:''}</span>`;}
+  let out;const o=S.bestOutlier;
+  if(youEmpty)out=`<span class="na">Nada para comparar sem vídeo longo recente. <a class="btn small link" href="/cms/upnext" data-upnext>Planejar em Próximos</a></span>`;
+  else if(!o){const top=S.maxMultBelowMin;
+    if(!top)out=`<span class="na">Não publicou ${fmtName} em 90${NB}d.</span>`;
+    else if(top.weak)out=`<span class="na">Nenhum ${one} com ${OBS.RULES.outlierMin}× ou mais. <span class="weak">Base fraca (${NEQ(top.n)})</span>.</span>`;
+    else out=`<span class="na" data-k="maxBelow">Nenhum ${one} com ${OBS.RULES.outlierMin}× ou mais em 90${NB}d. Maior: ${esc(top.label)}.</span>`;}
+  else{const m=o.mult;out=`<div class="out" title="${esc(m.label)}. ${esc(m.fallbackText?m.fallbackText.replace(/^./,x=>x.toUpperCase()):'Método: '+m.method)}; sem contar este vídeo.">${thumb(o.video.thumb)}<div><div class="t" title="${esc(o.video.title)}">${esc(o.video.title)}</div><div class="cap"><b class="mult num ${tier(m.value)}" data-k="best">${FM.mult(m.value)}</b> vs ${m.method==='mesmo dia de vida'?'mesmo dia de vida':m.band.replace(' dias',NB+'d')}, n${NB}=${NB}<span data-k="bestN">${m.n}</span></div><div class="cap">publicado ${agoV(o.video)}, <span data-k="outs">${S.outliers90}</span> ${plural(S.outliers90,'outlier','outliers')} no canal</div></div></div>`;}
+  let sw;
+  if(c.own)sw=`<span class="na">Suas trocas ficam no A/B Lab.</span>`;
+  else{const list=ch30(c),g=groupsOf(list)[0];
+    sw=`<div class="swap"><div class="k num" data-k="sw">${list.length}</div><div class="last">${g?`<span title="${esc(g.map(i=>i.whenText).join('; '))} (São Paulo)">${(()=>{const t=verb(g);return g.length>1?`${verb([g[0]]).label} e ${verb([g[1]]).label.toLowerCase()} trocados na mesma janela, ${whenPh(g)}`:`${t.label} ${t.verb}, ${whenPh(g)}`})()}</span>`:'nenhuma em 30'+NB+'d'}</div></div>`;}
+  return {rit,vpd,out,sw,gr:growthCell(c,S.growth30)};
+}
+function nicheSel(c,ctx){const n=nicheOf(c);return `<select class="niche ${n||'none'}" name="niche-${c.id}-${ctx}" aria-label="Nicho de ${esc(c.name)}${n?'':': sem nicho, escolha um'}" data-niche="${c.id}" data-ctx="${ctx}">${n?'':'<option value="" selected disabled>Escolher nicho</option>'}<option value="viagem" ${n==='viagem'?'selected':''}>Viagem</option><option value="ia" ${n==='ia'?'selected':''}>IA</option></select>`}
+function subsTip(c){return `<span class="tip" tabindex="0" role="button" aria-label="Sobre o número de inscritos"><span class="tt" role="tooltip">O YouTube informa inscritos arredondados a 3 algarismos. ${subsTxt(c.subs)} pode estar ${esc(stats(c,'long').growth30.roundingText)} do número real.</span></span>`}
+function chCell(c){const tag=c.own?`<span class="youtag">seu canal</span>${nicheSel(c,'row')}</div><div class="sub">`:nicheSel(c,'row');
+  return `<div class="ch"><div class="av" style="background:${c.color}" aria-hidden="true">${c.ini}</div><div style="min-width:0"><div class="nmrow"><button type="button" class="nmbtn" data-open="${c.id}" title="${esc(c.name)}" aria-label="Abrir detalhes de ${esc(c.name)}">${esc(c.name)}</button>${c.own?langTag(c):''}</div><div class="sub">${tag}<span class="num">${subsTxt(c.subs)}</span>${subsTip(c)}</div></div></div>`}
+const keyVal={active:c=>isBackfill(c)?-1:cad(c,st.fmt).pw,outliers:c=>isBackfill(c)?-1:stats(c).outliers90,growth:c=>stats(c).growth30.pending?-99:stats(c).growth30.pct,vpd:c=>isBackfill(c)?-1:(vpdVal(c)??-1),swaps:c=>isBackfill(c)?-1:ch30(c).length};
+function visible(niche=gNiche,q=st.q){const nk=NK[niche];
+  return C.filter(c=>!c.own).filter(c=>nk==='todos'||c.niche===nk).filter(c=>c.name.toLowerCase().includes(q)).filter(c=>!st.problems||hasProblem(c))
+   .sort((a,b)=>(keyVal[st.sort](b)-keyVal[st.sort](a))*(st.dir==='desc'?1:-1))}
+/* vagas: só do motor (CONVENCOES F9). channelSlots() quando existir; senão RULES.channelLimit contra os concorrentes (o seu canal não ocupa vaga) */
+function slots(){if(typeof OBS.channelSlots==='function'){const x=OBS.channelSlots();const limit=x.limit!=null?x.limit:OBS.RULES.channelLimit,used=st.slotsMock!=null?Math.min(limit,limit-st.slotsMock):(x.used!=null?x.used:x.count);if(st.slotsMock!=null)return {used,limit,free:Math.max(0,limit-used)};return {used,limit,free:Math.max(0,x.free!=null?x.free:limit-used)}}
+  const limit=OBS.RULES.channelLimit,used=OBS.channels.filter(c=>!c.own).length;return {used,limit,free:Math.max(0,limit-used)}}
+function fixN(root){const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let n;while(n=w.nextNode()){if(/n = \d|n =\u00a0|n\u00a0= /.test(n.nodeValue))n.nodeValue=n.nodeValue.replace(/\bn = (?=\d)/g,'n\u00a0=\u00a0')}}
+function syncUrlState(){try{const u=new URL(location.href);const D0={fmt:'long',scale:'rel',sort:'active',dir:'desc',view:'table',q:''};for(const k in D0){const v=k==='q'?st.qRaw:st[k];if(v&&v!==D0[k])u.searchParams.set(k,v);else u.searchParams.delete(k)}history.replaceState(null,'',u.pathname.split('/').pop()+u.search)}catch(e){}}
+function renderNiche(){const k=slots();{const b=document.getElementById('addBtn2');const full=k.free===0;b.setAttribute('aria-disabled',String(full));b.classList.toggle('is-off',full);if(full){b.removeAttribute('href');b.title=`Sem vagas: ${k.used} de ${k.limit} concorrentes. Remova um canal para adicionar outro.`}else{b.setAttribute('href','canais.html?add=1');b.title=''}}document.getElementById('nCh').textContent=k.used;document.getElementById('nLim').textContent=k.limit;document.getElementById('limTip').textContent=`Até ${k.limit} concorrentes acompanhados; ${OWN_TXT.slot}. ${k.free?(k.free===1?'Sobra 1 vaga.':`Sobram ${k.free} vagas.`):'Sem vagas: para acompanhar outro, remova um.'}`}
+function render(){renderBody();headerForja();tipIds()}
+let tipN=0;function tipIds(){document.querySelectorAll('#screen .tip,#drawer .tip').forEach(t=>{const tt=t.querySelector('.tt');if(!tt)return;if(!tt.id)tt.id='tip'+(++tipN);t.setAttribute('aria-describedby',tt.id)})}
+function renderBody(){
+  renderNiche();
+  const list=visible();
+  const rowHTML=c=>{const x=cells(c);return `<tr class="row ${c.own?'you':''} ${st.sel===c.id?'sel':''}" data-id="${c.id}"><td>${chCell(c)}</td><td>${x.rit}</td><td class="r">${x.vpd}</td><td>${x.out}</td><td>${x.sw}</td><td class="r grow c-hide">${x.gr}</td><td class="sync c-hide">${syncCell(c)}</td><td>${c.own?'':`<button type="button" class="more" aria-label="Mais ações para ${esc(c.name)}" aria-haspopup="menu" data-menu="${c.id}"><svg class="ico" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="13" cy="8" r="1.4"/></svg></button>`}</td></tr>`};
+  /* seus canais: em Todos, todos; num nicho, só os daquele nicho e os que ainda estão sem nicho (nada some em silêncio) */
+  const nkey=NK[gNiche],ownShown=OWNS.filter(c=>{const n=nicheOf(c);return nkey==='todos'||n==null||n===nkey});
+  const ownNone=ownShown.filter(c=>nicheOf(c)==null).length,ownIn=ownShown.length-ownNone,ownHidden=OWNS.length-ownShown.length;
+  const ownParts=[nkey==='todos'?`<span class="num">${OWNS.length}</span> ${OWNS.length===1?'canal':'canais'}`:(ownIn?`<span class="num">${ownIn}</span> de ${gNiche}`:`nenhum de ${gNiche}`)];
+  if(ownNone)ownParts.push(`<span class="flag" style="color:var(--warning-text)">${ic('warn')}${ownNone} sem nicho: escolha o nicho na linha do canal</span>`);
+  if(ownHidden)ownParts.push(`${ownHidden} em outro nicho (${ownHidden===1?'aparece':'aparecem'} em Todos)`);
+  ownParts.push('fora do limite de concorrentes');
+  const ownHead=MANY||ownShown.length!==OWNS.length||ownNone;
+  let h=(ownHead?`<tr class="group" data-own-group><td colspan="8"><span class="gin"><strong>Seus canais</strong>${ownParts.map(p=>`<span>${p}</span>`).join('')}</span></td></tr>`:'')+ownShown.map(rowHTML).join('');
+  const groups=gNiche==='Todos'?[['viagem','Viagem'],['ia','IA']]:[[NK[gNiche],gNiche]];
+  const groupMeta=g=>{const parts=[];const e=g.filter(c=>syncState(c)==='erro').length,l=g.filter(c=>syncState(c)==='atrasado').length,b=g.filter(isBackfill).length,p=g.filter(c=>c.activity.state==='parado').length;
+    if(e)parts.push(`<span class="flag" style="color:var(--danger-text)">${ic('warn')}${e} com erro de sincronização</span>`);
+    if(l)parts.push(`<span class="flag" style="color:var(--warning-text)">${ic('clock')}${l} com sincronização atrasada</span>`);
+    if(b)parts.push(`<span class="flag" style="color:var(--info)">${ic('spin')}${b} buscando vídeos</span>`);
+    if(p)parts.push(`<span class="flag" style="color:var(--warning-text)">${ic('pause')}${p} parado</span>`);return parts.join('')};
+  groups.forEach(([k,l])=>{const g=list.filter(c=>c.niche===k);if(!g.length)return;
+    h+=`<tr class="group"><td colspan="8"><span class="gin"><span class="dot" style="background:var(--${k==='ia'?'ai':'travel'})"></span><strong>${l}</strong><span>${FM.plural(g.length,'canal','canais').replace(/^(\d+)/,'<span class="num">$1</span>')}</span>${groupMeta(g)}</span></td></tr>`;
+    g.forEach(c=>h+=rowHTML(c));});
+  if(!list.length)h+=`<tr><td colspan="8" style="padding:28px 14px;color:var(--muted)">${st.problems&&!st.q?`Nenhum canal com problema de sincronização${gNiche!=='Todos'?` em ${gNiche}`:''}. <a class="btn small link" href="${CHROME.link('canais',{})}" data-clearprob>Mostrar todos</a>`:`Nenhum canal com “${esc(st.q)}”${gNiche!=='Todos'?` em ${gNiche}`:''}${st.problems?' entre os que têm problema':''}. Para acompanhar um canal novo, use Adicionar canal.`}</td></tr>`;
+  document.getElementById('tb').innerHTML=h;
+  let chh='';
+  const card=c=>{const x=cells(c);return `<article class="card ${c.own?'you':''}" data-id="${c.id}">${chCell(c)}<div>${x.rit}</div><div class="kv"><div><div class="l">Views/dia, ${st.scale==='rel'?'por mil inscritos':'mediana'}</div>${x.vpd}</div><div><div class="l">Crescimento, 30${NB}d</div><div class="grow">${x.gr}</div></div></div><div><div class="l" style="margin-bottom:4px">Outliers, até 90${NB}d</div>${x.out}</div><div class="kv"><div><div class="l">Trocas, 30${NB}d</div>${x.sw}</div><div class="sync">${syncCell(c)}</div></div>${c.own?'':`<div><button type="button" class="btn small" data-menu="${c.id}" aria-haspopup="menu">Mais ações</button></div>`}</article>`};
+  if(ownHead)chh+=`<div class="cardsep" data-own-group><strong>Seus canais</strong> <span class="gin" style="position:static;padding:0 0 0 4px">${ownParts.map(p=>`<span>${p}</span>`).join('')}</span></div>`;
+  ownShown.forEach(c=>chh+=card(c));
+  groups.forEach(([k,l])=>{const g=list.filter(c=>c.niche===k);if(!g.length)return;chh+=`<div class="cardsep"><strong>${l}</strong> ${FM.plural(g.length,'canal','canais')} <span class="gin" style="position:static;padding:0 0 0 8px">${groupMeta(g)}</span></div>`;g.forEach(c=>chh+=card(c));});
+  document.getElementById('cards').innerHTML=chh;
+  document.querySelectorAll('th.sortable').forEach(th=>{const on=th.dataset.k===st.sort;if(on)th.setAttribute('aria-sort',st.dir==='desc'?'descending':'ascending');else th.removeAttribute('aria-sort');th.querySelector('.arrow').textContent=on?(st.dir==='desc'?'▼':'▲'):''});
+  const np=C.filter(c=>!c.own&&hasProblem(c)&&(NK[gNiche]==='todos'||c.niche===NK[gNiche])).length;
+  document.getElementById('probChip').innerHTML=st.problems?`<span class="chip">Só canais com problema (${np}) <a class="btn small link" href="${CHROME.link('canais',{})}" data-clearprob>Mostrar todos</a></span>`:(np?`<a class="btn small link" href="${CHROME.link('canais',{filter:'problemas'})}" data-prob>Ver só canais com problema (${np})</a>`:'');
+  document.getElementById('cardSort').value=st.sort;
+  fixN(document.getElementById('screen'));fixN(document.getElementById('drawer'));
+  syncUrlState();
+  {const tb=document.querySelector('#screen .tablebox');document.getElementById('scrollHint').hidden=!(st.view==='table'&&tb.scrollWidth>tb.clientWidth+2)}
+  document.getElementById('sortNote').textContent=`Ordenado por ${SORTNAME[st.sort]}, ${st.dir==='desc'?'maior':'menor'} primeiro${MANY?'; os seus canais ficam sempre no topo':''}`;
+  document.getElementById('vpdUnit').textContent=st.scale==='rel'?'por mil inscritos, mediana '+stats(own).vpdWindow:'mediana dos vídeos, '+stats(own).vpdWindow;
+}
+
+/* interações */
+function seg(id,key){document.getElementById(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  [...e.currentTarget.querySelectorAll('button')].forEach(x=>x.setAttribute('aria-pressed',x===b));st[key]=b.dataset.v;
+  if(key==='view')document.getElementById('wrap').classList.toggle('view-cards',st.view==='cards');render();
+  if(key==='fmt'&&st.sel)openDrawer(st.sel,returnFocus,true);});}
+seg('fmtSeg','fmt');seg('scaleSeg','scale');seg('viewSeg','view');
+document.getElementById('cardSort').onchange=e=>{st.sort=e.target.value;st.dir='desc';render()};
+document.getElementById('q').oninput=e=>{st.qRaw=e.target.value;st.q=e.target.value.toLowerCase();render()};
+document.querySelectorAll('th.sortable button').forEach(b=>b.onclick=()=>{const k=b.parentElement.dataset.k;if(st.sort===k)st.dir=st.dir==='desc'?'asc':'desc';else{st.sort=k;st.dir='desc'}render();document.querySelector(`th[data-k="${k}"] button`).focus()});
+function setNiche(c,n){OBS.setNiche(c.id,n);CHROME.refresh()}
+document.addEventListener('change',e=>{const s=e.target.closest('[data-niche]');if(!s)return;const c=OBS.channel(s.dataset.niche);if(c.own)MOCKOWN.assign(c.id,s.value);setNiche(c,s.value);
+  const nl=s.value==='ia'?'IA':'Viagem',left=NK[gNiche]!=='todos'&&NK[gNiche]!==s.value;
+  toast(c.own?`Nicho de ${c.name} definido como ${nl} (demonstração; vale até trocar o estado do mockup).${left?` Ele saiu do filtro ${gNiche}.`:''}`:`Nicho de ${c.name} alterado para ${nl} só nesta tela (demonstração).${left?` Ele saiu do filtro ${gNiche}.`:''}`);
+  if(st.sel===c.id)openDrawer(c.id,returnFocus,true);else render();
+  {const n=s.dataset.ctx==='drawer'?document.querySelector(`#dMeta select[data-niche="${c.id}"]`):document.querySelector(`select[data-niche="${c.id}"][data-ctx="${s.dataset.ctx}"]`);if(n)n.focus();else{const r=document.querySelector('#tb .nmbtn');r&&r.focus()}}});
+let addReturn=null,addNiche='viagem';
+function openAdd(from){addReturn=from||document.activeElement;const {used,limit,free}=slots();
+  document.getElementById('addCap').textContent=`${used} de ${limit} concorrentes acompanhados (${OWN_TXT.count}): ${free===0?'nenhuma vaga. Remova um canal para adicionar outro':free===1?'sobra 1 vaga':`sobram ${free} vagas`}.`;document.getElementById('addYes').disabled=free===0;
+  document.getElementById('addWhen').textContent=`Entra na próxima sincronização (${D.hm(OBS.SYNC.next)}): busca os vídeos até o limite escolhido. A contagem diária de views começa no dia seguinte; inscritos precisam de 30 dias para o crescimento.`;
+  document.getElementById('addHErr').textContent='';document.getElementById('addH').removeAttribute('aria-invalid');document.getElementById('addLim').removeAttribute('aria-invalid');addNiche=NK[gNiche]==='todos'?'viagem':NK[gNiche];
+  document.querySelectorAll('#addNiche button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===addNiche));
+  document.getElementById('addDlg').classList.add('on');setInert(true,document.getElementById('addDlg'));trapEl=document.querySelector('#addDlg .box');document.getElementById('addH').focus()}
+function focusBack(t){const dr=document.getElementById('drawer'),open=document.body.classList.contains('drawer-open'),bad=!t||!t.isConnected||t===document.body||t.closest('[inert]');if(open&&((innerWidth<1280&&!(t&&t.isConnected&&dr.contains(t)))||bad)){document.getElementById('dClose').focus();return}if(t&&t.isConnected)t.focus()}
+function dropParams(...ks){try{const u=new URL(location.href);let ch=false;ks.forEach(k=>{if(u.searchParams.has(k)){u.searchParams.delete(k);ch=true}});if(ch)history.replaceState(null,'',u.pathname.split('/').pop()+u.search)}catch(e){}}
+function closeAdd(){dropParams('add');document.getElementById('addDlg').classList.remove('on');setInert(false);if(document.body.classList.contains('drawer-open'))CHROME.drawer(true);trapEl=document.body.classList.contains('drawer-open')&&innerWidth<1280?document.getElementById('drawer'):null;focusBack(addReturn)}
+document.getElementById('addBtn2').addEventListener('click',e=>{if(e.currentTarget.getAttribute('aria-disabled')==='true'){e.preventDefault();toast(e.currentTarget.title,'warn')}});
+document.addEventListener('click',e=>{const a=e.target.closest('a[href*="add=1"]');if(a&&/canais\.html/.test(a.getAttribute('href'))){e.preventDefault();openAdd(a)}},true);
+document.getElementById('addNo').onclick=closeAdd;
+[['addH','addHErr'],['addLim','addLimErr']].forEach(([f,e])=>document.getElementById(f).addEventListener('input',()=>{document.getElementById(e).textContent='';document.getElementById(f).removeAttribute('aria-invalid')}));
+document.getElementById('addNiche').onclick=e=>{const b=e.target.closest('button');if(!b)return;addNiche=b.dataset.v;document.querySelectorAll('#addNiche button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
+document.getElementById('addForm').onsubmit=e=>{e.preventDefault();if(slots().free===0){document.getElementById('addHErr').textContent='Sem vagas: remova um canal para adicionar outro.';return}const h=document.getElementById('addH').value.trim(),lim=+document.getElementById('addLim').value;
+  {const key=(h.match(/@([\w.\-]+)/)||h.match(/channel\/([\w.\-]+)/)||[])[1];const dup=key&&OBS.channels.find(c=>(c.handle||'').replace(/^@/,'').toLowerCase()===key.toLowerCase()||(c.url||'').toLowerCase().includes(key.toLowerCase()));
+   if(dup){document.getElementById('addH').setAttribute('aria-invalid','true');document.getElementById('addHErr').textContent=dup.own?OWN_TXT.dup+': ele já aparece na tabela e não ocupa vaga.':`${dup.name} já está no observatório (${NLBL[dup.niche]}).`;document.getElementById('addH').focus();return}}
+  if(!/^@[\w.\-]{3,}$|^https:\/\/(www\.)?youtube\.com\/(@|channel\/)[\w.\-]+/.test(h)){document.getElementById('addH').setAttribute('aria-invalid','true');document.getElementById('addHErr').textContent='Use o @handle (ex.: @LukeDamant) ou a URL do canal (youtube.com/@…).';document.getElementById('addH').focus();return}
+  document.getElementById('addLimErr').textContent='';if(!(lim>=10&&lim<=OBS.RULES.videoLimitMax)){document.getElementById('addLim').setAttribute('aria-invalid','true');document.getElementById('addLimErr').textContent=`Escolha entre 10 e ${OBS.RULES.videoLimitMax} vídeos.`;document.getElementById('addLim').focus();return}
+  closeAdd();toast(`Demonstração: nada foi adicionado. No observatório, ${h} entraria em ${addNiche==='ia'?'IA':'Viagem'} na sincronização das ${D.hm(OBS.SYNC.next)}.`,'warn')};
+if(URLP.get('add')==='1')requestAnimationFrame(()=>openAdd(document.querySelector('a[href*="add=1"]')));
+
+const menu=document.getElementById('menu');let menuFor=null,menuTrigger=null;
+function openMenu(btn){menuFor=btn.dataset.menu;{const so=menu.querySelector('[data-a="syncone"]');const bf=isBackfill(OBS.channel(menuFor));so.disabled=bf;so.title=bf?'Ainda buscando vídeos: a sincronização só depois da busca':''}menuTrigger=btn;const r=btn.getBoundingClientRect();menu.style.top=Math.min(r.bottom+4,innerHeight-260)+'px';menu.style.left=Math.max(8,r.right-230)+'px';menu.classList.add('on');btn.setAttribute('aria-expanded','true');menu.querySelector('button').focus()}
+function closeMenu(focus){if(!menu.classList.contains('on'))return;menu.classList.remove('on');if(menuTrigger){menuTrigger.setAttribute('aria-expanded','false');if(focus)menuTrigger.focus()}}
+menu.addEventListener('keydown',e=>{const items=[...menu.querySelectorAll('button')];const i=items.indexOf(document.activeElement);
+  if(e.key==='ArrowDown'){e.preventDefault();items[(i+1)%items.length].focus()}
+  if(e.key==='ArrowUp'){e.preventDefault();items[(i-1+items.length)%items.length].focus()}
+  if(e.key==='Home'){e.preventDefault();items[0].focus()}if(e.key==='End'){e.preventDefault();items[items.length-1].focus()}
+  if(e.key==='Tab')closeMenu(false)});
+document.addEventListener('click',e=>{
+  const mb=e.target.closest('[data-menu]');
+  if(mb){e.stopPropagation();if(menu.classList.contains('on')&&menuFor===mb.dataset.menu){closeMenu(true);return}openMenu(mb);return}
+  if(e.target.closest('#menu')){const a=e.target.closest('button')?.dataset.a;const c=OBS.channel(menuFor);closeMenu(a!=='open'&&a!=='remove');
+    if(a==='remove')askRemove(menuFor,menuTrigger);if(a==='open')openDrawer(menuFor,menuTrigger);
+    if(a==='syncone')syncOne(c.id);
+    if(a==='yt')window.open(c.url,'_blank','noopener');if(a==='cowork'){const txt=`Leia o canal ${c.name} (${c.handle}) via youtube_observatory: /cms/youtube/competitors?channel=${c.id}. Compare ritmo, views/dia e trocas dos últimos 30 dias com os outros canais de ${NLBL[c.niche]}. Não afirme causa.`;(async()=>{try{if(!navigator.clipboard)throw 0;await navigator.clipboard.writeText(txt);CHROME.toast('ok','Pedido copiado para o Cowork','Cole no Cowork com ⌘V.')}catch(_){CHROME.toast('warn','Não deu para copiar','O navegador bloqueou a área de transferência. Selecione o texto abaixo e copie com ⌘C.',null,{selectable:txt})}})()}return}
+  closeMenu(false);
+  if(e.target.closest('[data-upnext]')){e.preventDefault();toast('Abre Próximos, no CMS (fora deste mockup).');return}
+  if(e.target.closest('[data-prob]')){e.preventDefault();st.problems=true;{const u=new URL(location.href);u.searchParams.set('filter','problemas');history.replaceState(null,'',u.pathname.split('/').pop()+u.search)}render();return}
+  if(e.target.closest('[data-clearprob]')){e.preventDefault();st.problems=false;dropParams('filter');render();return}
+  {const rb=e.target.closest('[data-retry]');if(rb){syncOne(rb.dataset.retry);return}}
+  {const fb=e.target.closest('[data-fixhandle]');if(fb){const c=OBS.channel(fb.dataset.fixhandle);toast(`Demonstração: aqui abriria a edição do handle de ${c.name} (${c.handle}); nada foi alterado.`,'warn');return}}
+  {const rb=e.target.closest('[data-askremove]');if(rb){askRemove(rb.dataset.askremove,rb);return}}
+  const ob=e.target.closest('[data-open]');if(ob){openDrawer(ob.dataset.open,ob);return}
+  const row=e.target.closest('tr.row');if(row&&!e.target.closest('select,button,a,.tip'))openDrawer(row.dataset.id,row.querySelector('.nmbtn'));
+});
+let trapEl=null,returnFocus=null;
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if(menu.classList.contains('on')){closeMenu(true);return}if(document.getElementById('addDlg').classList.contains('on')){closeAdd();return}if(document.getElementById('confirm').classList.contains('on')){closeConfirm();return}if(document.body.classList.contains('drawer-open')){closeDrawer();return}}
+  if(e.key==='Tab'&&trapEl){const f=[...trapEl.querySelectorAll('button:not([disabled]),a[href],select,input,[tabindex="0"]')].filter(x=>x.offsetParent!==null&&!x.closest('[hidden]'));if(!f.length)return;
+    const first=f[0],last=f[f.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
+let confirmReturn=null;
+function askRemove(id,from){const c=OBS.channel(id);st.removing=id;confirmReturn=from||document.activeElement;document.getElementById('cfName').textContent=c.name;document.getElementById('confirm').classList.add('on');setInert(true,document.getElementById('confirm'));trapEl=document.querySelector('#confirm .box');document.getElementById('cfNo').focus()}
+function closeConfirm(){document.getElementById('confirm').classList.remove('on');setInert(false);if(document.body.classList.contains('drawer-open'))CHROME.drawer(true);trapEl=document.body.classList.contains('drawer-open')&&innerWidth<1280?document.getElementById('drawer'):null;focusBack(confirmReturn)}
+document.getElementById('cfNo').onclick=closeConfirm;
+document.getElementById('cfYes').onclick=()=>{const c=OBS.channel(st.removing);closeConfirm();toast(`Demonstração: a remoção de ${c.name} não foi aplicada; o canal continua no observatório.`,'warn')};
+document.getElementById('dRemove').onclick=e=>askRemove(st.sel,e.currentTarget);
+
+/* drawer */
+const VD={ganhou:['won','up','Ganhou'],perdeu:['lost','down','Perdeu'],neutro:['neu','eq','Neutro'],inconclusivo:['inc','q','Inconclusivo'],aguardando:['wait','wait','Aguardando'],'sem-serie':['wait','nodata','Sem série antes da troca'],'sem-antes':['wait','nodata','Sem base para comparar']};
+function effHTML(e){
+  const V=VD[e.status]||['wait','q',e.label];
+  if(e.status==='aguardando'&&e.waitText)return `<div class="effect"><span class="vd wait" aria-hidden="true">${ic('wait')}</span>${esc(e.waitText)}</div>`;
+  if(e.status==='aguardando'){const wd=D.weekday(e.readyOn);return `<div class="effect"><span class="vd wait">${ic('wait')}Aguardando</span>${e.collected} de 7 dias coletados, ${esc(e.readyText)}.${e.willBeInconclusive?`<span class="sub">${esc(e.willBeInconclusive)}</span>`:''}</div>`}
+  if(e.status==='sem-serie'||e.status==='sem-antes')return `<div class="effect"><span class="vd wait">${ic(V[1])}${V[2]}</span>${esc(e.reason)}</div>`;
+  const range=e.iqr&&e.iqr[0]!=null?` Intervalo dos outros vídeos: ${FM.pct(e.iqr[0])} a ${FM.pct(e.iqr[1])}.`:'';
+  const before=e.beforeDays<7&&!/antes/i.test(e.reason||'')?`<span class="sub weak">Antes: ${e.beforeDays} ${plural(e.beforeDays,'dia','dias')} (a coleta por vídeo começou em 03/10).</span>`:'';
+  const nums=e.n?`<span class="num">${esc(e.numbersFlat||e.numbers)}</span>${e.effectPp!=null?` · efeito <span class="num">${FM.pp(e.effectPp)}</span>`:''}`:`observado <span class="num">${FM.pct(e.observed)}</span>; ${esc(e.noBaseText||'')}`;
+  const meth=e.n?` Esperado = variação mediana dos outros vídeos do canal, ${esc(e.methodFallback&&e.fallbackText?e.fallbackText:`${e.method}, ${e.band}`).replace(/\s*\(n\s*=\s*0\)/,'')}.`:'';
+  return `<div class="effect"><span class="vd ${V[0]}">${ic(V[1])}${V[2]}</span>${nums}<span class="sub">Views/dia, 7 dias depois${/antes/i.test(e.reason||'')?'':` vs ${e.beforeDays} ${plural(e.beforeDays,'dia','dias')} antes`}.${meth}${range} ${esc(FM.lcfirst?FM.lcfirst(e.reason||''):e.reason||'').replace(/^./,x=>x.toUpperCase())}</span>${before}</div>`;
+}
+function swapCard(items){
+  const v=OBS.video(items[0].video),t=verb(items);
+  const tS=items.find(s=>s.type==='title'),thS=items.find(s=>s.type==='thumb'),dS=items.find(s=>s.type==='desc');
+  let s=`<div class="swapcard"><div class="when"><span>${items.length>1?items.map(i=>{const tt=verb([i]);return `<strong>${tt.label} ${tt.verb}</strong>, <span title="${esc(D.dmhm(i.at))} (São Paulo)">${whenPh([i])}</span>`}).join('. ')+'. Mesma janela de sincronização:':`<strong>${t.label} ${t.verb}</strong>, <span title="${esc(D.dmhm(items[0].at))} (São Paulo)">${whenPh(items)}</span>,`} ${items.map(x=>esc(x.whenText)).join('; ')}</span><span>${viewsTxt(OBS.channel(v.ch),v)}</span></div><div class="vt">${esc(v.title)}</div>`;
+  if(dS){s+=dS.hasText?`<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="chip num">${esc(dS.diff.label)}</span><a class="btn small link" href="${CHROME.link('mudancas',{video:v.id,type:'desc'})}">Ver comparação</a></div>`:`<div class="cap" style="margin-top:6px;white-space:normal">A descrição mudou. Antes de 03/10 só registramos que mudou, sem o texto.</div>`}
+  if(tS||thS){s+=`<div class="ba"><div class="side old"><div class="lab">Antes</div>${thS?thumb(thS.before.art,'lg'):''}${tS?`<div class="tt" style="margin-top:${thS?6:0}px">${esc(tS.before)}</div>`:''}</div><div class="arr" aria-hidden="true">›</div><div class="side"><div class="lab">Depois</div>${thS?thumb(thS.after.art,'lg'):''}${tS?`<div class="tt" style="margin-top:${thS?6:0}px">${esc(tS.after)}</div>`:''}</div></div>`;
+    if(thS)s+=`<div class="cap" style="margin-top:6px;white-space:normal">Horário da thumbnail detectado pela mudança do arquivo da imagem.${thS.revertTo?' Voltou a uma versão anterior: sinal de Testar e comparar (teste A/B do YouTube).':''}</div>`;
+    if(tS&&tS.prec==='1d')s+=`<div class="cap" style="margin-top:6px;white-space:normal">Antes de 03/10 a sincronização era diária às 09h: a troca de título tem janela de 1 dia.</div>`;}
+  const eff=OBS.effect(items[0].id);let same='';if(eff.numbersFlat&&window.__seenNums){const prev=window.__seenNums[eff.numbersFlat];if(prev)same=`<p class="cap" style="white-space:normal;margin:6px 0 0">Mesmos números da troca de ${prev}: as duas usam os mesmos dias de registro.</p>`;else window.__seenNums[eff.numbersFlat]=D.dm(items[0].at)}
+  s+=effHTML(eff)+same+`<div class="bridge"><a class="btn small ghost" href="${HIST(v.id)}">Ver histórico do vídeo</a><a class="btn small ghost" href="${v.url}" target="_blank" rel="noopener">Abrir no YouTube</a></div></div>`;return s;
+}
+/* pedido à forja (CONVENCOES F9): estado ÚNICO no motor, OBS.forja.session (sessionStorage, vale entre telas).
+   A tela não guarda pedido: lê session.current(nicho|'todos'), pede com session.ask(nicho|'todos') e o mock define a base com session.setBase(estado). */
+const RUNNING=['na fila','trabalhando','atrasado','sem máquina','nova tentativa','liberado pelo vigia'];
+const SES=OBS.forja.session,FTYPE={type:'resumo-trocas'};
+const viewScope=()=>NK[gNiche]==='todos'?'todos':NK[gNiche];
+function curR(scope){const R=SES.current(scope||viewScope(),FTYPE);return R&&!R.empty?R:null}
+function askReq(scope){return SES.ask(scope,FTYPE)}
+function nicheReq(n){const R=curR(viewScope()==='todos'?'todos':n);if(!R)return null;const q=(R.requests||[R.request]).find(x=>x&&x.niche===n);if(!q)return null;
+  const line=(R.statusLines||[]).find(l=>l.startsWith(NLBL[n]+':'))||`${NLBL[n]}: ${q.statusLabel||R.statusLabel||q.state}`;
+  return {s:q.state,q,R,line:line.replace(/^[^:]+:\s*/,''),clicked:!!q.composed}}
+const scopeNiches=()=>NK[gNiche]==='todos'?['viagem','ia']:[NK[gNiche]];
+const freeNiches=()=>scopeNiches().filter(n=>{const r=nicheReq(n);return !(r&&(RUNNING.includes(r.s)||r.s==='publicado'))});
+const quotaUsed=n=>{const R=curR(n);return R&&R.request&&R.request.state==='publicado'?R.quota:null};
+function headerForja(){const R=curR(viewScope());if(!R){CHROME.setForja({});CHROME.setTabNew(null);forjaBar(null);return}
+  const reqs=R.requests||[R.request];let f=CHROME.forjaFromScenario(R);
+  /* CONVENCOES F10: com Todos e um nicho ocupado, o botão segue habilitado para o(s) nicho(s) livre(s); o ocupado vira linha de status */
+  const busyN=scopeNiches().filter(n=>{const r=nicheReq(n);return r&&RUNNING.includes(r.s)}),freeN=scopeNiches().filter(n=>!busyN.includes(n)&&!quotaUsed(n));
+  if(busyN.length&&freeN.length){    Object.assign(f,{active:true,canAsk:true,askLabel:`Pedir leitura de ${freeN.map(n=>NLBL[n]).join(' e ')} à forja`,askShort:`Ler ${freeN.map(n=>NLBL[n]).join(' e ')}`})}
+  if(!reqs.some(q=>RUNNING.includes(q.state))){const qs=scopeNiches().map(quotaUsed);if(qs.every(Boolean))Object.assign(f,{disabled:true,disabledText:qs[0].text})}
+  CHROME.setForja(f);CHROME.setTabNew(reqs.some(q=>q.state==='publicado')?'mudancas':null);forjaBar(R)}
+/* K4: com Todos e pedido dividido, as statusLines e o statusText ficam visíveis fora do drawer (barra recolhida, como Mudanças) */
+function forjaBar(R){const b=document.getElementById('forjaBar');const show=!!(R&&viewScope()==='todos'&&R.statusLines&&R.statusLines.length>1);b.hidden=!show;if(!show)return;
+  document.getElementById('forjaBarLines').textContent=R.statusLines.join(' · ');document.getElementById('forjaBarText').textContent=R.statusText||''}
+function forjaState(c){
+  const fw=document.getElementById('dForja'),why=document.getElementById('dForjaWhy'),stEl=document.getElementById('dForjaSt'),box=document.getElementById('dForjaBox');
+  fw.style.display=c.own?'none':'';{const fb=document.getElementById('dForjaFree');fb.hidden=true;fb.textContent='';}why.textContent='';stEl.innerHTML='';fw.disabled=false;fw.title='';box.hidden=!!c.own;
+  headerForja();
+  if(c.own)return;
+  const type='resumo-trocas',NL=c.niche==='ia'?'IA':'Viagem',pv=OBS.forja.preview(type,c.niche),prev=OBS.forja.latest(type,c.niche);
+  fw.textContent=prev?'Pedir nova leitura à forja':'Pedir leitura à forja';
+  fw.title=`Resumo das trocas de ${NL}, o nicho inteiro`;
+  const outs_=pv.channelsOut||[],out=outs_.find(x=>x.id===c.id);
+  const outTxt=outs_.length?` Ficam de fora: ${outs_.map(x=>`${OBS.channel(x.id).name}: ${x.reason.replace(/^.*fica fora: /,'')}`).join('; ')}.`:'';
+  const rq=nicheReq(c.niche);
+  let head=`<b>forja</b> Resumo das trocas de ${NL}, o nicho inteiro, não só deste canal`;
+  if(rq){const q=rq.q,R=rq.R,split=R.requests&&R.requests.length>1;
+    /* Todos (pedido dividido): as statusLines do motor, uma por nicho, e logo abaixo o statusText visível. Nicho único: pílula + statusText (frase, não repete a pílula). */
+    const reason=q.failReason||q.refusedReason;const txt=R.statusText||'';
+    const extra=reason&&!txt&&!txt.toLowerCase().includes(reason.toLowerCase().replace(/\.?\s*peça de novo\.?$/,'').trim())?` ${(reason).replace(/^./,x=>x.toUpperCase()).replace(/\.?$/,'.')}`:'';
+    const pre=st.justAsked.has(c.niche)&&rq.clicked&&q.createdAt===OBS.NOW?'Seu pedido foi enviado agora. ':'';
+    const link=rq.s==='publicado'&&q.readingId?` <a class="btn small link" href="${CHROME.link('mudancas',{reading:q.readingId})}">Ver a leitura em Mudanças</a>`:'';
+    if(split&&R.statusLines)head+=`<ul class="slines" data-k="forjaLines">${R.statusLines.map(l=>`<li${l.startsWith(NL+':')?' class="me"':''}>${esc(l)}</li>`).join('')}</ul><span data-k="forjaState">${esc(pre+txt+extra)}</span>${link}`;
+    else head+=` <span class="chip" data-k="forjaChip">${esc(rq.line)}</span><br><span data-k="forjaState">${esc(pre+txt+extra)}</span>${link}`}
+  stEl.innerHTML=head;
+  if(out){fw.disabled=true;fw.title=`Resumo das trocas de ${NL}: ${out.reason}. O pedido do nicho continua valendo para os outros canais.`;why.textContent=`${out.reason}.`;return}
+  why.textContent=`${pv.text}; este canal entra.${outTxt}${prev?` Última leitura: ${D.dmhm(prev.generatedAt)}.`:''}`;
+  if(!rq)return;
+  if(RUNNING.includes(rq.s)){fw.disabled=true;fw.textContent='Pedido em andamento';const fr=viewScope()==='todos'?freeNiches().filter(n=>n!==c.niche):[];if(fr.length){const L=fr.map(n=>NLBL[n]).join(' e ');why.textContent+=` O pedido de ${NL} está em andamento; ${L} está livre.`;const fb=document.getElementById('dForjaFree');fb.hidden=false;fb.textContent=`Pedir leitura de ${L}`;fb.dataset.niches=fr.join(',')}}
+  else if(rq.s==='publicado'){fw.disabled=true;const qn=rq.R.quota.byNiche&&rq.R.quota.byNiche[c.niche];why.textContent+=` ${NL}: ${(qn?qn.text:rq.R.quota.text)}.`}
+}
+function openDrawer(id,from,keepTab,dopt){
+  if(!(dopt&&dopt.persist===false))try{const u=new URL(location.href);u.searchParams.set('channel',id);history.replaceState(null,'',u.pathname.split('/').pop()+u.search)}catch(_){}
+  const c=OBS.channel(id);st.sel=id;if(!keepTab)returnFocus=from||document.activeElement;
+  const OE=emptyMock(c)?OBS.scenario('own-empty'):null;
+  const S=OE&&st.fmt==='long'?Object.assign({},stats(c),OE.stats,{growth30:stats(c).growth30,perMilSubs:OE.stats.perMilSubs!=null?OE.stats.perMilSubs:(OE.stats.vpdMedian!=null?OE.stats.vpdMedian/(c.subs/1000):null)}):stats(c),bf=isBackfill(c);
+  const cadL=OE?OE.cadence:cad(c,'long');
+  document.getElementById('dAv').style.background=c.color;document.getElementById('dAv').textContent=c.ini;
+  document.getElementById('dName').textContent=c.name;
+  const stale=c.sync.state==='erro'||c.sync.state==='atrasado'?` até o registro diário de ${D.dmhm(S.growth30.to)}`:'';
+  const cov=bf?`Buscando: ${c.sync.backfill.done} de ${c.sync.backfill.total} vídeos`:`Acompanhando ${S.tracked} vídeos (limite deste canal: ${c.video_limit}; máximo ${OBS.RULES.videoLimitMax}), com views diárias desde ${OBS.SERIES_START_LABEL}${stale}`;
+  document.getElementById('dMeta').innerHTML=`${c.own?'<span class="youtag">seu canal</span>'+langTag(c):''}${nicheSel(c,'drawer')}<a class="handle" href="${c.url}" target="_blank" rel="noopener">${esc(c.handle)}</a><span><span class="num">${subsTxt(c.subs)}</span> inscritos, arredondado pelo YouTube a 3 algarismos</span><span>${cov}</span>`;
+  const syncLbl=c.sync.problemPhrase&&c.sync.state!=='backfill'?esc((x=>x.replace(/^./,y=>y.toUpperCase()))(c.sync.problemPhrase)):(x=>x.replace(/^./,y=>y.toUpperCase()))(c.sync.label||c.sync.state);
+  const syncSub=c.sync.problemPhrase&&c.sync.state!=='backfill'?'':c.sync.problemPhrase?(x=>x.replace(/^./,y=>y.toUpperCase()))(c.sync.problemPhrase):c.sync.state==='backfill'?`adicionado ${D.ago(c.sync.added)}`:D.ago(c.sync.last);
+  let stats_;
+  if(bf)stats_=`<div><div class="l">Ritmo, 13${NB}sem</div><div class="v num">—</div><div class="l">quando a busca terminar</div></div><div><div class="l">Views/dia</div><div class="v num">—</div><div class="l">primeira contagem diária amanhã, ${D.dm(OBS.NOW+OBS.DAY)}</div></div><div><div class="l">Crescimento, 30${NB}d</div><div class="v num">—</div><div class="l">${esc(S.growth30.pending)}</div></div><div><div class="l">Sincronização</div><div class="v" style="font-size:14px">${syncLbl}</div><div class="l" title="${abs(c.sync.added)}">${nb(syncSub)}</div></div>`;
+  else{const vAbs=S.vpdMedian!=null?num(S.vpdMedian):'—',vRel=S.perMilSubs!=null?dec(S.perMilSubs,1):'—';const g=S.growth30;
+    stats_=`<div><div class="l">Ritmo, 13${NB}sem</div><div class="v num">${dec(cadL.pw)} + ${dec(cad(c,'short').pw)}</div><div class="l">${c.activity.state==='parado'?`<span class="weak">Parado: último vídeo ${nb(cad(c,'long').lastUploadAgo)}</span>`:'longos + Shorts por semana'}</div></div><div><div class="l">Views/dia, ${st.fmt==='long'?'longos':'Shorts'}</div><div class="v num">${st.scale==='rel'?vRel:vAbs}</div><div class="l">${S.vpdMedian==null?'sem vídeos desde 03/10':st.scale==='rel'?`por mil inscritos (${vAbs}/dia)`:`mediana (${vRel} por mil insc.)`}${S.vpdMedian==null?'':`, ${NEQ(S.vpdN)}, ${S.vpdWindow}${stale}`}</div></div><div><div class="l">Crescimento, 30${NB}d</div><div class="v num">${g.withinRounding?'≈'+NB+'0':(g.pct>0?'+':MINUS)+dec(Math.abs(g.pct*100))+'%'}</div><div class="l" title="${esc(g.text)}">${esc(g.withinRounding?g.text.replace(/^≈ 0 /,''):g.text)}${c.sync.state!=='ok'&&!isBackfill(c)?', até '+D.dmhm(g.to):''}</div></div><div><div class="l" title="(curtidas + comentários) ÷ views, por vídeo de até 90 dias">Engajamento, ${st.fmt==='long'?'longos':'Shorts'}</div><div class="v num">${S.engagement.median!=null?dec(S.engagement.median*100,1)+'%':'—'}</div><div class="l">${S.engagement.median!=null?`mediana, ${NEQ(S.engagement.n)}, ${esc(S.engagement.window)}`:(OE&&st.fmt==='long'?'nenhum vídeo longo nos últimos 90 dias':esc(S.engagement.label))}</div></div><div><div class="l">Sincronização</div><div class="v" style="font-size:14px">${syncLbl}</div><div class="l" title="${abs(c.sync.last)}">${nb(syncSub)}</div></div>`;}
+  document.getElementById('dStats').innerHTML=stats_;tipIds();
+  const list=bf||c.own?[]:ch30(c),gs=groupsOf(list);
+  const oL=bf||OE?{items:[],count:0}:outs(c,'long'),oS=bf?{items:[],count:0}:outs(c,'short');
+  document.getElementById('nSw').textContent=list.length;document.getElementById('nOut').textContent=oL.count&&oS.count?`${FM.plural(oL.count,'longo','longos')} · ${FM.plural(oS.count,'Short','Shorts')}`:(oL.count||oS.count);
+  document.getElementById('nOut').title=`${FM.plural(oL.count,'longo','longos')} e ${FM.plural(oS.count,'Short','Shorts')}`;
+  let s=`<p class="sec">Trocas nos últimos 30 dias</p><p class="sech">Contadas por evento. Desde 03/10 a sincronização roda a cada ${OBS.SYNC.cadenceHours}${NB}h (antes, diária às ${OBS.SYNC.dailyBefore}): título e descrição têm a janela entre duas sincronizações; thumbnail tem o minuto.</p>`;
+  if(bf)s+=`<div class="note">Canal adicionado ${D.ago(c.sync.added)}. Trocas são detectadas comparando versões entre sincronizações, então ainda não há o que comparar. A primeira detecção possível é na sincronização das ${D.hm(c.sync.next)}.</div>`;
+  else if(c.own)s+=`<div class="note">Suas trocas de título e thumbnail ficam no A/B Lab.</div>`;
+  else if(!gs.length)s+=`<div class="note">Nenhuma troca de título, thumbnail ou descrição nos últimos 30 dias.${c.sync.state==='erro'?` Desde ${D.dmhm(c.sync.errorSince)} a sincronização falha, então trocas posteriores a ${D.dmhm(c.sync.last)} não seriam vistas.`:''}</div>`;
+  window.__seenNums={};gs.forEach(g=>s+=swapCard(g));
+  if(list.length)s+=`<a class="btn small" href="${CHROME.link('mudancas',{channel:c.id})}">${list.length===1?'Ver a troca em Mudanças':`Ver as ${list.length} trocas em Mudanças`}</a>`;
+  document.getElementById('pSwapsBody').innerHTML=s;
+  let o=`<p class="sec">Outliers, até 90 dias</p><p class="sech">Views do vídeo contra a mediana dos outros vídeos do canal na mesma idade, sem contar o próprio vídeo. Longos e Shorts separados.</p>`;
+  if(bf)o+=`<div class="note">Sem base de comparação ainda: a busca tem ${c.sync.backfill.done} de ${c.sync.backfill.total} vídeos e nenhuma contagem diária de views.</div>`;
+  else ['long','short'].forEach(k=>{const r=k==='long'?oL:oS;o+=`<p class="sec" style="margin-top:12px">${k==='long'?'Vídeos longos':'Shorts'}</p>`;
+    if(r.items.length)r.items.forEach(x=>{const m=x.mult,vv=x.video;o+=`<div class="vrow">${thumb(vv.thumb)}<div><div class="t" title="${esc(vv.title)}">${esc(vv.title)}</div><div class="m"><b class="mult num ${tier(m.value)}">${esc(m.label)}</b></div><div class="m">publicado ${agoV(vv)}, fase: <span title="${esc(x.phase.why||'')}">${esc(x.phase.label)}</span>. ${esc(m.fallbackText?m.fallbackText.replace(/^./,y=>y.toUpperCase()):'Método: '+m.method)}; sem contar este vídeo.</div></div><div class="r">${vv.views!=null?`<span class="num">${num(vv.views)}</span><div class="m">views</div>`:`<span class="na">${viewsTxt(c,vv)}</span>`}</div></div>`});
+    if(r.count)o+=`<div style="margin-top:8px"><a class="btn small" href="${CHROME.link('outliers',{channel:c.id,fmt:k})}">${r.count===1?(k==='long'?'Ver o vídeo longo em Outliers':'Ver o Short em Outliers'):(k==='long'?`Ver os ${r.count} vídeos longos em Outliers`:`Ver os ${r.count} Shorts em Outliers`)}</a></div>`;
+    else{const top=stats(c,k).maxMultBelowMin;o+=`<div class="note">${!top?`O canal não publicou ${k==='long'?'vídeos longos':'Shorts'} em 90${NB}d.`:top.weak?`Nenhum com ${OBS.RULES.outlierMin}× ou mais. Base fraca (${NEQ(top.n)}).`:`Nenhum com ${OBS.RULES.outlierMin}× ou mais em 90${NB}d. Maior: ${esc(top.label)}.`}</div>`}});
+  if(OE)o=`<p class="sec">Outliers, até 90 dias</p><div class="note">${esc(OE.text)} Sem vídeo longo recente, não há o que comparar.</div>`;
+  document.getElementById('pOut').innerHTML=o;
+  const fName=st.fmt==='long'?'vídeos longos':'Shorts';
+  let v=`<p class="sec">${st.fmt==='long'?'Vídeos longos':'Shorts'} mais recentes</p><p class="sech">Média de views/dia nos últimos 7 dias. Lista completa: ${covTxt(c)}.</p><div class="vlist">`;
+  const rec=bf?[]:c.videos.filter(x=>x.fmt===st.fmt&&x.tracked&&!(OE&&st.fmt==='long'&&x.ageDays<=90)).slice(0,5);
+  rec.forEach(x=>{const m=x.mult;const rel=m&&m.value!=null&&x.ageDays<=90?(m.value>=OBS.RULES.outlierMin&&!m.weak?`<b class="mult num ${tier(m.value)}">${FM.mult(m.value)}</b> (outlier)`:`${FM.mult(m.value)} a mediana`):'';
+    const vp=x.vpd7!=null?`<span class="num">${num(x.vpd7)}</span><div class="m">views/dia, 7${NB}d</div>`:`<span class="na" style="font-size:11.5px">${x.ageDays<1?'menos de 1 dia no ar, sem média':c.sync.state==='erro'?`sem média: sincronização com erro desde ${D.dmhm(c.sync.errorSince||c.sync.last)}`:c.sync.state==='atrasado'?`sem média: sincronização atrasada desde ${D.dmhm(c.sync.last)}`:`${x.ageDays}${NB}d no ar, média sai com 7${NB}d`}</span>`;
+    v+=`<div class="vrow">${thumb(x.thumb)}<div><div class="t" title="${esc(x.title)}">${esc(x.title)}</div><div class="m">publicado ${agoV(x)}, ${viewsTxt(c,x)}${rel?', '+rel:''}</div><span style="display:flex;gap:2px;margin-left:-10px;flex-wrap:wrap"><a class="btn small ghost" href="${HIST(x.id)}">Ver histórico do vídeo</a><a class="btn small ghost" href="${x.url}" target="_blank" rel="noopener">Abrir no YouTube</a></span></div><div class="r">${vp}</div></div>`});
+  v+=`</div>`;
+  if(OE&&st.fmt==='long')v=`<div class="note">${esc(OE.text)}</div><p><a class="btn small" href="/cms/upnext" data-upnext>Planejar o próximo vídeo longo em Próximos</a></p>`+v;
+  if(!rec.length)v+=`<div class="note">${bf?`Buscando: ${c.sync.backfill.done} de ${c.sync.backfill.total} vídeos. A lista aparece quando a busca terminar.`:`Nenhum ${fName} acompanhado.`}</div>`;
+  document.getElementById('pVid').innerHTML=v;
+  document.getElementById('dRemove').style.display=c.own?'none':'';
+  document.getElementById('dYt').href=c.url;
+  forjaState(c);
+  if(!keepTab)selectTab(document.getElementById('t-sw'),false);
+  const dEl=document.getElementById('drawer');dEl.hidden=false;document.body.classList.add('drawer-open');const modal=CHROME.drawer(true);trapEl=modal?dEl:null;render();
+  if(!modal){const row=document.querySelector(`tr.row[data-id="${id}"]`);row&&row.scrollIntoView({block:'nearest'})}
+  if(!keepTab){const dc=document.getElementById('dClose');dc.focus();requestAnimationFrame(()=>dc.focus())}
+}
+function setInert(on,keep){['wrap','drawer','ch-side','ch-shell','ch-shell-tabs','ch-head','ch-nav','ch-mock'].forEach(id=>{const el=document.getElementById(id);if(el&&!(keep&&el.contains(keep)))el.inert=on})}
+function closeDrawer(){if(!document.body.classList.contains('drawer-open'))return;CHROME.drawer(false);document.getElementById('drawer').hidden=true;dropParams('channel');const lastId=st.sel;document.body.classList.remove('drawer-open');st.sel=null;trapEl=null;render();
+  let t=returnFocus;if(!t||!t.isConnected)t=document.querySelector(`.nmbtn[data-open="${lastId}"]`);if(t&&t.focus)t.focus()}
+document.getElementById('dClose').onclick=closeDrawer;
+document.getElementById('dForjaFree').onclick=e=>{const ns=(e.currentTarget.dataset.niches||'').split(',').filter(Boolean);const ok=ns.filter(n=>askReq(n).ok);ok.forEach(n=>st.justAsked.add(n));forjaState(OBS.channel(st.sel));headerForja();toast(ok.length?'Pedido enviado à forja':'Nada enviado: a forja recusou o pedido.',ok.length?'forja':'warn');document.getElementById('dForjaBox').focus()};
+document.getElementById('dForja').onclick=()=>{const c=OBS.channel(st.sel);const r=askReq(c.niche);if(r.ok)st.justAsked.add(c.niche);forjaState(c);headerForja();if(!r.ok){toast(`Nada enviado: ${r.reason}.`,'warn');return}toast('Pedido enviado à forja','forja');const b=document.getElementById('dForjaBox');b.focus();b.scrollIntoView({block:'nearest'})};
+const tabs=[...document.querySelectorAll('#dTabs [role=tab]')];
+function selectTab(t,focus=true){tabs.forEach(x=>{const on=x===t;x.setAttribute('aria-selected',on);x.tabIndex=on?0:-1;document.getElementById(x.getAttribute('aria-controls')).hidden=!on});if(focus)t.focus()}
+tabs.forEach(t=>{t.onclick=()=>selectTab(t);t.onkeydown=e=>{const i=tabs.indexOf(t);
+  if(e.key==='ArrowRight'){e.preventDefault();selectTab(tabs[(i+1)%tabs.length])}if(e.key==='ArrowLeft'){e.preventDefault();selectTab(tabs[(i-1+tabs.length)%tabs.length])}
+  if(e.key==='Home'){e.preventDefault();selectTab(tabs[0])}if(e.key==='End'){e.preventDefault();selectTab(tabs[tabs.length-1])}}});
+
+/* sincronização e montagem do chrome compartilhado */
+document.getElementById('syncSpin').innerHTML=ic('spin','ico spin');document.getElementById('syncSpin').style.color='var(--info)';
+function syncOne(id){const c=OBS.channel(id);if(isBackfill(c)){toast(`${c.name} ainda está buscando vídeos; sincronize depois que a busca terminar.`,'warn');return}
+  st.syncOne=st.syncOne||{};st.syncOne[id]='now';render();toast(`Sincronizando ${c.name}…`);setTimeout(()=>{const r=OBS.runSync({channel:id});delete st.syncOne[id];CHROME.refresh();render();if(st.sel===id)openDrawer(id,returnFocus,true);else{const tr=document.querySelector(`#screen tr[data-id="${id}"]`);const f=tr&&(tr.querySelector('[data-retry],[data-fixhandle]')||tr.querySelector('.nmbtn'));if(f)f.focus()}const p=r.problems.find(x=>x.id===id);
+    if(p)CHROME.toast('bad',`${c.name} não sincronizou`,(OBS.channel(id).sync.problemPhrase||p.label).replace(/^./,y=>y.toUpperCase())+'.');else CHROME.toast('ok',`${c.name} sincronizado`,'Dados atualizados agora.')},1500)}
+function runRound(){const r=OBS.runSync({});const okN=r.ok.filter(id=>!OBS.channel(id).own).length;CHROME.refresh();render();if(st.sel)openDrawer(st.sel,returnFocus,true);
+  const ord=['viagem','ia'],probs=r.problems.map(p=>OBS.channel(p.id)).sort((a,b)=>ord.indexOf(a.niche)-ord.indexOf(b.niche));
+  const outR=(r.outOfRound||[]).map(x=>OBS.channel(x.id)),outTxt=outR.length?`Fora da rodada: ${outR.map(c=>`${c.name} (${c.sync.label||'buscando vídeos'})`).join('; ')}.`:'';
+  if(!probs.length)CHROME.toast('ok','Concorrentes sincronizados',`${FM.plural(okN,'canal sincronizado','canais sincronizados')} agora.${outTxt?' '+outTxt:''}`);
+  else CHROME.toast('warn',`${FM.plural(okN,'canal sincronizado','canais sincronizados')} agora; ${probs.length} com problema`,probs.map(c=>`${c.name}: ${c.sync.problemPhrase||c.sync.label}`).join('; ')+'.'+(outTxt?' '+outTxt:''));return r}
+function setSync(on,announce=true){
+  if(on){const v=visible('Todos','');ORDER=[...v.filter(c=>c.niche==='viagem'),...v.filter(c=>c.niche==='ia')].filter(c=>!isBackfill(c)).map(c=>c.id);
+    const out_=OBS.channels.filter(c=>!c.own&&isBackfill(c)).map(c=>c.name);document.getElementById('syncTxt').textContent=`Sincronização em andamento: ${FM.plural(ORDER.length,'concorrente','concorrentes')} na rodada${out_.length?`; fora da rodada: ${out_.join(', ')} (ainda buscando vídeos)`:''}. O resultado de cada canal aparece quando a rodada termina.`}
+  st.sync=on;document.getElementById('syncbar').classList.toggle('on',on);
+  if(on&&announce)toast('Sincronização iniciada');render()}
+const MOCK=[
+  {label:'Situação',items:[{id:'sync',label:'Sincronização em andamento'},{id:'syncdone',label:'Sincronização concluída'},{id:'syncreset',label:'Restaurar sincronização'},{id:'you',label:`${OBS.channel(EMPTY_ID).name} sem vídeo longo em 90 d`},{id:'resetniche',label:'Restaurar nichos'},{id:'prob',label:'Só canais com problema'},{id:'slots49',label:'74 de 75 canais'},{id:'slots50',label:'75 de 75 canais (cheio)'},{id:'add',label:'Adicionar canal (?add=1)'}]},
+  {label:'Drawer',items:[...OWNS.map(c=>[c.id,`${c.name} (seu canal)`]),['matt-wolfe','Matt Wolfe'],['luke-damant','Luke Damant'],['nomade-raiz','Nômade Raiz (teste A/B de thumbnail)'],['vou-sem-volta','Vou sem volta (buscando vídeos)'],['esq-unltd-daily','Esq Unltd (erro)'],['bald-and-bankrupt','bald (parado)']].map(([id,label])=>({id:'open:'+id,label}))},
+  {label:'Pedido à forja no drawer',items:[{id:'forja:',label:'nenhum',pressed:!st.forjaMock},...OBS.forja.requestStates.map(x=>({id:'forja:'+x,label:x,pressed:st.forjaMock===x}))],note:'Resumo das trocas do nicho do canal aberto no drawer.'}];
+MOCK[1].note='Abre o drawer do canal: a partir de 1280 px ele vira coluna ao lado da tabela; abaixo, painel sobre a página.';
+const DEPS=[['<code>task_type</code> = <code>resumo-trocas</code>','escopo do pedido = nicho do canal, não o canal.'],['Cota','1 pedido por dia por tipo e por nicho; falha e recusa não contam.'],['<code>status refused</code> + motivo','recusa por dado velho com a data do pacote.'],['<code>last_poll_at</code>','heartbeat da máquina para "sem máquina".']];
+MOCK.push({label:'Seus canais',items:[['1','1 canal'],['2','2 canais'],['mix','5 canais (3 de Viagem, 1 de IA, 1 sem nicho; três em português)'],['5','5 canais, todos de Viagem']].map(([id,label])=>({id:'owns:'+id,label,pressed:MOCKOWN.preset===id})),note:'Troca quantos canais próprios existem; a página recarrega. Os números de cada canal saem do motor.'});
+const PRESSED={2:'forja:'+st.forjaMock,3:'owns:'+MOCKOWN.preset};function pressMock(g,id){PRESSED[g]=id;CHROME.setMockPressed(Object.assign({},PRESSED))}
+CHROME.mount({tab:'canais',content:'#screen',drawer:'#drawer',onBackdrop:()=>closeDrawer(),mockStates:MOCK,deps:DEPS,
+  onNiche:n=>{gNiche=NLBL[n]||'Todos';if(st.sel){const c=OBS.channel(st.sel);if(nicheOf(c)&&n!=='todos'&&c.niche!==n)closeDrawer();}render();if(st.sel)openDrawer(st.sel,returnFocus,true,{persist:false})},
+  onTheme:()=>render(),
+  onSynced:()=>{if(st.sync)setSync(false,false);render();if(st.sel)openDrawer(st.sel,returnFocus,true)},
+  onStatus:()=>{const pref=st.sel&&!OBS.channel(st.sel).own?OBS.channel(st.sel).niche:null;
+    const ns=['viagem','ia'].filter(n=>nicheReq(n));const n=pref&&ns.includes(pref)?pref:(ns.find(x=>NK[gNiche]===x)||ns[0]);if(!n)return;
+    let id=st.sel&&!OBS.channel(st.sel).own&&OBS.channel(st.sel).niche===n?st.sel:null;
+    if(!id){const inn=OBS.forja.preview('resumo-trocas',n).channelsIn||[];id=(visible('Todos','').find(c=>inn.includes(c.id))||{}).id}
+    if(!id)return;if(st.sel!==id)openDrawer(id,document.activeElement);
+    selectTab(document.getElementById('t-sw'),false);const b=document.getElementById('dForjaBox');b.scrollIntoView({block:'nearest'});b.focus();requestAnimationFrame(()=>requestAnimationFrame(()=>b.focus()))},
+  onForja:()=>{const fr=freeNiches();if(!fr.length){toast(`Nada enviado: ${scopeNiches().map(n=>NLBL[n]).join(' e ')} já ${scopeNiches().length>1?'têm':'tem'} pedido hoje.`,'warn');return}
+    /* só os nichos livres: nenhum resultado recusado, nenhum aviso falso (F11 I1) */
+    const ok=fr.filter(n=>askReq(n).ok);ok.forEach(n=>st.justAsked.add(n));if(st.sel)forjaState(OBS.channel(st.sel));headerForja();
+    if(!ok.length){toast('Nada enviado: a forja recusou o pedido.','warn');return}
+    toast(ok.length>1?`Pedido enviado à forja: ${ok.length} pedidos, um por nicho (${['viagem','ia'].filter(x=>ok.includes(x)).map(x=>NLBL[x]).join(' e ')})`:`Pedido enviado à forja`,'forja')},
+  onMock:(id,g)=>{
+    if(id.startsWith('owns:')){MOCKOWN.set(id.slice(5));return}
+    if(id==='sync'){setSync(!st.sync);pressMock(g,st.sync?'sync':(st.youEmpty?'you':null));return}
+    if(id==='syncdone'){setSync(false,false);runRound();return}
+    if(id==='syncreset'){OBS.resetSync();CHROME.refresh();render();if(st.sel)openDrawer(st.sel,returnFocus,true);toast('Sincronização restaurada ao estado inicial (24/10 12:00).');return}
+    if(id==='you'){st.youEmpty=!st.youEmpty;pressMock(g,st.youEmpty?'you':(st.sync?'sync':null));render();return}
+    if(id==='resetniche'){MOCKOWN.clearAssigned();OBS.resetNiches();CHROME.refresh();if(st.sel)openDrawer(st.sel,returnFocus,true);else render();toast('Nichos restaurados');return}
+    if(id==='prob'){st.problems=!st.problems;render();return}
+    if(id==='slots49'||id==='slots50'){const v=id==='slots49'?1:0;st.slotsMock=st.slotsMock===v?null:v;pressMock(g,st.slotsMock!=null?id:null);renderNiche();return}
+    if(id==='add'){openAdd(document.querySelector('a[href*="add=1"]'));return}
+    if(id.startsWith('open:')){openDrawer(id.slice(5),document.querySelector(`.nmbtn[data-open="${id.slice(5)}"]`),false,{persist:false});return}
+    if(id.startsWith('forja:')){st.forjaMock=id.slice(6);SES.setBase(st.forjaMock||'sem pedido',FTYPE);st.justAsked.clear();pressMock(g,id);if(st.sel)forjaState(OBS.channel(st.sel));else headerForja();return}
+  }});
+gNiche=NLBL[CHROME.niche()]||'Todos';
+render();
+window.__canais={st};
+addEventListener('resize',()=>{const tb=document.querySelector('#screen .tablebox');document.getElementById('scrollHint').hidden=!(st.view==='table'&&tb.scrollWidth>tb.clientWidth+2)});
+[['fmtSeg','fmt'],['scaleSeg','scale'],['viewSeg','view']].forEach(([id,k])=>document.querySelectorAll(`#${id} button`).forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===st[k])));document.getElementById('wrap').classList.toggle('view-cards',st.view==='cards');document.getElementById('q').value=URLP.get('q')||'';render();
+{const t=OBS.RULES.tiers;document.getElementById('legTiers').innerHTML=`<b class="mult mid num">${t.mid}–${t.high}×</b> <b class="mult high num">${t.high}–${t.top}×</b> <b class="mult top num">${t.top}×+</b>`}
+document.addEventListener('obs-reset',()=>render());
+{const ch=URLP.get('channel'),cc=ch&&OBS.channels.find(x=>x.id===ch);if(cc){const cur=CHROME.niche();if(nicheOf(cc)&&cur!=='todos'&&cur!==cc.niche){CHROME.setNiche(cc.niche,{silent:true,persist:false});gNiche=NLBL[cc.niche];render();if(!/historico-video\.html/.test(document.referrer))toast(`Nicho mudou para ${NLBL[cc.niche]} para mostrar este canal.`)}
+  requestAnimationFrame(()=>openDrawer(ch,document.querySelector(`.nmbtn[data-open="${ch}"]`)))}}
+
+</script>
+</body>
+</html>

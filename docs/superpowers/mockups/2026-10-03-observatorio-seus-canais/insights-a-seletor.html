@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Insights dos competidores (opção A: seletor de canal)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../2026-10-02-observatorio/chrome.css">
+<link rel="stylesheet" href="mockup.css">
+<style>
+/* Insights: só tokens próprios da tela (em #screen); os comuns vêm de chrome.css */
+#screen{
+  --bar-a:#E8DFD0; --bar-b:#8A7D69;
+  --heat-0:#2B261F; --heat-1:#6B5440; --heat-2:#BE7440; --heat-3:#ECA060; --heat-4:#FFD3A0;
+  --heat-t1:#F5EFE6; --heat-t2:#1A120A; --heat-t3:#1A120A; --heat-t4:#1A120A; --cool-t1:#1A120A;
+  --cool-1:#6189AA; --cool-2:#7099BD; --cool-t2:#1A120A;
+  --hatch:rgba(168,157,136,.22); --heat-nz:#4A4339; --heat-tnz:#F5EFE6; --card-shadow:0 1px 0 rgba(0,0,0,.25);
+}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) #screen{ --bar-a:#3B3127; --bar-b:#8E7D64;
+    --heat-0:#F2EBDF; --heat-1:#D9B48A; --heat-2:#C27A42; --heat-3:#7A3A10; --heat-4:#3E1A06;
+    --heat-t1:#231C14; --heat-t2:#231C14; --heat-t3:#FFF8F1; --heat-t4:#FFF8F1; --cool-t1:#231C14;
+    --cool-1:#6B89A2; --cool-2:#2F5A80; --cool-t2:#FFF8F1;
+    --hatch:rgba(94,82,64,.18); --heat-nz:#DCD3C3; --heat-tnz:#231C14; --card-shadow:0 1px 0 rgba(60,40,10,.06); } }
+:root[data-theme="light"] #screen{ --bar-a:#3B3127; --bar-b:#8E7D64;
+    --heat-0:#F2EBDF; --heat-1:#D9B48A; --heat-2:#C27A42; --heat-3:#7A3A10; --heat-4:#3E1A06;
+    --heat-t1:#231C14; --heat-t2:#231C14; --heat-t3:#FFF8F1; --heat-t4:#FFF8F1; --cool-t1:#231C14;
+    --cool-1:#6B89A2; --cool-2:#2F5A80; --cool-t2:#FFF8F1;
+    --hatch:rgba(94,82,64,.18); --heat-nz:#DCD3C3; --heat-tnz:#231C14; --card-shadow:0 1px 0 rgba(60,40,10,.06); }
+
+#screen button{font:inherit;color:inherit}
+#screen a{color:inherit}
+#screen .mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+#screen .sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#screen .card{position:relative}
+#screen :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+@media (prefers-reduced-motion: reduce){#screen *{animation:none!important;transition:none!important}}
+
+#screen .allstate h2{font-family:Inter,sans-serif!important;font-weight:600!important;font-size:18px!important}
+#screen .since{margin:10px 0 0;font-size:12.5px;color:var(--muted)}
+#screen .since .sl{margin:2px 0}
+#screen .since details{display:inline}#screen .since summary{display:inline;cursor:pointer;color:var(--accent-text,var(--text));text-decoration:underline;text-underline-offset:2px}
+#screen .since details[open] p{margin:4px 0 6px}
+#screen .stamp.sm{font-size:11px}
+#screen .since b{color:var(--text);font-weight:500}
+#screen .scopenote{margin:8px 18px 0;font-size:12.5px;color:var(--muted)}
+
+
+/* filter bar */
+#screen .filters{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0 0 18px}
+#screen .seg{display:inline-flex;border:1px solid var(--border);border-radius:7px;padding:2px;background:var(--surface)}
+#screen .seg button{border:0;background:none;padding:6px 14px;border-radius:5px;cursor:pointer;color:var(--muted);min-height:32px}
+#screen .seg button[aria-pressed="true"]{background:var(--surface-2);color:var(--text);box-shadow:inset 0 0 0 1px var(--border-strong)}
+#screen .sel{color:var(--muted);font-size:13px;display:inline-flex;gap:6px;align-items:center}
+#screen .sel small{color:var(--dim)}
+
+/* grid */
+#screen .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;align-items:start}
+#screen .card{background:var(--surface);border:1px solid var(--border-subtle);border-radius:8px;box-shadow:var(--card-shadow);min-width:0}
+#screen .c8{grid-column:span 8}#screen .c4{grid-column:span 4}#screen .c12{grid-column:span 12}#screen .c7{grid-column:span 7}#screen .c5{grid-column:span 5}
+#screen .chead{display:flex;align-items:baseline;gap:10px;padding:14px 18px 0;flex-wrap:wrap}
+#screen .chead h2{font-size:14px;font-weight:600;margin:0}
+#screen .chead .meta{color:var(--muted);font-size:12px}
+#screen .chead .right{margin-left:auto}
+#screen .cbody{padding:12px 18px 18px}
+#screen .foot{border-top:1px solid var(--border-subtle);padding:10px 18px;color:var(--muted);font-size:12px;line-height:1.5}
+#screen .foot b{color:var(--text);font-weight:500}
+
+/* forja card — o herói */
+#screen .forja{border-color:var(--forja-line);background:linear-gradient(var(--forja-subtle),var(--forja-subtle)),var(--surface)}
+#screen .forja-top{display:flex;align-items:center;gap:12px;padding:14px 18px 0;flex-wrap:wrap}
+#screen .forja-top h2{font-size:14px;font-weight:600;margin:0}
+#screen .stamp{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--forja-line);color:var(--forja);border-radius:4px;padding:3px 8px 3px 6px;font-size:11.5px;white-space:nowrap}
+#screen .stamp svg{width:13px;height:13px;flex-shrink:0}
+#screen .status{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+#screen .status i{width:8px;height:8px;border-radius:50%;display:inline-block}
+#screen .btn{border:1px solid var(--border-strong);background:var(--surface);border-radius:6px;padding:7px 12px;min-height:34px;cursor:pointer;display:inline-flex;gap:7px;align-items:center;white-space:nowrap;text-decoration:none}
+#screen .btn:hover{background:var(--surface-hover)}
+#screen .btn[disabled]{background:transparent!important;color:var(--muted)!important;border-color:var(--border)!important;cursor:default;font-weight:500}
+
+#screen .rhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 18px 0}
+#screen .rhead .lbl{font-size:12.5px;color:var(--muted)}
+#screen .reading{padding:10px 18px 6px}
+#screen .rmain{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:28px;align-items:start}#screen .rside .since{margin-top:4px}#screen .rside .caveat:first-child{margin-top:4px}
+@media (max-width:1180px){#screen .rmain{grid-template-columns:1fr;gap:4px}}
+#screen .sealrow{margin:2px 0 4px}#screen .rtext+.sealrow{margin-top:10px}
+#screen .reading details.more{margin-top:8px;border-top:1px solid var(--border-subtle);padding-top:8px}
+#screen .reading details.more>summary{cursor:pointer;color:var(--forja);font-size:13px;min-height:32px;display:flex;align-items:center}
+#screen .moregrid{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:28px;margin-top:8px}
+#screen .since .snote{display:block;font-size:11.5px;text-transform:none;color:var(--muted);margin-bottom:2px}
+#screen .reading .prose{font-family:Fraunces,serif;font-size:17.5px;line-height:1.5;font-weight:400;max-width:66ch;font-variation-settings:"opsz" 24}
+#screen .reading.old .prose{color:var(--muted);font-size:16px}
+#screen .prose p{margin:0 0 8px}
+#screen .ritems{margin:0 0 8px;padding-left:1.1em;font-size:15px;line-height:1.45}#screen .ritems li{margin:0 0 6px}
+#screen .prose .stamp.sm{margin:0 0 6px;font-family:Inter,sans-serif}#screen .rtext+.stamp{margin-top:6px}
+#screen .prose sup a{position:relative;font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--forja);text-decoration:none;border:1px solid var(--forja-line);border-radius:3px;padding:0 4px;margin-left:2px;vertical-align:3px}
+#screen .prose sup a:hover{background:var(--forja-subtle)}
+#screen .prose sup a::after{content:"";position:absolute;inset:-10px}
+#screen .caveat{font-family:Inter,sans-serif;font-size:13px;color:var(--muted);line-height:1.5;border-left:2px solid var(--border-strong);padding-left:12px;margin:8px 0 0}
+#screen .evid{font-size:12px;color:var(--muted);border-left:1px solid var(--border-subtle);padding-left:18px}
+#screen .evid h3{font-size:12px;font-weight:600;color:var(--text);margin:0 0 8px}
+#screen .evid ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+#screen .evid li{display:grid;grid-template-columns:22px 1fr;gap:6px;padding:2px;border-radius:4px}
+#screen .evid li .k{font-family:"JetBrains Mono",monospace;color:var(--forja);font-size:11px}
+#screen .evid li:target{background:var(--forja-subtle)}
+#screen .evid a,#screen .vlink{color:var(--forja);text-underline-offset:3px;display:inline-flex;align-items:center;min-height:32px;font-size:12px}
+#screen .stale b{color:var(--text);font-weight:500}
+#screen .statebox{padding:16px 18px 18px}
+#screen .statebox h3{font-family:Fraunces,serif;font-weight:500;font-size:20px;margin:0 0 6px;line-height:1.25}
+#screen .statebox p{margin:0 0 6px;color:var(--muted);max-width:72ch}
+#screen .statebox a{color:var(--forja)}
+#screen .chip-ok{display:inline-flex;gap:4px;align-items:center;font-size:11px;font-weight:500;color:var(--forja);border:1px solid var(--forja-line);border-radius:4px;padding:1px 6px;white-space:nowrap}
+#screen .steps{display:flex;gap:6px 0;margin:14px 0 4px;padding:0;flex-wrap:wrap}
+#screen .steps li{list-style:none;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding-right:14px}
+#screen .steps li::after{content:"";width:18px;height:1px;background:var(--border-strong);margin-left:8px}
+#screen .steps li:last-child::after{display:none}
+#screen .steps li i{width:16px;height:16px;border-radius:50%;border:1px solid var(--border-strong);display:grid;place-items:center;font-style:normal;font-size:9px}
+#screen .steps li.done i{background:var(--forja);border-color:var(--forja);color:var(--bg)}
+#screen .steps li.now{color:var(--text);font-weight:500} #screen .steps li.now i{border-color:var(--forja);box-shadow:0 0 0 3px var(--forja-subtle)}
+#screen .pulse{animation:pulse 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce){#screen .pulse{animation:none}#screen *{scroll-behavior:auto!important}}
+#screen .nolink{font-size:12px;color:var(--muted)}
+@keyframes pulse{50%{opacity:.35}}
+#screen .prev{margin:0 18px 16px;border:1px solid var(--border-subtle);border-radius:6px}
+#screen .prev>summary{cursor:pointer;color:var(--muted);padding:10px 14px;min-height:36px;font-size:12.5px}
+
+/* vs você */
+#screen .you-row{padding:10px 0;border-top:1px solid var(--border-subtle)}
+#screen .you-row:first-of-type{border-top:0;padding-top:2px}
+#screen .you-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+#screen .you-top .lbl{color:var(--muted);font-size:12.5px}
+#screen .you-top .val{font-size:13px;text-align:right;white-space:nowrap}
+#screen .scale{position:relative;height:16px;margin:6px 0 2px}
+#screen .scale::before{content:"";position:absolute;left:0;right:0;top:7px;height:2px;background:var(--dim);border-radius:1px}
+#screen .scale .nich{position:absolute;top:0;width:3px;height:16px;background:var(--text);transform:translateX(-1px);border-radius:1px}
+#screen .scale .me{position:absolute;top:1px;width:14px;height:14px;border-radius:50%;background:var(--accent);transform:translateX(-7px);border:2px solid var(--surface)}
+#screen .ends{display:flex;justify-content:space-between;font-size:10.5px;color:var(--dim)}
+#screen .you-cmp{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--muted);margin-top:2px;flex-wrap:wrap}
+#screen .up{color:var(--success)} #screen .down{color:var(--danger)} #screen .flat{color:var(--muted)}
+#screen .youhead{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+#screen .av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:10.5px;font-weight:600;color:#1A1714;flex-shrink:0}
+/* opção A: seletor de canal próprio (mesmo controle segmentado da tela; o escolhido ganha peso e contorno) */
+#screen .ownbar{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:10px 18px 0}
+#screen .ownseg button{padding:6px 12px;white-space:nowrap}
+#screen .ownseg button[aria-pressed="true"]{font-weight:600}
+#screen .ownline{margin:0;font-size:12.5px;color:var(--muted)}
+#screen .ownline b{color:var(--text);font-weight:600}
+#screen .empty{padding:6px 0 4px}
+#screen .empty h3{font-size:14px;font-weight:600;margin:0 0 6px}
+#screen .empty p{color:var(--muted);margin:0 0 12px;font-size:13px}
+
+/* cadence */
+#screen .cad-axis,#screen .cad-row{display:grid;grid-template-columns:200px minmax(0,1fr) 96px;gap:16px;align-items:center}
+#screen .cad-axis{font-size:11.5px;color:var(--muted);padding:2px 0 8px}
+#screen .ticks{position:relative;height:16px}
+#screen .ticks span{position:absolute;transform:translateX(-50%);white-space:nowrap;font-family:"JetBrains Mono",monospace;font-size:11px}
+#screen .ticks span:first-child{transform:none}#screen .ticks span:last-child{transform:translateX(-100%)}
+#screen .cad-row{padding:7px 4px;margin:0 -4px;border-top:1px solid var(--border-subtle);min-height:52px;border-radius:4px}
+#screen .cad-sub .vlink{min-height:32px}
+#screen .lane .idle.sync{left:auto;right:0}
+#screen .cad-id{display:flex;gap:10px;align-items:center;min-width:0}
+#screen .cad-name{font-weight:500;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.3;word-break:break-word}
+#screen .cad-sub{font-size:11.5px;color:var(--muted);line-height:1.35}
+#screen .lane{position:relative;height:30px;border-radius:4px;background:repeating-linear-gradient(90deg,transparent 0 calc(33.333% - 1px),var(--border-subtle) calc(33.333% - 1px) 33.333%);overflow:hidden}
+#screen .lane .tk{position:absolute;bottom:4px;width:2px;border-radius:1px;background:var(--dim);transform:translateX(-1px)}
+#screen .lane .tk.mid{background:var(--tier-mid);width:3px}#screen .lane .tk.high{background:var(--tier-high);width:3px}#screen .lane .tk.top{background:var(--tier-top);width:3px}
+#screen .lane .idle{position:absolute;top:2px;bottom:2px;right:0;border-radius:4px;background:repeating-linear-gradient(135deg,var(--hatch) 0 2px,transparent 2px 7px);display:flex;align-items:center;justify-content:flex-end;padding-right:10px;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden}
+#screen .lane .none{position:absolute;inset:0;display:flex;align-items:center;padding-left:10px;font-size:12px;color:var(--muted)}
+#screen .last{text-align:right;font-size:12px}
+#screen .last .w{color:var(--warning-text);display:inline-flex;gap:5px;align-items:center}
+#screen .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}
+#screen .legend span{display:inline-flex;gap:6px;align-items:center}
+#screen .legend i{display:inline-block;width:3px;height:12px;border-radius:1px}
+
+/* formulas */
+#screen .frow{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:4px 18px;padding:12px 0;border-top:1px solid var(--border-subtle)}
+#screen .frow:first-child{border-top:0;padding-top:4px}
+#screen .ftitle{font-weight:500;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#screen .fsent{color:var(--muted);font-size:12.5px;grid-column:1}
+#screen .fsent b{color:var(--text);font-weight:500}
+#screen .fbars{grid-row:1/4;grid-column:2;display:flex;flex-direction:column;gap:5px;justify-content:center}
+#screen .fb{display:grid;grid-template-columns:56px 1fr 38px;gap:6px;align-items:center;font-size:11px;color:var(--muted)}
+#screen .fb .tr{height:7px;background:var(--surface-2);border-radius:2px;position:relative;overflow:hidden}
+#screen .fb .tr span{position:absolute;left:0;top:0;bottom:0;border-radius:2px}
+#screen .fb.a .tr span{background:var(--bar-a)}#screen .fb.b .tr span{background:var(--bar-b)}
+#screen .fb .v{text-align:right;color:var(--text)}
+#screen .weak{display:inline-flex;gap:4px;align-items:center;font-size:11px;font-weight:500;color:var(--muted);border:1px dashed var(--border-strong);border-radius:4px;padding:1px 6px;white-space:nowrap}
+#screen .neg{display:inline-flex;gap:4px;align-items:center;font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:1px 6px}
+
+/* heatmap */
+#screen .hm{max-width:560px;display:grid;grid-template-columns:34px repeat(12,minmax(0,1fr));gap:3px;margin-top:4px}
+#screen .hm .hl{font-size:10.5px;color:var(--muted);text-align:center;font-family:"JetBrains Mono",monospace}
+#screen .hm .cell{min-height:18px}
+#screen .hm .dl{font-size:11.5px;color:var(--muted);display:flex;align-items:center}
+#screen .cell{aspect-ratio:1.6/1;border-radius:3px;background:var(--heat-0);display:grid;place-items:center;font-size:10px;font-family:"JetBrains Mono",monospace;color:transparent}
+#screen .cell.z{box-shadow:inset 0 0 0 1px var(--border)}
+#screen .cell.l1{color:var(--heat-t1)}#screen .cell.c1{color:var(--cool-t1)}#screen .cell.l2{color:var(--heat-t2)}#screen .cell.l3{color:var(--heat-t3)}#screen .cell.l4{color:var(--heat-t4)}#screen .cell.c2{color:var(--cool-t2)}#screen .cell.nz{color:var(--heat-tnz)}
+#screen .cell.thin{background:repeating-linear-gradient(135deg,var(--hatch) 0 2px,transparent 2px 6px),var(--heat-0);box-shadow:inset 0 0 0 1px var(--border)}
+#screen .cell.pk{outline:2px solid var(--text);outline-offset:1px;position:relative;z-index:1}
+#screen .hscale{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:10px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+#screen .hscale{align-items:flex-start;gap:10px}
+#screen .hscale .lg{display:inline-flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;min-width:30px;text-align:center}
+#screen .hscale .cell{width:22px;aspect-ratio:auto;height:12px}
+#screen .note{margin-top:12px;font-size:12.5px;color:var(--muted);line-height:1.55;background:var(--surface-2);border-radius:6px;padding:10px 12px}
+#screen .note b{color:var(--text);font-weight:500}
+
+/* themes */
+#screen .trow{display:grid;grid-template-columns:minmax(0,1fr) 128px 96px;gap:14px;align-items:center;padding:11px 0;border-top:1px solid var(--border-subtle)}
+#screen .trow:first-child{border-top:0;padding-top:2px}
+#screen .tname{font-weight:500}
+#screen .tsub{font-size:12px;color:var(--muted)}
+#screen .spark{display:flex;gap:6px;align-items:flex-end;height:30px}
+#screen .spark span{display:block;width:16px;border-radius:2px 2px 0 0}
+#screen .spark .p{background:var(--bar-b)}#screen .spark .c{background:var(--bar-a)}
+#screen .spark em{font-style:normal;font-size:11.5px;color:var(--muted);align-self:center;white-space:nowrap}
+#screen .trend{font-size:12px;text-align:right;white-space:nowrap}
+
+/* gaps */
+#screen .grow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;padding:10px 0;border-top:1px solid var(--border-subtle);align-items:center}
+#screen .grow:first-child{border-top:0;padding-top:2px}
+#screen .gtag{font-weight:500}
+#screen .gsub{font-size:12px;color:var(--muted)}
+#screen .link{background:none;border:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:6px 4px;min-height:32px;font-size:12.5px}
+#screen .link:hover{color:var(--text)}
+
+#screen .formzero{padding:12px 0 0;border-top:1px solid var(--border-subtle);font-size:12.5px;color:var(--muted)}
+#screen .prevread{margin:0 18px 16px;border:1px dashed var(--border-strong);border-radius:6px}
+#screen .reqs{margin:0 0 6px;padding-left:18px}
+#screen .warnc{color:var(--warning-text)}
+#screen .frow .nw{font-size:12px;color:var(--muted)}
+#screen #allState{margin-top:4px}
+#screen .reqs li{margin:2px 0}
+#screen .tsub{display:flex;flex-wrap:wrap;align-items:center;column-gap:14px;row-gap:0}#screen .tsub>span{white-space:nowrap}
+#screen .allstate{padding:40px 24px;text-align:left;max-width:640px}
+#screen .allstate h2{font-family:Fraunces,serif;font-weight:500;font-size:22px;margin:0 0 8px}
+#screen .allstate p{color:var(--muted);margin:0 0 16px}
+
+@media (min-width:1181px){
+  #screen #cadCard{grid-row:span 2}
+  #screen #formCard{grid-row:span 2}
+  #screen .grid{grid-auto-flow:row dense;align-items:stretch}
+  #screen .grid>.card:has(.empty){align-self:start}
+  #screen .grid>.card{display:flex;flex-direction:column}#screen .grid>.card>.foot{margin-top:auto}
+}
+@media (max-width:1180px){
+  #screen .c8,#screen .c4,#screen .c7,#screen .c5{grid-column:span 12}
+  #screen .moregrid{grid-template-columns:1fr}
+  #screen .evid{border-left:0;padding-left:0;border-top:1px solid var(--border-subtle);padding-top:12px}
+}
+@media (max-width:980px){
+  #screen .cad-axis,#screen .cad-row{grid-template-columns:minmax(0,1fr) 96px;gap:6px 10px}
+  #screen .cad-row .lane{grid-column:1/-1;grid-row:2}
+  #screen .cad-axis .ticks{grid-column:1/-1;grid-row:2}
+  #screen .cad-axis>span:last-child{grid-column:2;grid-row:1;white-space:nowrap;text-align:right}
+}
+@media (max-width:640px){
+  #screen .frow{grid-template-columns:1fr}#screen .fbars{grid-row:auto;grid-column:1}
+  #screen .trow{grid-template-columns:1fr 96px}#screen .trow .spark{display:none}
+  #screen .forja-actions{margin-left:0;width:100%}
+}
+
+#screen .lane .idle{justify-content:flex-start;padding-left:8px}
+#screen .lane .idle span{background:var(--surface);padding:1px 6px;border-radius:3px;white-space:nowrap}
+#screen .lane .idle span.cut{display:none}
+#screen .lane .idle.mini{padding:0;justify-content:center}#screen .lane .idle.mini span{padding:0;background:none;color:var(--warning-text,var(--warning));font-size:11px}
+#screen .lane .idle.part{background:repeating-linear-gradient(45deg,var(--hatch) 0 2px,transparent 2px 6px);border-right:1px dashed var(--border-strong)}
+#screen .nw{white-space:nowrap}
+#screen .note .exc{display:block;margin-top:6px}
+#screen .hscale{align-items:flex-start;gap:10px}
+#screen .hscale .lg{display:inline-flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;min-width:30px;text-align:center}
+#screen .hscale .cell{box-shadow:inset 0 0 0 1px var(--border-strong)}
+</style>
+</head>
+<body>
+<aside id="mocknote" aria-label="Nota do mockup"><b>Nota do mockup</b> (não é parte do produto) · <b>Substituído por <a href="insights-n-canais.html">insights-n-canais.html</a></b> (um desenho só para 1 a N canais próprios, com nicho por canal); fica aqui só como registro. Insights, <b>opção A: um canal próprio por vez</b>. Mudou em relação ao original: seletor de canal em “Você no nicho” e em “Lacunas” (trocar em um muda os dois) e uma linha dizendo de qual canal são os números. <b>A opção escolhida foi a B</b>; esta (A) fica como a regra para três ou mais canais próprios. Ver a <a href="insights-b-lado-a-lado.html">opção B</a> · <a href="canais.html">Canais</a>.</aside>
+<div id="screen">
+  <div class="filters">
+    <span class="sel" title="Janela fixa desta aba">Últimos 90 dias <small class="mono" id="winDates">—</small></span>
+    <div class="seg" role="group" aria-label="Formato">
+      <button type="button" data-fmt="long" aria-pressed="true">Longos</button>
+      <button type="button" data-fmt="short" aria-pressed="false">Shorts</button>
+    </div>
+  </div>
+  <div class="grid" id="grid">
+          <section class="card forja c12" id="forjaCard" aria-labelledby="forjaH"></section>
+          <section class="card c8" id="cadCard" aria-labelledby="cadH"></section>
+          <section class="card c4" id="youCard" aria-labelledby="youH"></section>
+          <section class="card c4" id="gapCard" aria-labelledby="gapH"></section>
+          <section class="card c7" id="formCard" aria-labelledby="formH"></section>
+          <section class="card c5" id="heatCard" aria-labelledby="heatH"></section>
+          <section class="card c5" id="themeCard" aria-labelledby="themeH"></section>
+        </div>
+        <div class="card allstate" id="allState" hidden></div>
+</div>
+<script src="segundo-canal.js"></script>
+<script src="../2026-10-02-observatorio/dados.js"></script>
+<script src="mockup.js"></script>
+<script src="../2026-10-02-observatorio/chrome.js"></script>
+<script>
+/* Insights: tudo vem de window.OBS (dados.js). A página só escolhe o que mostrar e formata. */
+const O = window.OBS, FJ = O.forja, Q = FJ.queue;
+const R_ = O.RULES, X = R_.outlierMin, D = O.DAY;
+const F = O.fmt, DT = O.date;
+const DAYS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const lc = s => F.lcfirst ? F.lcfirst(s) : s;
+const cap = s => s.charAt(0).toUpperCase()+s.slice(1);
+const FMT_LABEL={long:'longos',short:'Shorts'};
+const NICHE_LABEL={viagem:'Viagem',ia:'IA'};
+const NONE='sem pedido hoje', EMPTY='ainda não há leitura';
+const AGES_90=['0-30','31-90'], AGES_6M=['0-30','31-90','91-180'];
+const OWNS = O.channels.filter(c=>c.own);
+const OWN_LANG = { pt:['PT','canal em português'], en:['EN','canal em inglês'] };
+const langOf = c => OWN_LANG[c.lang] || [String(c.lang||'').toUpperCase(), 'canal'];
+/* cobertura por tema de UM canal próprio. O motor só calcula a do canal que ele nomeia (ownCoverage não aceita id);
+   para os outros, a tela repete aqui a MESMA regra (vídeos do formato com até 90 dias, contados por tema). Vira pedido de API. */
+function coverage(ownId, fmt){
+  const eng = O.ownCoverage(fmt); if(eng.channel===ownId) return eng;
+  const vs = O.channel(ownId).videos.filter(v=>v.fmt===fmt && v.ageDays<=90), byTheme = {};
+  vs.forEach(v=>{ byTheme[v.theme]=(byTheme[v.theme]||0)+1; });
+  return { channel: ownId, fmt, window: eng.window, n: vs.length, byTheme, ids: vs.map(v=>v.id) };
+}
+let OWN = OWNS.find(c=>c.id===new URLSearchParams(location.search).get('own')) || OWNS[0];   /* canal escolhido no seletor (?own=) */
+const competitors = niche => O.channels.filter(c=>!c.own && c.niche===niche);
+const pctTxt = x => x==null?'—':F.dec1(x*100)+'%';
+const STAMP_SVG='<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 6h9l3-2v3l-3 1v1H5L2 6z"/><path d="M6 9v3M9 9v3M4 13h7"/></svg>';
+const RUNBOOK_TXT='o <a href="https://github.com/TN-Figueiredo/bythiagofigueiredo/blob/staging/docs/ops/forja-fila-inteligencia-runbook.md" target="_blank" rel="noopener">runbook da forja</a>';
+const sup = i => `<sup><a href="#ev${i}" aria-label="Evidência ${i}">${i}</a></sup>`;
+const supP = (i, pre) => `<sup><a href="#${pre||''}ev${i}" aria-label="Evidência ${i}">${i}</a></sup>`;
+const state = { niche:'viagem', fmt:'long', forja:NONE, sent:{ viagem:null, ia:null }, showPrev:false };
+/* pedido feito por clique: vale só para o mesmo tipo, nicho e formato; sobrevive à troca de nicho/formato */
+/* pedidos feitos por clique, POR NICHO: Todos monta o split a partir dos dois e nunca duplica um que já existe */
+/* pedidos: estado ÚNICO no motor (OBS.forja.session), persistido entre telas; a tela não guarda pedido próprio */
+const SS = FJ.session;
+const curType = () => FJ.readingTypeFor(state.fmt);
+const sentFor = n => SS.state().asks.find(a=>a.niche===n && (a.type||SS.state().type)===curType()) || null;   /* pedido feito por clique (sessão) */
+const sentMatch = () => state.niche==='todos' ? !!(sentFor('viagem')||sentFor('ia')) : !!sentFor(state.niche);
+const NLABEL = n => n==='ia' ? 'IA' : 'Viagem';
+
+/* ---------- toast ---------- */
+const IDEAS = new Set();
+const MED_MIN = 5;   /* mediana só com n ≥ 5 (Temas, Lacunas); abaixo, "pouco para concluir (n = N)". Pedido: RULES.medianMinN em PEDIDOS-API */
+const medTxt = (m, n) => n>=MED_MIN ? `mediana <span class="mono">${F.mult(m)}</span> (n = ${n})` : `pouco para concluir (n = ${n})`;
+const toast = (title, kind='ok', text='') => CHROME.toast(kind, title, text);
+
+/* ---------- link de evidência: leva reading=<id>; o Outliers aplica o escopo da leitura (canais, janela, asof) ---------- */
+const toLinkParams = q => { const o=Object.assign({}, q); if(o.theme){ o.topic=o.theme; delete o.theme; } return o; };   /* tema de conteúdo = topic= */
+function evLink(params, P){
+  const S = FJ.readingScope(P.id);
+  const q = Object.assign({ reading: P.id }, params);
+  const n = O.outliers(q).count;
+  const ages = S.ages.filter(id=>{ const w=O.OUT_WINDOWS.find(x=>x.id===id); return w && w.hi<=S.windowDays; });   /* 6 meses = até 91–180 */
+  const href = O.link.outliers(Object.assign({ niche: S.niche, fmt: S.fmt, ages }, toLinkParams(q)));
+  return { href, n, nCh: S.channels.length, scope: S };
+}
+const scopeTxt = lk => `hoje, nos ${lk.nCh} canais da leitura`;
+const todayTxt = lk => lk.n ? `hoje, nos ${lk.nCh} canais da leitura` : `nenhum hoje, nos ${lk.nCh} canais da leitura`;
+const verOut = n => n===1 ? 'Ver o outlier' : `Ver os ${n} outliers`;
+const verVid = n => n===1 ? 'Ver o vídeo' : `Ver os ${n} vídeos`;
+
+const WITH = { 'primeira-pessoa':'em primeira pessoa', 'nome-do-lugar':'com nome de lugar', 'nome-do-modelo':'com nome de modelo de IA', 'reacao-hiperbole':'com reação exagerada', 'numero':'com número ou lista', 'tutorial':'de tutorial' };
+const withF = id => WITH[id] || `com ${O.formula(id).short}`;
+const winLabel = r => { const d=FJ.readingScope(r.id).windowDays; return d>=180 ? `${Math.round(d/30)} meses` : `${d} dias`; };
+const sealShort = r => `forja · Gemma 12B · ${r.type==='temas'?'temas':'fórmulas'}, ${winLabel(r)} · ${DT.dm(r.generatedAt)} ${DT.hm(r.generatedAt)} (SP)`;
+/* "só 1 usa a fórmula, de Luke Damant" / "4 usam a fórmula, todos de Matt Wolfe e Nate Herk" — nomes próprios intactos */
+function usesTxt(k, a){
+  const nm=id=>esc(O.channel(id).name);
+  if(!k) return 'nenhum usa a fórmula';
+  if(a.kind==='unico') return `só 1 usa a fórmula, de ${nm(a.channel)}`;
+  if(a.kind==='solo') return `${k} usam a fórmula, ${a.n1===a.total?'todos':a.n1} de ${nm(a.channel)}`;
+  if(a.kind==='dois') return `${k} usam a fórmula, ${a.n===a.total?'todos':a.n} de ${nm(a.channels[0])} e ${nm(a.channels[1])}`;
+  if(a.kind==='varios') return `${k} usam a fórmula, espalhados por ${a.n} canais`;
+  return `${k} usam a fórmula`;
+}
+/* ---------- leitura: cada bloco (uma leitura = uma fonte) tem o SEU selo logo acima do seu texto literal (reading.text.*).
+   Frases do site (desde então, ressalvas) ficam fora dos selos, em Inter. Sup numerados na ordem de leitura. ---------- */
+function buildReading(P, T, niche, fmt){
+  const R0=T||P, notes=[], E={};
+  const dom=R0.analysis.dominantTheme;
+  { const l1=evLink({ min: X, theme: dom.theme || undefined }, R0);
+    E.theme={ src:R0.id, text: `${R0.sent.text}; a leitura viu ${dom.theme ? F.plural(dom.n,'outlier','outliers')+' no tema' : F.plural(R0.analysis.nOutliers,'outlier','outliers')}.`, ...l1, label: `${verOut(l1.n)} (${scopeTxt(l1)})` }; }
+  const pats=P.analysis.patterns, pass=pats.filter(p=>p.verdict.id==='padrao');
+  const best = pass.length ? pass : [[...pats].filter(p=>p.diff!=null && p.nUse>0).sort((a,b)=>b.diff-a.diff)[0]].filter(Boolean);
+  best.forEach(p=>{ const lk=evLink({ min: 0, formula: p.formula }, P); E['f:'+p.formula]={ src:P.id, text: `${p.verdict.text}; a leitura viu ${F.plural(p.nUse,'vídeo','vídeos')} com a fórmula.`, ...lk, label: `${verVid(lk.n)} com a fórmula (${scopeTxt(lk)})` };
+    if(p.verdict.id==='padrao' && p.evidence.length<3) notes.push(`Sobre ${lc(O.formula(p.formula).label)}: a diferença passa a regra, mas com ${p.evidence.length===1?'um só outlier':p.evidence.length===0?'nenhum outlier':p.evidence.length+' outliers'} por trás ela diz pouco sobre o que estoura.`); });
+  if(T){ const lk=evLink({ min: X }, P); E.base={ src:P.id, text: `${P.sent.text}; a leitura viu ${F.plural(P.analysis.nOutliers,'outlier','outliers')}.`, ...lk, label: `${verOut(lk.n)} (${scopeTxt(lk)})` }; }
+  const item = i => ({ text:P.text.items[i], ev: E['f:'+(pats[i]&&pats[i].formula)] ? 'f:'+pats[i].formula : null });
+  const isPass = i => pats[i] && pats[i].verdict.id==='padrao';
+  const shown=[], more=[];
+  if(T) shown.push({ src:T.id, R:T, parts:[{ kind:'p', text:T.text.lead, ev:'theme' }] });
+  const vis=P.text.items.map((_,i)=>i).filter(isPass), rest=P.text.items.map((_,i)=>i).filter(i=>!isPass(i));
+  shown.push({ src:P.id, R:P, parts:[{ kind:'p', text:P.text.lead, ev: T ? 'base' : null }].concat(vis.length?[{ kind:'ul', items:vis.map(item) }]:[]) });
+  more.push({ src:P.id, R:P, parts:(rest.length?[{ kind:'ul', items:rest.map(item) }]:[]).concat([{ kind:'p', text:P.text.theme, ev: T ? null : 'theme' }]) });
+  /* numeração na ordem de leitura */
+  const ev=[], num={};
+  const walk = ks => ks.forEach(k=>{ if(k && E[k] && !num[k]){ ev.push(E[k]); num[k]=ev.length; } });
+  [...shown, ...more].forEach(b=>b.parts.forEach(pt=> pt.kind==='ul' ? walk(pt.items.map(i=>i.ev)) : walk([pt.ev])));
+  Object.keys(E).forEach(k=>walk([k]));
+  return { P, T, shown, more, nMore: rest.length, num, notes, ev, since: FJ.since(P.id), sinceT: T ? FJ.since(T.id) : null };
+}
+/* "ainda não há leitura" é fato do cenário: sobrevive ao pedido; nenhuma leitura antiga aparece até "publicado" */
+const noReading = () => state.forja===EMPTY;
+const readingFor = (niche, fmt) => { if(noReading()) return null; const P=FJ.latest(FJ.readingTypeFor(fmt),niche); return P ? buildReading(P, fmt==='long'?FJ.latest('temas',niche):null, niche, fmt) : null; };
+/* anterior: da leitura de cenário (24/10) é a última real; da última real é a penúltima */
+const previousReading = (niche, fmt, cur) => {
+  if(noReading()) return null;
+  const all=FJ.readings.filter(r=>r.type===FJ.readingTypeFor(fmt)&&r.niche===niche).sort((a,b)=>b.generatedAt-a.generatedAt);
+  const prevP = cur && !all.some(r=>r.id===cur.P.id) ? all[0] : all[1];
+  return prevP ? buildReading(prevP, null, niche, fmt) : null;
+};
+function sinceLine(label, s){
+  if(!s) return '';
+  const t = isInflight() && s.textNoAsk!=null ? s.textNoAsk : s.text;   /* com pedido em andamento: variante do motor sem "Peça nova leitura" */
+  return `<div class="sl"><b>${label}:</b> ${esc(s.shortText)}${t ? ` <details><summary>ver detalhes</summary><p>${esc(t)}</p></details>`:''}</div>`;
+}
+const isInflight = () => { const sc=scenario(); return !!sc && !!CHROME.forjaFromScenario(sc).active; };
+/* um bloco = selo da leitura logo acima + texto literal dela */
+function blockHTML(bk, rd, pre){
+  /* a última palavra fica colada ao sup (o número nunca cai sozinho na linha de baixo) */
+  const t = (txt, n) => { if(!n) return esc(txt); const i=txt.lastIndexOf(' '); return `${esc(txt.slice(0,i+1))}<span class="nw">${esc(txt.slice(i+1))}${supP(n, pre)}</span>`; };
+  const body = bk.parts.map(pt=> pt.kind==='ul' ? `<ul class="ritems">${pt.items.map(it=>`<li>${t(it.text, rd.num[it.ev])}</li>`).join('')}</ul>` : `<p>${t(pt.text, rd.num[pt.ev])}</p>`).join('');
+  return body ? `<div class="sealrow"><span class="stamp sm" data-seal-of="${bk.src}">${STAMP_SVG}${esc(sealShort(bk.R))}</span></div><div class="rtext" data-reading-id="${bk.src}">${body}</div>` : '';
+}
+function readingHTML(rd, mode, idp){
+  const pre = (idp||'') + (mode==='old' ? 'old' : mode==='prev' ? 'prev' : mode==='cur' ? 'cur' : '');
+  const lbl = mode==='old' ? 'Última leitura publicada' : mode==='prev' ? 'Leitura anterior' : mode==='cur' ? 'Leitura atual' : '';
+  const sinceHTML = `<div class="since"><span class="snote">Nota do site, ${DT.dm(O.NOW)}</span>${rd.sinceT?sinceLine(`Temas (${winLabel(rd.T)}, ${DT.dm(rd.T.generatedAt)})`, rd.sinceT):''}${sinceLine(`${rd.T?'Fórmulas':'Leitura'} (${winLabel(rd.P)}, ${DT.dm(rd.P.generatedAt)})`, rd.since)}</div>`;
+  const moreLbl = rd.nMore ? `Ver ${rd.nMore===1?'o outro item':`os outros ${rd.nMore} itens`} da leitura e as evidências` : 'Ver o resto da leitura e as evidências';
+  return `${lbl?`<div class="rhead"><span class="lbl">${lbl}</span></div>`:''}
+  <div class="reading${mode?' old':''}" ${mode?'':'data-reading'} data-reading-of="${rd.P.id}">
+    <div class="rmain"><div class="prose">${rd.shown.map(b=>blockHTML(b, rd, pre)).join('')}</div>
+    <div class="rside">${rd.notes.map(n=>`<p class="caveat">${esc(n)}</p>`).join('')}${sinceHTML}</div></div>
+    <details class="more"><summary>${moreLbl}</summary>
+      <div class="moregrid"><div><div class="prose">${rd.more.map(b=>blockHTML(b, rd, pre)).join('')}</div>
+        <p class="caveat">A forja agrupa e resume o que está nos dados. Ela não vê as thumbnails e não diz por que um vídeo foi bem.</p></div>
+      <aside class="evid" aria-label="Evidências"><h3>Evidências</h3><ol>${rd.ev.map((e,i)=>`<li id="${pre}ev${i+1}" data-src="${e.src}"><span class="k">${i+1}</span><span>${esc(cap(e.text))}<br><a href="${e.href}" data-n="${e.n}">${esc(e.label)}</a></span></li>`).join('')}</ol>
+        <p style="margin:12px 0 0;color:var(--muted)">Os links abrem o Outliers com o mesmo escopo da leitura (canais e janela) e os números de hoje; o que a leitura viu está no texto de cada evidência.</p></aside></div>
+    </details>
+  </div>`;
+}
+const DOT={'na fila':'var(--info)','trabalhando':'var(--forja)','publicado':'var(--success)','atrasado':'var(--warning)','sem máquina':'var(--warning)','nova tentativa':'var(--info)','liberado pelo vigia':'var(--info)','falhou':'var(--danger)','recusado (dado velho)':'var(--danger)'};
+/* cenário do pedido: base = requestScenario(estado do mock, {niche: nicho|'todos'}); cada pedido criado aqui entra por
+   FJ.compose(base, {niche, createdAt}), que mantém os pedidos dos outros nichos. O cabeçalho usa forjaFromScenario(resultado) puro. */
+function scenario(){
+  const type=FJ.readingTypeFor(state.fmt), fmt=state.fmt, scopeN=state.niche;
+  let sc = SS.current(scopeN, { type });   /* sessão por (tipo, alvo): base do mock + pedidos na ordem dos cliques, do motor */
+  if(!sc || sc.empty || !(sc.requests||[]).some(q=>q.type===type)) return null;
+  if(sc && scopeN==='todos') sc = Object.assign({}, sc, { missing: ['viagem','ia'].filter(n=>!(sc.requests||[sc.request]).some(q=>q.niche===n)) });
+  return sc;
+}
+/* leitura que a tela mostra (herói e Fórmulas usam a MESMA) */
+function shownReading(){
+  if(noReading()) return null;
+  const sc=scenario();
+  if(sc && sc.request.state==='publicado' && sc.request.readingId) return buildReading(FJ.byId[sc.request.readingId], state.fmt==='long'?FJ.latest('temas',state.niche):null, state.niche, state.fmt);
+  return readingFor(state.niche, state.fmt);
+}
+function renderForja(){
+  const el=document.getElementById('forjaCard'); const {niche,fmt}=state;
+  const type=FJ.readingTypeFor(fmt), elig=FJ.eligibleChannels(niche), sc=scenario(), r=sc&&sc.request;
+  const rd=readingFor(niche,fmt), shown=shownReading();
+  const fj = sc ? CHROME.forjaFromScenario(sc) : {};
+  const inflight = !!fj.active;
+  const quotaUsed = !!sc && sc.quota.usedToday>0 && !inflight;
+  const empty = noReading() && !sentMatch();
+  const label = empty ? 'Pedir leitura à forja' : 'Pedir nova leitura à forja';
+  CHROME.setForja(inflight ? fj : Object.assign({}, fj, { label }, quotaUsed ? { disabled:true, disabledText: cap(sc.quota.text) } : {}));   /* ativo: forjaFromScenario puro */
+  forjaTitle(`Leitura dos ${FMT_LABEL[fmt]} de ${NICHE_LABEL[niche]}`);
+  const quotaLine = quotaUsed ? `<p class="scopenote" id="quotaMsg">${esc(cap(sc.quota.text))}.</p>` : '';
+  const shownSince = (!r || r.state==='publicado') && (shown||rd) ? ((shown||rd).since.text + ' ' + ((shown||rd).sinceT ? (shown||rd).sinceT.text : '')) : '';
+  const outNote = elig.out.filter(o=>!shownSince.includes(O.channel(o.id).name));   /* só omite o que o "Desde então" visível já diz */
+  const scopeNote = outNote.length ? `<p class="scopenote">${outNote.map(o=>esc(o.reason)).join('. ')}.</p>` : '';
+  const prev = open => rd ? `<details class="prev"${open?' open':''}><summary>Ver a última leitura publicada (${DT.dm(rd.P.generatedAt)})</summary>${readingHTML(rd,'old')}</details>` : '';
+  const sb=(h,ps,extra='')=>`<div class="statebox"><h3>${h}</h3>${ps.filter(Boolean).map(p=>`<p>${p}</p>`).join('')}${extra}</div>`;
+  const tm=FJ.timing(type,niche, noReading() ? { count:0 } : undefined), timing = cap(tm.text) + '.';   /* EMPTY: o motor diz "nenhuma leitura ainda" */   /* EMPTY: nunca "N leituras" */
+  const pv = FJ.preview(type,niche,fmt).text;
+  let body='', status=null;
+  if(empty){
+    body = sb(`Ainda não há leitura dos ${FMT_LABEL[fmt]} de ${NICHE_LABEL[niche]}`,[`${esc(pv)} dos canais elegíveis, agrupa por tema e por fórmula de título, e devolve um texto curto em que cada número aponta para os vídeos de onde saiu. ${timing}`,`Roda na máquina local, com Gemma 12B. Não julga thumbnails nem afirma causa.`]);
+  } else if(!r){
+    body = rd ? readingHTML(rd) : sb('Sem leitura', ['Não há leitura deste tipo para este recorte.']);
+  } else {
+    status=r.state;
+    const st = esc(sc.statusText);
+    const stillNone = noReading() ? `<p>Ainda não há leitura publicada dos ${FMT_LABEL[fmt]} de ${NICHE_LABEL[niche]}; ela aparece aqui quando este pedido terminar.</p>` : '';
+    switch(r.state){
+      case 'publicado':
+        body = `<p class="scopenote">${st}</p>` + readingHTML(shown); break;
+      case 'na fila':
+        body = sb('Pedido na fila',[st, esc(pv)+'.', timing], stillNone) + prev(); break;
+      case 'trabalhando':
+        body = sb(`A forja está lendo os ${FMT_LABEL[fmt]} de ${NICHE_LABEL[niche]}`,[`${st} ${timing} Se travar por mais de ${Q.STALE_RUNNING_MINUTES} minutos, o vigia libera o pedido e ele volta para a fila.`],
+          `<ol class="steps" aria-label="Andamento"><li class="done"><i>✓</i>Retrato dos dados</li><li class="now" aria-current="step"><i class="pulse"></i>Gemma 12B escrevendo</li><li><i></i>Validador confere os números</li><li><i></i>Publicado</li></ol>`+stillNone) + prev(); break;
+      case 'atrasado':
+        body = sb('Pedido atrasado',[st, `Para investigar, veja ${RUNBOOK_TXT}, seção do log das execuções.`], stillNone) + prev(); break;
+      case 'nova tentativa': case 'liberado pelo vigia':
+        body = sb(cap(r.state),[st, timing], stillNone) + prev(); break;
+      case 'sem máquina':
+        body = sb('A forja não está consultando a fila',[`${esc(sc.machine.text)}; o limite é ${Q.HEARTBEAT_DEAD_MINUTES} min.`, st, `Para religar, veja ${RUNBOOK_TXT}, seção “desligar e religar”.`], stillNone) + prev(); break;
+      case 'falhou':
+        body = sb(`O pedido das ${DT.hm(r.createdAt)} não foi publicado`,[st, rd ? `A leitura de ${DT.dm(rd.P.generatedAt)} continua valendo.` : ''], stillNone) + prev(); break;
+      case 'recusado (dado velho)':
+        body = sb(`A forja recusou o pedido das ${DT.hm(r.createdAt)}`,[st, `${esc(cap(sc.quota.text))}. Se repetir, veja ${RUNBOOK_TXT}.`], stillNone) + prev(); break;
+    }
+  }
+  const pr = state.showPrev ? previousReading(niche,fmt,shown||rd) : null;
+  const prevBlock = pr ? `<div class="prevread">${readingHTML(pr,'prev')}</div>` : (state.showPrev ? `<p class="scopenote">Não há leitura anterior deste tipo.</p>` : '');
+  el.innerHTML = `<div class="forja-top"><h2 id="forjaH">Leitura da forja</h2>
+    ${status?`<span class="status" role="status"><i style="background:${DOT[status]}" class="${status==='trabalhando'?'pulse':''}" aria-hidden="true"></i>${esc(CHROME.statusLabel(sc))}</span>`:''}</div>${quotaLine}${scopeNote}${body}${prevBlock}`;
+  el.dataset.inflight = inflight ? 1 : 0;
+}
+/* leitura que existe de fato no recorte (nunca inventa: EMPTY = nenhuma) */
+function readingsInScope(){
+  if(noReading()) return [];
+  if(state.niche!=='todos'){ const rd=shownReading(); return rd ? [[state.niche, rd]] : []; }
+  const sc=scenario();
+  return ['viagem','ia'].map(n=>{ const q=sc && (sc.requests||[sc.request]).find(r=>r.niche===n);
+    const rd = q && q.state==='publicado' && q.readingId && FJ.byId[q.readingId] ? buildReading(FJ.byId[q.readingId], state.fmt==='long'?FJ.latest('temas',n):null, n, state.fmt) : readingFor(n, state.fmt);
+    return rd ? [n, rd] : null; }).filter(Boolean);
+}
+/* cópia: um bloco por fonte (título, selo, dados enviados, texto literal) + nota do site separada */
+function readingBlock(rd){
+  const lit = R => [R.text.lead].concat(R.type==='temas' ? [] : (R.text.items||[]).map(i=>'- '+i)).concat(R.type==='temas' || !R.text.theme ? [] : [R.text.theme]).join('\n');
+  const src = R => [R.text.title, R.seal, cap(R.sent.text)+'.', '', lit(R)].join('\n');
+  const out=[]; if(rd.T) out.push(src(rd.T)); out.push(src(rd.P));
+  const notes=[]; if(rd.T) notes.push(`Temas (${winLabel(rd.T)}, ${DT.dm(rd.T.generatedAt)}): ${rd.sinceT.shortText}`); notes.push(`${rd.T?'Fórmulas':'Leitura'} (${winLabel(rd.P)}, ${DT.dm(rd.P.generatedAt)}): ${rd.since.shortText}`);
+  return out.join('\n\n') + `\n\nNota do site, ${DT.dm(O.NOW)}:\n` + notes.join('\n');
+}
+function readingText(){
+  const list=readingsInScope();
+  if(state.niche==='todos') return list.map(([n,rd])=>`${NLABEL(n)} · ${FMT_LABEL[state.fmt]}\n${readingBlock(rd)}`).join('\n\n---\n\n');
+  return list.length ? readingBlock(list[0][1]) : '';
+}
+async function copyReading(){
+  const t=readingText();
+  if(!t){ toast('Não há leitura para copiar', 'warn', `Ainda não há leitura dos ${FMT_LABEL[state.fmt]} neste recorte.`); return; }
+  try{ if(!navigator.clipboard) throw new Error('sem clipboard'); await navigator.clipboard.writeText(t); toast('Texto da leitura copiado'); }
+  catch(_){ CHROME.toast('bad', 'Não deu para copiar', 'O navegador bloqueou a área de transferência. Selecione o texto abaixo e copie com ⌘C.', null, { selectable: t }); }
+}
+function readingPlain(){ return readingText(); }
+function forjaTitle(t){ const b=document.querySelector('.ch-actions .ch-btn.ch-forja-solid:not([disabled]), .ch-actions .ch-btn.ch-forja:not([disabled])'); if(b && !b.id) b.title=t; }
+function showStatus(){ const c=document.getElementById(state.niche==='todos'?'allState':'forjaCard'); c.tabIndex=-1; c.scrollIntoView({block:'start',behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'}); c.focus({preventScroll:true}); }
+function askForja(only){
+  const sc=scenario();
+  if(!only && sc && CHROME.forjaFromScenario(sc).active && state.niche!=='todos') return;   /* nicho único ocupado: o andamento vem por onStatus; em Todos, o motor pede só o nicho livre */
+  const type=FJ.readingTypeFor(state.fmt), targets = only ? [only] : state.niche==='todos' ? ['viagem','ia'] : [state.niche];
+  const res = SS.ask(only || state.niche, { type });   /* o motor nunca duplica nem fura a cota */
+  const created = res.results.filter(r=>r.ok).map(r=>r.niche), skippedR = res.results.filter(r=>!r.ok);
+  render();
+  const dot = t => t.replace(/[.\s]+$/,'') + '.';
+  if(!created.length){ toast('Pedido não enviado', 'warn', dot(cap(res.reason || `os dois nichos já têm pedido dos ${FMT_LABEL[state.fmt]} hoje`))); return; }
+  const skipped = skippedR.map(r=>r.niche);
+  toast('Pedido enviado à forja', 'forja', `${created.length>1?'Um pedido por nicho: Viagem e IA':`Leitura dos ${FMT_LABEL[state.fmt]} de ${NLABEL(created[0])}`}${skippedR.length?`; ${skippedR.map(r=>r.reason.replace(/[.\s]+$/,'')).join('; ')}`:''}`.replace(/[.\s]+$/,'')+'.');
+}
+function renderDeps(){
+  const {niche,fmt}=state;
+  const idea=['Criar ideia no pipeline','o botão das Lacunas cria um item no pipeline de conteúdo a partir do tema; o backend ainda não tem esse endpoint'];
+  if(niche==='todos'){ const sc=scenario(); CHROME.setDeps([
+    ['task_type', `<code>${FJ.readingTypeFor(fmt)}</code>`], ['niche', '<code>todos</code> → um pedido por nicho (<code>viagem</code>, <code>ia</code>)'],
+    ['status', sc ? (sc.split?sc.requests:[sc.request]).map(q=>`${q.niche}: ${esc(q.status)}`).join(' · ') : '—'],
+    ['cota', `${esc(Q.quotaScope.text)} · usada hoje: <span id="quotaUsed">${sc?sc.quota.usedToday:0}</span>`], idea]); return; }
+  const sc=scenario(), r=sc&&sc.request, elig=FJ.eligibleChannels(niche);
+  CHROME.setDeps([
+    ['task_type', `<code>${FJ.readingTypeFor(fmt)}</code>${fmt==='long'?' · <code>temas</code>':''}`],
+    ['niche', `<code>${niche}</code>`],
+    ['escopo', `${esc(FJ.preview(FJ.readingTypeFor(fmt),niche,fmt).text)} · ${elig.in.length} canais${elig.out.length?' · fora: '+elig.out.map(o=>esc(o.id)).join(', '):''}`],
+    ['status', `<span id="depStatus">${r?esc(r.status)+(r.refusedReason?' — '+esc(r.refusedReason):'')+(r.failReason?' — '+esc(r.failReason):''):'—'}</span>`],
+    ['cota', `${esc(Q.quotaScope.text)} · usada hoje: <span id="quotaUsed">${sc?sc.quota.usedToday:0}</span>`],
+    ['last_poll_at', `${DT.dmhm(sc?sc.machine.lastPollAt:Q.lastPollAt)} (SP)`],
+    ['sincronização', `${DT.dmhm(O.SYNC.last)} · ${esc(O.SYNC.nextText)}`],
+    idea,
+  ]);
+}
+
+/* ---------- VOCÊ NO NICHO (OBS.nicheStats com o id do canal escolhido: mediana, extremos, razão, veredito, few) ---------- */
+/* seletor de canal próprio: o mesmo controle nos dois cards (Você no nicho e Lacunas); trocar em um re-renderiza os dois */
+function ownBar(what){
+  return `<div class="ownbar"><div class="seg ownseg" role="group" aria-label="Canal comparado">${OWNS.map(c=>`<button type="button" data-own="${c.id}" aria-pressed="${c.id===OWN.id}">${esc(c.name)}</button>`).join('')}</div>
+    <p class="ownline" role="status">${what} <b>${esc(OWN.name)}</b>, ${langOf(OWN)[1]}.</p></div>`;
+}
+function setOwn(id, cardId){
+  OWN = OWNS.find(c=>c.id===id) || OWN;
+  try{ const u=new URL(location.href); OWN===OWNS[0] ? u.searchParams.delete('own') : u.searchParams.set('own', OWN.id); history.replaceState(history.state,'',u.pathname.split('/').pop()+u.search); }catch(e){}
+  renderYou(); renderGaps();
+  const b=document.querySelector(`#${cardId} [data-own="${OWN.id}"]`); b&&b.focus();
+}
+function wireOwn(el){
+  el.querySelectorAll('[data-own]').forEach(b=>{
+    b.onclick=()=>setOwn(b.dataset.own, el.id);
+    b.onkeydown=e=>{ if(e.key!=='ArrowRight' && e.key!=='ArrowLeft') return; e.preventDefault();
+      const i=OWNS.findIndex(c=>c.id===b.dataset.own); setOwn(OWNS[(i+(e.key==='ArrowRight'?1:OWNS.length-1))%OWNS.length].id, el.id); };
+  });
+}
+function scaleRow(key, label, meTxt, agg, own, fmtV){
+  const me=own.value, lo=Math.min(agg.min, me), hi=Math.max(agg.max, me), span=hi-lo||1;
+  const p=v=>((v-lo)/span*100).toFixed(1);
+  const cls = own.verdict==='▲'?'up':own.verdict==='▼'?'down':'flat';
+  const vtxt = own.verdict ? `${own.verdict} ${esc(own.label||own.verdictText||'')}` : `≈ ${esc(own.verdictText||'igual à mediana do nicho')}`;
+  const verdict = `<span class="${cls}">${vtxt}</span>${own.few?` · <span class="flat">n = ${own.n}, pouco para concluir</span>`:''}`;
+  return `<div class="you-row" data-you="${key}" data-few="${own.few?1:0}"><div class="you-top"><span class="lbl">${label}</span><span class="val mono">${meTxt}</span></div>
+    <div class="scale" role="img" aria-label="${esc(OWN.name)} ${fmtV(me)}; mediana do nicho ${fmtV(agg.median)}; de ${fmtV(lo)} a ${fmtV(hi)}. ${esc(own.verdictText)}"><span class="nich" style="left:${p(agg.median)}%"></span><span class="me" style="left:${p(me)}%"></span></div>
+    <div class="ends mono" aria-hidden="true"><span>${fmtV(lo)}</span><span>${fmtV(hi)}</span></div>
+    <div class="you-cmp"><span>mediana do nicho <span class="mono">${fmtV(agg.median)}</span></span><span>${verdict}</span></div></div>`;
+}
+/* métrica sem valor para este canal: a linha fica, com o motivo (termos do motor: "sem dado", "base fraca") — nunca some nem vira 0 */
+function weakRow(key, label, agg, own, fmtV){
+  return `<div class="you-row" data-you="${key}" data-few="1" data-nodata="1"><div class="you-top"><span class="lbl">${label}</span><span class="val">${esc(own.verdictText)}</span></div>
+    <div class="you-cmp"><span>mediana do nicho <span class="mono">${fmtV(agg.median)}</span></span><span class="flat" title="Menos de ${R_.weakBase} vídeos deste canal com base de comparação">base fraca (n = ${own.n})</span></div></div>`;
+}
+const subs3 = v => O.fmt.subs(v);   /* inscritos com 3 algarismos significativos ("3,21 mil") */
+const pctOf = x => x==null ? '—' : F.dec1(x*100)+'%';
+function renderYou(){
+  const el=document.getElementById('youCard'); const {niche,fmt}=state;
+  const W=R_.habit.weeks;
+  const head=`<div class="chead"><h2 id="youH">Você no nicho</h2><span class="meta">um canal seu por vez, mesmo formato</span></div>${OWNS.length>1?ownBar('Números de'):''}`;
+  const ownCad=O.cadence(OWN.id,fmt), ownSt=O.channelStats(OWN.id,fmt);
+  if(OWN.niche!==niche || !ownCad.n){
+    const what = OWN.niche!==niche ? `vídeos de ${NICHE_LABEL[niche]}` : `${FMT_LABEL[fmt]} nas últimas ${W} semanas`;
+    el.innerHTML = head + `<div class="cbody"><div class="empty"><h3>${esc(OWN.name)} ainda não tem ${what}</h3>
+      <p>Sem vídeos deste canal no recorte não há o que comparar. A comparação aparece a partir do primeiro vídeo; com menos de ${R_.pattern.minN}, ela vem marcada “pouco para concluir”.</p>
+      <a class="btn" href="${O.link.canais({channel:OWN.id})}">Ver ${esc(OWN.name)}</a></div></div>`; wireOwn(el); return;
+  }
+  const NS=O.nicheStats(niche,fmt,OWN.id), own=NS.own;   /* o motor aceita o id do canal próprio */
+  const biggest=competitors(niche).sort((a,b)=>b.subs-a.subs)[0];
+  const row=(key,label,fmtV,meTxt,ov)=> own[key].value!=null ? scaleRow(key,label,meTxt(own[key].value),NS[key],ov?Object.assign({},own[key],ov):own[key],fmtV) : weakRow(key,label,NS[key],own[key],fmtV);
+  const rows=[
+    row('pw','Ritmo (vídeos por semana)', v=>F.dec1(v), v=>F.dec1(v)),
+    row('perMilSubs',`Views/dia por mil inscritos (mediana desde ${O.SERIES_START_LABEL})`, v=>F.dec1(v), v=>F.dec1(v)),
+    row('pctOutliers',`Vídeos com ${X}× ou mais (90 d)`, pctOf, pctOf, { label: `${pctOf(own.pctOutliers.value)} vs ${pctOf(NS.pctOutliers.median)} da mediana do nicho` }),
+    row('engagement',`Curtidas + comentários / views (${esc(ownSt.engagement.window)})`, pctTxt, pctTxt),
+  ].join('');
+  el.innerHTML = head + `<div class="cbody">
+    <div class="youhead"><span class="av" style="background:var(--accent);color:var(--on-accent)">${esc(OWN.ini)}</span><div><div style="font-weight:500">${F.plural(ownCad.n,'vídeo','vídeos')} do canal (${FMT_LABEL[fmt]}, ${W} semanas)</div><div style="font-size:12px;color:var(--muted)">${subs3(OWN.subs)} inscritos · ${esc(ownSt.syncText)}</div></div></div>
+    ${rows}
+  </div><div class="foot">Ponto laranja = ${esc(OWN.name)}; traço = mediana dos ${NS.channels.length} canais concorrentes do nicho; extremos rotulados; ▲/▼ só fora de ±${F.int(own.threshold*100)}%; com menos de ${own.fewN} vídeos, “pouco para concluir”; sem vídeos com base de comparação, “base fraca”. Só métricas relativas: ${esc(biggest.name)} tem ${subs3(biggest.subs)} inscritos; ${esc(OWN.name)}, ${subs3(OWN.subs)}.</div>`;
+  wireOwn(el);
+}
+
+/* ---------- CADÊNCIA: eixo = janela de 90 dias da aba; ritmo e hábito de OBS.cadence ---------- */
+const WIN_FROM = O.NOW - 90*D, WIN_SPAN = 90*D;
+function renderCad(){
+  const el=document.getElementById('cadCard'); const {niche,fmt}=state;
+  const W=R_.habit.weeks;
+  const rows = competitors(niche).map(ch=>{
+    const cad=O.cadence(ch.id,fmt);
+    const lastV=ch.videos.find(v=>v.fmt===fmt), lastAge = lastV ? O.fmt.age(lastV) : '—';   /* idade do vídeo: sempre OBS.fmt.age */
+    const vids=ch.videos.filter(v=>v.fmt===fmt && v.pub>WIN_FROM);
+    let sub, lane='', last, aria;
+    const sy=ch.sync, syncOff=(sy.state==='atrasado'||sy.state==='erro') && sy.last>WIN_FROM;
+    if(!ch.videos.some(v=>v.fmt===fmt)){
+      sub=`nenhum ${fmt==='short'?'Short':'longo'} acompanhado${syncOff?`<br><span class="warnc">${esc(sy.problemPhrase||('sem sincronização '+DT.ago(sy.last)))}</span>`:''}`; aria=`nenhum ${fmt==='short'?'Short':'longo'} acompanhado`;
+      lane=`<div class="none">Nenhum ${fmt==='short'?'Short':'longo'} acompanhado</div>`; last=`<span style="color:var(--muted)">—</span>`;
+    } else {
+      sub=`<span class="mono">${F.dec1(cad.pw)}</span>/sem${cad.partial?' <span class="warnc">(ritmo parcial)</span>':''}<br>${esc(cad.habit.text)}<br>${(()=>{ const n=O.outliers({fmt,channel:ch.id}).count; return n ? `<a class="vlink" href="${O.link.outliers({fmt,channel:ch.id,niche:undefined})}" data-n="${n}" aria-describedby="cadn-${ch.id}">${verOut(n)} do canal</a>` : '<span class="nolink">nenhum outlier em 90 dias</span>'; })()}${syncOff?`<br><span class="warnc">${esc(sy.problemPhrase||('sem sincronização '+DT.ago(sy.last)))}</span>`:''}`;
+      lane = vids.map(v=>{const pct=(v.pub-WIN_FROM)/WIN_SPAN*100, m=v.mult.weak?null:v.mult.value; const h=m==null?8:Math.round(6+Math.min(1,Math.log10(1+m)/1.1)*18);
+        return `<span class="tk ${O.tierOf(m)||''}" style="left:${pct}%;height:${h}px" title="${esc(v.mult.weak||v.mult.value==null?'base fraca':v.mult.label)} · ${DT.weekdayShort(v.pub)} ${DT.dm(v.pub)} ${DT.hm(v.pub)}"></span>`}).join('');
+      if(cad.partial && cad.fetchedSince>WIN_FROM){ const w=(cad.fetchedSince-WIN_FROM)/WIN_SPAN*100; lane+=`<div class="idle part" style="left:0;right:auto;width:${w}%" title="${esc(cad.partialText)}"><span>ainda buscando vídeos</span></div>`; }
+      if(syncOff){ const w=(O.NOW-sy.last)/WIN_SPAN*100; lane+=`<div class="idle sync" style="width:${w}%" title="sem sincronização desde ${DT.dm(sy.last)} ${DT.hm(sy.last)}"><span data-full="sem sincronização desde ${DT.dm(sy.last)}" data-short="⚠">sem sincronização desde ${DT.dm(sy.last)}</span></div>`; }
+      aria=`${cad.n} uploads em ${W} semanas, ${esc(cad.habit.text)}, último ${lastAge}${cad.partial?'. '+esc(cad.partialText):''}`;
+      if(ch.activity.state==='parado'){ lane+=`<div class="idle" style="width:${Math.min(100,(O.NOW-cad.lastUpload)/WIN_SPAN*100)}%" title="parado, sem upload ${esc(lastAge)}"><span>parado</span></div>`; last=`<span class="w" title="último em ${DT.dm(cad.lastUpload)}">⏸ ${esc(lastAge)}</span>`; }
+      else last=`${syncOff?'<span class="warnc" aria-hidden="true">⚠ </span>':''}<span class="mono" title="último upload: ${DT.weekdayShort(cad.lastUpload)} ${DT.dm(cad.lastUpload)} ${DT.hm(cad.lastUpload)}${syncOff?` · sem sincronização desde ${DT.dm(sy.last)} ${DT.hm(sy.last)}, pode haver upload que ainda não vimos`:''}">${esc(lastAge)}</span>${syncOff?'<span class="ch-sr sr"> (sem sincronização recente; pode haver upload não visto)</span>':''}`;
+    }
+    return `<div class="cad-row" role="group" data-sync-off="${syncOff?1:0}" data-ch="${ch.id}" data-pw="${cad.pw}" data-habit="${cad.habit.costuma?1:0}" data-partial="${cad.partial?1:0}" aria-label="${esc(ch.name)}: ${aria}${syncOff?`, ${esc(sy.problemPhrase||('sem sincronização '+DT.ago(sy.last)))}`:''}">
+      <div class="cad-id"><span class="av" style="background:${ch.color};color:#fff" aria-hidden="true">${esc(ch.ini)}</span><div style="min-width:0"><div class="cad-name" id="cadn-${ch.id}" title="${esc(ch.fullName||ch.name)}">${esc(ch.name)}</div><div class="cad-sub">${sub}</div></div></div>
+      <div class="lane" aria-hidden="true">${lane}</div><div class="last">${last}</div></div>`;
+  }).join('');
+  const t=f=>DT.dm(WIN_FROM+f*WIN_SPAN);
+  const T_=R_.tiers;
+  el.innerHTML = `<div class="chead"><h2 id="cadH">Cadência por canal</h2><span class="meta">${FMT_LABEL[fmt]}, uploads dos últimos 90 dias; ritmo e hábito em ${W} semanas</span>
+    <div class="legend right"><span><i style="background:var(--dim)"></i>upload (altura = views ÷ mediana do canal)</span><span><i style="background:var(--tier-mid)"></i>≥ ${T_.mid}×</span><span><i style="background:var(--tier-high)"></i>≥ ${T_.high}×</span><span><i style="background:var(--tier-top)"></i>≥ ${T_.top}×</span></div></div>
+    <div class="cbody"><div class="cad-axis" aria-hidden="true"><span>Canal e ritmo</span><div class="ticks"><span style="left:0">${t(0)}</span><span style="left:33.33%">${t(1/3)}</span><span style="left:66.66%">${t(2/3)}</span><span style="left:100%">hoje, ${DT.weekdayShort(O.NOW)} ${DT.dm(O.NOW)}</span></div><span style="text-align:right">Último upload</span></div>${rows}</div>
+    <div class="foot">“Costuma” só aparece quando o mesmo dia da semana e hora somam ${R_.habit.minCount} vídeos ou mais e ${F.int(R_.habit.minShare*100)}% ou mais dos uploads do canal em ${W} semanas. Hachurado no começo = vídeos que ainda não foram buscados; no fim = período sem sincronização do canal.</div>`;
+}
+
+/* ---------- FÓRMULAS: a mesma leitura do herói; "hoje" no MESMO escopo (reading=) ---------- */
+function exampleTitle(formula, niche, fmt, base, used){ const pool = base ? base.videos.filter(v=>v.formulas.includes(formula)).sort((a,b)=>b.mult-a.mult).map(v=>v.title) : O.videos.filter(v=>v.niche===niche&&v.fmt===fmt&&!O.channel(v.ch).own&&v.formulas.includes(formula)).map(v=>v.title); const t=pool.find(x=>!used.has(x)); if(t) used.add(t); return t||null; }
+function renderFormulas(){
+  const el=document.getElementById('formCard'); const {niche,fmt}=state;
+  const rd=shownReading(), P=rd&&rd.P, N=P?null:O.patternsNow(niche,fmt);
+  const src = P ? P.analysis.patterns : N.patterns;
+  const usedEx=new Set();
+  const zero = src.filter(p=>!p.nUse), rows=[...src.filter(p=>p.nUse)].sort((a,b)=>(b.diff??-9)-(a.diff??-9));
+  const max=Math.max(...rows.map(p=>Math.max(p.medUse||0,p.medNot||0)),0.1);
+  const chipOf = p => p.verdict.id==='padrao' ? '<span class="chip-ok">● passa a regra</span>' : p.verdict.id==='recorrencia' ? `<span class="weak" title="Menos de ${R_.pattern.minN} vídeos com a fórmula">◌ pouco para concluir</span>` : '<span class="neg">≈ diferença abaixo da regra</span>';
+  const meta = P ? esc(P.sent.text.replace(/^dados enviados à forja: /,'')) : `${N.nVideos} ${FMT_LABEL[fmt]} até ${DT.dm(N.asOf)}, 6 meses`;
+  el.innerHTML=`<div class="chead"><h2 id="formH">Fórmulas de título</h2><span class="meta">${meta}</span>
+    ${P?`<span class="meta right">números da leitura de ${DT.dm(P.generatedAt)} ${DT.hm(P.generatedAt)}</span>`:''}</div>
+  <div class="cbody">${rows.map(p=>{
+    const ex=exampleTitle(p.formula,niche,fmt,P&&P.base,usedEx);
+    const lk = P ? evLink({ min: 0, formula: p.formula }, P) : null;
+    const link = P ? (lk.n ? `<a class="vlink" href="${lk.href}" data-n="${lk.n}">${verVid(lk.n)} com a fórmula</a> <span class="nw">(${todayTxt(lk)})</span>` : `<span class="nw">${todayTxt(lk)}</span>`)
+      : (()=>{ const q={niche,fmt,ages:AGES_6M,min:0,formula:p.formula}, n=O.outliers(q).count; return n?`<a class="vlink" href="${O.link.outliers(q)}" data-n="${n}">${verVid(n)} com a fórmula</a>`:'<span class="nw">nenhum vídeo com a fórmula hoje</span>'; })();
+    return `<div class="frow" data-formula="${p.formula}" data-verdict="${p.verdict.id}"><div class="ftitle">${esc(O.formula(p.formula).label)}${chipOf(p)}</div>
+    <div class="fsent">${P?'Na leitura':'Hoje'}: mediana <b class="mono">${F.mult(p.medUse)}</b> com a fórmula, contra <b class="mono">${F.mult(p.medNot)}</b> sem <span class="nw mono">(n = ${p.nUse} vs ${p.nNot})</span>; ${esc(p.attribution.textMid||p.attribution.text)}.${ex?`<br><span>Ex.: “${esc(ex)}”</span>`:''}</div>
+    <div>${link}</div>
+    <div class="fbars" aria-hidden="true"><div class="fb a"><span>com</span><div class="tr"><span style="width:${(p.medUse||0)/max*100}%"></span></div><span class="v mono">${F.mult(p.medUse)}</span></div>
+      <div class="fb b"><span>sem</span><div class="tr"><span style="width:${(p.medNot||0)/max*100}%"></span></div><span class="v mono">${F.mult(p.medNot)}</span></div></div></div>`}).join('')}
+    ${zero.length?`<p class="formzero" data-zero="${zero.map(p=>p.formula).join(',')}">Sem títulos com: ${zero.map(p=>esc(lc(p.label))).join(', ')}.</p>`:''}</div>
+  <div class="foot"><b>Multiplicador</b> = views do vídeo ÷ mediana dos <b>outros</b> vídeos do canal (sem contar este). Publicados depois de ${O.SERIES_START_LABEL} comparam no mesmo dia de vida; quando o canal tem menos de ${R_.weakBase} vídeos com série desde o dia 0, cai para a aproximação por faixa de idade, que também vale para os anteriores a ${O.SERIES_START_LABEL}. Base com menos de ${R_.weakBase} vídeos fica fora. “Passa a regra” exige ${R_.pattern.minN} vídeos com a fórmula e diferença de ${F.dec1(R_.pattern.minDiff)}× ou mais. ${P?`Os números da linha são da leitura (base de ${DT.dm(P.sent.asOf)}); “hoje” conta no mesmo escopo da leitura (mesmos canais e janela).`:`Ainda não há leitura: a tabela é a análise de hoje (base de ${DT.dm(N.asOf)}), sem selo da forja.`} Exemplos: títulos reais do nicho. Associação, não causa.</div>`;
+}
+
+/* ---------- HEATMAP ---------- */
+let heatMode='uploads';
+/* faixas de cor do modo multiplicador (só exibição; centradas no normal do canal = 1,0×) */
+const HEAT_BINS={low2:0.7, low1:0.9, normalHi:1.1, slightHi:1.3, high1:1.5, high2:2.5};   /* faixas de exibição; slightHi = até onde é "pouco acima do normal" */
+function viewsLevel(m){ const B=HEAT_BINS; m=Math.round(m*10)/10;   /* classifica pelo valor exibido (1 casa) */ if(m<B.low2) return 'c2'; if(m<B.low1) return 'c1'; if(m<=B.normalHi) return 'nz'; if(m<B.high1) return 'l1'; if(m<B.high2) return 'l2'; return 'l4'; }
+const LV_BG={c2:'var(--cool-2)',c1:'var(--cool-1)',nz:'var(--heat-nz)',l1:'var(--heat-1)',l2:'var(--heat-2)',l3:'var(--heat-3)',l4:'var(--heat-4)'};
+function domNote(dc, n){ // ressalva só quando a fatia do canal passa de RULES.attribution.solo
+  if(!dc || dc.n/n <= R_.attribution.solo) return '';
+  const name=esc(O.channel(dc.id).name);
+  return dc.n===n ? ` Todos são de ${name}: é o hábito de um canal, não do nicho.` : ` ${dc.n} desses ${n} são de ${name}, então o horário pode ser só o hábito do canal.`;
+}
+/* canal dominante da célula: do motor (cells[d][b].dominantChannel, ≥ 80% da célula; senão null) */
+const cellDom = c => c.dominantChannel || null;
+function tieNotes(list){   /* ressalva de canal único para CADA célula empatada */
+  const parts=list.map(x=>{ const dc=cellDom(x.c); if(!dc) return null; return `${x.lbl}: ${dc.n===dc.of?'todos':`${dc.n} de ${dc.of}`} de ${esc(dc.name||O.channel(dc.id).name)}`; }).filter(Boolean);
+  return parts.length ? ` ${parts.join('; ')}. Nesses blocos, o horário pode ser só o hábito de um canal, não do nicho.` : '';
+}
+function renderHeat(){
+  const el=document.getElementById('heatCard'); const {niche,fmt}=state;
+  const HM=O.heatmap(niche,fmt), cells=HM.cells, blk=b=>HM.blocks[b], day=d=>DAYS[d];
+  let body='', note='', aria='', table='', scale='';
+  if(heatMode==='uploads'){
+    const max=Math.max(1,...cells.flat().map(c=>c.n)), pk=HM.peak;
+    const ties = pk ? cells.flatMap((r,d)=>r.map((c,b)=>({d,b,n:c.n,c,lbl:`${day(d)} ${blk(b)}`}))).filter(x=>x.n===pk.n && x.n>0) : [];   /* empate no pico: contorna todos */
+    body=cells.map((r,d)=>`<span class="dl">${day(d)}</span>`+r.map((c,b)=>{const lv=c.n?Math.min(4,1+Math.floor(c.n/max*3.99)):0;const p=ties.some(x=>x.d===d&&x.b===b);
+      return `<div class="cell${lv?' l'+lv:' z'}${p?' pk':''}" style="background:var(--heat-${lv})" title="${day(d)} ${blk(b)}: ${F.plural(c.n,'upload','uploads')}">${c.n||''}</div>`}).join('')).join('');
+    const tieTxt = ties.map(x=>`${day(x.d)} ${blk(x.b)}`), few = pk && pk.n<=3 ? ' Pouco para concluir.' : '';
+    note = ties.length>1 ? `Mais uploads, empate: <b>${tieTxt.join(', ').replace(/, ([^,]*)$/,' e $1')}</b>, ${pk.n} cada, de ${HM.n}.${few}${tieNotes(ties)}` : `Mais uploads: <b>${day(pk.dow)} ${blk(pk.block)}</b>, ${pk.n} de ${HM.n}.${few}${domNote(pk.dominantChannel, pk.n)}`;
+    aria=`Uploads por dia e bloco de 2 horas. ${ties.length>1?`Empate no pico: ${tieTxt.join(', ')}, ${pk.n} uploads cada`:`Pico ${day(pk.dow)} ${blk(pk.block)}, ${pk.n} uploads`}.`;
+    table=cells.map((r,d)=>`<tr><th scope="row">${day(d)}</th>${r.map(c=>`<td>${c.n}</td>`).join('')}</tr>`).join('');
+    const rng=[0,1,2,3,4].map(lv=>{ if(!lv) return '0'; const ns=[]; for(let k=1;k<=max;k++){ if(Math.min(4,1+Math.floor(k/max*3.99))===lv) ns.push(k); } return ns.length? (ns[0]===ns[ns.length-1]?String(ns[0]):`${ns[0]}–${ns[ns.length-1]}`) : null; });
+    scale=[0,1,2,3,4].filter(i=>rng[i]!=null).map(i=>`<span class="lg"><span class="cell${i?'':' z'}" style="background:var(--heat-${i})"></span><span class="mono">${rng[i]}</span></span>`).join('')+'<span class="lg"><span class="cell" style="visibility:hidden"></span><span>uploads por bloco</span></span>'+(pk?`<span class="lg"><span class="cell pk" style="background:var(--heat-0)"></span><span>contorno = ${ties.length>1?'pico (empate)':'pico'}</span></span>`:'');
+  } else {
+    const bm=HM.bestMult, thin=new Set(HM.thin.map(t=>t.dow+'|'+t.block)), r1=x=>Math.round(x*10)/10;
+    const vties = bm && r1(bm.med)>HEAT_BINS.normalHi ? cells.flatMap((r,d)=>r.map((c,b)=>({d,b,c,lbl:`${day(d)} ${blk(b)}`}))).filter(x=>x.c.n && !thin.has(x.d+'|'+x.b) && x.c.medMult!=null && r1(x.c.medMult)===r1(bm.med)) : [];
+    body=cells.map((r,d)=>`<span class="dl">${day(d)}</span>`+r.map((c,b)=>{
+      if(!c.n) return `<div class="cell z" title="${day(d)} ${blk(b)}: sem uploads"></div>`;
+      if(thin.has(d+'|'+b)||c.medMult==null) return `<div class="cell thin" title="${day(d)} ${blk(b)}: ${F.plural(c.nMult,'vídeo','vídeos')} com base, pouco para mediana"></div>`;
+      const lv=viewsLevel(c.medMult), p=vties.some(x=>x.d===d&&x.b===b);
+      return `<div class="cell ${lv}${p?' pk':''}" style="background:${LV_BG[lv]}" title="${day(d)} ${blk(b)}: mediana ${F.mult(c.medMult)} (n = ${c.nMult})">${F.dec1(c.medMult)}</div>`}).join('')).join('');
+    const bmR = bm ? Math.round(bm.med*10)/10 : null;
+    if(bm && bmR<=HEAT_BINS.normalHi){ note=`Nenhum bloco sai do normal (${F.dec1(HEAT_BINS.low1)}–${F.dec1(HEAT_BINS.normalHi)}×); o maior é <b>${day(bm.dow)} ${blk(bm.block)}, ${F.mult(bm.med)}</b> (n = ${bm.n} com base de comparação). ${HM.thin.filter(t=>cells[t.dow][t.block].n>0).length} blocos com uploads têm menos de ${R_.weakBase} vídeos com base e ficam hachurados.`;
+      aria=`Multiplicador mediano por bloco; nenhum bloco sai do normal.`; }
+    else if(bm && vties.length>1){ note=`Maior mediana, empate em ${F.mult(bm.med)}: <b>${vties.map(x=>`${day(x.d)} ${blk(x.b)}`).join(', ').replace(/, ([^,]*)$/,' e $1')}</b> (n = ${vties.map(x=>x.c.nMult).join(', ')} com base de comparação)${vties.some(x=>x.c.nMult<=3)?'; pouco para concluir':''}.${tieNotes(vties)} ${HM.thin.filter(t=>cells[t.dow][t.block].n>0).length} blocos com uploads têm menos de ${R_.weakBase} vídeos com base e ficam hachurados.`;
+      aria=`Multiplicador mediano por bloco; empate no maior, ${F.mult(bm.med)}.`; }
+    else if(bm){ note=`Maior mediana entre os blocos com dado suficiente: <b>${day(bm.dow)} ${blk(bm.block)}, ${F.mult(bm.med)}</b> (n = ${bm.n} com base de comparação${bm.n<=3?', pouco para concluir':''})${Math.round(bm.med*10)/10>HEAT_BINS.normalHi&&Math.round(bm.med*10)/10<HEAT_BINS.slightHi?', pouco acima do normal':''}.${domNote(bm.dominantChannel, bm.n)} ${HM.thin.filter(t=>cells[t.dow][t.block].n>0).length} blocos com uploads têm menos de ${R_.weakBase} vídeos com base e ficam hachurados.`;
+      aria=`Multiplicador mediano por bloco; 1,0× é o normal. Maior: ${day(bm.dow)} ${blk(bm.block)}, ${F.mult(bm.med)}, n = ${bm.n}.`; }
+    else { note='Nenhum bloco tem vídeos suficientes com base de comparação, então não dá para apontar um horário melhor.'; aria=note; }
+    table=cells.map((r,d)=>`<tr><th scope="row">${day(d)}</th>${r.map((c,b)=>`<td>${!c.n?'sem uploads':thin.has(d+'|'+b)||c.medMult==null?'pouco dado':F.mult(c.medMult)}</td>`).join('')}</tr>`).join('');
+    const B=HEAT_BINS, d=x=>F.dec1(Math.round(x*10)/10), st=0.1, lab={c2:`≤${d(B.low2-st)}×`, c1:`${d(B.low2)}–${d(B.low1-st)}×`, nz:`${d(B.low1)}–${d(B.normalHi)}× normal`, l1:`${d(B.normalHi+st)}–${d(B.high1-st)}×`, l2:`${d(B.high1)}–${d(B.high2-st)}×`, l4:`≥${d(B.high2)}×`};
+    scale=['c2','c1','nz','l1','l2','l4'].map(l=>`<span class="lg"><span class="cell" style="background:${LV_BG[l]}"></span><span class="mono">${lab[l]}</span></span>`).join('')+`<span class="lg"><span class="cell thin"></span><span>menos de ${R_.weakBase} com base</span></span><span class="lg"><span class="cell z"></span><span>sem uploads</span></span>${bm&&Math.round(bm.med*10)/10>HEAT_BINS.normalHi?`<span class="lg"><span class="cell pk" style="background:var(--heat-nz)"></span><span>contorno = maior mediana</span></span>`:''}`;
+  }
+  el.innerHTML=`<div class="chead"><h2 id="heatH">Quando publicam</h2><span class="meta">${FMT_LABEL[fmt]} dos últimos ${esc(HM.window||'90 dias')}, blocos de 2 h</span>
+    <div class="seg right" role="group" aria-label="Medida"><button type="button" data-hm="uploads" aria-pressed="${heatMode==='uploads'}">Uploads</button><button type="button" data-hm="views" aria-pressed="${heatMode==='views'}">Multiplicador mediano</button></div></div>
+    <div class="cbody"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">${heatMode==='uploads'?'Contagem de vídeos publicados em cada bloco.':`Mediana do multiplicador dos vídeos de cada bloco. Escala centrada no normal do canal (1,0×): azul abaixo, cores quentes acima. Menos de ${R_.weakBase} vídeos com base = hachurado; sem uploads = vazio.`}</div>
+    <div class="hm" role="img" aria-label="${esc(aria)}"><span></span>${HM.blocks.map((b,i)=>`<span class="hl">${i%2?'':b.slice(0,2)}</span>`).join('')}${body}</div>
+    <div class="sr"><table><caption>${heatMode==='uploads'?'Uploads':'Multiplicador mediano'} por dia e bloco de 2 horas</caption><thead><tr><th scope="col">Dia</th>${HM.blocks.map(b=>`<th scope="col">${b}</th>`).join('')}</tr></thead><tbody>${table}</tbody></table></div>
+    <div class="hscale" aria-hidden="true">${scale}</div>
+    <div class="note">${note}${(HM.excluded||[]).length?` <span class="exc">Fora do mapa: ${HM.excluded.map(e=>esc(e.reason)).join('; ')}.</span>`:''}</div></div>`;
+  el.querySelectorAll('[data-hm]').forEach(b=>b.onclick=()=>{heatMode=b.dataset.hm;renderHeat();const nb=document.querySelector(`#heatCard [data-hm="${heatMode}"]`);nb&&nb.focus();});
+}
+
+/* ---------- TEMAS ---------- */
+function renderThemes(){
+  const el=document.getElementById('themeCard'); const {niche,fmt}=state;
+  const TT=O.themeTrend(niche,fmt), list=TT.filter(t=>t.now+t.prev>0).sort((a,b)=>(b.now-b.prev)-(a.now-a.prev));
+  const mx=Math.max(1,...list.flatMap(x=>[x.now,x.prev]));
+  const seal=`forja · Gemma 12B · gerada ${DT.dm(O.themes.labeledAt)} ${DT.hm(O.themes.labeledAt)} (SP)`;
+  const exc=(TT.excluded||[]);
+  el.innerHTML=`<div class="chead"><h2 id="themeH">Temas em alta</h2><span class="meta">${FMT_LABEL[fmt]} de ${NICHE_LABEL[niche]}, 90 dias vs os 90 anteriores</span>
+    <span class="stamp right">${STAMP_SVG}${seal}</span></div>
+  <div class="cbody">${list.map(x=>{const d=x.now-x.prev, nc=x.channels.length;const tr=x.trend==='▲'?`<span class="up">▲ ${esc(x.trendText)} · +${x.delta}</span>`:x.trend==='▼'?`<span class="down">▼ ${esc(x.trendText)} · −${-x.delta}</span>`:`<span class="flat">≈ ${esc(x.trendText||'estável')}</span>`;
+    const chTxt = nc<=2 && x.now>0 ? `<span class="weak">◌ só ${F.plural(nc,'canal','canais')}</span>` : F.plural(nc,'canal','canais');
+    const outTxt = x.outliers ? `<a class="vlink" href="${O.link.outliers({niche,fmt,ages:AGES_90,topic:x.theme})}" data-n="${x.outliers}">${verOut(x.outliers)} de hoje</a>` : '<span>nenhum outlier hoje</span>';
+    return `<div class="trow" data-trend="${esc(x.trend||'≈')}" data-theme="${x.theme}" data-out="${x.outliers}" data-now="${x.now}"><div><div class="tname">${esc(x.label)}</div><div class="tsub"><span>${chTxt}</span>${x.nMult?`<span>${medTxt(x.medMult,x.nMult)}</span>`:''}<span>${outTxt}</span></div></div>
+      <div class="spark" role="img" aria-label="${x.prev} vídeos nos 90 dias anteriores, ${x.now} agora"><span class="p" style="height:${Math.max(3,x.prev/mx*28)}px"></span><span class="c" style="height:${Math.max(3,x.now/mx*28)}px"></span><em class="mono">${x.prev} → ${x.now}</em></div>
+      <div class="trend">${tr}</div></div>`}).join('')}</div>
+  <div class="foot">Compara ${F.plural((TT.channelsCompared||[]).length,'canal','canais')} com vídeos nas duas janelas.${exc.length?` Fora da comparação: ${exc.map(e=>esc(e.reason)).join('; ')}.`:''} Tendência: ${esc(R_.theme.trend.text)}. A forja dá nome aos grupos toda madrugada; contagens, canais, medianas e outliers vêm dos dados de hoje. Barra forte = agora, apagada = 90 dias anteriores.</div>`;
+}
+
+/* ---------- LACUNAS (do canal escolhido no seletor) ---------- */
+function renderGaps(){
+  const el=document.getElementById('gapCard'); const {niche,fmt}=state;
+  const head=`<div class="chead"><h2 id="gapH">Lacunas</h2><span class="meta">temas dos concorrentes sem vídeo do canal escolhido</span></div>${OWNS.length>1?ownBar('Lacunas de'):''}`;
+  const own = OWN.niche===niche ? coverage(OWN.id, fmt) : null;
+  if(!own || !own.n){
+    el.innerHTML=head+`<div class="cbody"><div class="empty"><h3>${esc(OWN.name)} não tem ${FMT_LABEL[fmt]} de ${NICHE_LABEL[niche]} para comparar</h3><p>Lacunas cruzam os temas dos vídeos deste canal com os dos concorrentes. Sem vídeo dele no recorte, todo tema dos concorrentes viraria lacuna, e a lista não diria nada.</p></div></div>`; wireOwn(el); return;}
+  const trend=O.themeTrend(niche,fmt);
+  const gaps=trend.filter(t=>!own.byTheme[t.theme] && t.channels.length>=2).sort((a,b)=>b.now-a.now);
+  const single=trend.filter(t=>!own.byTheme[t.theme] && t.now>0 && t.channels.length<2).length;
+  el.innerHTML=head+`<div class="cbody">${gaps.length?gaps.map(t=>`<div class="grow" data-theme="${t.theme}"><div><div class="gtag">${esc(t.label)}</div><div class="gsub"><span class="mono">${t.channels.length}</span> canais, <span class="mono">${t.now}</span> vídeos${t.nMult?`, ${medTxt(t.medMult,t.nMult)}`:''} · ${esc(OWN.name)}: nenhum</div></div>${IDEAS.has(t.theme+'|'+fmt)?`<button type="button" class="link" disabled aria-disabled="true">Ideia criada</button>`:`<button type="button" class="link" data-idea="${esc(t.label)}" data-k="${t.theme}|${fmt}">Criar ideia no pipeline</button>`}</div>`).join(''):`<p style="color:var(--muted);margin:0">${esc(OWN.name)} já tem vídeo em todos os temas que aparecem em 2 canais ou mais.</p>`}</div>
+  <div class="foot">Por tema, não por tag: as tags ficam no idioma de cada canal, e “street food” não casaria com “comida de rua”. Os ${F.plural(own.n, FMT_LABEL[fmt].replace(/s$/,''), FMT_LABEL[fmt])} de ${esc(OWN.name)} dos últimos ${esc(own.window)} cobrem ${F.plural(Object.keys(own.byTheme).length,'tema','temas')}.${single?` Temas de um canal só ficam de fora (${single}).`:''}</div>`;
+  wireOwn(el);
+  el.querySelectorAll('[data-idea]').forEach(b=>b.onclick=()=>{ IDEAS.add(b.dataset.k); toast(`Ideia “${b.dataset.idea}” criada no pipeline`); renderGaps(); const nb=document.querySelector(`#gapCard .grow[data-theme="${b.dataset.k.split('|')[0]}"] button`); nb&&nb.focus(); });
+}
+
+/* ---------- RENDER + persistência ---------- */
+function render(){
+  MENU[0].ctx = readingText() ? '' : 'sem leitura para copiar';
+  const grid=document.getElementById('grid'), all=document.getElementById('allState');
+  document.getElementById('winDates').textContent=DT.dm(O.NOW-90*D)+'–'+DT.dm(O.NOW);
+  renderDeps();
+  if(state.niche==='todos'){
+    grid.hidden=true; all.hidden=false; document.querySelector('#screen .filters').hidden=false; document.querySelector('#screen .filters .sel').hidden=true;
+    const sc=scenario();
+    const reqs=sc ? (sc.requests&&sc.requests.length?sc.requests:[sc.request]) : [];   /* ordem da fila do motor */
+    const fj = sc ? CHROME.forjaFromScenario(sc) : {};
+    const quotaUsed = !!sc && sc.quota.usedToday>0 && !fj.active && !(sc.missing||[]).length;
+    const freeN = sc ? ['viagem','ia'].filter(n=>{ const q=reqs.find(r=>r.niche===n); return !q || q.state==='falhou' || q.state==='recusado (dado velho)'; }) : [];
+    const askOf = ns => ({ canAsk:true, askLabel:`Pedir ${ns.some(n=>reqs.some(r=>r.niche===n))?'nova ':''}leitura de ${ns.map(NLABEL).join(' e ')} à forja`, askShort:`Ler ${ns.map(NLABEL).join(' e ')}` });
+    CHROME.setForja(fj.active ? Object.assign({}, fj, freeN.length ? askOf(freeN) : {}) : Object.assign({}, fj, { label: state.forja===EMPTY && !sc ? 'Pedir leitura à forja' : 'Pedir nova leitura à forja' }, quotaUsed ? { disabled:true, disabledText: cap(sc.quota.text) } : {}));   /* chrome v2.1: ativo + nicho livre */
+    forjaTitle(`Leitura dos ${FMT_LABEL[state.fmt]}, um pedido por nicho (Viagem e IA)`);
+    /* linhas por nicho: as do motor como vêm; nicho sem pedido ganha a sua */
+    const lines = sc ? (sc.statusLines || reqs.map(q=>`${NLABEL(q.niche)}: ${q.statusLabel}`)).map((t,i)=>({ t, n:(reqs[i]||{}).niche||'' })) : [];
+    const notes = sc ? reqs.slice(1).filter(q=>q.stateNote && !sc.statusText.includes(q.stateNote) && !lines.some(l=>l.t.includes(q.stateNote))).map(q=>` ${NLABEL(q.niche)}: ${esc(q.stateNote)}.`).join('') : '';
+    const miss = sc&&sc.missing&&sc.missing.length&&fj.active ? sc.missing : [];
+    const refused = reqs.filter(q=>q.state==='recusado (dado velho)' || q.state==='falhou').map(q=>q.niche);
+    const goBtns = [];   /* o pedido do nicho livre fica no botão da forja (chrome v2.1: ativo + nicho livre) */
+    const reqList = lines.length ? `<p style="margin:0 0 6px"><b>Pedido de leitura dos ${FMT_LABEL[state.fmt]}</b></p><ul class="reqs">${lines.map(l=>`<li data-req-niche="${l.n}">${esc(l.t)}</li>`).join('')}</ul><p class="scopenote" style="margin:0 0 12px">${esc(sc.statusText)}${notes}</p>${goBtns.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px">${goBtns.join('')}</div>`:''}`
+      : state.forja===EMPTY ? `<p class="scopenote" style="margin:0 0 12px">Ainda não há leitura dos ${FMT_LABEL[state.fmt]} em nenhum dos dois nichos.</p>` : '';
+    const prevAll = state.showPrev ? ['viagem','ia'].map(n=>{ const cur=readingFor(n,state.fmt), pr=previousReading(n,state.fmt,cur);
+      if(!cur) return `<p class="scopenote">${NLABEL(n)}: ainda não há leitura deste tipo.</p>`;
+      return `<div class="prevread"><p class="scopenote" style="margin:10px 14px 0"><b>${NLABEL(n)}</b></p>${readingHTML(cur,'cur',n)}${pr?readingHTML(pr,'prev',n):`<p class="scopenote">${NLABEL(n)}: não há leitura anterior deste tipo.</p>`}</div>`; }).join('') : '';
+    all.innerHTML=`<h2>Insights compara dentro de um nicho</h2><p>Misturar viagem e IA somaria públicos, horários e fórmulas que não têm nada a ver. Escolha um nicho para ver a leitura da forja, as fórmulas e os temas.${!sc ? ` Pedir uma leitura daqui envia um pedido dos ${FMT_LABEL[state.fmt]} para cada nicho.` : ''}</p>${reqList}${prevAll}<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-go="viagem">Ver Viagem</button><button type="button" class="btn" data-go="ia">Ver IA</button></div>`;
+    all.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>CHROME.setNiche(b.dataset.go));
+    all.querySelectorAll('[data-ask]').forEach(b=>b.onclick=()=>{ askForja(b.dataset.ask); const r=document.querySelector(`#allState [data-req-niche="${b.dataset.ask}"]`); r&&(r.tabIndex=-1,r.focus()); });
+    return;
+  }
+  grid.hidden=false; all.hidden=true; document.querySelector('#screen .filters').hidden=false; document.querySelector('#screen .filters .sel').hidden=false;
+    renderForja(); renderYou(); renderCad(); renderFormulas(); renderHeat(); renderThemes(); renderGaps(); fitIdle();
+}
+document.addEventListener('click', e=>{ const a=e.target.closest && e.target.closest('#screen sup a[href^="#"]'); if(!a) return; const t=document.getElementById(a.getAttribute('href').slice(1)); const d=t&&t.closest('details'); if(d && !d.open){ d.open=true; } });
+function fitIdle(){ document.querySelectorAll('#screen .lane .idle span').forEach(sp=>{ const box=sp.parentElement; sp.classList.remove('cut'); box.classList.remove('mini'); if(sp.dataset.full) sp.textContent=sp.dataset.full;
+  if(sp.offsetWidth <= box.clientWidth-12) return;
+  if(sp.dataset.short){ sp.textContent=sp.dataset.short; box.classList.add('mini'); if(sp.offsetWidth <= box.clientWidth) return; }   /* faixa estreita: só o ⚠ (o title tem o texto todo) */
+  sp.classList.add('cut'); }); }
+addEventListener('resize', ()=>fitIdle());
+/* "ainda não há leitura" é estado do mock, não pedido: fica na URL (?forja=) e no sessionStorage, para voltar de outra tela igual */
+const EMPTY_KEY='obs-ins-empty';
+function emptyMarked(){ try{ return sessionStorage.getItem(EMPTY_KEY)==='1'; }catch(e){ return false; } }
+function emptyMark(on){ try{ on ? sessionStorage.setItem(EMPTY_KEY,'1') : sessionStorage.removeItem(EMPTY_KEY); }catch(e){}
+  try{ const u=new URL(location.href); on ? u.searchParams.set('forja',EMPTY) : u.searchParams.delete('forja'); history.replaceState(history.state,'',u.toString()); }catch(e){} }
+function setFmt(f){ state.fmt=f; { const st=SS.state(); if(!st.asks.length && st.type!==curType()) SS.setBase(st.base, { type: curType() }); }   /* sem pedido feito: a base do mock acompanha o formato */ state.showPrev=false; MENU[1].label='Ver a leitura anterior'; document.querySelectorAll('[data-fmt]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.fmt===f)); render(); }
+document.querySelectorAll('[data-fmt]').forEach(b=>b.onclick=()=>setFmt(b.dataset.fmt));
+const qs=new URLSearchParams(location.search);
+if(qs.get('fmt')) state.fmt=qs.get('fmt');
+{ const st0=SS.state(); if(!st0.asks.length && st0.type!==curType()) SS.setBase(st0.base, { type: curType() }); }
+{ const b=SS.state().base, q=qs.get('forja');
+  state.forja = q===EMPTY ? EMPTY : q || (b && b!=='sem pedido' ? b : emptyMarked() ? EMPTY : NONE);
+  if(q===EMPTY) emptyMark(true);   /* EMPTY não mexe na sessão: pedidos feitos depois continuam */
+  else if(q && q!==b && !(q===NONE && b==='sem pedido')) SS.setBase(q===NONE?'sem pedido':q, { type: curType() }); }
+if(qs.get('heat'))heatMode=qs.get('heat');
+const MOCK=[NONE,...FJ.requestStates,EMPTY];
+const MENU=[
+  { label:'Copiar texto da leitura', onClick:()=>copyReading() },
+  { label:'Ver a leitura anterior', onClick:()=>{ state.showPrev=!state.showPrev; MENU[1].label = state.showPrev ? 'Esconder a leitura anterior' : 'Ver a leitura anterior'; render(); } },
+];
+CHROME.mount({
+  tab:'insights', content:'#screen',
+  mockStates:[{ label:'Pedido à forja', items: MOCK.map(id=>({ id, label:id, pressed: id===state.forja })), note:'Simula só o estado do pedido; o resto da tela vem dos dados do observatório.' }],
+  onMock:id=>{ state.forja=id; emptyMark(id===EMPTY); SS.setBase(id===NONE||id===EMPTY?'sem pedido':id, { type: curType() }); CHROME.setMockPressed(id); render(); },
+  onNiche:n=>{ state.niche=n; state.showPrev=false; MENU[1].label='Ver a leitura anterior'; render(); },
+  onTheme:()=>render(),
+  onForja:()=>askForja(),
+  onStatus:()=>showStatus(),
+  onSynced:()=>render(),   /* depois da sincronização: "fica fora", cadência e notas de frescor saem de novo do motor */
+  cowork:()=>{ const t=readingText(); return `Insights · ${state.niche==='todos'?'Viagem e IA':NICHE_LABEL[state.niche]} · ${FMT_LABEL[state.fmt]}\n\n${t || 'Ainda não há leitura da forja neste recorte; não cite números de leitura.'}`; },
+  menuItems: MENU,
+});
+state.niche = CHROME.niche();
+document.querySelectorAll('[data-fmt]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.fmt===state.fmt));
+render();
+</script>
+</body>
+</html>
