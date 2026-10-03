@@ -3,7 +3,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ForjaRequest, RequestState, ChannelSnapshot } from './types'
-import { DAY, H, spDayStart, spDateStart } from './time'
+import { DAY, H, spDayStart, spDateStart, spDateOf } from './time'
 import { RULES } from './rules'
 import { formulasOf, THEME } from './catalog'
 import { deriveSyncState, backfillProgress } from './channels'
@@ -60,7 +60,16 @@ const TASK_COLS = 'id, task_type, target_niche, target_video_id, target_fmt, sta
 const PAGE = 1000
 /** ids per `in()` filter, so the URL stays well under the gateway limit. */
 const IN_CHUNK = 500
+/** Parallel `in()` chunk reads per table. */
+const IN_CHUNK_CONCURRENCY = 4
 const SNAPSHOT_DAYS = 90
+/**
+ * Daily-record lookback cap. The engine reads the daily series in two ways: (1) expectedCurve/effect look at most 7 + 7 days
+ * around a change, and changes only matter within 90 days; (2) vpdSince/vpd7 use the series from seriesStart. (1) is far
+ * inside 365 d; (2) needs the whole series since seriesStart, so it is kept, but capped at 365 d (a video older than that
+ * contributes its last year; nothing the screens show looks further back than 90 d + the 14 d change window).
+ */
+const DAILY_MAX_DAYS = 365
 const READING_DAYS = 90
 const TASK_DAYS = 7
 /** No upload (any format) for this many days → 'parado'. The mockup fixes it in data; production derives it. */
@@ -91,8 +100,7 @@ const colorOf = (id: string) => { let h = 0; for (const ch of id) h = (h * 31 + 
 const ageOf = (pub: number, now: number) => Math.max(0, Math.floor((now - pub) / DAY))
 /** Same rule as competitor-sync (`is_short`), for own videos that have no flag. */
 const ownIsShort = (v: OwnVideoRow) => v.duration_seconds <= 60 || v.title.includes('#Shorts')
-/** 'YYYY-MM-DD' of the SP calendar day containing `t`. */
-const spDate = (t: number) => new Date(spDayStart(t) - 3 * H).toISOString().slice(0, 10) // SP is UTC−3
+const spDate = spDateOf
 const dmyOf = (date: string) => { const [y, m, d] = date.slice(0, 10).split('-'); return d + '/' + m + '/' + y }
 
 /** Next 00/06/12/18 slot in São Paulo strictly after `now`. */
@@ -132,17 +140,20 @@ function baseOf(r: VersionRow): Base {
 /**
  * Legacy `competitor_changes` rows (from_version_id null) → pre-series versions: one "before" version, then one per row
  * (prec '1d', window [detected_at − 1 d, detected_at]). The last legacy "after" IS the first real version when one exists
- * (same value, observed later), so it is merged instead of producing a phantom change.
+ * (same value, observed later), so it is merged instead of producing a phantom change. `sameAsReal` guards the merge:
+ * when the real first version carries a different value, both are kept (the title really changed in between).
  */
-function withLegacy<T extends Base>(legacy: readonly LegacyChangeRow[], real: T[], pub: number, now: number, before: (l: LegacyChangeRow) => Omit<T, keyof Base>, after: (l: LegacyChangeRow) => Omit<T, keyof Base>): T[] {
+function withLegacy<T extends Base>(legacy: readonly LegacyChangeRow[], real: T[], pub: number, now: number, before: (l: LegacyChangeRow) => Omit<T, keyof Base>, after: (l: LegacyChangeRow) => Omit<T, keyof Base>, sameAsReal: (l: LegacyChangeRow, r: T) => boolean = () => true): T[] {
   const ls = legacy.map(l => ({ l, d: ms(l.detected_at) })).filter((x): x is { l: LegacyChangeRow; d: number } => x.d != null).sort((a, b) => a.d - b.d)
   if (!ls.length) return real
   const first = ls[0]!
   const out: T[] = [{ id: first.l.id + '/antes', first_seen: Math.min(pub, first.d - DAY), last_seen: first.d - DAY, current: false, prec: '1d', window: null, ...before(first.l) } as T]
   ls.forEach(({ l, d }, i) => {
     const win: [number, number] = [d - DAY, d], next = ls[i + 1]
-    if (!next && real.length) { out.push({ ...real[0]!, first_seen: d, prec: '1d', window: win }, ...real.slice(1)); return }
-    out.push({ id: l.id, first_seen: d, last_seen: next ? next.d - DAY : now, current: !next, prec: '1d', window: win, ...after(l) } as T)
+    if (!next && real.length && sameAsReal(l, real[0]!)) { out.push({ ...real[0]!, first_seen: d, prec: '1d', window: win }, ...real.slice(1)); return }
+    const keepsReal = !next && real.length > 0 // different value: the real versions follow, so this one is no longer current
+    out.push({ id: l.id, first_seen: d, last_seen: next ? next.d - DAY : keepsReal ? Math.max(d, real[0]!.first_seen) : now, current: !next && !keepsReal, prec: '1d', window: win, ...after(l) } as T)
+    if (keepsReal) out.push(...real)
   })
   return out
 }
@@ -177,7 +188,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
         .sort((a, b) => a.idx - b.idx)
       for (const p of series) if (lastIdx == null || p.idx > lastIdx) lastIdx = p.idx
       const realTitles: TitleVersion[] = (versionsBy.get(v.id + '|title') ?? []).map(r => ({ ...baseOf(r), text: r.value_text ?? '' }))
-      let titles = withLegacy<TitleVersion>(legacyBy.get(v.id + '|title') ?? [], realTitles, pub, now, l => ({ text: l.old_title ?? '' }), l => ({ text: l.new_title ?? '' }))
+      let titles = withLegacy<TitleVersion>(legacyBy.get(v.id + '|title') ?? [], realTitles, pub, now, l => ({ text: l.old_title ?? '' }), l => ({ text: l.new_title ?? '' }), (l, r) => r.text === (l.new_title ?? ''))
       if (!titles.length) titles = [{ id: v.id + '/title', first_seen: pub, last_seen: now, current: true, prec: 'first', window: null, text: v.title ?? '' }]
       const thumbs: ThumbVersion[] = (versionsBy.get(v.id + '|thumb') ?? []).map(r => ({ ...baseOf(r), key: r.value_hash, art: null, blobUrl: r.thumb_blob_url }))
       const realDescs: DescVersion[] = (versionsBy.get(v.id + '|desc') ?? []).map(r => {
@@ -200,7 +211,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       id: c.id, name: c.channel_name, fullName: c.channel_name, niche: isNiche(c.niche) ? c.niche : null, own: false, lang: '',
       subs: c.subscriber_count ?? 0, video_limit: limit, url: 'https://www.youtube.com/channel/' + c.channel_id, handle: '', gender: 'n', color: colorOf(c.id), ini: initials(c.channel_name),
       sync: {
-        state, last: ms(c.last_ok_synced_at) ?? ms(c.added_at) ?? now, next, added: ms(c.added_at) ?? now, errorSince: ms(c.sync_error_since), msg: c.sync_error,
+        state, last: ms(c.last_ok_synced_at), next, added: ms(c.added_at) ?? now, errorSince: ms(c.sync_error_since), msg: c.sync_error,
         backfill: state === 'backfill' ? backfillProgress({ tracked: nTracked, video_limit: limit, youtube_video_count: c.youtube_video_count }) : null,
       },
       activity: activityOf(vs.map(x => x.pub), now),
@@ -295,10 +306,19 @@ async function readAll<T>(table: string, build: () => RangeQuery): Promise<T[]> 
     if (page.length < PAGE) return out
   }
 }
-async function readIn<T>(table: string, ids: readonly string[], build: (chunk: string[]) => RangeQuery): Promise<T[]> {
-  const out: T[] = []
-  for (let i = 0; i < ids.length; i += IN_CHUNK) out.push(...await readAll<T>(table, () => build(ids.slice(i, i + IN_CHUNK))))
+/** Runs `fn` over `items` with at most `limit` in flight; results keep the input order. Rejects on the first failure. */
+async function mapLimit<A, B>(items: readonly A[], limit: number, fn: (a: A) => Promise<B>): Promise<B[]> {
+  const out = new Array<B>(items.length)
+  let next = 0
+  const worker = async () => { for (let i = next++; i < items.length; i = next++) out[i] = await fn(items[i]!) }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
   return out
+}
+/** `in()` chunks of one table are read in parallel (≤ IN_CHUNK_CONCURRENCY at a time): one logical pass, not a sequential crawl. */
+async function readIn<T>(table: string, ids: readonly string[], build: (chunk: string[]) => RangeQuery): Promise<T[]> {
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += IN_CHUNK) chunks.push(ids.slice(i, i + IN_CHUNK))
+  return (await mapLimit(chunks, IN_CHUNK_CONCURRENCY, chunk => readAll<T>(table, () => build(chunk)))).flat()
 }
 /** undefined table / undefined column, from Postgres or from the PostgREST schema cache. */
 const MISSING = new Set(['42P01', '42703', 'PGRST205', 'PGRST204'])
@@ -312,6 +332,19 @@ async function readOptional<T>(table: string, build: () => RangeQuery): Promise<
     throw e
   }
 }
+
+/** Ids of the videos the engine marks `tracked`: per channel, the `video_limit` most recent by `published_at` (same rule as rowsToDataset). */
+export function trackedVideoIds(channels: readonly Pick<ChannelRow, 'id' | 'video_limit'>[], videos: readonly Pick<VideoRow, 'id' | 'competitor_channel_id' | 'published_at'>[]): string[] {
+  const by = groupBy(videos, v => v.competitor_channel_id), out: string[] = []
+  for (const c of channels) {
+    const limit = Math.min(c.video_limit, RULES.videoLimitMax)
+    const dated = (by.get(c.id) ?? []).map(v => ({ id: v.id, pub: ms(v.published_at) })).filter((x): x is { id: string; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
+    for (const x of dated.slice(0, limit)) out.push(x.id)
+  }
+  return out
+}
+/** First SP date of the daily read: one day before the series start (the day-0 baseline), never older than DAILY_MAX_DAYS. */
+export function dailyReadFrom(seriesStart: number, now: number): string { return spDate(Math.max(seriesStart - DAY, now - DAILY_MAX_DAYS * DAY)) }
 
 export interface LoadOptions { siteId: string; now: number; supabase?: SupabaseClient }
 
@@ -343,10 +376,12 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
       .in('competitor_channel_id', ids).gte('snapshot_date', spDate(now - SNAPSHOT_DAYS * DAY)).order('id')),
   ])
   const videoIds = videos.map(v => v.id)
+  // daily points only for TRACKED videos (the engine ignores the series of the others), from dailyReadFrom to today (SP)
+  const dailyIds = trackedVideoIds(channels, videos), dailyFrom = dailyReadFrom(seriesStart, now), dailyTo = spDate(now)
   const [versions, daily] = await Promise.all([
     readIn<VersionRow>('competitor_video_versions', videoIds, ids => sb.from('competitor_video_versions').select(VERSION_COLS).in('video_id', ids).order('id')),
-    readIn<DailyRow>('competitor_video_daily', videoIds, ids => sb.from('competitor_video_daily').select('video_id, snap_date, views, likes, comments, taken_at')
-      .in('video_id', ids).gte('snap_date', spDate(seriesStart - DAY)).order('video_id').order('snap_date')),
+    readIn<DailyRow>('competitor_video_daily', dailyIds, ids => sb.from('competitor_video_daily').select('video_id, snap_date, views, likes, comments, taken_at')
+      .in('video_id', ids).gte('snap_date', dailyFrom).lte('snap_date', dailyTo).order('video_id').order('snap_date')),
   ])
   return { settings, channels, ownChannels, videos, ownVideos, versions, legacyChanges, daily, snapshots, readings, tasks, heartbeat: heartbeats[0] ?? null }
 }

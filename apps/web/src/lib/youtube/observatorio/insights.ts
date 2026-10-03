@@ -106,11 +106,30 @@ function ownVsNiche(ctx: EngineCtx, ownId: string, fmtId: VideoFmt, ref: Ref): R
   }
   return out
 }
-export function nicheStats(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long', ownId = 'tnfigueiredo'): Record<string, unknown> & { own: Record<string, unknown> | null } {
+/**
+ * The own channel to compare against the niche, derived from the dataset (`own: true`), never a literal id (real ids are
+ * uuids and a site can have two: PT and EN). `explicit` wins when given. With several own channels: the one whose `lang` is
+ * the niche's dominant competitor language (when that is determinable and picks exactly one); otherwise the one with the
+ * most tracked videos (ties: first by id, so the pick is stable).
+ */
+export function ownChannelOf(ctx: EngineCtx, niche?: NicheScope, explicit?: string): Ch | undefined {
+  if (explicit) return chOf(ctx, explicit)
+  const owns = [...ctx.CH.values()].filter(c => c.own).sort((a, b) => a.id.localeCompare(b.id))
+  if (owns.length <= 1) return owns[0]
+  const langs = new Map<string, number>()
+  for (const c of ctx.CH.values()) if (!c.own && c.lang && inNiche(niche, c)) langs.set(c.lang, (langs.get(c.lang) ?? 0) + 1)
+  const ranked = [...langs.entries()].sort((a, b) => b[1] - a[1])
+  const dominant = ranked.length && (ranked.length === 1 || ranked[0]![1] > ranked[1]![1]) ? ranked[0]![0] : null
+  const byLang = dominant ? owns.filter(c => c.lang === dominant) : []
+  if (byLang.length === 1) return byLang[0]
+  const tracked = (c: Ch) => c.videos.filter(v => v.tracked).length
+  return [...owns].sort((a, b) => tracked(b) - tracked(a))[0]
+}
+export function nicheStats(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long', ownId?: string): Record<string, unknown> & { own: Record<string, unknown> | null } {
   const chs = [...ctx.CH.values()].filter(c => !c.own && inNiche(niche, c))
   const st = chs.map(c => channelStats(ctx, c.id, fmtId) as unknown as ChStats)
   const ref: Ref = { pw: agg(chs.map(c => cadence(ctx, c.id, fmtId).pw)), perMilSubs: agg(st.map(x => x.perMilSubs)), typicalMult: agg(st.map(x => x.typicalMult)), engagement: agg(st.map(x => x.engagement.median)), pctOutliers: agg(st.map(x => x.pctOutliers)) }
-  return { niche: niche || 'todos', fmt: fmtId, channels: chs.map(c => c.id), ...ref, own: ownVsNiche(ctx, ownId, fmtId, ref) }
+  return { niche: niche || 'todos', fmt: fmtId, channels: chs.map(c => c.id), ...ref, own: ownChannelOf(ctx, niche, ownId) ? ownVsNiche(ctx, ownChannelOf(ctx, niche, ownId)!.id, fmtId, ref) : null }
 }
 
 /* ------------------------------------------------------------------ temas */
@@ -138,11 +157,11 @@ export function themeTrend(ctx: EngineCtx, niche: NicheScope | undefined, fmtId:
   }).sort((a, b) => b.now - a.now) : []
   return Object.assign(res, { excluded, channelsCompared: [...okCh] })
 }
-export function ownCoverage(ctx: EngineCtx, fmtId: VideoFmt = 'long'): { channel: string; fmt: VideoFmt; window: string; n: number; byTheme: Record<string, number>; ids: string[] } {
-  const own = chOf(ctx, 'tnfigueiredo')
+export function ownCoverage(ctx: EngineCtx, fmtId: VideoFmt = 'long', ownId?: string): { channel: string | null; fmt: VideoFmt; window: string; n: number; byTheme: Record<string, number>; ids: string[] } {
+  const own = ownChannelOf(ctx, undefined, ownId)
   const vs = own ? own.videos.filter(v => v.fmt === fmtId && v.ageDays <= 90) : []
   const byTheme: Record<string, number> = {}; vs.forEach(v => { if (v.theme != null) byTheme[v.theme] = (byTheme[v.theme] || 0) + 1 })
-  return { channel: 'tnfigueiredo', fmt: fmtId, window: '90 dias', n: vs.length, byTheme, ids: vs.map(v => v.id) }
+  return { channel: own?.id ?? null, fmt: fmtId, window: '90 dias', n: vs.length, byTheme, ids: vs.map(v => v.id) }
 }
 
 /* ------------------------------------------------------------------ padrões (mesmo cálculo das leituras) */

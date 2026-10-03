@@ -41,6 +41,9 @@ describe.skipIf(skipIfNoLocalDb())('loadDataset (local DB)', () => {
     expect((await sb.from('competitor_video_daily').insert([
       { video_id: va, snap_date: spDate(now - 2 * DAY), views: 800, taken_at: new Date(now - 2 * DAY).toISOString() },
       { video_id: va, snap_date: spDate(now - DAY), views: 900, taken_at: new Date(now - DAY).toISOString() },
+      // untracked video (over video_limit) and a point dated after today: neither may be read
+      { video_id: vb, snap_date: spDate(now - DAY), views: 99, taken_at: new Date(now - DAY).toISOString() },
+      { video_id: va, snap_date: spDate(now + 3 * DAY), views: 12345, taken_at: new Date(now + 3 * DAY).toISOString() },
     ])).error).toBeNull()
     expect((await sb.from('competitor_settings').upsert({ site_id: siteId, series_started_at: new Date(now - 5 * DAY).toISOString() }, { onConflict: 'site_id' })).error).toBeNull()
   })
@@ -63,6 +66,7 @@ describe.skipIf(skipIfNoLocalDb())('loadDataset (local DB)', () => {
     expect(V(vb)).toMatchObject({ fmt: 'long', tracked: false, niche: 'viagem' })
     expect(V(vc)).toMatchObject({ fmt: 'short', tracked: true, niche: 'ia', ch: ch2 })
     expect(V(va).series.map(p => p.views)).toEqual([800, 900])
+    expect(V(vb).series).toEqual([]) // untracked: daily record not read
     expect(V(va).firstIdx).toBe(V(va).series[0]!.idx)
     expect(V(va).series[1]!.idx - V(va).series[0]!.idx).toBe(1)
     expect(V(va).titles.map(t => t.text)).toEqual(['I Tested 7 AI Video Tools'])

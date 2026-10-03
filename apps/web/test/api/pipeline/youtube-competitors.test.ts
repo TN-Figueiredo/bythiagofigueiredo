@@ -56,10 +56,11 @@ function buildSupabase(tableResponses: Record<string, Array<{ data: unknown; err
       chain.eq = vi.fn(self)
       chain.order = vi.fn(self)
       chain.limit = vi.fn(self)
-      // observatory loader (one query per table, paged): in/is/gte/range/maybeSingle
+      // observatory loader (one query per table, paged): in/is/gte/lte/range/maybeSingle
       chain.in = vi.fn(self)
       chain.is = vi.fn(self)
       chain.gte = vi.fn(self)
+      chain.lte = vi.fn(self)
       chain.range = vi.fn(self)
       chain.maybeSingle = vi.fn(self)
       // Make it thenable so `await supabase.from(...).select(...)...` works

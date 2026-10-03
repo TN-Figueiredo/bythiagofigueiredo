@@ -20,7 +20,8 @@ export interface ObsVideo {
 }
 export interface ChannelSnapshot { t: number; date: string; subs: number; views: number }
 export interface ChannelSync {
-  state: SyncState; last: number; next: number | null; added: number; errorSince: number | null
+  /** Newest OK sync; null = never synced OK (never invented from added_at). */
+  state: SyncState; last: number | null; next: number | null; added: number; errorSince: number | null
   msg: string | null; backfill: { done: number; total: number } | null
   /** Derived by the engine (Task 17); absent on the input dataset. */
   label?: string; stateLabel?: string; problemLabel?: string | null; problemPhrase?: string | null

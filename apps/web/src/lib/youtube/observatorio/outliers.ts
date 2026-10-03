@@ -17,7 +17,8 @@ export function phaseOf(ctx: EngineCtx, v: ObsVideo, o?: { m7?: number | null })
   const { clock, fmt } = ctx
   const ch = ctx.CH.get(v.ch)!, vv = ctx.V.get(v.id) ?? (v as V)
   const m7 = o && 'm7' in o ? o.m7 ?? null : median7(ctx, v.ch, v.fmt)
-  if (ch.sync.state === 'atrasado' || ch.sync.state === 'erro') return { id: 'sem-ritmo', label: 'sem ritmo medido', why: 'sincronização ' + (ch.sync.state === 'erro' ? 'com erro' : 'atrasada') + ' desde ' + clock.dm(ch.sync.last) + ' ' + clock.hm(ch.sync.last) + ': o ritmo dos últimos 7 dias não está medido' }
+  if ((ch.sync.state === 'atrasado' || ch.sync.state === 'erro') && ch.sync.last == null) return { id: 'sem-ritmo', label: 'sem ritmo medido', why: 'sincronização ' + (ch.sync.state === 'erro' ? 'com erro' : 'atrasada') + ' e nenhuma sincronização boa: o ritmo não está medido' }
+  if (ch.sync.last != null && (ch.sync.state === 'atrasado' || ch.sync.state === 'erro')) return { id: 'sem-ritmo', label: 'sem ritmo medido', why: 'sincronização ' + (ch.sync.state === 'erro' ? 'com erro' : 'atrasada') + ' desde ' + clock.dm(ch.sync.last) + ' ' + clock.hm(ch.sync.last) + ': o ritmo dos últimos 7 dias não está medido' }
   if (ch.sync.state === 'backfill') return { id: 'sem-ritmo', label: 'sem ritmo medido', why: 'canal ainda buscando vídeos: sem série diária' }
   if (vv.vpd7 == null) return { id: 'novos', label: 'Novos', why: 'menos de 7 dias de série' }
   if (m7 == null) {

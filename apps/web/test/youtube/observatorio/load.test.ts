@@ -1,7 +1,7 @@
 // @vitest-environment node
 // apps/web/test/youtube/observatorio/load.test.ts — pure rowsToDataset (Review Focus 2 and 4).
 import { describe, it, expect } from 'vitest'
-import { rowsToDataset, nextSyncSlot, type ObservatoryRows, type ChannelRow, type VideoRow, type VersionRow, type LegacyChangeRow, type DailyRow, type ReadingRow, type OwnChannelRow, type OwnVideoRow } from '@/lib/youtube/observatorio/load'
+import { rowsToDataset, nextSyncSlot, trackedVideoIds, dailyReadFrom, type ObservatoryRows, type ChannelRow, type VideoRow, type VersionRow, type LegacyChangeRow, type DailyRow, type ReadingRow, type OwnChannelRow, type OwnVideoRow } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { formulasOf } from '@/lib/youtube/observatorio/catalog'
 
@@ -246,5 +246,61 @@ describe('expectedCurve — life day is idx-based, a hole does not shift it (Rev
     expect(curve.length).toBeGreaterThan(3)
     for (const p of curve) expect(p.lifeDay).toBe(p.idx - v.firstIdx!)
     expect(curve.find(p => p.idx === 6)!.lifeDay).toBe(6)
+  })
+})
+
+describe('rowsToDataset — a channel that never synced OK and now errors', () => {
+  const ds = rowsToDataset(rows({
+    channels: [channel({ last_ok_synced_at: null, sync_status: 'error', sync_error: 'quotaExceeded', sync_error_since: iso(NOW - 3 * H), added_at: iso(sp('2026-09-01T10:00:00')) })],
+    videos: [video()],
+  }), NOW)
+  const forced = ds
+  const obs = createObservatory(forced)
+  const c = obs.channels[0]!
+  it('sync.last is null, never added_at', () => {
+    expect(ds.channels[0]!.sync.state).toBe('erro')
+    expect(ds.channels[0]!.sync.last).toBeNull()
+  })
+  it('the problem phrase and sync text say "nunca sincronizado com sucesso" and name no sync date', () => {
+    expect(c.sync.problemPhrase).toContain('nunca sincronizado com sucesso')
+    expect(c.sync.problemPhrase).not.toMatch(/última sincronização boa/)
+    expect(c.sync.problemPhrase).not.toMatch(/\d\d\/\d\d 0?1[0-9]:\d\d.*sincroniza/)
+    expect(obs.syncText(c.id)).toContain('nunca sincronizado com sucesso')
+    expect(Number.isFinite(c.syncAgeHours ?? NaN) || c.syncAgeHours == null).toBe(true)
+    expect(JSON.stringify(c.sync)).not.toMatch(/NaN/)
+  })
+  it('the phase of its videos says no rhythm is measured, without a date', () => {
+    const ph = obs.phaseOf(forced.videos[0]!.id)
+    expect(ph.why).toBe('sincronização com erro e nenhuma sincronização boa: o ritmo não está medido')
+  })
+})
+
+describe('rowsToDataset — legacy title merge only on equal text', () => {
+  const mk = (newTitle: string) => rowsToDataset(rows({
+    settings: { series_started_at: SERIES, channel_limit: 75 }, channels: [channel()],
+    videos: [video({ published_at: iso(sp('2026-08-01T10:00:00')) })],
+    versions: [version({ id: 'real-title', value_text: 'Texto real', first_seen_at: iso(sp('2026-10-05T09:00:00')) })],
+    legacyChanges: [legacy({ old_title: 'Antigo', new_title: newTitle })],
+  }), NOW).videos[0]!.titles
+  it('equal text: merged into the real version', () => {
+    expect(mk('Texto real').map(t => t.text)).toEqual(['Antigo', 'Texto real'])
+    expect(mk('Texto real')[1]!.id).toBe('real-title')
+  })
+  it('different text: both the legacy "after" and the real version are kept', () => {
+    const t = mk('Outro texto')
+    expect(t.map(x => x.text)).toEqual(['Antigo', 'Outro texto', 'Texto real'])
+    expect(t[1]!.current).toBe(false)
+  })
+})
+
+describe('daily read bound', () => {
+  it('only the video_limit most recent per channel are tracked ids', () => {
+    const chs = [channel({ video_limit: 2 })]
+    const vs = [video({ id: 'a', published_at: iso(NOW - 1 * DAY) }), video({ id: 'b', published_at: iso(NOW - 2 * DAY) }), video({ id: 'c', published_at: iso(NOW - 3 * DAY) }), video({ id: 'n', published_at: null })]
+    expect(trackedVideoIds(chs, vs).sort()).toEqual(['a', 'b'])
+  })
+  it('reads from series start − 1 d, never older than 365 d, in SP dates', () => {
+    expect(dailyReadFrom(NOW - 30 * DAY, NOW)).toBe('2026-09-23')
+    expect(dailyReadFrom(NOW - 900 * DAY, NOW)).toBe(new Date(NOW - 365 * DAY - 3 * H).toISOString().slice(0, 10))
   })
 })

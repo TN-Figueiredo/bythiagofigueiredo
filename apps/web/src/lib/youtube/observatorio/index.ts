@@ -10,7 +10,7 @@ import { diffLines, titleDiff } from './text-diff'
 import { effect, effectAt, type EffectResult } from './effect'
 import { multiplierAt, type MultiplierResult } from './multiplier'
 import { phaseOf, phases, outliers, tabCounts, TAB_TITLES, type Phase, type OutlierQuery, type OutliersResult } from './outliers'
-import { cadence, channelStats, channelSlots, syncText, runSyncText, problemLabel, problemPhrase, syncLabel } from './channels'
+import { cadence, channelStats, channelSlots, syncText, runSyncText, problemLabel, problemPhrase, syncLabel, NEVER_SYNCED } from './channels'
 import { deriveChanges, changesIn, caveats, REWRITE_GROUPS, type ObsChange } from './changes'
 import { link } from './links'
 import { FORMULAS, FORMULA, THEMES, THEME, formulasOf, type Formula, type Theme } from './catalog'
@@ -74,7 +74,7 @@ export interface Observatory {
   SYNC: { last: number | null; next: number | null; text: string; title: string; nextText: string | null; cadence: string; cadenceHours: number; slots: number[]; dailyBefore: string }
   formulas: ReadonlyArray<Formula>; formula(id: string): Formula | undefined; formulasOf: typeof formulasOf; themes: ReadonlyArray<Theme>; theme(id: string): Theme | undefined
   heatmap(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof heatmap>; nicheStats(niche?: NicheScope, f?: VideoFmt, ownId?: string): ReturnType<typeof nicheStats>
-  themeTrend(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof themeTrend>; ownCoverage(f?: VideoFmt): ReturnType<typeof ownCoverage>; patternsNow(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof patternsNow>
+  themeTrend(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof themeTrend>; ownCoverage(f?: VideoFmt, ownId?: string): ReturnType<typeof ownCoverage>; patternsNow(niche?: NicheScope, f?: VideoFmt): ReturnType<typeof patternsNow>
   link: typeof link
   LAST_IDX: number; TZ: string; TZ_LABEL: string; SERIES_START_LABEL: string
 }
@@ -95,7 +95,7 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
     c.sync.label = syncLabel(c.sync.state); c.sync.stateLabel = c.sync.label
     c.sync.problemLabel = problemLabel(ctx, c); c.sync.problemPhrase = problemPhrase(ctx, c)
     c.statusLabel = c.activity.state === 'parado' && c.sync.state === 'ok' ? 'parado' : c.sync.label
-    c.syncAgeHours = (ds.now - c.sync.last) / 36e5
+    if (c.sync.last != null) c.syncAgeHours = (ds.now - c.sync.last) / 36e5
   }
   const changes = deriveChanges(ctx)
   const TAB_COUNTS = { todos: tabCounts(ctx, 'todos'), viagem: tabCounts(ctx, 'viagem'), ia: tabCounts(ctx, 'ia') }
@@ -132,7 +132,7 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
     cadence: (id, f) => cadence(ctx, id, f), channelStats: (id, f) => channelStats(ctx, id, f), channelSlots: () => channelSlots(ctx, RULES.channelLimit),
     syncText: id => syncText(ctx, CH.get(id)!), runSyncText,
     formulas: FORMULAS, formula: id => FORMULA[id], formulasOf, themes: THEMES, theme: id => THEME[id],
-    heatmap: (n, f) => heatmap(ctx, n, f), nicheStats: (n, f, o) => nicheStats(ctx, n, f, o), themeTrend: (n, f) => themeTrend(ctx, n, f), ownCoverage: f => ownCoverage(ctx, f), patternsNow: (n, f) => patternsNow(ctx, n, f),
+    heatmap: (n, f) => heatmap(ctx, n, f), nicheStats: (n, f, o) => nicheStats(ctx, n, f, o), themeTrend: (n, f) => themeTrend(ctx, n, f), ownCoverage: (f, o) => ownCoverage(ctx, f, o), patternsNow: (n, f) => patternsNow(ctx, n, f),
     link,
     changes, forja,
   }
@@ -146,9 +146,10 @@ function eligibleOf(clock: Clock, CH: Map<string, ObsChannel>, niche: Niche | 't
   const inn: string[] = [], out: Array<{ id: string; reason: string }> = []
   for (const c of CH.values()) {
     if (c.own || (niche !== 'todos' && c.niche !== niche)) continue
-    const age = (clock.now - c.sync.last) / 36e5
+    const last = c.sync.last, age = last == null ? Infinity : (clock.now - last) / 36e5
     if (c.sync.state === 'backfill') out.push({ id: c.id, reason: c.name + ' fica fora: ainda buscando vídeos (' + c.sync.backfill!.done + ' de ' + c.sync.backfill!.total + ')' })
-    else if (age > RULES.staleSyncHours) out.push({ id: c.id, reason: c.name + ' fica fora: sem sincronização ' + (age < 48 ? clock.agoHours(c.sync.last) : clock.ago(c.sync.last)) })
+    else if (last == null) out.push({ id: c.id, reason: c.name + ' fica fora: ' + NEVER_SYNCED })
+    else if (age > RULES.staleSyncHours) out.push({ id: c.id, reason: c.name + ' fica fora: sem sincronização ' + (age < 48 ? clock.agoHours(last) : clock.ago(last)) })
     else inn.push(c.id)
   }
   return { in: inn, out }

@@ -45,22 +45,25 @@ export function backfillProgress(row: Pick<SyncRow, 'tracked' | 'video_limit' | 
 
 const vids = (ctx: EngineCtx, ch: Ch): V[] => ch.videos.map(v => ctx.V.get(v.id) ?? (v as V))
 
+export const NEVER_SYNCED = 'nunca sincronizado com sucesso'
+
 /** Owner-facing reason for a channel in trouble; null when ok. */
 export function problemLabel(ctx: EngineCtx, ch: ObsChannel): string | null {
   const s = ch.sync
   if (s.state === 'erro') return s.msg ? humanizeSyncError(s.msg) : 'erro sem mensagem registrada'
-  if (s.state === 'atrasado') return 'sem sincronização boa há ' + Math.round((ctx.clock.now - s.last) / H) + ' h'
+  if (s.state === 'atrasado') return s.last == null ? NEVER_SYNCED : 'sem sincronização boa há ' + Math.round((ctx.clock.now - s.last) / H) + ' h'
   if (s.state === 'backfill') return s.backfill ? 'ainda buscando vídeos (' + s.backfill.done + ' de ' + s.backfill.total + ')' : 'ainda buscando vídeos'
   return null
 }
 
-/** Single problem phrase anchored on the last success (dados.js:1966-1985). */
+/** Single problem phrase anchored on the last success (dados.js:1966-1985); a channel that never synced OK says so, with no date. */
 export function problemPhrase(ctx: EngineCtx, ch: ObsChannel): string | null {
   const s = ch.sync, { clock } = ctx
-  if (s.state === 'atrasado') return 'atrasado · última sincronização ' + clock.dmhm(s.last) + ' (' + clock.ago(s.last) + ')'
-  if (s.state === 'erro') return 'erro desde ' + clock.dmhm(s.errorSince || s.last) + ' · última sincronização boa ' + clock.dmhm(s.last) + ' · ' + problemLabel(ctx, ch)
   if (s.state === 'backfill') return syncLabel('backfill') + (s.backfill ? ' (' + s.backfill.done + ' de ' + s.backfill.total + ')' : '')
-  return null
+  if (s.state === 'ok') return null
+  if (s.last == null) return (s.state === 'erro' ? 'erro' : 'atrasado') + ' · ' + NEVER_SYNCED + (s.state === 'erro' ? ' · ' + problemLabel(ctx, ch) : '')
+  if (s.state === 'atrasado') return 'atrasado · última sincronização ' + clock.dmhm(s.last) + ' (' + clock.ago(s.last) + ')'
+  return 'erro desde ' + clock.dmhm(s.errorSince || s.last) + ' · última sincronização boa ' + clock.dmhm(s.last) + ' · ' + problemLabel(ctx, ch)
 }
 
 export function cadence(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'long') {
@@ -114,6 +117,7 @@ function engagementOf(ctx: EngineCtx, ch: Ch, fmtId: Fmt) {
 export function syncText(ctx: EngineCtx, ch: ObsChannel): string {
   const s = ch.sync, { clock } = ctx
   if (s.state === 'backfill') return 'adicionado ' + clock.ago(s.added) + ' — ' + (s.backfill ? s.backfill.done + ' de ' + s.backfill.total : 'alguns') + ' vídeos buscados'
+  if (s.last == null) return (s.state === 'erro' ? 'erro — ' : s.state === 'atrasado' ? 'atrasado — ' : '') + NEVER_SYNCED + (s.state === 'erro' && s.msg ? ' — ' + s.msg : '')
   if (s.state === 'erro') return 'sem sincronização desde ' + clock.dm(s.last) + ' ' + clock.hm(s.last) + ' — ' + s.msg
   if (s.state === 'atrasado') return 'atrasado: última sincronização ' + clock.dm(s.last) + ' ' + clock.hm(s.last) + ' (' + clock.agoHours(s.last) + ')'
   return 'sincronizado ' + clock.ago(s.last)
