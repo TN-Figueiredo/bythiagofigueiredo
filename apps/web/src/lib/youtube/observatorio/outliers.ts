@@ -51,6 +51,10 @@ export type OutlierSort = 'mult' | 'vpd' | 'recent'
 export interface OutliersResult {
   items: OutlierItem[]; count: number; countWithWeak: number; byAge: Record<string, number>; byPhase: Record<string, number>
   analyzed: number; untracked: number; weakExcluded: number; scope: ReadingScope | null; readingInvalid: boolean
+  /** Weak-base videos that pass every filter of the query (theme, formula, channel, min): the dashed cards with includeWeak. */
+  weakShown: number
+  /** Tracked videos in the window that pass the theme/formula/channel filters but have no base at all (multiplier null). */
+  noBase: number
   orderedIds(sort?: OutlierSort): string[]; orderedGroups(sort?: OutlierSort): Array<{ k: string; ids: string[] }>
 }
 
@@ -83,6 +87,9 @@ export function outliers(ctx: EngineCtx & { READ?: Record<string, FrozenReading>
   const analyzed = pool.filter(v => ages.includes(win(v))).length
   const untracked = videos.filter(v => !v.tracked && v.fmt === opts.fmt && inNiche(opts.niche, v) && !own(v) && (!opts.channel || v.ch === opts.channel) && ages.includes(win(v))).length
   const weak = pool.filter(v => ages.includes(win(v)) && v.mult!.weak && v.mult!.value != null && v.mult!.value >= opts.min).length
+  const tf = (v: V) => (!opts.theme || v.theme === opts.theme) && (!opts.formula || v.formulas.includes(opts.formula))
+  const weakShown = pool.filter(v => ages.includes(win(v)) && v.mult!.weak && v.mult!.value != null && v.mult!.value >= opts.min && tf(v)).length
+  const noBase = pool.filter(v => ages.includes(win(v)) && v.mult!.value == null && tf(v)).length
   const PH = phases(ctx)
   const vpdKey = (it: OutlierItem) => (['atrasado', 'erro'].includes(ctx.CH.get(it.video.ch)!.sync.state)) ? -2 : ((it.video.vpd7 != null ? it.video.vpd7 : it.video.vpd) != null ? (it.video.vpd7 != null ? it.video.vpd7 : it.video.vpd)! : -1)
   const orderedGroups = (sort: OutlierSort = 'mult') => {
@@ -94,7 +101,7 @@ export function outliers(ctx: EngineCtx & { READ?: Record<string, FrozenReading>
     return g.filter(x => x.items.length).map(x => ({ k: x.k, ids: x.items.map(it => it.id) }))
   }
   const orderedIds = (sort?: OutlierSort) => orderedGroups(sort).flatMap(g => g.ids)
-  return { orderedIds, orderedGroups, scope, readingInvalid, items, count: items.filter(x => !x.weak).length, countWithWeak: items.length, byAge, byPhase, analyzed, untracked, weakExcluded: weak }
+  return { orderedIds, orderedGroups, scope, readingInvalid, items, count: items.filter(x => !x.weak).length, countWithWeak: items.length, byAge, byPhase, analyzed, untracked, weakExcluded: weak, weakShown, noBase }
 }
 
 export function tabCounts(ctx: EngineCtx, niche: NicheScope = 'todos'): { canais: number; mud: number; out: number } {

@@ -47,3 +47,16 @@ export function multiplierAt(ctx: EngineCtx, v: ObsVideo, t: number | null): Mul
     ageAtRead: age, readAt: tTime, readNote,
     label: bb.length ? fmt.mult(own / m!) + ' vs vídeos do canal com ' + band.label + (readDiff ? readNote.replace(/\)$/, '; n = ' + bb.length + ')') : ' (n = ' + bb.length + ')') + (weak ? ' — base fraca' : '') : 'sem vídeos do canal nessa faixa' }
 }
+
+/** Card wording of a multiplier (Outliers): the comparison reference and the n note, never "1 dias". */
+export interface MultiplierCardText { ref: string; lifeDay: number | null; ageAtRead: string | null; nText: string }
+export function multiplierCardText(ctx: EngineCtx, m: MultiplierResult): MultiplierCardText {
+  const { clock, fmt } = ctx
+  const day = m.method === 'mesmo dia de vida'
+  const ageAtRead = m.readNote && m.ageAtRead != null ? fmt.plural(m.ageAtRead, 'dia', 'dias') : null
+  return {
+    ref: day ? 'no dia ' + m.lifeDay + ' de vida' : 'com ' + m.band + (m.readNote && m.readAt != null ? ' no registro de ' + clock.dmhm(m.readAt) : ''),
+    lifeDay: day ? m.lifeDay ?? null : null, ageAtRead,
+    nText: '(' + (ageAtRead ? 'este tinha ' + ageAtRead + '; ' : '') + 'n = ' + m.n + ')',
+  }
+}
