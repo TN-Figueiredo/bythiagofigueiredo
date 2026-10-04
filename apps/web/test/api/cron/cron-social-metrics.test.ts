@@ -19,6 +19,7 @@ const mockEnsureFreshToken = vi.fn().mockResolvedValue({ accessToken: 'tok-fresh
 vi.mock('@/lib/social/token-refresh', () => ({
   ensureFreshToken: (...args: unknown[]) => mockEnsureFreshToken(...args),
   TokenRevokedError: class TokenRevokedError extends Error { constructor(m: string) { super(m); this.name = 'TokenRevokedError' } },
+  NoActiveConnectionError: class NoActiveConnectionError extends Error { constructor(m: string) { super(m); this.name = 'NoActiveConnectionError' } },
 }))
 
 // ── Metrics poller mock ──────────────────────────────────────────────────────
@@ -37,6 +38,7 @@ vi.mock('@sentry/nextjs', () => ({
 }))
 
 // ── Import after mocks ───────────────────────────────────────────────────────
+import { NoActiveConnectionError } from '@/lib/social/token-refresh'
 import { POST } from '../../../src/app/api/cron/social-metrics/route'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -323,5 +325,53 @@ describe('POST /api/cron/social-metrics', () => {
     const body = await res.json()
     expect(body.processed).toBe(0)
     expect(mockPollMetricsForDelivery).not.toHaveBeenCalled()
+  })
+
+  it('entrega de conexão sem OAuth viva (canal removido/revogado) é pulada, não é erro', async () => {
+    const now = new Date().toISOString()
+    const delivery = {
+      id: 'delivery-revoked', post_id: 'p1', provider: 'youtube', platform_post_id: 'yt1',
+      connection_id: 'conn-revoked', format: 'video', published_at: now,
+    }
+    const connection = { id: 'conn-revoked', site_id: 'site-1', account_id: 'UC1', page_token_enc: 'enc' }
+    mockShouldPollPost.mockReturnValue(true)
+    mockEnsureFreshToken.mockRejectedValueOnce(new NoActiveConnectionError('No active youtube connection found for site site-1'))
+    const cronInsert = cronRunInsert()
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'social_deliveries') return deliveriesQuery([delivery])
+      if (table === 'post_metrics') return lastPollsQuery([])
+      if (table === 'social_connections') return connectionQuery(connection)
+      if (table === 'cron_runs') return cronInsert
+      return {}
+    })
+
+    const res = await POST(makeRequest(`Bearer ${CRON_SECRET}`))
+    const body = await res.json()
+    expect(body.errors).toBeUndefined()
+    expect(body.skipped_no_connection).toBe(1)
+    expect(mockPollMetricsForDelivery).not.toHaveBeenCalled()
+    expect(cronInsert.insert).toHaveBeenCalledWith(expect.objectContaining({ status: 'ok', error: null }))
+  })
+
+  it('falha de verdade no token continua sendo erro', async () => {
+    const now = new Date().toISOString()
+    const delivery = {
+      id: 'delivery-bad', post_id: 'p1', provider: 'youtube', platform_post_id: 'yt1',
+      connection_id: 'conn-bad', format: 'video', published_at: now,
+    }
+    const connection = { id: 'conn-bad', site_id: 'site-1', account_id: 'UC1', page_token_enc: 'enc' }
+    mockShouldPollPost.mockReturnValue(true)
+    mockEnsureFreshToken.mockRejectedValueOnce(new Error('Google token refresh failed (500): boom'))
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'social_deliveries') return deliveriesQuery([delivery])
+      if (table === 'post_metrics') return lastPollsQuery([])
+      if (table === 'social_connections') return connectionQuery(connection)
+      if (table === 'cron_runs') return cronRunInsert()
+      return {}
+    })
+
+    const body = await (await POST(makeRequest(`Bearer ${CRON_SECRET}`))).json()
+    expect(body.errors![0]).toContain('boom')
+    expect(body.skipped_no_connection ?? 0).toBe(0)
   })
 })
