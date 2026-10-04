@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import React from 'react'
 
@@ -59,6 +59,15 @@ function makeEntry(overrides: Partial<ActivityEntry> = {}): ActivityEntry {
 describe('UpNextActivity', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Midday of the real day: "5 minutes ago" must still be the same day. On the wall clock this suite failed whenever
+    // it ran in the first minutes after midnight ('ontem' instead of HH:MM — CI, 2026-10-04 00:0x UTC).
+    const noon = new Date()
+    noon.setHours(12, 0, 0, 0)
+    vi.useFakeTimers({ now: noon, toFake: ['Date'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('returns null when entries is empty', () => {
