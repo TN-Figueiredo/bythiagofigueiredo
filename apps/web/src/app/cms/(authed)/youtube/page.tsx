@@ -5,7 +5,12 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { resolveScheduleLabel } from '@/lib/youtube/schedule-label'
 import type { SyncScheduleEntry, SyncStatus } from '@/lib/youtube/types'
+import { loadChannelRegistry } from '@/lib/youtube/channel-registry-db'
+import { isChannelLocale } from '@/lib/youtube/channel-locales'
 import { DashboardConnected, type ChannelDashboard, type PinnedVideo, type LastSyncInfo } from './dashboard-connected'
+import {
+  lookupYouTubeChannel, addYouTubeChannel, updateYouTubeChannelIdentity, createYouTubeNiche, getYouTubeChannelRemovalImpact, removeYouTubeChannel,
+} from './_actions/channels'
 
 export const dynamic = 'force-dynamic'
 /* title uses layout.tsx default: "YouTube — CMS" */
@@ -18,7 +23,9 @@ const fetchYouTubeDashboardCached = unstable_cache(
       supabase.from('youtube_channels')
         .select('id, locale, handle, name, subscriber_count, video_count, thumbnail_url, last_synced_at, sync_enabled, sync_schedules, schedule_label')
         .eq('site_id', siteId)
-        .order('locale'),
+        // ordem de cadastro, estável: dois canais podem ter o mesmo idioma
+        .order('created_at')
+        .order('id'),
       supabase.from('youtube_videos')
         .select('id', { count: 'exact', head: true })
         .eq('site_id', siteId)
@@ -94,6 +101,9 @@ const fetchYouTubeDashboardCached = unstable_cache(
         locale: ch.locale as 'pt' | 'en',
         handle: ch.handle as string,
         name: ch.name as string,
+        // slug e nicho vêm frescos da página (fora deste cache): ver YouTubeDashboardPage
+        slug: null,
+        niche: null,
         subscriberCount: (ch.subscriber_count as number) ?? 0,
         videoCount: (ch.video_count as number) ?? 0,
         thumbnailUrl: (ch.thumbnail_url as string | null) ?? null,
@@ -128,12 +138,30 @@ export default async function YouTubeDashboardPage() {
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
   if (!authRes.ok) redirect('/cms')
 
-  const { channels, uncategorizedCount } = await fetchYouTubeDashboardCached(siteId)
+  // A identidade (idioma, slug, nicho) e os nichos são lidos a cada request, fora do cache do painel: o nicho de um
+  // canal também muda pelo Observatório, que não invalida a tag 'youtube'. Tolerante a tabela/coluna ausentes.
+  const [{ channels: cached, uncategorizedCount }, registry] = await Promise.all([
+    fetchYouTubeDashboardCached(siteId),
+    loadChannelRegistry(getSupabaseServiceClient(), siteId),
+  ])
+  const channels = cached.map((ch): ChannelDashboard => {
+    const fresh = registry.identity.get(ch.id)
+    if (!fresh) return ch
+    return { ...ch, slug: fresh.slug, niche: fresh.niche, locale: isChannelLocale(fresh.locale) ? fresh.locale : ch.locale }
+  })
 
   return (
     <DashboardConnected
       channels={channels}
       uncategorizedCount={uncategorizedCount}
+      niches={registry.niches}
+      nichesAvailable={registry.nichesAvailable}
+      onLookup={lookupYouTubeChannel}
+      onAdd={addYouTubeChannel}
+      onUpdateIdentity={updateYouTubeChannelIdentity}
+      onCreateNiche={createYouTubeNiche}
+      onRemovalImpact={getYouTubeChannelRemovalImpact}
+      onRemove={removeYouTubeChannel}
     />
   )
 }

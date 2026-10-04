@@ -10622,6 +10622,14 @@ export type Database = {
         Args: { p_exclude_id?: string; p_handle: string; p_site_id: string }
         Returns: string
       }
+      youtube_channel_removal_impact: {
+        Args: { p_channel_id: string; p_site_id: string }
+        Returns: Json
+      }
+      youtube_channel_remove: {
+        Args: { p_channel_id: string; p_confirm_slug: string; p_site_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       email_provider: "brevo" | "resend" | "ses"
