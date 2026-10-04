@@ -6,6 +6,7 @@ import { PipelineServiceError } from '@/lib/pipeline/services/types'
 import { CAMPAIGN_INTERESTS } from '@/lib/campaigns/interest'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { NEW_CAMPAIGN_EMPTY_TRANSLATION_TEXTS } from '@/lib/campaigns/new-campaign-defaults'
+import * as Sentry from '@sentry/nextjs'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
 export interface CreateCampaignActionInput {
@@ -81,10 +82,7 @@ export async function createCampaign(
     if (e instanceof PipelineServiceError && e.code === 'CONFLICT') {
       return { ok: false, error: 'validation_failed', message: 'duplicate_slug' }
     }
-    return {
-      ok: false,
-      error: 'db_error',
-      message: e instanceof Error ? e.message : String(e),
-    }
+    Sentry.captureException(e, { tags: { area: 'campaign-create' } })
+    return { ok: false, error: 'db_error', message: 'Could not create the campaign. Try again.' }
   }
 }

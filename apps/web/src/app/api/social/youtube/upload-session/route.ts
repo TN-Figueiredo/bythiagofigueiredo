@@ -105,7 +105,9 @@ export async function POST(req: NextRequest) {
     .eq('provider', 'youtube')
     .eq('account_id', accountId)
     .is('revoked_at', null)
-    .maybeSingle()
+    .order('connected_at', { ascending: false })
+    .limit(1)
+    .maybeSingle() // duas conexões vivas da mesma conta: a mais recente, como ensureFreshToken
   if (connError) {
     Sentry.captureException(new Error(`upload-session connection read failed: ${connError.message}`), {
       tags: { area: 'youtube-upload-session' },

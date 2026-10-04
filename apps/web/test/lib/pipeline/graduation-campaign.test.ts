@@ -281,3 +281,13 @@ describe('limites das opções', () => {
     await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: { ...OPTS, meta_description: 'x'.repeat(301) } })).rejects.toMatchObject({ status: 400 })
   })
 })
+
+import { truncateAtWord } from '@/lib/pipeline/services/campaign-graduation'
+describe('truncateAtWord (meta_description herdada da sinopse)', () => {
+  it('texto curto passa intacto, sem reticências', () => { expect(truncateAtWord('Curto e bom', 300)).toBe('Curto e bom') })
+  it('corta em limite de palavra até 300 caracteres e termina em …', () => {
+    const out = truncateAtWord('palavra '.repeat(80), 300)
+    expect(out.length).toBeLessThanOrEqual(300)
+    expect(out.endsWith('palavra…')).toBe(true)
+  })
+})

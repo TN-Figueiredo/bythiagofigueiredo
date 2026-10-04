@@ -17,6 +17,15 @@ export interface CampaignDraftPlan {
   translation: Record<string, string | null> & { locale: string; slug: string; main_hook_md: string; context_tag: string }
 }
 
+/** Corta em limite de palavra até `max` caracteres; só acrescenta "…" quando cortou. */
+export function truncateAtWord(text: string, max: number): string {
+  const t = text.trim()
+  if (t.length <= max) return t
+  const cut = t.slice(0, max - 1)
+  const sp = cut.lastIndexOf(' ')
+  return (sp > max * 0.5 ? cut.slice(0, sp) : cut).trimEnd() + '…'
+}
+
 const nonEmpty = (v: unknown): string | null =>
   typeof v === 'string' && v.trim().length > 0 ? v : null
 
@@ -75,7 +84,7 @@ export function planCampaignDraft(
       slug,
       main_hook_md: hook as string,
       meta_title: title,
-      meta_description: o.meta_description ?? nonEmpty(item.synopsis),
+      meta_description: o.meta_description ?? (nonEmpty(item.synopsis) ? truncateAtWord(item.synopsis as string, 300) : null),
       og_image_url: nonEmpty(item.cover_image_url),
       body_content_md: nonEmpty(item.body_content),
       context_tag: o.context_tag ?? interest,

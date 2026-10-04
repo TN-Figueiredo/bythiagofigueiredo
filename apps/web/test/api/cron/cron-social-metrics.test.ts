@@ -301,7 +301,7 @@ describe('POST /api/cron/social-metrics', () => {
     expect(body.processed).toBe(0)
     expect(body.errors).toBeDefined()
     expect(body.errors!.length).toBeGreaterThan(0)
-    expect(body.errors![0]).toContain('delivery-fail')
+    expect(body.errors![0]).toContain('conn-fail: connection missing site_id or account_id')
   })
 
   it('skips delivery when connection is not found', async () => {
