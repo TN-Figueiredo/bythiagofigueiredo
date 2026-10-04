@@ -165,12 +165,56 @@ describe('POST /api/social/youtube/upload-session', () => {
     expect((await POST(req(base))).status).toBe(404)
   })
 
-  it('erro do Google: 502 sem o corpo do Google', async () => {
+  it('papel reporter (sem can_publish_site): 403, pede modo publish e nada é lido', async () => {
+    h.requireSiteScope.mockImplementation(async (o: { mode: string }) =>
+      o.mode === 'publish' ? { ok: false, reason: 'insufficient_access' } : { ok: true },
+    )
+    const res = await POST(req({ ...base, channel: 'UCabc' }))
+    expect(res.status).toBe(403)
+    expect(h.requireSiteScope).toHaveBeenCalledWith(expect.objectContaining({ mode: 'publish' }))
+    expect(h.ensureFreshToken).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('contentLength acima de 256 GiB: 400', async () => {
+    expect((await POST(req({ ...base, channel: 'UCabc', contentLength: 256 * 1024 ** 3 + 1 }))).status).toBe(400)
+    expect((await POST(req({ ...base, channel: 'UCabc', contentLength: 256 * 1024 ** 3 }))).status).toBe(200)
+  })
+
+  it.each([
+    ['não-Google', 'https://evil.example.com/upload?upload_id=1'],
+    ['http', 'http://www.googleapis.com/upload?upload_id=1'],
+    ['host que só termina parecido', 'https://notgoogleapis.com/x'],
+    ['malformada', 'not a url'],
+  ])('Location %s: 502 genérico, URL não repassada nem enviada ao Sentry', async (_n, loc) => {
+    fetchMock.mockResolvedValue(new Response('{}', { status: 200, headers: { location: loc } }))
+    const res = await POST(req({ ...base, channel: 'UCabc' }))
+    expect(res.status).toBe(502)
+    expect(JSON.stringify(await res.json())).not.toContain(loc)
+    expect(JSON.stringify(h.captureMessage.mock.calls)).not.toContain(loc)
+  })
+
+  it('Location ausente: 502 genérico', async () => {
+    fetchMock.mockResolvedValue(new Response('{}', { status: 200 }))
+    expect((await POST(req({ ...base, channel: 'UCabc' }))).status).toBe(502)
+  })
+
+  it('403 do Google na abertura: missing_scope pedindo reconexão, sem corpo do Google', async () => {
     fetchMock.mockResolvedValue(new Response('quotaExceeded internal detail ' + TOKEN, { status: 403 }))
+    const res = await POST(req({ ...base, channel: 'UCabc' }))
+    expect(res.status).toBe(403)
+    const json = await res.json()
+    expect(json.code).toBe('missing_scope')
+    expect(json.error).toContain('Reconnect')
+    expect(JSON.stringify(json)).not.toContain('quotaExceeded')
+  })
+
+  it('erro do Google: 502 sem o corpo do Google', async () => {
+    fetchMock.mockResolvedValue(new Response('quotaExceeded internal detail ' + TOKEN, { status: 500 }))
     const res = await POST(req({ ...base, channel: 'UCabc' }))
     expect(res.status).toBe(502)
     const text = JSON.stringify(await res.json())
-    expect(text).toContain('403')
+    expect(text).toContain('500')
     expect(text).not.toContain('quotaExceeded')
     expect(text).not.toContain(TOKEN)
   })

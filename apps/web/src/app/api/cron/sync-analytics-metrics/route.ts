@@ -6,7 +6,7 @@ import { buildNotification } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { detectFatigue, filterFatigueCandidates } from '@/lib/youtube/ab-fatigue'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
-import { channelNote, describeCronCause, describeHttpCause } from '@/lib/cron/failure-note'
+import { channelNote, describeCronCause, joinNotes, describeHttpCause } from '@/lib/cron/failure-note'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import * as Sentry from '@sentry/nextjs'
 
@@ -334,7 +334,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (errors > 0) {
-    await recordCronFailure('sync-analytics-metrics', errorDetails.join('; '))
+    await recordCronFailure('sync-analytics-metrics', joinNotes(errorDetails))
   } else if (channels.length > skippedNoConnection.length && emptyReports === channels.length - skippedNoConnection.length) {
     // Every channel came back with zero rows for the window. One channel alone doing this is
     // legitimate (e.g. a brand-new channel with nothing published yet), but ALL of them at

@@ -32,6 +32,11 @@ vi.mock('@/lib/social/metrics-poller', () => ({
     mockPollMetricsForDelivery(...args),
 }))
 
+vi.mock('@/lib/cron-health', () => ({
+  recordCronSuccess: vi.fn(),
+  recordCronFailure: vi.fn(),
+}))
+
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
   setTag: vi.fn(),
@@ -39,6 +44,7 @@ vi.mock('@sentry/nextjs', () => ({
 
 // ── Import after mocks ───────────────────────────────────────────────────────
 import { NoActiveConnectionError } from '@/lib/social/token-refresh'
+import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import { POST } from '../../../src/app/api/cron/social-metrics/route'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -351,6 +357,34 @@ describe('POST /api/cron/social-metrics', () => {
     expect(body.skipped_no_connection).toBe(1)
     expect(mockPollMetricsForDelivery).not.toHaveBeenCalled()
     expect(cronInsert.insert).toHaveBeenCalledWith(expect.objectContaining({ status: 'ok', error: null }))
+    // Pulo por falta de conexão continua verde: SUCESSO, sem falha registrada.
+    expect(recordCronSuccess).toHaveBeenCalledTimes(1)
+    expect(recordCronFailure).not.toHaveBeenCalled()
+  })
+
+  it('circuit breaker aberto é pulo (não falha): cron verde e contado', async () => {
+    const now = new Date().toISOString()
+    const delivery = {
+      id: 'delivery-cb', post_id: 'p1', provider: 'youtube', platform_post_id: 'yt1',
+      connection_id: 'conn-cb', format: 'video', published_at: now,
+    }
+    const connection = {
+      id: 'conn-cb', site_id: 'site-1', account_id: 'UC1', page_token_enc: 'enc',
+      circuit_open_until: new Date(Date.now() + 3_600_000).toISOString(),
+    }
+    mockShouldPollPost.mockReturnValue(true)
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'social_deliveries') return deliveriesQuery([delivery])
+      if (table === 'post_metrics') return lastPollsQuery([])
+      if (table === 'social_connections') return connectionQuery(connection)
+      if (table === 'cron_runs') return cronRunInsert()
+      return {}
+    })
+    const body = await (await POST(makeRequest(`Bearer ${CRON_SECRET}`))).json()
+    expect(body.skipped_circuit_open).toBe(1)
+    expect(body.errors).toBeUndefined()
+    expect(recordCronFailure).not.toHaveBeenCalled()
+    expect(recordCronSuccess).toHaveBeenCalledTimes(1)
   })
 
   it('falha de verdade no token continua sendo erro', async () => {
@@ -373,6 +407,13 @@ describe('POST /api/cron/social-metrics', () => {
     const body = await (await POST(makeRequest(`Bearer ${CRON_SECRET}`))).json()
     expect(body.errors![0]).toBe('youtube conn-bad: Google token refresh failed (HTTP 500)')
     expect(body.errors![0]).not.toContain('boom')
+    // O cron fica vermelho: FALHA no cron_health com canal + causa, sem o texto cru.
+    expect(recordCronSuccess).not.toHaveBeenCalled()
+    expect(recordCronFailure).toHaveBeenCalledTimes(1)
+    const [job, note] = vi.mocked(recordCronFailure).mock.calls[0]! as [string, string]
+    expect(job).toBe('social-metrics')
+    expect(note).toContain('youtube conn-bad: Google token refresh failed (HTTP 500)')
+    expect(note).not.toContain('boom')
     expect(body.skipped_no_connection ?? 0).toBe(0)
   })
 
@@ -395,6 +436,10 @@ describe('POST /api/cron/social-metrics', () => {
     const body = await (await POST(makeRequest(`Bearer ${CRON_SECRET}`))).json()
     expect(body.errors![0]).toBe('youtube conn-db: database error reading the connection')
     expect(body.errors![0]).not.toContain('statement timeout')
+    expect(recordCronSuccess).not.toHaveBeenCalled()
+    const note = vi.mocked(recordCronFailure).mock.calls[0]![1] as string
+    expect(note).toContain('youtube conn-db: database error reading the connection')
+    expect(note).not.toContain('statement timeout')
     expect(body.skipped_no_connection ?? 0).toBe(0)
   })
 })

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { channelNote, describeCronCause } from '@/lib/cron/failure-note'
+import { channelNote, describeCronCause, joinNotes } from '@/lib/cron/failure-note'
 import { withCronLock, newRunId } from '@/lib/logger'
 import {
   shouldPollPost,
@@ -99,6 +99,7 @@ export async function POST(req: NextRequest) {
     // Conexão sem OAuth viva (canal removido, acesso revogado): não há a quem perguntar.
     // Estado legítimo — pula e conta, não vira erro de cron.
     let skippedNoConnection = 0
+    let skippedCircuitOpen = 0
     const errors: string[] = []
 
     for (const delivery of toPoll) {
@@ -115,9 +116,8 @@ export async function POST(req: NextRequest) {
         const circuitUntil = (connection as Record<string, unknown>)
           .circuit_open_until as string | null
         if (circuitUntil && new Date(circuitUntil) > new Date()) {
-          errors.push(
-            `delivery ${delivery.id}: circuit open until ${circuitUntil}`,
-          )
+          // Cooldown deliberado do circuit breaker: pulo, não falha (vence sozinho em circuit_open_until).
+          skippedCircuitOpen++
           continue
         }
 
@@ -219,16 +219,21 @@ export async function POST(req: NextRequest) {
         job: JOB,
         status: errors.length > 0 ? 'error' : 'ok',
         items_processed: processed,
-        error: errors.length > 0 ? errors.join('; ') : null,
+        error: errors.length > 0 ? joinNotes(errors) : null,
       })
     } catch {
       /* best-effort */
     }
 
+    // Erro real => status 'error': o wrapper (withCronLock) grava recordCronFailure com a nota
+    // (canal + causa); sem erro grava recordCronSuccess. Pulos por falta de conexão ou circuit
+    // breaker não são erro.
     return {
-      status: 'ok' as const,
+      status: errors.length > 0 ? ('error' as const) : ('ok' as const),
+      ...(errors.length > 0 && { error: joinNotes(errors, `${errors.length} metric poll(s) failed`) }),
       processed,
       ...(skippedNoConnection > 0 && { skipped_no_connection: skippedNoConnection }),
+      ...(skippedCircuitOpen > 0 && { skipped_circuit_open: skippedCircuitOpen }),
       errors: errors.length > 0 ? errors : undefined,
     }
   })

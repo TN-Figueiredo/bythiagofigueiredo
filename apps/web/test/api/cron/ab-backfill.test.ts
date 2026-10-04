@@ -313,6 +313,17 @@ describe('GET /api/cron/ab-backfill', () => {
       expect(note).not.toContain('statement timeout')
     })
 
+    it('falha depois de resolver o canal (ramo final): a nota usa o nome do canal, não o id do ciclo', async () => {
+      mockTables({ channel_id: 'UCpt', name: 'tnFigueiredo' } as never)
+      mockEnsureFreshToken.mockResolvedValue({ accessToken: 'ya29.TOK', connectionId: 'c1' })
+      mockFetchAnalyticsForDateRange.mockRejectedValue(new Error('Analytics API 500: ya29.TOK raw'))
+      await GET(makeRequest(`Bearer ${CRON_SECRET}`))
+      const note = vi.mocked(recordCronFailure).mock.calls[0]![1] as string
+      expect(note).toContain('tnFigueiredo: unexpected error (Error)')
+      expect(note).not.toContain('cycle-1:')
+      expect(note).not.toContain('ya29')
+    })
+
     it('refresh do token falha: a nota do cron traz nome do canal e causa, sem o texto do Google', async () => {
       mockTables({ channel_id: 'UCpt', name: 'tnFigueiredo' } as never)
       mockEnsureFreshToken.mockRejectedValue(new Error('Google token refresh failed (503): <html>secret-body ya29.TOKEN</html>'))
