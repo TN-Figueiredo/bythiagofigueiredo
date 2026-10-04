@@ -126,6 +126,7 @@ export async function GET(req: NextRequest) {
               .is('ended_at', null)
 
             // 2. Attempt thumbnail revert to original
+            let originalRestored = false
             try {
               const { data: testFull } = await driftClient
                 .from('ab_tests')
@@ -147,6 +148,7 @@ export async function GET(req: NextRequest) {
                 const { accessToken } = await ensureFreshToken(testFull.site_id, 'youtube', channelAccountId)
                 const { buffer, contentType } = await fetchVariantImageBuffer(testFull.original_thumbnail_url)
                 await setThumbnail(video.youtube_video_id, buffer, contentType, accessToken)
+                originalRestored = true
               }
             } catch (revertErr) {
               Sentry.captureException(revertErr, { extra: { context: 'ab-watchdog-revert', testId: test.id } })
@@ -175,7 +177,9 @@ export async function GET(req: NextRequest) {
                 domain: 'youtube',
                 priority: 1,
                 title: DRIFT_STATUS_NOTE,
-                message: 'O teste foi pausado automaticamente. Acesse o teste para reconhecer a mudança e retomar a rotação.',
+                message: originalRestored
+                  ? 'O teste foi pausado automaticamente. Acesse o teste para reconhecer a mudança e retomar a rotação.'
+                  : 'O teste foi pausado automaticamente, mas a thumbnail original NÃO foi devolvida ao vídeo: a variante pode continuar no ar. Troque a thumbnail manualmente no YouTube Studio e depois acesse o teste para reconhecer a mudança.',
                 action_href: `/cms/youtube/ab-lab/${test.id}`,
                 dedup_key: `drift-${test.id}-${new Date().toISOString().slice(0, 10)}`,
               })

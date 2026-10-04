@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   const { data: channels, error: channelsError } = await supabase
     .from('youtube_channels')
-    .select('id, channel_id, site_id, subscriber_count')
+    .select('id, channel_id, site_id, subscriber_count, name')
     .eq('sync_enabled', true)
 
   // A dropped query error used to fall through to `channels === null` →
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
   let emptyReports = 0
   // Canal cadastrado mas sem conexão OAuth viva (recém-cadastrado, ou conexão revogada): é
   // estado legítimo, não falha. Pula, conta e avisa o dono; os demais canais seguem.
-  const skippedNoConnection: Array<{ channelId: string; siteId: string }> = []
+  const skippedNoConnection: Array<{ channelId: string; siteId: string; label: string }> = []
   const errorDetails: string[] = []
   const notifications: Array<{ siteId: string; payload: ReturnType<typeof buildNotification> }> = []
   const processedVideos: Array<{ id: string; published_at: string | null; view_count: number }> = []
@@ -178,7 +178,11 @@ export async function GET(req: NextRequest) {
       synced++
     } catch (e) {
       if (e instanceof NoActiveConnectionError) {
-        skippedNoConnection.push({ channelId: channel.channel_id, siteId: channel.site_id })
+        skippedNoConnection.push({
+          channelId: channel.channel_id,
+          siteId: channel.site_id,
+          label: channel.name ? `${channel.name} (${channel.channel_id})` : channel.channel_id,
+        })
         continue
       }
       Sentry.captureException(e)
@@ -241,7 +245,7 @@ export async function GET(req: NextRequest) {
   // O pulo precisa ser VISTO: um aviso por site e por dia (dedup), não um alarme de cron.
   const skippedBySite = new Map<string, string[]>()
   for (const k of skippedNoConnection) {
-    skippedBySite.set(k.siteId, [...(skippedBySite.get(k.siteId) ?? []), k.channelId])
+    skippedBySite.set(k.siteId, [...(skippedBySite.get(k.siteId) ?? []), k.label])
   }
   for (const [siteId, channelIds] of skippedBySite) {
     try {

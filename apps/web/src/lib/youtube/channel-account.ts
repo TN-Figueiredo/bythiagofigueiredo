@@ -35,3 +35,7 @@ export async function channelAccountIdForVideo(
   const row = data as { youtube_channels: { channel_id: string | null } | null } | null
   return row?.youtube_channels?.channel_id ?? null
 }
+
+/** Mensagem honesta para quando não dá para saber de qual canal é o vídeo (nunca "Token inválido"). */
+export const CHANNEL_NOT_IDENTIFIED_MESSAGE =
+  "Could not identify which YouTube channel owns this video. Reload and try again; if it persists, check that the video's channel is still connected."

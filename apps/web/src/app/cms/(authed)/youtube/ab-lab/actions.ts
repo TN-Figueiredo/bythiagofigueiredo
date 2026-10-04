@@ -17,7 +17,7 @@ import type {
   VariantMetadata,
 } from '@/lib/youtube/ab-types'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
-import { channelAccountIdForVideo } from '@/lib/youtube/channel-account'
+import { channelAccountIdForVideo, CHANNEL_NOT_IDENTIFIED_MESSAGE } from '@/lib/youtube/channel-account'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { getVariantForCycle, getNextVariantIndex } from '@/lib/youtube/ab-rotation'
@@ -78,8 +78,7 @@ export async function dismissFatigueAlert(alertId: string): Promise<{ ok: boolea
   return { ok: true }
 }
 
-const CHANNEL_NOT_IDENTIFIED =
-  "Could not identify which YouTube channel owns this video. Reload and try again; if it persists, check that the video's channel is still connected."
+const CHANNEL_NOT_IDENTIFIED = CHANNEL_NOT_IDENTIFIED_MESSAGE
 
 /**
  * O id "UC…" do canal dono do vídeo, ou a mensagem pronta para a tela. Nunca cai em
@@ -148,15 +147,6 @@ export async function createAbTest(
     return { ok: false, error: 'Video has no thumbnail — sync first' }
   }
 
-  let immutableOriginalUrl: string | null = video.thumbnail_hq_url ?? null
-  if (video.thumbnail_hq_url && /\.(ytimg|ggpht|googleusercontent)\.com/.test(video.thumbnail_hq_url)) {
-    try {
-      immutableOriginalUrl = await preserveOriginalThumbnail(video.thumbnail_hq_url)
-    } catch {
-      return { ok: false, error: 'Falha ao salvar thumbnail original. Tente novamente.' }
-    }
-  }
-
   // Check for existing active/draft/paused test on the same video
   const { data: existing } = await supabase
     .from('ab_tests')
@@ -218,6 +208,17 @@ export async function createAbTest(
         error:
           "Could not read the video's current title and description. Reconnect this channel's YouTube access and try again.",
       }
+    }
+  }
+
+  // O blob da thumbnail original só é gravado agora que a criação vai acontecer: nenhuma
+  // recusa acima (teste já existe, originais não capturados) deixa blob órfão.
+  let immutableOriginalUrl: string | null = video.thumbnail_hq_url ?? null
+  if (video.thumbnail_hq_url && /\.(ytimg|ggpht|googleusercontent)\.com/.test(video.thumbnail_hq_url)) {
+    try {
+      immutableOriginalUrl = await preserveOriginalThumbnail(video.thumbnail_hq_url)
+    } catch {
+      return { ok: false, error: 'Falha ao salvar thumbnail original. Tente novamente.' }
     }
   }
 

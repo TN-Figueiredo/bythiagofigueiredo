@@ -4,6 +4,7 @@ import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
 import { createNotification } from '@/lib/notifications/create'
+import { CHANNEL_NOT_IDENTIFIED_MESSAGE } from '@/lib/youtube/channel-account'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import type { AbTestVariantRow } from '@/lib/youtube/ab-types'
 
@@ -121,6 +122,8 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
         .eq('id', video.channel_id)
         .single()
       channel = channelRow
+      // Sem o canal não há token certo: erro deste teste (nunca "a conexão mais recente").
+      if (!channel?.channel_id) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
 
       const preflight = await preflightTokenCheck(test.site_id, 'youtube', channel?.channel_id)
       if (!preflight.ok) {
@@ -248,7 +251,8 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
             if (testFull?.original_thumbnail_url?.includes('blob.vercel-storage.com') && video) {
               const { ensureFreshToken } = await import('@/lib/social/token-refresh')
               const { fetchVariantImageBuffer, setThumbnail } = await import('@/lib/youtube/ab-youtube')
-              const { accessToken } = await ensureFreshToken(testFull.site_id, 'youtube', channel?.channel_id)
+              if (!channel?.channel_id) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
+              const { accessToken } = await ensureFreshToken(testFull.site_id, 'youtube', channel.channel_id)
               const { buffer, contentType } = await fetchVariantImageBuffer(testFull.original_thumbnail_url)
               await setThumbnail(video.youtube_video_id, buffer, contentType, accessToken)
             }

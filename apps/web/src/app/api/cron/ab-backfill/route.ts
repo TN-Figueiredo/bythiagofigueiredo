@@ -25,6 +25,10 @@ export async function GET(req: NextRequest) {
     .in('backfill_status', ['pending', 'partial'])
     .not('ended_at', 'is', null)
     .lt('ended_at', threeDaysAgo)
+    // Teto por execução, mais recentes primeiro: ciclos pulados (sem conexão) não se
+    // acumulam para sempre na frente da fila nem estouram o tempo da função.
+    .order('ended_at', { ascending: false })
+    .limit(200)
 
   // Um erro de query dropado aqui caia em `cycles === null` -> "nada a
   // processar" -> recordCronSuccess (ver comentario abaixo), afirmando saude
@@ -90,7 +94,17 @@ export async function GET(req: NextRequest) {
         try {
           accessToken = (await ensureFreshToken(test.site_id, 'youtube', channelAccountId)).accessToken
         } catch (tokenErr) {
-          if (!(tokenErr instanceof NoActiveConnectionError)) throw tokenErr
+          if (!(tokenErr instanceof NoActiveConnectionError)) {
+            // Falha de verdade ao obter o token (leitura do banco, refresh, rede): conta como
+            // erro da execução, mas NÃO condena o ciclo — o YouTube nem foi consultado, e
+            // `error` é terminal (a consulta só lê pending/partial). Fica para a próxima rodada.
+            errors++
+            Sentry.captureException(tokenErr, {
+              tags: { cron: 'ab-backfill' },
+              extra: { stage: 'token', cycleId: cycle.id, testId: cycle.test_id },
+            })
+            continue
+          }
           skipReason = 'no_active_connection'
         }
       }
@@ -162,11 +176,16 @@ export async function GET(req: NextRequest) {
   }
 
   if (skipped.length > 0) {
-    Sentry.captureMessage('ab-backfill: cycles skipped — no OAuth token for the channel that owns the video', {
-      level: 'warning',
-      tags: { cron: 'ab-backfill' },
-      extra: { skipped },
-    })
+    // UM aviso agregado por execução (contagem e canais), nunca um por ciclo.
+    const skippedChannels = [...new Set(skipped.map((k) => k.channelAccountId ?? 'unknown'))]
+    Sentry.captureMessage(
+      `ab-backfill: ${skipped.length} cycle(s) skipped — no OAuth token for the channel that owns the video`,
+      {
+        level: 'warning',
+        tags: { cron: 'ab-backfill' },
+        extra: { count: skipped.length, channels: skippedChannels, skipped },
+      },
+    )
     // O dono precisa VER o pulo, sem alarme de cron (canal recém-cadastrado sem OAuth é
     // estado legítimo): uma notificação por site e por dia (dedup).
     const bySite = new Map<string, typeof skipped>()

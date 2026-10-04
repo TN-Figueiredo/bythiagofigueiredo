@@ -64,6 +64,7 @@ interface BuildMockOpts {
   cycleCount?: number
   trackedLinks?: { template_name: string; short_code: string }[]
   alreadyRotatedToday?: boolean
+  channel?: { channel_id: string } | null
 }
 
 function buildSupabaseMock(opts: BuildMockOpts = {}) {
@@ -74,6 +75,7 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
     cycleCount = 0,
     trackedLinks = [],
     alreadyRotatedToday = false,
+    channel = { channel_id: 'UCpt' },
   } = opts
 
   const updateCalls: { table: string; data: unknown; filters: unknown[] }[] = []
@@ -117,6 +119,16 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({ data: video, error: null }),
+          }),
+        }),
+      }
+    }
+
+    if (table === 'youtube_channels') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: channel, error: channel ? null : { message: 'not found' } }),
           }),
         }),
       }
@@ -407,6 +419,17 @@ describe('GET /api/cron/ab-rotate', () => {
     )
     expect(setThumbnail).not.toHaveBeenCalled()
     expect(updateVideoMetadata).not.toHaveBeenCalled()
+  })
+
+  it('canal do vídeo não identificado: erro deste teste, sem preflight/token, e o próximo teste segue', async () => {
+    buildSupabaseMock({ tests: [makeTest()], channel: null })
+
+    const body = await (await GET(createCronRequest('test-secret'))).json()
+
+    expect(body.errors).toBe(1)
+    expect(body.processed).toBe(0)
+    expect(preflightTokenCheck).not.toHaveBeenCalled()
+    expect(setThumbnail).not.toHaveBeenCalled()
   })
 
   it('uses rotation_pattern from config', async () => {
