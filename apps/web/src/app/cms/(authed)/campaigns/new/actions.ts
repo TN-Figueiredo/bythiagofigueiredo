@@ -1,6 +1,9 @@
 'use server'
 
-import { campaignRepo } from '@/lib/cms/repositories'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { insertCampaignDraft } from '@/lib/pipeline/services/campaign-graduation'
+import { PipelineServiceError } from '@/lib/pipeline/services/types'
+import { CAMPAIGN_INTERESTS } from '@/lib/campaigns/interest'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { NEW_CAMPAIGN_EMPTY_TRANSLATION_TEXTS } from '@/lib/campaigns/new-campaign-defaults'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
@@ -32,6 +35,10 @@ export async function createCampaign(
     return { ok: false, error: 'validation_failed', message: 'missing_fields' }
   }
 
+  if (!(CAMPAIGN_INTERESTS as readonly string[]).includes(input.interest)) {
+    return { ok: false, error: 'validation_failed', message: 'invalid_interest' }
+  }
+
   const ctx = await getSiteContext()
 
   // Guard: require authenticated user with edit access to this site
@@ -51,10 +58,16 @@ export async function createCampaign(
   }
 
   try {
-    const campaign = await campaignRepo().create({
-      site_id: siteIdForInsert,
-      interest: input.interest,
-      initial_translation: {
+    // `campaignRepo().create` (cms@0.2.0) writes dropped brevo columns: insert directly, after the guard above.
+    const campaignId = await insertCampaignDraft(getSupabaseServiceClient(), {
+      campaign: {
+        site_id: siteIdForInsert,
+        interest: input.interest,
+        status: 'draft',
+        locale: input.locale,
+        form_fields: [],
+      },
+      translation: {
         locale: input.locale,
         slug: input.slug,
         main_hook_md: input.main_hook_md,
@@ -63,8 +76,11 @@ export async function createCampaign(
         ...NEW_CAMPAIGN_EMPTY_TRANSLATION_TEXTS,
       },
     })
-    return { ok: true, campaignId: campaign.id }
+    return { ok: true, campaignId: campaignId }
   } catch (e) {
+    if (e instanceof PipelineServiceError && e.code === 'CONFLICT') {
+      return { ok: false, error: 'validation_failed', message: 'duplicate_slug' }
+    }
     return {
       ok: false,
       error: 'db_error',

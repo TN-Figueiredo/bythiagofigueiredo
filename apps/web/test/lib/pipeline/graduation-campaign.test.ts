@@ -27,6 +27,8 @@ function pipelineItem(over: Row = {}): Row {
 let db: ReturnType<typeof fakePostgrest>
 let tables: Record<string, Row[]>
 const mockClient = { from: (t: string) => db.client.from(t) }
+const sentry = vi.hoisted(() => ({ captureException: vi.fn() }))
+vi.mock('@sentry/nextjs', () => sentry)
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => mockClient }))
 
 import { graduateItem } from '../../../src/lib/pipeline/services/items'
@@ -53,7 +55,7 @@ function setup(items: Row[] = [pipelineItem()], extra: Partial<Record<string, Ro
 
 const OPTS = { interest: 'creator' }
 
-beforeEach(() => setup())
+beforeEach(() => { sentry.captureException.mockClear(); setup() })
 
 describe('graduação para campanha: caminho feliz', () => {
   it('cria rascunho + tradução com os campos certos e liga o item', async () => {
@@ -189,23 +191,93 @@ describe('atomicidade e erros de banco', () => {
 })
 
 describe('colisão de slug', () => {
-  const taken = (siteId: string, locale = 'pt-BR'): Row => ({ id: 't-1', locale, slug: 'guia-de-edicao-rapida', campaigns: { site_id: siteId } })
-
-  it.each([{ dryRun: false }, { dryRun: true }])('mesmo slug/locale/site: 409 CONFLICT, nada criado (dryRun=%o)', async (o) => {
-    setup([pipelineItem()], { campaign_translations: [taken('site-1')] })
-    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS }, o)).rejects.toMatchObject({ code: 'CONFLICT', status: 409 })
-    expect(tables.campaigns).toHaveLength(0)
+  // tradução com o slug + a campanha dona dela (a checagem lê as duas tabelas; o site vem de campaigns)
+  const taken = (siteId: string, locale = 'pt-BR'): Partial<Record<string, Row[]>> => ({
+    campaigns: [{ id: 'c-old', site_id: siteId }],
+    campaign_translations: [{ id: 't-1', campaign_id: 'c-old', locale, slug: 'guia-de-edicao-rapida' }],
   })
 
-  it('o mesmo slug em outro site ou em outro locale não colide', async () => {
-    setup([pipelineItem()], { campaign_translations: [taken('site-2'), taken('site-1', 'en')] })
+  it.each([{ dryRun: false }, { dryRun: true }])('mesmo slug/locale/site: 409 CONFLICT, nada criado (dryRun=%o)', async (o) => {
+    setup([pipelineItem()], taken('site-1'))
+    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS }, o)).rejects.toMatchObject({ code: 'CONFLICT', status: 409 })
+    expect(tables.campaigns).toHaveLength(1) // só a antiga
+  })
+
+  it('o mesmo slug em OUTRO SITE não colide (isolamento de site)', async () => {
+    setup([pipelineItem()], taken('site-2'))
     await graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS })
-    expect(tables.campaigns).toHaveLength(1)
+    expect(tables.campaigns).toHaveLength(2)
+    expect(db.on('campaigns').some(q => q.filters.some(f => f.op === 'eq' && f.col === 'site_id' && f.value === 'site-1'))).toBe(true)
+  })
+
+  it('o mesmo slug em outro locale não colide', async () => {
+    setup([pipelineItem()], taken('site-1', 'en'))
+    await graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS })
+    expect(tables.campaigns).toHaveLength(2)
   })
 
   it('colisão detectada só pelo trigger (23505) vira CONFLICT e desfaz a campanha', async () => {
     setup([pipelineItem()], {}, q => (q.table === 'campaign_translations' && q.op === 'insert' ? { code: '23505', message: 'duplicate slug' } : null))
     await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS })).rejects.toMatchObject({ code: 'CONFLICT', status: 409 })
     expect(tables.campaigns).toHaveLength(0)
+  })
+})
+
+describe('rollback', () => {
+  it('o delete da campanha é filtrado por id E site_id', async () => {
+    setup([pipelineItem()], {}, q => (q.table === 'content_pipeline_history' ? { message: 'x' } : null))
+    await graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS }).catch(() => null)
+    const del = db.queries.find(q => q.table === 'campaigns' && q.op === 'delete')!
+    expect(del.filters.map(f => f.col).sort()).toEqual(['id', 'site_id'])
+    expect(del.filters.find(f => f.col === 'site_id')!.value).toBe('site-1')
+  })
+
+  it('rollback que falha: erro original ao cliente + Sentry com o id da campanha órfã', async () => {
+    setup([pipelineItem()], {}, q => {
+      if (q.table === 'content_pipeline_history') return { message: 'history down' }
+      if (q.table === 'campaigns' && q.op === 'delete') return { code: 'XX000', message: 'delete down' }
+      return null
+    })
+    const err = await graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS }).catch(e => e)
+    expect(err).toMatchObject({ code: 'DB_ERROR', message: 'Failed to record the graduation history' })
+    expect(sentry.captureException).toHaveBeenCalledTimes(1)
+    expect(sentry.captureException.mock.calls[0]![1]).toMatchObject({ extra: { campaign_id: 'campaigns-1', site_id: 'site-1' } })
+  })
+
+  it('unlink que falha no rollback também vai ao Sentry', async () => {
+    setup([pipelineItem()], {}, q => {
+      if (q.table === 'content_pipeline_history') return { message: 'history down' }
+      if (q.table === 'content_pipeline' && q.op === 'update' && (q.payload as Row).campaign_id === null) return { message: 'unlink down' }
+      return null
+    })
+    await graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS }).catch(() => null)
+    expect(sentry.captureException).toHaveBeenCalledTimes(1)
+    expect(sentry.captureException.mock.calls[0]![1]).toMatchObject({ extra: { item_id: ID } })
+  })
+})
+
+describe('corrida na ligação do item', () => {
+  it('se outro pedido ligou o item no meio: 409, campanha nova desfeita, vínculo do vencedor intacto', async () => {
+    let first = true
+    setup([pipelineItem()], {}, q => {
+      // o vencedor liga o item logo antes do nosso update
+      if (first && q.table === 'content_pipeline' && q.op === 'update') {
+        first = false
+        tables.content_pipeline[0]!.campaign_id = 'winner'
+      }
+      return null
+    })
+    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS })).rejects.toMatchObject({ code: 'INVALID_OPERATION', status: 409 })
+    expect(tables.campaigns).toHaveLength(0)
+    expect(tables.content_pipeline[0]!.campaign_id).toBe('winner')
+    expect(tables.content_pipeline_history).toHaveLength(0)
+  })
+})
+
+describe('limites das opções', () => {
+  it('texto acima do limite é recusado (400)', async () => {
+    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: { ...OPTS, success_headline: 'x'.repeat(201) } })).rejects.toMatchObject({ status: 400 })
+    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: { ...OPTS, main_hook_md: 'x'.repeat(10001) } })).rejects.toMatchObject({ status: 400 })
+    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: { ...OPTS, meta_description: 'x'.repeat(301) } })).rejects.toMatchObject({ status: 400 })
   })
 })
