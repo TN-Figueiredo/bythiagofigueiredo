@@ -64,3 +64,18 @@ describe('error channels never starve the cursor', () => {
     expect(synced).toEqual(['h1', 'h2'])
   })
 })
+
+describe('runCompetitorBatch — teto de sondas de Short', () => {
+  it('um só orçamento de 60 sondas é compartilhado por todos os canais do lote', async () => {
+    vi.resetModules()
+    const budgets: unknown[] = []
+    vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (_r: unknown, _k: string, o: { probeBudget: unknown }) => { budgets.push(o.probeBudget); return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0 } }) }))
+    const rows = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's', last_synced_at: null }]
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
+    const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
+    await runCompetitorBatch({ apiKey: 'k', batchSize: 5, budgetMs: 1e9, now: () => sp('2026-10-24T15:02:00') })
+    expect(budgets).toHaveLength(2)
+    expect(budgets[0]).toBe(budgets[1])
+    expect(budgets[0]).toEqual({ remaining: 60 })
+  })
+})
