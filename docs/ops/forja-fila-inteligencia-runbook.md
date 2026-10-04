@@ -443,37 +443,50 @@ Esperado: `0`.
 
 ---
 
-## 6. Adicionar o canal EN
+## 6. Canais (`CANAIS_FILA`)
 
 A lista de canais vive em **`CANAIS_FILA`**, no `/opt/agente/fila_intel.env`, **separada por
-vírgula**, sem espaço obrigatório:
+vírgula**. Cada item é uma destas formas:
 
-```
-CANAIS_FILA="PT,EN"
-```
+| Item | Exemplo | Como resolve | Chama o site? |
+|---|---|---|---|
+| Rótulo local (MAIÚSCULAS) | `PT` | uuid de `SITIO_CANAL_PT` em `/etc/default/proxy-agente` (lido pelo próprio Python) | **não** |
+| Slug do site (minúsculas) | `tnfigueiredotv` | a rota `GET /api/pipeline/youtube/channels` lista os canais; o slug dá o `id` | sim, **uma** chamada por tick, antes do claim |
+| `*` | `*` | todos os canais da rota com `sync_enabled` e `video_count > 0`, na ordem de cadastro | sim |
 
-O rótulo (`PT`/`EN`) é traduzido para uuid por `SITIO_CANAL_PT` / `SITIO_CANAL_EN`, lidos de
-`/etc/default/proxy-agente` pelo próprio Python. **Rótulo desconhecido, uuid ausente ou lista vazia
-→ `desfecho: config`, sem claim.**
+Exemplos: `CANAIS_FILA="PT"` (o que roda hoje; nenhuma chamada nova), `CANAIS_FILA="PT,<slug-novo>"`,
+`CANAIS_FILA="*"`. Até 10 canais (`canais_demais`). Slug em minúsculas; escrito em maiúsculas vira
+rótulo local e, sem `SITIO_CANAL_<ROTULO>`, dá `config`/`canal_<ROTULO>`. **Rótulo desconhecido,
+slug que o site não tem, uuid ausente ou lista vazia → `desfecho: config`, sem claim.** Linha
+`SITIO_CANAL_<rótulo>` repetida: vale a **última** (igual ao `EnvironmentFile` do systemd).
 
-**O que mais é exigido antes de ligar o EN** — nenhum destes é opcional:
+Slugs reais em produção (04/10): `tnfigueiredotv` (PT, "tnFigueiredo") e `bythiagofigueiredo` (EN,
+"Thiago Figueiredo"). O comando `MC.9` do LEIAME lista os slugs vindos da rota.
 
-1. **`SITIO_CANAL_EN` presente e correto.** Prova:
-   ```
-   ssh forja 'grep -c "^SITIO_CANAL_EN=" /etc/default/proxy-agente'
-   ```
-   Esperado `1`. (Conferido em 22/09: as três linhas existem.)
-2. **≥ 8 vídeos no canal EN no banco do site.** É o portão que o spec §5 (F4) fixou. Em 18/09 o EN
-   tinha **0 vídeos**, e um canal vazio faz o `escolher` rodar sobre nada — o mesmo modo de falha do
-   `series.json` ausente: saída pobre, `desfecho: ok`, check verde.
-3. **Um F2 próprio** — pelo menos três rodadas de `--sombra` com um snapshot do EN, lidas e julgadas
-   pelo dono, **antes** de o EN clamar de verdade. A qualidade do texto em português não transfere.
-4. **Entradas do EN no `series.json`.** O arquivo é único para os dois canais e é indexado pelo `id`
-   interno do snapshot; vídeos do EN sem entrada simplesmente não formam série.
-5. **Refazer a conta do orçamento.** Uma execução processa **uma** task; o claim leva os uuids de
-   todos os canais de `CANAIS_FILA`. Com dois canais, a fila drena na metade da velocidade, e
-   `2 × 25 min` continua tendo de caber no limiar de 70 min do pulso e no `STALE_THRESHOLD_MINUTES`
-   de 30 min do watchdog.
+**A fila continua pegando UMA task por tick.** O claim leva os uuids de todos os canais da lista, mas
+cada execução processa uma task: N canais = N ticks (de 10 min) para drenar os diagnósticos
+semanais. O orçamento não muda: a conta é por tick (claim 20 min < cron 25 min < watchdog 30 min) e o
+pulso corta em 70 min; mais canais só alongam a fila, não o tick.
+
+**Canal novo: o que esperar.** Todo canal novo aparece com marca de fallback até ter séries mapeadas
+e 8 vídeos públicos. Isso é esperado, não é defeito (detalhes na tabela de desfechos e no §9). Para
+mapear as séries, use o `series.json` **por canal**: `/opt/agente/series.json` com
+`{"canais": {"<slug>": {"videos": {"<id do vídeo>": "<série>"}, "nomes": {"<série>": "<nome>"}}}}`
+(exemplo no kit: `fase2/series.exemplo-por-canal.json`; o formato antigo, `videos`/`nomes` na raiz,
+continua valendo para o canal PT). Comandos: LEIAME, bloco opcional (a) (`SER.1`–`SER.3`).
+
+**O canal EN (`bythiagofigueiredo`) ainda NÃO deve entrar** — 3 inscritos e **0 vídeos** em 04/10.
+Com o rótulo local `EN` a task sairia `reprovada` (`canal_sem_video`); com o slug (ou `*`) a rota o
+deixa de fora, com `canal_sem_video_<slug>` em `motivos`, e se for o único canal da lista dá
+`config`/`canais_vazio`. Antes de ligá-lo valem as exigências de sempre: **≥ 8 vídeos** no banco,
+**um F2 próprio** (pelo menos três rodadas de `--sombra` lidas pelo dono; a qualidade do texto em
+português não transfere), entradas do EN no `series.json`, e a conta do orçamento acima.
+
+**Rollout** (LEIAME, seção "Multi-canal: a forja lê todos os canais"): migrations em produção →
+código das Fases 1-3 em produção (a rota de canais é da Fase 3; **não cadastrar canal novo antes
+dela**) → worker novo com a configuração antiga (`MC.1`-`MC.8`; a fila não para) → troca de
+`CANAIS_FILA` (`MC.9`-`MC.12`). Instale fora do minuto `:x0`: o cron roda de 10 em 10 minutos e o
+worker lê `fila_intel.py` e `sitio.py` antes de pegar o lock.
 
 Depois de editar o `fila_intel.env`, confira que o arquivo continua 600 e que há exatamente uma
 linha `CANAIS_FILA` e uma `SITIO_CHAVE_FILA` — **duas linhas de chave fecham a porta**
@@ -507,12 +520,13 @@ Campos: `quando` (ISO com offset local da forja), `modo` (`cron` | `manual` | `s
 | `ocupado` | O lock estava tomado, ou a GPU tinha slot ocupado, ou era a janela de sync (`motivos: janela_sync`) | **não** | nada; o próximo tique tenta |
 | `chat` | Havia conversa recente no llama — o worker cede a GPU ao humano | **não** | nada |
 | `llama_fora` | A 8080 recusou conexão ou deu 500 | **não** | ver se o `llama-server` está de pé |
-| `config` | `fila_intel.env` ausente/ilegível, `CANAIS_FILA` vazia ou desconhecida, chave ausente/duplicada/fora do formato | **não** | §5 e §6. **Falha permanente — pinta o check** |
-| `chave` | O site recusou a chave (401/403) | não fechou | §5, passo 2. **Falha permanente — pinta o check** |
-| `reprovada` | Guarda determinística do validador: limite de texto, escopo 2a violado, ou `recent_window.days ≠ 90`. Repetir daria o mesmo payload | sim, e mandou `fail` **sem** `retry` | ler `motivos`; é bug de código ou de dado, não transitório |
+| `config` | `fila_intel.env` ausente/ilegível, `CANAIS_FILA` vazia ou desconhecida, chave ausente/duplicada/fora do formato. Motivos de canais: `canal_<rótulo ou slug>` (rótulo sem uuid local, slug que o site não tem, uuid torto), `canal_formato`, `canal_sem_slug` (com `*`), `canais_vazio` (nenhum canal com vídeo), `canais_demais` (> 10), `canais_formato`/`canais_ilegivel` (resposta torta), **`canais_<status>`** (a rota respondeu 404, 3xx, 400, 405, 410 ou 422: defeito permanente), `canais_rota_bloqueada` (`sitio.py` instalado é anterior à rota) | **não** | §5 e §6. **Falha permanente — pinta o check no próximo pulso** |
+| `chave` | O site recusou a chave (401/403) — no claim, no snapshot ou na rota de canais | não fechou | §5, passo 2. **Falha permanente — pinta o check** |
+| `reprovada` | Guarda determinística do validador: limite de texto, escopo 2a violado, ou `recent_window.days ≠ 90`; ou o canal não tem **nenhum** vídeo público no snapshot (`motivos: canal_sem_video`). Repetir daria o mesmo payload | sim, e mandou `fail` **sem** `retry` | ler `motivos`; é bug de código ou de dado, não transitório. `canal_sem_video`: o canal ainda não tem vídeo importado; não o inclua na lista |
 | `llama` | As duas tentativas depois do claim falharam por infra (`truncado`, `timeout`, `json`, `pensou`) | sim, `fail` **com** `retry` | a task volta para a fila; se repetir, olhe a GPU |
 | `orcamento` | A tentativa 1 falhou por infra e restavam menos de 9 min — não houve tentativa 2 | sim, `fail` **com** `retry` | a task volta para a fila |
-| `falha_site` | O snapshot falhou (`etapa: snapshot`) | depende | site fora, ou rota mudou |
+| `falha_site` | O snapshot falhou (`etapa: snapshot`), ou a rota de canais deu 5xx/429/timeout/erro de conexão (`motivos: canais_…`, antes do claim) | depende (a rota de canais: **não**) | site fora; o próximo tick tenta de novo. 404/3xx/4xx na rota de canais **não** é `falha_site`: é `config` (acima) |
+| `ok` com `fallback` | O texto foi escrito pelo código, sem o modelo, e a task ficou `ok`. `fallback: ["series"]` = séries do canal não mapeadas na forja (o pulso pinta `fila-fallback:series`); `["poucos_videos"]` = menos de 8 vídeos públicos (`motivos: canal_poucos_videos`); `["janela"]` = `recent_window` nula (`motivos: janela_ausente`). Canal presente no `series.json` por canal, mesmo vazio = `ok` sem marca, com "Este canal não tem séries definidas." | sim | **Esperado em canal novo.** Mapeie as séries (§6) e espere 8 vídeos; a marca some sozinha. Motivos `series_ausente`/`series_ilegivel`/`series_formato`/`series_sem_canal` dizem por que as séries não valeram |
 | `conflito` | O PATCH levou 409: outra coisa já fechou a task | sim | normalmente benigno |
 | `fail_perdido` | O `fail` que deveria devolver a task à fila não chegou | sim | a task fica `running` até o watchdog (30 min) |
 | `indeterminado` | O PATCH não teve resposta conclusiva | sim | o watchdog resolve |
