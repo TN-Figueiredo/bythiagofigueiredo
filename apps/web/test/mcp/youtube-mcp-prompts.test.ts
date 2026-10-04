@@ -418,6 +418,7 @@ describe('o canal que os prompts recebem', () => {
         ...over,
       } as FakePostgrestOptions['tables'],
       columns: {
+        sites: ['id'], // tabela vazia também recusa coluna inexistente
         youtube_intelligence: ['generated_at', 'source'],
         youtube_channels: ['id', 'site_id', 'name', 'subscriber_count', 'created_at'],
         youtube_videos: ['id', 'site_id', 'channel_id'],

@@ -85,6 +85,11 @@ const ERROR_MAP: Record<string, ErrorClassification> = {
     retryable: true,
     recovery_action: 'The service is temporarily unavailable. Retry after a short delay.',
   },
+  DB_ERROR: {
+    severity: 'transient',
+    retryable: true,
+    recovery_action: 'A database read or write failed. Retry after a short delay; if it persists, report it — do not treat the missing data as empty.',
+  },
   TIMEOUT: {
     severity: 'transient',
     retryable: true,
@@ -92,6 +97,11 @@ const ERROR_MAP: Record<string, ErrorClassification> = {
   },
 
   // Fatal -- no automatic recovery
+  NOT_SUPPORTED: {
+    severity: 'fatal',
+    retryable: false,
+    recovery_action: 'This operation is not supported yet. Do not retry; choose a different target or action.',
+  },
   NOT_FOUND: {
     severity: 'fatal',
     retryable: false,
