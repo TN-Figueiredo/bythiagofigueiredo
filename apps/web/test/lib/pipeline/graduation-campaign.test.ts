@@ -1,0 +1,211 @@
+// @vitest-environment node
+/**
+ * Graduação de item para CAMPANHA: cria um rascunho válido (campanha + tradução), liga o item.
+ * Banco: fakePostgrest com as colunas reais de cada tabela, então coluna inexistente (o bug
+ * original: `campaigns.name`/`slug`) falha como no PostgREST.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { fakePostgrest, type FakeError, type FakeQuery } from '../../helpers/fake-postgrest'
+
+const CAMPAIGNS = ['created_at', 'created_by', 'form_fields', 'id', 'interest', 'link_group_id', 'locale', 'owner_user_id', 'pdf_storage_path', 'published_at', 'scheduled_for', 'site_id', 'social_config', 'status', 'updated_at', 'updated_by']
+const TRANSLATIONS = ['body_content_md', 'campaign_id', 'check_mail_text', 'context_tag', 'created_at', 'download_button_label', 'extras', 'form_button_label', 'form_button_loading_label', 'form_intro_md', 'id', 'introductory_block_md', 'locale', 'main_hook_md', 'meta_description', 'meta_title', 'og_image_url', 'slug', 'success_headline', 'success_headline_duplicate', 'success_subheadline', 'success_subheadline_duplicate', 'supporting_argument_md', 'updated_at']
+const PIPELINE = ['id', 'site_id', 'code', 'title_pt', 'title_en', 'language', 'hook', 'synopsis', 'body_content', 'cover_image_url', 'campaign_id', 'blog_post_id', 'newsletter_edition_id', 'format_metadata', 'created_by']
+const HISTORY = ['id', 'pipeline_id', 'event_type', 'from_value', 'to_value', 'changed_by', 'changed_by_key_id', 'changed_at']
+
+const ID = '11111111-1111-4111-8111-111111111111'
+type Row = Record<string, unknown>
+
+function pipelineItem(over: Row = {}): Row {
+  return {
+    id: ID, site_id: 'site-1', code: 'CMP-1', title_pt: 'Guia de Edição Rápida', title_en: 'Quick Edit Guide',
+    language: 'pt-br', hook: 'Edite em metade do tempo', synopsis: 'Um guia curto', body_content: '# Corpo',
+    cover_image_url: 'https://cdn/cover.png', campaign_id: null, blog_post_id: null, newsletter_edition_id: null,
+    format_metadata: {}, created_by: null, ...over,
+  }
+}
+
+let db: ReturnType<typeof fakePostgrest>
+let tables: Record<string, Row[]>
+const mockClient = { from: (t: string) => db.client.from(t) }
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => mockClient }))
+
+import { graduateItem } from '../../../src/lib/pipeline/services/items'
+import { PipelineServiceError, type ServiceContext } from '../../../src/lib/pipeline/services/types'
+
+const ctx: ServiceContext = { siteId: 'site-1', permissions: ['read', 'write'], supabase: {} as ServiceContext['supabase'], source: 'api_key', keyId: 'key-1' }
+
+function setup(items: Row[] = [pipelineItem()], extra: Partial<Record<string, Row[]>> = {}, fail?: (q: FakeQuery) => FakeError | null) {
+  tables = {
+    content_pipeline: items,
+    campaigns: [],
+    campaign_translations: [],
+    content_pipeline_history: [],
+    ...(extra as Record<string, Row[]>),
+  }
+  db = fakePostgrest({
+    tables,
+    columns: { campaigns: CAMPAIGNS, campaign_translations: TRANSLATIONS, content_pipeline: PIPELINE, content_pipeline_history: HISTORY },
+    idFor: (t, n) => `${t}-${n}`,
+    cascade: { campaigns: [{ table: 'campaign_translations', column: 'campaign_id' }] },
+    fail,
+  })
+}
+
+const OPTS = { interest: 'creator' }
+
+beforeEach(() => setup())
+
+describe('graduação para campanha: caminho feliz', () => {
+  it('cria rascunho + tradução com os campos certos e liga o item', async () => {
+    const res = await graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS })
+
+    expect(tables.campaigns).toHaveLength(1)
+    expect(tables.campaigns[0]).toMatchObject({ site_id: 'site-1', interest: 'creator', status: 'draft', locale: 'pt-BR', form_fields: [] })
+    expect(tables.campaigns[0]).not.toHaveProperty('published_at')
+    const tx = tables.campaign_translations[0]!
+    expect(tx).toMatchObject({
+      campaign_id: tables.campaigns[0]!.id,
+      locale: 'pt-BR',
+      slug: 'guia-de-edicao-rapida',
+      meta_title: 'Guia de Edição Rápida',
+      main_hook_md: 'Edite em metade do tempo',
+      meta_description: 'Um guia curto',
+      og_image_url: 'https://cdn/cover.png',
+      body_content_md: '# Corpo',
+      context_tag: 'creator',
+      success_headline: '', success_headline_duplicate: '', success_subheadline: '',
+      success_subheadline_duplicate: '', check_mail_text: '', download_button_label: '',
+    })
+    expect(tables.content_pipeline[0]!.campaign_id).toBe(tables.campaigns[0]!.id)
+    expect(tables.content_pipeline_history[0]).toMatchObject({ pipeline_id: ID, event_type: 'graduated', to_value: `campaign:${tables.campaigns[0]!.id}`, changed_by_key_id: 'key-1' })
+    expect(res.data).toMatchObject({ graduated: true, target: 'campaign', entity_id: tables.campaigns[0]!.id, status: 'draft', slug: 'guia-de-edicao-rapida' })
+  })
+
+  it('item em inglês usa título EN e locale en; opções sobrescrevem os defaults', async () => {
+    setup([pipelineItem({ language: 'en' })])
+    await graduateItem(ctx, ID, { target: 'campaign', campaign: { ...OPTS, slug: 'quick', context_tag: 'tag', check_mail_text: 'Check', form_button_label: 'Go' } })
+    expect(tables.campaign_translations[0]).toMatchObject({ locale: 'en', slug: 'quick', meta_title: 'Quick Edit Guide', context_tag: 'tag', check_mail_text: 'Check', form_button_label: 'Go' })
+  })
+
+  it('sem hook no item: usa a sinopse; sem as duas, exige main_hook_md', async () => {
+    setup([pipelineItem({ hook: null })])
+    await graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS })
+    expect(tables.campaign_translations[0]!.main_hook_md).toBe('Um guia curto')
+  })
+})
+
+describe('dry run', () => {
+  it('não grava nada e devolve o que seria criado', async () => {
+    const res = await graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS }, { dryRun: true })
+    expect(tables.campaigns).toHaveLength(0)
+    expect(tables.campaign_translations).toHaveLength(0)
+    expect(tables.content_pipeline[0]!.campaign_id).toBeNull()
+    expect(db.queries.filter(q => q.op && q.op !== 'select')).toHaveLength(0)
+    expect(res.data).toMatchObject({ graduated: true, dry_run: true, entity_id: null })
+    expect(res.data.would_create).toMatchObject({
+      campaign: { site_id: 'site-1', interest: 'creator', status: 'draft' },
+      translation: { slug: 'guia-de-edicao-rapida', main_hook_md: 'Edite em metade do tempo' },
+    })
+  })
+})
+
+describe('campos obrigatórios ausentes', () => {
+  it.each([{ dryRun: false }, { dryRun: true }])('422 VALIDATION_ERROR nomeando interest (dryRun=%o)', async (o) => {
+    const err = await graduateItem(ctx, ID, { target: 'campaign' }, o).catch(e => e)
+    expect(err).toBeInstanceOf(PipelineServiceError)
+    expect(err).toMatchObject({ code: 'VALIDATION_ERROR', status: 422, details: { missing_fields: ['interest'] } })
+    expect(err.message).toContain('interest')
+    expect(tables.campaigns).toHaveLength(0)
+  })
+
+  it.each([{ dryRun: false }, { dryRun: true }])('sem hook nem sinopse: lista main_hook_md também (dryRun=%o)', async (o) => {
+    setup([pipelineItem({ hook: null, synopsis: null })])
+    const err = await graduateItem(ctx, ID, { target: 'campaign' }, o).catch(e => e)
+    expect(err).toMatchObject({ code: 'VALIDATION_ERROR', status: 422, details: { missing_fields: ['interest', 'main_hook_md'] } })
+  })
+
+  it('interest fora do vocabulário é recusado pelo schema (400)', async () => {
+    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: { interest: 'banana' } })).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 400 })
+  })
+})
+
+describe('isolamento e idempotência', () => {
+  it('item de outro site: 404 e nada criado', async () => {
+    setup([pipelineItem({ site_id: 'site-2' })])
+    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS })).rejects.toMatchObject({ code: 'NOT_FOUND', status: 404 })
+    expect(tables.campaigns).toHaveLength(0)
+  })
+
+  it('item já graduado para campanha: mesma resposta dos outros destinos (409)', async () => {
+    setup([pipelineItem({ campaign_id: 'camp-9' })])
+    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS })).rejects.toMatchObject({ code: 'INVALID_OPERATION', status: 409, message: 'Already graduated to campaign' })
+    expect(tables.campaigns).toHaveLength(0)
+  })
+
+  it('segunda chamada seguida da primeira bem-sucedida é recusada, sem segunda campanha', async () => {
+    await graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS })
+    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS })).rejects.toMatchObject({ status: 409 })
+    expect(tables.campaigns).toHaveLength(1)
+  })
+})
+
+describe('atomicidade e erros de banco', () => {
+  it('falha ao gravar a tradução desfaz a campanha', async () => {
+    setup([pipelineItem()], {}, q => (q.table === 'campaign_translations' && q.op === 'insert' ? { code: 'XX000', message: 'boom: internal pg detail' } : null))
+    const err = await graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS }).catch(e => e)
+    expect(err).toMatchObject({ code: 'DB_ERROR', status: 500 })
+    expect(err.message).not.toContain('boom')
+    expect(tables.campaigns).toHaveLength(0)
+    expect(tables.content_pipeline[0]!.campaign_id).toBeNull()
+  })
+
+  it('falha ao ligar o item desfaz campanha e tradução', async () => {
+    setup([pipelineItem()], {}, q => (q.table === 'content_pipeline' && q.op === 'update' && (q.payload as Row).campaign_id ? { message: 'pg secret' } : null))
+    const err = await graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS }).catch(e => e)
+    expect(err).toMatchObject({ code: 'DB_ERROR' })
+    expect(err.message).not.toContain('pg secret')
+    expect(tables.campaigns).toHaveLength(0)
+    expect(tables.campaign_translations).toHaveLength(0)
+  })
+
+  it('falha no histórico desfaz tudo e desliga o item', async () => {
+    setup([pipelineItem()], {}, q => (q.table === 'content_pipeline_history' ? { message: 'pg secret' } : null))
+    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS })).rejects.toMatchObject({ code: 'DB_ERROR' })
+    expect(tables.campaigns).toHaveLength(0)
+    expect(tables.content_pipeline[0]!.campaign_id).toBeNull()
+  })
+
+  it('falha ao criar a campanha propaga como DB_ERROR sem o texto do Postgres', async () => {
+    setup([pipelineItem()], {}, q => (q.table === 'campaigns' && q.op === 'insert' ? { message: 'pg secret' } : null))
+    const err = await graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS }).catch(e => e)
+    expect(err).toMatchObject({ code: 'DB_ERROR', status: 500 })
+    expect(err.message).not.toContain('secret')
+  })
+
+  it('erro ao checar o slug propaga (não vira "livre")', async () => {
+    setup([pipelineItem()], {}, q => (q.table === 'campaign_translations' && q.op !== 'insert' ? { message: 'pg secret' } : null))
+    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS }, { dryRun: true })).rejects.toMatchObject({ code: 'DB_ERROR' })
+  })
+})
+
+describe('colisão de slug', () => {
+  const taken = (siteId: string, locale = 'pt-BR'): Row => ({ id: 't-1', locale, slug: 'guia-de-edicao-rapida', campaigns: { site_id: siteId } })
+
+  it.each([{ dryRun: false }, { dryRun: true }])('mesmo slug/locale/site: 409 CONFLICT, nada criado (dryRun=%o)', async (o) => {
+    setup([pipelineItem()], { campaign_translations: [taken('site-1')] })
+    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS }, o)).rejects.toMatchObject({ code: 'CONFLICT', status: 409 })
+    expect(tables.campaigns).toHaveLength(0)
+  })
+
+  it('o mesmo slug em outro site ou em outro locale não colide', async () => {
+    setup([pipelineItem()], { campaign_translations: [taken('site-2'), taken('site-1', 'en')] })
+    await graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS })
+    expect(tables.campaigns).toHaveLength(1)
+  })
+
+  it('colisão detectada só pelo trigger (23505) vira CONFLICT e desfaz a campanha', async () => {
+    setup([pipelineItem()], {}, q => (q.table === 'campaign_translations' && q.op === 'insert' ? { code: '23505', message: 'duplicate slug' } : null))
+    await expect(graduateItem(ctx, ID, { target: 'campaign', campaign: OPTS })).rejects.toMatchObject({ code: 'CONFLICT', status: 409 })
+    expect(tables.campaigns).toHaveLength(0)
+  })
+})

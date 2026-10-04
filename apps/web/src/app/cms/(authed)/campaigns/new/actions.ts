@@ -2,6 +2,7 @@
 
 import { campaignRepo } from '@/lib/cms/repositories'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { NEW_CAMPAIGN_EMPTY_TRANSLATION_TEXTS } from '@/lib/campaigns/new-campaign-defaults'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 
 export interface CreateCampaignActionInput {
@@ -59,12 +60,7 @@ export async function createCampaign(
         main_hook_md: input.main_hook_md,
         meta_title: input.title,
         context_tag: input.interest,
-        success_headline: '',
-        success_headline_duplicate: '',
-        success_subheadline: '',
-        success_subheadline_duplicate: '',
-        check_mail_text: '',
-        download_button_label: '',
+        ...NEW_CAMPAIGN_EMPTY_TRANSLATION_TEXTS,
       },
     })
     return { ok: true, campaignId: campaign.id }

@@ -1,7 +1,6 @@
 // @vitest-environment node
 /**
- * Graduação de item do pipeline: `campaign` é NOT_SUPPORTED antes de qualquer leitura, dry run e
- * confirmação inclusos; newsletter grava o corpo em `content_mdx` (a coluna `content` não existe).
+ * Graduação de item do pipeline (campanha: test/lib/pipeline/graduation-campaign.test.ts); newsletter grava o corpo em `content_mdx` (a coluna `content` não existe).
  */
 import { describe, it, expect, vi } from 'vitest'
 
@@ -27,28 +26,13 @@ function chain(table: string) {
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: chain }) }))
 
 import { graduateItem } from '../../src/lib/pipeline/services/items'
-import { graduateItem as mcpGraduate } from '../../src/lib/pipeline/mcp/services/items'
 import { toMcpError } from '../../src/lib/pipeline/mcp/errors'
 import { PipelineServiceError, type ServiceContext } from '../../src/lib/pipeline/services/types'
 
 const ID = '11111111-1111-4111-8111-111111111111'
 const ctx: ServiceContext = { siteId: 'site-1', permissions: ['read', 'write'], supabase: {} as ServiceContext['supabase'], source: 'api_key' }
 
-describe('graduação para campanha', () => {
-  it.each([{ dryRun: false }, { dryRun: true }])('NOT_SUPPORTED 422 antes de ler o item (dryRun=%o)', async (opts) => {
-    calls.length = 0
-    await expect(graduateItem(ctx, ID, { target: 'campaign' }, opts)).rejects.toMatchObject({ code: 'NOT_SUPPORTED', status: 422 })
-    expect(calls).toHaveLength(0)
-  })
-
-  it('a ferramenta MCP responde NOT_SUPPORTED também no dry run e sem confirmação', async () => {
-    // `buildCtx` lê o contexto MCP; sem ele a chamada falha ANTES do guard: então o guard é testado no serviço exportado
-    const { assertGraduationSupported } = await import('../../src/lib/pipeline/services/items')
-    expect(() => assertGraduationSupported('campaign')).toThrow(PipelineServiceError)
-    expect(() => assertGraduationSupported('newsletter')).not.toThrow()
-    expect(typeof mcpGraduate).toBe('function')
-  })
-
+describe('classificação de erros no MCP', () => {
   it('NOT_SUPPORTED e DB_ERROR têm classificação própria no MCP', () => {
     const ns = toMcpError(new PipelineServiceError('NOT_SUPPORTED', 'x', 422))
     const db = toMcpError(new PipelineServiceError('DB_ERROR', 'x', 500))

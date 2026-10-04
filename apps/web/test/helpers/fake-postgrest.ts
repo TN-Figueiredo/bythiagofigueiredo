@@ -6,6 +6,10 @@
  * Existe porque um dublê que devolve respostas enfileiradas não enxerga um filtro que falta:
  * "o snapshot do canal A só traz notas dos vídeos de A" só é verificável se o dublê filtrar.
  *
+ * Escrita: `insert`/`update`/`delete` mutam as linhas da tabela. Coluna no payload que não existe
+ * em `columns` (nem em linha alguma) devolve PGRST204, como o PostgREST; `gen_random_uuid()` e
+ * `created_at` não são simulados (o `id` vem de `idFor`, se dado, ou `<tabela>-<n>`).
+ *
  * Coluna pedida no `select` que não existe em NENHUMA linha da tabela nem em `columns` devolve o
  * erro 42703 do Postgres, como o banco faz. É o que pega um `select('total_views')`.
  */
@@ -20,6 +24,9 @@ export interface FakeQuery {
   /** `select(cols, { count, head })`. */
   count: 'exact' | null
   head: boolean
+  /** `select` por padrão; `insert`/`update`/`delete` gravam nas linhas da tabela. */
+  op?: 'select' | 'insert' | 'update' | 'delete'
+  payload?: Row | Row[]
 }
 
 export interface FakeError { code?: string; message: string }
@@ -37,6 +44,10 @@ export interface FakePostgrestOptions {
    * `range` maiores que o teto NÃO devolvem mais linhas, e não há erro. Sem a opção, sem teto.
    */
   maxRows?: number
+  /** Gera o `id` das linhas inseridas (default `<tabela>-<n>`). */
+  idFor?: (table: string, n: number) => string
+  /** FK ON DELETE CASCADE: `delete` em `<tabela>` apaga as linhas filhas (`filha.coluna = id`). */
+  cascade?: Record<string, Array<{ table: string; column: string }>>
 }
 
 function splitTopLevel(s: string): string[] {
@@ -61,6 +72,7 @@ function cmp(a: unknown, b: unknown): number {
 
 export function fakePostgrest(opts: FakePostgrestOptions) {
   const queries: FakeQuery[] = []
+  let inserts = 0
 
   function run(q: FakeQuery): { data: unknown; error: FakeError | null; count?: number | null } {
     queries.push(q)
@@ -69,6 +81,22 @@ export function fakePostgrest(opts: FakePostgrestOptions) {
 
     const all = opts.tables[q.table]
     if (!all) return { data: null, error: { code: 'PGRST205', message: `Could not find the table 'public.${q.table}' in the schema cache` } }
+
+    if (q.op === 'insert') {
+      const known = new Set<string>(opts.columns?.[q.table] ?? [])
+      for (const r of all) for (const k of Object.keys(r)) known.add(k)
+      const inserted: Row[] = []
+      for (const p of Array.isArray(q.payload) ? q.payload : [q.payload ?? {}]) {
+        const bad = Object.keys(p).find(k => !known.has(k))
+        if (bad) return { data: null, error: { code: 'PGRST204', message: `Could not find the '${bad}' column of '${q.table}' in the schema cache` } }
+        const row: Row = { ...p }
+        if (row.id === undefined && known.has('id')) { inserts += 1; row.id = opts.idFor?.(q.table, inserts) ?? `${q.table}-${inserts}` }
+        all.push(row)
+        inserted.push(row)
+      }
+      if (q.terminal === 'many') return { data: inserted.map(r => ({ ...r })), error: null }
+      return { data: { ...inserted[0]! }, error: null }
+    }
 
     // Itens do select no nível de cima. `rel(...)`, `alias:rel!inner(...)` são embeds: não são
     // validados (o dublê não conhece o esquema da outra tabela); a linha de teste traz o objeto
@@ -127,6 +155,27 @@ export function fakePostgrest(opts: FakePostgrestOptions) {
       if (f.op === 'not.is') return !(f.value === null ? v == null : v === f.value)
       throw new Error(`fakePostgrest: filtro não suportado: ${f.op}`)
     }))
+    if (q.op === 'update' || q.op === 'delete') {
+      if (q.op === 'update') {
+        const known = new Set<string>(opts.columns?.[q.table] ?? [])
+        for (const r of all) for (const k of Object.keys(r)) known.add(k)
+        const bad = Object.keys(q.payload ?? {}).find(k => !known.has(k))
+        if (bad) return { data: null, error: { code: 'PGRST204', message: `Could not find the '${bad}' column of '${q.table}' in the schema cache` } }
+        for (const r of rows) Object.assign(r, q.payload)
+      } else {
+        for (const r of rows) {
+          all.splice(all.indexOf(r), 1)
+          for (const c of opts.cascade?.[q.table] ?? []) {
+            const child = opts.tables[c.table]
+            if (child) opts.tables[c.table] = child.filter(x => x[c.column] !== r.id)
+          }
+        }
+      }
+      const out = rows.map(r => ({ ...r }))
+      if (q.terminal === 'many') return { data: out, error: null }
+      if (out.length === 1) return { data: out[0], error: null }
+      return { data: null, error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' } }
+    }
     if (q.orders.length) {
       rows = [...rows].sort((a, b) => {
         for (const o of q.orders) {
@@ -156,6 +205,9 @@ export function fakePostgrest(opts: FakePostgrestOptions) {
   function from(table: string) {
     const q: FakeQuery = { table, select: '*', filters: [], orders: [], limit: null, range: null, terminal: 'many', count: null, head: false }
     const b = {
+      insert(payload: Row | Row[]) { q.op = 'insert'; q.payload = payload; return b },
+      update(payload: Row) { q.op = 'update'; q.payload = payload; return b },
+      delete() { q.op = 'delete'; return b },
       select(cols: string, o?: { count?: 'exact'; head?: boolean }) {
         q.select = cols
         if (o?.count) q.count = o.count
