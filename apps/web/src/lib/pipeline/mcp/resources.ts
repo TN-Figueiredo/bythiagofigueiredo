@@ -368,12 +368,31 @@ export function registerResources(server: McpServer): void {
     async (uri) => {
       const supabase = getSupabaseServiceClient()
 
-      const { data: assets, error } = await supabase
-        .from('audio_library')
-        .select('id, category, mood, energy, usage_count, retired')
-        .eq('retired', false)
+      const { siteId } = await buildResourceCtx()
 
-      if (error) throw new Error(`Failed to fetch audio stats: ${error.message}`)
+      // `audio_assets` (there is no `audio_library` table): retired is a `status`, and the use
+      // count is the rows of `audio_asset_usage`.
+      const [assetsRes, usageRes] = await Promise.all([
+        supabase
+          .from('audio_assets')
+          .select('id, category, mood, energy, status')
+          .eq('site_id', siteId)
+          .in('status', ['downloaded', 'pending']),
+        supabase
+          .from('audio_asset_usage')
+          .select('audio_asset_id')
+          .eq('site_id', siteId)
+          .limit(10000),
+      ])
+      if (assetsRes.error) throw new Error(`Failed to fetch audio stats: ${assetsRes.error.message}`)
+      if (usageRes.error) throw new Error(`Failed to fetch audio usage: ${usageRes.error.message}`)
+
+      const usageById = new Map<string, number>()
+      for (const u of usageRes.data ?? []) {
+        const k = u.audio_asset_id as string
+        usageById.set(k, (usageById.get(k) ?? 0) + 1)
+      }
+      const assets = (assetsRes.data ?? []).map(a => ({ ...a, usage_count: usageById.get(a.id as string) ?? 0 }))
 
       const rows = assets ?? []
       const byCategory: Record<string, number> = {}
@@ -973,13 +992,15 @@ export function registerResources(server: McpServer): void {
       const supabase = getSupabaseServiceClient()
       const { siteId } = await buildResourceCtx()
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('optimization_cycles')
-        .select('id, youtube_video_id, state, diagnosis_summary, created_at, diagnosed_at, treated_at')
+        .select('id, youtube_video_id, state, diagnosis_summary, created_at, flagged_at, diagnosed_at, testing_started_at, test_winner_applied_at')
         .eq('site_id', siteId)
         .not('state', 'in', '("resolved","exhausted","unmonitored")')
         .order('created_at', { ascending: false })
         .limit(20)
+
+      if (error) throw new Error(`Failed to fetch optimization cycles: ${error.message}`)
 
       const result = jsonResource({ cycles: data ?? [] })
       result.contents[0]!.uri = uri.href
