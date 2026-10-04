@@ -116,7 +116,7 @@ export async function getLatestVideo(siteId: string): Promise<LatestVideo | null
 export async function getSocialProfiles(siteId: string): Promise<SocialProfile[]> {
   const db = getSupabaseServiceClient()
   const [ytRes, igRes, siteRes, authorRes] = await Promise.all([
-    db.from('youtube_channels').select('handle').eq('site_id', siteId),
+    db.from('youtube_channels').select('handle').eq('site_id', siteId).order('created_at').order('id'),
     db.from('instagram_accounts_public').select('handle').eq('site_id', siteId),
     db.from('sites').select('twitter_handle').eq('id', siteId).single(),
     db.from('authors').select('social_links').eq('site_id', siteId).eq('is_default', true).single(),
@@ -179,6 +179,8 @@ export async function getYouTubeChannels(siteId: string): Promise<YouTubeChannel
     .from('youtube_channels')
     .select('handle, locale, schedule_label, subscriber_count')
     .eq('site_id', siteId)
+    .order('created_at')
+    .order('id')
   return (data ?? []).map((d) => ({
     handle: d.handle,
     locale: d.locale,
