@@ -56,4 +56,11 @@ describe('createCampaign (CMS)', () => {
     expect(await createCampaign(input)).toMatchObject({ ok: false, error: 'validation_failed', message: 'duplicate_slug' })
     expect(tables.campaigns).toHaveLength(0)
   })
+
+  it('erro de banco: mensagem genérica, sem texto cru do Postgres', async () => {
+    db = fakePostgrest({ tables, columns: { campaigns: CAMPAIGNS, campaign_translations: TRANSLATIONS }, idFor: (t, n) => `${t}-${n}`, fail: q => (q.table === 'campaigns' && q.op === 'insert' ? { code: 'XX000', message: 'relation secret_table broken' } : null) })
+    const res = await createCampaign(input)
+    expect(res).toMatchObject({ ok: false, error: 'db_error' })
+    expect(JSON.stringify(res)).not.toContain('secret_table')
+  })
 })

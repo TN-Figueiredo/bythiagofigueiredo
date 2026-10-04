@@ -32,6 +32,8 @@ vi.mock('@/lib/supabase/service', () => ({
       const chain: Record<string, unknown> = {}
       chain.select = () => chain
       chain.is = () => chain
+      chain.order = () => chain
+      chain.limit = () => chain
       chain.eq = (c: string, v: string) => {
         if (table === 'youtube_channels') h.channelEq.push([c, v])
         return chain

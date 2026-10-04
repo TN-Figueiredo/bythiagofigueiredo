@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { verifyTurnstileToken } from '../../../../../../lib/turnstile';
 import { getSupabaseServiceClient } from '../../../../../../lib/supabase/service';
 import { isCampaignPublic } from '../../../../../../lib/campaigns/public-visibility';
+import { tryGetSiteContext } from '@/lib/cms/site-context';
 import { getLogger } from '../../../../../../lib/logger';
 
 const BodySchema = z.object({
@@ -56,12 +57,14 @@ export async function POST(req: NextRequest | Request, ctx: RouteCtx): Promise<R
 
   const supabase = getSupabaseServiceClient();
 
-  const campaignRes = await supabase
+  const siteCtx = await tryGetSiteContext(); // sem contexto de site: comportamento anterior
+  let campaignQuery = supabase
     .from('campaigns')
     .select('id, status, published_at, pdf_storage_path, interest, campaign_translations!inner(success_headline, success_headline_duplicate, success_subheadline, success_subheadline_duplicate, check_mail_text, download_button_label)')
     .eq('campaign_translations.slug', slug)
-    .eq('campaign_translations.locale', parsed.locale)
-    .maybeSingle();
+    .eq('campaign_translations.locale', parsed.locale);
+  if (siteCtx) campaignQuery = campaignQuery.eq('site_id', siteCtx.siteId);
+  const campaignRes = await campaignQuery.maybeSingle();
 
   if (campaignRes.error || !campaignRes.data) {
     return Response.json({ error: 'campaign_not_found' }, { status: 404 });

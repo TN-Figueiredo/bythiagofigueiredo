@@ -130,7 +130,10 @@ export async function POST(req: NextRequest) {
 
         if (!siteId || !accountId) {
           errors.push(
-            `delivery ${delivery.id}: connection missing site_id or account_id`,
+            channelNote(
+              accountLabel(delivery.provider, connection as Record<string, unknown>, delivery.connection_id),
+              'connection missing site_id or account_id',
+            ),
           )
           continue
         }
