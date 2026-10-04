@@ -184,25 +184,28 @@ test.describe('nichos · um nicho criado pelo dono (Jogos)', () => {
     const noOverflow = async (p: Page) => expect(await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false)
     const clean = async (p: Page) => expect(await p.locator('[data-obs]').first().innerText()).not.toMatch(BAD)
     let s = await open(browser, vp, theme, '/cms/youtube/competitors')
+    // React can leave a streamed segment (`<div hidden id="S:n">`) behind when the client render wins the race with the
+    // stream's swap script: the screen is then twice in the DOM, once hidden. Only what is rendered counts here.
+    const live = (sel: string) => s.page.locator(sel).filter({ visible: true })
     try {
-      const bar = s.page.locator('.obs-ch-seg-ctl button')
+      const bar = live('.obs-ch-seg-ctl button')
       // the label, without the count and the screen-reader suffix
       expect(await bar.evaluateAll(bs => bs.map(b => [...b.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim()))).toEqual(['Todos', 'Viagem', 'IA', 'Jogos'])
-      const count = async (n: string) => Number(await s.page.locator(`.obs-ch-seg-ctl [data-niche="${n}"] .obs-ch-n`).innerText())
+      const count = async (n: string) => Number(await live(`.obs-ch-seg-ctl [data-niche="${n}"] .obs-ch-n`).innerText())
       expect([await count('todos'), await count('jogos')]).toEqual([14, 1])
       // the niche select of a row: the site's niches (Viagem, IA, Jogos); a row "sem nicho" would add its own empty option
-      const sel = s.page.locator('select.niche[data-ctx="row"]:not(.none)').first()
+      const sel = live('select.niche[data-ctx="row"]:not(.none)').first()
       expect(await sel.locator('option').evaluateAll(os => os.map(o => o.textContent))).toEqual(['Viagem', 'IA', 'Jogos'])
-      const tabCanais = s.page.locator('[data-obs-tabs] [role="tab"], [data-obs-tabs] a').first()
+      const tabCanais = live('[data-obs-tabs] [role="tab"], [data-obs-tabs] a').first()
       const before = await tabCanais.innerText()
       await noOverflow(s.page); await clean(s.page)
       // picking Jogos: one competitor row, and the tab's count follows
-      await s.page.locator('.obs-ch-seg-ctl [data-niche="jogos"]').click()
+      await live('.obs-ch-seg-ctl [data-niche="jogos"]').click()
       await expect(s.page).toHaveURL(/niche=jogos/)
-      const rows = s.page.locator('[data-obs-screen="canais"] tbody tr[data-id]:not(.you)')
+      const rows = live('[data-obs-screen="canais"] tbody tr[data-id]:not(.you)')
       await expect(rows).toHaveCount(1)
       await expect(rows.first()).toContainText('The AI Advantage')
-      await expect(s.page.locator('tr.group .dot.custom')).toHaveCount(1)
+      await expect(live('tr.group .dot.custom')).toHaveCount(1)
       const after = await tabCanais.innerText()
       expect(before).toMatch(/14/); expect(after).toMatch(/1(?!\d)/); expect(after).not.toBe(before)
       await noOverflow(s.page); await clean(s.page)
@@ -211,8 +214,8 @@ test.describe('nichos · um nicho criado pelo dono (Jogos)', () => {
     s = await open(browser, vp, theme, '/cms/youtube/competitors/insights?niche=jogos')
     try {
       const txt = 'Ainda não há lista de temas para Jogos. Padrões de título, o mapa de publicação e “Você no nicho” funcionam normalmente.'
-      await expect(s.page.locator('#themeCard [data-no-themes]')).toHaveText(txt)
-      await expect(s.page.locator('#gapCard [data-no-themes]')).toHaveText(txt)
+      await expect(live('#themeCard [data-no-themes]')).toHaveText(txt)
+      await expect(live('#gapCard [data-no-themes]')).toHaveText(txt)
       await noOverflow(s.page); await clean(s.page)
       expect(s.errors).toEqual([])
     } finally { await s.close() }
