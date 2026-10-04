@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
+import { newProbeBudget } from '@/lib/youtube/short-classifier'
 
 export const SLOT_HOURS_SP = [0, 6, 12, 18] as const
 const H = 3_600_000
@@ -57,6 +58,7 @@ export async function runCompetitorBatch(opts: {
   const due = (data ?? [])
     .filter((r) => isDue(r.last_synced_at, started))
     .sort((a, b) => Number(a.sync_status === 'error') - Number(b.sync_status === 'error'))
+  const probeBudget = newProbeBudget() // 60 sondas de Short por execução, divididas entre os canais
   const res: BatchResult = { synced: 0, errors: 0, skipped: 0, remainingDue: 0, stoppedForTime: false }
   let taken = 0
   for (const row of due) {
@@ -67,7 +69,7 @@ export async function runCompetitorBatch(opts: {
     }
     taken++
     try {
-      const r = await syncCompetitorChannel(row, opts.apiKey)
+      const r = await syncCompetitorChannel(row, opts.apiKey, { probeBudget })
       if (r.skipped) res.skipped++
       else res.synced++
     } catch (err) {

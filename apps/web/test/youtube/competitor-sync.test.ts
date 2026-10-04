@@ -9,7 +9,7 @@ vi.mock('@/lib/youtube/thumb-fingerprint', async (orig) => ({
   archiveThumb: vi.fn(async () => 'https://blob.test/t.jpg'),
 }))
 
-import { isDailyRecordDue, classifyThumb, dropFields, syncCompetitorChannel, optCount } from '@/lib/youtube/competitor-sync'
+import { isDailyRecordDue, classifyThumb, dropFields, syncCompetitorChannel, optCount, reclassifyStoredShorts } from '@/lib/youtube/competitor-sync'
 import { probeThumb } from '@/lib/youtube/thumb-fingerprint'
 import { hashValue } from '@/lib/youtube/competitor-versions'
 import type { StoredVersion, VersionPlan } from '@/lib/youtube/competitor-versions'
@@ -414,5 +414,104 @@ describe('syncCompetitorChannel', () => {
     expect(decodeURIComponent(log2.dailyCalls[0]!)).toContain('id=y50&')
     expect(r.dailyRecorded).toBe(1)
     expect(db2.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).at(-1)).toMatchObject({ last_ok_synced_at: NOW_ISO })
+  })
+})
+
+// ── R109: Shorts de 61–180 s (sonda) ──
+describe('syncCompetitorChannel — Shorts de 61–180 s', () => {
+  const vid = (id: string, dur: string, title = 'Um vídeo') => ({ id, snippet: { title, description: 'd', publishedAt: recent(), thumbnails: {} }, contentDetails: { duration: dur }, statistics: { viewCount: '9' } })
+  const withProbe = (video: Record<string, unknown>, probe: (url: string) => Response | Promise<Response>, log?: string[]): typeof fetch => {
+    const base = apiFetch(video)
+    return (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(input)
+      if (u.includes('youtube.com/shorts/')) { log?.push(u); return probe(u) }
+      return base(input, init)
+    }) as typeof fetch
+  }
+  const insertOf = (db: ReturnType<typeof setup>) => arg(db.calls.find(c => c.table === 'competitor_videos' && first(c) === 'insert')!, 'insert')
+
+  it('vídeo novo de 90 s com sonda 200 é gravado como Short', async () => {
+    const db = setup({ lastDaily: '2026-10-24' })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT1M30S'), () => new Response('', { status: 200 })) })
+    expect(insertOf(db)).toMatchObject({ video_id: 'AAAAAAAAAA1', duration_seconds: 90, is_short: true })
+  })
+
+  it('90 s com 303 para /watch é vídeo normal', async () => {
+    const db = setup({ lastDaily: '2026-10-24' })
+    const redirect = { status: 303, headers: new Headers({ location: '/watch?v=AAAAAAAAAA1' }), body: null } as unknown as Response
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT1M30S'), () => redirect) })
+    expect(insertOf(db)).toMatchObject({ is_short: false })
+  })
+
+  it('falha da sonda não derruba o sync (vira Short não confirmado)', async () => {
+    const db = setup({ lastDaily: '2026-10-24' })
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT2M'), () => { throw new Error('timeout') }) })
+    expect(r.videosChecked).toBe(1)
+    expect(insertOf(db)).toMatchObject({ is_short: true })
+  })
+
+  it('teto de sondas esgotado: não sonda e vídeo novo vira Short não confirmado', async () => {
+    const log: string[] = []
+    const db = setup({ lastDaily: '2026-10-24' })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, probeBudget: { remaining: 0 }, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT1M30S'), () => new Response('', { status: 200 }), log) })
+    expect(log).toEqual([])
+    expect(insertOf(db)).toMatchObject({ is_short: true })
+  })
+
+  it('vídeos de 30 s e de 4 min não são sondados', async () => {
+    const log: string[] = []
+    setup({ lastDaily: '2026-10-24' })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT30S'), () => new Response('', { status: 200 }), log) })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: withProbe(vid('AAAAAAAAAA2', 'PT4M'), () => new Response('', { status: 200 }), log) })
+    expect(log).toEqual([])
+  })
+
+  it('vídeo já gravado como longo e sem sonda nesta rodada mantém o valor gravado', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [{ id: 'v-1', video_id: 'AAAAAAAAAA1', title: 'Um vídeo', description_hash: null, thumbnail_url: null, view_count: 1, is_short: false }] })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, probeBudget: { remaining: 0 }, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT1M30S'), () => new Response('', { status: 200 })) })
+    const upd = db.calls.find(c => c.table === 'competitor_videos' && first(c) === 'update')!
+    expect(arg(upd, 'update')).toMatchObject({ is_short: false })
+  })
+})
+
+describe('reclassifyStoredShorts — backfill (R109)', () => {
+  const fixed = Date.UTC(2026, 9, 4, 12)
+  const rows = Array.from({ length: 5 }, (_, i) => ({ id: `u${i}`, video_id: `AAAAAAAAA0${i}` }))
+  const mkDb = () => fakeDb((c) => (c.table === 'competitor_videos' && first(c) === 'select' ? { data: rows } : undefined))
+
+  it('consulta só 61–180 s, is_short=false, últimos 91 dias, mais recentes primeiro, limitado ao orçamento', async () => {
+    const db = mkDb()
+    const budget = { remaining: 3 }
+    await reclassifyStoredShorts(db.client as never, 'cc-1', fixed, budget, (async () => new Response('', { status: 200 })) as typeof fetch)
+    const q = db.calls[0]!
+    const op = (n: string) => q.ops.find(o => o[0] === n)?.[1]
+    expect(op('eq')).toEqual(['competitor_channel_id', 'cc-1'])
+    expect(q.ops.filter(o => o[0] === 'eq').map(o => o[1])).toContainEqual(['is_short', false])
+    expect(op('gt')).toEqual(['duration_seconds', 60]); expect(op('lte')).toEqual(['duration_seconds', 180])
+    expect(op('gte')).toEqual(['published_at', new Date(fixed - 91 * 86_400_000).toISOString()])
+    expect(op('order')).toEqual(['published_at', { ascending: false }])
+    expect(op('limit')).toEqual([3])
+  })
+
+  it('vira Short só quem a sonda confirma; inconclusivo e normal ficam como estão; orçamento é consumido', async () => {
+    const db = mkDb()
+    const budget = { remaining: 5 }
+    const f = (async (u: RequestInfo | URL) => {
+      const id = String(u).split('/').pop()!
+      if (id.endsWith('0') || id.endsWith('1')) return new Response('', { status: 200 })
+      if (id.endsWith('2')) return { status: 303, headers: new Headers({ location: '/watch?v=x' }), body: null } as unknown as Response
+      return { status: 429, headers: new Headers(), body: null } as unknown as Response
+    }) as typeof fetch
+    expect(await reclassifyStoredShorts(db.client as never, 'cc-1', fixed, budget, f)).toBe(2)
+    const upd = db.calls.find(c => first(c) === 'update')!
+    expect(arg(upd, 'update')).toEqual({ is_short: true })
+    expect(upd.ops.find(o => o[0] === 'in')![1]).toEqual(['id', ['u0', 'u1']])
+    expect(budget.remaining).toBe(0)
+  })
+
+  it('sem orçamento não consulta o banco', async () => {
+    const db = mkDb()
+    expect(await reclassifyStoredShorts(db.client as never, 'cc-1', fixed, { remaining: 0 }, fetch)).toBe(0)
+    expect(db.calls).toHaveLength(0)
   })
 })

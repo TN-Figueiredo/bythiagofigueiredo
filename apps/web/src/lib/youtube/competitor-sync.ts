@@ -6,6 +6,10 @@ import { probeThumb, isNewThumb, archiveThumb, type ThumbProbe } from '@/lib/you
 import {
   reconcileVideoVersions, normalizeDescription, type StoredVersion, type VersionPlan, type VersionField,
 } from '@/lib/youtube/competitor-versions'
+import {
+  classifyShort, needsShortProbe, probeShortsBatch, newProbeBudget, SHORT_CERTAIN_MAX_SECONDS, SHORT_MAX_SECONDS,
+  type ProbeBudget, type ShortProbeResult,
+} from '@/lib/youtube/short-classifier'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
 const MAX_FULL_SYNC_VIDEOS = 2000
@@ -72,6 +76,15 @@ export function dropFields(plan: VersionPlan, current: StoredVersion[], skip: Ve
   }
 }
 
+/** ISO-8601 (PT1M30S) → segundos; null quando ausente/ilegível. */
+export function parseIsoDuration(durationStr: string | undefined): number | null {
+  if (!durationStr) return null
+  const match = durationStr.match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
+  if (!match || !(match[1] || match[2] || match[3] || match[4])) return null
+  return (parseInt(match[1] ?? '0', 10) * 86400) + (parseInt(match[2] ?? '0', 10) * 3600) +
+         (parseInt(match[3] ?? '0', 10) * 60) + parseInt(match[4] ?? '0', 10)
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
@@ -79,7 +92,7 @@ function sleep(ms: number): Promise<void> {
 export async function syncCompetitorChannel(
   channelRow: { id: string; channel_id: string; site_id: string },
   apiKey: string,
-  opts: { now?: Date; fetchImpl?: typeof fetch } = {},
+  opts: { now?: Date; fetchImpl?: typeof fetch; probeBudget?: ProbeBudget } = {},
 ): Promise<SyncResult> {
   const supabase = getSupabaseServiceClient()
   const now = opts.now ?? new Date()
@@ -87,6 +100,8 @@ export async function syncCompetitorChannel(
   const nowMs = now.getTime()
   const f: typeof fetch = opts.fetchImpl ?? fetch
   let unitsUsed = 0
+  // Teto de sondas de Short (R109): compartilhado com o lote quando vem de runCompetitorBatch.
+  const probeBudget = opts.probeBudget ?? newProbeBudget()
   const api = (url: string): Promise<Response> => { unitsUsed++; return f(url, { signal: AbortSignal.timeout(10_000) }) }
 
   // ── CAS Lock: acquire or skip ──
@@ -347,7 +362,7 @@ export async function syncCompetitorChannel(
       // Batch lookup existing videos
       const { data: existingVideos } = await supabase
         .from('competitor_videos')
-        .select('id, video_id, title, description_hash, thumbnail_url, view_count')
+        .select('id, video_id, title, description_hash, thumbnail_url, view_count, is_short')
         .eq('competitor_channel_id', channelRow.id)
         .in('video_id', videoIds)
       const existingMap = new Map((existingVideos ?? []).map(v => [v.video_id, v]))
@@ -358,6 +373,13 @@ export async function syncCompetitorChannel(
 
       // Smart incremental: stop if we hit a known video
       let hitKnownVideo = false
+
+      // Shorts de 61–180 s: a sonda decide (R109). Novos primeiro, depois os já gravados, dentro do teto da execução.
+      const probeCandidates = ((videosData.items ?? []) as Array<Record<string, unknown>>)
+        .map(v => ({ id: v.id as string, dur: parseIsoDuration((v.contentDetails as { duration?: string } | undefined)?.duration), title: ((v.snippet as { title?: string } | undefined)?.title) ?? '' }))
+        .filter(v => needsShortProbe(v.dur) && !v.title.includes('#Shorts'))
+        .sort((a, b) => Number(existingMap.has(a.id)) - Number(existingMap.has(b.id)))
+      const probes = await probeShortsBatch(probeCandidates.map(v => v.id), probeBudget, f)
 
       for (const video of videosData.items ?? []) {
         videosChecked++
@@ -375,19 +397,14 @@ export async function syncCompetitorChannel(
         const tags: string[] = (video.snippet?.tags as string[]) ?? []
         const categoryId: string | null = (video.snippet?.categoryId as string) ?? null
 
-        let durationSeconds: number | null = null
-        const durationStr = video.contentDetails?.duration as string | undefined
-        if (durationStr) {
-          const match = durationStr.match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
-          if (match && (match[1] || match[2] || match[3] || match[4])) {
-            durationSeconds = (parseInt(match[1] ?? '0', 10) * 86400) +
-                              (parseInt(match[2] ?? '0', 10) * 3600) +
-                              (parseInt(match[3] ?? '0', 10) * 60) +
-                              parseInt(match[4] ?? '0', 10)
-          }
-        }
-        const isShort = (durationSeconds !== null && durationSeconds <= 60) ||
-                        (title?.includes('#Shorts') ?? false)
+        const durationSeconds = parseIsoDuration(video.contentDetails?.duration as string | undefined)
+        const probe: ShortProbeResult | undefined = probes.get(videoId)
+        const verdict = classifyShort({ durationSeconds, title, probe })
+        let isShort = verdict.isShort
+        // Já gravado e sem sonda nesta rodada (teto esgotado): não muda o que está gravado dentro da faixa 61–180.
+        const keepStored = needsShortProbe(durationSeconds) && !title?.includes('#Shorts') && probe === undefined
+        const storedShort = existingMap.get(videoId)?.is_short as boolean | null | undefined
+        if (keepStored && storedShort != null && existingMap.has(videoId)) isShort = storedShort
 
         const existing = existingMap.get(videoId) ?? null
         let videoUuid: string | null = existing ? (existing.id as string) : null
@@ -542,6 +559,13 @@ export async function syncCompetitorChannel(
       if (dailyFailure) throw dailyFailure // the next sync fills in the missing ids
     }
 
+    // ── Re-classificação dos já gravados como longos com 61–180 s (R109), mesmo teto da execução ──
+    try {
+      await reclassifyStoredShorts(supabase, channelRow.id, nowMs, probeBudget, f)
+    } catch {
+      // a sonda nunca derruba o sync
+    }
+
     // Mark completion
     const updatePayload: Record<string, unknown> = {
       sync_status: 'idle',
@@ -596,4 +620,40 @@ export async function syncCompetitorChannel(
       .eq('id', channelRow.id)
     throw error
   }
+}
+
+/** Janela que a tela usa: 91 dias. */
+export const SHORT_RECLASSIFY_WINDOW_DAYS = 91
+
+/**
+ * Vídeos gravados com is_short=false e 61–180 s, publicados nos últimos 91 dias, mais recentes primeiro: sonda e,
+ * só quando a sonda é conclusiva, corrige is_short. Inconclusivo fica como está (continua candidato na próxima rodada).
+ * Devolve quantas linhas foram viradas para Short.
+ */
+export async function reclassifyStoredShorts(
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  competitorChannelId: string,
+  nowMs: number,
+  budget: ProbeBudget,
+  f: typeof fetch,
+): Promise<number> {
+  if (budget.remaining <= 0) return 0
+  const cutoff = new Date(nowMs - SHORT_RECLASSIFY_WINDOW_DAYS * 86_400_000).toISOString()
+  const { data } = await supabase
+    .from('competitor_videos')
+    .select('id, video_id')
+    .eq('competitor_channel_id', competitorChannelId)
+    .eq('is_short', false)
+    .gt('duration_seconds', SHORT_CERTAIN_MAX_SECONDS)
+    .lte('duration_seconds', SHORT_MAX_SECONDS)
+    .gte('published_at', cutoff)
+    .order('published_at', { ascending: false })
+    .limit(budget.remaining)
+  const rows = (data ?? []) as Array<{ id: string; video_id: string }>
+  if (!rows.length) return 0
+  const probes = await probeShortsBatch(rows.map(r => r.video_id), budget, f)
+  const shortIds = rows.filter(r => probes.get(r.video_id) === 'short').map(r => r.id)
+  if (!shortIds.length) return 0
+  await supabase.from('competitor_videos').update({ is_short: true }).in('id', shortIds)
+  return shortIds.length
 }

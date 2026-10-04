@@ -1,5 +1,6 @@
 'use client'
 
+import { isCertainShort } from '@/lib/youtube/short-classifier'
 import React, { useState, useMemo, useTransition } from 'react'
 import Image from 'next/image'
 import { brDec } from '@/lib/youtube/format'
@@ -335,7 +336,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                     <AbStatusBadge
                       test={video.abTest}
                       videoId={video.id}
-                      isShort={(video.durationSeconds ?? 0) <= 60}
+                      isShort={isCertainShort(video.durationSeconds ?? 0)}
                     />
                   </td>
 
@@ -381,7 +382,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                       </button>
                       <VideoContextMenu
                         videoId={video.id}
-                        isShort={(video.durationSeconds ?? 0) <= 60}
+                        isShort={isCertainShort(video.durationSeconds ?? 0)}
                         abTest={video.abTest}
                       />
                     </div>
@@ -425,7 +426,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
                           {/* A/B Test panel */}
                           <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface p-3">
                             <p className="text-xs font-semibold uppercase tracking-wider text-cms-text-dim mb-2">A/B Testing</p>
-                            {(video.durationSeconds ?? 0) <= 60 ? (
+                            {isCertainShort(video.durationSeconds ?? 0) ? (
                               <p className="text-sm text-cms-text-muted">Shorts are not eligible for A/B testing.</p>
                             ) : video.abTest ? (
                               <div className="flex items-center justify-between">

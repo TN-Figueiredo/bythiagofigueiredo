@@ -1,3 +1,5 @@
+import { isCertainShort } from '@/lib/youtube/short-classifier'
+
 /** Projection from the load-video-detail.ts join (content_pipeline LEFT JOIN youtube_videos). */
 export interface AbJoinFacts {
   youtubeVideoId: string | null
@@ -24,7 +26,7 @@ export function abPublishCtaState(facts: AbJoinFacts, pipelineId: string): AbCta
   if (!facts.thumbnailHqUrl) {
     return { enabled: false, tooltip: 'Sincronize a thumbnail do YouTube primeiro', deepLink }
   }
-  if ((facts.durationSeconds ?? 0) <= 60) {
+  if (isCertainShort(facts.durationSeconds ?? 0)) {
     return { enabled: false, tooltip: 'Testes A/B não se aplicam a Shorts (≤60s)', deepLink: null }
   }
   return { enabled: true, tooltip: null, deepLink: null }
