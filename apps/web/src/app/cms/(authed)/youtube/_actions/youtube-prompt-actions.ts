@@ -81,19 +81,25 @@ function formatDemographics(demo: YtDemographics): {
 async function getChannelInfo(
   siteId: string,
   channelId?: string,
-): Promise<{ info: PromptChannelInfo; channelDbId: string; lastSyncedAt: string } | null> {
+): Promise<{ info: PromptChannelInfo; channelDbId: string; channelAccountId: string; lastSyncedAt: string } | null> {
   const supabase = getSupabaseServiceClient()
   let query = supabase
     .from('youtube_channels')
-    .select('id, name, subscriber_count, video_count, last_synced_at')
+    .select('id, channel_id, name, subscriber_count, video_count, last_synced_at')
     .eq('site_id', siteId)
     .eq('sync_enabled', true)
 
   if (channelId) query = query.eq('id', channelId)
 
+  // Quando nenhum canal é pedido, vale o canal com mais inscritos: é a regra do
+  // produto de hoje, não uma escolha neutra entre vários canais.
   const { data, error } = await query.order('subscriber_count', { ascending: false }).limit(1).single()
   if (error && error.code !== 'PGRST116') throw error
   if (!data) return null
+  // O analytics filtra por `social_connections.account_id` (o id "UC…"), não pelo
+  // uuid da linha. Sem o id do YouTube não há como pedir os números do canal certo.
+  const channelAccountId = data.channel_id as string | null
+  if (!channelAccountId) return null
 
   const info: PromptChannelInfo = {
     name: data.name as string,
@@ -105,6 +111,7 @@ async function getChannelInfo(
   return {
     info,
     channelDbId: data.id as string,
+    channelAccountId,
     lastSyncedAt: (data.last_synced_at as string | null) ?? new Date().toISOString(),
   }
 }
@@ -120,12 +127,12 @@ export async function fetchContentCalendarData(
     const channelResult = await getChannelInfo(siteId, channelId)
     if (!channelResult) return { ok: false, error: 'No sync-enabled channel found' }
 
-    const { info, channelDbId, lastSyncedAt } = channelResult
+    const { info, channelDbId, channelAccountId, lastSyncedAt } = channelResult
     const supabase = getSupabaseServiceClient()
 
     const [rawSearchTerms, demographics, recentVideosRes, widerVideosRes, categoriesRes] = await Promise.all([
-      fetchYtSearchTerms(siteId, 28, channelDbId),
-      fetchYtDemographics(siteId, 28, channelDbId),
+      fetchYtSearchTerms(siteId, 28, channelAccountId),
+      fetchYtDemographics(siteId, 28, channelAccountId),
       supabase
         .from('youtube_videos')
         .select('id, title, published_at, category_id, view_count')
@@ -218,12 +225,12 @@ export async function fetchChannelHealthData(
     const channelResult = await getChannelInfo(siteId, channelId)
     if (!channelResult) return { ok: false, error: 'No sync-enabled channel found' }
 
-    const { info, channelDbId, lastSyncedAt } = channelResult
+    const { info, channelDbId, channelAccountId, lastSyncedAt } = channelResult
     const supabase = getSupabaseServiceClient()
 
     const [rawSearchTerms, demographics, videosRes, abTestsRes, cyclesRes, channelRes] = await Promise.all([
-      fetchYtSearchTerms(siteId, 28, channelDbId),
-      fetchYtDemographics(siteId, 28, channelDbId),
+      fetchYtSearchTerms(siteId, 28, channelAccountId),
+      fetchYtDemographics(siteId, 28, channelAccountId),
       supabase
         .from('youtube_videos')
         .select('id, youtube_video_id, title, view_count, avg_view_percentage, ctr, traffic_sources, published_at, impressions')

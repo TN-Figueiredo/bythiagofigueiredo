@@ -129,27 +129,34 @@ async function extractVideoMetadata(
   videoId: string,
   siteId: string,
 ): Promise<ContentMetadata> {
+  // Um site pode ter várias conexões do YouTube ativas (um canal por conexão):
+  // `.single()` falharia com 2+. Procura o vídeo nos metadados de cada uma, da
+  // mais recente para a mais antiga; conexão revogada (canal removido) não conta.
   const { data, error } = await supabase
     .from('social_connections')
     .select('metadata')
     .eq('provider', 'youtube')
     .eq('site_id', siteId)
-    .single()
+    .is('revoked_at', null)
+    .order('connected_at', { ascending: false })
 
-  if (error || !data) {
+  if (error || !data || data.length === 0) {
     throw new Error(`YouTube connection not found for video: ${videoId}`)
   }
 
-  const metadata = data.metadata as {
-    videos?: Array<{
-      id: string
-      title: string
-      thumbnail_url: string
-      description: string
-      tags?: string[]
-    }>
+  type VideoMeta = {
+    id: string
+    title: string
+    thumbnail_url: string
+    description: string
+    tags?: string[]
   }
-  const video = metadata.videos?.find((v) => v.id === videoId)
+  let video: VideoMeta | undefined
+  for (const row of data) {
+    const metadata = row.metadata as { videos?: VideoMeta[] } | null
+    video = metadata?.videos?.find((v) => v.id === videoId)
+    if (video) break
+  }
   if (!video) {
     throw new Error(`Video not found in YouTube metadata: ${videoId}`)
   }
