@@ -39,7 +39,7 @@ describe('showcase (regra de transição do site público)', () => {
   })
 
   it('created_at ausente ou inválido vai para o fim, sem lançar', () => {
-    const rows = [ch('a', 'pt', null), ch('b', 'pt', 'lixo'), ch('c', 'pt', '2030-01-01T00:00:00Z'), ch('d', 'pt')]
+    const rows = [ch('a', 'pt', null), ch('b', 'pt', 'lixo'), ch('c', 'pt', '2020-01-01T00:00:00Z'), ch('d', 'pt')]
     expect(byRegistration(rows).map((r) => r.id)).toEqual(['c', 'a', 'b', 'd'])
     expect(showcaseChannelId(rows, 'pt')).toBe('c')
   })
