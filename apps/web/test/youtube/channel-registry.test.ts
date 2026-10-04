@@ -5,6 +5,7 @@ import {
   blockedLead, blockerDetail, nicheUsage, languageChangeEffect, languageChangeLines, removalConnectionLine, type RemovalImpact,
 } from '@/lib/youtube/channel-registry'
 import { CHANNEL_LOCALES, isChannelLocale, channelLocaleDef } from '@/lib/youtube/channel-locales'
+import { showcaseChannelId } from '@/lib/youtube/showcase'
 
 const IMPACT: RemovalImpact = { name: 'N', slug: 's-1', videos: 2, comments: 3, syncLogs: 4, abTests: 5, abDrafts: 0, analyses: 6, tasks: 7, notes: 8, notifications: 0, connections: 0, pipelineLinks: 9, blockers: [] }
 
@@ -116,17 +117,28 @@ describe('textos da remoção', () => {
   })
 })
 
-describe('troca de idioma: o efeito na vitrine do site público (o canal mais antigo de cada idioma)', () => {
-  // em ordem de cadastro
-  const PT = { id: 'a', name: 'tnFigueiredo', locale: 'pt' }
-  const EN = { id: 'b', name: 'Thiago Figueiredo', locale: 'en' }
-  const CORTES = { id: 'c', name: 'Cortes', locale: 'pt' }
+describe('troca de idioma: o efeito na vitrine do site público (a regra é a de showcase.ts)', () => {
+  const day = (n: number) => new Date(Date.UTC(2026, 0, n)).toISOString()
+  const PT = { id: 'a', name: 'tnFigueiredo', locale: 'pt', created_at: day(1) }
+  const EN = { id: 'b', name: 'Thiago Figueiredo', locale: 'en', created_at: day(2) }
+  const CORTES = { id: 'c', name: 'Cortes', locale: 'pt', created_at: day(3) }
   it('único canal pt vira en: PT-BR fica sem canal e EN passa a mostrar o mais antigo', () => {
     expect(languageChangeEffect([PT, EN], 'a', 'en')).toEqual([{ chip: 'PT-BR', name: null }, { chip: 'EN', name: 'tnFigueiredo' }])
     expect(languageChangeLines([PT, EN], 'a', 'en')).toEqual(['PT-BR will show no channel.', 'EN will show “tnFigueiredo”.'])
   })
   it('o mais antigo de pt vira en com outro pt atrás: o seguinte assume o PT-BR', () => {
     expect(languageChangeLines([PT, EN, CORTES], 'a', 'en')).toEqual(['PT-BR will show “Cortes”.', 'EN will show “tnFigueiredo”.'])
+  })
+  it('a ordem é a de CADASTRO (created_at), não a da lista recebida', () => {
+    expect(languageChangeLines([CORTES, EN, PT], 'a', 'en')).toEqual(['PT-BR will show “Cortes”.', 'EN will show “tnFigueiredo”.'])
+    // o canal en mais novo vira pt: o pt mais antigo continua sendo a vitrine, e EN fica vazio
+    expect(languageChangeLines([EN, PT], 'b', 'pt')).toEqual(['EN will show no channel.'])
+  })
+  it('empate de created_at: desempata por id, como o site', () => {
+    const X = { id: 'x', name: 'X', locale: 'en', created_at: day(5) }
+    const B = { id: 'b2', name: 'B', locale: 'pt', created_at: day(5) }
+    expect(languageChangeLines([X, B], 'x', 'pt')).toEqual(['EN will show no channel.'])
+    expect(languageChangeLines([X, B], 'b2', 'en')).toEqual(['PT-BR will show no channel.', 'EN will show “B”.'])
   })
   it('um canal que não é a vitrine muda para um idioma que já tem canal mais antigo: o site não muda', () => {
     expect(languageChangeEffect([PT, EN, CORTES], 'c', 'en')).toEqual([])
@@ -135,9 +147,22 @@ describe('troca de idioma: o efeito na vitrine do site público (o canal mais an
   it('um canal mais novo entra num idioma vazio: passa a aparecer nele', () => {
     expect(languageChangeLines([PT, CORTES], 'c', 'en')).toEqual(['EN will show “Cortes”.'])
   })
-  it('o dado não existe — canal fora da lista ou mesmo idioma: nada muda, sem lançar', () => {
+  it('paridade com showcase.ts: para 2 e 3 canais e toda troca possível, o efeito é a diferença entre as duas vitrines', () => {
+    for (const rows of [[PT, EN], [PT, EN, CORTES], [{ ...PT, created_at: day(4) }, { ...EN, created_at: day(4) }, CORTES]]) {
+      for (const ch of rows) for (const next of ['pt', 'en']) {
+        const after = rows.map(r => (r.id === ch.id ? { ...r, locale: next } : r))
+        const expected = ['pt', 'en'].flatMap((l) => {
+          const was = showcaseChannelId(rows, l), now = showcaseChannelId(after, l)
+          return was === now ? [] : [{ chip: l === 'pt' ? 'PT-BR' : 'EN', name: after.find(r => r.id === now)?.name ?? null }]
+        })
+        expect(languageChangeEffect(rows, ch.id, next), `${ch.id}→${next}`).toEqual(expected)
+      }
+    }
+  })
+  it('o dado não existe — canal fora da lista, mesmo idioma, lista vazia, created_at ausente: sem lançar', () => {
     expect(languageChangeEffect([PT], 'zzz', 'en')).toEqual([])
     expect(languageChangeEffect([PT], 'a', 'pt')).toEqual([])
     expect(languageChangeEffect([], 'a', 'en')).toEqual([])
+    expect(languageChangeLines([{ id: 'a', name: 'A', locale: 'pt', created_at: null }], 'a', 'en')).toEqual(['PT-BR will show no channel.', 'EN will show “A”.'])
   })
 })

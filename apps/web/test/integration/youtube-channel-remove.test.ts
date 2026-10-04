@@ -222,7 +222,10 @@ describe.skipIf(skipIfNoLocalDb())('youtube_channel_remove', () => {
     expect(JSON.stringify(impact.data)).not.toContain('enc-')
     const { data, error } = await sb.rpc('youtube_channel_remove', { p_site_id: siteA, p_channel_id: ch.id, p_confirm_slug: ch.slug })
     expect(error).toBeNull()
-    expect(data).toMatchObject({ status: 'removed', connections: 1, revoke_tokens: ['enc-refresh'] })
+    expect(data).toMatchObject({ status: 'removed', connections: 1 })
+    // nenhum token sai do banco: o retorno só tem status, identificação, contagens e blockers
+    expect(Object.keys(data as object).sort()).toEqual(['ab_drafts', 'ab_tests', 'analyses', 'blockers', 'comments', 'connections', 'name', 'notes', 'notifications', 'pipeline_links', 'slug', 'status', 'sync_logs', 'tasks', 'videos'])
+    expect(JSON.stringify(data)).not.toMatch(/enc-|token/i)
     const row = async (id: string) => (await sb.from('social_connections').select('revoked_at, access_token_enc, refresh_token_enc, page_token_enc, token_expires_at').eq('id', id).single()).data!
     const gone = await row(mine)
     expect(gone.revoked_at).not.toBeNull()

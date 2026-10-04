@@ -20,7 +20,6 @@ interface Setup {
   errors?: Record<string, PgErr>
   rpc?: Record<string, (args: Row) => { data: unknown; error: PgErr | null }>
   lookup?: Row | null | Error
-  noMasterKey?: boolean
 }
 
 const SITE = 's1'
@@ -104,11 +103,12 @@ function setup(opts: Setup = {}) {
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: clientMock }))
   const lookupChannelByHandle = vi.fn(async () => { if (opts.lookup instanceof Error) throw opts.lookup; return opts.lookup === undefined ? LOOKUP : opts.lookup })
   vi.doMock('@/lib/youtube/api-client', () => ({ lookupChannelByHandle }))
-  const getMasterKey = vi.fn(() => { if (opts.noMasterKey) throw new Error('SOCIAL_MASTER_KEY missing'); return Buffer.from('k') })
-  vi.doMock('@tn-figueiredo/social/vault', () => ({ getMasterKey, decrypt: (enc: string) => 'plain:' + enc }))
+  // a remoção não decifra token nenhum: se o cofre for carregado, o teste vê
+  let vault = false
+  vi.doMock('@tn-figueiredo/social/vault', () => { vault = true; return { getMasterKey: () => Buffer.from('k'), decrypt: (e: string) => e } })
   const load = () => import('@/app/cms/(authed)/youtube/_actions/channels')
   const writes = () => ops.filter(o => o.op === 'insert' || o.op === 'update' || o.op === 'delete')
-  return { load, ops, order, tables, clientMock, rpc, revalidateTag, revalidatePath, lookupChannelByHandle, writes }
+  return { vaultLoaded: () => vault, load, ops, order, tables, clientMock, rpc, revalidateTag, revalidatePath, lookupChannelByHandle, writes }
 }
 
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals() })
@@ -384,48 +384,15 @@ describe('removeYouTubeChannel', () => {
     expect(t.revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
     expect(t.revalidateTag).toHaveBeenCalledWith('layout-counts', { expire: 0 })
   })
-  it('depois do commit, tenta revogar no Google o token da conexão desligada; os tokens nunca voltam para a tela', async () => {
-    const fetchMock = vi.fn(async () => new Response('', { status: 200 }))
+  it('nenhuma chamada externa na remoção (nada é revogado no Google) e nenhum token na resposta, mesmo que o banco mandasse um', async () => {
+    const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     const t = setup({ rpc: { youtube_channel_remove: () => ({ data: { ...IMPACT, status: 'removed', revoke_tokens: ['enc-refresh'] }, error: null }) } })
     const res = await (await t.load()).removeYouTubeChannel(input)
     expect(res).toEqual({ ok: true })
-    expect(JSON.stringify(res)).not.toContain('enc-')
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    expect(url).toBe('https://oauth2.googleapis.com/revoke')
-    expect(init.method).toBe('POST')
-    expect(String(init.body)).toBe('token=plain%3Aenc-refresh')
-  })
-  it.each([
-    ['o Google responde erro', { status: 400 }],
-    ['a rede cai', { throws: true }],
-    ['a chave mestra não existe', { noMasterKey: true }],
-  ] as const)('revogação no Google falha (%s): a remoção continua sendo sucesso, só registra', async (_n, how) => {
-    const fetchMock = vi.fn(async () => { if ('throws' in how) throw new Error('network'); return new Response('bad', { status: 'status' in how ? how.status : 200 }) })
-    vi.stubGlobal('fetch', fetchMock)
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const t = setup({ noMasterKey: 'noMasterKey' in how, rpc: { youtube_channel_remove: () => ({ data: { ...IMPACT, status: 'removed', revoke_tokens: ['enc-refresh'] }, error: null }) } })
-    expect(await (await t.load()).removeYouTubeChannel(input)).toEqual({ ok: true })
-    expect(warn).toHaveBeenCalled()
-    expect(t.revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
-    warn.mockRestore()
-  })
-  it('o dado não existe — canal sem conexão (ou resposta sem a lista): nenhuma chamada ao Google', async () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-    const t = setup({ rpc: { youtube_channel_remove: () => ({ data: { ...IMPACT, status: 'removed', revoke_tokens: [] }, error: null }) } })
-    expect(await (await t.load()).removeYouTubeChannel(input)).toEqual({ ok: true })
-    const t2 = setup({ rpc: { youtube_channel_remove: () => ({ data: { ...IMPACT, status: 'removed' }, error: null }) } })
-    expect(await (await t2.load()).removeYouTubeChannel(input)).toEqual({ ok: true })
     expect(fetchMock).not.toHaveBeenCalled()
-  })
-  it('remoção bloqueada: nenhuma chamada ao Google', async () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-    const t = setup({ rpc: { youtube_channel_remove: () => ({ data: { ...IMPACT, status: 'blocked', blockers: [BLOCKER], revoke_tokens: ['x'] }, error: null }) } })
-    expect((await (await t.load()).removeYouTubeChannel(input)).ok).toBe(false)
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(t.vaultLoaded()).toBe(false)
+    expect(t.revalidatePath).toHaveBeenCalledWith('/cms/social', 'layout')
   })
   it('teste A/B rodando: recusa com os testes a parar, zero deletes e nada revalidado', async () => {
     const t = setup({ rpc: { youtube_channel_remove: () => ({ data: { ...IMPACT, status: 'blocked', blockers: [BLOCKER] }, error: null }) } })

@@ -14,7 +14,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { decrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 import { lookupChannelByHandle } from '@/lib/youtube/api-client'
 import { isChannelLocale } from '@/lib/youtube/channel-locales'
 import { isNicheSlug, NICHE_PALETTE } from '@/lib/youtube/observatorio/niche'
@@ -39,29 +38,6 @@ const has = (set: Set<string>, code: string | null | undefined) => code != null 
 const isOldLocaleKey = (e: { code?: string; message: string } | null | undefined) =>
   e?.code === UNIQUE_VIOLATION && e.message.includes('youtube_channels_site_id_locale_key')
 
-/**
- * Depois do commit da remoção: tenta revogar no Google os tokens das conexões que o banco desligou. Nunca falha a
- * remoção (a conexão já está desligada e os tokens zerados no banco): qualquer erro só é registrado.
- */
-async function revokeAtGoogle(raw: unknown): Promise<void> {
-  const list = typeof raw === 'object' && raw !== null && 'revoke_tokens' in raw ? raw.revoke_tokens : null
-  const tokens = Array.isArray(list) ? list.filter((t): t is string => typeof t === 'string' && t !== '') : []
-  if (tokens.length === 0) return
-  try {
-    const key = getMasterKey()
-    for (const enc of tokens) {
-      const res = await fetch('https://oauth2.googleapis.com/revoke', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ token: decrypt(enc, key) }).toString(),
-        signal: AbortSignal.timeout(5000),
-      })
-      if (!res.ok) console.warn('[youtube] Google token revoke answered', res.status)
-    }
-  } catch (e) {
-    console.warn('[youtube] Google token revoke failed:', e instanceof Error ? e.message : e)
-  }
-}
 
 async function requireEditAccess(): Promise<{ siteId: string; userId: string }> {
   const { siteId } = await getSiteContext()
@@ -331,8 +307,8 @@ export async function removeYouTubeChannel(input: { channelId: string; confirmSl
   if (res.status === 'blocked') return { ok: false, error: blockedTitle(res.impact.name), blockers: res.impact.blockers }
   if (res.status !== 'removed') return { ok: false, error: 'Unexpected answer from the database. Nothing was deleted.' }
 
-  // o banco já desligou a conexão OAuth do canal (revoked_at + tokens zerados) na mesma transação
-  await revokeAtGoogle(data)
+  // O banco já desligou a conexão OAuth do canal (revoked_at + tokens apagados) na mesma transação. Nada é revogado no
+  // Google: canais do mesmo usuário Google podem compartilhar a autorização, e revogar um poderia derrubar os outros.
   revalidateTag('layout-counts', { expire: 0 })
   revalidatePath('/cms/social', 'layout')
   revalidateChannels()

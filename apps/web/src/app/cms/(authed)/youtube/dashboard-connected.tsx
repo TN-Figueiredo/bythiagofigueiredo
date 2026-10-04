@@ -45,6 +45,8 @@ export interface ChannelDashboard {
   locale: 'pt' | 'en'
   handle: string
   name: string
+  /** quando o canal foi cadastrado (ISO): a ordem da vitrine do site público */
+  createdAt: string | null
   /** null = este banco ainda não tem a coluna slug */
   slug: string | null
   /** slug do nicho; null = sem nicho */
@@ -779,10 +781,10 @@ export function DashboardConnected({
     setIdentityErrors(cur => ({ ...cur, [ch.id]: failure }))
   }
 
-  // The public site shows the oldest channel of each language. `channels` comes in registration order, so the effect of
-  // a language change is computed here, from what the screen already shows (picks not yet confirmed included).
+  // The public site shows the oldest channel of each language (showcase.ts). The effect of a language change is computed
+  // here with that same rule, from what the screen already shows (picks not yet confirmed included).
   const describeLanguageChange = (channelId: string, next: ChannelLocale) =>
-    languageChangeLines(channels.map(c => ({ id: c.id, name: c.name, locale: identity[c.id]?.locale ?? c.locale })), channelId, next)
+    languageChangeLines(channels.map(c => ({ id: c.id, name: c.name, locale: identity[c.id]?.locale ?? c.locale, created_at: c.createdAt })), channelId, next)
 
   const addButton = (
     <button type="button" className="btn primary sm" onClick={() => { setAddFailure(null); setAdding(true) }} disabled={adding}>

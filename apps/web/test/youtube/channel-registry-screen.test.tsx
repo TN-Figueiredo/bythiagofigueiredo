@@ -28,14 +28,14 @@ function deferred<T>() {
 const settle = async (fn: () => void) => { await act(async () => { fn(); await Promise.resolve(); await Promise.resolve() }) }
 
 const channel = (over: Partial<ChannelDashboard>): ChannelDashboard => ({
-  id: 'c1', locale: 'pt', handle: '@tnfigueiredo', name: 'tnFigueiredo', slug: 'tnfigueiredo', niche: 'viagem',
+  id: 'c1', locale: 'pt', handle: '@tnfigueiredo', name: 'tnFigueiredo', slug: 'tnfigueiredo', niche: 'viagem', createdAt: '2026-01-01T12:00:00.000Z',
   subscriberCount: 3200, videoCount: 58, thumbnailUrl: null, lastSyncedAt: new Date(Date.now() - 3 * 3600e3).toISOString(), lastSyncStatus: 'completed',
   pinnedVideo: null, totalViews: 412600, totalLikes: 18300, featuredCount: 0, hiddenCount: 0, latestVideoAt: null, lastSync: null,
   scheduleLabel: null, syncEnabled: true, syncSchedules: [], rawScheduleLabel: null, ...over,
 })
 const TNF = channel({})
-const EN = channel({ id: 'c2', locale: 'en', handle: '@thiago-figueiredo', name: 'Thiago Figueiredo', slug: 'thiago-figueiredo' })
-const CORTES = channel({ id: 'c3', handle: '@cortes-tnfigueiredo', name: 'Cortes do tnFigueiredo', slug: 'cortes-tnfigueiredo', lastSyncedAt: null, videoCount: 0 })
+const EN = channel({ createdAt: '2026-01-02T12:00:00.000Z', id: 'c2', locale: 'en', handle: '@thiago-figueiredo', name: 'Thiago Figueiredo', slug: 'thiago-figueiredo' })
+const CORTES = channel({ createdAt: '2026-01-03T12:00:00.000Z', id: 'c3', handle: '@cortes-tnfigueiredo', name: 'Cortes do tnFigueiredo', slug: 'cortes-tnfigueiredo', lastSyncedAt: null, videoCount: 0 })
 const JOGA = channel({ id: 'c4', handle: '@tnfigueiredo-joga', name: 'tnFigueiredo Joga', slug: 'tnfigueiredo-joga', niche: null })
 
 const VIAGEM: NicheView = { slug: 'viagem', label: 'Viagem', dark: '#5BBF8A', light: '#11692F', builtin: true, channels: 3, competitors: 12 }

@@ -5,6 +5,7 @@
 import { z } from 'zod'
 import { CHANNEL_LOCALES, channelLocaleDef, type ChannelLocale } from './channel-locales'
 import { isNicheSlug } from './observatorio/niche'
+import { showcaseChannels } from './showcase'
 
 /* ------------------------------------------------------------------ slug */
 
@@ -243,27 +244,29 @@ export function nicheUsage(channels: number, competitors: number | null): string
 
 /* ------------------------------------------------------------------ troca de idioma: efeito no site público */
 
+/** Um canal como a regra da vitrine o lê (showcase.ts), mais o nome para a frase. */
+export interface LanguageChannel { id: string; name: string; locale: string; created_at?: string | null }
+
 /**
- * O site público mostra um canal por idioma: o mais antigo (showcase.ts). Dada a lista de canais EM ORDEM DE CADASTRO,
- * diz em que idiomas a vitrine muda se `channelId` passar a `next`: o chip do idioma e o nome do canal que passa a
- * aparecer (null = o idioma fica sem canal). Lista vazia = o site não muda.
+ * O site público mostra um canal por idioma: o mais antigo. A regra NÃO é reescrita aqui: é showcaseChannels, de
+ * showcase.ts (created_at, depois id). Diz em que idiomas a vitrine muda se `channelId` passar a `next`: o chip do
+ * idioma e o nome do canal que passa a aparecer (null = o idioma fica sem canal). Lista vazia = o site não muda.
  */
-export function languageChangeEffect(
-  channels: ReadonlyArray<{ id: string; name: string; locale: string }>, channelId: string, next: string,
-): Array<{ chip: string; name: string | null }> {
+export function languageChangeEffect(channels: readonly LanguageChannel[], channelId: string, next: string): Array<{ chip: string; name: string | null }> {
   const after = channels.map(c => (c.id === channelId ? { ...c, locale: next } : c))
-  const locales = [...new Set([...CHANNEL_LOCALES.map(l => l.id as string), ...channels.map(c => c.locale), next])]
+  const was = new Map(showcaseChannels(channels).map(c => [c.locale, c]))
+  const now = new Map(showcaseChannels(after).map(c => [c.locale, c]))
+  const locales = [...new Set([...CHANNEL_LOCALES.map(l => l.id as string), ...was.keys(), ...now.keys()])]
   const out: Array<{ chip: string; name: string | null }> = []
   for (const l of locales) {
-    const was = channels.find(c => c.locale === l) ?? null
-    const now = after.find(c => c.locale === l) ?? null
-    if ((was?.id ?? null) !== (now?.id ?? null)) out.push({ chip: channelLocaleDef(l).chip, name: now?.name ?? null })
+    const a = was.get(l) ?? null, b = now.get(l) ?? null
+    if ((a?.id ?? null) !== (b?.id ?? null)) out.push({ chip: channelLocaleDef(l).chip, name: b?.name ?? null })
   }
   return out
 }
 export const LANGUAGE_CHANGE_LEAD = 'The public site shows one channel per language: the oldest.'
 export const languageChangeTitle = (next: string) => `Change language to ${channelLocaleDef(next).chip}?`
-export function languageChangeLines(channels: ReadonlyArray<{ id: string; name: string; locale: string }>, channelId: string, next: string): string[] {
+export function languageChangeLines(channels: readonly LanguageChannel[], channelId: string, next: string): string[] {
   const effect = languageChangeEffect(channels, channelId, next)
   if (effect.length === 0) return ['The public site does not change.']
   return effect.map(e => (e.name === null ? `${e.chip} will show no channel.` : `${e.chip} will show “${e.name}”.`))

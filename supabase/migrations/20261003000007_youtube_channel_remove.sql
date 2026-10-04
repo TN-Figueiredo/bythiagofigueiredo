@@ -98,8 +98,8 @@ end $$;
 --    Devolve o mesmo objeto do impacto (contado ANTES de apagar), com status:
 --      'removed' | 'blocked' (nada apagado; blockers diz quais testes parar) | 'not_found' | 'slug_mismatch'.
 --    p_confirm_slug é o slug que o dono digitou na confirmação: tem de ser o do canal.
---    Só no status 'removed' vem também revoke_tokens: os tokens (CIFRADOS, como estavam guardados) das conexões
---    desligadas, para a action tentar revogá-los no Google depois do commit. Nunca vai ao navegador.
+--    O retorno só tem status, nome, slug, contagens e blockers: NENHUM token sai do banco, cifrado ou não.
+--    Nada é revogado no Google: canais do mesmo usuário Google podem compartilhar a autorização.
 create or replace function public.youtube_channel_remove(p_site_id uuid, p_channel_id uuid, p_confirm_slug text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -108,7 +108,6 @@ declare
   v_videos uuid[];
   v_tests uuid[];
   v_impact jsonb;
-  v_tokens jsonb;
 begin
   -- trava o canal: duas remoções simultâneas do mesmo canal não se cruzam
   select c.slug, c.channel_id into v_slug, v_yt from public.youtube_channels c
@@ -134,19 +133,11 @@ begin
 
   -- A conexão OAuth deste canal neste site é desligada junto: revoked_at é como todo o código reconhece uma conexão
   -- desligada (todo leitor filtra revoked_at is null), e os tokens guardados são zerados (access_token_enc é NOT
-  -- NULL: fica ''). A de outro canal, e a deste canal em outro site, não são tocadas.
-  with off as (
-    select sc.id, sc.refresh_token_enc, sc.access_token_enc from public.social_connections sc
-    where sc.site_id = p_site_id and sc.provider = 'youtube' and sc.account_id = v_yt and sc.revoked_at is null
-    for update
-  ), upd as (
-    update public.social_connections sc
-    set revoked_at = now(), access_token_enc = '', refresh_token_enc = null, page_token_enc = null, token_expires_at = null
-    from off where sc.id = off.id
-    returning off.refresh_token_enc as r, off.access_token_enc as a
-  )
-  select coalesce(jsonb_agg(coalesce(nullif(upd.r, ''), upd.a)) filter (where coalesce(nullif(upd.r, ''), nullif(upd.a, '')) is not null), '[]'::jsonb)
-  into v_tokens from upd;
+  -- NULL: fica ''). A de outro canal, e a deste canal em outro site, não são tocadas. Os tokens são apagados aqui e
+  -- não são devolvidos a ninguém.
+  update public.social_connections sc
+  set revoked_at = now(), access_token_enc = '', refresh_token_enc = null, page_token_enc = null, token_expires_at = null
+  where sc.site_id = p_site_id and sc.provider = 'youtube' and sc.account_id = v_yt and sc.revoked_at is null;
 
   -- as notificações de um vídeo, teste ou ciclo do canal saem antes deles (a FK só anularia o vínculo)
   delete from public.yt_notifications nt
@@ -163,7 +154,7 @@ begin
   delete from public.youtube_sync_log l where l.channel_id = p_channel_id;
   delete from public.youtube_channels c where c.id = p_channel_id and c.site_id = p_site_id;
 
-  return v_impact || jsonb_build_object('status', 'removed', 'revoke_tokens', v_tokens);
+  return v_impact || jsonb_build_object('status', 'removed');
 end $$;
 
 -- SECURITY DEFINER e sem checagem de permissão por dentro: só o service role as chama, depois do guard da action.
