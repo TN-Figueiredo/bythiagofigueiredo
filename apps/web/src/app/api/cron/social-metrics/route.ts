@@ -10,6 +10,7 @@ import {
 import {
   ensureFreshToken,
   TokenRevokedError,
+  NoActiveConnectionError,
 } from '@/lib/social/token-refresh'
 import type { Provider } from '@tn-figueiredo/social'
 
@@ -87,6 +88,9 @@ export async function POST(req: NextRequest) {
     })
 
     let processed = 0
+    // Conexão sem OAuth viva (canal removido, acesso revogado): não há a quem perguntar.
+    // Estado legítimo — pula e conta, não vira erro de cron.
+    let skippedNoConnection = 0
     const errors: string[] = []
 
     for (const delivery of toPoll) {
@@ -140,6 +144,10 @@ export async function POST(req: NextRequest) {
             errors.push(
               `delivery ${delivery.id}: token revoked for ${delivery.provider}`,
             )
+            continue
+          }
+          if (refreshErr instanceof NoActiveConnectionError) {
+            skippedNoConnection++
             continue
           }
           throw refreshErr
@@ -198,6 +206,7 @@ export async function POST(req: NextRequest) {
     return {
       status: 'ok' as const,
       processed,
+      ...(skippedNoConnection > 0 && { skipped_no_connection: skippedNoConnection }),
       errors: errors.length > 0 ? errors : undefined,
     }
   })
