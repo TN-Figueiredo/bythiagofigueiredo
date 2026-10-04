@@ -17,6 +17,9 @@ export interface FakeQuery {
   limit: number | null
   range: [number, number] | null
   terminal: 'many' | 'single' | 'maybeSingle'
+  /** `select(cols, { count, head })`. */
+  count: 'exact' | null
+  head: boolean
 }
 
 export interface FakeError { code?: string; message: string }
@@ -29,6 +32,24 @@ export interface FakePostgrestOptions {
   columns?: Record<string, string[]>
   /** Erro forçado: devolve o erro para a consulta, ou null para deixar passar. */
   fail?: (q: FakeQuery) => FakeError | null
+  /**
+   * Teto de linhas por resposta, como o `max_rows` do PostgREST (1000 no Supabase): `limit` e
+   * `range` maiores que o teto NÃO devolvem mais linhas, e não há erro. Sem a opção, sem teto.
+   */
+  maxRows?: number
+}
+
+function splitTopLevel(s: string): string[] {
+  const out: string[] = []
+  let depth = 0
+  let cur = ''
+  for (const ch of s) {
+    if (ch === '(') depth++
+    if (ch === ')') depth--
+    if (ch === ',' && depth === 0) { out.push(cur); cur = '' } else cur += ch
+  }
+  if (cur.trim()) out.push(cur)
+  return out
 }
 
 function cmp(a: unknown, b: unknown): number {
@@ -41,7 +62,7 @@ function cmp(a: unknown, b: unknown): number {
 export function fakePostgrest(opts: FakePostgrestOptions) {
   const queries: FakeQuery[] = []
 
-  function run(q: FakeQuery): { data: unknown; error: FakeError | null } {
+  function run(q: FakeQuery): { data: unknown; error: FakeError | null; count?: number | null } {
     queries.push(q)
     const forced = opts.fail?.(q)
     if (forced) return { data: null, error: forced }
@@ -49,7 +70,16 @@ export function fakePostgrest(opts: FakePostgrestOptions) {
     const all = opts.tables[q.table]
     if (!all) return { data: null, error: { code: 'PGRST205', message: `Could not find the table 'public.${q.table}' in the schema cache` } }
 
-    const cols = q.select.split(',').map(c => c.trim()).filter(Boolean)
+    // Itens do select no nível de cima. `rel(...)`, `alias:rel!inner(...)` são embeds: não são
+    // validados (o dublê não conhece o esquema da outra tabela); a linha de teste traz o objeto
+    // embutido sob a chave `alias ?? rel`.
+    const items = splitTopLevel(q.select).map(c => c.trim()).filter(Boolean)
+    const embeds = items.filter(c => c.includes('(')).map(c => {
+      const head = c.slice(0, c.indexOf('('))
+      const key = head.includes(':') ? head.split(':')[0]!.trim() : head.split('!')[0]!.trim()
+      return { key, inner: head.includes('!inner') }
+    })
+    const cols = items.filter(c => !c.includes('('))
     const star = cols.includes('*')
     if (!star) {
       const known = new Set<string>(opts.columns?.[q.table] ?? [])
@@ -58,12 +88,43 @@ export function fakePostgrest(opts: FakePostgrestOptions) {
       if (missing) return { data: null, error: { code: '42703', message: `column ${q.table}.${missing} does not exist` } }
     }
 
-    let rows = all.filter(r => q.filters.every(f => {
-      const v = r[f.col]
+    // Coluna de filtro: `col` da linha, ou `rel.col` de um embed.
+    const read = (r: Row, col: string): unknown => {
+      if (col.includes('.')) {
+        const [rel, c] = col.split('.') as [string, string]
+        const o = r[rel]
+        return o && typeof o === 'object' ? (o as Row)[c] : undefined
+      }
+      return r[col]
+    }
+    const like = (v: unknown, pat: unknown) => {
+      const needle = String(pat).replace(/%/g, '').toLowerCase()
+      return typeof v === 'string' && v.toLowerCase().includes(needle)
+    }
+    let rows = all.filter(r => embeds.every(e => !e.inner || r[e.key] != null)).filter(r => q.filters.every(f => {
+      const v = read(r, f.col)
       if (f.op === 'eq') return v === f.value
+      if (f.op === 'neq') return v !== f.value
+      if (f.op === 'is') return (f.value === null ? v == null : v === f.value)
       if (f.op === 'in') return (f.value as unknown[]).includes(v)
       if (f.op === 'gte') return cmp(v, f.value) >= 0
+      if (f.op === 'lte') return cmp(v, f.value) <= 0
+      if (f.op === 'ilike') return like(v, f.value)
+      if (f.op === 'contains') return Array.isArray(v) && (f.value as unknown[]).every(x => v.includes(x))
+      if (f.op === 'textSearch') return true
+      if (f.op === 'or') {
+        return String(f.value).split(',').some(cond => {
+          const [c, op, ...rest] = cond.split('.')
+          const val = rest.join('.')
+          const cv = read(r, c!)
+          if (op === 'ilike') return like(cv, val)
+          if (op === 'eq') return String(cv) === val
+          throw new Error(`fakePostgrest: or(${op}) não suportado`)
+        })
+      }
       if (f.op === 'not.in') return !(f.value as unknown[]).includes(v)
+      if (f.op === 'not.like') return !(typeof v === 'string' && v.startsWith(String(f.value).replace(/%/g, '')))
+      if (f.op === 'not.is') return !(f.value === null ? v == null : v === f.value)
       throw new Error(`fakePostgrest: filtro não suportado: ${f.op}`)
     }))
     if (q.orders.length) {
@@ -75,24 +136,45 @@ export function fakePostgrest(opts: FakePostgrestOptions) {
         return 0
       })
     }
+    const total = rows.length
     if (q.range) rows = rows.slice(q.range[0], q.range[1] + 1)
     if (q.limit != null) rows = rows.slice(0, q.limit)
-    const out = star ? rows.map(r => ({ ...r })) : rows.map(r => Object.fromEntries(cols.map(c => [c, r[c] ?? null])))
+    if (opts.maxRows != null) rows = rows.slice(0, opts.maxRows)
+    if (q.head) return { data: null, error: null, count: q.count ? total : null }
+    const out = rows.map(r => {
+      const base: Row = star ? { ...r } : Object.fromEntries(cols.map(c => [c, r[c] ?? null]))
+      for (const e of embeds) base[e.key] = r[e.key] ?? null
+      return base
+    })
 
-    if (q.terminal === 'many') return { data: out, error: null }
+    if (q.terminal === 'many') return { data: out, error: null, count: q.count ? total : null }
     if (out.length === 1) return { data: out[0], error: null }
     if (out.length === 0 && q.terminal === 'maybeSingle') return { data: null, error: null }
     return { data: null, error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' } }
   }
 
   function from(table: string) {
-    const q: FakeQuery = { table, select: '*', filters: [], orders: [], limit: null, range: null, terminal: 'many' }
+    const q: FakeQuery = { table, select: '*', filters: [], orders: [], limit: null, range: null, terminal: 'many', count: null, head: false }
     const b = {
-      select(cols: string) { q.select = cols; return b },
+      select(cols: string, o?: { count?: 'exact'; head?: boolean }) {
+        q.select = cols
+        if (o?.count) q.count = o.count
+        if (o?.head) q.head = true
+        return b
+      },
       eq(col: string, value: unknown) { q.filters.push({ op: 'eq', col, value }); return b },
       in(col: string, value: unknown[]) { q.filters.push({ op: 'in', col, value }); return b },
       gte(col: string, value: unknown) { q.filters.push({ op: 'gte', col, value }); return b },
+      lte(col: string, value: unknown) { q.filters.push({ op: 'lte', col, value }); return b },
+      neq(col: string, value: unknown) { q.filters.push({ op: 'neq', col, value }); return b },
+      is(col: string, value: unknown) { q.filters.push({ op: 'is', col, value }); return b },
+      ilike(col: string, value: string) { q.filters.push({ op: 'ilike', col, value }); return b },
+      or(value: string) { q.filters.push({ op: 'or', col: '', value }); return b },
+      contains(col: string, value: unknown[]) { q.filters.push({ op: 'contains', col, value }); return b },
+      textSearch(col: string, value: string) { q.filters.push({ op: 'textSearch', col, value }); return b },
       not(col: string, op: string, value: string) {
+        if (op === 'like') { q.filters.push({ op: 'not.like', col, value }); return b }
+        if (op === 'is') { q.filters.push({ op: 'not.is', col, value: value === 'null' ? null : value }); return b }
         if (op !== 'in') throw new Error(`fakePostgrest: not(${op}) não suportado`)
         q.filters.push({ op: 'not.in', col, value: value.replace(/^\(|\)$/g, '').split(',').map(s => s.replace(/^"|"$/g, '')) })
         return b
@@ -102,7 +184,7 @@ export function fakePostgrest(opts: FakePostgrestOptions) {
       range(a: number, z: number) { q.range = [a, z]; return b },
       single: async () => run({ ...q, terminal: 'single' }),
       maybeSingle: async () => run({ ...q, terminal: 'maybeSingle' }),
-      then<T>(resolve: (v: { data: unknown; error: FakeError | null }) => T) { return Promise.resolve(run(q)).then(resolve) },
+      then<T>(resolve: (v: { data: unknown; error: FakeError | null; count?: number | null }) => T) { return Promise.resolve(run(q)).then(resolve) },
     }
     return b
   }
