@@ -8,6 +8,9 @@ import { RULES } from './rules'
 import { formulasOf, THEME } from './catalog'
 import { deriveSyncState, backfillProgress } from './channels'
 import { requestStateOf } from './forja/states'
+import { BUILTIN_NICHES, forjaOrder } from './niche'
+import { ObservatoryLoadError, nicheDefs, readNiches, type NicheRow } from './niches-db'
+export { ObservatoryLoadError } from './niches-db'
 
 /* ------------------------------------------------------------------ row shapes (mirror database.types.ts) */
 export interface SettingsRow { series_started_at: string | null; channel_limit: number }
@@ -53,6 +56,8 @@ export interface ObservatoryRows {
   settings: SettingsRow | null; channels: ChannelRow[]; ownChannels: OwnChannelRow[]; videos: VideoRow[]; ownVideos: OwnVideoRow[]
   versions: VersionRow[]; legacyChanges: LegacyChangeRow[]; daily: DailyRow[]; snapshots: SnapshotRow[]
   readings: ReadingRow[]; tasks: TaskRow[]; heartbeat: HeartbeatRow | null
+  /** Os nichos do site (youtube_niches). null / ausente = a tabela ainda não existe neste banco: valem os dois de fábrica. */
+  niches?: NicheRow[] | null
 }
 
 /* ------------------------------------------------------------------ constants */
@@ -92,7 +97,10 @@ const OWN_COLOR = '#B8481A'
 
 /* ------------------------------------------------------------------ small pure helpers */
 const ms = (s: string | null | undefined): number | null => { if (!s) return null; const t = Date.parse(s); return Number.isFinite(t) ? t : null }
-const isNiche = (s: string | null | undefined): s is Niche => s === 'viagem' || s === 'ia'
+/** Os slugs dos nichos de fábrica: o que vale quando quem chama não diz quais nichos o site tem. */
+const BUILTIN_IDS: ReadonlySet<string> = new Set(BUILTIN_NICHES.map(n => n.id))
+/** O valor é um nicho do site? Um slug fora da lista vira null ("sem nicho"): o canal continua na tela, em Todos e no grupo Sem nicho. */
+const nicheIn = (known: ReadonlySet<string>) => (s: string | null | undefined): s is Niche => s != null && known.has(s)
 const isFmt = (s: string | null | undefined): s is Fmt => s === 'long' || s === 'short'
 const isRecord = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
 const precOf = (s: string): Precision | 'first' | null => (s === 'min' || s === '6h' || s === '1d' || s === 'first' ? s : null)
@@ -203,6 +211,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   const next = nextSyncSlot(now)
   const cappedFrom = dailyCappedFrom(seriesStart, now)
   const themes = themeMap(rows.readings)
+  const niches = nicheDefs(rows.niches), known: ReadonlySet<string> = new Set(niches.map(n => n.id)), isNiche = nicheIn(known)
   const versionsBy = groupBy([...rows.versions].sort((a, b) => (ms(a.first_seen_at) ?? 0) - (ms(b.first_seen_at) ?? 0)), v => v.video_id + '|' + v.field)
   const legacyBy = groupBy(rows.legacyChanges, l => l.video_id + '|' + l.change_type)
   const dailyBy = groupBy(rows.daily, d => d.video_id)
@@ -295,26 +304,26 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   const added = rows.channels.map(c => ms(c.added_at)).filter((x): x is number => x != null)
   return {
     now, seriesStart, snap0, dailyCappedFrom: cappedFrom, obsStart: added.length ? Math.min(...added) : seriesStart,
-    channels, videos,
+    channels, videos, niches,
     sync: { last: okSyncs.length ? Math.max(...okSyncs) : null, next },
-    readings: rows.readings.map(r => toReading(r)).filter((x): x is FrozenReading => x != null),
+    readings: rows.readings.map(r => toReading(r, known)).filter((x): x is FrozenReading => x != null),
     // a published request points at the reading it produced (competitor_readings.task_id): "leitura nova às HH:MM"
-    requests: orderRequests(rows.tasks.map(t => taskRowToRequest(t, ms(rows.heartbeat?.last_poll_at), now)).filter((x): x is ForjaRequest => x != null)
-      .map(q => { const rid = readingOfTask.get(q.id); return rid ? { ...q, readingId: rid } : q })),
+    requests: orderRequests(rows.tasks.map(t => taskRowToRequest(t, ms(rows.heartbeat?.last_poll_at), now, known)).filter((x): x is ForjaRequest => x != null)
+      .map(q => { const rid = readingOfTask.get(q.id); return rid ? { ...q, readingId: rid } : q }), forjaOrder(niches)),
     queue: { lastPollAt: ms(rows.heartbeat?.last_poll_at), tickMinutes: FORJA_TICK_MINUTES, capabilities: rows.heartbeat?.capabilities ?? [] },
   }
 }
 
 /**
  * The queue order the screens list requests in (dados.js requestScenario): the one the machine holds (running), then the
- * waiting ones, then the finished; same instant → IA before Viagem (the order a Todos ask splits in); then id. Never the
- * rows' uuid order, which put "Viagem … (atrás do de IA)" before IA.
+ * waiting ones, then the finished; same instant → IA before Viagem (the order a Todos ask splits in: `order`, the forja's);
+ * then id. Never the rows' uuid order, which put "Viagem … (atrás do de IA)" before IA.
  */
 const RANK: Record<string, number> = { running: 0, pending: 1 }
-export function orderRequests(rs: ForjaRequest[]): ForjaRequest[] {
-  const NICHE_ORDER: Record<string, number> = { ia: 0, viagem: 1 }
+export function orderRequests(rs: ForjaRequest[], order: readonly Niche[] = forjaOrder(BUILTIN_NICHES)): ForjaRequest[] {
+  const NICHE_ORDER: Record<string, number> = Object.fromEntries(order.map((n, i) => [n, i]))
   return [...rs].sort((a, b) => (RANK[a.status ?? ''] ?? 2) - (RANK[b.status ?? ''] ?? 2) || a.createdAt - b.createdAt
-    || (NICHE_ORDER[a.niche] ?? 9) - (NICHE_ORDER[b.niche] ?? 9) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    || (NICHE_ORDER[a.niche] ?? order.length) - (NICHE_ORDER[b.niche] ?? order.length) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 
 /** Shape check for the frozen `base` (the same fields frozenOf has always required). */
@@ -333,10 +342,11 @@ function frozenOf(sent: Record<string, unknown>): Pick<FrozenReading, 'base' | '
   return out
 }
 
-export function toReading(r: ReadingRow): FrozenReading | null {
+/** `known` = os slugs dos nichos do site (padrão: os de fábrica). Leitura de um nicho fora da lista fica sem nicho. */
+export function toReading(r: ReadingRow, known: ReadonlySet<string> = BUILTIN_IDS): FrozenReading | null {
   const generatedAt = ms(r.generated_at)
   if (generatedAt == null) return null
-  const niche = isNiche(r.niche) ? r.niche : null, fmt = isFmt(r.fmt) ? r.fmt : null
+  const niche = nicheIn(known)(r.niche) ? r.niche : null, fmt = isFmt(r.fmt) ? r.fmt : null
   const sent = isRecord(r.sent) ? r.sent : {}, text = isRecord(r.text) ? r.text : {}
   const asOf = typeof sent.asOf === 'number' ? sent.asOf : ms(typeof sent.asOf === 'string' ? sent.asOf : null) ?? generatedAt
   return {
@@ -362,9 +372,10 @@ export function toReading(r: ReadingRow): FrozenReading | null {
  * or 'liberado pelo vigia' from its attempts, released_at and the heartbeat, never always 'na fila'; 'stale' is 'falhou'.
  */
 const KNOWN_STATUS = new Set(['pending', 'running', 'completed', 'failed', 'stale', 'refused'])
-export function taskRowToRequest(t: TaskRow, lastPollAt: number | null, now: number): ForjaRequest | null {
+/** `known` = os slugs dos nichos do site (padrão: os de fábrica). Tarefa de um nicho fora da lista não vira pedido. */
+export function taskRowToRequest(t: TaskRow, lastPollAt: number | null, now: number, known: ReadonlySet<string> = BUILTIN_IDS): ForjaRequest | null {
   const createdAt = ms(t.requested_at)
-  if (!KNOWN_STATUS.has(t.status) || createdAt == null || !isNiche(t.target_niche) || !(OBS_TASK_TYPES as readonly string[]).includes(t.task_type)) return null
+  if (!KNOWN_STATUS.has(t.status) || createdAt == null || !nicheIn(known)(t.target_niche) || !(OBS_TASK_TYPES as readonly string[]).includes(t.task_type)) return null
   const fmt = isFmt(t.target_fmt) ? t.target_fmt : undefined
   return {
     id: t.id, type: t.task_type, niche: t.target_niche, status: t.status, video: t.target_video_id,
@@ -380,9 +391,6 @@ export function taskRowToRequest(t: TaskRow, lastPollAt: number | null, now: num
 /* ------------------------------------------------------------------ DB reads */
 interface PgErr { message: string; code?: string }
 interface RangeQuery { range(from: number, to: number): PromiseLike<{ data: unknown; error: PgErr | null }> }
-export class ObservatoryLoadError extends Error {
-  constructor(public table: string, public code: string | undefined, message: string) { super('observatório: falha ao ler ' + table + ': ' + message); this.name = 'ObservatoryLoadError' }
-}
 /** Pages a read until a short page; a DB error throws (never an empty list in disguise). */
 async function readAll<T>(table: string, build: () => RangeQuery): Promise<T[]> {
   const out: T[] = []
@@ -449,7 +457,7 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
   const ssAt = ms(settings?.series_started_at)
   const seriesStart = ssAt != null ? spDayStart(ssAt) : now
 
-  const [channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeats] = await Promise.all([
+  const [channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeats, niches] = await Promise.all([
     readAll<ChannelRow>('competitor_channels', () => sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).order('id')),
     readOwnChannels(sb, siteId),
     readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('is_hidden', false).order('id')),
@@ -460,6 +468,8 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
     readAll<TaskRow>('youtube_intelligence_tasks', () => sb.from('youtube_intelligence_tasks').select(TASK_COLS)
       .eq('site_id', siteId).in('task_type', [...OBS_TASK_TYPES]).gte('requested_at', new Date(now - TASK_DAYS * DAY).toISOString()).order('id')),
     readAll<HeartbeatRow>('forja_heartbeat', () => sb.from('forja_heartbeat').select('last_poll_at, capabilities').eq('site_id', siteId).order('site_id')),
+    // tabela ausente (a migration ainda não chegou a este banco) → null: valem os dois de fábrica; outro erro é lançado
+    readNiches(sb, siteId),
   ])
   const channelIds = channels.map(c => c.id)
   const [videos, snapshots] = await Promise.all([
@@ -475,7 +485,7 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
     readIn<DailyRow>('competitor_video_daily', dailyIds, ids => sb.from('competitor_video_daily').select('video_id, snap_date, views, likes, comments, taken_at')
       .in('video_id', ids).gte('snap_date', dailyFrom).lte('snap_date', dailyTo).order('video_id').order('snap_date')),
   ])
-  return { settings, channels, ownChannels, videos, ownVideos, versions, legacyChanges, daily, snapshots, readings, tasks, heartbeat: heartbeats[0] ?? null }
+  return { settings, channels, ownChannels, videos, ownVideos, versions, legacyChanges, daily, snapshots, readings, tasks, heartbeat: heartbeats[0] ?? null, niches }
 }
 
 export async function loadDataset(opts: LoadOptions): Promise<Dataset> {

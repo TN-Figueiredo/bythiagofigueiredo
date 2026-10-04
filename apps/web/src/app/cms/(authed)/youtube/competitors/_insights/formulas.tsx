@@ -27,7 +27,7 @@ export function Formulas({ s }: { s: FormulasSection }) {
         ))}
         {s.zero ? <p className="formzero" data-zero={s.zero.ids.join(',')}>{s.zero.text}</p> : null}
       </div>
-      <div className="foot"><RichText parts={s.foot} /></div>
+      {s.foot ? <div className="foot"><RichText parts={s.foot} /></div> : null}
     </section>
   )
 }

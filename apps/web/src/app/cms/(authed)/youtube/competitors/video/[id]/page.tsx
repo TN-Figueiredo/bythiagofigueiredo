@@ -21,11 +21,14 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
   const { siteId } = await getSiteContext()
-  const nicheParam = parseNiche(flat.niche) ?? undefined
-  const [obs, niche] = await Promise.all([
+  const formParam = parseNiche(flat.niche) ?? undefined
+  const [obs, savedNiche] = await Promise.all([
     loadDataset({ siteId, now: observatoryNow() }).then(createObservatory),
-    nicheParam ?? getUserNiche(),
+    formParam ? null : getUserNiche(),
   ])
+  // parseNiche checks the form; the engine says whether the niche exists (an unknown one is ignored: the saved niche, else Todos)
+  const nicheParam = formParam != null && obs.scopeOf(formParam) === formParam ? formParam : undefined
+  const niche = nicheParam ?? obs.scopeOf(savedNiche ?? (formParam ? await getUserNiche() : 'todos'))
   // The pager rebuilds a "Só salvas" Mudanças list with the same swipe rows the Mudanças screen reads.
   const saved = flat.from !== 'outliers' && flat.from !== 'canais' && /(^|[?&])saved=1(&|$)/.test(flat.back ?? '')
     ? savedFromRows(obs, await loadSwipeRows(siteId)).saved : undefined

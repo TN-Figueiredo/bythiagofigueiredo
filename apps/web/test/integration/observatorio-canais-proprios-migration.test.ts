@@ -38,7 +38,7 @@ describe.skipIf(skipIfNoLocalDb())('migration observatorio_canais_proprios_nicho
 
   it('niche rejects unknown values', async () => {
     const { error } = await sb.from('youtube_channels').insert({ ...base(), niche: 'culinaria' })
-    expect(error?.message).toMatch(/check/i)
+    expect(error?.message).toMatch(/foreign key/i)
   })
 
   it('a channel inserted with niche omitted is null (no backfill after the migration)', async () => {

@@ -4,7 +4,7 @@ import { RichText } from './rich'
 
 const STAMP = <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true"><path d="M2 6h9l3-2v3l-3 1v1H5L2 6z" /><path d="M6 9v3M9 9v3M4 13h7" /></svg>
 
-/** Temas em alta (insights.html renderThemes); empty state when no `temas` reading exists. */
+/** Temas em alta (insights.html renderThemes); empty state when no `temas` reading exists; a niche without a theme list says so. */
 export function Themes({ s }: { s: ThemesSection }) {
   return (
     <section className="card c5" id="themeCard" aria-labelledby="themeH">
@@ -12,7 +12,7 @@ export function Themes({ s }: { s: ThemesSection }) {
         {s.seal ? <span className="stamp right">{STAMP}{s.seal}</span> : null}</div>
       <div className="cbody">
         {s.coverageNote ? <p className="empty-note" data-coverage="low">{s.coverageNote}</p> : null}
-        {s.empty ? <div className="empty"><h3>{s.empty.title}</h3><p>{s.empty.text}</p></div> : s.rows.map(x => (
+        {s.noThemes ? <div className="empty" data-no-themes=""><p>{s.noThemes}</p></div> : s.empty ? <div className="empty"><h3>{s.empty.title}</h3><p>{s.empty.text}</p></div> : s.rows.map(x => (
           <div className="trow" key={x.theme} data-trend={x.trend ?? 'sem-tendencia'} data-theme={x.theme} data-out={x.outLink.n}>
             <div>
               <div className="tname">{x.label}</div>

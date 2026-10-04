@@ -2331,6 +2331,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "competitor_channels_niche_fkey"
+            columns: ["site_id", "niche"]
+            isOneToOne: false
+            referencedRelation: "youtube_niches"
+            referencedColumns: ["site_id", "slug"]
+          },
+          {
             foreignKeyName: "competitor_channels_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
@@ -2389,6 +2396,13 @@ export type Database = {
           video_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "competitor_readings_niche_fkey"
+            columns: ["site_id", "niche"]
+            isOneToOne: false
+            referencedRelation: "youtube_niches"
+            referencedColumns: ["site_id", "slug"]
+          },
           {
             foreignKeyName: "competitor_readings_site_id_fkey"
             columns: ["site_id"]
@@ -8898,6 +8912,7 @@ export type Database = {
           niche: string | null
           schedule_label: string | null
           site_id: string
+          slug: string
           subscriber_count: number
           sync_enabled: boolean
           sync_schedules: Json
@@ -8920,6 +8935,7 @@ export type Database = {
           niche?: string | null
           schedule_label?: string | null
           site_id: string
+          slug?: string
           subscriber_count?: number
           sync_enabled?: boolean
           sync_schedules?: Json
@@ -8942,6 +8958,7 @@ export type Database = {
           niche?: string | null
           schedule_label?: string | null
           site_id?: string
+          slug?: string
           subscriber_count?: number
           sync_enabled?: boolean
           sync_schedules?: Json
@@ -8951,6 +8968,13 @@ export type Database = {
           video_count?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "youtube_channels_niche_fkey"
+            columns: ["site_id", "niche"]
+            isOneToOne: false
+            referencedRelation: "youtube_niches"
+            referencedColumns: ["site_id", "slug"]
+          },
           {
             foreignKeyName: "youtube_channels_site_id_fkey"
             columns: ["site_id"]
@@ -9250,6 +9274,57 @@ export type Database = {
           },
           {
             foreignKeyName: "youtube_intelligence_tasks_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "youtube_intelligence_tasks_target_niche_fkey"
+            columns: ["site_id", "target_niche"]
+            isOneToOne: false
+            referencedRelation: "youtube_niches"
+            referencedColumns: ["site_id", "slug"]
+          },
+        ]
+      }
+      youtube_niches: {
+        Row: {
+          color_dark: string
+          color_light: string
+          created_at: string
+          created_by: string | null
+          label: string
+          site_id: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          color_dark: string
+          color_light: string
+          created_at?: string
+          created_by?: string | null
+          label: string
+          site_id: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          color_dark?: string
+          color_light?: string
+          created_at?: string
+          created_by?: string | null
+          label?: string
+          site_id?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "youtube_niches_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
@@ -10541,6 +10616,19 @@ export type Database = {
           suppressed: number
           waitlist_id: string
         }[]
+      }
+      youtube_channel_slug_base: { Args: { p_handle: string }; Returns: string }
+      youtube_channel_slug_pick: {
+        Args: { p_exclude_id?: string; p_handle: string; p_site_id: string }
+        Returns: string
+      }
+      youtube_channel_removal_impact: {
+        Args: { p_channel_id: string; p_site_id: string }
+        Returns: Json
+      }
+      youtube_channel_remove: {
+        Args: { p_channel_id: string; p_confirm_slug: string; p_site_id: string }
+        Returns: Json
       }
     }
     Enums: {

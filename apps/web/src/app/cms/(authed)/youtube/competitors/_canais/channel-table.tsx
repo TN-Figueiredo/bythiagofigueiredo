@@ -1,8 +1,9 @@
 'use client'
 /** Table view of Canais (port of canais.html thead + renderBody rows and group rows). */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { CanaisGroup, CanaisRow, CanaisSort, CanaisView, OwnGroupPart } from './view-model'
 import type { Niche } from '@/lib/youtube/observatorio/types'
+import { nicheStyle } from './niche-editor'
 import { CadenceView, ChCell, GrowthView, Ic, OutView, SwapView, SyncView, Tip, VpdView, type LocalSync } from './cells'
 
 export interface RowHandlers {
@@ -32,7 +33,16 @@ export function OwnGroupParts({ parts }: { parts: OwnGroupPart[] }) {
     </span>
   ))}</>
 }
-export const groupColor = (k: CanaisGroup['key']) => (k === 'ia' ? 'var(--ai)' : k === 'viagem' ? 'var(--travel)' : 'var(--muted)')
+/**
+ * The group dot: the built-in niches keep their tokens; "Sem nicho" is muted; a niche the owner created uses its own
+ * colour through --obs-niche (canais.css resolves it from --obs-sw-dark / --obs-sw-light by theme).
+ */
+export const groupColor = (k: CanaisGroup['key']) => (k === 'ia' ? 'var(--ai)' : k === 'viagem' ? 'var(--travel)' : k === 'sem' ? 'var(--muted)' : 'var(--obs-niche)')
+export function groupDotStyle(g: Pick<CanaisGroup, 'key' | 'color'>): CSSProperties {
+  const dot = groupColor(g.key)
+  // a niche without its colour (never the case for a row of youtube_niches) falls back to the muted dot, not to an unset variable
+  return g.color ? { background: dot, ...nicheStyle(g.color) } : { background: dot === 'var(--obs-niche)' ? 'var(--muted)' : dot }
+}
 
 function Row({ r, h }: { r: CanaisRow; h: RowHandlers }) {
   const c = r.cells
@@ -100,7 +110,7 @@ export function ChannelTable({ view, own, groups, h, onSort, empty, busy, busySo
           {own.group ? <tr className="group" data-own-group=""><td colSpan={8}><span className="gin"><strong>{own.group.label}</strong><OwnGroupParts parts={own.group.parts} /></span></td></tr> : null}
           {own.rows.map(r => <Row key={r.id} r={r} h={h} />)}
           {groups.map(g => [
-            <tr key={'g-' + g.key} className="group"><td colSpan={8}><span className="gin"><span className="dot" style={{ background: groupColor(g.key) }} /><strong>{g.label}</strong><span>{g.count}</span><GroupMeta g={g} /></span></td></tr>,
+            <tr key={'g-' + g.key} className="group"><td colSpan={8}><span className="gin"><span className={g.color ? 'dot custom' : 'dot'} style={groupDotStyle(g)} /><strong>{g.label}</strong><span>{g.count}</span><GroupMeta g={g} /></span></td></tr>,
             ...g.rows.map(r => <Row key={r.id} r={r} h={h} />),
           ])}
           {groups.length ? null : <tr><td colSpan={8} style={{ padding: '28px 14px', color: 'var(--muted)' }}>{empty}</td></tr>}

@@ -3,19 +3,18 @@
  * Pure: every number, date and sentence comes from the engine (Observatory); nothing here reads the clock.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
-import type { NicheScope } from '@/lib/youtube/observatorio/niche'
-import type { ObsChannel } from '@/lib/youtube/observatorio/types'
+import { BUILTIN_NICHES, nicheLabel, type NicheScope } from '@/lib/youtube/observatorio/niche'
+import type { Niche, ObsChannel } from '@/lib/youtube/observatorio/types'
 import type { ForjaView } from './forja-view-model'
 
 export type ChromeTab = 'canais' | 'mudancas' | 'outliers' | 'insights'
 const TABS: readonly ChromeTab[] = ['canais', 'mudancas', 'outliers', 'insights']
 const TAB_NAME: Record<ChromeTab, string> = { canais: 'Canais', mudancas: 'Mudanças', outliers: 'Outliers', insights: 'Insights' }
-const NICHE_KEYS: readonly NicheScope[] = ['todos', 'viagem', 'ia']
 
 export const CHROME_TITLE = 'Observatório de Competidores' as const
 export const CHROME_SUBTITLE = 'O que os canais que você acompanha mudaram, o que está estourando agora e o que a forja leu disso, para decidir o próximo vídeo, título e thumbnail.'
 
-export interface ChromeFreshRow { id: string; name: string; niche: 'viagem' | 'ia' | null; nicheLabel: string | null; situation: string; last: string | null; bad: boolean }
+export interface ChromeFreshRow { id: string; name: string; niche: Niche | null; nicheLabel: string | null; situation: string; last: string | null; bad: boolean }
 export interface ChromeView {
   title: 'Observatório de Competidores'; subtitle: string; tzLabel: 'Horários em São Paulo'
   niche: NicheScope; nicheLabel: string; nicheColor: { dark: string; light: string } | null
@@ -38,8 +37,8 @@ export interface ChromeView {
 }
 
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
-export const nicheLabelOf = (obs: Observatory, n: NicheScope): string => (n === 'todos' ? 'Todos' : obs.NICHES[n].label)
-const colorOf = (obs: Observatory, n: NicheScope) => (n === 'todos' ? null : { dark: obs.NICHES[n].color.dark, light: obs.NICHES[n].color.light })
+export const nicheLabelOf = (obs: Observatory, n: NicheScope): string => (n === 'todos' ? 'Todos' : obs.nicheLabel(n))
+const colorOf = (obs: Observatory, n: NicheScope) => (n === 'todos' ? null : obs.nicheColor(n))
 
 export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: NicheScope; forja?: ForjaView | null }): ChromeView {
   const { niche } = o, F = obs.fmt, D = obs.date
@@ -66,7 +65,7 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
   // The engine's dates (clock of the dataset): "hoje HH:MM" for today, "DD/MM HH:MM" otherwise; null = never synced.
   const lastText = (ts: number | null) => (ts == null ? null : D.dm(ts) === D.dm(obs.NOW) ? 'hoje ' + D.hm(ts) : D.dmhm(ts))
   const row = (c: ObsChannel, isBad: boolean): ChromeFreshRow => { const last: number | null = c.sync.last; return {
-    id: c.id, name: c.name, niche: c.niche, nicheLabel: c.niche ? obs.NICHES[c.niche].label : null,
+    id: c.id, name: c.name, niche: c.niche, nicheLabel: c.niche ? obs.nicheLabel(c.niche) : null,
     situation: isBad ? phrase(c) : (c.sync.label ?? ''),
     // M5: on a problem row the engine phrase already carries the date (except while fetching videos)
     last: isBad && c.sync.state !== 'backfill' ? null : lastText(last),
@@ -77,7 +76,8 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
     title: CHROME_TITLE, subtitle: CHROME_SUBTITLE, tzLabel: 'Horários em São Paulo',
     niche, nicheLabel: nl, nicheColor: colorOf(obs, niche),
     tabs,
-    niches: NICHE_KEYS.map(n => ({ key: n, label: nicheLabelOf(obs, n), count: obs.tabCounts(n).canais, pressed: n === niche, color: colorOf(obs, n) })),
+    // Todos, then the site's niches in the tab order (the built-in first, then the owner's)
+    niches: (['todos', ...obs.niches.map(n => n.id)] as NicheScope[]).map(n => ({ key: n, label: nicheLabelOf(obs, n), count: obs.tabCounts(n).canais, pressed: n === niche, color: colorOf(obs, n) })),
     fresh: {
       channelsInNiche: competitors.filter(inNiche).length, channelsTotal: competitors.length,
       channelsText: niche === 'todos' ? F.plural(competitors.length, 'canal', 'canais') : `${F.plural(competitors.filter(inNiche).length, 'canal', 'canais')} em ${nl}`,
@@ -92,15 +92,15 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
       problemsHref: obs.link.canais({ filter: 'problemas' }),
     },
     addHref: obs.link.canais({ add: 1 }), nicheEditorHref: obs.link.canais({ nicheEditor: 1 }),
-    cowork: coworkText(o.tab, niche),
+    cowork: coworkText(o.tab, niche, nl),
     // Task 22's guard: the segment exists only when the forja tables are ready
     forja: o.forja && o.forja.ready ? o.forja : null,
   }
 }
 
-/** "Copiar pedido para o Cowork": the mockup's default text per tab (chrome.js coworkText). */
-export function coworkText(tab: ChromeTab | 'historico', niche: NicheScope): string {
-  const n = niche === 'todos' ? 'todos os nichos' : `nicho ${niche === 'ia' ? 'IA' : 'Viagem'}`
+/** "Copiar pedido para o Cowork": the mockup's default text per tab (chrome.js coworkText). `label` = the niche's label (the built-in ones are known here). */
+export function coworkText(tab: ChromeTab | 'historico', niche: NicheScope, label: string = nicheLabel(BUILTIN_NICHES, niche)): string {
+  const n = niche === 'todos' ? 'todos os nichos' : `nicho ${label}`
   const base: Record<ChromeTab | 'historico', string> = {
     canais: `Compare os canais monitorados no Observatório (${n}) via youtube_observatory: crescimento de views, frequência de publicação e frescor da sincronização. Aponte quem acelerou.`,
     mudancas: `Liste as trocas de título, thumbnail e descrição dos concorrentes (${n}, últimos 30 dias) via youtube_observatory. Para as que já têm 7 dias depois da troca, compare a média de views/dia observada com a esperada pela idade. Não afirme causa.`,

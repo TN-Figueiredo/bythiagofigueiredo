@@ -2,7 +2,7 @@
 // 1876-1896 (readingScope, timing, timingText), 1907-1908 (readingTypeFor, shortsNote).
 import { RULES, OUT_WINDOWS } from '../rules'
 import { median } from '../stats'
-import { inNiche, type NicheScope } from '../niche'
+import { BUILTIN_NICHES, forjaOrder, inNiche, type NicheScope } from '../niche'
 import { NEVER_SYNCED } from '../channels'
 import type { EngineCtx } from '../series'
 import type { Fmt, ForjaRequest, FrozenReading, Niche } from '../types'
@@ -88,12 +88,16 @@ export function timing(requests: readonly ForjaRequest[], type: string, niche?: 
 }
 
 export type ReadingTypeWithTiming = ReadingType & { timingByNiche: Record<Niche, string>; timingText: string }
-/** READING_TYPES with each type's timing text (dados.js:1896). */
-export function readingTypes(requests: readonly ForjaRequest[]): ReadingTypeWithTiming[] {
+/**
+ * READING_TYPES with each type's timing text (dados.js:1896). `order` = the niches in the forja's order (IA, Viagem, then
+ * the owner's); the type's text is the one of the niche with the fewest readings (the first of the order on a tie).
+ */
+export function readingTypes(requests: readonly ForjaRequest[], order: readonly Niche[] = forjaOrder(BUILTIN_NICHES)): ReadingTypeWithTiming[] {
   return READING_TYPES.map(t => {
-    const ia = timing(requests, t.id, 'ia'), viagem = timing(requests, t.id, 'viagem')
-    const timingByNiche = { ia: ia.text, viagem: viagem.text }
-    return { ...t, timingByNiche, timingText: t.id === 'leitura-video' ? timing(requests, t.id, 'todos').text : ia.n <= viagem.n ? ia.text : viagem.text }
+    const per = order.map(n => ({ n, t: timing(requests, t.id, n) }))
+    const timingByNiche: Record<Niche, string> = Object.fromEntries(per.map(x => [x.n, x.t.text]))
+    const least = per.reduce<Timing | null>((best, x) => (best == null || x.t.n < best.n ? x.t : best), null)
+    return { ...t, timingByNiche, timingText: t.id === 'leitura-video' || !least ? timing(requests, t.id, 'todos').text : least.text }
   })
 }
 

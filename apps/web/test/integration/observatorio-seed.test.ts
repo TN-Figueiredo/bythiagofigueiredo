@@ -10,7 +10,7 @@ import { createObservatory } from '@/lib/youtube/observatorio'
 import { requestStateOf } from '@/lib/youtube/observatorio/forja/states'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
 import { loadOracle } from '../youtube/observatorio/oracle'
-import { seedObservatory, clearObservatory, seedUuid, ownSeedUuid, ORACLE_NOW } from '../../e2e/fixtures/observatorio-seed'
+import { seedObservatory, clearObservatory, seedUuid, ownSeedUuid, ORACLE_NOW, NICHE_PRESETS } from '../../e2e/fixtures/observatorio-seed'
 
 describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
   let sb: ReturnType<typeof getSupabaseServiceClient>
@@ -91,14 +91,85 @@ describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
     expect(createObservatory(ds).tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
   }, 120_000)
 
-  it("ownPreset '5', 'mix' e 'zero' são recusados (UNIQUE(site_id, locale)) ANTES de qualquer escrita", async () => {
+  // multi-canal: dois canais próprios podem ter o mesmo idioma, então os presets de N canais são semeados (FU-17)
+  const seededOwn = async () => (await sb.from('youtube_channels').select('id', { count: 'exact', head: true }).eq('site_id', siteId)).count
+  it("ownPreset '5': cinco canais próprios, na ordem R73 (inscritos, maior primeiro), cada um com o slug do oráculo", async () => {
+    await seedObservatory(siteId, { ownPreset: '5' }, sb)
+    const ds = await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb })
+    const obs = createObservatory(ds)
+    expect(obs.ownChannels().map(c => c.name)).toEqual(['Thiago na Estrada', 'tnFigueiredo', 'Slow Roads', 'Mochila Leve', 'tnFigueiredo EN'])
+    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    const rows = await sb.from('youtube_channels').select('slug, locale').eq('site_id', siteId)
+    expect(rows.error).toBeNull()
+    expect(rows.data!.map(r => r.slug).sort()).toEqual(['mochila-leve', 'slow-roads', 'thiago-na-estrada', 'tnfigueiredo', 'tnfigueiredo-en'])
+    // the state the old UNIQUE(site_id, locale) refused: more than one own channel in the same language
+    expect(rows.data!.filter(r => r.locale === 'pt').length).toBeGreaterThan(1)
+    await clearObservatory(siteId, sb)
+    expect(await seededOwn()).toBe(0)
+  }, 120_000)
+
+  it("ownPreset 'mix': cinco canais próprios, Mochila Leve sem nicho", async () => {
+    await seedObservatory(siteId, { ownPreset: 'mix' }, sb)
+    const ds = await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb })
+    const owns = ds.channels.filter(c => c.own)
+    expect(owns).toHaveLength(5)
+    expect(owns.find(c => c.id === ownSeedUuid(siteId, 'mochila-leve'))!.niche).toBeNull()
+    expect(createObservatory(ds).tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    await clearObservatory(siteId, sb)
+    expect(await seededOwn()).toBe(0)
+  }, 120_000)
+
+  it("ownPreset 'zero': dois canais próprios, nenhum em Viagem", async () => {
+    await seedObservatory(siteId, { ownPreset: 'zero' }, sb)
+    const ds = await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb })
+    const owns = ds.channels.filter(c => c.own)
+    expect(owns).toHaveLength(2)
+    expect(owns.filter(c => c.niche === 'viagem')).toEqual([])
+    expect(createObservatory(ds).tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    await clearObservatory(siteId, sb)
+    expect(await seededOwn()).toBe(0)
+  }, 120_000)
+
+  const nicheSlugs = async () => {
+    const r = await sb.from('youtube_niches').select('slug').eq('site_id', siteId).order('sort_order')
+    expect(r.error).toBeNull()
+    return r.data!.map(x => x.slug)
+  }
+  it('extraNiche: cria o nicho, move o concorrente e os vídeos dele, e o clear deixa só viagem e ia', async () => {
+    await seedObservatory(siteId, { extraNiche: { slug: 'jogos', label: 'Jogos', channel: 'the-ai-advantage' } }, sb)
+    expect(await nicheSlugs()).toEqual(['viagem', 'ia', 'jogos'])
+    const ds = await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb })
+    expect(ds.niches!.map(n => [n.id, n.label, n.builtin])).toEqual([['viagem', 'Viagem', true], ['ia', 'IA', true], ['jogos', 'Jogos', false]])
+    expect(ds.niches!.find(n => n.id === 'jogos')!.color).toEqual({ dark: '#D29AE8', light: '#7B2A91' })
+    const moved = ds.channels.filter(c => c.niche === 'jogos')
+    expect(moved.map(c => c.id)).toEqual([seedUuid(siteId, 'channel', 'the-ai-advantage')])
+    const obs = createObservatory(ds)
+    // the channel left IA and nothing else moved: Todos keeps the mockup counts, IA + Jogos = the oracle's IA
+    expect(obs.tabCounts('todos')).toEqual({ canais: 14, mud: 18, out: 11 })
+    expect(obs.tabCounts('jogos').canais).toBe(1)
+    expect(obs.tabCounts('ia').canais + 1).toBe(loadOracle().tabCounts('ia').canais)
+    expect(obs.hasThemes('jogos')).toBe(false)
+    await clearObservatory(siteId, sb)
+    expect(await nicheSlugs()).toEqual(['viagem', 'ia'])
+  }, 120_000)
+
+  it('extraNiches (NICHE_PRESETS 6): quatro nichos na ordem de criação; os vazios existem sem canal', async () => {
+    await seedObservatory(siteId, { extraNiches: NICHE_PRESETS['6'] }, sb)
+    expect(await nicheSlugs()).toEqual(['viagem', 'ia', 'jogos', 'pessoal', 'culinaria', 'financas'])
+    const obs = createObservatory(await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb }))
+    expect(['jogos', 'pessoal', 'culinaria', 'financas'].map(n => obs.tabCounts(n).canais)).toEqual([2, 0, 1, 0])
+    expect(obs.hasCompetitors('pessoal')).toBe(false)
+    await clearObservatory(siteId, sb)
+    expect(await nicheSlugs()).toEqual(['viagem', 'ia'])
+  }, 120_000)
+
+  it('extraNiche com um concorrente que não existe, ou com slug de fábrica, é recusado ANTES de qualquer escrita', async () => {
     await seedObservatory(siteId, { ownPreset: '2' }, sb)
-    for (const p of ['5', 'mix', 'zero'] as const) {
-      await expect(seedObservatory(siteId, { ownPreset: p }, sb)).rejects.toThrow(`o preset ${p} precisa de dois canais próprios com o mesmo locale; youtube_channels tem UNIQUE(site_id, locale)`)
-    }
+    await expect(seedObservatory(siteId, { extraNiche: { slug: 'jogos', label: 'Jogos', channel: 'nao-existe' } }, sb)).rejects.toThrow('que não existe no oráculo')
+    await expect(seedObservatory(siteId, { extraNiche: { slug: 'ia', label: 'IA', channel: 'matt-wolfe' } }, sb)).rejects.toThrow('repetido ou de fábrica')
     // the refusal left the previous seed untouched (it did not clear the site first)
-    const r = await sb.from('youtube_channels').select('id', { count: 'exact', head: true }).eq('site_id', siteId)
-    expect(r.count).toBe(2)
+    expect(await seededOwn()).toBe(2)
+    expect(await nicheSlugs()).toEqual(['viagem', 'ia'])
   }, 120_000)
 
   it('clearObservatory tira todos os canais próprios semeados (o legado e os extras) e os vídeos deles', async () => {

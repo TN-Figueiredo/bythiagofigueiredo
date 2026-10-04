@@ -9,6 +9,18 @@ import { deriveScheduleLabel } from '@/lib/youtube/schedule-label'
 import { groupSchedules, explodeGroups, type ScheduleGroup } from '@/lib/youtube/schedule-group'
 import { triggerSync, unpinWeeklyPick, pinWeeklyPick } from './videos/actions'
 import { updateYouTubeChannelSettings } from '../settings/actions'
+import type { ChannelLocale } from '@/lib/youtube/channel-locales'
+import {
+  CHANNEL_TEXT, languageChangeLines,
+  type AddChannelInput, type AddChannelResult, type ChannelIdentityInput, type CreateNicheResult, type LookupChannelResult,
+  type RemovalImpactResult, type RemoveChannelResult, type SimpleResult,
+} from '@/lib/youtube/channel-registry'
+import {
+  AddChannelPanel, Avatar, ChannelIdentityFields, IdentityStrip, LangChip, NichesBlock, PendingChannelCard, RemovalPanel, RemoveChannelRow,
+  draftToInput, type AddDraft, type AddFailure, type NicheView,
+} from './_channels/channel-admin'
+
+export type { NicheView }
 
 export interface PinnedVideo {
   id: string
@@ -33,6 +45,12 @@ export interface ChannelDashboard {
   locale: 'pt' | 'en'
   handle: string
   name: string
+  /** quando o canal foi cadastrado (ISO): a ordem da vitrine do site público */
+  createdAt: string | null
+  /** null = este banco ainda não tem a coluna slug */
+  slug: string | null
+  /** slug do nicho; null = sem nicho */
+  niche: string | null
   subscriberCount: number
   videoCount: number
   thumbnailUrl: string | null
@@ -51,10 +69,27 @@ export interface ChannelDashboard {
   rawScheduleLabel: string | null
 }
 
-interface Props {
+/** As server actions do cadastro: chegam da página por props (um client component não importa server action). */
+export interface ChannelRegistryActions {
+  onLookup: (input: { handleOrUrl: string }) => Promise<LookupChannelResult>
+  onAdd: (input: AddChannelInput) => Promise<AddChannelResult>
+  onUpdateIdentity: (input: ChannelIdentityInput) => Promise<SimpleResult>
+  onCreateNiche: (input: { label: string; color: string }) => Promise<CreateNicheResult>
+  onRemovalImpact: (input: { channelId: string }) => Promise<RemovalImpactResult>
+  onRemove: (input: { channelId: string; confirmSlug: string }) => Promise<RemoveChannelResult>
+}
+
+interface Props extends ChannelRegistryActions {
   channels: ChannelDashboard[]
   uncategorizedCount: number
+  /** Os nichos do site, na ordem das abas do Observatório, com quantos canais próprios e concorrentes usam cada um. */
+  niches: NicheView[]
+  /** false = a tabela de nichos ainda não existe neste banco: valem os de fábrica e não dá para criar. */
+  nichesAvailable: boolean
 }
+
+/** Idioma e nicho escolhidos e ainda não confirmados pelos dados do servidor, por id de canal. */
+type IdentityPending = Record<string, { locale: ChannelLocale; niche: string | null; busy: boolean }>
 
 export function formatCount(n: number): string {
   if (n >= 1_000_000) return `${brDec(n / 1_000_000, 1)}M`
@@ -196,12 +231,28 @@ function ReconnectTokenButton() {
   )
 }
 
-function ChannelCard({ channel }: { channel: ChannelDashboard }) {
+function ChannelCard({ channel, niches, identity, identityError, describeLanguageChange, onIdentity, onRemovalImpact, onRemove, onRemoved }: {
+  channel: ChannelDashboard
+  niches: readonly NicheView[]
+  describeLanguageChange: (channelId: string, next: ChannelLocale) => string[]
+  identity: IdentityPending[string] | undefined
+  identityError: string | null
+  onIdentity: (channel: ChannelDashboard, next: { locale: ChannelLocale; niche: string | null }) => void
+  onRemovalImpact: ChannelRegistryActions['onRemovalImpact']
+  onRemove: ChannelRegistryActions['onRemove']
+  onRemoved: () => void
+}) {
   const [isPending, startTransition] = useTransition()
   const [showUnpinConfirm, setShowUnpinConfirm] = useState(false)
   const [showConfig, setShowConfig] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
-  const flag = channel.locale === 'pt' ? '🇧🇷' : '🇺🇸'
+  const [showRemoval, setShowRemoval] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  // o valor escolhido aparece na hora; os dados do servidor o substituem quando chegam
+  const shownLocale = identity?.locale ?? channel.locale
+  const shownNicheSlug = identity ? identity.niche : channel.niche
+  // nicho que saiu da lista do site vale "sem nicho", como no Observatório
+  const shownNiche = niches.find(n => n.slug === shownNicheSlug) ?? null
   const pinState = getPinState(channel.pinnedVideo)
   const neverSynced = !channel.lastSyncedAt
 
@@ -231,19 +282,18 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
         : 'border-l-slate-600'
 
   return (
-    <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface">
+    <div
+      data-channel={channel.id} data-removing={removing ? '' : undefined} aria-busy={removing || undefined}
+      className={`rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface ${removing ? 'pointer-events-none' : ''}`}
+    >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-cms-border px-4 py-3">
         <div className="flex items-center gap-3">
-          {channel.thumbnailUrl ? (
-            <img src={channel.thumbnailUrl} alt="" width={48} height={48} referrerPolicy="no-referrer" className="h-12 w-12 rounded-full object-cover" />
-          ) : (
-            <span className="text-2xl">{flag}</span>
-          )}
+          <Avatar name={channel.name} src={channel.thumbnailUrl} size={48} />
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm">{flag}</span>
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-semibold text-cms-text">{channel.name}</span>
+              <LangChip locale={shownLocale} />
             </div>
             <span className="text-xs text-cms-text-dim">
               {channel.handle.startsWith('@') ? channel.handle : `@${channel.handle}`}
@@ -271,6 +321,9 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
           </button>
         </div>
       </div>
+
+      {/* Identity: niche and slug, always visible */}
+      <IdentityStrip niche={shownNiche} slug={channel.slug} />
 
       {syncError && (
         <div role="alert" className="border-t border-red-900/30 bg-red-900/10 px-4 py-2">
@@ -468,9 +521,30 @@ function ChannelCard({ channel }: { channel: ChannelDashboard }) {
         <ReconnectTokenButton />
       </div>
 
-      {/* Inline schedule config */}
+      {/* Inline config: identity, schedule, removal */}
       {showConfig && (
-        <ChannelScheduleEditor channel={channel} />
+        <>
+          <div className="border-t border-cms-border px-4 pt-4">
+            <ChannelIdentityFields
+              locale={shownLocale} niche={shownNiche?.slug ?? null} slug={channel.slug} niches={niches}
+              busy={identity?.busy ?? false} error={identityError} onChange={next => onIdentity(channel, next)}
+              describeLanguageChange={next => describeLanguageChange(channel.id, next)}
+            />
+          </div>
+          <ChannelScheduleEditor channel={channel} />
+          <div className="px-4 pb-4">
+            <RemoveChannelRow onAsk={() => setShowRemoval(true)} disabled={showRemoval} />
+          </div>
+        </>
+      )}
+
+      {/* Removal confirmation, in the card */}
+      {showRemoval && (
+        <RemovalPanel
+          channelId={channel.id} name={channel.name} removing={removing}
+          onImpact={onRemovalImpact} onRemove={onRemove} onRemovingChange={setRemoving} onRemoved={onRemoved}
+          onClose={() => setShowRemoval(false)}
+        />
       )}
     </div>
   )
@@ -645,20 +719,90 @@ function ChannelScheduleEditor({ channel }: { channel: ChannelDashboard }) {
   )
 }
 
-export function DashboardConnected({ channels, uncategorizedCount }: Props) {
-  if (channels.length === 0) {
-    return (
-      <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-6 py-16 text-center">
-        <p className="text-lg font-medium text-cms-text">No YouTube channels configured</p>
-        <p className="mt-2 text-sm text-cms-text-muted">
-          Use the YouTube API lookup in the admin panel to add channels.
-        </p>
-      </div>
-    )
+export function DashboardConnected({
+  channels, uncategorizedCount, niches, nichesAvailable, onLookup, onAdd, onUpdateIdentity, onCreateNiche, onRemovalImpact, onRemove,
+}: Props) {
+  const router = useRouter()
+  // the refresh runs inside a transition: the screen keeps what it shows (and its busy marks) until the new data lands
+  const [refreshing, startRefresh] = useTransition()
+  const refresh = useCallback(() => startRefresh(() => router.refresh()), [router])
+
+  /* ---- Add channel: the form, and the cards asked for and not yet sent back by the server */
+  const [adding, setAdding] = useState(false)
+  const [addFailure, setAddFailure] = useState<AddFailure | null>(null)
+  const [pendingAdds, setPendingAdds] = useState<Array<{ key: number; draft: AddDraft; id: string | null }>>([])
+  const addSeq = useRef(0)
+  const shownPending = pendingAdds.filter(p => p.id === null || !channels.some(c => c.id === p.id))
+
+  const submitAdd = async (draft: AddDraft) => {
+    const key = ++addSeq.current
+    setPendingAdds(cur => [...cur, { key, draft, id: null }])
+    setAdding(false)
+    setAddFailure(null)
+    let res: AddChannelResult
+    try { res = await onAdd(draftToInput(draft)) } catch { res = { ok: false, error: CHANNEL_TEXT.saveFailed } }
+    if (res.ok) {
+      const id = res.id
+      setPendingAdds(cur => cur.map(p => (p.key === key ? { ...p, id } : p)))
+      refresh()
+      return
+    }
+    // failed: the pending card goes away and the form comes back as it was, with the reason
+    setPendingAdds(cur => cur.filter(p => p.key !== key))
+    setAddFailure({ draft, error: res.error, field: res.field })
+    setAdding(true)
   }
 
+  /* ---- Language and niche: optimistic per channel; the last pick wins over late answers */
+  const [identity, setIdentity] = useState<IdentityPending>({})
+  const [identityErrors, setIdentityErrors] = useState<Record<string, string>>({})
+  const identitySeq = useRef<Record<string, number>>({})
+  const [seenChannels, setSeenChannels] = useState(channels)
+  if (seenChannels !== channels) {
+    setSeenChannels(channels)
+    // new server data: every confirmed pick is now in it
+    if (Object.values(identity).some(p => !p.busy)) setIdentity(cur => Object.fromEntries(Object.entries(cur).filter(([, p]) => p.busy)))
+  }
+  const changeIdentity = async (ch: ChannelDashboard, next: { locale: ChannelLocale; niche: string | null }) => {
+    const seq = (identitySeq.current[ch.id] ?? 0) + 1
+    identitySeq.current[ch.id] = seq
+    setIdentity(cur => ({ ...cur, [ch.id]: { ...next, busy: true } }))
+    setIdentityErrors(cur => Object.fromEntries(Object.entries(cur).filter(([id]) => id !== ch.id)))
+    let res: SimpleResult
+    try { res = await onUpdateIdentity({ channel_id: ch.id, locale: next.locale, niche: next.niche }) } catch { res = { ok: false, error: CHANNEL_TEXT.saveFailed } }
+    if (identitySeq.current[ch.id] !== seq) return
+    if (res.ok) {
+      setIdentity(cur => ({ ...cur, [ch.id]: { ...next, busy: false } }))
+      refresh()
+      return
+    }
+    const failure = res.error
+    setIdentity(cur => Object.fromEntries(Object.entries(cur).filter(([id]) => id !== ch.id)))
+    setIdentityErrors(cur => ({ ...cur, [ch.id]: failure }))
+  }
+
+  // The public site shows the oldest channel of each language (showcase.ts). The effect of a language change is computed
+  // here with that same rule, from what the screen already shows (picks not yet confirmed included).
+  const describeLanguageChange = (channelId: string, next: ChannelLocale) =>
+    languageChangeLines(channels.map(c => ({ id: c.id, name: c.name, locale: identity[c.id]?.locale ?? c.locale, created_at: c.createdAt })), channelId, next)
+
+  const addButton = (
+    <button type="button" className="btn primary sm" onClick={() => { setAddFailure(null); setAdding(true) }} disabled={adding}>
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+      Add channel
+    </button>
+  )
+  const addPanel = adding ? (
+    <AddChannelPanel
+      key={addFailure ? `f${addSeq.current}` : 'new'} niches={niches} failure={addFailure}
+      onLookup={onLookup} onSubmit={draft => void submitAdd(draft)} onCancel={() => { setAdding(false); setAddFailure(null) }}
+    />
+  ) : null
+  const nichesBlock = <NichesBlock niches={niches} available={nichesAvailable} onCreate={onCreateNiche} onCreated={refresh} />
+  const empty = channels.length === 0 && shownPending.length === 0
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6" data-refreshing={refreshing ? '' : undefined}>
       {/* Summary bar */}
       {uncategorizedCount > 0 && (
         <div className="flex items-center gap-2 rounded-[var(--cms-radius)] border border-amber-900/40 bg-amber-900/10 px-4 py-2.5">
@@ -674,12 +818,43 @@ export function DashboardConnected({ channels, uncategorizedCount }: Props) {
         </div>
       )}
 
-      {/* Channel cards */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {channels.map(ch => (
-          <ChannelCard key={ch.id} channel={ch} />
-        ))}
-      </div>
+      {empty ? (
+        adding ? addPanel : (
+          <div className="rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface px-6 py-16 text-center">
+            <p className="text-lg font-medium text-cms-text">No YouTube channels yet</p>
+            <p className="mb-4 mt-2 text-sm text-cms-text-muted">Add your first channel to sync its videos.</p>
+            {addButton}
+          </div>
+        )
+      ) : (
+        <>
+          {/* Channels header, with the action */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-cms-text">Channels<span className="mono ml-1.5 font-normal text-cms-text-dim">{channels.length}</span></h2>
+              <p className="mt-0.5 text-xs text-cms-text-muted">Your own YouTube channels. Each one has a language, a niche and a slug.</p>
+            </div>
+            {addButton}
+          </div>
+
+          {addPanel}
+
+          {/* Channel cards */}
+          <div className="grid gap-6 md:grid-cols-2">
+            {channels.map(ch => (
+              <ChannelCard
+                key={ch.id} channel={ch} niches={niches} identity={identity[ch.id]} identityError={identityErrors[ch.id] ?? null}
+                describeLanguageChange={describeLanguageChange}
+                onIdentity={(c, next) => void changeIdentity(c, next)} onRemovalImpact={onRemovalImpact} onRemove={onRemove} onRemoved={refresh}
+              />
+            ))}
+            {shownPending.map(p => <PendingChannelCard key={`p${p.key}`} draft={p.draft} niches={niches} />)}
+          </div>
+        </>
+      )}
+
+      {/* Niches, below the cards */}
+      {nichesBlock}
     </div>
   )
 }

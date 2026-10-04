@@ -26,6 +26,15 @@ export function Cadence({ s }: { s: CadenceSection }) {
     window.addEventListener('resize', on)
     return () => window.removeEventListener('resize', on)
   }, [s])
+  // no competitor in the niche: the card only says so — no legend, no axis, no foot (mockup 04/10, renderCad noComp)
+  if (s.noComp) {
+    return (
+      <section className="card c8" id="cadCard" aria-labelledby="cadH" ref={ref}>
+        <div className="chead"><h2 id="cadH">Cadência por canal</h2><span className="meta">{s.meta}</span></div>
+        <div className="cbody"><div className="empty"><p>{s.empty}</p></div></div>
+      </section>
+    )
+  }
   return (
     <section className="card c8" id="cadCard" aria-labelledby="cadH" ref={ref}>
       <div className="chead"><h2 id="cadH">Cadência por canal</h2><span className="meta">{s.meta}</span>

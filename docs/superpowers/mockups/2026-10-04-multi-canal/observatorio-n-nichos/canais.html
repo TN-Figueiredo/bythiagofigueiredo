@@ -480,7 +480,7 @@ const ICONS={
 const ic=(id,cls='ico')=>`<svg class="${cls}" viewBox="0 0 16 16" aria-hidden="true">${ICONS[id]}</svg>`;
 
 /* canais: o seu primeiro, depois os concorrentes (ordem de OBS) */
-const C=[...OBS.channels.filter(c=>c.own),...OBS.channels.filter(c=>!c.own)];
+const C=[...MOCKOWN.owns(),...OBS.channels.filter(c=>!c.own)];   /* R73: os canais próprios na ordem de MOCKOWN.owns() (inscritos, maior primeiro) */
 const OWNS=C.filter(c=>c.own),own=OWNS[0],MANY=OWNS.length>1;
 /* canal próprio tem nicho como qualquer concorrente; pode estar sem nicho (null) até o dono escolher */
 const nicheOf=c=>c.own?MOCKOWN.nicheOf(c):c.niche;

@@ -60,8 +60,22 @@ describe('askForjaReading', () => {
     const calls = setup()
     const a = await actions()
     expect((await a.askForjaReading('diagnostico' as never, 'ia')).ok).toBe(false)
-    expect((await a.askForjaReading('temas', 'tudo' as never)).ok).toBe(false)
+    expect((await a.askForjaReading('temas', 'Não Vale')).ok).toBe(false)
+    expect((await a.askForjaReading('temas', 7 as never)).ok).toBe(false)
+    expect((await a.cancelForjaReading('temas', 'todos')).ok).toBe(false)
     expect(calls.order).toEqual([])
+    expect(calls.ask).toEqual([])
+  })
+  it('a well-formed niche the site does not have: the guard runs and the queue decides (its refusal is in forja-queue.test)', async () => {
+    const calls = setup()
+    await (await actions()).askForjaReading('resumo-trocas', 'sumiu')
+    expect(calls.order[0]).toContain('guard:')
+    expect(calls.ask).toEqual([{ type: 'resumo-trocas', scope: 'sumiu', userId: UID }])
+  })
+  it('a niche the owner created passes the form check and reaches the queue with its slug', async () => {
+    const calls = setup()
+    await (await actions()).askForjaReading('resumo-trocas', 'jogos')
+    expect(calls.ask).toEqual([{ type: 'resumo-trocas', scope: 'jogos', userId: UID }])
   })
   it('a queue failure is said honestly (never a silent ok) AND reported to Sentry, without PII', async () => {
     const { PipelineServiceError } = await import('@/lib/pipeline/services/types')

@@ -185,6 +185,21 @@
   [data-obs] .obs-ch-seg-ctl button{padding:0 8px}
 }
 
+/* ---------------------------------------------------------------- nicho como dado (mockup 2026-10-04, observatorio-n-nichos)
+   Só com nichos criados pelo dono (data-niche-scroll: mais que Todos + os dois de fábrica); com os dois de fábrica nada
+   aqui se aplica. A barra fica numa linha, ao lado das abas: as abas mantêm a largura delas, a barra ocupa o que sobra,
+   encostada à direita. Quando os nichos não cabem, o trilho rola para o lado com o degradê das abas e o nicho ativo é
+   trazido para a vista (niche-bar.tsx). A página nunca rola para o lado e o cabeçalho não ganha altura. */
+[data-obs] .obs-ch-nav[data-niche-scroll]{flex-wrap:nowrap}
+[data-obs] .obs-ch-nav[data-niche-scroll] .obs-ch-tabs{flex:0 1 auto;min-width:0}
+[data-obs] .obs-ch-nav[data-niche-scroll] .obs-ch-niche{flex:1 1 0;min-width:168px;justify-content:flex-end}
+[data-obs] .obs-ch-nav[data-niche-scroll] .obs-ch-seg-ctl{position:relative;flex:0 1 auto;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+[data-obs] .obs-ch-nav[data-niche-scroll] .obs-ch-seg-ctl::-webkit-scrollbar{display:none}
+[data-obs] .obs-ch-nav[data-niche-scroll] .obs-ch-seg-ctl button{flex:none;white-space:nowrap}
+[data-obs] .obs-ch-nav[data-niche-scroll] .obs-ch-seg-ctl.obs-ch-more{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 36px),transparent)}
+[data-obs] .obs-ch-nav[data-niche-scroll] .obs-ch-seg-ctl.obs-ch-less{-webkit-mask-image:linear-gradient(to right,transparent,#000 36px);mask-image:linear-gradient(to right,transparent,#000 36px)}
+[data-obs] .obs-ch-nav[data-niche-scroll] .obs-ch-seg-ctl.obs-ch-less.obs-ch-more{-webkit-mask-image:linear-gradient(to right,transparent,#000 36px,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(to right,transparent,#000 36px,#000 calc(100% - 36px),transparent)}
+
 /* ---------------------------------------------------------------- space above the screen (D8)
    One value on every screen: 16 px below the tabs. The container is its own context (flow-root), so the first
    child's margin stays inside it; the screen cannot change this.

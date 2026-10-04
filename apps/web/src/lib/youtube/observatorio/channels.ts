@@ -7,6 +7,7 @@ import { changesIn } from './changes'
 import { outliers, median7 } from './outliers'
 import type { EngineCtx, Derived } from './series'
 import type { Fmt, ObsChannel, ObsVideo, SyncState } from './types'
+import { BUILTIN_NICHES, tabOrder } from './niche'
 
 type V = ObsVideo & Derived
 type Ch = ObsChannel & { videos: ObsVideo[] }
@@ -173,16 +174,16 @@ export function runSyncText(ok: string[], problems: Array<{ id: string; label: s
 
 export interface SyncRun { ok: string[]; problems: Array<{ id: string; label: string }>; outOfRound: Array<{ id: string; label: string }> }
 export interface SyncToast { kind: 'ok' | 'warn'; title: string; body: string; more: string; text: string }
-/** Channel lookup for the sync result: a name, or the name and niche (problems are listed Viagem before IA). */
+/** Channel lookup for the sync result: a name, or the name and niche (problems are listed in the niche tab order: Viagem before IA). */
 export type SyncLookup = (id: string) => string | { name: string; niche: string | null } | undefined
-const NICHE_ORDER = ['viagem', 'ia']
+const NICHE_ORDER: readonly string[] = tabOrder(BUILTIN_NICHES)
 
 /**
  * Product text of "Sincronizar concorrentes" (ruling R40; CHROME 2.2 M3, spec 2.2). Never a fabricated success.
  * text = "11 de 13 canais sincronizados agora; 2 com problema · Fora da rodada: Vou sem volta (buscando vídeos)".
  * The body lists the problems Viagem before IA (the mockup's list()).
  */
-export function syncResultToast(run: SyncRun, lookup: SyncLookup): SyncToast {
+export function syncResultToast(run: SyncRun, lookup: SyncLookup, order: readonly string[] = NICHE_ORDER): SyncToast {
   const info = (id: string) => { const x = lookup(id); return typeof x === 'string' ? { name: x, niche: null } : x ?? { name: id, niche: null } }
   const ok = run.ok.length, p = run.problems.length, total = ok + p
   const out = run.outOfRound.map(x => `${info(x.id).name} (${x.label})`)
@@ -196,7 +197,7 @@ export function syncResultToast(run: SyncRun, lookup: SyncLookup): SyncToast {
     return { kind: 'ok', title: 'Concorrentes sincronizados', body: head + '.', more: moreCore ? moreCore + '.' : '', text: head + (moreCore ? ' · ' + moreCore : '') }
   }
   const head = `${ok} de ${total} ${canais(total)} agora; ${p} com problema`
-  const rank = (id: string) => NICHE_ORDER.indexOf(info(id).niche ?? '')
+  const rank = (id: string) => order.indexOf(info(id).niche ?? '')
   const sorted = run.problems.map((x, i) => ({ x, i })).sort((a, b) => rank(a.x.id) - rank(b.x.id) || a.i - b.i).map(o => o.x)
   return { kind: 'warn', title: head, body: sorted.map(x => `${info(x.id).name}: ${x.label}`).join('; ') + '.', more: moreCore ? moreCore + '.' : '', text: head + (moreCore ? ' · ' + moreCore : '') }
 }

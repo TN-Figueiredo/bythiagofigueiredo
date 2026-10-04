@@ -104,6 +104,7 @@ export function ReadingHero({ hero }: { hero: InsightsHero }) {
             </ol>
           ) : null}
           {hero.box.stillNone ? <p>{hero.box.stillNone}</p> : null}
+          {hero.box.link ? <Link className="btn" href={hero.box.link.href}>{hero.box.link.text}</Link> : null}
         </div>
       ) : null}
       {hero.publishedNote ? <p className="scopenote">{hero.publishedNote}</p> : null}

@@ -155,7 +155,7 @@ validador → `PATCH /api/pipeline/youtube/intelligence` → Health Coach. É o 
 | | |
 |---|---|
 | Worker | `/opt/agente/docs/trilha/fila_intel.py` (cópia única) · venv em `/opt/agente/venv` |
-| Segredo | `/opt/agente/fila_intel.env` 0600 — `SITIO_CHAVE_FILA`, `CANAIS_FILA` |
+| Segredo | `/opt/agente/fila_intel.env` 0600 — `SITIO_CHAVE_FILA`, `CANAIS_FILA` (aceita rótulos locais como `PT`, slugs do site como `tnfigueiredotv`, ou `*`; slug/`*` consultam `GET /api/pipeline/youtube/channels`) |
 | Log | `/opt/agente/log/fila_intel.jsonl` (1 linha por execução) · `.err` = traceback |
 | Vigilância | bloco no `pulso.sh` → check `URL_FILA` no healthchecks (período 1 h, grace 45 min), **separado** do principal |
 | Chave no site | `pipeline_api_keys` `name='forja (fila)'`, escopo `{read,intelligence}` |

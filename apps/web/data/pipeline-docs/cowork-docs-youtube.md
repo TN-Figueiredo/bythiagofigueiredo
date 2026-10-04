@@ -357,7 +357,7 @@ Pickup de tasks pendentes com CAS (compare-and-swap) — endpoint atual; funcion
   }
 }
 ```
-Num pedido do observatório, `channel_id` é `null` e o alvo vem em `task_type` + `target_niche` (`ia`/`viagem`) ou `target_video_id` (`leitura-video`), com `target_fmt` (`long`/`short`) nos tipos de outliers. Ver "Leituras do observatório (forja)".
+Num pedido do observatório, `channel_id` é `null` e o alvo vem em `task_type` + `target_niche` (o slug do nicho; os de fábrica são `ia` e `viagem`) ou `target_video_id` (`leitura-video`), com `target_fmt` (`long`/`short`) nos tipos de outliers. Ver "Leituras do observatório (forja)".
 
 **Response 204:** corpo vazio — fila vazia para esses canais, ou a CAS perdeu para outra claim concorrente
 **Response 400:** `VALIDATION_ERROR` — `channel_ids` ausente, vazio ou com mais de 10 ids; `task_types` vazio, com tipo desconhecido ou com mais de 5

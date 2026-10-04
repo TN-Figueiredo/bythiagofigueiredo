@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { byRegistration, showcaseChannels } from './showcase'
 import type {
   YouTubeVideoRow, YouTubeChannelRow, YouTubeCategoryRow,
   YouTubeCuratedCommentRow, YouTubePageData, YouTubeVideoView,
@@ -20,7 +21,9 @@ export const getYouTubePageData = unstable_cache(
       supabase
         .from('youtube_channels')
         .select('*')
-        .eq('site_id', siteId),
+        .eq('site_id', siteId)
+        .order('created_at')
+        .order('id'),
       supabase
         .from('youtube_categories')
         .select('*')
@@ -28,18 +31,21 @@ export const getYouTubePageData = unstable_cache(
         .order('sort_order'),
       supabase
         .from('youtube_curated_comments')
-        .select('*, youtube_videos!inner(title, youtube_video_id, youtube_channels!inner(locale))')
+        .select('*, youtube_videos!inner(title, youtube_video_id, channel_id, youtube_channels!inner(locale))')
         .eq('site_id', siteId)
         .order('display_order')
         .order('like_count', { ascending: false }),
     ])
 
-    const channels = (channelsRes.data ?? []) as YouTubeChannelRow[]
+    // Regra de transição: um canal por idioma (o mais antigo); o resto não aparece.
+    // Em ordem de cadastro (a que a ordem física entregava), não de locale: os cards não trocam de lado.
+    const channels = byRegistration(showcaseChannels((channelsRes.data ?? []) as YouTubeChannelRow[]))
+    const shownIds = new Set(channels.map((c) => c.id))
     const categories = (categoriesRes.data ?? []) as YouTubeCategoryRow[]
     const channelMap = new Map(channels.map((c) => [c.id, c]))
     const categoryMap = new Map(categories.map((c) => [c.id, c]))
 
-    const videos: YouTubeVideoView[] = (videosRes.data ?? []).map((row: YouTubeVideoRow & { youtube_channels: { locale: string; handle: string } }) => {
+    const videos: YouTubeVideoView[] = (videosRes.data ?? []).filter((row: { channel_id: string }) => shownIds.has(row.channel_id)).map((row: YouTubeVideoRow & { youtube_channels: { locale: string; handle: string } }) => {
       const cat = row.category_id ? categoryMap.get(row.category_id) : null
       const locale = row.youtube_channels.locale as 'pt' | 'en'
       return {
@@ -95,7 +101,7 @@ export const getYouTubePageData = unstable_cache(
       url: `https://www.youtube.com/${c.handle}`,
     }))
 
-    const comments: YouTubeCuratedCommentView[] = (commentsRes.data ?? []).map((row: YouTubeCuratedCommentRow & { youtube_videos: { title: string; youtube_video_id: string; youtube_channels: { locale: string } } }) => ({
+    const comments: YouTubeCuratedCommentView[] = (commentsRes.data ?? []).filter((row: { youtube_videos: { channel_id: string } }) => shownIds.has(row.youtube_videos.channel_id)).map((row: YouTubeCuratedCommentRow & { youtube_videos: { title: string; youtube_video_id: string; channel_id: string; youtube_channels: { locale: string } } }) => ({
       id: row.id,
       videoId: row.video_id,
       videoTitle: row.youtube_videos.title,

@@ -8,12 +8,12 @@
  * capability, no reading, a reading without items, a frozen `sent` missing — with its own honest text.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
-import type { NicheScope } from '@/lib/youtube/observatorio/niche'
+import { joinLabels, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, ForjaRequest, FrozenReading, Niche } from '@/lib/youtube/observatorio/types'
 import type { Scenario } from '@/lib/youtube/observatorio/forja/states'
 import type { AskOutcome, ObsType } from '@/lib/pipeline/services/forja-queue'
 import { ACTIVE_STATES } from '@/lib/youtube/observatorio/forja/states'
-import { NOT_ANNOUNCED } from '@/lib/youtube/observatorio/forja/session'
+import { NOT_ANNOUNCED, NO_COMPETITORS_ANY, noCompetitorsText } from '@/lib/youtube/observatorio/forja/session'
 
 export type { ObsType }
 /** The server actions as the client components receive them (askForjaReading / cancelForjaReading, passed as props). */
@@ -116,9 +116,8 @@ const DEAD = ['falhou', 'recusado (dado velho)']
 const isActiveQ = (q: Pick<ForjaRequest, 'state'>) => (ACTIVE_STATES as readonly string[]).includes(q.state)
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
 const period = (t: string) => { const s = t.trim(); return !s || /[.!?]$/.test(s) ? s : s + '.' }
-const NL: Record<Niche, string> = { viagem: 'Viagem', ia: 'IA' }
-const nicheLabel = (n: NicheScope) => (n === 'todos' ? 'Todos' : NL[n])
-const joinE = (xs: string[]) => xs.join(' e ')
+/** "IA e Viagem" with two (as always); "IA, Viagem e Jogos" with more. */
+const joinE = (xs: string[]) => joinLabels(xs)
 /** Seal kind per type (insights.html sealShort: "fórmulas", "temas"). */
 const SEAL_KIND: Record<string, string> = {
   'padroes-titulo': 'fórmulas', 'padroes-titulo-shorts': 'fórmulas dos Shorts', 'temas': 'temas', 'resumo-trocas': 'trocas', 'leitura-video': 'vídeo',
@@ -220,9 +219,9 @@ export function forjaReadingView(obs: Observatory, r: FrozenReading, o: { active
   const days = r.base?.windowDays ?? (typeof r.sent.windowDays === 'number' ? r.sent.windowDays : null) ?? t?.windowDays ?? null
   const kind = r.type === 'temas' ? 'Temas' : outlierType ? 'Fórmulas' : 'Leitura'
   return {
-    id: r.id, niche: r.niche, nicheLabel: r.niche ? NL[r.niche] : '—',
+    id: r.id, niche: r.niche, nicheLabel: r.niche ? obs.nicheLabel(r.niche) : '—',
     seal: readingSeal(obs, r),
-    title: r.text.title || (t ? t.label : r.type) + (r.niche ? ' — ' + NL[r.niche] : ''),
+    title: r.text.title || (t ? t.label : r.type) + (r.niche ? ' — ' + obs.nicheLabel(r.niche) : ''),
     lead: r.text.lead, items, theme: r.text.theme ?? null,
     keyItems: outlierType ? items.filter((_, i) => pass(i)) : items, moreItems: outlierType ? items.filter((_, i) => !pass(i)) : [],
     inlineEvidence: r.type === 'resumo-trocas' && items.length === groupsOf(r).length + (strs(r.analysis.reverts).length ? 1 : 0),
@@ -275,7 +274,12 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
   // an own channel's video is never read by the forja (its id is not a competitor_videos id): no niche, nothing to ask
   const vidNiche: Niche | null = video && !obs.channel(video.ch)?.own ? video.niche : null
   const scopeNiche: NicheScope = isVid ? (vidNiche ?? o.niche) : o.niche
-  const scopeNiches: Niche[] = isVid ? (vidNiche ? [vidNiche] : []) : scopeNiche === 'todos' ? ['ia', 'viagem'] : [scopeNiche]
+  // Todos: the niches a "Todos" request splits into (the forja's order; a niche without competitors has nothing to read and stays out)
+  const scopeNiches: Niche[] = isVid ? (vidNiche ? [vidNiche] : []) : scopeNiche === 'todos' ? obs.forja.niches : [scopeNiche]
+  const NL = (n: Niche) => obs.nicheLabel(n)
+  // a niche without competitors has nothing to ask (multi-canal mockup, answer 7; any niche, built-in or created): the
+  // button is disabled and says so. Todos with no niche left is disabled too.
+  const noComp = isVid ? null : scopeNiche === 'todos' ? (scopeNiches.length ? null : NO_COMPETITORS_ANY) : obs.forja.askable(scopeNiche) ? null : noCompetitorsText(NL(scopeNiche))
   const capabilities = obs.forja.queue.capabilities
   const capable = capabilities.includes(type)
   const sc = scenarioOf(obs, type, scopeNiche, videoId)
@@ -300,11 +304,11 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
     const r = fresh ?? (isVid ? (videoId ? videoReading(obs, videoId) : null) : obs.forja.latest(type, n))
     const active = !!q && isActiveQ(q)
     const isNew = !!r && !!q && q.state === 'publicado' && (fresh != null || r.generatedAt >= q.createdAt)
-    const line = sc.statusLines?.find(l => l.startsWith(NL[n] + ': ')) ?? (q ? q.statusLabel ?? q.state : null)
+    const line = sc.statusLines?.find(l => l.startsWith(NL(n) + ': ')) ?? (q ? q.statusLabel ?? q.state : null)
     return {
-      niche: n, label: NL[n], active, statusLine: q ? line : null, requestState: q ? q.state : null,
-      reading: r ? forjaReadingView(obs, r, { active, isNew, activeNote: active ? (isVid ? 'O pedido de leitura deste vídeo em andamento vai trazer uma leitura nova.' : 'O pedido de ' + NL[n] + ' em andamento vai trazer uma leitura nova.') : null }) : null,
-      emptyText: r ? null : isVid ? 'Ainda não há leitura deste vídeo.' : 'Ainda não há leitura de ' + typeLabel.replace(/ \(.*\)$/, '').toLowerCase() + ' de ' + NL[n] + '.',
+      niche: n, label: NL(n), active, statusLine: q ? line : null, requestState: q ? q.state : null,
+      reading: r ? forjaReadingView(obs, r, { active, isNew, activeNote: active ? (isVid ? 'O pedido de leitura deste vídeo em andamento vai trazer uma leitura nova.' : 'O pedido de ' + NL(n) + ' em andamento vai trazer uma leitura nova.') : null }) : null,
+      emptyText: r ? null : isVid ? 'Ainda não há leitura deste vídeo.' : 'Ainda não há leitura de ' + typeLabel.replace(/ \(.*\)$/, '').toLowerCase() + ' de ' + NL(n) + '.',
       out: obs.forja.eligibleChannels(n).out.map(x => x.reason),
     }
   })
@@ -321,9 +325,10 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
   if (!capable) button = { mode: 'disabled', label: baseLabel, ariaLabel: baseLabel, disabledText: INCAPABLE_TEXT }
   else if (untracked || chOut) button = { mode: 'disabled', label: baseLabel, ariaLabel: baseLabel, disabledText: (untracked ?? chOut)! }
   else if (blockedBy) button = { mode: 'disabled', label: baseLabel, ariaLabel: baseLabel, disabledText: blockedBy.reason }
+  else if (noComp && !status?.active) button = { mode: 'disabled', label: baseLabel, ariaLabel: baseLabel, disabledText: noComp }
   else if (scopeNiche === 'todos' && free.length && free.length < scopeNiches.length) {
     // CONVENCOES F10/F11: Todos with a niche busy (or its quota used) keeps the button for the free one
-    const fl = joinE(free.map(n => NL[n])), label = 'Pedir leitura de ' + fl + ' à forja'
+    const fl = joinE(free.map(NL)), label = 'Pedir leitura de ' + fl + ' à forja'
     button = { mode: 'free-niche', label, short: 'Ler ' + fl, ariaLabel: label }
   } else if (status?.active && !free.length) button = { mode: 'busy', label: 'Pedido em andamento', ariaLabel: 'Pedido em andamento' }
   else if (!free.length) {
@@ -337,7 +342,7 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
   const stateKind: ForjaView['card']['stateKind'] = !r0 ? null
     : sc.requests.some(q => DEAD.includes(q.state)) && !sc.anyActive ? 'bad'
       : sc.requests.some(q => WARN_STATES.includes(q.state)) ? 'warn' : sc.anyActive ? 'run' : 'ok'
-  const sent = hasReq(sc) ? sc.requests.filter(q => isActiveQ(q) && q.createdAt >= NOW - MIN && q.createdAt <= NOW).map(q => NL[q.niche]) : []
+  const sent = hasReq(sc) ? sc.requests.filter(q => isActiveQ(q) && q.createdAt >= NOW - MIN && q.createdAt <= NOW).map(q => NL(q.niche)) : []
   const pv = obs.forja.preview(type, scopeNiche, type === 'padroes-titulo-shorts' ? 'short' : o.fmt ?? undefined)
   const headerVariant = o.screen === 'historico' ? 'none' : o.screen === 'insights' ? 'solid' : 'outline'
 
@@ -349,7 +354,7 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
     button, status, machine: machineView(obs, sc), reading,
     screen: o.screen, type, typeLabel, niche: scopeNiche, videoId, fmt: o.fmt ?? null,
     niches,
-    ask: capable && free.length && !blockedBy && !untracked && !chOut ? { scope: free.length === scopeNiches.length ? scopeNiche : free[0]!, niches: free } : null,
+    ask: capable && free.length && !blockedBy && !untracked && !chOut && !noComp ? { scope: free.length === scopeNiches.length ? scopeNiche : free[0]!, niches: free } : null,
     cancel: hasReq(sc) ? sc.requests.filter(q => isActiveQ(q) && q.status !== 'running' && q.state !== 'trabalhando').map(q => q.niche) : [],
     card: {
       stateLabel, stateKind, statusText: hasReq(sc) ? sc.statusText : null, lines: sc.statusLines && sc.requests.length > 1 ? sc.statusLines : [],

@@ -1,0 +1,18 @@
+/* /cms/youtube, aba Painel: cadastro de canais e de nichos. Só o que o Tailwind da área não dá: a cor do nicho
+   (par escuro/claro que vem do dado) e o sinal de "ocupado". Cores literais; sem color-mix (o Opera o pinta invisível). */
+[data-cms-section="youtube"] .yc-dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block;background:var(--yc-dark)}
+[data-theme="light"] [data-cms-section="youtube"] .yc-dot{background:var(--yc-light)}
+[data-cms-section="youtube"] .yc-swatch i{width:18px;height:18px;border-radius:50%;display:block;background:var(--yc-dark)}
+[data-theme="light"] [data-cms-section="youtube"] .yc-swatch i{background:var(--yc-light)}
+
+/* barra fina: algo foi pedido ao servidor e ainda não voltou */
+[data-cms-section="youtube"] .yc-bar{position:relative;height:2px;overflow:hidden;background:var(--cms-border,#332D25)}
+[data-cms-section="youtube"] .yc-bar::after{content:"";position:absolute;top:0;bottom:0;width:30%;background:var(--cms-accent,#FF8240);animation:yc-indet 1.1s ease-in-out infinite}
+@keyframes yc-indet{0%{left:-30%}100%{left:100%}}
+[data-cms-section="youtube"] .yc-spin{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;animation:yc-spin .7s linear infinite}
+@keyframes yc-spin{to{transform:rotate(360deg)}}
+[data-cms-section="youtube"] [data-removing],[data-cms-section="youtube"] [data-channel-pending]{opacity:.6}
+@media (prefers-reduced-motion:reduce){
+  [data-cms-section="youtube"] .yc-bar::after{animation:none;left:0;width:100%;opacity:.45}
+  [data-cms-section="youtube"] .yc-spin{animation:none}
+}

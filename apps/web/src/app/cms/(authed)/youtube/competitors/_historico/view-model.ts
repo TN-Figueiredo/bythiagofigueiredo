@@ -204,7 +204,6 @@ const H_MS = 36e5, DAY = 864e5
 const TYPE_NAME: Record<LaneType, string> = { title: 'Título', thumb: 'Thumbnail', desc: 'Descrição' }
 const FEM: Record<LaneType, boolean> = { title: false, thumb: true, desc: true }
 const FROM_LABEL: Record<FromTab, string> = { mudancas: 'Mudanças', outliers: 'Outliers', canais: 'Canais', insights: 'Insights' }
-const NICHE_LABEL: Record<Niche, string> = { ia: 'IA', viagem: 'Viagem' }
 const cap = (t: string) => (t ? t[0]!.toUpperCase() + t.slice(1) : '')
 const endDot = (t: string) => { const s = String(t).trim(); return /[.!?…]$/.test(s) ? s : s + '.' }
 
@@ -223,7 +222,8 @@ interface Params { [k: string]: string | undefined }
 export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts?: { savedChangeIds?: ReadonlySet<string> }): HistoricoView {
   const D = obs.date
   const from = parseFrom(p.from)
-  const userNiche: NicheScope = parseNiche(p.niche) ?? 'todos'
+  // only an existing niche counts; an unknown one (stale URL, niche that no longer exists) is Todos
+  const userNiche: NicheScope = obs.scopeOf(parseNiche(p.niche))
   const back = p.back && p.back.startsWith('?') ? p.back : null
   const backHref = (page: FromTab, def: string) => (back ? tabPath(obs, page) + back : def)
   const v = obs.video(id)
@@ -249,8 +249,8 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   // ---------- niche: another niche changes the niche only for this view (nothing persisted) ----------
   let chromeNiche: NicheScope = userNiche, nicheToast: string | null = null
   if (v.niche && userNiche !== 'todos' && userNiche !== v.niche) {
-    if (p.nicheParam) nicheToast = 'Este vídeo é do nicho ' + NICHE_LABEL[v.niche] + '; o paginador continua no nicho do vídeo'
-    else { chromeNiche = v.niche; nicheToast = 'Nicho mudou para ' + NICHE_LABEL[v.niche] + ' para mostrar este vídeo' }
+    if (p.nicheParam) nicheToast = 'Este vídeo é do nicho ' + obs.nicheLabel(v.niche) + '; o paginador continua no nicho do vídeo'
+    else { chromeNiche = v.niche; nicheToast = 'Nicho mudou para ' + obs.nicheLabel(v.niche) + ' para mostrar este vídeo' }
   }
   const ctxNiche: NicheScope = userNiche !== 'todos' && userNiche !== v.niche ? (v.niche ?? 'todos') : userNiche
 
@@ -429,7 +429,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       const ALL = obs.OUT_WINDOWS.map(w => w.id)
       const ageTxt = q.ages === 'all' || q.ages.length === ALL.length ? 'todas as idades' : ages2label(obs, q.ages)
       const minTxt = q.min === 0 ? 'todos os vídeos' : F.mult(q.min) + ' ou mais'
-      const desc = [q.niche !== 'todos' ? 'nicho ' + NICHE_LABEL[q.niche] : 'todos os nichos', q.fmt === 'short' ? 'Shorts' : 'longos', ageTxt, minTxt,
+      const desc = [q.niche !== 'todos' ? 'nicho ' + obs.nicheLabel(q.niche) : 'todos os nichos', q.fmt === 'short' ? 'Shorts' : 'longos', ageTxt, minTxt,
         q.channel ? obs.channel(q.channel)?.name ?? null : null, q.formula ? obs.formula(q.formula)?.label ?? null : null, q.topic ? (obs.theme(q.topic)?.label ?? q.topic) : null,
         q.reading ? 'escopo da leitura' : null, q.sort === 'vpd' ? 'por views/dia' : q.sort === 'recent' ? 'mais recentes primeiro' : 'por fase'].filter(Boolean).join(', ')
       return { crumb: 'Outliers', href, ids: ov.pageIds, keepIds: null, of: 'em Outliers (' + desc + ')', outside: 'fora da lista de Outliers (' + desc + ')', sub: null }
@@ -455,7 +455,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     const { f, ordered } = mudancasList(obs, params, new Set(opts?.savedChangeIds ?? []))
     const ids = [...new Set(ordered.map(c => c.video))]
     const TL: Record<string, string> = { title: 'títulos', thumb: 'thumbnails', desc: 'descrições' }, SL: Record<string, string | null> = { recent: null, gain: 'maior ganho primeiro', loss: 'maior perda primeiro' }
-    const desc = [f.niche !== 'todos' ? 'nicho ' + NICHE_LABEL[f.niche] : 'todos os nichos', f.type !== 'all' ? TL[f.type] ?? f.type : null, f.channel !== 'all' ? obs.channel(f.channel)?.name ?? null : null,
+    const desc = [f.niche !== 'todos' ? 'nicho ' + obs.nicheLabel(f.niche) : 'todos os nichos', f.type !== 'all' ? TL[f.type] ?? f.type : null, f.channel !== 'all' ? obs.channel(f.channel)?.name ?? null : null,
       f.fmt !== 'all' && !f.video ? (f.fmt === 'short' ? 'Shorts' : 'longos') : null, f.video ? 'um vídeo' : null,
       f.changes ? F.plural(f.changes.length, 'troca marcada', 'trocas marcadas') : f.win + ' dias', f.measured ? 'só efeito medido' : null,
       f.saved ? 'só salvas' : null, f.q ? 'busca “' + f.q + '”' : null, SL[f.sort] ?? null, F.plural(ordered.length, 'troca', 'trocas')].filter(Boolean).join(', ')
@@ -516,7 +516,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     return {
       thumb: cur?.thumb ?? { src: null, missing: 'Nenhuma thumbnail registrada.', alt: 'Thumbnail' },
       dur: fmtDur(vv.dur),
-      chan: { name: ch.name, ini: ch.ini || ch.name.slice(0, 2).toUpperCase(), color: ch.color || '#3B2F8F', niche: vv.niche ? NICHE_LABEL[vv.niche] : null },
+      chan: { name: ch.name, ini: ch.ini || ch.name.slice(0, 2).toUpperCase(), color: ch.color || '#3B2F8F', niche: vv.niche ? obs.nicheLabel(vv.niche) : null },
       views: vv.views != null ? { num: F.num(vv.views), text: ' views' + (syncOk || vv.viewsAt == null ? '' : ' até o registro diário de ' + dmhmY(vv.viewsAt)) } : { num: null, text: 'views ainda não registradas' },
       pub: { age: F.age(vv), full: dmhmY(pub) },
       fmt: vv.fmt === 'short' ? 'Short' : 'Vídeo longo',

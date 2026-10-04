@@ -1,5 +1,5 @@
-export type Niche = 'viagem' | 'ia'
-export type { NicheScope } from './niche' // single definition (Task 11)
+import type { Niche, NicheDef } from './niche'
+export type { Niche, NicheScope, NicheDef } from './niche' // single definition
 export type Fmt = 'long' | 'short'
 export type Precision = 'min' | '6h' | '1d'
 export type SyncState = 'ok' | 'atrasado' | 'erro' | 'backfill'
@@ -82,4 +82,6 @@ export interface Dataset {
   sync: { last: number | null; next: number | null }
   readings: FrozenReading[]; requests: ForjaRequest[]
   queue: { lastPollAt: number | null; tickMinutes: number; capabilities: string[] }
+  /** Os nichos do site (youtube_niches). Ausente ou vazio (dataset antigo, oráculo, tabela ausente) = os dois de fábrica. */
+  niches?: NicheDef[]
 }

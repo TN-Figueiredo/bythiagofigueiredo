@@ -14,14 +14,15 @@ import { PipelineServiceError, type ServiceContext } from '@/lib/pipeline/servic
 import { loadDataset } from '@/lib/youtube/observatorio/load'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { createObservatory } from '@/lib/youtube/observatorio'
-import type { NicheScope } from '@/lib/youtube/observatorio/niche'
+import { isNicheSlug, parseNiche, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, Niche } from '@/lib/youtube/observatorio/types'
 
-const NL: Record<Niche, string> = { viagem: 'Viagem', ia: 'IA' }
 const FORBIDDEN = 'Sem permissão para pedir leituras à forja neste site.'
 const QUEUE_DOWN = 'A fila da forja não respondeu. Tente de novo em alguns minutos.'
-const isNiche = (n: unknown): n is Niche => n === 'viagem' || n === 'ia'
-const isScope = (n: unknown): n is NicheScope => n === 'todos' || isNiche(n)
+// Only the FORM here (before the guard, no read). Whether the niche exists in the site is checked against the engine:
+// askReading loads it and refuses an unknown niche ("Nada enviado: o nicho … não existe neste site."); a cancel of an unknown niche matches no row.
+const isNiche = (n: unknown): n is Niche => isNicheSlug(n)
+const isScope = (n: unknown): n is NicheScope => typeof n === 'string' && parseNiche(n) != null
 
 /** The edit guard FIRST; only then the service client (it bypasses RLS). */
 async function sessionContext(): Promise<{ ctx: ServiceContext; userId: string } | null> {
@@ -75,7 +76,8 @@ export async function cancelForjaReading(type: ObsType, niche: Niche, videoId?: 
   const obs = createObservatory(await loadDataset({ siteId: s.ctx.siteId, now: observatoryNow(), supabase: s.ctx.supabase }))
   const sc = type === 'leitura-video' ? obs.forja.session.current(null, { type, video: videoId ?? null }) : obs.forja.session.current(niche, { type })
   const q = sc.empty ? null : sc.requests.find(x => x.niche === niche) ?? null
-  const who = type === 'leitura-video' ? 'o pedido de leitura deste vídeo' : 'o pedido de ' + NL[niche]
+  const NLn = obs.nicheLabel(niche)
+  const who = type === 'leitura-video' ? 'o pedido de leitura deste vídeo' : 'o pedido de ' + NLn
   if (q && q.state === 'trabalhando') return { ok: false, reason: 'Nada cancelado: ' + who + ' está ' + (q.statusLabel ?? q.state) + ' e termina na máquina.' }
-  return { ok: false, reason: 'Nada cancelado: não há ' + (type === 'leitura-video' ? 'pedido de leitura deste vídeo' : 'pedido de ' + NL[niche]) + ' esperando na fila.' }
+  return { ok: false, reason: 'Nada cancelado: não há ' + (type === 'leitura-video' ? 'pedido de leitura deste vídeo' : 'pedido de ' + NLn) + ' esperando na fila.' }
 }

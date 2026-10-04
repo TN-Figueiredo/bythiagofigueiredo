@@ -50,3 +50,5 @@ export const COMPOSE_R67: Allow[] = [
 ]
 /** R67 (C11): after IA publishes, the mockups keep the 20/10 reading as "the latest"; production has the new one. */
 export const LATEST_READING_R67: Allow[] = [/Última leitura: (?:20\/10 06:10|24\/10 14:50)\./]
+/** R62: the add action syncs right away, so the "Adicionar canal" dialog says the true sentence (Task 23). */
+export const ADD_SENTENCE_R62: Allow = /Entra na próxima sincronização \(\d\d:\d\d\): busca os vídeos até o limite escolhido\.|A busca dos vídeos começa ao adicionar, até o limite escolhido; o que faltar continua na sincronização das \d\d:\d\d\./

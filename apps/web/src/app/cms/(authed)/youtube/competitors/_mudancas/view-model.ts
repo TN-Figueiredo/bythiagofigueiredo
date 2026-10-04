@@ -8,7 +8,7 @@ import { buildForjaView, forjaReadingView, groupsOf, type ForjaView } from '../_
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { EffectResult, EffectStatus } from '@/lib/youtube/observatorio/effect'
 import type { TitleDiff, TitleSpan } from '@/lib/youtube/observatorio/text-diff'
-import { parseNiche, type NicheScope } from '@/lib/youtube/observatorio/niche'
+import { forjaOrder, parseNiche, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, Niche, ObsVideo, ThumbVersion } from '@/lib/youtube/observatorio/types'
 
 /* ------------------------------------------------------------------ public types */
@@ -104,7 +104,8 @@ export interface MudancasView {
 const TYPES: Array<[ChangeType, string]> = [['title', 'Título'], ['thumb', 'Thumbnail'], ['desc', 'Descrição']]
 const DECIDED: readonly EffectStatus[] = ['ganhou', 'perdeu', 'neutro']
 const MEASURED: readonly EffectStatus[] = ['ganhou', 'perdeu', 'neutro', 'inconclusivo']
-const NICHE_LABEL: Record<NicheScope, string> = { todos: 'Todos', viagem: 'Viagem', ia: 'IA' }
+/** 'Todos' or the niche's label (the engine's: youtube_niches). */
+const nicheLabelOf = (obs: Observatory, n: NicheScope) => (n === 'todos' ? 'Todos' : obs.nicheLabel(n))
 const FMT_LABEL: Record<'all' | Fmt, string> = { all: 'longos e Shorts', long: 'longos', short: 'Shorts' }
 const TYPE_NAME: Record<ChangeType, string> = { title: 'título', thumb: 'thumbnail', desc: 'descrição' }
 const INC_KINDS: Array<[string, (n: number, h: number) => string]> = [
@@ -124,6 +125,16 @@ const pl = (n: number, one: string, many: string) => n + ' ' + (n === 1 ? one : 
 const joinE = (a: string[]) => (a.length > 1 ? a.slice(0, -1).join(', ') + ' e ' + a[a.length - 1] : a[0] ?? '')
 const first = (v: string | undefined) => (v == null ? undefined : v)
 
+/**
+ * What a request with more than one niche says about the queue. With exactly IA and Viagem (the built-in pair) the sentence
+ * is the one the screen has always had; with any other set, the others wait behind the first of the forja's order.
+ */
+function queueNote(obs: Observatory, asked: readonly Niche[]): string {
+  const two = asked.length === 2 && asked.every(n => obs.NICHES[n]?.builtin)
+  return two ? 'A máquina pega um pedido por consulta: o de ' + obs.nicheLabel(asked[1]!) + ' fica na fila atrás do de ' + obs.nicheLabel(asked[0]!) + '.'
+    : 'A máquina pega um pedido por consulta: os demais ficam na fila atrás do de ' + obs.nicheLabel(asked[0]!) + '.'
+}
+
 /* ------------------------------------------------------------------ filters */
 export function parseFilters(obs: Observatory, p: Record<string, string | undefined>): MudancasFilters {
   const f: MudancasFilters = { win: 30, type: 'all', fmt: 'all', q: '', channel: 'all', changes: null, reading: null, video: null, niche: 'todos', sort: 'recent', measured: false, saved: false }
@@ -134,7 +145,8 @@ export function parseFilters(obs: Observatory, p: Record<string, string | undefi
   if (sort === 'recent' || sort === 'gain' || sort === 'loss') f.sort = sort
   f.q = (p.q ?? '').trim()
   f.measured = p.measured === '1'; f.saved = p.saved === '1'
-  f.niche = parseNiche(p.niche) ?? 'todos'
+  // only an existing niche filters; an unknown one (stale URL, niche that no longer exists) opens in Todos
+  f.niche = obs.scopeOf(parseNiche(p.niche))
   const ch = p.channel ? obs.channel(p.channel) : undefined
   if (ch && !ch.own) f.channel = ch.id
   const vid = p.video ? obs.video(p.video) : undefined
@@ -237,7 +249,7 @@ function titleView(obs: Observatory, c: ObsChange): TitleView {
     'A versão anterior ficou ' + durTxt(obs, c.prevLivedMs, c.prec !== 'min') + ' no ar',
   ]
   // the forja's class shows only when a reading of the change's niche actually cites it (mudancas.html readByForja)
-  const read = (['ia', 'viagem'] as const).map(n => obs.forja.latest('resumo-trocas', n)).find(r => !!r && groupsOf(r).some(g => g.changeIds.includes(c.id)))
+  const read = forjaOrder(obs.niches).map(n => obs.forja.latest('resumo-trocas', n)).find(r => !!r && groupsOf(r).some(g => g.changeIds.includes(c.id)))
   const grp = c.rewriteGroup && read ? obs.rewriteGroups.find(g => g.id === c.rewriteGroup) : undefined
   const rewrite = grp && read ? { text: 'Reescrita (forja): ' + grp.label.charAt(0).toLowerCase() + grp.label.slice(1), title: 'Como a forja classificou esta troca na leitura de ' + obs.date.dm(read.generatedAt) } : null
   return { ...td, beforeText: before, afterText: after, legend, stats, rewrite }
@@ -365,12 +377,12 @@ export function mudancasList(obs: Observatory, p: Record<string, string | undefi
     const ns = [...new Set(f.changes.map(id => obs.change(id)!.niche))]
     if (f.niche !== 'todos' && ns.some(n => n !== f.niche)) {
       const want: NicheScope = ns.length === 1 && ns[0] ? ns[0] : 'todos'
-      f.niche = want; nicheNote = 'Nicho mudou para ' + NICHE_LABEL[want] + ' para mostrar as trocas citadas'
+      f.niche = want; nicheNote = 'Nicho mudou para ' + nicheLabelOf(obs, want) + ' para mostrar as trocas citadas'
     }
   }
   const objNiche = f.video ? obs.video(f.video)!.niche : f.channel !== 'all' ? obs.channel(f.channel)!.niche : null
   if (objNiche && f.niche !== 'todos' && f.niche !== objNiche) {
-    f.niche = objNiche; nicheNote = 'Nicho mudou para ' + NICHE_LABEL[objNiche] + ' para mostrar ' + (f.video ? 'este vídeo' : 'este canal')
+    f.niche = objNiche; nicheNote = 'Nicho mudou para ' + nicheLabelOf(obs, objNiche) + ' para mostrar ' + (f.video ? 'este vídeo' : 'este canal')
   }
 
   const list = extra(f, query(f))
@@ -417,7 +429,7 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
       video: {
         id: v.id, title: v.title, channel: ch.name, ago: F.age(v),
         historyHref: obs.link.historico(v.id, { from: 'mudancas', ids: visibleVideos, back }), url: v.url,
-        color: ch.color, ini: ch.ini, ink: inkOn(ch.color), niche: ch.niche, nicheLabel: ch.niche ? obs.NICHES[ch.niche].label : null, meta,
+        color: ch.color, ini: ch.ini, ink: inkOn(ch.color), niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null, meta,
         syncNote: ch.sync.problemPhrase ? cap(ch.sync.problemPhrase) : null,
       },
       when: {
@@ -474,13 +486,13 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
     out.push('. ')
   } else out.push('Nenhuma troca fora das medianas. ')
   const totalLine: Rich = ['Total: ', { num: String(inMed) }, ' nas medianas + ', { num: String(outN) }, ' fora = ', { num: String(pool.length) }, ' ' + (pool.length === 1 ? 'troca' : 'trocas') + ' na janela.']
-  const nicheTxt = f.niche === 'todos' ? '' : ', nicho ' + NICHE_LABEL[f.niche]
+  const nicheTxt = f.niche === 'todos' ? '' : ', nicho ' + nicheLabelOf(obs, f.niche)
   const ledger: MudancasView['ledger'] = {
     medians, groups: { reverts: reverts.length, withCaveat: withCav.length, inconclusiveByType, noVerdict: noVer.length },
     total: pool.length, totalCheck: inMed + outN === pool.length, minN: RE.minN,
     winLabel: '(' + f.win + ' dias, ' + FMT_LABEL[f.fmt] + (f.niche === 'todos' ? ', todos os nichos' : nicheTxt) + ')',
     out, totalLine,
-    note: f.changes ? 'O balanço cobre a janela de ' + f.win + ' dias' + (f.niche === 'todos' ? '' : ' do nicho ' + NICHE_LABEL[f.niche]) + ', não só as ' + f.changes.length + ' trocas da lista citada pela forja.' : null,
+    note: f.changes ? 'O balanço cobre a janela de ' + f.win + ' dias' + (f.niche === 'todos' ? '' : ' do nicho ' + nicheLabelOf(obs, f.niche)) + ', não só as ' + f.changes.length + ' trocas da lista citada pela forja.' : null,
     emptyText: pool.length ? null : 'Nenhuma troca em ' + f.win + ' dias (' + FMT_LABEL[f.fmt] + nicheTxt + '): nada para medir.',
   }
 
@@ -528,10 +540,12 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
   for (const c of typePool) typeCounts[c.type]++
   const perCh = new Map<string, number>()
   for (const c of query(f, { ignoreChannel: true, ignoreType: true })) perCh.set(c.ch, (perCh.get(c.ch) ?? 0) + 1)
-  const channels = (['ia', 'viagem'] as const).filter(n => f.niche === 'todos' || f.niche === n).map(n => ({
-    label: obs.NICHES[n].label,
+  // one group per niche in the forja's order (IA, Viagem, then the owner's). The built-in pair is always listed, as before;
+  // a niche the owner created and that has no competitor yet gets no group, unless it is the tab's own niche
+  const channels = forjaOrder(obs.niches).filter(n => f.niche === 'todos' || f.niche === n).map(n => ({
+    n, label: obs.nicheLabel(n),
     options: obs.channels.filter(c => c.niche === n && !c.own).map(c => ({ id: c.id, name: c.name, count: perCh.get(c.id) ?? 0 })),
-  }))
+  })).filter(g => g.options.length > 0 || f.niche === g.n || obs.NICHES[g.n]?.builtin === true).map(({ label, options }) => ({ label, options }))
   const chips: MudancasView['controls']['chips'] = []
   if (f.channel !== 'all') chips.push({ key: 'channel', text: 'Canal: ' + obs.channel(f.channel)!.name, label: 'Tirar o filtro de canal', patch: { channel: null } })
   if (f.changes) chips.push({ key: 'changes', text: 'Trocas citadas pela forja (' + f.changes.length + ')', label: 'Tirar este filtro', patch: { changes: null, video: null, win: null, fmt: null } })
@@ -607,8 +621,8 @@ function forjaOf(obs: Observatory, f: MudancasFilters): Pick<MudancasView, 'forj
       openNiche,
       confirm: forja.ask ? {
         title: 'Pedir nova leitura à forja' + (forja.ask.niches.length > 1 ? ' (um pedido por nicho)' : ''),
-        lines: forja.ask.niches.map(n => { const pv = obs.forja.preview('resumo-trocas', n); return { niche: obs.NICHES[n].label, text: pv.text + ' de ' + pl(pv.channelsIn.length, 'canal', 'canais') + (pv.channelsOut.length ? '. Fora: ' + pv.channelsOut.map(o => o.reason.replace(/ fica fora: /, ' — ')).join('; ') : '') + '.' } }),
-        note: forja.ask.niches.length > 1 ? 'A máquina pega um pedido por consulta: o de Viagem fica na fila atrás do de IA.' : null,
+        lines: forja.ask.niches.map(n => { const pv = obs.forja.preview('resumo-trocas', n); return { niche: obs.nicheLabel(n), text: pv.text + ' de ' + pl(pv.channelsIn.length, 'canal', 'canais') + (pv.channelsOut.length ? '. Fora: ' + pv.channelsOut.map(o => o.reason.replace(/ fica fora: /, ' — ')).join('; ') : '') + '.' } }),
+        note: forja.ask.niches.length > 1 ? queueNote(obs, forja.ask.niches) : null,
         scope: forja.ask.scope,
       } : null,
       outSummary: out.length ? pl(out.length, 'canal fora do próximo pedido', 'canais fora do próximo pedido') + '; o que a forja faz' : 'O que a forja faz aqui',
@@ -626,7 +640,7 @@ type Q = ReturnType<typeof makeQuery>
 function emptyView(obs: Observatory, f: MudancasFilters, query: Q['query'], extra: Q['extra'], fmtQ: Q['fmtQ']): NonNullable<MudancasView['empty']> {
   const D = obs.date, DAY = obs.DAY, ARCHIVE = obs.SERIES_START
   const tp = f.type !== 'all' ? ' de ' + TYPE_NAME[f.type] : ''
-  const where = (f.niche !== 'todos' ? ' em canais de ' + NICHE_LABEL[f.niche] : '') + ' (' + FMT_LABEL[f.fmt] + ')'
+  const where = (f.niche !== 'todos' ? ' em canais de ' + nicheLabelOf(obs, f.niche) : '') + ' (' + FMT_LABEL[f.fmt] + ')'
   const clear: Patch = { changes: null, fmt: null, type: null, channel: null, measured: null, saved: null, q: null, video: null, win: null }
   if (f.changes) {
     const ids = f.changes, lst = obs.changesIn({ days: 90, niche: 'todos' }).filter(c => ids.includes(c.id))

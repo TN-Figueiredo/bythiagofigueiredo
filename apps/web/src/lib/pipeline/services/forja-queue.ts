@@ -24,7 +24,7 @@ import { machineOf } from '@/lib/youtube/observatorio/forja/states'
 import { planAsk, type SessionOpts } from '@/lib/youtube/observatorio/forja/session'
 import { canonicalNumberTokens, normalizeNumberToken } from '@/lib/youtube/observatorio/forja/numbers'
 import { spDayStart } from '@/lib/youtube/observatorio/time'
-import { NICHES } from '@/lib/youtube/observatorio/rules'
+import { isNicheSlug, parseNiche } from '@/lib/youtube/observatorio/niche'
 import { loadDataset, taskRowToRequest, TASK_COLS, type TaskRow } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildSent, TargetUnavailableError, type SentPack } from '@/lib/youtube/observatorio/forja/sent'
@@ -160,7 +160,8 @@ async function readQueue(ctx: ServiceContext, now: number): Promise<TaskRow[]> {
 
 const AskSchema = z.object({
   type: z.enum(OBS_TYPES),
-  scope: z.enum(['todos', 'viagem', 'ia']),
+  // only the FORM here ('todos' or a niche slug); that the niche exists in the site is checked against the engine below
+  scope: z.string().refine(v => parseNiche(v) != null, { message: "expected 'todos' or a niche slug" }),
   videoId: z.string().uuid().optional(),
   fmt: z.enum(['long', 'short']).optional(),
   userId: z.string().uuid(),
@@ -187,12 +188,20 @@ export async function askReading(ctx: ServiceContext, input: AskInput, now: numb
   const obs = createObservatory(ds)
   const clock = obs.date, lastPollAt = ds.queue.lastPollAt
   const machine = machineOf(lastPollAt, clock)
+  // the niche must be one of the site's (the engine's list: youtube_niches, or the two built-in when the table is absent)
+  // a refusal like the others (ok: false, the sentence in Portuguese), before any insert
+  if (scope !== 'todos' && obs.scopeOf(scope) !== scope) return ok({ ok: false, reason: 'Nada enviado: o nicho “' + scope + '” não existe neste site.', results: [] })
   const opts: SessionOpts = {
     capabilities: ds.queue.capabilities,
     eligible: n => obs.forja.eligibleChannels(n),
     videoOf: id => { const v = obs.video(id); return v ? { niche: obs.channel(v.ch)?.own ? null : v.niche, title: v.title } : undefined },
+    // the same rules as the screens' session: the site's labels and "Todos" split, no request for a niche without
+    // competitors (built-in or created), and no `temas` request for a niche without a theme list (nothing is inserted for
+    // a refused niche)
+    niches: obs.forja.nicheCtx, askable: n => obs.forja.askable(n), hasThemes: n => obs.hasThemes(n),
   }
-  const toRequests = (rs: TaskRow[]) => rs.map(r => taskRowToRequest(r, lastPollAt, now)).filter((q): q is ForjaRequest => q != null)
+  const known: ReadonlySet<string> = new Set(obs.niches.map(n => n.id))
+  const toRequests = (rs: TaskRow[]) => rs.map(r => taskRowToRequest(r, lastPollAt, now, known)).filter((q): q is ForjaRequest => q != null)
   const target = { type, video: videoId ?? null }
   // a video of an own channel lives in youtube_videos, not competitor_videos (target_video_id's FK): never inserted
   const targetVideo = type === 'leitura-video' && videoId ? obs.video(videoId) : undefined
@@ -216,7 +225,7 @@ export async function askReading(ctx: ServiceContext, input: AskInput, now: numb
     if (error && error.code === '23505') {
       // a concurrent ask won the niche: say what the engine says about the request that exists now
       const again = planAsk(toRequests(await readQueue(ctx, now)), machine, clock, opts, type === 'leitura-video' ? scope : r.niche, target)
-      const reason = again.results.find(x => x.niche === r.niche && !x.ok)?.reason ?? 'Nada enviado: já há um pedido de ' + NICHES[r.niche].label + ' em andamento.'
+      const reason = again.results.find(x => x.niche === r.niche && !x.ok)?.reason ?? 'Nada enviado: já há um pedido de ' + obs.nicheLabel(r.niche) + ' em andamento.'
       results.push({ niche: r.niche, ok: false, reason })
       raced = true
       continue
@@ -230,7 +239,7 @@ export async function askReading(ctx: ServiceContext, input: AskInput, now: numb
   return ok({ ok: anyOk, reason, results })
 }
 
-const CancelSchema = z.object({ type: z.enum(OBS_TYPES), niche: z.enum(['ia', 'viagem']), videoId: z.string().uuid().optional() })
+const CancelSchema = z.object({ type: z.enum(OBS_TYPES), niche: z.string().refine(isNicheSlug, { message: 'expected a niche slug' }), videoId: z.string().uuid().optional() })
   .refine(c => c.type !== 'leitura-video' || !!c.videoId, { message: 'videoId: required for leitura-video', path: ['videoId'] })
 
 /** Cancel a request that is still waiting. A running one belongs to the machine and is not cancelled. */

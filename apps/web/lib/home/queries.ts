@@ -4,6 +4,7 @@ import { getSiteContext } from '../cms/site-context'
 import { COLD_START_THRESHOLD } from '../tracking/config'
 import { resolveScheduleLabel } from '@/lib/youtube/schedule-label'
 import type { SyncScheduleEntry } from '@/lib/youtube/types'
+import { showcaseChannels, showcaseChannelId, type ChannelOrderRow } from '@/lib/youtube/showcase'
 import { unstable_cache } from 'next/cache'
 
 function mapRowToHomePost(row: Record<string, unknown>): HomePost {
@@ -314,17 +315,33 @@ const DB_LOCALE_MAP: Record<string, 'pt' | 'en'> = { 'pt-BR': 'pt', en: 'en' }
 const HOME_LOCALE_MAP: Record<string, 'en' | 'pt-BR'> = { pt: 'pt-BR', en: 'en' }
 const LOCALE_FLAG: Record<string, string> = { pt: '🇧🇷', en: '🌎' }
 
+// Regra de transição (ver src/lib/youtube/showcase.ts): a home mostra um canal
+// por idioma, o mais antigo. Os leitores de vídeo filtram por channel_id, nunca
+// só por idioma, para não misturar canais.
+const getChannelOrderRows = unstable_cache(
+  async (siteId: string): Promise<ChannelOrderRow[]> => {
+    const db = getSupabaseServiceClient()
+    const { data, error } = await db
+      .from('youtube_channels')
+      .select('id, locale, created_at')
+      .eq('site_id', siteId)
+    if (error || !data) return []
+    return data as ChannelOrderRow[]
+  },
+  ['channel-order'],
+  { revalidate: 3600, tags: ['youtube'] },
+)
+
 export const getHomeChannels = unstable_cache(
   async (siteId: string): Promise<HomeChannel[]> => {
     const db = getSupabaseServiceClient()
     const { data, error } = await db
       .from('youtube_channels')
-      .select('id, locale, handle, name, subscriber_count, thumbnail_url, schedule_label, sync_schedules')
+      .select('id, locale, created_at, handle, name, subscriber_count, thumbnail_url, schedule_label, sync_schedules')
       .eq('site_id', siteId)
-      .order('locale')
 
     if (error || !data) return []
-    return data.map((c) => {
+    return showcaseChannels(data).map((c) => {
       const homeLocale = HOME_LOCALE_MAP[c.locale as string] ?? 'en'
       return {
         id: c.id as string,
@@ -350,6 +367,8 @@ export const getHomeChannels = unstable_cache(
 export const getHomeVideos = unstable_cache(
   async (siteId: string, locale: string, limit = 3): Promise<HomeVideo[]> => {
     const dbLocale = DB_LOCALE_MAP[locale] ?? locale
+    const channelId = showcaseChannelId(await getChannelOrderRows(siteId), dbLocale)
+    if (!channelId) return []
     const db = getSupabaseServiceClient()
     const { data, error } = await db
       .from('youtube_videos')
@@ -360,7 +379,7 @@ export const getHomeVideos = unstable_cache(
         youtube_categories!category_id(slug, name_pt, name_en, color)
       `)
       .eq('site_id', siteId)
-      .eq('youtube_channels.locale', dbLocale)
+      .eq('channel_id', channelId)
       .eq('is_hidden', false)
       .order('published_at', { ascending: false })
       .limit(limit)
@@ -396,6 +415,8 @@ export const getHomeVideos = unstable_cache(
 export const getWeeklyPick = unstable_cache(
   async (siteId: string, locale: string): Promise<HomeVideo | null> => {
     const dbLocale = DB_LOCALE_MAP[locale] ?? locale
+    const channelId = showcaseChannelId(await getChannelOrderRows(siteId), dbLocale)
+    if (!channelId) return null
     const db = getSupabaseServiceClient()
     const selectCols = `
       id, youtube_video_id, title, description, thumbnail_url, duration,
@@ -408,7 +429,7 @@ export const getWeeklyPick = unstable_cache(
       .from('youtube_videos')
       .select(selectCols)
       .eq('site_id', siteId)
-      .eq('youtube_channels.locale', dbLocale)
+      .eq('channel_id', channelId)
       .eq('is_hidden', false)
       .gt('pinned_until', new Date().toISOString())
       .order('pinned_until', { ascending: false })
@@ -421,7 +442,7 @@ export const getWeeklyPick = unstable_cache(
         .from('youtube_videos')
         .select(selectCols)
         .eq('site_id', siteId)
-        .eq('youtube_channels.locale', dbLocale)
+        .eq('channel_id', channelId)
         .eq('is_hidden', false)
         .order('published_at', { ascending: false })
         .limit(1)
@@ -461,12 +482,14 @@ export const getWeeklyPick = unstable_cache(
 export const getVideoCount = unstable_cache(
   async (siteId: string, locale: string): Promise<number> => {
     const dbLocale = DB_LOCALE_MAP[locale] ?? locale
+    const channelId = showcaseChannelId(await getChannelOrderRows(siteId), dbLocale)
+    if (!channelId) return 0
     const db = getSupabaseServiceClient()
     const { count, error } = await db
       .from('youtube_videos')
       .select('id, youtube_channels!inner(locale)', { count: 'exact', head: true })
       .eq('site_id', siteId)
-      .eq('youtube_channels.locale', dbLocale)
+      .eq('channel_id', channelId)
       .eq('is_hidden', false)
 
     if (error) return 0

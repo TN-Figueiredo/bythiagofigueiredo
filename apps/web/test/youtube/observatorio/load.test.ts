@@ -279,6 +279,33 @@ describe('rowsToDataset — own channel niche (N canais próprios)', () => {
     expect(ds.channels[0]!.niche).toBeNull()
     expect(ds.videos[0]!.niche).toBeNull()
   })
+  it("nicho criado pelo dono (rows.niches traz 'jogos') chega ao canal próprio, ao concorrente e aos vídeos", () => {
+    const niches = [
+      { slug: 'viagem', label: 'Viagem', color_dark: '#5BBF8A', color_light: '#11692F', sort_order: 10 },
+      { slug: 'ia', label: 'IA', color_dark: '#6EA8FE', color_light: '#1D4ED8', sort_order: 20 },
+      { slug: 'jogos', label: 'Jogos', color_dark: '#D29AE8', color_light: '#7B2A91', sort_order: 100 },
+    ]
+    const ds = rowsToDataset(rows({ niches, channels: [channel({ niche: 'jogos' })], videos: [video()], ownChannels: [mk('a', { niche: 'jogos' })], ownVideos: [ov('o1', 'a')] }), NOW)
+    expect(ds.niches!.map(n => n.id)).toEqual(['viagem', 'ia', 'jogos'])
+    expect(ds.channels.map(c => c.niche)).toEqual(['jogos', 'jogos'])
+    expect(ds.videos.map(v => v.niche)).toEqual(['jogos', 'jogos'])
+    expect(createObservatory(ds).tabCounts('jogos').canais).toBe(1)
+  })
+  it.each([['null (tabela ausente)', null], ['ausente', undefined], ['vazio', []]])("rows.niches %s → valem os de fábrica: 'jogos' vira sem nicho (o canal não some)", (_l, niches) => {
+    const ds = rowsToDataset(rows({ ...(niches === undefined ? {} : { niches }), channels: [channel({ niche: 'jogos' })], videos: [video()], ownChannels: [mk('a', { niche: 'jogos' }), mk('b', { niche: 'ia' })] }), NOW)
+    expect(ds.niches!.map(n => n.id)).toEqual(['viagem', 'ia'])
+    expect(ds.channels.map(c => [c.id, c.niche])).toEqual([['ch1', null], ['a', null], ['b', 'ia']])
+    expect(ds.videos[0]!.niche).toBeNull()
+  })
+  it('tarefa e leitura de um nicho criado entram; de um nicho fora da lista ficam de fora', () => {
+    const niches = [{ slug: 'jogos', label: 'Jogos', color_dark: '#D29AE8', color_light: '#7B2A91', sort_order: 100 }, { slug: 'ia', label: 'IA', color_dark: '#6EA8FE', color_light: '#1D4ED8', sort_order: 20 }]
+    const t = (id: string, target_niche: string): TaskRow => ({ id, task_type: 'resumo-trocas', target_niche, target_video_id: null, target_fmt: null, status: 'pending', requested_at: iso(NOW - 6e4), started_at: null, completed_at: null, failed_at: null, refused_at: null, refused_reason: null, released_at: null, retry_count: 0 })
+    const r = (id: string, niche: string): ReadingRow => ({ id, task_type: 'resumo-trocas', niche, video_id: null, fmt: null, model: 'Gemma 12B', generated_at: iso(NOW - H), sent: {}, analysis: {}, text: { lead: 'x', items: [] }, evidence: [] })
+    const ds = rowsToDataset(rows({ niches, tasks: [t('t1', 'jogos'), t('t2', 'sumiu'), t('t3', 'ia')], readings: [r('r1', 'jogos'), r('r2', 'sumiu')] }), NOW)
+    // mesma hora de pedido: a ordem é a da forja (IA antes dos criados)
+    expect(ds.requests.map(q => [q.id, q.niche])).toEqual([['t3', 'ia'], ['t1', 'jogos']])
+    expect(ds.readings.map(x => [x.id, x.niche])).toEqual([['r1', 'jogos'], ['r2', null]])
+  })
   it('two own channels (pt/en, different niches) are both in, own, and take no slot', () => {
     const ds = rowsToDataset(rows({ ownChannels: [mk('a', { locale: 'pt', niche: 'viagem' }), mk('b', { locale: 'en', niche: 'ia' })] }), NOW)
     expect(ds.channels.filter(c => c.own).map(c => [c.id, c.niche])).toEqual([['a', 'viagem'], ['b', 'ia']])

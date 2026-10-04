@@ -1,10 +1,12 @@
 // apps/web/e2e/tests/cms/observatorio/insights.spec.ts
 // Fidelity of the Insights screen against insights-n-canais.html (03/10, N own channels): NONE ("sem pedido hoje") and
-// EMPTY ("ainda não há leitura") (its MOCK bar), under Todos and inside each niche, with 1 and with 2 own channels.
-// The mockup's own channels come from the URL (?owns=1|2); mockup.js opens Insights in Viagem on a first visit, so the
-// Todos states pass ?niche=todos. The 9 request states are in forja.spec.ts.
+// EMPTY ("ainda não há leitura") (its MOCK bar), under Todos and inside each niche, with 1 and with 2 own channels; and
+// NONE inside each niche with the presets of N own channels (5, mix, zero), which fit the DB since two own channels may
+// share a language (multi-canal). The mockup's own channels come from the URL (?owns=1|2|5|mix|zero); mockup.js opens
+// Insights in Viagem on a first visit, so the Todos states pass ?niche=todos. The 9 request states are in forja.spec.ts.
 // Every allowance is one element or one text, scoped to the states it affects, with its ruling.
 import { runFidelity, type Allow, type Exclude, type MockupState, type ScreenSpec } from './fidelity'
+import type { OwnPreset } from '../../../../test/fixtures/observatorio/own-presets'
 
 /**
  * R60 (FU-5): an own channel has no daily views in production, so its "Views/dia por mil inscritos" (2nd cell) and
@@ -31,17 +33,14 @@ const NO_THEME_SEAL_R49: Allow = { drop: /(?<=dias vs os 90 anteriores )forja ·
 const IDEA_FOOT_FU16: Allow = { drop: /A ideia é sempre criada para um canal que ainda não cobre o tema\. ?/ }
 const both = (...xs: string[][]): Exclude => ({ mockup: xs.flat(), impl: xs.flat() })
 const merge = (...xs: Exclude[]): Exclude => ({ mockup: xs.flatMap(x => x.mockup ?? []), impl: xs.flatMap(x => x.impl ?? []) })
-const owns = (p: '1' | '2') => (p === '1' ? '1 canal' : '2 canais')
+const owns = (p: OwnPreset) => (p === '1' ? '1 canal' : p === '2' ? '2 canais' : p === '5' ? '5 canais' : p)
 
-const nicheState = (n: 'viagem' | 'ia', empty: boolean, p: '1' | '2'): MockupState => ({
+const nicheState = (n: 'viagem' | 'ia', empty: boolean, p: OwnPreset): MockupState => ({
   label: (empty ? 'EMPTY · ' : 'NONE · ') + n + ' · ' + owns(p), mockupClicks: [empty ? 'ainda não há leitura' : 'sem pedido hoje'],
   seed: { ...(empty ? { noReadings: true } : {}), ownPreset: p }, query: '?niche=' + n, mockupQuery: '?niche=' + n + '&owns=' + p,
   textAllow: empty ? [NO_THEME_SEAL_R49, IDEA_FOOT_FU16] : [...THEME_SOURCE_R49, IDEA_FOOT_FU16],
   exclude: merge(both(OWN_CELLS_R60, HATCH_R64, empty ? NO_THEMES_R49 : []), YOU_HINT_R64),
 })
-/** P3 (FU-17): the presets whose own channels repeat a locale cannot be seeded. */
-const NO_ROOM = 'youtube_channels tem UNIQUE(site_id, locale): 5, mix e zero não cabem no banco até o plano multi-canal; cobertos em Vitest (insights-view-model, canais-view-model)'
-
 export const INSIGHTS: ScreenSpec = {
   name: 'insights', mockupFile: 'docs/superpowers/mockups/2026-10-03-observatorio-seus-canais/insights-n-canais.html', route: '/cms/youtube/competitors/insights',
   mockThumbSelector: '.thumb', implThumbSelector: '[data-thumb]',
@@ -51,9 +50,8 @@ export const INSIGHTS: ScreenSpec = {
     { label: 'EMPTY (ainda não há leitura)', mockupClicks: ['ainda não há leitura'], seed: { noReadings: true, ownPreset: '2' }, mockupQuery: '?niche=todos&owns=2' },
     // the same two states inside a niche, with one and with two own channels (both of Viagem: in IA "Nenhum canal seu está em IA")
     ...(['viagem', 'ia'] as const).flatMap(n => [false, true].flatMap(empty => (['1', '2'] as const).map(p => nicheState(n, empty, p)))),
-    { label: '5 canais', seed: { ownPreset: '5' }, skip: NO_ROOM },
-    { label: 'mix', seed: { ownPreset: 'mix' }, skip: NO_ROOM },
-    { label: 'zero', seed: { ownPreset: 'zero' }, skip: NO_ROOM },
+    // FU-17: N own channels — five of Viagem ('5'), a mix with one in IA and one without a niche ('mix'), none in Viagem ('zero')
+    ...(['5', 'mix', 'zero'] as const).flatMap(p => (['viagem', 'ia'] as const).map(n => nicheState(n, false, p))),
   ],
   compareSelector: { mockup: '#screen', impl: '[data-obs-screen="insights"]' },
   // FU-16 (decisão P1, requisito 7): "Criar ideia" fica para depois — the Lacunas buttons, their menu and the "ideia criada" mark
@@ -63,8 +61,10 @@ export const INSIGHTS: ScreenSpec = {
   //  - the inline "ver detalhes" of a "Desde então" line (insights.html:42 `.since summary`, display:inline).
   //  - R68: the channel name in "Você no nicho" is a running-text link in insights-n-canais.html (`.yt .nm a`), measured on
   //    the mockup at 1440 and at 768: 84×19 ("tnFigueiredo") and 107×19 ("tnFigueiredo EN"); the screen draws the same sizes.
-  //    The notes' links (`.ynote a`) are NOT exempt: no state that fits the local DB prints a note, so nothing was measured.
-  targetExempt: ['.prose sup a', '.since summary', '#youCard .yt .nm a'],
+  //  - R68: the link of a note ("Escolher o nicho de Mochila Leve", `.ynote a`) is a running-text link in the mockup too,
+  //    measured on insights-n-canais.html (?owns=mix and ?owns=zero, niche IA and Viagem) at 1440 and at 768: 198×15; the
+  //    screen draws 198×15. Only the states with a channel "sem nicho" print it (mix, zero).
+  targetExempt: ['.prose sup a', '.since summary', '#youCard .yt .nm a', '.ynote a'],
 }
 
 runFidelity(INSIGHTS)

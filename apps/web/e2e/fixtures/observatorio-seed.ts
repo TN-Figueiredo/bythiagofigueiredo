@@ -13,8 +13,10 @@
  *  - competitor_changes: pre-series TITLE changes as legacy rows (from_version_id null — what production has from before
  *    the series), every other change with its version ids (the loader ignores those; they mirror production);
  *  - competitor_channel_snapshots; os canais próprios do preset (opts.ownPreset; sem ele, o único canal do oráculo) as
- *    youtube_channels (com `niche`) + youtube_videos (no series: production has none). youtube_channels has
- *    UNIQUE(site_id, locale): a preset whose own channels repeat a locale ('5', 'mix', 'zero') is REFUSED, not bent;
+ *    youtube_channels (com `niche` e `slug` = o id do oráculo) + youtube_videos (no series: production has none). Dois
+ *    canais próprios podem ter o mesmo idioma (multi-canal): os presets '5', 'mix' e 'zero' são semeados como os outros;
+ *  - youtube_niches: os nichos criados pelo dono (opts.extraNiche / opts.extraNiches), com os concorrentes indicados
+ *    movidos para eles — o que n-nichos.js faz no mockup de 04/10 com OBS.setNiche. Viagem e IA já existem em todo site;
  *  - competitor_readings (model 'Gemma 12B'; oracle ids inside are rewritten to the seeded uuids; the latest `temas`
  *    reading per niche carries the video → theme evidence the loader reads);
  *  - youtube_intelligence_tasks: the oracle's history requests always; with opts.forjaState, also the requests of
@@ -56,6 +58,33 @@ export interface SeedOptions {
   noReadings?: boolean
   /** Canais próprios do estado do mockup novo (mockup.js PRESETS). Ausente = o seed de antes: um canal próprio, sem os extras. */
   ownPreset?: OwnPreset
+  /** Um nicho criado pelo dono, com UM concorrente (id do oráculo) movido para ele. Atalho de extraNiches com um item. */
+  extraNiche?: { slug: string; label: string; channel: string }
+  /** Nichos criados pelo dono, na ordem de criação (sort_order 30, 40, …; cores da paleta em ciclo, ou `tone`). */
+  extraNiches?: ExtraNiche[]
+}
+export type NicheTone = 'ameixa' | 'rosa' | 'lima' | 'ardosia'
+export interface ExtraNiche { slug: string; label: string; tone?: NicheTone; /** concorrentes (ids do oráculo) movidos para o nicho; vazio = nicho recém-criado */ channels?: string[] }
+/** A paleta aprovada dos nichos criados (a do CHECK de youtube_niches e de n-nichos.js), na ordem do ciclo. */
+export const NICHE_TONES: Record<NicheTone, { dark: string; light: string }> = {
+  ameixa: { dark: '#D29AE8', light: '#7B2A91' }, rosa: { dark: '#F293C2', light: '#A3216B' },
+  lima: { dark: '#B9CB62', light: '#55650B' }, ardosia: { dark: '#AAB4C0', light: '#4B5563' },
+}
+const TONE_CYCLE: NicheTone[] = ['ameixa', 'rosa', 'lima', 'ardosia']
+const BUILTIN_SLUGS = ['viagem', 'ia']
+/**
+ * Cópia de EXTRA / PRESETS de n-nichos.js (docs/superpowers/mockups/2026-10-04-multi-canal/observatorio-n-nichos):
+ * os nichos de cada estado "Nichos do site" (?nichos=3|4|6) e os concorrentes que o mockup move para eles.
+ */
+const MOCK_NICHES: Record<string, ExtraNiche> = {
+  jogos: { slug: 'jogos', label: 'Jogos', tone: 'ameixa', channels: ['preguica-artificial', 'the-ai-advantage'] },
+  pessoal: { slug: 'pessoal', label: 'Pessoal', tone: 'rosa', channels: [] },
+  culinaria: { slug: 'culinaria', label: 'Culinária', tone: 'lima', channels: ['paddy-doyle'] },
+  financas: { slug: 'financas', label: 'Finanças', tone: 'ardosia', channels: [] },
+}
+export const NICHE_PRESETS: Record<'3' | '4' | '6', ExtraNiche[]> = {
+  '3': [MOCK_NICHES.jogos!], '4': [MOCK_NICHES.jogos!, MOCK_NICHES.pessoal!],
+  '6': [MOCK_NICHES.jogos!, MOCK_NICHES.pessoal!, MOCK_NICHES.culinaria!, MOCK_NICHES.financas!],
 }
 
 /** The mockup clock (dados.js NOW_ISO). Also the webServer's OBS_NOW_OVERRIDE. */
@@ -69,7 +98,7 @@ interface OTitle extends OVersion { text: string }
 interface OThumb extends OVersion { key: string }
 interface ODesc extends OVersion { lines: string[] | null; hasText: boolean }
 interface OSync { state: 'ok' | 'atrasado' | 'erro' | 'backfill'; last: number | null; msg: string | null; errorSince: number | null; added: number | null; backfill: { done: number; total: number } | null }
-interface OChannel { id: string; name: string; niche: 'viagem' | 'ia' | null; own: boolean; lang: string; subs: number; video_limit: number; handle: string; sync: OSync; snapshots: Array<{ date: string; subs: number; views: number }> }
+interface OChannel { id: string; name: string; niche: string | null; own: boolean; lang: string; subs: number; video_limit: number; handle: string; sync: OSync; snapshots: Array<{ date: string; subs: number; views: number }> }
 interface OVideo {
   id: string; ch: string; niche?: string | null; fmt: 'long' | 'short'; pub: number; ageDays: number; dur: string; ytId: string; title: string; theme: string | null
   views: number | null; viewsAt: number | null; likes: number | null; comments: number | null
@@ -102,7 +131,7 @@ interface OracleData {
  * import.meta.url, and Playwright compiles this package (no "type": "module") to CommonJS, where import.meta is a
  * SyntaxError. __dirname works under both Playwright and Vitest.
  */
-function loadOracleData(preset?: OwnPreset): { O: OracleData; nicheOf: Map<string, 'viagem' | 'ia'> } {
+function loadOracleData(preset?: OwnPreset): { O: OracleData; nicheOf: Map<string, string> } {
   const ctx: Record<string, unknown> = { console: { log() {}, error() {} } }
   const dir = path.resolve(__dirname, '../../test/fixtures/observatorio')
   vm.createContext(ctx)
@@ -115,7 +144,7 @@ function loadOracleData(preset?: OwnPreset): { O: OracleData; nicheOf: Map<strin
     if (!ctx.__SEGUNDO_CANAL || missing.length) throw new Error('observatorio-seed: segundo-canal.cjs não injetou os canais extras' + (missing.length ? ': ' + missing.join(', ') : ''))
   }
   // the oracle's own niche of every channel, kept before the preset empties it for the channels "sem nicho"
-  const nicheOf = new Map<string, 'viagem' | 'ia'>()
+  const nicheOf = new Map<string, string>()
   for (const c of O.channels) if (c.niche) nicheOf.set(c.id, c.niche)
   if (preset) applyOwnPreset(O, preset)
   return { O, nicheOf }
@@ -212,6 +241,12 @@ export async function clearObservatory(siteId: string, client?: SupabaseClient):
   await check('delete competitor_settings', sb.from('competitor_settings').delete().eq('site_id', siteId))
   await check('delete youtube_videos', sb.from('youtube_videos').delete().eq('site_id', siteId).in('channel_id', ownIds))
   await check('delete youtube_channels', sb.from('youtube_channels').delete().eq('site_id', siteId).in('id', ownIds))
+  // last (the FKs demand it): the niches the owner created. Viagem and IA stay (every site has them). A niche still
+  // used by a channel the seed did not write (a developer's own channel on the local site) is left alone, not forced.
+  const kept = await sb.from('youtube_channels').select('niche').eq('site_id', siteId).not('niche', 'is', null)
+  if (kept.error) throw new Error('observatorio-seed: read youtube_channels failed: ' + kept.error.message)
+  const keep = [...new Set([...BUILTIN_SLUGS, ...(kept.data ?? []).map(r => String((r as { niche: string }).niche))])]
+  await check('delete youtube_niches', sb.from('youtube_niches').delete().eq('site_id', siteId).not('slug', 'in', '(' + keep.map(k => '"' + k + '"').join(',') + ')'))
 }
 
 /**
@@ -232,11 +267,26 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
   const sb = clientOf(client)
   const { O, nicheOf } = loadOracleData(opts.ownPreset)
   const ownChs = O.channels.filter(c => c.own)
-  // refused, never bent: relaxing the constraint or changing a channel's locale would seed a state that is not the mockup's
-  if (new Set(ownChs.map(localeOf)).size !== ownChs.length) {
-    throw new Error(`observatorio-seed: o preset ${opts.ownPreset} precisa de dois canais próprios com o mesmo locale; youtube_channels tem UNIQUE(site_id, locale) (plano multi-canal)`)
+  // niches the owner created: validated BEFORE any write, so a bad option never leaves the site half seeded
+  const extras: ExtraNiche[] = [...(opts.extraNiche ? [{ slug: opts.extraNiche.slug, label: opts.extraNiche.label, channels: [opts.extraNiche.channel] }] : []), ...(opts.extraNiches ?? [])]
+  const movedTo = new Map<string, string>()
+  for (const n of extras) {
+    if (BUILTIN_SLUGS.includes(n.slug) || extras.filter(x => x.slug === n.slug).length > 1) throw new Error('observatorio-seed: nicho extra repetido ou de fábrica: ' + JSON.stringify(n.slug))
+    for (const ch of n.channels ?? []) {
+      const c = O.channels.find(x => x.id === ch)
+      if (!c || c.own) throw new Error(`observatorio-seed: o nicho ${n.slug} pede o concorrente ${JSON.stringify(ch)}, que não existe no oráculo`)
+      if (movedTo.has(ch)) throw new Error(`observatorio-seed: o concorrente ${ch} está em dois nichos extras`)
+      movedTo.set(ch, n.slug)
+    }
   }
+  // as OBS.setNiche in the mockup: the channel changes niche, and its videos follow it
+  for (const c of O.channels) if (movedTo.has(c.id)) c.niche = movedTo.get(c.id)!
+  for (const v of O.videos) if (movedTo.has(v.ch) && v.niche !== undefined) v.niche = movedTo.get(v.ch)!
   await clearObservatory(siteId, sb)
+  await insertAll(sb, 'youtube_niches', extras.map((n, i) => {
+    const c = NICHE_TONES[n.tone ?? TONE_CYCLE[i % TONE_CYCLE.length]!]
+    return { site_id: siteId, slug: n.slug, label: n.label, color_dark: c.dark, color_light: c.light, sort_order: 30 + i * 10 }
+  }))
 
   const SS = O.SERIES_START
   const U = (kind: string, id: string) => seedUuid(siteId, kind, id)
@@ -332,7 +382,7 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
   /* own channels (no series, no versions: production keeps neither for them); `niche` is null for the preset's "sem nicho" */
   await insertAll(sb, 'youtube_channels', ownChs.map(c => ({
     id: ids.get(c.id), site_id: siteId, channel_id: 'UC' + sha1('own|' + c.id).slice(0, 22), handle: c.handle, locale: localeOf(c),
-    name: c.name, niche: c.niche, uploads_playlist_id: 'UU' + sha1('own|' + c.id).slice(0, 22), subscriber_count: c.subs,
+    slug: c.id, name: c.name, niche: c.niche, uploads_playlist_id: 'UU' + sha1('own|' + c.id).slice(0, 22), subscriber_count: c.subs,
     last_synced_at: iso(c.sync.last), created_at: iso(c.sync.added ?? O.OBS_START),
   })))
   await insertAll(sb, 'youtube_videos', ownVideos.map(v => ({

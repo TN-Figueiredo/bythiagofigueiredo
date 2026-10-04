@@ -10,7 +10,7 @@ import { viewsAtIdx, type EngineCtx, type Derived } from './series'
 import { DAY } from './time'
 import { THEMES, THEME } from './catalog'
 export { FORMULAS, FORMULA, formulasOf, THEMES, THEME, type Formula, type Theme } from './catalog'
-import { FORMULAS, formulasOf } from './catalog'
+import { formulasFor, formulasOf } from './catalog'
 
 type V = ObsVideo & Derived
 type Ch = ObsChannel & { videos: ObsVideo[] }
@@ -135,7 +135,7 @@ export function ownChannelOf(ctx: EngineCtx, niche?: NicheScope, explicit?: stri
   const tracked = (c: Ch) => c.videos.filter(v => v.tracked).length
   return [...owns].sort((a, b) => tracked(b) - tracked(a))[0]
 }
-/** Canais próprios na ordem R73: inscritos, maior primeiro; depois nome (pt-BR); depois id. niche: undefined | 'todos' → todos; 'viagem' | 'ia' → os daquele nicho; null → os sem nicho. */
+/** Canais próprios na ordem R73: inscritos, maior primeiro; depois nome (pt-BR); depois id. niche: undefined | 'todos' → todos; um nicho → os daquele nicho; null → os sem nicho. */
 export function ownChannels(ctx: EngineCtx, niche?: NicheScope | null): Ch[] {
   const all = [...ctx.CH.values()].filter(c => c.own)
   const list = niche === undefined || niche === 'todos' ? all : all.filter(c => c.niche === niche)
@@ -251,7 +251,7 @@ function dominantTheme(list: BaseVideo[]): { theme: string | null; n?: number; t
 export function analyzePatterns(ctx: EngineCtx, base: { niche: NicheScope | undefined; videos: BaseVideo[] }) {
   const { fmt } = ctx
   const ok = base.videos.filter(v => !v.weak), outs = ok.filter(v => v.mult >= RULES.outlierMin)
-  const pats = FORMULAS.filter(f => f.niches.includes(base.niche as never)).map(f => {
+  const pats = formulasFor(base.niche).map(f => {
     const use = ok.filter(v => v.formulas.includes(f.id)), not = ok.filter(v => !v.formulas.includes(f.id))
     const medUse = median(use.map(v => v.mult)), medNot = median(not.map(v => v.mult))
     const diff = medUse != null && medNot != null ? medUse - medNot : null

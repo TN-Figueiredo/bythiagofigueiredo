@@ -1,9 +1,10 @@
 import type { Dataset, ObsChannel, ObsVideo, Fmt as VideoFmt } from './types'
-import type { NicheScope } from './niche'
+import { BUILTIN_NICHES, forjaOrder, nicheLabel, tabOrder, type NicheDef, type NicheScope } from './niche'
+export type { NicheDef, NicheScope } from './niche'
 export type { Dataset } from './types'
 import { createClock, type Clock } from './time'
 import { createFmt, type Fmt } from './fmt'
-import { RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, NICHES, bandOf, winOf, tierOf } from './rules'
+import { RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, bandOf, winOf, tierOf } from './rules'
 import { median, quant } from './stats'
 import { viewsAtIdx, rate, vpdSince, vpd7, periodRate, expectedCurve, type Derived, type PeriodRate, type ExpectedCurve } from './series'
 import { diffLines, titleDiff } from './text-diff'
@@ -14,10 +15,10 @@ import type { SyncRun, SyncToast } from './channels'
 import { cadence, channelStats, channelSlots, syncText, runSyncText, syncResultToast, problemLabel, problemPhrase, syncLabel } from './channels'
 import { deriveChanges, changesIn, caveats, REWRITE_GROUPS, type ObsChange } from './changes'
 import { link } from './links'
-import { FORMULAS, FORMULA, THEMES, THEME, formulasOf, type Formula, type Theme } from './catalog'
+import { FORMULAS, FORMULA, THEMES, THEME, formulasOf, hasThemes, type Formula, type Theme } from './catalog'
 import { heatmap, nicheStats, themeTrend, ownCoverage, patternsNow, ownChannels, nicheRef, ownNicheStats, type NicheRef, type OwnNicheStats } from './insights'
 import type { ForjaRequest, FrozenReading, Niche, RequestState, Fmt as ReadingFmt } from './types'
-import { REQUEST_STATES, STATES, FORJA_QUEUE, machineOf, summarize, compose as composeScenario, statusLabel, queueOrder, type Machine, type Scenario, type NewRequest } from './forja/states'
+import { REQUEST_STATES, STATES, FORJA_QUEUE, quotaScopeText, machineOf, summarize, compose as composeScenario, statusLabel, queueOrder, type Machine, type NicheCtx, type Scenario, type NewRequest } from './forja/states'
 import { createSession, type SessionScope, type SessionTarget, type AskOutcome, type SessionOpts } from './forja/session'
 import { quotaFor, type QuotaStatus } from './forja/quota'
 import { eligibleChannels, readingScope, readingTypes, readingTypeFor, latest, timing, SHORTS_NOTE, type ForjaCtx, type Eligible, type ReadingScope, type ScopeFilter, type Timing, type ReadingTypeWithTiming } from './forja/scope'
@@ -66,6 +67,15 @@ export interface ForjaFacade {
   readingScope(id: string, filt?: ScopeFilter | null): ReadingScope | null
   timing(type: string, niche?: Niche | 'todos' | null, o?: { count?: number } | null): Timing
   readingTypes: ReadingTypeWithTiming[]; readingTypeFor: typeof readingTypeFor; shortsNote: string
+  /** Os nichos em que um pedido "Todos" se divide, na ordem da forja (IA, Viagem, depois os demais): só os que têm concorrente. */
+  niches: Niche[]
+  /**
+   * Há o que pedir para o nicho? Só quando ele tem ao menos um concorrente (vale para todo nicho, de fábrica ou criado):
+   * sem isso o botão fica desabilitado com "Nenhum concorrente em <Nicho> ainda" e nada é enviado.
+   */
+  askable(niche: Niche): boolean
+  /** Os nichos do site para quem planeja um pedido fora da fachada (services/forja-queue → planAsk). */
+  nicheCtx: NicheCtx
   /** The frozen data one request sends to the forja (capped at RULES.forja.maxVideos). */
   buildSent(type: string, target: SentTarget): SentPack
   /** Present only when test scenarios are injected (createObservatory(ds, { testScenarios })). */
@@ -91,13 +101,28 @@ export interface Observatory {
   phaseOf(x: string | { id: string }, o?: { m7?: number | null }): Phase; PHASES: Phase[]
   outliers(q?: OutlierQuery): OutliersResult; tabCounts(niche?: NicheScope): { canais: number; mud: number; out: number }
   integrity: { ok: boolean; errors: string[] }
-  TAB_TITLES: typeof TAB_TITLES; TAB_COUNTS: Record<NicheScope, { canais: number; mud: number; out: number }>
+  /** 'todos' + cada nicho do site, na ordem das abas. */
+  TAB_TITLES: typeof TAB_TITLES; TAB_COUNTS: Record<string, { canais: number; mud: number; out: number }>
   changes: ObsChange[]; forja: ForjaFacade
-  RULES: typeof RULES; AGE_BANDS: typeof AGE_BANDS; OUT_WINDOWS: typeof OUT_WINDOWS; DEFAULT_AGES: typeof DEFAULT_AGES; NICHES: typeof NICHES
+  RULES: typeof RULES; AGE_BANDS: typeof AGE_BANDS; OUT_WINDOWS: typeof OUT_WINDOWS; DEFAULT_AGES: typeof DEFAULT_AGES
+  /** Os nichos do site por slug (montado do dataset). Para rótulo e cor use nicheLabel / nicheColor: nunca lançam. */
+  NICHES: Readonly<Record<string, NicheDef>>
+  /** Os nichos do site, na ordem das abas (os de fábrica primeiro, depois os criados pelo dono). */
+  niches: NicheDef[]
+  /** Rótulo do nicho; o próprio slug quando ele não existe (mais) na lista. */
+  nicheLabel(n: Niche): string
+  /** Cor (escuro / claro) do nicho; null quando ele não existe na lista. */
+  nicheColor(n: Niche): { dark: string; light: string } | null
+  /** O escopo a mostrar: 'todos' ou um nicho do site. Nicho desconhecido (salvo e apagado depois, URL velha) → 'todos'. */
+  scopeOf(n: NicheScope | null | undefined): NicheScope
+  /** O nicho tem lista de temas? (só os de fábrica, hoje) */
+  hasThemes(n: Niche): boolean
+  /** O nicho tem ao menos um concorrente? (sem concorrente a forja não tem o que ler) */
+  hasCompetitors(n: Niche): boolean
   date: Clock; fmt: Fmt; median: typeof median; quant: typeof quant; bandOf: typeof bandOf; winOf: typeof winOf; tierOf: typeof tierOf
   cadence: (id: string, f?: VideoFmt) => ReturnType<typeof cadence>; channelStats: (id: string, f?: VideoFmt) => ReturnType<typeof channelStats>
   channelSlots(limit?: number): ReturnType<typeof channelSlots>; syncText(id: string): string; runSyncText: typeof runSyncText
-  /** Product text of a manual sync run (R40); problems sorted Viagem before IA. */
+  /** Product text of a manual sync run (R40); problems sorted in the niche tab order (Viagem before IA). */
   syncResultToast(run: SyncRun): SyncToast
   SYNC: { last: number | null; next: number | null; text: string; title: string; nextText: string | null; cadence: string; cadenceHours: number; slots: number[]; dailyBefore: string }
   formulas: ReadonlyArray<Formula>; formula(id: string): Formula | undefined; formulasOf: typeof formulasOf; themes: ReadonlyArray<Theme>; theme(id: string): Theme | undefined
@@ -112,7 +137,24 @@ export interface Observatory {
   link: typeof link
   LAST_IDX: number; TZ: string; TZ_LABEL: string; SERIES_START_LABEL: string
 }
-export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: string; testScenarios?: (env: ScenarioEnv) => TestScenarios }): Observatory {
+/** Os nichos do dataset na ordem das abas; sem lista (ou lista vazia) valem os dois de fábrica. */
+function nichesOf(ds: Dataset): NicheDef[] {
+  const defs = ds.niches && ds.niches.length ? ds.niches : BUILTIN_NICHES
+  const order = tabOrder(defs)
+  return order.map(id => defs.find(d => d.id === id)!)
+}
+/**
+ * Um canal (ou vídeo) que aponta para um nicho fora da lista não some: fica sem nicho, e aparece em Todos e no grupo
+ * "Sem nicho". Devolve o próprio dataset quando não há o que acertar; nunca altera a entrada.
+ */
+function withKnownNiches(ds: Dataset, known: ReadonlySet<string>): Dataset {
+  const bad = (x: { niche: string | null }) => x.niche != null && !known.has(x.niche)
+  if (!ds.channels.some(bad) && !ds.videos.some(bad)) return ds
+  return { ...ds, channels: ds.channels.map(c => (bad(c) ? { ...c, niche: null } : c)), videos: ds.videos.map(v => (bad(v) ? { ...v, niche: null } : v)) }
+}
+export function createObservatory(input: Dataset, opts?: { seriesStartLabel?: string; testScenarios?: (env: ScenarioEnv) => TestScenarios }): Observatory {
+  const niches = nichesOf(input), nicheIds = niches.map(n => n.id), known: ReadonlySet<string> = new Set(nicheIds)
+  const ds = withKnownNiches(input, known)
   const clock = createClock(ds.now, ds.seriesStart, ds.snap0)
   let maxT = -Infinity
   for (const v of ds.videos) for (const p of v.series) if (p.t > maxT) maxT = p.t
@@ -127,7 +169,7 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
   // The frozen readings by id: since/readingScope/outliers({reading}) read them; scenario readings join it in tests.
   // A null-prototype dictionary: reading ids are data, never inherited keys ("constructor", "__proto__").
   const READ: Record<string, FrozenReading> = Object.assign(Object.create(null) as Record<string, FrozenReading>, Object.fromEntries(ds.readings.map(r => [r.id, r])))
-  const ctx: ForjaCtx = { ds: { ...ds, videos }, clock, fmt, CH, V, CHG: new Map(), READ, lastIdx: LAST_IDX }
+  const ctx: ForjaCtx = { ds: { ...ds, videos }, clock, fmt, CH, V, CHG: new Map(), READ, lastIdx: LAST_IDX, niches }
   for (const v of videos) { v.vpd = vpdSince(ctx, v); v.vpd7 = vpd7(ctx, v) }
   for (const v of videos) v.mult = multiplierAt(ctx, v, null)
   // Derived channel labels (dados.js:415, 1966-1985). Written on the engine's own copies, never on the input.
@@ -138,20 +180,24 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
     if (c.sync.last != null) c.syncAgeHours = (ds.now - c.sync.last) / 36e5
   }
   const changes = deriveChanges(ctx)
-  const TAB_COUNTS = { todos: tabCounts(ctx, 'todos'), viagem: tabCounts(ctx, 'viagem'), ia: tabCounts(ctx, 'ia') }
+  const scopes: NicheScope[] = ['todos', ...nicheIds]
+  const TAB_COUNTS: Record<string, { canais: number; mud: number; out: number }> = Object.fromEntries(scopes.map(n => [n, tabCounts(ctx, n)]))
   // Load-time assertion (dados.js:1952): the derived tab counts must match an independent recount.
   const integrity: { ok: boolean; errors: string[] } = { ok: true, errors: [] }
-  for (const n of ['todos', 'viagem', 'ia'] as const) {
+  for (const n of scopes) {
     const inN = (x: { niche: string | null }) => n === 'todos' || x.niche === n
     const want = {
       canais: ds.channels.filter(c => !c.own && inN(c)).length,
       mud: changes.filter(c => c.at > ds.now - 30 * 864e5 && inN(c) && !CH.get(c.ch)!.own).length,
       out: videos.filter(v => v.tracked && v.fmt === 'long' && inN(v) && !CH.get(v.ch)!.own && v.ageDays <= 90 && v.mult!.value != null && v.mult!.value >= 2 && !v.mult!.weak).length,
     }
-    for (const k of ['canais', 'mud', 'out'] as const) if (TAB_COUNTS[n][k] !== want[k]) { integrity.ok = false; integrity.errors.push('tabCounts(' + n + ').' + k + ' = ' + TAB_COUNTS[n][k] + ', esperado ' + want[k]) }
+    for (const k of ['canais', 'mud', 'out'] as const) if (TAB_COUNTS[n]![k] !== want[k]) { integrity.ok = false; integrity.errors.push('tabCounts(' + n + ').' + k + ' = ' + TAB_COUNTS[n]![k] + ', esperado ' + want[k]) }
   }
   const vid = (id: string) => { const v = V.get(id); if (!v) throw new Error('unknown video ' + id); return v }
-  const forja = createForja(ctx, ds, clock, CH, V, opts?.testScenarios)
+  const hasCompetitors = (n: Niche) => ds.channels.some(c => !c.own && c.niche === n)
+  // sem concorrente a forja não tem o que ler: o pedido do nicho é recusado e ele fica fora da divisão de "Todos"
+  const askable = hasCompetitors
+  const forja = createForja(ctx, ds, clock, CH, V, { defs: niches, todos: forjaOrder(niches).filter(askable) }, askable, opts?.testScenarios)
   return {
     NOW: ds.now, SERIES_START: ds.seriesStart, OBS_START: ds.obsStart, DAY: 864e5, H: 36e5,
     channels: [...CH.values()], videos, channel: id => CH.get(id), video: id => V.get(id),
@@ -163,14 +209,17 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
     multiplier: id => vid(id).mult!, multiplierAt: (id, t) => multiplierAt(ctx, vid(id), t), multiplierCard: id => multiplierCardText(ctx, vid(id).mult!),
     phaseOf: (x, o) => phaseOf(ctx, vid(typeof x === 'string' ? x : x.id), o), PHASES: phases(ctx),
     outliers: q => outliers(ctx, q), tabCounts: n => tabCounts(ctx, n), TAB_TITLES, TAB_COUNTS, integrity,
-    RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, NICHES, date: clock, fmt, median, quant, bandOf, winOf, tierOf,
+    RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, NICHES: Object.fromEntries(niches.map(n => [n.id, n])), niches,
+    nicheLabel: n => nicheLabel(niches, n), nicheColor: n => { const d = niches.find(x => x.id === n); return d ? { dark: d.color.dark, light: d.color.light } : null },
+    scopeOf: n => (n === 'todos' || (n != null && known.has(n)) ? n : 'todos'), hasThemes, hasCompetitors,
+    date: clock, fmt, median, quant, bandOf, winOf, tierOf,
     SYNC: { last, next, text: last == null ? 'nunca sincronizado' : 'sincronizado ' + clock.ago(last), title: last == null ? 'nunca sincronizado' : clock.dm(last) + ' ' + clock.hm(last) + ' (SP)', nextText: next ? 'próxima às ' + clock.hm(next) : null,
       // 6 h slots rule (dados.js:1963); the mockup fixes it in data, production fixes it in the cron schedule.
       cadence: 'a cada 6 h (00, 06, 12, 18) desde ' + clock.dm(ds.seriesStart) + '; diária às 09:00 antes', cadenceHours: 6, slots: [0, 6, 12, 18], dailyBefore: '09:00' },
     LAST_IDX, TZ: 'America/Sao_Paulo', TZ_LABEL: 'Horários em São Paulo', SERIES_START_LABEL: clock.dm(ds.seriesStart),
     cadence: (id, f) => cadence(ctx, id, f), channelStats: (id, f) => channelStats(ctx, id, f), channelSlots: (limit = RULES.channelLimit) => channelSlots(ctx, limit),
     syncText: id => syncText(ctx, CH.get(id)!), runSyncText,
-    syncResultToast: run => syncResultToast(run, id => { const c = CH.get(id); return c ? { name: c.name, niche: c.niche } : undefined }),
+    syncResultToast: run => syncResultToast(run, id => { const c = CH.get(id); return c ? { name: c.name, niche: c.niche } : undefined }, nicheIds),
     formulas: FORMULAS, formula: id => FORMULA[id], formulasOf, themes: THEMES, theme: id => THEME[id],
     heatmap: (n, f) => heatmap(ctx, n, f), nicheStats: (n, f, o) => nicheStats(ctx, n, f, o), themeTrend: (n, f) => themeTrend(ctx, n, f), ownCoverage: (f, o) => ownCoverage(ctx, f, o), patternsNow: (n, f) => patternsNow(ctx, n, f),
     ownChannels: n => ownChannels(ctx, n), nicheRef: (n, f) => nicheRef(ctx, n, f), ownNicheStats: (n, f, ids) => ownNicheStats(ctx, n, f, ids),
@@ -179,7 +228,7 @@ export function createObservatory(ds: Dataset, opts?: { seriesStartLabel?: strin
   }
 }
 
-function createForja(ctx: ForjaCtx, ds: Dataset, clock: Clock, CH: Map<string, ObsChannel>, V: Map<string, ObsVideo>, testScenarios?: (env: ScenarioEnv) => TestScenarios): ForjaFacade {
+function createForja(ctx: ForjaCtx, ds: Dataset, clock: Clock, CH: Map<string, ObsChannel>, V: Map<string, ObsVideo>, nx: NicheCtx, askable: (n: Niche) => boolean, testScenarios?: (env: ScenarioEnv) => TestScenarios): ForjaFacade {
   const lastPollAt = ds.queue.lastPollAt
   const machine = machineOf(lastPollAt, clock)
   const tests = testScenarios?.({ clock, videoNiche: id => V.get(id)?.niche ?? null, lastPollAt: lastPollAt ?? clock.now, tickMinutes: ds.queue.tickMinutes, registerReading: r => { ctx.READ[r.id] = r } })
@@ -187,7 +236,7 @@ function createForja(ctx: ForjaCtx, ds: Dataset, clock: Clock, CH: Map<string, O
     capabilities: ds.queue.capabilities, eligible: n => eligibleChannels(ctx, n),
     // own videos are not in competitor_videos (the request's target): no niche = nothing to ask (final review F1)
     videoOf: id => { const v = V.get(id); return v ? { niche: CH.get(v.ch)?.own ? null : v.niche, title: v.title } : undefined },
-    defaultType: type, defaultVideo: video,
+    defaultType: type, defaultVideo: video, niches: nx, askable, hasThemes,
     // the mockup's single-niche scenario has its own times (see SessionOpts.singleBase); only with test scenarios
     singleBase: tests && base !== 'sem pedido' ? (n, t) => tests.build(base, { niche: n, type: t })?.requests ?? null : undefined,
   })
@@ -216,18 +265,21 @@ function createForja(ctx: ForjaCtx, ds: Dataset, clock: Clock, CH: Map<string, O
     replay: () => state(), state,
   }
   const requests = [...ds.requests]
-  if (tests) for (const st0 of tests.requestStates) { const b = tests.build(st0, { type: 'padroes-titulo', niche: 'ia' }); if (b) requests.push(summarize(b.requests, b.machine, false, clock).request!) }
+  // the quota sentence names the site's niches (the built-in pair gives the sentence of dados.js)
+  const quotaScope = { ...FORJA_QUEUE.quotaScope, text: quotaScopeText(nx.defs.map(d => d.label)) }
+  if (tests) for (const st0 of tests.requestStates) { const b = tests.build(st0, { type: 'padroes-titulo', niche: 'ia' }); if (b) requests.push(summarize(b.requests, b.machine, false, clock, nx).request!) }
   return {
     readings: ds.readings, requests, requestStates: tests ? tests.requestStates : REQUEST_STATES, states: STATES,
-    queue: { ...FORJA_QUEUE, lastPollAt, capabilities: ds.queue.capabilities }, quotaScope: FORJA_QUEUE.quotaScope,
-    compose: (b, r, o) => composeScenario(b, r, { ...(o || {}), machine }, clock),
+    queue: { ...FORJA_QUEUE, quotaScope, lastPollAt, capabilities: ds.queue.capabilities }, quotaScope,
+    compose: (b, r, o) => composeScenario(b, r, { ...(o || {}), machine, niches: nx }, clock),
     session, quotaFor: (type, niche) => quotaFor(ds.requests, type, niche, clock.now, clock),
-    statusLabel: (r, o) => statusLabel(r, clock, { machine, ...(o || {}) }), queueOrder,
+    statusLabel: (r, o) => statusLabel(r, clock, { machine, niches: nx, ...(o || {}) }), queueOrder,
     byId: ctx.READ, latest: (type, niche) => latest(ds.readings, type, niche), since: id => since(ctx, id), eligibleChannels: n => eligibleChannels(ctx, n),
     preview: (type, niche, f) => preview(ctx, type, niche, f), readingScope: (id, filt) => readingScope(ctx, id, filt),
-    timing: (type, niche, o) => timing(requests, type, niche, o), readingTypes: readingTypes(requests), readingTypeFor, shortsNote: SHORTS_NOTE,
+    timing: (type, niche, o) => timing(requests, type, niche, o), readingTypes: readingTypes(requests, forjaOrder(nx.defs)), readingTypeFor, shortsNote: SHORTS_NOTE,
+    niches: [...(nx.todos ?? forjaOrder(nx.defs))], nicheCtx: nx, askable,
     buildSent: (type, target) => buildSentCtx(ctx, type, target),
     ...(tests && tests.scenarioReadings ? { scenarioReadings: tests.scenarioReadings } : {}),
-    ...(tests ? { requestScenario: (st0: string, t?: ScenarioTarget) => { const b = tests.build(st0, t); return b ? summarize(b.requests, b.machine, b.scopeTodos, clock) : null } } : {}),
+    ...(tests ? { requestScenario: (st0: string, t?: ScenarioTarget) => { const b = tests.build(st0, t); return b ? summarize(b.requests, b.machine, b.scopeTodos, clock, nx) : null } } : {}),
   }
 }

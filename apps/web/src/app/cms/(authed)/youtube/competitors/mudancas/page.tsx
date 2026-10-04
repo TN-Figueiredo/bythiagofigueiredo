@@ -22,11 +22,13 @@ export default async function MudancasPage({ searchParams }: { searchParams: Pro
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
   const { siteId } = await getSiteContext()
-  const [obs, rows, niche] = await Promise.all([
+  const [obs, rows, asked] = await Promise.all([
     loadDataset({ siteId, now: observatoryNow() }).then(createObservatory),
     loadSwipeRows(siteId),
     parseNiche(flat.niche) ?? getUserNiche(),
   ])
+  // parseNiche checks the form; the engine says whether the niche exists (an unknown one opens in Todos)
+  const niche = obs.scopeOf(asked)
   const { saved, keys } = savedFromRows(obs, rows)
   const view = buildMudancasView(obs, { ...flat, niche }, saved, keys)
   return (

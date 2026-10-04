@@ -11,11 +11,14 @@
  */
 import { FORJA_TICK_MINUTES, LATE_AFTER_MINUTES, UNSERVED_AFTER_HOURS, MAX_ATTEMPTS, STALE_AFTER_MINUTES } from '../../analysis-progress'
 import { DAY, type Clock } from '../time'
-import { NICHES } from '../rules'
+import { BUILTIN_NICHES, forjaOrder, joinLabels, nicheLabel, tabOrder, type NicheDef } from '../niche'
 import type { ForjaRequest, Fmt, Niche, RequestState } from '../types'
 
 const MIN = 6e4, HOUR = 36e5
 
+/** "1 pedido por dia por tipo e por nicho (Viagem e IA separados). …": the niches' labels in the tab order. */
+export const quotaScopeText = (labels: readonly string[]): string =>
+  '1 pedido por dia por tipo e por nicho (' + joinLabels(labels) + ' separados). Com nicho Todos, o pedido vira um por nicho. Falha e recusa não contam na cota.'
 /** The queue rules (CONVENCOES "Fila"). Timing constants come from analysis-progress.ts, never duplicated. */
 export const FORJA_QUEUE = {
   LATE_AFTER_MINUTES, UNSERVED_AFTER_HOURS, STALE_RUNNING_MINUTES: STALE_AFTER_MINUTES,
@@ -23,7 +26,7 @@ export const FORJA_QUEUE = {
   HEARTBEAT_DEAD_MINUTES: 3 * FORJA_TICK_MINUTES,
   quotaPerDayPerType: 1, maxAttempts: MAX_ATTEMPTS, tickMinutes: FORJA_TICK_MINUTES,
   quotaNote: 'falha e recusa não contam na cota',
-  quotaScope: { perType: true, perNiche: true, text: '1 pedido por dia por tipo e por nicho (Viagem e IA separados). Com nicho Todos, o pedido vira um por nicho. Falha e recusa não contam na cota.' },
+  quotaScope: { perType: true, perNiche: true, text: quotaScopeText(tabOrder(BUILTIN_NICHES).map(n => nicheLabel(BUILTIN_NICHES, n))) as string },
 } as const
 
 /** Every state a request can be in, in the mockup's order (REQ_SCENARIOS keys). */
@@ -35,12 +38,20 @@ export const TERMINAL_STATES: readonly RequestState[] = ['publicado', 'falhou', 
 const NO_QUOTA: readonly RequestState[] = ['falhou', 'recusado (dado velho)']
 export const isActive = (q: { state: RequestState }): boolean => ACTIVE_STATES.includes(q.state)
 const isTerm = (q: { state: RequestState }) => TERMINAL_STATES.includes(q.state)
-const label = (n: Niche) => NICHES[n].label
+/**
+ * Os nichos do site para os textos da fila: os rótulos saem de `defs`; `todos` é a lista em que um pedido "Todos" se
+ * divide (a ordem da forja; o motor tira os nichos sem concorrente). Ausente = os dois de fábrica, como dados.js.
+ */
+export interface NicheCtx { defs: readonly NicheDef[]; todos?: readonly Niche[] }
+const BUILTIN_CTX: NicheCtx = { defs: BUILTIN_NICHES }
+const label = (n: Niche, nx: NicheCtx = BUILTIN_CTX) => nicheLabel(nx.defs, n)
+/** A lista de nichos de um pedido "Todos". */
+export const todosNiches = (nx: NicheCtx = BUILTIN_CTX): readonly Niche[] => nx.todos ?? forjaOrder(nx.defs)
 
 export interface Machine { lastPollAt: number | null; alive: boolean; tickMinutes: number; nextPollAt: number | null; text: string }
 export interface Quota {
   usedToday: number; perTypePerNiche: number; note: string; releasesAt: number | null; text: string
-  byNiche?: Partial<Record<Niche, { free: boolean; text: string }>>
+  byNiche?: Record<Niche, { free: boolean; text: string }>
 }
 export interface BlockedBy { video: string; title: string; statusLabel: string; reason: string }
 export interface MachineBusy { type: string; niche: Niche; video: string | null; since: number | null }
@@ -94,15 +105,15 @@ export function requestStateOf(task: TaskRow, machine: { lastPollAt: number | nu
 
 /* The single queue (one machine): short type names and the "atrás de" phrase across types (dados.js:1680-1687). */
 export const TYPE_SHORT: Record<string, string> = { 'padroes-titulo': 'padrões de título', 'padroes-titulo-shorts': 'padrões de título de Shorts', 'temas': 'temas', 'resumo-trocas': 'resumo das trocas', 'leitura-video': 'leitura de vídeo' }
-export function aheadNote(ahead: Pick<ForjaRequest, 'type' | 'niche'>, me: Pick<ForjaRequest, 'type'> | null): string {
+export function aheadNote(ahead: Pick<ForjaRequest, 'type' | 'niche'>, me: Pick<ForjaRequest, 'type'> | null, nx?: NicheCtx): string {
   const tA = ahead.type || 'padroes-titulo', tM = (me && me.type) || 'padroes-titulo'
-  if (tA === tM && tA !== 'leitura-video') return 'atrás do de ' + label(ahead.niche)
+  if (tA === tM && tA !== 'leitura-video') return 'atrás do de ' + label(ahead.niche, nx)
   if (tA === 'leitura-video' && tM === 'leitura-video') return 'atrás do pedido de leitura de outro vídeo'
-  return 'atrás do pedido de ' + TYPE_SHORT[tA] + ' de ' + label(ahead.niche)
+  return 'atrás do pedido de ' + TYPE_SHORT[tA] + ' de ' + label(ahead.niche, nx)
 }
 /** "O pedido de Viagem segue na fila desde 14:50. A recusa de IA não conta na cota; você pode pedir de novo a de IA agora." (F10) */
-export function againText(active: ForjaRequest, done: ForjaRequest, clock: Clock): string {
-  const na = label(active.niche), nd = label(done.niche)
+export function againText(active: ForjaRequest, done: ForjaRequest, clock: Clock, nx?: NicheCtx): string {
+  const na = label(active.niche, nx), nd = label(done.niche, nx)
   return 'O pedido de ' + na + ' segue ' + (active.state === 'trabalhando' ? 'em andamento desde ' + hmLoose(clock, active.claimedAt) : 'na fila desde ' + clock.hm(active.createdAt))
     + '. A ' + (done.state === 'falhou' ? 'falha' : 'recusa') + ' de ' + nd + ' não conta na cota; você pode pedir de novo a de ' + nd + ' agora.'
 }
@@ -121,8 +132,8 @@ const WAITING_FOR_NOTE: readonly RequestState[] = ['na fila', 'atrasado', 'sem m
  * The header label, ONLY in the CONVENCOES line-218 format ("na fila · pedido 14:58", "trabalhando desde 14:45", …),
  * with the hour of the event it names. `ahead` derives the queue suffix; otherwise the request's own `stateNote` is used.
  */
-export function statusLabel(q: ForjaRequest, clock: Clock, o: { machine: Pick<Machine, 'lastPollAt' | 'nextPollAt'>; prefixNiche?: boolean; ahead?: ForjaRequest | null }): string {
-  const noteText = o.ahead && WAITING_FOR_NOTE.includes(q.state) ? aheadNote(o.ahead, q) : q.stateNote
+export function statusLabel(q: ForjaRequest, clock: Clock, o: { machine: Pick<Machine, 'lastPollAt' | 'nextPollAt'>; prefixNiche?: boolean; ahead?: ForjaRequest | null; niches?: NicheCtx }): string {
+  const noteText = o.ahead && WAITING_FOR_NOTE.includes(q.state) ? aheadNote(o.ahead, q, o.niches) : q.stateNote
   const note = noteText ? ' (' + noteText + ')' : ''
   const at = (ms: number | null) => ms == null ? '—' : clock.hm(ms)
   let s: string
@@ -138,7 +149,7 @@ export function statusLabel(q: ForjaRequest, clock: Clock, o: { machine: Pick<Ma
     case 'recusado (dado velho)': s = 'recusado às ' + hmOr(q, 'refusedAt', clock); break
     default: s = q.state
   }
-  return (o.prefixNiche ? label(q.niche) + ': ' : '') + s
+  return (o.prefixNiche ? label(q.niche, o.niches) + ': ' : '') + s
 }
 
 /** Queue order (stable): active requests by createdAt (the one in front first), then the finished ones (dados.js:1639). */
@@ -183,7 +194,7 @@ const waitingOf = (q: ForjaRequest, now: number) => q.waitingMinutes ?? Math.rou
  * The canonical status text of requests as they stand (port of requestScenario's text branches, dados.js:1541-1589).
  * `reqs` in creation order: the first is the lead the sentence is about; the others follow it.
  */
-export function statusText(reqs: ForjaRequest[], machine: Machine, clock: Clock): string {
+export function statusText(reqs: ForjaRequest[], machine: Machine, clock: Clock, nx?: NicheCtx): string {
   const r0 = reqs[0]!, state = r0.state, split = reqs.length > 1
   const tick = machine.tickMinutes, lastPollAt = machine.lastPollAt, ord = r0.attempt + ' de ' + (r0.maxAttempts ?? MAX_ATTEMPTS)
   const nextPoll = machine.nextPollAt
@@ -205,7 +216,7 @@ export function statusText(reqs: ForjaRequest[], machine: Machine, clock: Clock)
     }
   }
   // Todos: the text agrees with the lines — each niche is cited with the state of its own line
-  const nm = (q: ForjaRequest) => label(q.niche), others = reqs.filter(q => q !== r0), names = reqs.map(nm).join(' e ')
+  const nm = (q: ForjaRequest) => label(q.niche, nx), others = reqs.filter(q => q !== r0), names = joinLabels(reqs.map(nm))
   // the plural only when every request failed the same canonical way (validator)
   const allValidatorFail = others.every(q => q.state === 'falhou') && reqs.every(q => failKindOf(q) === 'validador')
   const first = ({
@@ -222,7 +233,7 @@ export function statusText(reqs: ForjaRequest[], machine: Machine, clock: Clock)
       : 'O pedido de ' + nm(r0) + ' foi recusado às ' + hmOr(r0, 'refusedAt', clock) + '.',
   } as Record<RequestState, string>)[state]
   const other = others.find(isActive)
-  if (other && (state === 'falhou' || state === 'recusado (dado velho)')) return [first, againText(other, r0, clock)].join(' ')
+  if (other && (state === 'falhou' || state === 'recusado (dado velho)')) return [first, againText(other, r0, clock, nx)].join(' ')
   const tail = others.filter(q => !(state === 'sem máquina' && q.state === 'sem máquina') && !(state === 'falhou' && q.state === 'falhou' && allValidatorFail)).map(q => {
     const behind = q.stateNote ? ', ' + q.stateNote : ''
     if (q.state === 'falhou' && state === 'falhou' && failKindOf(q) !== 'validador') return failText(q, clock, nm(q))
@@ -250,10 +261,10 @@ const quotaOf = (reqs: ForjaRequest[], clock: Clock): Quota => {
 }
 
 /** Quota per niche (dados.js:1826-1838): an active or published request uses it; failure and refusal do not. */
-export function withQuota<S extends Scenario | null>(sc: S, scopeTodos: boolean, clock: Clock): S {
+export function withQuota<S extends Scenario | null>(sc: S, scopeTodos: boolean, clock: Clock, nx?: NicheCtx): S {
   if (!sc || !sc.quota) return sc
-  const reqs = sc.requests || [], niches: Niche[] = (sc.split || scopeTodos) ? ['ia', 'viagem'] : reqs.length ? [reqs[0]!.niche] : []
-  const byNiche: Partial<Record<Niche, { free: boolean; text: string }>> = {}
+  const reqs = sc.requests || [], niches: readonly Niche[] = (sc.split || scopeTodos) ? todosNiches(nx) : reqs.length ? [reqs[0]!.niche] : []
+  const byNiche: Record<Niche, { free: boolean; text: string }> = {}
   for (const n of niches) {
     const q = reqs.find(r => r.niche === n)
     byNiche[n] = !q ? { free: true, text: 'cota livre' }
@@ -262,7 +273,7 @@ export function withQuota<S extends Scenario | null>(sc: S, scopeTodos: boolean,
       : { free: false, text: 'cota usada pelo pedido das ' + clock.hm(q.createdAt) }
   }
   sc.quota = { ...sc.quota, byNiche }
-  if (niches.length > 1) sc.quota.text = niches.map(n => label(n) + ': ' + byNiche[n]!.text).join(' · ')
+  if (niches.length > 1) sc.quota.text = niches.map(n => label(n, nx) + ': ' + byNiche[n]!.text).join(' · ')
   return sc
 }
 
@@ -271,23 +282,23 @@ const creationOrder = (reqs: ForjaRequest[]) => reqs.map((q, i) => [q, i] as con
   .sort(([a, i], [b, j]) => (a.createdAt - b.createdAt) || ((a.seq != null && b.seq != null) ? a.seq - b.seq : 0) || (i - j)).map(([q]) => q)
 
 /** requestScenario's summarising half, without the per-niche quota (the session decorates at its outer layer). */
-export function describeRequests(requests: ForjaRequest[], machine: Machine, clock: Clock): Scenario {
+export function describeRequests(requests: ForjaRequest[], machine: Machine, clock: Clock, nx?: NicheCtx): Scenario {
   const reqs = creationOrder(requests).map(q => ({ ...q }))
   for (const q of reqs) if (q.waitingMinutes == null && isActive(q) && q.state !== 'trabalhando') q.waitingMinutes = waitingOf(q, clock.now)
   const r0 = reqs[0]!, state = r0.state, split = reqs.length > 1
   // The queue suffix (fix round 1): a waiting request behind an active lead is "atrás do …" the lead, derived here so
   // DB rows (which carry no stateNote) read exactly like the canonical scenario. Same rule as the mockup's generator.
-  if (isActive(r0)) for (const q of reqs.slice(1)) if (q.stateNote == null && WAITING_FOR_NOTE.includes(q.state)) { q.stateNote = aheadNote(r0, q); q.behind = r0.id }
-  const text = statusText(reqs, machine, clock)
+  if (isActive(r0)) for (const q of reqs.slice(1)) if (q.stateNote == null && WAITING_FOR_NOTE.includes(q.state)) { q.stateNote = aheadNote(r0, q, nx); q.behind = r0.id }
+  const text = statusText(reqs, machine, clock, nx)
   // "atrás do de X" only while the request in front is active
   reqs.forEach((q, i) => { if (i > 0 && q.stateNote && !isActive(r0)) { q.stateNote = null; q.behind = null } })
-  for (const q of reqs) q.statusLabel = statusLabel(q, clock, { machine })
+  for (const q of reqs) q.statusLabel = statusLabel(q, clock, { machine, niches: nx })
   const anyActive = reqs.some(q => !isTerm(q)), ordered = queueOrder(reqs)
   const future = ordered.some(q => q.forecast != null)
   return {
     state, requests: ordered, request: ordered[0]!, split, statusText: text,
     statusLabel: split && TERMINAL_STATES.includes(state) && anyActive ? 'pedido em andamento' : r0.statusLabel!,
-    statusLines: split ? ordered.map(q => label(q.niche) + ': ' + q.statusLabel) : null,
+    statusLines: split ? ordered.map(q => label(q.niche, nx) + ': ' + q.statusLabel) : null,
     active: anyActive, anyActive, terminal: !anyActive && TERMINAL_STATES.includes(state) && !future,
     machine, quota: quotaOf(reqs, clock), future, forecast: future ? ordered.map(q => q.forecast) : null,
   }
@@ -296,13 +307,13 @@ export function describeRequests(requests: ForjaRequest[], machine: Machine, clo
  * The canonical summary of requests as they stand (labels, lines, text, terminal, quota). `requests` in creation
  * order, one per niche of the same type and target; `scopeTodos` = the view is "Todos" (quota per niche).
  */
-export function summarize(requests: ForjaRequest[], machine: Machine, scopeTodos: boolean, clock: Clock): Scenario {
-  return withQuota(describeRequests(requests, machine, clock), scopeTodos, clock)
+export function summarize(requests: ForjaRequest[], machine: Machine, scopeTodos: boolean, clock: Clock, nx?: NicheCtx): Scenario {
+  return withQuota(describeRequests(requests, machine, clock, nx), scopeTodos, clock, nx)
 }
 
 /** The mockup's `summarize` sentence for one request (dados.js:1845-1852); `compose` shares it. */
-function sentence(q: ForjaRequest, clock: Clock, singular: boolean): string {
-  const n = label(q.niche), note = q.stateNote ? ', ' + q.stateNote : '', ma = q.maxAttempts ?? MAX_ATTEMPTS
+function sentence(q: ForjaRequest, clock: Clock, singular: boolean, nx?: NicheCtx): string {
+  const n = label(q.niche, nx), note = q.stateNote ? ', ' + q.stateNote : '', ma = q.maxAttempts ?? MAX_ATTEMPTS
   switch (q.state) {
     case 'publicado': return 'Leitura de ' + n + ' publicada às ' + hmLoose(clock, q.publishedAt) + '.'
     case 'falhou': return 'O pedido de ' + n + ' falhou às ' + hmLoose(clock, q.failedAt) + '.'
@@ -315,25 +326,25 @@ function sentence(q: ForjaRequest, clock: Clock, singular: boolean): string {
     default: return 'O pedido de ' + n + ' está na fila desde ' + clock.hm(q.createdAt) + note + '.'
   }
 }
-const labelled = (q: ForjaRequest, machine: Machine, clock: Clock) => q.statusLabel ?? statusLabel(q, clock, { machine })
+const labelled = (q: ForjaRequest, machine: Machine, clock: Clock, nx?: NicheCtx) => q.statusLabel ?? statusLabel(q, clock, { machine, niches: nx })
 
 /**
  * Port of the mockup's `summarize` (dados.js:1841-1864): the summary of a list the session edited, already in queue
  * order and already labelled. Without the per-niche quota.
  */
-export function resummarize(requests: ForjaRequest[], machine: Machine, scopeTodos: boolean, clock: Clock): Scenario {
+export function resummarize(requests: ForjaRequest[], machine: Machine, scopeTodos: boolean, clock: Clock, nx?: NicheCtx): Scenario {
   const split = requests.length > 1 || scopeTodos, anyActive = requests.some(q => !isTerm(q))
-  const reqs = requests.map(q => ({ ...q, statusLabel: labelled(q, machine, clock) }))
+  const reqs = requests.map(q => ({ ...q, statusLabel: labelled(q, machine, clock, nx) }))
   const capDot = (t: string) => t ? cap(t).replace(/\.$/, '') + '.' : ''
-  const one = (q: ForjaRequest) => (!split && q.state === 'sem máquina') ? sentence(q, clock, true)
-    : (!split && q.state === 'falhou') ? (failKindOf(q) === 'validador' ? sentence(q, clock, false) + ' ' + capDot(q.failReason!) + ' Falha não conta na cota.' : failText(q, clock, label(q.niche)))
-    : (!split && q.state === 'recusado (dado velho)') ? sentence(q, clock, false) + (q.refusedReason ? ' ' + capDot(refusedReasonText(q.refusedReason)!) : '') : sentence(q, clock, false)
+  const one = (q: ForjaRequest) => (!split && q.state === 'sem máquina') ? sentence(q, clock, true, nx)
+    : (!split && q.state === 'falhou') ? (failKindOf(q) === 'validador' ? sentence(q, clock, false, nx) + ' ' + capDot(q.failReason!) + ' Falha não conta na cota.' : failText(q, clock, label(q.niche, nx)))
+    : (!split && q.state === 'recusado (dado velho)') ? sentence(q, clock, false, nx) + (q.refusedReason ? ' ' + capDot(refusedReasonText(q.refusedReason)!) : '') : sentence(q, clock, false, nx)
   const dead = reqs.find(q => NO_QUOTA.includes(q.state)), act = reqs.find(isActive)
   return {
     state: anyActive ? reqs.find(q => !isTerm(q))!.state : reqs[0]!.state, requests: reqs, request: reqs[0]!, split, active: anyActive, anyActive, terminal: !anyActive, machine,
-    statusLines: split ? reqs.map(q => label(q.niche) + ': ' + q.statusLabel) : null,
-    statusLabel: reqs.length > 1 && anyActive && reqs.some(isTerm) ? 'pedido em andamento' : (scopeTodos ? label(reqs[0]!.niche) + ': ' : '') + reqs[0]!.statusLabel,
-    statusText: dead && act ? reqs.filter(q => q !== act).map(one).concat([againText(act, dead, clock)]).join(' ') : reqs.map(one).join(' '),
+    statusLines: split ? reqs.map(q => label(q.niche, nx) + ': ' + q.statusLabel) : null,
+    statusLabel: reqs.length > 1 && anyActive && reqs.some(isTerm) ? 'pedido em andamento' : (scopeTodos ? label(reqs[0]!.niche, nx) + ': ' : '') + reqs[0]!.statusLabel,
+    statusText: dead && act ? reqs.filter(q => q !== act).map(one).concat([againText(act, dead, clock, nx)]).join(' ') : reqs.map(one).join(' '),
     quota: quotaOf(reqs, clock),
   }
 }
@@ -344,8 +355,8 @@ export interface NewRequest { niche: Niche; type?: string; createdAt?: number; s
  * replaces the request of its niche (or is appended) and the others stay. It gets "atrás do …" only if an active
  * request is in front of it. Without the per-niche quota (see `composeWithQuota`).
  */
-export function composeRaw(base: Pick<Scenario, 'requests'> & Partial<Pick<Scenario, 'split' | 'request' | 'machine'>> | null, newReq: NewRequest, opts: { niche?: 'todos' | Niche | null; machine?: Machine } | null, clock: Clock): Scenario {
-  const now = clock.now
+export function composeRaw(base: Pick<Scenario, 'requests'> & Partial<Pick<Scenario, 'split' | 'request' | 'machine'>> | null, newReq: NewRequest, opts: { niche?: 'todos' | Niche | null; machine?: Machine; niches?: NicheCtx } | null, clock: Clock): Scenario {
+  const now = clock.now, nx = opts?.niches
   const scopeTodos = (opts?.niche === 'todos') || newReq.scope === 'todos' || !!(base && base.split)
   const createdAt = Math.min(newReq.createdAt ?? now, now), type = newReq.type || (base && base.request ? base.request.type : 'padroes-titulo')
   const keep = (base && base.requests ? base.requests : []).filter(q => q.niche !== newReq.niche).map(q => ({ ...q }))
@@ -362,25 +373,25 @@ export function composeRaw(base: Pick<Scenario, 'requests'> & Partial<Pick<Scena
   const requests = queueOrder(keep.sort((a, b) => a.seq! - b.seq!).concat([nq]))
   const me = requests.indexOf(nq)
   const ahead = requests.slice(0, me).find(isActive)
-  if (ahead) { nq.stateNote = aheadNote(ahead, nq); nq.behind = ahead.id }
-  nq.statusLabel = statusLabel(nq, clock, { machine })
+  if (ahead) { nq.stateNote = aheadNote(ahead, nq, nx); nq.behind = ahead.id }
+  nq.statusLabel = statusLabel(nq, clock, { machine, niches: nx })
   // an active request that ended up behind the new one (smaller seq) gets the suffix too
   requests.forEach((q, i) => {
-    if (q !== nq && q.state === 'na fila' && i > me) { q.stateNote = 'atrás do de ' + label(nq.niche); q.behind = nq.id; q.statusLabel = 'na fila · pedido ' + clock.hm(q.createdAt) + ' (' + q.stateNote + ')' }
+    if (q !== nq && q.state === 'na fila' && i > me) { q.stateNote = 'atrás do de ' + label(nq.niche, nx); q.behind = nq.id; q.statusLabel = 'na fila · pedido ' + clock.hm(q.createdAt) + ' (' + q.stateNote + ')' }
   })
-  for (const q of requests) q.statusLabel = labelled(q, machine, clock)
+  for (const q of requests) q.statusLabel = labelled(q, machine, clock, nx)
   const anyActive = requests.some(q => !isTerm(q)), split = requests.length > 1 || scopeTodos
   const dead = requests.find(q => NO_QUOTA.includes(q.state)), act = requests.find(isActive)
   return {
     state: anyActive ? 'na fila' : requests[0]!.state, composed: true, requests, request: requests[0]!, split, active: anyActive, anyActive, terminal: !anyActive,
-    statusLines: split ? requests.map(q => label(q.niche) + ': ' + q.statusLabel) : null,
-    statusLabel: requests.length > 1 && anyActive && requests.some(isTerm) ? 'pedido em andamento' : (scopeTodos ? label(requests[0]!.niche) + ': ' : '') + requests[0]!.statusLabel,
-    statusText: dead && act ? requests.filter(q => q !== act).map(q => sentence(q, clock, !split)).concat([againText(act, dead, clock)]).join(' ') : requests.map(q => sentence(q, clock, !split)).join(' '),
+    statusLines: split ? requests.map(q => label(q.niche, nx) + ': ' + q.statusLabel) : null,
+    statusLabel: requests.length > 1 && anyActive && requests.some(isTerm) ? 'pedido em andamento' : (scopeTodos ? label(requests[0]!.niche, nx) + ': ' : '') + requests[0]!.statusLabel,
+    statusText: dead && act ? requests.filter(q => q !== act).map(q => sentence(q, clock, !split, nx)).concat([againText(act, dead, clock, nx)]).join(' ') : requests.map(q => sentence(q, clock, !split, nx)).join(' '),
     machine, quota: quotaOf(requests, clock),
   }
 }
 /** `forja.compose`: compose + per-niche quota ("Todos" when opts.niche is 'todos'). */
-export function compose(base: Parameters<typeof composeRaw>[0], newReq: NewRequest, opts: { niche?: 'todos' | Niche | null; createdAt?: number; machine?: Machine } | null, clock: Clock): Scenario {
+export function compose(base: Parameters<typeof composeRaw>[0], newReq: NewRequest, opts: { niche?: 'todos' | Niche | null; createdAt?: number; machine?: Machine; niches?: NicheCtx } | null, clock: Clock): Scenario {
   const r = newReq.createdAt == null && opts?.createdAt != null ? { ...newReq, createdAt: opts.createdAt } : newReq
-  return withQuota(composeRaw(base, r, opts, clock), opts?.niche === 'todos', clock)
+  return withQuota(composeRaw(base, r, opts, clock), opts?.niche === 'todos', clock, opts?.niches)
 }
