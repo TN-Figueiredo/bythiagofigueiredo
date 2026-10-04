@@ -5,7 +5,7 @@ import { ensureFreshToken, NoActiveConnectionError } from '@/lib/social/token-re
 import { channelForVideo } from '@/lib/youtube/channel-account'
 import { fetchAnalyticsForDateRange } from '@/lib/youtube/ab-youtube'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
-import { channelNote, describeCronCause } from '@/lib/cron/failure-note'
+import { channelNote, describeCronCause, joinNotes } from '@/lib/cron/failure-note'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
 export const maxDuration = 120
@@ -67,6 +67,9 @@ export async function GET(req: NextRequest) {
   const skipped: { cycleId: string; testId: string; siteId: string; channelAccountId: string | null; channelName: string | null; reason: string }[] = []
 
   for (const cycle of cycles) {
+    // Fora do try: o catch final também escreve a nota com o nome do canal, quando já resolvido.
+    let channelAccountId: string | null = null
+    let channelName: string | null = null
     try {
       // Get the parent test and video info
       const { data: test } = await supabase
@@ -90,8 +93,6 @@ export async function GET(req: NextRequest) {
       // o ciclo acabava `no_data` para sempre sem nunca ter sido lido.
       let accessToken: string | null = null
       let skipReason: string | null = null
-      let channelAccountId: string | null = null
-      let channelName: string | null = null
       try {
         const owner = await channelForVideo(supabase, test.site_id, test.youtube_video_id)
         channelAccountId = owner?.channelId ?? null
@@ -174,7 +175,7 @@ export async function GET(req: NextRequest) {
       backfilled++
     } catch (err) {
       errors++
-      errorNotes.push(channelNote(`cycle ${cycle.id}`, describeCronCause(err)))
+      errorNotes.push(channelNote(channelName ?? channelAccountId ?? `cycle ${cycle.id}`, describeCronCause(err)))
       Sentry.captureException(err, {
         tags: { cron: 'ab-backfill' },
         extra: { cycleId: cycle.id, testId: cycle.test_id },
@@ -232,8 +233,7 @@ export async function GET(req: NextRequest) {
     await recordCronSuccess('ab-backfill', 'critical')
   } else {
     // Deduplica (mesmo canal+causa em vários ciclos) e limita o tamanho da coluna.
-    const unique = [...new Set(errorNotes)]
-    const note = `${errors} cycle(s) failed — ${unique.join('; ')}`.slice(0, 500)
+    const note = joinNotes(errorNotes, `${errors} cycle(s) failed`)
     await recordCronFailure('ab-backfill', note, 'critical')
   }
 

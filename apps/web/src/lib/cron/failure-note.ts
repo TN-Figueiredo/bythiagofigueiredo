@@ -31,7 +31,30 @@ export function describeHttpCause(status: number): string {
   return `YouTube API HTTP ${status}`
 }
 
-/** `Nome do canal (UC…): causa` — a unidade de nota de todos os crons. */
+/** `Nome do canal (UC…): causa` — a unidade de nota de todos os crons. Rótulo: 1 linha, ≤ 80 chars. */
 export function channelNote(label: string, cause: string): string {
-  return `${label}: ${cause}`
+  const clean = label.replace(/\s+/g, ' ').trim()
+  const short = clean.length > 80 ? `${clean.slice(0, 79)}…` : clean
+  return `${short}: ${cause}`
+}
+
+export const MAX_NOTE_LENGTH = 500
+
+/** Junta notas (únicas, em ordem) em UMA linha ≤ 500 chars: as que cabem + "…and K more". */
+export function joinNotes(notes: readonly string[], prefix = ''): string {
+  const unique = [...new Set(notes)]
+  const head = prefix ? `${prefix} — ` : ''
+  let out = head
+  let used = 0
+  for (const n of unique) {
+    const piece = (used === 0 ? '' : '; ') + n
+    const remaining = unique.length - used - 1
+    const reserve = remaining > 0 ? ` …and ${remaining} more`.length : 0
+    if (out.length + piece.length + reserve > MAX_NOTE_LENGTH) break
+    out += piece
+    used++
+  }
+  const more = unique.length - used
+  if (more > 0) out += used === 0 ? `…and ${more} more` : ` …and ${more} more`
+  return out.slice(0, MAX_NOTE_LENGTH)
 }
