@@ -308,14 +308,13 @@ export function registerResources(server: McpServer): void {
     },
     async (uri) => {
       const { ctx } = await buildResourceCtx()
-      const supabase = getSupabaseServiceClient()
 
-      // Resolve the first channel for the site
-      const { data: channel } = await supabase
-        .from('youtube_channels')
-        .select('id')
-        .limit(1)
-        .single()
+      // No channel is named in a static URI: the first channel of THIS site, in registration
+      // order. An unfiltered `.limit(1)` used to pick any channel of any site, which the
+      // site-scoped snapshot below then refused as "Channel not found". For another channel,
+      // the `manage_ab_test` tool takes `get_intelligence` with a `channel_id`.
+      const channels = await youtube.listOwnChannels(ctx)
+      const channel = channels.data[0]
 
       if (!channel) throw new Error('No YouTube channel found')
 
@@ -872,21 +871,19 @@ export function registerResources(server: McpServer): void {
     'youtube-channels',
     'pipeline://youtube/channels',
     {
-      description: 'YouTube channels linked to this site with subscriber counts and sync status',
+      description: 'YouTube channels of this site, in registration order: id, channel_id, slug, name, handle, locale, niche, niche_label, subscriber_count, video_count, sync_enabled, last_synced_at',
       mimeType: 'application/json',
       size: 2_000,
       annotations: { audience: ['assistant'] },
     },
     async (uri) => {
-      const supabase = getSupabaseServiceClient()
-      const { siteId } = await buildResourceCtx()
+      const { ctx } = await buildResourceCtx()
 
-      const { data } = await supabase
-        .from('youtube_channels')
-        .select('id, channel_id, name, handle, subscriber_count, total_views, video_count, locale, last_synced_at')
-        .eq('site_id', siteId)
+      // The service throws on a read error. The query that used to live here selected a column
+      // the table never had (`total_views`), dropped the error, and answered `{ channels: [] }`.
+      const channels = await youtube.listOwnChannels(ctx)
 
-      const result = jsonResource({ channels: data ?? [] })
+      const result = jsonResource({ channels: channels.data })
       result.contents[0]!.uri = uri.href
       return result
     },
