@@ -284,6 +284,11 @@ describe('limites das opções', () => {
 
 import { truncateAtWord } from '@/lib/pipeline/services/campaign-graduation'
 describe('truncateAtWord (meta_description herdada da sinopse)', () => {
+  it('não deixa meio emoji na fronteira do corte', () => {
+    const out = truncateAtWord('a'.repeat(298) + '😀😀 resto', 300)
+    expect(out.endsWith('…')).toBe(true)
+    expect(/[\ud800-\udbff](?![\udc00-\udfff])/.test(out)).toBe(false)
+  })
   it('texto curto passa intacto, sem reticências', () => { expect(truncateAtWord('Curto e bom', 300)).toBe('Curto e bom') })
   it('corta em limite de palavra até 300 caracteres e termina em …', () => {
     const out = truncateAtWord('palavra '.repeat(80), 300)

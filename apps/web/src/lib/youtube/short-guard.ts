@@ -18,9 +18,13 @@ export async function runControlProbe(
       .select('video_id')
       .gt('duration_seconds', SHORT_MAX_SECONDS)
       .order('published_at', { ascending: false })
-      .limit(1)
-    const id = (data as Array<{ video_id: string }> | null)?.[0]?.video_id
-    if (id && isYoutubeVideoId(id)) control = (await probeShort(id, f)) === 'normal' ? 'ok' : 'failed'
+      .limit(2)
+    // até 2 candidatos: um vídeo removido/privado não pode desligar a execução; só 'failed' se nenhum voltar normal
+    const ids = ((data as Array<{ video_id: string }> | null) ?? []).map(r => r.video_id).filter(isYoutubeVideoId)
+    for (const id of ids) {
+      if ((await probeShort(id, f)) === 'normal') { control = 'ok'; break }
+      control = 'failed'
+    }
   } catch {
     control = 'none'
   }

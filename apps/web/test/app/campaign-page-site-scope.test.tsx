@@ -11,7 +11,7 @@ vi.mock('../../lib/supabase/service', () => ({
     chain.select = () => chain
     chain.eq = (c: string, v: unknown) => { h.filters.push([c, v]); return chain }
     // a campanha só existe no site B
-    chain.maybeSingle = () => Promise.resolve({ data: h.filters.some(f => f[0] === 'site_id' && f[1] !== 'site-B') ? null : { id: 'c1', status: 'draft', campaign_translations: [{}] }, error: null })
+    chain.maybeSingle = () => Promise.resolve({ data: h.filters.some(f => f[0] === 'site_id' && f[1] !== 'site-B') ? null : { id: 'c1', status: 'published', published_at: new Date(Date.now() - 864e5).toISOString(), campaign_translations: [{}] }, error: null })
     return { from: () => chain }
   },
 }))
@@ -23,5 +23,12 @@ describe('página pública de campanha — escopo de site', () => {
     h.ctx = { siteId: 'site-A' }; h.filters.length = 0
     await expect(CampaignPage({ params: Promise.resolve({ slug: 'so-no-b' }) } as never)).rejects.toThrow('NEXT_NOT_FOUND')
     expect(h.filters).toContainEqual(['site_id', 'site-A'])
+  })
+
+  it('sem contexto de site: campanha publicada é servida e nenhum filtro de site_id é aplicado', async () => {
+    h.ctx = null; h.filters.length = 0
+    const res = await CampaignPage({ params: Promise.resolve({ slug: 'qualquer' }) } as never).catch((e: unknown) => e)
+    expect(String(res)).not.toContain('NEXT_NOT_FOUND')
+    expect(h.filters.find(f => f[0] === 'site_id')).toBeUndefined()
   })
 })

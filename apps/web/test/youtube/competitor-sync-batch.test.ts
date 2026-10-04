@@ -119,14 +119,14 @@ describe('runCompetitorBatch — visibilidade da sonda (R114)', () => {
 })
 
 describe('runCompetitorBatch — controle e prazo do backfill (I-2, I-3)', () => {
-  async function run(opts: { controlId?: string; controlResponse?: () => Response; clock?: () => number }) {
+  async function run(opts: { controlIds?: string[]; controlId?: string; controlResponse?: () => Response; clock?: () => number }) {
     vi.resetModules()
     const captureMessage = vi.fn()
     vi.doMock('@sentry/nextjs', () => ({ captureMessage, captureException: vi.fn() }))
     let seenFailed: boolean | undefined
     vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (_r: unknown, _k: string, o: { probeBudget: { controlFailed?: boolean } }) => { seenFailed = o.probeBudget.controlFailed; return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0 } }) }))
     const channels = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null }]
-    const chainRes = { data: opts.controlId ? [{ video_id: opts.controlId }] : [], error: null }
+    const chainRes = { data: (opts.controlIds ?? (opts.controlId ? [opts.controlId] : [])).map(video_id => ({ video_id })), error: null }
     const chain: unknown = new Proxy({}, { get: (_t, p: string) => p === 'then' ? (ok: (v: unknown) => unknown) => Promise.resolve(chainRes).then(ok) : () => chain })
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: (t: string) => t === 'competitor_channels' ? { select: () => ({ order: () => Promise.resolve({ data: channels, error: null }) }) } : chain }) }))
     const backfill = vi.fn(async () => 0)
@@ -149,6 +149,15 @@ describe('runCompetitorBatch — controle e prazo do backfill (I-2, I-3)', () =>
     expect(r.shorts_probe?.control).toBe('failed'); expect(seenFailed).toBe(true)
     expect(captureMessage).toHaveBeenCalledTimes(1); expect(captureMessage.mock.calls[0]![0]).toMatch(/controle/)
     expect(r).toMatchObject({ synced: 1, errors: 0 })
+  })
+  it('P2: o primeiro longo removido (404) não desliga; o segundo volta normal: ok', async () => {
+    let n = 0
+    const { r, seenFailed } = await run({ controlIds: ['AAAAAAAAAA1', 'AAAAAAAAAA2'], controlResponse: () => (n++ === 0 ? ({ status: 404, headers: new Headers(), body: null } as unknown as Response) : redirectWatch()) })
+    expect(r.shorts_probe?.control).toBe('ok'); expect(seenFailed).toBeFalsy()
+  })
+  it('P2: nenhum dos dois volta normal: failed', async () => {
+    const { r, seenFailed } = await run({ controlIds: ['AAAAAAAAAA1', 'AAAAAAAAAA2'] })
+    expect(r.shorts_probe?.control).toBe('failed'); expect(seenFailed).toBe(true)
   })
   it('sem vídeo longo conhecido: none, segue como hoje, sem requisição de controle', async () => {
     const { r, fetchMock, seenFailed } = await run({})
