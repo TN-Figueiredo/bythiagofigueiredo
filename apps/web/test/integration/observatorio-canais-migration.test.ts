@@ -12,7 +12,7 @@ describe.skipIf(skipIfNoLocalDb())('migration observatorio_canais', () => {
   it('niche rejects unknown values', async () => {
     const { data: site } = await sb.from('sites').select('id').limit(1).single()
     const { error } = await sb.from('competitor_channels').insert({ site_id: site!.id, channel_id: 'UCnichetest', niche: 'culinaria' })
-    expect(error?.message).toMatch(/check/i)
+    expect(error?.message).toMatch(/foreign key/i)
   })
   it('competitor_settings defaults channel_limit to 75', async () => {
     const { data: site } = await sb.from('sites').select('id').limit(1).single()
