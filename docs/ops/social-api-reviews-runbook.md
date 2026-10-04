@@ -25,7 +25,7 @@ Preparado em 2026-07-03 · Repo: `bythiagofigueiredo` · **NADA foi submetido �
 
 | Scope | Classificação | Onde é usado (endpoints reais) |
 |---|---|---|
-| `https://www.googleapis.com/auth/youtube.upload` | Sensitive | Upload resumable: `POST upload/youtube/v3/videos?uploadType=resumable` (`packages/social/src/providers/youtube/client.ts` → `createUploadSession`) + rotas `/api/social/youtube/upload-session` e `/api/social/youtube/complete` |
+| `https://www.googleapis.com/auth/youtube.upload` | Sensitive | Upload resumable: `POST upload/youtube/v3/videos?uploadType=resumable` (`packages/social/src/providers/youtube/client.ts` → `createUploadSession`) + rotas `POST /api/social/youtube/upload-session` (abre a sessão retomável do canal escolhido: corpo `channel` opcional = `UC…` ou uuid de `youtube_channels`, senão o canal padrão; exige a conexão viva do canal com o escopo `youtube.upload`) e `/api/social/youtube/complete` |
 | `https://www.googleapis.com/auth/youtube` | Sensitive | `videos.update` (metadata + privacyStatus), `videos.delete`, `videos.list`, `search.list`, `thumbnails/set`, `channels?mine=true` (callback lê canal do usuário) — tudo em `client.ts` + callback |
 | `https://www.googleapis.com/auth/yt-analytics.readonly` | Sensitive | `youtubeanalytics.googleapis.com/v2/reports` — crons `sync-analytics-metrics` (views, watch time, likes, comments, shares, subs) e `lib/youtube/analytics-client.ts` (dimensões `ageGroup,gender`, `country`, `deviceType`, `insightTrafficSourceDetail`) e A/B de thumbnails (`ab-youtube.ts`) |
 
