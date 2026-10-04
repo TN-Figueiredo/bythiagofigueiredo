@@ -21,7 +21,9 @@ export interface CampaignDraftPlan {
 export function truncateAtWord(text: string, max: number): string {
   const t = text.trim()
   if (t.length <= max) return t
-  const cut = t.slice(0, max - 1)
+  let cut = t.slice(0, max - 1)
+  const last = cut.charCodeAt(cut.length - 1)
+  if (last >= 0xd800 && last <= 0xdbff) cut = cut.slice(0, -1) // não deixa meio emoji
   const sp = cut.lastIndexOf(' ')
   return (sp > max * 0.5 ? cut.slice(0, sp) : cut).trimEnd() + '…'
 }

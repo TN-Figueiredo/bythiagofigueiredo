@@ -274,7 +274,8 @@ describe('POST /api/campaigns/[slug]/submit — escopo de site', () => {
     siteCtx.value = null;
     const sb = siteScoped('site-B');
     vi.mocked(getSupabaseServiceClient).mockReturnValue(sb as never);
-    await POST(req(body), { params: Promise.resolve({ slug: 'x' }) });
+    const res = await POST(req(body), { params: Promise.resolve({ slug: 'x' }) });
+    expect(res.status).not.toBe(404); // campanha publicada é servida
     expect(sb.filters.find(f => f[0] === 'site_id')).toBeUndefined();
   });
 });

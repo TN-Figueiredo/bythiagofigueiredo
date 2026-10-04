@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+const sentryMsgs = vi.hoisted(() => [] as string[])
+vi.mock('@sentry/nextjs', () => ({ captureMessage: (m: string) => { sentryMsgs.push(m); return '' }, captureException: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/notifications/create', () => ({ createNotification: vi.fn() }))
 vi.mock('@/lib/youtube/thumb-fingerprint', async (orig) => ({
@@ -135,10 +137,11 @@ const recent = () => new Date(NOW.getTime() - 86_400_000).toISOString()
 
 function setup(opts: {
   existing?: Record<string, unknown>[]; versions?: Record<string, unknown>[]; lastDaily?: string | null
-  tracked?: Array<Record<string, unknown>>; dailyHave?: string[]; rpcError?: boolean
+  tracked?: Array<Record<string, unknown>>; dailyHave?: string[]; rpcError?: boolean; longs?: Array<{ video_id: string }>
 } = {}) {
   const db = fakeDb((c) => {
     if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [lockRow] }
+    if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'gt' && o[1][1] === 180)) return { data: opts.longs ?? [] }
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'in')) return { data: opts.existing ?? [] }
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'limit')) return { data: opts.tracked ?? [{ id: 'v-1', video_id: 'vid-1', title: null, thumbnail_url: null }] }
     if (c.table === 'competitor_videos' && first(c) === 'select') return { count: 100 }
@@ -478,6 +481,22 @@ describe('syncCompetitorChannel — Shorts de 61–180 s', () => {
     const db = setup({ lastDaily: '2026-10-24', existing: [{ id: 'v-1', video_id: 'AAAAAAAAAA1', title: 'Um vídeo', description_hash: null, thumbnail_url: null, view_count: 1, is_short: true }] })
     await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT1M30S'), () => new Response('', { status: 429 })) })
     expect(arg(db.calls.find(c => c.table === 'competitor_videos' && first(c) === 'update')!, 'update')).toMatchObject({ is_short: true })
+  })
+
+  it('P1: execução isolada com controle falhando (200 para tudo): nada vira Short e o aviso dispara', async () => {
+    const db = setup({ lastDaily: '2026-10-24', longs: [{ video_id: 'LLLLLLLLLL1' }] })
+    sentryMsgs.length = 0
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT1M30S'), () => new Response('', { status: 200 })) })
+    expect(insertOf(db)).toMatchObject({ is_short: false })
+    expect(sentryMsgs.some(m => /controle/.test(m))).toBe(true)
+  })
+
+  it('P1: execução isolada com controle ok segue e grava Short', async () => {
+    const db = setup({ lastDaily: '2026-10-24', longs: [{ video_id: 'LLLLLLLLLL1' }] })
+    const f = withProbe(vid('AAAAAAAAAA1', 'PT1M30S'), (u) => u.endsWith('LLLLLLLLLL1')
+      ? ({ status: 303, headers: new Headers({ location: '/watch?v=x' }), body: null } as unknown as Response) : new Response('', { status: 200 }))
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: f })
+    expect(insertOf(db)).toMatchObject({ is_short: true })
   })
 
   it('I-1: vídeo já gravado de 90 s na página não gera requisição nem gasta orçamento', async () => {

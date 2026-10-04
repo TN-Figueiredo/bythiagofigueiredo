@@ -17,6 +17,7 @@ export async function reclassifyStoredShortsRoundRobin(
   budget: ProbeBudget,
   f: typeof fetch,
   shouldStop: () => boolean = () => false,
+  beforeProbe?: () => Promise<void>,
 ): Promise<number> {
   if (budget.remaining <= 0 || !channelIds.length) return 0
   const cutoff = new Date(nowMs - SHORT_RECLASSIFY_WINDOW_DAYS * 86_400_000).toISOString()
@@ -49,6 +50,7 @@ export async function reclassifyStoredShortsRoundRobin(
     if (!any) break
   }
   if (!picked.length) return 0
+  if (beforeProbe) await beforeProbe()
   const probes = await probeShortsBatch(picked.map(r => r.video_id), budget, f, shouldStop)
   if (budget.stats) budget.stats.pending += Math.max(0, totalCandidates - probes.size)
   const shortIds = picked.filter(r => probes.get(r.video_id) === 'short').map(r => r.id)
@@ -60,5 +62,5 @@ export async function reclassifyStoredShortsRoundRobin(
 }
 
 export const reclassifyStoredShorts = (
-  supabase: ReturnType<typeof getSupabaseServiceClient>, competitorChannelId: string, nowMs: number, budget: ProbeBudget, f: typeof fetch,
-): Promise<number> => reclassifyStoredShortsRoundRobin(supabase, [competitorChannelId], nowMs, budget, f)
+  supabase: ReturnType<typeof getSupabaseServiceClient>, competitorChannelId: string, nowMs: number, budget: ProbeBudget, f: typeof fetch, beforeProbe?: () => Promise<void>,
+): Promise<number> => reclassifyStoredShortsRoundRobin(supabase, [competitorChannelId], nowMs, budget, f, () => false, beforeProbe)
