@@ -371,7 +371,8 @@ describe('POST /api/cron/social-metrics', () => {
     })
 
     const body = await (await POST(makeRequest(`Bearer ${CRON_SECRET}`))).json()
-    expect(body.errors![0]).toContain('boom')
+    expect(body.errors![0]).toBe('youtube conn-bad: Google token refresh failed (HTTP 500)')
+    expect(body.errors![0]).not.toContain('boom')
     expect(body.skipped_no_connection ?? 0).toBe(0)
   })
 
@@ -392,7 +393,8 @@ describe('POST /api/cron/social-metrics', () => {
       return {}
     })
     const body = await (await POST(makeRequest(`Bearer ${CRON_SECRET}`))).json()
-    expect(body.errors![0]).toContain('statement timeout')
+    expect(body.errors![0]).toBe('youtube conn-db: database error reading the connection')
+    expect(body.errors![0]).not.toContain('statement timeout')
     expect(body.skipped_no_connection ?? 0).toBe(0)
   })
 })

@@ -135,8 +135,8 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
     expect(res.status).toBe(500)
     const body = await res.json()
     expect(body.error).toBe('channels query failed')
-    expect(body.detail).toBe('connection reset')
-    expect(recordCronFailure).toHaveBeenCalledWith('sync-analytics-metrics', 'connection reset')
+    expect(JSON.stringify(body)).not.toContain('connection reset')
+    expect(recordCronFailure).toHaveBeenCalledWith('sync-analytics-metrics', 'database error listing the YouTube channels')
     expect(recordCronSuccess).not.toHaveBeenCalled()
   })
 

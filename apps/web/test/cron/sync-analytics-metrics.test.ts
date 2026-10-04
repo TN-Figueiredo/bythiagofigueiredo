@@ -370,7 +370,26 @@ describe('GET /api/cron/sync-analytics-metrics — canal sem conexão OAuth é p
     expect(body.skipped_no_connection).toBe(1)
     expect(recordCronSuccess).not.toHaveBeenCalled()
     expect(recordCronFailure).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(recordCronFailure).mock.calls[0]![1]).toMatch(/invalid_grant/)
+    // Nota legível: canal + causa, sem o corpo cru do Google.
+    const note = vi.mocked(recordCronFailure).mock.calls[0]![1] as string
+    expect(note).toContain('UC1')
+    expect(note).toMatch(/Google token refresh failed \(HTTP 400\)/)
+    expect(note).not.toMatch(/invalid_grant/)
+  })
+
+  it('API do YouTube devolve 5xx: a nota diz o canal e "API 503", sem o corpo da resposta', async () => {
+    const supabase = makeSupabase({ channels: [withOauth], videosByChannelId: {} })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    vi.mocked(ensureFreshToken).mockResolvedValue({ accessToken: 'ya29.SECRET', connectionId: 'c1' })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('internal: ya29.SECRET stack', { status: 503 })))
+
+    const body = await (await GET(req(CRON_SECRET) as never)).json()
+    expect(body.errors).toBe(1)
+    const note = vi.mocked(recordCronFailure).mock.calls[0]![1] as string
+    expect(note).toContain('UC1')
+    expect(note).toContain('YouTube API 503')
+    expect(note).not.toContain('SECRET')
+    expect(JSON.stringify(body)).not.toContain('SECRET')
   })
 
   it('erro de BANCO ao ler a conexão é erro: conta, falha o cron e NÃO notifica "conecte o canal"', async () => {
