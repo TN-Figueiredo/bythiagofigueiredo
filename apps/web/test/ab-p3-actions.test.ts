@@ -203,9 +203,10 @@ describe('applyWinnerNow', () => {
       if (table === 'youtube_videos') {
         return {
           select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({ data: videoRow, error: null }),
-            })),
+            eq: vi.fn(() => {
+              const single = vi.fn().mockResolvedValue({ data: videoRow, error: null })
+              return { single, eq: vi.fn(() => ({ single })) }
+            }),
           })),
         }
       }
@@ -252,13 +253,14 @@ describe('applyWinnerNow', () => {
     expect(preflightTokenCheck).toHaveBeenCalledWith('site-1', 'youtube', 'UCpt')
   })
 
-  it('vídeo sem canal: "Video not found" e nenhuma chamada ao YouTube', async () => {
+  it('vídeo sem canal: diz que não deu para identificar o canal e nenhuma chamada ao YouTube', async () => {
     videoOwner = null
     setupApplyWinnerMock()
 
     const result = await applyWinnerNow('test-1')
 
-    expect(result).toEqual({ ok: false, error: 'Video not found' })
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/Could not identify which YouTube channel owns this video/)
     expect(preflightTokenCheck).not.toHaveBeenCalled()
     expect(setThumbnail).not.toHaveBeenCalled()
     expect(updateVideoMetadata).not.toHaveBeenCalled()
@@ -369,9 +371,10 @@ describe('applyWinnerNow', () => {
       if (table === 'youtube_videos') {
         return {
           select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({ data: videoRow, error: null }),
-            })),
+            eq: vi.fn(() => {
+              const single = vi.fn().mockResolvedValue({ data: videoRow, error: null })
+              return { single, eq: vi.fn(() => ({ single })) }
+            }),
           })),
         }
       }
@@ -512,9 +515,10 @@ describe('revertWinner', () => {
       if (table === 'youtube_videos') {
         return {
           select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({ data: videoRow, error: null }),
-            })),
+            eq: vi.fn(() => {
+              const single = vi.fn().mockResolvedValue({ data: videoRow, error: null })
+              return { single, eq: vi.fn(() => ({ single })) }
+            }),
           })),
         }
       }
@@ -552,13 +556,14 @@ describe('revertWinner', () => {
     expect(preflightTokenCheck).toHaveBeenCalledWith('site-1', 'youtube', 'UCpt')
   })
 
-  it('vídeo sem canal: "Video not found" e nenhuma chamada ao YouTube', async () => {
+  it('vídeo sem canal: diz que não deu para identificar o canal e nenhuma chamada ao YouTube', async () => {
     videoOwner = null
     setupRevertMock()
 
     const result = await revertWinner('test-1')
 
-    expect(result).toEqual({ ok: false, error: 'Video not found' })
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/Could not identify which YouTube channel owns this video/)
     expect(preflightTokenCheck).not.toHaveBeenCalled()
     expect(setThumbnail).not.toHaveBeenCalled()
     expect(updateVideoMetadata).not.toHaveBeenCalled()

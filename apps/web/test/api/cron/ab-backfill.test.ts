@@ -36,9 +36,14 @@ vi.mock('@/lib/cron-health', () => ({
   recordCronFailure: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock('@/lib/notifications/fan-out-to-admins', () => ({
+  fanOutToSiteAdmins: vi.fn().mockResolvedValue(1),
+}))
+
 // ── Import after mocks ─���─────────��──────────────────────────────────────────
 import { GET } from '@/app/api/cron/ab-backfill/route'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
+import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { NoActiveConnectionError } from '@/lib/social/token-refresh'
 import * as Sentry from '@sentry/nextjs'
 
@@ -88,13 +93,14 @@ function updateQuery() {
 function videoQuery(video: unknown, owner: { channel_id: string } | null) {
   return {
     select: vi.fn((cols: string) => ({
-      eq: vi.fn().mockReturnValue({
-        single: vi.fn().mockResolvedValue(
+      eq: vi.fn().mockReturnValue((() => {
+        const single = vi.fn().mockResolvedValue(
           cols.includes('youtube_channels')
             ? { data: { youtube_channels: owner }, error: null }
             : { data: video, error: null },
-        ),
-      }),
+        )
+        return { single, eq: vi.fn().mockReturnValue({ single }) }
+      })()),
     })),
   }
 }
@@ -219,7 +225,7 @@ describe('GET /api/cron/ab-backfill', () => {
       })
     }
 
-    it('canal sem conexão OAuth: pula o ciclo, que fica partial com a tentativa contada — nunca no_data, mesmo na 3ª tentativa', async () => {
+    it('canal sem conexão OAuth: pula o ciclo SEM gastar tentativa (nada é gravado no ciclo), reporta o pulo e avisa o dono', async () => {
       mockTables({ channel_id: 'UCpt' })
       mockEnsureFreshToken.mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
 
@@ -229,14 +235,23 @@ describe('GET /api/cron/ab-backfill', () => {
       expect(res.status).toBe(200)
       expect(mockEnsureFreshToken).toHaveBeenCalledWith('site-1', 'youtube', 'UCpt')
       expect(mockFetchAnalyticsForDateRange).not.toHaveBeenCalled()
-      expect(cycleUpdates).toEqual([{ backfill_status: 'partial', backfill_attempts: 3 }])
+      // O YouTube nem foi consultado: nem tentativa (backfill_attempts) nem status mudam.
+      expect(cycleUpdates).toEqual([])
       expect(body).toMatchObject({ status: 'ok', backfilled: 0, errors: 0, skipped: 1 })
-      // Pulado não é silencioso: sai um aviso no Sentry dizendo o porquê.
+      // Pulado não é silencioso: aviso no Sentry e UMA notificação ao dono por site/dia.
       expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+      expect(fanOutToSiteAdmins).toHaveBeenCalledTimes(1)
+      const n = vi.mocked(fanOutToSiteAdmins).mock.calls[0]![0]
+      expect(n.siteId).toBe('site-1')
+      expect(n.type).toBe('youtube.backfill_skipped_no_connection')
+      expect(n.dedupKey).toBe(`backfill-skipped-no-connection-site-1-${new Date().toISOString().slice(0, 10)}`)
+      expect(n.message).toContain('UCpt')
+      // Estado legítimo (canal recém-cadastrado sem OAuth): não é falha de cron.
       expect(recordCronFailure).not.toHaveBeenCalled()
+      expect(recordCronSuccess).toHaveBeenCalled()
     })
 
-    it('vídeo sem canal: não pede token (nunca "a conexão mais recente"); o ciclo fica partial', async () => {
+    it('vídeo sem canal: não pede token (nunca "a conexão mais recente"); o ciclo não gasta tentativa', async () => {
       mockTables(null)
 
       const res = await GET(makeRequest(`Bearer ${CRON_SECRET}`))
@@ -244,8 +259,9 @@ describe('GET /api/cron/ab-backfill', () => {
 
       expect(mockEnsureFreshToken).not.toHaveBeenCalled()
       expect(mockFetchAnalyticsForDateRange).not.toHaveBeenCalled()
-      expect(cycleUpdates).toEqual([{ backfill_status: 'partial', backfill_attempts: 3 }])
+      expect(cycleUpdates).toEqual([])
       expect(body).toMatchObject({ backfilled: 0, errors: 0, skipped: 1 })
+      expect(fanOutToSiteAdmins).toHaveBeenCalledTimes(1)
     })
 
     it('outro erro de token (ex.: falha no refresh) continua sendo erro do ciclo', async () => {

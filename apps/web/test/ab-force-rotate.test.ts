@@ -354,6 +354,17 @@ describe('forceRotate', () => {
     expect(preflightTokenCheck).not.toHaveBeenCalled()
   })
 
+  it('canal do vídeo não identificado: diz isso, sem "Token inválido" nem chamar o preflight', async () => {
+    buildSupabaseMock({ test: makeTest(), channel: null })
+
+    const result = await forceRotate('test-1')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/Could not identify which YouTube channel owns this video/)
+    expect(result.error).not.toMatch(/Token inv/)
+    expect(preflightTokenCheck).not.toHaveBeenCalled()
+  })
+
   it('returns error when auth check fails', async () => {
     ;(requireSiteScope as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,

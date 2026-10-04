@@ -94,7 +94,14 @@ export async function startAbTestInternal(
     const { data: chanInfo } = vidInfo?.channel_id
       ? await supabase.from('youtube_channels').select('channel_id').eq('id', vidInfo.channel_id).single()
       : { data: null }
-    const { accessToken } = await ensureFreshToken(siteId, 'youtube', chanInfo?.channel_id)
+    if (!chanInfo?.channel_id) {
+      return {
+        ok: false,
+        error:
+          "Could not identify which YouTube channel owns this video. Reload and try again; if it persists, check that the video's channel is still connected.",
+      }
+    }
+    const { accessToken } = await ensureFreshToken(siteId, 'youtube', chanInfo.channel_id)
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
     if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
 

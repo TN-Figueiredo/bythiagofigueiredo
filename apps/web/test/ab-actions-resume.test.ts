@@ -139,8 +139,8 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
       // resolveYouTubeVideoId uses: select('youtube_video_id')
       return {
         select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockImplementation(async () => {
+          eq: vi.fn().mockReturnValue((() => {
+            const single = vi.fn().mockImplementation(async () => {
               // Both resolveChannelAccountId and resolveYouTubeVideoId query the same table
               // Return an object that satisfies both lookups
               if (!video) return { data: null, error: { message: 'not found' } }
@@ -151,8 +151,10 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
                 },
                 error: null,
               }
-            }),
-          }),
+            })
+            // `eq` de novo = o filtro de site do resolvedor do canal dono do vídeo
+            return { single, eq: vi.fn().mockReturnValue({ single }) }
+          })()),
         }),
       }
     }

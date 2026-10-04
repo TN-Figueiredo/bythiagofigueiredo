@@ -129,12 +129,13 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
     if (table === 'youtube_videos') {
       return {
         select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
+          eq: vi.fn().mockReturnValue((() => {
+            const single = vi.fn().mockResolvedValue({
               data: videoData,
               error: videoData ? null : { message: 'not found' },
-            }),
-          }),
+            })
+            return { single, eq: vi.fn().mockReturnValue({ single }) }
+          })()),
         }),
       }
     }
@@ -190,6 +191,16 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('pauseAbTest', () => {
+  it('canal do vídeo não identificado: diz isso e não pede token (nunca "a conexão mais recente")', async () => {
+    buildSupabaseMock({ videoData: { youtube_video_id: 'YT_VIDEO_123', youtube_channels: null as never } })
+
+    const result = await pauseAbTest('test-1')
+
+    expect(result.ok).toBe(false)
+    expect((result as { error: string }).error).toMatch(/Could not identify which YouTube channel owns this video/)
+    expect(ensureFreshToken).not.toHaveBeenCalled()
+  })
+
   it('reverts thumbnail to original variant blob_url', async () => {
     const variants = makeVariants({ originalBlobUrl: 'https://blob.example/original.jpg' })
     buildSupabaseMock({ variants })

@@ -91,17 +91,15 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
         select: vi.fn((cols: string) => ({
           eq: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({
-                data: video,
-                error: video ? null : { message: 'not found' },
-              }),
+              // Com o site: o vídeo do teste, ou o dono do vídeo (leitura de canal).
+              single: vi.fn().mockResolvedValue(
+                cols.includes('youtube_channels')
+                  ? { data: videoOwner ? { youtube_channels: videoOwner } : null, error: videoOwner ? null : { code: 'PGRST116', message: 'no rows' } }
+                  : { data: video, error: video ? null : { message: 'not found' } },
+              ),
             }),
-            // Leituras por id só (sem site): o dono do vídeo e o id do YouTube.
-            single: vi.fn().mockResolvedValue(
-              cols.includes('youtube_channels')
-                ? { data: { youtube_channels: videoOwner }, error: null }
-                : { data: { youtube_video_id: 'YT_VID_PT' }, error: null },
-            ),
+            // Leitura só por id: o id do YouTube.
+            single: vi.fn().mockResolvedValue({ data: { youtube_video_id: 'YT_VID_PT' }, error: null }),
           }),
         })),
       }
@@ -353,21 +351,51 @@ describe('createAbTest', () => {
       expect(testInsert.original_description).toBe('Descrição original')
     })
 
-    it('vídeo sem canal: não pede token nenhum (nunca cai na conexão mais recente)', async () => {
-      buildSupabaseMock({ videoOwner: null })
+    const REFUSAL =
+      "Could not read the video's current title and description. Reconnect this channel's YouTube access and try again."
+
+    it('vídeo sem canal: não pede token nenhum e RECUSA criar o teste (sem linha nenhuma)', async () => {
+      const { insertCalls } = buildSupabaseMock({ videoOwner: null })
 
       const result = await createAbTest(makeInput({ test_type: 'title' }))
 
       expect(ensureFreshToken).not.toHaveBeenCalled()
       expect(captureOriginalMetadata).not.toHaveBeenCalled()
-      // Comportamento de hoje preservado: o teste nasce sem originais.
-      expect(result).toEqual({ ok: true, id: 'new-test-id' })
+      expect(result).toEqual({ ok: false, error: REFUSAL })
+      expect(insertCalls).toEqual([])
+    })
+
+    it.each(['title', 'description', 'combo'] as const)(
+      'teste de %s com token que falha (canal sem OAuth): recusa, sem criar linha',
+      async (testType) => {
+        const { insertCalls } = buildSupabaseMock()
+        ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('No active youtube connection found'))
+
+        const result = await createAbTest(makeInput({ test_type: testType }))
+
+        expect(result).toEqual({ ok: false, error: REFUSAL })
+        expect(insertCalls).toEqual([])
+      },
+    )
+
+    it('YouTube fora do ar (captura volta vazia): recusa, sem criar linha', async () => {
+      const { insertCalls } = buildSupabaseMock()
+      ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockResolvedValue({ accessToken: 'tok-pt', connectionId: 'c-pt' })
+      ;(captureOriginalMetadata as ReturnType<typeof vi.fn>).mockResolvedValue(null)
+
+      const result = await createAbTest(makeInput({ test_type: 'combo' }))
+
+      expect(result).toEqual({ ok: false, error: REFUSAL })
+      expect(insertCalls).toEqual([])
     })
 
     it('teste de thumbnail não pede token', async () => {
-      buildSupabaseMock()
-      await createAbTest(makeInput())
+      const { insertCalls } = buildSupabaseMock()
+      const result = await createAbTest(makeInput())
       expect(ensureFreshToken).not.toHaveBeenCalled()
+      // O original da thumbnail vem de youtube_videos: o teste nasce mesmo sem OAuth.
+      expect(result).toEqual({ ok: true, id: 'new-test-id' })
+      expect(insertCalls.some(c => c.table === 'ab_tests')).toBe(true)
     })
   })
 })
