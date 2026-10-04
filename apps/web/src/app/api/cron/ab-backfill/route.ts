@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { ensureFreshToken, NoActiveConnectionError } from '@/lib/social/token-refresh'
+import { channelAccountIdForVideo } from '@/lib/youtube/channel-account'
 import { fetchAnalyticsForDateRange } from '@/lib/youtube/ab-youtube'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
@@ -52,6 +53,10 @@ export async function GET(req: NextRequest) {
 
   let backfilled = 0
   let errors = 0
+  // Ciclos pulados por falta de token do canal dono do vídeo (canal sem conexão
+  // OAuth, ou vídeo sem canal). Não são erro nem "sem dados": ninguém perguntou
+  // nada ao YouTube.
+  const skipped: { cycleId: string; testId: string; reason: string }[] = []
 
   for (const cycle of cycles) {
     try {
@@ -72,7 +77,37 @@ export async function GET(req: NextRequest) {
 
       if (!video?.youtube_video_id) continue
 
-      const { accessToken } = await ensureFreshToken(test.site_id, 'youtube')
+      // O token é o do canal DONO do vídeo: a consulta à Analytics API é
+      // `channel==MINE`, e com o token de outro canal ela volta zero linhas —
+      // o ciclo acabava `no_data` para sempre sem nunca ter sido lido.
+      let accessToken: string | null = null
+      let skipReason: string | null = null
+      const channelAccountId = await channelAccountIdForVideo(supabase, test.youtube_video_id)
+      if (!channelAccountId) {
+        skipReason = 'video_without_channel'
+      } else {
+        try {
+          accessToken = (await ensureFreshToken(test.site_id, 'youtube', channelAccountId)).accessToken
+        } catch (tokenErr) {
+          if (!(tokenErr instanceof NoActiveConnectionError)) throw tokenErr
+          skipReason = 'no_active_connection'
+        }
+      }
+
+      if (accessToken === null) {
+        // Fica `partial` (volta na próxima execução) com a tentativa contada, mas
+        // nunca `no_data`: essa marca diz "o YouTube não tem dados", e aqui o
+        // YouTube nem foi consultado.
+        await supabase
+          .from('ab_test_cycles')
+          .update({
+            backfill_status: 'partial',
+            backfill_attempts: (cycle.backfill_attempts ?? 0) + 1,
+          })
+          .eq('id', cycle.id)
+        skipped.push({ cycleId: cycle.id, testId: cycle.test_id, reason: skipReason ?? 'unknown' })
+        continue
+      }
 
       const startDate = (cycle.started_at as string).substring(0, 10)
       const endDate = (cycle.ended_at as string).substring(0, 10)
@@ -126,11 +161,19 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  if (skipped.length > 0) {
+    Sentry.captureMessage('ab-backfill: cycles skipped — no OAuth token for the channel that owns the video', {
+      level: 'warning',
+      tags: { cron: 'ab-backfill' },
+      extra: { skipped },
+    })
+  }
+
   if (errors === 0) {
     await recordCronSuccess('ab-backfill', 'critical')
   } else {
     await recordCronFailure('ab-backfill', `${errors} cycle(s) failed`, 'critical')
   }
 
-  return Response.json({ status: 'ok', backfilled, errors })
+  return Response.json({ status: 'ok', backfilled, errors, skipped: skipped.length })
 }
