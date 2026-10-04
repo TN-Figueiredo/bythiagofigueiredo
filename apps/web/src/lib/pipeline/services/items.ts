@@ -52,6 +52,13 @@ const TYPED_VIDEO_SECTION_SCHEMAS: Record<string, z.ZodTypeAny> = {
 import { linkPostToItem, unlinkPostFromItem } from '@/lib/pipeline/blog-link'
 import { prepareBlogTranslationPatch } from '@/lib/pipeline/draft-to-blog'
 import { CurriculumContentSchema } from '@/lib/pipeline/course-schemas'
+import {
+  planCampaignDraft,
+  assertCampaignSlugFree,
+  insertCampaignDraft,
+  deleteCampaignDraft,
+  type CampaignDraftPlan,
+} from './campaign-graduation'
 import type { ServiceContext, ServiceResult } from './types'
 import { PipelineServiceError } from './types'
 
@@ -954,7 +961,7 @@ export interface GraduateItemOptions {
   dryRun?: boolean
 }
 
-/** Graduate a pipeline item to a target entity (blog post, newsletter, campaign, or course). */
+/** Graduate a pipeline item to a target entity (blog post, newsletter, campaign draft, or course). */
 export async function graduateItem(
   ctx: ServiceContext,
   id: string,
@@ -974,7 +981,6 @@ export async function graduateItem(
   }
 
   const { target } = parsed.data
-  assertGraduationSupported(target)
   const supabase = getSupabaseServiceClient()
 
   const { data: item } = await supabase
@@ -1004,6 +1010,7 @@ export async function graduateItem(
   const fkMap = {
     blog_post: 'blog_post_id',
     newsletter: 'newsletter_edition_id',
+    campaign: 'campaign_id',
   } as const
 
   type FkTarget = keyof typeof fkMap
@@ -1017,9 +1024,28 @@ export async function graduateItem(
     )
   }
 
+  // A campaign needs fields the item may not carry: validate (and check the slug) BEFORE the dry
+  // run, so a preview never says ok for something the real call would refuse.
+  let campaignPlan: CampaignDraftPlan | null = null
+  if (target === 'campaign') {
+    campaignPlan = planCampaignDraft(ctx.siteId, item as Record<string, unknown>, parsed.data.campaign)
+    await assertCampaignSlugFree(
+      supabase,
+      ctx.siteId,
+      campaignPlan.campaign.locale,
+      campaignPlan.translation.slug,
+    )
+  }
+
   if (options?.dryRun) {
     return {
-      data: { graduated: true, target, entity_id: null, dry_run: true },
+      data: {
+        graduated: true,
+        target,
+        entity_id: null,
+        dry_run: true,
+        ...(campaignPlan ? { would_create: campaignPlan } : {}),
+      },
     }
   }
 
@@ -1029,6 +1055,8 @@ export async function graduateItem(
     entityId = await graduateToBlogPost(ctx, id, item, title, supabase)
   } else if (target === 'newsletter') {
     entityId = await graduateToNewsletter(ctx, item, title, supabase)
+  } else if (target === 'campaign' && campaignPlan) {
+    return linkCampaignDraft(ctx, id, campaignPlan, supabase)
   }
 
   if (entityId && fkField) {
@@ -1054,6 +1082,65 @@ export async function graduateItem(
   }
 
   return { data: { graduated: true, target, entity_id: entityId } }
+}
+
+// -- Campaign sub-function --
+
+/**
+ * Creates the draft campaign + translation, links the item and writes the history row. There is
+ * no transaction across these tables from here, so any failure after the campaign exists deletes
+ * it (translation cascades) and unlinks the item: nothing stays half-done.
+ */
+async function linkCampaignDraft(
+  ctx: ServiceContext,
+  id: string,
+  plan: CampaignDraftPlan,
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+): Promise<ServiceResult<Record<string, unknown>>> {
+  const campaignId = await insertCampaignDraft(supabase, plan)
+
+  const rollback = async () => {
+    await supabase
+      .from('content_pipeline')
+      .update({ campaign_id: null })
+      .eq('id', id)
+      .eq('site_id', ctx.siteId)
+    await deleteCampaignDraft(supabase, campaignId)
+  }
+
+  const { error: linkError } = await supabase
+    .from('content_pipeline')
+    .update({ campaign_id: campaignId })
+    .eq('id', id)
+    .eq('site_id', ctx.siteId)
+  if (linkError) {
+    await rollback()
+    throw new PipelineServiceError('DB_ERROR', 'Failed to link the campaign to the item', 500)
+  }
+
+  const { error: historyError } = await supabase
+    .from('content_pipeline_history')
+    .insert({
+      pipeline_id: id,
+      event_type: 'graduated',
+      to_value: `campaign:${campaignId}`,
+      changed_by_key_id: ctx.source === 'api_key' ? ctx.keyId ?? null : null,
+    })
+  if (historyError) {
+    await rollback()
+    throw new PipelineServiceError('DB_ERROR', 'Failed to record the graduation history', 500)
+  }
+
+  return {
+    data: {
+      graduated: true,
+      target: 'campaign',
+      entity_id: campaignId,
+      status: 'draft',
+      locale: plan.translation.locale,
+      slug: plan.translation.slug,
+    },
+  }
 }
 
 // -- Course sub-function --
@@ -1380,26 +1467,6 @@ async function graduateToNewsletter(
     )
   }
   return edition.id
-}
-
-// -- Campaign graduation --
-
-/**
- * `target: 'campaign'` stays in the enum (the contract) but is not supported: `campaigns` has no
- * `name`/`slug` (the copy lives in `campaign_translations`, which also requires the hook, the
- * button labels and the success texts) and needs an `interest`; nothing in a pipeline item carries
- * that. The insert that used to be here named columns that do not exist and failed every time
- * with a generic 400. Called before the dry run and before any read, so a preview never says
- * `graduated: true` for a target that will be refused.
- */
-export function assertGraduationSupported(target: string): void {
-  if (target === 'campaign') {
-    throw new PipelineServiceError(
-      'NOT_SUPPORTED',
-      'Graduating to a campaign is not supported yet: a campaign needs its interest and the translated copy (campaign_translations), which a pipeline item does not carry',
-      422,
-    )
-  }
 }
 
 // ---------------------------------------------------------------------------
