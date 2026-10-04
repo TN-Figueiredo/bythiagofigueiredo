@@ -76,6 +76,44 @@ describe('runCompetitorBatch — teto de sondas de Short', () => {
     await runCompetitorBatch({ apiKey: 'k', batchSize: 5, budgetMs: 1e9, now: () => sp('2026-10-24T15:02:00') })
     expect(budgets).toHaveLength(2)
     expect(budgets[0]).toBe(budgets[1])
-    expect(budgets[0]).toEqual({ remaining: 60 })
+    expect(budgets[0]).toMatchObject({ remaining: 60 })
+  })
+})
+
+describe('runCompetitorBatch — visibilidade da sonda (R114)', () => {
+  const chain = (rows: unknown[]): unknown => {
+    const p: unknown = new Proxy({}, { get: (_t, prop: string) => prop === 'then'
+      ? (ok: (v: unknown) => unknown) => Promise.resolve({ data: rows, count: rows.length, error: null }).then(ok)
+      : () => p })
+    return p
+  }
+  async function run(spend: (stats: { attempted: number; shorts: number; regular: number; inconclusive: number }) => void) {
+    vi.resetModules()
+    const captureMessage = vi.fn()
+    vi.doMock('@sentry/nextjs', () => ({ captureMessage, captureException: vi.fn() }))
+    vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (_r: unknown, _k: string, o: { probeBudget: { stats: { attempted: number; shorts: number; regular: number; inconclusive: number } } }) => { spend(o.probeBudget.stats); return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0 } }) }))
+    const rows = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null }]
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
+    vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: vi.fn(async () => 0) }))
+    void chain
+    const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
+    const r = await runCompetitorBatch({ apiKey: 'k', batchSize: 5, budgetMs: 1e9, now: () => sp('2026-10-24T15:02:00') })
+    return { r, captureMessage }
+  }
+  it('expõe shorts_probe no resultado', async () => {
+    const { r, captureMessage } = await run(s => { s.attempted = 12; s.shorts = 9; s.regular = 1; s.inconclusive = 2 })
+    expect(r.shorts_probe).toMatchObject({ attempted: 12, shorts: 9, regular: 1, inconclusive: 2, backfilled: 0, pending: 0 })
+    expect(captureMessage).not.toHaveBeenCalled()
+  })
+  it('≥ 10 sondas e nenhuma conclusiva: um aviso Sentry, sem ids, e o lote não vira falha', async () => {
+    const { r, captureMessage } = await run(s => { s.attempted = 10; s.inconclusive = 10 })
+    expect(captureMessage).toHaveBeenCalledTimes(1)
+    expect(captureMessage.mock.calls[0]![0]).toMatch(/bloqueada/)
+    expect(captureMessage.mock.calls[0]![1]).toMatchObject({ level: 'warning' })
+    expect(r).toMatchObject({ synced: 1, errors: 0 })
+  })
+  it('menos de 10 sondas inconclusivas não alarma', async () => {
+    const { captureMessage } = await run(s => { s.attempted = 9; s.inconclusive = 9 })
+    expect(captureMessage).not.toHaveBeenCalled()
   })
 })

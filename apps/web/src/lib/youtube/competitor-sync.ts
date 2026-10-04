@@ -6,10 +6,8 @@ import { probeThumb, isNewThumb, archiveThumb, type ThumbProbe } from '@/lib/you
 import {
   reconcileVideoVersions, normalizeDescription, type StoredVersion, type VersionPlan, type VersionField,
 } from '@/lib/youtube/competitor-versions'
-import {
-  classifyShort, needsShortProbe, probeShortsBatch, newProbeBudget, SHORT_CERTAIN_MAX_SECONDS, SHORT_MAX_SECONDS,
-  type ProbeBudget, type ShortProbeResult,
-} from '@/lib/youtube/short-classifier'
+import { classifyShort, needsShortProbe, probeShortsBatch, newProbeBudget, isYoutubeVideoId, type ProbeBudget, type ShortProbeResult } from '@/lib/youtube/short-classifier'
+import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
 const MAX_FULL_SYNC_VIDEOS = 2000
@@ -92,7 +90,7 @@ function sleep(ms: number): Promise<void> {
 export async function syncCompetitorChannel(
   channelRow: { id: string; channel_id: string; site_id: string },
   apiKey: string,
-  opts: { now?: Date; fetchImpl?: typeof fetch; probeBudget?: ProbeBudget } = {},
+  opts: { now?: Date; fetchImpl?: typeof fetch; probeBudget?: ProbeBudget; deferBackfill?: boolean } = {},
 ): Promise<SyncResult> {
   const supabase = getSupabaseServiceClient()
   const now = opts.now ?? new Date()
@@ -380,6 +378,7 @@ export async function syncCompetitorChannel(
         .filter(v => needsShortProbe(v.dur) && !v.title.includes('#Shorts'))
         .sort((a, b) => Number(existingMap.has(a.id)) - Number(existingMap.has(b.id)))
       const probes = await probeShortsBatch(probeCandidates.map(v => v.id), probeBudget, f)
+      if (probeBudget.stats) probeBudget.stats.pending += probeCandidates.filter(v => isYoutubeVideoId(v.id) && !probes.has(v.id)).length
 
       for (const video of videosData.items ?? []) {
         videosChecked++
@@ -401,8 +400,8 @@ export async function syncCompetitorChannel(
         const probe: ShortProbeResult | undefined = probes.get(videoId)
         const verdict = classifyShort({ durationSeconds, title, probe })
         let isShort = verdict.isShort
-        // Já gravado e sem sonda nesta rodada (teto esgotado): não muda o que está gravado dentro da faixa 61–180.
-        const keepStored = needsShortProbe(durationSeconds) && !title?.includes('#Shorts') && probe === undefined
+        // Já gravado e sem veredito conclusivo nesta rodada (teto esgotado ou sonda inconclusiva): mantém o gravado (R114).
+        const keepStored = needsShortProbe(durationSeconds) && !title?.includes('#Shorts') && probe !== 'short' && probe !== 'normal'
         const storedShort = existingMap.get(videoId)?.is_short as boolean | null | undefined
         if (keepStored && storedShort != null && existingMap.has(videoId)) isShort = storedShort
 
@@ -561,7 +560,7 @@ export async function syncCompetitorChannel(
 
     // ── Re-classificação dos já gravados como longos com 61–180 s (R109), mesmo teto da execução ──
     try {
-      await reclassifyStoredShorts(supabase, channelRow.id, nowMs, probeBudget, f)
+      if (!opts.deferBackfill) await reclassifyStoredShorts(supabase, channelRow.id, nowMs, probeBudget, f)
     } catch {
       // a sonda nunca derruba o sync
     }
@@ -622,38 +621,4 @@ export async function syncCompetitorChannel(
   }
 }
 
-/** Janela que a tela usa: 91 dias. */
-export const SHORT_RECLASSIFY_WINDOW_DAYS = 91
-
-/**
- * Vídeos gravados com is_short=false e 61–180 s, publicados nos últimos 91 dias, mais recentes primeiro: sonda e,
- * só quando a sonda é conclusiva, corrige is_short. Inconclusivo fica como está (continua candidato na próxima rodada).
- * Devolve quantas linhas foram viradas para Short.
- */
-export async function reclassifyStoredShorts(
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-  competitorChannelId: string,
-  nowMs: number,
-  budget: ProbeBudget,
-  f: typeof fetch,
-): Promise<number> {
-  if (budget.remaining <= 0) return 0
-  const cutoff = new Date(nowMs - SHORT_RECLASSIFY_WINDOW_DAYS * 86_400_000).toISOString()
-  const { data } = await supabase
-    .from('competitor_videos')
-    .select('id, video_id')
-    .eq('competitor_channel_id', competitorChannelId)
-    .eq('is_short', false)
-    .gt('duration_seconds', SHORT_CERTAIN_MAX_SECONDS)
-    .lte('duration_seconds', SHORT_MAX_SECONDS)
-    .gte('published_at', cutoff)
-    .order('published_at', { ascending: false })
-    .limit(budget.remaining)
-  const rows = (data ?? []) as Array<{ id: string; video_id: string }>
-  if (!rows.length) return 0
-  const probes = await probeShortsBatch(rows.map(r => r.video_id), budget, f)
-  const shortIds = rows.filter(r => probes.get(r.video_id) === 'short').map(r => r.id)
-  if (!shortIds.length) return 0
-  await supabase.from('competitor_videos').update({ is_short: true }).in('id', shortIds)
-  return shortIds.length
-}
+export { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
