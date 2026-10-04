@@ -5,6 +5,7 @@ import { ensureFreshToken, NoActiveConnectionError } from '@/lib/social/token-re
 import { channelForVideo } from '@/lib/youtube/channel-account'
 import { fetchAnalyticsForDateRange } from '@/lib/youtube/ab-youtube'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
+import { channelNote, describeCronCause } from '@/lib/cron/failure-note'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
 export const maxDuration = 120
@@ -39,10 +40,10 @@ export async function GET(req: NextRequest) {
       tags: { cron: 'ab-backfill' },
       extra: { stage: 'select-cycles' },
     })
-    await recordCronFailure('ab-backfill', cyclesError.message, 'critical').catch((e) =>
+    await recordCronFailure('ab-backfill', 'database error listing the A/B cycles to backfill', 'critical').catch((e) =>
       console.error('[cron-health] write failed:', e)
     )
-    return Response.json({ status: 'error', error: cyclesError.message }, { status: 500 })
+    return Response.json({ status: 'error', error: 'database error listing the A/B cycles' }, { status: 500 })
   }
 
   if (!cycles || cycles.length === 0) {
@@ -58,6 +59,8 @@ export async function GET(req: NextRequest) {
 
   let backfilled = 0
   let errors = 0
+  // Uma nota por falha (canal + causa), sem texto cru do banco/Google: vira cron_health.last_error.
+  const errorNotes: string[] = []
   // Ciclos pulados por falta de token do canal dono do vídeo (canal sem conexão
   // OAuth, ou vídeo sem canal). Não são erro nem "sem dados": ninguém perguntou
   // nada ao YouTube.
@@ -105,6 +108,7 @@ export async function GET(req: NextRequest) {
           // consultado, e `error` é terminal (a consulta só lê pending/partial). Fica para a
           // próxima rodada.
           errors++
+          errorNotes.push(channelNote(channelName ?? channelAccountId ?? 'unknown channel', describeCronCause(tokenErr)))
           Sentry.captureException(tokenErr, {
             tags: { cron: 'ab-backfill' },
             extra: { stage: 'token', cycleId: cycle.id, testId: cycle.test_id },
@@ -170,6 +174,7 @@ export async function GET(req: NextRequest) {
       backfilled++
     } catch (err) {
       errors++
+      errorNotes.push(channelNote(`cycle ${cycle.id}`, describeCronCause(err)))
       Sentry.captureException(err, {
         tags: { cron: 'ab-backfill' },
         extra: { cycleId: cycle.id, testId: cycle.test_id },
@@ -226,7 +231,10 @@ export async function GET(req: NextRequest) {
   if (errors === 0) {
     await recordCronSuccess('ab-backfill', 'critical')
   } else {
-    await recordCronFailure('ab-backfill', `${errors} cycle(s) failed`, 'critical')
+    // Deduplica (mesmo canal+causa em vários ciclos) e limita o tamanho da coluna.
+    const unique = [...new Set(errorNotes)]
+    const note = `${errors} cycle(s) failed — ${unique.join('; ')}`.slice(0, 500)
+    await recordCronFailure('ab-backfill', note, 'critical')
   }
 
   return Response.json({ status: 'ok', backfilled, errors, skipped: skipped.length })

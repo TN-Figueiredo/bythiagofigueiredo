@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { channelNote, describeCronCause } from '@/lib/cron/failure-note'
 import { withCronLock, newRunId } from '@/lib/logger'
 import {
   shouldPollPost,
@@ -23,7 +24,13 @@ const LOCK_KEY = 'cron:social-metrics'
 const JOB = 'social-metrics'
 const BATCH_LIMIT = 20
 const CONNECTION_SELECT =
-  'id, site_id, account_id, page_token_enc, access_token_enc, bluesky_access_jwt_enc, circuit_open_until, metadata' as const
+  'id, site_id, account_id, account_name, page_token_enc, access_token_enc, bluesky_access_jwt_enc, circuit_open_until, metadata' as const
+
+/** "youtube Canal PT": qual conta, sem ids de entrega nem segredo. */
+function accountLabel(provider: unknown, connection: Record<string, unknown> | null, fallback: unknown): string {
+  const who = (connection?.account_name as string | null) ?? (connection?.account_id as string | null) ?? String(fallback ?? 'unknown account')
+  return `${String(provider)} ${who}`
+}
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get('authorization')
@@ -53,7 +60,8 @@ export async function POST(req: NextRequest) {
       .limit(BATCH_LIMIT)
 
     if (fetchError) {
-      throw new Error(`Failed to fetch deliveries: ${fetchError.message}`)
+      Sentry.captureException(fetchError, { tags: { cron: JOB }, extra: { stage: 'fetch-deliveries' } })
+      throw new Error('database error listing the deliveries to poll')
     }
 
     if (!deliveries || deliveries.length === 0) {
@@ -142,7 +150,10 @@ export async function POST(req: NextRequest) {
               },
             })
             errors.push(
-              `delivery ${delivery.id}: token revoked for ${delivery.provider}`,
+              channelNote(
+                accountLabel(delivery.provider, connection as Record<string, unknown>, delivery.connection_id),
+                'token revoked by Google/Meta — the account must be reconnected',
+              ),
             )
             continue
           }
@@ -177,16 +188,27 @@ export async function POST(req: NextRequest) {
             .insert(metricRow)
 
           if (insertError) {
+            Sentry.captureException(new Error(`post_metrics insert failed: ${insertError.message}`), {
+              tags: { cron: JOB },
+              extra: { deliveryId: delivery.id },
+            })
             errors.push(
-              `delivery ${delivery.id}: insert failed: ${insertError.message}`,
+              channelNote(
+                accountLabel(delivery.provider, freshConn as Record<string, unknown>, delivery.connection_id),
+                'database error saving the metrics',
+              ),
             )
           } else {
             processed++
           }
         }
       } catch (err) {
+        Sentry.captureException(err, { tags: { cron: JOB }, extra: { deliveryId: delivery.id } })
         errors.push(
-          `delivery ${delivery.id}: ${err instanceof Error ? err.message : String(err)}`,
+          channelNote(
+            accountLabel(delivery.provider, null, delivery.connection_id),
+            describeCronCause(err),
+          ),
         )
       }
     }
