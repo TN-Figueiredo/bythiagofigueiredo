@@ -23,7 +23,7 @@ import { DrawerForjaBox, DrawerForjaFoot } from './drawer-forja'
 import type { ForjaAsk } from '../_chrome/forja-view-model'
 import { AddChannelForm, type AddFn } from './add-channel-form'
 import { RowMenu, rowMenuButton } from './row-menu'
-import { NicheEditorDialog, NichePendingContext, type NichePending } from './niche-editor'
+import { NicheEditorDialog, NicheOptionsContext, NichePendingContext, type NichePending } from './niche-editor'
 import { Ic, Tip, type LocalSync } from './cells'
 import './canais.css'
 
@@ -187,7 +187,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
       else setPending(cur => Object.fromEntries(Object.entries(cur).filter(([id]) => id !== r.id)))
     }
     if (!ok) { toast('bad', 'Não deu para mudar o nicho', r.niche ? `${r.name} continua no nicho anterior.` : `${r.name} continua sem nicho.`); return }
-    const NLn = n === 'ia' ? 'IA' : 'Viagem'
+    const NLn = view.niches.find(o => o.id === n)?.label ?? n
     const left = view.niche !== 'todos' && view.niche !== n
     toast('ok', r.own ? `Nicho de ${r.name} definido como ${NLn}` : `Nicho de ${r.name} alterado para ${NLn}`, left ? `Ele saiu do filtro ${view.nicheLabel}.` : '')
     // the channel left the filter and its drawer is the open one: close it
@@ -273,6 +273,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
 
   const s = view.slots, full = s.free === 0
   return (
+    <NicheOptionsContext.Provider value={view.niches}>
     <NichePendingContext.Provider value={pending}>
     <div data-obs-screen="canais" className={panel ? 'drawer-open' : undefined} data-nav-pending={navPending ? '' : undefined}>
       {navPending ? <div className="cn-navbar" aria-hidden="true"><i /></div> : null}
@@ -385,7 +386,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
 
       {addOpen ? (
         <AddChannelForm view={view} onAdd={onAdd} onClose={closeAdd} trap={trapTab}
-          onAdded={(input, title) => { closeAdd(); toast('ok', 'Canal adicionado', `${title ?? input.channel} entrou em ${input.niche === 'ia' ? 'IA' : 'Viagem'}; a busca dos vídeos começou.`); router.refresh() }} />
+          onAdded={(input, title) => { closeAdd(); toast('ok', 'Canal adicionado', `${title ?? input.channel} entrou em ${view.niches.find(o => o.id === input.niche)?.label ?? input.niche}; a busca dos vídeos começou.`); router.refresh() }} />
       ) : null}
 
       {nicheOpen ? (
@@ -393,5 +394,6 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
       ) : null}
     </div>
     </NichePendingContext.Provider>
+    </NicheOptionsContext.Provider>
   )
 }

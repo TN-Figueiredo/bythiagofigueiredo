@@ -15,7 +15,12 @@ describe('parseChannelInput', () => {
   })
 })
 
-interface Db { own: Array<{ id: string; channel_id: string }> | null; existing: unknown; inserted: unknown[]; deleted?: unknown[] | null }
+vi.mock('server-only', () => ({}))
+type NicheRow = { slug: string; label: string; color_dark: string; color_light: string; sort_order: number }
+const BUILTIN_ROWS: NicheRow[] = [{ slug: 'viagem', label: 'Viagem', color_dark: '#5BBF8A', color_light: '#11692F', sort_order: 10 }, { slug: 'ia', label: 'IA', color_dark: '#6EA8FE', color_light: '#1D4ED8', sort_order: 20 }]
+const JOGOS: NicheRow = { slug: 'jogos', label: 'Jogos', color_dark: '#D29AE8', color_light: '#7B2A91', sort_order: 100 }
+/** `niches`: the site's youtube_niches rows; 'missing' = the table is not in this database yet (42P01). Default: the two built-in. */
+interface Db { own: Array<{ id: string; channel_id: string }> | null; existing: unknown; inserted: unknown[]; deleted?: unknown[] | null; niches?: NicheRow[] | 'missing' }
 function setup(db: Db, slots = { used: 14, limit: 75, free: 61 }, auth: { ok: boolean; reason?: string; user?: { id: string } } = { ok: true, user: { id: 'u1' } }) {
   vi.resetModules()
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
@@ -26,7 +31,11 @@ function setup(db: Db, slots = { used: 14, limit: 75, free: 61 }, auth: { ok: bo
   const chain = (data: unknown) => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data }) }) }) }) })
   vi.doMock('@/lib/supabase/service', () => ({
     getSupabaseServiceClient: () => ({
-      from: (t: string) => t === 'youtube_channels' ? { select: () => ({ eq: async () => ({ data: db.own }) }) } : {
+      from: (t: string) => t === 'youtube_channels' ? { select: () => ({ eq: async () => ({ data: db.own }) }) } : t === 'youtube_niches' ? { select: () => {
+        const res = db.niches === 'missing' ? { data: null, error: { code: '42P01', message: 'relation does not exist' } } : { data: db.niches ?? BUILTIN_ROWS, error: null }
+        const q = { eq: () => q, order: () => q, then: (ok: (r: typeof res) => unknown) => Promise.resolve(res).then(ok) }
+        return q
+      } } : {
         ...chain(db.existing),
         delete: () => ({ eq: () => ({ eq: () => ({ select: async () => ({ data: db.deleted ?? null, error: null }) }) }) }),
         insert: (row: unknown) => { db.inserted.push(row); return { select: () => ({ single: async () => ({ data: { id: 'n1', channel_id: 'x', site_id: 's1' }, error: null }) }) } },
@@ -88,6 +97,38 @@ describe('addCompetitorChannel', () => {
     const add = await load()
     expect((await add('xx')).error).toBe('Use o @handle (ex.: @LukeDamant) ou a URL do canal (youtube.com/@…).')
     expect((await add(UC, 'ia', 500)).error).toBe('Escolha entre 10 e 200 vídeos.')
+  })
+  it('a niche the owner created (in the site table) is accepted and inserted with its slug', async () => {
+    const db: Db = { own: null, existing: null, inserted: [], niches: [...BUILTIN_ROWS, JOGOS] }
+    setup(db)
+    expect((await (await load())(UC, 'jogos', 50)).ok).toBe(true)
+    expect(db.inserted).toEqual([{ site_id: 's1', channel_id: UC, channel_name: UC, niche: 'jogos', video_limit: 50 }])
+  })
+  it('a well-formed niche that the site does not have is refused, nothing inserted; a malformed one too', async () => {
+    const db: Db = { own: null, existing: null, inserted: [] }
+    setup(db)
+    const add = await load()
+    expect(await add(UC, 'jogos', 50)).toEqual({ ok: false, error: 'Nicho inválido.' })
+    expect(await add(UC, 'Não Vale', 50)).toEqual({ ok: false, error: 'Nicho inválido.' })
+    expect(db.inserted).toEqual([])
+  })
+  it('table youtube_niches not in this database yet: the built-in niches still work, a created one is refused', async () => {
+    const db: Db = { own: null, existing: null, inserted: [], niches: 'missing' }
+    setup(db)
+    const add = await load()
+    expect((await add(UC, 'ia', 50)).ok).toBe(true)
+    expect(await add(UC, 'jogos', 50)).toEqual({ ok: false, error: 'Nicho inválido.' })
+    expect(db.inserted).toEqual([{ site_id: 's1', channel_id: UC, channel_name: UC, niche: 'ia', video_limit: 50 }])
+  })
+  it('a duplicate in a created niche says its label', async () => {
+    setup({ own: null, existing: { id: 'c1', niche: 'jogos', channel_name: 'Canal J' }, inserted: [], niches: [...BUILTIN_ROWS, JOGOS] })
+    expect((await (await load())(UC)).error).toBe('Canal J já está no observatório (Jogos).')
+  })
+  it('addChannelFromCanais passes the created niche through', async () => {
+    const db: Db = { own: null, existing: null, inserted: [], niches: [...BUILTIN_ROWS, JOGOS] }
+    setup(db)
+    expect((await (await actions()).addChannelFromCanais({ channel: UC, niche: 'jogos', videoLimit: 50 })).ok).toBe(true)
+    expect(db.inserted).toHaveLength(1)
   })
   it('a duplicate is reported even when there is no free slot', async () => {
     setup({ own: null, existing: { id: 'c1', niche: 'viagem', channel_name: 'Luke Damant' }, inserted: [] }, { used: 14, limit: 14, free: 0 })

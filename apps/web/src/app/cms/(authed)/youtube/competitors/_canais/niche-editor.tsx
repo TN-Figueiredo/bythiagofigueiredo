@@ -4,24 +4,35 @@
  * canais" editor (competitors only), opened by ?nicheEditor=1 (the chrome's menu item links there). The screen picks
  * the server action: setChannelNiche for a competitor, setOwnChannelNiche for an own channel.
  */
-import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
+import { BUILTIN_NICHES } from '@/lib/youtube/observatorio/niche'
+import type { NicheOption, NicheVars } from './view-model'
 
 /** Niche picked and not yet confirmed by the server data, per channel id (the screen owns it). `busy`: the action is still running. */
 export type NichePending = Record<string, { niche: Niche; busy: boolean }>
 export const NichePendingContext = createContext<NichePending>({})
+/**
+ * The site's niches, in the tab order (view.niches): the options of every NicheSelect. The screen provides them once;
+ * without a provider (a select drawn alone) the two built-in niches stand, as before niches became data.
+ */
+export const NicheOptionsContext = createContext<readonly NicheOption[]>(BUILTIN_NICHES.map(n => ({ id: n.id, label: n.label, color: null })))
+/** The colour of a niche the owner created, as CSS variables (the same pair the chrome's niche bar uses, plus the fills). */
+export const nicheStyle = (c: NicheVars): CSSProperties => ({ ['--obs-sw-dark' as string]: c.dark, ['--obs-sw-light' as string]: c.light, ['--obs-sw-dark-subtle' as string]: c.darkSubtle, ['--obs-sw-light-subtle' as string]: c.lightSubtle })
 
 export function NicheSelect({ id, name, niche, ctx, onChange }: { id: string; name: string; niche: Niche | null; ctx: string; onChange: (n: Niche) => void }) {
   const pending = useContext(NichePendingContext)[id]
+  const options = useContext(NicheOptionsContext)
   const shown = pending?.niche ?? niche
+  const cur = shown == null ? undefined : options.find(o => o.id === shown)
+  // .niche.viagem / .niche.ia keep their own classes; a niche the owner created takes .custom and its colour by variable
   return (
     <select
-      className={'niche ' + (shown ?? 'none')} aria-busy={pending?.busy || undefined} name={`niche-${id}-${ctx}`} aria-label={`Nicho de ${name}${niche ? '' : ': sem nicho, escolha um'}`} data-niche={id} data-ctx={ctx}
-      value={shown ?? ''} onChange={e => { const v = e.target.value; if (v === 'viagem' || v === 'ia') onChange(v) }}
+      className={'niche ' + (shown == null ? 'none' : cur?.color ? 'custom' : shown)} style={cur?.color ? nicheStyle(cur.color) : undefined} aria-busy={pending?.busy || undefined} name={`niche-${id}-${ctx}`} aria-label={`Nicho de ${name}${niche ? '' : ': sem nicho, escolha um'}`} data-niche={id} data-ctx={ctx}
+      value={shown ?? ''} onChange={e => { const v = e.target.value; if (options.some(o => o.id === v)) onChange(v) }}
     >
       {niche == null ? <option value="" disabled>Escolher nicho</option> : null}
-      <option value="viagem">Viagem</option>
-      <option value="ia">IA</option>
+      {options.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
     </select>
   )
 }

@@ -154,7 +154,7 @@ export function buildSentCtx(ctx: ForjaCtx, type: string, target: SentTarget): S
     return videoPack(ctx, target.videoId)
   }
   const niche = target.niche
-  if (niche !== 'ia' && niche !== 'viagem') throw new Error('buildSent: ' + type + ' needs a niche (one request per niche)')
+  if (!niche || niche === 'todos') throw new Error('buildSent: ' + type + ' needs a niche (one request per niche)')
   if (type === 'resumo-trocas') return changesPack(ctx, niche)
   if (type === 'padroes-titulo' || type === 'padroes-titulo-shorts' || type === 'temas') return outlierPack(ctx, type, niche, target.fmt || (type === 'padroes-titulo-shorts' ? 'short' : 'long'))
   throw new Error('buildSent: unknown reading type ' + type)

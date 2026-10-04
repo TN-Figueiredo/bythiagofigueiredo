@@ -7,6 +7,8 @@ import { parseChannelInput } from './channel-input'
 
 export interface AddInput { channel: string; niche: Niche; videoLimit: number }
 export type AddFn = (input: AddInput) => Promise<{ ok: boolean; error?: string; title?: string }>
+/** Up to this many niches the dialog offers buttons; above it, a select. */
+const ADD_NICHE_BUTTONS = 3
 
 
 export function AddChannelForm({ view, onAdd, onClose, onAdded, trap }: {
@@ -50,9 +52,17 @@ export function AddChannelForm({ view, onAdd, onClose, onAdded, trap }: {
         </label>
         <span className="err" id="cn-addHErr" role="alert">{hErr}</span>
         <div className="fld"><span id="cn-addNL">Nicho</span>
-          <div className="seg" role="group" aria-labelledby="cn-addNL">
-            {(['viagem', 'ia'] as const).map(k => <button key={k} type="button" aria-pressed={niche === k} onClick={() => setNiche(k)}>{k === 'ia' ? 'IA' : 'Viagem'}</button>)}
-          </div>
+          {/* up to 3 niches, buttons (as always); from 4 on, a select, so the dialog keeps one line */}
+          {view.add.niches.length <= ADD_NICHE_BUTTONS ? (
+            <div className="seg" role="group" aria-labelledby="cn-addNL">
+              {view.add.niches.map(o => <button key={o.id} type="button" aria-pressed={niche === o.id} onClick={() => setNiche(o.id)}>{o.label}</button>)}
+            </div>
+          ) : (
+            <select className="sel" name="addNiche" aria-labelledby="cn-addNL" style={{ alignSelf: 'flex-start', minWidth: 180 }} value={niche}
+              onChange={e => { const v = e.target.value; if (view.add.niches.some(o => o.id === v)) setNiche(v) }}>
+              {view.add.niches.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+            </select>
+          )}
         </div>
         <label className="fld"><span>Vídeos acompanhados</span>
           <input ref={limRef} name="addLim" type="number" min={10} max={view.add.limitMax} step={10} value={lim}

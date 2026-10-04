@@ -38,9 +38,11 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   const now = observatoryNow()
   const [rows, canUnlock] = await Promise.all([loadRows({ siteId, now }), canUnlockChannels(siteId)])
   const obs = createObservatory(rowsToDataset(rows, now))
-  // The chrome persists a valid ?niche= and drops an invalid one; here it is only read.
-  const urlNiche = parseNiche(one(sp.niche))
-  const niche = urlNiche ?? await getUserNiche()
+  // The chrome persists a valid ?niche= and drops an invalid one; here it is only read. parseNiche checks the form;
+  // the engine says whether the niche exists (a saved or linked niche that no longer exists opens in Todos, without error).
+  const parsed = parseNiche(one(sp.niche))
+  const urlNiche = parsed != null && obs.scopeOf(parsed) === parsed ? parsed : null
+  const niche = urlNiche ?? obs.scopeOf(await getUserNiche())
   const view = buildCanaisView(obs, {
     niche, nicheExplicit: urlNiche != null, limit: rows.settings?.channel_limit ?? DEFAULT_CHANNEL_LIMIT, unlockStep: UNLOCK_STEP,
     channel: one(sp.channel), tab: one(sp.tab), add: one(sp.add), filter: one(sp.filter), scale: one(sp.scale), fmt: one(sp.fmt),

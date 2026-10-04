@@ -3,7 +3,7 @@
  * Pure: every number, date and sentence comes from the engine (Observatory). The component only lays it out.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
-import type { NicheScope } from '@/lib/youtube/observatorio/niche'
+import { joinLabels, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, Niche, ObsChannel, ObsVideo, SyncState } from '@/lib/youtube/observatorio/types'
 import type { OutlierItem } from '@/lib/youtube/observatorio/outliers'
 import type { EffectResult } from '@/lib/youtube/observatorio/effect'
@@ -64,7 +64,8 @@ export interface CanaisRow {
 }
 /** One piece of the "Seus canais" group line (canais.html ownParts): a mono number, a sentence, or a warning. */
 export interface OwnGroupPart { num: string | null; text: string; warn: boolean }
-export interface CanaisGroup { key: Niche | 'sem'; label: string; count: string; flags: Array<{ kind: 'erro' | 'atrasado' | 'backfill' | 'parado'; text: string }>; rows: CanaisRow[] }
+/** `color`: the niche's own colour (CSS variables) for a niche the owner created; null for the built-in ones (var(--travel) / var(--ai)) and for "Sem nicho". */
+export interface CanaisGroup { key: Niche | 'sem'; label: string; color: NicheVars | null; count: string; flags: Array<{ kind: 'erro' | 'atrasado' | 'backfill' | 'parado'; text: string }>; rows: CanaisRow[] }
 
 export interface EffectView { vd: 'won' | 'lost' | 'neu' | 'inc' | 'wait'; icon: 'up' | 'down' | 'eq' | 'q' | 'wait' | 'nodata'; label: string | null; main: Array<{ t: string; mono?: boolean }>; sub: string | null; subWeak: string | null }
 export interface ViewsText { num: string | null; text: string }
@@ -105,7 +106,9 @@ export interface CanaisView {
   /** F4: the link inside emptyText that opens the niche editor (null: the sentence has none). */
   emptyLink: { text: string; href: string } | null
   legend: { mid: string; high: string; top: string }
-  add: { cap: string; when: string; defaultNiche: Niche; limitMax: number; defaultLimit: number }
+  add: { cap: string; when: string; defaultNiche: Niche; limitMax: number; defaultLimit: number; niches: Array<{ id: Niche; label: string }> }
+  /** The site's niches in the tab order: the options of every niche select. `color` only on the ones the owner created. */
+  niches: NicheOption[]
   /** Tooltip of the Sincronização column header. */
   syncTip: string
   /** canais.html .syncbar, shown while the chrome's round runs (R42). */
@@ -137,7 +140,15 @@ export interface CanaisParams {
 
 const pick = <T extends string>(v: string | undefined, ok: readonly T[], d: T): T => (v && (ok as readonly string[]).includes(v) ? (v as T) : d)
 const SORTNAME: Record<CanaisSort, string> = { active: 'Ritmo', vpd: 'Views/dia', outliers: 'Outliers', swaps: 'Trocas', growth: 'Crescimento' }
-const NL: Record<Niche, string> = { viagem: 'Viagem', ia: 'IA' }
+/** The colour of a niche the owner created, as the CSS variables the chrome's niche bar already uses (plus the subtle fills). */
+export interface NicheVars { dark: string; light: string; darkSubtle: string; lightSubtle: string }
+export interface NicheOption { id: Niche; label: string; color: NicheVars | null }
+/** rgba() literal (never color-mix: it renders transparent in some browsers). */
+const rgba = (hex: string, a: number) => { const n = parseInt(hex.slice(1), 16); return Number.isFinite(n) ? `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})` : 'transparent' }
+export const nicheVars = (c: { dark: string; light: string }): NicheVars => ({ dark: c.dark, light: c.light, darkSubtle: rgba(c.dark, 0.13), lightSubtle: rgba(c.light, 0.08) })
+export function nicheOptions(obs: Observatory): NicheOption[] {
+  return obs.niches.map(n => ({ id: n.id, label: n.label, color: n.builtin ? null : nicheVars(n.color) }))
+}
 
 export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const D = obs.date, F = obs.fmt, R = obs.RULES
@@ -149,7 +160,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const dir = pick(p.dir, ['asc', 'desc'] as const, 'desc')
   const filter = p.filter === 'problemas' ? 'problemas' : 'todos'
   const niche = p.niche
-  const nicheLabel = niche === 'todos' ? 'Todos' : NL[niche]
+  const NL = (n: Niche) => obs.nicheLabel(n)
+  const nicheLabel = niche === 'todos' ? 'Todos' : NL(niche)
+  const nicheOpts = nicheOptions(obs), tabIdx = (n: Niche | null) => { const i = n == null ? -1 : nicheOpts.findIndex(o => o.id === n); return i < 0 ? nicheOpts.length : i }
   const stats = (id: string, f: Fmt = fmt) => obs.channelStats(id, f)
   const num = (n: number | null) => F.num(n).replace(/ (mil|mi)$/, NB + '$1')
   const subsTxt = (n: number) => F.subs(n).replace(/ (mil|mi)$/, NB + '$1')
@@ -208,7 +221,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   }
   const multVs = (m: MultiplierResult) => (m.method === 'mesmo dia de vida' ? 'mesmo dia de vida' : (m.band ?? '').replace(' dias', NB + 'd'))
   const methodText = (m: MultiplierResult) => (m.fallbackText ? cap(m.fallbackText) : 'Método: ' + m.method)
-  const coworkOf = (c: ObsChannel) => `Leia o canal ${c.name}${c.handle ? ` (${c.handle})` : ''} via youtube_observatory: ${obs.link.canais({ channel: c.id })}. Compare ritmo, views/dia e trocas dos últimos 30 dias com os outros canais de ${c.niche ? NL[c.niche] : 'todos os nichos'}. Não afirme causa.`
+  const coworkOf = (c: ObsChannel) => `Leia o canal ${c.name}${c.handle ? ` (${c.handle})` : ''} via youtube_observatory: ${obs.link.canais({ channel: c.id })}. Compare ritmo, views/dia e trocas dos últimos 30 dias com os outros canais de ${c.niche ? NL(c.niche) : 'todos os nichos'}. Não afirme causa.`
 
   /* ---------------------------------------------------------------- own channels (canais.html:620-627) */
   const allOwns = obs.ownChannels() // R73: subscribers, largest first
@@ -340,7 +353,8 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   ownParts.push({ num: null, text: 'fora do limite de concorrentes', warn: false })
   const ownGroup = allOwns.length && (many || ownShown.length !== allOwns.length || ownNone > 0) ? { label: 'Seus canais', parts: ownParts } : null
   const ownRows = ownShown.map(rowOf)
-  const groupKeys: Array<[Niche | 'sem', string]> = niche === 'todos' ? [['viagem', 'Viagem'], ['ia', 'IA'], ['sem', 'Sem nicho']] : [[niche, NL[niche]]]
+  // Todos: one group per niche of the site, in the tab order, and "Sem nicho" last (a group without rows is not drawn)
+  const groupKeys: Array<[Niche | 'sem', string]> = niche === 'todos' ? [...nicheOpts.map((o): [Niche, string] => [o.id, o.label]), ['sem', 'Sem nicho']] : [[niche, NL(niche)]]
   const groups: CanaisGroup[] = groupKeys.map(([key, label]) => {
     const rows = compRows.filter(r => (key === 'sem' ? r.niche == null : r.niche === key))
     const chs = rows.map(r => obs.channel(r.id)!)
@@ -351,7 +365,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     if (l) flags.push({ kind: 'atrasado', text: `${l} com sincronização atrasada` })
     if (b) flags.push({ kind: 'backfill', text: `${b} buscando vídeos` })
     if (pz) flags.push({ kind: 'parado', text: `${pz} parado` })
-    return { key, label, count: F.plural(rows.length, 'canal', 'canais'), flags, rows }
+    return { key, label, color: key === 'sem' ? null : nicheOpts.find(o => o.id === key)?.color ?? null, count: F.plural(rows.length, 'canal', 'canais'), flags, rows }
   }).filter(g => g.rows.length)
 
   const np = comps.filter(c => c.sync.state !== 'ok').length
@@ -546,8 +560,11 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     add: {
       cap: `${used} de ${limit} concorrentes acompanhados (${T.count}): ${free === 0 ? 'nenhuma vaga. Remova um canal para adicionar outro' : free === 1 ? 'sobra 1 vaga' : `sobram ${free} vagas`}.`,
       when: `A busca dos vídeos começa ao adicionar, até o limite escolhido${nextSync != null ? `; o que faltar continua na sincronização das ${D.hm(nextSync)}` : ''}. A contagem diária de views começa no dia seguinte; inscritos precisam de 30 dias para o crescimento.`,
-      defaultNiche: niche === 'todos' ? 'viagem' : niche, limitMax: R.videoLimitMax, defaultLimit: 50,
+      // the tab's niche, else the first of the site's list
+      defaultNiche: niche === 'todos' ? nicheOpts[0]?.id ?? '' : niche, limitMax: R.videoLimitMax, defaultLimit: 50,
+      niches: nicheOpts.map(o => ({ id: o.id, label: o.label })),
     },
+    niches: nicheOpts,
     syncbar: (() => {
       const comp = all.filter(c => !c.own), inRound = comp.filter(c => c.sync.state === 'ok').length, out = comp.filter(isBf).map(c => c.name)
       return {
@@ -556,7 +573,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       }
     })(),
     nicheRows: all.filter(c => !c.own).map(c => ({ id: c.id, name: c.name, niche: c.niche }))
-      .sort((a, b) => ['viagem', 'ia', null].indexOf(a.niche) - ['viagem', 'ia', null].indexOf(b.niche) || a.name.localeCompare(b.name, 'pt-BR')),
+      .sort((a, b) => tabIdx(a.niche) - tabIdx(b.niche) || a.name.localeCompare(b.name, 'pt-BR')),
     syncTip: `Cada canal acompanha os vídeos mais recentes até o limite definido para ele (até ${R.videoLimitMax}). Todos os vídeos acompanhados têm views diárias desde ${obs.SERIES_START_LABEL}. Sincronização automática às ${obs.SYNC.slots.map(h => String(h).padStart(2, '0') + 'h').join(', ').replace(/, (\d\dh)$/, ' e $1')}.`,
   }
 }
@@ -569,7 +586,8 @@ function forjaOf(obs: Observatory, niche: NicheScope, drawer: DrawerView | null)
   const lines = forja.status?.lines ?? []
   const forjaBar = niche === 'todos' && lines.length > 1 ? { lines: lines.join(' · '), text: forja.card.statusText ?? '' } : null
   if (!drawer || drawer.own || !drawer.niche) return { forja, forjaBar, drawerForja: null }
-  const n = drawer.niche, NLn = NL[n]
+  const NL = (x: Niche) => obs.nicheLabel(x)
+  const n = drawer.niche, NLn = NL(n)
   const fv = niche === 'todos' ? forja : buildForjaView(obs, { screen: 'canais', niche: n })
   const sc = obs.forja.session.current(niche === 'todos' ? 'todos' : n, { type })
   const q = sc.empty ? null : sc.requests.find(x => x.niche === n) ?? null
@@ -595,7 +613,7 @@ function forjaOf(obs: Observatory, niche: NicheScope, drawer: DrawerView | null)
   else if (q && RUNNING.includes(q.state)) {
     button = { ...button, label: 'Pedido em andamento', disabled: true }
     const fr = niche === 'todos' ? (forja.ask?.niches ?? []).filter(x => x !== n) : []
-    if (fr.length) { const L = fr.map(x => NL[x]).join(' e '); why += ' O pedido de ' + NLn + ' está em andamento; ' + L + ' está livre.'; free = { label: 'Pedir leitura de ' + L, niches: fr } }
+    if (fr.length) { const L = joinLabels(fr.map(NL)); why += ' O pedido de ' + NLn + ' está em andamento; ' + L + (fr.length > 1 ? ' estão livres.' : ' está livre.'); free = { label: 'Pedir leitura de ' + L, niches: fr } }
   } else if (q && q.state === 'publicado') {
     button = { ...button, disabled: true }
     const qn = sc.quota.byNiche?.[n]

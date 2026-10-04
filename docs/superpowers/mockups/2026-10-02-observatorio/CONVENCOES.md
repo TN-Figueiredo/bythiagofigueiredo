@@ -265,3 +265,15 @@ Parâmetro de cor de tema na URL continua `theme=light|dark`; tema da forja em O
 - (F11) Pedidos de TIPOS diferentes no mesmo nicho são permitidos (cota e ocupado são por nicho+tipo; a fila é global). Só bloqueia o mesmo tipo no mesmo nicho/alvo.
 - (F11) Rótulo curto do botão de nicho livre: "Ler IA" / "Ler Viagem" (nome inteiro em aria-label).
 - (F11 conjunto) "Desde então": maiúscula, sem ponto final, em linha própria; minúscula só logo após rótulo com dois-pontos. Views de canal parado: "até o registro diário de DD/MM HH:MM".
+
+## Nichos como dado (multi-canal, 04/10)
+- Nicho = Todos · <nichos do site, na ordem de `sort_order`>. Os de fábrica são Viagem e IA, com as cores atuais. Onde a forja enumera nichos, a ordem é IA, Viagem e depois os demais.
+- A mesma ordem vale na barra de nicho, no seletor de nicho da linha, nos grupos da tabela e no formulário de adicionar canal. Nicho sem canal não ganha grupo na tabela.
+- Barra de nicho: uma linha, ao lado das abas. Quando os nichos não cabem, o trilho da barra rola para o lado com o degradê das abas e o nicho ativo é trazido para a vista. A página nunca rola para o lado. Sem menu "Mais".
+- Adicionar canal: até 3 nichos, botões; a partir de 4, seletor.
+- Cores dos nichos criados pelo dono: ameixa `#D29AE8` / `#7B2A91`, rosa `#F293C2` / `#A3216B`, lima `#B9CB62` / `#55650B`, ardósia `#AAB4C0` / `#4B5563` (escuro / claro). Nenhuma repete cor com significado (laranja, teal da forja, violeta do Cowork, âmbar, vermelho, ciano). Passando de quatro nichos criados, as cores se repetem em ciclo. A cor nunca vem sem o nome do nicho.
+- Nicho criado pelo dono não tem lista de temas: Temas e Lacunas dizem “Ainda não há lista de temas para <Nicho>. Padrões de título, o mapa de publicação e “Você no nicho” funcionam normalmente.”, sem selo da forja. Fórmulas usa só as universais (preço, número, pergunta, superlativo, primeira pessoa). Um pedido de leitura de temas para ele não é enviado: “Nada enviado: <Nicho> ainda não tem lista de temas.”; com Todos, o nicho fica fora do pedido e aparece como “<Nicho>: sem lista de temas”.
+- Nicho criado pelo dono e ainda sem concorrente: o botão da forja fica desabilitado com “Nenhum concorrente em <Nicho> ainda”, nada é enviado, e o nicho não entra no pedido de Todos. Viagem e IA continuam como sempre.
+- Frases que contam nichos: com exatamente Viagem e IA, ficam como eram (“…em nenhum dos dois nichos.”, “…o de Viagem fica na fila atrás do de IA.”, “Misturar viagem e IA…”). Com outro conjunto: “…em nenhum nicho.”, “…os demais ficam na fila atrás do de <primeiro da ordem da forja>.”, “Misturar nichos…”. Listas de nichos usam vírgula e “e” (“Viagem, IA e Jogos”).
+- Um nicho que não existe (mais) no site — preferência salva, link antigo — abre em Todos, sem erro. Um canal que aponta para um nicho fora da lista aparece em Todos e no grupo “Sem nicho”.
+- Pode haver mais de um canal próprio no mesmo nicho e no mesmo idioma. Nenhum texto diz “canal principal”.

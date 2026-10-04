@@ -1,4 +1,4 @@
-import type { Dataset, ObsChannel, ObsVideo, SeriesPoint } from './types'
+import type { Dataset, NicheDef, ObsChannel, ObsVideo, SeriesPoint } from './types'
 import type { ObsChange } from './changes'
 import type { Clock } from './time'
 import type { Fmt } from './fmt'
@@ -13,6 +13,8 @@ export interface EngineCtx {
   CH: Map<string, ObsChannel & { videos: ObsVideo[] }>
   V: Map<string, ObsVideo & Derived>
   CHG: Map<string, ObsChange>
+  /** Os nichos do site, na ordem das abas (os de fábrica quando o dataset não traz lista). */
+  niches: readonly NicheDef[]
 }
 
 /** Per-video idx → point index, built once. The mockup's `series[i - firstIdx]` assumes a contiguous series; this does not. */

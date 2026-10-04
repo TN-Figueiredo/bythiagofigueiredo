@@ -11,6 +11,8 @@ import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
+import { BUILTIN_NICHES, isNicheSlug, nicheLabel, type Niche, type NicheDef } from '@/lib/youtube/observatorio/niche'
+import { readNicheDefs } from '@/lib/youtube/observatorio/niches-db'
 import type { SyncNowResult } from './_chrome/view-model'
 import { parseChannelInput } from './_canais/channel-input'
 
@@ -22,7 +24,6 @@ async function requireEditAccess(): Promise<string> {
 }
 
 const YT_API = 'https://www.googleapis.com/youtube/v3'
-const NICHE_LABEL = { viagem: 'Viagem', ia: 'IA' } as const
 const BAD_INPUT = 'Use o @handle (ex.: @LukeDamant) ou a URL do canal (youtube.com/@…).'
 
 /** @handle → channel id and title through the YouTube Data API (channels.list forHandle, 1 unit). */
@@ -37,15 +38,16 @@ async function resolveHandle(handle: string, apiKey: string): Promise<{ id: stri
 /**
  * "Adicionar canal": accepts the forms the Canais dialog accepts (and a bare id from the old modal). Refuses when there
  * is no free slot, when the channel is the site's own, and when it is already in the observatório (saying its niche).
+ * The niche must be one of the site's (youtube_niches, read after the guard).
  */
 export async function addCompetitorChannel(
   channelInput: string,
-  niche?: 'viagem' | 'ia',
+  niche?: Niche,
   videoLimit?: number,
 ): Promise<{ ok: boolean; error?: string; slots?: ChannelSlots; title?: string }> {
   const parsed = parseChannelInput(channelInput)
   if (!parsed) return { ok: false, error: BAD_INPUT }
-  if (niche !== undefined && niche !== 'viagem' && niche !== 'ia') return { ok: false, error: 'Nicho inválido.' }
+  if (niche !== undefined && !isNicheSlug(niche)) return { ok: false, error: 'Nicho inválido.' }
   const limit = videoLimit === undefined ? undefined : Math.round(videoLimit)
   if (limit !== undefined && !(limit >= 10 && limit <= 200)) return { ok: false, error: 'Escolha entre 10 e 200 vídeos.' }
 
@@ -53,6 +55,9 @@ export async function addCompetitorChannel(
   try { siteId = await requireEditAccess() } catch { return { ok: false, error: 'forbidden' } }
 
   const supabase = getSupabaseServiceClient()
+  // the site's niches (table absent → the two built-in). A read error refuses a niche (never "any niche goes"); the labels fall back to the built-in ones.
+  const defs: NicheDef[] | null = await readNicheDefs(supabase, siteId).catch(() => null)
+  if (niche !== undefined && !defs?.some(d => d.id === niche)) return { ok: false, error: 'Nicho inválido.' }
 
   const apiKey = process.env.YOUTUBE_API_KEY
   let ytId: string, title: string
@@ -78,7 +83,8 @@ export async function addCompetitorChannel(
 
   if (existing) {
     const en = existing.niche as string | null
-    const n = en === 'ia' || en === 'viagem' ? ` (${NICHE_LABEL[en]})` : ''
+    const known = defs ?? BUILTIN_NICHES
+    const n = en != null && known.some(d => d.id === en) ? ` (${nicheLabel(known, en)})` : ''
     return { ok: false, error: `${existing.channel_name || title} já está no observatório${n}.` }
   }
 
@@ -110,7 +116,7 @@ export async function addCompetitorChannel(
 }
 
 /** The Canais dialog's submit (one object, so the client passes what it validated). */
-export async function addChannelFromCanais(input: { channel: string; niche: 'viagem' | 'ia'; videoLimit: number }): Promise<{ ok: boolean; error?: string; title?: string }> {
+export async function addChannelFromCanais(input: { channel: string; niche: Niche; videoLimit: number }): Promise<{ ok: boolean; error?: string; title?: string }> {
   if (!input || typeof input.channel !== 'string' || typeof input.videoLimit !== 'number') return { ok: false, error: 'Pedido inválido.' }
   const res = await addCompetitorChannel(input.channel, input.niche, input.videoLimit)
   return { ok: res.ok, ...(res.error ? { error: res.error } : {}), ...(res.title ? { title: res.title } : {}) }

@@ -36,7 +36,8 @@ export interface InsightsHero {
   statusChip: { text: string; dot: string; pulse: boolean } | null
   quotaLine: string | null; scopeNote: string | null
   /** The state box (no reading yet, or a request in progress / failed). */
-  box: { title: string; paras: HeroPara[]; steps: boolean; stillNone: string | null } | null
+  /** `link`: a niche without competitors has nothing to read — the box points at the competitors' niche editor instead. */
+  box: { title: string; paras: HeroPara[]; steps: boolean; stillNone: string | null; link?: LinkText } | null
   /** "publicado": the engine sentence above the new reading. */
   publishedNote: string | null
   reading: ForjaReadingView | null
@@ -97,7 +98,11 @@ export interface ThemeRow {
   channels: { text: string; weak: boolean }; median: Rich | null; outLink: LinkOrText
   spark: { prev: number; now: number; aria: string; text: string } | null
 }
-export interface ThemesSection { meta: string; seal: string | null; coverageNote: string | null; rows: ThemeRow[]; empty: EmptyBlock | null; foot: string | null }
+export interface ThemesSection {
+  meta: string; seal: string | null; coverageNote: string | null; rows: ThemeRow[]; empty: EmptyBlock | null; foot: string | null
+  /** The niche has no theme list (every niche the owner created, for now): this sentence is the whole card, without the forja's seal. */
+  noThemes: string | null
+}
 
 /** A cell of an own channel's row: the value with its short verdict, or "sem dado · base fraca (n = N)" (never blank). */
 export type YouCell =
@@ -129,6 +134,8 @@ export interface GapsSection {
   empty: (EmptyBlock & { links?: LinkText[] }) | null
   /** Ruling R78: own channels in the niche and no competitor — this sentence and link replace the list. */
   noRef: NoRefBlock | null
+  /** The niche has no theme list: this sentence replaces the list (gaps cross themes). */
+  noThemes: string | null
   rows: GapRow[]; none: string | null
   notes: Array<{ text: string; links: LinkText[] }>
   foot: string | null
@@ -178,20 +185,23 @@ export function buildInsightsView(obs: Observatory, p: InsightsParams): Insights
     fmtOptions: (['long', 'short'] as const).map(k => ({ key: k, label: k === 'long' ? 'Longos' : 'Shorts', pressed: k === fmt })),
   }
   if (niche === 'todos') {
+    // exactly the two built-in niches: the sentences that count niches stay as they have always been
+    const onlyBuiltin = obs.niches.length === 2 && obs.niches.every(n => n.builtin)
     return {
       ...base,
       all: {
         title: 'Insights compara dentro de um nicho',
         // insights.html:779: without a request the paragraph also says what a request from here does
-        text: 'Misturar viagem e IA somaria públicos, horários e fórmulas que não têm nada a ver. Escolha um nicho para ver a leitura da forja, as fórmulas e os temas.'
+        text: (onlyBuiltin ? 'Misturar viagem e IA' : 'Misturar nichos') + ' somaria públicos, horários e fórmulas que não têm nada a ver. Escolha um nicho para ver a leitura da forja, as fórmulas e os temas.'
           + (forja.status ? '' : ' Pedir uma leitura daqui envia um pedido dos ' + FMT_LABEL[fmt] + ' para cada nicho.'),
-        go: (['viagem', 'ia'] as const).map(n => ({ niche: n, label: 'Ver ' + obs.NICHES[n].label, href: '?niche=' + n + (fmt === 'short' ? '&fmt=short' : '') })),
+        // one shortcut per niche of the site, in the tab order
+        go: obs.niches.map(n => ({ niche: n.id, label: 'Ver ' + n.label, href: '?niche=' + n.id + (fmt === 'short' ? '&fmt=short' : '') })),
         forja: {
           title: 'Pedido de leitura dos ' + FMT_LABEL[fmt],
           // the engine's lines as they come; a single request gets its own "<Nicho>: <label>" line
           lines: forja.status ? (forja.status.lines.length ? forja.status.lines : forja.niches.filter(b => b.statusLine).map(b => b.label + ': ' + b.statusLine)) : [],
           text: forja.card.statusText,
-          note: !forja.status && !forja.niches.some(b => b.reading) ? 'Ainda não há leitura dos ' + FMT_LABEL[fmt] + ' em nenhum dos dois nichos.' : null,
+          note: !forja.status && !forja.niches.some(b => b.reading) ? 'Ainda não há leitura dos ' + FMT_LABEL[fmt] + (onlyBuiltin ? ' em nenhum dos dois nichos.' : ' em nenhum nicho.') : null,
         },
       },
       hero: null,
@@ -288,7 +298,7 @@ function formulasSection(obs: Observatory, niche: Niche, fmt: VideoFmt, reading:
   })
   const empty: EmptyBlock | null = P || N.nVideos ? null : {
     title: 'Sem títulos para analisar',
-    text: 'Nenhum ' + FMT_ONE[fmt] + ' dos concorrentes de ' + obs.NICHES[niche].label + ' nos últimos 6 meses com views comparáveis. As fórmulas aparecem a partir do primeiro vídeo; uma fórmula só “passa a regra” com ' + R.pattern.minN + ' vídeos ou mais.' + outOf(obs, niche, N.excluded),
+    text: 'Nenhum ' + FMT_ONE[fmt] + ' dos concorrentes de ' + obs.nicheLabel(niche) + ' nos últimos 6 meses com views comparáveis. As fórmulas aparecem a partir do primeiro vídeo; uma fórmula só “passa a regra” com ' + R.pattern.minN + ' vídeos ou mais.' + outOf(obs, niche, N.excluded),
   }
   const tail = P ? 'Os números da linha são da leitura (base de ' + obs.date.dm(P.sent.asOf) + '); “hoje” conta no mesmo escopo da leitura (mesmos canais e janela).'
     : (reading ? 'A leitura não trouxe os números das fórmulas: a tabela é a análise de hoje' : 'Ainda não há leitura: a tabela é a análise de hoje') + ' (base de ' + obs.date.dm(N.asOf) + '), sem selo da forja.'
@@ -350,8 +360,8 @@ function cadenceSection(obs: Observatory, niche: Niche, fmt: VideoFmt): CadenceS
     ],
     axis: [{ left: '0', text: t(0) }, { left: '33.33%', text: t(1 / 3) }, { left: '66.66%', text: t(2 / 3) }, { left: '100%', text: 'hoje, ' + DT.weekdayShort(obs.NOW) + ' ' + DT.dm(obs.NOW) }],
     rows,
-    empty: !rows.length ? 'Nenhum canal concorrente em ' + obs.NICHES[niche].label + '.'
-      : rows.every(r => !r.ticks.length) ? 'Nenhum ' + kind + ' dos concorrentes de ' + obs.NICHES[niche].label + ' nos últimos 90 dias.' + outOf(obs, niche, []) : null,
+    empty: !rows.length ? 'Nenhum canal concorrente em ' + obs.nicheLabel(niche) + '.'
+      : rows.every(r => !r.ticks.length) ? 'Nenhum ' + kind + ' dos concorrentes de ' + obs.nicheLabel(niche) + ' nos últimos 90 dias.' + outOf(obs, niche, []) : null,
     foot: '“Costuma” só aparece quando o mesmo dia da semana e hora somam ' + R.habit.minCount + ' vídeos ou mais e ' + F.int(R.habit.minShare * 100) + '% ou mais dos uploads do canal em ' + W + ' semanas. Hachurado no começo = vídeos que ainda não foram buscados; no fim = período sem sincronização do canal.',
   }
 }
@@ -381,8 +391,8 @@ function heatmapSection(obs: Observatory, niche: Niche, fmt: VideoFmt): HeatmapS
   const nComp = obs.channels.filter(c => !c.own && c.niche === niche).length
   // n = 0 because channels are still fetching is not "nobody published": say so, and show the engine's reasons (excluded)
   const empty = HM.n ? null
-    : HM.excluded.length && HM.excluded.length === nComp ? 'O mapa espera os canais de ' + obs.NICHES[niche].label + ': todos ainda estão buscando vídeos.'
-    : 'Nenhum ' + FMT_ONE[fmt] + ' dos concorrentes de ' + obs.NICHES[niche].label + ' publicado nos últimos 90 dias.'
+    : HM.excluded.length && HM.excluded.length === nComp ? 'O mapa espera os canais de ' + obs.nicheLabel(niche) + ': todos ainda estão buscando vídeos.'
+    : 'Nenhum ' + FMT_ONE[fmt] + ' dos concorrentes de ' + obs.nicheLabel(niche) + ' publicado nos últimos 90 dias.'
 
   // uploads
   const max = Math.max(1, ...cells.flat().map(c => c.n)), pk = HM.peak
@@ -464,11 +474,12 @@ function medRich(obs: Observatory, m: number | null, n: number): Rich {
   return n >= obs.RULES.medianMinN ? ['mediana ', { mono: obs.fmt.mult(m) }, ' (n = ' + n + ')'] : ['pouco para concluir (n = ' + n + ')']
 }
 function themesSection(obs: Observatory, niche: Niche, fmt: VideoFmt): ThemesSection {
-  const F = obs.fmt, R = obs.RULES, NL = obs.NICHES[niche].label
+  const F = obs.fmt, R = obs.RULES, NL = obs.nicheLabel(niche)
   const meta = FMT_LABEL[fmt] + ' de ' + NL + ', 90 dias vs os 90 anteriores'
+  if (!obs.hasThemes(niche)) return { meta, seal: null, coverageNote: null, rows: [], foot: null, empty: null, noThemes: noThemesText(NL) }
   const reading = obs.forja.latest('temas', niche)
   if (!reading) {
-    return { meta, seal: null, coverageNote: null, rows: [], foot: null, empty: {
+    return { meta, seal: null, coverageNote: null, rows: [], foot: null, noThemes: null, empty: {
       title: 'Ainda não há temas de ' + NL,
       text: 'Os temas saem da leitura de temas da forja, que dá nome aos grupos de vídeos parecidos. Sem essa leitura não há tema para contar; a tendência aparece aqui depois da primeira.',
     } }
@@ -495,13 +506,16 @@ function themesSection(obs: Observatory, niche: Niche, fmt: VideoFmt): ThemesSec
   })
   const exc = TT.excluded
   return {
-    meta, seal, rows,
+    meta, seal, rows, noThemes: null,
     // ruling R49: the forja named too few videos (or none in the previous 90 days) for ▲/▼ to mean anything
     coverageNote: trendable ? null : 'A forja ainda não deu tema a vídeos suficientes para comparar com os 90 dias anteriores: tem tema em ' + cv.now.themed + ' de ' + cv.now.total + ' ' + FMT_LABEL[fmt] + ' dos últimos 90 dias e em ' + cv.prev.themed + ' de ' + cv.prev.total + ' dos 90 anteriores (a tendência pede ' + F.int(cv.minShare * 100) + '% em cada janela).',
     empty: rows.length ? null : { title: 'Nenhum tema no recorte', text: 'Nenhum ' + FMT_ONE[fmt] + ' dos concorrentes de ' + NL + ' com tema nos últimos 180 dias.' },
     foot: 'Compara ' + F.plural(TT.channelsCompared.length, 'canal', 'canais') + ' com vídeos nas duas janelas.' + (exc.length ? ' Fora da comparação: ' + exc.map(e => e.reason).join('; ') + '.' : '') + (trendable ? ' Tendência: ' + R.theme.trend.text + '.' : '') + ' Os nomes dos grupos vêm da leitura de temas da forja de ' + when + '; contagens, canais, medianas e outliers vêm dos dados de hoje.' + (trendable ? ' Barra forte = agora, apagada = 90 dias anteriores.' : ''),
   }
 }
+
+/** Temas e Lacunas num nicho sem lista de temas (texto aprovado no mockup multi-canal de 04/10; a frase é do site, sem selo da forja). */
+export const noThemesText = (label: string) => 'Ainda não há lista de temas para ' + label + '. Padrões de título, o mapa de publicação e “Você no nicho” funcionam normalmente.'
 
 /* ------------------------------------------------------------------ você no nicho */
 export interface OwnScope { all: ObsChannel[]; mine: ObsChannel[]; none: ObsChannel[] }
@@ -512,9 +526,9 @@ export function ownScope(obs: Observatory, niche: Niche): OwnScope {
 /** "Você tem 2 canais: 1 de IA (Thiago testa IA) e 1 sem nicho (Mochila Leve)." — '' quando não há o que dizer. */
 export function whereOwns(obs: Observatory, niche: Niche, s: OwnScope): string {
   const parts: string[] = []
-  for (const n of (['viagem', 'ia'] as const).filter(x => x !== niche)) {
-    const l = s.all.filter(c => c.niche === n)
-    if (l.length) parts.push(l.length + ' de ' + obs.NICHES[n].label + ' (' + listPt(l.map(c => c.name)) + ')')
+  for (const n of obs.niches.filter(x => x.id !== niche)) {
+    const l = s.all.filter(c => c.niche === n.id)
+    if (l.length) parts.push(l.length + ' de ' + n.label + ' (' + listPt(l.map(c => c.name)) + ')')
   }
   if (s.none.length) parts.push(s.none.length + ' sem nicho (' + listPt(s.none.map(c => c.name)) + ')')
   return parts.length ? 'Você tem ' + obs.fmt.plural(s.all.length, 'canal', 'canais') + ': ' + listPt(parts) + '.' : ''
@@ -530,14 +544,14 @@ export function assignLinks(obs: Observatory, s: OwnScope): LinkText[] {
 function noRefOf(obs: Observatory, niche: Niche): NoRefBlock | null {
   if (obs.channels.some(c => !c.own && c.niche === niche)) return null
   return {
-    text: 'Nenhum concorrente em ' + obs.NICHES[niche].label + ' ainda: sem referência para comparar.',
+    text: 'Nenhum concorrente em ' + obs.nicheLabel(niche) + ' ainda: sem referência para comparar.',
     link: { href: obs.link.canais({ nicheEditor: 1 }), text: 'Definir nicho dos concorrentes' },
   }
 }
 
 /** insights-n-canais.html renderYou: one row per own channel of the niche, the niche once, four relative metrics in columns. */
 function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
-  const F = obs.fmt, R = obs.RULES, W = R.habit.weeks, NL = obs.NICHES[niche].label
+  const F = obs.fmt, R = obs.RULES, W = R.habit.weeks, NL = obs.nicheLabel(niche)
   const s = ownScope(obs, niche)
   const none = { cols: [], ref: null, rows: [], noneNote: null, noRef: null, foot: null }
   if (!s.all.length) return { ...none, meta: 'mesmo formato', empty: { title: 'Nenhum canal seu conectado', text: 'Sem um canal seu no Observatório não há o que comparar com o nicho.', links: [] } }
@@ -609,11 +623,13 @@ function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
  * the channels a future button would target.
  */
 function gapsSection(obs: Observatory, niche: Niche, fmt: VideoFmt): GapsSection {
-  const F = obs.fmt, NL = obs.NICHES[niche].label, FL = FMT_LABEL[fmt]
+  const F = obs.fmt, NL = obs.nicheLabel(niche), FL = FMT_LABEL[fmt]
   const s = ownScope(obs, niche)
   // R78: with no competitor in the niche the card holds only the "no reference" block; a header about competitor themes would contradict it
   const meta = noRefOf(obs, niche) && s.mine.length ? '' : s.mine.length > 1 ? 'temas dos concorrentes que faltam a algum canal seu de ' + NL : 'temas dos concorrentes sem vídeo seu'
-  const out = (empty: GapsSection['empty'], noRef: NoRefBlock | null = null): GapsSection => ({ meta, empty, noRef, rows: [], none: null, notes: [], foot: null })
+  const out = (empty: GapsSection['empty'], noRef: NoRefBlock | null = null): GapsSection => ({ meta, empty, noRef, noThemes: null, rows: [], none: null, notes: [], foot: null })
+  // gaps cross themes: without a theme list there is nothing to cross, whatever the own channels are
+  if (!obs.hasThemes(niche)) return { ...out(null), meta: s.mine.length > 1 ? 'temas dos concorrentes que faltam a algum canal seu de ' + NL : 'temas dos concorrentes sem vídeo seu', noThemes: noThemesText(NL) }
   if (!s.mine.length) {
     return out({
       title: 'Nenhum canal seu está em ' + NL,
@@ -655,7 +671,7 @@ function gapsSection(obs: Observatory, niche: Niche, fmt: VideoFmt): GapsSection
   if (noTheme.length) notes.push({ text: names(noTheme) + ' fica' + m(noTheme.length) + ' fora da conta: a forja ainda não deu tema aos vídeos ' + (noTheme.length > 1 ? 'deles' : 'dele') + '.', links: [] })
   if (s.none.length) notes.push({ text: names(s.none) + ' ' + (s.none.length > 1 ? 'estão' : 'está') + ' sem nicho e fica' + m(s.none.length) + ' fora.', links: s.none.map(c => pickNiche(obs, c)) })
   return {
-    meta, empty: null, noRef: null, notes,
+    meta, empty: null, noRef: null, noThemes: null, notes,
     rows: gaps.map(({ t, ms, hs }) => ({
       theme: t.theme, label: t.label,
       sub: [{ mono: String(t.channels.length) }, ' canais, ', { mono: String(t.now) }, ' vídeos', ...(t.nMult ? [', ' as RichPart, ...medRich(obs, t.medMult, t.nMult)] : [])],
@@ -680,7 +696,7 @@ const DOT: Record<string, string> = {
   'nova tentativa': 'var(--info)', 'liberado pelo vigia': 'var(--info)', 'falhou': 'var(--danger)', 'recusado (dado velho)': 'var(--danger)',
 }
 function heroOf(obs: Observatory, f: ForjaView, niche: Niche, fmt: VideoFmt): InsightsHero {
-  const DT = obs.date, Q = obs.forja.queue, NL = obs.NICHES[niche].label, FL = FMT_LABEL[fmt]
+  const DT = obs.date, Q = obs.forja.queue, NL = obs.nicheLabel(niche), FL = FMT_LABEL[fmt]
   const sc = obs.forja.session.current(niche, { type: f.type })
   const r = sc.empty ? null : sc.requests.find(q => q.niche === niche) ?? null
   const rd = f.reading
@@ -694,7 +710,12 @@ function heroOf(obs: Observatory, f: ForjaView, niche: Niche, fmt: VideoFmt): In
   const out = (f.niches[0]?.out ?? []).filter(o => !visibleSince.includes(o.split(' fica fora')[0]!))
   const stillNone = !rd && r ? 'Ainda não há leitura publicada dos ' + FL + ' de ' + NL + '; ela aparece aqui quando este pedido terminar.' : null
   let box: InsightsHero['box'] = null, publishedNote: string | null = null
-  if (!rd && !r) {
+  const noRef = !rd && !r && !obs.forja.askable(niche) ? noRefOf(obs, niche) : null
+  if (noRef) {
+    // mockup multi-canal (04/10): a niche the owner created and that has no competitor yet has nothing for the forja to
+    // read; the box says what is missing (the built-in pair keeps the box it has always had)
+    box = { title: 'Ainda não há leitura dos ' + FL + ' de ' + NL, steps: false, stillNone: null, paras: [noRef.text], link: noRef.link }
+  } else if (!rd && !r) {
     box = { title: 'Ainda não há leitura dos ' + FL + ' de ' + NL, steps: false, stillNone: null,
       paras: [pv + ' dos canais elegíveis, agrupa por tema e por fórmula de título, e devolve um texto curto em que cada número aponta para os vídeos de onde saiu. ' + tm, 'Roda na máquina local, com Gemma 12B. Não julga thumbnails nem afirma causa.'] }
   } else if (r) {

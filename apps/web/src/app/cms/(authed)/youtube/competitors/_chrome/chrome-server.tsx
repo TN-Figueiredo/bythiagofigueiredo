@@ -30,11 +30,14 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   readingCopy?: string | null
 }) {
   const resolved = await resolveNiche(searchParams)
-  const niche = nicheOverride ?? resolved.niche, dropParam = resolved.dropParam
   const engine = obs ?? createObservatory(await loadDataset({ siteId: (await getSiteContext()).siteId, now: observatoryNow() }))
+  // resolveNiche only knows the FORM; the engine knows the site's niches. A niche that does not exist (a saved one that was
+  // removed, a stale link) shows Todos, without error, and a ?niche= naming it is dropped from the URL like an invalid one.
+  const wanted = nicheOverride ?? resolved.niche, niche = engine.scopeOf(wanted)
+  const dropParam = resolved.dropParam || (nicheOverride == null && niche !== wanted && resolved.fromParam)
   const view = buildChromeView(engine, { tab, niche, forja })
   return (
-    <ObservatoryChrome view={{ ...view, ...(coworkFor ? { cowork: coworkText(coworkFor, niche) } : {}) }} dropNicheParam={dropParam} onSetNiche={setUserNiche} onSyncNow={syncCompetitorsNow}
+    <ObservatoryChrome view={{ ...view, ...(coworkFor ? { cowork: coworkText(coworkFor, niche, view.nicheLabel) } : {}) }} dropNicheParam={dropParam} onSetNiche={setUserNiche} onSyncNow={syncCompetitorsNow}
       onAskForja={askForjaReading} readingCopy={readingCopy}>
       {children}
     </ObservatoryChrome>

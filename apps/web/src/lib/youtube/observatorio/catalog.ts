@@ -1,5 +1,6 @@
 // Port of dados.js:137-167 — title formula catalogue and theme catalogue (single source).
 import type { Niche } from './types'
+import { BUILTIN_NICHES } from './niche'
 
 export interface Formula { id: string; label: string; short: string; test(t: string): boolean; niches: Niche[]; ex: string }
 
@@ -19,6 +20,17 @@ export const FORMULAS: ReadonlyArray<Formula> = [
 ]
 export const FORMULA: Readonly<Record<string, Formula>> = Object.fromEntries(FORMULAS.map(f => [f.id, f]))
 export const formulasOf = (t: string): string[] => FORMULAS.filter(f => f.test(t)).map(f => f.id)
+/** As fórmulas universais: as que valem para todos os nichos de fábrica (preço, número, pergunta, superlativo, 1ª pessoa). */
+const UNIVERSAL: ReadonlyArray<Formula> = FORMULAS.filter(f => BUILTIN_NICHES.every(n => f.niches.includes(n.id)))
+const CATALOGUED = new Set(FORMULAS.flatMap(f => f.niches))
+/**
+ * Fórmulas de um nicho: as do catálogo para viagem/ia; para um nicho criado pelo dono, as universais.
+ * Sem nicho (ou Todos) nenhuma fórmula é analisada, como sempre foi.
+ */
+export function formulasFor(niche: string | undefined): ReadonlyArray<Formula> {
+  if (!niche || niche === 'todos') return []
+  return CATALOGUED.has(niche) ? FORMULAS.filter(f => f.niches.includes(niche)) : UNIVERSAL
+}
 
 export interface Theme { id: string; niche: Niche; label: string }
 export const THEMES: ReadonlyArray<Theme> = [
@@ -36,3 +48,5 @@ export const THEMES: ReadonlyArray<Theme> = [
   { id: 'ia-e-emprego', niche: 'ia', label: 'IA, emprego e lei' },
 ]
 export const THEME: Readonly<Record<string, Theme>> = Object.fromEntries(THEMES.map(t => [t.id, t]))
+/** O nicho tem lista de temas? (só os de fábrica, hoje: o catálogo de temas é fixo) */
+export function hasThemes(niche: string): boolean { return THEMES.some(t => t.niche === niche) }

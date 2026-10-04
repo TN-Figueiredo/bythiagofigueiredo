@@ -14,11 +14,22 @@ const OBS_NOW = Date.parse('2026-10-03T15:00:00Z')
 // only loadDataset is faked: the row mapper (taskRowToRequest) and TASK_COLS are the real ones the service shares with the loader
 vi.mock('@/lib/youtube/observatorio/load', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/youtube/observatorio/load')>()),
-  loadDataset: vi.fn(async () => ({ queue: { lastPollAt: OBS_NOW - 60_000, tickMinutes: 10, capabilities: ['temas'] } })),
+  loadDataset: vi.fn(async () => ({ queue: { lastPollAt: OBS_NOW - 60_000, tickMinutes: 10, capabilities: ['temas', 'resumo-trocas'] } })),
 }))
+// The site of this fake observatory has Viagem, IA, Jogos (a niche the owner created: competitors, no theme list) and
+// Pessoal (just created: no competitors at all).
 vi.mock('@/lib/youtube/observatorio', async () => {
   const { createClock } = await import('@/lib/youtube/observatorio/time')
-  return { createObservatory: () => ({ date: createClock(OBS_NOW, OBS_NOW - 30 * 864e5, OBS_NOW - 30 * 864e5), forja: { eligibleChannels: () => ({ in: [], out: [] }) }, video: () => undefined }) }
+  const { BUILTIN_NICHES, nicheLabel } = await import('@/lib/youtube/observatorio/niche')
+  const mk = (id: string, label: string) => ({ id, label, color: { dark: '#D29AE8', light: '#7B2A91' }, order: 100, builtin: false })
+  const niches = [...BUILTIN_NICHES, mk('jogos', 'Jogos'), mk('pessoal', 'Pessoal')]
+  const known = new Set(niches.map(n => n.id))
+  return { createObservatory: () => ({
+    date: createClock(OBS_NOW, OBS_NOW - 30 * 864e5, OBS_NOW - 30 * 864e5), video: () => undefined, niches,
+    nicheLabel: (n: string) => nicheLabel(niches, n), scopeOf: (n: string) => (n === 'todos' || known.has(n) ? n : 'todos'),
+    hasThemes: (n: string) => n === 'viagem' || n === 'ia',
+    forja: { eligibleChannels: () => ({ in: [], out: [] }), nicheCtx: { defs: niches, todos: ['ia', 'viagem', 'jogos'] }, askable: (n: string) => n !== 'pessoal' },
+  }) }
 })
 
 import * as Sentry from '@sentry/nextjs'
@@ -360,10 +371,80 @@ describe('askReading — the unique-index race', () => {
     expect(res.data.results).toHaveLength(1)
     expect(res.data.reason).toMatch(/^Nada enviado: já há um pedido de IA na fila · pedido \d\d:\d\d/)
   })
+  it('validates the niche: only its form is a 400 before any read; an unknown niche is a 400 after the engine is loaded, and nothing is written', async () => {
+    const f = fakeClient(() => ({ data: [], error: null }))
+    await expect(askReading(ctxOf(f.client), { type: 'temas', scope: 'Não Vale', userId: USER }, OBS_NOW)).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 400 })
+    expect(f.queries).toHaveLength(0)
+    await expect(askReading(ctxOf(f.client), { type: 'resumo-trocas', scope: 'sumiu', userId: USER }, OBS_NOW)).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 400 })
+    expect(f.queries.some(q => first(q) === 'insert')).toBe(false)
+  })
   it('validates the input: leitura-video needs a videoId; userId is a uuid', async () => {
     const f = fakeClient(() => OK)
     await expect(askReading(ctxOf(f.client), { type: 'leitura-video', scope: 'ia', userId: USER }, OBS_NOW)).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 400 })
     await expect(askReading(ctxOf(f.client), { type: 'temas', scope: 'ia', userId: 'x' }, OBS_NOW)).rejects.toMatchObject({ status: 400 })
     expect(f.queries).toHaveLength(0)
+  })
+})
+
+describe('askReading — niches the owner created', () => {
+  const USER = '00000000-0000-4000-8000-0000000000aa'
+  const inserts = (f: ReturnType<typeof fakeClient>) => f.queries.filter(q => first(q) === 'insert').map(q => q.ops[0]!.args[0] as Record<string, unknown>)
+  const client = () => fakeClient(q => (first(q) === 'insert' ? { data: { id: 'new-' + (q.ops[0]!.args[0] as { target_niche: string }).target_niche }, error: null } : { data: [], error: null }))
+
+  it('resumo-trocas in Jogos is queued with target_niche = jogos', async () => {
+    const f = client()
+    const res = await askReading(ctxOf(f.client), { type: 'resumo-trocas', scope: 'jogos', userId: USER }, OBS_NOW)
+    expect(res.data).toMatchObject({ ok: true, reason: null, results: [{ niche: 'jogos', ok: true, taskId: 'new-jogos' }] })
+    expect(inserts(f)).toHaveLength(1)
+    expect(inserts(f)[0]).toMatchObject({ site_id: 'site-1', task_type: 'resumo-trocas', target_niche: 'jogos', status: 'pending', requested_by: USER })
+  })
+  it('temas in a niche without a theme list is refused with the sentence, and NOTHING is written', async () => {
+    const f = client()
+    const res = await askReading(ctxOf(f.client), { type: 'temas', scope: 'jogos', userId: USER }, OBS_NOW)
+    expect(res.data).toEqual({ ok: false, reason: 'Nada enviado: Jogos ainda não tem lista de temas.', results: [{ niche: 'jogos', ok: false, reason: 'Nada enviado: Jogos ainda não tem lista de temas.' }] })
+    expect(inserts(f)).toEqual([])
+  })
+  it('temas with Todos goes only to the niches that have a theme list; the others come back as "<Nicho>: sem lista de temas"', async () => {
+    const f = client()
+    const res = await askReading(ctxOf(f.client), { type: 'temas', scope: 'todos', userId: USER }, OBS_NOW)
+    expect(inserts(f).map(r => r.target_niche)).toEqual(['ia', 'viagem'])
+    expect(res.data.ok).toBe(true)
+    expect(res.data.results.map(r => [r.niche, r.ok, r.reason])).toEqual([['ia', true, null], ['viagem', true, null], ['jogos', false, 'Jogos: sem lista de temas']])
+  })
+  it('Todos leaves out the niche without competitors; each niche with competitors gets its row, in the forja order', async () => {
+    const f = client()
+    const res = await askReading(ctxOf(f.client), { type: 'resumo-trocas', scope: 'todos', userId: USER }, OBS_NOW)
+    expect(inserts(f).map(r => r.target_niche)).toEqual(['ia', 'viagem', 'jogos'])
+    // the click order survives in requested_at (+i ms)
+    expect(inserts(f).map(r => r.requested_at)).toEqual([0, 1, 2].map(i => new Date(OBS_NOW + i).toISOString()))
+    expect(res.data.results.map(r => r.niche)).toEqual(['ia', 'viagem', 'jogos'])
+  })
+  it('a niche without competitors: refused with "Nenhum concorrente em Pessoal ainda", nothing written', async () => {
+    const f = client()
+    const res = await askReading(ctxOf(f.client), { type: 'resumo-trocas', scope: 'pessoal', userId: USER }, OBS_NOW)
+    expect(res.data).toEqual({ ok: false, reason: 'Nenhum concorrente em Pessoal ainda', results: [{ niche: 'pessoal', ok: false, reason: 'Nenhum concorrente em Pessoal ainda' }] })
+    expect(inserts(f)).toEqual([])
+  })
+  it('an existing request of Jogos is read back as a request (the row mapper knows the site niches)', async () => {
+    const f = fakeClient(q => (first(q) === 'insert' ? { data: { id: 'x' }, error: null } : { data: [{
+      id: 'j1', task_type: 'resumo-trocas', target_niche: 'jogos', target_video_id: null, target_fmt: null, status: 'pending',
+      requested_at: new Date(OBS_NOW - 30_000).toISOString(), started_at: null, completed_at: null, failed_at: null, refused_at: null, refused_reason: null, released_at: null, retry_count: 0,
+    }], error: null }))
+    const res = await askReading(ctxOf(f.client), { type: 'resumo-trocas', scope: 'jogos', userId: USER }, OBS_NOW)
+    expect(res.data.ok).toBe(false)
+    expect(res.data.reason).toMatch(/^Nada enviado: já há um pedido de Jogos na fila · pedido \d\d:\d\d/)
+    expect(inserts(f)).toEqual([])
+  })
+})
+
+describe('cancelReading — niche form', () => {
+  it('a created niche is accepted; a malformed one is a 400 before any query', async () => {
+    const f = fakeClient(() => ({ data: [{ id: 'j1' }], error: null }))
+    expect((await cancelReading(ctxOf(f.client), { type: 'resumo-trocas', niche: 'jogos' })).data).toEqual({ cancelled: true })
+    expect(has(f.queries[0]!, 'eq', 'target_niche', 'jogos')).toBe(true)
+    const g = fakeClient(() => OK)
+    await expect(cancelReading(ctxOf(g.client), { type: 'resumo-trocas', niche: 'Não Vale' })).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 400 })
+    await expect(cancelReading(ctxOf(g.client), { type: 'resumo-trocas', niche: 'todos' })).rejects.toMatchObject({ status: 400 })
+    expect(g.queries).toHaveLength(0)
   })
 })

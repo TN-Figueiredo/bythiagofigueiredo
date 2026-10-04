@@ -26,7 +26,9 @@ export default async function OutliersPage({ searchParams }: { searchParams: Pro
   const { siteId } = await getSiteContext()
   const obs = createObservatory(await loadDataset({ siteId, now: observatoryNow() }))
   // The chrome persists a valid ?niche= (resolveNiche); here it is only read. An invalid one falls back to the saved niche.
-  const niche = parseNiche(first(sp.niche) === 'all' ? 'todos' : first(sp.niche)) ?? (await getUserNiche())
+  // parseNiche checks the form; the engine says whether the niche exists (an unknown ?niche= falls back to the saved niche, like a malformed one).
+  const urlNiche = parseNiche(first(sp.niche) === 'all' ? 'todos' : first(sp.niche))
+  const niche = urlNiche != null && obs.scopeOf(urlNiche) === urlNiche ? urlNiche : obs.scopeOf(await getUserNiche())
   const params: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp)) params[k] = first(v)
   params.niche = niche

@@ -135,6 +135,12 @@
 [data-obs-screen="canais"] .niche.viagem{background-color:var(--travel-subtle);color:var(--travel)}
 [data-obs-screen="canais"] .niche.none{background-color:transparent;color:var(--muted);border:1px dashed var(--border-strong);padding-left:7px}
 [data-obs-screen="canais"] .niche.ia{background-color:var(--ai-subtle);color:var(--ai)}
+/* nicho criado pelo dono (nicho como dado): o mesmo desenho de .niche.viagem / .niche.ia, com a cor do nicho. As
+   variáveis vêm no style do elemento (niche-editor.tsx nicheStyle); o preenchimento é rgba literal, nunca color-mix. */
+[data-obs-screen="canais"] .niche.custom{background-color:var(--obs-sw-dark-subtle);color:var(--obs-sw-dark)}
+[data-theme="light"] [data-obs-screen="canais"] .niche.custom{background-color:var(--obs-sw-light-subtle);color:var(--obs-sw-light)}
+[data-obs-screen="canais"] .dot.custom{--obs-niche:var(--obs-sw-dark)}
+[data-theme="light"] [data-obs-screen="canais"] .dot.custom{--obs-niche:var(--obs-sw-light)}
 [data-obs-screen="canais"] .niche option{color:#231C14;background:#FBF7F0}
 [data-obs-screen="canais"] .youtag,[data-obs-screen="canais"] .langtag{white-space:nowrap;flex:none}
 [data-obs-screen="canais"] .nmrow{display:flex;align-items:center;gap:7px;min-width:0;max-width:163px}

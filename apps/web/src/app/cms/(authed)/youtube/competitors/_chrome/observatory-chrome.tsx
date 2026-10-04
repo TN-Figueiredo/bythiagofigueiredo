@@ -7,11 +7,11 @@
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import type { NicheScope } from '@/lib/youtube/observatorio/niche'
+import { joinLabels, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { ChromeView, SyncNowResult } from './view-model'
 import { Freshness } from './freshness'
 import { Tabs } from './tabs'
-import { NicheBar } from './niche-bar'
+import { NicheBar, NICHE_BAR_FIXED } from './niche-bar'
 import { Menu } from './menu'
 import { ToastProvider, useToast } from './toasts'
 import { ChromeSyncContext } from './sync-context'
@@ -70,7 +70,10 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
   const [asking, setAsking] = useState(false)
   const askFromHeader = useCallback(async () => {
     if (!forja || !forja.ask || !onAskForja || asking) return
-    const NLB: Record<string, string> = { viagem: 'Viagem', ia: 'IA' }
+    // the niches' labels, in the tab order (the built-in first, then the owner's)
+    const tabNiches = view.niches.filter(n => n.key !== 'todos')
+    const NLB = (k: string) => tabNiches.find(n => n.key === k)?.label ?? k
+    const list = (ks: readonly string[]) => joinLabels(tabNiches.filter(n => ks.includes(n.key)).map(n => n.label))
     const fmt = forja.type === 'padroes-titulo-shorts' ? 'short' : forja.type === 'padroes-titulo' || forja.type === 'temas' ? (forja.fmt ?? 'long') : undefined
     const fail = 'A fila da forja não respondeu. Tente de novo em alguns minutos.'
     setAsking(true)
@@ -80,7 +83,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
         const res = await Promise.all(forja.ask.niches.map(n => onAskForja(forja.type, n, undefined, fmt).catch(() => ({ ok: false, reason: fail, results: [] }))))
         const ok = forja.ask.niches.filter((_, i) => res[i]!.ok)
         if (!ok.length) toast('warn', 'Nada enviado: a forja recusou o pedido.', '')
-        else toast('forja', ok.length > 1 ? 'Pedido enviado à forja: ' + ok.length + ' pedidos, um por nicho (' + (['viagem', 'ia'] as const).filter(x => ok.includes(x)).map(x => NLB[x]).join(' e ') + ')' : 'Pedido enviado à forja', '')
+        else toast('forja', ok.length > 1 ? 'Pedido enviado à forja: ' + ok.length + ' pedidos, um por nicho (' + list(ok) + ')' : 'Pedido enviado à forja', '')
       } else {
         const r = await onAskForja(forja.type, forja.ask.scope, undefined, fmt).catch(() => ({ ok: false, reason: fail, results: [] }))
         const cap = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t)
@@ -88,13 +91,13 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
         else if (forja.screen === 'insights') {
           // insights.html askForja: "Um pedido por nicho: Viagem e IA" or "Leitura dos longos de IA", then any niche skipped
           const created = r.results.filter(x => x.ok).map(x => x.niche), skipped = r.results.filter(x => !x.ok)
-          const what = created.length > 1 ? 'Um pedido por nicho: Viagem e IA' : 'Leitura dos ' + (fmt === 'short' ? 'Shorts' : 'longos') + ' de ' + NLB[created[0]!]
+          const what = created.length > 1 ? 'Um pedido por nicho: ' + list(created) : 'Leitura dos ' + (fmt === 'short' ? 'Shorts' : 'longos') + ' de ' + NLB(created[0]!)
           toast('forja', 'Pedido enviado à forja', (what + (skipped.length ? '; ' + skipped.map(x => (x.reason ?? '').replace(/[.\s]+$/, '')).join('; ') : '')).replace(/[.\s]+$/, '') + '.')
         } else toast('forja', 'Pedido enviado à forja', '')
       }
       router.refresh()
     } finally { setAsking(false) }
-  }, [forja, onAskForja, asking, toast, router])
+  }, [forja, onAskForja, asking, toast, router, view.niches])
   const onForjaHeader = () => {
     if (!forja) return
     if (forja.headerAction === 'ask') { void askFromHeader(); return }
@@ -231,7 +234,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
           onToggle={() => setPop(p => (p === 'fresh' ? null : 'fresh'))} onSync={() => sync(true)} syncing={syncing}
           forjaSeg={forja ? <ForjaMachineSegment machine={forja.machine} /> : null}
         />
-        <div className="obs-ch-nav" data-obs-tabs="">
+        <div className="obs-ch-nav" data-obs-tabs="" data-niche-scroll={niches.length > NICHE_BAR_FIXED ? '' : undefined}>
           <Tabs tabs={view.tabs} />
           <NicheBar niches={niches} pending={pendingNiche} onPick={pickNiche} />
         </div>
