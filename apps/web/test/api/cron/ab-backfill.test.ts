@@ -13,7 +13,8 @@ vi.mock('@/lib/supabase/service', () => ({
 
 // ── Token refresh mock ───────────────────────────────────────────────────────
 const mockEnsureFreshToken = vi.fn()
-vi.mock('@/lib/social/token-refresh', () => ({
+vi.mock('@/lib/social/token-refresh', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/social/token-refresh')>()),
   ensureFreshToken: (...args: unknown[]) => mockEnsureFreshToken(...args),
 }))
 
@@ -26,6 +27,7 @@ vi.mock('@/lib/youtube/ab-youtube', () => ({
 
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
+  captureMessage: vi.fn(),
   setTag: vi.fn(),
 }))
 
@@ -37,6 +39,8 @@ vi.mock('@/lib/cron-health', () => ({
 // ── Import after mocks ─���─────────��──────────────────────────────────────────
 import { GET } from '@/app/api/cron/ab-backfill/route'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
+import { NoActiveConnectionError } from '@/lib/social/token-refresh'
+import * as Sentry from '@sentry/nextjs'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function makeRequest(authHeader?: string): NextRequest {
@@ -67,11 +71,31 @@ function singleQuery(data: unknown) {
   }
 }
 
+const cycleUpdates: Record<string, unknown>[] = []
 function updateQuery() {
   return {
-    update: vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: null }),
+    update: vi.fn((data: Record<string, unknown>) => {
+      cycleUpdates.push(data)
+      return { eq: vi.fn().mockResolvedValue({ error: null }) }
     }),
+  }
+}
+
+/**
+ * `youtube_videos` responde às duas leituras da rota: o id do vídeo no YouTube
+ * e o canal dono do vídeo (`youtube_channels!inner(channel_id)`).
+ */
+function videoQuery(video: unknown, owner: { channel_id: string } | null) {
+  return {
+    select: vi.fn((cols: string) => ({
+      eq: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue(
+          cols.includes('youtube_channels')
+            ? { data: { youtube_channels: owner }, error: null }
+            : { data: video, error: null },
+        ),
+      }),
+    })),
   }
 }
 
@@ -79,6 +103,7 @@ function updateQuery() {
 describe('GET /api/cron/ab-backfill', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cycleUpdates.length = 0
   })
 
   it('returns 401 without Authorization header', async () => {
@@ -155,7 +180,7 @@ describe('GET /api/cron/ab-backfill', () => {
         }
       }
       if (table === 'ab_tests') return singleQuery(test)
-      if (table === 'youtube_videos') return singleQuery(video)
+      if (table === 'youtube_videos') return videoQuery(video, { channel_id: 'UCpt' })
       return {}
     })
 
@@ -165,6 +190,75 @@ describe('GET /api/cron/ab-backfill', () => {
     expect(body.status).toBe('ok')
     expect(body.backfilled).toBe(1)
     expect(body.errors).toBe(0)
+    // Site com dois canais: o token é o do canal DONO do vídeo. A Analytics API
+    // é consultada com `channel==MINE` — o token de outro canal devolve zero linhas.
+    expect(mockEnsureFreshToken).toHaveBeenCalledTimes(1)
+    expect(mockEnsureFreshToken).toHaveBeenCalledWith('site-1', 'youtube', 'UCpt')
+    expect(mockFetchAnalyticsForDateRange).toHaveBeenCalledWith(
+      'yt-video-abc', '2026-05-01', '2026-05-10', 'tok-123',
+    )
+  })
+
+  describe('o dado não existe', () => {
+    const cycle = {
+      id: 'cycle-3',
+      test_id: 'test-3',
+      started_at: '2026-05-01T00:00:00Z',
+      ended_at: '2026-05-10T00:00:00Z',
+      backfill_attempts: 2,
+    }
+    const test = { id: 'test-3', site_id: 'site-1', youtube_video_id: 'vid-3' }
+    const video = { youtube_video_id: 'yt-video-ghi' }
+
+    function mockTables(owner: { channel_id: string } | null) {
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'ab_test_cycles') return { ...cyclesQuery([cycle]), ...updateQuery() }
+        if (table === 'ab_tests') return singleQuery(test)
+        if (table === 'youtube_videos') return videoQuery(video, owner)
+        return {}
+      })
+    }
+
+    it('canal sem conexão OAuth: pula o ciclo, que fica partial com a tentativa contada — nunca no_data, mesmo na 3ª tentativa', async () => {
+      mockTables({ channel_id: 'UCpt' })
+      mockEnsureFreshToken.mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
+
+      const res = await GET(makeRequest(`Bearer ${CRON_SECRET}`))
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(mockEnsureFreshToken).toHaveBeenCalledWith('site-1', 'youtube', 'UCpt')
+      expect(mockFetchAnalyticsForDateRange).not.toHaveBeenCalled()
+      expect(cycleUpdates).toEqual([{ backfill_status: 'partial', backfill_attempts: 3 }])
+      expect(body).toMatchObject({ status: 'ok', backfilled: 0, errors: 0, skipped: 1 })
+      // Pulado não é silencioso: sai um aviso no Sentry dizendo o porquê.
+      expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+      expect(recordCronFailure).not.toHaveBeenCalled()
+    })
+
+    it('vídeo sem canal: não pede token (nunca "a conexão mais recente"); o ciclo fica partial', async () => {
+      mockTables(null)
+
+      const res = await GET(makeRequest(`Bearer ${CRON_SECRET}`))
+      const body = await res.json()
+
+      expect(mockEnsureFreshToken).not.toHaveBeenCalled()
+      expect(mockFetchAnalyticsForDateRange).not.toHaveBeenCalled()
+      expect(cycleUpdates).toEqual([{ backfill_status: 'partial', backfill_attempts: 3 }])
+      expect(body).toMatchObject({ backfilled: 0, errors: 0, skipped: 1 })
+    })
+
+    it('outro erro de token (ex.: falha no refresh) continua sendo erro do ciclo', async () => {
+      mockTables({ channel_id: 'UCpt' })
+      mockEnsureFreshToken.mockRejectedValue(new Error('Google token refresh failed (500): boom'))
+
+      const res = await GET(makeRequest(`Bearer ${CRON_SECRET}`))
+      const body = await res.json()
+
+      expect(body.errors).toBe(1)
+      expect(cycleUpdates).toEqual([{ backfill_status: 'error' }])
+      expect(recordCronFailure).toHaveBeenCalled()
+    })
   })
 
   it('marks partial when analytics returns empty rows', async () => {
@@ -189,7 +283,7 @@ describe('GET /api/cron/ab-backfill', () => {
         }
       }
       if (table === 'ab_tests') return singleQuery(test)
-      if (table === 'youtube_videos') return singleQuery(video)
+      if (table === 'youtube_videos') return videoQuery(video, { channel_id: 'UCpt' })
       return {}
     })
 

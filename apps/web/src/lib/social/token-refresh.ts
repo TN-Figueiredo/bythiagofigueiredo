@@ -14,6 +14,43 @@ export class TokenRevokedError extends Error {
   }
 }
 
+/**
+ * Nenhuma conexão ativa (não revogada) para o provedor — ou para a conta
+ * pedida. A mensagem é a de sempre; a classe existe para quem chama poder
+ * distinguir "não há conexão" de uma falha de refresh.
+ */
+export class NoActiveConnectionError extends Error {
+  public readonly provider: Provider
+  public readonly siteId: string
+
+  constructor(provider: Provider, siteId: string) {
+    super(`No active ${provider} connection found for site ${siteId}`)
+    this.name = 'NoActiveConnectionError'
+    this.provider = provider
+    this.siteId = siteId
+  }
+}
+
+/**
+ * Pediram o token do YouTube sem dizer de qual canal, e o site tem mais de um
+ * canal conectado. Escolher "a conexão conectada por último" faria a operação
+ * sair com o token de outro canal: quem chama tem de passar o `accountId`
+ * (para um vídeo: `channelAccountIdForVideo`).
+ */
+export class AmbiguousConnectionError extends Error {
+  public readonly provider: Provider
+  public readonly count: number
+
+  constructor(provider: Provider, count: number, siteId: string) {
+    super(
+      `${count} active ${provider} connections for site ${siteId} and no account was given — refusing to pick one`,
+    )
+    this.name = 'AmbiguousConnectionError'
+    this.provider = provider
+    this.count = count
+  }
+}
+
 interface FreshToken {
   accessToken: string
   connectionId: string
@@ -38,6 +75,26 @@ export async function ensureFreshToken(
 ): Promise<FreshToken> {
   const supabase = getSupabaseServiceClient()
 
+  // Guarda contra conexão ambígua — só YouTube, só sem conta. Um site pode ter
+  // vários canais conectados; sem `accountId`, "a mais recente" é o canal errado
+  // para metade das operações. Uma conexão ativa: segue como sempre.
+  if (provider === 'youtube' && !accountId) {
+    const { count, error: countError } = await supabase
+      .from('social_connections')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('provider', provider)
+      .is('revoked_at', null)
+    if (countError) {
+      throw new Error(
+        `Could not count active ${provider} connections for site ${siteId}: ${countError.message}`,
+      )
+    }
+    if ((count ?? 0) > 1) {
+      throw new AmbiguousConnectionError(provider, count ?? 0, siteId)
+    }
+  }
+
   let query = supabase
     .from('social_connections')
     .select(
@@ -53,7 +110,7 @@ export async function ensureFreshToken(
     .single()
 
   if (error || !conn) {
-    throw new Error(`No active ${provider} connection found for site ${siteId}`)
+    throw new NoActiveConnectionError(provider, siteId)
   }
 
   const key = getMasterKey()

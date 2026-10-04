@@ -136,7 +136,15 @@ export async function GET(req: NextRequest) {
               if (testFull?.original_thumbnail_url?.includes('blob.vercel-storage.com')) {
                 const { ensureFreshToken } = await import('@/lib/social/token-refresh')
                 const { fetchVariantImageBuffer, setThumbnail } = await import('@/lib/youtube/ab-youtube')
-                const { accessToken } = await ensureFreshToken(testFull.site_id, 'youtube')
+                const { channelAccountIdForVideo } = await import('@/lib/youtube/channel-account')
+                // O token é o do canal DONO do vídeo. Sem conta, saía "a conexão
+                // mais recente": com o token de outro canal o YouTube recusa, e o
+                // teste ficava pausado com a thumbnail da variante no ar.
+                const channelAccountId = await channelAccountIdForVideo(driftClient, test.youtube_video_id)
+                if (!channelAccountId) {
+                  throw new Error(`ab-watchdog: video ${test.youtube_video_id} has no channel — original thumbnail NOT restored`)
+                }
+                const { accessToken } = await ensureFreshToken(testFull.site_id, 'youtube', channelAccountId)
                 const { buffer, contentType } = await fetchVariantImageBuffer(testFull.original_thumbnail_url)
                 await setThumbnail(video.youtube_video_id, buffer, contentType, accessToken)
               }

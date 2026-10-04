@@ -62,6 +62,23 @@ function buildConnectionChain(
   return { select, single }
 }
 
+/**
+ * `ensureFreshToken(site, 'youtube')` SEM conta conta primeiro as conexões
+ * ativas (guarda contra conexão ambígua): é a primeira chamada a `from()`.
+ * Estes testes são sobre o refresh, com uma conexão só.
+ */
+function activeConnectionCount(count = 1) {
+  return {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          is: vi.fn().mockResolvedValue({ count, error: null }),
+        }),
+      }),
+    }),
+  }
+}
+
 function buildUpdateChain(count: number) {
   const eqFilter = vi.fn().mockReturnThis()
   return {
@@ -221,6 +238,7 @@ describe('refreshGoogle — happy path', () => {
     }
 
     mockFrom
+      .mockReturnValueOnce(activeConnectionCount())
       .mockReturnValueOnce({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -279,6 +297,7 @@ describe('refreshGoogle — token rotation (new refresh_token returned)', () => 
     }
 
     mockFrom
+      .mockReturnValueOnce(activeConnectionCount())
       .mockReturnValueOnce({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -328,6 +347,7 @@ describe('refreshGoogle — CAS conflict (concurrent refresh)', () => {
     const reReadData = { access_token_enc: 'enc:winner-access-token' }
 
     mockFrom
+      .mockReturnValueOnce(activeConnectionCount())
       .mockReturnValueOnce({
         // Initial lookup: expired token
         select: vi.fn().mockReturnValue({
@@ -385,6 +405,7 @@ describe('refreshGoogle — revoked token', () => {
     vi.clearAllMocks()
 
     mockFrom
+      .mockReturnValueOnce(activeConnectionCount())
       .mockReturnValueOnce({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({

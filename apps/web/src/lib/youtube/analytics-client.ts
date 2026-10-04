@@ -51,6 +51,33 @@ interface TokenInfo {
 
 async function getYouTubeToken(siteId: string, targetChannelId?: string): Promise<TokenInfo | null> {
   const supabase = getSupabaseServiceClient()
+
+  // Sem canal pedido e com mais de um canal conectado, "a conexão mais recente"
+  // é um palpite: os números de um canal sairiam como se fossem de outro. Mesma
+  // regra de `ensureFreshToken` — aqui a resposta é "sem dados" (null) e um
+  // aviso, porque quem chama já trata null como "não há o que mostrar".
+  if (!targetChannelId) {
+    const { count, error: countError } = await supabase
+      .from('social_connections')
+      .select('id', { count: 'exact', head: true })
+      .eq('site_id', siteId)
+      .eq('provider', 'youtube')
+      .is('revoked_at', null)
+    if (countError || (count ?? 0) > 1) {
+      Sentry.captureMessage(
+        countError
+          ? 'YouTube Analytics: could not count the active connections and no channel was given — returning no data'
+          : 'YouTube Analytics: more than one active connection and no channel was given — returning no data',
+        {
+          level: 'warning',
+          tags: { component: 'youtube-analytics', reason: 'ambiguous_connection' },
+          extra: { siteId, activeConnections: count ?? null, countError: countError?.message ?? null },
+        },
+      )
+      return null
+    }
+  }
+
   let query = supabase
     .from('social_connections')
     .select('account_id')

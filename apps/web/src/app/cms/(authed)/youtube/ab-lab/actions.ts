@@ -17,6 +17,7 @@ import type {
   VariantMetadata,
 } from '@/lib/youtube/ab-types'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { channelAccountIdForVideo } from '@/lib/youtube/channel-account'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { getVariantForCycle, getNextVariantIndex } from '@/lib/youtube/ab-rotation'
@@ -158,7 +159,13 @@ export async function createAbTest(
 
   if (testType !== 'thumbnail') {
     try {
-      const { accessToken } = await ensureFreshToken(siteId, 'youtube')
+      // O token é o do canal DONO do vídeo. Sem conta, `ensureFreshToken` pegava
+      // "a conexão conectada por último": com outro canal reconectado depois, os
+      // originais de um vídeo não listado voltavam vazios e o teste nascia sem ter
+      // o que restaurar.
+      const channelAccountId = await channelAccountIdForVideo(supabase, input.youtube_video_id)
+      if (!channelAccountId) throw new Error(`Video ${input.youtube_video_id} has no channel`)
+      const { accessToken } = await ensureFreshToken(siteId, 'youtube', channelAccountId)
       const { data: ytVideo } = await supabase
         .from('youtube_videos')
         .select('youtube_video_id')
@@ -172,8 +179,13 @@ export async function createAbTest(
           originalDescription = meta.description
         }
       }
-    } catch {
-      // Non-fatal — we can proceed without originals
+    } catch (err) {
+      // Non-fatal — we can proceed without originals. Mas não em silêncio: sem
+      // originais a reversão do vencedor não tem o que restaurar.
+      Sentry.captureException(err, {
+        tags: { area: 'ab-lab', action: 'createAbTest' },
+        extra: { stage: 'capture-original-metadata', videoId: input.youtube_video_id },
+      })
     }
   }
 
@@ -615,24 +627,6 @@ async function resolveYouTubeVideoId(
   return (data?.youtube_video_id as string | null) ?? null
 }
 
-async function resolveChannelAccountId(
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-  internalVideoId: string,
-): Promise<string | undefined> {
-  const { data } = await supabase
-    .from('youtube_videos')
-    .select('youtube_channels!inner(channel_id)')
-    .eq('id', internalVideoId)
-    .single()
-  const row = data as {
-    youtube_channels: Pick<
-      Database['public']['Tables']['youtube_channels']['Row'],
-      'channel_id'
-    > | null
-  } | null
-  return row?.youtube_channels?.channel_id ?? undefined
-}
-
 // ---------------------------------------------------------------------------
 // startAbTest
 // ---------------------------------------------------------------------------
@@ -689,7 +683,7 @@ export async function pauseAbTest(
   const originalVariant = variants?.find(v => v.is_original)
 
   try {
-    const channelAccountId = await resolveChannelAccountId(supabase, test.youtube_video_id as string)
+    const channelAccountId = (await channelAccountIdForVideo(supabase, test.youtube_video_id as string)) ?? undefined
     const { accessToken } = await ensureFreshToken(siteId, 'youtube', channelAccountId)
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
     if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
@@ -802,7 +796,7 @@ export async function resumeAbTest(
 
   let appliedMeta: import('@/lib/youtube/ab-types').AppliedMetadata = {}
   try {
-    const channelAccountId = await resolveChannelAccountId(supabase, test.youtube_video_id as string)
+    const channelAccountId = (await channelAccountIdForVideo(supabase, test.youtube_video_id as string)) ?? undefined
     const { accessToken } = await ensureFreshToken(siteId, 'youtube', channelAccountId)
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
     if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
@@ -898,7 +892,7 @@ export async function endAbTest(
     : variants.find(v => v.is_original)
 
   try {
-    const channelAccountId = await resolveChannelAccountId(supabase, test.youtube_video_id as string)
+    const channelAccountId = (await channelAccountIdForVideo(supabase, test.youtube_video_id as string)) ?? undefined
     const { accessToken } = await ensureFreshToken(siteId, 'youtube', channelAccountId)
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
     if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
@@ -1300,16 +1294,18 @@ export async function applyWinnerNow(
 
   if (!variant) return { ok: false, error: 'Winner variant not found' }
 
-  // Get channel for preflight
-  const { data: channel } = await supabase
-    .from('youtube_channels')
-    .select('channel_id')
-    .eq('site_id', siteId)
-    .limit(1)
-    .single()
+  // O canal DONO do vídeo — nunca "um canal qualquer do site": a escrita no
+  // YouTube tem de sair com o token dele.
+  let channelAccountId: string | null
+  try {
+    channelAccountId = await channelAccountIdForVideo(supabase, test.youtube_video_id as string)
+  } catch (e) {
+    return { ok: false, error: `Could not resolve the video's channel: ${(e as Error).message}` }
+  }
+  if (!channelAccountId) return { ok: false, error: 'Video not found' }
 
   // Pre-flight check
-  const preflight = await preflightTokenCheck(siteId, 'youtube', channel?.channel_id as string | undefined)
+  const preflight = await preflightTokenCheck(siteId, 'youtube', channelAccountId)
   if (!preflight.ok) return { ok: false, error: `Token inválido: ${preflight.reason}` }
 
   // Get YouTube video ID
@@ -1405,7 +1401,7 @@ export async function cancelGracePeriod(
   try {
     const revertUrl = test.original_thumbnail_url as string | null
     if (revertUrl?.includes('blob.vercel-storage.com')) {
-      const channelAccountId = await resolveChannelAccountId(supabase, test.youtube_video_id as string)
+      const channelAccountId = (await channelAccountIdForVideo(supabase, test.youtube_video_id as string)) ?? undefined
       const { accessToken } = await ensureFreshToken(siteId, 'youtube', channelAccountId)
       const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
       if (youtubeVideoId) {
@@ -1463,15 +1459,17 @@ export async function revertWinner(
     return { ok: false, error: 'Revert window expired (7 days)' }
   }
 
-  // Get channel for preflight
-  const { data: channel } = await supabase
-    .from('youtube_channels')
-    .select('channel_id')
-    .eq('site_id', siteId)
-    .limit(1)
-    .single()
+  // O canal DONO do vídeo — nunca "um canal qualquer do site": a escrita no
+  // YouTube tem de sair com o token dele.
+  let channelAccountId: string | null
+  try {
+    channelAccountId = await channelAccountIdForVideo(supabase, test.youtube_video_id as string)
+  } catch (e) {
+    return { ok: false, error: `Could not resolve the video's channel: ${(e as Error).message}` }
+  }
+  if (!channelAccountId) return { ok: false, error: 'Video not found' }
 
-  const preflight = await preflightTokenCheck(siteId, 'youtube', channel?.channel_id as string | undefined)
+  const preflight = await preflightTokenCheck(siteId, 'youtube', channelAccountId)
   if (!preflight.ok) return { ok: false, error: `Token inválido: ${preflight.reason}` }
 
   const { data: video } = await supabase

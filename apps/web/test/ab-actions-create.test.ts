@@ -49,6 +49,8 @@ import { put } from '@vercel/blob'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import type { AbTestCreateInput } from '@/lib/youtube/ab-types'
+import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { captureOriginalMetadata } from '@/lib/youtube/ab-metadata'
 
 const BLOB_URL = 'https://xxx.blob.vercel-storage.com/ab-originals/uuid/original.jpg'
 
@@ -63,6 +65,8 @@ function makeInput(overrides: Partial<AbTestCreateInput> = {}): AbTestCreateInpu
 }
 
 interface BuildMockOpts {
+  /** Canal dono do vídeo (o que `youtube_videos → youtube_channels` devolve). */
+  videoOwner?: { channel_id: string } | null
   video?: { id: string; duration_seconds: number; thumbnail_hq_url: string | null } | null
   existingTest?: { id: string } | null
   insertTestResult?: { data: { id: string } | null; error: { message: string } | null }
@@ -75,6 +79,7 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
     existingTest = null,
     insertTestResult = { data: { id: 'new-test-id' }, error: null },
     insertVariantResult = { data: null, error: null },
+    videoOwner = { channel_id: 'UCpt' },
   } = opts
 
   const insertCalls: { table: string; data: unknown }[] = []
@@ -83,7 +88,7 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
   const fromMock = vi.fn((table: string) => {
     if (table === 'youtube_videos') {
       return {
-        select: vi.fn().mockReturnValue({
+        select: vi.fn((cols: string) => ({
           eq: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               single: vi.fn().mockResolvedValue({
@@ -91,8 +96,14 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
                 error: video ? null : { message: 'not found' },
               }),
             }),
+            // Leituras por id só (sem site): o dono do vídeo e o id do YouTube.
+            single: vi.fn().mockResolvedValue(
+              cols.includes('youtube_channels')
+                ? { data: { youtube_channels: videoOwner }, error: null }
+                : { data: { youtube_video_id: 'YT_VID_PT' }, error: null },
+            ),
           }),
-        }),
+        })),
       }
     }
 
@@ -315,6 +326,48 @@ describe('createAbTest', () => {
     expect(result).toEqual({
       ok: false,
       error: 'Falha ao salvar thumbnail original. Tente novamente.',
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Site com dois canais conectados (PT `UCpt`, EN `UCen`): o título e a
+  // descrição originais têm de ser lidos com o token do canal DONO do vídeo.
+  // -------------------------------------------------------------------------
+  describe('teste de título: token do canal dono do vídeo', () => {
+    it('lê os originais com o token do canal do vídeo (UCpt), não com "a conexão mais recente"', async () => {
+      const { insertCalls } = buildSupabaseMock()
+      ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockResolvedValue({ accessToken: 'tok-pt', connectionId: 'c-pt' })
+      ;(captureOriginalMetadata as ReturnType<typeof vi.fn>).mockResolvedValue({
+        title: 'Título original',
+        description: 'Descrição original',
+      })
+
+      const result = await createAbTest(makeInput({ test_type: 'title' }))
+
+      expect(result).toEqual({ ok: true, id: 'new-test-id' })
+      expect(ensureFreshToken).toHaveBeenCalledTimes(1)
+      expect(ensureFreshToken).toHaveBeenCalledWith('site-1', 'youtube', 'UCpt')
+      expect(captureOriginalMetadata).toHaveBeenCalledWith('YT_VID_PT', 'tok-pt')
+      const testInsert = insertCalls.find(c => c.table === 'ab_tests')!.data as Record<string, unknown>
+      expect(testInsert.original_title).toBe('Título original')
+      expect(testInsert.original_description).toBe('Descrição original')
+    })
+
+    it('vídeo sem canal: não pede token nenhum (nunca cai na conexão mais recente)', async () => {
+      buildSupabaseMock({ videoOwner: null })
+
+      const result = await createAbTest(makeInput({ test_type: 'title' }))
+
+      expect(ensureFreshToken).not.toHaveBeenCalled()
+      expect(captureOriginalMetadata).not.toHaveBeenCalled()
+      // Comportamento de hoje preservado: o teste nasce sem originais.
+      expect(result).toEqual({ ok: true, id: 'new-test-id' })
+    })
+
+    it('teste de thumbnail não pede token', async () => {
+      buildSupabaseMock()
+      await createAbTest(makeInput())
+      expect(ensureFreshToken).not.toHaveBeenCalled()
     })
   })
 })
