@@ -4,6 +4,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken, NoActiveConnectionError } from '@/lib/social/token-refresh'
 import { channelAccountIdForVideo } from '@/lib/youtube/channel-account'
 import { fetchAnalyticsForDateRange } from '@/lib/youtube/ab-youtube'
+import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
 export const maxDuration = 120
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
   // Ciclos pulados por falta de token do canal dono do vídeo (canal sem conexão
   // OAuth, ou vídeo sem canal). Não são erro nem "sem dados": ninguém perguntou
   // nada ao YouTube.
-  const skipped: { cycleId: string; testId: string; reason: string }[] = []
+  const skipped: { cycleId: string; testId: string; siteId: string; channelAccountId: string | null; reason: string }[] = []
 
   for (const cycle of cycles) {
     try {
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
       // o ciclo acabava `no_data` para sempre sem nunca ter sido lido.
       let accessToken: string | null = null
       let skipReason: string | null = null
-      const channelAccountId = await channelAccountIdForVideo(supabase, test.youtube_video_id)
+      const channelAccountId = await channelAccountIdForVideo(supabase, test.site_id, test.youtube_video_id)
       if (!channelAccountId) {
         skipReason = 'video_without_channel'
       } else {
@@ -95,17 +96,16 @@ export async function GET(req: NextRequest) {
       }
 
       if (accessToken === null) {
-        // Fica `partial` (volta na próxima execução) com a tentativa contada, mas
-        // nunca `no_data`: essa marca diz "o YouTube não tem dados", e aqui o
-        // YouTube nem foi consultado.
-        await supabase
-          .from('ab_test_cycles')
-          .update({
-            backfill_status: 'partial',
-            backfill_attempts: (cycle.backfill_attempts ?? 0) + 1,
-          })
-          .eq('id', cycle.id)
-        skipped.push({ cycleId: cycle.id, testId: cycle.test_id, reason: skipReason ?? 'unknown' })
+        // O ciclo NÃO é tocado: o YouTube nem foi consultado, então não há tentativa a
+        // gastar (3 rodadas sem OAuth esgotariam o contador e a primeira leitura vazia
+        // depois de reconectar viraria `no_data` definitivo). Volta na próxima rodada.
+        skipped.push({
+          cycleId: cycle.id,
+          testId: cycle.test_id,
+          siteId: test.site_id,
+          channelAccountId: channelAccountId ?? null,
+          reason: skipReason ?? 'unknown',
+        })
         continue
       }
 
@@ -167,6 +167,27 @@ export async function GET(req: NextRequest) {
       tags: { cron: 'ab-backfill' },
       extra: { skipped },
     })
+    // O dono precisa VER o pulo, sem alarme de cron (canal recém-cadastrado sem OAuth é
+    // estado legítimo): uma notificação por site e por dia (dedup).
+    const bySite = new Map<string, typeof skipped>()
+    for (const k of skipped) bySite.set(k.siteId, [...(bySite.get(k.siteId) ?? []), k])
+    for (const [siteId, items] of bySite) {
+      const channels = [...new Set(items.map((i) => i.channelAccountId ?? 'canal desconhecido'))]
+      try {
+        await fanOutToSiteAdmins({
+          siteId,
+          domain: 'youtube',
+          type: 'youtube.backfill_skipped_no_connection',
+          priority: 2,
+          title: 'Resultados de testes A/B aguardando acesso ao YouTube',
+          message: `${items.length} ciclo(s) de teste A/B não puderam ser lidos no YouTube porque o canal não tem conexão ativa: ${channels.join(', ')}. Reconecte o acesso do canal em /cms/youtube; a leitura recomeça sozinha.`,
+          dedupKey: `backfill-skipped-no-connection-${siteId}-${new Date().toISOString().slice(0, 10)}`,
+          actionHref: '/cms/youtube',
+        })
+      } catch (e) {
+        Sentry.captureException(e, { tags: { cron: 'ab-backfill' }, extra: { stage: 'notify-skipped' } })
+      }
+    }
   }
 
   if (errors === 0) {

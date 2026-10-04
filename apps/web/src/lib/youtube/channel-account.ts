@@ -7,18 +7,21 @@ import type { Database } from '@/types/database.types'
  * `social_connections` — o que se passa a `ensureFreshToken` e a
  * `preflightTokenCheck` para nunca usar o token de outro canal do site.
  *
- * Devolve `null` quando o vídeo (ou o canal dele) não existe. Erro do banco
+ * O vídeo tem de ser do `siteId`: um id de vídeo de outro site não resolve o canal de
+ * outro site. Devolve `null` quando o vídeo (ou o canal dele) não existe nesse site. Erro do banco
  * LANÇA: um erro que virasse `null` seria lido como "vídeo sem canal" e, no
  * pior caso, levaria quem chama a procurar um token sem conta.
  */
 export async function channelAccountIdForVideo(
   supabase: SupabaseClient<Database>,
+  siteId: string,
   internalVideoId: string,
 ): Promise<string | null> {
   const { data, error } = await supabase
     .from('youtube_videos')
     .select('youtube_channels!inner(channel_id)')
     .eq('id', internalVideoId)
+    .eq('site_id', siteId)
     .single()
 
   if (error) {

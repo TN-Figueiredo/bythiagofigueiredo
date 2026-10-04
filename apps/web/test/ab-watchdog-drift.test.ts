@@ -104,13 +104,14 @@ function buildDriftSupabase(opts: {
     if (table === 'youtube_videos') {
       return {
         select: vi.fn((cols: string) => ({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockReturnValue(
+          eq: vi.fn().mockReturnValue((() => {
+            const single = vi.fn().mockReturnValue(
               cols.includes('youtube_channels')
                 ? { data: { youtube_channels: videoOwner }, error: null }
                 : { data: video, error: null },
-            ),
-          }),
+            )
+            return { single, eq: vi.fn().mockReturnValue({ single }) }
+          })()),
         })),
       }
     }

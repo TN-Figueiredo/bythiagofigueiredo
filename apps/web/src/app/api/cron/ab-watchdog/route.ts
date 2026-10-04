@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
                 // O token é o do canal DONO do vídeo. Sem conta, saía "a conexão
                 // mais recente": com o token de outro canal o YouTube recusa, e o
                 // teste ficava pausado com a thumbnail da variante no ar.
-                const channelAccountId = await channelAccountIdForVideo(driftClient, test.youtube_video_id)
+                const channelAccountId = await channelAccountIdForVideo(driftClient, testFull.site_id, test.youtube_video_id)
                 if (!channelAccountId) {
                   throw new Error(`ab-watchdog: video ${test.youtube_video_id} has no channel — original thumbnail NOT restored`)
                 }

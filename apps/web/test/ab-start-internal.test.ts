@@ -26,7 +26,7 @@ beforeEach(() => {
   ;(getVariantForCycle as ReturnType<typeof vi.fn>).mockReturnValue(1)
 })
 
-function buildMock(testOverrides: Record<string, unknown> = {}) {
+function buildMock(testOverrides: Record<string, unknown> = {}, channelRow: { channel_id: string } | null = { channel_id: 'UCpt' }) {
   const updates: { table: string; data: unknown }[] = []
   const inserts: { table: string; data: unknown }[] = []
 
@@ -87,9 +87,18 @@ function buildMock(testOverrides: Record<string, unknown> = {}) {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({
-              data: { youtube_video_id: 'YT_ABC' },
+              data: { youtube_video_id: 'YT_ABC', channel_id: 'ch-db-1' },
               error: null,
             }),
+          }),
+        }),
+      }
+    }
+    if (table === 'youtube_channels') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: channelRow, error: channelRow ? null : { message: 'not found' } }),
           }),
         }),
       }
@@ -110,6 +119,22 @@ describe('startAbTestInternal', () => {
     expect(result.ok).toBe(true)
     expect(updates.some(u => (u.data as Record<string, unknown>).status === 'active')).toBe(true)
     expect(inserts.some(i => i.table === 'ab_test_cycles')).toBe(true)
+  })
+
+  it('usa o token do canal dono do vídeo (UC…)', async () => {
+    buildMock()
+    await startAbTestInternal('test-1', 'site-1')
+    expect(ensureFreshToken).toHaveBeenCalledWith('site-1', 'youtube', 'UCpt')
+  })
+
+  it('canal do vídeo não identificado: recusa com mensagem legível, sem pedir token e sem ativar', async () => {
+    const { updates, inserts } = buildMock({}, null)
+    const result = await startAbTestInternal('test-1', 'site-1')
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/Could not identify which YouTube channel owns this video/)
+    expect(ensureFreshToken).not.toHaveBeenCalled()
+    expect(updates).toEqual([])
+    expect(inserts).toEqual([])
   })
 
   it('returns error if test is not draft', async () => {
