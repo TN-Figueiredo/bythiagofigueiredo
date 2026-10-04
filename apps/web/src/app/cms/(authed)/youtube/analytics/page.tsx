@@ -2,6 +2,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { redirect } from 'next/navigation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { defaultOwnChannel } from '@/lib/youtube/default-channel'
 import { fetchYtChannelMetrics, fetchYtDailyMetrics, getConnectedYouTubeChannels } from '@/lib/youtube/analytics-client'
 import {
   fetchVideoGrades,
@@ -48,7 +49,12 @@ export default async function YouTubeAnalyticsPage({
   }
 
   const { channel: selectedChannelId } = await searchParams
-  const activeChannel = channels.find(c => c.channelId === selectedChannelId) ?? channels[0]!
+  // Canal explícito vence; sem ele, o canal padrão do site (não "o primeiro em ordem alfabética").
+  const def = selectedChannelId ? null : await defaultOwnChannel(getSupabaseServiceClient(), siteId)
+  const activeChannel =
+    channels.find(c => c.channelId === selectedChannelId) ??
+    (def ? channels.find(c => c.channelId === def.channelId) : undefined) ??
+    channels[0]!
 
   const supabaseForLastAnalysis = getSupabaseServiceClient()
   const [metrics, dailyMetrics, grades, searchTermsResult, demographicsResult, intelligenceData, channelCoaching, notes, lastAnalysisRow, latestTask, history] = await Promise.all([

@@ -46,7 +46,7 @@ describe('channelAccountIdForVideo', () => {
     const { client, calls } = fakeDb()
     expect(await channelAccountIdForVideo(client, 'site-1', 'vid-pt')).toBe('UCpt')
     expect(calls).toEqual([
-      { table: 'youtube_videos', cols: 'youtube_channels!inner(channel_id)', id: 'vid-pt', site: 'site-1' },
+      { table: 'youtube_videos', cols: 'youtube_channels!inner(channel_id, name)', id: 'vid-pt', site: 'site-1' },
     ])
   })
 

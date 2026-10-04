@@ -67,7 +67,11 @@ function world(over: Partial<FakePostgrestOptions['tables']> = {}): FakePostgres
 
 let pair: McpTestPair | null = null
 async function read(uri: string, opts: FakePostgrestOptions): Promise<unknown> {
-  sb = fakePostgrest(opts)
+  sb = fakePostgrest({
+      ...opts,
+      tables: { social_connections: [], ...opts.tables },
+      columns: { social_connections: ['site_id', 'provider', 'account_id', 'revoked_at'], ...opts.columns },
+    })
   pair = await createTestMcpPair({ setupServer: server => registerResources(server) })
   const res = await pair.client.readResource({ uri })
   return JSON.parse((res.contents[0] as { text: string }).text)
@@ -120,6 +124,29 @@ describe('pipeline://youtube/intelligence', () => {
     for (const q of sb.on('youtube_channels')) {
       expect(q.filters).toContainEqual({ op: 'eq', col: 'site_id', value: SITE })
     }
+  })
+
+  it('EN mais antigo SEM OAuth + PT com OAuth → o canal padrão é o PT (não o vazio)', async () => {
+    const opts = world({
+      youtube_channels: [
+        channel({ id: 'ch-en', channel_id: 'UCen', slug: 'en', name: 'EN vazio', locale: 'en', created_at: '2024-01-01T00:00:00Z' }),
+        channel({ id: 'ch-pt', channel_id: 'UCpt', slug: 'pt', name: 'tnFigueiredo', created_at: '2025-01-01T00:00:00Z' }),
+      ],
+      social_connections: [{ site_id: SITE, provider: 'youtube', account_id: 'UCpt', revoked_at: null }],
+    })
+    const body = await read('pipeline://youtube/intelligence', opts) as { channel: { id: string } }
+    expect(body.channel.id).toBe('ch-pt')
+  })
+
+  it('nenhum canal com OAuth → o mais antigo', async () => {
+    const opts = world({
+      youtube_channels: [
+        channel({ id: 'ch-pt', channel_id: 'UCpt', name: 'PT', created_at: '2025-01-01T00:00:00Z' }),
+        channel({ id: 'ch-en', channel_id: 'UCen', name: 'EN', locale: 'en', created_at: '2024-01-01T00:00:00Z' }),
+      ],
+    })
+    const body = await read('pipeline://youtube/intelligence', opts) as { channel: { id: string } }
+    expect(body.channel.id).toBe('ch-en')
   })
 
   it('site sem canal → erro "No YouTube channel found"', async () => {

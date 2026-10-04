@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 interface Row { site_id: string; provider: string; account_id: string; connected_at: string; revoked_at: string | null }
 let rows: Row[] = []
 let countError: { message: string } | null = null
+let singleError: { code?: string; message: string } | null = null
 
 function query() {
   let filtered = [...rows]
@@ -20,7 +21,8 @@ function query() {
     is(col: string, val: null) { filtered = filtered.filter((r) => get(r, col) === val); return q },
     order(col: string) { filtered.sort((a, b) => String(get(b, col)).localeCompare(String(get(a, col)))); return q },
     limit(n: number) { filtered = filtered.slice(0, n); return q },
-    async single() { return filtered.length === 1 ? { data: filtered[0], error: null } : { data: null, error: { message: 'no rows' } } },
+    async single() { if (singleError) return { data: null, error: singleError }
+      return filtered.length === 1 ? { data: filtered[0], error: null } : { data: null, error: { code: 'PGRST116', message: 'no rows' } } },
     then(resolve: (v: unknown) => void) {
       resolve(head
         ? (countError ? { count: null, error: countError } : { count: filtered.length, error: null })
@@ -47,6 +49,7 @@ const fetchMock = vi.fn()
 beforeEach(() => {
   rows = []
   countError = null
+  singleError = null
   vi.clearAllMocks()
   vi.mocked(ensureFreshToken).mockResolvedValue({ accessToken: 'tok', connectionId: 'c' })
   fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ rows: [['2026-01-01', 10, 1, 0, 0, 0, 0, 0]] }), text: async () => '' })
@@ -62,6 +65,12 @@ describe('analytics-client — token sem canal pedido', () => {
     expect(fetchMock).not.toHaveBeenCalled()
     expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
     expect(vi.mocked(Sentry.captureMessage).mock.calls[0]![0]).toMatch(/more than one active connection/)
+  })
+
+  it('erro de BANCO ao ler a conexão lança — não vira "sem dados"', async () => {
+    rows = [PT]
+    singleError = { code: '57014', message: 'statement timeout' }
+    await expect(fetchYtDailyMetrics('site-1', 28, 'UCpt')).rejects.toThrow(/statement timeout/)
   })
 
   it('uma conexão ativa: funciona como hoje, com a conta dela', async () => {

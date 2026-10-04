@@ -43,7 +43,8 @@ function stub() {
   return { from: (t: string) => make(tables[t] ?? []) }
 }
 
-function seed(channelId: string | null) {
+function seed(channelId: string | null, connected = true) {
+  tables.social_connections = connected && channelId ? [{ id: 'conn-1', account_id: channelId }] : []
   tables.youtube_channels = [
     { id: CH_UUID, channel_id: channelId, name: 'Canal', subscriber_count: 1000, video_count: 1, last_synced_at: new Date().toISOString() },
   ]
@@ -90,6 +91,37 @@ describe('prompts do YouTube: o analytics recebe o id UC do canal', () => {
     const a = await import('@/app/cms/(authed)/youtube/_actions/youtube-prompt-actions')
     expect(await a.fetchContentCalendarData(CH_UUID)).toEqual({ ok: false, error: 'No sync-enabled channel found' })
     expect(await a.fetchChannelHealthData(CH_UUID)).toEqual({ ok: false, error: 'No sync-enabled channel found' })
+    expect(searchTerms).not.toHaveBeenCalled()
+    expect(demographics).not.toHaveBeenCalled()
+  })
+  it('sem canal pedido: o padrão do site (EN antigo sem OAuth + PT com OAuth → PT), com o UC do PT', async () => {
+    const PT_UUID = '44444444-4444-4444-8444-444444444444'
+    const PT_UC = 'UCptptptptptptptptptptpt'
+    seed(CH_UC, false)
+    const now = new Date().toISOString()
+    tables.youtube_channels = [
+      { id: CH_UUID, channel_id: CH_UC, name: 'EN vazio', locale: 'en', created_at: '2025-01-01T00:00:00Z', subscriber_count: 5000, video_count: 0, last_synced_at: now },
+      { id: PT_UUID, channel_id: PT_UC, name: 'PT', locale: 'pt', created_at: '2025-06-01T00:00:00Z', subscriber_count: 10, video_count: 1, last_synced_at: now },
+    ]
+    tables.social_connections = [{ id: 'c', account_id: PT_UC }]
+    // o stub não filtra por id: devolve a linha do PT como a "consultada"
+    tables.youtube_channels = [tables.youtube_channels[1]!, tables.youtube_channels[0]!]
+    const { fetchContentCalendarData } = await import('@/app/cms/(authed)/youtube/_actions/youtube-prompt-actions')
+    const r = await fetchContentCalendarData()
+    expect(r.ok).toBe(true)
+    expect(searchTerms).toHaveBeenCalledWith(SITE, 28, PT_UC)
+  })
+
+  it('canal sem OAuth: o prompt diz que termos de busca e demografia estão indisponíveis (não vazio mudo)', async () => {
+    seed(CH_UC, false)
+    const { fetchContentCalendarData, fetchChannelHealthData } = await import('@/app/cms/(authed)/youtube/_actions/youtube-prompt-actions')
+    const cal = await fetchContentCalendarData(CH_UUID)
+    const health = await fetchChannelHealthData(CH_UUID)
+    for (const r of [cal, health]) {
+      if (!r.ok) throw new Error(r.error)
+      expect(r.data.analyticsUnavailable).toMatch(/^unavailable:/)
+      expect(r.data.demographics.topAge).toBe('unavailable')
+    }
     expect(searchTerms).not.toHaveBeenCalled()
     expect(demographics).not.toHaveBeenCalled()
   })

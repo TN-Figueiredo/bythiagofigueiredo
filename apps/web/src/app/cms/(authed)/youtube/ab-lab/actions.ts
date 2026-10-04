@@ -1209,17 +1209,12 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
     .single()
   if (!video) return { ok: false, error: 'Video not found' }
 
-  // Resolve the YouTube channel_id for correct OAuth token selection
-  const { data: channel } = await supabase
-    .from('youtube_channels')
-    .select('channel_id')
-    .eq('id', video.channel_id as string)
-    .single()
-
-  if (!channel?.channel_id) return { ok: false, error: CHANNEL_NOT_IDENTIFIED }
+  // O canal dono do vídeo (filtro de site; erro de banco não vira "canal não identificado")
+  const channelResolved = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
+  if (!channelResolved.ok) return { ok: false, error: channelResolved.error }
 
   // Pre-flight token check (validates token works against YouTube API)
-  const preflight = await preflightTokenCheck(siteId, 'youtube', channel.channel_id as string)
+  const preflight = await preflightTokenCheck(siteId, 'youtube', channelResolved.channelAccountId)
   if (!preflight.ok) {
     return { ok: false, error: `Token inválido: ${preflight.reason}` }
   }

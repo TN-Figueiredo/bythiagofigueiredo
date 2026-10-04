@@ -289,6 +289,34 @@ describe('GET /api/cron/ab-backfill', () => {
       expect(cyclesLimit).toHaveBeenCalledWith(200)
     })
 
+    it('o RESOLVEDOR do canal lança (erro de banco em youtube_videos): erro da execução, ciclo NÃO vira error', async () => {
+      const single = vi.fn()
+        .mockResolvedValueOnce({ data: video, error: null }) // id do vídeo no YouTube
+        .mockResolvedValueOnce({ data: null, error: { code: '57014', message: 'statement timeout' } }) // canal dono
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'ab_test_cycles') return { ...cyclesQuery([cycle]), ...updateQuery() }
+        if (table === 'ab_tests') return singleQuery(test)
+        if (table === 'youtube_videos') {
+          return { select: vi.fn(() => ({ eq: vi.fn(() => ({ single, eq: vi.fn(() => ({ single })) })) })) }
+        }
+        return {}
+      })
+
+      const body = await (await GET(makeRequest(`Bearer ${CRON_SECRET}`))).json()
+
+      expect(body.errors).toBe(1)
+      expect(cycleUpdates).toEqual([])
+      expect(mockEnsureFreshToken).not.toHaveBeenCalled()
+      expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
+    })
+
+    it('a notificação traz o nome do canal (sem query extra) com o UC entre parênteses', async () => {
+      mockTables({ channel_id: 'UCpt', name: 'tnFigueiredo' } as never)
+      mockEnsureFreshToken.mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
+      await GET(makeRequest(`Bearer ${CRON_SECRET}`))
+      expect(vi.mocked(fanOutToSiteAdmins).mock.calls[0]![0].message).toContain('tnFigueiredo (UCpt)')
+    })
+
     it('vários ciclos pulados: UM aviso agregado do Sentry, com contagem e canais', async () => {
       const cycles = [1, 2, 3].map((n) => ({ ...cycle, id: `cycle-${n}` }))
       mockFrom.mockImplementation((table: string) => {

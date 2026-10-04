@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+const { mockChannelAccountId } = vi.hoisted(() => ({ mockChannelAccountId: vi.fn() }))
+vi.mock('@/lib/youtube/channel-account', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/channel-account')>()),
+  channelAccountIdForVideo: mockChannelAccountId,
+}))
+
 // ─── Module mocks (must be before imports) ──────────────────────────────────
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
@@ -224,6 +230,7 @@ beforeEach(() => {
   // apply path. F19's own test below stubs this back to 'false' (its default in prod).
   vi.stubEnv('AB_AUTO_APPLY_WINNER', 'true')
   vi.clearAllMocks()
+  mockChannelAccountId.mockResolvedValue('UCpt')
   ;(calculateBayesianConfidence as ReturnType<typeof vi.fn>).mockReturnValue({
     winnerId: 'v2',
     confidence: 0.97,
@@ -432,6 +439,35 @@ describe('phaseRetryFailedApplies', () => {
     // No update calls for this test (no apply attempt, no error increment)
     const testUpdates = updateCalls.filter(c => c.table === 'ab_tests')
     expect(testUpdates).toHaveLength(0)
+  })
+
+  it('erro de BANCO ao resolver o canal NÃO gasta tentativa (conta erro e o teste volta na próxima rodada)', async () => {
+    const pending = {
+      id: 'test-db-err', site_id: 'site-1', winner_variant_id: 'v2', youtube_video_id: 'vid-1', test_type: 'thumbnail',
+      original_title: null, original_description: null, apply_attempts: 2, name: 'T',
+      grace_expires_at: new Date(Date.now() - 48 * 3_600_000).toISOString(),
+    }
+    mockChannelAccountId.mockRejectedValueOnce(new Error('channelAccountIdForVideo: statement timeout'))
+    const { client, updateCalls } = buildSupabaseMock({ pendingApplies: [pending] })
+
+    const result = await phaseRetryFailedApplies(client)
+
+    expect(result.errors).toBe(1)
+    expect(updateCalls.find(c => c.table === 'ab_tests' && 'apply_attempts' in (c.data as object))).toBeUndefined()
+    expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
+  })
+
+  it('canal não identificado (resolvedor devolve null) gasta a tentativa, com a mensagem honesta', async () => {
+    const pending = {
+      id: 'test-nochan', site_id: 'site-1', winner_variant_id: 'v2', youtube_video_id: 'vid-1', test_type: 'thumbnail',
+      original_title: null, original_description: null, apply_attempts: 0, name: 'T',
+      grace_expires_at: new Date(Date.now() - 48 * 3_600_000).toISOString(),
+    }
+    mockChannelAccountId.mockResolvedValueOnce(null)
+    const { client, updateCalls } = buildSupabaseMock({ pendingApplies: [pending] })
+    await phaseRetryFailedApplies(client)
+    const upd = updateCalls.find(c => c.table === 'ab_tests' && (c.data as Record<string, unknown>).apply_attempts === 1)
+    expect((upd!.data as { last_apply_error: string }).last_apply_error).toMatch(/Could not identify which YouTube channel/)
   })
 
   it('sends notification after 3 failures', async () => {

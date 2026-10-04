@@ -3,7 +3,7 @@ import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { applyVariantToYouTube, isAutoApplyEnabled } from '@/lib/youtube/ab-apply'
 import { computeGates } from '@/lib/youtube/ab-gates'
-import { CHANNEL_NOT_IDENTIFIED_MESSAGE } from '@/lib/youtube/channel-account'
+import { CHANNEL_NOT_IDENTIFIED_MESSAGE, channelAccountIdForVideo } from '@/lib/youtube/channel-account'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { buildNotification } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
@@ -283,18 +283,9 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
           .single()
 
         if (video) {
-          const { data: videoForChannel } = await supabase
-            .from('youtube_videos')
-            .select('channel_id')
-            .eq('id', test.youtube_video_id)
-            .single()
-
-          const { data: channelRow } = videoForChannel?.channel_id
-            ? await supabase.from('youtube_channels').select('channel_id').eq('id', videoForChannel.channel_id).single()
-            : { data: null }
-
-          if (!channelRow?.channel_id) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
-          const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', channelRow.channel_id)
+          const channelAccountId = await channelAccountIdForVideo(supabase, test.site_id, test.youtube_video_id)
+          if (!channelAccountId) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
+          const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', channelAccountId)
 
           if (winner) {
             await applyVariantToYouTube({
@@ -424,16 +415,9 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
 
             if (revertVideo) {
               const { fetchVariantImageBuffer, setThumbnail } = await import('@/lib/youtube/ab-youtube')
-              const { data: revertVideoChannel } = await supabase
-                .from('youtube_videos')
-                .select('channel_id')
-                .eq('id', test.youtube_video_id)
-                .single()
-              const { data: revertChannel } = revertVideoChannel?.channel_id
-                ? await supabase.from('youtube_channels').select('channel_id').eq('id', revertVideoChannel.channel_id).single()
-                : { data: null }
-              if (!revertChannel?.channel_id) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
-              const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', revertChannel.channel_id)
+              const revertChannelId = await channelAccountIdForVideo(supabase, test.site_id, test.youtube_video_id)
+              if (!revertChannelId) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
+              const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', revertChannelId)
               const { buffer, contentType } = await fetchVariantImageBuffer(test.original_thumbnail_url)
               await setThumbnail(revertVideo.youtube_video_id, buffer, contentType, accessToken)
             }
@@ -500,18 +484,21 @@ export async function phaseRetryFailedApplies(supabase: SupabaseClient): Promise
       const requiredDelay = retryDelaysMs[attemptIndex]!
       if (timeSinceGraceExpired < requiredDelay) continue
 
-      const { data: videoForChannel2 } = await supabase
-        .from('youtube_videos')
-        .select('channel_id')
-        .eq('id', pending.youtube_video_id)
-        .single()
-
-      const { data: channelRow2 } = videoForChannel2?.channel_id
-        ? await supabase.from('youtube_channels').select('channel_id').eq('id', videoForChannel2.channel_id).single()
-        : { data: null }
-
-      if (!channelRow2?.channel_id) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
-      const preflight = await preflightTokenCheck(pending.site_id, 'youtube', channelRow2.channel_id)
+      // Erro de banco ao resolver o canal NÃO gasta uma das 3 tentativas: conta como erro da
+      // execução e o teste volta na próxima rodada. Só "canal não identificado" é falha do teste.
+      let pendingChannelId: string | null
+      try {
+        pendingChannelId = await channelAccountIdForVideo(supabase, pending.site_id, pending.youtube_video_id)
+      } catch (resolveErr) {
+        errors++
+        Sentry.captureException(resolveErr, {
+          tags: { cron: 'ab-evaluate' },
+          extra: { testId: pending.id, stage: 'resolve-channel' },
+        })
+        continue
+      }
+      if (!pendingChannelId) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
+      const preflight = await preflightTokenCheck(pending.site_id, 'youtube', pendingChannelId)
       if (!preflight.ok) throw new Error(`preflight_failed: ${preflight.reason}`)
 
       const { data: video } = await supabase
