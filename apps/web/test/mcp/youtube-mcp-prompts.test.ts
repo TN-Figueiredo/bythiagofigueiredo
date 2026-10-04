@@ -12,13 +12,17 @@ import {
   createTestMcpPair,
   type McpTestPair,
 } from './helpers'
+import { fakePostgrest, type FakePostgrestOptions } from '../helpers/fake-postgrest'
+import { buildAbBriefingPrompt, buildAbReviewPrompt } from '@/lib/youtube/prompt-builders-ab'
 
 // ---------------------------------------------------------------------------
 // Mock Supabase — all DB calls in prompts.ts go through service client
 // ---------------------------------------------------------------------------
 
 vi.mock('@/lib/supabase/service', () => ({
-  getSupabaseServiceClient: () => mockSupabase,
+  // `fake` (um PostgREST em memória que filtra de verdade) vale quando o teste o instala;
+  // senão, o encadeável que responde a mesma coisa para tudo.
+  getSupabaseServiceClient: () => fake?.client ?? mockSupabase,
 }))
 
 // ---------------------------------------------------------------------------
@@ -82,6 +86,7 @@ function buildMockSupabase() {
 }
 
 let mockSupabase = buildMockSupabase()
+let fake: ReturnType<typeof fakePostgrest> | null = null
 
 // ---------------------------------------------------------------------------
 // Import the real registerPrompts (after mocks are set up)
@@ -109,18 +114,21 @@ describe('youtube-analyst prompt', () => {
   beforeEach(async () => {
     mockSupabase = buildMockSupabase()
 
-    // Override single() for channel info
-    mockSupabase.single = vi.fn().mockImplementation(() =>
+    // One row answers every single-object read: the site lookup (`id`), the channel read
+    // (`name`, `subscriber_count` — the columns the table really has; the tier is computed,
+    // 5000 subscribers = micro) and the snapshot-age read (`generated_at`).
+    const row = () =>
       Promise.resolve({
         data: {
-          channel_name: 'TestChannel',
+          id: 'site-1',
+          name: 'TestChannel',
           subscriber_count: 5000,
-          tier: 'micro',
           generated_at: new Date().toISOString(),
         },
         error: null,
-      }),
-    )
+      })
+    mockSupabase.single = vi.fn().mockImplementation(row)
+    mockSupabase.maybeSingle = vi.fn().mockImplementation(row)
 
     pair = await createTestMcpPair({
       setupServer: (server) => registerPrompts(server),
@@ -244,17 +252,18 @@ describe('competitor-report prompt', () => {
   beforeEach(async () => {
     mockSupabase = buildMockSupabase()
 
-    // Override single() for channel info
-    mockSupabase.single = vi.fn().mockImplementation(() =>
+    // One row answers the site lookup (`id`) and the channel read (`name`, `subscriber_count`).
+    const row = () =>
       Promise.resolve({
         data: {
-          channel_name: 'MyChannel',
+          id: 'site-1',
+          name: 'MyChannel',
           subscriber_count: 12000,
-          tier: 'micro',
         },
         error: null,
-      }),
-    )
+      })
+    mockSupabase.single = vi.fn().mockImplementation(row)
+    mockSupabase.maybeSingle = vi.fn().mockImplementation(row)
 
     pair = await createTestMcpPair({
       setupServer: (server) => registerPrompts(server),
@@ -367,5 +376,137 @@ describe('competitor-report prompt', () => {
 
     const text = extractPromptText(result)
     expect(text).toContain('PT-BR')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// O canal que os prompts recebem (fetchChannelInfo)
+//
+// Banco em memória que filtra de verdade e recusa coluna inexistente (42703): o encadeável lá
+// de cima devolvia `channel_name` e `tier` para qualquer consulta, e por isso o prompt lendo duas
+// colunas que a tabela nunca teve passou verde desde sempre.
+// ---------------------------------------------------------------------------
+
+describe('o canal que os prompts recebem', () => {
+  const SITE = 'site-ctx'
+  const TEST_EN = '44444444-4444-4444-8444-444444444444'
+  let pair: McpTestPair
+
+  function chan(over: Record<string, unknown>) {
+    return { id: 'ch', site_id: SITE, name: 'Canal', subscriber_count: 0, created_at: '2026-01-01T00:00:00Z', ...over }
+  }
+  /** Dois canais no site do contexto (PT cadastrado antes, EN depois) e um canal mais antigo de OUTRO site. */
+  function world(over: Partial<FakePostgrestOptions['tables']> = {}): FakePostgrestOptions {
+    return {
+      tables: {
+        sites: [{ id: SITE }],
+        youtube_channels: [
+          chan({ id: 'ch-alheio', site_id: 'site-outro', name: 'Alheio', subscriber_count: 5_000_000, created_at: '2019-01-01T00:00:00Z' }),
+          chan({ id: 'ch-en', name: 'Thiago EN', subscriber_count: 250_000, created_at: '2026-02-01T00:00:00Z' }),
+          chan({ id: 'ch-pt', name: 'tnFigueiredo', subscriber_count: 1160, created_at: '2025-01-01T00:00:00Z' }),
+        ],
+        youtube_videos: [
+          { id: 'v-en', site_id: SITE, channel_id: 'ch-en' },
+          { id: 'v-pt', site_id: SITE, channel_id: 'ch-pt' },
+        ],
+        ab_tests: [{ id: TEST_EN, site_id: SITE, youtube_video_id: 'v-en' }],
+        ab_test_variants: [{ test_id: TEST_EN, label: 'B', title_text: 't', description_text: null, blob_url: null, metadata: {}, sort_order: 1 }],
+        youtube_intelligence: [],
+        ...over,
+      } as FakePostgrestOptions['tables'],
+      columns: {
+        youtube_intelligence: ['generated_at', 'source'],
+        youtube_channels: ['id', 'site_id', 'name', 'subscriber_count', 'created_at'],
+        youtube_videos: ['id', 'site_id', 'channel_id'],
+        ab_tests: ['id', 'site_id', 'youtube_video_id'],
+      },
+    }
+  }
+  async function start(opts: FakePostgrestOptions) {
+    fake = fakePostgrest(opts)
+    pair = await createTestMcpPair({ setupServer: (server) => registerPrompts(server) })
+  }
+
+  // the `vi.restoreAllMocks()` of the suites above strips the builders' return values
+  beforeEach(() => {
+    vi.mocked(buildAbBriefingPrompt).mockReset().mockReturnValue('mock-ab-briefing')
+    vi.mocked(buildAbReviewPrompt).mockReset().mockReturnValue('mock-ab-review')
+  })
+  afterEach(async () => {
+    await pair.cleanup()
+    fake = null
+  })
+
+  it('sem canal pedido (competitor-report): o primeiro canal do site na ordem de cadastro, com nome e inscritos reais', async () => {
+    await start(world())
+    const text = extractPromptText(await pair.client.getPrompt({ name: 'competitor-report', arguments: {} }))
+
+    expect(text).toContain('Your channel: tnFigueiredo')
+    expect(text).toContain((1160).toLocaleString())
+    // 1160 inscritos → micro por getChannelTier; a coluna `tier` nunca existiu
+    expect(text).toContain('Tier: micro')
+    expect(text).not.toContain('Unknown')
+    expect(text).not.toContain('Alheio')
+  })
+
+  it('nenhuma consulta a youtube_channels pede channel_name ou tier, e todas filtram por site', async () => {
+    await start(world())
+    await pair.client.getPrompt({ name: 'competitor-report', arguments: {} })
+    await pair.client.getPrompt({ name: 'ab-review', arguments: { test_id: TEST_EN } })
+
+    const reads = fake!.on('youtube_channels')
+    expect(reads.length).toBeGreaterThan(0)
+    for (const q of reads) {
+      expect(q.select).not.toMatch(/channel_name|\btier\b/)
+      expect(q.filters).toContainEqual({ op: 'eq', col: 'site_id', value: SITE })
+    }
+  })
+
+  it('ab-ideate (sem vídeo em mãos): o briefing recebe o primeiro canal, com o tier calculado', async () => {
+    await start(world())
+    await pair.client.getPrompt({ name: 'ab-ideate', arguments: { test_type: 'title' } })
+
+    expect(vi.mocked(buildAbBriefingPrompt).mock.calls[0]![0].data.channel).toEqual({ name: 'tnFigueiredo', subscribers: 1160, tier: 'micro' })
+  })
+
+  it('ab-review (com um teste em mãos): o canal é o do vídeo do teste, não o primeiro do site', async () => {
+    await start(world())
+    await pair.client.getPrompt({ name: 'ab-review', arguments: { test_id: TEST_EN } })
+
+    // v-en é do canal EN: 250 mil inscritos → medium
+    expect(vi.mocked(buildAbReviewPrompt).mock.calls[0]![0].channel).toEqual({ tier: 'medium', subscribers: 250_000 })
+  })
+
+  it('youtube-analyst (com channel_id): o cabeçalho é do canal pedido', async () => {
+    await start(world())
+    const text = extractPromptText(await pair.client.getPrompt({ name: 'youtube-analyst', arguments: { channel_id: 'ch-en' } }))
+    expect(text).toContain('Channel: Thiago EN')
+    expect(text).toContain('Tier: medium')
+  })
+
+  it('youtube-analyst com channel_id de outro site: nunca mostra o canal alheio', async () => {
+    await start(world())
+    const text = extractPromptText(await pair.client.getPrompt({ name: 'youtube-analyst', arguments: { channel_id: 'ch-alheio' } }))
+    expect(text).not.toContain('Alheio')
+    expect(text).toContain('Channel: Unknown')
+  })
+
+  it('site sem canal → o fallback de hoje: Unknown, 0 inscritos, nano', async () => {
+    await start(world({ youtube_channels: [chan({ id: 'ch-alheio', site_id: 'site-outro', name: 'Alheio', subscriber_count: 5_000_000 })] }))
+    const text = extractPromptText(await pair.client.getPrompt({ name: 'competitor-report', arguments: {} }))
+    expect(text).toContain('Your channel: Unknown | 0 subscribers | Tier: nano')
+  })
+
+  it('nenhum site → o mesmo fallback, sem ler canal nenhum', async () => {
+    await start(world({ sites: [] }))
+    const text = extractPromptText(await pair.client.getPrompt({ name: 'competitor-report', arguments: {} }))
+    expect(text).toContain('Your channel: Unknown | 0 subscribers | Tier: nano')
+    expect(fake!.on('youtube_channels')).toHaveLength(0)
+  })
+
+  it('canal com subscriber_count nulo → 0 inscritos e nano, sem NaN', async () => {
+    await start(world({ youtube_channels: [chan({ id: 'ch-pt', name: 'tnFigueiredo', subscriber_count: null })] }))
+    const text = extractPromptText(await pair.client.getPrompt({ name: 'competitor-report', arguments: {} }))
+    expect(text).toContain('Your channel: tnFigueiredo | 0 subscribers | Tier: nano')
   })
 })

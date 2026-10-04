@@ -22,6 +22,7 @@ import { WORKFLOWS, DEFAULT_CHECKLISTS } from '@/lib/pipeline/workflows'
 import { SECTION_DEFINITIONS, getSectionKey } from '@/lib/pipeline/sections'
 import { buildAbBriefingPrompt, buildAbWritePrompt, buildAbReviewPrompt } from '@/lib/youtube/prompt-builders-ab'
 import { buildPlaylistPrompt, type PlaylistPromptInput } from '@/lib/playlists/prompt-builder'
+import { getChannelTier } from '@/lib/youtube/scoring'
 import type { TestType } from '@/lib/youtube/ab-types'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import type { Format } from '@/lib/pipeline/schemas'
@@ -79,23 +80,66 @@ async function fetchStatsSummary(): Promise<string> {
   return `Pipeline: ${rows.length} active items\nBy format: ${formatLine}\nBy stage: ${stageLine}`
 }
 
-/** Fetch YouTube channel info for AB prompts. */
-async function fetchChannelInfo(): Promise<AbBriefingData['channel']> {
-  const supabase = getSupabaseServiceClient()
-  const { data } = await supabase
-    .from('youtube_channels')
-    .select('channel_name, subscriber_count, tier')
-    .limit(1)
-    .single()
+const UNKNOWN_CHANNEL: AbBriefingData['channel'] = { name: 'Unknown', subscribers: 0, tier: 'nano' }
 
-  if (!data) {
-    return { name: 'Unknown', subscribers: 0, tier: 'nano' as const }
+/** The site these prompts run for — the same rule the MCP resources use (`buildResourceCtx`). */
+async function resolvePromptSiteId(): Promise<string | null> {
+  const supabase = getSupabaseServiceClient()
+  const { data: site } = await supabase.from('sites').select('id').limit(1).single()
+  return (site?.id as string | undefined) ?? null
+}
+
+/**
+ * The channel a YouTube prompt talks about: name, subscribers and tier.
+ *
+ * - `channelId` in hand (the internal uuid): that channel.
+ * - `videoId` in hand (the internal uuid of youtube_videos, e.g. an A/B test's video): the
+ *   channel of that video.
+ * - neither: the first channel of the site, in registration order.
+ *
+ * Every read is scoped to the site. A target that does not resolve inside the site (deleted
+ * video, channel of another site) is "Unknown" — never some other channel standing in for it.
+ * The tier is computed from the subscriber count; `youtube_channels` has no `tier` column (nor
+ * `channel_name`: selecting both is what kept every prompt on "Unknown / nano").
+ */
+async function fetchChannelInfo(
+  siteId: string | null,
+  target: { videoId?: string | null; channelId?: string | null } = {},
+): Promise<AbBriefingData['channel']> {
+  if (!siteId) return UNKNOWN_CHANNEL
+  const supabase = getSupabaseServiceClient()
+
+  let channelId = target.channelId ?? null
+  if (!channelId && target.videoId) {
+    const { data: video } = await supabase
+      .from('youtube_videos')
+      .select('channel_id')
+      .eq('id', target.videoId)
+      .eq('site_id', siteId)
+      .maybeSingle()
+    channelId = (video?.channel_id as string | undefined) ?? null
+    if (!channelId) return UNKNOWN_CHANNEL
   }
-  return {
-    name: data.channel_name as string,
-    subscribers: (data.subscriber_count as number) ?? 0,
-    tier: (data.tier as AbBriefingData['channel']['tier']) ?? 'nano',
-  }
+
+  const { data } = channelId
+    ? await supabase
+      .from('youtube_channels')
+      .select('name, subscriber_count')
+      .eq('site_id', siteId)
+      .eq('id', channelId)
+      .maybeSingle()
+    : await supabase
+      .from('youtube_channels')
+      .select('name, subscriber_count')
+      .eq('site_id', siteId)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+  if (!data) return UNKNOWN_CHANNEL
+  const subscribers = (data.subscriber_count as number | null) ?? 0
+  return { name: data.name as string, subscribers, tier: getChannelTier(subscribers) }
 }
 
 /**
@@ -483,9 +527,11 @@ export function registerPrompts(server: McpServer): void {
         throw new Error(`Invalid test_type: ${testType}. Must be thumbnail, title, description, or combo.`)
       }
 
-      // Auto-inject: youtube/intelligence + youtube/ab-performance
+      // Auto-inject: youtube/intelligence + youtube/ab-performance.
+      // No video in hand yet: the first channel of the site.
+      const siteId = await resolvePromptSiteId()
       const [channel, snapshotAge] = await Promise.all([
-        fetchChannelInfo(),
+        fetchChannelInfo(siteId),
         fetchSnapshotAge(),
       ])
 
@@ -566,9 +612,10 @@ export function registerPrompts(server: McpServer): void {
         .eq('youtube_video_id', test.youtube_video_id)
         .single()
 
-      // Auto-inject: youtube/intelligence (channel info)
+      // Auto-inject: youtube/intelligence (channel info) — the channel of the test's video
+      const siteId = await resolvePromptSiteId()
       const [channel, snapshotAge] = await Promise.all([
-        fetchChannelInfo(),
+        fetchChannelInfo(siteId, { videoId: test.youtube_video_id as string | null }),
         fetchSnapshotAge(),
       ])
 
@@ -659,8 +706,18 @@ export function registerPrompts(server: McpServer): void {
       if (error) throw new Error(`Failed to fetch variants for test ${testId}: ${error.message}`)
       if (!variants || variants.length === 0) throw new Error(`No variants found for test ${testId}`)
 
-      // Fetch channel info for tier context
-      const channel = await fetchChannelInfo()
+      // Fetch channel info for tier context: the channel of the test's video. A test that does
+      // not resolve inside the site leaves no video in hand, and the site's first channel answers.
+      const siteId = await resolvePromptSiteId()
+      const { data: testRow } = siteId
+        ? await supabase
+          .from('ab_tests')
+          .select('youtube_video_id')
+          .eq('id', testId)
+          .eq('site_id', siteId)
+          .maybeSingle()
+        : { data: null }
+      const channel = await fetchChannelInfo(siteId, { videoId: testRow?.youtube_video_id as string | undefined })
 
       const promptText = buildAbReviewPrompt({
         testId,
@@ -918,8 +975,9 @@ export function registerPrompts(server: McpServer): void {
       const channelId = args.channel_id
 
       // Auto-inject: channel info + snapshot age + youtube docs
+      const siteId = await resolvePromptSiteId()
       const [channel, snapshotAge, youtubeDocs] = await Promise.all([
-        fetchChannelInfo(),
+        fetchChannelInfo(siteId, { channelId }),
         fetchSnapshotAge(),
         fetchDomainDocs('youtube'),
       ])
@@ -1049,8 +1107,9 @@ export function registerPrompts(server: McpServer): void {
     {},
     async () => {
       // Auto-inject: channel info + youtube docs
+      const siteId = await resolvePromptSiteId()
       const [channel, youtubeDocs] = await Promise.all([
-        fetchChannelInfo(),
+        fetchChannelInfo(siteId),
         fetchDomainDocs('youtube'),
       ])
 
