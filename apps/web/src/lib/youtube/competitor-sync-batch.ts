@@ -1,6 +1,12 @@
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
+import { newProbeBudget, type ShortProbeStats } from '@/lib/youtube/short-classifier'
+import { reclassifyStoredShortsRoundRobin } from '@/lib/youtube/short-backfill'
+import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
+
+/** Depois disso o backfill de Shorts não começa (e o rodízio para): folga contra maxDuration = 300 s. */
+export const BACKFILL_DEADLINE_MS = 230_000
 
 export const SLOT_HOURS_SP = [0, 6, 12, 18] as const
 const H = 3_600_000
@@ -26,6 +32,7 @@ export interface BatchResult {
   skipped: number
   remainingDue: number
   stoppedForTime: boolean
+  shorts_probe?: ShortProbeStats
 }
 
 /** Health verdict: fail when at least half of the attempted channels errored. */
@@ -57,8 +64,12 @@ export async function runCompetitorBatch(opts: {
   const due = (data ?? [])
     .filter((r) => isDue(r.last_synced_at, started))
     .sort((a, b) => Number(a.sync_status === 'error') - Number(b.sync_status === 'error'))
+  const probeBudget = newProbeBudget() // 60 sondas de Short por execução, divididas entre os canais
+  // Sonda de controle uma vez por execução, antes das demais (I-2).
+  if (due.length) await runControlProbe(sb, probeBudget, fetch)
   const res: BatchResult = { synced: 0, errors: 0, skipped: 0, remainingDue: 0, stoppedForTime: false }
   let taken = 0
+  const syncedIds: string[] = []
   for (const row of due) {
     if (taken >= opts.batchSize) break
     if (now() - started > opts.budgetMs) {
@@ -67,9 +78,9 @@ export async function runCompetitorBatch(opts: {
     }
     taken++
     try {
-      const r = await syncCompetitorChannel(row, opts.apiKey)
+      const r = await syncCompetitorChannel(row, opts.apiKey, { probeBudget, deferBackfill: true })
       if (r.skipped) res.skipped++
-      else res.synced++
+      else { res.synced++; syncedIds.push(row.id) }
     } catch (err) {
       res.errors++
       Sentry.captureException(err, {
@@ -78,6 +89,15 @@ export async function runCompetitorBatch(opts: {
       })
     }
   }
+  // Backfill só depois de todos os vídeos novos (R114), em rodízio entre os canais sincronizados.
+  try {
+    await reclassifyStoredShortsRoundRobin(sb, syncedIds, started, probeBudget, fetch, () => now() - started > BACKFILL_DEADLINE_MS)
+  } catch (err) {
+    Sentry.captureException(err, { tags: { component: 'sync-youtube', mode: 'competitors-shorts-backfill' } })
+  }
+  const st = probeBudget.stats!
+  res.shorts_probe = { ...st }
+  warnIfProbeBlocked(st)
   res.remainingDue = due.length - taken
   return res
 }

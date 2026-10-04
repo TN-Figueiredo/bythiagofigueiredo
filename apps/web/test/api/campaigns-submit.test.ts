@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../lib/turnstile', () => ({ verifyTurnstileToken: vi.fn() }));
+const siteCtx = vi.hoisted(() => ({ value: null as { siteId: string } | null }));
+vi.mock('../../lib/cms/site-context', () => ({ tryGetSiteContext: async () => siteCtx.value }));
 vi.mock('../../lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(),
 }));
@@ -24,7 +26,7 @@ function fakeSupabase(overrides: Record<string, unknown> = {}) {
     eq: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue({
       data: {
-        id: 'c1', pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
+        id: 'c1', status: 'published', published_at: new Date(Date.now() - 864e5).toISOString(), pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
         campaign_translations: [{
           success_headline: 'OK', success_headline_duplicate: 'Again',
           success_subheadline: 'Sub', success_subheadline_duplicate: 'SubDup',
@@ -171,7 +173,7 @@ describe('POST /api/campaigns/[slug]/submit', () => {
       eq: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockResolvedValue({
         data: {
-          id: 'c1', pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
+          id: 'c1', status: 'published', published_at: new Date(Date.now() - 864e5).toISOString(), pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
           campaign_translations: [{
             success_headline: 'OK', success_headline_duplicate: 'Again',
             success_subheadline: 'Sub', success_subheadline_duplicate: 'SubDup',
@@ -219,5 +221,61 @@ describe('POST /api/campaigns/[slug]/submit', () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toBe('campaign_not_found');
+  });
+
+  it.each(['draft', 'ready', 'scheduled', 'pending_review', 'archived'])('campanha %s: 404 e nada gravado nem PDF assinado', async (status) => {
+    const sb = fakeSupabase();
+    sb.maybeSingle.mockResolvedValue({
+      data: {
+        id: 'c1', status, published_at: null, pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
+        campaign_translations: [{
+          success_headline: 'OK', success_headline_duplicate: 'Again', success_subheadline: 'Sub',
+          success_subheadline_duplicate: 'SubDup', check_mail_text: 'Check', download_button_label: 'Download',
+        }],
+      }, error: null,
+    });
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(sb as never);
+    vi.mocked(verifyTurnstileToken).mockResolvedValue(true);
+    const res = await POST(
+      req({ email: 'a@b.co', locale: 'pt-BR', consent_marketing: true, consent_text_version: 'v1', turnstile_token: 't' }),
+      { params: Promise.resolve({ slug: 'my-slug' }) },
+    );
+    expect(res.status).toBe(404);
+    expect(sb.insert).not.toHaveBeenCalled();
+    expect(sb.storage.from).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/campaigns/[slug]/submit — escopo de site', () => {
+  const body = { email: 'a@b.com', locale: 'pt-BR', consent_marketing: true, consent_text_version: 'v1', turnstile_token: 't' };
+  function siteScoped(rowSite: string) {
+    const filters: Array<[string, unknown]> = [];
+    const chain: Record<string, unknown> = {};
+    chain.select = () => chain;
+    chain.eq = (c: string, v: unknown) => { filters.push([c, v]); return chain; };
+    chain.maybeSingle = () => {
+      const f = filters.find(x => x[0] === 'site_id');
+      return Promise.resolve(f && f[1] !== rowSite ? { data: null, error: null } : { data: { id: 'c1', status: 'published', published_at: new Date(Date.now() - 864e5).toISOString(), pdf_storage_path: null, interest: 'creator', campaign_translations: [{}] }, error: null });
+    };
+    return { from: () => chain, filters };
+  }
+  it('slug que só existe em outro site: 404 e o filtro de site_id foi aplicado', async () => {
+    vi.mocked(verifyTurnstileToken).mockResolvedValue(true);
+    siteCtx.value = { siteId: 'site-A' };
+    const sb = siteScoped('site-B');
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(sb as never);
+    const res = await POST(req(body), { params: Promise.resolve({ slug: 'so-no-b' }) });
+    expect(res.status).toBe(404);
+    expect(sb.filters).toContainEqual(['site_id', 'site-A']);
+    siteCtx.value = null;
+  });
+  it('sem contexto de site: não filtra (comportamento anterior)', async () => {
+    vi.mocked(verifyTurnstileToken).mockResolvedValue(true);
+    siteCtx.value = null;
+    const sb = siteScoped('site-B');
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(sb as never);
+    const res = await POST(req(body), { params: Promise.resolve({ slug: 'x' }) });
+    expect(res.status).not.toBe(404); // campanha publicada é servida
+    expect(sb.filters.find(f => f[0] === 'site_id')).toBeUndefined();
   });
 });

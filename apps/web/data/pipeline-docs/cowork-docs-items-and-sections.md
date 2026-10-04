@@ -2123,3 +2123,33 @@ execute with `dry_run: false`.
 
 Recording status is **NOT** published-frozen: `set`/`batch` succeed on a published item by
 design (record before publish, `refazer` after).
+
+---
+
+## Graduação para campanha
+
+```
+POST /api/pipeline/items/:id/graduate
+Body: { "target": "campaign", "campaign": { "interest": "creator" }, "dry_run": false }
+```
+
+Cria um **rascunho** de campanha (nunca publicada) com a tradução no idioma do item (`pt-BR`; `en` quando `item.language = "en"`) e liga o item à campanha. Título, capa e corpo vêm do item. No MCP é o mesmo parâmetro `campaign` da ferramenta `graduate_item`.
+
+**`campaign` (objeto estrito):**
+
+| Campo | Obrigatório | Default |
+|-------|-------------|---------|
+| `interest` | **sim** | — (`creator`, `fitness`, `style`, `career`, `finance`, `wellness`, `other`) |
+| `locale` | não | idioma do item (`pt-BR` ou `en`) |
+| `slug` | não | derivado do título (kebab-case) |
+| `main_hook_md` | não | `hook` do item, depois `synopsis`; sem nenhum dos três → 422 |
+| `meta_description` | não | `synopsis` do item (cortada em 300) |
+| `context_tag` | não | o `interest` |
+| `form_button_label`, `form_button_loading_label`, `success_headline`, `success_headline_duplicate`, `success_subheadline`, `success_subheadline_duplicate`, `check_mail_text`, `download_button_label` | não | os mesmos do formulário "Nova campanha" do CMS |
+
+**Response 200:** `{ "data": { "graduated": true, "target": "campaign", "entity_id": "uuid", "status": "draft", "locale": "pt-BR", "slug": "..." } }`. Com `dry_run: true` nada é gravado e a resposta traz `would_create`.
+
+**Erros (iguais no dry run):** `422 VALIDATION_ERROR` com `details.missing_fields` (o que falta) · `409 CONFLICT` (slug já usado no idioma) · `409 INVALID_OPERATION` (item já graduado) · `400` (opção inválida, ex. `interest` fora do vocabulário) · `404` (item de outro site).
+
+A campanha só fica pública depois de publicada no CMS: rascunho responde 404 na URL pública e não aceita envio de formulário.
+

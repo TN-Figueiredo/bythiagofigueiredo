@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { isCampaignPublic } from '@/lib/campaigns/public-visibility'
 import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import type { Metadata } from 'next'
@@ -47,7 +48,8 @@ function parseCampaign(raw: unknown): ParsedCampaign | null {
 
 const loadCampaign = cache(async function loadCampaignImpl(locale: string, slug: string) {
   const supabase = getSupabaseServiceClient()
-  const { data, error } = await supabase
+  const siteCtx = await tryGetSiteContext() // sem contexto de site: comportamento anterior
+  let query = supabase
     .from('campaigns')
     .select(
       `
@@ -65,8 +67,11 @@ const loadCampaign = cache(async function loadCampaignImpl(locale: string, slug:
     )
     .eq('campaign_translations.locale', locale)
     .eq('campaign_translations.slug', slug)
-    .maybeSingle()
+  if (siteCtx) query = query.eq('site_id', siteCtx.siteId)
+  const { data, error } = await query.maybeSingle()
   if (error || !data) return null
+  // service client bypassa RLS: só campanha publicada é pública (rascunho => 404)
+  if (!isCampaignPublic(data)) return null
   return parseCampaign(data)
 })
 

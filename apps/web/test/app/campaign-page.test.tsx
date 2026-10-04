@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react'
 // Sprint 5b PR-C C.5: campaign page now reads headers() + site context +
 // SEO config to build Article + Breadcrumb JSON-LD. Stub the out-of-scope
 // dependencies so the unit test keeps asserting rendering behavior only.
+const campaignStatus = vi.hoisted(() => ({ value: 'published', publishedAt: new Date(Date.now() - 864e5).toISOString() as string | null }))
 vi.mock('next/headers', () => ({
   headers: () => Promise.resolve(new Map([['host', 'example.com'], ['x-locale', 'pt-BR']])),
 }))
@@ -21,7 +22,8 @@ vi.mock('../../lib/supabase/service', () => ({
               Promise.resolve({
                 data: {
                   id: 'c1',
-                  status: 'published',
+                  status: campaignStatus.value,
+                  published_at: campaignStatus.publishedAt,
                   pdf_storage_path: null,
 
                   interest: 'creator',
@@ -60,7 +62,7 @@ vi.mock('../../lib/supabase/service', () => ({
   }),
 }))
 
-import Page from '../../src/app/(public)/campaigns/[slug]/page'
+import Page, { generateMetadata } from '../../src/app/(public)/campaigns/[slug]/page'
 
 describe('Campaign page', () => {
   it('renders main hook markdown as an <h1> element (via react-markdown)', async () => {
@@ -70,4 +72,20 @@ describe('Campaign page', () => {
     expect(heading).toBeTruthy()
     expect(heading.textContent).toBe('Hello')
   })
-})
+  it.each([
+    ['draft', null],
+    ['ready', null],
+    ['scheduled', null],
+    ['archived', '2020-01-01T00:00:00Z'],
+    ['published', null],
+    ['published', new Date(Date.now() + 864e5).toISOString()],
+  ])('status %s (published_at %s): página dá notFound e metadata fica vazia', async (status, publishedAt) => {
+    campaignStatus.value = status as string
+    campaignStatus.publishedAt = publishedAt as string | null
+    // `cache` do React não memoiza fora de render, então cada chamada relê o banco
+    await expect(Page({ params: Promise.resolve({ slug: 'oferta' }) })).rejects.toThrow()
+    expect(await generateMetadata({ params: Promise.resolve({ slug: 'oferta' }) })).toEqual({})
+    campaignStatus.value = 'published'
+    campaignStatus.publishedAt = new Date(Date.now() - 864e5).toISOString()
+  })
+});

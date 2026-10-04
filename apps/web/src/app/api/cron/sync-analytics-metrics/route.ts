@@ -6,6 +6,7 @@ import { buildNotification } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { detectFatigue, filterFatigueCandidates } from '@/lib/youtube/ab-fatigue'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
+import { channelNote, describeCronCause, joinNotes, describeHttpCause } from '@/lib/cron/failure-note'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import * as Sentry from '@sentry/nextjs'
 
@@ -16,6 +17,10 @@ const YT_ANALYTICS_BASE = 'https://youtubeanalytics.googleapis.com/v2/reports'
 // the lower-ranked ones (no error, just missing rows). 200 covers channels with a few hundred
 // videos in the window; if a channel exceeds that, the truncation check below flags it.
 const MAX_RESULTS = 200
+
+function channelLabel(channel: { name?: string | null; channel_id: string }): string {
+  return channel.name ? `${channel.name} (${channel.channel_id})` : channel.channel_id
+}
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -39,8 +44,9 @@ export async function GET(req: NextRequest) {
   // "the query failed" from "the query genuinely returned zero rows".
   if (channelsError) {
     Sentry.captureMessage(`sync-analytics-metrics: channels query failed: ${channelsError.message}`)
-    await recordCronFailure('sync-analytics-metrics', channelsError.message)
-    return NextResponse.json({ error: 'channels query failed', detail: channelsError.message }, { status: 500 })
+    // O texto do Postgres fica só no Sentry (acima); a nota gravada e a resposta são legíveis e sem ele.
+    await recordCronFailure('sync-analytics-metrics', 'database error listing the YouTube channels')
+    return NextResponse.json({ error: 'channels query failed' }, { status: 500 })
   }
 
   if (!channels || channels.length === 0) {
@@ -86,9 +92,9 @@ export async function GET(req: NextRequest) {
       })
 
       if (!res.ok) {
-        const errBody = await res.text().catch(() => '')
         Sentry.captureMessage(`sync-analytics-metrics failed for channel ${channel.channel_id}: ${res.status}`)
-        errorDetails.push(`${channel.channel_id}: HTTP ${res.status} — ${errBody.slice(0, 200)}`)
+        // O corpo do Google não é lido nem gravado: a nota leva só o status.
+        errorDetails.push(channelNote(channelLabel(channel), describeHttpCause(res.status)))
         errors++
         continue
       }
@@ -181,12 +187,12 @@ export async function GET(req: NextRequest) {
         skippedNoConnection.push({
           channelId: channel.channel_id,
           siteId: channel.site_id,
-          label: channel.name ? `${channel.name} (${channel.channel_id})` : channel.channel_id,
+          label: channelLabel(channel),
         })
         continue
       }
-      Sentry.captureException(e)
-      errorDetails.push(`${channel.channel_id}: ${e instanceof Error ? e.message : String(e)}`)
+      Sentry.captureException(e, { extra: { channelId: channel.channel_id } })
+      errorDetails.push(channelNote(channelLabel(channel), describeCronCause(e)))
       errors++
     }
   }
@@ -328,7 +334,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (errors > 0) {
-    await recordCronFailure('sync-analytics-metrics', errorDetails.join('; '))
+    await recordCronFailure('sync-analytics-metrics', joinNotes(errorDetails))
   } else if (channels.length > skippedNoConnection.length && emptyReports === channels.length - skippedNoConnection.length) {
     // Every channel came back with zero rows for the window. One channel alone doing this is
     // legitimate (e.g. a brand-new channel with nothing published yet), but ALL of them at

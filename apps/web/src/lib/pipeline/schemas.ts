@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import { PLAYLIST_STATUSES, EDGE_TYPES } from '@/lib/playlists/types'
+import { CAMPAIGN_INTERESTS } from '@/lib/campaigns/interest'
+import { CAMPAIGN_TRANSLATION_LOCALES } from '@/lib/campaigns/new-campaign-defaults'
 
 export const FORMATS = ['video', 'blog_post', 'newsletter', 'course', 'campaign'] as const
 export type Format = (typeof FORMATS)[number]
@@ -162,10 +164,34 @@ export const ChecklistToggleSchema = z.object({
   done: z.boolean(),
 })
 
-/** `campaign` stays in the enum for compatibility but is NOT supported yet: the service answers 422 NOT_SUPPORTED. */
+/**
+ * Options for `target: 'campaign'` (ignored by the other targets). Everything is optional here; the
+ * service answers 422 VALIDATION_ERROR naming what is still missing (`interest` always has to come
+ * from the caller; the hook falls back to the item's `hook`/`synopsis`).
+ */
+export const GraduateCampaignOptionsSchema = z.object({
+  interest: z.enum(CAMPAIGN_INTERESTS).optional(),
+  locale: z.enum(CAMPAIGN_TRANSLATION_LOCALES).optional(),
+  slug: z.string().min(1).max(200).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'slug must be lowercase kebab-case').optional(),
+  main_hook_md: z.string().min(1).max(10000).optional(),
+  meta_description: z.string().max(300).optional(),
+  context_tag: z.string().min(1).max(200).optional(),
+  form_button_label: z.string().min(1).max(200).optional(),
+  form_button_loading_label: z.string().min(1).max(200).optional(),
+  success_headline: z.string().max(200).optional(),
+  success_headline_duplicate: z.string().max(200).optional(),
+  success_subheadline: z.string().max(200).optional(),
+  success_subheadline_duplicate: z.string().max(200).optional(),
+  check_mail_text: z.string().max(1000).optional(),
+  download_button_label: z.string().max(200).optional(),
+}).strict()
+
+export type GraduateCampaignOptions = z.infer<typeof GraduateCampaignOptionsSchema>
+
 export const GraduateSchema = z.object({
   target: z.enum(['blog_post', 'newsletter', 'campaign', 'course']),
   data: z.record(z.unknown()).optional(),
+  campaign: GraduateCampaignOptionsSchema.optional(),
 })
 
 export const BulkOperationSchema = z.object({

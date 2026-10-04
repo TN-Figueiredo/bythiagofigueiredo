@@ -1,5 +1,6 @@
 'use server'
 
+import { isCertainShort } from '@/lib/youtube/short-classifier'
 import * as Sentry from '@sentry/nextjs'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { put } from '@vercel/blob'
@@ -139,7 +140,7 @@ export async function createAbTest(
   }
 
   // Reject Shorts
-  if ((video.duration_seconds ?? 0) <= 60) {
+  if (isCertainShort(video.duration_seconds ?? 0)) {
     return { ok: false, error: 'Shorts (≤ 60s) are not eligible for A/B tests' }
   }
 

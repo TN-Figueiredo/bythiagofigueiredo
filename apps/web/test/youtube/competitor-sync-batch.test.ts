@@ -64,3 +64,111 @@ describe('error channels never starve the cursor', () => {
     expect(synced).toEqual(['h1', 'h2'])
   })
 })
+
+describe('runCompetitorBatch — teto de sondas de Short', () => {
+  it('um só orçamento de 60 sondas é compartilhado por todos os canais do lote', async () => {
+    vi.resetModules()
+    const budgets: unknown[] = []
+    vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (_r: unknown, _k: string, o: { probeBudget: unknown }) => { budgets.push(o.probeBudget); return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0 } }) }))
+    const rows = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's', last_synced_at: null }]
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
+    const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
+    await runCompetitorBatch({ apiKey: 'k', batchSize: 5, budgetMs: 1e9, now: () => sp('2026-10-24T15:02:00') })
+    expect(budgets).toHaveLength(2)
+    expect(budgets[0]).toBe(budgets[1])
+    expect(budgets[0]).toMatchObject({ remaining: 60 })
+  })
+})
+
+describe('runCompetitorBatch — visibilidade da sonda (R114)', () => {
+  const chain = (rows: unknown[]): unknown => {
+    const p: unknown = new Proxy({}, { get: (_t, prop: string) => prop === 'then'
+      ? (ok: (v: unknown) => unknown) => Promise.resolve({ data: rows, count: rows.length, error: null }).then(ok)
+      : () => p })
+    return p
+  }
+  async function run(spend: (stats: { attempted: number; shorts: number; regular: number; inconclusive: number }) => void) {
+    vi.resetModules()
+    const captureMessage = vi.fn()
+    vi.doMock('@sentry/nextjs', () => ({ captureMessage, captureException: vi.fn() }))
+    vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (_r: unknown, _k: string, o: { probeBudget: { stats: { attempted: number; shorts: number; regular: number; inconclusive: number } } }) => { spend(o.probeBudget.stats); return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0 } }) }))
+    const rows = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null }]
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
+    vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: vi.fn(async () => 0) }))
+    void chain
+    const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
+    const r = await runCompetitorBatch({ apiKey: 'k', batchSize: 5, budgetMs: 1e9, now: () => sp('2026-10-24T15:02:00') })
+    return { r, captureMessage }
+  }
+  it('expõe shorts_probe no resultado', async () => {
+    const { r, captureMessage } = await run(s => { s.attempted = 12; s.shorts = 9; s.regular = 1; s.inconclusive = 2 })
+    expect(r.shorts_probe).toMatchObject({ attempted: 12, shorts: 9, regular: 1, inconclusive: 2, backfilled: 0, pending: 0 })
+    expect(captureMessage).not.toHaveBeenCalled()
+  })
+  it('≥ 10 sondas e nenhuma conclusiva: um aviso Sentry, sem ids, e o lote não vira falha', async () => {
+    const { r, captureMessage } = await run(s => { s.attempted = 10; s.inconclusive = 10 })
+    expect(captureMessage).toHaveBeenCalledTimes(1)
+    expect(captureMessage.mock.calls[0]![0]).toMatch(/bloqueada/)
+    expect(captureMessage.mock.calls[0]![1]).toMatchObject({ level: 'warning' })
+    expect(r).toMatchObject({ synced: 1, errors: 0 })
+  })
+  it('menos de 10 sondas inconclusivas não alarma', async () => {
+    const { captureMessage } = await run(s => { s.attempted = 9; s.inconclusive = 9 })
+    expect(captureMessage).not.toHaveBeenCalled()
+  })
+})
+
+describe('runCompetitorBatch — controle e prazo do backfill (I-2, I-3)', () => {
+  async function run(opts: { controlIds?: string[]; controlId?: string; controlResponse?: () => Response; clock?: () => number }) {
+    vi.resetModules()
+    const captureMessage = vi.fn()
+    vi.doMock('@sentry/nextjs', () => ({ captureMessage, captureException: vi.fn() }))
+    let seenFailed: boolean | undefined
+    vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (_r: unknown, _k: string, o: { probeBudget: { controlFailed?: boolean } }) => { seenFailed = o.probeBudget.controlFailed; return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0 } }) }))
+    const channels = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null }]
+    const chainRes = { data: (opts.controlIds ?? (opts.controlId ? [opts.controlId] : [])).map(video_id => ({ video_id })), error: null }
+    const chain: unknown = new Proxy({}, { get: (_t, p: string) => p === 'then' ? (ok: (v: unknown) => unknown) => Promise.resolve(chainRes).then(ok) : () => chain })
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: (t: string) => t === 'competitor_channels' ? { select: () => ({ order: () => Promise.resolve({ data: channels, error: null }) }) } : chain }) }))
+    const backfill = vi.fn(async () => 0)
+    vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: backfill }))
+    const fetchMock = vi.fn(async () => opts.controlResponse ? opts.controlResponse() : new Response('', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
+    const r = await runCompetitorBatch({ apiKey: 'k', batchSize: 5, budgetMs: 1e9, now: opts.clock ?? (() => sp('2026-10-24T15:02:00')) })
+    vi.unstubAllGlobals()
+    return { r, captureMessage, seenFailed, fetchMock, backfill }
+  }
+  const redirectWatch = () => ({ status: 303, headers: new Headers({ location: '/watch?v=x' }), body: null }) as unknown as Response
+
+  it('controle volta normal: ok, sondas valem', async () => {
+    const { r, seenFailed, captureMessage } = await run({ controlId: 'AAAAAAAAAA1', controlResponse: redirectWatch })
+    expect(r.shorts_probe?.control).toBe('ok'); expect(seenFailed).toBeFalsy(); expect(captureMessage).not.toHaveBeenCalled()
+  })
+  it('controle não volta normal (200 com interstício): failed, sondas descartadas e aviso', async () => {
+    const { r, seenFailed, captureMessage } = await run({ controlId: 'AAAAAAAAAA1' })
+    expect(r.shorts_probe?.control).toBe('failed'); expect(seenFailed).toBe(true)
+    expect(captureMessage).toHaveBeenCalledTimes(1); expect(captureMessage.mock.calls[0]![0]).toMatch(/controle/)
+    expect(r).toMatchObject({ synced: 1, errors: 0 })
+  })
+  it('P2: o primeiro longo removido (404) não desliga; o segundo volta normal: ok', async () => {
+    let n = 0
+    const { r, seenFailed } = await run({ controlIds: ['AAAAAAAAAA1', 'AAAAAAAAAA2'], controlResponse: () => (n++ === 0 ? ({ status: 404, headers: new Headers(), body: null } as unknown as Response) : redirectWatch()) })
+    expect(r.shorts_probe?.control).toBe('ok'); expect(seenFailed).toBeFalsy()
+  })
+  it('P2: nenhum dos dois volta normal: failed', async () => {
+    const { r, seenFailed } = await run({ controlIds: ['AAAAAAAAAA1', 'AAAAAAAAAA2'] })
+    expect(r.shorts_probe?.control).toBe('failed'); expect(seenFailed).toBe(true)
+  })
+  it('sem vídeo longo conhecido: none, segue como hoje, sem requisição de controle', async () => {
+    const { r, fetchMock, seenFailed } = await run({})
+    expect(r.shorts_probe?.control).toBe('none'); expect(fetchMock).not.toHaveBeenCalled(); expect(seenFailed).toBeFalsy()
+  })
+  it('I-3: passa o prazo de 230 s ao backfill (relógio falso)', async () => {
+    let t = sp('2026-10-24T15:02:00')
+    const { backfill } = await run({ clock: () => t })
+    const stop = backfill.mock.calls[0]![5] as () => boolean
+    expect(stop()).toBe(false)
+    t += 231_000
+    expect(stop()).toBe(true)
+  })
+})

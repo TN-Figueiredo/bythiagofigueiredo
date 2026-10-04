@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { GraduateCampaignOptionsSchema } from '../schemas'
 
 import * as itemsService from './services/items'
 import * as sectionsService from './services/sections'
@@ -139,9 +140,11 @@ const GraduateItemShape = {
   id: z.string().uuid()
     .describe('Pipeline item UUID to graduate'),
   target: z.enum(['blog_post', 'newsletter', 'campaign', 'course'])
-    .describe('blog_post: create CMS blog post. newsletter: create edition. campaign: NOT SUPPORTED yet (kept in the enum for compatibility; always answers NOT_SUPPORTED, even for a dry run). course: graduate to playlist with module edges.'),
+    .describe('blog_post: create CMS blog post. newsletter: create edition. campaign: create a DRAFT campaign (+ translation in the language of the item, pt-BR unless it is `en`) and link the item; never published. Needs `campaign.interest`; the hook comes from `campaign.main_hook_md` or the item hook/synopsis. Missing fields answer VALIDATION_ERROR 422 (dry run too). course: graduate to playlist with module edges.'),
   data: z.record(z.unknown()).optional()
     .describe('Target-specific data (slug, edition_number, etc.)'),
+  campaign: GraduateCampaignOptionsSchema.optional()
+    .describe('Only for target=campaign. interest (creator|fitness|style|career|finance|wellness|other) is required; optional: locale (pt-BR|en), slug (default: from the title), main_hook_md (default: item hook, then synopsis), meta_description (default: item synopsis), context_tag (default: interest), form_button_label, form_button_loading_label, success_headline, success_headline_duplicate, success_subheadline, success_subheadline_duplicate, check_mail_text, download_button_label (default: empty, like the CMS new-campaign form). Title, cover image and body come from the item. Slug already used for that locale answers CONFLICT 409.'),
   confirm: z.boolean().optional()
     .describe('Must be true to execute graduation'),
   confirmation_token: z.string().optional()

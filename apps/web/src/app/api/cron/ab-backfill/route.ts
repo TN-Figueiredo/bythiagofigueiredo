@@ -5,6 +5,7 @@ import { ensureFreshToken, NoActiveConnectionError } from '@/lib/social/token-re
 import { channelForVideo } from '@/lib/youtube/channel-account'
 import { fetchAnalyticsForDateRange } from '@/lib/youtube/ab-youtube'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
+import { channelNote, describeCronCause, joinNotes } from '@/lib/cron/failure-note'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
 export const maxDuration = 120
@@ -39,10 +40,10 @@ export async function GET(req: NextRequest) {
       tags: { cron: 'ab-backfill' },
       extra: { stage: 'select-cycles' },
     })
-    await recordCronFailure('ab-backfill', cyclesError.message, 'critical').catch((e) =>
+    await recordCronFailure('ab-backfill', 'database error listing the A/B cycles to backfill', 'critical').catch((e) =>
       console.error('[cron-health] write failed:', e)
     )
-    return Response.json({ status: 'error', error: cyclesError.message }, { status: 500 })
+    return Response.json({ status: 'error', error: 'database error listing the A/B cycles' }, { status: 500 })
   }
 
   if (!cycles || cycles.length === 0) {
@@ -58,12 +59,17 @@ export async function GET(req: NextRequest) {
 
   let backfilled = 0
   let errors = 0
+  // Uma nota por falha (canal + causa), sem texto cru do banco/Google: vira cron_health.last_error.
+  const errorNotes: string[] = []
   // Ciclos pulados por falta de token do canal dono do vídeo (canal sem conexão
   // OAuth, ou vídeo sem canal). Não são erro nem "sem dados": ninguém perguntou
   // nada ao YouTube.
   const skipped: { cycleId: string; testId: string; siteId: string; channelAccountId: string | null; channelName: string | null; reason: string }[] = []
 
   for (const cycle of cycles) {
+    // Fora do try: o catch final também escreve a nota com o nome do canal, quando já resolvido.
+    let channelAccountId: string | null = null
+    let channelName: string | null = null
     try {
       // Get the parent test and video info
       const { data: test } = await supabase
@@ -87,8 +93,6 @@ export async function GET(req: NextRequest) {
       // o ciclo acabava `no_data` para sempre sem nunca ter sido lido.
       let accessToken: string | null = null
       let skipReason: string | null = null
-      let channelAccountId: string | null = null
-      let channelName: string | null = null
       try {
         const owner = await channelForVideo(supabase, test.site_id, test.youtube_video_id)
         channelAccountId = owner?.channelId ?? null
@@ -105,6 +109,7 @@ export async function GET(req: NextRequest) {
           // consultado, e `error` é terminal (a consulta só lê pending/partial). Fica para a
           // próxima rodada.
           errors++
+          errorNotes.push(channelNote(channelName ?? channelAccountId ?? 'unknown channel', describeCronCause(tokenErr)))
           Sentry.captureException(tokenErr, {
             tags: { cron: 'ab-backfill' },
             extra: { stage: 'token', cycleId: cycle.id, testId: cycle.test_id },
@@ -170,6 +175,7 @@ export async function GET(req: NextRequest) {
       backfilled++
     } catch (err) {
       errors++
+      errorNotes.push(channelNote(channelName ?? channelAccountId ?? `cycle ${cycle.id}`, describeCronCause(err)))
       Sentry.captureException(err, {
         tags: { cron: 'ab-backfill' },
         extra: { cycleId: cycle.id, testId: cycle.test_id },
@@ -226,7 +232,9 @@ export async function GET(req: NextRequest) {
   if (errors === 0) {
     await recordCronSuccess('ab-backfill', 'critical')
   } else {
-    await recordCronFailure('ab-backfill', `${errors} cycle(s) failed`, 'critical')
+    // Deduplica (mesmo canal+causa em vários ciclos) e limita o tamanho da coluna.
+    const note = joinNotes(errorNotes, `${errors} cycle(s) failed`)
+    await recordCronFailure('ab-backfill', note, 'critical')
   }
 
   return Response.json({ status: 'ok', backfilled, errors, skipped: skipped.length })

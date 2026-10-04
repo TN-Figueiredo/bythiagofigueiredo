@@ -50,9 +50,11 @@ export async function enumerateSiteRoutes(
       .not('blog_posts.published_at', 'is', null),
     supabase
       .from('campaign_translations')
-      .select('slug, locale, updated_at, campaigns!inner(id, status, site_id)')
+      .select('slug, locale, updated_at, campaigns!inner(id, status, published_at, site_id)')
       .eq('campaigns.site_id', siteId)
-      .eq('campaigns.status', 'active'),
+      .eq('campaigns.status', 'published')
+      .lte('campaigns.published_at', now)
+      .not('campaigns.published_at', 'is', null),
   ])
 
   if (posts.error || campaigns.error) {

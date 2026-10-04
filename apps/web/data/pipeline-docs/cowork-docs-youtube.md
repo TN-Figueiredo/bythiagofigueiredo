@@ -730,6 +730,8 @@ Lista vídeos outliers de canais concorrentes — vídeos com multiplicador de 2
 - `limit` (opcional, default: 25, max: 100)
 - `fmt` (opcional): `long` (default) ou `short` — vídeos longos e Shorts nunca são comparados entre si
 
+**O que é Short:** duração ≤ 60 s, ou de 61 a 180 s quando o próprio YouTube serve o vídeo em `/shorts/<id>` (o site confere isso na sincronização). Um vídeo de 61 a 180 s ainda não conferido conta como longo até a próxima sincronização.
+
 **Response 200:**
 ```json
 {

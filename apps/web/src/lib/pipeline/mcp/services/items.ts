@@ -272,26 +272,31 @@ export async function graduateItem(params: Params): Promise<CallToolResult> {
     const confirm = params.confirm === true
     const confirmationToken = params.confirmation_token as string | undefined
 
-    // before the preview and before the confirmation round-trip
-    svc.assertGraduationSupported(target)
+    const body: Record<string, unknown> = {
+      target,
+      ...(params.campaign !== undefined ? { campaign: params.campaign } : {}),
+    }
 
-    if (params.dry_run !== false) {
-      const result = await svc.graduateItem(ctx, id, { target }, { dryRun: true })
-      void result
+    // The preview runs the real validation (a campaign missing interest/hook fails here, 422, with
+    // the field names), so a dry run never says ok for something the real call would refuse.
+    const preview = async () => {
+      const result = await svc.graduateItem(ctx, id, body, { dryRun: true })
+      const wouldCreate = result.data.would_create
       return formatDryRunResult(
         'graduate_item',
         { id, target },
-        [{ entity: 'pipeline_item', id, field: 'graduated_to', from: null, to: target }],
+        [
+          { entity: 'pipeline_item', id, field: 'graduated_to', from: null, to: target },
+          ...(wouldCreate
+            ? [{ entity: 'campaign', id: 'new', field: 'draft', from: null, to: wouldCreate }]
+            : []),
+        ],
       )
     }
 
-    if (!confirm && !confirmationToken) {
-      return formatDryRunResult(
-        'graduate_item',
-        { id, target },
-        [{ entity: 'pipeline_item', id, field: 'graduated_to', from: null, to: target }],
-      )
-    }
+    if (params.dry_run !== false) return await preview()
+
+    if (!confirm && !confirmationToken) return await preview()
 
     if (confirmationToken) {
       const valid = validateConfirmationToken(confirmationToken, 'graduate_item', { id, target })
@@ -311,7 +316,7 @@ export async function graduateItem(params: Params): Promise<CallToolResult> {
       })
     }
 
-    const result = await svc.graduateItem(ctx, id, { target })
+    const result = await svc.graduateItem(ctx, id, body)
     return toMcpSuccess(result.data)
   } catch (err) {
     return toMcpError(toPipelineServiceError(err))

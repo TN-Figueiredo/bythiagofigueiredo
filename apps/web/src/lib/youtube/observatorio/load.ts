@@ -1,4 +1,5 @@
 // Observatório v2 — DB rows → engine Dataset. One query per table (paged, `in()` chunked), then a pure mapping.
+import { isCertainShort } from '@/lib/youtube/short-classifier'
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -133,7 +134,7 @@ const colorOf = (id: string) => { let h = 0; for (const ch of id) h = (h * 31 + 
 /** Whole days since publication; a scheduled premiere (or clock skew) has pub > now → 0, never negative (winOf has no band below 0). */
 const ageOf = (pub: number, now: number) => Math.max(0, Math.floor((now - pub) / DAY))
 /** Same rule as competitor-sync (`is_short`), for own videos that have no flag. */
-const ownIsShort = (v: OwnVideoRow) => v.duration_seconds <= 60 || v.title.includes('#Shorts')
+const ownIsShort = (v: OwnVideoRow) => isCertainShort(v.duration_seconds) || v.title.includes('#Shorts')
 const spDate = spDateOf
 const dmyOf = (date: string) => { const [y, m, d] = date.slice(0, 10).split('-'); return d + '/' + m + '/' + y }
 

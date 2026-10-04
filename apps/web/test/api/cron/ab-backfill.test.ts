@@ -159,8 +159,8 @@ describe('GET /api/cron/ab-backfill', () => {
     // sem que recordCronSuccess seja chamado.
     expect(res.status).toBe(500)
     expect(body.status).toBe('error')
-    expect(body.error).toBe('connection reset')
-    expect(recordCronFailure).toHaveBeenCalledWith('ab-backfill', 'connection reset', 'critical')
+    expect(body.error).not.toContain('connection reset')
+    expect(recordCronFailure).toHaveBeenCalledWith('ab-backfill', 'database error listing the A/B cycles to backfill', 'critical')
     expect(recordCronSuccess).not.toHaveBeenCalled()
   })
 
@@ -308,6 +308,30 @@ describe('GET /api/cron/ab-backfill', () => {
       expect(cycleUpdates).toEqual([])
       expect(mockEnsureFreshToken).not.toHaveBeenCalled()
       expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
+      const note = vi.mocked(recordCronFailure).mock.calls[0]![1] as string
+      expect(note).toContain('database error')
+      expect(note).not.toContain('statement timeout')
+    })
+
+    it('falha depois de resolver o canal (ramo final): a nota usa o nome do canal, não o id do ciclo', async () => {
+      mockTables({ channel_id: 'UCpt', name: 'tnFigueiredo' } as never)
+      mockEnsureFreshToken.mockResolvedValue({ accessToken: 'ya29.TOK', connectionId: 'c1' })
+      mockFetchAnalyticsForDateRange.mockRejectedValue(new Error('Analytics API 500: ya29.TOK raw'))
+      await GET(makeRequest(`Bearer ${CRON_SECRET}`))
+      const note = vi.mocked(recordCronFailure).mock.calls[0]![1] as string
+      expect(note).toContain('tnFigueiredo: unexpected error (Error)')
+      expect(note).not.toContain('cycle-1:')
+      expect(note).not.toContain('ya29')
+    })
+
+    it('refresh do token falha: a nota do cron traz nome do canal e causa, sem o texto do Google', async () => {
+      mockTables({ channel_id: 'UCpt', name: 'tnFigueiredo' } as never)
+      mockEnsureFreshToken.mockRejectedValue(new Error('Google token refresh failed (503): <html>secret-body ya29.TOKEN</html>'))
+      await GET(makeRequest(`Bearer ${CRON_SECRET}`))
+      const [name, note] = vi.mocked(recordCronFailure).mock.calls[0]! as [string, string]
+      expect(name).toBe('ab-backfill')
+      expect(note).toBe('1 cycle(s) failed — tnFigueiredo: Google token refresh failed (HTTP 503)')
+      expect(note).not.toContain('ya29')
     })
 
     it('a notificação traz o nome do canal (sem query extra) com o UC entre parênteses', async () => {
