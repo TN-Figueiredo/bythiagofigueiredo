@@ -137,7 +137,10 @@ const TOOL_RULES: Array<{ tool: string; match: ToolMatcher }> = [
     tool: 'youtube_analytics',
     match: (ep) =>
       ep.path.includes('/analytics/') ||
-      ep.path.includes('/youtube/intelligence'),
+      ep.path.includes('/youtube/intelligence') ||
+      // Own-channel list: the channel uuid every youtube_analytics action asks for comes from
+      // here (the MCP exposes the list itself as the resource pipeline://youtube/channels).
+      ep.path === '/api/pipeline/youtube/channels',
   },
   {
     tool: 'youtube_videos',
