@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { ensureFreshToken, NoActiveConnectionError } from '@/lib/social/token-refresh'
 import { detectViral, getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { buildNotification } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
@@ -51,6 +51,9 @@ export async function GET(req: NextRequest) {
   let synced = 0
   let errors = 0
   let emptyReports = 0
+  // Canal cadastrado mas sem conexão OAuth viva (recém-cadastrado, ou conexão revogada): é
+  // estado legítimo, não falha. Pula, conta e avisa o dono; os demais canais seguem.
+  const skippedNoConnection: Array<{ channelId: string; siteId: string }> = []
   const errorDetails: string[] = []
   const notifications: Array<{ siteId: string; payload: ReturnType<typeof buildNotification> }> = []
   const processedVideos: Array<{ id: string; published_at: string | null; view_count: number }> = []
@@ -174,6 +177,10 @@ export async function GET(req: NextRequest) {
 
       synced++
     } catch (e) {
+      if (e instanceof NoActiveConnectionError) {
+        skippedNoConnection.push({ channelId: channel.channel_id, siteId: channel.site_id })
+        continue
+      }
       Sentry.captureException(e)
       errorDetails.push(`${channel.channel_id}: ${e instanceof Error ? e.message : String(e)}`)
       errors++
@@ -229,6 +236,28 @@ export async function GET(req: NextRequest) {
       suggestedAction: payload.suggested_action,
       actionHref: payload.action_href,
     })
+  }
+
+  // O pulo precisa ser VISTO: um aviso por site e por dia (dedup), não um alarme de cron.
+  const skippedBySite = new Map<string, string[]>()
+  for (const k of skippedNoConnection) {
+    skippedBySite.set(k.siteId, [...(skippedBySite.get(k.siteId) ?? []), k.channelId])
+  }
+  for (const [siteId, channelIds] of skippedBySite) {
+    try {
+      await fanOutToSiteAdmins({
+        siteId,
+        domain: 'youtube',
+        type: 'youtube.channel_skipped_no_connection',
+        priority: 2,
+        title: 'Canal do YouTube sem conexão',
+        message: `${channelIds.length} canal(is) sem conexão OAuth ficaram de fora da sincronização de analytics: ${channelIds.join(', ')}. Conecte o acesso do canal em /cms/youtube.`,
+        dedupKey: `channel-skipped-no-connection-${siteId}-${new Date().toISOString().slice(0, 10)}`,
+        actionHref: '/cms/youtube',
+      })
+    } catch (e) {
+      Sentry.captureException(e)
+    }
   }
 
   // Phase 3: Fatigue detection (once per site, after all channels processed)
@@ -296,7 +325,7 @@ export async function GET(req: NextRequest) {
 
   if (errors > 0) {
     await recordCronFailure('sync-analytics-metrics', errorDetails.join('; '))
-  } else if (channels.length > 0 && emptyReports === channels.length) {
+  } else if (channels.length > skippedNoConnection.length && emptyReports === channels.length - skippedNoConnection.length) {
     // Every channel came back with zero rows for the window. One channel alone doing this is
     // legitimate (e.g. a brand-new channel with nothing published yet), but ALL of them at
     // once — with no HTTP error — is the same silent-failure shape this fix closes: a scope
@@ -304,11 +333,11 @@ export async function GET(req: NextRequest) {
     // never catch. Do not call this success.
     await recordCronFailure(
       'sync-analytics-metrics',
-      `all ${channels.length} channel(s) returned an empty analytics report for the ${SYNC_WINDOW_DAYS}-day window`,
+      `all ${channels.length - skippedNoConnection.length} channel(s) returned an empty analytics report for the ${SYNC_WINDOW_DAYS}-day window`,
     )
   } else {
     await recordCronSuccess('sync-analytics-metrics')
   }
 
-  return NextResponse.json({ synced, errors, emptyReports, notifications: notifications.length, fatigueAlerts, ...(errorDetails.length > 0 && { errorDetails }) })
+  return NextResponse.json({ synced, errors, emptyReports, skipped_no_connection: skippedNoConnection.length, notifications: notifications.length, fatigueAlerts, ...(errorDetails.length > 0 && { errorDetails }) })
 }
