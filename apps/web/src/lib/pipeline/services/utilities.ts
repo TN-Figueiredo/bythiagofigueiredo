@@ -8,6 +8,7 @@ import { FORMATS, ReferenceContentUpsertSchema, AssignSlotSchema } from '@/lib/p
 import type { Format } from '@/lib/pipeline/schemas'
 import { WORKFLOWS, DEFAULT_CHECKLISTS } from '@/lib/pipeline/workflows'
 import type { WorkflowStage, ChecklistItem } from '@/lib/pipeline/workflows'
+import { oneEmbed } from '@/lib/supabase/one-embed'
 import { API_REGISTRY } from '@/lib/pipeline/api-registry'
 import type { CapabilityDomain } from '@/lib/pipeline/api-registry'
 import { sanitizeForLike, sanitizeForFilter, sanitizeForTsquery } from '@/lib/pipeline/sanitize'
@@ -194,10 +195,11 @@ export async function searchContent(
       .textSearch('search_vector', sanitizeForTsquery(trimmedQ), { type: 'plain' })
       .limit(limit),
 
+    // title and slug live on `blog_translations` (one row per locale); `blog_posts` has neither.
     ctx.supabase
-      .from('blog_posts')
-      .select('id, title, slug, status, category, locale')
-      .eq('site_id', ctx.siteId)
+      .from('blog_translations')
+      .select('post_id, title, slug, locale, blog_posts!inner(status, category, site_id)')
+      .eq('blog_posts.site_id', ctx.siteId)
       .or(`title.ilike.%${safeQ}%,slug.ilike.%${safeQ}%`)
       .limit(10),
 
@@ -209,19 +211,37 @@ export async function searchContent(
       .limit(10),
   ])
 
+  // A failed read is an error, not an empty list of hits.
+  if (pipelineRes.error) return err('DB_ERROR', 'Failed to search pipeline items', 500)
+  if (blogRes.error) return err('DB_ERROR', 'Failed to search blog posts', 500)
+  if (newsletterRes.error) return err('DB_ERROR', 'Failed to search newsletters', 500)
+
+  const blogHits: BlogSearchHit[] = (blogRes.data ?? []).map((t) => {
+    const post = oneEmbed(t.blog_posts as { status: string; category: string | null } | Array<{ status: string; category: string | null }> | null)
+    return {
+      id: t.post_id as string,
+      title: t.title as string,
+      slug: t.slug as string,
+      status: post?.status ?? '',
+      category: post?.category ?? null,
+      locale: (t.locale as string | null) ?? null,
+    }
+  })
+
   return ok({
     pipeline: (pipelineRes.data ?? []) as PipelineSearchHit[],
-    blog_posts: (blogRes.data ?? []) as BlogSearchHit[],
+    blog_posts: blogHits,
     newsletters: (newsletterRes.data ?? []) as NewsletterSearchHit[],
   })
 }
 
 /** Aggregate pipeline statistics by format, stage, and priority. */
 export async function getStats(ctx: ServiceContext): Promise<ServiceResult<StatsResult>> {
-  const { data: items } = await ctx.supabase
+  const { data: items, error: itemsError } = await ctx.supabase
     .from('content_pipeline')
     .select('format, stage, priority, is_archived, updated_at')
     .eq('site_id', ctx.siteId)
+  if (itemsError) return err('DB_ERROR', 'Failed to load pipeline stats', 500)
 
   const allItems = items ?? []
   const active = allItems.filter((i) => !i.is_archived)
@@ -418,17 +438,30 @@ export async function getTopicAggregation(
       .eq('is_archived', false)
       .order('priority', { ascending: false }),
 
+    // title and slug are per-locale, on `blog_translations`; take the post's own locale first.
     ctx.supabase
       .from('blog_posts')
-      .select('id, title, slug, status, category')
+      .select('id, status, category, locale, blog_translations(title, slug, locale)')
       .eq('site_id', ctx.siteId)
       .eq('category', code),
   ])
 
+  if (pipelineRes.error) return err('DB_ERROR', 'Failed to load topic pipeline items', 500)
+  if (blogRes.error) return err('DB_ERROR', 'Failed to load topic blog posts', 500)
+
+  const blogPosts = (blogRes.data ?? []).flatMap((p) => {
+    const tx = (p.blog_translations ?? []) as Array<{ title: string; slug: string; locale: string }>
+    const chosen = tx.find((t) => t.locale === p.locale) ?? tx[0]
+    // a post with no translation has no title or slug to show
+    return chosen
+      ? [{ id: p.id as string, title: chosen.title, slug: chosen.slug, status: p.status as string, category: (p.category as string | null) ?? null }]
+      : []
+  })
+
   return ok({
     topic: code,
     pipeline_items: (pipelineRes.data ?? []) as PipelineSearchHit[],
-    blog_posts: (blogRes.data ?? []) as Array<{ id: string; title: string; slug: string; status: string; category: string | null }>,
+    blog_posts: blogPosts,
   })
 }
 
