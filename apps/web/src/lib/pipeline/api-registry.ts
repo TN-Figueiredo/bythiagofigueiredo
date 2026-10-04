@@ -53,7 +53,7 @@ const ITEMS_AND_SECTIONS: CapabilityDomain = {
     { method: 'POST', path: '/api/pipeline/items/:id/advance', summary: 'Advance to next workflow stage', auth: 'write' },
     { method: 'POST', path: '/api/pipeline/items/:id/retreat', summary: 'Retreat to previous stage', auth: 'write' },
     { method: 'POST', path: '/api/pipeline/items/:id/checklist', summary: 'Toggle production checklist item', auth: 'write' },
-    { method: 'POST', path: '/api/pipeline/items/:id/graduate', summary: 'Graduate to blog post, newsletter or course (target `campaign` is accepted by the schema but not supported yet: answers 422 NOT_SUPPORTED)', auth: 'write' },
+    { method: 'POST', path: '/api/pipeline/items/:id/graduate', summary: 'Graduate to blog post, newsletter, course or campaign. target `campaign` creates a DRAFT campaign + translation (needs `campaign.interest`; hook defaults to the item hook/synopsis; optional campaign.locale/slug/main_hook_md/meta_description/context_tag/form labels/success texts; 422 VALIDATION_ERROR lists missing fields, 409 CONFLICT on slug already used)', auth: 'write' },
     { method: 'POST', path: '/api/pipeline/items/:id/restore', summary: 'Unarchive a previously archived item', auth: 'write' },
     { method: 'GET', path: '/api/pipeline/items/:id/history', summary: 'Get audit trail for item changes', auth: 'read' },
     { method: 'POST', path: '/api/pipeline/items/:id/link', summary: 'Link a blog post to pipeline item', auth: 'write' },
