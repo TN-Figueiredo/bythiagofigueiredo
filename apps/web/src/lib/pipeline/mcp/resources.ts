@@ -15,6 +15,8 @@ import { WORKFLOWS, DEFAULT_CHECKLISTS } from '@/lib/pipeline/workflows'
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import * as youtube from '@/lib/pipeline/services/youtube'
+import * as utilities from '@/lib/pipeline/services/utilities'
+import { listCompetitorChanges } from '@/lib/pipeline/services/competitors'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 
 import * as fs from 'node:fs/promises'
@@ -73,6 +75,31 @@ async function buildResourceCtx(): Promise<{ ctx: ServiceContext; siteId: string
     source: 'api_key',
   }
   return { ctx, siteId: site.id }
+}
+
+/**
+ * A read that failed is an error to the client, never an empty list. supabase-js answers a
+ * missing table or column with `{ data: null, error }`; `data ?? []` turned that into a resource
+ * that looked healthy and was empty. Thrown here, the MCP server answers the request with a
+ * JSON-RPC error and keeps the session.
+ */
+function readOrThrow<T>(res: { data: T | null; error: { message: string } | null }, what: string): T {
+  if (res.error) throw new Error(`Failed to fetch ${what}: ${res.error.message}`)
+  return res.data as T
+}
+
+/** Reads a table past the PostgREST `max_rows` cap (1000): pages with `.range()` until a short page. */
+async function readAllPages<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  what: string,
+): Promise<T[]> {
+  const PAGE = 1000
+  const out: T[] = []
+  for (let from = 0; ; from += PAGE) {
+    const rows = readOrThrow(await page(from, from + PAGE - 1), what) ?? []
+    out.push(...rows)
+    if (rows.length < PAGE) return out
+  }
 }
 
 function jsonResource(data: unknown): ResourceContents {
@@ -162,19 +189,15 @@ export function registerResources(server: McpServer): void {
         throw new Error(`Unknown skill: ${skill}. Valid: ${SKILL_IDS.join(', ')}`)
       }
 
-      const supabase = getSupabaseServiceClient()
-      const { data, error } = await supabase
-        .from('pipeline_context')
-        .select('key, title, body')
-        .contains('skills', [skill])
-        .order('sort_order', { ascending: true })
+      // The skill's reference documents live in `reference_content`; which keys a skill gets is
+      // the `_system/skill-mappings` entry of the same table (the same read as
+      // GET /api/pipeline/context?skill=). There never was a `pipeline_context` table.
+      const { ctx } = await buildResourceCtx()
+      const refs = await utilities.listContext(ctx, { skill, format: 'md' })
 
-      if (error) throw new Error(`Failed to fetch context for skill ${skill}: ${error.message}`)
-
-      const docs = (data ?? [])
-        .map((d: { key: string; title: string; body: string }) =>
-          `## ${d.title}\n\n${d.body}`,
-        )
+      const docs = refs.data
+        .filter(d => typeof d.content === 'string' && d.content.length > 0)
+        .map(d => `## ${d.title}\n\n${d.content as string}`)
         .join('\n\n---\n\n')
 
       const result = mdResource(docs || `No reference content found for skill: ${skill}`)
@@ -198,10 +221,12 @@ export function registerResources(server: McpServer): void {
     async (uri) => {
       const supabase = getSupabaseServiceClient()
 
+      const { siteId } = await buildResourceCtx()
       const { data: items, error } = await supabase
         .from('content_pipeline')
-        .select('format, stage, priority, archived')
-        .eq('archived', false)
+        .select('format, stage, priority')
+        .eq('site_id', siteId)
+        .eq('is_archived', false)
 
       if (error) throw new Error(`Failed to fetch stats: ${error.message}`)
 
@@ -371,51 +396,51 @@ export function registerResources(server: McpServer): void {
       const { siteId } = await buildResourceCtx()
 
       // `audio_assets` (there is no `audio_library` table): retired is a `status`, and the use
-      // count is the rows of `audio_asset_usage`.
-      const [assetsRes, usageRes] = await Promise.all([
-        supabase
-          .from('audio_assets')
-          .select('id, category, mood, energy, status')
-          .eq('site_id', siteId)
-          .in('status', ['downloaded', 'pending']),
-        supabase
-          .from('audio_asset_usage')
-          .select('audio_asset_id')
-          .eq('site_id', siteId)
-          .limit(10000),
+      // count is the rows of `audio_asset_usage`. Both are read page by page: PostgREST caps a
+      // response at max_rows (1000) even under `.limit(10000)`, and the cut raises no error.
+      const [assets, usages] = await Promise.all([
+        readAllPages<{ id: string; category: string | null; mood: string[]; energy: number | null; status: string }>(
+          (from, to) => supabase
+            .from('audio_assets')
+            .select('id, category, mood, energy, status')
+            .eq('site_id', siteId)
+            .in('status', ['downloaded', 'pending'])
+            .order('id', { ascending: true })
+            .range(from, to),
+          'audio stats',
+        ),
+        readAllPages<{ audio_asset_id: string }>(
+          (from, to) => supabase
+            .from('audio_asset_usage')
+            .select('audio_asset_id')
+            .eq('site_id', siteId)
+            .order('id', { ascending: true })
+            .range(from, to),
+          'audio usage',
+        ),
       ])
-      if (assetsRes.error) throw new Error(`Failed to fetch audio stats: ${assetsRes.error.message}`)
-      if (usageRes.error) throw new Error(`Failed to fetch audio usage: ${usageRes.error.message}`)
 
       const usageById = new Map<string, number>()
-      for (const u of usageRes.data ?? []) {
-        const k = u.audio_asset_id as string
-        usageById.set(k, (usageById.get(k) ?? 0) + 1)
-      }
-      const assets = (assetsRes.data ?? []).map(a => ({ ...a, usage_count: usageById.get(a.id as string) ?? 0 }))
+      for (const u of usages) usageById.set(u.audio_asset_id, (usageById.get(u.audio_asset_id) ?? 0) + 1)
+      const rows = assets.map(a => ({ ...a, usage_count: usageById.get(a.id) ?? 0 }))
 
-      const rows = assets ?? []
       const byCategory: Record<string, number> = {}
       const byMood: Record<string, number> = {}
       const byEnergy: Record<string, number> = {}
       let totalUsages = 0
 
       for (const a of rows) {
-        const cat = (a.category as string) ?? 'uncategorized'
+        const cat = a.category ?? 'uncategorized'
         byCategory[cat] = (byCategory[cat] ?? 0) + 1
-        if (a.mood) {
-          const m = a.mood as string
-          byMood[m] = (byMood[m] ?? 0) + 1
-        }
-        if (a.energy) {
-          const e = a.energy as string
-          byEnergy[e] = (byEnergy[e] ?? 0) + 1
-        }
-        totalUsages += (a.usage_count as number) ?? 0
+        // `mood` is a text[]: each tag counts on its own ("calm" and "epic" are two moods, not
+        // one "calm,epic"). `energy` is a number and 0 is a level.
+        for (const m of a.mood ?? []) byMood[m] = (byMood[m] ?? 0) + 1
+        if (a.energy != null) byEnergy[String(a.energy)] = (byEnergy[String(a.energy)] ?? 0) + 1
+        totalUsages += a.usage_count
       }
 
       const topUsed = [...rows]
-        .sort((a, b) => ((b.usage_count as number) ?? 0) - ((a.usage_count as number) ?? 0))
+        .sort((a, b) => b.usage_count - a.usage_count)
         .slice(0, 10)
         .map(a => ({ id: a.id, category: a.category, mood: a.mood, usageCount: a.usage_count }))
 
@@ -456,9 +481,9 @@ export function registerResources(server: McpServer): void {
       if (error) throw new Error(`Failed to fetch research topics: ${error.message}`)
 
       // Count research items per topic
-      const { data: counts } = await supabase
+      const counts = readOrThrow(await supabase
         .from('research_items')
-        .select('topic_id')
+        .select('topic_id'), 'research item counts')
 
       const countMap: Record<string, number> = {}
       for (const c of counts ?? []) {
@@ -709,11 +734,11 @@ export function registerResources(server: McpServer): void {
       const supabase = getSupabaseServiceClient()
       const { siteId } = await buildResourceCtx()
 
-      const { data } = await supabase
+      const data = readOrThrow(await supabase
         .from('competitor_channels')
-        .select('id, channel_id, channel_name, subscriber_count, video_count, youtube_video_count, sync_status, last_synced_at')
+        .select('id, channel_id, channel_name, subscriber_count, youtube_video_count, sync_status, last_synced_at')
         .eq('site_id', siteId)
-        .order('created_at', { ascending: false })
+        .order('added_at', { ascending: false }), 'competitor channels')
 
       const result = jsonResource({ channels: data ?? [] })
       result.contents[0]!.uri = uri.href
@@ -737,14 +762,12 @@ export function registerResources(server: McpServer): void {
       const supabase = getSupabaseServiceClient()
       const { siteId } = await buildResourceCtx()
 
-      const { data } = await supabase
-        .from('competitor_changes')
-        .select('id, competitor_channel_id, youtube_video_id, field, old_value, new_value, bookmarked, detected_at')
-        .eq('site_id', siteId)
-        .order('detected_at', { ascending: false })
-        .limit(50)
+      // Same read as GET /api/pipeline/youtube/competitors/changes: `competitor_changes` carries
+      // `change_type`, old/new title and thumbnail; the video and the channel come by embed.
+      const { ctx } = await buildResourceCtx()
+      const { data } = await listCompetitorChanges(ctx, { limit: 50 })
 
-      const result = jsonResource({ changes: data ?? [] })
+      const result = jsonResource({ changes: data.changes })
       result.contents[0]!.uri = uri.href
       return result
     },
@@ -766,15 +789,10 @@ export function registerResources(server: McpServer): void {
       const supabase = getSupabaseServiceClient()
       const { siteId } = await buildResourceCtx()
 
-      const { data } = await supabase
-        .from('competitor_changes')
-        .select('id, competitor_channel_id, youtube_video_id, field, old_value, new_value, detected_at')
-        .eq('site_id', siteId)
-        .eq('bookmarked', true)
-        .order('detected_at', { ascending: false })
-        .limit(20)
+      const { ctx } = await buildResourceCtx()
+      const { data } = await listCompetitorChanges(ctx, { bookmarked: true, limit: 20 })
 
-      const result = jsonResource({ outliers: data ?? [] })
+      const result = jsonResource({ outliers: data.changes })
       result.contents[0]!.uri = uri.href
       return result
     },
@@ -799,24 +817,26 @@ export function registerResources(server: McpServer): void {
       const [channelsRes, changesRes] = await Promise.all([
         supabase
           .from('competitor_channels')
-          .select('id, channel_name, subscriber_count, video_count')
+          .select('id, channel_name, subscriber_count, youtube_video_count')
           .eq('site_id', siteId),
         supabase
           .from('competitor_changes')
-          .select('field, competitor_channel_id')
+          .select('change_type, video_id')
           .eq('site_id', siteId)
           .gte('detected_at', new Date(Date.now() - 7 * 86400000).toISOString()),
       ])
+      const channels = readOrThrow(channelsRes, 'competitor channels')
+      const changes = readOrThrow(changesRes, 'competitor changes')
 
+      // keyed by `change_type` (title / thumbnail / description)
       const changesByField: Record<string, number> = {}
-      for (const c of changesRes.data ?? []) {
-        const field = c.field as string
-        changesByField[field] = (changesByField[field] ?? 0) + 1
+      for (const c of changes) {
+        changesByField[c.change_type] = (changesByField[c.change_type] ?? 0) + 1
       }
 
       const result = jsonResource({
-        totalChannels: (channelsRes.data ?? []).length,
-        recentChanges7d: (changesRes.data ?? []).length,
+        totalChannels: channels.length,
+        recentChanges7d: changes.length,
         changesByField,
         generatedAt: new Date().toISOString(),
       })
@@ -841,13 +861,15 @@ export function registerResources(server: McpServer): void {
       const supabase = getSupabaseServiceClient()
       const { siteId } = await buildResourceCtx()
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('youtube_videos')
         .select('id, youtube_video_id, title, published_at, view_count, ctr, impressions, avg_view_percentage, category_id, is_featured, channel_id')
         .eq('site_id', siteId)
         .eq('is_hidden', false)
         .order('published_at', { ascending: false })
         .limit(30)
+
+      if (error) throw new Error(`Failed to fetch youtube_videos: ${error.message}`)
 
       const result = jsonResource({ videos: data ?? [] })
       result.contents[0]!.uri = uri.href
@@ -871,11 +893,13 @@ export function registerResources(server: McpServer): void {
       const supabase = getSupabaseServiceClient()
       const { siteId } = await buildResourceCtx()
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('youtube_categories')
         .select('id, slug, name_pt, name_en, color, match_keywords, auto_approve, sort_order')
         .eq('site_id', siteId)
         .order('sort_order', { ascending: true })
+
+      if (error) throw new Error(`Failed to fetch youtube_categories: ${error.message}`)
 
       const result = jsonResource({ categories: data ?? [] })
       result.contents[0]!.uri = uri.href
@@ -925,12 +949,14 @@ export function registerResources(server: McpServer): void {
       const { siteId } = await buildResourceCtx()
 
       // Get latest grade per video using distinct-on pattern
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('video_grade_history')
         .select('youtube_video_id, grade, score, ctr, retention, reach, engagement, growth, sub_impact, week_iso')
         .eq('site_id', siteId)
         .order('recorded_at', { ascending: false })
         .limit(100)
+
+      if (error) throw new Error(`Failed to fetch video_grade_history: ${error.message}`)
 
       // Deduplicate: keep only latest per video
       const seen = new Set<string>()
@@ -963,12 +989,14 @@ export function registerResources(server: McpServer): void {
       const supabase = getSupabaseServiceClient()
       const { siteId } = await buildResourceCtx()
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('youtube_notes')
         .select('id, channel_id, author_name, text, is_bot, source, created_at')
         .eq('site_id', siteId)
         .order('created_at', { ascending: false })
         .limit(50)
+
+      if (error) throw new Error(`Failed to fetch youtube_notes: ${error.message}`)
 
       const result = jsonResource({ notes: data ?? [] })
       result.contents[0]!.uri = uri.href

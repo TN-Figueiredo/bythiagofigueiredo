@@ -1370,7 +1370,7 @@ async function graduateToNewsletter(
       site_id: ctx.siteId,
       subject: title,
       status: 'draft',
-      content: (item.body_content as string) || '',
+      content_mdx: (item.body_content as string) || '',
     })
     .select('id')
     .single()
@@ -1392,26 +1392,17 @@ async function graduateToCampaign(
   title: string,
   supabase: ReturnType<typeof getSupabaseServiceClient>,
 ): Promise<string> {
-  const { data: campaign, error } = await supabase
-    .from('campaigns')
-    .insert({
-      site_id: ctx.siteId,
-      name: title,
-      slug:
-        (item.code as string) ||
-        title
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '')
-          .slice(0, 200),
-      status: 'draft',
-    })
-    .select('id')
-    .single()
-  if (error) {
-    throw new PipelineServiceError('DB_ERROR', 'Failed to create campaign', 400)
-  }
-  return campaign.id
+  // `campaigns` has no `name` or `slug` (the copy lives in `campaign_translations`, which also
+  // requires the hook, the button labels and the success texts) and needs an `interest`. The
+  // insert that used to be here named columns that do not exist, so it failed every time with a
+  // generic 400. Nothing in the item carries that copy; until the owner decides how a campaign
+  // graduates, say so instead of pretending to try.
+  void ctx; void item; void title; void supabase
+  throw new PipelineServiceError(
+    'NOT_SUPPORTED',
+    'Graduating to a campaign is not supported: a campaign needs its interest and the translated copy (campaign_translations), which a pipeline item does not carry',
+    422,
+  )
 }
 
 // ---------------------------------------------------------------------------

@@ -59,7 +59,10 @@ vi.mock('@/lib/playlists/prompt-builder', () => ({
 // Mock fs for fetchDomainDocs
 // ---------------------------------------------------------------------------
 
-vi.mock('node:fs/promises', () => ({
+// prompts.ts agora importa o serviço de utilities (contexto por skill), que usa outras funções
+// de `node:fs/promises`: só `readFile` é trocado.
+vi.mock('node:fs/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:fs/promises')>()),
   readFile: vi.fn().mockResolvedValue('# Mock YouTube docs\n\nSome documentation content.'),
 }))
 

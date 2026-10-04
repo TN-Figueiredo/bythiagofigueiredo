@@ -1065,6 +1065,8 @@ export async function getAbTestFunnel(
       .not('impressions', 'is', null),
   ])
 
+  if (trackedLinksRes.error) return err('DB_ERROR', 'Failed to load A/B tracked links', 500)
+  if (cyclesRes.error) return err('DB_ERROR', 'Failed to load A/B cycles', 500)
   const trackedLinks = trackedLinksRes.data as TrackedLink[] | null
   const cycles = cyclesRes.data as CycleRow[] | null
 
@@ -1082,12 +1084,17 @@ export async function getAbTestFunnel(
   if (trackedLinks?.length) {
     const linkIds = trackedLinks.map(tl => tl.link_id).filter(Boolean)
     if (linkIds.length) {
-      const { data: clickAggs } = await supabase
-        .from('link_click_aggregates')
-        .select('link_id, total_clicks')
-        .in('link_id', linkIds)
-      for (const agg of (clickAggs ?? []) as Array<{ link_id: string; total_clicks: number | null }>) {
-        linkClicksByLinkId[agg.link_id] = agg.total_clicks ?? 0
+      // The click total of a short link is `tracked_links.total_clicks`. The
+      // `link_click_aggregates` table this read never existed, and its error was dropped, so
+      // every A/B link showed 0 clicks.
+      const { data: clickAggs, error: clicksError } = await supabase
+        .from('tracked_links')
+        .select('id, total_clicks')
+        .eq('site_id', siteId)
+        .in('id', linkIds)
+      if (clicksError) return err('DB_ERROR', 'Failed to load link click totals', 500)
+      for (const agg of (clickAggs ?? []) as Array<{ id: string; total_clicks: number | null }>) {
+        linkClicksByLinkId[agg.id] = agg.total_clicks ?? 0
       }
     }
   }

@@ -10,6 +10,8 @@ import { z } from 'zod'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { listContext } from '@/lib/pipeline/services/utilities'
+import type { ServiceContext } from '@/lib/pipeline/services/types'
 
 import {
   buildPrompt,
@@ -42,28 +44,43 @@ function userMessage(text: string) {
   }
 }
 
-/** Fetch skill-specific context references as markdown. */
+/**
+ * Fetch skill-specific context references as markdown.
+ *
+ * The documents live in `reference_content`; which keys a skill gets is the
+ * `_system/skill-mappings` entry of the same table (the read behind GET /api/pipeline/context
+ * ?skill=). The `pipeline_context` table this used to query never existed, and the swallowed
+ * error made every prompt go out without its reference context. A read error now fails the
+ * prompt; a skill with no mapped documents still gives ''.
+ */
 async function fetchSkillContext(skill: string): Promise<string> {
-  const supabase = getSupabaseServiceClient()
-  const { data } = await supabase
-    .from('pipeline_context')
-    .select('key, title, body')
-    .contains('skills', [skill])
-    .order('sort_order', { ascending: true })
-
-  if (!data || data.length === 0) return ''
-  return data
-    .map((d: { key: string; title: string; body: string }) => `## ${d.title}\n\n${d.body}`)
+  const siteId = await resolvePromptSiteId()
+  if (!siteId) return ''
+  const ctx: ServiceContext = {
+    siteId,
+    permissions: ['read'],
+    keyHash: 'prompt-reader',
+    supabase: getSupabaseServiceClient(),
+    source: 'api_key',
+  }
+  const refs = await listContext(ctx, { skill, format: 'md' })
+  return refs.data
+    .filter((d) => typeof d.content === 'string' && d.content.length > 0)
+    .map((d) => `## ${d.title}\n\n${d.content as string}`)
     .join('\n\n---\n\n')
 }
 
 /** Fetch pipeline stats summary as a compact string. */
 async function fetchStatsSummary(): Promise<string> {
+  const siteId = await resolvePromptSiteId()
+  if (!siteId) return 'Pipeline: no site found'
   const supabase = getSupabaseServiceClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('content_pipeline')
     .select('format, stage, priority')
-    .eq('archived', false)
+    .eq('site_id', siteId)
+    .eq('is_archived', false)
+  if (error) throw new Error(`Failed to read the pipeline stats: ${error.message}`)
 
   const rows = data ?? []
   const byFormat: Record<string, number> = {}
@@ -79,6 +96,9 @@ async function fetchStatsSummary(): Promise<string> {
   const stageLine = Object.entries(byStage).map(([k, v]) => `${k}: ${v}`).join(', ')
   return `Pipeline: ${rows.length} active items\nBy format: ${formatLine}\nBy stage: ${stageLine}`
 }
+
+/** Stand-in for "no analysis yet" where a builder's type wants a number (never printed). */
+const NO_SNAPSHOT_HOURS = 999
 
 const UNKNOWN_CHANNEL: AbBriefingData['channel'] = { name: 'Unknown', subscribers: 0, tier: 'nano' }
 
@@ -112,17 +132,18 @@ async function resolveChannel(
 
   let channelId = target.channelId ?? null
   if (!channelId && target.videoId) {
-    const { data: video } = await supabase
+    const { data: video, error: videoError } = await supabase
       .from('youtube_videos')
       .select('channel_id')
       .eq('id', target.videoId)
       .eq('site_id', siteId)
       .maybeSingle()
+    if (videoError) throw new Error(`Failed to read the video: ${videoError.message}`)
     channelId = (video?.channel_id as string | undefined) ?? null
     if (!channelId) return unknown
   }
 
-  const { data } = channelId
+  const { data, error: channelError } = channelId
     ? await supabase
       .from('youtube_channels')
       .select('id, name, subscriber_count')
@@ -138,6 +159,7 @@ async function resolveChannel(
       .limit(1)
       .maybeSingle()
 
+  if (channelError) throw new Error(`Failed to read the channel: ${channelError.message}`)
   if (!data) return unknown
   const subscribers = (data.subscriber_count as number | null) ?? 0
   return { id: data.id as string, info: { name: data.name as string, subscribers, tier: getChannelTier(subscribers) } }
@@ -154,7 +176,7 @@ async function fetchChannelInfo(
 async function fetchChannelAndAge(
   siteId: string | null,
   target: { videoId?: string | null; channelId?: string | null } = {},
-): Promise<{ channel: AbBriefingData['channel']; snapshotAge: number }> {
+): Promise<{ channel: AbBriefingData['channel']; snapshotAge: number | null }> {
   const { id, info } = await resolveChannel(siteId, target)
   return { channel: info, snapshotAge: await fetchSnapshotAge(siteId, id) }
 }
@@ -167,14 +189,14 @@ async function fetchChannelAndAge(
  * 20260922000001 dropping the UNIQUE that used to cap channel analyses at one row per
  * source. Without the limit this would now be a PGRST116 ("more than one row") on the second
  * weekly run. `.maybeSingle()` rather than `.single()` for the empty case: zero rows is a
- * legitimate answer here (no analysis yet -> 999h), not an error to be swallowed.
+ * legitimate answer here (no analysis yet -> null), not an error to be swallowed.
  */
-async function fetchSnapshotAge(siteId: string | null, channelId: string | null): Promise<number> {
-  // No site or no resolved channel: no analysis to age. 999 is the "none yet" answer — never
-  // the age of some other channel's (or site's) analysis.
-  if (!siteId || !channelId) return 999
+async function fetchSnapshotAge(siteId: string | null, channelId: string | null): Promise<number | null> {
+  // No site or no resolved channel: no analysis to age. null is the "none yet" answer — never
+  // the age of some other channel's (or site's) analysis, and never a made-up number of hours.
+  if (!siteId || !channelId) return null
   const supabase = getSupabaseServiceClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('youtube_intelligence')
     .select('generated_at')
     .eq('site_id', siteId)
@@ -184,7 +206,8 @@ async function fetchSnapshotAge(siteId: string | null, channelId: string | null)
     .limit(1)
     .maybeSingle()
 
-  if (!data?.generated_at) return 999
+  if (error) throw new Error(`Failed to read the intelligence snapshot: ${error.message}`)
+  if (!data?.generated_at) return null
   return Math.floor((Date.now() - new Date(data.generated_at as string).getTime()) / 3600000)
 }
 
@@ -224,6 +247,9 @@ async function fetchResearchSnapshot(): Promise<string> {
       .neq('status', 'arquivado'),
   ])
 
+  if (itemsRes.error) throw new Error(`Failed to read the research items: ${itemsRes.error.message}`)
+  if (focoRes.error) throw new Error(`Failed to read the research foco: ${focoRes.error.message}`)
+  if (decisionsRes.error) throw new Error(`Failed to read the research decisions: ${decisionsRes.error.message}`)
   const items = (itemsRes.data ?? []) as Array<{ status: string; theme_id: string | null; pinned: boolean }>
   const byStatus: Record<string, number> = {}
   const byTheme: Record<string, number> = {}
@@ -372,12 +398,15 @@ export function registerPrompts(server: McpServer): void {
       const lang = args.lang ?? 'pt'
 
       const supabase = getSupabaseServiceClient()
+      const siteId = await resolvePromptSiteId()
+      if (!siteId) throw new Error('No site found')
 
       // Fetch item
       const { data: item, error } = await supabase
         .from('content_pipeline')
         .select('id, code, format, stage, priority, language, title_pt, title_en, hook, synopsis, tags, sections, version')
         .eq('id', itemId)
+        .eq('site_id', siteId)
         .single()
 
       if (error || !item) throw new Error(`Item not found: ${itemId}`)
@@ -459,10 +488,13 @@ export function registerPrompts(server: McpServer): void {
       const itemId = args.item_id
 
       const supabase = getSupabaseServiceClient()
+      const siteId = await resolvePromptSiteId()
+      if (!siteId) throw new Error('No site found')
       const { data: item, error } = await supabase
         .from('content_pipeline')
         .select('id, code, format, stage, priority, language, title_pt, title_en, hook, synopsis, tags, production_checklist, sections, scheduled_at')
         .eq('id', itemId)
+        .eq('site_id', siteId)
         .single()
 
       if (error || !item) throw new Error(`Item not found: ${itemId}`)
@@ -586,7 +618,8 @@ export function registerPrompts(server: McpServer): void {
           grade: null,
         },
         testHistory: history,
-        snapshotAgeHours: snapshotAge,
+        // the A/B builders do not print it; they only need a number
+        snapshotAgeHours: snapshotAge ?? NO_SNAPSHOT_HOURS,
       }
 
       const promptText = buildAbBriefingPrompt({
@@ -634,12 +667,13 @@ export function registerPrompts(server: McpServer): void {
 
       // Fetch video performance. `ab_tests.youtube_video_id` holds the internal uuid
       // (youtube_videos.id), not the YouTube text id.
-      const { data: video } = await supabase
+      const { data: video, error: videoError } = await supabase
         .from('youtube_videos')
         .select('id, title, youtube_video_id, thumbnail_url, ctr, avg_view_percentage')
         .eq('id', test.youtube_video_id)
         .eq('site_id', siteId)
         .maybeSingle()
+      if (videoError) throw new Error(`Failed to read the test video: ${videoError.message}`)
 
       // Auto-inject: youtube/intelligence (channel info) — the channel of the test's video
       const { channel, snapshotAge } = await fetchChannelAndAge(siteId, { videoId: test.youtube_video_id as string | null })
@@ -674,7 +708,8 @@ export function registerPrompts(server: McpServer): void {
           grade: null,
         },
         testHistory: history,
-        snapshotAgeHours: snapshotAge,
+        // the A/B builders do not print it; they only need a number
+        snapshotAgeHours: snapshotAge ?? NO_SNAPSHOT_HOURS,
       }
 
       let promptText = buildAbWritePrompt({
@@ -846,12 +881,16 @@ export function registerPrompts(server: McpServer): void {
       })
 
       // Fetch reuse candidates (items not in this playlist)
-      const { data: candidates } = await supabase
+      const siteId = await resolvePromptSiteId()
+      if (!siteId) throw new Error('No site found')
+      const { data: candidates, error: candidatesError } = await supabase
         .from('content_pipeline')
         .select('id, title_pt, format, language, stage, tags')
-        .eq('archived', false)
+        .eq('site_id', siteId)
+        .eq('is_archived', false)
         .not('id', 'in', `(${pipelineIds.join(',')})`)
         .limit(20)
+      if (candidatesError) throw new Error(`Failed to read the reuse candidates: ${candidatesError.message}`)
 
       const reuseCandidates = (candidates ?? []).map((c: Record<string, unknown>) => ({
         id: c.id as string,
@@ -930,11 +969,14 @@ export function registerPrompts(server: McpServer): void {
       }
 
       const supabase = getSupabaseServiceClient()
+      const siteId = await resolvePromptSiteId()
+      if (!siteId) throw new Error('No site found')
 
       const { data: item, error } = await supabase
         .from('content_pipeline')
         .select('id, code, format, stage, priority, language, title_pt, title_en, hook, synopsis, sections')
         .eq('id', itemId)
+        .eq('site_id', siteId)
         .single()
 
       if (error || !item) throw new Error(`Item not found: ${itemId}`)
@@ -1012,7 +1054,9 @@ export function registerPrompts(server: McpServer): void {
       lines.push('# YouTube Channel Analyst — Complete Analysis')
       lines.push('')
       lines.push(`Channel: ${channel.name} | ${channel.subscribers.toLocaleString()} subscribers | Tier: ${channel.tier}`)
-      lines.push(`Intelligence snapshot age: ${snapshotAge}h`)
+      lines.push(snapshotAge === null
+        ? 'Intelligence snapshot: none yet for this channel (no analysis has been submitted) — run the full analysis below.'
+        : `Intelligence snapshot age: ${snapshotAge}h`)
       lines.push('')
 
       lines.push('## Step 1: Collect Channel Health')
