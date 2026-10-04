@@ -162,6 +162,7 @@ export const ChecklistToggleSchema = z.object({
   done: z.boolean(),
 })
 
+/** `campaign` stays in the enum for compatibility but is NOT supported yet: the service answers 422 NOT_SUPPORTED. */
 export const GraduateSchema = z.object({
   target: z.enum(['blog_post', 'newsletter', 'campaign', 'course']),
   data: z.record(z.unknown()).optional(),

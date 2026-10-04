@@ -16,7 +16,8 @@ import { join, resolve } from 'node:path'
 import { auditDirs, auditFile, loadSchema } from '../helpers/schema-audit'
 
 const WEB = resolve(__dirname, '../..')
-const DIRS = ['src/lib/pipeline/mcp', 'src/lib/pipeline/services']
+// src/lib/pipeline é recursivo (mcp/, services/ e os helpers soltos); as rotas REST do pipeline vêm à parte
+const DIRS = ['src/lib/pipeline', 'src/app/api/pipeline']
 
 /**
  * Exceções (curtas, cada uma com motivo). `tabela.coluna` ou `tabela`.
@@ -30,7 +31,11 @@ describe('MCP + serviços do pipeline: esquema', () => {
   const { refs } = auditDirs(WEB, DIRS)
 
   it('o extrator enxerga o código (não pode ficar cego em silêncio)', () => {
-    expect(refs.length).toBeGreaterThan(1500)
+    // arquivos-chave com consulta ao banco: cada um tem de render referências (um refactor que
+    // mude o número total não quebra; um extrator cego quebra)
+    for (const f of ['src/lib/pipeline/mcp/resources.ts', 'src/lib/pipeline/mcp/prompts.ts', 'src/lib/pipeline/services/items.ts', 'src/lib/pipeline/services/youtube.ts', 'src/lib/pipeline/services/utilities.ts']) {
+      expect(refs.filter(r => r.file === f).length, f).toBeGreaterThan(0)
+    }
     const tables = new Set(refs.filter(r => r.kind === 'from').map(r => r.table))
     for (const t of ['content_pipeline', 'ab_tests', 'competitor_changes', 'audio_assets', 'youtube_channels']) {
       expect(tables.has(t), t).toBe(true)
@@ -43,6 +48,15 @@ describe('MCP + serviços do pipeline: esquema', () => {
       .filter(r => !KNOWN_STALE_TYPES.has(r.column ? `${r.table}.${r.column}` : r.table))
       .map(r => `${r.file}:${r.line}  ${r.table}${r.column ? `.${r.column}` : ''}  (${r.kind})`)
     expect([...new Set(missing)]).toEqual([])
+  })
+
+  it('a exceção de tipos defasados ainda é necessária (some quando os tipos forem regenerados)', () => {
+    const { schema } = loadSchema(join(WEB, 'src/types/database.types.ts'))
+    for (const e of KNOWN_STALE_TYPES) {
+      const [t, c] = e.split('.') as [string, string]
+      // se a coluna já está nos tipos, a exceção virou morta: apague-a da lista
+      expect(schema.get(t)?.columns.has(c), `${e} já existe em database.types.ts: remova a exceção`).toBe(false)
+    }
   })
 
   it('o extrator pega o defeito que a guarda existe para pegar', () => {
