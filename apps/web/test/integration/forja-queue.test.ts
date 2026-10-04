@@ -26,13 +26,23 @@ describe.skipIf(skipIfNoLocalDb())('forja queue service — real Supabase', () =
     await svc.from('competitor_readings').delete().in('site_id', siteIds)
     await svc.from('youtube_intelligence_tasks').delete().in('site_id', siteIds)
     await svc.from('forja_heartbeat').delete().in('site_id', siteIds)
+    await svc.from('competitor_channels').delete().in('site_id', siteIds)
     await svc.from('youtube_channels').delete().in('site_id', siteIds)
     await svc.from('sites').delete().in('id', siteIds)
   })
 
-  async function freshSite(): Promise<string> {
+  /**
+   * A site with one competitor per built-in niche (fixture: a niche without competitors has nothing to ask, so a request
+   * for it is refused). `competitors: []` gives the bare site.
+   */
+  async function freshSite(competitors: string[] = ['ia', 'viagem']): Promise<string> {
     const { siteId } = await seedSite(svc)
     siteIds.push(siteId)
+    for (const niche of competitors) {
+      const sfx = `${Date.now()}${Math.random().toString(36).slice(2, 8)}`
+      const { error } = await svc.from('competitor_channels').insert({ site_id: siteId, channel_id: `UCcp${sfx}`.slice(0, 24), channel_name: 'Concorrente ' + niche, niche })
+      expect(error).toBeNull()
+    }
     return siteId
   }
   async function seedHeartbeat(siteId: string, caps: ObsType[], at = Date.now()) {
@@ -64,6 +74,23 @@ describe.skipIf(skipIfNoLocalDb())('forja queue service — real Supabase', () =
     expect(rows.map(r => [r.task_type, r.target_niche, r.status])).toEqual([['temas', 'ia', 'pending'], ['temas', 'viagem', 'pending']])
     const full = (await svc.from('youtube_intelligence_tasks').select('channel_id, target_fmt, requested_by').eq('site_id', siteId)).data!
     expect(full.every(r => r.channel_id === null && r.target_fmt === 'long' && r.requested_by === USER)).toBe(true)
+  })
+
+  it('1b. a niche without competitors (built-in too) is refused without any insert; Todos with none says so', async () => {
+    const siteId = await freshSite(['viagem'])
+    await seedHeartbeat(siteId, ['resumo-trocas'])
+    const one = await askReading(ctx(siteId), { type: 'resumo-trocas', scope: 'ia', userId: USER }, Date.now())
+    expect(one.data).toEqual({ ok: false, reason: 'Nenhum concorrente em IA ainda', results: [{ niche: 'ia', ok: false, reason: 'Nenhum concorrente em IA ainda' }] })
+    expect(await tasksOf(siteId)).toEqual([])
+    // Todos: only the niche that has a competitor gets a row
+    const todos = await askReading(ctx(siteId), { type: 'resumo-trocas', scope: 'todos', userId: USER }, Date.now())
+    expect(todos.data.results.map(r => [r.niche, r.ok])).toEqual([['viagem', true]])
+    expect((await tasksOf(siteId)).map(r => r.target_niche)).toEqual(['viagem'])
+    const bare = await freshSite([])
+    await seedHeartbeat(bare, ['resumo-trocas'])
+    const none = await askReading(ctx(bare), { type: 'resumo-trocas', scope: 'todos', userId: USER }, Date.now())
+    expect(none.data).toEqual({ ok: false, reason: 'Nenhum concorrente em nenhum nicho ainda', results: [] })
+    expect(await tasksOf(bare)).toEqual([])
   })
 
   it('2. a second ask of the same type and niche sends nothing ("já há um pedido de IA …")', async () => {

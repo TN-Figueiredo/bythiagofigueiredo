@@ -189,14 +189,15 @@ export async function askReading(ctx: ServiceContext, input: AskInput, now: numb
   const clock = obs.date, lastPollAt = ds.queue.lastPollAt
   const machine = machineOf(lastPollAt, clock)
   // the niche must be one of the site's (the engine's list: youtube_niches, or the two built-in when the table is absent)
-  if (scope !== 'todos' && obs.scopeOf(scope) !== scope) return err('VALIDATION_ERROR', 'scope: unknown niche for this site', 400)
+  // a refusal like the others (ok: false, the sentence in Portuguese), before any insert
+  if (scope !== 'todos' && obs.scopeOf(scope) !== scope) return ok({ ok: false, reason: 'Nada enviado: o nicho “' + scope + '” não existe neste site.', results: [] })
   const opts: SessionOpts = {
     capabilities: ds.queue.capabilities,
     eligible: n => obs.forja.eligibleChannels(n),
     videoOf: id => { const v = obs.video(id); return v ? { niche: obs.channel(v.ch)?.own ? null : v.niche, title: v.title } : undefined },
-    // the same rules as the screens' session: the site's labels and "Todos" split, no request for a niche the owner
-    // created that has no competitor yet, and no `temas` request for a niche without a theme list (nothing is inserted
-    // for a refused niche)
+    // the same rules as the screens' session: the site's labels and "Todos" split, no request for a niche without
+    // competitors (built-in or created), and no `temas` request for a niche without a theme list (nothing is inserted for
+    // a refused niche)
     niches: obs.forja.nicheCtx, askable: n => obs.forja.askable(n), hasThemes: n => obs.hasThemes(n),
   }
   const known: ReadonlySet<string> = new Set(obs.niches.map(n => n.id))

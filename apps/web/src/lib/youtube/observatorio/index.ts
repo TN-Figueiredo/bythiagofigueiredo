@@ -67,14 +67,11 @@ export interface ForjaFacade {
   readingScope(id: string, filt?: ScopeFilter | null): ReadingScope | null
   timing(type: string, niche?: Niche | 'todos' | null, o?: { count?: number } | null): Timing
   readingTypes: ReadingTypeWithTiming[]; readingTypeFor: typeof readingTypeFor; shortsNote: string
-  /**
-   * Os nichos em que um pedido "Todos" se divide, na ordem da forja: IA, Viagem (sempre, como dados.js), depois os criados
-   * pelo dono que já têm concorrente.
-   */
+  /** Os nichos em que um pedido "Todos" se divide, na ordem da forja (IA, Viagem, depois os demais): só os que têm concorrente. */
   niches: Niche[]
   /**
-   * Há o que pedir para o nicho? Os de fábrica sempre (como sempre foi); um nicho criado pelo dono só quando tem ao menos
-   * um concorrente — sem isso o botão fica desabilitado com "Nenhum concorrente em <Nicho> ainda" e nada é enviado.
+   * Há o que pedir para o nicho? Só quando ele tem ao menos um concorrente (vale para todo nicho, de fábrica ou criado):
+   * sem isso o botão fica desabilitado com "Nenhum concorrente em <Nicho> ainda" e nada é enviado.
    */
   askable(niche: Niche): boolean
   /** Os nichos do site para quem planeja um pedido fora da fachada (services/forja-queue → planAsk). */
@@ -198,8 +195,8 @@ export function createObservatory(input: Dataset, opts?: { seriesStartLabel?: st
   }
   const vid = (id: string) => { const v = V.get(id); if (!v) throw new Error('unknown video ' + id); return v }
   const hasCompetitors = (n: Niche) => ds.channels.some(c => !c.own && c.niche === n)
-  const builtin = new Set(niches.filter(n => n.builtin).map(n => n.id))
-  const askable = (n: Niche) => builtin.has(n) || hasCompetitors(n)
+  // sem concorrente a forja não tem o que ler: o pedido do nicho é recusado e ele fica fora da divisão de "Todos"
+  const askable = hasCompetitors
   const forja = createForja(ctx, ds, clock, CH, V, { defs: niches, todos: forjaOrder(niches).filter(askable) }, askable, opts?.testScenarios)
   return {
     NOW: ds.now, SERIES_START: ds.seriesStart, OBS_START: ds.obsStart, DAY: 864e5, H: 36e5,

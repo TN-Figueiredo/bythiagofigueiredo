@@ -244,6 +244,25 @@ describe('forja (botão do cabeçalho)', () => {
       expect([s, f.button.mode, f.button.disabledText, f.ask]).toEqual([s, 'disabled', 'Nenhum concorrente em Pessoal ainda', null])
     }
   })
+  it('nicho de fábrica sem concorrentes: a mesma regra (botão desabilitado, nada a pedir); em Todos ele fica fora da divisão', () => {
+    const ds = datasetFromOracle(O)
+    const ia = new Set(ds.channels.filter(c => !c.own && c.niche === 'ia').map(c => c.id))
+    const o = createObservatory({ ...ds, channels: ds.channels.filter(c => !ia.has(c.id)), videos: ds.videos.filter(v => !ia.has(v.ch)), readings: [], requests: [] })
+    const f = buildForjaView(o, { screen: 'insights', niche: 'ia' })
+    expect([f.button.mode, f.button.disabledText, f.ask]).toEqual(['disabled', 'Nenhum concorrente em IA ainda', null])
+    const t = buildForjaView(o, { screen: 'canais', niche: 'todos' })
+    expect(t.niches.map(b => b.niche)).toEqual(['viagem'])
+    expect(t.ask).toEqual({ scope: 'todos', niches: ['viagem'] })
+    // o herói de Insights diz o que falta em vez de convidar a pedir
+    expect(buildInsightsView(o, { niche: 'ia' }).hero!.box).toMatchObject({ paras: ['Nenhum concorrente em IA ainda: sem referência para comparar.'], link: { text: 'Definir nicho dos concorrentes' } })
+  })
+  it('site sem concorrente nenhum: o pedido de Todos também fica desabilitado, com a frase', () => {
+    const ds = datasetFromOracle(O)
+    const comp = new Set(ds.channels.filter(c => !c.own).map(c => c.id))
+    const o = createObservatory({ ...ds, channels: ds.channels.filter(c => !comp.has(c.id)), videos: ds.videos.filter(v => !comp.has(v.ch)), readings: [], requests: [] })
+    const t = buildForjaView(o, { screen: 'canais', niche: 'todos' })
+    expect([t.button.mode, t.button.disabledText, t.ask]).toEqual(['disabled', 'Nenhum concorrente em nenhum nicho ainda', null])
+  })
   it('com os dois de fábrica nada muda: IA e Viagem, botão livre', () => {
     const f = buildForjaView(obs2, { screen: 'canais', niche: 'todos' })
     expect(f.niches.map(b => b.niche)).toEqual(['ia', 'viagem'])

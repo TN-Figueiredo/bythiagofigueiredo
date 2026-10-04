@@ -371,11 +371,12 @@ describe('askReading — the unique-index race', () => {
     expect(res.data.results).toHaveLength(1)
     expect(res.data.reason).toMatch(/^Nada enviado: já há um pedido de IA na fila · pedido \d\d:\d\d/)
   })
-  it('validates the niche: only its form is a 400 before any read; an unknown niche is a 400 after the engine is loaded, and nothing is written', async () => {
+  it('validates the niche: its form is a 400 before any read; a niche the site does not have is refused in Portuguese after the engine is loaded, and nothing is written', async () => {
     const f = fakeClient(() => ({ data: [], error: null }))
     await expect(askReading(ctxOf(f.client), { type: 'temas', scope: 'Não Vale', userId: USER }, OBS_NOW)).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 400 })
     expect(f.queries).toHaveLength(0)
-    await expect(askReading(ctxOf(f.client), { type: 'resumo-trocas', scope: 'sumiu', userId: USER }, OBS_NOW)).rejects.toMatchObject({ code: 'VALIDATION_ERROR', status: 400 })
+    const res = await askReading(ctxOf(f.client), { type: 'resumo-trocas', scope: 'sumiu', userId: USER }, OBS_NOW)
+    expect(res.data).toEqual({ ok: false, reason: 'Nada enviado: o nicho “sumiu” não existe neste site.', results: [] })
     expect(f.queries.some(q => first(q) === 'insert')).toBe(false)
   })
   it('validates the input: leitura-video needs a videoId; userId is a uuid', async () => {

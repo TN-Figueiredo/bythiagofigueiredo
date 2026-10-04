@@ -66,13 +66,11 @@ describe('askForjaReading', () => {
     expect(calls.order).toEqual([])
     expect(calls.ask).toEqual([])
   })
-  it('a well-formed niche the site does not have: the guard runs, the queue refuses it (400) and the user is told', async () => {
-    const { PipelineServiceError } = await import('@/lib/pipeline/services/types')
-    const calls = setup({ askThrows: new PipelineServiceError('VALIDATION_ERROR', 'scope: unknown niche for this site', 400) })
-    const r = await (await actions()).askForjaReading('resumo-trocas', 'sumiu')
-    expect(r).toEqual({ ok: false, reason: 'Pedido inválido: scope: unknown niche for this site', results: [] })
+  it('a well-formed niche the site does not have: the guard runs and the queue decides (its refusal is in forja-queue.test)', async () => {
+    const calls = setup()
+    await (await actions()).askForjaReading('resumo-trocas', 'sumiu')
     expect(calls.order[0]).toContain('guard:')
-    expect(calls.sentry).toEqual([])
+    expect(calls.ask).toEqual([{ type: 'resumo-trocas', scope: 'sumiu', userId: UID }])
   })
   it('a niche the owner created passes the form check and reaches the queue with its slug', async () => {
     const calls = setup()

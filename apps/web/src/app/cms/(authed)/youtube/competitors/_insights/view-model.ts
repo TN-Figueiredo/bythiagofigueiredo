@@ -710,10 +710,10 @@ function heroOf(obs: Observatory, f: ForjaView, niche: Niche, fmt: VideoFmt): In
   const out = (f.niches[0]?.out ?? []).filter(o => !visibleSince.includes(o.split(' fica fora')[0]!))
   const stillNone = !rd && r ? 'Ainda não há leitura publicada dos ' + FL + ' de ' + NL + '; ela aparece aqui quando este pedido terminar.' : null
   let box: InsightsHero['box'] = null, publishedNote: string | null = null
-  const noRef = !rd && !r && !obs.forja.askable(niche) ? noRefOf(obs, niche) : null
+  const noRef = !rd && !r ? noRefOf(obs, niche) : null
   if (noRef) {
-    // mockup multi-canal (04/10): a niche the owner created and that has no competitor yet has nothing for the forja to
-    // read; the box says what is missing (the built-in pair keeps the box it has always had)
+    // mockup multi-canal (04/10): a niche without competitors has nothing for the forja to read; the box says what is
+    // missing (the same sentence and link as R78) instead of inviting a request
     box = { title: 'Ainda não há leitura dos ' + FL + ' de ' + NL, steps: false, stillNone: null, paras: [noRef.text], link: noRef.link }
   } else if (!rd && !r) {
     box = { title: 'Ainda não há leitura dos ' + FL + ' de ' + NL, steps: false, stillNone: null,

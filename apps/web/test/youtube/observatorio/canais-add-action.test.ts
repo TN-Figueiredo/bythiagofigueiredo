@@ -20,7 +20,7 @@ type NicheRow = { slug: string; label: string; color_dark: string; color_light: 
 const BUILTIN_ROWS: NicheRow[] = [{ slug: 'viagem', label: 'Viagem', color_dark: '#5BBF8A', color_light: '#11692F', sort_order: 10 }, { slug: 'ia', label: 'IA', color_dark: '#6EA8FE', color_light: '#1D4ED8', sort_order: 20 }]
 const JOGOS: NicheRow = { slug: 'jogos', label: 'Jogos', color_dark: '#D29AE8', color_light: '#7B2A91', sort_order: 100 }
 /** `niches`: the site's youtube_niches rows; 'missing' = the table is not in this database yet (42P01). Default: the two built-in. */
-interface Db { own: Array<{ id: string; channel_id: string }> | null; existing: unknown; inserted: unknown[]; deleted?: unknown[] | null; niches?: NicheRow[] | 'missing' }
+interface Db { own: Array<{ id: string; channel_id: string }> | null; existing: unknown; inserted: unknown[]; deleted?: unknown[] | null; niches?: NicheRow[] | 'missing' | 'broken' }
 function setup(db: Db, slots = { used: 14, limit: 75, free: 61 }, auth: { ok: boolean; reason?: string; user?: { id: string } } = { ok: true, user: { id: 'u1' } }) {
   vi.resetModules()
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
@@ -32,7 +32,7 @@ function setup(db: Db, slots = { used: 14, limit: 75, free: 61 }, auth: { ok: bo
   vi.doMock('@/lib/supabase/service', () => ({
     getSupabaseServiceClient: () => ({
       from: (t: string) => t === 'youtube_channels' ? { select: () => ({ eq: async () => ({ data: db.own }) }) } : t === 'youtube_niches' ? { select: () => {
-        const res = db.niches === 'missing' ? { data: null, error: { code: '42P01', message: 'relation does not exist' } } : { data: db.niches ?? BUILTIN_ROWS, error: null }
+        const res = db.niches === 'missing' ? { data: null, error: { code: '42P01', message: 'relation does not exist' } } : db.niches === 'broken' ? { data: null, error: { code: '57014', message: 'timeout' } } : { data: db.niches ?? BUILTIN_ROWS, error: null }
         const q = { eq: () => q, order: () => q, then: (ok: (r: typeof res) => unknown) => Promise.resolve(res).then(ok) }
         return q
       } } : {
@@ -119,6 +119,12 @@ describe('addCompetitorChannel', () => {
     expect((await add(UC, 'ia', 50)).ok).toBe(true)
     expect(await add(UC, 'jogos', 50)).toEqual({ ok: false, error: 'Nicho inválido.' })
     expect(db.inserted).toEqual([{ site_id: 's1', channel_id: UC, channel_name: UC, niche: 'ia', video_limit: 50 }])
+  })
+  it('the niches read fails: the niche cannot be checked — said as such (never "Nicho inválido."), nothing inserted', async () => {
+    const db: Db = { own: null, existing: null, inserted: [], niches: 'broken' }
+    setup(db)
+    expect(await (await load())(UC, 'ia', 50)).toEqual({ ok: false, error: 'Não deu para conferir o nicho agora. Tente de novo em alguns minutos.' })
+    expect(db.inserted).toEqual([])
   })
   it('a duplicate in a created niche says its label', async () => {
     setup({ own: null, existing: { id: 'c1', niche: 'jogos', channel_name: 'Canal J' }, inserted: [], niches: [...BUILTIN_ROWS, JOGOS] })

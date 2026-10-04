@@ -38,7 +38,7 @@ export interface SessionOpts {
   /** Os nichos do site (rótulos, e a lista em que "Todos" se divide). Ausente = os dois de fábrica. */
   niches?: NicheCtx
   /**
-   * Há o que pedir para o nicho? Um nicho criado pelo dono e ainda sem concorrente não tem (o pedido é recusado com
+   * Há o que pedir para o nicho? Um nicho sem concorrente não tem (o pedido é recusado com
    * "Nenhum concorrente em <Nicho> ainda" e fica fora de "Todos"). Ausente = todo nicho pode ser pedido.
    */
   askable?: (niche: Niche) => boolean

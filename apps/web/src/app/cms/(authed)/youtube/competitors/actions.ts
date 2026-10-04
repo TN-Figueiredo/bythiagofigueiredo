@@ -55,8 +55,10 @@ export async function addCompetitorChannel(
   try { siteId = await requireEditAccess() } catch { return { ok: false, error: 'forbidden' } }
 
   const supabase = getSupabaseServiceClient()
-  // the site's niches (table absent → the two built-in). A read error refuses a niche (never "any niche goes"); the labels fall back to the built-in ones.
+  // the site's niches (table absent → the two built-in). A read error is not "invalid niche": the niche could not be
+  // checked, and nothing is added (never "any niche goes"); without a niche to check, the labels fall back to the built-in ones.
   const defs: NicheDef[] | null = await readNicheDefs(supabase, siteId).catch(() => null)
+  if (niche !== undefined && !defs) return { ok: false, error: 'Não deu para conferir o nicho agora. Tente de novo em alguns minutos.' }
   if (niche !== undefined && !defs?.some(d => d.id === niche)) return { ok: false, error: 'Nicho inválido.' }
 
   const apiKey = process.env.YOUTUBE_API_KEY

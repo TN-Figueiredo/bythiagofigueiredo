@@ -20,7 +20,7 @@ import type { Fmt, Niche } from '@/lib/youtube/observatorio/types'
 const FORBIDDEN = 'Sem permissão para pedir leituras à forja neste site.'
 const QUEUE_DOWN = 'A fila da forja não respondeu. Tente de novo em alguns minutos.'
 // Only the FORM here (before the guard, no read). Whether the niche exists in the site is checked against the engine:
-// askReading loads it and refuses an unknown niche; a cancel of an unknown niche matches no row.
+// askReading loads it and refuses an unknown niche ("Nada enviado: o nicho … não existe neste site."); a cancel of an unknown niche matches no row.
 const isNiche = (n: unknown): n is Niche => isNicheSlug(n)
 const isScope = (n: unknown): n is NicheScope => typeof n === 'string' && parseNiche(n) != null
 

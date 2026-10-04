@@ -274,11 +274,11 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
   // an own channel's video is never read by the forja (its id is not a competitor_videos id): no niche, nothing to ask
   const vidNiche: Niche | null = video && !obs.channel(video.ch)?.own ? video.niche : null
   const scopeNiche: NicheScope = isVid ? (vidNiche ?? o.niche) : o.niche
-  // Todos: the niches a "Todos" request splits into (the forja's order; a niche the owner created has nothing to read until it has a competitor)
+  // Todos: the niches a "Todos" request splits into (the forja's order; a niche without competitors has nothing to read and stays out)
   const scopeNiches: Niche[] = isVid ? (vidNiche ? [vidNiche] : []) : scopeNiche === 'todos' ? obs.forja.niches : [scopeNiche]
   const NL = (n: Niche) => obs.nicheLabel(n)
-  // a niche the owner created and that has no competitor yet has nothing to ask (multi-canal mockup, answer 7): the button
-  // is disabled and says so. The built-in pair is always askable, as it has always been.
+  // a niche without competitors has nothing to ask (multi-canal mockup, answer 7; any niche, built-in or created): the
+  // button is disabled and says so. Todos with no niche left is disabled too.
   const noComp = isVid ? null : scopeNiche === 'todos' ? (scopeNiches.length ? null : NO_COMPETITORS_ANY) : obs.forja.askable(scopeNiche) ? null : noCompetitorsText(NL(scopeNiche))
   const capabilities = obs.forja.queue.capabilities
   const capable = capabilities.includes(type)
