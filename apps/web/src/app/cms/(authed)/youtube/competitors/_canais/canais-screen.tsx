@@ -3,21 +3,27 @@
  * Canais screen of the Observatório (port of canais.html). Rendered inside the chrome (its [data-obs] tokens and
  * toasts). Everything shown comes from the view model; URL state (fmt, scale, layout, sort, filter, add, channel,
  * nicheEditor) goes through router.replace and the server re-renders the view. Server actions arrive as props.
+ *
+ * Every one of those navigations runs inside a transition with an optimistic overlay (`opt`), so the click answers at
+ * once: the drawer opens as a shell of the clicked row, the pressed option of Formato/Escala flips, Tabela/Cards swaps
+ * (same data), the add form opens; what only the server can say (numbers, order) keeps the previous content marked
+ * aria-busy until it arrives. The overlay is dropped by React when the navigation ends, so it can never outlive it.
  */
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useSyncExternalStore, useTransition, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import type { CanaisRow, CanaisSort, CanaisView } from './view-model'
 import { useToast } from '../_chrome/toasts'
 import { useChromeSync } from '../_chrome/sync-context'
 import { ChannelTable, type RowHandlers } from './channel-table'
 import { ChannelCards } from './channel-cards'
-import { ChannelDrawer } from './channel-drawer'
+import { ChannelDrawer, type DrawerShell } from './channel-drawer'
 import { DrawerForjaBox, DrawerForjaFoot } from './drawer-forja'
 import type { ForjaAsk } from '../_chrome/forja-view-model'
 import { AddChannelForm, type AddFn } from './add-channel-form'
-import { NicheEditorDialog } from './niche-editor'
+import { RowMenu, rowMenuButton } from './row-menu'
+import { NicheEditorDialog, NichePendingContext, type NichePending } from './niche-editor'
 import { Ic, Tip, type LocalSync } from './cells'
 import './canais.css'
 
@@ -45,6 +51,11 @@ function useWide(): boolean {
     () => true,
   )
 }
+/**
+ * What the screen shows ahead of the server while a navigation is in flight. `channel`: the drawer asked for (null:
+ * closed). `busy`: the list's numbers or order are about to change (the list is marked aria-busy, never rewritten).
+ */
+interface Optimistic { channel?: string | null; fmt?: CanaisView['fmt']; scale?: CanaisView['scale']; layout?: CanaisView['layout']; add?: boolean; sort?: CanaisSort; dir?: CanaisView['dir']; busy?: boolean }
 const FOCUSABLE = 'button:not([disabled]),a[href],select,input,textarea,[tabindex="0"]'
 /** Tab / Shift+Tab stay inside the dialog (canais.html trapEl). */
 function trapTab(e: KeyboardEvent<HTMLElement>) {
@@ -65,11 +76,12 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const [closedDrawer, setClosedDrawer] = useState<string | null>(null)
   const [addClosed, setAddClosed] = useState(false)
   const [nicheClosed, setNicheClosed] = useState(false)
-  const [menu, setMenu] = useState<null | { id: string; top: number; left: number }>(null)
+  /** The channel whose ⋯ menu is open. Only the id: the menu measures its button itself (row-menu.tsx). */
+  const [menu, setMenu] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<null | { id: string; name: string }>(null)
   const [local, setLocal] = useState<Record<string, LocalSync>>({})
-  const menuTrigger = useRef<HTMLElement | null>(null), returnFocus = useRef<HTMLElement | null>(null)
-  const closeRef = useRef<HTMLButtonElement | null>(null), menuRef = useRef<HTMLDivElement>(null)
+  const returnFocus = useRef<HTMLElement | null>(null)
+  const closeRef = useRef<HTMLButtonElement | null>(null)
 
   const urlWith = useCallback((set: Record<string, string | null>) => {
     const u = new URLSearchParams(search?.toString() ?? '')
@@ -77,7 +89,20 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     const s = u.toString()
     return pathname + (s ? '?' + s : '')
   }, [pathname, search])
-  const go = useCallback((set: Record<string, string | null>) => router.replace(urlWith(set), { scroll: false }), [router, urlWith])
+  const [navPending, startNav] = useTransition()
+  const [opt, addOpt] = useOptimistic<Optimistic, Optimistic>({}, (cur, x) => ({ ...cur, ...x }))
+  /** A navigation of this screen: the optimistic overlay goes up in the same transition and comes down when it ends. */
+  const nav = useCallback((mode: 'replace' | 'push', url: string, o?: Optimistic) => startNav(() => {
+    if (o) addOpt(o)
+    return router[mode](url, { scroll: false })
+  }), [router, addOpt])
+  const go = useCallback((set: Record<string, string | null>, o?: Optimistic) => nav('replace', urlWith(set), o), [nav, urlWith])
+  /** A same-page <Link>: a plain click navigates inside the transition; a modified click (new tab) is the browser's. */
+  const linkNav = (e: ReactMouseEvent<HTMLAnchorElement>, href: string, o?: Optimistic) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    e.preventDefault()
+    nav('push', href, o)
+  }
 
   // The server opened a new drawer / form: forget the local "closed" marks.
   const drawerId = view.drawer?.id ?? null
@@ -85,29 +110,37 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   if (seenDrawer !== drawerId) { setSeenDrawer(drawerId); setClosedDrawer(null) }
   const [seenAdd, setSeenAdd] = useState(view.addOpen)
   if (seenAdd !== view.addOpen) { setSeenAdd(view.addOpen); setAddClosed(false) }
-  const drawer = view.drawer && closedDrawer !== view.drawer.id ? view.drawer : null
-  const addOpen = view.addOpen && !addClosed
+  // own.rows too: under "só canais com problema" view.rows leaves the own channels out, and they are still on screen
+  const rowOf = useCallback((id: string) => view.rows.find(r => r.id === id) ?? view.own.rows.find(r => r.id === id) ?? view.groups.flatMap(g => g.rows).find(r => r.id === id) ?? null, [view])
+  const drawer = view.drawer && closedDrawer !== view.drawer.id && (opt.channel === undefined || opt.channel === view.drawer.id) ? view.drawer : null
+  /** The drawer asked for and not yet sent by the server: its head comes from the row that was clicked. */
+  const shellRow = opt.channel && !drawer && closedDrawer !== opt.channel ? rowOf(opt.channel) : null
+  const shell: DrawerShell | null = shellRow
+  const panel = drawer ?? shell
+  const layout = opt.layout ?? view.layout
+  const listBusy = (navPending && opt.busy) || undefined
+  const addOpen = (opt.add ?? view.addOpen) && !addClosed
   const nicheOpen = view.nicheEditorOpen && !nicheClosed
-  const drawerModal = !!drawer && !wide
+  const drawerModal = !!panel && !wide
   const anyModal = addOpen || nicheOpen || !!confirm || drawerModal
 
   // Focus the drawer's close button when it opens (canais.html openDrawer).
-  useEffect(() => { if (drawer) closeRef.current?.focus() }, [drawer?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (panel) closeRef.current?.focus() }, [panel?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const rowButton = (id: string) => document.querySelector<HTMLElement>(`[data-obs-screen="canais"] .nmbtn[data-open="${CSS.escape(id)}"]`)
-  const openDrawer = (id: string) => { returnFocus.current = rowButton(id); setMenu(null); go({ channel: id, tab: null }) }
+  const openDrawer = (id: string) => { returnFocus.current = rowButton(id); setMenu(null); setClosedDrawer(null); go({ channel: id, tab: null }, { channel: id }) }
   const closeDrawer = useCallback(() => {
-    if (!drawer) return
-    const id = drawer.id
+    if (!panel) return
+    const id = panel.id
     setClosedDrawer(id)
-    go({ channel: null, tab: null })
+    go({ channel: null, tab: null }, { channel: null })
     const t = returnFocus.current && returnFocus.current.isConnected ? returnFocus.current : rowButton(id)
     requestAnimationFrame(() => (t ?? rowButton(id))?.focus())
     t?.focus()
-  }, [drawer, go])
-  const closeAdd = () => { setAddClosed(true); go({ add: null }) }
+  }, [panel, go])
+  const closeAdd = () => { setAddClosed(true); go({ add: null }, { add: false }) }
   const closeNiche = () => { setNicheClosed(true); go({ nicheEditor: null }) }
-  const closeMenu = (focus: boolean) => { setMenu(null); if (focus) menuTrigger.current?.focus() }
+  const closeMenu = (focus: boolean) => { const id = menu; setMenu(null); if (focus && id) rowMenuButton(id)?.focus() }
   const closeConfirm = () => { setConfirm(null); returnFocus.current?.focus() }
 
   // Esc closes the topmost layer (canais.html keydown).
@@ -118,7 +151,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
       if (confirm) { closeConfirm(); return }
       if (addOpen) { closeAdd(); return }
       if (nicheOpen) { closeNiche(); return }
-      if (drawer) closeDrawer()
+      if (panel) closeDrawer()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -126,26 +159,39 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   // Click outside closes the row menu.
   useEffect(() => {
     if (!menu) return
-    const onDown = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node) && !(e.target as HTMLElement).closest('[data-menu]')) setMenu(null) }
+    const onDown = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('[role="menu"],[data-menu]')) setMenu(null) }
     document.addEventListener('mousedown', onDown)
-    menuRef.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus()
     return () => document.removeEventListener('mousedown', onDown)
   }, [menu])
-
-  const rowOf = useCallback((id: string) => view.rows.find(r => r.id === id) ?? view.groups.flatMap(g => g.rows).find(r => r.id === id) ?? null, [view])
 
   // The server said the channel of ?channel= is in another niche than the explicit filter: drop it from the URL.
   useEffect(() => { if (view.drawerDropped) go({ channel: null, tab: null }) }, [view.drawerDropped]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Optimistic niche: per channel id, shown by every NicheSelect at once. It is dropped when the action fails, or (once the
+  // action succeeded) when the server sends new data. nicheSeq makes the last pick of a channel win over late answers.
+  const [pending, setPending] = useState<NichePending>({})
+  const nicheSeq = useRef<Record<string, number>>({})
+  const [seenView, setSeenView] = useState(view)
+  if (seenView !== view) {
+    setSeenView(view)
+    if (Object.values(pending).some(p => !p.busy)) setPending(cur => Object.fromEntries(Object.entries(cur).filter(([, p]) => p.busy)))
+  }
   const setNiche = async (r: { id: string; name: string; own: boolean; niche: Niche | null }, n: Niche, ctx: string) => {
+    const seq = (nicheSeq.current[r.id] ?? 0) + 1
+    nicheSeq.current[r.id] = seq
+    setPending(cur => ({ ...cur, [r.id]: { niche: n, busy: true } }))
     let ok = false
     try { ok = (await (r.own ? onSetOwnNiche : onSetNiche)(r.id, n)).ok } catch { ok = false }
+    if (nicheSeq.current[r.id] === seq) {
+      if (ok) setPending(cur => ({ ...cur, [r.id]: { niche: n, busy: false } }))
+      else setPending(cur => Object.fromEntries(Object.entries(cur).filter(([id]) => id !== r.id)))
+    }
     if (!ok) { toast('bad', 'Não deu para mudar o nicho', r.niche ? `${r.name} continua no nicho anterior.` : `${r.name} continua sem nicho.`); return }
     const NLn = n === 'ia' ? 'IA' : 'Viagem'
     const left = view.niche !== 'todos' && view.niche !== n
     toast('ok', r.own ? `Nicho de ${r.name} definido como ${NLn}` : `Nicho de ${r.name} alterado para ${NLn}`, left ? `Ele saiu do filtro ${view.nicheLabel}.` : '')
     // the channel left the filter and its drawer is the open one: close it
-    if (left && drawer?.id === r.id) { setClosedDrawer(r.id); go({ channel: null, tab: null }) }
+    if (left && panel?.id === r.id) { setClosedDrawer(r.id); go({ channel: null, tab: null }, { channel: null }) }
     router.refresh()
     // canais.html: the focus goes back to the select that changed. A channel that left the filter loses its row (and
     // its drawer) on the refresh, so the focus goes to the first row that stays; the editor dialog lists every niche.
@@ -169,7 +215,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     router.refresh()
   }
   const askRemove = (id: string, from: HTMLElement | null) => {
-    const r = rowOf(id) ?? (drawer?.id === id ? { name: drawer.name } : null); if (!r) return
+    const r = rowOf(id) ?? (panel?.id === id ? { name: panel.name } : null); if (!r) return
     returnFocus.current = from ?? document.activeElement as HTMLElement | null
     setMenu(null); setConfirm({ id, name: r.name })
   }
@@ -180,7 +226,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     const res = await onRemove(id)
     if (!res.ok) { toast('bad', 'Não deu para remover o canal', `${name} continua no observatório.`); return }
     toast('ok', `${name} removido`, 'O canal saiu do observatório e os dados coletados dele foram apagados.')
-    if (drawer?.id === id) { setClosedDrawer(id); go({ channel: null, tab: null }) }
+    if (panel?.id === id) { setClosedDrawer(id); go({ channel: null, tab: null }, { channel: null }) }
     router.refresh()
   }
   const unlock = async () => {
@@ -203,37 +249,35 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const groups = useMemo(() => view.groups.map(g => ({ ...g, rows: g.rows.filter(r => r.name.toLowerCase().includes(ql)) })).filter(g => g.rows.length), [view.groups, ql])
   const empty = ql
     ? <>Nenhum canal com “{q}”{view.niche !== 'todos' ? ` em ${view.nicheLabel}` : ''}{view.filter === 'problemas' ? ' entre os que têm problema' : ''}. Para acompanhar um canal novo, use Adicionar canal.</>
-    : view.filter === 'problemas' ? <>{view.emptyText} <Link className="btn small link" href={view.problems.clearHref}>Mostrar todos</Link></> : view.emptyLink ? <>{view.emptyText.slice(0, view.emptyText.lastIndexOf(view.emptyLink.text))}<Link className="inl" href={view.emptyLink.href}>{view.emptyLink.text}</Link>.</> : <>{view.emptyText}</>
+    : view.filter === 'problemas' ? <>{view.emptyText} <Link className="btn small link" href={view.problems.clearHref} onClick={e => linkNav(e, view.problems.clearHref, { busy: true })}>Mostrar todos</Link></> : view.emptyLink ? <>{view.emptyText.slice(0, view.emptyText.lastIndexOf(view.emptyLink.text))}<Link className="inl" href={view.emptyLink.href}>{view.emptyLink.text}</Link>.</> : <>{view.emptyText}</>
 
   const h: RowHandlers = {
     open: openDrawer, niche: (r, n, ctx) => { void setNiche(r, n, ctx) },
-    menu: (id, btn) => {
-      if (menu?.id === id) { closeMenu(true); return }
-      menuTrigger.current = btn
-      const rc = btn.getBoundingClientRect()
-      setMenu({ id, top: Math.min(rc.bottom + 4, (typeof window !== 'undefined' ? window.innerHeight : 800) - 260), left: Math.max(8, rc.right - 230) })
-    },
-    retry: id => { void syncOne(id) }, remove: askRemove, local: id => local[id], roundRunning: running, upnextHref: UPNEXT, menuFor: menu?.id ?? null, selected: drawer?.id ?? null,
+    menu: id => { if (menu === id) closeMenu(true); else setMenu(id) },
+    retry: id => { void syncOne(id) }, remove: askRemove, local: id => local[id], roundRunning: running, upnextHref: UPNEXT, menuFor: menu, selected: panel?.id ?? null,
   }
-  const onSort = (k: CanaisSort) => go({ sort: k === 'active' && view.sort !== 'active' ? null : k, dir: view.sort === k ? (view.dir === 'desc' ? 'asc' : null) : null })
-  const seg = (key: 'fmt' | 'scale' | 'layout', val: string, dflt: string) => go({ [key]: val === dflt ? null : val })
+  // The order asked for last, even if the server has not answered it yet: a second click on the same header flips it.
+  const sort = opt.sort ?? view.sort, dir = opt.sort ? (opt.dir ?? 'desc') : view.dir
+  const onSort = (k: CanaisSort) => {
+    const asc = sort === k && dir === 'desc'
+    go({ sort: k === 'active' && sort !== 'active' ? null : k, dir: asc ? 'asc' : null }, { sort: k, dir: asc ? 'asc' : 'desc', busy: true })
+  }
+  const onCardSort = (k: CanaisSort) => go({ sort: k === 'active' ? null : k, dir: null }, { sort: k, dir: 'desc', busy: true })
+  // Tabela/Cards draws the same rows another way: it swaps at once. Formato and Escala change numbers only the server has.
+  const fmt = opt.fmt ?? view.fmt, scale = opt.scale ?? view.scale
+  const pickFmt = (v: CanaisView['fmt']) => go({ fmt: v === 'long' ? null : v }, { fmt: v, busy: true })
+  const pickScale = (v: CanaisView['scale']) => go({ scale: v === 'per-mil' ? null : v }, { scale: v, busy: true })
+  const pickLayout = (v: CanaisView['layout']) => go({ layout: v === 'table' ? null : v }, { layout: v })
 
-  const menuRow = menu ? rowOf(menu.id) : null
-  const onMenuKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    const items = [...e.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled])')]
-    const i = items.indexOf(document.activeElement as HTMLElement)
-    if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus() }
-    if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus() }
-    if (e.key === 'Home') { e.preventDefault(); items[0]?.focus() }
-    if (e.key === 'End') { e.preventDefault(); items[items.length - 1]?.focus() }
-    if (e.key === 'Tab') closeMenu(false)
-  }
+  const menuRow = menu ? rowOf(menu) : null
 
   const s = view.slots, full = s.free === 0
   return (
-    <div data-obs-screen="canais" className={drawer ? 'drawer-open' : undefined}>
+    <NichePendingContext.Provider value={pending}>
+    <div data-obs-screen="canais" className={panel ? 'drawer-open' : undefined} data-nav-pending={navPending ? '' : undefined}>
+      {navPending ? <div className="cn-navbar" aria-hidden="true"><i /></div> : null}
       <div className="cn-page">
-        <div className={'wrap' + (view.layout === 'cards' ? ' view-cards' : '')} inert={anyModal || undefined}>
+        <div className={'wrap' + (layout === 'cards' ? ' view-cards' : '')} inert={anyModal || undefined}>
           <div className={'syncbar' + (running ? ' on' : '')} role="status" aria-live="polite" data-k="syncbar">
             {running ? (
               <>
@@ -252,19 +296,19 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               <input name="q" type="search" placeholder="Buscar canal" aria-label="Buscar canal" value={q} onChange={e => setQ(e.target.value)} />
             </div>
             <div className="seg" role="group" aria-label="Formato">
-              <button type="button" aria-pressed={view.fmt === 'long'} onClick={() => seg('fmt', 'long', 'long')}>Longos</button>
-              <button type="button" aria-pressed={view.fmt === 'short'} onClick={() => seg('fmt', 'short', 'long')}>Shorts</button>
+              <button type="button" aria-pressed={fmt === 'long'} onClick={() => pickFmt('long')}>Longos</button>
+              <button type="button" aria-pressed={fmt === 'short'} onClick={() => pickFmt('short')}>Shorts</button>
             </div>
             <div className="seg" role="group" aria-label="Escala de views/dia">
-              <button type="button" aria-pressed={view.scale === 'abs'} onClick={() => seg('scale', 'abs', 'per-mil')}>Absoluto</button>
-              <button type="button" aria-pressed={view.scale === 'per-mil'} onClick={() => seg('scale', 'per-mil', 'per-mil')}>Por mil inscritos</button>
+              <button type="button" aria-pressed={scale === 'abs'} onClick={() => pickScale('abs')}>Absoluto</button>
+              <button type="button" aria-pressed={scale === 'per-mil'} onClick={() => pickScale('per-mil')}>Por mil inscritos</button>
             </div>
             <div className="seg" role="group" aria-label="Visualização">
-              <button type="button" aria-pressed={view.layout === 'table'} onClick={() => seg('layout', 'table', 'table')}>Tabela</button>
-              <button type="button" aria-pressed={view.layout === 'cards'} onClick={() => seg('layout', 'cards', 'table')}>Cards</button>
+              <button type="button" aria-pressed={layout === 'table'} onClick={() => pickLayout('table')}>Tabela</button>
+              <button type="button" aria-pressed={layout === 'cards'} onClick={() => pickLayout('cards')}>Cards</button>
             </div>
             <label className="cardsort"><span className="sr">Ordenar cards por</span>
-              <select className="sel" name="cardSort" value={view.sort} onChange={e => go({ sort: e.target.value === 'active' ? null : e.target.value, dir: null })}>
+              <select className="sel" name="cardSort" value={sort} onChange={e => onCardSort(e.target.value as CanaisSort)}>
                 <option value="active">Ritmo</option><option value="vpd">Views/dia</option><option value="outliers">Outliers</option><option value="swaps">Trocas</option><option value="growth">Crescimento</option>
               </select>
             </label>
@@ -273,8 +317,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
             <span className="sortnote" aria-live="polite">{view.sortNote}</span>
             <span>
               {view.filter === 'problemas'
-                ? <span className="chip">Só canais com problema ({view.problems.n}) <Link className="btn small link" href={view.problems.clearHref}>Mostrar todos</Link></span>
-                : view.problems.n ? <Link className="btn small link" href={view.problems.filterHref}>Ver só canais com problema ({view.problems.n})</Link> : null}
+                ? <span className="chip">Só canais com problema ({view.problems.n}) <Link className="btn small link" href={view.problems.clearHref} onClick={e => linkNav(e, view.problems.clearHref, { busy: true })}>Mostrar todos</Link></span>
+                : view.problems.n ? <Link className="btn small link" href={view.problems.filterHref} onClick={e => linkNav(e, view.problems.filterHref, { busy: true })}>Ver só canais com problema ({view.problems.n})</Link> : null}
             </span>
             <span className="spacer" />
             <span className="quota">
@@ -289,13 +333,13 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
                 <Ic n="plus" />Adicionar canal
               </a>
             ) : (
-              <Link className="btn primary btn-primary" href={urlWith({ add: '1' })} scroll={false} onClick={() => setAddClosed(false)}><Ic n="plus" />Adicionar canal</Link>
+              <Link className="btn primary btn-primary" href={urlWith({ add: '1' })} scroll={false} onClick={e => { setAddClosed(false); linkNav(e, urlWith({ add: '1' }), { add: true }) }}><Ic n="plus" />Adicionar canal</Link>
             )}
           </div>
 
-          {view.layout === 'table'
-            ? <ChannelTable view={view} own={view.own} groups={groups} h={h} onSort={onSort} empty={empty} />
-            : <ChannelCards view={view} own={view.own} groups={groups} h={h} empty={empty} />}
+          {layout === 'table'
+            ? <ChannelTable view={view} own={view.own} groups={groups} h={h} onSort={onSort} empty={empty} busy={listBusy} busySort={listBusy ? opt.sort : undefined} />
+            : <ChannelCards view={view} own={view.own} groups={groups} h={h} empty={empty} busy={listBusy} />}
 
           <div className="legend">
             <span><i aria-hidden="true" /> vídeo longo</span>
@@ -305,27 +349,24 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           </div>
         </div>
 
-        {drawer ? (
+        {panel ? (
           <>
             {drawerModal ? <button type="button" className="cn-backdrop" aria-label="Fechar detalhes do canal" tabIndex={-1} onClick={closeDrawer} /> : null}
-            <ChannelDrawer d={drawer} modal={drawerModal} upnextHref={UPNEXT} onClose={closeDrawer} closeRef={closeRef} trap={trapTab}
-              onRemove={from => askRemove(drawer.id, from)} onNiche={n => { void setNiche({ id: drawer.id, name: drawer.name, own: drawer.own, niche: drawer.niche }, n, 'drawer') }}
-              forjaSlot={view.drawerForja && view.drawerForja.niche === drawer.niche ? <DrawerForjaBox f={view.drawerForja} /> : null}
-              forjaFootSlot={view.drawerForja && view.drawerForja.niche === drawer.niche ? <DrawerForjaFoot f={view.drawerForja} onAsk={onAskForja} /> : null} />
+            <ChannelDrawer d={panel} modal={drawerModal} upnextHref={UPNEXT} onClose={closeDrawer} closeRef={closeRef} trap={trapTab}
+              onRemove={from => askRemove(panel.id, from)} onNiche={n => { void setNiche({ id: panel.id, name: panel.name, own: panel.own, niche: panel.niche }, n, 'drawer') }}
+              forjaSlot={drawer && view.drawerForja && view.drawerForja.niche === drawer.niche ? <DrawerForjaBox f={view.drawerForja} /> : null}
+              forjaFootSlot={drawer && view.drawerForja && view.drawerForja.niche === drawer.niche ? <DrawerForjaFoot f={view.drawerForja} onAsk={onAskForja} /> : null} />
           </>
         ) : null}
       </div>
 
-      {menu && menuRow ? (
-        <div className="menu on" role="menu" aria-label="Ações do canal" ref={menuRef} style={{ top: menu.top, left: menu.left }} onKeyDown={onMenuKey}>
-          <button type="button" role="menuitem" onClick={() => openDrawer(menuRow.id)}>Abrir detalhes</button>
-          <button type="button" role="menuitem" disabled={menuRow.backfill} title={menuRow.backfill ? 'Ainda buscando vídeos: a sincronização só depois da busca' : undefined}
-            onClick={() => { closeMenu(true); void syncOne(menuRow.id) }}>Sincronizar só este canal</button>
-          <button type="button" role="menuitem" onClick={() => { closeMenu(true); window.open(menuRow.url, '_blank', 'noopener') }}>Abrir no YouTube</button>
-          <button type="button" role="menuitem" onClick={() => { closeMenu(true); void copyCowork(menuRow) }}><span className="cw">Copiar pedido para o Cowork</span></button>
-          <hr />
-          <button type="button" role="menuitem" className="del" onClick={() => askRemove(menuRow.id, menuTrigger.current)}>Remover canal…</button>
-        </div>
+      {menuRow ? (
+        <RowMenu row={menuRow} onClose={closeMenu}
+          onOpen={() => openDrawer(menuRow.id)}
+          onSync={() => { closeMenu(true); void syncOne(menuRow.id) }}
+          onYoutube={() => { closeMenu(true); window.open(menuRow.url, '_blank', 'noopener') }}
+          onCopy={() => { closeMenu(true); void copyCowork(menuRow) }}
+          onRemove={() => askRemove(menuRow.id, rowMenuButton(menuRow.id))} />
       ) : null}
 
       {confirm ? (
@@ -351,5 +392,6 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
         <NicheEditorDialog rows={view.nicheRows} onNiche={(r, n) => { void setNiche({ ...r, own: false }, n, 'editor') }} onClose={closeNiche} trap={trapTab} />
       ) : null}
     </div>
+    </NichePendingContext.Provider>
   )
 }

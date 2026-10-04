@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Observatório com N nichos (mockup) — índice</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="observatorio-n-nichos/chrome.css">
+<style>
+/* Só o índice: usa os tokens de chrome.css (Observatório), sem cor nova. */
+body{padding:32px 28px 64px;overflow-x:hidden}
+main{max-width:860px}
+h1{font:600 26px/1.2 Fraunces,Georgia,serif;margin:0 0 6px}
+p{color:var(--muted);margin:0 0 18px;max-width:70ch}
+h2{font:600 14px/1.3 Inter,sans-serif;margin:26px 0 8px}
+ul{list-style:none;margin:0;padding:0;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+li{display:flex;gap:6px 16px;align-items:baseline;flex-wrap:wrap;padding:10px 14px}
+li+li{border-top:1px solid var(--border-subtle)}
+li a{color:var(--text);font-weight:500;text-underline-offset:3px;min-height:24px}
+li span{color:var(--muted);font-size:13px;flex:1 1 320px}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+@media (max-width:760px){body{padding:20px 16px 48px}}
+</style>
+</head>
+<body>
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t})();</script>
+<main>
+  <h1>Observatório com os nichos que o dono criou</h1>
+  <p>Esta página só aponta para os estados. As telas ficam em <code>observatorio-n-nichos/</code>: são cópias dos mockups de 03/10 (Canais e Insights) com <b>um estado a mais</b>, “Nichos do site”, na barra “Estados do mockup”. Com 2 nichos as telas saem iguais às de 03/10.</p>
+
+  <h2>Barra de nicho</h2>
+  <ul>
+    <li><a href="observatorio-n-nichos/canais.html?nichos=3">3 nichos (Todos · Viagem · IA · Jogos)</a><span>O estado do plano: quatro botões. Cabe em 1440 e em 768 px.</span></li>
+    <li><a href="observatorio-n-nichos/canais.html?nichos=4">4 nichos</a><span>Cabe em 1440 px. Em 768 px cabem 3 nichos; do quarto em diante a barra rola.</span></li>
+    <li><a href="observatorio-n-nichos/canais.html?nichos=6">6 nichos</a><span>Cabe em 1440 px. Em 768 px o trilho da barra rola para o lado, com o degradê das abas.</span></li>
+    <li><a href="observatorio-n-nichos/canais.html?nichos=6&niche=financas">6 nichos, com o último escolhido</a><span>Em 768 px o nicho ativo é sempre trazido para a vista.</span></li>
+    <li><a href="observatorio-n-nichos/canais.html?nichos=2">2 nichos</a><span>Igual a hoje.</span></li>
+  </ul>
+
+  <h2>Canais</h2>
+  <ul>
+    <li><a href="observatorio-n-nichos/canais.html?nichos=4">Tabela em Todos, com o grupo “Jogos”</a><span>Um grupo por nicho, na ordem das abas; nicho sem canal não ganha grupo. O seletor de nicho de cada linha lista os nichos na mesma ordem.</span></li>
+    <li><a href="observatorio-n-nichos/canais.html?nichos=4&niche=pessoal">Nicho recém-criado (Pessoal), sem concorrentes</a><span>“Nenhum canal em Pessoal. Para acompanhar um canal novo, use Adicionar canal.”</span></li>
+    <li><a href="observatorio-n-nichos/canais.html?nichos=3&add=1">Adicionar canal com 3 nichos</a><span>Até 3 nichos, botões (como hoje).</span></li>
+    <li><a href="observatorio-n-nichos/canais.html?nichos=6&add=1">Adicionar canal com 6 nichos</a><span>A partir de 4, um seletor.</span></li>
+  </ul>
+
+  <h2>Insights</h2>
+  <ul>
+    <li><a href="observatorio-n-nichos/insights-n-canais.html?nichos=4&niche=jogos">Jogos: nicho criado pelo dono, com concorrentes</a><span>Temas e Lacunas dizem que ainda não há lista de temas; Fórmulas usa só as universais; a forja ainda não tem leitura.</span></li>
+    <li><a href="observatorio-n-nichos/insights-n-canais.html?nichos=4&niche=pessoal">Pessoal: recém-criado, sem concorrentes e sem temas</a><span>Cada card diz o que falta; o botão da forja fica desabilitado.</span></li>
+    <li><a href="observatorio-n-nichos/insights-n-canais.html?nichos=4&niche=todos">Todos, com 4 nichos</a><span>“Misturar nichos somaria públicos…” e um atalho por nicho.</span></li>
+  </ul>
+
+  <h2>Cadastro</h2>
+  <ul>
+    <li><a href="cms-youtube-canais.html">/cms/youtube: canais e nichos</a><span>Onde o dono cria os nichos e cadastra os canais.</span></li>
+  </ul>
+</main>
+</body>
+</html>

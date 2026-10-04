@@ -3,10 +3,14 @@
  * Channel drawer (port of canais.html openDrawer/swapCard/effHTML/selectTab). ≥ 1280 px it is a column beside the
  * table; below, a modal (aria-modal, focus trap, backdrop). The forja controls arrive in Task 35: their place in the
  * Trocas panel and in the footer is a slot that renders nothing for now.
+ *
+ * It opens at the click: until the server sends the channel's DrawerView it shows a DrawerShell — only what the row
+ * already shows (name, avatar, niche, subscribers, links) — with aria-busy and empty placeholders, never a number or a
+ * sentence the server has not sent. The same element then receives the content (the focus and the picked tab stay).
  */
 import Link from 'next/link'
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import type { DrawerTab, DrawerView, EffectView, SwapCard, ViewsText } from './view-model'
+import type { CanaisRow, DrawerTab, DrawerView, EffectView, SwapCard, ViewsText } from './view-model'
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import { Ic, ThumbView } from './cells'
 import { NicheSelect } from './niche-editor'
@@ -67,8 +71,13 @@ function Card({ c }: { c: SwapCard }) {
   )
 }
 
+/** What the list already knows of a channel: the drawer's head while its content is on the way. */
+export type DrawerShell = Pick<CanaisRow, 'id' | 'name' | 'color' | 'ini' | 'own' | 'niche' | 'lang' | 'handle' | 'url' | 'subs'>
+const isFull = (d: DrawerView | DrawerShell): d is DrawerView => 'stats' in d
+
 export interface ChannelDrawerProps {
-  d: DrawerView; modal: boolean; upnextHref: string
+  /** The channel's view, or the shell of the row that was clicked while the server renders it. */
+  d: DrawerView | DrawerShell; modal: boolean; upnextHref: string
   onClose: () => void; onRemove: (from: HTMLElement) => void; onNiche: (n: Niche) => void
   trap: (e: KeyboardEvent<HTMLElement>) => void; closeRef: React.RefObject<HTMLButtonElement | null>
   /** Task 35: forja controls (Trocas panel and footer). */
@@ -76,9 +85,10 @@ export interface ChannelDrawerProps {
 }
 
 export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche, trap, closeRef, forjaSlot, forjaFootSlot }: ChannelDrawerProps) {
-  const [tab, setTab] = useState<DrawerTab>(d.tab)
+  const full = isFull(d) ? d : null, shell = isFull(d) ? null : d
+  const [tab, setTab] = useState<DrawerTab>(full?.tab ?? 'trocas')
   const [forId, setForId] = useState(d.id)
-  if (forId !== d.id) { setForId(d.id); setTab(d.tab) }
+  if (forId !== d.id) { setForId(d.id); setTab(full?.tab ?? 'trocas') }
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   const pick = (i: number) => { const t = TABS[(i + TABS.length) % TABS.length]!; setTab(t.k); tabRefs.current[(i + TABS.length) % TABS.length]?.focus() }
   const onTabKey = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
@@ -89,7 +99,7 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
   }
   const nameId = `cn-d-${d.id}`
   return (
-    <aside className="cn-drawer" aria-labelledby={nameId} role={modal ? 'dialog' : 'complementary'} aria-modal={modal || undefined} onKeyDown={modal ? trap : undefined} data-drawer={d.id}>
+    <aside className="cn-drawer" aria-labelledby={nameId} role={modal ? 'dialog' : 'complementary'} aria-modal={modal || undefined} onKeyDown={modal ? trap : undefined} data-drawer={d.id} aria-busy={full ? undefined : true}>
       <div className="dhead">
         <div className="row1">
           <div className="av" style={{ background: d.color }} aria-hidden="true">{d.ini}</div>
@@ -100,31 +110,53 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
               {d.own && d.lang ? <abbr className="langtag" title={d.lang.title}>{d.lang.code}</abbr> : null}
               <NicheSelect id={d.id} name={d.name} niche={d.niche} ctx="drawer" onChange={onNiche} />
               {d.handle ? <a className="handle" href={d.url} target="_blank" rel="noopener noreferrer">{d.handle}</a> : null}
-              <span>{d.subsText}</span>
-              <span>{d.cov}</span>
+              {full ? <><span>{full.subsText}</span><span>{full.cov}</span></> : null}
+              {shell ? <span className="num">{shell.subs}</span> : null}
             </div>
           </div>
           <button type="button" className="more close" aria-label="Fechar detalhes do canal" onClick={onClose} ref={closeRef}><Ic n="close" /></button>
         </div>
-        <div className="dstats">
-          {d.stats.map(s => (
+        {full ? null : <div className="dstats wait" aria-hidden="true"><div /><div /><div /><div /><div /></div>}
+        {full ? <div className="dstats">
+          {full.stats.map(s => (
             <div key={s.label}>
               <div className="l" title={s.labelTitle ?? undefined}>{s.label}</div>
               <div className="v num" style={s.label === 'Sincronização' ? { fontSize: 14, fontFamily: 'inherit' } : undefined}>{s.value}</div>
               <div className="l" title={s.subTitle ?? undefined}>{s.subWeak ? <span className="weak">{s.sub}</span> : s.sub}</div>
             </div>
           ))}
-        </div>
+        </div> : null}
       </div>
       <div className="dtabs" role="tablist" aria-label="Detalhes do canal">
         {TABS.map((t, i) => (
           <button key={t.k} type="button" role="tab" id={`cn-t-${t.k}`} aria-controls={`cn-${t.panel}`} aria-selected={tab === t.k} tabIndex={tab === t.k ? 0 : -1}
             ref={el => { tabRefs.current[i] = el }} onClick={() => setTab(t.k)} onKeyDown={e => onTabKey(e, i)}
-            title={t.k === 'outliers' ? d.outliers.tabTitle : undefined}>
-            {t.label}{t.k === 'trocas' ? <span className="n">{d.swaps.count}</span> : t.k === 'outliers' ? <span className="n">{d.outliers.tabN}</span> : null}
+            title={full && t.k === 'outliers' ? full.outliers.tabTitle : undefined}>
+            {t.label}{!full ? null : t.k === 'trocas' ? <span className="n">{full.swaps.count}</span> : t.k === 'outliers' ? <span className="n">{full.outliers.tabN}</span> : null}
           </button>
         ))}
       </div>
+      {full ? null : (
+        <div className="dbody">
+          {TABS.map(t => <div key={t.k} className="dpanel dwait" id={`cn-${t.panel}`} role="tabpanel" aria-labelledby={`cn-t-${t.k}`} hidden={tab !== t.k}><i /><i /><i /></div>)}
+        </div>
+      )}
+      {full ? <FullBody d={full} tab={tab} upnextHref={upnextHref} forjaSlot={forjaSlot} /> : null}
+      <div className="dfoot">
+        {d.own ? <span /> : (
+          <button type="button" className="btn small ghost icon" aria-label="Remover canal…" title="Remover canal…" onClick={e => onRemove(e.currentTarget)}><Ic n="trash" /></button>
+        )}
+        <span className="spacer" />
+        {full ? forjaFootSlot ?? null : null}
+        <a className="btn small" href={d.url} target="_blank" rel="noopener noreferrer">Abrir no YouTube</a>
+      </div>
+    </aside>
+  )
+}
+
+/** The three panels of a channel whose view arrived. */
+function FullBody({ d, tab, upnextHref, forjaSlot }: { d: DrawerView; tab: DrawerTab; upnextHref: string; forjaSlot?: ReactNode }) {
+  return (
       <div className="dbody">
         <div className="dpanel" id="cn-pSwaps" role="tabpanel" aria-labelledby="cn-t-trocas" tabIndex={0} hidden={tab !== 'trocas'}>
           {forjaSlot ?? null}
@@ -181,14 +213,5 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
           {d.videos.note ? <div className="note">{d.videos.note}</div> : null}
         </div>
       </div>
-      <div className="dfoot">
-        {d.own ? <span /> : (
-          <button type="button" className="btn small ghost icon" aria-label="Remover canal…" title="Remover canal…" onClick={e => onRemove(e.currentTarget)}><Ic n="trash" /></button>
-        )}
-        <span className="spacer" />
-        {forjaFootSlot ?? null}
-        <a className="btn small" href={d.url} target="_blank" rel="noopener noreferrer">Abrir no YouTube</a>
-      </div>
-    </aside>
   )
 }

@@ -6,7 +6,7 @@ import type { Niche } from '@/lib/youtube/observatorio/types'
 import { CadenceView, ChCell, GrowthView, Ic, OutView, SwapView, SyncView, Tip, VpdView, type LocalSync } from './cells'
 
 export interface RowHandlers {
-  open: (id: string) => void; niche: (r: CanaisRow, n: Niche, ctx: string) => void; menu: (id: string, btn: HTMLButtonElement) => void
+  open: (id: string) => void; niche: (r: CanaisRow, n: Niche, ctx: string) => void; menu: (id: string) => void
   retry: (id: string) => void; remove: (id: string, from: HTMLElement | null) => void
   local: (id: string) => LocalSync; roundRunning: boolean; upnextHref: string; menuFor: string | null; selected: string | null
 }
@@ -48,7 +48,7 @@ function Row({ r, h }: { r: CanaisRow; h: RowHandlers }) {
       <td className="sync c-hide"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} /></td>
       <td>{r.own ? null : (
         <button type="button" className="more" aria-label={`Mais ações para ${r.name}`} aria-haspopup="menu" aria-expanded={h.menuFor === r.id} data-menu={r.id}
-          onClick={e => { e.stopPropagation(); h.menu(r.id, e.currentTarget) }}>
+          onClick={e => { e.stopPropagation(); h.menu(r.id) }}>
           <svg className="ico" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="8" r="1.4" /><circle cx="8" cy="8" r="1.4" /><circle cx="13" cy="8" r="1.4" /></svg>
         </button>
       )}</td>
@@ -56,8 +56,12 @@ function Row({ r, h }: { r: CanaisRow; h: RowHandlers }) {
   )
 }
 
-export function ChannelTable({ view, own, groups, h, onSort, empty }: {
+export function ChannelTable({ view, own, groups, h, onSort, empty, busy, busySort }: {
   view: CanaisView; own: CanaisView['own']; groups: CanaisGroup[]; h: RowHandlers; onSort: (k: CanaisSort) => void; empty: React.ReactNode
+  /** A navigation that changes these numbers or their order is in flight: the rows are the previous ones. */
+  busy?: boolean
+  /** The column whose header was clicked and whose order has not arrived yet. */
+  busySort?: CanaisSort
 }) {
   // canais.html #scrollHint: says the table scrolls sideways only when it really overflows (drawer open, narrow screen)
   const box = useRef<HTMLDivElement>(null)
@@ -75,7 +79,7 @@ export function ChannelTable({ view, own, groups, h, onSort, empty }: {
   return (
     <>
     {overflow ? <p className="cap" data-scroll-hint="" style={{ whiteSpace: 'normal', margin: '0 0 6px' }}>Role a tabela para o lado para ver todas as colunas.</p> : null}
-    <div className="tablebox" ref={box}>
+    <div className="tablebox" ref={box} aria-busy={busy || undefined}>
       <table aria-label="Canais acompanhados">
         <thead><tr>
           <th scope="col">Canal<span className="unit">nicho e inscritos</span></th>
@@ -84,7 +88,7 @@ export function ChannelTable({ view, own, groups, h, onSort, empty }: {
             return (
               <th key={col.k} scope="col" className={`sortable${col.r ? ' r' : ''}${col.hide ? ' c-hide' : ''}`} data-k={col.k}
                 aria-sort={on ? (view.dir === 'desc' ? 'descending' : 'ascending') : undefined} style={col.minW ? { minWidth: col.minW } : undefined}>
-                <button type="button" onClick={() => onSort(col.k)}>{col.label} <span className="arrow" aria-hidden="true">{on ? (view.dir === 'desc' ? '▼' : '▲') : ''}</span></button>
+                <button type="button" aria-busy={busySort === col.k || undefined} onClick={() => onSort(col.k)}>{col.label} <span className="arrow" aria-hidden="true">{on ? (view.dir === 'desc' ? '▼' : '▲') : ''}</span></button>
                 <span className="unit">{col.unit ?? view.vpdUnit}</span>
               </th>
             )

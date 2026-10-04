@@ -1,0 +1,345 @@
+/* chrome.css — moldura compartilhada do Observatório de Competidores (6 telas).
+   Tokens dos dois temas + sidebar do CMS + cabeçalho YouTube + cabeçalho do Observatório
+   + barra de nicho + abas + barra "Estados do mockup" + toasts.
+   Tudo o que é do chrome usa o prefixo .ch-; os tokens (:root) e [hidden] valem para a página inteira. */
+
+/* ---------------------------------------------------------------- tokens */
+:root{
+  --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--surface-hover:#272219;--side:#100E0B;--sunk:#16130F;
+  --border:#332D25;--border-subtle:#2A251F;--border-strong:#40382D;
+  --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;--faint:#5C5345;
+  --accent:#FF8240;--accent-hover:#FF9A60;--accent-subtle:rgba(255,130,64,.12);--on-accent:#1A120A;
+  --success:#22c55e;--warning:#f59e0b;--warning-text:#f59e0b;--danger:#F26B6B;--info:#06b6d4;
+  --forja:#5CC3B2;--forja-hover:#7FD6C7;--forja-soft-bg:#2F5D56;--forja-soft-text:#DCF3EE;--forja-subtle:rgba(92,195,178,.12);--forja-line:rgba(92,195,178,.35);--on-forja:#0E2A25;
+  --ia:#6EA8FE;--viagem:#5BBF8A;--cowork:#9B93F6;
+  --tier-mid:#38BDF8;--tier-high:#A78BFA;--tier-top:#E0735C;--youtube:#FF3333;
+  --warn-subtle:rgba(245,158,11,.12);--danger-subtle:rgba(239,68,68,.12);--ok-subtle:rgba(34,197,94,.12);
+  --shadow:0 12px 32px rgba(0,0,0,.45);
+  --side-w:208px;--drawer-w:404px;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#F7F2E9;--surface:#FBF7F0;--surface-2:#F2EBDF;--surface-hover:#F2EBDF;--side:#EDE5D5;--sunk:#F2EBDF;
+    --border:#DDD2BF;--border-subtle:#E7DECF;--border-strong:#C9BBA3;
+    --text:#231C14;--muted:#5E5240;--dim:#6E624E;--faint:#A69A84;
+    --accent:#B8481A;--accent-hover:#A23E14;--accent-subtle:rgba(184,72,26,.10);--on-accent:#FFF8F1;
+    --success:#11692F;--warning:#B45309;--warning-text:#92400E;--danger:#B42318;--info:#0e7490;
+    --forja:#17695C;--forja-hover:#11564B;--forja-soft-bg:#A9D2CA;--forja-soft-text:#0E2A25;--forja-subtle:rgba(23,105,92,.06);--forja-line:rgba(23,105,92,.35);--on-forja:#FFFFFF;
+    --ia:#1D4ED8;--viagem:#11692F;--cowork:#5B4FD9;
+    --tier-mid:#0369A1;--tier-high:#6D28D9;--tier-top:#B4452F;
+    --warn-subtle:rgba(180,83,9,.10);--danger-subtle:rgba(180,35,24,.08);--ok-subtle:rgba(17,105,47,.10);
+    --shadow:0 12px 32px rgba(60,40,10,.14);
+    color-scheme:light;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#F7F2E9;--surface:#FBF7F0;--surface-2:#F2EBDF;--surface-hover:#F2EBDF;--side:#EDE5D5;--sunk:#F2EBDF;
+  --border:#DDD2BF;--border-subtle:#E7DECF;--border-strong:#C9BBA3;
+  --text:#231C14;--muted:#5E5240;--dim:#6E624E;--faint:#A69A84;
+  --accent:#B8481A;--accent-hover:#A23E14;--accent-subtle:rgba(184,72,26,.10);--on-accent:#FFF8F1;
+  --success:#11692F;--warning:#B45309;--warning-text:#92400E;--danger:#B42318;--info:#0e7490;
+  --forja:#17695C;--forja-hover:#11564B;--forja-soft-bg:#A9D2CA;--forja-soft-text:#0E2A25;--forja-subtle:rgba(23,105,92,.06);--forja-line:rgba(23,105,92,.35);--on-forja:#FFFFFF;
+  --ia:#1D4ED8;--viagem:#11692F;--cowork:#5B4FD9;
+  --tier-mid:#0369A1;--tier-high:#6D28D9;--tier-top:#B4452F;
+  --warn-subtle:rgba(180,83,9,.10);--danger-subtle:rgba(180,35,24,.08);--ok-subtle:rgba(17,105,47,.10);
+  --shadow:0 12px 32px rgba(60,40,10,.14);
+  color-scheme:light;
+}
+
+/* ---------------------------------------------------------------- base */
+[hidden]{display:none!important}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+#ch-app :focus-visible,#ch-mock :focus-visible,#ch-toasts :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-num{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:.92em;letter-spacing:-.01em}
+@media (prefers-reduced-motion: reduce){#ch-app *,#ch-toasts *{animation:none!important;transition:none!important}}
+
+
+/* ---------------------------------------------------------------- blindagem
+   O CSS de uma tela não alcança os nós do chrome: tudo o que o chrome desenha volta ao padrão do navegador
+   (all:revert) e só então recebe as regras abaixo, que têm especificidade de id. As raízes (#ch-app, #ch-mock,
+   #ch-toasts) também voltam ao padrão e recebem fonte, cor e espaçamento explícitos, então regras da tela em
+   body{…} ou *{…} não chegam ao chrome por herança. O conteúdo da tela (#screen) e o drawer ficam de fora. */
+:is(#ch-app,#ch-mock,#ch-toasts){all:revert;box-sizing:border-box;font:400 14px/1.5 Inter,system-ui,sans-serif;color:var(--text);letter-spacing:normal;word-spacing:normal;text-transform:none;text-align:left;font-style:normal;text-decoration:none;text-indent:0;white-space:normal;visibility:visible;direction:ltr;word-break:normal;overflow-wrap:normal;cursor:auto;font-variant:normal;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+#ch-app{background:var(--bg)}
+/* ícones do chrome: o revert não alcança svg (apagaria fill/stroke dos atributos), então zeramos o que uma tela poderia mexer */
+:is(#ch-app,#ch-mock,#ch-toasts) svg:not(:where(#screen *,.ch-drawer *,.ch-mock-slot *)){display:inline-block;margin:0;padding:0;box-sizing:content-box;vertical-align:middle;visibility:visible;opacity:1;position:static;line-height:inherit;color:inherit;border:0;background:none;box-shadow:none;transform:none;outline:0;filter:none;border-radius:0;transition:none;min-width:0;min-height:0;max-width:none;max-height:none;float:none;clip-path:none;mask:none;z-index:auto;overflow:hidden;scale:none;rotate:none;translate:none;zoom:1;order:0;mix-blend-mode:normal;content-visibility:visible;flex:none;align-self:auto;cursor:inherit}
+/* traço e preenchimento dos ícones vêm do CSS do chrome (o atributo perde para regras da tela como svg *{stroke:red}) */
+:is(#ch-app,#ch-mock,#ch-toasts) svg.ch-i-s *,:is(#ch-app,#ch-mock,#ch-toasts) svg.ch-i-f *{color:inherit;display:inline;visibility:visible;opacity:1;transform:none;filter:none;clip-path:none;mask:none;scale:none;rotate:none;translate:none;zoom:1;order:0;mix-blend-mode:normal;content-visibility:visible;fill-opacity:1;stroke-opacity:1;stroke-dasharray:none;stroke-dashoffset:0;stroke-linecap:butt;stroke-linejoin:miter;vector-effect:none;paint-order:normal}
+:is(#ch-app,#ch-mock,#ch-toasts) svg.ch-i-s,:is(#ch-app,#ch-mock,#ch-toasts) svg.ch-i-s *{fill:none;stroke:currentColor;visibility:visible}
+:is(#ch-app,#ch-mock,#ch-toasts) svg.ch-i-f,:is(#ch-app,#ch-mock,#ch-toasts) svg.ch-i-f *{fill:currentColor;stroke:none;visibility:visible}
+:is(#ch-mock,#ch-toasts) :where(*):not(svg,svg *):not(:where(.ch-mock-slot *)),
+#ch-app :where(*):not(svg,svg *):not(:where(#screen,#screen *,.ch-drawer,.ch-drawer *)){all:revert;box-sizing:border-box}
+/* pseudo-elementos também: regras da tela em *::before/*::after não chegam ao chrome (as do chrome vêm depois e ganham) */
+:is(#ch-app,#ch-mock,#ch-toasts) :where(*):not(svg,svg *):not(:where(#screen,#screen *,.ch-drawer,.ch-drawer *,.ch-mock-slot *))::before,
+:is(#ch-app,#ch-mock,#ch-toasts) :where(*):not(svg,svg *):not(:where(#screen,#screen *,.ch-drawer,.ch-drawer *,.ch-mock-slot *))::after{all:revert}
+:is(#ch-app,#ch-mock,#ch-toasts)::before,:is(#ch-app,#ch-mock,#ch-toasts)::after,:is(#ch-app,#ch-mock,#ch-toasts) svg:not(:where(#screen *,.ch-drawer *,.ch-mock-slot *))::before,:is(#ch-app,#ch-mock,#ch-toasts) svg:not(:where(#screen *,.ch-drawer *,.ch-mock-slot *))::after{all:revert}
+
+
+/* ---------------------------------------------------------------- botões do chrome */
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:0 13px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);cursor:pointer;font:500 13px/1.2 Inter,system-ui,sans-serif;color:var(--text);white-space:nowrap;text-decoration:none}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn:hover{background:var(--surface-hover)}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn svg{width:15px;height:15px;flex:none}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn.ch-ghost{background:transparent;border-color:transparent;color:var(--muted)}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn.ch-ghost:hover{background:var(--surface-hover);color:var(--text)}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn.ch-icon{width:34px;min-width:34px;padding:0;justify-content:center}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn.ch-forja{border-color:var(--forja-line);color:var(--forja);background:transparent}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn.ch-forja:hover{background:var(--forja-subtle);border-color:var(--forja)}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn.ch-forja-solid{background:var(--forja);border-color:var(--forja);color:var(--on-forja);font-weight:600}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn.ch-forja-solid:hover{background:var(--forja-hover);border-color:var(--forja-hover)}
+/* sólido desabilitado (cota usada em Insights/Histórico): continua preenchido, com menos ênfase; sem opacity no texto */
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn.ch-forja-solid[disabled]{background:var(--forja-soft-bg);border-color:var(--forja-soft-bg);color:var(--forja-soft-text);cursor:not-allowed}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn.ch-forja.ch-warn{border-color:var(--warning);color:var(--warning-text)}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn[disabled]{cursor:not-allowed;background:var(--surface-2);border-color:var(--border);color:var(--muted)}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-btn small{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:400}
+:is(#ch-app,#ch-mock,#ch-toasts) .ch-link{background:none;border:0;padding:0 2px;color:var(--text);text-decoration:underline;text-underline-offset:2px;cursor:pointer;font:inherit;font-size:12.5px;min-height:32px;display:inline-flex;align-items:center}
+
+/* ---------------------------------------------------------------- barra "Estados do mockup" */
+#ch-mock{margin:0;border-bottom:1px dashed var(--border-strong);background:var(--sunk);font-size:12.5px}
+#ch-mock>summary{cursor:pointer;padding:6px 16px;color:var(--muted);list-style:none;display:flex;gap:8px;align-items:center;min-height:32px}
+#ch-mock>summary::-webkit-details-marker{display:none}
+#ch-mock>summary::before{content:"▸";color:var(--muted)}
+#ch-mock[open]>summary::before{content:"▾"}
+#ch-mock .ch-mock-in{padding:0 16px 12px;display:grid;gap:8px}
+/* rótulo numa coluna e botões noutra: a quebra de linha continua alinhada aos botões, não sob o rótulo */
+#ch-mock .ch-mock-row{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 10px;align-items:start}
+#ch-mock .ch-mock-row>.ch-mock-lbl{color:var(--muted);padding-top:7px}
+#ch-mock .ch-mock-items{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0}
+#ch-mock .ch-mock-note{color:var(--muted)}
+@media (max-width:600px){ #ch-mock .ch-mock-row{grid-template-columns:minmax(0,1fr)} #ch-mock .ch-mock-row>.ch-mock-lbl{padding-top:0} }
+#ch-mock button{border:1px dashed var(--border-strong);background:var(--surface);border-radius:5px;padding:0 9px;font:12px Inter,system-ui,sans-serif;cursor:pointer;color:var(--muted);min-height:32px}
+#ch-mock button[aria-pressed="true"]{border-style:solid;border-color:var(--forja);color:var(--text);background:var(--forja-subtle)}
+#ch-mock .ch-deps{border:1px dashed var(--border-strong);border-radius:6px;background:var(--surface)}
+#ch-mock .ch-deps>summary{cursor:pointer;padding:8px 10px;color:var(--text);font-weight:500;min-height:32px}
+#ch-mock .ch-deps ol{margin:0;padding:0 14px 10px 34px;display:grid;gap:5px;color:var(--muted);max-width:110ch}
+#ch-mock .ch-deps code{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--text)}
+#ch-mock .ch-deps b{color:var(--text);font-weight:500}
+
+/* ---------------------------------------------------------------- layout + sidebar do CMS */
+#ch-app{display:grid;grid-template-columns:var(--side-w) minmax(0,1fr);min-height:100vh}
+#ch-app .ch-side{background:var(--side);border-right:1px solid var(--border-subtle);padding:14px 10px 24px;font-size:13px;position:sticky;top:0;align-self:start;max-height:100vh;overflow-y:auto}
+#ch-app .ch-side-logo{display:flex;align-items:center;min-height:32px;font-family:Fraunces,serif;font-weight:600;color:var(--text);text-decoration:none;padding:4px 10px 10px;font-size:15px}
+#ch-app .ch-side-g{margin:14px 10px 4px;font-size:12px;color:var(--muted)}
+#ch-app .ch-side ul{list-style:none;margin:0;padding:0}
+#ch-app .ch-side li a{display:flex;align-items:center;min-height:32px;padding:0 10px;border-radius:6px;color:var(--muted);text-decoration:none}
+#ch-app .ch-side li a:hover{background:var(--surface-hover);color:var(--text)}
+#ch-app .ch-side li a[aria-current]{background:var(--accent-subtle);color:var(--text);box-shadow:inset 2px 0 0 var(--accent)}
+#ch-app .ch-main{min-width:0}
+#ch-app .ch-shell{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 28px;border-bottom:1px solid var(--border)}
+#ch-app .ch-shell h1{font:600 20px/1.2 Inter,system-ui,sans-serif;margin:0}
+#ch-app .ch-shell-l{display:flex;align-items:center;gap:8px}
+#ch-app .ch-side-btn{display:none!important}
+#ch-app .ch-shell-tabs-wrap{position:relative;border-bottom:1px solid var(--border)}
+#ch-app .ch-shell-tabs{display:flex;gap:2px;padding:0 28px;overflow-x:auto;scrollbar-width:none}
+#ch-app .ch-shell-tabs::-webkit-scrollbar{display:none}
+#ch-app .ch-shell-tabs a{display:flex;align-items:center;min-height:40px;padding:0 12px;color:var(--muted);text-decoration:none;font-size:13.5px;white-space:nowrap;border-bottom:2px solid transparent}
+#ch-app .ch-shell-tabs a:hover{color:var(--text)}
+#ch-app .ch-shell-tabs a[aria-current]{color:var(--accent);border-color:var(--accent)}
+#ch-app .ch-shell-tabs-wrap::after{content:"";position:absolute;right:0;top:0;bottom:1px;width:48px;pointer-events:none;background:linear-gradient(to right,transparent,var(--bg));display:none}
+#ch-app .ch-page{display:grid;grid-template-columns:minmax(0,1fr)}
+#ch-app .ch-page.ch-with-drawer{grid-template-columns:minmax(0,1fr) var(--drawer-w)}
+#ch-app .ch-content{padding:24px 28px 72px;min-width:0;max-width:1240px;width:100%;margin:0 auto}
+#ch-backdrop{display:none}
+
+/* ---------------------------------------------------------------- cabeçalho do Observatório */
+#ch-app .ch-obs-head{display:block}
+#ch-app .ch-obs-title{min-width:0}
+#ch-app .ch-obs-title h2{font-family:Fraunces,serif;font-weight:600;font-size:30px;line-height:1.15;margin:0;letter-spacing:-.01em;font-variation-settings:"opsz" 72}
+#ch-app .ch-obs-title p{margin:6px 0 0;color:var(--muted);max-width:62ch}
+#ch-app .ch-actions{display:flex;gap:8px;align-items:center;flex-wrap:nowrap;margin-top:14px;min-height:34px;max-width:100%}   /* I1 (F11): uma linha de 34 px */
+#ch-app .ch-menu-wrap{position:relative}
+#ch-app .ch-fresh-row{margin-top:14px;display:flex;align-items:center;gap:8px 12px;flex-wrap:nowrap}
+/* I2 (F11): abaixo de ~1300 px de janela (conteúdo < 1080) o fuso sai da linha; ele segue no popover de frescor */
+@container chcontent (max-width: 1080px){ #ch-app .ch-tz{display:none} }
+#ch-app .ch-tz{font-size:12.5px;color:var(--muted)}
+#ch-app .ch-fresh{display:flex;align-items:stretch;flex-wrap:nowrap;border:1px solid var(--border);border-radius:8px;background:var(--surface);max-width:100%;position:relative}
+#ch-app .ch-fresh>button{display:flex;align-items:center;gap:8px 10px;padding:4px 12px;background:none;border:0;cursor:pointer;text-align:left;border-radius:8px;min-height:36px;flex-wrap:nowrap;color:var(--text);font:inherit}
+#ch-app .ch-fresh>button:hover{background:var(--surface-hover)}
+#ch-app .ch-seg{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;white-space:nowrap}
+#ch-app .ch-seg b{color:var(--text);font-weight:500}
+#ch-app .ch-seg.ch-err{color:var(--warning-text)}
+#ch-app .ch-seg.ch-err b{color:var(--warning-text)}
+#ch-app .ch-seg svg{width:14px;height:14px}
+#ch-app .ch-sep{width:1px;height:14px;background:var(--border-strong)}
+#ch-app .ch-dot{width:8px;height:8px;border-radius:50%;background:var(--success);flex:none}
+#ch-app .ch-dot.ch-warn{background:var(--warning)}#ch-app .ch-dot.ch-forja{background:var(--forja)}
+#ch-app .ch-forja-seg{border-left:1px solid var(--border);padding:4px 12px;display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);white-space:nowrap}
+#ch-app .ch-forja-seg b{color:var(--forja);font-weight:500}
+#ch-app .ch-forja-seg.ch-off b{color:var(--warning-text)}
+#ch-app .ch-chev{width:14px;height:14px;color:var(--muted)}
+#ch-app .ch-pop{position:absolute;z-index:40;top:calc(100% + 6px);left:0;width:min(600px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);padding:14px 16px;font-size:13px}
+#ch-app .ch-pop h3{font-size:13.5px;margin:0 0 2px;font-weight:600}
+#ch-app .ch-pop .ch-sub{color:var(--muted);font-size:12.5px;margin:0 0 10px}
+#ch-app .ch-pop table{width:100%;border-collapse:collapse;font-size:12.5px}
+#ch-app .ch-pop th{text-align:left;font-weight:500;color:var(--muted);font-size:11.5px;padding:4px}
+#ch-app .ch-pop td{padding:6px 4px;border-top:1px solid var(--border-subtle);vertical-align:top;color:var(--text)}
+#ch-app .ch-pop td.ch-m{color:var(--muted)}
+#ch-app .ch-pop td:first-child{white-space:nowrap}
+#ch-app .ch-pop td:last-child{text-align:right;white-space:nowrap}
+#ch-app .ch-pop .ch-bad td{background:var(--warn-subtle)}
+#ch-app .ch-pop .ch-bad td:first-child{border-left:2px solid var(--warning);padding-left:8px}
+#ch-app .ch-pop .ch-grp td{background:none;color:var(--muted);font-size:11.5px;padding-top:10px;border-top:0}
+#ch-app .ch-pop-acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+#ch-app .ch-menu{right:0;left:auto;width:min(390px,calc(100vw - 32px));padding:6px}
+#ch-app .ch-mi{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;padding:9px 10px;border:0;background:none;border-radius:6px;cursor:pointer;text-align:left;min-height:36px;color:var(--text);text-decoration:none;font:inherit}
+#ch-app .ch-mi:hover,#ch-app .ch-mi:focus-visible{background:var(--surface-hover)}
+#ch-app .ch-mi strong{font-weight:500;font-size:13px;display:flex;gap:8px;align-items:center}
+#ch-app .ch-mi strong svg{width:14px;height:14px;color:var(--cowork)}
+#ch-app .ch-mi .ch-ctx{font-size:12px;color:var(--muted)}
+#ch-app .ch-mi .ch-preview{font-size:12px;line-height:1.45;color:var(--muted);background:var(--sunk);border:1px solid var(--border-subtle);border-radius:5px;padding:8px 9px}
+#ch-app .ch-menu hr{border:0;border-top:1px solid var(--border-subtle);margin:4px 2px}
+#ch-app .ch-nic-viagem{color:var(--viagem)}#ch-app .ch-nic-ia{color:var(--ia)}
+
+/* ---------------------------------------------------------------- abas + barra de nicho */
+#ch-app .ch-nav{margin-top:20px;display:flex;align-items:flex-end;justify-content:space-between;gap:10px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+#ch-app .ch-tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;max-width:100%}
+/* degradê nas bordas quando o trilho rola: direita = há abas depois; esquerda = rolou (scrollLeft>0) */
+#ch-app .ch-tabs.ch-more{-webkit-mask-image:linear-gradient(to right,#000 85%,transparent);mask-image:linear-gradient(to right,#000 85%,transparent)}
+#ch-app .ch-tabs.ch-less{-webkit-mask-image:linear-gradient(to right,transparent,#000 15%);mask-image:linear-gradient(to right,transparent,#000 15%)}
+#ch-app .ch-tabs.ch-less.ch-more{-webkit-mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent);mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent)}
+#ch-app .ch-tab{display:flex;align-items:center;gap:8px;padding:0 12px;min-height:42px;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;text-decoration:none}
+#ch-app .ch-tab:hover{color:var(--text)}
+#ch-app .ch-tab[aria-current]{color:var(--text);border-color:var(--accent)}
+#ch-app .ch-tab .ch-ct{font-family:"JetBrains Mono",monospace;font-size:11.5px;padding:1px 6px;border-radius:10px;background:var(--surface-2);color:var(--muted)}
+#ch-app .ch-tab[aria-current] .ch-ct{color:var(--text)}
+#ch-app .ch-tab .ch-new{font-size:11px;color:var(--forja);font-weight:600}
+#ch-app .ch-niche{display:flex;align-items:center;gap:8px;padding-bottom:6px}
+#ch-app .ch-niche .ch-lbl{font-size:12.5px;color:var(--muted)}
+#ch-app .ch-seg-ctl{display:inline-flex;border:1px solid var(--border-strong);border-radius:6px;overflow:hidden;background:var(--surface)}
+#ch-app .ch-seg-ctl button{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:0 11px;min-height:32px;min-width:36px;cursor:pointer;color:var(--muted);font:13px Inter,system-ui,sans-serif}
+#ch-app .ch-seg-ctl button+button{border-left:1px solid var(--border-strong)}
+#ch-app .ch-seg-ctl button[aria-pressed="true"]{background:var(--surface-2);color:var(--text);font-weight:600;box-shadow:inset 0 -2px 0 var(--text)}
+#ch-app .ch-seg-ctl .ch-n{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);font-weight:400}
+#ch-app .ch-seg-ctl .ch-sw{width:8px;height:8px;border-radius:50%}
+#ch-app .ch-pin{display:inline-grid;place-items:center;width:32px;height:32px;color:var(--muted)}
+#ch-app .ch-pin svg{width:15px;height:15px}
+
+/* ---------------------------------------------------------------- toasts */
+#ch-toasts{position:fixed;right:20px;bottom:20px;display:grid;gap:8px;z-index:80;width:min(380px,calc(100vw - 32px))}
+#ch-toasts .ch-toast{background:var(--surface);border:1px solid var(--border-strong);border-left:3px solid var(--muted);border-radius:7px;box-shadow:var(--shadow);padding:11px 13px;display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:8px;align-items:start;animation:ch-tin .22s ease-out;color:var(--text)}
+#ch-toasts .ch-toast>svg{width:16px;height:16px;margin-top:2px;color:var(--muted)}
+#ch-toasts .ch-toast.ch-forja{border-left-color:var(--forja)}#ch-toasts .ch-toast.ch-forja>svg{color:var(--forja)}
+/* com drawer modal aberto, os avisos sobem acima do rodapé dele */
+#ch-toasts.ch-lift{bottom:96px}
+#ch-toasts .ch-toast.ch-ok{border-left-color:var(--success)}#ch-toasts .ch-toast.ch-ok>svg{color:var(--success)}
+#ch-toasts .ch-toast.ch-bad{border-left-color:var(--danger)}#ch-toasts .ch-toast.ch-bad>svg{color:var(--danger)}
+#ch-toasts .ch-toast.ch-warn{border-left-color:var(--warning)}#ch-toasts .ch-toast.ch-warn>svg{color:var(--warning)}
+#ch-toasts .ch-toast b{font-weight:600;font-size:13px;display:block}
+#ch-toasts .ch-toast span{font-size:12.5px;color:var(--muted)}
+#ch-toasts .ch-toast .ch-tl{display:block;margin-top:4px}
+#ch-toasts .ch-toast .ch-btn{min-height:32px;font-size:12px;padding:0 9px}
+@keyframes ch-tin{from{opacity:0;transform:translateY(6px)}}
+
+/* ---------------------------------------------------------------- responsivo */
+@media (max-width:1279px){
+  #ch-app .ch-page.ch-with-drawer{grid-template-columns:minmax(0,1fr)}
+  #ch-app .ch-page.ch-with-drawer>.ch-drawer{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);z-index:60;box-shadow:var(--shadow)}
+  #ch-backdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55}
+}
+@media (max-width:1100px){
+  #ch-app{grid-template-columns:minmax(0,1fr)}
+  #ch-app .ch-side{position:fixed;left:0;top:0;bottom:0;width:240px;height:100vh;height:100dvh;max-height:none;z-index:65;box-shadow:var(--shadow);display:none}
+  #ch-app .ch-side.ch-open{display:block}
+  #ch-app .ch-side-btn{display:inline-flex!important}
+  #ch-app .ch-shell-tabs-wrap::after{display:block}
+}
+@media (max-width:900px){
+  #ch-app .ch-content{padding:20px 16px 72px}
+  #ch-app .ch-shell,#ch-app .ch-shell-tabs{padding-left:16px;padding-right:16px}
+  #ch-app .ch-obs-title h2{font-size:26px}
+}
+
+/* sidebar como painel (< 1100 px): fundo clicável, botão de fechar 32×32 */
+#ch-side-backdrop{display:none}
+#ch-app .ch-side-close{display:none}
+@media (max-width:1100px){
+  #ch-side-backdrop{display:block;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:64}
+  #ch-app .ch-side-close{display:inline-flex;position:absolute;top:10px;right:8px}
+  #ch-app .ch-side-logo{padding-right:44px}
+}
+
+/* frescor: linha de grupo alinhada à esquerda */
+#ch-app .ch-pop tr.ch-grp td{text-align:left}
+/* toasts: ações + fechar */
+#ch-toasts .ch-toast-acts{display:flex;gap:6px;align-items:center}
+#ch-toasts .ch-toast-x{width:32px;min-width:32px;height:32px;min-height:32px;padding:0}
+#ch-toasts .ch-toast-x svg{width:14px;height:14px;margin:0;color:var(--muted)}
+
+/* ---------------------------------------------------------------- compacto
+   Decide pela LARGURA DISPONÍVEL do conteúdo (container query em .ch-content), não pela janela:
+   com o drawer aberto a 1280–1500 px o cabeçalho também compacta. Meta: até 300 px de chrome a 768. */
+#ch-app .ch-content{container:chcontent / inline-size}
+#ch-app .ch-short{display:none}
+#ch-app .ch-ls{display:none}
+@media (max-width:900px){
+  #ch-app .ch-shell{padding-top:6px;padding-bottom:6px}
+  #ch-app .ch-content{padding-top:14px}
+}
+@container chcontent (max-width: 860px){
+  #ch-app .ch-obs-head{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
+  #ch-app .ch-obs-title h2{font-size:22px}
+  #ch-app .ch-obs-title p{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0}
+  #ch-app .ch-actions{margin-top:0;gap:6px;flex-wrap:nowrap}
+  /* ícones só para as ações secundárias; a forja mantém o rótulo; "Pedido em andamento" sai (o status fica ao lado) */
+  #ch-app .ch-actions>.ch-btn:not(.ch-forja):not(.ch-forja-solid){width:34px;min-width:34px;padding:0;justify-content:center}
+  #ch-app .ch-actions>.ch-btn:not(.ch-forja):not(.ch-forja-solid) .ch-lbl-t{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  #ch-app .ch-actions>.ch-btn.ch-busy{display:none}
+  /* I7: status e pílulas não quebram o cabeçalho: no máximo 16ch com reticências (texto inteiro no title e no leitor de tela);
+     as pílulas secundárias saem da vista (seguem no leitor de tela) */
+  #ch-app .ch-actions>.ch-pill,#ch-app .ch-actions>#ch-req-status{max-width:16ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;line-height:32px;min-height:34px}
+  #ch-app .ch-actions>.ch-pill{line-height:26px;min-height:28px}
+  #ch-app .ch-actions>.ch-pill.ch-pill-2{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;padding:0;border:0}
+  #ch-app .ch-obs-title{min-width:0}
+  /* rótulo duplo (v2.1.1): no compacto só o curto fica visível; o nome inteiro está no aria-label/title do botão */
+  #ch-app .ch-actions .ch-ls{display:inline}
+  #ch-app .ch-actions .ch-lf{display:none}
+  #ch-app .ch-fresh-row{margin-top:10px;flex-wrap:nowrap}
+  #ch-app .ch-fresh{flex-wrap:nowrap;max-width:100%}
+  #ch-app .ch-fresh>button{flex-wrap:nowrap;gap:8px;padding:2px 10px;min-height:34px}
+  #ch-app .ch-forja-seg{padding:2px 10px}
+  #ch-app .ch-long{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  #ch-app .ch-short{display:inline}
+  #ch-app .ch-tz{display:none}
+  #ch-app .ch-nav{margin-top:12px;flex-wrap:nowrap;align-items:center;gap:8px}
+  #ch-app .ch-tabs{flex:1 1 auto;min-width:0}
+  #ch-app .ch-tab{padding:0 9px;min-height:40px}
+  #ch-app .ch-niche{flex:none;padding-bottom:0}
+  #ch-app .ch-niche .ch-lbl,#ch-app .ch-pin{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  #ch-app .ch-seg-ctl button{padding:0 8px}
+}
+/* pílula de status terminal (publicado / falhou / recusado) */
+#ch-app .ch-pill{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border-radius:14px;border:1px solid var(--forja-line);color:var(--forja);font-size:12.5px;white-space:nowrap}
+#ch-app .ch-pill.ch-warn{border-color:var(--warning);color:var(--warning-text)}
+/* texto para copiar quando a área de transferência falha */
+#ch-toasts .ch-copy{display:block;width:100%;margin-top:6px;font:12px/1.4 "JetBrains Mono",monospace;color:var(--text);background:var(--sunk);border:1px solid var(--border-strong);border-radius:5px;padding:6px;resize:vertical}
+@media (prefers-reduced-motion: reduce){:is(#ch-app,#ch-mock,#ch-toasts) *::before,:is(#ch-app,#ch-mock,#ch-toasts) *::after{animation:none!important;transition:none!important}}
+/* item ativo da sidebar no tema claro (CONVENCOES rodada 3) */
+:root[data-theme="light"] #ch-app .ch-side li a[aria-current]{background:rgba(184,72,26,.08);color:#9A3A12}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) #ch-app .ch-side li a[aria-current]{background:rgba(184,72,26,.08);color:#9A3A12}}
+
+/* pílula secundária: o outro nicho de um pedido dividido (ex.: "IA: publicado às 14:50" enquanto Viagem trabalha) */
+#ch-app .ch-pill.ch-pill-2{border-color:var(--border-strong);color:var(--muted);max-width:28ch;overflow:hidden;text-overflow:ellipsis;display:inline-block;line-height:26px}
+#ch-app .ch-pill.ch-pill-2.ch-on{border-color:var(--forja-line);color:var(--forja)}   /* M5: outro pedido ativo */
+#ch-app .ch-actions>#ch-req-status{max-width:36ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;line-height:32px}
+
+/* ---------------------------------------------------------------- espaço acima da tela (D8)
+   Um só valor nas 6 telas: o chrome fixa a margem do contêiner da tela e o torna um contexto próprio
+   (flow-root), então a margem do primeiro filho não atravessa para fora. A tela não muda isso. */
+#ch-app #ch-content>.ch-screen{display:flow-root!important;margin-top:16px!important;padding-top:0!important;border-top:0!important;float:none!important;top:auto!important;transform:none!important;translate:none!important}
+
+/* ================================================================ n-nichos (só deste mockup; o resto do arquivo é cópia de 02/10)
+   Barra de nicho com N nichos: UMA linha, ao lado das abas. As abas ficam com a largura delas; a barra ocupa o que sobra,
+   encostada à direita. Quando os nichos não cabem, o trilho da barra rola para o lado, com o mesmo degradê das abas,
+   e o nicho ativo é sempre trazido para a vista. A página nunca rola para o lado e o cabeçalho não ganha altura. */
+#ch-app .ch-nav{flex-wrap:nowrap}
+#ch-app .ch-tabs{flex:0 1 auto;min-width:0}
+#ch-app .ch-niche{flex:1 1 0;min-width:168px;justify-content:flex-end}
+#ch-app .ch-seg-ctl{position:relative;flex:0 1 auto;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+#ch-app .ch-seg-ctl::-webkit-scrollbar{display:none}
+#ch-app .ch-seg-ctl button{flex:none;white-space:nowrap}
+#ch-app .ch-seg-ctl.ch-more{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 36px),transparent)}
+#ch-app .ch-seg-ctl.ch-less{-webkit-mask-image:linear-gradient(to right,transparent,#000 36px);mask-image:linear-gradient(to right,transparent,#000 36px)}
+#ch-app .ch-seg-ctl.ch-less.ch-more{-webkit-mask-image:linear-gradient(to right,transparent,#000 36px,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(to right,transparent,#000 36px,#000 calc(100% - 36px),transparent)}

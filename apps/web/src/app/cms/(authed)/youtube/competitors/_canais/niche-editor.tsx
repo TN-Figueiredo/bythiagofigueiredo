@@ -4,14 +4,20 @@
  * canais" editor (competitors only), opened by ?nicheEditor=1 (the chrome's menu item links there). The screen picks
  * the server action: setChannelNiche for a competitor, setOwnChannelNiche for an own channel.
  */
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
 
+/** Niche picked and not yet confirmed by the server data, per channel id (the screen owns it). `busy`: the action is still running. */
+export type NichePending = Record<string, { niche: Niche; busy: boolean }>
+export const NichePendingContext = createContext<NichePending>({})
+
 export function NicheSelect({ id, name, niche, ctx, onChange }: { id: string; name: string; niche: Niche | null; ctx: string; onChange: (n: Niche) => void }) {
+  const pending = useContext(NichePendingContext)[id]
+  const shown = pending?.niche ?? niche
   return (
     <select
-      className={'niche ' + (niche ?? 'none')} name={`niche-${id}-${ctx}`} aria-label={`Nicho de ${name}${niche ? '' : ': sem nicho, escolha um'}`} data-niche={id} data-ctx={ctx}
-      value={niche ?? ''} onChange={e => { const v = e.target.value; if (v === 'viagem' || v === 'ia') onChange(v) }}
+      className={'niche ' + (shown ?? 'none')} aria-busy={pending?.busy || undefined} name={`niche-${id}-${ctx}`} aria-label={`Nicho de ${name}${niche ? '' : ': sem nicho, escolha um'}`} data-niche={id} data-ctx={ctx}
+      value={shown ?? ''} onChange={e => { const v = e.target.value; if (v === 'viagem' || v === 'ia') onChange(v) }}
     >
       {niche == null ? <option value="" disabled>Escolher nicho</option> : null}
       <option value="viagem">Viagem</option>
@@ -24,7 +30,8 @@ type NicheRow = { id: string; name: string; niche: Niche | null }
 /** Where the focus goes back: what had it when the dialog opened, else the chrome's menu ⋯ (its usual opener). */
 const opener = (): HTMLElement | null => {
   const a = typeof document === 'undefined' ? null : document.activeElement
-  return a instanceof HTMLElement && a !== document.body && a.isConnected ? a : null
+  // on the server there is no document and no HTMLElement: `null instanceof HTMLElement` would throw a ReferenceError
+  return a != null && a instanceof HTMLElement && a !== document.body && a.isConnected ? a : null
 }
 const chromeMenu = () => document.querySelector<HTMLElement>('[data-obs-chrome] button[aria-label="Mais ações"]')
 

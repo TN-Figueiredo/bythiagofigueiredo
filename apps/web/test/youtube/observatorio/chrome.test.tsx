@@ -43,6 +43,15 @@ describe('ObservatoryChrome', () => {
     expect(els.length).toBeGreaterThan(8)
     els.forEach(el => expect(el).toHaveAccessibleName(/\S/))
   })
+  it('the screen is outside the chrome block, which is the size container (fixed layers of a screen resolve against the viewport)', () => {
+    const { container } = mount()
+    const chrome = container.querySelector('[data-obs-chrome]')!, scr = container.querySelector('.obs-ch-screen')!
+    expect(chrome.contains(scr)).toBe(false)
+    expect(scr.parentElement).toBe(chrome.parentElement)
+    expect(chrome.parentElement).toHaveClass('obs-ch-content')
+    // the toasts are fixed too: they sit beside the content, never inside it
+    expect(container.querySelector('.obs-ch-content .obs-ch-toasts')).toBeNull()
+  })
   it('renders the screen below the tabs inside the screen container', () => {
     const { container } = mount()
     const scr = container.querySelector('.obs-ch-screen > [data-obs-screen="x"]')
