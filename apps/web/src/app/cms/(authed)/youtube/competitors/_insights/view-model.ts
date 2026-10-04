@@ -65,7 +65,9 @@ export interface FormulasSection {
   meta: string
   /** "números da leitura de 20/10 06:10" when the rows are the reading's frozen numbers (insights.html renderFormulas P). */
   metaRight: string | null
-  rows: FormulaRow[]; zero: { ids: string[]; text: string } | null; empty: EmptyBlock | null; foot: Rich }
+  rows: FormulaRow[]; zero: { ids: string[]; text: string } | null; empty: EmptyBlock | null
+  /** null in a niche without competitors: the card only says what is missing (mockup 04/10, renderFormulas noComp). */
+  foot: Rich | null }
 
 export interface CadTick { left: string; height: number; tier: string | null; title: string }
 export interface CadHatch { kind: 'part' | 'sync' | 'parado'; left: string | null; width: string; title: string; text: string; short: string | null }
@@ -79,6 +81,8 @@ export interface CadRow {
 export interface CadenceSection {
   meta: string; legend: Array<{ color: string; text: string }>; axis: Array<{ left: string; text: string }>
   rows: CadRow[]; empty: string | null; foot: string
+  /** The niche has no competitor: no legend, no axis, no foot — only `empty` (mockup 04/10, renderCad noComp). */
+  noComp: boolean
 }
 
 export interface HeatCellView { cls: string; bg: string | null; text: string; title: string; peak: boolean }
@@ -296,12 +300,15 @@ function formulasSection(obs: Observatory, niche: Niche, fmt: VideoFmt, reading:
       ],
     }
   })
-  const empty: EmptyBlock | null = P || N.nVideos ? null : {
+  // a niche without competitors has nothing to analyse, whatever a past reading says (mockup 04/10, renderFormulas noComp)
+  const noComp = !obs.hasCompetitors(niche)
+  const empty: EmptyBlock | null = !noComp && (P || N.nVideos) ? null : {
     title: 'Sem títulos para analisar',
     text: 'Nenhum ' + FMT_ONE[fmt] + ' dos concorrentes de ' + obs.nicheLabel(niche) + ' nos últimos 6 meses com views comparáveis. As fórmulas aparecem a partir do primeiro vídeo; uma fórmula só “passa a regra” com ' + R.pattern.minN + ' vídeos ou mais.' + outOf(obs, niche, N.excluded),
   }
   const tail = P ? 'Os números da linha são da leitura (base de ' + obs.date.dm(P.sent.asOf) + '); “hoje” conta no mesmo escopo da leitura (mesmos canais e janela).'
     : (reading ? 'A leitura não trouxe os números das fórmulas: a tabela é a análise de hoje' : 'Ainda não há leitura: a tabela é a análise de hoje') + ' (base de ' + obs.date.dm(N.asOf) + '), sem selo da forja.'
+  if (noComp) return { meta: FMT_LABEL[fmt] + ' de ' + obs.nicheLabel(niche) + ', 6 meses', metaRight: null, rows: [], zero: null, empty, foot: null }
   return {
     meta, metaRight: P ? 'números da leitura de ' + obs.date.dm(P.generatedAt) + ' ' + obs.date.hm(P.generatedAt) : null, rows, empty,
     zero: !empty && zero.length ? { ids: zero.map(p => p.formula), text: 'Sem títulos com: ' + zero.map(p => F.lcfirst(p.label)).join(', ') + '.' } : null,
@@ -359,7 +366,7 @@ function cadenceSection(obs: Observatory, niche: Niche, fmt: VideoFmt): CadenceS
       { color: 'var(--tier-mid)', text: '≥ ' + T.mid + '×' }, { color: 'var(--tier-high)', text: '≥ ' + T.high + '×' }, { color: 'var(--tier-top)', text: '≥ ' + T.top + '×' },
     ],
     axis: [{ left: '0', text: t(0) }, { left: '33.33%', text: t(1 / 3) }, { left: '66.66%', text: t(2 / 3) }, { left: '100%', text: 'hoje, ' + DT.weekdayShort(obs.NOW) + ' ' + DT.dm(obs.NOW) }],
-    rows,
+    rows, noComp: !rows.length,
     empty: !rows.length ? 'Nenhum canal concorrente em ' + obs.nicheLabel(niche) + '.'
       : rows.every(r => !r.ticks.length) ? 'Nenhum ' + kind + ' dos concorrentes de ' + obs.nicheLabel(niche) + ' nos últimos 90 dias.' + outOf(obs, niche, []) : null,
     foot: '“Costuma” só aparece quando o mesmo dia da semana e hora somam ' + R.habit.minCount + ' vídeos ou mais e ' + F.int(R.habit.minShare * 100) + '% ou mais dos uploads do canal em ' + W + ' semanas. Hachurado no começo = vídeos que ainda não foram buscados; no fim = período sem sincronização do canal.',

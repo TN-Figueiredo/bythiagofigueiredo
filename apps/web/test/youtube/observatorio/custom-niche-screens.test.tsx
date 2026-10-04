@@ -313,6 +313,46 @@ describe('Insights', () => {
     expect(container.textContent).toContain('Pessoal')
     expect(within(container.querySelector<HTMLElement>('.statebox')!).getByRole('link', { name: 'Definir nicho dos concorrentes' })).toBeTruthy()
   })
+  // mockup de 04/10 (insights-n-canais.html, noComp): sem concorrente, Cadência e Fórmulas só dizem o que falta —
+  // sem legenda, sem eixo, sem rodapé, e a meta de Fórmulas não conta "0 longos"
+  it('nicho sem concorrentes: Cadência sem legenda, eixo nem rodapé; Fórmulas com a meta do nicho e sem rodapé', () => {
+    const v = buildInsightsView(obs4, { niche: 'pessoal' })
+    expect(v.cadence).toMatchObject({ noComp: true, empty: 'Nenhum canal concorrente em Pessoal.', rows: [], meta: 'longos, uploads dos últimos 90 dias; ritmo e hábito em 13 semanas' })
+    expect(v.formulas).toMatchObject({ meta: 'longos de Pessoal, 6 meses', metaRight: null, rows: [], zero: null, foot: null })
+    expect(v.formulas!.empty!.title).toBe('Sem títulos para analisar')
+    const { container } = render(<InsightsScreen view={v} />)
+    const cad = container.querySelector('#cadCard')!, form = container.querySelector('#formCard')!
+    expect(cad.textContent).toBe('Cadência por canal' + 'longos, uploads dos últimos 90 dias; ritmo e hábito em 13 semanas' + 'Nenhum canal concorrente em Pessoal.')
+    expect(cad.querySelector('.legend, .cad-axis, .foot')).toBeNull()
+    expect(cad.querySelector('.empty p')!.textContent).toBe('Nenhum canal concorrente em Pessoal.')
+    expect(form.querySelector('.foot')).toBeNull()
+    expect(form.querySelector('.chead .meta')!.textContent).toBe('longos de Pessoal, 6 meses')
+    expect(form.textContent).not.toMatch(/0 longos|Multiplicador/)
+    // Shorts: a mesma regra, com o formato na frase
+    const sh = buildInsightsView(obs4, { niche: 'pessoal', fmt: 'short' })
+    expect(sh.formulas!.meta).toBe('Shorts de Pessoal, 6 meses')
+    expect(sh.formulas!.foot).toBeNull()
+  })
+  it('nicho de fábrica sem concorrentes: a mesma regra de Cadência e Fórmulas (não é coisa de nicho criado)', () => {
+    const ds = datasetFromOracle(O)
+    const o = createObservatory({ ...ds, channels: ds.channels.filter(c => c.own || c.niche !== 'ia'), videos: ds.videos.filter(v => v.niche !== 'ia') })
+    const v = buildInsightsView(o, { niche: 'ia' })
+    expect(v.cadence).toMatchObject({ noComp: true, empty: 'Nenhum canal concorrente em IA.' })
+    expect(v.formulas).toMatchObject({ meta: 'longos de IA, 6 meses', foot: null, rows: [] })
+  })
+  it('nicho COM concorrentes: Cadência mantém legenda, eixo e rodapé; Fórmulas mantém o rodapé (nada muda)', () => {
+    for (const [o, n] of [[obs2, 'viagem'], [obs4, 'jogos']] as const) {
+      const v = buildInsightsView(o, { niche: n })
+      expect(v.cadence!.noComp).toBe(false)
+      expect(v.formulas!.foot).not.toBeNull()
+      const { container, unmount } = render(<InsightsScreen view={v} />)
+      expect(container.querySelector('#cadCard .legend')).not.toBeNull()
+      expect(container.querySelector('#cadCard .cad-axis')).not.toBeNull()
+      expect(container.querySelector('#cadCard .foot')).not.toBeNull()
+      expect(container.querySelector('#formCard .foot')).not.toBeNull()
+      unmount()
+    }
+  })
   it('nicho com concorrente e sem leitura: o herói continua com o texto de sempre (sem o atalho)', () => {
     const b = buildInsightsView(obs3, { niche: 'jogos' }).hero!.box!
     expect(b.title).toBe('Ainda não há leitura dos longos de Jogos')
