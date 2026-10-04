@@ -24,7 +24,7 @@ function fakeSupabase(overrides: Record<string, unknown> = {}) {
     eq: vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue({
       data: {
-        id: 'c1', pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
+        id: 'c1', status: 'published', published_at: new Date(Date.now() - 864e5).toISOString(), pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
         campaign_translations: [{
           success_headline: 'OK', success_headline_duplicate: 'Again',
           success_subheadline: 'Sub', success_subheadline_duplicate: 'SubDup',
@@ -171,7 +171,7 @@ describe('POST /api/campaigns/[slug]/submit', () => {
       eq: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockResolvedValue({
         data: {
-          id: 'c1', pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
+          id: 'c1', status: 'published', published_at: new Date(Date.now() - 864e5).toISOString(), pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
           campaign_translations: [{
             success_headline: 'OK', success_headline_duplicate: 'Again',
             success_subheadline: 'Sub', success_subheadline_duplicate: 'SubDup',
@@ -219,5 +219,27 @@ describe('POST /api/campaigns/[slug]/submit', () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toBe('campaign_not_found');
+  });
+
+  it.each(['draft', 'ready', 'scheduled', 'pending_review', 'archived'])('campanha %s: 404 e nada gravado nem PDF assinado', async (status) => {
+    const sb = fakeSupabase();
+    sb.maybeSingle.mockResolvedValue({
+      data: {
+        id: 'c1', status, published_at: null, pdf_storage_path: 'pdfs/a.pdf', interest: 'creator',
+        campaign_translations: [{
+          success_headline: 'OK', success_headline_duplicate: 'Again', success_subheadline: 'Sub',
+          success_subheadline_duplicate: 'SubDup', check_mail_text: 'Check', download_button_label: 'Download',
+        }],
+      }, error: null,
+    });
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(sb as never);
+    vi.mocked(verifyTurnstileToken).mockResolvedValue(true);
+    const res = await POST(
+      req({ email: 'a@b.co', locale: 'pt-BR', consent_marketing: true, consent_text_version: 'v1', turnstile_token: 't' }),
+      { params: Promise.resolve({ slug: 'my-slug' }) },
+    );
+    expect(res.status).toBe(404);
+    expect(sb.insert).not.toHaveBeenCalled();
+    expect(sb.storage.from).not.toHaveBeenCalled();
   });
 });

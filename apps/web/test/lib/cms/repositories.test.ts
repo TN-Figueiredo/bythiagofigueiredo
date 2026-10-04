@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  * Sprint 5b PR-B Phase 3 — `getCampaignBySlug` wrapper test.
  *
  * The wrapper queries `campaigns` + `campaign_translations!inner` filtered by
- * site_id + status='active' + locale + slug, returning `{id, translation}` or
+ * site_id + status='published' AND published_at <= now() + locale + slug, returning `{id, translation}` or
  * null. Mirrors the public-read RLS shape even though it runs as service role.
  */
 describe('getCampaignBySlug', () => {
@@ -28,7 +28,7 @@ describe('getCampaignBySlug', () => {
     const row = {
       id: 'camp-1',
       site_id: 'site-1',
-      status: 'active',
+      status: 'published',
       campaign_translations: [
         {
           locale: 'pt-BR',

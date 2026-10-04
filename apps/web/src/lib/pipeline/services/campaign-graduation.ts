@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import type { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { CAMPAIGN_INTERESTS } from '@/lib/campaigns/interest'
 import {
@@ -94,6 +95,8 @@ export function planCampaignDraft(
 /**
  * O trigger `campaign_translations_validate_slug` recusa (23505) slug repetido no mesmo
  * (site, locale). Checar antes dá 409 claro também no dry run e evita criar a campanha à toa.
+ * Duas consultas simples (traduções com o slug/locale; depois quais dessas campanhas são do site)
+ * em vez de um embed `campaigns!inner`, para o filtro de site ser verificável.
  */
 export async function assertCampaignSlugFree(
   supabase: Supabase,
@@ -101,17 +104,25 @@ export async function assertCampaignSlugFree(
   locale: string,
   slug: string,
 ): Promise<void> {
-  const { data, error } = await supabase
+  const { data: txs, error } = await supabase
     .from('campaign_translations')
-    .select('id, campaigns!inner(site_id)')
+    .select('campaign_id')
     .eq('locale', locale)
     .eq('slug', slug)
-    .eq('campaigns.site_id', siteId)
-    .limit(1)
   if (error) {
     throw new PipelineServiceError('DB_ERROR', 'Failed to check campaign slug', 500)
   }
-  if ((data ?? []).length > 0) {
+  const ids = (txs ?? []).map((t) => t.campaign_id as string)
+  if (ids.length === 0) return
+  const { data: owned, error: ownedError } = await supabase
+    .from('campaigns')
+    .select('id')
+    .in('id', ids)
+    .eq('site_id', siteId)
+  if (ownedError) {
+    throw new PipelineServiceError('DB_ERROR', 'Failed to check campaign slug', 500)
+  }
+  if ((owned ?? []).length > 0) {
     throw new PipelineServiceError(
       'CONFLICT',
       `A campaign with slug "${slug}" already exists for locale ${locale}. Pass campaign.slug to choose another.`,
@@ -121,7 +132,11 @@ export async function assertCampaignSlugFree(
   }
 }
 
-/** Cria campanha + tradução; se a tradução falhar, desfaz a campanha (a FK é ON DELETE CASCADE). */
+/**
+ * Cria campanha + tradução; se a tradução falhar, desfaz a campanha (a FK é ON DELETE CASCADE).
+ * Usada pela graduação do pipeline e pela action "Nova campanha" do CMS: o `create` do pacote
+ * cms@0.2.0 escreve colunas brevo que não existem mais.
+ */
 export async function insertCampaignDraft(
   supabase: Supabase,
   plan: CampaignDraftPlan,
@@ -139,7 +154,7 @@ export async function insertCampaignDraft(
     .from('campaign_translations')
     .insert({ campaign_id: campaign.id, ...plan.translation })
   if (txError) {
-    await deleteCampaignDraft(supabase, campaign.id as string)
+    await deleteCampaignDraft(supabase, campaign.id as string, plan.campaign.site_id)
     if (txError.code === '23505') {
       throw new PipelineServiceError(
         'CONFLICT',
@@ -152,7 +167,22 @@ export async function insertCampaignDraft(
   return campaign.id as string
 }
 
-export async function deleteCampaignDraft(supabase: Supabase, campaignId: string): Promise<void> {
-  // best-effort: já estamos devolvendo o erro original
-  await supabase.from('campaigns').delete().eq('id', campaignId)
+/**
+ * Rollback: apaga a campanha (site-scoped). Se o delete falhar, a campanha fica órfã: reporta ao
+ * Sentry com o id e devolve false; quem chama continua respondendo o erro original ao cliente.
+ */
+export async function deleteCampaignDraft(
+  supabase: Supabase,
+  campaignId: string,
+  siteId: string,
+): Promise<boolean> {
+  const { error } = await supabase.from('campaigns').delete().eq('id', campaignId).eq('site_id', siteId)
+  if (error) {
+    Sentry.captureException(new Error('campaign rollback failed: orphan draft campaign'), {
+      tags: { component: 'pipeline-campaign-graduation' },
+      extra: { campaign_id: campaignId, site_id: siteId, code: error.code },
+    })
+    return false
+  }
+  return true
 }
