@@ -49,9 +49,9 @@ function seed(channels: unknown[]) {
 describe('getYouTubePageData com a regra de transição', () => {
   beforeEach(() => seed(two))
 
-  it('com dois canais, entrega tudo (en antes de pt)', async () => {
+  it('com dois canais, entrega tudo (em ordem de cadastro)', async () => {
     const d = await getYouTubePageData('s1')
-    expect(d.channels.map((c) => c.id)).toEqual(['en-1', 'pt-1'])
+    expect(d.channels.map((c) => c.id)).toEqual(['pt-1', 'en-1'])
     expect(d.videos.map((v) => v.id).sort()).toEqual(['v1', 'v2'])
     expect(d.comments.map((c) => c.id)).toEqual(['c1'])
     expect(d.totalVideoCount).toBe(2)
@@ -74,5 +74,24 @@ describe('getYouTubePageData com a regra de transição', () => {
     expect(d.channels).toEqual([])
     expect(d.videos).toEqual([])
     expect(d.comments).toEqual([])
+  })
+
+  it('ordem de cadastro: pt criado antes de en devolve [pt, en]', async () => {
+    seed([channel('pt-1', 'pt', '2024-01-01T00:00:00Z'), channel('en-1', 'en', '2025-01-01T00:00:00Z')])
+    expect((await getYouTubePageData('s1')).channels.map((c) => c.id)).toEqual(['pt-1', 'en-1'])
+  })
+
+  it('ordem de cadastro: en criado antes de pt devolve [en, pt]', async () => {
+    seed([channel('pt-1', 'pt', '2025-01-01T00:00:00Z'), channel('en-1', 'en', '2024-01-01T00:00:00Z')])
+    expect((await getYouTubePageData('s1')).channels.map((c) => c.id)).toEqual(['en-1', 'pt-1'])
+  })
+
+  it('três canais (dois pt + um en): a vitrine sai em ordem de cadastro', async () => {
+    seed([
+      channel('pt-2', 'pt', '2026-01-01T00:00:00Z'),
+      channel('pt-1', 'pt', '2024-06-01T00:00:00Z'),
+      channel('en-1', 'en', '2024-01-01T00:00:00Z'),
+    ])
+    expect((await getYouTubePageData('s1')).channels.map((c) => c.id)).toEqual(['en-1', 'pt-1'])
   })
 })

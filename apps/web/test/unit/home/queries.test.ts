@@ -138,4 +138,18 @@ describe('leitores da home com mais de um canal por idioma', () => {
     expect(await getHomeVideos('s1', 'pt-BR')).toEqual([])
     expect(opsOf('youtube_videos')).toHaveLength(0)
   })
+
+  it('com exatamente 2 canais (pt + en) os leitores filtram cada um pelo seu canal', async () => {
+    const two = orderRows.filter((r) => r.id !== 'pt-new')
+    state.tables.youtube_channels = { data: two.map(chanRow) }
+    await getHomeVideos('s1', 'pt-BR')
+    await getHomeVideos('s1', 'en')
+    await getWeeklyPick('s1', 'en')
+    await getVideoCount('s1', 'pt-BR')
+    const vids = opsOf('youtube_videos')
+    expect(vids.length).toBeGreaterThanOrEqual(4)
+    expect(vids.every((c) => hasEq(c, 'channel_id') && !hasEq(c, 'youtube_channels.locale'))).toBe(true)
+    expect(hasEq(vids[0], 'channel_id', 'pt-old')).toBe(true)
+    expect(hasEq(vids[1], 'channel_id', 'en-1')).toBe(true)
+  })
 })

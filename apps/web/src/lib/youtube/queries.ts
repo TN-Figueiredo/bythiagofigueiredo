@@ -1,6 +1,6 @@
 import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { showcaseChannels } from './showcase'
+import { byRegistration, showcaseChannels } from './showcase'
 import type {
   YouTubeVideoRow, YouTubeChannelRow, YouTubeCategoryRow,
   YouTubeCuratedCommentRow, YouTubePageData, YouTubeVideoView,
@@ -38,7 +38,8 @@ export const getYouTubePageData = unstable_cache(
     ])
 
     // Regra de transição: um canal por idioma (o mais antigo); o resto não aparece.
-    const channels = showcaseChannels((channelsRes.data ?? []) as YouTubeChannelRow[])
+    // Em ordem de cadastro (a que a ordem física entregava), não de locale: os cards não trocam de lado.
+    const channels = byRegistration(showcaseChannels((channelsRes.data ?? []) as YouTubeChannelRow[]))
     const shownIds = new Set(channels.map((c) => c.id))
     const categories = (categoriesRes.data ?? []) as YouTubeCategoryRow[]
     const channelMap = new Map(channels.map((c) => [c.id, c]))
