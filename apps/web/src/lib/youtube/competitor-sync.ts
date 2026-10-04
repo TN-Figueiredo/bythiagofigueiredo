@@ -8,6 +8,7 @@ import {
 } from '@/lib/youtube/competitor-versions'
 import { classifyShort, needsShortProbe, probeShortsBatch, newProbeBudget, isYoutubeVideoId, type ProbeBudget, type ShortProbeResult } from '@/lib/youtube/short-classifier'
 import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
+import { warnIfProbeBlocked } from '@/lib/youtube/short-guard'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
 const MAX_FULL_SYNC_VIDEOS = 2000
@@ -372,11 +373,10 @@ export async function syncCompetitorChannel(
       // Smart incremental: stop if we hit a known video
       let hitKnownVideo = false
 
-      // Shorts de 61–180 s: a sonda decide (R109). Novos primeiro, depois os já gravados, dentro do teto da execução.
+      // Shorts de 61–180 s: a sonda decide (R109), só para vídeos novos, dentro do teto da execução.
       const probeCandidates = ((videosData.items ?? []) as Array<Record<string, unknown>>)
         .map(v => ({ id: v.id as string, dur: parseIsoDuration((v.contentDetails as { duration?: string } | undefined)?.duration), title: ((v.snippet as { title?: string } | undefined)?.title) ?? '' }))
-        .filter(v => needsShortProbe(v.dur) && !v.title.includes('#Shorts'))
-        .sort((a, b) => Number(existingMap.has(a.id)) - Number(existingMap.has(b.id)))
+        .filter(v => needsShortProbe(v.dur) && !v.title.includes('#Shorts') && !existingMap.has(v.id)) // só novos; os já gravados são do backfill (I-1)
       const probes = await probeShortsBatch(probeCandidates.map(v => v.id), probeBudget, f)
       if (probeBudget.stats) probeBudget.stats.pending += probeCandidates.filter(v => isYoutubeVideoId(v.id) && !probes.has(v.id)).length
 
@@ -560,7 +560,10 @@ export async function syncCompetitorChannel(
 
     // ── Re-classificação dos já gravados como longos com 61–180 s (R109), mesmo teto da execução ──
     try {
-      if (!opts.deferBackfill) await reclassifyStoredShorts(supabase, channelRow.id, nowMs, probeBudget, f)
+      if (!opts.deferBackfill) {
+        await reclassifyStoredShorts(supabase, channelRow.id, nowMs, probeBudget, f)
+        if (probeBudget.stats) warnIfProbeBlocked(probeBudget.stats) // "sincronizar agora" também avisa
+      }
     } catch {
       // a sonda nunca derruba o sync
     }

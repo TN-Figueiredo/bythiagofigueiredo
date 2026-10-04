@@ -48,6 +48,10 @@ describe('probeShort', () => {
     expect(await probeShort(ID, (async () => res(429)) as unknown as typeof fetch)).toBe('inconclusive')
     expect(await probeShort(ID, (async () => res(503)) as unknown as typeof fetch)).toBe('inconclusive')
   })
+  it('Location em host que só termina com youtube.com não conta', async () => {
+    expect(await probeShort(ID, (async () => res(303, 'https://notyoutube.com/watch?v=x')) as unknown as typeof fetch)).toBe('inconclusive')
+    expect(await probeShort(ID, (async () => res(303, 'https://m.youtube.com/watch?v=x')) as unknown as typeof fetch)).toBe('normal')
+  })
   it('timeout/erro = inconclusivo, nunca lança', async () => {
     expect(await probeShort(ID, (async () => { throw new DOMException('t', 'TimeoutError') }) as unknown as typeof fetch)).toBe('inconclusive')
   })
@@ -72,5 +76,14 @@ describe('probeShortsBatch', () => {
     expect(peak).toBeLessThanOrEqual(SHORT_PROBE_CONCURRENCY)
     expect(await probeShortsBatch(ids, budget, f as unknown as typeof fetch)).toEqual(new Map())
     expect(budget.stats).toMatchObject({ attempted: 6, shorts: 6, regular: 0, inconclusive: 0 })
+  })
+})
+
+describe('controle falhou (I-2)', () => {
+  it('probeShortsBatch não sonda nem consome orçamento', async () => {
+    const f = vi.fn()
+    const budget = { ...newProbeBudget(10), controlFailed: true }
+    expect((await probeShortsBatch([ID], budget, f as unknown as typeof fetch)).size).toBe(0)
+    expect(f).not.toHaveBeenCalled(); expect(budget.remaining).toBe(10)
   })
 })

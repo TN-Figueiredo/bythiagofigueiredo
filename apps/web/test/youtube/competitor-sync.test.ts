@@ -480,6 +480,14 @@ describe('syncCompetitorChannel — Shorts de 61–180 s', () => {
     expect(arg(db.calls.find(c => c.table === 'competitor_videos' && first(c) === 'update')!, 'update')).toMatchObject({ is_short: true })
   })
 
+  it('I-1: vídeo já gravado de 90 s na página não gera requisição nem gasta orçamento', async () => {
+    const log: string[] = []
+    setup({ lastDaily: '2026-10-24', existing: [{ id: 'v-1', video_id: 'AAAAAAAAAA1', title: 'Um vídeo', description_hash: null, thumbnail_url: null, view_count: 1, is_short: false }] })
+    const budget = { remaining: 50 }
+    await syncCompetitorChannel(ch, 'k', { now: NOW, probeBudget: budget, deferBackfill: true, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT1M30S'), () => new Response('', { status: 200 }), log) })
+    expect(log).toEqual([]); expect(budget.remaining).toBe(50)
+  })
+
   it('vídeo já gravado como longo e sem sonda nesta rodada mantém o valor gravado', async () => {
     const db = setup({ lastDaily: '2026-10-24', existing: [{ id: 'v-1', video_id: 'AAAAAAAAAA1', title: 'Um vídeo', description_hash: null, thumbnail_url: null, view_count: 1, is_short: false }] })
     await syncCompetitorChannel(ch, 'k', { now: NOW, probeBudget: { remaining: 0 }, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT1M30S'), () => new Response('', { status: 200 })) })
@@ -500,7 +508,7 @@ describe('reclassifyStoredShorts — backfill (R109)', () => {
     const q = db.calls[0]!
     const op = (n: string) => q.ops.find(o => o[0] === n)?.[1]
     expect(op('eq')).toEqual(['competitor_channel_id', 'cc-1'])
-    expect(q.ops.filter(o => o[0] === 'eq').map(o => o[1])).toContainEqual(['is_short', false])
+    expect(op('or')).toEqual(['is_short.is.null,is_short.eq.false'])
     expect(op('gt')).toEqual(['duration_seconds', 60]); expect(op('lte')).toEqual(['duration_seconds', 180])
     expect(op('gte')).toEqual(['published_at', new Date(fixed - 91 * 86_400_000).toISOString()])
     expect(op('order')).toEqual(['published_at', { ascending: false }])
@@ -541,6 +549,33 @@ describe('reclassifyStoredShorts — backfill (R109)', () => {
     await reclassifyStoredShortsRoundRobin(db.client as never, ['A', 'B'], fixed, budget, f)
     expect(seen.sort()).toEqual(['AAAAAAAAA00', 'AAAAAAAAA01', 'AAAAAAAAA02', 'BBBBBBBBB00'])
     expect(budget.stats).toMatchObject({ attempted: 4, shorts: 4, backfilled: 4, pending: 3 })
+  })
+
+  it('I-3: parada por tempo antes de começar: nada é sondado e pending reflete o que ficou', async () => {
+    const db = fakeDb((c) => (first(c) === 'select' ? { data: null, count: 7 } : undefined))
+    const f = vi.fn(async () => new Response('', { status: 200 }))
+    const budget = { remaining: 60, stats: { attempted: 0, shorts: 0, regular: 0, inconclusive: 0, backfilled: 0, pending: 0 } }
+    await reclassifyStoredShortsRoundRobin(db.client as never, ['A'], fixed, budget, f as unknown as typeof fetch, () => true)
+    expect(f).not.toHaveBeenCalled(); expect(budget.stats.pending).toBe(7)
+  })
+
+  it('I-3: o rodízio para no meio quando o relógio cruza o ponto', async () => {
+    const db = fakeDb((c) => (first(c) === 'select' ? { data: rows, count: 5 } : undefined))
+    let calls = 0
+    const f = (async () => { calls++; return new Response('', { status: 200 }) }) as typeof fetch
+    const budget = { remaining: 60, stats: { attempted: 0, shorts: 0, regular: 0, inconclusive: 0, backfilled: 0, pending: 0 } }
+    await reclassifyStoredShortsRoundRobin(db.client as never, ['A'], fixed, budget, f, () => calls >= 2)
+    expect(calls).toBeLessThan(5); expect(budget.stats.pending).toBe(5 - budget.stats.attempted)
+  })
+
+  it('erro do select ou do update não derruba e não conta backfilled', async () => {
+    const dbSel = fakeDb((c) => (first(c) === 'select' ? { data: null, error: { message: 'x' } } : undefined))
+    const b1 = { remaining: 5, stats: { attempted: 0, shorts: 0, regular: 0, inconclusive: 0, backfilled: 0, pending: 0 } }
+    expect(await reclassifyStoredShortsRoundRobin(dbSel.client as never, ['A'], fixed, b1, fetch)).toBe(0)
+    const dbUp = fakeDb((c) => (first(c) === 'select' ? { data: rows, count: 5 } : first(c) === 'update' ? { error: { message: 'y' } } : undefined))
+    const b2 = { remaining: 5, stats: { attempted: 0, shorts: 0, regular: 0, inconclusive: 0, backfilled: 0, pending: 0 } }
+    expect(await reclassifyStoredShortsRoundRobin(dbUp.client as never, ['A'], fixed, b2, (async () => new Response('', { status: 200 })) as typeof fetch)).toBe(0)
+    expect(b2.stats.backfilled).toBe(0)
   })
 
   it('sem orçamento não consulta o banco', async () => {
