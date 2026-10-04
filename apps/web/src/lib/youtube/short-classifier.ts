@@ -69,7 +69,7 @@ export async function probeShort(videoId: string, fetchImpl: typeof fetch = fetc
     if (res.status >= 300 && res.status < 400) {
       const loc = res.headers.get('location') ?? ''
       let path = ''
-      try { const u = new URL(loc, 'https://www.youtube.com'); path = u.hostname.endsWith('youtube.com') && !u.hostname.startsWith('consent.') ? u.pathname : '' } catch { path = '' }
+      try { const u = new URL(loc, 'https://www.youtube.com'); path = (u.hostname === 'youtube.com' || (u.hostname.endsWith('.youtube.com') && !u.hostname.startsWith('consent.'))) ? u.pathname : '' } catch { path = '' }
       return path === '/watch' ? 'normal' : 'inconclusive'
     }
     return 'inconclusive'
@@ -82,9 +82,9 @@ export async function probeShort(videoId: string, fetchImpl: typeof fetch = fetc
 export const MAX_SHORT_PROBES_PER_RUN = 60 // 120 não cabe com margem ≥ 60 s no maxDuration (ver relatório)
 export const SHORT_PROBE_CONCURRENCY = 4
 
-export interface ShortProbeStats { attempted: number; shorts: number; regular: number; inconclusive: number; backfilled: number; pending: number }
-export const emptyProbeStats = (): ShortProbeStats => ({ attempted: 0, shorts: 0, regular: 0, inconclusive: 0, backfilled: 0, pending: 0 })
-export interface ProbeBudget { remaining: number; stats?: ShortProbeStats }
+export interface ShortProbeStats { attempted: number; shorts: number; regular: number; inconclusive: number; backfilled: number; pending: number; control?: 'ok' | 'failed' | 'none' }
+export const emptyProbeStats = (): ShortProbeStats => ({ attempted: 0, shorts: 0, regular: 0, inconclusive: 0, backfilled: 0, pending: 0, control: 'none' })
+export interface ProbeBudget { remaining: number; stats?: ShortProbeStats; /** sonda de controle falhou: nenhuma sonda da execução é confiável (I-2) */ controlFailed?: boolean }
 export const newProbeBudget = (n: number = MAX_SHORT_PROBES_PER_RUN): ProbeBudget => ({ remaining: n, stats: emptyProbeStats() })
 
 /**
@@ -95,18 +95,20 @@ export async function probeShortsBatch(
   videoIds: string[],
   budget: ProbeBudget,
   fetchImpl: typeof fetch = fetch,
+  shouldStop: () => boolean = () => false,
 ): Promise<Map<string, ShortProbeResult>> {
   const out = new Map<string, ShortProbeResult>()
+  if (budget.controlFailed) return out // nada é decidido por sonda quando o controle falhou
   const ids = [...new Set(videoIds)].filter(isYoutubeVideoId).slice(0, Math.max(0, budget.remaining))
-  budget.remaining -= ids.length
   let next = 0
   const worker = async () => {
-    while (next < ids.length) {
+    while (next < ids.length && !shouldStop()) {
       const id = ids[next++]!
       out.set(id, await probeShort(id, fetchImpl))
     }
   }
   await Promise.all(Array.from({ length: Math.min(SHORT_PROBE_CONCURRENCY, ids.length) }, worker))
+  budget.remaining -= out.size
   const st = budget.stats
   if (st) {
     st.attempted += out.size

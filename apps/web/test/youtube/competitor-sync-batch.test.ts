@@ -117,3 +117,49 @@ describe('runCompetitorBatch — visibilidade da sonda (R114)', () => {
     expect(captureMessage).not.toHaveBeenCalled()
   })
 })
+
+describe('runCompetitorBatch — controle e prazo do backfill (I-2, I-3)', () => {
+  async function run(opts: { controlId?: string; controlResponse?: () => Response; clock?: () => number }) {
+    vi.resetModules()
+    const captureMessage = vi.fn()
+    vi.doMock('@sentry/nextjs', () => ({ captureMessage, captureException: vi.fn() }))
+    let seenFailed: boolean | undefined
+    vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (_r: unknown, _k: string, o: { probeBudget: { controlFailed?: boolean } }) => { seenFailed = o.probeBudget.controlFailed; return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0 } }) }))
+    const channels = [{ id: 'a', channel_id: 'A', site_id: 's', last_synced_at: null }]
+    const chainRes = { data: opts.controlId ? [{ video_id: opts.controlId }] : [], error: null }
+    const chain: unknown = new Proxy({}, { get: (_t, p: string) => p === 'then' ? (ok: (v: unknown) => unknown) => Promise.resolve(chainRes).then(ok) : () => chain })
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: (t: string) => t === 'competitor_channels' ? { select: () => ({ order: () => Promise.resolve({ data: channels, error: null }) }) } : chain }) }))
+    const backfill = vi.fn(async () => 0)
+    vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: backfill }))
+    const fetchMock = vi.fn(async () => opts.controlResponse ? opts.controlResponse() : new Response('', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
+    const r = await runCompetitorBatch({ apiKey: 'k', batchSize: 5, budgetMs: 1e9, now: opts.clock ?? (() => sp('2026-10-24T15:02:00')) })
+    vi.unstubAllGlobals()
+    return { r, captureMessage, seenFailed, fetchMock, backfill }
+  }
+  const redirectWatch = () => ({ status: 303, headers: new Headers({ location: '/watch?v=x' }), body: null }) as unknown as Response
+
+  it('controle volta normal: ok, sondas valem', async () => {
+    const { r, seenFailed, captureMessage } = await run({ controlId: 'AAAAAAAAAA1', controlResponse: redirectWatch })
+    expect(r.shorts_probe?.control).toBe('ok'); expect(seenFailed).toBeFalsy(); expect(captureMessage).not.toHaveBeenCalled()
+  })
+  it('controle não volta normal (200 com interstício): failed, sondas descartadas e aviso', async () => {
+    const { r, seenFailed, captureMessage } = await run({ controlId: 'AAAAAAAAAA1' })
+    expect(r.shorts_probe?.control).toBe('failed'); expect(seenFailed).toBe(true)
+    expect(captureMessage).toHaveBeenCalledTimes(1); expect(captureMessage.mock.calls[0]![0]).toMatch(/controle/)
+    expect(r).toMatchObject({ synced: 1, errors: 0 })
+  })
+  it('sem vídeo longo conhecido: none, segue como hoje, sem requisição de controle', async () => {
+    const { r, fetchMock, seenFailed } = await run({})
+    expect(r.shorts_probe?.control).toBe('none'); expect(fetchMock).not.toHaveBeenCalled(); expect(seenFailed).toBeFalsy()
+  })
+  it('I-3: passa o prazo de 230 s ao backfill (relógio falso)', async () => {
+    let t = sp('2026-10-24T15:02:00')
+    const { backfill } = await run({ clock: () => t })
+    const stop = backfill.mock.calls[0]![5] as () => boolean
+    expect(stop()).toBe(false)
+    t += 231_000
+    expect(stop()).toBe(true)
+  })
+})
