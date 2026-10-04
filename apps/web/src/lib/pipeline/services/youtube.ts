@@ -161,6 +161,8 @@ export interface PerLinkFunnel {
 export interface FunnelMetrics {
   per_variant: PerVariantFunnel[]
   per_link: PerLinkFunnel[]
+  /** Window the link clicks were counted in (test start -> test end, or now while active). null = test never started, link clicks are 0. */
+  link_clicks_window: { from: string; to: string } | null
 }
 
 interface WinnerVariant {
@@ -1042,7 +1044,7 @@ export async function getAbTestFunnel(
   // Verify test belongs to site
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id')
+    .select('id, site_id, started_at, completed_at')
     .eq('id', id)
     .eq('site_id', siteId)
     .single()
@@ -1079,24 +1081,36 @@ export async function getAbTestFunnel(
     variantImpressions[c.variant_id] = v
   }
 
-  // Fetch link click aggregates
+  // Link clicks are counted in `link_clicks` inside the test window (start -> end, or now while
+  // active). `tracked_links.total_clicks` is a lifetime total: after the winner is applied it keeps
+  // growing and would tilt the comparison. A link soft-deleted (`deleted_at`) counts for nothing.
+  // The table is partitioned by date; the `clicked_at` bounds also prune partitions.
   const linkClicksByLinkId: Record<string, number> = {}
-  if (trackedLinks?.length) {
-    const linkIds = trackedLinks.map(tl => tl.link_id).filter(Boolean)
-    if (linkIds.length) {
-      // The click total of a short link is `tracked_links.total_clicks`. The
-      // `link_click_aggregates` table this read never existed, and its error was dropped, so
-      // every A/B link showed 0 clicks.
-      const { data: clickAggs, error: clicksError } = await supabase
-        .from('tracked_links')
-        .select('id, total_clicks')
+  const startedAt = (test as { started_at: string | null }).started_at
+  const completedAt = (test as { completed_at: string | null }).completed_at
+  const window = startedAt ? { from: startedAt, to: completedAt ?? new Date().toISOString() } : null
+  const linkIds = [...new Set((trackedLinks ?? []).map(tl => tl.link_id).filter(Boolean))]
+  if (window && linkIds.length) {
+    const { data: live, error: liveError } = await supabase
+      .from('tracked_links')
+      .select('id')
+      .eq('site_id', siteId)
+      .in('id', linkIds)
+      .is('deleted_at', null)
+    if (liveError) return err('DB_ERROR', 'Failed to load tracked links', 500)
+    const counts = await Promise.all(((live ?? []) as Array<{ id: string }>).map(async (l) => {
+      const { count, error: clicksError } = await supabase
+        .from('link_clicks')
+        .select('id', { count: 'exact', head: true })
         .eq('site_id', siteId)
-        .in('id', linkIds)
-      if (clicksError) return err('DB_ERROR', 'Failed to load link click totals', 500)
-      for (const agg of (clickAggs ?? []) as Array<{ id: string; total_clicks: number | null }>) {
-        linkClicksByLinkId[agg.id] = agg.total_clicks ?? 0
-      }
-    }
+        .eq('link_id', l.id)
+        .eq('is_bot', false)
+        .gte('clicked_at', window.from)
+        .lte('clicked_at', window.to)
+      if (clicksError) return err('DB_ERROR', 'Failed to count link clicks', 500)
+      return [l.id, count ?? 0] as const
+    }))
+    for (const [lid, n] of counts) linkClicksByLinkId[lid] = n
   }
 
   const per_variant = Object.entries(variantImpressions).map(([variantId, stats]) => ({
@@ -1115,7 +1129,7 @@ export async function getAbTestFunnel(
     clicks: linkClicksByLinkId[tl.link_id] ?? 0,
   }))
 
-  return ok({ per_variant, per_link })
+  return ok({ per_variant, per_link, link_clicks_window: window })
 }
 
 // ---------------------------------------------------------------------------

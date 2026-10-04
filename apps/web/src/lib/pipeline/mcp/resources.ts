@@ -7,6 +7,7 @@
 // only wires registration and serialisation.
 // ---------------------------------------------------------------------------
 
+import * as Sentry from '@sentry/nextjs'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 
@@ -88,18 +89,26 @@ function readOrThrow<T>(res: { data: T | null; error: { message: string } | null
   return res.data as T
 }
 
-/** Reads a table past the PostgREST `max_rows` cap (1000): pages with `.range()` until a short page. */
+/** Pages past this are an error, not a silent cut. */
+const MAX_PAGES = 100
+
+/**
+ * Reads a table past the PostgREST `max_rows` cap (1000): pages with `.range()` and stops only on
+ * an EMPTY page. A short page is not the end: the server may cap lower than the page we ask for,
+ * so the next page starts at the rows actually received. More than MAX_PAGES pages throws.
+ */
 async function readAllPages<T>(
   page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
   what: string,
 ): Promise<T[]> {
   const PAGE = 1000
   const out: T[] = []
-  for (let from = 0; ; from += PAGE) {
-    const rows = readOrThrow(await page(from, from + PAGE - 1), what) ?? []
+  for (let n = 0; n < MAX_PAGES; n++) {
+    const rows = readOrThrow(await page(out.length, out.length + PAGE - 1), what) ?? []
+    if (rows.length === 0) return out
     out.push(...rows)
-    if (rows.length < PAGE) return out
   }
+  throw new Error(`Failed to fetch ${what}: more than ${MAX_PAGES} pages (${MAX_PAGES * 1000} rows) — refusing to cut the result silently`)
 }
 
 function jsonResource(data: unknown): ResourceContents {
@@ -472,33 +481,44 @@ export function registerResources(server: McpServer): void {
     },
     async (uri) => {
       const supabase = getSupabaseServiceClient()
+      const { siteId } = await buildResourceCtx()
 
       const { data: topics, error } = await supabase
         .from('research_topics')
         .select('id, name, slug, path, parent_id')
+        .eq('site_id', siteId)
         .order('path', { ascending: true })
 
       if (error) throw new Error(`Failed to fetch research topics: ${error.message}`)
 
-      // Count research items per topic
-      const counts = readOrThrow(await supabase
+      // The topics are the central data: their read error throws (above). The per-topic counts
+      // are secondary: if that read fails the tree still goes out, with `itemCount: null` and an
+      // explicit `itemCountsUnavailable` (and a Sentry message) — never a count of 0.
+      const countsRes = await supabase
         .from('research_items')
-        .select('topic_id'), 'research item counts')
-
+        .select('topic_id')
+        .eq('site_id', siteId)
+      let itemCountsUnavailable: string | null = null
       const countMap: Record<string, number> = {}
-      for (const c of counts ?? []) {
-        const tid = c.topic_id as string
-        countMap[tid] = (countMap[tid] ?? 0) + 1
+      if (countsRes.error) {
+        itemCountsUnavailable = `unavailable: item counts per topic (${countsRes.error.message})`
+        Sentry.captureMessage(`MCP resource research/topics: ${itemCountsUnavailable}`, { level: 'warning', tags: { area: 'mcp-resource' } })
+      } else {
+        for (const c of countsRes.data ?? []) {
+          const tid = c.topic_id as string
+          countMap[tid] = (countMap[tid] ?? 0) + 1
+        }
       }
 
       const enriched = (topics ?? []).map((t: { id: string; name: string; slug: string; path: string; parent_id: string | null }) => ({
         ...t,
-        itemCount: countMap[t.id] ?? 0,
+        itemCount: itemCountsUnavailable ? null : countMap[t.id] ?? 0,
       }))
 
       const result = jsonResource({
         topics: enriched,
         totalTopics: enriched.length,
+        ...(itemCountsUnavailable ? { itemCountsUnavailable } : {}),
         generatedAt: new Date().toISOString(),
       })
       result.contents[0]!.uri = uri.href

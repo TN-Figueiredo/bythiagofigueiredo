@@ -201,7 +201,10 @@ export async function searchContent(
       .select('post_id, title, slug, locale, blog_posts!inner(status, category, site_id)')
       .eq('blog_posts.site_id', ctx.siteId)
       .or(`title.ilike.%${safeQ}%,slug.ilike.%${safeQ}%`)
-      .limit(10),
+      // stable order, and room for the second locale of the same post before the dedupe below
+      .order('post_id', { ascending: true })
+      .order('locale', { ascending: true })
+      .limit(30),
 
     ctx.supabase
       .from('newsletter_editions')
@@ -216,7 +219,15 @@ export async function searchContent(
   if (blogRes.error) return err('DB_ERROR', 'Failed to search blog posts', 500)
   if (newsletterRes.error) return err('DB_ERROR', 'Failed to search newsletters', 500)
 
-  const blogHits: BlogSearchHit[] = (blogRes.data ?? []).map((t) => {
+  // one hit per post: a post matching in two locales is listed once (the first locale in order)
+  const seenPosts = new Set<string>()
+  const uniqueTranslations = (blogRes.data ?? []).filter((t) => {
+    const pid = t.post_id as string
+    if (seenPosts.has(pid)) return false
+    seenPosts.add(pid)
+    return true
+  }).slice(0, 10)
+  const blogHits: BlogSearchHit[] = uniqueTranslations.map((t) => {
     const post = oneEmbed(t.blog_posts as { status: string; category: string | null } | Array<{ status: string; category: string | null }> | null)
     return {
       id: t.post_id as string,
@@ -293,12 +304,14 @@ export async function listContext(
   // If filtering by skill, resolve keys from _system/skill-mappings
   let skillKeys: string[] | null = null
   if (skill) {
-    const { data: mappingRow } = await ctx.supabase
+    const { data: mappingRow, error: mappingError } = await ctx.supabase
       .from('reference_content')
       .select('content_compact')
       .eq('site_id', ctx.siteId)
       .eq('key', '_system/skill-mappings')
       .single()
+    // no mapping row (PGRST116) = no skill has documents; any other error is a failed read, not "no documents"
+    if (mappingError && mappingError.code !== 'PGRST116') return err('QUERY_ERROR', 'Failed to load references', 400)
     const raw = mappingRow?.content_compact
     const mappings = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : null
     const resolved = mappings?.[skill]
@@ -443,7 +456,8 @@ export async function getTopicAggregation(
       .from('blog_posts')
       .select('id, status, category, locale, blog_translations(title, slug, locale)')
       .eq('site_id', ctx.siteId)
-      .eq('category', code),
+      .eq('category', code)
+      .order('id', { ascending: true }),
   ])
 
   if (pipelineRes.error) return err('DB_ERROR', 'Failed to load topic pipeline items', 500)
@@ -451,7 +465,8 @@ export async function getTopicAggregation(
 
   const blogPosts = (blogRes.data ?? []).flatMap((p) => {
     const tx = (p.blog_translations ?? []) as Array<{ title: string; slug: string; locale: string }>
-    const chosen = tx.find((t) => t.locale === p.locale) ?? tx[0]
+    // the post's own locale; otherwise the first locale alphabetically (never the DB's whim)
+    const chosen = tx.find((t) => t.locale === p.locale) ?? [...tx].sort((a, b) => a.locale.localeCompare(b.locale))[0]
     // a post with no translation has no title or slug to show
     return chosen
       ? [{ id: p.id as string, title: chosen.title, slug: chosen.slug, status: p.status as string, category: (p.category as string | null) ?? null }]

@@ -974,6 +974,7 @@ export async function graduateItem(
   }
 
   const { target } = parsed.data
+  assertGraduationSupported(target)
   const supabase = getSupabaseServiceClient()
 
   const { data: item } = await supabase
@@ -1003,7 +1004,6 @@ export async function graduateItem(
   const fkMap = {
     blog_post: 'blog_post_id',
     newsletter: 'newsletter_edition_id',
-    campaign: 'campaign_id',
   } as const
 
   type FkTarget = keyof typeof fkMap
@@ -1029,8 +1029,6 @@ export async function graduateItem(
     entityId = await graduateToBlogPost(ctx, id, item, title, supabase)
   } else if (target === 'newsletter') {
     entityId = await graduateToNewsletter(ctx, item, title, supabase)
-  } else if (target === 'campaign') {
-    entityId = await graduateToCampaign(ctx, item, title, supabase)
   }
 
   if (entityId && fkField) {
@@ -1384,25 +1382,24 @@ async function graduateToNewsletter(
   return edition.id
 }
 
-// -- Campaign sub-function --
+// -- Campaign graduation --
 
-async function graduateToCampaign(
-  ctx: ServiceContext,
-  item: Record<string, unknown>,
-  title: string,
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-): Promise<string> {
-  // `campaigns` has no `name` or `slug` (the copy lives in `campaign_translations`, which also
-  // requires the hook, the button labels and the success texts) and needs an `interest`. The
-  // insert that used to be here named columns that do not exist, so it failed every time with a
-  // generic 400. Nothing in the item carries that copy; until the owner decides how a campaign
-  // graduates, say so instead of pretending to try.
-  void ctx; void item; void title; void supabase
-  throw new PipelineServiceError(
-    'NOT_SUPPORTED',
-    'Graduating to a campaign is not supported: a campaign needs its interest and the translated copy (campaign_translations), which a pipeline item does not carry',
-    422,
-  )
+/**
+ * `target: 'campaign'` stays in the enum (the contract) but is not supported: `campaigns` has no
+ * `name`/`slug` (the copy lives in `campaign_translations`, which also requires the hook, the
+ * button labels and the success texts) and needs an `interest`; nothing in a pipeline item carries
+ * that. The insert that used to be here named columns that do not exist and failed every time
+ * with a generic 400. Called before the dry run and before any read, so a preview never says
+ * `graduated: true` for a target that will be refused.
+ */
+export function assertGraduationSupported(target: string): void {
+  if (target === 'campaign') {
+    throw new PipelineServiceError(
+      'NOT_SUPPORTED',
+      'Graduating to a campaign is not supported yet: a campaign needs its interest and the translated copy (campaign_translations), which a pipeline item does not carry',
+      422,
+    )
+  }
 }
 
 // ---------------------------------------------------------------------------

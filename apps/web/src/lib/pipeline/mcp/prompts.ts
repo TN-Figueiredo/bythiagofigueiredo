@@ -7,6 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import { z } from 'zod'
+import * as Sentry from '@sentry/nextjs'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -35,13 +36,28 @@ import type { PlaylistEdgeRow, PlaylistItemEnriched, PlaylistRow } from '@/lib/p
 // ---------------------------------------------------------------------------
 
 /** Build a single user-role message for MCP prompt responses. */
-function userMessage(text: string) {
+function userMessage(text: string, notes: string[] = []) {
+  // `notes` = secondary reads that failed ("unavailable: <why>"): said out loud at the top, so
+  // the model never mistakes a missing piece for an empty one.
+  const body = notes.length ? `${notes.map(n => `> ${n}`).join('\n')}\n\n${text}` : text
   return {
     messages: [{
       role: 'user' as const,
-      content: { type: 'text' as const, text },
+      content: { type: 'text' as const, text: body },
     }],
   }
+}
+
+/**
+ * A SECONDARY read failed (snapshot age, channel name, stats summary, foco, decisions): the
+ * prompt still goes out, with an explicit `unavailable: <what> (<why>)` line — never '' or [] —
+ * and the failure is reported to Sentry. The CENTRAL data of a prompt (skill context, the item,
+ * the A/B test, the research items) is not degraded: its read error throws.
+ */
+function degrade(what: string, e: unknown): string {
+  const reason = e instanceof Error ? e.message : String(e)
+  Sentry.captureMessage(`MCP prompt: ${what} unavailable: ${reason}`, { level: 'warning', tags: { area: 'mcp-prompt' } })
+  return `unavailable: ${what} (${reason})`
 }
 
 /**
@@ -53,9 +69,9 @@ function userMessage(text: string) {
  * error made every prompt go out without its reference context. A read error now fails the
  * prompt; a skill with no mapped documents still gives ''.
  */
-async function fetchSkillContext(skill: string): Promise<string> {
-  const siteId = await resolvePromptSiteId()
-  if (!siteId) return ''
+async function fetchSkillContext(skill: string, knownSiteId?: string | null): Promise<string> {
+  const siteId = knownSiteId === undefined ? await resolvePromptSiteId() : knownSiteId
+  if (!siteId) throw new Error('No site found')
   const ctx: ServiceContext = {
     siteId,
     permissions: ['read'],
@@ -70,9 +86,20 @@ async function fetchSkillContext(skill: string): Promise<string> {
     .join('\n\n---\n\n')
 }
 
-/** Fetch pipeline stats summary as a compact string. */
-async function fetchStatsSummary(): Promise<string> {
-  const siteId = await resolvePromptSiteId()
+/**
+ * Fetch pipeline stats summary as a compact string. A SECONDARY read of the ideator prompt: a
+ * failure becomes an `unavailable:` line (and a Sentry message), not a failed prompt.
+ */
+async function fetchStatsSummary(knownSiteId?: string | null): Promise<string> {
+  try {
+    return await readStatsSummary(knownSiteId)
+  } catch (e) {
+    return `Pipeline stats: ${degrade('pipeline stats', e)}`
+  }
+}
+
+async function readStatsSummary(knownSiteId?: string | null): Promise<string> {
+  const siteId = knownSiteId === undefined ? await resolvePromptSiteId() : knownSiteId
   if (!siteId) return 'Pipeline: no site found'
   const supabase = getSupabaseServiceClient()
   const { data, error } = await supabase
@@ -105,7 +132,9 @@ const UNKNOWN_CHANNEL: AbBriefingData['channel'] = { name: 'Unknown', subscriber
 /** The site these prompts run for — the same rule the MCP resources use (`buildResourceCtx`). */
 async function resolvePromptSiteId(): Promise<string | null> {
   const supabase = getSupabaseServiceClient()
-  const { data: site } = await supabase.from('sites').select('id').limit(1).single()
+  const { data: site, error } = await supabase.from('sites').select('id').limit(1).single()
+  // no row (PGRST116) is "no site"; any other error is a failed read
+  if (error && error.code !== 'PGRST116') throw new Error(`Failed to read the site: ${error.message}`)
   return (site?.id as string | undefined) ?? null
 }
 
@@ -123,6 +152,19 @@ async function resolvePromptSiteId(): Promise<string | null> {
  * `channel_name`: selecting both is what kept every prompt on "Unknown / nano").
  */
 async function resolveChannel(
+  siteId: string | null,
+  target: { videoId?: string | null; channelId?: string | null } = {},
+): Promise<{ id: string | null; info: AbBriefingData['channel']; unavailable?: string }> {
+  // The channel name is a SECONDARY read: a failed read answers "Unknown" plus an explicit
+  // `unavailable:` note, never a different channel and never a failed prompt.
+  try {
+    return await readChannel(siteId, target)
+  } catch (e) {
+    return { id: null, info: UNKNOWN_CHANNEL, unavailable: degrade('channel name', e) }
+  }
+}
+
+async function readChannel(
   siteId: string | null,
   target: { videoId?: string | null; channelId?: string | null } = {},
 ): Promise<{ id: string | null; info: AbBriefingData['channel'] }> {
@@ -176,9 +218,17 @@ async function fetchChannelInfo(
 async function fetchChannelAndAge(
   siteId: string | null,
   target: { videoId?: string | null; channelId?: string | null } = {},
-): Promise<{ channel: AbBriefingData['channel']; snapshotAge: number | null }> {
-  const { id, info } = await resolveChannel(siteId, target)
-  return { channel: info, snapshotAge: await fetchSnapshotAge(siteId, id) }
+): Promise<{ channel: AbBriefingData['channel']; snapshotAge: number | null; notes: string[] }> {
+  const { id, info, unavailable } = await resolveChannel(siteId, target)
+  const notes = unavailable ? [unavailable] : []
+  let snapshotAge: number | null = null
+  try {
+    snapshotAge = await fetchSnapshotAge(siteId, id)
+  } catch (e) {
+    // SECONDARY read: the recommendation to (re)run the analysis does not change
+    notes.push(degrade('intelligence snapshot age', e))
+  }
+  return { channel: info, snapshotAge, notes }
 }
 
 /**
@@ -220,12 +270,11 @@ async function fetchSnapshotAge(siteId: string | null, channelId: string | null)
  * past-due. Keeps everything cheap (a few selects) so prompts can inject it
  * inline without forcing the client to fetch resources first.
  */
-async function fetchResearchSnapshot(): Promise<string> {
+async function fetchResearchSnapshot(knownSiteId?: string | null): Promise<string> {
   const supabase = getSupabaseServiceClient()
 
   // Active site (first) — research is site-scoped.
-  const { data: site } = await supabase.from('sites').select('id').limit(1).single()
-  const siteId = site?.id as string | undefined
+  const siteId = knownSiteId === undefined ? await resolvePromptSiteId() : knownSiteId
   if (!siteId) return 'Research: no site found'
 
   const [itemsRes, focoRes, decisionsRes] = await Promise.all([
@@ -247,9 +296,11 @@ async function fetchResearchSnapshot(): Promise<string> {
       .neq('status', 'arquivado'),
   ])
 
+  // The items are the central data of the snapshot: their read error fails the prompt. The foco
+  // and the decisions are secondary: an `unavailable:` line each (and a Sentry message).
   if (itemsRes.error) throw new Error(`Failed to read the research items: ${itemsRes.error.message}`)
-  if (focoRes.error) throw new Error(`Failed to read the research foco: ${focoRes.error.message}`)
-  if (decisionsRes.error) throw new Error(`Failed to read the research decisions: ${decisionsRes.error.message}`)
+  const focoUnavailable = focoRes.error ? degrade('active foco', new Error(focoRes.error.message)) : null
+  const decisionsUnavailable = decisionsRes.error ? degrade('open decisions', new Error(decisionsRes.error.message)) : null
   const items = (itemsRes.data ?? []) as Array<{ status: string; theme_id: string | null; pinned: boolean }>
   const byStatus: Record<string, number> = {}
   const byTheme: Record<string, number> = {}
@@ -265,7 +316,7 @@ async function fetchResearchSnapshot(): Promise<string> {
   // in the past count as overdue (RS5). Non-parseable labels are listed as
   // "needs review" without a hard date assertion.
   const now = Date.now()
-  const decisions = (decisionsRes.data ?? []) as Array<{
+  const decisions = (decisionsUnavailable ? [] : decisionsRes.data ?? []) as Array<{
     title: string
     horizon: string
     status: string
@@ -277,13 +328,14 @@ async function fetchResearchSnapshot(): Promise<string> {
     return Number.isFinite(ts) && ts < now
   })
 
-  const foco = focoRes.data as { title: string; window_label: string | null; horizon: string } | null
+  const foco = (focoUnavailable ? null : focoRes.data) as { title: string; window_label: string | null; horizon: string } | null
 
   const statusLine = Object.entries(byStatus).map(([k, v]) => `${k}: ${v}`).join(', ') || '(nenhuma)'
   const themeLine = Object.entries(byTheme).map(([k, v]) => `${k}: ${v}`).join(', ') || '(nenhum)'
-  const focoLine = foco
-    ? `${foco.title} (${foco.window_label ?? 'sem janela'}, horizonte ${foco.horizon})`
-    : 'nenhum foco ativo'
+  const focoLine = focoUnavailable
+    ?? (foco
+      ? `${foco.title} (${foco.window_label ?? 'sem janela'}, horizonte ${foco.horizon})`
+      : 'nenhum foco ativo')
   const revisitLine = revisitDue.length > 0
     ? revisitDue.map((d) => `"${d.title}" (revisit ${d.revisit}, ${d.horizon})`).join('; ')
     : 'nenhum revisit vencido'
@@ -293,7 +345,9 @@ async function fetchResearchSnapshot(): Promise<string> {
   lines.push(`Por status: ${statusLine}`)
   lines.push(`Por tema: ${themeLine}`)
   lines.push(`Foco ativo: ${focoLine}`)
-  lines.push(`Decisões abertas: ${decisions.length} · revisit vencido: ${revisitDue.length} (${revisitLine})`)
+  lines.push(decisionsUnavailable
+    ? `Decisões abertas: ${decisionsUnavailable}`
+    : `Decisões abertas: ${decisions.length} · revisit vencido: ${revisitDue.length} (${revisitLine})`)
   return lines.join('\n')
 }
 
@@ -331,9 +385,10 @@ export function registerPrompts(server: McpServer): void {
       const count = args.count ? parseInt(args.count, 10) : 5
 
       // Auto-inject: context/ideator + stats
+      const siteId = await resolvePromptSiteId()
       const [context, stats] = await Promise.all([
-        fetchSkillContext('ideator'),
-        fetchStatsSummary(),
+        fetchSkillContext('ideator', siteId),
+        fetchStatsSummary(siteId),
       ])
 
       const lines: string[] = []
@@ -432,7 +487,7 @@ export function registerPrompts(server: McpServer): void {
 
       // Auto-inject: context/writer + docs/items-and-sections
       const [writerContext, domainDocs] = await Promise.all([
-        fetchSkillContext('writer'),
+        fetchSkillContext('writer', siteId),
         fetchDomainDocs('items-and-sections'),
       ])
 
@@ -500,7 +555,7 @@ export function registerPrompts(server: McpServer): void {
       if (error || !item) throw new Error(`Item not found: ${itemId}`)
 
       // Auto-inject: context/producer + workflows
-      const producerContext = await fetchSkillContext('producer')
+      const producerContext = await fetchSkillContext('producer', siteId)
 
       const format = item.format as Format
       const workflow = WORKFLOWS[format]
@@ -584,7 +639,7 @@ export function registerPrompts(server: McpServer): void {
       // Auto-inject: youtube/intelligence + youtube/ab-performance.
       // No video in hand yet: the first channel of the site.
       const siteId = await resolvePromptSiteId()
-      const { channel, snapshotAge } = await fetchChannelAndAge(siteId)
+      const { channel, snapshotAge, notes } = await fetchChannelAndAge(siteId)
 
       // Fetch latest AB test history (completed tests of this site)
       const supabase = getSupabaseServiceClient()
@@ -628,7 +683,7 @@ export function registerPrompts(server: McpServer): void {
         focus: videoContext,
       })
 
-      return userMessage(promptText)
+      return userMessage(promptText, notes)
     },
   )
 
@@ -676,7 +731,7 @@ export function registerPrompts(server: McpServer): void {
       if (videoError) throw new Error(`Failed to read the test video: ${videoError.message}`)
 
       // Auto-inject: youtube/intelligence (channel info) — the channel of the test's video
-      const { channel, snapshotAge } = await fetchChannelAndAge(siteId, { videoId: test.youtube_video_id as string | null })
+      const { channel, snapshotAge, notes } = await fetchChannelAndAge(siteId, { videoId: test.youtube_video_id as string | null })
 
       // Fetch test history (completed tests of this site)
       const { data: testHistory, error: historyError } = await supabase
@@ -738,7 +793,7 @@ export function registerPrompts(server: McpServer): void {
         : `\n\n---\n**MCP: Ignore the HTTP workflow steps above.** Use the \`manage_ab_test\` tool with action \`upsert_variants\` to save variants. Example:\n\`\`\`json\n{ "action": "upsert_variants", "test_id": "${testId}", "variants": [...], "dry_run": false }\n\`\`\``
       promptText += mcpOverride
 
-      return userMessage(promptText)
+      return userMessage(promptText, notes)
     },
   )
 
@@ -1045,7 +1100,7 @@ export function registerPrompts(server: McpServer): void {
 
       // Auto-inject: channel info + snapshot age + youtube docs
       const siteId = await resolvePromptSiteId()
-      const [{ channel, snapshotAge }, youtubeDocs] = await Promise.all([
+      const [{ channel, snapshotAge, notes }, youtubeDocs] = await Promise.all([
         fetchChannelAndAge(siteId, { channelId }),
         fetchDomainDocs('youtube'),
       ])
@@ -1054,7 +1109,11 @@ export function registerPrompts(server: McpServer): void {
       lines.push('# YouTube Channel Analyst — Complete Analysis')
       lines.push('')
       lines.push(`Channel: ${channel.name} | ${channel.subscribers.toLocaleString()} subscribers | Tier: ${channel.tier}`)
-      lines.push(snapshotAge === null
+      const ageUnavailable = notes.find(n => n.startsWith('unavailable: intelligence snapshot age'))
+      for (const n of notes) if (n !== ageUnavailable) lines.push(`> ${n}`)
+      lines.push(ageUnavailable
+        ? `Intelligence snapshot age: ${ageUnavailable}`
+        : snapshotAge === null
         ? 'Intelligence snapshot: none yet for this channel (no analysis has been submitted) — run the full analysis below.'
         : `Intelligence snapshot age: ${snapshotAge}h`)
       lines.push('')
@@ -1314,9 +1373,10 @@ export function registerPrompts(server: McpServer): void {
       const theme = args.theme ?? ''
       const limit = args.limit ? parseInt(args.limit, 10) : 20
 
+      const siteId = await resolvePromptSiteId()
       const [snapshot, skill, docs] = await Promise.all([
-        fetchResearchSnapshot(),
-        fetchSkillContext('research_strategist'),
+        fetchResearchSnapshot(siteId),
+        fetchSkillContext('research_strategist', siteId),
         fetchDomainDocs('research'),
       ])
 
@@ -1365,9 +1425,10 @@ export function registerPrompts(server: McpServer): void {
       const theme = args.theme ?? ''
       const horizon = args.horizon ?? ''
 
+      const siteId = await resolvePromptSiteId()
       const [snapshot, skill, docs] = await Promise.all([
-        fetchResearchSnapshot(),
-        fetchSkillContext('research_strategist'),
+        fetchResearchSnapshot(siteId),
+        fetchSkillContext('research_strategist', siteId),
         fetchDomainDocs('research'),
       ])
 
@@ -1414,9 +1475,10 @@ export function registerPrompts(server: McpServer): void {
     async (args) => {
       const windowLabel = args.window_label ?? ''
 
+      const siteId = await resolvePromptSiteId()
       const [snapshot, skill, docs] = await Promise.all([
-        fetchResearchSnapshot(),
-        fetchSkillContext('research_strategist'),
+        fetchResearchSnapshot(siteId),
+        fetchSkillContext('research_strategist', siteId),
         fetchDomainDocs('research'),
       ])
 
@@ -1461,9 +1523,10 @@ export function registerPrompts(server: McpServer): void {
     'Resumo semanal da estratégia para o dono (DIGEST): foco vigente, o que está quente, revisits vencidos — em PT-BR sem jargão',
     {},
     async () => {
+      const siteId = await resolvePromptSiteId()
       const [snapshot, skill] = await Promise.all([
-        fetchResearchSnapshot(),
-        fetchSkillContext('research_strategist'),
+        fetchResearchSnapshot(siteId),
+        fetchSkillContext('research_strategist', siteId),
       ])
 
       const lines: string[] = []
@@ -1502,9 +1565,10 @@ export function registerPrompts(server: McpServer): void {
     'Capstone de proatividade: roda o Preflight barato e devolve UMA recomendação priorizada (suggest-don\'t-nag)',
     {},
     async () => {
+      const siteId = await resolvePromptSiteId()
       const [snapshot, skill] = await Promise.all([
-        fetchResearchSnapshot(),
-        fetchSkillContext('research_strategist'),
+        fetchResearchSnapshot(siteId),
+        fetchSkillContext('research_strategist', siteId),
       ])
 
       const lines: string[] = []
