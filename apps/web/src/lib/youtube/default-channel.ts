@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
+import * as Sentry from '@sentry/nextjs'
 import { byRegistration } from './showcase'
 
 /**
@@ -52,8 +53,14 @@ export async function defaultOwnChannel(
       .is('revoked_at', null),
     supabase.from('youtube_channels').select('id, channel_id, name, locale, created_at').eq('site_id', siteId),
   ])
-  if (connRes.error) throw new Error(`Failed to read YouTube connections: ${connRes.error.message}`)
-  if (chRes.error) throw new Error(`Failed to read YouTube channels: ${chRes.error.message}`)
+  // O texto do Postgres vai só para o Sentry: esta mensagem chega crua ao cliente MCP e à tela.
+  if (connRes.error || chRes.error) {
+    Sentry.captureException(new Error(`defaultOwnChannel read failed: ${(connRes.error ?? chRes.error)!.message}`), {
+      tags: { area: 'default-channel' },
+      extra: { siteId, connections: connRes.error?.message ?? null, channels: chRes.error?.message ?? null },
+    })
+    throw new Error('Failed to read YouTube channels')
+  }
 
   const connected = new Set((connRes.data ?? []).map((c) => c.account_id as string))
   const picked = pickDefaultChannel((chRes.data ?? []) as ChannelRow[], connected)
@@ -64,4 +71,20 @@ export async function defaultOwnChannel(
     name: picked.channel.name,
     hasConnection: picked.hasConnection,
   }
+}
+
+/**
+ * O canal ativo da tela de analytics: o explícito válido vence; um `?channel=` ausente OU
+ * inválido cai no canal padrão (não no primeiro da lista); sem padrão conectado, o primeiro.
+ */
+export function pickActiveChannel<T extends { channelId: string }>(
+  connected: readonly T[],
+  selectedChannelId: string | undefined,
+  defaultChannelId: string | undefined,
+): T | undefined {
+  return (
+    connected.find((c) => c.channelId === selectedChannelId) ??
+    connected.find((c) => c.channelId === defaultChannelId) ??
+    connected[0]
+  )
 }
