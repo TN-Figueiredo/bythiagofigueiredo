@@ -34,6 +34,11 @@ export interface ChannelSummary {
   channel_id: string
   name: string
   subscriber_count: number | null
+  /** The four below only ever ADD to the snapshot (the forja worker in production predates them). */
+  slug: string | null
+  locale: string | null
+  niche: string | null
+  niche_label: string | null
 }
 
 export interface VideoSnapshot {
@@ -372,12 +377,30 @@ export async function getIntelligenceSnapshot(
 ): Promise<ServiceResult<IntelSnapshot>> {
   const { supabase, siteId } = ctx
 
-  const { data: channel, error: channelError } = await supabase
+  // Two literal selects on purpose (the row type is lost on a column list built at run time):
+  // a database that predates the `slug` migration rereads without it, `slug: null`.
+  type SnapshotChannelRow = { id: string; channel_id: string; name: string; subscriber_count: number | null; slug?: string | null; locale: string | null; niche: string | null }
+  let channel: SnapshotChannelRow | null
+  let channelError: { code?: string } | null
+  const withSlug = await supabase
     .from('youtube_channels')
-    .select('id, channel_id, name, subscriber_count')
+    .select('id, channel_id, name, subscriber_count, slug, locale, niche')
     .eq('id', channelId)
     .eq('site_id', siteId)
     .single()
+  if (withSlug.error?.code != null && NO_COLUMN.has(withSlug.error.code)) {
+    const bare = await supabase
+      .from('youtube_channels')
+      .select('id, channel_id, name, subscriber_count, locale, niche')
+      .eq('id', channelId)
+      .eq('site_id', siteId)
+      .single()
+    channel = bare.data
+    channelError = bare.error
+  } else {
+    channel = withSlug.data
+    channelError = withSlug.error
+  }
 
   // Same rule as the analytics reads below: a DB error must never be flattened into a
   // plain 404. single() reports zero rows as PGRST116 — that one really is "no such
@@ -393,6 +416,19 @@ export async function getIntelligenceSnapshot(
   // channel could push the requested one out of its own snapshot entirely. So: every video id of
   // THIS channel first (all of them, not just the 50 listed below — a grade on the 51st newest
   // video still belongs to the channel), then the three reads restricted to those ids.
+  // The niche's label: null for a channel without niche, and null (not a guess) when the
+  // niche table is not in this database yet. Skipped entirely when there is nothing to label.
+  let nicheLabelText: string | null = null
+  if (channel.niche) {
+    let niches: NicheRow[] | null
+    try {
+      niches = await readNiches(supabase, siteId)
+    } catch {
+      return err('INTERNAL_ERROR', 'Failed to read the niches', 500)
+    }
+    if (niches !== null) nicheLabelText = nicheLabel(nicheDefs(niches), channel.niche)
+  }
+
   const channelVideoIds = await readChannelVideoIds(ctx, channel.id)
   if (channelVideoIds === null) return err('INTERNAL_ERROR', 'Failed to read the channel videos', 500)
 
@@ -510,6 +546,10 @@ export async function getIntelligenceSnapshot(
       channel_id: channel.channel_id,
       name: channel.name,
       subscriber_count: channel.subscriber_count,
+      slug: channel.slug ?? null,
+      locale: channel.locale ?? null,
+      niche: channel.niche ?? null,
+      niche_label: nicheLabelText,
     },
     recent_window: recentWindow,
     videos: (videosRes.data ?? []).map(v => ({

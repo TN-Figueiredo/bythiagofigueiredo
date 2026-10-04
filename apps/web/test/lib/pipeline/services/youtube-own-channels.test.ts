@@ -407,3 +407,43 @@ describe('getIntelligenceSnapshot — notas, ciclos e testes A/B são do canal p
     expect(sb.on('youtube_videos')).toHaveLength(0)
   })
 })
+
+// ---------------------------------------------------------------------------
+// getIntelligenceSnapshot — o canal diz slug, idioma e nicho (só acrescenta)
+// ---------------------------------------------------------------------------
+
+describe('getIntelligenceSnapshot — channel.slug, locale, niche e niche_label', () => {
+  const tablesWith = (ch: Record<string, unknown>) => twoChannels({ youtube_channels: [channel(ch)] as never, youtube_niches: NICHES as never })
+
+  it('o canal traz slug, locale, niche e niche_label, mantendo as quatro chaves de hoje', async () => {
+    const sb = fakePostgrest({ tables: tablesWith({ id: 'ch-a', name: 'Canal A', channel_id: 'UCa', subscriber_count: 100, slug: 'tnfigueiredotv', locale: 'pt', niche: 'viagem' }), columns: COLUMNS })
+    const { data } = await getIntelligenceSnapshot(ctxOf(sb), 'ch-a')
+    expect(data.channel).toEqual({
+      id: 'ch-a', channel_id: 'UCa', name: 'Canal A', subscriber_count: 100,
+      slug: 'tnfigueiredotv', locale: 'pt', niche: 'viagem', niche_label: 'Viagem',
+    })
+  })
+
+  it('canal sem nicho → niche e niche_label null, e nem lê os nichos', async () => {
+    const sb = fakePostgrest({ tables: tablesWith({ id: 'ch-a', niche: null }), columns: COLUMNS })
+    const { data } = await getIntelligenceSnapshot(ctxOf(sb), 'ch-a')
+    expect(data.channel).toMatchObject({ niche: null, niche_label: null })
+    expect(sb.on('youtube_niches')).toHaveLength(0)
+  })
+
+  it('coluna slug ausente (42703) → slug null, em vez de 500', async () => {
+    const tables = tablesWith({ id: 'ch-a' })
+    tables.youtube_channels = tables.youtube_channels!.map(({ slug: _s, ...rest }) => rest)
+    const sb = fakePostgrest({ tables, columns: COLUMNS })
+    const { data } = await getIntelligenceSnapshot(ctxOf(sb), 'ch-a')
+    expect(data.channel).toMatchObject({ slug: null, locale: 'pt', niche: 'viagem', niche_label: 'Viagem' })
+  })
+
+  it('tabela youtube_niches ausente → niche_label null, o resto intacto', async () => {
+    const tables = tablesWith({ id: 'ch-a' })
+    delete tables.youtube_niches
+    const sb = fakePostgrest({ tables, columns: COLUMNS })
+    const { data } = await getIntelligenceSnapshot(ctxOf(sb), 'ch-a')
+    expect(data.channel).toMatchObject({ niche: 'viagem', niche_label: null })
+  })
+})

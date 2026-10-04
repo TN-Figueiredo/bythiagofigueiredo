@@ -59,6 +59,22 @@ export async function authenticateIntel(
 }
 
 /**
+ * Authenticate a read of the own-channel list: `read` OR `intelligence` (write and admin
+ * include both). The forja queue key holds `intelligence` alone, the proxy's read key holds
+ * `read`: the discovery route accepts both so that no key has to change.
+ */
+export async function authenticateReadOrIntel(req: NextRequest): Promise<
+  { ok: true; auth: PipelineAuth } | NextResponse
+> {
+  const authResult = await authenticatePipeline(req)
+  if (!authResult.ok) return pipelineError('UNAUTHORIZED', authResult.error, authResult.status)
+  if (!requirePermission(authResult.auth, 'read') && !requirePermission(authResult.auth, 'intelligence')) {
+    return pipelineError('FORBIDDEN', 'Insufficient permissions', 403, authResult.auth)
+  }
+  return { ok: true, auth: authResult.auth }
+}
+
+/**
  * Read + optionally validate a JSON request body at the transport boundary.
  *
  * Backward compatible with the domain's existing contract: on failure it returns a
