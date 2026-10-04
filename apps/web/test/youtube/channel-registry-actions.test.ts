@@ -20,6 +20,7 @@ interface Setup {
   errors?: Record<string, PgErr>
   rpc?: Record<string, (args: Row) => { data: unknown; error: PgErr | null }>
   lookup?: Row | null | Error
+  noMasterKey?: boolean
 }
 
 const SITE = 's1'
@@ -103,6 +104,8 @@ function setup(opts: Setup = {}) {
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: clientMock }))
   const lookupChannelByHandle = vi.fn(async () => { if (opts.lookup instanceof Error) throw opts.lookup; return opts.lookup === undefined ? LOOKUP : opts.lookup })
   vi.doMock('@/lib/youtube/api-client', () => ({ lookupChannelByHandle }))
+  const getMasterKey = vi.fn(() => { if (opts.noMasterKey) throw new Error('SOCIAL_MASTER_KEY missing'); return Buffer.from('k') })
+  vi.doMock('@tn-figueiredo/social/vault', () => ({ getMasterKey, decrypt: (enc: string) => 'plain:' + enc }))
   const load = () => import('@/app/cms/(authed)/youtube/_actions/channels')
   const writes = () => ops.filter(o => o.op === 'insert' || o.op === 'update' || o.op === 'delete')
   return { load, ops, order, tables, clientMock, rpc, revalidateTag, revalidatePath, lookupChannelByHandle, writes }
@@ -218,6 +221,20 @@ describe('addYouTubeChannel', () => {
   })
 })
 
+describe('código em produção ANTES da migration 0006 (a UNIQUE(site_id, locale) antiga ainda no banco)', () => {
+  const LOCALE_KEY = { code: '23505', message: 'duplicate key value violates unique constraint "youtube_channels_site_id_locale_key"' }
+  const PENDING = 'A second channel in the same language cannot be saved yet: a database update is pending.'
+  it('cadastro de um segundo canal no mesmo idioma: diz que falta a atualização do banco, NÃO "already registered"', async () => {
+    const t = setup({ errors: { 'youtube_channels:insert': LOCALE_KEY } })
+    const res = await (await t.load()).addYouTubeChannel(addInput() as never)
+    expect(res).toEqual({ ok: false, error: PENDING })
+  })
+  it('troca de idioma para um já usado: a mesma frase, não a mensagem crua do Postgres', async () => {
+    const t = setup({ channels: [CH_PT], errors: { 'youtube_channels:update': LOCALE_KEY } })
+    expect(await (await t.load()).updateYouTubeChannelIdentity({ channel_id: CH_PT.id, locale: 'en', niche: null })).toEqual({ ok: false, error: PENDING })
+  })
+})
+
 describe('updateYouTubeChannelIdentity', () => {
   it('grava idioma e nicho do canal do site; o slug nunca entra no update, mesmo que venha na entrada', async () => {
     const t = setup({ channels: [CH_PT], niches: [VIAGEM, IA, JOGOS] })
@@ -320,8 +337,8 @@ describe('createYouTubeNiche', () => {
 })
 
 const IMPACT = {
-  status: 'ok', name: 'Thiago na Estrada', slug: 'viagem-br', videos: 212, comments: 48, sync_logs: 864, ab_tests: 3,
-  analyses: 9, tasks: 2, notes: 14, pipeline_links: 6, blockers: [],
+  status: 'ok', name: 'Thiago na Estrada', slug: 'viagem-br', videos: 212, comments: 48, sync_logs: 864, ab_tests: 3, ab_drafts: 1,
+  analyses: 9, tasks: 2, notes: 14, notifications: 5, connections: 1, pipeline_links: 6, blockers: [],
 }
 const BLOCKER = { id: 't1', name: 'Thumbnail: mapa vs rosto', status: 'active', started_at: '2026-10-18T15:00:00Z', paused_at: null, video_title: 'Quanto custa viajar pela Geórgia?' }
 
@@ -330,17 +347,17 @@ describe('getYouTubeChannelRemovalImpact', () => {
     const t = setup({ rpc: { youtube_channel_removal_impact: () => ({ data: { ...IMPACT, blockers: [BLOCKER] }, error: null }) } })
     const res = await (await t.load()).getYouTubeChannelRemovalImpact({ channelId: CH_PT.id })
     expect(res).toEqual({ ok: true, impact: {
-      name: 'Thiago na Estrada', slug: 'viagem-br', videos: 212, comments: 48, syncLogs: 864, abTests: 3, analyses: 9, tasks: 2, notes: 14, pipelineLinks: 6,
+      name: 'Thiago na Estrada', slug: 'viagem-br', videos: 212, comments: 48, syncLogs: 864, abTests: 3, abDrafts: 1, analyses: 9, tasks: 2, notes: 14, notifications: 5, connections: 1, pipelineLinks: 6,
       blockers: [{ id: 't1', name: 'Thumbnail: mapa vs rosto', status: 'active', since: '2026-10-18T15:00:00Z', videoTitle: 'Quanto custa viajar pela Geórgia?' }],
     } })
     expect(t.rpc).toHaveBeenCalledWith('youtube_channel_removal_impact', { p_site_id: SITE, p_channel_id: CH_PT.id })
     expect(t.order).toEqual(['guard:edit', 'client'])
   })
   it('o dado não existe — canal sem nada: tudo zero', async () => {
-    const zero = { ...IMPACT, videos: 0, comments: 0, sync_logs: 0, ab_tests: 0, analyses: 0, tasks: 0, notes: 0, pipeline_links: 0 }
+    const zero = { ...IMPACT, videos: 0, comments: 0, sync_logs: 0, ab_tests: 0, ab_drafts: 0, analyses: 0, tasks: 0, notes: 0, notifications: 0, connections: 0, pipeline_links: 0 }
     const t = setup({ rpc: { youtube_channel_removal_impact: () => ({ data: zero, error: null }) } })
     const res = await (await t.load()).getYouTubeChannelRemovalImpact({ channelId: CH_PT.id })
-    expect(res).toMatchObject({ ok: true, impact: { videos: 0, comments: 0, syncLogs: 0, abTests: 0, analyses: 0, tasks: 0, notes: 0, pipelineLinks: 0, blockers: [] } })
+    expect(res).toMatchObject({ ok: true, impact: { videos: 0, comments: 0, syncLogs: 0, abTests: 0, abDrafts: 0, analyses: 0, tasks: 0, notes: 0, notifications: 0, connections: 0, pipelineLinks: 0, blockers: [] } })
   })
   it('canal de outro site (o banco responde not_found): Channel not found', async () => {
     const t = setup({ rpc: { youtube_channel_removal_impact: () => ({ data: { status: 'not_found' }, error: null }) } })
@@ -366,6 +383,49 @@ describe('removeYouTubeChannel', () => {
     expect(t.ops.filter(o => o.op !== 'rpc')).toEqual([])
     expect(t.revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
     expect(t.revalidateTag).toHaveBeenCalledWith('layout-counts', { expire: 0 })
+  })
+  it('depois do commit, tenta revogar no Google o token da conexão desligada; os tokens nunca voltam para a tela', async () => {
+    const fetchMock = vi.fn(async () => new Response('', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const t = setup({ rpc: { youtube_channel_remove: () => ({ data: { ...IMPACT, status: 'removed', revoke_tokens: ['enc-refresh'] }, error: null }) } })
+    const res = await (await t.load()).removeYouTubeChannel(input)
+    expect(res).toEqual({ ok: true })
+    expect(JSON.stringify(res)).not.toContain('enc-')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('https://oauth2.googleapis.com/revoke')
+    expect(init.method).toBe('POST')
+    expect(String(init.body)).toBe('token=plain%3Aenc-refresh')
+  })
+  it.each([
+    ['o Google responde erro', { status: 400 }],
+    ['a rede cai', { throws: true }],
+    ['a chave mestra não existe', { noMasterKey: true }],
+  ] as const)('revogação no Google falha (%s): a remoção continua sendo sucesso, só registra', async (_n, how) => {
+    const fetchMock = vi.fn(async () => { if ('throws' in how) throw new Error('network'); return new Response('bad', { status: 'status' in how ? how.status : 200 }) })
+    vi.stubGlobal('fetch', fetchMock)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const t = setup({ noMasterKey: 'noMasterKey' in how, rpc: { youtube_channel_remove: () => ({ data: { ...IMPACT, status: 'removed', revoke_tokens: ['enc-refresh'] }, error: null }) } })
+    expect(await (await t.load()).removeYouTubeChannel(input)).toEqual({ ok: true })
+    expect(warn).toHaveBeenCalled()
+    expect(t.revalidateTag).toHaveBeenCalledWith('youtube', { expire: 0 })
+    warn.mockRestore()
+  })
+  it('o dado não existe — canal sem conexão (ou resposta sem a lista): nenhuma chamada ao Google', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const t = setup({ rpc: { youtube_channel_remove: () => ({ data: { ...IMPACT, status: 'removed', revoke_tokens: [] }, error: null }) } })
+    expect(await (await t.load()).removeYouTubeChannel(input)).toEqual({ ok: true })
+    const t2 = setup({ rpc: { youtube_channel_remove: () => ({ data: { ...IMPACT, status: 'removed' }, error: null }) } })
+    expect(await (await t2.load()).removeYouTubeChannel(input)).toEqual({ ok: true })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it('remoção bloqueada: nenhuma chamada ao Google', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const t = setup({ rpc: { youtube_channel_remove: () => ({ data: { ...IMPACT, status: 'blocked', blockers: [BLOCKER], revoke_tokens: ['x'] }, error: null }) } })
+    expect((await (await t.load()).removeYouTubeChannel(input)).ok).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
   it('teste A/B rodando: recusa com os testes a parar, zero deletes e nada revalidado', async () => {
     const t = setup({ rpc: { youtube_channel_remove: () => ({ data: { ...IMPACT, status: 'blocked', blockers: [BLOCKER] }, error: null }) } })

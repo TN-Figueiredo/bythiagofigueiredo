@@ -13,8 +13,8 @@ import Link from 'next/link'
 import { CHANNEL_LOCALES, channelLocaleDef, isChannelLocale, type ChannelLocale } from '@/lib/youtube/channel-locales'
 import { NICHE_PALETTE } from '@/lib/youtube/observatorio/niche'
 import {
-  CHANNEL_TEXT, blockedLead, blockedTitle, blockerDetail, isChannelSlug, nicheSlugOrNull, nicheUsage, normalizeNicheLabel,
-  removalKeepLine, removalLines, removalTitle,
+  CHANNEL_TEXT, LANGUAGE_CHANGE_LEAD, blockedLead, blockedTitle, blockerDetail, isChannelSlug, languageChangeTitle, nicheSlugOrNull, nicheUsage,
+  normalizeNicheLabel, removalConnectionLine, removalKeepLine, removalLines, removalTitle,
   type AddChannelInput, type ChannelLookup, type LookupChannelResult, type NicheView, type RemovalBlocker, type RemovalImpact,
   type RemovalImpactResult, type RemoveChannelResult,
 } from '@/lib/youtube/channel-registry'
@@ -218,7 +218,11 @@ export function PendingChannelCard({ draft, niches }: { draft: AddDraft; niches:
 
 /* ------------------------------------------------------------------ identidade no Configurar */
 
-export function ChannelIdentityFields({ locale, niche, slug, niches, busy, error, onChange }: {
+/**
+ * Idioma e nicho no Configurar. O nicho grava ao trocar. O idioma NÃO: trocar o idioma muda qual canal o site público
+ * mostra, então a troca abre na hora uma confirmação no cartão com o efeito (calculado na tela) e só grava no sim.
+ */
+export function ChannelIdentityFields({ locale, niche, slug, niches, busy, error, onChange, describeLanguageChange }: {
   locale: string
   /** slug do nicho mostrado (já resolvido contra a lista do site) */
   niche: string | null
@@ -227,16 +231,20 @@ export function ChannelIdentityFields({ locale, niche, slug, niches, busy, error
   busy: boolean
   error: string | null
   onChange: (next: { locale: ChannelLocale; niche: string | null }) => void
+  /** as frases do efeito no site público se o canal passar a este idioma */
+  describeLanguageChange: (next: ChannelLocale) => string[]
 }) {
   const uid = useId()
   const cur: ChannelLocale = isChannelLocale(locale) ? locale : CHANNEL_LOCALES[0].id
+  const [asked, setAsked] = useState<ChannelLocale | null>(null)
+  const askedNow = asked !== null && asked !== cur ? asked : null
   return (
     <div className="space-y-3">
       <span className="text-xs font-semibold uppercase tracking-wider text-cms-text-muted">Channel identity</span>
       <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
         <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor={`${uid}-l`} className={labelCls}>Language</label>
-          <select id={`${uid}-l`} className={inputCls} value={cur} aria-busy={busy || undefined} onChange={e => { if (isChannelLocale(e.target.value)) onChange({ locale: e.target.value, niche }) }}>
+          <select id={`${uid}-l`} className={inputCls} value={askedNow ?? cur} aria-busy={busy || undefined} onChange={e => { if (isChannelLocale(e.target.value)) setAsked(e.target.value) }}>
             <LanguageOptions />
           </select>
         </div>
@@ -254,6 +262,17 @@ export function ChannelIdentityFields({ locale, niche, slug, niches, busy, error
         ) : null}
       </div>
       {slug ? <p id={`${uid}-sh`} className={helpCls}>The slug is the id the forja and Cowork use. It cannot be changed.</p> : null}
+      {askedNow ? (
+        <div data-language-confirm role="group" aria-labelledby={`${uid}-lt`} className="rounded-md border border-amber-900/40 bg-amber-900/10 px-3 py-2.5">
+          <h3 id={`${uid}-lt`} className="mb-1 text-sm font-medium text-cms-text">{languageChangeTitle(askedNow)}</h3>
+          <p className="text-xs text-cms-text-muted">{LANGUAGE_CHANGE_LEAD}</p>
+          {describeLanguageChange(askedNow).map(line => <p key={line} className="text-xs text-cms-text">{line}</p>)}
+          <div className="mt-2 flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={() => setAsked(null)} className="rounded border border-cms-border px-3 py-1 text-xs text-cms-text-muted hover:bg-cms-surface-hover">Cancel</button>
+            <button type="button" className="btn primary sm" onClick={() => { const next = askedNow; setAsked(null); onChange({ locale: next, niche }) }}>Change language</button>
+          </div>
+        </div>
+      ) : null}
       {error ? <p role="alert" className={errCls}>{error}</p> : null}
     </div>
   )
@@ -318,7 +337,7 @@ export function RemovalPanel({ channelId, name, removing, onImpact, onRemove, on
     return (
       <div data-removal role="alert" className="border-t border-cms-border bg-red-900/10 px-4 py-3">
         <h3 className="mb-1 text-sm font-medium text-red-400">{blockedTitle(name)}</h3>
-        <p className="mb-2 text-xs text-cms-text">{blockedLead(state.blockers.length)}</p>
+        <p className="mb-2 text-xs text-cms-text">{blockedLead(state.blockers)}</p>
         <p className="mb-2 text-xs text-cms-text">
           {state.blockers.map((b, i) => (
             <span key={b.id}>{i > 0 ? <br /> : null}<b className="font-semibold">“{b.name}”</b> <span className="text-cms-text-muted">{blockerDetail(b, shortDate)}</span></span>
@@ -335,6 +354,7 @@ export function RemovalPanel({ channelId, name, removing, onImpact, onRemove, on
 
   const impact = state.phase === 'confirm' ? state.impact : null
   const keep = impact ? removalKeepLine(impact) : null
+  const connection = impact ? removalConnectionLine(impact) : null
   return (
     <div data-removal role="group" aria-labelledby={`${uid}-t`} aria-busy={state.phase === 'loading' || undefined} className="border-t border-cms-border px-4 py-3">
       <h3 id={`${uid}-t`} className="mb-1 text-sm font-medium text-cms-text">{removalTitle(name)}</h3>
@@ -351,6 +371,7 @@ export function RemovalPanel({ channelId, name, removing, onImpact, onRemove, on
             ))}
           </ul>
           <p className="mb-2 text-xs text-cms-text-muted"><b className="font-medium text-cms-text">{keep.strong}</b>{keep.rest}</p>
+          {connection ? <p className="mb-2 text-xs text-cms-text-muted">{connection}</p> : null}
           <p className="text-xs text-cms-text-muted">All of it is removed at once, or nothing is. This cannot be undone.</p>
           <label htmlFor={`${uid}-c`} className="mt-3 block text-xs text-cms-text-muted">Type <strong className="mono text-cms-text">{impact.slug}</strong> to confirm</label>
           <input

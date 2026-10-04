@@ -3,7 +3,7 @@
  * Puro: sem banco, sem relógio. Os textos são os do mockup aprovado (docs/superpowers/mockups/2026-10-04-multi-canal).
  */
 import { z } from 'zod'
-import type { ChannelLocale } from './channel-locales'
+import { CHANNEL_LOCALES, channelLocaleDef, type ChannelLocale } from './channel-locales'
 import { isNicheSlug } from './observatorio/niche'
 
 /* ------------------------------------------------------------------ slug */
@@ -89,11 +89,11 @@ export interface ChannelIdentityInput { channel_id: string; locale: ChannelLocal
 export type SimpleResult = { ok: true } | { ok: false; error: string }
 export type CreateNicheResult = { ok: true; slug: string } | { ok: false; error: string }
 
-/** Um teste A/B que impede a remoção: começou e não terminou. */
+/** Um teste A/B que impede a remoção: começou e não terminou, ou está na fila (o cron o inicia sozinho). */
 export interface RemovalBlocker {
   id: string
   name: string
-  status: 'active' | 'paused'
+  status: 'active' | 'paused' | 'queued'
   /** ISO; null quando o banco não tem a data. */
   since: string | null
   videoTitle: string
@@ -104,11 +104,17 @@ export interface RemovalImpact {
   videos: number
   comments: number
   syncLogs: number
-  /** Testes A/B que serão apagados junto (os que não bloqueiam). */
+  /** Testes A/B encerrados ou arquivados, apagados junto. */
   abTests: number
+  /** Rascunhos de teste A/B (nunca rodaram), apagados junto. */
+  abDrafts: number
   analyses: number
   tasks: number
   notes: number
+  /** Notificações de um vídeo, teste ou ciclo do canal, apagadas junto. */
+  notifications: number
+  /** Conexões OAuth do YouTube deste canal, desligadas junto. */
+  connections: number
   /** Itens do pipeline que ficam, sem o vínculo. */
   pipelineLinks: number
   blockers: RemovalBlocker[]
@@ -126,11 +132,12 @@ const impactRow = z.object({
   status: z.enum(['ok', 'blocked', 'removed']),
   name: z.string(),
   slug: z.string(),
-  videos: count, comments: count, sync_logs: count, ab_tests: count, analyses: count, tasks: count, notes: count, pipeline_links: count,
+  videos: count, comments: count, sync_logs: count, ab_tests: count, ab_drafts: count, analyses: count, tasks: count, notes: count,
+  notifications: count, connections: count, pipeline_links: count,
   blockers: z.array(z.object({
     id: z.string(),
     name: z.string(),
-    status: z.enum(['active', 'paused']),
+    status: z.enum(['active', 'paused', 'queued']),
     started_at: z.string().nullable(),
     paused_at: z.string().nullable(),
     video_title: z.string(),
@@ -152,11 +159,11 @@ export function parseRemovalRpc(raw: unknown): RemovalRpc {
   return {
     status: r.status,
     impact: {
-      name: r.name, slug: r.slug, videos: r.videos, comments: r.comments, syncLogs: r.sync_logs, abTests: r.ab_tests,
-      analyses: r.analyses, tasks: r.tasks, notes: r.notes, pipelineLinks: r.pipeline_links,
+      name: r.name, slug: r.slug, videos: r.videos, comments: r.comments, syncLogs: r.sync_logs, abTests: r.ab_tests, abDrafts: r.ab_drafts,
+      analyses: r.analyses, tasks: r.tasks, notes: r.notes, notifications: r.notifications, connections: r.connections, pipelineLinks: r.pipeline_links,
       blockers: r.blockers.map(b => ({
         id: b.id, name: b.name, status: b.status, videoTitle: b.video_title,
-        since: b.status === 'paused' ? (b.paused_at ?? b.started_at) : b.started_at,
+        since: b.status === 'queued' ? null : b.status === 'paused' ? (b.paused_at ?? b.started_at) : b.started_at,
       })),
     },
   }
@@ -176,21 +183,32 @@ export const CHANNEL_TEXT = {
   slugMismatch: 'Slug confirmation does not match',
   removalUnavailable: 'Channel removal is not available yet: a database update is pending. Nothing was deleted.',
   nichesUnavailable: 'Niches cannot be created yet: a database update is pending.',
+  sameLanguageUnavailable: 'A second channel in the same language cannot be saved yet: a database update is pending.',
   saveFailed: 'Error saving',
 } as const
 
 const s = (n: number, one: string, many: string) => (n === 1 ? one : many)
 
-/** As linhas "isto será apagado", na ordem do mockup. Todas aparecem, mesmo com zero: a lista é a mesma para todo canal. */
+/**
+ * As linhas "isto será apagado". As seis do mockup aparecem sempre, mesmo com zero; rascunhos de teste e notificações
+ * só entram quando existem.
+ */
 export function removalLines(i: RemovalImpact): Array<{ key: string; count: number; text: string }> {
-  return [
+  const all = [
     { key: 'videos', count: i.videos, text: `${s(i.videos, 'video', 'videos')}, with ${s(i.videos, 'its', 'their')} analytics, grades and optimization cycles` },
     { key: 'comments', count: i.comments, text: s(i.comments, 'curated comment', 'curated comments') },
     { key: 'syncLogs', count: i.syncLogs, text: s(i.syncLogs, 'sync log entry', 'sync log entries') },
     { key: 'abTests', count: i.abTests, text: `${s(i.abTests, 'finished A/B test', 'finished A/B tests')}, with ${s(i.abTests, 'its', 'their')} variants and results` },
+    { key: 'abDrafts', count: i.abDrafts, text: s(i.abDrafts, 'draft A/B test', 'draft A/B tests') },
     { key: 'analyses', count: i.analyses, text: `${s(i.analyses, 'intelligence analysis', 'intelligence analyses')} and ${i.tasks} ${s(i.tasks, 'queued task', 'queued tasks')}` },
     { key: 'notes', count: i.notes, text: s(i.notes, 'note', 'notes') },
+    { key: 'notifications', count: i.notifications, text: `${s(i.notifications, 'notification', 'notifications')} about its videos and tests` },
   ]
+  return all.filter(l => l.count > 0 || (l.key !== 'abDrafts' && l.key !== 'notifications'))
+}
+/** A conexão OAuth do YouTube do canal é desligada junto; null quando o canal não tem conexão viva. */
+export function removalConnectionLine(i: RemovalImpact): string | null {
+  return i.connections > 0 ? 'The YouTube connection of this channel is disconnected and its saved tokens are erased.' : null
 }
 /** "6 pipeline items" + " keep their content and lose the link to their video." */
 export function removalKeepLine(i: RemovalImpact): { strong: string; rest: string } {
@@ -202,11 +220,18 @@ export function removalKeepLine(i: RemovalImpact): { strong: string; rest: strin
 }
 export const removalTitle = (name: string) => `Remove “${name}”?`
 export const blockedTitle = (name: string) => `“${name}” cannot be removed yet`
-export const blockedLead = (n: number) =>
-  n > 1 ? 'A/B tests are running on its videos. Stop them first:' : 'An A/B test is running on one of its videos. Stop it first:'
+/** "is running" só quando todos os testes estão rodando; com algum pausado ou na fila, a frase diz que não terminaram. */
+export function blockedLead(blockers: readonly RemovalBlocker[]): string {
+  const many = blockers.length > 1
+  if (blockers.every(b => b.status === 'active')) {
+    return many ? 'A/B tests are running on its videos. Stop them first:' : 'An A/B test is running on one of its videos. Stop it first:'
+  }
+  return many ? 'A/B tests on its videos have not finished. Stop them first:' : 'An A/B test on one of its videos has not finished. Stop it first:'
+}
 /** " · running since Oct 18, on “<vídeo>”"; sem a data quando o banco não a tem. */
 export function blockerDetail(b: RemovalBlocker, fmt: (iso: string) => string): string {
-  const when = b.since ? `${b.status === 'paused' ? 'paused' : 'running'} since ${fmt(b.since)}, ` : b.status === 'paused' ? 'paused, ' : ''
+  const when = b.status === 'queued' ? 'queued, '
+    : b.since ? `${b.status === 'paused' ? 'paused' : 'running'} since ${fmt(b.since)}, ` : b.status === 'paused' ? 'paused, ' : ''
   return `· ${when}on “${b.videoTitle}”`
 }
 
@@ -214,4 +239,32 @@ export function blockerDetail(b: RemovalBlocker, fmt: (iso: string) => string): 
 export function nicheUsage(channels: number, competitors: number | null): string {
   const own = channels === 0 ? 'no channels yet' : `${channels} ${s(channels, 'channel', 'channels')}`
   return competitors == null ? own : `${own} · ${competitors} ${s(competitors, 'competitor', 'competitors')}`
+}
+
+/* ------------------------------------------------------------------ troca de idioma: efeito no site público */
+
+/**
+ * O site público mostra um canal por idioma: o mais antigo (showcase.ts). Dada a lista de canais EM ORDEM DE CADASTRO,
+ * diz em que idiomas a vitrine muda se `channelId` passar a `next`: o chip do idioma e o nome do canal que passa a
+ * aparecer (null = o idioma fica sem canal). Lista vazia = o site não muda.
+ */
+export function languageChangeEffect(
+  channels: ReadonlyArray<{ id: string; name: string; locale: string }>, channelId: string, next: string,
+): Array<{ chip: string; name: string | null }> {
+  const after = channels.map(c => (c.id === channelId ? { ...c, locale: next } : c))
+  const locales = [...new Set([...CHANNEL_LOCALES.map(l => l.id as string), ...channels.map(c => c.locale), next])]
+  const out: Array<{ chip: string; name: string | null }> = []
+  for (const l of locales) {
+    const was = channels.find(c => c.locale === l) ?? null
+    const now = after.find(c => c.locale === l) ?? null
+    if ((was?.id ?? null) !== (now?.id ?? null)) out.push({ chip: channelLocaleDef(l).chip, name: now?.name ?? null })
+  }
+  return out
+}
+export const LANGUAGE_CHANGE_LEAD = 'The public site shows one channel per language: the oldest.'
+export const languageChangeTitle = (next: string) => `Change language to ${channelLocaleDef(next).chip}?`
+export function languageChangeLines(channels: ReadonlyArray<{ id: string; name: string; locale: string }>, channelId: string, next: string): string[] {
+  const effect = languageChangeEffect(channels, channelId, next)
+  if (effect.length === 0) return ['The public site does not change.']
+  return effect.map(e => (e.name === null ? `${e.chip} will show no channel.` : `${e.chip} will show “${e.name}”.`))
 }

@@ -2,11 +2,11 @@
 import { describe, it, expect } from 'vitest'
 import {
   isChannelSlug, nicheSlugFromLabel, nicheSlugOrNull, normalizeNicheLabel, parseRemovalRpc, removalLines, removalKeepLine,
-  blockedLead, blockerDetail, nicheUsage, type RemovalImpact,
+  blockedLead, blockerDetail, nicheUsage, languageChangeEffect, languageChangeLines, removalConnectionLine, type RemovalImpact,
 } from '@/lib/youtube/channel-registry'
 import { CHANNEL_LOCALES, isChannelLocale, channelLocaleDef } from '@/lib/youtube/channel-locales'
 
-const IMPACT: RemovalImpact = { name: 'N', slug: 's-1', videos: 2, comments: 3, syncLogs: 4, abTests: 5, analyses: 6, tasks: 7, notes: 8, pipelineLinks: 9, blockers: [] }
+const IMPACT: RemovalImpact = { name: 'N', slug: 's-1', videos: 2, comments: 3, syncLogs: 4, abTests: 5, abDrafts: 0, analyses: 6, tasks: 7, notes: 8, notifications: 0, connections: 0, pipelineLinks: 9, blockers: [] }
 
 describe('idiomas do canal (lista central)', () => {
   it('pt e en, com chip e nome; qualquer outro valor é recusado', () => {
@@ -52,7 +52,7 @@ describe('rótulo de nicho', () => {
 })
 
 describe('resposta das funções de remoção', () => {
-  const row = { status: 'ok', name: 'N', slug: 's-1', videos: 2, comments: 3, sync_logs: 4, ab_tests: 5, analyses: 6, tasks: 7, notes: 8, pipeline_links: 9, blockers: [] }
+  const row = { status: 'ok', name: 'N', slug: 's-1', videos: 2, comments: 3, sync_logs: 4, ab_tests: 5, ab_drafts: 0, analyses: 6, tasks: 7, notes: 8, notifications: 0, connections: 0, pipeline_links: 9, blockers: [] }
   it('lê as contagens', () => {
     expect(parseRemovalRpc(row)).toEqual({ status: 'ok', impact: IMPACT })
   })
@@ -79,9 +79,24 @@ describe('textos da remoção', () => {
     ])
     expect(removalKeepLine(one)).toEqual({ strong: '1 pipeline item', rest: ' keeps its content and loses the link to its video.' })
   })
-  it('frase do bloqueio: singular e plural', () => {
-    expect(blockedLead(1)).toBe('An A/B test is running on one of its videos. Stop it first:')
-    expect(blockedLead(2)).toBe('A/B tests are running on its videos. Stop them first:')
+  it('frase do bloqueio: "is running" só quando todos estão rodando; com pausado ou na fila, diz que não terminaram', () => {
+    const b = (status: 'active' | 'paused' | 'queued') => ({ id: status, name: 'T', videoTitle: 'V', status, since: null })
+    expect(blockedLead([b('active')])).toBe('An A/B test is running on one of its videos. Stop it first:')
+    expect(blockedLead([b('active'), b('active')])).toBe('A/B tests are running on its videos. Stop them first:')
+    expect(blockedLead([b('paused')])).toBe('An A/B test on one of its videos has not finished. Stop it first:')
+    expect(blockedLead([b('queued')])).toBe('An A/B test on one of its videos has not finished. Stop it first:')
+    expect(blockedLead([b('active'), b('queued')])).toBe('A/B tests on its videos have not finished. Stop them first:')
+  })
+  it('rascunhos e notificações têm linha própria, só quando há; os encerrados não os incluem', () => {
+    expect(removalLines(IMPACT).map(l => l.key)).toEqual(['videos', 'comments', 'syncLogs', 'abTests', 'analyses', 'notes'])
+    const withBoth = removalLines({ ...IMPACT, abDrafts: 2, notifications: 1 })
+    expect(withBoth.map(l => l.key)).toEqual(['videos', 'comments', 'syncLogs', 'abTests', 'abDrafts', 'analyses', 'notes', 'notifications'])
+    expect(withBoth.filter(l => l.key === 'abDrafts' || l.key === 'notifications').map(l => `${l.count} ${l.text}`)).toEqual(['2 draft A/B tests', '1 notification about its videos and tests'])
+    expect(removalLines({ ...IMPACT, abDrafts: 1, notifications: 4 }).filter(l => l.key === 'abDrafts' || l.key === 'notifications').map(l => `${l.count} ${l.text}`)).toEqual(['1 draft A/B test', '4 notifications about its videos and tests'])
+  })
+  it('a conexão do YouTube só é citada quando existe', () => {
+    expect(removalConnectionLine(IMPACT)).toBeNull()
+    expect(removalConnectionLine({ ...IMPACT, connections: 1 })).toBe('The YouTube connection of this channel is disconnected and its saved tokens are erased.')
   })
   it('linha do teste: rodando, pausado, e sem data (o dado não existe)', () => {
     const fmt = () => 'Oct 18'
@@ -90,11 +105,39 @@ describe('textos da remoção', () => {
     expect(blockerDetail({ ...b, status: 'paused', since: 'x' }, fmt)).toBe('· paused since Oct 18, on “V”')
     expect(blockerDetail({ ...b, status: 'active', since: null }, fmt)).toBe('· on “V”')
     expect(blockerDetail({ ...b, status: 'paused', since: null }, fmt)).toBe('· paused, on “V”')
+    expect(blockerDetail({ ...b, status: 'queued', since: null }, fmt)).toBe('· queued, on “V”')
+    expect(blockerDetail({ ...b, status: 'queued', since: 'x' }, fmt)).toBe('· queued, on “V”')
   })
   it('uso do nicho', () => {
     expect(nicheUsage(0, 0)).toBe('no channels yet · 0 competitors')
     expect(nicheUsage(1, 1)).toBe('1 channel · 1 competitor')
     expect(nicheUsage(3, 12)).toBe('3 channels · 12 competitors')
     expect(nicheUsage(3, null)).toBe('3 channels')
+  })
+})
+
+describe('troca de idioma: o efeito na vitrine do site público (o canal mais antigo de cada idioma)', () => {
+  // em ordem de cadastro
+  const PT = { id: 'a', name: 'tnFigueiredo', locale: 'pt' }
+  const EN = { id: 'b', name: 'Thiago Figueiredo', locale: 'en' }
+  const CORTES = { id: 'c', name: 'Cortes', locale: 'pt' }
+  it('único canal pt vira en: PT-BR fica sem canal e EN passa a mostrar o mais antigo', () => {
+    expect(languageChangeEffect([PT, EN], 'a', 'en')).toEqual([{ chip: 'PT-BR', name: null }, { chip: 'EN', name: 'tnFigueiredo' }])
+    expect(languageChangeLines([PT, EN], 'a', 'en')).toEqual(['PT-BR will show no channel.', 'EN will show “tnFigueiredo”.'])
+  })
+  it('o mais antigo de pt vira en com outro pt atrás: o seguinte assume o PT-BR', () => {
+    expect(languageChangeLines([PT, EN, CORTES], 'a', 'en')).toEqual(['PT-BR will show “Cortes”.', 'EN will show “tnFigueiredo”.'])
+  })
+  it('um canal que não é a vitrine muda para um idioma que já tem canal mais antigo: o site não muda', () => {
+    expect(languageChangeEffect([PT, EN, CORTES], 'c', 'en')).toEqual([])
+    expect(languageChangeLines([PT, EN, CORTES], 'c', 'en')).toEqual(['The public site does not change.'])
+  })
+  it('um canal mais novo entra num idioma vazio: passa a aparecer nele', () => {
+    expect(languageChangeLines([PT, CORTES], 'c', 'en')).toEqual(['EN will show “Cortes”.'])
+  })
+  it('o dado não existe — canal fora da lista ou mesmo idioma: nada muda, sem lançar', () => {
+    expect(languageChangeEffect([PT], 'zzz', 'en')).toEqual([])
+    expect(languageChangeEffect([PT], 'a', 'pt')).toEqual([])
+    expect(languageChangeEffect([], 'a', 'en')).toEqual([])
   })
 })

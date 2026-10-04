@@ -11,7 +11,7 @@ import { triggerSync, unpinWeeklyPick, pinWeeklyPick } from './videos/actions'
 import { updateYouTubeChannelSettings } from '../settings/actions'
 import type { ChannelLocale } from '@/lib/youtube/channel-locales'
 import {
-  CHANNEL_TEXT,
+  CHANNEL_TEXT, languageChangeLines,
   type AddChannelInput, type AddChannelResult, type ChannelIdentityInput, type CreateNicheResult, type LookupChannelResult,
   type RemovalImpactResult, type RemoveChannelResult, type SimpleResult,
 } from '@/lib/youtube/channel-registry'
@@ -229,9 +229,10 @@ function ReconnectTokenButton() {
   )
 }
 
-function ChannelCard({ channel, niches, identity, identityError, onIdentity, onRemovalImpact, onRemove, onRemoved }: {
+function ChannelCard({ channel, niches, identity, identityError, describeLanguageChange, onIdentity, onRemovalImpact, onRemove, onRemoved }: {
   channel: ChannelDashboard
   niches: readonly NicheView[]
+  describeLanguageChange: (channelId: string, next: ChannelLocale) => string[]
   identity: IdentityPending[string] | undefined
   identityError: string | null
   onIdentity: (channel: ChannelDashboard, next: { locale: ChannelLocale; niche: string | null }) => void
@@ -525,6 +526,7 @@ function ChannelCard({ channel, niches, identity, identityError, onIdentity, onR
             <ChannelIdentityFields
               locale={shownLocale} niche={shownNiche?.slug ?? null} slug={channel.slug} niches={niches}
               busy={identity?.busy ?? false} error={identityError} onChange={next => onIdentity(channel, next)}
+              describeLanguageChange={next => describeLanguageChange(channel.id, next)}
             />
           </div>
           <ChannelScheduleEditor channel={channel} />
@@ -777,6 +779,11 @@ export function DashboardConnected({
     setIdentityErrors(cur => ({ ...cur, [ch.id]: failure }))
   }
 
+  // The public site shows the oldest channel of each language. `channels` comes in registration order, so the effect of
+  // a language change is computed here, from what the screen already shows (picks not yet confirmed included).
+  const describeLanguageChange = (channelId: string, next: ChannelLocale) =>
+    languageChangeLines(channels.map(c => ({ id: c.id, name: c.name, locale: identity[c.id]?.locale ?? c.locale })), channelId, next)
+
   const addButton = (
     <button type="button" className="btn primary sm" onClick={() => { setAddFailure(null); setAdding(true) }} disabled={adding}>
       <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
@@ -835,6 +842,7 @@ export function DashboardConnected({
             {channels.map(ch => (
               <ChannelCard
                 key={ch.id} channel={ch} niches={niches} identity={identity[ch.id]} identityError={identityErrors[ch.id] ?? null}
+                describeLanguageChange={describeLanguageChange}
                 onIdentity={(c, next) => void changeIdentity(c, next)} onRemovalImpact={onRemovalImpact} onRemove={onRemove} onRemoved={refresh}
               />
             ))}

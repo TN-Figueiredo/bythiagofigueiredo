@@ -47,7 +47,7 @@ const FOUND = {
   subscriberCount: 126, videoCount: 41, thumbnailUrl: null, bannerUrl: null, customUrl: null,
 }
 const IMPACT: RemovalImpact = {
-  name: 'tnFigueiredo', slug: 'tnfigueiredo', videos: 212, comments: 48, syncLogs: 864, abTests: 3, analyses: 9, tasks: 2, notes: 14, pipelineLinks: 6, blockers: [],
+  name: 'tnFigueiredo', slug: 'tnfigueiredo', videos: 212, comments: 48, syncLogs: 864, abTests: 3, abDrafts: 0, analyses: 9, tasks: 2, notes: 14, notifications: 0, connections: 0, pipelineLinks: 6, blockers: [],
 }
 
 function harness(over: { channels?: ChannelDashboard[]; niches?: NicheView[]; nichesAvailable?: boolean } = {}) {
@@ -342,13 +342,55 @@ describe('idioma e nicho no cartão (Configurar)', () => {
     expect(refresh).not.toHaveBeenCalled()
   })
 
-  it('trocar o idioma: o chip muda NA HORA; se a action lançar, volta com aviso', async () => {
+  const langPanel = () => card('c1').querySelector<HTMLElement>('[data-language-confirm]')
+
+  it('trocar o idioma NÃO grava no clique: a confirmação abre na hora no cartão, com o efeito no site público calculado na tela', async () => {
+    const h = harness({ channels: [TNF, EN] })
+    const user = await config('c1')
+    const sel = within(card('c1')).getByLabelText('Language')
+    await user.selectOptions(sel, 'en')
+    expect(h.onUpdateIdentity).not.toHaveBeenCalled()
+    const p = langPanel()!
+    expect(within(p).getByRole('heading', { name: 'Change language to EN?' })).toBeInTheDocument()
+    expect(p.textContent).toContain('The public site shows one channel per language: the oldest.')
+    expect(p.textContent).toContain('PT-BR will show no channel.')
+    expect(p.textContent).toContain('EN will show “tnFigueiredo”.')
+    // o seletor mostra o que foi pedido, mas o cartão ainda não mudou
+    expect(sel).toHaveValue('en')
+    expect(card('c1').querySelector('[data-lang-chip]')).toHaveTextContent('PT-BR')
+  })
+
+  it('com outro canal no mesmo idioma atrás, a confirmação diz quem assume; quando nada muda no site, diz isso', async () => {
+    harness({ channels: [TNF, EN, CORTES] })
+    const user = await config('c1')
+    await user.selectOptions(within(card('c1')).getByLabelText('Language'), 'en')
+    expect(langPanel()!.textContent).toContain('PT-BR will show “Cortes do tnFigueiredo”.')
+    await user.click(within(langPanel()!).getByRole('button', { name: 'Cancel' }))
+    await user.click(within(card('c3')).getByRole('button', { name: 'Configurar' }))
+    await user.selectOptions(within(card('c3')).getByLabelText('Language'), 'en')
+    expect(card('c3').querySelector('[data-language-confirm]')!.textContent).toContain('The public site does not change.')
+  })
+
+  it('cancelar a troca de idioma: o seletor volta e nada é gravado', async () => {
+    const h = harness()
+    const user = await config('c1')
+    const sel = within(card('c1')).getByLabelText('Language')
+    await user.selectOptions(sel, 'en')
+    await user.click(within(langPanel()!).getByRole('button', { name: 'Cancel' }))
+    expect(langPanel()).toBeNull()
+    expect(sel).toHaveValue('pt')
+    expect(h.onUpdateIdentity).not.toHaveBeenCalled()
+  })
+
+  it('confirmar a troca de idioma: o chip muda NA HORA; se a action lançar, volta com aviso', async () => {
     const h = harness()
     const d = deferred<SimpleResult>()
     h.onUpdateIdentity.mockReturnValueOnce(d.promise)
     const user = await config('c1')
     const sel = within(card('c1')).getByLabelText('Language')
     await user.selectOptions(sel, 'en')
+    await user.click(within(langPanel()!).getByRole('button', { name: 'Change language' }))
+    expect(langPanel()).toBeNull()
     expect(h.onUpdateIdentity).toHaveBeenCalledWith({ channel_id: 'c1', locale: 'en', niche: 'viagem' })
     expect(sel).toHaveValue('en')
     expect(sel).toHaveAttribute('aria-busy', 'true')
@@ -499,6 +541,32 @@ describe('remoção', () => {
     expect(card('c1').querySelector('[data-removal]')).toBeNull()
   })
 
+  it('rascunhos, notificações e a conexão do YouTube aparecem na confirmação quando existem, cada um na sua linha', async () => {
+    const h = harness()
+    h.onRemovalImpact.mockResolvedValueOnce({ ok: true, impact: { ...IMPACT, abDrafts: 2, notifications: 5, connections: 1 } })
+    await askRemoval()
+    expect([...panel().querySelectorAll('li')].map(li => li.textContent)).toEqual([
+      '212videos, with their analytics, grades and optimization cycles', '48curated comments', '864sync log entries',
+      '3finished A/B tests, with their variants and results', '2draft A/B tests', '9intelligence analyses and 2 queued tasks', '14notes',
+      '5notifications about its videos and tests',
+    ])
+    expect(panel().textContent).toContain('The YouTube connection of this channel is disconnected and its saved tokens are erased.')
+  })
+
+  it('teste pausado e teste na fila bloqueiam, e a frase diz o estado certo de cada um (não "is running")', async () => {
+    const h = harness()
+    h.onRemovalImpact.mockResolvedValueOnce({ ok: true, impact: { ...IMPACT, blockers: [
+      { ...B1, status: 'paused' as const, since: '2026-10-19T15:00:00Z' }, { ...B2, status: 'queued' as const, since: null },
+    ] } })
+    await askRemoval()
+    const p = panel()
+    expect(p.textContent).toContain('A/B tests on its videos have not finished. Stop them first:')
+    expect(p.textContent).not.toContain('running')
+    expect(p.textContent).toContain('“Thumbnail: mapa vs rosto” · paused since Oct 19, on “Quanto custa viajar pela Geórgia?”')
+    expect(p.textContent).toContain('“Título: pergunta vs número” · queued, on “7 dias em Baku gastando pouco”')
+    expect(within(p).queryByRole('button', { name: 'Remove channel' })).toBeNull()
+  })
+
   it('dois testes rodando: os dois são listados, com a frase no plural', async () => {
     const h = harness()
     h.onRemovalImpact.mockResolvedValueOnce({ ok: true, impact: { ...IMPACT, blockers: [B1, B2] } })
@@ -527,6 +595,7 @@ describe('remoção', () => {
       '0videos, with their analytics, grades and optimization cycles', '0curated comments', '0sync log entries',
       '0finished A/B tests, with their variants and results', '0intelligence analyses and 0 queued tasks', '0notes',
     ])
+    expect(panel().textContent).not.toMatch(/draft A\/B|notification|YouTube connection/)
     await user.type(within(panel()).getByLabelText(/Type tnfigueiredo to confirm/), 'tnfigueiredo')
     await user.click(within(panel()).getByRole('button', { name: 'Remove channel' }))
     expect(h.onRemove).toHaveBeenCalledTimes(1)
