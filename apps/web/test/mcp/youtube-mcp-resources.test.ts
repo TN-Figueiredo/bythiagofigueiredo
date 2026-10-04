@@ -134,3 +134,66 @@ describe('pipeline://youtube/intelligence', () => {
     expect(body).toMatchObject({ videos: [], grade_history: [], optimization_cycles: [], ab_tests: [], recent_window: null })
   })
 })
+
+describe('pipeline://youtube/optimization-cycles', () => {
+  const COLS = {
+    optimization_cycles: ['id', 'site_id', 'youtube_video_id', 'state', 'diagnosis_summary', 'created_at', 'flagged_at', 'diagnosed_at', 'testing_started_at', 'test_winner_applied_at'],
+  }
+  const cyc = (id: string, over: Record<string, unknown> = {}) => ({
+    id, site_id: SITE, youtube_video_id: 'v-pt', state: 'flagged', diagnosis_summary: null, created_at: '2026-09-01T00:00:00Z',
+    flagged_at: '2026-09-01T00:00:00Z', diagnosed_at: null, testing_started_at: null, test_winner_applied_at: null, ...over,
+  })
+
+  it('devolve os ciclos abertos do site (antes: sempre { cycles: [] }, por selecionar treated_at)', async () => {
+    const opts = world({ optimization_cycles: [cyc('c1'), cyc('c2', { state: 'resolved' }), cyc('c3', { site_id: OTHER })] as never })
+    opts.columns = { ...opts.columns, ...COLS }
+    const body = await read('pipeline://youtube/optimization-cycles', opts) as { cycles: Array<{ id: string }> }
+    expect(body.cycles.map(c => c.id)).toEqual(['c1'])
+    expect(sb.on('optimization_cycles')[0]!.select).not.toContain('treated_at')
+  })
+
+  it('sem ciclo nenhum → { cycles: [] } (o dado não existe)', async () => {
+    const opts = world({ optimization_cycles: [] })
+    opts.columns = { ...opts.columns, ...COLS }
+    expect(await read('pipeline://youtube/optimization-cycles', opts)).toEqual({ cycles: [] })
+  })
+
+  it('erro de leitura → o recurso falha; nunca lista vazia', async () => {
+    const opts = world()
+    opts.columns = { ...opts.columns, ...COLS }
+    opts.fail = q => (q.table === 'optimization_cycles' ? { code: '57014', message: 'statement timeout' } : null)
+    await expect(read('pipeline://youtube/optimization-cycles', opts)).rejects.toThrow()
+  })
+})
+
+describe('pipeline://audio/stats', () => {
+  const asset = (id: string, over: Record<string, unknown> = {}) => ({ id, site_id: SITE, category: 'ambient', mood: 'calm', energy: 'low', status: 'downloaded', ...over })
+  const use = (assetId: string, site = SITE) => ({ audio_asset_id: assetId, site_id: site })
+  const cols = { audio_assets: ['id', 'site_id', 'category', 'mood', 'energy', 'status'], audio_asset_usage: ['audio_asset_id', 'site_id'] }
+
+  it('conta os assets do site (audio_assets, não audio_library) e o uso vem de audio_asset_usage', async () => {
+    const opts = world({
+      audio_assets: [asset('a1'), asset('a2', { category: 'epic', mood: null }), asset('a3', { status: 'retired' }), asset('a4', { site_id: OTHER })] as never,
+      audio_asset_usage: [use('a1'), use('a1'), use('a2'), use('a1', OTHER)] as never,
+    })
+    opts.columns = { ...opts.columns, ...cols }
+    const body = await read('pipeline://audio/stats', opts) as { totalAssets: number; totalUsages: number; byCategory: Record<string, number>; topUsed: Array<{ id: string; usageCount: number }> }
+    expect(body.totalAssets).toBe(2)
+    expect(body.byCategory).toEqual({ ambient: 1, epic: 1 })
+    expect(body.totalUsages).toBe(3)
+    expect(body.topUsed[0]).toMatchObject({ id: 'a1', usageCount: 2 })
+  })
+
+  it('biblioteca vazia → zeros, sem erro', async () => {
+    const opts = world({ audio_assets: [], audio_asset_usage: [] })
+    opts.columns = { ...opts.columns, ...cols }
+    expect(await read('pipeline://audio/stats', opts)).toMatchObject({ totalAssets: 0, totalUsages: 0, topUsed: [] })
+  })
+
+  it('erro de leitura → o recurso falha', async () => {
+    const opts = world({ audio_assets: [] })
+    opts.columns = { ...opts.columns, ...cols }
+    opts.fail = q => (q.table === 'audio_assets' ? { code: '57014', message: 'timeout' } : null)
+    await expect(read('pipeline://audio/stats', opts)).rejects.toThrow()
+  })
+})

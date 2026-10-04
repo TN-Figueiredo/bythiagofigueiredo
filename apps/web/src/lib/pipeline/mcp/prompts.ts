@@ -102,11 +102,12 @@ async function resolvePromptSiteId(): Promise<string | null> {
  * The tier is computed from the subscriber count; `youtube_channels` has no `tier` column (nor
  * `channel_name`: selecting both is what kept every prompt on "Unknown / nano").
  */
-async function fetchChannelInfo(
+async function resolveChannel(
   siteId: string | null,
   target: { videoId?: string | null; channelId?: string | null } = {},
-): Promise<AbBriefingData['channel']> {
-  if (!siteId) return UNKNOWN_CHANNEL
+): Promise<{ id: string | null; info: AbBriefingData['channel'] }> {
+  const unknown = { id: null, info: UNKNOWN_CHANNEL }
+  if (!siteId) return unknown
   const supabase = getSupabaseServiceClient()
 
   let channelId = target.channelId ?? null
@@ -118,28 +119,44 @@ async function fetchChannelInfo(
       .eq('site_id', siteId)
       .maybeSingle()
     channelId = (video?.channel_id as string | undefined) ?? null
-    if (!channelId) return UNKNOWN_CHANNEL
+    if (!channelId) return unknown
   }
 
   const { data } = channelId
     ? await supabase
       .from('youtube_channels')
-      .select('name, subscriber_count')
+      .select('id, name, subscriber_count')
       .eq('site_id', siteId)
       .eq('id', channelId)
       .maybeSingle()
     : await supabase
       .from('youtube_channels')
-      .select('name, subscriber_count')
+      .select('id, name, subscriber_count')
       .eq('site_id', siteId)
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
       .limit(1)
       .maybeSingle()
 
-  if (!data) return UNKNOWN_CHANNEL
+  if (!data) return unknown
   const subscribers = (data.subscriber_count as number | null) ?? 0
-  return { name: data.name as string, subscribers, tier: getChannelTier(subscribers) }
+  return { id: data.id as string, info: { name: data.name as string, subscribers, tier: getChannelTier(subscribers) } }
+}
+
+async function fetchChannelInfo(
+  siteId: string | null,
+  target: { videoId?: string | null; channelId?: string | null } = {},
+): Promise<AbBriefingData['channel']> {
+  return (await resolveChannel(siteId, target)).info
+}
+
+/** The channel (info + id, for the snapshot age) and the age of ITS latest analysis. */
+async function fetchChannelAndAge(
+  siteId: string | null,
+  target: { videoId?: string | null; channelId?: string | null } = {},
+): Promise<{ channel: AbBriefingData['channel']; snapshotAge: number }> {
+  const { id, info } = await resolveChannel(siteId, target)
+  return { channel: info, snapshotAge: await fetchSnapshotAge(siteId, id) }
 }
 
 /**
@@ -152,11 +169,16 @@ async function fetchChannelInfo(
  * weekly run. `.maybeSingle()` rather than `.single()` for the empty case: zero rows is a
  * legitimate answer here (no analysis yet -> 999h), not an error to be swallowed.
  */
-async function fetchSnapshotAge(): Promise<number> {
+async function fetchSnapshotAge(siteId: string | null, channelId: string | null): Promise<number> {
+  // No site or no resolved channel: no analysis to age. 999 is the "none yet" answer — never
+  // the age of some other channel's (or site's) analysis.
+  if (!siteId || !channelId) return 999
   const supabase = getSupabaseServiceClient()
   const { data } = await supabase
     .from('youtube_intelligence')
     .select('generated_at')
+    .eq('site_id', siteId)
+    .eq('channel_id', channelId)
     .eq('source', 'cowork')
     .order('generated_at', { ascending: false })
     .limit(1)
@@ -530,19 +552,20 @@ export function registerPrompts(server: McpServer): void {
       // Auto-inject: youtube/intelligence + youtube/ab-performance.
       // No video in hand yet: the first channel of the site.
       const siteId = await resolvePromptSiteId()
-      const [channel, snapshotAge] = await Promise.all([
-        fetchChannelInfo(siteId),
-        fetchSnapshotAge(),
-      ])
+      const { channel, snapshotAge } = await fetchChannelAndAge(siteId)
 
-      // Fetch latest AB test history
+      // Fetch latest AB test history (completed tests of this site)
       const supabase = getSupabaseServiceClient()
-      const { data: testHistory } = await supabase
-        .from('youtube_ab_tests')
-        .select('test_type, winner_variant_id, completed_reason')
-        .eq('status', 'completed')
-        .order('completed_at', { ascending: false })
-        .limit(10)
+      const { data: testHistory, error: historyError } = siteId
+        ? await supabase
+          .from('ab_tests')
+          .select('test_type, winner_variant_id, completed_reason')
+          .eq('site_id', siteId)
+          .eq('status', 'completed')
+          .order('completed_at', { ascending: false })
+          .limit(10)
+        : { data: null, error: null }
+      if (historyError) throw new Error('Failed to read the A/B test history')
 
       const history = (testHistory ?? []).map((t: Record<string, unknown>) => ({
         test_type: t.test_type as string,
@@ -595,37 +618,41 @@ export function registerPrompts(server: McpServer): void {
       const locale = (args.lang === 'en' ? 'en' : 'pt') as 'pt' | 'en'
 
       const supabase = getSupabaseServiceClient()
+      const siteId = await resolvePromptSiteId()
 
-      // Fetch test details
-      const { data: test, error } = await supabase
-        .from('youtube_ab_tests')
-        .select('id, test_type, youtube_video_id, original_title, original_thumbnail_url, original_description, status')
-        .eq('id', testId)
-        .single()
+      // Fetch test details — the test must belong to the site
+      const { data: test, error } = siteId
+        ? await supabase
+          .from('ab_tests')
+          .select('id, test_type, youtube_video_id, original_title, original_thumbnail_url, original_description, status')
+          .eq('id', testId)
+          .eq('site_id', siteId)
+          .maybeSingle()
+        : { data: null, error: null }
 
-      if (error || !test) throw new Error(`A/B test not found: ${testId}`)
+      if (error || !test || !siteId) throw new Error(`A/B test not found: ${testId}`)
 
-      // Fetch video performance
+      // Fetch video performance. `ab_tests.youtube_video_id` holds the internal uuid
+      // (youtube_videos.id), not the YouTube text id.
       const { data: video } = await supabase
         .from('youtube_videos')
-        .select('id, title, youtube_video_id, thumbnail_url, ctr_percent, avg_view_percentage')
-        .eq('youtube_video_id', test.youtube_video_id)
-        .single()
+        .select('id, title, youtube_video_id, thumbnail_url, ctr, avg_view_percentage')
+        .eq('id', test.youtube_video_id)
+        .eq('site_id', siteId)
+        .maybeSingle()
 
       // Auto-inject: youtube/intelligence (channel info) — the channel of the test's video
-      const siteId = await resolvePromptSiteId()
-      const [channel, snapshotAge] = await Promise.all([
-        fetchChannelInfo(siteId, { videoId: test.youtube_video_id as string | null }),
-        fetchSnapshotAge(),
-      ])
+      const { channel, snapshotAge } = await fetchChannelAndAge(siteId, { videoId: test.youtube_video_id as string | null })
 
-      // Fetch test history
-      const { data: testHistory } = await supabase
-        .from('youtube_ab_tests')
+      // Fetch test history (completed tests of this site)
+      const { data: testHistory, error: historyError } = await supabase
+        .from('ab_tests')
         .select('test_type, winner_variant_id, completed_reason')
+        .eq('site_id', siteId)
         .eq('status', 'completed')
         .order('completed_at', { ascending: false })
         .limit(10)
+      if (historyError) throw new Error('Failed to read the A/B test history')
 
       const history = (testHistory ?? []).map((t: Record<string, unknown>) => ({
         test_type: t.test_type as string,
@@ -638,10 +665,10 @@ export function registerPrompts(server: McpServer): void {
         locale,
         testId,
         video: {
-          youtubeVideoId: test.youtube_video_id as string,
+          youtubeVideoId: (video?.youtube_video_id ?? test.youtube_video_id) as string,
           title: (video?.title ?? test.original_title ?? '') as string,
           thumbnailUrl: (video?.thumbnail_url ?? test.original_thumbnail_url ?? null) as string | null,
-          ctr: (video?.ctr_percent ?? null) as number | null,
+          ctr: (video?.ctr ?? null) as number | null,
           avgViewPercentage: (video?.avg_view_percentage ?? null) as number | null,
           score: null,
           grade: null,
@@ -976,9 +1003,8 @@ export function registerPrompts(server: McpServer): void {
 
       // Auto-inject: channel info + snapshot age + youtube docs
       const siteId = await resolvePromptSiteId()
-      const [channel, snapshotAge, youtubeDocs] = await Promise.all([
-        fetchChannelInfo(siteId, { channelId }),
-        fetchSnapshotAge(),
+      const [{ channel, snapshotAge }, youtubeDocs] = await Promise.all([
+        fetchChannelAndAge(siteId, { channelId }),
         fetchDomainDocs('youtube'),
       ])
 

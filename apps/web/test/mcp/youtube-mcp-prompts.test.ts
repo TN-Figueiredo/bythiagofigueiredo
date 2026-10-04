@@ -13,7 +13,7 @@ import {
   type McpTestPair,
 } from './helpers'
 import { fakePostgrest, type FakePostgrestOptions } from '../helpers/fake-postgrest'
-import { buildAbBriefingPrompt, buildAbReviewPrompt } from '@/lib/youtube/prompt-builders-ab'
+import { buildAbBriefingPrompt, buildAbReviewPrompt, buildAbWritePrompt } from '@/lib/youtube/prompt-builders-ab'
 
 // ---------------------------------------------------------------------------
 // Mock Supabase — all DB calls in prompts.ts go through service client
@@ -418,7 +418,7 @@ describe('o canal que os prompts recebem', () => {
         youtube_intelligence: ['generated_at', 'source'],
         youtube_channels: ['id', 'site_id', 'name', 'subscriber_count', 'created_at'],
         youtube_videos: ['id', 'site_id', 'channel_id'],
-        ab_tests: ['id', 'site_id', 'youtube_video_id'],
+        ab_tests: ['id', 'site_id', 'youtube_video_id', 'test_type', 'status', 'winner_variant_id', 'completed_reason', 'completed_at'],
       },
     }
   }
@@ -508,5 +508,122 @@ describe('o canal que os prompts recebem', () => {
     await start(world({ youtube_channels: [chan({ id: 'ch-pt', name: 'tnFigueiredo', subscriber_count: null })] }))
     const text = extractPromptText(await pair.client.getPrompt({ name: 'competitor-report', arguments: {} }))
     expect(text).toContain('Your channel: tnFigueiredo | 0 subscribers | Tier: nano')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// R93 — ab-write / ab-ideate liam `youtube_ab_tests` (a tabela é `ab_tests`), `ctr_percent` (a
+// coluna é `ctr`) e buscavam o vídeo pela coluna de texto com um uuid; fetchSnapshotAge não
+// filtrava por site nem por canal. Todas as tabelas declaram `columns` (tabela vazia também
+// recusa coluna inexistente).
+// ---------------------------------------------------------------------------
+
+describe('R93 — prompts de A/B contra o esquema real', () => {
+  const SITE = 'site-ctx'
+  const T_EN = '55555555-5555-4555-8555-555555555555'
+  const T_ALHEIO = '66666666-6666-4666-8666-666666666666'
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString()
+  let pair: McpTestPair
+
+  const test_ = (id: string, over: Record<string, unknown>) => ({
+    id, site_id: SITE, youtube_video_id: 'v-en', test_type: 'thumbnail', status: 'active', winner_variant_id: null,
+    completed_reason: null, completed_at: null, original_title: 'orig', original_thumbnail_url: null, original_description: null,
+    created_at: '2026-09-01T00:00:00Z', ...over,
+  })
+
+  function world(over: Partial<FakePostgrestOptions['tables']> = {}): FakePostgrestOptions {
+    return {
+      tables: {
+        sites: [{ id: SITE }],
+        youtube_channels: [
+          { id: 'ch-pt', site_id: SITE, name: 'tnFigueiredo', subscriber_count: 1160, created_at: '2025-01-01T00:00:00Z' },
+          { id: 'ch-en', site_id: SITE, name: 'Thiago EN', subscriber_count: 250_000, created_at: '2026-02-01T00:00:00Z' },
+        ],
+        youtube_videos: [
+          { id: 'v-en', site_id: SITE, channel_id: 'ch-en', youtube_video_id: 'YT-EN', title: 'Vídeo EN', thumbnail_url: 'http://t/en.jpg', ctr: 4.2, avg_view_percentage: 51 },
+          { id: 'v-pt', site_id: SITE, channel_id: 'ch-pt', youtube_video_id: 'YT-PT', title: 'Vídeo PT', thumbnail_url: null, ctr: 1, avg_view_percentage: 10 },
+        ],
+        ab_tests: [
+          test_(T_EN, {}),
+          test_('done-1', { status: 'completed', test_type: 'title', winner_variant_id: 'w1', completed_reason: 'winner', completed_at: '2026-09-10T00:00:00Z' }),
+          test_('done-alheio', { site_id: 'site-outro', status: 'completed', test_type: 'description', completed_at: '2026-09-11T00:00:00Z' }),
+          test_(T_ALHEIO, { site_id: 'site-outro' }),
+        ],
+        youtube_intelligence: [
+          { site_id: SITE, channel_id: 'ch-en', source: 'cowork', generated_at: hoursAgo(5) },
+          { site_id: SITE, channel_id: 'ch-pt', source: 'cowork', generated_at: hoursAgo(100) },
+          { site_id: 'site-outro', channel_id: 'ch-en', source: 'cowork', generated_at: hoursAgo(1) },
+        ],
+        ...over,
+      } as FakePostgrestOptions['tables'],
+      columns: {
+        sites: ['id'],
+        youtube_channels: ['id', 'site_id', 'name', 'subscriber_count', 'created_at'],
+        youtube_videos: ['id', 'site_id', 'channel_id', 'youtube_video_id', 'title', 'thumbnail_url', 'ctr', 'avg_view_percentage'],
+        ab_tests: ['id', 'site_id', 'youtube_video_id', 'test_type', 'status', 'winner_variant_id', 'completed_reason', 'completed_at', 'original_title', 'original_thumbnail_url', 'original_description', 'created_at'],
+        youtube_intelligence: ['site_id', 'channel_id', 'source', 'generated_at'],
+      },
+    }
+  }
+  async function start(opts: FakePostgrestOptions) {
+    fake = fakePostgrest(opts)
+    pair = await createTestMcpPair({ setupServer: (server) => registerPrompts(server) })
+  }
+  beforeEach(() => {
+    vi.mocked(buildAbBriefingPrompt).mockReset().mockReturnValue('mock-ab-briefing')
+    vi.mocked(buildAbWritePrompt).mockReset().mockReturnValue('mock-ab-write')
+  })
+  afterEach(async () => {
+    await pair.cleanup()
+    fake = null
+  })
+
+  it('ab-write acha o teste em ab_tests, o vídeo pelo id, e passa ctr, canal do vídeo e idade do snapshot daquele canal', async () => {
+    await start(world())
+    await pair.client.getPrompt({ name: 'ab-write', arguments: { test_id: T_EN } })
+
+    const data = vi.mocked(buildAbWritePrompt).mock.calls[0]![0].data
+    expect(data.video).toMatchObject({ title: 'Vídeo EN', ctr: 4.2, avgViewPercentage: 51, thumbnailUrl: 'http://t/en.jpg' })
+    expect(data.channel).toMatchObject({ name: 'Thiago EN', subscribers: 250_000 })
+    expect(data.snapshotAgeHours).toBe(5)
+    expect(data.testHistory).toEqual([{ test_type: 'title', winner_label: 'variant', ctr_lift_percent: null }])
+  })
+
+  it('ab-write: teste de outro site → "A/B test not found"', async () => {
+    await start(world())
+    await expect(pair.client.getPrompt({ name: 'ab-write', arguments: { test_id: T_ALHEIO } })).rejects.toThrow(/A\/B test not found/)
+  })
+
+  it('ab-ideate: o histórico vem de ab_tests, só do site e só dos concluídos', async () => {
+    await start(world())
+    await pair.client.getPrompt({ name: 'ab-ideate', arguments: { test_type: 'title' } })
+
+    const data = vi.mocked(buildAbBriefingPrompt).mock.calls[0]![0].data
+    expect(data.testHistory).toEqual([{ test_type: 'title', winner_label: 'variant', ctr_lift_percent: null }])
+    for (const q of fake!.on('ab_tests')) expect(q.filters).toContainEqual({ op: 'eq', col: 'site_id', value: SITE })
+    // sem vídeo em mãos: o primeiro canal (PT) e a idade do snapshot DELE, não a do canal EN nem a do outro site
+    expect(data.snapshotAgeHours).toBe(100)
+  })
+
+  it('ab-ideate sem nenhuma análise do canal → 999 (nunca a idade de outro canal ou de outro site)', async () => {
+    await start(world({ youtube_intelligence: [
+      { site_id: SITE, channel_id: 'ch-en', source: 'cowork', generated_at: hoursAgo(5) },
+      { site_id: 'site-outro', channel_id: 'ch-pt', source: 'cowork', generated_at: hoursAgo(1) },
+    ] as never }))
+    await pair.client.getPrompt({ name: 'ab-ideate', arguments: { test_type: 'title' } })
+    expect(vi.mocked(buildAbBriefingPrompt).mock.calls[0]![0].data.snapshotAgeHours).toBe(999)
+  })
+
+  it('site sem canal → 999, sem ler youtube_intelligence', async () => {
+    await start(world({ youtube_channels: [] }))
+    await pair.client.getPrompt({ name: 'ab-ideate', arguments: { test_type: 'title' } })
+    expect(vi.mocked(buildAbBriefingPrompt).mock.calls[0]![0].data.snapshotAgeHours).toBe(999)
+    expect(fake!.on('youtube_intelligence')).toHaveLength(0)
+  })
+
+  it('youtube-analyst mostra a idade do snapshot do canal pedido', async () => {
+    await start(world())
+    const text = extractPromptText(await pair.client.getPrompt({ name: 'youtube-analyst', arguments: { channel_id: 'ch-en' } }))
+    expect(text).toContain('Intelligence snapshot age: 5h')
   })
 })
