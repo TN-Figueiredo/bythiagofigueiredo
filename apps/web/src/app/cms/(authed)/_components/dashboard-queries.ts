@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { byRegistration } from '@/lib/youtube/showcase'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -487,6 +488,8 @@ export function fetchThisWeekStrip(
 /* ------------------------------------------------------------------ */
 
 export interface YtDashboardSummary {
+  /** Canal de onde saem os números (o primeiro com OAuth, em ordem de cadastro). */
+  channelName: string
   healthScore: number
   views30d: number
   viewsDelta: number
@@ -499,13 +502,36 @@ export interface YtDashboardSummary {
   activeAbTest: { title: string; variant: string; improvement: number; confidence: number; daysLeft: number } | null
 }
 
-export function fetchYtDashboardSummary(siteId: string) {
+/**
+ * Primeiro canal com conexão OAuth viva, na ordem de cadastro (`created_at`, depois
+ * `id` — a mesma de `byRegistration`). `null` quando nenhum canal tem conexão ativa.
+ */
+async function firstConnectedChannel(siteId: string): Promise<{ channelId: string; name: string } | null> {
+  const supabase = getSupabaseServiceClient()
+  const [connRes, chRes] = await Promise.all([
+    supabase
+      .from('social_connections')
+      .select('account_id')
+      .eq('site_id', siteId)
+      .eq('provider', 'youtube')
+      .is('revoked_at', null),
+    supabase.from('youtube_channels').select('id, channel_id, name, locale, created_at').eq('site_id', siteId),
+  ])
+  if (connRes.error || chRes.error) return null
+  const connected = new Set((connRes.data ?? []).map((c) => c.account_id as string))
+  const first = byRegistration(chRes.data ?? []).find((c) => connected.has(c.channel_id as string))
+  return first ? { channelId: first.channel_id as string, name: first.name as string } : null
+}
+
+export async function fetchYtDashboardSummary(siteId: string): Promise<YtDashboardSummary | null> {
+  const channel = await firstConnectedChannel(siteId)
+  if (!channel) return null
   return unstable_cache(
     async (): Promise<YtDashboardSummary | null> => {
       const { fetchYtChannelMetrics } = await import('@/lib/youtube/analytics-client')
       const [metrics, metrics60] = await Promise.all([
-        fetchYtChannelMetrics(siteId, 30),
-        fetchYtChannelMetrics(siteId, 60),
+        fetchYtChannelMetrics(siteId, 30, channel.channelId),
+        fetchYtChannelMetrics(siteId, 60, channel.channelId),
       ])
       if (!metrics) return null
 
@@ -525,6 +551,7 @@ export function fetchYtDashboardSummary(siteId: string) {
       const healthScore = Math.round((ctrScore + retScore + growthScore + engScore + freqScore) / 5)
 
       return {
+        channelName: channel.name,
         healthScore,
         views30d: metrics.views,
         viewsDelta,
@@ -537,7 +564,7 @@ export function fetchYtDashboardSummary(siteId: string) {
         activeAbTest: null,
       }
     },
-    [`yt-dashboard-${siteId}`],
+    [`yt-dashboard-${siteId}-${channel.channelId}`],
     { revalidate: 1800 }
   )()
 }
