@@ -87,7 +87,14 @@ export async function startAbTestInternal(
   // 4. Set thumbnail on YouTube — resolve correct channel token.
   let cycle0Meta: AppliedMetadata = {}
   try {
-    const channelAccountId = await channelAccountIdForVideo(supabase, siteId, test.youtube_video_id as string)
+    let channelAccountId: string | null
+    try {
+      channelAccountId = await channelAccountIdForVideo(supabase, siteId, test.youtube_video_id as string)
+    } catch (resolveErr) {
+      // Só a falha de ler o canal vira mensagem genérica (o detalhe, do banco, vai ao Sentry).
+      Sentry.captureException(resolveErr, { tags: { area: 'ab-start' }, extra: { testId } })
+      return { ok: false, error: 'Could not start the test: the YouTube channel could not be read. Try again.' }
+    }
     if (!channelAccountId) {
       return { ok: false, error: CHANNEL_NOT_IDENTIFIED_MESSAGE }
     }

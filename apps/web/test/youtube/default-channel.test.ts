@@ -1,6 +1,8 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest'
-import { defaultOwnChannel, pickDefaultChannel } from '@/lib/youtube/default-channel'
+import { describe, it, expect, vi } from 'vitest'
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
+import * as Sentry from '@sentry/nextjs'
+import { defaultOwnChannel, pickDefaultChannel, pickActiveChannel } from '@/lib/youtube/default-channel'
 
 const SITE = 'site-1'
 const ch = (id: string, uc: string, created_at: string, locale = 'pt') => ({
@@ -61,8 +63,14 @@ describe('defaultOwnChannel', () => {
 
   it('erro de banco lança (nunca null)', async () => {
     const t = { youtube_channels: [ch('a', 'UC_A', '2025-01-01T00:00:00Z')] }
-    await expect(defaultOwnChannel(fake(t, 'social_connections'), SITE)).rejects.toThrow(/statement timeout/)
-    await expect(defaultOwnChannel(fake(t, 'youtube_channels'), SITE)).rejects.toThrow(/statement timeout/)
+    for (const failing of ['social_connections', 'youtube_channels']) {
+      const err = await defaultOwnChannel(fake(t, failing), SITE).catch((e: unknown) => e)
+      expect((err as Error).message).toBe('Failed to read YouTube channels')
+      // o texto do Postgres não aparece na mensagem; vai ao Sentry
+      expect((err as Error).message).not.toMatch(/statement timeout/)
+    }
+    expect(Sentry.captureException).toHaveBeenCalledTimes(2)
+    expect(String(vi.mocked(Sentry.captureException).mock.calls[0]![0])).toMatch(/statement timeout/)
   })
 })
 
@@ -72,5 +80,20 @@ describe('pickDefaultChannel', () => {
     const copy = [...rows]
     pickDefaultChannel(rows, new Set(['UC_B']))
     expect(rows).toEqual(copy)
+  })
+})
+
+describe('pickActiveChannel', () => {
+  const list = [{ channelId: 'UC_A' }, { channelId: 'UC_B' }, { channelId: 'UC_C' }]
+  it('explícito válido vence o padrão', () => {
+    expect(pickActiveChannel(list, 'UC_C', 'UC_B')?.channelId).toBe('UC_C')
+  })
+  it('?channel= inválido cai no padrão, não no primeiro alfabético', () => {
+    expect(pickActiveChannel(list, 'UC_nope', 'UC_B')?.channelId).toBe('UC_B')
+  })
+  it('sem ?channel= usa o padrão; sem padrão conectado, o primeiro', () => {
+    expect(pickActiveChannel(list, undefined, 'UC_B')?.channelId).toBe('UC_B')
+    expect(pickActiveChannel(list, undefined, undefined)?.channelId).toBe('UC_A')
+    expect(pickActiveChannel([], undefined, undefined)).toBeUndefined()
   })
 })

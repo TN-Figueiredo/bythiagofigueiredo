@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), addBreadcrumb: vi.fn(), captureMessage: vi.fn() }))
+import * as Sentry from '@sentry/nextjs'
 
 const { mockChannelAccountId } = vi.hoisted(() => ({ mockChannelAccountId: vi.fn() }))
 vi.mock('@/lib/youtube/channel-account', async (orig) => ({
@@ -132,6 +134,19 @@ describe('startAbTestInternal', () => {
     buildMock()
     await startAbTestInternal('test-1', 'site-1')
     expect(ensureFreshToken).toHaveBeenCalledWith('site-1', 'youtube', 'UCpt')
+    // o resolvedor recebeu o site do teste (filtro de site)
+    expect(mockChannelAccountId).toHaveBeenCalledWith(expect.anything(), 'site-1', 'vid-1')
+  })
+
+  it('falha ao LER o canal: mensagem genérica ao usuário, detalhe no Sentry, nada ativado', async () => {
+    const { updates } = buildMock()
+    mockChannelAccountId.mockRejectedValue(new Error('channelAccountIdForVideo: statement timeout'))
+    const result = await startAbTestInternal('test-1', 'site-1')
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('Could not start the test: the YouTube channel could not be read. Try again.')
+    expect(result.error).not.toMatch(/statement timeout/)
+    expect(Sentry.captureException).toHaveBeenCalled()
+    expect(updates).toEqual([])
   })
 
   it('canal do vídeo não identificado: recusa com mensagem legível, sem pedir token e sem ativar', async () => {
