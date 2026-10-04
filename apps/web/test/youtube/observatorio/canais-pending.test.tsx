@@ -161,14 +161,14 @@ describe('Canais · immediate feedback', () => {
   it('a sort click marks the clicked header as busy until the new order arrives', async () => {
     const user = userEvent.setup()
     const r = render(tree())
-    const th = () => document.querySelector<HTMLElement>('th.sortable[data-k="vpd"]')!
+    const th = () => document.querySelector<HTMLElement>('th.sortable[data-k="outliers"]')!
     await user.click(within(th()).getByRole('button'))
-    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?sort=vpd', { scroll: false })
+    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?sort=outliers', { scroll: false })
     expect(within(th()).getByRole('button')).toHaveAttribute('aria-busy', 'true')
     expect(document.querySelector('.tablebox')).toHaveAttribute('aria-busy', 'true')
     // the arrow never claims an order the rows do not have yet
     expect(th()).not.toHaveAttribute('aria-sort')
-    await answer(r, { sort: 'vpd' })
+    await answer(r, { sort: 'outliers' })
     expect(th()).toHaveAttribute('aria-sort', 'descending')
     expect(within(th()).getByRole('button')).not.toHaveAttribute('aria-busy')
   })
@@ -203,12 +203,12 @@ describe('Canais · immediate feedback', () => {
     const user = userEvent.setup()
     const r = render(tree({ layout: 'cards' }))
     const sel = () => screen.getByRole('combobox', { name: 'Ordenar cards por' })
-    await user.selectOptions(sel(), 'vpd')
-    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?sort=vpd', { scroll: false })
-    expect(sel()).toHaveValue('vpd')
+    await user.selectOptions(sel(), 'outliers')
+    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?sort=outliers', { scroll: false })
+    expect(sel()).toHaveValue('outliers')
     expect(document.querySelector('.cards')).toHaveAttribute('aria-busy', 'true')
-    await answer(r, { layout: 'cards', sort: 'vpd' })
-    expect(sel()).toHaveValue('vpd')
+    await answer(r, { layout: 'cards', sort: 'outliers' })
+    expect(sel()).toHaveValue('outliers')
     expect(document.querySelector('.cards')).not.toHaveAttribute('aria-busy')
   })
 
@@ -251,10 +251,10 @@ describe('Canais · immediate feedback', () => {
   it('two quick clicks on the same column: the second asks for the opposite direction', async () => {
     const user = userEvent.setup()
     render(tree())
-    const b = () => within(document.querySelector<HTMLElement>('th.sortable[data-k="vpd"]')!).getByRole('button')
+    const b = () => within(document.querySelector<HTMLElement>('th.sortable[data-k="outliers"]')!).getByRole('button')
     await user.click(b())
     await user.click(b())
-    expect(replace.mock.calls.map(c => c[0])).toEqual(['/cms/youtube/competitors?sort=vpd', '/cms/youtube/competitors?sort=vpd&dir=asc'])
+    expect(replace.mock.calls.map(c => c[0])).toEqual(['/cms/youtube/competitors?sort=outliers', '/cms/youtube/competitors?sort=outliers&dir=asc'])
   })
 
   it('at rest nothing says busy and the loading bar is not in the DOM', () => {

@@ -92,7 +92,10 @@ export function ChannelTable({ view, own, groups, h, onSort, empty, busy, busySo
     <div className="tablebox" ref={box} aria-busy={busy || undefined}>
       <table aria-label="Canais acompanhados">
         <thead><tr>
-          <th scope="col">Canal<span className="unit">nicho e inscritos</span></th>
+          <th scope="col" className="sortable" data-k="subs" aria-sort={view.sort === 'subs' ? (view.dir === 'desc' ? 'descending' : 'ascending') : undefined}>
+            <button type="button" aria-busy={busySort === 'subs' || undefined} title="Ordenar por inscritos" onClick={() => onSort('subs')}>Canal <span className="arrow" aria-hidden="true">{view.sort === 'subs' ? (view.dir === 'desc' ? '▼' : '▲') : ''}</span></button>
+            <span className="unit">nicho e inscritos</span>
+          </th>
           {COLS.map(col => {
             const on = view.sort === col.k
             return (

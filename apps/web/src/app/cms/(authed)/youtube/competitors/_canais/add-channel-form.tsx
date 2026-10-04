@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import type { CanaisView } from './view-model'
 import { parseChannelInput } from './channel-input'
+import { Ic } from './cells'
 
 export interface AddInput { channel: string; niche: Niche; videoLimit: number }
 export type AddFn = (input: AddInput) => Promise<{ ok: boolean; error?: string; title?: string }>
@@ -37,6 +38,9 @@ export function AddChannelForm({ view, onAdd, onClose, onAdded, trap }: {
       const res = await onAdd(input)
       if (res.ok) onAdded(input, res.title)
       else { setHErr(res.error ?? 'Não deu para adicionar o canal.'); hRef.current?.focus() }
+    } catch {
+      // the action did not answer (network, timeout): the channel may or may not have been added
+      setHErr('O servidor não respondeu. Recarregue a página para ver se o canal entrou antes de tentar de novo.'); hRef.current?.focus()
     } finally { setBusy(false) }
   }
 
@@ -72,8 +76,8 @@ export function AddChannelForm({ view, onAdd, onClose, onAdded, trap }: {
         <span className="hint" id="cn-addLimH">Os vídeos mais recentes, até {view.add.limitMax}. Cada vídeo acompanhado ganha uma contagem diária de views.</span>
         <p className="hint">{view.add.when}</p>
         <div className="acts">
-          <button type="button" className="btn" onClick={onClose}>Cancelar</button>
-          <button type="submit" className="btn primary" disabled={full || busy} aria-busy={busy || undefined}>Adicionar canal</button>
+          <button type="button" className="btn" disabled={busy} onClick={onClose}>Cancelar</button>
+          <button type="submit" className="btn primary" disabled={full || busy} aria-busy={busy || undefined}>{busy ? <><Ic n="spin" spin />Adicionando…</> : 'Adicionar canal'}</button>
         </div>
       </form>
     </div>

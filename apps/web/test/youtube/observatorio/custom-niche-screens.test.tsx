@@ -198,7 +198,7 @@ describe('Canais', () => {
     await user.click(within(dlg).getByRole('button', { name: 'Jogos' }))
     await user.click(within(dlg).getByRole('button', { name: 'Adicionar canal' }))
     await waitFor(() => expect(onAdd).toHaveBeenCalledWith({ channel: '@CanalNovo', niche: 'jogos', videoLimit: 50 }))
-    await waitFor(() => expect(screen.getByText('Canal Novo entrou em Jogos; a busca dos vídeos começou.')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('Canal Novo entrou em Jogos. A busca dos vídeos leva cerca de um minuto; até lá ele fica no fim da lista como “buscando vídeos”.')).toBeTruthy())
   })
   it('nicho recém-criado, sem canal nenhum: a aba abre vazia com o texto de vazio de hoje e a forja desabilitada', () => {
     const v = canais(obs4, { niche: 'pessoal' })
