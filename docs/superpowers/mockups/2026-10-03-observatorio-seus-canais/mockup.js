@@ -37,7 +37,8 @@
   Object.keys(assigned).forEach(function (id) { if (P.ids.indexOf(id) >= 0 && OBS.channel(id).niche !== assigned[id]) OBS.setNiche(id, assigned[id]); });
   window.MOCKOWN = {
     preset: preset,
-    owns: function () { return P.ids.map(function (id) { return OBS.channel(id); }); },
+    /* R73: canais próprios por inscritos, maior primeiro; nome (pt-BR) e depois id como desempate — a ordem do produto */
+    owns: function () { return P.ids.map(function (id) { return OBS.channel(id); }).sort(function (a, b) { return ((b.subs == null ? -1 : b.subs) - (a.subs == null ? -1 : a.subs)) || a.name.localeCompare(b.name, 'pt-BR') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0); }); },
     /** nicho do canal próprio: 'viagem' | 'ia' | null (sem nicho) */
     nicheOf: function (c) { return assigned[c.id] || (P.none.indexOf(c.id) >= 0 ? null : c.niche); },
     assign: function (id, n) { assigned[id] = n; if (!forced) { st.niche = assigned; write(st); } OBS.setNiche(id, n); },
