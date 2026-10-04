@@ -6,10 +6,12 @@
  * cada carga), e com 1 o número saía sem dizer de qual canal era.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import * as Sentry from '@sentry/nextjs'
 
 const SITE = 'site-1'
 const { metricsMock } = vi.hoisted(() => ({ metricsMock: vi.fn() }))
 
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('next/cache', () => ({ unstable_cache: <T,>(fn: T) => fn }))
 vi.mock('@/lib/youtube/analytics-client', () => ({ fetchYtChannelMetrics: metricsMock }))
 
@@ -62,6 +64,7 @@ describe('fetchYtDashboardSummary', () => {
     const { fetchYtDashboardSummary } = await import('@/app/cms/(authed)/_components/dashboard-queries')
     const s = await fetchYtDashboardSummary(SITE)
     expect(s?.channelName).toBe('Canal B')
+    expect(s?.channelId).toBe('UC_B')
     expect(metricsMock).toHaveBeenCalledWith(SITE, 30, 'UC_B')
     expect(metricsMock).toHaveBeenCalledWith(SITE, 60, 'UC_B')
     expect(s?.views30d).toBe(300)
@@ -101,5 +104,26 @@ describe('fetchYtDashboardSummary', () => {
     const { fetchYtDashboardSummary } = await import('@/app/cms/(authed)/_components/dashboard-queries')
     expect(await fetchYtDashboardSummary(SITE)).toBeNull()
     expect(metricsMock).not.toHaveBeenCalled()
+  })
+  it('erro de banco: o card some, mas com Sentry (não em silêncio)', async () => {
+    tables.youtube_channels = [ch('a', 'UC_A', 'A', '2026-01-01T00:00:00Z')]
+    tables.social_connections = [conn('UC_A')]
+    // a leitura de conexões estoura
+    const real = tables.social_connections
+    Object.defineProperty(tables, 'social_connections', { get: () => { throw new Error('statement timeout') }, configurable: true })
+    const { fetchYtDashboardSummary } = await import('@/app/cms/(authed)/_components/dashboard-queries')
+    expect(await fetchYtDashboardSummary(SITE)).toBeNull()
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+    Object.defineProperty(tables, 'social_connections', { value: real, writable: true, configurable: true, enumerable: true })
+  })
+
+  it('EN antigo sem OAuth + PT com OAuth → o card é do PT', async () => {
+    tables.youtube_channels = [
+      { ...ch('en', 'UC_EN', 'EN vazio', '2025-01-01T00:00:00Z'), locale: 'en' },
+      { ...ch('pt', 'UC_PT', 'PT', '2025-06-01T00:00:00Z'), locale: 'pt' },
+    ]
+    tables.social_connections = [conn('UC_PT')]
+    const { fetchYtDashboardSummary } = await import('@/app/cms/(authed)/_components/dashboard-queries')
+    expect((await fetchYtDashboardSummary(SITE))?.channelName).toBe('PT')
   })
 })

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken, NoActiveConnectionError } from '@/lib/social/token-refresh'
-import { channelAccountIdForVideo } from '@/lib/youtube/channel-account'
+import { channelForVideo } from '@/lib/youtube/channel-account'
 import { fetchAnalyticsForDateRange } from '@/lib/youtube/ab-youtube'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
   // Ciclos pulados por falta de token do canal dono do vídeo (canal sem conexão
   // OAuth, ou vídeo sem canal). Não são erro nem "sem dados": ninguém perguntou
   // nada ao YouTube.
-  const skipped: { cycleId: string; testId: string; siteId: string; channelAccountId: string | null; reason: string }[] = []
+  const skipped: { cycleId: string; testId: string; siteId: string; channelAccountId: string | null; channelName: string | null; reason: string }[] = []
 
   for (const cycle of cycles) {
     try {
@@ -87,26 +87,31 @@ export async function GET(req: NextRequest) {
       // o ciclo acabava `no_data` para sempre sem nunca ter sido lido.
       let accessToken: string | null = null
       let skipReason: string | null = null
-      const channelAccountId = await channelAccountIdForVideo(supabase, test.site_id, test.youtube_video_id)
-      if (!channelAccountId) {
-        skipReason = 'video_without_channel'
-      } else {
-        try {
+      let channelAccountId: string | null = null
+      let channelName: string | null = null
+      try {
+        const owner = await channelForVideo(supabase, test.site_id, test.youtube_video_id)
+        channelAccountId = owner?.channelId ?? null
+        channelName = owner?.name ?? null
+        if (!channelAccountId) {
+          skipReason = 'video_without_channel'
+        } else {
           accessToken = (await ensureFreshToken(test.site_id, 'youtube', channelAccountId)).accessToken
-        } catch (tokenErr) {
-          if (!(tokenErr instanceof NoActiveConnectionError)) {
-            // Falha de verdade ao obter o token (leitura do banco, refresh, rede): conta como
-            // erro da execução, mas NÃO condena o ciclo — o YouTube nem foi consultado, e
-            // `error` é terminal (a consulta só lê pending/partial). Fica para a próxima rodada.
-            errors++
-            Sentry.captureException(tokenErr, {
-              tags: { cron: 'ab-backfill' },
-              extra: { stage: 'token', cycleId: cycle.id, testId: cycle.test_id },
-            })
-            continue
-          }
-          skipReason = 'no_active_connection'
         }
+      } catch (tokenErr) {
+        if (!(tokenErr instanceof NoActiveConnectionError)) {
+          // Falha de verdade ao resolver o canal ou obter o token (leitura do banco, refresh,
+          // rede): conta como erro da execução, mas NÃO condena o ciclo — o YouTube nem foi
+          // consultado, e `error` é terminal (a consulta só lê pending/partial). Fica para a
+          // próxima rodada.
+          errors++
+          Sentry.captureException(tokenErr, {
+            tags: { cron: 'ab-backfill' },
+            extra: { stage: 'token', cycleId: cycle.id, testId: cycle.test_id },
+          })
+          continue
+        }
+        skipReason = 'no_active_connection'
       }
 
       if (accessToken === null) {
@@ -118,6 +123,7 @@ export async function GET(req: NextRequest) {
           testId: cycle.test_id,
           siteId: test.site_id,
           channelAccountId: channelAccountId ?? null,
+          channelName,
           reason: skipReason ?? 'unknown',
         })
         continue
@@ -191,7 +197,15 @@ export async function GET(req: NextRequest) {
     const bySite = new Map<string, typeof skipped>()
     for (const k of skipped) bySite.set(k.siteId, [...(bySite.get(k.siteId) ?? []), k])
     for (const [siteId, items] of bySite) {
-      const channels = [...new Set(items.map((i) => i.channelAccountId ?? 'canal desconhecido'))]
+      const channels = [
+        ...new Set(
+          items.map((i) =>
+            i.channelName && i.channelAccountId
+              ? `${i.channelName} (${i.channelAccountId})`
+              : (i.channelAccountId ?? 'canal desconhecido'),
+          ),
+        ),
+      ]
       try {
         await fanOutToSiteAdmins({
           siteId,

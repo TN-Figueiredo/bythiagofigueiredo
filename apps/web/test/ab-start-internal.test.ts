@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+const { mockChannelAccountId } = vi.hoisted(() => ({ mockChannelAccountId: vi.fn() }))
+vi.mock('@/lib/youtube/channel-account', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/channel-account')>()),
+  channelAccountIdForVideo: mockChannelAccountId,
+}))
+
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
 vi.mock('@/lib/youtube/ab-youtube', () => ({
@@ -18,6 +24,7 @@ import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockChannelAccountId.mockResolvedValue('UCpt')
   ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockResolvedValue({ accessToken: 'tok' })
   ;(fetchVariantImageBuffer as ReturnType<typeof vi.fn>).mockResolvedValue({
     buffer: Buffer.from('img'),
@@ -128,7 +135,8 @@ describe('startAbTestInternal', () => {
   })
 
   it('canal do vídeo não identificado: recusa com mensagem legível, sem pedir token e sem ativar', async () => {
-    const { updates, inserts } = buildMock({}, null)
+    const { updates, inserts } = buildMock({})
+    mockChannelAccountId.mockResolvedValue(null)
     const result = await startAbTestInternal('test-1', 'site-1')
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/Could not identify which YouTube channel owns this video/)

@@ -31,7 +31,11 @@ let pair: McpTestPair | null = null
 afterEach(async () => { await pair?.cleanup(); pair = null; vi.mocked(Sentry.captureMessage).mockClear() })
 
 async function readResource(uri: string, opts: FakePostgrestOptions): Promise<{ text: string }> {
-  sb = fakePostgrest(opts)
+  sb = fakePostgrest({
+      ...opts,
+      tables: { social_connections: [], ...opts.tables },
+      columns: { social_connections: ['site_id', 'provider', 'account_id', 'revoked_at'], ...opts.columns },
+    })
   pair = await createTestMcpPair({ setupServer: s => registerResources(s) })
   const res = await pair.client.readResource({ uri })
   return res.contents[0] as { text: string }
@@ -40,7 +44,11 @@ async function readJson(uri: string, opts: FakePostgrestOptions): Promise<Record
   return JSON.parse((await readResource(uri, opts)).text)
 }
 async function prompt(name: string, args: Record<string, string>, opts: FakePostgrestOptions): Promise<string> {
-  sb = fakePostgrest(opts)
+  sb = fakePostgrest({
+      ...opts,
+      tables: { social_connections: [], ...opts.tables },
+      columns: { social_connections: ['site_id', 'provider', 'account_id', 'revoked_at'], ...opts.columns },
+    })
   pair = await createTestMcpPair({ setupServer: s => registerPrompts(s) })
   const res = await pair.client.getPrompt({ name, arguments: args })
   return (res.messages[0]!.content as { text: string }).text
@@ -108,7 +116,7 @@ describe('pipeline://stats e o resumo do prompt ideator', () => {
     const opts = world()
     opts.fail = q => (q.table === 'content_pipeline' ? { code: '42703', message: 'column content_pipeline.x does not exist' } : null)
     const text = await prompt('ideator', {}, opts)
-    expect(text).toContain('Pipeline stats: unavailable: pipeline stats (Failed to read the pipeline stats')
+    expect(text).toContain('Pipeline stats: unavailable: pipeline stats (read failed)')
     expect(text).not.toContain('0 active items')
     expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('pipeline stats unavailable'), expect.anything())
   })
@@ -185,6 +193,12 @@ describe('recursos de concorrentes', () => {
   })
 
   it('channels: os canais do site, o mais novo primeiro, com a contagem de vídeos do YouTube', async () => {
+    // (a mensagem crua do Postgres não chega ao cliente MCP)
+    const failing = world()
+    failing.fail = q => (q.table === 'competitor_channels' ? { code: '57014', message: 'statement timeout on relation x' } : null)
+    const err = await readResource('pipeline://youtube/competitors/channels', failing).catch((e: unknown) => e)
+    expect((err as Error).message).toMatch(/Failed to fetch competitor channels/)
+    expect((err as Error).message).not.toMatch(/statement timeout|relation x/)
     const body = await readJson('pipeline://youtube/competitors/channels', world()) as { channels: Array<Record<string, unknown>> }
     expect(body.channels.map(c => c.id)).toEqual(['c2', 'c1'])
     expect(body.channels[0]).toMatchObject({ channel_name: 'Novo', youtube_video_count: 9, sync_status: 'syncing' })
@@ -223,7 +237,7 @@ describe('youtube-analyst: idade da análise', () => {
       youtube_intelligence: intel,
     },
     columns: {
-      youtube_channels: ['id', 'site_id', 'name', 'subscriber_count', 'created_at'],
+      youtube_channels: ['id', 'site_id', 'channel_id', 'locale', 'name', 'subscriber_count', 'created_at'],
       youtube_intelligence: ['site_id', 'channel_id', 'source', 'generated_at'],
     },
   })
@@ -244,7 +258,7 @@ describe('youtube-analyst: idade da análise', () => {
     const opts = world([])
     opts.fail = q => (q.table === 'youtube_intelligence' ? { code: '57014', message: 'timeout' } : null)
     const text = await prompt('youtube-analyst', { channel_id: 'ch' }, opts)
-    expect(text).toContain('Intelligence snapshot age: unavailable: intelligence snapshot age (Failed to read the intelligence snapshot: timeout)')
+    expect(text).toContain('Intelligence snapshot age: unavailable: intelligence snapshot age (read failed)')
     expect(text).not.toContain('none yet')
     expect(text).toContain('Channel: Canal')
     expect(Sentry.captureMessage).toHaveBeenCalled()
@@ -254,7 +268,7 @@ describe('youtube-analyst: idade da análise', () => {
     const opts = world([])
     opts.fail = q => (q.table === 'youtube_channels' ? { code: '57014', message: 'timeout' } : null)
     const text = await prompt('youtube-analyst', { channel_id: 'ch' }, opts)
-    expect(text).toContain('> unavailable: channel name (Failed to read the channel: timeout)')
+    expect(text).toContain('> unavailable: channel name (read failed)')
     expect(text).toContain('Channel: Unknown')
   })
 
@@ -310,7 +324,11 @@ describe('serviços: busca de blog e totais de cliques', () => {
   it('searchContent: erro de leitura é erro, não lista vazia', async () => {
     const opts = blog()
     opts.fail = q => (q.table === 'blog_translations' ? { code: '42703', message: 'column does not exist' } : null)
-    sb = fakePostgrest(opts)
+    sb = fakePostgrest({
+      ...opts,
+      tables: { social_connections: [], ...opts.tables },
+      columns: { social_connections: ['site_id', 'provider', 'account_id', 'revoked_at'], ...opts.columns },
+    })
     await expect(searchContent(ctx(), 'roma')).rejects.toMatchObject({ code: 'DB_ERROR' })
   })
 
@@ -469,7 +487,7 @@ describe('research: central derruba, secundário degrada', () => {
   it('triage_fresh_research: foco com erro vira linha "unavailable" + Sentry', async () => {
     const o = world(); o.fail = q => (q.table === 'research_focos' ? { code: '57014', message: 'timeout' } : null)
     const text = await prompt('triage_fresh_research', {}, o)
-    expect(text).toContain('Foco ativo: unavailable: active foco (timeout)')
+    expect(text).toContain('Foco ativo: unavailable: active foco (read failed)')
     expect(text).toContain('Research: 1 itens')
     expect(Sentry.captureMessage).toHaveBeenCalled()
   })
@@ -477,7 +495,7 @@ describe('research: central derruba, secundário degrada', () => {
   it('review_research_for_decisions: decisões com erro viram linha "unavailable", não "0 decisões"', async () => {
     const o = world(); o.fail = q => (q.table === 'research_decisions' ? { code: '57014', message: 'timeout' } : null)
     const text = await prompt('review_research_for_decisions', {}, o)
-    expect(text).toContain('Decisões abertas: unavailable: open decisions (timeout)')
+    expect(text).toContain('Decisões abertas: unavailable: open decisions (read failed)')
     expect(text).not.toContain('Decisões abertas: 0')
   })
 

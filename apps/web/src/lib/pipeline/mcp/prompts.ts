@@ -8,6 +8,7 @@
 
 import { z } from 'zod'
 import * as Sentry from '@sentry/nextjs'
+import { defaultOwnChannel } from '@/lib/youtube/default-channel'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -55,9 +56,10 @@ function userMessage(text: string, notes: string[] = []) {
  * the A/B test, the research items) is not degraded: its read error throws.
  */
 function degrade(what: string, e: unknown): string {
+  // O detalhe (mensagem crua do Postgres) vai só para o Sentry; o cliente MCP recebe o genérico.
   const reason = e instanceof Error ? e.message : String(e)
   Sentry.captureMessage(`MCP prompt: ${what} unavailable: ${reason}`, { level: 'warning', tags: { area: 'mcp-prompt' } })
-  return `unavailable: ${what} (${reason})`
+  return `unavailable: ${what} (read failed)`
 }
 
 /**
@@ -144,7 +146,7 @@ async function resolvePromptSiteId(): Promise<string | null> {
  * - `channelId` in hand (the internal uuid): that channel.
  * - `videoId` in hand (the internal uuid of youtube_videos, e.g. an A/B test's video): the
  *   channel of that video.
- * - neither: the first channel of the site, in registration order.
+ * - neither: the site's default channel (`defaultOwnChannel`).
  *
  * Every read is scoped to the site. A target that does not resolve inside the site (deleted
  * video, channel of another site) is "Unknown" — never some other channel standing in for it.
@@ -185,21 +187,20 @@ async function readChannel(
     if (!channelId) return unknown
   }
 
-  const { data, error: channelError } = channelId
-    ? await supabase
-      .from('youtube_channels')
-      .select('id, name, subscriber_count')
-      .eq('site_id', siteId)
-      .eq('id', channelId)
-      .maybeSingle()
-    : await supabase
-      .from('youtube_channels')
-      .select('id, name, subscriber_count')
-      .eq('site_id', siteId)
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true })
-      .limit(1)
-      .maybeSingle()
+  // Nenhum canal nem vídeo em mãos: o canal padrão do site (a mesma regra do painel e dos
+  // recursos MCP): o primeiro em cadastro com OAuth viva; sem nenhum, o mais antigo.
+  if (!channelId) {
+    const def = await defaultOwnChannel(supabase, siteId)
+    if (!def) return unknown
+    channelId = def.id
+  }
+
+  const { data, error: channelError } = await supabase
+    .from('youtube_channels')
+    .select('id, name, subscriber_count')
+    .eq('site_id', siteId)
+    .eq('id', channelId)
+    .maybeSingle()
 
   if (channelError) throw new Error(`Failed to read the channel: ${channelError.message}`)
   if (!data) return unknown
@@ -813,6 +814,20 @@ export function registerPrompts(server: McpServer): void {
 
       const supabase = getSupabaseServiceClient()
 
+      // The test must resolve INSIDE the site before its variants are read (variants carry no
+      // site_id of their own): another site's test id answers "not found", never its variants.
+      const siteId = await resolvePromptSiteId()
+      const { data: testRow, error: testError } = siteId
+        ? await supabase
+          .from('ab_tests')
+          .select('youtube_video_id')
+          .eq('id', testId)
+          .eq('site_id', siteId)
+          .maybeSingle()
+        : { data: null, error: null }
+      if (testError) throw new Error(`Failed to fetch A/B test ${testId}`)
+      if (!testRow) throw new Error(`A/B test not found: ${testId}`)
+
       // Fetch test variants
       const { data: variants, error } = await supabase
         .from('ab_test_variants')
@@ -820,20 +835,14 @@ export function registerPrompts(server: McpServer): void {
         .eq('test_id', testId)
         .order('sort_order', { ascending: true })
 
-      if (error) throw new Error(`Failed to fetch variants for test ${testId}: ${error.message}`)
+      if (error) {
+        Sentry.captureException(error, { tags: { area: 'mcp-prompt', prompt: 'ab-review' }, extra: { testId } })
+        throw new Error(`Failed to fetch variants for test ${testId}`)
+      }
       if (!variants || variants.length === 0) throw new Error(`No variants found for test ${testId}`)
 
       // Fetch channel info for tier context: the channel of the test's video. A test that does
       // not resolve inside the site leaves no video in hand, and the site's first channel answers.
-      const siteId = await resolvePromptSiteId()
-      const { data: testRow } = siteId
-        ? await supabase
-          .from('ab_tests')
-          .select('youtube_video_id')
-          .eq('id', testId)
-          .eq('site_id', siteId)
-          .maybeSingle()
-        : { data: null }
       const channel = await fetchChannelInfo(siteId, { videoId: testRow?.youtube_video_id as string | undefined })
 
       const promptText = buildAbReviewPrompt({

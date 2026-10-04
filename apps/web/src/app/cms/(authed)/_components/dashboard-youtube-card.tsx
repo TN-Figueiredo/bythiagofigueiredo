@@ -15,7 +15,7 @@ export function DashboardYoutubeCard({ data }: Props) {
     <div className="rounded-xl border border-[var(--bdr-1)] bg-[var(--bg-2)]/40 p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]" role="region" aria-label={`Resumo YouTube · ${data.channelName}`}>
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-[var(--t2)]">{`YouTube · ${data.channelName}`}</h3>
-        <Link href="/cms/youtube/analytics" className="text-xs font-medium text-[var(--acc)] hover:underline transition-colors">
+        <Link href={`/cms/youtube/analytics?channel=${encodeURIComponent(data.channelId)}`} className="text-xs font-medium text-[var(--acc)] hover:underline transition-colors">
           Ver Analytics &rarr;
         </Link>
       </div>

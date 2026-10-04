@@ -1,4 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const { mockChannelAccountId } = vi.hoisted(() => ({ mockChannelAccountId: vi.fn() }))
+vi.mock('@/lib/youtube/channel-account', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/channel-account')>()),
+  channelAccountIdForVideo: mockChannelAccountId,
+}))
 import type { NextRequest } from 'next/server'
 
 const CRON_SECRET = 'test-cron-secret'
@@ -166,6 +172,7 @@ function insertQuery() {
 describe('GET /api/cron/ab-rotate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  mockChannelAccountId.mockResolvedValue('UCpt')
   })
 
   it('returns 401 without Authorization header', async () => {

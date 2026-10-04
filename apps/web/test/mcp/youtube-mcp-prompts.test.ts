@@ -267,6 +267,10 @@ describe('competitor-report prompt', () => {
       })
     mockSupabase.single = vi.fn().mockImplementation(row)
     mockSupabase.maybeSingle = vi.fn().mockImplementation(row)
+    // the default-channel list read (channels + live connections) answers one channel
+    mockSupabase.then = vi.fn((resolve: (v: unknown) => unknown) =>
+      resolve({ data: [{ id: 'ch-1', channel_id: 'UC1', account_id: 'UC1', name: 'MyChannel', locale: 'pt', created_at: '2025-01-01T00:00:00Z' }], error: null }),
+    )
 
     pair = await createTestMcpPair({
       setupServer: (server) => registerPrompts(server),
@@ -420,14 +424,18 @@ describe('o canal que os prompts recebem', () => {
       columns: {
         sites: ['id'], // tabela vazia também recusa coluna inexistente
         youtube_intelligence: ['generated_at', 'source'],
-        youtube_channels: ['id', 'site_id', 'name', 'subscriber_count', 'created_at'],
+        youtube_channels: ['id', 'site_id', 'channel_id', 'locale', 'name', 'subscriber_count', 'created_at'],
         youtube_videos: ['id', 'site_id', 'channel_id'],
         ab_tests: ['id', 'site_id', 'youtube_video_id', 'test_type', 'status', 'winner_variant_id', 'completed_reason', 'completed_at'],
       },
     }
   }
   async function start(opts: FakePostgrestOptions) {
-    fake = fakePostgrest(opts)
+    fake = fakePostgrest({
+      ...opts,
+      tables: { social_connections: [], ...opts.tables },
+      columns: { social_connections: ['site_id', 'provider', 'account_id', 'revoked_at'], ...opts.columns },
+    })
     pair = await createTestMcpPair({ setupServer: (server) => registerPrompts(server) })
   }
 
@@ -451,6 +459,19 @@ describe('o canal que os prompts recebem', () => {
     expect(text).toContain('Tier: micro')
     expect(text).not.toContain('Unknown')
     expect(text).not.toContain('Alheio')
+  })
+
+  it('sem canal pedido: o canal padrão é o primeiro COM OAuth (o mais antigo, sem OAuth, não descreve o prompt)', async () => {
+    await start(world({
+      youtube_channels: [
+        chan({ id: 'ch-pt', channel_id: 'UCpt', name: 'PT vazio', subscriber_count: 3, created_at: '2025-01-01T00:00:00Z' }),
+        chan({ id: 'ch-en', channel_id: 'UCen', name: 'EN com OAuth', subscriber_count: 250_000, created_at: '2026-02-01T00:00:00Z' }),
+      ],
+      social_connections: [{ site_id: SITE, provider: 'youtube', account_id: 'UCen', revoked_at: null }],
+    }))
+    const text = extractPromptText(await pair.client.getPrompt({ name: 'competitor-report', arguments: {} }) as never)
+    expect(text).toContain('Your channel: EN com OAuth')
+    expect(text).not.toContain('PT vazio')
   })
 
   it('nenhuma consulta a youtube_channels pede channel_name ou tier, e todas filtram por site', async () => {
@@ -479,6 +500,14 @@ describe('o canal que os prompts recebem', () => {
 
     // v-en é do canal EN: 250 mil inscritos → medium
     expect(vi.mocked(buildAbReviewPrompt).mock.calls[0]![0].channel).toEqual({ tier: 'medium', subscribers: 250_000 })
+  })
+
+  it('ab-review: teste de OUTRO site → "not found", e as variantes dele nunca são lidas', async () => {
+    await start(world({
+      ab_tests: [{ id: TEST_EN, site_id: 'site-outro', youtube_video_id: 'v-en' }],
+    } as never))
+    await expect(pair.client.getPrompt({ name: 'ab-review', arguments: { test_id: TEST_EN } })).rejects.toThrow(/not found/)
+    expect(fake!.on('ab_test_variants')).toHaveLength(0)
   })
 
   it('youtube-analyst (com channel_id): o cabeçalho é do canal pedido', async () => {
@@ -562,7 +591,7 @@ describe('R93 — prompts de A/B contra o esquema real', () => {
       } as FakePostgrestOptions['tables'],
       columns: {
         sites: ['id'],
-        youtube_channels: ['id', 'site_id', 'name', 'subscriber_count', 'created_at'],
+        youtube_channels: ['id', 'site_id', 'channel_id', 'locale', 'name', 'subscriber_count', 'created_at'],
         youtube_videos: ['id', 'site_id', 'channel_id', 'youtube_video_id', 'title', 'thumbnail_url', 'ctr', 'avg_view_percentage'],
         ab_tests: ['id', 'site_id', 'youtube_video_id', 'test_type', 'status', 'winner_variant_id', 'completed_reason', 'completed_at', 'original_title', 'original_thumbnail_url', 'original_description', 'created_at'],
         youtube_intelligence: ['site_id', 'channel_id', 'source', 'generated_at'],
@@ -570,7 +599,11 @@ describe('R93 — prompts de A/B contra o esquema real', () => {
     }
   }
   async function start(opts: FakePostgrestOptions) {
-    fake = fakePostgrest(opts)
+    fake = fakePostgrest({
+      ...opts,
+      tables: { social_connections: [], ...opts.tables },
+      columns: { social_connections: ['site_id', 'provider', 'account_id', 'revoked_at'], ...opts.columns },
+    })
     pair = await createTestMcpPair({ setupServer: (server) => registerPrompts(server) })
   }
   beforeEach(() => {

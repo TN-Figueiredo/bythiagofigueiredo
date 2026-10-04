@@ -1,4 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+const { mockChannelAccountId } = vi.hoisted(() => ({ mockChannelAccountId: vi.fn() }))
+vi.mock('@/lib/youtube/channel-account', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/channel-account')>()),
+  channelAccountIdForVideo: mockChannelAccountId,
+}))
 import { NextRequest } from 'next/server'
 
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
@@ -178,6 +184,7 @@ beforeEach(() => {
   // These tests exercise the real apply-to-YouTube path (F19's guard defaults to off).
   vi.stubEnv('AB_AUTO_APPLY_WINNER', 'true')
   vi.clearAllMocks()
+  mockChannelAccountId.mockResolvedValue('UCpt')
   ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockResolvedValue({
     accessToken: 'token-123',
   })
@@ -361,7 +368,8 @@ describe('GET /api/cron/ab-evaluate', () => {
       grace_expires_at: new Date(Date.now() - 3600000).toISOString(),
       winner_variant_id: 'v2',
     })
-    buildSupabaseMock({ tests: [test], channel: null })
+    buildSupabaseMock({ tests: [test] })
+    mockChannelAccountId.mockResolvedValue(null)
 
     const body = await (await GET(createCronRequest('test-secret'))).json()
 

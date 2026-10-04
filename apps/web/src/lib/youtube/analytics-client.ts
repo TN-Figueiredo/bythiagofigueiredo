@@ -85,11 +85,15 @@ async function getYouTubeToken(siteId: string, targetChannelId?: string): Promis
     .eq('provider', 'youtube')
     .is('revoked_at', null)
   if (targetChannelId) query = query.eq('account_id', targetChannelId)
-  const { data } = await query
+  const { data, error: connError } = await query
     .order('connected_at', { ascending: false })
     .limit(1)
     .single()
 
+  // Sem linha (PGRST116) é "sem conexão": sem dados. Erro de banco NÃO é: lança.
+  if (connError && connError.code !== 'PGRST116') {
+    throw new Error(`YouTube Analytics: could not read the connection: ${connError.message}`)
+  }
   if (!data?.account_id) return null
 
   const channelId = data.account_id as string

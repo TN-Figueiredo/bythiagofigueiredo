@@ -17,6 +17,7 @@ import { WORKFLOWS, DEFAULT_CHECKLISTS } from '@/lib/pipeline/workflows'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import * as youtube from '@/lib/pipeline/services/youtube'
 import * as utilities from '@/lib/pipeline/services/utilities'
+import { defaultOwnChannel } from '@/lib/youtube/default-channel'
 import { listCompetitorChanges } from '@/lib/pipeline/services/competitors'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 
@@ -85,7 +86,13 @@ async function buildResourceCtx(): Promise<{ ctx: ServiceContext; siteId: string
  * JSON-RPC error and keeps the session.
  */
 function readOrThrow<T>(res: { data: T | null; error: { message: string } | null }, what: string): T {
-  if (res.error) throw new Error(`Failed to fetch ${what}: ${res.error.message}`)
+  if (res.error) {
+    // O detalhe (mensagem crua do Postgres) vai só para o Sentry; o cliente MCP recebe o genérico.
+    Sentry.captureException(new Error(`MCP resource read failed: ${what}: ${res.error.message}`), {
+      tags: { area: 'mcp-resource' },
+    })
+    throw new Error(`Failed to fetch ${what}`)
+  }
   return res.data as T
 }
 
@@ -343,12 +350,11 @@ export function registerResources(server: McpServer): void {
     async (uri) => {
       const { ctx } = await buildResourceCtx()
 
-      // No channel is named in a static URI: the first channel of THIS site, in registration
-      // order. An unfiltered `.limit(1)` used to pick any channel of any site, which the
-      // site-scoped snapshot below then refused as "Channel not found". For another channel,
-      // the `manage_ab_test` tool takes `get_intelligence` with a `channel_id`.
-      const channels = await youtube.listOwnChannels(ctx)
-      const channel = channels.data[0]
+      // No channel is named in a static URI: the site's default channel (`defaultOwnChannel`:
+      // the first in registration order WITH a live OAuth connection; with none, the oldest) —
+      // the same rule as the dashboard card and the prompts. For another channel, the
+      // `manage_ab_test` tool takes `get_intelligence` with a `channel_id`.
+      const channel = await defaultOwnChannel(ctx.supabase, ctx.siteId)
 
       if (!channel) throw new Error('No YouTube channel found')
 
@@ -779,9 +785,6 @@ export function registerResources(server: McpServer): void {
       annotations: { audience: ['assistant'] },
     },
     async (uri) => {
-      const supabase = getSupabaseServiceClient()
-      const { siteId } = await buildResourceCtx()
-
       // Same read as GET /api/pipeline/youtube/competitors/changes: `competitor_changes` carries
       // `change_type`, old/new title and thumbnail; the video and the channel come by embed.
       const { ctx } = await buildResourceCtx()
@@ -806,9 +809,6 @@ export function registerResources(server: McpServer): void {
       annotations: { audience: ['assistant'] },
     },
     async (uri) => {
-      const supabase = getSupabaseServiceClient()
-      const { siteId } = await buildResourceCtx()
-
       const { ctx } = await buildResourceCtx()
       const { data } = await listCompetitorChanges(ctx, { bookmarked: true, limit: 20 })
 

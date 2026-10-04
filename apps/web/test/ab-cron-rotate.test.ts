@@ -1,4 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+const { mockChannelAccountId } = vi.hoisted(() => ({ mockChannelAccountId: vi.fn() }))
+vi.mock('@/lib/youtube/channel-account', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/channel-account')>()),
+  channelAccountIdForVideo: mockChannelAccountId,
+}))
 import { NextRequest } from 'next/server'
 
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
@@ -227,6 +233,7 @@ beforeEach(() => {
   vi.stubEnv('CRON_SECRET', 'test-secret')
   vi.stubEnv('LINKS_SHORT_DOMAIN', 'go.test.com')
   vi.clearAllMocks()
+  mockChannelAccountId.mockResolvedValue('UCpt')
   ;(preflightTokenCheck as ReturnType<typeof vi.fn>).mockResolvedValue({
     ok: true,
     accessToken: 'fresh-token-123',
@@ -422,7 +429,8 @@ describe('GET /api/cron/ab-rotate', () => {
   })
 
   it('canal do vídeo não identificado: erro deste teste, sem preflight/token, e o próximo teste segue', async () => {
-    buildSupabaseMock({ tests: [makeTest()], channel: null })
+    buildSupabaseMock({ tests: [makeTest()] })
+    mockChannelAccountId.mockResolvedValue(null)
 
     const body = await (await GET(createCronRequest('test-secret'))).json()
 
