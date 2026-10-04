@@ -1,13 +1,14 @@
 // apps/web/e2e/tests/cms/observatorio/canais.spec.ts
 // Fidelity of the Canais screen against the N-own-channels canais.html of 03/10 (its states bar: MOCK at canais.html:887-893),
-// drawer included. The mockup's own channels are picked by URL (?owns=1|2), never by the "Seus canais" buttons of the
-// states bar (they reload the page). Presets 5 / mix / zero do not fit the local DB (UNIQUE(site_id, locale)): Vitest only (P3).
+// drawer included. The mockup's own channels are picked by URL (?owns=1|2|5|mix|zero), never by the "Seus canais" buttons
+// of the states bar (they reload the page). Presets 5 / mix / zero run too: two own channels may share a language (multi-canal).
 // The "Pedido à forja" states of the channel drawer are in forja.spec.ts (CANAIS_FORJA).
 // Every allowance below is one element or one text, scoped to the states it affects, with its ruling.
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
 import { runFidelity, ensureSeeded, type Allow, type MockupState, type ScreenSpec } from './fidelity'
-import { CANAIS_TABLE_EXCLUDE, BALD_ROW_SUFFIX_F11, HANDLE_R61, OWN_DRAWER_R60, OWN_DRAWER_R79 } from './allowances'
+import type { OwnPreset } from '../../../../test/fixtures/observatorio/own-presets'
+import { CANAIS_TABLE_EXCLUDE, BALD_ROW_SUFFIX_F11, HANDLE_R61, OWN_DRAWER_R60, OWN_DRAWER_R79, ADD_SENTENCE_R62 } from './allowances'
 
 /** The mockup's drawer channels: [oracle id, state-bar label]. */
 const DRAWERS: Array<[string, string]> = [
@@ -31,8 +32,8 @@ const PARADO_SUFFIX_F11: Allow = { drop: / ?,? até o registro diário de 24\/10
 const PARADO_SUFFIX_MID_F11: Allow = { cut: /(?<= views), até o registro diário de 24\/10 12:00(?=, \d)/ }
 
 /** The state with the preset's own channels on both sides: ownPreset in the seed, ?owns= in the mockup URL. */
-const withOwns = (p: '1' | '2', s: MockupState): MockupState => ({
-  ...s, label: `${s.label} · ${p === '1' ? '1 canal' : '2 canais'}`,
+const withOwns = (p: OwnPreset, s: MockupState): MockupState => ({
+  ...s, label: `${s.label} · ${p === '1' ? '1 canal' : p === '2' ? '2 canais' : p === '5' ? '5 canais' : p}`,
   seed: { ...s.seed, ownPreset: p }, mockupQuery: '?owns=' + p + (s.mockupQuery ? '&' + s.mockupQuery.replace(/^\?/, '') : ''),
 })
 
@@ -65,7 +66,7 @@ const BASE_STATES: MockupState[] = [
   {
     label: 'Adicionar canal (?add=1)', mockupClicks: ['Adicionar canal (?add=1)'], seed: {}, query: '?add=1',
     // R62: the add action syncs right away, so the dialog says the true sentence (Task 23)
-    textAllow: [/Entra na próxima sincronização \(\d\d:\d\d\): busca os vídeos até o limite escolhido\.|A busca dos vídeos começa ao adicionar, até o limite escolhido; o que faltar continua na sincronização das \d\d:\d\d\./],
+    textAllow: [ADD_SENTENCE_R62],
   },
   ...DRAWERS.flatMap(([id, label]) => TABS.map(([tab, tabLabel]) => ({
     label: `Drawer: ${label} · ${tabLabel}`, mockupClicks: [label], mockupTabClicks: [tabLabel], seed: {}, query: `?channel=<channel:${id}>&tab=${tab}`,
@@ -89,7 +90,12 @@ export const CANAIS: ScreenSpec = {
   exclude: CANAIS_TABLE_EXCLUDE,
   // F11 / Task 23 ruling: bald and bankrupt's views/day suffix (allowances.ts)
   textAllow: [BALD_ROW_SUFFIX_F11],
-  states: [withOwns('1', BASE_STATES[0]!), ...BASE_STATES.map(st => withOwns('2', st))],
+  states: [
+    withOwns('1', BASE_STATES[0]!), ...BASE_STATES.map(st => withOwns('2', st)),
+    // FU-17: N own channels ('5': five of Viagem; 'mix': one in IA, one without a niche; 'zero': none in Viagem), under Todos
+    // and under each niche (the "Seus canais" group says who is in the niche and who is elsewhere)
+    ...(['5', 'mix', 'zero'] as const).flatMap(p => [BASE_STATES[0]!, ...BASE_STATES.filter(st => st.label.startsWith('Filtro '))].map(st => withOwns(p, st))),
+  ],
 }
 
 runFidelity(CANAIS)
