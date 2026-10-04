@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { isCampaignPublic } from '@/lib/campaigns/public-visibility'
 import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import type { Metadata } from 'next'
@@ -67,6 +68,8 @@ const loadCampaign = cache(async function loadCampaignImpl(locale: string, slug:
     .eq('campaign_translations.slug', slug)
     .maybeSingle()
   if (error || !data) return null
+  // service client bypassa RLS: só campanha publicada é pública (rascunho => 404)
+  if (!isCampaignPublic(data)) return null
   return parseCampaign(data)
 })
 

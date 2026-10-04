@@ -52,6 +52,7 @@ const TYPED_VIDEO_SECTION_SCHEMAS: Record<string, z.ZodTypeAny> = {
 import { linkPostToItem, unlinkPostFromItem } from '@/lib/pipeline/blog-link'
 import { prepareBlogTranslationPatch } from '@/lib/pipeline/draft-to-blog'
 import { CurriculumContentSchema } from '@/lib/pipeline/course-schemas'
+import * as Sentry from '@sentry/nextjs'
 import {
   planCampaignDraft,
   assertCampaignSlugFree,
@@ -1097,25 +1098,43 @@ async function linkCampaignDraft(
   plan: CampaignDraftPlan,
   supabase: ReturnType<typeof getSupabaseServiceClient>,
 ): Promise<ServiceResult<Record<string, unknown>>> {
+  const siteId = ctx.siteId
   const campaignId = await insertCampaignDraft(supabase, plan)
 
-  const rollback = async () => {
-    await supabase
-      .from('content_pipeline')
-      .update({ campaign_id: null })
-      .eq('id', id)
-      .eq('site_id', ctx.siteId)
-    await deleteCampaignDraft(supabase, campaignId)
+  // undo of the link only touches the row if it still points at OUR campaign
+  const rollback = async (unlink: boolean) => {
+    if (unlink) {
+      const { error } = await supabase
+        .from('content_pipeline')
+        .update({ campaign_id: null })
+        .eq('id', id)
+        .eq('site_id', siteId)
+        .eq('campaign_id', campaignId)
+      if (error) {
+        Sentry.captureException(new Error('campaign rollback failed: item still linked'), {
+          tags: { component: 'pipeline-campaign-graduation' },
+          extra: { item_id: id, campaign_id: campaignId, site_id: siteId, code: error.code },
+        })
+      }
+    }
+    await deleteCampaignDraft(supabase, campaignId, siteId)
   }
 
-  const { error: linkError } = await supabase
+  // `.is('campaign_id', null)` + affected row: two concurrent graduations cannot both link
+  const { data: linked, error: linkError } = await supabase
     .from('content_pipeline')
     .update({ campaign_id: campaignId })
     .eq('id', id)
-    .eq('site_id', ctx.siteId)
+    .eq('site_id', siteId)
+    .is('campaign_id', null)
+    .select('id')
   if (linkError) {
-    await rollback()
+    await rollback(true)
     throw new PipelineServiceError('DB_ERROR', 'Failed to link the campaign to the item', 500)
+  }
+  if (!linked || linked.length === 0) {
+    await rollback(false)
+    throw new PipelineServiceError('INVALID_OPERATION', 'Already graduated to campaign', 409)
   }
 
   const { error: historyError } = await supabase
@@ -1127,7 +1146,7 @@ async function linkCampaignDraft(
       changed_by_key_id: ctx.source === 'api_key' ? ctx.keyId ?? null : null,
     })
   if (historyError) {
-    await rollback()
+    await rollback(true)
     throw new PipelineServiceError('DB_ERROR', 'Failed to record the graduation history', 500)
   }
 

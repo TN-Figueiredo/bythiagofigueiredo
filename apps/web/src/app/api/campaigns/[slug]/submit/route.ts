@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { verifyTurnstileToken } from '../../../../../../lib/turnstile';
 import { getSupabaseServiceClient } from '../../../../../../lib/supabase/service';
+import { isCampaignPublic } from '../../../../../../lib/campaigns/public-visibility';
 import { getLogger } from '../../../../../../lib/logger';
 
 const BodySchema = z.object({
@@ -57,12 +58,16 @@ export async function POST(req: NextRequest | Request, ctx: RouteCtx): Promise<R
 
   const campaignRes = await supabase
     .from('campaigns')
-    .select('id, pdf_storage_path, interest, campaign_translations!inner(success_headline, success_headline_duplicate, success_subheadline, success_subheadline_duplicate, check_mail_text, download_button_label)')
+    .select('id, status, published_at, pdf_storage_path, interest, campaign_translations!inner(success_headline, success_headline_duplicate, success_subheadline, success_subheadline_duplicate, check_mail_text, download_button_label)')
     .eq('campaign_translations.slug', slug)
     .eq('campaign_translations.locale', parsed.locale)
     .maybeSingle();
 
   if (campaignRes.error || !campaignRes.data) {
+    return Response.json({ error: 'campaign_not_found' }, { status: 404 });
+  }
+  // service client bypassa RLS: rascunho/agendada/arquivada não aceita envio nem entrega PDF
+  if (!isCampaignPublic(campaignRes.data as { status?: string | null; published_at?: string | null })) {
     return Response.json({ error: 'campaign_not_found' }, { status: 404 });
   }
   let campaign: z.infer<typeof CampaignRowZ>;
