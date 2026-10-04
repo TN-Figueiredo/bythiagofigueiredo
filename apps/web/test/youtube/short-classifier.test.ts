@@ -15,8 +15,8 @@ describe('classifyShort (R109)', () => {
     ['60 s', { durationSeconds: 60 }, { isShort: true, confirmed: true }],
     ['61 s sonda 200', { durationSeconds: 61, probe: 'short' }, { isShort: true, confirmed: true }],
     ['61 s sonda 303', { durationSeconds: 61, probe: 'normal' }, { isShort: false, confirmed: true }],
-    ['61 s timeout', { durationSeconds: 61, probe: 'inconclusive' }, { isShort: true, confirmed: false }],
-    ['61 s sem sonda', { durationSeconds: 61 }, { isShort: true, confirmed: false }],
+    ['61 s timeout (R114: grava como não Short)', { durationSeconds: 61, probe: 'inconclusive' }, { isShort: false, confirmed: false }],
+    ['61 s sem sonda', { durationSeconds: 61 }, { isShort: false, confirmed: false }],
     ['180 s sonda normal', { durationSeconds: 180, probe: 'normal' }, { isShort: false, confirmed: true }],
     ['181 s nunca', { durationSeconds: 181, probe: 'short' }, { isShort: false, confirmed: true }],
     ['181 s com #Shorts nunca', { durationSeconds: 181, title: 'x #Shorts' }, { isShort: false, confirmed: true }],
@@ -71,5 +71,6 @@ describe('probeShortsBatch', () => {
     expect(budget.remaining).toBe(0)
     expect(peak).toBeLessThanOrEqual(SHORT_PROBE_CONCURRENCY)
     expect(await probeShortsBatch(ids, budget, f as unknown as typeof fetch)).toEqual(new Map())
+    expect(budget.stats).toMatchObject({ attempted: 6, shorts: 6, regular: 0, inconclusive: 0 })
   })
 })

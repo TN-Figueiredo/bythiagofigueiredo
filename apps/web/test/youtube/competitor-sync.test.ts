@@ -10,6 +10,7 @@ vi.mock('@/lib/youtube/thumb-fingerprint', async (orig) => ({
 }))
 
 import { isDailyRecordDue, classifyThumb, dropFields, syncCompetitorChannel, optCount, reclassifyStoredShorts } from '@/lib/youtube/competitor-sync'
+import { reclassifyStoredShortsRoundRobin } from '@/lib/youtube/short-backfill'
 import { probeThumb } from '@/lib/youtube/thumb-fingerprint'
 import { hashValue } from '@/lib/youtube/competitor-versions'
 import type { StoredVersion, VersionPlan } from '@/lib/youtube/competitor-versions'
@@ -443,19 +444,19 @@ describe('syncCompetitorChannel — Shorts de 61–180 s', () => {
     expect(insertOf(db)).toMatchObject({ is_short: false })
   })
 
-  it('falha da sonda não derruba o sync (vira Short não confirmado)', async () => {
+  it('falha da sonda não derruba o sync (R114: grava como não Short, candidato do backfill)', async () => {
     const db = setup({ lastDaily: '2026-10-24' })
     const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT2M'), () => { throw new Error('timeout') }) })
     expect(r.videosChecked).toBe(1)
-    expect(insertOf(db)).toMatchObject({ is_short: true })
+    expect(insertOf(db)).toMatchObject({ is_short: false })
   })
 
-  it('teto de sondas esgotado: não sonda e vídeo novo vira Short não confirmado', async () => {
+  it('teto de sondas esgotado: não sonda e vídeo novo é gravado como não Short (R114)', async () => {
     const log: string[] = []
     const db = setup({ lastDaily: '2026-10-24' })
     await syncCompetitorChannel(ch, 'k', { now: NOW, probeBudget: { remaining: 0 }, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT1M30S'), () => new Response('', { status: 200 }), log) })
     expect(log).toEqual([])
-    expect(insertOf(db)).toMatchObject({ is_short: true })
+    expect(insertOf(db)).toMatchObject({ is_short: false })
   })
 
   it('vídeos de 30 s e de 4 min não são sondados', async () => {
@@ -464,6 +465,19 @@ describe('syncCompetitorChannel — Shorts de 61–180 s', () => {
     await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT30S'), () => new Response('', { status: 200 }), log) })
     await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: withProbe(vid('AAAAAAAAAA2', 'PT4M'), () => new Response('', { status: 200 }), log) })
     expect(log).toEqual([])
+  })
+
+  it('R114: título com #Shorts continua Short direto, sem sonda', async () => {
+    const log: string[] = []
+    const db = setup({ lastDaily: '2026-10-24' })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT1M30S', 'Rio #Shorts'), () => new Response('', { status: 200 }), log) })
+    expect(log).toEqual([]); expect(insertOf(db)).toMatchObject({ is_short: true })
+  })
+
+  it('R114: já gravado como Short e sonda inconclusiva não vira longo', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [{ id: 'v-1', video_id: 'AAAAAAAAAA1', title: 'Um vídeo', description_hash: null, thumbnail_url: null, view_count: 1, is_short: true }] })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: withProbe(vid('AAAAAAAAAA1', 'PT1M30S'), () => new Response('', { status: 429 })) })
+    expect(arg(db.calls.find(c => c.table === 'competitor_videos' && first(c) === 'update')!, 'update')).toMatchObject({ is_short: true })
   })
 
   it('vídeo já gravado como longo e sem sonda nesta rodada mantém o valor gravado', async () => {
@@ -507,6 +521,26 @@ describe('reclassifyStoredShorts — backfill (R109)', () => {
     expect(arg(upd, 'update')).toEqual({ is_short: true })
     expect(upd.ops.find(o => o[0] === 'in')![1]).toEqual(['id', ['u0', 'u1']])
     expect(budget.remaining).toBe(0)
+  })
+
+  it('R114: rodízio entre canais, mais recentes primeiro dentro de cada um; pending conta o que ficou sem sonda', async () => {
+    const byCh: Record<string, Array<{ id: string; video_id: string }>> = {
+      A: Array.from({ length: 6 }, (_, i) => ({ id: `a${i}`, video_id: `AAAAAAAAA0${i}` })),
+      B: [{ id: 'b0', video_id: 'BBBBBBBBB00' }],
+    }
+    let cur = ''
+    const db = fakeDb((c) => {
+      if (c.table === 'competitor_videos' && first(c) === 'select') {
+        cur = String(c.ops.find(o => o[0] === 'eq')![1][1]); return { data: byCh[cur], count: byCh[cur]!.length }
+      }
+      return undefined
+    })
+    const seen: string[] = []
+    const budget = { remaining: 4, stats: { attempted: 0, shorts: 0, regular: 0, inconclusive: 0, backfilled: 0, pending: 0 } }
+    const f = (async (u: RequestInfo | URL) => { seen.push(String(u).split('/').pop()!); return new Response('', { status: 200 }) }) as typeof fetch
+    await reclassifyStoredShortsRoundRobin(db.client as never, ['A', 'B'], fixed, budget, f)
+    expect(seen.sort()).toEqual(['AAAAAAAAA00', 'AAAAAAAAA01', 'AAAAAAAAA02', 'BBBBBBBBB00'])
+    expect(budget.stats).toMatchObject({ attempted: 4, shorts: 4, backfilled: 4, pending: 3 })
   })
 
   it('sem orçamento não consulta o banco', async () => {

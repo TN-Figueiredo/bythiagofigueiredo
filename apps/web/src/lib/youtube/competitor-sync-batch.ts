@@ -1,7 +1,8 @@
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
-import { newProbeBudget } from '@/lib/youtube/short-classifier'
+import { newProbeBudget, type ShortProbeStats } from '@/lib/youtube/short-classifier'
+import { reclassifyStoredShortsRoundRobin } from '@/lib/youtube/short-backfill'
 
 export const SLOT_HOURS_SP = [0, 6, 12, 18] as const
 const H = 3_600_000
@@ -27,6 +28,7 @@ export interface BatchResult {
   skipped: number
   remainingDue: number
   stoppedForTime: boolean
+  shorts_probe?: ShortProbeStats
 }
 
 /** Health verdict: fail when at least half of the attempted channels errored. */
@@ -61,6 +63,7 @@ export async function runCompetitorBatch(opts: {
   const probeBudget = newProbeBudget() // 60 sondas de Short por execução, divididas entre os canais
   const res: BatchResult = { synced: 0, errors: 0, skipped: 0, remainingDue: 0, stoppedForTime: false }
   let taken = 0
+  const syncedIds: string[] = []
   for (const row of due) {
     if (taken >= opts.batchSize) break
     if (now() - started > opts.budgetMs) {
@@ -69,9 +72,9 @@ export async function runCompetitorBatch(opts: {
     }
     taken++
     try {
-      const r = await syncCompetitorChannel(row, opts.apiKey, { probeBudget })
+      const r = await syncCompetitorChannel(row, opts.apiKey, { probeBudget, deferBackfill: true })
       if (r.skipped) res.skipped++
-      else res.synced++
+      else { res.synced++; syncedIds.push(row.id) }
     } catch (err) {
       res.errors++
       Sentry.captureException(err, {
@@ -79,6 +82,19 @@ export async function runCompetitorBatch(opts: {
         extra: { channelId: row.channel_id, siteId: row.site_id },
       })
     }
+  }
+  // Backfill só depois de todos os vídeos novos (R114), em rodízio entre os canais sincronizados.
+  try {
+    await reclassifyStoredShortsRoundRobin(sb, syncedIds, started, probeBudget, fetch)
+  } catch (err) {
+    Sentry.captureException(err, { tags: { component: 'sync-youtube', mode: 'competitors-shorts-backfill' } })
+  }
+  const st = probeBudget.stats!
+  res.shorts_probe = { ...st }
+  if (st.attempted >= 10 && st.shorts + st.regular === 0) {
+    Sentry.captureMessage('Sonda de Shorts bloqueada: nenhuma resposta conclusiva nesta execução (provável bloqueio de IP ou página de consentimento)', {
+      level: 'warning', tags: { component: 'sync-youtube', mode: 'competitors-shorts-probe' },
+    })
   }
   res.remainingDue = due.length - taken
   return res

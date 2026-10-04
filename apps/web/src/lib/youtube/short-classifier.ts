@@ -23,14 +23,14 @@ export function isCertainShort(durationSeconds: number | null | undefined): bool
 
 export interface ShortVerdict {
   isShort: boolean
-  /** false = decidido por uma sonda inconclusiva (tratado como Short, mas sem confirmação). */
+  /** false = sem confirmação (sonda inconclusiva ou ausente): R114 grava como NÃO Short, para ser sondado de novo. */
   confirmed: boolean
 }
 
 /**
  * - duração desconhecida: comportamento antigo (título com #Shorts);
  * - ≤ 60 s: Short; > 180 s: nunca;
- * - 61–180 s: #Shorts no título ou sonda 'short' = Short; sonda 'normal' = não; inconclusiva/ausente = Short, não confirmado.
+ * - 61–180 s: #Shorts no título ou sonda 'short' = Short; sonda 'normal' = não; inconclusiva/ausente = NÃO Short, não confirmado (R114).
  */
 export function classifyShort(input: {
   durationSeconds: number | null | undefined
@@ -44,7 +44,7 @@ export function classifyShort(input: {
   if (d > SHORT_MAX_SECONDS) return { isShort: false, confirmed: true }
   if (tagged || probe === 'short') return { isShort: true, confirmed: true }
   if (probe === 'normal') return { isShort: false, confirmed: true }
-  return { isShort: true, confirmed: false }
+  return { isShort: false, confirmed: false }
 }
 
 const YT_ID = /^[A-Za-z0-9_-]{11}$/
@@ -79,11 +79,13 @@ export async function probeShort(videoId: string, fetchImpl: typeof fetch = fetc
 }
 
 /** Teto de sondas por execução do cron, compartilhado entre os canais do lote. */
-export const MAX_SHORT_PROBES_PER_RUN = 60
+export const MAX_SHORT_PROBES_PER_RUN = 60 // 120 não cabe com margem ≥ 60 s no maxDuration (ver relatório)
 export const SHORT_PROBE_CONCURRENCY = 4
 
-export interface ProbeBudget { remaining: number }
-export const newProbeBudget = (n: number = MAX_SHORT_PROBES_PER_RUN): ProbeBudget => ({ remaining: n })
+export interface ShortProbeStats { attempted: number; shorts: number; regular: number; inconclusive: number; backfilled: number; pending: number }
+export const emptyProbeStats = (): ShortProbeStats => ({ attempted: 0, shorts: 0, regular: 0, inconclusive: 0, backfilled: 0, pending: 0 })
+export interface ProbeBudget { remaining: number; stats?: ShortProbeStats }
+export const newProbeBudget = (n: number = MAX_SHORT_PROBES_PER_RUN): ProbeBudget => ({ remaining: n, stats: emptyProbeStats() })
 
 /**
  * Sonda até `budget.remaining` ids (consome o orçamento), no máximo 4 por vez. Ids além do teto ficam fora do mapa
@@ -105,5 +107,10 @@ export async function probeShortsBatch(
     }
   }
   await Promise.all(Array.from({ length: Math.min(SHORT_PROBE_CONCURRENCY, ids.length) }, worker))
+  const st = budget.stats
+  if (st) {
+    st.attempted += out.size
+    for (const r of out.values()) { if (r === 'short') st.shorts++; else if (r === 'normal') st.regular++; else st.inconclusive++ }
+  }
   return out
 }
