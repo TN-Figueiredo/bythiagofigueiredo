@@ -559,7 +559,7 @@ function makeSnapshotSupabase(results: Record<string, Array<{ data: unknown; err
         return results[table]?.[counters[table] - 1] ?? { data: [], error: null }
       }
       const chain: Record<string, unknown> = {}
-      for (const op of ['select', 'eq', 'in', 'gte', 'order', 'limit', 'not', 'is']) {
+      for (const op of ['select', 'eq', 'in', 'gte', 'order', 'limit', 'not', 'is', 'range']) {
         chain[op] = (...args: unknown[]) => { calls.push({ table, op, args }); return chain }
       }
       chain.single = async () => next()
@@ -579,7 +579,9 @@ const V2 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2'
 function snapshotResults(over: Partial<Record<string, Array<{ data: unknown; error: unknown }>>> = {}) {
   return {
     youtube_channels: [{ data: { id: 'ch-1', channel_id: 'UC…', name: 'tnFigueiredo', subscriber_count: 1160 }, error: null }],
-    youtube_videos: [{ data: [
+    // two reads, in call order: every video id of the channel (it scopes grades, cycles and
+    // A/B tests to the channel), then the 50 listed videos
+    youtube_videos: [{ data: [{ id: V1 }, { id: V2 }], error: null }, { data: [
       { id: V1, youtube_video_id: 'yt1', title: 'a', thumbnail_url: null, published_at: '2024-12-10T15:57:00Z', view_count: 100, ctr: null, impressions: null, avg_view_percentage: null, avg_view_duration_seconds: null, retention_curve: null, traffic_sources: null, is_hidden: false },
       { id: V2, youtube_video_id: 'yt2', title: 'b', thumbnail_url: null, published_at: '2024-11-10T15:57:00Z', view_count: 50, ctr: null, impressions: null, avg_view_percentage: null, avg_view_duration_seconds: null, retention_curve: null, traffic_sources: null, is_hidden: true },
     ], error: null }],
@@ -656,7 +658,7 @@ describe('getIntelligenceSnapshot — recent window', () => {
   })
 
   it('makes zero calls to youtube_video_analytics when the channel has no videos (the EN channel)', async () => {
-    const sb = makeSnapshotSupabase(snapshotResults({ youtube_videos: [{ data: [], error: null }] }))
+    const sb = makeSnapshotSupabase(snapshotResults({ youtube_videos: [{ data: [], error: null }, { data: [], error: null }] }))
     const { data } = await getIntelligenceSnapshot(ctxOf(sb), 'ch-1')
 
     expect(data.recent_window).toBeNull()
