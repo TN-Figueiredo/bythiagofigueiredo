@@ -374,4 +374,25 @@ describe('POST /api/cron/social-metrics', () => {
     expect(body.errors![0]).toContain('boom')
     expect(body.skipped_no_connection ?? 0).toBe(0)
   })
+
+  it('erro de BANCO ao ler a conexão é erro, não pulo', async () => {
+    const now = new Date().toISOString()
+    const delivery = {
+      id: 'delivery-db', post_id: 'p1', provider: 'youtube', platform_post_id: 'yt1',
+      connection_id: 'conn-db', format: 'video', published_at: now,
+    }
+    const connection = { id: 'conn-db', site_id: 'site-1', account_id: 'UC1', page_token_enc: 'enc' }
+    mockShouldPollPost.mockReturnValue(true)
+    mockEnsureFreshToken.mockRejectedValueOnce(new Error('Could not read the youtube connection for site site-1: statement timeout'))
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'social_deliveries') return deliveriesQuery([delivery])
+      if (table === 'post_metrics') return lastPollsQuery([])
+      if (table === 'social_connections') return connectionQuery(connection)
+      if (table === 'cron_runs') return cronRunInsert()
+      return {}
+    })
+    const body = await (await POST(makeRequest(`Bearer ${CRON_SECRET}`))).json()
+    expect(body.errors![0]).toContain('statement timeout')
+    expect(body.skipped_no_connection ?? 0).toBe(0)
+  })
 })

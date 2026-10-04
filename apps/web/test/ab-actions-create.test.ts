@@ -84,20 +84,21 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
 
   const insertCalls: { table: string; data: unknown }[] = []
   const deleteCalls: { table: string; id: string }[] = []
+  const siteFilters: [string, string][] = []
 
   const fromMock = vi.fn((table: string) => {
     if (table === 'youtube_videos') {
       return {
         select: vi.fn((cols: string) => ({
           eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
+            eq: vi.fn((c: string, v: string) => (siteFilters.push([c, v]), {
               // Com o site: o vídeo do teste, ou o dono do vídeo (leitura de canal).
               single: vi.fn().mockResolvedValue(
                 cols.includes('youtube_channels')
                   ? { data: videoOwner ? { youtube_channels: videoOwner } : null, error: videoOwner ? null : { code: 'PGRST116', message: 'no rows' } }
                   : { data: video, error: video ? null : { message: 'not found' } },
               ),
-            }),
+            })),
             // Leitura só por id: o id do YouTube.
             single: vi.fn().mockResolvedValue({ data: { youtube_video_id: 'YT_VID_PT' }, error: null }),
           }),
@@ -168,7 +169,7 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
   const client = { from: fromMock }
   ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
-  return { client, fromMock, insertCalls, deleteCalls }
+  return { client, fromMock, insertCalls, deleteCalls, siteFilters }
 }
 
 let fetchSpy: ReturnType<typeof vi.spyOn>
@@ -275,6 +276,7 @@ describe('createAbTest', () => {
       ok: false,
       error: 'An active, paused or draft test already exists for this video',
     })
+    expect(put).not.toHaveBeenCalled()
   })
 
   it('creates original variant with blob_url matching test original_thumbnail_url', async () => {
@@ -333,7 +335,7 @@ describe('createAbTest', () => {
   // -------------------------------------------------------------------------
   describe('teste de título: token do canal dono do vídeo', () => {
     it('lê os originais com o token do canal do vídeo (UCpt), não com "a conexão mais recente"', async () => {
-      const { insertCalls } = buildSupabaseMock()
+      const { insertCalls, siteFilters } = buildSupabaseMock()
       ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockResolvedValue({ accessToken: 'tok-pt', connectionId: 'c-pt' })
       ;(captureOriginalMetadata as ReturnType<typeof vi.fn>).mockResolvedValue({
         title: 'Título original',
@@ -345,6 +347,8 @@ describe('createAbTest', () => {
       expect(result).toEqual({ ok: true, id: 'new-test-id' })
       expect(ensureFreshToken).toHaveBeenCalledTimes(1)
       expect(ensureFreshToken).toHaveBeenCalledWith('site-1', 'youtube', 'UCpt')
+      // O resolvedor do canal filtrou o vídeo pelo site da sessão.
+      expect(siteFilters).toContainEqual(['site_id', 'site-1'])
       expect(captureOriginalMetadata).toHaveBeenCalledWith('YT_VID_PT', 'tok-pt')
       const testInsert = insertCalls.find(c => c.table === 'ab_tests')!.data as Record<string, unknown>
       expect(testInsert.original_title).toBe('Título original')
@@ -375,6 +379,7 @@ describe('createAbTest', () => {
 
         expect(result).toEqual({ ok: false, error: REFUSAL })
         expect(insertCalls).toEqual([])
+        expect(put).not.toHaveBeenCalled()
       },
     )
 

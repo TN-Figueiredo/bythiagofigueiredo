@@ -371,6 +371,22 @@ describe('ab-watchdog drift detection', () => {
     expect(ensureFreshToken).toHaveBeenCalledTimes(1)
     expect(ensureFreshToken).toHaveBeenCalledWith('s1', 'youtube', 'UCpt')
     expect(setThumbnail).toHaveBeenCalledWith('YT_abc123', expect.any(Buffer), 'image/jpeg', 'fresh-token')
+    // Original devolvida: a notificação não alarma.
+    const msg = (mockNotify.mock.calls[0]![0] as { message: string }).message
+    expect(msg).not.toMatch(/NÃO foi devolvida/)
+  })
+
+  it('devolução da thumbnail original FALHA: a notificação diz que a variante pode estar no ar e que a troca é manual', async () => {
+    driftedMock()
+    vi.mocked(setThumbnail).mockRejectedValueOnce(new Error('youtube 403'))
+
+    await GET(makeRequest())
+
+    const call = mockNotify.mock.calls.find((c) => (c[0] as { type: string }).type === 'youtube.drift_detected')!
+    const n = call[0] as { message: string; title: string }
+    expect(n.message).toMatch(/NÃO foi devolvida/)
+    expect(n.message).toMatch(/manualmente/)
+    expect(n.title).toBe('Thumbnail alterado externamente')
   })
 
   it('deriva em vídeo sem canal: não pede token nem escreve no YouTube, e o teste é pausado mesmo assim', async () => {
@@ -384,5 +400,6 @@ describe('ab-watchdog drift detection', () => {
     expect(mock.updateCalls).toContainEqual(
       expect.objectContaining({ table: 'ab_tests', data: expect.objectContaining({ status: 'paused' }) }),
     )
+    expect((mockNotify.mock.calls[0]![0] as { message: string }).message).toMatch(/NÃO foi devolvida/)
   })
 })

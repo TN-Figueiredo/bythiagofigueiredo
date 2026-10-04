@@ -54,12 +54,16 @@ function makeRequest(authHeader?: string): NextRequest {
   } as unknown as NextRequest
 }
 
+const cyclesLimit = vi.fn()
+const cyclesOrder = vi.fn()
 function cyclesQuery(data: unknown[], error: null | object = null) {
+  cyclesLimit.mockResolvedValue({ data, error })
+  cyclesOrder.mockReturnValue({ limit: cyclesLimit })
   return {
     select: vi.fn().mockReturnValue({
       in: vi.fn().mockReturnValue({
         not: vi.fn().mockReturnValue({
-          lt: vi.fn().mockResolvedValue({ data, error }),
+          lt: vi.fn().mockReturnValue({ order: cyclesOrder }),
         }),
       }),
     }),
@@ -264,7 +268,48 @@ describe('GET /api/cron/ab-backfill', () => {
       expect(fanOutToSiteAdmins).toHaveBeenCalledTimes(1)
     })
 
-    it('outro erro de token (ex.: falha no refresh) continua sendo erro do ciclo', async () => {
+    it('erro de BANCO ao ler a conexão: erro da execução, ciclo não é marcado error, nada de "conecte o canal"', async () => {
+      mockTables({ channel_id: 'UCpt' })
+      mockEnsureFreshToken.mockRejectedValue(new Error('Could not read the youtube connection for site site-1: statement timeout'))
+
+      const body = await (await GET(makeRequest(`Bearer ${CRON_SECRET}`))).json()
+
+      expect(body.errors).toBe(1)
+      expect(body.skipped).toBe(0)
+      expect(cycleUpdates).toEqual([])
+      expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
+      expect(recordCronFailure).toHaveBeenCalled()
+    })
+
+    it('o select de pendentes é limitado a 200, mais recentes primeiro', async () => {
+      mockTables({ channel_id: 'UCpt' })
+      mockEnsureFreshToken.mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
+      await GET(makeRequest(`Bearer ${CRON_SECRET}`))
+      expect(cyclesOrder).toHaveBeenCalledWith('ended_at', { ascending: false })
+      expect(cyclesLimit).toHaveBeenCalledWith(200)
+    })
+
+    it('vários ciclos pulados: UM aviso agregado do Sentry, com contagem e canais', async () => {
+      const cycles = [1, 2, 3].map((n) => ({ ...cycle, id: `cycle-${n}` }))
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'ab_test_cycles') return { ...cyclesQuery(cycles), ...updateQuery() }
+        if (table === 'ab_tests') return singleQuery(test)
+        if (table === 'youtube_videos') return videoQuery(video, { channel_id: 'UCpt' })
+        return {}
+      })
+      mockEnsureFreshToken.mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
+
+      const body = await (await GET(makeRequest(`Bearer ${CRON_SECRET}`))).json()
+
+      expect(body.skipped).toBe(3)
+      expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+      const [msg, ctx] = vi.mocked(Sentry.captureMessage).mock.calls[0]!
+      expect(msg).toMatch(/3 cycle\(s\) skipped/)
+      expect((ctx as { extra: { channels: string[] } }).extra.channels).toEqual(['UCpt'])
+      expect(fanOutToSiteAdmins).toHaveBeenCalledTimes(1)
+    })
+
+    it('outro erro de token (ex.: falha no refresh) continua sendo erro, sem condenar o ciclo', async () => {
       mockTables({ channel_id: 'UCpt' })
       mockEnsureFreshToken.mockRejectedValue(new Error('Google token refresh failed (500): boom'))
 
@@ -272,7 +317,9 @@ describe('GET /api/cron/ab-backfill', () => {
       const body = await res.json()
 
       expect(body.errors).toBe(1)
-      expect(cycleUpdates).toEqual([{ backfill_status: 'error' }])
+      // Falha de token não condena o ciclo: continua pendente para a próxima rodada.
+      expect(cycleUpdates).toEqual([])
+      expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
       expect(recordCronFailure).toHaveBeenCalled()
     })
   })

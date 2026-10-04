@@ -109,7 +109,12 @@ export async function ensureFreshToken(
     .limit(1)
     .single()
 
-  if (error || !conn) {
+  // "Sem conexão" só quando NÃO há linha (PGRST116 ou sem erro e sem dado). Erro de banco
+  // (timeout, rede) é falha de verdade: quem pula canal sem conexão não pode engoli-lo.
+  if (error && error.code !== 'PGRST116') {
+    throw new Error(`Could not read the ${provider} connection for site ${siteId}: ${error.message}`)
+  }
+  if (!conn) {
     throw new NoActiveConnectionError(provider, siteId)
   }
 

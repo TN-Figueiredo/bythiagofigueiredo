@@ -3,6 +3,7 @@ import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { applyVariantToYouTube, isAutoApplyEnabled } from '@/lib/youtube/ab-apply'
 import { computeGates } from '@/lib/youtube/ab-gates'
+import { CHANNEL_NOT_IDENTIFIED_MESSAGE } from '@/lib/youtube/channel-account'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { buildNotification } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
@@ -292,7 +293,8 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
             ? await supabase.from('youtube_channels').select('channel_id').eq('id', videoForChannel.channel_id).single()
             : { data: null }
 
-          const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', channelRow?.channel_id)
+          if (!channelRow?.channel_id) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
+          const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', channelRow.channel_id)
 
           if (winner) {
             await applyVariantToYouTube({
@@ -430,7 +432,8 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient): Promis
               const { data: revertChannel } = revertVideoChannel?.channel_id
                 ? await supabase.from('youtube_channels').select('channel_id').eq('id', revertVideoChannel.channel_id).single()
                 : { data: null }
-              const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', revertChannel?.channel_id)
+              if (!revertChannel?.channel_id) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
+              const { accessToken } = await ensureFreshToken(test.site_id, 'youtube', revertChannel.channel_id)
               const { buffer, contentType } = await fetchVariantImageBuffer(test.original_thumbnail_url)
               await setThumbnail(revertVideo.youtube_video_id, buffer, contentType, accessToken)
             }
@@ -507,7 +510,8 @@ export async function phaseRetryFailedApplies(supabase: SupabaseClient): Promise
         ? await supabase.from('youtube_channels').select('channel_id').eq('id', videoForChannel2.channel_id).single()
         : { data: null }
 
-      const preflight = await preflightTokenCheck(pending.site_id, 'youtube', channelRow2?.channel_id)
+      if (!channelRow2?.channel_id) throw new Error(CHANNEL_NOT_IDENTIFIED_MESSAGE)
+      const preflight = await preflightTokenCheck(pending.site_id, 'youtube', channelRow2.channel_id)
       if (!preflight.ok) throw new Error(`preflight_failed: ${preflight.reason}`)
 
       const { data: video } = await supabase
