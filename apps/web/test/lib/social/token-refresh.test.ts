@@ -62,6 +62,23 @@ function buildConnectionChain(
   return { select, single }
 }
 
+/**
+ * `ensureFreshToken(site, 'youtube')` SEM conta conta primeiro as conexões
+ * ativas (guarda contra conexão ambígua): é a primeira chamada a `from()`.
+ * Estes testes são sobre o refresh, com uma conexão só.
+ */
+function activeConnectionCount(count = 1) {
+  return {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          is: vi.fn().mockResolvedValue({ count, error: null }),
+        }),
+      }),
+    }),
+  }
+}
+
 function buildUpdateChain(count: number) {
   const eqFilter = vi.fn().mockReturnThis()
   return {
@@ -174,6 +191,41 @@ describe('ensureFreshToken — no refresh needed (token still valid)', () => {
   })
 })
 
+function singleResult(result: unknown) {
+  const tail = {
+    order: vi.fn().mockReturnValue({
+      limit: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue(result) }),
+    }),
+  }
+  // com `accountId` há um `.eq('account_id', …)` depois do `.is`
+  const afterIs = { ...tail, eq: vi.fn().mockReturnValue(tail) }
+  return {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          is: vi.fn().mockReturnValue(afterIs),
+        }),
+      }),
+    }),
+  }
+}
+
+describe('ensureFreshToken — erro de banco não é "sem conexão"', () => {
+  it('erro do banco na leitura da conexão lança Error comum, nunca NoActiveConnectionError', async () => {
+    mockFrom.mockReturnValue(singleResult({ data: null, error: { code: '57014', message: 'statement timeout' } }))
+    const err = await ensureFreshToken('site-1', 'youtube', 'UC1').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(Error)
+    expect((err as Error).name).not.toBe('NoActiveConnectionError')
+    expect((err as Error).message).toMatch(/statement timeout/)
+  })
+
+  it('PGRST116 (nenhuma linha) continua sendo NoActiveConnectionError', async () => {
+    mockFrom.mockReturnValue(singleResult({ data: null, error: { code: 'PGRST116', message: 'no rows' } }))
+    const err = await ensureFreshToken('site-1', 'youtube', 'UC1').catch((e: unknown) => e)
+    expect((err as Error).name).toBe('NoActiveConnectionError')
+  })
+})
+
 describe('ensureFreshToken — connection not found', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -186,7 +238,7 @@ describe('ensureFreshToken — connection not found', () => {
                 limit: vi.fn().mockReturnValue({
                   single: vi.fn().mockResolvedValue({
                     data: null,
-                    error: { message: 'not found' },
+                    error: { code: 'PGRST116', message: 'not found' },
                   }),
                 }),
               }),
@@ -221,6 +273,7 @@ describe('refreshGoogle — happy path', () => {
     }
 
     mockFrom
+      .mockReturnValueOnce(activeConnectionCount())
       .mockReturnValueOnce({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -279,6 +332,7 @@ describe('refreshGoogle — token rotation (new refresh_token returned)', () => 
     }
 
     mockFrom
+      .mockReturnValueOnce(activeConnectionCount())
       .mockReturnValueOnce({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
@@ -328,6 +382,7 @@ describe('refreshGoogle — CAS conflict (concurrent refresh)', () => {
     const reReadData = { access_token_enc: 'enc:winner-access-token' }
 
     mockFrom
+      .mockReturnValueOnce(activeConnectionCount())
       .mockReturnValueOnce({
         // Initial lookup: expired token
         select: vi.fn().mockReturnValue({
@@ -385,6 +440,7 @@ describe('refreshGoogle — revoked token', () => {
     vi.clearAllMocks()
 
     mockFrom
+      .mockReturnValueOnce(activeConnectionCount())
       .mockReturnValueOnce({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({

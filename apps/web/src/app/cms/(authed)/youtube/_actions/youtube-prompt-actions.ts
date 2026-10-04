@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { defaultOwnChannel } from '@/lib/youtube/default-channel'
 import { fetchYtSearchTerms, fetchYtDemographics } from '@/lib/youtube/analytics-client'
 import {
   getChannelTier,
@@ -44,6 +45,12 @@ async function requireReadAccess(): Promise<string> {
   return siteId
 }
 
+const NO_DEMOGRAPHICS: YtDemographics = { ageGender: [], countries: [], devices: [] }
+const ANALYTICS_UNAVAILABLE =
+  'unavailable: this channel has no active YouTube connection, so search terms and demographics could not be read'
+
+const UNAVAILABLE_DEMOGRAPHICS = { topAge: 'unavailable', topCountry: 'unavailable', topDevice: 'unavailable' }
+
 function computeSnapshotAgeHours(snapshotAt: string): number {
   const ms = Date.now() - new Date(snapshotAt).getTime()
   if (!Number.isFinite(ms)) return -1
@@ -81,19 +88,43 @@ function formatDemographics(demo: YtDemographics): {
 async function getChannelInfo(
   siteId: string,
   channelId?: string,
-): Promise<{ info: PromptChannelInfo; channelDbId: string; lastSyncedAt: string } | null> {
+): Promise<{ info: PromptChannelInfo; channelDbId: string; channelAccountId: string; hasConnection: boolean; lastSyncedAt: string } | null> {
   const supabase = getSupabaseServiceClient()
   let query = supabase
     .from('youtube_channels')
-    .select('id, name, subscriber_count, video_count, last_synced_at')
+    .select('id, channel_id, name, subscriber_count, video_count, last_synced_at')
     .eq('site_id', siteId)
     .eq('sync_enabled', true)
 
-  if (channelId) query = query.eq('id', channelId)
+  if (channelId) {
+    query = query.eq('id', channelId)
+  } else {
+    // Nenhum canal pedido: o canal padrão do site (primeiro em cadastro com OAuth viva; sem
+    // nenhuma, o mais antigo) — a mesma regra do painel e do MCP, não "o que tem mais inscritos".
+    const def = await defaultOwnChannel(supabase, siteId)
+    if (!def) return null
+    query = query.eq('id', def.id)
+  }
 
   const { data, error } = await query.order('subscriber_count', { ascending: false }).limit(1).single()
   if (error && error.code !== 'PGRST116') throw error
   if (!data) return null
+  // O analytics filtra por `social_connections.account_id` (o id "UC…"), não pelo
+  // uuid da linha. Sem o id do YouTube não há como pedir os números do canal certo.
+  const channelAccountId = data.channel_id as string | null
+  if (!channelAccountId) return null
+
+  // Sem conexão OAuth viva o analytics não responde: o prompt diz que está indisponível.
+  const { data: conns, error: connErr } = await supabase
+    .from('social_connections')
+    .select('id')
+    .eq('site_id', siteId)
+    .eq('provider', 'youtube')
+    .eq('account_id', channelAccountId)
+    .is('revoked_at', null)
+    .limit(1)
+  if (connErr) throw connErr
+  const hasConnection = (conns ?? []).length > 0
 
   const info: PromptChannelInfo = {
     name: data.name as string,
@@ -105,6 +136,8 @@ async function getChannelInfo(
   return {
     info,
     channelDbId: data.id as string,
+    channelAccountId,
+    hasConnection,
     lastSyncedAt: (data.last_synced_at as string | null) ?? new Date().toISOString(),
   }
 }
@@ -120,12 +153,12 @@ export async function fetchContentCalendarData(
     const channelResult = await getChannelInfo(siteId, channelId)
     if (!channelResult) return { ok: false, error: 'No sync-enabled channel found' }
 
-    const { info, channelDbId, lastSyncedAt } = channelResult
+    const { info, channelDbId, channelAccountId, hasConnection, lastSyncedAt } = channelResult
     const supabase = getSupabaseServiceClient()
 
     const [rawSearchTerms, demographics, recentVideosRes, widerVideosRes, categoriesRes] = await Promise.all([
-      fetchYtSearchTerms(siteId, 28, channelDbId),
-      fetchYtDemographics(siteId, 28, channelDbId),
+      hasConnection ? fetchYtSearchTerms(siteId, 28, channelAccountId) : Promise.resolve([]),
+      hasConnection ? fetchYtDemographics(siteId, 28, channelAccountId) : Promise.resolve(NO_DEMOGRAPHICS),
       supabase
         .from('youtube_videos')
         .select('id, title, published_at, category_id, view_count')
@@ -190,7 +223,8 @@ export async function fetchContentCalendarData(
       channel: info,
       searchTerms,
       topPerformingCategories,
-      demographics: formatDemographics(demographics),
+      demographics: hasConnection ? formatDemographics(demographics) : UNAVAILABLE_DEMOGRAPHICS,
+      ...(hasConnection ? {} : { analyticsUnavailable: ANALYTICS_UNAVAILABLE }),
       outlierSuccesses,
       bestPerformingDay,
       bestPerformingHour,
@@ -218,12 +252,12 @@ export async function fetchChannelHealthData(
     const channelResult = await getChannelInfo(siteId, channelId)
     if (!channelResult) return { ok: false, error: 'No sync-enabled channel found' }
 
-    const { info, channelDbId, lastSyncedAt } = channelResult
+    const { info, channelDbId, channelAccountId, hasConnection, lastSyncedAt } = channelResult
     const supabase = getSupabaseServiceClient()
 
     const [rawSearchTerms, demographics, videosRes, abTestsRes, cyclesRes, channelRes] = await Promise.all([
-      fetchYtSearchTerms(siteId, 28, channelDbId),
-      fetchYtDemographics(siteId, 28, channelDbId),
+      hasConnection ? fetchYtSearchTerms(siteId, 28, channelAccountId) : Promise.resolve([]),
+      hasConnection ? fetchYtDemographics(siteId, 28, channelAccountId) : Promise.resolve(NO_DEMOGRAPHICS),
       supabase
         .from('youtube_videos')
         .select('id, youtube_video_id, title, view_count, avg_view_percentage, ctr, traffic_sources, published_at, impressions')
@@ -521,7 +555,8 @@ export async function fetchChannelHealthData(
       topVideos,
       bottomVideos,
       gradeDistribution,
-      demographics: formatDemographics(demographics),
+      demographics: hasConnection ? formatDemographics(demographics) : UNAVAILABLE_DEMOGRAPHICS,
+      ...(hasConnection ? {} : { analyticsUnavailable: ANALYTICS_UNAVAILABLE }),
       searchTerms: rawSearchTerms.slice(0, 10),
       outliers: { positive: positiveOutliers, negative: negativeOutliers },
       abTestResults,

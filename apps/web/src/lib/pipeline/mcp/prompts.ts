@@ -7,9 +7,13 @@
 // ---------------------------------------------------------------------------
 
 import { z } from 'zod'
+import * as Sentry from '@sentry/nextjs'
+import { defaultOwnChannel } from '@/lib/youtube/default-channel'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { listContext } from '@/lib/pipeline/services/utilities'
+import type { ServiceContext } from '@/lib/pipeline/services/types'
 
 import {
   buildPrompt,
@@ -22,6 +26,7 @@ import { WORKFLOWS, DEFAULT_CHECKLISTS } from '@/lib/pipeline/workflows'
 import { SECTION_DEFINITIONS, getSectionKey } from '@/lib/pipeline/sections'
 import { buildAbBriefingPrompt, buildAbWritePrompt, buildAbReviewPrompt } from '@/lib/youtube/prompt-builders-ab'
 import { buildPlaylistPrompt, type PlaylistPromptInput } from '@/lib/playlists/prompt-builder'
+import { getChannelTier } from '@/lib/youtube/scoring'
 import type { TestType } from '@/lib/youtube/ab-types'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import type { Format } from '@/lib/pipeline/schemas'
@@ -32,37 +37,79 @@ import type { PlaylistEdgeRow, PlaylistItemEnriched, PlaylistRow } from '@/lib/p
 // ---------------------------------------------------------------------------
 
 /** Build a single user-role message for MCP prompt responses. */
-function userMessage(text: string) {
+function userMessage(text: string, notes: string[] = []) {
+  // `notes` = secondary reads that failed ("unavailable: <why>"): said out loud at the top, so
+  // the model never mistakes a missing piece for an empty one.
+  const body = notes.length ? `${notes.map(n => `> ${n}`).join('\n')}\n\n${text}` : text
   return {
     messages: [{
       role: 'user' as const,
-      content: { type: 'text' as const, text },
+      content: { type: 'text' as const, text: body },
     }],
   }
 }
 
-/** Fetch skill-specific context references as markdown. */
-async function fetchSkillContext(skill: string): Promise<string> {
-  const supabase = getSupabaseServiceClient()
-  const { data } = await supabase
-    .from('pipeline_context')
-    .select('key, title, body')
-    .contains('skills', [skill])
-    .order('sort_order', { ascending: true })
+/**
+ * A SECONDARY read failed (snapshot age, channel name, stats summary, foco, decisions): the
+ * prompt still goes out, with an explicit `unavailable: <what> (<why>)` line — never '' or [] —
+ * and the failure is reported to Sentry. The CENTRAL data of a prompt (skill context, the item,
+ * the A/B test, the research items) is not degraded: its read error throws.
+ */
+function degrade(what: string, e: unknown): string {
+  // O detalhe (mensagem crua do Postgres) vai só para o Sentry; o cliente MCP recebe o genérico.
+  const reason = e instanceof Error ? e.message : String(e)
+  Sentry.captureMessage(`MCP prompt: ${what} unavailable: ${reason}`, { level: 'warning', tags: { area: 'mcp-prompt' } })
+  return `unavailable: ${what} (read failed)`
+}
 
-  if (!data || data.length === 0) return ''
-  return data
-    .map((d: { key: string; title: string; body: string }) => `## ${d.title}\n\n${d.body}`)
+/**
+ * Fetch skill-specific context references as markdown.
+ *
+ * The documents live in `reference_content`; which keys a skill gets is the
+ * `_system/skill-mappings` entry of the same table (the read behind GET /api/pipeline/context
+ * ?skill=). The `pipeline_context` table this used to query never existed, and the swallowed
+ * error made every prompt go out without its reference context. A read error now fails the
+ * prompt; a skill with no mapped documents still gives ''.
+ */
+async function fetchSkillContext(skill: string, knownSiteId?: string | null): Promise<string> {
+  const siteId = knownSiteId === undefined ? await resolvePromptSiteId() : knownSiteId
+  if (!siteId) throw new Error('No site found')
+  const ctx: ServiceContext = {
+    siteId,
+    permissions: ['read'],
+    keyHash: 'prompt-reader',
+    supabase: getSupabaseServiceClient(),
+    source: 'api_key',
+  }
+  const refs = await listContext(ctx, { skill, format: 'md' })
+  return refs.data
+    .filter((d) => typeof d.content === 'string' && d.content.length > 0)
+    .map((d) => `## ${d.title}\n\n${d.content as string}`)
     .join('\n\n---\n\n')
 }
 
-/** Fetch pipeline stats summary as a compact string. */
-async function fetchStatsSummary(): Promise<string> {
+/**
+ * Fetch pipeline stats summary as a compact string. A SECONDARY read of the ideator prompt: a
+ * failure becomes an `unavailable:` line (and a Sentry message), not a failed prompt.
+ */
+async function fetchStatsSummary(knownSiteId?: string | null): Promise<string> {
+  try {
+    return await readStatsSummary(knownSiteId)
+  } catch (e) {
+    return `Pipeline stats: ${degrade('pipeline stats', e)}`
+  }
+}
+
+async function readStatsSummary(knownSiteId?: string | null): Promise<string> {
+  const siteId = knownSiteId === undefined ? await resolvePromptSiteId() : knownSiteId
+  if (!siteId) return 'Pipeline: no site found'
   const supabase = getSupabaseServiceClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('content_pipeline')
     .select('format, stage, priority')
-    .eq('archived', false)
+    .eq('site_id', siteId)
+    .eq('is_archived', false)
+  if (error) throw new Error(`Failed to read the pipeline stats: ${error.message}`)
 
   const rows = data ?? []
   const byFormat: Record<string, number> = {}
@@ -79,23 +126,110 @@ async function fetchStatsSummary(): Promise<string> {
   return `Pipeline: ${rows.length} active items\nBy format: ${formatLine}\nBy stage: ${stageLine}`
 }
 
-/** Fetch YouTube channel info for AB prompts. */
-async function fetchChannelInfo(): Promise<AbBriefingData['channel']> {
-  const supabase = getSupabaseServiceClient()
-  const { data } = await supabase
-    .from('youtube_channels')
-    .select('channel_name, subscriber_count, tier')
-    .limit(1)
-    .single()
+/** Stand-in for "no analysis yet" where a builder's type wants a number (never printed). */
+const NO_SNAPSHOT_HOURS = 999
 
-  if (!data) {
-    return { name: 'Unknown', subscribers: 0, tier: 'nano' as const }
+const UNKNOWN_CHANNEL: AbBriefingData['channel'] = { name: 'Unknown', subscribers: 0, tier: 'nano' }
+
+/** The site these prompts run for — the same rule the MCP resources use (`buildResourceCtx`). */
+async function resolvePromptSiteId(): Promise<string | null> {
+  const supabase = getSupabaseServiceClient()
+  const { data: site, error } = await supabase.from('sites').select('id').limit(1).single()
+  // no row (PGRST116) is "no site"; any other error is a failed read
+  if (error && error.code !== 'PGRST116') throw new Error(`Failed to read the site: ${error.message}`)
+  return (site?.id as string | undefined) ?? null
+}
+
+/**
+ * The channel a YouTube prompt talks about: name, subscribers and tier.
+ *
+ * - `channelId` in hand (the internal uuid): that channel.
+ * - `videoId` in hand (the internal uuid of youtube_videos, e.g. an A/B test's video): the
+ *   channel of that video.
+ * - neither: the site's default channel (`defaultOwnChannel`).
+ *
+ * Every read is scoped to the site. A target that does not resolve inside the site (deleted
+ * video, channel of another site) is "Unknown" — never some other channel standing in for it.
+ * The tier is computed from the subscriber count; `youtube_channels` has no `tier` column (nor
+ * `channel_name`: selecting both is what kept every prompt on "Unknown / nano").
+ */
+async function resolveChannel(
+  siteId: string | null,
+  target: { videoId?: string | null; channelId?: string | null } = {},
+): Promise<{ id: string | null; info: AbBriefingData['channel']; unavailable?: string }> {
+  // The channel name is a SECONDARY read: a failed read answers "Unknown" plus an explicit
+  // `unavailable:` note, never a different channel and never a failed prompt.
+  try {
+    return await readChannel(siteId, target)
+  } catch (e) {
+    return { id: null, info: UNKNOWN_CHANNEL, unavailable: degrade('channel name', e) }
   }
-  return {
-    name: data.channel_name as string,
-    subscribers: (data.subscriber_count as number) ?? 0,
-    tier: (data.tier as AbBriefingData['channel']['tier']) ?? 'nano',
+}
+
+async function readChannel(
+  siteId: string | null,
+  target: { videoId?: string | null; channelId?: string | null } = {},
+): Promise<{ id: string | null; info: AbBriefingData['channel'] }> {
+  const unknown = { id: null, info: UNKNOWN_CHANNEL }
+  if (!siteId) return unknown
+  const supabase = getSupabaseServiceClient()
+
+  let channelId = target.channelId ?? null
+  if (!channelId && target.videoId) {
+    const { data: video, error: videoError } = await supabase
+      .from('youtube_videos')
+      .select('channel_id')
+      .eq('id', target.videoId)
+      .eq('site_id', siteId)
+      .maybeSingle()
+    if (videoError) throw new Error(`Failed to read the video: ${videoError.message}`)
+    channelId = (video?.channel_id as string | undefined) ?? null
+    if (!channelId) return unknown
   }
+
+  // Nenhum canal nem vídeo em mãos: o canal padrão do site (a mesma regra do painel e dos
+  // recursos MCP): o primeiro em cadastro com OAuth viva; sem nenhum, o mais antigo.
+  if (!channelId) {
+    const def = await defaultOwnChannel(supabase, siteId)
+    if (!def) return unknown
+    channelId = def.id
+  }
+
+  const { data, error: channelError } = await supabase
+    .from('youtube_channels')
+    .select('id, name, subscriber_count')
+    .eq('site_id', siteId)
+    .eq('id', channelId)
+    .maybeSingle()
+
+  if (channelError) throw new Error(`Failed to read the channel: ${channelError.message}`)
+  if (!data) return unknown
+  const subscribers = (data.subscriber_count as number | null) ?? 0
+  return { id: data.id as string, info: { name: data.name as string, subscribers, tier: getChannelTier(subscribers) } }
+}
+
+async function fetchChannelInfo(
+  siteId: string | null,
+  target: { videoId?: string | null; channelId?: string | null } = {},
+): Promise<AbBriefingData['channel']> {
+  return (await resolveChannel(siteId, target)).info
+}
+
+/** The channel (info + id, for the snapshot age) and the age of ITS latest analysis. */
+async function fetchChannelAndAge(
+  siteId: string | null,
+  target: { videoId?: string | null; channelId?: string | null } = {},
+): Promise<{ channel: AbBriefingData['channel']; snapshotAge: number | null; notes: string[] }> {
+  const { id, info, unavailable } = await resolveChannel(siteId, target)
+  const notes = unavailable ? [unavailable] : []
+  let snapshotAge: number | null = null
+  try {
+    snapshotAge = await fetchSnapshotAge(siteId, id)
+  } catch (e) {
+    // SECONDARY read: the recommendation to (re)run the analysis does not change
+    notes.push(degrade('intelligence snapshot age', e))
+  }
+  return { channel: info, snapshotAge, notes }
 }
 
 /**
@@ -106,19 +240,25 @@ async function fetchChannelInfo(): Promise<AbBriefingData['channel']> {
  * 20260922000001 dropping the UNIQUE that used to cap channel analyses at one row per
  * source. Without the limit this would now be a PGRST116 ("more than one row") on the second
  * weekly run. `.maybeSingle()` rather than `.single()` for the empty case: zero rows is a
- * legitimate answer here (no analysis yet -> 999h), not an error to be swallowed.
+ * legitimate answer here (no analysis yet -> null), not an error to be swallowed.
  */
-async function fetchSnapshotAge(): Promise<number> {
+async function fetchSnapshotAge(siteId: string | null, channelId: string | null): Promise<number | null> {
+  // No site or no resolved channel: no analysis to age. null is the "none yet" answer — never
+  // the age of some other channel's (or site's) analysis, and never a made-up number of hours.
+  if (!siteId || !channelId) return null
   const supabase = getSupabaseServiceClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('youtube_intelligence')
     .select('generated_at')
+    .eq('site_id', siteId)
+    .eq('channel_id', channelId)
     .eq('source', 'cowork')
     .order('generated_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  if (!data?.generated_at) return 999
+  if (error) throw new Error(`Failed to read the intelligence snapshot: ${error.message}`)
+  if (!data?.generated_at) return null
   return Math.floor((Date.now() - new Date(data.generated_at as string).getTime()) / 3600000)
 }
 
@@ -131,12 +271,11 @@ async function fetchSnapshotAge(): Promise<number> {
  * past-due. Keeps everything cheap (a few selects) so prompts can inject it
  * inline without forcing the client to fetch resources first.
  */
-async function fetchResearchSnapshot(): Promise<string> {
+async function fetchResearchSnapshot(knownSiteId?: string | null): Promise<string> {
   const supabase = getSupabaseServiceClient()
 
   // Active site (first) — research is site-scoped.
-  const { data: site } = await supabase.from('sites').select('id').limit(1).single()
-  const siteId = site?.id as string | undefined
+  const siteId = knownSiteId === undefined ? await resolvePromptSiteId() : knownSiteId
   if (!siteId) return 'Research: no site found'
 
   const [itemsRes, focoRes, decisionsRes] = await Promise.all([
@@ -158,6 +297,11 @@ async function fetchResearchSnapshot(): Promise<string> {
       .neq('status', 'arquivado'),
   ])
 
+  // The items are the central data of the snapshot: their read error fails the prompt. The foco
+  // and the decisions are secondary: an `unavailable:` line each (and a Sentry message).
+  if (itemsRes.error) throw new Error(`Failed to read the research items: ${itemsRes.error.message}`)
+  const focoUnavailable = focoRes.error ? degrade('active foco', new Error(focoRes.error.message)) : null
+  const decisionsUnavailable = decisionsRes.error ? degrade('open decisions', new Error(decisionsRes.error.message)) : null
   const items = (itemsRes.data ?? []) as Array<{ status: string; theme_id: string | null; pinned: boolean }>
   const byStatus: Record<string, number> = {}
   const byTheme: Record<string, number> = {}
@@ -173,7 +317,7 @@ async function fetchResearchSnapshot(): Promise<string> {
   // in the past count as overdue (RS5). Non-parseable labels are listed as
   // "needs review" without a hard date assertion.
   const now = Date.now()
-  const decisions = (decisionsRes.data ?? []) as Array<{
+  const decisions = (decisionsUnavailable ? [] : decisionsRes.data ?? []) as Array<{
     title: string
     horizon: string
     status: string
@@ -185,13 +329,14 @@ async function fetchResearchSnapshot(): Promise<string> {
     return Number.isFinite(ts) && ts < now
   })
 
-  const foco = focoRes.data as { title: string; window_label: string | null; horizon: string } | null
+  const foco = (focoUnavailable ? null : focoRes.data) as { title: string; window_label: string | null; horizon: string } | null
 
   const statusLine = Object.entries(byStatus).map(([k, v]) => `${k}: ${v}`).join(', ') || '(nenhuma)'
   const themeLine = Object.entries(byTheme).map(([k, v]) => `${k}: ${v}`).join(', ') || '(nenhum)'
-  const focoLine = foco
-    ? `${foco.title} (${foco.window_label ?? 'sem janela'}, horizonte ${foco.horizon})`
-    : 'nenhum foco ativo'
+  const focoLine = focoUnavailable
+    ?? (foco
+      ? `${foco.title} (${foco.window_label ?? 'sem janela'}, horizonte ${foco.horizon})`
+      : 'nenhum foco ativo')
   const revisitLine = revisitDue.length > 0
     ? revisitDue.map((d) => `"${d.title}" (revisit ${d.revisit}, ${d.horizon})`).join('; ')
     : 'nenhum revisit vencido'
@@ -201,7 +346,9 @@ async function fetchResearchSnapshot(): Promise<string> {
   lines.push(`Por status: ${statusLine}`)
   lines.push(`Por tema: ${themeLine}`)
   lines.push(`Foco ativo: ${focoLine}`)
-  lines.push(`Decisões abertas: ${decisions.length} · revisit vencido: ${revisitDue.length} (${revisitLine})`)
+  lines.push(decisionsUnavailable
+    ? `Decisões abertas: ${decisionsUnavailable}`
+    : `Decisões abertas: ${decisions.length} · revisit vencido: ${revisitDue.length} (${revisitLine})`)
   return lines.join('\n')
 }
 
@@ -239,9 +386,10 @@ export function registerPrompts(server: McpServer): void {
       const count = args.count ? parseInt(args.count, 10) : 5
 
       // Auto-inject: context/ideator + stats
+      const siteId = await resolvePromptSiteId()
       const [context, stats] = await Promise.all([
-        fetchSkillContext('ideator'),
-        fetchStatsSummary(),
+        fetchSkillContext('ideator', siteId),
+        fetchStatsSummary(siteId),
       ])
 
       const lines: string[] = []
@@ -306,12 +454,15 @@ export function registerPrompts(server: McpServer): void {
       const lang = args.lang ?? 'pt'
 
       const supabase = getSupabaseServiceClient()
+      const siteId = await resolvePromptSiteId()
+      if (!siteId) throw new Error('No site found')
 
       // Fetch item
       const { data: item, error } = await supabase
         .from('content_pipeline')
         .select('id, code, format, stage, priority, language, title_pt, title_en, hook, synopsis, tags, sections, version')
         .eq('id', itemId)
+        .eq('site_id', siteId)
         .single()
 
       if (error || !item) throw new Error(`Item not found: ${itemId}`)
@@ -337,7 +488,7 @@ export function registerPrompts(server: McpServer): void {
 
       // Auto-inject: context/writer + docs/items-and-sections
       const [writerContext, domainDocs] = await Promise.all([
-        fetchSkillContext('writer'),
+        fetchSkillContext('writer', siteId),
         fetchDomainDocs('items-and-sections'),
       ])
 
@@ -393,16 +544,19 @@ export function registerPrompts(server: McpServer): void {
       const itemId = args.item_id
 
       const supabase = getSupabaseServiceClient()
+      const siteId = await resolvePromptSiteId()
+      if (!siteId) throw new Error('No site found')
       const { data: item, error } = await supabase
         .from('content_pipeline')
         .select('id, code, format, stage, priority, language, title_pt, title_en, hook, synopsis, tags, production_checklist, sections, scheduled_at')
         .eq('id', itemId)
+        .eq('site_id', siteId)
         .single()
 
       if (error || !item) throw new Error(`Item not found: ${itemId}`)
 
       // Auto-inject: context/producer + workflows
-      const producerContext = await fetchSkillContext('producer')
+      const producerContext = await fetchSkillContext('producer', siteId)
 
       const format = item.format as Format
       const workflow = WORKFLOWS[format]
@@ -483,20 +637,23 @@ export function registerPrompts(server: McpServer): void {
         throw new Error(`Invalid test_type: ${testType}. Must be thumbnail, title, description, or combo.`)
       }
 
-      // Auto-inject: youtube/intelligence + youtube/ab-performance
-      const [channel, snapshotAge] = await Promise.all([
-        fetchChannelInfo(),
-        fetchSnapshotAge(),
-      ])
+      // Auto-inject: youtube/intelligence + youtube/ab-performance.
+      // No video in hand yet: the first channel of the site.
+      const siteId = await resolvePromptSiteId()
+      const { channel, snapshotAge, notes } = await fetchChannelAndAge(siteId)
 
-      // Fetch latest AB test history
+      // Fetch latest AB test history (completed tests of this site)
       const supabase = getSupabaseServiceClient()
-      const { data: testHistory } = await supabase
-        .from('youtube_ab_tests')
-        .select('test_type, winner_variant_id, completed_reason')
-        .eq('status', 'completed')
-        .order('completed_at', { ascending: false })
-        .limit(10)
+      const { data: testHistory, error: historyError } = siteId
+        ? await supabase
+          .from('ab_tests')
+          .select('test_type, winner_variant_id, completed_reason')
+          .eq('site_id', siteId)
+          .eq('status', 'completed')
+          .order('completed_at', { ascending: false })
+          .limit(10)
+        : { data: null, error: null }
+      if (historyError) throw new Error('Failed to read the A/B test history')
 
       const history = (testHistory ?? []).map((t: Record<string, unknown>) => ({
         test_type: t.test_type as string,
@@ -517,7 +674,8 @@ export function registerPrompts(server: McpServer): void {
           grade: null,
         },
         testHistory: history,
-        snapshotAgeHours: snapshotAge,
+        // the A/B builders do not print it; they only need a number
+        snapshotAgeHours: snapshotAge ?? NO_SNAPSHOT_HOURS,
       }
 
       const promptText = buildAbBriefingPrompt({
@@ -526,7 +684,7 @@ export function registerPrompts(server: McpServer): void {
         focus: videoContext,
       })
 
-      return userMessage(promptText)
+      return userMessage(promptText, notes)
     },
   )
 
@@ -549,36 +707,42 @@ export function registerPrompts(server: McpServer): void {
       const locale = (args.lang === 'en' ? 'en' : 'pt') as 'pt' | 'en'
 
       const supabase = getSupabaseServiceClient()
+      const siteId = await resolvePromptSiteId()
 
-      // Fetch test details
-      const { data: test, error } = await supabase
-        .from('youtube_ab_tests')
-        .select('id, test_type, youtube_video_id, original_title, original_thumbnail_url, original_description, status')
-        .eq('id', testId)
-        .single()
+      // Fetch test details — the test must belong to the site
+      const { data: test, error } = siteId
+        ? await supabase
+          .from('ab_tests')
+          .select('id, test_type, youtube_video_id, original_title, original_thumbnail_url, original_description, status')
+          .eq('id', testId)
+          .eq('site_id', siteId)
+          .maybeSingle()
+        : { data: null, error: null }
 
-      if (error || !test) throw new Error(`A/B test not found: ${testId}`)
+      if (error || !test || !siteId) throw new Error(`A/B test not found: ${testId}`)
 
-      // Fetch video performance
-      const { data: video } = await supabase
+      // Fetch video performance. `ab_tests.youtube_video_id` holds the internal uuid
+      // (youtube_videos.id), not the YouTube text id.
+      const { data: video, error: videoError } = await supabase
         .from('youtube_videos')
-        .select('id, title, youtube_video_id, thumbnail_url, ctr_percent, avg_view_percentage')
-        .eq('youtube_video_id', test.youtube_video_id)
-        .single()
+        .select('id, title, youtube_video_id, thumbnail_url, ctr, avg_view_percentage')
+        .eq('id', test.youtube_video_id)
+        .eq('site_id', siteId)
+        .maybeSingle()
+      if (videoError) throw new Error(`Failed to read the test video: ${videoError.message}`)
 
-      // Auto-inject: youtube/intelligence (channel info)
-      const [channel, snapshotAge] = await Promise.all([
-        fetchChannelInfo(),
-        fetchSnapshotAge(),
-      ])
+      // Auto-inject: youtube/intelligence (channel info) — the channel of the test's video
+      const { channel, snapshotAge, notes } = await fetchChannelAndAge(siteId, { videoId: test.youtube_video_id as string | null })
 
-      // Fetch test history
-      const { data: testHistory } = await supabase
-        .from('youtube_ab_tests')
+      // Fetch test history (completed tests of this site)
+      const { data: testHistory, error: historyError } = await supabase
+        .from('ab_tests')
         .select('test_type, winner_variant_id, completed_reason')
+        .eq('site_id', siteId)
         .eq('status', 'completed')
         .order('completed_at', { ascending: false })
         .limit(10)
+      if (historyError) throw new Error('Failed to read the A/B test history')
 
       const history = (testHistory ?? []).map((t: Record<string, unknown>) => ({
         test_type: t.test_type as string,
@@ -591,16 +755,17 @@ export function registerPrompts(server: McpServer): void {
         locale,
         testId,
         video: {
-          youtubeVideoId: test.youtube_video_id as string,
+          youtubeVideoId: (video?.youtube_video_id ?? test.youtube_video_id) as string,
           title: (video?.title ?? test.original_title ?? '') as string,
           thumbnailUrl: (video?.thumbnail_url ?? test.original_thumbnail_url ?? null) as string | null,
-          ctr: (video?.ctr_percent ?? null) as number | null,
+          ctr: (video?.ctr ?? null) as number | null,
           avgViewPercentage: (video?.avg_view_percentage ?? null) as number | null,
           score: null,
           grade: null,
         },
         testHistory: history,
-        snapshotAgeHours: snapshotAge,
+        // the A/B builders do not print it; they only need a number
+        snapshotAgeHours: snapshotAge ?? NO_SNAPSHOT_HOURS,
       }
 
       let promptText = buildAbWritePrompt({
@@ -629,7 +794,7 @@ export function registerPrompts(server: McpServer): void {
         : `\n\n---\n**MCP: Ignore the HTTP workflow steps above.** Use the \`manage_ab_test\` tool with action \`upsert_variants\` to save variants. Example:\n\`\`\`json\n{ "action": "upsert_variants", "test_id": "${testId}", "variants": [...], "dry_run": false }\n\`\`\``
       promptText += mcpOverride
 
-      return userMessage(promptText)
+      return userMessage(promptText, notes)
     },
   )
 
@@ -649,6 +814,20 @@ export function registerPrompts(server: McpServer): void {
 
       const supabase = getSupabaseServiceClient()
 
+      // The test must resolve INSIDE the site before its variants are read (variants carry no
+      // site_id of their own): another site's test id answers "not found", never its variants.
+      const siteId = await resolvePromptSiteId()
+      const { data: testRow, error: testError } = siteId
+        ? await supabase
+          .from('ab_tests')
+          .select('youtube_video_id')
+          .eq('id', testId)
+          .eq('site_id', siteId)
+          .maybeSingle()
+        : { data: null, error: null }
+      if (testError) throw new Error(`Failed to fetch A/B test ${testId}`)
+      if (!testRow) throw new Error(`A/B test not found: ${testId}`)
+
       // Fetch test variants
       const { data: variants, error } = await supabase
         .from('ab_test_variants')
@@ -656,11 +835,15 @@ export function registerPrompts(server: McpServer): void {
         .eq('test_id', testId)
         .order('sort_order', { ascending: true })
 
-      if (error) throw new Error(`Failed to fetch variants for test ${testId}: ${error.message}`)
+      if (error) {
+        Sentry.captureException(error, { tags: { area: 'mcp-prompt', prompt: 'ab-review' }, extra: { testId } })
+        throw new Error(`Failed to fetch variants for test ${testId}`)
+      }
       if (!variants || variants.length === 0) throw new Error(`No variants found for test ${testId}`)
 
-      // Fetch channel info for tier context
-      const channel = await fetchChannelInfo()
+      // Fetch channel info for tier context: the channel of the test's video. A test that does
+      // not resolve inside the site leaves no video in hand, and the site's first channel answers.
+      const channel = await fetchChannelInfo(siteId, { videoId: testRow?.youtube_video_id as string | undefined })
 
       const promptText = buildAbReviewPrompt({
         testId,
@@ -762,12 +945,16 @@ export function registerPrompts(server: McpServer): void {
       })
 
       // Fetch reuse candidates (items not in this playlist)
-      const { data: candidates } = await supabase
+      const siteId = await resolvePromptSiteId()
+      if (!siteId) throw new Error('No site found')
+      const { data: candidates, error: candidatesError } = await supabase
         .from('content_pipeline')
         .select('id, title_pt, format, language, stage, tags')
-        .eq('archived', false)
+        .eq('site_id', siteId)
+        .eq('is_archived', false)
         .not('id', 'in', `(${pipelineIds.join(',')})`)
         .limit(20)
+      if (candidatesError) throw new Error(`Failed to read the reuse candidates: ${candidatesError.message}`)
 
       const reuseCandidates = (candidates ?? []).map((c: Record<string, unknown>) => ({
         id: c.id as string,
@@ -846,11 +1033,14 @@ export function registerPrompts(server: McpServer): void {
       }
 
       const supabase = getSupabaseServiceClient()
+      const siteId = await resolvePromptSiteId()
+      if (!siteId) throw new Error('No site found')
 
       const { data: item, error } = await supabase
         .from('content_pipeline')
         .select('id, code, format, stage, priority, language, title_pt, title_en, hook, synopsis, sections')
         .eq('id', itemId)
+        .eq('site_id', siteId)
         .single()
 
       if (error || !item) throw new Error(`Item not found: ${itemId}`)
@@ -918,9 +1108,9 @@ export function registerPrompts(server: McpServer): void {
       const channelId = args.channel_id
 
       // Auto-inject: channel info + snapshot age + youtube docs
-      const [channel, snapshotAge, youtubeDocs] = await Promise.all([
-        fetchChannelInfo(),
-        fetchSnapshotAge(),
+      const siteId = await resolvePromptSiteId()
+      const [{ channel, snapshotAge, notes }, youtubeDocs] = await Promise.all([
+        fetchChannelAndAge(siteId, { channelId }),
         fetchDomainDocs('youtube'),
       ])
 
@@ -928,7 +1118,13 @@ export function registerPrompts(server: McpServer): void {
       lines.push('# YouTube Channel Analyst — Complete Analysis')
       lines.push('')
       lines.push(`Channel: ${channel.name} | ${channel.subscribers.toLocaleString()} subscribers | Tier: ${channel.tier}`)
-      lines.push(`Intelligence snapshot age: ${snapshotAge}h`)
+      const ageUnavailable = notes.find(n => n.startsWith('unavailable: intelligence snapshot age'))
+      for (const n of notes) if (n !== ageUnavailable) lines.push(`> ${n}`)
+      lines.push(ageUnavailable
+        ? `Intelligence snapshot age: ${ageUnavailable}`
+        : snapshotAge === null
+        ? 'Intelligence snapshot: none yet for this channel (no analysis has been submitted) — run the full analysis below.'
+        : `Intelligence snapshot age: ${snapshotAge}h`)
       lines.push('')
 
       lines.push('## Step 1: Collect Channel Health')
@@ -1049,8 +1245,9 @@ export function registerPrompts(server: McpServer): void {
     {},
     async () => {
       // Auto-inject: channel info + youtube docs
+      const siteId = await resolvePromptSiteId()
       const [channel, youtubeDocs] = await Promise.all([
-        fetchChannelInfo(),
+        fetchChannelInfo(siteId),
         fetchDomainDocs('youtube'),
       ])
 
@@ -1185,9 +1382,10 @@ export function registerPrompts(server: McpServer): void {
       const theme = args.theme ?? ''
       const limit = args.limit ? parseInt(args.limit, 10) : 20
 
+      const siteId = await resolvePromptSiteId()
       const [snapshot, skill, docs] = await Promise.all([
-        fetchResearchSnapshot(),
-        fetchSkillContext('research_strategist'),
+        fetchResearchSnapshot(siteId),
+        fetchSkillContext('research_strategist', siteId),
         fetchDomainDocs('research'),
       ])
 
@@ -1236,9 +1434,10 @@ export function registerPrompts(server: McpServer): void {
       const theme = args.theme ?? ''
       const horizon = args.horizon ?? ''
 
+      const siteId = await resolvePromptSiteId()
       const [snapshot, skill, docs] = await Promise.all([
-        fetchResearchSnapshot(),
-        fetchSkillContext('research_strategist'),
+        fetchResearchSnapshot(siteId),
+        fetchSkillContext('research_strategist', siteId),
         fetchDomainDocs('research'),
       ])
 
@@ -1285,9 +1484,10 @@ export function registerPrompts(server: McpServer): void {
     async (args) => {
       const windowLabel = args.window_label ?? ''
 
+      const siteId = await resolvePromptSiteId()
       const [snapshot, skill, docs] = await Promise.all([
-        fetchResearchSnapshot(),
-        fetchSkillContext('research_strategist'),
+        fetchResearchSnapshot(siteId),
+        fetchSkillContext('research_strategist', siteId),
         fetchDomainDocs('research'),
       ])
 
@@ -1332,9 +1532,10 @@ export function registerPrompts(server: McpServer): void {
     'Resumo semanal da estratégia para o dono (DIGEST): foco vigente, o que está quente, revisits vencidos — em PT-BR sem jargão',
     {},
     async () => {
+      const siteId = await resolvePromptSiteId()
       const [snapshot, skill] = await Promise.all([
-        fetchResearchSnapshot(),
-        fetchSkillContext('research_strategist'),
+        fetchResearchSnapshot(siteId),
+        fetchSkillContext('research_strategist', siteId),
       ])
 
       const lines: string[] = []
@@ -1373,9 +1574,10 @@ export function registerPrompts(server: McpServer): void {
     'Capstone de proatividade: roda o Preflight barato e devolve UMA recomendação priorizada (suggest-don\'t-nag)',
     {},
     async () => {
+      const siteId = await resolvePromptSiteId()
       const [snapshot, skill] = await Promise.all([
-        fetchResearchSnapshot(),
-        fetchSkillContext('research_strategist'),
+        fetchResearchSnapshot(siteId),
+        fetchSkillContext('research_strategist', siteId),
       ])
 
       const lines: string[] = []

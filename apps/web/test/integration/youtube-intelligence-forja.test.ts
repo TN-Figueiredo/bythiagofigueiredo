@@ -544,6 +544,62 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
     expect(data.videos.find((v) => v.id === videoId)?.recent).toEqual({ views: 42, subscribers_gained: 3 })
   })
 
+  // ── Case 4b — grades, cycles and A/B tests belong to the requested channel ─────────────────
+  // None of the three tables has a channel column: the snapshot reaches them through the
+  // channel's video ids. Against the real PostgREST this proves the `.in('youtube_video_id', …)`
+  // filter on a uuid FK, which no in-memory double can.
+
+  it('grade_history, optimization_cycles and ab_tests carry only the requested channel', async () => {
+    const siteId = await freshSite()
+    const a = await seedYoutubeChannelAndVideo(svc, siteId, { locale: 'pt' })
+    const b = await seedYoutubeChannelAndVideo(svc, siteId, { locale: 'en' })
+
+    for (const v of [a.videoId, b.videoId]) {
+      const { error: gErr } = await svc.from('video_grade_history').insert({
+        site_id: siteId, youtube_video_id: v, grade: 'B', score: 70, week_iso: '2026-W39',
+      })
+      if (gErr) throw new Error(`seed grade: ${gErr.message}`)
+      const { error: cErr } = await svc.from('optimization_cycles').insert({
+        site_id: siteId, youtube_video_id: v, state: 'flagged',
+      })
+      if (cErr) throw new Error(`seed cycle: ${cErr.message}`)
+      const { error: tErr } = await svc.from('ab_tests').insert({
+        site_id: siteId, youtube_video_id: v, name: `test ${v}`, original_thumbnail_url: 'https://example.com/t.jpg',
+      })
+      if (tErr) throw new Error(`seed ab test: ${tErr.message}`)
+    }
+
+    const { data: snapA } = await getIntelligenceSnapshot(readCtx(siteId), a.channelId)
+    expect(snapA.grade_history.map((g) => g.youtube_video_id)).toEqual([a.videoId])
+    expect(snapA.optimization_cycles.map((c) => c.youtube_video_id)).toEqual([a.videoId])
+    expect(snapA.ab_tests.map((t) => t.youtube_video_id)).toEqual([a.videoId])
+    // same eight keys as before the filter: `created_at` is read to merge blocks, never returned
+    expect(Object.keys(snapA.ab_tests[0]!).sort()).toEqual(
+      ['completed_reason', 'config', 'id', 'name', 'status', 'test_type', 'winner_variant_id', 'youtube_video_id'],
+    )
+
+    const { data: snapB } = await getIntelligenceSnapshot(readCtx(siteId), b.channelId)
+    expect(snapB.grade_history.map((g) => g.youtube_video_id)).toEqual([b.videoId])
+    expect(snapB.optimization_cycles.map((c) => c.youtube_video_id)).toEqual([b.videoId])
+    expect(snapB.ab_tests.map((t) => t.youtube_video_id)).toEqual([b.videoId])
+  })
+
+  it('a channel with no videos gets three empty lists, not the site history', async () => {
+    const siteId = await freshSite()
+    const withVideo = await seedYoutubeChannelAndVideo(svc, siteId, { locale: 'pt' })
+    const emptyChannelId = await freshChannelOnly(siteId, 'en')
+    const { error } = await svc.from('video_grade_history').insert({
+      site_id: siteId, youtube_video_id: withVideo.videoId, grade: 'A', score: 90, week_iso: '2026-W39',
+    })
+    if (error) throw new Error(`seed grade: ${error.message}`)
+
+    const { data } = await getIntelligenceSnapshot(readCtx(siteId), emptyChannelId)
+    expect(data.videos).toEqual([])
+    expect(data.grade_history).toEqual([])
+    expect(data.optimization_cycles).toEqual([])
+    expect(data.ab_tests).toEqual([])
+  })
+
   // ── Case 5 — fail {retry:true} requeues to pending ─────────────────────────────────────────
 
   it('fail with retry:true sends the task back to pending', async () => {

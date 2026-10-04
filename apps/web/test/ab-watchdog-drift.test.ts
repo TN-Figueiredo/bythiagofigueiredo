@@ -22,6 +22,8 @@ import { getCronHealth } from '@/lib/cron-health'
 import { createNotification } from '@/lib/notifications/create'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { checkDrift } from '@/lib/youtube/ab-drift'
+import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { setThumbnail } from '@/lib/youtube/ab-youtube'
 
 const mockGetHealth = vi.mocked(getCronHealth)
 const mockCheckDrift = vi.mocked(checkDrift)
@@ -38,12 +40,15 @@ function buildDriftSupabase(opts: {
   openCycle?: { id: string; variant_id: string; applied_metadata: Record<string, unknown> | null; started_at: string } | null
   video?: { youtube_video_id: string } | null
   originalUrl?: string
+  /** Canal dono do vídeo (o que `youtube_videos → youtube_channels` devolve). */
+  videoOwner?: { channel_id: string } | null
 }) {
   const {
     activeTests = [],
     openCycle = null,
     video = { youtube_video_id: 'YT_abc123' },
     originalUrl = 'https://xxx.public.blob.vercel-storage.com/ab-originals/uuid/original.jpg',
+    videoOwner = { channel_id: 'UCpt' },
   } = opts
 
   const updateCalls: { table: string; data: Record<string, unknown> }[] = []
@@ -98,11 +103,16 @@ function buildDriftSupabase(opts: {
     }
     if (table === 'youtube_videos') {
       return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockReturnValue({ data: video, error: null }),
-          }),
-        }),
+        select: vi.fn((cols: string) => ({
+          eq: vi.fn().mockReturnValue((() => {
+            const single = vi.fn().mockReturnValue(
+              cols.includes('youtube_channels')
+                ? { data: { youtube_channels: videoOwner }, error: null }
+                : { data: video, error: null },
+            )
+            return { single, eq: vi.fn().mockReturnValue({ single }) }
+          })()),
+        })),
       }
     }
     if (table === 'site_users') {
@@ -333,5 +343,63 @@ describe('ab-watchdog drift detection', () => {
 
     await GET(makeRequest())
     expect(mockCheckDrift).toHaveBeenCalled()
+  })
+
+  // Site com dois canais conectados (PT `UCpt`, EN `UCen`): a thumbnail
+  // original tem de voltar com o token do canal DONO do vídeo.
+  function driftedMock(videoOwner?: { channel_id: string } | null) {
+    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
+    const mock = buildDriftSupabase({
+      activeTests: [{ id: 't1', site_id: 's1', test_type: 'thumbnail', youtube_video_id: 'v1' }],
+      openCycle: {
+        id: 'c1', variant_id: 'var1', started_at: fourHoursAgo,
+        applied_metadata: { youtube_thumbnail_url: 'https://i.ytimg.com/vi/abc/hq.jpg' },
+      },
+      ...(videoOwner === undefined ? {} : { videoOwner }),
+    })
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mock)
+    mockCheckDrift.mockResolvedValue({ drifted: true, currentUrl: 'https://i.ytimg.com/vi/abc/different.jpg' })
+    return mock
+  }
+
+  it('deriva: devolve a thumbnail original com o token do canal dono do vídeo', async () => {
+    driftedMock()
+
+    const res = await GET(makeRequest())
+    expect(res.status).toBe(200)
+
+    expect(ensureFreshToken).toHaveBeenCalledTimes(1)
+    expect(ensureFreshToken).toHaveBeenCalledWith('s1', 'youtube', 'UCpt')
+    expect(setThumbnail).toHaveBeenCalledWith('YT_abc123', expect.any(Buffer), 'image/jpeg', 'fresh-token')
+    // Original devolvida: a notificação não alarma.
+    const msg = (mockNotify.mock.calls[0]![0] as { message: string }).message
+    expect(msg).not.toMatch(/NÃO foi devolvida/)
+  })
+
+  it('devolução da thumbnail original FALHA: a notificação diz que a variante pode estar no ar e que a troca é manual', async () => {
+    driftedMock()
+    vi.mocked(setThumbnail).mockRejectedValueOnce(new Error('youtube 403'))
+
+    await GET(makeRequest())
+
+    const call = mockNotify.mock.calls.find((c) => (c[0] as { type: string }).type === 'youtube.drift_detected')!
+    const n = call[0] as { message: string; title: string }
+    expect(n.message).toMatch(/NÃO foi devolvida/)
+    expect(n.message).toMatch(/manualmente/)
+    expect(n.title).toBe('Thumbnail alterado externamente')
+  })
+
+  it('deriva em vídeo sem canal: não pede token nem escreve no YouTube, e o teste é pausado mesmo assim', async () => {
+    const mock = driftedMock(null)
+
+    const res = await GET(makeRequest())
+    expect(res.status).toBe(200)
+
+    expect(ensureFreshToken).not.toHaveBeenCalled()
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(mock.updateCalls).toContainEqual(
+      expect.objectContaining({ table: 'ab_tests', data: expect.objectContaining({ status: 'paused' }) }),
+    )
+    expect((mockNotify.mock.calls[0]![0] as { message: string }).message).toMatch(/NÃO foi devolvida/)
   })
 })

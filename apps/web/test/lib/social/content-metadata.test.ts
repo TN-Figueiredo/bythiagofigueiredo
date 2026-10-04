@@ -138,43 +138,81 @@ describe('extractContentMetadata', () => {
     expect(meta.excerpt).toBe('Biggest deals of the season')
   })
 
-  it('extracts metadata from a video (YouTube)', async () => {
-    const { extractContentMetadata } = await import(
-      '@/lib/social/content-metadata'
-    )
-    const supabase = createMockSupabase({
-      social_connections: {
-        id: 'conn-yt',
-        provider: 'youtube',
-        metadata: {
-          videos: [
-            {
-              id: 'dQw4w9WgXcQ',
-              title: 'Never Gonna Give You Up',
-              thumbnail_url: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
-              description:
-                'Rick Astley - Never Gonna Give You Up (Official Music Video) - a very long description that should be truncated to 160 characters for the excerpt field in the metadata extraction process.',
-              tags: ['music', 'classic'],
-            },
-          ],
-        },
-      },
+  describe('video (YouTube) — várias conexões', () => {
+    const vid = (id: string, title: string) => ({
+      id,
+      title,
+      thumbnail_url: `https://img.youtube.com/vi/${id}/maxresdefault.jpg`,
+      description: 'Rick Astley - a very long description '.repeat(10),
+      tags: ['music', 'classic'],
     })
 
-    const meta = await extractContentMetadata(
-      supabase as never,
-      'video' as ContentType,
-      'dQw4w9WgXcQ',
-      TEST_SITE_ID,
-    )
+    /** social_connections: cada filtro é registrado; a consulta devolve só as linhas não revogadas. */
+    function ytStub(rows: Array<{ metadata: unknown; revoked_at: string | null }>) {
+      const calls: Array<[string, ...unknown[]]> = []
+      const builder: Record<string, unknown> = {}
+      builder.select = () => builder
+      builder.eq = (...a: unknown[]) => (calls.push(['eq', ...a]), builder)
+      builder.is = (...a: unknown[]) => (calls.push(['is', ...a]), builder)
+      builder.order = (...a: unknown[]) => (calls.push(['order', ...a]), builder)
+      builder.single = () => {
+        calls.push(['single'])
+        return Promise.resolve({ data: null, error: { message: 'JSON object requested, multiple (or no) rows returned' } })
+      }
+      builder.then = (resolve: (v: unknown) => unknown) =>
+        resolve({
+          data: calls.some((c) => c[0] === 'is' && c[1] === 'revoked_at')
+            ? rows.filter((r) => r.revoked_at === null)
+            : rows,
+          error: null,
+        })
+      return { calls, client: { from: () => builder } }
+    }
 
-    expect(meta.title).toBe('Never Gonna Give You Up')
-    expect(meta.url).toBe('https://youtube.com/watch?v=dQw4w9WgXcQ')
-    expect(meta.image).toBe(
-      'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
-    )
-    expect(meta.excerpt!.length).toBeLessThanOrEqual(160)
-    expect(meta.tags).toEqual(['music', 'classic'])
+    it('com duas conexões ativas, acha o vídeo nos metadados da segunda', async () => {
+      const { extractContentMetadata } = await import('@/lib/social/content-metadata')
+      const { client, calls } = ytStub([
+        { metadata: { videos: [vid('AAA', 'Do canal PT')] }, revoked_at: null },
+        { metadata: { videos: [vid('BBB', 'Do canal EN')] }, revoked_at: null },
+      ])
+      const meta = await extractContentMetadata(client as never, 'video' as ContentType, 'BBB', TEST_SITE_ID)
+      expect(meta.title).toBe('Do canal EN')
+      expect(meta.url).toBe('https://youtube.com/watch?v=BBB')
+      expect(meta.excerpt!.length).toBeLessThanOrEqual(160)
+      expect(meta.tags).toEqual(['music', 'classic'])
+      expect(calls.some((c) => c[0] === 'single')).toBe(false)
+      expect(calls).toContainEqual(['is', 'revoked_at', null])
+    })
+
+    it('ignora a conexão revogada', async () => {
+      const { extractContentMetadata } = await import('@/lib/social/content-metadata')
+      const { client } = ytStub([
+        { metadata: { videos: [vid('AAA', 'Canal removido')] }, revoked_at: '2026-10-01T00:00:00Z' },
+        { metadata: { videos: [vid('BBB', 'Canal vivo')] }, revoked_at: null },
+      ])
+      await expect(
+        extractContentMetadata(client as never, 'video' as ContentType, 'AAA', TEST_SITE_ID),
+      ).rejects.toThrow('Video not found in YouTube metadata: AAA')
+    })
+
+    it('vídeo em nenhuma conexão: "Video not found in YouTube metadata"', async () => {
+      const { extractContentMetadata } = await import('@/lib/social/content-metadata')
+      const { client } = ytStub([
+        { metadata: { videos: [vid('AAA', 'a')] }, revoked_at: null },
+        { metadata: null, revoked_at: null },
+      ])
+      await expect(
+        extractContentMetadata(client as never, 'video' as ContentType, 'ZZZ', TEST_SITE_ID),
+      ).rejects.toThrow('Video not found in YouTube metadata: ZZZ')
+    })
+
+    it('nenhuma conexão ativa: "YouTube connection not found"', async () => {
+      const { extractContentMetadata } = await import('@/lib/social/content-metadata')
+      const { client } = ytStub([])
+      await expect(
+        extractContentMetadata(client as never, 'video' as ContentType, 'AAA', TEST_SITE_ID),
+      ).rejects.toThrow('YouTube connection not found for video: AAA')
+    })
   })
 
   it('throws for unknown content type', async () => {

@@ -12,6 +12,8 @@ import { latestRow } from '@/lib/youtube/rolling-window'
 import type { TestType, VariantMetadata } from '@/lib/youtube/ab-types'
 import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
+import { nicheLabel } from '@/lib/youtube/observatorio/niche'
+import { nicheDefs, readNiches, type NicheRow } from '@/lib/youtube/observatorio/niches-db'
 import type { ServiceContext, ServiceResult } from './types'
 import { ok, err } from './types'
 import { claim } from './forja-queue'
@@ -32,6 +34,11 @@ export interface ChannelSummary {
   channel_id: string
   name: string
   subscriber_count: number | null
+  /** The four below only ever ADD to the snapshot (the forja worker in production predates them). */
+  slug: string | null
+  locale: string | null
+  niche: string | null
+  niche_label: string | null
 }
 
 export interface VideoSnapshot {
@@ -154,6 +161,8 @@ export interface PerLinkFunnel {
 export interface FunnelMetrics {
   per_variant: PerVariantFunnel[]
   per_link: PerLinkFunnel[]
+  /** Window the link clicks were counted in (test start -> test end, or now while active). null = test never started, link clicks are 0. */
+  link_clicks_window: { from: string; to: string } | null
 }
 
 interface WinnerVariant {
@@ -208,8 +217,160 @@ export interface DeleteResult {
 }
 
 // ---------------------------------------------------------------------------
+// Own channels
+// ---------------------------------------------------------------------------
+
+export interface OwnChannel {
+  id: string
+  channel_id: string
+  slug: string | null
+  name: string
+  handle: string
+  locale: string
+  niche: string | null
+  niche_label: string | null
+  subscriber_count: number
+  video_count: number
+  sync_enabled: boolean
+  last_synced_at: string | null
+}
+
+const OWN_CHANNEL_COLS = 'id, channel_id, name, handle, locale, niche, subscriber_count, video_count, sync_enabled, last_synced_at'
+const OWN_CHANNEL_COLS_WITH_SLUG = 'id, channel_id, slug, name, handle, locale, niche, subscriber_count, video_count, sync_enabled, last_synced_at'
+/** Postgres 42703 (undefined_column) / PostgREST PGRST204 (column missing from the schema cache). */
+const NO_COLUMN = new Set(['42703', 'PGRST204'])
+
+interface OwnChannelRow {
+  id: string
+  channel_id: string
+  slug?: string | null
+  name: string
+  handle: string
+  locale: string
+  niche: string | null
+  subscriber_count: number | null
+  video_count: number | null
+  sync_enabled: boolean | null
+  last_synced_at: string | null
+}
+
+/**
+ * Canais próprios do site, na ordem de cadastro (created_at, depois id).
+ *
+ * Tolera a coluna `slug` ausente (relê sem ela, `slug: null`) e a tabela `youtube_niches`
+ * ausente (`niche_label: null`): o código pode chegar a um banco antes da migration. Qualquer
+ * outro erro é um 500 — nunca uma lista vazia, que quem lê não distingue de "site sem canal".
+ *
+ * `niche_label` é o rótulo do nicho no site (`nicheLabel`): null quando o canal não tem nicho,
+ * e o próprio slug quando o nicho não está mais na lista.
+ */
+export async function listOwnChannels(ctx: ServiceContext): Promise<ServiceResult<OwnChannel[]>> {
+  const { supabase, siteId } = ctx
+
+  // Two literal selects on purpose: a column list assembled at run time loses the row type.
+  let rows: OwnChannelRow[]
+  const withSlug = await supabase
+    .from('youtube_channels')
+    .select(OWN_CHANNEL_COLS_WITH_SLUG)
+    .eq('site_id', siteId)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+  if (withSlug.error?.code != null && NO_COLUMN.has(withSlug.error.code)) {
+    const bare = await supabase
+      .from('youtube_channels')
+      .select(OWN_CHANNEL_COLS)
+      .eq('site_id', siteId)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+    if (bare.error) return err('INTERNAL_ERROR', 'Failed to read the channels', 500)
+    rows = bare.data ?? []
+  } else if (withSlug.error) {
+    return err('INTERNAL_ERROR', 'Failed to read the channels', 500)
+  } else {
+    rows = withSlug.data ?? []
+  }
+
+  // No channel carries a niche (or there is no channel): the labels would go unused.
+  let niches: NicheRow[] | null = null
+  let nichesKnown = false
+  if (rows.some(r => r.niche)) {
+    try {
+      niches = await readNiches(supabase, siteId)
+    } catch {
+      return err('INTERNAL_ERROR', 'Failed to read the niches', 500)
+    }
+    // null = the table is not in this database yet: no label, rather than a guessed one.
+    nichesKnown = niches !== null
+  }
+  const defs = nichesKnown ? nicheDefs(niches) : []
+
+  return ok(rows.map(r => ({
+    id: r.id,
+    channel_id: r.channel_id,
+    slug: r.slug ?? null,
+    name: r.name,
+    handle: r.handle,
+    locale: r.locale,
+    niche: r.niche ?? null,
+    niche_label: r.niche && nichesKnown ? nicheLabel(defs, r.niche) : null,
+    subscriber_count: r.subscriber_count ?? 0,
+    video_count: r.video_count ?? 0,
+    sync_enabled: r.sync_enabled ?? false,
+    last_synced_at: r.last_synced_at ?? null,
+  })))
+}
+
+// ---------------------------------------------------------------------------
 // Intelligence — GET snapshot
 // ---------------------------------------------------------------------------
+
+const GRADE_HISTORY_LIMIT = 200
+const AB_TESTS_LIMIT = 20
+/** PostgREST never returns more than 1000 rows per request. */
+const VIDEO_ID_PAGE = 1000
+/**
+ * Ids per `.in()` filter. They travel in the query string (39 bytes per uuid once the comma is
+ * percent-encoded), so 150 keeps each request under 6 KB — clear of the 8 KB request-line
+ * limit a proxy in front of PostgREST may enforce.
+ */
+const VIDEO_ID_BLOCK = 150
+
+const descText = (a: unknown, b: unknown): number => String(b ?? '').localeCompare(String(a ?? ''))
+
+/** Every video id (internal uuid) of one channel, paged past the 1000-row cap. null = the read failed. */
+async function readChannelVideoIds(ctx: ServiceContext, channelId: string): Promise<string[] | null> {
+  const ids: string[] = []
+  for (let from = 0; ; from += VIDEO_ID_PAGE) {
+    const { data, error } = await ctx.supabase
+      .from('youtube_videos')
+      .select('id')
+      .eq('channel_id', channelId)
+      .eq('site_id', ctx.siteId)
+      .order('id', { ascending: true })
+      .range(from, from + VIDEO_ID_PAGE - 1)
+    if (error) return null
+    const page = (data ?? []) as Array<{ id: string }>
+    for (const row of page) ids.push(row.id)
+    if (page.length < VIDEO_ID_PAGE) return ids
+  }
+}
+
+/**
+ * Runs one per-video read over the channel's video ids, in blocks, and concatenates the rows.
+ * With no ids nothing runs at all — no round trip and no `youtube_video_id=in.()`, the same care
+ * the analytics reads below take. The first failing block is reported as the error.
+ */
+async function readPerVideoBlocks<T>(
+  ids: string[],
+  query: (block: string[]) => PromiseLike<{ data: unknown; error: unknown }>,
+): Promise<{ data: T[]; error: unknown; blocks: number }> {
+  const blocks: string[][] = []
+  for (let i = 0; i < ids.length; i += VIDEO_ID_BLOCK) blocks.push(ids.slice(i, i + VIDEO_ID_BLOCK))
+  const results = await Promise.all(blocks.map(query))
+  const failed = results.find(r => r.error)
+  if (failed) return { data: [], error: failed.error, blocks: blocks.length }
+  return { data: results.flatMap(r => (r.data ?? []) as T[]), error: null, blocks: blocks.length }
+}
 
 /** Fetch channel analytics snapshot with videos, grades, cycles, tests and intelligence. */
 export async function getIntelligenceSnapshot(
@@ -218,12 +379,30 @@ export async function getIntelligenceSnapshot(
 ): Promise<ServiceResult<IntelSnapshot>> {
   const { supabase, siteId } = ctx
 
-  const { data: channel, error: channelError } = await supabase
+  // Two literal selects on purpose (the row type is lost on a column list built at run time):
+  // a database that predates the `slug` migration rereads without it, `slug: null`.
+  type SnapshotChannelRow = { id: string; channel_id: string; name: string; subscriber_count: number | null; slug?: string | null; locale: string | null; niche: string | null }
+  let channel: SnapshotChannelRow | null
+  let channelError: { code?: string } | null
+  const withSlug = await supabase
     .from('youtube_channels')
-    .select('id, channel_id, name, subscriber_count')
+    .select('id, channel_id, name, subscriber_count, slug, locale, niche')
     .eq('id', channelId)
     .eq('site_id', siteId)
     .single()
+  if (withSlug.error?.code != null && NO_COLUMN.has(withSlug.error.code)) {
+    const bare = await supabase
+      .from('youtube_channels')
+      .select('id, channel_id, name, subscriber_count, locale, niche')
+      .eq('id', channelId)
+      .eq('site_id', siteId)
+      .single()
+    channel = bare.data
+    channelError = bare.error
+  } else {
+    channel = withSlug.data
+    channelError = withSlug.error
+  }
 
   // Same rule as the analytics reads below: a DB error must never be flattened into a
   // plain 404. single() reports zero rows as PGRST116 — that one really is "no such
@@ -234,6 +413,27 @@ export async function getIntelligenceSnapshot(
   }
   if (!channel) return err('NOT_FOUND', 'Channel not found', 404)
 
+  // Grades, cycles and A/B tests carry no channel column: they hang off a video. Filtering them
+  // by site alone handed channel A the history of channel B, and with the 200-row cap a busier
+  // channel could push the requested one out of its own snapshot entirely. So: every video id of
+  // THIS channel first (all of them, not just the 50 listed below — a grade on the 51st newest
+  // video still belongs to the channel), then the three reads restricted to those ids.
+  // The niche's label: null for a channel without niche, and null (not a guess) when the
+  // niche table is not in this database yet. Skipped entirely when there is nothing to label.
+  let nicheLabelText: string | null = null
+  if (channel.niche) {
+    let niches: NicheRow[] | null
+    try {
+      niches = await readNiches(supabase, siteId)
+    } catch {
+      return err('INTERNAL_ERROR', 'Failed to read the niches', 500)
+    }
+    if (niches !== null) nicheLabelText = nicheLabel(nicheDefs(niches), channel.niche)
+  }
+
+  const channelVideoIds = await readChannelVideoIds(ctx, channel.id)
+  if (channelVideoIds === null) return err('INTERNAL_ERROR', 'Failed to read the channel videos', 500)
+
   const [videosRes, gradesRes, cyclesRes, abTestsRes, intelligenceRes] = await Promise.all([
     supabase
       .from('youtube_videos')
@@ -242,23 +442,31 @@ export async function getIntelligenceSnapshot(
       .eq('site_id', siteId)
       .order('published_at', { ascending: false })
       .limit(50),
-    supabase
-      .from('video_grade_history')
-      .select('youtube_video_id, grade, score, ctr, retention, reach, engagement, growth, sub_impact, week_iso')
-      .eq('site_id', siteId)
-      .order('week_iso', { ascending: false })
-      .limit(200),
-    supabase
-      .from('optimization_cycles')
-      .select('*')
-      .eq('site_id', siteId)
-      .not('state', 'in', '("resolved","exhausted")'),
-    supabase
-      .from('ab_tests')
-      .select('id, youtube_video_id, name, status, test_type, winner_variant_id, completed_reason, config')
-      .eq('site_id', siteId)
-      .order('created_at', { ascending: false })
-      .limit(20),
+    readPerVideoBlocks<GradeHistoryRow>(channelVideoIds, ids =>
+      supabase
+        .from('video_grade_history')
+        .select('youtube_video_id, grade, score, ctr, retention, reach, engagement, growth, sub_impact, week_iso')
+        .eq('site_id', siteId)
+        .in('youtube_video_id', ids)
+        .order('week_iso', { ascending: false })
+        .limit(GRADE_HISTORY_LIMIT)),
+    readPerVideoBlocks<Record<string, unknown>>(channelVideoIds, ids =>
+      supabase
+        .from('optimization_cycles')
+        .select('*')
+        .eq('site_id', siteId)
+        .in('youtube_video_id', ids)
+        .not('state', 'in', '("resolved","exhausted")')),
+    // created_at is read only to merge blocks in order; it is dropped before the response,
+    // so each item keeps the exact eight keys it always had.
+    readPerVideoBlocks<Record<string, unknown>>(channelVideoIds, ids =>
+      supabase
+        .from('ab_tests')
+        .select('id, youtube_video_id, name, status, test_type, winner_variant_id, completed_reason, config, created_at')
+        .eq('site_id', siteId)
+        .in('youtube_video_id', ids)
+        .order('created_at', { ascending: false })
+        .limit(AB_TESTS_LIMIT)),
     supabase
       .from('youtube_intelligence')
       .select('*')
@@ -277,6 +485,16 @@ export async function getIntelligenceSnapshot(
   if (cyclesRes.error) return err('INTERNAL_ERROR', 'Failed to read the optimization cycles', 500)
   if (abTestsRes.error) return err('INTERNAL_ERROR', 'Failed to read the A/B tests', 500)
   if (intelligenceRes.error) return err('INTERNAL_ERROR', 'Failed to read the intelligence rows', 500)
+
+  // With more than one block the per-block order and cap no longer hold for the union: redo both.
+  // A single block (every channel today) is passed through exactly as the database ordered it.
+  const gradeHistory = gradesRes.blocks > 1
+    ? [...gradesRes.data].sort((a, b) => descText(a.week_iso, b.week_iso)).slice(0, GRADE_HISTORY_LIMIT)
+    : gradesRes.data
+  const abTestRows = abTestsRes.blocks > 1
+    ? [...abTestsRes.data].sort((a, b) => descText(a.created_at, b.created_at)).slice(0, AB_TESTS_LIMIT)
+    : abTestsRes.data
+  const abTests = abTestRows.map(({ created_at: _createdAt, ...rest }) => rest)
 
   // Every analytics read is date-bounded and site-scoped. PostgREST caps at 1000 rows, and
   // with ~14 rows a day the whole history stops fitting around mid-November.
@@ -330,6 +548,10 @@ export async function getIntelligenceSnapshot(
       channel_id: channel.channel_id,
       name: channel.name,
       subscriber_count: channel.subscriber_count,
+      slug: channel.slug ?? null,
+      locale: channel.locale ?? null,
+      niche: channel.niche ?? null,
+      niche_label: nicheLabelText,
     },
     recent_window: recentWindow,
     videos: (videosRes.data ?? []).map(v => ({
@@ -349,9 +571,9 @@ export async function getIntelligenceSnapshot(
       // The Analytics API omits videos with no activity, so an absent video is {0, 0}.
       recent: recentByVideo.get(v.id) ?? { views: 0, subscribers_gained: 0 },
     })),
-    grade_history: gradesRes.data ?? [],
-    optimization_cycles: cyclesRes.data ?? [],
-    ab_tests: abTestsRes.data ?? [],
+    grade_history: gradeHistory,
+    optimization_cycles: cyclesRes.data,
+    ab_tests: abTests,
     intelligence: intelligenceRes.data ?? [],
   }
 
@@ -822,7 +1044,7 @@ export async function getAbTestFunnel(
   // Verify test belongs to site
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id')
+    .select('id, site_id, started_at, completed_at')
     .eq('id', id)
     .eq('site_id', siteId)
     .single()
@@ -845,6 +1067,8 @@ export async function getAbTestFunnel(
       .not('impressions', 'is', null),
   ])
 
+  if (trackedLinksRes.error) return err('DB_ERROR', 'Failed to load A/B tracked links', 500)
+  if (cyclesRes.error) return err('DB_ERROR', 'Failed to load A/B cycles', 500)
   const trackedLinks = trackedLinksRes.data as TrackedLink[] | null
   const cycles = cyclesRes.data as CycleRow[] | null
 
@@ -857,19 +1081,36 @@ export async function getAbTestFunnel(
     variantImpressions[c.variant_id] = v
   }
 
-  // Fetch link click aggregates
+  // Link clicks are counted in `link_clicks` inside the test window (start -> end, or now while
+  // active). `tracked_links.total_clicks` is a lifetime total: after the winner is applied it keeps
+  // growing and would tilt the comparison. A link soft-deleted (`deleted_at`) counts for nothing.
+  // The table is partitioned by date; the `clicked_at` bounds also prune partitions.
   const linkClicksByLinkId: Record<string, number> = {}
-  if (trackedLinks?.length) {
-    const linkIds = trackedLinks.map(tl => tl.link_id).filter(Boolean)
-    if (linkIds.length) {
-      const { data: clickAggs } = await supabase
-        .from('link_click_aggregates')
-        .select('link_id, total_clicks')
-        .in('link_id', linkIds)
-      for (const agg of (clickAggs ?? []) as Array<{ link_id: string; total_clicks: number | null }>) {
-        linkClicksByLinkId[agg.link_id] = agg.total_clicks ?? 0
-      }
-    }
+  const startedAt = (test as { started_at: string | null }).started_at
+  const completedAt = (test as { completed_at: string | null }).completed_at
+  const window = startedAt ? { from: startedAt, to: completedAt ?? new Date().toISOString() } : null
+  const linkIds = [...new Set((trackedLinks ?? []).map(tl => tl.link_id).filter(Boolean))]
+  if (window && linkIds.length) {
+    const { data: live, error: liveError } = await supabase
+      .from('tracked_links')
+      .select('id')
+      .eq('site_id', siteId)
+      .in('id', linkIds)
+      .is('deleted_at', null)
+    if (liveError) return err('DB_ERROR', 'Failed to load tracked links', 500)
+    const counts = await Promise.all(((live ?? []) as Array<{ id: string }>).map(async (l) => {
+      const { count, error: clicksError } = await supabase
+        .from('link_clicks')
+        .select('id', { count: 'exact', head: true })
+        .eq('site_id', siteId)
+        .eq('link_id', l.id)
+        .eq('is_bot', false)
+        .gte('clicked_at', window.from)
+        .lte('clicked_at', window.to)
+      if (clicksError) return err('DB_ERROR', 'Failed to count link clicks', 500)
+      return [l.id, count ?? 0] as const
+    }))
+    for (const [lid, n] of counts) linkClicksByLinkId[lid] = n
   }
 
   const per_variant = Object.entries(variantImpressions).map(([variantId, stats]) => ({
@@ -888,7 +1129,7 @@ export async function getAbTestFunnel(
     clicks: linkClicksByLinkId[tl.link_id] ?? 0,
   }))
 
-  return ok({ per_variant, per_link })
+  return ok({ per_variant, per_link, link_clicks_window: window })
 }
 
 // ---------------------------------------------------------------------------

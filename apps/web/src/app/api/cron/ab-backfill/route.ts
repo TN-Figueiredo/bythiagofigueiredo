@@ -1,8 +1,10 @@
 import { NextRequest } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { ensureFreshToken, NoActiveConnectionError } from '@/lib/social/token-refresh'
+import { channelForVideo } from '@/lib/youtube/channel-account'
 import { fetchAnalyticsForDateRange } from '@/lib/youtube/ab-youtube'
+import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
 export const maxDuration = 120
@@ -23,6 +25,10 @@ export async function GET(req: NextRequest) {
     .in('backfill_status', ['pending', 'partial'])
     .not('ended_at', 'is', null)
     .lt('ended_at', threeDaysAgo)
+    // Teto por execução, mais recentes primeiro: ciclos pulados (sem conexão) não se
+    // acumulam para sempre na frente da fila nem estouram o tempo da função.
+    .order('ended_at', { ascending: false })
+    .limit(200)
 
   // Um erro de query dropado aqui caia em `cycles === null` -> "nada a
   // processar" -> recordCronSuccess (ver comentario abaixo), afirmando saude
@@ -52,6 +58,10 @@ export async function GET(req: NextRequest) {
 
   let backfilled = 0
   let errors = 0
+  // Ciclos pulados por falta de token do canal dono do vídeo (canal sem conexão
+  // OAuth, ou vídeo sem canal). Não são erro nem "sem dados": ninguém perguntou
+  // nada ao YouTube.
+  const skipped: { cycleId: string; testId: string; siteId: string; channelAccountId: string | null; channelName: string | null; reason: string }[] = []
 
   for (const cycle of cycles) {
     try {
@@ -72,7 +82,52 @@ export async function GET(req: NextRequest) {
 
       if (!video?.youtube_video_id) continue
 
-      const { accessToken } = await ensureFreshToken(test.site_id, 'youtube')
+      // O token é o do canal DONO do vídeo: a consulta à Analytics API é
+      // `channel==MINE`, e com o token de outro canal ela volta zero linhas —
+      // o ciclo acabava `no_data` para sempre sem nunca ter sido lido.
+      let accessToken: string | null = null
+      let skipReason: string | null = null
+      let channelAccountId: string | null = null
+      let channelName: string | null = null
+      try {
+        const owner = await channelForVideo(supabase, test.site_id, test.youtube_video_id)
+        channelAccountId = owner?.channelId ?? null
+        channelName = owner?.name ?? null
+        if (!channelAccountId) {
+          skipReason = 'video_without_channel'
+        } else {
+          accessToken = (await ensureFreshToken(test.site_id, 'youtube', channelAccountId)).accessToken
+        }
+      } catch (tokenErr) {
+        if (!(tokenErr instanceof NoActiveConnectionError)) {
+          // Falha de verdade ao resolver o canal ou obter o token (leitura do banco, refresh,
+          // rede): conta como erro da execução, mas NÃO condena o ciclo — o YouTube nem foi
+          // consultado, e `error` é terminal (a consulta só lê pending/partial). Fica para a
+          // próxima rodada.
+          errors++
+          Sentry.captureException(tokenErr, {
+            tags: { cron: 'ab-backfill' },
+            extra: { stage: 'token', cycleId: cycle.id, testId: cycle.test_id },
+          })
+          continue
+        }
+        skipReason = 'no_active_connection'
+      }
+
+      if (accessToken === null) {
+        // O ciclo NÃO é tocado: o YouTube nem foi consultado, então não há tentativa a
+        // gastar (3 rodadas sem OAuth esgotariam o contador e a primeira leitura vazia
+        // depois de reconectar viraria `no_data` definitivo). Volta na próxima rodada.
+        skipped.push({
+          cycleId: cycle.id,
+          testId: cycle.test_id,
+          siteId: test.site_id,
+          channelAccountId: channelAccountId ?? null,
+          channelName,
+          reason: skipReason ?? 'unknown',
+        })
+        continue
+      }
 
       const startDate = (cycle.started_at as string).substring(0, 10)
       const endDate = (cycle.ended_at as string).substring(0, 10)
@@ -126,11 +181,53 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  if (skipped.length > 0) {
+    // UM aviso agregado por execução (contagem e canais), nunca um por ciclo.
+    const skippedChannels = [...new Set(skipped.map((k) => k.channelAccountId ?? 'unknown'))]
+    Sentry.captureMessage(
+      `ab-backfill: ${skipped.length} cycle(s) skipped — no OAuth token for the channel that owns the video`,
+      {
+        level: 'warning',
+        tags: { cron: 'ab-backfill' },
+        extra: { count: skipped.length, channels: skippedChannels, skipped },
+      },
+    )
+    // O dono precisa VER o pulo, sem alarme de cron (canal recém-cadastrado sem OAuth é
+    // estado legítimo): uma notificação por site e por dia (dedup).
+    const bySite = new Map<string, typeof skipped>()
+    for (const k of skipped) bySite.set(k.siteId, [...(bySite.get(k.siteId) ?? []), k])
+    for (const [siteId, items] of bySite) {
+      const channels = [
+        ...new Set(
+          items.map((i) =>
+            i.channelName && i.channelAccountId
+              ? `${i.channelName} (${i.channelAccountId})`
+              : (i.channelAccountId ?? 'canal desconhecido'),
+          ),
+        ),
+      ]
+      try {
+        await fanOutToSiteAdmins({
+          siteId,
+          domain: 'youtube',
+          type: 'youtube.backfill_skipped_no_connection',
+          priority: 2,
+          title: 'Resultados de testes A/B aguardando acesso ao YouTube',
+          message: `${items.length} ciclo(s) de teste A/B não puderam ser lidos no YouTube porque o canal não tem conexão ativa: ${channels.join(', ')}. Reconecte o acesso do canal em /cms/youtube; a leitura recomeça sozinha.`,
+          dedupKey: `backfill-skipped-no-connection-${siteId}-${new Date().toISOString().slice(0, 10)}`,
+          actionHref: '/cms/youtube',
+        })
+      } catch (e) {
+        Sentry.captureException(e, { tags: { cron: 'ab-backfill' }, extra: { stage: 'notify-skipped' } })
+      }
+    }
+  }
+
   if (errors === 0) {
     await recordCronSuccess('ab-backfill', 'critical')
   } else {
     await recordCronFailure('ab-backfill', `${errors} cycle(s) failed`, 'critical')
   }
 
-  return Response.json({ status: 'ok', backfilled, errors })
+  return Response.json({ status: 'ok', backfilled, errors, skipped: skipped.length })
 }

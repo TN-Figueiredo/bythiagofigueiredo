@@ -272,6 +272,9 @@ export async function graduateItem(params: Params): Promise<CallToolResult> {
     const confirm = params.confirm === true
     const confirmationToken = params.confirmation_token as string | undefined
 
+    // before the preview and before the confirmation round-trip
+    svc.assertGraduationSupported(target)
+
     if (params.dry_run !== false) {
       const result = await svc.graduateItem(ctx, id, { target }, { dryRun: true })
       void result

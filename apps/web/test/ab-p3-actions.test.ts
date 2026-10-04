@@ -78,6 +78,12 @@ function chainable(resolveValue: unknown = { data: null, error: null }) {
   return new Proxy(proxy, terminalHandler)
 }
 
+// Site com dois canais: PT (`UCpt`, dono do vídeo dos testes) e EN (`UCen`).
+// A primeira linha de `youtube_channels` do site é a do EN — quem pegar "um
+// canal qualquer do site" pega o canal errado.
+const FIRST_CHANNEL_ROW_OF_SITE = { channel_id: 'UCen' }
+let videoOwner: { channel_id: string } | null = { channel_id: 'UCpt' }
+
 interface FromSetup {
   [table: string]: (method: string, ...args: unknown[]) => unknown
 }
@@ -114,6 +120,7 @@ function makeChain(value: unknown, overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  videoOwner = { channel_id: 'UCpt' }
   ;(requireSiteScope as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true })
   ;(preflightTokenCheck as ReturnType<typeof vi.fn>).mockResolvedValue({
     ok: true,
@@ -153,8 +160,8 @@ describe('applyWinnerNow', () => {
       is_original: false,
     }
 
-    const channelRow = { channel_id: 'ch-1' }
-    const videoRow = { youtube_video_id: 'YT_VID_001' }
+    const channelRow = FIRST_CHANNEL_ROW_OF_SITE
+    const videoRow = { youtube_video_id: 'YT_VID_001', youtube_channels: videoOwner }
 
     const fromMock = vi.fn((table: string) => {
       if (table === 'ab_tests') {
@@ -196,9 +203,10 @@ describe('applyWinnerNow', () => {
       if (table === 'youtube_videos') {
         return {
           select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({ data: videoRow, error: null }),
-            })),
+            eq: vi.fn(() => {
+              const single = vi.fn().mockResolvedValue({ data: videoRow, error: null })
+              return { single, eq: vi.fn(() => ({ single })) }
+            }),
           })),
         }
       }
@@ -233,6 +241,47 @@ describe('applyWinnerNow', () => {
       'fresh-token',
     )
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
+  })
+
+  it('dois canais: valida o token do canal dono do vídeo (PT), mesmo com o EN na primeira linha de youtube_channels', async () => {
+    setupApplyWinnerMock()
+
+    const result = await applyWinnerNow('test-1')
+
+    expect(result).toEqual({ ok: true })
+    expect(preflightTokenCheck).toHaveBeenCalledTimes(1)
+    expect(preflightTokenCheck).toHaveBeenCalledWith('site-1', 'youtube', 'UCpt')
+  })
+
+  it('vídeo sem canal: diz que não deu para identificar o canal e nenhuma chamada ao YouTube', async () => {
+    videoOwner = null
+    setupApplyWinnerMock()
+
+    const result = await applyWinnerNow('test-1')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/Could not identify which YouTube channel owns this video/)
+    expect(preflightTokenCheck).not.toHaveBeenCalled()
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
+  })
+
+  it('canal sem conexão OAuth: diz "No active youtube connection" e não chama o YouTube', async () => {
+    setupApplyWinnerMock()
+    ;(preflightTokenCheck as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      reason: 'No active youtube connection found for site site-1',
+    })
+
+    const result = await applyWinnerNow('test-1')
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'Token inválido: No active youtube connection found for site site-1',
+    })
+    expect(preflightTokenCheck).toHaveBeenCalledWith('site-1', 'youtube', 'UCpt')
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
   })
 
   it('returns error when no winner_variant_id (not in grace)', async () => {
@@ -279,8 +328,8 @@ describe('applyWinnerNow', () => {
       is_original: false,
     }
 
-    const channelRow = { channel_id: 'ch-1' }
-    const videoRow = { youtube_video_id: 'YT_VID_001' }
+    const channelRow = FIRST_CHANNEL_ROW_OF_SITE
+    const videoRow = { youtube_video_id: 'YT_VID_001', youtube_channels: videoOwner }
 
     const fromMock = vi.fn((table: string) => {
       if (table === 'ab_tests') {
@@ -322,9 +371,10 @@ describe('applyWinnerNow', () => {
       if (table === 'youtube_videos') {
         return {
           select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({ data: videoRow, error: null }),
-            })),
+            eq: vi.fn(() => {
+              const single = vi.fn().mockResolvedValue({ data: videoRow, error: null })
+              return { single, eq: vi.fn(() => ({ single })) }
+            }),
           })),
         }
       }
@@ -433,8 +483,8 @@ describe('revertWinner', () => {
       ...testOverrides,
     }
 
-    const channelRow = { channel_id: 'ch-1' }
-    const videoRow = { youtube_video_id: 'YT_VID_001' }
+    const channelRow = FIRST_CHANNEL_ROW_OF_SITE
+    const videoRow = { youtube_video_id: 'YT_VID_001', youtube_channels: videoOwner }
 
     const fromMock = vi.fn((table: string) => {
       if (table === 'ab_tests') {
@@ -465,9 +515,10 @@ describe('revertWinner', () => {
       if (table === 'youtube_videos') {
         return {
           select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({ data: videoRow, error: null }),
-            })),
+            eq: vi.fn(() => {
+              const single = vi.fn().mockResolvedValue({ data: videoRow, error: null })
+              return { single, eq: vi.fn(() => ({ single })) }
+            }),
           })),
         }
       }
@@ -493,6 +544,29 @@ describe('revertWinner', () => {
       'fresh-token',
     )
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
+  })
+
+  it('dois canais: valida o token do canal dono do vídeo (PT), mesmo com o EN na primeira linha de youtube_channels', async () => {
+    setupRevertMock()
+
+    const result = await revertWinner('test-1')
+
+    expect(result).toEqual({ ok: true })
+    expect(preflightTokenCheck).toHaveBeenCalledTimes(1)
+    expect(preflightTokenCheck).toHaveBeenCalledWith('site-1', 'youtube', 'UCpt')
+  })
+
+  it('vídeo sem canal: diz que não deu para identificar o canal e nenhuma chamada ao YouTube', async () => {
+    videoOwner = null
+    setupRevertMock()
+
+    const result = await revertWinner('test-1')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/Could not identify which YouTube channel owns this video/)
+    expect(preflightTokenCheck).not.toHaveBeenCalled()
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(updateVideoMetadata).not.toHaveBeenCalled()
   })
 
   it('returns error when revert window expired', async () => {

@@ -118,6 +118,13 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({ data: video, error: video ? null : { message: 'not found' } }),
+            // com o filtro de site (resolvedor do canal dono do vídeo)
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: video ? { ...video, youtube_channels: channel } : null,
+                error: video ? null : { message: 'not found' },
+              }),
+            }),
           }),
         }),
       }

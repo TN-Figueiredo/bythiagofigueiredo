@@ -24,7 +24,8 @@ vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: vi.fn(),
 }))
 
-vi.mock('@/lib/social/token-refresh', () => ({
+vi.mock('@/lib/social/token-refresh', async (orig) => ({
+  ...(await orig<typeof import('@/lib/social/token-refresh')>()),
   ensureFreshToken: vi.fn(),
 }))
 
@@ -44,7 +45,8 @@ vi.mock('@sentry/nextjs', () => ({
 
 import { GET } from '../../src/app/api/cron/sync-analytics-metrics/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { ensureFreshToken, NoActiveConnectionError } from '@/lib/social/token-refresh'
+import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 
 // Published long enough ago that it never lands inside any of the milestone
@@ -57,6 +59,7 @@ interface Channel {
   channel_id: string
   site_id: string
   subscriber_count: number
+  name?: string
 }
 
 interface VideoRow {
@@ -305,5 +308,84 @@ describe('GET /api/cron/sync-analytics-metrics — non-empty report syncs', () =
     expect(body.emptyReports).toBe(1)
     expect(recordCronFailure).not.toHaveBeenCalled()
     expect(recordCronSuccess).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('GET /api/cron/sync-analytics-metrics — canal sem conexão OAuth é pulado, não é erro', () => {
+  const video: VideoRow = {
+    id: 'vid-db-1', youtube_video_id: 'yt-vid-1', title: 'Test video', view_count: 100,
+    view_count_yesterday: 0, view_count_delta_today: 0, published_at: OLD_PUBLISHED_AT,
+  }
+  const withOauth: Channel = { id: 'ch-db-1', channel_id: 'UC1', site_id: 'site-1', subscriber_count: 10 }
+  const noOauth: Channel = { id: 'ch-db-2', channel_id: 'UC2', site_id: 'site-1', subscriber_count: 0, name: 'Canal Viagem' }
+
+  it('2 canais, um sem conexão: ok, processa o que tem conexão, reporta 1 pulado e avisa o dono', async () => {
+    const supabase = makeSupabase({ channels: [noOauth, withOauth], videosByChannelId: { 'ch-db-1': [video] } })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    vi.mocked(ensureFreshToken).mockImplementation(async (siteId: string, _p: string, acc?: string) => {
+      if (acc === 'UC2') throw new NoActiveConnectionError('youtube', siteId)
+      return { accessToken: 'tok', connectionId: 'c1' } as never
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockReport([['yt-vid-1', 120, 30, 45, 5, 2, 1, 0]])))
+
+    const res = await GET(req(CRON_SECRET) as never)
+    const body = await res.json()
+
+    expect(body.synced).toBe(1)
+    expect(body.errors).toBe(0)
+    expect(body.skipped_no_connection).toBe(1)
+    expect(recordCronFailure).not.toHaveBeenCalled()
+    expect(recordCronSuccess).toHaveBeenCalledTimes(1)
+    expect(fanOutToSiteAdmins).toHaveBeenCalledTimes(1)
+    const n = vi.mocked(fanOutToSiteAdmins).mock.calls[0]![0]
+    expect(n.type).toBe('youtube.channel_skipped_no_connection')
+    expect(n.dedupKey).toBe(`channel-skipped-no-connection-site-1-${new Date().toISOString().slice(0, 10)}`)
+    expect(n.message).toContain('Canal Viagem (UC2)')
+  })
+
+  it('só canais sem conexão: ok (nada a sincronizar não é falha)', async () => {
+    const supabase = makeSupabase({ channels: [noOauth] })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    vi.mocked(ensureFreshToken).mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
+    vi.stubGlobal('fetch', vi.fn())
+
+    const body = await (await GET(req(CRON_SECRET) as never)).json()
+    expect(body.skipped_no_connection).toBe(1)
+    expect(body.errors).toBe(0)
+    expect(recordCronFailure).not.toHaveBeenCalled()
+    expect(recordCronSuccess).toHaveBeenCalledTimes(1)
+  })
+
+  it('canal COM conexão cujo token falha continua sendo erro', async () => {
+    const supabase = makeSupabase({ channels: [noOauth, withOauth], videosByChannelId: {} })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    vi.mocked(ensureFreshToken).mockImplementation(async (siteId: string, _p: string, acc?: string) => {
+      if (acc === 'UC2') throw new NoActiveConnectionError('youtube', siteId)
+      throw new Error('Google token refresh failed (400): invalid_grant')
+    })
+    vi.stubGlobal('fetch', vi.fn())
+
+    const body = await (await GET(req(CRON_SECRET) as never)).json()
+    expect(body.errors).toBe(1)
+    expect(body.skipped_no_connection).toBe(1)
+    expect(recordCronSuccess).not.toHaveBeenCalled()
+    expect(recordCronFailure).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(recordCronFailure).mock.calls[0]![1]).toMatch(/invalid_grant/)
+  })
+
+  it('erro de BANCO ao ler a conexão é erro: conta, falha o cron e NÃO notifica "conecte o canal"', async () => {
+    const supabase = makeSupabase({ channels: [noOauth] })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+    vi.mocked(ensureFreshToken).mockRejectedValue(
+      new Error('Could not read the youtube connection for site site-1: statement timeout'),
+    )
+    vi.stubGlobal('fetch', vi.fn())
+
+    const body = await (await GET(req(CRON_SECRET) as never)).json()
+    expect(body.errors).toBe(1)
+    expect(body.skipped_no_connection).toBe(0)
+    expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
+    expect(recordCronFailure).toHaveBeenCalledTimes(1)
+    expect(recordCronSuccess).not.toHaveBeenCalled()
   })
 })

@@ -557,6 +557,50 @@ Remove uma variante não-original (B, C ou D) de um teste em status `draft`.
 
 ---
 
+## Canais próprios
+
+### GET /api/pipeline/youtube/channels
+
+Lista os canais próprios do site, na ordem de cadastro. É por aqui que se descobre quais canais existem — e o `id` (uuid) que os demais endpoints pedem em `channel_id`.
+
+Aceita `read` **ou** `intelligence` (`write`/`admin` incluem os dois).
+
+**Headers:** `X-Pipeline-Key: {api_key}`
+
+**Response 200:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "channel_id": "UC...",
+      "slug": "tnfigueiredotv",
+      "name": "tnFigueiredo",
+      "handle": "@tnfigueiredotv",
+      "locale": "pt",
+      "niche": "viagem",
+      "niche_label": "Viagem",
+      "subscriber_count": 1160,
+      "video_count": 42,
+      "sync_enabled": true,
+      "last_synced_at": "2026-10-03T12:00:00Z"
+    }
+  ]
+}
+```
+
+- `slug` — identificador estável do canal no site (vem do handle); `null` só em canal ainda sem slug.
+- `niche` / `niche_label` — slug e nome do nicho do canal; os dois `null` em canal sem nicho.
+- `video_count` — contagem do YouTube, não o número de vídeos já sincronizados no site.
+- `data: []` quando o site não tem canal cadastrado.
+- Nenhum campo de OAuth sai nesta rota. Um canal pode existir sem conexão OAuth: nele, analytics e A/B não funcionam até o dono conectar.
+
+**Response 401/403:** como as demais rotas. **500** `INTERNAL_ERROR` em erro de leitura.
+
+**No snapshot (`GET .../intelligence?channel_id=`):** o objeto `channel` traz também `slug`, `locale`, `niche` e `niche_label` (os mesmos desta rota; `slug`, `niche` e `niche_label` podem ser `null`), e `grade_history`, `optimization_cycles` e `ab_tests` trazem **só** o que é do canal pedido.
+
+---
+
 ## Competitor Observatory
 
 O módulo Observatory monitora canais concorrentes: detecta mudanças em títulos/thumbnails/descrições, identifica outliers e gera insights agregados de timing, tags, gaps e fórmulas de título.

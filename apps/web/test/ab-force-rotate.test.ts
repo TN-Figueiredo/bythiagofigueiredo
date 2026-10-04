@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+const { mockChannelAccountId } = vi.hoisted(() => ({ mockChannelAccountId: vi.fn() }))
+vi.mock('@/lib/youtube/channel-account', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/channel-account')>()),
+  channelAccountIdForVideo: mockChannelAccountId,
+}))
+
 // Mock modules before imports
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/youtube/ab-preflight', () => ({ preflightTokenCheck: vi.fn() }))
@@ -169,6 +175,7 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
 beforeEach(() => {
   vi.stubEnv('LINKS_SHORT_DOMAIN', 'go.test.com')
   vi.clearAllMocks()
+  mockChannelAccountId.mockResolvedValue('UCpt')
   ;(preflightTokenCheck as ReturnType<typeof vi.fn>).mockResolvedValue({
     ok: true,
     accessToken: 'fresh-token-123',
@@ -351,6 +358,18 @@ describe('forceRotate', () => {
     const result = await forceRotate('test-1')
 
     expect(result).toEqual({ ok: false, error: 'Video not found' })
+    expect(preflightTokenCheck).not.toHaveBeenCalled()
+  })
+
+  it('canal do vídeo não identificado: diz isso, sem "Token inválido" nem chamar o preflight', async () => {
+    buildSupabaseMock({ test: makeTest() })
+    mockChannelAccountId.mockResolvedValue(null)
+
+    const result = await forceRotate('test-1')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/Could not identify which YouTube channel owns this video/)
+    expect(result.error).not.toMatch(/Token inv/)
     expect(preflightTokenCheck).not.toHaveBeenCalled()
   })
 

@@ -1,4 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), addBreadcrumb: vi.fn(), captureMessage: vi.fn() }))
+import * as Sentry from '@sentry/nextjs'
+
+const { mockChannelAccountId } = vi.hoisted(() => ({ mockChannelAccountId: vi.fn() }))
+vi.mock('@/lib/youtube/channel-account', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/channel-account')>()),
+  channelAccountIdForVideo: mockChannelAccountId,
+}))
 
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
@@ -18,6 +26,7 @@ import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockChannelAccountId.mockResolvedValue('UCpt')
   ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockResolvedValue({ accessToken: 'tok' })
   ;(fetchVariantImageBuffer as ReturnType<typeof vi.fn>).mockResolvedValue({
     buffer: Buffer.from('img'),
@@ -26,7 +35,7 @@ beforeEach(() => {
   ;(getVariantForCycle as ReturnType<typeof vi.fn>).mockReturnValue(1)
 })
 
-function buildMock(testOverrides: Record<string, unknown> = {}) {
+function buildMock(testOverrides: Record<string, unknown> = {}, channelRow: { channel_id: string } | null = { channel_id: 'UCpt' }) {
   const updates: { table: string; data: unknown }[] = []
   const inserts: { table: string; data: unknown }[] = []
 
@@ -87,9 +96,18 @@ function buildMock(testOverrides: Record<string, unknown> = {}) {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({
-              data: { youtube_video_id: 'YT_ABC' },
+              data: { youtube_video_id: 'YT_ABC', channel_id: 'ch-db-1' },
               error: null,
             }),
+          }),
+        }),
+      }
+    }
+    if (table === 'youtube_channels') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: channelRow, error: channelRow ? null : { message: 'not found' } }),
           }),
         }),
       }
@@ -110,6 +128,36 @@ describe('startAbTestInternal', () => {
     expect(result.ok).toBe(true)
     expect(updates.some(u => (u.data as Record<string, unknown>).status === 'active')).toBe(true)
     expect(inserts.some(i => i.table === 'ab_test_cycles')).toBe(true)
+  })
+
+  it('usa o token do canal dono do vídeo (UC…)', async () => {
+    buildMock()
+    await startAbTestInternal('test-1', 'site-1')
+    expect(ensureFreshToken).toHaveBeenCalledWith('site-1', 'youtube', 'UCpt')
+    // o resolvedor recebeu o site do teste (filtro de site)
+    expect(mockChannelAccountId).toHaveBeenCalledWith(expect.anything(), 'site-1', 'vid-1')
+  })
+
+  it('falha ao LER o canal: mensagem genérica ao usuário, detalhe no Sentry, nada ativado', async () => {
+    const { updates } = buildMock()
+    mockChannelAccountId.mockRejectedValue(new Error('channelAccountIdForVideo: statement timeout'))
+    const result = await startAbTestInternal('test-1', 'site-1')
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('Could not start the test: the YouTube channel could not be read. Try again.')
+    expect(result.error).not.toMatch(/statement timeout/)
+    expect(Sentry.captureException).toHaveBeenCalled()
+    expect(updates).toEqual([])
+  })
+
+  it('canal do vídeo não identificado: recusa com mensagem legível, sem pedir token e sem ativar', async () => {
+    const { updates, inserts } = buildMock({})
+    mockChannelAccountId.mockResolvedValue(null)
+    const result = await startAbTestInternal('test-1', 'site-1')
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/Could not identify which YouTube channel owns this video/)
+    expect(ensureFreshToken).not.toHaveBeenCalled()
+    expect(updates).toEqual([])
+    expect(inserts).toEqual([])
   })
 
   it('returns error if test is not draft', async () => {

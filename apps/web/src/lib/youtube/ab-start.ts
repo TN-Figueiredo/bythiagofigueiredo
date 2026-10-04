@@ -10,6 +10,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { channelAccountIdForVideo, CHANNEL_NOT_IDENTIFIED_MESSAGE } from '@/lib/youtube/channel-account'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
 import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
 import type { AbTestVariantRow, AppliedMetadata } from '@/lib/youtube/ab-types'
@@ -86,15 +87,18 @@ export async function startAbTestInternal(
   // 4. Set thumbnail on YouTube — resolve correct channel token.
   let cycle0Meta: AppliedMetadata = {}
   try {
-    const { data: vidInfo } = await supabase
-      .from('youtube_videos')
-      .select('channel_id')
-      .eq('id', test.youtube_video_id)
-      .single()
-    const { data: chanInfo } = vidInfo?.channel_id
-      ? await supabase.from('youtube_channels').select('channel_id').eq('id', vidInfo.channel_id).single()
-      : { data: null }
-    const { accessToken } = await ensureFreshToken(siteId, 'youtube', chanInfo?.channel_id)
+    let channelAccountId: string | null
+    try {
+      channelAccountId = await channelAccountIdForVideo(supabase, siteId, test.youtube_video_id as string)
+    } catch (resolveErr) {
+      // Só a falha de ler o canal vira mensagem genérica (o detalhe, do banco, vai ao Sentry).
+      Sentry.captureException(resolveErr, { tags: { area: 'ab-start' }, extra: { testId } })
+      return { ok: false, error: 'Could not start the test: the YouTube channel could not be read. Try again.' }
+    }
+    if (!channelAccountId) {
+      return { ok: false, error: CHANNEL_NOT_IDENTIFIED_MESSAGE }
+    }
+    const { accessToken } = await ensureFreshToken(siteId, 'youtube', channelAccountId)
     const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
     if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
 

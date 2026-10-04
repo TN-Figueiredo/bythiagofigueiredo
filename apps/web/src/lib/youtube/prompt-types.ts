@@ -53,6 +53,8 @@ export interface ContentCalendarData {
   snapshotAt: string
   snapshotAgeHours: number
   truncated?: boolean
+  /** Set when the channel has no active YouTube connection: search terms and demographics were NOT read (not "none"). */
+  analyticsUnavailable?: string
 }
 
 export interface ChannelHealthData {
@@ -71,6 +73,8 @@ export interface ChannelHealthData {
   outliers: { positive: OutlierRow[]; negative: OutlierRow[] }
   abTestResults: AbTestResultRow[]
   cyclesSummary: { active: number; resolved: number; exhausted: number }
+  /** Set when the channel has no active YouTube connection: search terms and demographics were NOT read (not "none"). */
+  analyticsUnavailable?: string
   totalVideos: number
   showingTopN: number
   snapshotAt: string

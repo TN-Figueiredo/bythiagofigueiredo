@@ -1,11 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('@/lib/social/token-refresh', () => ({
+vi.mock('@/lib/social/token-refresh', async (orig) => ({
+  ...(await orig<typeof import('@/lib/social/token-refresh')>()),
   ensureFreshToken: vi.fn(),
 }))
 
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
-import { ensureFreshToken } from '@/lib/social/token-refresh'
+import { ensureFreshToken, AmbiguousConnectionError } from '@/lib/social/token-refresh'
 
 describe('preflightTokenCheck', () => {
   it('returns ok when token is valid and API responds 200', async () => {
@@ -89,5 +90,16 @@ describe('preflightTokenCheck', () => {
     const result = await preflightTokenCheck('site-1', 'youtube', 'UC_x')
     expect(result.ok).toBe(false)
     expect(result.reason).toContain('fetch failed')
+  })
+
+  it('canal não identificado (2+ conexões, sem conta): motivo legível, sem jargão de conexão', async () => {
+    ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new AmbiguousConnectionError('youtube', 2, 'site-1'),
+    )
+
+    const result = await preflightTokenCheck('site-1', 'youtube')
+    expect(result.ok).toBe(false)
+    expect(result.reason).toMatch(/identify which YouTube channel/)
+    expect(result.reason).not.toMatch(/refusing to pick|active youtube connections/)
   })
 })

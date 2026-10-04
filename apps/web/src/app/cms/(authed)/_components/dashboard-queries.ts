@@ -1,5 +1,7 @@
 import { unstable_cache } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import * as Sentry from '@sentry/nextjs'
+import { defaultOwnChannel } from '@/lib/youtube/default-channel'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -487,6 +489,10 @@ export function fetchThisWeekStrip(
 /* ------------------------------------------------------------------ */
 
 export interface YtDashboardSummary {
+  /** Canal de onde saem os números (o primeiro com OAuth, em ordem de cadastro). */
+  channelName: string
+  /** id "UC…" do canal mostrado — o parâmetro `?channel=` da tela de analytics */
+  channelId: string
   healthScore: number
   views30d: number
   viewsDelta: number
@@ -499,13 +505,31 @@ export interface YtDashboardSummary {
   activeAbTest: { title: string; variant: string; improvement: number; confidence: number; daysLeft: number } | null
 }
 
-export function fetchYtDashboardSummary(siteId: string) {
+/**
+ * O canal do card: o padrão do site (`defaultOwnChannel`). Sem conexão OAuth viva em nenhum
+ * canal não há número a mostrar — o card some. Erro de banco também some, mas com Sentry:
+ * nunca em silêncio.
+ */
+async function firstConnectedChannel(siteId: string): Promise<{ channelId: string; name: string } | null> {
+  try {
+    const channel = await defaultOwnChannel(getSupabaseServiceClient(), siteId)
+    if (!channel || !channel.hasConnection) return null
+    return { channelId: channel.channelId, name: channel.name }
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: 'dashboard', card: 'youtube' }, extra: { siteId } })
+    return null
+  }
+}
+
+export async function fetchYtDashboardSummary(siteId: string): Promise<YtDashboardSummary | null> {
+  const channel = await firstConnectedChannel(siteId)
+  if (!channel) return null
   return unstable_cache(
     async (): Promise<YtDashboardSummary | null> => {
       const { fetchYtChannelMetrics } = await import('@/lib/youtube/analytics-client')
       const [metrics, metrics60] = await Promise.all([
-        fetchYtChannelMetrics(siteId, 30),
-        fetchYtChannelMetrics(siteId, 60),
+        fetchYtChannelMetrics(siteId, 30, channel.channelId),
+        fetchYtChannelMetrics(siteId, 60, channel.channelId),
       ])
       if (!metrics) return null
 
@@ -525,6 +549,8 @@ export function fetchYtDashboardSummary(siteId: string) {
       const healthScore = Math.round((ctrScore + retScore + growthScore + engScore + freqScore) / 5)
 
       return {
+        channelName: channel.name,
+        channelId: channel.channelId,
         healthScore,
         views30d: metrics.views,
         viewsDelta,
@@ -537,7 +563,7 @@ export function fetchYtDashboardSummary(siteId: string) {
         activeAbTest: null,
       }
     },
-    [`yt-dashboard-${siteId}`],
+    [`yt-dashboard-${siteId}-${channel.channelId}`],
     { revalidate: 1800 }
   )()
 }

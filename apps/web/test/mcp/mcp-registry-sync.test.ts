@@ -25,7 +25,13 @@ describe('MCP Registry Sync', () => {
 
   it('covers all registry endpoints', () => {
     const { mapped, unmapped } = getRegistryCoverage()
-    // Sum: items(22) + playlists(13) + libraries(15) + research(26) + youtube(35) + utilities(11) + course(0) + links(5) = 127
-    expect(mapped.length + unmapped.length).toBe(127)
+    // Sum: items(22) + playlists(13) + libraries(15) + research(26) + youtube(36) + utilities(11) + course(0) + links(5) = 128
+    expect(mapped.length + unmapped.length).toBe(128)
+  })
+
+  it('GET /api/pipeline/youtube/channels (lista dos canais próprios) tem ferramenta MCP', () => {
+    const { mapped, unmapped } = getRegistryCoverage()
+    expect(unmapped).not.toContain('GET /api/pipeline/youtube/channels')
+    expect(mapped.find((m) => m.path === '/api/pipeline/youtube/channels')?.mcpTool).toBe('youtube_analytics')
   })
 })

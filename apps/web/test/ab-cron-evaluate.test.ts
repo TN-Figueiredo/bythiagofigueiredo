@@ -1,4 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+const { mockChannelAccountId } = vi.hoisted(() => ({ mockChannelAccountId: vi.fn() }))
+vi.mock('@/lib/youtube/channel-account', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/channel-account')>()),
+  channelAccountIdForVideo: mockChannelAccountId,
+}))
 import { NextRequest } from 'next/server'
 
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
@@ -70,7 +76,8 @@ function makeActiveTest(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function buildSupabaseMock(opts: { tests: unknown[]; trackedLinks?: { template_name: string; short_code: string }[] }) {
+function buildSupabaseMock(opts: { tests: unknown[]; trackedLinks?: { template_name: string; short_code: string }[]; channel?: { channel_id: string } | null }) {
+  const channel = opts.channel === undefined ? { channel_id: 'UCpt' } : opts.channel
   const updateCalls: { table: string; data: unknown }[] = []
   const insertCalls: { table: string; data: unknown }[] = []
 
@@ -113,7 +120,16 @@ function buildSupabaseMock(opts: { tests: unknown[]; trackedLinks?: { template_n
       return {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: { youtube_video_id: 'YT_123' }, error: null }),
+            single: vi.fn().mockResolvedValue({ data: { youtube_video_id: 'YT_123', channel_id: 'ch-db-1' }, error: null }),
+          }),
+        }),
+      }
+    }
+    if (table === 'youtube_channels') {
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: channel, error: channel ? null : { message: 'not found' } }),
           }),
         }),
       }
@@ -168,6 +184,7 @@ beforeEach(() => {
   // These tests exercise the real apply-to-YouTube path (F19's guard defaults to off).
   vi.stubEnv('AB_AUTO_APPLY_WINNER', 'true')
   vi.clearAllMocks()
+  mockChannelAccountId.mockResolvedValue('UCpt')
   ;(ensureFreshToken as ReturnType<typeof vi.fn>).mockResolvedValue({
     accessToken: 'token-123',
   })
@@ -344,6 +361,22 @@ describe('GET /api/cron/ab-evaluate', () => {
         }),
       })
     )
+  })
+
+  it('canal do vídeo não identificado: não pede token sem conta, erro só deste teste', async () => {
+    const test = makeActiveTest({
+      grace_expires_at: new Date(Date.now() - 3600000).toISOString(),
+      winner_variant_id: 'v2',
+    })
+    buildSupabaseMock({ tests: [test] })
+    mockChannelAccountId.mockResolvedValue(null)
+
+    const body = await (await GET(createCronRequest('test-secret'))).json()
+
+    expect(body.resolved).toBe(0)
+    expect(body.errors).toBeGreaterThanOrEqual(1)
+    expect(ensureFreshToken).not.toHaveBeenCalled()
+    expect(setThumbnail).not.toHaveBeenCalled()
   })
 
   it('does not apply when grace period has not expired yet', async () => {
