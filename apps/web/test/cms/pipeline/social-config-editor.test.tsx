@@ -137,6 +137,16 @@ describe('SocialConfigEditor', () => {
     expect(arg.hashtags).toEqual(['tag1', 'tag2', 'tag3'])
   })
 
+  it('warns that hashtags become hidden tags only when YouTube is selected', () => {
+    const { rerender } = render(<SocialConfigEditor config={BASE_CONFIG} onChange={onChange} />)
+    expect(screen.queryByText(/tags ocultas/)).toBeNull()
+
+    rerender(
+      <SocialConfigEditor config={{ ...BASE_CONFIG, platforms: ['facebook', 'youtube'] }} onChange={onChange} />,
+    )
+    expect(screen.getByText(/tags ocultas/)).toBeTruthy()
+  })
+
   // 10. image source radio changes
   it('changes image_source when Cover Image radio clicked', () => {
     render(<SocialConfigEditor config={BASE_CONFIG} onChange={onChange} />)

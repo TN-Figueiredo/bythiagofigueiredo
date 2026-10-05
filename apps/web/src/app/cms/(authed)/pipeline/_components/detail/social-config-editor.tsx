@@ -345,6 +345,11 @@ export function SocialConfigEditor({ config, onChange, disabled, contentFormat, 
                 ))}
               </div>
             )}
+            {config.platforms.includes('youtube') && (
+              <p className="text-[10px]" style={{ color: 'var(--gem-dim)' }}>
+                No YouTube, estas vão como tags ocultas. Para hashtag clicável, escreva no título ou na descrição.
+              </p>
+            )}
           </div>
 
           {/* Image source */}
