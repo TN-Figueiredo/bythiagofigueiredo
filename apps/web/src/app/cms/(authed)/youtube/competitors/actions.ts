@@ -1,6 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -104,12 +106,15 @@ export async function addCompetitorChannel(
 
   if (error) return { ok: false, error: error.message }
 
+  // The first sync takes up to a minute (videos, thumbnails, Shorts probes): it runs after the answer, so the dialog
+  // closes at once and the row shows "buscando vídeos" until it ends. A failure is non-fatal: the channel was added
+  // and the cron syncs it in the next round.
   if (apiKey && inserted) {
-    try {
-      await syncCompetitorChannel(inserted, apiKey)
-    } catch {
-      // sync failure is non-fatal — channel was added, sync can retry later
-    }
+    after(async () => {
+      try { await syncCompetitorChannel(inserted, apiKey) } catch (err) {
+        Sentry.captureException(err, { tags: { component: 'competitors', step: 'first-sync' }, extra: { channelId: inserted.channel_id, siteId } })
+      }
+    })
   }
 
   revalidatePath('/cms/youtube/competitors', 'layout')

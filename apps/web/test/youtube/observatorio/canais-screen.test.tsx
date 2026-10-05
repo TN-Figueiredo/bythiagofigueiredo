@@ -117,6 +117,56 @@ describe('CanaisScreen', () => {
     expect(screen.queryByRole('dialog', { name: 'Adicionar canal' })).toBeNull()
     expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors', { scroll: false })
   })
+  it('while the action is on the way the button says "Adicionando…"; an action that never answers shows an error', async () => {
+    const user = userEvent.setup()
+    let fail: (e: Error) => void = () => {}
+    const onAdd = vi.fn(() => new Promise<{ ok: boolean }>((_, rej) => { fail = rej }))
+    mount({ onAdd }, { add: '1' })
+    const dlg = screen.getByRole('dialog', { name: 'Adicionar canal' })
+    await user.type(within(dlg).getByLabelText('Canal do YouTube'), '@CanalNovo')
+    await user.click(within(dlg).getByRole('button', { name: 'Adicionar canal' }))
+    const busy = within(dlg).getByRole('button', { name: 'Adicionando…' })
+    expect(busy).toBeDisabled()
+    expect(busy).toHaveAttribute('aria-busy', 'true')
+    expect(within(dlg).getByRole('button', { name: 'Cancelar' })).toBeDisabled()
+    fail(new Error('timeout'))
+    expect(await within(dlg).findByText('O servidor não respondeu. Recarregue a página para ver se o canal entrou antes de tentar de novo.')).toBeInTheDocument()
+    expect(within(dlg).getByRole('button', { name: 'Adicionar canal' })).toBeEnabled()
+  })
+  it('after an add the screen asks the server again until the new row is done, then says it is ready', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      const done = view().rows.find(r => !r.own && !r.backfill)!
+      const onAdd = vi.fn(async () => ({ ok: true, title: done.name }))
+      mount({ onAdd }, { add: '1' })
+      const dlg = screen.getByRole('dialog', { name: 'Adicionar canal' })
+      await user.type(within(dlg).getByLabelText('Canal do YouTube'), '@CanalNovo')
+      await user.click(within(dlg).getByRole('button', { name: 'Adicionar canal' }))
+      expect(await screen.findByText('Canal adicionado')).toBeInTheDocument()
+      // the row with that name is already done in this view: the wait ends on the spot and nothing keeps polling
+      expect(await screen.findByText(`${done.name} pronto`)).toBeInTheDocument()
+      const n = refresh.mock.calls.length
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(refresh.mock.calls.length).toBe(n)
+    } finally { vi.useRealTimers() }
+  })
+  it('after an add, a row still fetching videos keeps the screen asking every few seconds', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      const bf = view().rows.find(r => !r.own && r.backfill)!
+      mount({ onAdd: vi.fn(async () => ({ ok: true, title: bf.name })) }, { add: '1' })
+      const dlg = screen.getByRole('dialog', { name: 'Adicionar canal' })
+      await user.type(within(dlg).getByLabelText('Canal do YouTube'), '@CanalNovo')
+      await user.click(within(dlg).getByRole('button', { name: 'Adicionar canal' }))
+      expect(await screen.findByText('Canal adicionado')).toBeInTheDocument()
+      const n = refresh.mock.calls.length
+      await vi.advanceTimersByTimeAsync(13_000)
+      expect(refresh.mock.calls.length).toBe(n + 2)
+      expect(screen.queryByText(`${bf.name} pronto`)).toBeNull()
+    } finally { vi.useRealTimers() }
+  })
   it('?filter=problemas lists only channels in trouble and offers "Mostrar todos"', () => {
     mount({}, { filter: 'problemas' })
     const rows = [...document.querySelectorAll('tr.obs-cn-row')].map(r => r.getAttribute('data-id'))
@@ -281,7 +331,7 @@ describe('CanaisScreen — Seus canais', () => {
       // own channels keep no ⋯ menu
       expect(r.querySelector('[data-menu]')).toBeNull()
     }
-    expect(container.querySelector('.sortnote')!.textContent).toBe('Ordenado por Ritmo, maior primeiro; os seus canais ficam sempre no topo')
+    expect(container.querySelector('.sortnote')!.textContent).toBe('Ordenado por Views/dia por mil inscritos, maior primeiro; os seus canais ficam sempre no topo')
   })
   it('preset 1: sem linha de grupo, sem chip de idioma, e a linha própria tem o seletor de nicho', () => {
     const { container } = mountOwns('1')

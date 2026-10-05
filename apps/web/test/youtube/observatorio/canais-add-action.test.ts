@@ -21,12 +21,18 @@ const BUILTIN_ROWS: NicheRow[] = [{ slug: 'viagem', label: 'Viagem', color_dark:
 const JOGOS: NicheRow = { slug: 'jogos', label: 'Jogos', color_dark: '#D29AE8', color_light: '#7B2A91', sort_order: 100 }
 /** `niches`: the site's youtube_niches rows; 'missing' = the table is not in this database yet (42P01). Default: the two built-in. */
 interface Db { own: Array<{ id: string; channel_id: string }> | null; existing: unknown; inserted: unknown[]; deleted?: unknown[] | null; niches?: NicheRow[] | 'missing' | 'broken' }
+/** What the action handed to after(): nothing here runs until a test runs it. */
+let queued: Array<() => unknown> = []
+let syncMock = vi.fn(async (..._a: unknown[]) => ({}))
 function setup(db: Db, slots = { used: 14, limit: 75, free: 61 }, auth: { ok: boolean; reason?: string; user?: { id: string } } = { ok: true, user: { id: 'u1' } }) {
   vi.resetModules()
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => auth }))
+  queued = []; syncMock = vi.fn(async (..._a: unknown[]) => ({}))
   vi.doMock('next/cache', () => ({ revalidatePath: vi.fn() }))
-  vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async () => ({})) }))
+  vi.doMock('next/server', () => ({ after: (fn: () => unknown) => { queued.push(fn) } }))
+  vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
+  vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: syncMock }))
   vi.doMock('@/lib/youtube/competitor-slots', () => ({ getChannelSlots: async () => slots, UNLOCK_STEP: 25 }))
   const chain = (data: unknown) => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data }) }) }) }) })
   vi.doMock('@/lib/supabase/service', () => ({
@@ -83,6 +89,17 @@ describe('addCompetitorChannel', () => {
     expect(res.title).toBe('Luke Damant')
     expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toContain('forHandle=%40LukeDamant')
     expect(db.inserted).toEqual([{ site_id: 's1', channel_id: UC, channel_name: 'Luke Damant', niche: 'viagem', video_limit: 120 }])
+  })
+  it('answers before the first sync: the sync is handed to after(), and a sync that throws does not reject', async () => {
+    setup({ own: null, existing: null, inserted: [] })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ items: [{ id: UC, snippet: { title: 'Luke Damant' } }] }))))
+    syncMock.mockRejectedValueOnce(new Error('YouTube API 500'))
+    const res = await (await load())('@LukeDamant', 'viagem', 50)
+    expect(res.ok).toBe(true)
+    expect(syncMock).not.toHaveBeenCalled()
+    expect(queued).toHaveLength(1)
+    await expect(Promise.resolve(queued[0]!())).resolves.toBeUndefined()
+    expect(syncMock).toHaveBeenCalledWith({ id: 'n1', channel_id: 'x', site_id: 's1' }, 'k')
   })
   it('a @handle not found on YouTube says so; without the API key (default) it does not pretend', async () => {
     setup({ own: null, existing: null, inserted: [] })

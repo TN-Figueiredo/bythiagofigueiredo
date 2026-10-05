@@ -13,7 +13,7 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useSyncExternalStore, useTransition, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
-import type { CanaisRow, CanaisSort, CanaisView } from './view-model'
+import { DEFAULT_SORT, type CanaisRow, type CanaisSort, type CanaisView } from './view-model'
 import { useToast } from '../_chrome/toasts'
 import { useChromeSync } from '../_chrome/sync-context'
 import { ChannelTable, type RowHandlers } from './channel-table'
@@ -43,6 +43,8 @@ export interface CanaisScreenProps {
 }
 
 const UPNEXT = '/cms/up-next'
+/** After an add: one refresh every ADD_WATCH_MS, at most ADD_WATCH_MAX times (3 min). */
+const ADD_WATCH_MS = 6_000, ADD_WATCH_MAX = 30
 const WIDE = '(min-width: 1280px)'
 function useWide(): boolean {
   return useSyncExternalStore(
@@ -260,9 +262,9 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const sort = opt.sort ?? view.sort, dir = opt.sort ? (opt.dir ?? 'desc') : view.dir
   const onSort = (k: CanaisSort) => {
     const asc = sort === k && dir === 'desc'
-    go({ sort: k === 'active' && sort !== 'active' ? null : k, dir: asc ? 'asc' : null }, { sort: k, dir: asc ? 'asc' : 'desc', busy: true })
+    go({ sort: k === DEFAULT_SORT ? null : k, dir: asc ? 'asc' : null }, { sort: k, dir: asc ? 'asc' : 'desc', busy: true })
   }
-  const onCardSort = (k: CanaisSort) => go({ sort: k === 'active' ? null : k, dir: null }, { sort: k, dir: 'desc', busy: true })
+  const onCardSort = (k: CanaisSort) => go({ sort: k === DEFAULT_SORT ? null : k, dir: null }, { sort: k, dir: 'desc', busy: true })
   // Tabela/Cards draws the same rows another way: it swaps at once. Formato and Escala change numbers only the server has.
   const fmt = opt.fmt ?? view.fmt, scale = opt.scale ?? view.scale
   const pickFmt = (v: CanaisView['fmt']) => go({ fmt: v === 'long' ? null : v }, { fmt: v, busy: true })
@@ -270,6 +272,25 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const pickLayout = (v: CanaisView['layout']) => go({ layout: v === 'table' ? null : v }, { layout: v })
 
   const menuRow = menu ? rowOf(menu) : null
+
+  // A channel added here syncs in the background: the screen asks the server again every few seconds until its row
+  // leaves "buscando vídeos" (or ADD_WATCH_MAX tries pass), and only then says it is ready.
+  const [watch, setWatch] = useState<null | { name: string; tries: number }>(null)
+  const watchName = watch?.name ?? null
+  useEffect(() => {
+    if (!watchName) return
+    const t = setInterval(() => {
+      setWatch(w => (w && w.tries + 1 < ADD_WATCH_MAX ? { ...w, tries: w.tries + 1 } : null))
+      router.refresh()
+    }, ADD_WATCH_MS)
+    return () => clearInterval(t)
+  }, [watchName, router])
+  useEffect(() => {
+    if (!watchName) return
+    const r = [...view.rows, ...view.groups.flatMap(g => g.rows)].find(x => !x.own && x.name === watchName)
+    // the first answer after the add may still be the list without the row: only a row that is there and done ends the wait
+    if (r && !r.backfill) { setWatch(null); toast('ok', `${watchName} pronto`, 'Os vídeos foram buscados e o canal já entrou na ordem da lista.') }
+  }, [view, watchName, toast])
 
   const s = view.slots, full = s.free === 0
   return (
@@ -310,7 +331,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
             </div>
             <label className="cardsort"><span className="sr">Ordenar cards por</span>
               <select className="sel" name="cardSort" value={sort} onChange={e => onCardSort(e.target.value as CanaisSort)}>
-                <option value="active">Ritmo</option><option value="vpd">Views/dia</option><option value="outliers">Outliers</option><option value="swaps">Trocas</option><option value="growth">Crescimento</option>
+                <option value="vpd">Views/dia</option><option value="subs">Inscritos</option><option value="active">Ritmo</option><option value="outliers">Outliers</option><option value="swaps">Trocas</option><option value="growth">Crescimento</option>
               </select>
             </label>
           </div>
@@ -386,7 +407,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
 
       {addOpen ? (
         <AddChannelForm view={view} onAdd={onAdd} onClose={closeAdd} trap={trapTab}
-          onAdded={(input, title) => { closeAdd(); toast('ok', 'Canal adicionado', `${title ?? input.channel} entrou em ${view.niches.find(o => o.id === input.niche)?.label ?? input.niche}; a busca dos vídeos começou.`); router.refresh() }} />
+          onAdded={(input, title) => { closeAdd(); toast('ok', 'Canal adicionado', `${title ?? input.channel} entrou em ${view.niches.find(o => o.id === input.niche)?.label ?? input.niche}. A busca dos vídeos leva cerca de um minuto; até lá ele fica no fim da lista como “buscando vídeos”.`); if (title) setWatch({ name: title, tries: 0 }); router.refresh() }} />
       ) : null}
 
       {nicheOpen ? (

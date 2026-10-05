@@ -21,7 +21,9 @@ const NEQ = (n: number) => `n${NB}=${NB}${n}`
 type CStats = ChannelStats
 interface Growth { abs: number | null; pct: number | null; from?: number; to?: number; pending?: string; roundingText: string; withinRounding: boolean | null; text: string | null }
 
-export type CanaisSort = 'active' | 'vpd' | 'outliers' | 'swaps' | 'growth'
+export type CanaisSort = 'active' | 'vpd' | 'outliers' | 'swaps' | 'growth' | 'subs'
+/** The order the screen opens in: views/dia in the chosen scale (per thousand subscribers unless ?scale=abs). */
+export const DEFAULT_SORT: CanaisSort = 'vpd'
 export type DrawerTab = 'trocas' | 'videos' | 'outliers'
 export type Tier = 'mid' | 'high' | 'top' | ''
 export interface Thumb { src: string | null; text: string | null }
@@ -139,7 +141,7 @@ export interface CanaisParams {
 }
 
 const pick = <T extends string>(v: string | undefined, ok: readonly T[], d: T): T => (v && (ok as readonly string[]).includes(v) ? (v as T) : d)
-const SORTNAME: Record<CanaisSort, string> = { active: 'Ritmo', vpd: 'Views/dia', outliers: 'Outliers', swaps: 'Trocas', growth: 'Crescimento' }
+const SORTNAME: Record<CanaisSort, string> = { active: 'Ritmo', vpd: 'Views/dia', outliers: 'Outliers', swaps: 'Trocas', growth: 'Crescimento', subs: 'Inscritos' }
 /** The colour of a niche the owner created, as the CSS variables the chrome's niche bar already uses (plus the subtle fills). */
 export interface NicheVars { dark: string; light: string; darkSubtle: string; lightSubtle: string }
 export interface NicheOption { id: Niche; label: string; color: NicheVars | null }
@@ -156,7 +158,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const scale = p.scale === 'abs' ? 'abs' : 'per-mil'
   const rel = scale === 'per-mil'
   const layout = pick(p.layout, ['table', 'cards'] as const, 'table')
-  const sort = pick(p.sort, ['active', 'vpd', 'outliers', 'swaps', 'growth'] as const, 'active')
+  const sort = pick(p.sort, ['active', 'vpd', 'outliers', 'swaps', 'growth', 'subs'] as const, DEFAULT_SORT)
   const dir = pick(p.dir, ['asc', 'desc'] as const, 'desc')
   const filter = p.filter === 'problemas' ? 'problemas' : 'todos'
   const niche = p.niche
@@ -324,7 +326,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
         : `O YouTube informa inscritos arredondados a 3 algarismos. ${subsTxt(c.subs)} pode estar ${stats(c.id, 'long').growth30.roundingText} do número real.`,
       sortKeys: {
         active: bf ? -1 : k.pw, outliers: bf ? -1 : S.outliers90, growth: S.growth30.pending ? -99 : S.growth30.pct ?? -99,
-        vpd: bf ? -1 : v ?? -1, swaps: bf ? -1 : list.length,
+        vpd: bf ? -1 : v ?? -1, swaps: bf ? -1 : list.length, subs: c.subs ?? -1,
       },
       cells: { cadence, vpd, out, swap, growth, sync },
       cowork: coworkOf(c),
@@ -547,7 +549,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   return {
     ...forjaOf(obs, niche, drawer),
     slots, scale, fmt, layout, sort, dir,
-    sortNote: `Ordenado por ${SORTNAME[sort]}, ${dir === 'desc' ? 'maior' : 'menor'} primeiro${many ? '; os seus canais ficam sempre no topo' : ''}`,
+    sortNote: `Ordenado por ${SORTNAME[sort]}${sort === 'vpd' ? (rel ? ' por mil inscritos' : ' em número absoluto') : ''}, ${dir === 'desc' ? 'maior' : 'menor'} primeiro${many ? '; os seus canais ficam sempre no topo' : ''}`,
     vpdUnit: rel ? `por mil inscritos, mediana ${window}` : `mediana dos vídeos, ${window}`,
     // the problems filter lists only channels in trouble; the screen still pins the own rows on top (own.rows)
     rows: [...(filter !== 'problemas' ? ownRows : []), ...compRows],
