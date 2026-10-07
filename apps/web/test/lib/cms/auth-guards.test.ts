@@ -144,3 +144,94 @@ function makeBuilder(result: { data: unknown; error: unknown }) {
   builder.single = () => Promise.resolve(result)
   return builder
 }
+
+describe('requireSiteAdminScope (degrau "administrar o site")', () => {
+  beforeEach(() => vi.resetModules())
+
+  async function run(session: {
+    user?: { id: string } | null
+    userErr?: { message: string } | null
+    rpc?: () => Promise<{ data: unknown; error: unknown }>
+    cookiesThrow?: boolean
+    setThrows?: boolean
+  }) {
+    const rpc = vi.fn(session.rpc ?? (async () => ({ data: true, error: null })))
+    const service = vi.fn()
+    let setAll: ((list: Array<{ name: string; value: string; options?: unknown }>) => void) | undefined
+    vi.doMock('next/headers', () => ({
+      cookies: async () => {
+        if (session.cookiesThrow) throw new Error('cookies indisponível')
+        return {
+          getAll: () => [],
+          set: () => {
+            if (session.setThrows) throw new Error('Cookies can only be modified in a Server Action')
+          },
+        }
+      },
+    }))
+    // '@tn-figueiredo/auth-nextjs' e '.../server' resolvem para o MESMO arquivo: um mock só, com os dois exports.
+    vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({
+      requireSiteScope: vi.fn(),
+      createServerClient: (opts: { cookies: { setAll: typeof setAll } }) => {
+        setAll = opts.cookies.setAll
+        return {
+          auth: {
+            getUser: async () => ({
+              data: { user: session.user === undefined ? { id: 'u-1' } : session.user },
+              error: session.userErr ?? null,
+            }),
+          },
+          rpc,
+        }
+      },
+    }))
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: service }))
+    const { requireSiteAdminScope } = await import('@/lib/cms/auth-guards')
+    const result = await requireSiteAdminScope('site-1')
+    return { result, rpc, service, setAll: () => setAll }
+  }
+
+  it('org_admin: pergunta can_admin_site_users pela SESSÃO e devolve o usuário', async () => {
+    const { result, rpc, service } = await run({})
+    expect(result).toEqual({ ok: true, user: { id: 'u-1' } })
+    expect(rpc).toHaveBeenCalledWith('can_admin_site_users', { p_site_id: 'site-1' })
+    expect(service).not.toHaveBeenCalled()
+  })
+
+  it('editora (a função responde false): negado', async () => {
+    const { result } = await run({ rpc: async () => ({ data: false, error: null }) })
+    expect(result).toEqual({ ok: false, reason: 'insufficient_access' })
+  })
+
+  it('falha FECHADO: erro da RPC, resposta nula, resposta "truthy" que não é true, exceção', async () => {
+    const denied = { ok: false, reason: 'insufficient_access' }
+    expect((await run({ rpc: async () => ({ data: null, error: { message: 'boom' } }) })).result).toEqual(denied)
+    // erro E data=true ao mesmo tempo: o erro manda
+    expect((await run({ rpc: async () => ({ data: true, error: { message: 'boom' } }) })).result).toEqual(denied)
+    expect((await run({ rpc: async () => ({ data: null, error: null }) })).result).toEqual(denied)
+    expect((await run({ rpc: async () => ({ data: 'true', error: null }) })).result).toEqual(denied)
+    expect((await run({ rpc: async () => ({ data: 1, error: null }) })).result).toEqual(denied)
+    expect((await run({ rpc: async () => { throw new Error('rede caiu') } })).result).toEqual(denied)
+    expect((await run({ cookiesThrow: true })).result).toEqual(denied)
+  })
+
+  it('sem usuário na sessão: unauthenticated, e nem pergunta ao banco', async () => {
+    const a = await run({ user: null })
+    expect(a.result).toEqual({ ok: false, reason: 'unauthenticated' })
+    expect(a.rpc).not.toHaveBeenCalled()
+    const b = await run({ userErr: { message: 'jwt expired' } })
+    expect(b.result).toEqual({ ok: false, reason: 'unauthenticated' })
+    expect(b.rpc).not.toHaveBeenCalled()
+  })
+
+  it('renovar o cookie durante o render (Next proíbe gravar) NÃO vira "negado" para o dono', async () => {
+    const { result, setAll } = await run({ setThrows: true })
+    expect(() => setAll()?.([{ name: 'sb', value: 'x' }])).not.toThrow()
+    expect(result).toEqual({ ok: true, user: { id: 'u-1' } })
+  })
+
+  it('frase de recusa em português', async () => {
+    const { siteAdminOnlyMessage } = await import('@/lib/cms/auth-guards')
+    expect(siteAdminOnlyMessage('disparar a newsletter')).toBe('Só quem administra o site pode disparar a newsletter.')
+  })
+})
