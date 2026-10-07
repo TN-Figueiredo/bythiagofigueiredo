@@ -9,6 +9,7 @@
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { joinLabels, type NicheScope } from '@/lib/youtube/observatorio/niche'
+import { isObserved } from '@/lib/youtube/observatorio/observed'
 import type { Fmt, ForjaRequest, FrozenReading, Niche } from '@/lib/youtube/observatorio/types'
 import type { Scenario } from '@/lib/youtube/observatorio/forja/states'
 import type { AskOutcome, ObsType } from '@/lib/pipeline/services/forja-queue'
@@ -318,7 +319,7 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
 
   // leitura-video: another video of the same niche with an active request blocks the button (spec 2.6)
   const blockedBy = isVid && sc.blockedBy ? { reason: sc.blockedBy.reason, href: obs.link.historico(sc.blockedBy.video), title: sc.blockedBy.title } : null
-  const untracked = isVid && video && !video.tracked ? 'Vídeo fora dos acompanhados: não há dados para a forja ler' : null
+  const untracked = isVid && video && !isObserved(video) ? 'Vídeo fora dos acompanhados: não há dados para a forja ler' : null
   const chOut = isVid && video ? obs.forja.eligibleChannels(video.niche ?? 'todos').out.find(x => x.id === video.ch)?.reason ?? null : null
 
   let button: ForjaButton

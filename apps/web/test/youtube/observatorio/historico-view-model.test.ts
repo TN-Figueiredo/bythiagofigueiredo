@@ -270,11 +270,20 @@ describe('historico view model', () => {
     expect(v.versions!.titles.same).toBe('Sem troca de título vista desde 31/05.')
   })
 
-  it('untracked: no series nor versions, link to the channel', () => {
+  it('untracked (R117): no chart, but the stored versions are there; the notice says what is shown', () => {
     const v = buildHistoricoView(obs, PICK.untr, {})
+    const ch = obs.channel(obs.video(PICK.untr)!.ch)!
     expect(v.chart).toBeNull()
-    expect(v.untracked!.href).toBe(obs.link.canais({ channel: obs.video(PICK.untr)!.ch }))
+    expect(v.untracked!.href).toBe(obs.link.canais({ channel: ch.id }))
+    // what today's screen still prints; the interface task replaces it with `notice`
     expect(v.untracked!.text).toMatch(/os mais recentes; este ficou de fora/)
+    expect(v.untracked!.notice).toBe('Este vídeo está fora dos ' + ch.video_limit + ' mais recentes acompanhados de ' + ch.name + '. Mostramos o histórico de títulos, thumbnails e descrições guardado. O gráfico de views só aparece para vídeos acompanhados ou fixados.')
+    expect(v.lanes.map(l => l.versions.length)).toEqual([1, 1, 1])
+    expect(v.versions!.titles.items).toHaveLength(1)
+    expect(v.comparisons).toEqual([])
+    expect(v.lanesAxis).not.toBeNull()
+    expect(v.pin).toEqual({ pinned: false, used: 0, limit: obs.RULES.pinLimit, state: null, note: null })
+    expect(v.header!.views).toEqual({ num: null, text: 'contagem de views não acompanhada' })
   })
 
   it('no text carries NaN/undefined/null', () => {

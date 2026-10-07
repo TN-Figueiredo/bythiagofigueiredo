@@ -10,6 +10,7 @@ import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import type { Niche, ObsChannel, ObsVideo, SeriesPoint } from '@/lib/youtube/observatorio/types'
 import type { TitleOp } from '@/lib/youtube/observatorio/text-diff'
+import { isObserved } from '@/lib/youtube/observatorio/observed'
 import { mudancasList, effectView, type EffectView } from '../_mudancas/view-model'
 import { buildOutliersView, ages2label } from '../_outliers/view-model'
 import { buildForjaView, forjaReadingView, patternsOf, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
@@ -65,6 +66,12 @@ export interface LaneView {
   /** Thumbnail before the image archive started (hatched, "antes de DD/MM"). */
   pre: { fromH: number; toH: number; text: string; title: string } | null
 }
+
+/**
+ * Time axis of the lanes when there is no chart (a video outside the observed ones, R117). Hours since publication, like
+ * the lanes: from the first stored version to the last time a version was seen. toH may equal fromH (seen once).
+ */
+export interface LanesAxisView { fromH: number; toH: number; ticks: Array<{ h: number; label: string }> }
 
 export interface LegendItem { kind: 'curve' | 'dash' | 'shade' | 'hatch' | 'win' | 'thumb' | 'text'; text: string }
 export interface Bin { a: number; b: number; vpd: number; y: number; from0: boolean; label: string; labelY: number }
@@ -170,7 +177,13 @@ export interface HistoricoView {
   versions: VersionsView | null
   pager: PagerView | null
   state: HistState
-  untracked: { text: string; href: string } | null
+  /** Outside the observed videos. `text` is the sentence the screen prints today; `notice` is the R117 one (non-null only with stored versions). */
+  untracked: { text: string; href: string; notice: string | null } | null
+  /** The lanes' own axis: non-null only when `chart` is null and there are stored versions. */
+  lanesAxis: LanesAxisView | null
+  /** Pin state of this video and of its channel (R118); null for an own channel's video and for not-found. */
+  /** `state` mirrors ObsVideo.pinState (null = not pinned); `note` is the sentence of 'aguardando-primeira', else null. */
+  pin: { pinned: boolean; used: number; limit: number; state: 'aguardando-primeira' | 'ativo' | null; note: string | null } | null
   notFound: { title: string; text: string; href: string; back: string } | null
   /** The forja (leitura do vídeo, Task 35): the screen's solid button, blockedBy and the card. */
   forja: ForjaView | null
@@ -232,7 +245,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     const href = backHref(from, from === 'mudancas' ? obs.link.mudancas({ niche: userNiche }) : from === 'outliers' ? obs.link.outliers({ niche: userNiche }) : from === 'canais' ? obs.link.canais({ niche: userNiche }) : obs.link.insights({ niche: userNiche }))
     return {
       video: null, chromeNiche: userNiche, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, compareEmpty: null,
-      versions: null, pager: null, state: 'not-found', untracked: null, forja: null, forjaCard: null,
+      versions: null, pager: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, forja: null, forjaCard: null,
       crumbs: { from, crumb: FROM_LABEL[from], href, sub: null },
       notFound: { title: 'Vídeo não encontrado: “' + id + '”.', text: 'Ele não está entre os vídeos observados: o link pode estar errado ou o vídeo saiu da lista do canal.', href, back: 'Voltar para ' + FROM_LABEL[from] },
     }
@@ -245,6 +258,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const F = obs.fmt
   const sy = ch.sync
   const syncOk = sy.state === 'ok'
+  const observed = isObserved(v)
 
   // ---------- niche: another niche changes the niche only for this view (nothing persisted) ----------
   let chromeNiche: NicheScope = userNiche, nicheToast: string | null = null
@@ -267,8 +281,18 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const seriesStartH = bins.length ? bins[0]!.a : pts.length ? hx(pts[0]!.t) : H
   const changes: ObsChange[] = obs.changes.filter(c => c.video === v.id).sort((a, b) => a.at - b.at)
   const obsSince: number | null = sy.added ?? ch.snapshots[0]?.t ?? null
-  const stalled = (sy.state === 'atrasado' || sy.state === 'erro') && sy.last != null
-  const endNow = stalled ? Math.min(now, sy.last!) : now
+  // R117: a video outside the observed ones has no schedule of its own. Its versions end at the last time one of them was
+  // seen, never "agora": the rest of the screen reads that as a stalled check.
+  const seenAt = [...v.titles, ...v.thumbs, ...v.descs].map(x => x.last_seen)
+  const lastSeen = seenAt.length ? Math.min(now, Math.max(...seenAt)) : now
+  // D13: a video pinned outside the tracked ones and not checked since is in the same position until its first check
+  const pinPending = v.pinState === 'aguardando-primeira'
+  const unchecked = !observed || pinPending
+  const chStalled = (sy.state === 'atrasado' || sy.state === 'erro') && sy.last != null
+  const stalled = unchecked || chStalled
+  const endNow = unchecked ? lastSeen : chStalled ? Math.min(now, sy.last!) : now
+  // the first check only has a deadline while the channel is syncing; otherwise it waits for the channel (mockup r4, N1)
+  const pinNote = !pinPending ? null : syncOk ? 'Fixado agora. A primeira conferência acontece em até 6 h.' : 'Fixado agora. A primeira conferência acontece na próxima sincronização do canal.'
   // dados.js keeps sync.added only for a channel that joined AFTER the observatory began (the founding ones have none);
   // production stores added_at for every channel, so one added on the observatory's first day is a founding channel,
   // watched "desde DD/MM", not a recent add first checked at that instant
@@ -435,7 +459,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       return { crumb: 'Outliers', href, ids: ov.pageIds, keepIds: null, of: 'em Outliers (' + desc + ')', outside: 'fora da lista de Outliers (' + desc + ')', sub: null }
     }
     if (from === 'canais') {
-      const own = obs.videos.filter(x => x.ch === vv.ch && x.tracked && x.fmt === vv.fmt).sort((a, b) => b.pub - a.pub).map(x => x.id)
+      const own = obs.videos.filter(x => x.ch === vv.ch && isObserved(x) && x.fmt === vv.fmt).sort((a, b) => b.pub - a.pub).map(x => x.id)
       const ids = qids.length ? qids : own
       let href: string, subHref: string
       if (bp.get('channel')) {
@@ -479,6 +503,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   }
   const syncTail = () => (sy.state === 'backfill' || (sy.added != null && now - sy.added < 48 * H_MS) ? ', ' + syncPhrase() : '')
   const sameSinceText = (field: 'título' | 'descrição') => {
+    if (unchecked) return 'Sem troca de ' + field + ' vista até ' + dmhmY(endNow) + ', a última conferência deste vídeo.'
     const fem = field === 'descrição'
     if (obsSince != null && pub >= obsSince && syncOk) return 'Mesm' + (fem ? 'a' : 'o') + ' ' + field + ' desde a publicação.'
     const fromMs = obsSince != null ? Math.max(obsSince, pub) : pub
@@ -487,6 +512,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     return 'Sem troca de ' + field + ' vista desde ' + D.dmOrDmy(fromMs) + (syncOk || lastCheck == null ? '' : '; não conferid' + (fem ? 'a' : 'o') + ' desde ' + dmhmY(lastCheck) + syncTail()) + '.'
   }
   const watchText = () => {
+    if (pinNote) return pinNote
     const sinceTxt = obsSince != null ? 'Observamos ' + ch.name + ' desde ' + D.dmOrDmy(obsSince) : 'Observamos ' + ch.name
     if (sy.added != null && now - sy.added < 48 * H_MS) return 'Canal adicionado ' + D.ago(sy.added) + ': as trocas são conferidas a partir de ' + dmhmY(sy.added) + ', ' + obs.SYNC.cadence
     if (!syncOk) return sinceTxt + ', mas as trocas não estão sendo conferidas' + (sy.last != null ? ' desde ' + dmhmY(sy.last) : '') + syncTail()
@@ -498,14 +524,14 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   function buildHeader(): HeaderView {
     const vv = v!, m = vv.mult
     const nT = titles.length, distinct = new Set(v!.thumbs.map(t => t.key)).size, nD = descs.length, ret = changes.some(c => c.revertTo)
-    const counts: HeaderView['counts'] = !vv.tracked ? [] : !changes.length ? [{ type: null, text: 'Nenhuma troca registrada' }] : [
+    const counts: HeaderView['counts'] = !observed ? [] : !changes.length ? [{ type: null, text: 'Nenhuma troca registrada' }] : [
       { type: 'title', text: F.plural(nT, 'título', 'títulos') },
       { type: 'thumb', text: thumbs.length > 1 ? distinct + ' thumbnails em ' + thumbs.length + ' períodos' + (ret ? ' (uma voltou)' : '') : thumbPreAt != null ? '1 thumbnail (vista desde ' + preLabel + ')' : F.plural(thumbs.length, 'thumbnail', 'thumbnails') },
       { type: 'desc', text: F.plural(nD, 'descrição', 'descrições') },
     ]
     const lastP = pts[pts.length - 1]
     let multText: string
-    if (!m || (m.value == null && !vv.tracked)) multText = 'sem multiplicador'
+    if (!m || (m.value == null && !observed)) multText = 'sem multiplicador'
     else if (m.value == null) multText = 'sem multiplicador: ' + (m.reason === 'sem série' ? 'nenhum registro diário ainda' : m.reason || m.label || 'sem base')
     else {
       const lab = String(m.label ?? '').replace('vs vídeos do canal', vv.fmt === 'short' ? 'vs Shorts do canal' : 'vs vídeos do canal')
@@ -517,7 +543,11 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       thumb: cur?.thumb ?? { src: null, missing: 'Nenhuma thumbnail registrada.', alt: 'Thumbnail' },
       dur: fmtDur(vv.dur),
       chan: { name: ch.name, ini: ch.ini || ch.name.slice(0, 2).toUpperCase(), avatar: ch.avatar ?? null, color: ch.color || '#3B2F8F', niche: vv.niche ? obs.nicheLabel(vv.niche) : null },
-      views: vv.views != null ? { num: F.num(vv.views), text: ' views' + (syncOk || vv.viewsAt == null ? '' : ' até o registro diário de ' + dmhmY(vv.viewsAt)) } : { num: null, text: 'views ainda não registradas' },
+      views: !observed ? { num: null, text: 'contagem de views não acompanhada' }
+        : pinPending ? { num: null, text: 'contagem de views na primeira conferência' }
+        // a pinned video outside the tracked ones: the count and its date are the pair the pinned check writes (D15)
+        : vv.pinned === true && !vv.tracked && vv.views != null && vv.checkedAt != null ? { num: F.num(vv.views), text: ' views em ' + dmhmY(vv.checkedAt) }
+        : vv.views != null ? { num: F.num(vv.views), text: ' views' + (syncOk || vv.viewsAt == null ? '' : ' até o registro diário de ' + dmhmY(vv.viewsAt)) } : { num: null, text: 'views ainda não registradas' },
       pub: { age: F.age(vv), full: dmhmY(pub) },
       fmt: vv.fmt === 'short' ? 'Short' : 'Vídeo longo',
       sync: { text: sy.problemPhrase || obs.syncText(ch.id), bad: !syncOk, title: sy.msg ?? '' },
@@ -527,13 +557,63 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     }
   }
 
+  // ---------- versions section ----------
+  const tc = changes.filter(c => c.type === 'thumb' && c.testCompare)
+  const thumbNotes: VersionsView['thumbs']['notes'] = []
+  if (tc.length) { const c = tc[0]!; const b = keyOf((c.before as { key: string }).key), a = keyOf((c.after as { key: string }).key); thumbNotes.push({ kind: 'ab', text: b + ' → ' + a + ' → ' + b + ' em ' + D.dur(c.cycleMs ?? 0) + ': alternância típica do Testar e comparar (teste A/B do YouTube). Compatível, não confirmado — o YouTube não informa o teste nem o vencedor.' }) }
+  if (thumbPreAt != null) thumbNotes.push({ kind: 'warn', text: 'Thumbnail vista desde ' + preLabel + ', quando o arquivo de imagens começou. Trocas de thumbnail anteriores vinham de um método antigo (pela URL), que não é confiável, então não aparecem como troca.' })
+  const dc = changes.filter(c => c.type === 'desc'), withText = dc.filter(c => c.diff)
+  const versions: VersionsView = {
+    thumbs: { src: thumbs.length > 1 ? new Set(v.thumbs.map(t => t.key)).size + ' imagens em ' + thumbs.length + ' períodos, em ordem' : thumbs.length ? 'sem troca vista' : 'Nenhuma thumbnail registrada', cards: thumbs, notes: thumbNotes },
+    titles: { src: titles.length > 1 ? 'trechos alterados contra o anterior' : 'sem troca vista', same: titles.length > 1 ? null : sameSinceText('título'), items: titles },
+    descs: {
+      src: descs.length < 2 ? 'sem troca vista' : withText.length ? 'comparação linha a linha' : 'texto antigo não guardado',
+      same: descs.length < 2 ? sameSinceText('descrição') : null, rows: descs,
+      notes: descs.length < 2 ? [] : dc.filter(c => !c.diff).map(c => (verLabel.get(c.fromId) ?? c.fromId) + ' → ' + (verLabel.get(c.toId) ?? c.toId) + ' (' + c.whenText + '): antes de ' + S03 + ' a sincronização só registrava que a descrição mudou, sem guardar o texto. Não há comparação linha a linha para esta troca.'),
+      diffs: descs.length < 2 ? [] : withText.map(c => ({
+        sum: (verLabel.get(c.fromId) ?? c.fromId) + ' → ' + (verLabel.get(c.toId) ?? c.toId) + ': ' + c.diff!.label,
+        utm: c.diff!.utm, utmNote: c.diff!.utm ? F.plural(c.diff!.utm, 'mudança só de link/UTM oculta', 'mudanças só de link/UTM ocultas') : null,
+        rows: diffRows(obs, c.diff!.lines),
+      })),
+    },
+  }
+
+  /** The legend items that describe the lanes (shared by the chart legend and by the lanes-only view of R117). */
+  const laneLegend = (): LegendItem[] => {
+    const out: LegendItem[] = []
+    if (thumbPreAt != null) out.push({ kind: 'hatch', text: 'thumbnail antes de ' + preLabel + ': não registrada' })
+    if (events.some(e => e.win)) out.push({ kind: 'win', text: 'janela entre duas sincronizações: título e descrição não têm minuto; sincronização ' + obs.SYNC.cadence })
+    if (events.some(e => e.type === 'thumb')) out.push({ kind: 'thumb', text: 'troca de thumbnail com horário exato (detectada pela mudança do arquivo da imagem)' })
+    if (!events.length) out.push({ kind: 'text', text: 'Nenhuma troca registrada.' })
+    return out
+  }
+  const pin: HistoricoView['pin'] = ch.own ? null
+    : { pinned: v.pinned === true, used: obs.videos.filter(x => x.ch === v.ch && x.pinned === true).length, limit: obs.RULES.pinLimit, state: v.pinState ?? null, note: pinNote }
+
   const videoOut = { id: v.id, title: v.title, channel: ch.name, niche: v.niche, age: F.age(v), url: v.url, nicheToast }
   const state = stateOf(obs, v, ch, changes)
-  if (!v.tracked) {
+  if (!observed) {
+    // R117 (replaces the display half of R37): what was stored is shown. There is no daily record, so no chart and no
+    // before/after comparison (every change of this video reads 'sem-serie'). `text` is still what the screen prints.
+    const stored = v.thumbs.length > 0 || v.descs.length > 0 || v.titles.some(t => t.id !== v.id + '/title')
+    const text = ch.name + ' tem ' + F.plural(ch.video_limit, 'vídeo acompanhado', 'vídeos acompanhados') + ', os mais recentes; este ficou de fora. Sem registro diário de views e sem versões de título, thumbnail ou descrição para mostrar.'
+    const href = obs.link.canais({ channel: v.ch })
+    const common = { video: videoOut, chromeNiche, crumbs, header, chart: null, comparisons: [], defaultPair: null, compareEmpty: null, pager, state, notFound: null, pin, ...forjaOf(obs, v, ch) }
+    if (!stored) return { ...common, lanes: [], legends: {}, versions: null, lanesAxis: null, untracked: { text, href, notice: null } }
+    const axisFrom = Math.max(pub, Math.min(...[...v.titles, ...v.thumbs, ...v.descs].map(x => (lateObs(x) ? obsSince! : startMs(x)))))
+    const tick = (ms: number) => ({ h: hx(ms), label: dmhmY(ms) }) // D14: DD/MM HH:MM, never the hour-only form
+    const ticks = [tick(axisFrom), ...changes.filter(c => c.at > axisFrom && c.at < endNow).map(c => tick(c.at)), tick(endNow)]
+      .filter((t, i, a) => i === 0 || t.label !== a[i - 1]!.label)
     return {
-      video: videoOut, chromeNiche, crumbs, header, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, compareEmpty: null,
-      versions: null, pager, state, notFound: null, ...forjaOf(obs, v, ch),
-      untracked: { text: ch.name + ' tem ' + F.plural(ch.video_limit, 'vídeo acompanhado', 'vídeos acompanhados') + ', os mais recentes; este ficou de fora. Sem registro diário de views e sem versões de título, thumbnail ou descrição para mostrar.', href: obs.link.canais({ channel: v.ch }) },
+      ...common,
+      lanes: lanes.map(l => ({ ...l, markers: l.markers.map(m => ({ ...m, pairK: null })) })),
+      legends: { '': laneLegend() },
+      versions,
+      lanesAxis: { fromH: hx(axisFrom), toH: hx(endNow), ticks },
+      untracked: {
+        text, href,
+        notice: 'Este vídeo está fora dos ' + ch.video_limit + ' mais recentes acompanhados de ' + ch.name + '. Mostramos o histórico de títulos, thumbnails e descrições guardado. O gráfico de views só aparece para vídeos acompanhados ou fixados.',
+      },
     }
   }
 
@@ -582,7 +662,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     xTicks,
     aria: 'Views por dia de ' + v.title + ', ' + pts.length + ' registros diários. ' + events.length + ' trocas marcadas. Valores na tabela abaixo.',
     fewAxis: few ? [{ h: 0, label: dmhmY(pub) }, ...changes.flatMap(c => (c.window ? [{ h: hx(c.window[0]), label: D.hh(c.window[0]) }, { h: hx(c.window[1]), label: D.hh(c.window[1]) }] : [])), { h: H, label: 'agora ' + D.hm(now) }] : null,
-    stale: stalled && hx(endNow) < H ? { fromH: hx(endNow), title: 'sem conferência desde ' + dmhmY(sy.last!) } : null,
+    stale: chStalled && hx(endNow) < H ? { fromH: hx(endNow), title: 'sem conferência desde ' + dmhmY(sy.last!) } : null,
     table: few ? null : pts.map((pt, i) => {
       const b = bins.find(x => Math.abs(x.b - hx(pt.t)) < 0.01), ex = expected.find(e => e.t === pt.t)
       return [dmhmY(pt.t), F.num(pt.views), b ? F.num(b.v) + (b.from0 ? ' (desde a publicação)' : '') : i === 0 ? '1º registro' : 'sem registro anterior',
@@ -668,7 +748,6 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const defaultPair = (pairs.find(q => ['neutro', 'ganhou', 'perdeu'].includes(q.e.status)) ?? pairs[0])?.k ?? null
 
   // ---------- legend (per selected pair) ----------
-  const hasType = (t: LaneType) => events.some(e => e.type === t)
   const legendFor = (pk: string | null): LegendItem[] => {
     const q = pk ? pairs.find(x => x.k === pk) ?? null : null, cmp = pk ? comparisons.find(x => x.changeId === pk) ?? null : null
     const out: LegendItem[] = []
@@ -681,40 +760,16 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     if (q && cmp?.windows && q.e.observed != null) out.push({ kind: 'shade', text: 'janelas antes e depois de ' + q.label })
     if (compress) out.push({ kind: 'text', text: preDays + ' dias antes de ' + S03 + ' comprimidos à esquerda (sem registro por vídeo)' })
     if (!few && bins.length && H > bins[bins.length - 1]!.b) out.push({ kind: 'hatch', text: stale ? 'sem registro desde ' + D.dm(lastPt!.t) + ', ' + syncPhrase() : 'dia em coleta, fecha ' + nextSnap })
-    if (thumbPreAt != null) out.push({ kind: 'hatch', text: 'thumbnail antes de ' + preLabel + ': não registrada' })
-    if (events.some(e => e.win)) out.push({ kind: 'win', text: 'janela entre duas sincronizações: título e descrição não têm minuto; sincronização ' + obs.SYNC.cadence })
-    if (hasType('thumb')) out.push({ kind: 'thumb', text: 'troca de thumbnail com horário exato (detectada pela mudança do arquivo da imagem)' })
-    if (!events.length) out.push({ kind: 'text', text: 'Nenhuma troca registrada.' })
+    out.push(...laneLegend())
     return out
   }
   const legends: Record<string, LegendItem[]> = { '': legendFor(null) }
   for (const q of pairs) legends[q.k] = legendFor(q.k)
 
-  // ---------- versions section ----------
-  const tc = changes.filter(c => c.type === 'thumb' && c.testCompare)
-  const thumbNotes: VersionsView['thumbs']['notes'] = []
-  if (tc.length) { const c = tc[0]!; const b = keyOf((c.before as { key: string }).key), a = keyOf((c.after as { key: string }).key); thumbNotes.push({ kind: 'ab', text: b + ' → ' + a + ' → ' + b + ' em ' + D.dur(c.cycleMs ?? 0) + ': alternância típica do Testar e comparar (teste A/B do YouTube). Compatível, não confirmado — o YouTube não informa o teste nem o vencedor.' }) }
-  if (thumbPreAt != null) thumbNotes.push({ kind: 'warn', text: 'Thumbnail vista desde ' + preLabel + ', quando o arquivo de imagens começou. Trocas de thumbnail anteriores vinham de um método antigo (pela URL), que não é confiável, então não aparecem como troca.' })
-  const dc = changes.filter(c => c.type === 'desc'), withText = dc.filter(c => c.diff)
-  const versions: VersionsView = {
-    thumbs: { src: thumbs.length > 1 ? new Set(v.thumbs.map(t => t.key)).size + ' imagens em ' + thumbs.length + ' períodos, em ordem' : thumbs.length ? 'sem troca vista' : 'Nenhuma thumbnail registrada', cards: thumbs, notes: thumbNotes },
-    titles: { src: titles.length > 1 ? 'trechos alterados contra o anterior' : 'sem troca vista', same: titles.length > 1 ? null : sameSinceText('título'), items: titles },
-    descs: {
-      src: descs.length < 2 ? 'sem troca vista' : withText.length ? 'comparação linha a linha' : 'texto antigo não guardado',
-      same: descs.length < 2 ? sameSinceText('descrição') : null, rows: descs,
-      notes: descs.length < 2 ? [] : dc.filter(c => !c.diff).map(c => (verLabel.get(c.fromId) ?? c.fromId) + ' → ' + (verLabel.get(c.toId) ?? c.toId) + ' (' + c.whenText + '): antes de ' + S03 + ' a sincronização só registrava que a descrição mudou, sem guardar o texto. Não há comparação linha a linha para esta troca.'),
-      diffs: descs.length < 2 ? [] : withText.map(c => ({
-        sum: (verLabel.get(c.fromId) ?? c.fromId) + ' → ' + (verLabel.get(c.toId) ?? c.toId) + ': ' + c.diff!.label,
-        utm: c.diff!.utm, utmNote: c.diff!.utm ? F.plural(c.diff!.utm, 'mudança só de link/UTM oculta', 'mudanças só de link/UTM ocultas') : null,
-        rows: diffRows(obs, c.diff!.lines),
-      })),
-    },
-  }
-
   return {
     video: videoOut, chromeNiche, crumbs, header, chart, lanes, legends, comparisons, defaultPair,
     compareEmpty: pairs.length ? null : endDot(watchText()) + ' Se o canal trocar título, thumbnail ou descrição, a troca aparece na curva acima e entra em Mudanças.',
-    versions, pager, state, untracked: null, notFound: null, ...forjaOf(obs, v, ch),
+    versions, pager, state, untracked: null, lanesAxis: null, pin, notFound: null, ...forjaOf(obs, v, ch),
   }
 }
 
@@ -736,8 +791,8 @@ function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoV
   const noSince = (x: ForjaReadingView): ForjaReadingView => ({ ...x, since: null })
   const prev = fresh ? (older ? noSince(forjaReadingView(obs, older, { active: false, isNew: false, activeNote: null })) : null) : vr
   const tm = obs.forja.timing('leitura-video', v.niche ?? 'todos')
-  const exReason = !v.tracked ? 'Vídeo fora dos acompanhados: não há dados para a forja ler' : v.niche ? obs.forja.eligibleChannels(v.niche).out.find(o => o.id === v.ch)?.reason ?? null : null
-  const exAct = !v.tracked ? '' : ch.sync.state === 'erro' ? 'Corrija o canal em Canais antes de pedir uma leitura.' : ch.sync.state === 'backfill' ? 'Espere a busca de vídeos terminar antes de pedir uma leitura.' : 'Sincronize o canal antes de pedir uma leitura deste vídeo.'
+  const exReason = !isObserved(v) ? 'Vídeo fora dos acompanhados: não há dados para a forja ler' : v.niche ? obs.forja.eligibleChannels(v.niche).out.find(o => o.id === v.ch)?.reason ?? null : null
+  const exAct = !isObserved(v) ? '' : ch.sync.state === 'erro' ? 'Corrija o canal em Canais antes de pedir uma leitura.' : ch.sync.state === 'backfill' ? 'Espere a busca de vídeos terminar antes de pedir uma leitura.' : 'Sincronize o canal antes de pedir uma leitura deste vídeo.'
   const excluded = exReason ? (endDot(exReason) + ' ' + exAct).trim() : null
   const nicheBlk = (): HistForjaCard['niche'] => {
     if (!v.niche) return null
@@ -841,7 +896,7 @@ function diffRows(obs: Observatory, lines: Array<{ op: 'ctx' | 'add' | 'rem' | '
 }
 
 function stateOf(obs: Observatory, v: ObsVideo, ch: ObsChannel, changes: ObsChange[]): HistState {
-  if (!v.tracked) return 'untr'
+  if (!isObserved(v)) return 'untr'
   if (ch.sync.state === 'backfill') return 'bf'
   if (ch.sync.state === 'erro') return 'err'
   if (!v.series.length) return 'noreg'
