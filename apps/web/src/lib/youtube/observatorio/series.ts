@@ -6,6 +6,7 @@ import type { MultiplierResult } from './multiplier'
 import { DAY, H } from './time'
 import { RULES, bandOf } from './rules'
 import { median } from './stats'
+import { isObserved } from './observed'
 
 export interface Derived { vpd: number | null; vpd7: number | null; mult: MultiplierResult | null }
 export interface EngineCtx {
@@ -97,7 +98,7 @@ export function periodRate(ctx: EngineCtx, videoId: string, fromMs: number, toMs
   if (!v) throw new Error('periodRate: unknown video ' + videoId)
   if (toMs - fromMs < DAY) return { vpd: null, sharedDay: false, onlySinceDays: null, coveredHours: 0, text: 'menos de 1 dia no ar, sem média' }
   const iv = intervalsOf(ctx, v)
-  if (!iv.length) return { vpd: null, sharedDay: false, onlySinceDays: null, coveredHours: 0, text: v.tracked ? 'aguardando o 2º registro diário' : 'fora dos vídeos acompanhados' }
+  if (!iv.length) return { vpd: null, sharedDay: false, onlySinceDays: null, coveredHours: 0, text: isObserved(v) ? 'aguardando o 2º registro diário' : 'fora dos vídeos acompanhados' }
   let s = 0, w = 0, shared = false
   for (const x of iv) { const o = Math.min(toMs, x.b) - Math.max(fromMs, x.a); if (o > 0) { s += x.vpd * o; w += o; if (o < x.b - x.a - 1) shared = true } }
   if (w < DAY) return { vpd: null, sharedDay: shared, onlySinceDays: null, coveredHours: w / H, text: 'sem registro diário no período' }

@@ -5,6 +5,7 @@ import { DAY } from './time'
 import { viewsAtAge, viewsAtIdx, fromDayZero } from './series'
 import type { EngineCtx } from './series'
 import type { ObsVideo } from './types'
+import { isObserved } from './observed'
 
 export interface MultiplierResult {
   value: number | null; method: 'mesmo dia de vida' | 'aproximação por faixa' | null; n: number
@@ -18,7 +19,7 @@ export function multiplierAt(ctx: EngineCtx, v: ObsVideo, t: number | null): Mul
   const ch = ctx.CH.get(v.ch)!
   if (t == null) t = ch.lastIdx
   const own = (v.series.length && t != null) ? viewsAtIdx(v, Math.min(t, v.series[v.series.length - 1]!.idx)) : v.views
-  if (own == null) return { value: null, method: null, n: 0, weak: true, reason: v.tracked ? 'sem série' : 'fora dos vídeos acompanhados' }
+  if (own == null) return { value: null, method: null, n: 0, weak: true, reason: isObserved(v) ? 'sem série' : 'fora dos vídeos acompanhados' }
   const tTime = t != null ? clock.snapTime(t) : v.viewsAt!
   const tt = t
   const totalOf = (u: ObsVideo) => u.series.length ? viewsAtIdx(u, tt!) : u.views

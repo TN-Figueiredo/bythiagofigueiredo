@@ -6,6 +6,7 @@ import type { EngineCtx } from './series'
 import type { ObsVideo } from './types'
 import type { ObsChange } from './changes'
 import { DAY } from './time'
+import { isObserved } from './observed'
 
 export type EffectStatus = 'ganhou' | 'perdeu' | 'neutro' | 'inconclusivo' | 'aguardando' | 'sem-serie' | 'sem-antes'
 export interface EffectResult {
@@ -39,8 +40,8 @@ export function effectAt(ctx: EngineCtx, changeId: string, Lcap: number | null):
   const res = { id: c.id, type: c.type } as EffectResult
   const done = (x: Partial<EffectResult>) => { Object.assign(res, x); memo.set(key, res); return res }
   if (c.preSeries) return done({ status: 'sem-serie', label: 'sem série', reason: 'Sem série antes da troca (coleta por vídeo desde ' + S0 + ').' })
-  // R37: the daily record is read only for tracked videos, so an untracked video (and its changes) has no series by design
-  if (!v.tracked) return done({ status: 'sem-serie', label: 'sem série', reason: 'Fora dos vídeos acompanhados: sem série diária de views.' })
+  // R37 + R119: the daily record is read only for observed videos (tracked ∪ pinned), so any other video (and its changes) has no series by design
+  if (!isObserved(v)) return done({ status: 'sem-serie', label: 'sem série', reason: 'Fora dos vídeos acompanhados: sem série diária de views.' })
   if (!v.series.length || ch.lastIdx == null) return done({ status: 'sem-serie', label: 'sem série', reason: 'Vídeo sem série diária de views.' })
   const k = clock.snapIdxAtOrAfter(c.at), L = Lcap == null ? ch.lastIdx : Math.min(ch.lastIdx, Lcap)
   const seriesBefore = Math.max(0, Math.min(RULES.effect.maxBeforeDays, (k - 1) - firstRealIdx(v)))
