@@ -1,9 +1,10 @@
 // @vitest-environment node
 // apps/web/test/integration/observatorio-load-measure.test.ts — the loader against a real database, counting the
 // HTTP requests and the bytes received. READ ONLY: it only runs selects. Runs when OBS_MEASURE_SITE_ID is set.
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { loadRows } from '@/lib/youtube/observatorio/load'
+import { createFakeNextCache } from '../helpers/fake-next-cache'
 
 /**
  * OBS_MEASURE_NO_PIN=1: the measured database has not received the pinned_at migration yet. The column is dropped from
@@ -41,4 +42,21 @@ describe.skipIf(!SITE)('medição no banco configurado (somente leitura)', () =>
     console.info('[medicao-real] sem cache | idas', stat.trips, '| bytes', stat.bytes, '| ms', Date.now() - t0, '| canais', rows.channels.length, '| vídeos', rows.videos.length, '| versões', rows.versions.length, '| diários', rows.daily.length)
     expect(rows.channels.length).toBeGreaterThan(0)
   }, 120_000)
+  it('com cache: loadPageRows (1ª abertura e abertura seguinte)', async () => {
+    vi.resetModules()
+    const { client, stat } = countingClient(), cache = createFakeNextCache()
+    vi.doMock('next/cache', () => cache.module)
+    vi.doMock('@sentry/nextjs', () => ({ captureMessage: vi.fn() }))
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => client }))
+    const { loadPageRows } = await import('@/lib/youtube/observatorio/load-page')
+    let t0 = Date.now()
+    await loadPageRows(SITE!, Date.now())
+    const miss = { ...stat, ms: Date.now() - t0 }
+    t0 = Date.now()
+    const rows = await loadPageRows(SITE!, Date.now())
+    const stored = [...cache.entries.values()].map(e => e.body.length)
+    console.info('[medicao-real] com cache | 1ª abertura: idas', miss.trips, 'bytes', miss.bytes, 'ms', miss.ms, '| abertura seguinte: idas', stat.trips - miss.trips, 'bytes', stat.bytes - miss.bytes, 'ms', Date.now() - t0, '| maior entrada', Math.max(0, ...stored), '| total guardado', stored.reduce((a, b) => a + b, 0))
+    expect(rows.channels.length).toBeGreaterThan(0)
+    expect(cache.rejected).toEqual([])
+  }, 180_000)
 })

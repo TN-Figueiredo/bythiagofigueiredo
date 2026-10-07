@@ -12,5 +12,7 @@ export const observatoryTag = (siteId: string): string => 'observatorio:' + site
  * after() callback of one): outside it Next throws, which is the right outcome for a caller that cannot invalidate.
  */
 export function invalidateObservatory(siteId: string): void {
-  revalidateTag(observatoryTag(siteId), { expire: 0 })
+  // the tag in a variable: test/lib/cache/revalidate-tag-parity.test.ts reads a nested call as a one-argument revalidateTag
+  const tag = observatoryTag(siteId)
+  revalidateTag(tag, { expire: 0 })
 }
