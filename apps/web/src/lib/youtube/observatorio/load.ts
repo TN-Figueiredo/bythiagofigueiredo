@@ -35,9 +35,12 @@ export interface OwnVideoRow {
 export interface VersionRow {
   id: string; video_id: string; field: string; value_text: string | null; value_hash: string; has_text: boolean; thumb_blob_url: string | null
   first_seen_at: string; last_seen_at: string; window_start: string | null; precision: string; is_current: boolean
+  /** The page loader left the text out on purpose (a description that never changed: nothing reads its text). */
+  text_omitted?: boolean
 }
 export interface LegacyChangeRow { id: string; video_id: string; change_type: string; old_title: string | null; new_title: string | null; detected_at: string | null }
-export interface DailyRow { video_id: string; snap_date: string; views: number; likes: number | null; comments: number | null; taken_at: string }
+/** likes/comments are not read by the engine: the page loader does not select them. */
+export interface DailyRow { video_id: string; snap_date: string; views: number; likes?: number | null; comments?: number | null; taken_at: string }
 export interface SnapshotRow { id?: string; competitor_channel_id: string; snapshot_date: string; subscriber_count: number | null; view_count: number | null; video_count: number | null }
 /** P4 (Task 29) tables: shapes from the plan's migration; jsonb columns stay `unknown` and are narrowed here. */
 export interface ReadingRow {
@@ -65,8 +68,9 @@ export interface ObservatoryRows {
 
 /* ------------------------------------------------------------------ constants */
 const CHANNEL_COLS = 'id, channel_id, channel_name, thumbnail_url, subscriber_count, niche, video_limit, youtube_video_count, sync_status, sync_error, sync_error_since, last_ok_synced_at, last_synced_at, full_sync_completed_at, added_at'
-const VIDEO_COLS = 'id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url, pinned_at'
-const VERSION_COLS = 'id, video_id, field, value_text, value_hash, has_text, thumb_blob_url, first_seen_at, last_seen_at, window_start, precision, is_current'
+export const VIDEO_COLS = 'id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url, pinned_at'
+export const SNAPSHOT_COLS = 'id, competitor_channel_id, snapshot_date, subscriber_count, view_count, video_count'
+export const VERSION_COLS = 'id, video_id, field, value_text, value_hash, has_text, thumb_blob_url, first_seen_at, last_seen_at, window_start, precision, is_current'
 const OWN_VIDEO_COLS = 'id, channel_id, youtube_video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, updated_at, tags'
 /** The task columns every reader of the observatory queue selects (the loader and services/forja-queue). */
 export const TASK_COLS = 'id, task_type, target_niche, target_video_id, target_fmt, status, requested_at, started_at, completed_at, failed_at, refused_at, refused_reason, released_at, retry_count, error_message'
@@ -99,7 +103,7 @@ const CHANNEL_COLORS = ['#E8823C', '#A77CE8', '#3FA9C0', '#D9614A', '#60A5FA', '
 const OWN_COLOR = '#B8481A'
 
 /* ------------------------------------------------------------------ small pure helpers */
-const ms = (s: string | null | undefined): number | null => { if (!s) return null; const t = Date.parse(s); return Number.isFinite(t) ? t : null }
+export const ms = (s: string | null | undefined): number | null => { if (!s) return null; const t = Date.parse(s); return Number.isFinite(t) ? t : null }
 /** Os slugs dos nichos de fábrica: o que vale quando quem chama não diz quais nichos o site tem. */
 const BUILTIN_IDS: ReadonlySet<string> = new Set(BUILTIN_NICHES.map(n => n.id))
 /** O valor é um nicho do site? Um slug fora da lista vira null ("sem nicho"): o canal continua na tela, em Todos e no grupo Sem nicho. */
@@ -406,7 +410,7 @@ export function taskRowToRequest(t: TaskRow, lastPollAt: number | null, now: num
 interface PgErr { message: string; code?: string }
 interface RangeQuery { range(from: number, to: number): PromiseLike<{ data: unknown; error: PgErr | null }> }
 /** Pages a read until a short page; a DB error throws (never an empty list in disguise). */
-async function readAll<T>(table: string, build: () => RangeQuery): Promise<T[]> {
+export async function readAll<T>(table: string, build: () => RangeQuery): Promise<T[]> {
   const out: T[] = []
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await build().range(from, from + PAGE - 1)
@@ -437,7 +441,7 @@ export async function mapLimit<A, B>(items: readonly A[], limit: number, fn: (a:
   return out
 }
 /** `in()` chunks of one table are read in parallel (≤ IN_CHUNK_CONCURRENCY at a time): one logical pass, not a sequential crawl. */
-async function readIn<T>(table: string, ids: readonly string[], build: (chunk: string[]) => RangeQuery): Promise<T[]> {
+export async function readIn<T>(table: string, ids: readonly string[], build: (chunk: string[]) => RangeQuery): Promise<T[]> {
   const chunks: string[][] = []
   for (let i = 0; i < ids.length; i += IN_CHUNK) chunks.push(ids.slice(i, i + IN_CHUNK))
   return (await mapLimit(chunks, IN_CHUNK_CONCURRENCY, chunk => readAll<T>(table, () => build(chunk)))).flat()
@@ -476,16 +480,20 @@ export function dailyCappedFrom(seriesStart: number, now: number): number | null
   return seriesStart - DAY < now - DAILY_MAX_DAYS * DAY ? spDateStart(dailyReadFrom(seriesStart, now)) : null
 }
 
+/** First SP date of the channel snapshots read (SNAPSHOT_DAYS back). */
+export function snapshotReadFrom(now: number): string { return spDate(now - SNAPSHOT_DAYS * DAY) }
+
 export interface LoadOptions { siteId: string; now: number; supabase?: SupabaseClient }
 
-export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
-  const sb = opts.supabase ?? getSupabaseServiceClient()
-  const { siteId, now } = opts
+/** The small tables every render reads fresh: settings, channel rows, own channels and videos, niches and the forja queue. */
+export type LiveRows = Pick<ObservatoryRows, 'settings' | 'channels' | 'ownChannels' | 'ownVideos' | 'legacyChanges' | 'readings' | 'tasks' | 'heartbeat' | 'niches'>
+
+/** `seriesStartAt`: SP midnight of the series start, or null while there is no daily record yet (never the clock). */
+export async function loadLiveRows(sb: SupabaseClient, siteId: string, now: number): Promise<LiveRows & { seriesStartAt: number | null }> {
   const st = await sb.from('competitor_settings').select('series_started_at, channel_limit').eq('site_id', siteId).maybeSingle()
   if (st.error) throw new ObservatoryLoadError('competitor_settings', st.error.code, st.error.message)
   const settings = (st.data as SettingsRow | null) ?? null
   const ssAt = ms(settings?.series_started_at)
-  const seriesStart = ssAt != null ? spDayStart(ssAt) : now
 
   const [channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeats, niches] = await Promise.all([
     readAll<ChannelRow>('competitor_channels', () => sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).order('id')),
@@ -501,11 +509,20 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
     // tabela ausente (a migration ainda não chegou a este banco) → null: valem os dois de fábrica; outro erro é lançado
     readNiches(sb, siteId),
   ])
+  return { settings, channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeat: heartbeats[0] ?? null, niches, seriesStartAt: ssAt != null ? spDayStart(ssAt) : null }
+}
+
+export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
+  const sb = opts.supabase ?? getSupabaseServiceClient()
+  const { siteId, now } = opts
+  const { seriesStartAt, ...live } = await loadLiveRows(sb, siteId, now)
+  const seriesStart = seriesStartAt ?? now
+  const { channels } = live
   const channelIds = channels.map(c => c.id)
   const [videos, snapshots] = await Promise.all([
     readVideos(sb, channelIds),
-    readIn<SnapshotRow>('competitor_channel_snapshots', channelIds, ids => sb.from('competitor_channel_snapshots').select('id, competitor_channel_id, snapshot_date, subscriber_count, view_count, video_count')
-      .in('competitor_channel_id', ids).gte('snapshot_date', spDate(now - SNAPSHOT_DAYS * DAY)).order('id')),
+    readIn<SnapshotRow>('competitor_channel_snapshots', channelIds, ids => sb.from('competitor_channel_snapshots').select(SNAPSHOT_COLS)
+      .in('competitor_channel_id', ids).gte('snapshot_date', snapshotReadFrom(now)).order('id')),
   ])
   const videoIds = videos.map(v => v.id)
   // daily points only for OBSERVED videos (tracked ∪ pinned; the engine ignores the series of the others), from dailyReadFrom to today (SP)
@@ -515,7 +532,7 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
     readIn<DailyRow>('competitor_video_daily', dailyIds, ids => sb.from('competitor_video_daily').select('video_id, snap_date, views, likes, comments, taken_at')
       .in('video_id', ids).gte('snap_date', dailyFrom).lte('snap_date', dailyTo).order('video_id').order('snap_date')),
   ])
-  return { settings, channels, ownChannels, videos, ownVideos, versions, legacyChanges, daily, snapshots, readings, tasks, heartbeat: heartbeats[0] ?? null, niches }
+  return { ...live, videos, versions, daily, snapshots }
 }
 
 export async function loadDataset(opts: LoadOptions): Promise<Dataset> {
