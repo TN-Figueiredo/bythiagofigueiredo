@@ -20,13 +20,20 @@ const LABEL: Record<keyof typeof PICK, string> = {
 export const HISTORICO: ScreenSpec = {
   name: 'historico', mockupFile: 'docs/superpowers/mockups/2026-10-02-observatorio/historico-video.html', route: '/cms/youtube/competitors/video',
   mockThumbSelector: '.th', implThumbSelector: '[data-thumb],[data-thumb-missing]',
-  states: (Object.keys(PICK) as Array<keyof typeof PICK>).map(k => ({ label: LABEL[k], mockupClicks: [LABEL[k]], seed: {}, query: '/<video:' + PICK[k] + '>',
+  // R117 (replaces the display half of R37; mockup 2026-10-06-historico-fixar-video): a video outside the tracked ones now
+  // shows a notice, the lanes on their own axis and the stored versions, where historico-video.html draws one card.
+  // The state left this list; it is covered by historico-pin-screen.test.tsx and historico-untracked.test.ts.
+  states: (Object.keys(PICK) as Array<keyof typeof PICK>).filter(k => k !== 'untr').map(k => ({ label: LABEL[k], mockupClicks: [LABEL[k]], seed: {}, query: '/<video:' + PICK[k] + '>',
     // R64: the CMS shell is narrower than the mockup's chrome; the chart's per-day value labels follow the real width
     // (historico-video.html: only at ≥ 56 px per day) — the value labels of the views chart only
     ...(k === 'full' ? { exclude: { mockup: ['svg text.vl'], impl: ['svg text.vl'] } } : {}) })),
   textAllow: SEAL_R57,
   // R43: the per-video "Salvar no swipe file" is follow-up FU-2 (Task 26 report §5: the header has only "Abrir no YouTube")
   mockExclude: ['#saveBtn'],
+  // R118 + "Ordem do cabeçalho do Histórico" (mockup 2026-10-06-historico-fixar-video, which is the one that rules here):
+  // the header's actions block is now right after the title (Fixar vídeo with its hint, Abrir no YouTube, the forja
+  // below), where historico-video.html has it after the facts. Left out on both sides; facts, chips and counts stay compared.
+  exclude: { mockup: ['#vhead .actions'], impl: ['.vhead .actions'] },
   compareSelector: { mockup: '#screen', impl: '[data-obs-screen="historico"]' },
 }
 

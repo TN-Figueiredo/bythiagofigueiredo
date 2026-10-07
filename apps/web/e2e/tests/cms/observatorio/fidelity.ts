@@ -106,7 +106,7 @@ const MOCK_SCREEN = '#screen'
 const DEFAULT_ROOT = '[data-obs-screen]', DEFAULT_TABS = '[data-obs-tabs]'
 const REPO_ROOT = path.resolve(__dirname, '../../../../../..')
 const OUT_DIR = path.resolve(__dirname, '../../../../test-results/observatorio')
-const ADMIN_STATE = path.resolve(__dirname, '../../../.auth/admin.json')
+export const ADMIN_STATE = path.resolve(__dirname, '../../../.auth/admin.json')
 
 const isUrl = (s: string) => /^[a-z][a-z0-9+.-]*:/i.test(s)
 const slug = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'estado'
@@ -163,7 +163,7 @@ export function resolveQuery(q: MockupState['query'], ids: SeedIds): string {
   if (typeof q === 'function') return q(ids)
   return (q ?? '').replace(/<(channel|own|video|reading):([^>]+)>/g, (_, kind: 'channel' | 'own' | 'video' | 'reading', id: string) => ids[kind](id))
 }
-const seedIdsOf = (siteId: string): SeedIds => ({ channel: id => seedUuid(siteId, 'channel', id), video: id => seedUuid(siteId, 'video', id), reading: id => seedUuid(siteId, 'reading', id), own: id => ownSeedUuid(siteId, id) })
+export const seedIdsOf = (siteId: string): SeedIds => ({ channel: id => seedUuid(siteId, 'channel', id), video: id => seedUuid(siteId, 'video', id), reading: id => seedUuid(siteId, 'reading', id), own: id => ownSeedUuid(siteId, id) })
 
 async function openMockup(page: Page, spec: ScreenSpec, state: MockupState, theme: string, root: string): Promise<void> {
   await page.goto(mockupUrl(spec.mockupFile, theme, state.mockupQuery ?? ''))

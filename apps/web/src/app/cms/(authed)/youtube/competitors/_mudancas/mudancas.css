@@ -322,7 +322,12 @@
    failure never moves the pin button. The reserved values are checked by e2e/tests/cms/observatorio/fixar.spec.ts. */
 @media (max-width:1000px){
   [data-obs-screen="mudancas"] .vid-h .who{flex:1 1 0;min-width:0}
-  [data-obs-screen="mudancas"] .vid-h .who:has(.fx-chips) .meta{min-height:38px}
+  [data-obs-screen="mudancas"] .vid-h .who:has(.fx-chips) .meta{min-height:40px}
   [data-obs-screen="mudancas"] .vid-h .fx-chips{min-height:46px;align-content:flex-start}
+}
+/* measured at 390 px with the widest content (three lines of meta; a two-segment chip that wraps, plus the dashed one) */
+@media (max-width:560px){
+  [data-obs-screen="mudancas"] .vid-h .who:has(.fx-chips) .meta{min-height:62px}
+  [data-obs-screen="mudancas"] .vid-h .fx-chips{min-height:56px}
 }
 @media (max-width:760px){[data-obs-screen="mudancas"] .vid .fx-row{padding-left:18px}}

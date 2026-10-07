@@ -1,7 +1,7 @@
 'use client'
 /**
  * "Remover <canal>?": says how much history the removal deletes (R118 / mockup 2026-10-06). The count is asked when the
- * dialog opens; the four rows exist from the start with their height reserved, so the box never changes size and
+ * dialog opens; the four rows exist from the start and the box reserves the height of its tallest state, so it never changes size and
  * "Remover canal" never moves. A failed count never shows zeros: it says it could not count, and removing stays available.
  */
 import { useEffect, useState, type KeyboardEvent } from 'react'
@@ -19,6 +19,8 @@ const ROWS: Array<{ k: Key; one: string; many: string; none: string; sub: (m: Co
   { k: 'bookmarks', one: 'troca salva no swipe file', many: 'trocas salvas no swipe file', none: 'nenhuma', sub: () => 'saem do swipe file junto com o canal' },
 ]
 const int = (n: number) => n.toLocaleString('pt-BR')
+/** The longest the explanation of the first row gets (a five-digit video count): what the sizer reserves room for. */
+const SIZER_SUB = 'títulos, thumbnails e descrições de 00.000 vídeos'
 
 export function RemoveDialog({ id, name, onImpact, onCancel, onConfirm, trap }: {
   id: string; name: string
@@ -46,27 +48,38 @@ export function RemoveDialog({ id, name, onImpact, onCancel, onConfirm, trap }: 
     <div className="modal on" role="dialog" aria-modal="true" aria-labelledby="cn-cfT" aria-describedby="cn-cfLead" onKeyDown={trap}>
       <div className="box fx-remove">
         <h2 id="cn-cfT">Remover {name}?</h2>
-        {phase === 'failed' ? (
-          <div className="fx-loss-box">
-            <p className="fx-never" id="cn-cfLead">Remover apaga todo o histórico deste canal: os vídeos, as versões de título, thumbnail e descrição, os registros diários de views, os vídeos fixados e as trocas salvas no swipe file.</p>
-            <p className="fx-msg fx-err"><PinIcon name="err" /><span>Não foi possível contar o que será apagado. A remoção continua disponível e apaga tudo o que está descrito acima.</span></p>
-          </div>
-        ) : (
-          <div className="fx-loss-box">
-            <p className="fx-never" id="cn-cfLead">Remover apaga todo o histórico deste canal:</p>
-            <ul className="fx-loss" aria-busy={counting ? true : undefined}>
-              {ROWS.map(r => {
-                const n = impact ? impact[r.k] : null
-                return (
-                  <li key={r.k}>
-                    <b className={n == null || n === 0 ? 'fx-wait' : undefined}>{n == null ? 'contando…' : n === 0 ? r.none : int(n)}</b>
-                    <span>{n === 1 || n === 0 ? r.one : r.many}{n === 0 ? null : <span>{r.sub(impact)}</span>}</span>
-                  </li>
-                )
-              })}
+        {/* V3: the sizer is the tallest state (counting: every row with its plural and its explanation), invisible and in the
+            same grid cell as what is shown. The box is as tall as the taller of the two at ANY width, so neither the count
+            arriving nor a failed one resizes it, and "Remover canal" keeps its rectangle. No pixel value to keep in sync. */}
+        <div className="fx-loss-box">
+          <div className="fx-sizer" aria-hidden="true">
+            <p className="fx-never">Remover apaga todo o histórico deste canal:</p>
+            <ul className="fx-lossz">
+              {ROWS.map(r => <li key={r.k}><b className="fx-wait">contando…</b><span>{r.many}<span>{r.k === 'versions' ? SIZER_SUB : r.sub(null)}</span></span></li>)}
             </ul>
           </div>
-        )}
+          {phase === 'failed' ? (
+            <div className="fx-shown">
+              <p className="fx-never" id="cn-cfLead">Remover apaga todo o histórico deste canal: os vídeos, as versões de título, thumbnail e descrição, os registros diários de views, os vídeos fixados e as trocas salvas no swipe file.</p>
+              <p className="fx-msg fx-err"><PinIcon name="err" /><span>Não foi possível contar o que será apagado. A remoção continua disponível e apaga tudo o que está descrito acima.</span></p>
+            </div>
+          ) : (
+            <div className="fx-shown">
+              <p className="fx-never" id="cn-cfLead">Remover apaga todo o histórico deste canal:</p>
+              <ul className="fx-loss" aria-busy={counting ? true : undefined}>
+                {ROWS.map(r => {
+                  const n = impact ? impact[r.k] : null
+                  return (
+                    <li key={r.k}>
+                      <b className={n == null || n === 0 ? 'fx-wait' : undefined}>{n == null ? 'contando…' : n === 0 ? r.none : int(n)}</b>
+                      <span>{n === 1 || n === 0 ? r.one : r.many}{n === 0 ? null : <span>{r.sub(impact)}</span>}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
         <p>Também saem as leituras da forja feitas para vídeos deste canal e o histórico de inscritos dele. O canal deixa o observatório e para de sincronizar.</p>
         <p className="fx-never">Não dá para desfazer: se você adicionar o canal de novo, a coleta recomeça do zero e este histórico não volta.</p>
         <div className="sr" role="status" id="cn-cfStatus">{said}</div>
