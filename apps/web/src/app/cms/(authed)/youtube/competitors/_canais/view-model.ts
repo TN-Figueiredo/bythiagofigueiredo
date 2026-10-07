@@ -2,6 +2,7 @@
  * View model of the Canais screen (port of canais.html cells/syncCell/growthCell/openDrawer/swapCard/effHTML).
  * Pure: every number, date and sentence comes from the engine (Observatory). The component only lays it out.
  */
+import { pinViewOf, type PinView } from '../_chrome/pin-view'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { joinLabels, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, Niche, ObsChannel, ObsVideo, SyncState } from '@/lib/youtube/observatorio/types'
@@ -79,6 +80,8 @@ export interface SwapCard {
 }
 export interface OutRow { id: string; thumb: Thumb; title: string; mult: string; tier: Tier; meta: string; phaseTitle: string; published: string; publishedTitle: string; views: ViewsText }
 export interface VidRow { id: string; thumb: Thumb; title: string; published: string; publishedTitle: string; views: ViewsText; rel: null | { text: string; tier: Tier; outlier: boolean }; vp: { num: string | null; text: string }; histHref: string; ytUrl: string }
+/** One pinned video in the drawer's Vídeos tab: where it stands and its "Desafixar". */
+export interface PinnedRow { id: string; thumb: Thumb; title: string; histHref: string; published: string; where: string; pin: PinView }
 export interface LinkN { n: number; key: string; href: string; text: string }
 export interface DrawerView {
   id: string; tab: DrawerTab; own: boolean; backfill: boolean; name: string; color: string; ini: string; avatar: string | null; niche: Niche | null
@@ -87,7 +90,11 @@ export interface DrawerView {
   stats: Array<{ label: string; labelTitle: string | null; value: string; sub: string; subTitle: string | null; subWeak: boolean }>
   swaps: { count: number; intro: string; note: string | null; cards: SwapCard[]; link: LinkN | null }
   outliers: { tabN: string; tabTitle: string; intro: string; note: string | null; sections: Array<{ fmt: Fmt; title: string; rows: OutRow[]; link: LinkN | null; note: string | null }> }
-  videos: { title: string; intro: string; preNote: string | null; upnext: string | null; rows: VidRow[]; note: string | null }
+  videos: {
+    title: string; intro: string; preNote: string | null; upnext: string | null; rows: VidRow[]; note: string | null
+    /** "Vídeos fixados" (R118): first section of the tab. null = own channel, or a channel still fetching its videos. */
+    pinned: null | { title: 'Vídeos fixados'; count: string; intro: string; empty: string | null; rows: PinnedRow[] }
+  }
 }
 
 export interface CanaisView {
@@ -522,6 +529,14 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     const fNameV = fmt === 'long' ? 'vídeos longos' : 'Shorts'
     const covTxt = bf && c.sync.backfill ? `${c.sync.backfill.done} de ${c.sync.backfill.total} vídeos buscados` : `${S.tracked} vídeos acompanhados`
 
+    /* vídeos fixados: every format, newest first (the pin is per video, not per format) */
+    const pins = c.own || bf ? null : videosOf(c.id).filter(x => x.pinned === true).sort((a, b) => b.pub - a.pub)
+    const pinnedV: DrawerView['videos']['pinned'] = pins == null ? null : {
+      title: 'Vídeos fixados', count: `${c.pinnedCount ?? pins.length} de ${R.pinLimit}`,
+      intro: `Um vídeo fixado continua com gráfico de views e conferência a cada ${obs.SYNC.cadenceHours}${NB}h, mesmo fora dos ${c.video_limit} mais recentes. O limite é de ${R.pinLimit} por canal.`,
+      empty: pins.length ? null : `Nenhum vídeo fixado em ${c.name}. Para fixar, use “Fixar vídeo” no histórico do vídeo ou no cartão dele em Mudanças.`,
+      rows: pins.flatMap(x => { const pin = pinViewOf(obs, x); return pin ? [{ id: x.id, thumb: thumbOf(x), title: x.title, histHref: hist(x.id), published: ageOf(x).text, where: `${x.tracked ? 'entre os' : 'fora dos'} ${c.video_limit} mais recentes`, pin }] : [] }),
+    }
     const tab: DrawerTab = p.tab === 'videos' || p.tab === 'outliers' ? p.tab : 'trocas'
     return {
       id: c.id, tab, own: c.own, backfill: bf, name: c.name, color: c.color, ini: c.ini, avatar: c.avatar ?? null, niche: c.niche, lang: c.own ? langChip(c.lang, many) : null, handle: c.handle, url: c.url,
@@ -540,6 +555,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       videos: {
         title: `${fmt === 'long' ? 'Vídeos longos' : 'Shorts'} mais recentes`, intro: `${c.own ? '' : 'Média de views/dia nos últimos 7 dias. '}Lista completa: ${covTxt}.`,
         preNote: c.own && empty && fmt === 'long' ? ownEmptyText(c) : null, upnext: c.own && empty && fmt === 'long' ? 'Planejar o próximo vídeo longo em Próximos' : null,
+        pinned: pinnedV,
         rows: vids, note: rec.length ? null : bf && c.sync.backfill ? `Buscando: ${c.sync.backfill.done} de ${c.sync.backfill.total} vídeos. A lista aparece quando a busca terminar.` : `Nenhum ${fNameV} acompanhado.`,
       },
     }

@@ -21,6 +21,7 @@ import { ChannelCards } from './channel-cards'
 import { ChannelDrawer, type DrawerShell } from './channel-drawer'
 import { DrawerForjaBox, DrawerForjaFoot } from './drawer-forja'
 import type { ForjaAsk } from '../_chrome/forja-view-model'
+import { PinProvider, type PinAction } from '../_chrome/pin-kit'
 import { AddChannelForm, type AddFn } from './add-channel-form'
 import { RowMenu, rowMenuButton } from './row-menu'
 import { NicheEditorDialog, NicheOptionsContext, NichePendingContext, type NichePending } from './niche-editor'
@@ -40,6 +41,9 @@ export interface CanaisScreenProps {
   onSyncOne: (id: string) => Promise<{ ok: boolean }>
   /** "Pedir leitura à forja" in the channel drawer (server action askForjaReading). */
   onAskForja?: ForjaAsk
+  /** Server actions pinVideo / unpinVideo, for "Desafixar" in the drawer's list of pinned videos. */
+  onPin?: PinAction
+  onUnpin?: PinAction
 }
 
 const UPNEXT = '/cms/up-next'
@@ -69,7 +73,7 @@ function trapTab(e: KeyboardEvent<HTMLElement>) {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
 }
 
-export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja }: CanaisScreenProps) {
+export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
@@ -127,7 +131,12 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const anyModal = addOpen || nicheOpen || !!confirm || drawerModal
 
   // Focus the drawer's close button when it opens (canais.html openDrawer).
-  useEffect(() => { if (panel) closeRef.current?.focus() }, [panel?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  // "Ver fixados" (…#fixados) lands on the list of pinned videos: the drawer then focuses that list's title, not "Fechar"
+  useEffect(() => {
+    if (!panel) return
+    const toPinned = typeof window !== 'undefined' && window.location.hash === '#fixados' && !!document.getElementById('cn-fxPinH') && !document.getElementById('cn-pVid')?.hasAttribute('hidden')
+    if (!toPinned) closeRef.current?.focus()
+  }, [panel?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const rowButton = (id: string) => document.querySelector<HTMLElement>(`[data-obs-screen="canais"] .nmbtn[data-open="${CSS.escape(id)}"]`)
   const openDrawer = (id: string) => { returnFocus.current = rowButton(id); setMenu(null); setClosedDrawer(null); go({ channel: id, tab: null }, { channel: id }) }
@@ -374,10 +383,12 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
         {panel ? (
           <>
             {drawerModal ? <button type="button" className="cn-backdrop" aria-label="Fechar detalhes do canal" tabIndex={-1} onClick={closeDrawer} /> : null}
+            <PinProvider onPin={onPin} onUnpin={onUnpin}>
             <ChannelDrawer d={panel} modal={drawerModal} upnextHref={UPNEXT} onClose={closeDrawer} closeRef={closeRef} trap={trapTab}
               onRemove={from => askRemove(panel.id, from)} onNiche={n => { void setNiche({ id: panel.id, name: panel.name, own: panel.own, niche: panel.niche }, n, 'drawer') }}
               forjaSlot={drawer && view.drawerForja && view.drawerForja.niche === drawer.niche ? <DrawerForjaBox f={view.drawerForja} /> : null}
               forjaFootSlot={drawer && view.drawerForja && view.drawerForja.niche === drawer.niche ? <DrawerForjaFoot f={view.drawerForja} onAsk={onAskForja} /> : null} />
+            </PinProvider>
           </>
         ) : null}
       </div>
