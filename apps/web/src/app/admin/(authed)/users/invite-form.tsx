@@ -9,7 +9,13 @@ export interface SiteOption {
 }
 
 type Scope = 'org' | 'site'
+/**
+ * O formulário só oferece `editor`. `reporter` saiu daqui em 2026-10-07: o código não implementa
+ * a regra dele ("edita o próprio, não publica") — quem recebia o papel só lia. O banco, a action
+ * e os convites antigos continuam aceitando `reporter`; quando a regra existir, a opção volta.
+ */
 type SiteRole = 'editor' | 'reporter'
+const INVITE_SITE_ROLE: SiteRole = 'editor'
 
 interface Props {
   sites: SiteOption[]
@@ -30,8 +36,9 @@ interface Props {
  *
  * UX:
  * - Radio `scope`: org | site. Default = org.
- * - When scope=site, a multi-select of sites is shown + a role picker
- *   (editor | reporter). Role for scope=org is derived as 'org_admin'.
+ * - When scope=site, a multi-select of sites is shown; the role is always
+ *   `editor` (shown as text — `reporter` is not offered, see SiteRole).
+ *   Role for scope=org is derived as 'org_admin'.
  * - Submitting with 0 sites while scope=site shows a local error.
  *
  * The parent Server Component passes the list of sites the caller can
@@ -40,7 +47,6 @@ interface Props {
 export function InviteForm({ sites, action }: Props) {
   const [email, setEmail] = useState('')
   const [scope, setScope] = useState<Scope>('org')
-  const [siteRole, setSiteRole] = useState<SiteRole>('editor')
   const [selectedSiteIds, setSelectedSiteIds] = useState<Set<string>>(new Set())
   const [localError, setLocalError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -71,7 +77,7 @@ export function InviteForm({ sites, action }: Props) {
     const payload = {
       email,
       scope,
-      role: scope === 'org' ? ('org_admin' as const) : siteRole,
+      role: scope === 'org' ? ('org_admin' as const) : INVITE_SITE_ROLE,
       site_ids: scope === 'site' ? Array.from(selectedSiteIds) : [],
     }
 
@@ -125,19 +131,15 @@ export function InviteForm({ sites, action }: Props) {
 
       {scope === 'site' && (
         <>
-          <div>
-            <label htmlFor="invite-site-role" className="block text-sm font-medium mb-1">
-              Papel
-            </label>
-            <select
-              id="invite-site-role"
-              value={siteRole}
-              onChange={(e) => setSiteRole(e.target.value as SiteRole)}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="editor">editor (pode publicar)</option>
-              <option value="reporter">reporter (precisa de aprovação)</option>
-            </select>
+          <div data-testid="invite-site-role">
+            <span className="block text-sm font-medium mb-1">Papel</span>
+            <p className="text-sm">
+              <strong>editor</strong> — redige, edita e publica no site.
+            </p>
+            <p className="text-xs opacity-80 mt-1">
+              Não administra o site: disparar newsletter, exportar dados pessoais, aplicar vencedor
+              de teste A/B, remover canal e mexer em integrações continuam só com quem administra.
+            </p>
           </div>
 
           <div>
