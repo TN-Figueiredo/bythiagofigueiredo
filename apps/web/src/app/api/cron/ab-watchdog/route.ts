@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { getCronHealth, recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import { createNotification } from '@/lib/notifications/create'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { getSiteOwners, logSemDestinatario, SEM_DESTINATARIO } from '@/lib/notifications/get-site-owners'
 import { checkDrift } from '@/lib/youtube/ab-drift'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import * as Sentry from '@sentry/nextjs'
@@ -15,6 +16,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    let semDestinatario = 0
+    let avisosEnviados = 0
     const today = new Date().toISOString().slice(0, 10)
     const rotateHealth = await getCronHealth('ab-rotate')
 
@@ -34,18 +37,16 @@ export async function GET(req: NextRequest) {
         const siteIds = [...new Set(activeTests.map(t => t.site_id))]
 
         for (const siteId of siteIds) {
-          const { data: owner } = await supabase
-            .from('site_users')
-            .select('user_id')
-            .eq('site_id', siteId)
-            .eq('role', 'super_admin')
-            .limit(1)
-            .single()
-
-          if (owner) {
+          const owners = await getSiteOwners(supabase, siteId)
+          if (owners.length === 0) {
+            semDestinatario++
+            logSemDestinatario('ab-watchdog:rotation-missed', siteId)
+          }
+          for (const owner of owners) {
+            avisosEnviados++
             await createNotification({
               site_id: siteId,
-              user_id: owner.user_id,
+              user_id: owner.userId,
               type: 'youtube.rotation_missed',
               domain: 'youtube',
               priority: 1,
@@ -161,18 +162,16 @@ export async function GET(req: NextRequest) {
               .eq('id', test.id)
 
             // 4. Notify owner
-            const { data: owner } = await driftClient
-              .from('site_users')
-              .select('user_id')
-              .eq('site_id', test.site_id)
-              .eq('role', 'super_admin')
-              .limit(1)
-              .single()
-
-            if (owner) {
+            const owners = await getSiteOwners(driftClient, test.site_id)
+            if (owners.length === 0) {
+              semDestinatario++
+              logSemDestinatario('ab-watchdog:drift', test.site_id)
+            }
+            for (const owner of owners) {
+              avisosEnviados++
               await createNotification({
                 site_id: test.site_id,
-                user_id: owner.user_id,
+                user_id: owner.userId,
                 type: 'youtube.drift_detected',
                 domain: 'youtube',
                 priority: 1,
@@ -214,6 +213,11 @@ export async function GET(req: NextRequest) {
       status: 'ok',
       rotate_healthy: !!rotateRanToday,
       last_rotate: rotateHealth?.last_success_at ?? null,
+      avisos: {
+        enviados: avisosEnviados,
+        // Havia aviso a dar e ninguém a quem dar: não é "ok" mudo.
+        ...(semDestinatario > 0 ? { [SEM_DESTINATARIO]: semDestinatario } : {}),
+      },
     })
   } catch (err) {
     Sentry.captureException(err, { extra: { context: 'ab-watchdog' } })

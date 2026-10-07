@@ -1,6 +1,7 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { createNotification } from '@/lib/notifications/create'
 import { getEmailService } from '@/lib/email/service'
+import { getSiteOwners, logSemDestinatario } from '@/lib/notifications/get-site-owners'
 
 /**
  * Checks cron_health for 3+ consecutive days of failures and escalates:
@@ -33,52 +34,49 @@ export async function checkAndEscalate(cronName: string, siteId: string): Promis
   const today = new Date().toISOString().slice(0, 10)
   const dedupKey = `escalation-${cronName}-${today}`
 
-  // Get site admin user_id
-  const { data: owner } = await supabase
-    .from('site_users')
-    .select('user_id')
-    .eq('site_id', siteId)
-    .eq('role', 'super_admin')
-    .limit(1)
-    .single()
+  // Donos do site = org_admin da organização raiz (o `site_users`/'super_admin' antigo nunca existiu).
+  const owners = await getSiteOwners(supabase, siteId)
+  if (owners.length === 0) {
+    // Escalonamento sem a quem escalar: visível no log, nunca "nada a fazer" mudo.
+    logSemDestinatario(`ab-escalation:${cronName}`, siteId)
+    return false
+  }
 
-  if (!owner) return false
+  let sent = false
+  for (const owner of owners) {
+    // Create high-priority in-app notification (with email channel)
+    // The dedup_key prevents duplicate notifications on same day
+    const result = await createNotification({
+      site_id: siteId,
+      user_id: owner.userId,
+      type: 'cron_escalation',
+      domain: 'system',
+      priority: 1,
+      title: `${cronName} falhando há ${Math.floor(daysSinceSuccess)} dias`,
+      message: `O cron "${cronName}" está com ${health.consecutive_failures} falhas consecutivas. Último sucesso: ${health.last_success_at ?? 'nunca'}. Último erro: ${health.last_failure_at ?? 'desconhecido'}.`,
+      dedup_key: dedupKey,
+      action_href: '/cms/youtube/ab-lab',
+      suggested_action: 'Verificar configuração e logs',
+      channels: ['email'],
+    })
 
-  // Create high-priority in-app notification (with email channel)
-  // The dedup_key prevents duplicate notifications on same day
-  const result = await createNotification({
-    site_id: siteId,
-    user_id: owner.user_id,
-    type: 'cron_escalation',
-    domain: 'system',
-    priority: 1,
-    title: `${cronName} falhando há ${Math.floor(daysSinceSuccess)} dias`,
-    message: `O cron "${cronName}" está com ${health.consecutive_failures} falhas consecutivas. Último sucesso: ${health.last_success_at ?? 'nunca'}. Último erro: ${health.last_failure_at ?? 'desconhecido'}.`,
-    dedup_key: dedupKey,
-    action_href: '/cms/youtube/ab-lab',
-    suggested_action: 'Verificar configuração e logs',
-    channels: ['email'],
-  })
+    if (result.suppressed) continue
 
-  if (result.suppressed) return false
+    // Direct SES email as additional escalation path
+    await sendEscalationEmail(owner.email, cronName, health, daysSinceSuccess)
+    sent = sent || result.success
+  }
 
-  // Direct SES email as additional escalation path
-  await sendEscalationEmail(owner.user_id, cronName, health, daysSinceSuccess)
-
-  return result.success
+  return sent
 }
 
 async function sendEscalationEmail(
-  userId: string,
+  email: string | null,
   cronName: string,
   health: { consecutive_failures: number; last_failure_at: string | null; last_success_at: string | null },
   daysSinceSuccess: number,
 ): Promise<void> {
-  const supabase = getSupabaseServiceClient()
-
-  // Use auth.admin API to get user email (auth.users not directly queryable)
-  const { data: userData, error } = await supabase.auth.admin.getUserById(userId)
-  if (error || !userData?.user?.email) return
+  if (!email) return
 
   const fromDomain = process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bythiagofigueiredo.com'
@@ -95,7 +93,7 @@ async function sendEscalationEmail(
 
     await getEmailService().send({
       from: { email: `alerts@${fromDomain}`, name: 'AB Lab Alerts' },
-      to: userData.user.email,
+      to: email,
       subject: `⚠️ ${cronName} falhando há ${Math.floor(daysSinceSuccess)} dias`,
       html: `<p>${textBody.replace(/\n/g, '<br>')}</p>`,
       text: textBody,

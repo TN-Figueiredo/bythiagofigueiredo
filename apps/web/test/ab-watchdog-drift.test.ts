@@ -24,6 +24,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { checkDrift } from '@/lib/youtube/ab-drift'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { setThumbnail } from '@/lib/youtube/ab-youtube'
+import { fakeOwnerClient, rootOrgWithAdmin, OWNER_TABLES } from './helpers/fake-owner-db'
 
 const mockGetHealth = vi.mocked(getCronHealth)
 const mockCheckDrift = vi.mocked(checkDrift)
@@ -42,6 +43,8 @@ function buildDriftSupabase(opts: {
   originalUrl?: string
   /** Canal dono do vídeo (o que `youtube_videos → youtube_channels` devolve). */
   videoOwner?: { channel_id: string } | null
+  /** false = nenhum org_admin na organização raiz. */
+  withOwner?: boolean
 }) {
   const {
     activeTests = [],
@@ -49,7 +52,9 @@ function buildDriftSupabase(opts: {
     video = { youtube_video_id: 'YT_abc123' },
     originalUrl = 'https://xxx.public.blob.vercel-storage.com/ab-originals/uuid/original.jpg',
     videoOwner = { channel_id: 'UCpt' },
+    withOwner = true,
   } = opts
+  const owners = fakeOwnerClient(withOwner ? rootOrgWithAdmin('s1') : {}, { 'owner-1': 'dono@x.com' })
 
   const updateCalls: { table: string; data: Record<string, unknown> }[] = []
 
@@ -115,19 +120,7 @@ function buildDriftSupabase(opts: {
         })),
       }
     }
-    if (table === 'site_users') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              limit: vi.fn().mockReturnValue({
-                single: vi.fn().mockReturnValue({ data: { user_id: 'user-1' }, error: null }),
-              }),
-            }),
-          }),
-        }),
-      }
-    }
+    if (OWNER_TABLES.has(table)) return owners.from(table)
     if (table === 'ab_test_polls' || table === 'competitor_changes' || table === 'competitor_channel_snapshots') {
       return {
         delete: vi.fn().mockReturnValue({
@@ -140,7 +133,7 @@ function buildDriftSupabase(opts: {
     return { select: vi.fn() }
   })
 
-  return { from, updateCalls }
+  return { from, rpc: owners.rpc, auth: owners.auth, updateCalls }
 }
 
 beforeEach(() => {
@@ -290,9 +283,34 @@ describe('ab-watchdog drift detection', () => {
         type: 'youtube.drift_detected',
         priority: 1,
         site_id: 's1',
+        user_id: 'owner-1',
         title: 'Thumbnail alterado externamente',
       }),
     )
+  })
+
+  it('deriva sem org_admin na raiz: pausa o teste, NÃO notifica e registra sem_destinatario no resultado', async () => {
+    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()
+    const mock = buildDriftSupabase({
+      activeTests: [{ id: 't1', site_id: 's1', test_type: 'thumbnail', youtube_video_id: 'v1' }],
+      openCycle: {
+        id: 'c1', variant_id: 'var1', started_at: fourHoursAgo,
+        applied_metadata: { youtube_thumbnail_url: 'https://i.ytimg.com/vi/abc/hq.jpg' },
+      },
+      withOwner: false,
+    })
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mock)
+    mockCheckDrift.mockResolvedValue({ drifted: true, currentUrl: 'https://i.ytimg.com/vi/abc/different.jpg' })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const res = await GET(makeRequest())
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(mockNotify).not.toHaveBeenCalled()
+    expect(body.avisos).toEqual({ enviados: 0, sem_destinatario: 1 })
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('sem_destinatario'))).toBe(true)
+    warn.mockRestore()
   })
 
   it('does not pause when drift is not detected', async () => {

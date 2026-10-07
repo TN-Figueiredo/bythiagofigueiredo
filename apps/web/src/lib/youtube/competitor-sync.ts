@@ -1,6 +1,7 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { link } from '@/lib/youtube/observatorio/links'
 import { createNotification } from '@/lib/notifications/create'
+import { getSiteOwners, logSemDestinatario } from '@/lib/notifications/get-site-owners'
 import crypto from 'crypto'
 import { probeThumb, isNewThumb, archiveThumb, type ThumbProbe } from '@/lib/youtube/thumb-fingerprint'
 import {
@@ -32,6 +33,8 @@ export interface SyncResult {
   dailyRecorded: number
   unitsUsed: number
   skipped?: boolean
+  /** Houve mudança a avisar e nenhum org_admin da organização raiz para receber. */
+  sem_destinatario?: boolean
 }
 
 const SP_OFFSET_MS = 3 * 3_600_000 // America/Sao_Paulo is UTC−3 with no DST since 2019
@@ -644,20 +647,19 @@ export async function syncCompetitorChannel(
     await supabase.from('competitor_channels').update(updatePayload).eq('id', channelRow.id)
 
     // Notifications (unchanged from original)
+    let semDestinatario = false
     if (changesDetected > 0 && process.env.COMPETITOR_NOTIFICATIONS_ENABLED !== 'false') {
       try {
-        const { data: owner } = await supabase
-          .from('site_users')
-          .select('user_id')
-          .eq('site_id', channelRow.site_id)
-          .eq('role', 'super_admin')
-          .limit(1)
-          .single()
+        const owners = await getSiteOwners(supabase, channelRow.site_id)
+        if (owners.length === 0) {
+          semDestinatario = true
+          logSemDestinatario('competitor-sync', channelRow.site_id)
+        }
 
-        if (owner) {
+        for (const owner of owners) {
           await createNotification({
             site_id: channelRow.site_id,
-            user_id: owner.user_id,
+            user_id: owner.userId,
             type: 'youtube.competitor_change',
             domain: 'youtube',
             priority: 2,
@@ -672,7 +674,7 @@ export async function syncCompetitorChannel(
       }
     }
 
-    return { videosChecked, changesDetected, dailyRecorded, unitsUsed }
+    return { videosChecked, changesDetected, dailyRecorded, unitsUsed, ...(semDestinatario ? { sem_destinatario: true } : {}) }
   } catch (error) {
     // Set error status, preserve partial data
     await supabase

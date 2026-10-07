@@ -17,6 +17,8 @@ import { probeThumb } from '@/lib/youtube/thumb-fingerprint'
 import { hashValue } from '@/lib/youtube/competitor-versions'
 import type { StoredVersion, VersionPlan } from '@/lib/youtube/competitor-versions'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { createNotification } from '@/lib/notifications/create'
+import { fakeOwnerClient, rootOrgWithAdmin, OWNER_TABLES } from '../helpers/fake-owner-db'
 
 type Payload = { p_video_id: string; p_close: string[]; p_open: Array<Record<string, unknown>>; p_changes: Array<Record<string, unknown>> }
 
@@ -805,5 +807,48 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
     const f = apiFetch(page, 200, { daily: () => new Response('x', { status: 500 }) })
     await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: f, ...quiet })).rejects.toThrow('YouTube API 500 for pinned videos')
     expect(db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).some(u => 'last_ok_synced_at' in u)).toBe(false)
+  })
+})
+
+describe('syncCompetitorChannel — aviso de mudança ao dono do site', () => {
+  /** setup() + tabelas de dono (organização raiz) servidas pelo fake de getSiteOwners. */
+  function setupWithOwners(withOwner: boolean) {
+    const db = setup({
+      lastDaily: '2026-10-24',
+      existing: [{ id: 'v-1', video_id: 'vid-1', title: 'Old', description_hash: 'x', thumbnail_url: 'http://t', view_count: 1 }],
+      versions: [{ id: 'tv1', video_id: 'v-1', field: 'title', value_text: 'Old', value_hash: hashValue('Old'), thumb_etag: null, thumb_dhash: null }],
+    })
+    const owners = fakeOwnerClient(withOwner ? rootOrgWithAdmin('site-1') : {}, { 'owner-1': 'dono@x.com' })
+    const client = {
+      from: (t: string) => (OWNER_TABLES.has(t) ? owners.from(t) : db.client.from(t)),
+      rpc: (n: string, a: unknown) => (n === 'admin_user_directory' ? owners.rpc() : db.client.rpc(n, a)),
+      auth: owners.auth,
+    }
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(client as never)
+  }
+  const changed = () => apiFetch({ id: 'vid-1', snippet: { title: 'New', publishedAt: recent(), thumbnails: {} }, statistics: { viewCount: '9' } })
+
+  beforeEach(() => { vi.mocked(createNotification).mockReset(); vi.mocked(createNotification).mockResolvedValue({ success: true }) })
+
+  it('com org_admin na organização raiz: a mudança vira aviso com destinatário', async () => {
+    setupWithOwners(true)
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: changed() })
+    expect(r.changesDetected).toBe(1)
+    expect(r.sem_destinatario).toBeUndefined()
+    expect(createNotification).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(createNotification).mock.calls[0]![0]).toMatchObject({
+      site_id: 'site-1', user_id: 'owner-1', type: 'youtube.competitor_change', dedup_key: `competitor-change-cc-1-${NOW_ISO.slice(0, 10)}`,
+    })
+  })
+
+  it('sem org_admin na raiz: não avisa, o sync segue ok e o resultado diz sem_destinatario', async () => {
+    setupWithOwners(false)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: changed() })
+    expect(r.changesDetected).toBe(1)
+    expect(r.sem_destinatario).toBe(true)
+    expect(createNotification).not.toHaveBeenCalled()
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('sem_destinatario'))).toBe(true)
+    warn.mockRestore()
   })
 })

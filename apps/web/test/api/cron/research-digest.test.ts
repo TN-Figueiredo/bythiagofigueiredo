@@ -11,6 +11,7 @@ vi.mock('@/lib/cron-health', () => ({
 import { GET } from '@/app/api/cron/research-digest/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { createNotification } from '@/lib/notifications/create'
+import { fakeOwnerClient, mergeDbs, rootOrgWithAdmin, OWNER_TABLES } from '../../helpers/fake-owner-db'
 
 const mockNotify = vi.mocked(createNotification)
 
@@ -33,12 +34,21 @@ function daysAgoIso(days: number): string {
 
 // Mock that serves: sites list, then per-site digest queries + owner lookup.
 function buildMockSupabase(sites: string[], dataBySite: Record<string, SiteData>) {
+  // Donos reais via getSiteOwners: org_admin da raiz de cada site que tem `owner`.
+  const owners = fakeOwnerClient(
+    mergeDbs(...sites.flatMap((id) => (dataBySite[id]?.owner ? [rootOrgWithAdmin(id, dataBySite[id]!.owner!.user_id)] : []))),
+    {},
+  )
   // current site context — set as queries flow; research queries always carry
   // .eq('site_id', X) first, so we capture it.
   function from(table: string) {
     if (table === 'sites') {
       return {
-        select: () => Promise.resolve({ data: sites.map(id => ({ id })), error: null }),
+        // lista de sites (await direto) e, encadeado, o lookup de org do getSiteOwners
+        select: (cols?: string) =>
+          cols === 'org_id'
+            ? owners.from('sites').select()
+            : Promise.resolve({ data: sites.map(id => ({ id })), error: null }),
       }
     }
     if (table === 'research_items') {
@@ -76,22 +86,10 @@ function buildMockSupabase(sites: string[], dataBySite: Record<string, SiteData>
       }
       return b
     }
-    if (table === 'site_users') {
-      let siteId = ''
-      const b: Record<string, unknown> = {
-        select: () => b,
-        eq: (col: string, val: string) => {
-          if (col === 'site_id') siteId = val
-          return b
-        },
-        limit: () => b,
-        single: () => Promise.resolve({ data: dataBySite[siteId]?.owner ?? null, error: null }),
-      }
-      return b
-    }
+    if (OWNER_TABLES.has(table)) return owners.from(table)
     throw new Error(`unexpected table ${table}`)
   }
-  return { from }
+  return { from, rpc: owners.rpc, auth: owners.auth }
 }
 
 beforeEach(() => {
@@ -175,7 +173,7 @@ describe('cron/research-digest', () => {
     expect(arg.payload).toMatchObject({ kind: 'revisit_due' })
   })
 
-  it('skips a site with no owner', async () => {
+  it('site com recomendação e sem org_admin na raiz: não notifica e o resultado diz sem_destinatario (não é ok mudo)', async () => {
     const items = Array.from({ length: 3 }, (_, i) => ({
       id: `g${i}`, title: `G${i}`, status: 'analise', theme_id: 'games', pinned: false,
       created_at: daysAgoIso(3), updated_at: daysAgoIso(3),
@@ -186,8 +184,11 @@ describe('cron/research-digest', () => {
 
     const res = await GET(makeRequest())
     const body = await res.json()
+    expect(body.status).toBe('ok')
     expect(body.notified).toBe(0)
     expect(body.skipped).toBe(1)
+    expect(body.sem_destinatario).toBe(1)
+    expect(body.perSite[0]).toMatchObject({ siteId: 'site-1', sem_destinatario: true })
     expect(mockNotify).not.toHaveBeenCalled()
   })
 
