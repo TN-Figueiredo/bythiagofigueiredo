@@ -470,8 +470,10 @@
 [data-obs-screen="historico"] table.isum tbody tr.is-hl > *{background:var(--surface-2)}
 [data-obs-screen="historico"] table.isum tbody tr.is-hl > :first-child{box-shadow:inset 4px 0 0 var(--text)}
 [data-obs-screen="historico"] .isum-c{display:flex;align-items:center;gap:8px;padding-left:6px}
-[data-obs-screen="historico"] .isum-b{display:inline-flex;align-items:center;gap:8px;min-height:var(--f4-hit);padding:3px 10px 3px 4px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);cursor:pointer}
-[data-obs-screen="historico"] .isum-b img{width:48px;height:27px;border-radius:3px;display:block}
+[data-obs-screen="historico"] .isum-b{display:inline-flex;flex:none;align-items:center;justify-content:center;gap:8px;min-height:var(--f4-hit);min-width:var(--f4-hit);padding:3px 10px 3px 4px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);cursor:pointer}
+/* flex:none on the button and on its image: in the row of the image that is on air ("no ar" next to it) a narrow table
+   squeezed the image to 16 px (seen at 760 px). min-width: an image that was never archived leaves only the letter */
+[data-obs-screen="historico"] .isum-b img{flex:none;width:48px;height:27px;border-radius:3px;display:block}
 [data-obs-screen="historico"] .isum-b b{font:600 13px var(--font-jetbrains-var),ui-monospace,monospace}
 [data-obs-screen="historico"] .isum-b:hover{background:var(--surface-2)}
 [data-obs-screen="historico"] .isum-b:focus-visible{outline-offset:-2px}

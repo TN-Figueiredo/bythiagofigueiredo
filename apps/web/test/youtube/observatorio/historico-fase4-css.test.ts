@@ -39,6 +39,12 @@ describe('historico.css e mudancas.css depois da Fase 4', () => {
     expect(r).not.toBe('')
     expect(r.includes('font-weight')).toBe(false)
   })
+  it('o botão do resumo por imagem não encolhe (a imagem ficava com 16 px ao lado de "no ar") e tem largura mínima sem imagem', () => {
+    const b = rule(hist, '.isum-b'), img = rule(hist, '.isum-b img')
+    expect(b).toMatch(/flex:none/)
+    expect(b).toMatch(/min-width:var\(--f4-hit\)/)
+    expect(img).toMatch(/flex:none/)
+  })
   it('a lista de um grupo fechado some por [hidden], e a barra da sequência fica por cima das linhas verticais', () => {
     expect(hist).toMatch(/\[data-obs-screen="historico"\] \[hidden\]\{display:none!important\}/)
     expect(rule(hist, '.runrow')).toMatch(/z-index:2/)

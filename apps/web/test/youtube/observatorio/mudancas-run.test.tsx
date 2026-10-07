@@ -71,6 +71,12 @@ describe('folha de estilo', () => {
     expect(css).toMatch(/\[data-obs-screen="mudancas"\] \.seqnote\{/)
     expect(css.includes('color-mix')).toBe(false)
   })
+  it('a linha não herda a caixa de ".run" da seção YouTube (youtube-motion.css): borda, fundo e respiro zerados', () => {
+    const youtube = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../src/app/cms/(authed)/youtube/youtube-motion.css'), 'utf8')
+    expect(youtube).toMatch(/\[data-cms-section="youtube"\] \.run \{/)
+    const r = css.split('\n').find(l => l.startsWith('[data-obs-screen="mudancas"] .when .seq.run{')) ?? ''
+    for (const d of ['border:0', 'background:none', 'padding:0']) expect(r.includes(d), d).toBe(true)
+  })
   it('a coluna da data só alarga acima de 1180 px: o ajuste de 1001 a 1180 px continua valendo', () => {
     expect(css).toMatch(/@media \(min-width:1181px\)\{ \[data-obs-screen="mudancas"\] \.chg\{grid-template-columns:190px minmax\(0,1fr\) 340px\} \}/)
     expect(css).toMatch(/@media \(max-width:1180px\)\{ \[data-obs-screen="mudancas"\] \.chg\{grid-template-columns:150px minmax\(0,1fr\) 290px\}/)
