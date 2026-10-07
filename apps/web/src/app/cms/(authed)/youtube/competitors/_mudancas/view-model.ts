@@ -362,7 +362,12 @@ export function effectView(obs: Observatory, c: ObsChange): EffectView {
     n: e.n ?? 0, band: e.band ?? '', methodShort: (e.methodLabel ?? e.method ?? '').replace(/^método: /, ''),
   } : null
   return {
-    ...base, icon, label, numbers: e.numbers ?? null, pp: e.effectPp != null ? F.pp(e.effectPp) : null, detail: cap(e.reason), wait: null,
+    ...base, icon, label, numbers: e.numbers ?? null, pp: e.effectPp != null ? F.pp(e.effectPp) : null, wait: null,
+    // V9 (R53: one text on both screens): the peers of an effect are the channel's N most recent only (R119), so a pinned
+    // video outside them rarely has any in its age band. Say that, in place of the engine's "poucos vídeos (n = …)".
+    detail: v.pinned === true && !v.tracked && e.inconclusiveKind === 'outro' && e.observed != null && (e.n ?? 0) < obs.RULES.effect.minN
+      ? 'Faltam vídeos na mesma faixa de idade entre os ' + obs.channel(c.ch)!.video_limit + ' mais recentes do canal para comparar. É o que costuma acontecer com um vídeo fixado antigo.'
+      : cap(e.reason),
     spark: rows ? sparkView(obs, e) : null, rows,
     footTitle: rows ? 'Esperado: ' + pl(e.n ?? 0, 'vídeo', 'vídeos') + ' ' + (v.fmt === 'long' ? 'longos' : 'Shorts') + ' sem troca de ' + obs.channel(c.ch)!.name + ' com ' + (e.band ?? '') : null,
   }

@@ -305,6 +305,10 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const recentAdd = sy.added != null && sy.added > pub && sy.added - obs.OBS_START >= DAY
   const few = pts.length < 2
   const stale = pts.length > 0 && pts[pts.length - 1]!.idx < obs.LAST_IDX
+  // a pinned video outside the tracked ones whose series stopped: the points come back with the next daily record,
+  // unless YouTube did not return the video (then nothing is promised)
+  const gapText = v.pinned === true && !v.tracked && stale && pts.length
+    ? 'sem pontos depois de ' + D.dm(pts[pts.length - 1]!.t) + (v.pinState === 'sem-resposta' ? ': o YouTube não devolveu este vídeo na última sincronização' : ': o gráfico volta a ganhar pontos na próxima sincronização do canal depois das 12:00') : null
   const nextSnapMs = D.snapTime(obs.LAST_IDX + 1), nextSnap = D.dm(nextSnapMs) + ' ' + D.hh(nextSnapMs)
   const compress = pub < SS && (SS - pub) / (now - pub) > 0.14
   const preDays = Math.round((SS - pub) / DAY)
@@ -542,7 +546,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     else {
       const lab = String(m.label ?? '').replace('vs vídeos do canal', vv.fmt === 'short' ? 'vs Shorts do canal' : 'vs vídeos do canal')
       const core = lab + (m.weak ? ' (base fraca)' : '') + (m.fallback && m.fallbackText ? '' : ', método: ' + m.method)
-      multText = syncOk || !lastP ? core : core + ', até o registro diário de ' + dmhmY(lastP.t)
+      multText = (syncOk && vv.pinState !== 'aguardando-primeira' && vv.pinState !== 'sem-resposta') || !lastP ? core : core + ', até o registro diário de ' + dmhmY(lastP.t)
     }
     const cur = thumbs[thumbs.length - 1]
     return {
@@ -663,7 +667,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     expectedSteps: expected.map((e, i) => ({ a: e.a, b: e.b, y: yf(e.v), joined: i > 0 && Math.abs(expected[i - 1]!.b - e.a) < 0.5 })),
     yTicks,
     pre: pre ? { toH: compress ? hx(SS) : seriesStartH, lines: compress ? ['antes de ' + S03, preDays + ' dias', 'comprimidos,', 'sem registro'] : ['sem registro por vídeo antes de ' + S03] } : null,
-    hatch: lastBinB != null && H > lastBinB ? { fromH: lastBinB, note: stale ? 'sem registro desde ' + D.dm(lastPt!.t) : null } : null,
+    hatch: lastBinB != null && H > lastBinB ? { fromH: lastBinB, note: gapText ?? (stale ? 'sem registro desde ' + D.dm(lastPt!.t) : null) } : null,
     firstNote: firstNote ? { toH: hx(firstNote.t), text: F.num(firstNote.views) + ' em ' + Math.round(firstNote.h) + ' h' } : null,
     xTicks,
     aria: 'Views por dia de ' + v.title + ', ' + pts.length + ' registros diários. ' + events.length + ' trocas marcadas. Valores na tabela abaixo.',
@@ -765,7 +769,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     }
     if (q && cmp?.windows && q.e.observed != null) out.push({ kind: 'shade', text: 'janelas antes e depois de ' + q.label })
     if (compress) out.push({ kind: 'text', text: preDays + ' dias antes de ' + S03 + ' comprimidos à esquerda (sem registro por vídeo)' })
-    if (!few && bins.length && H > bins[bins.length - 1]!.b) out.push({ kind: 'hatch', text: stale ? 'sem registro desde ' + D.dm(lastPt!.t) + ', ' + syncPhrase() : 'dia em coleta, fecha ' + nextSnap })
+    if (!few && bins.length && H > bins[bins.length - 1]!.b) out.push({ kind: 'hatch', text: gapText ?? (stale ? 'sem registro desde ' + D.dm(lastPt!.t) + ', ' + syncPhrase() : 'dia em coleta, fecha ' + nextSnap) })
     out.push(...laneLegend())
     return out
   }
