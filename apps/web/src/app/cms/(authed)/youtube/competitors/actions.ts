@@ -7,6 +7,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
+import { getCompetitorRemovalImpact, type CompetitorRemovalImpact } from '@/lib/youtube/competitor-removal-impact'
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/competitor-slots'
 import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
@@ -449,4 +450,18 @@ export async function unpinVideo(videoId: string): Promise<PinResult> {
   if (error) return UNPIN_FAILED
   revalidatePath('/cms/youtube/competitors', 'layout')
   return { ok: true }
+}
+
+/**
+ * What "Remover canal" would delete, for the confirmation dialog. `ok: false` covers no access, a channel of another
+ * site and a failed count: the dialog then says it could not count, it never shows zeros.
+ */
+export async function getCompetitorRemovalImpactAction(channelRowId: string): Promise<{ ok: true; impact: CompetitorRemovalImpact } | { ok: false }> {
+  let siteId: string
+  try { siteId = await requireEditAccess() } catch { return { ok: false } }
+  if (typeof channelRowId !== 'string' || !UUID_RE.test(channelRowId)) return { ok: false }
+  try {
+    const impact = await getCompetitorRemovalImpact(siteId, channelRowId)
+    return impact ? { ok: true, impact } : { ok: false }
+  } catch { return { ok: false } }
 }
