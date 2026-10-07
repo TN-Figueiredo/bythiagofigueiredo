@@ -11,7 +11,9 @@ import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import type { Niche, ObsChannel, ObsVideo, SeriesPoint } from '@/lib/youtube/observatorio/types'
 import type { TitleOp } from '@/lib/youtube/observatorio/text-diff'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
-import { mudancasList, effectView, type EffectView } from '../_mudancas/view-model'
+import { RUN_CAVEAT, runCardText, runCore, runShort, runText, runsOf } from '@/lib/youtube/observatorio/test-run'
+import { imageSummary, parseRange, rangeStart, situationOf, statusLine, kindShort, RANGE_IDS, RANGE_LABEL, RANGE_LONG, type Pass, type RangeId, type Situation } from './many-versions'
+import { mudancasList, effectView, type EffectView, type Rich } from '../_mudancas/view-model'
 import { buildOutliersView, ages2label } from '../_outliers/view-model'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
 import { buildForjaView, forjaReadingView, patternsOf, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
@@ -51,7 +53,34 @@ export interface VersionView {
   noText: boolean
   /** Title only: the comparison against the previous title. */
   titleDiff: TitleDiffView | null
+  /** Inside the shown period (always true without a period filter). The arrays keep every version: indexes never shift. */
+  inRange: boolean
+  /** Accessible name of the lane clip: `aria` plus what the clip shows ("…, voltou", "…, no ar"). */
+  name: string
+  /** Start and end as short as the data allows (minute for a thumbnail, sync hour otherwise): the texts of a group of narrow periods. */
+  edge: { from: string; to: string }
 }
+export interface RangeView {
+  value: RangeId
+  options: Array<{ id: RangeId; label: string; aria: string }>
+  /** Hours since publication where the shown period starts (0 = whole video). */
+  fromH: number; cut: boolean
+  /** "De … até agora: X de Y períodos…": the same sentence shape on every option. */
+  text: Rich
+}
+export interface ImageRow {
+  label: string; thumb: ThumbImg | null
+  /** "no ar" / "última vista" when the image is the current one. */
+  now: string | null
+  dur: string; passes: number; rate: string
+  /** When it was on air, in % of the shown period (the strip) and as text (screen readers). */
+  segs: Array<{ left: number; width: number }>; segsText: string
+  rowName: string; pinName: string
+}
+export interface ImageSummaryView { src: string; rows: ImageRow[]; total: { label: string; dur: string; passes: number; rate: string }; note: string }
+/** A run of changes of one field ("trocas em sequência", R121) as a bar under the lane. */
+export interface RunBarView { fromH: number; toH: number; open: boolean; cutLeft: boolean; rest: string; short: string; aria: string }
+export interface RunNoteView { items: Array<{ strong: string; text: string }>; def: string }
 export interface TitleDiffView { after: Array<{ op: TitleOp; text: string; title: string | null }>; gone: Array<{ kind: 'del' | 'ins' | 'text'; text: string }> }
 
 export interface TipView {
@@ -60,12 +89,25 @@ export interface TipView {
     | { kind: 'thumb'; before: ThumbImg; after: ThumbImg; revert: string | null }
     | { kind: 'desc'; text: string; sub: string | null }
 }
-export interface MarkerView { idx: number; changeId: string; pairK: string | null; h: number; win: [number, number] | null; aria: string; tip: TipView }
+export interface MarkerView {
+  idx: number; changeId: string; pairK: string | null; h: number; win: [number, number] | null; aria: string; tip: TipView
+  inRange: boolean
+  /** When it happened, as short as the data allows: the texts of a group of close markers. */
+  edge: { from: string; to: string }
+  /** Its row in the list of a group: "B → C, 15/10 09:14" and the situation of the change. */
+  list: { label: string; status: string; line: string }
+}
 export interface LaneView {
   type: LaneType; label: string
   versions: VersionView[]; markers: MarkerView[]
   /** Thumbnail before the image archive started (hatched, "antes de DD/MM"). */
   pre: { fromH: number; toH: number; text: string; title: string } | null
+  /** Runs of changes of this field that touch the shown period (title and thumbnail only). */
+  runs: RunBarView[]
+  /** Name of the lane group (one Tab stop; the arrows walk it). */
+  aria: string
+  /** Units of a group of narrow periods: ["período", "períodos"]; `ofThumb` adds " de thumbnail" to its name. */
+  unit: [string, string]; changeWord: string
 }
 
 /**
@@ -74,7 +116,7 @@ export interface LaneView {
  */
 export interface LanesAxisView { fromH: number; toH: number; ticks: Array<{ h: number; label: string }> }
 
-export interface LegendItem { kind: 'curve' | 'dash' | 'shade' | 'hatch' | 'win' | 'thumb' | 'text'; text: string }
+export interface LegendItem { kind: 'curve' | 'dash' | 'shade' | 'hatch' | 'win' | 'thumb' | 'text' | 'run' | 'grp'; text: string }
 export interface Bin { a: number; b: number; vpd: number; y: number; from0: boolean; label: string; labelY: number }
 
 export interface ChartView {
@@ -84,8 +126,10 @@ export interface ChartView {
   expectedMethod: string
   /** seriesStart (ms) when the period before it is compressed; null otherwise. */
   compressedBefore: number | null
-  /** Total hours since publication (x domain is 0..H). */
+  /** Total hours since publication (x domain is fromH..H). */
   H: number
+  /** Hours since publication where the x axis starts: 0, or the start of the period filter. */
+  fromH: number
   /** Hours since publication of seriesStart, when the compressed band applies. */
   B0: number | null
   few: boolean
@@ -130,6 +174,23 @@ export interface ComparisonView {
   } | null
   descLink: boolean
   windows: { before: [number, number]; after: [number, number] } | null
+  /** List mode (7 changes or more) and its filters: the field, the situation, the row texts. */
+  field: LaneType; situation: Situation; label: string; when: string; statusLine: string
+  /** "Parte de 5 trocas em sequência em 9 dias. Pode ser um teste; o YouTube não informa." (one per run of the group). */
+  runLines: string[]
+  inRange: boolean
+}
+export interface CompareView {
+  /** 'pairs' = the buttons of today (up to 6 changes); 'list' = one row per change, filterable. */
+  mode: 'pairs' | 'list'
+  /** List mode: the opening sentence with the whole count, each situation by its name. */
+  sum: Rich | null
+  /** " no período" when the period filter cuts the video, else "". */
+  scope: string
+  /** Changes of the whole video (the count sentence says it when the filter cuts). */
+  total: number
+  fields: Array<{ id: LaneType; label: string; name: string }>
+  situations: Array<{ id: Situation; label: string }>
 }
 
 export interface CrumbsView { from: FromTab; crumb: string; href: string; sub: { text: string; href: string } | null }
@@ -148,8 +209,15 @@ export interface HeaderView {
 }
 
 export interface VersionsView {
-  thumbs: { src: string; cards: VersionView[]; notes: Array<{ kind: 'ab' | 'warn'; text: string }> }
-  titles: { src: string; same: string | null; items: VersionView[] }
+  thumbs: {
+    src: string; cards: VersionView[]; notes: Array<{ kind: 'ab' | 'warn'; text: string }>
+    runNote: RunNoteView | null
+    /** Non-null when the shown periods pass RULES.history.collapseAbove: the grid opens with only the newest ones. */
+    more: { keep: number; open: string; close: string; srcClosed: string; srcOpen: string } | null
+    /** No thumbnail period inside the shown period. */
+    empty: string | null
+  }
+  titles: { src: string; same: string | null; items: VersionView[]; runNote: RunNoteView | null }
   descs: {
     src: string; same: string | null; rows: VersionView[]
     notes: string[]
@@ -191,6 +259,13 @@ export interface HistoricoView {
   /** The forja (leitura do vídeo, Task 35): the screen's solid button, blockedBy and the card. */
   forja: ForjaView | null
   forjaCard: HistForjaCard | null
+  /** Period filter: null when it is not offered (short series and no long lane, or a video outside the observed ones). */
+  range: RangeView | null
+  /** One row per image: null unless some image came back on air (and never for a video outside the observed ones). */
+  imageSummary: ImageSummaryView | null
+  compare: CompareView
+  /** Legend entry of a group of close markers or narrow periods (the grouping depends on the width, so the screen decides when). */
+  groupLegend: string
 }
 /** historico-video.html renderForja: the request state (pill, engine sentence, steps) or the reading(s). */
 export interface HistForjaCard {
@@ -222,6 +297,10 @@ const FEM: Record<LaneType, boolean> = { title: false, thumb: true, desc: true }
 const PIN_GONE_NOTE = 'Fixado. O YouTube não devolveu este vídeo na última sincronização; ele pode ter sido apagado ou ficado privado.'
 const FROM_LABEL: Record<FromTab, string> = { mudancas: 'Mudanças', outliers: 'Outliers', canais: 'Canais', insights: 'Insights' }
 const cap = (t: string) => (t ? t[0]!.toUpperCase() + t.slice(1) : '')
+const TYPE_LOW: Record<LaneType, string> = { title: 'título', thumb: 'thumbnail', desc: 'descrição' }
+const LANE_UNIT: Record<LaneType, [string, string]> = { title: ['título', 'títulos'], thumb: ['período', 'períodos'], desc: ['descrição', 'descrições'] }
+const GROUP_LEGEND = 'trocas ou períodos próximos demais para caber lado a lado: o contador diz quantos são e abre a lista; os traços ficam no horário de cada um'
+const EMPTY_COMPARE: CompareView = { mode: 'pairs', sum: null, scope: '', total: 0, fields: [], situations: [] }
 const endDot = (t: string) => { const s = String(t).trim(); return /[.!?…]$/.test(s) ? s : s + '.' }
 
 export function parseFrom(raw: string | undefined): FromTab {
@@ -250,6 +329,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     return {
       video: null, chromeNiche: userNiche, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, compareEmpty: null,
       versions: null, pager: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null,
+      range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND,
       crumbs: { from, crumb: FROM_LABEL[from], href, sub: null },
       notFound: { title: 'Vídeo não encontrado: “' + id + '”.', text: 'Ele não está entre os vídeos observados: o link pode estar errado ou o vídeo saiu da lista do canal.', href, back: 'Voltar para ' + FROM_LABEL[from] },
     }
@@ -310,7 +390,15 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const gapText = v.pinned === true && !v.tracked && stale && pts.length
     ? 'sem pontos depois de ' + D.dm(pts[pts.length - 1]!.t) + (v.pinState === 'sem-resposta' ? ': o YouTube não devolveu este vídeo na última sincronização' : ': o gráfico volta a ganhar pontos na próxima sincronização do canal depois das 12:00') : null
   const nextSnapMs = D.snapTime(obs.LAST_IDX + 1), nextSnap = D.dm(nextSnapMs) + ' ' + D.hh(nextSnapMs)
-  const compress = pub < SS && (SS - pub) / (now - pub) > 0.14
+  // ---------- period filter (Fase 4 item 3): ?range=7|30|90, anything else is the whole video ----------
+  const HR = obs.RULES.history
+  const spanDays = pts.length > 1 ? (pts[pts.length - 1]!.t - pts[0]!.t) / DAY : 0
+  const rangeOffered = observed && (spanDays > HR.rangeFromDays || [v.titles, v.thumbs, v.descs].some(a => a.length > HR.collapseAbove))
+  const rangeId = parseRange(p.range, rangeOffered)
+  const t0 = rangeStart(rangeId, pub, now), cut = t0 > pub, fromH = cut ? hx(t0) : 0
+  /** Short instant of a version or change: a thumbnail has the minute; title and description only the sync hour. */
+  const tm = (type: LaneType, ms: number) => (type === 'thumb' ? dmhmY(ms) : D.dmOrDmy(ms) + ' ' + D.hh(ms))
+  const compress = !cut && pub < SS && (SS - pub) / (now - pub) > 0.14
   const preDays = Math.round((SS - pub) / DAY)
 
   // ---------- versions ----------
@@ -371,11 +459,15 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       const reverted = type === 'thumb' && revertedIds.has(x.id)
       const cur = !nx
       const tText = type === 'title' ? x.text ?? null : null
+      const aria = TYPE_NAME[type] + ' ' + label + (noText ? ' (texto não guardado)' : '') + ': ' + span
       return {
+        inRange: !cut || hx(eLo) > fromH,
+        name: aria + (reverted ? ', voltou' : '') + (cur ? ', ' + curWord(type) : ''),
+        edge: { from: isPub(x) && !lateObs(x) ? dmhmY(Math.max(pub, t0)) : tm(type, Math.max(sLo, t0)), to: nx ? tm(type, eHi) : stalled ? tm(type, endNow) : 'agora' },
         id: x.id, label, from: startLbl, to: end, atLeast, participle: 'vist' + o, changedParticiple: 'trocad' + o, precision,
         fromH: Math.max(0, hx(startMs(x))), toH: hx(eLo), win: x.window ? [hx(x.window[0]), hx(x.window[1])] : null,
         span, dur: durTxt, rate: obs.periodRate(v!.id, startMs(x), eLo).text, cur,
-        aria: TYPE_NAME[type] + ' ' + label + (noText ? ' (texto não guardado)' : '') + ': ' + span,
+        aria,
         clipText: type === 'title' ? tText : type === 'desc' ? (noText ? 'texto não guardado' : cur ? curWord(type) : null) : null,
         tag: cur ? { kind: 'now', text: curWord(type) } : reverted ? { kind: 'ret', text: 'voltou' } : null,
         thumb: type === 'thumb' ? thumbImg(x as Ver & { blobUrl: string | null }, label) : null,
@@ -398,7 +490,12 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const partAgo = (c: ObsChange) => { const o = FEM[c.type] ? 'a' : 'o'; return c.window ? 'vist' + o + ' pela 1ª vez ' + c.agoShort : 'trocad' + o + ' ' + c.agoShort }
   interface Pair { k: string; label: string; group: ObsChange[]; e: EffectResult; e2: EffectResult | null; labs: string[] | null }
   const pairs: Pair[] = []
-  {
+  // Fase 4 item 5: from 7 changes on, one row per change, newest first (the grouping of today would repeat a change of a
+  // long chain in two buttons). Up to 6, the pair buttons of today.
+  const listMode = observed && changes.length >= HR.compareListFrom
+  if (listMode) {
+    for (const c of [...changes].sort((a, b) => b.mid - a.mid)) { const e = obs.effect(c.id); if (e) pairs.push({ k: c.id, label: nameOf(c), group: [c], e, e2: null, labs: null }) }
+  } else {
     const used = new Set<string>(), ord: Record<LaneType, number> = { title: 0, thumb: 1, desc: 2 }
     for (const c of changes) {
       if (used.has(c.id)) continue
@@ -425,8 +522,9 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const events = changes.map(c => {
     const idx = rawOf(c.type).findIndex(x => x.id === c.toId)
     const win: [number, number] | null = c.window ? [hx(c.window[0]), hx(c.window[1])] : null
-    return { type: c.type, idx, c, h: win ? (win[0] + win[1]) / 2 : hx(c.at), win }
+    return { type: c.type, idx, c, h: win ? (win[0] + win[1]) / 2 : hx(c.at), win, inRange: !cut || c.at >= t0 }
   })
+  const shown = events.filter(e => e.inRange)
   const tipOf = (c: ObsChange, idx: number): TipView => {
     const arr = arrOf(c.type), b = arr[idx - 1], a = arr[idx]
     const when = (c.window ? c.whenText + ' (janela de ' + (c.prec === '1d' ? '1 dia, sincronização antiga' : '6 h') + ')' : c.whenText + ', horário exato') + ', ' + partAgo(c)
@@ -435,16 +533,30 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     if (c.type === 'thumb') return { title, when, body: { kind: 'thumb', before: b?.thumb ?? miss(), after: a?.thumb ?? miss(), revert: c.revertTo ? 'Voltou para a versão ' + keyOf(c.revertTo) + ' (mesma imagem).' : null } }
     return { title, when, body: { kind: 'desc', text: c.diff ? c.diff.label : 'A descrição mudou; o texto antigo não foi guardado (antes de ' + S03 + ').', sub: c.diff ? 'Comparação linha a linha em Descrições, abaixo.' : null } }
   }
+  // R121: the runs of a field that touch the shown period (an open run always does)
+  const shownRuns = (type: 'title' | 'thumb') => runsOf(changes, type).filter(r => r.open || r.to >= t0)
   const lanes: LaneView[] = (['title', 'thumb', 'desc'] as LaneType[]).map(type => ({
     type, label: TYPE_NAME[type], versions: arrOf(type),
     markers: events.filter(e => e.type === type && e.idx > 0).map(e => ({
-      idx: e.idx, changeId: e.c.id, pairK: pairOfChange(e.c.id), h: e.h, win: e.win,
+      idx: e.idx, changeId: e.c.id, pairK: pairOfChange(e.c.id), h: e.h, win: e.win, inRange: e.inRange,
+      edge: e.c.window ? { from: tm('title', e.c.window[0]), to: tm('title', e.c.window[1]) } : { from: dmhmY(e.c.at), to: dmhmY(e.c.at) },
+      list: (() => { const ef = obs.effect(e.c.id), arr = arrOf(type)
+        return { label: (arr[e.idx - 1]?.label ?? '') + ' → ' + (arr[e.idx]?.label ?? '') + ', ' + e.c.whenText, status: ef?.status ?? 'sem-serie', line: ef ? statusLine(obs, ef) : 'sem série' } })(),
       aria: TYPE_NAME[type] + ' ' + (FEM[type] ? 'trocada' : 'trocado') + ' ' + (e.win ? e.c.whenText : 'em ' + e.c.whenText),
       tip: tipOf(e.c, e.idx),
     })),
     pre: type === 'thumb' && thumbPreAt != null
+      && hx(thumbPreAt) > fromH
       ? { fromH: 0, toH: hx(thumbPreAt), text: compress ? 'antes de ' + preLabel : 'antes de ' + preLabel + ': não registrada', title: 'Thumbnail antes de ' + preLabel + ': não registrada' }
       : null,
+    runs: type === 'desc' ? [] : shownRuns(type).map(r => ({
+      fromH: hx(Math.max(r.from, t0)), toH: r.open ? hx(now) : hx(Math.max(r.to, t0)), open: r.open, cutLeft: r.from < t0,
+      rest: runCore(r) + (r.open ? ', ainda aberta' : ', encerrada em ' + D.dmOrDmy(r.to)), short: runShort(r),
+      aria: cap(runText(D, r)) + ' (' + TYPE_LOW[type] + '). ' + RUN_CAVEAT,
+    })),
+    aria: 'Faixa de ' + TYPE_LOW[type] + ': ' + F.plural(arrOf(type).filter(x => x.inRange).length, LANE_UNIT[type][0], LANE_UNIT[type][1]) + ' e '
+      + F.plural(shown.filter(e => e.type === type && e.idx > 0).length, 'troca', 'trocas') + ', em ordem de tempo. As setas para a esquerda e para a direita andam pela faixa.',
+    unit: LANE_UNIT[type], changeWord: TYPE_LOW[type],
   }))
 
   // ---------- context: breadcrumb + pager (rebuilds the origin list) ----------
@@ -529,14 +641,37 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     return sinceTxt + '; título, thumbnail e descrição são conferidos a cada sincronização, ' + obs.SYNC.cadence
   }
 
+  // ---------- image summary (Fase 4 item 1) ----------
+  const passes: Pass[] = thumbs.map(t => ({ label: t.label, startMs: pub + t.fromH * H_MS, endMs: pub + t.toH * H_MS, cur: t.cur }))
+  const sumAll = imageSummary(obs, v.id, passes, pub, endNow)
+  const sumShown = cut ? imageSummary(obs, v.id, passes, t0, endNow) : sumAll
+  // where the shown period ends: "agora" is only said when the video is being checked
+  const untilTxt = !stalled ? ' até agora' : endNow > t0 ? ' até ' + dmhmY(endNow) + ' (última conferência)' : ' até agora, sem nenhuma conferência (a última foi em ' + dmhmY(endNow) + ')'
+  const imageSummaryView: ImageSummaryView | null = !observed || sumAll.returned === 0 || !sumShown.rows.length ? null : (() => {
+    const span = Math.max(1, endNow - t0), curTag = thumbs[thumbs.length - 1]?.tag?.text ?? null
+    const endTxt = (ms: number) => (ms >= endNow && !stalled ? 'agora' : dmhmY(ms))
+    return {
+      src: (cut ? 'só o período mostrado, de ' + dmhmY(t0) + untilTxt : 'do vídeo inteiro') + '; passe o mouse, foque ou fixe uma imagem para destacá-la nas faixas e nos cartões',
+      rows: sumShown.rows.map(r => ({
+        label: r.label, thumb: thumbs.find(t => t.label === r.label)?.thumb ?? null, now: r.cur ? curTag : null,
+        dur: r.durText, passes: r.passes, rate: r.rateText,
+        segs: r.segs.map(([a, b]) => ({ left: ((a - t0) / span) * 100, width: ((b - a) / span) * 100 })),
+        segsText: r.segs.map(([a, b]) => 'de ' + dmhmY(a) + ' a ' + endTxt(b)).join('; '),
+        rowName: 'Imagem ' + r.label + (r.cur && curTag ? ', ' + curTag : ''), pinName: r.label + ': fixar o destaque desta imagem',
+      })),
+      total: { label: F.plural(sumShown.total.images, 'imagem', 'imagens'), dur: sumShown.total.durText, passes: sumShown.total.passes, rate: sumShown.total.rateText },
+      note: 'Passagem é cada período em que a imagem esteve no ar. O tempo é aproximado ao décimo de dia. A média usa só as passagens de 1 dia ou mais (as que têm média no cartão); imagem sem nenhuma não tem média. Ela junta passagens em idades diferentes do vídeo e inclui dias divididos com outra imagem: serve para localizar cada imagem, não para dizer qual rende mais.',
+    }
+  })()
+
   // ---------- header ----------
   const header = buildHeader()
   function buildHeader(): HeaderView {
     const vv = v!, m = vv.mult
-    const nT = titles.length, distinct = new Set(v!.thumbs.map(t => t.key)).size, nD = descs.length, ret = changes.some(c => c.revertTo)
+    const nT = titles.length, distinct = new Set(v!.thumbs.map(t => t.key)).size, nD = descs.length, back = sumAll.returned
     const counts: HeaderView['counts'] = !observed ? [] : !changes.length ? [{ type: null, text: 'Nenhuma troca registrada' }] : [
       { type: 'title', text: F.plural(nT, 'título', 'títulos') },
-      { type: 'thumb', text: thumbs.length > 1 ? distinct + ' thumbnails em ' + thumbs.length + ' períodos' + (ret ? ' (uma voltou)' : '') : thumbPreAt != null ? '1 thumbnail (vista desde ' + preLabel + ')' : F.plural(thumbs.length, 'thumbnail', 'thumbnails') },
+      { type: 'thumb', text: thumbs.length > 1 ? distinct + ' thumbnails em ' + thumbs.length + ' períodos' + (back === 1 ? ' (uma voltou)' : back > 1 ? ' (' + back + ' voltaram)' : '') : thumbPreAt != null ? '1 thumbnail (vista desde ' + preLabel + ')' : F.plural(thumbs.length, 'thumbnail', 'thumbnails') },
       { type: 'desc', text: F.plural(nD, 'descrição', 'descrições') },
     ]
     const lastP = pts[pts.length - 1]
@@ -569,17 +704,37 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   }
 
   // ---------- versions section ----------
-  // The "A → B → A" note is only true for an immediate return (nothing else on air in between).
-  const tc = changes.filter(c => c.type === 'thumb' && c.testCompare && c.revertedBy && c.revertedImmediate)
+  // The "A → B → A" note is only true for an immediate return (nothing else on air in between), and it follows the period filter.
+  const tc = changes.filter(c => c.type === 'thumb' && c.testCompare && c.revertedBy && c.revertedImmediate && c.at >= t0)
   const thumbNotes: VersionsView['thumbs']['notes'] = []
   if (tc.length) { const c = tc[0]!; const b = keyOf((c.before as { key: string }).key), a = keyOf((c.after as { key: string }).key); thumbNotes.push({ kind: 'ab', text: b + ' → ' + a + ' → ' + b + ' em ' + D.dur(c.cycleMs ?? 0) + ': alternância típica do Testar e comparar (teste A/B do YouTube). Compatível, não confirmado — o YouTube não informa o teste nem o vencedor.' }) }
   if (thumbPreAt != null) thumbNotes.push({ kind: 'warn', text: 'Thumbnail vista desde ' + preLabel + ', quando o arquivo de imagens começou. Trocas de thumbnail anteriores vinham de um método antigo (pela URL), que não é confiável, então não aparecem como troca.' })
-  const dc = changes.filter(c => c.type === 'desc'), withText = dc.filter(c => c.diff)
+  const dc = changes.filter(c => c.type === 'desc' && c.at >= t0), withText = dc.filter(c => c.diff)
+  const nIn = (list: VersionView[]) => list.filter(x => x.inRange).length
+  const showing = (list: VersionView[]) => (cut ? '; mostrando ' + nIn(list) + ' de ' + list.length : '')
+  const runNote = (type: 'title' | 'thumb'): RunNoteView | null => {
+    const rs = shownRuns(type)
+    if (!rs.length) return null
+    const when = (r: (typeof rs)[number]) => type === 'thumb'
+      ? (r.open ? 'desde ' + dmhmY(r.from) + '; a mais recente em ' + dmhmY(r.to) : 'de ' + dmhmY(r.from) + ' a ' + dmhmY(r.to))
+      : (r.open ? 'vistas desde ' + D.dmOrDmy(r.from) + '; a mais recente em ' + D.dmOrDmy(r.to) : 'vistas de ' + D.dmOrDmy(r.from) + ' a ' + D.dmOrDmy(r.to))
+    return { items: rs.map(r => ({ strong: cap(runText(D, r)), text: ' (' + when(r) + ').' })),
+      def: 'Chamamos de trocas em sequência as trocas de ' + TYPE_LOW[type] + ' com até ' + obs.RULES.testRunGapDays + ' dias entre uma e outra. ' + RUN_CAVEAT }
+  }
+  const nThumbIn = nIn(thumbs), ofPeriod = cut ? ' do período' : ''
   const versions: VersionsView = {
-    thumbs: { src: thumbs.length > 1 ? new Set(v.thumbs.map(t => t.key)).size + ' imagens em ' + thumbs.length + ' períodos, em ordem' : thumbs.length ? 'sem troca vista' : 'Nenhuma thumbnail registrada', cards: thumbs, notes: thumbNotes },
-    titles: { src: titles.length > 1 ? 'trechos alterados contra o anterior' : 'sem troca vista', same: titles.length > 1 ? null : sameSinceText('título'), items: titles },
+    thumbs: {
+      src: thumbs.length > 1 ? new Set(v.thumbs.map(t => t.key)).size + ' imagens em ' + thumbs.length + ' períodos, em ordem' + (cut ? showing(thumbs) + '. Cada cartão traz o período inteiro da versão, mesmo a parte fora do filtro' : '') : thumbs.length ? 'sem troca vista' : 'Nenhuma thumbnail registrada',
+      cards: thumbs, notes: thumbNotes, runNote: runNote('thumb'),
+      more: nThumbIn > HR.collapseAbove ? {
+        keep: HR.collapseAbove, open: 'Ver todas (' + nThumbIn + ')', close: 'Mostrar só as ' + HR.collapseAbove + ' mais recentes',
+        srcClosed: 'mostrando os ' + HR.collapseAbove + ' períodos mais recentes de ' + nThumbIn + ofPeriod, srcOpen: 'mostrando os ' + nThumbIn + ' períodos' + ofPeriod,
+      } : null,
+      empty: thumbs.length && !nThumbIn ? 'Nenhum período de thumbnail neste intervalo.' : null,
+    },
+    titles: { src: titles.length > 1 ? 'trechos alterados contra o anterior' + showing(titles) : 'sem troca vista', same: titles.length > 1 ? null : sameSinceText('título'), items: titles, runNote: runNote('title') },
     descs: {
-      src: descs.length < 2 ? 'sem troca vista' : withText.length ? 'comparação linha a linha' : 'texto antigo não guardado',
+      src: descs.length < 2 ? 'sem troca vista' : (withText.length || cut ? 'comparação linha a linha' : 'texto antigo não guardado') + showing(descs),
       same: descs.length < 2 ? sameSinceText('descrição') : null, rows: descs,
       notes: descs.length < 2 ? [] : dc.filter(c => !c.diff).map(c => (verLabel.get(c.fromId) ?? c.fromId) + ' → ' + (verLabel.get(c.toId) ?? c.toId) + ' (' + c.whenText + '): antes de ' + S03 + ' a sincronização só registrava que a descrição mudou, sem guardar o texto. Não há comparação linha a linha para esta troca.'),
       diffs: descs.length < 2 ? [] : withText.map(c => ({
@@ -594,9 +749,10 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const laneLegend = (): LegendItem[] => {
     const out: LegendItem[] = []
     if (thumbPreAt != null) out.push({ kind: 'hatch', text: 'thumbnail antes de ' + preLabel + ': não registrada' })
-    if (events.some(e => e.win)) out.push({ kind: 'win', text: 'janela entre duas sincronizações: título e descrição não têm minuto; sincronização ' + obs.SYNC.cadence })
-    if (events.some(e => e.type === 'thumb')) out.push({ kind: 'thumb', text: 'troca de thumbnail com horário exato (detectada pela mudança do arquivo da imagem)' })
-    if (!events.length) out.push({ kind: 'text', text: 'Nenhuma troca registrada.' })
+    if (shown.some(e => e.win)) out.push({ kind: 'win', text: 'janela entre duas sincronizações: título e descrição não têm minuto; sincronização ' + obs.SYNC.cadence })
+    if (shown.some(e => e.type === 'thumb')) out.push({ kind: 'thumb', text: 'troca de thumbnail com horário exato (detectada pela mudança do arquivo da imagem)' })
+    if (lanes.some(l => l.runs.length)) out.push({ kind: 'run', text: 'trocas em sequência: trocas do mesmo campo com até ' + obs.RULES.testRunGapDays + ' dias entre uma e outra. ' + RUN_CAVEAT })
+    if (!shown.length) out.push({ kind: 'text', text: events.length ? 'Nenhuma troca neste período.' : 'Nenhuma troca registrada.' })
     return out
   }
   const pin: HistoricoView['pin'] = ch.own ? null
@@ -610,7 +766,8 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     // before/after comparison (every change of this video reads 'sem-serie'). The notice says which of the two cases it is.
     const stored = v.thumbs.length > 0 || v.descs.length > 0 || v.titles.some(t => t.id !== v.id + '/title')
     const href = obs.link.canais({ channel: v.ch })
-    const common = { video: videoOut, chromeNiche, crumbs, header, chart: null, comparisons: [], defaultPair: null, compareEmpty: null, pager, state, notFound: null, pin, pinView, ...forjaOf(obs, v, ch) }
+    const common = { video: videoOut, chromeNiche, crumbs, header, chart: null, comparisons: [], defaultPair: null, compareEmpty: null, pager, state, notFound: null, pin, pinView, ...forjaOf(obs, v, ch),
+      range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND }
     const outside = 'Este vídeo está fora dos ' + ch.video_limit + ' mais recentes acompanhados de ' + ch.name + '.'
     const noChart = 'O gráfico de views só aparece para vídeos acompanhados ou fixados.'
     if (!stored) return { ...common, lanes: [], legends: {}, versions: null, lanesAxis: null, untracked: { href, notice: outside + ' Não há títulos, thumbnails nem descrições guardados dele. ' + noChart } }
@@ -630,30 +787,37 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
 
   // ---------- chart ----------
   const expectedRaw = obs.expectedCurve(v.id).filter(q => q.vpdAnchored != null && q.t - q.from >= DAY - 60e3)
-  const expected = expectedRaw.map(q => ({ a: hx(q.from), b: hx(q.t), v: q.vpdAnchored!, n: q.nAnchored, t: q.t }))
-  const vmax = Math.max(...bins.map(b => b.v), ...expected.map(e => e.v), 1) * 1.12
+  const expectedAll = expectedRaw.map(q => ({ a: hx(q.from), b: hx(q.t), v: q.vpdAnchored!, n: q.nAnchored, t: q.t }))
+  // the period filter cuts what is DRAWN; every verdict keeps reading the whole series (obs.effect)
+  const allBins = bins
+  const binsIn = cut ? allBins.filter(b => b.b > fromH).map(b => ({ ...b, a: Math.max(b.a, fromH) })) : allBins
+  const expected = cut ? expectedAll.filter(e => e.b > fromH).map(e => ({ ...e, a: Math.max(e.a, fromH) })) : expectedAll
+  const vmax = Math.max(...binsIn.map(b => b.v), ...expected.map(e => e.v), 1) * 1.12
   const mag = Math.pow(10, Math.floor(Math.log10(vmax / 4)))
   const step = [1, 2, 5, 10].map(x => x * mag).find(s => vmax / s <= 5) ?? 10 * mag
   const ymax = Math.ceil(vmax / step) * step
   const yf = (x: number) => x / ymax
   const yTicks: ChartView['yTicks'] = []
   for (let kk = 0; kk <= ymax + 1e-9; kk += step) yTicks.push({ y: yf(kk), label: kk === 0 ? '0' : F.num(kk) })
-  const tStart = compress ? SS : pub, days = Math.ceil((now - tStart) / DAY), stepD = Math.max(1, Math.ceil(days / 6))
+  const tStart = cut ? t0 : compress ? SS : pub, days = Math.ceil((now - tStart) / DAY), stepD = Math.max(1, Math.ceil(days / 6))
   const xTicks: ChartView['xTicks'] = compress ? [{ h: 0, label: D.dmOrDmy(pub) }] : []
   for (let d = 0; d <= days; d += stepD) { const ms = tStart + d * DAY; if (ms <= now) xTicks.push({ h: hx(ms), label: D.dmOrDmy(ms) }) }
   if (!xTicks.length || H - xTicks[xTicks.length - 1]!.h > stepD * 12) xTicks.push({ h: H, label: D.dmOrDmy(now) })
   const lastPt = pts[pts.length - 1]
   const pre = pub < SS
   const lastBinB = bins.length ? bins[bins.length - 1]!.b : null
+  // records behind what is drawn: the first one is the starting point of the first interval
+  const firstInA = cut && binsIn.length ? allBins.find(b => b.b > fromH)!.a : null
+  const ptsIn = !cut ? pts : firstInA == null ? [] : pts.filter(pt => hx(pt.t) >= firstInA - 0.01)
   const channelsHref = obs.link.canais({ channel: v.ch })
   const chart: ChartView = {
-    points: bins.map(b => ({ t: b.t, vpd: b.v })),
+    points: binsIn.map(b => ({ t: b.t, vpd: b.v })),
     expected: expected.map(e => ({ t: e.t, vpd: e.v })),
     expectedMethod: expectedRaw.length ? obs.expectedCurve(v.id).methodLabel : '',
     compressedBefore: compress ? SS : null,
-    H, B0: compress ? hx(SS) : null, few,
+    H, fromH, B0: compress ? hx(SS) : null, few,
     src: few ? { bold: null, text: 'registro diário de views às ' + (lastPt ? D.hh(lastPt.t) : D.hh(nextSnapMs)) }
-      : { bold: F.plural(pts.length, 'registro diário', 'registros diários'), text: ' (às ' + D.hh(lastPt!.t) + (pre ? ', desde ' + S03 : '') + '); views ganhas entre um registro e outro; último ' + dmhmY(lastPt!.t) },
+      : { bold: F.plural(ptsIn.length, 'registro diário', 'registros diários'), text: ' (às ' + D.hh(lastPt!.t) + (pre ? ', desde ' + S03 : '') + '); views ganhas entre um registro e outro; último ' + dmhmY(lastPt!.t) },
     empty: few ? {
       title: 'Ainda não há curva: ' + (pts.length ? 'só 1 registro diário' : 'nenhum registro diário') + '.',
       text: 'O vídeo saiu ' + F.age(v) + ', em ' + dmhmY(pub) + '. A curva precisa de pelo menos 2 registros. ' + (!syncOk ? 'O próximo registro depende da sincronização do canal, hoje com problema: ' + syncPhrase() + '.' : 'O próximo é ' + nextSnap + '.'),
@@ -661,23 +825,23 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       tail: changes.length ? ' As trocas já aparecem nas faixas abaixo.' : null,
       link: !syncOk ? { href: channelsHref, text: 'Ver o canal em Canais' } : null,
     } : null,
-    bins: bins.map(b => {
+    bins: binsIn.map(b => {
       const ex = expected.find(e => Math.abs(e.b - b.b) < 0.5)
       return { a: b.a, b: b.b, vpd: b.v, y: yf(b.v), from0: b.from0, label: F.num(b.v), labelY: yf(Math.max(b.v, ex ? ex.v : 0)) }
     }),
     expectedSteps: expected.map((e, i) => ({ a: e.a, b: e.b, y: yf(e.v), joined: i > 0 && Math.abs(expected[i - 1]!.b - e.a) < 0.5 })),
     yTicks,
-    pre: pre ? { toH: compress ? hx(SS) : seriesStartH, lines: compress ? ['antes de ' + S03, preDays + ' dias', 'comprimidos,', 'sem registro'] : ['sem registro por vídeo antes de ' + S03] } : null,
+    pre: pre && seriesStartH > fromH ? { toH: compress ? hx(SS) : seriesStartH, lines: compress ? ['antes de ' + S03, preDays + ' dias', 'comprimidos,', 'sem registro'] : ['sem registro por vídeo antes de ' + S03] } : null,
     hatch: lastBinB != null && H > lastBinB ? { fromH: lastBinB, note: gapText ?? (stale ? 'sem registro desde ' + D.dm(lastPt!.t) : null) } : null,
-    firstNote: firstNote ? { toH: hx(firstNote.t), text: F.num(firstNote.views) + ' em ' + Math.round(firstNote.h) + ' h' } : null,
+    firstNote: firstNote && !cut ? { toH: hx(firstNote.t), text: F.num(firstNote.views) + ' em ' + Math.round(firstNote.h) + ' h' } : null,
     xTicks,
-    aria: 'Views por dia de ' + v.title + ', ' + pts.length + ' registros diários. ' + events.length + ' trocas marcadas. Valores na tabela abaixo.',
+    aria: 'Views por dia de ' + v.title + ', ' + ptsIn.length + ' registros diários. ' + shown.length + ' trocas marcadas. Valores na tabela abaixo.',
     fewAxis: few ? [{ h: 0, label: dmhmY(pub) }, ...changes.flatMap(c => (c.window ? [{ h: hx(c.window[0]), label: D.hh(c.window[0]) }, { h: hx(c.window[1]), label: D.hh(c.window[1]) }] : [])), { h: H, label: 'agora ' + D.hm(now) }] : null,
     stale: chStalled && hx(endNow) < H ? { fromH: hx(endNow), title: 'sem conferência desde ' + dmhmY(sy.last!) } : null,
-    table: few ? null : pts.map((pt, i) => {
-      const b = bins.find(x => Math.abs(x.b - hx(pt.t)) < 0.01), ex = expected.find(e => e.t === pt.t)
-      return [dmhmY(pt.t), F.num(pt.views), b ? F.num(b.v) + (b.from0 ? ' (desde a publicação)' : '') : i === 0 ? '1º registro' : 'sem registro anterior',
-        ex ? F.num(ex.v) + ' (' + ex.n + ')' : i === 0 && firstNote ? 'sem média (menos de 24 h desde a publicação)' : 'menos de 3 vídeos para comparar']
+    table: few ? null : ptsIn.map((pt, i) => {
+      const b = cut && i === 0 ? undefined : bins.find(x => Math.abs(x.b - hx(pt.t)) < 0.01), ex = cut && i === 0 ? undefined : expectedAll.find(e => e.t === pt.t)
+      return [dmhmY(pt.t), F.num(pt.views), b ? F.num(b.v) + (b.from0 ? ' (desde a publicação)' : '') : i === 0 ? (cut ? 'ponto de partida do período' : '1º registro') : 'sem registro anterior',
+        ex ? F.num(ex.v) + ' (' + ex.n + ')' : cut && i === 0 ? '—' : i === 0 && firstNote ? 'sem média (menos de 24 h desde a publicação)' : 'menos de 3 vídeos para comparar']
     }),
   }
 
@@ -754,9 +918,44 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       effect: ev,
       chip: q.e2 ? 'Thumbnail ' + q.labs![0] + ': ' + effLabel(e) + ' · ' + q.labs![1] + ': ' + effLabel(q.e2) : q.label + ': ' + effLabel(e),
       ba, nobase, full, descLink: c0.type === 'desc' && !!c0.diff, windows,
+      field: c0.type, situation: situationOf(e), label: q.label, when: c0.whenText, statusLine: statusLine(obs, e),
+      runLines: [...new Map(q.group.filter(g => g.testRun).map(g => [g.testRun!.id, g.testRun!])).values()].map(r => cap(runCardText(r)) + '. ' + RUN_CAVEAT),
+      inRange: !cut || q.group.some(g => g.at >= t0),
     }
   })
-  const defaultPair = (pairs.find(q => ['neutro', 'ganhou', 'perdeu'].includes(q.e.status)) ?? pairs[0])?.k ?? null
+  const pairsIn = pairs.filter(q => !cut || q.group.some(g => g.at >= t0))
+  const defaultPair = (pairsIn.find(q => ['neutro', 'ganhou', 'perdeu'].includes(q.e.status)) ?? pairsIn[0])?.k ?? null
+  const compare: CompareView = (() => {
+    const scope = cut ? ' no período' : ''
+    const base = { scope, total: pairs.length, fields: (['title', 'thumb', 'desc'] as LaneType[]).map(t => ({ id: t, label: TYPE_NAME[t], name: TYPE_LOW[t] })),
+      situations: (['ganhou', 'perdeu', 'neutro', 'inconclusivo', 'aguardando', 'sem-base'] as Situation[]).map(s => ({ id: s, label: s === 'sem-base' ? 'sem base' : s })) }
+    if (!listMode) return { mode: 'pairs', sum: null, ...base }
+    const E = obs.RULES.effect, KS = kindShort(obs), n: Partial<Record<Situation, number>> = {}, kinds: Partial<Record<keyof typeof KS, number>> = {}
+    for (const q of pairsIn) { const s = situationOf(q.e); n[s] = (n[s] ?? 0) + 1; if (q.e.status === 'inconclusivo') { const k = q.e.inconclusiveKind ?? 'outro'; kinds[k] = (kinds[k] ?? 0) + 1 } }
+    const part = (c: number | undefined, one: string, many: string): Rich | null => (c ? [{ b: String(c) }, ' ' + (c === 1 ? one : many)] : null)
+    const incWhy = (Object.keys(KS) as Array<keyof typeof KS>).filter(k => kinds[k]).map(k => kinds[k] + ' por ' + KS[k]).join('; ')
+    const parts = [part(n.ganhou, 'ganhou', 'ganharam'), part(n.perdeu, 'perdeu', 'perderam'), part(n.neutro, 'neutra', 'neutras'),
+      part(n.inconclusivo, 'inconclusiva (' + incWhy + ')', 'inconclusivas (' + incWhy + ')'), part(n.aguardando, 'aguardando os ' + E.afterDays + ' dias', 'aguardando os ' + E.afterDays + ' dias'),
+      part(n['sem-base'], 'sem base', 'sem base')].filter((x): x is Rich => x != null)
+    const sum: Rich = [F.plural(pairsIn.length, 'troca', 'trocas') + scope + ': ']
+    if (!parts.length) sum.push('nenhuma'); else parts.forEach((x, i) => { if (i) sum.push(', '); sum.push(...x) })
+    sum.push('. ' + ((n.ganhou ?? 0) + (n.perdeu ?? 0) ? '' : 'Nenhuma ganhou ou perdeu. ')
+      + (pairsIn.length ? 'Uma troca só é medida com ' + E.afterDays + ' dias sem outra troca do vídeo depois dela e pelo menos ' + E.minBeforeDays + ' antes.' : ''))
+    return { mode: 'list', sum, ...base }
+  })()
+  const rangeView: RangeView | null = !rangeOffered ? null : (() => {
+    const one = (a: number, b: number, sing: string, plur: string): Rich => [{ b: a + ' de ' + b }, ' ' + (b === 1 ? sing : plur)]
+    const dayN = (list: typeof allBins) => Math.round(list.filter(b => !b.from0).reduce((s, b) => s + (b.b - b.a), 0) / 24)
+    const head = cut ? 'De ' + dmhmY(t0) + untilTxt
+      : 'Vídeo inteiro, desde ' + dmhmY(pub) + (rangeId !== 'tudo' ? ' (menos que os ' + rangeId + ' dias do filtro)' : '')
+    return {
+      value: rangeId, fromH, cut,
+      options: RANGE_IDS.map(id => ({ id, label: RANGE_LABEL[id], aria: RANGE_LABEL[id] + ': ' + RANGE_LONG[id] })),
+      text: [head + ': ', ...one(nIn(thumbs), thumbs.length, 'período de thumbnail', 'períodos de thumbnail'), ', ', ...one(nIn(titles), titles.length, 'título', 'títulos'), ', ',
+        ...one(nIn(descs), descs.length, 'descrição', 'descrições'), ', ', ...one(shown.length, events.length, 'troca', 'trocas'), ' e ',
+        ...one(dayN(binsIn), dayN(allBins), 'dia de views', 'dias de views'), '. O cabeçalho e o resultado de cada troca continuam os do vídeo inteiro.'],
+    }
+  })()
 
   // ---------- legend (per selected pair) ----------
   const legendFor = (pk: string | null): LegendItem[] => {
@@ -781,6 +980,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     video: videoOut, chromeNiche, crumbs, header, chart, lanes, legends, comparisons, defaultPair,
     compareEmpty: pairs.length ? null : endDot(watchText()) + ' Se o canal trocar título, thumbnail ou descrição, a troca aparece na curva acima e entra em Mudanças.',
     versions, pager, state, untracked: null, lanesAxis: null, pin, pinView, notFound: null, ...forjaOf(obs, v, ch),
+    range: rangeView, imageSummary: imageSummaryView, compare, groupLegend: GROUP_LEGEND,
   }
 }
 
