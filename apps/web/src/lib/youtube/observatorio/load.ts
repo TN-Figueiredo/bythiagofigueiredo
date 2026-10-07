@@ -234,8 +234,12 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
     let lastIdx: number | null = null
     vs.forEach(({ v, pub }, k) => {
       const fmt: Fmt = v.is_short ? 'short' : 'long'
-      // D13: the video's own last check; without one, the channel's last good sync; without both, never checked
-      const pinnedAt = ms(v.pinned_at), lastCheck = ms(v.last_checked_at) ?? ms(c.last_ok_synced_at)
+      // D13: only the video's OWN check counts (the sync writes it whenever YouTube returns a pinned video). The channel's
+      // last good sync is not a check of this video: after the pin it means the video was asked for and did not come back.
+      const pinnedAt = ms(v.pinned_at), ownCheck = ms(v.last_checked_at), chOk = ms(c.last_ok_synced_at)
+      const pinState = pinnedAt == null ? null
+        : k < nTracked || (ownCheck != null && ownCheck >= pinnedAt) ? 'ativo' as const
+          : chOk != null && chOk > pinnedAt ? 'sem-resposta' as const : 'aguardando-primeira' as const
       // the instant of a record is its real taken_at (any rate / elapsed-time math needs it: a read at 14:40 is not a
       // read at 12:00). The nominal 12:00 SP of the snap_date is only the day label and the fallback for a row without a
       // usable taken_at (missing, unparseable, or outside its own SP day).
@@ -258,7 +262,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       videos.push({
         id: v.id, ch: c.id, niche: isNiche(c.niche) ? c.niche : null, fmt, pub, ageDays: ageOf(pub, now),
         tracked: k < nTracked, pinned: v.pinned_at != null, checkedAt: ms(v.last_checked_at),
-        ...(pinnedAt != null ? { pinState: k >= nTracked && (lastCheck == null || lastCheck < pinnedAt) ? 'aguardando-primeira' as const : 'ativo' as const } : {}),
+        ...(pinState ? { pinState } : {}),
         title, theme: themes.get(v.id) ?? null, formulas: formulasOf(title),
         url: fmt === 'short' ? 'https://www.youtube.com/shorts/' + v.video_id : 'https://www.youtube.com/watch?v=' + v.video_id, ytId: v.video_id, dur: v.duration_seconds,
         views: v.view_count, viewsAt: ms(v.last_checked_at) ?? ms(c.last_ok_synced_at) ?? now, likes: v.like_count, comments: v.comment_count ?? 0,
@@ -273,6 +277,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       id: c.id, name: c.channel_name, fullName: c.channel_name, niche: isNiche(c.niche) ? c.niche : null, own: false, lang: '',
       subs: c.subscriber_count, video_limit: limit, url: 'https://www.youtube.com/channel/' + c.channel_id, handle: '', gender: 'n', color: colorOf(c.id), ini: initials(c.channel_name),
       avatar: c.thumbnail_url || null,
+      pinnedCount: (videosBy.get(c.id) ?? []).filter(v => v.pinned_at != null).length,
       sync: {
         state, last: ms(c.last_ok_synced_at), next, added: ms(c.added_at) ?? now, errorSince: ms(c.sync_error_since), msg: c.sync_error,
         backfill: state === 'backfill' ? backfillProgress({ tracked: nTracked, video_limit: limit, youtube_video_count: c.youtube_video_count }) : null,

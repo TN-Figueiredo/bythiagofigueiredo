@@ -183,7 +183,7 @@ export interface HistoricoView {
   lanesAxis: LanesAxisView | null
   /** Pin state of this video and of its channel (R118); null for an own channel's video and for not-found. */
   /** `state` mirrors ObsVideo.pinState (null = not pinned); `note` is the sentence of 'aguardando-primeira', else null. */
-  pin: { pinned: boolean; used: number; limit: number; state: 'aguardando-primeira' | 'ativo' | null; note: string | null } | null
+  pin: { pinned: boolean; used: number; limit: number; state: 'aguardando-primeira' | 'sem-resposta' | 'ativo' | null; note: string | null } | null
   notFound: { title: string; text: string; href: string; back: string } | null
   /** The forja (leitura do vídeo, Task 35): the screen's solid button, blockedBy and the card. */
   forja: ForjaView | null
@@ -216,6 +216,7 @@ export interface HistForjaCard {
 const H_MS = 36e5, DAY = 864e5
 const TYPE_NAME: Record<LaneType, string> = { title: 'Título', thumb: 'Thumbnail', desc: 'Descrição' }
 const FEM: Record<LaneType, boolean> = { title: false, thumb: true, desc: true }
+const PIN_GONE_NOTE = 'Fixado. O YouTube não devolveu este vídeo na última sincronização; ele pode ter sido apagado ou ficado privado.'
 const FROM_LABEL: Record<FromTab, string> = { mudancas: 'Mudanças', outliers: 'Outliers', canais: 'Canais', insights: 'Insights' }
 const cap = (t: string) => (t ? t[0]!.toUpperCase() + t.slice(1) : '')
 const endDot = (t: string) => { const s = String(t).trim(); return /[.!?…]$/.test(s) ? s : s + '.' }
@@ -287,12 +288,14 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const lastSeen = seenAt.length ? Math.min(now, Math.max(...seenAt)) : now
   // D13: a video pinned outside the tracked ones and not checked since is in the same position until its first check
   const pinPending = v.pinState === 'aguardando-primeira'
-  const unchecked = !observed || pinPending
+  // the channel synced after the pin and YouTube did not return the video: same position, and no deadline to promise
+  const pinGone = v.pinState === 'sem-resposta'
+  const unchecked = !observed || pinPending || pinGone
   const chStalled = (sy.state === 'atrasado' || sy.state === 'erro') && sy.last != null
   const stalled = unchecked || chStalled
   const endNow = unchecked ? lastSeen : chStalled ? Math.min(now, sy.last!) : now
   // the first check only has a deadline while the channel is syncing; otherwise it waits for the channel (mockup r4, N1)
-  const pinNote = !pinPending ? null : syncOk ? 'Fixado agora. A primeira conferência acontece em até 6 h.' : 'Fixado agora. A primeira conferência acontece na próxima sincronização do canal.'
+  const pinNote = pinGone ? PIN_GONE_NOTE : !pinPending ? null : syncOk ? 'Fixado agora. A primeira conferência acontece em até 6 h.' : 'Fixado agora. A primeira conferência acontece na próxima sincronização do canal.'
   // dados.js keeps sync.added only for a channel that joined AFTER the observatory began (the founding ones have none);
   // production stores added_at for every channel, so one added on the observatory's first day is a founding channel,
   // watched "desde DD/MM", not a recent add first checked at that instant
@@ -545,6 +548,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       chan: { name: ch.name, ini: ch.ini || ch.name.slice(0, 2).toUpperCase(), avatar: ch.avatar ?? null, color: ch.color || '#3B2F8F', niche: vv.niche ? obs.nicheLabel(vv.niche) : null },
       views: !observed ? { num: null, text: 'contagem de views não acompanhada' }
         : pinPending ? { num: null, text: 'contagem de views na primeira conferência' }
+        : pinGone ? { num: null, text: 'contagem de views não conferida' }
         // a pinned video outside the tracked ones: the count and its date are the pair the pinned check writes (D15)
         : vv.pinned === true && !vv.tracked && vv.views != null && vv.checkedAt != null ? { num: F.num(vv.views), text: ' views em ' + dmhmY(vv.checkedAt) }
         : vv.views != null ? { num: F.num(vv.views), text: ' views' + (syncOk || vv.viewsAt == null ? '' : ' até o registro diário de ' + dmhmY(vv.viewsAt)) } : { num: null, text: 'views ainda não registradas' },
@@ -588,7 +592,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     return out
   }
   const pin: HistoricoView['pin'] = ch.own ? null
-    : { pinned: v.pinned === true, used: obs.videos.filter(x => x.ch === v.ch && x.pinned === true).length, limit: obs.RULES.pinLimit, state: v.pinState ?? null, note: pinNote }
+    : { pinned: v.pinned === true, used: ch.pinnedCount ?? obs.videos.filter(x => x.ch === v.ch && x.pinned === true).length, limit: obs.RULES.pinLimit, state: v.pinState ?? null, note: pinNote }
 
   const videoOut = { id: v.id, title: v.title, channel: ch.name, niche: v.niche, age: F.age(v), url: v.url, nicheToast }
   const state = stateOf(obs, v, ch, changes)

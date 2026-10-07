@@ -407,7 +407,8 @@ async function pinTarget(supabase: ReturnType<typeof getSupabaseServiceClient>, 
 
 /**
  * "Continuar acompanhando" (R118): pins a competitor video so it stays observed after it falls out of the channel's
- * video_limit. Refuses at RULES.pinLimit pinned videos per channel; never unpins another one to make room.
+ * video_limit. The cap is enforced in the database (pin_competitor_video locks the channel row, so two simultaneous
+ * pins cannot both pass); the number itself is RULES.pinLimit, handed over on every call. Never unpins another one.
  */
 export async function pinVideo(videoId: string): Promise<PinResult> {
   let who: { siteId: string; userId: string }
@@ -415,21 +416,19 @@ export async function pinVideo(videoId: string): Promise<PinResult> {
   if (typeof videoId !== 'string' || !UUID_RE.test(videoId)) return PIN_GONE
 
   const supabase = getSupabaseServiceClient()
-  const t = await pinTarget(supabase, who.siteId, videoId)
-  if (t === 'error') return PIN_FAILED
-  if (t === 'not-found') return PIN_GONE
-  if (t.pinnedAt) return { ok: true }
-
-  const { count, error: e3 } = await supabase.from('competitor_videos').select('id', { count: 'exact', head: true })
-    .eq('competitor_channel_id', t.channelId).not('pinned_at', 'is', null)
-  // a missing count is "could not check", never "none pinned": the cap would fail open
-  if (e3 || typeof count !== 'number') return PIN_FAILED
-  if (count >= RULES.pinLimit) return { ok: false, kind: 'cap', error: `Sem vagas: ${count} de ${RULES.pinLimit} vídeos fixados em ${t.channelName}. Deixe de acompanhar um para fixar outro.` }
-
-  const { error: e4 } = await supabase.from('competitor_videos').update({ pinned_at: new Date().toISOString(), pinned_by: who.userId })
-    .eq('id', t.id).eq('competitor_channel_id', t.channelId).is('pinned_at', null).select('id')
-  if (e4) return PIN_FAILED
-  revalidatePath('/cms/youtube/competitors', 'layout')
+  const { data, error } = await supabase.rpc('pin_competitor_video', { p_site_id: who.siteId, p_video_id: videoId, p_user_id: who.userId, p_limit: RULES.pinLimit })
+  if (error || typeof data !== 'object' || data === null || Array.isArray(data)) return PIN_FAILED
+  const d = data as Record<string, unknown>
+  if (d.status === 'not_found') return PIN_GONE
+  if (d.status === 'cap') {
+    // an answer without the count is "could not check": the sentence never invents a number
+    if (typeof d.pinned !== 'number') return PIN_FAILED
+    const name = typeof d.name === 'string' && d.name ? d.name : 'este canal'
+    return { ok: false, kind: 'cap', error: `Sem vagas: ${d.pinned} de ${RULES.pinLimit} vídeos fixados em ${name}. Deixe de acompanhar um para fixar outro.` }
+  }
+  // anything but an explicit ok is a failure: an unknown answer is never "pinned"
+  if (d.status !== 'ok') return PIN_FAILED
+  if (d.already !== true) revalidatePath('/cms/youtube/competitors', 'layout')
   return { ok: true }
 }
 
@@ -445,9 +444,11 @@ export async function unpinVideo(videoId: string): Promise<PinResult> {
   if (t === 'not-found') return PIN_GONE
   if (!t.pinnedAt) return { ok: true }
 
-  const { error } = await supabase.from('competitor_videos').update({ pinned_at: null, pinned_by: null })
+  const { data, error } = await supabase.from('competitor_videos').update({ pinned_at: null, pinned_by: null })
     .eq('id', t.id).eq('competitor_channel_id', t.channelId).select('id')
-  if (error) return UNPIN_FAILED
+  if (error || !Array.isArray(data)) return UNPIN_FAILED
+  // no row written: the video was removed between the read and the write
+  if (!data.length) return PIN_GONE
   revalidatePath('/cms/youtube/competitors', 'layout')
   return { ok: true }
 }

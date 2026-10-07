@@ -10372,6 +10372,15 @@ export type Database = {
         Returns: string
       }
       pg_typeof_citext_probe: { Args: never; Returns: string }
+      pin_competitor_video: {
+        Args: {
+          p_limit: number
+          p_site_id: string
+          p_user_id: string
+          p_video_id: string
+        }
+        Returns: Json
+      }
       pin_weekly_pick: {
         Args: {
           p_channel_id: string

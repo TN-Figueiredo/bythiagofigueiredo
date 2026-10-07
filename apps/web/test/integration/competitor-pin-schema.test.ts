@@ -71,3 +71,70 @@ describe.skipIf(skipIfNoLocalDb())('fixar vídeo: schema e contagem (banco local
     expect(data).toEqual({ status: 'not_found' })
   })
 })
+
+describe.skipIf(skipIfNoLocalDb())('pin_competitor_video: o teto é garantido no banco', () => {
+  let sb: ReturnType<typeof getSupabaseServiceClient>
+  const now = Date.now(), LIMIT = 10
+  let siteId = '', otherSite = '', chId = ''
+  const ids: Record<string, string> = {}
+  const pin = (video: string, site = siteId, limit = LIMIT) => sb.rpc('pin_competitor_video', { p_site_id: site, p_video_id: video, p_user_id: null, p_limit: limit })
+  const pinnedCount = async () => (await sb.from('competitor_videos').select('id', { count: 'exact', head: true }).eq('competitor_channel_id', chId).not('pinned_at', 'is', null)).count
+  beforeAll(async () => {
+    sb = getSupabaseServiceClient()
+    siteId = (await seedSite(sb)).siteId
+    otherSite = (await seedSite(sb)).siteId
+    chId = (await sb.from('competitor_channels').insert({ site_id: siteId, channel_id: 'UCpincap', channel_name: 'Canal Teto', video_limit: 50 }).select('id').single()).data!.id
+    // 8 already pinned, 4 free
+    const rows = Array.from({ length: 12 }, (_, i) => ({
+      competitor_channel_id: chId, video_id: 'pincap' + i, title: 'V' + i, published_at: new Date(now - (i + 1) * DAY).toISOString(),
+      pinned_at: i < 8 ? new Date(now - DAY).toISOString() : null,
+    }))
+    const vids = await sb.from('competitor_videos').insert(rows).select('id, video_id')
+    expect(vids.error).toBeNull()
+    for (const v of vids.data!) ids[v.video_id] = v.id
+  })
+  afterAll(async () => {
+    await sb.from('competitor_channels').delete().eq('site_id', siteId)
+    await sb.from('sites').delete().in('id', [siteId, otherSite])
+  })
+
+  it('fixa abaixo do teto e grava pinned_at; fixar de novo é ok sem regravar a data', async () => {
+    const a = await pin(ids.pincap8!)
+    expect(a.error).toBeNull()
+    expect(a.data).toEqual({ status: 'ok', already: false })
+    const first = (await sb.from('competitor_videos').select('pinned_at').eq('id', ids.pincap8!).single()).data!.pinned_at
+    expect(first).not.toBeNull()
+    expect((await pin(ids.pincap8!)).data).toEqual({ status: 'ok', already: true })
+    expect((await sb.from('competitor_videos').select('pinned_at').eq('id', ids.pincap8!).single()).data!.pinned_at).toBe(first)
+    expect(await pinnedCount()).toBe(9)
+  })
+
+  it('vídeo de um canal de outro site, e vídeo que não existe: not_found, nada gravado', async () => {
+    expect((await pin(ids.pincap9!, otherSite)).data).toEqual({ status: 'not_found' })
+    expect((await pin('00000000-0000-4000-8000-000000000009')).data).toEqual({ status: 'not_found' })
+    expect(await pinnedCount()).toBe(9)
+  })
+
+  it('duas chamadas simultâneas com 9 fixados: exatamente uma passa, a outra é recusada no teto', async () => {
+    const [a, b] = await Promise.all([pin(ids.pincap9!), pin(ids.pincap10!)])
+    expect(a.error).toBeNull()
+    expect(b.error).toBeNull()
+    const st = [a.data, b.data].map(d => (d as { status: string }).status).sort()
+    expect(st).toEqual(['cap', 'ok'])
+    expect([a.data, b.data].find(d => (d as { status: string }).status === 'cap')).toEqual({ status: 'cap', name: 'Canal Teto', pinned: 10 })
+    expect(await pinnedCount()).toBe(10)
+  })
+
+  it('no teto: recusa, e um vídeo JÁ fixado continua ok (idempotente, não conta contra o teto)', async () => {
+    expect((await pin(ids.pincap11!)).data).toEqual({ status: 'cap', name: 'Canal Teto', pinned: 10 })
+    expect((await pin(ids.pincap0!)).data).toEqual({ status: 'ok', already: true })
+    expect(await pinnedCount()).toBe(10)
+  })
+
+  it('o teto vem da aplicação: com um limite maior a mesma chamada passa; limite inválido é erro, nunca "sem teto"', async () => {
+    expect((await pin(ids.pincap11!, siteId, -1)).error).not.toBeNull()
+    expect(await pinnedCount()).toBe(10)
+    expect((await pin(ids.pincap11!, siteId, 11)).data).toEqual({ status: 'ok', already: false })
+    expect(await pinnedCount()).toBe(11)
+  })
+})

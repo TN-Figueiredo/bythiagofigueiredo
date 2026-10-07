@@ -314,15 +314,21 @@ export async function syncCompetitorChannel(
   }
   /**
    * A pinned video outside the uploads page never reaches the stats update of the page loop, so its row would keep the
-   * count of the day it left the page. Same fields and same optCount as that update, limited to what
-   * part=snippet,statistics returns. Only pinned rows: an unobserved video keeps a frozen count on purpose.
+   * count and the check date of the day it left the page. last_checked_at is written whenever YouTube returns the item
+   * (that is what "checked since it was pinned" reads); view_count / like_count only when the answer carries them, so a
+   * hidden counter never erases the stored one. Only pinned rows: an unobserved video keeps a frozen row on purpose.
    */
   const refreshPinnedStats = async (items: FetchedItem[], byYt: Map<string, TrackedRow>): Promise<void> => {
     for (const it of items) {
       const row = byYt.get(it.id)
-      if (!row || !pinned.some(p => p.id === row.id) || it.statistics?.viewCount === undefined) continue
+      if (!row || !pinned.some(p => p.id === row.id)) continue
+      const st = it.statistics
       const { error } = await supabase.from('competitor_videos')
-        .update({ view_count: optCount(it.statistics.viewCount), like_count: optCount(it.statistics.likeCount), last_checked_at: nowIso })
+        .update({
+          ...(st?.viewCount !== undefined ? { view_count: optCount(st.viewCount) } : {}),
+          ...(st?.likeCount !== undefined ? { like_count: optCount(st.likeCount) } : {}),
+          last_checked_at: nowIso,
+        })
         .eq('id', row.id)
       fail('update pinned video stats', error)
     }

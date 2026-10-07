@@ -16,10 +16,12 @@ export interface ObsVideo {
   /** Pinned by the owner (R118): still observed when it falls out of the channel's video_limit. Absent = not pinned. NOT `tracked` (R119). */
   pinned?: boolean
   /**
-   * Only for a pinned video (absent = not pinned). 'aguardando-primeira' = pinned outside the tracked ones and not checked
-   * since: nothing may be said about "now" for it until the next sync (D13).
+   * Only for a pinned video (absent = not pinned). For one pinned outside the tracked ones: 'aguardando-primeira' = not
+   * checked since the pin and the channel has not synced since either (D13); 'sem-resposta' = the channel DID sync after
+   * the pin and the video still has no check, so YouTube did not return it (deleted or private). In both nothing may be
+   * said about "now". A null last_checked_at is never 'ativo' there.
    */
-  pinState?: 'aguardando-primeira' | 'ativo'
+  pinState?: 'aguardando-primeira' | 'sem-resposta' | 'ativo'
   /** competitor_videos.last_checked_at as it is stored; null when it was never written. No fallback (unlike viewsAt): a screen may print it. */
   checkedAt?: number | null
   title: string; theme: string | null; formulas: string[]; url: string; ytId: string; dur: number | null
@@ -45,6 +47,8 @@ export interface ObsChannel {
   subs: number | null; video_limit: number; url: string; handle: string; gender: 'm' | 'f' | 'n'; color: string; ini: string
   /** The channel's picture (YouTube's own URL, refreshed by every sync). Absent or null = draw the initials. */
   avatar?: string | null
+  /** Pinned videos of the channel as the database counts them (rows with pinned_at, dated or not): the base of the pin cap. Absent = derive from the videos. */
+  pinnedCount?: number
   sync: ChannelSync; activity: { state: 'ativo' | 'parado'; pausedDays?: number }
   lastIdx: number | null; snapshots: ChannelSnapshot[]
   /** Derived by the engine (Task 17). */

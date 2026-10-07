@@ -664,10 +664,19 @@ describe('fixado aguardando a primeira conferência (D13)', () => {
     expect(state({ checked: iso(PIN + MIN) }).pinState).toBe('ativo')
     expect(state({ checked: iso(PIN) }).pinState).toBe('ativo')
   })
-  it('last_checked_at nulo: vale a última sincronização boa do canal; sem nenhuma das duas, nunca foi conferido', () => {
+  it('conferência anterior a fixar e canal já sincronizado DEPOIS de fixar: o YouTube não devolveu o vídeo (sem-resposta)', () => {
+    expect(state({ checked: iso(PIN - MIN), chOk: iso(PIN + MIN) }).pinState).toBe('sem-resposta')
+    // boundaries: a sync at the very instant of the pin, or before it, has not looked for the pinned video yet
+    expect(state({ checked: iso(PIN - MIN), chOk: iso(PIN) }).pinState).toBe('aguardando-primeira')
+    expect(state({ checked: iso(PIN - MIN), chOk: iso(PIN - MIN) }).pinState).toBe('aguardando-primeira')
+    // the video's own check wins over the channel: checked after the pin is active whatever the channel says
+    expect(state({ checked: iso(PIN + MIN), chOk: iso(PIN + 2 * MIN) }).pinState).toBe('ativo')
+  })
+  it('last_checked_at nulo (o dado não existe) NUNCA é ativo: a sincronização do canal não vale como conferência do vídeo', () => {
     expect(state({ checked: null, chOk: iso(PIN - MIN) }).pinState).toBe('aguardando-primeira')
-    expect(state({ checked: null, chOk: iso(PIN + MIN) }).pinState).toBe('ativo')
+    expect(state({ checked: null, chOk: iso(PIN + MIN) }).pinState).toBe('sem-resposta')
     expect(state({ checked: null, chOk: null }).pinState).toBe('aguardando-primeira')
+    expect(state({ checked: 'não é data', chOk: iso(PIN + MIN) }).pinState).toBe('sem-resposta')
   })
   it('checkedAt é o last_checked_at de verdade: nulo quando a coluna é nula, nunca a hora do canal nem "agora"', () => {
     expect(state({ checked: iso(PIN + MIN) }).checkedAt).toBe(PIN + MIN)
@@ -699,5 +708,26 @@ describe('leitura diária: acompanhados ∪ fixados', () => {
   it('sem fixados: os mesmos ids de trackedVideoIds', () => {
     const none = vs.map(v => ({ ...v, pinned_at: null }))
     expect(observedVideoIds(chs, none).sort()).toEqual(trackedVideoIds(chs, none).sort())
+  })
+})
+
+describe('fixados do canal: a contagem da tela usa a base do banco (A4)', () => {
+  const at = (d: number) => iso(NOW - d * DAY)
+  it('conta todo vídeo do canal com pinned_at, inclusive o que não tem published_at e fica fora do conjunto', () => {
+    const ds = rowsToDataset(rows({
+      channels: [channel({ id: 'ch1' }), channel({ id: 'ch2', channel_id: 'UC2', channel_name: 'Canal Dois' })],
+      videos: [
+        video({ id: 'a', video_id: 'ya', published_at: at(1), pinned_at: at(1) }),
+        video({ id: 'n', video_id: 'yn', published_at: null, pinned_at: at(1) }),
+        video({ id: 'b', video_id: 'yb', published_at: at(2) }),
+        video({ id: 'x', video_id: 'yx', competitor_channel_id: 'ch2', published_at: at(1), pinned_at: at(1) }),
+      ],
+    }), NOW)
+    expect(ds.videos.map(v => v.id).sort()).toEqual(['a', 'b', 'x']) // `n` is out of the dataset
+    expect(ds.channels.find(c => c.id === 'ch1')!.pinnedCount).toBe(2)
+    expect(ds.channels.find(c => c.id === 'ch2')!.pinnedCount).toBe(1)
+  })
+  it('canal sem vídeo nenhum (o dado não existe): zero, nunca undefined', () => {
+    expect(rowsToDataset(rows({ channels: [channel()] }), NOW).channels[0]!.pinnedCount).toBe(0)
   })
 })

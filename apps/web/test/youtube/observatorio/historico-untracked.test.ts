@@ -183,6 +183,41 @@ describe('D13: vídeo antigo recém-fixado, antes da primeira conferência', () 
   })
 })
 
+describe('A2: fixado que o YouTube não devolveu (sem-resposta)', () => {
+  const PIN = NOW - 5 * H, MIN = 60_000
+  const GONE = 'Fixado. O YouTube não devolveu este vídeo na última sincronização; ele pode ter sido apagado ou ficado privado.'
+  // channel() syncs ok at NOW − 2 h, after the pin; the video's own check is from before the pin
+  const v = buildHistoricoView(build({ pinned: true, pinnedAt: PIN, checked: iso(PIN - MIN), versions: TWO }), 'b', {})
+  it('estado explícito e a frase própria, sem promessa de prazo', () => {
+    expect(v.pin).toEqual({ pinned: true, used: 1, limit: RULES.pinLimit, state: 'sem-resposta', note: GONE })
+    expect(v.state).not.toBe('untr')
+    expect(JSON.stringify(v)).not.toMatch(/em até 6 h|próxima sincronização do canal|primeira conferência|conferidos a cada sincronização/)
+  })
+  it('as versões guardadas terminam na última vez em que foram vistas, com a data real, nunca em "agora"', () => {
+    const cur = v.lanes.find(l => l.type === 'title')!.versions[1]!
+    expect(cur.to).toBe('até 20/10 06:00 (última conferência)')
+    expect(cur.tag).toEqual({ kind: 'now', text: 'último visto' })
+    expect(JSON.stringify([v.lanes, v.versions])).not.toMatch(/agora|no ar/)
+    expect(v.versions!.titles.items).toHaveLength(2)
+  })
+  it('sem número de views: o gravado é de antes de fixar e ninguém o conferiu', () => {
+    expect(v.header!.views).toEqual({ num: null, text: 'contagem de views não conferida' })
+    expect(JSON.stringify(v)).not.toMatch(/7[.,]?654[.,]?321/)
+  })
+  it('sem troca nenhuma, o texto que explica a conferência é a frase do sem-resposta', () => {
+    const one = buildHistoricoView(build({ pinned: true, pinnedAt: PIN, checked: iso(PIN - MIN), versions: [TWO[0]!] }), 'b', {})
+    expect(one.compareEmpty!.startsWith(GONE)).toBe(true)
+  })
+  it('last_checked_at nulo com canal sincronizado depois de fixar: também sem-resposta, nunca ativo', () => {
+    const x = buildHistoricoView(build({ pinned: true, pinnedAt: PIN, checked: null, versions: TWO }), 'b', {})
+    expect(x.pin!.state).toBe('sem-resposta')
+    expect(x.header!.views.num).toBeNull()
+  })
+  it('o vídeo volta a ser devolvido (conferência depois de fixar): ativo, sem a frase', () => {
+    expect(buildHistoricoView(build({ pinned: true, pinnedAt: PIN, checked: iso(NOW - 2 * H), versions: TWO }), 'b', {}).pin).toMatchObject({ state: 'ativo', note: null })
+  })
+})
+
 describe('D14: hora sempre como DD/MM HH:MM nos textos novos', () => {
   it('aviso, estado de fixar, eixo das faixas e views não usam a forma "12h"', () => {
     const PIN = NOW - 30 * 60_000
@@ -207,12 +242,17 @@ describe('vídeo fixado antigo', () => {
     expect(v.header!.views.num).not.toBeNull() // observed: the count is kept fresh by the sync (Task 2), so it is shown
     expect(v.lanes.find(l => l.type === 'title')!.versions[1]!.to).toBe('agora')
   })
-  it('D15, last_checked_at nulo (o dado não existe): só o número, sem data inventada', () => {
-    // the channel synced after the pin, so the pin is active; the video row itself has no check date
-    const o2 = build({ pinned: true, checked: null, versions: TWO, daily: FIVE_DAYS })
-    const x = buildHistoricoView(o2, 'b', {})
-    expect(x.pin!.state).toBe('ativo')
-    expect(x.header!.views).toEqual({ num: o2.fmt.num(7_654_321), text: ' views' })
+  it('A4: o "N de 10" conta os fixados do canal no banco, inclusive o que não tem published_at (fora do conjunto)', () => {
+    const o2 = createObservatory(rowsToDataset(rows({
+      settings: { series_started_at: SERIES, channel_limit: 75 }, channels: [channel()],
+      videos: [
+        video({ id: 'n0', video_id: 'yn0', published_at: iso(NOW - DAY) }),
+        video({ id: 'b', video_id: 'yb', published_at: iso(PUB), pinned_at: iso(NOW - 2 * DAY) }),
+        video({ id: 'semdata', video_id: 'ys', published_at: null, pinned_at: iso(NOW - 2 * DAY) }),
+      ],
+    }), NOW))
+    expect(o2.video('semdata')).toBeUndefined()
+    expect(buildHistoricoView(o2, 'b', {}).pin!.used).toBe(2)
   })
   it('está no paginador de Canais, depois dos N mais recentes', () => {
     expect(v.pager!.position).toBe('vídeo 11 de 11 de Canal Um (longos acompanhados, do mais novo ao mais antigo)')
