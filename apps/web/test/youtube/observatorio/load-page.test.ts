@@ -133,6 +133,26 @@ describe('loadPageRows — cache por canal', () => {
     expect(v.pinned).toBe(true)
     expect(v.series.map(p => p.views)).toEqual([77])
   })
+  it('canal sem a primeira sincronização concluída nunca é guardado: a busca anda a cada abertura, sem esperar invalidação', async () => {
+    const tables = buildTables({ siteId: 'a', now: NOW, channels: 1, videosPerChannel: 0 })
+    const ch = tables.competitor_channels![0]!
+    Object.assign(ch, { last_ok_synced_at: null, sync_status: 'syncing', youtube_video_count: 40 })
+    const { loadPageDataset, cache } = await setup(tables)
+    const sync = async () => (await loadPageDataset('a', NOW)).channels.find(c => c.id === ch.id)!.sync
+    expect(await sync()).toMatchObject({ state: 'backfill', backfill: { done: 0, total: 3 } })
+    // the first sync (after() of the add action) writes videos; it only invalidates when it ends
+    tables.competitor_videos!.push(...buildTables({ siteId: 'a', now: NOW, channels: 1, videosPerChannel: 2 }).competitor_videos!)
+    expect(await sync()).toMatchObject({ state: 'backfill', backfill: { done: 2, total: 3 } })
+    expect(cache.entries.size).toBe(0)
+    expect(cache.invalidated).toEqual([])
+    // the sync marks the channel done; a render that comes before the invalidation already sees every video
+    tables.competitor_videos!.push(...buildTables({ siteId: 'a', now: NOW, channels: 1, videosPerChannel: 4 }).competitor_videos!.slice(2))
+    ch.last_ok_synced_at = new Date(NOW).toISOString(); ch.sync_status = 'idle'
+    const done = await loadPageDataset('a', NOW)
+    expect(done.channels.find(c => c.id === ch.id)!.sync).toMatchObject({ state: 'ok', backfill: null })
+    expect(done.videos.filter(v => v.ch === ch.id)).toHaveLength(4)
+    expect(cache.entries.size).toBe(1)
+  })
   it('mudar o limite de vídeos do canal lê um pacote novo, sem invalidação', async () => {
     const tables = buildTables({ siteId: 'a', now: NOW })
     const { loadPageRows, cache } = await setup(tables)

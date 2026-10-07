@@ -53,7 +53,10 @@ export async function loadPageRows(siteId: string, now: number): Promise<Observa
   const read = observatoryCacheEnabled() ? cachedPack(siteId) : null
   const parts = await mapLimit(live.channels, CHANNEL_CONCURRENCY, async (c): Promise<ChannelRows> => {
     const direct = () => loadChannelRows(sb, { channelId: c.id, videoLimit: c.video_limit, seriesStart: seriesStartAt, now })
-    if (!read) return direct()
+    // A channel that never finished a sync is filling up right now (the first sync runs in after() and writes for up to
+    // a minute, invalidating only at its end): a stored pack would freeze "buscando vídeos (N de M)" at the count of the
+    // first render. It has few rows, so it is read on every render until its first good sync.
+    if (!read || c.last_ok_synced_at == null) return direct()
     const rows = unpackChannel(await read(siteId, c.id, c.video_limit, seriesStartAt))
     if (rows) return rows
     // an entry of another PACK_VERSION or a damaged one: this render reads the database, never an empty channel
