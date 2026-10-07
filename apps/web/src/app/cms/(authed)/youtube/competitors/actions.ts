@@ -15,6 +15,8 @@ import { createObservatory } from '@/lib/youtube/observatorio'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
 import { BUILTIN_NICHES, isNicheSlug, nicheLabel, type Niche, type NicheDef } from '@/lib/youtube/observatorio/niche'
 import { readNicheDefs } from '@/lib/youtube/observatorio/niches-db'
+import { RULES } from '@/lib/youtube/observatorio/rules'
+import type { PinResult } from './pin-result'
 import type { SyncNowResult } from './_chrome/view-model'
 import { parseChannelInput } from './_canais/channel-input'
 
@@ -23,6 +25,13 @@ async function requireEditAccess(): Promise<string> {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   return siteId
+}
+/** The same guard as requireEditAccess (it throws), for the writes that record who did them. */
+async function requireEditUser(): Promise<{ siteId: string; userId: string }> {
+  const { siteId } = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  return { siteId, userId: res.user.id }
 }
 
 const YT_API = 'https://www.googleapis.com/youtube/v3'
@@ -373,4 +382,71 @@ export async function syncCompetitorsNow(): Promise<SyncNowResult> {
   if (attempted > 0) revalidatePath('/cms/youtube/competitors', 'layout')
   const toast = obs.syncResultToast({ ok, problems, outOfRound })
   return { ok: ok.length > 0, text: toast.text, problems, outOfRound, toast }
+}
+
+const PIN_DENIED: PinResult = { ok: false, kind: 'denied', error: 'Você não tem permissão para fixar vídeos neste site.' }
+const PIN_GONE: PinResult = { ok: false, kind: 'denied', error: 'Este vídeo não existe mais no Observatório.' }
+const PIN_FAILED: PinResult = { ok: false, kind: 'failed', error: 'Não foi possível fixar agora. Tente de novo.' }
+const UNPIN_FAILED: PinResult = { ok: false, kind: 'failed', error: 'Não foi possível deixar de acompanhar agora. Tente de novo.' }
+interface PinTarget { id: string; channelId: string; channelName: string; pinnedAt: string | null }
+
+/**
+ * The competitor video and its channel, only when the channel is this site's: competitor_videos has no site_id, so the
+ * site comes from the channel. A video of another site reads as not found. The database error itself is never returned.
+ */
+async function pinTarget(supabase: ReturnType<typeof getSupabaseServiceClient>, siteId: string, videoId: string): Promise<PinTarget | 'not-found' | 'error'> {
+  const { data: video, error: e1 } = await supabase.from('competitor_videos').select('id, competitor_channel_id, pinned_at').eq('id', videoId).maybeSingle()
+  if (e1) return 'error'
+  if (!video) return 'not-found'
+  const { data: channel, error: e2 } = await supabase.from('competitor_channels').select('id, channel_name').eq('id', video.competitor_channel_id).eq('site_id', siteId).maybeSingle()
+  if (e2) return 'error'
+  if (!channel) return 'not-found'
+  return { id: video.id, channelId: channel.id, channelName: channel.channel_name || 'este canal', pinnedAt: video.pinned_at ?? null }
+}
+
+/**
+ * "Continuar acompanhando" (R118): pins a competitor video so it stays observed after it falls out of the channel's
+ * video_limit. Refuses at RULES.pinLimit pinned videos per channel; never unpins another one to make room.
+ */
+export async function pinVideo(videoId: string): Promise<PinResult> {
+  let who: { siteId: string; userId: string }
+  try { who = await requireEditUser() } catch { return PIN_DENIED }
+  if (typeof videoId !== 'string' || !UUID_RE.test(videoId)) return PIN_GONE
+
+  const supabase = getSupabaseServiceClient()
+  const t = await pinTarget(supabase, who.siteId, videoId)
+  if (t === 'error') return PIN_FAILED
+  if (t === 'not-found') return PIN_GONE
+  if (t.pinnedAt) return { ok: true }
+
+  const { count, error: e3 } = await supabase.from('competitor_videos').select('id', { count: 'exact', head: true })
+    .eq('competitor_channel_id', t.channelId).not('pinned_at', 'is', null)
+  // a missing count is "could not check", never "none pinned": the cap would fail open
+  if (e3 || typeof count !== 'number') return PIN_FAILED
+  if (count >= RULES.pinLimit) return { ok: false, kind: 'cap', error: `Sem vagas: ${count} de ${RULES.pinLimit} vídeos fixados em ${t.channelName}. Deixe de acompanhar um para fixar outro.` }
+
+  const { error: e4 } = await supabase.from('competitor_videos').update({ pinned_at: new Date().toISOString(), pinned_by: who.userId })
+    .eq('id', t.id).eq('competitor_channel_id', t.channelId).is('pinned_at', null).select('id')
+  if (e4) return PIN_FAILED
+  revalidatePath('/cms/youtube/competitors', 'layout')
+  return { ok: true }
+}
+
+/** "Deixar de acompanhar": unpins. The stored history stays (R120); only the daily record and the every-sync check stop. */
+export async function unpinVideo(videoId: string): Promise<PinResult> {
+  let who: { siteId: string; userId: string }
+  try { who = await requireEditUser() } catch { return PIN_DENIED }
+  if (typeof videoId !== 'string' || !UUID_RE.test(videoId)) return PIN_GONE
+
+  const supabase = getSupabaseServiceClient()
+  const t = await pinTarget(supabase, who.siteId, videoId)
+  if (t === 'error') return UNPIN_FAILED
+  if (t === 'not-found') return PIN_GONE
+  if (!t.pinnedAt) return { ok: true }
+
+  const { error } = await supabase.from('competitor_videos').update({ pinned_at: null, pinned_by: null })
+    .eq('id', t.id).eq('competitor_channel_id', t.channelId).select('id')
+  if (error) return UNPIN_FAILED
+  revalidatePath('/cms/youtube/competitors', 'layout')
+  return { ok: true }
 }
