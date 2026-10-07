@@ -908,6 +908,8 @@ O congelamento é **por task, não por tentativa**: quando a task volta para a f
 }
 ```
 `base` (padrões de título e temas), `changeIds` + `windowDays` (resumo das trocas) e `effects` + `viewsThen` (leitura de vídeo) são os dados crus que o site usa no "Desde então" da leitura publicada. Ficam congelados junto com o resto; **não são citáveis** (não entram em `numbers`) e a forja pode ignorá-los.
+
+Uma troca seguida de outra troca do mesmo vídeo em até 7 dias sai `inconclusivo` em `effects[].status` (a leitura misturaria duas versões); o `reason` diz qual campo mudou depois. O mesmo vale quando outra troca do vídeo aconteceu 2 dias ou menos antes.
 **Response 400:** `VALIDATION_ERROR` — `task_id` ausente ou não é uuid; a task não é do observatório
 **Response 401:** `UNAUTHORIZED` — sem `X-Pipeline-Key` ou chave inválida
 **Response 403:** `FORBIDDEN` — sessão (só API key) ou chave sem `intelligence` (nem `write`/`admin`)
