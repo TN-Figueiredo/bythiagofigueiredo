@@ -11,6 +11,7 @@ import type { Hl } from './lanes'
 import { Crumbs } from './pager'
 import { Timeline } from './views-chart'
 import { Compare } from './compare'
+import { useGo } from '../_mudancas/filters'
 import { Versions } from './versions'
 import { HIcon, TYPE_COLOR } from './icons'
 import { Thumb } from './thumb'
@@ -25,7 +26,9 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   const toast = useToast()
   const [pairK, setPairK] = useState<string | null>(view.defaultPair)
   const [hl, setHl] = useState<Hl | null>(null)
+  const go = useGo()
   const root = useRef<HTMLDivElement>(null)
+  const onRange = (id: string) => go({ range: id === 'tudo' ? null : id })
   const onHl = useCallback((h: Hl | null) => setHl(h), [])
   const toasted = useRef<string | null>(null)
   useEffect(() => { setPairK(view.defaultPair) }, [view.defaultPair])
@@ -121,7 +124,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
               </section>
               {view.lanesAxis ? (
                 <Timeline chart={null} axis={view.lanesAxis} lanes={view.lanes} legend={view.legends[''] ?? []} pair={null} hl={hl} onHl={onHl}
-                  onSelectPair={selectPair} onGoVersion={goVersion} />
+                  onSelectPair={selectPair} onGoVersion={goVersion} groupLegend={view.groupLegend} />
               ) : null}
               {view.versions ? <Versions versions={view.versions} hl={hl} onHl={onHl} /> : null}
             </>
@@ -129,7 +132,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
             <>
               {view.chart ? (
                 <Timeline chart={view.chart} lanes={view.lanes} legend={legend} pair={pair} hl={hl} onHl={onHl}
-                  onSelectPair={selectPair} onGoVersion={goVersion} />
+                  onSelectPair={selectPair} onGoVersion={goVersion} range={view.range} onRange={onRange} groupLegend={view.groupLegend} />
               ) : null}
               <Compare comparisons={view.comparisons} selected={pairK} empty={view.compareEmpty} onSelect={setPairK} onDescLink={openDesc} />
               {view.forja && view.forjaCard ? <VideoReading card={view.forjaCard} forja={view.forja} onCancel={onCancelForja} /> : null}

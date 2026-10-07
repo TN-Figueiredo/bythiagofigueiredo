@@ -82,7 +82,12 @@ describe('HistoricoScreen', () => {
   it('lanes: windows and markers name the change with the participle of the type', () => {
     const { root } = mount(PICK.full)
     expect(within(root.querySelector('[data-lane="title"]') as HTMLElement).getByRole('button', { name: 'Título trocado entre 11/10 06h e 12h' })).toBeTruthy()
-    expect(within(root.querySelector('[data-lane="thumb"]') as HTMLElement).getByRole('button', { name: 'Thumbnail trocada em 13/10 09:40' })).toBeTruthy()
+    // Fase 4 (faixas densas): the two thumbnail changes of 13/10 are 10 h 35 min apart, less than 32 px at this width. They are
+    // ONE counter now (no marker is pushed away from its instant any more); each change is a row of its list.
+    const th = root.querySelector('[data-lane="thumb"]') as HTMLElement
+    fireEvent.click(within(th).getByRole('button', { name: '2 trocas de thumbnail entre 13/10 09:40 e 13/10 20:15' }))
+    expect(within(th).getByRole('button', { name: /^A → B, 13\/10 09:40/ })).toBeTruthy()
+    expect(within(th).getByRole('button', { name: 'Thumbnail trocada em 18/10 09:14' })).toBeTruthy()
     expect(root.querySelectorAll('[data-lane="title"] .win').length).toBe(2)
   })
 
