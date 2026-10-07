@@ -37,8 +37,19 @@ const warn = (message: string, extra: Record<string, unknown>) => {
   Sentry.captureMessage(message, { level: 'warning', tags: { component: 'observatorio', step: 'cache' }, extra })
 }
 
-/** The cached function: every argument is part of the key. `seriesStart` null = no daily record yet (never the clock). */
-async function buildPack(siteId: string, channelId: string, videoLimit: number, seriesStart: number | null): Promise<string> {
+/**
+ * The cached function: every argument is part of the key. `seriesStart` null = no daily record yet (never the clock).
+ *
+ * `okSyncedAt` (the channel's last_ok_synced_at, read live by this render) is in the key and nowhere else. rowsToDataset
+ * compares the channel's last good sync, which is live, with each pinned video's own check, which comes from the pack:
+ * a pack older than that sync has the check of before it, and the pinned video read as "o YouTube não devolveu este
+ * vídeo" from the moment the sync marked the channel until the cron batch invalidated the site, minutes later. With the
+ * mark in the key, a pack is only ever paired with the mark its builder saw: it was read after that sync wrote the
+ * check (competitor-sync.ts writes the video first and the channel last), so it holds that check or the video really
+ * did not come back.
+ */
+async function buildPack(siteId: string, channelId: string, videoLimit: number, seriesStart: number | null, okSyncedAt: string): Promise<string> {
+  void okSyncedAt
   // a database error throws here and nothing is stored: a failed read is never cached as an empty channel
   const packed = packChannel(await loadChannelRows(getSupabaseServiceClient(), { channelId, videoLimit, seriesStart, now: observatoryNow() }))
   // Next will not store it (and says so only in a console.warn): every render of this channel reads the database again
@@ -57,7 +68,7 @@ export async function loadPageRows(siteId: string, now: number): Promise<Observa
     // a minute, invalidating only at its end): a stored pack would freeze "buscando vídeos (N de M)" at the count of the
     // first render. It has few rows, so it is read on every render until its first good sync.
     if (!read || c.last_ok_synced_at == null) return direct()
-    const rows = unpackChannel(await read(siteId, c.id, c.video_limit, seriesStartAt))
+    const rows = unpackChannel(await read(siteId, c.id, c.video_limit, seriesStartAt, c.last_ok_synced_at))
     if (rows) return rows
     // an entry of another PACK_VERSION or a damaged one: this render reads the database, never an empty channel
     warn('observatório: a entrada de cache do canal ' + c.id + ' não pôde ser lida; a tela leu o banco', { siteId, channelId: c.id })

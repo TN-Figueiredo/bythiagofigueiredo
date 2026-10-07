@@ -153,6 +153,41 @@ describe('loadPageRows — cache por canal', () => {
     expect(done.videos.filter(v => v.ch === ch.id)).toHaveLength(4)
     expect(cache.entries.size).toBe(1)
   })
+  describe('fixado conferido no meio do lote (a invalidação só vem no fim do lote)', () => {
+    const H = 36e5, iso = (ms: number) => new Date(ms).toISOString()
+    /** Video 3 of channel 0 (outside the limit) pinned one hour ago, after its last check and after the channel's last good sync. */
+    async function pinnedWaiting() {
+      const tables = buildTables({ siteId: 'a', now: NOW })
+      const id = ids.video('a', 0, 3), video = tables.competitor_videos!.find(r => r.id === id)!, ch = tables.competitor_channels!.find(r => r.id === ids.channel('a', 0))!
+      video.pinned_at = iso(NOW - H)
+      const s = await setup(tables)
+      const pinState = async () => (await s.loadPageDataset('a', NOW)).videos.find(v => v.id === id)!.pinState
+      // this render stores the channel: pinned, never checked since
+      expect(await pinState()).toBe('aguardando-primeira')
+      return { ...s, video, ch, pinState }
+    }
+    it('o sync conferiu o vídeo e marcou o canal: a abertura seguinte diz ativo, nunca "o YouTube não devolveu"', async () => {
+      const { video, ch, pinState, cache } = await pinnedWaiting()
+      // the order syncCompetitorChannel writes in: the video's check first, the channel's good sync last
+      const t = iso(NOW - 5 * 60_000)
+      video.last_checked_at = t
+      ch.last_ok_synced_at = t
+      expect(await pinState()).toBe('ativo')
+      expect(cache.invalidated).toEqual([])
+    })
+    it('o sync marcou o canal e o YouTube não devolveu o vídeo: sem-resposta aparece sem esperar o fim do lote', async () => {
+      const { ch, pinState, cache } = await pinnedWaiting()
+      ch.last_ok_synced_at = iso(NOW - 5 * 60_000)
+      expect(await pinState()).toBe('sem-resposta')
+      expect(cache.invalidated).toEqual([])
+    })
+    it('canal que não sincronizou de novo: o pacote guardado continua valendo', async () => {
+      const { pinState, db } = await pinnedWaiting()
+      const once = heavy(db)
+      expect(await pinState()).toBe('aguardando-primeira')
+      expect(heavy(db)).toBe(once)
+    })
+  })
   it('mudar o limite de vídeos do canal lê um pacote novo, sem invalidação', async () => {
     const tables = buildTables({ siteId: 'a', now: NOW })
     const { loadPageRows, cache } = await setup(tables)
