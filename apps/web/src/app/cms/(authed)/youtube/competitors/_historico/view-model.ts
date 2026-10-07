@@ -569,7 +569,8 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   }
 
   // ---------- versions section ----------
-  const tc = changes.filter(c => c.type === 'thumb' && c.testCompare)
+  // The "A → B → A" note is only true for an immediate return (nothing else on air in between).
+  const tc = changes.filter(c => c.type === 'thumb' && c.testCompare && c.revertedBy && c.revertedImmediate)
   const thumbNotes: VersionsView['thumbs']['notes'] = []
   if (tc.length) { const c = tc[0]!; const b = keyOf((c.before as { key: string }).key), a = keyOf((c.after as { key: string }).key); thumbNotes.push({ kind: 'ab', text: b + ' → ' + a + ' → ' + b + ' em ' + D.dur(c.cycleMs ?? 0) + ': alternância típica do Testar e comparar (teste A/B do YouTube). Compatível, não confirmado — o YouTube não informa o teste nem o vencedor.' }) }
   if (thumbPreAt != null) thumbNotes.push({ kind: 'warn', text: 'Thumbnail vista desde ' + preLabel + ', quando o arquivo de imagens começou. Trocas de thumbnail anteriores vinham de um método antigo (pela URL), que não é confiável, então não aparecem como troca.' })
@@ -724,7 +725,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       scaleTxt = 'escala ' + F.pct(lo / 100) + ' a ' + F.pct(hi / 100)
       const cDate = (t: string) => { const mm = String(t).match(/(\d{2})\/(\d{2})(?: (\d{2})(?::(\d{2})|h))?/); return mm ? +mm[2]! * 1e6 + +mm[1]! * 1e4 + +(mm[3] || 0) * 100 + +(mm[4] || 0) : 0 }
       const cav = (e.inconclusiveKind === 'troca-seguinte' ? [] : [...obs.caveats(e.id)]).sort((a, b) => cDate(a) - cDate(b))
-      if (q.group.some(g => g.testCompare)) cav.unshift('Alternância compatível com Testar e comparar (teste A/B do YouTube), não confirmada: o YouTube não informa o teste nem o vencedor.')
+      if (q.group.some(g => g.testCompare && (g.revertImmediate || g.revertedImmediate))) cav.unshift('Alternância compatível com Testar e comparar (teste A/B do YouTube), não confirmada: o YouTube não informa o teste nem o vencedor.')
       full = {
         what: q.e2 ? 'Thumbnail ' + q.labs![0] : q.label,
         whatWhen: ', ' + c0.whenText + ' (' + partAgo(c0) + ')',

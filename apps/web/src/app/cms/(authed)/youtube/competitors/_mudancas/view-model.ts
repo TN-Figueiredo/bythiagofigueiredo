@@ -302,10 +302,14 @@ function badges(obs: Observatory, c: ObsChange): Hero['badges'] {
       : o.typeLabel + ' mudou menos de ' + obs.RULES.effect.simultHours + ' h ' + (o.at < c.at ? 'antes' : 'depois') + ' desta troca (' + o.whenText + ')') + ': o efeito não se separa' })
   }
   const T = obs.RULES.testCompareMaxDays
-  if (c.revertTo) {
+  if (c.revertTo && c.type === 'thumb' && c.revertImmediate === false) {
+    // other images were on air in between: "com a alternativa" and "Testar e comparar" would not be true
+    const n = c.revertBetween ?? 0
+    out.push({ kind: 'rev', text: 'A versão ' + thumbLetter(obs, c) + ' voltou ao ar depois de ' + durTxt(obs, c.cycleMs) + ', com ' + (n === 1 ? '1 outra imagem' : n + ' outras imagens') + ' no intervalo.' })
+  } else if (c.revertTo) {
     out.push({ kind: 'rev', text: 'Voltou à versão ' + (c.type === 'thumb' ? thumbLetter(obs, c) : 'anterior') + ' depois de ' + durTxt(obs, c.cycleMs, c.prec !== 'min') + ' com a alternativa.'
       + (c.testCompare ? ' Compatível com Testar e comparar (teste A/B do YouTube, até ' + T + ' dias).' : ' A alternativa ficou mais de ' + T + ' dias: não parece teste automático.') })
-  } else if (c.testCompare && c.nextLivedMs) {
+  } else if (c.testCompare && c.nextLivedMs && c.revertedImmediate === true) {
     out.push({ kind: 'rev', text: 'Esta versão foi revertida ' + durTxt(obs, c.nextLivedMs) + ' depois. Compatível com Testar e comparar (teste A/B do YouTube).' })
   }
   return out

@@ -18,6 +18,12 @@ export interface ObsChange {
    * undefined = unknown (an object not produced by deriveChanges): the screens then say nothing about runs.
    */
   testRun?: TestRun | null
+  /** Thumbnail that came back (revertTo): true only when it came back right after ONE other image (A → B → A). */
+  revertImmediate?: boolean
+  /** Thumbnail that came back: how many distinct other images were on air between its two periods. */
+  revertBetween?: number
+  /** The leg before a return (revertedBy): the return was immediate, so "this version was reverted" is true. */
+  revertedImmediate?: boolean
 }
 /** `n` counts CHANGES (not versions); `pos` is 1-based; `from`/`to` are the first and the last change; `open` = the last one is at most testRunGapDays old. */
 export interface TestRun { id: string; n: number; pos: number; from: number; to: number; open: boolean }
@@ -71,6 +77,11 @@ export function deriveChanges(ctx: EngineCtx): ObsChange[] {
             const leftAt = left ? left.last_seen : null
             c.cycleMs = leftAt ? ver.first_seen - leftAt : null
             c.testCompare = c.cycleMs != null && c.cycleMs <= RULES.testCompareMaxDays * DAY
+            // The production sentences about a return ("com a alternativa", "foi revertida", "A → B → A") are only true
+            // when nothing else was on air in between. `left` is the previous period of the same image.
+            const li = left ? arr.lastIndexOf(left) : -1
+            c.revertImmediate = arr[i - 2]!.key === ver.key
+            c.revertBetween = li < 0 ? 0 : new Set(arr.slice(li + 1, i).map(x => x.key)).size
           }
         }
         if (type === 'desc') {
@@ -85,7 +96,7 @@ export function deriveChanges(ctx: EngineCtx): ObsChange[] {
   for (const c of changes) {
     if (c.type === 'thumb' && c.revertTo) {
       const leg = changes.find(o => o.video === c.video && o.type === 'thumb' && o.idx === c.idx - 1)
-      if (leg) { leg.revertedBy = c.id; leg.testCompare = c.testCompare; leg.cycleMs = c.cycleMs }
+      if (leg) { leg.revertedBy = c.id; leg.testCompare = c.testCompare; leg.cycleMs = c.cycleMs; leg.revertedImmediate = c.revertImmediate === true }
     }
   }
   // R121: per video and field, maximal runs of 2+ consecutive changes at most testRunGapDays apart. Thumbnail and title
