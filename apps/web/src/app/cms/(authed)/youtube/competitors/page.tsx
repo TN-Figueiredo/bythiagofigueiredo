@@ -1,18 +1,15 @@
-import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 import { DEFAULT_CHANNEL_LIMIT, UNLOCK_STEP } from '@/lib/youtube/competitor-slots'
-import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
-import { observatoryNow } from '@/lib/youtube/observatorio/now'
-import { createObservatory } from '@/lib/youtube/observatorio'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import { ObservatoryChromeServer } from './_chrome/chrome-server'
+import { openObservatoryPage } from './_chrome/page-data'
 import type { ObsSearchParams } from './_chrome/resolve-niche'
 import { CanaisScreen } from './_canais/canais-screen'
 import { legacyTabRedirect } from './_canais/legacy'
 import { buildCanaisView } from './_canais/view-model'
 import { addChannelFromCanais, removeCompetitorChannel, syncCompetitorNow, unlockMoreChannels, pinVideo, unpinVideo, getCompetitorRemovalImpactAction } from './actions'
-import { getUserNiche, setChannelNiche, setOwnChannelNiche } from './niche-actions'
+import { setChannelNiche, setOwnChannelNiche } from './niche-actions'
 import { askForjaReading } from './forja-actions'
 
 export const metadata = { title: 'Competidores' }
@@ -34,15 +31,12 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   const sp = await searchParams
   // The channel drawer reuses ?tab=outliers together with ?channel=; only a bare ?tab= is a legacy dashboard link.
   if (!one(sp.channel)) legacyTabRedirect(one(sp.tab))
-  const { siteId } = await getSiteContext()
-  const now = observatoryNow()
-  const [rows, canUnlock] = await Promise.all([loadRows({ siteId, now }), canUnlockChannels(siteId)])
-  const obs = createObservatory(rowsToDataset(rows, now))
+  const { rows, obs, savedNiche, extra: canUnlock } = await openObservatoryPage(canUnlockChannels)
   // The chrome persists a valid ?niche= and drops an invalid one; here it is only read. parseNiche checks the form;
   // the engine says whether the niche exists (a saved or linked niche that no longer exists opens in Todos, without error).
   const parsed = parseNiche(one(sp.niche))
   const urlNiche = parsed != null && obs.scopeOf(parsed) === parsed ? parsed : null
-  const niche = urlNiche ?? obs.scopeOf(await getUserNiche())
+  const niche = urlNiche ?? obs.scopeOf(savedNiche)
   const view = buildCanaisView(obs, {
     niche, nicheExplicit: urlNiche != null, limit: rows.settings?.channel_limit ?? DEFAULT_CHANNEL_LIMIT, unlockStep: UNLOCK_STEP,
     channel: one(sp.channel), tab: one(sp.tab), add: one(sp.add), filter: one(sp.filter), scale: one(sp.scale), fmt: one(sp.fmt),

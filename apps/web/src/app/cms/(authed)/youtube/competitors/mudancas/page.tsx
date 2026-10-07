@@ -1,11 +1,7 @@
-import { getSiteContext } from '@/lib/cms/site-context'
-import { createObservatory } from '@/lib/youtube/observatorio'
-import { loadDataset } from '@/lib/youtube/observatorio/load'
-import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import { ObservatoryChromeServer } from '../_chrome/chrome-server'
 import type { ObsSearchParams } from '../_chrome/resolve-niche'
-import { getUserNiche } from '../niche-actions'
+import { openObservatoryPage } from '../_chrome/page-data'
 import { toggleChangeBookmark, pinVideo, unpinVideo } from '../actions'
 import { askForjaReading } from '../forja-actions'
 import { buildMudancasView } from '../_mudancas/view-model'
@@ -21,14 +17,9 @@ export default async function MudancasPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
-  const { siteId } = await getSiteContext()
-  const [obs, rows, asked] = await Promise.all([
-    loadDataset({ siteId, now: observatoryNow() }).then(createObservatory),
-    loadSwipeRows(siteId),
-    parseNiche(flat.niche) ?? getUserNiche(),
-  ])
+  const { obs, savedNiche, extra: rows } = await openObservatoryPage(loadSwipeRows)
   // parseNiche checks the form; the engine says whether the niche exists (an unknown one opens in Todos)
-  const niche = obs.scopeOf(asked)
+  const niche = obs.scopeOf(parseNiche(flat.niche) ?? savedNiche)
   const { saved, keys } = savedFromRows(obs, rows)
   const view = buildMudancasView(obs, { ...flat, niche }, saved, keys)
   return (
