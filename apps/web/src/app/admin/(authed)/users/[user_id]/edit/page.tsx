@@ -1,10 +1,11 @@
-import { redirect, notFound } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { getSupabaseServiceClient } from '../../../../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../../../../lib/cms/site-context'
+import { requireOrgAdmin } from '../../../_lib/require-org-admin'
 import {
   reassignContentAction,
   updateSiteMembershipRoleAction,
@@ -49,10 +50,7 @@ export default async function AdminUserEditPage({ params, searchParams }: Props)
     },
   )
 
-  const { data: role } = await userClient.rpc('org_role', { p_org_id: ctx.orgId })
-  if (role !== 'owner' && role !== 'admin' && role !== 'org_admin') {
-    redirect('/cms')
-  }
+  await requireOrgAdmin(userClient, ctx.orgId)
 
   const service = getSupabaseServiceClient()
 
