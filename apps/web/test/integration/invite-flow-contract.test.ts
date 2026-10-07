@@ -491,6 +491,23 @@ describe.skipIf(skipIfNoLocalDb())('convite de site para quem já tem conta: con
     expect(await fetchPendingInvitation(service, token)).not.toBeNull()
   })
 
+  it('quem tem o link não aceita o convite direto pela API, nem lê o convite: só o servidor chama essas funções', async () => {
+    const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } })
+    const asUser = clientAs(signUserJwt(userId, 'user').jwt)
+    for (const client of [anon, asUser]) {
+      const accept = await client.rpc('accept_invitation_atomic', {
+        p_token_hash: token,
+        p_user_id: userId,
+      })
+      expect(accept.error?.code).toBe('42501')
+      const read = await client.rpc('get_invitation_by_token', { p_token_hash: token })
+      expect(read.error?.code).toBe('42501')
+    }
+    const site = await service.from('site_memberships').select('role').eq('user_id', userId)
+    expect(site.data).toEqual([])
+    expect(await fetchPendingInvitation(service, token)).not.toBeNull()
+  })
+
   it('a sobrecarga de dois argumentos (a que a ação usa) cria o vínculo de editor no site', async () => {
     const res = await service.rpc('accept_invitation_atomic', {
       p_token_hash: token,
