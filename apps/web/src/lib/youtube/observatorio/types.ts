@@ -34,6 +34,8 @@ export interface ObsChannel {
   id: string; name: string; fullName: string; niche: Niche | null; own: boolean; lang: string
   /** null = o YouTube não informa (canal esconde a contagem de inscritos). */
   subs: number | null; video_limit: number; url: string; handle: string; gender: 'm' | 'f' | 'n'; color: string; ini: string
+  /** The channel's picture (YouTube's own URL, refreshed by every sync). Absent or null = draw the initials. */
+  avatar?: string | null
   sync: ChannelSync; activity: { state: 'ativo' | 'parado'; pausedDays?: number }
   lastIdx: number | null; snapshots: ChannelSnapshot[]
   /** Derived by the engine (Task 17). */

@@ -14,6 +14,7 @@ import type { CanaisRow, DrawerTab, DrawerView, EffectView, SwapCard, ViewsText 
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import { Ic, ThumbView } from './cells'
 import { NicheSelect } from './niche-editor'
+import { ChannelAvatar } from '../_chrome/channel-avatar'
 
 const TABS: Array<{ k: DrawerTab; label: string; panel: string }> = [
   { k: 'trocas', label: 'Trocas', panel: 'pSwaps' },
@@ -72,7 +73,7 @@ function Card({ c }: { c: SwapCard }) {
 }
 
 /** What the list already knows of a channel: the drawer's head while its content is on the way. */
-export type DrawerShell = Pick<CanaisRow, 'id' | 'name' | 'color' | 'ini' | 'own' | 'niche' | 'lang' | 'handle' | 'url' | 'subs'>
+export type DrawerShell = Pick<CanaisRow, 'id' | 'name' | 'color' | 'ini' | 'avatar' | 'own' | 'niche' | 'lang' | 'handle' | 'url' | 'subs'>
 const isFull = (d: DrawerView | DrawerShell): d is DrawerView => 'stats' in d
 
 export interface ChannelDrawerProps {
@@ -102,7 +103,7 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
     <aside className="cn-drawer" aria-labelledby={nameId} role={modal ? 'dialog' : 'complementary'} aria-modal={modal || undefined} onKeyDown={modal ? trap : undefined} data-drawer={d.id} aria-busy={full ? undefined : true}>
       <div className="dhead">
         <div className="row1">
-          <div className="av" style={{ background: d.color }} aria-hidden="true">{d.ini}</div>
+          <ChannelAvatar as="div" src={d.avatar} ini={d.ini} color={d.color} />
           <div style={{ minWidth: 0 }}>
             <h3 id={nameId}>{d.name}</h3>
             <div className="meta">

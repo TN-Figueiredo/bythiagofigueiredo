@@ -129,7 +129,7 @@ export interface PagerView { prev: string | null; next: string | null; backHref:
 
 export interface HeaderView {
   thumb: ThumbImg; dur: string | null
-  chan: { name: string; ini: string; color: string; niche: string | null }
+  chan: { name: string; ini: string; avatar: string | null; color: string; niche: string | null }
   views: { num: string | null; text: string }
   pub: { age: string; full: string }
   fmt: string
@@ -516,7 +516,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     return {
       thumb: cur?.thumb ?? { src: null, missing: 'Nenhuma thumbnail registrada.', alt: 'Thumbnail' },
       dur: fmtDur(vv.dur),
-      chan: { name: ch.name, ini: ch.ini || ch.name.slice(0, 2).toUpperCase(), color: ch.color || '#3B2F8F', niche: vv.niche ? obs.nicheLabel(vv.niche) : null },
+      chan: { name: ch.name, ini: ch.ini || ch.name.slice(0, 2).toUpperCase(), avatar: ch.avatar ?? null, color: ch.color || '#3B2F8F', niche: vv.niche ? obs.nicheLabel(vv.niche) : null },
       views: vv.views != null ? { num: F.num(vv.views), text: ' views' + (syncOk || vv.viewsAt == null ? '' : ' até o registro diário de ' + dmhmY(vv.viewsAt)) } : { num: null, text: 'views ainda não registradas' },
       pub: { age: F.age(vv), full: dmhmY(pub) },
       fmt: vv.fmt === 'short' ? 'Short' : 'Vídeo longo',

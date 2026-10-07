@@ -57,7 +57,7 @@ export interface Hero {
   id: string; type: ChangeType; typeLabel: string
   video: {
     id: string; title: string; channel: string; ago: string; historyHref: string; url: string
-    color: string; ini: string; ink: string; niche: string | null; nicheLabel: string | null; meta: string[]; syncNote: string | null
+    color: string; ini: string; avatar: string | null; ink: string; niche: string | null; nicheLabel: string | null; meta: string[]; syncNote: string | null
   }
   when: { text: string; rel: string; prec: string; seq: string | null }
   badges: Array<{ kind: 'note' | 'rev'; text: string }>
@@ -433,7 +433,7 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
       video: {
         id: v.id, title: v.title, channel: ch.name, ago: F.age(v),
         historyHref: obs.link.historico(v.id, { from: 'mudancas', ids: visibleVideos, back }), url: v.url,
-        color: ch.color, ini: ch.ini, ink: inkOn(ch.color), niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null, meta,
+        color: ch.color, ini: ch.ini, avatar: ch.avatar ?? null, ink: inkOn(ch.color), niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null, meta,
         syncNote: ch.sync.problemPhrase ? cap(ch.sync.problemPhrase) : null,
       },
       when: {

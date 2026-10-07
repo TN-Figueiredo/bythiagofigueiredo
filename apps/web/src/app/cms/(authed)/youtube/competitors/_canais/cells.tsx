@@ -7,6 +7,7 @@ import { useId, type ReactNode } from 'react'
 import type { CadenceCell, CanaisRow, GrowthCell, OutCell, SwapCell, SyncCell, Thumb, VpdCell } from './view-model'
 import { NicheSelect } from './niche-editor'
 import type { Niche } from '@/lib/youtube/observatorio/types'
+import { ChannelAvatar } from '../_chrome/channel-avatar'
 
 const P: Record<string, ReactNode> = {
   wait: <path d="M4 1.5h8M4 14.5h8M5 1.5c0 3 6 3.5 6 6.5s-6 3.5-6 6.5M11 1.5c0 3-6 3.5-6 6.5s6 3.5 6 6.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />,
@@ -178,7 +179,7 @@ export function SyncView({ c, local, onRetry, onRemove }: { c: SyncCell; local: 
 export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string; onOpen: () => void; onNiche: (n: Niche) => void }) {
   return (
     <div className="ch">
-      <div className="av" style={{ background: r.color }} aria-hidden="true">{r.ini}</div>
+      <ChannelAvatar as="div" src={r.avatar} ini={r.ini} color={r.color} />
       <div style={{ minWidth: 0 }}>
         <div className="nmrow">
           <button type="button" className="nmbtn" data-open={r.id} title={r.name} aria-label={`Abrir detalhes de ${r.name}`} onClick={onOpen}>{r.name}</button>

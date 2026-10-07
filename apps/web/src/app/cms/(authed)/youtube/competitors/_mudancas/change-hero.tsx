@@ -10,6 +10,7 @@ import { TitleDiffView } from './title-diff'
 import { ThumbCompare } from './thumb-compare'
 import { DescDiff } from './desc-diff'
 import { EffectPanel } from './effect-panel'
+import { ChannelAvatar } from '../_chrome/channel-avatar'
 
 const KIND_ICON: Record<Hero['type'], IconName> = { title: 'title', thumb: 'image', desc: 'text' }
 
@@ -46,7 +47,7 @@ export function VideoGroup({ heroes, swipeOf, onSwipe }: { heroes: Hero[]; swipe
   return (
     <article className="vid" data-video={v.id}>
       <header className="vid-h">
-        <span className="av" style={{ background: v.color, color: v.ink }} aria-hidden="true">{v.ini}</span>
+        <ChannelAvatar src={v.avatar} ini={v.ini} color={v.color} ink={v.ink} />
         <div className="who">
           <div className="ch">
             <b>{v.channel}</b>

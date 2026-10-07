@@ -601,3 +601,17 @@ describe('concorrente com inscritos ocultos (Task 10)', () => {
     expect(JSON.stringify(s)).not.toMatch(/NaN|Infinity/)
   })
 })
+
+describe('rowsToDataset — foto do canal (R124)', () => {
+  it('concorrente: avatar vem de thumbnail_url; nulo quando o banco não tem', () => {
+    const ds = rowsToDataset(rows({ channels: [channel({ id: 'a', channel_id: 'UCa', thumbnail_url: 'https://yt3.ggpht.com/a=s88' }), channel({ id: 'b', channel_id: 'UCb', channel_name: 'Canal Dois', thumbnail_url: null })] }), NOW)
+    expect(ds.channels.find(c => c.id === 'a')!.avatar).toBe('https://yt3.ggpht.com/a=s88')
+    expect(ds.channels.find(c => c.id === 'b')!.avatar).toBeNull()
+  })
+  it('canal próprio: avatar vem de thumbnail_url; nulo quando a coluna não veio', () => {
+    const own = (o: Partial<OwnChannelRow>): OwnChannelRow => ({ id: 'o1', channel_id: 'UCo1', name: 'Meu Canal', handle: '@meu', subscriber_count: 10, last_synced_at: null, ...o })
+    const ds = rowsToDataset(rows({ ownChannels: [own({ thumbnail_url: 'https://yt3.ggpht.com/o=s88' }), own({ id: 'o2', channel_id: 'UCo2', name: 'Outro Meu' })] }), NOW)
+    expect(ds.channels.find(c => c.id === 'o1')!.avatar).toBe('https://yt3.ggpht.com/o=s88')
+    expect(ds.channels.find(c => c.id === 'o2')!.avatar).toBeNull()
+  })
+})

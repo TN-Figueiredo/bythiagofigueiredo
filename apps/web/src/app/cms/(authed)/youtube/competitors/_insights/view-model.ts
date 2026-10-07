@@ -72,7 +72,7 @@ export interface FormulasSection {
 export interface CadTick { left: string; height: number; tier: string | null; title: string }
 export interface CadHatch { kind: 'part' | 'sync' | 'parado'; left: string | null; width: string; title: string; text: string; short: string | null }
 export interface CadRow {
-  id: string; name: string; fullName: string; ini: string; color: string; aria: string
+  id: string; name: string; fullName: string; ini: string; avatar: string | null; color: string; aria: string
   syncOff: boolean; warn: string | null; none: string | null; noneSub: string | null
   pace: string | null; partial: boolean; habit: string | null; costuma: boolean
   outLink: LinkOrText | null; ticks: CadTick[]; hatches: CadHatch[]
@@ -328,7 +328,7 @@ function cadenceSection(obs: Observatory, niche: Niche, fmt: VideoFmt): CadenceS
     const inWin = all.filter(v => v.pub > FROM)
     const sy = ch.sync, syncOff = (sy.state === 'atrasado' || sy.state === 'erro') && sy.last != null && sy.last > FROM
     const warn = syncOff ? (sy.problemPhrase || 'sem sincronização ' + DT.ago(sy.last!)) : null
-    const head = { id: ch.id, name: ch.name, fullName: ch.fullName || ch.name, ini: ch.ini, color: ch.color, syncOff, warn }
+    const head = { id: ch.id, name: ch.name, fullName: ch.fullName || ch.name, ini: ch.ini, avatar: ch.avatar ?? null, color: ch.color, syncOff, warn }
     if (!all.length) {
       return { ...head, none: 'Nenhum ' + kind + ' acompanhado', noneSub: 'nenhum ' + kind + ' acompanhado', pace: null, partial: false, habit: null, costuma: false, outLink: null, ticks: [], hatches: [],
         last: { kind: 'none', text: '—', title: null, warn: false, srNote: null },

@@ -8,6 +8,9 @@ import { buildCanaisView, type CanaisParams } from '@/app/cms/(authed)/youtube/c
 const obs = createObservatory(datasetFromOracle(loadOracle()))
 describe('Canais view model', () => {
   it('"14 de 75 canais" — own channel not counted', () => expect(buildCanaisView(obs, { niche: 'todos', limit: 75 }).slots.text).toBe('14 de 75 canais'))
+  it('R124: cada linha leva a foto do canal; no oráculo (sem foto) é sempre nulo', () => {
+    for (const r of buildCanaisView(obs, { niche: 'todos', limit: 75 }).rows) expect(r.avatar).toBeNull()
+  })
   it('never negative slots', () => expect(buildCanaisView(obs, { niche: 'todos', limit: 10 }).slots.free).toBe(0))
   it('link N = destination N (outliers and changes per channel)', () => {
     const v = buildCanaisView(obs, { niche: 'todos', limit: 75 })

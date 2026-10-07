@@ -20,7 +20,7 @@ export interface ChannelRow {
   video_limit: number; youtube_video_count: number | null; sync_status: string; sync_error: string | null; sync_error_since: string | null
   last_ok_synced_at: string | null; last_synced_at: string | null; full_sync_completed_at: string | null; added_at: string | null
 }
-export interface OwnChannelRow { id: string; channel_id: string; name: string; handle: string; subscriber_count: number; last_synced_at: string | null; locale?: string | null; created_at?: string | null; niche?: string | null }
+export interface OwnChannelRow { id: string; channel_id: string; name: string; handle: string; subscriber_count: number; last_synced_at: string | null; locale?: string | null; created_at?: string | null; niche?: string | null; thumbnail_url?: string | null }
 export interface VideoRow {
   id: string; competitor_channel_id: string; video_id: string; title: string | null; view_count: number | null; like_count: number | null
   comment_count: number | null; duration_seconds: number | null; published_at: string | null; is_short: boolean | null; last_checked_at: string | null
@@ -266,6 +266,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       // competitor_channels has no language column: `lang` stays '' for competitors (only own channels carry `locale`).
       id: c.id, name: c.channel_name, fullName: c.channel_name, niche: isNiche(c.niche) ? c.niche : null, own: false, lang: '',
       subs: c.subscriber_count, video_limit: limit, url: 'https://www.youtube.com/channel/' + c.channel_id, handle: '', gender: 'n', color: colorOf(c.id), ini: initials(c.channel_name),
+      avatar: c.thumbnail_url || null,
       sync: {
         state, last: ms(c.last_ok_synced_at), next, added: ms(c.added_at) ?? now, errorSince: ms(c.sync_error_since), msg: c.sync_error,
         backfill: state === 'backfill' ? backfillProgress({ tracked: nTracked, video_limit: limit, youtube_video_count: c.youtube_video_count }) : null,
@@ -295,6 +296,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
     channels.push({
       id: oc.id, name: oc.name, fullName: oc.name, niche: ownNiche, own: true, lang: oc.locale ?? '', subs: oc.subscriber_count, video_limit: RULES.videoLimitMax,
       url: 'https://www.youtube.com/channel/' + oc.channel_id, handle: oc.handle, gender: 'n', color: OWN_COLOR, ini: initials(oc.name),
+      avatar: oc.thumbnail_url || null,
       sync: { state: 'ok', last, next, added: ms(oc.created_at) ?? last, errorSince: null, msg: null, backfill: null },
       activity: activityOf(vs.map(x => x.pub), now), lastIdx: null, snapshots: [],
     })
@@ -403,7 +405,7 @@ async function readAll<T>(table: string, build: () => RangeQuery): Promise<T[]> 
     if (page.length < PAGE) return out
   }
 }
-const OWN_CHANNEL_COLS = 'id, channel_id, name, handle, subscriber_count, last_synced_at, locale, created_at'
+const OWN_CHANNEL_COLS = 'id, channel_id, name, handle, subscriber_count, last_synced_at, locale, created_at, thumbnail_url'
 /** Postgres 42703 (undefined_column) / PostgREST PGRST204: a migration do nicho ainda não chegou a este banco. */
 const NO_COLUMN = new Set(['42703', 'PGRST204'])
 /** Lê os canais próprios. Se a coluna `niche` ainda não existe neste banco (42703 / PGRST204), relê sem ela: todo canal carrega "sem nicho". Outro erro é lançado. */

@@ -57,7 +57,7 @@ export interface CanaisRow {
   own: boolean
   /** Language mark of an own channel; null for competitors and when the site has a single own channel. */
   lang: LangChip | null
-  color: string; ini: string; subs: string; subsTip: string; url: string; handle: string; backfill: boolean; paused: boolean
+  color: string; ini: string; avatar: string | null; subs: string; subsTip: string; url: string; handle: string; backfill: boolean; paused: boolean
   sortKeys: Record<CanaisSort, number>
   cells: { cadence: CadenceCell; vpd: VpdCell; out: OutCell; swap: SwapCell; growth: GrowthCell; sync: SyncCell }
   cowork: string
@@ -81,7 +81,7 @@ export interface OutRow { id: string; thumb: Thumb; title: string; mult: string;
 export interface VidRow { id: string; thumb: Thumb; title: string; published: string; publishedTitle: string; views: ViewsText; rel: null | { text: string; tier: Tier; outlier: boolean }; vp: { num: string | null; text: string }; histHref: string; ytUrl: string }
 export interface LinkN { n: number; key: string; href: string; text: string }
 export interface DrawerView {
-  id: string; tab: DrawerTab; own: boolean; backfill: boolean; name: string; color: string; ini: string; niche: Niche | null
+  id: string; tab: DrawerTab; own: boolean; backfill: boolean; name: string; color: string; ini: string; avatar: string | null; niche: Niche | null
   lang: LangChip | null
   handle: string; url: string; subsText: string; cov: string
   stats: Array<{ label: string; labelTitle: string | null; value: string; sub: string; subTitle: string | null; subWeak: boolean }>
@@ -321,7 +321,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       changes: { n: c.own ? 0 : obs.changesIn({ channel: c.id }).length, href: obs.link.mudancas({ channel: c.id }) },
       growth: growth.kind === 'na' ? growth.text : growth.big, growthTitle: growth.kind === 'ok' ? growth.title : growth.kind === 'na' ? growth.title : growth.cap,
       sync: { label: sync.label, phrase: syncPhrase(c), state: c.sync.state },
-      color: c.color, ini: c.ini, subs: c.subs == null ? HIDDEN_ROW : subsTxt(c.subs), url: c.url, handle: c.handle, backfill: bf, paused: c.activity.state === 'parado',
+      color: c.color, ini: c.ini, avatar: c.avatar ?? null, subs: c.subs == null ? HIDDEN_ROW : subsTxt(c.subs), url: c.url, handle: c.handle, backfill: bf, paused: c.activity.state === 'parado',
       subsTip: c.subs == null ? 'Este canal esconde a contagem de inscritos no YouTube.'
         : `O YouTube informa inscritos arredondados a 3 algarismos. ${subsTxt(c.subs)} pode estar ${stats(c.id, 'long').growth30.roundingText} do número real.`,
       sortKeys: {
@@ -524,7 +524,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
 
     const tab: DrawerTab = p.tab === 'videos' || p.tab === 'outliers' ? p.tab : 'trocas'
     return {
-      id: c.id, tab, own: c.own, backfill: bf, name: c.name, color: c.color, ini: c.ini, niche: c.niche, lang: c.own ? langChip(c.lang, many) : null, handle: c.handle, url: c.url,
+      id: c.id, tab, own: c.own, backfill: bf, name: c.name, color: c.color, ini: c.ini, avatar: c.avatar ?? null, niche: c.niche, lang: c.own ? langChip(c.lang, many) : null, handle: c.handle, url: c.url,
       subsText: c.subs == null ? 'inscritos ocultos pelo canal' : `${subsTxt(c.subs)} inscritos, arredondado pelo YouTube a 3 algarismos`, cov, stats: statsV,
       swaps: {
         count: list.length,

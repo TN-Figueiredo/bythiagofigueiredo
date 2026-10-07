@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { useEffect, useRef } from 'react'
 import type { CadenceSection } from './view-model'
+import { ChannelAvatar } from '../_chrome/channel-avatar'
 
 /** Fits each hatch label to its band (insights.html fitIdle): full text, then the short "⚠", then hidden (title keeps it). */
 function fitIdle(root: HTMLElement) {
@@ -46,7 +47,7 @@ export function Cadence({ s }: { s: CadenceSection }) {
           <span style={{ textAlign: 'right' }}>Último upload</span></div>
         {s.rows.map(r => (
           <div className="cad-row" role="group" key={r.id} data-ch={r.id} data-sync-off={r.syncOff ? 1 : 0} data-habit={r.costuma ? 1 : 0} data-partial={r.partial ? 1 : 0} aria-label={r.aria}>
-            <div className="cad-id"><span className="av" style={{ background: r.color, color: '#fff' }} aria-hidden="true">{r.ini}</span>
+            <div className="cad-id"><ChannelAvatar src={r.avatar} ini={r.ini} color={r.color} ink="#fff" />
               <div style={{ minWidth: 0 }}>
                 <div className="cad-name" id={'cadn-' + r.id} title={r.fullName}>{r.name}</div>
                 <div className="cad-sub">

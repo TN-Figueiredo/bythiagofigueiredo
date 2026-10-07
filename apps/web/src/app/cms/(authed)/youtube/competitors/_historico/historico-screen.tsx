@@ -16,6 +16,7 @@ import { HIcon, TYPE_COLOR } from './icons'
 import { Thumb } from './thumb'
 import { ForjaAskButton, VideoReading } from './video-reading'
 import type { ForjaAsk, ForjaCancel } from '../_chrome/forja-view-model'
+import { ChannelAvatar } from '../_chrome/channel-avatar'
 
 const reduced = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -76,7 +77,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja }: { view: His
             <h2 tabIndex={-1}>{v.title}</h2>
             <div className="facts">
               <span className="chan">
-                <span className="av" aria-hidden="true" style={{ background: h.chan.color }}>{h.chan.ini}</span>{h.chan.name}
+                <ChannelAvatar src={h.chan.avatar} ini={h.chan.ini} color={h.chan.color} />{h.chan.name}
                 {h.chan.niche ? <span className="niche">{h.chan.niche}</span> : null}
               </span>
               <span>{h.views.num ? <><b className="mono">{h.views.num}</b>{h.views.text}</> : h.views.text}</span>
