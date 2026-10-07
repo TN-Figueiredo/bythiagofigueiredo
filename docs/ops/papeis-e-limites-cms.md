@@ -108,6 +108,8 @@ Os guardas, do mais largo para o mais estreito:
 | Criar/editar edição de newsletter, enviar **teste**, descartar/apagar rascunho | sim | sim | não | 🧪 · ✔ "Send Test Email" no menu da editora |
 | ⚠ Disparar para a base: `sendNow`, `scheduleEdition`, `scheduleEditionToSlot`, `swapSlotEdition`, `scheduleEditionAsSpecial`, `retryEdition`, `moveEdition` → agendada | sim | **só adm** | não | 🧪 · ✔ na tela (dono vê Schedule/Send Now; editora vê o motivo) |
 | ⚠ Cancelar envio real: `cancelEdition`/`moveEdition`/`deleteEdition` de edição **agendada** | sim | **só adm** | não | 🧪 |
+| ⚠ Alterar edição **já agendada** (ou em envio): conteúdo por `saveEdition`, tipo/lista de destinatários por `reassignEditionType` — em rascunho a editora segue podendo | sim | **só adm** | não | 🧪 |
+| `saveEdition` só grava conteúdo (`subject`, `preheader`, `content_json`, `content_html`, `content_mdx`, `segment`, `notes`, `newsletter_type_id` do mesmo site); `status`, `scheduled_at`, `site_id` etc. recusam a chamada inteira | recusa | recusa | não | 🧪 (vale para todos: agendar/cancelar têm action própria) |
 | ⚠ Apagar edição enviada; apagar tipo de newsletter (apaga os assinantes junto) | sim | **só adm** | não | 🧪 |
 | ⚠ `exportSubscribers`, `exportContacts`, `exportWaitlistSignups` (CSV com dados pessoais) | sim | **só adm** (o de waitlist aceitava até `view`) | não | 🧪 · ✔ dono exportou; editora sem o botão |
 | ⚠ `batchUnsubscribe` (anonimiza), `anonymizeSubmission`, `bulkAnonymize` | sim | **só adm** | não | 🧪 |
@@ -145,8 +147,8 @@ Ficou como estava, por não estar nas decisões de 07/10 (cada uma é uma linha 
 5. **`updateVideoLimit`** (50 → 200 vídeos acompanhados por concorrente: sync mais caro dali em diante)
    e adicionar concorrente já com 200.
 6. **Configurações do A/B do site** (`updateAbSiteSettings`) e `cancelGracePeriod`.
-7. **Cadência da newsletter** (`toggleCadence`, `updateCadence*`, `updateSendTime`) e trocar o tipo ou
-   o conteúdo de uma edição já agendada (`reassignEditionType`, `saveEdition`).
+7. **Cadência da newsletter** (`toggleCadence`, `updateCadence*`, `updateSendTime`). (Trocar o tipo ou
+   o conteúdo de uma edição já agendada — `reassignEditionType`, `saveEdition` — passou a ser do degrau.)
 8. **Responder contato por e-mail** (`sendReply`) — um e-mail por vez; hoje ela nem abre o detalhe.
 9. **Agenda de sync do canal próprio** (`updateYouTubeChannelSettings`).
 10. Ver a lista de assinantes/contatos e o feed "Atividade" do Dashboard.

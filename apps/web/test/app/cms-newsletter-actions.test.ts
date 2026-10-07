@@ -77,8 +77,13 @@ describe('newsletter actions', () => {
           }),
         }),
       }),
+      // escrita condicionada ao status lido: .update().eq(id).eq(status).select('id')
       update: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({ data: null, error: null }),
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            select: vi.fn().mockResolvedValue({ data: [{ id: 'ed1' }], error: null }),
+          }),
+        }),
       }),
       insert: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
