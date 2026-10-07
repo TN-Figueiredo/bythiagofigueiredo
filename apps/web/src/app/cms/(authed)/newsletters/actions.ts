@@ -7,7 +7,7 @@ import { cookies } from 'next/headers'
 import { createServerClient } from '@tn-figueiredo/auth-nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { requireSiteAdminForRow } from '@/lib/cms/auth-guards'
+import { requireSiteAdminForRow, requireSiteAdminScope, siteAdminOnlyMessage } from '@/lib/cms/auth-guards'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getEmailService } from '@/lib/email/service'
 import { render } from '@react-email/render'
@@ -39,27 +39,110 @@ async function getUserClient() {
   })
 }
 
+// ─── Degrau "administrar o site" ────────────────────────────────────────────
+// Disparo para a base (enviar agora, agendar, reenviar), cancelamento de envio
+// já agendado e exclusões que apagam assinantes/edições enviadas são só de quem
+// administra o site (org_admin/super_admin). Redigir, editar e mandar TESTE
+// continuam com `can_edit_site`.
+
+const SEND_DENIED = { ok: false as const, error: siteAdminOnlyMessage('disparar, agendar ou cancelar o envio de newsletter') }
+const DELETE_SENT_DENIED = { ok: false as const, error: siteAdminOnlyMessage('apagar uma edição agendada ou já enviada') }
+const DELETE_TYPE_DENIED = { ok: false as const, error: siteAdminOnlyMessage('apagar um tipo de newsletter (apaga os assinantes junto)') }
+
+// Mexer numa edição que o cron já pode enviar é mexer num envio real: o conteúdo
+// e o tipo (= a lista de destinatários) passam a ser só de quem administra.
+const SCHEDULED_EDIT_DENIED = { ok: false as const, error: 'Esta edição já está agendada; só quem administra o site pode alterá-la.' }
+// Escrita condicionada ao status lido e nenhuma linha afetada: outra aba (ou o cron) mudou a edição no meio.
+const STATE_CHANGED = { ok: false as const, error: 'O estado da edição mudou enquanto você trabalhava; recarregue a página.' }
+/** Estados em que o cron de envio já pegou (ou pode pegar) a edição. */
+const ADMIN_ONLY_EDIT_STATUSES = ['scheduled', 'queued', 'sending']
+
+/** Pergunta feita no TOPO, antes de qualquer service client. Falha fechado. */
+async function siteAdminAtTop(): Promise<{ admin: boolean; siteId: string }> {
+  const ctx = await getSiteContext()
+  return { admin: (await requireSiteAdminScope(ctx.siteId)).ok, siteId: ctx.siteId }
+}
+
+/**
+ * Ação SEMPRE restrita sobre uma edição: administra o site da requisição (antes
+ * do service client), pode editar a linha (guarda antigo, lança) e, se a linha
+ * for de outro site, administra esse também.
+ */
+async function requireAdminForEdition(editionId: string): Promise<boolean> {
+  const top = await siteAdminAtTop()
+  if (!top.admin) return false
+  const row = await requireSiteAdminForRow('newsletter_editions', editionId)
+  return row.siteId === top.siteId || (await requireSiteAdminScope(row.siteId)).ok
+}
+
+/**
+ * Ação restrita só em parte dos casos (ex.: cancelar só exige o degrau quando a
+ * edição está agendada). Mesma pergunta no topo; devolve se quem chama
+ * administra o site DA LINHA, para a action decidir depois de ler o status.
+ */
+async function editScopeWithAdminFlag(
+  editionId: string,
+  top?: { admin: boolean; siteId: string },
+): Promise<boolean> {
+  top ??= await siteAdminAtTop()
+  const row = await requireSiteAdminForRow('newsletter_editions', editionId)
+  if (!top.admin) return false
+  return row.siteId === top.siteId || (await requireSiteAdminScope(row.siteId)).ok
+}
+
 // ─── Edition CRUD ───────────────────────────────────────────────────────────
+
+/**
+ * Só os campos de CONTEÚDO que o editor envia (`getSavePayload` e
+ * `handleTypeChange` em `[id]/edit/edition-editor.tsx`). `.strict()`: qualquer
+ * outra chave (status, scheduled_at, site_id, contadores…) recusa a chamada
+ * inteira — status e agenda só mudam pelas actions próprias, para ninguém por aqui.
+ */
+const SaveEditionPatch = z
+  .object({
+    subject: z.string().optional(),
+    preheader: z.string().optional(),
+    content_json: z.string().optional(),
+    content_html: z.string().optional(),
+    content_mdx: z.string().optional(),
+    segment: z.string().optional(),
+    notes: z.string().optional(),
+    newsletter_type_id: z.string().min(1).nullable().optional(),
+  })
+  .strict()
 
 export async function saveEdition(
   editionId: string,
-  patch: {
-    subject?: string
-    preheader?: string
-    content_json?: string
-    content_html?: string
-    content_mdx?: string
-    segment?: string
-    notes?: string
-    newsletter_type_id?: string | null
-  },
+  patch: z.input<typeof SaveEditionPatch>,
 ): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  // Antes de qualquer acesso ao banco: o tipo TypeScript não segura um POST forjado.
+  const parsed = SaveEditionPatch.safeParse(patch)
+  if (!parsed.success) {
+    const campos = parsed.error.issues
+      .flatMap((i) => (i.code === 'unrecognized_keys' ? i.keys : [i.path.join('.')]))
+      .join(', ')
+    return { ok: false, error: `Campo não aceito ao salvar a edição: ${campos}. Nada foi salvo.` }
+  }
+
+  const dbPatch: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(parsed.data)) {
+    if (value !== undefined) dbPatch[key] = value
+  }
+  if (parsed.data.content_json) {
+    try {
+      dbPatch.content_json = JSON.parse(parsed.data.content_json)
+    } catch {
+      return { ok: false, error: 'Campo não aceito ao salvar a edição: content_json (não é JSON válido). Nada foi salvo.' }
+    }
+  }
+  dbPatch.updated_at = new Date().toISOString()
+
+  const isSiteAdmin = await editScopeWithAdminFlag(editionId)
   const supabase = getSupabaseServiceClient()
 
   const { data: current } = await supabase
     .from('newsletter_editions')
-    .select('status')
+    .select('status, site_id')
     .eq('id', editionId)
     .single()
 
@@ -67,17 +150,27 @@ export async function saveEdition(
   if (!current || !editableStatuses.includes(current.status)) {
     return { ok: false, error: 'edition_locked' }
   }
+  if (ADMIN_ONLY_EDIT_STATUSES.includes(current.status) && !isSiteAdmin) return SCHEDULED_EDIT_DENIED
 
-  const dbPatch: Record<string, unknown> = { ...patch, updated_at: new Date().toISOString() }
-  if (patch.content_json) {
-    dbPatch.content_json = JSON.parse(patch.content_json)
+  // O tipo decide para quem a edição vai: tem de ser do mesmo site da edição.
+  if (typeof parsed.data.newsletter_type_id === 'string') {
+    const { data: type } = await supabase
+      .from('newsletter_types')
+      .select('id')
+      .eq('id', parsed.data.newsletter_type_id)
+      .eq('site_id', current.site_id)
+      .single()
+    if (!type) return { ok: false, error: 'type_not_found' }
   }
 
-  const { error } = await supabase
+  const { data: rows, error } = await supabase
     .from('newsletter_editions')
     .update(dbPatch)
     .eq('id', editionId)
+    .eq('status', current.status)
+    .select('id')
   if (error) return { ok: false, error: error.message }
+  if (!rows || rows.length === 0) return STATE_CHANGED
   revalidateNewsletterHub()
   return { ok: true }
 }
@@ -255,7 +348,7 @@ export async function scheduleEdition(
   editionId: string,
   scheduledAt: string,
 ): Promise<ActionResult & { conflict?: { subject: string; scheduledAt: string } }> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  if (!(await requireAdminForEdition(editionId))) return SEND_DENIED
 
   const parsed = new Date(scheduledAt)
   if (isNaN(parsed.getTime())) {
@@ -312,7 +405,7 @@ export async function scheduleEdition(
 }
 
 export async function cancelEdition(editionId: string): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  const isSiteAdmin = await editScopeWithAdminFlag(editionId)
   const supabase = getSupabaseServiceClient()
 
   const { data: edition } = await supabase
@@ -325,18 +418,23 @@ export async function cancelEdition(editionId: string): Promise<ActionResult> {
   if (!edition || !cancellableStatuses.includes(edition.status)) {
     return { ok: false, error: 'cannot_cancel' }
   }
+  // Cancelar um envio REAL (edição agendada) é do degrau; descartar rascunho não.
+  if (edition.status === 'scheduled' && !isSiteAdmin) return SEND_DENIED
 
-  const { error } = await supabase
+  const { data: rows, error } = await supabase
     .from('newsletter_editions')
     .update({ status: 'cancelled', scheduled_at: null })
     .eq('id', editionId)
+    .eq('status', edition.status)
+    .select('id')
   if (error) return { ok: false, error: error.message }
+  if (!rows || rows.length === 0) return STATE_CHANGED
   revalidateNewsletterHub()
   return { ok: true }
 }
 
 export async function sendNow(editionId: string): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  if (!(await requireAdminForEdition(editionId))) return SEND_DENIED
   const supabase = getSupabaseServiceClient()
 
   const { data: edition } = await supabase
@@ -629,7 +727,7 @@ export async function scheduleEditionToSlot(
   slotDate: string,
   typeId: string,
 ): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  if (!(await requireAdminForEdition(editionId))) return SEND_DENIED
   const supabase = getSupabaseServiceClient()
 
   // Validate slotDate format
@@ -695,7 +793,7 @@ export async function swapSlotEdition(
   slotDate: string,
   typeId: string,
 ): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', newEditionId)
+  if (!(await requireAdminForEdition(newEditionId))) return SEND_DENIED
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
     return { ok: false, error: 'invalid_date_format' }
@@ -726,7 +824,7 @@ export async function scheduleEditionAsSpecial(
   editionId: string,
   scheduledAt: string,
 ): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  if (!(await requireAdminForEdition(editionId))) return SEND_DENIED
 
   const parsed = new Date(scheduledAt)
   if (isNaN(parsed.getTime())) {
@@ -1185,6 +1283,8 @@ export async function deleteNewsletterType(
   opts?: { confirmed?: boolean; confirmText?: string },
 ): Promise<{ ok: true } | { ok: false; error: string; subscriberCount?: number; editionCount?: number }> {
   const ctx = await getSiteContext()
+  // Apaga TODAS as assinaturas e edições do tipo: é exclusão de dados pessoais em lote.
+  if (!(await requireSiteAdminScope(ctx.siteId)).ok) return DELETE_TYPE_DENIED
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
 
@@ -1388,7 +1488,7 @@ export async function deleteEdition(
   editionId: string,
   opts?: { confirmed?: boolean; confirmText?: string },
 ): Promise<DeleteResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  const isSiteAdmin = await editScopeWithAdminFlag(editionId)
   const supabase = getSupabaseServiceClient()
 
   const { data: edition } = await supabase
@@ -1398,6 +1498,8 @@ export async function deleteEdition(
     .single()
 
   if (!edition) return { ok: false, error: 'not_found' }
+  // Agendada (cancela envio real), enviando ou enviada (histórico irreversível): só quem administra.
+  if (['scheduled', 'sending', 'sent'].includes(edition.status) && !isSiteAdmin) return DELETE_SENT_DENIED
 
   const hasContent = !!(edition.content_html || edition.content_json)
   const isSent = edition.status === 'sent'
@@ -1414,18 +1516,29 @@ export async function deleteEdition(
     return { ok: false, error: 'requires_confirmation', impactLevel: 'medium' }
   }
 
+  // Toda escrita é condicionada ao status lido acima: se outra aba agendou (ou
+  // o cron começou a enviar) no meio, a permissão decidida aqui já não vale.
+  let statusToDelete: string = edition.status
   if (edition.status === 'scheduled') {
-    await supabase
+    const { data: cancelled, error: cancelErr } = await supabase
       .from('newsletter_editions')
       .update({ status: 'cancelled', scheduled_at: null })
       .eq('id', editionId)
+      .eq('status', 'scheduled')
+      .select('id')
+    if (cancelErr) return { ok: false, error: cancelErr.message }
+    if (!cancelled || cancelled.length === 0) return STATE_CHANGED
+    statusToDelete = 'cancelled'
   }
 
-  const { error } = await supabase
+  const { data: deleted, error } = await supabase
     .from('newsletter_editions')
     .delete()
     .eq('id', editionId)
+    .eq('status', statusToDelete)
+    .select('id')
   if (error) return { ok: false, error: error.message }
+  if (!deleted || deleted.length === 0) return STATE_CHANGED
 
   const { data: files } = await supabase.storage
     .from('newsletter-assets')
@@ -1442,7 +1555,7 @@ export async function deleteEdition(
 // ─── Retry ──────────────────────────────────────────────────────────────────
 
 export async function retryEdition(editionId: string): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  if (!(await requireAdminForEdition(editionId))) return SEND_DENIED
   const supabase = getSupabaseServiceClient()
 
   const { data: edition } = await supabase
@@ -1479,9 +1592,18 @@ export async function reassignEditionType(
   editionId: string,
   typeId: string | null,
 ): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  const isSiteAdmin = await editScopeWithAdminFlag(editionId)
   const ctx = await getSiteContext()
   const supabase = getSupabaseServiceClient()
+
+  const { data: current } = await supabase
+    .from('newsletter_editions')
+    .select('status')
+    .eq('id', editionId)
+    .single()
+  if (!current) return { ok: false, error: 'not_found' }
+  // Trocar o tipo troca a lista de destinatários de um envio já agendado.
+  if (ADMIN_ONLY_EDIT_STATUSES.includes(current.status) && !isSiteAdmin) return SCHEDULED_EDIT_DENIED
 
   if (typeId) {
     const { data: type } = await supabase
@@ -1493,11 +1615,14 @@ export async function reassignEditionType(
     if (!type) return { ok: false, error: 'type_not_found' }
   }
 
-  const { error } = await supabase
+  const { data: rows, error } = await supabase
     .from('newsletter_editions')
     .update({ newsletter_type_id: typeId, updated_at: new Date().toISOString() })
     .eq('id', editionId)
+    .eq('status', current.status)
+    .select('id')
   if (error) return { ok: false, error: error.message }
+  if (!rows || rows.length === 0) return STATE_CHANGED
   revalidateNewsletterHub()
   return { ok: true }
 }
@@ -1507,7 +1632,11 @@ export async function moveEdition(
   newStatus: string,
   scheduledFor?: string,
 ): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  const top = await siteAdminAtTop()
+  // Agendar pelo kanban é disparo para a base: nega antes de tocar no banco.
+  if (newStatus === 'scheduled' && !top.admin) return SEND_DENIED
+  const isSiteAdmin = await editScopeWithAdminFlag(editionId, top)
+  if (newStatus === 'scheduled' && !isSiteAdmin) return SEND_DENIED
   const supabase = getSupabaseServiceClient()
 
   const validStatuses = ['idea', 'draft', 'ready', 'review', 'scheduled', 'cancelled']
@@ -1521,6 +1650,8 @@ export async function moveEdition(
     .eq('id', editionId)
     .single()
   if (!current) return { ok: false, error: 'not_found' }
+  // Tirar uma edição de "agendada" cancela um envio real.
+  if (current.status === 'scheduled' && newStatus !== 'scheduled' && !isSiteAdmin) return SEND_DENIED
 
   const immutableStatuses = ['sending', 'sent']
   if (immutableStatuses.includes(current.status)) {

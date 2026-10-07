@@ -257,19 +257,6 @@ describe('GET /api/cron/ab-rotate', () => {
           }),
         }
       }
-      if (table === 'site_users') {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                limit: vi.fn().mockReturnValue({
-                  single: vi.fn().mockResolvedValue({ data: { user_id: 'owner-1' }, error: null }),
-                }),
-              }),
-            }),
-          }),
-        }
-      }
       return {}
     })
 

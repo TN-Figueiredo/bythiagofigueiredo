@@ -14,9 +14,13 @@ describe('unlockMoreChannels', () => {
     const rpc = vi.fn(async () => admin)
     const upsert = vi.fn(async () => ({ error: null }))
     vi.doMock('next/headers', () => ({ cookies: async () => ({ getAll: () => [], set: vi.fn() }) }))
-    vi.doMock('@tn-figueiredo/auth-nextjs', () => ({ createServerClient: () => ({ rpc }) }))
+    vi.doMock('@tn-figueiredo/auth-nextjs', () => ({
+      createServerClient: () => ({ rpc, auth: { getUser: async () => ({ data: { user: { id: 'u1' } }, error: null }) } }),
+    }))
     vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
-    vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }), createServerClient: () => ({ rpc }) }))
+    vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }),
+      createServerClient: () => ({ rpc, auth: { getUser: async () => ({ data: { user: { id: 'u1' } }, error: null }) } }),
+    }))
     vi.doMock('next/cache', () => ({ revalidatePath: vi.fn() }))
     vi.doMock('@/lib/supabase/service', () => ({
       getSupabaseServiceClient: () => ({

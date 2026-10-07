@@ -28,10 +28,20 @@ curl -s -X PUT http://127.0.0.1:54321/auth/v1/admin/users/00000000-0000-0000-000
 # 4. Web em dev, env local + chaves de TESTE do Turnstile (sempre passam)
 (cd apps/web && set -a && source .env.local-db && set +a \
   && unset NEXT_PUBLIC_SENTRY_DSN SENTRY_DSN \
-  && NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA \
+  && AWS_SES_ACCESS_KEY_ID=LOCALDUMMY AWS_SES_SECRET_ACCESS_KEY=localdummy NTFY_URL=http://127.0.0.1:9 \
+     NEXT_PUBLIC_APP_URL=http://localhost:3997 \
+     NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA \
      TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA \
      npx next dev -p 3997) &
 ```
+
+**SEMPRE com a linha `AWS_SES_ACCESS_KEY_ID=LOCALDUMMY AWS_SES_SECRET_ACCESS_KEY=localdummy NTFY_URL=http://127.0.0.1:9`.**
+O `next dev` carrega `apps/web/.env.local` por conta própria, e o `.env.local-db` só troca Supabase,
+API e Sentry: sem essa linha as credenciais REAIS do SES continuam valendo e qualquer fluxo que mande
+e-mail (convite, reset de senha, newsletter de teste) envia de verdade — já aconteceu em 2026-10-07.
+Com as credenciais falsas o envio falha com `The security token included in the request is invalid`,
+que é o esperado (e é o que exercita os avisos de "e-mail não saiu"). `NEXT_PUBLIC_APP_URL` aponta os
+links gerados (convite) para a porta deste servidor em vez de `localhost:3001`.
 
 Armadilhas já pagas:
 - **Não** exporte variáveis vazias (`TURNSTILE_SECRET_KEY=`): o schema é `min(1).optional()`
@@ -39,6 +49,12 @@ Armadilhas já pagas:
 - Sem `NEXT_PUBLIC_TURNSTILE_SITE_KEY` a chave real do `.env.local` entra e o widget recusa
   `localhost` ("Unable to connect"). Use as chaves de teste acima.
 - `localhost` já está em `sites.domains` na migration de seed — o middleware resolve o site.
+- Aceitar um convite redireciona para `https://<sites.primary_domain>/cms/login`. No banco local o
+  domínio principal do site semeado é o de produção, então o navegador vai parar na tela de login
+  REAL. Não digite nada lá: volte para `http://localhost:3997/cms/login`.
+- Outras credenciais reais do `.env.local` continuam carregadas (`YOUTUBE_API_KEY`,
+  `BLOB_READ_WRITE_TOKEN`, Meta/Google). Navegar não as usa; **não clique** em sincronizar, upload ou
+  conectar com dados de teste — ou sobreponha-as com valores falsos na mesma linha do SES.
 
 ## Validação (navegador controlado — chrome-devtools MCP ou Playwright)
 1. `http://localhost:3997/cms/login?next=%2Fcms` → `thiago@bythiagofigueiredo.com` /
@@ -74,3 +90,23 @@ loopback declarado em `sites.domains` (o `resolveOAuthOrigin` aceita loopback fo
    **"Instagram rejected the authorization"** e o opener sai de `In progress`.
 4. Conferir que o card voltou ao estado anterior e que `/cms/settings/instagram` redireciona para
    `/cms/settings?section=instagram`.
+
+## Convite de editora — E2E local (10 min)
+
+1. Como o dono (`/cms/login?next=%2Fadmin%2Fusers`): **Novo convite** → e-mail de teste
+   (`...@example.test`) → **Site específico** → papel `editor` → marcar o site → **Enviar convite**.
+   Com o SES falso o aviso esperado é *"Convite criado, mas o e-mail não saiu…"* (âmbar).
+2. Em **Convites pendentes**: **Copiar link do convite**; **Reenviar** dentro de 30 s responde
+   *"Aguarde 30 segundos"*, depois disso *"O e-mail do convite não saiu…"* (SES falso).
+3. Numa janela anônima (ou outro contexto isolado), abrir o link → criar a senha → voltar para
+   `http://localhost:3997/cms/login` (ver armadilha acima) → entrar com o e-mail convidado.
+4. A editora cai no Dashboard com a sidebar completa e o rótulo `editor`. Rodar a varredura de
+   rotas abaixo com a sessão dela: todas 200; `/admin*` redireciona para `/?error=insufficient_access`.
+5. Limpeza (o usuário foi criado pelo GoTrue local):
+
+```bash
+docker exec -i supabase_db_bythiagofigueiredo psql -U postgres -d postgres -c \
+  "delete from invitations where email like '%@example.test'; delete from auth.users where email like 'e2e-%@example.test';"
+```
+
+O mapa do que cada papel pode fazer está em `docs/ops/papeis-e-limites-cms.md`.

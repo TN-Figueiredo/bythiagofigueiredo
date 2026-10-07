@@ -62,6 +62,11 @@ export interface SeedOptions {
   extraNiche?: { slug: string; label: string; channel: string }
   /** Nichos criados pelo dono, na ordem de criação (sort_order 30, 40, …; cores da paleta em ciclo, ou `tone`). */
   extraNiches?: ExtraNiche[]
+  /**
+   * Fase 4 (histórico com muitas versões): acrescenta a matt-wolfe UM vídeo com 24 períodos de thumbnail (5 imagens),
+   * 9 títulos e 3 descrições, todos dentro da janela do oráculo (04/10 a 23/10/2026). Id do oráculo: MANY_VERSIONS_ID.
+   */
+  manyVersions?: boolean
 }
 export type NicheTone = 'ameixa' | 'rosa' | 'lima' | 'ardosia'
 export interface ExtraNiche { slug: string; label: string; tone?: NicheTone; /** concorrentes (ids do oráculo) movidos para o nicho; vazio = nicho recém-criado */ channels?: string[] }
@@ -259,6 +264,49 @@ export async function resetViewerPrefs(siteId: string, client?: SupabaseClient):
 }
 
 /* ------------------------------------------------------------------ seed */
+export const MANY_VERSIONS_ID = 'f4-muitas-versoes'
+/** The letters of the mockup's state 2 (2026-10-07-historico-muitas-versoes), on the oracle's calendar. */
+function manyVersionsVideo(O: OracleData): OVideo {
+  const H = 36e5, sp = (d: number, h = 0, mi = 0) => Date.UTC(2026, 9, d, h + 3, mi) // October 2026, São Paulo (UTC−3)
+  const ch = O.channels.find(c => c.id === 'matt-wolfe')
+  if (!ch || ch.sync.last == null) throw new Error('observatorio-seed: manyVersions precisa do canal matt-wolfe sincronizado no oráculo')
+  const pub = sp(4, 11), last = ch.sync.last
+  // a version ends where the next one starts (the start of its window, when it has one); the last one is the current
+  const close = <T extends OVersion>(arr: T[]): T[] => arr.map((x, i) => { const nx = arr[i + 1]; return { ...x, current: !nx, last_seen: nx ? (nx.window ? nx.window[0] : nx.first_seen) : last } })
+  // hours between one thumbnail change and the next: 23 changes from 05/10 09:00 to 23/10 20:30, some a few hours apart
+  const gaps = [0, 9, 14, 3.5, 20, 30, 18, 26, 22, 16, 28, 17, 30, 15, 6, 20, 19, 27, 17, 22, 19, 26, 21]
+  let at = sp(5, 9)
+  const thumbs = close('ABACABCDADBDAECEBEDECEDE'.split('').map((key, i): OThumb => {
+    if (i > 0) at += gaps[i - 1]! * H
+    return { id: 'TH' + (i + 1), key, first_seen: i === 0 ? pub : at, last_seen: 0, current: false, prec: i === 0 ? 'publicacao' : 'min', window: null }
+  }))
+  const TITLES = [
+    'Testei 5 thumbnails no mesmo vídeo', 'Testei 5 thumbnails no mesmo vídeo (o método que eu uso)', 'Thumbnail: o método que eu uso em 2026',
+    'Thumbnail: 7 erros que derrubam o clique', '7 erros que derrubam o clique da sua thumbnail', 'Troquei a thumbnail 23 vezes: 7 erros que derrubam o clique',
+    'Troquei a thumbnail 23 vezes (e os 7 erros que derrubam o clique)', '23 trocas de thumbnail: os 7 erros que derrubam o clique', '23 trocas de thumbnail: pare de cometer estes 7 erros',
+  ]
+  const titleAt = [sp(5, 18), sp(7, 12), sp(9, 6), sp(12, 12), sp(15, 0), sp(18, 18), sp(21, 12), sp(23, 6)]
+  const titles = close(TITLES.map((text, i): OTitle => {
+    const t = i === 0 ? pub : titleAt[i - 1]!
+    return { id: 'T' + (i + 1), text, first_seen: t, last_seen: 0, current: false, prec: i === 0 ? 'publicacao' : '6h', window: i === 0 ? null : [t - 6 * H, t] }
+  }))
+  const DESC = ['Como eu testo thumbnails em 2026.', 'Planilha do teste: https://example.com/planilha', 'Inscreva-se para os próximos testes.']
+  const descAt = [sp(8, 12), sp(20, 18)]
+  const descs = close([DESC, [DESC[0]!, '00:00 O método', '04:10 Os 7 erros', ...DESC.slice(1)], ['Troquei a thumbnail 23 vezes. Os 7 erros que derrubam o clique.', '00:00 O método', '04:10 Os 7 erros', ...DESC.slice(1)]].map((lines, i): ODesc => {
+    const t = i === 0 ? pub : descAt[i - 1]!
+    return { id: 'D' + (i + 1), lines, hasText: true, first_seen: t, last_seen: 0, current: false, prec: i === 0 ? 'publicacao' : '6h', window: i === 0 ? null : [t - 6 * H, t] }
+  }))
+  // one daily record at 12:00 from 04/10 to 24/10 (the oracle's snapshot hour; index 0 is 03/10)
+  let views = 3900
+  const series = Array.from({ length: 21 }, (_, k) => {
+    if (k) views += Math.round(52000 * (0.2 + 0.8 * Math.exp(-(k - 1) / 13)))
+    return { idx: k + 1, t: sp(4 + k, 12), views }
+  })
+  return {
+    id: MANY_VERSIONS_ID, ch: ch.id, niche: ch.niche, fmt: 'long', pub, ageDays: Math.floor((O.NOW - pub) / DAY), dur: '18:42', ytId: 'F4muitasV01',
+    title: TITLES[TITLES.length - 1]!, theme: null, views, viewsAt: series[series.length - 1]!.t, likes: 4100, comments: 212, series, titles, thumbs, descs,
+  }
+}
 export async function seedObservatory(siteId: string, opts: SeedOptions = {}, client?: SupabaseClient): Promise<void> {
   if (opts.emptyWindow) throw new Error('observatorio-seed: emptyWindow is a filter, not data — use MockupState.query')
   if (opts.scenario && opts.scenario !== 'own-empty') throw new Error('observatorio-seed: unknown scenario ' + JSON.stringify(opts.scenario))
@@ -266,6 +314,7 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
   if (opts.ownPreset && !OWN_PRESETS[opts.ownPreset]) throw new Error('observatorio-seed: unknown ownPreset ' + JSON.stringify(opts.ownPreset))
   const sb = clientOf(client)
   const { O, nicheOf } = loadOracleData(opts.ownPreset)
+  if (opts.manyVersions) O.videos.push(manyVersionsVideo(O))
   const ownChs = O.channels.filter(c => c.own)
   // niches the owner created: validated BEFORE any write, so a bad option never leaves the site half seeded
   const extras: ExtraNiche[] = [...(opts.extraNiche ? [{ slug: opts.extraNiche.slug, label: opts.extraNiche.label, channels: [opts.extraNiche.channel] }] : []), ...(opts.extraNiches ?? [])]

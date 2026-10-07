@@ -23,6 +23,7 @@ import { NavigationGuard } from '../../../_shared/editor/navigation-guard'
 import { ReadOnlyOverlay } from '../../../_shared/editor/read-only-overlay'
 import { DeleteConfirmModal } from '../../../_shared/editor/delete-confirm-modal'
 import { MoreMenu } from '../../../_shared/editor/more-menu'
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import { EmailPreview } from '../../_components/email-preview'
 import { ScheduleModal } from '../../_components/schedule-modal'
 import { SendNowModal } from '../../_components/send-now-modal'
@@ -111,6 +112,8 @@ export function EditionEditor({
   locale = 'pt-BR',
 }: EditionEditorProps) {
   const router = useRouter()
+  // Degrau "administrar o site": disparar/agendar/cancelar envio é só de quem administra.
+  const canAdminSite = useCanAdminSite()
 
   // ── Ephemeral / isDirty pattern ───────────────────────────────────────────
   const [editionId, setEditionId] = useState(edition?.id ?? null)
@@ -549,15 +552,19 @@ export function EditionEditor({
                 <Eye size={13} />
                 Preview
               </button>
-              <button
-                type="button"
-                onClick={() => setShowScheduleModal(true)}
-                disabled={actionInProgress}
-                className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
-              >
-                <Calendar size={13} />
-                Schedule
-              </button>
+              {canAdminSite ? (
+                <button
+                  type="button"
+                  onClick={() => setShowScheduleModal(true)}
+                  disabled={actionInProgress}
+                  className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                >
+                  <Calendar size={13} />
+                  Schedule
+                </button>
+              ) : (
+                <AdminOnlyNote action="agendar ou disparar o envio" className="text-[#9ca3af]" />
+              )}
             </>
           )}
           {status === 'scheduled' && (
@@ -570,13 +577,17 @@ export function EditionEditor({
                 <Eye size={13} />
                 Preview
               </button>
-              <button
-                type="button"
-                onClick={handleUnschedule}
-                className="flex items-center gap-1.5 rounded-md border border-purple-500/40 px-3 py-1.5 text-xs font-medium text-[#c084fc] hover:bg-purple-500/10 transition-colors"
-              >
-                Unschedule
-              </button>
+              {canAdminSite ? (
+                <button
+                  type="button"
+                  onClick={handleUnschedule}
+                  className="flex items-center gap-1.5 rounded-md border border-purple-500/40 px-3 py-1.5 text-xs font-medium text-[#c084fc] hover:bg-purple-500/10 transition-colors"
+                >
+                  Unschedule
+                </button>
+              ) : (
+                <AdminOnlyNote action="cancelar um envio agendado" className="text-[#9ca3af]" />
+              )}
             </>
           )}
           {status === 'sending' && (
@@ -608,15 +619,19 @@ export function EditionEditor({
                 <Eye size={13} />
                 Preview
               </button>
-              <button
-                type="button"
-                onClick={handleRetry}
-                disabled={actionInProgress}
-                className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-50"
-              >
-                <RotateCcw size={13} />
-                Retry
-              </button>
+              {canAdminSite ? (
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  disabled={actionInProgress}
+                  className="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+                >
+                  <RotateCcw size={13} />
+                  Retry
+                </button>
+              ) : (
+                <AdminOnlyNote action="reenviar a edição" className="text-[#9ca3af]" />
+              )}
               <button
                 type="button"
                 onClick={handleRevertToDraft}
@@ -644,8 +659,8 @@ export function EditionEditor({
               status={status}
               onSendTest={() => setShowSendTestModal(true)}
               onDuplicate={handleDuplicate}
-              onSendNow={status !== 'sending' && status !== 'sent' ? () => setShowSendNowModal(true) : undefined}
-              onDelete={() => setShowDeleteModal(true)}
+              onSendNow={canAdminSite && status !== 'sending' && status !== 'sent' ? () => setShowSendNowModal(true) : undefined}
+              onDelete={canAdminSite || !['scheduled', 'sending', 'sent'].includes(status) ? () => setShowDeleteModal(true) : undefined}
               webArchiveUrl={status === 'sent' && edition?.web_archive_enabled ? `/newsletter/archive/${editionId}` : null}
             />
           ) : (

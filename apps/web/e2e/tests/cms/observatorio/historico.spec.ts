@@ -3,6 +3,7 @@
 // (historico-video.html:1015-1021, 1051-1054) × 2 viewports × 2 themes. The "Pedido à forja" states are in forja.spec.ts.
 import { runFidelity, type ScreenSpec } from './fidelity'
 import { SEAL_R57 } from './seal'
+import { F4_HISTORICO_EXCLUDE } from './allowances'
 
 /** The mockup's pickStates() over the oracle (dados.js), one video per edge case. */
 export const PICK = {
@@ -33,7 +34,8 @@ export const HISTORICO: ScreenSpec = {
   // R118 + "Ordem do cabeçalho do Histórico" (mockup 2026-10-06-historico-fixar-video, which is the one that rules here):
   // the header's actions block is now right after the title (Fixar vídeo with its hint, Abrir no YouTube, the forja
   // below), where historico-video.html has it after the facts. Left out on both sides; facts, chips and counts stay compared.
-  exclude: { mockup: ['#vhead .actions'], impl: ['.vhead .actions'] },
+  // Fase 4: F4_HISTORICO_EXCLUDE, with its ruling in allowances.ts
+  exclude: { mockup: ['#vhead .actions', ...F4_HISTORICO_EXCLUDE.mockup], impl: ['.vhead .actions', ...F4_HISTORICO_EXCLUDE.impl] },
   compareSelector: { mockup: '#screen', impl: '[data-obs-screen="historico"]' },
 }
 

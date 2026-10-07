@@ -38,6 +38,7 @@ import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { recordCronSuccess } from '@/lib/cron-health'
 import * as Sentry from '@sentry/nextjs'
+import { fakeOwnerClient, rootOrgWithAdmin, OWNER_TABLES } from './helpers/fake-owner-db'
 
 function createCronRequest(secret: string) {
   return new NextRequest(new URL('http://localhost:3000/api/cron/ab-rotate'), {
@@ -71,6 +72,8 @@ interface BuildMockOpts {
   trackedLinks?: { template_name: string; short_code: string }[]
   alreadyRotatedToday?: boolean
   channel?: { channel_id: string } | null
+  /** false = sem org_admin na organização raiz. */
+  withOwner?: boolean
 }
 
 function buildSupabaseMock(opts: BuildMockOpts = {}) {
@@ -82,7 +85,9 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
     trackedLinks = [],
     alreadyRotatedToday = false,
     channel = { channel_id: 'UCpt' },
+    withOwner = true,
   } = opts
+  const owners = fakeOwnerClient(withOwner ? rootOrgWithAdmin('site-1') : {}, { 'owner-1': 'dono@x.com' })
 
   const updateCalls: { table: string; data: unknown; filters: unknown[] }[] = []
   const insertCalls: { table: string; data: unknown }[] = []
@@ -200,19 +205,7 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
       }
     }
 
-    if (table === 'site_users') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              limit: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { user_id: 'owner-1' }, error: null }),
-              }),
-            }),
-          }),
-        }),
-      }
-    }
+    if (OWNER_TABLES.has(table)) return owners.from(table)
 
     // Fallback
     return {
@@ -223,7 +216,7 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
     }
   })
 
-  const client = { from: fromMock }
+  const client = { from: fromMock, rpc: owners.rpc, auth: owners.auth }
   ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
   return { client, fromMock, updateCalls, insertCalls }
@@ -422,10 +415,25 @@ describe('GET /api/cron/ab-rotate', () => {
         priority: 1,
         title: 'Token YouTube inválido',
         message: expect.stringContaining('token_invalid_401'),
+        user_id: 'owner-1',
       })
     )
     expect(setThumbnail).not.toHaveBeenCalled()
     expect(updateVideoMetadata).not.toHaveBeenCalled()
+  })
+
+  it('token inválido sem org_admin na raiz: pula o teste, não notifica e registra sem_destinatario no log', async () => {
+    buildSupabaseMock({ tests: [makeTest()], withOwner: false })
+    ;(preflightTokenCheck as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, reason: 'token_invalid_401' })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const res = await GET(createCronRequest('test-secret'))
+    const body = await res.json()
+
+    expect(body.processed).toBe(0)
+    expect(createNotification).not.toHaveBeenCalled()
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('sem_destinatario'))).toBe(true)
+    warn.mockRestore()
   })
 
   it('canal do vídeo não identificado: erro deste teste, sem preflight/token, e o próximo teste segue', async () => {

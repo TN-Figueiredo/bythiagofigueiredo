@@ -1,4 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
+const siteAdmin = vi.hoisted(() => ({ value: true }))
+vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
+  useCanAdminSite: () => siteAdmin.value,
+}))
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 const mockRouterRefresh = vi.fn()
@@ -73,6 +80,17 @@ describe('OauthButton', () => {
   it('renders connect button with provided label', () => {
     render(<OauthButton provider="youtube" label="Connect YouTube" />)
     expect(screen.getByText('Connect YouTube')).toBeDefined()
+  })
+
+  it('editora (não administra o site): sem botão de conectar, com o motivo escrito na tela', () => {
+    siteAdmin.value = false
+    try {
+      render(<OauthButton provider="youtube" label="Connect YouTube" />)
+      expect(screen.queryByRole('button')).toBeNull()
+      expect(screen.getByTestId('admin-only-note').textContent).toBe('Só quem administra o site pode conectar ou reconectar contas.')
+    } finally {
+      siteAdmin.value = true
+    }
   })
 
   it('is a button element', () => {

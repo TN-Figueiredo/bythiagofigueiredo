@@ -7,6 +7,7 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { INSTAGRAM_STATE_LABEL, deriveHmacKey, signState, verifyState } from '@/lib/oauth/state'
 import { oauthErrorText } from '@/lib/instagram/status-text'
 import { allowedLocales, LOCALE_CONFLICT_ERROR } from '@/lib/instagram/locale-rules'
@@ -35,6 +36,16 @@ async function requireEditAccess(): Promise<{ siteId: string; userId: string }> 
   // Forma de src/lib/social/actions/_shared.ts:17,25 — C3 consome `userId` em
   // authorizeInstagramRebind (assinatura do cookie de rebind).
   return { siteId, userId: res.user.id }
+}
+
+/**
+ * Degrau "administrar o site": integrações (conectar, desconectar, remover,
+ * credencial) e a zona de perigo são só de quem administra. Chamado no TOPO da
+ * action, antes de qualquer service client; falha fechado. `null` = pode seguir.
+ */
+async function adminOnly(acao: string): Promise<{ ok: false; error: string } | null> {
+  const { siteId } = await getSiteContext()
+  return denyUnlessSiteAdmin(siteId, acao)
 }
 
 const brandingSchema = z.object({
@@ -190,6 +201,8 @@ export async function createNewsletterType(data: {
 }
 
 export async function deleteNewsletterType(id: string): Promise<ActionResult> {
+  const denied = await adminOnly('apagar um tipo de newsletter')
+  if (denied) return denied
   const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
@@ -266,6 +279,8 @@ export async function updateSiteLocales(data: {
 }
 
 export async function disableCms(): Promise<ActionResult> {
+  const denied = await adminOnly('desligar o CMS do site')
+  if (denied) return denied
   const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
@@ -326,6 +341,8 @@ export async function updateSiteTimezone(input: {
 }
 
 export async function deleteSite(confirmSlug: string): Promise<ActionResult> {
+  const denied = await adminOnly('apagar o site')
+  if (denied) return denied
   const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { data: site } = await supabase
@@ -389,6 +406,8 @@ export async function addInstagramAccount(input: {
   handle: string
   locale: string
 }): Promise<ActionResult> {
+  const denied = await adminOnly('adicionar uma conta do Instagram')
+  if (denied) return denied
   // MUST: normalizar PRIMEIRO. Com a ordem antiga, o max(50) rejeitava URLs
   // longas legítimas antes de a extração de path acontecer.
   const parsed = instagramAccountSchema.safeParse({
@@ -422,6 +441,8 @@ export async function addInstagramAccount(input: {
 export async function removeInstagramAccount(input: {
   accountId: string
 }): Promise<ActionResult> {
+  const denied = await adminOnly('remover uma conta do Instagram')
+  if (denied) return denied
   const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
   const { siteId } = await requireEditAccess()
@@ -493,6 +514,8 @@ export async function setInstagramToken(input: {
   accountId: string
   accessToken: string
 }): Promise<ActionResult> {
+  const denied = await adminOnly('trocar a credencial do Instagram')
+  if (denied) return denied
   const parsed = instagramTokenSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
   const { siteId } = await requireEditAccess()
@@ -706,6 +729,8 @@ export async function updateInstagramSlots(input: {
 export async function disconnectInstagramAccount(input: {
   accountId: string
 }): Promise<ActionResult> {
+  const denied = await adminOnly('desconectar o Instagram')
+  if (denied) return denied
   const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
   const { siteId } = await requireEditAccess()
@@ -759,6 +784,8 @@ export async function disconnectInstagramAccount(input: {
 export async function authorizeInstagramRebind(input: {
   accountId: string
 }): Promise<{ ok: true; rebind: string } | { ok: false; error: string }> {
+  const denied = await adminOnly('religar o Instagram a outra conta')
+  if (denied) return denied
   const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
   const { siteId, userId } = await requireEditAccess()

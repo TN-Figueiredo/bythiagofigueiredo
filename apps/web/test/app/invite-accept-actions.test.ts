@@ -66,24 +66,30 @@ import {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-/** Simulates a successful get_invitation_by_token response (SETOF → array) */
+/**
+ * Simulates a successful get_invitation_by_token response.
+ * Contrato real (banco local): `(p_token_hash text) RETURNS jsonb` — UM objeto,
+ * ou null quando o convite não existe / foi aceito / revogado / expirou.
+ */
 function mockValidInvitation() {
-  rpcMock.mockImplementationOnce((fn: string) => {
-    if (fn === 'get_invitation_by_token') {
+  rpcMock.mockImplementationOnce((fn: string, args: Record<string, unknown>) => {
+    if (fn === 'get_invitation_by_token' && typeof args?.p_token_hash === 'string') {
       return Promise.resolve({
-        data: [
-          {
-            email: 'alice@example.com',
-            role: 'author',
-            org_name: 'Acme',
-            expires_at: new Date(Date.now() + 86400_000).toISOString(),
-            expired: false,
-          },
-        ],
+        data: {
+          email: 'alice@example.com',
+          role: 'org_admin',
+          role_scope: 'org',
+          org_name: 'Acme',
+          expires_at: new Date(Date.now() + 86400_000).toISOString(),
+        },
         error: null,
       })
     }
-    return Promise.resolve({ data: null, error: { message: 'unexpected rpc' } })
+    // Qualquer outro nome de parâmetro é o PGRST202 que o PostgREST devolve.
+    return Promise.resolve({
+      data: null,
+      error: { code: 'PGRST202', message: 'Could not find the function' },
+    })
   })
 }
 
@@ -106,53 +112,70 @@ describe('acceptInviteForCurrentUser', () => {
     vi.clearAllMocks()
   })
 
+  const alice = { data: { user: { id: 'u1', email: 'Alice@Example.com' } } }
+
   it('redirects to ?error=unauthenticated when no user session', async () => {
     getUserMock.mockResolvedValueOnce({ data: { user: null } })
 
     const url = await captureRedirect(() => acceptInviteForCurrentUser('tok-123'))
     expect(url).toBe('/signup/invite/tok-123?error=unauthenticated')
+    expect(rpcMock).not.toHaveBeenCalled()
   })
 
-  it('redirects to /cms on success', async () => {
-    getUserMock.mockResolvedValueOnce({ data: { user: { id: 'u1', email: 'alice@example.com' } } })
-    rpcMock.mockResolvedValueOnce({ data: { ok: true, org_id: 'org-1' }, error: null })
+  it('aceita pela sobrecarga de dois argumentos (a que respeita convite de site) e vai para /cms', async () => {
+    getUserMock.mockResolvedValueOnce(alice)
+    mockValidInvitation()
+    rpcMock.mockResolvedValueOnce({
+      data: { role: 'editor', role_scope: 'site', site_id: 's1', redirect_url: 'https://x/cms/login' },
+      error: null,
+    })
 
     const url = await captureRedirect(() => acceptInviteForCurrentUser('tok-123'))
     expect(url).toBe('/cms')
+    expect(rpcMock).toHaveBeenCalledWith('accept_invitation_atomic', {
+      p_token_hash: 'tok-123',
+      p_user_id: 'u1',
+    })
+    // a sobrecarga antiga (só p_token) estoura em convites de site
+    expect(rpcMock).not.toHaveBeenCalledWith('accept_invitation_atomic', { p_token: 'tok-123' })
   })
 
-  it('calls rpc with only p_token when user is authenticated', async () => {
-    getUserMock.mockResolvedValueOnce({ data: { user: { id: 'u1', email: 'alice@example.com' } } })
-    rpcMock.mockResolvedValueOnce({ data: { ok: true, org_id: 'org-1' }, error: null })
+  it('convite inexistente/expirado/revogado: not_found e nada é aceito', async () => {
+    getUserMock.mockResolvedValueOnce(alice)
+    rpcMock.mockResolvedValueOnce({ data: null, error: null })
 
-    await captureRedirect(() => acceptInviteForCurrentUser('tok-123'))
-    expect(rpcMock).toHaveBeenCalledWith('accept_invitation_atomic', { p_token: 'tok-123' })
+    const url = await captureRedirect(() => acceptInviteForCurrentUser('tok-dead'))
+    expect(url).toBe('/signup/invite/tok-dead?error=not_found')
+    expect(rpcMock.mock.calls.some((c) => c[0] === 'accept_invitation_atomic')).toBe(false)
   })
 
-  it('redirects to ?error=rpc_failed when rpc returns a postgres error', async () => {
-    getUserMock.mockResolvedValueOnce({ data: { user: { id: 'u1' } } })
-    rpcMock.mockResolvedValueOnce({ data: null, error: { message: 'connection refused' } })
+  it('logado com OUTRO e-mail: email_mismatch e nada é aceito (a ação não confia na página)', async () => {
+    getUserMock.mockResolvedValueOnce({ data: { user: { id: 'u2', email: 'mallory@example.com' } } })
+    mockValidInvitation()
+
+    const url = await captureRedirect(() => acceptInviteForCurrentUser('tok-123'))
+    expect(url).toBe('/signup/invite/tok-123?error=email_mismatch')
+    expect(rpcMock.mock.calls.some((c) => c[0] === 'accept_invitation_atomic')).toBe(false)
+  })
+
+  it('sessão sem e-mail: email_mismatch (falha fechado)', async () => {
+    getUserMock.mockResolvedValueOnce({ data: { user: { id: 'u3' } } })
+    mockValidInvitation()
+
+    const url = await captureRedirect(() => acceptInviteForCurrentUser('tok-123'))
+    expect(url).toBe('/signup/invite/tok-123?error=email_mismatch')
+    expect(rpcMock.mock.calls.some((c) => c[0] === 'accept_invitation_atomic')).toBe(false)
+  })
+
+  it('redirects to ?error=rpc_failed when the accept rpc returns a postgres error', async () => {
+    getUserMock.mockResolvedValueOnce(alice)
+    mockValidInvitation()
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: 'invitation_invalid' } })
 
     const url = await captureRedirect(() => acceptInviteForCurrentUser('tok-bad'))
     expect(url).toBe('/signup/invite/tok-bad?error=rpc_failed')
   })
-
-  it('redirects to ?error=<code> when RPC returns ok:false with error codes', async () => {
-    for (const errorCode of ['email_mismatch', 'expired', 'already_accepted', 'revoked']) {
-      vi.clearAllMocks()
-      getUserMock.mockResolvedValueOnce({ data: { user: { id: 'u1' } } })
-      rpcMock.mockResolvedValueOnce({
-        data: { ok: false, error: errorCode },
-        error: null,
-      })
-
-      const url = await captureRedirect(() => acceptInviteForCurrentUser('tok-x'))
-      expect(url).toBe(`/signup/invite/tok-x?error=${encodeURIComponent(errorCode)}`)
-    }
-  })
 })
-
-// ─── acceptInviteWithPassword ─────────────────────────────────────────────────
 
 describe('acceptInviteWithPassword', () => {
   beforeEach(() => {
@@ -160,29 +183,45 @@ describe('acceptInviteWithPassword', () => {
     signOutMock.mockResolvedValue({})
   })
 
-  it('redirects to ?error=not_found when get_invitation_by_token finds nothing', async () => {
-    rpcMock.mockResolvedValueOnce({ data: [], error: null })
+  it('redirects to ?error=not_found when get_invitation_by_token finds nothing (null)', async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: null })
 
     const url = await captureRedirect(() => acceptInviteWithPassword('tok-gone', 'Password1!'))
     expect(url).toBe('/signup/invite/tok-gone?error=not_found')
+    expect(createUserMock).not.toHaveBeenCalled()
   })
 
-  it('redirects to ?error=expired when invitation is expired', async () => {
+  it('looks the invitation up with p_token_hash (the real parameter name), passing the raw token', async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: null })
+
+    await captureRedirect(() => acceptInviteWithPassword('tok-param', 'Password1!'))
+    expect(rpcMock).toHaveBeenCalledWith('get_invitation_by_token', { p_token_hash: 'tok-param' })
+  })
+
+  it('redirects to ?error=not_found and creates no user when the lookup RPC errors', async () => {
     rpcMock.mockResolvedValueOnce({
-      data: [
-        {
-          email: 'bob@example.com',
-          role: 'editor',
-          org_name: 'Acme',
-          expires_at: new Date(Date.now() - 1000).toISOString(),
-          expired: true,
-        },
-      ],
-      error: null,
+      data: null,
+      error: { code: 'PGRST202', message: 'Could not find the function' },
     })
 
-    const url = await captureRedirect(() => acceptInviteWithPassword('tok-old', 'Password1!'))
-    expect(url).toBe('/signup/invite/tok-old?error=expired')
+    const url = await captureRedirect(() => acceptInviteWithPassword('tok-rpc', 'Password1!'))
+    expect(url).toBe('/signup/invite/tok-rpc?error=not_found')
+    expect(createUserMock).not.toHaveBeenCalled()
+  })
+
+  it('creates the account for the e-mail of the invitation', async () => {
+    mockValidInvitation()
+    createUserMock.mockResolvedValueOnce({
+      data: { user: null },
+      error: { message: 'internal server error' },
+    })
+
+    await captureRedirect(() => acceptInviteWithPassword('tok-mail', 'Password1!'))
+    expect(createUserMock).toHaveBeenCalledWith({
+      email: 'alice@example.com',
+      password: 'Password1!',
+      email_confirm: true,
+    })
   })
 
   it('redirects to ?error=email_already_registered when createUser says already registered', async () => {

@@ -1,8 +1,8 @@
-import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { getSiteContext } from '../../../../../lib/cms/site-context'
+import { requireOrgAdmin } from '../_lib/require-org-admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,10 +65,7 @@ export default async function AuditPage({ searchParams }: Props) {
 
   // Defense-in-depth: RLS would hide the rows anyway, but redirect
   // non-admins so the page itself isn't reachable via role escalation.
-  const { data: role } = await userClient.rpc('org_role', { p_org_id: ctx.orgId })
-  if (role !== 'owner' && role !== 'admin' && role !== 'org_admin') {
-    redirect('/cms')
-  }
+  await requireOrgAdmin(userClient, ctx.orgId)
 
   // Use the user-scoped client so RLS (`audit_log_read`) applies. We still
   // fetch PAGE_SIZE + 1 rows to detect "has next page" without a count query.

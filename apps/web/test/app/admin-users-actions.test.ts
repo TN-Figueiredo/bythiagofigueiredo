@@ -55,6 +55,7 @@ vi.mock('next/headers', () => ({
       getAll: () => [],
       set: () => {},
     }),
+  headers: () => Promise.resolve(new Headers({ 'user-agent': 'vitest' })),
 }))
 
 // redirect throws a special NEXT_REDIRECT error internally — vi.fn() lets us inspect calls
@@ -78,6 +79,11 @@ let nextMaybySingleResult: { data: unknown; error: unknown } = {
   error: null,
 }
 let capturedUpdateArg: unknown = null
+let capturedInsertArg: unknown = null
+let nextInsertManyResult: { data: unknown; error: { message: string; code?: string } | null } = {
+  data: [],
+  error: null,
+}
 const serviceRpcMock = vi.fn()
 const getUserByIdMock = vi.fn()
 
@@ -90,11 +96,18 @@ vi.mock('../../lib/supabase/service', () => ({
       },
     },
     from: (_table: string) => ({
-      insert: (_values: unknown) => ({
-        select: (_cols: string) => ({
-          single: () => Promise.resolve(nextInsertSingleResult),
-        }),
-      }),
+      insert: (values: unknown) => {
+        if (_table === 'sent_emails') return Promise.resolve({ data: null, error: null })
+        capturedInsertArg = values
+        return {
+          // `.select()` é aguardado direto (várias linhas, createInvitationAction)
+          // ou seguido de `.single()` (uma linha, createInvitation legado).
+          select: (_cols: string) =>
+            Object.assign(Promise.resolve(nextInsertManyResult), {
+              single: () => Promise.resolve(nextInsertSingleResult),
+            }),
+        }
+      },
       select: (_cols: string) => ({
         eq: (_col: string, _val: unknown) => ({
           maybeSingle: () => Promise.resolve(nextMaybySingleResult),
@@ -120,6 +133,7 @@ vi.mock('../../lib/supabase/service', () => ({
 // ── Import actions after all mocks ────────────────────────────────────────
 import {
   createInvitation,
+  createInvitationAction,
   revokeInvitation,
   resendInvitation,
 } from '../../src/app/admin/(authed)/users/actions'
@@ -130,8 +144,32 @@ function mockAuthorizedUser() {
   getUserMock.mockResolvedValue({
     data: { user: { id: 'user-1', email: 'admin@example.com' } },
   })
-  rpcMock.mockResolvedValue({ data: 'admin', error: null })
+  // is_org_admin devolve boolean (não o papel): true = pode gerir convites.
+  // increment_invitation_resend devolve VOID: sucesso é { data: null, error: null }
+  // e o intervalo de 30 s chega como exceção 'resend_cooldown' (ver
+  // test/integration/invite-flow-contract.test.ts para o contrato real).
+  rpcMock.mockImplementation((fn: string) =>
+    Promise.resolve(
+      fn === 'is_org_admin' ? { data: true, error: null } : { data: null, error: null },
+    ),
+  )
 }
+
+/** Faz a próxima chamada de `fn` pelo client do usuário falhar com `error`. */
+function failUserRpc(fn: string, error: { message: string; code?: string; hint?: string }) {
+  rpcMock.mockImplementation((name: string) =>
+    Promise.resolve(
+      name === fn
+        ? { data: null, error }
+        : name === 'is_org_admin'
+          ? { data: true, error: null }
+          : { data: null, error: null },
+    ),
+  )
+}
+
+const inAWeek = () => new Date(Date.now() + 7 * 864e5).toISOString()
+const yesterday = () => new Date(Date.now() - 864e5).toISOString()
 
 /** Helper: run action and capture redirect URL (action always redirects on success/failure) */
 async function captureRedirect(fn: () => Promise<void>): Promise<string> {
@@ -222,8 +260,33 @@ describe('createInvitation', () => {
     expect(url).toBe('/admin/users?notice=invite_failed')
   })
 
-  it('throws forbidden when caller has author role', async () => {
-    rpcMock.mockResolvedValueOnce({ data: 'author', error: null })
+  it('throws forbidden when caller is not an org admin', async () => {
+    rpcMock.mockResolvedValueOnce({ data: false, error: null })
+    await expect(createInvitation({ email: 'x@x.com', role: 'editor' })).rejects.toThrow(
+      /forbidden/,
+    )
+  })
+
+  it('authorizes through is_org_admin (SECURITY DEFINER), never org_role', async () => {
+    // org_role roda como o usuário e recursa na policy de organization_members
+    // (54001 "stack depth limit exceeded") — negava até o super_admin.
+    await captureRedirect(() => createInvitation({ email: 'bob@example.com', role: 'editor' }))
+    expect(rpcMock).toHaveBeenCalledWith('is_org_admin', { p_org_id: 'org-1' })
+    expect(rpcMock.mock.calls.some((c) => c[0] === 'org_role')).toBe(false)
+  })
+
+  it('throws forbidden (fail closed) when the authz RPC errors', async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: '54001', message: 'stack depth limit exceeded' },
+    })
+    await expect(createInvitation({ email: 'x@x.com', role: 'editor' })).rejects.toThrow(
+      /forbidden/,
+    )
+  })
+
+  it('a legacy role string is not a grant: only boolean true authorizes', async () => {
+    rpcMock.mockResolvedValueOnce({ data: 'admin', error: null })
     await expect(createInvitation({ email: 'x@x.com', role: 'editor' })).rejects.toThrow(
       /forbidden/,
     )
@@ -276,8 +339,8 @@ describe('revokeInvitation', () => {
     await expect(revokeInvitation('missing-inv')).rejects.toThrow(/not_found/)
   })
 
-  it('throws forbidden when caller has editor role', async () => {
-    rpcMock.mockResolvedValueOnce({ data: 'editor', error: null })
+  it('throws forbidden when caller is not an org admin', async () => {
+    rpcMock.mockResolvedValueOnce({ data: false, error: null })
     await expect(revokeInvitation('inv-1')).rejects.toThrow(/forbidden/)
   })
 
@@ -301,15 +364,21 @@ describe('resendInvitation', () => {
         role: 'editor',
         org_id: 'org-1',
         token: 'abc123',
-        expires_at: '2026-04-23T00:00:00Z',
+        expires_at: inAWeek(),
+        accepted_at: null,
+        revoked_at: null,
         invited_by: 'inviter-uid',
         organization: { name: 'My Org' },
       },
       error: null,
     }
     sendTemplateMock.mockResolvedValue({ messageId: 'msg-2' })
-    // I4: RPC mock for atomic resend_count increment — returns true (cooldown not active)
-    serviceRpcMock.mockResolvedValue({ data: true, error: null })
+    // O service client NÃO autoriza a função (auth.uid() nulo): se a ação voltar
+    // a chamá-la por ele, este mock devolve a recusa que o banco devolve.
+    serviceRpcMock.mockResolvedValue({
+      data: null,
+      error: { message: 'insufficient_access', code: 'P0001' },
+    })
     // I12: inviter user mock
     getUserByIdMock.mockResolvedValue({
       data: { user: { id: 'inviter-uid', email: 'inviter@example.com', user_metadata: { full_name: 'Alice Admin' } } },
@@ -317,14 +386,64 @@ describe('resendInvitation', () => {
     mockAuthorizedUser()
   })
 
-  it('calls sendTemplate', async () => {
-    await captureRedirect(() => resendInvitation('inv-1'))
+  it('reenvia: a RPC devolve void (data null, sem erro) e isso é sucesso, não "aguarde 30 s"', async () => {
+    const url = await captureRedirect(() => resendInvitation('inv-1'))
+    expect(url).toBe('/admin/users?notice=resend_sent')
     expect(sendTemplateMock).toHaveBeenCalledOnce()
   })
 
-  it('redirects to ?notice=resend_sent on success', async () => {
+  it('incrementa pelo client do USUÁRIO (a função autoriza por auth.uid()), nunca pelo service client', async () => {
+    await captureRedirect(() => resendInvitation('inv-1'))
+    expect(rpcMock).toHaveBeenCalledWith('increment_invitation_resend', { p_id: 'inv-1' })
+    expect(serviceRpcMock).not.toHaveBeenCalled()
+    // No direct update to resend_count
+    expect(capturedUpdateArg).toBeNull()
+  })
+
+  it('respeita o intervalo: exceção resend_cooldown vira "aguarde 30 s" e nenhum e-mail sai', async () => {
+    failUserRpc('increment_invitation_resend', {
+      message: 'resend_cooldown',
+      code: 'P0001',
+      hint: 'cooldown',
+    })
     const url = await captureRedirect(() => resendInvitation('inv-1'))
-    expect(url).toBe('/admin/users?notice=resend_sent')
+    expect(url).toBe('/admin/users?notice=resend_too_soon')
+    expect(sendTemplateMock).not.toHaveBeenCalled()
+  })
+
+  it('outro erro da RPC não se disfarça de intervalo: vira resend_failed e nenhum e-mail sai', async () => {
+    failUserRpc('increment_invitation_resend', { message: 'insufficient_access', code: 'P0001' })
+    const url = await captureRedirect(() => resendInvitation('inv-1'))
+    expect(url).toBe('/admin/users?notice=resend_failed')
+    expect(sendTemplateMock).not.toHaveBeenCalled()
+  })
+
+  it('falha do provedor de e-mail vira aviso honesto (resend_email_failed), não "Convite reenviado"', async () => {
+    sendTemplateMock.mockRejectedValueOnce(new Error('SES error'))
+    const url = await captureRedirect(() => resendInvitation('inv-1'))
+    expect(url).toBe('/admin/users?notice=resend_email_failed')
+  })
+
+  it.each([
+    ['expirado', () => ({ expires_at: yesterday() })],
+    ['já aceito', () => ({ accepted_at: yesterday() })],
+    ['revogado', () => ({ revoked_at: yesterday() })],
+  ])('convite %s não é reenviado (o link estaria morto)', async (_label, patch) => {
+    nextMaybySingleResult = {
+      data: { ...(nextMaybySingleResult.data as Record<string, unknown>), ...patch() },
+      error: null,
+    }
+    const url = await captureRedirect(() => resendInvitation('inv-1'))
+    expect(url).toBe('/admin/users?notice=resend_expired')
+    expect(rpcMock).not.toHaveBeenCalledWith('increment_invitation_resend', expect.anything())
+    expect(sendTemplateMock).not.toHaveBeenCalled()
+  })
+
+  it('manda o link de aceite com o token do convite e o papel no vocabulário do template', async () => {
+    await captureRedirect(() => resendInvitation('inv-1'))
+    const data = sendTemplateMock.mock.calls[0]![3] as Record<string, unknown>
+    expect(String(data.acceptUrl)).toMatch(/\/signup\/invite\/abc123$/)
+    expect(data.role).toBe('editor')
   })
 
   it('uses inviter full_name from user_metadata (I12)', async () => {
@@ -342,29 +461,97 @@ describe('resendInvitation', () => {
     expect(data.inviterName).toBe('boss')
   })
 
-  it('calls increment_invitation_resend RPC instead of direct update (I13)', async () => {
-    await captureRedirect(() => resendInvitation('inv-1'))
-    expect(serviceRpcMock).toHaveBeenCalledWith('increment_invitation_resend', { p_id: 'inv-1' })
-    // No direct update to resend_count
-    expect(capturedUpdateArg).toBeNull()
-  })
-
-  it('I4: redirects to ?notice=resend_too_soon when RPC returns false (30s cooldown active)', async () => {
-    serviceRpcMock.mockResolvedValueOnce({ data: false, error: null })
-    const url = await captureRedirect(() => resendInvitation('inv-1'))
-    expect(url).toBe('/admin/users?notice=resend_too_soon')
-    // Email should NOT be sent when rate-limited
-    expect(sendTemplateMock).not.toHaveBeenCalled()
-  })
-
   it('throws not_found when invitation does not exist', async () => {
     nextMaybySingleResult = { data: null, error: null }
     await expect(resendInvitation('missing')).rejects.toThrow(/not_found/)
+  })
+
+  it('throws forbidden when caller is not an org admin (nada é incrementado nem enviado)', async () => {
+    rpcMock.mockResolvedValue({ data: false, error: null })
+    await expect(resendInvitation('inv-1')).rejects.toThrow(/forbidden/)
+    expect(rpcMock).not.toHaveBeenCalledWith('increment_invitation_resend', expect.anything())
+    expect(sendTemplateMock).not.toHaveBeenCalled()
   })
 
   it('calls revalidatePath after resend', async () => {
     await captureRedirect(() => resendInvitation('inv-1'))
     const { revalidatePath } = await import('next/cache')
     expect(revalidatePath).toHaveBeenCalledWith('/admin/users')
+  })
+})
+
+// ── createInvitationAction (escopo org/site) ──────────────────────────────
+
+describe('createInvitationAction', () => {
+  const SITE = '22222222-2222-4222-8222-222222222222'
+  const editorInvite = {
+    email: 'irma@example.com',
+    scope: 'site' as const,
+    role: 'editor' as const,
+    site_ids: [SITE],
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    capturedInsertArg = null
+    nextInsertManyResult = {
+      data: [{ id: 'inv-9', token: 'f'.repeat(64), expires_at: inAWeek(), site_id: SITE }],
+      error: null,
+    }
+    sendTemplateMock.mockResolvedValue({ messageId: 'msg-9' })
+    mockAuthorizedUser()
+  })
+
+  it('convite de editora de site: grava escopo site + papel editor e diz "criado e enviado" quando o e-mail saiu', async () => {
+    const url = await captureRedirect(() => createInvitationAction(editorInvite))
+    expect(url).toBe('/admin/users?notice=invite_created')
+    expect(capturedInsertArg).toEqual([
+      expect.objectContaining({
+        email: 'irma@example.com',
+        org_id: 'org-1',
+        site_id: SITE,
+        role_scope: 'site',
+        role: 'editor',
+        invited_by: 'user-1',
+      }),
+    ])
+    const data = sendTemplateMock.mock.calls[0]![3] as Record<string, unknown>
+    expect(String(data.acceptUrl)).toMatch(new RegExp(`/signup/invite/${'f'.repeat(64)}$`))
+  })
+
+  it('e-mail que não saiu NÃO vira "criado e enviado": aviso invite_created_email_failed', async () => {
+    sendTemplateMock.mockRejectedValueOnce(new Error('SES: The security token included in the request is invalid'))
+    const url = await captureRedirect(() => createInvitationAction(editorInvite))
+    expect(url).toBe('/admin/users?notice=invite_created_email_failed')
+  })
+
+  it('vários sites: basta um envio falhar para o aviso ser o de falha', async () => {
+    nextInsertManyResult = {
+      data: [
+        { id: 'inv-a', token: 'a'.repeat(64), expires_at: inAWeek(), site_id: SITE },
+        { id: 'inv-b', token: 'b'.repeat(64), expires_at: inAWeek(), site_id: SITE },
+      ],
+      error: null,
+    }
+    sendTemplateMock.mockResolvedValueOnce({ messageId: 'ok' }).mockRejectedValueOnce(new Error('SES'))
+    const url = await captureRedirect(() =>
+      createInvitationAction({ ...editorInvite, site_ids: [SITE, SITE] }),
+    )
+    expect(url).toBe('/admin/users?notice=invite_created_email_failed')
+    expect(sendTemplateMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('escopo site com papel org_admin é recusado antes de gravar', async () => {
+    const url = await captureRedirect(() =>
+      createInvitationAction({ ...editorInvite, role: 'org_admin' }),
+    )
+    expect(url).toBe('/admin/users?notice=invite_failed')
+    expect(capturedInsertArg).toBeNull()
+  })
+
+  it('quem não é org_admin não cria convite', async () => {
+    rpcMock.mockResolvedValue({ data: false, error: null })
+    await expect(createInvitationAction(editorInvite)).rejects.toThrow(/forbidden/)
+    expect(capturedInsertArg).toBeNull()
   })
 })

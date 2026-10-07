@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
+const siteAdmin = vi.hoisted(() => ({ value: true }))
+vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
+  useCanAdminSite: () => siteAdmin.value,
+}))
 import { render, screen, within, fireEvent, act } from '@testing-library/react'
 
 const routerRefresh = vi.fn()
@@ -80,6 +87,22 @@ const statusText = () => screen.getByTestId('ig-status-text').textContent ?? ''
 
 describe('<InstagramSection> — the six states', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it('editora (não administra o site): sem Connect, Remove, colar token nem adicionar conta; o motivo escrito; Sync Now continua', () => {
+    siteAdmin.value = false
+    try {
+      renderSection()
+      expect(screen.queryByTestId('ig-remove')).toBeNull()
+      expect(screen.queryByTestId('ig-paste-details')).toBeNull()
+      for (const id of ['ig-connect', 'ig-reconnect', 'ig-different', 'ig-disconnect', 'ig-add-form']) expect(screen.queryByTestId(id)).toBeNull()
+      expect(screen.getByTestId('admin-only-note').textContent).toBe(
+        'Só quem administra o site pode adicionar, conectar, desconectar ou remover contas do Instagram.',
+      )
+      expect(screen.getByTestId('ig-sync-now')).toBeTruthy()
+    } finally {
+      siteAdmin.value = true
+    }
+  })
 
   it('Never connected', () => {
     renderSection({ connected: false, token_expires_at: null, last_synced_at: null })

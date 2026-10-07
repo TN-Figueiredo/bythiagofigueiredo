@@ -87,6 +87,13 @@ vi.mock('../../src/app/cms/(authed)/newsletters/actions', () => ({
 
 /* ─── Import after mocks ─── */
 
+// Degrau "administrar o site": a zona de perigo só existe para quem administra.
+const siteAdmin = vi.hoisted(() => ({ value: true }))
+vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
+  useCanAdminSite: () => siteAdmin.value,
+}))
+
 import { TypeDrawer } from '../../src/app/cms/(authed)/newsletters/_components/type-drawer'
 import { toast } from 'sonner'
 
@@ -337,6 +344,20 @@ describe('TypeDrawer', () => {
       expect(screen.getByText('Danger Zone')).toBeTruthy()
     })
     expect(screen.getByTestId('drawer-delete')).toBeTruthy()
+  })
+
+  it('editora (não administra o site): sem botão de apagar, com o motivo escrito na tela', async () => {
+    siteAdmin.value = false
+    try {
+      render(<TypeDrawer open mode="edit" typeId="test-1" onClose={onClose} locale="en" strings={strings} />)
+      await vi.waitFor(() => {
+        expect(screen.getByText('Danger Zone')).toBeTruthy()
+      })
+      expect(screen.queryByTestId('drawer-delete')).toBeNull()
+      expect(screen.getByTestId('admin-only-note').textContent).toContain('Só quem administra o site pode apagar um tipo de newsletter')
+    } finally {
+      siteAdmin.value = true
+    }
   })
 
   it('selects color from presets', () => {

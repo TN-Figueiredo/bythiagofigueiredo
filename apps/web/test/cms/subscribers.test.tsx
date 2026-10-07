@@ -1,4 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
+const siteAdmin = vi.hoisted(() => ({ value: true }))
+vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
+  useCanAdminSite: () => siteAdmin.value,
+}))
 import { render, screen, fireEvent } from '@testing-library/react'
 
 /* ------------------------------------------------------------------ */
@@ -320,6 +327,18 @@ describe('SubscribersConnected', () => {
   it('renders export button', async () => {
     await renderComponent()
     expect(screen.getByTestId('export-btn')).toBeTruthy()
+  })
+
+  it('editora (não administra o site): sem Export nem barra de lote, com o motivo escrito', async () => {
+    siteAdmin.value = false
+    try {
+      await renderComponent()
+      expect(screen.queryByTestId('export-btn')).toBeNull()
+      expect(screen.queryByTestId('batch-bar')).toBeNull()
+      expect(screen.getByTestId('admin-only-note').textContent).toContain('Só quem administra o site pode exportar ou cancelar assinantes em lote')
+    } finally {
+      siteAdmin.value = true
+    }
   })
 
   it('opens export dialog on click', async () => {

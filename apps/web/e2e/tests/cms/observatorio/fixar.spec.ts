@@ -17,7 +17,17 @@ const overlap = (a: Box, b: Box) => Math.max(0, Math.min(a.x + a.width, b.x + b.
 /** Document-relative box (the page may scroll between two measurements). */
 /** Box relative to an ancestor: immune to whatever the shell does above it when the page scrolls (sticky bars, the collapsing summary). */
 const relBox = async (l: Locator, anchor: Locator): Promise<Box> => { const b = await box(l), a = await box(anchor); return { ...b, x: b.x - a.x, y: b.y - a.y } }
-const docBox = async (page: Page, l: Locator): Promise<Box> => { const b = await box(l), s = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY })); return { ...b, x: b.x + s.x, y: b.y + s.y } }
+/**
+ * Box that does not change when the page scrolls. `y` is relative to the top of the screen's root, not window.scrollY: the
+ * CMS shell scrolls inside its own container (the window never moves), so a click that scrolled the button into view read
+ * as a 401 px jump. Seen at 390 px once Fase 4's 44 px targets pushed "Fixar vídeo" under the bottom bar
+ * (historico.css, the "(pointer:coarse),(max-width:900px)" rules; plan 2026-10-07-observatorio-historico-muitas-versoes Task 11).
+ */
+const docBox = async (page: Page, l: Locator): Promise<Box> => {
+  const b = await box(l), root = page.locator('[data-obs-screen]').first()
+  const top = (await root.count()) ? (await box(root)).y : -(await page.evaluate(() => window.scrollY))
+  return { ...b, x: b.x + await page.evaluate(() => window.scrollX), y: b.y - top }
+}
 
 /**
  * Waits until the screen stopped moving: the CMS shell collapses its sidebar after hydration and the chrome fills in, which

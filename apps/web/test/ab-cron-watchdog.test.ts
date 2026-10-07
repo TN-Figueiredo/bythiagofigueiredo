@@ -13,6 +13,7 @@ import { GET } from '@/app/api/cron/ab-watchdog/route'
 import { getCronHealth } from '@/lib/cron-health'
 import { createNotification } from '@/lib/notifications/create'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { fakeOwnerClient, mergeDbs, rootOrgWithAdmin, OWNER_TABLES } from './helpers/fake-owner-db'
 
 const mockGetHealth = vi.mocked(getCronHealth)
 const mockNotify = vi.mocked(createNotification)
@@ -23,21 +24,20 @@ function makeRequest(secret = 'test-secret') {
   })
 }
 
-function buildMockSupabase(activeTests: { site_id: string }[] | null) {
+function buildMockSupabase(activeTests: { site_id: string }[] | null, withOwner = true) {
   // Mock for ab_tests query: .from('ab_tests').select('site_id').eq('status', 'active')
   const abTestsEq = vi.fn().mockReturnValue({ data: activeTests, error: null })
   const abTestsSelect = vi.fn().mockReturnValue({ eq: abTestsEq })
 
-  // Mock for site_users query: .from('site_users').select('user_id').eq('site_id', x).eq('role', 'super_admin').limit(1).single()
-  const siteUsersSingle = vi.fn().mockReturnValue({ data: { user_id: 'user-1' }, error: null })
-  const siteUsersLimit = vi.fn().mockReturnValue({ single: siteUsersSingle })
-  const siteUsersEqRole = vi.fn().mockReturnValue({ limit: siteUsersLimit })
-  const siteUsersEqSite = vi.fn().mockReturnValue({ eq: siteUsersEqRole })
-  const siteUsersSelect = vi.fn().mockReturnValue({ eq: siteUsersEqSite })
+  // Donos: org_admin da organização raiz (getSiteOwners real sobre tabelas falsas).
+  const owners = fakeOwnerClient(
+    withOwner ? mergeDbs(...(activeTests ?? []).map((t) => rootOrgWithAdmin(t.site_id))) : {},
+    { 'owner-1': 'dono@x.com' },
+  )
 
   const from = vi.fn((table: string) => {
     if (table === 'ab_tests') return { select: abTestsSelect }
-    if (table === 'site_users') return { select: siteUsersSelect }
+    if (OWNER_TABLES.has(table)) return owners.from(table)
     if (table === 'ab_test_polls') {
       return {
         delete: vi.fn().mockReturnValue({
@@ -64,7 +64,7 @@ function buildMockSupabase(activeTests: { site_id: string }[] | null) {
     return { select: vi.fn() }
   })
 
-  return { from }
+  return { from, rpc: owners.rpc, auth: owners.auth }
 }
 
 beforeEach(() => {
@@ -256,5 +256,48 @@ describe('ab-watchdog', () => {
         headers: { authorization: 'Bearer test-secret' },
       }),
     )
+  })
+
+  it('sem org_admin na organização raiz: registra sem_destinatario e não notifica (cron segue ok)', async () => {
+    const yesterday = new Date(Date.now() - 86400000).toISOString()
+    mockGetHealth.mockResolvedValue({
+      cron_name: 'ab-rotate',
+      last_success_at: yesterday,
+      last_failure_at: null,
+      last_error: null,
+      consecutive_failures: 0,
+      severity: 'critical',
+      updated_at: yesterday,
+    })
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      buildMockSupabase([{ site_id: 'site-1' }], false),
+    )
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const res = await GET(makeRequest())
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(mockNotify).not.toHaveBeenCalled()
+    expect(body.avisos).toEqual({ enviados: 0, sem_destinatario: 1 })
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('sem_destinatario'))).toBe(true)
+    warn.mockRestore()
+  })
+
+  it('com org_admin da raiz: o aviso tem destinatário e o resultado não acusa sem_destinatario', async () => {
+    const yesterday = new Date(Date.now() - 86400000).toISOString()
+    mockGetHealth.mockResolvedValue({
+      cron_name: 'ab-rotate',
+      last_success_at: yesterday,
+      last_failure_at: null,
+      last_error: null,
+      consecutive_failures: 0,
+      severity: 'critical',
+      updated_at: yesterday,
+    })
+    const res = await GET(makeRequest())
+    const body = await res.json()
+    expect(mockNotify).toHaveBeenCalledWith(expect.objectContaining({ user_id: 'owner-1', site_id: 'site-1' }))
+    expect(body.avisos).toEqual({ enviados: 1 })
   })
 })

@@ -1,5 +1,6 @@
 'use client'
 
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import {
   useState,
   useCallback,
@@ -162,6 +163,7 @@ function DetailPanel({
   readOnly: boolean
   isPending: boolean
 }) {
+  const canAdminSite = useCanAdminSite()
   const status = getStatus(submission)
   const isAnonymized = status === 'anonymized'
   const [replyOpen, setReplyOpen] = useState(false)
@@ -354,8 +356,10 @@ function DetailPanel({
               </button>
             ) : null}
 
-            {/* Anonymize */}
-            {!confirmAnonymize ? (
+            {/* Anonymize — degrau "administrar o site" (irreversível) */}
+            {!canAdminSite ? (
+              <AdminOnlyNote action="anonimizar um contato" className="text-slate-400" />
+            ) : !confirmAnonymize ? (
               <button
                 type="button"
                 onClick={() => setConfirmAnonymize(true)}
@@ -494,6 +498,7 @@ export function ContactsConnected({
   page,
   totalPages,
 }: Props) {
+  const canAdminSite = useCanAdminSite()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
@@ -921,7 +926,10 @@ export function ContactsConnected({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </div>
-          {!readOnly && (
+          {!readOnly && !canAdminSite && (
+            <AdminOnlyNote action="exportar ou anonimizar contatos" className="text-slate-400" />
+          )}
+          {!readOnly && canAdminSite && (
             <button
               type="button"
               onClick={() => setShowExport(true)}
@@ -1077,7 +1085,7 @@ export function ContactsConnected({
       )}
 
       {/* Bulk actions bar */}
-      {!readOnly && selectedIds.size > 0 && (
+      {!readOnly && canAdminSite && selectedIds.size > 0 && (
         <div
           className="fixed bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 shadow-2xl"
           data-testid="bulk-actions"

@@ -24,6 +24,7 @@ import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
 import { AbPauseDialog } from './ab-pause-dialog'
 import { AbEndTestDialog } from './ab-end-test-dialog'
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import {
   Pause, Square, Settings,
   TrendingUp, Crosshair, BarChart3, RefreshCw, Filter, Zap,
@@ -39,6 +40,8 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
   const router = useRouter()
   const [showPause, setShowPause] = useState(false)
   const [showEnd, setShowEnd] = useState(false)
+  // Degrau "administrar o site": forçar rotação e aplicar vencedor mexem no canal de verdade.
+  const canAdminSite = useCanAdminSite()
   const [driftBusy, setDriftBusy] = useState(false)
   const { data: livePoll } = usePollStats(view.id, view.status === 'active')
 
@@ -87,19 +90,23 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
         <Square size={14} aria-hidden="true" />
         Encerrar
       </button>
-      <button
-        type="button"
-        className={BTN}
-        onClick={async () => {
-          if (!confirm('Forçar rotação agora? A variante atual será trocada imediatamente.')) return
-          const result = await forceRotate(view.id)
-          if (!result.ok) alert(result.error)
-          else router.refresh()
-        }}
-      >
-        <RefreshCw size={14} aria-hidden="true" />
-        Forçar rotação
-      </button>
+      {canAdminSite ? (
+        <button
+          type="button"
+          className={BTN}
+          onClick={async () => {
+            if (!confirm('Forçar rotação agora? A variante atual será trocada imediatamente.')) return
+            const result = await forceRotate(view.id)
+            if (!result.ok) alert(result.error)
+            else router.refresh()
+          }}
+        >
+          <RefreshCw size={14} aria-hidden="true" />
+          Forçar rotação
+        </button>
+      ) : (
+        <AdminOnlyNote action="forçar rotação ou aplicar vencedor" className="text-cms-text-dim" />
+      )}
       <button type="button" aria-label="Configurações" className={BTN}>
         <Settings size={14} aria-hidden="true" />
       </button>
@@ -136,16 +143,18 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
               </p>
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={async () => {
-                  const result = await applyWinnerNow(view.id)
-                  if (!result.ok) alert(result.error)
-                  else router.refresh()
-                }}
-                className="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-500"
-              >
-                Aplicar Agora
-              </button>
+              {canAdminSite && (
+                <button
+                  onClick={async () => {
+                    const result = await applyWinnerNow(view.id)
+                    if (!result.ok) alert(result.error)
+                    else router.refresh()
+                  }}
+                  className="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-500"
+                >
+                  Aplicar Agora
+                </button>
+              )}
               <button
                 onClick={async () => {
                   const result = await cancelGracePeriod(view.id)

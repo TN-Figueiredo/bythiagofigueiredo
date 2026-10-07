@@ -8,6 +8,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { toast } from 'sonner'
+import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
 import type { EditionCard, NewsletterType } from '../../_hub/hub-types'
 import type { NewsletterHubStrings } from '../../_i18n/types'
 import { KanbanColumn } from './kanban-column'
@@ -76,6 +77,9 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, onQuickA
   const [localEditions, setLocalEditions] = useState<EditionCard[] | null>(null)
   const localEditionsRef = useRef<EditionCard[] | null>(null)
   const [slotPickerState, setSlotPickerState] = useState<SlotPickerState | null>(null)
+  // Agendar (ou tirar de "agendada") é disparo/cancelamento de envio real: só quem administra o site.
+  const canAdminSite = useCanAdminSite()
+  const sendDenied = siteAdminOnlyText('agendar ou cancelar o envio de newsletter')
   const [specialScheduleState, setSpecialScheduleState] = useState<SpecialScheduleState | null>(null)
   const [optimisticIdeas, setOptimisticIdeas] = useState<EditionCard[]>([])
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set())
@@ -361,6 +365,11 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, onQuickA
 
     if (!targetColumn) return
 
+    if (!canAdminSite && (targetColumn === 'scheduled' || originalEdition.status === 'scheduled')) {
+      toast.error(sendDenied)
+      return
+    }
+
     // Gate: type required for ready/scheduled
     if ((targetColumn === 'ready' || targetColumn === 'scheduled') && !originalEdition.typeId) {
       toast.error(strings?.editorial.noType ?? 'Assign a type first')
@@ -386,11 +395,11 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, onQuickA
       try {
         await onMoveEdition?.(editionId, targetColumn)
         toast.success(strings?.common.moved ?? 'Moved')
-      } catch {
-        toast.error(strings?.common.couldntMove ?? "Couldn't move")
+      } catch (e) {
+        toast.error(e instanceof Error && e.message.startsWith('Só quem') ? e.message : strings?.common.couldntMove ?? "Couldn't move")
       }
     })
-  }, [onMoveEdition, setOptimistic, startTransition, optimisticEditions, strings, openSlotPicker])
+  }, [onMoveEdition, setOptimistic, startTransition, optimisticEditions, strings, openSlotPicker, canAdminSite, sendDenied])
 
   const handleDragCancel = useCallback(() => {
     setActiveId(null)
@@ -400,6 +409,11 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, onQuickA
 
   const handleMoveToStatus = useCallback(async (editionId: string, newStatus: string) => {
     const edition = optimisticEditions.find((e) => e.id === editionId)
+
+    if (!canAdminSite && (newStatus === 'scheduled' || edition?.status === 'scheduled')) {
+      toast.error(sendDenied)
+      return
+    }
 
     if ((newStatus === 'ready' || newStatus === 'scheduled') && edition && !edition.typeId) {
       toast.error(strings?.editorial.noType ?? 'Assign a type first')
@@ -421,11 +435,11 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, onQuickA
       try {
         await onMoveEdition?.(editionId, newStatus)
         toast.success(strings?.common.moved ?? 'Moved')
-      } catch {
-        toast.error(strings?.common.couldntMove ?? "Couldn't move")
+      } catch (e) {
+        toast.error(e instanceof Error && e.message.startsWith('Só quem') ? e.message : strings?.common.couldntMove ?? "Couldn't move")
       }
     })
-  }, [onMoveEdition, optimisticEditions, setOptimistic, startTransition, strings, openSlotPicker])
+  }, [onMoveEdition, optimisticEditions, setOptimistic, startTransition, strings, openSlotPicker, canAdminSite, sendDenied])
 
   return (
     <>
@@ -447,7 +461,7 @@ export function KanbanBoard({ editions, onMoveEdition, onDeleteEdition, onQuickA
                 id={col.id}
                 title={strings?.editorial[col.key] ?? FALLBACK_TITLES[col.key] ?? col.key}
                 color={col.color}
-                hint={col.id === 'scheduled' ? 'Only ready editions' : undefined}
+                hint={col.id === 'scheduled' ? (canAdminSite ? 'Only ready editions' : 'Só quem administra o site agenda envio') : undefined}
                 cards={cards}
                 confirmedIds={confirmedIds}
                 strings={strings}

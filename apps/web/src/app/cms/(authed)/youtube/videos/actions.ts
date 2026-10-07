@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 async function requireEditAccess(): Promise<string> {
@@ -101,6 +102,12 @@ const SYNC_COOLDOWN_MS = 60_000
 export async function triggerSync(
   channelId?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Degrau "administrar o site": sem `channelId` é o "Sincronizar tudo" (todos os canais próprios de
+  // uma vez, gasta cota da API). Um canal por vez segue com a editora. No topo; falha fechado.
+  if (!channelId) {
+    const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'sincronizar todos os canais de uma vez (gasta cota da API)')
+    if (denied) return denied
+  }
   await requireEditAccess()
 
   const cooldownKey = channelId ?? 'all'

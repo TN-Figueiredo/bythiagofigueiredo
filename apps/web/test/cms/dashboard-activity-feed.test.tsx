@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 /* ------------------------------------------------------------------ */
 /*  Mocks                                                             */
@@ -173,5 +175,28 @@ describe('DashboardActivityFeed', () => {
 
     // Should display the raw action string
     expect(screen.getByText('custom_action')).toBeTruthy()
+  })
+})
+
+/*
+ * O mock acima troca `formatRelativeTime` por uma função de verdade, então
+ * nenhum render deste arquivo enxerga o que acontece no servidor: lá a entrada
+ * `@tn-figueiredo/cms-ui/client` é "use client" e a função vira client
+ * reference — chamá-la num Server Component lança e derruba o dashboard inteiro
+ * (visto em 2026-10-07 com a primeira linha de audit_log do site). A única
+ * defesa é o componente ser, ele mesmo, um client component.
+ */
+describe('DashboardActivityFeed — fronteira server/client', () => {
+  it('declara "use client" na primeira instrução, porque chama uma função da entrada client do cms-ui', () => {
+    const source = readFileSync(
+      resolve(__dirname, '../../src/app/cms/(authed)/_components/dashboard-activity-feed.tsx'),
+      'utf8',
+    )
+    expect(source).toMatch(/from '@tn-figueiredo\/cms-ui\/client'/)
+    const firstStatement = source
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line !== '' && !line.startsWith('//'))
+    expect(firstStatement).toBe("'use client'")
   })
 })

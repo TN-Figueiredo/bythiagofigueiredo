@@ -1,5 +1,17 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Degrau "administrar o site": as rotas de OAuth pedem `requireSiteAdminScope`. Aqui ele é
+// dirigido pelo mesmo mock de sessão que estes testes já controlam (`requireSiteScope`), para
+// os cenários de "sem sessão" / "sessão trocou" continuarem valendo. A recusa específica da
+// editora fica em test/cms/site-admin-step-integracoes.test.ts.
+vi.mock('@/lib/cms/auth-guards', async () => {
+  const server = await import('@tn-figueiredo/auth-nextjs/server')
+  return {
+    requireSiteAdminScope: (siteId: string) => server.requireSiteScope({ area: 'cms', siteId, mode: 'edit' }),
+    siteAdminOnlyMessage: (acao: string) => `Só quem administra o site pode ${acao}.`,
+  }
+})
 import { NextRequest } from 'next/server'
 import { createHmac } from 'node:crypto'
 
@@ -150,12 +162,14 @@ describe('GET /api/instagram/oauth (start)', () => {
     expect(html).toContain('sign in and try again')
   })
 
-  it('answers insufficient_access with 403 HTML, never JSON', async () => {
+  it('answers insufficient_access (a sessão não administra o site) with 403 HTML site_admin_required, never JSON', async () => {
     vi.mocked(requireSiteScope).mockResolvedValue({ ok: false, reason: 'insufficient_access' } as never)
     const res = await GET(req())
     expect(res.status).toBe(403)
     expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8')
-    expect(await res.text()).toContain('"code":"session_changed"')
+    const html = await res.text()
+    expect(html).toContain('"code":"site_admin_required"')
+    expect(html).toContain('Só quem administra o site pode conectar ou trocar a conta do Instagram.')
   })
 
   it('answers a cross-site fetch with 403 HTML cross_origin', async () => {

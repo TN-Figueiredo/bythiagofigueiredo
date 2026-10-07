@@ -58,6 +58,7 @@ const OAUTH_ERROR_CODE_SET: Record<OauthErrorCode, true> = {
   write_failed: true,
   cross_origin: true,
   browser_changed: true,
+  site_admin_required: true,
 }
 
 /** Note: does NOT escape `'` — every attribute below uses double quotes. */

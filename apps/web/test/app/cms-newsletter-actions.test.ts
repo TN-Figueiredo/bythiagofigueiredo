@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../../lib/cms/auth-guards', () => ({
   requireSiteAdminForRow: vi.fn().mockResolvedValue({ siteId: 's1' }),
+  // degrau "administrar o site": estes testes rodam como quem administra (o dono)
+  requireSiteAdminScope: () => Promise.resolve({ ok: true, user: { id: 'user-1' } }),
+  siteAdminOnlyMessage: (acao: string) => `Só quem administra o site pode ${acao}.`,
 }))
 
 vi.mock('../../lib/cms/site-context', () => ({
@@ -74,8 +77,13 @@ describe('newsletter actions', () => {
           }),
         }),
       }),
+      // escrita condicionada ao status lido: .update().eq(id).eq(status).select('id')
       update: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({ data: null, error: null }),
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            select: vi.fn().mockResolvedValue({ data: [{ id: 'ed1' }], error: null }),
+          }),
+        }),
       }),
       insert: vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({

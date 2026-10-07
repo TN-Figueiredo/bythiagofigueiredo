@@ -331,3 +331,12 @@
   [data-obs-screen="mudancas"] .vid-h .fx-chips{min-height:56px}
 }
 @media (max-width:760px){[data-obs-screen="mudancas"] .vid .fx-row{padding-left:18px}}
+/* ===== Fase 4: trocas em sequência (R121; mockup 2026-10-07-historico-muitas-versoes/mudancas.html) ===== */
+/* border, background and padding are reset on purpose: the YouTube section has its own ".run" (the coach's request box,
+   youtube-motion.css) and without the reset this line was drawn as a padded box, four lines tall (seen in the browser) */
+[data-obs-screen="mudancas"] .when .seq.run{display:flex;gap:6px;align-items:flex-start;color:var(--muted);white-space:normal;border:0;border-radius:0;background:none;padding:0}
+[data-obs-screen="mudancas"] .when .seq.run svg{flex:none;margin-top:1px;color:var(--muted)}
+[data-obs-screen="mudancas"] .seqnote{display:flex;gap:6px;align-items:flex-start;margin:4px 0 0;font-size:12px;color:var(--muted);max-width:86ch}
+[data-obs-screen="mudancas"] .seqnote svg{flex:none;margin-top:1px}
+/* the date column holds the run line in two lines (mockup: 190 px). Only where the base grid is 160 / 340 px: from 1001 to 1180 px the 150 / 290 px adjustment above stays (R136) */
+@media (min-width:1181px){ [data-obs-screen="mudancas"] .chg{grid-template-columns:190px minmax(0,1fr) 340px} }

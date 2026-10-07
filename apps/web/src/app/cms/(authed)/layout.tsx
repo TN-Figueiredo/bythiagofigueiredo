@@ -17,6 +17,8 @@ import { fetchSidebarBadges } from '@/lib/cms/sidebar-badges'
 import { fetchLayoutCounts } from '@/lib/cms/layout-counts'
 import { SidebarBadges } from '@/components/cms/sidebar-badges'
 import { SiteTimezoneProvider } from '@/lib/cms/site-timezone-context'
+import { SiteAdminProvider } from '@/lib/cms/site-admin-context'
+import { requireSiteAdminScope } from '@/lib/cms/auth-guards'
 import { NotificationProvider } from '@/lib/notifications/notification-context'
 import { CmsTopbar } from './_shared/cms-topbar'
 import { buildCmsSections, CMS_SETTINGS_ITEM } from './_shared/cms-sections'
@@ -69,9 +71,12 @@ export default async function Layout({ children }: { children: ReactNode }) {
   const userRole = currentSite?.user_role ?? 'reporter'
 
   const { siteId: middlewareSiteId, timezone: siteTimezone } = await getSiteContext()
-  const [badgeData, layoutCounts] = await Promise.all([
+  // Degrau "administrar o site": só decide o que a TELA mostra (cada action
+  // restrita confere de novo no servidor). Falha fechado → controles somem.
+  const [badgeData, layoutCounts, siteAdmin] = await Promise.all([
     fetchSidebarBadges(middlewareSiteId, siteTimezone),
     fetchLayoutCounts(middlewareSiteId),
+    requireSiteAdminScope(middlewareSiteId),
   ])
   const badges: Record<string, number> = {}
   if (layoutCounts.pendingContacts) badges['/cms/contacts'] = layoutCounts.pendingContacts
@@ -80,6 +85,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
 
   return (
     <CmsAdminProvider linkComponent={CmsLink}>
+      <SiteAdminProvider value={siteAdmin.ok}>
       <SiteTimezoneProvider value={siteTimezone}>
         <NotificationProvider>
           <SiteSwitcherProvider sites={sites} initialSiteId={currentSiteId}>
@@ -102,6 +108,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
           </SiteSwitcherProvider>
         </NotificationProvider>
       </SiteTimezoneProvider>
+      </SiteAdminProvider>
     </CmsAdminProvider>
   )
 }

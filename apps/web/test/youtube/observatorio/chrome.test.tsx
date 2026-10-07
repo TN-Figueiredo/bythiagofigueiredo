@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
+const siteAdmin = vi.hoisted(() => ({ value: true }))
+vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
+  useCanAdminSite: () => siteAdmin.value,
+}))
 import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { loadOracle, datasetFromOracle } from './oracle'
@@ -127,6 +134,17 @@ describe('ObservatoryChrome', () => {
     mount({ dropNicheParam: true })
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?add=1', { scroll: false }))
   })
+  it('editora (não administra o site): sem "Sincronizar concorrentes" no cabeçalho; "Adicionar canal" continua', () => {
+    siteAdmin.value = false
+    try {
+      mount({ onSyncNow: vi.fn() })
+      expect(screen.queryByRole('button', { name: 'Sincronizar concorrentes' })).toBeNull()
+      expect(screen.getByRole('link', { name: 'Adicionar canal' })).toBeTruthy()
+    } finally {
+      siteAdmin.value = true
+    }
+  })
+
   it('"Sincronizar concorrentes" shows the action result, warn when there are problems', async () => {
     const user = userEvent.setup()
     const names = (id: string) => id

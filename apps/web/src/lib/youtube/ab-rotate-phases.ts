@@ -4,6 +4,7 @@ import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
 import { createNotification } from '@/lib/notifications/create'
+import { getSiteOwners, logSemDestinatario } from '@/lib/notifications/get-site-owners'
 import { CHANNEL_NOT_IDENTIFIED_MESSAGE, channelAccountIdForVideo } from '@/lib/youtube/channel-account'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import type { AbTestVariantRow } from '@/lib/youtube/ab-types'
@@ -124,11 +125,12 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient): Promise<
 
       const preflight = await preflightTokenCheck(test.site_id, 'youtube', channel?.channel_id)
       if (!preflight.ok) {
-        const { data: owner } = await supabase.from('site_users').select('user_id').eq('site_id', test.site_id).eq('role', 'super_admin').limit(1).single()
-        if (owner) {
+        const owners = await getSiteOwners(supabase, test.site_id)
+        if (owners.length === 0) logSemDestinatario('ab-rotate:token-invalid', test.site_id)
+        for (const owner of owners) {
           await createNotification({
             site_id: test.site_id,
-            user_id: owner.user_id,
+            user_id: owner.userId,
             type: 'youtube.token_invalid',
             domain: 'youtube',
             priority: 1,

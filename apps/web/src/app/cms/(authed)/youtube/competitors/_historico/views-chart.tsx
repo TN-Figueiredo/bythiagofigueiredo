@@ -4,8 +4,11 @@
  * the tooltip (port of renderChart/renderLanes/legend). Pixel mapping only; the numbers and texts come from the view model.
  */
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { ChartView, ComparisonView, LaneType, LaneView, LanesAxisView, LegendItem, MarkerView } from './view-model'
-import { Lanes, type Geom, type Hl } from './lanes'
+import type { ChartView, ComparisonView, LaneType, LaneView, LanesAxisView, LegendItem, MarkerView, RangeView } from './view-model'
+import { RichText } from '../_mudancas/rich'
+import type { RangeId } from './many-versions'
+import { Lanes, type Geom, type GroupTip, type Hl } from './lanes'
+import { layoutLane, MINPX, MINPX_COARSE } from './lane-layout'
 import { HIcon, TYPE_COLOR } from './icons'
 import { Thumb } from './thumb'
 
@@ -13,8 +16,9 @@ const PADL = 92, PADR = 14, HH = 200, TOP = 22, BOT = 26, PH = HH - TOP - BOT
 const yPx = (f: number) => TOP + PH - f * PH
 
 export function geomOf(w: number, chart: ChartView): Geom {
-  const pw = w - PADL - PADR, H = chart.H
-  if (chart.B0 == null) return { w, H, x: h => PADL + (h / H) * pw }
+  const pw = w - PADL - PADR, H = chart.H, f = chart.fromH
+  // with a period filter the axis starts at fromH: what is older is pinned to the left edge, never drawn outside
+  if (chart.B0 == null) return { w, H, x: h => PADL + ((Math.max(f, h) - f) / Math.max(1e-9, H - f)) * pw }
   const B0 = chart.B0, preW = Math.min(120, pw * 0.14)
   return { w, H, x: h => (h <= B0 ? PADL + (h / B0) * preW : PADL + preW + ((h - B0) / (H - B0)) * (pw - preW)) }
 }
@@ -32,21 +36,25 @@ export function shownTicks(px: number[], gap = 64): boolean[] {
   return show
 }
 
-interface TipState { m: MarkerView; type: LaneType; px: number; laneTop: number }
+interface TipState { m: MarkerView | null; g: GroupTip | null; type: LaneType; px: number; laneTop: number }
+const coarse = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer:coarse),(max-width:900px)').matches
 
-export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectPair, onGoVersion }: {
+export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectPair, onGoVersion, range, onRange, groupLegend }: {
   chart: ChartView | null; axis?: LanesAxisView | null; lanes: LaneView[]; legend: LegendItem[]; pair: ComparisonView | null
   hl: Hl | null; onHl: (h: Hl | null) => void
   onSelectPair: (k: string) => void; onGoVersion: (type: LaneType, i: number) => void
+  /** Period filter (null = not offered) and what a choice does; the legend text of a group of close items. */
+  range?: RangeView | null; onRange?: (id: RangeId) => void; groupLegend?: string
 }) {
   const wrap = useRef<HTMLDivElement>(null), tipRef = useRef<HTMLDivElement>(null)
   const [w, setW] = useState(1100)
   const [tip, setTip] = useState<TipState | null>(null)
   const [tipTop, setTipTop] = useState(0)
+  const [minpx, setMinpx] = useState(MINPX)
   useLayoutEffect(() => {
     const el = wrap.current
     if (!el) return
-    const measure = () => { const cw = Math.round(el.clientWidth); if (cw > 0) setW(cw) }
+    const measure = () => { const cw = Math.round(el.clientWidth); if (cw > 0) setW(cw); setMinpx(coarse() ? MINPX_COARSE : MINPX) }
     measure()
     if (typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(measure)
@@ -66,21 +74,39 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
   const tickShown = shownTicks(ticks.map(t => t.px))
   const { x } = geom
   const hlVer = hl ? lanes.find(l => l.type === hl.type)?.versions[hl.i] ?? null : null
+  const fromH = chart?.fromH ?? 0
+  const layouts = useMemo(() => lanes.map(l => layoutLane(l, geom.x, minpx)), [lanes, geom, minpx])
+  const anyGroup = layouts.some(l => l.some(i => i.kind === 'pgroup' || i.kind === 'mgroup'))
+  const fullLegend = anyGroup && groupLegend ? [...legend, { kind: 'grp' as const, text: groupLegend }] : legend
 
   const onMarker = (m: MarkerView, type: LaneType, el: HTMLElement | null) => {
     if (!el) { setTip(null); onHl(null); return }
     onHl({ type, i: m.idx, ev: m.idx })
     const wr = wrap.current?.getBoundingClientRect(), r = el.getBoundingClientRect()
-    setTip({ m, type, px: wr ? r.left - wr.left + r.width / 2 : x(m.h), laneTop: wr ? r.top - wr.top : 0 })
+    setTip({ m, g: null, type, px: wr ? r.left - wr.left + r.width / 2 : x(m.h), laneTop: wr ? r.top - wr.top : 0 })
+  }
+  // the hint of a group: not interactive, opens upwards (over the chart), closes with Esc from anywhere
+  const onGroupTip = (g: GroupTip | null, el: HTMLElement | null) => {
+    if (!g || !el) { setTip(null); return }
+    const wr = wrap.current?.getBoundingClientRect(), r = el.getBoundingClientRect()
+    setTip({ m: null, g, type: g.type, px: wr ? r.left - wr.left + r.width / 2 : 0, laneTop: wr ? r.top - wr.top : 0 })
   }
   const tw = Math.min(310, w - 8)
   const tipLeft = tip ? Math.max(0, Math.min(tip.px - tw / 2, w - tw)) : 0
-  const events = lanes.flatMap(l => l.markers.map(m => ({ type: l.type, m })))
+  const events = lanes.flatMap(l => l.markers.filter(m => m.inRange).map(m => ({ type: l.type, m })))
 
   return (
     <section className="card timeline" aria-labelledby="hv-tlh">
       <div className="sec-h">
         <h3 id="hv-tlh">{chart ? 'Views por dia e cada troca' : 'Trocas de título, thumbnail e descrição'}</h3>
+        {range ? (
+          <div className="rng-ctl" role="group" aria-labelledby="hv-rngl">
+            <span className="rng-l" id="hv-rngl">Período</span>
+            <div className="seg">
+              {range.options.map(o => <button key={o.id} type="button" aria-pressed={o.id === range.value} aria-label={o.aria} data-range={o.id} onClick={() => onRange?.(o.id)}>{o.label}</button>)}
+            </div>
+          </div>
+        ) : null}
         <span className="src">{chart ? <>{chart.src.bold ? <b>{chart.src.bold}</b> : null}{chart.src.text}</> : 'o eixo vai da primeira versão guardada à última vez em que o vídeo foi conferido'}</span>
       </div>
       <div className="tl-wrap" ref={wrap}>
@@ -96,8 +122,8 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
         ) : (
           <ChartSvg chart={chart} geom={geom} pair={pair} hlRange={hlVer ? [hlVer.fromH, hlVer.toH] : null} />
         )) : null}
-        <Lanes lanes={lanes} geom={geom} stale={chart?.stale ?? null} fewAxis={chart?.fewAxis ?? null} hl={hl} onHl={onHl}
-          onMarker={onMarker} onMarkerClick={m => { if (m.pairK) onSelectPair(m.pairK) }} onClip={onGoVersion} />
+        <Lanes lanes={lanes} layouts={layouts} geom={geom} stale={chart?.stale ?? null} fewAxis={chart?.fewAxis ?? null} fromH={fromH} hl={hl} onHl={onHl}
+          onMarker={onMarker} onMarkerClick={m => { setTip(null); if (m.pairK) onSelectPair(m.pairK) }} onClip={onGoVersion} onGroupTip={onGroupTip} />
         {!chart && ticks.length ? (
           <div className="lane-axis fx-axis" aria-hidden="true">
             {ticks.map((t, i) => <i key={'m' + i} style={{ left: t.px }} />)}
@@ -107,18 +133,21 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
         <div className="vlines" aria-hidden="true" style={!chart ? { bottom: 24 } : chart.few ? undefined : { top: 22 }}>
           {events.map(({ type, m }) => {
             const on = hl && hl.type === type && hl.ev === m.idx ? ' on' : ''
-            return m.win
+            return m.win && m.win[0] >= fromH
               ? <div key={m.changeId} className={'vband' + on} style={{ left: x(m.win[0]), width: Math.max(2, x(m.win[1]) - x(m.win[0])), ['--c' as string]: TYPE_COLOR[type], ['--wa' as string]: type === 'desc' ? 'var(--t-desc-a)' : 'var(--t-title-a)' }} />
               : <div key={m.changeId} className={'vline' + on} style={{ left: x(m.h), ['--c' as string]: TYPE_COLOR[type] }} />
           })}
         </div>
         <div className={'tip' + (tip ? ' show' : '')} id="hv-tip" role="tooltip" ref={tipRef}
           style={{ left: tipLeft, top: tipTop, ['--c' as string]: tip ? TYPE_COLOR[tip.type] : undefined }}>
-          {tip ? <TipBody m={tip.m} /> : null}
+          {tip?.m ? <TipBody m={tip.m} /> : null}
+          {tip?.g ? <><h4>{tip.g.title}</h4><div className="when">{tip.g.when}</div>{tip.g.seq ? <div className="seq">{tip.g.seq}</div> : null}<p className="hint">Enter, espaço ou clique abre a lista.</p></> : null}
         </div>
       </div>
+      {/* what the period filter left inside, right under the lanes: changing it never pushes the chart */}
+      {range ? <p className="rng-txt" id="hv-rngtxt" role="status"><RichText r={range.text} /></p> : null}
       <div className="legend" data-legend="">
-        {legend.map((l, i) => <LegendEntry key={i} l={l} />)}
+        {fullLegend.map((l, i) => <LegendEntry key={i} l={l} />)}
       </div>
       {chart?.table ? (
         <details className="data">
@@ -138,6 +167,8 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
 
 function LegendEntry({ l }: { l: LegendItem }): ReactNode {
   if (l.kind === 'text') return <span>{l.text}</span>
+  if (l.kind === 'run') return <span data-legend-kind="run"><i className="sw swrun" aria-hidden="true" />{l.text}</span>
+  if (l.kind === 'grp') return <span data-legend-kind="grp"><span className="sw swgrp" aria-hidden="true">N trocas</span>{l.text}</span>
   if (l.kind === 'thumb') return <span style={{ color: 'var(--t-thumb)' }}><HIcon name="thumb" size={13} /><span style={{ color: 'var(--muted)' }}>{l.text}</span></span>
   const cls = l.kind === 'curve' ? 'sw' : l.kind === 'dash' ? 'sw dash' : l.kind === 'shade' ? 'sw shade' : l.kind === 'hatch' ? 'sw hatch' : 'sw swwin'
   return <span data-legend-kind={l.kind}><i className={cls} aria-hidden="true" />{l.text}</span>
@@ -150,7 +181,7 @@ function TipBody({ m }: { m: MarkerView }) {
       <h4>{m.tip.title}</h4>
       <div className="when">{m.tip.when}</div>
       {b.kind === 'title' ? <><div className="bef">{b.before}</div><div className="aft">{b.after}</div></> : null}
-      {b.kind === 'thumb' ? <><div className="thpair"><Thumb t={b.before} /><span aria-hidden="true">→</span><Thumb t={b.after} /></div>{b.revert ? <div className="aft" style={{ color: 'var(--t-thumb)' }}>{b.revert}</div> : null}</> : null}
+      {b.kind === 'thumb' ? <><div className="thpair"><Thumb t={b.before} w={140} h={79} /><span aria-hidden="true">→</span><Thumb t={b.after} w={140} h={79} /></div>{b.revert ? <div className="aft" style={{ color: 'var(--t-thumb)' }}>{b.revert}</div> : null}</> : null}
       {b.kind === 'desc' ? <><div className="aft">{b.text}</div>{b.sub ? <div className="src" style={{ marginTop: 4 }}>{b.sub}</div> : null}</> : null}
     </>
   )
@@ -195,7 +226,7 @@ function ChartSvg({ chart, geom, pair, hlRange }: { chart: ChartView; geom: Geom
       parts.push(<rect key="hatch" x={hx0} y={TOP} width={Math.max(3, x(H) - hx0)} height={PH} fill="url(#hv-hatch)" />)
       if (chart.hatch.note) parts.push(<text key="hn" className="note" x={hx0 - 6} y={TOP + 18} textAnchor="end">{chart.hatch.note}</text>)
     }
-    const per = (w - PADL - PADR) / (H / 24)
+    const per = (w - PADL - PADR) / (Math.max(1e-9, H - chart.fromH) / 24)
     if (per >= 56) {
       let last: { r: number; y: number } | null = null
       B.forEach((b, i) => {

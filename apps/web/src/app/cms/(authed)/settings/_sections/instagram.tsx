@@ -1,5 +1,6 @@
 'use client'
 
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { SlotManager } from '@/components/instagram/slot-manager'
@@ -80,6 +81,7 @@ export function InstagramSection({
   handleMismatch = null,
   siteTimezone = 'America/Sao_Paulo',
 }: InstagramSectionProps) {
+  const canAdminSite = useCanAdminSite()
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -120,8 +122,11 @@ export function InstagramSection({
         />
       ))}
 
-      {accounts.length < 3 && !readOnly && (
+      {accounts.length < 3 && !readOnly && canAdminSite && (
         <AddInstagramForm existingLocales={existingLocales} onAdded={() => router.refresh()} />
+      )}
+      {!readOnly && !canAdminSite && (
+        <AdminOnlyNote action="adicionar, conectar, desconectar ou remover contas do Instagram" className="text-slate-400" />
       )}
     </div>
   )
@@ -205,6 +210,9 @@ function InstagramAccountCard({
 
   const busy = inProgress !== null
   const syncing = inProgress?.origin === 'sync'
+  // Degrau "administrar o site": conectar, desconectar, remover e colar token são só de quem administra.
+  // Sincronizar e ajustar slots continuam com a editora.
+  const canAdminSite = useCanAdminSite()
   const oauthDisabled = readOnly || isPreview || !oauthConfigured
   const oauthTitle = isPreview
     ? previewDisabledText()
@@ -485,7 +493,7 @@ function InstagramAccountCard({
                 {syncing ? 'Syncing…' : 'Sync Now'}
               </button>
             )}
-            {!readOnly && (
+            {!readOnly && canAdminSite && (
               <button
                 type="button"
                 data-testid="ig-remove"
@@ -553,7 +561,7 @@ function InstagramAccountCard({
             </button>
           )}
 
-          {!readOnly && (
+          {!readOnly && canAdminSite && (
             <div className="flex flex-wrap items-center gap-2">
               {state === 'never-connected' ? (
                 <button
@@ -629,7 +637,7 @@ function InstagramAccountCard({
             </p>
           )}
 
-          {!readOnly && inlineError && (
+          {!readOnly && canAdminSite && inlineError && (
             <div className="space-y-1 rounded-md border border-red-500/40 bg-red-500/10 p-2">
               <p data-testid="ig-inline-error" className="text-xs text-red-300">{inlineError}</p>
               <div className="flex gap-2">
@@ -654,7 +662,7 @@ function InstagramAccountCard({
             </div>
           )}
 
-          {!readOnly && mismatch && (
+          {!readOnly && canAdminSite && mismatch && (
             <div data-testid="ig-mismatch-banner" className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2">
               <p className="text-xs text-amber-200">
                 You authorized @{mismatch.authorizedHandle}; this CMS account is @{account.handle}
@@ -784,7 +792,7 @@ function InstagramAccountCard({
       </form>
 
       {/* Cola manual — fallback permanente (objetivo 4), nunca removida */}
-      {!readOnly && (
+      {!readOnly && canAdminSite && (
         <details data-testid="ig-paste-details" open={pastePrimary} className={sectionCls()}>
           <summary className="cursor-pointer text-sm font-medium text-slate-300">
             {pastePrimary ? 'Paste token manually' : 'Paste token manually (fallback)'}

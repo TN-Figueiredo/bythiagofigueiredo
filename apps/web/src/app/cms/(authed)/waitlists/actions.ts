@@ -3,6 +3,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { requireSiteAdminScope, siteAdminOnlyMessage } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ringContext } from '@/lib/cms/repositories'
 import { slugify } from '@/lib/blog/slugify'
@@ -336,8 +337,12 @@ export async function exportWaitlistSignups(
   opts: ExportSignupsOpts = {},
 ): Promise<ExportSignupsResult> {
   const ctx = await getSiteContext()
-  const scope = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'view' })
-  if (!scope.ok) return { ok: false, error: 'forbidden', message: scope.reason }
+  // Degrau "administrar o site": CSV com os e-mails dos inscritos (antes bastava `view`).
+  // No topo, antes do service client; falha fechado.
+  const scope = await requireSiteAdminScope(ctx.siteId)
+  if (!scope.ok) {
+    return { ok: false, error: 'forbidden', message: siteAdminOnlyMessage('exportar os inscritos da waitlist') }
+  }
 
   const supabase = getSupabaseServiceClient()
   try {

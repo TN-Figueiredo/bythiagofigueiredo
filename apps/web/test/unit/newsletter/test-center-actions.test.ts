@@ -49,7 +49,10 @@ vi.mock('@/lib/cms/site-context', () => ({
 }))
 
 vi.mock('@/lib/cms/auth-guards', () => ({
-  requireSiteAdminForRow: () => Promise.resolve(),
+  requireSiteAdminForRow: () => Promise.resolve({ siteId: 'site-1' }),
+  // degrau "administrar o site": estes testes rodam como quem administra (o dono)
+  requireSiteAdminScope: () => Promise.resolve({ ok: true, user: { id: 'user-1' } }),
+  siteAdminOnlyMessage: (acao: string) => `Só quem administra o site pode ${acao}.`,
 }))
 
 let mockAuthResult: { ok: boolean; user?: { id: string }; reason?: string } = { ok: true, user: { id: 'user-1' } }

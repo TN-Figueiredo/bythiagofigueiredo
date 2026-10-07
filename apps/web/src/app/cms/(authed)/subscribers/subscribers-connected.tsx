@@ -1,5 +1,6 @@
 'use client'
 
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import {
   useState,
   useCallback,
@@ -370,6 +371,7 @@ export function SubscribersConnected({
   currentStatus,
   currentType,
 }: Props) {
+  const canAdminSite = useCanAdminSite()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -605,19 +607,23 @@ export function SubscribersConnected({
           ))}
         </div>
 
-        {/* Export button in topbar */}
-        <button
-          type="button"
-          onClick={() => setExportDialogOpen(true)}
-          className="ml-auto rounded-md border border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700"
-          data-testid="export-btn"
-        >
-          Export
-        </button>
+        {/* Export button in topbar — degrau "administrar o site" (dado pessoal em lote) */}
+        {canAdminSite ? (
+          <button
+            type="button"
+            onClick={() => setExportDialogOpen(true)}
+            className="ml-auto rounded-md border border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700"
+            data-testid="export-btn"
+          >
+            Export
+          </button>
+        ) : (
+          <AdminOnlyNote action="exportar ou cancelar assinantes em lote" className="ml-auto text-slate-400" />
+        )}
       </div>
 
       {/* Batch actions bar */}
-      {selectedIds.size > 0 && (
+      {canAdminSite && selectedIds.size > 0 && (
         <div
           className="flex items-center gap-3 rounded-lg border border-indigo-500/30 bg-indigo-950/30 px-4 py-2"
           data-testid="batch-bar"

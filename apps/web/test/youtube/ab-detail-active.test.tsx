@@ -1,4 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+
+// Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
+const siteAdmin = vi.hoisted(() => ({ value: true }))
+vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
+  useCanAdminSite: () => siteAdmin.value,
+}))
 import { render, screen } from '@testing-library/react'
 import { ActiveDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-detail'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
@@ -82,6 +89,24 @@ describe('ActiveDetail', () => {
     ]
     for (const s of sections) {
       expect(container.querySelector(`[data-section="${s}"]`), `missing section: ${s}`).not.toBeNull()
+    }
+  })
+
+  it('quem administra o site vê "Forçar rotação"; a editora vê o motivo no lugar, e segue com Pausar/Encerrar', () => {
+    const admin = render(<ActiveDetail view={makeActiveView()} />)
+    expect(admin.getByText('Forçar rotação')).toBeTruthy()
+    expect(admin.queryByTestId('admin-only-note')).toBeNull()
+    admin.unmount()
+
+    siteAdmin.value = false
+    try {
+      const editor = render(<ActiveDetail view={makeActiveView()} />)
+      expect(editor.queryByText('Forçar rotação')).toBeNull()
+      expect(editor.getByText('Pausar')).toBeTruthy()
+      expect(editor.getByText('Encerrar')).toBeTruthy()
+      expect(editor.getByTestId('admin-only-note').textContent).toBe('Só quem administra o site pode forçar rotação ou aplicar vencedor.')
+    } finally {
+      siteAdmin.value = true
     }
   })
 

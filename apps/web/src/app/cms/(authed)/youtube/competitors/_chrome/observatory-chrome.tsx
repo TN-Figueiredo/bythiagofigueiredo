@@ -4,6 +4,7 @@
  * freshness line, tabs with counts, niche bar, menu ⋯ and toasts. Each page wraps its screen with it; the screen
  * starts 16 px below the tabs (D8). Server actions arrive as props (never imported here).
  */
+import { useCanAdminSite } from '@/lib/cms/site-admin-context'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
@@ -55,6 +56,9 @@ const FORJA_REFRESH_MS = 60_000
 function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, onOpenNicheEditor, onAskForja, readingCopy }: ObservatoryChromeProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
+  // "Administrar o site" step: the round over every competitor spends API quota; an editor syncs one channel at a time
+  // (Canais) and reads why in the freshness popover instead of seeing a button that refuses.
+  const canAdminSite = useCanAdminSite()
   const [pop, setPop] = useState<Pop>(null)
   const [menuAt, setMenuAt] = useState<'first' | 'last'>('first')
   const [pendingNiche, setPendingNiche] = useState<NicheScope | null>(null)
@@ -214,9 +218,11 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
           <div className="obs-ch-title"><h2>{view.title}</h2><p>{view.subtitle}</p></div>
           <div className="obs-ch-actions">
             {forja ? <ForjaHeaderButtons forja={forja} onOpen={onForjaHeader} onStatus={goToForjaAnchor} /> : null}
-            <button className="obs-ch-btn" type="button" title="Sincronizar concorrentes" aria-disabled={syncing || undefined} onClick={() => sync(false)}>
-              {Icon.sync()}<span className="obs-ch-lbl-t">Sincronizar concorrentes</span>
-            </button>
+            {canAdminSite ? (
+              <button className="obs-ch-btn" type="button" title="Sincronizar concorrentes" aria-disabled={syncing || undefined} onClick={() => sync(false)}>
+                {Icon.sync()}<span className="obs-ch-lbl-t">Sincronizar concorrentes</span>
+              </button>
+            ) : null}
             <Link className="obs-ch-btn" href={view.addHref} title="Adicionar canal">
               {Icon.plus()}<span className="obs-ch-lbl-t">Adicionar canal</span>
             </Link>

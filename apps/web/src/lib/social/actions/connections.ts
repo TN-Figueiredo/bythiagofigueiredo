@@ -14,6 +14,8 @@ import {
   revalidateSocialPaths,
 } from './_shared'
 import { toSafeConnections } from '../row-parsers'
+import { getSiteContext } from '@/lib/cms/site-context'
+import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 
 // ---------------------------------------------------------------------------
 // Connection management
@@ -44,6 +46,10 @@ export async function connectSocial(
     metadata?: Record<string, unknown>
   },
 ): Promise<ActionResult<{ id: string }>> {
+  // Degrau "administrar o site": grava credencial de rede social. No topo, antes de qualquer
+  // service client; falha fechado.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'conectar uma conta de rede social')
+  if (denied) return denied
   const parsed = connectSchema.safeParse({ provider, ...tokens })
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
 
@@ -91,6 +97,9 @@ export async function connectSocial(
 export async function disconnectSocial(
   connectionId: string,
 ): Promise<ActionResult> {
+  // Degrau "administrar o site": desliga a conexão (publicação e métricas param). No topo.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'desconectar uma conta de rede social')
+  if (denied) return denied
   const parsed = z.string().uuid().safeParse(connectionId)
   if (!parsed.success) return { ok: false, error: 'Invalid connection ID' }
 

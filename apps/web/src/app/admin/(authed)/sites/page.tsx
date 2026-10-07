@@ -52,8 +52,7 @@ export default async function AdminSitesPage({ searchParams }: Props) {
     },
   )
 
-  const { data: role } = await userClient.rpc('org_role', { p_org_id: ctx.orgId })
-  requireOrgAdmin(role)
+  await requireOrgAdmin(userClient, ctx.orgId)
 
   const supabase = getSupabaseServiceClient()
   const { data: site } = await supabase

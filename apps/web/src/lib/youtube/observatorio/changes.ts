@@ -12,7 +12,21 @@ export interface ObsChange {
   whenText: string; agoMidText: string; agoShort: string; agoText: string; prevLivedMs?: number; nextLivedMs?: number; revertTo: string | null
   revertedBy?: string; testCompare?: boolean; cycleMs?: number | null; diff?: LineDiff | null; hasText?: boolean; noTextReason?: string
   titleDiff?: TitleDiff; rewriteGroup?: string; sameWindow: string[]; within48h: string[]
+  /**
+   * R121, "trocas em sequência". An object = this change is one of a run of 2+ changes of the same field (thumbnail or
+   * title) at most RULES.testRunGapDays apart. null = checked, not in a run (and every description change).
+   * undefined = unknown (an object not produced by deriveChanges): the screens then say nothing about runs.
+   */
+  testRun?: TestRun | null
+  /** Thumbnail that came back (revertTo): true only when it came back right after ONE other image (A → B → A). */
+  revertImmediate?: boolean
+  /** Thumbnail that came back: how many distinct other images were on air between its two periods. */
+  revertBetween?: number
+  /** The leg before a return (revertedBy): the return was immediate, so "this version was reverted" is true. */
+  revertedImmediate?: boolean
 }
+/** `n` counts CHANGES (not versions); `pos` is 1-based; `from`/`to` are the first and the last change; `open` = the last one is at most testRunGapDays old. */
+export interface TestRun { id: string; n: number; pos: number; from: number; to: number; open: boolean }
 
 const TYPE_LABEL = { title: 'Título', thumb: 'Thumbnail', desc: 'Descrição' } as const
 type ChangeType = keyof typeof TYPE_LABEL
@@ -63,6 +77,11 @@ export function deriveChanges(ctx: EngineCtx): ObsChange[] {
             const leftAt = left ? left.last_seen : null
             c.cycleMs = leftAt ? ver.first_seen - leftAt : null
             c.testCompare = c.cycleMs != null && c.cycleMs <= RULES.testCompareMaxDays * DAY
+            // The production sentences about a return ("com a alternativa", "foi revertida", "A → B → A") are only true
+            // when nothing else was on air in between. `left` is the previous period of the same image.
+            const li = left ? arr.lastIndexOf(left) : -1
+            c.revertImmediate = arr[i - 2]!.key === ver.key
+            c.revertBetween = li < 0 ? 0 : new Set(arr.slice(li + 1, i).map(x => x.key)).size
           }
         }
         if (type === 'desc') {
@@ -77,8 +96,31 @@ export function deriveChanges(ctx: EngineCtx): ObsChange[] {
   for (const c of changes) {
     if (c.type === 'thumb' && c.revertTo) {
       const leg = changes.find(o => o.video === c.video && o.type === 'thumb' && o.idx === c.idx - 1)
-      if (leg) { leg.revertedBy = c.id; leg.testCompare = c.testCompare; leg.cycleMs = c.cycleMs }
+      if (leg) { leg.revertedBy = c.id; leg.testCompare = c.testCompare; leg.cycleMs = c.cycleMs; leg.revertedImmediate = c.revertImmediate === true }
     }
+  }
+  // R121: per video and field, maximal runs of 2+ consecutive changes at most testRunGapDays apart. Thumbnail and title
+  // only; a description change is never part of a run (null = checked). Every change leaves here with testRun set.
+  const gap = RULES.testRunGapDays * DAY
+  const byField = new Map<string, ObsChange[]>()
+  for (const c of changes) {
+    if (c.type === 'desc') { c.testRun = null; continue }
+    const key = c.video + '/' + c.type, list = byField.get(key)
+    if (list) list.push(c); else byField.set(key, [c])
+  }
+  for (const [key, list] of byField) {
+    list.sort((a, b) => a.at - b.at)
+    let run: ObsChange[] = [], seq = 0
+    const close = () => {
+      if (run.length >= 2) {
+        seq++
+        const from = run[0]!.at, to = run[run.length - 1]!.at, n = run.length, id = key + '/seq' + seq
+        run.forEach((c, j) => { c.testRun = { id, n, pos: j + 1, from, to, open: ds.now - to <= gap } })
+      } else for (const c of run) c.testRun = null
+      run = []
+    }
+    for (const c of list) { if (run.length && c.at - run[run.length - 1]!.at > gap) close(); run.push(c) }
+    close()
   }
   changes.sort((a, b) => b.at - a.at)
   for (const c of changes) {

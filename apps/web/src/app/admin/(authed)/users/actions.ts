@@ -17,6 +17,7 @@ import { getEmailService } from '../../../../../lib/email/service'
 import { getEmailSender } from '../../../../../lib/email/sender'
 import { getSiteContext } from '../../../../../lib/cms/site-context'
 import { getClientIp, isValidInet } from '../../../../../lib/request-ip'
+import { inviteAcceptUrl } from './invite-url'
 
 function generateToken(): string {
   const bytes = new Uint8Array(32)
@@ -48,8 +49,10 @@ async function requireOrgAdmin(orgId: string): Promise<{ userId: string; email: 
     data: { user },
   } = await userClient.auth.getUser()
   if (!user) throw new Error('not_authenticated')
-  const { data: role } = await userClient.rpc('org_role', { p_org_id: orgId })
-  if (role !== 'owner' && role !== 'admin' && role !== 'org_admin') {
+  // `is_org_admin` é SECURITY DEFINER; `org_role` recursa na policy de
+  // `organization_members` (54001 stack depth) e negava até o super_admin.
+  const { data: isOrgAdmin, error } = await userClient.rpc('is_org_admin', { p_org_id: orgId })
+  if (error || isOrgAdmin !== true) {
     throw new Error('forbidden')
   }
   return { userId: user.id, email: user.email ?? '' }
@@ -182,27 +185,57 @@ export async function revokeInvitation(invitationId: string) {
   redirect('/admin/users?notice=invitation_revoked')
 }
 
+/**
+ * Papéis do RBAC v3 → vocabulário que o template de e-mail ainda usa. O texto é
+ * só informativo; o papel de verdade é o gravado no convite.
+ */
+function emailRoleFor(role: string): 'admin' | 'editor' | 'author' | 'owner' {
+  if (role === 'org_admin' || role === 'admin' || role === 'owner') return 'admin'
+  if (role === 'reporter' || role === 'author') return 'author'
+  return 'editor'
+}
+
 export async function resendInvitation(invitationId: string): Promise<void> {
   const supabase = getSupabaseServiceClient()
   const { data: row } = await supabase
     .from('invitations')
-    .select('id, email, role, org_id, token, expires_at, invited_by, organization:organizations(name)')
+    .select(
+      'id, email, role, org_id, token, expires_at, accepted_at, revoked_at, invited_by, organization:organizations(name)',
+    )
     .eq('id', invitationId)
     .maybeSingle()
   if (!row) throw new Error('not_found')
   await requireOrgAdmin(row.org_id as string)
 
-  // I4: atomic increment with 30s cooldown guard BEFORE sending — RPC returns boolean
-  const { data: updated } = await supabase.rpc('increment_invitation_resend', { p_id: invitationId })
+  // Link morto não se reenvia: a pessoa clicaria e veria "Convite inválido".
+  if (
+    row.accepted_at != null ||
+    row.revoked_at != null ||
+    new Date(row.expires_at as string).getTime() <= Date.now()
+  ) {
+    redirect('/admin/users?notice=resend_expired')
+  }
 
-  if (!updated) {
-    redirect('/admin/users?notice=resend_too_soon')
+  // Incremento atômico + intervalo de 30 s ANTES do envio. A função devolve
+  // `void` e sinaliza por exceção ('resend_cooldown' / 'insufficient_access'),
+  // e autoriza por auth.uid() — por isso vai pelo client do USUÁRIO. Pelo
+  // service client auth.uid() é nulo e ela recusava sempre; somado à leitura de
+  // `data` (sempre null num retorno void), todo clique dizia "Aguarde 30 s".
+  const userClient = await getUserClient()
+  const { error: bumpError } = await userClient.rpc('increment_invitation_resend', {
+    p_id: invitationId,
+  })
+  if (bumpError) {
+    if (/resend_cooldown/.test(bumpError.message ?? '')) {
+      redirect('/admin/users?notice=resend_too_soon')
+    }
+    console.error('[resendInvitation] rpc error', bumpError.code ?? 'unknown')
+    redirect('/admin/users?notice=resend_failed')
   }
 
   const ctx = await getSiteContext()
   const sender = await getEmailSender(ctx.siteId)
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
-  const acceptUrl = `${baseUrl}/signup/invite/${row.token as string}`
+  const acceptUrl = inviteAcceptUrl(row.token as string)
 
   // I12: resolve real inviter name from auth.users metadata, fallback to email local-part
   const orgName = (row.organization as { name?: string } | null)?.name ?? 'TN Figueiredo'
@@ -218,23 +251,29 @@ export async function resendInvitation(invitationId: string): Promise<void> {
     }
   }
 
-  await getEmailService().sendTemplate(
-    invite,
-    sender,
-    row.email as string,
-    {
-      inviterName,
-      orgName,
-      role: row.role as 'admin' | 'editor' | 'author' | 'owner',
-      acceptUrl,
-      expiresAt: new Date(row.expires_at as string),
-      branding: { brandName: sender.brandName, primaryColor: sender.primaryColor },
-    },
-    ctx.defaultLocale,
-  )
+  let emailSent = true
+  try {
+    await getEmailService().sendTemplate(
+      invite,
+      sender,
+      row.email as string,
+      {
+        inviterName,
+        orgName,
+        role: emailRoleFor(row.role as string),
+        acceptUrl,
+        expiresAt: new Date(row.expires_at as string),
+        branding: { brandName: sender.brandName, primaryColor: sender.primaryColor },
+      },
+      ctx.defaultLocale,
+    )
+  } catch (e) {
+    emailSent = false
+    console.error('[invite_email_resend_failed]', e instanceof Error ? e.message : 'unknown error')
+  }
 
   revalidatePath('/admin/users')
-  redirect('/admin/users?notice=resend_sent')
+  redirect(`/admin/users?notice=${emailSent ? 'resend_sent' : 'resend_email_failed'}`)
 }
 
 // ─── Track G3: new scope-aware actions ────────────────────────────────────────
@@ -315,22 +354,15 @@ export async function createInvitationAction(input: {
   const orgName = org?.name ?? 'TN Figueiredo'
 
   const sender = await getEmailSender(ctx.siteId)
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
-
-  // Map RBAC v3 roles (org_admin|editor|reporter) to the legacy vocabulary
-  // the @tn-figueiredo/email invite template still uses
-  // (admin|editor|author|owner). 'reporter' gets 'author'; 'org_admin' gets
-  // 'admin'. Template copy is informational — the server-side authz is what
-  // enforces the actual role on accept.
-  const emailRole: 'admin' | 'editor' | 'author' | 'owner' =
-    input.role === 'org_admin' ? 'admin'
-    : input.role === 'reporter' ? 'author'
-    : 'editor'
+  const emailRole = emailRoleFor(input.role)
 
   // Send one email per invitation row so the recipient gets an independent
   // link per site (plan's "independent raw tokens" requirement).
+  // O convite fica criado mesmo se o e-mail falhar (o link pode ser copiado da
+  // tela), mas a falha NÃO pode virar "Convite criado e enviado".
+  let emailFailures = 0
   for (const row of inserted ?? []) {
-    const acceptUrl = `${baseUrl}/signup/invite/${row.token as string}`
+    const acceptUrl = inviteAcceptUrl(row.token as string)
     try {
       const result = await getEmailService().sendTemplate(
         invite,
@@ -358,12 +390,15 @@ export async function createInvitationAction(input: {
         metadata: { invitation_id: row.id },
       })
     } catch (e) {
+      emailFailures += 1
       console.error('[invite_email_send_failed]', e instanceof Error ? e.message : 'unknown error')
     }
   }
 
   revalidatePath('/admin/users')
-  redirect('/admin/users?notice=invite_created')
+  redirect(
+    `/admin/users?notice=${emailFailures > 0 ? 'invite_created_email_failed' : 'invite_created'}`,
+  )
 }
 
 /**

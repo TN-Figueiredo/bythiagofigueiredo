@@ -57,9 +57,10 @@ export function EditorialTab({ data, typeFilter, strings, types, siteTimezone = 
     : typeFiltered
 
   const handleMoveEdition = async (editionId: string, newStatus: string, scheduledFor?: string) => {
-    startTransition(async () => {
-      await moveEdition(editionId, newStatus, scheduledFor)
-    })
+    // O kanban já envolve isto numa transition e trata a exceção: a recusa do
+    // servidor (ex.: degrau "administrar o site") precisa chegar até lá.
+    const result = await moveEdition(editionId, newStatus, scheduledFor)
+    if (!result.ok) throw new Error(result.error)
   }
 
   const handleReassignType = (editionId: string, typeId: string | null) => {

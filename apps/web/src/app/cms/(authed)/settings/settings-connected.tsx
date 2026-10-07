@@ -23,6 +23,7 @@ import {
   deleteSite,
 } from './actions'
 import { TimezonePicker } from './_components/timezone-picker'
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import { DualClockCards } from './_components/dual-clock-cards'
 import {
   type SaveState,
@@ -550,6 +551,8 @@ function NewslettersSection({
     })
   }, [newName, types.length, setSaveState])
 
+  const canAdminSite = useCanAdminSite()
+
   const handleDelete = useCallback(
     (id: string, name: string) => {
       if (!window.confirm(`Delete newsletter type "${name}"? This cannot be undone.`))
@@ -747,13 +750,17 @@ function NewslettersSection({
                           Save
                         </button>
                       )}
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(nt.id, nt.name)}
-                      className="text-sm text-red-400 hover:text-red-300"
-                    >
-                      Delete type
-                    </button>
+                    {canAdminSite ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(nt.id, nt.name)}
+                        className="text-sm text-red-400 hover:text-red-300"
+                      >
+                        Delete type
+                      </button>
+                    ) : (
+                      <AdminOnlyNote action="apagar um tipo de newsletter" className="text-slate-400" />
+                    )}
                   </div>
                 )}
               </div>
@@ -1313,7 +1320,9 @@ export function SettingsConnected({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [activeSection, switchSection])
 
-  const visibleSections = readOnly
+  // Degrau "administrar o site": desligar o CMS e apagar o site são só de quem administra.
+  const canAdminSite = useCanAdminSite()
+  const visibleSections = readOnly || !canAdminSite
     ? SECTIONS.filter((s) => s.id !== 'danger-zone')
     : SECTIONS
 
@@ -1435,8 +1444,11 @@ export function SettingsConnected({
           {activeSection === 'localization' && (
             <LocalizationSection site={site} readOnly={readOnly} />
           )}
-          {activeSection === 'danger-zone' && !readOnly && (
+          {activeSection === 'danger-zone' && !readOnly && canAdminSite && (
             <DangerZoneSection site={site} />
+          )}
+          {activeSection === 'danger-zone' && !readOnly && !canAdminSite && (
+            <AdminOnlyNote action="desligar o CMS ou apagar o site" className="text-slate-400" />
           )}
         </div>
       </main>

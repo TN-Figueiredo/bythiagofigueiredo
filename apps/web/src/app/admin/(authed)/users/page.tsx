@@ -12,18 +12,19 @@ import {
 } from './actions'
 import { SubmitButton } from './_components/SubmitButton'
 import { InviteForm, type SiteOption } from './invite-form'
+import { CopyInviteLink } from './_components/CopyInviteLink'
+import { inviteAcceptUrl } from './invite-url'
+import { noticeFor } from './notices'
+import { resolveUserIdentities, userLabel } from './user-directory'
 
 export const dynamic = 'force-dynamic'
 
-const noticeMessages: Record<string, string> = {
-  resend_too_soon: 'Aguarde 30 segundos antes de reenviar.',
-  resend_sent: 'Convite reenviado.',
-  invitation_revoked: 'Convite revogado.',
-  invite_created: 'Convite criado e enviado.',
-  invite_failed: 'Falha ao criar convite. Tente novamente.',
-  invite_rate_limited: 'Limite de 20 convites/hora excedido.',
-  invite_duplicate: 'Já existe um convite pendente para esse email.',
-}
+
+const NOTICE_CLASSES = {
+  success: 'bg-green-50 text-green-700',
+  warning: 'bg-amber-50 text-amber-800',
+  error: 'bg-red-50 text-red-700',
+} as const
 
 interface Props {
   searchParams: Promise<{ notice?: string }>
@@ -49,8 +50,14 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   )
 
   // I10: authz check BEFORE constructing service-role client / fetching data
-  const { data: role } = await userClient.rpc('org_role', { p_org_id: ctx.orgId })
-  if (role !== 'owner' && role !== 'admin' && role !== 'org_admin') redirect('/cms')
+  // `is_org_admin` (SECURITY DEFINER), não `org_role`: `org_role` roda como o
+  // usuário e a policy de `organization_members` chama `org_role` de volta —
+  // recursão que estoura "stack depth limit exceeded" para TODO usuário, e a
+  // tela redirecionava o próprio dono para /cms.
+  const { data: isOrgAdmin, error: authzErr } = await userClient.rpc('is_org_admin', {
+    p_org_id: ctx.orgId,
+  })
+  if (authzErr || isOrgAdmin !== true) redirect('/cms')
 
   // Only reached if caller is org admin
   const supabase = getSupabaseServiceClient()
@@ -66,7 +73,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
 
   const { data: invites } = await supabase
     .from('invitations')
-    .select('id, email, role, role_scope, site_id, expires_at, last_sent_at, resend_count')
+    .select('id, email, role, role_scope, site_id, token, expires_at, last_sent_at, resend_count')
     .eq('org_id', ctx.orgId)
     .is('accepted_at', null)
     .is('revoked_at', null)
@@ -83,61 +90,50 @@ export default async function AdminUsersPage({ searchParams }: Props) {
     primary_domain: (s.primary_domain as string | null) ?? '',
   }))
 
-  // N15: enrich members with email via service-role admin getUserById
-  type OrgMemberWithEmail = { user_id: string; role: string; email: string }
-  const orgMembers: OrgMemberWithEmail[] = await Promise.all(
-    (members ?? []).map(async (m) => {
-      const { data } = await supabase.auth.admin.getUserById(m.user_id as string)
-      return {
-        user_id: m.user_id as string,
-        role: m.role as string,
-        email: data.user?.email ?? (m.user_id as string),
-      }
-    }),
-  )
+  // E-mail (e nome, se houver) de todo mundo numa leitura só; UUID só se nada existir.
+  const identities = await resolveUserIdentities(supabase, [
+    ...(members ?? []).map((m) => m.user_id as string),
+    ...(siteMembers ?? []).map((m) => m.user_id as string),
+  ])
 
-  type SiteMemberWithEmail = {
+  type OrgMemberRow = { user_id: string; role: string; label: string }
+  const orgMembers: OrgMemberRow[] = (members ?? []).map((m) => ({
+    user_id: m.user_id as string,
+    role: m.role as string,
+    label: userLabel(m.user_id as string, identities.get(m.user_id as string)),
+  }))
+
+  type SiteMemberRow = {
     user_id: string
     site_id: string
     role: string
     site_name: string
-    email: string
+    label: string
   }
-  const siteMembersWithEmail: SiteMemberWithEmail[] = await Promise.all(
-    (siteMembers ?? []).map(async (m) => {
-      const { data } = await supabase.auth.admin.getUserById(m.user_id as string)
-      const site = (m.site as { name?: string } | null) ?? {}
-      return {
-        user_id: m.user_id as string,
-        site_id: m.site_id as string,
-        role: m.role as string,
-        site_name: site.name ?? '',
-        email: data.user?.email ?? (m.user_id as string),
-      }
-    }),
-  )
+  const siteMemberRows: SiteMemberRow[] = (siteMembers ?? []).map((m) => {
+    const site = (m.site as { name?: string } | null) ?? {}
+    return {
+      user_id: m.user_id as string,
+      site_id: m.site_id as string,
+      role: m.role as string,
+      site_name: site.name ?? '',
+      label: userLabel(m.user_id as string, identities.get(m.user_id as string)),
+    }
+  })
 
-  const noticeMessage =
-    notice != null ? (noticeMessages[notice] ?? null) : null
-  const isError =
-    notice != null &&
-    (notice.startsWith('invite_failed') ||
-      notice === 'invite_rate_limited' ||
-      notice === 'invite_duplicate')
+  const noticeView = noticeFor(notice)
 
   return (
     <main className="p-8">
       <h1 className="text-2xl font-bold mb-6">Usuários e convites</h1>
 
-      {noticeMessage && (
+      {noticeView && (
         <div
-          role="status"
+          role={noticeView.tone === 'success' ? 'status' : 'alert'}
           aria-live="polite"
-          className={`mb-4 rounded-lg px-4 py-3 text-sm ${
-            isError ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
-          }`}
+          className={`mb-4 rounded-lg px-4 py-3 text-sm ${NOTICE_CLASSES[noticeView.tone]}`}
         >
-          {noticeMessage}
+          {noticeView.message}
         </div>
       )}
 
@@ -147,13 +143,13 @@ export default async function AdminUsersPage({ searchParams }: Props) {
         </h2>
         <ul className="space-y-2">
           {orgMembers.map((m) => (
-            <li key={m.user_id} className="text-sm text-gray-700 flex items-center gap-3">
+            <li key={m.user_id} className="text-sm flex items-center gap-3">
               <span>
-                {m.email} · {m.role}
+                {m.label} · {m.role}
               </span>
               <Link
                 href={`/admin/users/${m.user_id}/edit`}
-                className="text-blue-600 hover:underline text-xs"
+                className="text-[var(--accent)] underline-offset-2 hover:underline text-xs"
               >
                 editar
               </Link>
@@ -164,20 +160,20 @@ export default async function AdminUsersPage({ searchParams }: Props) {
 
       <section className="mb-8">
         <h2 className="text-lg font-semibold mb-3">
-          Membros de sites ({siteMembersWithEmail.length})
+          Membros de sites ({siteMemberRows.length})
         </h2>
         <ul className="space-y-2">
-          {siteMembersWithEmail.map((m) => (
+          {siteMemberRows.map((m) => (
             <li
               key={`${m.user_id}:${m.site_id}`}
-              className="text-sm text-gray-700 flex items-center gap-3"
+              className="text-sm flex items-center gap-3"
             >
               <span>
-                {m.email} · {m.site_name} · {m.role}
+                {m.label} · {m.site_name} · {m.role}
               </span>
               <Link
                 href={`/admin/users/${m.user_id}/edit`}
-                className="text-blue-600 hover:underline text-xs"
+                className="text-[var(--accent)] underline-offset-2 hover:underline text-xs"
               >
                 editar
               </Link>
@@ -204,17 +200,18 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   await resendInvitation(inv.id as string)
                 }}
               >
-                <SubmitButton className="text-blue-600 hover:underline">
+                <SubmitButton className="text-[var(--accent)] underline-offset-2 hover:underline">
                   Reenviar
                 </SubmitButton>
               </form>
+              <CopyInviteLink url={inviteAcceptUrl(inv.token as string)} />
               <form
                 action={async () => {
                   'use server'
                   await revokeInvitation(inv.id as string)
                 }}
               >
-                <SubmitButton className="text-red-600 hover:underline">
+                <SubmitButton className="text-red-400 underline-offset-2 hover:underline">
                   Revogar
                 </SubmitButton>
               </form>

@@ -15,6 +15,7 @@
 import { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { createNotification } from '@/lib/notifications/create'
+import { getSiteOwners, logSemDestinatario, SEM_DESTINATARIO } from '@/lib/notifications/get-site-owners'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import {
   computeResearchDigest,
@@ -61,7 +62,8 @@ async function handle(req: NextRequest): Promise<Response> {
 
     let notified = 0
     let skipped = 0
-    const perSite: Array<{ siteId: string; recommendation: string | null }> = []
+    let semDestinatario = 0
+    const perSite: Array<{ siteId: string; recommendation: string | null; sem_destinatario?: boolean }> = []
 
     for (const site of sites ?? []) {
       const siteId = site.id as string
@@ -78,50 +80,49 @@ async function handle(req: NextRequest): Promise<Response> {
         continue
       }
 
-      // Resolve the owner (super_admin). Same pattern as ab-watchdog.
-      const { data: owner } = await supabase
-        .from('site_users')
-        .select('user_id')
-        .eq('site_id', siteId)
-        .eq('role', 'super_admin')
-        .limit(1)
-        .single()
+      // Dono do site = org_admin da organização raiz (ver getSiteOwners).
+      const owners = await getSiteOwners(supabase, siteId)
 
-      if (!owner) {
+      if (owners.length === 0) {
         skipped++
+        semDestinatario++
+        logSemDestinatario(CRON_NAME, siteId)
+        perSite[perSite.length - 1] = { siteId, recommendation: recommendation.kind, sem_destinatario: true }
         continue
       }
 
-      const result = await createNotification({
-        site_id: siteId,
-        user_id: owner.user_id,
-        type: NOTIFICATION_TYPE,
-        domain: 'pipeline',
-        priority: 2,
-        title: 'Resumo da estratégia de research',
-        message: summary.recomendo_agora,
-        action_href: recommendation.action_href,
-        // One per site per ISO week per recommendation kind. The recommendation
-        // segment keeps the dedup tight while still allowing a different surface
-        // if the situation changes within the week.
-        dedup_key: `research-digest:${siteId}:${weekSeg}:${recommendation.dedupSegment}`,
-        suggested_action: summary.recomendo_agora.slice(0, 200),
-        payload: {
-          summary,
-          kind: recommendation.kind,
-          weekSeg,
-          totalItems: signals.totalItems,
-          maturingThemes: signals.maturingThemes.length,
-          revisitDue: signals.revisitDue.length,
-          staleFresca: signals.staleFresca.length,
-          staleAnalise: signals.staleAnalise.length,
-        },
-      })
+      for (const owner of owners) {
+        const result = await createNotification({
+          site_id: siteId,
+          user_id: owner.userId,
+          type: NOTIFICATION_TYPE,
+          domain: 'pipeline',
+          priority: 2,
+          title: 'Resumo da estratégia de research',
+          message: summary.recomendo_agora,
+          action_href: recommendation.action_href,
+          // One per site per ISO week per recommendation kind. The recommendation
+          // segment keeps the dedup tight while still allowing a different surface
+          // if the situation changes within the week.
+          dedup_key: `research-digest:${siteId}:${weekSeg}:${recommendation.dedupSegment}`,
+          suggested_action: summary.recomendo_agora.slice(0, 200),
+          payload: {
+            summary,
+            kind: recommendation.kind,
+            weekSeg,
+            totalItems: signals.totalItems,
+            maturingThemes: signals.maturingThemes.length,
+            revisitDue: signals.revisitDue.length,
+            staleFresca: signals.staleFresca.length,
+            staleAnalise: signals.staleAnalise.length,
+          },
+        })
 
-      if (result.success && !result.suppressed) {
-        notified++
-      } else {
-        skipped++
+        if (result.success && !result.suppressed) {
+          notified++
+        } else {
+          skipped++
+        }
       }
     }
 
@@ -133,6 +134,8 @@ async function handle(req: NextRequest): Promise<Response> {
       notified,
       skipped,
       week: weekSeg,
+      // Sites com recomendação a avisar e nenhum org_admin raiz: não é "ok" mudo.
+      [SEM_DESTINATARIO]: semDestinatario,
       perSite,
     })
   } catch (err) {

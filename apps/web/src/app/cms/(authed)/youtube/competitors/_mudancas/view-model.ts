@@ -11,6 +11,7 @@ import type { TitleDiff, TitleSpan } from '@/lib/youtube/observatorio/text-diff'
 import { forjaOrder, parseNiche, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, Niche, ObsVideo, ThumbVersion } from '@/lib/youtube/observatorio/types'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
+import { runCardText, runDefinition } from '@/lib/youtube/observatorio/test-run'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
 
 /* ------------------------------------------------------------------ public types */
@@ -65,7 +66,10 @@ export interface Hero {
     /** tracked ∪ pinned. Outside them the effect is not measured: the card says why once (`outNote`) and has no effect column. */
     observed: boolean; outNote: string | null
   }
-  when: { text: string; rel: string; prec: string; seq: string | null }
+  /** `run` = "parte de 5 trocas em sequência em 9 dias" (R121); null when the change is in no run or the run is unknown. */
+  when: { text: string; rel: string; prec: string; seq: string | null; run: string | null }
+  /** What "trocas em sequência" means, with its caveat: the card prints it once, in its header, when some change has `when.run`. */
+  runNote: string | null
   badges: Array<{ kind: 'note' | 'rev'; text: string }>
   revTag: boolean
   title?: TitleView; thumbs?: ThumbView[]; desc?: DescView
@@ -302,10 +306,14 @@ function badges(obs: Observatory, c: ObsChange): Hero['badges'] {
       : o.typeLabel + ' mudou menos de ' + obs.RULES.effect.simultHours + ' h ' + (o.at < c.at ? 'antes' : 'depois') + ' desta troca (' + o.whenText + ')') + ': o efeito não se separa' })
   }
   const T = obs.RULES.testCompareMaxDays
-  if (c.revertTo) {
+  if (c.revertTo && c.type === 'thumb' && c.revertImmediate === false) {
+    // other images were on air in between: "com a alternativa" and "Testar e comparar" would not be true
+    const n = c.revertBetween ?? 0
+    out.push({ kind: 'rev', text: 'A versão ' + thumbLetter(obs, c) + ' voltou ao ar depois de ' + durTxt(obs, c.cycleMs) + ', com ' + (n === 1 ? '1 outra imagem' : n + ' outras imagens') + ' no intervalo.' })
+  } else if (c.revertTo) {
     out.push({ kind: 'rev', text: 'Voltou à versão ' + (c.type === 'thumb' ? thumbLetter(obs, c) : 'anterior') + ' depois de ' + durTxt(obs, c.cycleMs, c.prec !== 'min') + ' com a alternativa.'
       + (c.testCompare ? ' Compatível com Testar e comparar (teste A/B do YouTube, até ' + T + ' dias).' : ' A alternativa ficou mais de ' + T + ' dias: não parece teste automático.') })
-  } else if (c.testCompare && c.nextLivedMs) {
+  } else if (c.testCompare && c.nextLivedMs && c.revertedImmediate === true) {
     out.push({ kind: 'rev', text: 'Esta versão foi revertida ' + durTxt(obs, c.nextLivedMs) + ' depois. Compatível com Testar e comparar (teste A/B do YouTube).' })
   }
   return out
@@ -457,7 +465,9 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
         text: whenText(obs, c), prec: c.prec,
         rel: (c.prec !== 'min' ? (c.type === 'title' ? 'visto' : 'vista') + ' pela 1ª vez ' : c.type === 'title' ? 'trocado ' : 'trocada ') + c.agoShort,
         seq: all.length > 1 ? idx + 'ª de ' + all.length + ' trocas deste vídeo' : null,
+        run: c.testRun ? runCardText(c.testRun) : null,
       },
+      runNote: c.testRun ? runDefinition(obs.RULES.testRunGapDays) : null,
       badges: badges(obs, c),
       revTag: f.sort !== 'recent' && !!c.revertTo,
       ...(c.type === 'title' ? { title: titleView(obs, c) } : c.type === 'thumb' ? { thumbs: thumbViews(obs, c, v) } : { desc: descView(c, c.id === firstDesc) }),

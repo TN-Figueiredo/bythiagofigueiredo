@@ -14,6 +14,7 @@ import { VariantTable } from './variant-table'
 import { GatesPanel } from './gates-panel'
 import { SectionLabel } from './ab-primitives'
 import { revertWinner, archiveAbTest } from '../actions'
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import { Copy, Archive, Download, Trophy, TrendingUp, Sparkles, LayoutGrid, Undo2 } from 'lucide-react'
 
 export interface WinnerDetailProps {
@@ -24,6 +25,8 @@ const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px
 
 export function WinnerDetail({ view }: WinnerDetailProps) {
   const router = useRouter()
+  // Degrau "administrar o site": reverter o vencedor mexe no canal de verdade.
+  const canAdminSite = useCanAdminSite()
   return (
     <div data-testid="winner-detail">
       {/* 1. DetailHeader */}
@@ -83,18 +86,22 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
                 Restaura o thumbnail/título/descrição original no YouTube.
               </p>
             </div>
-            <button
-              onClick={async () => {
-                if (!confirm('Reverter para o original? Isso desfaz a aplicação do vencedor no YouTube.')) return
-                const result = await revertWinner(view.id)
-                if (!result.ok) alert(result.error)
-                else router.refresh()
-              }}
-              className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
-            >
-              <Undo2 size={12} aria-hidden="true" />
-              Reverter
-            </button>
+            {canAdminSite ? (
+              <button
+                onClick={async () => {
+                  if (!confirm('Reverter para o original? Isso desfaz a aplicação do vencedor no YouTube.')) return
+                  const result = await revertWinner(view.id)
+                  if (!result.ok) alert(result.error)
+                  else router.refresh()
+                }}
+                className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
+              >
+                <Undo2 size={12} aria-hidden="true" />
+                Reverter
+              </button>
+            ) : (
+              <AdminOnlyNote action="reverter o vencedor no canal" className="text-blue-300" />
+            )}
           </div>
         </div>
       )}

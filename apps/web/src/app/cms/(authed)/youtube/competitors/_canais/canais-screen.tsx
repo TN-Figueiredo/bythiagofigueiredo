@@ -34,11 +34,11 @@ export interface CanaisScreenProps {
   /** site_users.role ∈ {super_admin, org_admin}, decided on the server. */
   canUnlock: boolean
   onAdd: AddFn
-  onRemove: (id: string) => Promise<{ ok: boolean }>
+  onRemove: (id: string) => Promise<{ ok: boolean; error?: string }>
   onUnlock: () => Promise<{ ok: boolean; error?: string }>
   onSetNiche: (id: string, niche: Niche) => Promise<{ ok: boolean }>
   /** Niche of an own channel (server action setOwnChannelNiche): another table, so another action. */
-  onSetOwnNiche: (id: string, niche: Niche) => Promise<{ ok: boolean }>
+  onSetOwnNiche: (id: string, niche: Niche) => Promise<{ ok: boolean; error?: string }>
   onSyncOne: (id: string) => Promise<{ ok: boolean }>
   /** "Pedir leitura à forja" in the channel drawer (server action askForjaReading). */
   onAskForja?: ForjaAsk
@@ -194,13 +194,13 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     const seq = (nicheSeq.current[r.id] ?? 0) + 1
     nicheSeq.current[r.id] = seq
     setPending(cur => ({ ...cur, [r.id]: { niche: n, busy: true } }))
-    let ok = false
-    try { ok = (await (r.own ? onSetOwnNiche : onSetNiche)(r.id, n)).ok } catch { ok = false }
+    let ok = false, refusal: string | undefined
+    try { const res: { ok: boolean; error?: string } = await (r.own ? onSetOwnNiche : onSetNiche)(r.id, n); ok = res.ok; refusal = res.error } catch { ok = false }
     if (nicheSeq.current[r.id] === seq) {
       if (ok) setPending(cur => ({ ...cur, [r.id]: { niche: n, busy: false } }))
       else setPending(cur => Object.fromEntries(Object.entries(cur).filter(([id]) => id !== r.id)))
     }
-    if (!ok) { toast('bad', 'Não deu para mudar o nicho', r.niche ? `${r.name} continua no nicho anterior.` : `${r.name} continua sem nicho.`); return }
+    if (!ok) { toast('bad', 'Não deu para mudar o nicho', refusal ?? (r.niche ? `${r.name} continua no nicho anterior.` : `${r.name} continua sem nicho.`)); return }
     const NLn = view.niches.find(o => o.id === n)?.label ?? n
     const left = view.niche !== 'todos' && view.niche !== n
     toast('ok', r.own ? `Nicho de ${r.name} definido como ${NLn}` : `Nicho de ${r.name} alterado para ${NLn}`, left ? `Ele saiu do filtro ${view.nicheLabel}.` : '')
@@ -238,7 +238,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     const { id, name } = confirm
     setConfirm(null)
     const res = await onRemove(id)
-    if (!res.ok) { toast('bad', 'Não deu para remover o canal', `${name} continua no observatório.`); return }
+    if (!res.ok) { toast('bad', 'Não deu para remover o canal', res.error ?? `${name} continua no observatório.`); return }
     toast('ok', `${name} removido`, 'O canal saiu do observatório e os dados coletados dele foram apagados.')
     if (panel?.id === id) { setClosedDrawer(id); go({ channel: null, tab: null }, { channel: null }) }
     router.refresh()

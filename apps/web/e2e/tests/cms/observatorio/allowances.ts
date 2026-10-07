@@ -52,3 +52,16 @@ export const COMPOSE_R67: Allow[] = [
 export const LATEST_READING_R67: Allow[] = [/Última leitura: (?:20\/10 06:10|24\/10 14:50)\./]
 /** R62: the add action syncs right away, so the "Adicionar canal" dialog says the true sentence (Task 23). */
 export const ADD_SENTENCE_R62: Allow = /Entra na próxima sincronização \(\d\d:\d\d\): busca os vídeos até o limite escolhido\.|A busca dos vídeos começa ao adicionar, até o limite escolhido; o que faltar continua na sincronização das \d\d:\d\d\./
+/**
+ * Fase 4 (plan 2026-10-07-observatorio-historico-muitas-versoes; the 2026-10-07-historico-muitas-versoes mockup rules it):
+ * what the 02/10 mockups cannot have. matt-opus55 has "trocas em sequência" (R121: 3 thumbnail changes in 5 days, 2 title
+ * changes in 7), one image that came back (the image summary shows) and two thumbnail changes 10 h 35 min apart (one
+ * counter instead of two markers). R133: the "alternância típica" note moves above the grid, so it is left out on BOTH sides
+ * (its text is pinned by test/youtube/observatorio/reversal-texts.test.ts).
+ */
+export const F4_HISTORICO_EXCLUDE: Required<Exclude> = {
+  mockup: ['#thumbsSec .note'],
+  impl: ['section[aria-labelledby="hv-thh"] .note', '.note.seq', '.isum-card', '.runrow', '.mkg', '.gpop', '.seqline', '[data-legend-kind="run"]', '[data-legend-kind="grp"]'],
+}
+/** Fase 4, R121: the line "parte de N trocas em sequência" of a change and its definition in the card header. */
+export const F4_MUDANCAS_EXCLUDE_IMPL: string[] = ['[data-run]', '[data-run-note]']

@@ -1,5 +1,6 @@
 'use client'
 
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import { useTransition, useState, useCallback, useEffect, useRef, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -173,6 +174,7 @@ function SyncStatusBadge({ channel }: { channel: ChannelDashboard }) {
 
 function ReconnectTokenButton() {
   const router = useRouter()
+  const canAdminSite = useCanAdminSite()
   const [isConnecting, startTransition] = useTransition()
   const messageListenerRef = useRef<((e: MessageEvent) => void) | null>(null)
 
@@ -219,6 +221,10 @@ function ReconnectTokenButton() {
     })
   }, [router])
 
+  // Degrau "administrar o site": reconectar grava a credencial do canal. A editora não vê o botão
+  // (a recusa e o motivo aparecem em Configurar, junto da identidade do canal).
+  if (!canAdminSite) return null
+
   return (
     <button
       type="button"
@@ -247,6 +253,8 @@ function ChannelCard({ channel, niches, identity, identityError, describeLanguag
   const [showConfig, setShowConfig] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [showRemoval, setShowRemoval] = useState(false)
+  // Degrau "administrar o site": remover o canal e mudar a identidade dele é só de quem administra.
+  const canAdminSite = useCanAdminSite()
   const [removing, setRemoving] = useState(false)
   // o valor escolhido aparece na hora; os dados do servidor o substituem quando chegam
   const shownLocale = identity?.locale ?? channel.locale
@@ -529,17 +537,24 @@ function ChannelCard({ channel, niches, identity, identityError, describeLanguag
               locale={shownLocale} niche={shownNiche?.slug ?? null} slug={channel.slug} niches={niches}
               busy={identity?.busy ?? false} error={identityError} onChange={next => onIdentity(channel, next)}
               describeLanguageChange={next => describeLanguageChange(channel.id, next)}
+              readOnly={!canAdminSite}
             />
           </div>
           <ChannelScheduleEditor channel={channel} />
           <div className="px-4 pb-4">
-            <RemoveChannelRow onAsk={() => setShowRemoval(true)} disabled={showRemoval} />
+            {canAdminSite ? (
+              <RemoveChannelRow onAsk={() => setShowRemoval(true)} disabled={showRemoval} />
+            ) : (
+              <div className="border-t border-cms-border pt-3.5 text-cms-text-muted">
+                <AdminOnlyNote action="remover um canal próprio ou mudar o idioma e o nicho dele" />
+              </div>
+            )}
           </div>
         </>
       )}
 
       {/* Removal confirmation, in the card */}
-      {showRemoval && (
+      {showRemoval && canAdminSite && (
         <RemovalPanel
           channelId={channel.id} name={channel.name} removing={removing}
           onImpact={onRemovalImpact} onRemove={onRemove} onRemovingChange={setRemoving} onRemoved={onRemoved}

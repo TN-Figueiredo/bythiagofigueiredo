@@ -1,3 +1,10 @@
+'use client'
+
+// Precisa ser client component: `formatRelativeTime` só existe na entrada
+// `@tn-figueiredo/cms-ui/client` (módulo "use client"). Chamada a partir de um
+// Server Component ela é uma client reference, não uma função — o render lança
+// "Attempted to call formatRelativeTime() from the server" e o dashboard inteiro
+// cai no boundary assim que o feed tem a primeira linha.
 import { formatRelativeTime } from '@tn-figueiredo/cms-ui/client'
 import type { ActivityFeedItem } from './dashboard-queries'
 

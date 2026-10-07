@@ -12,6 +12,12 @@ export const RULES = {
   habit: { minCount: 3, minShare: 0.3, weeks: 13 },
   tiers: { mid: 2, high: 5, top: 10 },
   testCompareMaxDays: 14,
+  // New (plan 2026-10-07-observatorio-historico-muitas-versoes, ruling R121): two changes of the same field at most this many
+  // days apart belong to the same run ("trocas em sequência"). The comparison is inclusive: exactly 14 days is the same run.
+  testRunGapDays: 14,
+  // New (same plan): the thumbnail grid collapses above `collapseAbove` periods; the comparison turns into a list from
+  // `compareListFrom` changes; the period filter is offered with more than `rangeFromDays` days of series (or a collapsed lane).
+  history: { collapseAbove: 8, compareListFrom: 7, rangeFromDays: 30 },
   staleSyncHours: 24,
   videoLimitMax: 200,
   channelLimit: 75,

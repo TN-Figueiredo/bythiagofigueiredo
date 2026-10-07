@@ -8,6 +8,13 @@
  * that captures it: in production the menu landed ~495 px to the right of where the code asked).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+// Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
+const siteAdmin = vi.hoisted(() => ({ value: true }))
+vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
+  useCanAdminSite: () => siteAdmin.value,
+}))
 import { render, screen, act, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { loadOracle, datasetFromOracle } from './oracle'
@@ -73,6 +80,19 @@ describe('Canais · row menu ⋯', () => {
     expect(document.querySelector('.cn-drawer')).toBeNull()
     expect(replace).not.toHaveBeenCalled()
     expect(screen.getAllByRole('menuitem').map(x => x.textContent)).toEqual(['Abrir detalhes', 'Sincronizar só este canal', 'Abrir no YouTube', 'Copiar pedido para o Cowork', 'Remover canal…'])
+  })
+
+  it('editora (não administra o site): o menu não tem "Remover canal…"; no lugar, o motivo escrito', async () => {
+    siteAdmin.value = false
+    try {
+      const user = userEvent.setup()
+      mount()
+      await user.click(more())
+      expect(screen.getAllByRole('menuitem').map(x => x.textContent)).toEqual(['Abrir detalhes', 'Sincronizar só este canal', 'Abrir no YouTube', 'Copiar pedido para o Cowork'])
+      expect(menu()!.querySelector('[data-testid="admin-only-note"]')!.textContent).toBe('Só quem administra o site pode remover um canal.')
+    } finally {
+      siteAdmin.value = true
+    }
   })
 
   it('opens right below its button, right edges aligned', async () => {

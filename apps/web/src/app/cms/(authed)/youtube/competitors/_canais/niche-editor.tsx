@@ -20,11 +20,22 @@ export const NicheOptionsContext = createContext<readonly NicheOption[]>(BUILTIN
 /** The colour of a niche the owner created, as CSS variables (the same pair the chrome's niche bar uses, plus the fills). */
 export const nicheStyle = (c: NicheVars): CSSProperties => ({ ['--obs-sw-dark' as string]: c.dark, ['--obs-sw-light' as string]: c.light, ['--obs-sw-dark-subtle' as string]: c.darkSubtle, ['--obs-sw-light-subtle' as string]: c.lightSubtle })
 
-export function NicheSelect({ id, name, niche, ctx, onChange }: { id: string; name: string; niche: Niche | null; ctx: string; onChange: (n: Niche) => void }) {
+export function NicheSelect({ id, name, niche, ctx, onChange, readOnly = false }: {
+  id: string; name: string; niche: Niche | null; ctx: string; onChange: (n: Niche) => void
+  /** The niche as text, with no control: an own channel seen by someone who does not administer the site. */
+  readOnly?: boolean
+}) {
   const pending = useContext(NichePendingContext)[id]
   const options = useContext(NicheOptionsContext)
   const shown = pending?.niche ?? niche
   const cur = shown == null ? undefined : options.find(o => o.id === shown)
+  if (readOnly) {
+    return (
+      <span className={'niche ' + (shown == null ? 'none' : cur?.color ? 'custom' : shown)} style={cur?.color ? nicheStyle(cur.color) : undefined} data-niche={id} data-ctx={ctx} data-readonly aria-label={`Nicho de ${name}`}>
+        {cur?.label ?? 'Sem nicho'}
+      </span>
+    )
+  }
   // .niche.viagem / .niche.ia keep their own classes; a niche the owner created takes .custom and its colour by variable
   return (
     <select

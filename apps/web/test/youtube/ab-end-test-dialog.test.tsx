@@ -1,4 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
+
+// Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
+const siteAdmin = vi.hoisted(() => ({ value: true }))
+vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
+  useCanAdminSite: () => siteAdmin.value,
+}))
 import { render, screen, fireEvent } from '@testing-library/react'
 
 vi.mock('lucide-react', () => {
@@ -55,6 +62,20 @@ describe('AbEndTestDialog', () => {
     expect(screen.getByText('Aplicar variante lider')).toBeTruthy()
     expect(screen.getByText('Manter original')).toBeTruthy()
     expect(screen.getByText('Arquivar sem aplicar')).toBeTruthy()
+  })
+
+  it('editora (não administra o site): sem "Aplicar variante lider", original pré-selecionado e o motivo escrito', () => {
+    siteAdmin.value = false
+    try {
+      render(<AbEndTestDialog testId={mockTest.id} variants={mockTest.variants} confidenceThreshold={mockTest.config.confidence_threshold} onClose={vi.fn()} />)
+      expect(screen.queryByText('Aplicar variante lider')).toBeNull()
+      expect(screen.getByText('Manter original')).toBeTruthy()
+      const radios = screen.getAllByRole('radio') as HTMLInputElement[]
+      expect(radios.find((r) => r.value === 'original')!.checked).toBe(true)
+      expect(screen.getByTestId('admin-only-note').textContent).toBe('Só quem administra o site pode aplicar a variante líder no canal.')
+    } finally {
+      siteAdmin.value = true
+    }
   })
 
   it('"leading" is selected by default', () => {

@@ -12,6 +12,7 @@ import { checkAndEscalate } from '@/lib/youtube/ab-escalation'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { createNotification } from '@/lib/notifications/create'
 import type { CreateNotificationResult } from '@/lib/notifications/create'
+import { fakeOwnerClient, rootOrgWithAdmin, OWNER_TABLES } from './helpers/fake-owner-db'
 
 const mockGetSupabase = vi.mocked(getSupabaseServiceClient)
 const mockCreateNotification = vi.mocked(createNotification)
@@ -33,13 +34,12 @@ function buildSupabaseMock(opts: {
   userEmail?: string | null
 }) {
   const singleHealth = vi.fn().mockResolvedValue({ data: opts.health ?? null, error: null })
-  const singleOwner = vi.fn().mockResolvedValue({ data: opts.owner ?? null, error: null })
-  const getUserById = vi.fn().mockResolvedValue({
-    data: opts.userEmail !== undefined
-      ? { user: { email: opts.userEmail } }
-      : { user: { email: 'admin@example.com' } },
-    error: null,
-  })
+  // Donos: org_admin da organização raiz (getSiteOwners real). `owner: null` = ninguém na raiz.
+  const owners = fakeOwnerClient(
+    opts.owner ? rootOrgWithAdmin('site-1', opts.owner.user_id) : {},
+    opts.owner ? { [opts.owner.user_id]: opts.userEmail !== undefined ? opts.userEmail : 'admin@example.com' } : {},
+  )
+  const getUserById = owners.getUserById
 
   let fromCallCount = 0
 
@@ -53,19 +53,7 @@ function buildSupabaseMock(opts: {
         }),
       }
     }
-    if (table === 'site_users') {
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              limit: vi.fn().mockReturnValue({
-                single: singleOwner,
-              }),
-            }),
-          }),
-        }),
-      }
-    }
+    if (OWNER_TABLES.has(table)) return owners.from(table)
     // Fallback for any other table
     return {
       select: vi.fn().mockReturnValue({
@@ -78,11 +66,8 @@ function buildSupabaseMock(opts: {
 
   const supabase = {
     from: fromMock,
-    auth: {
-      admin: {
-        getUserById,
-      },
-    },
+    rpc: owners.rpc,
+    auth: owners.auth,
   }
 
   return { supabase, getUserById }
@@ -157,7 +142,7 @@ describe('checkAndEscalate', () => {
     expect(mockCreateNotification).not.toHaveBeenCalled()
   })
 
-  it('returns false when no super_admin owner is found for the site', async () => {
+  it('sem org_admin na organização raiz: não escala, não manda e-mail e registra sem_destinatario no log', async () => {
     const { supabase } = buildSupabaseMock({
       health: {
         consecutive_failures: 5,
@@ -167,11 +152,14 @@ describe('checkAndEscalate', () => {
       owner: null,
     })
     mockGetSupabase.mockReturnValue(supabase as never)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     const result = await checkAndEscalate('ab-evaluate', 'site-1')
 
     expect(result).toBe(false)
     expect(mockCreateNotification).not.toHaveBeenCalled()
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('sem_destinatario'))).toBe(true)
+    warn.mockRestore()
   })
 
   it('returns false when notification is suppressed (deduped)', async () => {
