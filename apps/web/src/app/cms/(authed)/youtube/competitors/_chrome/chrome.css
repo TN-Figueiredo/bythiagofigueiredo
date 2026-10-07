@@ -231,3 +231,52 @@
   [data-obs] .obs-ch-actions .obs-ch-lf{display:none}
   [data-obs] .obs-ch-forja-seg{padding:2px 10px}
 }
+
+/* ---------- Fixar vídeo (R118; mockup 2026-10-06-historico-fixar-video/fixar.css). Shared by the three screens.
+   .fx-btn.fx-btn.fx-btn (0,4,0 with [data-obs]) beats .btn, .btn.small, .ghost and .arow > .btn of any screen, whatever the
+   import order. Colours are literal (hex / rgba) in both themes: no colour-mixing function (Opera renders it transparent). */
+[data-obs]{--fx-cap-b:#f59e0b;--fx-cap-bg:rgba(245,158,11,.12);--fx-cap-i:#f59e0b;--fx-err-b:#F26B6B;--fx-err-bg:rgba(239,68,68,.12);--fx-err-i:#F26B6B;--fx-info-b:#40382D;--fx-info-bg:#272219;--fx-info-i:#A89D88}
+[data-theme="light"] [data-obs]{--fx-cap-b:#B45309;--fx-cap-bg:rgba(180,83,9,.10);--fx-cap-i:#92400E;--fx-err-b:#B42318;--fx-err-bg:rgba(180,35,24,.08);--fx-err-i:#B42318;--fx-info-b:#C9BBA3;--fx-info-bg:#F2EBDF;--fx-info-i:#5E5240}
+[data-obs] .fx-i{width:15px;height:15px;flex:none;display:inline-block;vertical-align:-2px;stroke-width:2}
+[data-obs] .fx-live,[data-obs] .fx-sr{position:absolute;width:1px;height:1px;margin:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* chip: two segments (the state, and what it guarantees). No colour of its own: icon and text carry the meaning */
+[data-obs] .fx-chip{display:inline-flex;align-items:stretch;border:1px solid var(--border-strong);border-radius:999px;background:var(--surface);font-size:12px;line-height:1.3;color:var(--text);max-width:100%}
+[data-obs] .fx-chip > span{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;white-space:nowrap}
+[data-obs] .fx-chip .fx-st{font-weight:600}
+[data-obs] .fx-chip .fx-how{border-left:1px solid var(--border-strong);color:var(--muted);padding-left:9px;white-space:normal}
+[data-obs] .fx-chip .fx-i{width:13px;height:13px;vertical-align:0}
+[data-obs] .fx-chip.fx-out{border-style:dashed;color:var(--muted)}
+[data-obs] .fx-chip.fx-out .fx-st{font-weight:500}
+[data-obs] .fx-chip.fx-sm{font-size:11px}
+[data-obs] .fx-chip.fx-sm > span{padding:1px 8px;gap:5px}
+[data-obs] .fx-chip.fx-sm .fx-i{width:11px;height:11px}
+/* button: FIXED WIDTH for the longest of its four labels ("Desafixando…"); it never grows, shrinks or yields space */
+[data-obs] .fx-anchor{position:relative;display:inline-flex;flex:none}
+[data-obs] .fx-btn.fx-btn.fx-btn{width:156px;min-width:156px;flex:0 0 156px;justify-content:center;padding-inline:0;white-space:nowrap}
+[data-obs] [data-obs-screen="mudancas"] .fx-btn.fx-btn.fx-btn{width:144px;min-width:144px;flex:0 0 144px}
+[data-obs] [data-obs-screen="canais"] .fx-btn.fx-btn.fx-btn{width:132px;min-width:132px;flex:0 0 132px}
+[data-obs] .fx-btn.fx-btn.fx-btn[aria-busy="true"]{cursor:progress;color:var(--muted)}
+[data-obs] .fx-btn.fx-btn.fx-btn[aria-busy="true"]:hover{background:transparent}
+[data-obs] .fx-spin{animation:fx-turn .9s linear infinite;transform-origin:50% 50%}
+@keyframes fx-turn{to{transform:rotate(360deg)}}
+/* V5: 44 px targets with a coarse pointer, here (not in a screen's file) so no import order can undo it */
+@media (pointer:coarse){
+  [data-obs] .fx-btn.fx-btn.fx-btn{min-height:44px}
+  [data-obs] .fx-msg a{display:inline-block;padding-block:13px;margin-block:-6px}
+}
+/* message: always a block below the button. cap = amber + triangle; err = red + circled X; info = neutral + circled i */
+[data-obs] .fx-msg{display:grid;grid-template-columns:16px minmax(0,1fr);gap:0 9px;margin:0;padding:9px 12px;border:1px solid var(--fx-cap-b);border-radius:6px;background:var(--fx-cap-bg);font-size:12.5px;line-height:1.45;color:var(--text);text-wrap:pretty}
+[data-obs] .fx-msg .fx-i{color:var(--fx-cap-i);margin-top:2px}
+[data-obs] .fx-msg.fx-err{border-color:var(--fx-err-b);background:var(--fx-err-bg)}
+[data-obs] .fx-msg.fx-err .fx-i{color:var(--fx-err-i)}
+[data-obs] .fx-msg.fx-info{border-color:var(--fx-info-b);background:var(--fx-info-bg)}
+[data-obs] .fx-msg.fx-info .fx-i{color:var(--fx-info-i)}
+[data-obs] .fx-msg a{color:var(--text);text-decoration:underline;text-underline-offset:2px;white-space:nowrap;padding-block:8px;margin-block:-8px}
+[data-obs] .fx-msg a:hover{color:var(--accent)}
+/* V1: the hint. Closed = only for screen readers (it is the button's description). Open = an overlay that pushes nothing and
+   sits where no control and no message lives: to the LEFT of the button while the actions are a side column, ABOVE it once
+   they become a row of their own (Histórico below 1100 px, Mudanças below 1000 px). Never below: the message is born there. */
+[data-obs] .fx-hint{position:absolute;width:1px;height:1px;margin:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[data-obs] .fx-hint[data-open]{z-index:30;right:calc(100% + 8px);top:0;width:300px;height:auto;overflow:visible;clip:auto;white-space:normal;padding:8px 10px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);box-shadow:var(--shadow);font-size:12px;line-height:1.45;color:var(--muted);text-align:left}
+@media (max-width:1100px){[data-obs] [data-obs-screen="historico"] .fx-hint[data-open]{right:auto;left:0;top:auto;bottom:calc(100% + 6px);width:min(320px,calc(100vw - 48px))}}
+@media (max-width:1000px){[data-obs] [data-obs-screen="mudancas"] .fx-hint[data-open]{right:auto;left:0;top:auto;bottom:calc(100% + 6px);width:min(300px,calc(100vw - 48px))}}

@@ -68,7 +68,7 @@ export const link = {
   /**
    * Link to canais screen.
    */
-  canais(p?: { niche?: NicheScope; channel?: string; add?: 1; filter?: 'problemas'; nicheEditor?: 1 }): string {
+  canais(p?: { niche?: NicheScope; channel?: string; tab?: 'videos' | 'outliers'; add?: 1; filter?: 'problemas'; nicheEditor?: 1 }): string {
     const cleaned = cleanLink(p)
     const query = buildQuery(cleaned)
     return OBS_BASE + query
