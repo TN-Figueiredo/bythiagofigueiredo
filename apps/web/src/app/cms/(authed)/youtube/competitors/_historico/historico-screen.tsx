@@ -11,7 +11,7 @@ import type { HistoricoView, LaneType } from './view-model'
 import type { Hl } from './lanes'
 import { Crumbs } from './pager'
 import { Timeline } from './views-chart'
-import { Compare } from './compare'
+import { Compare, NO_FILTER, type CompareFilter } from './compare'
 import { ImageSummary } from './image-summary'
 import { useGo } from '../_mudancas/filters'
 import { Versions } from './versions'
@@ -32,6 +32,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   const [pinImg, setPinImg] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [target, setTarget] = useState<string | null>(null)
+  const [flt, setFlt] = useState<CompareFilter>(NO_FILTER)
   const [live, setLive] = useState('')
   const go = useGo()
   const root = useRef<HTMLDivElement>(null)
@@ -39,8 +40,8 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   const onHl = useCallback((h: Hl | null) => setHover(h), [])
   const hl: Hl | null = hover ?? (pinImg ? { type: 'thumb', i: -1, ev: null, label: pinImg } : null)
   const rangeValue = view.range?.value ?? 'tudo'
-  // another period (or another video): the grid collapses again and the pin starts over
-  useEffect(() => { setExpanded(false); setTarget(null); setPinImg(null) }, [rangeValue, view.video?.id])
+  // another period (or another video): the grid collapses again, the filters and the pin start over
+  useEffect(() => { setExpanded(false); setTarget(null); setFlt(NO_FILTER); setPinImg(null) }, [rangeValue, view.video?.id])
   // Esc lets the pinned image go, unless a tooltip or a group list is open (those close first)
   useEffect(() => {
     if (!pinImg) return
@@ -73,10 +74,13 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     t.focus({ preventScroll: true })
   }
   const selectPair = (k: string) => {
+    // a change the list filters hide: clear the filters, then select
+    const cmp = view.comparisons.find(x => x.changeId === k)
+    if (cmp && ((flt.field !== 'all' && cmp.field !== flt.field) || (flt.situation !== 'all' && cmp.situation !== flt.situation))) setFlt(NO_FILTER)
     setPairK(k)
     const c = root.current?.querySelector<HTMLElement>('#hv-compare')
     c?.scrollIntoView?.({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' })
-    setTimeout(() => root.current?.querySelector<HTMLElement>('#hv-compare .pair[aria-pressed="true"]')?.focus(), 0)
+    setTimeout(() => root.current?.querySelector<HTMLElement>('#hv-compare .pair[aria-pressed="true"], #hv-compare [role="option"][aria-selected="true"]')?.focus({ preventScroll: true }), 0)
   }
   const openDesc = () => {
     const sec = root.current?.querySelector<HTMLElement>('#hv-desc')
@@ -165,7 +169,8 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
                   onSelectPair={selectPair} onGoVersion={goVersion} range={view.range} onRange={onRange} groupLegend={view.groupLegend} />
               ) : null}
               {view.imageSummary ? <ImageSummary sum={view.imageSummary} active={hl?.label ?? null} pinned={pinImg} onHover={l => setHover(l ? { type: 'thumb', i: -1, ev: null, label: l } : null)} onPin={pinImage} /> : null}
-              <Compare comparisons={view.comparisons} selected={pairK} empty={view.compareEmpty} onSelect={setPairK} onDescLink={openDesc} />
+              <Compare comparisons={view.comparisons} compare={view.compare} selected={pairK} empty={view.compareEmpty} onSelect={setPairK} onDescLink={openDesc}
+                filter={flt} onFilter={setFlt} onWholeVideo={() => onRange('tudo')} />
               {view.forja && view.forjaCard ? <VideoReading card={view.forjaCard} forja={view.forja} onCancel={onCancelForja} /> : null}
               {view.versions ? <Versions versions={view.versions} hl={hl} onHl={onHl} expanded={expanded} onToggle={() => setExpanded(e => !e)} target={target} onTargetBlur={() => setTarget(null)} /> : null}
             </>

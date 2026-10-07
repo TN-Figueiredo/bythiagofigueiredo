@@ -3,7 +3,8 @@
 // jsdom has no layout: the timeline is 1100 px wide (the component's default) and the pointer is fine (32 px targets).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, within, fireEvent, act } from '@testing-library/react'
-import { loadFase4, VID } from './fase4-world'
+import { loadFase4, setThumbs, VID } from './fase4-world'
+import { noJunkText, oneFilledButton, forbiddenVocabulary, brokenLinks } from './audits'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildHistoricoView } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
 import { HistoricoScreen } from '@/app/cms/(authed)/youtube/competitors/_historico/historico-screen'
@@ -232,5 +233,107 @@ describe('resumo por imagem e grade recolhida (Task 7)', () => {
     expect(root.querySelectorAll('#hv-film .fcard').length).toBe(3)
     expect(root.querySelector('#hv-more')).toBeNull()
     expect(root.querySelectorAll('.tlist li').length).toBe(2)
+  })
+})
+
+describe('comparação em lista (Task 8)', () => {
+  const sel = (root: HTMLElement) => root.querySelector<HTMLElement>('#hv-clist [aria-selected="true"]')!
+  it('7 trocas ou mais: lista com uma linha por troca; até 6, os botões de hoje', () => {
+    const many = mount(VID.many).root
+    expect([many.querySelectorAll('#hv-clist [role="option"]').length, many.querySelectorAll('.pair').length]).toEqual([33, 0])
+    expect(many.querySelector('#hv-clist')!.getAttribute('aria-label')).toBe('Trocas, da mais recente para a mais antiga')
+    expect(sel(many).textContent).toContain('Thumbnail D → E')
+    expect(many.querySelector('.cmp-sum')!.textContent).toMatch(/^33 trocas: /)
+    const open = mount(VID.open).root
+    expect([open.querySelectorAll('#hv-clist').length, open.querySelectorAll('.pair').length, open.querySelectorAll('.flt').length]).toEqual([0, 4, 0])
+  })
+  it('filtro por campo e por situação: as contagens de um respeitam o outro, e a frase é sempre o MESMO nó', () => {
+    const { root } = mount(VID.many)
+    const count = root.querySelector('#hv-cmpcount')!
+    expect(count.getAttribute('role')).toBe('status')
+    expect(count.textContent).toBe('Mostrando 33 de 33 trocas. Selecionada: Thumbnail D → E.')
+    const btn = (g: string, v: string) => root.querySelector<HTMLElement>('[data-flt="' + g + '"][data-v="' + v + '"]')!
+    expect(['all', 'title', 'thumb', 'desc'].map(v => btn('field', v).querySelector('.c')!.textContent)).toEqual(['33', '8', '23', '2'])
+    fireEvent.click(btn('field', 'title'))
+    expect(root.querySelector('#hv-cmpcount')).toBe(count)
+    expect(root.querySelectorAll('#hv-clist [role="option"]').length).toBe(8)
+    expect(count.textContent).toMatch(/^Mostrando 8 de 33 trocas\. Selecionada: Título T8 → T9\.$/)
+    expect(btn('field', 'title').getAttribute('aria-pressed')).toBe('true')
+    expect(btn('situation', 'aguardando').querySelector('.c')!.textContent).toBe('1')
+    expect(btn('situation', 'all').querySelector('.c')!.textContent).toBe('8')
+  })
+  it('a instrução da lista fica fora da região viva', () => {
+    const { root } = mount(VID.many)
+    expect(root.querySelector('#hv-cmphint')!.textContent).toBe('A lista rola; as setas andam e Enter escolhe.')
+    expect(root.querySelector('#hv-cmphint')!.getAttribute('role')).toBeNull()
+    expect(root.querySelector('#hv-cmpcount')!.textContent).not.toContain('A lista rola')
+  })
+  it('combinação sem nenhuma troca: diz o que há nos outros filtros e oferece limpar', () => {
+    const { root } = mount(VID.many)
+    const btn = (g: string, v: string) => root.querySelector<HTMLElement>('[data-flt="' + g + '"][data-v="' + v + '"]')!
+    fireEvent.click(btn('field', 'desc')); fireEvent.click(btn('situation', 'aguardando'))
+    expect(root.querySelector('#hv-clist')).toBeNull()
+    expect(root.querySelector('#hv-cmpcount')!.textContent).toBe('Nenhuma troca de descrição na situação “aguardando”. Há 2 trocas de descrição em outras situações e 3 trocas na situação “aguardando” em outros campos.')
+    fireEvent.click(root.querySelector<HTMLElement>('#hv-fltclear')!)
+    expect(root.querySelectorAll('#hv-clist [role="option"]').length).toBe(33)
+  })
+  it('a lista é uma parada de Tab: setas, Home, End, PageDown; Enter escolhe', () => {
+    const { root } = mount(VID.many)
+    const items = [...root.querySelectorAll<HTMLElement>('#hv-clist [role="option"]')]
+    expect(items.filter(i => i.tabIndex === 0).length).toBe(1)
+    items[0]!.focus()
+    key(items[0]!, 'ArrowDown'); expect(document.activeElement).toBe(items[1])
+    key(items[1]!, 'PageDown'); expect(document.activeElement).toBe(items[6])
+    key(items[6]!, 'End'); expect(document.activeElement).toBe(items[32])
+    key(items[32]!, 'Home'); expect(document.activeElement).toBe(items[0])
+    key(items[0]!, 'ArrowDown'); key(items[1]!, 'Enter')
+    expect(sel(root).dataset.k).toBe(items[1]!.dataset.k)
+    expect(root.querySelector('#hv-cdet')!.textContent).toContain('Parte de 11 trocas em sequência em 20 dias. Pode ser um teste; o YouTube não informa.')
+  })
+  it('marcador de uma troca que o filtro esconde: limpa os filtros e seleciona', () => {
+    const { root, laneOf } = mount(VID.many)
+    fireEvent.click(root.querySelector<HTMLElement>('[data-flt="field"][data-v="desc"]')!)
+    expect(root.querySelectorAll('#hv-clist [role="option"]').length).toBe(2)
+    const mk = laneOf('title').querySelector<HTMLElement>('.mk')!
+    fireEvent.click(mk)
+    expect(root.querySelectorAll('#hv-clist [role="option"]').length).toBe(33)
+    expect(sel(root).textContent).toContain('Título')
+  })
+  it('com 7 d: a frase diz quantas trocas há no período e no vídeo inteiro', () => {
+    const { root } = mount(VID.many, { range: '7' })
+    expect(root.querySelector('#hv-cmpcount')!.textContent).toBe('Mostrando 3 de 3 trocas no período (33 no vídeo inteiro). Selecionada: Thumbnail D → E.')
+  })
+  it('período sem nenhuma troca: diz isso e oferece voltar ao vídeo inteiro', () => {
+    const w = loadFase4(), t = w.ds.now
+    setThumbs(w.ds, VID.closed, [['A'], ...Array.from({ length: 8 }, (_, i): [string, number] => ['ABC'[(i + 1) % 3]!, t - (40 - i) * 864e5])])
+    const view = buildHistoricoView(createObservatory(w.ds), VID.closed, { range: '7' })
+    const root = render(<ToastProvider><HistoricoScreen view={view} /></ToastProvider>).container
+    expect(root.querySelector('#hv-cmpcount')!.textContent).toBe('Nenhuma troca neste período.')
+    const back = root.querySelector<HTMLElement>('#hv-fltclear')!
+    expect(back.textContent).toBe('Mostrar o vídeo inteiro')
+    fireEvent.click(back)
+    expect(replace).toHaveBeenLastCalledWith('/cms/youtube/competitors/video/x?from=mudancas', { scroll: false })
+  })
+})
+
+describe('a tela inteira, nos cinco vídeos do mockup (Task 8)', () => {
+  it.each(Object.entries(VID))('%s: auditorias de DOM limpas, com e sem filtro, e todo controle com nome', (_k, id) => {
+    for (const p of [{}, { range: '7' }]) {
+      const { root, unmount } = mount(id, p)
+      // "+3 −0 linhas" is the engine's own label of a description comparison with nothing removed (text-diff.ts); the audit reads
+      // "−0" as a broken number. Older than this plan and outside it (follow-up FU-55): only that one message is let through.
+      expect(noJunkText(root).filter(m => !/^texto quebrado "−0" em “[^”]*D\d+ → D\d+: \+\d+ −0 linha/.test(m))).toEqual([])
+      expect(oneFilledButton(root)).toEqual([])
+      expect(forbiddenVocabulary(root)).toEqual([])
+      expect(brokenLinks(root)).toEqual([])
+      for (const el of root.querySelectorAll('button,a[href],input,summary,[role="option"]')) {
+        const name = (el.getAttribute('aria-label') ?? '') + (el.textContent ?? '') + (el.closest('label')?.textContent ?? '')
+        expect([el.outerHTML.slice(0, 80), name.trim().length > 0]).toEqual([el.outerHTML.slice(0, 80), true])
+      }
+      expect(new Set([...root.querySelectorAll('[id]')].map(e => e.id)).size).toBe(root.querySelectorAll('[id]').length)
+      for (const el of root.querySelectorAll('[aria-controls],[aria-labelledby],[aria-describedby]')) for (const a of ['aria-controls', 'aria-labelledby', 'aria-describedby'])
+        for (const ref of (el.getAttribute(a) ?? '').split(' ').filter(Boolean)) expect([a, ref, !!root.querySelector('#' + CSS.escape(ref))]).toEqual([a, ref, true])
+      unmount()
+    }
   })
 })
