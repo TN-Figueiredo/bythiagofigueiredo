@@ -5,6 +5,7 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getEmailService } from '@/lib/email/service'
 import { getEmailSender } from '@/lib/email/sender'
 import { captureServerActionError } from '@/lib/sentry-wrap'
@@ -86,6 +87,9 @@ export async function undoMarkReplied(id: string): Promise<ActionResult> {
 /* ------------------------------------------------------------------ */
 
 export async function anonymizeSubmission(id: string): Promise<ActionResult> {
+  // Degrau "administrar o site": anonimizar é irreversível. No topo, antes do service client.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'anonimizar contatos')
+  if (denied) return denied
   if (!id) return { ok: false, error: 'Missing submission id' }
   const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
@@ -110,6 +114,8 @@ export async function anonymizeSubmission(id: string): Promise<ActionResult> {
 /* ------------------------------------------------------------------ */
 
 export async function bulkAnonymize(ids: string[]): Promise<ActionResult> {
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'anonimizar contatos em lote')
+  if (denied) return denied
   if (!ids.length) return { ok: false, error: 'No submissions selected' }
   const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
@@ -226,6 +232,9 @@ export async function exportContacts(
   period: string,
   status: string,
 ): Promise<ExportResult> {
+  // Degrau "administrar o site": CSV com nome, e-mail e mensagem. No topo, antes do service client.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'exportar contatos')
+  if (denied) return denied
   const parsed = exportSchema.safeParse({ period, status })
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
 

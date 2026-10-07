@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Download } from 'lucide-react'
 import { ExportDialog } from './export-dialog'
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import type { ExportSignupsOpts, ExportSignupsResult } from '../actions'
 
 /**
@@ -22,6 +23,8 @@ export function WaitlistExportButton({
   const [open, setOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Degrau "administrar o site": o CSV leva os e-mails dos inscritos.
+  const canAdminSite = useCanAdminSite()
 
   async function handleExport(opts: ExportSignupsOpts) {
     setExporting(true)
@@ -29,7 +32,13 @@ export function WaitlistExportButton({
     const res = await exportAction(waitlistId, opts)
     setExporting(false)
     if (!res.ok) {
-      setError(res.error === 'not_found' ? 'This waitlist could not be found.' : 'Export failed — please try again.')
+      setError(
+        res.error === 'not_found'
+          ? 'This waitlist could not be found.'
+          : res.error === 'forbidden' && res.message
+            ? res.message
+            : 'Export failed — please try again.',
+      )
       return
     }
     // Trigger the download client-side (guarded for non-browser/test environments).
@@ -44,6 +53,10 @@ export function WaitlistExportButton({
       URL.revokeObjectURL(url)
     }
     setOpen(false)
+  }
+
+  if (!canAdminSite) {
+    return <AdminOnlyNote action="exportar os inscritos" className="text-cms-text-muted" />
   }
 
   return (

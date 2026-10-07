@@ -1,4 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
+const siteAdmin = vi.hoisted(() => ({ value: true }))
+vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
+  useCanAdminSite: () => siteAdmin.value,
+}))
 import { render, screen, fireEvent, within } from '@testing-library/react'
 
 /* ------------------------------------------------------------------ */
@@ -311,6 +318,18 @@ describe('ContactsConnected', () => {
   it('shows export button', async () => {
     await renderContacts()
     expect(screen.getByTestId('export-btn')).toBeTruthy()
+  })
+
+  it('editora (não administra o site): sem Export CSV, com o motivo escrito', async () => {
+    siteAdmin.value = false
+    try {
+      await renderContacts()
+      expect(screen.queryByTestId('export-btn')).toBeNull()
+      expect(screen.queryByTestId('bulk-actions')).toBeNull()
+      expect(screen.getAllByTestId('admin-only-note')[0]!.textContent).toContain('Só quem administra o site pode exportar ou anonimizar contatos')
+    } finally {
+      siteAdmin.value = true
+    }
   })
 
   it('opens export dialog when clicked', async () => {

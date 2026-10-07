@@ -58,6 +58,21 @@ export async function requireSiteAdminScope(siteId: string): Promise<SiteAdminSc
   }
 }
 
+/**
+ * Forma curta para actions que devolvem `{ ok: false, error }`: `null` quando
+ * quem chama administra o site, ou a recusa pronta (frase em português).
+ *
+ *   const denied = await denyUnlessSiteAdmin(siteId, 'exportar a lista de assinantes')
+ *   if (denied) return denied
+ */
+export async function denyUnlessSiteAdmin(
+  siteId: string,
+  acao: string,
+): Promise<{ ok: false; error: string } | null> {
+  const res = await requireSiteAdminScope(siteId)
+  return res.ok ? null : { ok: false, error: siteAdminOnlyMessage(acao) }
+}
+
 /** Frase única de recusa do degrau: "Só quem administra o site pode <ação>." */
 export function siteAdminOnlyMessage(acao: string): string {
   return `Só quem administra o site pode ${acao}.`

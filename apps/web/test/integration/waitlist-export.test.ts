@@ -6,6 +6,15 @@
  * Run: npm run db:reset && HAS_LOCAL_DB=1 npx vitest run test/integration/waitlist-export.test.ts
  */
 import { describe, it, expect, afterEach, vi } from 'vitest'
+
+// Degrau "administrar o site": estes testes rodam como quem administra (o dono).
+// A recusa da editora e o erro da RPC ficam em test/cms/site-admin-step-*.test.ts.
+vi.mock('@/lib/cms/auth-guards', () => ({
+  requireSiteAdminScope: async () => ({ ok: true, user: { id: 'user-1' } }),
+  denyUnlessSiteAdmin: async () => null,
+  siteAdminOnlyMessage: (acao: string) => `Só quem administra o site pode ${acao}.`,
+  requireSiteAdminForRow: async () => ({ siteId: 'site-1' }),
+}))
 import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, seedSite } from '../helpers/db-seed'

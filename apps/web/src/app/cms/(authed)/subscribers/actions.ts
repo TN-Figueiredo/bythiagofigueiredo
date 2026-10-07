@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { sanitizeForLike } from '@/lib/pipeline/sanitize'
 
 type ActionResult<T = undefined> = T extends undefined
@@ -62,6 +63,9 @@ export async function exportSubscribers(
   format: 'csv' | 'json',
   filters?: { status?: string; search?: string; typeId?: string },
 ): Promise<ActionResult<string>> {
+  // Degrau "administrar o site": dado pessoal em lote (LGPD). No topo, antes do service client.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'exportar a lista de assinantes')
+  if (denied) return denied
   const parsed = exportSchema.safeParse({ format, filters })
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
 
@@ -114,6 +118,9 @@ export async function exportSubscribers(
 export async function batchUnsubscribe(
   ids: string[],
 ): Promise<ActionResult> {
+  // Degrau "administrar o site": anonimiza o e-mail (irreversível). No topo, antes do service client.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'cancelar e anonimizar assinantes em lote')
+  if (denied) return denied
   const parsed = batchUnsubscribeSchema.safeParse({ ids })
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
 

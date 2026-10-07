@@ -7,6 +7,15 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
 
+// Degrau "administrar o site": estes testes rodam como quem administra (o dono).
+// A recusa da editora e o erro da RPC ficam em test/cms/site-admin-step-*.test.ts.
+vi.mock('@/lib/cms/auth-guards', () => ({
+  requireSiteAdminScope: async () => ({ ok: true, user: { id: 'user-1' } }),
+  denyUnlessSiteAdmin: async () => null,
+  siteAdminOnlyMessage: (acao: string) => `Só quem administra o site pode ${acao}.`,
+  requireSiteAdminForRow: async () => ({ siteId: 'site-1' }),
+}))
+
 vi.mock('@/lib/cms/site-context', () => ({
   getSiteContext: vi.fn(async () => ({ siteId: 'site-1', orgId: 'org-1', defaultLocale: 'en' })),
 }))
