@@ -257,9 +257,15 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       let titles = withLegacy<TitleVersion>(legacyBy.get(v.id + '|title') ?? [], realTitles, pub, now, l => ({ text: l.old_title ?? '' }), l => ({ text: l.new_title ?? '' }), (l, r) => r.text === (l.new_title ?? ''))
       if (!titles.length) titles = [{ id: v.id + '/title', first_seen: pub, last_seen: now, current: true, prec: 'first', window: null, text: v.title ?? '' }]
       const thumbs: ThumbVersion[] = (versionsBy.get(v.id + '|thumb') ?? []).map(r => ({ ...baseOf(r), key: r.value_hash, art: null, blobUrl: r.thumb_blob_url }))
-      const realDescs: DescVersion[] = (versionsBy.get(v.id + '|desc') ?? []).map(r => {
-        const hasText = r.has_text && r.value_text != null
-        return { ...baseOf(r), lines: hasText ? r.value_text!.split('\n') : null, hasText }
+      const descRows = versionsBy.get(v.id + '|desc') ?? []
+      // A text left out on purpose is only legal for a description that never changed (nothing reads it). With two
+      // versions the comparison would silently come out empty: refuse it out loud.
+      if (descRows.length > 1 && descRows.some(r => r.text_omitted)) throw new ObservatoryLoadError('competitor_video_versions', 'OBS_DESC_TEXT', 'descrição com troca chegou sem o texto (vídeo ' + v.id + ')')
+      const realDescs: DescVersion[] = descRows.map(r => {
+        const omitted = r.text_omitted === true
+        const hasText = r.has_text && (omitted || r.value_text != null)
+        // omitted: the text exists in the database and was not loaded → hasText stays true, with no lines to read
+        return { ...baseOf(r), lines: !hasText ? null : omitted ? [] : r.value_text!.split('\n'), hasText }
       })
       const descs = withLegacy<DescVersion>(legacyBy.get(v.id + '|description') ?? [], realDescs, pub, now, () => ({ lines: null, hasText: false }), () => ({ lines: null, hasText: false }))
       const title = v.title ?? titles[titles.length - 1]!.text
