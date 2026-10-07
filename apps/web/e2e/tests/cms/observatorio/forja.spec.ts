@@ -8,7 +8,7 @@
 import type { RequestState } from '../../../../src/lib/youtube/observatorio/types'
 import { runFidelity, OUTLIERS_TARGET_EXEMPT, type Allow, type ScreenSpec } from './fidelity'
 import { SEAL_R57 } from './seal'
-import { CANAIS_TABLE_EXCLUDE, BALD_ROW_SUFFIX_F11, HANDLE_R61, COMPOSE_R67, LATEST_READING_R67 } from './allowances'
+import { CANAIS_TABLE_EXCLUDE, BALD_ROW_SUFFIX_F11, HANDLE_R61, COMPOSE_R67, LATEST_READING_R67, F4_HISTORICO_EXCLUDE, F4_MUDANCAS_EXCLUDE_IMPL } from './allowances'
 
 const DIR = 'docs/superpowers/mockups/2026-10-02-observatorio/'
 /**
@@ -45,6 +45,8 @@ export const MUDANCAS_FORJA: ScreenSpec = {
     // R67 (C11): the new IA resumo-trocas reading also classifies two more title changes — only those two tags
     ...(s === 'publicado' ? { textAllow: [...COMPOSE_R67, { drop: /(?<=A versão anterior ficou cerca de 3 horas no ar )Reescrita \(forja\): reação no lugar do nome do produto/ }, { drop: /(?<=A versão anterior ficou cerca de 38 dias no ar )Reescrita \(forja\): passou para primeira pessoa/ }] } : {}) })),
   compareSelector: { mockup: '#screen', impl: '[data-obs-screen="mudancas"]' },
+  // Fase 4, R121 (allowances.ts)
+  exclude: { impl: F4_MUDANCAS_EXCLUDE_IMPL },
   textAllow: [...SEAL_R57, ...NOT_STORED_FU8],
 }
 
@@ -84,8 +86,8 @@ export const HISTORICO_FORJA: ScreenSpec = {
   textAllow: [...SEAL_R57, ...NOT_STORED_FU8],
   // R43: the per-video "Salvar no swipe file" is follow-up FU-2 (Task 26 report §5)
   mockExclude: ['#saveBtn'],
-  // R64: the chart's per-day value labels follow the CMS shell's real width (only at ≥ 56 px per day)
-  exclude: { mockup: ['svg text.vl'], impl: ['svg text.vl'] },
+  // R64: the chart's per-day value labels follow the CMS shell's real width (only at ≥ 56 px per day); Fase 4: allowances.ts
+  exclude: { mockup: ['svg text.vl', ...F4_HISTORICO_EXCLUDE.mockup], impl: ['svg text.vl', ...F4_HISTORICO_EXCLUDE.impl] },
 }
 
 export const FORJA_SPECS: readonly ScreenSpec[] = [CANAIS_FORJA, MUDANCAS_FORJA, OUTLIERS_FORJA, INSIGHTS_FORJA, HISTORICO_FORJA]

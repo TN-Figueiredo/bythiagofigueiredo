@@ -2,6 +2,7 @@
 // Fidelity of the Mudanças screen against mudancas.html (its "Dados" states, mudancas.html:431 and :938-939).
 // The "Pedido à forja" states are in forja.spec.ts.
 import { runFidelity, type ScreenSpec } from './fidelity'
+import { F4_MUDANCAS_EXCLUDE_IMPL } from './allowances'
 
 export const MUDANCAS: ScreenSpec = {
   name: 'mudancas', mockupFile: 'docs/superpowers/mockups/2026-10-02-observatorio/mudancas.html', route: '/cms/youtube/competitors/mudancas',
@@ -16,7 +17,7 @@ export const MUDANCAS: ScreenSpec = {
   ],
   // R118: pinning is of the 2026-10-06-historico-fixar-video mockup (the one that rules for it): the card's pin button,
   // its focus hint, the chips line and the action's message do not exist in mudancas.html
-  exclude: { impl: ['[data-pin]', '.fx-hint', '.fx-chips', '.fx-chip', '.fx-row', '.fx-out-note'] },
+  exclude: { impl: ['[data-pin]', '.fx-hint', '.fx-chips', '.fx-chip', '.fx-row', '.fx-out-note', ...F4_MUDANCAS_EXCLUDE_IMPL] },
   compareSelector: { mockup: '#screen', impl: '[data-obs-screen="mudancas"]' },
 }
 
