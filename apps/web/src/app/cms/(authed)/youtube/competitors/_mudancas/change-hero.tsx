@@ -26,6 +26,7 @@ function ChangeRow({ h, swipe, onSwipe, effect }: { h: Hero; swipe: SwipeState; 
         <span className="kind"><Ic name={KIND_ICON[h.type]} />{h.typeLabel}</span>
         <span className="wline" data-kind={h.type} data-prec={h.when.prec}>{h.when.text}<span className="rel">{h.when.rel}</span></span>
         {h.when.seq ? <span className="seq">{h.when.seq}</span> : null}
+        {h.when.run ? <span className="seq run" data-run=""><Ic name="revert" /><span>{h.when.run}</span></span> : null}
         <button className="ghost save" type="button" aria-pressed={swipe.saved} aria-label={SWIPE_ARIA} title={swipe.label} aria-busy={swipe.busy || undefined}
           disabled={swipe.disabled} data-swipe-disabled={swipe.disabled ? '' : undefined}
           onClick={() => { if (!swipe.busy && !swipe.disabled) onSwipe(h) }}><Ic name="bookmark" /></button>
@@ -51,6 +52,7 @@ function ChangeRow({ h, swipe, onSwipe, effect }: { h: Hero; swipe: SwipeState; 
 export function VideoGroup({ heroes, swipeOf, onSwipe, shared }: { heroes: Hero[]; swipeOf: (h: Hero) => SwipeState; onSwipe: (h: Hero) => void; shared?: boolean }) {
   const first = heroes[0]!, v = first.video
   const revTag = heroes.length === 1 && first.revTag
+  const runNote = heroes.find(h => h.when.run && h.runNote)?.runNote ?? null
   const pin = v.pin ? (shared ? { ...v.pin, title: v.title + ' (' + first.typeLabel + ', ' + first.when.text + ')' } : v.pin) : null
   const rows = heroes.map(h => <ChangeRow key={h.id} h={h} swipe={swipeOf(h)} onSwipe={onSwipe} effect={v.observed} />)
   return (
@@ -66,6 +68,7 @@ export function VideoGroup({ heroes, swipeOf, onSwipe, shared }: { heroes: Hero[
           <h3>{v.title}</h3>
           <div className="meta">{v.meta.map(m => <span key={m}>{m}</span>)}</div>
           {v.syncNote ? <p className="syncnote"><Ic name="alert" />{v.syncNote}</p> : null}
+          {runNote ? <p className="seqnote" data-run-note=""><Ic name="revert" /><span>{runNote}</span></p> : null}
           {v.outNote ? <p className="fx-out-note">{v.outNote}</p> : null}
           {/* always rendered for a video that can be pinned: its height is reserved, so a new chip never moves the button (V2) */}
           {pin ? <div className="fx-chips"><PinChips chips={pin.chips} small /></div> : null}
