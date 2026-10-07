@@ -10,6 +10,8 @@ import type { EffectResult, EffectStatus } from '@/lib/youtube/observatorio/effe
 import type { TitleDiff, TitleSpan } from '@/lib/youtube/observatorio/text-diff'
 import { forjaOrder, parseNiche, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, Niche, ObsVideo, ThumbVersion } from '@/lib/youtube/observatorio/types'
+import { isObserved } from '@/lib/youtube/observatorio/observed'
+import { pinViewOf, type PinView } from '../_chrome/pin-view'
 
 /* ------------------------------------------------------------------ public types */
 export type ChangeType = 'title' | 'thumb' | 'desc'
@@ -58,6 +60,10 @@ export interface Hero {
   video: {
     id: string; title: string; channel: string; ago: string; historyHref: string; url: string
     color: string; ini: string; avatar: string | null; ink: string; niche: string | null; nicheLabel: string | null; meta: string[]; syncNote: string | null
+    /** The pin control and the state chips (null: own channel's video). */
+    pin: PinView | null
+    /** tracked ∪ pinned. Outside them the effect is not measured: the card says why once (`outNote`) and has no effect column. */
+    observed: boolean; outNote: string | null
   }
   when: { text: string; rel: string; prec: string; seq: string | null }
   badges: Array<{ kind: 'note' | 'rev'; text: string }>
@@ -424,7 +430,11 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
     const meta = [
       (v.fmt === 'long' ? 'Longo' : 'Short') + (durationText(v.dur) ? ', ' + durationText(v.dur) : ''),
       'Publicado ' + D.dmOrDmy(v.pub),
-      F.num(v.views) + ' views' + (growth && typeof growth.to === 'number' ? ', até o registro diário de ' + D.dmhm(growth.to) : ''),
+      // D11 / D15: no count for a video outside the observed ones (it is frozen) nor for a pinned one not checked since the pin (the count
+      // is from before it); a pinned video outside the tracked ones says when its count was read
+      ...(!isObserved(v) || v.pinState === 'aguardando-primeira' || v.pinState === 'sem-resposta' ? []
+        : v.pinned === true && !v.tracked && v.checkedAt != null ? [F.num(v.views) + ' views em ' + D.dmhm(v.checkedAt)]
+          : [F.num(v.views) + ' views' + (growth && typeof growth.to === 'number' ? ', até o registro diário de ' + D.dmhm(growth.to) : '')]),
     ]
     if (all.length > 1) meta.push(all.length + ' trocas registradas')
     const saw = saved.has(c.id)
@@ -435,6 +445,8 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
         historyHref: obs.link.historico(v.id, { from: 'mudancas', ids: visibleVideos, back }), url: v.url,
         color: ch.color, ini: ch.ini, avatar: ch.avatar ?? null, ink: inkOn(ch.color), niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null, meta,
         syncNote: ch.sync.problemPhrase ? cap(ch.sync.problemPhrase) : null,
+        pin: pinViewOf(obs, v, { withOut: true }), observed: isObserved(v),
+        outNote: isObserved(v) ? null : 'Fora dos ' + ch.video_limit + ' mais recentes de ' + ch.name + ': o efeito destas trocas não é medido.',
       },
       when: {
         text: whenText(obs, c), prec: c.prec,

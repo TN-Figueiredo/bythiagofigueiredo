@@ -14,6 +14,7 @@ import { VideoGroup, type SwipeState } from './change-hero'
 import { RichText } from './rich'
 import { ReadingCard } from './reading-card'
 import type { ForjaAsk } from '../_chrome/forja-view-model'
+import { PinProvider, type PinAction } from '../_chrome/pin-kit'
 
 export interface SwipeResult { ok: boolean; saved?: boolean }
 export interface MudancasScreenProps {
@@ -24,9 +25,12 @@ export interface MudancasScreenProps {
   forjaSlot?: ReactNode
   /** "Confirmar pedido" of the inline preview (server action askForjaReading). */
   onAskForja?: ForjaAsk
+  /** Server actions pinVideo / unpinVideo: they reach the cards through PinProvider, never by import. */
+  onPin?: PinAction
+  onUnpin?: PinAction
 }
 
-export function MudancasScreen({ view, onToggleSwipe, forjaSlot, onAskForja }: MudancasScreenProps) {
+export function MudancasScreen({ view, onToggleSwipe, forjaSlot, onAskForja, onPin, onUnpin }: MudancasScreenProps) {
   const router = useRouter(), toast = useToast(), go = useGo()
   const [page, setPage] = useState(0)
   const [over, setOver] = useState<Record<string, boolean>>({})
@@ -70,38 +74,42 @@ export function MudancasScreen({ view, onToggleSwipe, forjaSlot, onAskForja }: M
     }
     return out
   }, [view.heroes, view.groupByVideo, shown])
+  // a video that shows in more than one card (sorted by effect): each pin control then names its card's change
+  const cardsOf = useMemo(() => { const n = new Map<string, number>(); for (const g of groups) n.set(g[0]!.video.id, (n.get(g[0]!.video.id) ?? 0) + 1); return n }, [groups])
   const total = view.heroes.length, pi = Math.min(page, cuts.length - 1)
 
   return (
-    <div data-obs-screen="mudancas">
-      <Ledger view={view} forjaSlot={forjaSlot ?? <ReadingCard view={view} onAsk={onAskForja} />} />
-      <Filters view={view} />
-      <div className="count-row">
-        <span aria-live="polite" data-count-line="">{total ? <RichText r={view.paging.countLines[pi]!} /> : null}</span>
-        <span className="legend" aria-hidden="true" hidden={!total}>
-          <span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--spark-before)" strokeWidth="2" /></svg>views/dia antes da troca</span>
-          <span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--spark-after)" strokeWidth="2" /></svg>depois da troca</span>
-          <span><svg width="22" height="10"><rect x="0" y="0" width="22" height="10" fill="var(--band)" /><line x1="0" y1="5" x2="22" y2="5" stroke="var(--muted)" strokeWidth="1.5" strokeDasharray="3 2" /></svg>esperado sem a troca (faixa normal)</span>
-        </span>
-      </div>
-      <div id="feed" data-feed="">
-        {groups.map(g => <VideoGroup key={g[0]!.id} heroes={g} swipeOf={swipeOf} onSwipe={onSwipe} />)}
-      </div>
-      {view.empty ? (
-        <div className="empty" role="status" data-empty="" data-hidden-by={view.empty.hiddenBy ?? undefined}>
-          <h3>{view.empty.title}</h3>
-          <p>{view.empty.text}</p>
-          <div className="btns">{view.empty.actions.map(a => <button key={a.label} className="btn" type="button" onClick={() => go(a.patch)}>{a.label}</button>)}</div>
+    <PinProvider onPin={onPin} onUnpin={onUnpin}>
+      <div data-obs-screen="mudancas">
+        <Ledger view={view} forjaSlot={forjaSlot ?? <ReadingCard view={view} onAsk={onAskForja} />} />
+        <Filters view={view} />
+        <div className="count-row">
+          <span aria-live="polite" data-count-line="">{total ? <RichText r={view.paging.countLines[pi]!} /> : null}</span>
+          <span className="legend" aria-hidden="true" hidden={!total}>
+            <span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--spark-before)" strokeWidth="2" /></svg>views/dia antes da troca</span>
+            <span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--spark-after)" strokeWidth="2" /></svg>depois da troca</span>
+            <span><svg width="22" height="10"><rect x="0" y="0" width="22" height="10" fill="var(--band)" /><line x1="0" y1="5" x2="22" y2="5" stroke="var(--muted)" strokeWidth="1.5" strokeDasharray="3 2" /></svg>esperado sem a troca (faixa normal)</span>
+          </span>
         </div>
-      ) : null}
-      {total ? (
-        <div className="pager">
-          <span>{view.paging.restTexts[pi]}</span>
-          {pi < cuts.length - 1 ? <button className="btn" type="button" onClick={() => setPage(p => p + 1)}>Carregar mais</button> : null}
+        <div id="feed" data-feed="">
+          {groups.map(g => <VideoGroup key={g[0]!.id} heroes={g} swipeOf={swipeOf} onSwipe={onSwipe} shared={(cardsOf.get(g[0]!.video.id) ?? 0) > 1} />)}
         </div>
-      ) : null}
-      {/* slot of the forja reading opened by ?reading= (Task 35); it never changes the list */}
-      <div data-reading-slot={view.filters.reading ?? undefined} hidden />
-    </div>
+        {view.empty ? (
+          <div className="empty" role="status" data-empty="" data-hidden-by={view.empty.hiddenBy ?? undefined}>
+            <h3>{view.empty.title}</h3>
+            <p>{view.empty.text}</p>
+            <div className="btns">{view.empty.actions.map(a => <button key={a.label} className="btn" type="button" onClick={() => go(a.patch)}>{a.label}</button>)}</div>
+          </div>
+        ) : null}
+        {total ? (
+          <div className="pager">
+            <span>{view.paging.restTexts[pi]}</span>
+            {pi < cuts.length - 1 ? <button className="btn" type="button" onClick={() => setPage(p => p + 1)}>Carregar mais</button> : null}
+          </div>
+        ) : null}
+        {/* slot of the forja reading opened by ?reading= (Task 35); it never changes the list */}
+        <div data-reading-slot={view.filters.reading ?? undefined} hidden />
+      </div>
+    </PinProvider>
   )
 }

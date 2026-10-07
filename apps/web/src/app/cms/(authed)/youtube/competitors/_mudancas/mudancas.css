@@ -295,3 +295,34 @@
 [data-obs-screen="mudancas"] .vid-h .ghost svg.i{width:15px;height:15px}
 [data-obs-screen="mudancas"] .save svg.i{width:16px;height:16px}
 [data-obs-screen="mudancas"] .save:disabled{cursor:not-allowed;color:var(--dim);background:transparent;border-color:transparent}
+
+/* ---------- Fixar vídeo on the cards. No `order` anywhere: DOM order = screen order = channel, title, actions, message. */
+[data-obs-screen="mudancas"] .vid-h .fx-chips{display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:4px;min-height:20px}
+[data-obs-screen="mudancas"] .vid .fx-row{padding:10px 18px 12px 62px}
+[data-obs-screen="mudancas"] .vid .fx-row:empty{display:none}
+[data-obs-screen="mudancas"] .vid .fx-out-note{margin:4px 0 0;font-size:12px;color:var(--muted)}
+[data-obs-screen="mudancas"] .vid .acts .fx-btn.fx-btn.fx-btn{justify-content:flex-end;padding-inline:0 10px}
+/* card of a video outside the observed ones: no effect column; the changes take two columns (one below 1180 px) */
+[data-obs-screen="mudancas"] .vid .fx-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);border-top:1px solid var(--border-subtle)}
+[data-obs-screen="mudancas"] .vid .fx-grid .chg.fx-noeff{grid-template-columns:minmax(0,1fr);align-content:start;border-top:0;border-bottom:1px solid var(--border-subtle)}
+[data-obs-screen="mudancas"] .vid .fx-grid .chg.fx-noeff:nth-child(odd){border-right:1px solid var(--border-subtle)}
+[data-obs-screen="mudancas"] .vid .fx-grid .chg.fx-noeff:last-child:nth-child(odd){grid-column:1/-1;border-right:0}
+[data-obs-screen="mudancas"] .vid .fx-grid .chg.fx-noeff:last-child,[data-obs-screen="mudancas"] .vid .fx-grid .chg.fx-noeff:nth-last-child(2):nth-child(odd){border-bottom:0}
+[data-obs-screen="mudancas"] .vid .fx-grid .when{border-right:0;display:flex;align-items:center;gap:4px 14px;flex-wrap:wrap;padding-bottom:0}
+[data-obs-screen="mudancas"] .vid .fx-grid .wline,[data-obs-screen="mudancas"] .vid .fx-grid .when .seq{margin-top:0}
+[data-obs-screen="mudancas"] .vid .fx-grid .wline .rel{display:inline;margin-left:8px}
+[data-obs-screen="mudancas"] .vid .fx-grid .when .save{margin:0 0 0 auto}
+@media (max-width:1180px){
+  [data-obs-screen="mudancas"] .vid .fx-grid{grid-template-columns:minmax(0,1fr)}
+  [data-obs-screen="mudancas"] .vid .fx-grid .chg.fx-noeff:nth-child(odd){border-right:0}
+  [data-obs-screen="mudancas"] .vid .fx-grid .chg.fx-noeff:nth-last-child(2):nth-child(odd){border-bottom:1px solid var(--border-subtle)}
+}
+/* V2: below 1000 px the actions are a row AFTER the title block (mudancas.css:275-276, unchanged). The block above them
+   reserves the height its variable lines can reach (two lines of meta, two of chips), so pinning, unpinning, a refusal or a
+   failure never moves the pin button. The reserved values are checked by e2e/tests/cms/observatorio/fixar.spec.ts. */
+@media (max-width:1000px){
+  [data-obs-screen="mudancas"] .vid-h .who{flex:1 1 0;min-width:0}
+  [data-obs-screen="mudancas"] .vid-h .who:has(.fx-chips) .meta{min-height:38px}
+  [data-obs-screen="mudancas"] .vid-h .fx-chips{min-height:46px;align-content:flex-start}
+}
+@media (max-width:760px){[data-obs-screen="mudancas"] .vid .fx-row{padding-left:18px}}

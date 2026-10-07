@@ -6,7 +6,7 @@ import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import { ObservatoryChromeServer } from '../_chrome/chrome-server'
 import type { ObsSearchParams } from '../_chrome/resolve-niche'
 import { getUserNiche } from '../niche-actions'
-import { toggleChangeBookmark } from '../actions'
+import { toggleChangeBookmark, pinVideo, unpinVideo } from '../actions'
 import { askForjaReading } from '../forja-actions'
 import { buildMudancasView } from '../_mudancas/view-model'
 import { loadSwipeRows, savedFromRows } from '../_mudancas/swipe-rows'
@@ -33,7 +33,7 @@ export default async function MudancasPage({ searchParams }: { searchParams: Pro
   const view = buildMudancasView(obs, { ...flat, niche }, saved, keys)
   return (
     <ObservatoryChromeServer tab="mudancas" searchParams={sp} obs={obs} forja={view.forja}>
-      <MudancasScreen view={view} onToggleSwipe={toggleChangeBookmark} onAskForja={askForjaReading} />
+      <MudancasScreen view={view} onToggleSwipe={toggleChangeBookmark} onAskForja={askForjaReading} onPin={pinVideo} onUnpin={unpinVideo} />
     </ObservatoryChromeServer>
   )
 }
