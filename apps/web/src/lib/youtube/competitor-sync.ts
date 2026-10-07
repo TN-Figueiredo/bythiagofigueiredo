@@ -144,14 +144,30 @@ export async function syncCompetitorChannel(
   const reconciled = new Set<string>()
 
   type TrackedRow = { id: string; video_id: string; title: string | null; thumbnail_url: string | null }
+  /** The channel's pinned videos (R118), read once per sync inside the try below. */
+  let pinned: TrackedRow[] = []
+  /** Throws on a query error: a failing read is never "no pinned videos". */
+  const loadPinned = async (): Promise<TrackedRow[]> => {
+    const { data, error } = await supabase
+      .from('competitor_videos')
+      .select('id, video_id, title, thumbnail_url')
+      .eq('competitor_channel_id', channelRow.id)
+      .not('pinned_at', 'is', null)
+    fail('load pinned videos', error)
+    return (data ?? []) as TrackedRow[]
+  }
+  /** The observed videos: the video_limit most recent ∪ the pinned ones (R118/R119). Throws on a query error. */
   const loadTracked = async (): Promise<TrackedRow[]> => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('competitor_videos')
       .select('id, video_id, title, thumbnail_url')
       .eq('competitor_channel_id', channelRow.id)
       .order('published_at', { ascending: false, nullsFirst: false })
       .limit(videoLimit)
-    return (data ?? []) as TrackedRow[]
+    fail('load tracked videos', error)
+    const top = (data ?? []) as TrackedRow[]
+    const seen = new Set(top.map(t => t.id))
+    return [...top, ...pinned.filter(p => !seen.has(p.id))]
   }
   /** tracked uuids with no competitor_video_daily row for snapDate */
   const missingDaily = async (uuids: string[], snapDate: string): Promise<string[]> => {
@@ -272,11 +288,59 @@ export async function syncCompetitorChannel(
     changesDetected += (data as { changes?: number } | null)?.changes ?? 0
   }
 
+  type FetchedItem = { id: string; snippet?: Record<string, unknown>; statistics?: Record<string, string> }
+  /** Reconciles videos.list items against their stored rows, skipping what this sync already reconciled (daily pass and R123). */
+  const reconcileFetched = async (items: FetchedItem[], byYt: Map<string, TrackedRow>): Promise<void> => {
+    const pending = items.filter(it => byYt.has(it.id) && !reconciled.has(byYt.get(it.id)!.id))
+    const currentMap = await loadCurrent(pending.map(it => byYt.get(it.id)!.id))
+    const touch: string[] = []
+    for (const it of pending) {
+      const row = byYt.get(it.id)!
+      const sn = it.snippet ?? {}
+      const thumbs = sn.thumbnails as { maxres?: { url?: string }; high?: { url?: string } } | undefined
+      await reconcileVideo(row.id, it.id, {
+        apiTitle: (sn.title as string | undefined) ?? '',
+        apiDescription: sn.description as string | undefined,
+        thumbnailUrl: thumbs?.maxres?.url ?? thumbs?.high?.url ?? null,
+        viewCount: optCount(it.statistics?.viewCount),
+        existingTitle: row.title,
+        existingThumbUrl: row.thumbnail_url,
+      }, currentMap.get(row.id) ?? [], touch)
+    }
+    if (touch.length) {
+      const { error } = await supabase.from('competitor_video_versions').update({ last_seen_at: nowIso }).in('id', touch)
+      fail('touch versions', error)
+    }
+  }
+  /**
+   * A pinned video outside the uploads page never reaches the stats update of the page loop, so its row would keep the
+   * count and the check date of the day it left the page. last_checked_at is written whenever YouTube returns the item
+   * (that is what "checked since it was pinned" reads); view_count / like_count only when the answer carries them, so a
+   * hidden counter never erases the stored one. Only pinned rows: an unobserved video keeps a frozen row on purpose.
+   */
+  const refreshPinnedStats = async (items: FetchedItem[], byYt: Map<string, TrackedRow>): Promise<void> => {
+    for (const it of items) {
+      const row = byYt.get(it.id)
+      if (!row || !pinned.some(p => p.id === row.id)) continue
+      const st = it.statistics
+      const { error } = await supabase.from('competitor_videos')
+        .update({
+          ...(st?.viewCount !== undefined ? { view_count: optCount(st.viewCount) } : {}),
+          ...(st?.likeCount !== undefined ? { like_count: optCount(st.likeCount) } : {}),
+          last_checked_at: nowIso,
+        })
+        .eq('id', row.id)
+      fail('update pinned video stats', error)
+    }
+  }
+
   try {
     // Daily record due? 12:00 São Paulo AND at least one tracked video has no row for today's SP date
     // (due per video, so a partial record is completed by the next sync).
     const snapDate = spDate(nowMs)
     const hourOk = isDailyRecordDue(nowIso, null).due
+    pinned = await loadPinned()
+    const pinnedUuids = new Set(pinned.map(p => p.id))
     let dailyDue = false
     if (hourOk) {
       const tracked = await loadTracked()
@@ -436,8 +500,8 @@ export async function syncCompetitorChannel(
           hitKnownVideo = true
         }
 
-        // Versions: <90-day videos every sync, older ones only when the daily record is due
-        const shouldReconcile = dailyDue || (publishedAt ? publishedAt > changeDetectionCutoff : true)
+        // Versions: <90-day videos every sync, older ones only when the daily record is due; a pinned video every sync (R123)
+        const shouldReconcile = dailyDue || (videoUuid != null && pinnedUuids.has(videoUuid)) || (publishedAt ? publishedAt > changeDetectionCutoff : true)
         if (videoUuid && shouldReconcile) {
           await reconcileVideo(videoUuid, videoId, {
             apiTitle, apiDescription, thumbnailUrl, viewCount,
@@ -504,8 +568,7 @@ export async function syncCompetitorChannel(
           if (!res.ok) throw new Error(`YouTube API ${res.status} for daily statistics`)
           const body = await res.json()
           const byYt = new Map(chunk.map(c => [c.video_id, c]))
-          const items = ((body.items ?? []) as Array<{ id: string; snippet?: Record<string, unknown>; statistics?: Record<string, string> }>)
-            .filter(it => byYt.has(it.id))
+          const items = ((body.items ?? []) as FetchedItem[]).filter(it => byYt.has(it.id))
           const rows = items
             .filter(it => it.statistics?.viewCount !== undefined)
             .map(it => ({
@@ -525,26 +588,8 @@ export async function syncCompetitorChannel(
             dailyRecorded += (inserted ?? []).length
           }
           // once-a-day pass: reconcile what the incremental pages did not reach
-          const pending = items.filter(it => !reconciled.has(byYt.get(it.id)!.id))
-          const currentMap = await loadCurrent(pending.map(it => byYt.get(it.id)!.id))
-          const touch: string[] = []
-          for (const it of pending) {
-            const row = byYt.get(it.id)!
-            const sn = it.snippet ?? {}
-            const thumbs = sn.thumbnails as { maxres?: { url?: string }; high?: { url?: string } } | undefined
-            await reconcileVideo(row.id, it.id, {
-              apiTitle: (sn.title as string | undefined) ?? '',
-              apiDescription: sn.description as string | undefined,
-              thumbnailUrl: thumbs?.maxres?.url ?? thumbs?.high?.url ?? null,
-              viewCount: optCount(it.statistics?.viewCount),
-              existingTitle: row.title,
-              existingThumbUrl: row.thumbnail_url,
-            }, currentMap.get(row.id) ?? [], touch)
-          }
-          if (touch.length) {
-            const { error } = await supabase.from('competitor_video_versions').update({ last_seen_at: nowIso }).in('id', touch)
-            fail('touch versions', error)
-          }
+          await reconcileFetched(items, byYt)
+          await refreshPinnedStats(items, byYt)
         } catch (e) {
           dailyFailure ??= e instanceof Error ? e : new Error(String(e))
         }
@@ -561,6 +606,19 @@ export async function syncCompetitorChannel(
         fail('start series', e2)
       }
       if (dailyFailure) throw dailyFailure // the next sync fills in the missing ids
+    }
+
+    // ── Pinned videos (R123): checked on EVERY sync. What the playlist pages or the daily pass already reconciled is
+    // skipped, so a channel with no pins, or whose pins were all reached above, makes no extra call. ──
+    const pinnedLeft = pinned.filter(p => !reconciled.has(p.id))
+    for (let i = 0; i < pinnedLeft.length; i += 50) {
+      const chunk = pinnedLeft.slice(i, i + 50)
+      const res = await api(`${YOUTUBE_API_BASE}/videos?part=snippet,statistics&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
+      if (!res.ok) throw new Error(`YouTube API ${res.status} for pinned videos`)
+      const body = await res.json()
+      const fetched = (body.items ?? []) as FetchedItem[], byYt = new Map(chunk.map(c => [c.video_id, c]))
+      await reconcileFetched(fetched, byYt)
+      await refreshPinnedStats(fetched, byYt)
     }
 
     // ── Re-classificação dos já gravados como longos com 61–180 s (R109), mesmo teto da execução ──

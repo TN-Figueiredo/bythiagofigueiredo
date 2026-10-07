@@ -9,11 +9,13 @@
  * sentence the server has not sent. The same element then receives the content (the focus and the picked tab stay).
  */
 import Link from 'next/link'
-import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { CanaisRow, DrawerTab, DrawerView, EffectView, SwapCard, ViewsText } from './view-model'
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import { Ic, ThumbView } from './cells'
 import { NicheSelect } from './niche-editor'
+import { ChannelAvatar } from '../_chrome/channel-avatar'
+import { PinButton, PinMessage } from '../_chrome/pin-kit'
 
 const TABS: Array<{ k: DrawerTab; label: string; panel: string }> = [
   { k: 'trocas', label: 'Trocas', panel: 'pSwaps' },
@@ -72,7 +74,7 @@ function Card({ c }: { c: SwapCard }) {
 }
 
 /** What the list already knows of a channel: the drawer's head while its content is on the way. */
-export type DrawerShell = Pick<CanaisRow, 'id' | 'name' | 'color' | 'ini' | 'own' | 'niche' | 'lang' | 'handle' | 'url' | 'subs'>
+export type DrawerShell = Pick<CanaisRow, 'id' | 'name' | 'color' | 'ini' | 'avatar' | 'own' | 'niche' | 'lang' | 'handle' | 'url' | 'subs'>
 const isFull = (d: DrawerView | DrawerShell): d is DrawerView => 'stats' in d
 
 export interface ChannelDrawerProps {
@@ -102,7 +104,7 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
     <aside className="cn-drawer" aria-labelledby={nameId} role={modal ? 'dialog' : 'complementary'} aria-modal={modal || undefined} onKeyDown={modal ? trap : undefined} data-drawer={d.id} aria-busy={full ? undefined : true}>
       <div className="dhead">
         <div className="row1">
-          <div className="av" style={{ background: d.color }} aria-hidden="true">{d.ini}</div>
+          <ChannelAvatar as="div" src={d.avatar} ini={d.ini} color={d.color} />
           <div style={{ minWidth: 0 }}>
             <h3 id={nameId}>{d.name}</h3>
             <div className="meta">
@@ -156,6 +158,22 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
 
 /** The three panels of a channel whose view arrived. */
 function FullBody({ d, tab, upnextHref, forjaSlot }: { d: DrawerView; tab: DrawerTab; upnextHref: string; forjaSlot?: ReactNode }) {
+  const pinH = useRef<HTMLHeadingElement>(null), listRef = useRef<HTMLUListElement>(null)
+  const pinnedIds = (d.videos.pinned?.rows ?? []).map(r => r.id).join('|'), lastIds = useRef(pinnedIds), lastIndex = useRef(0)
+  // "Ver fixados" lands on ?tab=videos#fixados: scroll the panel to the list and put the focus on its title
+  useEffect(() => {
+    if (tab !== 'videos' || typeof window === 'undefined' || window.location.hash !== '#fixados' || !pinH.current) return
+    pinH.current.scrollIntoView?.({ block: 'start' }); pinH.current.focus({ preventScroll: true })
+  }, [tab, d.id])
+  // a row left (the video was unpinned): the focus goes to the next row's button, else the previous one's, else the title
+  useEffect(() => {
+    if (lastIds.current === pinnedIds) return
+    const had = lastIds.current.split('|').filter(Boolean).length, has = pinnedIds.split('|').filter(Boolean).length
+    lastIds.current = pinnedIds
+    if (has >= had || !pinH.current?.closest('[data-fx-list]')?.contains(document.activeElement) && document.activeElement !== document.body) return
+    const btns = listRef.current ? [...listRef.current.querySelectorAll<HTMLElement>('[data-pin]')] : []
+    ;(btns[Math.min(lastIndex.current, btns.length - 1)] ?? pinH.current)?.focus({ preventScroll: true })
+  }, [pinnedIds])
   return (
       <div className="dbody">
         <div className="dpanel" id="cn-pSwaps" role="tabpanel" aria-labelledby="cn-t-trocas" tabIndex={0} hidden={tab !== 'trocas'}>
@@ -191,6 +209,28 @@ function FullBody({ d, tab, upnextHref, forjaSlot }: { d: DrawerView; tab: Drawe
           ))}
         </div>
         <div className="dpanel" id="cn-pVid" role="tabpanel" aria-labelledby="cn-t-videos" tabIndex={0} hidden={tab !== 'videos'}>
+          {d.videos.pinned ? (
+            <div className="fx-pinned" id="fixados" data-fx-list="">
+              <h4 id="cn-fxPinH" tabIndex={-1} ref={pinH}>{d.videos.pinned.title} <span className="num">{d.videos.pinned.count}</span></h4>
+              <p className="sech">{d.videos.pinned.intro}</p>
+              {d.videos.pinned.empty ? <div className="note">{d.videos.pinned.empty}</div> : (
+                <ul className="fx-plist" aria-labelledby="cn-fxPinH" ref={listRef}>
+                  {d.videos.pinned.rows.map((x, i) => (
+                    <li key={x.id} onFocusCapture={() => { lastIndex.current = i }}>
+                      <ThumbView t={x.thumb} />
+                      <div style={{ minWidth: 0 }}>
+                        <a className="fx-t" href={x.histHref}>{x.title}</a>
+                        <div className="m">publicado {x.published}</div>
+                        <div className="m">{x.where}</div>
+                      </div>
+                      <PinButton pin={x.pin} className="btn small ghost" />
+                      <PinMessage k={x.id} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
           {d.videos.preNote ? <><div className="note">{d.videos.preNote}</div>{d.videos.upnext ? <p><a className="btn small" href={upnextHref}>{d.videos.upnext}</a></p> : null}</> : null}
           <p className="sec">{d.videos.title}</p>
           <p className="sech">{d.videos.intro}</p>

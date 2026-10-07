@@ -87,7 +87,9 @@ export const CANAIS: ScreenSpec = {
   mockThumbSelector: '.thumb', implThumbSelector: '[data-thumb], [data-thumb-missing]',
   compareSelector: { mockup: '#screen, #drawer, #dlgs', impl: '[data-obs-screen="canais"]' },
   // R60, R62, R64 (allowances.ts): the own rows' views/day and growth cells, the error row's handle action, the scroll hint
-  exclude: CANAIS_TABLE_EXCLUDE,
+  // R118: the drawer's Vídeos tab opens with "Vídeos fixados" (mockup 2026-10-06-historico-fixar-video, the one that rules
+  // for pinning); that section and the pin kit's live regions do not exist in canais.html
+  exclude: { mockup: CANAIS_TABLE_EXCLUDE.mockup, impl: [...CANAIS_TABLE_EXCLUDE.impl, '.fx-pinned', '.fx-live'] },
   // F11 / Task 23 ruling: bald and bankrupt's views/day suffix (allowances.ts)
   textAllow: [BALD_ROW_SUFFIX_F11],
   states: [

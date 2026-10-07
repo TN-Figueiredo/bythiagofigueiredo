@@ -23,13 +23,15 @@ const JOGOS: NicheRow = { slug: 'jogos', label: 'Jogos', color_dark: '#D29AE8', 
 interface Db { own: Array<{ id: string; channel_id: string }> | null; existing: unknown; inserted: unknown[]; deleted?: unknown[] | null; niches?: NicheRow[] | 'missing' | 'broken' }
 /** What the action handed to after(): nothing here runs until a test runs it. */
 let queued: Array<() => unknown> = []
+const revalidateTag = vi.fn()
 let syncMock = vi.fn(async (..._a: unknown[]) => ({}))
 function setup(db: Db, slots = { used: 14, limit: 75, free: 61 }, auth: { ok: boolean; reason?: string; user?: { id: string } } = { ok: true, user: { id: 'u1' } }) {
   vi.resetModules()
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => auth }))
   queued = []; syncMock = vi.fn(async (..._a: unknown[]) => ({}))
-  vi.doMock('next/cache', () => ({ revalidatePath: vi.fn() }))
+  revalidateTag.mockClear()
+  vi.doMock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag }))
   vi.doMock('next/server', () => ({ after: (fn: () => unknown) => { queued.push(fn) } }))
   vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
   vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: syncMock }))
@@ -101,6 +103,21 @@ describe('addCompetitorChannel', () => {
     await expect(Promise.resolve(queued[0]!())).resolves.toBeUndefined()
     expect(syncMock).toHaveBeenCalledWith({ id: 'n1', channel_id: 'x', site_id: 's1' }, 'k')
   })
+  it('a primeira sincronização, que roda depois da resposta, invalida o cache do Observatório ao terminar', async () => {
+    setup({ own: null, existing: null, inserted: [] })
+    expect((await (await load())(UC)).ok).toBe(true)
+    expect(revalidateTag).not.toHaveBeenCalled() // nothing was written to the cached tables yet
+    await queued[0]!()
+    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
+  })
+  it('a primeira sincronização falhou (dado parcial): invalida mesmo assim', async () => {
+    setup({ own: null, existing: null, inserted: [] })
+    const add = await load()
+    syncMock.mockRejectedValueOnce(new Error('YouTube API 500'))
+    await add(UC)
+    await queued[0]!()
+    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
+  })
   it('a @handle not found on YouTube says so; without the API key (default) it does not pretend', async () => {
     setup({ own: null, existing: null, inserted: [] })
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ items: [] }))))
@@ -169,7 +186,14 @@ describe('removeCompetitorChannel', () => {
   it('ok only when a row of this site was deleted', async () => {
     setup({ own: null, existing: null, inserted: [], deleted: [] })
     expect(await (await actions()).removeCompetitorChannel('other-site-row')).toEqual({ ok: false })
+    expect(revalidateTag).not.toHaveBeenCalled() // nothing was removed: the cache stays
     setup({ own: null, existing: null, inserted: [], deleted: [{ id: 'c1' }] })
     expect(await (await actions()).removeCompetitorChannel('c1')).toEqual({ ok: true })
+    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
+  })
+  it('sem permissão: não remove nem invalida', async () => {
+    setup({ own: null, existing: null, inserted: [], deleted: [{ id: 'c1' }] }, undefined, { ok: false, reason: 'forbidden' })
+    expect(await (await actions()).removeCompetitorChannel('c1')).toEqual({ ok: false })
+    expect(revalidateTag).not.toHaveBeenCalled()
   })
 })

@@ -14,6 +14,9 @@ export const MUDANCAS: ScreenSpec = {
     // mudancas.html:939: Viagem, 90 d, Thumbnail, Shorts
     { label: 'Vazio em 90 dias', mockupClicks: ['Vazio em 90 dias'], seed: {}, query: '?niche=viagem&win=90&type=thumb&fmt=short' },
   ],
+  // R118: pinning is of the 2026-10-06-historico-fixar-video mockup (the one that rules for it): the card's pin button,
+  // its focus hint, the chips line and the action's message do not exist in mudancas.html
+  exclude: { impl: ['[data-pin]', '.fx-hint', '.fx-chips', '.fx-chip', '.fx-row', '.fx-out-note'] },
   compareSelector: { mockup: '#screen', impl: '[data-obs-screen="mudancas"]' },
 }
 

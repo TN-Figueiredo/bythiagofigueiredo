@@ -39,6 +39,24 @@ describe('Mudanças view model — extra rules', () => {
     expect(g.reverts + g.withCaveat + inc + g.noVerdict + measured).toBe(v.ledger.total)
     expect(v.ledger.total).toBe(18)
   })
+  it('R115: troca-seguinte tem linha própria no balanço e nunca cai em "outro motivo"', () => {
+    const inc = obs.changesIn({ days: 30, niche: 'todos' }).filter(c => obs.effect(c.id)!.inconclusiveKind === 'troca-seguinte')
+    expect(inc.length).toBeGreaterThan(0)
+    expect(v.ledger.groups.inconclusiveByType['troca-seguinte']).toBe(inc.length)
+    const kinds = new Set(obs.changes.map(c => obs.effect(c.id)!.inconclusiveKind).filter(Boolean))
+    for (const k of kinds) expect(Object.keys(v.ledger.groups.inconclusiveByType)).toContain(k)
+  })
+  it('R115: nenhuma troca decidida fica "com ressalva" (a ressalva agora é inconclusivo)', () => {
+    expect(v.ledger.groups.withCaveat).toBe(0)
+  })
+  it('o cartão conta as trocas do vídeo sem afirmar uma janela de 90 dias', () => {
+    const multi = v.heroes.filter(h => h.video.meta.some(m => /trocas/.test(m)))
+    expect(multi.length).toBeGreaterThan(0)
+    for (const h of multi) {
+      expect(h.video.meta.some(m => /^\d+ trocas registradas$/.test(m))).toBe(true)
+      expect(h.video.meta.some(m => /90 dias/.test(m))).toBe(false)
+    }
+  })
   it('n = 0 uses the engine noBaseText verbatim; aguardando uses waitText verbatim', () => {
     for (const h of v.heroes) {
       const e = obs.effect(h.id)!

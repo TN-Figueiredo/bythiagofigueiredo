@@ -10,15 +10,18 @@ import { TitleDiffView } from './title-diff'
 import { ThumbCompare } from './thumb-compare'
 import { DescDiff } from './desc-diff'
 import { EffectPanel } from './effect-panel'
+import { ChannelAvatar } from '../_chrome/channel-avatar'
+import { PinButton, PinMessage, PinChips } from '../_chrome/pin-kit'
 
 const KIND_ICON: Record<Hero['type'], IconName> = { title: 'title', thumb: 'image', desc: 'text' }
 
 /** `label` is the visible state (title=); the accessible name stays SWIPE_ARIA and the state is aria-pressed. */
 export interface SwipeState { saved: boolean; label: string; busy: boolean; disabled: boolean }
 
-function ChangeRow({ h, swipe, onSwipe }: { h: Hero; swipe: SwipeState; onSwipe: (h: Hero) => void }) {
+/** `effect` false = a video outside the observed ones: no effect column (the card's header says why, once). */
+function ChangeRow({ h, swipe, onSwipe, effect }: { h: Hero; swipe: SwipeState; onSwipe: (h: Hero) => void; effect: boolean }) {
   return (
-    <div className="chg" data-id={h.id} data-hero={h.type}>
+    <div className={'chg' + (effect ? '' : ' fx-noeff')} data-id={h.id} data-hero={h.type}>
       <div className="when">
         <span className="kind"><Ic name={KIND_ICON[h.type]} />{h.typeLabel}</span>
         <span className="wline" data-kind={h.type} data-prec={h.when.prec}>{h.when.text}<span className="rel">{h.when.rel}</span></span>
@@ -28,25 +31,32 @@ function ChangeRow({ h, swipe, onSwipe }: { h: Hero; swipe: SwipeState; onSwipe:
           onClick={() => { if (!swipe.busy && !swipe.disabled) onSwipe(h) }}><Ic name="bookmark" /></button>
       </div>
       <div className="diff">
-        {h.badges.map((b, i) => (
+        {/* without an effect there is nothing "not separable": the note badges are about the effect */}
+        {h.badges.filter(b => effect || b.kind !== 'note').map((b, i) => (
           <span key={i} className={'badge ' + b.kind}><Ic name={b.kind === 'rev' ? 'revert' : 'alert'} /><span>{b.text}</span></span>
         ))}
         {h.title ? <TitleDiffView t={h.title} /> : null}
         {h.thumbs ? <ThumbCompare thumbs={h.thumbs} /> : null}
         {h.desc ? <DescDiff d={h.desc} /> : null}
       </div>
-      <div className="effect"><EffectPanel h={h} /></div>
+      {effect ? <div className="effect"><EffectPanel h={h} /></div> : null}
     </div>
   )
 }
 
-export function VideoGroup({ heroes, swipeOf, onSwipe }: { heroes: Hero[]; swipeOf: (h: Hero) => SwipeState; onSwipe: (h: Hero) => void }) {
-  const v = heroes[0]!.video
-  const revTag = heroes.length === 1 && heroes[0]!.revTag
+/**
+ * `shared` = this video shows in more than one card of the list (sorted by effect): the pin control then names the
+ * card's change too, so every control has a unique accessible name. The control's key is the card's first change.
+ */
+export function VideoGroup({ heroes, swipeOf, onSwipe, shared }: { heroes: Hero[]; swipeOf: (h: Hero) => SwipeState; onSwipe: (h: Hero) => void; shared?: boolean }) {
+  const first = heroes[0]!, v = first.video
+  const revTag = heroes.length === 1 && first.revTag
+  const pin = v.pin ? (shared ? { ...v.pin, title: v.title + ' (' + first.typeLabel + ', ' + first.when.text + ')' } : v.pin) : null
+  const rows = heroes.map(h => <ChangeRow key={h.id} h={h} swipe={swipeOf(h)} onSwipe={onSwipe} effect={v.observed} />)
   return (
     <article className="vid" data-video={v.id}>
       <header className="vid-h">
-        <span className="av" style={{ background: v.color, color: v.ink }} aria-hidden="true">{v.ini}</span>
+        <ChannelAvatar src={v.avatar} ini={v.ini} color={v.color} ink={v.ink} />
         <div className="who">
           <div className="ch">
             <b>{v.channel}</b>
@@ -56,13 +66,18 @@ export function VideoGroup({ heroes, swipeOf, onSwipe }: { heroes: Hero[]; swipe
           <h3>{v.title}</h3>
           <div className="meta">{v.meta.map(m => <span key={m}>{m}</span>)}</div>
           {v.syncNote ? <p className="syncnote"><Ic name="alert" />{v.syncNote}</p> : null}
+          {v.outNote ? <p className="fx-out-note">{v.outNote}</p> : null}
+          {/* always rendered for a video that can be pinned: its height is reserved, so a new chip never moves the button (V2) */}
+          {pin ? <div className="fx-chips"><PinChips chips={pin.chips} small /></div> : null}
         </div>
         <div className="acts">
-          <Link className="ghost" href={v.historyHref}><Ic name="history" />Ver histórico do vídeo</Link>
+          {pin ? <PinButton pin={pin} k={first.id} className="ghost" /> : null}
+          <Link className="ghost" href={v.historyHref} aria-label={'Ver histórico do vídeo: ' + v.title}><Ic name="history" />Ver histórico do vídeo</Link>
           <a className="ghost" href={v.url} target="_blank" rel="noopener noreferrer" aria-label={'Abrir no YouTube: ' + v.title}><Ic name="external" />Abrir no YouTube</a>
         </div>
       </header>
-      {heroes.map(h => <ChangeRow key={h.id} h={h} swipe={swipeOf(h)} onSwipe={onSwipe} />)}
+      {pin ? <div className="fx-row"><PinMessage k={first.id} /></div> : null}
+      {v.observed ? rows : <div className="fx-grid">{rows}</div>}
     </article>
   )
 }

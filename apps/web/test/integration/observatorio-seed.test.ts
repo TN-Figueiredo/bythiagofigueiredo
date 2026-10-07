@@ -5,7 +5,10 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { loadDataset } from '@/lib/youtube/observatorio/load'
+import { loadDataset, loadLiveRows, loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
+import { loadChannelRows, assembleRows } from '@/lib/youtube/observatorio/load-channel'
+import { buildHistoricoView } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
+import { buildMudancasView } from '@/app/cms/(authed)/youtube/competitors/_mudancas/view-model'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { requestStateOf } from '@/lib/youtube/observatorio/forja/states'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
@@ -253,4 +256,17 @@ describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
       expect({ t, n: r.count }).toEqual({ t, n: 0 })
     }
   }, 120_000)
+  it('por canal = site inteiro: mesmas trocas, mesmas contagens e mesmo histórico para todo vídeo do oráculo', async () => {
+    await seedObservatory(siteId, {}, sb)
+    const whole = createObservatory(rowsToDataset(await loadRows({ siteId, now: ORACLE_NOW, supabase: sb }), ORACLE_NOW))
+    const { seriesStartAt, ...live } = await loadLiveRows(sb, siteId, ORACLE_NOW)
+    const parts = []
+    for (const c of live.channels) parts.push(await loadChannelRows(sb, { channelId: c.id, videoLimit: c.video_limit, seriesStart: seriesStartAt, now: ORACLE_NOW }))
+    const split = createObservatory(rowsToDataset(assembleRows(live, parts, seriesStartAt, ORACLE_NOW), ORACLE_NOW))
+    const plain = (x: unknown) => JSON.parse(JSON.stringify(x))
+    expect(split.tabCounts('todos')).toEqual(whole.tabCounts('todos'))
+    expect(plain(split.changes)).toEqual(plain(whole.changes))
+    expect(plain(buildMudancasView(split, { niche: 'todos' }, new Set()))).toEqual(plain(buildMudancasView(whole, { niche: 'todos' }, new Set())))
+    for (const v of whole.videos) expect({ id: v.id, view: plain(buildHistoricoView(split, v.id, { niche: 'todos' })) }).toEqual({ id: v.id, view: plain(buildHistoricoView(whole, v.id, { niche: 'todos' })) })
+  }, 180_000)
 })

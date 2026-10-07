@@ -14,7 +14,7 @@ describe.skipIf(skipIfNoLocalDb())('loadDataset (local DB)', () => {
   // created in beforeAll: CI collects this file without a DB (skipIf), and the client throws without env
   let sb: ReturnType<typeof getSupabaseServiceClient>
   const now = Date.now()
-  let siteId = '', ch1 = '', ch2 = '', va = '', vb = '', vc = ''
+  let siteId = '', ch1 = '', ch2 = '', va = '', vb = '', vc = '', vd = ''
   beforeAll(async () => {
     sb = getSupabaseServiceClient()
     // own site: competitor_settings is one row per site, shared with other suites running in parallel
@@ -30,10 +30,11 @@ describe.skipIf(skipIfNoLocalDb())('loadDataset (local DB)', () => {
       { competitor_channel_id: ch1, video_id: 'obsloadA', title: 'I Tested 7 AI Video Tools', published_at: new Date(now - 10 * DAY).toISOString(), view_count: 900, is_short: false },
       { competitor_channel_id: ch1, video_id: 'obsloadB', title: 'Antigo', published_at: new Date(now - 40 * DAY).toISOString(), view_count: 100, is_short: false },
       { competitor_channel_id: ch2, video_id: 'obsloadC', title: 'Um Short', published_at: new Date(now - 3 * DAY).toISOString(), view_count: 50, is_short: true },
+      { competitor_channel_id: ch1, video_id: 'obsloadD', title: 'Fixado antigo', published_at: new Date(now - 60 * DAY).toISOString(), view_count: 70, is_short: false, pinned_at: new Date(now - DAY).toISOString() },
     ]).select('id, video_id')
     expect(vids.error).toBeNull()
     const id = (y: string) => vids.data!.find(v => v.video_id === y)!.id
-    va = id('obsloadA'); vb = id('obsloadB'); vc = id('obsloadC')
+    va = id('obsloadA'); vb = id('obsloadB'); vc = id('obsloadC'); vd = id('obsloadD')
     const seen = new Date(now - 5 * DAY).toISOString()
     expect((await sb.from('competitor_video_versions').insert([
       { video_id: va, field: 'title', value_text: 'I Tested 7 AI Video Tools', value_hash: 'h', has_text: true, first_seen_at: seen, last_seen_at: seen, precision: 'first' },
@@ -44,6 +45,8 @@ describe.skipIf(skipIfNoLocalDb())('loadDataset (local DB)', () => {
       // untracked video (over video_limit) and a point dated after today: neither may be read
       { video_id: vb, snap_date: spDate(now - DAY), views: 99, taken_at: new Date(now - DAY).toISOString() },
       { video_id: va, snap_date: spDate(now + 3 * DAY), views: 12345, taken_at: new Date(now + 3 * DAY).toISOString() },
+      // pinned video outside video_limit: its daily record IS read
+      { video_id: vd, snap_date: spDate(now - DAY), views: 77, taken_at: new Date(now - DAY).toISOString() },
     ])).error).toBeNull()
     expect((await sb.from('competitor_settings').upsert({ site_id: siteId, series_started_at: new Date(now - 5 * DAY).toISOString() }, { onConflict: 'site_id' })).error).toBeNull()
   })
@@ -67,6 +70,9 @@ describe.skipIf(skipIfNoLocalDb())('loadDataset (local DB)', () => {
     expect(V(vc)).toMatchObject({ fmt: 'short', tracked: true, niche: 'ia', ch: ch2 })
     expect(V(va).series.map(p => p.views)).toEqual([800, 900])
     expect(V(vb).series).toEqual([]) // untracked: daily record not read
+    expect(V(vb).pinned).toBe(false)
+    expect(V(vd)).toMatchObject({ tracked: false, pinned: true })
+    expect(V(vd).series.map(p => p.views)).toEqual([77])
     expect(V(va).firstIdx).toBe(V(va).series[0]!.idx)
     expect(V(va).series[1]!.idx - V(va).series[0]!.idx).toBe(1)
     expect(V(va).titles.map(t => t.text)).toEqual(['I Tested 7 AI Video Tools'])

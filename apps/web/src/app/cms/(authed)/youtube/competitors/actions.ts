@@ -7,14 +7,18 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
+import { getCompetitorRemovalImpact, type CompetitorRemovalImpact } from '@/lib/youtube/competitor-removal-impact'
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/competitor-slots'
 import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
+import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
 import { BUILTIN_NICHES, isNicheSlug, nicheLabel, type Niche, type NicheDef } from '@/lib/youtube/observatorio/niche'
 import { readNicheDefs } from '@/lib/youtube/observatorio/niches-db'
+import { RULES } from '@/lib/youtube/observatorio/rules'
+import type { PinResult } from './pin-result'
 import type { SyncNowResult } from './_chrome/view-model'
 import { parseChannelInput } from './_canais/channel-input'
 
@@ -23,6 +27,13 @@ async function requireEditAccess(): Promise<string> {
   const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   return siteId
+}
+/** The same guard as requireEditAccess (it throws), for the writes that record who did them. */
+async function requireEditUser(): Promise<{ siteId: string; userId: string }> {
+  const { siteId } = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  return { siteId, userId: res.user.id }
 }
 
 const YT_API = 'https://www.googleapis.com/youtube/v3'
@@ -113,6 +124,9 @@ export async function addCompetitorChannel(
     after(async () => {
       try { await syncCompetitorChannel(inserted, apiKey) } catch (err) {
         Sentry.captureException(err, { tags: { component: 'competitors', step: 'first-sync' }, extra: { channelId: inserted.channel_id, siteId } })
+      } finally {
+        // the cached rows of this site were read before, or during, this sync
+        invalidateObservatory(siteId)
       }
     })
   }
@@ -137,6 +151,8 @@ export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean
   // a row of another site (or an id that does not exist) deletes nothing: that is not a success
   const { data, error } = await supabase.from('competitor_channels').delete().eq('id', id).eq('site_id', siteId).select('id')
   if (error || !data || data.length === 0) return { ok: false }
+  // the channel's videos, versions and records went with it (cascade): its cached rows must not outlive it
+  invalidateObservatory(siteId)
   revalidatePath('/cms/youtube/competitors', 'layout')
   return { ok: true }
 }
@@ -158,7 +174,9 @@ export async function syncCompetitorNow(channelRowId: string): Promise<{ ok: boo
 
   if (!channel) return { ok: false }
 
-  const result = await syncCompetitorChannel(channel, apiKey)
+  let result: Awaited<ReturnType<typeof syncCompetitorChannel>>
+  // a sync that throws midway may have written part of its data: the cache goes either way
+  try { result = await syncCompetitorChannel(channel, apiKey) } finally { invalidateObservatory(siteId) }
   revalidatePath('/cms/youtube/competitors')
   return { ok: true, result }
 }
@@ -257,6 +275,7 @@ export async function syncFullHistory(channelRowId: string): Promise<{ ok: boole
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Sync failed' }
   } finally {
+    invalidateObservatory(siteId)
     revalidatePath('/cms/youtube/competitors')
   }
 }
@@ -370,7 +389,94 @@ export async function syncCompetitorsNow(): Promise<SyncNowResult> {
       problems.push({ id, label: humanizeSyncError(e instanceof Error ? e.message : String(e)) })
     }
   }
-  if (attempted > 0) revalidatePath('/cms/youtube/competitors', 'layout')
+  if (attempted > 0) { invalidateObservatory(siteId); revalidatePath('/cms/youtube/competitors', 'layout') }
   const toast = obs.syncResultToast({ ok, problems, outOfRound })
   return { ok: ok.length > 0, text: toast.text, problems, outOfRound, toast }
+}
+
+const PIN_DENIED: PinResult = { ok: false, kind: 'denied', error: 'Você não tem permissão para fixar ou desafixar vídeos neste site. Se a sessão expirou, entre de novo.' }
+const PIN_GONE: PinResult = { ok: false, kind: 'denied', error: 'Este vídeo não existe mais no Observatório.' }
+const PIN_FAILED: PinResult = { ok: false, kind: 'failed', error: 'Não foi possível fixar agora. Tente de novo.' }
+const UNPIN_FAILED: PinResult = { ok: false, kind: 'failed', error: 'Não foi possível desafixar agora. Tente de novo.' }
+interface PinTarget { id: string; channelId: string; channelName: string; pinnedAt: string | null }
+
+/**
+ * The competitor video and its channel, only when the channel is this site's: competitor_videos has no site_id, so the
+ * site comes from the channel. A video of another site reads as not found. The database error itself is never returned.
+ */
+async function pinTarget(supabase: ReturnType<typeof getSupabaseServiceClient>, siteId: string, videoId: string): Promise<PinTarget | 'not-found' | 'error'> {
+  const { data: video, error: e1 } = await supabase.from('competitor_videos').select('id, competitor_channel_id, pinned_at').eq('id', videoId).maybeSingle()
+  if (e1) return 'error'
+  if (!video) return 'not-found'
+  const { data: channel, error: e2 } = await supabase.from('competitor_channels').select('id, channel_name').eq('id', video.competitor_channel_id).eq('site_id', siteId).maybeSingle()
+  if (e2) return 'error'
+  if (!channel) return 'not-found'
+  return { id: video.id, channelId: channel.id, channelName: channel.channel_name || 'este canal', pinnedAt: video.pinned_at ?? null }
+}
+
+/**
+ * "Fixar vídeo" (R118): pins a competitor video so it stays observed after it falls out of the channel's
+ * video_limit. The cap is enforced in the database (pin_competitor_video locks the channel row, so two simultaneous
+ * pins cannot both pass); the number itself is RULES.pinLimit, handed over on every call. Never unpins another one.
+ */
+export async function pinVideo(videoId: string): Promise<PinResult> {
+  let who: { siteId: string; userId: string }
+  try { who = await requireEditUser() } catch { return PIN_DENIED }
+  if (typeof videoId !== 'string' || !UUID_RE.test(videoId)) return PIN_GONE
+
+  const supabase = getSupabaseServiceClient()
+  const { data, error } = await supabase.rpc('pin_competitor_video', { p_site_id: who.siteId, p_video_id: videoId, p_user_id: who.userId, p_limit: RULES.pinLimit })
+  if (error || typeof data !== 'object' || data === null || Array.isArray(data)) return PIN_FAILED
+  const d = data as Record<string, unknown>
+  if (d.status === 'not_found') return PIN_GONE
+  if (d.status === 'cap') {
+    // an answer without the count is "could not check": the sentence never invents a number
+    if (typeof d.pinned !== 'number') return PIN_FAILED
+    const name = typeof d.name === 'string' && d.name ? d.name : 'este canal'
+    return { ok: false, kind: 'cap', error: `Sem vagas: ${d.pinned} de ${RULES.pinLimit} vídeos fixados em ${name}. Desafixe um para fixar outro.` }
+  }
+  // anything but an explicit ok is a failure: an unknown answer is never "pinned"
+  if (d.status !== 'ok') return PIN_FAILED
+  // pinned_at lives in the cached rows of the channel: without this the button says "Fixado" and the screen reloads
+  // with the video still unpinned. Also when it was already pinned (another tab may hold the stale pack).
+  invalidateObservatory(who.siteId)
+  if (d.already !== true) revalidatePath('/cms/youtube/competitors', 'layout')
+  return { ok: true }
+}
+
+/** "Desafixar": unpins. The stored history stays (R120); only the daily record and the every-sync check stop. */
+export async function unpinVideo(videoId: string): Promise<PinResult> {
+  let who: { siteId: string; userId: string }
+  try { who = await requireEditUser() } catch { return PIN_DENIED }
+  if (typeof videoId !== 'string' || !UUID_RE.test(videoId)) return PIN_GONE
+
+  const supabase = getSupabaseServiceClient()
+  const t = await pinTarget(supabase, who.siteId, videoId)
+  if (t === 'error') return UNPIN_FAILED
+  if (t === 'not-found') return PIN_GONE
+  // already unpinned in the database: a stale cached pack may still show it pinned, so the cache goes anyway
+  if (!t.pinnedAt) { invalidateObservatory(who.siteId); return { ok: true } }
+
+  const { data, error } = await supabase.from('competitor_videos').update({ pinned_at: null, pinned_by: null })
+    .eq('id', t.id).eq('competitor_channel_id', t.channelId).select('id')
+  if (error || !Array.isArray(data)) return UNPIN_FAILED
+  // no row written: the video was removed between the read and the write
+  if (!data.length) return PIN_GONE
+  invalidateObservatory(who.siteId)
+  revalidatePath('/cms/youtube/competitors', 'layout')
+  return { ok: true }
+}
+
+/**
+ * What "Remover canal" would delete, for the confirmation dialog. `ok: false` covers no access, a channel of another
+ * site and a failed count: the dialog then says it could not count, it never shows zeros.
+ */
+export async function getCompetitorRemovalImpactAction(channelRowId: string): Promise<{ ok: true; impact: CompetitorRemovalImpact } | { ok: false }> {
+  let siteId: string
+  try { siteId = await requireEditAccess() } catch { return { ok: false } }
+  if (typeof channelRowId !== 'string' || !UUID_RE.test(channelRowId)) return { ok: false }
+  try {
+    const impact = await getCompetitorRemovalImpact(siteId, channelRowId)
+    return impact ? { ok: true, impact } : { ok: false }
+  } catch { return { ok: false } }
 }

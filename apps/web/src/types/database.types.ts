@@ -2599,6 +2599,8 @@ export type Database = {
           last_checked_at: string | null
           like_count: number | null
           original_thumbnail_url: string | null
+          pinned_at: string | null
+          pinned_by: string | null
           published_at: string | null
           tags: string[] | null
           thumbnail_url: string | null
@@ -2617,6 +2619,8 @@ export type Database = {
           last_checked_at?: string | null
           like_count?: number | null
           original_thumbnail_url?: string | null
+          pinned_at?: string | null
+          pinned_by?: string | null
           published_at?: string | null
           tags?: string[] | null
           thumbnail_url?: string | null
@@ -2635,6 +2639,8 @@ export type Database = {
           last_checked_at?: string | null
           like_count?: number | null
           original_thumbnail_url?: string | null
+          pinned_at?: string | null
+          pinned_by?: string | null
           published_at?: string | null
           tags?: string[] | null
           thumbnail_url?: string | null
@@ -10094,6 +10100,10 @@ export type Database = {
         Args: { p_max_per_playlist?: number }
         Returns: number
       }
+      competitor_channel_removal_impact: {
+        Args: { p_channel_id: string; p_site_id: string }
+        Returns: Json
+      }
       confirm_newsletter_subscription: {
         Args: { p_token_hash: string }
         Returns: Json
@@ -10362,6 +10372,15 @@ export type Database = {
         Returns: string
       }
       pg_typeof_citext_probe: { Args: never; Returns: string }
+      pin_competitor_video: {
+        Args: {
+          p_limit: number
+          p_site_id: string
+          p_user_id: string
+          p_video_id: string
+        }
+        Returns: Json
+      }
       pin_weekly_pick: {
         Args: {
           p_channel_id: string

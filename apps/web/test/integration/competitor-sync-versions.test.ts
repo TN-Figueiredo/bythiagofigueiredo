@@ -112,3 +112,65 @@ describe.skipIf(skipIfNoLocalDb())('apply_competitor_version_plan atomicity (R22
     expect(ch!.to_version_id).toBe((ok.data as { opened: { title: string } }).opened.title)
   })
 })
+
+/** Horizontal gradient, dark → bright: every dHash comparison is 0 → "0000000000000000". */
+async function reverseGradient(): Promise<Buffer> {
+  const w = 90, h = 80, raw = Buffer.alloc(w * h * 3)
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) raw.fill(x * 2, (y * w + x) * 3, (y * w + x) * 3 + 3)
+  return sharp(raw, { raw: { width: w, height: h, channels: 3 } }).png().toBuffer()
+}
+function pinFetch(etag: string, thumbBytes: Buffer): typeof fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const u = String(input)
+    if (u.includes('/channels?')) return Response.json({ items: [{ contentDetails: { relatedPlaylists: { uploads: 'UUpin' } }, snippet: { title: 'Canal fixado' }, statistics: { subscriberCount: '1000', videoCount: '1', viewCount: '10' } }] })
+    if (u.includes('/playlistItems?')) return Response.json({ items: [] }) // the pinned video is NOT on the uploads page
+    if (u.includes('/videos?')) return Response.json({ items: [{ id: 'pinold1', snippet: { title: 'A', description: 'd', publishedAt: '2025-09-01T15:00:00Z', thumbnails: { high: { url: 'https://i.ytimg.com/vi/pinold1/hqdefault.jpg' } } }, statistics: { viewCount: '900' } }] })
+    if (u.includes('i.ytimg.com') && init?.method === 'HEAD') return new Response(null, { status: 200, headers: { etag } })
+    if (u.includes('i.ytimg.com')) return new Response(thumbBytes, { status: 200, headers: { etag } })
+    return new Response('unexpected ' + u, { status: 500 })
+  }) as typeof fetch
+}
+
+describe.skipIf(skipIfNoLocalDb())('vídeo fixado com mais de 90 dias (R123)', () => {
+  let sb: ReturnType<typeof getSupabaseServiceClient>
+  let siteId = '', chId = '', vidId = ''
+  beforeAll(async () => {
+    sb = getSupabaseServiceClient()
+    siteId = (await sb.from('sites').select('id').limit(1).single()).data!.id
+    await sb.from('competitor_channels').delete().eq('site_id', siteId).eq('channel_id', 'UCpinsync')
+    const seen = sp('2026-10-24T00:00:00')
+    chId = (await sb.from('competitor_channels').insert({ site_id: siteId, channel_id: 'UCpinsync', channel_name: 'Canal fixado', video_limit: 50, last_ok_synced_at: seen, last_synced_at: seen }).select('id').single()).data!.id
+    vidId = (await sb.from('competitor_videos').insert({ competitor_channel_id: chId, video_id: 'pinold1', title: 'A', published_at: '2025-09-01T15:00:00Z', pinned_at: seen }).select('id').single()).data!.id
+    const seedRes = await sb.from('competitor_video_versions').insert([
+      { video_id: vidId, field: 'title', value_text: 'A', value_hash: hashValue('A'), has_text: true, first_seen_at: seen, last_seen_at: seen, precision: 'first' },
+      { video_id: vidId, field: 'desc', value_text: 'd', value_hash: hashValue('d'), has_text: true, first_seen_at: seen, last_seen_at: seen, precision: 'first' },
+      { video_id: vidId, field: 'thumb', value_hash: '0000000000000000', has_text: false, thumb_etag: '"e1"', thumb_dhash: '0000000000000000', first_seen_at: seen, last_seen_at: seen, precision: 'first' },
+    ])
+    expect(seedRes.error).toBeNull()
+  })
+
+  it('duas sincronizações fora do passo diário, no mesmo dia, gravam duas versões de thumbnail e nenhum registro diário', async () => {
+    const quiet = { probeBudget: { remaining: 0 }, deferBackfill: true }
+    const row = { id: chId, channel_id: 'UCpinsync', site_id: siteId }
+    const r1 = await syncCompetitorChannel(row, 'k', { now: new Date(sp('2026-10-24T06:00:00')), fetchImpl: pinFetch('"e2"', await gradient()), ...quiet })
+    expect(r1).toMatchObject({ changesDetected: 1, dailyRecorded: 0, unitsUsed: 3 }) // channels, playlistItems, the pinned call
+    const r2 = await syncCompetitorChannel(row, 'k', { now: new Date(sp('2026-10-24T11:00:00')), fetchImpl: pinFetch('"e3"', await reverseGradient()), ...quiet })
+    expect(r2).toMatchObject({ changesDetected: 1, dailyRecorded: 0 })
+
+    const { data: thumbs } = await sb.from('competitor_video_versions').select('thumb_dhash, thumb_etag, is_current').eq('video_id', vidId).eq('field', 'thumb').order('first_seen_at')
+    expect(thumbs).toEqual([
+      { thumb_dhash: '0000000000000000', thumb_etag: '"e1"', is_current: false },
+      { thumb_dhash: 'ffffffffffffffff', thumb_etag: '"e2"', is_current: false },
+      { thumb_dhash: '0000000000000000', thumb_etag: '"e3"', is_current: true },
+    ])
+    const { data: chg } = await sb.from('competitor_changes').select('change_type').eq('video_id', vidId)
+    expect(chg).toEqual([{ change_type: 'thumbnail' }, { change_type: 'thumbnail' }])
+    const { data: daily } = await sb.from('competitor_video_daily').select('snap_date').eq('video_id', vidId)
+    expect(daily).toEqual([])
+    // the row's own count follows the pinned check, without a daily record
+    const { data: vid } = await sb.from('competitor_videos').select('view_count, last_checked_at, pinned_at').eq('id', vidId).single()
+    expect(vid!.view_count).toBe(900)
+    expect(new Date(vid!.last_checked_at!).toISOString()).toBe(sp('2026-10-24T11:00:00'))
+    expect(vid!.pinned_at).not.toBeNull()
+  })
+})

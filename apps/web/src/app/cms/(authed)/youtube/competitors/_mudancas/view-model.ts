@@ -10,6 +10,8 @@ import type { EffectResult, EffectStatus } from '@/lib/youtube/observatorio/effe
 import type { TitleDiff, TitleSpan } from '@/lib/youtube/observatorio/text-diff'
 import { forjaOrder, parseNiche, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, Niche, ObsVideo, ThumbVersion } from '@/lib/youtube/observatorio/types'
+import { isObserved } from '@/lib/youtube/observatorio/observed'
+import { pinViewOf, type PinView } from '../_chrome/pin-view'
 
 /* ------------------------------------------------------------------ public types */
 export type ChangeType = 'title' | 'thumb' | 'desc'
@@ -57,7 +59,11 @@ export interface Hero {
   id: string; type: ChangeType; typeLabel: string
   video: {
     id: string; title: string; channel: string; ago: string; historyHref: string; url: string
-    color: string; ini: string; ink: string; niche: string | null; nicheLabel: string | null; meta: string[]; syncNote: string | null
+    color: string; ini: string; avatar: string | null; ink: string; niche: string | null; nicheLabel: string | null; meta: string[]; syncNote: string | null
+    /** The pin control and the state chips (null: own channel's video). */
+    pin: PinView | null
+    /** tracked ∪ pinned. Outside them the effect is not measured: the card says why once (`outNote`) and has no effect column. */
+    observed: boolean; outNote: string | null
   }
   when: { text: string; rel: string; prec: string; seq: string | null }
   badges: Array<{ kind: 'note' | 'rev'; text: string }>
@@ -108,12 +114,16 @@ const MEASURED: readonly EffectStatus[] = ['ganhou', 'perdeu', 'neutro', 'inconc
 const nicheLabelOf = (obs: Observatory, n: NicheScope) => (n === 'todos' ? 'Todos' : obs.nicheLabel(n))
 const FMT_LABEL: Record<'all' | Fmt, string> = { all: 'longos e Shorts', long: 'longos', short: 'Shorts' }
 const TYPE_NAME: Record<ChangeType, string> = { title: 'título', thumb: 'thumbnail', desc: 'descrição' }
-const INC_KINDS: Array<[string, (n: number, h: number) => string]> = [
-  ['janela-dupla', (n, h) => (n === 1 ? 'inconclusiva' : 'inconclusivas') + ' por 2 campos em < ' + h + '\u00a0h'],
-  ['versao-curta', () => 'com uma das versões menos de 1 dia no ar'],
-  ['antes-curto', () => 'com o antes curto demais (≤ 2 dias)'],
-  ['outro', n => (n === 1 ? 'inconclusiva' : 'inconclusivas') + ' por outro motivo'],
-]
+type IncKind = NonNullable<EffectResult['inconclusiveKind']>
+/** One line of the ledger per inconclusive kind, in display order. A Record on the engine's union: a new kind without a line here does not compile. */
+const INC_TEXT: Record<IncKind, (n: number, h: number) => string> = {
+  'janela-dupla': (n, h) => (n === 1 ? 'inconclusiva' : 'inconclusivas') + ' por 2 campos em < ' + h + '\u00a0h',
+  'troca-seguinte': n => (n === 1 ? 'inconclusiva' : 'inconclusivas') + ' por outra troca no mesmo vídeo nos 7 dias depois',
+  'versao-curta': () => 'com uma das versões menos de 1 dia no ar',
+  'antes-curto': () => 'com o antes curto demais (≤ 2 dias)',
+  outro: n => (n === 1 ? 'inconclusiva' : 'inconclusivas') + ' por outro motivo',
+}
+const INC_KINDS = (Object.keys(INC_TEXT) as IncKind[]).map(k => [k, INC_TEXT[k]] as [IncKind, (n: number, h: number) => string])
 export const PAGE_STEP = 8
 export const SWIPE_LABEL = { on: 'Salvo no swipe file', off: 'Salvar no swipe file' } as const
 /** Stable accessible name of the swipe button; the state is conveyed by aria-pressed only. */
@@ -336,7 +346,7 @@ export function effectView(obs: Observatory, c: ObsChange): EffectView {
   const e = eff(obs, c), F = obs.fmt, v = obs.video(c.video)!
   const base = {
     status: e.status, demoted: e.status === 'inconclusivo', noBase: e.noBaseText ?? null, method: e.methodLabel ?? null, fallback: e.fallbackText ?? null,
-    caveats: obs.caveats(c.id), notCause: 'Não prova causa' as const, collected: e.collected ?? e.afterDays ?? 0, afterNeeded: obs.RULES.effect.afterDays,
+    caveats: e.inconclusiveKind === 'troca-seguinte' ? [] : obs.caveats(c.id), notCause: 'Não prova causa' as const, collected: e.collected ?? e.afterDays ?? 0, afterNeeded: obs.RULES.effect.afterDays,
   }
   if (e.status === 'sem-antes' || e.status === 'sem-serie') {
     return { ...base, icon: 'none', label: e.label, numbers: null, pp: null, detail: F.labelReason(e.label, e.reason, { sentence: true }), wait: null, spark: null, rows: null, footTitle: null }
@@ -352,7 +362,12 @@ export function effectView(obs: Observatory, c: ObsChange): EffectView {
     n: e.n ?? 0, band: e.band ?? '', methodShort: (e.methodLabel ?? e.method ?? '').replace(/^método: /, ''),
   } : null
   return {
-    ...base, icon, label, numbers: e.numbers ?? null, pp: e.effectPp != null ? F.pp(e.effectPp) : null, detail: cap(e.reason), wait: null,
+    ...base, icon, label, numbers: e.numbers ?? null, pp: e.effectPp != null ? F.pp(e.effectPp) : null, wait: null,
+    // V9 (R53: one text on both screens): the peers of an effect are the channel's N most recent only (R119), so a pinned
+    // video outside them rarely has any in its age band. Say that, in place of the engine's "poucos vídeos (n = …)".
+    detail: v.pinned === true && !v.tracked && e.inconclusiveKind === 'outro' && e.observed != null && (e.n ?? 0) < obs.RULES.effect.minN
+      ? 'Faltam vídeos na mesma faixa de idade entre os ' + obs.channel(c.ch)!.video_limit + ' mais recentes do canal para comparar. É o que costuma acontecer com um vídeo fixado antigo.'
+      : cap(e.reason),
     spark: rows ? sparkView(obs, e) : null, rows,
     footTitle: rows ? 'Esperado: ' + pl(e.n ?? 0, 'vídeo', 'vídeos') + ' ' + (v.fmt === 'long' ? 'longos' : 'Shorts') + ' sem troca de ' + obs.channel(c.ch)!.name + ' com ' + (e.band ?? '') : null,
   }
@@ -420,17 +435,23 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
     const meta = [
       (v.fmt === 'long' ? 'Longo' : 'Short') + (durationText(v.dur) ? ', ' + durationText(v.dur) : ''),
       'Publicado ' + D.dmOrDmy(v.pub),
-      F.num(v.views) + ' views' + (growth && typeof growth.to === 'number' ? ', até o registro diário de ' + D.dmhm(growth.to) : ''),
+      // D11 / D15: no count for a video outside the observed ones (it is frozen) nor for a pinned one not checked since the pin (the count
+      // is from before it); a pinned video outside the tracked ones says when its count was read
+      ...(!isObserved(v) || v.pinState === 'aguardando-primeira' || v.pinState === 'sem-resposta' ? []
+        : v.pinned === true && !v.tracked && v.checkedAt != null ? [F.num(v.views) + ' views em ' + D.dmhm(v.checkedAt)]
+          : [F.num(v.views) + ' views' + (growth && typeof growth.to === 'number' ? ', até o registro diário de ' + D.dmhm(growth.to) : '')]),
     ]
-    if (all.length > 1) meta.push(all.length + ' trocas em 90 dias')
+    if (all.length > 1) meta.push(all.length + ' trocas registradas')
     const saw = saved.has(c.id)
     return {
       id: c.id, type: c.type, typeLabel: c.typeLabel,
       video: {
         id: v.id, title: v.title, channel: ch.name, ago: F.age(v),
         historyHref: obs.link.historico(v.id, { from: 'mudancas', ids: visibleVideos, back }), url: v.url,
-        color: ch.color, ini: ch.ini, ink: inkOn(ch.color), niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null, meta,
+        color: ch.color, ini: ch.ini, avatar: ch.avatar ?? null, ink: inkOn(ch.color), niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null, meta,
         syncNote: ch.sync.problemPhrase ? cap(ch.sync.problemPhrase) : null,
+        pin: pinViewOf(obs, v, { withOut: true }), observed: isObserved(v),
+        outNote: isObserved(v) ? null : 'Fora dos ' + ch.video_limit + ' mais recentes de ' + ch.name + ': o efeito destas trocas não é medido.',
       },
       when: {
         text: whenText(obs, c), prec: c.prec,
@@ -465,7 +486,7 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
   const reverts = pool.filter(c => c.revertTo && decided(c))
   const withCav = pool.filter(c => !c.revertTo && hasCav(c) && decided(c))
   const inc = pool.filter(c => eff(obs, c).status === 'inconclusivo')
-  const incKind = (c: ObsChange) => { const k = eff(obs, c).inconclusiveKind ?? 'outro'; return INC_KINDS.some(x => x[0] === k) ? k : 'outro' }
+  const incKind = (c: ObsChange): IncKind => eff(obs, c).inconclusiveKind ?? 'outro'
   const inconclusiveByType: Record<string, number> = {}
   for (const [k] of INC_KINDS) inconclusiveByType[k] = inc.filter(c => incKind(c) === k).length
   const noVer = pool.filter(c => { const s = eff(obs, c).status; return !DECIDED.includes(s) && s !== 'inconclusivo' })

@@ -3,11 +3,9 @@
  * searchParams, so the niche/tab-dependent chrome is rendered per page). Server actions go down as props.
  */
 import type { ReactNode } from 'react'
-import { getSiteContext } from '@/lib/cms/site-context'
-import { createObservatory, type Observatory } from '@/lib/youtube/observatorio'
+import type { Observatory } from '@/lib/youtube/observatorio'
 import type { NicheScope } from '@/lib/youtube/observatorio/niche'
-import { loadDataset } from '@/lib/youtube/observatorio/load'
-import { observatoryNow } from '@/lib/youtube/observatorio/now'
+import { openObservatoryPage } from './page-data'
 import { setUserNiche } from '../niche-actions'
 import { syncCompetitorsNow } from '../actions'
 import { askForjaReading } from '../forja-actions'
@@ -30,7 +28,7 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   readingCopy?: string | null
 }) {
   const resolved = await resolveNiche(searchParams)
-  const engine = obs ?? createObservatory(await loadDataset({ siteId: (await getSiteContext()).siteId, now: observatoryNow() }))
+  const engine = obs ?? (await openObservatoryPage()).obs
   // resolveNiche only knows the FORM; the engine knows the site's niches. A niche that does not exist (a saved one that was
   // removed, a stale link) shows Todos, without error, and a ?niche= naming it is dropped from the URL like an invalid one.
   const wanted = nicheOverride ?? resolved.niche, niche = engine.scopeOf(wanted)
