@@ -39,7 +39,7 @@ describe('HistoricoScreen', () => {
     expect(forbiddenVocabulary(root)).toEqual([])
     expect(brokenLinks(root)).toEqual([])
     // Task 35: the forja is the screen's single filled button (solid) in the video header
-    const btns = [...root.querySelectorAll('.vhead .actions button')]
+    const btns = [...root.querySelectorAll('.vhead .actions .frow button')]
     expect(btns.map(b => b.id)).toEqual(['askForja'])
     expect(btns[0]).toHaveClass('forja-solid')
     expect(btns[0]!.textContent).toMatch(/Pedir (nova )?leitura à forja|Pedido em andamento/)
@@ -136,10 +136,16 @@ describe('HistoricoScreen', () => {
     expect(screen.getByRole('link', { name: 'Voltar para Mudanças' })).toBeTruthy()
   })
 
-  it('untracked video: no curve nor versions, link to the channel', () => {
+  it('untracked video (R117): the notice, the stored versions, no curve and nothing about views', () => {
     const { root } = mount(PICK.untr)
-    expect(root.querySelector('.timeline')).toBeNull()
-    expect(root.querySelector('[data-untracked]')!.textContent).toMatch(/^Vídeo fora dos acompanhados\./)
+    const notice = root.querySelector('[data-untracked]')!
+    expect(notice.textContent).toMatch(/^Este vídeo está fora dos \d+ mais recentes acompanhados de .+\. Mostramos o histórico de títulos, thumbnails e descrições guardado\. O gráfico de views só aparece para vídeos acompanhados ou fixados\.$/)
+    expect(root.querySelector('.timeline svg.hv-chart, .timeline .empty-chart')).toBeNull()
+    expect(root.querySelector('.timeline .lanes')).not.toBeNull()
+    expect(root.querySelector('.lane-axis.fx-axis')).not.toBeNull()
+    expect(root.querySelector('#hv-compare')).toBeNull()
+    // the facts block (the button's hint, in .actions, explains what a pin does and names the views chart)
+    expect(root.querySelector('.vhead .vm')!.textContent).not.toMatch(/views|multiplicador|sincroniza/i)
   })
 
   it('a video of another niche toasts "Nicho mudou para …"', async () => {

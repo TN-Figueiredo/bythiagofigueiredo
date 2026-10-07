@@ -4,7 +4,7 @@
  * the tooltip (port of renderChart/renderLanes/legend). Pixel mapping only; the numbers and texts come from the view model.
  */
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { ChartView, ComparisonView, LaneType, LaneView, LegendItem, MarkerView } from './view-model'
+import type { ChartView, ComparisonView, LaneType, LaneView, LanesAxisView, LegendItem, MarkerView } from './view-model'
 import { Lanes, type Geom, type Hl } from './lanes'
 import { HIcon, TYPE_COLOR } from './icons'
 import { Thumb } from './thumb'
@@ -19,10 +19,23 @@ export function geomOf(w: number, chart: ChartView): Geom {
   return { w, H, x: h => (h <= B0 ? PADL + (h / B0) * preW : PADL + preW + ((h - B0) / (H - B0)) * (pw - preW)) }
 }
 
+/** Linear geometry of the lanes when there is no chart (R117): from the first stored version to the last check. */
+export function geomOfAxis(w: number, a: LanesAxisView): Geom {
+  const pw = w - PADL - PADR, span = Math.max(1e-9, a.toH - a.fromH)
+  return { w, H: a.toH, x: h => PADL + Math.min(1, Math.max(0, (h - a.fromH) / span)) * pw }
+}
+/** Which tick labels fit: the first and the last always; a middle one when it is at least `gap` px from its shown neighbours. */
+export function shownTicks(px: number[], gap = 64): boolean[] {
+  const n = px.length, show = px.map((_, i) => i === 0 || i === n - 1)
+  let last = px[0] ?? 0
+  for (let i = 1; i < n - 1; i++) if (px[i]! - last >= gap && px[n - 1]! - px[i]! >= gap) { show[i] = true; last = px[i]! }
+  return show
+}
+
 interface TipState { m: MarkerView; type: LaneType; px: number; laneTop: number }
 
-export function Timeline({ chart, lanes, legend, pair, hl, onHl, onSelectPair, onGoVersion }: {
-  chart: ChartView; lanes: LaneView[]; legend: LegendItem[]; pair: ComparisonView | null
+export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectPair, onGoVersion }: {
+  chart: ChartView | null; axis?: LanesAxisView | null; lanes: LaneView[]; legend: LegendItem[]; pair: ComparisonView | null
   hl: Hl | null; onHl: (h: Hl | null) => void
   onSelectPair: (k: string) => void; onGoVersion: (type: LaneType, i: number) => void
 }) {
@@ -48,7 +61,9 @@ export function Timeline({ chart, lanes, legend, pair, hl, onHl, onSelectPair, o
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onHl])
-  const geom = useMemo(() => geomOf(w, chart), [w, chart])
+  const geom = useMemo(() => (chart ? geomOf(w, chart) : geomOfAxis(w, axis ?? { fromH: 0, toH: 1, ticks: [] })), [w, chart, axis])
+  const ticks = !chart && axis ? axis.ticks.map(t => ({ ...t, px: geom.x(t.h) })) : []
+  const tickShown = shownTicks(ticks.map(t => t.px))
   const { x } = geom
   const hlVer = hl ? lanes.find(l => l.type === hl.type)?.versions[hl.i] ?? null : null
 
@@ -65,11 +80,11 @@ export function Timeline({ chart, lanes, legend, pair, hl, onHl, onSelectPair, o
   return (
     <section className="card timeline" aria-labelledby="hv-tlh">
       <div className="sec-h">
-        <h3 id="hv-tlh">Views por dia e cada troca</h3>
-        <span className="src">{chart.src.bold ? <b>{chart.src.bold}</b> : null}{chart.src.text}</span>
+        <h3 id="hv-tlh">{chart ? 'Views por dia e cada troca' : 'Trocas de título, thumbnail e descrição'}</h3>
+        <span className="src">{chart ? <>{chart.src.bold ? <b>{chart.src.bold}</b> : null}{chart.src.text}</> : 'o eixo vai da primeira versão guardada à última vez em que o vídeo foi conferido'}</span>
       </div>
       <div className="tl-wrap" ref={wrap}>
-        {chart.few && chart.empty ? (
+        {chart ? (chart.few && chart.empty ? (
           <div className="empty-chart" data-empty-chart="">
             <div>
               <strong>{chart.empty.title}</strong>{chart.empty.text}
@@ -80,10 +95,16 @@ export function Timeline({ chart, lanes, legend, pair, hl, onHl, onSelectPair, o
           </div>
         ) : (
           <ChartSvg chart={chart} geom={geom} pair={pair} hlRange={hlVer ? [hlVer.fromH, hlVer.toH] : null} />
-        )}
-        <Lanes lanes={lanes} geom={geom} stale={chart.stale} fewAxis={chart.fewAxis} hl={hl} onHl={onHl}
+        )) : null}
+        <Lanes lanes={lanes} geom={geom} stale={chart?.stale ?? null} fewAxis={chart?.fewAxis ?? null} hl={hl} onHl={onHl}
           onMarker={onMarker} onMarkerClick={m => { if (m.pairK) onSelectPair(m.pairK) }} onClip={onGoVersion} />
-        <div className="vlines" aria-hidden="true" style={chart.few ? undefined : { top: 22 }}>
+        {!chart && ticks.length ? (
+          <div className="lane-axis fx-axis" aria-hidden="true">
+            {ticks.map((t, i) => <i key={'m' + i} style={{ left: t.px }} />)}
+            {ticks.map((t, i) => (tickShown[i] ? <span key={'l' + i} style={{ left: t.px }}>{t.label}</span> : null))}
+          </div>
+        ) : null}
+        <div className="vlines" aria-hidden="true" style={!chart ? { bottom: 24 } : chart.few ? undefined : { top: 22 }}>
           {events.map(({ type, m }) => {
             const on = hl && hl.type === type && hl.ev === m.idx ? ' on' : ''
             return m.win
@@ -99,7 +120,7 @@ export function Timeline({ chart, lanes, legend, pair, hl, onHl, onSelectPair, o
       <div className="legend" data-legend="">
         {legend.map((l, i) => <LegendEntry key={i} l={l} />)}
       </div>
-      {chart.table ? (
+      {chart?.table ? (
         <details className="data">
           <summary>Ver os registros diários em tabela</summary>
           <div className="tw">

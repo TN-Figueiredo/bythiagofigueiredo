@@ -13,6 +13,7 @@ import type { TitleOp } from '@/lib/youtube/observatorio/text-diff'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
 import { mudancasList, effectView, type EffectView } from '../_mudancas/view-model'
 import { buildOutliersView, ages2label } from '../_outliers/view-model'
+import { pinViewOf, type PinView } from '../_chrome/pin-view'
 import { buildForjaView, forjaReadingView, patternsOf, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
 
 export type HistState = 'full' | 'pre' | 'few' | 'none' | 'noreg' | 'untr' | 'old' | 'err' | 'bf' | 'not-found'
@@ -177,8 +178,10 @@ export interface HistoricoView {
   versions: VersionsView | null
   pager: PagerView | null
   state: HistState
-  /** Outside the observed videos. `text` is the sentence the screen prints today; `notice` is the R117 one (non-null only with stored versions). */
-  untracked: { text: string; href: string; notice: string | null } | null
+  /** Outside the observed videos (R117): the notice the screen prints, and the channel's link. */
+  untracked: { notice: string; href: string } | null
+  /** The pin control and the state chips of this video (null: own channel's video, or not found). */
+  pinView: PinView | null
   /** The lanes' own axis: non-null only when `chart` is null and there are stored versions. */
   lanesAxis: LanesAxisView | null
   /** Pin state of this video and of its channel (R118); null for an own channel's video and for not-found. */
@@ -246,7 +249,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     const href = backHref(from, from === 'mudancas' ? obs.link.mudancas({ niche: userNiche }) : from === 'outliers' ? obs.link.outliers({ niche: userNiche }) : from === 'canais' ? obs.link.canais({ niche: userNiche }) : obs.link.insights({ niche: userNiche }))
     return {
       video: null, chromeNiche: userNiche, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, compareEmpty: null,
-      versions: null, pager: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, forja: null, forjaCard: null,
+      versions: null, pager: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null,
       crumbs: { from, crumb: FROM_LABEL[from], href, sub: null },
       notFound: { title: 'Vídeo não encontrado: “' + id + '”.', text: 'Ele não está entre os vídeos observados: o link pode estar errado ou o vídeo saiu da lista do canal.', href, back: 'Voltar para ' + FROM_LABEL[from] },
     }
@@ -593,17 +596,19 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   }
   const pin: HistoricoView['pin'] = ch.own ? null
     : { pinned: v.pinned === true, used: ch.pinnedCount ?? obs.videos.filter(x => x.ch === v.ch && x.pinned === true).length, limit: obs.RULES.pinLimit, state: v.pinState ?? null, note: pinNote }
+  const pinView = pinViewOf(obs, v)
 
   const videoOut = { id: v.id, title: v.title, channel: ch.name, niche: v.niche, age: F.age(v), url: v.url, nicheToast }
   const state = stateOf(obs, v, ch, changes)
   if (!observed) {
     // R117 (replaces the display half of R37): what was stored is shown. There is no daily record, so no chart and no
-    // before/after comparison (every change of this video reads 'sem-serie'). `text` is still what the screen prints.
+    // before/after comparison (every change of this video reads 'sem-serie'). The notice says which of the two cases it is.
     const stored = v.thumbs.length > 0 || v.descs.length > 0 || v.titles.some(t => t.id !== v.id + '/title')
-    const text = ch.name + ' tem ' + F.plural(ch.video_limit, 'vídeo acompanhado', 'vídeos acompanhados') + ', os mais recentes; este ficou de fora. Sem registro diário de views e sem versões de título, thumbnail ou descrição para mostrar.'
     const href = obs.link.canais({ channel: v.ch })
-    const common = { video: videoOut, chromeNiche, crumbs, header, chart: null, comparisons: [], defaultPair: null, compareEmpty: null, pager, state, notFound: null, pin, ...forjaOf(obs, v, ch) }
-    if (!stored) return { ...common, lanes: [], legends: {}, versions: null, lanesAxis: null, untracked: { text, href, notice: null } }
+    const common = { video: videoOut, chromeNiche, crumbs, header, chart: null, comparisons: [], defaultPair: null, compareEmpty: null, pager, state, notFound: null, pin, pinView, ...forjaOf(obs, v, ch) }
+    const outside = 'Este vídeo está fora dos ' + ch.video_limit + ' mais recentes acompanhados de ' + ch.name + '.'
+    const noChart = 'O gráfico de views só aparece para vídeos acompanhados ou fixados.'
+    if (!stored) return { ...common, lanes: [], legends: {}, versions: null, lanesAxis: null, untracked: { href, notice: outside + ' Não há títulos, thumbnails nem descrições guardados dele. ' + noChart } }
     const axisFrom = Math.max(pub, Math.min(...[...v.titles, ...v.thumbs, ...v.descs].map(x => (lateObs(x) ? obsSince! : startMs(x)))))
     const tick = (ms: number) => ({ h: hx(ms), label: dmhmY(ms) }) // D14: DD/MM HH:MM, never the hour-only form
     const ticks = [tick(axisFrom), ...changes.filter(c => c.at > axisFrom && c.at < endNow).map(c => tick(c.at)), tick(endNow)]
@@ -614,10 +619,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       legends: { '': laneLegend() },
       versions,
       lanesAxis: { fromH: hx(axisFrom), toH: hx(endNow), ticks },
-      untracked: {
-        text, href,
-        notice: 'Este vídeo está fora dos ' + ch.video_limit + ' mais recentes acompanhados de ' + ch.name + '. Mostramos o histórico de títulos, thumbnails e descrições guardado. O gráfico de views só aparece para vídeos acompanhados ou fixados.',
-      },
+      untracked: { href, notice: outside + ' Mostramos o histórico de títulos, thumbnails e descrições guardado. ' + noChart },
     }
   }
 
@@ -773,7 +775,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   return {
     video: videoOut, chromeNiche, crumbs, header, chart, lanes, legends, comparisons, defaultPair,
     compareEmpty: pairs.length ? null : endDot(watchText()) + ' Se o canal trocar título, thumbnail ou descrição, a troca aparece na curva acima e entra em Mudanças.',
-    versions, pager, state, untracked: null, lanesAxis: null, pin, notFound: null, ...forjaOf(obs, v, ch),
+    versions, pager, state, untracked: null, lanesAxis: null, pin, pinView, notFound: null, ...forjaOf(obs, v, ch),
   }
 }
 

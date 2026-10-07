@@ -11,6 +11,7 @@ import { buildHistoricoView } from '../../_historico/view-model'
 import { HistoricoScreen } from '../../_historico/historico-screen'
 import '../../_historico/historico.css'
 import { askForjaReading, cancelForjaReading } from '../../forja-actions'
+import { pinVideo, unpinVideo } from '../../actions'
 
 export const metadata = { title: 'Histórico do vídeo · Competidores' }
 export const dynamic = 'force-dynamic'
@@ -39,7 +40,7 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
   return (
     <ObservatoryChromeServer tab={view.crumbs.from} searchParams={sp} obs={obs} coworkFor="historico"
       nicheOverride={view.chromeNiche !== niche ? view.chromeNiche : undefined} forja={view.forja}>
-      <HistoricoScreen view={view} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} />
+      <HistoricoScreen view={view} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} onPin={pinVideo} onUnpin={unpinVideo} />
     </ObservatoryChromeServer>
   )
 }

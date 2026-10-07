@@ -64,9 +64,8 @@ describe('R117: vídeo fora dos observados com versões guardadas', () => {
     expect(v.versions!.titles.items).toHaveLength(2)
     expect(v.header!.counts).toEqual([])
   })
-  it('o aviso diz o que é mostrado, sem data inventada; a frase da tela de hoje não muda', () => {
+  it('o aviso diz o que é mostrado, sem data inventada', () => {
     expect(v.untracked!.notice).toBe(NOTICE)
-    expect(v.untracked!.text).toMatch(/os mais recentes; este ficou de fora/)
     expect(v.untracked!.href).toContain('channel=ch1')
   })
   it('a versão corrente termina na última conferência, nunca em "agora"', () => {
@@ -101,14 +100,14 @@ describe('R117: vídeo fora dos observados com versões guardadas', () => {
 
 describe('R117: vídeo fora dos observados SEM versão guardada (o dado não existe)', () => {
   const v = buildHistoricoView(build(), 'b', {})
-  it('continua com a frase honesta de hoje, sem aviso de histórico, sem faixas', () => {
+  it('o aviso diz que não há nada guardado; sem faixas', () => {
     expect(v.state).toBe('untr')
     expect(v.chart).toBeNull()
     expect(v.lanes).toEqual([])
     expect(v.versions).toBeNull()
     expect(v.lanesAxis).toBeNull()
-    expect(v.untracked!.notice).toBeNull()
-    expect(v.untracked!.text).toMatch(/sem versões de título, thumbnail ou descrição para mostrar\.$/)
+    expect(v.untracked!.notice).toBe('Este vídeo está fora dos 10 mais recentes acompanhados de Canal Um. Não há títulos, thumbnails nem descrições guardados dele. O gráfico de views só aparece para vídeos acompanhados ou fixados.')
+    expect('text' in v.untracked!).toBe(false)
   })
 })
 
@@ -263,5 +262,23 @@ describe('vídeo fixado antigo', () => {
   })
   it('o estado de fixar: fixado, 1 de RULES.pinLimit', () => {
     expect(v.pin).toEqual({ pinned: true, used: 1, limit: RULES.pinLimit, state: 'ativo', note: null })
+  })
+})
+
+describe('pinView: o que a tela precisa para desenhar o controle e os selos', () => {
+  it('fora dos observados: controle de fixar, sem selo; fixado fora dos N: dois selos', () => {
+    expect(buildHistoricoView(build({ versions: TWO }), 'b', {}).pinView).toMatchObject({ videoId: 'b', pinned: false, chips: [] })
+    expect(buildHistoricoView(build({ pinned: true, versions: TWO, daily: FIVE_DAYS }), 'b', {}).pinView!.chips.map(c => c.kind)).toEqual(['fixado', 'fora-dos-n'])
+  })
+  it('vídeo não encontrado: sem pinView', () => {
+    expect(buildHistoricoView(build(), 'sumiu', {}).pinView).toBeNull()
+  })
+})
+
+describe('pinView do fixado que o YouTube não devolveu', () => {
+  it('selo próprio no lugar do "conferido a cada 6 h"', () => {
+    const PIN = NOW - 5 * H
+    const x = buildHistoricoView(build({ pinned: true, pinnedAt: PIN, checked: iso(PIN - 60_000), versions: TWO }), 'b', {})
+    expect(x.pinView!.chips.map(c => [c.kind, c.how])).toEqual([['sem-resposta', 'o YouTube não devolveu este vídeo'], ['fora-dos-n', null]])
   })
 })

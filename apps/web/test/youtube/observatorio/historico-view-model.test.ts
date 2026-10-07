@@ -275,8 +275,6 @@ describe('historico view model', () => {
     const ch = obs.channel(obs.video(PICK.untr)!.ch)!
     expect(v.chart).toBeNull()
     expect(v.untracked!.href).toBe(obs.link.canais({ channel: ch.id }))
-    // what today's screen still prints; the interface task replaces it with `notice`
-    expect(v.untracked!.text).toMatch(/os mais recentes; este ficou de fora/)
     expect(v.untracked!.notice).toBe('Este vídeo está fora dos ' + ch.video_limit + ' mais recentes acompanhados de ' + ch.name + '. Mostramos o histórico de títulos, thumbnails e descrições guardado. O gráfico de views só aparece para vídeos acompanhados ou fixados.')
     expect(v.lanes.map(l => l.versions.length)).toEqual([1, 1, 1])
     expect(v.versions!.titles.items).toHaveLength(1)
