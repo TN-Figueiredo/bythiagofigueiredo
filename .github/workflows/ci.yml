@@ -134,7 +134,10 @@ jobs:
       # with local npx resolution when bumping.
       - run: npx supabase@2.98.2 start --exclude gotrue,realtime,imgproxy --ignore-health-check
       - run: npx supabase@2.98.2 db reset --local
-      - run: HAS_LOCAL_DB=1 npm test --workspace=apps/web -- integration/
+      # Um arquivo por vez: com 4 processos em paralelo o gateway do Supabase da CI devolvia 502
+      # ("An invalid response was received from the upstream server") num teste diferente a cada
+      # execução — 5 de 6 tentativas em 07/10. Em série a pasta roda em ~85 s localmente.
+      - run: HAS_LOCAL_DB=1 npm test --workspace=apps/web -- integration/ --no-file-parallelism
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           # GoTrue is excluded from the Supabase start above, so suites that need the live
