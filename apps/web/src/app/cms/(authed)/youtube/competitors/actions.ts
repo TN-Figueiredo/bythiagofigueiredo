@@ -385,10 +385,10 @@ export async function syncCompetitorsNow(): Promise<SyncNowResult> {
   return { ok: ok.length > 0, text: toast.text, problems, outOfRound, toast }
 }
 
-const PIN_DENIED: PinResult = { ok: false, kind: 'denied', error: 'Você não tem permissão para fixar vídeos neste site.' }
+const PIN_DENIED: PinResult = { ok: false, kind: 'denied', error: 'Você não tem permissão para fixar ou desafixar vídeos neste site. Se a sessão expirou, entre de novo.' }
 const PIN_GONE: PinResult = { ok: false, kind: 'denied', error: 'Este vídeo não existe mais no Observatório.' }
 const PIN_FAILED: PinResult = { ok: false, kind: 'failed', error: 'Não foi possível fixar agora. Tente de novo.' }
-const UNPIN_FAILED: PinResult = { ok: false, kind: 'failed', error: 'Não foi possível deixar de acompanhar agora. Tente de novo.' }
+const UNPIN_FAILED: PinResult = { ok: false, kind: 'failed', error: 'Não foi possível desafixar agora. Tente de novo.' }
 interface PinTarget { id: string; channelId: string; channelName: string; pinnedAt: string | null }
 
 /**
@@ -406,7 +406,7 @@ async function pinTarget(supabase: ReturnType<typeof getSupabaseServiceClient>, 
 }
 
 /**
- * "Continuar acompanhando" (R118): pins a competitor video so it stays observed after it falls out of the channel's
+ * "Fixar vídeo" (R118): pins a competitor video so it stays observed after it falls out of the channel's
  * video_limit. The cap is enforced in the database (pin_competitor_video locks the channel row, so two simultaneous
  * pins cannot both pass); the number itself is RULES.pinLimit, handed over on every call. Never unpins another one.
  */
@@ -424,7 +424,7 @@ export async function pinVideo(videoId: string): Promise<PinResult> {
     // an answer without the count is "could not check": the sentence never invents a number
     if (typeof d.pinned !== 'number') return PIN_FAILED
     const name = typeof d.name === 'string' && d.name ? d.name : 'este canal'
-    return { ok: false, kind: 'cap', error: `Sem vagas: ${d.pinned} de ${RULES.pinLimit} vídeos fixados em ${name}. Deixe de acompanhar um para fixar outro.` }
+    return { ok: false, kind: 'cap', error: `Sem vagas: ${d.pinned} de ${RULES.pinLimit} vídeos fixados em ${name}. Desafixe um para fixar outro.` }
   }
   // anything but an explicit ok is a failure: an unknown answer is never "pinned"
   if (d.status !== 'ok') return PIN_FAILED
@@ -432,7 +432,7 @@ export async function pinVideo(videoId: string): Promise<PinResult> {
   return { ok: true }
 }
 
-/** "Deixar de acompanhar": unpins. The stored history stays (R120); only the daily record and the every-sync check stop. */
+/** "Desafixar": unpins. The stored history stays (R120); only the daily record and the every-sync check stop. */
 export async function unpinVideo(videoId: string): Promise<PinResult> {
   let who: { siteId: string; userId: string }
   try { who = await requireEditUser() } catch { return PIN_DENIED }

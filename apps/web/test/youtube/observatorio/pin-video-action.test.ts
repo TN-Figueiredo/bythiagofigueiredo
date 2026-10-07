@@ -53,11 +53,11 @@ async function load(o: Opts = {}) {
   const opArgs = (c: Call, op: string) => c.ops.filter(x => x[0] === op).map(x => x[1])
   return { pinVideo, unpinVideo, calls, order, rpcCalls, revalidatePath, updates, opArgs }
 }
-const DENIED = { ok: false, kind: 'denied', error: 'Você não tem permissão para fixar vídeos neste site.' }
+const DENIED = { ok: false, kind: 'denied', error: 'Você não tem permissão para fixar ou desafixar vídeos neste site. Se a sessão expirou, entre de novo.' }
 const GONE = { ok: false, kind: 'denied', error: 'Este vídeo não existe mais no Observatório.' }
 const PIN_FAILED = { ok: false, kind: 'failed', error: 'Não foi possível fixar agora. Tente de novo.' }
-const UNPIN_FAILED = { ok: false, kind: 'failed', error: 'Não foi possível deixar de acompanhar agora. Tente de novo.' }
-const FULL = { ok: false, kind: 'cap', error: `Sem vagas: ${RULES.pinLimit} de ${RULES.pinLimit} vídeos fixados em Canal Um. Deixe de acompanhar um para fixar outro.` }
+const UNPIN_FAILED = { ok: false, kind: 'failed', error: 'Não foi possível desafixar agora. Tente de novo.' }
+const FULL = { ok: false, kind: 'cap', error: `Sem vagas: ${RULES.pinLimit} de ${RULES.pinLimit} vídeos fixados em Canal Um. Desafixe um para fixar outro.` }
 const PINNED = { id: VID, competitor_channel_id: CH, pinned_at: new Date(Date.now() - 864e5).toISOString() }
 
 const rpcOf = (data: unknown) => ({ rpc: { data, error: null } })
@@ -186,6 +186,14 @@ describe('nenhum resultado carrega código cru nem texto do banco', () => {
             expect(r.error).toMatch(/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ].*\.$/) // a whole sentence: capital first, final stop
           } else expect(r).toEqual({ ok: true })
         }
+      }
+    }
+  })
+  it('vocabulário: nenhuma frase chama o fixado de "acompanhado"', async () => {
+    for (const o of CASES) {
+      for (const which of ['pinVideo', 'unpinVideo'] as const) {
+        const r = await (await load(o))[which](VID)
+        if (!r.ok) expect(r.error).not.toMatch(/acompanh/i)
       }
     }
   })
