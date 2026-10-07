@@ -4,6 +4,7 @@ import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { VariantDbEntry } from '@/lib/youtube/ab-types'
 import { endAbTest } from '../actions'
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import { Square, X } from 'lucide-react'
@@ -20,7 +21,10 @@ type EndOption = 'leading' | 'original' | 'archive'
 export function AbEndTestDialog({ testId, variants, confidenceThreshold, onClose }: AbEndTestDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [selected, setSelected] = useState<EndOption>('leading')
+  // Degrau "administrar o site": aplicar a variante líder no canal é só de quem administra.
+  const canAdminSite = useCanAdminSite()
+  const [selected, setSelected] = useState<EndOption>(canAdminSite ? 'leading' : 'original')
+  const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
 
   useModalFocusTrap(dialogRef, true, onClose)
@@ -40,19 +44,23 @@ export function AbEndTestDialog({ testId, variants, confidenceThreshold, onClose
 
   function handleConfirm() {
     startTransition(async () => {
-      if (selected === 'leading' && leadingVariant && !leadingVariant.is_original) {
-        await endAbTest(testId, leadingVariant.id)
-      } else if (selected === 'original' && originalVariant) {
-        await endAbTest(testId, originalVariant.id)
-      } else {
-        await endAbTest(testId)
+      const result =
+        selected === 'leading' && leadingVariant && !leadingVariant.is_original
+          ? await endAbTest(testId, leadingVariant.id)
+          : selected === 'original' && originalVariant
+            ? await endAbTest(testId, originalVariant.id)
+            : await endAbTest(testId)
+      if (!result.ok) {
+        // O servidor é a verdade: a recusa aparece escrita, o diálogo não fecha como se tivesse dado certo.
+        setError(result.error ?? 'Não foi possível encerrar o teste.')
+        return
       }
       router.refresh()
       onClose()
     })
   }
 
-  const options: Array<{ value: EndOption; title: string; desc: string; thumb?: string | null }> = [
+  const allOptions: Array<{ value: EndOption; title: string; desc: string; thumb?: string | null }> = [
     {
       value: 'leading',
       title: 'Aplicar variante lider',
@@ -71,6 +79,7 @@ export function AbEndTestDialog({ testId, variants, confidenceThreshold, onClose
       desc: 'Encerra o teste e mantem o que esta no ar',
     },
   ]
+  const options = canAdminSite ? allOptions : allOptions.filter((o) => o.value !== 'leading')
 
   return (
     <YtPortal>
@@ -147,6 +156,14 @@ export function AbEndTestDialog({ testId, variants, confidenceThreshold, onClose
                 </label>
               ))}
             </div>
+            {!canAdminSite && (
+              <div className="mt-[12px] text-cms-text-dim">
+                <AdminOnlyNote action="aplicar a variante líder no canal" />
+              </div>
+            )}
+            {error && (
+              <p role="alert" className="mt-[12px] text-[12.5px] text-cms-red m-0">{error}</p>
+            )}
           </div>
 
           {/* Footer */}

@@ -6,6 +6,7 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { put } from '@vercel/blob'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { denyUnlessSiteAdmin, requireSiteAdminScope, siteAdminOnlyMessage } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { Database } from '@/types/database.types'
 import { AB_TEST_CONFIG_DEFAULTS, VARIANT_LABELS, DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
@@ -889,6 +890,11 @@ export async function endAbTest(
   testId: string,
   winnerId?: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Degrau "administrar o site": aplicar uma variante vencedora troca o thumbnail no canal de
+  // verdade. A pergunta é feita no topo (antes de qualquer service client, falha fechado); a
+  // recusa sai assim que se sabe que o vencedor NÃO é o original. Encerrar restaurando o
+  // original (com ou sem `winnerId`) segue com a editora.
+  const siteAdmin = winnerId ? (await requireSiteAdminScope((await getSiteContext()).siteId)).ok : false
   let siteId: string
   try {
     siteId = await requireEditAccess()
@@ -921,6 +927,9 @@ export async function endAbTest(
   if (winnerId) {
     const winnerExists = variants.some(v => v.id === winnerId)
     if (!winnerExists) return { ok: false, error: 'Winner variant does not belong to this test' }
+    if (!siteAdmin && !variants.find(v => v.id === winnerId)?.is_original) {
+      return { ok: false, error: siteAdminOnlyMessage('encerrar um teste A/B aplicando um vencedor no canal') }
+    }
   }
 
   const targetVariant = winnerId
@@ -1183,6 +1192,10 @@ export async function updateTextVariant(
 // ---------------------------------------------------------------------------
 
 export async function forceRotate(testId: string): Promise<{ ok: boolean; error?: string }> {
+  // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
+  // service client; falha fechado.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'forçar a rotação de um teste A/B no canal')
+  if (denied) return denied
   let siteId: string
   try {
     siteId = await requireEditAccess()
@@ -1299,6 +1312,10 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
 export async function applyWinnerNow(
   testId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
+  // service client; falha fechado.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'aplicar o vencedor de um teste A/B no canal')
+  if (denied) return denied
   let siteId: string
   try {
     siteId = await requireEditAccess()
@@ -1466,6 +1483,10 @@ export async function cancelGracePeriod(
 export async function revertWinner(
   testId: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
+  // service client; falha fechado.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'reverter o vencedor de um teste A/B no canal')
+  if (denied) return denied
   let siteId: string
   try {
     siteId = await requireEditAccess()

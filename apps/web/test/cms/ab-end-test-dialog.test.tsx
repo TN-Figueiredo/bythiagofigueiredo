@@ -1,4 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
+
+// Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
+const siteAdmin = vi.hoisted(() => ({ value: true }))
+vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
+  useCanAdminSite: () => siteAdmin.value,
+}))
 import { render, screen, fireEvent } from '@testing-library/react'
 
 vi.mock('lucide-react', () => {
