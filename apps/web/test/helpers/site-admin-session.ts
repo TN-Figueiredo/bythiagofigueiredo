@@ -57,6 +57,8 @@ export interface ServiceLog {
   row: Record<string, unknown>
   /** Resposta das RPCs do service client. */
   rpcData: unknown
+  /** `count` devolvido pelas leituras de lista (padrão 7). */
+  count?: number
 }
 
 export function newServiceLog(): ServiceLog {
@@ -70,6 +72,7 @@ export function resetServiceLog(log: ServiceLog, row: Record<string, unknown> = 
   log.rpcs.length = 0
   log.row = row
   log.rpcData = { ok: true }
+  log.count = undefined
 }
 
 const WRITE_OPS = ['update', 'delete', 'insert', 'upsert'] as const
@@ -95,7 +98,7 @@ export function recordingServiceClient(log: ServiceLog) {
     q.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => {
       log.reads.push(table)
       return Promise.resolve(
-        single ? { data: log.row, error: null } : { data: [log.row], error: null, count: 7 },
+        single ? { data: log.row, error: null } : { data: [log.row], error: null, count: log.count ?? 7 },
       ).then(ok, ko)
     }
     return q

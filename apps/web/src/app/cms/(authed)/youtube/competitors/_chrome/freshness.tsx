@@ -1,5 +1,6 @@
 'use client'
 /** Freshness line + "Frescor por canal" popover (port of chrome.js headHtml fresh row + freshPopHtml). */
+import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
 import Link from 'next/link'
 import type { ReactNode, RefObject } from 'react'
 import type { ChromeView } from './view-model'
@@ -44,6 +45,7 @@ export function Freshness({ fresh, tzLabel, open, btnRef, boxRef, onToggle, onSy
 }
 
 function FreshPopover({ fresh, onSync, syncing }: { fresh: ChromeView['fresh']; onSync: () => void; syncing: boolean }) {
+  const canAdminSite = useCanAdminSite()
   const bad = fresh.rows.filter(r => r.bad), ok = fresh.rows.filter(r => !r.bad)
   const row = (r: ChromeView['fresh']['rows'][number]) => (
     <tr key={r.id} className={r.bad ? 'obs-ch-bad' : undefined}>
@@ -70,7 +72,9 @@ function FreshPopover({ fresh, onSync, syncing }: { fresh: ChromeView['fresh']; 
         </table>
       </div>
       <div className="obs-ch-pop-acts">
-        <button className="obs-ch-btn" type="button" onClick={onSync} aria-disabled={syncing || undefined}>{Icon.sync()}Sincronizar concorrentes</button>
+        {canAdminSite
+          ? <button className="obs-ch-btn" type="button" onClick={onSync} aria-disabled={syncing || undefined}>{Icon.sync()}Sincronizar concorrentes</button>
+          : <p role="note" data-testid="admin-only-note" className="obs-ch-sub" style={{ margin: 0 }}>{siteAdminOnlyText('sincronizar todos os concorrentes de uma vez')} Um canal por vez: menu ⋯ em Canais.</p>}
         {bad.length ? <Link className="obs-ch-btn obs-ch-ghost" href={fresh.problemsHref}>Ver os canais com problema</Link> : null}
       </div>
     </div>

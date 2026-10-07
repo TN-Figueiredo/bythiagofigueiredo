@@ -240,6 +240,10 @@ export async function toggleChangeBookmark(key: string): Promise<{ ok: boolean; 
 }
 
 export async function syncFullHistory(channelRowId: string): Promise<{ ok: boolean; error?: string }> {
+  // "Administrar o site" step: the full history of a channel is the expensive sync (API quota).
+  // Asked first, before any service client; fails closed.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'pedir o histórico completo de um canal (gasta cota da API)')
+  if (denied) return denied
   let siteId: string
   try { siteId = await requireEditAccess() } catch { return { ok: false, error: 'forbidden' } }
 
@@ -359,6 +363,10 @@ const SYNC_START_CUTOFF_MS = 30_000
  * the time cutoff turns the channel into a problem. 0 synced is never a success.
  */
 export async function syncCompetitorsNow(): Promise<SyncNowResult> {
+  // "Administrar o site" step: the round over EVERY competitor spends API quota (the daily cron already runs it).
+  // One channel at a time (syncCompetitorNow) stays with the editor. Asked first; fails closed.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'sincronizar todos os concorrentes de uma vez (gasta cota da API)')
+  if (denied) return { ok: false, text: `${denied.error} Você pode sincronizar um canal por vez, em Canais.`, problems: [], outOfRound: [] }
   const started = Date.now()
   let siteId: string
   try { siteId = await requireEditAccess() } catch { return { ok: false, text: 'Sem permissão para sincronizar os concorrentes.', problems: [], outOfRound: [] } }

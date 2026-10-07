@@ -123,6 +123,8 @@ export function YouTubeShell({ children, hoursUntilExpiry }: YouTubeShellProps) 
     bar.scrollTo({ left: Math.max(0, offset), behavior: 'instant' })
   }, [pathname])
 
+  // Degrau "administrar o site": "Sincronizar tudo" gasta cota; a editora sincroniza um canal por vez (no cartão do canal).
+  const canAdminSite = useCanAdminSite()
   const handleSyncAll = () => {
     startTransition(async () => {
       await triggerSync()
@@ -135,15 +137,19 @@ export function YouTubeShell({ children, hoursUntilExpiry }: YouTubeShellProps) 
       <div className="flex items-center justify-between border-b border-cms-border" style={{ padding: '16px 28px' }}>
         <h1 className="display text-[22px] font-semibold text-cms-text">YouTube</h1>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            disabled={isSyncing}
-            onClick={handleSyncAll}
-            className={`btn ghost sm${isSyncing ? ' syncing' : ''}`}
-          >
-            <RefreshCw size={14} aria-hidden="true" />
-            {isSyncing ? 'Sincronizando...' : 'Sincronizar tudo'}
-          </button>
+          {canAdminSite ? (
+            <button
+              type="button"
+              disabled={isSyncing}
+              onClick={handleSyncAll}
+              className={`btn ghost sm${isSyncing ? ' syncing' : ''}`}
+            >
+              <RefreshCw size={14} aria-hidden="true" />
+              {isSyncing ? 'Sincronizando...' : 'Sincronizar tudo'}
+            </button>
+          ) : (
+            <AdminOnlyNote action="sincronizar todos os canais de uma vez" className="text-cms-text-muted" />
+          )}
           <CoworkDeepLink
             instruction={buildCoworkInstruction('youtube-intelligence', {} as Record<string, never>)}
             variant="button"

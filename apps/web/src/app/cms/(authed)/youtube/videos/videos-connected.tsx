@@ -1,5 +1,6 @@
 'use client'
 
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import { isCertainShort } from '@/lib/youtube/short-classifier'
 import React, { useState, useMemo, useTransition } from 'react'
 import Image from 'next/image'
@@ -80,6 +81,8 @@ export function VideosConnected({ videos, channels, categories }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [drawerVideo, setDrawerVideo] = useState<VideoRow | null>(null)
   const [, startTransition] = useTransition()
+  // Degrau "administrar o site": sincronizar todos os canais de uma vez gasta cota.
+  const canAdminSite = useCanAdminSite()
 
   const filtered = useMemo(() => {
     return videos.filter((v) => {
@@ -131,13 +134,17 @@ export function VideosConnected({ videos, channels, categories }: Props) {
             )}
           </p>
         </div>
-        <SyncButton
-          onSync={async () => {
-            startTransition(async () => {
-              await triggerSync()
-            })
-          }}
-        />
+        {canAdminSite ? (
+          <SyncButton
+            onSync={async () => {
+              startTransition(async () => {
+                await triggerSync()
+              })
+            }}
+          />
+        ) : (
+          <AdminOnlyNote action="sincronizar todos os canais de uma vez" className="text-cms-text-muted" />
+        )}
       </div>
 
       {/* ── Filters ── */}
