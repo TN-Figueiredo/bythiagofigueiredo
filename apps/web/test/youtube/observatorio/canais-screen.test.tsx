@@ -206,14 +206,15 @@ describe('CanaisScreen', () => {
     await user.click(screen.getByRole('button', { name: 'Abrir detalhes de Luke Damant' }))
     expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?channel=luke-damant', { scroll: false })
   })
-  it('removing asks first with the texts of canais.html, then calls the action', async () => {
+  it('removing asks first, saying what is deleted, then calls the action', async () => {
     const user = userEvent.setup()
     const onRemove = vi.fn(async () => ({ ok: true }))
     mount({ onRemove })
     await user.click(screen.getByRole('button', { name: 'Mais ações para Luke Damant' }))
     await user.click(screen.getByRole('menuitem', { name: 'Remover canal…' }))
     const dlg = screen.getByRole('dialog', { name: 'Remover Luke Damant?' })
-    expect(within(dlg).getByText('Não dá para desfazer. Se adicionar de novo, a coleta recomeça do zero.')).toBeInTheDocument()
+    // the dialog of the 2026-10-06 mockup (it counts what is deleted); without the count action it says it could not count
+    expect(within(dlg).getByText('Não dá para desfazer: se você adicionar o canal de novo, a coleta recomeça do zero e este histórico não volta.')).toBeInTheDocument()
     await user.click(within(dlg).getByRole('button', { name: 'Remover canal' }))
     expect(onRemove).toHaveBeenCalledWith('luke-damant')
     await waitFor(() => expect(refresh).toHaveBeenCalled())

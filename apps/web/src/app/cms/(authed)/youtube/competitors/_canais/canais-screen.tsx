@@ -22,6 +22,7 @@ import { ChannelDrawer, type DrawerShell } from './channel-drawer'
 import { DrawerForjaBox, DrawerForjaFoot } from './drawer-forja'
 import type { ForjaAsk } from '../_chrome/forja-view-model'
 import { PinProvider, type PinAction } from '../_chrome/pin-kit'
+import { RemoveDialog, type ImpactAnswer } from './remove-dialog'
 import { AddChannelForm, type AddFn } from './add-channel-form'
 import { RowMenu, rowMenuButton } from './row-menu'
 import { NicheEditorDialog, NicheOptionsContext, NichePendingContext, type NichePending } from './niche-editor'
@@ -44,6 +45,8 @@ export interface CanaisScreenProps {
   /** Server actions pinVideo / unpinVideo, for "Desafixar" in the drawer's list of pinned videos. */
   onPin?: PinAction
   onUnpin?: PinAction
+  /** Server action getCompetitorRemovalImpactAction: what removing the channel deletes, asked when the dialog opens. */
+  onRemovalImpact?: (id: string) => Promise<ImpactAnswer>
 }
 
 const UPNEXT = '/cms/up-next'
@@ -73,7 +76,7 @@ function trapTab(e: KeyboardEvent<HTMLElement>) {
   else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
 }
 
-export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin }: CanaisScreenProps) {
+export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
@@ -402,19 +405,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           onRemove={() => askRemove(menuRow.id, rowMenuButton(menuRow.id))} />
       ) : null}
 
-      {confirm ? (
-        <div className="modal on" role="dialog" aria-modal="true" aria-labelledby="cn-cfT" onKeyDown={trapTab}>
-          <div className="box">
-            <h4 id="cn-cfT">Remover {confirm.name}?</h4>
-            <p>O canal sai do observatório e para de sincronizar. Os vídeos, as versões de título, thumbnail e descrição e as views diárias já coletados dele são apagados.</p>
-            <p>Não dá para desfazer. Se adicionar de novo, a coleta recomeça do zero.</p>
-            <div className="acts">
-              <button type="button" className="btn" autoFocus onClick={closeConfirm}>Cancelar</button>
-              <button type="button" className="btn danger" onClick={() => { void doRemove() }}>Remover canal</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {confirm ? <RemoveDialog id={confirm.id} name={confirm.name} onImpact={onRemovalImpact} onCancel={closeConfirm} onConfirm={() => { void doRemove() }} trap={trapTab} /> : null}
 
       {addOpen ? (
         <AddChannelForm view={view} onAdd={onAdd} onClose={closeAdd} trap={trapTab}
