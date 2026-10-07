@@ -282,3 +282,38 @@ describe.skipIf(skipIfNoLocalDb())('increment_invitation_resend: contrato com o 
     expect((await readInvite()).resend_count).toBe(1)
   })
 })
+
+// /admin/users mostrava UUID no lugar do e-mail sempre que o GoTrue não
+// devolvia o usuário. `admin_user_directory` lê auth.users direto — e, por
+// devolver e-mails, só o service role pode chamá-la.
+describe.skipIf(skipIfNoLocalDb())('admin_user_directory: contrato com o banco local', () => {
+  let service: SupabaseClient
+  let userId = ''
+  const stamp = `${Date.now()}-${randomBytes(3).toString('hex')}`
+  const email = `diretorio-${stamp}@example.test`
+
+  beforeAll(async () => {
+    service = getSupabaseServiceClient()
+    userId = await insertAuthUser(email)
+  })
+  afterAll(async () => {
+    if (userId) await deleteAuthUser(userId)
+  })
+
+  it('devolve o e-mail de um usuário que o GoTrue não carrega (linha inserida à mão) e ignora ids desconhecidos', async () => {
+    const res = await service.rpc('admin_user_directory', {
+      p_user_ids: [userId, randomUUID()],
+    })
+    expect(res.error).toBeNull()
+    expect(res.data).toEqual([{ user_id: userId, email, display_name: null }])
+  })
+
+  it('usuário autenticado comum e anônimo não executam (a função devolve e-mails)', async () => {
+    const asUser = clientAs(signUserJwt(userId, 'user').jwt)
+    const denied = await asUser.rpc('admin_user_directory', { p_user_ids: [userId] })
+    expect(denied.error?.code).toBe('42501')
+    const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } })
+    const deniedAnon = await anon.rpc('admin_user_directory', { p_user_ids: [userId] })
+    expect(deniedAnon.error?.code).toBe('42501')
+  })
+})

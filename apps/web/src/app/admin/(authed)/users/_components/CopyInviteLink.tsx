@@ -21,11 +21,11 @@ export function CopyInviteLink({ url }: { url: string }) {
 
   return (
     <span className="inline-flex items-center gap-2">
-      <button type="button" onClick={copy} className="text-blue-600 hover:underline">
+      <button type="button" onClick={copy} className="text-[var(--accent)] underline-offset-2 hover:underline">
         Copiar link do convite
       </button>
       {state === 'copied' && (
-        <span role="status" className="text-xs text-green-700">
+        <span role="status" className="text-xs">
           Link copiado.
         </span>
       )}
@@ -35,7 +35,7 @@ export function CopyInviteLink({ url }: { url: string }) {
           aria-label="Link do convite"
           value={url}
           onFocus={(e) => e.currentTarget.select()}
-          className="w-72 rounded border border-gray-300 px-2 py-1 text-xs"
+          className="w-72 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900"
         />
       )}
     </span>
