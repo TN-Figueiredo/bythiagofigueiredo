@@ -1,5 +1,6 @@
 'use client'
 
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import { useState, useEffect, useRef, useId, useTransition, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -121,6 +122,7 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
   const initialSnapshotRef = useRef<string | null>(null)
 
   const [editData, setEditData] = useState<TypeDrawerData | null>(null)
+  const canAdminSite = useCanAdminSite()
   const [deleteConfirmStep, setDeleteConfirmStep] = useState<null | 'confirm' | 'name-check'>(null)
   const [deleteInfo, setDeleteInfo] = useState<{ subscriberCount: number; editionCount: number } | null>(null)
   const [deleteNameInput, setDeleteNameInput] = useState('')
@@ -882,7 +884,9 @@ export function TypeDrawer({ open, mode, typeId, onClose, locale, strings, exist
               {mode === 'edit' && editData && (
                 <section className="border-t border-gray-800 pt-4">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-red-400 mb-3">{strings.dangerZone}</h3>
-                  {deleteConfirmStep === null ? (
+                  {!canAdminSite ? (
+                    <AdminOnlyNote action="apagar um tipo de newsletter (os assinantes são apagados junto)" className="text-gray-400" />
+                  ) : deleteConfirmStep === null ? (
                     <button
                       type="button"
                       onClick={handleDeleteClick}

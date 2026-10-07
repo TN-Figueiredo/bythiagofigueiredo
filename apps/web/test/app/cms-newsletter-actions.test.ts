@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../../lib/cms/auth-guards', () => ({
   requireSiteAdminForRow: vi.fn().mockResolvedValue({ siteId: 's1' }),
+  // degrau "administrar o site": estes testes rodam como quem administra (o dono)
+  requireSiteAdminScope: () => Promise.resolve({ ok: true, user: { id: 'user-1' } }),
+  siteAdminOnlyMessage: (acao: string) => `Só quem administra o site pode ${acao}.`,
 }))
 
 vi.mock('../../lib/cms/site-context', () => ({

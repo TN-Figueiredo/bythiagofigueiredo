@@ -8,6 +8,7 @@ import { Loader2, Pencil, MoreVertical, Trash2, ArrowRight, Sparkles } from 'luc
 import type { EditionCard, NewsletterType } from '../../_hub/hub-types'
 import type { NewsletterHubStrings } from '../../_i18n/types'
 import { formatRelativeDate } from '../../_hub/hub-utils'
+import { useCanAdminSite } from '@/lib/cms/site-admin-context'
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
   idea: ['draft'],
@@ -121,7 +122,11 @@ export function KanbanCard({ card, confirmed: confirmedProp, strings, types, onR
     }
   }, [contextMenu])
 
-  const allowedTransitions = STATUS_TRANSITIONS[card.status] ?? []
+  // Agendar ou tirar de "agendada" é do degrau "administrar o site": a editora não vê o item.
+  const canAdminSite = useCanAdminSite()
+  const allowedTransitions = (STATUS_TRANSITIONS[card.status] ?? []).filter(
+    (target) => canAdminSite || (target !== 'scheduled' && card.status !== 'scheduled'),
+  )
   const canDelete = card.status === 'idea' || card.status === 'draft'
 
   return (

@@ -65,7 +65,10 @@ vi.mock('@/lib/cms/site-context', () => ({
   getSiteContext: () => Promise.resolve({ siteId: 'site-1', orgId: 'org-1' }),
 }))
 vi.mock('@/lib/cms/auth-guards', () => ({
-  requireSiteAdminForRow: () => Promise.resolve(),
+  requireSiteAdminForRow: () => Promise.resolve({ siteId: 'site-1' }),
+  // degrau "administrar o site": estes testes rodam como quem administra (o dono)
+  requireSiteAdminScope: () => Promise.resolve({ ok: true, user: { id: 'user-1' } }),
+  siteAdminOnlyMessage: (acao: string) => `Só quem administra o site pode ${acao}.`,
 }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({
   requireSiteScope: () => Promise.resolve({ ok: true }),

@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useTransition } from 'react'
 import { toast } from 'sonner'
+import { useCanAdminSite, AdminOnlyNote, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
 import type { ScheduleTabData, ReadyEdition } from '../../_hub/hub-types'
 import { HealthStrip } from '../../_shared/health-strip'
 import { MonthCalendar } from './month-calendar'
@@ -102,6 +103,8 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en', siteTime
   const [, startTransition] = useTransition()
   const [pickerState, setPickerState] = useState<PickerState>({ open: false, date: '', anchorRect: null })
   const [slotPickerState, setSlotPickerState] = useState<SlotPickerLocalState | null>(null)
+  // Agendar envio é do degrau "administrar o site".
+  const canAdminSite = useCanAdminSite()
   const [specialScheduleState, setSpecialScheduleState] = useState<SpecialScheduleState | null>(null)
   const handleTogglePause = (typeId: string, paused: boolean) => {
     startTransition(async () => {
@@ -110,6 +113,10 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en', siteTime
   }
 
   const handleDateClick = (date: string) => {
+    if (!canAdminSite) {
+      toast.error(siteAdminOnlyText('agendar o envio de newsletter'))
+      return
+    }
     if (!data.readyEditions || data.readyEditions.length === 0) {
       toast.info(strings?.schedule.noReadyEditions ?? 'No ready editions to schedule')
       return
@@ -278,6 +285,8 @@ export function ScheduleTab({ data, typeFilter, strings, locale = 'en', siteTime
           ]}
         />
       </SectionErrorBoundary>
+
+      {!canAdminSite && <AdminOnlyNote action="agendar o envio de newsletter" className="self-start text-gray-400" />}
 
       <SectionErrorBoundary sectionName="Calendar">
         <MonthCalendar slots={data.calendarSlots} locale={locale} siteTimezone={siteTimezone} onDateClick={handleDateClick} />

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { TypeDrawer } from './type-drawer'
 import { updateNewsletterType, deleteNewsletterType } from '../actions'
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import type { NewsletterHubStrings } from '../_i18n/types'
 
 interface TypeCardData {
@@ -71,6 +72,8 @@ export function TypeCards({ types, selectedTypeId, currentStatus, locale, drawer
       toast.error(`Failed: ${result.error}`)
     }
   }
+
+  const canAdminSite = useCanAdminSite()
 
   async function handleDelete(type: TypeCardData) {
     const probe = await deleteNewsletterType(type.id)
@@ -167,13 +170,17 @@ export function TypeCards({ types, selectedTypeId, currentStatus, locale, drawer
               >
                 {type.isPaused ? 'Resume' : 'Pause'}
               </button>
-              <button
-                type="button"
-                onClick={() => { handleDelete(type); setContextMenuId(null) }}
-                className="w-full text-left px-3 py-1.5 text-sm text-[var(--cms-red,#ef4444)] hover:bg-[var(--cms-red,#ef4444)]/10"
-              >
-                Delete
-              </button>
+              {canAdminSite ? (
+                <button
+                  type="button"
+                  onClick={() => { handleDelete(type); setContextMenuId(null) }}
+                  className="w-full text-left px-3 py-1.5 text-sm text-[var(--cms-red,#ef4444)] hover:bg-[var(--cms-red,#ef4444)]/10"
+                >
+                  Delete
+                </button>
+              ) : (
+                <div className="px-2 py-1.5 text-cms-text"><AdminOnlyNote action="apagar o tipo" /></div>
+              )}
             </div>
           )}
         </div>

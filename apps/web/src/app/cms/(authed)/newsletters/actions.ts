@@ -7,7 +7,7 @@ import { cookies } from 'next/headers'
 import { createServerClient } from '@tn-figueiredo/auth-nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { requireSiteAdminForRow } from '@/lib/cms/auth-guards'
+import { requireSiteAdminForRow, requireSiteAdminScope, siteAdminOnlyMessage } from '@/lib/cms/auth-guards'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getEmailService } from '@/lib/email/service'
 import { render } from '@react-email/render'
@@ -37,6 +37,49 @@ async function getUserClient() {
       },
     },
   })
+}
+
+// ─── Degrau "administrar o site" ────────────────────────────────────────────
+// Disparo para a base (enviar agora, agendar, reenviar), cancelamento de envio
+// já agendado e exclusões que apagam assinantes/edições enviadas são só de quem
+// administra o site (org_admin/super_admin). Redigir, editar e mandar TESTE
+// continuam com `can_edit_site`.
+
+const SEND_DENIED = { ok: false as const, error: siteAdminOnlyMessage('disparar, agendar ou cancelar o envio de newsletter') }
+const DELETE_SENT_DENIED = { ok: false as const, error: siteAdminOnlyMessage('apagar uma edição agendada ou já enviada') }
+const DELETE_TYPE_DENIED = { ok: false as const, error: siteAdminOnlyMessage('apagar um tipo de newsletter (apaga os assinantes junto)') }
+
+/** Pergunta feita no TOPO, antes de qualquer service client. Falha fechado. */
+async function siteAdminAtTop(): Promise<{ admin: boolean; siteId: string }> {
+  const ctx = await getSiteContext()
+  return { admin: (await requireSiteAdminScope(ctx.siteId)).ok, siteId: ctx.siteId }
+}
+
+/**
+ * Ação SEMPRE restrita sobre uma edição: administra o site da requisição (antes
+ * do service client), pode editar a linha (guarda antigo, lança) e, se a linha
+ * for de outro site, administra esse também.
+ */
+async function requireAdminForEdition(editionId: string): Promise<boolean> {
+  const top = await siteAdminAtTop()
+  if (!top.admin) return false
+  const row = await requireSiteAdminForRow('newsletter_editions', editionId)
+  return row.siteId === top.siteId || (await requireSiteAdminScope(row.siteId)).ok
+}
+
+/**
+ * Ação restrita só em parte dos casos (ex.: cancelar só exige o degrau quando a
+ * edição está agendada). Mesma pergunta no topo; devolve se quem chama
+ * administra o site DA LINHA, para a action decidir depois de ler o status.
+ */
+async function editScopeWithAdminFlag(
+  editionId: string,
+  top?: { admin: boolean; siteId: string },
+): Promise<boolean> {
+  top ??= await siteAdminAtTop()
+  const row = await requireSiteAdminForRow('newsletter_editions', editionId)
+  if (!top.admin) return false
+  return row.siteId === top.siteId || (await requireSiteAdminScope(row.siteId)).ok
 }
 
 // ─── Edition CRUD ───────────────────────────────────────────────────────────
@@ -255,7 +298,7 @@ export async function scheduleEdition(
   editionId: string,
   scheduledAt: string,
 ): Promise<ActionResult & { conflict?: { subject: string; scheduledAt: string } }> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  if (!(await requireAdminForEdition(editionId))) return SEND_DENIED
 
   const parsed = new Date(scheduledAt)
   if (isNaN(parsed.getTime())) {
@@ -312,7 +355,7 @@ export async function scheduleEdition(
 }
 
 export async function cancelEdition(editionId: string): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  const isSiteAdmin = await editScopeWithAdminFlag(editionId)
   const supabase = getSupabaseServiceClient()
 
   const { data: edition } = await supabase
@@ -325,6 +368,8 @@ export async function cancelEdition(editionId: string): Promise<ActionResult> {
   if (!edition || !cancellableStatuses.includes(edition.status)) {
     return { ok: false, error: 'cannot_cancel' }
   }
+  // Cancelar um envio REAL (edição agendada) é do degrau; descartar rascunho não.
+  if (edition.status === 'scheduled' && !isSiteAdmin) return SEND_DENIED
 
   const { error } = await supabase
     .from('newsletter_editions')
@@ -336,7 +381,7 @@ export async function cancelEdition(editionId: string): Promise<ActionResult> {
 }
 
 export async function sendNow(editionId: string): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  if (!(await requireAdminForEdition(editionId))) return SEND_DENIED
   const supabase = getSupabaseServiceClient()
 
   const { data: edition } = await supabase
@@ -629,7 +674,7 @@ export async function scheduleEditionToSlot(
   slotDate: string,
   typeId: string,
 ): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  if (!(await requireAdminForEdition(editionId))) return SEND_DENIED
   const supabase = getSupabaseServiceClient()
 
   // Validate slotDate format
@@ -695,7 +740,7 @@ export async function swapSlotEdition(
   slotDate: string,
   typeId: string,
 ): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', newEditionId)
+  if (!(await requireAdminForEdition(newEditionId))) return SEND_DENIED
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(slotDate)) {
     return { ok: false, error: 'invalid_date_format' }
@@ -726,7 +771,7 @@ export async function scheduleEditionAsSpecial(
   editionId: string,
   scheduledAt: string,
 ): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  if (!(await requireAdminForEdition(editionId))) return SEND_DENIED
 
   const parsed = new Date(scheduledAt)
   if (isNaN(parsed.getTime())) {
@@ -1185,6 +1230,8 @@ export async function deleteNewsletterType(
   opts?: { confirmed?: boolean; confirmText?: string },
 ): Promise<{ ok: true } | { ok: false; error: string; subscriberCount?: number; editionCount?: number }> {
   const ctx = await getSiteContext()
+  // Apaga TODAS as assinaturas e edições do tipo: é exclusão de dados pessoais em lote.
+  if (!(await requireSiteAdminScope(ctx.siteId)).ok) return DELETE_TYPE_DENIED
   const res = await requireSiteScope({ area: 'cms', siteId: ctx.siteId, mode: 'edit' })
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
 
@@ -1388,7 +1435,7 @@ export async function deleteEdition(
   editionId: string,
   opts?: { confirmed?: boolean; confirmText?: string },
 ): Promise<DeleteResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  const isSiteAdmin = await editScopeWithAdminFlag(editionId)
   const supabase = getSupabaseServiceClient()
 
   const { data: edition } = await supabase
@@ -1398,6 +1445,8 @@ export async function deleteEdition(
     .single()
 
   if (!edition) return { ok: false, error: 'not_found' }
+  // Agendada (cancela envio real), enviando ou enviada (histórico irreversível): só quem administra.
+  if (['scheduled', 'sending', 'sent'].includes(edition.status) && !isSiteAdmin) return DELETE_SENT_DENIED
 
   const hasContent = !!(edition.content_html || edition.content_json)
   const isSent = edition.status === 'sent'
@@ -1442,7 +1491,7 @@ export async function deleteEdition(
 // ─── Retry ──────────────────────────────────────────────────────────────────
 
 export async function retryEdition(editionId: string): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  if (!(await requireAdminForEdition(editionId))) return SEND_DENIED
   const supabase = getSupabaseServiceClient()
 
   const { data: edition } = await supabase
@@ -1507,7 +1556,11 @@ export async function moveEdition(
   newStatus: string,
   scheduledFor?: string,
 ): Promise<ActionResult> {
-  await requireSiteAdminForRow('newsletter_editions', editionId)
+  const top = await siteAdminAtTop()
+  // Agendar pelo kanban é disparo para a base: nega antes de tocar no banco.
+  if (newStatus === 'scheduled' && !top.admin) return SEND_DENIED
+  const isSiteAdmin = await editScopeWithAdminFlag(editionId, top)
+  if (newStatus === 'scheduled' && !isSiteAdmin) return SEND_DENIED
   const supabase = getSupabaseServiceClient()
 
   const validStatuses = ['idea', 'draft', 'ready', 'review', 'scheduled', 'cancelled']
@@ -1521,6 +1574,8 @@ export async function moveEdition(
     .eq('id', editionId)
     .single()
   if (!current) return { ok: false, error: 'not_found' }
+  // Tirar uma edição de "agendada" cancela um envio real.
+  if (current.status === 'scheduled' && newStatus !== 'scheduled' && !isSiteAdmin) return SEND_DENIED
 
   const immutableStatuses = ['sending', 'sent']
   if (immutableStatuses.includes(current.status)) {
