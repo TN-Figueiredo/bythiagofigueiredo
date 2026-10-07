@@ -18,7 +18,7 @@ export const DEVIATIONS: Record<string, Deviation & { ruling: string; at14?: Dev
     // at snapshot 14 the reading is still waiting (6 of 7 days) and already knows about the neighbour of 13/10: it warns early
     at14: { drop: ['waitText', 'willBeInconclusive', 'willBeInconclusiveShort'], expect: { status: 'aguardando', willBeInconclusiveShort: 'o vídeo foi trocado de novo dentro dos 7 dias depois' } } },
   'matt-opus55/thumb/3': { ruling: 'R116: matt-opus55/desc/1 changed the same video 3 days earlier, so the days before are 3, not 7',
-    drop: ['beforeDays', 'daily'], expect: { beforeDays: 3, status: 'aguardando' } },
+    drop: ['beforeDays', 'daily', 'beforeCutBy'], expect: { beforeDays: 3, status: 'aguardando', beforeCutBy: 'troca-anterior' } },
 }
 
 describe('effect parity with dados.js', () => {
@@ -34,6 +34,13 @@ describe('effect parity with dados.js', () => {
     if (!d || JSON.stringify(p) === JSON.stringify(o)) return expect(p).toEqual(o)
     expect(without(p, d.drop)).toEqual(without(o, d.drop))
     expect(p).toMatchObject(d.expect)
+  })
+  it('a deviation that drops `daily` still matches the oracle on the change day and the days after', () => {
+    for (const [id, d] of Object.entries(DEVIATIONS)) {
+      if (!d.drop.includes('daily')) continue
+      const p = plain(P.effect(id)).daily as { changeDay: unknown; after: unknown }, o = plain(O.effect(id)).daily as { changeDay: unknown; after: unknown }
+      expect(p.changeDay).toEqual(o.changeDay); expect(p.after).toEqual(o.after)
+    }
   })
   it('every deviation names a change that exists and a ruling', () => {
     const ids = new Set(O.changes.map((c: { id: string }) => c.id))

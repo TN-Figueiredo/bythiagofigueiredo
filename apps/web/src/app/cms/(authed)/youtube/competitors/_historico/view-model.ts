@@ -633,7 +633,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       const pos = (x: number) => ((x * 100 - lo) / (hi - lo)) * 100
       scaleTxt = 'escala ' + F.pct(lo / 100) + ' a ' + F.pct(hi / 100)
       const cDate = (t: string) => { const mm = String(t).match(/(\d{2})\/(\d{2})(?: (\d{2})(?::(\d{2})|h))?/); return mm ? +mm[2]! * 1e6 + +mm[1]! * 1e4 + +(mm[3] || 0) * 100 + +(mm[4] || 0) : 0 }
-      const cav = [...obs.caveats(e.id)].sort((a, b) => cDate(a) - cDate(b))
+      const cav = (e.inconclusiveKind === 'troca-seguinte' ? [] : [...obs.caveats(e.id)]).sort((a, b) => cDate(a) - cDate(b))
       if (q.group.some(g => g.testCompare)) cav.unshift('Alternância compatível com Testar e comparar (teste A/B do YouTube), não confirmada: o YouTube não informa o teste nem o vencedor.')
       full = {
         what: q.e2 ? 'Thumbnail ' + q.labs![0] : q.label,

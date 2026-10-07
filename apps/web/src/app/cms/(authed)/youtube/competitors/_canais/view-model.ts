@@ -402,7 +402,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     if (e.status === 'aguardando') return { vd: 'wait', icon: 'wait', label: 'Aguardando', main: [{ t: `${e.collected ?? 0} de 7 dias coletados, ${e.readyText ?? ''}.` }], sub: e.willBeInconclusive ?? null, subWeak: null }
     if (e.status === 'sem-serie' || e.status === 'sem-antes') return { vd: V[0], icon: V[1], label: V[2], main: [{ t: e.reason }], sub: null, subWeak: null }
     const bd = e.beforeDays ?? 0
-    const antes = /antes/i.test(e.reason || '')
+    const antes = /antes|anterior/i.test(e.reason || '')
     const range = e.iqr && e.iqr[0] != null ? ` Intervalo dos outros vídeos: ${F.pct(e.iqr[0])} a ${F.pct(e.iqr[1] ?? null)}.` : ''
     const meth = e.n ? ` Esperado = variação mediana dos outros vídeos do canal, ${(e.methodFallback && e.fallbackText ? e.fallbackText : `${e.method}, ${e.band}`).replace(/\s*\(n\s*=\s*0\)/, '')}.` : ''
     const main: EffectView['main'] = e.n
@@ -411,7 +411,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     return {
       vd: V[0], icon: V[1], label: V[2], main,
       sub: `Views/dia, 7 dias depois${antes ? '' : ` vs ${bd} ${bd === 1 ? 'dia' : 'dias'} antes`}.${meth}${range} ${cap(F.lcfirst(e.reason || ''))}`,
-      subWeak: bd < 7 && !antes ? `Antes: ${bd} ${bd === 1 ? 'dia' : 'dias'} (a coleta por vídeo começou em ${obs.SERIES_START_LABEL}).` : null,
+      subWeak: bd < 7 && !antes ? `Antes: ${bd} ${bd === 1 ? 'dia' : 'dias'} (${e.beforeCutBy ? 'desde a troca anterior do mesmo vídeo' : `a coleta por vídeo começou em ${obs.SERIES_START_LABEL}`}).` : null,
     }
   }
 

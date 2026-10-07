@@ -340,7 +340,7 @@ export function effectView(obs: Observatory, c: ObsChange): EffectView {
   const e = eff(obs, c), F = obs.fmt, v = obs.video(c.video)!
   const base = {
     status: e.status, demoted: e.status === 'inconclusivo', noBase: e.noBaseText ?? null, method: e.methodLabel ?? null, fallback: e.fallbackText ?? null,
-    caveats: obs.caveats(c.id), notCause: 'Não prova causa' as const, collected: e.collected ?? e.afterDays ?? 0, afterNeeded: obs.RULES.effect.afterDays,
+    caveats: e.inconclusiveKind === 'troca-seguinte' ? [] : obs.caveats(c.id), notCause: 'Não prova causa' as const, collected: e.collected ?? e.afterDays ?? 0, afterNeeded: obs.RULES.effect.afterDays,
   }
   if (e.status === 'sem-antes' || e.status === 'sem-serie') {
     return { ...base, icon: 'none', label: e.label, numbers: null, pp: null, detail: F.labelReason(e.label, e.reason, { sentence: true }), wait: null, spark: null, rows: null, footTitle: null }

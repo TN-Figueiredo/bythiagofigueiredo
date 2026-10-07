@@ -5,6 +5,7 @@ import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import type { Dataset, ObsVideo } from '@/lib/youtube/observatorio/types'
 import { DAY } from '@/lib/youtube/observatorio/time'
+import { buildCanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 
 const BASE = createObservatory(datasetFromOracle(loadOracle()))
 const DECIDED = ['ganhou', 'perdeu', 'neutro']
@@ -62,6 +63,16 @@ describe('R115: outra troca do mesmo vídeo dentro dos 7 dias depois', () => {
     const without = BASE.effectAt(subject.id, cap)!
     expect(withN.status).toBe(without.status); expect(withN.waitText).toBe(without.waitText)
   })
+  it('leitura congelada: vizinha imprecisa VISTA depois do corte não vaza, mesmo com a janela começando antes dele', () => {
+    const ds = withNeighbour(otherField(), 5) // first seen between K+4 and K+5
+    const v = ds.videos.find(x => x.id === subject.video)!, arr = v[otherField()] as Array<{ first_seen: number; prec: string; window: [number, number] | null }>
+    const n = arr[arr.length - 1]!
+    n.prec = '1d'; n.window = [n.first_seen - 2 * DAY, n.first_seen] // the window starts between K+2 and K+3, before the cap
+    const frozen = createObservatory(ds).effectAt(subject.id, K + 3)!, without = BASE.effectAt(subject.id, K + 3)!
+    expect(frozen.waitText).toBe(without.waitText); expect(frozen.willBeInconclusive ?? null).toBe(without.willBeInconclusive ?? null)
+    // and the live reading, which has seen it, does count it
+    expect(createObservatory(ds).effect(subject.id)!.inconclusiveKind).toBe('troca-seguinte')
+  })
   it('aguardando avisa cedo que vai sair inconclusivo', () => {
     const e = createObservatory(withNeighbour(otherField(), 2)).effectAt(subject.id, K + 3)!
     expect(e.status).toBe('aguardando')
@@ -96,13 +107,24 @@ describe('R116: o antes começa na troca anterior do mesmo vídeo', () => {
     const e = createObservatory(withEarlier(otherField(), 5)).effect(subject.id)!
     expect(e.beforeDays).toBe(4)
     expect(e.daily!.before.length).toBe(4)
+    expect(e.beforeCutBy).toBe('troca-anterior')
     expect(['ganhou', 'perdeu', 'neutro', 'inconclusivo']).toContain(e.status)
-    expect(e.inconclusiveKind === 'antes-curto').toBe(false)
+    // with fewer before-days fewer peers qualify: the only inconclusive this case may give is "poucos vídeos" (outro)
+    expect([undefined, 'outro']).toContain(e.inconclusiveKind)
   })
   it('troca anterior 2 dias antes → inconclusivo antes-curto, com o motivo dizendo o campo', () => {
     const e = createObservatory(withEarlier(otherField(), 3)).effect(subject.id)!
     expect(e.status).toBe('inconclusivo'); expect(e.inconclusiveKind).toBe('antes-curto')
     expect(e.reason).toMatch(/^Dias entre a troca anterior do vídeo \((Título|Descrição)\) e esta: 2\. Pouco para comparar\.$/)
+    // the reading reports the clean days it has and gives no number measured across the previous change
+    expect(e.beforeDays).toBe(2); expect(e.daily!.before.length).toBe(2); expect(e.beforeCutBy).toBe('troca-anterior')
+    expect(e.numbers).toBeUndefined(); expect(e.observed).toBeUndefined(); expect(e.effectPp).toBeUndefined()
+  })
+  it('aguardando avisa cedo quando a troca anterior deixa 2 dias ou menos', () => {
+    const e = createObservatory(withEarlier(otherField(), 3)).effectAt(subject.id, K + 3)!
+    expect(e.status).toBe('aguardando')
+    expect(e.willBeInconclusiveShort).toBe('outra troca do vídeo poucos dias antes desta')
+    expect(e.willBeInconclusive).toMatch(/^Dias entre a troca anterior do vídeo/)
   })
   it('troca anterior de outro campo a menos de 48 h continua janela-dupla (a simultânea ganha), nunca sem-antes', () => {
     const e = createObservatory(withEarlier(otherField(), 1)).effect(subject.id)!
@@ -130,8 +152,21 @@ describe('[F5] M-d, the part R115 does not contradict (the mockup test itself is
     expect(es.length).toBeGreaterThan(0)
     for (const e of es) for (const d of e.daily!.before) expect(d.to - d.from).toBeGreaterThanOrEqual(24 * 36e5 - 1)
   })
+  it('[F8] inconclusiveKind exists only on inconclusivo, and always there', () => {
+    for (const c of BASE.changes) { const e = BASE.effect(c.id)!; expect([c.id, e.inconclusiveKind != null]).toEqual([c.id, e.status === 'inconclusivo']) }
+  })
   it('the showcase change still measures 3 days before; the fast video still has no before', () => {
     expect(BASE.effect('matt-opus55/title/1')!.beforeDays).toBe(3)
     expect(BASE.effect('matt-fast-cheap/title/1')!.status).toBe('sem-antes')
+  })
+})
+
+describe('R116 on the Canais drawer: a shorter "antes" names its real cause', () => {
+  it('cut by the previous change → "desde a troca anterior do mesmo vídeo" (another change of the channel may still, rightly, cite the series start)', () => {
+    const obs = createObservatory(withEarlier(otherField(), 5))
+    const e = obs.effect(subject.id)!
+    expect(e.beforeDays).toBe(4)
+    const drawers = ['trocas', 'videos', 'outliers'].map(tab => JSON.stringify(buildCanaisView(obs, { niche: 'todos', limit: 75, channel: subject.ch, tab } as never).drawer ?? null))
+    expect(drawers.some(j => j.includes('Antes: 4 dias (desde a troca anterior do mesmo vídeo).'))).toBe(true)
   })
 })

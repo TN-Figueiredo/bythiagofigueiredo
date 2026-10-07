@@ -30,6 +30,13 @@ describe('ChannelAvatar (R124)', () => {
     expect(container.querySelector('img')).toBeNull()
     expect(container.querySelector('.av')!.textContent).toBe('NR')
   })
+  it('a mesma instância com outra foto dá uma nova chance à imagem (paginador, gaveta, sync que renova a URL)', () => {
+    const { container, rerender } = render(<ChannelAvatar src="https://yt3.ggpht.com/quebrada" ini="NR" color="#B8479C" />)
+    fireEvent.error(container.querySelector('img')!)
+    expect(container.querySelector('img')).toBeNull()
+    rerender(<ChannelAvatar src="https://yt3.ggpht.com/boa=s88" ini="MF" color="#E07B39" />)
+    expect(container.querySelector('img')!.getAttribute('src')).toBe('https://yt3.ggpht.com/boa=s88')
+  })
   it('respeita o elemento e a cor do texto pedidos pela tela', () => {
     const { container } = render(<ChannelAvatar as="div" src={null} ini="NR" color="#B8479C" ink="#fff" />)
     const box = container.querySelector('div.av') as HTMLElement
