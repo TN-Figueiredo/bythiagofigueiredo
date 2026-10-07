@@ -6,6 +6,7 @@ import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { withCronLock, newRunId } from '../../../../../lib/logger'
 import { syncChannel, YouTubeQuotaError } from '@/lib/youtube/sync'
 import { runCompetitorBatch, batchHealth, type BatchResult } from '@/lib/youtube/competitor-sync-batch'
+import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { isInPostingWindow } from '@/lib/youtube/schedule-window'
 import { pollVideoStats, shouldSkipPoll, getLastPollTime, insertPollData } from '@/lib/youtube/ab-polls'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
@@ -146,7 +147,10 @@ export async function GET(req: NextRequest) {
         await recordCronSuccess('sync-youtube-competitors', 'info')
       }
       if (result.synced > 0) revalidatePath('/cms/youtube/competitors', 'layout')
-      return { status: 'ok' as const, mode: 'competitors', ...result, health_written: true }
+      // the cached heavy rows of every site this run wrote to (errored channels keep partial data)
+      const { siteIds, ...summary } = result
+      for (const siteId of siteIds) invalidateObservatory(siteId)
+      return { status: 'ok' as const, mode: 'competitors', ...summary, health_written: true }
     }
 
     let query = supabase

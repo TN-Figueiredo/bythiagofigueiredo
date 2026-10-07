@@ -38,7 +38,7 @@ async function load(o: Opts = {}) {
     q.then = (res: (x: unknown) => unknown) => Promise.resolve(answer(call)).then(res)
     return q
   }
-  const revalidatePath = vi.fn()
+  const revalidatePath = vi.fn(), revalidateTag = vi.fn()
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({
     requireSiteScope: async () => {
@@ -46,12 +46,12 @@ async function load(o: Opts = {}) {
       return o.allowed === false ? { ok: false, reason: 'forbidden' } : o.allowed === 'anon' ? { ok: false, reason: 'unauthenticated' } : { ok: true, user: { id: 'u1' } }
     },
   }))
-  vi.doMock('next/cache', () => ({ revalidatePath }))
+  vi.doMock('next/cache', () => ({ revalidatePath, revalidateTag }))
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { order.push('db'); return { from, rpc: async (name: string, args: unknown) => { rpcCalls.push([name, args]); return o.rpc ?? { data: { status: 'ok', already: false }, error: null } } } } }))
   const { pinVideo, unpinVideo } = await import('@/app/cms/(authed)/youtube/competitors/actions')
   const updates = () => calls.filter(c => has(c, 'update'))
   const opArgs = (c: Call, op: string) => c.ops.filter(x => x[0] === op).map(x => x[1])
-  return { pinVideo, unpinVideo, calls, order, rpcCalls, revalidatePath, updates, opArgs }
+  return { pinVideo, unpinVideo, calls, order, rpcCalls, revalidatePath, revalidateTag, updates, opArgs }
 }
 const DENIED = { ok: false, kind: 'denied', error: 'Você não tem permissão para fixar ou desafixar vídeos neste site. Se a sessão expirou, entre de novo.' }
 const GONE = { ok: false, kind: 'denied', error: 'Este vídeo não existe mais no Observatório.' }
@@ -60,6 +60,8 @@ const UNPIN_FAILED = { ok: false, kind: 'failed', error: 'Não foi possível des
 const FULL = { ok: false, kind: 'cap', error: `Sem vagas: ${RULES.pinLimit} de ${RULES.pinLimit} vídeos fixados em Canal Um. Desafixe um para fixar outro.` }
 const PINNED = { id: VID, competitor_channel_id: CH, pinned_at: new Date(Date.now() - 864e5).toISOString() }
 
+/** The site's cached heavy rows dropped, waiting for the new read. */
+const TAG = [['observatorio:s1', { expire: 0 }]]
 const rpcOf = (data: unknown) => ({ rpc: { data, error: null } })
 const CAP = { status: 'cap', name: 'Canal Um', pinned: RULES.pinLimit }
 
@@ -87,11 +89,14 @@ describe('pinVideo', () => {
     // the count and the write live inside the function (one transaction): the action does neither
     expect(a.calls).toEqual([])
     expect(a.revalidatePath).toHaveBeenCalledWith('/cms/youtube/competitors', 'layout')
+    // pinned_at lives in the cached rows of the channel: without this the screen reloads with the video unpinned
+    expect(a.revalidateTag.mock.calls).toEqual(TAG)
   })
   it('no teto recusa com a frase do limite, com o número que o banco contou, e não revalida', async () => {
     const a = await load(rpcOf(CAP))
     expect(await a.pinVideo(VID)).toEqual(FULL)
     expect(a.revalidatePath).not.toHaveBeenCalled()
+    expect(a.revalidateTag).not.toHaveBeenCalled()
   })
   it('teto sem nome de canal: a frase continua inteira', async () => {
     const r = await (await load(rpcOf({ status: 'cap', name: '', pinned: RULES.pinLimit }))).pinVideo(VID)
@@ -105,11 +110,13 @@ describe('pinVideo', () => {
     const a = await load(rpcOf({ status: 'not_found' }))
     expect(await a.pinVideo(VID)).toEqual(GONE)
     expect(a.revalidatePath).not.toHaveBeenCalled()
+    expect(a.revalidateTag).not.toHaveBeenCalled()
   })
-  it('vídeo já fixado: sucesso, sem revalidar', async () => {
+  it('vídeo já fixado: sucesso, sem revalidar o caminho; o cache do site cai (a tela que pediu pode estar com o pacote antigo)', async () => {
     const a = await load(rpcOf({ status: 'ok', already: true }))
     expect(await a.pinVideo(VID)).toEqual({ ok: true })
     expect(a.revalidatePath).not.toHaveBeenCalled()
+    expect(a.revalidateTag.mock.calls).toEqual(TAG)
   })
   it.each([
     ['erro do banco', { data: null, error: PG }],
@@ -123,6 +130,7 @@ describe('pinVideo', () => {
     const a = await load({ rpc })
     expect(await a.pinVideo(VID)).toEqual(PIN_FAILED)
     expect(a.revalidatePath).not.toHaveBeenCalled()
+    expect(a.revalidateTag).not.toHaveBeenCalled()
   })
 })
 
@@ -131,6 +139,7 @@ describe('unpinVideo', () => {
     const a = await load({ allowed: false, video: PINNED })
     expect(await a.unpinVideo(VID)).toEqual(DENIED)
     expect(a.calls).toEqual([])
+    expect(a.revalidateTag).not.toHaveBeenCalled()
   })
   it('desafixa: zera pinned_at e pinned_by e revalida', async () => {
     const a = await load({ video: PINNED })
@@ -139,30 +148,38 @@ describe('unpinVideo', () => {
     expect(a.opArgs(up!, 'update')[0]![0]).toEqual({ pinned_at: null, pinned_by: null })
     expect(a.opArgs(up!, 'eq')).toEqual([['id', VID], ['competitor_channel_id', CH]])
     expect(a.revalidatePath).toHaveBeenCalledWith('/cms/youtube/competitors', 'layout')
+    expect(a.revalidateTag.mock.calls).toEqual(TAG)
   })
   it('vídeo de outro site não é desafixado', async () => {
     const a = await load({ video: PINNED, channel: null })
     expect(await a.unpinVideo(VID)).toEqual(GONE)
     expect(a.updates()).toEqual([])
+    expect(a.revalidateTag).not.toHaveBeenCalled()
   })
   it('a gravação não alcança linha nenhuma (o vídeo sumiu entre ler e gravar): "não existe mais", sem revalidar', async () => {
     const a = await load({ video: PINNED, updated: [] })
     expect(await a.unpinVideo(VID)).toEqual(GONE)
     expect(a.revalidatePath).not.toHaveBeenCalled()
+    expect(a.revalidateTag).not.toHaveBeenCalled()
   })
   it('a gravação responde sem dado (não dá para saber se gravou): falha, nunca sucesso', async () => {
     const a = await load({ video: PINNED, updated: null })
     expect(await a.unpinVideo(VID)).toEqual(UNPIN_FAILED)
     expect(a.revalidatePath).not.toHaveBeenCalled()
+    expect(a.revalidateTag).not.toHaveBeenCalled()
   })
   it('vídeo que não está fixado: sucesso sem escrita', async () => {
     const a = await load()
     expect(await a.unpinVideo(VID)).toEqual({ ok: true })
     expect(a.updates()).toEqual([])
+    // the screen that asked may hold a stale pack that still shows the pin: the cache goes anyway
+    expect(a.revalidateTag.mock.calls).toEqual(TAG)
   })
-  it('erro ao ler ou ao gravar é falha, com a frase de desafixar', async () => {
+  it('erro ao ler ou ao gravar é falha, com a frase de desafixar, e o cache fica', async () => {
     for (const o of [{ videoError: true }, { video: PINNED, updateError: true }] as Opts[]) {
-      expect(await (await load(o)).unpinVideo(VID)).toEqual(UNPIN_FAILED)
+      const a = await load(o)
+      expect(await a.unpinVideo(VID)).toEqual(UNPIN_FAILED)
+      expect(a.revalidateTag).not.toHaveBeenCalled()
     }
   })
 })

@@ -36,10 +36,27 @@ describe('runCompetitorBatch', () => {
     const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
     expect(await runCompetitorBatch({ apiKey: 'k', batchSize: 5, budgetMs: 1e9, now: () => sp('2026-10-24T15:02:00') })).toMatchObject({ synced: 1, errors: 1 })
   })
+  it('siteIds: os sites com canal sincronizado ou com erro; canal pulado não conta; nada tentado → vazio', async () => {
+    vi.resetModules()
+    vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(async (r: { id: string }) => {
+      if (r.id === 'b') throw new Error('404')
+      if (r.id === 'c') return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0, skipped: true }
+      return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 3 }
+    }) }))
+    const rows = [{ id: 'a', channel_id: 'A', site_id: 's1', last_synced_at: null }, { id: 'a2', channel_id: 'A2', site_id: 's1', last_synced_at: null }, { id: 'b', channel_id: 'B', site_id: 's2', last_synced_at: null }, { id: 'c', channel_id: 'C', site_id: 's3', last_synced_at: null }]
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
+    const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
+    const r = await runCompetitorBatch({ apiKey: 'k', batchSize: 10, budgetMs: 1e9, now: () => sp('2026-10-24T15:02:00') })
+    expect([...r.siteIds].sort()).toEqual(['s1', 's2'])
+    vi.resetModules()
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }) }) }))
+    const again = await import('@/lib/youtube/competitor-sync-batch')
+    expect((await again.runCompetitorBatch({ apiKey: 'k', batchSize: 10, budgetMs: 1e9, now: () => sp('2026-10-24T15:02:00') })).siteIds).toEqual([])
+  })
 })
 
 describe('batchHealth', () => {
-  const base = { synced: 0, errors: 0, skipped: 0, remainingDue: 0, stoppedForTime: false }
+  const base = { synced: 0, errors: 0, skipped: 0, remainingDue: 0, stoppedForTime: false, siteIds: [] as string[] }
   it('fails when at least half of the attempted channels errored', () => {
     expect(batchHealth({ ...base, synced: 1, errors: 14 })).toEqual({ ok: false, message: '14 of 15 channels failed' })
   })

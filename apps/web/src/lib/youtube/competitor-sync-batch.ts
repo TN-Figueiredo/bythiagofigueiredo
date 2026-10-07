@@ -33,6 +33,8 @@ export interface BatchResult {
   remainingDue: number
   stoppedForTime: boolean
   shorts_probe?: ShortProbeStats
+  /** Sites with at least one channel synced or errored in this run (an errored sync may have written part of its data). */
+  siteIds: string[]
 }
 
 /** Health verdict: fail when at least half of the attempted channels errored. */
@@ -67,9 +69,10 @@ export async function runCompetitorBatch(opts: {
   const probeBudget = newProbeBudget() // 60 sondas de Short por execução, divididas entre os canais
   // Sonda de controle uma vez por execução, antes das demais (I-2).
   if (due.length) await runControlProbe(sb, probeBudget, fetch)
-  const res: BatchResult = { synced: 0, errors: 0, skipped: 0, remainingDue: 0, stoppedForTime: false }
+  const res: BatchResult = { synced: 0, errors: 0, skipped: 0, remainingDue: 0, stoppedForTime: false, siteIds: [] }
   let taken = 0
   const syncedIds: string[] = []
+  const touchedSites = new Set<string>()
   for (const row of due) {
     if (taken >= opts.batchSize) break
     if (now() - started > opts.budgetMs) {
@@ -80,9 +83,10 @@ export async function runCompetitorBatch(opts: {
     try {
       const r = await syncCompetitorChannel(row, opts.apiKey, { probeBudget, deferBackfill: true })
       if (r.skipped) res.skipped++
-      else { res.synced++; syncedIds.push(row.id) }
+      else { res.synced++; syncedIds.push(row.id); touchedSites.add(row.site_id) }
     } catch (err) {
       res.errors++
+      touchedSites.add(row.site_id)
       Sentry.captureException(err, {
         tags: { component: 'sync-youtube', mode: 'competitors' },
         extra: { channelId: row.channel_id, siteId: row.site_id },
@@ -99,5 +103,6 @@ export async function runCompetitorBatch(opts: {
   res.shorts_probe = { ...st }
   warnIfProbeBlocked(st)
   res.remainingDue = due.length - taken
+  res.siteIds = [...touchedSites]
   return res
 }

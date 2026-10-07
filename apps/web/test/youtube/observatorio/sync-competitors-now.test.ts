@@ -7,13 +7,15 @@ const comps = ds.channels.filter(c => !c.own)
 const okIds = comps.filter(c => c.sync.state === 'ok').map(c => c.id)
 const badIds = comps.filter(c => c.sync.state === 'erro' || c.sync.state === 'atrasado').map(c => c.id)
 const backfillIds = comps.filter(c => c.sync.state === 'backfill').map(c => c.id)
+const revalidateTag = vi.fn()
 
 async function load(o: { allowed?: boolean; noYtId?: string; loadMs?: number; sync?: (row: { id: string; channel_id: string; site_id: string }) => Promise<{ skipped?: boolean }> } = {}) {
   vi.resetModules()
+  revalidateTag.mockClear()
   const syncFn = vi.fn(o.sync ?? (async () => ({ videosChecked: 1, changesDetected: 0, dailyRecorded: 0, unitsUsed: 1 })))
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => (o.allowed === false ? { ok: false, reason: 'forbidden' } : { ok: true, user: { id: 'u1' } }) }))
-  vi.doMock('next/cache', () => ({ revalidatePath: vi.fn() }))
+  vi.doMock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag }))
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { throw new Error('no db in this test') } }))
   vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: syncFn }))
   vi.doMock('@/lib/youtube/observatorio/load', () => ({
@@ -49,6 +51,19 @@ describe('syncCompetitorsNow', () => {
     const r = await syncCompetitorsNow()
     expect(r.problems).toContainEqual({ id: okIds[0], label: 'não encontrado no YouTube (404)' })
     expect(r.text.startsWith(`${okIds.length - 1} de `)).toBe(true)
+  })
+  it('invalida o cache do Observatório quando algum canal foi tentado, e só então', async () => {
+    const { syncCompetitorsNow } = await load()
+    await syncCompetitorsNow()
+    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
+    const denied = await load({ allowed: false })
+    await denied.syncCompetitorsNow()
+    expect(revalidateTag).not.toHaveBeenCalled()
+  })
+  it('todo canal tentado falhou (dado parcial gravado): invalida mesmo assim', async () => {
+    const { syncCompetitorsNow } = await load({ sync: async () => { throw new Error('YouTube API 500') } })
+    expect((await syncCompetitorsNow()).ok).toBe(false)
+    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
   })
   it('a channel locked by another sync is not counted as synced', async () => {
     const { syncCompetitorsNow } = await load({ sync: async () => ({ skipped: true }) })

@@ -12,6 +12,7 @@ import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/competitor-slots'
 import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
+import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
 import { BUILTIN_NICHES, isNicheSlug, nicheLabel, type Niche, type NicheDef } from '@/lib/youtube/observatorio/niche'
@@ -123,6 +124,9 @@ export async function addCompetitorChannel(
     after(async () => {
       try { await syncCompetitorChannel(inserted, apiKey) } catch (err) {
         Sentry.captureException(err, { tags: { component: 'competitors', step: 'first-sync' }, extra: { channelId: inserted.channel_id, siteId } })
+      } finally {
+        // the cached rows of this site were read before, or during, this sync
+        invalidateObservatory(siteId)
       }
     })
   }
@@ -147,6 +151,8 @@ export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean
   // a row of another site (or an id that does not exist) deletes nothing: that is not a success
   const { data, error } = await supabase.from('competitor_channels').delete().eq('id', id).eq('site_id', siteId).select('id')
   if (error || !data || data.length === 0) return { ok: false }
+  // the channel's videos, versions and records went with it (cascade): its cached rows must not outlive it
+  invalidateObservatory(siteId)
   revalidatePath('/cms/youtube/competitors', 'layout')
   return { ok: true }
 }
@@ -168,7 +174,9 @@ export async function syncCompetitorNow(channelRowId: string): Promise<{ ok: boo
 
   if (!channel) return { ok: false }
 
-  const result = await syncCompetitorChannel(channel, apiKey)
+  let result: Awaited<ReturnType<typeof syncCompetitorChannel>>
+  // a sync that throws midway may have written part of its data: the cache goes either way
+  try { result = await syncCompetitorChannel(channel, apiKey) } finally { invalidateObservatory(siteId) }
   revalidatePath('/cms/youtube/competitors')
   return { ok: true, result }
 }
@@ -267,6 +275,7 @@ export async function syncFullHistory(channelRowId: string): Promise<{ ok: boole
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Sync failed' }
   } finally {
+    invalidateObservatory(siteId)
     revalidatePath('/cms/youtube/competitors')
   }
 }
@@ -380,7 +389,7 @@ export async function syncCompetitorsNow(): Promise<SyncNowResult> {
       problems.push({ id, label: humanizeSyncError(e instanceof Error ? e.message : String(e)) })
     }
   }
-  if (attempted > 0) revalidatePath('/cms/youtube/competitors', 'layout')
+  if (attempted > 0) { invalidateObservatory(siteId); revalidatePath('/cms/youtube/competitors', 'layout') }
   const toast = obs.syncResultToast({ ok, problems, outOfRound })
   return { ok: ok.length > 0, text: toast.text, problems, outOfRound, toast }
 }
@@ -428,6 +437,9 @@ export async function pinVideo(videoId: string): Promise<PinResult> {
   }
   // anything but an explicit ok is a failure: an unknown answer is never "pinned"
   if (d.status !== 'ok') return PIN_FAILED
+  // pinned_at lives in the cached rows of the channel: without this the button says "Fixado" and the screen reloads
+  // with the video still unpinned. Also when it was already pinned (another tab may hold the stale pack).
+  invalidateObservatory(who.siteId)
   if (d.already !== true) revalidatePath('/cms/youtube/competitors', 'layout')
   return { ok: true }
 }
@@ -442,13 +454,15 @@ export async function unpinVideo(videoId: string): Promise<PinResult> {
   const t = await pinTarget(supabase, who.siteId, videoId)
   if (t === 'error') return UNPIN_FAILED
   if (t === 'not-found') return PIN_GONE
-  if (!t.pinnedAt) return { ok: true }
+  // already unpinned in the database: a stale cached pack may still show it pinned, so the cache goes anyway
+  if (!t.pinnedAt) { invalidateObservatory(who.siteId); return { ok: true } }
 
   const { data, error } = await supabase.from('competitor_videos').update({ pinned_at: null, pinned_by: null })
     .eq('id', t.id).eq('competitor_channel_id', t.channelId).select('id')
   if (error || !Array.isArray(data)) return UNPIN_FAILED
   // no row written: the video was removed between the read and the write
   if (!data.length) return PIN_GONE
+  invalidateObservatory(who.siteId)
   revalidatePath('/cms/youtube/competitors', 'layout')
   return { ok: true }
 }
