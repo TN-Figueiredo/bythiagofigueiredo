@@ -1,7 +1,7 @@
 /** Icons of the per-video history (historico-video.html IC). Decorative: always aria-hidden. */
 import type { ReactNode } from 'react'
 
-export type HIconName = 'title' | 'thumb' | 'desc' | 'ext' | 'warn' | 'ab' | 'prev' | 'next'
+export type HIconName = 'title' | 'thumb' | 'desc' | 'ext' | 'warn' | 'ab' | 'prev' | 'next' | 'chev'
   | 'neutro' | 'ganhou' | 'perdeu' | 'inconclusivo' | 'aguardando' | 'sem-serie' | 'sem-antes'
 
 const P: Record<HIconName, { sw: string; cap?: boolean; join?: boolean; d: ReactNode }> = {
@@ -13,6 +13,7 @@ const P: Record<HIconName, { sw: string; cap?: boolean; join?: boolean; d: React
   ab: { sw: '2', cap: true, d: <path d="M4 9h13l-3-3M20 15H7l3 3" /> },
   prev: { sw: '2', d: <path d="m15 18-6-6 6-6" /> },
   next: { sw: '2', d: <path d="m9 18 6-6-6-6" /> },
+  chev: { sw: '2', d: <path d="m6 9 6 6 6-6" /> },
   neutro: { sw: '2.4', cap: true, d: <path d="M5 9h14M5 15h14" /> },
   ganhou: { sw: '2.4', cap: true, d: <path d="m5 15 7-7 7 7" /> },
   perdeu: { sw: '2.4', cap: true, d: <path d="m5 9 7 7 7-7" /> },
