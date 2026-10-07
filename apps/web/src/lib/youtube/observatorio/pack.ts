@@ -5,7 +5,11 @@
 import { gzipSync, gunzipSync } from 'node:zlib'
 import type { VideoRow, VersionRow, DailyRow, SnapshotRow } from './load'
 
-/** Part of the cache key: bump it whenever ChannelRows or the row shapes change (an entry outlives a deploy). */
+/**
+ * Part of the cache key: bump it whenever ChannelRows, the row shapes or the columns load-channel.ts selects change (an
+ * entry outlives a deploy). test/youtube/observatorio/pack-shape.test.ts holds the portrait of the shape of this
+ * version and fails when one changes without the other.
+ */
 export const PACK_VERSION = 1
 /** Characters of a packed channel that are safe to store (limit 2 097 152, minus the entry envelope and a margin). */
 export const PACK_BUDGET = 2_000_000
