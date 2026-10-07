@@ -4,6 +4,7 @@ import { median, quant } from './stats'
 import { rate, pointTime, earliestIdx, fromDayZero } from './series'
 import type { EngineCtx } from './series'
 import type { ObsVideo } from './types'
+import type { ObsChange } from './changes'
 import { DAY } from './time'
 
 export type EffectStatus = 'ganhou' | 'perdeu' | 'neutro' | 'inconclusivo' | 'aguardando' | 'sem-serie' | 'sem-antes'
@@ -14,7 +15,7 @@ export interface EffectResult {
   collected?: number; willBeInconclusive?: string | null; willBeInconclusiveShort?: string | null; waitText?: string
   observed?: number; beforeAvg?: number; afterAvg?: number; expected?: number | null; iqr?: [number | null, number | null]; n?: number; effectPp?: number | null
   band?: string; method?: 'mesmo dia de vida' | 'aproximação por faixa'; methodLabel?: string; methodFallback?: boolean; sameDayN?: number | null; fallbackText?: string | null
-  numbers?: string; numbersFlat?: string; noBaseText?: string | null; inconclusiveKind?: 'janela-dupla' | 'versao-curta' | 'antes-curto' | 'outro'; neutralWhy?: 'ambos' | 'menor-que-10pp' | 'dentro-da-faixa'
+  numbers?: string; numbersFlat?: string; noBaseText?: string | null; inconclusiveKind?: 'janela-dupla' | 'troca-seguinte' | 'versao-curta' | 'antes-curto' | 'outro'; neutralWhy?: 'ambos' | 'menor-que-10pp' | 'dentro-da-faixa'
 }
 export interface DailyRow { idx: number; from: number; to: number; vpd: number | null }
 
@@ -42,10 +43,30 @@ export function effectAt(ctx: EngineCtx, changeId: string, Lcap: number | null):
   if (!v.tracked) return done({ status: 'sem-serie', label: 'sem série', reason: 'Fora dos vídeos acompanhados: sem série diária de views.' })
   if (!v.series.length || ch.lastIdx == null) return done({ status: 'sem-serie', label: 'sem série', reason: 'Vídeo sem série diária de views.' })
   const k = clock.snapIdxAtOrAfter(c.at), L = Lcap == null ? ch.lastIdx : Math.min(ch.lastIdx, Lcap)
-  const beforeDays = Math.max(0, Math.min(RULES.effect.maxBeforeDays, (k - 1) - firstRealIdx(v)))
+  const seriesBefore = Math.max(0, Math.min(RULES.effect.maxBeforeDays, (k - 1) - firstRealIdx(v)))
   const afterDays = Math.max(0, Math.min(7, L - k))
   const wdR = clock.weekday(clock.snapTime(k + 7))
   const readyTextIfPending = 'leitura ' + (/^(segunda|terça|quarta|quinta|sexta)/.test(wdR) ? 'na ' : 'no ') + wdR + ', ' + clock.dm(clock.snapTime(k + 7))
+  // R115: the 7 days after must belong to ONE version. Another change of any field on the same video inside them makes the
+  // reading mix two versions. An imprecise neighbour counts from the start of its window (the conservative side). A neighbour
+  // past the cap L is future knowledge for a frozen reading and is ignored.
+  const kOfNext = (o: ObsChange) => clock.snapIdxAtOrAfter(o.window ? o.window[0] : o.at)
+  const sibs = [...ctx.CHG.values()].filter(o => o.video === c.video && o !== c)
+  const nextCh = sibs.filter(o => o.at > c.at && kOfNext(o) <= L).sort((a, b) => kOfNext(a) - kOfNext(b))[0] ?? null
+  const nextTxt = nextCh && kOfNext(nextCh) <= k + 7
+    ? 'O vídeo foi trocado de novo dentro dos 7 dias depois (' + nextCh.typeLabel + ' mudou ' + (nextCh.prec === 'min' ? 'em ' : '') + nextCh.whenText + '): a leitura mistura duas versões.'
+    : null
+  const nextShort = nextTxt ? 'o vídeo foi trocado de novo dentro dos 7 dias depois' : null
+  // R116: the days before start at the previous change of the same video. With 3+ clean days the reading uses them (peers are
+  // measured with the same number, as they already are); with 2 or fewer it is 'antes-curto'. 'sem-antes' stays a statement
+  // about the video's own series, so cleanBefore never feeds it.
+  const prevCh = sibs.filter(o => o.at < c.at).sort((a, b) => b.at - a.at)[0] ?? null
+  const cleanBefore = prevCh ? Math.max(0, (k - 1) - clock.snapIdxAtOrAfter(prevCh.at)) : null
+  const beforeDays = cleanBefore != null && cleanBefore >= RULES.effect.minBeforeDays && cleanBefore < seriesBefore ? cleanBefore : seriesBefore
+  const prevTxt = prevCh && cleanBefore != null && cleanBefore < RULES.effect.minBeforeDays && cleanBefore < seriesBefore
+    ? 'Dias entre a troca anterior do vídeo (' + prevCh.typeLabel + ') e esta: ' + cleanBefore + '. Pouco para comparar.'
+    : null
+  const prevShort = prevTxt ? 'outra troca do vídeo poucos dias antes desta' : null
   Object.assign(res, { k, beforeDays, afterDays, readyOn: clock.snapTime(k + 7), readyText: null, readyTextIfPending, firstPointAfter: clock.snapTime(k) })
   const dRow = (i: number): DailyRow => ({ idx: i + 1, from: pointTime(ctx, v, i), to: pointTime(ctx, v, i + 1), vpd: rate(ctx, v, i, i + 1) })
   res.daily = {
@@ -58,10 +79,10 @@ export function effectAt(ctx: EngineCtx, changeId: string, Lcap: number | null):
     : simul === '48h' ? 'Outro campo do mesmo vídeo mudou a menos de 48 h: não dá para separar o efeito de cada um.' : null
   if (beforeDays === 0) return done({ status: 'sem-antes', label: 'sem base', reason: 'A versão anterior durou menos de 1 dia, antes do primeiro registro diário: sem dias antes para comparar.' })
   if (afterDays < 7) {
-    const shortWhy = simul === 'same' ? 'dois campos do vídeo mudaram na mesma janela de sincronização' : simul === '48h' ? 'outro campo do vídeo mudou a menos de 48 h' : beforeDays <= 2 ? 'só ' + fmt.plural(beforeDays, 'dia', 'dias') + ' antes da troca' : null
+    const shortWhy = simul === 'same' ? 'dois campos do vídeo mudaram na mesma janela de sincronização' : simul === '48h' ? 'outro campo do vídeo mudou a menos de 48 h' : nextShort ?? prevShort ?? (beforeDays <= 2 ? 'só ' + fmt.plural(beforeDays, 'dia', 'dias') + ' antes da troca' : null)
     return done({ readyText: readyTextIfPending, status: 'aguardando', label: 'aguardando', collected: afterDays,
       reason: 'aguardando — ' + afterDays + ' de 7 dias coletados, leitura em ' + clock.dm(clock.snapTime(k + 7)),
-      willBeInconclusive: simulTxt || (beforeDays <= 2 ? 'Antes: ' + beforeDays + (beforeDays === 1 ? ' dia' : ' dias') + ' — pouco para comparar.' : null),
+      willBeInconclusive: simulTxt || nextTxt || prevTxt || (beforeDays <= 2 ? 'Antes: ' + beforeDays + (beforeDays === 1 ? ' dia' : ' dias') + ' — pouco para comparar.' : null),
       willBeInconclusiveShort: shortWhy,
       waitText: 'Aguardando: ' + afterDays + ' de 7 dias coletados, ' + readyTextIfPending + '.' + (shortWhy ? ' Vai sair inconclusivo: ' + shortWhy + '.' : '') })
   }
@@ -104,6 +125,8 @@ export function effectAt(ctx: EngineCtx, changeId: string, Lcap: number | null):
   if (!nextVer.current && nextVer.last_seen - nextVer.first_seen < DAY) return done({ inconclusiveKind: 'versao-curta', status: 'inconclusivo', label: 'inconclusivo', reason: 'A nova versão ficou menos de 1 dia no ar (' + clock.dur(nextVer.last_seen - nextVer.first_seen) + '): com um registro de views por dia não dá para isolar.' })
   if (c.prevLivedMs != null && c.prevLivedMs < DAY) return done({ inconclusiveKind: 'versao-curta', status: 'inconclusivo', label: 'inconclusivo', reason: 'A versão anterior ficou menos de 1 dia no ar (' + clock.dur(c.prevLivedMs) + '): pouco para comparar.' })
   if (simulTxt) return done({ inconclusiveKind: 'janela-dupla', status: 'inconclusivo', label: 'inconclusivo', reason: simulTxt })
+  if (nextTxt) return done({ inconclusiveKind: 'troca-seguinte', status: 'inconclusivo', label: 'inconclusivo', reason: nextTxt })
+  if (prevTxt) return done({ inconclusiveKind: 'antes-curto', status: 'inconclusivo', label: 'inconclusivo', reason: prevTxt })
   if (beforeDays <= 2) return done({ inconclusiveKind: 'antes-curto', status: 'inconclusivo', label: 'inconclusivo', reason: 'Antes: ' + beforeDays + (beforeDays === 1 ? ' dia' : ' dias') + ' — pouco para comparar.' })
   if (n < RULES.effect.minN || eff == null) return done({ inconclusiveKind: 'outro', status: 'inconclusivo', label: 'inconclusivo', reason: 'Poucos vídeos do canal para comparar (n = ' + n + ', mínimo ' + RULES.effect.minN + ').' })
   const out = ob.r < q1! || ob.r > q3!, band_ = '(' + fmt.pct(q1) + ' a ' + fmt.pct(q3) + ')'

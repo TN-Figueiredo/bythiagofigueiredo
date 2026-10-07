@@ -156,11 +156,19 @@ describe('historico view model', () => {
       if (hero) { expect(c.effect).toEqual(hero.effect); compared++ }
     }
     expect(compared).toBeGreaterThan(0)
+    // R115: the showcase video has no decided comparison any more; the default is the first decided pair when there is one, else the first pair
+    const decidedPairs = v.comparisons.filter(c => ['neutro', 'ganhou', 'perdeu'].includes(c.effect.status))
+    expect(v.defaultPair).toBe((decidedPairs[0] ?? v.comparisons[0])!.changeId)
     const d = v.comparisons.find(c => c.changeId === v.defaultPair)!
-    expect(['neutro', 'ganhou', 'perdeu']).toContain(d.effect.status)
     expect(d.full!.verdictText).toContain(d.effect.detail)
     // the reverted thumbnail is one comparison A → B → A
     expect(v.comparisons.some(c => /^Thumbnail A → B: .+ · B → A: /.test(c.chip))).toBe(true)
+  })
+  it('R115: some video of the oracle still opens on a decided comparison', () => {
+    const withDecided = obs.changes.filter(c => ['neutro', 'ganhou', 'perdeu'].includes(obs.effect(c.id)!.status)).map(c => c.video)
+    expect(withDecided.length).toBeGreaterThan(0)
+    const hv = buildHistoricoView(obs, withDecided[0]!, {})
+    expect(['neutro', 'ganhou', 'perdeu']).toContain(hv.comparisons.find(c => c.changeId === hv.defaultPair)!.effect.status)
   })
 
   describe('production-shaped first versions (precision first, first_seen = sync time)', () => {

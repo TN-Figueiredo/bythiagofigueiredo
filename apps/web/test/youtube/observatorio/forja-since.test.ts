@@ -67,7 +67,22 @@ describe('since — "Desde então"', () => {
 describe('parity with the oracle — every published reading', () => {
   const ids = obs.forja.readings.map(r => r.id)
   it('the readings are the oracle\'s', () => expect(ids).toEqual(oracle.forja.readings.map((r: FrozenReading) => r.id)))
-  it.each(ids)('since(%s)', id => expect(J(obs.forja.since(id))).toEqual(J(oracle.forja.since(id))))
+  // R115: matt-opus55/title/1 stays inconclusivo in production (matt-opus55/thumb/1 changes the same video 2 days later), so in
+  // this one reading it no longer moves "inconclusivo → neutro". Everything else in the reading still has to match the oracle.
+  const R115_READING = 'leitura-video-matt-opus55-20-10'
+  const withoutTitle1 = (o: Record<string, unknown>): Record<string, unknown> => {
+    const n = (t: unknown) => String(t).replace('4 vereditos mudaram', '3 vereditos mudaram').replace('4 trocas mudaram de veredito', '3 trocas mudaram de veredito')
+    return { ...o, items: (o.items as string[]).filter(t => !t.startsWith('Título 1 → 2 ')), moved: (o.moved as Array<{ change: string }>).filter(m => m.change !== 'matt-opus55/title/1'),
+      flipped: (o.flipped as number) - 1, shortText: n(o.shortText), text: n(o.text), textNoAsk: n(o.textNoAsk) }
+  }
+  it.each(ids)('since(%s)', id => {
+    const o = J(oracle.forja.since(id)) as Record<string, unknown>
+    expect(J(obs.forja.since(id))).toEqual(id === R115_READING ? withoutTitle1(o) : o)
+  })
+  it('R115: the deviating reading exists and the oracle really had the title move in it', () => {
+    const o = J(oracle.forja.since(R115_READING)) as { flipped: number; moved: Array<{ change: string }> }
+    expect(o.flipped).toBe(4); expect(o.moved.some(m => m.change === 'matt-opus55/title/1')).toBe(true)
+  })
   const filters = [undefined, { formula: 'reacao-hiperbole' }, { min: 0 }, { channel: 'matt-wolfe' }, { theme: 'comida-de-rua' }, { channel: 'matt-wolfe', formula: 'reacao-hiperbole' }]
   it.each(ids)('readingScope(%s, …)', id => { for (const f of filters) expect(J(obs.forja.readingScope(id, f))).toEqual(J(oracle.forja.readingScope(id, f))) })
   it.each(ids)('outliers({reading: %s}) — count, scope and items', id => {

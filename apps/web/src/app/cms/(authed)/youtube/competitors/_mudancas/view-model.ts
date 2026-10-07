@@ -108,12 +108,16 @@ const MEASURED: readonly EffectStatus[] = ['ganhou', 'perdeu', 'neutro', 'inconc
 const nicheLabelOf = (obs: Observatory, n: NicheScope) => (n === 'todos' ? 'Todos' : obs.nicheLabel(n))
 const FMT_LABEL: Record<'all' | Fmt, string> = { all: 'longos e Shorts', long: 'longos', short: 'Shorts' }
 const TYPE_NAME: Record<ChangeType, string> = { title: 'título', thumb: 'thumbnail', desc: 'descrição' }
-const INC_KINDS: Array<[string, (n: number, h: number) => string]> = [
-  ['janela-dupla', (n, h) => (n === 1 ? 'inconclusiva' : 'inconclusivas') + ' por 2 campos em < ' + h + '\u00a0h'],
-  ['versao-curta', () => 'com uma das versões menos de 1 dia no ar'],
-  ['antes-curto', () => 'com o antes curto demais (≤ 2 dias)'],
-  ['outro', n => (n === 1 ? 'inconclusiva' : 'inconclusivas') + ' por outro motivo'],
-]
+type IncKind = NonNullable<EffectResult['inconclusiveKind']>
+/** One line of the ledger per inconclusive kind, in display order. A Record on the engine's union: a new kind without a line here does not compile. */
+const INC_TEXT: Record<IncKind, (n: number, h: number) => string> = {
+  'janela-dupla': (n, h) => (n === 1 ? 'inconclusiva' : 'inconclusivas') + ' por 2 campos em < ' + h + '\u00a0h',
+  'troca-seguinte': n => (n === 1 ? 'inconclusiva' : 'inconclusivas') + ' por outra troca no mesmo vídeo nos 7 dias depois',
+  'versao-curta': () => 'com uma das versões menos de 1 dia no ar',
+  'antes-curto': () => 'com o antes curto demais (≤ 2 dias)',
+  outro: n => (n === 1 ? 'inconclusiva' : 'inconclusivas') + ' por outro motivo',
+}
+const INC_KINDS = (Object.keys(INC_TEXT) as IncKind[]).map(k => [k, INC_TEXT[k]] as [IncKind, (n: number, h: number) => string])
 export const PAGE_STEP = 8
 export const SWIPE_LABEL = { on: 'Salvo no swipe file', off: 'Salvar no swipe file' } as const
 /** Stable accessible name of the swipe button; the state is conveyed by aria-pressed only. */
@@ -422,7 +426,7 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
       'Publicado ' + D.dmOrDmy(v.pub),
       F.num(v.views) + ' views' + (growth && typeof growth.to === 'number' ? ', até o registro diário de ' + D.dmhm(growth.to) : ''),
     ]
-    if (all.length > 1) meta.push(all.length + ' trocas em 90 dias')
+    if (all.length > 1) meta.push(all.length + ' trocas registradas')
     const saw = saved.has(c.id)
     return {
       id: c.id, type: c.type, typeLabel: c.typeLabel,
@@ -465,7 +469,7 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
   const reverts = pool.filter(c => c.revertTo && decided(c))
   const withCav = pool.filter(c => !c.revertTo && hasCav(c) && decided(c))
   const inc = pool.filter(c => eff(obs, c).status === 'inconclusivo')
-  const incKind = (c: ObsChange) => { const k = eff(obs, c).inconclusiveKind ?? 'outro'; return INC_KINDS.some(x => x[0] === k) ? k : 'outro' }
+  const incKind = (c: ObsChange): IncKind => eff(obs, c).inconclusiveKind ?? 'outro'
   const inconclusiveByType: Record<string, number> = {}
   for (const [k] of INC_KINDS) inconclusiveByType[k] = inc.filter(c => incKind(c) === k).length
   const noVer = pool.filter(c => { const s = eff(obs, c).status; return !DECIDED.includes(s) && s !== 'inconclusivo' })

@@ -109,7 +109,7 @@ export function changesIn(ctx: EngineCtx, o: { days?: number | null; niche?: Nic
     && (!q.video || c.video === q.video) && (!q.fmt || c.fmt === q.fmt) && !ctx.CH.get(c.ch)!.own)
 }
 
-/** Other changes to the same video within the 7 days after (a caveat, never changes the verdict). */
+/** Other changes to the same video within the 7 days after. Since R115 such a change is 'inconclusivo' (kind 'troca-seguinte'); this list is the detail shown under it. */
 export function caveats(ctx: EngineCtx, changeId: string): string[] {
   const c = ctx.CHG.get(changeId)
   if (!c) return []

@@ -28,4 +28,10 @@ export const NOT_PORTED_TESTS = new Map<string, string>([
     'mockup simulation: runSync/resetSync mutate the in-memory channels in place of a real sync (dados.js:1962 "sincronização simulada do mockup"); production runs the sync job and re-reads the DB; the text is runSyncText (ported)'],
   ['[F7] runSync não mexe no seu canal (sincroniza pelo Painel): fora de ok e da contagem do texto',
     'mockup simulation: runSync/resetSync mutate the in-memory channels in place of a real sync; production runs the sync job and re-reads the DB; the text is runSyncText (ported)'],
+  ['Vitrine: troca de título MEDIDA (≥ 7 d depois, antes ≥ 3 d) e outra aguardando',
+    'R115: matt-opus55/title/1 has matt-opus55/thumb/1 two days later, so production gives inconclusivo (troca-seguinte); the rule is asserted in effect-neighbours.test.ts and the deviation in effect-parity.test.ts'],
+  ['[F5] M-d: "antes" do efeito exclui o trecho de < 24 h da estreia (no observado e no esperado); vitrine segue medida com 3 dias antes',
+    'R115: the showcase change matt-opus55/title/1 is inconclusivo (troca-seguinte) in production; the other two checks of this test (every before-bin ≥ 24 h, matt-fast-cheap/title/1 is sem-antes, 3 before-days on the showcase) are re-asserted in effect-neighbours.test.ts'],
+  ['[F8] effect.inconclusiveKind: janela-dupla, versao-curta, antes-curto ou outro (só em inconclusivo)',
+    'R115: production has a fifth kind, troca-seguinte; the closed list is enforced by the INC_TEXT record in _mudancas/view-model.ts and by mudancas-view-model.test.ts'],
 ])
