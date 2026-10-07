@@ -168,3 +168,117 @@ describe.skipIf(skipIfNoLocalDb())('convite org_admin: contrato com o banco loca
     expect(isAdmin.data).toBe(false)
   })
 })
+
+// "Reenviar" respondia sempre "Aguarde 30 segundos": a ação chamava a função
+// pelo service client (auth.uid() nulo → 'insufficient_access') e lia `data`
+// como boolean, quando o retorno é void. O teste unitário mockava
+// `{ data: true }` — um retorno que a função nunca dá.
+describe.skipIf(skipIfNoLocalDb())('increment_invitation_resend: contrato com o banco local', () => {
+  let service: SupabaseClient
+  let orgId = ''
+  let siteId = ''
+  let adminId = ''
+  let editorId = ''
+  let invitationId = ''
+  const stamp = `${Date.now()}-${randomBytes(3).toString('hex')}`
+
+  const readInvite = async () =>
+    (
+      await service
+        .from('invitations')
+        .select('resend_count, last_sent_at')
+        .eq('id', invitationId)
+        .single()
+    ).data as { resend_count: number; last_sent_at: string }
+
+  beforeAll(async () => {
+    service = getSupabaseServiceClient()
+    const org = await service
+      .from('organizations')
+      .select('id')
+      .is('parent_org_id', null)
+      .limit(1)
+      .single()
+    orgId = org.data!.id as string
+    const site = await service.from('sites').select('id').eq('org_id', orgId).limit(1).single()
+    siteId = site.data!.id as string
+
+    adminId = await insertAuthUser(`reenvio-dono-${stamp}@example.test`)
+    editorId = await insertAuthUser(`reenvio-editora-${stamp}@example.test`)
+    const m = await service
+      .from('organization_members')
+      .insert({ org_id: orgId, user_id: adminId, role: 'org_admin' })
+    expect(m.error).toBeNull()
+    const sm = await service
+      .from('site_memberships')
+      .insert({ site_id: siteId, user_id: editorId, role: 'editor' })
+    expect(sm.error).toBeNull()
+
+    const inv = await service
+      .from('invitations')
+      .insert({
+        email: `reenvio-convidada-${stamp}@example.test`,
+        org_id: orgId,
+        site_id: siteId,
+        role_scope: 'site',
+        role: 'editor',
+        token: randomBytes(32).toString('hex'),
+        invited_by: adminId,
+      })
+      .select('id')
+      .single()
+    expect(inv.error).toBeNull()
+    invitationId = inv.data!.id as string
+  })
+
+  afterAll(async () => {
+    if (invitationId) await service.from('invitations').delete().eq('id', invitationId)
+    await service.from('site_memberships').delete().eq('site_id', siteId).eq('user_id', editorId)
+    await service.from('organization_members').delete().eq('org_id', orgId).eq('user_id', adminId)
+    if (adminId) await deleteAuthUser(adminId)
+    if (editorId) await deleteAuthUser(editorId)
+  })
+
+  it('convite recém-criado está no intervalo: exceção resend_cooldown, nada incrementa', async () => {
+    const asAdmin = clientAs(signUserJwt(adminId, 'user').jwt)
+    const res = await asAdmin.rpc('increment_invitation_resend', { p_id: invitationId })
+    expect(res.error?.message).toMatch(/resend_cooldown/)
+    expect((await readInvite()).resend_count).toBe(0)
+  })
+
+  it('passados os 30 s o org_admin reenvia: retorno void (data null, sem erro) e o contador sobe', async () => {
+    const past = new Date(Date.now() - 31_000).toISOString()
+    await service.from('invitations').update({ last_sent_at: past }).eq('id', invitationId)
+
+    const asAdmin = clientAs(signUserJwt(adminId, 'user').jwt)
+    const res = await asAdmin.rpc('increment_invitation_resend', { p_id: invitationId })
+    expect(res.error).toBeNull()
+    expect(res.data).toBeNull()
+
+    const after = await readInvite()
+    expect(after.resend_count).toBe(1)
+    expect(new Date(after.last_sent_at).getTime()).toBeGreaterThan(new Date(past).getTime())
+
+    // ...e o intervalo volta a valer imediatamente
+    const again = await asAdmin.rpc('increment_invitation_resend', { p_id: invitationId })
+    expect(again.error?.message).toMatch(/resend_cooldown/)
+    expect((await readInvite()).resend_count).toBe(1)
+  })
+
+  it('pelo service client a função recusa (auth.uid() nulo) — por isso a ação usa o client do usuário', async () => {
+    await service
+      .from('invitations')
+      .update({ last_sent_at: new Date(Date.now() - 31_000).toISOString() })
+      .eq('id', invitationId)
+    const res = await service.rpc('increment_invitation_resend', { p_id: invitationId })
+    expect(res.error?.message).toMatch(/insufficient_access/)
+    expect((await readInvite()).resend_count).toBe(1)
+  })
+
+  it('a editora do site não reenvia convites', async () => {
+    const asEditor = clientAs(signUserJwt(editorId, 'user').jwt)
+    const res = await asEditor.rpc('increment_invitation_resend', { p_id: invitationId })
+    expect(res.error?.message).toMatch(/insufficient_access/)
+    expect((await readInvite()).resend_count).toBe(1)
+  })
+})

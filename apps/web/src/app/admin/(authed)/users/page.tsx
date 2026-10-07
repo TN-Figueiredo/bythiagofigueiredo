@@ -12,18 +12,18 @@ import {
 } from './actions'
 import { SubmitButton } from './_components/SubmitButton'
 import { InviteForm, type SiteOption } from './invite-form'
+import { CopyInviteLink } from './_components/CopyInviteLink'
+import { inviteAcceptUrl } from './invite-url'
+import { noticeFor } from './notices'
 
 export const dynamic = 'force-dynamic'
 
-const noticeMessages: Record<string, string> = {
-  resend_too_soon: 'Aguarde 30 segundos antes de reenviar.',
-  resend_sent: 'Convite reenviado.',
-  invitation_revoked: 'Convite revogado.',
-  invite_created: 'Convite criado e enviado.',
-  invite_failed: 'Falha ao criar convite. Tente novamente.',
-  invite_rate_limited: 'Limite de 20 convites/hora excedido.',
-  invite_duplicate: 'Já existe um convite pendente para esse email.',
-}
+
+const NOTICE_CLASSES = {
+  success: 'bg-green-50 text-green-700',
+  warning: 'bg-amber-50 text-amber-800',
+  error: 'bg-red-50 text-red-700',
+} as const
 
 interface Props {
   searchParams: Promise<{ notice?: string }>
@@ -72,7 +72,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
 
   const { data: invites } = await supabase
     .from('invitations')
-    .select('id, email, role, role_scope, site_id, expires_at, last_sent_at, resend_count')
+    .select('id, email, role, role_scope, site_id, token, expires_at, last_sent_at, resend_count')
     .eq('org_id', ctx.orgId)
     .is('accepted_at', null)
     .is('revoked_at', null)
@@ -123,27 +123,19 @@ export default async function AdminUsersPage({ searchParams }: Props) {
     }),
   )
 
-  const noticeMessage =
-    notice != null ? (noticeMessages[notice] ?? null) : null
-  const isError =
-    notice != null &&
-    (notice.startsWith('invite_failed') ||
-      notice === 'invite_rate_limited' ||
-      notice === 'invite_duplicate')
+  const noticeView = noticeFor(notice)
 
   return (
     <main className="p-8">
       <h1 className="text-2xl font-bold mb-6">Usuários e convites</h1>
 
-      {noticeMessage && (
+      {noticeView && (
         <div
-          role="status"
+          role={noticeView.tone === 'success' ? 'status' : 'alert'}
           aria-live="polite"
-          className={`mb-4 rounded-lg px-4 py-3 text-sm ${
-            isError ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
-          }`}
+          className={`mb-4 rounded-lg px-4 py-3 text-sm ${NOTICE_CLASSES[noticeView.tone]}`}
         >
-          {noticeMessage}
+          {noticeView.message}
         </div>
       )}
 
@@ -214,6 +206,7 @@ export default async function AdminUsersPage({ searchParams }: Props) {
                   Reenviar
                 </SubmitButton>
               </form>
+              <CopyInviteLink url={inviteAcceptUrl(inv.token as string)} />
               <form
                 action={async () => {
                   'use server'
