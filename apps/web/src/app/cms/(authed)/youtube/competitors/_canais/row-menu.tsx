@@ -8,6 +8,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, type KeyboardEvent } from 'react'
 import type { CanaisRow } from './view-model'
+import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
 
 const GAP = 4, EDGE = 8
 interface Box { left: number; top: number; right: number; bottom: number }
@@ -31,6 +32,8 @@ export function RowMenu({ row, onClose, onOpen, onSync, onYoutube, onCopy, onRem
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const close = useRef(onClose)
+  // "Administrar o site" step: removing a channel is for admins; an editor reads why instead of a dead button.
+  const canAdminSite = useCanAdminSite()
   useEffect(() => { close.current = onClose })
 
   const place = useCallback(() => {
@@ -84,7 +87,9 @@ export function RowMenu({ row, onClose, onOpen, onSync, onYoutube, onCopy, onRem
       <button type="button" role="menuitem" onClick={onYoutube}>Abrir no YouTube</button>
       <button type="button" role="menuitem" onClick={onCopy}><span className="cw">Copiar pedido para o Cowork</span></button>
       <hr />
-      <button type="button" role="menuitem" className="del" onClick={onRemove}>Remover canal…</button>
+      {canAdminSite
+        ? <button type="button" role="menuitem" className="del" onClick={onRemove}>Remover canal…</button>
+        : <p role="note" data-testid="admin-only-note" style={{ margin: 0, padding: '6px 12px', maxWidth: 220, fontSize: 11, lineHeight: 1.35, color: 'var(--muted)' }}>{siteAdminOnlyText('remover um canal')}</p>}
     </div>
   )
 }

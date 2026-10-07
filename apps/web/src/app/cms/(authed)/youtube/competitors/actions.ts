@@ -7,6 +7,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
+import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getCompetitorRemovalImpact, type CompetitorRemovalImpact } from '@/lib/youtube/competitor-removal-impact'
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/competitor-slots'
@@ -143,7 +144,11 @@ export async function addChannelFromCanais(input: { channel: string; niche: Nich
   return { ok: res.ok, ...(res.error ? { error: res.error } : {}), ...(res.title ? { title: res.title } : {}) }
 }
 
-export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean }> {
+export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean; error?: string }> {
+  // "Administrar o site" step: the channel's videos, versions and records go with it (cascade), for good.
+  // Asked first, before any service client; fails closed.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'remover um canal concorrente do Observatório')
+  if (denied) return denied
   let siteId: string
   try { siteId = await requireEditAccess() } catch { return { ok: false } }
 

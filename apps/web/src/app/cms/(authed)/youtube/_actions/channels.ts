@@ -14,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { lookupChannelByHandle } from '@/lib/youtube/api-client'
 import { isChannelLocale } from '@/lib/youtube/channel-locales'
 import { isNicheSlug, NICHE_PALETTE } from '@/lib/youtube/observatorio/niche'
@@ -216,6 +217,10 @@ const identitySchema = z.object({ channel_id: z.string().uuid(), locale, niche }
 
 /** Idioma e nicho de um canal já cadastrado. O slug não muda depois de criado: esta action não o aceita. */
 export async function updateYouTubeChannelIdentity(input: ChannelIdentityInput): Promise<SimpleResult> {
+  // Degrau "administrar o site": a identidade do canal próprio (idioma e nicho) é de quem administra.
+  // No topo, antes de qualquer service client; falha fechado.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'mudar o idioma ou o nicho de um canal próprio')
+  if (denied) return denied
   const parsed = identitySchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'Validation failed' }
   const d = parsed.data
@@ -293,6 +298,10 @@ const removeSchema = z.object({ channelId: z.string().uuid(), confirmSlug: z.str
  * qualquer coisa. confirmSlug é o slug que o dono digitou: o banco confere de novo.
  */
 export async function removeYouTubeChannel(input: { channelId: string; confirmSlug: string }): Promise<RemoveChannelResult> {
+  // Degrau "administrar o site": apaga o canal, o histórico e desliga a conexão OAuth — irreversível.
+  // No topo, antes de qualquer service client; falha fechado.
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'remover um canal próprio do YouTube')
+  if (denied) return denied
   const parsed = removeSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.path[0] === 'confirmSlug' ? CHANNEL_TEXT.slugMismatch : CHANNEL_TEXT.channelNotFound }
   const { siteId } = await requireEditAccess()

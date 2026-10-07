@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
+const siteAdmin = vi.hoisted(() => ({ value: true }))
+vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
+  useCanAdminSite: () => siteAdmin.value,
+}))
 import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { loadOracle, loadOracleOwns, datasetFromOracle } from './oracle'

@@ -3,6 +3,7 @@
  * Cells shared by the table and the cards (port of canais.html cells/chCell/syncCell/growthCell/strip/thumb).
  * They only lay out what the view model computed.
  */
+import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
 import { useId, type ReactNode } from 'react'
 import type { CadenceCell, CanaisRow, GrowthCell, OutCell, SwapCell, SyncCell, Thumb, VpdCell } from './view-model'
 import { NicheSelect } from './niche-editor'
@@ -140,6 +141,8 @@ export function GrowthView({ c }: { c: GrowthCell }) {
 
 export type LocalSync = 'now' | 'just' | 'queued' | undefined
 export function SyncView({ c, local, onRetry, onRemove }: { c: SyncCell; local: LocalSync; onRetry: () => void; onRemove: () => void }) {
+  // "Administrar o site" step: removing a channel is for admins.
+  const canAdminSite = useCanAdminSite()
   const cov = c.cov ? <div className="cov" title={c.covTitle ?? undefined}>{c.cov}</div> : null
   if (local === 'now') return <><div className="st" style={{ color: 'var(--info)' }}><Ic n="spin" spin />Sincronizando agora</div>{cov}</>
   if (local === 'queued' && c.queued) return <><div className="st" style={{ color: 'var(--muted)' }}><Ic n="clock" />{c.queued.label}</div>{c.queued.cov ? <div className="cov" title={c.queued.covTitle ?? undefined}>{c.queued.cov}</div> : null}</>
@@ -156,7 +159,8 @@ export function SyncView({ c, local, onRetry, onRemove }: { c: SyncCell; local: 
     <>
       <div className="st" style={{ color: 'var(--danger-text)' }}><Ic n="warn" /><span>{c.label}</span></div>
       {c.msg ? <div className="msg">{c.msg}</div> : null}
-      {c.canRemove ? <div className="act"><button type="button" className="btn small" onClick={onRemove}>Remover canal…</button></div> : null}
+      {c.canRemove && canAdminSite ? <div className="act"><button type="button" className="btn small" onClick={onRemove}>Remover canal…</button></div> : null}
+      {c.canRemove && !canAdminSite ? <div className="msg" role="note" data-testid="admin-only-note">{siteAdminOnlyText('remover um canal')}</div> : null}
     </>
   )
   return (
@@ -177,6 +181,8 @@ export function SyncView({ c, local, onRetry, onRemove }: { c: SyncCell; local: 
  * niche select, subscribers with the rounding tip. An own channel takes two .sub lines: "seu canal" + niche, then subscribers.
  */
 export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string; onOpen: () => void; onNiche: (n: Niche) => void }) {
+  // "Administrar o site" step: the niche of an OWN channel is part of its identity (admins only); it shows as text.
+  const canAdminSite = useCanAdminSite()
   return (
     <div className="ch">
       <ChannelAvatar as="div" src={r.avatar} ini={r.ini} color={r.color} />
@@ -188,7 +194,7 @@ export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string;
         {r.own ? (
           <div className="sub">
             <span className="youtag">seu canal</span>
-            <NicheSelect id={r.id} name={r.name} niche={r.niche} ctx={ctx} onChange={onNiche} />
+            <NicheSelect id={r.id} name={r.name} niche={r.niche} ctx={ctx} onChange={onNiche} readOnly={!canAdminSite} />
           </div>
         ) : null}
         <div className="sub">

@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { isNicheSlug, parseNiche, type Niche, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import { readNicheDefs } from '@/lib/youtube/observatorio/niches-db'
@@ -54,6 +55,12 @@ export async function setChannelNiche(channelRowId: string, niche: Niche | null)
   return setNicheOf('competitor_channels', channelRowId, niche)
 }
 
-export async function setOwnChannelNiche(channelRowId: string, niche: Niche | null): Promise<{ ok: boolean }> {
+/**
+ * Own channel: the niche is part of the channel's identity (same field as updateYouTubeChannelIdentity), so it takes
+ * the "administrar o site" step — asked first, before any service client, failing closed. A competitor's niche does not.
+ */
+export async function setOwnChannelNiche(channelRowId: string, niche: Niche | null): Promise<{ ok: boolean; error?: string }> {
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'mudar o nicho de um canal próprio')
+  if (denied) return denied
   return setNicheOf('youtube_channels', channelRowId, niche)
 }

@@ -8,6 +8,7 @@
  * already shows (name, avatar, niche, subscribers, links) — with aria-busy and empty placeholders, never a number or a
  * sentence the server has not sent. The same element then receives the content (the focus and the picked tab stay).
  */
+import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
 import Link from 'next/link'
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { CanaisRow, DrawerTab, DrawerView, EffectView, SwapCard, ViewsText } from './view-model'
@@ -87,6 +88,8 @@ export interface ChannelDrawerProps {
 }
 
 export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche, trap, closeRef, forjaSlot, forjaFootSlot }: ChannelDrawerProps) {
+  // "Administrar o site" step: removing a channel and the niche of an own channel are for admins.
+  const canAdminSite = useCanAdminSite()
   const full = isFull(d) ? d : null, shell = isFull(d) ? null : d
   const [tab, setTab] = useState<DrawerTab>(full?.tab ?? 'trocas')
   const [forId, setForId] = useState(d.id)
@@ -110,7 +113,7 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
             <div className="meta">
               {d.own ? <span className="youtag">seu canal</span> : null}
               {d.own && d.lang ? <abbr className="langtag" title={d.lang.title}>{d.lang.code}</abbr> : null}
-              <NicheSelect id={d.id} name={d.name} niche={d.niche} ctx="drawer" onChange={onNiche} />
+              <NicheSelect id={d.id} name={d.name} niche={d.niche} ctx="drawer" onChange={onNiche} readOnly={d.own && !canAdminSite} />
               {d.handle ? <a className="handle" href={d.url} target="_blank" rel="noopener noreferrer">{d.handle}</a> : null}
               {full ? <><span>{full.subsText}</span><span>{full.cov}</span></> : null}
               {shell ? <span className="num">{shell.subs}</span> : null}
@@ -145,8 +148,10 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
       )}
       {full ? <FullBody d={full} tab={tab} upnextHref={upnextHref} forjaSlot={forjaSlot} /> : null}
       <div className="dfoot">
-        {d.own ? <span /> : (
+        {d.own ? <span /> : canAdminSite ? (
           <button type="button" className="btn small ghost icon" aria-label="Remover canal…" title="Remover canal…" onClick={e => onRemove(e.currentTarget)}><Ic n="trash" /></button>
+        ) : (
+          <span role="note" data-testid="admin-only-note" style={{ fontSize: 11, lineHeight: 1.35, color: 'var(--muted)' }}>{siteAdminOnlyText('remover um canal')}</span>
         )}
         <span className="spacer" />
         {full ? forjaFootSlot ?? null : null}

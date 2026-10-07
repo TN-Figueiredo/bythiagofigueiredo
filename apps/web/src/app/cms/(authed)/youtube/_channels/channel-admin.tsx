@@ -222,7 +222,9 @@ export function PendingChannelCard({ draft, niches }: { draft: AddDraft; niches:
  * Idioma e nicho no Configurar. O nicho grava ao trocar. O idioma NÃO: trocar o idioma muda qual canal o site público
  * mostra, então a troca abre na hora uma confirmação no cartão com o efeito (calculado na tela) e só grava no sim.
  */
-export function ChannelIdentityFields({ locale, niche, slug, niches, busy, error, onChange, describeLanguageChange }: {
+export function ChannelIdentityFields({ locale, niche, slug, niches, busy, error, onChange, describeLanguageChange, readOnly = false }: {
+  /** Quem não administra o site vê idioma e nicho, mas não troca (o servidor recusa de qualquer jeito). */
+  readOnly?: boolean
   locale: string
   /** slug do nicho mostrado (já resolvido contra a lista do site) */
   niche: string | null
@@ -244,13 +246,13 @@ export function ChannelIdentityFields({ locale, niche, slug, niches, busy, error
       <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
         <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor={`${uid}-l`} className={labelCls}>Language</label>
-          <select id={`${uid}-l`} className={inputCls} value={askedNow ?? cur} aria-busy={busy || undefined} onChange={e => { if (isChannelLocale(e.target.value)) setAsked(e.target.value) }}>
+          <select id={`${uid}-l`} className={inputCls} value={askedNow ?? cur} disabled={readOnly} aria-busy={busy || undefined} onChange={e => { if (isChannelLocale(e.target.value)) setAsked(e.target.value) }}>
             <LanguageOptions />
           </select>
         </div>
         <div className="flex min-w-0 flex-col gap-1">
           <label htmlFor={`${uid}-n`} className={labelCls}>Niche</label>
-          <select id={`${uid}-n`} className={inputCls} value={niche ?? ''} aria-busy={busy || undefined} onChange={e => onChange({ locale: cur, niche: e.target.value || null })}>
+          <select id={`${uid}-n`} className={inputCls} value={niche ?? ''} disabled={readOnly} aria-busy={busy || undefined} onChange={e => onChange({ locale: cur, niche: e.target.value || null })}>
             <NicheOptions niches={niches} />
           </select>
         </div>

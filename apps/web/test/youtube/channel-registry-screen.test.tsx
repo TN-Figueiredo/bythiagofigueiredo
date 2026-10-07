@@ -5,6 +5,13 @@
  * sucesso e na falha.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
+const siteAdmin = vi.hoisted(() => ({ value: true }))
+vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
+  useCanAdminSite: () => siteAdmin.value,
+}))
 import { render, screen, within, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -299,6 +306,21 @@ describe('idioma e nicho no cartão (Configurar)', () => {
     await user.click(within(card(id)).getByRole('button', { name: 'Configurar' }))
     return user
   }
+
+  it('editora (não administra o site): idioma e nicho desabilitados, sem "Remove channel…", com o motivo escrito', async () => {
+    siteAdmin.value = false
+    try {
+      harness()
+      await config('c1')
+      const c = card('c1')
+      expect(within(c).getByLabelText('Language')).toBeDisabled()
+      expect(within(c).getByLabelText('Niche')).toBeDisabled()
+      expect(within(c).queryByRole('button', { name: 'Remove channel…' })).toBeNull()
+      expect(within(c).getByTestId('admin-only-note').textContent).toBe('Só quem administra o site pode remover um canal próprio ou mudar o idioma e o nicho dele.')
+    } finally {
+      siteAdmin.value = true
+    }
+  })
 
   it('o slug aparece só para leitura, com a frase que diz que não muda', async () => {
     harness()
