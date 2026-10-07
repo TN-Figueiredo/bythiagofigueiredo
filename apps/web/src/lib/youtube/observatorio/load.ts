@@ -25,6 +25,8 @@ export interface VideoRow {
   id: string; competitor_channel_id: string; video_id: string; title: string | null; view_count: number | null; like_count: number | null
   comment_count: number | null; duration_seconds: number | null; published_at: string | null; is_short: boolean | null; last_checked_at: string | null
   tags: string[] | null; thumbnail_url: string | null
+  /** Optional in the type so a row built without it reads as "not pinned"; the DB read always selects it. */
+  pinned_at?: string | null
 }
 export interface OwnVideoRow {
   id: string; channel_id: string; youtube_video_id: string; title: string; view_count: number; like_count: number; comment_count: number
@@ -63,7 +65,7 @@ export interface ObservatoryRows {
 
 /* ------------------------------------------------------------------ constants */
 const CHANNEL_COLS = 'id, channel_id, channel_name, thumbnail_url, subscriber_count, niche, video_limit, youtube_video_count, sync_status, sync_error, sync_error_since, last_ok_synced_at, last_synced_at, full_sync_completed_at, added_at'
-const VIDEO_COLS = 'id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url'
+const VIDEO_COLS = 'id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url, pinned_at'
 const VERSION_COLS = 'id, video_id, field, value_text, value_hash, has_text, thumb_blob_url, first_seen_at, last_seen_at, window_start, precision, is_current'
 const OWN_VIDEO_COLS = 'id, channel_id, youtube_video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, updated_at, tags'
 /** The task columns every reader of the observatory queue selects (the loader and services/forja-queue). */
@@ -232,6 +234,8 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
     let lastIdx: number | null = null
     vs.forEach(({ v, pub }, k) => {
       const fmt: Fmt = v.is_short ? 'short' : 'long'
+      // D13: the video's own last check; without one, the channel's last good sync; without both, never checked
+      const pinnedAt = ms(v.pinned_at), lastCheck = ms(v.last_checked_at) ?? ms(c.last_ok_synced_at)
       // the instant of a record is its real taken_at (any rate / elapsed-time math needs it: a read at 14:40 is not a
       // read at 12:00). The nominal 12:00 SP of the snap_date is only the day label and the fallback for a row without a
       // usable taken_at (missing, unparseable, or outside its own SP day).
@@ -252,7 +256,9 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       const descs = withLegacy<DescVersion>(legacyBy.get(v.id + '|description') ?? [], realDescs, pub, now, () => ({ lines: null, hasText: false }), () => ({ lines: null, hasText: false }))
       const title = v.title ?? titles[titles.length - 1]!.text
       videos.push({
-        id: v.id, ch: c.id, niche: isNiche(c.niche) ? c.niche : null, fmt, pub, ageDays: ageOf(pub, now), tracked: k < nTracked,
+        id: v.id, ch: c.id, niche: isNiche(c.niche) ? c.niche : null, fmt, pub, ageDays: ageOf(pub, now),
+        tracked: k < nTracked, pinned: v.pinned_at != null, checkedAt: ms(v.last_checked_at),
+        ...(pinnedAt != null ? { pinState: k >= nTracked && (lastCheck == null || lastCheck < pinnedAt) ? 'aguardando-primeira' as const : 'ativo' as const } : {}),
         title, theme: themes.get(v.id) ?? null, formulas: formulasOf(title),
         url: fmt === 'short' ? 'https://www.youtube.com/shorts/' + v.video_id : 'https://www.youtube.com/watch?v=' + v.video_id, ytId: v.video_id, dur: v.duration_seconds,
         views: v.view_count, viewsAt: ms(v.last_checked_at) ?? ms(c.last_ok_synced_at) ?? now, likes: v.like_count, comments: v.comment_count ?? 0,
@@ -285,7 +291,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
     vs.forEach(({ v, pub }, k) => {
       const fmt: Fmt = ownIsShort(v) ? 'short' : 'long'
       videos.push({
-        id: v.id, ch: oc.id, niche: ownNiche, fmt, pub, ageDays: ageOf(pub, now), tracked: k < RULES.videoLimitMax,
+        id: v.id, ch: oc.id, niche: ownNiche, fmt, pub, ageDays: ageOf(pub, now), tracked: k < RULES.videoLimitMax, pinned: false,
         title: v.title, theme: themes.get(v.id) ?? null, formulas: formulasOf(v.title),
         url: fmt === 'short' ? 'https://www.youtube.com/shorts/' + v.youtube_video_id : 'https://www.youtube.com/watch?v=' + v.youtube_video_id, ytId: v.youtube_video_id, dur: v.duration_seconds,
         views: v.view_count, viewsAt: ms(v.updated_at) ?? last ?? now, likes: v.like_count, comments: v.comment_count,
@@ -441,6 +447,22 @@ export function trackedVideoIds(channels: readonly Pick<ChannelRow, 'id' | 'vide
   }
   return out
 }
+/**
+ * Ids whose daily record is read: the tracked ones ∪ the pinned ones (R119). A pinned video without published_at, or of a
+ * channel that was not loaded, stays out: it is not in the dataset either.
+ */
+export function observedVideoIds(channels: readonly Pick<ChannelRow, 'id' | 'video_limit'>[], videos: readonly Pick<VideoRow, 'id' | 'competitor_channel_id' | 'published_at' | 'pinned_at'>[]): string[] {
+  const out = new Set(trackedVideoIds(channels, videos)), loaded = new Set(channels.map(c => c.id))
+  for (const v of videos) if (v.pinned_at != null && loaded.has(v.competitor_channel_id) && ms(v.published_at) != null) out.add(v.id)
+  return [...out]
+}
+/**
+ * The competitor videos of the given channels. A missing column (pinned_at before its migration reached this database)
+ * THROWS ObservatoryLoadError: there is deliberately no reread without it, a pin must never read as "not pinned".
+ */
+export async function readVideos(sb: SupabaseClient, channelIds: readonly string[]): Promise<VideoRow[]> {
+  return readIn<VideoRow>('competitor_videos', channelIds, ids => sb.from('competitor_videos').select(VIDEO_COLS).in('competitor_channel_id', ids).order('id'))
+}
 /** First SP date of the daily read: one day before the series start (the day-0 baseline), never older than DAILY_MAX_DAYS. */
 export function dailyReadFrom(seriesStart: number, now: number): string { return spDate(Math.max(seriesStart - DAY, now - DAILY_MAX_DAYS * DAY)) }
 
@@ -476,13 +498,13 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
   ])
   const channelIds = channels.map(c => c.id)
   const [videos, snapshots] = await Promise.all([
-    readIn<VideoRow>('competitor_videos', channelIds, ids => sb.from('competitor_videos').select(VIDEO_COLS).in('competitor_channel_id', ids).order('id')),
+    readVideos(sb, channelIds),
     readIn<SnapshotRow>('competitor_channel_snapshots', channelIds, ids => sb.from('competitor_channel_snapshots').select('id, competitor_channel_id, snapshot_date, subscriber_count, view_count, video_count')
       .in('competitor_channel_id', ids).gte('snapshot_date', spDate(now - SNAPSHOT_DAYS * DAY)).order('id')),
   ])
   const videoIds = videos.map(v => v.id)
-  // daily points only for TRACKED videos (the engine ignores the series of the others), from dailyReadFrom to today (SP)
-  const dailyIds = trackedVideoIds(channels, videos), dailyFrom = dailyReadFrom(seriesStart, now), dailyTo = spDate(now)
+  // daily points only for OBSERVED videos (tracked ∪ pinned; the engine ignores the series of the others), from dailyReadFrom to today (SP)
+  const dailyIds = observedVideoIds(channels, videos), dailyFrom = dailyReadFrom(seriesStart, now), dailyTo = spDate(now)
   const [versions, daily] = await Promise.all([
     readIn<VersionRow>('competitor_video_versions', videoIds, ids => sb.from('competitor_video_versions').select(VERSION_COLS).in('video_id', ids).order('id')),
     readIn<DailyRow>('competitor_video_daily', dailyIds, ids => sb.from('competitor_video_daily').select('video_id, snap_date, views, likes, comments, taken_at')

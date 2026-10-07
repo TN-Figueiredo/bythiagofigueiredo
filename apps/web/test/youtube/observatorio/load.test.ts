@@ -1,7 +1,7 @@
 // @vitest-environment node
 // apps/web/test/youtube/observatorio/load.test.ts — pure rowsToDataset (Review Focus 2 and 4).
 import { describe, it, expect } from 'vitest'
-import { rowsToDataset, taskRowToRequest, nextSyncSlot, trackedVideoIds, dailyReadFrom, dailyCappedFrom, mapLimit, type ObservatoryRows, type ChannelRow, type VideoRow, type VersionRow, type LegacyChangeRow, type DailyRow, type ReadingRow, type OwnChannelRow, type OwnVideoRow, type TaskRow } from '@/lib/youtube/observatorio/load'
+import { rowsToDataset, taskRowToRequest, nextSyncSlot, trackedVideoIds, observedVideoIds, dailyReadFrom, dailyCappedFrom, mapLimit, type ObservatoryRows, type ChannelRow, type VideoRow, type VersionRow, type LegacyChangeRow, type DailyRow, type ReadingRow, type OwnChannelRow, type OwnVideoRow, type TaskRow } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { formulasOf } from '@/lib/youtube/observatorio/catalog'
 
@@ -21,7 +21,7 @@ const channel = (o: Partial<ChannelRow> = {}): ChannelRow => ({
 })
 const video = (o: Partial<VideoRow> = {}): VideoRow => ({
   id: 'v1', competitor_channel_id: 'ch1', video_id: 'yt1', title: 'Um título', view_count: 1000, like_count: 10, comment_count: 1, duration_seconds: 600,
-  published_at: iso(sp('2026-10-10T10:00:00')), is_short: false, last_checked_at: iso(NOW - 2 * H), tags: null, thumbnail_url: null, ...o,
+  published_at: iso(sp('2026-10-10T10:00:00')), is_short: false, last_checked_at: iso(NOW - 2 * H), tags: null, thumbnail_url: null, pinned_at: null, ...o,
 })
 const version = (o: Partial<VersionRow> = {}): VersionRow => ({
   id: 'ver1', video_id: 'v1', field: 'title', value_text: 'Um título', value_hash: 'h1', has_text: true, thumb_blob_url: null,
@@ -613,5 +613,91 @@ describe('rowsToDataset — foto do canal (R124)', () => {
     const ds = rowsToDataset(rows({ ownChannels: [own({ thumbnail_url: 'https://yt3.ggpht.com/o=s88' }), own({ id: 'o2', channel_id: 'UCo2', name: 'Outro Meu' })] }), NOW)
     expect(ds.channels.find(c => c.id === 'o1')!.avatar).toBe('https://yt3.ggpht.com/o=s88')
     expect(ds.channels.find(c => c.id === 'o2')!.avatar).toBeNull()
+  })
+})
+
+describe('fixar vídeo (R118/R119) — carregador', () => {
+  const base = (pinned_at: string | null) => rows({
+    settings: { series_started_at: SERIES, channel_limit: 75 }, channels: [channel({ video_limit: 1 })],
+    videos: [
+      video({ id: 'a', video_id: 'ya', published_at: iso(sp('2026-10-20T10:00:00')) }),
+      video({ id: 'b', video_id: 'yb', published_at: iso(sp('2026-08-01T10:00:00')), pinned_at }),
+    ],
+    daily: [daily('b', '2026-10-22', 500), daily('b', '2026-10-23', 600)],
+  })
+  it('fixado fora dos N mais recentes: tem série, tracked false, pinned true', () => {
+    const ds = rowsToDataset(base(iso(NOW - 3 * DAY)), NOW)
+    const b = ds.videos.find(v => v.id === 'b')!
+    expect(b).toMatchObject({ tracked: false, pinned: true })
+    expect(b.series.map(p => p.views)).toEqual([500, 600])
+    expect(ds.videos.find(v => v.id === 'a')).toMatchObject({ tracked: true, pinned: false })
+  })
+  it('pinned_at nulo, ou coluna ausente na linha (o dado não existe): pinned é false, nunca undefined', () => {
+    expect(rowsToDataset(base(null), NOW).videos.map(v => [v.id, v.pinned])).toEqual([['a', false], ['b', false]])
+    const noCol = video({ id: 'c', video_id: 'yc' })
+    delete noCol.pinned_at
+    expect(rowsToDataset(rows({ channels: [channel()], videos: [noCol] }), NOW).videos[0]!.pinned).toBe(false)
+  })
+  it('fixar não muda quantos vídeos o canal acompanha (o progresso de busca e as contagens seguem os N)', () => {
+    const plain = createObservatory(rowsToDataset(base(null), NOW)), pinned = createObservatory(rowsToDataset(base(iso(NOW - 3 * DAY)), NOW))
+    expect(pinned.channelStats('ch1').tracked).toBe(plain.channelStats('ch1').tracked)
+    expect(pinned.channel('ch1')!.sync.state).toBe(plain.channel('ch1')!.sync.state)
+  })
+  it('vídeo de canal próprio nunca é fixado', () => {
+    const own: OwnChannelRow = { id: 'o1', channel_id: 'UCo1', name: 'Meu Canal', handle: '@meu', subscriber_count: 10, last_synced_at: null }
+    const ov: OwnVideoRow = { id: 'ov1', channel_id: 'o1', youtube_video_id: 'yo1', title: 'Meu vídeo', view_count: 1, like_count: 0, comment_count: 0, duration_seconds: 600, published_at: iso(NOW - 5 * DAY), updated_at: iso(NOW - DAY), tags: [] }
+    expect(rowsToDataset(rows({ ownChannels: [own], ownVideos: [ov] }), NOW).videos[0]!.pinned).toBe(false)
+  })
+})
+
+describe('fixado aguardando a primeira conferência (D13)', () => {
+  const PIN = NOW - 30 * 60_000, MIN = 60_000
+  const state = (o: { checked: string | null; chOk?: string | null; limit?: number; pinned?: boolean }) => rowsToDataset(rows({
+    channels: [channel({ video_limit: o.limit ?? 1, last_ok_synced_at: o.chOk === undefined ? iso(PIN - 5 * H) : o.chOk })],
+    videos: [
+      video({ id: 'a', video_id: 'ya', published_at: iso(NOW - 2 * DAY) }),
+      video({ id: 'b', video_id: 'yb', published_at: iso(NOW - 80 * DAY), last_checked_at: o.checked, pinned_at: o.pinned === false ? null : iso(PIN) }),
+    ],
+  }), NOW).videos.find(v => v.id === 'b')!
+  it('última conferência 1 min antes de fixar: aguardando; 1 min depois (ou no mesmo instante): ativo', () => {
+    expect(state({ checked: iso(PIN - MIN) }).pinState).toBe('aguardando-primeira')
+    expect(state({ checked: iso(PIN + MIN) }).pinState).toBe('ativo')
+    expect(state({ checked: iso(PIN) }).pinState).toBe('ativo')
+  })
+  it('last_checked_at nulo: vale a última sincronização boa do canal; sem nenhuma das duas, nunca foi conferido', () => {
+    expect(state({ checked: null, chOk: iso(PIN - MIN) }).pinState).toBe('aguardando-primeira')
+    expect(state({ checked: null, chOk: iso(PIN + MIN) }).pinState).toBe('ativo')
+    expect(state({ checked: null, chOk: null }).pinState).toBe('aguardando-primeira')
+  })
+  it('checkedAt é o last_checked_at de verdade: nulo quando a coluna é nula, nunca a hora do canal nem "agora"', () => {
+    expect(state({ checked: iso(PIN + MIN) }).checkedAt).toBe(PIN + MIN)
+    expect(state({ checked: null, chOk: iso(PIN + MIN) }).checkedAt).toBeNull()
+  })
+  it('não fixado: sem pinState; fixado que está entre os N (já conferido pelo passo normal): ativo', () => {
+    expect(state({ checked: iso(PIN - MIN), pinned: false }).pinState).toBeUndefined()
+    expect(state({ checked: iso(PIN - MIN), limit: 2 }).pinState).toBe('ativo')
+  })
+})
+
+describe('leitura diária: acompanhados ∪ fixados', () => {
+  const chs = [channel({ video_limit: 2 })]
+  const at = (d: number) => iso(NOW - d * DAY)
+  const vs = [
+    video({ id: 'a', published_at: at(1) }), video({ id: 'b', published_at: at(2) }),
+    video({ id: 'c', published_at: at(3), pinned_at: at(1) }), video({ id: 'd', published_at: at(4) }),
+    video({ id: 'n', published_at: null, pinned_at: at(1) }),                       // no date: out of the dataset, so out of the read
+    video({ id: 'x', competitor_channel_id: 'outro', published_at: at(1), pinned_at: at(1) }), // a channel that was not loaded
+  ]
+  it('observedVideoIds inclui o fixado fora dos N; trackedVideoIds não muda', () => {
+    expect(trackedVideoIds(chs, vs).sort()).toEqual(['a', 'b'])
+    expect(observedVideoIds(chs, vs).sort()).toEqual(['a', 'b', 'c'])
+  })
+  it('fixado que já está entre os N não duplica', () => {
+    const dup = [video({ id: 'a', published_at: at(1), pinned_at: at(1) }), video({ id: 'b', published_at: at(2) })]
+    expect(observedVideoIds(chs, dup).sort()).toEqual(['a', 'b'])
+  })
+  it('sem fixados: os mesmos ids de trackedVideoIds', () => {
+    const none = vs.map(v => ({ ...v, pinned_at: null }))
+    expect(observedVideoIds(chs, none).sort()).toEqual(trackedVideoIds(chs, none).sort())
   })
 })

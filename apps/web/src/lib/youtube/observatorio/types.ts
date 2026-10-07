@@ -13,6 +13,15 @@ export interface DescVersion extends VersionBase { lines: string[] | null; hasTe
 
 export interface ObsVideo {
   id: string; ch: string; niche: Niche | null; fmt: Fmt; pub: number; ageDays: number; tracked: boolean
+  /** Pinned by the owner (R118): still observed when it falls out of the channel's video_limit. Absent = not pinned. NOT `tracked` (R119). */
+  pinned?: boolean
+  /**
+   * Only for a pinned video (absent = not pinned). 'aguardando-primeira' = pinned outside the tracked ones and not checked
+   * since: nothing may be said about "now" for it until the next sync (D13).
+   */
+  pinState?: 'aguardando-primeira' | 'ativo'
+  /** competitor_videos.last_checked_at as it is stored; null when it was never written. No fallback (unlike viewsAt): a screen may print it. */
+  checkedAt?: number | null
   title: string; theme: string | null; formulas: string[]; url: string; ytId: string; dur: number | null
   views: number | null; viewsAt: number | null
   /** null = the count was never read (a video still being fetched): no engagement, never 0% */
