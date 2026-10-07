@@ -44,6 +44,7 @@ const OAUTH_ERROR_TEXT = {
   cross_origin: 'This page must be opened from the CMS — go back and click Connect again',
   browser_changed:
     'Authorization finished in a different browser. Open the CMS in Safari or Chrome (not inside another app) and try again.',
+  site_admin_required: 'Só quem administra o site pode conectar ou trocar a conta do Instagram.',
 } satisfies Record<OauthErrorCode, string>
 
 export function oauthErrorText(code: OauthErrorCode): string {

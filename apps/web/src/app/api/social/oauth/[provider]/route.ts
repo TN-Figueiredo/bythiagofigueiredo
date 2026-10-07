@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { requireSiteAdminScope, siteAdminOnlyMessage } from '@/lib/cms/auth-guards'
 import {
   deriveHmacKey,
   signState,
@@ -65,9 +65,13 @@ export async function GET(
   const { provider } = await params
   const { siteId } = await getSiteContext()
 
-  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  // Degrau "administrar o site": conectar uma rede social grava credencial — só quem administra
+  // (antes bastava editar). Falha fechado.
+  const auth = await requireSiteAdminScope(siteId)
   if (!auth.ok) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+    return auth.reason === 'unauthenticated'
+      ? NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+      : NextResponse.json({ error: siteAdminOnlyMessage('conectar uma conta de rede social') }, { status: 403 })
   }
 
   const masterKey = process.env.SOCIAL_MASTER_KEY

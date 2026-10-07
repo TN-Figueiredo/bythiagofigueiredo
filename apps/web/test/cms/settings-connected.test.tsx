@@ -1,4 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
+const siteAdmin = vi.hoisted(() => ({ value: true }))
+vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
+  useCanAdminSite: () => siteAdmin.value,
+}))
 import { render, screen, fireEvent } from '@testing-library/react'
 
 /* ------------------------------------------------------------------ */
@@ -330,6 +337,17 @@ describe('SettingsConnected', () => {
     expect(
       screen.queryByRole('button', { name: /danger zone/i }),
     ).toBeNull()
+  })
+
+  it('editora (pode editar, não administra o site): a aba Danger Zone não aparece; o resto de Settings sim', async () => {
+    siteAdmin.value = false
+    try {
+      await renderSettings()
+      expect(screen.queryByRole('button', { name: /danger zone/i })).toBeNull()
+      expect((screen.getByLabelText(/logo url/i) as HTMLInputElement).disabled).toBe(false)
+    } finally {
+      siteAdmin.value = true
+    }
   })
 
   /* ---- Mobile sidebar ---- */

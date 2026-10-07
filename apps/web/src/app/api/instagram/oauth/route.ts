@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { randomBytes } from 'node:crypto'
 import { cookies, headers } from 'next/headers'
-import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { requireSiteAdminScope } from '@/lib/cms/auth-guards'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import {
@@ -60,11 +60,13 @@ export async function GET(req: NextRequest): Promise<Response> {
     return fail('origin_not_allowed', 400, targetOrigin)
   }
 
-  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  // Degrau "administrar o site": conectar o Instagram grava credencial — só quem administra
+  // (antes bastava editar). Falha fechado, antes de qualquer service client.
+  const auth = await requireSiteAdminScope(siteId)
   if (!auth.ok) {
     return auth.reason === 'unauthenticated'
       ? fail('session_changed', 401, targetOrigin, LOGIN_HREF)
-      : fail('session_changed', 403, targetOrigin)
+      : fail('site_admin_required', 403, targetOrigin)
   }
 
   const deny = assertSameOriginFetch(req)

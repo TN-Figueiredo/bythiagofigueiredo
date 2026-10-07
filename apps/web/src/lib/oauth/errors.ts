@@ -24,3 +24,5 @@ export type OauthErrorCode =
   | 'write_failed'
   | 'cross_origin'
   | 'browser_changed'
+  /** Degrau "administrar o site": a sessão pode editar, mas conectar integração é só de quem administra. */
+  | 'site_admin_required'

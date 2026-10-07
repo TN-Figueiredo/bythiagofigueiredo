@@ -5,7 +5,7 @@ import { encrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 import { deriveHmacKey, verifyState, SOCIAL_STATE_LABEL } from '@/lib/oauth/state'
 import { oauthResultHtml, type OauthResultExtra } from '@/lib/oauth/popup-result'
 import { recordSocialConsent } from '@/lib/oauth/consent'
-import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { requireSiteAdminScope, siteAdminOnlyMessage } from '@/lib/cms/auth-guards'
 
 export const runtime = 'nodejs'
 
@@ -228,12 +228,20 @@ export async function GET(
     const { siteId, userId } = stateData
 
     // The callback used to write with the service client and NO session at all.
-    const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+    // Degrau "administrar o site": gravar a credencial é só de quem administra (antes: editar).
+    const auth = await requireSiteAdminScope(siteId)
+    if (!auth.ok && auth.reason === 'insufficient_access') {
+      return resultHtml(provider, false, nonce, {
+        error: siteAdminOnlyMessage('conectar uma conta de rede social'),
+        extra: { code: 'site_admin_required' },
+        status: 403,
+      })
+    }
     if (!auth.ok) {
       return resultHtml(provider, false, nonce, {
         error: 'Session changed during authorization — sign in and try again',
         extra: { code: 'session_changed' },
-        status: auth.reason === 'unauthenticated' ? 401 : 403,
+        status: 401,
       })
     }
     if (auth.user.id !== userId) {

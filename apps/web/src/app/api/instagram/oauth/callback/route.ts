@@ -2,7 +2,7 @@ import { NextRequest, after } from 'next/server'
 import { cookies, headers } from 'next/headers'
 import { revalidateTag } from 'next/cache'
 import * as Sentry from '@sentry/nextjs'
-import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { requireSiteAdminScope } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import {
   INSTAGRAM_STATE_LABEL, deriveHmacKey, signState, verifyState,
@@ -159,7 +159,11 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 
   // 4 — sessão re-verificada no retorno
-  const auth = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  // Degrau "administrar o site" conferido de novo no retorno (o papel pode ter mudado no meio).
+  const auth = await requireSiteAdminScope(siteId)
+  if (!auth.ok && auth.reason === 'insufficient_access') {
+    return finish({ success: false, code: 'site_admin_required', status: 403, targetOrigin })
+  }
   if (!auth.ok || auth.user.id !== userId) {
     return finish({ success: false, code: 'session_changed', status: 401, targetOrigin, backHref: LOGIN_HREF })
   }

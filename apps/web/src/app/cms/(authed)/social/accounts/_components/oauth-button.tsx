@@ -1,5 +1,6 @@
 'use client'
 
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import { useCallback, useEffect, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Provider } from '@tn-figueiredo/social'
@@ -22,6 +23,8 @@ export function OauthButton({ provider, label, connectingLabel, className = '' }
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const messageListenerRef = useRef<((e: MessageEvent) => void) | null>(null)
+  // Degrau "administrar o site": conectar/reconectar grava credencial — só quem administra.
+  const canAdminSite = useCanAdminSite()
 
   // Cleanup message listener on unmount to prevent leaks
   useEffect(() => {
@@ -68,6 +71,10 @@ export function OauthButton({ provider, label, connectingLabel, className = '' }
       window.addEventListener('message', onMessage)
     })
   }, [provider, router])
+
+  if (!canAdminSite) {
+    return <AdminOnlyNote action="conectar ou reconectar contas" className="text-cms-text-muted" />
+  }
 
   return (
     <button

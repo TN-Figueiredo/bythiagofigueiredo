@@ -1,5 +1,6 @@
 'use client'
 
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Provider } from '@tn-figueiredo/social'
@@ -417,6 +418,8 @@ function ManageDetails({
   onDisconnect: (id: string) => void
   isPending: boolean
 }) {
+  // Degrau "administrar o site": desconectar derruba publicação e métricas — só quem administra.
+  const canAdminSite = useCanAdminSite()
   return (
     <div className="space-y-3 border-t border-cms-border/50 pt-3">
       {/* Details grid */}
@@ -467,14 +470,18 @@ function ManageDetails({
             className="text-xs px-2 py-1"
           />
         )}
-        <button
-          type="button"
-          onClick={() => onDisconnect(conn.id)}
-          disabled={isPending}
-          className="rounded-md border border-red-500/30 px-3 py-1 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50"
-        >
-          {t.accounts.connections.disconnect}
-        </button>
+        {canAdminSite ? (
+          <button
+            type="button"
+            onClick={() => onDisconnect(conn.id)}
+            disabled={isPending}
+            className="rounded-md border border-red-500/30 px-3 py-1 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+          >
+            {t.accounts.connections.disconnect}
+          </button>
+        ) : (
+          <AdminOnlyNote action="desconectar contas" className="text-cms-text-muted" />
+        )}
       </div>
     </div>
   )

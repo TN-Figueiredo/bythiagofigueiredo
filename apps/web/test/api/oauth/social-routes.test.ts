@@ -1,6 +1,18 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+// Degrau "administrar o site": as rotas de OAuth pedem `requireSiteAdminScope`. Aqui ele é
+// dirigido pelo mesmo mock de sessão que estes testes já controlam (`requireSiteScope`), para
+// os cenários de "sem sessão" / "sessão trocou" continuarem valendo. A recusa específica da
+// editora fica em test/cms/site-admin-step-integracoes.test.ts.
+vi.mock('@/lib/cms/auth-guards', async () => {
+  const server = await import('@tn-figueiredo/auth-nextjs/server')
+  return {
+    requireSiteAdminScope: (siteId: string) => server.requireSiteScope({ area: 'cms', siteId, mode: 'edit' }),
+    siteAdminOnlyMessage: (acao: string) => `Só quem administra o site pode ${acao}.`,
+  }
+})
+
 let mockServiceClient: ReturnType<typeof makeServiceClient>
 
 vi.mock('@/lib/cms/site-context', () => ({
@@ -233,14 +245,16 @@ describe('social oauth callback — state and session', () => {
     expect(mockServiceClient.insert).not.toHaveBeenCalled()
   })
 
-  it('returns 403 session_changed for insufficient_access', async () => {
+  it('returns 403 site_admin_required for insufficient_access (a sessão não administra o site)', async () => {
     vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
     vi.mocked(requireSiteScope).mockResolvedValue({ ok: false, reason: 'insufficient_access' })
     const res = await CALLBACK(callbackReq(validState(NOW)), {
       params: Promise.resolve({ provider: 'google' }),
     })
     expect(res.status).toBe(403)
-    expect(await res.text()).toContain('"code":"session_changed"')
+    const html = await res.text()
+    expect(html).toContain('"code":"site_admin_required"')
+    expect(html).toContain('Só quem administra o site pode conectar uma conta de rede social.')
   })
 
   it('returns 401 when the signed-in user is not the one who started the flow', async () => {

@@ -174,6 +174,7 @@ function SyncStatusBadge({ channel }: { channel: ChannelDashboard }) {
 
 function ReconnectTokenButton() {
   const router = useRouter()
+  const canAdminSite = useCanAdminSite()
   const [isConnecting, startTransition] = useTransition()
   const messageListenerRef = useRef<((e: MessageEvent) => void) | null>(null)
 
@@ -219,6 +220,10 @@ function ReconnectTokenButton() {
       window.addEventListener('message', onMessage)
     })
   }, [router])
+
+  // Degrau "administrar o site": reconectar grava a credencial do canal. A editora não vê o botão
+  // (a recusa e o motivo aparecem em Configurar, junto da identidade do canal).
+  if (!canAdminSite) return null
 
   return (
     <button

@@ -1,5 +1,17 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Degrau "administrar o site": as rotas de OAuth pedem `requireSiteAdminScope`. Aqui ele é
+// dirigido pelo mesmo mock de sessão que estes testes já controlam (`requireSiteScope`), para
+// os cenários de "sem sessão" / "sessão trocou" continuarem valendo. A recusa específica da
+// editora fica em test/cms/site-admin-step-integracoes.test.ts.
+vi.mock('@/lib/cms/auth-guards', async () => {
+  const server = await import('@tn-figueiredo/auth-nextjs/server')
+  return {
+    requireSiteAdminScope: (siteId: string) => server.requireSiteScope({ area: 'cms', siteId, mode: 'edit' }),
+    siteAdminOnlyMessage: (acao: string) => `Só quem administra o site pode ${acao}.`,
+  }
+})
 import { NextRequest } from 'next/server'
 
 const MASTER = 'b'.repeat(64)

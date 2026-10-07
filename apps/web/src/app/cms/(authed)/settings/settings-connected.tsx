@@ -1320,7 +1320,9 @@ export function SettingsConnected({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [activeSection, switchSection])
 
-  const visibleSections = readOnly
+  // Degrau "administrar o site": desligar o CMS e apagar o site são só de quem administra.
+  const canAdminSite = useCanAdminSite()
+  const visibleSections = readOnly || !canAdminSite
     ? SECTIONS.filter((s) => s.id !== 'danger-zone')
     : SECTIONS
 
@@ -1442,8 +1444,11 @@ export function SettingsConnected({
           {activeSection === 'localization' && (
             <LocalizationSection site={site} readOnly={readOnly} />
           )}
-          {activeSection === 'danger-zone' && !readOnly && (
+          {activeSection === 'danger-zone' && !readOnly && canAdminSite && (
             <DangerZoneSection site={site} />
+          )}
+          {activeSection === 'danger-zone' && !readOnly && !canAdminSite && (
+            <AdminOnlyNote action="desligar o CMS ou apagar o site" className="text-slate-400" />
           )}
         </div>
       </main>
