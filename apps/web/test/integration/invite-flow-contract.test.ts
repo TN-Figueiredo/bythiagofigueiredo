@@ -19,6 +19,7 @@ import {
   ANON_KEY,
   insertAuthUser,
   deleteAuthUser,
+  seedSite,
   signUserJwt,
 } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -315,5 +316,193 @@ describe.skipIf(skipIfNoLocalDb())('admin_user_directory: contrato com o banco l
     const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } })
     const deniedAnon = await anon.rpc('admin_user_directory', { p_user_ids: [userId] })
     expect(deniedAnon.error?.code).toBe('42501')
+  })
+})
+
+// O convite que o dono vai mandar de verdade: escopo `site`, papel `editor`.
+// Prova o que a editora vira no banco — e, tão importante quanto, o que NÃO vira.
+describe.skipIf(skipIfNoLocalDb())('convite de editora de site: contrato com o banco local', () => {
+  let service: SupabaseClient
+  let orgId = ''
+  let siteId = ''
+  let otherSiteId = ''
+  let inviterId = ''
+  let editorId = ''
+  const stamp = `${Date.now()}-${randomBytes(3).toString('hex')}`
+  const domain = `editora-${stamp}.test`
+  const email = `editora-${stamp}@example.test`
+  const token = randomBytes(32).toString('hex')
+
+  beforeAll(async () => {
+    service = getSupabaseServiceClient()
+    // Dois sites na organização raiz (a mesma forma de produção: 1 org, site(s) dentro dela).
+    const a = await seedSite(service, { domains: [domain] })
+    const b = await seedSite(service)
+    orgId = a.orgId
+    siteId = a.siteId
+    otherSiteId = b.siteId
+    inviterId = await insertAuthUser(`editora-dono-${stamp}@example.test`)
+    editorId = await insertAuthUser(email)
+    const m = await service
+      .from('organization_members')
+      .insert({ org_id: orgId, user_id: inviterId, role: 'org_admin' })
+    expect(m.error).toBeNull()
+    const inv = await service.from('invitations').insert({
+      email,
+      org_id: orgId,
+      site_id: siteId,
+      role_scope: 'site',
+      role: 'editor',
+      token,
+      invited_by: inviterId,
+    })
+    expect(inv.error).toBeNull()
+  })
+
+  afterAll(async () => {
+    const sites = [siteId, otherSiteId].filter(Boolean)
+    await service.from('invitations').delete().eq('token', token)
+    await service.from('site_memberships').delete().in('site_id', sites)
+    await service.from('organization_members').delete().eq('org_id', orgId).eq('user_id', inviterId)
+    await service.from('audit_log').delete().in('site_id', sites)
+    await service.from('audit_log').delete().in('actor_user_id', [inviterId, editorId])
+    if (inviterId) await deleteAuthUser(inviterId)
+    if (editorId) await deleteAuthUser(editorId)
+    const del = await service.from('sites').delete().in('id', sites)
+    expect(del.error).toBeNull()
+  })
+
+  it('a página do convite acha o convite de site e mostra o papel editor', async () => {
+    const inv = await fetchPendingInvitation(service, token)
+    expect(inv).not.toBeNull()
+    expect(inv!.email).toBe(email)
+    expect(inv!.role).toBe('editor')
+    expect(inv!.org_name).not.toBe('')
+  })
+
+  it('aceitar cria o vínculo de editor SÓ naquele site e redireciona para o /cms/login do domínio principal do site', async () => {
+    const accepted = await service.rpc('accept_invitation_atomic', {
+      p_token_hash: token,
+      p_user_id: editorId,
+    })
+    expect(accepted.error).toBeNull()
+    const result = accepted.data as { role?: string; role_scope?: string; redirect_url?: string; site_id?: string }
+    expect(result.role).toBe('editor')
+    expect(result.role_scope).toBe('site')
+    expect(result.site_id).toBe(siteId)
+    expect(result.redirect_url).toBe(`https://${domain}/cms/login`)
+
+    const memberships = await service
+      .from('site_memberships')
+      .select('site_id, role')
+      .eq('user_id', editorId)
+    expect(memberships.data).toEqual([{ site_id: siteId, role: 'editor' }])
+    const orgMember = await service
+      .from('organization_members')
+      .select('role')
+      .eq('user_id', editorId)
+    expect(orgMember.data).toEqual([])
+    expect(await fetchPendingInvitation(service, token)).toBeNull()
+  })
+
+  it('a editora entra no CMS e edita/publica no site dela (JWT sem app_metadata.role)', async () => {
+    const asEditor = clientAs(signUserJwt(editorId, 'user').jwt)
+    for (const fn of ['can_view_site', 'can_edit_site', 'can_publish_site'] as const) {
+      const res = await asEditor.rpc(fn, { p_site_id: siteId })
+      expect(res.error, fn).toBeNull()
+      expect(res.data, fn).toBe(true)
+    }
+    const staff = await asEditor.rpc('is_member_staff')
+    expect(staff.data).toBe(true)
+  })
+
+  it('a editora NÃO é administradora: nem da organização, nem de usuários, nem de /admin, nem de outro site', async () => {
+    const asEditor = clientAs(signUserJwt(editorId, 'user').jwt)
+    const checks: Array<[string, Record<string, string> | undefined]> = [
+      ['is_super_admin', undefined],
+      ['is_admin', undefined],
+      ['is_org_admin', { p_org_id: orgId }],
+      ['is_org_staff', { p_org_id: orgId }],
+      ['can_admin_site_users', { p_site_id: siteId }],
+      ['can_admin_site', { p_site_id: siteId }],
+      ['can_view_site', { p_site_id: otherSiteId }],
+      ['can_edit_site', { p_site_id: otherSiteId }],
+    ]
+    for (const [fn, args] of checks) {
+      const res = args ? await asEditor.rpc(fn, args) : await asEditor.rpc(fn)
+      expect(res.error, fn).toBeNull()
+      expect(res.data, fn).toBe(false)
+    }
+  })
+})
+
+// Convidada que JÁ tem conta (ex.: entrou antes com Google): a tela mostra
+// "Aceitar convite" e chamava a sobrecarga antiga accept_invitation_atomic(p_token),
+// que grava SEMPRE em organization_members. Para um convite de site isso tenta
+// inserir role='editor' numa tabela cujo CHECK só aceita 'org_admin': a função
+// estoura e a tela respondia "rpc_failed". A ação passou a usar a sobrecarga de
+// dois argumentos, que respeita o escopo do convite.
+describe.skipIf(skipIfNoLocalDb())('convite de site para quem já tem conta: contrato com o banco local', () => {
+  let service: SupabaseClient
+  let siteId = ''
+  let orgId = ''
+  let userId = ''
+  const stamp = `${Date.now()}-${randomBytes(3).toString('hex')}`
+  const email = `jatemconta-${stamp}@example.test`
+  const token = randomBytes(32).toString('hex')
+
+  beforeAll(async () => {
+    service = getSupabaseServiceClient()
+    const seeded = await seedSite(service)
+    siteId = seeded.siteId
+    orgId = seeded.orgId
+    userId = await insertAuthUser(email)
+    const inv = await service.from('invitations').insert({
+      email,
+      org_id: orgId,
+      site_id: siteId,
+      role_scope: 'site',
+      role: 'editor',
+      token,
+    })
+    expect(inv.error).toBeNull()
+  })
+
+  afterAll(async () => {
+    await service.from('invitations').delete().eq('token', token)
+    await service.from('site_memberships').delete().eq('site_id', siteId)
+    await service.from('organization_members').delete().eq('user_id', userId)
+    await service.from('audit_log').delete().eq('site_id', siteId)
+    await service.from('audit_log').delete().eq('actor_user_id', userId)
+    if (userId) await deleteAuthUser(userId)
+    const del = await service.from('sites').delete().eq('id', siteId)
+    expect(del.error).toBeNull()
+  })
+
+  it('a sobrecarga antiga (p_token) não serve para convite de site: falha e não cria vínculo nenhum', async () => {
+    const asUser = clientAs(signUserJwt(userId, 'user').jwt)
+    const res = await asUser.rpc('accept_invitation_atomic', { p_token: token })
+    expect(res.error).not.toBeNull()
+    const org = await service.from('organization_members').select('role').eq('user_id', userId)
+    expect(org.data).toEqual([])
+    const site = await service.from('site_memberships').select('role').eq('user_id', userId)
+    expect(site.data).toEqual([])
+    // o convite continua pendente
+    expect(await fetchPendingInvitation(service, token)).not.toBeNull()
+  })
+
+  it('a sobrecarga de dois argumentos (a que a ação usa) cria o vínculo de editor no site', async () => {
+    const res = await service.rpc('accept_invitation_atomic', {
+      p_token_hash: token,
+      p_user_id: userId,
+    })
+    expect(res.error).toBeNull()
+    const site = await service
+      .from('site_memberships')
+      .select('site_id, role')
+      .eq('user_id', userId)
+    expect(site.data).toEqual([{ site_id: siteId, role: 'editor' }])
+    const org = await service.from('organization_members').select('role').eq('user_id', userId)
+    expect(org.data).toEqual([])
   })
 })

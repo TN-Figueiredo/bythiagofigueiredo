@@ -35,12 +35,19 @@ async function getUserClient() {
 // ─── action: accept for already-authenticated user ───────────────────────────
 
 /**
- * Called when the visitor is already signed in and we just need to run the
- * atomic accept RPC (which binds auth.uid() server-side).
+ * Called when the visitor is already signed in with the invited e-mail.
  *
- * Uses the Sprint 3 single-arg overload of `accept_invitation_atomic(p_token)`
- * which still exists alongside the RBAC v3 two-arg variant. Returns
- * `{ ok: boolean, error?: string, org_id?: string }`.
+ * Usa a MESMA sobrecarga do fluxo de senha —
+ * `accept_invitation_atomic(p_token_hash, p_user_id)` — porque só ela respeita o
+ * escopo do convite (org → organization_members, site → site_memberships). A
+ * sobrecarga antiga de um argumento grava sempre em organization_members e
+ * estoura no CHECK da tabela para convites de site (papel editor/reporter): toda
+ * pessoa que já tinha conta via "rpc_failed" ao aceitar um convite de editora.
+ *
+ * A sobrecarga de dois argumentos não confere de quem é o convite, então a
+ * checagem de e-mail é feita aqui (a página também faz, mas uma server action é
+ * chamável direto): o usuário vem de `auth.getUser()` (validado no servidor) e o
+ * e-mail precisa bater com o do convite.
  *
  * Redirects to /cms on success, or back to the invite page with ?error=<code> on failure.
  */
@@ -55,22 +62,28 @@ export async function acceptInviteForCurrentUser(token: string): Promise<void> {
     redirect(`/signup/invite/${token}?error=unauthenticated`)
   }
 
-  // RPC signature: accept_invitation_atomic(p_token text)
-  // auth.uid() is bound server-side — no p_user_id param.
-  const { data, error } = await supabase.rpc('accept_invitation_atomic', {
-    p_token: token,
-  })
-
-  if (error) {
-    captureServerActionError(error, { action: 'accept_invitation', path: 'current_user' })
-    redirect(`/signup/invite/${token}?error=rpc_failed`)
+  const service = getSupabaseServiceClient()
+  const inv = await fetchPendingInvitation(service, token)
+  if (!inv) {
+    redirect(`/signup/invite/${token}?error=not_found`)
   }
 
-  // RPC returns json: { ok: boolean, error?: string, org_id?: string }
-  const result = data as { ok: boolean; error?: string }
-  if (!result.ok) {
-    const code = result.error ?? 'rpc_failed'
-    redirect(`/signup/invite/${token}?error=${encodeURIComponent(code)}`)
+  const userEmail = (user.email ?? '').trim().toLowerCase()
+  if (userEmail === '' || userEmail !== inv.email.trim().toLowerCase()) {
+    redirect(`/signup/invite/${token}?error=email_mismatch`)
+  }
+
+  const { data, error } = await service.rpc('accept_invitation_atomic', {
+    p_token_hash: token,
+    p_user_id: user.id,
+  })
+
+  if (error || !data) {
+    captureServerActionError(
+      error ?? new Error('accept_invitation_atomic returned null'),
+      { action: 'accept_invitation', path: 'current_user' },
+    )
+    redirect(`/signup/invite/${token}?error=rpc_failed`)
   }
 
   redirect('/cms')

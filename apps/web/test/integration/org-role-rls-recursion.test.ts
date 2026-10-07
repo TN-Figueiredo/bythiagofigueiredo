@@ -97,10 +97,20 @@ describe.skipIf(skipIfNoLocalDb())('org_role / is_org_staff / can_admin_site com
     if (invitationId) await service.from('invitations').delete().eq('id', invitationId)
     if (siteId) await service.from('site_memberships').delete().eq('site_id', siteId)
     if (orgId) await service.from('organization_members').delete().eq('org_id', orgId)
-    if (siteId) await service.from('sites').delete().eq('id', siteId)
-    if (orgId) await service.from('organizations').delete().eq('id', orgId)
+    // Os triggers de auditoria gravam audit_log apontando para o site e a org;
+    // sem apagar essas linhas a FK segura o site e ele fica de sobra no banco local.
+    if (siteId) await service.from('audit_log').delete().eq('site_id', siteId)
+    if (orgId) await service.from('audit_log').delete().eq('org_id', orgId)
     for (const id of [adminId, editorId, strangerId, candidateId]) {
       if (id) await deleteAuthUser(id)
+    }
+    if (siteId) {
+      const site = await service.from('sites').delete().eq('id', siteId)
+      expect(site.error).toBeNull()
+    }
+    if (orgId) {
+      const org = await service.from('organizations').delete().eq('id', orgId)
+      expect(org.error).toBeNull()
     }
   })
 
