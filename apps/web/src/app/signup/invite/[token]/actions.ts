@@ -6,6 +6,7 @@ import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { captureServerActionError } from '../../../../lib/sentry-wrap'
+import { fetchPendingInvitation } from './invitation-lookup'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -80,7 +81,7 @@ export async function acceptInviteForCurrentUser(token: string): Promise<void> {
 /**
  * Full flow for a new user accepting an invite:
  *
- *  1. Validate invitation via `get_invitation_by_token` (anon-safe).
+ *  1. Validate invitation via `get_invitation_by_token` (see invitation-lookup.ts).
  *  2. Create the auth user via service-role admin (`email_confirm: true`).
  *  3. Call `accept_invitation_atomic(p_token_hash, p_user_id)` — the RBAC v3
  *     two-arg overload binds the target user explicitly so we don't need a
@@ -103,22 +104,13 @@ export async function acceptInviteWithPassword(
 ): Promise<void> {
   const service = getSupabaseServiceClient()
 
-  // Step 1 — Fetch invitation details (anon-safe RPC, used only for email lookup)
-  const { data: rows, error: invErr } = await service.rpc('get_invitation_by_token', {
-    p_token: token,
-  })
-
-  if (invErr || !rows || (Array.isArray(rows) && rows.length === 0)) {
+  // Step 1 — Convite pendente (a RPC já exclui aceito/revogado/expirado).
+  const inv = await fetchPendingInvitation(service, token)
+  if (!inv) {
     redirect(`/signup/invite/${token}?error=not_found`)
   }
 
-  // get_invitation_by_token returns SETOF (table function) → array
-  const inv = Array.isArray(rows) ? rows[0] : rows
-  if (!inv || inv.expired) {
-    redirect(`/signup/invite/${token}?error=expired`)
-  }
-
-  const invitedEmail = String(inv.email)
+  const invitedEmail = inv.email
 
   // Step 2 — Create auth user via admin API (bypasses email confirmation flow)
   const { data: created, error: createErr } = await service.auth.admin.createUser({

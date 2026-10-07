@@ -4,20 +4,13 @@ import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { getSupabaseServiceClient } from '../../../../../lib/supabase/service'
 import { acceptInviteForCurrentUser } from './actions'
+import { fetchPendingInvitation } from './invitation-lookup'
 import { AcceptInviteForm } from './accept-invite-form'
 import { SubmitButton } from './_components/SubmitButton'
 
 interface Props {
   params: Promise<{ token: string }>
   searchParams: Promise<{ error?: string }>
-}
-
-interface InvitationRow {
-  email: string
-  role: string
-  org_name: string
-  expires_at: string
-  expired: boolean
 }
 
 const errorMessages: Record<string, string> = {
@@ -38,29 +31,17 @@ export default async function InviteAcceptPage({ params, searchParams }: Props) 
   const { error: errorCode } = await searchParams
   const service = getSupabaseServiceClient()
 
-  // Fetch invitation details — anon-safe RPC, returns SETOF (array)
-  const { data: rows } = await service.rpc('get_invitation_by_token', { p_token: token })
-
-  const inv: InvitationRow | null =
-    rows && Array.isArray(rows) && rows.length > 0 ? (rows[0] as InvitationRow) : null
+  // Convite pendente pelo token do link. `null` cobre inexistente, aceito,
+  // revogado e expirado (a RPC filtra os quatro).
+  const inv = await fetchPendingInvitation(service, token)
 
   if (!inv) {
     return (
       <main className="mx-auto max-w-md py-12 px-4">
         <h1 className="text-xl font-semibold">Convite inválido</h1>
         <p className="mt-4 text-sm text-gray-700">
-          Este link de convite não existe ou já foi removido.
-        </p>
-      </main>
-    )
-  }
-
-  if (inv.expired) {
-    return (
-      <main className="mx-auto max-w-md py-12 px-4">
-        <h1 className="text-xl font-semibold">Convite expirado</h1>
-        <p className="mt-4 text-sm text-gray-700">
-          Solicite um novo convite ao administrador da organização.
+          Este link de convite não existe, expirou, já foi usado ou foi removido. Peça um
+          novo convite ao administrador da organização.
         </p>
       </main>
     )

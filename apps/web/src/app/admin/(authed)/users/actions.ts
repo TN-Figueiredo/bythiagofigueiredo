@@ -48,8 +48,10 @@ async function requireOrgAdmin(orgId: string): Promise<{ userId: string; email: 
     data: { user },
   } = await userClient.auth.getUser()
   if (!user) throw new Error('not_authenticated')
-  const { data: role } = await userClient.rpc('org_role', { p_org_id: orgId })
-  if (role !== 'owner' && role !== 'admin' && role !== 'org_admin') {
+  // `is_org_admin` é SECURITY DEFINER; `org_role` recursa na policy de
+  // `organization_members` (54001 stack depth) e negava até o super_admin.
+  const { data: isOrgAdmin, error } = await userClient.rpc('is_org_admin', { p_org_id: orgId })
+  if (error || isOrgAdmin !== true) {
     throw new Error('forbidden')
   }
   return { userId: user.id, email: user.email ?? '' }

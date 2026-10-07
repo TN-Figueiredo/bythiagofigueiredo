@@ -66,24 +66,30 @@ import {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-/** Simulates a successful get_invitation_by_token response (SETOF → array) */
+/**
+ * Simulates a successful get_invitation_by_token response.
+ * Contrato real (banco local): `(p_token_hash text) RETURNS jsonb` — UM objeto,
+ * ou null quando o convite não existe / foi aceito / revogado / expirou.
+ */
 function mockValidInvitation() {
-  rpcMock.mockImplementationOnce((fn: string) => {
-    if (fn === 'get_invitation_by_token') {
+  rpcMock.mockImplementationOnce((fn: string, args: Record<string, unknown>) => {
+    if (fn === 'get_invitation_by_token' && typeof args?.p_token_hash === 'string') {
       return Promise.resolve({
-        data: [
-          {
-            email: 'alice@example.com',
-            role: 'author',
-            org_name: 'Acme',
-            expires_at: new Date(Date.now() + 86400_000).toISOString(),
-            expired: false,
-          },
-        ],
+        data: {
+          email: 'alice@example.com',
+          role: 'org_admin',
+          role_scope: 'org',
+          org_name: 'Acme',
+          expires_at: new Date(Date.now() + 86400_000).toISOString(),
+        },
         error: null,
       })
     }
-    return Promise.resolve({ data: null, error: { message: 'unexpected rpc' } })
+    // Qualquer outro nome de parâmetro é o PGRST202 que o PostgREST devolve.
+    return Promise.resolve({
+      data: null,
+      error: { code: 'PGRST202', message: 'Could not find the function' },
+    })
   })
 }
 
@@ -160,29 +166,45 @@ describe('acceptInviteWithPassword', () => {
     signOutMock.mockResolvedValue({})
   })
 
-  it('redirects to ?error=not_found when get_invitation_by_token finds nothing', async () => {
-    rpcMock.mockResolvedValueOnce({ data: [], error: null })
+  it('redirects to ?error=not_found when get_invitation_by_token finds nothing (null)', async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: null })
 
     const url = await captureRedirect(() => acceptInviteWithPassword('tok-gone', 'Password1!'))
     expect(url).toBe('/signup/invite/tok-gone?error=not_found')
+    expect(createUserMock).not.toHaveBeenCalled()
   })
 
-  it('redirects to ?error=expired when invitation is expired', async () => {
+  it('looks the invitation up with p_token_hash (the real parameter name), passing the raw token', async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: null })
+
+    await captureRedirect(() => acceptInviteWithPassword('tok-param', 'Password1!'))
+    expect(rpcMock).toHaveBeenCalledWith('get_invitation_by_token', { p_token_hash: 'tok-param' })
+  })
+
+  it('redirects to ?error=not_found and creates no user when the lookup RPC errors', async () => {
     rpcMock.mockResolvedValueOnce({
-      data: [
-        {
-          email: 'bob@example.com',
-          role: 'editor',
-          org_name: 'Acme',
-          expires_at: new Date(Date.now() - 1000).toISOString(),
-          expired: true,
-        },
-      ],
-      error: null,
+      data: null,
+      error: { code: 'PGRST202', message: 'Could not find the function' },
     })
 
-    const url = await captureRedirect(() => acceptInviteWithPassword('tok-old', 'Password1!'))
-    expect(url).toBe('/signup/invite/tok-old?error=expired')
+    const url = await captureRedirect(() => acceptInviteWithPassword('tok-rpc', 'Password1!'))
+    expect(url).toBe('/signup/invite/tok-rpc?error=not_found')
+    expect(createUserMock).not.toHaveBeenCalled()
+  })
+
+  it('creates the account for the e-mail of the invitation', async () => {
+    mockValidInvitation()
+    createUserMock.mockResolvedValueOnce({
+      data: { user: null },
+      error: { message: 'internal server error' },
+    })
+
+    await captureRedirect(() => acceptInviteWithPassword('tok-mail', 'Password1!'))
+    expect(createUserMock).toHaveBeenCalledWith({
+      email: 'alice@example.com',
+      password: 'Password1!',
+      email_confirm: true,
+    })
   })
 
   it('redirects to ?error=email_already_registered when createUser says already registered', async () => {

@@ -49,8 +49,14 @@ export default async function AdminUsersPage({ searchParams }: Props) {
   )
 
   // I10: authz check BEFORE constructing service-role client / fetching data
-  const { data: role } = await userClient.rpc('org_role', { p_org_id: ctx.orgId })
-  if (role !== 'owner' && role !== 'admin' && role !== 'org_admin') redirect('/cms')
+  // `is_org_admin` (SECURITY DEFINER), não `org_role`: `org_role` roda como o
+  // usuário e a policy de `organization_members` chama `org_role` de volta —
+  // recursão que estoura "stack depth limit exceeded" para TODO usuário, e a
+  // tela redirecionava o próprio dono para /cms.
+  const { data: isOrgAdmin, error: authzErr } = await userClient.rpc('is_org_admin', {
+    p_org_id: ctx.orgId,
+  })
+  if (authzErr || isOrgAdmin !== true) redirect('/cms')
 
   // Only reached if caller is org admin
   const supabase = getSupabaseServiceClient()

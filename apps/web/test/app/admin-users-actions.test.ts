@@ -130,7 +130,8 @@ function mockAuthorizedUser() {
   getUserMock.mockResolvedValue({
     data: { user: { id: 'user-1', email: 'admin@example.com' } },
   })
-  rpcMock.mockResolvedValue({ data: 'admin', error: null })
+  // is_org_admin devolve boolean (não o papel): true = pode gerir convites.
+  rpcMock.mockResolvedValue({ data: true, error: null })
 }
 
 /** Helper: run action and capture redirect URL (action always redirects on success/failure) */
@@ -222,8 +223,33 @@ describe('createInvitation', () => {
     expect(url).toBe('/admin/users?notice=invite_failed')
   })
 
-  it('throws forbidden when caller has author role', async () => {
-    rpcMock.mockResolvedValueOnce({ data: 'author', error: null })
+  it('throws forbidden when caller is not an org admin', async () => {
+    rpcMock.mockResolvedValueOnce({ data: false, error: null })
+    await expect(createInvitation({ email: 'x@x.com', role: 'editor' })).rejects.toThrow(
+      /forbidden/,
+    )
+  })
+
+  it('authorizes through is_org_admin (SECURITY DEFINER), never org_role', async () => {
+    // org_role roda como o usuário e recursa na policy de organization_members
+    // (54001 "stack depth limit exceeded") — negava até o super_admin.
+    await captureRedirect(() => createInvitation({ email: 'bob@example.com', role: 'editor' }))
+    expect(rpcMock).toHaveBeenCalledWith('is_org_admin', { p_org_id: 'org-1' })
+    expect(rpcMock.mock.calls.some((c) => c[0] === 'org_role')).toBe(false)
+  })
+
+  it('throws forbidden (fail closed) when the authz RPC errors', async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: '54001', message: 'stack depth limit exceeded' },
+    })
+    await expect(createInvitation({ email: 'x@x.com', role: 'editor' })).rejects.toThrow(
+      /forbidden/,
+    )
+  })
+
+  it('a legacy role string is not a grant: only boolean true authorizes', async () => {
+    rpcMock.mockResolvedValueOnce({ data: 'admin', error: null })
     await expect(createInvitation({ email: 'x@x.com', role: 'editor' })).rejects.toThrow(
       /forbidden/,
     )
@@ -276,8 +302,8 @@ describe('revokeInvitation', () => {
     await expect(revokeInvitation('missing-inv')).rejects.toThrow(/not_found/)
   })
 
-  it('throws forbidden when caller has editor role', async () => {
-    rpcMock.mockResolvedValueOnce({ data: 'editor', error: null })
+  it('throws forbidden when caller is not an org admin', async () => {
+    rpcMock.mockResolvedValueOnce({ data: false, error: null })
     await expect(revokeInvitation('inv-1')).rejects.toThrow(/forbidden/)
   })
 
