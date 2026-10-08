@@ -12,7 +12,7 @@ seguintes com o que se aprendeu, e só então seguir. Mockup aprovado antes de q
 | Primeira execução (08/10 09:01 SP) | sucesso; 8 jobs `ativo` (4 tipos × 2 canais); 35 linhas de metadados para 35 vídeos |
 | Reporting API | ativada no projeto certo (os jobs foram criados) |
 
-## 2. O que está em `staging`, sem promoção
+## 2. Promovido para `main` em 08/10 (merge 0b7b8aea)
 
 | Commit | O que é | Precisa de |
 |---|---|---|
@@ -21,7 +21,7 @@ seguintes com o que se aprendeu, e só então seguir. Mockup aprovado antes de q
 | `3a2c9784`, `0db29355`, `b59ec6b9` | specs, plano do L1a, mockup do canal e do histórico | nada |
 | `80ceed03` + `e89e4e46` + `1613cb6f` | aviso de fadiga no sininho, feito e desfeito no mesmo dia (ver §5) | nada |
 
-Promoção para `main`: pedir autorização explícita ao dono na hora.
+Toda promoção futura para `main`: pedir autorização explícita ao dono na hora.
 
 ## 3. Pendências com data
 
@@ -32,8 +32,16 @@ Promoção para `main`: pedir autorização explícita ao dono na hora.
 3. **Quando o primeiro CSV de alcance chegar:** anotar o cabeçalho real, a unidade do CTR, se há
    coluna de cliques, se o relatório combinado abre por origem de tráfego, e se dias ou vídeos de
    baixo volume somem do arquivo. Conferir 3 vídeos contra o YouTube Studio. Isso decide o L2.
-4. **A conferir na revisão de totalidade:** vieram 10 tentativas `sondagem` e 10 `relatorio` com
-   `ok` na primeira execução; o plano esperava uma sondagem por canal. Ler o código antes de afirmar.
+4. ~~A conferir: 10 tentativas `sondagem` e 10 `relatorio`.~~ **Resolvido em 08/10** (código e
+   produção): são 2 de escopo canal + 8 de escopo job em cada tipo (`jobs-step.ts:60-61`,
+   `reports-step.ts:72` e `:256`). É o desenho.
+4a. **Leitura antecipada de 08/10 12:20 (T+3 h), não substitui os itens 1 e 2:** 0 relatórios e 0
+   brutos; 8 jobs `ativo`; 35 linhas de metadados; 0 órfãos. Revisão de totalidade parcial no
+   ledger: 33 de 35 linhas com commit, a 34 (aceite 8) espera 11/10.
+4b. **Falha em verde a decidir antes do L2:** os dois canais estão fora do filtro "publicou nos
+   últimos 90 dias" (`tnFigueiredo` publicou pela última vez em 10/12/2024; `Thiago Figueiredo`
+   tem 0 vídeos em `youtube_videos`). Para eles "4 vazios seguidos" e "6 dias sem relatório" nunca
+   ficam vermelhos. E os tempos de cada passo do cron não ficam gravados em lugar nenhum.
 5. Ao fechar o L1a: listar ao dono os "Rulings" do ledger
    (`.superpowers/sdd/2026-10-07-coleta-l1a-plan/progress.md`) e só então apagar a pasta.
 
@@ -104,7 +112,6 @@ nas seções 6 e 12) e pedir o "pode" do dono sobre o spec atualizado.
 
 ## 7. Pendências do dono
 
-- Autorizar a promoção do que está em `staging` quando quiser a thumbnail em alta resolução.
 - Ler as Developer Policies do YouTube na íntegra antes de qualquer decisão de produto.
 - Pedir uma leitura real à forja (nunca foi usada em produção).
 - Deriva do `database.types.ts` em relação a migrations recentes.
