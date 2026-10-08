@@ -92,7 +92,7 @@ describe('aritmética de dias', () => {
   it('addDays atravessa mês, ano e 29 de fevereiro', () => {
     expect(addDays('2026-10-31', 1)).toBe('2026-11-01')
     expect(addDays('2026-01-01', -1)).toBe('2025-12-31')
-    expect(addDays('2028-02-28', 1)).toBe('2028-02-29')
+    expect(addDays('2024-02-28', 1)).toBe('2024-02-29')
   })
 
   it('diffDias conta dias de calendário, sem se perder na troca de horário', () => {
