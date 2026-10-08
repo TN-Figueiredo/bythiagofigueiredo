@@ -1,0 +1,190 @@
+// @vitest-environment node
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/meta-step', () => ({ passoMetadados: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/jobs-step', () => ({ passoJobs: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/reports-step', () => ({ passoRelatorios: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/criteria', () => ({
+  criteriosRelatorios: vi.fn(),
+  criterioJobsEmErro: vi.fn(),
+  criterioOrcamento: vi.fn(),
+  criterioMetadados: vi.fn(),
+}))
+
+import { rodarColeta, PASSOS_LIGADOS } from '@/lib/youtube/coleta'
+import { passoMetadados } from '@/lib/youtube/coleta/meta-step'
+import { passoJobs } from '@/lib/youtube/coleta/jobs-step'
+import { passoRelatorios } from '@/lib/youtube/coleta/reports-step'
+import { criteriosRelatorios, criterioJobsEmErro, criterioOrcamento, criterioMetadados } from '@/lib/youtube/coleta/criteria'
+import { criarRelogio } from '@/lib/youtube/coleta/clock'
+import type { StepCtx } from '@/lib/youtube/coleta/types'
+import { fakeSupabase } from './fake-supabase'
+
+const AGORA = new Date('2026-10-07T12:00:00.000Z')
+const canais = [
+  { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true, slug: 'um' },
+  { id: 'ch-2', channel_id: 'UC2', site_id: 'site-1', name: 'Canal Dois', sync_enabled: false, slug: 'dois' },
+]
+const resumoVazio = { gravados: 0, tentativas: {}, pendentes: 0 }
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  vi.useFakeTimers({ now: AGORA, toFake: ['Date'] })
+  vi.mocked(passoMetadados).mockResolvedValue({ ...resumoVazio, gravados: 35, day_pt: '2026-10-06', dias_sem_meta: { 'ch-1': 0 } })
+  vi.mocked(passoJobs).mockResolvedValue({ ...resumoVazio, acao_do_dono: ['Canal Um: sem_acesso'], tipo_indisponivel: [], estados: {} })
+  vi.mocked(passoRelatorios).mockResolvedValue({ ...resumoVazio, vistos: 0, baixados: 3, vazios: 0, expirados: 0, erros_download: 0, bruto_apagado: 0 })
+  vi.mocked(criteriosRelatorios).mockResolvedValue({ perdidos: 2, atrasados: 0, acao_do_dono: ['Canal Um: x em sem_acesso'] })
+  vi.mocked(criterioMetadados).mockResolvedValue({ desconhecido: [] })
+})
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+describe('rodarColeta', () => {
+  it('os três passos nascem ligados', () => {
+    expect(PASSOS_LIGADOS).toEqual({ metadados: true, jobs: true, relatorios: true })
+  })
+
+  it('fase antes: lê todos os canais sem filtro e roda metadados e depois jobs, cada um com o seu teto', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+    const ctxMeta = vi.mocked(passoMetadados).mock.calls[0]![0] as StepCtx
+    const ctxJobs = vi.mocked(passoJobs).mock.calls[0]![0] as StepCtx
+    expect(ctxMeta.channels.map(c => c.id)).toEqual(['ch-1', 'ch-2'])
+    expect(ctxMeta.deadline - Date.now()).toBe(30_000)
+    expect(ctxJobs.deadline - Date.now()).toBe(20_000)
+    expect(vi.mocked(passoMetadados).mock.invocationCallOrder[0]!).toBeLessThan(vi.mocked(passoJobs).mock.invocationCallOrder[0]!)
+    expect(criterioJobsEmErro).toHaveBeenCalledTimes(1)
+    expect(passoRelatorios).not.toHaveBeenCalled()
+    expect(r.falhas).toEqual([])
+    expect(r.resumo).toMatchObject({ metadados: { gravados: 35 }, jobs: { acao_do_dono: ['Canal Um: sem_acesso'] }, acao_do_dono: ['Canal Um: sem_acesso'] })
+  })
+
+  it('fase depois: roda relatórios com 60 s, junta perdidos e atrasados, e confere o orçamento', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    const ctxRel = vi.mocked(passoRelatorios).mock.calls[0]![0] as StepCtx
+    expect(ctxRel.deadline - Date.now()).toBe(60_000)
+    expect(passoMetadados).not.toHaveBeenCalled()
+    expect(passoJobs).not.toHaveBeenCalled()
+    expect(r.resumo).toMatchObject({
+      relatorios: { baixados: 3, perdidos: 2, atrasados: 0 },
+      perdidos: 2,
+      acao_do_dono: ['Canal Um: x em sem_acesso'],
+      desconhecido: [],
+    })
+    expect(criterioOrcamento).toHaveBeenCalledWith(expect.anything(), ['meta', 'thumbnail', 'sondagem', 'relatorio'])
+  })
+
+  it('fase depois com o resultado de metadados do antes: criterioMetadados recebe dia e dias_sem_meta', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    vi.mocked(criterioMetadados).mockResolvedValue({ desconhecido: ['Canal Dois'] })
+    const r = await rodarColeta({
+      supabase: db.client, relogio: criarRelogio(), fase: 'depois',
+      metadadosAntes: { day_pt: '2026-10-06', dias_sem_meta: { 'ch-1': 0 } },
+    })
+    expect(vi.mocked(criterioMetadados).mock.calls[0]![1]).toEqual({ day_pt: '2026-10-06', dias_sem_meta: { 'ch-1': 0 } })
+    expect(r.resumo.desconhecido).toEqual(['Canal Dois'])
+  })
+
+  it('fase depois sem o resultado do antes: dias_sem_meta vai vazio (tudo desconhecido), nunca zero', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    const meta = vi.mocked(criterioMetadados).mock.calls[0]![1]
+    expect(meta.dias_sem_meta).toEqual({})
+    expect(meta.day_pt).toBe('2026-10-06')
+  })
+
+  it('exceção num passo vira item de falhas e o passo seguinte roda', async () => {
+    vi.mocked(passoMetadados).mockRejectedValue(new Error('statement timeout'))
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+    expect(r.falhas).toEqual(['metadados: database error'])
+    expect(passoJobs).toHaveBeenCalledTimes(1)
+  })
+
+  it('exceção em relatórios: falha nomeada e os critérios ainda rodam', async () => {
+    vi.mocked(passoRelatorios).mockRejectedValue(new Error('boom'))
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    expect(r.falhas).toEqual(['relatorios: unexpected error (Error)'])
+    expect(criterioOrcamento).toHaveBeenCalledTimes(1)
+    expect(criterioMetadados).toHaveBeenCalledTimes(1)
+  })
+
+  it('exceção num critério não impede os outros nem lança', async () => {
+    vi.mocked(criterioOrcamento).mockRejectedValue(new Error('statement timeout'))
+    vi.mocked(criteriosRelatorios).mockRejectedValue(new Error('statement timeout'))
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    expect(r.falhas).toEqual(['relatorios: database error', 'orçamento: database error'])
+    expect(criterioMetadados).toHaveBeenCalledTimes(1)
+  })
+
+  it('exceção no critério de jobs em erro não derruba a fase antes', async () => {
+    vi.mocked(criterioJobsEmErro).mockRejectedValue(new Error('statement timeout'))
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+    expect(r.falhas).toEqual(['jobs: database error'])
+    expect(r.resumo.jobs).toBeDefined()
+  })
+
+  it('o que os passos põem em ctx.falhas sai no resultado, sem duplicar', async () => {
+    vi.mocked(passoJobs).mockImplementation(async (c: StepCtx) => {
+      c.falhas.push('schema_ausente: yt_reporting_jobs')
+      return { ...resumoVazio, acao_do_dono: [], tipo_indisponivel: [], estados: {} }
+    })
+    vi.mocked(criterioJobsEmErro).mockImplementation(async (c) => { c.falhas.push('schema_ausente: yt_reporting_jobs') })
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+    expect(r.falhas).toEqual(['schema_ausente: yt_reporting_jobs'])
+  })
+
+  it('erro ao ler os canais: uma falha e nenhum passo novo nem critério roda', async () => {
+    const db = fakeSupabase()
+    db.errors.youtube_channels = { code: '57014', message: 'statement timeout' }
+    for (const fase of ['antes', 'depois'] as const) {
+      const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase })
+      expect(r.falhas).toEqual(['erro de banco ao ler youtube_channels'])
+    }
+    expect(passoMetadados).not.toHaveBeenCalled()
+    expect(passoJobs).not.toHaveBeenCalled()
+    expect(passoRelatorios).not.toHaveBeenCalled()
+    expect(criterioOrcamento).not.toHaveBeenCalled()
+  })
+
+  it('tabela de canais ausente: schema_ausente, sem lançar', async () => {
+    const db = fakeSupabase()
+    db.errors.youtube_channels = { code: '42P01', message: 'relation does not exist' }
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+    expect(r.falhas).toEqual(['schema_ausente: youtube_channels'])
+  })
+
+  it('relógio global estourado: relatórios não rodam, cada canal ativo vira nao_alcancado_orcamento, critérios rodam', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 300_000), fase: 'depois' })
+    expect(passoRelatorios).not.toHaveBeenCalled()
+    expect(r.resumo.relatorios).toMatchObject({ tentativas: { nao_alcancado_orcamento: 1 }, pendentes: 1, perdidos: 2 })
+    expect(db.tables.yt_own_collection_attempts).toHaveLength(1)
+    expect(db.tables.yt_own_collection_attempts![0]).toMatchObject({ scope_type: 'canal', scope_id: 'ch-1', kind: 'relatorio', outcome: 'nao_alcancado_orcamento' })
+    expect(criterioOrcamento).toHaveBeenCalledTimes(1)
+  })
+
+  it('relógio estourado na fase antes: metadados (todos os canais) e jobs (só ativos) não rodam', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 300_000), fase: 'antes' })
+    expect(passoMetadados).not.toHaveBeenCalled()
+    expect(passoJobs).not.toHaveBeenCalled()
+    expect(r.resumo.metadados).toMatchObject({ tentativas: { nao_alcancado_orcamento: 2 }, pendentes: 2 })
+    expect(r.resumo.jobs).toMatchObject({ tentativas: { nao_alcancado_orcamento: 1 }, pendentes: 1 })
+    expect(db.tables.yt_own_collection_attempts!.map(t => t.kind).sort()).toEqual(['meta', 'meta', 'sondagem'])
+  })
+
+  it('restando 10 s de relógio, o passo de 60 s recebe 10 s', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 260_000), fase: 'depois' })
+    const ctxRel = vi.mocked(passoRelatorios).mock.calls[0]![0] as StepCtx
+    expect(ctxRel.deadline - Date.now()).toBe(10_000)
+  })
+})
