@@ -11,6 +11,11 @@ vi.mock('@/lib/social/token-refresh', async (orig) => ({
   ...(await orig<typeof import('@/lib/social/token-refresh')>()),
   ensureFreshToken: vi.fn(async () => ({ accessToken: 'tok', connectionId: 'c1' })),
 }))
+vi.mock('@/lib/youtube/coleta/videos-list', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/coleta/videos-list')>()),
+  // O passo de metadados chama videos.list com o token do canal: a rede é simulada (nunca a do Google de verdade).
+  videosList: vi.fn(async () => new Map()),
+}))
 vi.mock('@/lib/youtube/reporting/client', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/reporting/client')>()),
   criarReportingClient: vi.fn(() => ({
