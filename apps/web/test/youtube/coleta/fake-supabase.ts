@@ -2,6 +2,10 @@
 // from().select/insert/upsert/update/delete com eq, neq, in, lt, lte, gt, gte, is, not, or, order,
 // limit, maybeSingle, single, e rpc(). `or()` é ignorado (os testes semeiam só o que interessa).
 // Datas são comparadas como texto: use sempre toISOString() ou 'YYYY-MM-DD' nas sementes.
+// Fora de escopo: validação de nomes de coluna (coluna inexistente não dá 42703 aqui).
+// Estrito como o PostgREST: or()/not() com operador não suportado lançam; single() exige 1 linha;
+// escrita só devolve linhas com .select(); insert duplicado dá 23505; onConflict sem chave única dá 42P10;
+// ordenação padrão do Postgres (NULLs por último no asc, primeiro no desc); neq exclui nulos.
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type Row = Record<string, unknown>
@@ -18,6 +22,16 @@ export interface FakeDb {
   rpcHandlers: Record<string, (args: Row) => { data: unknown; error: FakeErr | null }>
   writes: Array<{ table: string; op: string; payload: unknown }>
   client: SupabaseClient
+  /** Chaves únicas por tabela (PK). Usadas por insert (23505) e upsert onConflict (42P10). */
+  uniqueKeys: Record<string, string[][]>
+}
+
+export const CHAVES_UNICAS_L1A: Record<string, string[][]> = {
+  yt_reporting_jobs: [['channel_id', 'report_type_id']],
+  yt_reporting_reports: [['report_id']],
+  yt_reporting_report_blobs: [['report_id']],
+  yt_own_video_meta_daily: [['youtube_video_id', 'day_pt']],
+  yt_own_collection_attempts: [['scope_type', 'scope_id', 'kind', 'attempt_day']],
 }
 
 function cmp(a: unknown, b: unknown): number {
@@ -33,16 +47,24 @@ class Consulta implements PromiseLike<Resposta> {
   private payload: Row | Row[] | null = null
   private conflito: string[] = []
   private ignorarDuplicados = false
-  private ordens: Array<{ col: string; asc: boolean }> = []
+  private ordens: Array<{ col: string; asc: boolean; nullsFirst: boolean }> = []
   private max: number | null = null
-  private um = false
   private head = false
+  private modo: 'lista' | 'um' | 'talvez' = 'lista'
+  private retorna = false
+  private colunas: string[] | null = null
+  private promessa: Promise<Resposta> | null = null
+  private erroBuilder: Error | null = null
   private querCount = false
 
   constructor(private db: FakeDb, private tabela: string) {}
 
-  select(_cols?: string, o?: { count?: string; head?: boolean }) {
-    if (this.op === 'select') { this.head = !!o?.head; this.querCount = !!o?.count }
+  select(cols?: string, o?: { count?: string; head?: boolean }) {
+    if (this.op !== 'select') this.retorna = true
+    this.head = !!o?.head
+    this.querCount = !!o?.count
+    const c = (cols ?? '*').split(',').map(x => x.trim()).filter(Boolean)
+    this.colunas = c.length && !c.includes('*') && c.every(x => /^\w+$/.test(x)) ? c : null
     return this
   }
   insert(p: Row | Row[]) { this.op = 'insert'; this.payload = p; return this }
@@ -57,25 +79,35 @@ class Consulta implements PromiseLike<Resposta> {
   delete() { this.op = 'delete'; return this }
 
   eq(c: string, v: unknown) { this.filtros.push(r => r[c] === v); return this }
-  neq(c: string, v: unknown) { this.filtros.push(r => r[c] !== v); return this }
+  neq(c: string, v: unknown) { this.filtros.push(r => r[c] != null && r[c] !== v); return this }
   in(c: string, vs: readonly unknown[]) { this.filtros.push(r => vs.includes(r[c])); return this }
   lt(c: string, v: unknown) { this.filtros.push(r => r[c] != null && cmp(r[c], v) < 0); return this }
   lte(c: string, v: unknown) { this.filtros.push(r => r[c] != null && cmp(r[c], v) <= 0); return this }
   gt(c: string, v: unknown) { this.filtros.push(r => r[c] != null && cmp(r[c], v) > 0); return this }
   gte(c: string, v: unknown) { this.filtros.push(r => r[c] != null && cmp(r[c], v) >= 0); return this }
   is(c: string, v: unknown) { this.filtros.push(r => (r[c] ?? null) === v); return this }
-  not(c: string, _op: string, v: unknown) { this.filtros.push(r => (r[c] ?? null) !== v); return this }
-  or(_expr: string) { return this }
-  order(col: string, o?: { ascending?: boolean }) { this.ordens.push({ col, asc: o?.ascending !== false }); return this }
+  not(c: string, op: string, v: unknown) {
+    if (op === 'is') this.filtros.push(r => (r[c] ?? null) !== v)
+    else if (op === 'eq') this.filtros.push(r => r[c] != null && r[c] !== v)
+    else throw new Error(`not(${op}) não é suportado pelo banco em memória`)
+    return this
+  }
+  or(_expr: string): never { throw new Error('or() não é suportado pelo banco em memória') }
+  order(col: string, o?: { ascending?: boolean; nullsFirst?: boolean }) {
+    const asc = o?.ascending !== false
+    this.ordens.push({ col, asc, nullsFirst: o?.nullsFirst ?? !asc })
+    return this
+  }
   limit(n: number) { this.max = n; return this }
-  maybeSingle() { this.um = true; return this }
-  single() { this.um = true; return this }
+  maybeSingle() { this.modo = 'talvez'; return this }
+  single() { this.modo = 'um'; return this }
 
   then<A = Resposta, B = never>(
     ok?: ((v: Resposta) => A | PromiseLike<A>) | null,
     falha?: ((e: unknown) => B | PromiseLike<B>) | null,
   ): PromiseLike<A | B> {
-    return Promise.resolve(this.rodar()).then(ok, falha)
+    this.promessa ??= Promise.resolve().then(() => this.rodar())
+    return this.promessa.then(ok, falha)
   }
 
   private rodar(): Resposta {
@@ -86,51 +118,89 @@ class Consulta implements PromiseLike<Resposta> {
 
     if (this.op === 'select') {
       let out = linhas.filter(casa)
-      for (const o of [...this.ordens].reverse()) out = [...out].sort((a, b) => cmp(a[o.col], b[o.col]) * (o.asc ? 1 : -1))
+      for (const o of [...this.ordens].reverse()) {
+        out = [...out].sort((a, b) => {
+          const na = a[o.col] == null, nb = b[o.col] == null
+          if (na || nb) return na === nb ? 0 : (na ? 1 : -1) * (o.nullsFirst ? -1 : 1)
+          return cmp(a[o.col], b[o.col]) * (o.asc ? 1 : -1)
+        })
+      }
       const total = out.length
       if (this.max !== null) out = out.slice(0, this.max)
       if (this.head) return { data: null, error: null, count: total }
-      return { data: this.um ? (out[0] ?? null) : out, error: null, count: this.querCount ? total : null }
+      const proj = out.map(r => this.projetar(r))
+      const count = this.querCount ? total : null
+      if (this.modo === 'lista') return { data: proj, error: null, count }
+      if (proj.length === 1 || (proj.length === 0 && this.modo === 'talvez')) return { data: proj[0] ?? null, error: null, count }
+      return { data: null, error: { code: 'PGRST116', message: `JSON object requested, multiple (or no) rows returned (${proj.length})` }, count }
     }
 
     this.db.writes.push({ table: this.tabela, op: this.op, payload: this.payload })
     const lista = Array.isArray(this.payload) ? this.payload : this.payload ? [this.payload] : []
 
+    const chaves = this.db.uniqueKeys[this.tabela] ?? []
+    const saida = (rows: Row[]): Resposta => ({ data: this.retorna ? rows.map(r => this.projetar(r)) : null, error: null, count: null })
+
     if (this.op === 'insert') {
-      linhas.push(...lista.map(p => ({ ...p })))
-      return { data: lista, error: null, count: null }
+      for (const p of lista) {
+        if (chaves.some(k => linhas.some(r => k.every(c => r[c] === p[c])))) {
+          return { data: null, error: { code: '23505', message: `duplicate key value violates unique constraint on ${this.tabela}` }, count: null }
+        }
+        linhas.push({ ...p })
+      }
+      return saida(lista)
     }
     if (this.op === 'upsert') {
+      if (this.conflito.length && !chaves.some(k => k.length === this.conflito.length && k.every(c => this.conflito.includes(c)))) {
+        return { data: null, error: { code: '42P10', message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification' }, count: null }
+      }
       for (const p of lista) {
         const i = this.conflito.length ? linhas.findIndex(r => this.conflito.every(k => r[k] === p[k])) : -1
         if (i === -1) linhas.push({ ...p })
         else if (!this.ignorarDuplicados) linhas[i] = { ...linhas[i], ...p }
       }
-      return { data: lista, error: null, count: null }
+      return saida(lista)
     }
     const alvo = linhas.filter(casa)
     if (this.op === 'update') {
       for (const r of alvo) Object.assign(r, this.payload)
-      return { data: alvo, error: null, count: null }
+      return saida(alvo)
     }
     this.db.tables[this.tabela] = linhas.filter(r => !casa(r))
-    return { data: alvo, error: null, count: null }
+    return saida(alvo)
+  }
+
+  private projetar(r: Row): Row {
+    const c = structuredClone(r)
+    if (!this.colunas) return c
+    return Object.fromEntries(this.colunas.map(k => [k, c[k]]))
   }
 }
 
-export function fakeSupabase(seed: Record<string, Row[]> = {}): FakeDb {
+const SCOPES = ['video', 'canal', 'job']
+const KINDS = ['sondagem', 'meta', 'thumbnail', 'relatorio', 'diario', 'retencao_vida']
+const OUTCOMES_OK = ['ok', 'sem_dado_na_janela', 'video_novo', 'sem_conexao', 'sem_autorizacao', 'erro_http', 'nao_alcancado_orcamento', 'schema_ausente']
+
+export function fakeSupabase(
+  seed: Record<string, Row[]> = {},
+  uniqueKeys: Record<string, string[][]> = CHAVES_UNICAS_L1A,
+): FakeDb {
   const db = {
-    tables: structuredClone(seed), errors: {}, writeErrors: {}, rpcCalls: [], rpcHandlers: {}, writes: [],
+    tables: structuredClone(seed), errors: {}, writeErrors: {}, rpcCalls: [], rpcHandlers: {}, writes: [], uniqueKeys,
   } as unknown as FakeDb
 
   // Mesmo comportamento de public.yt_own_attempt_record: uma linha por escopo, kind e dia UTC; soma attempts.
   db.rpcHandlers.yt_own_attempt_record = (a) => {
+    if (a.p_site_id == null) return { data: null, error: { code: '23502', message: 'null value in column "site_id"' } }
+    if (!SCOPES.includes(a.p_scope_type as string) || !KINDS.includes(a.p_kind as string) || !OUTCOMES_OK.includes(a.p_outcome as string)) {
+      return { data: null, error: { code: '23514', message: 'violates check constraint on yt_own_collection_attempts' } }
+    }
     const t = (db.tables.yt_own_collection_attempts ??= [])
     const dia = new Date().toISOString().slice(0, 10)
     const linha = {
       scope_type: a.p_scope_type, scope_id: a.p_scope_id, kind: a.p_kind, attempt_day: dia,
       site_id: a.p_site_id, channel_id: a.p_channel_id ?? null, outcome: a.p_outcome,
-      http_status: a.p_http_status ?? null, error: a.p_error ?? null,
+      http_status: a.p_http_status ?? null, error: (typeof a.p_error === 'string' ? a.p_error.slice(0, 500) : null),
     }
     const i = t.findIndex(r => r.scope_type === linha.scope_type && r.scope_id === linha.scope_id && r.kind === linha.kind && r.attempt_day === dia)
     if (i === -1) { t.push({ ...linha, attempts: 1 }); return { data: 1, error: null } }
@@ -146,7 +216,7 @@ export function fakeSupabase(seed: Record<string, Row[]> = {}): FakeDb {
       const erro = db.errors[`rpc:${name}`]
       if (erro) return Promise.resolve({ data: null, error: erro })
       const h = db.rpcHandlers[name]
-      return Promise.resolve(h ? h(args) : { data: null, error: null })
+      return Promise.resolve(h ? h(args) : { data: null, error: { code: 'PGRST202', message: `Could not find the function public.${name}` } })
     },
   } as unknown as SupabaseClient
   return db
