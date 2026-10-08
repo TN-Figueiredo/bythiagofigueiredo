@@ -29,6 +29,12 @@ vi.mock('@/lib/social/token-refresh', async (orig) => ({
   ensureFreshToken: vi.fn(),
 }))
 
+vi.mock('@/lib/youtube/coleta/autorizacao', () => ({
+  classificarErroDeToken: vi.fn(async () => 'sem_conexao'),
+  marcarAutorizado: vi.fn(async () => undefined),
+  marcarReautorizar: vi.fn(async () => undefined),
+}))
+
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({
   fanOutToSiteAdmins: vi.fn(),
 }))
@@ -150,6 +156,12 @@ function makeSupabase(opts: {
         return youtubeVideoAnalyticsTable()
       case 'ab_tests':
         return abTestsTable()
+      case 'yt_own_collection_runs':
+        // A linha da execução: insert e a limpeza dos de mais de 90 dias.
+        return {
+          insert: () => Promise.resolve({ error: null }),
+          delete: () => ({ lt: () => Promise.resolve({ error: null }) }),
+        }
       default:
         throw new Error(`unexpected table in test: ${table}`)
     }
