@@ -42,6 +42,8 @@ const ctxDe = (db: FakeDb, prazoMs = 30_000): StepCtx => ({
   supabase: db.client, channels: [canal], deadline: Date.now() + prazoMs, falhas: [], tentativas: [],
 })
 const linha = (db: FakeDb, yt: string, dia = DIA) => db.tables.yt_own_video_meta_daily?.find(r => r.youtube_video_id === yt && r.day_pt === dia)
+/** Chave omitida do upsert = nula no primeiro dia (o banco põe NULL); presente = tem de ser nula mesmo. */
+const nula = (l: Row | undefined, ...chaves: string[]) => chaves.forEach(k => expect(l?.[k] ?? null, k).toBeNull())
 const tentativa = (db: FakeDb, yt: string, kind: string) => db.tables.yt_own_collection_attempts?.find(r => r.scope_id === yt && r.kind === kind)
 
 beforeEach(() => {
@@ -118,10 +120,8 @@ describe('passoMetadados: thumbnail', () => {
     const ctx = ctxDe(db)
     const resumo = await passoMetadados(ctx)
     expect(resumo.gravados).toBe(1)
-    expect(linha(db, 'yt-1')).toMatchObject({
-      thumbnail_dhash: null, thumbnail_sha256_at_capture: null, thumbnail_sha256: null,
-      thumbnail_blob_url: 'https://blob.test/antiga.jpg', title: 'Título 1',
-    })
+    expect(linha(db, 'yt-1')).toMatchObject({ thumbnail_blob_url: 'https://blob.test/antiga.jpg', title: 'Título 1' })
+    nula(linha(db, 'yt-1'), 'thumbnail_dhash', 'thumbnail_sha256_at_capture', 'thumbnail_sha256')
     expect(tentativa(db, 'yt-1', 'thumbnail')).toMatchObject({ outcome: 'erro_http', http_status: null })
     expect(tentativa(db, 'yt-1', 'meta')).toMatchObject({ outcome: 'ok' })
     expect(archiveThumb).not.toHaveBeenCalled()
@@ -132,7 +132,7 @@ describe('passoMetadados: thumbnail', () => {
     const db = fakeSupabase({ youtube_videos: [video(1), video(2)] })
     const resumo = await passoMetadados(ctxDe(db))
     expect(resumo.gravados).toBe(2)
-    expect(linha(db, 'yt-1')).toMatchObject({ thumbnail_dhash: null, thumbnail_sha256: null })
+    nula(linha(db, 'yt-1'), 'thumbnail_dhash', 'thumbnail_sha256')
     expect(linha(db, 'yt-1')!.thumbnail_blob_url).toBeUndefined()
     expect(tentativa(db, 'yt-1', 'thumbnail')).toMatchObject({ outcome: 'erro_http', error: 'request timed out' })
   })
@@ -141,7 +141,7 @@ describe('passoMetadados: thumbnail', () => {
     vi.mocked(archiveThumb).mockResolvedValue(null)
     const db = fakeSupabase({ youtube_videos: [video(1)] })
     await passoMetadados(ctxDe(db))
-    expect(linha(db, 'yt-1')).toMatchObject({ thumbnail_dhash: null, thumbnail_sha256_at_capture: null })
+    nula(linha(db, 'yt-1'), 'thumbnail_dhash', 'thumbnail_sha256_at_capture')
     expect(tentativa(db, 'yt-1', 'thumbnail')).toMatchObject({ outcome: 'erro_http' })
   })
 
@@ -240,7 +240,8 @@ describe('passoMetadados: teste A/B', () => {
     const resumo = await passoMetadados(ctx)
     expect(resumo.gravados).toBe(1)
     expect(ctx.falhas).toContain('erro de banco ao ler ab_tests')
-    expect(linha(db, 'yt-1')).toMatchObject({ title: null, thumbnail_sha256: null, title_at_capture: 'Título 1', thumbnail_sha256_at_capture: sha(BYTES) })
+    expect(linha(db, 'yt-1')).toMatchObject({ title_at_capture: 'Título 1', thumbnail_sha256_at_capture: sha(BYTES) })
+    nula(linha(db, 'yt-1'), 'title', 'thumbnail_sha256', 'ab_test_id', 'ab_variant_id', 'seconds_on_air_analytics')
   })
 })
 
@@ -360,7 +361,8 @@ describe('passoMetadados: A/B, ciclos que chegam à função', () => {
     const resumo = await passoMetadados(ctx)
     expect(resumo.gravados).toBe(1)
     expect(ctx.falhas).toContain('erro de banco ao ler ab_test_cycles')
-    expect(linha(db, 'yt-1')).toMatchObject({ ab_test_id: null, title: null, thumbnail_sha256: null, title_at_capture: 'Título 1' })
+    expect(linha(db, 'yt-1')).toMatchObject({ title_at_capture: 'Título 1' })
+    nula(linha(db, 'yt-1'), 'ab_test_id', 'title', 'thumbnail_sha256')
   })
 })
 
@@ -457,5 +459,123 @@ describe('passoMetadados: o prazo acaba no meio de um item', () => {
     expect(resumo).toMatchObject({ gravados: 0, pendentes: 1 })
     expect(tentativa(db, 'yt-1', 'meta')).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
     expect(db.tables.yt_own_collection_attempts!.some(r => r.outcome === 'erro_http')).toBe(false)
+  })
+})
+
+describe('passoMetadados: segunda execução no mesmo dia não apaga a primeira', () => {
+  const testeAtivo = { id: 't1', youtube_video_id: 'v-1', status: 'active', paused_at: null, completed_at: null, original_title: 'Original' }
+  const cicloAberto = { id: 'c1', test_id: 't1', variant_id: 'var-a', started_at: '2026-09-20T00:00:00.000Z', ended_at: null, applied_metadata: null }
+
+  it('2ª execução com a thumbnail falhando não apaga a da 1ª', async () => {
+    const db = fakeSupabase({ youtube_videos: [video(1)], ab_tests: [testeAtivo], ab_test_cycles: [cicloAberto] })
+    await passoMetadados(ctxDe(db))
+    vi.mocked(probeThumb).mockResolvedValue(probe(null, null))
+    await passoMetadados(ctxDe(db))
+    expect(db.tables.yt_own_video_meta_daily).toHaveLength(1)
+    expect(linha(db, 'yt-1')).toMatchObject({
+      thumbnail_dhash: 'ffffffffffffffff', thumbnail_sha256_at_capture: sha(BYTES), thumbnail_sha256: sha(BYTES),
+      thumbnail_blob_url: 'https://blob.test/nova.jpg',
+    })
+  })
+
+  it('2ª execução com a leitura de A/B falhando não apaga a da 1ª', async () => {
+    const db = fakeSupabase({ youtube_videos: [video(1)], ab_tests: [testeAtivo], ab_test_cycles: [cicloAberto] })
+    await passoMetadados(ctxDe(db))
+    db.errors.ab_tests = { code: '57014', message: 'statement timeout' }
+    const ctx = ctxDe(db)
+    await passoMetadados(ctx)
+    expect(ctx.falhas).toContain('erro de banco ao ler ab_tests')
+    expect(linha(db, 'yt-1')).toMatchObject({
+      title: 'Original', ab_test_id: 't1', ab_variant_id: 'var-a',
+      seconds_on_air_analytics: 86_400, seconds_other_analytics: 0, seconds_on_air_reporting: 86_400, seconds_other_reporting: 0,
+      thumbnail_sha256: sha(BYTES),
+    })
+  })
+})
+
+describe('passoMetadados: rodada de correção 1', () => {
+  const testeAtivo = { id: 't1', youtube_video_id: 'v-1', status: 'active', paused_at: null, completed_at: null, original_title: 'Original' }
+  const cicloAberto = { id: 'c1', test_id: 't1', variant_id: 'var-a', started_at: '2026-09-20T00:00:00.000Z', ended_at: null, applied_metadata: null }
+
+  it('leitura da última linha do canal falha: a chave do canal some de dias_sem_meta (ausente = desconhecido)', async () => {
+    const db = fakeSupabase({ youtube_videos: [video(1)] })
+    const real = db.client.from.bind(db.client)
+    db.client.from = ((t: string) => {
+      const q = real(t)
+      if (t !== 'yt_own_video_meta_daily') return q
+      const select = q.select.bind(q)
+      q.select = ((cols?: string, o?: never) => {
+        if (cols !== 'day_pt') return select(cols, o)
+        const c: Record<string, unknown> = {}
+        for (const m of ['eq', 'lt', 'order', 'limit', 'maybeSingle']) c[m] = () => c
+        c.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { code: '57014', message: 'x' }, count: null }).then(ok)
+        return c as never
+      }) as typeof q.select
+      return q
+    }) as typeof db.client.from
+    const ctx = ctxDe(db)
+    const resumo = await passoMetadados(ctx)
+    expect('ch-1' in resumo.dias_sem_meta).toBe(false)
+    expect(ctx.falhas).toContain('erro de banco ao ler yt_own_video_meta_daily')
+  })
+
+  it('upsert que lança: tentativa meta erro_http registrada, falha e passo segue', async () => {
+    const db = fakeSupabase({ youtube_videos: [video(1), video(2)] })
+    const real = db.client.from.bind(db.client)
+    db.client.from = ((t: string) => {
+      const q = real(t)
+      if (t === 'yt_own_video_meta_daily') {
+        const up = q.upsert.bind(q)
+        q.upsert = ((p: never, o?: never) => {
+          if ((p as Row).youtube_video_id === 'yt-1') throw new Error('boom')
+          return up(p, o)
+        }) as typeof q.upsert
+      }
+      return q
+    }) as typeof db.client.from
+    const ctx = ctxDe(db)
+    const resumo = await passoMetadados(ctx)
+    expect(resumo.gravados).toBe(1)
+    expect(tentativa(db, 'yt-1', 'meta')).toMatchObject({ outcome: 'erro_http', http_status: null })
+    expect(tentativa(db, 'yt-1', 'meta')!.error).toEqual(expect.any(String))
+    expect(tentativa(db, 'yt-2', 'meta')).toMatchObject({ outcome: 'ok' })
+    expect(ctx.falhas.some(f => f.startsWith('metadados: Canal Um:'))).toBe(true)
+  })
+
+  it('o início da leitura de ciclos é min(Analytics, Reporting): ciclo que termina entre 07:00Z e 08:00Z conta em _analytics', async () => {
+    const velho = { ...cicloAberto, id: 'c0', variant_id: 'var-x', started_at: '2026-10-05T00:00:00.000Z', ended_at: '2026-10-06T07:30:00.000Z' }
+    const atual = { ...cicloAberto, id: 'c1', variant_id: 'var-a', started_at: '2026-10-06T07:30:00.000Z' }
+    const db = fakeSupabase({ youtube_videos: [video(1)], ab_tests: [testeAtivo], ab_test_cycles: [velho, atual] })
+    await passoMetadados(ctxDe(db))
+    expect(linha(db, 'yt-1')).toMatchObject({ ab_test_id: 't1', seconds_on_air_analytics: 84_600, seconds_other_analytics: 1_800 })
+  })
+
+  it('ab_tests truncado em 1000 linhas: aviso e linha com A/B ilegível, sem variante calculada de dado parcial', async () => {
+    const muitos = Array.from({ length: 1000 }, (_, i) => ({ ...testeAtivo, id: `tt${i}`, youtube_video_id: 'v-1' }))
+    const db = fakeSupabase({ youtube_videos: [video(1)], ab_tests: muitos, ab_test_cycles: [{ ...cicloAberto, test_id: 'tt0' }] })
+    const ctx = ctxDe(db)
+    await passoMetadados(ctx)
+    expect(ctx.falhas.some(f => f.includes('testes de A/B') && f.includes('truncada'))).toBe(true)
+    nula(linha(db, 'yt-1'), 'ab_test_id', 'ab_variant_id', 'title')
+  })
+
+  it('ciclos truncados em 1000 linhas: aviso e linha com A/B ilegível', async () => {
+    const ciclos = Array.from({ length: 1000 }, (_, i) => ({ ...cicloAberto, id: `cc${i}` }))
+    const db = fakeSupabase({ youtube_videos: [video(1)], ab_tests: [testeAtivo], ab_test_cycles: ciclos })
+    const ctx = ctxDe(db)
+    await passoMetadados(ctx)
+    expect(ctx.falhas.some(f => f.includes('ciclos de A/B') && f.includes('truncada'))).toBe(true)
+    nula(linha(db, 'yt-1'), 'ab_test_id', 'ab_variant_id', 'title')
+  })
+
+  it('archiveThumb lança: erro_http da thumbnail, campos de thumbnail fora, URL repetida e a linha é gravada', async () => {
+    vi.mocked(probeThumb).mockResolvedValue(probe('0000000000000000'))
+    vi.mocked(archiveThumb).mockRejectedValue(new Error('blob caiu'))
+    const db = fakeSupabase({ youtube_videos: [video(1)], yt_own_video_meta_daily: [anterior(1)] })
+    const resumo = await passoMetadados(ctxDe(db))
+    expect(resumo.gravados).toBe(1)
+    expect(tentativa(db, 'yt-1', 'thumbnail')).toMatchObject({ outcome: 'erro_http' })
+    nula(linha(db, 'yt-1'), 'thumbnail_dhash', 'thumbnail_sha256_at_capture')
+    expect(linha(db, 'yt-1')!.thumbnail_blob_url).toBe('https://blob.test/antiga.jpg')
   })
 })

@@ -73,6 +73,12 @@ async function carregarAb(
     .select('id, youtube_video_id, status, paused_at, completed_at, original_title')
     .in('youtube_video_id', videos.map(v => v.id))
   if (conferirBanco(t, 'ab_tests', ctx.falhas, 'ler') !== 'ok') return { ...vazio, ok: false }
+  // Leitura cortada em 1000: não dá para saber que teste ficou de fora. Nenhum vídeo ganha variante calculada
+  // com dado parcial: todos caem em "A/B ilegível" (a captura é gravada, o que valeu para o dia fica de fora).
+  if ((t.data ?? []).length >= LIMITE_LEITURA) {
+    pushUnico(ctx.falhas, `metadados: testes de A/B lidos até o limite de ${LIMITE_LEITURA} — a leitura pode estar truncada`)
+    return { ...vazio, ok: false }
+  }
   const linhas = (t.data ?? []) as Array<AbTest & { youtube_video_id: string }>
   if (linhas.length === 0) return vazio
   // Todo ciclo aberto (inclusive os que começaram depois do dia: retomada e rotação posteriores decidem
@@ -94,6 +100,7 @@ async function carregarAb(
   const ciclos = [...((abertos.data ?? []) as AbCycle[]), ...((fechados.data ?? []) as AbCycle[])]
   if ((abertos.data ?? []).length >= LIMITE_LEITURA || (fechados.data ?? []).length >= LIMITE_LEITURA) {
     pushUnico(ctx.falhas, `metadados: ciclos de A/B lidos até o limite de ${LIMITE_LEITURA} — a leitura pode estar truncada`)
+    return { ...vazio, ok: false }
   }
   const testes = new Map<string, AbTest[]>()
   for (const l of linhas) testes.set(l.youtube_video_id, [...(testes.get(l.youtube_video_id) ?? []), l])
@@ -182,6 +189,8 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       return fechar()
     }
     const ultimo = leitura === 'ok' ? ((ult.data as { day_pt: string } | null)?.day_pt ?? null) : null
+    // Leitura que falhou = desconhecido: a chave do canal fica AUSENTE (0 significaria "sem atraso").
+    if (leitura !== 'ok') continue
     const dias = ultimo ? Math.max(0, diffDias(ultimo, day) - 1) : 0
     resumo.dias_sem_meta[c.id] = dias
     if (dias > 0) pushUnico(ctx.falhas, `metadados: ${c.name} ficou ${dias} dia(s) sem linha antes de ${day}`)
@@ -263,23 +272,29 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
         day_pt: day,
         video_id: v.id,
         channel_id: v.channel_id,
-        title: abDia.title,
-        thumbnail_sha256: abDia.thumbCopiaCaptura ? thumb.sha256 : null,
-        thumbnail_dhash: thumb.dhash,
-        thumbnail_sha256_at_capture: thumb.sha256,
         title_at_capture: v.title,
         description_sha256: descHash,
         tags_sha256: tagsHash,
         duration_seconds: v.duration_seconds,
         is_short: null,
         privacy_status: null,
-        ab_test_id: abDia.ab_test_id,
-        ab_variant_id: abDia.ab_variant_id,
-        seconds_on_air_analytics: abDia.seconds_on_air_analytics,
-        seconds_other_analytics: abDia.seconds_other_analytics,
-        seconds_on_air_reporting: abDia.seconds_on_air_reporting,
-        seconds_other_reporting: abDia.seconds_other_reporting,
         captured_at: capturedAt,
+      }
+      // Segunda execução no mesmo dia: o que a primeira capturou não pode voltar a nulo porque esta falhou.
+      // Thumbnail que não foi capturada e A/B que não foi lido ficam FORA do payload (no primeiro dia = nulo).
+      if (thumb.ok) {
+        linha.thumbnail_dhash = thumb.dhash
+        linha.thumbnail_sha256_at_capture = thumb.sha256
+      }
+      if (ab.ok) {
+        linha.title = abDia.title
+        linha.ab_test_id = abDia.ab_test_id
+        linha.ab_variant_id = abDia.ab_variant_id
+        linha.seconds_on_air_analytics = abDia.seconds_on_air_analytics
+        linha.seconds_other_analytics = abDia.seconds_other_analytics
+        linha.seconds_on_air_reporting = abDia.seconds_on_air_reporting
+        linha.seconds_other_reporting = abDia.seconds_other_reporting
+        if (thumb.ok) linha.thumbnail_sha256 = abDia.thumbCopiaCaptura ? thumb.sha256 : null
       }
       // Estas três chaves nunca passam de não nulo a nulo: quando não há valor, ficam fora do payload.
       if (v.description !== null && (!ant || ant.description_sha256 !== descHash)) linha.description_text = v.description
@@ -308,6 +323,7 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       }
       Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', passo: 'metadados' }, extra: { video: v.youtube_video_id } })
       pushUnico(ctx.falhas, `metadados: ${canalPorId.get(v.channel_id)?.name ?? v.channel_id}: ${describeCronCause(e)}`)
+      await registrarTentativa(ctx, { ...base, kind: 'meta', outcome: 'erro_http', error: describeCronCause(e) })
     }
   })
 
