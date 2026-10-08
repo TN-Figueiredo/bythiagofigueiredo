@@ -9,10 +9,10 @@ import { getSiteOwners, logSemDestinatario, SEM_DESTINATARIO } from '@/lib/notif
 import { conferirBanco, pushUnico } from './schema'
 import type { ColetaChannel, StepCtx } from './types'
 
-export type MotivoAviso = 'api_nao_ativada' | 'sem_acesso' | 'tipo_indisponivel'
+export type MotivoAviso = 'api_nao_ativada' | 'sem_acesso' | 'tipo_indisponivel' | 'reautorizar'
 type Ctx = Pick<StepCtx, 'supabase' | 'falhas'>
 
-/** Motivos que ganham aviso de saída quando a chamada volta a passar. */
+/** Motivos da Reporting API que ganham aviso de saída quando a chamada volta a passar. `reautorizar` tem saída própria (autorizacao.ts). */
 const MOTIVOS_COM_SAIDA: readonly MotivoAviso[] = ['api_nao_ativada', 'sem_acesso']
 
 /** Entrada e lembrete a cada 7 dias; `tipo_indisponivel` avisa uma vez. */
@@ -20,12 +20,14 @@ const JANELA: Record<MotivoAviso, string> = {
   api_nao_ativada: '7 days',
   sem_acesso: '7 days',
   tipo_indisponivel: '3650 days',
+  reautorizar: '7 days',
 }
 
 const TITULO: Record<MotivoAviso | 'saida', string> = {
   api_nao_ativada: 'YouTube Reporting API não ativada',
   sem_acesso: 'YouTube recusou o acesso aos relatórios',
   tipo_indisponivel: 'Relatório de alcance indisponível',
+  reautorizar: 'Canal do YouTube perdeu a autorização',
   saida: 'Coleta do YouTube voltou ao normal',
 }
 
@@ -41,6 +43,8 @@ export function textoAviso(motivo: MotivoAviso | 'saida', nome: string): string 
       return `O YouTube recusou o acesso aos relatórios do canal ${nome}. Impressões e CTR não estão sendo coletados.`
     case 'tipo_indisponivel':
       return `O YouTube não oferece o relatório de alcance para o canal ${nome}.`
+    case 'reautorizar':
+      return `O canal ${nome} perdeu a autorização do YouTube. A coleta parou. Reconecte o canal em Configurações.`
     case 'saida':
       return `A coleta do canal ${nome} voltou ao normal.`
   }
@@ -125,10 +129,10 @@ export async function avisarEntrada(ctx: Ctx, ch: ColetaChannel, motivo: MotivoA
 
 /** Saída: só quando havia carimbo de entrada, e só libera o carimbo depois de entregar o aviso
  *  (sem entrega o carimbo fica e a próxima execução tenta de novo). Nunca lança. */
-export async function avisarSaida(ctx: Ctx, ch: ColetaChannel): Promise<void> {
+export async function avisarSaida(ctx: Ctx, ch: ColetaChannel, motivos: readonly MotivoAviso[] = MOTIVOS_COM_SAIDA): Promise<void> {
   try {
     const abertas: string[] = []
-    for (const motivo of MOTIVOS_COM_SAIDA) {
+    for (const motivo of motivos) {
       const chave = chaveAviso(ch.id, motivo)
       if ((await carimboExiste(ctx, chave)) === 'sim') abertas.push(chave)
     }

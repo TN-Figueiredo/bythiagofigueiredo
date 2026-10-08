@@ -183,3 +183,40 @@ describe('avisarSaida', () => {
     expect(ctx.falhas).toEqual(['aviso saida (Canal Um): falha no envio'])
   })
 })
+
+describe('aviso reautorizar (L1b)', () => {
+  it('texto exato do spec, com o nome do canal', () => {
+    expect(textoAviso('reautorizar', 'Canal Um')).toBe(
+      'O canal Canal Um perdeu a autorização do YouTube. A coleta parou. Reconecte o canal em Configurações.',
+    )
+    expect(chaveAviso('ch-1', 'reautorizar')).toBe('sync-analytics:ch-1:reautorizar')
+  })
+
+  it('entrada: pede o carimbo de 7 dias e avisa uma vez', async () => {
+    vi.mocked(claimAlert).mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    const { supabase } = novoBanco()
+    const falhas: string[] = []
+    await avisarEntrada({ supabase, falhas }, canal, 'reautorizar')
+    await avisarEntrada({ supabase, falhas }, canal, 'reautorizar')
+    expect(vi.mocked(claimAlert).mock.calls[0]).toEqual([supabase, 'sync-analytics:ch-1:reautorizar', '7 days'])
+    expect(fanOutToSiteAdmins).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(fanOutToSiteAdmins).mock.calls[0]![0]).toMatchObject({
+      type: 'youtube.coleta_reautorizar', title: 'Canal do YouTube perdeu a autorização',
+    })
+    expect(falhas).toEqual([])
+  })
+
+  it('saída padrão NÃO olha o carimbo reautorizar; saída com a lista olha só ele', async () => {
+    const chave = 'sync-analytics:ch-1:reautorizar'
+    const a = novoBanco([chave])
+    await avisarSaida({ supabase: a.supabase, falhas: [] }, canal)
+    expect(a.lidas).not.toContain(chave)
+    expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
+
+    const b = novoBanco([chave])
+    await avisarSaida({ supabase: b.supabase, falhas: [] }, canal, ['reautorizar'])
+    expect(b.lidas).toEqual([chave])
+    expect(fanOutToSiteAdmins).toHaveBeenCalledTimes(1)
+    expect(b.apagadas).toEqual([chave])
+  })
+})
