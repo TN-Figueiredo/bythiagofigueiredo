@@ -16,7 +16,7 @@ seguintes com o que se aprendeu, e só então seguir. Mockup aprovado antes de q
 
 | Commit | O que é | Precisa de |
 |---|---|---|
-| `a3b1b153` | migration `20261008000001`: colunas do alerta de fadiga aceitam views | `npm run db:push:prod` (sem pressa) |
+| `a3b1b153` | migration `20261008000001`: colunas do alerta de fadiga aceitam views | aplicada em produção pelo dono em 08/10 |
 | `08491bd8` | thumbnail arquivada em 1280×720 (cai para 640×480, depois 480×360); identidade segue pela `hqdefault` | promoção; vale só para arquivamentos futuros |
 | `3a2c9784`, `0db29355`, `b59ec6b9` | specs, plano do L1a, mockup do canal e do histórico | nada |
 | `80ceed03` + `e89e4e46` + `1613cb6f` | aviso de fadiga no sininho, feito e desfeito no mesmo dia (ver §5) | nada |
@@ -104,13 +104,35 @@ nas seções 6 e 12) e pedir o "pode" do dono sobre o spec atualizado.
 
 ## 7. Pendências do dono
 
-- `npm run db:push:prod` (migration da fadiga).
 - Autorizar a promoção do que está em `staging` quando quiser a thumbnail em alta resolução.
 - Ler as Developer Policies do YouTube na íntegra antes de qualquer decisão de produto.
 - Pedir uma leitura real à forja (nunca foi usada em produção).
 - Deriva do `database.types.ts` em relação a migrations recentes.
 
-## 8. Fora deste trabalho
+## 8. Frente futura, grande, ainda sem plano: TikTok (anotado em 08/10 a pedido do dono)
+
+O dono quer algo parecido com o Observatório para o TikTok: ver o que estoura numa plataforma e na
+outra, analytics, capas. E ligar contas do TikTok a canais do YouTube do mesmo criador (um criador
+pode ter duas contas de TikTok, ou mais de um canal). **Não planejar agora.** Mockup da página do
+canal: "aprovado por enquanto" (08/10).
+
+O que pensar quando chegar a hora:
+- **Modelo de dados antes de tudo:** uma entidade "criador" acima de canal/conta, com N canais do
+  YouTube e N contas do TikTok. Hoje tudo é chaveado por canal do YouTube; quanto mais telas e
+  tabelas nascerem assim, mais caro fica. Vale decidir o nome e a chave dessa entidade cedo, mesmo
+  sem TikTok, para as tabelas novas não fecharem a porta.
+- **De onde vem o dado é a pergunta que decide tudo, e precisa de pesquisa** (o que segue é de
+  memória, NÃO verificado): para contas próprias existe API oficial com autorização do dono da
+  conta (vídeos, capa, views, curtidas, comentários, compartilhamentos); para contas de terceiros a
+  API de pesquisa é restrita a academia e não serve a uso comercial, e raspagem fere os termos.
+  Se isso se confirmar, "concorrentes no TikTok" pode não ter caminho dentro das regras, e o escopo
+  honesto vira "minhas contas no TikTok + concorrentes só no YouTube".
+- O que não tem equivalente: no TikTok não há título nem thumbnail escolhida como no YouTube (há
+  legenda e capa), nem impressões/CTR de capa. A comparação entre plataformas é de tema e formato,
+  não de embalagem.
+- Mesma regra da ambição ViewStats: só dentro da política de cada plataforma.
+
+## 9. Fora deste trabalho
 
 Chat (Open WebUI), produto multi-cliente, auditoria da API do YouTube, comparação com ViewStats e
 vidIQ, alvo de toque no histórico em 768 px, suíte de fidelidade antiga, Fase 5 do plano mestre,
