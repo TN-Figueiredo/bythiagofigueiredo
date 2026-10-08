@@ -117,10 +117,9 @@ pode ter duas contas de TikTok, ou mais de um canal). **Não planejar agora.** M
 canal: "aprovado por enquanto" (08/10).
 
 O que pensar quando chegar a hora:
-- **Modelo de dados antes de tudo:** uma entidade "criador" acima de canal/conta, com N canais do
-  YouTube e N contas do TikTok. Hoje tudo é chaveado por canal do YouTube; quanto mais telas e
-  tabelas nascerem assim, mais caro fica. Vale decidir o nome e a chave dessa entidade cedo, mesmo
-  sem TikTok, para as tabelas novas não fecharem a porta.
+- **Decisão do dono (08/10): sem entidade "criador" por enquanto.** YouTube e TikTok ficam
+  separados; nada de chave comum nas tabelas novas. Ligar contas do mesmo criador é assunto para
+  quando a frente do TikTok for aberta.
 - **De onde vem o dado é a pergunta que decide tudo, e precisa de pesquisa** (o que segue é de
   memória, NÃO verificado): para contas próprias existe API oficial com autorização do dono da
   conta (vídeos, capa, views, curtidas, comentários, compartilhamentos); para contas de terceiros a
