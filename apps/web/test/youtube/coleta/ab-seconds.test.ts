@@ -212,3 +212,43 @@ describe('título e thumbnail do dia', () => {
     expect(r).toMatchObject({ ab_variant_id: 'vA', title: 'Título original', thumbCopiaCaptura: false, motivoNulo: null })
   })
 })
+
+describe('dado ilegível nunca vira "sem A/B"', () => {
+  const esperado = (id: string, motivoNulo: string) =>
+    expect.objectContaining({ ab_test_id: id, ab_variant_id: null, title: null, thumbCopiaCaptura: false, motivoNulo })
+  const outro = (extra: Partial<AbCycle>): AbCycle => ({ ...ciclo('c1', 'vA', '2026-07-01T00:00:00.000Z', null), test_id: 'tX', ...extra })
+
+  it('ciclo aberto de teste ausente', () => {
+    expect(calc({ cycles: [outro({})] })).toEqual(esperado('tX', 'teste_ausente'))
+  })
+  it('ciclo fechado de teste ausente que toca o dia', () => {
+    expect(calc({ cycles: [outro({ ended_at: '2026-07-15T12:00:00.000Z' })] })).toEqual(esperado('tX', 'teste_ausente'))
+  })
+  it('started_at ilegível', () => {
+    expect(calc({ cycles: [ciclo('c1', 'vA', 'não é data', null)] })).toEqual(esperado('t1', 'data_invalida'))
+  })
+  it('ended_at ilegível', () => {
+    expect(calc({ cycles: [ciclo('c1', 'vA', '2026-07-01T00:00:00.000Z', 'x')] })).toEqual(esperado('t1', 'data_invalida'))
+  })
+})
+
+describe('ciclo aberto com outro posterior', () => {
+  it('c1 aberto desde antes do dia e c2 FECHADO que começou no dia', () => {
+    const r = calc({
+      cycles: [
+        ciclo('c1', 'vA', '2026-07-01T00:00:00.000Z', null),
+        ciclo('c2', 'vB', '2026-07-15T10:00:00.000Z', '2026-07-15T12:00:00.000Z'),
+      ],
+    })
+    expect(r).toMatchObject({ ab_variant_id: null, motivoNulo: 'ciclo_aberto_duplicado' })
+  })
+  it('c1 aberto e c2 que começa depois do dia', () => {
+    const r = calc({
+      cycles: [
+        ciclo('c1', 'vA', '2026-07-01T00:00:00.000Z', null),
+        ciclo('c2', 'vB', '2026-07-16T09:00:00.000Z', '2026-07-16T10:00:00.000Z'),
+      ],
+    })
+    expect(r).toMatchObject({ ab_variant_id: null, motivoNulo: 'ciclo_aberto_duplicado' })
+  })
+})

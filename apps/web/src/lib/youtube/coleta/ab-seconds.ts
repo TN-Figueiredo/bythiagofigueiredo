@@ -20,7 +20,7 @@ export interface AbCycle {
   applied_metadata: { title_set?: string | null } | null
 }
 
-export type MotivoNulo = 'mais_de_um_teste' | 'ciclo_aberto_duplicado' | 'soma_acima_do_dia' | 'fora_de_ciclo'
+export type MotivoNulo = 'teste_ausente' | 'data_invalida' | 'mais_de_um_teste' | 'ciclo_aberto_duplicado' | 'soma_acima_do_dia' | 'fora_de_ciclo'
 
 export interface AbDia {
   ab_test_id: string | null
@@ -79,6 +79,26 @@ export function calcularAbDoDia(i: {
   const A = boundsAnalytics(i.day)
   const R = boundsReporting(i.day)
   const testes = new Map(i.tests.map(t => [t.id, t]))
+
+  // Dado que não dá para ler (data ilegível, teste fora de `tests`) vem ANTES de todas as outras regras:
+  // sem ele os segundos são zero e o dia viraria "sem A/B" (título e thumbnail da captura) em silêncio.
+  // Data inválida precede teste ausente, e dentro de cada uma vale o primeiro ciclo na ordem de entrada.
+  const fimDoDiaMs = Math.max(A.end, R.end)
+  const nulo = (testId: string, motivoNulo: MotivoNulo): AbDia => ({
+    ab_test_id: testId, ab_variant_id: null,
+    seconds_on_air_analytics: null, seconds_other_analytics: null,
+    seconds_on_air_reporting: null, seconds_other_reporting: null,
+    title: null, thumbCopiaCaptura: false, motivoNulo,
+  })
+  const invalido = i.cycles.find(c => Number.isNaN(ms(c.started_at)) || (c.ended_at !== null && Number.isNaN(ms(c.ended_at))))
+  if (invalido) return nulo(invalido.test_id, 'data_invalida')
+  const semTeste = i.cycles.find((c) => {
+    if (testes.has(c.test_id)) return false
+    const inicio = ms(c.started_at)
+    if (c.ended_at === null) return inicio < fimDoDiaMs
+    return sobreposicao(inicio, ms(c.ended_at), A) > 0 || sobreposicao(inicio, ms(c.ended_at), R) > 0
+  })
+  if (semTeste) return nulo(semTeste.test_id, 'teste_ausente')
 
   const linhas = i.cycles.map((c) => {
     const inicio = ms(c.started_at)
