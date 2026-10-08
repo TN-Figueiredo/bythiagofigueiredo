@@ -57,6 +57,9 @@ interface ThumbCaptura {
   blobUrl: string | null
 }
 
+/** A captura pela Data API (token + videos.list de todos os canais) não come mais que isto do prazo do passo. */
+export const TETO_CAPTURA_MS = 8_000
+
 /** O PostgREST corta em 1000 linhas: bater nesse número é sinal de leitura truncada. */
 const LIMITE_LEITURA = 1000
 
@@ -201,6 +204,11 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
   // Captura pela Data API, com o token do canal dono. Sem token, sem tempo ou com falha: a linha do dia sai do
   // mesmo jeito, com os campos de youtube_videos e sem privacy_status.
   const f = fetchComPrazo(ctx.deadline)
+  // Prazo próprio da captura: ela roda em série antes das linhas e não pode consumir o prazo do passo.
+  // O spread é raso: `falhas` e `tentativas` continuam sendo os mesmos arrays.
+  const prazoCaptura = Math.min(ctx.deadline, Date.now() + TETO_CAPTURA_MS)
+  const ctxCaptura: StepCtx = { ...ctx, deadline: prazoCaptura }
+  const fCaptura = fetchComPrazo(prazoCaptura)
   const captura = new Map<string, VideoCapturado>()
   /** `youtube_channels.id` cuja videos.list respondeu: só para esses "ausente da resposta" quer dizer alguma coisa. */
   const respondeu = new Set<string>()
@@ -209,11 +217,15 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
     if (doCanal.length === 0) continue
     const tCanal = { site_id: c.site_id, scope_type: 'canal' as const, scope_id: c.id, kind: 'meta' as const, channel_id: c.id }
     try {
-      const token = await obterToken(ctx, c, tCanal)
+      const token = await obterToken(ctxCaptura, c, tCanal)
       if (token === null) continue
-      const lidosApi = await videosList(token, doCanal.map(v => v.youtube_video_id), f)
+      const lidosApi = await videosList(token, doCanal.map(v => v.youtube_video_id), fCaptura)
       for (const [id, v] of lidosApi) captura.set(id, v)
       respondeu.add(c.id)
+      // Falha em verde: uma resposta sem nenhum dos vídeos do canal não é "alguns ausentes", é dado que não veio.
+      if (!doCanal.some(v => lidosApi.has(v.youtube_video_id))) {
+        pushUnico(ctx.falhas, `metadados: ${c.name}: videos.list não devolveu nenhum dos ${doCanal.length} vídeos`)
+      }
       await marcarAutorizado(ctx, c)
       await registrarTentativa(ctx, { ...tCanal, outcome: 'ok' })
     } catch (e) {
@@ -226,7 +238,7 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
         await registrarTentativa(ctx, { ...tCanal, outcome: 'sem_autorizacao', http_status: e.status })
         continue
       }
-      const causa = e instanceof DataApiError ? `HTTP ${e.status}` : describeCronCause(e)
+      const causa = e instanceof DataApiError ? (e.reason ? `HTTP ${e.status} ${e.reason}` : `HTTP ${e.status}`) : describeCronCause(e)
       Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', passo: 'metadados' }, extra: { canal: c.channel_id } })
       pushUnico(ctx.falhas, `metadados: ${c.name}: videos.list falhou (${causa})`)
       await registrarTentativa(ctx, { ...tCanal, outcome: 'erro_http', http_status: e instanceof DataApiError ? e.status : null, error: causa })
@@ -379,18 +391,25 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       // Descrição nula = não sabemos: hash nulo, sem texto. Nunca o hash de uma string vazia inventada.
       const descHash = descricao === null ? null : sha256(descricao)
       const tagsHash = sha256(JSON.stringify(tags ?? []))
+      // Captura que falhou numa execução em que o dia já tem linha: os campos vindos da API na 1ª execução ficam
+      // fora do payload (youtube_videos é mais velho que a API e rebaixaria a linha).
+      const diaJaTemLinha = diaIlegivel.has(v.channel_id) || jaTemLinha.has(v.youtube_video_id)
+      const preservar = !cap && diaJaTemLinha
       const linha: Record<string, unknown> = {
         site_id: v.site_id,
         youtube_video_id: v.youtube_video_id,
         day_pt: day,
         video_id: v.id,
         channel_id: v.channel_id,
-        title_at_capture: titulo,
-        description_sha256: descHash,
-        tags_sha256: tagsHash,
-        duration_seconds: duracao,
         captured_at: capturedAt,
       }
+      if (!preservar) {
+        linha.title_at_capture = titulo
+        linha.description_sha256 = descHash
+        linha.tags_sha256 = tagsHash
+      }
+      // Nulo, nunca zero.
+      if (!preservar && duracao !== null && duracao > 0) linha.duration_seconds = duracao
       // Segunda execução no mesmo dia: o que a primeira capturou não pode voltar a nulo porque esta falhou.
       // Thumbnail que não foi capturada e A/B que não foi lido ficam FORA do payload (no primeiro dia = nulo).
       if (thumb.ok) {
@@ -398,7 +417,7 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
         linha.thumbnail_sha256_at_capture = thumb.sha256
       }
       if (ab.ok) {
-        linha.title = abDia.title
+        if (!(preservar && abDia.ab_test_id === null)) linha.title = abDia.title
         linha.ab_test_id = abDia.ab_test_id
         linha.ab_variant_id = abDia.ab_variant_id
         linha.seconds_on_air_analytics = abDia.seconds_on_air_analytics
@@ -408,10 +427,9 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
         if (thumb.ok) linha.thumbnail_sha256 = abDia.thumbCopiaCaptura ? thumb.sha256 : null
       }
       // Estas três chaves nunca passam de não nulo a nulo: quando não há valor, ficam fora do payload.
-      if (descricao !== null && (!ant || ant.description_sha256 !== descHash)) linha.description_text = descricao
-      if (!ant || ant.tags_sha256 !== tagsHash) linha.tags = tags ?? []
+      if (!preservar && descricao !== null && (!ant || ant.description_sha256 !== descHash)) linha.description_text = descricao
+      if (!preservar && (!ant || ant.tags_sha256 !== tagsHash)) linha.tags = tags ?? []
       // Captura que falhou só repete a URL do dia anterior se o dia ainda não tem linha deste vídeo.
-      const diaJaTemLinha = diaIlegivel.has(v.channel_id) || jaTemLinha.has(v.youtube_video_id)
       if (thumb.blobUrl && (thumb.ok || !diaJaTemLinha)) linha.thumbnail_blob_url = thumb.blobUrl
 
       // Nunca de não nulo a nulo: sem valor, a chave fica fora do payload (uma segunda execução não apaga a primeira).

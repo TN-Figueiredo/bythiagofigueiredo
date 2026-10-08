@@ -13,8 +13,10 @@ vi.mock('@/lib/social/token-refresh', async (orig) => ({
 }))
 vi.mock('@/lib/youtube/coleta/videos-list', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/coleta/videos-list')>()),
-  // O passo de metadados chama videos.list com o token do canal: a rede é simulada (nunca a do Google de verdade).
-  videosList: vi.fn(async () => new Map()),
+  // O passo de metadados chama videos.list com o token do canal: a rede é simulada (nunca a do Google de verdade); todos públicos.
+  videosList: vi.fn(async (_token: string, ids: readonly string[]) => new Map(ids.map(id => [id, {
+    id, title: null, description: null, tags: [], durationSeconds: null, privacyStatus: 'public',
+  }]))),
 }))
 vi.mock('@/lib/youtube/reporting/client', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/reporting/client')>()),
