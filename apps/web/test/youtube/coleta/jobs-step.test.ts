@@ -311,3 +311,62 @@ describe('passoJobs: tempo e 409 sem job', () => {
     expect(tentativaCanal(db)).toMatchObject({ outcome: 'ok', scope_id: 'ch-1' })
   })
 })
+
+describe('passoJobs: rodada de correção 1', () => {
+  const create403 = () => api.jobsCreate.mockRejectedValue(new ReportingHttpError(403, 'insufficientPermissions'))
+
+  it('listagem ok e create 403: sem avisarSaida (nada de pisca-pisca), entrada pelo motivo certo', async () => {
+    create403()
+    const db = fakeSupabase()
+    await passoJobs(ctxDe(db))
+    expect(avisarSaida).not.toHaveBeenCalled()
+    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'sem_acesso')
+  })
+
+  it('create 403: a sondagem do canal é erro_http com o status do primeiro erro', async () => {
+    create403()
+    const db = fakeSupabase()
+    await passoJobs(ctxDe(db))
+    expect(tentativaCanal(db)).toMatchObject({ outcome: 'erro_http', http_status: 403 })
+  })
+
+  it('create 500: sondagem do canal erro_http 500 e job em erro', async () => {
+    api.jobsCreate.mockRejectedValue(new ReportingHttpError(500, null))
+    const db = fakeSupabase()
+    await passoJobs(ctxDe(db))
+    expect(tentativaCanal(db)).toMatchObject({ outcome: 'erro_http', http_status: 500 })
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'erro' })
+  })
+
+  it('create sem id: sondagem do canal erro_http com status nulo', async () => {
+    api.jobsCreate.mockImplementation(async ({ reportTypeId }: { reportTypeId: string }) => ({ reportTypeId }))
+    const db = fakeSupabase()
+    await passoJobs(ctxDe(db))
+    expect(tentativaCanal(db)).toMatchObject({ outcome: 'erro_http', http_status: null })
+  })
+
+  it('listagem com erro transitório: os tipos já ativos continuam no resumo', async () => {
+    api.reportTypesList.mockRejectedValue(new ReportingHttpError(500, null))
+    const db = fakeSupabase({ yt_reporting_jobs: [linhaAtiva('channel_basic_a3')] })
+    const resumo = await passoJobs(ctxDe(db))
+    expect(resumo.estados['ch-1']!.channel_basic_a3).toBe('ativo')
+    expect(resumo.estados['ch-1']!.channel_reach_basic_a1).toBe('erro')
+  })
+
+  it('token que nunca responde com o prazo esgotado: nao_alcancado_orcamento, sem falha', async () => {
+    vi.mocked(ensureFreshToken).mockImplementation(() => new Promise(() => {}))
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    try {
+      const db = fakeSupabase()
+      const ctx = ctxDe(db, 1000)
+      const p = passoJobs(ctx)
+      await vi.advanceTimersByTimeAsync(1500)
+      const resumo = await p
+      expect(resumo.pendentes).toBe(1)
+      expect(tentativaCanal(db)).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
+      expect(ctx.falhas).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})

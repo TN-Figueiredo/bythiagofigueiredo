@@ -7,7 +7,7 @@ import { classificarErro, criarReportingClient, type ReportingClient } from '@/l
 import { ReportingHttpError, type Job } from '@/lib/youtube/reporting/types'
 import { avisarEntrada, avisarSaida } from './alerts'
 import { contarPorResultado, registrarTentativa, scopeJob } from './attempts'
-import { emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
+import { comPrazo, emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
 import { conferirBanco, pushUnico } from './schema'
 import { descreverErro, HABILITADOS, registrarSemConexao, statusHttp } from './token'
 import type { ColetaChannel, StepCtx, StepResumo } from './types'
@@ -73,6 +73,8 @@ async function sondarCanal(
     // Se a listagem falhar, grava-se uma linha por tipo habilitado com o estado.
     const estado = estadoDoErro(e)
     const tipos = estado === 'erro' ? HABILITADOS.filter(t => status.get(t) !== 'ativo') : HABILITADOS
+    // Os tipos que já estavam `ativo` continuam ativos (um erro transitório não os rebaixa): ficam no resumo.
+    for (const t of HABILITADOS) if (!tipos.includes(t) && status.get(t) === 'ativo') estados[t] = 'ativo'
     for (const tipo of tipos) {
       estados[tipo] = estado
       await gravarJob(ctx, c, tipo, { status: estado, error: descreverErro(e) })
@@ -86,11 +88,11 @@ async function sondarCanal(
     return
   }
 
-  // A chamada passou: os estados de "ação do dono" saem sozinhos.
-  await avisarSaida(ctx, c)
   const porTipo = new Map(jobs.map(j => [j.reportTypeId, j]))
 
   let semTempo = false
+  let primeiroErro: { status: number | null; texto: string } | null = null
+  const falhou = (e: unknown) => { primeiroErro ??= { status: statusHttp(e), texto: descreverErro(e) } }
   await emParalelo(HABILITADOS, PARALELO, async (tipo) => {
     try {
       if (!oferecidos.has(tipo)) {
@@ -133,6 +135,7 @@ async function sondarCanal(
       }
       const estado = estadoDoErro(erro)
       estados[tipo] = estado
+      falhou(erro)
       await gravarJob(ctx, c, tipo, { status: estado, error: descreverErro(erro) })
       await registrarTentativa(ctx, { ...tJob(tipo), outcome: 'erro_http', http_status: statusHttp(erro), error: descreverErro(erro) })
       if (estado === 'api_nao_ativada' || estado === 'sem_acesso') {
@@ -152,6 +155,10 @@ async function sondarCanal(
 
   if (semTempo) throw new SemTempoError()
 
+  // Saída só depois de todos os creates: se algum tipo ainda esbarra em api_nao_ativada/sem_acesso, o aviso de
+  // entrada vale e mandar "voltou ao normal" faria o par entrada/saída se repetir a cada execução.
+  if (!HABILITADOS.some(t => estados[t] === 'api_nao_ativada' || estados[t] === 'sem_acesso')) await avisarSaida(ctx, c)
+
   // Tipo que a lista devolve e não está habilitado: linha `desativado`, sem chamada.
   for (const tipo of oferecidos) {
     if (HABILITADOS.includes(tipo)) continue
@@ -159,7 +166,11 @@ async function sondarCanal(
     if (status.get(tipo) !== 'desativado') await gravarJob(ctx, c, tipo, { status: 'desativado' })
   }
 
-  await registrarTentativa(ctx, { ...tCanal, outcome: 'ok' })
+  // Canal em que algum tipo terminou em erro não é "ok": a tentativa carrega o primeiro erro.
+  const ruim = HABILITADOS.some(t => estados[t] === 'erro' || estados[t] === 'api_nao_ativada' || estados[t] === 'sem_acesso')
+  const pe = primeiroErro as { status: number | null; texto: string } | null
+  if (ruim) await registrarTentativa(ctx, { ...tCanal, outcome: 'erro_http', http_status: pe?.status ?? null, error: pe?.texto ?? 'erro ao criar o job' })
+  else await registrarTentativa(ctx, { ...tCanal, outcome: 'ok' })
 }
 
 export async function passoJobs(ctx: StepCtx): Promise<JobsResumo> {
@@ -194,7 +205,12 @@ export async function passoJobs(ctx: StepCtx): Promise<JobsResumo> {
 
       let token: string
       try {
-        token = (await ensureFreshToken(c.site_id, 'youtube', c.channel_id)).accessToken
+        const t = await comPrazo(ensureFreshToken(c.site_id, 'youtube', c.channel_id), ctx.deadline)
+        if (!t) {
+          if (restante(ctx.deadline) <= 0) throw new SemTempoError()
+          throw new Error('token refresh timed out')
+        }
+        token = t.accessToken
       } catch (e) {
         // Simplificação declarada de L1a: sem `collection_status`, canal revogado ou sem conexão é só pulado.
         if (await registrarSemConexao(ctx, tCanal, e)) continue
