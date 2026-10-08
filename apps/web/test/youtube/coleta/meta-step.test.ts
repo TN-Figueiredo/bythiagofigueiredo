@@ -429,36 +429,98 @@ describe('passoMetadados: leituras que alimentam decisão', () => {
 })
 
 describe('passoMetadados: o prazo acaba no meio de um item', () => {
-  it('SemTempoError na thumbnail do vídeo 2 de 3: 1 gravado; 2 e 3 nao_alcancado_orcamento, nenhum erro_http', async () => {
-    const db = fakeSupabase({ youtube_videos: [video(1), video(2), video(3)] })
-    const ctx = ctxDe(db)
+  // O prazo vence dentro da captura da thumbnail do vídeo 2. Título e A/B vêm só do banco e já são conhecidos:
+  // a linha do dia (que não volta) é gravada sem os campos de thumbnail; só quem nem começou fica pendente.
+  const semTempoNoVideo2 = (ctx: StepCtx) =>
     vi.mocked(probeThumb).mockImplementation(async (id) => {
-      if (id === 'yt-1') return probe('ffffffffffffffff')
-      await vi.waitFor(() => expect(linha(db, 'yt-1')).toBeDefined())
+      if (id !== 'yt-2') return probe('ffffffffffffffff')
       vi.setSystemTime(ctx.deadline + 1)
       throw new SemTempoError()
     })
+
+  it('SemTempoError na thumbnail do vídeo 2 de 3: 1 completo; o 2 TEM linha, sem campos de thumbnail; o 3 fica pendente; nenhum erro_http', async () => {
+    const db = fakeSupabase({ youtube_videos: [video(1), video(2), video(3)], yt_own_video_meta_daily: [anterior(1), anterior(2), anterior(3)] })
+    const ctx = ctxDe(db)
+    semTempoNoVideo2(ctx)
     const resumo = await passoMetadados(ctx)
-    expect(resumo).toMatchObject({ gravados: 1, pendentes: 2 })
-    expect(linha(db, 'yt-1')).toBeDefined()
-    expect(linha(db, 'yt-2')).toBeUndefined()
+    expect(resumo).toMatchObject({ gravados: 2, pendentes: 1 })
+    expect(resumo.tentativas).toEqual({ ok: 3, nao_alcancado_orcamento: 2 })
+    expect(linha(db, 'yt-1')).toMatchObject({ thumbnail_dhash: 'ffffffffffffffff', title: 'Título 1' })
+    // O vídeo 2: linha gravada, sem thumbnail; a URL repete a do dia anterior porque o dia ainda não tinha linha dele.
+    expect(linha(db, 'yt-2')).toMatchObject({
+      day_pt: DIA, title: 'Título 2', title_at_capture: 'Título 2', description_sha256: sha('Descrição 2'),
+      ab_test_id: null, ab_variant_id: null, thumbnail_blob_url: 'https://blob.test/antiga.jpg',
+    })
+    nula(linha(db, 'yt-2'), 'thumbnail_dhash', 'thumbnail_sha256_at_capture', 'thumbnail_sha256')
+    expect(tentativa(db, 'yt-2', 'thumbnail')).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
+    expect(tentativa(db, 'yt-2', 'meta')).toMatchObject({ outcome: 'ok' })
+    // O vídeo 3 nem começou: sem linha, pendente, e sem tentativa de thumbnail.
     expect(linha(db, 'yt-3')).toBeUndefined()
-    expect(tentativa(db, 'yt-2', 'meta')).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
     expect(tentativa(db, 'yt-3', 'meta')).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
+    expect(tentativa(db, 'yt-3', 'thumbnail')).toBeUndefined()
     expect(db.tables.yt_own_collection_attempts!.some(r => r.outcome === 'erro_http')).toBe(false)
-    expect(tentativa(db, 'yt-2', 'thumbnail')).toBeUndefined()
+    // 2 de 2 devidos têm linha (o pendente sai da conta): nada vermelho.
     expect(ctx.falhas).toEqual([])
   })
 
-  it('o prazo vence durante o arquivamento: nao_alcancado_orcamento, não erro_http', async () => {
+  it('a linha gravada sem thumbnail por falta de tempo leva o título e os campos de A/B certos', async () => {
+    const teste = { id: 't2', youtube_video_id: 'v-2', status: 'active', paused_at: null, completed_at: null, original_title: 'Original 2' }
+    const ciclo = { id: 'c2', test_id: 't2', variant_id: 'var-a', started_at: '2026-09-20T00:00:00.000Z', ended_at: null, applied_metadata: null }
+    const db = fakeSupabase({
+      youtube_videos: [video(1), video(2)], yt_own_video_meta_daily: [anterior(1), anterior(2)],
+      ab_tests: [teste], ab_test_cycles: [ciclo],
+    })
+    const ctx = ctxDe(db)
+    semTempoNoVideo2(ctx)
+    const resumo = await passoMetadados(ctx)
+    expect(resumo).toMatchObject({ gravados: 2, pendentes: 0 })
+    expect(linha(db, 'yt-2')).toMatchObject({
+      ab_test_id: 't2', ab_variant_id: 'var-a', title: 'Original 2', title_at_capture: 'Título 2',
+      seconds_on_air_analytics: 86_400, seconds_other_analytics: 0,
+      seconds_on_air_reporting: 86_400, seconds_other_reporting: 0,
+    })
+    nula(linha(db, 'yt-2'), 'thumbnail_dhash', 'thumbnail_sha256_at_capture', 'thumbnail_sha256')
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('2ª execução do dia sem tempo na thumbnail: não repete a URL antiga nem apaga o que a 1ª capturou', async () => {
+    vi.mocked(probeThumb).mockResolvedValue(probe('0000000000000000'))
+    const db = fakeSupabase({ youtube_videos: [video(2)], yt_own_video_meta_daily: [anterior(2, { thumbnail_blob_url: 'https://blob.test/velha.jpg' })] })
+    await passoMetadados(ctxDe(db))
+    expect(linha(db, 'yt-2')).toMatchObject({ thumbnail_blob_url: 'https://blob.test/nova.jpg', thumbnail_dhash: '0000000000000000' })
+    const ctx = ctxDe(db)
+    semTempoNoVideo2(ctx)
+    const resumo = await passoMetadados(ctx)
+    expect(resumo).toMatchObject({ gravados: 1, pendentes: 0 })
+    expect(linha(db, 'yt-2')).toMatchObject({
+      thumbnail_blob_url: 'https://blob.test/nova.jpg', thumbnail_dhash: '0000000000000000', thumbnail_sha256_at_capture: sha(BYTES),
+    })
+    expect(tentativa(db, 'yt-2', 'thumbnail')).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
+  })
+
+  it('o prazo vence durante o arquivamento: a linha é gravada sem thumbnail; tentativa thumbnail nao_alcancado_orcamento, não erro_http', async () => {
     vi.mocked(probeThumb).mockResolvedValue(probe('0000000000000000'))
     const db = fakeSupabase({ youtube_videos: [video(1)] })
     const ctx = ctxDe(db)
     vi.mocked(archiveThumb).mockImplementation(async () => { vi.setSystemTime(ctx.deadline + 1); return 'https://blob.test/tarde.jpg' })
     const resumo = await passoMetadados(ctx)
-    expect(resumo).toMatchObject({ gravados: 0, pendentes: 1 })
-    expect(tentativa(db, 'yt-1', 'meta')).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
+    expect(resumo).toMatchObject({ gravados: 1, pendentes: 0 })
+    expect(linha(db, 'yt-1')).toMatchObject({ title: 'Título 1', description_text: 'Descrição 1' })
+    nula(linha(db, 'yt-1'), 'thumbnail_dhash', 'thumbnail_sha256_at_capture', 'thumbnail_sha256', 'thumbnail_blob_url')
+    expect(tentativa(db, 'yt-1', 'thumbnail')).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
+    expect(tentativa(db, 'yt-1', 'meta')).toMatchObject({ outcome: 'ok' })
     expect(db.tables.yt_own_collection_attempts!.some(r => r.outcome === 'erro_http')).toBe(false)
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('thumbnail sem tempo não conta como thumbnail que falhou: nem hoje, nem na leitura de ontem', async () => {
+    // Ontem: os dois vídeos ficaram sem tempo na thumbnail. Hoje: as duas falham de verdade. Só hoje falhou => ainda não é "2 dias".
+    vi.mocked(probeThumb).mockResolvedValue(probe(null, null))
+    const ontemUtc = (yt: string): Row => ({ scope_type: 'video', scope_id: yt, kind: 'thumbnail', attempt_day: '2026-10-06', channel_id: 'ch-1', site_id: 'site-1', outcome: 'nao_alcancado_orcamento', attempts: 1 })
+    const db = fakeSupabase({ youtube_videos: [video(1), video(2)], yt_own_collection_attempts: [ontemUtc('yt-1'), ontemUtc('yt-2')] })
+    const ctx = ctxDe(db)
+    await passoMetadados(ctx)
+    expect(ctx.falhas).toEqual([])
   })
 })
 

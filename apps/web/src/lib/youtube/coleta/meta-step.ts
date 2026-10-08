@@ -107,7 +107,10 @@ async function carregarAb(
   return { ok: true, testes, ciclos }
 }
 
-/** Exceção, dhash nulo ou arquivamento nulo: campos de thumbnail nulos e a URL repete a última. */
+/**
+ * Exceção, dhash nulo ou arquivamento nulo: campos de thumbnail nulos e a URL repete a última.
+ * Lança `SemTempoError` quando o prazo do passo acaba no meio da captura: quem chama grava a linha sem thumbnail.
+ */
 async function capturarThumb(ctx: StepCtx, v: VideoRow, ant: Anterior | null, f: typeof fetch): Promise<ThumbCaptura> {
   const repetida = ant?.thumbnail_blob_url ?? null
   const falha = (motivo: string): ThumbCaptura => ({ ok: false, motivo, dhash: null, sha256: null, blobUrl: repetida })
@@ -127,7 +130,7 @@ async function capturarThumb(ctx: StepCtx, v: VideoRow, ant: Anterior | null, f:
     } catch {
       blobUrl = null
     }
-    // O prazo do passo acabou: não é falha de arquivamento, o vídeo fica para amanhã.
+    // O prazo do passo acabou: não é falha de arquivamento, é orçamento (a linha sai sem thumbnail).
     if (!blobUrl && restante(ctx.deadline) <= 0) throw new SemTempoError()
     if (!blobUrl) return falha('o arquivamento da thumbnail falhou')
   }
@@ -264,9 +267,26 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       }
       const ant = anteriores.get(v.youtube_video_id) ?? null
 
-      const thumb = await capturarThumb(ctx, v, ant, f)
-      await registrarTentativa(ctx, { ...base, kind: 'thumbnail', outcome: thumb.ok ? 'ok' : 'erro_http', error: thumb.motivo })
-      if (!thumb.ok) somar(thumbFalhas, v.channel_id)
+      // Seção 3 do spec: falha de thumbnail nunca impede a linha. Vale também para o prazo que acaba no meio da
+      // captura: título e A/B vêm só do banco e já são conhecidos, e a linha deste dia não volta. Ela é gravada sem
+      // os campos de thumbnail (como numa captura que falhou) e o resto da fila cai em `nao_alcancado_orcamento`.
+      let thumb: ThumbCaptura
+      let thumbSemTempo = false
+      try {
+        thumb = await capturarThumb(ctx, v, ant, f)
+      } catch (e) {
+        if (!(e instanceof SemTempoError)) throw e
+        thumbSemTempo = true
+        thumb = { ok: false, motivo: null, dhash: null, sha256: null, blobUrl: ant?.thumbnail_blob_url ?? null }
+      }
+      await registrarTentativa(ctx, {
+        ...base,
+        kind: 'thumbnail',
+        outcome: thumb.ok ? 'ok' : thumbSemTempo ? 'nao_alcancado_orcamento' : 'erro_http',
+        error: thumb.motivo,
+      })
+      // Sem tempo não é thumbnail que falhou: fica fora do critério "metade ou mais por 2 dias".
+      if (!thumb.ok && !thumbSemTempo) somar(thumbFalhas, v.channel_id)
 
       const testes = ab.testes.get(v.id) ?? []
       const idsDosTestes = new Set(testes.map(t => t.id))
@@ -334,7 +354,8 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       }
     } catch (e) {
       if (e instanceof SemTempoError) {
-        // O prazo acabou no meio do item: não é erro de rede, é orçamento. O resto da fila cai no mesmo caminho.
+        // Rede de segurança: a captura da thumbnail já trata o prazo e grava a linha. Se o prazo estourar em outro
+        // ponto do item, não é erro de rede, é orçamento.
         await registrarTentativa(ctx, { ...base, kind: 'meta', outcome: 'nao_alcancado_orcamento' })
         somar(naoAlcancados, v.channel_id)
         resumo.pendentes++
@@ -371,7 +392,8 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
         .eq('channel_id', c.id)
         .eq('attempt_day', addDays(utcDay(agora), -1))
       if (conferirBanco(ontem, 'yt_own_collection_attempts', ctx.falhas, 'ler') !== 'ok') continue
-      const linhas = (ontem.data ?? []) as Array<{ outcome: string }>
+      // Tentativa que ficou sem tempo ontem não é thumbnail que falhou nem que deu certo: sai da conta.
+      const linhas = ((ontem.data ?? []) as Array<{ outcome: string }>).filter(l => l.outcome !== 'nao_alcancado_orcamento')
       const ruins = linhas.filter(l => l.outcome !== 'ok').length
       if (linhas.length > 0 && ruins * 2 >= linhas.length) {
         pushUnico(ctx.falhas, `metadados: thumbnail falhou em metade ou mais dos vídeos de ${c.name} por 2 dias`)
