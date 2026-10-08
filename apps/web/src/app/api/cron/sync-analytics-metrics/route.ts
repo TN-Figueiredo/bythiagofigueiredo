@@ -308,7 +308,7 @@ async function parteAntiga(
       // A/B todo vídeo em teste viraria candidato. Nos dois casos o site fica de fora e vira falha.
       const videosDoSite = await supabase
         .from('youtube_videos')
-        .select('id, published_at, view_count')
+        .select('id, title, published_at, view_count')
         .eq('site_id', siteId)
         .not('published_at', 'is', null)
       if (conferirBanco(videosDoSite, 'youtube_videos', falhas, 'ler') !== 'ok') continue
@@ -363,7 +363,29 @@ async function parteAntiga(
               expected_ctr: result.expectedViews,
               actual_ctr: result.actualViews,
             })
-            if (conferirBanco(gravouAlerta, 'youtube_fatigue_alerts', falhas) === 'ok') fatigueAlerts++
+            if (conferirBanco(gravouAlerta, 'youtube_fatigue_alerts', falhas) !== 'ok') continue
+            fatigueAlerts++
+
+            // O alerta só existia para quem abrisse o A/B Lab. O texto diz o que o cálculo mede
+            // (views contra a curva do próprio vídeo) e nada além disso.
+            const titulo = (allVideos ?? []).find(v => v.id === candidate.id)?.title ?? 'Vídeo'
+            try {
+              const entregues = await fanOutToSiteAdmins({
+                siteId,
+                domain: 'youtube',
+                type: 'youtube.views_below_trend',
+                priority: 3,
+                title: 'Vídeo abaixo da própria tendência',
+                message: `"${titulo}" teve ${result.actualViews} views no último dia medido; a curva dos últimos 60 dias do próprio vídeo esperava cerca de ${result.expectedViews}. É só views abaixo da tendência: não mede CTR nem aponta a causa.`,
+                dedupKey: `views_below_trend:${candidate.id}:${getIsoWeek(new Date())}`,
+                payload: { videoId: candidate.id },
+                actionHref: '/cms/youtube/ab-lab',
+              })
+              if (entregues === 0) pushUnico(falhas, 'aviso de fadiga: sem destinatário')
+            } catch (e) {
+              Sentry.captureException(e)
+              pushUnico(falhas, `aviso de fadiga: ${describeCronCause(e)}`)
+            }
           }
         }
       }

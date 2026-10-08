@@ -282,6 +282,61 @@ describe('sync-analytics-metrics: veredito único', () => {
     expect(nota()).toBe('schema_ausente: youtube_fatigue_alerts')
   })
 
+  it('fadiga: alerta gravado avisa no sininho, com texto que não promete CTR nem causa, uma vez por vídeo e semana', async () => {
+    banco()
+    vi.mocked(detectFatigue).mockReturnValue({ isFatigued: true, zScore: -2.13, expectedViews: 240, actualViews: 90 })
+    const body = await (await GET(pedido() as never)).json()
+    expect(body.fatigueAlerts).toBe(1)
+    expect(recordCronFailure).not.toHaveBeenCalled()
+    expect(fanOutToSiteAdmins).toHaveBeenCalledTimes(1)
+    const n = vi.mocked(fanOutToSiteAdmins).mock.calls[0]![0]
+    expect(n).toMatchObject({
+      siteId: 'site-1',
+      domain: 'youtube',
+      type: 'youtube.views_below_trend',
+      priority: 3,
+      title: 'Vídeo abaixo da própria tendência',
+      actionHref: '/cms/youtube/ab-lab',
+      payload: { videoId: 'v-1' },
+    })
+    expect(n.message).toBe('"Vídeo" teve 90 views no último dia medido; a curva dos últimos 60 dias do próprio vídeo esperava cerca de 240. É só views abaixo da tendência: não mede CTR nem aponta a causa.')
+    expect(n.dedupKey).toMatch(/^views_below_trend:v-1:\d{4}-W\d{2}$/)
+  })
+
+  it('fadiga: alerta pendente já existe — não grava outro nem avisa de novo', async () => {
+    const db = banco({ youtube_channels: [canal], youtube_videos: [video], youtube_fatigue_alerts: [{ id: 'a-1', video_id: 'v-1', site_id: 'site-1', status: 'pending' }] })
+    vi.mocked(detectFatigue).mockReturnValue({ isFatigued: true, zScore: -2, expectedViews: 240, actualViews: 90 })
+    const body = await (await GET(pedido() as never)).json()
+    expect(body.fatigueAlerts).toBe(0)
+    expect(db.tables.youtube_fatigue_alerts).toHaveLength(1)
+    expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
+    expect(recordCronFailure).not.toHaveBeenCalled()
+  })
+
+  it('fadiga: alerta que não gravou não avisa', async () => {
+    const db = banco()
+    db.writeErrors.youtube_fatigue_alerts = { code: '22003', message: 'numeric field overflow' }
+    vi.mocked(detectFatigue).mockReturnValue({ isFatigued: true, zScore: -2, expectedViews: 240, actualViews: 90 })
+    await GET(pedido() as never)
+    expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
+  })
+
+  it('fadiga: aviso que não sai, ou que não tem para quem ir, é falha visível; o alerta fica gravado', async () => {
+    const semDestino = banco()
+    vi.mocked(detectFatigue).mockReturnValue({ isFatigued: true, zScore: -2, expectedViews: 240, actualViews: 90 })
+    vi.mocked(fanOutToSiteAdmins).mockResolvedValue(0)
+    const corpo = await (await GET(pedido() as never)).json()
+    expect(corpo.fatigueAlerts).toBe(1)
+    expect(semDestino.tables.youtube_fatigue_alerts).toHaveLength(1)
+    expect(nota()).toBe('aviso de fadiga: sem destinatário')
+
+    vi.mocked(recordCronFailure).mockClear()
+    banco()
+    vi.mocked(fanOutToSiteAdmins).mockRejectedValue(new Error('boom'))
+    await GET(pedido() as never)
+    expect(nota()).toBe('aviso de fadiga: unexpected error (Error)')
+  })
+
   it('fadiga: insert recusado por overflow da coluna (22003) é falha crítica, não conta, e o laço segue para o próximo vídeo', async () => {
     const db = banco({ youtube_channels: [canal], youtube_videos: [video, video2] })
     // O que o Postgres responde hoje a expected_ctr = 100 ou mais.
@@ -391,8 +446,9 @@ describe('sync-analytics-metrics: veredito único', () => {
     expect(db.tables.youtube_fatigue_alerts).toHaveLength(1)
     expect(fases()).toEqual(['antes', 'depois'])
     expect(recordCronFailure).toHaveBeenCalledTimes(1)
-    expect(nota()).toBe('aviso de vídeo em alta: unexpected error (Error)')
-    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+    expect(nota()).toContain('aviso de vídeo em alta: unexpected error (Error)')
+    expect(nota()).toContain('aviso de fadiga: unexpected error (Error)')
+    expect(Sentry.captureException).toHaveBeenCalledTimes(2)
   })
 
   it('aviso de canal sem conexão que não sai: deixa de ser falha verde', async () => {
