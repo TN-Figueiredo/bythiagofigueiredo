@@ -356,7 +356,7 @@ describe('getYouTubeChannelRemovalImpact', () => {
     const t = setup({ rpc: { youtube_channel_removal_impact: () => ({ data: { ...IMPACT, blockers: [BLOCKER] }, error: null }) } })
     const res = await (await t.load()).getYouTubeChannelRemovalImpact({ channelId: CH_PT.id })
     expect(res).toEqual({ ok: true, impact: {
-      name: 'Thiago na Estrada', slug: 'viagem-br', videos: 212, comments: 48, syncLogs: 864, abTests: 3, abDrafts: 1, analyses: 9, tasks: 2, notes: 14, notifications: 5, connections: 1, pipelineLinks: 6,
+      name: 'Thiago na Estrada', slug: 'viagem-br', videos: 212, comments: 48, syncLogs: 864, abTests: 3, abDrafts: 1, analyses: 9, tasks: 2, notes: 14, notifications: 5, connections: 1, pipelineLinks: 6, serieColetada: 0,
       blockers: [{ id: 't1', name: 'Thumbnail: mapa vs rosto', status: 'active', since: '2026-10-18T15:00:00Z', videoTitle: 'Quanto custa viajar pela Geórgia?' }],
     } })
     expect(t.rpc).toHaveBeenCalledWith('youtube_channel_removal_impact', { p_site_id: SITE, p_channel_id: CH_PT.id })
@@ -421,6 +421,14 @@ describe('removeYouTubeChannel', () => {
     expect(await (await mk({ status: 'not_found' }).load()).removeYouTubeChannel(input)).toEqual({ ok: false, error: 'Channel not found' })
     expect((await (await mk({ status: 'removido?' }).load()).removeYouTubeChannel(input)).ok).toBe(false)
     expect((await (await mk({ ...IMPACT, status: 'ok' }).load()).removeYouTubeChannel(input)).ok).toBe(false)
+  })
+  it('L1b: série coletada recusa a remoção com o texto do runbook e não revalida nada', async () => {
+    const t = setup({ rpc: { youtube_channel_remove: () => ({ data: { ...IMPACT, status: 'serie_coletada', serie_coletada: 71 }, error: null }) } })
+    expect(await (await t.load()).removeYouTubeChannel(input)).toEqual({
+      ok: false,
+      error: 'Este canal tem série coletada. Apagar a série é um passo manual, descrito no runbook.',
+    })
+    expect(t.revalidateTag).not.toHaveBeenCalled()
   })
   it('o dado não existe — função de remoção ausente: mensagem honesta, nenhum delete solto no lugar', async () => {
     const t = setup()
