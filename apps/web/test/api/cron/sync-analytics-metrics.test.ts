@@ -488,6 +488,57 @@ describe('autorização e linha da execução (L1b)', () => {
     expect(new Date(runsDeletes[0]!).getTime()).toBeLessThan(Date.now() - 89 * 86_400_000)
   })
 
+  it('coluna collection_status ausente (código no ar sem a migration): relê os canais sem ela, a parte antiga e as duas fases rodam, e o veredito é schema_ausente', async () => {
+    const canal = { id: 'ch-1', channel_id: 'UC123', site_id: 'site-1', subscriber_count: 1000, name: null }
+    const selects: string[] = []
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'youtube_channels') {
+        return {
+          select: (cols: string) => {
+            selects.push(cols)
+            return {
+              eq: async () => (cols.includes('collection_status')
+                ? { data: null, error: { code: '42703', message: 'column youtube_channels.collection_status does not exist' } }
+                : { data: [canal], error: null }),
+            }
+          },
+        }
+      }
+      if (table === 'youtube_videos') return videosQuery([video])
+      if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
+      if (table === 'ab_tests') return abTestsQuery()
+      return {}
+    })
+    analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })
+    const res = await pedir()
+    expect(res.status).toBe(200)
+    const corpo = await res.json()
+    expect(selects).toHaveLength(2)
+    expect(selects[1]).not.toContain('collection_status')
+    // A parte antiga rodou: a Analytics API foi chamada e o canal sincronizou.
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+    expect(corpo).toMatchObject({ synced: 1, errors: 0, sem_autorizacao: 0 })
+    expect(mockRodarColeta.mock.calls.map(c => (c[0] as { fase: string }).fase)).toEqual(['antes', 'depois'])
+    expect(corpo.falhas).toEqual(['schema_ausente: youtube_channels'])
+    expect(vi.mocked(recordCronFailure).mock.calls[0]![1]).toContain('schema_ausente: youtube_channels')
+    expect(recordCronSuccess).not.toHaveBeenCalled()
+  })
+
+  it('coluna ausente e a segunda leitura também falha: 500, como qualquer erro ao listar os canais', async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table !== 'youtube_channels') return {}
+      return {
+        select: (cols: string) => ({
+          eq: async () => ({ data: null, error: cols.includes('collection_status') ? { code: '42703', message: 'x' } : { code: '57014', message: 'statement timeout' } }),
+        }),
+      }
+    })
+    const res = await pedir()
+    expect(res.status).toBe(500)
+    expect(mockRodarColeta).not.toHaveBeenCalled()
+    expect(recordCronFailure).toHaveBeenCalledWith('sync-analytics-metrics', 'database error listing the YouTube channels')
+  })
+
   it('tabela yt_own_collection_runs ausente (migration não aplicada): schema_ausente no veredito e a resposta sai 200 (Review Focus 5)', async () => {
     umCanal({ id: 'ch-1' })
     analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })

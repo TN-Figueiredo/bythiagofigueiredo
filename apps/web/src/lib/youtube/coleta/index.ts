@@ -13,7 +13,7 @@ import { ontemPt } from './day-pt'
 import { passoJobs, type JobsResumo } from './jobs-step'
 import { passoMetadados } from './meta-step'
 import { passoRelatorios } from './reports-step'
-import { conferirBanco, pushUnico } from './schema'
+import { conferirBanco, ehSchemaAusente, pushUnico, type ErroBanco } from './schema'
 import type { AttemptKind, ColetaChannel, ColetaResult, StepCtx, Tentativa } from './types'
 
 /** Desligar um passo é um commit de uma linha (runbook, "Desligar um passo ou um tipo"). Não há variável de ambiente. */
@@ -43,6 +43,10 @@ export function ehMetadadosAntes(x: unknown): x is MetadadosAntes {
   return typeof m.day_pt === 'string' && typeof m.dias_sem_meta === 'object' && m.dias_sem_meta !== null
 }
 
+/** O que o L1a lia de `youtube_channels`: existe em qualquer banco. As colunas do L1b vão por cima. */
+const COLUNAS_L1A = 'id, channel_id, site_id, name, sync_enabled'
+type Lidos = { data: unknown; error: ErroBanco | null }
+
 export async function rodarColeta(ctx: ColetaCtx): Promise<ColetaResult> {
   const falhas: string[] = []
   const resumo: Record<string, unknown> = {}
@@ -62,17 +66,28 @@ export async function rodarColeta(ctx: ColetaCtx): Promise<ColetaResult> {
 async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string, unknown>): Promise<ColetaResult> {
   // Leitura própria, sem filtro: o passo de metadados cobre todos os canais; jobs e relatórios filtram
   // sync_enabled em código.
-  let lidos: { data: unknown; error: { code?: string | null; message?: string | null } | null }
-  try {
-    lidos = await ctx.supabase.from('youtube_channels').select('id, channel_id, site_id, name, sync_enabled, collection_status, video_count')
-  } catch (e) {
-    lidos = { data: null, error: { code: null, message: describeCronCause(e) } }
+  const ler = async (colunas: string): Promise<Lidos> => {
+    try {
+      return await ctx.supabase.from('youtube_channels').select(colunas)
+    } catch (e) {
+      return { data: null, error: { code: null, message: describeCronCause(e) } }
+    }
+  }
+  let lidos = await ler(`${COLUNAS_L1A}, collection_status, video_count`)
+  // Código no ar sem a migration do L1b: as colunas novas não existem. A coleta segue com o que o L1a lia (a linha
+  // de metadados do dia não volta) e a falha fica no veredito. Sem as colunas, todo canal conta como `ok`.
+  let semColunasNovas = false
+  if (ehSchemaAusente(lidos.error)) {
+    pushUnico(falhas, 'schema_ausente: youtube_channels')
+    lidos = await ler(COLUNAS_L1A)
+    semColunasNovas = true
   }
   if (conferirBanco(lidos, 'youtube_channels', falhas, 'ler') !== 'ok') {
     Sentry.captureMessage('sync-analytics-metrics: a coleta não leu os canais', { level: 'error', tags: { cron: 'sync-analytics-metrics' } })
     return { falhas, resumo }
   }
-  const channels = (lidos.data ?? []) as ColetaChannel[]
+  const channels = ((lidos.data ?? []) as ColetaChannel[]).map(c =>
+    semColunasNovas ? { ...c, collection_status: 'ok' as const, video_count: null } : c)
   const tentativas: Tentativa[] = []
   const base = { supabase: ctx.supabase, channels, falhas, tentativas }
   const ms: Record<string, number> = {}

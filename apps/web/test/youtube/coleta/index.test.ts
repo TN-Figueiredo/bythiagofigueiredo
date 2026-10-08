@@ -19,7 +19,8 @@ import { passoRelatorios } from '@/lib/youtube/coleta/reports-step'
 import { criteriosRelatorios, criterioJobsEmErro, criterioOrcamento, criterioMetadados } from '@/lib/youtube/coleta/criteria'
 import { criarRelogio } from '@/lib/youtube/coleta/clock'
 import type { StepCtx } from '@/lib/youtube/coleta/types'
-import { fakeSupabase } from './fake-supabase'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { fakeSupabase, type FakeDb } from './fake-supabase'
 
 const AGORA = new Date('2026-10-07T12:00:00.000Z')
 const canais = [
@@ -203,6 +204,12 @@ describe('rodarColeta', () => {
 describe('rodarColeta: L1b', () => {
   const canalL1b = (extra: Record<string, unknown>) => ({ channel_id: 'UC1', site_id: 'site-1', sync_enabled: true, collection_status: 'ok', video_count: 0, ...extra })
 
+  // vi.clearAllMocks não desfaz implementações: os critérios que testes acima fizeram falhar voltam a passar aqui.
+  beforeEach(() => {
+    vi.mocked(criterioJobsEmErro).mockReset()
+    vi.mocked(criterioOrcamento).mockReset()
+  })
+
   it('lê collection_status e video_count; resumo traz ms por passo e os canais em reautorizar', async () => {
     const db = fakeSupabase({
       youtube_channels: [
@@ -244,12 +251,64 @@ describe('rodarColeta: L1b', () => {
     expect(r.resumo.acao_do_dono).toEqual([])
   })
 
-  it('migration não aplicada (coluna collection_status ausente): schema_ausente e nenhum passo novo roda', async () => {
+  /** Cliente fino em volta do banco em memória: a leitura de canais que pede `collection_status` devolve 42703, como o Postgres sem a migration. */
+  const semColunaNova = (db: FakeDb, selects: string[] = []): SupabaseClient => ({
+    ...db.client,
+    from: (tabela: string) => {
+      const q = db.client.from(tabela)
+      if (tabela !== 'youtube_channels') return q
+      const select = q.select.bind(q)
+      q.select = ((cols?: string, o?: never) => {
+        selects.push(cols ?? '*')
+        if (!(cols ?? '').includes('collection_status')) return select(cols, o)
+        return Promise.resolve({ data: null, error: { code: '42703', message: 'column youtube_channels.collection_status does not exist' }, count: null }) as never
+      }) as typeof q.select
+      return q
+    },
+  }) as unknown as SupabaseClient
+
+  it('migration não aplicada (coluna collection_status ausente): schema_ausente, relê sem as colunas novas e os passos rodam com os canais em ok', async () => {
+    // Linhas como o banco de antes da migration: sem collection_status e sem video_count.
+    const db = fakeSupabase({ youtube_channels: canais })
+    const selects: string[] = []
+    vi.mocked(passoJobs).mockResolvedValue({ ...resumoVazio, acao_do_dono: [], tipo_indisponivel: [], estados: {} })
+    const r = await rodarColeta({ supabase: semColunaNova(db, selects), relogio: criarRelogio(), fase: 'antes' })
+    expect(r.falhas).toEqual(['schema_ausente: youtube_channels'])
+    expect(selects).toEqual([
+      'id, channel_id, site_id, name, sync_enabled, collection_status, video_count',
+      'id, channel_id, site_id, name, sync_enabled',
+    ])
+    const ctxMeta = vi.mocked(passoMetadados).mock.calls[0]![0] as StepCtx
+    expect(ctxMeta.channels.map(c => [c.id, c.collection_status, c.video_count])).toEqual([['ch-1', 'ok', null], ['ch-2', 'ok', null]])
+    expect(passoJobs).toHaveBeenCalledTimes(1)
+    expect(r.resumo.reautorizar).toEqual([])
+    expect(r.resumo.acao_do_dono).toEqual([])
+  })
+
+  it('coluna ausente na fase depois: a mesma falha, e relatórios e critérios rodam', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: semColunaNova(db), relogio: criarRelogio(), fase: 'depois' })
+    expect(r.falhas).toEqual(['schema_ausente: youtube_channels'])
+    expect(passoRelatorios).toHaveBeenCalledTimes(1)
+    expect(criterioOrcamento).toHaveBeenCalledTimes(1)
+  })
+
+  it('as duas leituras de canais falham: schema_ausente e nenhum passo novo roda', async () => {
     const db = fakeSupabase({ youtube_channels: [] })
     db.errors.youtube_channels = { code: '42703', message: 'column youtube_channels.collection_status does not exist' }
     const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
     expect(r.falhas).toEqual(['schema_ausente: youtube_channels'])
     expect(r.resumo).toEqual({})
+    expect(passoMetadados).not.toHaveBeenCalled()
+    expect(passoJobs).not.toHaveBeenCalled()
+  })
+
+  it('coluna ausente e a segunda leitura falha por outro motivo: as duas falhas ficam visíveis e nenhum passo roda', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    const cliente = semColunaNova(db)
+    db.errors.youtube_channels = { code: '57014', message: 'statement timeout' }
+    const r = await rodarColeta({ supabase: cliente, relogio: criarRelogio(), fase: 'antes' })
+    expect(r.falhas).toEqual(['schema_ausente: youtube_channels', 'erro de banco ao ler youtube_channels'])
     expect(passoMetadados).not.toHaveBeenCalled()
   })
 

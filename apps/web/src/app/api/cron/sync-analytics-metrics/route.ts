@@ -13,7 +13,7 @@ import { channelNote, describeCronCause, joinNotes, describeHttpCause } from '@/
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import { ehMetadadosAntes, rodarColeta, type MetadadosAntes } from '@/lib/youtube/coleta'
 import { criarRelogio, FETCH_TIMEOUT_MS, restante, type Relogio } from '@/lib/youtube/coleta/clock'
-import { conferirBanco, pushUnico } from '@/lib/youtube/coleta/schema'
+import { conferirBanco, ehSchemaAusente, pushUnico } from '@/lib/youtube/coleta/schema'
 import type { Json } from '@/types/database.types'
 import * as Sentry from '@sentry/nextjs'
 
@@ -477,10 +477,32 @@ export async function GET(req: NextRequest) {
   const relogio = criarRelogio()
   const supabase = getSupabaseServiceClient()
 
-  const { data: channels, error: channelsError } = await supabase
+  // A parte antiga e os passos novos só ACUMULAM falhas (sem duplicatas); o veredito é um só, no fim.
+  // Ordem do spec: metadados → 1A → o que o cron já fazia → 1C.
+  const falhas: string[] = []
+
+  let lista: ChannelRow[] = []
+  let channelsError: { code?: string | null; message?: string | null } | null
+  const comColuna = await supabase
     .from('youtube_channels')
     .select('id, channel_id, site_id, subscriber_count, name, collection_status')
     .eq('sync_enabled', true)
+  channelsError = comColuna.error
+  if (!comColuna.error) {
+    lista = comColuna.data ?? []
+  } else if (ehSchemaAusente(comColuna.error)) {
+    // Código no ar sem a migration do L1b: `collection_status` não existe. Relê sem ela e SEGUE (a parte antiga e a
+    // linha de metadados do dia não podem parar por isso); todo canal conta como `ok` e a falha vai ao veredito.
+    const semColuna = await supabase
+      .from('youtube_channels')
+      .select('id, channel_id, site_id, subscriber_count, name')
+      .eq('sync_enabled', true)
+    channelsError = semColuna.error
+    if (!semColuna.error) {
+      lista = (semColuna.data ?? []).map(c => ({ ...c, collection_status: 'ok' }))
+      pushUnico(falhas, 'schema_ausente: youtube_channels')
+    }
+  }
 
   // A dropped query error used to fall through to `channels === null` →
   // `channels.length === 0` → recordCronSuccess + HTTP 200 — the system
@@ -493,12 +515,6 @@ export async function GET(req: NextRequest) {
     await recordCronFailure('sync-analytics-metrics', 'database error listing the YouTube channels')
     return NextResponse.json({ error: 'channels query failed' }, { status: 500 })
   }
-
-  const lista: ChannelRow[] = channels ?? []
-
-  // A parte antiga e os passos novos só ACUMULAM falhas (sem duplicatas); o veredito é um só, no fim.
-  // Ordem do spec: metadados → 1A → o que o cron já fazia → 1C.
-  const falhas: string[] = []
 
   const coletaAntes = await coletar(supabase, relogio, 'antes', falhas)
 
