@@ -79,9 +79,29 @@ export function isNewThumb(prev: ThumbPrev | null, probe: ThumbProbe): boolean {
   return hamming(prev.dhash, probe.dhash) > DHASH_MAX_SAME
 }
 
-export async function archiveThumb(videoUuid: string, probe: ThumbProbe): Promise<string | null> {
+// A identidade da thumbnail (ETag, dHash) continua sendo a da hqdefault: trocar a variante da sonda
+// faria todo vídeo parecer ter trocado de capa. Só a CÓPIA GUARDADA sobe de resolução.
+const ARCHIVE_VARIANTS = ['maxresdefault', 'sddefault'] as const
+
+/** A maior cópia que o YouTube tiver (1280×720, senão 640×480); null quando só resta a hqdefault da sonda. */
+async function biggerCopy(probeUrl: string, f: typeof fetch): Promise<Buffer | null> {
+  for (const variant of ARCHIVE_VARIANTS) {
+    try {
+      const res = await f(probeUrl.replace(`/${VARIANT}.jpg`, `/${variant}.jpg`), { signal: AbortSignal.timeout(10_000) })
+      if (!res.ok || !(res.headers.get('content-type') ?? '').startsWith('image/')) continue
+      const bytes = Buffer.from(await res.arrayBuffer())
+      if (bytes.length > 0) return bytes
+    } catch {
+      // variante indisponível ou rede: tenta a próxima; no fim vale a hqdefault
+    }
+  }
+  return null
+}
+
+export async function archiveThumb(videoUuid: string, probe: ThumbProbe, f: typeof fetch = fetch): Promise<string | null> {
   if (!probe.bytes || !probe.dhash) return null
-  const blob = await put(`observatorio/thumbs/${videoUuid}/${probe.dhash}.jpg`, probe.bytes, {
+  const bytes = (await biggerCopy(probe.url, f)) ?? probe.bytes
+  const blob = await put(`observatorio/thumbs/${videoUuid}/${probe.dhash}.jpg`, bytes, {
     access: 'public', contentType: 'image/jpeg', addRandomSuffix: false, allowOverwrite: true,
   })
   return blob.url
