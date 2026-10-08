@@ -79,6 +79,8 @@ export async function obterToken(
 ): Promise<string | null> {
   let token: string
   try {
+    // Prazo já vencido: nem chama (um refresh começado agora ficaria órfão, sem ninguém para gravar o resultado).
+    if (restante(ctx.deadline) <= 0) throw new SemTempoError()
     const t = await comPrazo(ensureFreshToken(c.site_id, 'youtube', c.channel_id), ctx.deadline)
     if (!t) {
       if (restante(ctx.deadline) <= 0) throw new SemTempoError()

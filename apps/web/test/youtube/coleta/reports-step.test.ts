@@ -11,9 +11,10 @@ vi.mock('@/lib/youtube/reporting/client', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/reporting/client')>()),
   criarReportingClient: vi.fn(),
 }))
+vi.mock('@/lib/youtube/coleta/alerts', () => ({ avisarEntrada: vi.fn(), avisarSaida: vi.fn() }))
 
 import { passoRelatorios, MAX_DOWNLOADS, MAX_GZ_BYTES } from '@/lib/youtube/coleta/reports-step'
-import { ensureFreshToken, TokenRevokedError } from '@/lib/social/token-refresh'
+import { ensureFreshToken, NoActiveConnectionError, TokenRevokedError } from '@/lib/social/token-refresh'
 import { criarReportingClient, empacotarCsv, deBytea } from '@/lib/youtube/reporting/client'
 import { ReportingHttpError, SEM_NORMALIZADOR } from '@/lib/youtube/reporting/types'
 import { SemTempoError } from '@/lib/youtube/coleta/clock'
@@ -48,7 +49,8 @@ const listado = (id: string, extra: Row = {}): Row => ({
   download_url: `https://dl.test/${id}`, is_backfill: false, status: 'listado', ...extra,
 })
 const ctxDe = (db: FakeDb, prazoMs = 60_000): StepCtx => ({
-  supabase: db.client, channels: [canal], deadline: Date.now() + prazoMs, falhas: [], tentativas: [],
+  // Cópia: o passo muda `collection_status` do canal em memória e isso não pode vazar para outro teste.
+  supabase: db.client, channels: [{ ...canal }], deadline: Date.now() + prazoMs, falhas: [], tentativas: [],
 })
 const rel = (db: FakeDb, id: string) => db.tables.yt_reporting_reports?.find(r => r.report_id === id)
 const comStatus = (db: FakeDb, status: string) => (db.tables.yt_reporting_reports ?? []).filter(r => r.status === status)
@@ -140,13 +142,44 @@ describe('passoRelatorios: listar', () => {
     expect(ensureFreshToken).not.toHaveBeenCalled()
   })
 
-  it('simplificação de L1a: token revogado pula o canal com tentativa sem_conexao, sem falha', async () => {
+  it('token revogado: pula o canal com tentativa sem_autorizacao, sem falha', async () => {
     vi.mocked(ensureFreshToken).mockRejectedValue(new TokenRevokedError('youtube', 'conn-1'))
     const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')] })
     const ctx = ctxDe(db)
     await passoRelatorios(ctx)
-    expect(db.tables.yt_own_collection_attempts).toEqual([expect.objectContaining({ scope_type: 'canal', kind: 'relatorio', outcome: 'sem_conexao' })])
+    expect(db.tables.yt_own_collection_attempts).toEqual([expect.objectContaining({ scope_type: 'canal', kind: 'relatorio', outcome: 'sem_autorizacao' })])
     expect(api.reportsList).not.toHaveBeenCalled()
+    expect(ctx.falhas).toEqual([])
+  })
+})
+
+describe('passoRelatorios: autorização (L1b)', () => {
+  it('token revogado: reautorizar, tentativa sem_autorizacao de escopo canal, nada listado', async () => {
+    vi.mocked(ensureFreshToken).mockRejectedValue(new TokenRevokedError('youtube', 'c1'))
+    const db = bancoComPurge({
+      youtube_channels: [{ id: 'ch-1', collection_status: 'ok' }],
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+    })
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    expect(db.tables.yt_own_collection_attempts!.find(t => t.scope_type === 'canal')).toMatchObject({ outcome: 'sem_autorizacao', kind: 'relatorio' })
+    expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'reautorizar' })
+    expect(ctx.channels[0]!.collection_status).toBe('reautorizar')
+    expect(resumo.vistos).toBe(0)
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('sem conexão e sem conexão revogada: sem_conexao e o estado continua ok', async () => {
+    vi.mocked(ensureFreshToken).mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
+    const db = bancoComPurge({
+      youtube_channels: [{ id: 'ch-1', collection_status: 'ok' }],
+      social_connections: [],
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+    })
+    const ctx = ctxDe(db)
+    await passoRelatorios(ctx)
+    expect(db.tables.yt_own_collection_attempts!.find(t => t.scope_type === 'canal')).toMatchObject({ outcome: 'sem_conexao', kind: 'relatorio' })
+    expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'ok' })
     expect(ctx.falhas).toEqual([])
   })
 })

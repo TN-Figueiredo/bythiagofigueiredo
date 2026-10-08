@@ -227,22 +227,25 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     r.channel_id === j.channel_id && r.report_type_id === j.report_type_id && Date.parse(r.create_time) >= corte6))
   if (semNovo.length === 0) return out
 
-  // Canal sem conexão hoje (token revogado): o passo de relatórios não lista, então "sem relatório novo" é
-  // consequência, não parada. Vai para acao_do_dono, não para falhas. Uma leitura limitada.
+  // Canal sem token hoje (nunca conectado, ou perdeu a autorização): o passo de relatórios não lista, então
+  // "sem relatório novo" é consequência, não parada. Nunca vai para falhas. "Sem conexão" vira nota de
+  // acao_do_dono aqui; "perdeu a autorização" já sai como "<canal>: reautorizar" em rodarColeta.
   const canaisSemNovo = [...new Set(semNovo.map(j => j.channel_id))]
   const sc = await ctx.supabase
     .from('yt_own_collection_attempts')
-    .select('scope_id')
+    .select('scope_id, outcome')
     .eq('scope_type', 'canal')
     .eq('kind', 'relatorio')
     .eq('attempt_day', utcDay(new Date()))
-    .eq('outcome', 'sem_conexao')
+    .in('outcome', ['sem_conexao', 'sem_autorizacao'])
     .in('scope_id', canaisSemNovo)
     .limit(LIMITE_LEITURA)
   if (!leituraOk(sc, 'yt_own_collection_attempts', 'jobs de alcance sem relatório novo', ctx.falhas)) return out
-  const semConexao = new Set(((sc.data ?? []) as Array<{ scope_id: string }>).map(l => l.scope_id))
+  const semToken = (sc.data ?? []) as Array<{ scope_id: string; outcome: string }>
+  const semConexao = new Set(semToken.map(l => l.scope_id))
+  const semAutorizacao = new Set(semToken.filter(l => l.outcome === 'sem_autorizacao').map(l => l.scope_id))
   for (const id of canaisSemNovo) {
-    if (semConexao.has(id)) out.acao_do_dono!.push(`${nome(id)}: sem conexão com o YouTube`)
+    if (semConexao.has(id) && !semAutorizacao.has(id)) out.acao_do_dono!.push(`${nome(id)}: sem conexão com o YouTube`)
   }
 
   // Por canal: no máximo uma leitura por canal candidato (<= nº de canais), a mesma do critério dos vazios.

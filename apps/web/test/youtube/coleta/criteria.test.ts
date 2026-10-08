@@ -507,12 +507,15 @@ describe('fix round 1', () => {
     expect(c2.falhas).toEqual([])
   })
 
+  /** Dois jobs de alcance ativos há 7 dias, sem relatório novo, canal que publicou, e a tentativa de HOJE com o resultado dado. */
+  const semRelatorioNovoHa7Dias = ({ outcomeHoje = 'sem_conexao' }: { outcomeHoje?: string } = {}) => ({
+    yt_reporting_jobs: [jobAtivo(7), jobAtivo(7, 'channel_reach_combined_a1')],
+    youtube_videos: [video],
+    yt_own_collection_attempts: [tentativa('canal', 'ch-1', 'relatorio', outcomeHoje, 0)],
+  })
+
   it('canal sem conexão hoje vai para acao_do_dono e não para falhas; leitura que falha vira não avaliou', async () => {
-    const seed = {
-      yt_reporting_jobs: [jobAtivo(7), jobAtivo(7, 'channel_reach_combined_a1')],
-      youtube_videos: [video],
-      yt_own_collection_attempts: [tentativa('canal', 'ch-1', 'relatorio', 'sem_conexao', 0)],
-    }
+    const seed = semRelatorioNovoHa7Dias()
     const ctx = ctxDe(fakeSupabase(seed))
     const r = await criteriosRelatorios(ctx)
     expect(ctx.falhas).toEqual([])
@@ -529,6 +532,13 @@ describe('fix round 1', () => {
     await criteriosRelatorios(c3)
     expect(naoAvaliou(c3.falhas, 'jobs de alcance sem relatório novo (yt_own_collection_attempts)')).toBe(true)
     expect(c3.falhas).not.toContain(msgSemNovo)
+  })
+
+  it('L1b: canal com tentativa sem_autorizacao hoje não vira falha nem "sem conexão" (a nota reautorizar vem de rodarColeta)', async () => {
+    const ctx = ctxDe(fakeSupabase(semRelatorioNovoHa7Dias({ outcomeHoje: 'sem_autorizacao' })))
+    const r = await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual([])
+    expect(r.acao_do_dono ?? []).toEqual([])
   })
 
   it('listado há mais de 14 dias continua falha mesmo com o canal sem conexão', async () => {

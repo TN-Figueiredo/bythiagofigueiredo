@@ -199,3 +199,65 @@ describe('rodarColeta', () => {
     expect(ctxRel.deadline - Date.now()).toBe(10_000)
   })
 })
+
+describe('rodarColeta: L1b', () => {
+  const canalL1b = (extra: Record<string, unknown>) => ({ channel_id: 'UC1', site_id: 'site-1', sync_enabled: true, collection_status: 'ok', video_count: 0, ...extra })
+
+  it('lê collection_status e video_count; resumo traz ms por passo e os canais em reautorizar', async () => {
+    const db = fakeSupabase({
+      youtube_channels: [
+        canalL1b({ id: 'ch-1', name: 'Canal Um', collection_status: 'reautorizar' }),
+        canalL1b({ id: 'ch-2', channel_id: 'UC2', name: 'Canal Dois' }),
+      ],
+    })
+    vi.mocked(passoJobs).mockResolvedValue({ ...resumoVazio, acao_do_dono: [], tipo_indisponivel: [], estados: {} })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+    expect(r.resumo.reautorizar).toEqual(['ch-1'])
+    expect(r.resumo.acao_do_dono).toContain('Canal Um: reautorizar')
+    expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['jobs', 'metadados'])
+    for (const v of Object.values(r.resumo.ms as Record<string, number>)) expect(v).toBeGreaterThanOrEqual(0)
+    const ctxMeta = vi.mocked(passoMetadados).mock.calls[0]![0] as StepCtx
+    expect(ctxMeta.channels.map(c => [c.collection_status, c.video_count])).toEqual([['reautorizar', 0], ['ok', 0]])
+  })
+
+  it('canal que o YouTube diz ter vídeos e não tem nenhum cadastrado vai para acao_do_dono; canal vazio de verdade não', async () => {
+    const db = fakeSupabase({
+      youtube_channels: [
+        canalL1b({ id: 'ch-1', name: 'Com Vídeos', video_count: 12 }),
+        canalL1b({ id: 'ch-2', channel_id: 'UC2', name: 'Vazio', video_count: 0 }),
+        canalL1b({ id: 'ch-3', channel_id: 'UC3', name: 'Desconhecido', video_count: null }),
+      ],
+      youtube_videos: [],
+    })
+    vi.mocked(passoJobs).mockResolvedValue({ ...resumoVazio, acao_do_dono: [], tipo_indisponivel: [], estados: {} })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+    expect(r.resumo.acao_do_dono).toEqual(['Com Vídeos: o YouTube informa 12 vídeo(s) e nenhum está cadastrado'])
+  })
+
+  it('canal com vídeos cadastrados não vira nota', async () => {
+    const db = fakeSupabase({
+      youtube_channels: [canalL1b({ id: 'ch-1', name: 'Com Vídeos', video_count: 12 })],
+      youtube_videos: [{ id: 'v1', channel_id: 'ch-1' }],
+    })
+    vi.mocked(passoJobs).mockResolvedValue({ ...resumoVazio, acao_do_dono: [], tipo_indisponivel: [], estados: {} })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+    expect(r.resumo.acao_do_dono).toEqual([])
+  })
+
+  it('migration não aplicada (coluna collection_status ausente): schema_ausente e nenhum passo novo roda', async () => {
+    const db = fakeSupabase({ youtube_channels: [] })
+    db.errors.youtube_channels = { code: '42703', message: 'column youtube_channels.collection_status does not exist' }
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+    expect(r.falhas).toEqual(['schema_ausente: youtube_channels'])
+    expect(r.resumo).toEqual({})
+    expect(passoMetadados).not.toHaveBeenCalled()
+  })
+
+  it('fase depois: ms só de relatorios; reautorizar e a nota somam ao acao_do_dono do critério', async () => {
+    const db = fakeSupabase({ youtube_channels: [canalL1b({ id: 'ch-1', name: 'Canal Um', collection_status: 'reautorizar' })] })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    expect(Object.keys(r.resumo.ms as object)).toEqual(['relatorios'])
+    expect(r.resumo.reautorizar).toEqual(['ch-1'])
+    expect(r.resumo.acao_do_dono).toEqual(['Canal Um: x em sem_acesso', 'Canal Um: reautorizar'])
+  })
+})

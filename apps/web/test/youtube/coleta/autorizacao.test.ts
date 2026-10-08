@@ -167,5 +167,6 @@ describe('obterToken', () => {
     vi.mocked(ensureFreshToken).mockReturnValue(new Promise(() => undefined))
     const db = fakeSupabase({ youtube_channels: [linhaCanal()] })
     await expect(obterToken(ctxDe(db, 0), canal(), base)).rejects.toBeInstanceOf(SemTempoError)
+    expect(ensureFreshToken).not.toHaveBeenCalled()
   })
 })

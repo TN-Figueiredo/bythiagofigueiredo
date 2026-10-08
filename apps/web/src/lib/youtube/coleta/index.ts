@@ -61,10 +61,10 @@ export async function rodarColeta(ctx: ColetaCtx): Promise<ColetaResult> {
 
 async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string, unknown>): Promise<ColetaResult> {
   // Leitura própria, sem filtro: o passo de metadados cobre todos os canais; jobs e relatórios filtram
-  // sync_enabled em código. (L1a: ainda não existe collection_status.)
+  // sync_enabled em código.
   let lidos: { data: unknown; error: { code?: string | null; message?: string | null } | null }
   try {
-    lidos = await ctx.supabase.from('youtube_channels').select('id, channel_id, site_id, name, sync_enabled')
+    lidos = await ctx.supabase.from('youtube_channels').select('id, channel_id, site_id, name, sync_enabled, collection_status, video_count')
   } catch (e) {
     lidos = { data: null, error: { code: null, message: describeCronCause(e) } }
   }
@@ -75,6 +75,7 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   const channels = (lidos.data ?? []) as ColetaChannel[]
   const tentativas: Tentativa[] = []
   const base = { supabase: ctx.supabase, channels, falhas, tentativas }
+  const ms: Record<string, number> = {}
 
   const falhou = (nome: string, e: unknown): void => {
     Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', passo: nome } })
@@ -89,6 +90,7 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     servidos: ColetaChannel[],
     fn: (c: StepCtx) => Promise<R>,
   ): Promise<R | Record<string, unknown> | undefined> => {
+    const t0 = Date.now()
     try {
       const deadline = ctx.relogio.prazo(tetoMs)
       if (restante(deadline) <= 0) {
@@ -101,7 +103,24 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     } catch (e) {
       falhou(nome, e)
       return undefined
+    } finally {
+      ms[nome] = Date.now() - t0
     }
+  }
+
+  /** Os passos mudam `collection_status` em memória: lido no fim de cada fase. */
+  const emReautorizar = (): ColetaChannel[] => channels.filter(c => c.collection_status === 'reautorizar')
+
+  /** O YouTube diz que o canal tem vídeos e nenhum está cadastrado: a lista de vídeos nunca sincronizou. Canal vazio de verdade (0) e desconhecido (nulo) ficam de fora. */
+  const semVideosCadastrados = async (): Promise<string[]> => {
+    const notas: string[] = []
+    for (const c of channels) {
+      if (!c.video_count || c.video_count <= 0) continue
+      const cont = await ctx.supabase.from('youtube_videos').select('id', { count: 'exact', head: true }).eq('channel_id', c.id)
+      if (conferirBanco(cont, 'youtube_videos', falhas, 'ler') !== 'ok') continue
+      if ((cont.count ?? 0) === 0) notas.push(`${c.name}: o YouTube informa ${c.video_count} vídeo(s) e nenhum está cadastrado`)
+    }
+    return notas
   }
 
   const ativos = channels.filter(c => c.sync_enabled)
@@ -121,7 +140,19 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
         falhou('jobs', e)
       }
     }
-    resumo.acao_do_dono = (resumo.jobs as Partial<JobsResumo> | undefined)?.acao_do_dono ?? []
+    let semVideos: string[] = []
+    try {
+      semVideos = await semVideosCadastrados()
+    } catch (e) {
+      falhou('canais', e)
+    }
+    resumo.acao_do_dono = [...new Set([
+      ...((resumo.jobs as Partial<JobsResumo> | undefined)?.acao_do_dono ?? []),
+      ...emReautorizar().map(c => `${c.name}: reautorizar`),
+      ...semVideos,
+    ])]
+    resumo.reautorizar = emReautorizar().map(c => c.id)
+    resumo.ms = ms
     return { falhas, resumo }
   }
 
@@ -160,5 +191,11 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   } catch (e) {
     falhou('orçamento', e)
   }
+  resumo.acao_do_dono = [...new Set([
+    ...((resumo.acao_do_dono as string[] | undefined) ?? []),
+    ...emReautorizar().map(c => `${c.name}: reautorizar`),
+  ])]
+  resumo.reautorizar = emReautorizar().map(c => c.id)
+  resumo.ms = ms
   return { falhas, resumo }
 }

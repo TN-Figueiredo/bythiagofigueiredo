@@ -44,7 +44,7 @@ const DIA_3 = new Date(DIA_1.getTime() + 2 * DIA_MS)
 const HISTORICO_POR_JOB = 8
 
 // Os dois canais de produção: um sem nenhum vídeo, outro com vídeos cuja última publicação é antiga.
-const SEM_VIDEO = { id: 'ch-vazio', channel_id: 'UCvazio', site_id: 'site-1', name: 'Canal Sem Vídeo', sync_enabled: true, collection_status: 'ok' as const, video_count: 1 }
+const SEM_VIDEO = { id: 'ch-vazio', channel_id: 'UCvazio', site_id: 'site-1', name: 'Canal Sem Vídeo', sync_enabled: true, collection_status: 'ok' as const, video_count: 0 }
 const ANTIGO = { id: 'ch-antigo', channel_id: 'UCantigo', site_id: 'site-1', name: 'Canal Antigo', sync_enabled: true, collection_status: 'ok' as const, video_count: 1 }
 const video = (n: number, canal: string, publicadoEm: string): Row => ({
   id: `v-${canal}-${n}`, youtube_video_id: `yt-${canal}-${n}`, channel_id: canal, site_id: 'site-1',
