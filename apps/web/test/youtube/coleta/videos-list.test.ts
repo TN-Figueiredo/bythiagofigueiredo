@@ -73,4 +73,25 @@ describe('videosList', () => {
     const f = vi.fn().mockRejectedValue(new Error('rede'))
     await expect(videosList('t', ['aaaaaaaaaaa'], f as unknown as typeof fetch)).rejects.toThrow('rede')
   })
+
+  it.each([
+    ['P0D', null],
+    ['P1DT2H', null],
+    ['PT0S', null],
+    ['PT', null],
+    ['PT1H2M3S', 3723],
+    ['PT45S', 45],
+  ])('duração "%s" → durationSeconds %s (o que não se lê é nulo, nunca 0)', async (iso, esperado) => {
+    const f = vi.fn().mockResolvedValue(ok([item('aaaaaaaaaaa', { contentDetails: { duration: iso } })]))
+    const m = await videosList('t', ['aaaaaaaaaaa'], f as unknown as typeof fetch)
+    expect(m.get('aaaaaaaaaaa')!.durationSeconds).toBe(esperado)
+  })
+
+  it('200 com corpo que não é JSON: DataApiError corpo_invalido, sem vazar o corpo', async () => {
+    const f = vi.fn().mockResolvedValue(new Response('<html>segredo</html>', { status: 200 }))
+    const e = await videosList('t', ['aaaaaaaaaaa'], f as unknown as typeof fetch).catch(x => x)
+    expect(e).toBeInstanceOf(DataApiError)
+    expect(e).toMatchObject({ status: 200, reason: 'corpo_invalido' })
+    expect(String(e.message)).not.toContain('segredo')
+  })
 })

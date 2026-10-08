@@ -36,6 +36,15 @@ interface Item {
   status?: { privacyStatus?: string }
 }
 
+const DURACAO_ISO = /^PT(?:\d+H)?(?:\d+M)?(?:\d+S)?$/
+
+/** Duração que não se lê (`P0D` de live agendada, dias, `PT` vazio, zero) é nula, nunca 0. */
+function duracaoEmSegundos(iso: string | undefined): number | null {
+  if (!iso || !DURACAO_ISO.test(iso)) return null
+  const { seconds } = parseDuration(iso)
+  return seconds > 0 ? seconds : null
+}
+
 /** Id ausente da resposta (privado para o token, ou apagado) não entra no mapa. */
 export async function videosList(token: string, ids: readonly string[], f: typeof fetch): Promise<Map<string, VideoCapturado>> {
   const out = new Map<string, VideoCapturado>()
@@ -45,7 +54,12 @@ export async function videosList(token: string, ids: readonly string[], f: typeo
     url.searchParams.set('id', ids.slice(i, i + LOTE_VIDEOS).join(','))
     const res = await f(url.toString(), { headers: { Authorization: `Bearer ${token}` } })
     if (!res.ok) throw new DataApiError(res.status, await motivoDoGoogle(res))
-    const corpo = (await res.json()) as { items?: Item[] }
+    let corpo: { items?: Item[] }
+    try {
+      corpo = (await res.json()) as { items?: Item[] }
+    } catch {
+      throw new DataApiError(res.status, 'corpo_invalido')
+    }
     for (const it of corpo.items ?? []) {
       if (!it.id) continue
       out.set(it.id, {
@@ -53,7 +67,7 @@ export async function videosList(token: string, ids: readonly string[], f: typeo
         title: it.snippet?.title ?? null,
         description: it.snippet?.description ?? null,
         tags: it.snippet?.tags ?? [],
-        durationSeconds: it.contentDetails?.duration ? parseDuration(it.contentDetails.duration).seconds : null,
+        durationSeconds: duracaoEmSegundos(it.contentDetails?.duration),
         privacyStatus: it.status?.privacyStatus ?? null,
       })
     }
