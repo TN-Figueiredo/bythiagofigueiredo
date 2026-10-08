@@ -8,7 +8,7 @@ vi.mock('@/lib/social/token-refresh', async (orig) => ({
 }))
 vi.mock('@/lib/youtube/coleta/alerts', () => ({ avisarEntrada: vi.fn(), avisarSaida: vi.fn() }))
 
-import { classificarErroDeToken, marcarAutorizado, marcarReautorizar, obterToken } from '@/lib/youtube/coleta/autorizacao'
+import { classificarErroDeToken, marcarAutorizado, marcarReautorizar, obterToken, voltarAOk } from '@/lib/youtube/coleta/autorizacao'
 import { SemTempoError } from '@/lib/youtube/coleta/clock'
 import { avisarEntrada, avisarSaida } from '@/lib/youtube/coleta/alerts'
 import { ensureFreshToken, NoActiveConnectionError, TokenRevokedError } from '@/lib/social/token-refresh'
@@ -22,6 +22,8 @@ const canal = (extra: Partial<ColetaChannel> = {}): ColetaChannel => ({
 const linhaCanal = (extra: Row = {}): Row => ({ id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', collection_status: 'ok', authorization_verified_at: null, ...extra })
 const conexao = (extra: Row = {}): Row => ({ id: 'c1', site_id: 'site-1', provider: 'youtube', account_id: 'UC1', revoked_at: null, ...extra })
 const ctxDe = (db: FakeDb, prazoMs = 30_000): StepCtx => ({ supabase: db.client, channels: [], deadline: Date.now() + prazoMs, falhas: [], tentativas: [] })
+/** Com os dois conjuntos da execução (quem passou numa chamada autenticada e quem foi negado). */
+const ctxComConjuntos = (db: FakeDb) => ({ ...ctxDe(db), autorizados: new Set<string>(), negados: new Set<string>() })
 const base = { site_id: 'site-1', scope_type: 'canal' as const, scope_id: 'ch-1', kind: 'sondagem' as const, channel_id: 'ch-1' }
 const semConexao = () => new NoActiveConnectionError('youtube', 'site-1')
 
@@ -60,6 +62,15 @@ describe('classificarErroDeToken', () => {
     expect(ctx.falhas).toEqual(['erro de banco ao ler social_connections'])
   })
 
+  it('canal JÁ em reautorizar e sem conexão nenhuma (apagada): continua reautorizar, sem ler as conexões', async () => {
+    const db = fakeSupabase({ social_connections: [] })
+    // Se lesse, a leitura falharia e a resposta seria 'outro'.
+    db.errors.social_connections = { code: '57014', message: 'timeout' }
+    const ctx = ctxDe(db)
+    expect(await classificarErroDeToken(ctx, canal({ collection_status: 'reautorizar' }), semConexao())).toBe('reautorizar')
+    expect(ctx.falhas).toEqual([])
+  })
+
   it('erro qualquer → outro', async () => {
     expect(await classificarErroDeToken(ctxDe(fakeSupabase()), canal(), new Error('rede'))).toBe('outro')
   })
@@ -75,10 +86,35 @@ describe('marcarReautorizar / marcarAutorizado', () => {
     expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), c, 'reautorizar')
   })
 
-  it('canal que já está em reautorizar não é regravado, mas o lembrete é pedido', async () => {
-    const db = fakeSupabase({ youtube_channels: [linhaCanal({ collection_status: 'reautorizar' })] })
-    await marcarReautorizar(ctxDe(db), canal({ collection_status: 'reautorizar' }))
-    expect(db.writes.filter(w => w.table === 'youtube_channels')).toEqual([])
+  it('canal cuja memória já diz reautorizar: grava mesmo assim (a memória pode estar velha), registra em negados e pede o lembrete', async () => {
+    // O banco diz ok (por exemplo: o callback do OAuth acabou de devolver o canal) e a memória ainda diz reautorizar.
+    const db = fakeSupabase({ youtube_channels: [linhaCanal({ collection_status: 'ok' })] })
+    const ctx = ctxComConjuntos(db)
+    await marcarReautorizar(ctx, canal({ collection_status: 'reautorizar' }))
+    expect(db.writes.filter(w => w.table === 'youtube_channels')).toEqual([{ table: 'youtube_channels', op: 'update', payload: { collection_status: 'reautorizar' } }])
+    expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'reautorizar' })
+    expect([...ctx.negados]).toEqual(['ch-1'])
+    expect([...ctx.autorizados]).toEqual([])
+    expect(avisarEntrada).toHaveBeenCalledTimes(1)
+  })
+
+  it('gravação que falha: não avisa e não muda a memória, mas a negação fica registrada', async () => {
+    const db = fakeSupabase({ youtube_channels: [linhaCanal()] })
+    db.writeErrors.youtube_channels = { code: '57014', message: 'timeout' }
+    const ctx = ctxComConjuntos(db)
+    const c = canal()
+    await marcarReautorizar(ctx, c)
+    expect(c.collection_status).toBe('ok')
+    expect(avisarEntrada).not.toHaveBeenCalled()
+    expect([...ctx.negados]).toEqual(['ch-1'])
+    expect(ctx.falhas).toEqual(['erro de banco ao gravar youtube_channels'])
+  })
+
+  it('sem os conjuntos no contexto (são opcionais): marca e avisa do mesmo jeito', async () => {
+    const db = fakeSupabase({ youtube_channels: [linhaCanal()] })
+    await marcarReautorizar(ctxDe(db), canal())
+    await marcarAutorizado(ctxDe(db), canal())
+    expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'reautorizar' })
     expect(avisarEntrada).toHaveBeenCalledTimes(1)
   })
 
@@ -103,13 +139,40 @@ describe('marcarReautorizar / marcarAutorizado', () => {
     } finally { vi.useRealTimers() }
   })
 
-  it('marcarAutorizado num canal em reautorizar volta a ok e pede a saída do aviso reautorizar', async () => {
+  it('marcarAutorizado num canal em reautorizar SÓ carimba a data: o estado não muda, nenhuma saída, e o sucesso fica registrado', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-08T12:00:00.000Z'), toFake: ['Date'] })
+    try {
+      const db = fakeSupabase({ youtube_channels: [linhaCanal({ collection_status: 'reautorizar' })] })
+      const ctx = ctxComConjuntos(db)
+      const c = canal({ collection_status: 'reautorizar' })
+      await marcarAutorizado(ctx, c)
+      expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'reautorizar', authorization_verified_at: '2026-10-08T12:00:00.000Z' })
+      expect(db.writes.filter(w => w.table === 'youtube_channels').map(w => w.payload)).toEqual([{ authorization_verified_at: '2026-10-08T12:00:00.000Z' }])
+      expect(c.collection_status).toBe('reautorizar')
+      expect(avisarSaida).not.toHaveBeenCalled()
+      expect([...ctx.autorizados]).toEqual(['ch-1'])
+      expect([...ctx.negados]).toEqual([])
+    } finally { vi.useRealTimers() }
+  })
+
+  it('voltarAOk: banco e memória em ok, e pede a saída do aviso reautorizar', async () => {
     const db = fakeSupabase({ youtube_channels: [linhaCanal({ collection_status: 'reautorizar' })] })
     const c = canal({ collection_status: 'reautorizar' })
-    await marcarAutorizado(ctxDe(db), c)
+    await voltarAOk(ctxDe(db), c)
     expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'ok' })
     expect(c.collection_status).toBe('ok')
     expect(avisarSaida).toHaveBeenCalledWith(expect.anything(), c, ['reautorizar'])
+  })
+
+  it('voltarAOk com a gravação falhando: memória inalterada, nenhuma saída, falha visível, sem lançar', async () => {
+    const db = fakeSupabase({ youtube_channels: [linhaCanal({ collection_status: 'reautorizar' })] })
+    db.writeErrors.youtube_channels = { code: '57014', message: 'timeout' }
+    const ctx = ctxDe(db)
+    const c = canal({ collection_status: 'reautorizar' })
+    await voltarAOk(ctx, c)
+    expect(c.collection_status).toBe('reautorizar')
+    expect(avisarSaida).not.toHaveBeenCalled()
+    expect(ctx.falhas).toEqual(['erro de banco ao gravar youtube_channels'])
   })
 })
 
@@ -145,13 +208,29 @@ describe('obterToken', () => {
     expect(avisarEntrada).not.toHaveBeenCalled()
   })
 
-  it('canal em reautorizar cujo token volta a passar: volta a ok sozinho', async () => {
+  it('canal em reautorizar cujo token volta a passar: devolve o token e o canal CONTINUA reautorizar (refresh não prova a autorização)', async () => {
     vi.mocked(ensureFreshToken).mockResolvedValue({ accessToken: 'tok', connectionId: 'c1' })
     const db = fakeSupabase({ youtube_channels: [linhaCanal({ collection_status: 'reautorizar' })] })
+    const ctx = ctxComConjuntos(db)
     const c = canal({ collection_status: 'reautorizar' })
-    expect(await obterToken(ctxDe(db), c, base)).toBe('tok')
-    expect(c.collection_status).toBe('ok')
-    expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'ok' })
+    expect(await obterToken(ctx, c, base)).toBe('tok')
+    expect(c.collection_status).toBe('reautorizar')
+    expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'reautorizar' })
+    expect(db.writes.filter(w => w.table === 'youtube_channels')).toEqual([])
+    expect(avisarSaida).not.toHaveBeenCalled()
+    // Refresh que passa não conta como chamada autenticada: quem registra o sucesso é quem chamou a API.
+    expect([...ctx.autorizados]).toEqual([])
+  })
+
+  it('canal em reautorizar e sem conexão (apagada): continua reautorizar, tentativa sem_autorizacao e lembrete pedido', async () => {
+    vi.mocked(ensureFreshToken).mockRejectedValue(semConexao())
+    const db = fakeSupabase({ youtube_channels: [linhaCanal({ collection_status: 'reautorizar' })], social_connections: [] })
+    const ctx = ctxComConjuntos(db)
+    const c = canal({ collection_status: 'reautorizar' })
+    expect(await obterToken(ctx, c, base)).toBeNull()
+    expect(db.tables.yt_own_collection_attempts![0]).toMatchObject({ outcome: 'sem_autorizacao' })
+    expect(avisarEntrada).toHaveBeenCalledTimes(1)
+    expect([...ctx.negados]).toEqual(['ch-1'])
   })
 
   it('erro de rede no refresh: relança (falha do passo), estado inalterado, nenhuma tentativa de pulo', async () => {

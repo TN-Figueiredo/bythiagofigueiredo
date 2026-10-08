@@ -42,6 +42,10 @@ export interface StepCtx {
   deadline: number
   falhas: string[]
   tentativas: Tentativa[]
+  /** `youtube_channels.id` dos canais com uma chamada autenticada (Data API ou Analytics API) que passou nesta execução. */
+  autorizados?: Set<string>
+  /** `youtube_channels.id` dos canais com uma chamada autenticada negada por autorização nesta execução. */
+  negados?: Set<string>
 }
 
 export interface StepResumo {

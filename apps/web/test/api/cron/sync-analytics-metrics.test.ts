@@ -396,6 +396,18 @@ describe('autorização e linha da execução (L1b)', () => {
     expect(corpo.coleta.ms).toEqual({ metadados: 10, jobs: 5, relatorios: 7 })
   })
 
+  it('canal que a fase "antes" já devolveu em reautorizar e a Analytics API nega: não marca de novo, mas a negação chega à fase "depois"', async () => {
+    umCanal({ id: 'ch-1', collection_status: 'reautorizar' })
+    mockRodarColeta
+      .mockResolvedValueOnce({ falhas: [], resumo: { reautorizar: ['ch-1'], autorizados: ['ch-1'], negados: [] } })
+      .mockResolvedValueOnce({ falhas: [], resumo: {} })
+    analyticsResponde(403, { error: { errors: [{ reason: 'insufficientPermissions' }] } })
+    const corpo = await (await pedir()).json()
+    expect(corpo).toMatchObject({ sem_autorizacao: 1 })
+    expect(marcarReautorizar).not.toHaveBeenCalled()
+    expect(mockRodarColeta.mock.calls[1]![0]).toMatchObject({ fase: 'depois', autorizadosAntes: ['ch-1'], negadosAntes: ['ch-1'] })
+  })
+
   it('NoActiveConnectionError de canal nunca conectado: pulo legítimo com o aviso antigo, como hoje', async () => {
     umCanal({ id: 'ch-1' })
     mockEnsureFreshToken.mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))

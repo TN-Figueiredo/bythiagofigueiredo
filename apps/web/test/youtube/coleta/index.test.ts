@@ -319,4 +319,74 @@ describe('rodarColeta: L1b', () => {
     expect(r.resumo.reautorizar).toEqual(['ch-1'])
     expect(r.resumo.acao_do_dono).toEqual(['Canal Um: x em sem_acesso', 'Canal Um: reautorizar'])
   })
+  describe('volta a ok, uma vez, no fim da fase depois', () => {
+    const emReautorizar = () => fakeSupabase({ youtube_channels: [canalL1b({ id: 'ch-1', name: 'Canal Um', collection_status: 'reautorizar' })] })
+    const estado = (db: FakeDb) => db.tables.youtube_channels![0]!.collection_status
+    beforeEach(() => {
+      vi.mocked(criteriosRelatorios).mockResolvedValue({ perdidos: 0, atrasados: 0, acao_do_dono: [] })
+    })
+
+    it('canal em reautorizar com uma chamada autenticada que passou e nenhuma negada: vira ok e some de reautorizar e de acao_do_dono', async () => {
+      const db = emReautorizar()
+      const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois', autorizadosAntes: ['ch-1'] })
+      expect(estado(db)).toBe('ok')
+      expect(r.resumo.reautorizar).toEqual([])
+      expect(r.resumo.acao_do_dono).toEqual([])
+      expect(r.resumo.autorizados).toEqual(['ch-1'])
+      expect(r.resumo.negados).toEqual([])
+      expect(r.falhas).toEqual([])
+    })
+
+    it('o mesmo canal, mas negado em algum ponto da execução: CONTINUA reautorizar e a nota fica em acao_do_dono', async () => {
+      const db = emReautorizar()
+      const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois', autorizadosAntes: ['ch-1'], negadosAntes: ['ch-1'] })
+      expect(estado(db)).toBe('reautorizar')
+      expect(db.writes.filter(w => w.table === 'youtube_channels')).toEqual([])
+      expect(r.resumo.reautorizar).toEqual(['ch-1'])
+      expect(r.resumo.acao_do_dono).toEqual(['Canal Um: reautorizar'])
+      expect(r.resumo.negados).toEqual(['ch-1'])
+    })
+
+    it('canal em reautorizar sem nenhum sucesso na execução: continua', async () => {
+      const db = emReautorizar()
+      const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+      expect(estado(db)).toBe('reautorizar')
+      expect(r.resumo.reautorizar).toEqual(['ch-1'])
+      expect(r.resumo.acao_do_dono).toEqual(['Canal Um: reautorizar'])
+    })
+
+    it('negação registrada pelo passo de relatórios da própria fase depois também segura o canal', async () => {
+      const db = emReautorizar()
+      vi.mocked(passoRelatorios).mockImplementation(async (c: StepCtx) => {
+        c.negados!.add('ch-1')
+        return { ...resumoVazio, vistos: 0, baixados: 0, vazios: 0, expirados: 0, erros_download: 0, bruto_apagado: 0 }
+      })
+      const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois', autorizadosAntes: ['ch-1'] })
+      expect(estado(db)).toBe('reautorizar')
+      expect(r.resumo.reautorizar).toEqual(['ch-1'])
+    })
+
+    it('a fase antes nunca devolve o canal a ok, mesmo com sucesso: só registra e devolve os dois conjuntos', async () => {
+      const db = emReautorizar()
+      vi.mocked(passoMetadados).mockImplementation(async (c: StepCtx) => {
+        c.autorizados!.add('ch-1')
+        return { ...resumoVazio, gravados: 1, day_pt: '2026-10-06', dias_sem_meta: {}, sem_privacidade: 0, sem_is_short: 0 }
+      })
+      vi.mocked(passoJobs).mockImplementation(async (c: StepCtx) => {
+        c.negados!.add('ch-9')
+        return { ...resumoVazio, acao_do_dono: [], tipo_indisponivel: [], estados: {} }
+      })
+      const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+      expect(estado(db)).toBe('reautorizar')
+      expect(r.resumo.autorizados).toEqual(['ch-1'])
+      expect(r.resumo.negados).toEqual(['ch-9'])
+      expect(r.resumo.reautorizar).toEqual(['ch-1'])
+    })
+
+    it('canal em ok com sucesso registrado: nenhuma gravação de estado', async () => {
+      const db = fakeSupabase({ youtube_channels: [canalL1b({ id: 'ch-1', name: 'Canal Um' })] })
+      await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois', autorizadosAntes: ['ch-1'] })
+      expect(db.writes.filter(w => w.table === 'youtube_channels')).toEqual([])
+    })
+  })
 })

@@ -1,6 +1,8 @@
 // Estado de autorização do canal (spec, seção 6, "Autorização" — lote L1b).
 // `reautorizar` = o canal perdeu a autorização do YouTube: a coleta por token para, nada é apagado e o dono é
-// avisado. Volta a `ok` sozinho quando o token volta a passar, ou pelo callback do OAuth.
+// avisado. Volta a `ok` pelo callback do OAuth (na hora) ou no FIM da execução do cron, uma vez só, quando alguma
+// chamada autenticada passou e nenhuma foi negada (`rodarColeta`, fase 'depois'). Um refresh de token que passa não
+// prova nada: sem essa regra o canal era marcado e desmarcado no mesmo dia, e o dia fechava em `ok`.
 import { ensureFreshToken, NoActiveConnectionError, TokenRevokedError } from '@/lib/social/token-refresh'
 import { avisarEntrada, avisarSaida } from './alerts'
 import { registrarTentativa } from './attempts'
@@ -8,7 +10,7 @@ import { comPrazo, restante, SemTempoError } from './clock'
 import { conferirBanco, type ErroBanco } from './schema'
 import type { ColetaChannel, StepCtx, Tentativa } from './types'
 
-type CtxAut = Pick<StepCtx, 'supabase' | 'falhas' | 'tentativas'>
+type CtxAut = Pick<StepCtx, 'supabase' | 'falhas' | 'tentativas' | 'autorizados' | 'negados'>
 export type ClasseToken = 'reautorizar' | 'sem_conexao' | 'outro'
 
 /**
@@ -16,10 +18,13 @@ export type ClasseToken = 'reautorizar' | 'sem_conexao' | 'outro'
  * O caso comum de revogação é o SEGUNDO dia: o token revogado marca a conexão antes de lançar, e dali em diante só
  * aparece "sem conexão". Por isso "sem conexão" com uma conexão revogada deste canal também é `reautorizar`.
  * Leitura que falha não é "sem conexão revogada": devolve `outro` e a falha de banco fica em `falhas`.
+ * Canal que JÁ está em `reautorizar` continua nele sem ler nada: a conexão pode ter sido apagada, e o dono ainda
+ * precisa reconectar (como "sem conexão" o lembrete parava).
  */
 export async function classificarErroDeToken(ctx: CtxAut, c: ColetaChannel, e: unknown): Promise<ClasseToken> {
   if (e instanceof TokenRevokedError) return 'reautorizar'
   if (!(e instanceof NoActiveConnectionError)) return 'outro'
+  if (c.collection_status === 'reautorizar') return 'reautorizar'
   let r: { data: unknown; error: ErroBanco | null }
   try {
     r = await ctx.supabase
@@ -47,22 +52,30 @@ async function gravarCanal(ctx: CtxAut, c: ColetaChannel, patch: Record<string, 
   return conferirBanco(r, 'youtube_channels', ctx.falhas) === 'ok'
 }
 
-/** Marca o canal e avisa (entrada, e lembrete a cada 7 dias). Se a gravação falhar, nada mais acontece. Nunca lança. */
+/**
+ * Uma chamada autenticada foi negada: grava `reautorizar` (sempre: a memória pode estar velha, o update é idempotente),
+ * registra a negação da execução e avisa (entrada, e lembrete a cada 7 dias). Se a gravação falhar não há aviso nem
+ * mudança na memória, mas a negação continua registrada. Nunca lança.
+ */
 export async function marcarReautorizar(ctx: CtxAut, c: ColetaChannel): Promise<void> {
-  if (c.collection_status !== 'reautorizar') {
-    if (!(await gravarCanal(ctx, c, { collection_status: 'reautorizar' }))) return
-    c.collection_status = 'reautorizar'
-  }
+  ctx.negados?.add(c.id)
+  if (!(await gravarCanal(ctx, c, { collection_status: 'reautorizar' }))) return
+  c.collection_status = 'reautorizar'
   await avisarEntrada(ctx, c, 'reautorizar')
 }
 
-/** Uma chamada autenticada passou: carimba a data e, se o canal estava em `reautorizar`, devolve-o a `ok`. Nunca lança. */
+/**
+ * Uma chamada autenticada à Data API ou à Analytics API passou: carimba a data e registra o sucesso da execução.
+ * NÃO muda o estado: quem devolve o canal a `ok` é `voltarAOk`, no fim da execução. Nunca lança.
+ */
 export async function marcarAutorizado(ctx: CtxAut, c: ColetaChannel): Promise<void> {
-  const voltou = c.collection_status === 'reautorizar'
-  const patch: Record<string, unknown> = { authorization_verified_at: new Date().toISOString() }
-  if (voltou) patch.collection_status = 'ok'
-  if (!(await gravarCanal(ctx, c, patch))) return
-  if (!voltou) return
+  ctx.autorizados?.add(c.id)
+  await gravarCanal(ctx, c, { authorization_verified_at: new Date().toISOString() })
+}
+
+/** Devolve o canal a `ok` e pede a saída do aviso. Se a gravação falhar, nada mais acontece. Nunca lança. */
+export async function voltarAOk(ctx: CtxAut, c: ColetaChannel): Promise<void> {
+  if (!(await gravarCanal(ctx, c, { collection_status: 'ok' }))) return
   c.collection_status = 'ok'
   await avisarSaida(ctx, c, ['reautorizar'])
 }
@@ -95,7 +108,6 @@ export async function obterToken(
     await registrarTentativa(ctx, { ...base, outcome: classe === 'reautorizar' ? 'sem_autorizacao' : 'sem_conexao' })
     return null
   }
-  // O token voltou a passar num canal marcado: o estado volta a `ok` sem esperar o OAuth.
-  if (c.collection_status === 'reautorizar') await marcarAutorizado(ctx, c)
+  // Token que passa não muda o estado nem conta como autorizado: só a chamada autenticada de quem pediu o token conta.
   return token
 }

@@ -7,6 +7,7 @@ import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { describeCronCause } from '@/lib/cron/failure-note'
 import { registrarTentativa } from './attempts'
+import { voltarAOk } from './autorizacao'
 import { TETOS_MS, restante, type Relogio } from './clock'
 import { criterioJobsEmErro, criterioMetadados, criterioOrcamento, criteriosRelatorios } from './criteria'
 import { ontemPt } from './day-pt'
@@ -35,6 +36,12 @@ export interface ColetaCtx {
    * falhou/foi pulado), todo canal conta como "desconhecido" no critério de metadados.
    */
   metadadosAntes?: MetadadosAntes
+  /**
+   * `youtube_channels.id` com chamada autenticada que passou / que foi negada ANTES desta chamada, na mesma execução
+   * do cron (fase 'antes' + parte antiga da rota). A fase 'depois' soma aos seus e decide quem volta a `ok`.
+   */
+  autorizadosAntes?: string[]
+  negadosAntes?: string[]
 }
 
 export function ehMetadadosAntes(x: unknown): x is MetadadosAntes {
@@ -89,7 +96,10 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   const channels = ((lidos.data ?? []) as ColetaChannel[]).map(c =>
     semColunasNovas ? { ...c, collection_status: 'ok' as const, video_count: null } : c)
   const tentativas: Tentativa[] = []
-  const base = { supabase: ctx.supabase, channels, falhas, tentativas }
+  // Um par de conjuntos por chamada, o mesmo objeto para todos os passos (o spread do passo é raso).
+  const autorizados = new Set<string>(ctx.autorizadosAntes ?? [])
+  const negados = new Set<string>(ctx.negadosAntes ?? [])
+  const base = { supabase: ctx.supabase, channels, falhas, tentativas, autorizados, negados }
   const ms: Record<string, number> = {}
 
   const falhou = (nome: string, e: unknown): void => {
@@ -167,6 +177,8 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
       ...semVideos,
     ])]
     resumo.reautorizar = emReautorizar().map(c => c.id)
+    resumo.autorizados = [...autorizados]
+    resumo.negados = [...negados]
     resumo.ms = ms
     return { falhas, resumo }
   }
@@ -206,6 +218,19 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   } catch (e) {
     falhou('orçamento', e)
   }
+  // A volta a `ok` acontece UMA vez, aqui, no fim da execução: o canal precisa de uma chamada autenticada que passou
+  // (fase 'antes', parte antiga ou esta fase) e de NENHUMA negada. Decidir a cada chamada fazia o canal ser marcado e
+  // desmarcado no mesmo dia. Esta fase releu os canais: enxerga o que a parte antiga da rota marcou.
+  for (const c of channels) {
+    if (c.collection_status !== 'reautorizar' || !autorizados.has(c.id) || negados.has(c.id)) continue
+    try {
+      await voltarAOk(base, c)
+    } catch (e) {
+      falhou('canais', e)
+    }
+  }
+  resumo.autorizados = [...autorizados]
+  resumo.negados = [...negados]
   resumo.acao_do_dono = [...new Set([
     ...((resumo.acao_do_dono as string[] | undefined) ?? []),
     ...emReautorizar().map(c => `${c.name}: reautorizar`),

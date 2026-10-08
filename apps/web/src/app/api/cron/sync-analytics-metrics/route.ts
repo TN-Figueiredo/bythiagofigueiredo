@@ -44,6 +44,12 @@ interface ChannelRow {
   collection_status: string | null
 }
 
+/** `youtube_channels.id` com chamada autenticada que passou / que foi negada nesta execução (fase 'antes' + parte antiga). */
+interface ConjuntosDaExecucao {
+  autorizados: Set<string>
+  negados: Set<string>
+}
+
 interface ParteAntiga {
   synced: number
   errors: number
@@ -78,15 +84,20 @@ async function parteAntiga(
   relogio: Relogio,
   falhas: string[],
   reautorizar: Set<string>,
+  conjuntos: ConjuntosDaExecucao,
 ): Promise<ParteAntiga> {
   let synced = 0
   let errors = 0
   let emptyReports = 0
   let semAutorizacao = 0
   // As tentativas de autorizacao.ts ficam nesta lista descartável: a parte antiga não registra tentativas.
-  const aut = { supabase, falhas, tentativas: [] as Tentativa[] }
+  // `marcarAutorizado` e `marcarReautorizar` preenchem os dois conjuntos da execução.
+  const aut = { supabase, falhas, tentativas: [] as Tentativa[], ...conjuntos }
   /** Marca (se ainda não estava), conta e segue: perder a autorização é ação do dono, não erro do cron. */
   const perdeuAutorizacao = async (channel: ChannelRow): Promise<void> => {
+    // A negação fica registrada mesmo para o canal que a fase 'antes' já devolveu marcado: é ela que impede a fase
+    // 'depois' de devolvê-lo a `ok` por causa de uma chamada que passou mais cedo na mesma execução.
+    conjuntos.negados.add(channel.id)
     if (!reautorizar.has(channel.id)) {
       await marcarReautorizar(aut, comoCanalDaColeta(channel, false))
       reautorizar.add(channel.id)
@@ -145,8 +156,8 @@ async function parteAntiga(
         continue
       }
 
+      // Carimba a data e registra o sucesso. O estado NÃO muda aqui: quem devolve o canal a `ok` é a fase 'depois'.
       await marcarAutorizado(aut, comoCanalDaColeta(channel, reautorizar.has(channel.id)))
-      reautorizar.delete(channel.id)
 
       const report = await res.json() as { rows?: (string | number)[][] }
 
@@ -439,10 +450,16 @@ async function coletar(
   relogio: Relogio,
   fase: 'antes' | 'depois',
   falhas: string[],
-  metadadosAntes?: MetadadosAntes,
+  antes: { metadadosAntes?: MetadadosAntes; autorizadosAntes?: string[]; negadosAntes?: string[] } = {},
 ): Promise<Record<string, unknown>> {
   try {
-    const r = await rodarColeta({ supabase, relogio, fase, ...(metadadosAntes && { metadadosAntes }) })
+    const { metadadosAntes, autorizadosAntes, negadosAntes } = antes
+    const r = await rodarColeta({
+      supabase, relogio, fase,
+      ...(metadadosAntes && { metadadosAntes }),
+      ...(autorizadosAntes && { autorizadosAntes }),
+      ...(negadosAntes && { negadosAntes }),
+    })
     for (const f of r.falhas) pushUnico(falhas, f)
     return r.resumo ?? {}
   } catch (e) {
@@ -520,15 +537,17 @@ export async function GET(req: NextRequest) {
 
   // Com a leitura da rota vazia a parte antiga não tem o que fazer, mas a coleta roda igual: ela lê
   // todos os canais por conta própria (o passo de metadados não depende de sync_enabled).
-  const jaReautorizar = new Set<string>(
-    Array.isArray(coletaAntes.reautorizar) ? coletaAntes.reautorizar.filter((x): x is string => typeof x === 'string') : [],
-  )
+  const ids = (x: unknown): string[] => (Array.isArray(x) ? x.filter((v): v is string => typeof v === 'string') : [])
+  const jaReautorizar = new Set<string>(ids(coletaAntes.reautorizar))
+  // Quem passou e quem foi negado numa chamada autenticada: começa com o que a fase 'antes' viu, a parte antiga soma,
+  // e a fase 'depois' recebe o total (é ela que decide, uma vez, quem volta a `ok`).
+  const conjuntos: ConjuntosDaExecucao = { autorizados: new Set(ids(coletaAntes.autorizados)), negados: new Set(ids(coletaAntes.negados)) }
   let antiga: ParteAntiga | null = null
   let msExistente = 0
   if (lista.length > 0) {
     const inicio = Date.now()
     try {
-      antiga = await parteAntiga(supabase, lista, relogio, falhas, jaReautorizar)
+      antiga = await parteAntiga(supabase, lista, relogio, falhas, jaReautorizar, conjuntos)
       const comConexao = lista.length - antiga.skippedNoConnection - antiga.semAutorizacao
       // Os detalhes por canal (errorDetails) já entraram em falhas[] dentro do laço.
       if (antiga.errors === 0 && comConexao > 0 && antiga.emptyReports === comConexao) {
@@ -546,7 +565,12 @@ export async function GET(req: NextRequest) {
     msExistente = Date.now() - inicio
   }
 
-  const coletaDepois = await coletar(supabase, relogio, 'depois', falhas, comoMetadadosAntes(coletaAntes.metadados))
+  const metadadosAntes = comoMetadadosAntes(coletaAntes.metadados)
+  const coletaDepois = await coletar(supabase, relogio, 'depois', falhas, {
+    ...(metadadosAntes && { metadadosAntes }),
+    autorizadosAntes: [...conjuntos.autorizados],
+    negadosAntes: [...conjuntos.negados],
+  })
 
   const antes = separarAcaoDoDono(coletaAntes)
   const depois = separarAcaoDoDono(coletaDepois)

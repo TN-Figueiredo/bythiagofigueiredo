@@ -34,6 +34,7 @@ vi.mock('@/lib/notifications/get-site-owners', () => ({
 }))
 
 import { ehMetadadosAntes, rodarColeta } from '@/lib/youtube/coleta'
+import { marcarReautorizar } from '@/lib/youtube/coleta/autorizacao'
 import { criarRelogio } from '@/lib/youtube/coleta/clock'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { criarReportingClient, empacotarCsv, type ReportingClient } from '@/lib/youtube/reporting/client'
@@ -164,7 +165,12 @@ async function rodarDia(db: FakeDb, agora: Date): Promise<Dia> {
   const relogio = criarRelogio()
   const antes = await rodarColeta({ supabase: db.client, relogio, fase: 'antes' })
   const meta = ehMetadadosAntes(antes.resumo.metadados) ? antes.resumo.metadados : undefined
-  const depois = await rodarColeta({ supabase: db.client, relogio, fase: 'depois', ...(meta && { metadadosAntes: meta }) })
+  // Como a rota: quem passou e quem foi negado na fase 'antes' segue para a fase 'depois' (aqui não há parte antiga).
+  const depois = await rodarColeta({
+    supabase: db.client, relogio, fase: 'depois', ...(meta && { metadadosAntes: meta }),
+    autorizadosAntes: (antes.resumo.autorizados as string[] | undefined) ?? [],
+    negadosAntes: (antes.resumo.negados as string[] | undefined) ?? [],
+  })
   const acao = [...((antes.resumo.acao_do_dono as string[] | undefined) ?? []), ...((depois.resumo.acao_do_dono as string[] | undefined) ?? [])]
   return { falhas: [...antes.falhas, ...depois.falhas], acao_do_dono: [...new Set(acao)], antes: antes.resumo, depois: depois.resumo }
 }
@@ -282,5 +288,57 @@ describe('três dias seguidos, passos e critérios de verdade', () => {
       `relatórios: ${SEM_VIDEO.name} recebeu 4 relatórios channel_reach_combined_a1 vazios seguidos`,
     ])
     expect(d3.depois.vazios_sem_publicacao).toEqual([])
+  })
+})
+
+describe('uma execução em que o canal passa numa chamada e é negado em outra (autorizacao.ts de verdade)', () => {
+  const estado = (db: FakeDb) => db.tables.youtube_channels!.find(c => c.id === ANTIGO.id)!.collection_status
+  const avisos = () => vi.mocked(fanOutToSiteAdmins).mock.calls.map(c => c[0].type)
+
+  it('videos.list passa na fase antes, a parte antiga é negada: o canal TERMINA em reautorizar, com um aviso de entrada e nenhum de saída', async () => {
+    const db = banco(VIDEOS_ANTIGOS)
+    const relogio = criarRelogio()
+
+    // Fase 'antes': o token passa e a videos.list responde. É uma chamada autenticada que deu certo.
+    const antes = await rodarColeta({ supabase: db.client, relogio, fase: 'antes' })
+    expect(antes.falhas).toEqual([])
+    expect(antes.resumo.autorizados).toEqual([ANTIGO.id])
+    expect(antes.resumo.negados).toEqual([])
+    expect(estado(db)).toBe('ok')
+
+    // Parte antiga da rota: a Analytics API nega por permissão. A rota chama marcarReautorizar com os conjuntos da execução.
+    const autorizados = new Set(antes.resumo.autorizados as string[])
+    const negados = new Set(antes.resumo.negados as string[])
+    await marcarReautorizar({ supabase: db.client, falhas: [], tentativas: [], autorizados, negados }, { ...ANTIGO })
+    expect(estado(db)).toBe('reautorizar')
+
+    // Fase 'depois': o token do canal CONTINUA passando no refresh (o passo de relatórios o usa), e isso não desfaz nada.
+    const meta = ehMetadadosAntes(antes.resumo.metadados) ? antes.resumo.metadados : undefined
+    const depois = await rodarColeta({
+      supabase: db.client, relogio, fase: 'depois', ...(meta && { metadadosAntes: meta }),
+      autorizadosAntes: [...autorizados], negadosAntes: [...negados],
+    })
+    expect(ensureFreshToken).toHaveBeenCalledWith('site-1', 'youtube', ANTIGO.channel_id)
+    expect(estado(db)).toBe('reautorizar')
+    expect(depois.resumo.reautorizar).toEqual([ANTIGO.id])
+    expect(depois.resumo.acao_do_dono).toContain(`${ANTIGO.name}: reautorizar`)
+    expect(depois.falhas).toEqual([])
+    expect(avisos()).toEqual(['youtube.coleta_reautorizar'])
+  })
+
+  it('controle: sem a negação, um canal em reautorizar com a videos.list passando volta a ok no fim da execução, com o aviso de saída', async () => {
+    const db = banco(VIDEOS_ANTIGOS)
+    const linha = db.tables.youtube_channels!.find(c => c.id === ANTIGO.id)!
+    linha.collection_status = 'reautorizar'
+    db.tables.ops_alert_state = [{ key: `sync-analytics:${ANTIGO.id}:reautorizar`, last_at: new Date(DIA_1.getTime() - DIA_MS).toISOString() }]
+
+    const d = await rodarDia(db, DIA_1)
+    expect(d.falhas).toEqual([])
+    expect(estado(db)).toBe('ok')
+    expect(d.depois.reautorizar).toEqual([])
+    // No fim da fase 'antes' ainda estava marcado: a volta acontece uma vez, no fim da execução.
+    expect(d.antes.reautorizar).toEqual([ANTIGO.id])
+    expect(avisos()).toEqual(['youtube.coleta_saida'])
+    expect(db.tables.ops_alert_state).toEqual([])
   })
 })
