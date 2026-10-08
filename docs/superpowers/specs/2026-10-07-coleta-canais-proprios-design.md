@@ -3,6 +3,35 @@
 Data: 07/10/2026 · Estado: rascunho v5 · Base: `main` c20b6ff2, `staging` 6dd468ae (conferir com
 `git rev-parse` antes de começar). Specs irmãos: `2026-10-07-ab-lab-honesto-design.md` (A/B Lab) e `2026-10-07-observatorio-canal-video-ui-design.md` (telas do Observatório).
 
+## Emendas de 08/10/2026 (depois dos lotes L1a e L1b)
+
+Onde este texto e uma emenda discordam, vale a emenda. Cada uma veio de um defeito achado em revisão ou de um
+fato de produção; o detalhe está nos ledgers dos dois lotes.
+
+1. **Seção 6, "Autorização": o token voltar a passar NÃO devolve o canal a `ok`.** A frase "se a chamada passar,
+   o estado volta a `ok` sozinho" fazia o canal oscilar no mesmo dia (o refresh passa, a API nega) e o dia fechar
+   verde. Regra em vigor: o canal volta a `ok` (a) pelo callback do OAuth, na hora, ou (b) no fim de uma execução
+   do cron em que teve ao menos uma chamada autenticada bem-sucedida (`videos.list` ou Analytics API) e nenhuma
+   negação de autorização. Sucesso da Reporting API não conta. Canal em `reautorizar` cuja conexão foi apagada
+   continua em `reautorizar`.
+2. **Seção 9, "4 vazios seguidos" e "6 dias sem relatório novo":** só valem para canal com vídeo publicado nos
+   últimos 90 dias. Confirmado pelo dono em 08/10: canal parado há muito tempo não precisa alertar. Hoje os dois
+   canais reais estão fora do filtro.
+3. **Seção 3, captura:** a `videos.list` tem prazo próprio de 8 s dentro do passo; uma segunda execução do dia
+   sem captura não rebaixa a linha que a primeira gravou; duração que a API não informa de forma legível
+   (`P0D`, dias) é nula, nunca 0; `privacy_status` fora de `public`/`unlisted`/`private` é falha crítica e a
+   linha é gravada sem o campo; a sonda de Shorts roda depois de todas as linhas gravadas.
+4. **Seção 9, falhas novas do passo de metadados:** `videos.list` que falha, que não devolve nenhum dos vídeos do
+   canal, ou que não traz `privacy_status` de nenhum, e captura que não coube em 8 s com tempo do passo sobrando.
+5. **Seção 2:** tabela `yt_own_collection_runs` (uma linha por execução do cron: tempos por passo, falhas,
+   `acao_do_dono`, resumo; 90 dias; só service role). O resumo do cron deixou de existir só na resposta HTTP.
+6. **Seção 2, "Remover canal":** como tentativas e jobs contam como série, todo canal que passou por uma execução
+   do cron só é removido depois dos cinco `delete` do runbook. PENDENTE DE DECISÃO DO DONO: a função apagar
+   sozinha tentativas e jobs e recusar só por metadados diários e relatórios.
+7. **Seção 1, "Escrita":** função ausente (`PGRST202`, `42883`) também é `schema_ausente`. Código no ar sem a
+   migration de um lote não derruba o cron: relê sem as colunas novas, segue e fica vermelho.
+8. **Seção 0, "Ordem de push":** um push por lote basta; `db:push:prod` lê o diretório local, não o remoto.
+
 ## Por que
 
 Não guardamos retenção, percentual assistido, impressões nem CTR dos canais próprios (2 canais, 35
