@@ -147,7 +147,7 @@ describe.skipIf(skipIfNoLocalDb())('youtube_channel_remove', () => {
     expect(error).toBeNull()
     expect(data).toEqual({
       status: 'ok', name: ch.name, slug: ch.slug,
-      videos: 2, comments: 3, sync_logs: 2, ab_tests: 3, ab_drafts: 0, analyses: 2, tasks: 1, notes: 1, notifications: 3, connections: 0, pipeline_links: 1, blockers: [],
+      videos: 2, comments: 3, sync_logs: 2, ab_tests: 3, ab_drafts: 0, analyses: 2, tasks: 1, notes: 1, notifications: 3, connections: 0, pipeline_links: 1, serie_coletada: 0, blockers: [],
     })
     expect((await counts(ch.id as string, [v1, v2])).videos).toBe(2)
   })
@@ -155,7 +155,7 @@ describe.skipIf(skipIfNoLocalDb())('youtube_channel_remove', () => {
   it('canal sem nada dependente: impacto todo zero e a remoção apaga só o canal', async () => {
     const ch = await addChannel(siteA, `@vazio${run}`)
     const { data: impact } = await sb.rpc('youtube_channel_removal_impact', { p_site_id: siteA, p_channel_id: ch.id })
-    expect(impact).toMatchObject({ status: 'ok', videos: 0, comments: 0, sync_logs: 0, ab_tests: 0, ab_drafts: 0, analyses: 0, tasks: 0, notes: 0, notifications: 0, connections: 0, pipeline_links: 0, blockers: [] })
+    expect(impact).toMatchObject({ status: 'ok', videos: 0, comments: 0, sync_logs: 0, ab_tests: 0, ab_drafts: 0, analyses: 0, tasks: 0, notes: 0, notifications: 0, connections: 0, pipeline_links: 0, serie_coletada: 0, blockers: [] })
     const { data, error } = await sb.rpc('youtube_channel_remove', { p_site_id: siteA, p_channel_id: ch.id, p_confirm_slug: ch.slug })
     expect(error).toBeNull()
     expect(data).toMatchObject({ status: 'removed', videos: 0 })
@@ -224,7 +224,7 @@ describe.skipIf(skipIfNoLocalDb())('youtube_channel_remove', () => {
     expect(error).toBeNull()
     expect(data).toMatchObject({ status: 'removed', connections: 1 })
     // nenhum token sai do banco: o retorno só tem status, identificação, contagens e blockers
-    expect(Object.keys(data as object).sort()).toEqual(['ab_drafts', 'ab_tests', 'analyses', 'blockers', 'comments', 'connections', 'name', 'notes', 'notifications', 'pipeline_links', 'slug', 'status', 'sync_logs', 'tasks', 'videos'])
+    expect(Object.keys(data as object).sort()).toEqual(['ab_drafts', 'ab_tests', 'analyses', 'blockers', 'comments', 'connections', 'name', 'notes', 'notifications', 'pipeline_links', 'serie_coletada', 'slug', 'status', 'sync_logs', 'tasks', 'videos'])
     expect(JSON.stringify(data)).not.toMatch(/enc-|token/i)
     const row = async (id: string) => (await sb.from('social_connections').select('revoked_at, access_token_enc, refresh_token_enc, page_token_enc, token_expires_at').eq('id', id).single()).data!
     const gone = await row(mine)
@@ -324,5 +324,55 @@ describe.skipIf(skipIfNoLocalDb())('youtube_channel_remove', () => {
         expect(r.proconfig).toEqual(['search_path=""'])
       }
     } finally { await pg.end() }
+  })
+
+  it('L1b: canal com série coletada não é removido, nada é apagado, e a série apagada libera a remoção', async () => {
+    const { ch, v1, v2 } = await fullChannel(siteA, `@serie${run}`)
+    const dia = new Date(Date.now() - 864e5).toISOString().slice(0, 10)
+    must(await sb.from('yt_own_video_meta_daily').insert({
+      site_id: siteA, youtube_video_id: `s${run}`.slice(-11), day_pt: dia, video_id: v1,
+      channel_id: ch.id, captured_at: new Date().toISOString(),
+    }).select('day_pt'))
+    must(await sb.from('yt_reporting_jobs').insert({ site_id: siteA, channel_id: ch.id, report_type_id: 'channel_reach_basic_a1', status: 'ativo', job_id: `job-${run}` }).select('job_id'))
+    const before = await counts(ch.id as string, [v1, v2])
+
+    const impact = (await sb.rpc('youtube_channel_removal_impact', { p_site_id: siteA, p_channel_id: ch.id })).data as Record<string, unknown>
+    expect(impact).toMatchObject({ status: 'ok', serie_coletada: 2 })
+
+    const recusa = await sb.rpc('youtube_channel_remove', { p_site_id: siteA, p_channel_id: ch.id, p_confirm_slug: ch.slug })
+    expect(recusa.error).toBeNull()
+    expect(recusa.data).toMatchObject({ status: 'serie_coletada', serie_coletada: 2, name: ch.name })
+    expect(await counts(ch.id as string, [v1, v2])).toEqual(before)
+
+    // A chave estrangeira segura o canal mesmo fora da função.
+    const direto = await sb.from('youtube_channels').delete().eq('id', ch.id)
+    expect(direto.error?.code).toBe('23503')
+
+    must(await sb.from('yt_own_video_meta_daily').delete().eq('channel_id', ch.id).select('day_pt'))
+    must(await sb.from('yt_reporting_jobs').delete().eq('channel_id', ch.id).select('job_id'))
+    const ok = await sb.rpc('youtube_channel_remove', { p_site_id: siteA, p_channel_id: ch.id, p_confirm_slug: ch.slug })
+    expect(ok.data).toMatchObject({ status: 'removed', serie_coletada: 0 })
+  })
+
+  it('L1b: youtube_channels nasce com collection_status ok e recusa valor fora da lista', async () => {
+    const ch = await addChannel(siteA, `@estado${run}`)
+    const lido = await sb.from('youtube_channels').select('collection_status, authorization_verified_at').eq('id', ch.id).single()
+    expect(lido.data).toEqual({ collection_status: 'ok', authorization_verified_at: null })
+    const ruim = await sb.from('youtube_channels').update({ collection_status: 'quebrado' }).eq('id', ch.id)
+    expect(ruim.error?.code).toBe('23514')
+    const bom = await sb.from('youtube_channels').update({ collection_status: 'reautorizar' }).eq('id', ch.id)
+    expect(bom.error).toBeNull()
+  })
+
+  it('L1b: yt_own_collection_runs aceita a linha da execução e não é lida por anon', async () => {
+    const ins = await sb.from('yt_own_collection_runs').insert({
+      ms_total: 43000, ms_existente: 15000, ms_passos: { metadados: 13000, jobs: 10000, relatorios: 2000 },
+      falhas: [], acao_do_dono: ['Canal: reautorizar'], resumo: { ok: true },
+    }).select('id, ran_at').single()
+    expect(ins.error).toBeNull()
+    const anon = createClient(SUPABASE_URL, ANON_KEY)
+    const lido = await anon.from('yt_own_collection_runs').select('id').limit(1)
+    expect(lido.data ?? []).toEqual([])
+    must(await sb.from('yt_own_collection_runs').delete().eq('id', (ins.data as { id: number }).id).select('id'))
   })
 })

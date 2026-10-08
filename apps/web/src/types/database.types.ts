@@ -8905,8 +8905,10 @@ export type Database = {
       }
       youtube_channels: {
         Row: {
+          authorization_verified_at: string | null
           banner_url: string | null
           channel_id: string
+          collection_status: string
           created_at: string
           custom_url: string | null
           description: string | null
@@ -8928,8 +8930,10 @@ export type Database = {
           video_count: number
         }
         Insert: {
+          authorization_verified_at?: string | null
           banner_url?: string | null
           channel_id: string
+          collection_status?: string
           created_at?: string
           custom_url?: string | null
           description?: string | null
@@ -8951,8 +8955,10 @@ export type Database = {
           video_count?: number
         }
         Update: {
+          authorization_verified_at?: string | null
           banner_url?: string | null
           channel_id?: string
+          collection_status?: string
           created_at?: string
           custom_url?: string | null
           description?: string | null
@@ -9830,6 +9836,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "yt_own_collection_attempts_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "youtube_channels"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "yt_own_collection_attempts_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
@@ -9837,6 +9850,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      yt_own_collection_runs: {
+        Row: {
+          acao_do_dono: string[]
+          falhas: string[]
+          id: number
+          ms_existente: number
+          ms_passos: Json
+          ms_total: number
+          ran_at: string
+          resumo: Json
+        }
+        Insert: {
+          acao_do_dono?: string[]
+          falhas?: string[]
+          id?: never
+          ms_existente: number
+          ms_passos?: Json
+          ms_total: number
+          ran_at?: string
+          resumo?: Json
+        }
+        Update: {
+          acao_do_dono?: string[]
+          falhas?: string[]
+          id?: never
+          ms_existente?: number
+          ms_passos?: Json
+          ms_total?: number
+          ran_at?: string
+          resumo?: Json
+        }
+        Relationships: []
       }
       yt_own_video_meta_daily: {
         Row: {
@@ -9922,6 +9968,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "yt_own_video_meta_daily_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "youtube_channels"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "yt_own_video_meta_daily_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
@@ -9975,6 +10028,13 @@ export type Database = {
           status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "yt_reporting_jobs_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "youtube_channels"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "yt_reporting_jobs_site_id_fkey"
             columns: ["site_id"]
@@ -10082,6 +10142,13 @@ export type Database = {
           unmatched_video_ids?: Json | null
         }
         Relationships: [
+          {
+            foreignKeyName: "yt_reporting_reports_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "youtube_channels"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "yt_reporting_reports_site_id_fkey"
             columns: ["site_id"]
