@@ -56,6 +56,12 @@ vi.mock('@/lib/cron-health', () => ({
   recordCronFailure: vi.fn(),
 }))
 
+// Os passos novos têm testes próprios (test/youtube/coleta/); aqui a rota roda só com a parte antiga.
+// Função simples, não vi.fn: este arquivo chama vi.restoreAllMocks().
+vi.mock('@/lib/youtube/coleta', () => ({
+  rodarColeta: async () => ({ falhas: [], resumo: {} }),
+}))
+
 // ── Import after mocks ──────────────────────────────────────────────────────
 import { GET } from '../../../src/app/api/cron/sync-analytics-metrics/route'
 

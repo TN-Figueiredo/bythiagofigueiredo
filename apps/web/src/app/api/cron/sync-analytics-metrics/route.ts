@@ -8,6 +8,9 @@ import { detectFatigue, filterFatigueCandidates } from '@/lib/youtube/ab-fatigue
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import { channelNote, describeCronCause, joinNotes, describeHttpCause } from '@/lib/cron/failure-note'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
+import { rodarColeta, type MetadadosAntes } from '@/lib/youtube/coleta'
+import { criarRelogio, FETCH_TIMEOUT_MS, restante, type Relogio } from '@/lib/youtube/coleta/clock'
+import { conferirBanco, pushUnico } from '@/lib/youtube/coleta/schema'
 import * as Sentry from '@sentry/nextjs'
 
 const YT_ANALYTICS_BASE = 'https://youtubeanalytics.googleapis.com/v2/reports'
@@ -23,37 +26,42 @@ function channelLabel(channel: { name?: string | null; channel_id: string }): st
 }
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 120
+// Relógio global da coleta: 270 s (lib/youtube/coleta/clock.ts). Os 30 s de folga são do veredito e da resposta.
+export const maxDuration = 300
 
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+type Supabase = ReturnType<typeof getSupabaseServiceClient>
 
-  const supabase = getSupabaseServiceClient()
+interface ChannelRow {
+  id: string
+  channel_id: string
+  site_id: string
+  subscriber_count: number | null
+  name: string | null
+}
 
-  const { data: channels, error: channelsError } = await supabase
-    .from('youtube_channels')
-    .select('id, channel_id, site_id, subscriber_count, name')
-    .eq('sync_enabled', true)
+interface ParteAntiga {
+  synced: number
+  errors: number
+  emptyReports: number
+  skippedNoConnection: number
+  notifications: number
+  fatigueAlerts: number
+  errorDetails: string[]
+}
 
-  // A dropped query error used to fall through to `channels === null` →
-  // `channels.length === 0` → recordCronSuccess + HTTP 200 — the system
-  // ASSERTING it's healthy about a DB error it never looked at. Distinguish
-  // "the query failed" from "the query genuinely returned zero rows".
-  if (channelsError) {
-    Sentry.captureMessage(`sync-analytics-metrics: channels query failed: ${channelsError.message}`)
-    // O texto do Postgres fica só no Sentry (acima); a nota gravada e a resposta são legíveis e sem ele.
-    await recordCronFailure('sync-analytics-metrics', 'database error listing the YouTube channels')
-    return NextResponse.json({ error: 'channels query failed' }, { status: 500 })
-  }
-
-  if (!channels || channels.length === 0) {
-    await recordCronSuccess('sync-analytics-metrics')
-    return NextResponse.json({ status: 'no_channels' })
-  }
-
+/**
+ * O que o cron já fazia antes da coleta dos canais próprios: analytics por janela, marcos de
+ * views, avisos e fadiga. O laço não foi refatorado; mudou só: (a) o fetch leva timeout de
+ * min(15 s, o que resta do relógio global); (b) toda escrita, e toda leitura que decide alguma
+ * coisa, confere `error` e registra em `falhas`; (c) não chama mais recordCron* — quem dá o
+ * veredito é a última linha de GET.
+ */
+async function parteAntiga(
+  supabase: Supabase,
+  channels: ChannelRow[],
+  relogio: Relogio,
+  falhas: string[],
+): Promise<ParteAntiga> {
   let synced = 0
   let errors = 0
   let emptyReports = 0
@@ -89,6 +97,8 @@ export async function GET(req: NextRequest) {
 
       const res = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${accessToken}` },
+        // Sem relógio sobrando o sinal já nasce vencido: o canal vira erro ("request timed out"), não fica pendurado.
+        signal: AbortSignal.timeout(Math.min(FETCH_TIMEOUT_MS, restante(relogio.fim))),
       })
 
       if (!res.ok) {
@@ -113,10 +123,13 @@ export async function GET(req: NextRequest) {
       // youtube_video_analytics stayed empty, with no signal anywhere that it was wrong.
       if (!report.rows?.length) { emptyReports++; continue }
 
-      const { data: videos } = await supabase
+      const videosLidos = await supabase
         .from('youtube_videos')
         .select('id, youtube_video_id, title, view_count, view_count_yesterday, view_count_delta_today, published_at')
         .eq('channel_id', channel.id)
+      // Leitura que falhou não é "canal sem vídeos": sem isto o canal contava como sincronizado sem gravar nada.
+      if (conferirBanco(videosLidos, 'youtube_videos', falhas, 'ler') !== 'ok') continue
+      const videos = videosLidos.data
 
       const videoMap = new Map((videos ?? []).map(v => [v.youtube_video_id, v]))
 
@@ -141,14 +154,15 @@ export async function GET(req: NextRequest) {
 
         const previousPeriod = dbVideo.view_count_delta_today ?? 0
 
-        await supabase.from('youtube_videos').update({
+        const gravouVideo = await supabase.from('youtube_videos').update({
           avg_view_duration_seconds: avgDuration,
           view_count_delta_today: views,
           view_count_yesterday: previousPeriod,
           last_analytics_sync_at: new Date().toISOString(),
         }).eq('id', dbVideo.id)
+        conferirBanco(gravouVideo, 'youtube_videos', falhas)
 
-        await supabase.from('youtube_video_analytics').upsert({
+        const gravouAnalytics = await supabase.from('youtube_video_analytics').upsert({
           youtube_video_id: dbVideo.id,
           site_id: channel.site_id,
           date: today,
@@ -159,6 +173,7 @@ export async function GET(req: NextRequest) {
           shares,
           subscribers_gained: subsGained,
         }, { onConflict: 'youtube_video_id,date' })
+        conferirBanco(gravouAnalytics, 'youtube_video_analytics', falhas)
 
         if (detectViral(views, previousPeriod, channelAvg48h)) {
           notifications.push({
@@ -211,21 +226,24 @@ export async function GET(req: NextRequest) {
 
     for (const ms of milestones) {
       if (ageHours >= ms.minAge && ageHours < ms.maxAge) {
-        const { data: existing } = await supabase
+        const marcoLido = await supabase
           .from('youtube_video_analytics')
           .select(ms.column)
           .eq('youtube_video_id', video.id)
           .order('date', { ascending: false })
           .limit(1)
           .maybeSingle()
+        if (conferirBanco(marcoLido, 'youtube_video_analytics', falhas, 'ler') !== 'ok') continue
+        const existing = marcoLido.data
 
         if (existing && !(existing as Record<string, unknown>)[ms.column]) {
           const today = new Date().toISOString().slice(0, 10)
-          await supabase
+          const gravouMarco = await supabase
             .from('youtube_video_analytics')
             .update({ [ms.column]: video.view_count })
             .eq('youtube_video_id', video.id)
             .eq('date', today)
+          conferirBanco(gravouMarco, 'youtube_video_analytics', falhas)
         }
       }
     }
@@ -276,29 +294,37 @@ export async function GET(req: NextRequest) {
 
   for (const siteId of siteIds) {
     try {
-      const { data: allVideos } = await supabase
+      // Leitura que falhou não é "nada a fazer": sem os vídeos não há candidatos, e sem os testes
+      // A/B todo vídeo em teste viraria candidato. Nos dois casos o site fica de fora e vira falha.
+      const videosDoSite = await supabase
         .from('youtube_videos')
         .select('id, published_at, view_count')
         .eq('site_id', siteId)
         .not('published_at', 'is', null)
+      if (conferirBanco(videosDoSite, 'youtube_videos', falhas, 'ler') !== 'ok') continue
+      const allVideos = videosDoSite.data
 
-      const { data: activeTestVideos } = await supabase
+      const testesAtivos = await supabase
         .from('ab_tests')
         .select('youtube_video_id')
         .eq('site_id', siteId)
         .in('status', ['active', 'draft', 'paused', 'queued'])
+      if (conferirBanco(testesAtivos, 'ab_tests', falhas, 'ler') !== 'ok') continue
+      const activeTestVideos = testesAtivos.data
 
       const activeVideoIds = new Set((activeTestVideos ?? []).map(t => t.youtube_video_id))
       const candidates = filterFatigueCandidates(allVideos ?? [], activeVideoIds)
 
       for (const candidate of candidates) {
         const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10)
-        const { data: metrics } = await supabase
+        const metricasLidas = await supabase
           .from('youtube_video_analytics')
           .select('date, views')
           .eq('youtube_video_id', candidate.id)
           .gte('date', sixtyDaysAgo)
           .order('date', { ascending: true })
+        if (conferirBanco(metricasLidas, 'youtube_video_analytics', falhas, 'ler') !== 'ok') continue
+        const metrics = metricasLidas.data
 
         if (!metrics?.length) continue
 
@@ -308,23 +334,26 @@ export async function GET(req: NextRequest) {
         )
 
         if (result?.isFatigued) {
-          const { data: existing } = await supabase
+          const alertaLido = await supabase
             .from('youtube_fatigue_alerts')
             .select('id')
             .eq('video_id', candidate.id)
             .eq('status', 'pending')
             .limit(1)
             .maybeSingle()
+          // Sem saber se já há alerta pendente, não insere: leitura falha não é "não existe".
+          if (conferirBanco(alertaLido, 'youtube_fatigue_alerts', falhas, 'ler') !== 'ok') continue
+          const existing = alertaLido.data
 
           if (!existing) {
-            await supabase.from('youtube_fatigue_alerts').insert({
+            const gravouAlerta = await supabase.from('youtube_fatigue_alerts').insert({
               video_id: candidate.id,
               site_id: siteId,
               z_score: result.zScore,
               expected_ctr: result.expectedViews,
               actual_ctr: result.actualViews,
             })
-            fatigueAlerts++
+            if (conferirBanco(gravouAlerta, 'youtube_fatigue_alerts', falhas) === 'ok') fatigueAlerts++
           }
         }
       }
@@ -333,21 +362,144 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  if (errors > 0) {
-    await recordCronFailure('sync-analytics-metrics', joinNotes(errorDetails))
-  } else if (channels.length > skippedNoConnection.length && emptyReports === channels.length - skippedNoConnection.length) {
-    // Every channel came back with zero rows for the window. One channel alone doing this is
-    // legitimate (e.g. a brand-new channel with nothing published yet), but ALL of them at
-    // once — with no HTTP error — is the same silent-failure shape this fix closes: a scope
-    // loss, a window regression, or an API contract change that a naive errors:0 check would
-    // never catch. Do not call this success.
-    await recordCronFailure(
-      'sync-analytics-metrics',
-      `all ${channels.length - skippedNoConnection.length} channel(s) returned an empty analytics report for the ${SYNC_WINDOW_DAYS}-day window`,
-    )
+  return {
+    synced,
+    errors,
+    emptyReports,
+    skippedNoConnection: skippedNoConnection.length,
+    notifications: notifications.length,
+    fatigueAlerts,
+    errorDetails,
+  }
+}
+
+/**
+ * Uma fase dos passos novos. `rodarColeta` promete não lançar; se lançar (ou devolver algo fora do
+ * contrato), vira item de falhas[] e a rota segue — nada aqui derruba a parte antiga nem o veredito.
+ */
+async function coletar(
+  supabase: Supabase,
+  relogio: Relogio,
+  fase: 'antes' | 'depois',
+  falhas: string[],
+  metadadosAntes?: MetadadosAntes,
+): Promise<Record<string, unknown>> {
+  try {
+    const r = await rodarColeta({ supabase, relogio, fase, ...(metadadosAntes && { metadadosAntes }) })
+    for (const f of r.falhas) pushUnico(falhas, f)
+    return r.resumo ?? {}
+  } catch (e) {
+    Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', fase } })
+    pushUnico(falhas, `coleta (${fase}): ${describeCronCause(e)}`)
+    return {}
+  }
+}
+
+/**
+ * `resumo.metadados` da fase 'antes', repassado como veio à fase 'depois'. Quando o passo foi
+ * pulado ele pode não trazer `day_pt`: `rodarColeta` valida a forma e trata como "desconhecido".
+ * Aqui só se garante que é um objeto; o que não for objeto não é repassado.
+ */
+function comoMetadadosAntes(x: unknown): MetadadosAntes | undefined {
+  return typeof x === 'object' && x !== null ? (x as MetadadosAntes) : undefined
+}
+
+/** Tira `acao_do_dono` do resumo de uma fase: ele sai num campo próprio da resposta, nunca em falhas[]. */
+function separarAcaoDoDono(resumo: Record<string, unknown>): { resto: Record<string, unknown>; acao: unknown[] } {
+  const { acao_do_dono: acao, ...resto } = resumo
+  return { resto, acao: Array.isArray(acao) ? acao : [] }
+}
+
+export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get('authorization')
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Um relógio só para o pedido inteiro: é o mesmo objeto nas duas fases da coleta e na parte antiga.
+  const relogio = criarRelogio()
+  const supabase = getSupabaseServiceClient()
+
+  const { data: channels, error: channelsError } = await supabase
+    .from('youtube_channels')
+    .select('id, channel_id, site_id, subscriber_count, name')
+    .eq('sync_enabled', true)
+
+  // A dropped query error used to fall through to `channels === null` →
+  // `channels.length === 0` → recordCronSuccess + HTTP 200 — the system
+  // ASSERTING it's healthy about a DB error it never looked at. Distinguish
+  // "the query failed" from "the query genuinely returned zero rows".
+  // É o único registro fora do veredito: nenhum passo rodou.
+  if (channelsError) {
+    Sentry.captureMessage(`sync-analytics-metrics: channels query failed: ${channelsError.message}`)
+    // O texto do Postgres fica só no Sentry (acima); a nota gravada e a resposta são legíveis e sem ele.
+    await recordCronFailure('sync-analytics-metrics', 'database error listing the YouTube channels')
+    return NextResponse.json({ error: 'channels query failed' }, { status: 500 })
+  }
+
+  const lista: ChannelRow[] = channels ?? []
+
+  // A parte antiga e os passos novos só ACUMULAM falhas (sem duplicatas); o veredito é um só, no fim.
+  // Ordem do spec: metadados → 1A → o que o cron já fazia → 1C.
+  const falhas: string[] = []
+
+  const coletaAntes = await coletar(supabase, relogio, 'antes', falhas)
+
+  // Com a leitura da rota vazia a parte antiga não tem o que fazer, mas a coleta roda igual: ela lê
+  // todos os canais por conta própria (o passo de metadados não depende de sync_enabled).
+  let antiga: ParteAntiga | null = null
+  let msExistente = 0
+  if (lista.length > 0) {
+    const inicio = Date.now()
+    try {
+      antiga = await parteAntiga(supabase, lista, relogio, falhas)
+      const comConexao = lista.length - antiga.skippedNoConnection
+      if (antiga.errors > 0) {
+        for (const d of antiga.errorDetails) pushUnico(falhas, d)
+      } else if (comConexao > 0 && antiga.emptyReports === comConexao) {
+        // Every channel came back with zero rows for the window. One channel alone doing this is
+        // legitimate (e.g. a brand-new channel with nothing published yet), but ALL of them at
+        // once — with no HTTP error — is the same silent-failure shape this fix closes: a scope
+        // loss, a window regression, or an API contract change that a naive errors:0 check would
+        // never catch. Do not call this success.
+        pushUnico(falhas, `all ${comConexao} channel(s) returned an empty analytics report for the ${SYNC_WINDOW_DAYS}-day window`)
+      }
+    } catch (e) {
+      Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', fase: 'existente' } })
+      pushUnico(falhas, `parte existente: ${describeCronCause(e)}`)
+    }
+    msExistente = Date.now() - inicio
+  }
+
+  const coletaDepois = await coletar(supabase, relogio, 'depois', falhas, comoMetadadosAntes(coletaAntes.metadados))
+
+  const antes = separarAcaoDoDono(coletaAntes)
+  const depois = separarAcaoDoDono(coletaDepois)
+  const extras = {
+    ms_existente: msExistente,
+    coleta: { ...antes.resto, ...depois.resto },
+    // União das duas fases: 'antes' traz os estados dos jobs, 'depois' os dos critérios de relatório.
+    acao_do_dono: [...new Set([...antes.acao, ...depois.acao])],
+    ...(falhas.length > 0 && { falhas }),
+  }
+  const corpo = lista.length === 0
+    ? { status: 'no_channels', ...extras }
+    : {
+        synced: antiga?.synced ?? 0,
+        errors: antiga?.errors ?? 0,
+        emptyReports: antiga?.emptyReports ?? 0,
+        skipped_no_connection: antiga?.skippedNoConnection ?? 0,
+        notifications: antiga?.notifications ?? 0,
+        fatigueAlerts: antiga?.fatigueAlerts ?? 0,
+        ...(antiga && antiga.errorDetails.length > 0 && { errorDetails: antiga.errorDetails }),
+        ...extras,
+      }
+
+  // Veredito único: nenhum passo chama recordCron* por conta própria.
+  if (falhas.length > 0) {
+    await recordCronFailure('sync-analytics-metrics', joinNotes(falhas))
   } else {
     await recordCronSuccess('sync-analytics-metrics')
   }
-
-  return NextResponse.json({ synced, errors, emptyReports, skipped_no_connection: skippedNoConnection.length, notifications: notifications.length, fatigueAlerts, ...(errorDetails.length > 0 && { errorDetails }) })
+  return NextResponse.json(corpo)
 }
