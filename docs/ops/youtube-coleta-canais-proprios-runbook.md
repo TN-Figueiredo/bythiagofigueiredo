@@ -143,7 +143,7 @@ Quais tipos o canal recebe só a primeira execução responde; anote aqui: (pree
 
 ### `<canal>: reautorizar`
 Texto do aviso: "O canal <nome> perdeu a autorização do YouTube. A coleta parou. Reconecte o canal em Configurações."
-O canal perdeu a autorização: token revogado, 401 da Analytics API ou da Data API, 403 por permissão insuficiente, ou "sem conexão" com uma conexão revogada desse canal. `youtube_channels.collection_status` vira `reautorizar`. A coleta por token para para ele (sem `privacy_status`, sem jobs novos, sem relatórios, sem analytics por janela). O passo de metadados continua gravando a linha do dia com o que há em `youtube_videos`. Nada é apagado. Um 401 **da Reporting API** não entra aqui: é `sem_acesso`.
+O canal perdeu a autorização: token revogado, 401 da Analytics API ou da Data API, 403 por permissão insuficiente, ou "sem conexão" com uma conexão revogada desse canal. `youtube_channels.collection_status` vira `reautorizar`. Enquanto o token não funciona, a coleta por token fica parada para ele (sem `privacy_status`, sem jobs novos, sem relatórios, sem analytics por janela). O cron continua tentando todo dia: se o token renova, as chamadas são feitas, e é assim que o canal pode voltar sozinho (item 2). O passo de metadados grava a linha do dia de qualquer jeito, com o que há em `youtube_videos`. Nada é apagado. Um 401 **da Reporting API** não entra aqui: é `sem_acesso`.
 1. Reconecte o canal em `/cms/social/accounts` (botão do YouTube, escolhendo a conta dona do canal). Ao voltar do Google o canal volta a `ok` na hora e o aviso é liberado.
 2. Sem reconectar, o canal só volta a `ok` no fim de uma execução do cron em que teve pelo menos uma chamada autenticada bem-sucedida (`videos.list` ou Analytics API) e **nenhuma** negação de autorização; aí chega "A coleta do canal <nome> voltou ao normal." O token voltar a renovar, sozinho, não basta: evita que o estado oscile no mesmo dia quando o refresh passa e a API nega.
 3. Um canal em `reautorizar` cuja conexão foi apagada continua em `reautorizar` até ser reconectado.
@@ -152,7 +152,7 @@ O canal perdeu a autorização: token revogado, 401 da Analytics API ou da Data 
 npx supabase db query --linked "select name, collection_status, authorization_verified_at from youtube_channels order by 1 limit 10"
 ```
 
-Você recebe um aviso na entrada e um lembrete a cada 7 dias enquanto durar. Enquanto o canal está em `reautorizar`, o aviso antigo "Canal do YouTube sem conexão" não é enviado para ele.
+Você recebe um aviso na entrada e um lembrete a cada 7 dias enquanto alguma chamada continuar sendo negada. No dia em que o canal volta a `ok`, `acao_do_dono` já não traz a nota dele. Enquanto o canal está em `reautorizar`, o aviso antigo "Canal do YouTube sem conexão" não é enviado para ele.
 
 ### Canal sem conexão (nunca conectado)
 Canal cadastrado que nunca teve conexão OAuth (ou cuja conexão foi apagada, não revogada): é pulado nos passos que precisam de token, com tentativa `sem_conexao`. Não muda `collection_status`.
@@ -181,6 +181,8 @@ Cada nota vira texto em `cron_health.last_error` (juntas, até 500 caracteres) e
 | `metadados: <canal>: a captura pela videos.list não coube em 8 s` | a Data API (ou a renovação do token) demorou além do teto da captura; as linhas do dia foram gravadas, sem `privacy_status` | transitório; se repetir 3 dias, olhe `ms_passos.metadados` em `yt_own_collection_runs` |
 | `canais: <causa>` | a conferência de "canal com vídeos no YouTube e nenhum cadastrado" lançou exceção | Sentry (tag `passo: canais`) |
 | `metadados: privacy_status desconhecido "<valor>"` | o YouTube devolveu um valor de privacidade fora de `public`, `unlisted`, `private`; a linha foi gravada sem o campo | migration alargando o `check` de `yt_own_video_meta_daily.privacy_status` e a lista `PRIVACIDADES` em `meta-step.ts` |
+| `database error listing the YouTube channels` (só em `cron_health.last_error`; a resposta é 500) | a rota não conseguiu ler `youtube_channels` nem na segunda tentativa: nenhum passo rodou, nem a linha de metadados do dia | ver o Sentry e o log do Supabase; rode o cron à mão (seção 3) assim que o banco voltar, ainda no mesmo dia |
+| `critérios: não foi possível avaliar canais sem vídeos cadastrados (youtube_videos): contagem ausente` | a contagem de vídeos de um canal veio sem número | transitório; se repetir, Sentry |
 | `erro de banco ao ler <onde>` / `erro de banco ao gravar <onde>` | a leitura ou a escrita foi recusada (não é tabela ausente) | ver o Sentry; costuma ser transitório. Se repetir 2 dias, olhe `cron_health` e o log do Supabase |
 | `critérios: não foi possível avaliar <critério> (<tabela>)` | a leitura de um critério falhou; o cron não afirma verde sem ter olhado | resolva a nota `erro de banco …` que vem junto |
 | `critérios: … leitura cortada em 1000` ou `… contagem ausente` | a leitura bateu no corte de 1000 linhas (veja "Limites conhecidos") | com poucos canais não deve acontecer; abra o Sentry |
