@@ -504,6 +504,19 @@ describe('sync-analytics-metrics: veredito único', () => {
     expect(recordCronFailure).not.toHaveBeenCalled()
   })
 
+  it('vazios_sem_publicacao da fase depois sai em coleta na resposta e não deixa o cron vermelho', async () => {
+    banco()
+    vi.mocked(rodarColeta).mockImplementation(async (ctx) =>
+      ctx.fase === 'antes'
+        ? { falhas: [], resumo: {} }
+        : { falhas: [], resumo: { perdidos: 0, atrasados: 0, vazios_sem_publicacao: ['Canal Sem Vídeo'] } })
+    const body = await (await GET(pedido() as never)).json()
+    expect(body.coleta.vazios_sem_publicacao).toEqual(['Canal Sem Vídeo'])
+    expect(body.falhas).toBeUndefined()
+    expect(recordCronSuccess).toHaveBeenCalledTimes(1)
+    expect(recordCronFailure).not.toHaveBeenCalled()
+  })
+
   it('acao_do_dono com falha ao lado: a nota leva só a falha', async () => {
     banco()
     vi.mocked(rodarColeta).mockImplementation(async (ctx) =>

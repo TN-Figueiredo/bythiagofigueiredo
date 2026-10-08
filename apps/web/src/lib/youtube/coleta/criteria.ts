@@ -45,6 +45,8 @@ export interface CriteriosRelatorios {
   atrasados: number
   /** Jobs em `sem_acesso`, `api_nao_ativada`, `tipo_indisponivel`: só o dono resolve, nunca vão para falhas[]. */
   acao_do_dono?: string[]
+  /** Nomes dos canais com 4 relatórios de alcance vazios seguidos que NÃO publicaram nos últimos 90 dias: informação, nunca falha. */
+  vazios_sem_publicacao?: string[]
 }
 
 interface Recente {
@@ -72,6 +74,26 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
   const corte14 = iso(agora - 14 * DIA_MS)
   const corte6 = agora - 6 * DIA_MS
   const nome = (id: string): string => ctx.channels.find(c => c.id === id)?.name ?? id
+
+  // "O canal publicou nos últimos 90 dias?" — uma contagem por canal, guardada. `null` = a leitura falhou
+  // (a falha de avaliação já entrou em falhas[]): quem chama nunca trata `null` como "não publicou".
+  const publicouCache = new Map<string, boolean>()
+  const publicou = async (canalId: string): Promise<boolean | null> => {
+    const sabido = publicouCache.get(canalId)
+    if (sabido !== undefined) return sabido
+    const v = await ctx.supabase
+      .from('youtube_videos')
+      .select('id', { count: 'exact', head: true })
+      .eq('channel_id', canalId)
+      .gte('published_at', iso(agora - 90 * DIA_MS))
+    if (!leituraOk(v, 'youtube_videos', `vídeos recentes do canal ${nome(canalId)}`, ctx.falhas)) return null
+    if (v.count == null) {
+      naoAvaliou(ctx.falhas, `vídeos recentes do canal ${nome(canalId)} (youtube_videos): contagem ausente`)
+      return null
+    }
+    publicouCache.set(canalId, v.count > 0)
+    return v.count > 0
+  }
 
   // Relatórios de ALCANCE dos últimos 14 dias, do mais novo para o mais velho (2 tipos por canal: cabe em 1000
   // com dezenas de canais; ler os 4 tipos estouraria o corte nas primeiras semanas). Não depende de haver job ativo.
@@ -101,7 +123,11 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
       const ultimos = lista.slice(0, 4)
       if (ultimos.length === 4 && ultimos.every(r => r.status === 'vazio')) {
         const r = ultimos[0]!
-        pushUnico(ctx.falhas, `relatórios: ${nome(r.channel_id)} recebeu 4 relatórios ${r.report_type_id} vazios seguidos`)
+        // Diverge de propósito do texto da seção 9 do spec: canal sem publicação em 90 dias recebe relatório só com cabeçalho todo dia, e isso não é falha.
+        const p = await publicou(r.channel_id)
+        if (p === null) continue // não foi possível avaliar: a nota própria já está em falhas[]
+        if (p) pushUnico(ctx.falhas, `relatórios: ${nome(r.channel_id)} recebeu 4 relatórios ${r.report_type_id} vazios seguidos`)
+        else pushUnico((out.vazios_sem_publicacao ??= []), nome(r.channel_id))
       }
     }
   }
@@ -214,23 +240,10 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     if (semConexao.has(id)) out.acao_do_dono!.push(`${nome(id)}: sem conexão com o YouTube`)
   }
 
-  const publicou = new Map<string, boolean>() // por canal: uma leitura por canal candidato (<= nº de canais)
+  // Por canal: no máximo uma leitura por canal candidato (<= nº de canais), a mesma do critério dos vazios.
   for (const j of semNovo) {
     if (semConexao.has(j.channel_id)) continue
-    if (!publicou.has(j.channel_id)) {
-      const v = await ctx.supabase
-        .from('youtube_videos')
-        .select('id', { count: 'exact', head: true })
-        .eq('channel_id', j.channel_id)
-        .gte('published_at', iso(agora - 90 * DIA_MS))
-      if (!leituraOk(v, 'youtube_videos', `vídeos recentes do canal ${nome(j.channel_id)}`, ctx.falhas)) continue
-      if (v.count == null) {
-        naoAvaliou(ctx.falhas, `vídeos recentes do canal ${nome(j.channel_id)} (youtube_videos): contagem ausente`)
-        continue
-      }
-      publicou.set(j.channel_id, v.count > 0)
-    }
-    if (publicou.get(j.channel_id)) {
+    if (await publicou(j.channel_id)) {
       pushUnico(ctx.falhas, `relatórios: ${nome(j.channel_id)} está sem relatório novo de ${j.report_type_id} há mais de 6 dias`)
     }
   }

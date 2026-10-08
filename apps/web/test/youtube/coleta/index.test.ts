@@ -77,6 +77,17 @@ describe('rodarColeta', () => {
     expect(criterioOrcamento).toHaveBeenCalledWith(expect.anything(), ['meta', 'thumbnail', 'sondagem', 'relatorio'])
   })
 
+  it('fase depois: vazios_sem_publicacao do critério chega ao resumo; ausente vira lista vazia, e nunca entra em falhas', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    const sem = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    expect(sem.resumo.vazios_sem_publicacao).toEqual([])
+
+    vi.mocked(criteriosRelatorios).mockResolvedValue({ perdidos: 0, atrasados: 0, acao_do_dono: [], vazios_sem_publicacao: ['Canal Um'] })
+    const com = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    expect(com.resumo.vazios_sem_publicacao).toEqual(['Canal Um'])
+    expect(com.falhas).toEqual([])
+  })
+
   it('fase depois com o resultado de metadados do antes: criterioMetadados recebe dia e dias_sem_meta', async () => {
     const db = fakeSupabase({ youtube_channels: canais })
     vi.mocked(criterioMetadados).mockResolvedValue({ desconhecido: ['Canal Dois'] })

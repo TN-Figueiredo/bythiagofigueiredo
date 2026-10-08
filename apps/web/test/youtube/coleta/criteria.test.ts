@@ -61,16 +61,48 @@ describe('criteriosRelatorios', () => {
     expect(ctx.falhas).toEqual([])
   })
 
-  it('4 relatórios de alcance vazios seguidos é falha; 3 vazios e um baixado, não', async () => {
-    const quatro = fakeSupabase({ yt_reporting_reports: [rel('a', 'vazio', 1), rel('b', 'vazio', 2), rel('c', 'vazio', 3), rel('d', 'vazio', 4), rel('e', 'baixado', 5)] })
+  it('4 relatórios de alcance vazios seguidos, em canal que publicou há 10 dias, é falha; 3 vazios e um baixado, não', async () => {
+    const publicou = { id: 'v1', channel_id: 'ch-1', published_at: ha(10) }
+    const quatro = fakeSupabase({
+      yt_reporting_reports: [rel('a', 'vazio', 1), rel('b', 'vazio', 2), rel('c', 'vazio', 3), rel('d', 'vazio', 4), rel('e', 'baixado', 5)],
+      youtube_videos: [publicou],
+    })
     const c1 = ctxDe(quatro)
-    await criteriosRelatorios(c1)
+    const r1 = await criteriosRelatorios(c1)
     expect(c1.falhas).toEqual(['relatórios: Canal Um recebeu 4 relatórios channel_reach_basic_a1 vazios seguidos'])
+    expect(r1.vazios_sem_publicacao ?? []).toEqual([])
 
-    const tres = fakeSupabase({ yt_reporting_reports: [rel('a', 'vazio', 1), rel('b', 'vazio', 2), rel('c', 'baixado', 3), rel('d', 'vazio', 4)] })
+    const tres = fakeSupabase({
+      yt_reporting_reports: [rel('a', 'vazio', 1), rel('b', 'vazio', 2), rel('c', 'baixado', 3), rel('d', 'vazio', 4)],
+      youtube_videos: [publicou],
+    })
     const c2 = ctxDe(tres)
     await criteriosRelatorios(c2)
     expect(c2.falhas).toEqual([])
+  })
+
+  it('4 vazios seguidos em canal SEM vídeo (ou sem publicar há mais de 90 dias): não é falha, o canal sai em vazios_sem_publicacao', async () => {
+    const vazios = [
+      ...['a', 'b', 'c', 'd'].map((id, i) => rel(id, 'vazio', i + 1)),
+      ...['e', 'f', 'g', 'h'].map((id, i) => rel(id, 'vazio', i + 1, 'channel_reach_combined_a1')),
+    ]
+    for (const videos of [[], [{ id: 'v1', channel_id: 'ch-1', published_at: ha(120) }]] as Row[][]) {
+      const ctx = ctxDe(fakeSupabase({ yt_reporting_reports: vazios, youtube_videos: videos }))
+      const r = await criteriosRelatorios(ctx)
+      expect(ctx.falhas).toEqual([])
+      // Dois tipos de alcance vazios no mesmo canal: o nome aparece uma vez só.
+      expect(r.vazios_sem_publicacao).toEqual(['Canal Um'])
+    }
+  })
+
+  it('4 vazios seguidos e a leitura das publicações falha: "não foi possível avaliar", nunca verde nem vazios_sem_publicacao', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: ['a', 'b', 'c', 'd'].map((id, i) => rel(id, 'vazio', i + 1)) })
+    db.errors.youtube_videos = { code: '57014', message: 'timeout' }
+    const ctx = ctxDe(db)
+    const r = await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toContain('critérios: não foi possível avaliar vídeos recentes do canal Canal Um (youtube_videos)')
+    expect(ctx.falhas.some(f => f.includes('vazios seguidos'))).toBe(false)
+    expect(r.vazios_sem_publicacao ?? []).toEqual([])
   })
 
   it('relatório listado há mais de 14 dias é falha e conta em atrasados', async () => {
@@ -334,6 +366,29 @@ describe('jobs em erro: só erro_http conta', () => {
     const ctx = ctxDe(db)
     await criterioJobsEmErro(ctx)
     expect(ctx.falhas).toHaveLength(1)
+  })
+})
+
+describe('orçamento do kind thumbnail (prazo que acaba no meio da captura)', () => {
+  it('thumbnail sem alcançar nas 3 últimas tentativas do vídeo: falha; com um ok ou erro_http no meio, não', async () => {
+    const tres = ctxDe(fakeSupabase({
+      yt_own_collection_attempts: [0, 1, 2].map(d => tentativa('video', 'yt-1', 'thumbnail', 'nao_alcancado_orcamento', d)),
+    }))
+    await criterioOrcamento(tres, ['meta', 'thumbnail', 'sondagem', 'relatorio'])
+    expect(tres.falhas).toEqual(['orçamento: 1 escopo(s) de thumbnail sem alcançar nas 3 últimas tentativas'])
+
+    for (const meio of ['ok', 'erro_http']) {
+      const ctx = ctxDe(fakeSupabase({
+        yt_own_collection_attempts: [
+          tentativa('video', 'yt-1', 'thumbnail', 'nao_alcancado_orcamento', 0),
+          tentativa('video', 'yt-1', 'thumbnail', meio, 1),
+          tentativa('video', 'yt-1', 'thumbnail', 'nao_alcancado_orcamento', 2),
+          tentativa('video', 'yt-1', 'thumbnail', 'nao_alcancado_orcamento', 3),
+        ],
+      }))
+      await criterioOrcamento(ctx, ['thumbnail'])
+      expect(ctx.falhas).toEqual([])
+    }
   })
 })
 

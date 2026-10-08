@@ -133,6 +133,8 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
       rel = { ...(rel ?? {}), perdidos: c.perdidos, atrasados: c.atrasados }
       resumo.perdidos = c.perdidos
       resumo.atrasados = c.atrasados
+      // Sempre presente: lista vazia = o critério rodou e nenhum canal está nessa situação.
+      resumo.vazios_sem_publicacao = c.vazios_sem_publicacao ?? []
       if (c.acao_do_dono) resumo.acao_do_dono = c.acao_do_dono
     } catch (e) {
       falhou('relatorios', e)
