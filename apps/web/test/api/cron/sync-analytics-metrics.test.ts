@@ -382,7 +382,7 @@ describe('autorização e linha da execução (L1b)', () => {
     expect(marcarReautorizar).toHaveBeenCalledTimes(1)
   })
 
-  it('canal que a fase "antes" já devolveu em reautorizar: pulado sem aviso antigo e sem marcar de novo', async () => {
+  it('canal que a fase "antes" já devolveu em reautorizar: pulado sem aviso antigo e sem reler as conexões, mas marcado de novo (é o que pede o lembrete)', async () => {
     umCanal({ id: 'ch-1' })
     mockRodarColeta
       .mockResolvedValueOnce({ falhas: [], resumo: { reautorizar: ['ch-1'], ms: { metadados: 10, jobs: 5 } } })
@@ -391,12 +391,12 @@ describe('autorização e linha da execução (L1b)', () => {
     const corpo = await (await pedir()).json()
     expect(corpo).toMatchObject({ sem_autorizacao: 1, skipped_no_connection: 0 })
     expect(classificarErroDeToken).not.toHaveBeenCalled()
-    expect(marcarReautorizar).not.toHaveBeenCalled()
+    expect(marcarReautorizar).toHaveBeenCalledTimes(1)
     expect(avisosAntigos()).toEqual([])
     expect(corpo.coleta.ms).toEqual({ metadados: 10, jobs: 5, relatorios: 7 })
   })
 
-  it('canal que a fase "antes" já devolveu em reautorizar e a Analytics API nega: não marca de novo, mas a negação chega à fase "depois"', async () => {
+  it('canal que a fase "antes" já devolveu em reautorizar e a Analytics API nega (403 insufficientPermissions): marcarReautorizar chamado 1 vez com o canal, e a negação chega à fase "depois"', async () => {
     umCanal({ id: 'ch-1', collection_status: 'reautorizar' })
     mockRodarColeta
       .mockResolvedValueOnce({ falhas: [], resumo: { reautorizar: ['ch-1'], autorizados: ['ch-1'], negados: [] } })
@@ -404,8 +404,43 @@ describe('autorização e linha da execução (L1b)', () => {
     analyticsResponde(403, { error: { errors: [{ reason: 'insufficientPermissions' }] } })
     const corpo = await (await pedir()).json()
     expect(corpo).toMatchObject({ sem_autorizacao: 1 })
-    expect(marcarReautorizar).not.toHaveBeenCalled()
+    // Sem esta chamada, do dia 2 em diante ninguém pedia o lembrete de 7 dias quando SÓ a Analytics negava.
+    expect(marcarReautorizar).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(marcarReautorizar).mock.calls[0]![1]).toMatchObject({ id: 'ch-1', collection_status: 'reautorizar' })
+    expect(classificarErroDeToken).not.toHaveBeenCalled()
     expect(mockRodarColeta.mock.calls[1]![0]).toMatchObject({ fase: 'depois', autorizadosAntes: ['ch-1'], negadosAntes: ['ch-1'] })
+  })
+
+  it('canal que voltou a ok no fim da execução: a nota "reautorizar" da fase "antes" sai de acao_do_dono, na resposta e na linha gravada', async () => {
+    umCanal({ id: 'ch-1' })
+    analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })
+    mockRodarColeta
+      .mockResolvedValueOnce({ falhas: [], resumo: { acao_do_dono: ['Canal Um: reautorizar', 'Outro: api_nao_ativada'] } })
+      .mockResolvedValueOnce({ falhas: [], resumo: { reautorizar: [], acao_do_dono: [] } })
+    const corpo = await (await pedir()).json()
+    expect(corpo.acao_do_dono).toEqual(['Outro: api_nao_ativada'])
+    expect(runsInseridos[0]!.acao_do_dono).toEqual(['Outro: api_nao_ativada'])
+  })
+
+  it('canal que continua em reautorizar no fim: a nota vem da fase "depois" e fica', async () => {
+    umCanal({ id: 'ch-1' })
+    analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })
+    mockRodarColeta
+      .mockResolvedValueOnce({ falhas: [], resumo: { acao_do_dono: ['Canal Um: reautorizar', 'Canal Dois: reautorizar'] } })
+      .mockResolvedValueOnce({ falhas: [], resumo: { reautorizar: ['ch-1'], acao_do_dono: ['Canal Um: reautorizar'] } })
+    const corpo = await (await pedir()).json()
+    expect(corpo.acao_do_dono).toEqual(['Canal Um: reautorizar'])
+  })
+
+  it('fase "depois" que não devolveu a chave reautorizar (não leu os canais): as notas da fase "antes" ficam, não sabemos', async () => {
+    umCanal({ id: 'ch-1' })
+    analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })
+    mockRodarColeta
+      .mockResolvedValueOnce({ falhas: [], resumo: { acao_do_dono: ['Canal Um: reautorizar', 'Outro: api_nao_ativada'] } })
+      .mockResolvedValueOnce({ falhas: [], resumo: {} })
+    const corpo = await (await pedir()).json()
+    expect(corpo.acao_do_dono).toEqual(['Canal Um: reautorizar', 'Outro: api_nao_ativada'])
+    expect(runsInseridos[0]!.acao_do_dono).toEqual(['Canal Um: reautorizar', 'Outro: api_nao_ativada'])
   })
 
   it('NoActiveConnectionError de canal nunca conectado: pulo legítimo com o aviso antigo, como hoje', async () => {

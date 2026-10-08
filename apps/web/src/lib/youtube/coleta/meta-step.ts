@@ -415,8 +415,10 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
         captured_at: capturedAt,
       }
       if (!preservar) {
-        linha.title_at_capture = titulo
-        linha.description_sha256 = descHash
+        // Sem captura a linha pode já existir sem que se saiba (dia ilegível ou leitura cortada): um título ou uma
+        // descrição nulos em youtube_videos não podem apagar o que a 1ª execução gravou. Com captura, vale o que veio.
+        if (cap || titulo !== null) linha.title_at_capture = titulo
+        if (cap || descHash !== null) linha.description_sha256 = descHash
         linha.tags_sha256 = tagsHash
       }
       // Nulo, nunca zero.

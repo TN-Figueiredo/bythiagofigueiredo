@@ -260,7 +260,7 @@ describe('rodarColeta: L1b', () => {
     expect(r.resumo.acao_do_dono).toEqual([])
   })
 
-  it('contagem de youtube_videos que volta nula sem erro: ausente não é zero, nenhuma nota', async () => {
+  it('contagem de youtube_videos que volta nula sem erro: ausente não é zero — nenhuma nota "o YouTube informa…", e a falha de contagem ausente', async () => {
     const db = fakeSupabase({ youtube_channels: [canalL1b({ id: 'ch-1', name: 'Com Vídeos', video_count: 12 })], youtube_videos: [] })
     const cliente = {
       ...db.client,
@@ -272,7 +272,7 @@ describe('rodarColeta: L1b', () => {
     vi.mocked(passoJobs).mockResolvedValue({ ...resumoVazio, acao_do_dono: [], tipo_indisponivel: [], estados: {} })
     const r = await rodarColeta({ supabase: cliente, relogio: criarRelogio(), fase: 'antes' })
     expect(r.resumo.acao_do_dono).toEqual([])
-    expect(r.falhas).toEqual([])
+    expect(r.falhas).toEqual(['critérios: não foi possível avaliar canais sem vídeos cadastrados (youtube_videos): contagem ausente'])
   })
 
   /** Cliente fino em volta do banco em memória: a leitura de canais que pede `collection_status` devolve 42703, como o Postgres sem a migration. */

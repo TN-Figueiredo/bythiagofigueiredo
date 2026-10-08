@@ -388,7 +388,8 @@ describe('passoMetadados: dado que não existe', () => {
     const db = fakeSupabase({ youtube_videos: [video(1, { description: null })] })
     await passoMetadados(ctxDe(db))
     const l = linha(db, 'yt-1')!
-    expect(l.description_sha256).toBeNull()
+    // Sem captura, o hash nulo fica FORA do payload (no primeiro dia o banco põe NULL): nulo, e nunca o hash de ''.
+    nula(l, 'description_sha256')
     expect(l.description_text).toBeUndefined()
   })
 })
@@ -1018,6 +1019,22 @@ describe('passoMetadados: onda de correção final (L1b)', () => {
     expect(linha(db, 'yt-1')).toMatchObject({
       title_at_capture: 'Título 1', description_sha256: sha('Descrição 1'), tags_sha256: sha(JSON.stringify(['a', 'b'])),
       duration_seconds: 600, description_text: 'Descrição 1', tags: ['a', 'b'], is_short: false,
+    })
+  })
+
+  it('2ª execução sem captura, dia ilegível e youtube_videos com título e descrição nulos: não apaga o título nem o hash que a 1ª gravou', async () => {
+    comToken()
+    vi.mocked(videosList).mockResolvedValueOnce(new Map([cap(1)]))
+    const db = fakeSupabase({ youtube_videos: [video(1, { title: null, description: null })], youtube_channels: canais() })
+    await passoMetadados(ctxDe(db))
+    expect(linha(db, 'yt-1')).toMatchObject({ title_at_capture: 'Título API 1', description_sha256: sha('Descrição API 1') })
+
+    vi.mocked(videosList).mockRejectedValueOnce(new DataApiError(503, null))
+    comDiaIlegivel(db)
+    const resumo = await passoMetadados(ctxDe(db))
+    expect(resumo.gravados).toBe(1)
+    expect(linha(db, 'yt-1')).toMatchObject({
+      title_at_capture: 'Título API 1', description_sha256: sha('Descrição API 1'), description_text: 'Descrição API 1',
     })
   })
 

@@ -93,15 +93,16 @@ async function parteAntiga(
   // As tentativas de autorizacao.ts ficam nesta lista descartável: a parte antiga não registra tentativas.
   // `marcarAutorizado` e `marcarReautorizar` preenchem os dois conjuntos da execução.
   const aut = { supabase, falhas, tentativas: [] as Tentativa[], ...conjuntos }
-  /** Marca (se ainda não estava), conta e segue: perder a autorização é ação do dono, não erro do cron. */
+  /** Marca, conta e segue: perder a autorização é ação do dono, não erro do cron. */
   const perdeuAutorizacao = async (channel: ChannelRow): Promise<void> => {
-    // A negação fica registrada mesmo para o canal que a fase 'antes' já devolveu marcado: é ela que impede a fase
-    // 'depois' de devolvê-lo a `ok` por causa de uma chamada que passou mais cedo na mesma execução.
+    // A negação fica registrada na execução: é ela que impede a fase 'depois' de devolver o canal a `ok` por causa de
+    // uma chamada que passou mais cedo.
     conjuntos.negados.add(channel.id)
-    if (!reautorizar.has(channel.id)) {
-      await marcarReautorizar(aut, comoCanalDaColeta(channel, false))
-      reautorizar.add(channel.id)
-    }
+    // SEMPRE, também para o canal que a fase 'antes' já trouxe marcado: a gravação é idempotente e é esta chamada
+    // que pede o lembrete de 7 dias (o carimbo evita aviso repetido). Sem ela, quando só a Analytics negava, o dono
+    // recebia um aviso e nunca mais.
+    await marcarReautorizar(aut, comoCanalDaColeta(channel, reautorizar.has(channel.id)))
+    reautorizar.add(channel.id)
     semAutorizacao++
   }
   // Canal cadastrado mas sem conexão OAuth viva (recém-cadastrado, ou conexão revogada): é
@@ -579,7 +580,12 @@ export async function GET(req: NextRequest) {
     typeof x === 'object' && x !== null ? Object.fromEntries(Object.entries(x).filter((e): e is [string, number] => typeof e[1] === 'number')) : {}
   const msPassos = { ...comoMs(coletaAntes.ms), ...comoMs(coletaDepois.ms) }
   // União das duas fases: 'antes' traz os estados dos jobs, 'depois' os dos critérios de relatório.
-  const acaoDoDono = [...new Set([...antes.acao, ...depois.acao])].filter((x): x is string => typeof x === 'string')
+  // "<canal>: reautorizar" é estado de fim de execução: a fase 'depois' relê os canais e decide quem voltou a `ok`.
+  // Quando ela devolveu a chave `reautorizar`, as notas desse tipo válidas são só as dela (senão o canal que voltou a
+  // `ok` hoje ainda apareceria como ação do dono). Sem a chave (não leu os canais), ficam as da fase 'antes'.
+  const depoisSabe = Array.isArray(coletaDepois.reautorizar)
+  const acaoAntes = depoisSabe ? antes.acao.filter(x => !(typeof x === 'string' && x.endsWith(': reautorizar'))) : antes.acao
+  const acaoDoDono = [...new Set([...acaoAntes, ...depois.acao])].filter((x): x is string => typeof x === 'string')
   const resumoColeta = { ...antes.resto, ...depois.resto, ms: msPassos }
 
   // A execução fica gravada: o resumo (tempos por passo, ação do dono, perdidos, vazios) só existia nesta resposta,
