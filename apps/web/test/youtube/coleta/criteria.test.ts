@@ -424,3 +424,99 @@ describe('criterioMetadados', () => {
     }
   })
 })
+
+describe('fix round 1', () => {
+  const video = { id: 'v1', channel_id: 'ch-1', published_at: ha(30) }
+  const msgSemNovo = 'relatórios: Canal Um está sem relatório novo de channel_reach_basic_a1 há mais de 6 dias'
+
+  it('job ativo com job_create_time nulo usa created_at como idade', async () => {
+    const velho = fakeSupabase({ yt_reporting_jobs: [{ ...jobAtivo(0), job_create_time: null, created_at: ha(7) }], youtube_videos: [video] })
+    const c1 = ctxDe(velho)
+    await criteriosRelatorios(c1)
+    expect(c1.falhas).toEqual([msgSemNovo])
+
+    const novo = fakeSupabase({ yt_reporting_jobs: [{ ...jobAtivo(0), job_create_time: null, created_at: ha(2) }], youtube_videos: [video] })
+    const c2 = ctxDe(novo)
+    await criteriosRelatorios(c2)
+    expect(c2.falhas).toEqual([])
+  })
+
+  it('canal sem conexão hoje vai para acao_do_dono e não para falhas; leitura que falha vira não avaliou', async () => {
+    const seed = {
+      yt_reporting_jobs: [jobAtivo(7), jobAtivo(7, 'channel_reach_combined_a1')],
+      youtube_videos: [video],
+      yt_own_collection_attempts: [tentativa('canal', 'ch-1', 'relatorio', 'sem_conexao', 0)],
+    }
+    const ctx = ctxDe(fakeSupabase(seed))
+    const r = await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual([])
+    expect(r.acao_do_dono).toEqual(['Canal Um: sem conexão com o YouTube'])
+
+    // sem_conexao de ontem não vale: hoje o canal voltou, então o alarme volta
+    const ontem = ctxDe(fakeSupabase({ ...seed, yt_own_collection_attempts: [tentativa('canal', 'ch-1', 'relatorio', 'sem_conexao', 1)] }))
+    await criteriosRelatorios(ontem)
+    expect(ontem.falhas).toContain(msgSemNovo)
+
+    const db = fakeSupabase(seed)
+    db.errors.yt_own_collection_attempts = ERRO
+    const c3 = ctxDe(db)
+    await criteriosRelatorios(c3)
+    expect(naoAvaliou(c3.falhas, 'jobs de alcance sem relatório novo (yt_own_collection_attempts)')).toBe(true)
+    expect(c3.falhas).not.toContain(msgSemNovo)
+  })
+
+  it('listado há mais de 14 dias continua falha mesmo com o canal sem conexão', async () => {
+    const db = fakeSupabase({
+      yt_reporting_reports: [rel('a', 'listado', 15)],
+      yt_own_collection_attempts: [tentativa('canal', 'ch-1', 'relatorio', 'sem_conexao', 0)],
+    })
+    const ctx = ctxDe(db)
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual(['relatórios: 1 relatório(s) listado(s) há mais de 14 dias sem baixar'])
+  })
+
+  describe('job ativo com download falhando', () => {
+    const escopo = 'ch-1:channel_reach_basic_a1'
+    const ativo: Row = { channel_id: 'ch-1', report_type_id: 'channel_reach_basic_a1', status: 'ativo' }
+    const comErro = (d: number, error: string): Row => ({ ...tentativa('job', escopo, 'relatorio', 'erro_http', d), error })
+
+    it('3 dias de erro_http é falha, com o último texto de erro', async () => {
+      const db = fakeSupabase({ yt_reporting_jobs: [ativo], yt_own_collection_attempts: [comErro(0, 'listagem_truncada'), comErro(1, 'HTTP 500'), comErro(2, 'HTTP 500')] })
+      const ctx = ctxDe(db)
+      await criterioJobsEmErro(ctx)
+      expect(ctx.falhas).toEqual(['jobs: Canal Um não consegue baixar o relatório channel_reach_basic_a1 há 3 dias (último erro: listagem_truncada)'])
+    })
+    it('2 dias, ou ok no dia mais recente: verde', async () => {
+      const dois = ctxDe(fakeSupabase({ yt_reporting_jobs: [ativo], yt_own_collection_attempts: [comErro(0, 'x'), comErro(1, 'x')] }))
+      await criterioJobsEmErro(dois)
+      expect(dois.falhas).toEqual([])
+      const ok = ctxDe(fakeSupabase({
+        yt_reporting_jobs: [ativo],
+        yt_own_collection_attempts: [tentativa('job', escopo, 'relatorio', 'ok', 0), comErro(1, 'x'), comErro(2, 'x'), comErro(3, 'x')],
+      }))
+      await criterioJobsEmErro(ok)
+      expect(ok.falhas).toEqual([])
+    })
+  })
+
+  it('relatório de alcance em erro e expirado de outro tipo continuam vistos com leituras separadas por tipo/status', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [rel('a', 'expirado_sem_baixar', 2, 'channel_basic_a3')] })
+    const ctx = ctxDe(db)
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual(['relatórios: Canal Um tem relatório channel_basic_a3 expirado sem baixar'])
+  })
+
+  it('4 tipos de 8 canais não estouram o corte: só o alcance entra na leitura grande', async () => {
+    const muitos: Row[] = []
+    for (let i = 0; i < 1200; i++) muitos.push(rel(`n${i}`, 'baixado', 1, 'channel_basic_a3'))
+    const ctx = ctxDe(fakeSupabase({ yt_reporting_reports: muitos }))
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('jobs desativados não entram na leitura da lista', async () => {
+    const ctx = ctxDe(fakeSupabase({ yt_reporting_jobs: [{ channel_id: 'ch-1', report_type_id: 'channel_reach_basic_a1', status: 'desativado', job_create_time: ha(30), created_at: ha(30) }], youtube_videos: [video] }))
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual([])
+  })
+})

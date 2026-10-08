@@ -60,6 +60,8 @@ interface JobLinha {
   report_type_id: string
   status: string
   job_create_time: string | null
+  /** not null no banco: a idade de reserva quando a API não informou job_create_time. */
+  created_at: string | null
 }
 
 const ESTADOS_DO_DONO: readonly string[] = ['sem_acesso', 'api_nao_ativada', 'tipo_indisponivel']
@@ -71,10 +73,12 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
   const corte6 = agora - 6 * DIA_MS
   const nome = (id: string): string => ctx.channels.find(c => c.id === id)?.name ?? id
 
-  // Relatórios dos últimos 14 dias, do mais novo para o mais velho. Não depende de haver job ativo.
+  // Relatórios de ALCANCE dos últimos 14 dias, do mais novo para o mais velho (2 tipos por canal: cabe em 1000
+  // com dezenas de canais; ler os 4 tipos estouraria o corte nas primeiras semanas). Não depende de haver job ativo.
   const rec = await ctx.supabase
     .from('yt_reporting_reports')
     .select('report_id, channel_id, report_type_id, status, create_time')
+    .in('report_type_id', [...ALCANCE])
     .gte('create_time', corte14)
     .order('create_time', { ascending: false })
     .limit(LIMITE_LEITURA)
@@ -87,10 +91,6 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     }
     const porJob = new Map<string, Recente[]>()
     for (const r of recentes) {
-      if (r.status === 'expirado_sem_baixar') {
-        pushUnico(ctx.falhas, `relatórios: ${nome(r.channel_id)} tem relatório ${r.report_type_id} expirado sem baixar`)
-      }
-      if (!ALCANCE.includes(r.report_type_id)) continue
       if (r.status === 'erro') {
         pushUnico(ctx.falhas, `relatórios: ${nome(r.channel_id)} tem relatório de alcance ${r.report_type_id} em erro`)
       }
@@ -103,6 +103,23 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
         const r = ultimos[0]!
         pushUnico(ctx.falhas, `relatórios: ${nome(r.channel_id)} recebeu 4 relatórios ${r.report_type_id} vazios seguidos`)
       }
+    }
+  }
+
+  // Expirado sem baixar, de qualquer tipo, nos últimos 14 dias: leitura própria, por status (poucas linhas).
+  const exp = await ctx.supabase
+    .from('yt_reporting_reports')
+    .select('report_id, channel_id, report_type_id, status, create_time')
+    .eq('status', 'expirado_sem_baixar')
+    .gte('create_time', corte14)
+    .limit(LIMITE_LEITURA)
+  if (leituraOk(exp, 'yt_reporting_reports', 'relatórios expirados sem baixar', ctx.falhas)) {
+    const lidos = (exp.data ?? []) as Recente[]
+    if (lidos.length >= LIMITE_LEITURA) {
+      naoAvaliou(ctx.falhas, `relatórios expirados sem baixar (yt_reporting_reports): leitura cortada em ${LIMITE_LEITURA}`)
+    }
+    for (const r of lidos) {
+      pushUnico(ctx.falhas, `relatórios: ${nome(r.channel_id)} tem relatório ${r.report_type_id} expirado sem baixar`)
     }
   }
 
@@ -136,37 +153,70 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     .lt('create_time', corte14)
   const okErro = leituraOk(perdErro, 'yt_reporting_reports', 'relatórios perdidos', ctx.falhas)
   const okExp = leituraOk(perdExp, 'yt_reporting_reports', 'relatórios perdidos', ctx.falhas)
-  if (okErro && okExp) out.perdidos = (perdErro.count ?? 0) + (perdExp.count ?? 0)
+  if (okErro && okExp) {
+    if (perdErro.count == null || perdExp.count == null) {
+      naoAvaliou(ctx.falhas, 'relatórios perdidos (yt_reporting_reports): contagem ausente')
+    } else {
+      out.perdidos = perdErro.count + perdExp.count
+    }
+  }
 
   // Jobs: uma leitura só (no máximo canais x tipos linhas) serve ao critério de 6 dias e à lista do dono.
   const jobs = await ctx.supabase
     .from('yt_reporting_jobs')
-    .select('channel_id, report_type_id, status, job_create_time')
+    .select('channel_id, report_type_id, status, job_create_time, created_at')
+    .neq('status', 'desativado')
+    .limit(LIMITE_LEITURA)
   if (!leituraOk(jobs, 'yt_reporting_jobs', 'jobs de alcance sem relatório novo', ctx.falhas)) return out
   const linhasJob = (jobs.data ?? []) as JobLinha[]
+  if (linhasJob.length >= LIMITE_LEITURA) {
+    naoAvaliou(ctx.falhas, `jobs de alcance sem relatório novo (yt_reporting_jobs): leitura cortada em ${LIMITE_LEITURA}`)
+    return out
+  }
 
   for (const j of linhasJob) {
     if (ESTADOS_DO_DONO.includes(j.status)) out.acao_do_dono!.push(`${nome(j.channel_id)}: ${j.report_type_id} em ${j.status}`)
   }
 
   // Job de alcance ativo há mais de 6 dias sem relatório novo, em canal que publicou nos últimos 90 dias.
-  // job_create_time nulo (a API não informou): sem idade não há como afirmar "há mais de 6 dias"; o job não entra aqui.
+  // Idade = job_create_time, ou created_at quando a API não informou (dado ausente não pode calar o alarme).
   const candidatos = linhasJob.filter(j => {
-    if (j.status !== 'ativo' || !ALCANCE.includes(j.report_type_id) || !j.job_create_time) return false
+    if (j.status !== 'ativo' || !ALCANCE.includes(j.report_type_id)) return false
     const canal = ctx.channels.find(c => c.id === j.channel_id)
     if (!canal || !canal.sync_enabled) return false
-    return Date.parse(j.job_create_time) < corte6
+    const idade = j.job_create_time ?? j.created_at
+    return !!idade && Date.parse(idade) < corte6
   })
   if (candidatos.length > 0 && recentes === null) {
     // A leitura dos relatórios falhou lá em cima: sem ela não dá para dizer que há relatório novo.
     naoAvaliou(ctx.falhas, 'jobs de alcance sem relatório novo (yt_reporting_reports)')
     return out
   }
+  const semNovo = candidatos.filter(j => !(recentes ?? []).some(r =>
+    r.channel_id === j.channel_id && r.report_type_id === j.report_type_id && Date.parse(r.create_time) >= corte6))
+  if (semNovo.length === 0) return out
+
+  // Canal sem conexão hoje (token revogado): o passo de relatórios não lista, então "sem relatório novo" é
+  // consequência, não parada. Vai para acao_do_dono, não para falhas. Uma leitura limitada.
+  const canaisSemNovo = [...new Set(semNovo.map(j => j.channel_id))]
+  const sc = await ctx.supabase
+    .from('yt_own_collection_attempts')
+    .select('scope_id')
+    .eq('scope_type', 'canal')
+    .eq('kind', 'relatorio')
+    .eq('attempt_day', utcDay(new Date()))
+    .eq('outcome', 'sem_conexao')
+    .in('scope_id', canaisSemNovo)
+    .limit(LIMITE_LEITURA)
+  if (!leituraOk(sc, 'yt_own_collection_attempts', 'jobs de alcance sem relatório novo', ctx.falhas)) return out
+  const semConexao = new Set(((sc.data ?? []) as Array<{ scope_id: string }>).map(l => l.scope_id))
+  for (const id of canaisSemNovo) {
+    if (semConexao.has(id)) out.acao_do_dono!.push(`${nome(id)}: sem conexão com o YouTube`)
+  }
+
   const publicou = new Map<string, boolean>() // por canal: uma leitura por canal candidato (<= nº de canais)
-  for (const j of candidatos) {
-    const temNovo = (recentes ?? []).some(r =>
-      r.channel_id === j.channel_id && r.report_type_id === j.report_type_id && Date.parse(r.create_time) >= corte6)
-    if (temNovo) continue
+  for (const j of semNovo) {
+    if (semConexao.has(j.channel_id)) continue
     if (!publicou.has(j.channel_id)) {
       const v = await ctx.supabase
         .from('youtube_videos')
@@ -174,7 +224,11 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
         .eq('channel_id', j.channel_id)
         .gte('published_at', iso(agora - 90 * DIA_MS))
       if (!leituraOk(v, 'youtube_videos', `vídeos recentes do canal ${nome(j.channel_id)}`, ctx.falhas)) continue
-      publicou.set(j.channel_id, (v.count ?? 0) > 0)
+      if (v.count == null) {
+        naoAvaliou(ctx.falhas, `vídeos recentes do canal ${nome(j.channel_id)} (youtube_videos): contagem ausente`)
+        continue
+      }
+      publicou.set(j.channel_id, v.count > 0)
     }
     if (publicou.get(j.channel_id)) {
       pushUnico(ctx.falhas, `relatórios: ${nome(j.channel_id)} está sem relatório novo de ${j.report_type_id} há mais de 6 dias`)
@@ -185,22 +239,29 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
 }
 
 /**
- * Job em `erro` por 3 dias: nos 3 dias MAIS RECENTES com tentativa de escopo `job` (não 3 dias de calendário),
- * todos têm `erro_http` e nenhum tem `ok`. Menos de 3 dias de tentativa = ainda cedo (job novo), não é falha.
- * Tentativa de outro resultado (sem_conexao, sem_autorizacao) depende do dono e não pinta este critério.
- * Duas leituras no total, qualquer que seja o número de jobs.
+ * Dois casos, ambos pelas 3 datas MAIS RECENTES com tentativa de escopo `job` (não 3 dias de calendário):
+ *  - job em `erro`: kinds sondagem e relatorio, todos os 3 dias com `erro_http` e nenhum `ok`;
+ *  - job `ativo` cujo DOWNLOAD falha todo dia (kind `relatorio` com `erro_http` nos 3 dias, nenhum `ok`): o relatório
+ *    fica `listado`, conta como "relatório novo" no critério dos 6 dias e esta é a única coisa que denuncia.
+ * Menos de 3 dias de tentativa = ainda cedo (job novo), não é falha. Tentativa de outro resultado (sem_conexao,
+ * sem_autorizacao) depende do dono e não pinta este critério. Duas leituras no total, qualquer que seja o número de jobs.
  */
 export async function criterioJobsEmErro(ctx: Ctx): Promise<void> {
-  const r = await ctx.supabase.from('yt_reporting_jobs').select('channel_id, report_type_id').eq('status', 'erro')
+  const r = await ctx.supabase.from('yt_reporting_jobs').select('channel_id, report_type_id, status').in('status', ['erro', 'ativo']).limit(LIMITE_LEITURA)
   if (!leituraOk(r, 'yt_reporting_jobs', 'jobs em erro', ctx.falhas)) return
-  const jobs = (r.data ?? []) as Array<{ channel_id: string; report_type_id: string }>
-  if (jobs.length === 0) return // nenhum job em erro: o estado saudável
+  const jobs = (r.data ?? []) as Array<{ channel_id: string; report_type_id: string; status: string }>
+  if (jobs.length >= LIMITE_LEITURA) {
+    naoAvaliou(ctx.falhas, `jobs em erro (yt_reporting_jobs): leitura cortada em ${LIMITE_LEITURA}`)
+    return
+  }
+  if (jobs.length === 0) return // nenhum job ativo nem em erro: nada a olhar
 
-  // Janela de 30 dias: cobre 3 dias de tentativa com folga e mantém a leitura abaixo do corte de 1000 linhas.
-  const desde = addDays(utcDay(new Date()), -30)
+  // Janela de 10 dias: cobre 3 dias de tentativa com folga e mantém a leitura abaixo do corte de 1000 linhas
+  // (por job: no máximo 2 kinds x 10 dias).
+  const desde = addDays(utcDay(new Date()), -10)
   const t = await ctx.supabase
     .from('yt_own_collection_attempts')
-    .select('scope_id, attempt_day, outcome')
+    .select('scope_id, kind, attempt_day, outcome, error')
     .eq('scope_type', 'job')
     .in('scope_id', jobs.map(j => scopeJob(j.channel_id, j.report_type_id)))
     .in('kind', ['sondagem', 'relatorio'])
@@ -208,7 +269,7 @@ export async function criterioJobsEmErro(ctx: Ctx): Promise<void> {
     .order('attempt_day', { ascending: false })
     .limit(LIMITE_LEITURA)
   if (!leituraOk(t, 'yt_own_collection_attempts', 'jobs em erro', ctx.falhas)) return
-  const linhas = (t.data ?? []) as Array<{ scope_id: string; attempt_day: string; outcome: string }>
+  const linhas = (t.data ?? []) as Array<{ scope_id: string; kind: string; attempt_day: string; outcome: string; error: string | null }>
   if (linhas.length >= LIMITE_LEITURA) {
     naoAvaliou(ctx.falhas, `jobs em erro (yt_own_collection_attempts): leitura cortada em ${LIMITE_LEITURA}`)
     return
@@ -216,19 +277,24 @@ export async function criterioJobsEmErro(ctx: Ctx): Promise<void> {
 
   for (const j of jobs) {
     const escopo = scopeJob(j.channel_id, j.report_type_id)
-    // dia -> { http: teve erro_http, ok: teve ok }; a ordem de inserção é a do dia decrescente.
-    const dias = new Map<string, { http: boolean; ok: boolean }>()
+    const kinds = j.status === 'erro' ? ['sondagem', 'relatorio'] : ['relatorio']
+    // dia -> { http, ok, erro }; a ordem de inserção é a do dia decrescente.
+    const dias = new Map<string, { http: boolean; ok: boolean; erro: string | null }>()
     for (const l of linhas) {
-      if (l.scope_id !== escopo) continue
-      const d = dias.get(l.attempt_day) ?? { http: false, ok: false }
-      if (l.outcome === 'erro_http') d.http = true
+      if (l.scope_id !== escopo || !kinds.includes(l.kind)) continue
+      const d = dias.get(l.attempt_day) ?? { http: false, ok: false, erro: null }
+      if (l.outcome === 'erro_http') { d.http = true; d.erro ??= l.error }
       if (l.outcome === 'ok') d.ok = true
       dias.set(l.attempt_day, d)
     }
     const tres = [...dias.values()].slice(0, 3)
     if (tres.length === 3 && tres.every(d => d.http && !d.ok)) {
       const nome = ctx.channels.find(c => c.id === j.channel_id)?.name ?? j.channel_id
-      pushUnico(ctx.falhas, `jobs: ${nome} está com o job ${j.report_type_id} em erro há 3 dias`)
+      if (j.status === 'erro') {
+        pushUnico(ctx.falhas, `jobs: ${nome} está com o job ${j.report_type_id} em erro há 3 dias`)
+      } else {
+        pushUnico(ctx.falhas, `jobs: ${nome} não consegue baixar o relatório ${j.report_type_id} há 3 dias (último erro: ${tres[0]!.erro ?? 'sem texto'})`)
+      }
     }
   }
 }
@@ -261,6 +327,8 @@ export async function criterioOrcamento(ctx: Pick<StepCtx, 'supabase' | 'falhas'
       continue
     }
 
+    // Exigir falta HOJE é deliberado: um escopo que deixou de ser tentado (vídeo apagado, canal desligado) não
+    // alarma para sempre; se o passo nem rodou hoje, quem avisa é o próprio cron.
     // Por escopo: dias de falta (decrescente). Candidato = faltou hoje e tem 3 ou mais faltas.
     const porEscopo = new Map<string, { id: string; dias: string[] }>()
     for (const l of linhas) {
