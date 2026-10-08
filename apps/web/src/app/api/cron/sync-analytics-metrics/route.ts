@@ -376,7 +376,9 @@ async function parteAntiga(
                 type: 'youtube.views_below_trend',
                 priority: 3,
                 title: 'Vídeo abaixo da própria tendência',
-                message: `"${titulo}" teve ${result.actualViews} views no último dia medido; a curva dos últimos 60 dias do próprio vídeo esperava cerca de ${result.expectedViews}. É só views abaixo da tendência: não mede CTR nem aponta a causa.`,
+                // `views` em youtube_video_analytics é o total da janela de sincronização (SYNC_WINDOW_DAYS),
+                // regravado a cada dia: não é a contagem de um dia. O texto diz isso.
+                message: `"${titulo}" soma ${result.actualViews} views na janela de ${SYNC_WINDOW_DAYS} dias; a curva do próprio vídeo esperava cerca de ${result.expectedViews}. Sinal fraco: é só views abaixo da tendência, não mede CTR nem aponta a causa.`,
                 dedupKey: `views_below_trend:${candidate.id}:${getIsoWeek(new Date())}`,
                 payload: { videoId: candidate.id },
                 actionHref: '/cms/youtube/ab-lab',

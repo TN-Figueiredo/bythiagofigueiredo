@@ -299,7 +299,7 @@ describe('sync-analytics-metrics: veredito único', () => {
       actionHref: '/cms/youtube/ab-lab',
       payload: { videoId: 'v-1' },
     })
-    expect(n.message).toBe('"Vídeo" teve 90 views no último dia medido; a curva dos últimos 60 dias do próprio vídeo esperava cerca de 240. É só views abaixo da tendência: não mede CTR nem aponta a causa.')
+    expect(n.message).toBe('"Vídeo" soma 90 views na janela de 90 dias; a curva do próprio vídeo esperava cerca de 240. Sinal fraco: é só views abaixo da tendência, não mede CTR nem aponta a causa.')
     expect(n.dedupKey).toMatch(/^views_below_trend:v-1:\d{4}-W\d{2}$/)
   })
 
