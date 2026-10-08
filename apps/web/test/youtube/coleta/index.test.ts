@@ -251,6 +251,30 @@ describe('rodarColeta: L1b', () => {
     expect(r.resumo.acao_do_dono).toEqual([])
   })
 
+  it('leitura de youtube_videos falhando: nota de falha de leitura e NENHUMA nota "o YouTube informa…" (não sei não é zero)', async () => {
+    const db = fakeSupabase({ youtube_channels: [canalL1b({ id: 'ch-1', name: 'Com Vídeos', video_count: 12 })] })
+    db.errors.youtube_videos = { code: '57014', message: 'statement timeout' }
+    vi.mocked(passoJobs).mockResolvedValue({ ...resumoVazio, acao_do_dono: [], tipo_indisponivel: [], estados: {} })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+    expect(r.falhas).toEqual(['erro de banco ao ler youtube_videos'])
+    expect(r.resumo.acao_do_dono).toEqual([])
+  })
+
+  it('contagem de youtube_videos que volta nula sem erro: ausente não é zero, nenhuma nota', async () => {
+    const db = fakeSupabase({ youtube_channels: [canalL1b({ id: 'ch-1', name: 'Com Vídeos', video_count: 12 })], youtube_videos: [] })
+    const cliente = {
+      ...db.client,
+      from: (tabela: string) => {
+        if (tabela !== 'youtube_videos') return db.client.from(tabela)
+        return { select: () => ({ eq: async () => ({ data: null, error: null, count: null }) }) }
+      },
+    } as unknown as SupabaseClient
+    vi.mocked(passoJobs).mockResolvedValue({ ...resumoVazio, acao_do_dono: [], tipo_indisponivel: [], estados: {} })
+    const r = await rodarColeta({ supabase: cliente, relogio: criarRelogio(), fase: 'antes' })
+    expect(r.resumo.acao_do_dono).toEqual([])
+    expect(r.falhas).toEqual([])
+  })
+
   /** Cliente fino em volta do banco em memória: a leitura de canais que pede `collection_status` devolve 42703, como o Postgres sem a migration. */
   const semColunaNova = (db: FakeDb, selects: string[] = []): SupabaseClient => ({
     ...db.client,

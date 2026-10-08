@@ -143,7 +143,9 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
       if (!c.video_count || c.video_count <= 0) continue
       const cont = await ctx.supabase.from('youtube_videos').select('id', { count: 'exact', head: true }).eq('channel_id', c.id)
       if (conferirBanco(cont, 'youtube_videos', falhas, 'ler') !== 'ok') continue
-      if ((cont.count ?? 0) === 0) notas.push(`${c.name}: o YouTube informa ${c.video_count} vídeo(s) e nenhum está cadastrado`)
+      // Contagem ausente não é zero: sem número não há o que afirmar.
+      if (cont.count === null) continue
+      if (cont.count === 0) notas.push(`${c.name}: o YouTube informa ${c.video_count} vídeo(s) e nenhum está cadastrado`)
     }
     return notas
   }

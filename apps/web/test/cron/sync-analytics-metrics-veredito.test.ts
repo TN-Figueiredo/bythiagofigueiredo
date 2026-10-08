@@ -135,7 +135,8 @@ describe('sync-analytics-metrics: veredito único', () => {
     expect(db.tables.youtube_video_analytics).toHaveLength(1)
     expect(db.tables.youtube_videos![0]).toMatchObject({ view_count_delta_today: 120 })
     expect(nota()).toBe('schema_ausente: yt_own_video_meta_daily')
-    expect(body.coleta).toEqual({ relatorios: { baixados: 0 } })
+    // A rota sempre põe os tempos por passo em `coleta.ms`; com a coleta simulada sem tempos, vem vazio.
+    expect(body.coleta).toEqual({ relatorios: { baixados: 0 }, ms: {} })
     expect(recordCronSuccess).not.toHaveBeenCalled()
   })
 
@@ -498,7 +499,7 @@ describe('sync-analytics-metrics: veredito único', () => {
     const res = await GET(pedido() as never)
     const body = await res.json()
     expect(body.acao_do_dono).toEqual(['Canal Um: api_nao_ativada', 'Canal Um: sem_acesso', 'Canal Um: channel_reach_basic_a1 em sem_acesso'])
-    expect(body.coleta).toEqual({ jobs: { gravados: 1 }, perdidos: 2 })
+    expect(body.coleta).toEqual({ jobs: { gravados: 1 }, perdidos: 2, ms: {} })
     expect(body.falhas).toBeUndefined()
     expect(recordCronSuccess).toHaveBeenCalledTimes(1)
     expect(recordCronFailure).not.toHaveBeenCalled()
