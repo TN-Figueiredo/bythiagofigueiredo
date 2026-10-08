@@ -17,7 +17,7 @@ import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { getSiteOwners } from '@/lib/notifications/get-site-owners'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true }
+const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true, collection_status: 'ok' as const, video_count: 1 }
 type Erro = { code?: string; message: string } | null
 // Banco falso só de ops_alert_state: leitura e delete conferem `error`, como o código de produção.
 function novoBanco(carimbos: string[] = [], erros: { ler?: Erro; apagar?: Erro } = {}) {

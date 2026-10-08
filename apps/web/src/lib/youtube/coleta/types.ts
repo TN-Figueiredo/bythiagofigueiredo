@@ -16,6 +16,10 @@ export interface ColetaChannel {
   site_id: string
   name: string
   sync_enabled: boolean
+  /** `reautorizar` = o canal perdeu a autorização: a coleta por token para até o dono reconectar. */
+  collection_status: 'ok' | 'reautorizar'
+  /** O que o YouTube informou no último sync do canal. Nulo = não sabemos. */
+  video_count: number | null
 }
 
 /** Uma linha de `yt_own_collection_attempts` (o dia é posto pelo banco, em UTC). */

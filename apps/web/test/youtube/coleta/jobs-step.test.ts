@@ -21,7 +21,7 @@ import type { StepCtx } from '@/lib/youtube/coleta/types'
 import { SemTempoError } from '@/lib/youtube/coleta/clock'
 import { fakeSupabase, type FakeDb, type Row } from './fake-supabase'
 
-const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true }
+const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true, collection_status: 'ok' as const, video_count: 1 }
 const api = { reportTypesList: vi.fn(), jobsList: vi.fn(), jobsCreate: vi.fn(), reportsList: vi.fn(), download: vi.fn() }
 const TIPOS = REPORT_TYPES_ENABLED.map(id => ({ id }))
 const ctxDe = (db: FakeDb, prazoMs = 20_000): StepCtx => ({

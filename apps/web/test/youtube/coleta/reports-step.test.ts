@@ -32,7 +32,7 @@ const bancoComPurge = (seed: Record<string, Row[]> = {}): FakeDb => {
   return db
 }
 
-const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true }
+const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true, collection_status: 'ok' as const, video_count: 1 }
 const api = { reportTypesList: vi.fn(), jobsList: vi.fn(), jobsCreate: vi.fn(), reportsList: vi.fn(), download: vi.fn() }
 const jobRow = (tipo: string, extra: Row = {}): Row => ({
   site_id: 'site-1', channel_id: 'ch-1', report_type_id: tipo, job_id: `job-${tipo}`, status: 'ativo',

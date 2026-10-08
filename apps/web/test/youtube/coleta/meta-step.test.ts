@@ -26,7 +26,7 @@ const DIA = '2026-10-06'
 const sha = (v: string | Buffer) => createHash('sha256').update(v).digest('hex')
 const BYTES = Buffer.from('imagem')
 
-const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true }
+const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true, collection_status: 'ok' as const, video_count: 1 }
 const video = (n: number, extra: Row = {}): Row => ({
   id: `v-${n}`, youtube_video_id: `yt-${n}`, channel_id: 'ch-1', site_id: 'site-1',
   title: `Título ${n}`, description: `Descrição ${n}`, tags: ['a', 'b'], duration_seconds: 600,

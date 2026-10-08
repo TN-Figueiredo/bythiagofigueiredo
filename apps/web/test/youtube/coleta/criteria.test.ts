@@ -8,7 +8,7 @@ const DIA_MS = 86_400_000
 const ha = (dias: number) => new Date(AGORA.getTime() - dias * DIA_MS).toISOString()
 const diaUtc = (dias: number) => ha(dias).slice(0, 10)
 
-const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true }
+const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true, collection_status: 'ok' as const, video_count: 1 }
 const ctxDe = (db: FakeDb) => ({ supabase: db.client, falhas: [] as string[], channels: [canal] })
 const rel = (id: string, status: string, criadoHa: number, tipo = 'channel_reach_basic_a1'): Row => ({
   report_id: id, channel_id: 'ch-1', report_type_id: tipo, status, create_time: ha(criadoHa), is_backfill: false,
