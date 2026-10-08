@@ -58,6 +58,40 @@ describe('relógio da coleta', () => {
     expect(timeout).toHaveBeenCalledWith(15_000)
   })
 
+  it('fetch rejeita com TimeoutError depois do prazo do passo: SemTempoError', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-07T12:00:00.000Z'), toFake: ['Date'] })
+    const deadline = Date.now() + 5_000
+    const f = vi.fn(async () => {
+      vi.setSystemTime(new Date(Date.now() + 6_000))
+      throw new DOMException('timeout', 'TimeoutError')
+    })
+    await expect(fetchComPrazo(deadline, f as unknown as typeof fetch)('https://x.test')).rejects.toBeInstanceOf(SemTempoError)
+  })
+
+  it('fetch rejeita com TimeoutError sobrando tempo do passo: o mesmo TimeoutError', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-07T12:00:00.000Z'), toFake: ['Date'] })
+    const erro = new DOMException('timeout', 'TimeoutError')
+    const f = vi.fn(async () => { throw erro })
+    await expect(fetchComPrazo(Date.now() + 60_000, f as unknown as typeof fetch)('https://x.test')).rejects.toBe(erro)
+  })
+
+  it('fetch rejeita com TypeError (rede) depois do prazo: SemTempoError; com tempo sobrando: o TypeError', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-07T12:00:00.000Z'), toFake: ['Date'] })
+    const f = vi.fn(async () => {
+      vi.setSystemTime(new Date(Date.now() + 6_000))
+      throw new TypeError('fetch failed')
+    })
+    await expect(fetchComPrazo(Date.now() + 5_000, f as unknown as typeof fetch)('https://x.test')).rejects.toBeInstanceOf(SemTempoError)
+    const g = vi.fn(async () => { throw new TypeError('fetch failed') })
+    await expect(fetchComPrazo(Date.now() + 60_000, g as unknown as typeof fetch)('https://x.test')).rejects.toBeInstanceOf(TypeError)
+  })
+
+  it('aborto do sinal de quem chama com tempo sobrando: o erro original', async () => {
+    const dele = new AbortController()
+    const f = vi.fn(async () => { dele.abort(); throw dele.signal.reason })
+    await expect(fetchComPrazo(Date.now() + 60_000, f as unknown as typeof fetch)('https://x.test', { signal: dele.signal })).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
   it('fetchComPrazo respeita também o sinal que quem chama já passou', async () => {
     const dele = new AbortController()
     const f = vi.fn(async (_u: RequestInfo | URL, init?: RequestInit) => {

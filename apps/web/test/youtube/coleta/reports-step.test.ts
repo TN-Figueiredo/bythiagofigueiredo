@@ -408,3 +408,109 @@ describe('passoRelatorios: rodadas de revisão (decisões do controlador)', () =
     expect(ctx.tentativas.some(t => t.outcome === 'nao_alcancado_orcamento')).toBe(true)
   })
 })
+
+describe('passoRelatorios: fix round 1', () => {
+  const GURL = (id: string) => `https://youtubereporting.googleapis.com/dl/${id}`
+
+  const usarClienteReal = async () => {
+    const real = await vi.importActual<typeof import('@/lib/youtube/reporting/client')>('@/lib/youtube/reporting/client')
+    vi.mocked(criarReportingClient).mockImplementation(real.criarReportingClient)
+  }
+  const fetchQueEstouraOPrazo = () => {
+    const f = vi.fn(async () => {
+      vi.setSystemTime(new Date(Date.now() + 61_000))
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    })
+    vi.stubGlobal('fetch', f)
+    return f
+  }
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('fetchComPrazo real: o prazo acaba com o download no ar; o relatório continua listado, sem erro_http', async () => {
+    await usarClienteReal()
+    const f = fetchQueEstouraOPrazo()
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('r1', { download_url: GURL('r1') }), listado('r2', { download_url: GURL('r2'), create_time: ha(0.5) })],
+    })
+    const ctx = ctxDe(db)
+    // a listagem real também passa pelo fetch: devolve vazio na primeira chamada (listagem), estoura na seguinte
+    f.mockImplementationOnce(async () => new Response(JSON.stringify({ reports: [] }), { status: 200 }))
+    const resumo = await passoRelatorios(ctx)
+    expect(f).toHaveBeenCalledTimes(2)
+    expect(comStatus(db, 'listado')).toHaveLength(2)
+    expect(ctx.tentativas.some(t => t.outcome === 'erro_http')).toBe(false)
+    expect(db.tables.yt_own_collection_attempts!.find(r => r.scope_type === 'canal')).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
+    expect(resumo).toMatchObject({ erros_download: 0, pendentes: 2 })
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('fetchComPrazo real: o prazo acaba com a listagem no ar; job intacto e nao_alcancado_orcamento', async () => {
+    await usarClienteReal()
+    fetchQueEstouraOPrazo()
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')] })
+    const ctx = ctxDe(db)
+    await passoRelatorios(ctx)
+    expect(db.tables.yt_reporting_jobs![0]).toMatchObject({ status: 'ativo' })
+    expect(ctx.tentativas.map(t => t.outcome)).toEqual(['nao_alcancado_orcamento'])
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('renovação de URL: só os listado do job recebem URL nova; baixado de outro relatório nunca é tocado', async () => {
+    api.reportsList.mockImplementation(async (_j: string, o?: { createdAfter?: string }) =>
+      o?.createdAfter
+        ? { reports: [], nextPageToken: null }
+        : { reports: [doGoogle('r1', { downloadUrl: 'https://dl.test/r1-nova' }), doGoogle('velho', { downloadUrl: 'https://dl.test/mudou' })], nextPageToken: null })
+    api.download.mockImplementation(async (url: string) => {
+      if (url.endsWith('-nova')) return empacotarCsv(CSV)
+      throw new ReportingHttpError(403, null)
+    })
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1', { last_create_time: ha(1) })],
+      yt_reporting_reports: [listado('r1'), listado('velho', { status: 'baixado' })],
+    })
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'r1')).toMatchObject({ status: 'baixado', download_url: 'https://dl.test/r1-nova' })
+    expect(rel(db, 'velho')).toMatchObject({ status: 'baixado', download_url: 'https://dl.test/velho' })
+  })
+
+  it('paginação no teto: falha nomeando o job, relatórios vistos entram, last_create_time não avança', async () => {
+    let n = 0
+    api.reportsList.mockImplementation(async () => ({ reports: [doGoogle(`p-${n++}`, { createTime: ha(0.1) })], nextPageToken: 'mais' }))
+    const marca = '2026-10-05T10:00:00.000Z'
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1', { last_create_time: marca })] })
+    api.download.mockRejectedValue(new ReportingHttpError(500, null))
+    const ctx = ctxDe(db)
+    await passoRelatorios(ctx)
+    expect(api.reportsList).toHaveBeenCalledTimes(50)
+    expect(ctx.falhas.some(f => f.includes('listagem truncada') && f.includes('channel_reach_basic_a1'))).toBe(true)
+    expect(db.tables.yt_reporting_jobs![0]!.last_create_time).toBe(marca)
+    expect(db.tables.yt_reporting_reports).toHaveLength(50)
+  })
+
+  it('ordem bruto -> baixado (a): a escrita do bruto falha; o relatório fica listado, com falha, nada baixado', async () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    db.writeErrors.yt_reporting_report_blobs = { code: '08006', message: 'conexão caiu' }
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    expect(rel(db, 'r1')!.status).toBe('listado')
+    expect(comStatus(db, 'baixado')).toHaveLength(0)
+    expect(ctx.falhas).toContain('erro de banco ao gravar yt_reporting_report_blobs')
+    expect(resumo).toMatchObject({ baixados: 0, pendentes: 1 })
+  })
+
+  it('ordem bruto -> baixado (b): o bruto grava e o update do relatório falha; listado hoje, baixado amanhã com um só bruto', async () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    db.writeErrors.yt_reporting_reports = { code: '08006', message: 'conexão caiu' }
+    const ctx = ctxDe(db)
+    await passoRelatorios(ctx)
+    expect(rel(db, 'r1')!.status).toBe('listado')
+    expect(db.tables.yt_reporting_report_blobs).toHaveLength(1)
+    expect(ctx.falhas).toContain('erro de banco ao gravar yt_reporting_reports')
+    db.writeErrors.yt_reporting_reports = undefined
+    const dois = await passoRelatorios(ctxDe(db))
+    expect(dois).toMatchObject({ baixados: 1, pendentes: 0 })
+    expect(rel(db, 'r1')!.status).toBe('baixado')
+    expect(db.tables.yt_reporting_report_blobs).toHaveLength(1)
+  })
+})

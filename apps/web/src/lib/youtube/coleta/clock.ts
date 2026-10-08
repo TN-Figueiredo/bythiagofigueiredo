@@ -42,7 +42,14 @@ export function fetchComPrazo(deadline: number, f: typeof fetch = fetch): typeof
     if (ms <= 0) throw new SemTempoError()
     const prazo = AbortSignal.timeout(ms)
     const signal = init?.signal ? AbortSignal.any([init.signal, prazo]) : prazo
-    return f(input, { ...init, signal })
+    try {
+      return await f(input, { ...init, signal })
+    } catch (e) {
+      // O prazo do passo acabou com a chamada no ar: não é erro de rede, é falta de tempo.
+      // Se sobrou tempo (estourou só o limite de 15 s da chamada, ou outro erro), o erro original segue.
+      if (restante(deadline) <= 0) throw new SemTempoError()
+      throw e
+    }
   }) as typeof fetch
 }
 

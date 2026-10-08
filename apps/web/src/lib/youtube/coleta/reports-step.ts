@@ -54,16 +54,17 @@ const ehGzipInvalido = (e: unknown): boolean => {
 }
 
 /** Todas as páginas de `reports.list` de um job. */
-async function listarTudo(api: ReportingClient, jobId: string, createdAfter?: string): Promise<Report[]> {
+async function listarTudo(api: ReportingClient, jobId: string, createdAfter?: string): Promise<{ reports: Report[]; truncado: boolean }> {
   const todos: Report[] = []
   let pageToken: string | undefined
   for (let i = 0; i < MAX_PAGINAS; i++) {
     const p = await api.reportsList(jobId, { createdAfter, pageToken })
     todos.push(...p.reports)
-    if (!p.nextPageToken) break
+    if (!p.nextPageToken) return { reports: todos, truncado: false }
     pageToken = p.nextPageToken
   }
-  return todos
+  // Chegou ao teto de páginas com mais por vir: quem chama decide; nada é descartado em silêncio.
+  return { reports: todos, truncado: true }
 }
 
 /** Lista um job e insere os relatórios novos como `listado`. Nunca lança. */
@@ -72,7 +73,7 @@ async function listarJob(ctx: StepCtx, c: ColetaChannel, api: ReportingClient, j
   const noJob = () => ctx.supabase.from('yt_reporting_jobs')
   try {
     const createdAfter = j.last_create_time ? new Date(instante(j.last_create_time) - DIA_MS).toISOString() : undefined
-    const vistos = await listarTudo(api, j.job_id!, createdAfter)
+    const { reports: vistos, truncado } = await listarTudo(api, j.job_id!, createdAfter)
     resumo.vistos += vistos.length
 
     if (vistos.length > 0) {
@@ -102,13 +103,18 @@ async function listarJob(ctx: StepCtx, c: ColetaChannel, api: ReportingClient, j
 
     // O maior createTime já listado, comparado como instante (o Google mistura frações de segundo).
     let maior = j.last_create_time
-    for (const r of vistos) if (!maior || instante(r.createTime) > instante(maior)) maior = r.createTime
+    if (truncado) {
+      // Listagem incompleta: a marca não avança, para a próxima execução listar de novo a partir dela.
+      pushUnico(ctx.falhas, `relatórios: listagem truncada em ${MAX_PAGINAS} páginas (${channelNote(c.name, j.report_type_id)})`)
+    } else {
+      for (const r of vistos) if (!maior || instante(r.createTime) > instante(maior)) maior = r.createTime
+    }
     const upd = await noJob()
       .update({ last_listed_at: new Date().toISOString(), last_create_time: maior })
       .eq('channel_id', c.id)
       .eq('report_type_id', j.report_type_id)
     conferirBanco(upd, 'yt_reporting_jobs', ctx.falhas)
-    await registrarTentativa(ctx, { ...tJob, outcome: 'ok' })
+    await registrarTentativa(ctx, truncado ? { ...tJob, outcome: 'erro_http', error: 'listagem_truncada' } : { ...tJob, outcome: 'ok' })
   } catch (e) {
     // O prazo do passo acabou no meio da listagem: não é erro do job; nada é alterado.
     if (e instanceof SemTempoError) return 'sem_tempo'
@@ -149,7 +155,13 @@ async function baixarUm(
     if (erro instanceof ReportingHttpError && (erro.status === 401 || erro.status === 403) && !renovados.has(p.job_id)) {
       renovados.add(p.job_id)
       try {
-        for (const r of await listarTudo(api, p.job_id)) {
+        // Só os `listado` deste job recebem URL nova; um já baixado nunca é tocado.
+        const abertos = await ctx.supabase.from('yt_reporting_reports').select('report_id').eq('job_id', p.job_id).eq('status', 'listado')
+        const ids = new Set(((abertos.data ?? []) as Array<{ report_id: string }>).map(x => x.report_id))
+        if (conferirBanco(abertos, 'yt_reporting_reports', ctx.falhas, 'ler') !== 'ok') ids.clear()
+        for (const r of (await listarTudo(api, p.job_id)).reports) {
+          if (restante(ctx.deadline) <= 0) throw new SemTempoError()
+          if (!ids.has(r.id)) continue
           urls.set(r.id, r.downloadUrl)
           const u = await ctx.supabase
             .from('yt_reporting_reports')
