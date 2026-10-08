@@ -184,6 +184,7 @@
       '<a class="lnk" id="v-' + v.id + '" href="' + esc(hrefVideo(v)) + '" data-go="' + v.id + '">' +
         '<span class="thumb"><img src="' + v.thumb + '" alt="" width="320" height="180" loading="lazy" decoding="async">' + selos(v) + '</span>' +
         '<span class="ttl">' + esc(v.t) + '</span></a>' +
+      '<button type="button" class="amp" tabindex="-1" data-amp="' + v.id + ':" aria-label="Ampliar a thumbnail: ' + esc(v.t) + '">' + window.VIEWER_ICON + '</button>' +
       '<div class="meta">' + quando(v) + botaoAcoes(v) + '</div>' +
       '<p class="nums">' + nums(v) + '</p></li>';
   }
@@ -266,7 +267,12 @@
     }
     var falta = velhos.length - carregados;
     var sobra = (!rec.length && st.n === 0 && velhos.length) ? '<p class="m" style="margin:0 0 10px;color:var(--muted);font-size:13px">Nenhum dos vídeos acompanhados' + (st.q.trim() ? ' tem “' + esc(st.q.trim()) + '”' : ' está neste filtro') + '. Há ' + F.plural(velhos.length, 'vídeo antigo', 'vídeos antigos') + ', sem contagem diária.</p>' : '';
-    var mais = falta > 0 ? '<div class="more"><button type="button" class="btn" data-more>Carregar mais ' + Math.min(LOTE, falta) + '</button><span>Faltam ' + F.plural(falta, 'vídeo antigo', 'vídeos antigos') + ', sem contagem diária. ' + (rec.length + carregados) + ' de ' + lista.length + ' na tela.</span></div>' : '';
+    var naTela = rec.length + carregados, prox = Math.min(LOTE, falta);
+    var mais = falta > 0 ? '<div class="more" role="group" aria-label="Carregar mais vídeos">' +
+      '<div class="more-bar" role="progressbar" aria-label="Vídeos na tela" aria-valuemin="0" aria-valuemax="' + lista.length + '" aria-valuenow="' + naTela + '"><i style="width:' + Math.round(naTela / lista.length * 100) + '%"></i></div>' +
+      '<p class="more-t"><b>Mostrando ' + naTela + ' de ' + lista.length + ' vídeos</b></p>' +
+      '<p class="more-s">' + (prox === falta ? 'Mais ' + F.plural(prox, 'vídeo antigo', 'vídeos antigos') + ', sem contagem diária. Depois deste lote não falta nenhum.' : 'Mais ' + prox + ' vídeos antigos, sem contagem diária. Depois deste lote faltam ' + (falta - prox) + '.') + '</p>' +
+      '<button type="button" class="btn primary big" data-more>' + (prox === falta ? 'Carregar ' + (prox === 1 ? 'o último vídeo' : 'os últimos ' + prox + ' vídeos') : 'Carregar mais ' + prox + ' vídeos') + '</button></div>' : '';
     var b = ds().base, pe = '<p class="foot" id="foot"><b>Múltiplo</b> = views do vídeo ÷ mediana de views dos outros vídeos do mesmo formato e da mesma faixa de idade neste canal (o mesmo número da tela de histórico do vídeo; mediana geral: longos ' + F.num((ds().base.long || {}).med) + ', Shorts ' + F.num((ds().base.short || {}).med) + ')' +
       '. De 2× a 5×, “alto”; de 5× a 10×, “muito alto”; 10× ou mais, “topo”. <b>Views/dia</b> = média entre a primeira e a última contagem diária dos últimos 7 dias; a contagem diária existe desde 03/10 e só para os ' + C.canal.limite + ' vídeos acompanhados. O motivo de cada “não medido” está em “Ações do vídeo”.</p>';
     m.innerHTML = sobra + (st.ver === 'lista' ? '<div class="tw"><table class="lst" aria-describedby="foot"><caption class="sr">Vídeos de ' + esc(C.canal.nome) + '</caption>' + thead() + html + '</table></div>' : '<ul class="grid" aria-label="Vídeos de ' + esc(C.canal.nome) + '">' + html + '</ul>') + mais + pe;
@@ -351,7 +357,7 @@
   /* ---------------------------------------------------------------- aba Trocas: cada troca é um caminho para o histórico do vídeo */
   function hrefTroca(t, ids, tot){
     var p = new URLSearchParams();
-    p.set('id', t.video); p.set('from', 'canais'); p.set('canal', C.canal.id); p.set('back', query()); p.set('troca', t.ms);
+    p.set('id', t.video); p.set('from', 'canais'); p.set('canal', C.canal.id); p.set('back', query()); if (t.ms != null) p.set('troca', t.ms);
     if (ids){ p.set('ids', ids.join(',')); p.set('i0', 0); p.set('tot', tot); }
     return 'video.html?' + p.toString();
   }
@@ -371,26 +377,28 @@
     if (!L.length) h += '<div class="empty"><p>Este vídeo não teve troca de título nem de thumbnail nos últimos 30 dias.</p></div>';
     /* o pager do vídeo anda pelos vídeos que têm troca, na ordem da lista */
     var vids = []; L.forEach(function(t){ if (vids.indexOf(t.video) < 0) vids.push(t.video); });
-    /* trocas seguidas do mesmo vídeo formam um grupo: uma capa, um título, uma linha por troca */
-    var grupos = []; L.forEach(function(t){ var g = grupos[grupos.length - 1]; if (g && g.video === t.video) g.itens.push(t); else grupos.push({ video: t.video, itens: [t] }); });
-    h += '<p class="swhint">Cada troca abre o <b>Histórico do vídeo</b>, a tela especializada: views por dia com a troca marcada, antes e depois, todas as versões de título, thumbnail e descrição e a leitura da forja.</p>';
-    h += '<ul class="swaps" aria-label="Trocas, da mais recente para a mais antiga">' + grupos.map(function(g){
-      var v = C.porId(g.video), todas = T.filter(function(t){ return t.video === g.video; }), mais = todas.filter(function(t){ return g.itens.indexOf(t) < 0; });
-      var h0 = hrefTroca(g.itens[0], vids, vids.length), go = 'data-go="" data-video="' + v.id + '" data-troca="' + g.itens[0].ms + '"';
-      var mesmo = todas.length > 1 ? '<span class="mesmo">' + I.swap + 'Mesmo vídeo: ' + todas.length + ' trocas</span>' : '';
-      var also = mais.length ? '<p class="also">Este vídeo teve mais ' + F.plural(mais.length, 'troca', 'trocas') + ' nos 30 dias, em outra data: ' + mais.map(function(t){
-        return '<a href="' + esc(hrefTroca(t, vids, vids.length)) + '" data-go="" data-video="' + v.id + '" data-troca="' + t.ms + '">' + (t.campo === 'titulo' ? 'título' : 'thumbnail') + ' em ' + F.data(t.ms) + '</a>'; }).join(', ') + '.</p>' : '';
-      return '<li class="swg' + (g.itens.length > 1 ? ' multi' : '') + '" data-href="' + esc(h0) + '">' +
-        '<a class="thumb" href="' + esc(h0) + '" tabindex="-1" aria-hidden="true" ' + go + '><img src="' + v.thumb + '" alt="" width="320" height="180" loading="lazy"></a>' +
-        '<div class="gh"><h3><a href="' + esc(h0) + '" ' + go + '>' + esc(v.t) + '</a></h3>' + mesmo + '</div>' +
-        '<ul class="swrows">' + g.itens.map(function(t){
+    /* rodada 4: um cartão por VÍDEO (mesmo as trocas não vizinhas), na ordem da troca mais recente de cada um, e um botão por cartão.
+       O botão abre o histórico do vídeo todo; com 2 ou mais trocas, cada troca tem o seu link "Abrir nesta troca", que chega já nela. */
+    var porV = {}, ordV = []; L.forEach(function(t){ if (!porV[t.video]){ porV[t.video] = []; ordV.push(t.video); } porV[t.video].push(t); });
+    h += '<ul class="swaps" aria-label="Trocas por vídeo, o vídeo com a troca mais recente primeiro">' + ordV.map(function(id){
+      var v = C.porId(id), itens = porV[id], multi = itens.length > 1;
+      var hGrupo = hrefTroca({ video: id, ms: multi ? null : itens[0].ms }, vids, vids.length), tG = multi ? '' : ' data-troca="' + itens[0].ms + '"';
+      var go = 'data-go="" data-video="' + id + '"' + tG;
+      return '<li class="swg' + (multi ? ' multi' : '') + '" data-href="' + esc(hGrupo) + '" data-video="' + id + '"' + tG + '>' +
+        '<span class="twrap"><a class="thumb" href="' + esc(hGrupo) + '" tabindex="-1" aria-hidden="true" ' + go + '><img src="' + v.thumb + '" alt="" width="320" height="180" loading="lazy"></a>' +
+        '<button type="button" class="amp" data-amp="' + id + ':" aria-label="Ampliar a thumbnail: ' + esc(v.t) + '">' + window.VIEWER_ICON + '</button></span>' +
+        '<div class="gh"><h3><a href="' + esc(hGrupo) + '" ' + go + '>' + esc(v.t) + '</a></h3>' + (multi ? '<span class="mesmo">' + I.swap + F.plural(itens.length, 'troca', 'trocas') + ' neste vídeo</span>' : '') +
+        '<a class="btn go" id="sg-' + id + '" href="' + esc(hGrupo) + '" ' + go + ' aria-label="Abrir histórico do vídeo: ' + esc(v.t) + '">Abrir histórico do vídeo ' + svg('<path d="M6 3.5L10.5 8 6 12.5"/>') + '</a></div>' +
+        (multi ? '<p class="also">O botão abre o histórico do vídeo todo. Cada troca abaixo tem o seu link e abre o histórico já nela.</p>' : '') +
+        '<ul class="swrows">' + itens.map(function(t){
           var tit = t.campo === 'titulo', hr = hrefTroca(t, vids, vids.length), nome = (tit ? 'troca de título' : 'troca de thumbnail') + ' de ' + F.data(t.ms);
-          return '<li class="sw" data-href="' + esc(hr) + '"><div><p class="what">' + I.swap + '<b>' + (tit ? 'Título trocado' : 'Thumbnail trocada') + '</b><span>' + (tit ? 'visto pela 1ª vez ' : 'vista pela 1ª vez ') + '<time datetime="' + F.iso(t.ms) + '">' + F.ha(t.ms) + '</time>' +
+          return '<li class="sw" data-href="' + esc(hr) + '" data-video="' + id + '" data-troca="' + t.ms + '"><div><p class="what">' + I.swap + '<b>' + (tit ? 'Título trocado' : 'Thumbnail trocada') + '</b><span>' + (tit ? 'visto pela 1ª vez ' : 'vista pela 1ª vez ') + '<time datetime="' + F.iso(t.ms) + '">' + F.ha(t.ms) + '</time>' +
             (tit ? ' (' + esc(t.janela) + ')' : ' (' + F.dataHora(t.ms) + ')') + '</span></p>' +
             (tit ? '<dl><dt>Antes</dt><dd>' + esc(t.de) + '</dd><dt>Agora</dt><dd>' + esc(t.para) + '</dd></dl>'
-                 : '<dl><dt>Antes</dt><dd><span class="na">imagem anterior não arquivada</span></dd><dt>Agora</dt><dd>a thumbnail ao lado</dd></dl>') + '<p class="efeito"><b>No histórico, efeito em 7 dias:</b> ' + esc(efeitoLinha(t)) + '</p></div>' +
-            '<a class="btn go" id="sw-' + t.ms + '" href="' + esc(hr) + '" data-go="" data-video="' + v.id + '" data-troca="' + t.ms + '" aria-label="Abrir histórico do vídeo: ' + esc(v.t) + ', ' + nome + '">Abrir histórico do vídeo ' + svg('<path d="M6 3.5L10.5 8 6 12.5"/>') + '</a></li>';
-        }).join('') + '</ul>' + also + '</li>';
+                 : '<dl><dt>Antes</dt><dd><span class="na">imagem anterior não arquivada</span></dd><dt>Agora</dt><dd>a thumbnail ao lado</dd></dl>') +
+            '<p class="efeito"><b>No histórico, efeito em 7 dias:</b> ' + esc(efeitoLinha(t)) + '</p></div>' +
+            (multi ? '<a class="rowgo" id="sw-' + t.ms + '" href="' + esc(hr) + '" data-go="" data-video="' + id + '" data-troca="' + t.ms + '" aria-label="Abrir o histórico do vídeo na ' + nome + ': ' + esc(v.t) + '">Abrir nesta troca ' + svg('<path d="M6 3.5L10.5 8 6 12.5"/>') + '</a>' : '') + '</li>';
+        }).join('') + '</ul></li>';
     }).join('') + '</ul>';
     h += '<p style="margin:14px 0 0"><a class="lk" href="../2026-10-07-historico-muitas-versoes/mudancas.html">Ver as ' + T.length + ' trocas em Mudanças</a></p>';
     el.innerHTML = h;
@@ -498,6 +506,7 @@
           var b = document.querySelector('[data-acts="' + v.id + '"]'); if (b) b.focus(); else $('fFmt').querySelector('[aria-pressed="true"]').focus();
           aviso(v.pinned ? 'Vídeo fixado' : 'Vídeo desafixado');
         } },
+      { txt: 'Ampliar thumbnail', ico: window.VIEWER_ICON, fn: function(d){ window.VIEWER.open(v.id, null, d); } },
       { txt: 'Abrir no YouTube', ico: I.ext, href: v.url, ext: true },
       { txt: 'Ver trocas', ico: I.swap, off: !v.trocas, nota: v.trocas ? String(v.trocas) + ' em 30 d' : 'nenhuma em 30 d', href: 'canal.html' + alvo(query({ tab: 'trocas', video: v.id })), tab: true,
         fn: function(){ st.tab = 'trocas'; st.video = v.id; gravarUrl(true); render(); $('hTrocas').setAttribute('tabindex', '-1'); $('hTrocas').focus(); } }
@@ -581,7 +590,7 @@
       mudar({ n: st.n + LOTE }, { manterN: true, replace: true });
       var alvoN = $('v-' + ordemAtual[antes]); if (alvoN) alvoN.focus({ preventScroll: true });     /* foco no primeiro cartão novo; a rolagem não se mexe */
       var novos = ordemAtual.length - antes, resta = (C.videos.length - ordemAtual.length);
-      anunciar(F.plural(novos, 'vídeo antigo carregado', 'vídeos antigos carregados') + (document.querySelector('[data-more]') ? '. Faltam mais.' : '. Não falta nenhum.')); return;
+      anunciar('Mostrando ' + ordemAtual.length + ' de ' + filtrar(st.fmt, st.q).length + ' vídeos. ' + F.plural(novos, 'vídeo antigo carregado', 'vídeos antigos carregados') + (document.querySelector('[data-more]') ? '.' : '. Não falta nenhum.')); return;
     }
     if (t.closest('[data-clearq]')){ limparBusca(); return; }
     if (t.closest('[data-retry]')){ st.estado = 'normal'; gravarUrl(false); simular(800); return; }
@@ -592,12 +601,12 @@
       var a = $('ctabs').querySelector('[aria-current="page"]'); if (a) a.focus();
       anunciar('Seção ' + a.textContent.trim()); return;
     }
-    if ((b = t.closest('a[data-go]'))){ try { sessionStorage.setItem('pc:veio', '1'); sessionStorage.setItem('pc:ultimo', b.dataset.video || b.dataset.go); if (b.dataset.troca) sessionStorage.setItem('pc:troca', b.dataset.troca); } catch (x) {} return; }
+    if ((b = t.closest('a[data-go]'))){ try { sessionStorage.setItem('pc:veio', '1'); sessionStorage.setItem('pc:ultimo', b.dataset.video || b.dataset.go); sessionStorage.setItem('pc:troca', b.dataset.troca || ''); } catch (x) {} return; }
     /* troca: a linha inteira é clicável; o teclado usa os links dentro dela */
     if ((b = t.closest('[data-href]')) && !t.closest('a, button')){
-      var a2 = b.querySelector('a.go') || b.querySelector('h3 a');
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
-      if (a2){ try { sessionStorage.setItem('pc:veio', '1'); sessionStorage.setItem('pc:ultimo', a2.dataset.video); sessionStorage.setItem('pc:troca', a2.dataset.troca); } catch (x) {} location.href = b.dataset.href; }
+      try { sessionStorage.setItem('pc:veio', '1'); sessionStorage.setItem('pc:ultimo', b.dataset.video); sessionStorage.setItem('pc:troca', b.dataset.troca || ''); } catch (x) {}
+      location.href = b.dataset.href;
     }
   });
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && dica){ fecharDica(true); } });
@@ -612,7 +621,7 @@
     var topo = parseFloat(getComputedStyle(screen).getPropertyValue('--sticky-h')) || 0;
     if (st.tab === 'trocas'){
       /* volta para a troca que a pessoa abriu (ou a mais recente do último vídeo visto), com foco */
-      var ta = $('sw-' + tm); if (!ta || ta.dataset.video !== id){ var q = document.querySelector('.btn.go[data-video="' + id + '"]'); ta = q || null; }
+      var ta = tm ? $('sw-' + tm) : null; if (!ta || ta.dataset.video !== id){ ta = $('sg-' + id) || document.querySelector('.btn.go[data-video="' + id + '"]'); }
       if (!ta) return;
       ta.focus({ preventScroll: true });
       var r0 = ta.getBoundingClientRect(); if (r0.top < topo + 8 || r0.bottom > innerHeight - 8) ta.scrollIntoView({ block: 'center' });

@@ -436,3 +436,77 @@ Inferência, não verificada: leitor de tela e teclado completo nas faixas (a l�
 | `1440-carregar-mais.png` | Depois do primeiro "Carregar mais": divisor dos antigos, foco no primeiro cartão novo |
 | `1440-capas.png`, `1440-lista.png`, `768-capas.png`, `768-lista.png`, `390-capas.png`, `390-lista.png`, `1440-fixados-com-atraso.png` | A grade e a lista com o botão "Carregar mais" e o múltiplo novo |
 | `1440-aba-leitura-*.png`, `768-aba-leitura-pronta.png`, `390-aba-leitura-pronta.png` | A aba Leitura do canal (rodada 2, atualizada na pronta e na desatualizada) |
+
+---
+
+# Rodada 4: um botão por vídeo nas Trocas, visualizador de thumbnail e "Carregar mais" que se vê
+
+## 1. Aba Trocas: um botão por vídeo
+
+Antes: o grupo "Mesmo vídeo: 2 trocas" tinha um botão "Abrir histórico do vídeo" em cada troca, os dois para o mesmo lugar, e o mesmo vídeo podia aparecer em dois cartões separados (trocas não vizinhas), cada um com o seu botão.
+
+Agora:
+- **Um cartão por vídeo**, mesmo quando as trocas não são vizinhas. Os cartões saem na ordem da troca mais recente de cada vídeo; dentro do cartão, as trocas ficam da mais recente para a mais antiga com a data de cada uma. Medido: 7 trocas viram 5 cartões e 5 botões (Lr0p4pTWuVk, que tinha dois cartões, virou um).
+- **O botão fica no cartão, ao lado do título**: "Abrir histórico do vídeo". Com 2 ou mais trocas ele abre o histórico **do vídeo todo, sem troca escolhida** (foco no título, "Antes e depois" no padrão da tela). Com uma troca só, o botão abre já nela.
+- **Cada troca de um cartão com 2 ou mais trocas** tem o seu link de texto, **"Abrir nesta troca ›"** (sublinhado, sem forma de botão), que chega ao histórico com **aquela** troca destacada, como na rodada 3. A frase sob o título diz: "O botão abre o histórico do vídeo todo. Cada troca abaixo tem o seu link e abre o histórico já nela." A linha inteira da troca continua clicável com o mouse.
+- **Por que assim e não um destino só.** Um destino só (sempre a troca mais recente) perderia o caminho "quero ver a troca de 22/09" e deixaria a troca antiga sem como chegar nela; e dois botões iguais não dizem a diferença. O botão (forma de botão, uma vez) é o vídeo; o link de texto (uma vez por troca) é a troca. Em cartão com uma troca só não há link de troca: seria repetir o botão.
+- **Voltar:** do botão do cartão, o foco volta para o botão do vídeo (`#sg-<id>`); do link de uma troca, para o link dela (`#sw-<ms>`). Verificado com rolagem de 300 px.
+- O pager do histórico continua andando pelos vídeos com trocas ("vídeo 3 de 5").
+
+## 2. Visualizador de thumbnail
+
+Diálogo modal (`viewer.js` + `viewer.css`): `role="dialog"`, `aria-modal`, o fundo fica `inert`, foco preso (Tab e Shift+Tab giram), Esc fecha, o foco volta ao gatilho. Abre com o foco no título do diálogo.
+
+- **Resolução:** pede `maxresdefault` (1280×720), cai para `sddefault` (640×480), `hqdefault` (480×360) e `mqdefault` (320×180), e escreve a que carregou com o tamanho medido: "Exibindo maxresdefault.jpg, 1280×720 px (maior resolução disponível; …). Acima de 100% a imagem é aumentada: ganha tamanho, não detalhe." Quando cai para uma menor, diz "o YouTube não tem versão maior deste vídeo". Medido no Leo Khev: os vídeos testados têm `maxresdefault`.
+- **Zoom:** botões − e +, roda do mouse (em torno do cursor), pinça, arrastar para mover (clique duplo alterna "Ajustar" e 100%), "Ajustar", "100%" (um pixel da imagem por pixel CSS) e teclas `+`, `-`, `0` e `1`; com o foco na imagem, as setas movem (com zoom) ou trocam de versão (sem zoom).
+- **Abrir original em nova aba** (a resolução que está na tela) e **Baixar**: baixa por `fetch`; se o navegador recusar (CORS), abre a imagem em outra aba e diz, na região viva, para salvar por lá.
+- **Versões:** com mais de uma versão de thumbnail, Anterior/Próxima ("Capa B · 2 de 2"), legenda de cada uma ("Capa B (no ar): 05/10 14:22 até agora; no ar por 2 d 7 h") e **"Comparar lado a lado"** com um seletor "Comparar com". No modo comparar não há zoom (os botões ficam apagados, o contador diz "sem zoom").
+- **Versão não arquivada:** sem imagem quebrada. Um quadro tracejado explica: "A coleta só guarda a thumbnail a partir do momento em que a vê. Esta versão (23/01 17:00 (publicação) até 05/10 14:22) saiu do ar antes disso, então não há imagem para mostrar nem para baixar.", e Baixar/Abrir original ficam apagados.
+- **Gatilhos:** a capa do cabeçalho do histórico, as thumbnails de "Antes e depois" e dos cartões da seção Thumbnails (cada uma com o ícone de lupa no canto e `role="button"`), os cartões da aba Trocas (botão de lupa sobre a imagem) e a grade do canal (botão discreto de lupa no canto da imagem, **sempre visível**, 28 px, 44 px com toque). Na grade e na Lista há também o item **"Ampliar thumbnail"** no menu "Ações do vídeo".
+- **Decisões a revisar:**
+  - **Raia Thumbnail do histórico:** o clique simples continua levando ao cartão da versão (comportamento da produção, "nada se perde"); **o clique duplo** abre o visualizador, e a legenda do gráfico diz isso. Para quem usa teclado, a imagem está um Tab depois, no cartão da versão. Se o dono preferir que o clique simples amplie, o caminho até o cartão passa a ser o item da lista abaixo.
+  - **Botão de lupa na grade com `tabindex="-1"`:** o spec (§11, linha 5) limita a 2 paradas de Tab por cartão; o teclado usa o item do menu. Na aba Trocas o botão de lupa **é** uma parada (3 por cartão, pois ali o limite não vale).
+
+### Que resolução o arquivamento guarda hoje (lido em `apps/web/src/lib/youtube/thumb-fingerprint.ts`)
+
+**Só `hqdefault`: 480×360, JPEG.** `VARIANT = 'hqdefault'` define a URL que `probeThumb` baixa e `archiveThumb` grava em `observatorio/thumbs/<video>/<dhash>.jpg`. É 4:3 com as barras pretas do próprio YouTube, não os 1280×720 do `maxresdefault`. **Limitação a dizer ao dono:** a thumbnail **atual** pode ser ampliada em 1280×720 (o visualizador busca ao vivo no YouTube), mas as **versões anteriores** arquivadas só existem em 480×360 e não ganham qualidade ao ampliar. Para guardar as futuras em alta, basta trocar `VARIANT` para `maxresdefault` com queda para `sddefault`/`hqdefault` (vale para versões novas; as já arquivadas ficam como estão). `competitor-sync.ts` lê `maxres` da API só para o campo `thumbnail_url`, não para o arquivo. No mockup nenhuma versão anterior existe, então o visualizador mostra "não arquivada"; em produção, uma versão arquivada mostraria a imagem em 480×360 e a linha de resolução diria isso.
+
+## 3. "Carregar mais"
+
+Antes: um botão pequeno, à esquerda, no fim da grade, com o texto ao lado. O dono custou a achar.
+
+Agora (`.more`): **bloco centralizado no fim da grade ou da Lista**, com borda e fundo, que tem:
+- linha de progresso (`role="progressbar"`, 51 de 133) em laranja;
+- **"Mostrando 51 de 133 vídeos"** em destaque;
+- o que vem: **"Mais 40 vídeos antigos, sem contagem diária. Depois deste lote faltam 42."** (no último lote: "…Depois deste lote não falta nenhum.");
+- um **botão cheio**, o único da tela, de 44 px: **"Carregar mais 40 vídeos"** (no fim: "Carregar os últimos 2 vídeos" / "Carregar o último vídeo").
+Medido a 390 px: botão de 216 × 44 px, bloco sem rolagem horizontal.
+
+**Só botão, sem carregar sozinho ao chegar perto do fim.** Justificativa: (a) o dono pediu foco e rolagem estáveis; carregar por observador de rolagem empurra o conteúdo abaixo do cursor enquanto a pessoa lê e tira o rodapé (a nota do múltiplo) do alcance, sem fim de página; (b) o teclado e o leitor de tela precisam do botão de qualquer jeito, então o botão não some; (c) os 82 vídeos que faltam são os de menos valor (sem contagem diária), carregá-los é uma escolha; (d) o Voltar do histórico precisa reabrir a grade com os mesmos cartões, e isso fica determinístico com `?n=40` na URL (carregamento por rolagem teria de gravar o mesmo estado, o que é possível, mas não muda a conclusão). Se o dono quiser o automático depois, a mudança é pequena: um `IntersectionObserver` sobre o bloco, mantendo o botão.
+
+Foco e rolagem: o foco vai para o primeiro cartão novo com `preventScroll`; medido 2519 px antes e depois do clique. O anúncio agora diz **"Mostrando 91 de 133 vídeos. 40 vídeos antigos carregados."** (ou "Não falta nenhum.").
+
+## Capturas da rodada 4 (`shots/`)
+
+| Arquivo | Mostra |
+|---|---|
+| `1440-aba-trocas.png`, `768-aba-trocas.png`, `390-aba-trocas.png` | Um botão por vídeo; "Abrir nesta troca" nos cartões com 2 trocas; lupa sobre a imagem |
+| `1440-visualizador-aberto.png`, `768-visualizador-aberto.png`, `390-visualizador-aberto.png` | O visualizador com a imagem em maxresdefault e a linha de resolução |
+| `1440-visualizador-zoom-100.png` | Zoom em 100%, imagem movida |
+| `1440-visualizador-comparando.png` | Comparar lado a lado: Capa B (arquivo) e Capa A (não arquivada) |
+| `1440-visualizador-versao-nao-arquivada.png` | A Capa A sozinha, com a explicação |
+| `1440-carregar-mais.png`, `768-carregar-mais.png`, `390-carregar-mais.png` | O novo bloco "Carregar mais" |
+| `1440-capas.png`, `768-capas.png`, `390-capas.png`, `768-lista.png`, `390-lista.png`, `1440-lista.png` | A grade e a Lista com a lupa e o múltiplo atual (refeitas) |
+| `768-aba-leitura-pronta.png`, `390-aba-leitura-pronta.png`, `768-video-chegada-leitura-pronta.png`, `390-video-chegada-leitura-pronta.png`, `1440-video-chegada-pela-troca.png`, `1440-video-historico-leitura-pronta.png` | Refeitas com os números atuais |
+
+## Verificado × inferência
+
+Verificado no navegador (1440, 768 e 390 px, por HTTP): um botão por vídeo (5 cartões, 5 botões, 4 links de troca) e os dois caminhos de chegada e de volta; o visualizador (abrir pela capa, `maxresdefault` 1280×720, 100%, +, arrastar, Ajustar, Anterior com versão não arquivada, Comparar, Esc devolve o foco ao gatilho, o fundo fica `inert`), o gatilho da grade e o item de menu, "Carregar mais" (51 → 91 → 131 → 133, foco, rolagem, botão que some), sem rolagem horizontal e sem erros de console; botões do visualizador em 390 px todos com 44 px ou mais.
+
+Inferência, não verificado: roda e pinça (o código usa eventos de ponteiro; só simulei o arrastar), Baixar e a queda para `sddefault`/`hqdefault` (os vídeos testados têm `maxresdefault`; sem rede o diálogo mostra "A imagem não carregou"), o clique duplo na raia, leitor de tela, contraste do ícone de lupa sobre as imagens, zoom do navegador de 200 a 400%, `file://` e outros navegadores. O Baixar depende de o `i.ytimg.com` aceitar CORS; se não aceitar, cai para a nova aba.
+
+## Perguntas ao dono
+
+1. **O clique simples na raia Thumbnail deve ampliar em vez de ir ao cartão da versão?** Recomendo manter o clique duplo: o cartão é o comportamento de hoje e a raia é pequena; quem quer ampliar tem a capa do cabeçalho e os cartões.
+2. **Guardar as próximas thumbnails arquivadas em maxresdefault?** Recomendo que sim, com queda para `sddefault`; custa mais armazenamento (cerca de 4× por imagem), mas é o que o visualizador de versões antigas promete.
+3. **"Carregar mais" automático ao chegar perto do fim?** Recomendo só o botão, pelas razões acima, e rever quando os antigos virarem mais úteis.

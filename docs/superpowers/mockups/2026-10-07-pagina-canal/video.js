@@ -49,7 +49,7 @@ const visChanges=()=>CH.filter(c=>c.at>=rangeT0());
 const runsOf=t=>HM.runs(v.id,t,S.unknown).filter(r=>r.open||r.to>=rangeT0());
 const miss=key=>HM.archived(v.id,key)?'':' missing';     // rodada 3: só a imagem atual existe; as anteriores nunca foram arquivadas
 const imgOf=(key,w,h,alt,lazy)=>HM.archived(v.id,key)?'<img src="'+HM.thumbSrc(v.id,key)+'" width="'+w+'" height="'+h+'" alt="'+esc(alt)+'"'+(lazy?' loading="lazy"':'')+'>':'<span role="img" aria-label="'+esc((alt||'Imagem anterior')+': imagem anterior não arquivada')+'">imagem anterior não arquivada</span>';     // F4 item 7: width e height explícitos
-const thumbBox=(p,dur)=>'<div class="th'+miss(p.key)+'">'+imgOf(p.key,320,180,'Thumbnail '+p.label+', '+p.span,true)+(dur?'<span class="dur">'+dur+'</span>':'')+'</div>';
+const thumbBox=(p,dur)=>'<div class="th'+miss(p.key)+'" data-amp="'+v.id+':'+p.i+'" role="button" tabindex="0" aria-label="Ampliar a thumbnail '+p.label+(HM.archived(v.id,p.key)?'':' (imagem não arquivada)')+'">'+imgOf(p.key,320,180,'Thumbnail '+p.label+', '+p.span,true)+(dur?'<span class="dur">'+dur+'</span>':'')+'</div>';
 const versionAt=(type,ms)=>{ let r=VER[type][0]; VER[type].forEach(x=>{ if(x.start<=ms) r=x }); return r };
 /** hora como o dado permite: thumbnail tem minuto; título e descrição só têm a hora da sincronização */
 const tm=(type,ms)=>type==='thumb'?D.dmhm(ms):D.dm(ms)+' '+D.hh(ms);
@@ -261,6 +261,7 @@ function renderLegend(){
   const P=S.pair?pairByKey(S.pair):null;
   if(P&&P.e.observed!=null) out.push('<span><span class="sw shade"></span>janelas antes e depois de '+esc(P.label)+'</span>');
   if(v.series.length) out.push('<span><span class="sw hatch"></span>dia em coleta, fecha '+D.dm(D.snap(v.lastIdx+1))+' '+D.hh(D.snap(v.lastIdx+1))+'</span>');
+  if(vc.some(c=>c.type==='thumb')||VER.thumb.length) out.push('<span><span style="color:var(--t-thumb);display:inline-flex;width:14px">'+IC.thumb+'</span>clique duplo numa miniatura da faixa Thumbnail, ou clique em qualquer thumbnail desta tela, para ampliar</span>');
   if(G.tS) out.push('<span><span class="sw hatch"></span>antes de '+D.dm(G.tS)+', sem registro diário: o eixo é comprimido até esse dia (a contagem diária deste canal começou nele)</span>');
   if(vc.some(c=>c.window)) out.push('<span><span class="sw swwin"></span>janela entre duas sincronizações: título e descrição não têm minuto; janela '+HM.SYNC_CADENCE+'</span>');
   if(vc.some(c=>c.type==='thumb')) out.push('<span><span style="color:var(--t-thumb);display:inline-flex;width:14px">'+IC.thumb+'</span>troca de thumbnail com horário exato (detectada pela mudança do arquivo da imagem)</span>');
@@ -576,6 +577,8 @@ function wireLanes(){
     const mk=e.target.closest('.mk'); if(mk){ const c=HM.change(mk.dataset.pair); S.hover=on?{type:c.type,i:c.idx,label:c.type==='thumb'?c.to.label:null,ev:c.idx}:null; applyHl() }
     const cl=e.target.closest('.clip[data-k]'); if(cl){ S.hover=on?hlOfKey(cl.dataset.k):null; applyHl() }
   };
+  /* rodada 4: clique duplo numa miniatura da faixa Thumbnail abre o visualizador (o clique simples continua levando ao cartão da versão) */
+  tl.addEventListener('dblclick',e=>{ const cl=e.target.closest('.clip[data-k^="thumb:"]'); if(cl){ e.preventDefault(); window.VIEWER.open(v.id,+cl.dataset.k.split(':')[1],cl) } });
   tl.addEventListener('mouseover',e=>hint(e,true)); tl.addEventListener('mouseout',e=>hint(e,false));
   tl.addEventListener('focusin',e=>hint(e,true));
   tl.addEventListener('focusout',e=>{ hint(e,false); const w=e.target.closest('.gwrap'); if(w&&!w.contains(e.relatedTarget)) setGroup(w,false) });
@@ -701,7 +704,7 @@ try{ sessionStorage.setItem('pc:ultimo',v.id); sessionStorage.setItem('pc:voltou
   const tp=parseInt(q.get('troca'),10), ch0=v.changes.find(c=>c.at===tp)||null;
   arrivedId=ch0?ch0.id:null;
   const ult=v.changes.length?v.changes.slice().sort((a,b)=>b.at-a.at)[0]:null;
-  const guarda=ch0||ult; if(guarda) sessionStorage.setItem('pc:troca',String(guarda.at)); else sessionStorage.removeItem('pc:troca') }catch(x){}
+  if(ch0) sessionStorage.setItem('pc:troca',String(ch0.at)); else sessionStorage.removeItem('pc:troca') }catch(x){}
 renderCrumbs(); renderHeader(); faixaSync(); renderRange();
 S.pair=defaultPair();
 if(arrivedId){ const pr=pairOfChange(arrivedId); if(pr) S.pair=pr.k }
