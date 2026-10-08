@@ -2,7 +2,10 @@
 // apps/web/test/youtube/thumb-fingerprint.test.ts
 import { describe, it, expect, vi } from 'vitest'
 import sharp from 'sharp'
-import { isNewThumb, hamming, dhashOf, probeThumb, DHASH_MAX_SAME } from '@/lib/youtube/thumb-fingerprint'
+import { put } from '@vercel/blob'
+import { isNewThumb, hamming, dhashOf, probeThumb, archiveThumb, DHASH_MAX_SAME } from '@/lib/youtube/thumb-fingerprint'
+
+vi.mock('@vercel/blob', () => ({ put: vi.fn(async (path: string) => ({ url: `https://blob.test/${path}` })) }))
 
 async function png(color: [number, number, number], stripe = false): Promise<Buffer> {
   const img = sharp({ create: { width: 64, height: 36, channels: 3, background: { r: color[0], g: color[1], b: color[2] } } })
@@ -76,5 +79,46 @@ describe('thumb fingerprint', () => {
     const f = vi.fn(async () => new Response(null, { status: 200, headers: { etag: '"abc"', 'last-modified': lm } }))
     const p = await probeThumb('abc', { etag: '"abc"', dhash: '00' }, f as unknown as typeof fetch)
     expect(p.lastModified).toBe(lm)
+  })
+})
+
+describe('archiveThumb: guarda a maior resolução que o YouTube tiver', () => {
+  const HQ = Buffer.from('hq'), MAX = Buffer.from('maxres'), SD = Buffer.from('sd')
+  const probe = { etag: '"1"', lastModified: null, dhash: 'abcd', bytes: HQ, url: 'https://i.ytimg.com/vi/yt-1/hqdefault.jpg' }
+  const img = (b: Buffer, ok = true) => ({ ok, status: ok ? 200 : 404, headers: new Headers({ 'content-type': 'image/jpeg' }), arrayBuffer: async () => b }) as unknown as Response
+  const gravado = () => vi.mocked(put).mock.calls.at(-1)![1] as Buffer
+
+  it('maxresdefault existe: é ela que vai para o arquivo, no mesmo caminho de sempre (dHash da hqdefault)', async () => {
+    const f = vi.fn(async (u: string) => (u.includes('/maxresdefault.jpg') ? img(MAX) : img(SD, false)))
+    const url = await archiveThumb('v-1', probe, f as never)
+    expect(url).toBe('https://blob.test/observatorio/thumbs/v-1/abcd.jpg')
+    expect(gravado()).toEqual(MAX)
+    expect(f).toHaveBeenCalledTimes(1)
+  })
+
+  it('sem maxresdefault (404): cai para sddefault', async () => {
+    const f = vi.fn(async (u: string) => (u.includes('/sddefault.jpg') ? img(SD) : img(MAX, false)))
+    await archiveThumb('v-1', probe, f as never)
+    expect(gravado()).toEqual(SD)
+  })
+
+  it('nenhuma maior disponível, resposta vazia, resposta que não é imagem ou rede caindo: guarda a hqdefault da sonda, nunca perde o arquivo', async () => {
+    await archiveThumb('v-1', probe, (async () => img(MAX, false)) as never)
+    expect(gravado()).toEqual(HQ)
+    await archiveThumb('v-1', probe, (async () => img(Buffer.alloc(0))) as never)
+    expect(gravado()).toEqual(HQ)
+    await archiveThumb('v-1', probe, (async () => ({ ok: true, status: 200, headers: new Headers({ 'content-type': 'text/html' }), arrayBuffer: async () => MAX })) as never)
+    expect(gravado()).toEqual(HQ)
+    await archiveThumb('v-1', probe, (async () => { throw new Error('rede') }) as never)
+    expect(gravado()).toEqual(HQ)
+  })
+
+  it('sonda sem bytes ou sem dHash: não arquiva nem busca nada', async () => {
+    vi.mocked(put).mockClear()
+    const f = vi.fn()
+    expect(await archiveThumb('v-1', { ...probe, bytes: null }, f as never)).toBeNull()
+    expect(await archiveThumb('v-1', { ...probe, dhash: null }, f as never)).toBeNull()
+    expect(f).not.toHaveBeenCalled()
+    expect(put).not.toHaveBeenCalled()
   })
 })
