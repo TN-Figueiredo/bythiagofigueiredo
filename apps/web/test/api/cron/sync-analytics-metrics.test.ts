@@ -21,10 +21,6 @@ vi.mock('@sentry/nextjs', () => ({
 const mockEnsureFreshToken = vi.fn()
 vi.mock('@/lib/social/token-refresh', () => ({
   ensureFreshToken: (...args: unknown[]) => mockEnsureFreshToken(...args),
-  // describeCronCause (lib/cron/failure-note) faz `instanceof TokenRevokedError`, e a rota agora o
-  // chama também no catch da fadiga — bloco que, com os mocks rasos deste arquivo, sempre lança.
-  TokenRevokedError: class TokenRevokedError extends Error {},
-  NoActiveConnectionError: class NoActiveConnectionError extends Error {},
 }))
 
 vi.mock('@/lib/youtube/analytics-sync', () => ({
@@ -94,10 +90,26 @@ function channelsQuery(data: unknown[] | null) {
   }
 }
 
+// Leitura de youtube_videos: `select().eq()` (laço por canal) e `select().eq().not()` (fadiga).
+// O resultado do eq é aguardável E tem .not, como o builder de verdade.
+function videosRead(data: unknown[] | null) {
+  const res = { data, error: null }
+  return Object.assign(Promise.resolve(res), { not: vi.fn().mockResolvedValue(res) })
+}
+
+// Fadiga: `from('ab_tests').select().eq().in()` — nenhum teste A/B ativo.
+function abTestsQuery() {
+  return {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ data: [], error: null }) }),
+    }),
+  }
+}
+
 function videosQuery(data: unknown[] | null) {
   return {
     select: vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data, error: null }),
+      eq: vi.fn().mockImplementation(() => videosRead(data)),
     }),
     update: vi.fn().mockReturnValue({
       eq: vi.fn().mockResolvedValue({ error: null }),
@@ -196,15 +208,23 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
       if (table === 'youtube_channels') return channelsQuery([fakeChannel])
       if (table === 'youtube_videos') return videosQuery([fakeVideo])
       if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
+      if (table === 'ab_tests') return abTestsQuery()
       return {}
     })
     mockRpc.mockResolvedValue({ error: null })
+    const { recordCronFailure, recordCronSuccess } = await import('@/lib/cron-health')
+    const Sentry = await import('@sentry/nextjs')
 
     const res = await GET(makeRequest())
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.synced).toBe(1)
     expect(body.errors).toBe(0)
+    // O caminho feliz tem de terminar verde de verdade: nenhum bloco (fadiga inclusive) lançou.
+    expect(body.falhas).toBeUndefined()
+    expect(Sentry.captureException).not.toHaveBeenCalled()
+    expect(recordCronSuccess).toHaveBeenCalledTimes(1)
+    expect(recordCronFailure).not.toHaveBeenCalled()
 
     fetchSpy.mockRestore()
   })
@@ -225,10 +245,14 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
 
     mockFrom.mockImplementation((table: string) => {
       if (table === 'youtube_channels') return channelsQuery([fakeChannel])
+      // A fadiga roda mesmo com o canal em erro: os mocks dela devolvem vazio em vez de lançar.
+      if (table === 'youtube_videos') return videosQuery([])
+      if (table === 'ab_tests') return abTestsQuery()
       return {}
     })
 
     const Sentry = await import('@sentry/nextjs')
+    const { recordCronFailure } = await import('@/lib/cron-health')
     const res = await GET(makeRequest())
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -236,6 +260,10 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
     expect(body.errors).toBe(1)
     expect(body.errorDetails).toBeDefined()
     expect(Sentry.captureMessage).toHaveBeenCalled()
+    // A única falha é a do canal (403); nada da fadiga.
+    expect(Sentry.captureException).not.toHaveBeenCalled()
+    expect(body.falhas).toEqual(body.errorDetails)
+    expect(recordCronFailure).toHaveBeenCalledTimes(1)
 
     fetchSpy.mockRestore()
   })
