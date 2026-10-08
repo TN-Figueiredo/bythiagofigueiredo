@@ -745,7 +745,11 @@ describe('passoMetadados: captura pela Data API (L1b)', () => {
     const resumo = await passoMetadados(ctx)
     expect(resumo.gravados).toBe(1)
     nula(linha(db, 'yt-1'), 'privacy_status')
-    expect(ctx.falhas).toEqual(['metadados: privacy_status desconhecido "membersOnly"'])
+    // Único vídeo do canal e sem privacidade válida: além do valor desconhecido, a captura inteira veio sem privacy_status.
+    expect(ctx.falhas).toEqual([
+      'metadados: Canal Um: videos.list não trouxe privacy_status de nenhum dos 1 vídeos',
+      'metadados: privacy_status desconhecido "membersOnly"',
+    ])
   })
 
   it('videos.list com 401: canal vira reautorizar, tentativa sem_autorizacao, linhas gravadas, sem falha crítica', async () => {
@@ -843,7 +847,7 @@ describe('passoMetadados: captura pela Data API (L1b)', () => {
 })
 
 describe('passoMetadados: prazo próprio da captura (L1b)', () => {
-  it('videos.list que só responde depois do teto: tentativa do canal nao_alcancado_orcamento, todas as linhas gravadas, sem falha', async () => {
+  it('videos.list que só responde depois do teto, com o passo ainda no prazo: tentativa nao_alcancado_orcamento, todas as linhas gravadas e a falha nomeada', async () => {
     comToken()
     vi.mocked(videosList).mockImplementation(async () => {
       vi.setSystemTime(Date.now() + TETO_CAPTURA_MS + 1)
@@ -855,6 +859,22 @@ describe('passoMetadados: prazo próprio da captura (L1b)', () => {
     expect(tentCanal(db)).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
     expect(resumo.gravados).toBe(2)
     expect(resumo.tentativas).toMatchObject({ nao_alcancado_orcamento: 1 })
+    // Falha em verde: o dia fechava sem privacy_status de ninguém e sem nota nenhuma.
+    expect(ctx.falhas).toEqual(['metadados: Canal Um: a captura pela videos.list não coube em 8 s'])
+  })
+
+  it('o prazo do PASSO acaba durante a captura: é orçamento, sem a nota do teto (o critério de orçamento cuida)', async () => {
+    comToken()
+    vi.mocked(videosList).mockImplementation(async () => {
+      vi.setSystemTime(Date.now() + 5_001)
+      throw new SemTempoError()
+    })
+    const db = fakeSupabase({ youtube_videos: [video(1), video(2)], youtube_channels: canais() })
+    // 5 s de passo: menos que o teto da captura, então o prazo da captura É o do passo.
+    const ctx = ctxDe(db, 5_000)
+    const resumo = await passoMetadados(ctx)
+    expect(tentCanal(db)).toMatchObject({ outcome: 'nao_alcancado_orcamento' })
+    expect(resumo).toMatchObject({ gravados: 0, pendentes: 2 })
     expect(ctx.falhas).toEqual([])
   })
 
@@ -877,7 +897,11 @@ describe('passoMetadados: prazo próprio da captura (L1b)', () => {
     expect(resumo.gravados).toBe(2)
     expect(linha(db, 'yt-1')).toBeDefined()
     expect(linha(db, 'yt-2')).toBeDefined()
-    expect(ctx.falhas).toEqual([])
+    // Os dois canais ficaram sem captura com o passo ainda no prazo: uma nota por canal.
+    expect(ctx.falhas).toEqual([
+      'metadados: Canal Um: a captura pela videos.list não coube em 8 s',
+      'metadados: Canal Dois: a captura pela videos.list não coube em 8 s',
+    ])
   })
 })
 
@@ -962,5 +986,84 @@ describe('passoMetadados: critério de thumbnail sem privados nem ausentes (L1b)
     const ctx = ctxDe(db)
     await passoMetadados(ctx)
     expect(ctx.falhas.filter(f => f.includes('thumbnail falhou'))).toEqual([])
+  })
+})
+
+describe('passoMetadados: onda de correção final (L1b)', () => {
+  /** A leitura "que vídeos já têm linha neste dia" falha; as outras leituras da tabela seguem normais. */
+  const comDiaIlegivel = (db: FakeDb): void => {
+    const real = db.client.from.bind(db.client)
+    db.client.from = ((t: string) => {
+      const q = real(t)
+      if (t !== 'yt_own_video_meta_daily') return q
+      const select = q.select.bind(q)
+      q.select = ((cols?: string, o?: never) => {
+        if (cols !== 'youtube_video_id' || o) return select(cols, o)
+        const c: Record<string, unknown> = {}
+        for (const m of ['eq', 'lt', 'order', 'limit']) c[m] = () => c
+        c.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { code: '57014', message: 'x' }, count: null }).then(ok)
+        return c as never
+      }) as typeof q.select
+      return q
+    }) as typeof db.client.from
+  }
+
+  it('M4: leitura das linhas do dia falha, sem captura e sem linha no dia: a PRIMEIRA linha nasce com título, hashes e duração', async () => {
+    const db = fakeSupabase({ youtube_videos: [video(1)] })
+    comDiaIlegivel(db)
+    const ctx = ctxDe(db)
+    const resumo = await passoMetadados(ctx)
+    expect(ctx.falhas).toContain('erro de banco ao ler yt_own_video_meta_daily')
+    expect(resumo.gravados).toBe(1)
+    expect(linha(db, 'yt-1')).toMatchObject({
+      title_at_capture: 'Título 1', description_sha256: sha('Descrição 1'), tags_sha256: sha(JSON.stringify(['a', 'b'])),
+      duration_seconds: 600, description_text: 'Descrição 1', tags: ['a', 'b'], is_short: false,
+    })
+  })
+
+  it('M6: 2ª execução sem captura não recalcula is_short com a duração de youtube_videos', async () => {
+    comToken()
+    vi.mocked(videosList).mockResolvedValueOnce(new Map([cap(1, { durationSeconds: 30 })]))
+    const db = fakeSupabase({ youtube_videos: [video(1, { duration_seconds: 600 })], youtube_channels: canais() })
+    await passoMetadados(ctxDe(db))
+    expect(linha(db, 'yt-1')).toMatchObject({ is_short: true, duration_seconds: 30 })
+
+    vi.mocked(videosList).mockRejectedValueOnce(new DataApiError(503, null))
+    const resumo = await passoMetadados(ctxDe(db))
+    expect(linha(db, 'yt-1')).toMatchObject({ is_short: true, duration_seconds: 30 })
+    expect(resumo.sem_is_short).toBe(0)
+  })
+
+  it('M6: 2ª execução sem captura não manda para a sonda um vídeo cuja linha já existe', async () => {
+    comToken()
+    vi.mocked(videosList).mockResolvedValueOnce(new Map([cap(1, { durationSeconds: 30 })]))
+    // youtube_videos diz 120 s (faixa da sonda); a captura da 1ª execução disse 30 s.
+    const db = fakeSupabase({ youtube_videos: [video(1, { duration_seconds: 120 })], youtube_channels: canais() })
+    await passoMetadados(ctxDe(db))
+    vi.mocked(videosList).mockRejectedValueOnce(new DataApiError(503, null))
+    vi.mocked(probeShortsBatch).mockResolvedValue(new Map([['yt-1', 'normal']]))
+    await passoMetadados(ctxDe(db))
+    expect(probeShortsBatch).not.toHaveBeenCalled()
+    expect(linha(db, 'yt-1')).toMatchObject({ is_short: true })
+  })
+
+  it('M7: videos.list devolve os vídeos sem privacy_status em nenhum: falha nomeada, linhas gravadas', async () => {
+    comToken()
+    vi.mocked(videosList).mockResolvedValue(new Map([cap(1, { privacyStatus: null }), cap(2, { privacyStatus: null })]))
+    const db = fakeSupabase({ youtube_videos: [video(1), video(2), video(3)], youtube_channels: canais() })
+    const ctx = ctxDe(db)
+    const resumo = await passoMetadados(ctx)
+    // N é o número de vídeos presentes na resposta (o 3 está ausente e tem a sua própria tentativa).
+    expect(ctx.falhas).toEqual(['metadados: Canal Um: videos.list não trouxe privacy_status de nenhum dos 2 vídeos'])
+    expect(resumo).toMatchObject({ gravados: 3, sem_privacidade: 3 })
+  })
+
+  it('M7: basta um vídeo com privacidade conhecida para a nota não disparar', async () => {
+    comToken()
+    vi.mocked(videosList).mockResolvedValue(new Map([cap(1, { privacyStatus: null }), cap(2, { privacyStatus: 'private' })]))
+    const db = fakeSupabase({ youtube_videos: [video(1), video(2)], youtube_channels: canais() })
+    const ctx = ctxDe(db)
+    await passoMetadados(ctx)
+    expect(ctx.falhas).toEqual([])
   })
 })

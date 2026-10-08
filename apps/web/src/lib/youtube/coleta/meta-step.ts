@@ -223,14 +223,23 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       for (const [id, v] of lidosApi) captura.set(id, v)
       respondeu.add(c.id)
       // Falha em verde: uma resposta sem nenhum dos vídeos do canal não é "alguns ausentes", é dado que não veio.
-      if (!doCanal.some(v => lidosApi.has(v.youtube_video_id))) {
+      const presentes = doCanal.filter(v => lidosApi.has(v.youtube_video_id))
+      if (presentes.length === 0) {
         pushUnico(ctx.falhas, `metadados: ${c.name}: videos.list não devolveu nenhum dos ${doCanal.length} vídeos`)
+      } else if (!presentes.some(v => PRIVACIDADES.includes(lidosApi.get(v.youtube_video_id)?.privacyStatus ?? ''))) {
+        // Mesma forma: os vídeos vieram, mas a parte `status` não. O dia fecharia sem privacidade de ninguém, em verde.
+        pushUnico(ctx.falhas, `metadados: ${c.name}: videos.list não trouxe privacy_status de nenhum dos ${presentes.length} vídeos`)
       }
       await marcarAutorizado(ctx, c)
       await registrarTentativa(ctx, { ...tCanal, outcome: 'ok' })
     } catch (e) {
       if (e instanceof SemTempoError) {
         await registrarTentativa(ctx, { ...tCanal, outcome: 'nao_alcancado_orcamento' })
+        // O teto da captura estourou com o passo ainda no prazo: as linhas saem sem privacy_status e isso precisa
+        // aparecer. Com o prazo do PASSO vencido é orçamento, e o critério de orçamento cuida.
+        if (restante(ctx.deadline) > 0) {
+          pushUnico(ctx.falhas, `metadados: ${c.name}: a captura pela videos.list não coube em ${TETO_CAPTURA_MS / 1000} s`)
+        }
         continue
       }
       if (e instanceof DataApiError && ehPerdaDeAutorizacao(e.status, e.reason)) {
@@ -392,9 +401,11 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       const descHash = descricao === null ? null : sha256(descricao)
       const tagsHash = sha256(JSON.stringify(tags ?? []))
       // Captura que falhou numa execução em que o dia já tem linha: os campos vindos da API na 1ª execução ficam
-      // fora do payload (youtube_videos é mais velho que a API e rebaixaria a linha).
+      // fora do payload (youtube_videos é mais velho que a API e rebaixaria a linha). Só quando a linha
+      // COMPROVADAMENTE existe: com o dia ilegível, a primeira linha do dia nasceria sem título, hashes e duração, e
+      // as reexecuções manteriam o buraco. (Para a URL da thumbnail o lado seguro é o outro: dia ilegível conta.)
       const diaJaTemLinha = diaIlegivel.has(v.channel_id) || jaTemLinha.has(v.youtube_video_id)
-      const preservar = !cap && diaJaTemLinha
+      const preservar = !cap && jaTemLinha.has(v.youtube_video_id)
       const linha: Record<string, unknown> = {
         site_id: v.site_id,
         youtube_video_id: v.youtube_video_id,
@@ -434,7 +445,8 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
 
       // Nunca de não nulo a nulo: sem valor, a chave fica fora do payload (uma segunda execução não apaga a primeira).
       if (privacidade !== null) linha.privacy_status = privacidade
-      if (short.valor !== null) linha.is_short = short.valor
+      // Sem captura sobre uma linha que já existe, is_short não é recalculado com a duração (mais velha) de youtube_videos.
+      if (!preservar && short.valor !== null) linha.is_short = short.valor
 
       const up = await ctx.supabase.from('yt_own_video_meta_daily').upsert(linha, { onConflict: 'youtube_video_id,day_pt' })
       const escrita = conferirBanco(up, 'yt_own_video_meta_daily', ctx.falhas)
@@ -448,8 +460,11 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
         resumo.gravados++
         somar(gravadosPorCanal, v.channel_id)
         if (privacidade === null) resumo.sem_privacidade++
-        if (short.sonda && duracao !== null) filaSonda.set(v.youtube_video_id, { dur: duracao, titulo })
-        else if (short.valor === null) resumo.sem_is_short++
+        // Linha preservada: is_short é o que a execução anterior gravou; nem sonda nem conta aqui.
+        if (!preservar) {
+          if (short.sonda && duracao !== null) filaSonda.set(v.youtube_video_id, { dur: duracao, titulo })
+          else if (short.valor === null) resumo.sem_is_short++
+        }
       }
     } catch (e) {
       if (e instanceof SemTempoError) {
