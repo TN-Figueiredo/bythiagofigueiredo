@@ -8,7 +8,7 @@ import { detectFatigue, filterFatigueCandidates } from '@/lib/youtube/ab-fatigue
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
 import { channelNote, describeCronCause, joinNotes, describeHttpCause } from '@/lib/cron/failure-note'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
-import { rodarColeta, type MetadadosAntes } from '@/lib/youtube/coleta'
+import { ehMetadadosAntes, rodarColeta, type MetadadosAntes } from '@/lib/youtube/coleta'
 import { criarRelogio, FETCH_TIMEOUT_MS, restante, type Relogio } from '@/lib/youtube/coleta/clock'
 import { conferirBanco, pushUnico } from '@/lib/youtube/coleta/schema'
 import * as Sentry from '@sentry/nextjs'
@@ -105,6 +105,8 @@ async function parteAntiga(
         Sentry.captureMessage(`sync-analytics-metrics failed for channel ${channel.channel_id}: ${res.status}`)
         // O corpo do Google não é lido nem gravado: a nota leva só o status.
         errorDetails.push(channelNote(channelLabel(channel), describeHttpCause(res.status)))
+        // Entra em falhas[] na hora: se algo lançar mais adiante, o detalhe deste canal não se perde.
+        pushUnico(falhas, errorDetails[errorDetails.length - 1]!)
         errors++
         continue
       }
@@ -208,6 +210,7 @@ async function parteAntiga(
       }
       Sentry.captureException(e, { extra: { channelId: channel.channel_id } })
       errorDetails.push(channelNote(channelLabel(channel), describeCronCause(e)))
+      pushUnico(falhas, errorDetails[errorDetails.length - 1]!)
       errors++
     }
   }
@@ -250,20 +253,26 @@ async function parteAntiga(
   }
 
   for (const { siteId, payload } of notifications) {
-    await fanOutToSiteAdmins({
-      siteId,
-      domain: 'youtube',
-      type: `youtube.${payload.type}`,
-      priority: payload.priority,
-      title: payload.title,
-      message: payload.message,
-      dedupKey: payload.dedup_key,
-      payload: {
-        ...(payload.video_id ? { videoId: payload.video_id } : {}),
-      },
-      suggestedAction: payload.suggested_action,
-      actionHref: payload.action_href,
-    })
+    // Aviso que não saiu é falha visível, e não derruba os marcos já gravados nem a fadiga.
+    try {
+      await fanOutToSiteAdmins({
+        siteId,
+        domain: 'youtube',
+        type: `youtube.${payload.type}`,
+        priority: payload.priority,
+        title: payload.title,
+        message: payload.message,
+        dedupKey: payload.dedup_key,
+        payload: {
+          ...(payload.video_id ? { videoId: payload.video_id } : {}),
+        },
+        suggestedAction: payload.suggested_action,
+        actionHref: payload.action_href,
+      })
+    } catch (e) {
+      Sentry.captureException(e)
+      pushUnico(falhas, `aviso de vídeo em alta: ${describeCronCause(e)}`)
+    }
   }
 
   // O pulo precisa ser VISTO: um aviso por site e por dia (dedup), não um alarme de cron.
@@ -285,6 +294,7 @@ async function parteAntiga(
       })
     } catch (e) {
       Sentry.captureException(e)
+      pushUnico(falhas, `aviso de canal sem conexão: ${describeCronCause(e)}`)
     }
   }
 
@@ -359,6 +369,7 @@ async function parteAntiga(
       }
     } catch (e) {
       Sentry.captureException(e)
+      pushUnico(falhas, `fadiga: ${describeCronCause(e)}`)
     }
   }
 
@@ -396,12 +407,12 @@ async function coletar(
 }
 
 /**
- * `resumo.metadados` da fase 'antes', repassado como veio à fase 'depois'. Quando o passo foi
- * pulado ele pode não trazer `day_pt`: `rodarColeta` valida a forma e trata como "desconhecido".
- * Aqui só se garante que é um objeto; o que não for objeto não é repassado.
+ * `resumo.metadados` da fase 'antes' para a fase 'depois'. O que não passa no guarda de
+ * `rodarColeta` (passo pulado, sem `day_pt`) vai como `undefined`: lá dentro o efeito é o mesmo,
+ * todo canal conta como "desconhecido", nunca como zero.
  */
 function comoMetadadosAntes(x: unknown): MetadadosAntes | undefined {
-  return typeof x === 'object' && x !== null ? (x as MetadadosAntes) : undefined
+  return ehMetadadosAntes(x) ? x : undefined
 }
 
 /** Tira `acao_do_dono` do resumo de uma fase: ele sai num campo próprio da resposta, nunca em falhas[]. */
@@ -454,9 +465,8 @@ export async function GET(req: NextRequest) {
     try {
       antiga = await parteAntiga(supabase, lista, relogio, falhas)
       const comConexao = lista.length - antiga.skippedNoConnection
-      if (antiga.errors > 0) {
-        for (const d of antiga.errorDetails) pushUnico(falhas, d)
-      } else if (comConexao > 0 && antiga.emptyReports === comConexao) {
+      // Os detalhes por canal (errorDetails) já entraram em falhas[] dentro do laço.
+      if (antiga.errors === 0 && comConexao > 0 && antiga.emptyReports === comConexao) {
         // Every channel came back with zero rows for the window. One channel alone doing this is
         // legitimate (e.g. a brand-new channel with nothing published yet), but ALL of them at
         // once — with no HTTP error — is the same silent-failure shape this fix closes: a scope

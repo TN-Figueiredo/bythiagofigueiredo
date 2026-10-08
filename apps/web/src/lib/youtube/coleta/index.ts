@@ -37,7 +37,7 @@ export interface ColetaCtx {
   metadadosAntes?: MetadadosAntes
 }
 
-function ehMetadadosAntes(x: unknown): x is MetadadosAntes {
+export function ehMetadadosAntes(x: unknown): x is MetadadosAntes {
   if (typeof x !== 'object' || x === null) return false
   const m = x as Record<string, unknown>
   return typeof m.day_pt === 'string' && typeof m.dias_sem_meta === 'object' && m.dias_sem_meta !== null

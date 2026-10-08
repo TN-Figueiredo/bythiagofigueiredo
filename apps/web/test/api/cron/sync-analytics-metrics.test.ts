@@ -21,6 +21,10 @@ vi.mock('@sentry/nextjs', () => ({
 const mockEnsureFreshToken = vi.fn()
 vi.mock('@/lib/social/token-refresh', () => ({
   ensureFreshToken: (...args: unknown[]) => mockEnsureFreshToken(...args),
+  // describeCronCause (lib/cron/failure-note) faz `instanceof TokenRevokedError`, e a rota agora o
+  // chama também no catch da fadiga — bloco que, com os mocks rasos deste arquivo, sempre lança.
+  TokenRevokedError: class TokenRevokedError extends Error {},
+  NoActiveConnectionError: class NoActiveConnectionError extends Error {},
 }))
 
 vi.mock('@/lib/youtube/analytics-sync', () => ({
@@ -60,6 +64,8 @@ vi.mock('@/lib/cron-health', () => ({
 // Função simples, não vi.fn: este arquivo chama vi.restoreAllMocks().
 vi.mock('@/lib/youtube/coleta', () => ({
   rodarColeta: async () => ({ falhas: [], resumo: {} }),
+  // A rota importa o guarda; com resumo vazio não há metadados a repassar.
+  ehMetadadosAntes: () => false,
 }))
 
 // ── Import after mocks ──────────────────────────────────────────────────────

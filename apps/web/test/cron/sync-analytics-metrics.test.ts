@@ -42,6 +42,8 @@ vi.mock('@/lib/cron-health', () => ({
 // Função simples, não vi.fn: este arquivo chama vi.restoreAllMocks().
 vi.mock('@/lib/youtube/coleta', () => ({
   rodarColeta: async () => ({ falhas: [], resumo: {} }),
+  // A rota importa o guarda; com resumo vazio não há metadados a repassar.
+  ehMetadadosAntes: () => false,
 }))
 
 vi.mock('@sentry/nextjs', () => ({
