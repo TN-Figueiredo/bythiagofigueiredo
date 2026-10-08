@@ -14,7 +14,8 @@ const SEM_NORMALIZADOR = ['channel_reach_combined_a1', 'channel_traffic_source_a
 describe.skipIf(skipIfNoLocalDb())('coleta L1a: schema (banco local)', () => {
   let sb: ReturnType<typeof getSupabaseServiceClient>
   let siteId = ''
-  const canal = randomUUID()
+  // Desde o L1b channel_id é chave estrangeira: o canal precisa existir.
+  let canal = ''
   const sufixo = randomUUID().slice(0, 8)
   const relatorio = (id: string, extra: Record<string, unknown> = {}) => ({
     site_id: siteId, report_id: `${id}-${sufixo}`, job_id: `job-${sufixo}`, channel_id: canal,
@@ -26,8 +27,17 @@ describe.skipIf(skipIfNoLocalDb())('coleta L1a: schema (banco local)', () => {
   beforeAll(async () => {
     sb = getSupabaseServiceClient()
     siteId = (await seedSite(sb)).siteId
+    const ch = await sb.from('youtube_channels').insert({
+      site_id: siteId, channel_id: `UCl1a${sufixo}`, locale: 'pt', handle: `@l1a${sufixo}`, name: 'Canal L1a', uploads_playlist_id: `UUl1a${sufixo}`,
+    }).select('id').single()
+    if (ch.error || !ch.data) throw new Error(ch.error?.message ?? 'canal não criado')
+    canal = ch.data.id as string
   })
   afterAll(async () => {
+    // A série sai antes do canal (on delete restrict); o bruto vai por cascata do relatório.
+    for (const t of ['yt_reporting_reports', 'yt_reporting_jobs', 'yt_own_video_meta_daily', 'yt_own_collection_attempts']) {
+      await sb.from(t).delete().eq('site_id', siteId)
+    }
     await sb.from('sites').delete().eq('id', siteId)
   })
 

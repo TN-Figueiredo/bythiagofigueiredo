@@ -2,6 +2,7 @@
 // O `fetch` é injetado: quem chama passa um fetch que já aplica o prazo do passo.
 import { createHash } from 'node:crypto'
 import { gunzipSync, gzipSync } from 'node:zlib'
+import { motivoDoGoogle } from '@/lib/youtube/coleta/google-erro'
 import { ReportingHttpError, type Job, type Report, type ReportType } from './types'
 
 export const REPORTING_BASE = 'https://youtubereporting.googleapis.com/v1'
@@ -42,18 +43,6 @@ export function deBytea(s: string): Buffer {
   return Buffer.from(s.slice(2), 'hex')
 }
 
-/** Lê só o `reason` do erro do Google (formato antigo `errors[]` e novo `details[]`). O corpo não é guardado. */
-async function motivoDoErro(res: Response): Promise<string | null> {
-  try {
-    const body = (await res.json()) as {
-      error?: { errors?: Array<{ reason?: string }>; details?: Array<{ reason?: string }> }
-    }
-    return body.error?.errors?.find(e => e.reason)?.reason ?? body.error?.details?.find(d => d.reason)?.reason ?? null
-  } catch {
-    return null
-  }
-}
-
 /** O `downloadUrl` vem da API e fica no banco antes de ser usado: o token só vai para hosts do Google, por https. */
 function urlDeDownloadPermitida(url: string): boolean {
   let u: URL
@@ -81,7 +70,7 @@ export function criarReportingClient(accessToken: string, f: typeof fetch): Repo
 
   async function pedir<T>(url: URL, init?: RequestInit): Promise<T> {
     const res = await f(url.toString(), { ...init, headers: { ...headers, ...(init?.headers as Record<string, string> | undefined) } })
-    if (!res.ok) throw new ReportingHttpError(res.status, await motivoDoErro(res))
+    if (!res.ok) throw new ReportingHttpError(res.status, await motivoDoGoogle(res))
     return (await res.json()) as T
   }
 
@@ -122,7 +111,7 @@ export function criarReportingClient(accessToken: string, f: typeof fetch): Repo
     async download(downloadUrl) {
       if (!urlDeDownloadPermitida(downloadUrl)) throw new ReportingHttpError(0, 'url_inesperada')
       const res = await f(downloadUrl, { headers: { ...headers, 'Accept-Encoding': 'gzip' } })
-      if (!res.ok) throw new ReportingHttpError(res.status, await motivoDoErro(res))
+      if (!res.ok) throw new ReportingHttpError(res.status, await motivoDoGoogle(res))
       return empacotarCsv(Buffer.from(await res.arrayBuffer()))
     },
   }

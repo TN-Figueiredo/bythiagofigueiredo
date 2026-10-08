@@ -13,6 +13,8 @@ vi.mock('@/lib/cms/auth-guards', async () => {
   }
 })
 
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+
 let mockServiceClient: ReturnType<typeof makeServiceClient>
 
 vi.mock('@/lib/cms/site-context', () => ({
@@ -33,6 +35,7 @@ vi.mock('@tn-figueiredo/social/vault', () => ({
 }))
 
 import { NextRequest } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import {
@@ -55,28 +58,56 @@ function startReq(): NextRequest {
   return new NextRequest('https://bythiagofigueiredo.com/api/social/oauth/google')
 }
 
-function makeServiceClient() {
+function makeServiceClient(
+  voltaram: Array<{ id: string }> = [],
+  erroUpdate: { code: string } | null = null,
+  erroDelete: { code: string; message?: string } | null = null,
+) {
   const upsert = vi.fn().mockResolvedValue({ error: null })
   const insert = vi.fn().mockResolvedValue({ error: null })
   const maybeSingle = vi.fn().mockResolvedValue({
     data: { id: 'social_integration_v1_pt-BR' },
     error: null,
   })
-  const chain: Record<string, unknown> = {
-    upsert,
-    insert,
-    maybeSingle,
-    select: vi.fn(),
-    eq: vi.fn(),
-    is: vi.fn(),
-    order: vi.fn(),
-    limit: vi.fn(),
-  }
-  for (const key of ['select', 'eq', 'is', 'order', 'limit']) {
-    ;(chain[key] as ReturnType<typeof vi.fn>).mockReturnValue(chain)
-  }
-  const from = vi.fn().mockReturnValue(chain)
-  return { from, chain, upsert, insert, maybeSingle }
+  const chamadas: Array<{ tabela: string; op: string; args: unknown[] }> = []
+  const chain: Record<string, unknown> = {}
+  const from = vi.fn((tabela: string) => {
+    const filtros: unknown[] = []
+    let op = 'select'
+    const cadeia: Record<string, unknown> = {
+      upsert,
+      insert,
+      maybeSingle,
+      update: (patch: unknown) => {
+        op = 'update'
+        chamadas.push({ tabela, op, args: [patch, filtros] })
+        return cadeia
+      },
+      delete: () => {
+        op = 'delete'
+        chamadas.push({ tabela, op, args: [filtros] })
+        return cadeia
+      },
+      eq: (c: string, v: unknown) => {
+        filtros.push([c, v])
+        return cadeia
+      },
+      is: () => cadeia,
+      order: () => cadeia,
+      limit: () => cadeia,
+      select: () => cadeia,
+      then: (ok: (v: unknown) => unknown) =>
+        Promise.resolve(
+          op === 'update'
+            ? erroUpdate
+              ? { data: null, error: erroUpdate }
+              : { data: voltaram, error: null }
+            : { data: null, error: op === 'delete' ? erroDelete : null },
+        ).then(ok),
+    }
+    return cadeia
+  })
+  return { from, chain, upsert, insert, maybeSingle, chamadas }
 }
 
 function callbackReq(state: string, code = 'meta-code'): NextRequest {
@@ -329,5 +360,69 @@ describe('social oauth callback — success path', () => {
     expect(consentRow.user_id).toBe(USER)
     expect(consentRow.site_id).toBe(SITE)
     expect(consentRow.ip).toBe('203.0.113.9')
+  })
+
+  it('L1b: reconexão grava ok e a data da autorização em toda linha do canal (estivesse ou não em reautorizar) e apaga o carimbo do aviso', async () => {
+    mockServiceClient = makeServiceClient([{ id: 'canal-uuid-1' }])
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
+    const res = await CALLBACK(callbackReq(validState(NOW)), { params: Promise.resolve({ provider: 'google' }) })
+    expect(res.status).toBe(200)
+
+    const up = mockServiceClient.chamadas.find(c => c.tabela === 'youtube_channels' && c.op === 'update')!
+    expect(up.args[0]).toEqual({ collection_status: 'ok', authorization_verified_at: new Date(NOW).toISOString() })
+    // Sem filtro de collection_status: o carimbo pode ter ficado preso num canal que já voltou a ok.
+    expect(up.args[1]).toEqual([['site_id', SITE], ['channel_id', 'ch1']])
+
+    const del = mockServiceClient.chamadas.find(c => c.tabela === 'ops_alert_state' && c.op === 'delete')!
+    expect(del.args[0]).toEqual([['key', 'sync-analytics:canal-uuid-1:reautorizar']])
+  })
+
+  it('L1b: nenhuma linha de youtube_channels para o canal (zero linhas) não apaga carimbo nenhum e conecta igual', async () => {
+    mockServiceClient = makeServiceClient([])
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
+    const res = await CALLBACK(callbackReq(validState(NOW)), { params: Promise.resolve({ provider: 'google' }) })
+    expect(res.status).toBe(200)
+    expect(mockServiceClient.chamadas.filter(c => c.tabela === 'ops_alert_state')).toEqual([])
+    expect(mockServiceClient.insert).toHaveBeenCalledTimes(1)
+  })
+
+  it('L1b: exceção ao devolver o canal a ok não derruba a conexão e o consentimento é gravado', async () => {
+    mockServiceClient = makeServiceClient([])
+    const original = mockServiceClient.from
+    mockServiceClient.from = vi.fn((tabela: string) => {
+      if (tabela === 'youtube_channels') throw new Error('banco fora')
+      return original(tabela)
+    }) as typeof original
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
+    const res = await CALLBACK(callbackReq(validState(NOW)), { params: Promise.resolve({ provider: 'google' }) })
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('"success":true')
+    expect(mockServiceClient.insert).toHaveBeenCalledTimes(1)
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+  })
+
+  it('L1b: delete do carimbo que devolve error não derruba a conexão e avisa o Sentry só com o código', async () => {
+    mockServiceClient = makeServiceClient([{ id: 'canal-uuid-1' }], null, { code: '57014', message: 'canceling statement' })
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
+    const res = await CALLBACK(callbackReq(validState(NOW)), { params: Promise.resolve({ provider: 'google' }) })
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('"success":true')
+    expect(mockServiceClient.chamadas.filter(c => c.tabela === 'ops_alert_state' && c.op === 'delete')).toHaveLength(1)
+    expect(mockServiceClient.insert).toHaveBeenCalledTimes(1)
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+    const [, opcoes] = vi.mocked(Sentry.captureMessage).mock.calls[0]!
+    expect(opcoes).toEqual({ level: 'warning', extra: { code: '57014' } })
+    expect(JSON.stringify(vi.mocked(Sentry.captureMessage).mock.calls)).not.toMatch(/"at"|"rt"|canceling/)
+    expect(Sentry.captureException).not.toHaveBeenCalled()
+  })
+
+  it('L1b: update que devolve error (sem lançar) não derruba a conexão, não apaga carimbo e avisa o Sentry', async () => {
+    mockServiceClient = makeServiceClient([{ id: 'canal-uuid-1' }], { code: '57014' })
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
+    const res = await CALLBACK(callbackReq(validState(NOW)), { params: Promise.resolve({ provider: 'google' }) })
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('"success":true')
+    expect(mockServiceClient.chamadas.filter(c => c.op === 'delete')).toEqual([])
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
   })
 })

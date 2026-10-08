@@ -118,6 +118,8 @@ export interface RemovalImpact {
   connections: number
   /** Itens do pipeline que ficam, sem o vínculo. */
   pipelineLinks: number
+  /** Linhas da coleta (metadados diários, relatórios, jobs, tentativas) que apontam para o canal. Maior que zero impede a remoção. */
+  serieColetada: number
   blockers: RemovalBlocker[]
 }
 export type RemovalImpactResult = { ok: true; impact: RemovalImpact } | { ok: false; error: string }
@@ -130,11 +132,13 @@ export type RemoveChannelResult =
 
 const count = z.number().int().min(0)
 const impactRow = z.object({
-  status: z.enum(['ok', 'blocked', 'removed']),
+  status: z.enum(['ok', 'blocked', 'removed', 'serie_coletada']),
   name: z.string(),
   slug: z.string(),
   videos: count, comments: count, sync_logs: count, ab_tests: count, ab_drafts: count, analyses: count, tasks: count, notes: count,
   notifications: count, connections: count, pipeline_links: count,
+  // Ausente quando o banco ainda não tem a migration do L1b: vale 0 (a função antiga não bloqueia por série).
+  serie_coletada: count.default(0),
   blockers: z.array(z.object({
     id: z.string(),
     name: z.string(),
@@ -145,7 +149,7 @@ const impactRow = z.object({
   })),
 })
 export type RemovalRpc =
-  | { status: 'ok' | 'blocked' | 'removed'; impact: RemovalImpact }
+  | { status: 'ok' | 'blocked' | 'removed' | 'serie_coletada'; impact: RemovalImpact }
   | { status: 'not_found' | 'slug_mismatch' }
   /** O banco devolveu algo que este código não entende: nunca tratado como sucesso. */
   | { status: 'invalid' }
@@ -162,6 +166,7 @@ export function parseRemovalRpc(raw: unknown): RemovalRpc {
     impact: {
       name: r.name, slug: r.slug, videos: r.videos, comments: r.comments, syncLogs: r.sync_logs, abTests: r.ab_tests, abDrafts: r.ab_drafts,
       analyses: r.analyses, tasks: r.tasks, notes: r.notes, notifications: r.notifications, connections: r.connections, pipelineLinks: r.pipeline_links,
+      serieColetada: r.serie_coletada,
       blockers: r.blockers.map(b => ({
         id: b.id, name: b.name, status: b.status, videoTitle: b.video_title,
         since: b.status === 'queued' ? null : b.status === 'paused' ? (b.paused_at ?? b.started_at) : b.started_at,
@@ -183,6 +188,7 @@ export const CHANNEL_TEXT = {
   slugInvalid: 'Use lowercase letters, numbers and hyphens (2 to 32 characters).',
   slugMismatch: 'Slug confirmation does not match',
   removalUnavailable: 'Channel removal is not available yet: a database update is pending. Nothing was deleted.',
+  serieColetada: 'Este canal tem série coletada. Apagar a série é um passo manual, descrito no runbook.',
   nichesUnavailable: 'Niches cannot be created yet: a database update is pending.',
   sameLanguageUnavailable: 'A second channel in the same language cannot be saved yet: a database update is pending.',
   saveFailed: 'Error saving',

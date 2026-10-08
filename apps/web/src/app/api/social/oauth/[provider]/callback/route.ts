@@ -1,10 +1,12 @@
 import { NextRequest } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { headers } from 'next/headers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { encrypt, getMasterKey } from '@tn-figueiredo/social/vault'
 import { deriveHmacKey, verifyState, SOCIAL_STATE_LABEL } from '@/lib/oauth/state'
 import { oauthResultHtml, type OauthResultExtra } from '@/lib/oauth/popup-result'
 import { recordSocialConsent } from '@/lib/oauth/consent'
+import { chaveAviso } from '@/lib/youtube/coleta/alerts'
 import { requireSiteAdminScope, siteAdminOnlyMessage } from '@/lib/cms/auth-guards'
 
 export const runtime = 'nodejs'
@@ -293,6 +295,43 @@ export async function GET(
         )
 
         if (error) throw new Error(`DB upsert failed: ${error.message}`)
+
+        // A reconexão devolve a coleta do canal ao normal sem esperar o cron (spec da coleta, seção 6): é o caminho
+        // imediato de volta a `ok`, e o consentimento que acabou de acontecer vale como autorização conferida agora.
+        // Toda linha do canal é gravada, estivesse ou não em `reautorizar`: o carimbo do aviso pode ter ficado preso
+        // num canal que já voltou a `ok` (aviso de saída que não foi entregue), e é apagado para uma nova revogação
+        // avisar de novo. Zero linhas não é erro; falha aqui não desfaz a conexão que acabou de ser gravada: o cron
+        // seguinte devolve o canal a `ok` quando uma chamada autenticada passar.
+        try {
+          const { data: voltaram, error: erroCanal } = await supabase
+            .from('youtube_channels')
+            .update({ collection_status: 'ok', authorization_verified_at: new Date().toISOString() })
+            .eq('site_id', siteId)
+            .eq('channel_id', channel.channelId)
+            .select('id')
+          if (erroCanal) {
+            Sentry.captureMessage('social oauth callback: não devolveu o canal a ok', {
+              level: 'warning',
+              extra: { code: erroCanal.code },
+            })
+          } else {
+            for (const c of voltaram ?? []) {
+              const { error: erroCarimbo } = await supabase
+                .from('ops_alert_state')
+                .delete()
+                .eq('key', chaveAviso(c.id, 'reautorizar'))
+              if (erroCarimbo) {
+                Sentry.captureMessage('social oauth callback: não apagou o carimbo do aviso de reautorizar', {
+                  level: 'warning',
+                  extra: { code: erroCarimbo.code },
+                })
+              }
+            }
+          }
+        } catch (e) {
+          Sentry.captureException(e, { tags: { rota: 'social-oauth-callback', passo: 'coleta-reautorizar' } })
+        }
+
         await recordSocialConsent(supabase, {
           userId,
           siteId,

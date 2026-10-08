@@ -1,21 +1,29 @@
-// Passo de metadados (spec, seção 3) — recorte do lote L1a: sem privacy_status e sem is_short.
+// Passo de metadados (spec, seção 3). Desde o L1b captura pela Data API com o token do canal dono (privacy_status) e classifica Shorts.
 // Grava o DIA FECHADO (ontem no Pacífico) para todo vídeo de todo canal. O que estava no ar em
 // cada dia não volta: por isso o passo nunca desiste de gravar a linha por causa da thumbnail.
 import * as Sentry from '@sentry/nextjs'
 import { createHash } from 'node:crypto'
 import { describeCronCause } from '@/lib/cron/failure-note'
+import { classifyShort, needsShortProbe, newProbeBudget, probeShortsBatch } from '@/lib/youtube/short-classifier'
 import { archiveThumb, DHASH_MAX_SAME, hamming, probeThumb, type ThumbProbe } from '@/lib/youtube/thumb-fingerprint'
 import { calcularAbDoDia, type AbCycle, type AbDia, type AbTest } from './ab-seconds'
+import { marcarAutorizado, marcarReautorizar, obterToken } from './autorizacao'
 import { contarPorResultado, registrarTentativa } from './attempts'
 import { comPrazo, emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
 import { addDays, boundsAnalytics, boundsReporting, diffDias, ontemPt, utcDay } from './day-pt'
+import { ehPerdaDeAutorizacao } from './google-erro'
 import { conferirBanco, pushUnico } from './schema'
 import type { StepCtx, StepResumo } from './types'
+import { DataApiError, videosList, type VideoCapturado } from './videos-list'
 
 export interface MetaResumo extends StepResumo {
   day_pt: string
   /** Por `youtube_channels.id`: dias entre a última linha gravada e o dia em gravação. */
   dias_sem_meta: Record<string, number>
+  /** Linhas gravadas nesta execução sem `privacy_status` (sem token, falha de videos.list ou vídeo ausente dela). */
+  sem_privacidade: number
+  /** Linhas gravadas nesta execução cujo `is_short` ficou nulo (duração desconhecida ou sonda sem confirmação). */
+  sem_is_short: number
 }
 
 interface VideoRow {
@@ -37,6 +45,8 @@ interface Anterior {
   tags_sha256: string | null
   thumbnail_dhash: string | null
   thumbnail_blob_url: string | null
+  is_short: boolean | null
+  duration_seconds: number | null
 }
 
 interface ThumbCaptura {
@@ -47,6 +57,9 @@ interface ThumbCaptura {
   blobUrl: string | null
 }
 
+/** A captura pela Data API (token + videos.list de todos os canais) não come mais que isto do prazo do passo. */
+export const TETO_CAPTURA_MS = 8_000
+
 /** O PostgREST corta em 1000 linhas: bater nesse número é sinal de leitura truncada. */
 const LIMITE_LEITURA = 1000
 
@@ -56,6 +69,20 @@ const AB_ILEGIVEL: AbDia = {
   seconds_on_air_analytics: null, seconds_other_analytics: null,
   seconds_on_air_reporting: null, seconds_other_reporting: null,
   title: null, thumbCopiaCaptura: false, motivoNulo: null,
+}
+
+const PRIVACIDADES: readonly string[] = ['public', 'unlisted', 'private']
+
+/**
+ * `is_short` sem rede. `null` = não se sabe ainda; `sonda: true` = só a sonda de /shorts decide (61 a 180 s sem #Shorts).
+ * Um vídeo já confirmado num dia anterior, com a mesma duração, não é sondado de novo.
+ */
+function shortSemSonda(dur: number | null, titulo: string | null, ant: Anterior | null): { valor: boolean | null; sonda: boolean } {
+  if (dur == null || dur === 0) return { valor: null, sonda: false }
+  if (ant && ant.is_short !== null && ant.duration_seconds === dur) return { valor: ant.is_short, sonda: false }
+  if (needsShortProbe(dur) && !(titulo?.includes('#Shorts') ?? false)) return { valor: null, sonda: true }
+  const v = classifyShort({ durationSeconds: dur, title: titulo })
+  return { valor: v.confirmed ? v.isShort : null, sonda: false }
 }
 
 const sha256 = (v: string | Buffer): string => createHash('sha256').update(v).digest('hex')
@@ -142,7 +169,7 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
   const day = ontemPt(agora)
   const A = boundsAnalytics(day)
   const R = boundsReporting(day)
-  const resumo: MetaResumo = { gravados: 0, tentativas: {}, pendentes: 0, day_pt: day, dias_sem_meta: {} }
+  const resumo: MetaResumo = { gravados: 0, tentativas: {}, pendentes: 0, day_pt: day, dias_sem_meta: {}, sem_privacidade: 0, sem_is_short: 0 }
   const fechar = (): MetaResumo => {
     resumo.tentativas = contarPorResultado(ctx.tentativas, ['meta', 'thumbnail'])
     return resumo
@@ -172,6 +199,59 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
     }
     resumo.pendentes = videos.length
     return fechar()
+  }
+
+  // Captura pela Data API, com o token do canal dono. Sem token, sem tempo ou com falha: a linha do dia sai do
+  // mesmo jeito, com os campos de youtube_videos e sem privacy_status.
+  const f = fetchComPrazo(ctx.deadline)
+  // Prazo próprio da captura: ela roda em série antes das linhas e não pode consumir o prazo do passo.
+  // O spread é raso: `falhas` e `tentativas` continuam sendo os mesmos arrays.
+  const prazoCaptura = Math.min(ctx.deadline, Date.now() + TETO_CAPTURA_MS)
+  const ctxCaptura: StepCtx = { ...ctx, deadline: prazoCaptura }
+  const fCaptura = fetchComPrazo(prazoCaptura)
+  const captura = new Map<string, VideoCapturado>()
+  /** `youtube_channels.id` cuja videos.list respondeu: só para esses "ausente da resposta" quer dizer alguma coisa. */
+  const respondeu = new Set<string>()
+  for (const c of canais) {
+    const doCanal = videos.filter(v => v.channel_id === c.id)
+    if (doCanal.length === 0) continue
+    const tCanal = { site_id: c.site_id, scope_type: 'canal' as const, scope_id: c.id, kind: 'meta' as const, channel_id: c.id }
+    try {
+      const token = await obterToken(ctxCaptura, c, tCanal)
+      if (token === null) continue
+      const lidosApi = await videosList(token, doCanal.map(v => v.youtube_video_id), fCaptura)
+      for (const [id, v] of lidosApi) captura.set(id, v)
+      respondeu.add(c.id)
+      // Falha em verde: uma resposta sem nenhum dos vídeos do canal não é "alguns ausentes", é dado que não veio.
+      const presentes = doCanal.filter(v => lidosApi.has(v.youtube_video_id))
+      if (presentes.length === 0) {
+        pushUnico(ctx.falhas, `metadados: ${c.name}: videos.list não devolveu nenhum dos ${doCanal.length} vídeos`)
+      } else if (!presentes.some(v => PRIVACIDADES.includes(lidosApi.get(v.youtube_video_id)?.privacyStatus ?? ''))) {
+        // Mesma forma: os vídeos vieram, mas a parte `status` não. O dia fecharia sem privacidade de ninguém, em verde.
+        pushUnico(ctx.falhas, `metadados: ${c.name}: videos.list não trouxe privacy_status de nenhum dos ${presentes.length} vídeos`)
+      }
+      await marcarAutorizado(ctx, c)
+      await registrarTentativa(ctx, { ...tCanal, outcome: 'ok' })
+    } catch (e) {
+      if (e instanceof SemTempoError) {
+        await registrarTentativa(ctx, { ...tCanal, outcome: 'nao_alcancado_orcamento' })
+        // O teto da captura estourou com o passo ainda no prazo: as linhas saem sem privacy_status e isso precisa
+        // aparecer. Com o prazo do PASSO vencido é orçamento, e o critério de orçamento cuida.
+        if (restante(ctx.deadline) > 0) {
+          pushUnico(ctx.falhas, `metadados: ${c.name}: a captura pela videos.list não coube em ${TETO_CAPTURA_MS / 1000} s`)
+        }
+        continue
+      }
+      if (e instanceof DataApiError && ehPerdaDeAutorizacao(e.status, e.reason)) {
+        await marcarReautorizar(ctx, c)
+        await registrarTentativa(ctx, { ...tCanal, outcome: 'sem_autorizacao', http_status: e.status })
+        continue
+      }
+      const causa = e instanceof DataApiError ? (e.reason ? `HTTP ${e.status} ${e.reason}` : `HTTP ${e.status}`) : describeCronCause(e)
+      Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', passo: 'metadados' }, extra: { canal: c.channel_id } })
+      pushUnico(ctx.falhas, `metadados: ${c.name}: videos.list falhou (${causa})`)
+      await registrarTentativa(ctx, { ...tCanal, outcome: 'erro_http', http_status: e instanceof DataApiError ? e.status : null, error: causa })
+    }
   }
 
   // dias_sem_meta: por canal, ANTES de gravar o dia. Sem linha anterior vale 0.
@@ -208,7 +288,7 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
     try {
       const r = await ctx.supabase
         .from('yt_own_video_meta_daily')
-        .select('day_pt, description_sha256, tags_sha256, thumbnail_dhash, thumbnail_blob_url')
+        .select('day_pt, description_sha256, tags_sha256, thumbnail_dhash, thumbnail_blob_url, is_short, duration_seconds')
         .eq('youtube_video_id', v.youtube_video_id)
         .lt('day_pt', day)
         .order('day_pt', { ascending: false })
@@ -246,7 +326,10 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
 
   const fila = [...videos].sort((a, b) =>
     (anteriores.get(a.youtube_video_id)?.day_pt ?? '').localeCompare(anteriores.get(b.youtube_video_id)?.day_pt ?? ''))
-  const f = fetchComPrazo(ctx.deadline)
+  /** Vídeos cuja linha foi gravada nesta execução e que só a sonda de /shorts classifica. */
+  const filaSonda = new Map<string, { dur: number; titulo: string | null }>()
+  /** Fora do critério de thumbnail de hoje: privado, ou ausente de uma videos.list que respondeu. */
+  const foraDoCriterio = new Map<string, number>()
   const gravadosPorCanal = new Map<string, number>()
   const naoAlcancados = new Map<string, number>()
   const thumbFalhas = new Map<string, number>()
@@ -266,6 +349,20 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
         return
       }
       const ant = anteriores.get(v.youtube_video_id) ?? null
+      const cap = captura.get(v.youtube_video_id) ?? null
+      const ausente = !cap && respondeu.has(v.channel_id)
+      const titulo = cap?.title ?? v.title
+      const descricao = cap?.description ?? v.description
+      const tags = cap ? cap.tags : v.tags
+      const duracao = cap?.durationSeconds ?? v.duration_seconds
+      const privacidadeBruta = cap?.privacyStatus ?? null
+      const privacidade = privacidadeBruta !== null && PRIVACIDADES.includes(privacidadeBruta) ? privacidadeBruta : null
+      if (privacidadeBruta !== null && privacidade === null) {
+        pushUnico(ctx.falhas, `metadados: privacy_status desconhecido "${privacidadeBruta.slice(0, 40)}"`)
+      }
+      const short = shortSemSonda(duracao, titulo, ant)
+      const foraThumb = ausente || privacidade === 'private'
+      if (foraThumb) somar(foraDoCriterio, v.channel_id)
 
       // Seção 3 do spec: falha de thumbnail nunca impede a linha. Vale também para o prazo que acaba no meio da
       // captura: título e A/B vêm só do banco e já são conhecidos, e a linha deste dia não volta. Ela é gravada sem
@@ -286,7 +383,7 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
         error: thumb.motivo,
       })
       // Sem tempo não é thumbnail que falhou: fica fora do critério "metade ou mais por 2 dias".
-      if (!thumb.ok && !thumbSemTempo) somar(thumbFalhas, v.channel_id)
+      if (!thumb.ok && !thumbSemTempo && !foraThumb) somar(thumbFalhas, v.channel_id)
 
       const testes = ab.testes.get(v.id) ?? []
       const idsDosTestes = new Set(testes.map(t => t.id))
@@ -296,27 +393,36 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
             tests: testes,
             cycles: ab.ciclos.filter(c => idsDosTestes.has(c.test_id)),
             capturedAt: agora.getTime(),
-            titleAtCapture: v.title,
+            titleAtCapture: titulo,
           })
         : AB_ILEGIVEL
 
       // Descrição nula = não sabemos: hash nulo, sem texto. Nunca o hash de uma string vazia inventada.
-      const descHash = v.description === null ? null : sha256(v.description)
-      const tagsHash = sha256(JSON.stringify(v.tags ?? []))
+      const descHash = descricao === null ? null : sha256(descricao)
+      const tagsHash = sha256(JSON.stringify(tags ?? []))
+      // Captura que falhou numa execução em que o dia já tem linha: os campos vindos da API na 1ª execução ficam
+      // fora do payload (youtube_videos é mais velho que a API e rebaixaria a linha). Só quando a linha
+      // COMPROVADAMENTE existe: com o dia ilegível, a primeira linha do dia nasceria sem título, hashes e duração, e
+      // as reexecuções manteriam o buraco. (Para a URL da thumbnail o lado seguro é o outro: dia ilegível conta.)
+      const diaJaTemLinha = diaIlegivel.has(v.channel_id) || jaTemLinha.has(v.youtube_video_id)
+      const preservar = !cap && jaTemLinha.has(v.youtube_video_id)
       const linha: Record<string, unknown> = {
         site_id: v.site_id,
         youtube_video_id: v.youtube_video_id,
         day_pt: day,
         video_id: v.id,
         channel_id: v.channel_id,
-        title_at_capture: v.title,
-        description_sha256: descHash,
-        tags_sha256: tagsHash,
-        duration_seconds: v.duration_seconds,
-        is_short: null,
-        privacy_status: null,
         captured_at: capturedAt,
       }
+      if (!preservar) {
+        // Sem captura a linha pode já existir sem que se saiba (dia ilegível ou leitura cortada): um título ou uma
+        // descrição nulos em youtube_videos não podem apagar o que a 1ª execução gravou. Com captura, vale o que veio.
+        if (cap || titulo !== null) linha.title_at_capture = titulo
+        if (cap || descHash !== null) linha.description_sha256 = descHash
+        linha.tags_sha256 = tagsHash
+      }
+      // Nulo, nunca zero.
+      if (!preservar && duracao !== null && duracao > 0) linha.duration_seconds = duracao
       // Segunda execução no mesmo dia: o que a primeira capturou não pode voltar a nulo porque esta falhou.
       // Thumbnail que não foi capturada e A/B que não foi lido ficam FORA do payload (no primeiro dia = nulo).
       if (thumb.ok) {
@@ -324,7 +430,7 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
         linha.thumbnail_sha256_at_capture = thumb.sha256
       }
       if (ab.ok) {
-        linha.title = abDia.title
+        if (!(preservar && abDia.ab_test_id === null)) linha.title = abDia.title
         linha.ab_test_id = abDia.ab_test_id
         linha.ab_variant_id = abDia.ab_variant_id
         linha.seconds_on_air_analytics = abDia.seconds_on_air_analytics
@@ -334,23 +440,33 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
         if (thumb.ok) linha.thumbnail_sha256 = abDia.thumbCopiaCaptura ? thumb.sha256 : null
       }
       // Estas três chaves nunca passam de não nulo a nulo: quando não há valor, ficam fora do payload.
-      if (v.description !== null && (!ant || ant.description_sha256 !== descHash)) linha.description_text = v.description
-      if (!ant || ant.tags_sha256 !== tagsHash) linha.tags = v.tags ?? []
+      if (!preservar && descricao !== null && (!ant || ant.description_sha256 !== descHash)) linha.description_text = descricao
+      if (!preservar && (!ant || ant.tags_sha256 !== tagsHash)) linha.tags = tags ?? []
       // Captura que falhou só repete a URL do dia anterior se o dia ainda não tem linha deste vídeo.
-      const diaJaTemLinha = diaIlegivel.has(v.channel_id) || jaTemLinha.has(v.youtube_video_id)
       if (thumb.blobUrl && (thumb.ok || !diaJaTemLinha)) linha.thumbnail_blob_url = thumb.blobUrl
+
+      // Nunca de não nulo a nulo: sem valor, a chave fica fora do payload (uma segunda execução não apaga a primeira).
+      if (privacidade !== null) linha.privacy_status = privacidade
+      // Sem captura sobre uma linha que já existe, is_short não é recalculado com a duração (mais velha) de youtube_videos.
+      if (!preservar && short.valor !== null) linha.is_short = short.valor
 
       const up = await ctx.supabase.from('yt_own_video_meta_daily').upsert(linha, { onConflict: 'youtube_video_id,day_pt' })
       const escrita = conferirBanco(up, 'yt_own_video_meta_daily', ctx.falhas)
       await registrarTentativa(ctx, {
         ...base,
         kind: 'meta',
-        outcome: escrita === 'ok' ? 'ok' : escrita === 'schema_ausente' ? 'schema_ausente' : 'erro_http',
-        error: escrita === 'ok' ? null : 'erro de banco',
+        outcome: escrita === 'ok' ? (ausente ? 'erro_http' : 'ok') : escrita === 'schema_ausente' ? 'schema_ausente' : 'erro_http',
+        error: escrita === 'ok' ? (ausente ? 'ausente de videos.list' : null) : 'erro de banco',
       })
       if (escrita === 'ok') {
         resumo.gravados++
         somar(gravadosPorCanal, v.channel_id)
+        if (privacidade === null) resumo.sem_privacidade++
+        // Linha preservada: is_short é o que a execução anterior gravou; nem sonda nem conta aqui.
+        if (!preservar) {
+          if (short.sonda && duracao !== null) filaSonda.set(v.youtube_video_id, { dur: duracao, titulo })
+          else if (short.valor === null) resumo.sem_is_short++
+        }
       }
     } catch (e) {
       if (e instanceof SemTempoError) {
@@ -366,6 +482,29 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       await registrarTentativa(ctx, { ...base, kind: 'meta', outcome: 'erro_http', error: describeCronCause(e) })
     }
   })
+
+  // Sonda de Shorts (61 a 180 s), só depois de todas as linhas gravadas: o que estava no ar não volta, a
+  // classificação sim. Sem confirmação, is_short fica nulo e o vídeo é sondado de novo no dia seguinte.
+  if (filaSonda.size > 0) {
+    let sondas = new Map<string, 'short' | 'normal' | 'inconclusive'>()
+    if (restante(ctx.deadline) > 0) {
+      try {
+        sondas = await probeShortsBatch([...filaSonda.keys()], newProbeBudget(), f, () => restante(ctx.deadline) <= 0)
+      } catch (e) {
+        Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', passo: 'metadados' } })
+      }
+    }
+    for (const [id, info] of filaSonda) {
+      const veredito = classifyShort({ durationSeconds: info.dur, title: info.titulo, probe: sondas.get(id) ?? null })
+      if (!veredito.confirmed) { resumo.sem_is_short++; continue }
+      const up = await ctx.supabase
+        .from('yt_own_video_meta_daily')
+        .update({ is_short: veredito.isShort })
+        .eq('youtube_video_id', id)
+        .eq('day_pt', day)
+      if (conferirBanco(up, 'yt_own_video_meta_daily', ctx.falhas) !== 'ok') resumo.sem_is_short++
+    }
+  }
 
   // Critérios da seção 9 que valem para este passo.
   for (const c of canais) {
@@ -384,7 +523,8 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
     if (comLinha < devidos) pushUnico(ctx.falhas, `metadados: ${c.name} tem ${comLinha} de ${devidos} vídeos com linha em ${day}`)
 
     const falhasHoje = thumbFalhas.get(c.id) ?? 0
-    if (devidos > 0 && falhasHoje * 2 >= devidos) {
+    const contamHoje = devidos - (foraDoCriterio.get(c.id) ?? 0)
+    if (contamHoje > 0 && falhasHoje * 2 >= contamHoje) {
       const ontem = await ctx.supabase
         .from('yt_own_collection_attempts')
         .select('outcome')

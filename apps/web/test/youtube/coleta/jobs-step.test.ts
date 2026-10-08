@@ -21,16 +21,23 @@ import type { StepCtx } from '@/lib/youtube/coleta/types'
 import { SemTempoError } from '@/lib/youtube/coleta/clock'
 import { fakeSupabase, type FakeDb, type Row } from './fake-supabase'
 
-const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true }
+const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true, collection_status: 'ok' as const, video_count: 1 }
 const api = { reportTypesList: vi.fn(), jobsList: vi.fn(), jobsCreate: vi.fn(), reportsList: vi.fn(), download: vi.fn() }
 const TIPOS = REPORT_TYPES_ENABLED.map(id => ({ id }))
 const ctxDe = (db: FakeDb, prazoMs = 20_000): StepCtx => ({
-  supabase: db.client, channels: [canal], deadline: Date.now() + prazoMs, falhas: [], tentativas: [],
+  // Cópia: o passo muda `collection_status` do canal em memória e isso não pode vazar para outro teste.
+  supabase: db.client, channels: [{ ...canal }], deadline: Date.now() + prazoMs, falhas: [], tentativas: [],
 })
 const job = (db: FakeDb, tipo: string) => db.tables.yt_reporting_jobs?.find(r => r.channel_id === 'ch-1' && r.report_type_id === tipo)
 const estados = (db: FakeDb) => Object.fromEntries((db.tables.yt_reporting_jobs ?? []).map(r => [r.report_type_id as string, r.status]))
 const tentativaCanal = (db: FakeDb) => db.tables.yt_own_collection_attempts?.find(r => r.scope_type === 'canal' && r.kind === 'sondagem')
 const linhaAtiva = (tipo: string): Row => ({ site_id: 'site-1', channel_id: 'ch-1', report_type_id: tipo, status: 'ativo', job_id: `job-${tipo}`, job_create_time: '2026-10-01T00:00:00.000Z' })
+
+/** A Reporting API recusa o token com 401 (a listagem de jobs falha); o passo roda sobre o ctx dado. */
+const rodarComReporting401 = (ctx: StepCtx) => {
+  api.jobsList.mockRejectedValue(new ReportingHttpError(401, null))
+  return passoJobs(ctx)
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -144,10 +151,9 @@ describe('passoJobs: ação do dono', () => {
   })
 
   it('com 401: sem_acesso, e um job que estava ativo guarda o job_id', async () => {
-    api.jobsList.mockRejectedValue(new ReportingHttpError(401, null))
     const db = fakeSupabase({ yt_reporting_jobs: [linhaAtiva('channel_basic_a3')] })
     const ctx = ctxDe(db)
-    const resumo = await passoJobs(ctx)
+    const resumo = await rodarComReporting401(ctx)
     expect(estados(db)).toEqual(Object.fromEntries(REPORT_TYPES_ENABLED.map(t => [t, 'sem_acesso'])))
     expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'sem_acesso', job_id: 'job-channel_basic_a3' })
     expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'sem_acesso')
@@ -196,11 +202,8 @@ describe('passoJobs: erros', () => {
     expect(job(db, 'channel_reach_basic_a1')).toMatchObject({ status: 'erro', error: 'request timed out' })
   })
 
-  it.each([
-    ['TokenRevokedError', () => new TokenRevokedError('youtube', 'conn-1')],
-    ['NoActiveConnectionError', () => new NoActiveConnectionError('youtube', 'site-1')],
-  ])('simplificação de L1a: %s pula o canal com tentativa sem_conexao, sem aviso e sem falha', async (_nome, erro) => {
-    vi.mocked(ensureFreshToken).mockRejectedValue(erro())
+  it('sem conexão: pula o canal com tentativa sem_conexao, sem aviso e sem falha', async () => {
+    vi.mocked(ensureFreshToken).mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
     const db = fakeSupabase()
     const ctx = ctxDe(db)
     await passoJobs(ctx)
@@ -368,6 +371,39 @@ describe('passoJobs: rodada de correção 1', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('passoJobs: autorização (L1b)', () => {
+  it('token revogado: canal vira reautorizar, tentativa sem_autorizacao, nenhuma falha crítica e nenhuma chamada à Reporting API', async () => {
+    vi.mocked(ensureFreshToken).mockRejectedValue(new TokenRevokedError('youtube', 'c1'))
+    const db = fakeSupabase({ youtube_channels: [{ id: 'ch-1', collection_status: 'ok' }] })
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(resumo.tentativas).toEqual({ sem_autorizacao: 1 })
+    expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'reautorizar' })
+    expect(ctx.channels[0]!.collection_status).toBe('reautorizar')
+    expect(ctx.falhas).toEqual([])
+    expect(db.tables.yt_reporting_jobs ?? []).toEqual([])
+    expect(api.reportTypesList).not.toHaveBeenCalled()
+  })
+
+  it('sem conexão e sem conexão revogada: sem_conexao, estado ok', async () => {
+    vi.mocked(ensureFreshToken).mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
+    const db = fakeSupabase({ youtube_channels: [{ id: 'ch-1', collection_status: 'ok' }], social_connections: [] })
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(resumo.tentativas).toEqual({ sem_conexao: 1 })
+    expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'ok' })
+  })
+
+  it('401 da Reporting API não muda collection_status (é sem_acesso do job, e só isso)', async () => {
+    vi.mocked(ensureFreshToken).mockResolvedValue({ accessToken: 'tok', connectionId: 'c1' })
+    const db = fakeSupabase({ youtube_channels: [{ id: 'ch-1', collection_status: 'ok' }] })
+    const ctx = ctxDe(db)
+    await rodarComReporting401(ctx)
+    expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'ok' })
+    expect(ctx.channels[0]!.collection_status).toBe('ok')
   })
 })
 

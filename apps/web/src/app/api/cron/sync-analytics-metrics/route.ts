@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { ensureFreshToken, NoActiveConnectionError } from '@/lib/social/token-refresh'
+import { ensureFreshToken, NoActiveConnectionError, TokenRevokedError } from '@/lib/social/token-refresh'
+import { classificarErroDeToken, marcarAutorizado, marcarReautorizar } from '@/lib/youtube/coleta/autorizacao'
+import { ehPerdaDeAutorizacao, motivoDoGoogle } from '@/lib/youtube/coleta/google-erro'
+import type { ColetaChannel, Tentativa } from '@/lib/youtube/coleta/types'
 import { detectViral, getIsoWeek } from '@/lib/youtube/analytics-sync'
 import { buildNotification } from '@/lib/youtube/notification-service'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
@@ -10,7 +13,8 @@ import { channelNote, describeCronCause, joinNotes, describeHttpCause } from '@/
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import { ehMetadadosAntes, rodarColeta, type MetadadosAntes } from '@/lib/youtube/coleta'
 import { criarRelogio, FETCH_TIMEOUT_MS, restante, type Relogio } from '@/lib/youtube/coleta/clock'
-import { conferirBanco, pushUnico } from '@/lib/youtube/coleta/schema'
+import { conferirBanco, ehSchemaAusente, pushUnico } from '@/lib/youtube/coleta/schema'
+import type { Json } from '@/types/database.types'
 import * as Sentry from '@sentry/nextjs'
 
 const YT_ANALYTICS_BASE = 'https://youtubeanalytics.googleapis.com/v2/reports'
@@ -37,6 +41,13 @@ interface ChannelRow {
   site_id: string
   subscriber_count: number | null
   name: string | null
+  collection_status: string | null
+}
+
+/** `youtube_channels.id` com chamada autenticada que passou / que foi negada nesta execução (fase 'antes' + parte antiga). */
+interface ConjuntosDaExecucao {
+  autorizados: Set<string>
+  negados: Set<string>
 }
 
 interface ParteAntiga {
@@ -44,9 +55,20 @@ interface ParteAntiga {
   errors: number
   emptyReports: number
   skippedNoConnection: number
+  /** Canais pulados porque perderam a autorização do YouTube (collection_status = 'reautorizar'). */
+  semAutorizacao: number
   notifications: number
   fatigueAlerts: number
   errorDetails: string[]
+}
+
+/** O canal da rota no formato que autorizacao.ts espera. `jaMarcado` = a fase 'antes' já o devolveu em reautorizar. */
+function comoCanalDaColeta(c: ChannelRow, jaMarcado: boolean): ColetaChannel {
+  return {
+    id: c.id, channel_id: c.channel_id, site_id: c.site_id, name: c.name ?? c.channel_id, sync_enabled: true,
+    collection_status: jaMarcado || c.collection_status === 'reautorizar' ? 'reautorizar' : 'ok',
+    video_count: null,
+  }
 }
 
 /**
@@ -61,10 +83,28 @@ async function parteAntiga(
   channels: ChannelRow[],
   relogio: Relogio,
   falhas: string[],
+  reautorizar: Set<string>,
+  conjuntos: ConjuntosDaExecucao,
 ): Promise<ParteAntiga> {
   let synced = 0
   let errors = 0
   let emptyReports = 0
+  let semAutorizacao = 0
+  // As tentativas de autorizacao.ts ficam nesta lista descartável: a parte antiga não registra tentativas.
+  // `marcarAutorizado` e `marcarReautorizar` preenchem os dois conjuntos da execução.
+  const aut = { supabase, falhas, tentativas: [] as Tentativa[], ...conjuntos }
+  /** Marca, conta e segue: perder a autorização é ação do dono, não erro do cron. */
+  const perdeuAutorizacao = async (channel: ChannelRow): Promise<void> => {
+    // A negação fica registrada na execução: é ela que impede a fase 'depois' de devolver o canal a `ok` por causa de
+    // uma chamada que passou mais cedo.
+    conjuntos.negados.add(channel.id)
+    // SEMPRE, também para o canal que a fase 'antes' já trouxe marcado: a gravação é idempotente e é esta chamada
+    // que pede o lembrete de 7 dias (o carimbo evita aviso repetido). Sem ela, quando só a Analytics negava, o dono
+    // recebia um aviso e nunca mais.
+    await marcarReautorizar(aut, comoCanalDaColeta(channel, reautorizar.has(channel.id)))
+    reautorizar.add(channel.id)
+    semAutorizacao++
+  }
   // Canal cadastrado mas sem conexão OAuth viva (recém-cadastrado, ou conexão revogada): é
   // estado legítimo, não falha. Pula, conta e avisa o dono; os demais canais seguem.
   const skippedNoConnection: Array<{ channelId: string; siteId: string; label: string }> = []
@@ -102,6 +142,12 @@ async function parteAntiga(
       })
 
       if (!res.ok) {
+        // 401, ou 403 por permissão insuficiente: o canal perdeu a autorização. O corpo só é lido para o `reason`.
+        const reason = res.status === 403 ? await motivoDoGoogle(res) : null
+        if (ehPerdaDeAutorizacao(res.status, reason)) {
+          await perdeuAutorizacao(channel)
+          continue
+        }
         Sentry.captureMessage(`sync-analytics-metrics failed for channel ${channel.channel_id}: ${res.status}`)
         // O corpo do Google não é lido nem gravado: a nota leva só o status.
         errorDetails.push(channelNote(channelLabel(channel), describeHttpCause(res.status)))
@@ -110,6 +156,9 @@ async function parteAntiga(
         errors++
         continue
       }
+
+      // Carimba a data e registra o sucesso. O estado NÃO muda aqui: quem devolve o canal a `ok` é a fase 'depois'.
+      await marcarAutorizado(aut, comoCanalDaColeta(channel, reautorizar.has(channel.id)))
 
       const report = await res.json() as { rows?: (string | number)[][] }
 
@@ -200,13 +249,21 @@ async function parteAntiga(
 
       synced++
     } catch (e) {
-      if (e instanceof NoActiveConnectionError) {
-        skippedNoConnection.push({
-          channelId: channel.channel_id,
-          siteId: channel.site_id,
-          label: channelLabel(channel),
-        })
-        continue
+      if (e instanceof TokenRevokedError || e instanceof NoActiveConnectionError) {
+        // Canal que a fase 'antes' já marcou: nem relê as conexões.
+        // Token revogado é reautorizar sem ler nada; só "sem conexão" precisa do classificador (conexão revogada antes).
+        const classe = reautorizar.has(channel.id) || e instanceof TokenRevokedError
+          ? 'reautorizar'
+          : await classificarErroDeToken(aut, comoCanalDaColeta(channel, false), e)
+        if (classe === 'reautorizar') {
+          await perdeuAutorizacao(channel)
+          continue
+        }
+        if (classe === 'sem_conexao') {
+          skippedNoConnection.push({ channelId: channel.channel_id, siteId: channel.site_id, label: channelLabel(channel) })
+          continue
+        }
+        // 'outro' (a leitura das conexões falhou): cai no erro genérico abaixo.
       }
       Sentry.captureException(e, { extra: { channelId: channel.channel_id } })
       errorDetails.push(channelNote(channelLabel(channel), describeCronCause(e)))
@@ -378,6 +435,7 @@ async function parteAntiga(
     errors,
     emptyReports,
     skippedNoConnection: skippedNoConnection.length,
+    semAutorizacao,
     notifications: notifications.length,
     fatigueAlerts,
     errorDetails,
@@ -393,10 +451,16 @@ async function coletar(
   relogio: Relogio,
   fase: 'antes' | 'depois',
   falhas: string[],
-  metadadosAntes?: MetadadosAntes,
+  antes: { metadadosAntes?: MetadadosAntes; autorizadosAntes?: string[]; negadosAntes?: string[] } = {},
 ): Promise<Record<string, unknown>> {
   try {
-    const r = await rodarColeta({ supabase, relogio, fase, ...(metadadosAntes && { metadadosAntes }) })
+    const { metadadosAntes, autorizadosAntes, negadosAntes } = antes
+    const r = await rodarColeta({
+      supabase, relogio, fase,
+      ...(metadadosAntes && { metadadosAntes }),
+      ...(autorizadosAntes && { autorizadosAntes }),
+      ...(negadosAntes && { negadosAntes }),
+    })
     for (const f of r.falhas) pushUnico(falhas, f)
     return r.resumo ?? {}
   } catch (e) {
@@ -431,10 +495,32 @@ export async function GET(req: NextRequest) {
   const relogio = criarRelogio()
   const supabase = getSupabaseServiceClient()
 
-  const { data: channels, error: channelsError } = await supabase
+  // A parte antiga e os passos novos só ACUMULAM falhas (sem duplicatas); o veredito é um só, no fim.
+  // Ordem do spec: metadados → 1A → o que o cron já fazia → 1C.
+  const falhas: string[] = []
+
+  let lista: ChannelRow[] = []
+  let channelsError: { code?: string | null; message?: string | null } | null
+  const comColuna = await supabase
     .from('youtube_channels')
-    .select('id, channel_id, site_id, subscriber_count, name')
+    .select('id, channel_id, site_id, subscriber_count, name, collection_status')
     .eq('sync_enabled', true)
+  channelsError = comColuna.error
+  if (!comColuna.error) {
+    lista = comColuna.data ?? []
+  } else if (ehSchemaAusente(comColuna.error)) {
+    // Código no ar sem a migration do L1b: `collection_status` não existe. Relê sem ela e SEGUE (a parte antiga e a
+    // linha de metadados do dia não podem parar por isso); todo canal conta como `ok` e a falha vai ao veredito.
+    const semColuna = await supabase
+      .from('youtube_channels')
+      .select('id, channel_id, site_id, subscriber_count, name')
+      .eq('sync_enabled', true)
+    channelsError = semColuna.error
+    if (!semColuna.error) {
+      lista = (semColuna.data ?? []).map(c => ({ ...c, collection_status: 'ok' }))
+      pushUnico(falhas, 'schema_ausente: youtube_channels')
+    }
+  }
 
   // A dropped query error used to fall through to `channels === null` →
   // `channels.length === 0` → recordCronSuccess + HTTP 200 — the system
@@ -448,23 +534,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'channels query failed' }, { status: 500 })
   }
 
-  const lista: ChannelRow[] = channels ?? []
-
-  // A parte antiga e os passos novos só ACUMULAM falhas (sem duplicatas); o veredito é um só, no fim.
-  // Ordem do spec: metadados → 1A → o que o cron já fazia → 1C.
-  const falhas: string[] = []
-
   const coletaAntes = await coletar(supabase, relogio, 'antes', falhas)
 
   // Com a leitura da rota vazia a parte antiga não tem o que fazer, mas a coleta roda igual: ela lê
   // todos os canais por conta própria (o passo de metadados não depende de sync_enabled).
+  const ids = (x: unknown): string[] => (Array.isArray(x) ? x.filter((v): v is string => typeof v === 'string') : [])
+  const jaReautorizar = new Set<string>(ids(coletaAntes.reautorizar))
+  // Quem passou e quem foi negado numa chamada autenticada: começa com o que a fase 'antes' viu, a parte antiga soma,
+  // e a fase 'depois' recebe o total (é ela que decide, uma vez, quem volta a `ok`).
+  const conjuntos: ConjuntosDaExecucao = { autorizados: new Set(ids(coletaAntes.autorizados)), negados: new Set(ids(coletaAntes.negados)) }
   let antiga: ParteAntiga | null = null
   let msExistente = 0
   if (lista.length > 0) {
     const inicio = Date.now()
     try {
-      antiga = await parteAntiga(supabase, lista, relogio, falhas)
-      const comConexao = lista.length - antiga.skippedNoConnection
+      antiga = await parteAntiga(supabase, lista, relogio, falhas, jaReautorizar, conjuntos)
+      const comConexao = lista.length - antiga.skippedNoConnection - antiga.semAutorizacao
       // Os detalhes por canal (errorDetails) já entraram em falhas[] dentro do laço.
       if (antiga.errors === 0 && comConexao > 0 && antiga.emptyReports === comConexao) {
         // Every channel came back with zero rows for the window. One channel alone doing this is
@@ -481,15 +566,59 @@ export async function GET(req: NextRequest) {
     msExistente = Date.now() - inicio
   }
 
-  const coletaDepois = await coletar(supabase, relogio, 'depois', falhas, comoMetadadosAntes(coletaAntes.metadados))
+  const metadadosAntes = comoMetadadosAntes(coletaAntes.metadados)
+  const coletaDepois = await coletar(supabase, relogio, 'depois', falhas, {
+    ...(metadadosAntes && { metadadosAntes }),
+    autorizadosAntes: [...conjuntos.autorizados],
+    negadosAntes: [...conjuntos.negados],
+  })
 
   const antes = separarAcaoDoDono(coletaAntes)
   const depois = separarAcaoDoDono(coletaDepois)
+  // Os tempos das duas fases num objeto só (a fase 'depois' sobrescreveria a chave `ms` da 'antes').
+  const comoMs = (x: unknown): Record<string, number> =>
+    typeof x === 'object' && x !== null ? Object.fromEntries(Object.entries(x).filter((e): e is [string, number] => typeof e[1] === 'number')) : {}
+  const msPassos = { ...comoMs(coletaAntes.ms), ...comoMs(coletaDepois.ms) }
+  // União das duas fases: 'antes' traz os estados dos jobs, 'depois' os dos critérios de relatório.
+  // "<canal>: reautorizar" é estado de fim de execução: a fase 'depois' relê os canais e decide quem voltou a `ok`.
+  // Quando ela devolveu a chave `reautorizar`, as notas desse tipo válidas são só as dela (senão o canal que voltou a
+  // `ok` hoje ainda apareceria como ação do dono). Sem a chave (não leu os canais), ficam as da fase 'antes'.
+  const depoisSabe = Array.isArray(coletaDepois.reautorizar)
+  const acaoAntes = depoisSabe ? antes.acao.filter(x => !(typeof x === 'string' && x.endsWith(': reautorizar'))) : antes.acao
+  const acaoDoDono = [...new Set([...acaoAntes, ...depois.acao])].filter((x): x is string => typeof x === 'string')
+  const resumoColeta = { ...antes.resto, ...depois.resto, ms: msPassos }
+
+  // A execução fica gravada: o resumo (tempos por passo, ação do dono, perdidos, vazios) só existia nesta resposta,
+  // que ninguém guarda. Vem ANTES do veredito para a falha da própria gravação aparecer nele.
+  try {
+    // `resumo` e `ms_passos` são Json no banco; o resumo é só dados, então a ida e volta por JSON é segura.
+    const resumoJson: Json = JSON.parse(JSON.stringify(resumoColeta))
+    const msPassosJson: Json = JSON.parse(JSON.stringify(msPassos))
+    const gravou = await supabase.from('yt_own_collection_runs').insert({
+      ms_total: relogio.decorrido(),
+      ms_existente: msExistente,
+      ms_passos: msPassosJson,
+      falhas,
+      acao_do_dono: acaoDoDono,
+      resumo: resumoJson,
+    })
+    if (conferirBanco(gravou, 'yt_own_collection_runs', falhas) === 'ok') {
+      const limpou = await supabase
+        .from('yt_own_collection_runs')
+        .delete()
+        .lt('ran_at', new Date(Date.now() - 90 * 86_400_000).toISOString())
+      conferirBanco(limpou, 'yt_own_collection_runs', falhas)
+    }
+  } catch (e) {
+    Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', fase: 'execucao' } })
+    pushUnico(falhas, `registro da execução: ${describeCronCause(e)}`)
+  }
+
+  // Montados DEPOIS da gravação: uma falha dela também aparece na resposta.
   const extras = {
     ms_existente: msExistente,
-    coleta: { ...antes.resto, ...depois.resto },
-    // União das duas fases: 'antes' traz os estados dos jobs, 'depois' os dos critérios de relatório.
-    acao_do_dono: [...new Set([...antes.acao, ...depois.acao])],
+    coleta: resumoColeta,
+    acao_do_dono: acaoDoDono,
     ...(falhas.length > 0 && { falhas }),
   }
   const corpo = lista.length === 0
@@ -499,6 +628,7 @@ export async function GET(req: NextRequest) {
         errors: antiga?.errors ?? 0,
         emptyReports: antiga?.emptyReports ?? 0,
         skipped_no_connection: antiga?.skippedNoConnection ?? 0,
+        sem_autorizacao: antiga?.semAutorizacao ?? 0,
         notifications: antiga?.notifications ?? 0,
         fatigueAlerts: antiga?.fatigueAlerts ?? 0,
         ...(antiga && antiga.errorDetails.length > 0 && { errorDetails: antiga.errorDetails }),

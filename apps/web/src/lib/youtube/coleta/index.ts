@@ -7,13 +7,14 @@ import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { describeCronCause } from '@/lib/cron/failure-note'
 import { registrarTentativa } from './attempts'
+import { voltarAOk } from './autorizacao'
 import { TETOS_MS, restante, type Relogio } from './clock'
 import { criterioJobsEmErro, criterioMetadados, criterioOrcamento, criteriosRelatorios } from './criteria'
 import { ontemPt } from './day-pt'
 import { passoJobs, type JobsResumo } from './jobs-step'
 import { passoMetadados } from './meta-step'
 import { passoRelatorios } from './reports-step'
-import { conferirBanco, pushUnico } from './schema'
+import { conferirBanco, ehSchemaAusente, pushUnico, type ErroBanco } from './schema'
 import type { AttemptKind, ColetaChannel, ColetaResult, StepCtx, Tentativa } from './types'
 
 /** Desligar um passo é um commit de uma linha (runbook, "Desligar um passo ou um tipo"). Não há variável de ambiente. */
@@ -35,6 +36,12 @@ export interface ColetaCtx {
    * falhou/foi pulado), todo canal conta como "desconhecido" no critério de metadados.
    */
   metadadosAntes?: MetadadosAntes
+  /**
+   * `youtube_channels.id` com chamada autenticada que passou / que foi negada ANTES desta chamada, na mesma execução
+   * do cron (fase 'antes' + parte antiga da rota). A fase 'depois' soma aos seus e decide quem volta a `ok`.
+   */
+  autorizadosAntes?: string[]
+  negadosAntes?: string[]
 }
 
 export function ehMetadadosAntes(x: unknown): x is MetadadosAntes {
@@ -42,6 +49,10 @@ export function ehMetadadosAntes(x: unknown): x is MetadadosAntes {
   const m = x as Record<string, unknown>
   return typeof m.day_pt === 'string' && typeof m.dias_sem_meta === 'object' && m.dias_sem_meta !== null
 }
+
+/** O que o L1a lia de `youtube_channels`: existe em qualquer banco. As colunas do L1b vão por cima. */
+const COLUNAS_L1A = 'id, channel_id, site_id, name, sync_enabled'
+type Lidos = { data: unknown; error: ErroBanco | null }
 
 export async function rodarColeta(ctx: ColetaCtx): Promise<ColetaResult> {
   const falhas: string[] = []
@@ -61,20 +72,35 @@ export async function rodarColeta(ctx: ColetaCtx): Promise<ColetaResult> {
 
 async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string, unknown>): Promise<ColetaResult> {
   // Leitura própria, sem filtro: o passo de metadados cobre todos os canais; jobs e relatórios filtram
-  // sync_enabled em código. (L1a: ainda não existe collection_status.)
-  let lidos: { data: unknown; error: { code?: string | null; message?: string | null } | null }
-  try {
-    lidos = await ctx.supabase.from('youtube_channels').select('id, channel_id, site_id, name, sync_enabled')
-  } catch (e) {
-    lidos = { data: null, error: { code: null, message: describeCronCause(e) } }
+  // sync_enabled em código.
+  const ler = async (colunas: string): Promise<Lidos> => {
+    try {
+      return await ctx.supabase.from('youtube_channels').select(colunas)
+    } catch (e) {
+      return { data: null, error: { code: null, message: describeCronCause(e) } }
+    }
+  }
+  let lidos = await ler(`${COLUNAS_L1A}, collection_status, video_count`)
+  // Código no ar sem a migration do L1b: as colunas novas não existem. A coleta segue com o que o L1a lia (a linha
+  // de metadados do dia não volta) e a falha fica no veredito. Sem as colunas, todo canal conta como `ok`.
+  let semColunasNovas = false
+  if (ehSchemaAusente(lidos.error)) {
+    pushUnico(falhas, 'schema_ausente: youtube_channels')
+    lidos = await ler(COLUNAS_L1A)
+    semColunasNovas = true
   }
   if (conferirBanco(lidos, 'youtube_channels', falhas, 'ler') !== 'ok') {
     Sentry.captureMessage('sync-analytics-metrics: a coleta não leu os canais', { level: 'error', tags: { cron: 'sync-analytics-metrics' } })
     return { falhas, resumo }
   }
-  const channels = (lidos.data ?? []) as ColetaChannel[]
+  const channels = ((lidos.data ?? []) as ColetaChannel[]).map(c =>
+    semColunasNovas ? { ...c, collection_status: 'ok' as const, video_count: null } : c)
   const tentativas: Tentativa[] = []
-  const base = { supabase: ctx.supabase, channels, falhas, tentativas }
+  // Um par de conjuntos por chamada, o mesmo objeto para todos os passos (o spread do passo é raso).
+  const autorizados = new Set<string>(ctx.autorizadosAntes ?? [])
+  const negados = new Set<string>(ctx.negadosAntes ?? [])
+  const base = { supabase: ctx.supabase, channels, falhas, tentativas, autorizados, negados }
+  const ms: Record<string, number> = {}
 
   const falhou = (nome: string, e: unknown): void => {
     Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', passo: nome } })
@@ -89,6 +115,7 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     servidos: ColetaChannel[],
     fn: (c: StepCtx) => Promise<R>,
   ): Promise<R | Record<string, unknown> | undefined> => {
+    const t0 = Date.now()
     try {
       const deadline = ctx.relogio.prazo(tetoMs)
       if (restante(deadline) <= 0) {
@@ -101,7 +128,29 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     } catch (e) {
       falhou(nome, e)
       return undefined
+    } finally {
+      ms[nome] = Date.now() - t0
     }
+  }
+
+  /** Os passos mudam `collection_status` em memória: lido no fim de cada fase. */
+  const emReautorizar = (): ColetaChannel[] => channels.filter(c => c.collection_status === 'reautorizar')
+
+  /** O YouTube diz que o canal tem vídeos e nenhum está cadastrado: a lista de vídeos nunca sincronizou. Canal vazio de verdade (0) e desconhecido (nulo) ficam de fora. */
+  const semVideosCadastrados = async (): Promise<string[]> => {
+    const notas: string[] = []
+    for (const c of channels) {
+      if (!c.video_count || c.video_count <= 0) continue
+      const cont = await ctx.supabase.from('youtube_videos').select('id', { count: 'exact', head: true }).eq('channel_id', c.id)
+      if (conferirBanco(cont, 'youtube_videos', falhas, 'ler') !== 'ok') continue
+      // Contagem ausente não é zero: sem número não há o que afirmar, e isso é falha visível (formato dos critérios).
+      if (cont.count === null) {
+        pushUnico(falhas, 'critérios: não foi possível avaliar canais sem vídeos cadastrados (youtube_videos): contagem ausente')
+        continue
+      }
+      if (cont.count === 0) notas.push(`${c.name}: o YouTube informa ${c.video_count} vídeo(s) e nenhum está cadastrado`)
+    }
+    return notas
   }
 
   const ativos = channels.filter(c => c.sync_enabled)
@@ -121,7 +170,21 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
         falhou('jobs', e)
       }
     }
-    resumo.acao_do_dono = (resumo.jobs as Partial<JobsResumo> | undefined)?.acao_do_dono ?? []
+    let semVideos: string[] = []
+    try {
+      semVideos = await semVideosCadastrados()
+    } catch (e) {
+      falhou('canais', e)
+    }
+    resumo.acao_do_dono = [...new Set([
+      ...((resumo.jobs as Partial<JobsResumo> | undefined)?.acao_do_dono ?? []),
+      ...emReautorizar().map(c => `${c.name}: reautorizar`),
+      ...semVideos,
+    ])]
+    resumo.reautorizar = emReautorizar().map(c => c.id)
+    resumo.autorizados = [...autorizados]
+    resumo.negados = [...negados]
+    resumo.ms = ms
     return { falhas, resumo }
   }
 
@@ -160,5 +223,24 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   } catch (e) {
     falhou('orçamento', e)
   }
+  // A volta a `ok` acontece UMA vez, aqui, no fim da execução: o canal precisa de uma chamada autenticada que passou
+  // (fase 'antes', parte antiga ou esta fase) e de NENHUMA negada. Decidir a cada chamada fazia o canal ser marcado e
+  // desmarcado no mesmo dia. Esta fase releu os canais: enxerga o que a parte antiga da rota marcou.
+  for (const c of channels) {
+    if (c.collection_status !== 'reautorizar' || !autorizados.has(c.id) || negados.has(c.id)) continue
+    try {
+      await voltarAOk(base, c)
+    } catch (e) {
+      falhou('canais', e)
+    }
+  }
+  resumo.autorizados = [...autorizados]
+  resumo.negados = [...negados]
+  resumo.acao_do_dono = [...new Set([
+    ...((resumo.acao_do_dono as string[] | undefined) ?? []),
+    ...emReautorizar().map(c => `${c.name}: reautorizar`),
+  ])]
+  resumo.reautorizar = emReautorizar().map(c => c.id)
+  resumo.ms = ms
   return { falhas, resumo }
 }

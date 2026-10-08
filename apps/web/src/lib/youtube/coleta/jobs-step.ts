@@ -2,14 +2,14 @@
 // Erro da Reporting API afeta só os passos 1A e 1C; nunca para a parte da Analytics API.
 import * as Sentry from '@sentry/nextjs'
 import { channelNote, describeCronCause } from '@/lib/cron/failure-note'
-import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { classificarErro, criarReportingClient, type ReportingClient } from '@/lib/youtube/reporting/client'
 import { ReportingHttpError, type Job } from '@/lib/youtube/reporting/types'
 import { avisarEntrada, avisarSaida } from './alerts'
+import { obterToken } from './autorizacao'
 import { contarPorResultado, registrarTentativa, scopeJob } from './attempts'
-import { comPrazo, emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
+import { emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
 import { conferirBanco, pushUnico } from './schema'
-import { descreverErro, HABILITADOS, registrarSemConexao, statusHttp } from './token'
+import { descreverErro, HABILITADOS, statusHttp } from './token'
 import type { ColetaChannel, StepCtx, StepResumo } from './types'
 
 export type JobStatus = 'ativo' | 'desativado' | 'sem_acesso' | 'api_nao_ativada' | 'tipo_indisponivel' | 'erro'
@@ -220,19 +220,9 @@ export async function passoJobs(ctx: StepCtx): Promise<JobsResumo> {
         continue
       }
 
-      let token: string
-      try {
-        const t = await comPrazo(ensureFreshToken(c.site_id, 'youtube', c.channel_id), ctx.deadline)
-        if (!t) {
-          if (restante(ctx.deadline) <= 0) throw new SemTempoError()
-          throw new Error('token refresh timed out')
-        }
-        token = t.accessToken
-      } catch (e) {
-        // Simplificação declarada de L1a: sem `collection_status`, canal revogado ou sem conexão é só pulado.
-        if (await registrarSemConexao(ctx, tCanal, e)) continue
-        throw e
-      }
+      // Canal que perdeu a autorização ou nunca foi conectado: pulado, com a tentativa registrada por obterToken.
+      const token = await obterToken(ctx, c, tCanal)
+      if (token === null) continue
 
       await sondarCanal(ctx, c, criarReportingClient(token, fetchComPrazo(ctx.deadline)), status, resumo)
     } catch (e) {

@@ -8,8 +8,31 @@ process.env.CRON_SECRET = CRON_SECRET
 const mockFrom = vi.fn()
 const mockRpc = vi.fn()
 
+// A linha da execução (yt_own_collection_runs) é do cliente falso, não de cada teste: `runsInseridos` guarda os
+// payloads do insert, `runsErro` (quando setado) é o `error` que o insert devolve.
+const runsInseridos: Array<Record<string, unknown>> = []
+let runsErro: { code: string; message: string } | null = null
+const runsDeletes: string[] = []
+function runsQuery() {
+  return {
+    insert: (payload: Record<string, unknown>) => {
+      runsInseridos.push(payload)
+      return Promise.resolve({ error: runsErro })
+    },
+    delete: () => ({
+      lt: (_col: string, val: string) => {
+        runsDeletes.push(val)
+        return Promise.resolve({ error: null })
+      },
+    }),
+  }
+}
+
 vi.mock('@/lib/supabase/service', () => ({
-  getSupabaseServiceClient: () => ({ from: mockFrom, rpc: mockRpc }),
+  getSupabaseServiceClient: () => ({
+    from: (table: string) => (table === 'yt_own_collection_runs' ? runsQuery() : mockFrom(table)),
+    rpc: mockRpc,
+  }),
 }))
 
 vi.mock('@sentry/nextjs', () => ({
@@ -19,8 +42,15 @@ vi.mock('@sentry/nextjs', () => ({
 }))
 
 const mockEnsureFreshToken = vi.fn()
-vi.mock('@/lib/social/token-refresh', () => ({
+vi.mock('@/lib/social/token-refresh', async (orig) => ({
+  ...(await orig<typeof import('@/lib/social/token-refresh')>()),
   ensureFreshToken: (...args: unknown[]) => mockEnsureFreshToken(...args),
+}))
+
+vi.mock('@/lib/youtube/coleta/autorizacao', () => ({
+  classificarErroDeToken: vi.fn(async () => 'sem_conexao'),
+  marcarAutorizado: vi.fn(async () => undefined),
+  marcarReautorizar: vi.fn(async () => undefined),
 }))
 
 vi.mock('@/lib/youtube/analytics-sync', () => ({
@@ -58,14 +88,19 @@ vi.mock('@/lib/cron-health', () => ({
 
 // Os passos novos têm testes próprios (test/youtube/coleta/); aqui a rota roda só com a parte antiga.
 // Função simples, não vi.fn: este arquivo chama vi.restoreAllMocks().
+const mockRodarColeta = vi.fn(async (..._a: unknown[]): Promise<{ falhas: string[]; resumo: Record<string, unknown> }> => ({ falhas: [], resumo: {} }))
 vi.mock('@/lib/youtube/coleta', () => ({
-  rodarColeta: async () => ({ falhas: [], resumo: {} }),
+  rodarColeta: (...args: unknown[]) => mockRodarColeta(...args),
   // A rota importa o guarda; com resumo vazio não há metadados a repassar.
   ehMetadadosAntes: () => false,
 }))
 
 // ── Import after mocks ──────────────────────────────────────────────────────
 import { GET } from '../../../src/app/api/cron/sync-analytics-metrics/route'
+import { NoActiveConnectionError, TokenRevokedError } from '@/lib/social/token-refresh'
+import { classificarErroDeToken, marcarAutorizado, marcarReautorizar } from '@/lib/youtube/coleta/autorizacao'
+import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
+import { recordCronFailure, recordCronSuccess } from '@/lib/cron-health'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function makeRequest(auth?: string): NextRequest {
@@ -266,5 +301,303 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
     expect(recordCronFailure).toHaveBeenCalledTimes(1)
 
     fetchSpy.mockRestore()
+  })
+})
+
+describe('autorização e linha da execução (L1b)', () => {
+  const video = {
+    id: 'v-1', youtube_video_id: 'vid-abc', title: 'Test Video',
+    view_count: 100, view_count_yesterday: 10, view_count_delta_today: 5,
+  }
+  const AVISO_ANTIGO = 'youtube.channel_skipped_no_connection'
+  const avisosAntigos = () => vi.mocked(fanOutToSiteAdmins).mock.calls.filter(c => c[0].type === AVISO_ANTIGO)
+
+  /** Um canal cadastrado (e as tabelas que a rota lê dele). */
+  function umCanal(extra: Record<string, unknown> = {}) {
+    const canal = { id: 'ch-1', channel_id: 'UC123', site_id: 'site-1', subscriber_count: 1000, name: null, collection_status: 'ok', ...extra }
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'youtube_channels') return channelsQuery([canal])
+      if (table === 'youtube_videos') return videosQuery([video])
+      if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
+      if (table === 'ab_tests') return abTestsQuery()
+      return {}
+    })
+  }
+
+  /** A Analytics API responde com este status e corpo (uma Response nova a cada chamada: o corpo só lê uma vez). */
+  function analyticsResponde(status: number, corpo: unknown) {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify(corpo), { status }))
+  }
+
+  const pedir = () => GET(makeRequest())
+
+  beforeEach(() => {
+    // O beforeEach do describe acima não vale aqui (este é irmão dele): mesma limpeza.
+    vi.clearAllMocks()
+    vi.restoreAllMocks()
+    runsInseridos.length = 0
+    runsDeletes.length = 0
+    runsErro = null
+    mockRodarColeta.mockReset()
+    mockRodarColeta.mockResolvedValue({ falhas: [], resumo: {} })
+    mockEnsureFreshToken.mockReset()
+    mockEnsureFreshToken.mockResolvedValue({ accessToken: 'yt-token' })
+    vi.mocked(classificarErroDeToken).mockReset()
+    vi.mocked(classificarErroDeToken).mockResolvedValue('sem_conexao')
+    vi.mocked(marcarReautorizar).mockClear()
+    vi.mocked(marcarAutorizado).mockClear()
+    mockRpc.mockResolvedValue({ error: null })
+  })
+
+  it('Analytics API 401: canal marcado reautorizar, sem erro, sem falha, sem aviso de "sem conexão"', async () => {
+    umCanal({ id: 'ch-1', collection_status: 'ok' })
+    analyticsResponde(401, { error: { errors: [{ reason: 'authError' }] } })
+    const corpo = await (await pedir()).json()
+    expect(marcarReautorizar).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(marcarReautorizar).mock.calls[0]![1]).toMatchObject({ id: 'ch-1' })
+    expect(corpo).toMatchObject({ errors: 0, sem_autorizacao: 1, skipped_no_connection: 0 })
+    expect(corpo.falhas).toBeUndefined()
+    expect(recordCronSuccess).toHaveBeenCalledTimes(1)
+    expect(avisosAntigos()).toEqual([])
+  })
+
+  it('Analytics API 403 por permissão insuficiente → reautorizar; 403 por cota → erro, como antes', async () => {
+    umCanal({ id: 'ch-1' })
+    analyticsResponde(403, { error: { errors: [{ reason: 'insufficientPermissions' }] } })
+    expect(await (await pedir()).json()).toMatchObject({ errors: 0, sem_autorizacao: 1 })
+
+    vi.mocked(marcarReautorizar).mockClear()
+    analyticsResponde(403, { error: { errors: [{ reason: 'quotaExceeded' }] } })
+    const corpo = await (await pedir()).json()
+    expect(corpo).toMatchObject({ errors: 1, sem_autorizacao: 0 })
+    expect(marcarReautorizar).not.toHaveBeenCalled()
+    expect(recordCronFailure).toHaveBeenCalled()
+  })
+
+  it('TokenRevokedError na parte antiga → reautorizar, não erro', async () => {
+    umCanal({ id: 'ch-1' })
+    mockEnsureFreshToken.mockRejectedValue(new TokenRevokedError('youtube', 'c1'))
+    const corpo = await (await pedir()).json()
+    expect(corpo).toMatchObject({ errors: 0, sem_autorizacao: 1 })
+    expect(marcarReautorizar).toHaveBeenCalledTimes(1)
+  })
+
+  it('canal que a fase "antes" já devolveu em reautorizar: pulado sem aviso antigo e sem reler as conexões, mas marcado de novo (é o que pede o lembrete)', async () => {
+    umCanal({ id: 'ch-1' })
+    mockRodarColeta
+      .mockResolvedValueOnce({ falhas: [], resumo: { reautorizar: ['ch-1'], ms: { metadados: 10, jobs: 5 } } })
+      .mockResolvedValueOnce({ falhas: [], resumo: { ms: { relatorios: 7 } } })
+    mockEnsureFreshToken.mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
+    const corpo = await (await pedir()).json()
+    expect(corpo).toMatchObject({ sem_autorizacao: 1, skipped_no_connection: 0 })
+    expect(classificarErroDeToken).not.toHaveBeenCalled()
+    expect(marcarReautorizar).toHaveBeenCalledTimes(1)
+    expect(avisosAntigos()).toEqual([])
+    expect(corpo.coleta.ms).toEqual({ metadados: 10, jobs: 5, relatorios: 7 })
+  })
+
+  it('canal que a fase "antes" já devolveu em reautorizar e a Analytics API nega (403 insufficientPermissions): marcarReautorizar chamado 1 vez com o canal, e a negação chega à fase "depois"', async () => {
+    umCanal({ id: 'ch-1', collection_status: 'reautorizar' })
+    mockRodarColeta
+      .mockResolvedValueOnce({ falhas: [], resumo: { reautorizar: ['ch-1'], autorizados: ['ch-1'], negados: [] } })
+      .mockResolvedValueOnce({ falhas: [], resumo: {} })
+    analyticsResponde(403, { error: { errors: [{ reason: 'insufficientPermissions' }] } })
+    const corpo = await (await pedir()).json()
+    expect(corpo).toMatchObject({ sem_autorizacao: 1 })
+    // Sem esta chamada, do dia 2 em diante ninguém pedia o lembrete de 7 dias quando SÓ a Analytics negava.
+    expect(marcarReautorizar).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(marcarReautorizar).mock.calls[0]![1]).toMatchObject({ id: 'ch-1', collection_status: 'reautorizar' })
+    expect(classificarErroDeToken).not.toHaveBeenCalled()
+    expect(mockRodarColeta.mock.calls[1]![0]).toMatchObject({ fase: 'depois', autorizadosAntes: ['ch-1'], negadosAntes: ['ch-1'] })
+  })
+
+  it('canal que voltou a ok no fim da execução: a nota "reautorizar" da fase "antes" sai de acao_do_dono, na resposta e na linha gravada', async () => {
+    umCanal({ id: 'ch-1' })
+    analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })
+    mockRodarColeta
+      .mockResolvedValueOnce({ falhas: [], resumo: { acao_do_dono: ['Canal Um: reautorizar', 'Outro: api_nao_ativada'] } })
+      .mockResolvedValueOnce({ falhas: [], resumo: { reautorizar: [], acao_do_dono: [] } })
+    const corpo = await (await pedir()).json()
+    expect(corpo.acao_do_dono).toEqual(['Outro: api_nao_ativada'])
+    expect(runsInseridos[0]!.acao_do_dono).toEqual(['Outro: api_nao_ativada'])
+  })
+
+  it('canal que continua em reautorizar no fim: a nota vem da fase "depois" e fica', async () => {
+    umCanal({ id: 'ch-1' })
+    analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })
+    mockRodarColeta
+      .mockResolvedValueOnce({ falhas: [], resumo: { acao_do_dono: ['Canal Um: reautorizar', 'Canal Dois: reautorizar'] } })
+      .mockResolvedValueOnce({ falhas: [], resumo: { reautorizar: ['ch-1'], acao_do_dono: ['Canal Um: reautorizar'] } })
+    const corpo = await (await pedir()).json()
+    expect(corpo.acao_do_dono).toEqual(['Canal Um: reautorizar'])
+  })
+
+  it('fase "depois" que não devolveu a chave reautorizar (não leu os canais): as notas da fase "antes" ficam, não sabemos', async () => {
+    umCanal({ id: 'ch-1' })
+    analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })
+    mockRodarColeta
+      .mockResolvedValueOnce({ falhas: [], resumo: { acao_do_dono: ['Canal Um: reautorizar', 'Outro: api_nao_ativada'] } })
+      .mockResolvedValueOnce({ falhas: [], resumo: {} })
+    const corpo = await (await pedir()).json()
+    expect(corpo.acao_do_dono).toEqual(['Canal Um: reautorizar', 'Outro: api_nao_ativada'])
+    expect(runsInseridos[0]!.acao_do_dono).toEqual(['Canal Um: reautorizar', 'Outro: api_nao_ativada'])
+  })
+
+  it('NoActiveConnectionError de canal nunca conectado: pulo legítimo com o aviso antigo, como hoje', async () => {
+    umCanal({ id: 'ch-1' })
+    mockEnsureFreshToken.mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
+    vi.mocked(classificarErroDeToken).mockResolvedValue('sem_conexao')
+    const corpo = await (await pedir()).json()
+    expect(corpo).toMatchObject({ skipped_no_connection: 1, sem_autorizacao: 0 })
+    expect(avisosAntigos()).toHaveLength(1)
+  })
+
+  it('NoActiveConnectionError que o classificador lê como reautorizar (conexão revogada): marca e conta, sem aviso antigo', async () => {
+    umCanal({ id: 'ch-1' })
+    mockEnsureFreshToken.mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
+    vi.mocked(classificarErroDeToken).mockResolvedValue('reautorizar')
+    const corpo = await (await pedir()).json()
+    expect(corpo).toMatchObject({ errors: 0, sem_autorizacao: 1, skipped_no_connection: 0 })
+    expect(marcarReautorizar).toHaveBeenCalledTimes(1)
+    expect(avisosAntigos()).toEqual([])
+  })
+
+  it('NoActiveConnectionError classe "outro" (leitura das conexões falhou): cai no erro genérico', async () => {
+    umCanal({ id: 'ch-1' })
+    mockEnsureFreshToken.mockRejectedValue(new NoActiveConnectionError('youtube', 'site-1'))
+    vi.mocked(classificarErroDeToken).mockResolvedValue('outro')
+    const corpo = await (await pedir()).json()
+    expect(corpo).toMatchObject({ errors: 1, sem_autorizacao: 0, skipped_no_connection: 0 })
+    expect(marcarReautorizar).not.toHaveBeenCalled()
+    expect(recordCronFailure).toHaveBeenCalled()
+  })
+
+  it('chamada da Analytics API que passa carimba a autorização do canal', async () => {
+    umCanal({ id: 'ch-1' })
+    analyticsResponde(200, { rows: [] })
+    await pedir()
+    expect(vi.mocked(marcarAutorizado).mock.calls[0]![1]).toMatchObject({ id: 'ch-1' })
+  })
+
+  /** Canal A (UCA) revogado ao lado do canal B (UCB): só o B chega à Analytics API. */
+  function canalRevogadoEUmCanalB() {
+    const base = { site_id: 'site-1', subscriber_count: 1000, name: null, collection_status: 'ok' }
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'youtube_channels') {
+        return channelsQuery([{ id: 'ch-a', channel_id: 'UCA', ...base }, { id: 'ch-b', channel_id: 'UCB', ...base }])
+      }
+      if (table === 'youtube_videos') return videosQuery([video])
+      if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
+      if (table === 'ab_tests') return abTestsQuery()
+      return {}
+    })
+    mockEnsureFreshToken.mockImplementation(async (siteId: string, _p: string, acc?: string) => {
+      if (acc === 'UCA') throw new TokenRevokedError('youtube', 'c-a')
+      return { accessToken: 'yt-token' }
+    })
+  }
+
+  it('canal em reautorizar não conta como "com conexão": o outro canal vazio é "todos vazios" (regra 5)', async () => {
+    canalRevogadoEUmCanalB()
+    analyticsResponde(200, { rows: [] })
+    const corpo = await (await pedir()).json()
+    expect(corpo).toMatchObject({ sem_autorizacao: 1, emptyReports: 1 })
+    expect(corpo.falhas).toEqual(expect.arrayContaining([expect.stringContaining('all 1 channel(s) returned an empty analytics report')]))
+    expect(recordCronFailure).toHaveBeenCalled()
+  })
+
+  it('canal em reautorizar ao lado de um canal com dados: nenhuma nota de "todos vazios" e o cron fica verde', async () => {
+    canalRevogadoEUmCanalB()
+    analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })
+    const corpo = await (await pedir()).json()
+    expect(corpo).toMatchObject({ sem_autorizacao: 1, synced: 1 })
+    expect(JSON.stringify(corpo.falhas ?? [])).not.toContain('returned an empty analytics report')
+    expect(recordCronSuccess).toHaveBeenCalledTimes(1)
+  })
+
+  it('grava uma linha da execução com tempos, falhas e ação do dono, ANTES do veredito', async () => {
+    umCanal({ id: 'ch-1' })
+    analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })
+    mockRodarColeta
+      .mockResolvedValueOnce({ falhas: ['metadados: x'], resumo: { ms: { metadados: 10, jobs: 5 }, acao_do_dono: ['Canal: reautorizar'] } })
+      .mockResolvedValueOnce({ falhas: [], resumo: { ms: { relatorios: 7 } } })
+    await pedir()
+    expect(runsInseridos).toHaveLength(1)
+    expect(runsInseridos[0]).toMatchObject({
+      ms_passos: { metadados: 10, jobs: 5, relatorios: 7 },
+      acao_do_dono: ['Canal: reautorizar'],
+    })
+    expect(runsInseridos[0]!.falhas).toContain('metadados: x')
+    expect(typeof runsInseridos[0]!.ms_total).toBe('number')
+    expect(typeof runsInseridos[0]!.ms_existente).toBe('number')
+    // A limpeza dos de mais de 90 dias roda depois do insert que deu certo.
+    expect(runsDeletes).toHaveLength(1)
+    expect(new Date(runsDeletes[0]!).getTime()).toBeLessThan(Date.now() - 89 * 86_400_000)
+  })
+
+  it('coluna collection_status ausente (código no ar sem a migration): relê os canais sem ela, a parte antiga e as duas fases rodam, e o veredito é schema_ausente', async () => {
+    const canal = { id: 'ch-1', channel_id: 'UC123', site_id: 'site-1', subscriber_count: 1000, name: null }
+    const selects: string[] = []
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'youtube_channels') {
+        return {
+          select: (cols: string) => {
+            selects.push(cols)
+            return {
+              eq: async () => (cols.includes('collection_status')
+                ? { data: null, error: { code: '42703', message: 'column youtube_channels.collection_status does not exist' } }
+                : { data: [canal], error: null }),
+            }
+          },
+        }
+      }
+      if (table === 'youtube_videos') return videosQuery([video])
+      if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
+      if (table === 'ab_tests') return abTestsQuery()
+      return {}
+    })
+    analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })
+    const res = await pedir()
+    expect(res.status).toBe(200)
+    const corpo = await res.json()
+    expect(selects).toHaveLength(2)
+    expect(selects[1]).not.toContain('collection_status')
+    // A parte antiga rodou: a Analytics API foi chamada e o canal sincronizou.
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+    expect(corpo).toMatchObject({ synced: 1, errors: 0, sem_autorizacao: 0 })
+    expect(mockRodarColeta.mock.calls.map(c => (c[0] as { fase: string }).fase)).toEqual(['antes', 'depois'])
+    expect(corpo.falhas).toEqual(['schema_ausente: youtube_channels'])
+    expect(vi.mocked(recordCronFailure).mock.calls[0]![1]).toContain('schema_ausente: youtube_channels')
+    expect(recordCronSuccess).not.toHaveBeenCalled()
+  })
+
+  it('coluna ausente e a segunda leitura também falha: 500, como qualquer erro ao listar os canais', async () => {
+    mockFrom.mockImplementation((table: string) => {
+      if (table !== 'youtube_channels') return {}
+      return {
+        select: (cols: string) => ({
+          eq: async () => ({ data: null, error: cols.includes('collection_status') ? { code: '42703', message: 'x' } : { code: '57014', message: 'statement timeout' } }),
+        }),
+      }
+    })
+    const res = await pedir()
+    expect(res.status).toBe(500)
+    expect(mockRodarColeta).not.toHaveBeenCalled()
+    expect(recordCronFailure).toHaveBeenCalledWith('sync-analytics-metrics', 'database error listing the YouTube channels')
+  })
+
+  it('tabela yt_own_collection_runs ausente (migration não aplicada): schema_ausente no veredito e a resposta sai 200 (Review Focus 5)', async () => {
+    umCanal({ id: 'ch-1' })
+    analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })
+    runsErro = { code: 'PGRST205', message: 'tabela' }
+    const res = await pedir()
+    expect(res.status).toBe(200)
+    const corpo = await res.json()
+    expect(vi.mocked(recordCronFailure).mock.calls[0]![1]).toContain('schema_ausente: yt_own_collection_runs')
+    expect(recordCronSuccess).not.toHaveBeenCalled()
+    // Montagem da resposta depois da gravação: a falha da própria gravação aparece no corpo.
+    expect(corpo.falhas).toContain('schema_ausente: yt_own_collection_runs')
+    // Sem tabela, não há o que limpar.
+    expect(runsDeletes).toEqual([])
   })
 })

@@ -313,6 +313,7 @@ export async function removeYouTubeChannel(input: { channelId: string; confirmSl
   const res = parseRemovalRpc(data)
   if (res.status === 'not_found') return { ok: false, error: CHANNEL_TEXT.channelNotFound }
   if (res.status === 'slug_mismatch') return { ok: false, error: CHANNEL_TEXT.slugMismatch }
+  if (res.status === 'serie_coletada') return { ok: false, error: CHANNEL_TEXT.serieColetada }
   if (res.status === 'blocked') return { ok: false, error: blockedTitle(res.impact.name), blockers: res.impact.blockers }
   if (res.status !== 'removed') return { ok: false, error: 'Unexpected answer from the database. Nothing was deleted.' }
 

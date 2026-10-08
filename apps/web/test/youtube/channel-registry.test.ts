@@ -7,7 +7,7 @@ import {
 import { CHANNEL_LOCALES, isChannelLocale, channelLocaleDef } from '@/lib/youtube/channel-locales'
 import { showcaseChannelId } from '@/lib/youtube/showcase'
 
-const IMPACT: RemovalImpact = { name: 'N', slug: 's-1', videos: 2, comments: 3, syncLogs: 4, abTests: 5, abDrafts: 0, analyses: 6, tasks: 7, notes: 8, notifications: 0, connections: 0, pipelineLinks: 9, blockers: [] }
+const IMPACT: RemovalImpact = { name: 'N', slug: 's-1', videos: 2, comments: 3, syncLogs: 4, abTests: 5, abDrafts: 0, analyses: 6, tasks: 7, notes: 8, notifications: 0, connections: 0, pipelineLinks: 9, serieColetada: 0, blockers: [] }
 
 describe('idiomas do canal (lista central)', () => {
   it('pt e en, com chip e nome; qualquer outro valor é recusado', () => {
@@ -61,6 +61,16 @@ describe('resposta das funções de remoção', () => {
     const b = (o: object) => ({ id: 't', name: 'T', status: 'active', started_at: '2026-10-18T00:00:00Z', paused_at: null, video_title: 'V', ...o })
     const r = parseRemovalRpc({ ...row, status: 'blocked', blockers: [b({}), b({ status: 'paused', paused_at: '2026-10-20T00:00:00Z' }), b({ started_at: null })] })
     expect(r.status === 'blocked' && r.impact.blockers.map(x => x.since)).toEqual(['2026-10-18T00:00:00Z', '2026-10-20T00:00:00Z', null])
+  })
+  it('L1b: status serie_coletada traz o impacto com a contagem', () => {
+    const r = parseRemovalRpc({ ...row, status: 'serie_coletada', serie_coletada: 71 })
+    expect(r.status).toBe('serie_coletada')
+    expect('impact' in r && r.impact.serieColetada).toBe(71)
+  })
+  it('L1b: banco antigo, sem a chave serie_coletada, ainda é entendido e vale 0', () => {
+    const r = parseRemovalRpc({ ...row, status: 'ok' })
+    expect(r.status).toBe('ok')
+    expect('impact' in r && r.impact.serieColetada).toBe(0)
   })
   it('not_found e slug_mismatch passam; qualquer outra coisa é "invalid", nunca sucesso', () => {
     expect(parseRemovalRpc({ status: 'not_found' })).toEqual({ status: 'not_found' })

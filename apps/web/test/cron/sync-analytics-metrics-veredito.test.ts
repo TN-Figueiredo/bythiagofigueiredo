@@ -135,7 +135,8 @@ describe('sync-analytics-metrics: veredito único', () => {
     expect(db.tables.youtube_video_analytics).toHaveLength(1)
     expect(db.tables.youtube_videos![0]).toMatchObject({ view_count_delta_today: 120 })
     expect(nota()).toBe('schema_ausente: yt_own_video_meta_daily')
-    expect(body.coleta).toEqual({ relatorios: { baixados: 0 } })
+    // A rota sempre põe os tempos por passo em `coleta.ms`; com a coleta simulada sem tempos, vem vazio.
+    expect(body.coleta).toEqual({ relatorios: { baixados: 0 }, ms: {} })
     expect(recordCronSuccess).not.toHaveBeenCalled()
   })
 
@@ -498,7 +499,7 @@ describe('sync-analytics-metrics: veredito único', () => {
     const res = await GET(pedido() as never)
     const body = await res.json()
     expect(body.acao_do_dono).toEqual(['Canal Um: api_nao_ativada', 'Canal Um: sem_acesso', 'Canal Um: channel_reach_basic_a1 em sem_acesso'])
-    expect(body.coleta).toEqual({ jobs: { gravados: 1 }, perdidos: 2 })
+    expect(body.coleta).toEqual({ jobs: { gravados: 1 }, perdidos: 2, ms: {} })
     expect(body.falhas).toBeUndefined()
     expect(recordCronSuccess).toHaveBeenCalledTimes(1)
     expect(recordCronFailure).not.toHaveBeenCalled()
@@ -527,6 +528,67 @@ describe('sync-analytics-metrics: veredito único', () => {
     expect(body.acao_do_dono).toEqual(['Canal Um: api_nao_ativada'])
     expect(nota()).toBe('jobs: x')
     expect(nota()).not.toContain('api_nao_ativada')
+  })
+
+  describe('autorizados e negados da execução (o canal não oscila entre reautorizar e ok)', () => {
+    /** O carimbo do aviso já existe: nenhuma entrega é tentada, e o teste olha só o que a rota repassa. */
+    const bancoComCarimbo = (): FakeDb => {
+      const db = banco({ youtube_channels: [{ ...canal, collection_status: 'ok' }], youtube_videos: [video] })
+      db.rpcHandlers.ops_alert_claim = () => ({ data: false, error: null })
+      return db
+    }
+    const depois = () => vi.mocked(rodarColeta).mock.calls[1]![0]
+    const antesAutorizou = () => vi.mocked(rodarColeta).mockImplementation(async (ctx) =>
+      ctx.fase === 'antes' ? { falhas: [], resumo: { autorizados: ['ch-1'], negados: [] } } : { falhas: [], resumo: {} })
+
+    it('videos.list passou na fase antes e a Analytics API nega por permissão: a fase depois recebe o canal nos DOIS conjuntos', async () => {
+      const db = bancoComCarimbo()
+      antesAutorizou()
+      vi.stubGlobal('fetch', vi.fn().mockImplementation(async () =>
+        new Response(JSON.stringify({ error: { errors: [{ reason: 'insufficientPermissions' }] } }), { status: 403 })))
+      const body = await (await GET(pedido() as never)).json()
+      expect(body).toMatchObject({ sem_autorizacao: 1, errors: 0 })
+      expect(depois().fase).toBe('depois')
+      expect(depois().autorizadosAntes).toEqual(['ch-1'])
+      expect(depois().negadosAntes).toEqual(['ch-1'])
+      expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'reautorizar' })
+      expect(vi.mocked(rodarColeta).mock.calls[0]![0].autorizadosAntes).toBeUndefined()
+    })
+
+    it('a Analytics API passa: o canal entra em autorizadosAntes e não em negadosAntes', async () => {
+      const db = bancoComCarimbo()
+      await GET(pedido() as never)
+      expect(depois().autorizadosAntes).toEqual(['ch-1'])
+      expect(depois().negadosAntes).toEqual([])
+      expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'ok' })
+      expect(typeof db.tables.youtube_channels![0]!.authorization_verified_at).toBe('string')
+    })
+
+    it('canal em reautorizar no banco e a Analytics API passa: a rota NÃO devolve a ok (quem decide é a fase depois), só registra o sucesso', async () => {
+      const db = banco({ youtube_channels: [{ ...canal, collection_status: 'reautorizar' }], youtube_videos: [video] })
+      await GET(pedido() as never)
+      expect(depois().autorizadosAntes).toEqual(['ch-1'])
+      expect(depois().negadosAntes).toEqual([])
+      expect(db.tables.youtube_channels![0]).toMatchObject({ collection_status: 'reautorizar' })
+    })
+
+    it('negados da fase antes chegam à fase depois mesmo que a parte antiga passe', async () => {
+      bancoComCarimbo()
+      vi.mocked(rodarColeta).mockImplementation(async (ctx) =>
+        ctx.fase === 'antes' ? { falhas: [], resumo: { autorizados: [], negados: ['ch-1'] } } : { falhas: [], resumo: {} })
+      await GET(pedido() as never)
+      expect(depois().autorizadosAntes).toEqual(['ch-1'])
+      expect(depois().negadosAntes).toEqual(['ch-1'])
+    })
+
+    it('resumo da fase antes sem os conjuntos (ou com lixo): a fase depois recebe só o que a parte antiga viu', async () => {
+      bancoComCarimbo()
+      vi.mocked(rodarColeta).mockImplementation(async (ctx) =>
+        ctx.fase === 'antes' ? { falhas: [], resumo: { autorizados: 'lixo', negados: [1, null] } } : { falhas: [], resumo: {} })
+      await GET(pedido() as never)
+      expect(depois().autorizadosAntes).toEqual(['ch-1'])
+      expect(depois().negadosAntes).toEqual([])
+    })
   })
 
   it('sem o segredo: 401, nada roda', async () => {

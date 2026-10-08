@@ -3,13 +3,13 @@
 // download usa a URL gravada na listagem, renovando-a quando o Google a recusa.
 import * as Sentry from '@sentry/nextjs'
 import { channelNote, describeCronCause } from '@/lib/cron/failure-note'
-import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { classificarErro, criarReportingClient, paraBytea, type PacoteCsv, type ReportingClient } from '@/lib/youtube/reporting/client'
 import { ReportingHttpError, SEM_NORMALIZADOR, type Report } from '@/lib/youtube/reporting/types'
+import { obterToken } from './autorizacao'
 import { contarPorResultado, registrarTentativa, scopeJob } from './attempts'
 import { emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
 import { conferirBanco, pushUnico } from './schema'
-import { descreverErro, HABILITADOS, registrarSemConexao, statusHttp } from './token'
+import { descreverErro, HABILITADOS, statusHttp } from './token'
 import type { ColetaChannel, StepCtx, StepResumo } from './types'
 
 export const MAX_DOWNLOADS = 40
@@ -292,14 +292,8 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
       const jobs = ((lidos.data ?? []) as JobRow[]).filter(j => !!j.job_id)
       if (jobs.length === 0) continue
 
-      let token: string
-      try {
-        token = (await ensureFreshToken(c.site_id, 'youtube', c.channel_id)).accessToken
-      } catch (e) {
-        // Simplificação declarada de L1a: canal revogado ou sem conexão é só pulado.
-        if (await registrarSemConexao(ctx, tCanal(c), e)) continue
-        throw e
-      }
+      const token = await obterToken(ctx, c, tCanal(c))
+      if (token === null) continue
       const api = criarReportingClient(token, f)
       clientes.set(c.id, api)
       const feitos = await emParalelo(jobs, PARALELO, j => listarJob(ctx, c, api, j, resumo))
