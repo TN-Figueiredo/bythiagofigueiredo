@@ -9788,6 +9788,309 @@ export type Database = {
           },
         ]
       }
+      yt_own_collection_attempts: {
+        Row: {
+          attempt_day: string
+          attempts: number
+          channel_id: string | null
+          error: string | null
+          http_status: number | null
+          kind: string
+          last_attempt_at: string
+          outcome: string
+          scope_id: string
+          scope_type: string
+          site_id: string
+        }
+        Insert: {
+          attempt_day: string
+          attempts?: number
+          channel_id?: string | null
+          error?: string | null
+          http_status?: number | null
+          kind: string
+          last_attempt_at?: string
+          outcome: string
+          scope_id: string
+          scope_type: string
+          site_id: string
+        }
+        Update: {
+          attempt_day?: string
+          attempts?: number
+          channel_id?: string | null
+          error?: string | null
+          http_status?: number | null
+          kind?: string
+          last_attempt_at?: string
+          outcome?: string
+          scope_id?: string
+          scope_type?: string
+          site_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yt_own_collection_attempts_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yt_own_video_meta_daily: {
+        Row: {
+          ab_test_id: string | null
+          ab_variant_id: string | null
+          captured_at: string
+          channel_id: string
+          day_pt: string
+          description_sha256: string | null
+          description_text: string | null
+          duration_seconds: number | null
+          is_short: boolean | null
+          privacy_status: string | null
+          seconds_on_air_analytics: number | null
+          seconds_on_air_reporting: number | null
+          seconds_other_analytics: number | null
+          seconds_other_reporting: number | null
+          site_id: string
+          tags: string[] | null
+          tags_sha256: string | null
+          thumbnail_blob_url: string | null
+          thumbnail_dhash: string | null
+          thumbnail_sha256: string | null
+          thumbnail_sha256_at_capture: string | null
+          title: string | null
+          title_at_capture: string | null
+          video_id: string | null
+          youtube_video_id: string
+        }
+        Insert: {
+          ab_test_id?: string | null
+          ab_variant_id?: string | null
+          captured_at: string
+          channel_id: string
+          day_pt: string
+          description_sha256?: string | null
+          description_text?: string | null
+          duration_seconds?: number | null
+          is_short?: boolean | null
+          privacy_status?: string | null
+          seconds_on_air_analytics?: number | null
+          seconds_on_air_reporting?: number | null
+          seconds_other_analytics?: number | null
+          seconds_other_reporting?: number | null
+          site_id: string
+          tags?: string[] | null
+          tags_sha256?: string | null
+          thumbnail_blob_url?: string | null
+          thumbnail_dhash?: string | null
+          thumbnail_sha256?: string | null
+          thumbnail_sha256_at_capture?: string | null
+          title?: string | null
+          title_at_capture?: string | null
+          video_id?: string | null
+          youtube_video_id: string
+        }
+        Update: {
+          ab_test_id?: string | null
+          ab_variant_id?: string | null
+          captured_at?: string
+          channel_id?: string
+          day_pt?: string
+          description_sha256?: string | null
+          description_text?: string | null
+          duration_seconds?: number | null
+          is_short?: boolean | null
+          privacy_status?: string | null
+          seconds_on_air_analytics?: number | null
+          seconds_on_air_reporting?: number | null
+          seconds_other_analytics?: number | null
+          seconds_other_reporting?: number | null
+          site_id?: string
+          tags?: string[] | null
+          tags_sha256?: string | null
+          thumbnail_blob_url?: string | null
+          thumbnail_dhash?: string | null
+          thumbnail_sha256?: string | null
+          thumbnail_sha256_at_capture?: string | null
+          title?: string | null
+          title_at_capture?: string | null
+          video_id?: string | null
+          youtube_video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yt_own_video_meta_daily_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "yt_own_video_meta_daily_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "youtube_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yt_reporting_jobs: {
+        Row: {
+          channel_id: string
+          created_at: string
+          error: string | null
+          job_create_time: string | null
+          job_id: string | null
+          last_create_time: string | null
+          last_listed_at: string | null
+          report_type_id: string
+          site_id: string
+          status: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          error?: string | null
+          job_create_time?: string | null
+          job_id?: string | null
+          last_create_time?: string | null
+          last_listed_at?: string | null
+          report_type_id: string
+          site_id: string
+          status: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          error?: string | null
+          job_create_time?: string | null
+          job_id?: string | null
+          last_create_time?: string | null
+          last_listed_at?: string | null
+          report_type_id?: string
+          site_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yt_reporting_jobs_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yt_reporting_report_blobs: {
+        Row: {
+          csv_gz: string
+          report_id: string
+          site_id: string
+        }
+        Insert: {
+          csv_gz: string
+          report_id: string
+          site_id: string
+        }
+        Update: {
+          csv_gz?: string
+          report_id?: string
+          site_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yt_reporting_report_blobs_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: true
+            referencedRelation: "yt_reporting_reports"
+            referencedColumns: ["report_id"]
+          },
+          {
+            foreignKeyName: "yt_reporting_report_blobs_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yt_reporting_reports: {
+        Row: {
+          bytes: number | null
+          channel_id: string
+          create_time: string
+          download_url: string
+          downloaded_at: string | null
+          end_time: string
+          error: string | null
+          is_backfill: boolean
+          job_expire_time: string | null
+          job_id: string
+          normalized_at: string | null
+          report_id: string
+          report_type_id: string
+          row_count: number | null
+          sha256: string | null
+          site_id: string
+          start_time: string
+          status: string
+          unmatched_video_ids: Json | null
+        }
+        Insert: {
+          bytes?: number | null
+          channel_id: string
+          create_time: string
+          download_url: string
+          downloaded_at?: string | null
+          end_time: string
+          error?: string | null
+          is_backfill?: boolean
+          job_expire_time?: string | null
+          job_id: string
+          normalized_at?: string | null
+          report_id: string
+          report_type_id: string
+          row_count?: number | null
+          sha256?: string | null
+          site_id: string
+          start_time: string
+          status?: string
+          unmatched_video_ids?: Json | null
+        }
+        Update: {
+          bytes?: number | null
+          channel_id?: string
+          create_time?: string
+          download_url?: string
+          downloaded_at?: string | null
+          end_time?: string
+          error?: string | null
+          is_backfill?: boolean
+          job_expire_time?: string | null
+          job_id?: string
+          normalized_at?: string | null
+          report_id?: string
+          report_type_id?: string
+          row_count?: number | null
+          sha256?: string | null
+          site_id?: string
+          start_time?: string
+          status?: string
+          unmatched_video_ids?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yt_reporting_reports_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       fan_scores: {
@@ -10648,6 +10951,23 @@ export type Database = {
       youtube_channel_remove: {
         Args: { p_channel_id: string; p_confirm_slug: string; p_site_id: string }
         Returns: Json
+      }
+      yt_own_attempt_record: {
+        Args: {
+          p_channel_id?: string
+          p_error?: string
+          p_http_status?: number
+          p_kind: string
+          p_outcome: string
+          p_scope_id: string
+          p_scope_type: string
+          p_site_id: string
+        }
+        Returns: number
+      }
+      yt_reporting_blobs_purge: {
+        Args: { p_sem_normalizador: string[] }
+        Returns: number
       }
     }
     Enums: {
