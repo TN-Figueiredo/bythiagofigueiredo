@@ -277,6 +277,9 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
         .select('site_id, channel_id, report_type_id, job_id, job_create_time, last_create_time')
         .eq('channel_id', c.id)
         .eq('status', 'ativo')
+        // Só os tipos habilitados: tirar um tipo de REPORT_TYPES_ENABLED desliga a listagem e o download dele,
+        // mesmo antes de o passo de jobs marcar a linha como `desativado`.
+        .in('report_type_id', [...HABILITADOS])
       const leitura = conferirBanco(lidos, 'yt_reporting_jobs', ctx.falhas, 'ler')
       if (leitura === 'schema_ausente') {
         await registrarTentativa(ctx, { ...tCanal(c), outcome: 'schema_ausente' })
@@ -337,6 +340,7 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
     .select('site_id, report_id, channel_id, report_type_id, job_id, download_url, create_time')
     .eq('status', 'listado')
     .in('channel_id', idsDosCanais)
+    .in('report_type_id', [...HABILITADOS]) // os `listado` de um tipo desligado ficam como estão
     .order('create_time', { ascending: true })
     .limit(1000)
   if (conferirBanco(filaLida, 'yt_reporting_reports', ctx.falhas, 'ler') !== 'ok') return fechar()
@@ -377,6 +381,7 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
     .select('report_id', { count: 'exact', head: true })
     .eq('status', 'listado')
     .in('channel_id', idsDosCanais)
+    .in('report_type_id', [...HABILITADOS]) // o que nunca será baixado não é pendência
   if (conferirBanco(resta, 'yt_reporting_reports', ctx.falhas, 'ler') === 'ok') resumo.pendentes += resta.count ?? 0
 
   return fechar()

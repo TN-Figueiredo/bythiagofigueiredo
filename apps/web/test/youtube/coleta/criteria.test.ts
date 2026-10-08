@@ -138,6 +138,17 @@ describe('criteriosRelatorios', () => {
     }
   })
 
+  it('tipo tirado de REPORT_TYPES_ENABLED: o listado antigo e o expirado dele não deixam o cron vermelho (ninguém vai baixá-los)', async () => {
+    const FORA = 'channel_demographics_a1'
+    const db = fakeSupabase({
+      yt_reporting_reports: [rel('a', 'listado', 15, FORA), rel('b', 'listado', 40, FORA), rel('c', 'expirado_sem_baixar', 2, FORA)],
+    })
+    const ctx = ctxDe(db)
+    const r = await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual([])
+    expect(r.atrasados).toBe(0)
+  })
+
   it('tabela ausente: schema_ausente, sem lançar', async () => {
     const db = fakeSupabase()
     db.errors.yt_reporting_reports = { code: '42P01', message: 'x' }

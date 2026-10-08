@@ -6,7 +6,7 @@
 // "nada de errado": toda leitura passa por `conferirBanco` e, se falhar, entra em falhas[] uma nota
 // própria "critérios: não foi possível avaliar <critério>". Verde só aparece quando a leitura deu certo e
 // o dado realmente não tem o problema (ou quando a ausência do dado é o estado saudável, dito no lugar).
-import { REACH_TYPES } from '@/lib/youtube/reporting/types'
+import { REACH_TYPES, REPORT_TYPES_ENABLED } from '@/lib/youtube/reporting/types'
 import { scopeJob } from './attempts'
 import { addDays, boundsAnalytics, utcDay } from './day-pt'
 import { conferirBanco, pushUnico } from './schema'
@@ -14,6 +14,8 @@ import type { AttemptKind, StepCtx } from './types'
 
 const DIA_MS = 86_400_000
 const ALCANCE: readonly string[] = REACH_TYPES
+/** Tipo tirado da lista não é mais listado nem baixado: os relatórios dele que sobraram não são falha. */
+const HABILITADOS: readonly string[] = REPORT_TYPES_ENABLED
 /** O PostgREST corta em 1000 linhas: bater nesse número é leitura truncada, nunca "tudo lido". */
 const LIMITE_LEITURA = 1000
 const ORCAMENTO = 'nao_alcancado_orcamento'
@@ -132,11 +134,12 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     }
   }
 
-  // Expirado sem baixar, de qualquer tipo, nos últimos 14 dias: leitura própria, por status (poucas linhas).
+  // Expirado sem baixar, de qualquer tipo HABILITADO, nos últimos 14 dias: leitura própria, por status (poucas linhas).
   const exp = await ctx.supabase
     .from('yt_reporting_reports')
     .select('report_id, channel_id, report_type_id, status, create_time')
     .eq('status', 'expirado_sem_baixar')
+    .in('report_type_id', [...HABILITADOS])
     .gte('create_time', corte14)
     .limit(LIMITE_LEITURA)
   if (leituraOk(exp, 'yt_reporting_reports', 'relatórios expirados sem baixar', ctx.falhas)) {
@@ -149,11 +152,13 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     }
   }
 
-  // Listado há mais de 14 dias: tem conserto (baixar), então é falha enquanto durar.
+  // Listado há mais de 14 dias: tem conserto (baixar), então é falha enquanto durar. Só tipo habilitado: o listado
+  // de um tipo desligado nunca será baixado, e contá-lo deixaria o cron vermelho até o relatório expirar.
   const atras = await ctx.supabase
     .from('yt_reporting_reports')
     .select('report_id', { count: 'exact', head: true })
     .eq('status', 'listado')
+    .in('report_type_id', [...HABILITADOS])
     .lt('create_time', corte14)
   if (leituraOk(atras, 'yt_reporting_reports', 'relatórios listados há mais de 14 dias', ctx.falhas)) {
     if (atras.count === null || atras.count === undefined) {

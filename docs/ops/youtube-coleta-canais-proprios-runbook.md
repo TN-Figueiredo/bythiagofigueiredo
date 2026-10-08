@@ -51,6 +51,7 @@ Rodar à mão é seguro: os passos são idempotentes no dia (a segunda execuçã
 | `coleta.jobs` | `estados` por canal e tipo, `tipo_indisponivel`, `acao_do_dono`, `pendentes` |
 | `coleta.relatorios` | `vistos`, `baixados`, `vazios`, `expirados`, `erros_download`, `bruto_apagado`, `pendentes`, `perdidos`, `atrasados` |
 | `coleta.perdidos`, `coleta.atrasados` | os mesmos dois números, no nível de cima. `perdidos` = sem conserto; `atrasados` = `listado` há mais de 14 dias (esses viram falha) |
+| `coleta.vazios_sem_publicacao` | nomes dos canais cujos 4 relatórios de alcance mais recentes vieram vazios e que **não publicaram nos últimos 90 dias**. É informação, **não** falha (canal sem vídeo recebe relatório só com cabeçalho todo dia). Lista vazia = ninguém nessa situação |
 | `coleta.desconhecido` | nomes de canais cujo `dias_sem_meta` não pôde ser lido. Nunca é contado como zero |
 | `acao_do_dono` | o que só você resolve (seção 5). **Não** deixa o cron vermelho |
 | `falhas` | o que deixou o cron vermelho (seção 6). Presente só quando há falha |
@@ -96,7 +97,7 @@ Como ler `yt_own_collection_attempts`: sem linha = nunca tentado; linha com resu
 | `ok` | gravou |
 | `sem_conexao` | o canal não tem conexão OAuth viva, ou ela foi revogada. Em L1a os dois casos caem aqui |
 | `erro_http` | a chamada falhou. `http_status` nulo = timeout de 15 s ou erro de banco (`error` diz qual) |
-| `nao_alcancado_orcamento` | o relógio acabou antes. Três tentativas seguidas no mesmo escopo viram falha |
+| `nao_alcancado_orcamento` | o relógio acabou antes. Três tentativas seguidas no mesmo escopo viram falha. Com `kind = 'thumbnail'`: o prazo acabou no meio da captura da thumbnail; a linha do dia **foi gravada** (título e A/B), só sem os campos de thumbnail |
 | `schema_ausente` | a migration não está aplicada em produção |
 
 `kind`: `sondagem` (passo de jobs), `meta`, `thumbnail`, `relatorio`. Os outros (`diario`, `retencao_vida`) são de lotes futuros.
@@ -130,7 +131,7 @@ Em L1a **não existe** `collection_status` nem `reautorizar` (o estado `reautori
 
 ## 6. Falhas críticas (`falhas`)
 
-Cada nota vira texto em `cron_health.last_error` (juntas, até 500 caracteres) e a resposta lista todas em `falhas`. `<canal>` é o nome do canal (nas notas da parte antiga e dos passos jobs/relatórios, vem como `Nome (UC…)`). `<causa>` é uma frase curta derivada do tipo do erro, nunca o texto cru do Postgres: `database error`, `request timed out`, `Google token refresh failed (HTTP nnn)`, `token revoked by Google — the channel must be reconnected`, `unexpected error (NomeDoErro)`; o detalhe completo está no Sentry (tag `cron: sync-analytics-metrics`).
+Cada nota vira texto em `cron_health.last_error` (juntas, até 500 caracteres) e a resposta lista todas em `falhas`. `<canal>` é só o **nome** do canal nas notas da coleta (metadados, jobs, relatórios, critérios e avisos); só as notas da parte antiga (analytics por janela) trazem `Nome (UC…)`. `<causa>` é uma frase curta derivada do tipo do erro, nunca o texto cru do Postgres: `database error`, `request timed out`, `Google token refresh failed (HTTP nnn)`, `token revoked by Google — the channel must be reconnected`, `unexpected error (NomeDoErro)`; o detalhe completo está no Sentry (tag `cron: sync-analytics-metrics`).
 
 ### Banco (valem para qualquer passo)
 
@@ -150,6 +151,7 @@ Cada nota vira texto em `cron_health.last_error` (juntas, até 500 caracteres) e
 | `metadados: <canal>: <causa>` | exceção ao gravar um vídeo | Sentry (extra `video`) |
 | `metadados: thumbnail falhou em metade ou mais dos vídeos de <canal> por 2 dias` | `i.ytimg.com` ou o Vercel Blob fora do ar | conferir `BLOB_READ_WRITE_TOKEN`; ver `error` das tentativas `kind = 'thumbnail'` |
 | `metadados: N vídeos lidos — a leitura pode estar truncada em 1000` | o passo leu 1000 vídeos ou mais e pode ter deixado vídeos de fora | com poucos vídeos não acontece; abra o Sentry (veja "Limites conhecidos") |
+| `metadados: testes de A/B lidos até o limite de 1000 — a leitura pode estar truncada` | mesmo corte na leitura de `ab_tests`; nenhum vídeo ganha variante calculada com dado parcial, as colunas de A/B ficam nulas no dia | idem |
 | `metadados: ciclos de A/B lidos até o limite de 1000 — a leitura pode estar truncada` | mesmo corte nos ciclos de teste A/B; as colunas de A/B ficam nulas no dia | idem |
 
 ### Jobs (passo 1A)
@@ -165,7 +167,8 @@ Cada nota vira texto em `cron_health.last_error` (juntas, até 500 caracteres) e
 | Nota | Significa | O que fazer |
 |---|---|---|
 | `relatórios: <canal> tem relatório de alcance <tipo> em erro` | relatório de alcance de até 14 dias em `erro` (`url_inesperada`, `gzip_invalido` ou `grande_demais`); não tem conserto, a nota sai sozinha em 14 dias e passa a contar em `perdidos` | ver `error` em `yt_reporting_reports`; nada a fazer |
-| `relatórios: <canal> recebeu 4 relatórios <tipo> vazios seguidos` | alcance vindo sem linhas 4 vezes seguidas | conferir no Studio se o canal teve visualizações |
+| `relatórios: <canal> recebeu 4 relatórios <tipo> vazios seguidos` | alcance vindo sem linhas 4 vezes seguidas, **em canal que publicou nos últimos 90 dias**. Canal sem publicação nesse prazo não gera esta nota: aparece em `coleta.vazios_sem_publicacao` (o spec, seção 9, não trazia esse filtro; a divergência é deliberada) | conferir no Studio se o canal teve visualizações |
+| `critérios: não foi possível avaliar vídeos recentes do canal <canal> (youtube_videos)` | a contagem de publicações dos últimos 90 dias falhou; sem ela o cron não decide se "vazios seguidos" ou "sem relatório novo" é falha | resolva a nota `erro de banco ao ler youtube_videos` que vem junto |
 | `relatórios: <canal> tem relatório <tipo> expirado sem baixar` | passou do prazo (60 dias; 30 se for histórico) ou o download devolveu 404/410 | nada; sai em 14 dias e vira `perdidos` |
 | `relatórios: N relatório(s) listado(s) há mais de 14 dias sem baixar` | downloads falhando ou a fila não anda | ver tentativas `relatorio` com `erro_http` |
 | `relatórios: <canal> está sem relatório novo de <tipo> há mais de 6 dias` | job de alcance ativo, canal que publicou nos últimos 90 dias, sem relatório novo | ver `yt_reporting_jobs`; se preciso, recriar o job (seção 9) |
@@ -239,7 +242,31 @@ Não existe em L1a. Entra no L2, junto com o normalizador do alcance básico.
 
 ## 9. Recriar um job
 
-O passo de jobs recria sozinho: quando `reports.list` devolve 404, o job vira `erro` (`job_removido`) e a execução seguinte chama `jobs.create`. Para forçar (só o dono; escreve em produção), no SQL Editor do Supabase (você roda):
+**O que o passo faz sozinho.** Quando `reports.list` devolve 404 (o job não existe mais do lado do Google), a linha vira `erro` (`job_removido`). Na execução seguinte o passo de jobs lista os jobs do canal (`jobs.list`): se **não** encontra um job daquele tipo, chama `jobs.create`; se encontra, **adota** o que existe, com o mesmo `job_id`.
+
+**Pôr a linha em `erro` à mão não recria nada.** Com o job ainda vivo no Google, a execução seguinte o encontra em `jobs.list` e o adota de novo, com o mesmo `job_id`: a linha volta a `ativo` e nada mudou. `jobs.create` só roda quando o job já não existe do lado do Google.
+
+Para recriar de verdade é preciso **apagar o job no Google primeiro**. Só o dono; escreve no Google.
+
+**Antes de apagar:** apagar um job descarta o histórico que o Google guarda para ele. Os relatórios ainda não baixados desse job deixam de poder ser baixados, e o job novo só tem dados a partir da criação (mais os 30 dias de histórico que o Google gera). Confira antes quantos estão por baixar (leitura):
+
+```bash
+npx supabase db query --linked "select status, count(*) from yt_reporting_reports where channel_id = '<UUID_DO_CANAL>' and report_type_id = '<TIPO>' group by 1 limit 10"
+```
+
+1. Pegue o `job_id` (leitura):
+
+```bash
+npx supabase db query --linked "select job_id, status, job_create_time from yt_reporting_jobs where channel_id = '<UUID_DO_CANAL>' and report_type_id = '<TIPO>' limit 1"
+```
+
+2. Apague o job no Google (`jobs.delete`), com um access token do canal (OAuth Playground, escopo `yt-analytics.readonly`) (você roda):
+
+```bash
+curl -X DELETE -H "Authorization: Bearer $ACCESS_TOKEN" "https://youtubereporting.googleapis.com/v1/jobs/<JOB_ID>"
+```
+
+3. Não precisa mexer no banco. Na execução seguinte do cron `reports.list` devolve 404 e a linha vira `erro` (`job_removido`); na execução depois dessa o passo de jobs cria o job novo. Para ganhar um dia, marque a linha você mesmo no SQL Editor do Supabase (você roda) — agora sim tem efeito, porque o job não existe mais no Google:
 
 ```sql
 update yt_reporting_jobs set status = 'erro', error = 'recriar (manual)' where channel_id = '<UUID_DO_CANAL>' and report_type_id = '<TIPO>';
@@ -252,7 +279,12 @@ Um job novo começa a contar do zero: impressões e CTR anteriores à criação 
 Não há variável de ambiente. É um commit de uma linha, seguido de deploy:
 
 - **Um passo:** `apps/web/src/lib/youtube/coleta/index.ts`, constante `PASSOS_LIGADOS` (`metadados`, `jobs`, `relatorios`) para `false`.
-- **Um tipo de relatório:** `apps/web/src/lib/youtube/reporting/types.ts`, tirar a linha de `REPORT_TYPES_ENABLED`. O job continua existindo do lado do Google; a linha em `yt_reporting_jobs` vira `desativado` na sondagem seguinte.
+- **Um tipo de relatório:** `apps/web/src/lib/youtube/reporting/types.ts`, tirar a linha de `REPORT_TYPES_ENABLED`. A partir do deploy, na execução seguinte:
+  - o passo de relatórios **não lista nem baixa** mais esse tipo (ele só olha jobs `ativo` de tipos da lista);
+  - o passo de jobs marca a linha desse tipo em `yt_reporting_jobs` como `desativado`, qualquer que fosse o estado dela (`ativo`, `erro`, `api_nao_ativada`…). Isso é feito só no banco, **sem token e sem chamada ao Google**, então vale também para canal sem conexão;
+  - o job **continua existindo do lado do Google** e gerando relatórios lá; para parar isso também, apague-o (`jobs.delete`, seção 9);
+  - os relatórios desse tipo que já estavam `listado` ficam como estão: não são baixados, não contam em `pendentes` nem em `atrasados`, e não geram nota de "listado há mais de 14 dias" nem de "expirado sem baixar". Passado o prazo (60 dias; 30 se histórico) viram `expirado_sem_baixar` e contam em `perdidos`. O que já foi baixado continua guardado;
+  - religar o tipo (repor a linha na lista) faz a sondagem seguinte adotar o job que ficou no Google, com o mesmo `job_id`, e os `listado` que ainda não expiraram voltam para a fila.
 - **Habilitar um tipo:** acrescentar a linha em `REPORT_TYPES_ENABLED`. A posição na lista é a prioridade de download.
 - **Orçamento apertado:** os tetos estão em `apps/web/src/lib/youtube/coleta/clock.ts` (`TETOS_MS`, `RELOGIO_GLOBAL_MS`). Mexer neles exige refazer a conta com `maxDuration` da rota.
 
@@ -339,3 +371,5 @@ A ordem 3 antes de 4 importa só para não ficar vermelho: se a tabela sumir com
 - **Gzip corrompido é definitivo.** Um relatório cujo gzip não abre vira `erro` (`gzip_invalido`) e nunca é baixado de novo.
 - **Bug dormente na fadiga.** `youtube_fatigue_alerts.expected_ctr` e `actual_ctr` são `numeric(6,4)` e a rota grava contagens de visualizações neles. No dia em que um vídeo "fadigar" o insert vai falhar e este cron fica vermelho (`erro de banco ao gravar youtube_fatigue_alerts`), até uma migration corrigir as colunas. Não é do L1a, mas aparece nele.
 - **Sem `reautorizar` até o L1b.** Veja a seção 5.
+- **"Não consegue baixar há 3 dias" dispara no 4º dia.** O critério `jobs: <canal> não consegue baixar o relatório <tipo> há 3 dias` (e o de job em erro há 3 dias) roda na primeira fase, antes das tentativas de download do dia. No 3º dia de falha ele ainda só vê duas datas com tentativa; a nota aparece na execução do 4º dia.
+- **Quem silenciou o domínio `youtube` nas notificações não recebe o aviso de `api_nao_ativada` / `sem_acesso`.** Uma notificação suprimida pela preferência do usuário conta como entregue: não há nota `sem_destinatario` e o cron fica verde. Nesse caso o estado só aparece em `acao_do_dono`, na resposta do cron.

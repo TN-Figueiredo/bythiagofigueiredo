@@ -370,3 +370,45 @@ describe('passoJobs: rodada de correção 1', () => {
     }
   })
 })
+
+describe('passoJobs: tipo tirado de REPORT_TYPES_ENABLED', () => {
+  const FORA = 'channel_demographics_a1'
+
+  it('os quatro habilitados ativos e uma linha ativa de tipo fora da lista: ela vira desativado, sem token e sem chamada ao Google', async () => {
+    const db = fakeSupabase({ yt_reporting_jobs: [...REPORT_TYPES_ENABLED.map(linhaAtiva), linhaAtiva(FORA)] })
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(job(db, FORA)).toMatchObject({ status: 'desativado', job_id: `job-${FORA}`, error: null })
+    expect(ensureFreshToken).not.toHaveBeenCalled()
+    expect(criarReportingClient).not.toHaveBeenCalled()
+    expect(resumo.estados['ch-1']).toEqual({ ...Object.fromEntries(REPORT_TYPES_ENABLED.map(t => [t, 'ativo'])), [FORA]: 'desativado' })
+    expect(tentativaCanal(db)).toMatchObject({ outcome: 'ok' })
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('linha de tipo fora da lista em estado do dono (api_nao_ativada) também vira desativado e para de pedir ação', async () => {
+    const db = fakeSupabase({ yt_reporting_jobs: [...REPORT_TYPES_ENABLED.map(linhaAtiva), { ...linhaAtiva(FORA), status: 'api_nao_ativada', error: 'HTTP 403' }] })
+    const resumo = await passoJobs(ctxDe(db))
+    expect(job(db, FORA)).toMatchObject({ status: 'desativado' })
+    expect(resumo.acao_do_dono).toEqual([])
+    expect(avisarEntrada).not.toHaveBeenCalled()
+  })
+
+  it('a escrita do desativado é recusada: o canal NÃO conta como completo, a sondagem roda e a falha aparece', async () => {
+    const db = fakeSupabase({ yt_reporting_jobs: [...REPORT_TYPES_ENABLED.map(linhaAtiva), linhaAtiva(FORA)] })
+    db.writeErrors.yt_reporting_jobs = { code: '57014', message: 'timeout' }
+    api.jobsList.mockResolvedValue(REPORT_TYPES_ENABLED.map(t => ({ id: `job-${t}`, reportTypeId: t })))
+    const ctx = ctxDe(db)
+    await passoJobs(ctx)
+    expect(api.reportTypesList).toHaveBeenCalledTimes(1)
+    expect(ctx.falhas).toContain('erro de banco ao gravar yt_reporting_jobs')
+    expect(job(db, FORA)).toMatchObject({ status: 'ativo' })
+  })
+
+  it('linha desativado de tipo fora da lista não é regravada nem tira o canal do atalho', async () => {
+    const db = fakeSupabase({ yt_reporting_jobs: [...REPORT_TYPES_ENABLED.map(linhaAtiva), { ...linhaAtiva(FORA), status: 'desativado' }] })
+    await passoJobs(ctxDe(db))
+    expect(db.writes.filter(w => w.table === 'yt_reporting_jobs')).toEqual([])
+    expect(ensureFreshToken).not.toHaveBeenCalled()
+  })
+})

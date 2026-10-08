@@ -514,3 +514,38 @@ describe('passoRelatorios: fix round 1', () => {
     expect(db.tables.yt_reporting_report_blobs).toHaveLength(1)
   })
 })
+
+describe('passoRelatorios: tipo fora da lista habilitada (REPORT_TYPES_ENABLED)', () => {
+  const FORA = 'channel_demographics_a1'
+
+  it('job ativo de tipo fora da lista não é listado nem baixado; os listado dele ficam como estão e não contam em pendentes', async () => {
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow(FORA), jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [
+        listado('fora-1', { report_type_id: FORA, job_id: `job-${FORA}` }),
+        listado('fora-2', { report_type_id: FORA, job_id: `job-${FORA}` }),
+        listado('dentro-1'),
+      ],
+    })
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    expect(api.reportsList.mock.calls.map(c => c[0])).toEqual(['job-channel_reach_basic_a1'])
+    expect(api.download.mock.calls.map(c => c[0])).toEqual(['https://dl.test/dentro-1'])
+    expect(rel(db, 'dentro-1')).toMatchObject({ status: 'baixado' })
+    expect(rel(db, 'fora-1')).toMatchObject({ status: 'listado', download_url: 'https://dl.test/fora-1' })
+    expect(rel(db, 'fora-2')).toMatchObject({ status: 'listado' })
+    expect(db.tables.yt_reporting_report_blobs).toHaveLength(1)
+    expect(resumo).toMatchObject({ baixados: 1, pendentes: 0 })
+    expect(db.tables.yt_own_collection_attempts!.some(r => String(r.scope_id).includes(FORA))).toBe(false)
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('canal que só tem job ativo de tipo fora da lista: nenhuma chamada, nem de token', async () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow(FORA)], yt_reporting_reports: [listado('fora-1', { report_type_id: FORA, job_id: `job-${FORA}` })] })
+    await passoRelatorios(ctxDe(db))
+    expect(ensureFreshToken).not.toHaveBeenCalled()
+    expect(api.reportsList).not.toHaveBeenCalled()
+    expect(api.download).not.toHaveBeenCalled()
+    expect(rel(db, 'fora-1')).toMatchObject({ status: 'listado' })
+  })
+})

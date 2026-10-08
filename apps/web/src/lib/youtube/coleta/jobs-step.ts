@@ -197,8 +197,25 @@ export async function passoJobs(ctx: StepCtx): Promise<JobsResumo> {
       const status = new Map(
         ((atuais.data ?? []) as Array<{ report_type_id: string; status: JobStatus }>).map(r => [r.report_type_id, r.status]),
       )
-      if (HABILITADOS.every(t => status.get(t) === 'ativo')) {
-        resumo.estados[c.id] = Object.fromEntries(HABILITADOS.map(t => [t, 'ativo' as JobStatus]))
+      // Tipo tirado de REPORT_TYPES_ENABLED: a linha vira `desativado` aqui, só no banco (sem token e sem chamada
+      // ao Google; o job continua existindo do lado de lá). Vale para qualquer estado, não só `ativo`: um tipo
+      // desligado que ficasse em `api_nao_ativada` pediria ação do dono para sempre.
+      const desligados: string[] = []
+      for (const [tipo, st] of [...status]) {
+        if (HABILITADOS.includes(tipo) || st === 'desativado') continue
+        if (await gravarJob(ctx, c, tipo, { status: 'desativado' })) {
+          status.set(tipo, 'desativado')
+          desligados.push(tipo)
+        }
+      }
+      // Completo = um job `ativo` para cada tipo habilitado E nenhuma linha `ativo` de tipo fora da lista
+      // (só sobra uma se a escrita acima foi recusada: aí a sondagem roda e tenta de novo).
+      const sobraAtivo = [...status].some(([tipo, st]) => st === 'ativo' && !HABILITADOS.includes(tipo))
+      if (!sobraAtivo && HABILITADOS.every(t => status.get(t) === 'ativo')) {
+        resumo.estados[c.id] = {
+          ...Object.fromEntries(HABILITADOS.map(t => [t, 'ativo' as JobStatus])),
+          ...Object.fromEntries(desligados.map(t => [t, 'desativado' as JobStatus])),
+        }
         await registrarTentativa(ctx, { ...tCanal, outcome: 'ok' })
         continue
       }
