@@ -556,6 +556,7 @@ describe('passoMetadados: rodada de correção 1', () => {
     const ctx = ctxDe(db)
     await passoMetadados(ctx)
     expect(ctx.falhas.some(f => f.includes('testes de A/B') && f.includes('truncada'))).toBe(true)
+    expect(linha(db, 'yt-1')).toMatchObject({ title_at_capture: 'Título 1' })
     nula(linha(db, 'yt-1'), 'ab_test_id', 'ab_variant_id', 'title')
   })
 
@@ -565,6 +566,7 @@ describe('passoMetadados: rodada de correção 1', () => {
     const ctx = ctxDe(db)
     await passoMetadados(ctx)
     expect(ctx.falhas.some(f => f.includes('ciclos de A/B') && f.includes('truncada'))).toBe(true)
+    expect(linha(db, 'yt-1')).toMatchObject({ title_at_capture: 'Título 1' })
     nula(linha(db, 'yt-1'), 'ab_test_id', 'ab_variant_id', 'title')
   })
 
@@ -577,5 +579,42 @@ describe('passoMetadados: rodada de correção 1', () => {
     expect(tentativa(db, 'yt-1', 'thumbnail')).toMatchObject({ outcome: 'erro_http' })
     nula(linha(db, 'yt-1'), 'thumbnail_dhash', 'thumbnail_sha256_at_capture')
     expect(linha(db, 'yt-1')!.thumbnail_blob_url).toBe('https://blob.test/antiga.jpg')
+  })
+})
+
+describe('passoMetadados: URL da thumbnail na segunda execução', () => {
+  it('2ª execução do dia com a thumbnail falhando mantém nova.jpg, o dhash e o sha256 da 1ª', async () => {
+    vi.mocked(probeThumb).mockResolvedValue(probe('0000000000000000'))
+    const db = fakeSupabase({ youtube_videos: [video(1)], yt_own_video_meta_daily: [anterior(1, { thumbnail_blob_url: 'https://blob.test/velha.jpg' })] })
+    await passoMetadados(ctxDe(db))
+    expect(linha(db, 'yt-1')).toMatchObject({ thumbnail_blob_url: 'https://blob.test/nova.jpg', thumbnail_dhash: '0000000000000000' })
+    vi.mocked(probeThumb).mockResolvedValue(probe(null, null))
+    await passoMetadados(ctxDe(db))
+    expect(linha(db, 'yt-1')).toMatchObject({
+      thumbnail_blob_url: 'https://blob.test/nova.jpg', thumbnail_dhash: '0000000000000000', thumbnail_sha256_at_capture: sha(BYTES),
+    })
+  })
+
+  it('leitura das linhas do dia falha: lado seguro, a URL antiga não é repetida sobre uma captura que falhou', async () => {
+    vi.mocked(probeThumb).mockResolvedValue(probe(null, null))
+    const db = fakeSupabase({ youtube_videos: [video(1)], yt_own_video_meta_daily: [anterior(1)] })
+    const real = db.client.from.bind(db.client)
+    db.client.from = ((t: string) => {
+      const q = real(t)
+      if (t !== 'yt_own_video_meta_daily') return q
+      const select = q.select.bind(q)
+      q.select = ((cols?: string, o?: never) => {
+        if (cols !== 'youtube_video_id') return select(cols, o)
+        const c: Record<string, unknown> = {}
+        for (const m of ['eq', 'lt', 'order', 'limit']) c[m] = () => c
+        c.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { code: '57014', message: 'x' }, count: null }).then(ok)
+        return c as never
+      }) as typeof q.select
+      return q
+    }) as typeof db.client.from
+    const ctx = ctxDe(db)
+    await passoMetadados(ctx)
+    expect(ctx.falhas).toContain('erro de banco ao ler yt_own_video_meta_daily')
+    expect(linha(db, 'yt-1')!.thumbnail_blob_url).toBeUndefined()
   })
 })

@@ -222,6 +222,23 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
     }
   })
 
+  // Vídeos que JÁ têm linha neste dia (segunda execução). Numa captura que falha, repetir a URL do dia
+  // anterior sobre uma linha que já tem a imagem nova deixaria impressão e URL de imagens diferentes.
+  // Leitura que falha (ou cortada em 1000) toma o lado seguro: o canal inteiro conta como "já tem linha".
+  const jaTemLinha = new Set<string>()
+  const diaIlegivel = new Set<string>()
+  for (const c of canais) {
+    const r = await ctx.supabase
+      .from('yt_own_video_meta_daily')
+      .select('youtube_video_id')
+      .eq('channel_id', c.id)
+      .eq('day_pt', day)
+    if (conferirBanco(r, 'yt_own_video_meta_daily', ctx.falhas, 'ler') !== 'ok') { diaIlegivel.add(c.id); continue }
+    const linhasDoDia = (r.data ?? []) as Array<{ youtube_video_id: string }>
+    if (linhasDoDia.length >= LIMITE_LEITURA) { diaIlegivel.add(c.id); continue }
+    for (const l of linhasDoDia) jaTemLinha.add(l.youtube_video_id)
+  }
+
   const ab = await carregarAb(ctx, videos, Math.min(A.start, R.start))
 
   const fila = [...videos].sort((a, b) =>
@@ -299,7 +316,9 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       // Estas três chaves nunca passam de não nulo a nulo: quando não há valor, ficam fora do payload.
       if (v.description !== null && (!ant || ant.description_sha256 !== descHash)) linha.description_text = v.description
       if (!ant || ant.tags_sha256 !== tagsHash) linha.tags = v.tags ?? []
-      if (thumb.blobUrl) linha.thumbnail_blob_url = thumb.blobUrl
+      // Captura que falhou só repete a URL do dia anterior se o dia ainda não tem linha deste vídeo.
+      const diaJaTemLinha = diaIlegivel.has(v.channel_id) || jaTemLinha.has(v.youtube_video_id)
+      if (thumb.blobUrl && (thumb.ok || !diaJaTemLinha)) linha.thumbnail_blob_url = thumb.blobUrl
 
       const up = await ctx.supabase.from('yt_own_video_meta_daily').upsert(linha, { onConflict: 'youtube_video_id,day_pt' })
       const escrita = conferirBanco(up, 'yt_own_video_meta_daily', ctx.falhas)
