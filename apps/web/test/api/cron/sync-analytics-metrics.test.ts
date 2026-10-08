@@ -432,11 +432,40 @@ describe('autorização e linha da execução (L1b)', () => {
     expect(vi.mocked(marcarAutorizado).mock.calls[0]![1]).toMatchObject({ id: 'ch-1' })
   })
 
-  it('único canal em reautorizar não vira "todos os canais vieram vazios"', async () => {
-    umCanal({ id: 'ch-1' })
-    mockEnsureFreshToken.mockRejectedValue(new TokenRevokedError('youtube', 'c1'))
+  /** Canal A (UCA) revogado ao lado do canal B (UCB): só o B chega à Analytics API. */
+  function canalRevogadoEUmCanalB() {
+    const base = { site_id: 'site-1', subscriber_count: 1000, name: null, collection_status: 'ok' }
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'youtube_channels') {
+        return channelsQuery([{ id: 'ch-a', channel_id: 'UCA', ...base }, { id: 'ch-b', channel_id: 'UCB', ...base }])
+      }
+      if (table === 'youtube_videos') return videosQuery([video])
+      if (table === 'youtube_video_analytics') return { upsert: vi.fn().mockResolvedValue({ error: null }) }
+      if (table === 'ab_tests') return abTestsQuery()
+      return {}
+    })
+    mockEnsureFreshToken.mockImplementation(async (siteId: string, _p: string, acc?: string) => {
+      if (acc === 'UCA') throw new TokenRevokedError('youtube', 'c-a')
+      return { accessToken: 'yt-token' }
+    })
+  }
+
+  it('canal em reautorizar não conta como "com conexão": o outro canal vazio é "todos vazios" (regra 5)', async () => {
+    canalRevogadoEUmCanalB()
+    analyticsResponde(200, { rows: [] })
     const corpo = await (await pedir()).json()
-    expect(corpo.falhas).toBeUndefined()
+    expect(corpo).toMatchObject({ sem_autorizacao: 1, emptyReports: 1 })
+    expect(corpo.falhas).toEqual(expect.arrayContaining([expect.stringContaining('all 1 channel(s) returned an empty analytics report')]))
+    expect(recordCronFailure).toHaveBeenCalled()
+  })
+
+  it('canal em reautorizar ao lado de um canal com dados: nenhuma nota de "todos vazios" e o cron fica verde', async () => {
+    canalRevogadoEUmCanalB()
+    analyticsResponde(200, { rows: [['vid-abc', 50, 100, 120, 5, 2, 1, 3]] })
+    const corpo = await (await pedir()).json()
+    expect(corpo).toMatchObject({ sem_autorizacao: 1, synced: 1 })
+    expect(JSON.stringify(corpo.falhas ?? [])).not.toContain('returned an empty analytics report')
+    expect(recordCronSuccess).toHaveBeenCalledTimes(1)
   })
 
   it('grava uma linha da execução com tempos, falhas e ação do dono, ANTES do veredito', async () => {
