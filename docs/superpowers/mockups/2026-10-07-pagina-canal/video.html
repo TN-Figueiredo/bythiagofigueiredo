@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Histórico do vídeo — Observatório</title>
+<!-- Fontes: as mesmas do produto. Sem rede o mockup cai em system-ui e continua legível. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="hist.css?v=r31791463200">
+</head>
+<body>
+
+<!-- Barra do mockup: fora da tela simulada, recolhida. Nada daqui existe no produto. -->
+<details id="mock">
+  <summary>Estados do mockup (não faz parte da tela)</summary>
+  <div class="mk-in">
+    <div class="mk-row"><span class="mk-lbl" id="mkL">Leitura da forja</span><div class="mk-items" role="group" aria-labelledby="mkL" id="mkLeitura"></div></div>
+    <div class="mk-row"><span class="mk-lbl" id="mkV">Variantes da leitura</span><div class="mk-items" role="group" aria-labelledby="mkV" id="mkVar"></div></div>
+    <div class="mk-row"><span class="mk-lbl">Outro vídeo</span><div class="mk-items" id="mkCasos"></div></div>
+    <div class="mk-row"><span class="mk-lbl">Sincronização</span><div class="mk-items" id="mkSync"></div></div>
+    <p><b>Simulação:</b> o botão “Pedir leitura” percorre fila, escrevendo e pronta em cerca de 5 segundos. Nada é enviado à forja. Todo texto de leitura é escrito para o mockup (a forja nunca produziu uma leitura real) e vem marcado “exemplo”. Vídeos, números e série diária são do banco de produção; as trocas, o fixado e os casos de dado ausente foram fabricados (lista no LEIAME).</p>
+  </div>
+</details>
+
+<div id="app">
+  <aside class="ch-side" aria-label="Menu do CMS (ilustrativo)" inert>
+    <div class="ch-side-logo">bythiagofigueiredo</div>
+    <p class="ch-side-g">YouTube</p>
+    <ul><li><span>Canais</span></li><li><span>Vídeos</span></li><li><span>A/B Lab</span></li><li><span>Desempenho</span></li><li><span data-on>Competidores</span></li></ul>
+  </aside>
+  <div class="ch-main">
+    <div class="ch-shell" aria-hidden="true"><p>YouTube</p></div>
+    <div class="ch-shell-tabs" aria-hidden="true"><span>Painel</span><span>Vídeos</span><span>A/B Lab</span><span>Categorias</span><span>Comentários</span><span>Conteúdo</span><span data-on>Competidores</span><span>Desempenho</span></div>
+    <main id="screen" class="hv">
+      <div class="page">
+        <nav class="crumbs" aria-label="Caminho">
+          <ol>
+            <li><a href="../2026-10-04-multi-canal/observatorio-n-nichos.html">Canais</a></li>
+            <li><a href="canal.html" id="crumbCanal"></a></li>
+            <li aria-current="page">Histórico do vídeo</li>
+          </ol>
+          <div class="pager" id="pager"></div>
+        </nav>
+        <div id="faixa"></div>
+
+        <section class="vhead" id="vhead" aria-label="Vídeo"></section>
+        <p class="sr" id="live" role="status"></p>
+
+        <section class="card timeline" aria-labelledby="tlh">
+          <div class="sec-h">
+            <h3 id="tlh">Views por dia e cada troca</h3>
+            <div class="rng-ctl" id="rng" role="group" aria-labelledby="rngL" hidden><span class="rng-l" id="rngL">Período</span><div class="seg" id="rngSeg"></div></div>
+            <span class="src" id="tlsrc"></span>
+          </div>
+          <div class="tl-wrap" id="tlwrap">
+            <svg id="chart" role="img"></svg>
+            <div class="lanes" id="lanes"></div>
+            <div class="vlines" id="vlines" aria-hidden="true"></div>
+            <div class="tip" id="tip" role="tooltip"></div>
+          </div>
+          <p class="rng-txt" id="rngTxt" role="status" hidden></p>
+          <div class="legend" id="legend"></div>
+          <details class="data" id="datatable"></details>
+        </section>
+
+        <section class="card isum-card" id="isumSec" hidden></section>
+
+        <section class="card compare" id="compare" aria-labelledby="cmph">
+          <div id="cmpHead"></div>
+          <p class="cmp-count" id="cmpCount" role="status"></p>
+          <div id="cmpBody"></div>
+        </section>
+
+        <section class="card forja-wrap" id="forja" aria-label="Leitura da forja" tabindex="-1"><div id="forjaMount"></div></section>
+
+        <section class="card versions" id="thumbsSec" aria-labelledby="thh"></section>
+
+        <div class="two">
+          <section class="card versions" id="titlesSec" aria-labelledby="tih"></section>
+          <section class="card versions" id="descSec" aria-labelledby="deh"></section>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="dados.js?v=r31791463200"></script>
+<script src="forja.js?v=r31791463200"></script>
+<script src="hist-dados.js?v=r31791463200"></script>
+<script src="video.js?v=r31791463200"></script>
+</body>
+</html>
