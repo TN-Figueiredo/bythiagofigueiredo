@@ -109,4 +109,51 @@ describe('fakeSupabase estrito', () => {
     expect(ler()).toMatchObject({ thumbnail_impressions: 6 })
     expect(db.tables.yt_own_video_reach_daily).toHaveLength(1)
   })
+  describe('comReachApply: como o Postgres', () => {
+    const V = 'views_desde_2026-08-27'
+    const linha = (extra: Record<string, unknown> = {}) => ({
+      youtube_video_id: 'yt1', day_pt: '2026-09-25', site_id: 's', video_id: null, channel_id: 'c',
+      thumbnail_impressions: 3, thumbnail_ctr: 0.5,
+      source_report_id: 'rel-a', report_create_time: '2026-10-01T10:00:00.000Z', metric_version: V, ...extra,
+    })
+
+    it('mesma chave duas vezes no mesmo lote: 21000 e nada é gravado', async () => {
+      const db = comReachApply(fakeSupabase())
+      const r = await db.client.rpc('yt_own_reach_apply', { p_rows: [linha(), linha({ youtube_video_id: 'yt2' }), linha({ thumbnail_impressions: 9 })] })
+      expect(r.error).toEqual({ code: '21000', message: 'ON CONFLICT DO UPDATE command cannot affect row a second time' })
+      expect(r.data).toBeNull()
+      expect(db.tables.yt_own_video_reach_daily ?? []).toHaveLength(0)
+    })
+
+    it('chave ausente numa linha do lote conta como nula, não mantém o valor antigo', async () => {
+      const db = comReachApply(fakeSupabase())
+      await db.client.rpc('yt_own_reach_apply', { p_rows: [linha()] })
+      const { thumbnail_ctr: _ctr, ...semCtr } = linha({ thumbnail_impressions: 7 })
+      const r = await db.client.rpc('yt_own_reach_apply', { p_rows: [semCtr] })
+      expect(r.data).toBe(1)
+      expect(db.tables.yt_own_video_reach_daily![0]).toMatchObject({ thumbnail_impressions: 7, thumbnail_ctr: null })
+      const { thumbnail_impressions: _imp, ...semImp } = linha()
+      await db.client.rpc('yt_own_reach_apply', { p_rows: [semImp] })
+      expect(db.tables.yt_own_video_reach_daily![0]).toMatchObject({ thumbnail_impressions: null, thumbnail_ctr: 0.5 })
+    })
+
+    it('linha sem youtube_video_id ou sem day_pt: 23502', async () => {
+      const db = comReachApply(fakeSupabase())
+      const { youtube_video_id: _v, ...semVideo } = linha()
+      const { day_pt: _d, ...semDia } = linha()
+      expect((await db.client.rpc('yt_own_reach_apply', { p_rows: [semVideo] })).error).toMatchObject({ code: '23502' })
+      expect((await db.client.rpc('yt_own_reach_apply', { p_rows: [semDia] })).error).toMatchObject({ code: '23502' })
+      expect((await db.client.rpc('yt_own_reach_apply', { p_rows: [linha({ day_pt: null })] })).error).toMatchObject({ code: '23502' })
+      expect(db.tables.yt_own_video_reach_daily ?? []).toHaveLength(0)
+    })
+
+    it('video_id nulo que chega não apaga o já gravado; um não nulo substitui', async () => {
+      const db = comReachApply(fakeSupabase())
+      await db.client.rpc('yt_own_reach_apply', { p_rows: [linha({ video_id: 'v-1' })] })
+      await db.client.rpc('yt_own_reach_apply', { p_rows: [linha({ video_id: null })] })
+      expect(db.tables.yt_own_video_reach_daily![0]).toMatchObject({ video_id: 'v-1' })
+      await db.client.rpc('yt_own_reach_apply', { p_rows: [linha({ video_id: 'v-2' })] })
+      expect(db.tables.yt_own_video_reach_daily![0]).toMatchObject({ video_id: 'v-2' })
+    })
+  })
 })

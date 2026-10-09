@@ -231,23 +231,42 @@ export function fakeSupabase(
 /**
  * Mesmo comportamento de public.yt_own_reach_apply: insere; sobrescreve só quando o relatório é mais novo
  * (create_time maior, comparado como instante) ou é o mesmo relatório. Devolve quantas linhas mudaram.
+ * Como o Postgres: o lote é atômico (erro = nada gravado), duas linhas com a mesma chave no lote dão 21000,
+ * e jsonb_to_recordset lê a chave ausente como nula (a regra do video_id continua: nulo não apaga o gravado).
  */
 export function comReachApply(db: FakeDb): FakeDb {
   db.rpcHandlers.yt_own_reach_apply = (a) => {
     const linhas = (a.p_rows ?? []) as Row[]
     const t = (db.tables.yt_own_video_reach_daily ??= [])
+    const erro = (code: string, message: string) => ({ data: null, error: { code, message } })
+    const vistas = new Set<string>()
+    for (const l of linhas) {
+      if (l.youtube_video_id == null || l.day_pt == null) {
+        return erro('23502', 'null value in column of yt_own_video_reach_daily')
+      }
+      const chave = JSON.stringify([l.youtube_video_id, l.day_pt])
+      if (vistas.has(chave)) return erro('21000', 'ON CONFLICT DO UPDATE command cannot affect row a second time')
+      vistas.add(chave)
+      if (l.site_id == null || l.channel_id == null || l.source_report_id == null || l.report_create_time == null || l.metric_version == null) {
+        return erro('23502', 'null value in column of yt_own_video_reach_daily')
+      }
+    }
     let n = 0
     for (const l of linhas) {
-      if (l.site_id == null || l.channel_id == null || l.source_report_id == null || l.report_create_time == null || l.metric_version == null) {
-        return { data: null, error: { code: '23502', message: 'null value in column of yt_own_video_reach_daily' } }
-      }
       const i = t.findIndex(r => r.youtube_video_id === l.youtube_video_id && r.day_pt === l.day_pt)
-      const nova = { ...l, source: 'reporting_api', collected_at: new Date().toISOString() }
+      const nova = {
+        ...l,
+        thumbnail_impressions: l.thumbnail_impressions ?? null,
+        thumbnail_ctr: l.thumbnail_ctr ?? null,
+        video_id: l.video_id ?? null,
+        source: 'reporting_api',
+        collected_at: new Date().toISOString(),
+      }
       if (i === -1) { t.push(nova); n++; continue }
       const atual = t[i]!
       const maisNovo = Date.parse(l.report_create_time as string) > Date.parse(atual.report_create_time as string)
       if (maisNovo || l.source_report_id === atual.source_report_id) {
-        t[i] = { ...atual, ...nova, video_id: l.video_id ?? atual.video_id ?? null }
+        t[i] = { ...atual, ...nova, video_id: nova.video_id ?? atual.video_id ?? null }
         n++
       }
     }
