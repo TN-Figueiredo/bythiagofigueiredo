@@ -22,6 +22,11 @@ vi.mock('@/lib/youtube/coleta/videos-list', async (orig) => ({
     id, title: null, description: null, tags: ['a'], durationSeconds: null, privacyStatus: 'public',
   }]))),
 }))
+vi.mock('@/lib/youtube/coleta/analytics-diario', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/coleta/analytics-diario')>()),
+  // O passo `diario` chama a Analytics API por vídeo: aqui a rede é simulada. Os dias da resposta são 'AAAA-MM-DD' (metricVersion(day)).
+  diarioDoVideo: vi.fn(),
+}))
 vi.mock('@/lib/youtube/reporting/client', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/reporting/client')>()),
   criarReportingClient: vi.fn(),
@@ -35,13 +40,14 @@ vi.mock('@/lib/notifications/get-site-owners', () => ({
 
 import { ehMetadadosAntes, rodarColeta } from '@/lib/youtube/coleta'
 import { marcarReautorizar } from '@/lib/youtube/coleta/autorizacao'
+import { diarioDoVideo } from '@/lib/youtube/coleta/analytics-diario'
 import { criarRelogio } from '@/lib/youtube/coleta/clock'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { criarReportingClient, empacotarCsv, type ReportingClient } from '@/lib/youtube/reporting/client'
 import { REACH_TYPES, REPORT_TYPES_ENABLED, ReportingHttpError, type Job, type Report } from '@/lib/youtube/reporting/types'
 import { fanOutToSiteAdmins } from '@/lib/notifications/fan-out-to-admins'
 import { getSiteOwners } from '@/lib/notifications/get-site-owners'
-import { fakeSupabase, type FakeDb, type Row } from './fake-supabase'
+import { comReachApply, fakeSupabase, type FakeDb, type Row } from './fake-supabase'
 
 const DIA_MS = 86_400_000
 // O cron roda às 12:00 UTC. Três execuções em dias seguidos.
@@ -61,8 +67,15 @@ const video = (n: number, canal: string, publicadoEm: string): Row => ({
 // Mais de 90 dias antes do dia 1.
 const VIDEOS_ANTIGOS = [1, 2, 3].map(n => video(n, ANTIGO.id, new Date(DIA_1.getTime() - (200 + n) * DIA_MS).toISOString()))
 
-const CSV_COM_DADO = Buffer.from('date,video_id,video_thumbnail_impressions\n20261001,abc,100\n')
-const CSV_SO_CABECALHO = Buffer.from('date,video_id,video_thumbnail_impressions\n')
+// O CSV de alcance real: cabeçalho exato; o channel_id da linha é o UC… do dono do job e o video_id é um vídeo dele.
+const CABECALHO_ALCANCE = 'date,channel_id,video_id,video_thumbnail_impressions,video_thumbnail_impressions_ctr'
+const csvComDado = (uc: string, videoId: string, dia: string, colunaExtra = false): Buffer =>
+  Buffer.from(colunaExtra
+    ? `${CABECALHO_ALCANCE},extra\n${dia},${uc},${videoId},100,0.05,x\n`
+    : `${CABECALHO_ALCANCE}\n${dia},${uc},${videoId},100,0.05\n`)
+const csvSoCabecalho = (): Buffer => Buffer.from(`${CABECALHO_ALCANCE}\n`)
+/** O primeiro vídeo do canal dono do UC… (para ANTIGO, `yt-ch-antigo-1`). */
+const primeiroVideoDe = (uc: string): string => `yt-${uc === ANTIGO.channel_id ? ANTIGO.id : SEM_VIDEO.id}-1`
 
 /** O lado do Google, em memória. Um job por (canal, tipo); os relatórios pertencem ao job. */
 class Google {
@@ -73,6 +86,8 @@ class Google {
   chamadas = { reportsList: 0, download: 0, jobsCreate: 0 }
   /** Canais (UC…) cujo relatório de ALCANCE vem só com o cabeçalho. Os outros tipos desses canais também. */
   semDado = new Set<string>()
+  /** Os relatórios publicados daqui em diante trazem uma coluna a mais no cabeçalho (o Google mudou o formato). */
+  colunaExtra = false
 
   cliente(uc: string): ReportingClient {
     const naoAtivada = () => new ReportingHttpError(403, 'accessNotConfigured')
@@ -124,7 +139,8 @@ class Google {
             jobExpireTime: new Date(agora.getTime() + 60 * DIA_MS).toISOString(),
             downloadUrl: url,
           })
-          this.csv.set(url, this.semDado.has(uc) ? CSV_SO_CABECALHO : CSV_COM_DADO)
+          const dia = new Date(fim - DIA_MS).toISOString().slice(0, 10).replaceAll('-', '')
+          this.csv.set(url, this.semDado.has(uc) ? csvSoCabecalho() : csvComDado(uc, primeiroVideoDe(uc), dia, this.colunaExtra))
         }
         this.relatorios.set(job.id, lista)
       }
@@ -132,13 +148,14 @@ class Google {
   }
 }
 
-/** Banco em memória com as cinco tabelas novas vazias, a limpeza do bruto e o carimbo de aviso (janela em dias). */
+/** Banco em memória com as sete tabelas novas vazias, a limpeza do bruto, a função de alcance e o carimbo de aviso (janela em dias). */
 function banco(videos: Row[]): FakeDb {
-  const db = fakeSupabase({
+  const db = comReachApply(fakeSupabase({
     youtube_channels: [SEM_VIDEO, ANTIGO],
     youtube_videos: videos,
     yt_own_video_meta_daily: [], yt_reporting_jobs: [], yt_reporting_reports: [], yt_reporting_report_blobs: [], yt_own_collection_attempts: [],
-  })
+    yt_own_video_daily: [], yt_own_video_reach_daily: [],
+  }))
   db.rpcHandlers.yt_reporting_blobs_purge = () => ({ data: 0, error: null })
   db.rpcHandlers.ops_alert_claim = (a) => {
     const t = (db.tables.ops_alert_state ??= [])
@@ -189,6 +206,7 @@ beforeEach(() => {
   vi.mocked(criarReportingClient).mockImplementation((token) => google.cliente(token.slice('tok:'.length)))
   vi.mocked(getSiteOwners).mockResolvedValue([{ userId: 'u1', email: 'dono@example.test' }])
   vi.mocked(fanOutToSiteAdmins).mockResolvedValue(1)
+  vi.mocked(diarioDoVideo).mockResolvedValue({ dias: [{ day: '2026-10-03', valores: { views: 1 } }], estendidas: 'ok' })
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -340,5 +358,74 @@ describe('uma execução em que o canal passa numa chamada e é negado em outra 
     expect(d.antes.reautorizar).toEqual([ANTIGO.id])
     expect(avisos()).toEqual(['youtube.coleta_saida'])
     expect(db.tables.ops_alert_state).toEqual([])
+  })
+})
+
+describe('três dias com alcance e diário de verdade', () => {
+  const videosDoAntigo = (quantos: number): Row[] =>
+    Array.from({ length: quantos }, (_, i) => video(i + 1, ANTIGO.id, new Date(DIA_1.getTime() - (201 + i) * DIA_MS).toISOString()))
+  const alcanceDe = (db: FakeDb, canal: string) =>
+    (db.tables.yt_reporting_reports ?? []).filter(r => r.channel_id === canal && r.report_type_id === 'channel_reach_basic_a1')
+
+  it('três dias saudáveis: verde nos três, uma linha de diário por vídeo, alcance gravado e todo relatório de alcance baixado ou vazio normalizado', async () => {
+    google.semDado.add(SEM_VIDEO.channel_id)
+    const db = banco(VIDEOS_ANTIGOS)
+
+    const d1 = await rodarDia(db, DIA_1)
+    expect(d1.falhas).toEqual([])
+    google.publicar(DIA_2, HISTORICO_POR_JOB, 'hist')
+    const d2 = await rodarDia(db, DIA_2)
+    expect(d2.falhas).toEqual([])
+    google.publicar(DIA_3, 1, 'dia3')
+    const d3 = await rodarDia(db, DIA_3)
+    expect(d3.falhas).toEqual([])
+
+    expect((db.tables.yt_own_video_daily ?? []).filter(l => l.channel_id === ANTIGO.id)).toHaveLength(3)
+    expect(new Set((db.tables.yt_own_video_daily ?? []).map(l => l.youtube_video_id)).size).toBe(3)
+    expect((db.tables.yt_own_video_reach_daily ?? []).length).toBeGreaterThan(0)
+    const alcance = [...alcanceDe(db, ANTIGO.id), ...alcanceDe(db, SEM_VIDEO.id)].filter(r => r.status === 'baixado' || r.status === 'vazio')
+    expect(alcance.length).toBeGreaterThan(0)
+    expect(alcance.filter(r => !r.normalized_at)).toEqual([])
+    expect(d3.depois.alcance).toMatchObject({ erros: 0, pendentes: 0 })
+    expect(d3.depois.diario).toMatchObject({ gravados: 3 })
+  })
+
+  it('diário mudo por três dias (Foco 1): sem nota nos dias 1 e 2, e no dia 3 o canal com 5 vídeos e nenhum diário ok fica vermelho', async () => {
+    vi.mocked(diarioDoVideo).mockResolvedValue({ dias: [], estendidas: 'ok' })
+    google.semDado.add(SEM_VIDEO.channel_id)
+    const db = banco(videosDoAntigo(5))
+    const nota = `diário: ${ANTIGO.name} não tem nenhum vídeo com diário ok nas 3 últimas execuções`
+
+    const d1 = await rodarDia(db, DIA_1)
+    expect(d1.falhas).not.toContain(nota)
+    const d2 = await rodarDia(db, DIA_2)
+    expect(d2.falhas).not.toContain(nota)
+    const d3 = await rodarDia(db, DIA_3)
+    expect(d3.falhas).toContain(nota)
+    expect(db.tables.yt_own_video_daily).toEqual([])
+  })
+
+  it('cabeçalho que muda no dia 2 (Foco 2/3): o relatório novo vira erro e fica vermelho no mesmo dia; o do dia 1 continua normalizado', async () => {
+    google.semDado.add(SEM_VIDEO.channel_id)
+    const db = banco(VIDEOS_ANTIGOS)
+    const nota = `relatórios: ${ANTIGO.name} tem relatório de alcance channel_reach_basic_a1 em erro`
+
+    await rodarDia(db, DIA_1) // os jobs nascem
+    google.publicar(DIA_1, 1, 'dia1') // o Google gera um relatório por job, ainda no formato antigo
+    const d1b = await rodarDia(db, new Date(DIA_1.getTime() + 3_600_000))
+    expect(d1b.falhas).not.toContain(nota)
+    expect(alcanceDe(db, ANTIGO.id).every(r => r.status === 'baixado' && r.normalized_at)).toBe(true)
+
+    google.colunaExtra = true
+    google.publicar(DIA_2, 1, 'dia2') // o formato mudou: uma coluna a mais
+    const d2 = await rodarDia(db, DIA_2)
+    expect(d2.falhas).toContain(nota)
+    const doDia1 = alcanceDe(db, ANTIGO.id).filter(r => String(r.report_id).startsWith('dia1-'))
+    const doDia2 = alcanceDe(db, ANTIGO.id).filter(r => String(r.report_id).startsWith('dia2-'))
+    expect(doDia1).toHaveLength(1)
+    expect(doDia1[0]).toMatchObject({ status: 'baixado' })
+    expect(doDia1[0]!.normalized_at).toBeTruthy()
+    expect(doDia2).toHaveLength(1)
+    expect(doDia2[0]).toMatchObject({ status: 'erro', error: 'cabecalho_inesperado' })
   })
 })

@@ -1,6 +1,6 @@
 // Coleta dos canais próprios — entrada única dos passos novos do cron sync-analytics-metrics.
-// Ordem do spec: metadados → 1A → o que o cron já faz → 1C. A parte antiga mora na rota, então a
-// rota chama rodarColeta duas vezes: fase 'antes' (metadados, 1A) e fase 'depois' (1C, critérios).
+// Ordem do spec: metadados → 1A → o que o cron já faz → 1C → alcance → diário. A parte antiga mora na rota, então a
+// rota chama rodarColeta duas vezes: fase 'antes' (metadados, 1A) e fase 'depois' (1C, alcance, diário, critérios).
 // Nada aqui chama recordCronSuccess/recordCronFailure: os passos só acumulam falhas[], e rodarColeta
 // nunca lança — a parte antiga da rota roda de qualquer jeito.
 import * as Sentry from '@sentry/nextjs'
@@ -8,9 +8,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { describeCronCause } from '@/lib/cron/failure-note'
 import { registrarTentativa } from './attempts'
 import { voltarAOk } from './autorizacao'
+import { passoAlcance } from './alcance-step'
 import { TETOS_MS, restante, type Relogio } from './clock'
 import { criterioJobsEmErro, criterioMetadados, criterioOrcamento, criteriosRelatorios } from './criteria'
+import { criteriosL2 } from './criteria-l2'
 import { ontemPt } from './day-pt'
+import { passoDiario } from './diario-step'
 import { passoJobs, type JobsResumo } from './jobs-step'
 import { passoMetadados } from './meta-step'
 import { passoRelatorios } from './reports-step'
@@ -18,7 +21,7 @@ import { conferirBanco, ehSchemaAusente, pushUnico, type ErroBanco } from './sch
 import type { AttemptKind, ColetaChannel, ColetaResult, StepCtx, Tentativa } from './types'
 
 /** Desligar um passo é um commit de uma linha (runbook, "Desligar um passo ou um tipo"). Não há variável de ambiente. */
-export const PASSOS_LIGADOS = { metadados: true, jobs: true, relatorios: true } as const
+export const PASSOS_LIGADOS = { metadados: true, jobs: true, relatorios: true, alcance: true, diario: true } as const
 
 /** O que o passo de metadados devolve e o critério de metadados precisa (`resumo.metadados` da fase 'antes'). */
 export interface MetadadosAntes {
@@ -188,9 +191,25 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     return { falhas, resumo }
   }
 
+  // `rel` e `resumo.relatorios` são montados depois do critério; o critério roda DEPOIS do alcance, para que um
+  // cabeçalho inesperado achado hoje (relatório marcado `erro` pelo alcance) já fique vermelho hoje.
+  let relPasso: Record<string, unknown> | undefined
   if (PASSOS_LIGADOS.relatorios) {
     const r = await passo('relatorios', TETOS_MS.relatorios, 'relatorio', ativos, passoRelatorios)
-    let rel: Record<string, unknown> | undefined = r ? { ...r } : undefined
+    relPasso = r ? { ...r } : undefined
+  }
+
+  // Alcance: normaliza o bruto que o passo de relatórios acabou de baixar. `servidos` vazio de propósito: sem tempo,
+  // este passo NÃO registra tentativa — uma `nao_alcancado_orcamento` de kind `relatorio` no canal sobrescreveria a
+  // tentativa `ok` que o passo de relatórios gravou hoje. O que ficou por fazer aparece em `pendentes` e, se durar,
+  // no critério "baixado há mais de 2 dias sem normalizar".
+  if (PASSOS_LIGADOS.alcance) {
+    const r = await passo('alcance', TETOS_MS.alcance, 'relatorio', [], passoAlcance)
+    if (r) resumo.alcance = r
+  }
+
+  if (PASSOS_LIGADOS.relatorios) {
+    let rel = relPasso
     try {
       const c = await criteriosRelatorios({ supabase: ctx.supabase, falhas, channels })
       rel = { ...(rel ?? {}), perdidos: c.perdidos, atrasados: c.atrasados }
@@ -203,6 +222,18 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
       falhou('relatorios', e)
     }
     if (rel) resumo.relatorios = rel
+  }
+
+  if (PASSOS_LIGADOS.diario) {
+    const r = await passo('diario', TETOS_MS.diario, 'diario', ativos, passoDiario)
+    if (r) resumo.diario = r
+  }
+  if (PASSOS_LIGADOS.alcance || PASSOS_LIGADOS.diario) {
+    try {
+      await criteriosL2({ supabase: ctx.supabase, falhas, channels })
+    } catch (e) {
+      falhou('critérios do L2', e)
+    }
   }
 
   if (PASSOS_LIGADOS.metadados) {
@@ -219,7 +250,7 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   }
 
   try {
-    await criterioOrcamento({ supabase: ctx.supabase, falhas }, ['meta', 'thumbnail', 'sondagem', 'relatorio'])
+    await criterioOrcamento({ supabase: ctx.supabase, falhas }, ['meta', 'thumbnail', 'sondagem', 'relatorio', 'diario'])
   } catch (e) {
     falhou('orçamento', e)
   }

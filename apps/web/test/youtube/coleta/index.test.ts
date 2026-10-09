@@ -5,6 +5,9 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi
 vi.mock('@/lib/youtube/coleta/meta-step', () => ({ passoMetadados: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/jobs-step', () => ({ passoJobs: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/reports-step', () => ({ passoRelatorios: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/alcance-step', () => ({ passoAlcance: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/diario-step', () => ({ passoDiario: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/criteria-l2', () => ({ criteriosL2: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/criteria', () => ({
   criteriosRelatorios: vi.fn(),
   criterioJobsEmErro: vi.fn(),
@@ -16,6 +19,9 @@ import { rodarColeta, PASSOS_LIGADOS } from '@/lib/youtube/coleta'
 import { passoMetadados } from '@/lib/youtube/coleta/meta-step'
 import { passoJobs } from '@/lib/youtube/coleta/jobs-step'
 import { passoRelatorios } from '@/lib/youtube/coleta/reports-step'
+import { passoAlcance } from '@/lib/youtube/coleta/alcance-step'
+import { passoDiario } from '@/lib/youtube/coleta/diario-step'
+import { criteriosL2 } from '@/lib/youtube/coleta/criteria-l2'
 import { criteriosRelatorios, criterioJobsEmErro, criterioOrcamento, criterioMetadados } from '@/lib/youtube/coleta/criteria'
 import { criarRelogio } from '@/lib/youtube/coleta/clock'
 import type { StepCtx } from '@/lib/youtube/coleta/types'
@@ -35,16 +41,19 @@ beforeEach(() => {
   vi.mocked(passoMetadados).mockResolvedValue({ ...resumoVazio, gravados: 35, day_pt: '2026-10-06', dias_sem_meta: { 'ch-1': 0 } })
   vi.mocked(passoJobs).mockResolvedValue({ ...resumoVazio, acao_do_dono: ['Canal Um: sem_acesso'], tipo_indisponivel: [], estados: {} })
   vi.mocked(passoRelatorios).mockResolvedValue({ ...resumoVazio, vistos: 0, baixados: 3, vazios: 0, expirados: 0, erros_download: 0, bruto_apagado: 0 })
+  vi.mocked(passoAlcance).mockResolvedValue({ ...resumoVazio, normalizados: 2, vazios: 1, erros: 0, sem_par: 0 })
+  vi.mocked(passoDiario).mockResolvedValue({ ...resumoVazio, gravados: 9, ate: '2026-10-07', estendidas_recusadas: 0 })
   vi.mocked(criteriosRelatorios).mockResolvedValue({ perdidos: 2, atrasados: 0, acao_do_dono: ['Canal Um: x em sem_acesso'] })
   vi.mocked(criterioMetadados).mockResolvedValue({ desconhecido: [] })
+  vi.mocked(criteriosL2).mockResolvedValue(undefined)
 })
 afterEach(() => {
   vi.useRealTimers()
 })
 
 describe('rodarColeta', () => {
-  it('os três passos nascem ligados', () => {
-    expect(PASSOS_LIGADOS).toEqual({ metadados: true, jobs: true, relatorios: true })
+  it('os cinco passos nascem ligados', () => {
+    expect(PASSOS_LIGADOS).toEqual({ metadados: true, jobs: true, relatorios: true, alcance: true, diario: true })
   })
 
   it('fase antes: lê todos os canais sem filtro e roda metadados e depois jobs, cada um com o seu teto', async () => {
@@ -75,7 +84,7 @@ describe('rodarColeta', () => {
       acao_do_dono: ['Canal Um: x em sem_acesso'],
       desconhecido: [],
     })
-    expect(criterioOrcamento).toHaveBeenCalledWith(expect.anything(), ['meta', 'thumbnail', 'sondagem', 'relatorio'])
+    expect(criterioOrcamento).toHaveBeenCalledWith(expect.anything(), ['meta', 'thumbnail', 'sondagem', 'relatorio', 'diario'])
   })
 
   it('fase depois: vazios_sem_publicacao do critério chega ao resumo; ausente vira lista vazia, e nunca entra em falhas', async () => {
@@ -178,8 +187,10 @@ describe('rodarColeta', () => {
     const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 300_000), fase: 'depois' })
     expect(passoRelatorios).not.toHaveBeenCalled()
     expect(r.resumo.relatorios).toMatchObject({ tentativas: { nao_alcancado_orcamento: 1 }, pendentes: 1, perdidos: 2 })
-    expect(db.tables.yt_own_collection_attempts).toHaveLength(1)
-    expect(db.tables.yt_own_collection_attempts![0]).toMatchObject({ scope_type: 'canal', scope_id: 'ch-1', kind: 'relatorio', outcome: 'nao_alcancado_orcamento' })
+    // O passo `diario` (kind próprio) também fica sem tempo e grava a sua tentativa: aqui só interessa a do kind `relatorio`.
+    const doRelatorio = db.tables.yt_own_collection_attempts!.filter(t => t.kind === 'relatorio')
+    expect(doRelatorio).toHaveLength(1)
+    expect(doRelatorio[0]).toMatchObject({ scope_type: 'canal', scope_id: 'ch-1', kind: 'relatorio', outcome: 'nao_alcancado_orcamento' })
     expect(criterioOrcamento).toHaveBeenCalledTimes(1)
   })
 
@@ -198,6 +209,91 @@ describe('rodarColeta', () => {
     await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 260_000), fase: 'depois' })
     const ctxRel = vi.mocked(passoRelatorios).mock.calls[0]![0] as StepCtx
     expect(ctxRel.deadline - Date.now()).toBe(10_000)
+  })
+})
+
+describe('rodarColeta: L2 (alcance e diário)', () => {
+  // vi.clearAllMocks não desfaz implementações: o critério de orçamento que um teste acima fez falhar voltaria a falhar aqui.
+  beforeEach(() => {
+    vi.mocked(criterioJobsEmErro).mockReset()
+    vi.mocked(criterioOrcamento).mockReset()
+  })
+
+  const ordem = (f: unknown) => (f as { mock: { invocationCallOrder: number[] } }).mock.invocationCallOrder[0]!
+
+  it('fase depois: relatórios → alcance → critérios de relatórios → diário → critérios do L2, cada passo com o seu teto', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    const ctxAlcance = vi.mocked(passoAlcance).mock.calls[0]![0] as StepCtx
+    const ctxDiario = vi.mocked(passoDiario).mock.calls[0]![0] as StepCtx
+    expect(ctxAlcance.deadline - Date.now()).toBe(20_000)
+    expect(ctxDiario.deadline - Date.now()).toBe(50_000)
+    const seq = [passoRelatorios, passoAlcance, criteriosRelatorios, passoDiario, criteriosL2].map(ordem)
+    expect(seq).toEqual([...seq].sort((a, b) => a - b))
+    expect(new Set(seq).size).toBe(5)
+    expect(r.resumo).toMatchObject({ alcance: { normalizados: 2 }, diario: { gravados: 9 } })
+    expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['alcance', 'diario', 'relatorios'])
+    expect(r.falhas).toEqual([])
+  })
+
+  it('fase antes: alcance, diário e critérios do L2 não rodam', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+    expect(passoAlcance).not.toHaveBeenCalled()
+    expect(passoDiario).not.toHaveBeenCalled()
+    expect(criteriosL2).not.toHaveBeenCalled()
+  })
+
+  it('exceção em alcance: falha nomeada; diário, critérios de relatórios e critérios do L2 ainda rodam', async () => {
+    vi.mocked(passoAlcance).mockRejectedValue(new Error('boom'))
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    expect(r.falhas).toEqual(['alcance: unexpected error (Error)'])
+    expect(passoDiario).toHaveBeenCalledTimes(1)
+    expect(criteriosRelatorios).toHaveBeenCalledTimes(1)
+    expect(criteriosL2).toHaveBeenCalledTimes(1)
+  })
+
+  it('exceção em diário: falha nomeada; critérios do L2, de metadados e de orçamento ainda rodam', async () => {
+    vi.mocked(passoDiario).mockRejectedValue(new Error('boom'))
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    expect(r.falhas).toEqual(['diario: unexpected error (Error)'])
+    expect(criteriosL2).toHaveBeenCalledTimes(1)
+    expect(criterioMetadados).toHaveBeenCalledTimes(1)
+    expect(criterioOrcamento).toHaveBeenCalledTimes(1)
+  })
+
+  it('exceção nos critérios do L2: falha nomeada e o critério de orçamento ainda roda', async () => {
+    vi.mocked(criteriosL2).mockRejectedValue(new Error('statement timeout'))
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    expect(r.falhas).toEqual(['critérios do L2: database error'])
+    expect(criterioOrcamento).toHaveBeenCalledTimes(1)
+  })
+
+  it('relógio global vencido: diário não roda e vira nao_alcancado_orcamento só para o canal com sync; alcance não cria tentativa de relatório', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(Date.now() - 300_000), fase: 'depois' })
+    expect(passoAlcance).not.toHaveBeenCalled()
+    expect(passoDiario).not.toHaveBeenCalled()
+    const tentativas = db.tables.yt_own_collection_attempts ?? []
+    const diario = tentativas.filter(t => t.kind === 'diario')
+    expect(diario).toHaveLength(1)
+    expect(diario[0]).toMatchObject({ scope_type: 'canal', scope_id: 'ch-1', outcome: 'nao_alcancado_orcamento' })
+    // Só as do passo de relatórios (uma por canal ativo): o alcance, sem tempo, não grava nada.
+    expect(tentativas.filter(t => t.kind === 'relatorio' && t.scope_type === 'canal')).toHaveLength(1)
+    expect(r.resumo.alcance).toMatchObject({ sem_tempo: true, pendentes: 0 })
+    expect(r.resumo.diario).toMatchObject({ tentativas: { nao_alcancado_orcamento: 1 }, pendentes: 1 })
+  })
+
+  it('o passo diário recebe todos os canais lidos (o filtro de sync_enabled é dele); o alcance também', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    const ctxDiario = vi.mocked(passoDiario).mock.calls[0]![0] as StepCtx
+    expect(ctxDiario.channels.map(c => c.id)).toEqual(['ch-1', 'ch-2'])
+    const ctxAlcance = vi.mocked(passoAlcance).mock.calls[0]![0] as StepCtx
+    expect(ctxAlcance.channels.map(c => c.id)).toEqual(['ch-1', 'ch-2'])
   })
 })
 
@@ -339,7 +435,7 @@ describe('rodarColeta: L1b', () => {
   it('fase depois: ms só de relatorios; reautorizar e a nota somam ao acao_do_dono do critério', async () => {
     const db = fakeSupabase({ youtube_channels: [canalL1b({ id: 'ch-1', name: 'Canal Um', collection_status: 'reautorizar' })] })
     const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
-    expect(Object.keys(r.resumo.ms as object)).toEqual(['relatorios'])
+    expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['alcance', 'diario', 'relatorios'])
     expect(r.resumo.reautorizar).toEqual(['ch-1'])
     expect(r.resumo.acao_do_dono).toEqual(['Canal Um: x em sem_acesso', 'Canal Um: reautorizar'])
   })
