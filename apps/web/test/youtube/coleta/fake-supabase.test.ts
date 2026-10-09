@@ -53,6 +53,13 @@ describe('fakeSupabase estrito', () => {
     expect((await db.client.from('t').update({ a: 6 }).eq('id', 1).select('a')).data).toEqual([{ a: 6 }])
     expect((await db.client.from('t').delete().eq('id', 2).select()).data).toHaveLength(1)
   })
+  it('upsert em lote heterogêneo anula a chave ausente (como o PostgREST)', async () => {
+    const db = fakeSupabase({ t: [{ k: 1, a: 0, b: 2 }] }, { t: [['k']] })
+    await db.client.from('t').upsert([{ k: 1, a: 9 }, { k: 2, a: 1, b: 5 }], { onConflict: 'k' })
+    expect(db.tables.t).toEqual([{ k: 1, a: 9, b: null }, { k: 2, a: 1, b: 5 }])
+    await db.client.from('t').upsert({ k: 2, a: 3 }, { onConflict: 'k' })
+    expect(db.tables.t![1]).toEqual({ k: 2, a: 3, b: 5 })
+  })
   it('chaves únicas: 23505 no insert duplicado e 42P10 no onConflict sem chave', async () => {
     const db = fakeSupabase()
     const t = db.client.from('yt_reporting_reports')

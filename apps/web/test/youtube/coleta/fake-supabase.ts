@@ -5,6 +5,7 @@
 // Fora de escopo: validação de nomes de coluna (coluna inexistente não dá 42703 aqui).
 // Estrito como o PostgREST: or()/not() com operador não suportado lançam; single() exige 1 linha;
 // escrita só devolve linhas com .select(); insert duplicado dá 23505; onConflict sem chave única dá 42P10;
+// insert/upsert em lote de chaves heterogêneas: a chave ausente numa linha vira null nela (defaultToNull do supabase-js);
 // ordenação padrão do Postgres (NULLs por último no asc, primeiro no desc); neq exclui nulos.
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -138,7 +139,10 @@ class Consulta implements PromiseLike<Resposta> {
     }
 
     this.db.writes.push({ table: this.tabela, op: this.op, payload: this.payload })
-    const lista = Array.isArray(this.payload) ? this.payload : this.payload ? [this.payload] : []
+    const bruta = Array.isArray(this.payload) ? this.payload : this.payload ? [this.payload] : []
+    // Como o supabase-js (defaultToNull): em lote, a chave que falta numa linha e existe em outra vira NULL nela.
+    const uniao = bruta.length > 1 ? [...new Set(bruta.flatMap(r => Object.keys(r)))] : []
+    const lista = uniao.length ? bruta.map(r => ({ ...Object.fromEntries(uniao.map(k => [k, null])), ...r })) : bruta
 
     const chaves = this.db.uniqueKeys[this.tabela] ?? []
     const saida = (rows: Row[]): Resposta => ({ data: this.retorna ? rows.map(r => this.projetar(r)) : null, error: null, count: null })

@@ -72,6 +72,7 @@ export async function passoDiario(ctx: StepCtx): Promise<DiarioResumo> {
 
   const f = fetchComPrazo(ctx.deadline)
 
+  let schemaAusenteNaEscrita = false
   for (let i = 0; i < canais.length; i++) {
     const c = canais[i]!
     const videos = videosDe(c)
@@ -136,6 +137,7 @@ export async function passoDiario(ctx: StepCtx): Promise<DiarioResumo> {
 
     await emParalelo(fila, PARALELO, async (x) => {
       const base = { site_id: x.site_id, scope_type: 'video' as const, scope_id: x.youtube_video_id, kind: 'diario' as const, channel_id: c.id }
+      if (schemaAusenteNaEscrita) return
       if (negado) {
         await registrarTentativa(ctx, { ...base, outcome: 'sem_autorizacao' })
         return
@@ -182,21 +184,33 @@ export async function passoDiario(ctx: StepCtx): Promise<DiarioResumo> {
           metric_version: metricVersion(d.day),
           ...d.valores,
         }))
-        // O PostgREST exige as mesmas chaves em todas as linhas de um upsert em lote.
-        const grupos = new Map<string, typeof linhas>()
+        // O supabase-js NÃO recusa lote heterogêneo: envia a união das chaves e a chave ausente numa linha vira NULL,
+        // sobrescrevendo o valor gravado. Por isso cada upsert leva só linhas de mesma assinatura (a única barreira contra
+        // "não nulo a nulo" em lote). Os trechos são CONTÍGUOS em ordem de dia e a gravação PARA no primeiro que falha:
+        // o que fica gravado é sempre um prefixo, e a janela seguinte (a partir do último dia) cobre o resto.
+        linhas.sort((p, q) => (p.day_pt < q.day_pt ? -1 : p.day_pt > q.day_pt ? 1 : 0))
+        const trechos: Array<typeof linhas> = []
+        let assinaturaAtual = ''
         for (const l of linhas) {
           const assinatura = Object.keys(l).sort().join(',')
-          const g = grupos.get(assinatura)
-          if (g) g.push(l)
-          else grupos.set(assinatura, [l])
+          if (trechos.length > 0 && assinatura === assinaturaAtual) trechos[trechos.length - 1]!.push(l)
+          else trechos.push([l])
+          assinaturaAtual = assinatura
         }
         let resultado: 'ok' | 'schema_ausente' | 'erro' = 'ok'
-        for (const grupo of grupos.values()) {
-          const up = await ctx.supabase.from('yt_own_video_daily').upsert(grupo, { onConflict: 'youtube_video_id,day_pt' })
+        let gravadas = 0
+        for (const trecho of trechos) {
+          const up = await ctx.supabase.from('yt_own_video_daily').upsert(trecho, { onConflict: 'youtube_video_id,day_pt' })
           const escrita = conferirBanco(up, 'yt_own_video_daily', ctx.falhas)
-          if (escrita !== 'ok' && resultado !== 'schema_ausente') resultado = escrita
+          if (escrita !== 'ok') {
+            resultado = escrita
+            break
+          }
+          gravadas += trecho.length
         }
+        resumo.gravados += gravadas
         if (resultado === 'schema_ausente') {
+          schemaAusenteNaEscrita = true
           await registrarTentativa(ctx, { ...base, outcome: 'schema_ausente' })
         } else if (resultado === 'erro') {
           await registrarTentativa(ctx, { ...base, outcome: 'erro_http', error: 'erro de banco' })
@@ -204,7 +218,6 @@ export async function passoDiario(ctx: StepCtx): Promise<DiarioResumo> {
           primeiraCausa ||= 'erro de banco'
         } else {
           await registrarTentativa(ctx, { ...base, outcome: 'ok' })
-          resumo.gravados += linhas.length
         }
       } catch (e) {
         if (e instanceof SemTempoError) {
@@ -231,6 +244,11 @@ export async function passoDiario(ctx: StepCtx): Promise<DiarioResumo> {
       }
     })
 
+    if (schemaAusenteNaEscrita) {
+      // A migration sumiu no meio: o canal em curso e os seguintes não chamam mais a API.
+      for (const k of canais.slice(i)) await registrarTentativa(ctx, { ...tCanal(k), outcome: 'schema_ausente' })
+      return fechar()
+    }
     if (comErro > 0) pushUnico(ctx.falhas, `diário: ${c.name}: ${comErro} de ${videos.length} vídeos com erro (${primeiraCausa})`)
     if (resumo.estendidas_recusadas > estendidasAntes) {
       pushUnico(ctx.falhas, `diário: ${c.name}: a Analytics API recusou as métricas estendidas`)

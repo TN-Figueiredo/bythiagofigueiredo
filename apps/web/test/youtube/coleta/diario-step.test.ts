@@ -354,3 +354,87 @@ describe('passoDiario: banco', () => {
     expect(tentativa(db, 'video', 'yt2')).toMatchObject({ outcome: 'ok' })
   })
 })
+
+describe('passoDiario: gravação em trechos e lote', () => {
+  const upserts = (db: FakeDb) => db.writes.filter(w => w.table === 'yt_own_video_daily' && w.op === 'upsert')
+  const dias3 = () => [
+    dia('2026-10-05', { views: 1, likes: 1 }),
+    dia('2026-10-06', { views: 2 }),
+    dia('2026-10-07', { views: 3, likes: 3 }),
+  ]
+
+  it('dia do meio com assinatura diferente: 3 upserts, na ordem dos dias', async () => {
+    // Resposta fora de ordem: o passo ordena por dia antes de agrupar.
+    vi.mocked(diarioDoVideo).mockResolvedValue(resposta([...dias3()].reverse()))
+    const db = bd([v(1)])
+    await passoDiario(ctxDe(db))
+    const ordem = upserts(db).map(w => (w.payload as Row[]).map(l => l.day_pt))
+    expect(ordem).toEqual([['2026-10-05'], ['2026-10-06'], ['2026-10-07']])
+  })
+
+  // Faz falhar só o n-ésimo upsert em yt_own_video_daily (os demais, se tentados, passam).
+  const falharNoUpsert = (db: FakeDb, n: number) => {
+    const real = db.client.from.bind(db.client)
+    let chamadas = 0
+    db.client.from = ((t: string) => {
+      const q = real(t) as unknown as Record<string, (...a: unknown[]) => unknown>
+      if (t === 'yt_own_video_daily') {
+        const up = q.upsert!.bind(q)
+        q.upsert = (...a: unknown[]) => {
+          chamadas++
+          if (chamadas === n) db.writeErrors.yt_own_video_daily = { code: '23514', message: 'x' }
+          else delete db.writeErrors.yt_own_video_daily
+          return up(...a)
+        }
+      }
+      return q
+    }) as typeof db.client.from
+  }
+
+  it('o segundo trecho falha: o primeiro fica, nada depois é gravado', async () => {
+    vi.mocked(diarioDoVideo).mockResolvedValue(resposta(dias3()))
+    const db = bd([v(1)])
+    falharNoUpsert(db, 2)
+    const resumo = await passoDiario(ctxDe(db))
+    expect(linhas(db).map(r => r.day_pt)).toEqual(['2026-10-05'])
+    expect(tentativa(db, 'video', 'yt1')).toMatchObject({ outcome: 'erro_http', error: 'erro de banco' })
+    expect(resumo.gravados).toBe(1)
+  })
+
+  it('o primeiro trecho falha: nenhum dia posterior é gravado', async () => {
+    vi.mocked(diarioDoVideo).mockResolvedValue(resposta(dias3()))
+    const db = bd([v(1)])
+    falharNoUpsert(db, 1)
+    const resumo = await passoDiario(ctxDe(db))
+    expect(linhas(db)).toHaveLength(0)
+    expect(resumo.gravados).toBe(0)
+    expect(tentativa(db, 'video', 'yt1')).toMatchObject({ outcome: 'erro_http' })
+  })
+
+  it('lote com chaves homogêneas: coluna que não veio no dia A não é anulada (41.5 fica)', async () => {
+    vi.mocked(diarioDoVideo).mockResolvedValue(resposta([
+      dia('2026-10-06', { views: 7 }),
+      dia('2026-10-07', { views: 8, avg_view_percentage: 30 }),
+    ]))
+    const db = bd([v(1)], [ultima(1, '2026-10-06', { views: 5, avg_view_percentage: 41.5 })])
+    await passoDiario(ctxDe(db))
+    expect(linhas(db).find(r => r.day_pt === '2026-10-06')).toMatchObject({ views: 7, avg_view_percentage: 41.5 })
+    for (const w of upserts(db)) {
+      const lote = w.payload as Row[]
+      const chaves = new Set(lote.map(l => Object.keys(l).sort().join(',')))
+      expect(chaves.size).toBe(1)
+    }
+  })
+})
+
+describe('passoDiario: schema ausente na escrita', () => {
+  it('PGRST204 ao gravar: interrompe, no máximo os 4 em voo chamam a API', async () => {
+    const db = bd([1, 2, 3, 4, 5, 6].map(n => v(n)))
+    db.writeErrors.yt_own_video_daily = { code: 'PGRST204', message: 'x' }
+    const ctx = ctxDe(db)
+    await passoDiario(ctx)
+    expect(ctx.falhas).toContain('schema_ausente: yt_own_video_daily')
+    expect(vi.mocked(diarioDoVideo).mock.calls.length).toBeLessThanOrEqual(4)
+    expect(tentativa(db, 'canal', 'ch-1')).toMatchObject({ outcome: 'schema_ausente' })
+  })
+})
