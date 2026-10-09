@@ -9884,6 +9884,97 @@ export type Database = {
         }
         Relationships: []
       }
+      yt_own_video_daily: {
+        Row: {
+          avg_view_duration_seconds: number | null
+          avg_view_percentage: number | null
+          card_click_rate: number | null
+          card_impressions: number | null
+          channel_id: string
+          collected_at: string
+          comments: number | null
+          day_pt: string
+          engaged_views: number | null
+          likes: number | null
+          metric_version: string
+          shares: number | null
+          site_id: string
+          source: string
+          subscribers_gained: number | null
+          subscribers_lost: number | null
+          video_id: string | null
+          views: number | null
+          watch_time_minutes: number | null
+          youtube_video_id: string
+        }
+        Insert: {
+          avg_view_duration_seconds?: number | null
+          avg_view_percentage?: number | null
+          card_click_rate?: number | null
+          card_impressions?: number | null
+          channel_id: string
+          collected_at?: string
+          comments?: number | null
+          day_pt: string
+          engaged_views?: number | null
+          likes?: number | null
+          metric_version: string
+          shares?: number | null
+          site_id: string
+          source?: string
+          subscribers_gained?: number | null
+          subscribers_lost?: number | null
+          video_id?: string | null
+          views?: number | null
+          watch_time_minutes?: number | null
+          youtube_video_id: string
+        }
+        Update: {
+          avg_view_duration_seconds?: number | null
+          avg_view_percentage?: number | null
+          card_click_rate?: number | null
+          card_impressions?: number | null
+          channel_id?: string
+          collected_at?: string
+          comments?: number | null
+          day_pt?: string
+          engaged_views?: number | null
+          likes?: number | null
+          metric_version?: string
+          shares?: number | null
+          site_id?: string
+          source?: string
+          subscribers_gained?: number | null
+          subscribers_lost?: number | null
+          video_id?: string | null
+          views?: number | null
+          watch_time_minutes?: number | null
+          youtube_video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yt_own_video_daily_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "youtube_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "yt_own_video_daily_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "yt_own_video_daily_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "youtube_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       yt_own_video_meta_daily: {
         Row: {
           ab_test_id: string | null
@@ -9983,6 +10074,73 @@ export type Database = {
           },
           {
             foreignKeyName: "yt_own_video_meta_daily_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "youtube_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      yt_own_video_reach_daily: {
+        Row: {
+          channel_id: string
+          collected_at: string
+          day_pt: string
+          metric_version: string
+          report_create_time: string
+          site_id: string
+          source: string
+          source_report_id: string
+          thumbnail_ctr: number | null
+          thumbnail_impressions: number | null
+          video_id: string | null
+          youtube_video_id: string
+        }
+        Insert: {
+          channel_id: string
+          collected_at?: string
+          day_pt: string
+          metric_version: string
+          report_create_time: string
+          site_id: string
+          source?: string
+          source_report_id: string
+          thumbnail_ctr?: number | null
+          thumbnail_impressions?: number | null
+          video_id?: string | null
+          youtube_video_id: string
+        }
+        Update: {
+          channel_id?: string
+          collected_at?: string
+          day_pt?: string
+          metric_version?: string
+          report_create_time?: string
+          site_id?: string
+          source?: string
+          source_report_id?: string
+          thumbnail_ctr?: number | null
+          thumbnail_impressions?: number | null
+          video_id?: string | null
+          youtube_video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yt_own_video_reach_daily_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "youtube_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "yt_own_video_reach_daily_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "yt_own_video_reach_daily_video_id_fkey"
             columns: ["video_id"]
             isOneToOne: false
             referencedRelation: "youtube_videos"
@@ -11032,6 +11190,7 @@ export type Database = {
         }
         Returns: number
       }
+      yt_own_reach_apply: { Args: { p_rows: Json }; Returns: number }
       yt_reporting_blobs_purge: {
         Args: { p_sem_normalizador: string[] }
         Returns: number

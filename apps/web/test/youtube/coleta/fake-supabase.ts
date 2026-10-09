@@ -32,6 +32,8 @@ export const CHAVES_UNICAS_L1A: Record<string, string[][]> = {
   yt_reporting_report_blobs: [['report_id']],
   yt_own_video_meta_daily: [['youtube_video_id', 'day_pt']],
   yt_own_collection_attempts: [['scope_type', 'scope_id', 'kind', 'attempt_day']],
+  yt_own_video_daily: [['youtube_video_id', 'day_pt']],
+  yt_own_video_reach_daily: [['youtube_video_id', 'day_pt']],
 }
 
 function cmp(a: unknown, b: unknown): number {
@@ -219,5 +221,33 @@ export function fakeSupabase(
       return Promise.resolve(h ? h(args) : { data: null, error: { code: 'PGRST202', message: `Could not find the function public.${name}` } })
     },
   } as unknown as SupabaseClient
+  return db
+}
+
+/**
+ * Mesmo comportamento de public.yt_own_reach_apply: insere; sobrescreve só quando o relatório é mais novo
+ * (create_time maior, comparado como instante) ou é o mesmo relatório. Devolve quantas linhas mudaram.
+ */
+export function comReachApply(db: FakeDb): FakeDb {
+  db.rpcHandlers.yt_own_reach_apply = (a) => {
+    const linhas = (a.p_rows ?? []) as Row[]
+    const t = (db.tables.yt_own_video_reach_daily ??= [])
+    let n = 0
+    for (const l of linhas) {
+      if (l.site_id == null || l.channel_id == null || l.source_report_id == null || l.report_create_time == null || l.metric_version == null) {
+        return { data: null, error: { code: '23502', message: 'null value in column of yt_own_video_reach_daily' } }
+      }
+      const i = t.findIndex(r => r.youtube_video_id === l.youtube_video_id && r.day_pt === l.day_pt)
+      const nova = { ...l, source: 'reporting_api', collected_at: new Date().toISOString() }
+      if (i === -1) { t.push(nova); n++; continue }
+      const atual = t[i]!
+      const maisNovo = Date.parse(l.report_create_time as string) > Date.parse(atual.report_create_time as string)
+      if (maisNovo || l.source_report_id === atual.source_report_id) {
+        t[i] = { ...atual, ...nova, video_id: l.video_id ?? atual.video_id ?? null }
+        n++
+      }
+    }
+    return { data: n, error: null }
+  }
   return db
 }

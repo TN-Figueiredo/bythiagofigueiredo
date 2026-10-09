@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { fakeSupabase } from './fake-supabase'
+import { fakeSupabase, comReachApply } from './fake-supabase'
 
 const rpcArgs = { p_site_id: 's', p_scope_type: 'video', p_scope_id: 'v', p_kind: 'meta', p_outcome: 'ok' }
 
@@ -75,5 +75,31 @@ describe('fakeSupabase estrito', () => {
     const w = db.client.from('t').insert({ a: 7 })
     await w; await w
     expect(db.tables.t).toHaveLength(2)
+  })
+
+  it('comReachApply: insere, recusa relatório mais velho, aceita o mais novo e o mesmo relatório', async () => {
+    const db = comReachApply(fakeSupabase())
+    const V = 'views_2025-03-31_a_2026-08-26'
+    const alcance = (extra: Record<string, unknown> = {}) => ({
+      youtube_video_id: 'yt2', day_pt: '2026-09-25', site_id: 's', video_id: null, channel_id: 'c',
+      thumbnail_impressions: 3, thumbnail_ctr: 0.33333333333333331,
+      source_report_id: 'rel-a', report_create_time: '2026-10-01T10:00:00.000Z', metric_version: V, ...extra,
+    })
+    const ler = () => db.tables.yt_own_video_reach_daily![0]!
+    expect((await db.client.rpc('yt_own_reach_apply', { p_rows: [alcance()] })).data).toBe(1)
+    expect(ler()).toMatchObject({ thumbnail_impressions: 3, source_report_id: 'rel-a', source: 'reporting_api' })
+
+    const velho = await db.client.rpc('yt_own_reach_apply', { p_rows: [alcance({ thumbnail_impressions: 99, source_report_id: 'rel-velho', report_create_time: '2026-09-30T10:00:00.000Z' })] })
+    expect(velho.data).toBe(0)
+    expect(ler()).toMatchObject({ thumbnail_impressions: 3, source_report_id: 'rel-a' })
+
+    const novo = await db.client.rpc('yt_own_reach_apply', { p_rows: [alcance({ thumbnail_impressions: 5, thumbnail_ctr: null, source_report_id: 'rel-novo', report_create_time: '2026-10-02T10:00:00.000Z' })] })
+    expect(novo.data).toBe(1)
+    expect(ler()).toMatchObject({ thumbnail_impressions: 5, thumbnail_ctr: null, source_report_id: 'rel-novo' })
+
+    const mesmo = await db.client.rpc('yt_own_reach_apply', { p_rows: [alcance({ thumbnail_impressions: 6, source_report_id: 'rel-novo', report_create_time: '2026-10-02T10:00:00.000Z' })] })
+    expect(mesmo.data).toBe(1)
+    expect(ler()).toMatchObject({ thumbnail_impressions: 6 })
+    expect(db.tables.yt_own_video_reach_daily).toHaveLength(1)
   })
 })
