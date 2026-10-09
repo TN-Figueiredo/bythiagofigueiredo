@@ -55,6 +55,23 @@ describe('lerAlcanceBasico (CSV real exportado de produção)', () => {
     expect(motivo(() => lerAlcanceBasico(`${cab}\n20260925,UC1,,3,0\n`))).toBe('linha_invalida')
     expect(motivo(() => lerAlcanceBasico(`${cab}\n20260925,UC1,abc,3,muito\n`))).toBe('linha_invalida')
   })
+  it('CTR fora de 0–1 (percentual, por exemplo) → linha_invalida; 0 e 1 exatos são válidos', () => {
+    const cab = CABECALHO_ALCANCE_BASICO.join(',')
+    expect(motivo(() => lerAlcanceBasico(`${cab}\n20260925,UC1,abc,3,33.3\n`))).toBe('linha_invalida')
+    expect(motivo(() => lerAlcanceBasico(`${cab}\n20260925,UC1,abc,3,1.0000001\n`))).toBe('linha_invalida')
+    expect(lerAlcanceBasico(`${cab}\n20260925,UC1,abc,1,1\n`)[0]!.ctr).toBe(1)
+    expect(lerAlcanceBasico(`${cab}\n20260925,UC1,abc,1,0\n`)[0]!.ctr).toBe(0)
+  })
+  it('data que não existe no calendário → linha_invalida; 29/02 só em ano bissexto', () => {
+    const cab = CABECALHO_ALCANCE_BASICO.join(',')
+    expect(motivo(() => lerAlcanceBasico(`${cab}\n20261345,UC1,abc,3,0\n`))).toBe('linha_invalida')
+    expect(motivo(() => lerAlcanceBasico(`${cab}\n00000000,UC1,abc,3,0\n`))).toBe('linha_invalida')
+    expect(motivo(() => lerAlcanceBasico(`${cab}\n20260229,UC1,abc,3,0\n`))).toBe('linha_invalida')
+    expect(lerAlcanceBasico(`${cab}\n20240229,UC1,abc,3,0\n`)[0]!.day).toBe('2024-02-29')
+  })
+  it('BOM no começo do arquivo não atrapalha o cabeçalho', () => {
+    expect(lerAlcanceBasico('﻿' + REAL)).toHaveLength(11)
+  })
   it('CTR vazio é nulo, nunca zero', () => {
     const cab = CABECALHO_ALCANCE_BASICO.join(',')
     expect(lerAlcanceBasico(`${cab}\n20260925,UC1,abc,3,\n`)[0]!.ctr).toBeNull()
