@@ -399,7 +399,8 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
 
       // Descrição nula = não sabemos: hash nulo, sem texto. Nunca o hash de uma string vazia inventada.
       const descHash = descricao === null ? null : sha256(descricao)
-      const tagsHash = sha256(JSON.stringify(tags ?? []))
+      // Tags nulas sem captura = não sabemos: hash nulo, nunca o hash de uma lista vazia inventada.
+      const tagsHash = cap || tags !== null ? sha256(JSON.stringify(tags ?? [])) : null
       // Captura que falhou numa execução em que o dia já tem linha: os campos vindos da API na 1ª execução ficam
       // fora do payload (youtube_videos é mais velho que a API e rebaixaria a linha). Só quando a linha
       // COMPROVADAMENTE existe: com o dia ilegível, a primeira linha do dia nasceria sem título, hashes e duração, e
@@ -419,7 +420,7 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
         // descrição nulos em youtube_videos não podem apagar o que a 1ª execução gravou. Com captura, vale o que veio.
         if (cap || titulo !== null) linha.title_at_capture = titulo
         if (cap || descHash !== null) linha.description_sha256 = descHash
-        linha.tags_sha256 = tagsHash
+        if (cap || tagsHash !== null) linha.tags_sha256 = tagsHash
       }
       // Nulo, nunca zero.
       if (!preservar && duracao !== null && duracao > 0) linha.duration_seconds = duracao
@@ -441,7 +442,7 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       }
       // Estas três chaves nunca passam de não nulo a nulo: quando não há valor, ficam fora do payload.
       if (!preservar && descricao !== null && (!ant || ant.description_sha256 !== descHash)) linha.description_text = descricao
-      if (!preservar && (!ant || ant.tags_sha256 !== tagsHash)) linha.tags = tags ?? []
+      if (!preservar && tagsHash !== null && (!ant || ant.tags_sha256 !== tagsHash)) linha.tags = tags ?? []
       // Captura que falhou só repete a URL do dia anterior se o dia ainda não tem linha deste vídeo.
       if (thumb.blobUrl && (thumb.ok || !diaJaTemLinha)) linha.thumbnail_blob_url = thumb.blobUrl
 

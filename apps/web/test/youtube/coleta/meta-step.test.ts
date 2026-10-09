@@ -1083,4 +1083,35 @@ describe('passoMetadados: onda de correção final (L1b)', () => {
     await passoMetadados(ctx)
     expect(ctx.falhas).toEqual([])
   })
+
+  it('Task 8: sem captura, dia ilegível e tags nulas em youtube_videos: tags_sha256 e tags da 1ª execução ficam', async () => {
+    comToken()
+    vi.mocked(videosList).mockResolvedValueOnce(new Map([cap(1, { tags: ['a', 'b'] })]))
+    const db = fakeSupabase({ youtube_videos: [video(1, { tags: null })], youtube_channels: canais() })
+    await passoMetadados(ctxDe(db))
+    expect(linha(db, 'yt-1')).toMatchObject({ tags: ['a', 'b'], tags_sha256: sha(JSON.stringify(['a', 'b'])) })
+
+    vi.mocked(videosList).mockRejectedValueOnce(new DataApiError(503, null))
+    comDiaIlegivel(db)
+    const resumo = await passoMetadados(ctxDe(db))
+    expect(resumo.gravados).toBe(1)
+    expect(linha(db, 'yt-1')).toMatchObject({ tags: ['a', 'b'], tags_sha256: sha(JSON.stringify(['a', 'b'])) })
+  })
+
+  it('Task 8: sem captura e tags nulas no PRIMEIRO dia: tags_sha256 e tags ficam nulos (nunca o hash de uma lista inventada)', async () => {
+    const db = fakeSupabase({ youtube_videos: [video(1, { tags: null })] })
+    comDiaIlegivel(db)
+    const resumo = await passoMetadados(ctxDe(db))
+    expect(resumo.gravados).toBe(1)
+    expect(linha(db, 'yt-1')).toMatchObject({ title_at_capture: 'Título 1' })
+    nula(linha(db, 'yt-1'), 'tags_sha256', 'tags')
+  })
+
+  it('Task 8: com captura e lista de tags vazia: grava tags [] e o hash de [] (a API respondeu)', async () => {
+    comToken()
+    vi.mocked(videosList).mockResolvedValueOnce(new Map([cap(1, { tags: [] })]))
+    const db = fakeSupabase({ youtube_videos: [video(1, { tags: null })], youtube_channels: canais() })
+    await passoMetadados(ctxDe(db))
+    expect(linha(db, 'yt-1')).toMatchObject({ tags: [], tags_sha256: sha('[]') })
+  })
 })
