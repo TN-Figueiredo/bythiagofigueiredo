@@ -21,7 +21,7 @@ const videos = (n: number, publicadoHa = 100): Row[] =>
 const canalOk = (...dias: number[]): Row[] => dias.map(d => tent(d, 'canal', 'ok'))
 
 const NOTA_A = 'diário: Canal Um não tem nenhum vídeo com diário ok nas 3 últimas execuções'
-const NOTA_B = 'alcance: Canal Um está sem linha nova de alcance há mais de 4 dias'
+const NOTA_B = 'alcance: Canal Um recebeu relatório com dado nos últimos 4 dias e não tem linha nova de alcance'
 const NOTA_C = (n: number) => `alcance: ${n} relatório(s) baixado(s) há mais de 2 dias sem normalizar`
 const job = (status: string, criadoHa: number, extra: Row = {}): Row => ({
   channel_id: 'ch-1', report_type_id: 'channel_reach_basic_a1', status, job_create_time: ha(criadoHa), created_at: ha(criadoHa), ...extra,
@@ -88,6 +88,12 @@ describe('critério A: diário sem dado', () => {
     expect(dentro.falhas).toEqual([])
   })
 
+  it('vídeo ok de OUTRO channel_id não cala a nota deste canal', async () => {
+    const ctx = ctxDe(fakeSupabase({ youtube_videos: videos(5), yt_own_collection_attempts: [...semDado, tent(2, 'vid00000009', 'ok', { channel_id: 'ch-2' })] }))
+    await criteriosL2(ctx)
+    expect(ctx.falhas).toEqual([NOTA_A])
+  })
+
   it('sync_enabled false: sem nota', async () => {
     const ctx = ctxDe(fakeSupabase({ youtube_videos: videos(5), yt_own_collection_attempts: semDado }), [{ ...canal, sync_enabled: false }])
     await criteriosL2(ctx)
@@ -116,7 +122,8 @@ describe('critério A: diário sem dado', () => {
 
 describe('critério B: alcance sem linha nova', () => {
   const base = (extra: Record<string, Row[]> = {}) => ({
-    yt_reporting_jobs: [job('ativo', 7)], youtube_videos: videos(1, 30), yt_own_video_reach_daily: [] as Row[], ...extra,
+    yt_reporting_jobs: [job('ativo', 7)], youtube_videos: videos(1, 30), yt_own_video_reach_daily: [] as Row[],
+    yt_reporting_reports: [relat('r1', 'baixado', 1, { normalized_at: ha(1) })], ...extra,
   })
 
   it('job ativo há 7 dias, vídeo há 30 dias, nenhuma linha: nota', async () => {
@@ -168,6 +175,54 @@ describe('critério B: alcance sem linha nova', () => {
     await criteriosL2(ctx)
     expect(ctx.falhas).toEqual([])
   })
+
+  it('só relatórios vazio nos últimos 4 dias, nenhuma linha: sem nota (silêncio legítimo)', async () => {
+    const ctx = ctxDe(fakeSupabase(base({ yt_reporting_reports: [relat('r1', 'vazio', 1), relat('r2', 'vazio', 2), relat('r3', 'vazio', 3, { normalized_at: ha(3) })] })))
+    await criteriosL2(ctx)
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('relatório baixado de 5 dias atrás e nenhum mais recente: sem nota', async () => {
+    const ctx = ctxDe(fakeSupabase(base({ yt_reporting_reports: [relat('r1', 'baixado', 5, { normalized_at: ha(4) })] })))
+    await criteriosL2(ctx)
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('relatório baixado de outro canal não conta para este', async () => {
+    const ctx = ctxDe(fakeSupabase(base({ yt_reporting_reports: [relat('r1', 'baixado', 1, { channel_id: 'ch-2', normalized_at: ha(1) })] })))
+    await criteriosL2(ctx)
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('leitura de yt_reporting_reports falhando: nota do critério B (alcance de Canal Um), nunca verde', async () => {
+    const db = fakeSupabase(base())
+    db.errors.yt_reporting_reports = { code: 'XX000', message: 'boom' }
+    const ctx = ctxDe(db)
+    await criteriosL2(ctx)
+    // Nota do B (por canal) e nota do C (relatórios sem normalizar) são distintas: as duas leem a mesma tabela.
+    expect(ctx.falhas).toContain('critérios: não foi possível avaliar alcance de Canal Um (yt_reporting_reports)')
+    expect(ctx.falhas).toContain('critérios: não foi possível avaliar relatórios sem normalizar (yt_reporting_reports)')
+    expect(ctx.falhas).not.toContain(NOTA_B)
+  })
+
+  it('job ativo sem job_create_time nem created_at: nota de idade ausente, não sai calado', async () => {
+    const ctx = ctxDe(fakeSupabase(base({ yt_reporting_jobs: [job('ativo', 7, { job_create_time: null, created_at: null })] })))
+    await criteriosL2(ctx)
+    expect(ctx.falhas).toEqual(['critérios: não foi possível avaliar alcance de Canal Um (yt_reporting_jobs): idade do job ausente'])
+  })
+
+  it('contagem ausente (count nulo) vira nota de não avaliado, nunca verde', async () => {
+    const db = fakeSupabase({ youtube_videos: videos(5) })
+    const real = db.client
+    const casca = { ...real, from: (t: string) => {
+      const q = real.from(t)
+      if (t !== 'youtube_videos') return q
+      return { select: () => ({ eq: () => ({ not: () => Promise.resolve({ data: null, error: null, count: null }) }) }) }
+    } } as unknown as typeof real
+    const ctx = { supabase: casca, falhas: [] as string[], channels: [canal] }
+    await criteriosL2(ctx)
+    expect(ctx.falhas).toContain('critérios: não foi possível avaliar diário de Canal Um (youtube_videos): contagem ausente')
+  })
 })
 
 describe('critério C: baixado e não normalizado', () => {
@@ -207,11 +262,11 @@ describe('independência entre os critérios', () => {
       yt_own_video_reach_daily: [],
       yt_reporting_reports: [relat('a', 'baixado', 3)],
     })
-    db.errors.yt_reporting_reports = { code: 'XX000', message: 'boom' }
+    db.errors.yt_own_video_reach_daily = { code: 'XX000', message: 'boom' }
     const ctx = ctxDe(db)
     await criteriosL2(ctx)
     expect(ctx.falhas).toContain(NOTA_A)
-    expect(ctx.falhas).toContain(NOTA_B)
-    expect(ctx.falhas).toContain('critérios: não foi possível avaliar relatórios sem normalizar (yt_reporting_reports)')
+    expect(ctx.falhas).toContain('critérios: não foi possível avaliar alcance de Canal Um (yt_own_video_reach_daily)')
+    expect(ctx.falhas).toContain(NOTA_C(1))
   })
 })

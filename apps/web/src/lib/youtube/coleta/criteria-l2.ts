@@ -88,8 +88,8 @@ async function criterioDiario(ctx: Ctx, c: ColetaChannel): Promise<void> {
 }
 
 /**
- * Job básico de alcance ativo há 6 dias ou mais, canal que publicou nos últimos 90 dias e nenhuma linha de
- * alcance coletada nos últimos 4 dias. Canal sem publicação recente recebe relatório só com cabeçalho: não é falha.
+ * Job básico de alcance ativo há 6 dias ou mais, canal que publicou nos últimos 90 dias, relatório `baixado` (com dado)
+ * nos últimos 4 dias e nenhuma linha de alcance coletada nesse período. Relatório `vazio` (dias sem impressão) não é falha.
  */
 async function criterioAlcance(ctx: Ctx, c: ColetaChannel): Promise<void> {
   const criterio = `alcance de ${c.name}`
@@ -105,7 +105,11 @@ async function criterioAlcance(ctx: Ctx, c: ColetaChannel): Promise<void> {
   if (!job || job.status !== 'ativo') return
   // Idade = job_create_time, ou created_at quando a API não informou (dado ausente não pode calar o alarme).
   const idade = job.job_create_time ?? job.created_at
-  if (!idade || Date.parse(idade) >= agora - 6 * DIA_MS) return
+  if (!idade) {
+    naoAvaliou(ctx.falhas, `${criterio} (yt_reporting_jobs): idade do job ausente`)
+    return
+  }
+  if (Date.parse(idade) >= agora - 6 * DIA_MS) return
 
   const pub = await ctx.supabase
     .from('youtube_videos')
@@ -115,13 +119,24 @@ async function criterioAlcance(ctx: Ctx, c: ColetaChannel): Promise<void> {
   const publicou = contagemOk(pub, 'youtube_videos', criterio, ctx.falhas)
   if (publicou === null || publicou === 0) return
 
+  // Só é falha quando CHEGOU dado: relatório `vazio` (só cabeçalho, dias sem impressão) não gera linha e não há o que consertar.
+  const comDado = await ctx.supabase
+    .from('yt_reporting_reports')
+    .select('report_id', { count: 'exact', head: true })
+    .eq('channel_id', c.id)
+    .eq('report_type_id', TIPO_ALCANCE)
+    .eq('status', 'baixado')
+    .gte('downloaded_at', iso(agora - 4 * DIA_MS))
+  const chegou = contagemOk(comDado, 'yt_reporting_reports', criterio, ctx.falhas)
+  if (chegou === null || chegou === 0) return
+
   const linhas = await ctx.supabase
     .from('yt_own_video_reach_daily')
     .select('youtube_video_id', { count: 'exact', head: true })
     .eq('channel_id', c.id)
     .gte('collected_at', iso(agora - 4 * DIA_MS))
   const novas = contagemOk(linhas, 'yt_own_video_reach_daily', criterio, ctx.falhas)
-  if (novas === 0) pushUnico(ctx.falhas, `alcance: ${c.name} está sem linha nova de alcance há mais de 4 dias`)
+  if (novas === 0) pushUnico(ctx.falhas, `alcance: ${c.name} recebeu relatório com dado nos últimos 4 dias e não tem linha nova de alcance`)
 }
 
 /** Relatório de alcance baixado (ou vazio) há mais de 2 dias e ainda sem normalizar: o dado está parado na fila. */
