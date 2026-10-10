@@ -3,6 +3,7 @@
  * Pure: every number, date and sentence comes from the engine (Observatory). The component only lays it out.
  */
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
+import { viewsMissingText } from '../_chrome/views-text'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { joinLabels, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, Niche, ObsChannel, ObsVideo, SyncState } from '@/lib/youtube/observatorio/types'
@@ -224,9 +225,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const viewsTxt = (c: ObsChannel, v: ObsVideo): ViewsText => {
     const S = stats(c.id, 'long')
     if (v.views != null) return { num: num(v.views), text: ` views${stale(c, S) ? ',' + stale(c, S) : ''}` }
-    const why = c.sync.state === 'erro' ? 'sincronização do canal com erro' + sinceN(c.sync.errorSince ?? c.sync.last)
-      : c.sync.state === 'atrasado' ? 'sincronização do canal atrasada' + sinceN(c.sync.last) : 'sem registro diário ainda'
-    return { num: null, text: `sem contagem: ${why}` }
+    return { num: null, text: viewsMissingText(c, D.dmhm) }
   }
   const multVs = (m: MultiplierResult) => (m.method === 'mesmo dia de vida' ? 'mesmo dia de vida' : (m.band ?? '').replace(' dias', NB + 'd'))
   const methodText = (m: MultiplierResult) => (m.fallbackText ? cap(m.fallbackText) : 'Método: ' + m.method)
