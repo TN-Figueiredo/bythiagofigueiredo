@@ -27,6 +27,7 @@ import { Trocas } from './trocas'
 import { montarLista } from './lista'
 import { canalQuery, LOTE, type CanalState } from './params'
 import { useCanalState } from './use-canal-state'
+import { useRolagemAoVoltar } from './use-rolagem-ao-voltar'
 import { PinMessages } from './video-menu'
 import type { ChannelVideoView } from './videos-model'
 import type { CanalView } from './view-model'
@@ -262,6 +263,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
   const router = useRouter(), toast = useToast()
   const h = view.header
   const [state, set] = useCanalState(view.state)
+  useRolagemAoVoltar()
   const nums = state.nums
   /* trocar de aba move o foco para o título da aba nova; o Voltar do navegador (popstate) não mexe no foco */
   const focoNaAba = useRef(false)
