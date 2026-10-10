@@ -11,6 +11,10 @@ export interface PlaceOpts {
   /** Centre the surface on this x instead (a chart tooltip follows the point, not the trigger's box). */
   cx?: number
   gap?: number
+  /** pref 'lado': which side of the trigger is tried first (the other one second). Default 'direita'. */
+  lado?: 'direita' | 'esquerda'
+  /** pref 'lado': where it goes when it fits on neither side. Default 'baixo' (below, turning up if it must). */
+  queda?: 'baixo' | 'cima'
 }
 export interface Placed { left: number; top: number; maxHeight: number | null; side: Side }
 
@@ -26,14 +30,15 @@ export function place(anchor: Box, size: { w: number; h: number }, vp: { w: numb
   let h = size.h, pref: Side = o.pref ?? 'baixo'
   const clampY = (y: number) => Math.min(Math.max(EDGE, y), vp.h - h - EDGE)
   if (pref === 'lado') {
-    let x = anchor.right + G
-    if (x + w > vp.w - EDGE) x = anchor.left - G - w
-    if (x >= EDGE) {
+    const right = anchor.right + G, left = anchor.left - G - w
+    const fitsRight = right + w <= vp.w - EDGE, fitsLeft = left >= EDGE
+    const x = (o.lado ?? 'direita') === 'esquerda' ? (fitsLeft ? left : fitsRight ? right : null) : (fitsRight ? right : fitsLeft ? left : null)
+    if (x != null) {
       const maxHeight = h > vp.h - 2 * EDGE ? vp.h - 2 * EDGE : null
       if (maxHeight != null) h = maxHeight
       return { left: Math.round(x), top: Math.round(clampY(anchor.top)), maxHeight, side: 'lado' }
     }
-    pref = 'baixo' // fits on neither side: above or below
+    pref = o.queda ?? 'baixo' // fits on neither side: above or below
   }
   const below = vp.h - anchor.bottom - G - EDGE, above = anchor.top - G - EDGE
   const up = pref === 'cima' ? (h <= above ? true : h <= below ? false : above >= below) : (h <= below ? false : h <= above ? true : above > below)

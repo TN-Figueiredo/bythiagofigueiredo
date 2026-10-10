@@ -52,6 +52,22 @@ describe('flut · place', () => {
     expect(place(b, S, VP, { pref: 'lado' })).toMatchObject({ left: b.left - 6 - S.w, side: 'lado' })
     expect(place(box(180, 400), S, { w: 390, h: 844 }, { pref: 'lado' }).side).toBe('baixo')
   })
+  it('lado esquerda: tenta a esquerda primeiro; sem espaço, a direita; sem nenhum, acima com queda cima', () => {
+    const a = box(700, 400)
+    expect(place(a, S, VP, { pref: 'lado', lado: 'esquerda' })).toMatchObject({ left: a.left - 6 - S.w, top: a.top, side: 'lado' })
+    const b = box(100, 400)
+    expect(place(b, S, VP, { pref: 'lado', lado: 'esquerda' })).toMatchObject({ left: b.right + 6, side: 'lado' })
+    const estreita = { w: 390, h: 844 }, c = box(180, 400)
+    expect(place(c, S, estreita, { pref: 'lado', lado: 'esquerda' }).side).toBe('baixo')
+    const alta = place(c, S, estreita, { pref: 'lado', lado: 'esquerda', queda: 'cima', align: 'inicio' })
+    expect(alta).toMatchObject({ side: 'cima', left: estreita.w - S.w - EDGE, top: c.top - 6 - S.h }) // 'inicio' = 180, pushed back inside the window
+  })
+  it('lado direita explícito é o padrão; gap vale para o lado e para a queda', () => {
+    const a = box(700, 400)
+    expect(place(a, S, VP, { pref: 'lado', lado: 'direita' })).toEqual(place(a, S, VP, { pref: 'lado' }))
+    expect(place(a, S, VP, { pref: 'lado', lado: 'esquerda', gap: 8 }).left).toBe(a.left - 8 - S.w)
+    expect(place(box(180, 400), S, { w: 390, h: 844 }, { pref: 'lado', queda: 'cima', gap: 8 }).top).toBe(400 - 8 - S.h)
+  })
   it('janela baixa (320×180): a caixa fica inteira na janela, com altura limitada', () => {
     const vp = { w: 320, h: 180 }, p = place(box(150, 80), S, vp)
     expect(p.maxHeight).not.toBeNull()

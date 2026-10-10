@@ -57,13 +57,15 @@ function usePlacement(active: boolean, ref: RefObject<HTMLDivElement | null>, an
   }, [active, run, ref])
 }
 
-export function Popover({ open, anchor, onClose, children, id, className, role = 'dialog', label, pref, align, maxW }: {
+export function Popover({ open, anchor, onClose, children, id, className, role = 'dialog', label, pref, align, maxW, gap, lado, queda }: {
   open: boolean; anchor: Anchor
   /** Close it (set your state). The focus goes back to the trigger by itself when it was Esc. */
   onClose: () => void
   children: ReactNode
   id?: string; className?: string; role?: 'dialog' | 'menu' | 'tooltip' | 'group'; label?: string
   pref?: Side; align?: 'fim' | 'meio' | 'inicio'; maxW?: number
+  /** Placement knobs of place(): the distance to the trigger, and for pref 'lado' the side tried first and the fallback. */
+  gap?: number; lado?: PlaceOpts['lado']; queda?: PlaceOpts['queda']
 }) {
   const client = useIsClient()
   const auto = useId(), pid = id ?? 'flut-' + auto
@@ -82,7 +84,7 @@ export function Popover({ open, anchor, onClose, children, id, className, role =
     })
     return () => releaseFlut(pid)
   }, [open, pid])
-  usePlacement(open && client, ref, anchor, { pref, align, maxW }, () => live.current.onClose())
+  usePlacement(open && client, ref, anchor, { pref, align, maxW, gap, lado, queda }, () => live.current.onClose())
   if (!open || !client) return null
   return createPortal(
     <div ref={ref} id={pid} role={role} aria-label={label} className={'obs-fl-pop' + (className ? ' ' + className : '')} style={{ position: 'fixed', left: 0, top: 0 }}
@@ -91,9 +93,10 @@ export function Popover({ open, anchor, onClose, children, id, className, role =
   )
 }
 
-export function HoverTip({ show, anchor, children, id, className, pref = 'cima', align = 'meio', cx, maxW, ariaHidden }: {
+export function HoverTip({ show, anchor, children, id, className, pref = 'cima', align = 'meio', cx, maxW, gap, lado, queda, ariaHidden }: {
   show: boolean; anchor: Anchor; children: ReactNode
   id?: string; className?: string; pref?: Side; align?: 'fim' | 'meio' | 'inicio'; cx?: number; maxW?: number
+  gap?: number; lado?: PlaceOpts['lado']; queda?: PlaceOpts['queda']
   /** true when the same words are already the trigger's accessible name or description. */
   ariaHidden?: boolean
 }) {
@@ -103,7 +106,7 @@ export function HoverTip({ show, anchor, children, id, className, pref = 'cima',
   const active = show && client && popover == null
   // no onClose here: usePlacement itself keeps the tip hidden (visibility) until it is placed and while the trigger is gone,
   // and shows it again as soon as the trigger is back; it never sticks, since every placement decides it anew
-  usePlacement(active, ref, anchor, { pref, align, cx, maxW }, () => {})
+  usePlacement(active, ref, anchor, { pref, align, cx, maxW, gap, lado, queda }, () => {})
   if (!active) return null
   return createPortal(
     <div ref={ref} id={id} role="tooltip" aria-hidden={ariaHidden || undefined} className={'obs-fl-tip' + (className ? ' ' + className : '')} style={{ position: 'fixed', left: 0, top: 0, visibility: 'hidden' }}>{children}</div>,
