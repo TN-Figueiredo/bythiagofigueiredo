@@ -41,17 +41,22 @@ export function focusables(root: HTMLElement): HTMLElement[] {
  * finishes the move from there); from its first, Shift+Tab goes back to the trigger. In a menu the focused item is both
  * the first and the last (items are roving, tabIndex -1).
  */
+/** Tab with a modifier other than Shift (Ctrl/Alt/Meta+Tab) is the browser's or the system's, not ours. */
+const plainTab = (e: { key: string; ctrlKey?: boolean; altKey?: boolean; metaKey?: boolean }): boolean =>
+  e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey
+
 export function tabFromTrigger(e: KeyboardEvent): void {
-  if (!open || e.key !== 'Tab' || e.shiftKey || e.defaultPrevented) return
+  if (!open || !plainTab(e) || e.shiftKey || e.defaultPrevented) return
   const a = open.anchor(), el = open.el()
   if (!a || !el || document.activeElement !== a) return
   const first = focusables(el)[0]
   if (!first) return
-  e.preventDefault()
   first.focus()
+  // only swallow the Tab when the focus really got there (an item the DOM rules cannot see as unfocusable would eat the key)
+  if (document.activeElement === first) e.preventDefault()
 }
-export function tabInside(e: { key: string; shiftKey: boolean; preventDefault: () => void }, el: HTMLElement | null, anchor: Element | null): void {
-  if (e.key !== 'Tab' || !el || !(anchor instanceof HTMLElement)) return
+export function tabInside(e: { key: string; shiftKey: boolean; ctrlKey?: boolean; altKey?: boolean; metaKey?: boolean; preventDefault: () => void }, el: HTMLElement | null, anchor: Element | null): void {
+  if (!plainTab(e) || !el || !(anchor instanceof HTMLElement)) return
   const active = document.activeElement
   if (!(active instanceof HTMLElement) || !el.contains(active)) return
   const list = focusables(el)

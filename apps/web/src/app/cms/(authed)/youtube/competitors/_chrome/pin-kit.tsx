@@ -129,7 +129,7 @@ export function PinButton({ pin, k, className }: { pin: PinView; k?: string; cla
       </button>
       {act === 'pin' ? <span id={hintId} className="fx-hint" role="tooltip" data-open={open ? '' : undefined}>{pin.hint}</span> : null}
       {/* the visible box lives in #flut; the span above stays for screen readers (it is the button's description) */}
-      {act === 'pin' ? <HoverTip show={open} anchor={() => btn.current} className="fx-hint-pop" pref="lado" lado="esquerda" queda="cima" outroLado={false} align="inicio" gap={8} maxW={300} ariaHidden>{pin.hint}</HoverTip> : null}
+      {act === 'pin' ? <HoverTip show={open} anchor={() => btn.current} className="fx-hint-pop" pref="lado" lado="esquerda" queda="cima" outroLado={false} align="inicio" gap={8} gapQueda={6} maxW={300} ariaHidden>{pin.hint}</HoverTip> : null}
     </span>
   )
 }

@@ -35,6 +35,14 @@ describe('Observatório · escala de camadas', () => {
     expect(valores.length).toBeGreaterThan(0) // a regra de #flut existe: o teste não passa por não achar nada
     for (const v of valores) expect(v).toMatch(/^var\(--z-[a-z-]+\)$/)
   })
+  it('a dica não captura clique: a regra mora só em camadas.css (flut.css não repete)', () => {
+    expect(camadas).toMatch(/#flut>\.obs-fl-tip\s*\{[^}]*pointer-events\s*:\s*none/)
+    expect(semComentario(read('_chrome/flut/flut.css'))).not.toMatch(/pointer-events/)
+  })
+  it('a base das flutuantes herda a tipografia da raiz da tela: #flut não é filho dela, então o suavizado de fonte vem na base', () => {
+    expect(semComentario(read('_chrome/chrome.css'))).toMatch(/\.obs-ch-root\{[^}]*-webkit-font-smoothing\s*:\s*antialiased/)
+    expect(semComentario(read('_chrome/flut/flut.css'))).toMatch(/#flut \.obs-fl-pop,#flut \.obs-fl-tip\{[^}]*-webkit-font-smoothing\s*:\s*antialiased/)
+  })
   it('arquivo novo não tem z-index numérico', () => {
     for (const f of NOVOS) if (fs.existsSync(path.join(DIR, f))) expect(numericos(path.join(DIR, f)), f).toBe(0)
   })

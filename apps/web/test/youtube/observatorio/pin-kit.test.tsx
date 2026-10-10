@@ -207,7 +207,7 @@ describe('dica do botão (V1)', () => {
       fireEvent.focus(btn())
       const hint = document.querySelector('#flut .fx-hint-pop') as HTMLElement
       expect(hint.dataset.lado).toBe('cima')
-      expect(hint.style.top).toBe(400 - 8 - 60 + 'px')
+      expect(hint.style.top).toBe(400 - 6 - 60 + 'px')
     } finally {
       delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetWidth
       delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetHeight
