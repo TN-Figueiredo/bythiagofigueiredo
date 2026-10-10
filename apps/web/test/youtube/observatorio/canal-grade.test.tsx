@@ -378,4 +378,23 @@ describe('Capas: o menu "Ações do vídeo"', () => {
     expect(norm(document.querySelector('[data-fx-msg="cap"]')!.textContent)).toContain(frase)
     expect(document.getElementById('fx-alert')!.textContent).toBe(frase)
   })
+  it('a mensagem do limite fica visível para quem fixou rolado: bloco preso sob a barra, sem z-index numérico', async () => {
+    const onPin = vi.fn(async (_id: string) => ({ ok: false as const, kind: 'cap' as const, error: 'Limite de fixados.' }))
+    const { all } = mountCanal({ act: canalActions({ onPin }) })
+    const v = all.find(x => x.pin && !x.pinned)!
+    const a = await abrir(v.id)
+    await a.user.click(within(a.menu).getByRole('menuitem', { name: 'Fixar' }))
+    await waitFor(() => expect(document.querySelector('[data-fx-msg="cap"]')).not.toBeNull())
+    const caixa = document.querySelector<HTMLElement>('.cv-pinmsgs')!
+    expect(caixa.contains(document.querySelector('[data-fx-msg="cap"]'))).toBe(true)
+    expect(caixa.closest('.cv-sec')).not.toBeNull()
+    const css = fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_canal/canal.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+    const regra = /\.cv-pinmsgs\{([^}]*)\}/.exec(css)![1]!
+    expect(regra).toMatch(/position:sticky/)
+    expect(regra).toMatch(/top:calc\(var\(--obs-sticky-h,0px\) \+ \d+px\)/)
+    expect(regra).toMatch(/z-index:var\(--z-grudado\)/)
+    expect(regra).not.toMatch(/z-index:\s*\d/)
+    expect(regra).not.toMatch(/background:[^;]*color-mix/)
+    expect(regra).toMatch(/background:var\(--bg\)/)
+  })
 })

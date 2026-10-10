@@ -155,7 +155,8 @@
 [data-obs-screen="canal"] .cv-ctl .cv-gap{flex:1 1 0}
 [data-obs-screen="canal"] .cv-skip{position:absolute;left:-9999px}
 [data-obs-screen="canal"] .cv-skip:focus{position:static;display:inline-flex;margin:0 0 8px}
-[data-obs-screen="canal"] .cv-pinmsgs{display:grid;gap:8px;margin:0 0 10px}
+/* presa sob a barra de controles: quem fixa um cartão rolado para baixo vê o limite/falha; só var(--z-*), fundo literal (sem color-mix) */
+[data-obs-screen="canal"] .cv-pinmsgs{display:grid;gap:8px;margin:0 0 10px;position:sticky;top:calc(var(--obs-sticky-h,0px) + 8px);z-index:var(--z-grudado);background:var(--bg)}
 
 /* grade: 5 colunas em 1440 px, gap 14; cartão de 224 x 247 px, todos da mesma altura */
 [data-obs-screen="canal"] .cv-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;list-style:none;margin:0;padding:0}

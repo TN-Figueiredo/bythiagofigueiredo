@@ -229,4 +229,25 @@ describe('controles da aba Vídeos', () => {
     // @ts-expect-error limpa o stub do jsdom
     delete window.matchMedia
   })
+  it('--obs-sticky-h acompanha a barra real: ao sair da aba Vídeos o observer é solto e a variável some', async () => {
+    const disconnect = vi.fn()
+    vi.stubGlobal('ResizeObserver', class { constructor(_cb: () => void) {} observe() {} disconnect() { disconnect() } unobserve() {} })
+    const mq = vi.fn().mockImplementation((q: string) => ({ matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }))
+    window.matchMedia = mq as unknown as typeof window.matchMedia
+    const { all } = mountCanal()
+    const raiz = document.querySelector<HTMLElement>('[data-obs-screen="canal"]')!
+    const barra = document.querySelector<HTMLElement>('.cv-ctl')!
+    vi.spyOn(barra, 'getBoundingClientRect').mockReturnValue({ height: 50 } as DOMRect)
+    // a barra some (aba Trocas): efeito limpo, sem observer preso ao elemento antigo e sem valor velho
+    const v = all.find(x => x.swaps > 0)!
+    const user = userEvent.setup()
+    await user.click(within(document.getElementById('cv-lnk-' + v.id)!.closest('li')!).getByRole('button', { name: /^Ações do vídeo: / }))
+    await user.click(await screen.findByRole('menuitem', { name: /^Ver trocas/ }))
+    expect(document.querySelector('.cv-ctl')).toBeNull()
+    expect(disconnect).toHaveBeenCalled()
+    expect(raiz.style.getPropertyValue('--obs-sticky-h')).toBe('')
+    vi.unstubAllGlobals()
+    // @ts-expect-error limpa o stub do jsdom
+    delete window.matchMedia
+  })
 })

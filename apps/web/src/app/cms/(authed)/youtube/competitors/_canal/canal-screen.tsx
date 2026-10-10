@@ -116,7 +116,7 @@ function AbaVideos({ view, state, set, nome, channelId, onSync }: {
     ro?.observe(bar)
     mq?.addEventListener?.('change', medir)
     return () => { ro?.disconnect(); mq?.removeEventListener?.('change', medir); raiz.style.removeProperty('--obs-sticky-h') }
-  }, [temControles])
+  }, [temControles, state.tab])   // a barra só existe na aba Vídeos: refaz o observer a cada montagem real
 
   /* filtro, ordenação e busca recomeçam em acompanhados (n zera); a vista mantém o que foi carregado */
   const onFmt = (fmt: CanalState['fmt']) => {
