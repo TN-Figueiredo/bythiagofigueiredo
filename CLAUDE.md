@@ -44,8 +44,7 @@ Diário das decisões do timer (energia, tampa, saltos do relógio): `~/Workspac
 
 ## Economia de tokens (vale para a sessão principal E para subagentes)
 
-Medido em 2026-10-09 sobre 30 dias (`python3 ~/.claude/hooks/claude-custo.py 30`): 74% do custo foi
-subagente, 93% foi Opus, e a maior reescrita evitável foi **subagente parado mais de 5 min** (260×).
+Medido em 2026-10-09 (30 dias, `python3 ~/.claude/hooks/claude-custo.py 30`): 74% do custo foi subagente, 93% Opus, 82% do uso acima de 150K de contexto; maior reescrita evitável: **subagente parado mais de 5 min** (260×).
 
 - **Subagente nunca fica parado mais de 4 min** num comando ou espera: o cache dele dura 5 min e a
   volta reescreve a janela inteira. Comando longo vai em background com saída em arquivo; se a espera
@@ -59,6 +58,7 @@ subagente, 93% foi Opus, e a maior reescrita evitável foi **subagente parado ma
 - **Fase nova = sessão nova:** plano e estado em arquivo, `/clear`, e a sessão seguinte lê só o arquivo.
 - **Buscar antes de ler** (grep → ler só o trecho). Suíte de testes e build: saída para arquivo, e no
   contexto entram só as falhas. Readiness: um único comando limitado, nunca polling por tool call.
+- **Navegador (DevTools/Chrome MCP) só em subagente Sonnet:** captura e snapshot ficam no contexto até o fim da sessão (12% do uso medido); o agente devolve o veredito em texto e salva as capturas em arquivo.
 - Diff pequeno a sessão principal confere direto; sem ondas de revisores nem fan-out especulativo.
 
 ## Tech Stack
