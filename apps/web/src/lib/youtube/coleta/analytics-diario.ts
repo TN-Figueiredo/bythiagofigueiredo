@@ -44,8 +44,9 @@ export class AnalyticsApiError extends Error {
   }
 }
 
-/** `null` só nas duas médias; as demais colunas são número ou ausentes. */
-export type ValoresDiario = Partial<Record<Exclude<ColunaDiario, 'avg_view_duration_seconds' | 'avg_view_percentage'>, number>> & {
+/** `null` só nas duas médias e na taxa de clique de cartão; as demais colunas são número ou ausentes. */
+export type ValoresDiario = Partial<Record<Exclude<ColunaDiario, 'avg_view_duration_seconds' | 'avg_view_percentage' | 'card_click_rate'>, number>> & {
+  card_click_rate?: number | null
   avg_view_duration_seconds?: number | null
   avg_view_percentage?: number | null
 }
@@ -141,6 +142,8 @@ export async function diarioDoVideo(i: {
       valores.avg_view_percentage = null
       valores.avg_view_duration_seconds = null
     }
+    // Zero impressões de cartão: a taxa de clique é indefinida. Sem `card_impressions` na resposta, fica como veio.
+    if (valores.card_impressions === 0 && valores.card_click_rate !== undefined) valores.card_click_rate = null
     dias.push({ day, valores })
   }
   return { dias, estendidas }

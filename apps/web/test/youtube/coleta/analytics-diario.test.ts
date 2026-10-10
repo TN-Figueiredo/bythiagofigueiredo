@@ -75,6 +75,25 @@ describe('diarioDoVideo', () => {
     expect(dias[0]!.valores).toEqual({ avg_view_duration_seconds: 0, avg_view_percentage: 0 })
   })
 
+  it('card_impressions 0: card_click_rate vira null (chave presente); com impressões, a taxa fica', async () => {
+    const f = vi.fn().mockResolvedValue(resp({
+      columnHeaders: cab('day', 'views', 'cardImpressions', 'cardClickRate'),
+      rows: [['2026-10-01', 4, 0, 0], ['2026-10-02', 4, 10, 0.2]],
+    }))
+    const { dias } = await chamar(f)
+    expect(dias[0]!.valores).toEqual({ views: 4, card_impressions: 0, card_click_rate: null })
+    expect(dias[1]!.valores).toEqual({ views: 4, card_impressions: 10, card_click_rate: 0.2 })
+  })
+
+  it('cardClickRate sem cardImpressions no cabeçalho: o 0 fica 0', async () => {
+    const f = vi.fn().mockResolvedValue(resp({
+      columnHeaders: cab('day', 'views', 'cardClickRate'),
+      rows: [['2026-10-01', 4, 0]],
+    }))
+    const { dias } = await chamar(f)
+    expect(dias[0]!.valores).toEqual({ views: 4, card_click_rate: 0 })
+  })
+
   it('null, vazio e NaN numa coluna presente: chave ausente; 0 legítimo entra; texto numérico é lido', async () => {
     const f = vi.fn().mockResolvedValue(resp({
       columnHeaders: cab('day', 'views', 'likes', 'comments', 'shares', 'subscribersGained', 'desconhecida'),
