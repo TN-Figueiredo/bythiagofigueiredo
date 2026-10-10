@@ -105,6 +105,17 @@ describe('HistoricoScreen', () => {
     await waitFor(() => expect(document.getElementById('hv-tip')).toBeNull())
   })
 
+  it('the marker under the focus leaves the page (another video): the tip goes with it, it is not left armed and hidden (final review, finding 11)', async () => {
+    const { root, rerender } = mount(PICK.full)
+    const mk = within(root.querySelector('[data-lane="title"]') as HTMLElement).getByRole('button', { name: 'Título trocado entre 11/10 06h e 12h' })
+    fireEvent.focus(mk)
+    await waitFor(() => expect(document.getElementById('hv-tip')).not.toBeNull())
+    // the same screen shows another video: that marker is unmounted without a blur (the browser fires none for a removed node)
+    rerender(<ToastProvider><HistoricoScreen view={buildHistoricoView(obs, PICK.few, { from: 'outliers' })} /></ToastProvider>)
+    expect(mk.isConnected).toBe(false)
+    await waitFor(() => expect(document.getElementById('hv-tip')).toBeNull())
+  })
+
   it('choosing a change shows its comparison (chips are toggle buttons)', () => {
     const { root, view } = mount(PICK.full)
     const chips = [...root.querySelectorAll<HTMLButtonElement>('.pair')]

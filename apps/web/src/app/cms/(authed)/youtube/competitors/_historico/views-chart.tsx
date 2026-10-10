@@ -3,7 +3,7 @@
  * "Views por dia e cada troca": the step curve, the expected curve dashed in --muted, the lanes, the change lines and
  * the tooltip (port of renderChart/renderLanes/legend). Pixel mapping only; the numbers and texts come from the view model.
  */
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { HoverTip } from '../_chrome/flut/flut'
 import type { ChartView, ComparisonView, LaneType, LaneView, LanesAxisView, LegendItem, MarkerView, RangeView } from './view-model'
 import { RichText } from '../_mudancas/rich'
@@ -88,6 +88,9 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
     setTip({ m: null, g, type: g.type, el })
   }
   const events = lanes.flatMap(l => l.markers.filter(m => m.inRange).map(m => ({ type: l.type, m })))
+  // the marker (or group counter) under the mouse/focus left the page (the lanes regrouped, another video): the browser fires no
+  // mouseleave/blur for a removed node, so the tip would stay armed and hidden, watching the whole body for the trigger to come back
+  useEffect(() => { if (tip && !tip.el.isConnected) { setTip(null); onHl(null) } })
 
   return (
     <section className="card timeline" aria-labelledby="hv-tlh">
