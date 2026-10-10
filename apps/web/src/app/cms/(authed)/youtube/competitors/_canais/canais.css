@@ -55,6 +55,10 @@
 [data-obs-screen="canais"] .tip .tt{display:none;position:absolute;z-index:40;top:30px;left:50%;transform:translateX(-50%);width:270px;padding:9px 11px;background:var(--surface);border:1px solid var(--border-strong);border-radius:7px;box-shadow:var(--shadow);color:var(--text);font:400 12.5px/1.45 Inter,sans-serif;text-align:left;white-space:normal;cursor:auto}
 [data-obs-screen="canais"] .tip:hover .tt,[data-obs-screen="canais"] .tip:focus .tt,[data-obs-screen="canais"] .tip:focus-within .tt{display:block}
 [data-obs-screen="canais"] .tip.left .tt{left:auto;right:-6px;transform:none}
+/* A dica aberta fica acima de tudo. Cada td:first-child da tabela e sticky com z-index:1 (contexto de empilhamento proprio) e a linha de baixo, pintada depois, cobria a dica da linha de cima: a celula que tem a dica aberta sobe acima das outras. */
+[data-obs-screen="canais"] td:first-child:has(.tip:hover),[data-obs-screen="canais"] td:first-child:has(.tip:focus-within){z-index:3}
+/* .tablebox tem overflow-x:auto (o y vira auto tambem) e cortaria a dica da ultima linha, que abre para baixo: nela a dica abre para cima. */
+[data-obs-screen="canais"] tbody tr:last-child .tip .tt{top:auto;bottom:30px}
 
 [data-obs-screen="canais"] .toolbar2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 10px;min-height:32px}
 [data-obs-screen="canais"] .toolbar2 .spacer{flex:1}
