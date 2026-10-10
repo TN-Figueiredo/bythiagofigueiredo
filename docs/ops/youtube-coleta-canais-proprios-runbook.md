@@ -292,6 +292,7 @@ Cada nota vira texto em `cron_health.last_error` (juntas, até 500 caracteres) e
 | `alcance: vídeos do canal <canal> lidos até o limite de 1000 — a leitura pode estar truncada` | o canal tem 1000 vídeos ou mais em `youtube_videos`; o mapa de ids ficou parcial e os relatórios do canal esperam, sem normalizar | com 35 vídeos não acontece; abra o Sentry (veja "Limites conhecidos") |
 | `critérios: não foi possível avaliar alcance de <canal> (<tabela>)` (e `… idade do job ausente`, `… contagem ausente`) | a leitura de um critério do alcance falhou; o cron não afirma verde sem ter olhado | resolva a nota `erro de banco ao ler …` que vem junto |
 | `critérios: não foi possível avaliar relatórios sem normalizar (yt_reporting_reports)` | o critério de "sem normalizar" não conseguiu contar | idem |
+| `alcance: relatório <id> de <canal> não pôde ser normalizado (<motivo>)` | o normalizador acabou de marcar o relatório como `erro` (`<motivo>`: `cabecalho_inesperado`, `linha_invalida`, `canal_inesperado`, `bruto_ausente` ou `gzip_invalido`). Sai **na execução em que o erro acontece, qualquer que seja o `create_time`** (relatório de mais de 14 dias também deixa o cron vermelho nesse dia). Nos dias seguintes quem avisa é a nota `relatórios: <canal> tem relatório de alcance <tipo> em erro`, e só enquanto o relatório tiver até 14 dias; as duas não saem juntas para o mesmo relatório | mesma ação da nota `… em erro` da tabela de relatórios (seção 4 para ver `error`; seção 8 para devolver à fila) |
 | `alcance: <causa>` | exceção não prevista ao normalizar um relatório (extra `report`) | Sentry (tag `passo: alcance`) |
 
 ### Diário por vídeo (L2)
@@ -373,7 +374,7 @@ O CSV traz ids de vídeo e números do próprio canal; não traz dado pessoal. P
 
 Só vale para `channel_reach_basic_a1` (os outros tipos não têm normalizador). O passo `alcance` pega todo relatório `baixado` ou `vazio` com `normalized_at` nulo, do mais velho para o mais novo, 200 por execução. Re-normalizar é devolver o relatório a essa fila. **Você roda** os `update` (escrevem em produção), um por vez, no SQL Editor do Supabase.
 
-**Antes: confira que o bruto ainda existe** (leitura). O bruto de um relatório normalizado é apagado 90 dias depois; sem ele o relatório volta a `erro` com `bruto_ausente` e o cron fica vermelho:
+**Antes: confira que o bruto ainda existe** (leitura). O bruto de um relatório normalizado é apagado 90 dias depois; sem ele o relatório volta a `erro` com `bruto_ausente` e o cron fica vermelho **na execução em que isso acontece** (nota `alcance: relatório <id> de <canal> não pôde ser normalizado (bruto_ausente)`, qualquer que seja a idade do relatório). Nos dias seguintes só continua vermelho se o `create_time` tiver até 14 dias; passado isso o erro sai de `falhas` e conta em `perdidos`:
 
 ```bash
 npx supabase db query --linked "select r.report_id, r.status, r.row_count, r.normalized_at, r.error, b.report_id is not null as tem_bruto from yt_reporting_reports r left join yt_reporting_report_blobs b using (report_id) where r.report_id = '<REPORT_ID>' limit 1"
@@ -593,6 +594,6 @@ A ordem 2 antes de 3 importa só para não ficar vermelho: se a tabela sumir com
 - **O passo `alcance` sem tempo não conta o que deixou por fazer** (`pendentes: 0`, `sem_tempo: true`). Quem denuncia o atraso é a nota de "sem normalizar há mais de 2 dias".
 - **O critério de "relatório com dado e nenhuma linha nova" pode acusar em falso** se todo relatório recente for mais velho que as linhas já gravadas (a função do banco não sobrescreve com relatório mais velho, e `collected_at` não anda). Confira `report_create_time` em `yt_own_video_reach_daily` antes de agir.
 - **A tentativa de canal `ok` do diário não garante todos os vídeos** (veja a seção 4). Quem diz se um vídeo entrou é a tentativa do vídeo.
-- **Depois do diário rodam sem prazo próprio** os critérios do L2, o de metadados, o de orçamento e o fechamento da rota. O diário pode usar até o fim do relógio global (270 s de 300 s): confira `ms` em `yt_own_collection_runs` nas primeiras semanas.
+- **Depois do diário rodam sem prazo próprio** os critérios do L2, o de metadados, o de orçamento e o fechamento da rota. O diário pode usar até o fim do relógio global (270 s de 300 s): confira `ms_passos` em `yt_own_collection_runs` nas primeiras semanas.
 - **"Não consegue baixar há 3 dias" dispara no 4º dia.** O critério `jobs: <canal> não consegue baixar o relatório <tipo> há 3 dias` (e o de job em erro há 3 dias) roda na primeira fase, antes das tentativas de download do dia. No 3º dia de falha ele ainda só vê duas datas com tentativa; a nota aparece na execução do 4º dia.
 - **Quem silenciou o domínio `youtube` nas notificações não recebe o aviso de `api_nao_ativada` / `sem_acesso` / `reautorizar`.** Uma notificação suprimida pela preferência do usuário conta como entregue: não há nota `sem_destinatario` e o cron fica verde. Nesse caso o estado só aparece em `acao_do_dono`, na resposta do cron.
