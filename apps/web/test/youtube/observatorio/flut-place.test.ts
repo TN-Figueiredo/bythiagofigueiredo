@@ -84,10 +84,38 @@ describe('flut · place', () => {
     expect(place(a, S, VP, { pref: 'lado', lado: 'esquerda', gap: 8 }).left).toBe(a.left - 8 - S.w)
     expect(place(box(180, 400), S, { w: 390, h: 844 }, { pref: 'lado', queda: 'cima', gap: 8 }).top).toBe(400 - 8 - S.h)
   })
-  it('janela baixa (320×180): a caixa fica inteira na janela, com altura limitada', () => {
-    const vp = { w: 320, h: 180 }, p = place(box(150, 80), S, vp)
+  it('gapQueda: a distância da queda para cima/baixo pode ser diferente da do lado (Fixar vídeo: 8 ao lado, 6 em cima)', () => {
+    const c = box(180, 400), estreita = { w: 390, h: 844 }
+    expect(place(c, S, estreita, { pref: 'lado', queda: 'cima', gap: 8, gapQueda: 6 }).top).toBe(400 - 6 - S.h)
+    expect(place(c, S, estreita, { pref: 'lado', queda: 'cima', gap: 8 }).top).toBe(400 - 8 - S.h) // sem gapQueda vale o gap
+    const a = box(700, 400)
+    expect(place(a, S, VP, { pref: 'lado', gap: 8, gapQueda: 6 }).left).toBe(a.right + 8) // o lado segue o gap
+  })
+  it('janela baixa (320×180): a caixa fica inteira na janela, com altura limitada e sem cobrir o gatilho', () => {
+    const vp = { w: 320, h: 180 }, a = box(150, 80), p = place(a, S, vp)
     expect(p.maxHeight).not.toBeNull()
     expect(dentro(p, S, vp)).toBe(true)
+    expect(cobre(p, { w: S.w, h: p.maxHeight! }, a)).toBe(false)
+  })
+  it('janela muito baixa (661×188, caixa alta): o espaço do lado escolhido é menor que 80 px e ainda assim não cobre o gatilho', () => {
+    const vp = { w: 661, h: 188 }, a = box(300, 68, 38, 38), alta = { w: 318, h: 224 }, p = place(a, alta, vp)
+    expect(p.maxHeight).not.toBeNull()
+    expect(p.maxHeight!).toBeLessThan(80)
+    expect(cobre(p, { w: alta.w, h: p.maxHeight! }, a)).toBe(false)
+    expect(p.top).toBeGreaterThanOrEqual(EDGE)
+  })
+  it('caixa mais larga que a janela menos 16: a borda esquerda fica em EDGE (nunca negativa)', () => {
+    const p = place(box(300, 400), { w: 400, h: 100 }, { w: 390, h: 844 })
+    expect(p.left).toBe(EDGE)
+    expect(place(box(300, 400), { w: 400, h: 100 }, { w: 390, h: 844 }, { align: 'inicio' }).left).toBe(EDGE)
+    expect(place(box(300, 400), { w: 400, h: 100 }, { w: 390, h: 844 }, { cx: 10 }).left).toBe(EDGE)
+  })
+  it('medida zerada (superfície e gatilho sem layout): posição finita no canto, sem NaN', () => {
+    const p = place({ left: 0, top: 0, right: 0, bottom: 0 }, { w: 0, h: 0 }, VP)
+    expect(Number.isFinite(p.left) && Number.isFinite(p.top)).toBe(true)
+    expect(p).toMatchObject({ left: EDGE, maxHeight: null })
+    const q = place(box(700, 400), { w: 0, h: 0 }, VP, { pref: 'lado' })
+    expect(Number.isFinite(q.left) && Number.isFinite(q.top)).toBe(true)
   })
   it('em 390 px a largura máxima é a janela menos 16', () => {
     expect(maxWidthFor(390)).toBe(374)
