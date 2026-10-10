@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import './_chrome/chrome.css'
 import './_chrome/camadas.css'
 import './_chrome/tokens-telas.css'
+import './_chrome/flut/flut.css'
 
 /**
  * Observatório layout: loads the chrome stylesheet. The niche/tab-dependent chrome (header, freshness, tabs with
