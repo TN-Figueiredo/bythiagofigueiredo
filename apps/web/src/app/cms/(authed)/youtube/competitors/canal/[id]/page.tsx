@@ -1,14 +1,20 @@
+import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 import { link } from '@/lib/youtube/observatorio/links'
-import { openChannelPage } from '../../_chrome/page-data'
+import { openChannelPage, openObservatoryPage } from '../../_chrome/page-data'
 import type { ObsSearchParams } from '../../_chrome/resolve-niche'
 import { TrailChrome } from '../../_chrome/trail-chrome'
 import { CanalScreen, CanalNotFound } from '../../_canal/canal-screen'
+import { LeituraDoNicho } from '../../_canal/leitura'
 import { buildCanalView } from '../../_canal/view-model'
 import { nicheOptions } from '../../_canais/view-model'
 import { removeCompetitorChannel, syncCompetitorNow, pinVideo, unpinVideo, getCompetitorRemovalImpactAction } from '../../actions'
 import { setChannelNiche } from '../../niche-actions'
+import { buildMudancasView } from '../../_mudancas/view-model'
+import { ReadingCard } from '../../_mudancas/reading-card'
+// As classes do cartão de leitura moram em mudancas.css, presas a [data-obs-screen="mudancas"]; a A2 troca o cartão e promove as classes.
+import '../../_mudancas/mudancas.css'
 
 export const metadata = { title: 'Canal · Competidores' }
 export const dynamic = 'force-dynamic'
@@ -32,10 +38,27 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
   // Canal próprio continua no painel lateral de Canais até a A4 (emenda 26).
   if (view.own) redirect(link.canais({ channel: id }))
   const canAdmin = await canAdminSiteUsers(siteId)
+  // Só a aba Leitura lê o conjunto do site (o do canal não tem o que agrega entre canais, como forja.niches); as outras abas não pagam por isso.
+  const leitura = view.state.tab === 'leitura' ? await leituraDoNicho(view.header.niche, view.header.nicheLabel) : null
   return (
     <TrailChrome crumbs={[{ text: view.origemText, href: view.canaisHref }, { text: view.header.name }]}>
-      <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin={canAdmin} leitura={null}
+      <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin={canAdmin} leitura={leitura}
         actions={{ onSyncOne: syncCompetitorNow, onRemove: removeCompetitorChannel, onRemovalImpact: getCompetitorRemovalImpactAction, onSetNiche: setChannelNiche, onPin: pinVideo, onUnpin: unpinVideo }} />
     </TrailChrome>
+  )
+}
+
+/**
+ * A leitura do nicho do canal, com os filtros padrão de Mudanças e sem `onAsk`: o pedido do nicho continua em Mudanças. Sem nicho não há leitura
+ * a mostrar nem conjunto a ler (o motor já anula o nicho que o site não conhece).
+ */
+async function leituraDoNicho(niche: string | null, nicheLabel: string | null): Promise<ReactNode> {
+  if (!niche || !nicheLabel) return <LeituraDoNicho nicheLabel={null}>{null}</LeituraDoNicho>
+  const site = await openObservatoryPage()
+  const mv = buildMudancasView(site.obs, { niche }, new Set())
+  return (
+    <LeituraDoNicho nicheLabel={nicheLabel}>
+      <div data-obs-screen="mudancas"><section className="forja"><ReadingCard view={mv} /></section></div>
+    </LeituraDoNicho>
   )
 }

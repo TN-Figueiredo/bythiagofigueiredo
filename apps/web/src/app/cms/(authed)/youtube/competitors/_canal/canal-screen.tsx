@@ -1,8 +1,9 @@
 'use client'
 /**
- * A página do canal do concorrente (spec 5). Nesta tarefa: o cabeçalho, as abas (nav "Seções do canal"), a faixa de aviso de
- * sincronização, o diálogo de remoção, a aba Vídeos (controles, grade de capas ou tabela e "Carregar mais") e a aba Trocas. A aba
- * Leitura entra na tarefa seguinte. Server actions chegam por props (`actions`); nenhum `Link` chega de um Server Component.
+ * A página do canal do concorrente (spec 5): o cabeçalho, as abas (nav "Seções do canal"), a faixa de aviso de sincronização, o
+ * diálogo de remoção, a aba Vídeos (controles, grade de capas ou tabela e "Carregar mais"), a aba Trocas e a aba Leitura. Vídeos e
+ * Trocas trocam no navegador (mesmo pacote de dados); Leitura é navegação de verdade, porque o servidor lê o conjunto do site para ela
+ * (D3). Server actions chegam por props (`actions`); nenhum `Link` chega de um Server Component.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import Link from 'next/link'
@@ -84,24 +85,33 @@ function vizinhanca(ids: readonly string[], i: number): string[] {
   return ids.slice(a, a + 100)
 }
 
-/** As abas do canal: links de verdade (nav), não tablist. Clique simples troca a aba no cliente; Ctrl/Cmd/Shift seguem o link. */
+/**
+ * As abas do canal: links de verdade (nav), não tablist. Clique simples em Vídeos/Trocas troca a aba no cliente; Ctrl/Cmd/Shift seguem
+ * o link. Leitura é sempre um `Link` de navegação, e a partir da Leitura (que o servidor montou sem o miolo das outras) Vídeos e Trocas
+ * também são. Retenção não aparece: é só de canal próprio (spec 5.8).
+ */
 function AbasNav({ view, state, onAba }: { view: CanalView; state: CanalState; onAba: (tab: CanalTab) => void }) {
   const abas: Array<{ tab: CanalTab; texto: string; n: string }> = [
     { tab: 'videos', texto: 'Vídeos', n: String(view.videos.videos.length) },
     { tab: 'trocas', texto: 'Trocas', n: view.trocas.tabCount },
+    { tab: 'leitura', texto: 'Leitura', n: '' },
   ]
   return (
     <nav className="ctabs" aria-label="Seções do canal">
       <ul>
-        {abas.map(a => (
-          <li key={a.tab}>
-            <a href={link.canal(view.header.id, { tab: a.tab, fmt: state.fmt, sort: state.sort, dir: state.dir, q: state.q, ver: state.ver, n: state.n, nums: state.nums ? 1 : undefined, ...view.origem })}
-              aria-current={state.tab === a.tab ? 'page' : undefined}
-              onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return; e.preventDefault(); onAba(a.tab) }}>
-              {a.texto} <span className="n">{a.n}</span>
-            </a>
-          </li>
-        ))}
+        {abas.map(a => {
+          const href = link.canal(view.header.id, { tab: a.tab, fmt: state.fmt, sort: state.sort, dir: state.dir, q: state.q, ver: state.ver, n: state.n, nums: state.nums ? 1 : undefined, ...view.origem })
+          const atual = state.tab === a.tab ? 'page' : undefined
+          const conteudo = <>{a.texto}{a.n ? <> <span className="n">{a.n}</span></> : null}</>
+          return (
+            <li key={a.tab}>
+              {a.tab === 'leitura' || state.tab === 'leitura'
+                ? <Link href={href} aria-current={atual}>{conteudo}</Link>
+                : <a href={href} aria-current={atual}
+                  onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return; e.preventDefault(); onAba(a.tab) }}>{conteudo}</a>}
+            </li>
+          )
+        })}
       </ul>
     </nav>
   )
@@ -248,7 +258,7 @@ function AbaVideos({ view, state, set, nome, channelId, onSync }: {
   )
 }
 
-export function CanalScreen({ view, niches, canAdmin, actions }: { view: CanalView; niches: NicheOption[]; canAdmin: boolean; leitura: ReactNode | null; actions: CanalActions }) {
+export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view: CanalView; niches: NicheOption[]; canAdmin: boolean; leitura: ReactNode | null; actions: CanalActions }) {
   const router = useRouter(), toast = useToast()
   const h = view.header
   const [state, set] = useCanalState(view.state)
@@ -344,6 +354,7 @@ export function CanalScreen({ view, niches, canAdmin, actions }: { view: CanalVi
             <Trocas view={view.trocas} filtro={filtroTrocas ? { id: filtroTrocas.id, title: filtroTrocas.title } : null} hrefTodas={hrefTodasTrocas}
               onTodas={() => set({ video: null })} onAmpliar={src => window.open(src, '_blank', 'noopener,noreferrer')} onAbrir={href => router.push(href)} />
           ) : null}
+          {state.tab === 'leitura' ? leitura : null}
           {confirm ? <RemoveDialog id={h.id} name={h.name} onImpact={actions.onRemovalImpact} onCancel={closeConfirm} onConfirm={() => { void doRemove() }} trap={trapTab} /> : null}
         </div>
       </NichePendingContext.Provider>

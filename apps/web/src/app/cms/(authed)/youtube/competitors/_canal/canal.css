@@ -376,3 +376,17 @@
 #flut .canal-menu .det p{margin:0;padding:0;max-width:none;font-size:12.5px;line-height:1.4;color:var(--muted)}
 #flut .canal-menu [role="menuitem"]{text-decoration:none}
 #flut .canal-menu [role="menuitem"] small{margin-left:auto;padding-left:12px;font-size:12px;color:var(--muted)}
+
+/* ---------------------------------------------------------------- aba Leitura (a leitura do nicho, rotulada; mockup canal.css .forja .ask) */
+[data-obs-screen="canal"] .cl-sec{margin-top:6px;max-width:860px}
+[data-obs-screen="canal"] .cl-h2{font:600 15px/1.3 var(--font-sans),system-ui,sans-serif;margin:14px 0 8px;scroll-margin-top:calc(var(--obs-sticky-h,0px) + 12px)}
+[data-obs-screen="canal"] .cl-h2:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[data-obs-screen="canal"] .cl-vazio{margin:0;padding:12px 0;color:var(--text)}
+[data-obs-screen="canal"] .cl-ask{display:flex;gap:6px 12px;align-items:center;flex-wrap:wrap}
+[data-obs-screen="canal"] .cl-ask p{margin:0;font-size:13px;line-height:1.45;color:var(--muted);flex:1 1 280px;min-width:0}
+[data-obs-screen="canal"] .cl-ask-btn[aria-disabled="true"]{color:var(--muted);cursor:not-allowed}
+[data-obs-screen="canal"] .cl-ask-btn[aria-disabled="true"]:hover{background:var(--surface)}
+[data-obs-screen="canal"] .cl-nicho{margin:16px 0 8px;padding-top:12px;border-top:1px solid var(--border-subtle);font:600 14px/1.3 var(--font-sans),system-ui,sans-serif}
+/* o cartão é o de Mudanças (as classes dele moram em mudancas.css); aqui só vira um cartão fechado */
+[data-obs-screen="canal"] .cl-card .forja{border:1px solid var(--forja-line);border-radius:8px}
+@media (pointer:coarse){[data-obs-screen="canal"] .cl-ask-btn{min-height:44px}}

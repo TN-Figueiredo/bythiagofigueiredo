@@ -1,5 +1,6 @@
 // Montagem compartilhada dos testes da vista Capas da página do canal (Tarefa 5). Os `vi.mock` ficam em cada teste.
 import { vi } from 'vitest'
+import type { ReactNode } from 'react'
 import { render } from '@testing-library/react'
 import { canalWorld } from './canal-fixture'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
@@ -20,13 +21,13 @@ export function canalActions(over: Partial<CanalActions> = {}): CanalActions {
   }
 }
 
-export function mountCanal(o: { mut?: (ds: Dataset, id: string) => void; sp?: Record<string, string | undefined>; act?: CanalActions } = {}) {
+export function mountCanal(o: { mut?: (ds: Dataset, id: string) => void; sp?: Record<string, string | undefined>; act?: CanalActions; leitura?: ReactNode } = {}) {
   const { obs, chId } = canalWorld(o.mut)
   const view = buildCanalView(obs, chId, o.sp ?? {})!
   const act = o.act ?? canalActions()
   const r = render(
     <ToastProvider><div data-obs="">
-      <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin leitura={null} actions={act} />
+      <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin leitura={o.leitura ?? null} actions={act} />
     </div></ToastProvider>,
   )
   return { ...r, view, act, obs, chId, all: view.videos.videos }
