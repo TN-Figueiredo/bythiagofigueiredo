@@ -89,7 +89,9 @@
 [data-obs] .obs-ch-dot.obs-ch-warn{background:var(--warning)}
 [data-obs] .obs-ch-dot.obs-ch-forja{background:var(--forja)}
 [data-obs] .obs-ch-chev{width:14px;height:14px;color:var(--muted)}
-[data-obs] .obs-ch-pop{position:absolute;z-index:40;top:calc(100% + 6px);left:0;width:min(600px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);padding:14px 16px;font-size:13px;color:var(--text)}
+[data-obs] .obs-ch-pop{width:min(600px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);padding:14px 16px;font-size:13px;color:var(--text)}
+/* in #flut the base of the layer (flut.css, #flut .obs-fl-pop) sets font and would win over the rule above: this one keeps the chrome's own type */
+#flut .obs-fl-pop.obs-ch-pop{font:400 13px/1.5 var(--font-sans),system-ui,sans-serif}
 [data-obs] .obs-ch-pop h3{font-size:13.5px;margin:0 0 2px;font-weight:600}
 [data-obs] .obs-ch-pop .obs-ch-sub{color:var(--muted);font-size:12.5px;margin:0 0 10px}
 [data-obs] .obs-ch-pop-scroll{max-height:300px;overflow:auto}
@@ -103,7 +105,7 @@
 [data-obs] .obs-ch-pop .obs-ch-bad td:first-child{border-left:2px solid var(--warning);padding-left:8px}
 [data-obs] .obs-ch-pop .obs-ch-grp td{background:none;color:var(--muted);font-size:11.5px;padding-top:10px;border-top:0;text-align:left}
 [data-obs] .obs-ch-pop-acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-[data-obs] .obs-ch-menu{right:0;left:auto;width:min(390px,calc(100vw - 32px));padding:6px}
+[data-obs] .obs-ch-menu{width:min(390px,calc(100vw - 32px));padding:6px}
 [data-obs] .obs-ch-mi{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;padding:9px 10px;border:0;background:none;border-radius:6px;cursor:pointer;text-align:left;min-height:36px;color:var(--text);text-decoration:none;font:inherit}
 [data-obs] .obs-ch-mi:hover,[data-obs] .obs-ch-mi:focus-visible{background:var(--surface-hover)}
 [data-obs] .obs-ch-mi strong{font-weight:500;font-size:13px;display:flex;gap:8px;align-items:center}
@@ -273,10 +275,7 @@
 [data-obs] .fx-msg.fx-info .fx-i{color:var(--fx-info-i)}
 [data-obs] .fx-msg a{color:var(--text);text-decoration:underline;text-underline-offset:2px;white-space:nowrap;padding-block:8px;margin-block:-8px}
 [data-obs] .fx-msg a:hover{color:var(--accent)}
-/* V1: the hint. Closed = only for screen readers (it is the button's description). Open = an overlay that pushes nothing and
-   sits where no control and no message lives: to the LEFT of the button while the actions are a side column, ABOVE it once
-   they become a row of their own (Histórico below 1100 px, Mudanças below 1000 px). Never below: the message is born there. */
+/* V1: the hint. The span .fx-hint is only for screen readers (it is the button's description). The visible box is .fx-hint-pop,
+   a HoverTip in #flut (placed to the side of the button by the layer, never below: the message is born there). */
 [data-obs] .fx-hint{position:absolute;width:1px;height:1px;margin:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-[data-obs] .fx-hint[data-open]{z-index:30;right:calc(100% + 8px);top:0;width:300px;height:auto;overflow:visible;clip:auto;white-space:normal;padding:8px 10px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface);box-shadow:var(--shadow);font-size:12px;line-height:1.45;color:var(--muted);text-align:left}
-@media (max-width:1100px){[data-obs] [data-obs-screen="historico"] .fx-hint[data-open]{right:auto;left:0;top:auto;bottom:calc(100% + 6px);width:min(320px,calc(100vw - 48px))}}
-@media (max-width:1000px){[data-obs] [data-obs-screen="mudancas"] .fx-hint[data-open]{right:auto;left:0;top:auto;bottom:calc(100% + 6px);width:min(300px,calc(100vw - 48px))}}
+#flut .obs-fl-tip.fx-hint-pop{width:300px;padding:8px 10px;border-radius:6px;font-size:12px;color:var(--muted)}

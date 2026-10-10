@@ -30,7 +30,7 @@ const btn = (i = 0) => document.querySelectorAll<HTMLButtonElement>('[data-pin]'
 const status = () => document.getElementById('fx-status')!, alertEl = () => document.getElementById('fx-alert')!
 
 beforeEach(() => { refresh.mockReset() })
-afterEach(() => { vi.useRealTimers() })
+afterEach(() => { vi.useRealTimers(); document.getElementById('flut')?.remove() })
 
 describe('PinProvider: regiões vivas', () => {
   it('existem vazias desde a montagem, uma de cada', () => {
@@ -177,6 +177,17 @@ describe('dica do botão (V1)', () => {
     expect(document.getElementById('fx-msg-v1')).not.toBeNull(); expect(hint().hasAttribute('data-open')).toBe(false)
     fireEvent.blur(btn()); fireEvent.focus(btn())
     expect(hint().hasAttribute('data-open')).toBe(false) // a message is on the screen
+  })
+  it('a dica visível mora em #flut; o texto para leitor de tela continua junto do botão', () => {
+    const { container } = mount()
+    fireEvent.focus(btn())
+    const sr = container.querySelector('.fx-hint')!
+    expect(sr.hasAttribute('data-open')).toBe(true)
+    const vis = document.querySelector('#flut .fx-hint-pop')!
+    expect(vis.textContent).toBe(sr.textContent)
+    expect(vis.getAttribute('aria-hidden')).toBe('true')
+    fireEvent.blur(btn())
+    expect(document.querySelector('#flut .fx-hint-pop')).toBeNull()
   })
   it('vídeo já fixado: sem dica (a ação é "Desafixar")', () => {
     mount({ pins: [{ pin: pin({ pinned: true }) }] })

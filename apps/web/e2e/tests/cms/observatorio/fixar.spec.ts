@@ -105,10 +105,13 @@ for (const width of HIST_WIDTHS) {
     const hold = await holdActions(page, ids.video(FULL))
     await page.goto('/cms/youtube/competitors/video/' + ids.video(FULL))
     const btn = page.locator('[data-obs-screen="historico"] [data-pin]'), hint = page.locator('[data-obs-screen="historico"] .fx-hint')
+    // A0.1: the span .fx-hint stays beside the button for screen readers (it carries data-open); the visible box is in #flut
+    const visible = page.locator('#flut .fx-hint-pop')
     await settle(page, btn)
     await btn.focus(); await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Tab') // focus by keyboard
     await expect(hint).toHaveAttribute('data-open', '')
-    const h = await docBox(page, hint)
+    await expect(visible).toBeVisible()
+    const h = await docBox(page, visible)
     for (const el of await page.locator('[data-obs-screen="historico"] a[href]:visible, [data-obs-screen="historico"] button:visible').all()) {
       if (await el.getAttribute('data-pin')) continue
       expect(overlap(h, await docBox(page, el)), 'a dica cobre: ' + (await el.textContent())).toBe(0)
@@ -116,13 +119,16 @@ for (const width of HIST_WIDTHS) {
     expect(h.x).toBeGreaterThanOrEqual(0); expect(h.x + h.width).toBeLessThanOrEqual(width)
     await page.keyboard.press('Escape')
     await expect(hint).not.toHaveAttribute('data-open', '')
+    await expect(visible).toHaveCount(0)
     await expect(btn).toBeFocused()
     // a result message and the hint never share the screen
     await page.keyboard.press('Enter'); hold.release()
     await expect(page.locator('[data-obs-screen="historico"] .fx-msg')).toBeVisible()
     await expect(hint).not.toHaveAttribute('data-open', '')
+    await expect(visible).toHaveCount(0)
     await btn.blur(); await btn.focus()
     await expect(hint).not.toHaveAttribute('data-open', '')
+    await expect(visible).toHaveCount(0)
   })
 }
 

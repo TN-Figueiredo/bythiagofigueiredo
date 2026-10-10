@@ -3,10 +3,11 @@
 import Link from 'next/link'
 import { useEffect, useId, useRef, type KeyboardEvent, type RefObject } from 'react'
 import { Icon } from './icons'
+import { Popover } from './flut/flut'
 
-export function Menu({ open, focusAt, btnRef, boxRef, cowork, nicheEditorHref, onOpenNicheEditor, onToggle, onOpenAt, onClose, onCopy, onCopyReading }: {
+export function Menu({ open, focusAt, btnRef, cowork, nicheEditorHref, onOpenNicheEditor, onToggle, onOpenAt, onClose, onCopy, onCopyReading }: {
   open: boolean; focusAt: 'first' | 'last'
-  btnRef: RefObject<HTMLButtonElement | null>; boxRef: RefObject<HTMLDivElement | null>
+  btnRef: RefObject<HTMLButtonElement | null>
   cowork: string; nicheEditorHref: string; onOpenNicheEditor?: () => void
   onToggle: () => void; onOpenAt: (at: 'first' | 'last') => void; onClose: (focusBtn: boolean) => void; onCopy: () => void
   /** Insights: "Copiar texto da leitura" (Task 35) — only when a reading is shown. */
@@ -34,13 +35,14 @@ export function Menu({ open, focusAt, btnRef, boxRef, cowork, nicheEditorHref, o
     else if (e.key === 'Tab') onClose(false)
   }
   return (
-    <div className="obs-ch-menu-wrap" ref={boxRef}>
+    <div className="obs-ch-menu-wrap">
       <button ref={btnRef} className="obs-ch-btn obs-ch-ghost obs-ch-icon" type="button" aria-haspopup="menu" aria-expanded={open}
         aria-controls={open ? 'obs-ch-menu' : undefined} aria-label="Mais ações" onClick={onToggle} onKeyDown={onBtnKey}>
         {Icon.dots()}
       </button>
-      {open ? (
-        <div className="obs-ch-pop obs-ch-menu" id="obs-ch-menu" role="menu" aria-label="Mais ações" ref={menuRef} onKeyDown={onMenuKey}>
+      {/* the box lives in #flut (one floating layer); click outside, focus outside and Esc are the layer's */}
+      <Popover open={open} anchor={() => btnRef.current} onClose={() => onClose(false)} id="obs-ch-menu" className="obs-ch-pop obs-ch-menu" role="menu" label="Mais ações" align="fim">
+        <div ref={menuRef} onKeyDown={onMenuKey} style={{ display: 'contents' }}>
           <button className="obs-ch-mi" role="menuitem" type="button" tabIndex={-1} aria-label="Copiar pedido para o Cowork" aria-describedby={prev} onClick={onCopy}>
             <strong>{Icon.copy()}Copiar pedido para o Cowork</strong>
             <span className="obs-ch-ctx">Copia este texto, montado a partir desta tela e do nicho atual. Depois, cole no Cowork com ⌘V.</span>
@@ -62,7 +64,7 @@ export function Menu({ open, focusAt, btnRef, boxRef, cowork, nicheEditorHref, o
             </Link>
           )}
         </div>
-      ) : null}
+      </Popover>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
 const siteAdmin = vi.hoisted(() => ({ value: true }))
@@ -31,6 +31,7 @@ function mount(props: Partial<Parameters<typeof ObservatoryChrome>[0]> = {}) {
 }
 
 beforeEach(() => { replace.mockReset(); refresh.mockReset(); search = '' })
+afterEach(() => document.getElementById('flut')?.remove())
 
 describe('ObservatoryChrome', () => {
   it('passes the DOM audits; the header has no filled button', () => {
@@ -182,5 +183,41 @@ describe('ObservatoryChrome', () => {
     expect(await screen.findByText('Pedido copiado para o Cowork')).toBeInTheDocument()
     expect(writeText).toHaveBeenCalledWith(view().cowork)
     expect(screen.getByText('Cole no Cowork com ⌘V.')).toBeInTheDocument()
+  })
+})
+
+describe('moldura · flutuantes na camada única (A0.1)', () => {
+  it('o menu ⋯ abre em #flut e Esc devolve o foco ao botão', () => {
+    const { container } = mount()
+    const btn = container.querySelector<HTMLElement>('.obs-ch-menu-wrap [aria-haspopup="menu"]')!
+    fireEvent.click(btn)
+    const menu = document.querySelector('#flut #obs-ch-menu')!
+    expect(menu.getAttribute('role')).toBe('menu')
+    expect(container.querySelector('#obs-ch-menu')).toBeNull()
+    fireEvent.keyDown(menu.querySelector('[role="menuitem"]')!, { key: 'Escape' })
+    expect(document.getElementById('obs-ch-menu')).toBeNull()
+    expect(document.activeElement).toBe(btn)
+  })
+  it('clicar num item do menu não o fecha antes do clique (o menu não é mais filho da caixa do botão)', () => {
+    const { container } = mount()
+    fireEvent.click(container.querySelector<HTMLElement>('.obs-ch-menu-wrap [aria-haspopup="menu"]')!)
+    const item = document.querySelector<HTMLElement>('#flut #obs-ch-menu [role="menuitem"]')!
+    fireEvent.mouseDown(item)
+    expect(document.getElementById('obs-ch-menu')).not.toBeNull()
+  })
+  it('"Frescor por canal" abre em #flut; abrir o menu fecha o frescor', () => {
+    const { container } = mount()
+    fireEvent.click(container.querySelector<HTMLElement>('.obs-ch-fresh > button')!)
+    expect(document.querySelector('#flut #obs-ch-fresh-pop')).not.toBeNull()
+    expect(container.querySelector('#obs-ch-fresh-pop')).toBeNull()
+    fireEvent.click(container.querySelector<HTMLElement>('.obs-ch-menu-wrap [aria-haspopup="menu"]')!)
+    expect(document.getElementById('obs-ch-fresh-pop')).toBeNull()
+    expect(document.getElementById('obs-ch-menu')).not.toBeNull()
+  })
+  it('clique fora fecha o menu sem tirar o foco de onde o clique o levou', () => {
+    const { container } = mount()
+    fireEvent.click(container.querySelector<HTMLElement>('.obs-ch-menu-wrap [aria-haspopup="menu"]')!)
+    fireEvent.mouseDown(container.querySelector('.obs-ch-screen')!)
+    expect(document.getElementById('obs-ch-menu')).toBeNull()
   })
 })

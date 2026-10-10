@@ -5,18 +5,21 @@ import Link from 'next/link'
 import type { ReactNode, RefObject } from 'react'
 import type { ChromeView } from './view-model'
 import { Icon } from './icons'
+import { Popover } from './flut/flut'
 
-export function Freshness({ fresh, tzLabel, open, btnRef, boxRef, onToggle, onSync, syncing, forjaSeg }: {
+export function Freshness({ fresh, tzLabel, open, btnRef, onToggle, onClose, onSync, syncing, forjaSeg }: {
   fresh: ChromeView['fresh']; tzLabel: string; open: boolean
   /** The forja heartbeat segment (Task 35), after the freshness button. */
   forjaSeg?: ReactNode
-  btnRef: RefObject<HTMLButtonElement | null>; boxRef: RefObject<HTMLDivElement | null>
-  onToggle: () => void; onSync: () => void; syncing: boolean
+  btnRef: RefObject<HTMLButtonElement | null>
+  onToggle: () => void
+  /** Close only (outside click, Esc, trigger gone): unlike onToggle it never opens. */
+  onClose: () => void; onSync: () => void; syncing: boolean
 }) {
   const n = fresh.problems.length
   return (
     <div className="obs-ch-fresh-row">
-      <div className="obs-ch-fresh" ref={boxRef}>
+      <div className="obs-ch-fresh">
         <button ref={btnRef} type="button" aria-expanded={open} aria-controls={open ? 'obs-ch-fresh-pop' : undefined} onClick={onToggle}>
           <span className="obs-ch-sr">Frescor dos dados: </span>
           <span className="obs-ch-seg">
@@ -37,7 +40,9 @@ export function Freshness({ fresh, tzLabel, open, btnRef, boxRef, onToggle, onSy
           {Icon.chev()}
         </button>
         {forjaSeg ?? null}
-        {open ? <FreshPopover fresh={fresh} onSync={onSync} syncing={syncing} /> : null}
+        <Popover open={open} anchor={() => btnRef.current} onClose={onClose} id="obs-ch-fresh-pop" className="obs-ch-pop" role="dialog" label="Frescor por canal" align="inicio">
+          <FreshPopover fresh={fresh} onSync={onSync} syncing={syncing} />
+        </Popover>
       </div>
       <span className="obs-ch-tz">{tzLabel}</span>
     </div>
@@ -57,7 +62,7 @@ function FreshPopover({ fresh, onSync, syncing }: { fresh: ChromeView['fresh']; 
     </tr>
   )
   return (
-    <div className="obs-ch-pop" id="obs-ch-fresh-pop" role="dialog" aria-label="Frescor por canal">
+    <>
       <h3>Frescor por canal</h3>
       <p className="obs-ch-sub">{fresh.popoverSub}</p>
       <div className="obs-ch-pop-scroll" tabIndex={0} role="region" aria-label="Canais e última sincronização">
@@ -77,6 +82,6 @@ function FreshPopover({ fresh, onSync, syncing }: { fresh: ChromeView['fresh']; 
           : <p role="note" data-testid="admin-only-note" className="obs-ch-sub" style={{ margin: 0 }}>{siteAdminOnlyText('sincronizar todos os concorrentes de uma vez')} Um canal por vez: menu ⋯ em Canais.</p>}
         {bad.length ? <Link className="obs-ch-btn obs-ch-ghost" href={fresh.problemsHref}>Ver os canais com problema</Link> : null}
       </div>
-    </div>
+    </>
   )
 }

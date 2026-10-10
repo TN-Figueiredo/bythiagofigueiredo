@@ -7,7 +7,7 @@
 import { useCanAdminSite } from '@/lib/cms/site-admin-context'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { joinLabels, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { ChromeView, SyncNowResult } from './view-model'
 import { Freshness } from './freshness'
@@ -65,7 +65,6 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
   const [syncing, setSyncing] = useState(false)
   const syncCtx = useMemo(() => ({ running: syncing }), [syncing])
   const menuBtn = useRef<HTMLButtonElement>(null), freshBtn = useRef<HTMLButtonElement>(null)
-  const menuBox = useRef<HTMLDivElement>(null), freshBox = useRef<HTMLDivElement>(null)
   const forja = view.forja
   // R58: the header button follows each screen's mockup (insights.html:819, canais.html:874, outliers.html:997 ask
   // directly; mudancas.html I5 opens the screen's inline confirm). The moldura's selector drawer is not ported (R59).
@@ -141,21 +140,6 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
     if (focusBack) (was === 'menu' ? menuBtn : freshBtn).current?.focus()
   }, [pop])
 
-  // Click outside and focus leaving the open box close it (CHROME.md "Acessibilidade do chrome").
-  useEffect(() => {
-    if (!pop) return
-    const box = () => (pop === 'menu' ? menuBox : freshBox).current
-    const onDown = (e: MouseEvent) => { const b = box(); if (b && !b.contains(e.target as Node)) setPop(null) }
-    const onFocus = (e: FocusEvent) => { const b = box(); if (b && e.target instanceof Node && !b.contains(e.target)) setPop(null) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('focusin', onFocus)
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('focusin', onFocus) }
-  }, [pop])
-
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && pop) { e.stopPropagation(); close(true) }
-  }
-
   const pickNiche = async (n: NicheScope) => {
     setPop(null)
     if (n === (pendingNiche ?? view.niche)) return
@@ -212,7 +196,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
 
   const niches = view.niches
   return (
-    <div className="obs-ch-content" onKeyDown={onKey}>
+    <div className="obs-ch-content">
       <div data-obs-chrome="">
         <div className="obs-ch-head">
           <div className="obs-ch-title"><h2>{view.title}</h2><p>{view.subtitle}</p></div>
@@ -227,7 +211,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
               {Icon.plus()}<span className="obs-ch-lbl-t">Adicionar canal</span>
             </Link>
             <Menu
-              open={pop === 'menu'} focusAt={menuAt} btnRef={menuBtn} boxRef={menuBox}
+              open={pop === 'menu'} focusAt={menuAt} btnRef={menuBtn}
               cowork={view.cowork} nicheEditorHref={view.nicheEditorHref} onOpenNicheEditor={onOpenNicheEditor}
               onToggle={() => { setMenuAt('first'); setPop(p => (p === 'menu' ? null : 'menu')) }}
               onOpenAt={at => { setMenuAt(at); setPop('menu') }}
@@ -236,8 +220,8 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
           </div>
         </div>
         <Freshness
-          fresh={view.fresh} tzLabel={view.tzLabel} open={pop === 'fresh'} btnRef={freshBtn} boxRef={freshBox}
-          onToggle={() => setPop(p => (p === 'fresh' ? null : 'fresh'))} onSync={() => sync(true)} syncing={syncing}
+          fresh={view.fresh} tzLabel={view.tzLabel} open={pop === 'fresh'} btnRef={freshBtn}
+          onToggle={() => setPop(p => (p === 'fresh' ? null : 'fresh'))} onClose={() => setPop(p => (p === 'fresh' ? null : p))} onSync={() => sync(true)} syncing={syncing}
           forjaSeg={forja ? <ForjaMachineSegment machine={forja.machine} /> : null}
         />
         <div className="obs-ch-nav" data-obs-tabs="" data-niche-scroll={niches.length > NICHE_BAR_FIXED ? '' : undefined}>
