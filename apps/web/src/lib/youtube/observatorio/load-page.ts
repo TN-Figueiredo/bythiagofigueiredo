@@ -83,6 +83,12 @@ export async function loadPageRows(siteId: string, now: number): Promise<Observa
 /**
  * The dataset of ONE channel of this site, without reading the others (spec telas v9, 5.10). Same pack and same cache
  * key as loadPageRows: a channel the list already warmed costs no heavy read here. null = not a channel of this site.
+ * WHAT IT SERVES: what a channel's own screen computes about that channel (its row, its videos with series, versions,
+ * multiplier, phase and effect; channelStats, cadence, SYNC, OBS_START and LAST_IDX, which carry the site's values
+ * through `siteScope` / `lastSeriesAt`). WHAT IT DOES NOT: anything that aggregates ACROSS channels (channel slots, niche
+ * reference and stats, heatmap, theme trend, the insights' base and the forja's), because the set holds this channel
+ * alone. The dataset says so (`scope: 'canal'`) and those functions throw on it (assertSiteScope) instead of
+ * returning the channel's number as if it were the site's. `readings` and `requests` are the site's whole.
  * SECURITY: service client, no RLS. The caller runs the access guard first and takes `siteId` from getSiteContext();
  * `channelId` may come from the URL, and loadChannelLiveRows refuses one of another site.
  */

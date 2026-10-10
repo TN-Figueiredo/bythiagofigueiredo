@@ -250,7 +250,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
     // a video without published_at cannot be aged or banded: it stays out of `videos` and is listed in `undated`
     const vs = all.filter((x): x is { v: VideoRow; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
     const undated: UndatedVideo[] = all.filter(x => x.pub == null).map(({ v }) => ({
-      id: v.id, ytId: v.video_id, title: v.title ?? '', isShort: v.is_short ?? null, dur: v.duration_seconds,
+      id: v.id, ytId: v.video_id, title: v.title, isShort: v.is_short ?? null, dur: v.duration_seconds,
       url: v.is_short ? 'https://www.youtube.com/shorts/' + v.video_id : 'https://www.youtube.com/watch?v=' + v.video_id,
       views: v.view_count, likes: v.like_count, comments: v.comment_count, pinned: v.pinned_at != null, checkedAt: ms(v.last_checked_at),
     }))
@@ -322,16 +322,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   const ownVideosBy = groupBy(rows.ownVideos, v => v.channel_id)
   for (const oc of rows.ownChannels) {
     const ownNiche: Niche | null = isNiche(oc.niche) ? oc.niche : null
-    const allOwn = (ownVideosBy.get(oc.id) ?? []).map(v => ({ v, pub: ms(v.published_at) }))
-    const vs = allOwn.filter((x): x is { v: OwnVideoRow; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
-    const undated: UndatedVideo[] = allOwn.filter(x => x.pub == null).map(({ v }) => {
-      const short = ownIsShort(v)
-      return {
-        id: v.id, ytId: v.youtube_video_id, title: v.title, isShort: short, dur: v.duration_seconds,
-        url: (short ? 'https://www.youtube.com/shorts/' : 'https://www.youtube.com/watch?v=') + v.youtube_video_id,
-        views: v.view_count, likes: v.like_count, comments: v.comment_count, pinned: false, checkedAt: ms(v.updated_at),
-      }
-    })
+    const vs = (ownVideosBy.get(oc.id) ?? []).map(v => ({ v, pub: ms(v.published_at) })).filter((x): x is { v: OwnVideoRow; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
     const last = ms(oc.last_synced_at) // null = never synced: no date is invented
     vs.forEach(({ v, pub }, k) => {
       const fmt: Fmt = ownIsShort(v) ? 'short' : 'long'
@@ -349,7 +340,8 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       url: 'https://www.youtube.com/channel/' + oc.channel_id, handle: oc.handle, gender: 'n', color: OWN_COLOR, ini: initials(oc.name),
       avatar: oc.thumbnail_url || null,
       sync: { state: 'ok', last, next, added: ms(oc.created_at) ?? last, errorSince: null, msg: null, backfill: null },
-      activity: activityOf(vs.map(x => x.pub), now), lastIdx: null, snapshots: [], undated,
+      // youtube_videos.published_at is NOT NULL (database.types.ts), so an own channel has no video without a date to list
+      activity: activityOf(vs.map(x => x.pub), now), lastIdx: null, snapshots: [], undated: [],
     })
   }
 
@@ -365,7 +357,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   return {
     now, seriesStart, snap0, dailyCappedFrom: cappedFrom, obsStart: firstAdded ?? seriesStart,
     channels, videos, niches,
-    ...(sc ? { lastSeriesAt: siteSeriesTs.length ? Math.max(...siteSeriesTs) : null } : {}),
+    ...(sc ? { lastSeriesAt: siteSeriesTs.length ? Math.max(...siteSeriesTs) : null, scope: 'canal' as const } : {}),
     sync: { last: lastOk, next },
     readings: rows.readings.map(r => toReading(r, known)).filter((x): x is FrozenReading => x != null),
     // a published request points at the reading it produced (competitor_readings.task_id): "leitura nova às HH:MM"
@@ -540,19 +532,20 @@ export interface LoadOptions { siteId: string; now: number; supabase?: SupabaseC
 /** The small tables every render reads fresh: settings, channel rows, own channels and videos, niches and the forja queue. */
 export type LiveRows = Pick<ObservatoryRows, 'settings' | 'channels' | 'ownChannels' | 'ownVideos' | 'legacyChanges' | 'readings' | 'tasks' | 'heartbeat' | 'niches' | 'siteScope'>
 
-/** `seriesStartAt`: SP midnight of the series start, or null while there is no daily record yet (never the clock). */
-export async function loadLiveRows(sb: SupabaseClient, siteId: string, now: number): Promise<LiveRows & { seriesStartAt: number | null }> {
+/**
+ * What loadLiveRows and loadChannelLiveRows read the same way: the site's settings and, in parallel with `specific`
+ * (what only the caller reads), the competitor_changes trade rows, readings, forja queue, heartbeat and niches. A new
+ * live table is added here once, so the two loaders cannot drift apart.
+ */
+async function readSiteLive<S>(sb: SupabaseClient, siteId: string, now: number, specific: (ssAt: number | null) => Promise<S>, legacy: boolean) {
   const st = await sb.from('competitor_settings').select('series_started_at, channel_limit').eq('site_id', siteId).maybeSingle()
   if (st.error) throw new ObservatoryLoadError('competitor_settings', st.error.code, st.error.message)
   const settings = (st.data as SettingsRow | null) ?? null
   const ssAt = ms(settings?.series_started_at)
-
-  const [channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeats, niches] = await Promise.all([
-    readAll<ChannelRow>('competitor_channels', () => sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).order('id')),
-    readOwnChannels(sb, siteId),
-    readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('is_hidden', false).order('id')),
-    readAll<LegacyChangeRow>('competitor_changes', () => sb.from('competitor_changes').select('id, video_id, change_type, old_title, new_title, detected_at')
-      .eq('site_id', siteId).is('from_version_id', null).in('change_type', ['title', 'description']).order('id')),
+  const [specificRows, legacyChanges, readings, tasks, heartbeats, niches] = await Promise.all([
+    specific(ssAt),
+    legacy ? readAll<LegacyChangeRow>('competitor_changes', () => sb.from('competitor_changes').select('id, video_id, change_type, old_title, new_title, detected_at')
+      .eq('site_id', siteId).is('from_version_id', null).in('change_type', ['title', 'description']).order('id')) : Promise.resolve([] as LegacyChangeRow[]),
     readAll<ReadingRow>('competitor_readings', () => sb.from('competitor_readings').select('id, task_id, task_type, niche, video_id, fmt, model, generated_at, sent, analysis, text, evidence')
       .eq('site_id', siteId).gte('generated_at', new Date(now - READING_DAYS * DAY).toISOString()).order('id')),
     readAll<TaskRow>('youtube_intelligence_tasks', () => sb.from('youtube_intelligence_tasks').select(TASK_COLS)
@@ -561,7 +554,17 @@ export async function loadLiveRows(sb: SupabaseClient, siteId: string, now: numb
     // tabela ausente (a migration ainda não chegou a este banco) → null: valem os dois de fábrica; outro erro é lançado
     readNiches(sb, siteId),
   ])
-  return { settings, channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeat: heartbeats[0] ?? null, niches, seriesStartAt: ssAt != null ? spDayStart(ssAt) : null }
+  return { settings, ssAt, specificRows, legacyChanges, readings, tasks, heartbeat: heartbeats[0] ?? null, niches }
+}
+
+/** `seriesStartAt`: SP midnight of the series start, or null while there is no daily record yet (never the clock). */
+export async function loadLiveRows(sb: SupabaseClient, siteId: string, now: number): Promise<LiveRows & { seriesStartAt: number | null }> {
+  const { settings, ssAt, specificRows: [channels, ownChannels, ownVideos], legacyChanges, readings, tasks, heartbeat, niches } = await readSiteLive(sb, siteId, now, () => Promise.all([
+    readAll<ChannelRow>('competitor_channels', () => sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).order('id')),
+    readOwnChannels(sb, siteId),
+    readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('is_hidden', false).order('id')),
+  ] as const), true)
+  return { settings, channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeat, niches, seriesStartAt: seriesStartAt(ssAt) }
 }
 
 const seriesStartAt = (ssAt: number | null): number | null => (ssAt != null ? spDayStart(ssAt) : null)
@@ -601,34 +604,21 @@ export async function readSiteScope(sb: SupabaseClient, siteId: string, seriesSt
  * that are not in the set).
  */
 export async function loadChannelLiveRows(sb: SupabaseClient, siteId: string, channelId: string, now: number): Promise<(LiveRows & { seriesStartAt: number | null }) | null> {
-  const ch = await sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).eq('id', channelId).maybeSingle()
+  // Postgres compares a uuid without regard to case, a string comparison does not: the own-channel match below needs one spelling
+  const id = channelId.toLowerCase()
+  const ch = await sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).eq('id', id).maybeSingle()
   // a URL id that is not a uuid is not a channel of anybody (Postgres says 22P02): null, never a server error
   if (ch.error && ch.error.code !== INVALID_UUID) throw new ObservatoryLoadError('competitor_channels', ch.error.code, ch.error.message)
   const channel = ch.error ? null : (ch.data as ChannelRow | null) ?? null
-  const own = channel ? null : (await readOwnChannels(sb, siteId)).find(c => c.id === channelId) ?? null
+  const own = channel ? null : (await readOwnChannels(sb, siteId)).find(c => c.id === id) ?? null
   if (!channel && !own) return null
 
-  const st = await sb.from('competitor_settings').select('series_started_at, channel_limit').eq('site_id', siteId).maybeSingle()
-  if (st.error) throw new ObservatoryLoadError('competitor_settings', st.error.code, st.error.message)
-  const settings = (st.data as SettingsRow | null) ?? null
-  const ssAt = ms(settings?.series_started_at)
-
-  const [siteScope, ownVideos, legacyChanges, readings, tasks, heartbeats, niches] = await Promise.all([
+  // competitor_changes has no channel column, so the trade rows are the site's; only a competitor's videos can have them
+  const { settings, ssAt, specificRows: [siteScope, ownVideos], legacyChanges, readings, tasks, heartbeat, niches } = await readSiteLive(sb, siteId, now, ssAt => Promise.all([
     readSiteScope(sb, siteId, seriesStartAt(ssAt), now),
-    own ? readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('channel_id', channelId).eq('is_hidden', false).order('id')) : Promise.resolve([] as OwnVideoRow[]),
-    channel ? readAll<LegacyChangeRow>('competitor_changes', () => sb.from('competitor_changes').select('id, video_id, change_type, old_title, new_title, detected_at')
-      .eq('site_id', siteId).is('from_version_id', null).in('change_type', ['title', 'description']).order('id')) : Promise.resolve([] as LegacyChangeRow[]),
-    readAll<ReadingRow>('competitor_readings', () => sb.from('competitor_readings').select('id, task_id, task_type, niche, video_id, fmt, model, generated_at, sent, analysis, text, evidence')
-      .eq('site_id', siteId).gte('generated_at', new Date(now - READING_DAYS * DAY).toISOString()).order('id')),
-    readAll<TaskRow>('youtube_intelligence_tasks', () => sb.from('youtube_intelligence_tasks').select(TASK_COLS)
-      .eq('site_id', siteId).in('task_type', [...OBS_TASK_TYPES]).gte('requested_at', new Date(now - TASK_DAYS * DAY).toISOString()).order('id')),
-    readAll<HeartbeatRow>('forja_heartbeat', () => sb.from('forja_heartbeat').select('last_poll_at, capabilities').eq('site_id', siteId).order('site_id')),
-    readNiches(sb, siteId),
-  ])
-  return {
-    settings, channels: channel ? [channel] : [], ownChannels: own ? [own] : [], ownVideos, legacyChanges, readings, tasks,
-    heartbeat: heartbeats[0] ?? null, niches, seriesStartAt: ssAt != null ? spDayStart(ssAt) : null, siteScope,
-  }
+    own ? readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('channel_id', id).eq('is_hidden', false).order('id')) : Promise.resolve([] as OwnVideoRow[]),
+  ] as const), channel != null)
+  return { settings, channels: channel ? [channel] : [], ownChannels: own ? [own] : [], ownVideos, legacyChanges, readings, tasks, heartbeat, niches, seriesStartAt: seriesStartAt(ssAt), siteScope }
 }
 
 export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {

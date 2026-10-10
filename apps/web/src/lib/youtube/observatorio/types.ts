@@ -11,9 +11,9 @@ export interface TitleVersion extends VersionBase { text: string }
 export interface ThumbVersion extends VersionBase { key: string; art: ThumbArt | null; blobUrl: string | null; seenSinceArchive?: boolean }
 export interface DescVersion extends VersionBase { lines: string[] | null; hasText: boolean }
 
-/** A stored video without published_at: no age, no multiple. The screen lists it at the end of the channel's videos, with the raw fields. */
+/** A stored video without published_at: no age, no multiple. The screen lists it at the end of the channel's videos, with the raw fields. `title` null = the stored title is missing (never an empty string): the screen says "sem título". */
 export interface UndatedVideo {
-  id: string; ytId: string; title: string; url: string
+  id: string; ytId: string; title: string | null; url: string
   isShort: boolean | null; dur: number | null; views: number | null; likes: number | null; comments: number | null
   pinned: boolean; checkedAt: number | null
 }
@@ -113,6 +113,12 @@ export interface Dataset {
    * so the loader hands the site's. Absent (the whole site was read) = derive it from `videos`, as always.
    */
   lastSeriesAt?: number | null
+  /**
+   * 'canal' = the dataset holds ONE channel of the site (loadChannelDataset); absent = the whole site was read. The functions
+   * that aggregate ACROSS channels (slots, niche, heatmap, insights, the forja's base) throw on a 'canal' dataset instead of
+   * answering with that channel alone (assertSiteScope, series.ts).
+   */
+  scope?: 'canal'
   /** last = newest OK sync of any competitor channel; null when none ever synced. */
   sync: { last: number | null; next: number | null }
   readings: FrozenReading[]; requests: ForjaRequest[]

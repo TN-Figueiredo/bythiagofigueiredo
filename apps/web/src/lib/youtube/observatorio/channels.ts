@@ -5,7 +5,7 @@ import { median } from './stats'
 import { DAY, H, WD } from './time'
 import { changesIn } from './changes'
 import { outliers, median7 } from './outliers'
-import type { EngineCtx, Derived } from './series'
+import { assertSiteScope, type EngineCtx, type Derived } from './series'
 import type { Fmt, ObsChannel, ObsVideo, SyncState } from './types'
 import { BUILTIN_NICHES, tabOrder } from './niche'
 
@@ -162,6 +162,7 @@ export type ChannelStats = ReturnType<typeof channelStats>
 
 /** Competitors only (the own channel never takes a slot); the formula is computeSlots, shared with the actions. */
 export function channelSlots(ctx: EngineCtx, limit: number): ChannelSlots {
+  assertSiteScope(ctx, 'channelSlots')
   return computeSlots(ctx.ds.channels.filter(c => !c.own).length, limit)
 }
 

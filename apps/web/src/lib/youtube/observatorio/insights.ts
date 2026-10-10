@@ -6,7 +6,7 @@ import { median } from './stats'
 import { cadence, channelStats, syncText, type ChannelStats } from './channels'
 import { outliers } from './outliers'
 import { multiplierAt, type MultiplierResult } from './multiplier'
-import { viewsAtIdx, type EngineCtx, type Derived } from './series'
+import { viewsAtIdx, assertSiteScope, type EngineCtx, type Derived } from './series'
 import { DAY } from './time'
 import { THEMES, THEME } from './catalog'
 export { FORMULAS, FORMULA, formulasOf, THEMES, THEME, type Formula, type Theme } from './catalog'
@@ -18,6 +18,7 @@ const p2 = (n: number) => (n < 10 ? '0' : '') + n
 const vids = (ctx: EngineCtx) => ctx.ds.videos as V[]
 const chOf = (ctx: EngineCtx, id: string): Ch | undefined => ctx.CH.get(id)
 const chName = (ctx: EngineCtx, id: string) => chOf(ctx, id)?.name ?? id
+// The newest point of the videos at hand: the site's only when the dataset is the whole site (baseAt and patternsNow refuse a one-channel one).
 const lastIdxOf = (ctx: EngineCtx) => {
   let maxT = -Infinity
   for (const v of ctx.ds.videos) for (const p of v.series) if (p.t > maxT) maxT = p.t
@@ -61,6 +62,7 @@ export interface HeatmapResult {
   thin: Array<{ dow: number; block: number }>
 }
 export function heatmap(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long'): HeatmapResult {
+  assertSiteScope(ctx, 'heatmap')
   const chs = [...ctx.CH.values()]
   const excluded = chs.filter(c => !c.own && inNiche(niche, c) && c.sync.state === 'backfill').map(c => ({ id: c.id, partial: true, fetchedSince: c.videos.length ? c.videos[c.videos.length - 1]!.pub : null,
     reason: c.name + ': ainda buscando vídeos (' + c.sync.backfill!.done + ' de ' + c.sync.backfill!.total + ')' }))
@@ -137,6 +139,7 @@ export function ownChannelOf(ctx: EngineCtx, niche?: NicheScope, explicit?: stri
 }
 /** Canais próprios na ordem R73: inscritos, maior primeiro; depois nome (pt-BR); depois id. niche: undefined | 'todos' → todos; um nicho → os daquele nicho; null → os sem nicho. */
 export function ownChannels(ctx: EngineCtx, niche?: NicheScope | null): Ch[] {
+  assertSiteScope(ctx, 'ownChannels')
   const all = [...ctx.CH.values()].filter(c => c.own)
   const list = niche === undefined || niche === 'todos' ? all : all.filter(c => c.niche === niche)
   return list.sort((a, b) => (b.subs ?? -1) - (a.subs ?? -1) || a.name.localeCompare(b.name, 'pt-BR') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
@@ -144,6 +147,7 @@ export function ownChannels(ctx: EngineCtx, niche?: NicheScope | null): Ch[] {
 /** A referência do nicho (mediana e faixa dos concorrentes), calculada uma vez; não depende de canal próprio. */
 export type NicheRef = { niche: string; fmt: VideoFmt; channels: string[]; threshold: number; fewN: number } & Record<NicheMetricKey, NicheAgg>
 export function nicheRef(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long'): NicheRef {
+  assertSiteScope(ctx, 'nicheRef')
   const chs = [...ctx.CH.values()].filter(c => !c.own && inNiche(niche, c))
   const st = chs.map(c => channelStats(ctx, c.id, fmtId))
   return { niche: niche || 'todos', fmt: fmtId, channels: chs.map(c => c.id), threshold: NICHE_VERDICT_THRESHOLD, fewN: OWN_FEW_N,
@@ -152,6 +156,7 @@ export function nicheRef(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: V
 }
 /** Legacy single-own shape; the key order is the mockup's (parity tests compare the JSON), without threshold/fewN at the top. */
 export function nicheStats(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long', ownId?: string): NicheStats {
+  assertSiteScope(ctx, 'nicheStats')
   const own = ownChannelOf(ctx, niche, ownId)
   const ref = nicheRef(ctx, niche, fmtId)
   return { niche: ref.niche, fmt: ref.fmt, channels: ref.channels, pw: ref.pw, perMilSubs: ref.perMilSubs, typicalMult: ref.typicalMult, engagement: ref.engagement, pctOutliers: ref.pctOutliers,
@@ -169,6 +174,7 @@ export interface OwnNicheStats { ref: NicheRef; owns: OwnRow[] }
 const NICHE_KEYS: readonly NicheMetricKey[] = ['pw', 'perMilSubs', 'typicalMult', 'engagement', 'pctOutliers']
 /** Um bloco por canal próprio, na ordem de `ownIds`; id desconhecido ou de concorrente é ignorado. */
 export function ownNicheStats(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long', ownIds: readonly string[]): OwnNicheStats {
+  assertSiteScope(ctx, 'ownNicheStats')
   const ref = nicheRef(ctx, niche, fmtId), owns: OwnRow[] = []
   for (const id of ownIds) {
     const ch = chOf(ctx, id); if (!ch || !ch.own) continue
@@ -188,6 +194,7 @@ export interface ThemeCoverage { now: ThemeWindowCoverage; prev: ThemeWindowCove
 export type ThemeTrend = ThemeTrendRow[] & { excluded: Array<{ id: string; reason: string }>; channelsCompared: string[]; coverage: ThemeCoverage }
 const winCov = (list: ObsVideo[]): ThemeWindowCoverage => ({ themed: list.filter(v => v.theme != null).length, total: list.length })
 export function themeTrend(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long'): ThemeTrend {
+  assertSiteScope(ctx, 'themeTrend')
   // só compara canais com série nas DUAS janelas (≤ 90 d e 91–180 d)
   const excluded: Array<{ id: string; reason: string }> = [], okCh = new Set<string>()
   ;[...ctx.CH.values()].filter(c => !c.own && inNiche(niche, c)).forEach(c => {
@@ -214,6 +221,7 @@ export function themeTrend(ctx: EngineCtx, niche: NicheScope | undefined, fmtId:
 }
 /** `themed` = own videos in the window that carry a theme (ruling R49: 0 means gaps cannot be computed). */
 export function ownCoverage(ctx: EngineCtx, fmtId: VideoFmt = 'long', ownId?: string): { channel: string | null; fmt: VideoFmt; window: string; n: number; themed: number; byTheme: Record<string, number>; ids: string[] } {
+  assertSiteScope(ctx, 'ownCoverage')
   const own = ownChannelOf(ctx, undefined, ownId)
   const vs = own ? own.videos.filter(v => v.fmt === fmtId && v.ageDays <= 90) : []
   const byTheme: Record<string, number> = {}; vs.forEach(v => { if (v.theme != null) byTheme[v.theme] = (byTheme[v.theme] || 0) + 1 })
@@ -224,6 +232,7 @@ export function ownCoverage(ctx: EngineCtx, fmtId: VideoFmt = 'long', ownId?: st
 export interface BaseVideo { id: string; ch: string; title: string; theme: string | null; formulas: string[]; mult: number; weak: boolean; method: MultiplierResult['method']; n: number }
 export interface Base { fmt: VideoFmt; t: number; asOf: number; niche: NicheScope | undefined; windowDays: number; channels: string[]; excluded: string[]; videos: BaseVideo[] }
 export function baseAt(ctx: EngineCtx, niche: NicheScope | undefined, t: number, windowDays: number, forceChannels?: string[] | null, fmtId: VideoFmt = 'long'): Base {
+  assertSiteScope(ctx, 'baseAt')
   const { clock } = ctx, LAST = lastIdxOf(ctx), tTime = clock.snapTime(t)
   const ageAt = (v: V) => t >= LAST ? v.ageDays : Math.floor((tTime - v.pub) / DAY)
   const all = [...ctx.CH.values()]
@@ -266,6 +275,7 @@ export function analyzePatterns(ctx: EngineCtx, base: { niche: NicheScope | unde
   return { patterns: pats, outliers: outs.map(v => v.id), nOutliers: outs.length, dominantTheme: dominantTheme(outs) }
 }
 export function patternsNow(ctx: EngineCtx, niche: NicheScope | undefined, fmtId: VideoFmt = 'long') {
+  assertSiteScope(ctx, 'patternsNow')
   const base = baseAt(ctx, niche, lastIdxOf(ctx), 182, null, fmtId)
   return Object.assign({ niche, fmt: fmtId, asOf: base.asOf, nVideos: base.videos.length, channels: base.channels, excluded: base.excluded, base }, analyzePatterns(ctx, base))
 }

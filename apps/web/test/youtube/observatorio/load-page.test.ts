@@ -312,12 +312,15 @@ describe('loadChannelDataset — um canal só', () => {
     const { loadChannelDataset, db } = await setup(merged(tabelas(), buildTables({ siteId: 'b', now: NOW, channels: 1, videosPerChannel: 4 })))
     expect(await loadChannelDataset('a', ids.channel('b', 0), NOW)).toBeNull()
     expect(heavy(db)).toBe(0)
+    // a conferência de site vem ANTES da leitura leve do diário: um id de outro site não gasta nem essa ida
+    expect(db.trips).not.toContain('competitor_video_daily')
   })
   it('canal próprio de outro site: null e nenhuma leitura pesada', async () => {
     const { loadChannelDataset, db } = await setup(merged(tabelas(), buildTables({ siteId: 'b', now: NOW, channels: 1, videosPerChannel: 4 })))
     expect(await loadChannelDataset('a', 'b-own', NOW)).toBeNull()
     expect(heavy(db)).toBe(0)
     expect(db.trips).not.toContain('youtube_videos')
+    expect(db.trips).not.toContain('competitor_video_daily')
   })
   it('id que não existe: null', async () => {
     const { loadChannelDataset } = await setup(tabelas())
@@ -395,6 +398,20 @@ describe('loadChannelDataset — valores do site por leitura leve', () => {
     expect(daily[0]!.cols).toBe('snap_date, taken_at, competitor_videos!inner(competitor_channels!inner(site_id))')
     expect(db.trips.filter(t => t === 'competitor_videos')).toHaveLength(1)
   })
+  it('a leitura leve do diário pede UMA linha (range 0..0), nunca o diário do site', async () => {
+    const { loadChannelDataset, db } = await setup(tabelas())
+    await loadChannelDataset('a', ids.channel('a', 1), NOW)
+    // a leitura leve é a única com `!inner`; as leituras pesadas do diário do canal não têm junção
+    const leve = db.selects.map((s, i) => ({ s, i })).filter(x => x.s.table === 'competitor_video_daily' && x.s.cols.includes('!inner'))
+    expect(leve).toHaveLength(1)
+    const idas = db.ranges.filter(r => r.table === 'competitor_video_daily')
+    expect(idas.filter(r => r.range?.[0] === 0 && r.range?.[1] === 0)).toHaveLength(1)
+  })
+  it('o filtro de site da leitura leve só vale com a junção interna: o fake recusa o filtro aninhado sem !inner', async () => {
+    const db = fakeSupabase(tabelas())
+    expect(() => db.client.from('competitor_video_daily').select('snap_date, taken_at').eq('competitor_videos.competitor_channels.site_id', 'a')).toThrow(/needs competitor_videos!inner/)
+    expect(() => db.client.from('competitor_video_daily').select('snap_date, competitor_videos!inner(competitor_channels(site_id))').eq('competitor_videos.competitor_channels.site_id', 'a')).toThrow(/needs competitor_channels!inner/)
+  })
   it('o diário de OUTRO site não vira o "último dia" deste (a leitura leve filtra por site)', async () => {
     const b = buildTables({ siteId: 'b', now: NOW, channels: 1, videosPerChannel: 4 })
     for (const r of b.competitor_video_daily!) r.taken_at = new Date(NOW + 0).toISOString()
@@ -427,6 +444,20 @@ describe('loadChannelDataset — valores do site por leitura leve', () => {
     expect(db.selects.filter(x => x.table === 'competitor_video_daily' && x.cols.includes('!inner'))).toHaveLength(2)
     expect(um.lastSeriesAt).toBe(Math.max(...site.videos.flatMap(v => v.series.map(p => p.t))))
     expect(createObservatory(um).LAST_IDX).toBe(createObservatory(site).LAST_IDX)
+  })
+  it('o resto da data (taken_at fora do dia) também filtra por site: o diário de outro site na mesma data não entra', async () => {
+    const a = tabelas(), today = spDate(NOW)
+    const hoje = a.competitor_video_daily!.filter(r => r.snap_date === today)
+    // o mais novo do site a tem taken_at fora do dia (inutilizável: vale o meio-dia nominal de SP, 15:00Z); os outros leem às 01:00 de SP
+    for (const r of hoje) r.taken_at = today + 'T04:00:00.000Z'
+    hoje[0]!.taken_at = new Date(NOW + 2 * DAY).toISOString()
+    const b = buildTables({ siteId: 'b', now: NOW, channels: 1, videosPerChannel: 4 })
+    // o site b tem registros na MESMA data, depois do meio-dia nominal (17:00 de SP): se entrassem, o instante do site a seria o do b
+    for (const r of b.competitor_video_daily!) if (r.snap_date === today) r.taken_at = today + 'T20:00:00.000Z'
+    const { loadChannelDataset, db } = await setup(merged(a, b))
+    const um = (await loadChannelDataset('a', ids.channel('a', 1), NOW))!
+    expect(db.selects.filter(x => x.table === 'competitor_video_daily' && x.cols.includes('!inner'))).toHaveLength(2) // o ramo "resto da data" rodou
+    expect(um.lastSeriesAt).toBe(Date.parse(today + 'T15:00:00.000Z'))
   })
   it('erro do banco na leitura leve do diário lança (nunca cai no valor do canal)', async () => {
     const { loadChannelDataset } = await setup(tabelas(), { failOn: 'competitor_video_daily' })
@@ -500,7 +531,55 @@ describe('loadChannelDataset — igualdade no nível do motor', () => {
     expect.soft(oneObs.LAST_IDX, 'LAST_IDX').toBe(siteObs.LAST_IDX)
     expect.soft(oneObs.channel('a-own')).toEqual(siteObs.channel('a-own'))
     for (const f of FMTS) expect.soft(oneObs.channelStats('a-own', f)).toEqual(siteObs.channelStats('a-own', f))
+    expect(siteObs.videos.filter(v => v.ch === 'a-own').length).toBeGreaterThan(0) // [] contra [] passaria sem provar nada
     expect.soft(oneObs.videos.filter(v => v.ch === 'a-own')).toEqual(siteObs.videos.filter(v => v.ch === 'a-own'))
+    expect.soft(oneDs.seriesStart, 'ds.seriesStart').toBe(siteDs.seriesStart)
+    expect.soft(oneDs.snap0, 'ds.snap0').toBe(siteDs.snap0)
+    expect.soft(oneDs.dailyCappedFrom, 'ds.dailyCappedFrom').toBe(siteDs.dailyCappedFrom)
+    for (const f of FMTS) expect.soft(oneObs.cadence('a-own', f), 'cadence ' + f).toEqual(siteObs.cadence('a-own', f))
+  })
+})
+
+/**
+ * CONTRATO: o conjunto de UM canal serve ao que a tela do canal calcula sobre o próprio canal; o que agrega ENTRE
+ * canais (vagas, nicho, mapa de calor, tendência, referência do nicho, leitura da forja) daria o número do canal só,
+ * em silêncio. Essas funções lançam quando o conjunto é de escopo 'canal'; no site inteiro seguem iguais.
+ */
+describe('loadChannelDataset — contrato do conjunto de um canal', () => {
+  const agregados: Array<[string, (o: Observatory) => unknown]> = [
+    ['channelSlots', o => o.channelSlots()],
+    ['heatmap', o => o.heatmap('todos')],
+    ['nicheRef', o => o.nicheRef('todos')],
+    ['nicheStats', o => o.nicheStats('todos')],
+    ['ownNicheStats', o => o.ownNicheStats('todos', 'long', ['a-own'])],
+    ['themeTrend', o => o.themeTrend('todos')],
+    ['ownCoverage', o => o.ownCoverage()],
+    ['ownChannels', o => o.ownChannels()],
+    ['patternsNow (usa o último dia do site)', o => o.patternsNow('todos')],
+    ['forja.preview (base do nicho)', o => o.forja.preview('padroes-titulo', 'todos')],
+  ]
+  const par = async () => {
+    const { loadChannelDataset, loadPageDataset } = await setup(buildTables({ siteId: 'a', now: NOW, channels: 3, videosPerChannel: 4 }))
+    return { one: (await loadChannelDataset('a', ids.channel('a', 1), NOW))!, site: await loadPageDataset('a', NOW) }
+  }
+  it("o conjunto de um canal traz scope 'canal' (concorrente e próprio); o do site inteiro não traz o campo", async () => {
+    const { loadChannelDataset, loadPageDataset } = await setup(buildTables({ siteId: 'a', now: NOW, channels: 3, videosPerChannel: 4 }))
+    expect((await loadChannelDataset('a', ids.channel('a', 1), NOW))!.scope).toBe('canal')
+    expect((await loadChannelDataset('a', 'a-own', NOW))!.scope).toBe('canal')
+    expect('scope' in (await loadPageDataset('a', NOW))).toBe(false)
+  })
+  it.each(agregados)('%s lança sobre o conjunto de um canal, com a mensagem que diz o porquê', async (_nome, chama) => {
+    const { one } = await par()
+    expect(() => chama(createObservatory(one))).toThrow(/aggregates across the site's channels/)
+  })
+  it.each(agregados)('%s no site inteiro não lança', async (_nome, chama) => {
+    const { site } = await par()
+    expect(() => chama(createObservatory(site))).not.toThrow()
+  })
+  it('o que é do próprio canal segue funcionando sobre o conjunto de um canal', async () => {
+    const { one } = await par()
+    const o = createObservatory(one), id = ids.channel('a', 1)
+    expect(() => { o.channelStats(id); o.cadence(id); o.channel(id); o.SYNC; o.LAST_IDX; o.tabCounts('todos') }).not.toThrow()
   })
 })
 
@@ -511,6 +590,13 @@ describe('loadChannelLiveRows — id da URL', () => {
       return q
     },
   }) as unknown as SupabaseClient
+  it('id da URL em caixa alta casa com o concorrente e com o canal próprio (a comparação é sem caixa)', async () => {
+    const { loadChannelDataset } = await setup(buildTables({ siteId: 'a', now: NOW, channels: 3, videosPerChannel: 4 }))
+    const comp = (await loadChannelDataset('a', ids.channel('a', 1).toUpperCase(), NOW))!
+    expect(comp.channels.map(c => c.id)).toEqual([ids.channel('a', 1)])
+    const own = (await loadChannelDataset('a', 'A-OWN', NOW))!
+    expect(own.channels.map(c => [c.id, c.own])).toEqual([['a-own', true]])
+  })
   it('id que não é uuid (22P02): null, não erro de servidor', async () => {
     expect(await loadChannelLiveRows(client('22P02'), 'a', 'lixo', NOW)).toBeNull()
   })
