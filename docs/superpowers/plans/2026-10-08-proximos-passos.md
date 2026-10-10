@@ -99,6 +99,19 @@ Ledger com tudo (rulings, achados, esforço): `.superpowers/sdd/2026-10-09-colet
 
 **Pendências com data:** toda manhã depois das 09:00, a execução do cron e relatórios novos; **11/10**, fechar o L1a (item 2 da seção 3) e perguntar se pode apagar as pastas de trabalho do L1a e do L1b.
 
+## 3c. Estado de 09/10 à noite (retomada)
+
+**L2:** código, runbook, revisão final (Opus) e onda de correção fechados; suíte inteira verde (21.795 testes), integração com banco local verde (30 testes). Migration `20261009000001` **aplicada em produção pelo dono em 09/10** (conferido: duas tabelas vazias, função e duas policies). Faltam: push em `staging` (autorização), CI, promoção (autorização), Task 11 (conferência em produção na execução seguinte das 09:00) e o aceite 9 em 48 h. Ledger: `.superpowers/sdd/2026-10-09-coleta-l2-plan/progress.md`.
+
+**Respostas do dono às perguntas abertas (09/10):**
+- **Ordem:** telas antes do A/B Lab.
+- **Remover canal:** nem apagar na hora, nem sete `delete` manuais. O dono quer remoção reversível: o canal fica marcado, um cron apaga tudo depois de um prazo, e até lá dá para desfazer, com o aviso "se não reverter em N dias, perde tudo". A desenhar (emenda ao spec da coleta; prazo, o que a tela mostra, o que o cron apaga e em que ordem) antes do L3.
+- **Lente "Referências"** (vídeos grandes no nicho, em números absolutos, não relativos ao próprio canal): entra no roteiro, depois da fase A das telas.
+- **Aceite do L1b com revogação real:** o dono não lembrava do item; reexplicado, espera resposta.
+- **Mockup:** rodada 9 pedida pelo dono. Tela própria de comparação entre dois canais (`comparar.html`), porque "Comparar com o meu canal" só navegava para o canal próprio.
+
+**Pendência que a revisão final do L2 levantou:** o critério B do alcance não avalia os dois canais reais (estão fora do filtro "publicou nos últimos 90 dias"); é o item 4b da seção 3, ainda sem decisão.
+
 ## 4. Ordem recomendada do trabalho
 
 | # | Etapa | Spec | Depende de |
