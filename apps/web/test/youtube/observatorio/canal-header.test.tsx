@@ -247,6 +247,26 @@ describe('cabeçalho do canal', () => {
     expect(l3.classList.contains('warn')).toBe(true)
   })
 
+  it('o instante da sincronização vai em <time datetime> e a frase lida não muda', () => {
+    const { container, view } = mount()
+    const l3 = container.querySelector('.l3')!, tm = l3.querySelector('time')!
+    expect(tm.getAttribute('datetime')).toBe(view.header.sync.at)
+    expect(tm.textContent).toBe(view.header.sync.atText)
+    expect(l3.textContent).toBe(view.header.sync.text)
+  })
+
+  it('Esc fecha o diálogo de remoção', async () => {
+    const user = userEvent.setup()
+    const a = actions()
+    mount({ act: a })
+    await user.click(screen.getByRole('button', { name: 'Ações do canal' }))
+    await user.click(within(flut()!.querySelector('[role="menu"]') as HTMLElement).getByRole('menuitem', { name: 'Remover canal…' }))
+    expect(screen.getByRole('dialog', { name: /Remover/ })).toBeTruthy()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: /Remover/ })).toBeNull()
+    expect(a.onRemove).not.toHaveBeenCalled()
+  })
+
   it('"Comparar com o meu canal" não existe nesta fase (D4)', () => {
     const { container } = mount()
     expect(screen.queryByText(/Comparar com o meu canal/)).toBeNull()

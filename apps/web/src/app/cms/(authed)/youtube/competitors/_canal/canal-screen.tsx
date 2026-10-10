@@ -259,6 +259,13 @@ export function CanalScreen({ view, niches, canAdmin, actions }: { view: CanalVi
   }
 
   const closeConfirm = () => { setConfirm(false); requestAnimationFrame(() => menuBtn.current?.focus()) }
+  // Esc fecha o diálogo de remoção (aria-modal), como em Canais.
+  useEffect(() => {
+    if (!confirm) return
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') closeConfirm() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  })
   const doRemove = async () => {
     setConfirm(false)
     let res: { ok: boolean; error?: string } = { ok: false }

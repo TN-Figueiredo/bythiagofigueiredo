@@ -5,7 +5,7 @@
  * Nenhum botão preenchido. O menu e o ⓘ são Popover de #flut (nunca filhos desta tela). Dado ausente mostra a frase na
  * classe obs-ch-nm, nunca "0" nem "—"; zero medido é "0". Estado (aberto/fechado, rodando) é da CanalScreen.
  */
-import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/niche'
 import { siteAdminOnlyText } from '@/lib/cms/site-admin-context'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
@@ -101,7 +101,7 @@ export function CanalHeader({ h, nums, syncing, canAdmin, menuBtnRef, onToggleNu
       <div className="lrow">
         <p className={'l3' + tone}>
           {tone ? Icon.warn() : null}
-          <span>{h.sync.text}</span>
+          <span>{syncText(h.sync)}</span>
         </p>
         <div className="ntools">
           <button ref={tipBtn} type="button" className="ibtn" aria-expanded={tip} aria-controls="canal-tip" aria-label="De onde vêm os números do canal" onClick={() => setTip(o => !o)}>
@@ -123,4 +123,11 @@ export function CanalHeader({ h, nums, syncing, canAdmin, menuBtnRef, onToggleNu
       </div>
     </header>
   )
+}
+
+/** A frase de sincronização, com o instante dentro de <time datetime>; o texto lido é o mesmo de sync.text. */
+function syncText(s: CanalHeaderView['sync']): ReactNode {
+  const i = s.at != null && s.atText != null ? s.text.indexOf(s.atText) : -1
+  if (i < 0 || s.at == null || s.atText == null) return s.text
+  return <>{s.text.slice(0, i)}<time dateTime={s.at}>{s.atText}</time>{s.text.slice(i + s.atText.length)}</>
 }

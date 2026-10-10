@@ -90,7 +90,7 @@ const PARES_MEDIA: Array<[string, string, string]> = [
 // declarações; a camada é a única diferença (o z-index numérico de lá vira var(--z-modal) aqui).
 const CNL = '[data-obs-screen="canal"]'
 const DIALOGO: string[] = [
-  ' .btn', ' .btn:hover', ' .btn.danger', ' .btn.danger:hover',
+  ' .sr', ' .btn', ' .btn:hover', ' .btn.danger', ' .btn.danger:hover',
   ' .modal.on', ' .modal .box', ' .modal p', ' .modal .acts',
   ' .modal:has(.fx-remove)', ' .modal .box.fx-remove', ' .modal .fx-remove h2',
   ' .modal .fx-loss-box', ' .modal .fx-loss-box > *', ' .modal .fx-loss-box > .fx-sizer',

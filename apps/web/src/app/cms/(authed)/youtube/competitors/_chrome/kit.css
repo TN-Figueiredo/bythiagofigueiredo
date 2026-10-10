@@ -28,6 +28,7 @@
 /* Diálogo de remoção de canal (D11): as regras de [data-obs-screen="canais"] .modal / .btn que o RemoveDialog usa, copiadas
    para a página do canal. kit-css.test.ts mantém as duas cópias iguais; a única diferença é a camada: o z-index numérico de
    lá (90) aqui é var(--z-modal), da escala de camadas.css. */
+[data-obs-screen="canal"] .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 [data-obs-screen="canal"] .btn{min-height:36px;padding:0 14px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-weight:500;font-size:13.5px;white-space:nowrap;text-decoration:none}
 [data-obs-screen="canal"] .btn:hover{background:var(--surface-hover)}
 [data-obs-screen="canal"] .btn.danger{background:#B42318;border-color:#B42318;color:#fff}

@@ -73,10 +73,13 @@ describe('cabeçalho do canal', () => {
     const { obs, chId } = canalWorld(), h = buildCanalHeader(obs, chId)!
     if (h.counts.pinnedOld === 0) expect(h.sync.text).not.toMatch(/fixado/)
     expect(h.sync.text).toMatch(/^Sincronizado há /)
+    expect(h.sync.at).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/)
+    expect(h.sync.atText).not.toBeNull(); expect(h.sync.text).toContain(h.sync.atText!)
   })
   it('sincronização atrasada e com erro mudam o tom e abrem a faixa', () => {
     const late = canalWorld((ds, id) => { const s = ds.channels.find(x => x.id === id)!.sync; s.state = 'atrasado' })
     const hl = buildCanalHeader(late.obs, late.chId)!
+    expect(hl.sync.at).not.toBeNull(); expect(hl.sync.text).toContain(hl.sync.atText!)
     expect(hl.sync.tone).toBe('warn'); expect(hl.sync.text).toMatch(/^Sincronização atrasada: a última foi /); expect(hl.sync.banner).toMatch(/^Atenção: dados de /)
     const err = canalWorld((ds, id) => { const s = ds.channels.find(x => x.id === id)!.sync; s.state = 'erro'; s.msg = 'quota'; s.errorSince = ds.now - 36e5 })
     const he = buildCanalHeader(err.obs, err.chId)!

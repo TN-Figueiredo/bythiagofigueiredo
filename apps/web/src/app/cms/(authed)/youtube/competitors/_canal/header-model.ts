@@ -21,7 +21,11 @@ export interface CanalHeaderView {
   faixa: NumCell[]
   /** 12, na ordem do spec 5.3 */
   todos: NumCell[]
-  sync: { tone: 'ok' | 'warn' | 'danger'; text: string; banner: string | null }
+  sync: { tone: 'ok' | 'warn' | 'danger'; text: string; banner: string | null
+    /** O instante da última sincronização boa em ISO 8601 (para <time datetime>), ou null se nunca sincronizou */
+    at: string | null
+    /** O trecho de `text` que diz esse instante (o que vai dentro do <time>), ou null */
+    atText: string | null }
   counts: { total: number; tracked: number; pinnedOld: number; older: number; undated: number }
   /** A linha de resultado à direita das abas: "133 vídeos: 61 longos, 71 Shorts, 1 com formato não confirmado." */
   result: string
@@ -203,7 +207,7 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
 
   const s = ch.sync, last = s.last
   const stamp = (t: number) => `${D.dm(t)} ${D.hm(t)}`
-  let tone: CanalHeaderView['sync']['tone'] = 'ok', text: string, banner: string | null = null
+  let tone: CanalHeaderView['sync']['tone'] = 'ok', text: string, banner: string | null = null, atText: string | null = null
   if (s.state === 'backfill') {
     const p = s.backfill
     text = p ? `Sincronizando: ${p.done} de ${p.total} vídeos` : 'Sincronizando os vídeos do canal'
@@ -211,14 +215,17 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
   } else if (s.state === 'erro') {
     tone = 'danger'
     const reason = ch.sync.problemLabel ?? 'erro sem mensagem registrada'
+    atText = last == null ? null : stamp(last)
     text = `Erro: ${reason}. ${last == null ? 'Este canal nunca sincronizou com sucesso.' : `A última sincronização boa foi ${stamp(last)}.`}${tail}`
     banner = `Erro: a última sincronização falhou${s.errorSince != null ? ` em ${stamp(s.errorSince)}` : ''}. ${last == null ? 'Este canal nunca sincronizou com sucesso.' : `Os números são de ${D.dm(last)}.`}`
   } else if (s.state === 'atrasado') {
     tone = 'warn'
+    atText = last == null ? null : stamp(last)
     text = last == null ? `Sincronização atrasada: este canal nunca sincronizou com sucesso${tail}` : `Sincronização atrasada: a última foi ${stamp(last)}${tail}`
     banner = last == null ? 'Atenção: este canal nunca sincronizou com sucesso. A sincronização está atrasada.' : `Atenção: dados de ${stamp(last)}. A sincronização está atrasada.`
   } else {
-    text = last == null ? `Este canal nunca sincronizou com sucesso${tail}` : `Sincronizado ${D.ago(last)} (${stamp(last)})${tail}`
+    atText = last == null ? null : `${D.ago(last)} (${stamp(last)})`
+    text = last == null ? `Este canal nunca sincronizou com sucesso${tail}` : `Sincronizado ${atText}${tail}`
   }
 
   const all = [...vids.map(v => v.isShort), ...undated.map(u => u.isShort)]
@@ -231,6 +238,6 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
     niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null, handle: ch.handle ? ch.handle : null, url: ch.url,
     faixa: [subs, growth30, ritmo, vpd, engajamento, acima2x],
     todos: [trocas30, vpdPorMil, vpdShorts, engShorts, multTipico, maiorMult, ultimoVideo, habito, duracaoMediana, viewsSomadas, medianaViews, tema],
-    sync: { tone, text, banner }, counts, result, backfill: backfill ? s.backfill : null,
+    sync: { tone, text, banner, at: last == null || s.state === 'backfill' ? null : new Date(last).toISOString(), atText }, counts, result, backfill: backfill ? s.backfill : null,
   }
 }
