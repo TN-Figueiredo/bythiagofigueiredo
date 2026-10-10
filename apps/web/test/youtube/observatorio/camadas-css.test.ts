@@ -14,7 +14,7 @@ const numericos = (f: string) => (semComentario(fs.readFileSync(f, 'utf8')).matc
 /** Arquivos que nasceram na fase A: nenhum z-index numérico. A lista cresce a cada fase. */
 const NOVOS = ['_chrome/tokens-telas.css', '_chrome/flut/flut.css', '_chrome/kit.css']
 /** z-index numéricos nos arquivos antigos em 10/10/2026, antes da A0 (34 declarações; a 35ª linha do grep é um comentário). Catraca: só pode cair. */
-const TETO_ANTIGOS = 29 // 34 → 31 na Tarefa 4 (Canais: .tt 40, :has 3, .menu 30 saíram) → 29 na Tarefa 5 (moldura: .obs-ch-pop 40, .fx-hint 30 saíram)
+const TETO_ANTIGOS = 28 // 34 → 31 na Tarefa 4 (Canais: .tt 40, :has 3, .menu 30 saíram) → 29 na Tarefa 5 (moldura: .obs-ch-pop 40, .fx-hint 30 saíram) → 28 na Tarefa 6 (Mudanças: .more-pop 20 saiu)
 
 describe('Observatório · escala de camadas', () => {
   const camadas = semComentario(read('_chrome/camadas.css'))

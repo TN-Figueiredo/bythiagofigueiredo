@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
@@ -28,6 +28,7 @@ function mount(props: Partial<MudancasScreenProps> = {}, p: Record<string, strin
 }
 
 beforeEach(() => { replace.mockReset(); refresh.mockReset(); search = '' })
+afterEach(() => document.getElementById('flut')?.remove())
 
 describe('MudancasScreen', () => {
   it('passes the DOM audits; no filled button (the forja is outlined here)', () => {
@@ -37,6 +38,21 @@ describe('MudancasScreen', () => {
     expect(container.querySelectorAll('.btn-primary,.btn-forja-solid,.forja-solid')).toHaveLength(0)
     expect(forbiddenVocabulary(container)).toEqual([])
     expect(brokenLinks(container)).toEqual([])
+  })
+  it('"Mais filtros" abre em #flut, mantém os controles e Esc devolve o foco ao botão', () => {
+    const { container } = mount()
+    const btn = container.querySelector<HTMLButtonElement>('.filters .more-btn')!
+    expect(btn.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(btn)
+    expect(btn.getAttribute('aria-expanded')).toBe('true')
+    const pop = document.querySelector('#flut .mu-more-pop')!
+    expect(pop.querySelector('#mu-fChannel')).not.toBeNull()
+    expect(pop.querySelectorAll('input[type="checkbox"]')).toHaveLength(2)
+    fireEvent.mouseDown(pop.querySelector('#mu-fChannel')!)
+    expect(document.querySelector('#flut .mu-more-pop')).not.toBeNull()
+    fireEvent.keyDown(pop.querySelector('#mu-fChannel')!, { key: 'Escape' })
+    expect(document.querySelector('#flut .mu-more-pop')).toBeNull()
+    expect(document.activeElement).toBe(btn)
   })
   it('every interactive element has an accessible name', () => {
     const { container } = mount()
