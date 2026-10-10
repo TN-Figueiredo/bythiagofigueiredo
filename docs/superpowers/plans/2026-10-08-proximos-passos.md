@@ -138,6 +138,19 @@ Decisões das rodadas 9 a 12, a levar ao spec v9:
 11. Empate na régua com um lado destacado afasta 2,6 px em vez de empilhar.
 12. Leitura da forja para comparação e para vídeo próprio: cartões de exemplo; são pacotes novos (L4).
 
+## 3e. Onde retomar (escrito em 10/10 de madrugada, fim de sessão por tamanho)
+
+**Spec de telas v9 aprovado pelo dono em 10/10** (`docs/superpowers/specs/2026-10-07-observatorio-canal-video-ui-design.md`, emendas 22 a 46). A fase A virou cinco: **A0** fundação (camada única de dicas e menus, tokens de cor, carregador do canal) → **A1** canal do concorrente → **A2** Histórico com o cartão da forja (risco alto) e **A3** lista de Canais e comparação (independentes entre si) → **A4** canal e vídeo próprio, com o leitor das tabelas do L2 dentro dela. Decisões do dono em 10/10 além das recomendações aceitas: a posição segue o filtro de nicho e é **geral** quando o nicho é "Todos" (ele quer ver o canal mais bem-sucedido entre nichos; a comparação aceita canais de nichos diferentes); a lista de Canais mantém as colunas de produção; "o plano tem de mostrar tudo no fim" (nada do mockup fica sem dado por falta de leitor).
+
+**Próximos passos, em ordem:**
+1. **Task 11 do L2** (só SELECT, depois das 09:00 de 10/10): a execução nova em `yt_own_collection_runs` (`falhas`, `ms_passos` com `alcance` e `diario`, `resumo.alcance.erros` por causa do bytea), linhas em `yt_own_video_daily` e `yt_own_video_reach_daily`; conferir 3 vídeos contra o YouTube Studio. Anotar no ledger do L2. Aceite 9 em 48 h. Depois, fecho do L2 com a lista de rulings do ledger (`.superpowers/sdd/2026-10-09-coleta-l2-plan/progress.md`) e a pergunta se pode apagar a pasta.
+2. **Plano da A0** (superpowers:writing-plans, a partir da seção 4.2 "A0" e da seção 19 do spec), o "pode" do dono e a execução por subagente.
+3. **Um push só**, com autorização do dono: hoje estão só locais `45a9bbfb` (conserto da dica da tabela de Canais), `c0399682` (mockup) e o commit do spec v9. O dono mandou segurar o push até haver mais coisa pronta. O `45a9bbfb` toca o CMS e já teve validação autenticada local.
+4. **11/10:** fechar o L1a (item 2 da seção 3) e perguntar se pode apagar as pastas de trabalho do L1a e do L1b.
+5. Depois das telas: A/B Lab (reapresentar as dez perguntas da seção 8 do spec v6 e pedir para planejar P1, P2 e P3). Desenhar a remoção reversível de canal antes do L3. Lente "Referências" depois da fase A.
+
+**Custo desta sessão (subagentes):** 2,50 milhões de tokens (2,21 milhões em Sonnet, 286 mil em Opus): L2 792 mil, mockup rodadas 9 a 12 1,20 milhão, conserto da dica 149 mil, spec v9 363 mil. Cada rodada de mockup custou de 200 a 400 mil.
+
 ## 4. Ordem recomendada do trabalho
 
 | # | Etapa | Spec | Depende de |
