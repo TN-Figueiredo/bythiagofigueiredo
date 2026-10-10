@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Histórico com muitas versões, na tela (plan 2026-10-07-observatorio-historico-muitas-versoes, Tasks 6 a 8).
 // jsdom has no layout: the timeline is 1100 px wide (the component's default) and the pointer is fine (32 px targets).
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, within, fireEvent, act } from '@testing-library/react'
 import { loadFase4, setThumbs, VID } from './fase4-world'
 import { noJunkText, oneFilledButton, forbiddenVocabulary, brokenLinks } from './audits'
@@ -17,6 +17,9 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams('from=mudancas'),
 }))
 beforeEach(() => replace.mockClear())
+// the tips and group lists live in the one floating layer (#flut, end of <body>): empty it between tests
+afterEach(() => { document.getElementById('flut')?.remove() })
+const flut = () => document.getElementById('flut')
 
 const { ds } = loadFase4(), obs = createObservatory(ds)
 function mount(id: string, p: Record<string, string | undefined> = {}) {
@@ -27,6 +30,8 @@ function mount(id: string, p: Record<string, string | undefined> = {}) {
   return { ...r, view, root, laneOf }
 }
 const key = (el: Element, k: string) => fireEvent.keyDown(el, { key: k })
+/** Born in #flut and only while shown: the tooltip and the list of a group (the group's id is the counter's aria-controls). */
+const inLayer = (ref: string) => ref === 'hv-tip' || ref.startsWith('hv-gp-')
 
 describe('faixas densas (Task 6)', () => {
   it('cada faixa é UMA parada de Tab e tem nome de grupo', () => {
@@ -57,15 +62,15 @@ describe('faixas densas (Task 6)', () => {
     expect(g.getAttribute('aria-label')).toMatch(/^\d+ períodos de thumbnail, de 13\/10 11:00 até .+: A, B, A/)
     fireEvent.focus(g)
     expect(g.getAttribute('aria-expanded')).toBe('false')
-    const tip = root.querySelector('#hv-tip')!
-    expect(tip.classList.contains('show')).toBe(true)
+    const tip = document.getElementById('hv-tip')!
+    expect(tip.parentElement).toBe(flut())
     expect(tip.textContent).toContain('Enter, espaço ou clique abre a lista.')
-    const pop = root.querySelector<HTMLElement>('#' + g.getAttribute('aria-controls'))!
-    expect(pop.hidden).toBe(true)
+    const id = g.getAttribute('aria-controls')!
+    expect(document.getElementById(id)).toBeNull()
     fireEvent.click(g)
     expect(g.getAttribute('aria-expanded')).toBe('true')
-    expect(pop.hidden).toBe(false)
-    expect(tip.classList.contains('show')).toBe(false)
+    expect(document.getElementById(id)!.parentElement).toBe(flut())
+    expect(document.getElementById('hv-tip')).toBeNull()
     fireEvent.click(g)
     expect(g.getAttribute('aria-expanded')).toBe('false')
   })
@@ -74,7 +79,7 @@ describe('faixas densas (Task 6)', () => {
     const g = laneOf('thumb').querySelector<HTMLElement>('.mkg')!
     expect(g.textContent).toMatch(/^\d+ (trocas|tr\.)$/)
     fireEvent.click(g)
-    const first = laneOf('thumb').querySelector<HTMLElement>('#' + g.getAttribute('aria-controls') + ' button')!
+    const first = document.querySelector<HTMLElement>('#' + g.getAttribute('aria-controls') + ' button')!
     first.focus()
     key(first, 'Escape')
     expect(g.getAttribute('aria-expanded')).toBe('false')
@@ -86,7 +91,7 @@ describe('faixas densas (Task 6)', () => {
     const { laneOf } = mount(VID.many)
     const g = laneOf('thumb').querySelector<HTMLElement>('.mkg')!
     fireEvent.click(g)
-    const rows = [...laneOf('thumb').querySelectorAll<HTMLElement>('#' + g.getAttribute('aria-controls') + ' button')]
+    const rows = [...document.querySelectorAll<HTMLElement>('#' + g.getAttribute('aria-controls') + ' button')]
     rows[0]!.focus(); key(rows[0]!, 'ArrowDown')
     expect(document.activeElement).toBe(rows[1])
     key(rows[1]!, 'ArrowUp'); expect(document.activeElement).toBe(rows[0])
@@ -95,7 +100,7 @@ describe('faixas densas (Task 6)', () => {
     const { root, laneOf } = mount(VID.many)
     const g = laneOf('thumb').querySelector<HTMLElement>('.mkg')!
     fireEvent.click(g)
-    const row = laneOf('thumb').querySelector<HTMLElement>('#' + g.getAttribute('aria-controls') + ' button[data-pair]')!
+    const row = document.querySelector<HTMLElement>('#' + g.getAttribute('aria-controls') + ' button[data-pair]')!
     fireEvent.click(row)
     const sel = root.querySelector('#hv-compare [data-k="' + row.dataset.pair + '"]')!
     expect(sel.getAttribute('aria-pressed') === 'true' || sel.getAttribute('aria-selected') === 'true').toBe(true)
@@ -207,7 +212,7 @@ describe('resumo por imagem e grade recolhida (Task 7)', () => {
     const { root, laneOf } = mount(VID.many)
     const g = laneOf('thumb').querySelector<HTMLElement>('.cgrp')!
     fireEvent.click(g)
-    const item = laneOf('thumb').querySelector<HTMLElement>('#' + g.getAttribute('aria-controls') + ' button[data-go]')!
+    const item = document.querySelector<HTMLElement>('#' + g.getAttribute('aria-controls') + ' button[data-go]')!
     const card = root.querySelector<HTMLElement>('[data-ver="' + item.dataset.go + '"]')!
     expect(card.hidden).toBe(true)
     fireEvent.click(item)
@@ -332,8 +337,70 @@ describe('a tela inteira, nos cinco vídeos do mockup (Task 8)', () => {
       }
       expect(new Set([...root.querySelectorAll('[id]')].map(e => e.id)).size).toBe(root.querySelectorAll('[id]').length)
       for (const el of root.querySelectorAll('[aria-controls],[aria-labelledby],[aria-describedby]')) for (const a of ['aria-controls', 'aria-labelledby', 'aria-describedby'])
-        for (const ref of (el.getAttribute(a) ?? '').split(' ').filter(Boolean)) expect([a, ref, !!root.querySelector('#' + CSS.escape(ref))]).toEqual([a, ref, true])
+        for (const ref of (el.getAttribute(a) ?? '').split(' ').filter(Boolean)) expect([a, ref, !!root.querySelector('#' + CSS.escape(ref)) || inLayer(ref)]).toEqual([a, ref, true])
       unmount()
     }
+  })
+})
+
+describe('Histórico · flutuantes na camada única (A0.1)', () => {
+  it('a dica do marcador mora em #flut com o mesmo id e some no blur', () => {
+    const { laneOf } = mount(VID.few)
+    const mk = laneOf('title').querySelector<HTMLElement>('.mk') ?? laneOf('thumb').querySelector<HTMLElement>('.mk')!
+    expect(mk.getAttribute('aria-describedby')).toBe('hv-tip')
+    expect(document.getElementById('hv-tip')).toBeNull()
+    fireEvent.focus(mk)
+    const tip = document.getElementById('hv-tip')!
+    expect(tip.parentElement).toBe(flut())
+    expect(tip.getAttribute('role')).toBe('tooltip')
+    expect(tip.querySelector('h4')!.textContent!.length).toBeGreaterThan(3)
+    fireEvent.blur(mk)
+    expect(document.getElementById('hv-tip')).toBeNull()
+  })
+  it('a lista de um grupo abre em #flut no clique, nunca no foco; as setas andam nas linhas; Esc devolve o foco ao contador', () => {
+    const { laneOf } = mount(VID.many)
+    const g = laneOf('thumb').querySelector<HTMLButtonElement>('.gbtn')!
+    g.focus(); fireEvent.focus(g)
+    expect(document.querySelector('#flut .hv-gpop')).toBeNull()
+    fireEvent.click(g)
+    const pop = document.querySelector<HTMLElement>('#flut .hv-gpop')!
+    expect(pop.id).toBe(g.getAttribute('aria-controls'))
+    expect(pop.getAttribute('role')).toBe('group')
+    const rows = pop.querySelectorAll<HTMLButtonElement>('button')
+    expect(rows.length).toBeGreaterThan(1)
+    rows[0]!.focus()
+    expect(document.querySelector('#flut .hv-gpop')).not.toBeNull() // the focus inside the list does not close it
+    key(rows[0]!, 'ArrowDown')
+    expect(document.activeElement).toBe(rows[1])
+    key(rows[1]!, 'Escape')
+    expect(document.querySelector('#flut .hv-gpop')).toBeNull()
+    expect(document.activeElement).toBe(g)
+  })
+  it('o foco que anda de uma linha para outra não fecha a lista; o foco que sai dela fecha', () => {
+    const { laneOf } = mount(VID.many)
+    const g = laneOf('thumb').querySelector<HTMLButtonElement>('.mkg')!
+    fireEvent.click(g)
+    const rows = document.querySelectorAll<HTMLButtonElement>('#' + g.getAttribute('aria-controls') + ' button')
+    rows[0]!.focus(); rows[1]!.focus()
+    expect(g.getAttribute('aria-expanded')).toBe('true')
+    act(() => { laneOf('title').querySelector<HTMLElement>('.ln-i')!.focus() })
+    expect(g.getAttribute('aria-expanded')).toBe('false')
+  })
+  it('escolher uma linha do grupo seleciona a troca e fecha a lista', () => {
+    const { root, laneOf } = mount(VID.many)
+    fireEvent.click(laneOf('thumb').querySelector<HTMLButtonElement>('.mkg')!)
+    const linha = document.querySelector<HTMLButtonElement>('#flut .hv-gpop button[data-pair]')!
+    fireEvent.click(linha)
+    expect(document.querySelector('#flut .hv-gpop')).toBeNull()
+    const sel = root.querySelector('#hv-compare [data-k="' + linha.dataset.pair + '"]')!
+    expect(sel.getAttribute('aria-pressed') === 'true' || sel.getAttribute('aria-selected') === 'true').toBe(true)
+  })
+  it('Esc de qualquer lugar fecha a lista aberta', () => {
+    const { laneOf } = mount(VID.many)
+    const g = laneOf('thumb').querySelector<HTMLButtonElement>('.mkg')!
+    fireEvent.click(g)
+    expect(document.querySelector('#flut .hv-gpop')).not.toBeNull()
+    key(document.body, 'Escape')
+    expect(g.getAttribute('aria-expanded')).toBe('false')
   })
 })

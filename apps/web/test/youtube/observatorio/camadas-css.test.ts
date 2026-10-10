@@ -14,7 +14,7 @@ const numericos = (f: string) => (semComentario(fs.readFileSync(f, 'utf8')).matc
 /** Arquivos que nasceram na fase A: nenhum z-index numérico. A lista cresce a cada fase. */
 const NOVOS = ['_chrome/tokens-telas.css', '_chrome/flut/flut.css', '_chrome/kit.css']
 /** z-index numéricos nos arquivos antigos em 10/10/2026, antes da A0 (34 declarações; a 35ª linha do grep é um comentário). Catraca EXATA: cada migração baixa o número e o teto baixa junto, na mesma mudança. */
-const TETO_ANTIGOS = 26 // 34 → 31 na Tarefa 4 (Canais: .tt 40, :has 3, .menu 30 saíram) → 29 na Tarefa 5 (moldura: .obs-ch-pop 40, .fx-hint 30 saíram) → 28 na Tarefa 6 (Mudanças: .more-pop 20 saiu) → 26 na Tarefa 7 (Outliers: .obs-out-tip 20 e a dica do .obs-out-ib 10 saíram)
+const TETO_ANTIGOS = 22 // 34 → 31 na Tarefa 4 (Canais: .tt 40, :has 3, .menu 30 saíram) → 29 na Tarefa 5 (moldura: .obs-ch-pop 40, .fx-hint 30 saíram) → 28 na Tarefa 6 (Mudanças: .more-pop 20 saiu) → 26 na Tarefa 7 (Outliers: .obs-out-tip 20 e a dica do .obs-out-ib 10 saíram) → 22 na Tarefa 8 (Histórico: .tip 10, .gwrap.open 20 duas vezes e .gpop 21 saíram)
 
 describe('Observatório · escala de camadas', () => {
   const camadas = semComentario(read('_chrome/camadas.css'))
@@ -46,6 +46,21 @@ describe('Observatório · flutuantes de Canais não dependem da ordem de carga 
     expect(canais).not.toMatch(/#flut \.cn-tt\s*\{/)
     expect(canais).not.toMatch(/#flut \.cn-menu\s*\{/)
     expect(canais).toMatch(/\[data-theme="light"\] #flut \.obs-fl-pop\.cn-menu\s*\{/) // stays above the dark rule (3 classes vs 2)
+  })
+})
+
+describe('Observatório · flutuantes do Histórico não dependem da ordem de carga do CSS', () => {
+  const hist = semComentario(read('_historico/historico.css'))
+  it('a regra principal de cada uma tem duas classes e as variáveis da tela, que não chegam a #flut, são definidas nos dois temas', () => {
+    expect(hist).toMatch(/#flut \.obs-fl-tip\.hv-tip\s*\{/)
+    expect(hist).toMatch(/#flut \.obs-fl-pop\.hv-gpop\s*\{/)
+    expect(hist).not.toMatch(/(^|\n)#flut \.hv-tip\s*\{/)
+    expect(hist).not.toMatch(/(^|\n)#flut \.hv-gpop\s*\{/)
+    for (const v of ['--shadow-pop', '--well', '--del-fg', '--t-title', '--t-thumb', '--t-desc', '--f4-row']) expect(hist, v).toMatch(new RegExp('#flut \\.hv-tip,#flut \\.hv-gpop\\s*\\{[^}]*' + v + '\\s*:'))
+    for (const v of ['--shadow-pop', '--well', '--del-fg', '--t-title', '--t-thumb', '--t-desc']) expect(hist, v + ' (claro)').toMatch(new RegExp('\\[data-theme="light"\\] #flut \\.hv-tip,\\[data-theme="light"\\] #flut \\.hv-gpop\\s*\\{[^}]*' + v + '\\s*:'))
+  })
+  it('nenhuma regra das caixas fica presa à tela: a dica e a lista não são filhas de [data-obs-screen]', () => {
+    expect(hist).not.toMatch(/\[data-obs-screen="historico"\] \.(tip|gpop)\b/)
   })
 })
 

@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
@@ -16,6 +16,9 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/cms/youtube/competitors/video/x',
   useSearchParams: () => new URLSearchParams(''),
 }))
+
+// the tips and group lists live in the one floating layer (#flut, end of <body>): empty it between tests
+afterEach(() => { document.getElementById('flut')?.remove() })
 
 const oracle = loadOracle()
 const obs = createObservatory(datasetFromOracle(oracle))
@@ -86,7 +89,7 @@ describe('HistoricoScreen', () => {
     // ONE counter now (no marker is pushed away from its instant any more); each change is a row of its list.
     const th = root.querySelector('[data-lane="thumb"]') as HTMLElement
     fireEvent.click(within(th).getByRole('button', { name: '2 trocas de thumbnail entre 13/10 09:40 e 13/10 20:15' }))
-    expect(within(th).getByRole('button', { name: /^A → B, 13\/10 09:40/ })).toBeTruthy()
+    expect(within(document.getElementById('flut')!).getByRole('button', { name: /^A → B, 13\/10 09:40/ })).toBeTruthy()
     expect(within(th).getByRole('button', { name: 'Thumbnail trocada em 18/10 09:14' })).toBeTruthy()
     expect(root.querySelectorAll('[data-lane="title"] .win').length).toBe(2)
   })
@@ -95,11 +98,11 @@ describe('HistoricoScreen', () => {
     const { root } = mount(PICK.full)
     const mk = within(root.querySelector('[data-lane="title"]') as HTMLElement).getByRole('button', { name: 'Título trocado entre 11/10 06h e 12h' })
     fireEvent.focus(mk)
-    const tip = root.querySelector('#hv-tip')!
-    await waitFor(() => expect(tip.classList.contains('show')).toBe(true))
+    const tip = await waitFor(() => { const t = document.getElementById('hv-tip'); expect(t).not.toBeNull(); return t! })
+    expect(tip.parentElement!.id).toBe('flut')
     expect(tip.querySelector('h4')!.textContent).toBe('Título: T1 → T2')
     fireEvent.blur(mk)
-    await waitFor(() => expect(tip.classList.contains('show')).toBe(false))
+    await waitFor(() => expect(document.getElementById('hv-tip')).toBeNull())
   })
 
   it('choosing a change shows its comparison (chips are toggle buttons)', () => {

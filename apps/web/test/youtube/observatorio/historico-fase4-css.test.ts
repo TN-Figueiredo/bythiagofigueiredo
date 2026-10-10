@@ -21,7 +21,9 @@ describe('historico.css e mudancas.css depois da Fase 4', () => {
     const used = tsx('_historico')
     for (const c of NEW) {
       expect([c, new RegExp('[\'" ]' + c + '[\'" ]').test(used)], 'classe sem uso: ' + c).toEqual([c, true])
-      expect([c, new RegExp('\\.' + c + '(?![\\w-])').test(hist)], 'classe sem regra: ' + c).toEqual([c, true])
+      // the group list lives in #flut now: its rule is written on .hv-gpop (the markup keeps both classes)
+      const rx = c === 'gpop' ? '\\.hv-gpop' : '\\.' + c
+      expect([c, new RegExp(rx + '(?![\\w-])').test(hist)], 'classe sem regra: ' + c).toEqual([c, true])
     }
   })
   it('toda regra da Fase 4 fica dentro da tela: nenhum seletor solto', () => {

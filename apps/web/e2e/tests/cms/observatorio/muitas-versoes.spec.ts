@@ -59,19 +59,22 @@ for (const width of WIDTHS) {
     for (const [n, ticks] of groups) expect(ticks).toBe(n)
   })
 
-  test(`${width} px: cada faixa é uma parada de Tab; o grupo não abre no foco, abre com Enter, cabe na linha do tempo e fecha com Esc`, async ({ page }) => {
+  test(`${width} px: cada faixa é uma parada de Tab; o grupo não abre no foco, abre com Enter, a lista cabe inteira na janela e fecha com Esc`, async ({ page }) => {
     await open(page, width)
     expect(await page.locator(`${S} .lanes [tabindex="0"]`).count()).toBe(3)
     const g = page.locator(`${S} [data-lane="thumb"] .gbtn`).first()
     await g.focus()
     await expect(g).toHaveAttribute('aria-expanded', 'false')
-    await expect(page.locator(S + ' #hv-tip')).toHaveClass(/show/)
+    // the tooltip and the list live in the floating layer (#flut), outside the screen's root
+    await expect(page.locator('#flut #hv-tip')).toBeVisible()
     await page.keyboard.press('Enter')
     await expect(g).toHaveAttribute('aria-expanded', 'true')
-    const pop = page.locator('#' + await g.getAttribute('aria-controls'))
-    const p = await box(pop), w = await box(page.locator(S + ' .tl-wrap'))
-    expect(p.x).toBeGreaterThanOrEqual(w.x - 1)
-    expect(p.x + p.width).toBeLessThanOrEqual(w.x + w.width + 1)
+    const pop = page.locator('#flut #' + await g.getAttribute('aria-controls'))
+    const p = await box(pop), win = page.viewportSize()!
+    expect(p.x).toBeGreaterThanOrEqual(0)
+    expect(p.x + p.width).toBeLessThanOrEqual(win.width + 1)
+    expect(p.y).toBeGreaterThanOrEqual(0)
+    expect(p.y + p.height).toBeLessThanOrEqual(win.height + 1)
     await page.keyboard.press('Escape')
     await expect(g).toHaveAttribute('aria-expanded', 'false')
     await expect(g).toBeFocused()
@@ -108,7 +111,7 @@ for (const width of WIDTHS) {
     // the first thumbnail period (index 0) is hidden while the grid is collapsed
     const first = page.locator(`${S} [data-lane="thumb"] [data-k="thumb:0"], ${S} [data-lane="thumb"] .cgrp`).first()
     await first.click()
-    const go = page.locator(S + ' [data-lane="thumb"] .gpop:not([hidden]) [data-go]').first()
+    const go = page.locator('#flut .gpop [data-go]').first()
     if (await go.count()) await go.click()
     const card = page.locator(S + ' #hv-film .fcard.target')
     await expect(card).toBeVisible()
