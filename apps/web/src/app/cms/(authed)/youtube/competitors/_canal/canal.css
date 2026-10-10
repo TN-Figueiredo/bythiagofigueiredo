@@ -3,6 +3,9 @@
    #flut, fora da tela, e levam #flut na frente. Hex e rgba literais; nenhum color-mix e nenhum z-index numérico.
    Texto de corpo no mínimo de 12 px. As regras do diálogo de remoção estão em _chrome/kit.css. */
 [data-obs-screen="canal"]{
+  /* a barra de topo da casca do CMS (52 px, presa, acima de tudo) cobre o alto da área que rola: o que a página prende ou rola até o alto se afasta dela;
+     --obs-top soma a ela a barra de controles presa (--obs-sticky-h, escrita por quem mede) */
+  --obs-topbar-h:52px;--obs-top:calc(var(--obs-sticky-h,0px) + var(--obs-topbar-h));
   --travel:var(--viagem);--travel-subtle:rgba(91,191,138,.13);--ai:var(--ia);--ai-subtle:rgba(110,168,254,.14);
   color:var(--text);font:14px/1.45 var(--font-sans),Inter,system-ui,sans-serif;padding:0 0 72px;min-width:0
 }
@@ -128,12 +131,12 @@
 /* ---------------------------------------------------------------- aba Vídeos (spec 5.4 a 5.6; mockup canal.css r3 a r12) */
 [data-obs-screen="canal"] .cv-sec{margin-top:6px}
 /* o foco nunca fica sob a barra presa: todo alvo da grade se afasta de --obs-sticky-h (medido por ResizeObserver; 0 fora da condição) */
-[data-obs-screen="canal"] :is(.cv-card,.cv-lnk,.cv-abtn,.cv-amp,.cv-div,.cv-more .pri,.cv-skip,#cv-fim){scroll-margin-top:calc(var(--obs-sticky-h,0px) + 12px)}
+[data-obs-screen="canal"] :is(.cv-card,.cv-lnk,.cv-abtn,.cv-amp,.cv-div,.cv-more .pri,.cv-skip,#cv-fim){scroll-margin-top:calc(var(--obs-top) + 12px)}
 [data-obs-screen="canal"] :is(.cv-lnk,.cv-abtn,.cv-amp,.cv-seg button,.cv-sel select,.cv-skip,.cv-search .clr,.cv-more .pri):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 /* controles: uma linha; presa só com largura >= 768 px E altura >= 600 px */
 [data-obs-screen="canal"] .cv-ctl{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;padding:8px 0;background:var(--bg)}
-@media (min-width:768px) and (min-height:600px){[data-obs-screen="canal"] .cv-ctl{position:sticky;top:0;z-index:var(--z-grudado)}}
+@media (min-width:768px) and (min-height:600px){[data-obs-screen="canal"] .cv-ctl{position:sticky;top:var(--obs-topbar-h);z-index:var(--z-grudado)}}
 [data-obs-screen="canal"] .cv-seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:7px;background:var(--surface);padding:2px;gap:2px}
 [data-obs-screen="canal"] .cv-seg button{min-height:28px;min-width:28px;justify-content:center;padding:0 10px;border:0;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer;font:400 13px var(--font-sans),system-ui,sans-serif;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 [data-obs-screen="canal"] .cv-seg button:hover{color:var(--text)}
@@ -156,7 +159,7 @@
 [data-obs-screen="canal"] .cv-skip{position:absolute;left:-9999px}
 [data-obs-screen="canal"] .cv-skip:focus{position:static;display:inline-flex;margin:0 0 8px}
 /* presa sob a barra de controles: quem fixa um cartão rolado para baixo vê o limite/falha; só var(--z-*), fundo literal (sem color-mix) */
-[data-obs-screen="canal"] .cv-pinmsgs{display:grid;gap:8px;margin:0 0 10px;position:sticky;top:calc(var(--obs-sticky-h,0px) + 8px);z-index:var(--z-grudado);background:var(--bg)}
+[data-obs-screen="canal"] .cv-pinmsgs{display:grid;gap:8px;margin:0 0 10px;position:sticky;top:calc(var(--obs-top) + 8px);z-index:var(--z-grudado);background:var(--bg)}
 
 /* grade: 5 colunas em 1440 px, gap 14; cartão de 224 x 247 px, todos da mesma altura */
 [data-obs-screen="canal"] .cv-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;list-style:none;margin:0;padding:0}
@@ -231,9 +234,11 @@
 [data-obs-screen="canal"] .cv-foot{margin:18px 0 0;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:92ch;border-top:1px solid var(--border-subtle);padding-top:10px}
 
 /* ---------------------------------------------------------------- vista Lista (spec 5.1; mockup canal.css "Lista"): linha de 56 px, thumbnail de 96 px */
-[data-obs-screen="canal"] :is(.cv-tl,.cv-lst th button){scroll-margin-top:calc(var(--obs-sticky-h,0px) + 48px)}
+[data-obs-screen="canal"] :is(.cv-tl,.cv-lst th button){scroll-margin-top:calc(var(--obs-top) + 48px)}
 [data-obs-screen="canal"] :is(.cv-tl,.cv-lst th button):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-[data-obs-screen="canal"] .cv-tw{min-width:0}
+/* Entre 821 e ~990 px de janela as nove colunas (~885 a 961 px) não cabem no que sobra da casca (~717 a 886 px): o invólucro rola a tabela por dentro
+   (contain:inline-size tira a largura da tabela do cálculo dos ancestrais, senão a PÁGINA ganhava rolagem horizontal). Abaixo de 820 px vira pilha. */
+[data-obs-screen="canal"] .cv-tw{min-width:0;overflow-x:auto;contain:inline-size;position:relative}
 [data-obs-screen="canal"] table.cv-lst{width:100%;border-collapse:collapse;font-size:13px}
 [data-obs-screen="canal"] .cv-lst th{font:500 12.5px var(--font-sans),system-ui,sans-serif;color:var(--muted);text-align:left;padding:0 8px;height:34px;border-bottom:1px solid var(--border);white-space:nowrap}
 [data-obs-screen="canal"] .cv-lst th.r,[data-obs-screen="canal"] .cv-lst td.r{text-align:right}
@@ -261,6 +266,11 @@
 [data-obs-screen="canal"] .cv-lst td.a{width:36px;padding:0 2px}
 [data-obs-screen="canal"] .cv-lst tr.cv-grp th{height:40px;font:600 13px var(--font-sans),system-ui,sans-serif;color:var(--text);border-bottom:1px solid var(--border);vertical-align:bottom;padding-bottom:6px}
 [data-obs-screen="canal"] .cv-lst tr.cv-grp th small{font:400 12.5px var(--font-sans),system-ui,sans-serif;color:var(--muted);margin-left:8px}
+
+/* abaixo de 768 px a casca põe uma barra de navegação presa no pé da janela (~56 px): o foco que desce não para sob ela */
+@media (max-width:767px){
+  [data-obs-screen="canal"] :is(.cv-card,.cv-lnk,.cv-abtn,.cv-amp,.cv-div,.cv-more .pri,.cv-skip,#cv-fim,.cv-tl,.cv-lst th button){scroll-margin-bottom:76px}
+}
 
 /* alvos de 44 px sob toque e em viewport estreita (<= 900 px) */
 @media (max-width:900px){
@@ -295,6 +305,9 @@
   [data-obs-screen="canal"] .cv-lst tbody+tbody{margin-top:10px}
   [data-obs-screen="canal"] .cv-lst tr.cv-row{background:var(--surface);border:1px solid var(--border-subtle);border-radius:8px;padding:8px 10px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 10px;position:relative}
   [data-obs-screen="canal"] .cv-lst tr.cv-grp{grid-column:1/-1}
+  /* a nota do divisor quebra linha (o th é nowrap na tabela): sem isso ela passava de 400 px e a Lista ganhava rolagem horizontal em 390 px */
+  [data-obs-screen="canal"] .cv-lst tr.cv-grp th{white-space:normal}
+  [data-obs-screen="canal"] .cv-lst tr.cv-grp th small{display:block;margin-left:0}
   [data-obs-screen="canal"] .cv-lst tr.cv-grp th{height:auto;border:0;padding:6px 0 0}
   [data-obs-screen="canal"] .cv-lst td{height:auto;border:0;padding:2px 0;white-space:normal;text-align:left!important;grid-column:1/-1;font-size:13px}
   [data-obs-screen="canal"] .cv-lst td[data-label]::before{display:inline;content:attr(data-label) ": ";color:var(--muted);font-family:var(--font-sans),system-ui,sans-serif;font-weight:400}
@@ -323,7 +336,7 @@
 
 /* ---------------------------------------------------------------- aba Trocas (spec 5.7; mockup canal.css "ABA TROCAS", rodadas 3 e 4) */
 [data-obs-screen="canal"] .ct-sec{margin-top:6px}
-[data-obs-screen="canal"] :is(.ct-h2,.ct-go,.ct-rowgo,.ct-card h3 a,.ct-mud .lk,.ct-chip .lk){scroll-margin-top:calc(var(--obs-sticky-h,0px) + 12px)}
+[data-obs-screen="canal"] :is(.ct-h2,.ct-go,.ct-rowgo,.ct-card h3 a,.ct-mud .lk,.ct-chip .lk){scroll-margin-top:calc(var(--obs-topbar-h) + 12px)}
 [data-obs-screen="canal"] :is(.ct-go,.ct-rowgo,.ct-card h3 a,.ct-mud .lk,.ct-chip .lk,.ct-h2):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 [data-obs-screen="canal"] .ct-h2{font:600 15px/1.3 var(--font-sans),system-ui,sans-serif;margin:14px 0 8px}
 [data-obs-screen="canal"] .ct-intro{margin:0 0 10px;font-size:13px;color:var(--muted);max-width:90ch}
@@ -379,7 +392,7 @@
 
 /* ---------------------------------------------------------------- aba Leitura (a leitura do nicho, rotulada; mockup canal.css .forja .ask) */
 [data-obs-screen="canal"] .cl-sec{margin-top:6px;max-width:860px}
-[data-obs-screen="canal"] .cl-h2{font:600 15px/1.3 var(--font-sans),system-ui,sans-serif;margin:14px 0 8px;scroll-margin-top:calc(var(--obs-sticky-h,0px) + 12px)}
+[data-obs-screen="canal"] .cl-h2{font:600 15px/1.3 var(--font-sans),system-ui,sans-serif;margin:14px 0 8px;scroll-margin-top:calc(var(--obs-topbar-h) + 12px)}
 [data-obs-screen="canal"] .cl-h2:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 [data-obs-screen="canal"] .cl-vazio{margin:0;padding:12px 0;color:var(--text)}
 [data-obs-screen="canal"] .cl-ask{display:flex;gap:6px 12px;align-items:center;flex-wrap:wrap}

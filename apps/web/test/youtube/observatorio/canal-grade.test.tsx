@@ -391,7 +391,7 @@ describe('Capas: o menu "Ações do vídeo"', () => {
     const css = fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_canal/canal.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
     const regra = /\.cv-pinmsgs\{([^}]*)\}/.exec(css)![1]!
     expect(regra).toMatch(/position:sticky/)
-    expect(regra).toMatch(/top:calc\(var\(--obs-sticky-h,0px\) \+ \d+px\)/)
+    expect(regra).toMatch(/top:calc\(var\(--obs-top\) \+ \d+px\)/)   // --obs-top = a barra de topo da casca + a de controles presa
     expect(regra).toMatch(/z-index:var\(--z-grudado\)/)
     expect(regra).not.toMatch(/z-index:\s*\d/)
     expect(regra).not.toMatch(/background:[^;]*color-mix/)

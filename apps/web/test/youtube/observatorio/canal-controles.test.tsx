@@ -203,7 +203,7 @@ describe('controles da aba Vídeos', () => {
     const fs = await import('node:fs'), path = await import('node:path')
     const css = fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_canal/canal.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
     expect(css).toMatch(/@media \(min-width:768px\) and \(min-height:600px\)\{[^}]*\.cv-ctl\{[^}]*position:sticky[^}]*z-index:var\(--z-grudado\)/)
-    expect(css).toMatch(/scroll-margin-top:calc\(var\(--obs-sticky-h(?:,0px)?\) \+ 12px\)/)
+    expect(css).toMatch(/scroll-margin-top:calc\(var\(--obs-top\) \+ 12px\)/)   // --obs-top = var(--obs-sticky-h) + a barra de topo da casca
     // fora da condição a barra não é presa
     expect(css.replace(/@media \(min-width:768px\) and \(min-height:600px\)\{[\s\S]*?\}\}/, '')).not.toMatch(/\.cv-ctl\{[^}]*position:sticky/)
   })

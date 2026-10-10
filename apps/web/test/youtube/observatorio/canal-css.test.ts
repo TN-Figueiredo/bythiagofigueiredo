@@ -55,4 +55,26 @@ describe('canal.css', () => {
     expect(css).toMatch(/flex:0 0 33\.333%/)
     expect(css).toMatch(/flex:0 0 50%/)
   })
+  it('a barra de controles presa e todo alvo de foco se afastam da barra de topo da casca (52 px, presa, acima de tudo)', () => {
+    expect(css).toMatch(/--obs-topbar-h:52px/)
+    expect(css).toMatch(/--obs-top:calc\(var\(--obs-sticky-h,0px\) \+ var\(--obs-topbar-h\)\)/)
+    expect(css).toMatch(/\.cv-ctl\{position:sticky;top:var\(--obs-topbar-h\)/)
+    // nenhum afastamento usa só a barra de controles: sem a de topo o alvo para sob ela (achado da prova no navegador)
+    const soSticky = [...css.matchAll(/scroll-margin-top:calc\(var\(--obs-sticky-h,0px\)/g)]
+    expect(soSticky).toHaveLength(0)
+    expect(css).toMatch(/\.cv-pinmsgs\{[^}]*top:calc\(var\(--obs-top\) \+ 8px\)/)
+    // Trocas e Leitura não têm barra de controles: só a de topo
+    expect(css).toMatch(/\.ct-h2[^{]*\{scroll-margin-top:calc\(var\(--obs-topbar-h\) \+ 12px\)\}/)
+    expect(css).toMatch(/\.cl-h2\{[^}]*scroll-margin-top:calc\(var\(--obs-topbar-h\) \+ 12px\)/)
+  })
+  it('abaixo de 768 px o foco que desce não para sob a barra de navegação presa do pé', () => {
+    expect(css).toMatch(/@media \(max-width:767px\)\{[^}]*scroll-margin-bottom:76px/)
+  })
+  it('a tabela larga da Lista rola por dentro do invólucro e a página não ganha rolagem horizontal', () => {
+    expect(css).toMatch(/\.cv-tw\{min-width:0;overflow-x:auto;contain:inline-size;position:relative\}/)
+  })
+  it('na pilha a nota do divisor quebra linha (o th é nowrap na tabela)', () => {
+    expect(css).toMatch(/tr\.cv-grp th\{white-space:normal\}/)
+    expect(css).toMatch(/tr\.cv-grp th small\{display:block;margin-left:0\}/)
+  })
 })
