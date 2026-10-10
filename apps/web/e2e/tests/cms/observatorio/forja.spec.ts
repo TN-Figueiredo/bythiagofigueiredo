@@ -1,6 +1,6 @@
 // apps/web/e2e/tests/cms/observatorio/forja.spec.ts
-// Fidelity of the forja (Task 35) against the forja states of canais.html (the 03/10 one, N own channels), mudancas.html, outliers.html, insights.html
-// and historico-video.html. The moldura's selector drawer (moldura-forja.html FLOWS, :742) is the chrome's demo, not a
+// Fidelity of the forja (Task 35) against the forja states of mudancas.html, outliers.html, insights.html and historico-video.html
+// (the Canais drawer's states retired in A1 task 9, see below). The moldura's selector drawer (moldura-forja.html FLOWS, :742) is the chrome's demo, not a
 // product surface (ruling R59): it is not ported, and the per-screen request states below cover the same 9 states.
 // Ruling R54: Task 35 wrote this spec skipped; Task 35b enabled it. Both viewports and both themes come from runFidelity.
 // The status lines are the engine's own texts on both sides (statusLabel/statusLines/statusText): `textAllow` stays
@@ -8,7 +8,7 @@
 import type { RequestState } from '../../../../src/lib/youtube/observatorio/types'
 import { runFidelity, OUTLIERS_TARGET_EXEMPT, type Allow, type ScreenSpec } from './fidelity'
 import { SEAL_R57 } from './seal'
-import { CANAIS_TABLE_EXCLUDE, BALD_ROW_SUFFIX_F11, HANDLE_R61, COMPOSE_R67, LATEST_READING_R67, F4_HISTORICO_EXCLUDE, F4_MUDANCAS_EXCLUDE_IMPL } from './allowances'
+import { COMPOSE_R67, LATEST_READING_R67, F4_HISTORICO_EXCLUDE, F4_MUDANCAS_EXCLUDE_IMPL } from './allowances'
 
 const DIR = 'docs/superpowers/mockups/2026-10-02-observatorio/'
 /**
@@ -24,18 +24,11 @@ const r67 = (s: RequestState): { textAllow?: Allow[] } =>
   s === 'publicado' ? { textAllow: [...COMPOSE_R67, ...LATEST_READING_R67] } : s === 'recusado (dado velho)' ? { textAllow: COMPOSE_R67 } : {}
 /** The 9 request states, in the mockup's order (REQ_SCENARIOS keys; engine REQUEST_STATES). */
 export const REQUEST_STATES: readonly RequestState[] = ['na fila', 'trabalhando', 'publicado', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia', 'falhou', 'recusado (dado velho)']
-/** Canais: the channel drawer's forja box × the 9 request states (resumo-trocas of the open channel's niche). */
-export const CANAIS_FORJA: ScreenSpec = {
-  // the N-own-channels canais.html of 03/10, with two own channels on both sides (?owns=2 / ownPreset '2')
-  name: 'forja-canais', mockupFile: 'docs/superpowers/mockups/2026-10-03-observatorio-seus-canais/canais.html', route: '/cms/youtube/competitors',
-  mockThumbSelector: '.thumb', implThumbSelector: '[data-thumb], [data-thumb-missing]',
-  compareSelector: { mockup: '#screen, #drawer, #dlgs', impl: '[data-obs-screen="canais"]' },
-  textAllow: [...NOT_STORED_FU8, BALD_ROW_SUFFIX_F11],
-  exclude: { mockup: [...CANAIS_TABLE_EXCLUDE.mockup, ...HANDLE_R61.mockup!], impl: CANAIS_TABLE_EXCLUDE.impl },
-  // the request state, then the drawer of Matt Wolfe (the mockup's forja box lives in the channel drawer; below 1280 px the
-  // open drawer is modal and makes the mockup's state bar inert, so the state is picked first)
-  states: REQUEST_STATES.map(s => ({ label: 'canais · ' + s, mockupClicks: [s, 'Matt Wolfe'], seed: { forjaState: s, forjaType: 'resumo-trocas', ownPreset: '2' as const }, mockupQuery: '?owns=2', query: '?channel=<channel:matt-wolfe>', ...r67(s) })),
-}
+/*
+ * Canais: the channel drawer's forja box x the 9 request states lived here (CANAIS_FORJA, Matt Wolfe's drawer). A competitor
+ * has a page of its own since A1 task 9 and the drawer only serves an own channel, which has no forja box: the 9 states retired
+ * (plan decision D8). The forja's Canais bar (Todos) is covered by canais.spec.ts.
+ */
 
 /** Mudanças: the forja card of the summary box × the 9 request states. */
 export const MUDANCAS_FORJA: ScreenSpec = {
@@ -90,6 +83,6 @@ export const HISTORICO_FORJA: ScreenSpec = {
   exclude: { mockup: ['svg text.vl', ...F4_HISTORICO_EXCLUDE.mockup], impl: ['svg text.vl', ...F4_HISTORICO_EXCLUDE.impl] },
 }
 
-export const FORJA_SPECS: readonly ScreenSpec[] = [CANAIS_FORJA, MUDANCAS_FORJA, OUTLIERS_FORJA, INSIGHTS_FORJA, HISTORICO_FORJA]
+export const FORJA_SPECS: readonly ScreenSpec[] = [MUDANCAS_FORJA, OUTLIERS_FORJA, INSIGHTS_FORJA, HISTORICO_FORJA]
 
 for (const s of FORJA_SPECS) runFidelity(s)

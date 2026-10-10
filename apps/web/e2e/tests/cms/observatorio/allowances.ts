@@ -35,9 +35,6 @@ export const OWN_DRAWER_R79: Required<Exclude> = {
   mockup: ['#dMeta > span:last-child'],
   impl: ['.cn-drawer .meta > span:last-child'],
 }
-/** R61 (FU-6): competitor_channels has no handle column — the drawer's handle link only. */
-export const HANDLE_R61: Exclude = { mockup: ['#dMeta a.handle'] }
-
 /**
  * R67 (C12): the mockup's hand-written scenario sentence vs the engine's general composition of the same requests
  * (dados.js:1556 vs 1563, ported faithfully) — the product wins. Exact sentence pairs, and the state chip next to them.

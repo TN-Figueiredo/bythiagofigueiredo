@@ -349,7 +349,12 @@ test.describe('teclado', () => {
   })
 
   test('menu da linha de Canais: Esc fecha o menu e a gaveta aberta fica', async ({ page }) => {
-    await page.locator('[data-obs-screen="canais"] .nmbtn[data-open]').first().click()
+    // a gaveta só abre para o canal próprio (o concorrente tem página): é o botão, não o link. O canal próprio é de Viagem: em Todos ele aparece
+    // no alto, e no nicho salvo por outra prova (IA) ele sairia da tabela
+    await page.goto('/cms/youtube/competitors?niche=todos')
+    await page.locator('[data-obs-screen="canais"] tbody tr').first().waitFor()
+    await page.waitForLoadState('networkidle')
+    await page.locator('[data-obs-screen="canais"] button.nmbtn[data-open]').first().click()
     await expect(page.locator('.cn-drawer')).toBeVisible()
     await page.locator('[data-obs-screen="canais"] [data-menu]').first().click()
     await expect(page.locator('#flut .cn-menu')).toBeVisible()

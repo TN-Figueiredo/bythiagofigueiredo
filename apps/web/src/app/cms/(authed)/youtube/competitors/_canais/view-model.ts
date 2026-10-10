@@ -57,6 +57,8 @@ export interface CanaisRow {
   growth: string; growthTitle: string
   sync: { label: string; phrase: string | null; state: SyncState }
   own: boolean
+  /** A página do canal para um concorrente; null para canal próprio, que continua abrindo o painel lateral. */
+  href: string | null
   /** Language mark of an own channel; null for competitors and when the site has a single own channel. */
   lang: LangChip | null
   color: string; ini: string; avatar: string | null; subs: string; subsTip: string; url: string; handle: string; backfill: boolean; paused: boolean
@@ -322,7 +324,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     const sync = syncCell(c, S)
     const outN = obs.outliers({ channel: c.id, fmt, includeOwn: c.own }).count
     return {
-      id: c.id, name: c.name, niche: c.niche, own: c.own, lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
+      id: c.id, name: c.name, niche: c.niche, own: c.own, href: c.own ? null : obs.link.canal(c.id), lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
       outliers: { n: outN, href: obs.link.outliers({ channel: c.id, fmt }) },
       changes: { n: c.own ? 0 : obs.changesIn({ channel: c.id }).length, href: obs.link.mudancas({ channel: c.id }) },
       growth: growth.kind === 'na' ? growth.text : growth.big, growthTitle: growth.kind === 'ok' ? growth.title : growth.kind === 'na' ? growth.title : growth.cap,

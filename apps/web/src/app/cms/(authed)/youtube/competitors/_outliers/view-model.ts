@@ -21,6 +21,8 @@ export type Tier = 'mid' | 'high' | 'top'
 
 export interface OutlierCardView {
   id: string; main: boolean; title: string; channel: string; channelFull: string
+  /** The channel's page, with `from` and `back` of this list; null for an own channel (it has no page). */
+  channelHref: string | null
   niche: Niche | null; nicheLabel: string | null
   age: string; ageTitle: string; ageShort: string
   mult: string; multLabel: string; method: string; tier: Tier | null; weak: boolean; stale: boolean; neutral: boolean
@@ -608,6 +610,7 @@ function buildCard(obs: Observatory, it: OutlierItem, o: { main: boolean; flat: 
   const phaseId = it.phase.id as PhaseKey
   return {
     id: v.id, main: o.main, title: v.title, channel: c.name, channelFull: c.fullName || c.name,
+    channelHref: c.own ? null : obs.link.canal(c.id, { from: 'outliers', back: o.back }),
     niche: v.niche, nicheLabel: v.niche ? obs.nicheLabel(v.niche) : null,
     age: F.age(v), ageShort: F.age(v).replace('há ', ''), ageTitle: 'Publicado em ' + D.dmy(v.pub) + ' às ' + D.hm(v.pub) + ' · dia ' + v.ageDays + ' de vida',
     mult: F.mult(m.value), multLabel, method: m.method ?? '', tier, weak: it.weak, stale, neutral,

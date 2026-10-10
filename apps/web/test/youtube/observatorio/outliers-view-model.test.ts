@@ -140,6 +140,22 @@ describe('Outliers view model', () => {
       expect(c.historyHref).toContain('from=outliers')
       expect(c.url).toBe(obs.video(c.id)!.url)
     })
+    it('o nome do canal de um cartão é link para a página do canal, com from e back da tela', () => {
+      const v = buildOutliersView(obs, { niche: 'ia', fmt: 'short', ages: '0-30' })
+      const cards = v.groups.flatMap(g => g.cards)
+      expect(cards.length).toBeGreaterThan(0)
+      for (const c of cards) {
+        const ch = obs.video(c.id)!.ch
+        const u = new URL(c.channelHref!, 'http://x')
+        expect(u.pathname).toBe('/cms/youtube/competitors/canal/' + ch)
+        expect(u.searchParams.get('from')).toBe('outliers')
+        // o back é o mesmo que o link do Histórico leva: voltar cai nesta lista, com os filtros
+        const back = new URL(c.historyHref, 'http://x').searchParams.get('back')!
+        expect(u.searchParams.get('back')).toBe(back)
+        expect(back.startsWith('?')).toBe(true)
+        expect(back).toContain('fmt=short')
+      }
+    })
     it('a channel with a stale sync loses the tier colour and says why', () => {
       const c = buildOutliersView(obs, {}).groups.flatMap(g => g.cards).find(x => x.id === 'paddy-bkk-hotel')!
       expect(c.tier).toBeNull()

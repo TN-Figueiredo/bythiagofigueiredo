@@ -26,6 +26,21 @@ describe('Mudanças view model', () => {
   })
 })
 
+describe('Mudanças view model — link do canal', () => {
+  it('o nome do canal de um cartão/linha é link para a página do canal, com from e back da tela', () => {
+    const w = buildMudancasView(obs, { niche: 'ia', type: 'title' }, new Set())
+    expect(w.heroes.length).toBeGreaterThan(0)
+    for (const h of w.heroes) {
+      const u = new URL(h.video.channelHref!, 'http://x')
+      expect(u.pathname).toBe('/cms/youtube/competitors/canal/' + obs.video(h.video.id)!.ch)
+      expect(u.searchParams.get('from')).toBe('mudancas')
+      const back = new URL(h.video.historyHref, 'http://x').searchParams.get('back')!
+      expect(u.searchParams.get('back')).toBe(back)
+      expect(back).toContain('type=title')
+    }
+  })
+})
+
 describe('Mudanças view model — extra rules', () => {
   it('every hero carries "Não prova causa" and an inconclusive verdict demotes the number', () => {
     for (const h of v.heroes) {

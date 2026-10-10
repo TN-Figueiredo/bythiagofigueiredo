@@ -61,7 +61,7 @@ export function VideoGroup({ heroes, swipeOf, onSwipe, shared }: { heroes: Hero[
         <ChannelAvatar src={v.avatar} ini={v.ini} color={v.color} ink={v.ink} />
         <div className="who">
           <div className="ch">
-            <b>{v.channel}</b>
+            <b>{v.channelHref ? <Link className="chlink" href={v.channelHref} prefetch={false}>{v.channel}</Link> : v.channel}</b>
             {v.nicheLabel ? <span className={'tag ' + (v.niche ?? '')}>{v.nicheLabel}</span> : null}
             {revTag ? <span className="tag rv">reversão</span> : null}
           </div>

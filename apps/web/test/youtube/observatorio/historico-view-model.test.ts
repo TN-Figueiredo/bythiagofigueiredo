@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { loadOracle, datasetFromOracle, createTestObservatory } from './oracle'
+import { loadOracle, loadOracleOwns, datasetFromOracle, createTestObservatory } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildHistoricoView } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
 import { buildMudancasView, mudancasList, effectView } from '@/app/cms/(authed)/youtube/competitors/_mudancas/view-model'
@@ -96,6 +96,47 @@ describe('historico view model', () => {
     expect(v.crumbs.sub!.text).toBe(obs.channel(obs.video(PICK.full)!.ch)!.name)
     expect(v.pager!.position).toMatch(/^vídeo \d+ de \d+ de Matt Wolfe \(longos acompanhados, do mais novo ao mais antigo\)$/)
     expect(v.pager!.next ?? v.pager!.prev).toContain('from=canais')
+  })
+
+  describe('item do canal na trilha (a página do canal substitui o painel)', () => {
+    const CH = (id: string) => obs.video(id)!.ch
+    const ownVideo = (() => { const o = createObservatory(datasetFromOracle(loadOracleOwns('2'))); const v = o.videos.find(x => o.channel(x.ch)!.own && x.fmt === 'long')!; return { o, id: v.id, ch: v.ch } })()
+    it('vindo do canal (canal=<id>): o item do canal volta à página do canal com o estado de back', () => {
+      const back = '?tab=trocas'
+      const v = buildHistoricoView(obs, PICK.full, { from: 'canais', canal: CH(PICK.full), back })
+      expect(v.crumbs.sub!.href).toBe(obs.link.canal(CH(PICK.full)) + back)
+      expect(v.crumbs.sub!.href).toBe('/cms/youtube/competitors/canal/matt-wolfe?tab=trocas')
+      const g = buildHistoricoView(obs, PICK.full, { from: 'canais', canal: CH(PICK.full), back: '?fmt=shorts&sort=views&from=outliers' })
+      expect(g.crumbs.sub!.href).toBe('/cms/youtube/competitors/canal/matt-wolfe?fmt=shorts&sort=views&from=outliers')
+    })
+    it('vindo do canal sem back: a página do canal pura', () => {
+      expect(buildHistoricoView(obs, PICK.full, { from: 'canais', canal: CH(PICK.full) }).crumbs.sub!.href).toBe(obs.link.canal(CH(PICK.full)))
+    })
+    it('vindo de Mudanças, Outliers ou Insights: o item do canal aponta para a página do canal, sem back', () => {
+      for (const from of ['mudancas', 'outliers', 'insights']) {
+        const v = buildHistoricoView(obs, PICK.full, { from, back: '?niche=ia' })
+        expect(v.crumbs.sub, from).toEqual({ text: obs.channel(CH(PICK.full))!.name, href: obs.link.canal(CH(PICK.full)) })
+      }
+      expect(buildHistoricoView(obs, PICK.full, {}).crumbs.sub!.href).toBe(obs.link.canal(CH(PICK.full)))
+      // from=canais por um link antigo (sem canal=): também sem back
+      expect(buildHistoricoView(obs, PICK.full, { from: 'canais', back: '?niche=ia' }).crumbs.sub!.href).toBe(obs.link.canal(CH(PICK.full)))
+    })
+    it('canal= de outro canal não vira back do canal deste vídeo', () => {
+      expect(buildHistoricoView(obs, PICK.full, { from: 'canais', canal: 'luke-damant', back: '?tab=trocas' }).crumbs.sub!.href).toBe(obs.link.canal(CH(PICK.full)))
+    })
+    it('vídeo de canal próprio: o item do canal continua abrindo o painel de Canais', () => {
+      const v = buildHistoricoView(ownVideo.o, ownVideo.id, { from: 'canais' })
+      expect(v.crumbs.sub!.href).toBe(ownVideo.o.link.canais({ channel: ownVideo.ch }))
+      // e de outras origens um canal próprio não ganha item de canal (não há página dele)
+      expect(buildHistoricoView(ownVideo.o, ownVideo.id, { from: 'mudancas' }).crumbs.sub).toBeNull()
+    })
+    it('troca= na URL é ignorado sem erro (a chegada pela troca é da A2)', () => {
+      const a = buildHistoricoView(obs, PICK.full, { from: 'canais', canal: CH(PICK.full), back: '?tab=trocas' })
+      const b = buildHistoricoView(obs, PICK.full, { from: 'canais', canal: CH(PICK.full), back: '?tab=trocas', troca: 'qualquer-coisa' })
+      expect(b.state).toBe('full')
+      expect(b.crumbs).toEqual(a.crumbs)
+      expect(b.pager).toEqual(a.pager)
+    })
   })
 
   it('an unknown id is the not-found state, never a throw', () => {
