@@ -5,7 +5,7 @@
  */
 import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
 import { useId, useRef, useState, type ReactNode } from 'react'
-import { HoverTip } from '../_chrome/flut/flut'
+import { HoverTip, useTipShown } from '../_chrome/flut/flut'
 import type { CadenceCell, CanaisRow, GrowthCell, OutCell, SwapCell, SyncCell, Thumb, VpdCell } from './view-model'
 import { NicheSelect } from './niche-editor'
 import type { Niche } from '@/lib/youtube/observatorio/types'
@@ -38,11 +38,14 @@ export function Ic({ n, spin }: { n: IconName; spin?: boolean }) {
 export function Tip({ label, children, left }: { label: string; children: ReactNode; left?: boolean }) {
   const id = useId()
   const el = useRef<HTMLSpanElement>(null)
-  const [show, setShow] = useState(false)
+  // hover and focus are separate: the words stay while either one holds (as before the layer: :hover, :focus and :focus-within)
+  const [hov, setHov] = useState(false), [foc, setFoc] = useState(false)
+  const show = hov || foc
+  const shown = useTipShown(show) // the id is named only while the box is really in the document (an open popover hides it)
   return (
-    <span ref={el} className="tip" tabIndex={0} role="button" aria-label={label} aria-describedby={show ? id : undefined}
-      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)} onFocus={() => setShow(true)} onBlur={() => setShow(false)}
-      onKeyDown={e => { if (e.key === 'Escape' && show) { e.stopPropagation(); setShow(false) } }}>
+    <span ref={el} className="tip" tabIndex={0} role="button" aria-label={label} aria-describedby={shown ? id : undefined}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} onFocus={() => setFoc(true)} onBlur={() => setFoc(false)}
+      onKeyDown={e => { if (e.key === 'Escape' && show) { e.stopPropagation(); setHov(false); setFoc(false) } }}>
       <HoverTip show={show} anchor={() => el.current} id={id} className="cn-tt" pref="baixo" align={left ? 'fim' : 'meio'} maxW={270}>{children}</HoverTip>
     </span>
   )

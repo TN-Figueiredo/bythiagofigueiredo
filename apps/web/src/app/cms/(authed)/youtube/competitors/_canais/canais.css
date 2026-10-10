@@ -3,7 +3,7 @@
    ([data-theme="light"]), like chrome.css. Additions for the production layout are at the end. */
 /* tokens of this screen; the shared ones come from the chrome */
 [data-obs-screen="canais"]{
-  --danger-text:#F26B6B;--warning-subtle:var(--warn-subtle);
+  --warning-subtle:var(--warn-subtle);
   --mid:var(--tier-mid);--high:var(--tier-high);--top:var(--tier-top);
   --travel:var(--viagem);--travel-subtle:rgba(91,191,138,.13);--ai:var(--ia);--ai-subtle:rgba(110,168,254,.14);
   --youtag-bg:rgba(255,130,64,.12);--youtag-text:#FF9A60;--youtag-border:transparent;
@@ -12,7 +12,7 @@
 }
 [data-theme="light"] [data-obs-screen="canais"]{
   --info:#0B6177;
-  --danger-text:#B42318;--travel-subtle:rgba(17,105,47,.08);--ai-subtle:rgba(29,78,216,.07);
+  --travel-subtle:rgba(17,105,47,.08);--ai-subtle:rgba(29,78,216,.07);
   --youtag-bg:transparent;--youtag-text:#9A3A12;--youtag-border:#9A3A12;
   --you:#9A3A12;--you-row:#FAF0E6;--you-cell:#F8EBDF;
   --strip-long:#3A3127;--strip-short:#A86E22;--strip-empty:#968872;
@@ -198,9 +198,7 @@
 [data-obs-screen="canais"] .pbar i{display:block;height:100%;background:var(--info)}
 [data-obs-screen="canais"] .more{width:32px;height:32px;min-width:32px;flex:none;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center}
 [data-obs-screen="canais"] .more:hover{border-color:var(--border-strong);color:var(--text)}
-/* --danger-text is a token of the screen, not of [data-obs]: the menu no longer lives inside the screen, so it defines it here */
-#flut .obs-fl-pop.cn-menu{--danger-text:#F26B6B;min-width:230px;padding:4px}
-[data-theme="light"] #flut .obs-fl-pop.cn-menu{--danger-text:#B42318}
+#flut .obs-fl-pop.cn-menu{min-width:230px;padding:4px}
 #flut .cn-menu button{display:flex;width:100%;text-align:left;gap:8px;align-items:center;border:0;background:transparent;padding:0 10px;min-height:34px;border-radius:5px;cursor:pointer;font-size:13px}
 #flut .cn-menu button:hover,#flut .cn-menu button:focus-visible{background:var(--surface-hover);outline:none}
 #flut .cn-menu button.del{color:var(--danger-text)}

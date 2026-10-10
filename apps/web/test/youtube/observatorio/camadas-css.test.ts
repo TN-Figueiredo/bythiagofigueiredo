@@ -59,7 +59,12 @@ describe('Observatório · flutuantes de Canais não dependem da ordem de carga 
     expect(canais).toMatch(/#flut \.obs-fl-pop\.cn-menu\s*\{/)
     expect(canais).not.toMatch(/#flut \.cn-tt\s*\{/)
     expect(canais).not.toMatch(/#flut \.cn-menu\s*\{/)
-    expect(canais).toMatch(/\[data-theme="light"\] #flut \.obs-fl-pop\.cn-menu\s*\{/) // stays above the dark rule (3 classes vs 2)
+  })
+  it('--danger-text vem de [data-obs] (chrome.css), nos dois temas: o menu em #flut não o redefine', () => {
+    const chrome = semComentario(read('_chrome/chrome.css'))
+    expect(chrome).toMatch(/(^|\n)\[data-obs\]\{[^}]*--danger-text:#F26B6B/)
+    expect(chrome).toMatch(/\[data-theme="light"\] \[data-obs\]\{[^}]*--danger-text:#B42318/)
+    expect(canais).not.toMatch(/#flut[^{]*\{[^}]*--danger-text\s*:/)
   })
 })
 

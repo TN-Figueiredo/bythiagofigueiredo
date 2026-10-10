@@ -170,6 +170,29 @@ describe('Canais · row menu ⋯', () => {
     fora.remove()
   })
 
+  it('clicar no ⋯ com o menu aberto fecha (o gatilho conta como dentro: não fecha e reabre)', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(more())
+    expect(menu()).not.toBeNull()
+    await user.click(more())
+    expect(menu()).toBeNull()
+    expect(more()).toHaveAttribute('aria-expanded', 'false')
+  })
+  it('Tab num item fecha o menu pelo foco que sai (o ⋯ recebe o foco primeiro, depois o controle seguinte)', async () => {
+    const user = userEvent.setup()
+    mount()
+    more().focus()
+    await user.keyboard('{Enter}')
+    expect(menu()!.contains(document.activeElement)).toBe(true)
+    expect(fireEvent.keyDown(document.activeElement!, { key: 'Tab' })).toBe(true)
+    expect(document.activeElement).toBe(more())
+    const seguinte = document.createElement('button'); document.body.appendChild(seguinte)
+    act(() => { seguinte.focus() })
+    expect(menu()).toBeNull()
+    seguinte.remove()
+  })
+
   it('the cards view anchors the same way', async () => {
     const user = userEvent.setup()
     mount({ layout: 'cards' })
