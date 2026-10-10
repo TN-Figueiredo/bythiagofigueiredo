@@ -59,7 +59,7 @@ afterEach(() => { vi.restoreAllMocks(); document.getElementById('flut')?.remove(
 
 const more = () => screen.getByRole('button', { name: 'Mais ações para Luke Damant' })
 const menu = () => screen.queryByRole('menu', { name: 'Ações do canal' })
-/** The menu's own position, as the layer wrote it (the surface has no size in jsdom, so left/top are the anchor's right/bottom + gap). */
+/** The menu's own position, as the layer wrote it (the surface has no size in jsdom, so left/top are the anchor's right/bottom + gap; the row menu's gap is 4 px, as before the layer). */
 const at = () => { const m = menu()!; return { left: parseFloat(m.style.left), top: parseFloat(m.style.top) } }
 
 describe('Canais · row menu ⋯', () => {
@@ -102,15 +102,15 @@ describe('Canais · row menu ⋯', () => {
     const user = userEvent.setup()
     mount()
     await user.click(more())
-    expect(at()).toMatchObject({ left: btn.left + btn.width, top: btn.top + btn.height + 6 })
+    expect(at()).toMatchObject({ left: btn.left + btn.width, top: btn.top + btn.height + 4 })
     // the drawer opened: the table shrank and the button moved left
     btn = { left: 1287, top: 524, width: 32, height: 32 }
     act(() => { window.dispatchEvent(new Event('resize')) })
-    expect(at()).toMatchObject({ left: 1287 + 32, top: 524 + 32 + 6 })
+    expect(at()).toMatchObject({ left: 1287 + 32, top: 524 + 32 + 4 })
     // the page scrolled
     btn = { left: 1287, top: 300, width: 32, height: 32 }
     act(() => { fireEvent.scroll(document) })
-    expect(at()).toMatchObject({ left: 1287 + 32, top: 300 + 32 + 6 })
+    expect(at()).toMatchObject({ left: 1287 + 32, top: 300 + 32 + 4 })
   })
 
   it('closes when its button leaves the viewport', async () => {
@@ -175,6 +175,6 @@ describe('Canais · row menu ⋯', () => {
     mount({ layout: 'cards' })
     const b = document.querySelector<HTMLElement>('article.card[data-id="luke-damant"] [data-menu]')!
     await user.click(b)
-    expect(at()).toMatchObject({ left: btn.left + btn.width, top: btn.top + btn.height + 6 })
+    expect(at()).toMatchObject({ left: btn.left + btn.width, top: btn.top + btn.height + 4 })
   })
 })

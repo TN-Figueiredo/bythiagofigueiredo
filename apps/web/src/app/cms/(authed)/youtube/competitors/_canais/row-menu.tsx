@@ -36,7 +36,7 @@ export function RowMenu({ row, onClose, onOpen, onSync, onYoutube, onCopy, onRem
   }
 
   return (
-    <Popover open anchor={() => rowMenuButton(row.id)} onClose={() => onClose(false)} className="cn-menu" role="menu" label="Ações do canal" align="fim">
+    <Popover open anchor={() => rowMenuButton(row.id)} onClose={() => onClose(false)} className="cn-menu" role="menu" label="Ações do canal" align="fim" gap={4}>
       <div ref={ref} data-menu-for={row.id} onKeyDown={onKey}>
         <button type="button" role="menuitem" onClick={onOpen}>Abrir detalhes</button>
         <button type="button" role="menuitem" disabled={row.backfill} title={row.backfill ? 'Ainda buscando vídeos: a sincronização só depois da busca' : undefined} onClick={onSync}>Sincronizar só este canal</button>

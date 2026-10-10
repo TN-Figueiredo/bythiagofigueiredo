@@ -52,7 +52,7 @@
 [data-obs-screen="canais"] .quota{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:2px}
 [data-obs-screen="canais"] .tip{position:relative;display:inline-grid;place-items:center;width:32px;height:32px;margin:-8px -8px -8px -6px;cursor:help;flex:none;background:none;border:0;padding:0;vertical-align:middle}
 [data-obs-screen="canais"] .tip::before{content:"?";display:grid;place-items:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--border-strong);color:var(--muted);font-size:10px;font-weight:700}
-#flut .cn-tt{width:270px}
+#flut .obs-fl-tip.cn-tt{width:270px}
 
 [data-obs-screen="canais"] .toolbar2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 10px;min-height:32px}
 [data-obs-screen="canais"] .toolbar2 .spacer{flex:1}
@@ -199,8 +199,8 @@
 [data-obs-screen="canais"] .more{width:32px;height:32px;min-width:32px;flex:none;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center}
 [data-obs-screen="canais"] .more:hover{border-color:var(--border-strong);color:var(--text)}
 /* --danger-text is a token of the screen, not of [data-obs]: the menu no longer lives inside the screen, so it defines it here */
-#flut .cn-menu{--danger-text:#F26B6B;min-width:230px;padding:4px}
-[data-theme="light"] #flut .cn-menu{--danger-text:#B42318}
+#flut .obs-fl-pop.cn-menu{--danger-text:#F26B6B;min-width:230px;padding:4px}
+[data-theme="light"] #flut .obs-fl-pop.cn-menu{--danger-text:#B42318}
 #flut .cn-menu button{display:flex;width:100%;text-align:left;gap:8px;align-items:center;border:0;background:transparent;padding:0 10px;min-height:34px;border-radius:5px;cursor:pointer;font-size:13px}
 #flut .cn-menu button:hover,#flut .cn-menu button:focus-visible{background:var(--surface-hover);outline:none}
 #flut .cn-menu button.del{color:var(--danger-text)}

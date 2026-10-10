@@ -38,6 +38,17 @@ describe('Observatório · escala de camadas', () => {
   })
 })
 
+describe('Observatório · flutuantes de Canais não dependem da ordem de carga do CSS', () => {
+  const canais = semComentario(read('_canais/canais.css'))
+  it('a regra principal de cada uma tem duas classes (vence a base #flut .obs-fl-* de flut.css por especificidade, não por ordem)', () => {
+    expect(canais).toMatch(/#flut \.obs-fl-tip\.cn-tt\s*\{/)
+    expect(canais).toMatch(/#flut \.obs-fl-pop\.cn-menu\s*\{/)
+    expect(canais).not.toMatch(/#flut \.cn-tt\s*\{/)
+    expect(canais).not.toMatch(/#flut \.cn-menu\s*\{/)
+    expect(canais).toMatch(/\[data-theme="light"\] #flut \.obs-fl-pop\.cn-menu\s*\{/) // stays above the dark rule (3 classes vs 2)
+  })
+})
+
 describe('Observatório · tokens das telas novas', () => {
   const tokens = semComentario(read('_chrome/tokens-telas.css'))
   it('cada token do spec 19.2 existe com o valor do spec', () => {
