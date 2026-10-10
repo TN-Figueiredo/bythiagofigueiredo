@@ -44,10 +44,20 @@ export class AnalyticsApiError extends Error {
   }
 }
 
+/** `null` só nas duas médias e na taxa de clique de cartão; as demais colunas são número ou ausentes. */
+export type ValoresDiario = Partial<Record<Exclude<ColunaDiario, 'avg_view_duration_seconds' | 'avg_view_percentage' | 'card_click_rate'>, number>> & {
+  card_click_rate?: number | null
+  avg_view_duration_seconds?: number | null
+  avg_view_percentage?: number | null
+}
+
 export interface DiaDoVideo {
   day: string
-  /** Só o que veio. Métrica ausente não tem chave (nulo, nunca zero). */
-  valores: Partial<Record<ColunaDiario, number>>
+  /**
+   * Só o que veio. Métrica ausente não tem chave (nulo, nunca zero). Exceção: as duas médias de um dia com `views` 0
+   * vão com a chave PRESENTE e nula (média de dia sem view é indefinida; a chave nula é o que sobrescreve um 0 antigo).
+   */
+  valores: ValoresDiario
 }
 
 export interface RespostaDiario {
@@ -120,13 +130,20 @@ export async function diarioDoVideo(i: {
   for (const linha of linhas) {
     const day = linha[posDia]
     if (typeof day !== 'string' || !DIA.test(day)) throw new AnalyticsApiError(200, 'dia_invalido')
-    const valores: Partial<Record<ColunaDiario, number>> = {}
+    const valores: ValoresDiario = {}
     nomes.forEach((nome, pos) => {
       const coluna = nome ? COLUNA_DA_METRICA[nome] : undefined
       if (!coluna) return
       const n = numeroOuNada(linha[pos])
       if (n !== undefined) valores[coluna] = n
     })
+    // Dia sem view: as médias são indefinidas, não zero. Sem `views` no cabeçalho não há como saber, e ficam como vieram.
+    if (valores.views === 0) {
+      valores.avg_view_percentage = null
+      valores.avg_view_duration_seconds = null
+    }
+    // Zero impressões de cartão: a taxa de clique é indefinida. Sem `card_impressions` na resposta, fica como veio.
+    if (valores.card_impressions === 0 && valores.card_click_rate !== undefined) valores.card_click_rate = null
     dias.push({ day, valores })
   }
   return { dias, estendidas }

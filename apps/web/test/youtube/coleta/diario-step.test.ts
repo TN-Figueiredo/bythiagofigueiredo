@@ -136,6 +136,20 @@ describe('passoDiario: gravação', () => {
     expect(linhas(db)[0]).toMatchObject({ views: 6, avg_view_percentage: 41.5 })
   })
 
+  it('dia sem view: as médias gravadas como 0 passam a null, views segue 0; dia com view não perde valor', async () => {
+    vi.mocked(diarioDoVideo).mockResolvedValue(resposta([
+      dia('2026-10-06', { views: 5, avg_view_duration_seconds: 31, avg_view_percentage: 42.5, likes: 1 }),
+      dia('2026-10-07', { views: 0, likes: 0, avg_view_percentage: null, avg_view_duration_seconds: null }),
+    ]))
+    const db = bd([v(1)], [
+      ultima(1, '2026-10-06', { views: 5, avg_view_duration_seconds: 31, avg_view_percentage: 42.5, likes: 1 }),
+      ultima(1, '2026-10-07', { views: 0, avg_view_percentage: 0, avg_view_duration_seconds: 0 }),
+    ])
+    await passoDiario(ctxDe(db))
+    expect(linhas(db).find(r => r.day_pt === '2026-10-07')).toMatchObject({ views: 0, avg_view_percentage: null, avg_view_duration_seconds: null })
+    expect(linhas(db).find(r => r.day_pt === '2026-10-06')).toMatchObject({ views: 5, avg_view_duration_seconds: 31, avg_view_percentage: 42.5, likes: 1 })
+  })
+
   it('dias com conjuntos de colunas diferentes: cada linha leva só o que veio, em dois upserts', async () => {
     vi.mocked(diarioDoVideo).mockResolvedValue(resposta([dia('2026-10-06', { views: 1, likes: 2 }), dia('2026-10-07', { views: 3 })]))
     const db = bd([v(1)])
