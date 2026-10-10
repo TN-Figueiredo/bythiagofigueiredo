@@ -32,7 +32,7 @@ export function RowMenu({ row, onClose, onOpen, onSync, onYoutube, onCopy, onRem
     if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus() }
     if (e.key === 'Home') { e.preventDefault(); items[0]?.focus() }
     if (e.key === 'End') { e.preventDefault(); items[items.length - 1]?.focus() }
-    if (e.key === 'Tab') onClose(false)
+    // Tab / Shift+Tab: the floating layer stitches the menu back to the ⋯ button (flut/store.ts)
   }
 
   return (

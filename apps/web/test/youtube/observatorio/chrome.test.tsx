@@ -7,7 +7,7 @@ vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
   useCanAdminSite: () => siteAdmin.value,
 }))
-import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, within, waitFor, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
@@ -111,6 +111,42 @@ describe('ObservatoryChrome', () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.activeElement).toBe(fb)
+  })
+  it('Frescor por canal: Tab no botão leva o foco para dentro do popover (que continua aberto) e chega a "Sincronizar"', async () => {
+    const user = userEvent.setup()
+    mount()
+    const fb = screen.getByRole('button', { name: /Frescor dos dados/ })
+    await user.click(fb)
+    fb.focus()
+    await user.tab()
+    const pop = screen.getByRole('dialog', { name: 'Frescor por canal' })
+    expect(pop.contains(document.activeElement)).toBe(true)
+    const sync = within(pop).getByRole('button', { name: /Sincronizar concorrentes/ })
+    for (let i = 0; i < 12 && document.activeElement !== sync; i++) await user.tab() // the popover's own tab order
+    expect(document.activeElement).toBe(sync)
+    expect(screen.queryByRole('dialog', { name: 'Frescor por canal' })).not.toBeNull() // the focus inside does not close it
+  })
+  it('menu ⋯: Tab sai pelo botão (o foco segue para o controle depois do ⋯ e o menu fecha); Shift+Tab volta ao ⋯ e o menu fica', async () => {
+    const user = userEvent.setup()
+    mount()
+    const btn = screen.getByRole('button', { name: 'Mais ações' })
+    btn.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('menu', { name: 'Mais ações' })).toBeInTheDocument()
+    await user.tab({ shift: true })
+    expect(document.activeElement).toBe(btn)
+    expect(screen.queryByRole('menu')).not.toBeNull()
+    await user.tab() // back in through the trigger: the first item
+    expect(screen.getByRole('menu').contains(document.activeElement)).toBe(true)
+    // user-event computes the destination from the element the key was sent to, a browser from the current focus: so the
+    // second half is checked by hand. The key puts the focus on the ⋯ and is not cancelled; the focus then leaving closes the menu.
+    expect(fireEvent.keyDown(document.activeElement!, { key: 'Tab' })).toBe(true)
+    expect(document.activeElement).toBe(btn)
+    expect(screen.queryByRole('menu')).not.toBeNull()
+    const fora = document.createElement('button'); document.body.appendChild(fora)
+    act(() => { fora.focus() })
+    expect(screen.queryByRole('menu')).toBeNull()
+    fora.remove()
   })
   it('niche bar persists via the action and puts ?niche= in the URL', async () => {
     const user = userEvent.setup()

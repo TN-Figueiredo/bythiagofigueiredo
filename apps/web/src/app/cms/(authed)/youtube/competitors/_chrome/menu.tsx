@@ -32,7 +32,7 @@ export function Menu({ open, focusAt, btnRef, cowork, nicheEditorHref, onOpenNic
     else if (e.key === 'ArrowUp') go(i - 1)
     else if (e.key === 'Home') go(0)
     else if (e.key === 'End') go(xs.length - 1)
-    else if (e.key === 'Tab') onClose(false)
+    // Tab / Shift+Tab: the floating layer stitches the menu back to the ⋯ button (flut/store.ts)
   }
   return (
     <div className="obs-ch-menu-wrap">

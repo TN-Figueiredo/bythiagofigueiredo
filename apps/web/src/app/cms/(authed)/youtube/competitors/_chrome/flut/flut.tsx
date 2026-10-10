@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { place, maxWidthFor, type PlaceOpts, type Side } from './place'
-import { flutHost, claimFlut, releaseFlut, currentFlut, subscribeFlut } from './store'
+import { flutHost, claimFlut, releaseFlut, currentFlut, subscribeFlut, tabInside } from './store'
 
 /** The trigger, looked up when needed: a ref's current, or a DOM lookup (a row's button is found by id). */
 export type Anchor = () => Element | null
@@ -85,7 +85,8 @@ export function Popover({ open, anchor, onClose, children, id, className, role =
   usePlacement(open && client, ref, anchor, { pref, align, maxW }, () => live.current.onClose())
   if (!open || !client) return null
   return createPortal(
-    <div ref={ref} id={pid} role={role} aria-label={label} className={'obs-fl-pop' + (className ? ' ' + className : '')} style={{ position: 'fixed', left: 0, top: 0 }}>{children}</div>,
+    <div ref={ref} id={pid} role={role} aria-label={label} className={'obs-fl-pop' + (className ? ' ' + className : '')} style={{ position: 'fixed', left: 0, top: 0 }}
+      onKeyDown={e => tabInside(e, ref.current, live.current.anchor())}>{children}</div>,
     flutHost(),
   )
 }

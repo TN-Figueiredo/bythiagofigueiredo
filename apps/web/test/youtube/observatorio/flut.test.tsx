@@ -90,6 +90,97 @@ describe('flut · Popover', () => {
   })
 })
 
+function Varios({ role = 'dialog', itens = 3, tabIndex }: { role?: 'dialog' | 'menu'; itens?: number; tabIndex?: number }) {
+  const [open, setOpen] = useState(false), btn = useRef<HTMLButtonElement>(null)
+  return (
+    <>
+      <button data-testid="antes">antes</button>
+      <button ref={btn} data-testid="g" aria-expanded={open} onClick={() => setOpen(o => !o)}>gatilho</button>
+      <button data-testid="depois">depois</button>
+      <Popover open={open} anchor={() => btn.current} onClose={() => setOpen(false)} id="pop-v" role={role} label="Varios">
+        {Array.from({ length: itens }, (_, i) => <button key={i} data-testid={'i' + i} tabIndex={tabIndex} role={role === 'menu' ? 'menuitem' : undefined}>item {i}</button>)}
+      </Popover>
+    </>
+  )
+}
+const abre = (r: ReturnType<typeof render>) => { fireEvent.click(r.getByTestId('g')); act(() => { r.getByTestId('g').focus() }) }
+
+describe('flut · Tab entra e sai do popover pela ordem do gatilho (o popover mora no fim do body)', () => {
+  it('1. Tab no gatilho com o popover aberto: o foco vai ao primeiro focável de dentro (preventDefault) e ele continua aberto', () => {
+    const r = render(<Varios />)
+    abre(r)
+    const livre = fireEvent.keyDown(r.getByTestId('g'), { key: 'Tab' })
+    expect(livre).toBe(false)
+    expect(document.activeElement).toBe(r.getByTestId('i0'))
+    expect(document.getElementById('pop-v')).not.toBeNull()
+  })
+  it('1b. Shift+Tab no gatilho não é da camada', () => {
+    const r = render(<Varios />)
+    abre(r)
+    expect(fireEvent.keyDown(r.getByTestId('g'), { key: 'Tab', shiftKey: true })).toBe(true)
+    expect(document.activeElement).toBe(r.getByTestId('g'))
+  })
+  it('2. Tab no último focável: o foco vai ao gatilho SEM preventDefault; o foco que sai de vez fecha', () => {
+    const r = render(<Varios />)
+    abre(r)
+    act(() => { r.getByTestId('i2').focus() })
+    const livre = fireEvent.keyDown(r.getByTestId('i2'), { key: 'Tab' })
+    expect(livre).toBe(true) // not cancelled: the browser finishes the Tab from the trigger
+    expect(document.activeElement).toBe(r.getByTestId('g'))
+    expect(document.getElementById('pop-v')).not.toBeNull() // the trigger is inside the layer's notion of "inside"
+    act(() => { r.getByTestId('depois').focus() }) // what the browser does next
+    expect(document.getElementById('pop-v')).toBeNull()
+  })
+  it('2b. Tab num focável do meio segue normal', () => {
+    const r = render(<Varios />)
+    abre(r)
+    act(() => { r.getByTestId('i1').focus() })
+    expect(fireEvent.keyDown(r.getByTestId('i1'), { key: 'Tab' })).toBe(true)
+    expect(document.activeElement).toBe(r.getByTestId('i1'))
+  })
+  it('3. Shift+Tab no primeiro focável: o foco volta ao gatilho (preventDefault) e o popover continua aberto', () => {
+    const r = render(<Varios />)
+    abre(r)
+    act(() => { r.getByTestId('i0').focus() })
+    expect(fireEvent.keyDown(r.getByTestId('i0'), { key: 'Tab', shiftKey: true })).toBe(false)
+    expect(document.activeElement).toBe(r.getByTestId('g'))
+    expect(document.getElementById('pop-v')).not.toBeNull()
+  })
+  it('4. nenhum focável dentro: Tab no gatilho segue normal', () => {
+    const r = render(<Varios itens={0} />)
+    abre(r)
+    expect(fireEvent.keyDown(r.getByTestId('g'), { key: 'Tab' })).toBe(true)
+    expect(document.activeElement).toBe(r.getByTestId('g'))
+    expect(document.getElementById('pop-v')).not.toBeNull()
+  })
+  it('focável escondido (hidden) não conta como primeiro', () => {
+    function Esc() {
+      const [open, setOpen] = useState(true), btn = useRef<HTMLButtonElement>(null)
+      return <><button ref={btn} data-testid="g" onClick={() => setOpen(o => !o)}>g</button>
+        <Popover open={open} anchor={() => btn.current} onClose={() => setOpen(false)} id="pop-e">
+          <div hidden><button data-testid="oculto">oculto</button></div><button data-testid="visivel">visível</button>
+        </Popover></>
+    }
+    const r = render(<Esc />)
+    act(() => { r.getByTestId('g').focus() })
+    fireEvent.keyDown(r.getByTestId('g'), { key: 'Tab' })
+    expect(document.activeElement).toBe(r.getByTestId('visivel'))
+  })
+  it('menu (itens com tabIndex -1): qualquer item é primeiro e último; Tab sai pelo gatilho, Shift+Tab volta ao gatilho', () => {
+    const r = render(<Varios role="menu" tabIndex={-1} />)
+    abre(r)
+    act(() => { r.getByTestId('i1').focus() })
+    expect(fireEvent.keyDown(r.getByTestId('i1'), { key: 'Tab' })).toBe(true)
+    expect(document.activeElement).toBe(r.getByTestId('g'))
+    act(() => { r.getByTestId('i1').focus() })
+    expect(fireEvent.keyDown(r.getByTestId('i1'), { key: 'Tab', shiftKey: true })).toBe(false)
+    expect(document.activeElement).toBe(r.getByTestId('g'))
+    expect(document.getElementById('pop-v')).not.toBeNull() // menu button pattern: Shift+Tab leaves it open
+    act(() => { r.getByTestId('depois').focus() })
+    expect(document.getElementById('pop-v')).toBeNull()
+  })
+})
+
 /** jsdom has no layout: gives each element with data-g / data-box a rect at x = its number (width 40, inside the window). */
 function mockRects() {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {

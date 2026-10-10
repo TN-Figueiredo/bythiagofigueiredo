@@ -20,11 +20,56 @@ const inside = (t: EventTarget | null): boolean => {
   return !!open.el()?.contains(t) || !!open.anchor()?.contains(t)
 }
 
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/** Focusable and visible elements inside `root`, in DOM order (jsdom has no layout: visibility is read from hidden/display/visibility). */
+export function focusables(root: HTMLElement): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(el => {
+    if (el instanceof HTMLInputElement && el.type === 'hidden') return false
+    for (let n: HTMLElement | null = el; n && n !== root.parentElement; n = n.parentElement) {
+      if (n.hidden) return false
+      const cs = getComputedStyle(n)
+      if (cs.display === 'none' || (n === el && cs.visibility === 'hidden')) return false
+    }
+    return true
+  })
+}
+
+/**
+ * The popover lives at the end of <body>, so the natural Tab order never passes through it. These two functions stitch it
+ * back to the trigger: from the trigger, Tab enters it; from its last element, Tab leaves it through the trigger (the browser
+ * finishes the move from there); from its first, Shift+Tab goes back to the trigger. In a menu the focused item is both
+ * the first and the last (items are roving, tabIndex -1).
+ */
+export function tabFromTrigger(e: KeyboardEvent): void {
+  if (!open || e.key !== 'Tab' || e.shiftKey || e.defaultPrevented) return
+  const a = open.anchor(), el = open.el()
+  if (!a || !el || document.activeElement !== a) return
+  const first = focusables(el)[0]
+  if (!first) return
+  e.preventDefault()
+  first.focus()
+}
+export function tabInside(e: { key: string; shiftKey: boolean; preventDefault: () => void }, el: HTMLElement | null, anchor: Element | null): void {
+  if (e.key !== 'Tab' || !el || !(anchor instanceof HTMLElement)) return
+  const active = document.activeElement
+  if (!(active instanceof HTMLElement) || !el.contains(active)) return
+  const list = focusables(el)
+  const menu = el.getAttribute('role') === 'menu'
+  const first = menu ? active : list[0], last = menu ? active : list[list.length - 1]
+  if (e.shiftKey) {
+    if (active === first) { e.preventDefault(); anchor.focus() }
+  } else if (active === last) {
+    anchor.focus() // not cancelled: the browser goes on to the control after the trigger, and the focus leaving closes the popover
+  }
+}
+
 function wire() {
   if (wired) return
   wired = true
   // capture: the layer answers Esc before the screen under it (one Esc closes one thing)
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); open.close(true) } }, true)
+  document.addEventListener('keydown', tabFromTrigger, true)
   document.addEventListener('mousedown', e => { if (open && !inside(e.target)) open.close(false) }, true)
   document.addEventListener('focusin', e => { if (open && !inside(e.target)) open.close(false) })
 }

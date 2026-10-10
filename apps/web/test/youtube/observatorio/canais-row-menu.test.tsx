@@ -149,6 +149,27 @@ describe('Canais · row menu ⋯', () => {
     expect(replace).not.toHaveBeenCalled()
   })
 
+  it('Tab no menu sai pelo ⋯ (o foco segue para o controle depois dele e o menu fecha); Shift+Tab volta ao ⋯ e o menu fica', async () => {
+    const user = userEvent.setup()
+    mount()
+    more().focus()
+    await user.keyboard('{Enter}')
+    await user.tab({ shift: true })
+    expect(document.activeElement).toBe(more())
+    expect(menu()).not.toBeNull()
+    await user.tab() // back in through the trigger: the first item
+    expect(menu()!.contains(document.activeElement)).toBe(true)
+    // user-event computes the destination from the element the key was sent to, a browser from the current focus: so the
+    // second half is checked by hand. The key puts the focus on the ⋯ and is not cancelled; the focus then leaving closes the menu.
+    expect(fireEvent.keyDown(document.activeElement!, { key: 'Tab' })).toBe(true)
+    expect(document.activeElement).toBe(more())
+    expect(menu()).not.toBeNull()
+    const fora = document.createElement('button'); document.body.appendChild(fora)
+    act(() => { fora.focus() })
+    expect(menu()).toBeNull()
+    fora.remove()
+  })
+
   it('the cards view anchors the same way', async () => {
     const user = userEvent.setup()
     mount({ layout: 'cards' })
