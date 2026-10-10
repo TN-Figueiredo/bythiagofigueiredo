@@ -449,6 +449,18 @@ describe('flut · posicionamento ao vivo', () => {
     expect(document.getElementById('pop-pa')).toBeNull()
     expect(document.activeElement).toBe(getByTestId('g'))
   })
+  it('posAnchor: se o gatilho sobra para fora do bloco, a caixa não o cobre (fica a um gap do gatilho)', () => {
+    mockRectsById()
+    // trigger 100..132 tall, block 100..110: 6 px under the block (116) would cover the trigger, so it goes to the trigger's bottom (132)
+    rects['g-pc'] = { left: 100, top: 100, w: 32, h: 32 }
+    rects['bloco-pc'] = { left: 100, top: 100, w: 60, h: 10 }
+    render(<><span id="bloco-pc" /><span id="g-pc" />
+      <HoverTip show anchor={() => document.getElementById('g-pc')} posAnchor={() => document.getElementById('bloco-pc')} align="inicio" pref="baixo" id="tip-pc">t</HoverTip></>)
+    expect(document.getElementById('tip-pc')!.style.top).toBe(String(132) + 'px') // 116 (block + 6) would cover; 132 = the trigger's bottom, touching
+    rects['bloco-pc'] = { left: 100, top: 100, w: 60, h: 60 } // block taller than the trigger: the block decides (160 + 6)
+    act(() => { document.dispatchEvent(new Event('scroll')) })
+    expect(document.getElementById('tip-pc')!.style.top).toBe('166px')
+  })
   it('posAnchor também vale para a dica', () => {
     mockRectsById()
     rects['g-pb'] = { left: 100, top: 100, w: 40, h: 20 }

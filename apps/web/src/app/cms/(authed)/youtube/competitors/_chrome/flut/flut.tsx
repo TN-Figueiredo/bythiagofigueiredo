@@ -53,8 +53,17 @@ function usePlacement(active: boolean, ref: RefObject<HTMLDivElement | null>, an
     }
     watch.current?.disconnect(); watch.current = null
     const m = pos?.()
-    // the position is measured on `posAnchor` when it is given (focus, Esc and Tab stay on the trigger)
-    const r = (m && m.isConnected ? m : a).getBoundingClientRect()
+    const at0 = a.getBoundingClientRect()
+    // the position is measured on `posAnchor` when it is given (focus, Esc and Tab stay on the trigger), but the box never
+    // covers the trigger: it keeps `gap` clear of the trigger too (above or below, as place() decides)
+    let r: DOMRect | { left: number; right: number; top: number; bottom: number; width: number; height: number } = at0
+    if (m && m.isConnected) {
+      const mr = m.getBoundingClientRect(), g = opts.gap ?? 6
+      if (mr.width || mr.height) {
+        const top = Math.min(mr.top, at0.top + g), bottom = Math.max(mr.bottom, at0.bottom - g)
+        r = { left: mr.left, right: mr.right, top, bottom, width: mr.right - mr.left, height: bottom - top }
+      } else r = mr
+    }
     const vp = { w: document.documentElement.clientWidth || window.innerWidth, h: window.innerHeight }
     // scrolled out of the window (a rect with no size says nothing: no layout, as in jsdom)
     if ((r.width || r.height) && (r.bottom < 0 || r.top > vp.h || r.right < 0 || r.left > vp.w)) { el.style.visibility = 'hidden'; gone(); return }
@@ -93,7 +102,7 @@ function usePlacement(active: boolean, ref: RefObject<HTMLDivElement | null>, an
 
 export function Popover({ open, anchor, posAnchor, onClose, children, id, className, role = 'dialog', label, labelledBy, pref, align, maxW, maxWvw, gap, gapQueda, lado, queda }: {
   open: boolean; anchor: Anchor
-  /** Measure the position on this element instead of the trigger (focus, Esc and Tab still use the trigger). */
+  /** Measure the position on this element instead of the trigger (focus, Esc and Tab still use the trigger); the box still keeps its gap clear of the trigger. For pref 'baixo' and 'cima'. */
   posAnchor?: Anchor
   /** Close it (set your state). The focus goes back to the trigger by itself when it was Esc; `viaEsc` tells that case apart (outside click, focus out and "trigger gone" are false). */
   onClose: (viaEsc: boolean) => void
