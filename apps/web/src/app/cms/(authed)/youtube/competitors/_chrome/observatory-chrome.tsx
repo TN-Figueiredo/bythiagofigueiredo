@@ -134,11 +134,11 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
   // Invalid ?niche= is ignored (the server used the persisted one) and leaves the URL, so it never wins on reload.
   useEffect(() => { if (dropNicheParam) router.replace(urlWith('niche', null), { scroll: false }) }, [dropNicheParam, router, urlWith])
 
+  // only the ⋯ menu asks to give the focus back through here (the freshness popover goes through sync(true) and the layer's Esc)
   const close = useCallback((focusBack: boolean) => {
-    const was = pop
     setPop(null)
-    if (focusBack) (was === 'menu' ? menuBtn : freshBtn).current?.focus()
-  }, [pop])
+    if (focusBack) menuBtn.current?.focus()
+  }, [])
 
   const pickNiche = async (n: NicheScope) => {
     setPop(null)

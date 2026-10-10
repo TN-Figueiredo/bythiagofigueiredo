@@ -99,6 +99,53 @@ describe('ObservatoryChrome', () => {
     expect(document.activeElement).toBe(btn)
     expect(btn).toHaveAttribute('aria-expanded', 'false')
   })
+  it('menu ⋯ aberto pela seta: ArrowDown abre no primeiro, ArrowUp no último; setas, Home e End percorrem e dão a volta', async () => {
+    const user = userEvent.setup()
+    mount()
+    const btn = screen.getByRole('button', { name: 'Mais ações' })
+    btn.focus()
+    await user.keyboard('{ArrowUp}')
+    const items = () => within(screen.getByRole('menu', { name: 'Mais ações' })).getAllByRole('menuitem')
+    expect(document.activeElement).toBe(items()[items().length - 1])
+    await user.keyboard('{ArrowDown}') // wraps to the first
+    expect(document.activeElement).toBe(items()[0])
+    await user.keyboard('{End}')
+    expect(document.activeElement).toBe(items()[items().length - 1])
+    await user.keyboard('{Home}')
+    expect(document.activeElement).toBe(items()[0])
+    await user.keyboard('{ArrowUp}') // wraps to the last
+    expect(document.activeElement).toBe(items()[items().length - 1])
+    await user.keyboard('{Escape}')
+    btn.focus()
+    await user.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(items()[0])
+  })
+  it('clicar no ⋯ de novo fecha o menu', async () => {
+    const user = userEvent.setup()
+    mount()
+    const btn = screen.getByRole('button', { name: 'Mais ações' })
+    await user.click(btn)
+    expect(screen.getByRole('menu', { name: 'Mais ações' })).toBeInTheDocument()
+    await user.click(btn)
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(btn).toHaveAttribute('aria-expanded', 'false')
+  })
+  it('rolar dentro do Frescor não o fecha (a rolagem da própria caixa não conta)', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByRole('button', { name: /Frescor dos dados/ }))
+    const pop = screen.getByRole('dialog', { name: 'Frescor por canal' })
+    // the button is now far above the window: any re-placement would close the popover, so staying open proves the box's own scroll is ignored
+    const rect = { left: 100, right: 140, top: -900, bottom: -880, width: 40, height: 20, x: 100, y: -900, toJSON: () => ({}) } as DOMRect
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(rect)
+    try {
+      fireEvent.scroll(pop)
+      fireEvent.scroll(within(pop).getByText(/^Com problema \(/))
+      expect(screen.queryByRole('dialog', { name: 'Frescor por canal' })).not.toBeNull()
+      fireEvent.scroll(document) // the page scrolling does re-place it, and the trigger is out of the window
+      expect(screen.queryByRole('dialog', { name: 'Frescor por canal' })).toBeNull()
+    } finally { spy.mockRestore() }
+  })
   it('freshness popover lists problems first and closes with Esc', async () => {
     const user = userEvent.setup()
     mount()
