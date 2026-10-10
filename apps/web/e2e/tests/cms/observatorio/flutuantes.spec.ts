@@ -16,7 +16,11 @@ let ids: ReturnType<typeof seedIdsOf>
 test.beforeAll(async () => { ids = seedIdsOf(await ensureSeeded({ manyVersions: true })) })
 
 type Modo = 'clique' | 'foco'
-interface Familia { id: string; gatilho: string; modo: Modo; caixa: string; max?: number }
+/** Toda família tem de provar as três posições: o `top` do gatilho tem de seguir centro > embaixo > em cima em TODOS os gatilhos medidos
+ *  (a prova põe espaçadores no contêiner que rola, senão um gatilho do alto da tela nunca chega ao pé da janela). `fixo: true` = o
+ *  gatilho NÃO rola (sticky/fixed): então a prova AFIRMA o contrário, que o top não se mexeu. Medido em 10/10: nenhuma família é fixa
+ *  (o menu ⋯ e o Frescor ficam no alto do conteúdo, que rola). `texto`: o que a caixa tem de dizer. */
+interface Familia { id: string; gatilho: string; modo: Modo; caixa: string; max?: number; fixo?: boolean; texto?: RegExp }
 const TELAS: Array<{ nome: string; url: () => string; familias: Familia[] }> = [
   { nome: 'canais', url: () => '/cms/youtube/competitors', familias: [
     { id: '"?" da tabela', gatilho: '[data-obs-screen="canais"] .tip', modo: 'foco', caixa: '#flut .cn-tt', max: 8 },
@@ -36,6 +40,8 @@ const TELAS: Array<{ nome: string; url: () => string; familias: Familia[] }> = [
   ] },
   { nome: 'historico', url: () => '/cms/youtube/competitors/video/' + ids.video(MANY_VERSIONS_ID), familias: [
     { id: 'marcador da linha do tempo', gatilho: '.lanes .mk', modo: 'foco', caixa: '#flut #hv-tip', max: 8 },
+    // a dica de grupo (hover/foco no contador, lista FECHADA): âncora larga, conteúdo próprio, e some quando a lista abre
+    { id: 'dica de grupo', gatilho: '.lanes .gbtn', modo: 'foco', caixa: '#flut #hv-tip', max: 6, texto: /Enter, espaço ou clique abre a lista/ },
     { id: 'lista de grupo', gatilho: '.lanes .gbtn', modo: 'clique', caixa: '#flut .hv-gpop', max: 6 },
     { id: 'fixar vídeo (histórico)', gatilho: '[data-obs-screen="historico"] .fx-btn[data-pin-act="pin"]', modo: 'foco', caixa: '#flut .fx-hint-pop' },
   ] },
@@ -43,12 +49,12 @@ const TELAS: Array<{ nome: string; url: () => string; familias: Familia[] }> = [
 const LARGURAS = [1440, 390] as const
 const POS = [['centro', 'center'], ['colado embaixo', 'end'], ['colado em cima', 'start']] as const
 
-interface Res { ok: boolean; dentro: boolean; topo: boolean; cobre: boolean; noFlut: boolean; fundo: boolean; quem: string; caixa?: string }
+interface Res { ok: boolean; dentro: boolean; topo: boolean; cobre: boolean; noFlut: boolean; fundo: boolean; texto: boolean; quem: string; caixa?: string }
 /** Roda no navegador. As dicas de mouse têm pointer-events:none: a prova liga durante a medida, senão elementsFromPoint não as vê. */
-async function conferir(page: Page, gatilho: string, n: number, caixa: string): Promise<Res> {
-  return page.evaluate(({ gatilho, n, caixa }) => {
+async function conferir(page: Page, gatilho: string, n: number, caixa: string, texto?: RegExp): Promise<Res> {
+  return page.evaluate(({ gatilho, n, caixa, texto }) => {
     const g = document.querySelectorAll<HTMLElement>(gatilho)[n]!, tip = document.querySelector<HTMLElement>(caixa)
-    if (!tip) return { ok: false, dentro: false, topo: false, cobre: false, noFlut: false, fundo: false, quem: 'a flutuante não abriu' }
+    if (!tip) return { ok: false, dentro: false, topo: false, cobre: false, noFlut: false, fundo: false, texto: false, quem: 'a flutuante não abriu' }
     const st = document.createElement('style'); st.textContent = '#flut>*{pointer-events:auto!important}'; document.head.appendChild(st)
     const r = tip.getBoundingClientRect(), W = document.documentElement.clientWidth, H = innerHeight
     const dentro = r.width > 0 && r.height > 0 && r.left >= -0.5 && r.top >= -0.5 && r.right <= W + 0.5 && r.bottom <= H + 0.5
@@ -63,8 +69,27 @@ async function conferir(page: Page, gatilho: string, n: number, caixa: string): 
     const flut = tip.closest('#flut'), noFlut = !!flut && flut.parentNode === document.body
     const bg = getComputedStyle(tip).backgroundColor, m = bg.match(/rgba?\(([^)]+)\)/)?.[1]?.split(',').map(s => parseFloat(s)) ?? []
     const fundo = m.length === 3 || (m.length === 4 && m[3]! > 0.9)
-    return { ok: dentro && topo && !cobre && noFlut && fundo, dentro, topo, cobre, noFlut, fundo, quem, caixa: `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} bg=${bg}; gatilho ${Math.round(b.left)},${Math.round(b.top)} ${Math.round(b.width)}x${Math.round(b.height)}; janela ${W}x${H}` }
-  }, { gatilho, n, caixa })
+    const textoOk = !texto || new RegExp(texto).test(tip.textContent ?? '')
+    return { ok: dentro && topo && !cobre && noFlut && fundo && textoOk, dentro, topo, cobre, noFlut, fundo, texto: textoOk, quem, caixa: `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} bg=${bg}; gatilho ${Math.round(b.left)},${Math.round(b.top)} ${Math.round(b.width)}x${Math.round(b.height)}; janela ${W}x${H}` }
+  }, { gatilho, n, caixa, texto: texto?.source })
+}
+
+/** Roda no navegador. Põe um espaçador de uma janela de altura antes e outro depois do conteúdo, no contêiner que rola (o mais externo; a
+ *  casca do CMS rola dentro de um contêiner próprio, não no documento), para que QUALQUER gatilho alcance centro, pé e topo da janela. Idempotente. */
+const ESPACOS = (e: Element) => {
+  let alvo: Element | null = null
+  for (let p: Element | null = e.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+    const o = getComputedStyle(p).overflowY
+    if ((o === 'auto' || o === 'scroll' || o === 'overlay') && p.scrollHeight > p.clientHeight + 1) alvo = p
+  }
+  const c = alvo ?? document.body
+  if (c.hasAttribute('data-prova-espacos')) return
+  c.setAttribute('data-prova-espacos', '')
+  for (const lado of ['prepend', 'append'] as const) {
+    const d = document.createElement('div')
+    d.setAttribute('aria-hidden', 'true'); d.style.cssText = `height:${innerHeight}px;flex:none`
+    c[lado](d)
+  }
 }
 
 /** Índices dos gatilhos visíveis, espalhados do primeiro ao último, no máximo `max`. */
@@ -84,17 +109,20 @@ for (const tema of THEMES) for (const largura of LARGURAS) for (const tela of TE
     // o indicador do `next dev` (<nextjs-portal>, canto inferior esquerdo, z-index máximo) não é do produto: sai da medida
     await page.addStyleTag({ content: 'nextjs-portal{display:none!important}' })
     const falhas: string[] = []
-    const modos: Record<string, Record<string, number>> = {}
     let total = 0
     for (const f of tela.familias) {
-      const porFamilia = (modos[f.id] ??= {})
+      const modos: Record<string, number> = {}
+      const tops: Record<string, number[]> = {} // por gatilho (índice): o top medido em cada posição, na ordem de POS
+      let exercitados = 0, pulados = 0
       const indices = await amostra(page, f.gatilho, f.max)
-      expect(indices.length, `${f.id}: nenhum gatilho visível (${f.gatilho})`).toBeGreaterThan(0)
+      if (!indices.length) falhas.push(`${f.id}: família declarada para a tela "${tela.nome}" mas nenhum gatilho visível (${f.gatilho})`)
       for (const n of indices) {
         const g = page.locator(f.gatilho).nth(n)
+        await g.evaluate(ESPACOS)
         for (const [pos, bloco] of POS) {
           await g.evaluate((e, b) => e.scrollIntoView({ block: b as ScrollLogicalPosition, inline: 'nearest' }), bloco)
-          if (!(await g.isVisible())) continue
+          if (!(await g.isVisible())) { pulados++; continue }
+          ;(tops[n] ??= []).push(await g.evaluate(e => Math.round(e.getBoundingClientRect().top)))
           let modo = f.modo === 'clique' ? 'clique' : 'teclado'
           if (f.modo === 'clique') {
             await g.click()
@@ -102,23 +130,41 @@ for (const tema of THEMES) for (const largura of LARGURAS) for (const tela of TE
             // uma tecla neutra põe o navegador em modalidade de teclado: só então focus() por script conta como :focus-visible
             await page.keyboard.press('Shift')
             await g.evaluate(e => { (e as HTMLElement).blur(); (e as HTMLElement).focus({ preventScroll: true }) })
-            if (!(await g.evaluate(e => e.matches(':focus-visible')))) { modo = 'mouse'; await g.hover() }
+            if (!(await g.evaluate(e => e.matches(':focus-visible')))) { modo = 'mouse'; await g.hover(); falhas.push(`${f.id} #${n} ${pos}: o foco por script não virou :focus-visible, a prova mediu hover em vez de teclado`) }
           }
-          porFamilia[modo] = (porFamilia[modo] ?? 0) + 1
+          modos[modo] = (modos[modo] ?? 0) + 1
           await page.waitForTimeout(80)
+          exercitados++
           total++
-          const r = await conferir(page, f.gatilho, n, f.caixa)
+          const r = await conferir(page, f.gatilho, n, f.caixa, f.texto)
           if (!r.ok) falhas.push(`${f.id} #${n} ${pos} (${modo}): ${JSON.stringify(r)}`)
           await page.keyboard.press('Escape')
           await page.waitForTimeout(40)
           if (await page.locator(f.caixa).count()) falhas.push(`${f.id} #${n} ${pos} (${modo}): Esc não fechou`)
-          if (f.modo === 'clique' && !(await g.evaluate(e => document.activeElement === e))) falhas.push(`${f.id} #${n} ${pos}: o foco não voltou ao gatilho`)
+          // o Esc não tira o foco do gatilho: nos popovers de clique ele VOLTA a ele; nas dicas de foco ele continua nele
+          if (!(await g.evaluate(e => document.activeElement === e))) falhas.push(`${f.id} #${n} ${pos} (${modo}): depois do Esc o foco não está no gatilho`)
           await g.evaluate(e => (e as HTMLElement).blur())
           await page.mouse.move(1, 1)
         }
       }
+      // (a) a família foi exercitada; (b) nada foi pulado em silêncio; (c) as três posições aconteceram de verdade
+      if (indices.length && exercitados === 0) falhas.push(`${f.id}: os ${pulados} casos foram pulados (gatilho invisível depois do scroll): nada foi exercitado (${f.gatilho})`)
+      else if (pulados) falhas.push(`${f.id}: ${pulados} caso(s) pulado(s) por gatilho invisível depois do scroll (${exercitados} exercitados)`)
+      const medidos = Object.values(tops).filter(t => t.length === POS.length)
+      // POS = [centro, embaixo, em cima]: o top tem de crescer de cima para baixo (em cima < centro < embaixo), com folga de 8 px
+      const variou = (t: number[]) => t[1]! > t[0]! + 8 && t[0]! > t[2]! + 8
+      const comVariacao = medidos.filter(variou).length
+      if (exercitados) {
+        if (f.fixo) {
+          if (medidos.some(t => Math.max(...t) - Math.min(...t) > 8)) falhas.push(`${f.id}: declarada fixa (fixo: true) mas o gatilho se moveu entre as posições: ${JSON.stringify(tops)}`)
+        } else if (comVariacao < medidos.length || !medidos.length) {
+          falhas.push(`${f.id}: em ${medidos.length - comVariacao} de ${medidos.length} gatilhos o top não seguiu em cima < centro < embaixo, [centro, embaixo, em cima] = ${JSON.stringify(tops)}: as três posições não aconteceram; se o gatilho não rola, declare fixo: true`)
+        }
+      }
+      const ex = Object.values(tops).flat()
+      console.info(`[prova-flutuantes] ${tela.nome} ${largura} ${tema} | ${f.id}: ${exercitados} exercitados, ${pulados} pulados, ${medidos.length} gatilhos × 3 posições, ${f.fixo ? 'fixo (top ' + [...new Set(ex)].join('/') + ')' : comVariacao + ' de ' + medidos.length + ' com top variando'} | modos ${JSON.stringify(modos)}`)
     }
-    console.info(`[prova-flutuantes] ${tela.nome} ${largura} ${tema}: ${total - falhas.length} de ${total} | modos ${JSON.stringify(modos)}`)
+    console.info(`[prova-flutuantes] ${tela.nome} ${largura} ${tema}: ${total - falhas.length} de ${total}`)
     expect(total, 'nenhuma flutuante foi exercitada: o seletor do gatilho mudou?').toBeGreaterThan(0)
     expect(falhas).toEqual([])
   })
