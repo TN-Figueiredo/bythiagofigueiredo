@@ -486,6 +486,29 @@ describe('flut · posicionamento ao vivo', () => {
       if (desc) Object.defineProperty(HTMLElement.prototype, 'offsetWidth', desc); else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetWidth
     }
   })
+  it('caixa espremida pela camada: a rolagem interna sobrevive à reposição (revisão final, achado 7)', () => {
+    mockRectsById()
+    rects['alvo-s'] = { left: 100, top: 100, w: 40, h: 20 }
+    const desc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get(this: HTMLElement) { return this.id === 'pop-s' ? 5000 : 0 } })
+    try {
+      render(<><span id="alvo-s" /><Popover open anchor={() => document.getElementById('alvo-s')} onClose={() => {}} id="pop-s">x</Popover></>)
+      const pop = document.getElementById('pop-s')!
+      expect(pop.style.overflowY).toBe('auto') // não cabe: rola por dentro
+      // o navegador: sem overflow (a reposição zera maxHeight/overflowY para medir) o scrollTop não existe mais e volta a 0
+      let st = 0, ov = pop.style.overflowY
+      Object.defineProperty(pop.style, 'overflowY', { configurable: true, get: () => ov, set: (v: string) => { if (v !== 'auto') st = 0; ov = v } })
+      Object.defineProperty(pop, 'scrollTop', { configurable: true, get: () => (ov === 'auto' ? st : 0), set: (v: number) => { if (ov === 'auto') st = v } })
+      pop.scrollTop = 120
+      expect(pop.scrollTop).toBe(120)
+      rects['alvo-s'] = { left: 100, top: 101, w: 40, h: 20 }
+      act(() => { document.dispatchEvent(new Event('scroll')) }) // a página rola: a caixa é reposta
+      expect(pop.style.overflowY).toBe('auto')
+      expect(pop.scrollTop, 'a rolagem do usuário dentro da caixa voltou ao topo').toBe(120)
+    } finally {
+      if (desc) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', desc); else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetHeight
+    }
+  })
   it('observa a própria caixa (conteúdo que cresce reposiciona)', () => {
     mockRectsById()
     rects['alvo-r'] = { left: 100, top: 100, w: 40, h: 20 }

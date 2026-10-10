@@ -67,6 +67,9 @@ function usePlacement(active: boolean, ref: RefObject<HTMLDivElement | null>, an
     const vp = { w: document.documentElement.clientWidth || window.innerWidth, h: window.innerHeight }
     // scrolled out of the window (a rect with no size says nothing: no layout, as in jsdom)
     if ((r.width || r.height) && (r.bottom < 0 || r.top > vp.h || r.right < 0 || r.left > vp.w)) { el.style.visibility = 'hidden'; gone(); return }
+    // a box squeezed by the layer scrolls inside: resetting maxHeight/overflowY (to measure its natural size) drops that scroll to 0,
+    // so the user's place is read first and put back below
+    const kept = el.style.overflowY === 'auto' ? el.scrollTop : 0
     el.style.maxWidth = maxWidthFor(vp.w, opts.maxW, opts.maxWvw) + 'px'
     el.style.maxHeight = ''
     el.style.overflowY = ''
@@ -74,7 +77,7 @@ function usePlacement(active: boolean, ref: RefObject<HTMLDivElement | null>, an
     el.style.left = '0px'
     el.style.top = '0px'
     const p = place(r, { w: el.offsetWidth, h: el.offsetHeight }, vp, opts)
-    if (p.maxHeight != null) { el.style.maxHeight = p.maxHeight + 'px'; el.style.overflowY = 'auto' }
+    if (p.maxHeight != null) { el.style.maxHeight = p.maxHeight + 'px'; el.style.overflowY = 'auto'; if (kept) el.scrollTop = kept }
     el.style.left = p.left + 'px'
     el.style.top = p.top + 'px'
     el.dataset.lado = p.side
