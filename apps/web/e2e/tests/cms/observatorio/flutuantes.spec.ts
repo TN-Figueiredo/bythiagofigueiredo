@@ -20,30 +20,46 @@ type Modo = 'clique' | 'foco'
  *  (a prova põe espaçadores no contêiner que rola, senão um gatilho do alto da tela nunca chega ao pé da janela). `fixo: true` = o
  *  gatilho NÃO rola (sticky/fixed): então a prova AFIRMA o contrário, que o top não se mexeu. Medido em 10/10: nenhuma família é fixa
  *  (o menu ⋯ e o Frescor ficam no alto do conteúdo, que rola). `texto`: o que a caixa tem de dizer. */
-interface Familia { folgaPe?: number; folgaTopo?: number; id: string; gatilho: string; modo: Modo; caixa: string; max?: number; fixo?: boolean; texto?: RegExp }
+interface Familia { folgaPe?: number; folgaTopo?: number; id: string; gatilho: string; modo: Modo; caixa: string; max?: number; fixo?: boolean; texto?: RegExp
+  /** O `gap` que o código da flutuante passa (px entre a caixa e o gatilho). A caixa tem de ficar a no máximo `gap + TOL_PROX` dele. */
+  gap: number
+  /** Folga a mais, só com `ref`: a caixa guarda o `gap` do GATILHO e mede o resto no bloco (`posAnchor`), então do bloco ela pode ficar até 2 px mais longe que o `gap`
+   *  (o botão de 32 px passa da borda do bloco). Medido em 10/10: 6..8 px do bloco com `gap` 6. Sem `ref` nenhuma família usa folga. */
+  folgaProx?: number
+  /** Quando a flutuante se posiciona por OUTRO elemento (`posAnchor`/âncora diferente do gatilho): o seletor, a partir do gatilho (`closest`), do elemento medido. */
+  ref?: string }
 const TELAS: Array<{ nome: string; url: () => string; familias: Familia[] }> = [
   { nome: 'canais', url: () => '/cms/youtube/competitors', familias: [
-    { id: '"?" da tabela', gatilho: '[data-obs-screen="canais"] .tip', modo: 'foco', caixa: '#flut .cn-tt', max: 8 },
-    { id: 'menu da linha', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6 },
-    { id: 'menu ⋯ da moldura', gatilho: '.obs-ch-menu-wrap [aria-haspopup="menu"]', modo: 'clique', caixa: '#flut #obs-ch-menu' },
-    { id: 'frescor por canal', gatilho: '.obs-ch-fresh > button', modo: 'clique', caixa: '#flut #obs-ch-fresh-pop' },
+    { id: '"?" da tabela', gatilho: '[data-obs-screen="canais"] .tip', modo: 'foco', caixa: '#flut .cn-tt', max: 8, gap: 6 },
+    { id: 'menu da linha', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4 },
+    { id: 'menu ⋯ da moldura', gatilho: '.obs-ch-menu-wrap [aria-haspopup="menu"]', modo: 'clique', caixa: '#flut #obs-ch-menu', gap: 6 },
+    { id: 'frescor por canal', gatilho: '.obs-ch-fresh > button', modo: 'clique', caixa: '#flut #obs-ch-fresh-pop', gap: 6 },
+  ] },
+  // a visão em Cards de Canais: o menu da linha mora em outro contêiner (o cartão), com a mesma função de posição
+  { nome: 'canais-cards', url: () => '/cms/youtube/competitors?layout=cards', familias: [
+    { id: 'menu da linha (cards)', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4 },
   ] },
   { nome: 'outliers', url: () => '/cms/youtube/competitors/outliers', familias: [
-    { id: 'ⓘ do múltiplo', gatilho: '.obs-out-info', modo: 'clique', caixa: '#flut .obs-out-tip', max: 6 },
-    { id: 'dica de ícone', gatilho: 'a.obs-out-ib', modo: 'foco', caixa: '#flut .obs-out-ibtip', max: 6 },
+    { id: 'ⓘ do múltiplo', gatilho: '.obs-out-info', modo: 'clique', caixa: '#flut .obs-out-tip', max: 6, gap: 6, ref: '.obs-out-mult', folgaProx: 2 },
+    { id: 'dica de ícone', gatilho: 'a.obs-out-ib', modo: 'foco', caixa: '#flut .obs-out-ibtip', max: 6, gap: 4 },
+  ] },
+  // a visão em Tabela de Outliers (?view=list): o ⓘ do múltiplo é `compact` (alinhado ao fim) e dentro de uma célula; a posição vem do bloco do múltiplo
+  { nome: 'outliers-tabela', url: () => '/cms/youtube/competitors/outliers?view=list', familias: [
+    { id: 'ⓘ do múltiplo (tabela)', gatilho: '.obs-out-list .obs-out-info', modo: 'clique', caixa: '#flut .obs-out-tip', max: 6, gap: 6, ref: '.obs-out-mult', folgaProx: 2 },
+    { id: 'dica de ícone (tabela)', gatilho: '.obs-out-list a.obs-out-ib', modo: 'foco', caixa: '#flut .obs-out-ibtip', max: 6, gap: 4 },
   ] },
   // "Fixar vídeo" (PinButton) não mora em Outliers: está nos cartões de Mudanças e no Histórico do vídeo. Na gaveta do canal o botão só
   // existe como "Desafixar" (lista de fixados), sem dica: não há o que provar lá.
   { nome: 'mudancas', url: () => '/cms/youtube/competitors/mudancas?win=90', familias: [
-    { id: 'mais filtros', gatilho: '.filters .more-btn', modo: 'clique', caixa: '#flut .mu-more-pop' },
-    { id: 'fixar vídeo (cartão)', gatilho: 'article.vid .fx-btn[data-pin-act="pin"]', modo: 'foco', caixa: '#flut .fx-hint-pop', max: 4 },
+    { id: 'mais filtros', gatilho: '.filters .more-btn', modo: 'clique', caixa: '#flut .mu-more-pop', gap: 6 },
+    { id: 'fixar vídeo (cartão)', gatilho: 'article.vid .fx-btn[data-pin-act="pin"]', modo: 'foco', caixa: '#flut .fx-hint-pop', max: 4, gap: 8 },
   ] },
   { nome: 'historico', url: () => '/cms/youtube/competitors/video/' + ids.video(MANY_VERSIONS_ID), familias: [
-    { id: 'marcador da linha do tempo', gatilho: '.lanes .mk', modo: 'foco', caixa: '#flut #hv-tip', max: 8 },
+    { id: 'marcador da linha do tempo', gatilho: '.lanes .mk', modo: 'foco', caixa: '#flut #hv-tip', max: 8, gap: 8 },
     // a dica de grupo (hover/foco no contador, lista FECHADA): âncora larga, conteúdo próprio, e some quando a lista abre
-    { id: 'dica de grupo', gatilho: '.lanes .gbtn', modo: 'foco', caixa: '#flut #hv-tip', max: 6, texto: /Enter, espaço ou clique abre a lista/ },
-    { id: 'lista de grupo', gatilho: '.lanes .gbtn', modo: 'clique', caixa: '#flut .hv-gpop', max: 6 },
-    { id: 'fixar vídeo (histórico)', gatilho: '[data-obs-screen="historico"] .fx-btn[data-pin-act="pin"]', modo: 'foco', caixa: '#flut .fx-hint-pop' },
+    { id: 'dica de grupo', gatilho: '.lanes .gbtn', modo: 'foco', caixa: '#flut #hv-tip', max: 6, texto: /Enter, espaço ou clique abre a lista/, gap: 8 },
+    { id: 'lista de grupo', gatilho: '.lanes .gbtn', modo: 'clique', caixa: '#flut .hv-gpop', max: 6, gap: 1 },
+    { id: 'fixar vídeo (histórico)', gatilho: '[data-obs-screen="historico"] .fx-btn[data-pin-act="pin"]', modo: 'foco', caixa: '#flut .fx-hint-pop', gap: 8 },
   ] },
 ]
 const LARGURAS = [1440, 390] as const
@@ -53,13 +69,20 @@ const POSICOES = [['natural', 'nearest'], ['centro', 'center'], ['colado embaixo
  *  TODOS os gatilhos de todas as famílias: distância 0..0 nas duas pontas (com os espaçadores o scroll encosta exato). 4 px cobre só o
  *  arredondamento; por isso nenhuma família usa `folgaPe`/`folgaTopo` (a folga por família existe para um motivo legítimo, declarado). */
 const TOL_EXTREMO = 4
+/** Quanto a caixa pode ficar além do `gap` do código, longe do gatilho (px, distância entre as bordas mais próximas dos dois retângulos).
+ *  A posição vem de Math.round() sobre medidas fracionárias (gatilho e caixa): até 1 px de cada lado. 2 px cobre só isso; um defeito de
+ *  verdade (caixa no canto 8,8, menu a ~495 px do botão como no histórico da tela) passa de centenas de px. */
+const TOL_PROX = 2
 
-interface Res { ok: boolean; dentro: boolean; topo: boolean; cobre: boolean; noFlut: boolean; fundo: boolean; texto: boolean; quem: string; caixa?: string }
+interface Res { ok: boolean; dentro: boolean; topo: boolean; cobre: boolean; perto: boolean; dist: number; noFlut: boolean; fundo: boolean; texto: boolean; quem: string; caixa?: string }
 /** Roda no navegador. As dicas de mouse têm pointer-events:none: a prova liga durante a medida, senão elementsFromPoint não as vê. */
-async function conferir(page: Page, gatilho: string, n: number, caixa: string, texto?: RegExp): Promise<Res> {
-  return page.evaluate(({ gatilho, n, caixa, texto }) => {
+async function conferir(page: Page, gatilho: string, n: number, caixa: string, texto?: RegExp, ref?: string, gap = 6): Promise<Res> {
+  return page.evaluate(async ({ gatilho, n, caixa, texto, ref, gap, tol }) => {
     const g = document.querySelectorAll<HTMLElement>(gatilho)[n]!, tip = document.querySelector<HTMLElement>(caixa)
-    if (!tip) return { ok: false, dentro: false, topo: false, cobre: false, noFlut: false, fundo: false, texto: false, quem: 'a flutuante não abriu' }
+    if (!tip) return { ok: false, dentro: false, topo: false, cobre: false, perto: false, dist: -1, noFlut: false, fundo: false, texto: false, quem: 'a flutuante não abriu' }
+    // a caixa entra com fade e deslize de 4 px: medir no meio da animação erra a distância em até 4 px. Espera as animações acabarem (no
+    // máximo 600 ms: uma animação infinita nunca acaba e não pode travar a prova)
+    await Promise.race([Promise.all(tip.getAnimations({ subtree: true }).map(a => a.finished.catch(() => undefined))), new Promise(r => setTimeout(r, 600))])
     const st = document.createElement('style'); st.textContent = '#flut>*{pointer-events:auto!important}'; document.head.appendChild(st)
     const r = tip.getBoundingClientRect(), W = document.documentElement.clientWidth, H = innerHeight
     const dentro = r.width > 0 && r.height > 0 && r.left >= -0.5 && r.top >= -0.5 && r.right <= W + 0.5 && r.bottom <= H + 0.5
@@ -71,12 +94,17 @@ async function conferir(page: Page, gatilho: string, n: number, caixa: string, t
     st.remove()
     const b = g.getBoundingClientRect()
     const cobre = !(r.right <= b.left + 0.5 || r.left >= b.right - 0.5 || r.bottom <= b.top + 0.5 || r.top >= b.bottom - 0.5)
+    // perto: a distância entre as bordas mais próximas da caixa e do elemento de posição (o gatilho, ou `ref` quando a flutuante se posiciona
+    // por outro elemento) é o `gap` do código mais a folga do arredondamento. Uma caixa solta no canto, ou a centenas de px, reprova aqui.
+    const pr = (ref ? g.closest(ref) ?? g : g).getBoundingClientRect()
+    const dx = Math.max(0, pr.left - r.right, r.left - pr.right), dy = Math.max(0, pr.top - r.bottom, r.top - pr.bottom)
+    const dist = Math.round(Math.hypot(dx, dy) * 10) / 10, perto = dist <= gap + tol
     const flut = tip.closest('#flut'), noFlut = !!flut && flut.parentNode === document.body
     const bg = getComputedStyle(tip).backgroundColor, m = bg.match(/rgba?\(([^)]+)\)/)?.[1]?.split(',').map(s => parseFloat(s)) ?? []
     const fundo = m.length === 3 || (m.length === 4 && m[3]! > 0.9)
     const textoOk = !texto || new RegExp(texto).test(tip.textContent ?? '')
-    return { ok: dentro && topo && !cobre && noFlut && fundo && textoOk, dentro, topo, cobre, noFlut, fundo, texto: textoOk, quem, caixa: `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} bg=${bg}; gatilho ${Math.round(b.left)},${Math.round(b.top)} ${Math.round(b.width)}x${Math.round(b.height)}; janela ${W}x${H}` }
-  }, { gatilho, n, caixa, texto: texto?.source })
+    return { ok: dentro && topo && !cobre && perto && noFlut && fundo && textoOk, dentro, topo, cobre, perto, dist, noFlut, fundo, texto: textoOk, quem, caixa: `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} bg=${bg}; gatilho ${Math.round(b.left)},${Math.round(b.top)} ${Math.round(b.width)}x${Math.round(b.height)}; janela ${W}x${H}` }
+  }, { gatilho, n, caixa, texto: texto?.source, ref, gap, tol: TOL_PROX })
 }
 
 /** Roda no navegador. Põe um espaçador de uma janela de altura antes e outro depois do conteúdo, no contêiner que rola (o mais externo; a
@@ -118,6 +146,8 @@ for (const tema of THEMES) for (const largura of LARGURAS) for (const tela of TE
     await page.goto(tela.url())
     await page.locator('[data-obs-screen]').first().waitFor()
     await page.waitForLoadState('networkidle')
+    // o tema pedido foi aplicado de fato: se o nome do cookie mudar, as duas rodadas virariam a mesma e "2 temas" passaria por vacuidade
+    expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme')), 'o cookie btf_theme não chegou ao <html data-theme>').toBe(tema)
     // o indicador do `next dev` (<nextjs-portal>, canto inferior esquerdo, z-index máximo) não é do produto: sai da medida
     await page.addStyleTag({ content: 'nextjs-portal{display:none!important}' })
     const falhas: string[] = []
@@ -130,6 +160,7 @@ for (const tema of THEMES) for (const largura of LARGURAS) for (const tela of TE
       type Med = { pos: string; top: number; pe: number; areaTopo: number }
       const medidas: Record<string, Med[]> = {}
       let exercitados = 0, pulados = 0, naturais = 0
+      const dists: number[] = [] // distância medida entre a caixa e o gatilho, de cada exercício
       const indices = await amostra(page, f.gatilho, f.max)
       if (!indices.length) falhas.push(`${f.id}: família declarada para a tela "${tela.nome}" mas nenhum gatilho visível (${f.gatilho})`)
       // 1ª passada: a posição natural de TODOS os gatilhos, antes de qualquer espaçador (o gatilho onde a página o entrega, rolando só o
@@ -158,7 +189,8 @@ for (const tema of THEMES) for (const largura of LARGURAS) for (const tela of TE
           exercitados++
           if (bloco === 'nearest') naturais++
           total++
-          const r = await conferir(page, f.gatilho, n, f.caixa, f.texto)
+          const r = await conferir(page, f.gatilho, n, f.caixa, f.texto, f.ref, f.gap + (f.folgaProx ?? 0))
+          dists.push(r.dist)
           if (!r.ok) falhas.push(`${f.id} #${n} ${pos} (${modo}): ${JSON.stringify(r)}`)
           await page.keyboard.press('Escape')
           await page.waitForTimeout(40)
@@ -193,7 +225,7 @@ for (const tema of THEMES) for (const largura of LARGURAS) for (const tela of TE
       }
       const ex = medidos.flatMap(m => m.map(x => x.top))
       const dPe = medidos.map(m => janelaH - m[2]!.pe), dTopo = medidos.map(m => m[3]!.top - m[3]!.areaTopo)
-      console.info(`[prova-flutuantes] ${tela.nome} ${largura} ${tema} | ${f.id}: ${exercitados} exercitados (${naturais} naturais + ${exercitados - naturais} com espaçador), ${pulados} pulados, ${medidos.length} gatilhos × 4 posições, ${f.fixo ? 'fixo (top ' + [...new Set(ex)].join('/') + ')' : comVariacao + ' de ' + medidos.length + ' com top variando'}, dist. do pé ${Math.min(...dPe)}..${Math.max(...dPe)}, dist. do topo ${Math.min(...dTopo)}..${Math.max(...dTopo)} | modos ${JSON.stringify(modos)}`)
+      console.info(`[prova-flutuantes] ${tela.nome} ${largura} ${tema} | ${f.id}: ${exercitados} exercitados (${naturais} naturais + ${exercitados - naturais} com espaçador), ${pulados} pulados, ${medidos.length} gatilhos × 4 posições, ${f.fixo ? 'fixo (top ' + [...new Set(ex)].join('/') + ')' : comVariacao + ' de ' + medidos.length + ' com top variando'}, dist. do pé ${Math.min(...dPe)}..${Math.max(...dPe)}, dist. do topo ${Math.min(...dTopo)}..${Math.max(...dTopo)}, dist. caixa-gatilho ${Math.min(...dists)}..${Math.max(...dists)} (gap ${f.gap + (f.folgaProx ?? 0)} + ${TOL_PROX}) | modos ${JSON.stringify(modos)}`)
     }
     console.info(`[prova-flutuantes] ${tela.nome} ${largura} ${tema}: ${total - falhas.length} de ${total}`)
     expect(total, 'nenhuma flutuante foi exercitada: o seletor do gatilho mudou?').toBeGreaterThan(0)
@@ -217,6 +249,32 @@ test('controle negativo: uma caixa absolute numa célula da última linha, com z
   console.info('[prova-flutuantes] controle negativo: ' + JSON.stringify(r))
   expect(r.ok).toBe(false)
   expect(r.noFlut).toBe(false)
+  // o defeito de produção que originou a regra: a caixa cortada pelo overflow da tabela ou coberta por ela, não só "fora de #flut"
+  expect(r.topo === false || r.dentro === false, 'a caixa cortada/coberta pela tabela devia reprovar em `topo` ou `dentro`: ' + JSON.stringify(r)).toBe(true)
+  expect(r.cobre, 'a caixa absolute sobre o gatilho devia reprovar em `cobre`').toBe(true)
+})
+
+test('controle negativo: uma caixa solta no canto da janela (o `place` sem medida), longe do gatilho, reprova SÓ pela proximidade', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/cms/youtube/competitors')
+  await page.locator('[data-obs-screen="canais"] tbody tr').first().waitFor()
+  await page.evaluate(() => {
+    // uma caixa correta em tudo menos na distância: em #flut (filho do body), opaca, no alto da pilha, inteira na janela, fora do gatilho
+    let host = document.getElementById('flut')
+    if (!host) { host = document.createElement('div'); host.id = 'flut'; host.setAttribute('data-obs', ''); document.body.appendChild(host) }
+    const c = document.createElement('div'); c.id = 'neg-canto'; c.className = 'obs-fl-pop'
+    c.style.cssText = 'position:fixed;left:8px;top:8px;width:220px;height:90px'
+    host.appendChild(c)
+    const g = document.createElement('button'); g.id = 'neg-g2'; g.textContent = '?'
+    g.style.cssText = 'position:fixed;left:900px;top:600px;width:24px;height:24px'
+    document.body.appendChild(g)
+  })
+  const r = await conferir(page, '#neg-g2', 0, '#neg-canto', undefined, undefined, 6)
+  console.info('[prova-flutuantes] controle negativo (canto): ' + JSON.stringify(r))
+  expect(r.dentro && r.topo && !r.cobre && r.noFlut && r.fundo, 'o controle devia estar certo em tudo menos na distância: ' + JSON.stringify(r)).toBe(true)
+  expect(r.perto, 'a caixa no canto, a centenas de px do gatilho, devia reprovar em `perto`: ' + JSON.stringify(r)).toBe(false)
+  expect(r.ok).toBe(false)
+  expect(r.dist).toBeGreaterThan(500)
 })
 
 test('uma aberta por vez e clique fora, na tela de verdade', async ({ page }) => {
