@@ -9,6 +9,7 @@ import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildOutliersView } from '@/app/cms/(authed)/youtube/competitors/_outliers/view-model'
 import { OutliersScreen } from '@/app/cms/(authed)/youtube/competitors/_outliers/outliers-screen'
+import { focoDeTeclado } from '@/app/cms/(authed)/youtube/competitors/_outliers/outlier-card'
 import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
 import { noJunkText, oneFilledButton, forbiddenVocabulary, brokenLinks, linkCountsMatch } from './audits'
 
@@ -185,6 +186,22 @@ describe('OutliersScreen', () => {
 
 describe('Outliers · flutuantes na camada única (A0.1)', () => {
   const info = (container: HTMLElement) => container.querySelector<HTMLButtonElement>('.obs-out-info')!
+  // jsdom answers `:focus-visible` as true for any focus(), so the test says which kind of focus it is (keyboard vs mouse/window)
+  const focar = (el: HTMLElement, teclado: boolean) => {
+    const orig = el.matches.bind(el)
+    el.matches = (sel: string) => sel === ':focus-visible' ? teclado : orig(sel)
+    fireEvent.focus(el)
+  }
+  const dica = () => document.querySelector('#flut .obs-out-tip, #flut .obs-out-ibtip')
+  it('focoDeTeclado: segue o :focus-visible e, se o navegador não conhece o seletor, mantém a dica alcançável', () => {
+    const el = document.createElement('button')
+    el.matches = () => true
+    expect(focoDeTeclado(el)).toBe(true)
+    el.matches = () => false
+    expect(focoDeTeclado(el)).toBe(false)
+    el.matches = () => { throw new SyntaxError('not a valid selector') }
+    expect(focoDeTeclado(el)).toBe(true)
+  })
   it('o ⓘ do múltiplo abre a conta em #flut por clique e fecha com Esc, com o foco de volta', () => {
     const { container } = mount()
     const btn = info(container)
@@ -227,7 +244,7 @@ describe('Outliers · flutuantes na camada única (A0.1)', () => {
     const { container } = mount()
     const btn = info(container)
     fireEvent.mouseEnter(btn)
-    fireEvent.focus(btn)
+    focar(btn, true)
     fireEvent.mouseLeave(btn)
     expect(document.querySelector('#flut .obs-out-tip')).not.toBeNull()
     fireEvent.blur(btn)
@@ -237,7 +254,7 @@ describe('Outliers · flutuantes na camada única (A0.1)', () => {
     const { container } = mount()
     const a = container.querySelector<HTMLAnchorElement>('a.obs-out-ib[data-hist]')!
     expect(a.hasAttribute('data-tip')).toBe(false)
-    fireEvent.focus(a)
+    focar(a, true)
     expect(document.querySelector('#flut .obs-out-ibtip')!.textContent).toBe('Ver histórico do vídeo')
     fireEvent.blur(a)
     expect(document.querySelector('#flut .obs-out-ibtip')).toBeNull()
@@ -246,11 +263,55 @@ describe('Outliers · flutuantes na camada única (A0.1)', () => {
     const { container } = mount()
     const a = container.querySelector<HTMLAnchorElement>('a.obs-out-ib[data-yt]')!
     fireEvent.mouseEnter(a)
-    fireEvent.focus(a)
+    focar(a, true)
     fireEvent.mouseLeave(a)
     expect(document.querySelector('#flut .obs-out-ibtip')!.textContent).toBe('Abrir no YouTube')
     fireEvent.blur(a)
     expect(document.querySelector('#flut .obs-out-ibtip')).toBeNull()
+  })
+  it('foco de teclado no ⓘ mostra a conta; foco de mouse (clique) não', () => {
+    const { container } = mount()
+    const btn = info(container)
+    focar(btn, false)
+    expect(dica()).toBeNull()
+    expect(btn.getAttribute('aria-describedby')).toBeNull()
+    fireEvent.blur(btn)
+    focar(btn, true)
+    expect(dica()).not.toBeNull()
+    expect(btn.getAttribute('aria-describedby')).toBe(dica()!.id)
+  })
+  it('foco de mouse no ícone do vídeo não mostra a dica; o de teclado mostra', () => {
+    const { container } = mount()
+    const a = container.querySelector<HTMLAnchorElement>('a.obs-out-ib[data-yt]')!
+    focar(a, false)
+    expect(dica()).toBeNull()
+    fireEvent.blur(a)
+    focar(a, true)
+    expect(dica()!.textContent).toBe('Abrir no YouTube')
+  })
+  it('clicar no ⓘ para abrir e de novo para fechar, e tirar o mouse: a conta não fica presa', () => {
+    const { container } = mount()
+    const btn = info(container)
+    fireEvent.mouseEnter(btn)
+    focar(btn, false) // the mouse down focuses the button, but it is not a keyboard focus
+    fireEvent.click(btn)
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-pop')).not.toBeNull()
+    fireEvent.click(btn)
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-pop')).toBeNull()
+    fireEvent.mouseLeave(btn)
+    expect(dica()).toBeNull()
+  })
+  it('clicar em "Abrir no YouTube" e a janela devolver o foco ao link: a dica não reaparece sem mouse', () => {
+    const { container } = mount()
+    const a = container.querySelector<HTMLAnchorElement>('a.obs-out-ib[data-yt]')!
+    fireEvent.mouseEnter(a)
+    focar(a, false)
+    fireEvent.click(a)
+    fireEvent.mouseLeave(a)
+    fireEvent.blur(a) // the tab opened in the background takes the focus
+    expect(dica()).toBeNull()
+    focar(a, false) // coming back, the window re-focuses the link
+    expect(dica()).toBeNull()
   })
   it('as regras das caixas têm duas classes (vencem a base #flut .obs-fl-* por especificidade, não por ordem)', () => {
     expect(CSS).toMatch(/#flut \.obs-fl-pop\.obs-out-tip,#flut \.obs-fl-tip\.obs-out-tip\{/)

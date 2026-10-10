@@ -22,6 +22,10 @@ const P: Record<string, ReactNode> = {
   list: <path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />,
   empty: <><circle cx="7" cy="7" r="4.6" stroke="currentColor" strokeWidth="1.1" fill="none" /><path d="M10.4 10.4l3.6 3.6M5 7h4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" /></>,
 }
+/** Only a keyboard focus shows the tip (the old CSS was `:focus-visible`): a mouse click or the window re-focusing a link must not. */
+export function focoDeTeclado(el: Element): boolean {
+  try { return el.matches(':focus-visible') } catch { return true } // browser without the selector: keep the tip reachable by focus
+}
 export function OutIcon({ name, className = 'obs-out-i' }: { name: string; className?: string }) {
   return <svg className={className} viewBox="0 0 16 16" aria-hidden="true" focusable="false">{P[name]}</svg>
 }
@@ -73,7 +77,7 @@ export function MultBlock({ c, compact, lead }: { c: OutlierCardView; compact?: 
         <button ref={btn} className="obs-out-info" type="button" aria-label={'Como o ' + c.mult + ' é calculado'} aria-describedby={open || tipShown ? id : undefined} aria-expanded={open}
           onClick={() => setOpen(o => !o)}
           onMouseEnter={() => { setHover(true); setOff(false) }} onMouseLeave={() => { setHover(false); setOff(false) }}
-          onFocus={() => { setFoco(true); if (!closing.current) setOff(false) }} onBlur={() => { setFoco(false); setOff(false) }}
+          onFocus={e => { setFoco(focoDeTeclado(e.currentTarget)); if (!closing.current) setOff(false) }} onBlur={() => { setFoco(false); setOff(false) }}
           onKeyDown={e => { if (e.key === 'Escape') { setHover(false); setFoco(false) } }}><span aria-hidden="true">i</span></button>
         <HoverTip show={tipShown} anchor={() => btn.current} id={id} className="obs-out-tip" pref="baixo" align={align} gap={0} maxW={320}><RichText parts={c.tip} /></HoverTip>
         <Popover open={open} anchor={() => btn.current} id={id} role="tooltip" className="obs-out-tip" pref="baixo" align={align} gap={0} maxW={320}
@@ -107,7 +111,7 @@ function IbLink({ tip, children, ...rest }: { tip: string; children: ReactNode }
   const [hover, setHover] = useState(false)
   const [foco, setFoco] = useState(false)
   return (
-    <a {...rest} ref={el} className="obs-out-ib" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onFocus={() => setFoco(true)} onBlur={() => setFoco(false)}>
+    <a {...rest} ref={el} className="obs-out-ib" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onFocus={e => setFoco(focoDeTeclado(e.currentTarget))} onBlur={() => setFoco(false)}>
       {children}
       <HoverTip show={hover || foco} anchor={() => el.current} className="obs-out-ibtip" pref="cima" align="fim" gap={4} ariaHidden>{tip}</HoverTip>
     </a>
