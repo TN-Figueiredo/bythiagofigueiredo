@@ -24,3 +24,33 @@
 [data-obs] .obs-ch-card{background:var(--surface);border:1px solid var(--border-subtle);border-radius:8px;display:flex;flex-direction:column;position:relative;min-width:0;align-self:stretch}
 [data-obs] .obs-ch-card:hover{border-color:var(--border-strong)}
 [data-obs] .obs-ch-ttl{font-size:13.5px;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0}
+
+/* Diálogo de remoção de canal (D11): as regras de [data-obs-screen="canais"] .modal / .btn que o RemoveDialog usa, copiadas
+   para a página do canal. kit-css.test.ts mantém as duas cópias iguais; a única diferença é a camada: o z-index numérico de
+   lá (90) aqui é var(--z-modal), da escala de camadas.css. */
+[data-obs-screen="canal"] .btn{min-height:36px;padding:0 14px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-weight:500;font-size:13.5px;white-space:nowrap;text-decoration:none}
+[data-obs-screen="canal"] .btn:hover{background:var(--surface-hover)}
+[data-obs-screen="canal"] .btn.danger{background:#B42318;border-color:#B42318;color:#fff}
+[data-obs-screen="canal"] .btn.danger:hover{background:#9A1D14}
+[data-obs-screen="canal"] .modal{position:fixed;inset:0;z-index:var(--z-modal);display:none;place-items:center;background:rgba(0,0,0,.5);padding:16px}
+[data-obs-screen="canal"] .modal.on{display:grid}
+[data-obs-screen="canal"] .modal .box{width:min(440px,100%);background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;box-shadow:var(--shadow);padding:20px}
+[data-obs-screen="canal"] .modal p{margin:0 0 10px;color:var(--muted);font-size:13.5px}
+[data-obs-screen="canal"] .modal .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+[data-obs-screen="canal"] .modal:has(.fx-remove){align-items:start}
+[data-obs-screen="canal"] .modal .box.fx-remove{max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;padding-bottom:0}
+[data-obs-screen="canal"] .modal .fx-remove h2{margin:0 0 8px;font-size:16px;font-weight:600}
+[data-obs-screen="canal"] .modal .fx-loss-box{display:grid}
+[data-obs-screen="canal"] .modal .fx-loss-box > *{grid-area:1/1;min-width:0}
+[data-obs-screen="canal"] .modal .fx-loss-box > .fx-sizer{visibility:hidden;pointer-events:none}
+[data-obs-screen="canal"] :is(.fx-loss,.fx-lossz){margin:0 0 12px;padding:0;list-style:none;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
+[data-obs-screen="canal"] :is(.fx-loss,.fx-lossz) li{display:grid;grid-template-columns:76px minmax(0,1fr);gap:0 12px;align-items:baseline;min-height:54px;padding:8px 12px;font-size:13px;line-height:1.5;color:var(--muted)}
+[data-obs-screen="canal"] :is(.fx-loss,.fx-lossz) li + li{border-top:1px solid var(--border-subtle)}
+[data-obs-screen="canal"] :is(.fx-loss,.fx-lossz) b{font:500 15px/1.3 var(--font-jetbrains-var),ui-monospace,monospace;font-variant-numeric:tabular-nums;color:var(--text);text-align:right}
+[data-obs-screen="canal"] :is(.fx-loss,.fx-lossz) b.fx-wait{font:400 13px/1.5 var(--font-sans),system-ui,sans-serif;color:var(--muted)}
+[data-obs-screen="canal"] :is(.fx-loss,.fx-lossz) span span{display:block;font-size:12px}
+[data-obs-screen="canal"] .modal p.fx-never{color:var(--text)}
+[data-obs-screen="canal"] .modal .fx-msg{margin:0 0 12px}
+[data-obs-screen="canal"] .modal .fx-remove .acts{position:sticky;bottom:0;margin:0 -20px;padding:12px 20px 20px;background:var(--surface);border-top:1px solid var(--border-subtle)}
+[data-obs-screen="canal"] .modal .btn[aria-disabled="true"],[data-obs-screen="canal"] .modal .btn[aria-disabled="true"]:hover,[data-obs-screen="canal"] .modal .btn[aria-disabled="true"]:active{cursor:not-allowed;background:transparent;border-style:dashed;border-color:var(--border-strong);color:var(--muted)}
+@media (pointer:coarse){[data-obs-screen="canal"] .modal .fx-remove .acts .btn.btn{min-height:44px}}

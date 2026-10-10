@@ -1,0 +1,126 @@
+/* Página do canal do concorrente (spec 5, mockup 2026-10-07-pagina-canal, canal.css rodadas 5, 11 e 12). Tudo sob
+   [data-obs-screen="canal"]; os tokens vêm do [data-obs] do TrailChrome. Exceção: as flutuantes (menu ⋯ e o ⓘ) moram em
+   #flut, fora da tela, e levam #flut na frente. Hex e rgba literais; nenhum color-mix e nenhum z-index numérico.
+   Texto de corpo no mínimo de 12 px. As regras do diálogo de remoção estão em _chrome/kit.css. */
+[data-obs-screen="canal"]{
+  --travel:var(--viagem);--travel-subtle:rgba(91,191,138,.13);--ai:var(--ia);--ai-subtle:rgba(110,168,254,.14);
+  color:var(--text);font:14px/1.45 var(--font-sans),Inter,system-ui,sans-serif;padding:0 0 72px;min-width:0
+}
+[data-theme="light"] [data-obs-screen="canal"]{--travel-subtle:rgba(17,105,47,.08);--ai-subtle:rgba(29,78,216,.07)}
+[data-obs-screen="canal"] button,[data-obs-screen="canal"] select,[data-obs-screen="canal"] input{font:inherit;color:inherit}
+[data-obs-screen="canal"] a{color:inherit}
+[data-obs-screen="canal"] .num{font-family:var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+[data-obs-screen="canal"] .lk{color:var(--text);text-decoration:underline;text-underline-offset:2px;display:inline-flex;align-items:center;min-height:24px;gap:4px;background:none;border:0;padding:0;font:inherit;cursor:pointer}
+[data-obs-screen="canal"] svg.i{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}
+
+/* ---------------------------------------------------------------- cabeçalho */
+[data-obs-screen="canal"] .chead{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:12px;row-gap:1px;align-items:center;margin-bottom:14px}
+[data-obs-screen="canal"] .chead .av{grid-row:1/4;align-self:start;width:44px;height:44px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border);overflow:hidden;display:grid;place-items:center;font:600 15px var(--font-sans),system-ui,sans-serif;color:var(--muted);margin-top:2px}
+[data-obs-screen="canal"] .chead .l1{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;min-width:0;min-height:34px}
+[data-obs-screen="canal"] .chead h1{font:600 22px/1.2 var(--font-fraunces-var),Fraunces,Georgia,serif;letter-spacing:-.01em;margin:0;font-variation-settings:"opsz" 72;overflow-wrap:anywhere}
+[data-obs-screen="canal"] .chead .acts{display:flex;gap:8px;align-items:center}
+[data-obs-screen="canal"] .chead .handle{color:var(--text);text-decoration:underline;text-decoration-color:var(--border-strong);text-underline-offset:3px;min-height:24px;display:inline-flex;align-items:center;gap:4px;font-size:13px}
+/* nicho: o mesmo desenho de Canais */
+[data-obs-screen="canal"] .niche{appearance:none;-webkit-appearance:none;border:0;border-radius:5px;height:26px;padding:0 20px 0 8px;font-size:12.5px;font-weight:600;cursor:pointer;background-repeat:no-repeat;background-position:right 7px center;background-size:7px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23958A75'/%3E%3C/svg%3E")}
+[data-obs-screen="canal"] .niche.viagem{background-color:var(--travel-subtle);color:var(--travel)}
+[data-obs-screen="canal"] .niche.none{background-color:transparent;color:var(--muted);border:1px dashed var(--border-strong);padding-left:7px}
+[data-obs-screen="canal"] .niche.ia{background-color:var(--ai-subtle);color:var(--ai)}
+[data-obs-screen="canal"] .niche.custom{background-color:var(--obs-sw-dark-subtle);color:var(--obs-sw-dark)}
+[data-theme="light"] [data-obs-screen="canal"] .niche.custom{background-color:var(--obs-sw-light-subtle);color:var(--obs-sw-light)}
+[data-obs-screen="canal"] .niche option{color:#231C14;background:#FBF7F0}
+
+/* linha de sincronização */
+[data-obs-screen="canal"] .chead .lrow{grid-column:2/4;display:flex;align-items:center;justify-content:space-between;gap:0 16px;flex-wrap:wrap;min-width:0}
+[data-obs-screen="canal"] .chead .l3{flex:1 1 320px;min-width:0;margin:0;font-size:13px;line-height:19px;color:var(--muted);display:flex;flex-wrap:wrap;gap:0 6px;align-items:center}
+[data-obs-screen="canal"] .chead .l3.warn{color:var(--warning-text)}
+[data-obs-screen="canal"] .chead .l3.err{color:var(--danger-text)}
+[data-obs-screen="canal"] .chead .l3 svg{width:14px;height:14px}
+[data-obs-screen="canal"] .chead .ntools{display:flex;align-items:center;gap:4px;flex:none;height:19px}
+[data-obs-screen="canal"] .ibtn{width:24px;height:24px;border:0;background:none;padding:0;cursor:pointer;display:inline-grid;place-items:center;color:var(--muted);border-radius:50%}
+[data-obs-screen="canal"] .ibtn:hover{color:var(--text)}
+[data-obs-screen="canal"] .ibtn svg{width:16px;height:16px}
+[data-obs-screen="canal"] .nmore{display:inline-flex;align-items:center;gap:5px;min-height:24px;padding:0 4px;border:0;border-radius:4px;background:none;color:var(--muted);font:400 12.5px var(--font-sans),system-ui,sans-serif;cursor:pointer;white-space:nowrap;text-decoration:underline;text-underline-offset:2px}
+[data-obs-screen="canal"] .nmore:hover{color:var(--text)}
+[data-obs-screen="canal"] .nmore svg{width:12px;height:12px;transition:transform .12s}
+[data-obs-screen="canal"] .nmore[aria-expanded="true"] svg{transform:rotate(180deg)}
+
+/* faixa de números: células paralelas, sem cartão, separadas por um fio vertical. Valor em cima (mono), rótulo embaixo
+   (no DOM o valor vem antes). As células QUEBRAM de linha quando não cabem, não rolam; o fio da primeira célula de cada
+   linha fica fora do recorte (.nclip), então toda linha começa alinhada ao nome do canal. */
+[data-obs-screen="canal"] .chead .nrow{grid-column:2/4;min-width:0;margin:10px 0 8px}
+[data-obs-screen="canal"] .chead .nclip{overflow:hidden;min-width:0;flex:0 1 auto}
+[data-obs-screen="canal"] .chead .nclip.n2{grid-column:2/4;margin:10px 0 8px;padding-top:12px;border-top:1px solid var(--border-subtle)}
+[data-obs-screen="canal"] .chead .nclip.n2[hidden]{display:none}
+[data-obs-screen="canal"] .nstrip{display:flex;flex-wrap:wrap;gap:12px 0;margin:0 0 0 -21px;padding:0}
+[data-obs-screen="canal"] .nstrip .nc{display:flex;flex-direction:column;justify-content:flex-start;padding:0 20px;border-left:1px solid var(--border-subtle);min-width:0}
+[data-obs-screen="canal"] .nstrip dd{margin:0;font:500 15px/20px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
+[data-obs-screen="canal"] .nstrip dd b{font-weight:500}
+[data-obs-screen="canal"] .nstrip dd small{font:400 12px/20px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;color:var(--muted);margin-left:2px}
+[data-obs-screen="canal"] .nstrip dd.nf{font:400 12.5px/20px var(--font-sans),system-ui,sans-serif;white-space:normal;max-width:30ch}
+[data-obs-screen="canal"] .nstrip dt{font:400 12px/16px var(--font-sans),system-ui,sans-serif;color:var(--muted);white-space:nowrap}
+[data-obs-screen="canal"] .nclip.n2 .nstrip .nc{flex:0 0 auto}
+
+/* faixa de aviso (sincronização atrasada, com erro ou em andamento) */
+[data-obs-screen="canal"] .band{display:flex;gap:8px 10px;align-items:flex-start;flex-wrap:wrap;border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-top:10px;font-size:13px;background:var(--surface)}
+[data-obs-screen="canal"] .band svg{margin-top:2px;width:15px;height:15px;flex:none}
+[data-obs-screen="canal"] .band p{margin:0;flex:1 1 260px;min-width:0}
+[data-obs-screen="canal"] .band.warn{background:var(--warn-subtle);border-color:var(--warning);color:var(--text)}
+[data-obs-screen="canal"] .band.warn svg,[data-obs-screen="canal"] .band.warn b{color:var(--warning-text)}
+[data-obs-screen="canal"] .band.err{background:var(--danger-subtle);border-color:var(--danger)}
+[data-obs-screen="canal"] .band.err svg,[data-obs-screen="canal"] .band.err b{color:var(--danger-text)}
+[data-obs-screen="canal"] .band.info svg{color:var(--muted)}
+
+/* canal que não existe */
+[data-obs-screen="canal"] .vazio{padding:28px 0;display:grid;gap:10px;justify-items:start}
+[data-obs-screen="canal"] .vazio p{margin:0;font-size:14px}
+
+@media (max-width:900px){
+  [data-obs-screen="canal"] .chead .nrow,[data-obs-screen="canal"] .chead .nclip.n2,[data-obs-screen="canal"] .chead .lrow{grid-column:1/3}
+  [data-obs-screen="canal"] .chead .ntools{height:44px;margin-left:-10px}
+  /* 768 px: três colunas iguais (6 números = 2 linhas cheias, sem célula órfã); o rótulo quebra em vez de rolar para o lado */
+  [data-obs-screen="canal"] .nstrip .nc,[data-obs-screen="canal"] .nclip.n2 .nstrip .nc{flex:0 0 33.333%;box-sizing:border-box}
+  [data-obs-screen="canal"] .nstrip dt{white-space:normal}
+  [data-obs-screen="canal"] .nmore{min-height:44px}
+}
+@media (max-width:600px){
+  /* 390 e 320 px: duas colunas, com o rótulo quebrando em vez de rolar para o lado (nenhum número fica escondido) */
+  [data-obs-screen="canal"] .nstrip{margin-left:-15px}
+  [data-obs-screen="canal"] .nstrip .nc{padding:0 14px}
+  [data-obs-screen="canal"] .nstrip .nc,[data-obs-screen="canal"] .nclip.n2 .nstrip .nc{flex:0 0 50%;box-sizing:border-box}
+  [data-obs-screen="canal"] .chead .acts .obs-ch-btn:not(.obs-ch-icon){padding:0 10px}
+}
+@media (pointer:coarse){
+  [data-obs-screen="canal"] .chead .acts .obs-ch-btn{min-height:44px}
+  [data-obs-screen="canal"] .chead .acts .obs-ch-btn.obs-ch-icon{width:44px;min-width:44px}
+  [data-obs-screen="canal"] .ibtn{width:44px;height:44px}
+  [data-obs-screen="canal"] .niche{height:44px}
+}
+
+/* ---------------------------------------------------------------- esqueleto (loading.tsx): só aparece depois de 100 ms */
+[data-obs-screen="canal"] .ld{opacity:0;animation:obs-cn-ld 0s linear 100ms forwards}
+@keyframes obs-cn-ld{to{opacity:1}}
+/* o chrome desliga as animações com "reduzir movimento"; esta, de duração zero, só atrasa o aparecimento: não é movimento */
+@media (prefers-reduced-motion:reduce){[data-obs-screen="canal"] .ld{animation:obs-cn-ld 0s linear 100ms forwards!important}}
+[data-obs-screen="canal"] .ld .bone{display:block;background:var(--surface-2);border-radius:6px}
+[data-obs-screen="canal"] .ld .sk-h{display:grid;gap:10px;margin-bottom:18px}
+[data-obs-screen="canal"] .ld .sk-g{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+[data-obs-screen="canal"] .ld .sk-g .bone{aspect-ratio:16/9;border-radius:7px}
+@media (max-width:1100px){[data-obs-screen="canal"] .ld .sk-g{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:600px){[data-obs-screen="canal"] .ld .sk-g{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@keyframes obs-cn-pulse{from{opacity:.55}to{opacity:1}}
+@media (prefers-reduced-motion:no-preference){[data-obs-screen="canal"] .ld .bone{animation:obs-cn-pulse 1.1s ease-in-out infinite alternate}}
+
+/* ---------------------------------------------------------------- flutuantes (em #flut, fora da tela) */
+#flut .obs-fl-pop.canal-menu{min-width:230px;padding:4px}
+#flut .canal-menu [role="menuitem"]{display:flex;width:100%;text-align:left;gap:8px;align-items:center;border:0;background:transparent;padding:0 10px;min-height:34px;border-radius:5px;cursor:pointer;font:400 13px var(--font-sans),system-ui,sans-serif;color:var(--text)}
+#flut .canal-menu [role="menuitem"]:hover,#flut .canal-menu [role="menuitem"]:focus-visible{background:var(--surface-hover);outline:2px solid var(--accent);outline-offset:-2px}
+#flut .canal-menu [role="menuitem"][aria-disabled="true"]{color:var(--muted);cursor:default}
+#flut .canal-menu [role="menuitem"].del{color:var(--danger-text)}
+#flut .canal-menu hr{border:0;border-top:1px solid var(--border-subtle);margin:4px 0}
+#flut .canal-menu p{margin:0;padding:6px 10px;max-width:230px;font-size:12px;line-height:1.35;color:var(--muted)}
+#flut .obs-fl-pop.canal-tip{width:380px;padding:12px 14px;font-size:13px;max-height:min(70vh,560px);overflow:auto}
+#flut .canal-tip h3{margin:0 0 6px;font:600 13.5px var(--font-sans),system-ui,sans-serif}
+#flut .canal-tip ul{margin:0;padding-left:16px;color:var(--muted);display:grid;gap:4px}
+#flut .canal-tip b{color:var(--text);font-weight:500}
+#flut .canal-tip p.m{margin:8px 0 0;color:var(--muted)}
+@media (pointer:coarse){#flut .canal-menu [role="menuitem"]{min-height:44px}}

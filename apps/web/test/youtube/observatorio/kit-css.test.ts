@@ -12,6 +12,18 @@ const css = (f: string) => fs.readFileSync(path.join(DIR, f), 'utf8').replace(/\
 
 interface Rule { media: string | null; sels: string[]; body: string }
 const normSel = (s: string) => s.replace(/\s*>\s*/g, ' > ').replace(/\s+/g, ' ').trim()
+/** A lista de seletores se parte nas vírgulas de fora dos parênteses: `:is(.a,.b) li` é um seletor só. */
+function splitSelectors(prelude: string): string[] {
+  const out: string[] = []
+  let depth = 0, cur = ''
+  for (const ch of prelude) {
+    if (ch === '(') depth++
+    else if (ch === ')') depth--
+    if (ch === ',' && depth === 0) { out.push(cur); cur = '' } else cur += ch
+  }
+  out.push(cur)
+  return out
+}
 /** Regras de primeiro nível e as de dentro de `@media` (um nível). `@keyframes` e outras at-rules ficam de fora. */
 function parse(src: string): Rule[] {
   const out: Rule[] = []
@@ -25,7 +37,7 @@ function parse(src: string): Rule[] {
       while (j < text.length && d) { if (text[j] === '{') d++; else if (text[j] === '}') d--; j++ }
       const body = text.slice(o + 1, j - 1)
       if (prelude.startsWith('@media')) walk(body, prelude.replace(/\s+/g, ''))
-      else if (!prelude.startsWith('@')) out.push({ media, sels: prelude.split(',').map(normSel), body })
+      else if (!prelude.startsWith('@')) out.push({ media, sels: splitSelectors(prelude).map(normSel), body })
       i = j
     }
   }
@@ -74,6 +86,19 @@ const PARES_MEDIA: Array<[string, string, string]> = [
   [C, CN + ' .dstats > div:nth-child(n+4)', '[data-obs] .obs-ch-dstats > div:nth-child(n+4)'],
   [C, CN + ' .dstats > div:last-child:nth-child(odd)', '[data-obs] .obs-ch-dstats > div:last-child:nth-child(odd)'],
 ]
+// O diálogo de remoção (D11): as regras de Canais que o RemoveDialog usa, copiadas para a página do canal. Mesmas
+// declarações; a camada é a única diferença (o z-index numérico de lá vira var(--z-modal) aqui).
+const CNL = '[data-obs-screen="canal"]'
+const DIALOGO: string[] = [
+  ' .btn', ' .btn:hover', ' .btn.danger', ' .btn.danger:hover',
+  ' .modal.on', ' .modal .box', ' .modal p', ' .modal .acts',
+  ' .modal:has(.fx-remove)', ' .modal .box.fx-remove', ' .modal .fx-remove h2',
+  ' .modal .fx-loss-box', ' .modal .fx-loss-box > *', ' .modal .fx-loss-box > .fx-sizer',
+  ' :is(.fx-loss,.fx-lossz)', ' :is(.fx-loss,.fx-lossz) li', ' :is(.fx-loss,.fx-lossz) li + li',
+  ' :is(.fx-loss,.fx-lossz) b', ' :is(.fx-loss,.fx-lossz) b.fx-wait', ' :is(.fx-loss,.fx-lossz) span span',
+  ' .modal p.fx-never', ' .modal .fx-msg', ' .modal .fx-remove .acts',
+  ' .modal .btn[aria-disabled="true"]', ' .modal .btn[aria-disabled="true"]:hover', ' .modal .btn[aria-disabled="true"]:active',
+]
 describe('Observatório · kit promovido', () => {
   const kit = parse(css('_chrome/kit.css'))
   it.each(PARES)('%s %s = %s', (arquivo, origem, promovida) => {
@@ -87,6 +112,18 @@ describe('Observatório · kit promovido', () => {
     expect(decl(kit, '[data-obs]', null, YT)).toEqual(decl(canais, CN, null, YT))
     expect(decl(kit, '[data-theme="light"] [data-obs]', null, YT)).toEqual(decl(canais, '[data-theme="light"] ' + CN, null, YT))
     expect(Object.keys(decl(kit, '[data-obs]', null, YT)).sort()).toEqual(['--youtag-bg', '--youtag-border', '--youtag-text'])
+  })
+  it.each(DIALOGO)('diálogo de remoção:%s', sufixo => {
+    expect(decl(kit, CNL + sufixo)).toEqual(decl(parse(css(C)), CN + sufixo))
+  })
+  it('diálogo de remoção: o .modal é igual ao de Canais, menos a camada, que vem da escala', () => {
+    const naoZ = /^(?!z-index$)/
+    expect(decl(kit, CNL + ' .modal', null, naoZ)).toEqual(decl(parse(css(C)), CN + ' .modal', null, naoZ))
+    expect(decl(kit, CNL + ' .modal')['z-index']).toBe('var(--z-modal)')
+  })
+  it('diálogo de remoção: o @media de toque é o mesmo', () => {
+    const m = '@media(pointer:coarse)'
+    expect(decl(kit, CNL + ' .modal .fx-remove .acts .btn.btn', m)).toEqual(decl(parse(css(C)), CN + ' .modal .fx-remove .acts .btn.btn', m))
   })
   it('o conferidor pega a deriva: uma declaração mudada, ou uma regra repartida em duas, aparece na comparação', () => {
     const a = parse('.x .a{color:red}.x .a{margin:0}'), b = parse('.y .a{color:red;margin:0}'), c = parse('.y .a{color:blue;margin:0}')
