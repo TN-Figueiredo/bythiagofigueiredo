@@ -263,7 +263,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
   const h = view.header
   const [state, set] = useCanalState(view.state)
   const nums = state.nums
-  /* trocar de aba move o foco para o título da aba nova (sem rolar); o Voltar do navegador (popstate) não mexe no foco */
+  /* trocar de aba move o foco para o título da aba nova; o Voltar do navegador (popstate) não mexe no foco */
   const focoNaAba = useRef(false)
   const setAba = useCallback((patch: Partial<CanalState>) => {
     if (patch.tab && patch.tab !== state.tab) focoNaAba.current = true
@@ -273,10 +273,18 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
     if (tab === state.tab) { document.getElementById(tab === 'trocas' ? 'ct-h2' : 'cv-h2')?.focus({ preventScroll: true }); return }
     setAba({ tab, video: null })
   }
+  /* Toda troca de aba depois da primeira montagem (clique, "Ver trocas", popstate) rola até o título da aba nova: a página encolhe e o
+     navegador a prende no fim, então sem isso o título e a linha "Só as trocas de…" ficariam fora da tela. O scroll-margin-top do
+     título já desconta a barra presa; com prefers-reduced-motion a rolagem é instantânea. O foco só vai junto quando a pessoa agiu. */
+  const abaAnterior = useRef(state.tab)
   useLayoutEffect(() => {
-    if (!focoNaAba.current) return
-    focoNaAba.current = false
-    document.getElementById(state.tab === 'trocas' ? 'ct-h2' : 'cv-h2')?.focus({ preventScroll: true })
+    const mudou = abaAnterior.current !== state.tab
+    abaAnterior.current = state.tab
+    const titulo = document.getElementById(state.tab === 'trocas' ? 'ct-h2' : 'cv-h2')
+    if (focoNaAba.current) { focoNaAba.current = false; titulo?.focus({ preventScroll: true }) }
+    if (!mudou) return
+    const reduzir = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    titulo?.scrollIntoView?.({ block: 'start', behavior: reduzir ? 'auto' : 'smooth' })
   }, [state.tab])
   const filtroTrocas = state.video ? view.videos.videos.find(v => v.id === state.video) ?? null : null
   const hrefTodasTrocas = link.canal(h.id, { tab: 'trocas', ...view.origem })

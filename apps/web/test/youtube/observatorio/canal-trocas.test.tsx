@@ -242,6 +242,67 @@ describe('abas do canal', () => {
     expect(document.querySelector('ul.ct-list')).not.toBeNull()
   })
 
+  describe('rolagem ao trocar de aba', () => {
+    const rolar = vi.fn()
+    const alvos = () => rolar.mock.contexts as Element[]
+    const reduzir = (on: boolean) => {
+      window.matchMedia = vi.fn().mockImplementation((q: string) => ({ matches: on && q.includes('prefers-reduced-motion: reduce'), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} })) as unknown as typeof window.matchMedia
+    }
+    beforeEach(() => { rolar.mockReset(); Element.prototype.scrollIntoView = rolar; reduzir(false) })
+    afterEach(() => { delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView })
+
+    it('a primeira montagem não rola, nem na aba Vídeos nem na aba Trocas aberta pela URL', () => {
+      mountCanal(); cleanup()
+      comTroca()
+      expect(rolar).not.toHaveBeenCalled()
+    })
+
+    it('clicar numa aba rola até o título da aba nova, com o topo do título no topo (o scroll-margin cuida da barra presa)', async () => {
+      mountCanal()
+      const nav = screen.getByRole('navigation', { name: 'Seções do canal' })
+      const user = userEvent.setup()
+      await user.click(within(nav).getByRole('link', { name: /^Trocas/ }))
+      expect(rolar).toHaveBeenCalledTimes(1)
+      expect(alvos()[0]).toBe(document.getElementById('ct-h2'))
+      expect(rolar).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' })
+      await user.click(within(nav).getByRole('link', { name: /^Vídeos/ }))
+      expect(rolar).toHaveBeenCalledTimes(2)
+      expect(alvos()[1]).toBe(document.getElementById('cv-h2'))
+    })
+
+    it('"Ver trocas" de um cartão rola até o título da aba Trocas, para a linha "Só as trocas de…" aparecer', async () => {
+      const { all } = mountCanal()
+      const v = all.find(x => x.swaps > 0)!
+      const user = userEvent.setup()
+      await user.click(within(document.getElementById('cv-lnk-' + v.id)!.closest('li')!).getByRole('button', { name: /^Ações do vídeo: / }))
+      await user.click(await screen.findByRole('menuitem', { name: /^Ver trocas/ }))
+      expect(rolar).toHaveBeenCalledTimes(1)
+      expect(alvos()[0]).toBe(document.getElementById('ct-h2'))
+    })
+
+    it('o Voltar do navegador (popstate) também rola até o título da aba, mas não mexe no foco', () => {
+      mountCanal()
+      const antes = document.activeElement
+      act(() => { window.history.replaceState(null, '', URL0 + '?tab=trocas'); window.dispatchEvent(new PopStateEvent('popstate')) })
+      expect(rolar).toHaveBeenCalledTimes(1)
+      expect(alvos()[0]).toBe(document.getElementById('ct-h2'))
+      expect(document.activeElement).toBe(antes)
+    })
+
+    it('mudar só filtro ou busca (mesma aba) não rola', async () => {
+      mountCanal()
+      await userEvent.setup().click(screen.getByRole('button', { name: /^Shorts, / }))
+      expect(rolar).not.toHaveBeenCalled()
+    })
+
+    it('com prefers-reduced-motion: reduce a rolagem é instantânea', async () => {
+      reduzir(true)
+      mountCanal()
+      await userEvent.setup().click(within(screen.getByRole('navigation', { name: 'Seções do canal' })).getByRole('link', { name: /^Trocas/ }))
+      expect(rolar).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' })
+    })
+  })
+
   it('--obs-sticky-h: ida e volta Vídeos → Trocas → Vídeos remove a variável ao sair e a reescreve, medindo a barra nova, ao voltar', async () => {
     const observers: Array<{ cb: () => void; el: Element | null; off: boolean }> = []
     vi.stubGlobal('ResizeObserver', class {
