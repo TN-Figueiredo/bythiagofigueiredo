@@ -116,7 +116,7 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
         ) : (
           <ChartSvg chart={chart} geom={geom} pair={pair} hlRange={hlVer ? [hlVer.fromH, hlVer.toH] : null} />
         )) : null}
-        <Lanes lanes={lanes} layouts={layouts} geom={geom} stale={chart?.stale ?? null} fewAxis={chart?.fewAxis ?? null} fromH={fromH} hl={hl} onHl={onHl}
+        <Lanes lanes={lanes} layouts={layouts} geom={geom} stale={chart?.stale ?? null} fewAxis={chart?.fewAxis ?? null} fromH={fromH} hl={hl} tipMarker={tip?.m?.changeId ?? null} onHl={onHl}
           onMarker={onMarker} onMarkerClick={m => { setTip(null); if (m.pairK) onSelectPair(m.pairK) }} onClip={onGoVersion} onGroupTip={onGroupTip} />
         {!chart && ticks.length ? (
           <div className="lane-axis fx-axis" aria-hidden="true">

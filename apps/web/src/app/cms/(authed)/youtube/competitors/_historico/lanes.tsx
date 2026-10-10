@@ -27,13 +27,15 @@ export function isHl(hl: Hl | null, lane: LaneView, i: number): boolean {
   return lane.type === 'thumb' && lane.versions[i]?.label === lane.versions[hl.i]?.label
 }
 
-export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, onHl, onMarker, onMarkerClick, onClip, onGroupTip }: {
+export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMarker, onHl, onMarker, onMarkerClick, onClip, onGroupTip }: {
   lanes: LaneView[]; layouts: LaneItem[][]; geom: Geom
   stale: { fromH: number; title: string } | null
   fewAxis: Array<{ h: number; label: string }> | null
   /** Start of the shown period (hours since publication): a window that ended before it is not drawn. */
   fromH: number
   hl: Hl | null
+  /** The change whose tooltip is shown right now (null = none): only its marker points at the tooltip box with aria-describedby (and not while a group list is open: the layer hides the tooltip then). */
+  tipMarker: string | null
   onHl: (h: Hl | null) => void
   onMarker: (m: MarkerView, type: LaneType, el: HTMLElement | null) => void
   onMarkerClick: (m: MarkerView) => void
@@ -114,7 +116,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, onHl, o
                 const m = it.m
                 return (
                   <button key={m.changeId} className={'mk ln-i' + (hl && hl.type === lane.type && hl.ev === m.idx ? ' on' : '')} type="button" tabIndex={tab}
-                    style={{ left: it.px, ['--c' as string]: c }} data-ev={lane.type + ':' + m.idx} aria-label={m.aria} aria-describedby="hv-tip"
+                    style={{ left: it.px, ['--c' as string]: c }} data-ev={lane.type + ':' + m.idx} aria-label={m.aria} aria-describedby={open === null && tipMarker === m.changeId ? 'hv-tip' : undefined}
                     onMouseEnter={e => onMarker(m, lane.type, e.currentTarget)} onFocus={e => onMarker(m, lane.type, e.currentTarget)}
                     onMouseLeave={() => onMarker(m, lane.type, null)} onBlur={() => onMarker(m, lane.type, null)}
                     onClick={() => onMarkerClick(m)}>
@@ -127,7 +129,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, onHl, o
                 ? { type: lane.type, title: it.unit + (lane.type === 'thumb' ? ' de thumbnail' : ''), when: 'de ' + it.from + ' até ' + it.to, seq: it.seq }
                 : { type: lane.type, title: it.n + ' trocas de ' + lane.changeWord, when: 'entre ' + it.from + ' e ' + it.to, seq: null }
               const btn = {
-                type: 'button' as const, tabIndex: tab, 'aria-expanded': isOpen, 'aria-controls': id, 'aria-label': it.name, 'data-group': it.key,
+                type: 'button' as const, tabIndex: tab, 'aria-expanded': isOpen, 'aria-controls': isOpen ? id : undefined, 'aria-label': it.name, 'data-group': it.key,
                 onClick: () => { onGroupTip(null, null); setOpen(isOpen ? null : it.key) },
                 onMouseEnter: (e: { currentTarget: HTMLElement }) => { if (!isOpen) onGroupTip(tip, e.currentTarget) }, onMouseLeave: () => onGroupTip(null, null),
                 onFocus: (e: { currentTarget: HTMLElement }) => { if (!isOpen) onGroupTip(tip, e.currentTarget) }, onBlur: () => onGroupTip(null, null),
@@ -146,7 +148,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, onHl, o
                       {it.letters ? <span className="gl" aria-hidden="true">{it.letters}</span> : null}
                       <span className="gn" aria-hidden="true">{hlLabel && on ? fitCount(on + ' de ' + it.members.length + ': ' + hlLabel, on + '/' + it.members.length, it.width) : it.count}</span>
                     </button>
-                    <GroupPop id={id} open={isOpen} gap={1} onClose={() => setOpen(null)} title={tip.title + ' neste trecho'}>
+                    <GroupPop id={id} gkey={it.key} open={isOpen} gap={1} onClose={() => setOpen(null)} title={tip.title + ' neste trecho'}>
                       {it.members.map(m => (
                         <li key={m.i}><button type="button" data-go={lane.type + ':' + m.i} onClick={() => { setOpen(null); onClip(lane.type, m.i) }}>
                           <span className="gk">{m.v.label}</span><span className="g1">{cap(m.v.span)}</span>
@@ -199,7 +201,7 @@ function MarkerGroup({ it, id, lane, color, isOpen, btn, wrapBlur, tipTitle, onC
       <button {...btn} className="mkg gbtn ln-i" data-pairs={it.members.map(m => m.m.changeId).join(' ')}>
         <span><HIcon name={lane.type} />{it.abbr ? <>{it.n} <abbr title="trocas">tr.</abbr></> : it.n + ' trocas'}</span>
       </button>
-      <GroupPop id={id} open={isOpen} gap={0} onClose={onClose} title={tipTitle + ' neste trecho'}>
+      <GroupPop id={id} gkey={it.key} open={isOpen} gap={0} onClose={onClose} title={tipTitle + ' neste trecho'}>
         {it.members.map(m => {
           const ic = STATUS_ICON(m.m.list.status)
           return (
@@ -213,10 +215,10 @@ function MarkerGroup({ it, id, lane, color, isOpen, btn, wrapBlur, tipTitle, onC
   )
 }
 
-/** The list of a group: born in the floating layer (#flut) when opened, below its counter (the one that has aria-controls = id). */
-function GroupPop({ id, open, gap, onClose, title, children }: { id: string; open: boolean; gap: number; onClose: () => void; title: string; children: ReactNode }) {
+/** The list of a group: born in the floating layer (#flut) when opened, below its counter (the one with data-group = gkey; aria-controls exists only while the list is open). */
+function GroupPop({ id, gkey, open, gap, onClose, title, children }: { id: string; gkey: string; open: boolean; gap: number; onClose: () => void; title: string; children: ReactNode }) {
   return (
-    <Popover open={open} anchor={() => document.querySelector('[aria-controls="' + id + '"]')} onClose={onClose} id={id} className="hv-gpop gpop" role="group" label={title}
+    <Popover open={open} anchor={() => document.querySelector('[data-group="' + gkey + '"]')} onClose={onClose} id={id} className="hv-gpop gpop" role="group" label={title}
       pref="baixo" align="inicio" gap={gap} maxW={380}>
       <h4>{title}</h4>
       <ul>{children}</ul>
