@@ -62,6 +62,22 @@ describe('flut · place', () => {
     const alta = place(c, S, estreita, { pref: 'lado', lado: 'esquerda', queda: 'cima', align: 'inicio' })
     expect(alta).toMatchObject({ side: 'cima', left: estreita.w - S.w - EDGE, top: c.top - 6 - S.h }) // 'inicio' = 180, pushed back inside the window
   })
+  it('outroLado: false: sem espaço no lado preferido a dica sobe em vez de saltar para o outro lado, onde cobriria os controles vizinhos (Histórico 768 px)', () => {
+    // "Fixar vídeo" a 76..231 x 595..635 numa janela de 768 px, dica de 300x105: à esquerda não cabe; à direita caberia, em cima de "Abrir no YouTube"
+    const botao: Box = { left: 76, top: 595, right: 231, bottom: 635 }, hint = { w: 300, h: 105 }, vp = { w: 768, h: 900 }
+    const o = { pref: 'lado', lado: 'esquerda', queda: 'cima', align: 'inicio', gap: 8, maxW: 300 } as const
+    const saltou = place(botao, hint, vp, o)
+    expect(saltou).toMatchObject({ side: 'lado', left: botao.right + 8 }) // o comportamento que cobria o vizinho
+    const sobe = place(botao, hint, vp, { ...o, outroLado: false })
+    expect(sobe).toEqual({ left: botao.left, top: botao.top - 8 - hint.h, maxHeight: null, side: 'cima' })
+    expect(cobre(sobe, hint, botao)).toBe(false)
+    // havendo espaço no lado preferido, nada muda
+    const largo = box(700, 400, 155, 40)
+    expect(place(largo, hint, { w: 1440, h: 900 }, { ...o, outroLado: false })).toEqual(place(largo, hint, { w: 1440, h: 900 }, o))
+    // lado direita: idem, sem saltar para a esquerda
+    const perto = box(1300, 400, 120, 40)
+    expect(place(perto, hint, { w: 1440, h: 900 }, { pref: 'lado', lado: 'direita', queda: 'cima', outroLado: false }).side).toBe('cima')
+  })
   it('lado direita explícito é o padrão; gap vale para o lado e para a queda', () => {
     const a = box(700, 400)
     expect(place(a, S, VP, { pref: 'lado', lado: 'direita' })).toEqual(place(a, S, VP, { pref: 'lado' }))

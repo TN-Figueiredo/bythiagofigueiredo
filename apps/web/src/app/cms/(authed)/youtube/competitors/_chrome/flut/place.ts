@@ -15,6 +15,8 @@ export interface PlaceOpts {
   lado?: 'direita' | 'esquerda'
   /** pref 'lado': where it goes when it fits on neither side. Default 'baixo' (below, turning up if it must). */
   queda?: 'baixo' | 'cima'
+  /** pref 'lado': false = never jump to the other side when the preferred one does not fit (it goes to `queda`). Default true. */
+  outroLado?: boolean
 }
 export interface Placed { left: number; top: number; maxHeight: number | null; side: Side }
 
@@ -32,7 +34,8 @@ export function place(anchor: Box, size: { w: number; h: number }, vp: { w: numb
   if (pref === 'lado') {
     const right = anchor.right + G, left = anchor.left - G - w
     const fitsRight = right + w <= vp.w - EDGE, fitsLeft = left >= EDGE
-    const x = (o.lado ?? 'direita') === 'esquerda' ? (fitsLeft ? left : fitsRight ? right : null) : (fitsRight ? right : fitsLeft ? left : null)
+    const outro = o.outroLado !== false
+    const x = (o.lado ?? 'direita') === 'esquerda' ? (fitsLeft ? left : outro && fitsRight ? right : null) : (fitsRight ? right : outro && fitsLeft ? left : null)
     if (x != null) {
       const maxHeight = h > vp.h - 2 * EDGE ? vp.h - 2 * EDGE : null
       if (maxHeight != null) h = maxHeight

@@ -93,10 +93,10 @@ export function Popover({ open, anchor, onClose, children, id, className, role =
   )
 }
 
-export function HoverTip({ show, anchor, children, id, className, pref = 'cima', align = 'meio', cx, maxW, gap, lado, queda, ariaHidden }: {
+export function HoverTip({ show, anchor, children, id, className, pref = 'cima', align = 'meio', cx, maxW, gap, lado, queda, outroLado, ariaHidden }: {
   show: boolean; anchor: Anchor; children: ReactNode
   id?: string; className?: string; pref?: Side; align?: 'fim' | 'meio' | 'inicio'; cx?: number; maxW?: number
-  gap?: number; lado?: PlaceOpts['lado']; queda?: PlaceOpts['queda']
+  gap?: number; lado?: PlaceOpts['lado']; queda?: PlaceOpts['queda']; outroLado?: PlaceOpts['outroLado']
   /** true when the same words are already the trigger's accessible name or description. */
   ariaHidden?: boolean
 }) {
@@ -106,7 +106,7 @@ export function HoverTip({ show, anchor, children, id, className, pref = 'cima',
   const active = show && client && popover == null
   // no onClose here: usePlacement itself keeps the tip hidden (visibility) until it is placed and while the trigger is gone,
   // and shows it again as soon as the trigger is back; it never sticks, since every placement decides it anew
-  usePlacement(active, ref, anchor, { pref, align, cx, maxW, gap, lado, queda }, () => {})
+  usePlacement(active, ref, anchor, { pref, align, cx, maxW, gap, lado, queda, outroLado }, () => {})
   if (!active) return null
   return createPortal(
     <div ref={ref} id={id} role="tooltip" aria-hidden={ariaHidden || undefined} className={'obs-fl-tip' + (className ? ' ' + className : '')} style={{ position: 'fixed', left: 0, top: 0, visibility: 'hidden' }}>{children}</div>,
