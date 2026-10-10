@@ -11,6 +11,7 @@ seguintes com o que se aprendeu, e só então seguir. Mockup aprovado antes de q
 | Lote L1a da coleta (jobs e bruto da Reporting API, metadados diários, veredito único do cron) | `main` 38d6fc1b, migration `20261007000006` aplicada |
 | Primeira execução (08/10 09:01 SP) | sucesso; 8 jobs `ativo` (4 tipos × 2 canais); 35 linhas de metadados para 35 vídeos |
 | Reporting API | ativada no projeto certo (os jobs foram criados) |
+| Lote L1b da coleta (estado de autorização do canal, `privacy_status` e `is_short` pela `videos.list`, chave estrangeira, execuções do cron gravadas) | migration `20261008000002` aplicada pelo dono em 08/10; código em `staging` `4cea52a5`; a promoção para `main` e a primeira execução (09/10 09:00) estão no ledger do L1b |
 
 ## 2. Promovido para `main` em 08/10 (merge 0b7b8aea)
 
@@ -45,12 +46,78 @@ Toda promoção futura para `main`: pedir autorização explícita ao dono na ho
 5. Ao fechar o L1a: listar ao dono os "Rulings" do ledger
    (`.superpowers/sdd/2026-10-07-coleta-l1a-plan/progress.md`) e só então apagar a pasta.
 
+## 3a. Onde retomar (escrito em 08/10 à tarde)
+
+Decisão do dono em 08/10: **fazer o L2 inteiro a partir de 09/10 depois das 09:00**, sem modo economia até o
+L2 (revisor em cada tarefa, revisão final no modelo mais capaz), e **parar antes do A/B Lab**.
+
+1. Conferir a execução das 09:00 com o código do L1b: SELECTs do Step 1 da Task 13 de
+   `2026-10-08-coleta-l1b-plan.md`. O que olhar primeiro: `com_privacidade = linhas` no canal com
+   vídeos, e uma linha nova em `yt_own_collection_runs` com `falhas` vazia.
+2. Ver se já existe relatório de alcance `baixado`. Se sim: anotar o cabeçalho real e pedir ao dono o
+   export para `apps/web/test/fixtures/yt-reporting/`. Se não: perguntar ao dono se espera mais um dia
+   ou se faz já a metade do diário por vídeo (que não depende do CSV).
+3. Escrever o plano do L2 inteiro e executar.
+4. Fechar o L1a em 11/10 (item 2 acima) e, com o sim do dono, apagar as duas pastas de trabalho
+   (`.superpowers/sdd/2026-10-07-coleta-l1a-plan` e `…/2026-10-08-coleta-l1b-plan`), depois de listar a
+   ele os "Rulings" dos dois ledgers.
+
+Pendências do L1b que são do dono: (a) o aceite "canal revogado de teste vira `reautorizar` e volta a
+`ok`" exige revogar e reconectar um canal de verdade na conta Google; sem isso fica "coberto só por
+teste"; (b) decidir se a função de remover canal deve apagar sozinha tentativas e jobs (emenda 6 do
+spec da coleta).
+
+Esforço medido do L1b: cerca de 2,9 milhões de tokens de subagente (implementadores ~780 mil,
+revisores por tarefa e final ~940 mil, duas ondas de correção ~540 mil, três re-revisões no modelo
+mais capaz ~600 mil), em cerca de 2 horas de relógio. Estimativa para o L2 no mesmo regime: 3 a 3,5
+milhões.
+
+## 3b. Onde retomar (escrito em 09/10 ~14:30, fim de sessão por orçamento)
+
+Ledger com tudo (rulings, achados, esforço): `.superpowers/sdd/2026-10-09-coleta-l2-plan/progress.md`. Leia-o inteiro antes de qualquer coisa.
+
+**Conferências de 09/10 (feitas):** L1b verde em produção (execução das 09:00, 35 de 35 com `privacy_status`, canais em `ok`). Os relatórios chegaram: cabeçalho real `date,channel_id,video_id,video_thumbnail_impressions,video_thumbnail_impressions_ctr`, CTR em 0–1, sem cliques. Achado: os relatórios fecham o dia às 07:00 UTC (Pacífico com horário de verão), não UTC-8 fixo; `seconds_*_reporting` está 1 h deslocado até 01/11 (emenda 9 do spec da coleta; corrigir depois de medir novembro).
+
+**L2 (plano `2026-10-09-coleta-l2-plan.md`): código quase todo feito, NADA no remoto.** 15 commits locais em `staging` (`eb85a52b..daad59bb`). Migration `20261009000001` NÃO aplicada em produção.
+- Completas e revisadas: Tasks 1, 2, 3, 4, 5, 6, 8.
+- Task 7 (ligar os passos em `index.ts`, `tres-dias`): implementada no commit `daad59bb` (593 testes verdes na pasta da coleta e nos dois testes da rota). A REVISÃO dela não foi despachada: o pacote está pronto em `review-d7cc8e0b..daad59bb.diff` na pasta do ledger.
+- Faltam: revisão da Task 7; Task 9 (runbook; as emendas ao spec da coleta já estão commitadas); revisão final do lote no modelo mais capaz; suíte inteira com log; os 3 testes de integração com `HAS_LOCAL_DB=1`; `npm run db:push:prod` (dono); push (autorização); CI; promoção (autorização); Task 11 (conferência em produção) e aceite 9 em 48 h.
+- Duas emendas ao plano decididas na execução, já no código: o diário grava em trechos contíguos por dia e para na primeira falha; o critério B do alcance só acusa quando chegou relatório `baixado` e nenhuma linha entrou; CTR fora de 0–1 recusa o relatório.
+
+**Telas (etapa 5 do roteiro): mockup em rodadas, AINDA NÃO APROVADO.** Pasta `docs/superpowers/mockups/2026-10-07-pagina-canal/`, tudo SEM COMMIT (rodadas 5 a 8; a 8 estava em execução: confira a seção "Rodada 8" do LEIAME e as capturas `shots/r8-*`). Servir com `python3 -m http.server 8791 --bind 127.0.0.1` dentro da pasta. Decisões do dono em 09/10, a levar ao spec de telas (hoje v8, commit `6219f1bf`) como v9 quando ele aprovar o mockup:
+- cartão novo da forja entra na fase A; Histórico sem abas de seção; o botão da forja do cabeçalho rola E pede, com andamento em TRÊS etapas (Na fila, Escrevendo, Pronta);
+- painel lateral de Canais sai para concorrente; cabeçalho do canal com a faixa de números mais rica ("Todos os números");
+- canal próprio: página própria, e aparece no TOPO e NA LISTA de Canais, com a posição na ordenação; "Comparar com o meu canal"; atalho "Meu canal" na moldura;
+- cliques sempre em contagem, sem corte e sem percentual por vídeo;
+- o dono disse da rodada 7: "perto da versão final, mas ainda precisa melhorar". Pediu na tela do vídeo próprio: Anterior/Próximo, números com rótulo, ⓘ preenchido, mais detalhe; perguntou se vale leitura da forja para vídeo próprio (resposta dada: vale, depois do L2 em produção; no mockup fica "ainda não disponível").
+
+**A/B Lab (etapa 4): spec v6 commitado (`cfbbb558`), esperando o dono.** Ele mandou esperar o mockup fechar. Revisão deu 62 ao v5 e 86 ao v6; a "parte 1" virou quatro entregas (P1 fadiga e vídeo em alta; P2 avaliação automática desligada; P3 sai a descrição; P4 restauração segura); dez perguntas na seção 8 do spec.
+
+**Perguntas do dono ainda sem resposta:** ordem telas × A/B; a função de remover canal apagar sozinha tentativas e jobs (com o L2 são sete `delete`); o aceite do L1b com revogação real; a lente "Referências" (vídeos grandes no nicho: o outlier atual é relativo ao próprio canal, por isso o Nômade Raiz quase não aparece; medido em 09/10).
+
+**Regras novas do dono (09/10), também na memória:** Opus planeja, Sonnet executa; effort dos subagentes começa em `high` e desce para `medium`; nunca `xhigh` nem `max`; custo sempre visível (linha de status configurada; tokens de subagente informados a cada fecho). O export do CSV para fixture pode ser feito pelo agente.
+
+**Pendências com data:** toda manhã depois das 09:00, a execução do cron e relatórios novos; **11/10**, fechar o L1a (item 2 da seção 3) e perguntar se pode apagar as pastas de trabalho do L1a e do L1b.
+
+## 3c. Estado de 09/10 à noite (retomada)
+
+**L2:** código, runbook, revisão final (Opus) e onda de correção fechados; suíte inteira verde (21.795 testes), integração com banco local verde (30 testes). Migration `20261009000001` **aplicada em produção pelo dono em 09/10** (conferido: duas tabelas vazias, função e duas policies). Faltam: push em `staging` (autorização), CI, promoção (autorização), Task 11 (conferência em produção na execução seguinte das 09:00) e o aceite 9 em 48 h. Ledger: `.superpowers/sdd/2026-10-09-coleta-l2-plan/progress.md`.
+
+**Respostas do dono às perguntas abertas (09/10):**
+- **Ordem:** telas antes do A/B Lab.
+- **Remover canal:** nem apagar na hora, nem sete `delete` manuais. O dono quer remoção reversível: o canal fica marcado, um cron apaga tudo depois de um prazo, e até lá dá para desfazer, com o aviso "se não reverter em N dias, perde tudo". A desenhar (emenda ao spec da coleta; prazo, o que a tela mostra, o que o cron apaga e em que ordem) antes do L3.
+- **Lente "Referências"** (vídeos grandes no nicho, em números absolutos, não relativos ao próprio canal): entra no roteiro, depois da fase A das telas.
+- **Aceite do L1b com revogação real:** o dono não lembrava do item; reexplicado, espera resposta.
+- **Mockup:** rodada 9 pedida pelo dono. Tela própria de comparação entre dois canais (`comparar.html`), porque "Comparar com o meu canal" só navegava para o canal próprio.
+
+**Pendência que a revisão final do L2 levantou:** o critério B do alcance não avalia os dois canais reais (estão fora do filtro "publicou nos últimos 90 dias"); é o item 4b da seção 3, ainda sem decisão.
+
 ## 4. Ordem recomendada do trabalho
 
 | # | Etapa | Spec | Depende de |
 |---|---|---|---|
 | 1 | Fechar o L1a (Task 17) | coleta | 72 h de produção |
-| 2 | **L1b:** estado de autorização do canal, `videos.list` (`is_short`, `privacy_status`), chave estrangeira com tratamento de órfãos | coleta §0, §6 | etapa 1 |
+| 2 | **L1b:** estado de autorização do canal, `videos.list` (`is_short`, `privacy_status`), chave estrangeira com tratamento de órfãos — **feito em 08/10** (plano `2026-10-08-coleta-l1b-plan.md`) | coleta §0, §6 | — |
 | 3 | **L2:** normalização do alcance e diário real por vídeo | coleta §5, §6 | cabeçalho real do CSV |
 | 4 | **A/B Lab honesto, parte 1:** fim do teste de descrição, restauração segura, fim dos números inventados; **desligar o detector de fadiga e o aviso de "vídeo em alta"** (§5) | A/B Lab | uma rodada de revisão no spec (o dono pediu; nota atual 70/100) |
 | 5 | **Telas, fase A:** página do canal (Capas, 5 por linha, "Carregar mais") e histórico do vídeo com a chegada pela troca e o visualizador de thumbnail | telas + mockup | mockup aprovado (§6) |

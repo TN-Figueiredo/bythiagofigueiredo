@@ -13,7 +13,7 @@ afterEach(() => {
 describe('relógio da coleta', () => {
   it('as constantes são as do spec', () => {
     expect(RELOGIO_GLOBAL_MS).toBe(270_000)
-    expect(TETOS_MS).toEqual({ metadados: 30_000, jobs: 20_000, relatorios: 60_000 })
+    expect(TETOS_MS).toEqual({ metadados: 30_000, jobs: 20_000, relatorios: 60_000, alcance: 20_000, diario: 50_000 })
     expect(FETCH_TIMEOUT_MS).toBe(15_000)
     expect(PARALELO).toBe(4)
   })

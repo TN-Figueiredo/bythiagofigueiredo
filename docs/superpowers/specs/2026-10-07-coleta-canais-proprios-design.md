@@ -32,6 +32,48 @@ fato de produção; o detalhe está nos ledgers dos dois lotes.
    migration de um lote não derruba o cron: relê sem as colunas novas, segue e fica vermelho.
 8. **Seção 0, "Ordem de push":** um push por lote basta; `db:push:prod` lê o diretório local, não o remoto.
 
+## Emendas de 09/10/2026 (com o primeiro CSV real e o lote L2)
+
+Mesma regra: onde o texto e uma emenda discordam, vale a emenda. O detalhe e o custo de cada decisão estão no
+plano `docs/superpowers/plans/2026-10-09-coleta-l2-plan.md` e no ledger do lote.
+
+9. **Seção 1, "Dia": a Reporting API NÃO usa UTC-8 fixo.** Os 215 relatórios dos quatro tipos lidos em 09/10 têm
+   `start_time` e `end_time` às 07:00 UTC, 24 horas: meia-noite do Pacífico com horário de verão, igual à Analytics
+   API. `boundsReporting` (08:00 UTC fixo) e as colunas `seconds_*_reporting` de `yt_own_video_meta_daily` estão 1
+   hora deslocadas enquanto durar o horário de verão. Não há dado errado gravado (nenhum dia teve teste A/B).
+   PENDENTE: medir relatórios posteriores a 01/11 e então corrigir `boundsReporting` (provavelmente passando a ler
+   `start_time` e `end_time` do relatório do dia).
+10. **Seção 2, `thumbnail_ctr`:** vem em 0–1. O CSV real de `channel_reach_basic_a1` tem o cabeçalho
+    `date,channel_id,video_id,video_thumbnail_impressions,video_thumbnail_impressions_ctr`, uma linha por vídeo e
+    dia, sem coluna de cliques. Vídeo sem impressão no dia não aparece; dia sem impressão vem só com o cabeçalho.
+11. **Seção 5, normalização:** é um passo próprio (`alcance`, teto de 20 s), depois do passo de relatórios. A regra
+    "só sobrescreve se o `report_create_time` novo for maior" mora na função do banco `yt_own_reach_apply`, e o
+    mesmo relatório pode regravar as suas linhas (re-normalização). Um relatório mais novo substitui a linha por
+    inteiro. Relatório `vazio` também é conferido e marcado com `normalized_at`. Além de `cabecalho_inesperado`, um
+    relatório vira `erro` por `linha_invalida`, `canal_inesperado`, `bruto_ausente` e `gzip_invalido`. Linha de
+    vídeo sem par em `youtube_videos` é gravada com `video_id` nulo, e o id vai para `unmatched_video_ids`
+    (`{ count, ids }`).
+12. **Seção 6, diário:** "primeira vez" é o vídeo sem linha em `yt_own_video_daily`. As linhas de uma resposta são
+    gravadas em ordem de dia, em trechos de mesmas colunas, parando na primeira falha: o que fica gravado é sempre
+    um prefixo, e a janela seguinte cobre o resto. Coluna que não veio fica fora do payload (o cliente do Supabase
+    anula a coluna ausente num lote com colunas diferentes; por isso os trechos). `maxResults` não é enviado.
+    Erro HTTP num vídeo e métricas estendidas recusadas (400; o passo repete com as nove de base) são falha
+    crítica. Perda de autorização no meio do canal para as chamadas restantes dele.
+13. **Seção 9, critérios do L2:** (a) "canal com 5 ou mais vídeos e nenhum com diário `ok` nas 3 últimas execuções"
+    conta só as execuções com tentativa `diario` de canal `ok`; (b) "sem linha nova de alcance há 4 dias" só é falha
+    quando, nesses 4 dias, chegou relatório básico `baixado` do canal: canal pequeno recebe sequências de relatórios
+    vazios e isso não tem conserto; (c) critério novo: relatório básico `baixado` ou `vazio` há mais de 2 dias sem
+    `normalized_at` é falha crítica (o normalizador parado terminaria em verde).
+14. **Seção 1, `metric_version`:** os cortes ficam em 31/03/2025 e 27/08/2026, nas duas tabelas. O histórico de
+    revisões do Google confirma as duas mudanças de contagem nessas datas, mas diz que a Analytics API só passou a
+    refletir a de Shorts em 30/04/2025. O canal não tem Shorts; a coluna deriva de `day_pt` e se corrige com um
+    `update`.
+15. **Seção 2, "Remover canal":** as duas tabelas do L2 contam como série coletada. O runbook passa de cinco para
+    sete `delete`.
+16. **Seção 3, tags:** tags nulas sem captura são "não sabemos": `tags_sha256` e `tags` ficam fora do payload,
+    nunca o hash de uma lista vazia. Fica aberto para o L3 o caso vizinho: segunda execução do dia sem captura, com
+    o dia ilegível, regrava `tags_sha256` e `description_sha256` com o valor de `youtube_videos`.
+
 ## Por que
 
 Não guardamos retenção, percentual assistido, impressões nem CTR dos canais próprios (2 canais, 35
