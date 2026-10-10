@@ -66,7 +66,8 @@ async function holdActions(page: Page, needle: string) {
  */
 async function openRemove(page: Page): Promise<void> {
   const b = page.locator('.cn-drawer').getByRole('button', { name: 'Remover canal…', exact: true })
-  await b.waitFor(); await b.dispatchEvent('click')
+  // the button is in the server HTML before React hydrates: a click dispatched then is lost (seen after a cold route compile)
+  await b.waitFor(); await page.waitForLoadState('networkidle').catch(() => {}); await b.dispatchEvent('click')
 }
 
 const HIST_WIDTHS = [390, 768, 1099, 1100, 1440], MUD_WIDTHS = [390, 768, 999, 1440]
