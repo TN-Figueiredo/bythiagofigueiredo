@@ -1,0 +1,26 @@
+/* Kit das telas de canal e vídeo: classes que nasceram presas a uma tela, copiadas com o prefixo obs-ch- para as telas
+   novas usarem (spec de telas v9, seção 2). As telas de origem NÃO mudaram de classe (plano da A0, decisão D4);
+   test/youtube/observatorio/kit-css.test.ts mantém as duas cópias iguais. Botão: use .obs-ch-btn de chrome.css. */
+
+/* Tokens que só existiam no escopo da tela de Canais (valor literal, igual nos dois temas de lá). */
+[data-obs]{--youtag-bg:rgba(255,130,64,.12);--youtag-text:#FF9A60;--youtag-border:transparent}
+[data-theme="light"] [data-obs]{--youtag-bg:transparent;--youtag-text:#9A3A12;--youtag-border:#9A3A12}
+
+[data-obs] .obs-ch-dstats{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border-subtle);border:1px solid var(--border-subtle);border-radius:8px;overflow:hidden;margin-top:12px}
+[data-obs] .obs-ch-dstats > div{background:var(--surface-2);padding:8px 10px;grid-column:span 2}
+[data-obs] .obs-ch-dstats > div:nth-child(n+4){grid-column:span 3}
+[data-obs] .obs-ch-dstats .l{white-space:normal;font-size:11.5px;color:var(--muted);line-height:1.3}
+[data-obs] .obs-ch-dstats .v{font-size:15px;font-weight:500;margin:1px 0}
+@media (max-width:900px){
+  [data-obs] .obs-ch-dstats{grid-template-columns:repeat(2,1fr)}
+  [data-obs] .obs-ch-dstats > div,[data-obs] .obs-ch-dstats > div:nth-child(n+4){grid-column:auto}
+  [data-obs] .obs-ch-dstats > div:last-child:nth-child(odd){grid-column:1/-1}
+}
+[data-obs] .obs-ch-youtag{font-size:12px;font-weight:600;color:var(--youtag-text);background:var(--youtag-bg);border:1px solid var(--youtag-border);border-radius:5px;padding:0 8px;height:24px;display:inline-flex;align-items:center}
+[data-obs] .obs-ch-youtag{white-space:nowrap;flex:none}
+[data-obs] .obs-ch-stamp{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--forja-line);color:var(--forja);border-radius:4px;padding:3px 8px 3px 6px;font-size:11.5px;white-space:nowrap}
+[data-obs] .obs-ch-stamp svg{width:13px;height:13px;flex-shrink:0}
+[data-obs] .obs-ch-stamp.sm{font-size:11px}
+[data-obs] .obs-ch-card{background:var(--surface);border:1px solid var(--border-subtle);border-radius:8px;display:flex;flex-direction:column;position:relative;min-width:0;align-self:stretch}
+[data-obs] .obs-ch-card:hover{border-color:var(--border-strong)}
+[data-obs] .obs-ch-ttl{font-size:13.5px;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0}

@@ -30,7 +30,7 @@ const btn = (i = 0) => document.querySelectorAll<HTMLButtonElement>('[data-pin]'
 const status = () => document.getElementById('fx-status')!, alertEl = () => document.getElementById('fx-alert')!
 
 beforeEach(() => { refresh.mockReset() })
-afterEach(() => { vi.useRealTimers() })
+afterEach(() => { vi.useRealTimers(); document.getElementById('flut')?.remove() })
 
 describe('PinProvider: regiões vivas', () => {
   it('existem vazias desde a montagem, uma de cada', () => {
@@ -177,6 +177,44 @@ describe('dica do botão (V1)', () => {
     expect(document.getElementById('fx-msg-v1')).not.toBeNull(); expect(hint().hasAttribute('data-open')).toBe(false)
     fireEvent.blur(btn()); fireEvent.focus(btn())
     expect(hint().hasAttribute('data-open')).toBe(false) // a message is on the screen
+  })
+  it('a dica visível mora em #flut; o texto para leitor de tela continua junto do botão', () => {
+    const { container } = mount()
+    fireEvent.focus(btn())
+    const sr = container.querySelector('.fx-hint')!
+    expect(sr.hasAttribute('data-open')).toBe(true)
+    const vis = document.querySelector('#flut .fx-hint-pop')!
+    expect(vis.textContent).toBe(sr.textContent)
+    expect(vis.getAttribute('aria-hidden')).toBe('true')
+    fireEvent.blur(btn())
+    expect(document.querySelector('#flut .fx-hint-pop')).toBeNull()
+  })
+  it('a dica visível abre à ESQUERDA do botão (como em produção) e, sem espaço dos dois lados, ACIMA dele', () => {
+    const at = (left: number) => vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const isBtn = this.hasAttribute('data-pin'), w = isBtn ? 100 : 300, h = isBtn ? 32 : 60
+      return { left: isBtn ? left : 0, right: (isBtn ? left : 0) + w, top: isBtn ? 400 : 0, bottom: (isBtn ? 400 : 0) + h, width: w, height: h, x: 0, y: 0, toJSON: () => ({}) }
+    })
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get: () => 300 })
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get: () => 60 })
+    try {
+      const spy = at(800)
+      mount(); fireEvent.focus(btn())
+      expect((document.querySelector('#flut .fx-hint-pop') as HTMLElement).style.left).toBe(800 - 8 - 300 + 'px')
+      fireEvent.blur(btn()); spy.mockRestore()
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 400 })
+      Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: 400 })
+      at(40)
+      fireEvent.focus(btn())
+      const hint = document.querySelector('#flut .fx-hint-pop') as HTMLElement
+      expect(hint.dataset.lado).toBe('cima')
+      expect(hint.style.top).toBe(400 - 6 - 60 + 'px')
+    } finally {
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetWidth
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetHeight
+      Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: 0 })
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 })
+      vi.restoreAllMocks()
+    }
   })
   it('vídeo já fixado: sem dica (a ação é "Desafixar")', () => {
     mount({ pins: [{ pin: pin({ pinned: true }) }] })

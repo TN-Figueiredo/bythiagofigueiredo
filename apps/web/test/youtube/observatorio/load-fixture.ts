@@ -1,6 +1,6 @@
 // Synthetic observatory tables for the loader tests. Every date is relative to `now` (pass Date.now()): nothing here
 // may be compared with a fixed calendar date.
-import type { Row } from '../../helpers/fake-supabase'
+import type { Row, FakeDb } from '../../helpers/fake-supabase'
 
 const DAY = 864e5, H = 36e5
 const iso = (ms: number) => new Date(ms).toISOString()
@@ -67,3 +67,10 @@ export function buildTables(o: FixtureOpts): Record<string, Row[]> {
   }
   return t
 }
+
+export const HEAVY_TABLES = ['competitor_videos', 'competitor_video_versions', 'competitor_video_daily', 'competitor_channel_snapshots']
+/**
+ * Round trips to the heavy tables so far. The one-channel loader also asks competitor_video_daily for the site's newest
+ * record (a single row, selected through the `!inner` join to the site): that is a light read, not a heavy one.
+ */
+export const heavyTrips = (db: FakeDb) => db.trips.filter(t => HEAVY_TABLES.includes(t)).length - db.selects.filter(s => s.cols.includes('!inner')).length

@@ -1,0 +1,10 @@
+/* Tokens das telas de canal e vídeo (spec de telas v9, 19.2). Hex e rgba literais: nunca color-mix().
+   Só o tema escuro tem valor aprovado; o claro é pendência da fase A1 (plano da A0, decisão D7). */
+[data-obs]{
+  --nm:#E59CC0;--nm-line:#B0678F;--nm-bg:#3A2232;
+  --lado-o:#FF8240;--lado-b:#7CC8F8;--lado-n:#D9C08F;
+  --terco-baixo:#F2C14E;--im-cl:#38BDF8;--im-zero:#7A8FA6;
+}
+/* "não medido": a hachura é a forma, o rosa é o reforço. Sempre com o texto do motivo dentro ou ao lado. */
+[data-obs] .obs-ch-nm{display:inline-block;padding:1px 6px;border:1px solid var(--nm-line);border-radius:4px;color:var(--nm);
+  background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,rgba(229,156,192,.14) 6px 8px)}

@@ -4,7 +4,8 @@
  * They only lay out what the view model computed.
  */
 import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
-import { useId, type ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
+import { HoverTip, useTipShown } from '../_chrome/flut/flut'
 import type { CadenceCell, CanaisRow, GrowthCell, OutCell, SwapCell, SyncCell, Thumb, VpdCell } from './view-model'
 import { NicheSelect } from './niche-editor'
 import type { Niche } from '@/lib/youtube/observatorio/types'
@@ -33,12 +34,19 @@ export function Ic({ n, spin }: { n: IconName; spin?: boolean }) {
   return <svg className={'ico' + (spin ? ' spin' : '')} viewBox="0 0 16 16" aria-hidden="true" focusable="false">{P[n]}</svg>
 }
 
-/** "?" help with a tooltip (canais.html .tip); aria-describedby points at the tooltip. */
+/** "?" help. The words open in the floating layer (#flut) on mouse and on focus; Esc hides them and keeps the focus. */
 export function Tip({ label, children, left }: { label: string; children: ReactNode; left?: boolean }) {
   const id = useId()
+  const el = useRef<HTMLSpanElement>(null)
+  // hover and focus are separate: the words stay while either one holds (as before the layer: :hover, :focus and :focus-within)
+  const [hov, setHov] = useState(false), [foc, setFoc] = useState(false)
+  const show = hov || foc
+  const shown = useTipShown(show) // the id is named only while the box is really in the document (an open popover hides it)
   return (
-    <span className={'tip' + (left ? ' left' : '')} tabIndex={0} role="button" aria-label={label} aria-describedby={id}>
-      <span className="tt" role="tooltip" id={id}>{children}</span>
+    <span ref={el} className="tip" tabIndex={0} role="button" aria-label={label} aria-describedby={shown ? id : undefined}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} onFocus={() => setFoc(true)} onBlur={() => setFoc(false)}
+      onKeyDown={e => { if (e.key === 'Escape' && show) { e.stopPropagation(); setHov(false); setFoc(false) } }}>
+      <HoverTip show={show} anchor={() => el.current} id={id} className="cn-tt" pref="baixo" align={left ? 'fim' : 'meio'} maxW={270}>{children}</HoverTip>
     </span>
   )
 }

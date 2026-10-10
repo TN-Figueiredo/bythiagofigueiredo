@@ -4,7 +4,8 @@
  * view model; lane-layout.ts decides which periods and markers share one target. Each lane is ONE Tab stop: the arrows,
  * Home and End walk its periods and changes in time order. A group opens its list with Enter, space or a click, never on focus.
  */
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as RKeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useState, type KeyboardEvent as RKeyboardEvent, type ReactNode } from 'react'
+import { Popover } from '../_chrome/flut/flut'
 import type { LaneType, LaneView, MarkerView } from './view-model'
 import { fitCount, type LaneItem, type MarkGroup, type PeriodGroup } from './lane-layout'
 import { HIcon, TYPE_COLOR, type HIconName } from './icons'
@@ -26,13 +27,15 @@ export function isHl(hl: Hl | null, lane: LaneView, i: number): boolean {
   return lane.type === 'thumb' && lane.versions[i]?.label === lane.versions[hl.i]?.label
 }
 
-export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, onHl, onMarker, onMarkerClick, onClip, onGroupTip }: {
+export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMarker, onHl, onMarker, onMarkerClick, onClip, onGroupTip }: {
   lanes: LaneView[]; layouts: LaneItem[][]; geom: Geom
   stale: { fromH: number; title: string } | null
   fewAxis: Array<{ h: number; label: string }> | null
   /** Start of the shown period (hours since publication): a window that ended before it is not drawn. */
   fromH: number
   hl: Hl | null
+  /** The change whose tooltip is shown right now (null = none): only its marker points at the tooltip box with aria-describedby (and not while a group list is open: the layer hides the tooltip then). */
+  tipMarker: string | null
   onHl: (h: Hl | null) => void
   onMarker: (m: MarkerView, type: LaneType, el: HTMLElement | null) => void
   onMarkerClick: (m: MarkerView) => void
@@ -40,26 +43,14 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, onHl, o
   onGroupTip: (g: GroupTip | null, el: HTMLElement | null) => void
 }) {
   const { x, H } = geom
-  const root = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState<string | null>(null)
   /** The item of each lane that holds the Tab stop (index in the lane's time order). */
   const [rove, setRove] = useState<Record<string, number>>({})
   // a new layout (width, period filter) has other groups: nothing stays open
   useEffect(() => { setOpen(null) }, [layouts])
-  // Esc closes the open list from anywhere and gives the focus back to its counter; a click outside closes it
-  useEffect(() => {
-    if (!open) return
-    const key = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      const w = root.current?.querySelector<HTMLElement>('.gwrap.open')
-      const had = !!w && w.contains(document.activeElement)
-      setOpen(null)
-      if (had) w!.querySelector<HTMLElement>('.gbtn')?.focus()
-    }
-    const down = (e: MouseEvent) => { if (!(e.target as HTMLElement | null)?.closest?.('.gwrap')) setOpen(null) }
-    document.addEventListener('keydown', key); document.addEventListener('mousedown', down)
-    return () => { document.removeEventListener('keydown', key); document.removeEventListener('mousedown', down) }
-  }, [open])
+  // Esc over an open list closes it AND lets go of the chart's highlight and the armed tip (before the layer the screen's own Esc handler also ran: one key, both)
+  const closeList = (viaEsc: boolean) => { setOpen(null); if (viaEsc) { onGroupTip(null, null); onHl(null) } }
+  // Esc (from anywhere, the focus goes back to the counter) and a click outside close the open list: the floating layer does it (flut.tsx)
 
   const onKeys = (e: RKeyboardEvent<HTMLDivElement>, type: LaneType) => {
     const t = e.target as HTMLElement
@@ -79,7 +70,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, onHl, o
   }
 
   return (
-    <div className="lanes" ref={root}>
+    <div className="lanes">
       {lanes.map((lane, li) => {
         const c = TYPE_COLOR[lane.type], items = layouts[li] ?? []
         const stop = Math.min(rove[lane.type] ?? 0, Math.max(0, items.length - 1))
@@ -127,7 +118,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, onHl, o
                 const m = it.m
                 return (
                   <button key={m.changeId} className={'mk ln-i' + (hl && hl.type === lane.type && hl.ev === m.idx ? ' on' : '')} type="button" tabIndex={tab}
-                    style={{ left: it.px, ['--c' as string]: c }} data-ev={lane.type + ':' + m.idx} aria-label={m.aria} aria-describedby="hv-tip"
+                    style={{ left: it.px, ['--c' as string]: c }} data-ev={lane.type + ':' + m.idx} aria-label={m.aria} aria-describedby={open === null && tipMarker === m.changeId ? 'hv-tip' : undefined}
                     onMouseEnter={e => onMarker(m, lane.type, e.currentTarget)} onFocus={e => onMarker(m, lane.type, e.currentTarget)}
                     onMouseLeave={() => onMarker(m, lane.type, null)} onBlur={() => onMarker(m, lane.type, null)}
                     onClick={() => onMarkerClick(m)}>
@@ -140,12 +131,16 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, onHl, o
                 ? { type: lane.type, title: it.unit + (lane.type === 'thumb' ? ' de thumbnail' : ''), when: 'de ' + it.from + ' até ' + it.to, seq: it.seq }
                 : { type: lane.type, title: it.n + ' trocas de ' + lane.changeWord, when: 'entre ' + it.from + ' e ' + it.to, seq: null }
               const btn = {
-                type: 'button' as const, tabIndex: tab, 'aria-expanded': isOpen, 'aria-controls': id, 'aria-label': it.name, 'data-group': it.key,
+                type: 'button' as const, tabIndex: tab, 'aria-expanded': isOpen, 'aria-controls': isOpen ? id : undefined, 'aria-label': it.name, 'data-group': it.key,
                 onClick: () => { onGroupTip(null, null); setOpen(isOpen ? null : it.key) },
                 onMouseEnter: (e: { currentTarget: HTMLElement }) => { if (!isOpen) onGroupTip(tip, e.currentTarget) }, onMouseLeave: () => onGroupTip(null, null),
                 onFocus: (e: { currentTarget: HTMLElement }) => { if (!isOpen) onGroupTip(tip, e.currentTarget) }, onBlur: () => onGroupTip(null, null),
               }
-              const wrapBlur = (e: { currentTarget: HTMLElement; relatedTarget: EventTarget | null }) => { if (isOpen && !e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(null) }
+              // the list lives in #flut, but React still bubbles its blur to the group: focus moving into the list is still "inside the group"
+              const wrapBlur = (e: { currentTarget: HTMLElement; relatedTarget: EventTarget | null }) => {
+                const to = e.relatedTarget as Node | null
+                if (isOpen && !(to && (e.currentTarget.contains(to) || document.getElementById(id)?.contains(to)))) setOpen(null)
+              }
               if (it.kind === 'pgroup') {
                 const on = it.members.filter(m => isHl(hl, lane, m.i)).length
                 return (
@@ -155,7 +150,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, onHl, o
                       {it.letters ? <span className="gl" aria-hidden="true">{it.letters}</span> : null}
                       <span className="gn" aria-hidden="true">{hlLabel && on ? fitCount(on + ' de ' + it.members.length + ': ' + hlLabel, on + '/' + it.members.length, it.width) : it.count}</span>
                     </button>
-                    <GroupPop id={id} open={isOpen} below={false} title={tip.title + ' neste trecho'}>
+                    <GroupPop id={id} gkey={it.key} open={isOpen} gap={1} onClose={closeList} title={tip.title + ' neste trecho'}>
                       {it.members.map(m => (
                         <li key={m.i}><button type="button" data-go={lane.type + ':' + m.i} onClick={() => { setOpen(null); onClip(lane.type, m.i) }}>
                           <span className="gk">{m.v.label}</span><span className="g1">{cap(m.v.span)}</span>
@@ -166,7 +161,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, onHl, o
                   </div>
                 )
               }
-              return <MarkerGroup key={it.key} it={it} id={id} lane={lane} color={c} isOpen={isOpen} btn={btn} wrapBlur={wrapBlur} tipTitle={tip.title}
+              return <MarkerGroup key={it.key} it={it} id={id} lane={lane} color={c} isOpen={isOpen} btn={btn} wrapBlur={wrapBlur} tipTitle={tip.title} onClose={closeList}
                 onPick={m => { setOpen(null); onMarkerClick(m) }} />
             })}
             {lane.runs.length ? (
@@ -196,10 +191,10 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, onHl, o
 
 const cap = (t: string) => (t ? t[0]!.toUpperCase() + t.slice(1) : '')
 
-function MarkerGroup({ it, id, lane, color, isOpen, btn, wrapBlur, tipTitle, onPick }: {
+function MarkerGroup({ it, id, lane, color, isOpen, btn, wrapBlur, tipTitle, onClose, onPick }: {
   it: MarkGroup; id: string; lane: LaneView; color: string; isOpen: boolean
   btn: Record<string, unknown>; wrapBlur: (e: { currentTarget: HTMLElement; relatedTarget: EventTarget | null }) => void
-  tipTitle: string; onPick: (m: MarkerView) => void
+  tipTitle: string; onClose: (viaEsc: boolean) => void; onPick: (m: MarkerView) => void
 }) {
   return (
     <div className={'gwrap mg' + (isOpen ? ' open' : '')} style={{ left: it.left, width: it.width, ['--c' as string]: color }} onBlur={wrapBlur}>
@@ -208,7 +203,7 @@ function MarkerGroup({ it, id, lane, color, isOpen, btn, wrapBlur, tipTitle, onP
       <button {...btn} className="mkg gbtn ln-i" data-pairs={it.members.map(m => m.m.changeId).join(' ')}>
         <span><HIcon name={lane.type} />{it.abbr ? <>{it.n} <abbr title="trocas">tr.</abbr></> : it.n + ' trocas'}</span>
       </button>
-      <GroupPop id={id} open={isOpen} below title={tipTitle + ' neste trecho'}>
+      <GroupPop id={id} gkey={it.key} open={isOpen} gap={0} onClose={onClose} title={tipTitle + ' neste trecho'}>
         {it.members.map(m => {
           const ic = STATUS_ICON(m.m.list.status)
           return (
@@ -222,25 +217,13 @@ function MarkerGroup({ it, id, lane, color, isOpen, btn, wrapBlur, tipTitle, onP
   )
 }
 
-/** The list of a group: always in the DOM (aria-controls), hidden until opened; kept inside the timeline's box. */
-function GroupPop({ id, open, below, title, children }: { id: string; open: boolean; below: boolean; title: string; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [left, setLeft] = useState(0)
-  useLayoutEffect(() => {
-    const pop = ref.current, wrap = pop?.closest('.tl-wrap')
-    if (!open || !pop || !wrap) { setLeft(0); return }
-    const pr = pop.getBoundingClientRect(), tr = wrap.getBoundingClientRect()
-    // `natural` = where the list sits with left: 0; pull it back inside the right edge, then never past the left one
-    const natural = pr.left - left, over = natural + pr.width - (tr.right - 4)
-    let dx = over > 0 ? -over : 0
-    const under = tr.left + 4 - (natural + dx)
-    if (under > 0) dx += under
-    setLeft(dx)
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+/** The list of a group: born in the floating layer (#flut) when opened, below its counter (the one with data-group = gkey; aria-controls exists only while the list is open). */
+function GroupPop({ id, gkey, open, gap, onClose, title, children }: { id: string; gkey: string; open: boolean; gap: number; onClose: (viaEsc: boolean) => void; title: string; children: ReactNode }) {
   return (
-    <div className="gpop" id={id} ref={ref} hidden={!open} style={{ left, top: below ? 26 : undefined }}>
-      <h4>{title}</h4>
+    <Popover open={open} anchor={() => document.querySelector('[data-group="' + gkey + '"]')} onClose={onClose} id={id} className="hv-gpop gpop" role="group" labelledBy={id + '-t'}
+      pref="baixo" align="inicio" gap={gap} maxW={380} maxWvw={0.86}>
+      <h4 id={id + '-t'}>{title}</h4>
       <ul>{children}</ul>
-    </div>
+    </Popover>
   )
 }

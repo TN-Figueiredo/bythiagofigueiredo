@@ -5,7 +5,7 @@ import { median } from './stats'
 import { DAY, H, WD } from './time'
 import { changesIn } from './changes'
 import { outliers, median7 } from './outliers'
-import type { EngineCtx, Derived } from './series'
+import { assertSiteScope, type EngineCtx, type Derived } from './series'
 import type { Fmt, ObsChannel, ObsVideo, SyncState } from './types'
 import { BUILTIN_NICHES, tabOrder } from './niche'
 
@@ -114,7 +114,7 @@ function maxBelow(ctx: EngineCtx, ch: Ch, fmtId: Fmt) {
 }
 const strong90 = (ctx: EngineCtx, ch: Ch, fmtId: Fmt) => vids(ctx, ch).filter(v => v.tracked && v.fmt === fmtId && v.ageDays <= 90 && v.mult && v.mult.value != null && !v.mult.weak)
 function engagementOf(ctx: EngineCtx, ch: Ch, fmtId: Fmt) {
-  const a = vids(ctx, ch).filter(v => v.tracked && v.fmt === fmtId && v.ageDays <= 90 && v.views != null && v.views > 0 && v.likes != null).map(v => (v.likes! + v.comments) / v.views!)
+  const a = vids(ctx, ch).filter(v => v.tracked && v.fmt === fmtId && v.ageDays <= 90 && v.views != null && v.views > 0 && v.likes != null && v.comments != null).map(v => (v.likes! + v.comments!) / v.views!)
   const m = median(a)
   return { median: m, n: a.length, window: '90 dias', label: a.length ? ctx.fmt.dec1(m! * 100) + '% (n = ' + a.length + ')' : 'sem vídeos com contagem' }
 }
@@ -162,6 +162,7 @@ export type ChannelStats = ReturnType<typeof channelStats>
 
 /** Competitors only (the own channel never takes a slot); the formula is computeSlots, shared with the actions. */
 export function channelSlots(ctx: EngineCtx, limit: number): ChannelSlots {
+  assertSiteScope(ctx, 'channelSlots')
   return computeSlots(ctx.ds.channels.filter(c => !c.own).length, limit)
 }
 

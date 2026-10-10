@@ -1,0 +1,25 @@
+/* meu-canal.css — rodada 7: o atalho "Meu canal" na linha da trilha. Só tokens do CMS. */
+#screen .crumbs .mc{position:relative;margin-left:auto;flex:none}
+#screen .mc-b{display:inline-flex;align-items:center;gap:5px;min-height:26px;padding:0 8px;border:1px solid var(--border-strong);border-radius:6px;background:transparent;color:var(--muted);font:400 12.5px/1.2 var(--sans, Inter, sans-serif);cursor:pointer;white-space:nowrap}
+#screen .mc-b b{color:var(--text);font-weight:500}
+#screen .mc-b:hover{background:var(--surface);color:var(--text)}
+#screen .mc-b:focus-visible,.mc-m a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#screen .mc-b svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.mc-m{position:fixed;width:290px;max-width:calc(100vw - 32px);padding:8px;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 12px 32px rgba(0,0,0,.45);font:400 13px/1.4 var(--sans, Inter, sans-serif);color:var(--text)}
+.mc-m[hidden]{display:none}
+.mc-h{margin:2px 8px 6px;font-size:12px;color:var(--muted)}
+.mc-m ul{list-style:none;margin:0;padding:0;display:block}
+.mc-m li{display:block;min-height:0}
+.mc-m li::before{content:none!important}
+.mc-m a,.mc-m .off{display:flex;flex-direction:column;gap:1px;padding:7px 8px;border-radius:6px;text-decoration:none;color:var(--text);min-height:0}
+.mc-m a:hover{background:var(--surface-2);text-decoration:none}
+.mc-m b{font-weight:500}
+.mc-m small{font-size:12px;color:var(--muted)}
+.mc-m .off b{color:var(--muted)}
+.mc-m .sep{border-top:1px solid var(--border-subtle);margin-top:6px;padding-top:6px}
+.mc-m .sep a{text-decoration:underline;text-underline-offset:2px}
+@media (max-width:900px){
+  #screen .mc-b{min-height:44px}
+  .mc-m a{min-height:44px;justify-content:center}
+  #screen .mc-l{display:none}
+}

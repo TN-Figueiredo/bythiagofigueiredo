@@ -14,6 +14,8 @@ test.beforeAll(async () => { ids = seedIdsOf(await ensureSeeded({ manyVersions: 
 
 const S = '[data-obs-screen="historico"]'
 const WIDTHS = [1440, 1100, 760] as const
+/** How long a period switch may take to reach the URL: it is a server render (2 to 10 s measured in `next dev`). */
+const URL_MS = 20_000
 type Box = { x: number; y: number; width: number; height: number }
 const box = async (l: Locator): Promise<Box> => { await l.waitFor({ state: 'visible' }); const b = await l.boundingBox(); if (!b) throw new Error('sem retângulo: ' + l); return b }
 /**
@@ -59,19 +61,22 @@ for (const width of WIDTHS) {
     for (const [n, ticks] of groups) expect(ticks).toBe(n)
   })
 
-  test(`${width} px: cada faixa é uma parada de Tab; o grupo não abre no foco, abre com Enter, cabe na linha do tempo e fecha com Esc`, async ({ page }) => {
+  test(`${width} px: cada faixa é uma parada de Tab; o grupo não abre no foco, abre com Enter, a lista cabe inteira na janela e fecha com Esc`, async ({ page }) => {
     await open(page, width)
     expect(await page.locator(`${S} .lanes [tabindex="0"]`).count()).toBe(3)
     const g = page.locator(`${S} [data-lane="thumb"] .gbtn`).first()
     await g.focus()
     await expect(g).toHaveAttribute('aria-expanded', 'false')
-    await expect(page.locator(S + ' #hv-tip')).toHaveClass(/show/)
+    // the tooltip and the list live in the floating layer (#flut), outside the screen's root
+    await expect(page.locator('#flut #hv-tip')).toBeVisible()
     await page.keyboard.press('Enter')
     await expect(g).toHaveAttribute('aria-expanded', 'true')
-    const pop = page.locator('#' + await g.getAttribute('aria-controls'))
-    const p = await box(pop), w = await box(page.locator(S + ' .tl-wrap'))
-    expect(p.x).toBeGreaterThanOrEqual(w.x - 1)
-    expect(p.x + p.width).toBeLessThanOrEqual(w.x + w.width + 1)
+    const pop = page.locator('#flut #' + await g.getAttribute('aria-controls'))
+    const p = await box(pop), win = page.viewportSize()!
+    expect(p.x).toBeGreaterThanOrEqual(0)
+    expect(p.x + p.width).toBeLessThanOrEqual(win.width + 1)
+    expect(p.y).toBeGreaterThanOrEqual(0)
+    expect(p.y + p.height).toBeLessThanOrEqual(win.height + 1)
     await page.keyboard.press('Escape')
     await expect(g).toHaveAttribute('aria-expanded', 'false')
     await expect(g).toBeFocused()
@@ -85,13 +90,14 @@ for (const width of WIDTHS) {
     const chart = page.locator(S + ' svg.hv-chart'), lanes = page.locator(S + ' .lanes'), b7 = page.locator(S + ' [data-range="7"]')
     const before = [await docY(page, chart), await docY(page, lanes)]
     await b7.click()
-    await expect(page).toHaveURL(/[?&]range=7(&|$)/)
+    // the new period is a server render in `next dev`: measured 2 to 10 s for this video (8 of 15 runs went over the 5 s default and failed while the app was right)
+    await expect(page).toHaveURL(/[?&]range=7(&|$)/, { timeout: URL_MS })
     await expect(page.locator(S + ' #hv-rngtxt')).toContainText('De 17/10 15:02 até agora')
     await expect(b7).toHaveAttribute('aria-pressed', 'true')
     await expect(b7).toBeFocused()
     expect([await docY(page, chart), await docY(page, lanes)]).toEqual(before)
     await page.locator(S + ' [data-range="tudo"]').click()
-    await expect(page).not.toHaveURL(/range=/)
+    await expect(page).not.toHaveURL(/range=/, { timeout: URL_MS })
   })
 
   test(`${width} px: "Ver todas" não move o botão; escolher na faixa um período recolhido abre a grade e leva ao cartão`, async ({ page }) => {
@@ -108,7 +114,7 @@ for (const width of WIDTHS) {
     // the first thumbnail period (index 0) is hidden while the grid is collapsed
     const first = page.locator(`${S} [data-lane="thumb"] [data-k="thumb:0"], ${S} [data-lane="thumb"] .cgrp`).first()
     await first.click()
-    const go = page.locator(S + ' [data-lane="thumb"] .gpop:not([hidden]) [data-go]').first()
+    const go = page.locator('#flut .gpop [data-go]').first()
     if (await go.count()) await go.click()
     const card = page.locator(S + ' #hv-film .fcard.target')
     await expect(card).toBeVisible()

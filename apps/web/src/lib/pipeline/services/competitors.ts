@@ -53,10 +53,10 @@ export interface CompetitorOutlierRow {
   title: string | null
   thumbnail_url: string | null
   channel_name: string
-  /** null = the channel hides the counter (never 0). */
+  /** null = the channel hides the counter, or YouTube did not return it (never 0). */
   view_count: number | null
   like_count: number | null
-  comment_count: number
+  comment_count: number | null
   duration_seconds: number | null
   published_at: string | null
   multiplier: number

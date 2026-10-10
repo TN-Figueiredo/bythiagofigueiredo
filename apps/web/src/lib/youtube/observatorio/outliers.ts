@@ -3,7 +3,7 @@ import { RULES, OUT_WINDOWS, DEFAULT_AGES, winOf } from './rules'
 import { median } from './stats'
 import { inNiche, type NicheScope } from './niche'
 import { changesIn } from './changes'
-import type { EngineCtx, Derived } from './series'
+import { assertSiteScope, type EngineCtx, type Derived } from './series'
 import type { ObsVideo, Fmt } from './types'
 import type { MultiplierResult } from './multiplier'
 import type { FrozenReading } from './types'
@@ -105,6 +105,9 @@ export function outliers(ctx: EngineCtx & { READ?: Record<string, FrozenReading>
 }
 
 export function tabCounts(ctx: EngineCtx, niche: NicheScope = 'todos'): { canais: number; mud: number; out: number } {
+  // the tab strip counts the SITE (channels, trades and outliers of every channel): on one channel's set it would say "Canais 1" and count
+  // the trades and outliers of that channel alone, with no error
+  assertSiteScope(ctx, 'tabCounts')
   return {
     canais: ctx.ds.channels.filter(c => !c.own && inNiche(niche, c)).length,
     mud: changesIn(ctx, { days: 30, niche }).length,

@@ -118,13 +118,6 @@
 [data-obs-screen="historico"] .vband{position:absolute;top:0;bottom:0;background:var(--wa);border-inline:1px dashed var(--c)}
 [data-obs-screen="historico"] .vline.on{opacity:1;border-left-style:solid}
 [data-obs-screen="historico"] .vband.on{border-inline-style:solid}
-[data-obs-screen="historico"] .tip{position:absolute;z-index:10;width:310px;max-width:calc(100% - 8px);background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow-pop);padding:12px 14px;font-size:12.5px;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
-[data-obs-screen="historico"] .tip.show{opacity:1;transform:none}
-[data-obs-screen="historico"] .tip h4{margin:0 0 2px;font-size:12px;font-weight:600;color:var(--c)}
-[data-obs-screen="historico"] .tip .when{color:var(--muted);margin:0 0 6px}
-[data-obs-screen="historico"] .tip .bef{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--del-fg)}
-[data-obs-screen="historico"] .tip .aft{color:var(--text);margin-top:3px}
-[data-obs-screen="historico"] .tip .thpair{display:grid;grid-template-columns:1fr 18px 1fr;align-items:center;gap:6px;color:var(--dim)}
 [data-obs-screen="historico"] .legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;font-size:12px;color:var(--muted)}
 [data-obs-screen="historico"] .legend > span{display:inline-flex;align-items:center;gap:6px}
 [data-obs-screen="historico"] .sw{display:inline-block;width:18px;height:0;border-top:2px solid var(--curve)}
@@ -305,7 +298,6 @@
 /* production additions */
 [data-obs-screen="historico"] .th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 [data-obs-screen="historico"] .th.missing{position:relative}
-[data-obs-screen="historico"] .tip .thpair .th.missing span{font-size:11px}
 [data-obs-screen="historico"] .lane .clip .th.missing{padding:0}
 
 /* ---------- Fixar vídeo: header in four blocks, in DOM order = screen order (thumbnail, title, actions, facts and chips).
@@ -348,6 +340,43 @@
 [data-obs-screen="historico"] .lane-axis.fx-axis i{position:absolute;top:0;width:0;height:5px;border-left:1px solid var(--muted)}
 [data-obs-screen="historico"] .lane-axis.fx-axis span:first-of-type{transform:none}
 [data-obs-screen="historico"] .lane-axis.fx-axis span:last-of-type{transform:translateX(-100%)}
+
+/* A dica da linha do tempo (#hv-tip) e a lista de um grupo (.gpop) moram em #flut (camada única, fim do <body>), fora de
+   [data-obs-screen="historico"]: as regras abaixo são as antigas com #flut na frente, a posição e o z-index saíram (a camada
+   põe a caixa). Duas classes na regra principal: vencem a base #flut .obs-fl-* (1,1,0) por especificidade, não por ordem.
+   O que a base mudaria e é declarado de volta: tip = padding 12px 14px, raio 8px, fonte 12.5px/1.5 var(--font-sans), sombra
+   --shadow-pop; lista = fonte 14px/1.5 (herdava da tela), sombra --shadow-pop. */
+/* variáveis de [data-obs-screen="historico"] (linhas 6-17) que as caixas usam e não chegam a #flut; valores literais dos dois temas */
+#flut .hv-tip,#flut .hv-gpop{--shadow-pop:0 12px 32px rgba(0,0,0,.45);--well:#181511;--del-fg:#FCA5A5;--t-title:#60A5FA;--t-thumb:#A78BFA;--t-desc:#22D3EE;--f4-row:36px}
+[data-theme="light"] #flut .hv-tip,[data-theme="light"] #flut .hv-gpop{--shadow-pop:0 12px 28px rgba(60,40,10,.16);--well:#F2EBDF;--del-fg:#B42318;--t-title:#1D4ED8;--t-thumb:#6D28D9;--t-desc:#0E7490}
+@media (pointer:coarse),(max-width:900px){ #flut .hv-tip,#flut .hv-gpop{--f4-row:44px} }
+#flut .obs-fl-tip.hv-tip{width:310px;padding:12px 14px;border-radius:8px;box-shadow:var(--shadow-pop);font:400 12.5px/1.5 var(--font-sans),system-ui,sans-serif;animation:hv-tip-in .12s}
+/* the old tip faded in and slid up 4px (opacity/transform .12s); the box now mounts when it is shown, so only the way in is animated */
+@keyframes hv-tip-in{from{opacity:0;transform:translateY(4px)}}
+@media (prefers-reduced-motion:reduce){ #flut .obs-fl-tip.hv-tip{animation:none} }
+#flut .hv-tip h4{margin:0 0 2px;font-size:12px;font-weight:600;color:var(--c)}
+#flut .hv-tip .when{color:var(--muted);margin:0 0 6px}
+#flut .hv-tip .bef{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--del-fg)}
+#flut .hv-tip .aft{color:var(--text);margin-top:3px}
+#flut .hv-tip .src{font-size:12px;color:var(--dim)}
+#flut .hv-tip .thpair{display:grid;grid-template-columns:1fr 18px 1fr;align-items:center;gap:6px;color:var(--dim)}
+#flut .hv-tip .hint{margin:6px 0 0;color:var(--muted)}
+#flut .hv-tip .seq{font:600 12px var(--font-jetbrains-var),ui-monospace,monospace;color:var(--text);overflow-wrap:anywhere}
+/* a miniatura da dica (<Thumb>): as regras de .th da tela, copiadas com #flut na frente (só as que a dica usa: sem .dur, .sil, .tx, .bd) */
+#flut .hv-tip .th{position:relative;aspect-ratio:16/9;border-radius:6px;overflow:hidden;isolation:isolate;container-type:inline-size;background:#222;width:100%}
+#flut .hv-tip .th img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+#flut .hv-tip .th.missing{background:repeating-linear-gradient(135deg,var(--surface) 0 8px,var(--well) 8px 16px);border:1px dashed var(--border-strong);display:grid;place-items:center;text-align:center;color:var(--muted);padding:4%;line-height:1.25}
+#flut .hv-tip .th.missing span{font-size:11px}
+#flut .obs-fl-pop.hv-gpop{width:max-content;padding:6px;box-shadow:var(--shadow-pop);font:400 14px/1.5 var(--font-sans),system-ui,sans-serif}
+#flut .hv-gpop h4{margin:2px 6px 4px;font-size:12px;font-weight:600;color:var(--text)}
+#flut .hv-gpop ul{list-style:none;margin:0;padding:0;max-height:264px;overflow:auto}
+#flut .hv-gpop button{font:inherit;display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 8px;align-items:center;width:100%;min-height:var(--f4-row);padding:4px 8px;border:2px solid transparent;border-radius:5px;background:transparent;text-align:left;cursor:pointer;font-size:12.5px;color:var(--muted)}
+#flut .hv-gpop button:hover{background:var(--surface-2);color:var(--text)}
+#flut .hv-gpop button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;background:var(--surface-2);color:var(--text)}
+#flut .hv-gpop .gk{font:600 11.5px var(--font-jetbrains-var),ui-monospace,monospace;color:var(--text);min-width:18px}
+#flut .hv-gpop .g1{color:var(--text)}
+#flut .hv-gpop .g2{grid-column:2;font-size:12px;color:var(--muted)}
+#flut .hv-gpop svg{width:12px;height:12px;vertical-align:-2px;margin-right:4px}
 
 /* ===== Fase 4: histórico com muitas versões (port of docs/superpowers/mockups/2026-10-07-historico-muitas-versoes/fase4.css, section 2) ===== */
 [data-obs-screen="historico"]{--f4-hit:32px;--f4-row:36px}
@@ -407,7 +436,6 @@
 /* grupo de períodos estreitos vizinhos: um alvo só, na extensão real do grupo; dentro, um traço por período,
    as letras em ordem e a contagem com a unidade */
 [data-obs-screen="historico"] .gwrap{position:absolute;top:0;bottom:0}
-[data-obs-screen="historico"] .gwrap.open{z-index:20}
 [data-obs-screen="historico"] .cgrp{position:absolute;left:0;width:100%;padding:0;border:1px solid var(--muted);border-radius:4px;background:var(--well);cursor:pointer;overflow:visible;z-index:2}
 [data-obs-screen="historico"] .cgrp::after{content:"";position:absolute;top:0;bottom:0;left:50%;width:max(100%,var(--f4-hit));transform:translateX(-50%)}
 [data-obs-screen="historico"] .cgrp .sl{position:absolute;top:0;height:8px;box-sizing:border-box;background:var(--fill,var(--dim));box-shadow:inset 0 0 0 1px var(--muted)}
@@ -422,8 +450,7 @@
 /* marcadores: um marcador sozinho fica exatamente no horário da troca. Marcadores próximos demais viram um contador
    ("5 trocas") em cima; os traços descem dele até as barras, cada um no horário real da sua troca. */
 [data-obs-screen="historico"] .gwrap.mg{top:0;bottom:auto;height:var(--lt);pointer-events:none;z-index:4}
-[data-obs-screen="historico"] .gwrap.mg > .mkg,[data-obs-screen="historico"] .gwrap.mg > .gpop{pointer-events:auto}
-[data-obs-screen="historico"] .gwrap.mg.open{z-index:20}
+[data-obs-screen="historico"] .gwrap.mg > .mkg{pointer-events:auto}
 [data-obs-screen="historico"] .mtick{position:absolute;top:calc(var(--lt) - 11px);width:0;height:11px;border-left:2px solid var(--c);margin-left:-1px;z-index:3;pointer-events:none}
 [data-obs-screen="historico"] .mspan{position:absolute;top:calc(var(--lt) - 11px);height:0;border-top:2px solid var(--c);z-index:3;pointer-events:none}
 [data-obs-screen="historico"] .mkg{position:absolute;top:-4px;left:50%;transform:translateX(-50%);min-width:var(--f4-hit);height:var(--f4-hit);padding:0;border:0;background:transparent;cursor:pointer;z-index:4;display:grid;place-items:center}
@@ -433,19 +460,6 @@
 [data-obs-screen="historico"] .gwrap.open .mkg span,[data-obs-screen="historico"] .mkg:hover span,[data-obs-screen="historico"] .mkg.on span{background:var(--surface-2);border-width:3px;padding:0 7px}
 [data-obs-screen="historico"] .mk.ln-i:focus-visible,[data-obs-screen="historico"] .mkg:focus-visible{outline-offset:0}
 /* lista do grupo: abre com Enter, espaço ou clique; Esc fecha de qualquer lugar */
-[data-obs-screen="historico"] .gpop{position:absolute;top:calc(100% - 1px);left:0;z-index:21;width:max-content;max-width:min(380px,86vw);padding:6px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);box-shadow:var(--shadow-pop);display:none}
-[data-obs-screen="historico"] .gwrap.open .gpop{display:block}
-[data-obs-screen="historico"] .gpop h4{margin:2px 6px 4px;font-size:12px;font-weight:600;color:var(--text)}
-[data-obs-screen="historico"] .gpop ul{list-style:none;margin:0;padding:0;max-height:264px;overflow:auto}
-[data-obs-screen="historico"] .gpop button{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 8px;align-items:center;width:100%;min-height:var(--f4-row);padding:4px 8px;border:2px solid transparent;border-radius:5px;background:transparent;text-align:left;cursor:pointer;font-size:12.5px;color:var(--muted)}
-[data-obs-screen="historico"] .gpop button:hover{background:var(--surface-2);color:var(--text)}
-[data-obs-screen="historico"] .gpop button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;background:var(--surface-2);color:var(--text)}
-[data-obs-screen="historico"] .gpop .gk{font:600 11.5px var(--font-jetbrains-var),ui-monospace,monospace;color:var(--text);min-width:18px}
-[data-obs-screen="historico"] .gpop .g1{color:var(--text)}
-[data-obs-screen="historico"] .gpop .g2{grid-column:2;font-size:12px;color:var(--muted)}
-[data-obs-screen="historico"] .gpop svg{width:12px;height:12px;vertical-align:-2px;margin-right:4px}
-[data-obs-screen="historico"] .tip .hint{margin:6px 0 0;color:var(--muted)}
-[data-obs-screen="historico"] .tip .seq{font:600 12px var(--font-jetbrains-var),ui-monospace,monospace;color:var(--text);overflow-wrap:anywhere}
 
 /* --- item 6: trocas em sequência na linha do tempo: barra opaca, por cima das linhas verticais --- */
 [data-obs-screen="historico"] .runrow{position:absolute;left:0;right:0;bottom:1px;height:18px;background:var(--surface);z-index:2}
@@ -537,8 +551,6 @@
 [data-obs-screen="historico"] .note.seq b{color:var(--text);font-weight:600}
 [data-obs-screen="historico"] .note ul{margin:0 0 3px;padding:0;list-style:none;display:grid;gap:3px}
 
-[data-obs-screen="historico"] .tip .th{width:100%}
-[data-obs-screen="historico"] .tip .thpair .th{aspect-ratio:16/9}
 @media (prefers-reduced-motion:reduce){ [data-obs-screen="historico"] .more-row .btn svg{transition:none} }
 /* alto contraste do sistema: o que era só preenchimento ganha borda, e a seleção ganha marca própria */
 @media (forced-colors:active){

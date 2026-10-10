@@ -9,21 +9,37 @@ export interface FakeDb {
   trips: string[]
   /** The column list of every select, to prove a column was not asked for. */
   selects: Array<{ table: string; cols: string }>
+  /** The `.range(a, b)` of every request that had one (null = no range), in order, next to its table: proves a read asked for one row. */
+  ranges: Array<{ table: string; range: [number, number] | null }>
   /** JSON length of everything returned. */
   bytes: number
   tables: Record<string, Row[]>
 }
 type Result = { data: unknown; error: { message: string; code: string } | null }
+/** Foreign keys the loaders embed through (`child.fk → parent.id`): enough for `competitor_videos!inner(competitor_channels!inner(site_id))`. */
+const FK: Record<string, Record<string, string>> = {
+  competitor_video_daily: { competitor_videos: 'video_id' },
+  competitor_videos: { competitor_channels: 'competitor_channel_id' },
+}
 const cmp = (a: unknown, b: unknown) => (a === b ? 0 : (a as string | number) < (b as string | number) ? -1 : 1)
 
 export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: string } = {}): FakeDb {
-  const db = { trips: [] as string[], selects: [] as Array<{ table: string; cols: string }>, bytes: 0 }
+  const db = { trips: [] as string[], selects: [] as Array<{ table: string; cols: string }>, ranges: [] as Array<{ table: string; range: [number, number] | null }>, bytes: 0 }
   const from = (table: string) => {
     let rows = [...(tables[table] ?? [])]
     let cols: string[] | null = null
+    let selected = ''
     const orders: Array<{ col: string; asc: boolean }> = []
+    // value of a dotted column ("competitor_videos.competitor_channels.site_id") reached through the FK map above
+    const reach = (r: Row, path: string[], tbl: string): unknown => {
+      if (path.length === 1) return r[path[0]!]
+      const parent = path[0]!, fk = FK[tbl]?.[parent]
+      const p = fk ? (tables[parent] ?? []).find(x => x.id === r[fk]) : undefined
+      return p ? reach(p, path.slice(1), parent) : undefined
+    }
     const run = (slice?: [number, number], single?: boolean): Result => {
       db.trips.push(table)
+      db.ranges.push({ table, range: slice ?? null })
       if (opts.failOn === table) return { data: null, error: { message: 'boom', code: 'XX000' } }
       const sorted = [...rows].sort((a, b) => { for (const o of orders) { const c = cmp(a[o.col], b[o.col]); if (c) return o.asc ? c : -c } return 0 })
       const page = slice ? sorted.slice(slice[0], slice[1] + 1) : sorted
@@ -33,8 +49,12 @@ export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: str
       return { data, error: null }
     }
     const q = {
-      select(s: string) { db.selects.push({ table, cols: s }); cols = s === '*' ? null : s.split(',').map(x => x.trim()); return q },
-      eq(c: string, v: unknown) { rows = rows.filter(r => r[c] === v); return q },
+      select(s: string) { db.selects.push({ table, cols: s }); selected = s; cols = s === '*' ? null : s.replace(/,?\s*[a-z_]+!inner\(.*$/, '').split(',').map(x => x.trim()).filter(Boolean); return q },
+      eq(c: string, v: unknown) {
+        // PostgREST filters the parent rows by an embedded column only through an inner join: without `!inner` on every
+        // embedded table of the path the real thing returns the parent rows unfiltered, so the fake refuses instead of filtering
+        if (c.includes('.')) for (const t of c.split('.').slice(0, -1)) if (!selected.includes(t + '!inner')) throw new Error(`fake-supabase: filter on ${c} needs ${t}!inner in the select (${selected})`)
+        rows = c.includes('.') ? rows.filter(r => reach(r, c.split('.'), table) === v) : rows.filter(r => r[c] === v); return q },
       neq(c: string, v: unknown) { rows = rows.filter(r => r[c] !== v); return q },
       in(c: string, vs: readonly unknown[]) { const set = new Set(vs); rows = rows.filter(r => set.has(r[c])); return q },
       is(c: string, v: unknown) { rows = rows.filter(r => (r[c] ?? null) === v); return q },
@@ -48,5 +68,5 @@ export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: str
     return q
   }
   // trips and selects are the live arrays; bytes is a number, so it is read through a getter
-  return { client: { from } as unknown as SupabaseClient, tables, trips: db.trips, selects: db.selects, get bytes() { return db.bytes } }
+  return { client: { from } as unknown as SupabaseClient, tables, trips: db.trips, selects: db.selects, ranges: db.ranges, get bytes() { return db.bytes } }
 }

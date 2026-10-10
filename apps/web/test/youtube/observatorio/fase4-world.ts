@@ -26,11 +26,11 @@ export function loadFase4(): { HM: HM; ds: Dataset } {
     id: c.id, name: c.name, fullName: c.name, niche: c.niche, own: false, lang: 'pt', subs: 1000, video_limit: c.video_limit,
     url: 'https://www.youtube.com/@' + c.id, handle: c.id, gender: 'n' as const, color: c.color, ini: c.ini,
     sync: { state: 'ok' as const, last: HM.LAST_SYNC, next: HM.LAST_SYNC + 6 * H, added: seriesStart, errorSince: null, msg: null, backfill: null },
-    activity: { state: 'ativo' as const }, lastIdx, snapshots: [],
+    activity: { state: 'ativo' as const }, lastIdx, snapshots: [], undated: [],
   }))
   const ver = (x: any) => ({ id: x.id as string, first_seen: x.first_seen as number, last_seen: x.last_seen as number, current: x.current as boolean, prec: x.prec, window: x.window })
   const videos: ObsVideo[] = (HM.videos as any[]).map(v => ({
-    id: v.id, ch: v.ch, niche: v.niche, fmt: 'long' as const, pub: v.pub, ageDays: v.ageDays, tracked: true, title: v.title, theme: null, formulas: [],
+    id: v.id, ch: v.ch, niche: v.niche, fmt: 'long' as const, isShort: false, pub: v.pub, ageDays: v.ageDays, tracked: true, title: v.title, theme: null, formulas: [],
     url: v.url, ytId: 'mock-' + v.id, dur: 600, views: v.views, viewsAt: v.series[v.series.length - 1].t, likes: null, comments: 0,
     series: v.series.map((p: any) => ({ idx: p.i, t: p.t, views: p.views })), firstIdx: v.firstIdx,
     titles: v.titles.map((x: any) => ({ ...ver(x), text: x.text })),

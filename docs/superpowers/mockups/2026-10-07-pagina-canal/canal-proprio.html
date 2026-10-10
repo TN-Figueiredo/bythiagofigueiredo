@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seu canal — Observatório</title>
+<!-- Fontes: as mesmas do produto. Sem rede o mockup cai em system-ui e continua legível. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="camadas.css?v=r12"><link rel="stylesheet" href="viewer.css?v=r12"><link rel="stylesheet" href="canal.css?v=r12"><link rel="stylesheet" href="forja-etapas.css?v=r12"><link rel="stylesheet" href="meu-canal.css?v=r12"><link rel="stylesheet" href="impressoes.css?v=r12">
+</head>
+<body>
+
+<!-- Barra do mockup: fora da tela simulada, recolhida. Nada daqui existe no produto. -->
+<details id="mock">
+  <summary>Estados do mockup (não faz parte da tela)</summary>
+  <div class="mk-in">
+    <div class="mk-row"><span class="mk-lbl" id="mkE">Estado</span><div class="mk-items" role="group" aria-labelledby="mkE" id="mkEstados"></div></div>
+    <div class="mk-row"><span class="mk-lbl" id="mkD">Cartões por linha</span><div class="mk-items" role="group" aria-labelledby="mkD" id="mkDens"></div></div>
+    <div class="mk-row"><span class="mk-lbl">Carga</span><div class="mk-items"><button type="button" id="mkLoad">Simular carga de 800 ms</button><button type="button" id="mkLoadFast">Simular carga de 60 ms (não mostra esqueleto)</button></div></div>
+    <p><b>Canal próprio (rodadas 5 a 7).</b> Os dados são reais, do canal tnFigueiredo, lidos em 09/10/2026: 35 vídeos, 1.160 inscritos e 82 linhas de impressões e CTR de miniatura por vídeo e dia (09/09 a 07/10); 8 dias vieram com o relatório vazio e 10 dias do período ainda não têm relatório baixado. Não vieram na exportação: avatar e horário de sincronização. A seção “Como o canal está” nasce recolhida; lembra se a pessoa a abriu (localStorage) e <code>?painel=1</code> a abre. O clique num vídeo abre o histórico mínimo do vídeo próprio.</p>
+  </div>
+</details>
+
+<div id="app">
+  <aside class="ch-side" aria-label="Menu do CMS (ilustrativo)" inert>
+    <div class="ch-side-logo">bythiagofigueiredo</div>
+    <ul><li><span>Painel</span></li><li><span>Próximos</span></li><li><span>Agenda</span></li><li><span>Notificações</span></li></ul>
+    <p class="ch-side-g">Conteúdo</p>
+    <ul><li><span>Blog</span></li><li><span>Vídeos</span></li><li><span>Newsletters</span></li><li><span>Campanhas</span></li><li><span>Playlists</span></li></ul>
+    <p class="ch-side-g">YouTube</p>
+    <ul><li><span>Canais</span></li><li><span>Vídeos</span></li><li><span>A/B Lab</span></li><li><span>Desempenho</span></li><li><span data-on>Competidores</span></li></ul>
+  </aside>
+
+  <div class="ch-main">
+    <div class="ch-shell" aria-hidden="true"><p>YouTube</p></div>
+    <div class="ch-shell-tabs" aria-hidden="true"><span>Painel</span><span>Vídeos</span><span>A/B Lab</span><span>Categorias</span><span>Comentários</span><span>Conteúdo</span><span data-on>Competidores</span><span>Desempenho</span></div>
+
+    <main id="screen" data-dens="padrao">
+      <!-- Moldura do Observatório nesta página: só a trilha (sem abas de seção nem barra de nicho). -->
+      <nav class="crumbs" aria-label="Caminho">
+        <ol>
+          <li><a href="canais.html" id="crumbCanais">Canais</a></li>
+          <li aria-current="page" id="crumbCanal"></li>
+        </ol>
+        <span class="tz">Horários em São Paulo</span>
+      </nav>
+
+      <header class="chead" id="chead"></header>
+
+      <section class="pn" id="painel" aria-labelledby="pnH" hidden></section>
+
+      <nav class="ctabs" aria-label="Seções do canal">
+        <ul id="ctabs"></ul>
+        <p class="res" id="res" hidden></p>
+      </nav>
+      <p class="sr" id="status" role="status" aria-atomic="true"></p>
+
+      <div id="faixa"></div>
+
+      <!-- Aba Vídeos -->
+      <section id="tabVideos" aria-labelledby="hVideos">
+        <h2 class="sr" id="hVideos">Vídeos</h2>
+        <div class="ctl" id="ctl">
+          <div class="fscroll"><div class="seg" role="group" aria-label="Formato" id="fFmt"></div></div>
+          <span class="sel"><label class="sr" for="fSort">Ordenar</label>
+            <select id="fSort">
+              <option value="recentes">Mais recentes</option>
+              <option value="vistos">Mais vistos</option>
+              <option value="multiplo">Maior múltiplo</option>
+              <option value="imp">Mais impressões no período</option>
+            </select>
+            <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+          </span>
+          <div class="search" role="search">
+            <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+            <label class="sr" for="fQ">Buscar por título</label>
+            <input id="fQ" type="search" placeholder="Buscar por título" autocomplete="off" spellcheck="false">
+            <button type="button" class="clr" id="fQClr" aria-label="Limpar busca" hidden><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+          </div>
+          <span class="gap"></span>
+          <div class="seg" role="group" aria-label="Vista" id="fVer"></div>
+        </div>
+        <a class="lk skip" href="#fimLista" id="skip">Pular a lista de vídeos</a>
+        <div id="miolo"></div>
+        <div id="fimLista" tabindex="-1"></div>
+      </section>
+
+      <!-- Aba Trocas -->
+      <section id="tabTrocas" aria-labelledby="hTrocas" hidden>
+        <h2 class="sec" id="hTrocas">Trocas de título e thumbnail</h2>
+        <div id="trocas"></div>
+      </section>
+
+      <!-- Aba Retenção (só no canal próprio) -->
+      <section id="tabRetencao" aria-labelledby="hRet" hidden>
+        <h2 class="sec" id="hRet">Retenção</h2>
+        <div class="empty"><p>Retenção ainda não coletada: chega com o lote L3.</p><p class="m">Quando chegar, esta aba mostra a curva de retenção e o percentual assistido de cada vídeo.</p></div>
+      </section>
+
+      <!-- Aba Leitura -->
+      <section id="tabLeitura" aria-labelledby="hLeitura" hidden>
+        <h2 class="sec" id="hLeitura">Leitura</h2>
+        <div id="leitura"></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="flut.js?v=r12"></script>
+<script src="dados.js?v=r12"></script>
+<script src="dados-proprio.js?v=r12"></script>
+<script src="canais-dados.js?v=r12b"></script>
+<script src="forja.js?v=r12"></script>
+<script src="hist-dados.js?v=r12"></script>
+<script src="viewer.js?v=r12"></script>
+<script src="impressoes.js?v=r12"></script>
+<script src="canal.js?v=r12"></script>
+<script src="meu-canal.js?v=r12"></script>
+</body>
+</html>

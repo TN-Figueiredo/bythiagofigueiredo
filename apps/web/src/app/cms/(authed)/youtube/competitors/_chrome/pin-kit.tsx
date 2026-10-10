@@ -7,6 +7,7 @@
  */
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { HoverTip } from './flut/flut'
 import type { PinResult } from '../pin-result'
 import type { PinChipView, PinView } from './pin-view'
 
@@ -105,6 +106,7 @@ export function PinButton({ pin, k, className }: { pin: PinView; k?: string; cla
   const c = useContext(PinCtx)
   const [hint, setHint] = useState(false)
   const pointer = useRef(false)
+  const btn = useRef<HTMLButtonElement>(null)
   if (!c) return null
   const key = k ?? pin.videoId
   const pinned = c.over[pin.videoId] ?? pin.pinned, b = c.busy[pin.videoId] ?? null, msg = c.msgs[key] ?? null
@@ -116,7 +118,7 @@ export function PinButton({ pin, k, className }: { pin: PinView; k?: string; cla
   const describedBy = [msg ? 'fx-msg-' + key : null, b ? 'fx-status' : act === 'pin' ? hintId : null].filter(Boolean).join(' ')
   return (
     <span className="fx-anchor">
-      <button type="button" className={className + ' fx-btn'} data-pin={pin.videoId} data-fx-k={key} data-pin-act={act}
+      <button ref={btn} type="button" className={className + ' fx-btn'} data-pin={pin.videoId} data-fx-k={key} data-pin-act={act}
         aria-label={label + ': ' + pin.title} aria-busy={b ? true : undefined} aria-disabled={b ? true : undefined} aria-describedby={describedBy || undefined}
         onPointerDown={() => { pointer.current = true }}
         onFocus={() => { setHint(!pointer.current); pointer.current = false }}
@@ -126,6 +128,8 @@ export function PinButton({ pin, k, className }: { pin: PinView; k?: string; cla
         <PinIcon name={b ? 'spin' : act} /><span>{label}</span>
       </button>
       {act === 'pin' ? <span id={hintId} className="fx-hint" role="tooltip" data-open={open ? '' : undefined}>{pin.hint}</span> : null}
+      {/* the visible box lives in #flut; the span above stays for screen readers (it is the button's description) */}
+      {act === 'pin' ? <HoverTip show={open} anchor={() => btn.current} className="fx-hint-pop" pref="lado" lado="esquerda" queda="cima" outroLado={false} align="inicio" gap={8} gapQueda={6} maxW={300} ariaHidden>{pin.hint}</HoverTip> : null}
     </span>
   )
 }

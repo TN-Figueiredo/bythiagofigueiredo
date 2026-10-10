@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { render, screen, within, fireEvent } from '@testing-library/react'
+import { render, screen, within, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildOutliersView } from '@/app/cms/(authed)/youtube/competitors/_outliers/view-model'
 import { OutliersScreen } from '@/app/cms/(authed)/youtube/competitors/_outliers/outliers-screen'
+import { focoDeTeclado } from '@/app/cms/(authed)/youtube/competitors/_outliers/outlier-card'
 import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
 import { noJunkText, oneFilledButton, forbiddenVocabulary, brokenLinks, linkCountsMatch } from './audits'
 
@@ -25,6 +26,7 @@ const CSS = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.
 const rule = (sel: string) => { const i = CSS.indexOf(sel + '{'); return i < 0 ? '' : CSS.slice(i, CSS.indexOf('}', i)) }
 
 beforeEach(() => { push.mockReset() })
+afterEach(() => { document.getElementById('flut')?.remove() })
 
 describe('OutliersScreen', () => {
   it('passes the DOM audits on the default view and in the empty state', () => {
@@ -130,17 +132,20 @@ describe('OutliersScreen', () => {
     expect(linkCountsMatch(container, counts)).toEqual([])
     expect(empty.querySelectorAll('.btn-primary').length).toBeLessThanOrEqual(1)
   })
-  it('the "i" opens the explanation of the multiplier; Esc hides it', async () => {
+  it('the "i" opens the explanation of the multiplier in #flut; Esc hides it', async () => {
     const user = userEvent.setup()
     const { container } = mount()
     const card = container.querySelectorAll('[data-outlier]:not(.obs-out-lead)')[0] as HTMLElement
     const info = within(card).getByRole('button', { name: /^Como o .+× é calculado$/ })
-    const tip = document.getElementById(info.getAttribute('aria-describedby')!)!
-    expect(tip.textContent).toMatch(/÷/)
+    expect(info.getAttribute('aria-describedby')).toBeNull() // the box is not rendered: nothing to describe
     await user.click(info)
-    expect(info.closest('.obs-out-mult')!.classList.contains('obs-out-open')).toBe(true)
+    const tip = document.getElementById(info.getAttribute('aria-describedby')!)!
+    expect(tip.closest('#flut')).not.toBeNull()
+    expect(tip.textContent).toMatch(/÷/)
+    expect(info.getAttribute('aria-expanded')).toBe('true')
     await user.keyboard('{Escape}')
-    expect(info.closest('.obs-out-mult')!.classList.contains('obs-out-open')).toBe(false)
+    expect(info.getAttribute('aria-expanded')).toBe('false')
+    expect(document.querySelector('#flut .obs-out-tip')).toBeNull()
   })
   it('the main card explains the base in the open (no tooltip) and links to the history and YouTube', () => {
     const { container } = mount()
@@ -176,5 +181,196 @@ describe('OutliersScreen', () => {
       const name = el.getAttribute('aria-label') ?? el.textContent?.trim()
       expect(name, el.outerHTML.slice(0, 120)).toBeTruthy()
     }
+  })
+})
+
+describe('Outliers · flutuantes na camada única (A0.1)', () => {
+  const info = (container: HTMLElement) => container.querySelector<HTMLButtonElement>('.obs-out-info')!
+  // jsdom answers `:focus-visible` as true for any focus(), so the test says which kind of focus it is (keyboard vs mouse/window)
+  const focar = (el: HTMLElement, teclado: boolean) => {
+    const orig = el.matches.bind(el)
+    el.matches = (sel: string) => sel === ':focus-visible' ? teclado : orig(sel)
+    fireEvent.focus(el)
+  }
+  const dica = () => document.querySelector('#flut .obs-out-tip, #flut .obs-out-ibtip')
+  it('focoDeTeclado: segue o :focus-visible e, se o navegador não conhece o seletor, mantém a dica alcançável', () => {
+    const el = document.createElement('button')
+    el.matches = () => true
+    expect(focoDeTeclado(el)).toBe(true)
+    el.matches = () => false
+    expect(focoDeTeclado(el)).toBe(false)
+    el.matches = () => { throw new SyntaxError('not a valid selector') }
+    expect(focoDeTeclado(el)).toBe(true)
+  })
+  it('o ⓘ do múltiplo abre a conta em #flut por clique e fecha com Esc, com o foco de volta', () => {
+    const { container } = mount()
+    const btn = info(container)
+    expect(container.querySelector('.obs-out-tip')).toBeNull()
+    fireEvent.click(btn)
+    const tip = document.querySelector('#flut .obs-out-tip')!
+    expect(tip.closest('.obs-out-card, td')).toBeNull()
+    expect(tip.getAttribute('role')).toBe('tooltip')
+    expect(btn.getAttribute('aria-expanded')).toBe('true')
+    expect(btn.getAttribute('aria-describedby')).toBe(tip.id)
+    fireEvent.keyDown(btn, { key: 'Escape' })
+    expect(document.querySelector('#flut .obs-out-tip')).toBeNull()
+    expect(document.activeElement).toBe(btn)
+  })
+  it('depois do Esc a conta não volta como dica enquanto o mouse e o foco ficam no ⓘ', () => {
+    const { container } = mount()
+    const btn = info(container)
+    fireEvent.mouseEnter(btn)
+    fireEvent.click(btn)
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-pop')).not.toBeNull()
+    fireEvent.keyDown(btn, { key: 'Escape' })
+    expect(document.querySelector('#flut .obs-out-tip')).toBeNull()
+    fireEvent.mouseLeave(btn)
+    fireEvent.mouseEnter(btn)
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-tip')).not.toBeNull()
+  })
+  it('passar o mouse no ⓘ mostra a mesma conta, sem abrir popover', () => {
+    const { container } = mount()
+    const btn = info(container)
+    fireEvent.mouseEnter(btn)
+    const tip = document.querySelector('#flut .obs-out-tip.obs-fl-tip')!
+    expect(tip).not.toBeNull()
+    expect(btn.getAttribute('aria-describedby')).toBe(tip.id)
+    expect(btn.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.mouseLeave(btn)
+    expect(document.querySelector('#flut .obs-out-tip')).toBeNull()
+    expect(btn.getAttribute('aria-describedby')).toBeNull()
+  })
+  it('sair com o mouse não esconde a conta de um ⓘ que ainda tem o foco', () => {
+    const { container } = mount()
+    const btn = info(container)
+    fireEvent.mouseEnter(btn)
+    focar(btn, true)
+    fireEvent.mouseLeave(btn)
+    expect(document.querySelector('#flut .obs-out-tip')).not.toBeNull()
+    fireEvent.blur(btn)
+    expect(document.querySelector('#flut .obs-out-tip')).toBeNull()
+  })
+  it('a dica do ícone "Ver histórico do vídeo" abre em #flut no foco e some ao sair', () => {
+    const { container } = mount()
+    const a = container.querySelector<HTMLAnchorElement>('a.obs-out-ib[data-hist]')!
+    expect(a.hasAttribute('data-tip')).toBe(false)
+    focar(a, true)
+    expect(document.querySelector('#flut .obs-out-ibtip')!.textContent).toBe('Ver histórico do vídeo')
+    fireEvent.blur(a)
+    expect(document.querySelector('#flut .obs-out-ibtip')).toBeNull()
+  })
+  it('a dica do ícone aceita mouse e foco separados e vale para "Abrir no YouTube"', () => {
+    const { container } = mount()
+    const a = container.querySelector<HTMLAnchorElement>('a.obs-out-ib[data-yt]')!
+    fireEvent.mouseEnter(a)
+    focar(a, true)
+    fireEvent.mouseLeave(a)
+    expect(document.querySelector('#flut .obs-out-ibtip')!.textContent).toBe('Abrir no YouTube')
+    fireEvent.blur(a)
+    expect(document.querySelector('#flut .obs-out-ibtip')).toBeNull()
+  })
+  it('Esc esconde a dica do ícone (foco ou mouse); o mouse que entra de novo a mostra', () => {
+    const { container } = mount()
+    const a = container.querySelector<HTMLAnchorElement>('a.obs-out-ib[data-yt]')!
+    focar(a, true)
+    expect(document.querySelector('#flut .obs-out-ibtip')).not.toBeNull()
+    fireEvent.keyDown(a, { key: 'Escape' })
+    expect(document.querySelector('#flut .obs-out-ibtip')).toBeNull()
+    // the mouse still over the icon does not bring it back; leaving and entering again does
+    fireEvent.mouseEnter(a)
+    expect(document.querySelector('#flut .obs-out-ibtip')).not.toBeNull()
+    fireEvent.keyDown(a, { key: 'Escape' })
+    expect(document.querySelector('#flut .obs-out-ibtip')).toBeNull()
+  })
+  it('foco de teclado no ⓘ mostra a conta; foco de mouse (clique) não', () => {
+    const { container } = mount()
+    const btn = info(container)
+    focar(btn, false)
+    expect(dica()).toBeNull()
+    expect(btn.getAttribute('aria-describedby')).toBeNull()
+    fireEvent.blur(btn)
+    focar(btn, true)
+    expect(dica()).not.toBeNull()
+    expect(btn.getAttribute('aria-describedby')).toBe(dica()!.id)
+  })
+  it('foco de mouse no ícone do vídeo não mostra a dica; o de teclado mostra', () => {
+    const { container } = mount()
+    const a = container.querySelector<HTMLAnchorElement>('a.obs-out-ib[data-yt]')!
+    focar(a, false)
+    expect(dica()).toBeNull()
+    fireEvent.blur(a)
+    focar(a, true)
+    expect(dica()!.textContent).toBe('Abrir no YouTube')
+  })
+  it('clicar no ⓘ para abrir e de novo para fechar, e tirar o mouse: a conta não fica presa', () => {
+    const { container } = mount()
+    const btn = info(container)
+    fireEvent.mouseEnter(btn)
+    focar(btn, false) // the mouse down focuses the button, but it is not a keyboard focus
+    fireEvent.click(btn)
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-pop')).not.toBeNull()
+    fireEvent.click(btn)
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-pop')).toBeNull()
+    fireEvent.mouseLeave(btn)
+    expect(dica()).toBeNull()
+  })
+  it('clicar em "Abrir no YouTube" e a janela devolver o foco ao link: a dica não reaparece sem mouse', () => {
+    const { container } = mount()
+    const a = container.querySelector<HTMLAnchorElement>('a.obs-out-ib[data-yt]')!
+    fireEvent.mouseEnter(a)
+    focar(a, false)
+    fireEvent.click(a)
+    fireEvent.mouseLeave(a)
+    fireEvent.blur(a) // the tab opened in the background takes the focus
+    expect(dica()).toBeNull()
+    focar(a, false) // coming back, the window re-focuses the link
+    expect(dica()).toBeNull()
+  })
+  it('com outro popover aberto (a dica se esconde), o ⓘ com o mouse em cima não aponta aria-describedby para um id que não existe', () => {
+    const { container } = mount()
+    const [a, b] = [...container.querySelectorAll<HTMLButtonElement>('.obs-out-info')]
+    fireEvent.mouseEnter(a!)
+    expect(a!.getAttribute('aria-describedby')).toBe(document.querySelector('#flut .obs-out-tip')!.id)
+    fireEvent.click(b!) // another popover opens: it hides the hover tip of the first
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-tip')).toBeNull()
+    expect(a!.hasAttribute('aria-describedby')).toBe(false)
+    expect(b!.getAttribute('aria-describedby')).toBe(document.querySelector('#flut .obs-out-tip.obs-fl-pop')!.id)
+  })
+  it('Tab para fora do ⓘ aberto com o mouse parado em cima: a conta volta como dica (não fica suprimida)', () => {
+    const { container } = mount()
+    const btn = info(container)
+    fireEvent.mouseEnter(btn)
+    fireEvent.click(btn) // opens and, in the layer, the focus goes to the button
+    expect(document.activeElement).toBe(btn)
+    const seguinte = container.querySelector<HTMLElement>('a.obs-out-ib')!
+    act(() => { seguinte.focus() }) // Tab: the focus leaves, the layer closes the popover
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-pop')).toBeNull()
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-tip')).not.toBeNull()
+  })
+  it('a conta é posicionada pelo bloco do múltiplo (.obs-out-mult), não pelo botão; o foco e o Esc continuam no botão', () => {
+    const { container } = mount()
+    const btn = info(container), bloco = btn.closest('.obs-out-mult') as HTMLElement
+    const rect = (l: number, t: number, w: number, h: number) => ({ left: l, top: t, width: w, height: h, right: l + w, bottom: t + h, x: l, y: t, toJSON: () => ({}) }) as DOMRect
+    vi.spyOn(btn, 'getBoundingClientRect').mockReturnValue(rect(400, 100, 32, 32))
+    vi.spyOn(bloco, 'getBoundingClientRect').mockReturnValue(rect(250, 90, 180, 60))
+    fireEvent.click(btn)
+    const tip = document.querySelector<HTMLElement>('#flut .obs-out-tip.obs-fl-pop')!
+    const compact = !!btn.closest('td')
+    // a card block starts at the block ('inicio' = 250); in a table it ends at the block ('fim' = 430 - width, width 0 in jsdom)
+    expect(parseFloat(tip.style.left)).toBe(compact ? 430 : 250)
+    expect(parseFloat(tip.style.top)).toBe(150 + 6) // 6 px under the block, as the old absolute box
+    fireEvent.keyDown(btn, { key: 'Escape' })
+    expect(document.activeElement).toBe(btn)
+  })
+  it('a tipografia das caixas é a de antes (raiz da tela): fonte do CMS, line-height 1.5; --tip-bg sem uso foi embora', () => {
+    expect(CSS).not.toMatch(/--tip-bg\s*:|var\(--tip-bg/)
+    expect(CSS).toMatch(/#flut \.obs-fl-tip\.obs-out-ibtip\{[^}]*font-family:var\(--font-sans\)[^}]*line-height:1\.5/)
+    expect(CSS).toMatch(/#flut \.obs-fl-pop\.obs-out-tip,#flut \.obs-fl-tip\.obs-out-tip\{[^}]*font-family:var\(--font-sans\)/)
+  })
+  it('as regras das caixas têm duas classes (vencem a base #flut .obs-fl-* por especificidade, não por ordem)', () => {
+    expect(CSS).toMatch(/#flut \.obs-fl-pop\.obs-out-tip,#flut \.obs-fl-tip\.obs-out-tip\{/)
+    expect(CSS).toMatch(/#flut \.obs-fl-tip\.obs-out-ibtip\{/)
+    expect(CSS).toMatch(/\[data-theme="light"\] #flut \.obs-fl-pop\.obs-out-tip/)
+    expect(CSS).not.toMatch(/(^|\n)#flut \.obs-out-(tip|ibtip)\{/)
   })
 })

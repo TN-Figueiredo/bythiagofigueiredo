@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Histórico do vídeo — Seu canal — Observatório</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="camadas.css?v=r12"><link rel="stylesheet" href="viewer.css?v=r12"><link rel="stylesheet" href="canal.css?v=r12"><link rel="stylesheet" href="forja-etapas.css?v=r12"><link rel="stylesheet" href="meu-canal.css?v=r12"><link rel="stylesheet" href="impressoes.css?v=r12"><link rel="stylesheet" href="regua.css?v=r12">
+</head>
+<body>
+
+<details id="mock">
+  <summary>Estados do mockup (não faz parte da tela)</summary>
+  <div class="mk-in">
+    <div class="mk-row"><span class="mk-lbl">Outro vídeo</span><div class="mk-items" id="mkCasos"></div></div>
+    <p><b>Rodadas 7 e 8.</b> Histórico mínimo de um vídeo do canal próprio, com dados reais lidos em 09/10/2026: views, curtidas, comentários e duração do vídeo, e as impressões e o CTR de miniatura dele por dia (09/09 a 07/10). Não há série de views por dia, retenção nem trocas lidas: a tela diz isso em vez de inventar. Rodada 8: paginador na ordem da lista de origem (o canal manda a ordem em <code>?back=</code>), faixa de números com ⓘ, posição do vídeo no canal e o cartão da forja no estado “ainda não disponível”.</p>
+  </div>
+</details>
+
+<div id="app">
+  <aside class="ch-side" aria-label="Menu do CMS (ilustrativo)" inert>
+    <div class="ch-side-logo">bythiagofigueiredo</div>
+    <p class="ch-side-g">YouTube</p>
+    <ul><li><span>Canais</span></li><li><span>Vídeos</span></li><li><span>A/B Lab</span></li><li><span>Desempenho</span></li><li><span data-on>Competidores</span></li></ul>
+  </aside>
+  <div class="ch-main">
+    <div class="ch-shell" aria-hidden="true"><p>YouTube</p></div>
+    <div class="ch-shell-tabs" aria-hidden="true"><span>Painel</span><span>Vídeos</span><span>A/B Lab</span><span>Categorias</span><span>Comentários</span><span>Conteúdo</span><span data-on>Competidores</span><span>Desempenho</span></div>
+    <main id="screen" class="vp">
+      <nav class="crumbs" aria-label="Caminho">
+        <ol>
+          <li><a href="canais.html">Canais</a></li>
+          <li><a href="canal-proprio.html" id="crumbCanal">tnFigueiredo</a></li>
+          <li aria-current="page">Histórico do vídeo</li>
+        </ol>
+        <span class="tz">Horários em São Paulo</span>
+      </nav>
+      <p class="sr" id="status" role="status"></p>
+      <div id="vp"></div>
+    </main>
+  </div>
+</div>
+<script src="flut.js?v=r12"></script>
+<script src="dados.js?v=r12"></script>
+<script src="dados-proprio.js?v=r12"></script>
+<script src="viewer.js?v=r12"></script>
+<script src="impressoes.js?v=r12"></script>
+<script src="faixa-numeros.js?v=r12"></script>
+<script src="regua.js?v=r12"></script>
+<script src="video-proprio.js?v=r12"></script>
+<script src="meu-canal.js?v=r12"></script>
+</body>
+</html>

@@ -11,8 +11,18 @@ export interface TitleVersion extends VersionBase { text: string }
 export interface ThumbVersion extends VersionBase { key: string; art: ThumbArt | null; blobUrl: string | null; seenSinceArchive?: boolean }
 export interface DescVersion extends VersionBase { lines: string[] | null; hasText: boolean }
 
+/** A stored video without published_at: no age, no multiple. The screen lists it at the end of the channel's videos, with the raw fields. `title` null = the stored title is missing (never an empty string): the screen says "sem título". */
+export interface UndatedVideo {
+  id: string; ytId: string; title: string | null; url: string
+  isShort: boolean | null; dur: number | null; views: number | null; likes: number | null; comments: number | null
+  pinned: boolean; checkedAt: number | null
+}
+
 export interface ObsVideo {
-  id: string; ch: string; niche: Niche | null; fmt: Fmt; pub: number; ageDays: number; tracked: boolean
+  id: string; ch: string; niche: Niche | null; fmt: Fmt
+  /** competitor_videos.is_short as it is stored. null = format not confirmed; `fmt` stays 'long' for the engine. */
+  isShort: boolean | null
+  pub: number; ageDays: number; tracked: boolean
   /** Pinned by the owner (R118): still observed when it falls out of the channel's video_limit. Absent = not pinned. NOT `tracked` (R119). */
   pinned?: boolean
   /**
@@ -27,7 +37,9 @@ export interface ObsVideo {
   title: string; theme: string | null; formulas: string[]; url: string; ytId: string; dur: number | null
   views: number | null; viewsAt: number | null
   /** null = the count was never read (a video still being fetched): no engagement, never 0% */
-  likes: number | null; comments: number
+  likes: number | null
+  /** null = o YouTube não devolveu a contagem: "não medido", nunca 0 */
+  comments: number | null
   series: SeriesPoint[]; firstIdx: number | null
   /** The daily read was cut by the lookback cap (ds.dailyCappedFrom): the series does NOT start at publication, so no day-0 baseline may be assumed. */
   truncated?: boolean
@@ -49,6 +61,8 @@ export interface ObsChannel {
   avatar?: string | null
   /** Pinned videos of the channel as the database counts them (rows with pinned_at, dated or not): the base of the pin cap. Absent = derive from the videos. */
   pinnedCount?: number
+  /** Vídeos guardados sem published_at: ficam fora de `videos` (não têm idade nem múltiplo) e a tela os lista no fim. Lista vazia = nenhum. */
+  undated: UndatedVideo[]
   sync: ChannelSync; activity: { state: 'ativo' | 'parado'; pausedDays?: number }
   lastIdx: number | null; snapshots: ChannelSnapshot[]
   /** Derived by the engine (Task 17). */
@@ -93,6 +107,18 @@ export interface Dataset {
   /** Start (ms, SP midnight) of the daily lookback when the cap cut into the series (seriesStart older than the cap); null = whole series read. */
   dailyCappedFrom: number | null
   channels: ObsChannel[]; videos: ObsVideo[]
+  /**
+   * Only on the dataset of ONE channel: the instant of the newest daily record of the WHOLE site (null = the site has none).
+   * The engine's LAST_IDX is the newest point of the videos it was given; with one channel it would be that channel's,
+   * so the loader hands the site's. Absent (the whole site was read) = derive it from `videos`, as always.
+   */
+  lastSeriesAt?: number | null
+  /**
+   * 'canal' = the dataset holds ONE channel of the site (loadChannelDataset); absent = the whole site was read. The functions
+   * that aggregate ACROSS channels (slots, niche, heatmap, insights, the forja's base) throw on a 'canal' dataset instead of
+   * answering with that channel alone (assertSiteScope, series.ts).
+   */
+  scope?: 'canal'
   /** last = newest OK sync of any competitor channel; null when none ever synced. */
   sync: { last: number | null; next: number | null }
   readings: FrozenReading[]; requests: ForjaRequest[]

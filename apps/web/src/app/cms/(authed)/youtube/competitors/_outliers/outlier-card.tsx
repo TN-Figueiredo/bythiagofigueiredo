@@ -4,7 +4,8 @@
  * phase, long videos) spans two columns, follows the row's height and anchors its footer at the bottom
  * (approval 02/10). Every text and number arrives ready from the view model.
  */
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type AnchorHTMLAttributes, type ReactNode } from 'react'
+import { HoverTip, Popover, useTipShown } from '../_chrome/flut/flut'
 import type { OutlierCardView, Rich } from './view-model'
 
 const P: Record<string, ReactNode> = {
@@ -21,6 +22,10 @@ const P: Record<string, ReactNode> = {
   list: <path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />,
   empty: <><circle cx="7" cy="7" r="4.6" stroke="currentColor" strokeWidth="1.1" fill="none" /><path d="M10.4 10.4l3.6 3.6M5 7h4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" /></>,
 }
+/** Only a keyboard focus shows the tip (the old CSS was `:focus-visible`): a mouse click or the window re-focusing a link must not. */
+export function focoDeTeclado(el: Element): boolean {
+  try { return el.matches(':focus-visible') } catch { return true } // browser without the selector: keep the tip reachable by focus
+}
 export function OutIcon({ name, className = 'obs-out-i' }: { name: string; className?: string }) {
   return <svg className={className} viewBox="0 0 16 16" aria-hidden="true" focusable="false">{P[name]}</svg>
 }
@@ -32,7 +37,11 @@ export function RichText({ parts }: { parts: Rich }) {
     : <abbr key={i} title={p.title}>{p.abbr}</abbr>)}</>
 }
 
-export function Thumb({ c, rank }: { c: OutlierCardView; rank?: boolean }) {
+/** The slices of a card that Thumb and MultBlock read: other screens (channel, video) pass only these. */
+export type ThumbData = Pick<OutlierCardView, 'art' | 'thumb' | 'dur'>
+export type MultData = Pick<OutlierCardView, 'id' | 'mult' | 'multLabel' | 'tier' | 'stale' | 'weak' | 'neutral' | 'flags' | 'tip'>
+
+export function Thumb({ c, rank }: { c: ThumbData; rank?: boolean }) {
   const art = c.art
   return (
     <span className="obs-out-thumb" data-thumb="" aria-hidden="true"
@@ -47,25 +56,41 @@ export function Thumb({ c, rank }: { c: OutlierCardView; rank?: boolean }) {
   )
 }
 
-export function MultBlock({ c, compact, lead }: { c: OutlierCardView; compact?: boolean; lead?: boolean }) {
+export function MultBlock({ c, compact, lead }: { c: MultData; compact?: boolean; lead?: boolean }) {
   const [open, setOpen] = useState(false)
+  // hover and focus are separate: leaving with the mouse does not hide the account of a button that still has the focus
+  const [hover, setHover] = useState(false)
+  const [foco, setFoco] = useState(false)
+  // Esc (or a click away) closes the popover: the account must not come back as a tip while the mouse/focus stay on the "i"
   const [off, setOff] = useState(false)
+  const closing = useRef(false) // the focus handed back to the button by that same close is not a new focus
+  const btn = useRef<HTMLButtonElement>(null)
   const id = 'obs-out-tip-' + c.id + (compact ? '-l' : '')
-  const cls = ['obs-out-mult', c.stale ? 'obs-out-stalev' : '', c.weak ? 'obs-out-weak' : '', c.neutral ? 'obs-out-neutral' : '', open ? 'obs-out-open' : '', off ? 'obs-out-tipoff' : ''].filter(Boolean).join(' ')
+  const cls = ['obs-out-mult', c.stale ? 'obs-out-stalev' : '', c.weak ? 'obs-out-weak' : '', c.neutral ? 'obs-out-neutral' : ''].filter(Boolean).join(' ')
   const vs = compact && !c.neutral ? c.multLabel.replace(/^vs (vídeos|Shorts) do canal/, 'vs canal') : c.multLabel
   // "(n = 14)" / "(este tinha 31 dias; n = 5)" never breaks inside (mockup nTxt is .nw)
   const cut = vs.lastIndexOf(' (')
   const vsHead = cut >= 0 ? vs.slice(0, cut + 1) : vs, vsTail = cut >= 0 ? vs.slice(cut + 1) : ''
+  // true only while the box is really in the document: another popover opening hides it, and the id must not be named then
+  const tipShown = useTipShown((hover || foco) && !off && !open)
+  // the account is positioned by the whole multiplier block (as before the layer: absolute inside .obs-out-mult), not by the button; focus, Esc and Tab stay on the button
+  const block = () => btn.current?.closest('.obs-out-mult') ?? null
+  // inside a table the block is flush right: the box grows leftwards from the button's end; in a card it starts at the button
+  const align = compact ? 'fim' : 'inicio'
   return (
-    <div className={cls} data-id={c.id}
-      onKeyDown={e => { if (e.key === 'Escape') { setOpen(false); setOff(true) } }}
-      onBlur={() => setOff(false)} onMouseLeave={() => setOff(false)}>
+    <div className={cls} data-id={c.id}>
       <span className={'obs-out-x obs-out-mono' + (c.tier ? ' obs-out-tier-' + c.tier : '')}>{c.mult}</span>
       <span className="obs-out-vs">{vsHead}<span className="obs-out-nw">{vsTail}</span>{lead ? null : <>{' '}
-        <button className="obs-out-info" type="button" aria-label={'Como o ' + c.mult + ' é calculado'} aria-describedby={id} aria-expanded={open}
-          onClick={() => setOpen(o => !o)}><span aria-hidden="true">i</span></button></>}</span>
+        <button ref={btn} className="obs-out-info" type="button" aria-label={'Como o ' + c.mult + ' é calculado'} aria-describedby={open || tipShown ? id : undefined} aria-expanded={open}
+          onClick={() => setOpen(o => !o)}
+          onMouseEnter={() => { setHover(true); setOff(false) }} onMouseLeave={() => { setHover(false); setOff(false) }}
+          onFocus={e => { setFoco(focoDeTeclado(e.currentTarget)); if (!closing.current) setOff(false) }} onBlur={() => { setFoco(false); setOff(false) }}
+          onKeyDown={e => { if (e.key === 'Escape') { setHover(false); setFoco(false) } }}><span aria-hidden="true">i</span></button>
+        <HoverTip show={tipShown} anchor={() => btn.current} posAnchor={block} id={id} className="obs-out-tip" pref="baixo" align={align} maxW={320}><RichText parts={c.tip} /></HoverTip>
+        <Popover open={open} anchor={() => btn.current} posAnchor={block} id={id} role="tooltip" className="obs-out-tip" pref="baixo" align={align} maxW={320}
+          // off only while the button still has the focus (Esc, a click away): when the focus left for another control (Tab) a still mouse on the "i" shows the account again
+          onClose={() => { closing.current = true; queueMicrotask(() => { closing.current = false }); setOpen(false); setOff(document.activeElement === btn.current) }}><RichText parts={c.tip} /></Popover></>}</span>
       {c.flags.map(f => <span className="obs-out-flag" key={f}><OutIcon name="warn" /><span>{f}</span></span>)}
-      {lead ? null : <div className="obs-out-tip" role="tooltip" id={id}><RichText parts={c.tip} /></div>}
     </div>
   )
 }
@@ -88,12 +113,26 @@ export function Ruler({ c, legend }: { c: OutlierCardView; legend?: boolean }) {
   </>
 }
 
+/** Icon link with a tip in the floating layer (#flut): mouse and focus are separate, the words are already its aria-label. Esc hides the tip (WCAG 1.4.13) and leaves the focus where it is. */
+function IbLink({ tip, children, ...rest }: { tip: string; children: ReactNode } & AnchorHTMLAttributes<HTMLAnchorElement>) {
+  const el = useRef<HTMLAnchorElement>(null)
+  const [hover, setHover] = useState(false)
+  const [foco, setFoco] = useState(false)
+  return (
+    <a {...rest} ref={el} className="obs-out-ib" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onFocus={e => setFoco(focoDeTeclado(e.currentTarget))} onBlur={() => setFoco(false)}
+      onKeyDown={e => { if (e.key === 'Escape' && (hover || foco)) { setHover(false); setFoco(false) } }}>
+      {children}
+      <HoverTip show={hover || foco} anchor={() => el.current} className="obs-out-ibtip" pref="cima" align="fim" gap={4} ariaHidden>{tip}</HoverTip>
+    </a>
+  )
+}
+
 export function Actions({ c }: { c: OutlierCardView }) {
   // "Salvar no swipe file" per video is follow-up FU-2 (ruling R43): the swipe store is keyed by change/version.
   return (
     <div className="obs-out-acts">
-      <a className="obs-out-ib" data-hist={c.id} href={c.historyHref} aria-label={'Ver histórico do vídeo: ' + c.title} data-tip="Ver histórico do vídeo"><OutIcon name="hist" /></a>
-      <a className="obs-out-ib" data-yt={c.id} href={c.url} target="_blank" rel="noopener noreferrer" aria-label={'Abrir no YouTube: ' + c.title} data-tip="Abrir no YouTube"><OutIcon name="ext" /></a>
+      <IbLink tip="Ver histórico do vídeo" data-hist={c.id} href={c.historyHref} aria-label={'Ver histórico do vídeo: ' + c.title}><OutIcon name="hist" /></IbLink>
+      <IbLink tip="Abrir no YouTube" data-yt={c.id} href={c.url} target="_blank" rel="noopener noreferrer" aria-label={'Abrir no YouTube: ' + c.title}><OutIcon name="ext" /></IbLink>
     </div>
   )
 }

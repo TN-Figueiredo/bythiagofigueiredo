@@ -66,7 +66,11 @@ async function holdActions(page: Page, needle: string) {
  */
 async function openRemove(page: Page): Promise<void> {
   const b = page.locator('.cn-drawer').getByRole('button', { name: 'Remover canal…', exact: true })
-  await b.waitFor(); await b.dispatchEvent('click')
+  // the button is in the server HTML before React hydrates: a click dispatched then is lost (seen after a cold route compile).
+  // No hydration marker exists, so click again until the dialog is really there (a click that took effect stops the loop).
+  const dlg = page.locator('[role="dialog"][aria-labelledby="cn-cfT"]')
+  await b.waitFor()
+  await expect(async () => { await b.dispatchEvent('click'); await expect(dlg).toBeVisible({ timeout: 1500 }) }).toPass({ timeout: 15_000 })
 }
 
 const HIST_WIDTHS = [390, 768, 1099, 1100, 1440], MUD_WIDTHS = [390, 768, 999, 1440]
@@ -105,10 +109,13 @@ for (const width of HIST_WIDTHS) {
     const hold = await holdActions(page, ids.video(FULL))
     await page.goto('/cms/youtube/competitors/video/' + ids.video(FULL))
     const btn = page.locator('[data-obs-screen="historico"] [data-pin]'), hint = page.locator('[data-obs-screen="historico"] .fx-hint')
+    // A0.1: the span .fx-hint stays beside the button for screen readers (it carries data-open); the visible box is in #flut
+    const visible = page.locator('#flut .fx-hint-pop')
     await settle(page, btn)
     await btn.focus(); await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Tab') // focus by keyboard
     await expect(hint).toHaveAttribute('data-open', '')
-    const h = await docBox(page, hint)
+    await expect(visible).toBeVisible()
+    const h = await docBox(page, visible)
     for (const el of await page.locator('[data-obs-screen="historico"] a[href]:visible, [data-obs-screen="historico"] button:visible').all()) {
       if (await el.getAttribute('data-pin')) continue
       expect(overlap(h, await docBox(page, el)), 'a dica cobre: ' + (await el.textContent())).toBe(0)
@@ -116,13 +123,16 @@ for (const width of HIST_WIDTHS) {
     expect(h.x).toBeGreaterThanOrEqual(0); expect(h.x + h.width).toBeLessThanOrEqual(width)
     await page.keyboard.press('Escape')
     await expect(hint).not.toHaveAttribute('data-open', '')
+    await expect(visible).toHaveCount(0)
     await expect(btn).toBeFocused()
     // a result message and the hint never share the screen
     await page.keyboard.press('Enter'); hold.release()
     await expect(page.locator('[data-obs-screen="historico"] .fx-msg')).toBeVisible()
     await expect(hint).not.toHaveAttribute('data-open', '')
+    await expect(visible).toHaveCount(0)
     await btn.blur(); await btn.focus()
     await expect(hint).not.toHaveAttribute('data-open', '')
+    await expect(visible).toHaveCount(0)
   })
 }
 

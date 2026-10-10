@@ -3,7 +3,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { fakeSupabase } from '../../helpers/fake-supabase'
 import { createFakeNextCache } from '../../helpers/fake-next-cache'
-import { buildTables } from './load-fixture'
+import { buildTables, ids, heavyTrips } from './load-fixture'
 import { loadRows } from '@/lib/youtube/observatorio/load'
 
 const NOW = Date.now()
@@ -41,5 +41,26 @@ describe('medição: carregador das páginas (cache por canal)', () => {
     expect(hit).toEqual(miss)
     expect(cache.rejected).toEqual([])
     expect(db.trips.length - missTrips).toBe(9)
+  })
+})
+
+describe('medição: um canal só (loadChannelDataset)', () => {
+  it.each(SHAPES)('$name', async shape => {
+    vi.resetModules()
+    const cache = createFakeNextCache(), db = fakeSupabase(buildTables({ siteId: 'site-m', now: NOW, ...shape }))
+    vi.doMock('next/cache', () => cache.module)
+    vi.doMock('@sentry/nextjs', () => ({ captureMessage: vi.fn() }))
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => db.client }))
+    const { loadChannelDataset } = await import('@/lib/youtube/observatorio/load-page')
+    const id = ids.channel('site-m', 0)
+    const cold = (await loadChannelDataset('site-m', id, NOW))!
+    const coldTrips = db.trips.length, coldBytes = db.bytes, coldHeavy = heavyTrips(db), coldVideos = db.trips.filter(t => t === 'competitor_videos').length
+    const warm = (await loadChannelDataset('site-m', id, NOW))!
+    const warmHeavy = heavyTrips(db) - coldHeavy
+    console.info('[medicao] um canal |', shape.name, '| fria: idas', coldTrips, 'bytes', coldBytes, '| quente: idas', db.trips.length - coldTrips, 'bytes do banco', db.bytes - coldBytes)
+    expect(cold.videos).toHaveLength(100)
+    expect(warm).toEqual(cold)
+    expect(coldVideos).toBe(1)
+    expect(warmHeavy).toBe(0)
   })
 })

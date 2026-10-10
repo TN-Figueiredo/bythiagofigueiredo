@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useToast } from '../_chrome/toasts'
+import { currentFlut } from '../_chrome/flut/store'
 import type { HistoricoView, LaneType } from './view-model'
 import type { Hl } from './lanes'
 import { Crumbs } from './pager'
@@ -46,7 +47,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   useEffect(() => {
     if (!pinImg) return
     const key = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || root.current?.querySelector('.gwrap.open, .tip.show')) return
+      if (e.key !== 'Escape' || currentFlut() != null || document.getElementById('hv-tip') != null) return
       setPinImg(null); setLive('Destaque solto.')
     }
     document.addEventListener('keydown', key)

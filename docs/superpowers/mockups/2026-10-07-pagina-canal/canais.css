@@ -1,0 +1,151 @@
+/* Lista de Canais — rodadas 6 e 7. Tokens e moldura vêm de canal.css; a tabela segue a de produção (_canais/canais.css):
+   cabeçalho em --surface-2 com a unidade embaixo do rótulo, linhas com fio --border-subtle, divisor de grupo em --surface-2. */
+#screen.cn .cn-head{display:flex;align-items:baseline;gap:6px 16px;flex-wrap:wrap;margin:2px 0 8px}
+#screen.cn h1{font:600 22px/1.2 var(--serif);letter-spacing:-.01em;margin:0;font-variation-settings:"opsz" 72}
+#screen.cn .cn-sub{margin:0;font-size:13px;color:var(--muted)}
+#screen.cn .cn-own{margin:6px 0 0;font-size:12.5px;color:var(--muted)}
+#screen.cn .av{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--surface-2);border:1px solid var(--border);font:600 11.5px var(--sans);color:var(--muted)}
+
+/* bloco do topo: mesma superfície da tabela, o selo laranja e um fio à esquerda. Uma linha por canal próprio. */
+#screen.cn .cn-top{border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface);box-shadow:inset 2px 0 0 var(--accent);padding:8px 12px 8px 14px}
+#screen.cn .cn-top[hidden]{display:none}
+#screen.cn .cn-top h2{margin:0 0 2px;font:500 12px/18px var(--sans);color:var(--muted)}
+#screen.cn .cn-top ul{list-style:none;margin:0;padding:0}
+#screen.cn .cn-top li{display:grid;grid-template-columns:26px minmax(150px,auto) minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:6px 0}
+#screen.cn .cn-top li+li{border-top:1px solid var(--border-subtle)}
+/* rodada 8: canal sem vídeos = uma linha fina, uma frase, sem botão grande */
+#screen.cn .cn-top li.fina{display:block;padding:3px 0 3px 38px}
+#screen.cn .cn-top li.fina p{margin:0;font-size:13px;line-height:20px;color:var(--muted)}
+#screen.cn .cn-top li.fina .nm{color:var(--text);font-weight:500}
+#screen.cn .cn-top li.fina .lk{font-size:13px}
+#screen.cn .tn{display:flex;align-items:center;gap:8px;min-width:0;font-weight:500;white-space:nowrap}
+#screen.cn .tn a{color:var(--text);text-decoration:underline;text-decoration-color:var(--dim);text-underline-offset:3px}
+#screen.cn .tp{margin:0;font-size:13px;line-height:19px;color:var(--muted);min-width:0}
+#screen.cn .tp b{color:var(--text);font-weight:600}
+#screen.cn .tp .num{color:var(--text)}
+#screen.cn .ta{display:flex;gap:8px;justify-content:flex-end}
+#screen.cn .own-seal{height:22px;font-size:12px;padding:0 7px}
+
+#screen.cn .cn-ctl{margin-top:4px}
+#screen.cn .cn-res{margin:0;font-size:12.5px;color:var(--muted);min-width:0}
+#screen.cn .cn-tw{overflow-x:auto;border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface)}
+#screen.cn .cn-t{border-collapse:collapse;width:100%;min-width:940px;font-size:13px}
+#screen.cn .cn-t th,#screen.cn .cn-t td{text-align:left;vertical-align:middle;padding:6px 8px;border-bottom:1px solid var(--border-subtle);font-weight:400}
+#screen.cn .cn-t tbody tr:last-child>*{border-bottom:0}
+#screen.cn .cn-t thead th{font:500 12px/1.3 var(--sans);color:var(--muted);background:var(--surface-2);vertical-align:bottom}
+#screen.cn .cn-t thead .unit{display:block;font-weight:400;font-size:11.5px;color:var(--muted)}
+#screen.cn .cn-t thead button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;min-height:24px;color:var(--muted);font-weight:500}
+#screen.cn .cn-t thead button:hover{color:var(--text)}
+#screen.cn .cn-t thead button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+#screen.cn .cn-t th[aria-sort] button{color:var(--text);font-weight:600}
+#screen.cn .cn-t .arrow{font-size:10px;width:10px;color:var(--text)}
+#screen.cn .cn-t .r{text-align:right}
+#screen.cn .cn-t th.r button{justify-content:flex-end}
+#screen.cn .cn-t .p{width:40px;text-align:right;color:var(--muted);font-size:12.5px;padding-right:2px;white-space:nowrap}
+#screen.cn .cn-t td.r{color:var(--muted)}
+#screen.cn .cn-t td.r.on{color:var(--text);font-weight:600}
+#screen.cn .cn-t .a{text-align:right;white-space:nowrap}
+#screen.cn .nd{font:400 12.5px var(--sans);color:var(--muted);white-space:nowrap}
+#screen.cn .ch{display:flex;align-items:center;gap:9px;min-width:150px}
+#screen.cn .ch a,#screen.cn .ch .nm,#screen.cn .cc .cn a,#screen.cn .cc .nm{color:var(--text);font-weight:500}
+#screen.cn .ch a,#screen.cn .cc .cn a{text-decoration:underline;text-decoration-color:var(--dim);text-underline-offset:3px}
+#screen.cn .ch a:hover{text-decoration-color:var(--text)}
+#screen.cn .exm{font-size:11.5px;color:var(--dim);white-space:nowrap}
+#screen.cn .cmpl{font-size:12.5px;color:var(--muted);text-decoration:underline;text-underline-offset:2px;display:inline-flex;align-items:center;min-height:24px}
+#screen.cn .cmpl:hover{color:var(--text)}
+#screen.cn .cmpl:focus-visible,#screen.cn .ch a:focus-visible,#screen.cn .cc a:focus-visible,#screen.cn .tn a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+/* o canal próprio é uma linha da lista: o selo e um fio laranja à esquerda, sem fundo */
+#screen.cn tr.own>.p{box-shadow:inset 2px 0 0 var(--accent);color:var(--text)}
+#screen.cn tr.own:focus-visible,#screen.cn .cc.own:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+#screen.cn tr.grp th{background:var(--surface-2);font:600 12.5px var(--sans);color:var(--text);padding:7px 12px}
+#screen.cn tr.grp small,#screen.cn .cdiv small{font-weight:400;color:var(--muted);margin-left:8px;font-size:12.5px}
+
+/* cartões */
+#screen.cn .cn-cards{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px}
+#screen.cn .cc{border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface);padding:11px 12px 10px;display:flex;flex-direction:column;gap:8px;min-width:0}
+#screen.cn .cc.own{box-shadow:inset 2px 0 0 var(--accent)}
+#screen.cn .cch{display:flex;align-items:center;gap:9px;min-width:0}
+#screen.cn .cc .cn{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;flex:1 1 auto;font-size:13.5px}
+#screen.cn .cp{font-size:12.5px;color:var(--muted)}
+#screen.cn .voce{margin:0;font-size:13px;line-height:18px;color:var(--text)}
+#screen.cn .cc dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 12px;margin:0}
+#screen.cn .cc dl div{display:flex;flex-direction:column-reverse;justify-content:flex-end;min-width:0}
+#screen.cn .cc dt{font-size:12px;line-height:16px;color:var(--muted)}
+#screen.cn .cc dd{margin:0;font-size:14px;line-height:19px;color:var(--muted)}
+#screen.cn .cc dl .on dd,#screen.cn .cc dl .on dt{color:var(--text)}
+#screen.cn .cc dl .on dd{font-weight:600}
+#screen.cn .ccf{margin:auto 0 0;padding-top:2px}
+#screen.cn .cdiv{grid-column:1/-1;padding:6px 2px 0;font-size:12.5px}
+#screen.cn .cdiv b{font-weight:600}
+
+/* linha presa no pé, fina: só quando nem o bloco do topo nem a linha do canal estão na tela */
+#screen.cn .cn-pin{position:sticky;bottom:10px;margin-top:10px;display:flex;align-items:center;gap:4px 14px;flex-wrap:wrap;padding:5px 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-2);box-shadow:var(--shadow);font-size:12.5px;z-index:var(--z-grudado)}
+#screen.cn .cn-pin[hidden]{display:none}
+#screen.cn .cn-pin p{margin:0;flex:1 1 280px;min-width:0;color:var(--muted)}
+#screen.cn .cn-pin b{font-weight:600;color:var(--text)}
+#screen.cn .cn-pin .num{color:var(--text)}
+#screen.cn .cn-pin .own-seal{height:20px;font-size:11.5px}
+#screen.cn .cn-pin .lk{font-size:12.5px}
+@media (max-width:1100px){
+  #screen.cn .cn-top li{grid-template-columns:26px minmax(0,1fr) auto}
+  #screen.cn .tp{grid-column:1/-1;grid-row:2}
+}
+@media (max-width:900px){
+  #screen.cn .cn-t thead button{min-height:44px}
+  #screen.cn .cn-t th:nth-child(2),#screen.cn .cn-t td:nth-child(2){position:sticky;left:0;background:var(--surface)}
+  #screen.cn .cn-t thead th:nth-child(2){background:var(--surface-2)}
+  #screen.cn .ch{min-width:170px}
+  #screen.cn .cmpl{min-height:44px}
+  #screen.cn .cn-res{flex:1 1 100%;order:6}
+}
+@media (max-width:600px){
+  #screen.cn .cn-top li{grid-template-columns:26px minmax(0,1fr)}
+  #screen.cn .ta{grid-column:1/-1;justify-content:flex-start;flex-wrap:wrap}
+}
+
+#screen.cn .ch a,#screen.cn .ch .nm{white-space:nowrap}
+#screen.cn .cn-t thead button{white-space:nowrap}
+#screen.cn .cn-ctl{margin-top:8px}
+#screen.cn .cn-t thead .unit{white-space:nowrap}
+#screen.cn .cn-t .a{padding-right:12px}
+#screen.cn .cc .nd{white-space:normal}
+#screen.cn .cn-t th,#screen.cn .cn-t td{padding-left:6px;padding-right:6px}
+#screen.cn .cn-t .a{padding-right:12px}
+#screen.cn .cn-ctl .sel{min-width:0;max-width:100%}
+#screen.cn .cn-ctl .sel select{max-width:100%;min-width:0}
+
+/* ============================================================ Rodada 12: filtro de formato (Todos | Longos | Shorts) e o ⓘ do inscritos */
+#screen.cn .cn-fnota{margin:4px 0 0;font-size:12.5px;line-height:18px;color:var(--muted)}
+#screen.cn .cn-fnota[hidden]{display:none}
+#screen.cn .cn-fnota .fab{color:var(--dim)}
+/* o ⓘ mora na linha e não a engorda */
+#screen.cn .insc{display:inline-flex;align-items:center;gap:2px;justify-content:flex-end}
+#screen.cn .cn-t .ibtn{width:24px;height:24px;margin:-4px -4px -4px 0}
+#screen.cn .cn-t .ibtn:focus-visible{outline:2px solid var(--accent);outline-offset:0}
+#screen.cn .cn-t thead .unit.ord{color:var(--text)}
+/* "Todos": duas medidas por célula, cada uma com o seu rótulo (longos / Shorts), uma sobre a outra */
+#screen.cn .cn-t td.dois{padding-top:4px;padding-bottom:4px}
+#screen.cn .fm{display:flex;justify-content:flex-end;align-items:baseline;gap:6px;line-height:16px;white-space:nowrap}
+#screen.cn .fl{font:400 11.5px/16px var(--sans);color:var(--dim)}
+#screen.cn .cn-t td.dois .nd{font-size:12px}
+#screen.cn .cn-t.todos td.r.on .fm:first-child .num{font-weight:600}
+#screen.cn .cn-t.todos td.r.on{font-weight:400}
+#screen.cn .cn-t.todos td.r:not(.on) .num{color:var(--muted)}
+#screen.cn .cc .fm{justify-content:flex-start}
+@media (max-width:900px){
+  #screen.cn .cn-t .ibtn{width:44px;height:44px;margin:-10px -12px -10px -6px}
+}
+#screen.cn .insc{white-space:nowrap}
+/* "Todos" é mais largo: o nome do canal pode quebrar em duas linhas (cabem nos ~40 px da linha) para a tabela caber sem rolagem interna a 1440 px */
+#screen.cn .cn-t.todos .ch{min-width:0}
+#screen.cn .cn-t.todos .ch a,#screen.cn .cn-t.todos .ch .nm{white-space:normal;line-height:16px}
+#screen.cn .cn-t.todos .ch .exm{white-space:normal}
+#screen.cn .cn-t.todos th,#screen.cn .cn-t.todos td{padding-left:5px;padding-right:5px}
+#screen.cn .cn-t.todos th,#screen.cn .cn-t.todos td{padding-top:3px;padding-bottom:3px}
+#screen.cn .cn-t.todos .fm{line-height:15px}
+#screen.cn .cn-t.todos .ch a,#screen.cn .cn-t.todos .ch .nm{line-height:15px}
+#screen.cn .cn-t.todos thead th{padding-top:6px;padding-bottom:6px}
+/* cartões em "Todos": o rótulo e o número quebram juntos, nunca para fora do cartão */
+#screen.cn .cc .fm{flex-wrap:wrap;white-space:normal;gap:0 6px}
+#screen.cn .cc dl{grid-template-columns:repeat(auto-fit,minmax(112px,1fr))}
+#screen.cn .cc .fm .num{white-space:nowrap}

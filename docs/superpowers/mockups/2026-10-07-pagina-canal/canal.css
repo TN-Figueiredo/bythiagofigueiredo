@@ -126,7 +126,7 @@ svg.i.f{fill:currentColor;stroke:none}
 #screen .band.info svg{color:var(--muted)}
 
 /* linha de controles: a única coisa presa ao rolar (só com largura > 900 px e altura ≥ 600 px) */
-#screen .ctl{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;padding:8px 0;background:var(--bg);z-index:5}
+#screen .ctl{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;padding:8px 0;background:var(--bg);z-index:var(--z-grudado)}
 @media (min-width:901px) and (min-height:600px){#screen .ctl{position:sticky;top:0}#screen{--sticky-h:50px}}
 #screen .seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:7px;background:var(--surface);padding:2px;gap:2px}
 #screen .seg button{min-height:28px;min-width:28px;justify-content:center;padding:0 10px;border:0;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer;font:400 13px var(--sans);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
@@ -269,7 +269,7 @@ svg.i.f{fill:currentColor;stroke:none}
 #screen .forja .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
 /* popovers e menu (filhos de body) */
-.pop{position:fixed;z-index:40;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);font:400 13px/1.5 var(--sans);color:var(--text);max-width:calc(100vw - 16px)}
+.pop{position:fixed;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);font:400 13px/1.5 var(--sans);color:var(--text);max-width:calc(100vw - 16px)}
 .pop.menu{width:320px;padding:4px}
 .pop.menu .det{margin:0;padding:8px 10px 9px;border-bottom:1px solid var(--border-subtle);font-size:12.5px;color:var(--muted);display:grid;gap:3px}
 .pop.menu .det b{color:var(--text);font-weight:500}
@@ -282,7 +282,7 @@ svg.i.f{fill:currentColor;stroke:none}
 .pop.tip h3{margin:0 0 6px;font:600 13.5px var(--sans)}
 .pop.tip ul{margin:0;padding-left:16px;color:var(--muted);display:grid;gap:4px}
 .pop.tip b{color:var(--text);font-weight:500}
-.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:50;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);padding:8px 8px 8px 14px;font:400 13px var(--sans);color:var(--text);display:flex;gap:10px;align-items:center;max-width:calc(100vw - 24px)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:var(--z-aviso);background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);padding:8px 8px 8px 14px;font:400 13px var(--sans);color:var(--text);display:flex;gap:10px;align-items:center;max-width:calc(100vw - 24px)}
 .toast button{width:28px;height:28px;border:0;background:none;color:var(--muted);cursor:pointer;display:grid;place-items:center;border-radius:5px}
 
 /* página-placeholder do vídeo */
@@ -466,7 +466,7 @@ svg.i.f{fill:currentColor;stroke:none}
 #screen .na-img{display:grid;place-items:center;border:1px dashed var(--dim);border-radius:5px;background:var(--surface-2);color:var(--muted);font-size:12.5px;text-align:center;padding:4px 8px;line-height:1.25}
 
 /* barra presa */
-#screen .vbar{display:flex;align-items:stretch;gap:6px 16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:10px;min-height:44px;padding:0 6px 0 14px;z-index:20;flex-wrap:wrap}
+#screen .vbar{display:flex;align-items:stretch;gap:6px 16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:10px;min-height:44px;padding:0 6px 0 14px;z-index:var(--z-grudado);flex-wrap:wrap}
 #screen .vb-t{display:flex;align-items:center;flex:0 1 260px;min-width:0;font:500 13px var(--serif);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #screen .vbar ul{display:flex;gap:2px;list-style:none;margin:0;padding:0;overflow-x:auto;scrollbar-width:none}
 #screen .vbar li{display:flex}
@@ -508,10 +508,10 @@ svg.i.f{fill:currentColor;stroke:none}
 #screen .chart{height:var(--ch);position:relative;background:var(--surface);border:1px solid var(--border-subtle);border-bottom:1px solid var(--muted);border-radius:6px 6px 0 0;overflow:hidden}
 #screen .chart.off{display:grid;place-items:center;background:repeating-linear-gradient(45deg,#2A251F 0 6px,#221E1A 6px 12px)}
 #screen .chart.off p{margin:0;background:var(--surface);padding:2px 10px;border-radius:4px;font-size:12.5px;color:var(--muted)}
-#screen .ygrid{position:absolute;left:4px;top:2px;bottom:2px;display:flex;flex-direction:column;justify-content:space-between;font:12px var(--mono);color:var(--muted);pointer-events:none;z-index:2}
-#screen .hatch{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,#2A251F 0 6px,#221E1A 6px 12px);border-right:1px solid var(--border-strong);overflow:hidden;z-index:0}
+#screen .ygrid{position:absolute;left:4px;top:2px;bottom:2px;display:flex;flex-direction:column;justify-content:space-between;font:12px var(--mono);color:var(--muted);pointer-events:none;z-index:var(--z-marca)}
+#screen .hatch{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,#2A251F 0 6px,#221E1A 6px 12px);border-right:1px solid var(--border-strong);overflow:hidden;z-index:var(--z-fundo)}
 #screen .hatch span{position:absolute;left:34px;top:4px;font-size:12px;color:var(--muted);white-space:nowrap;background:var(--surface);padding:0 6px;border-radius:3px}
-#screen .bar{position:absolute;top:22px;bottom:0;z-index:1}
+#screen .bar{position:absolute;top:22px;bottom:0;z-index:var(--z-conteudo)}
 #screen .bf{position:absolute;bottom:0;left:18%;right:18%;background:var(--muted);border-radius:3px 3px 0 0}
 #screen .bz{position:absolute;bottom:0;left:18%;right:18%;height:3px;background:var(--muted)}
 #screen .bv{position:absolute;left:0;right:0;text-align:center;font:500 12px var(--mono);color:var(--text)}
@@ -532,7 +532,6 @@ svg.i.f{fill:currentColor;stroke:none}
 #screen .mk svg{width:14px;height:14px}
 #screen .mk:hover{background:var(--surface-2)}
 #screen .mk[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
-#screen .mtip{position:absolute;display:none;top:26px;z-index:6;background:var(--surface);border:1px solid var(--border-strong);border-radius:6px;padding:4px 10px;font-size:12.5px;color:var(--text);white-space:nowrap;max-width:100%;pointer-events:none;box-shadow:var(--shadow);overflow:hidden;text-overflow:ellipsis}
 #screen .tl-nota{margin:6px 0 0;font-size:12.5px;color:var(--muted)}
 #screen .tl-ausente{border:1px dashed var(--border-strong);border-radius:8px;padding:8px 12px;font-size:13px;margin-top:6px}
 #screen .tl-ausente b{font-weight:600}
@@ -645,3 +644,213 @@ svg.i.f{fill:currentColor;stroke:none}
 #screen .more-s{margin:0;font-size:13px;color:var(--muted);max-width:44ch}
 #screen .btn.big{min-height:44px;padding:0 24px;font-size:14px;margin-top:4px}
 @media (max-width:900px){#screen .swg .twrap{grid-row:auto;max-width:240px}#screen .swg .also{grid-column:1}#screen .swg .gh .btn.go{margin-left:0}}
+
+/* ============================================================ Rodada 5 (09/10/2026) */
+/* Faixa de números do cabeçalho: células paralelas, sem cartão, separadas por um fio vertical. Valor em cima (mono), rótulo embaixo.
+   As células quebram de linha quando não cabem; o fio da primeira célula de cada linha fica fora do recorte (.nclip), então
+   toda linha começa alinhada ao nome do canal, em qualquer largura. */
+#screen .chead .nrow{grid-column:2/4;min-width:0;margin:5px 0 3px}
+#screen .chead .lrow{grid-column:2/4;display:flex;align-items:center;justify-content:space-between;gap:0 16px;flex-wrap:wrap;min-width:0}
+#screen .chead .lrow .l3{flex:1 1 320px;min-width:0}
+#screen .chead .nclip{overflow:hidden;min-width:0;flex:0 1 auto}
+#screen .chead .nclip.n2{grid-column:2/4;margin:5px 0 4px;padding-top:9px;border-top:1px solid var(--border-subtle)}
+#screen .chead .nclip.n2[hidden]{display:none}
+#screen .nstrip{display:flex;flex-wrap:wrap;gap:10px 0;margin:0 0 0 -15px;padding:0}
+#screen .nstrip .nc{display:flex;flex-direction:column-reverse;justify-content:flex-end;padding:0 14px;border-left:1px solid var(--border-subtle);min-width:0}
+#screen .nstrip dt{font:400 12px/16px var(--sans);color:var(--muted);white-space:nowrap}
+#screen .nstrip dd{margin:0;font:500 15px/20px var(--mono);color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
+#screen .nstrip dd b{font-weight:500}
+#screen .nstrip dd small{font:400 12px/20px var(--mono);color:var(--muted);margin-left:2px}
+#screen .nstrip dd.nf{font:400 12.5px/20px var(--sans);color:var(--muted);white-space:normal;max-width:30ch}
+#screen .nclip.n2 .nstrip .nc{flex:0 0 auto}
+#screen .chead .ntools{display:flex;align-items:center;gap:4px;flex:none;height:19px}
+#screen .nmore{display:inline-flex;align-items:center;gap:5px;min-height:24px;padding:0 4px;border:0;border-radius:4px;background:none;color:var(--muted);font:400 12.5px var(--sans);cursor:pointer;white-space:nowrap;text-decoration:underline;text-underline-offset:2px}
+#screen .nmore:hover{color:var(--text)}
+#screen .nmore svg{width:12px;height:12px;transition:transform .12s}
+#screen .nmore[aria-expanded="true"] svg{transform:rotate(180deg)}
+#screen .own-seal{display:inline-flex;align-items:center;height:26px;padding:0 9px;border-radius:5px;border:1px solid var(--accent);color:var(--accent);font:500 12.5px var(--sans);white-space:nowrap}
+.pop.tip{max-height:min(70vh,560px);overflow:auto}
+.pop.tip h3+ul+h3{margin-top:10px}
+.pop.tip p.m{margin:8px 0 0;color:var(--muted)}
+/* cartão do canal próprio: a terceira linha diz, por vídeo, o que as impressões permitem dizer */
+#screen .card .n3{margin:0;padding:0 10px 9px;font:400 12px/16px var(--sans);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#screen .card.sk .n3 .bone{display:block;width:70%;height:10px}
+@media (max-width:900px){
+  #screen .chead .nrow,#screen .chead .nclip.n2,#screen .chead .lrow{grid-column:1/3}
+  #screen .chead .ntools{height:44px;margin-left:-10px}
+  /* 768 px: três colunas iguais (6 números = 2 linhas cheias, sem célula órfã); o rótulo quebra em vez de rolar para o lado */
+  #screen .nstrip .nc,#screen .nclip.n2 .nstrip .nc{flex:0 0 33.333%;box-sizing:border-box}
+  #screen .nstrip dt{white-space:normal}
+  #screen .nmore{min-height:44px}
+  #screen .own-seal{height:30px}
+}
+@media (max-width:600px){
+  /* 390 e 320 px: duas colunas, com o rótulo quebrando em vez de rolar para o lado (nenhum número fica escondido) */
+  #screen .nstrip .nc,#screen .nclip.n2 .nstrip .nc{flex:0 0 50%;box-sizing:border-box}
+  #screen .nstrip dt{white-space:normal}
+}
+/* canal próprio: a coluna do meio ("impressões") é mais larga que "views/dia" */
+#screen[data-own="1"] .nums{grid-template-columns:minmax(0,.8fr) minmax(0,1.15fr) minmax(0,1fr)}
+#screen .nstrip dd:not(.nf){height:20px}
+
+/* ============================================================ Rodada 6 (09/10/2026): canal próprio — posição no nicho e comparação */
+#screen .chead .prow{grid-column:2/4;display:flex;align-items:center;justify-content:space-between;gap:4px 16px;flex-wrap:wrap;min-width:0;margin:1px 0}
+#screen .chead .pos{margin:0;font-size:13px;line-height:19px;color:var(--muted);flex:1 1 420px;min-width:0}
+#screen .chead .pos a{color:var(--text);text-decoration:underline;text-decoration-color:var(--dim);text-underline-offset:3px}
+#screen .chead .pos a:hover{text-decoration-color:var(--text)}
+#screen .chead .cmpsel{position:relative;display:inline-flex;align-items:center;flex:none;margin-right:8px}
+#screen .chead .cmpsel select{appearance:none;-webkit-appearance:none;height:24px;max-width:190px;padding:0 26px 0 9px;border-radius:5px;border:1px solid var(--dim);background:var(--surface);color:var(--text);font:400 12.5px var(--sans);cursor:pointer}
+#screen .chead .cmpsel svg{position:absolute;right:8px;width:12px;height:12px;color:var(--muted);pointer-events:none}
+#screen .chead .cmp{grid-column:2/4;margin:8px 0 6px;padding:12px 14px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface)}
+#screen .cmp-h{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;margin-bottom:6px}
+#screen .cmp-h h2{margin:0;font:600 15px/1.3 var(--sans);border-radius:4px}
+#screen .cmp-h h2:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+#screen .cmp-w{overflow-x:auto}
+#screen .cmp-t{border-collapse:collapse;width:100%;max-width:760px;font-size:13px}
+#screen .cmp-t th,#screen .cmp-t td{text-align:left;padding:7px 12px 7px 0;border-bottom:1px solid var(--border-subtle);font-weight:400;vertical-align:baseline}
+#screen .cmp-t thead th{font:500 12px var(--sans);color:var(--muted)}
+#screen .cmp-t tbody th{color:var(--muted);width:42%}
+#screen .cmp-t td.num{color:var(--text);font-size:14px}
+#screen .cmp-t td.nd{color:var(--muted);font-size:12.5px}
+#screen .cmp-t tbody tr:last-child>*{border-bottom:0}
+#screen .cmp-n{margin:8px 0 0;font-size:12.5px;color:var(--muted)}
+#screen .cmp-n a{color:var(--text);text-underline-offset:2px}
+@media (max-width:900px){
+  #screen .chead .prow,#screen .chead .cmp{grid-column:1/3}
+  #screen .chead .cmpsel select{height:44px}
+}
+@media (max-width:900px){
+  #screen .chead .ntools{height:auto;min-height:44px;flex-wrap:wrap;max-width:100%}
+  #screen .chead .cmpsel select{max-width:min(190px,60vw)}
+}
+@media (max-width:900px){ #screen .chead .cmpsel{margin-left:10px} }
+
+/* ============================================================ Rodada 7 (09/10/2026): "Como o canal está" (canal próprio) e o histórico do vídeo próprio */
+#screen .chead .acts{flex-wrap:wrap;justify-content:flex-end}
+#screen .pn{border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface);margin:4px 0 8px;padding:0 14px}
+#screen .pn[hidden]{display:none}
+#screen .pn-h{display:flex;align-items:center;gap:4px 16px;flex-wrap:wrap;min-height:38px}
+#screen .pn-h h2{margin:0;font:600 14px/1.3 var(--sans)}
+#screen .pn-h button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:7px;min-height:28px;border-radius:4px;color:var(--text)}
+#screen .pn-h button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+#screen .pn-h button svg{width:13px;height:13px;color:var(--muted);transition:transform .12s}
+#screen .pn-h button[aria-expanded="true"] svg{transform:rotate(180deg)}
+#screen .pn-r{margin:0;font-size:12.5px;color:var(--muted);min-width:0}
+#screen .pn-b{padding:0 0 12px}
+#screen .pn-b[hidden]{display:none}
+#screen .pn-lead{margin:0 0 10px;font-size:13.5px;line-height:1.5;color:var(--text)}
+#screen .pn h3{margin:0 0 8px;font:600 13px/1.3 var(--sans);color:var(--text)}
+#screen .pn-g{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:18px 28px}
+#screen .pn-g.two{grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:10px;padding-top:12px;border-top:1px solid var(--border-subtle)}
+#screen .pn-s{border-left:1px solid var(--border-subtle);padding-left:28px;min-width:0}
+#screen .pn-top{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+#screen .pn-top a{display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;align-items:center;padding:4px;margin:0 -4px;border-radius:6px;text-decoration:none;color:var(--text)}
+#screen .pn-top a:hover{background:var(--surface-2)}
+#screen .pn-top a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#screen .pn-top img{width:64px;height:36px;object-fit:cover;border-radius:4px;display:block;background:var(--sunk)}
+#screen .pn-top b{display:block;font-weight:500;font-size:13px;line-height:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#screen .pn-top small{display:block;font-size:12.5px;line-height:17px;color:var(--muted)}
+#screen .pn .pos{margin:0;font-size:13px;line-height:20px;color:var(--muted)}
+#screen .pn .pos a{color:var(--text);text-decoration:underline;text-decoration-color:var(--dim);text-underline-offset:3px}
+#screen .pn-cmp{margin:8px 0 0;display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap}
+#screen .pn .cmpsel{position:relative;display:inline-flex;align-items:center}
+#screen .pn .cmpsel select{appearance:none;-webkit-appearance:none;height:30px;max-width:260px;padding:0 28px 0 10px;border-radius:6px;border:1px solid var(--dim);background:var(--surface);color:var(--text);font:400 13px var(--sans);cursor:pointer}
+#screen .pn .cmpsel svg{position:absolute;right:9px;width:12px;height:12px;color:var(--muted);pointer-events:none}
+#screen .pn-nm{margin:0;display:grid;gap:7px}
+#screen .pn-nm div{font-size:13px;line-height:19px}
+#screen .pn-nm dt{display:inline;color:var(--text);font-weight:500}
+#screen .pn-nm dt::after{content:": "}
+#screen .pn-nm dd{display:inline;margin:0;color:var(--muted)}
+/* a comparação mora dentro do painel: sem caixa própria (nada de cartão dentro de cartão), só um fio em cima */
+#screen .pn .cmp{margin:14px 0 0;padding:14px 0 0;border:0;border-top:1px solid var(--border-subtle);border-radius:0;background:none}
+@media (max-width:900px){
+  #screen .pn-g,#screen .pn-g.two{grid-template-columns:minmax(0,1fr)}
+  #screen .pn-s{border-left:0;padding-left:0}
+  #screen .pn-h button{min-height:44px}
+  #screen .pn .cmpsel select{height:44px}
+  #screen .pn .cmpsel{margin-left:0}
+}
+
+/* histórico mínimo do vídeo próprio (video-proprio.html) */
+#screen.vp .vp-h{display:grid;grid-template-columns:280px minmax(0,1fr);gap:8px 20px;align-items:start;margin:6px 0 14px}
+#screen.vp .vp-h img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;display:block;background:var(--sunk)}
+#screen.vp h1{font:600 22px/1.25 var(--serif);letter-spacing:-.01em;margin:0 0 6px;font-variation-settings:"opsz" 72}
+#screen.vp h1:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:4px}
+#screen.vp .vp-m{margin:0 0 10px;font-size:13px;line-height:20px;color:var(--muted)}
+#screen.vp .vp-m b{color:var(--text);font-weight:500}
+#screen.vp .vp-a{display:flex;gap:8px;flex-wrap:wrap}
+#screen.vp .vp-sec{border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface);padding:14px 16px;margin-bottom:12px}
+#screen.vp .vp-sec h2{margin:0 0 4px;font:600 15px/1.3 var(--sans)}
+#screen.vp .vp-sec>p{margin:0 0 10px;font-size:13.5px;line-height:1.5;color:var(--text);max-width:92ch}
+#screen.vp .vp-sec>p.m{color:var(--muted);font-size:13px}
+#screen.vp .vp-nm{margin:0;display:grid;gap:8px}
+#screen.vp .vp-nm div{font-size:13px;line-height:19px}
+#screen.vp .vp-nm dt{display:inline;color:var(--text);font-weight:500}
+#screen.vp .vp-nm dt::after{content:": "}
+#screen.vp .vp-nm dd{display:inline;margin:0;color:var(--muted)}
+@media (max-width:700px){ #screen.vp .vp-h{grid-template-columns:minmax(0,1fr)} #screen.vp .vp-h img{max-width:360px} }
+
+/* ============================================================ Rodada 8 (09/10/2026): histórico do vídeo próprio — faixa de números, paginador, posição, dias, cartão da forja */
+#screen.vp .vp-nrow{display:flex;align-items:flex-start;gap:0 6px;margin:0 0 10px;min-width:0}
+#screen.vp .vp-nrow .nclip{overflow:hidden;min-width:0;flex:0 1 auto}
+#screen.vp .vp-nrow .ntools{flex:none;align-self:flex-start;margin-top:-2px}
+#screen .nstrip dt .nsub{display:block;font-size:12px;line-height:16px;color:var(--muted);white-space:normal;max-width:25ch}
+#screen.vp .vp-a{align-items:center;gap:8px 18px}
+#screen.vp .vp-pg{display:flex;align-items:center;gap:2px 4px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+#screen.vp .vp-pg .btn{min-height:32px;padding:0 10px;gap:4px}
+#screen.vp .vp-pg .btn[aria-disabled="true"]{opacity:.5}
+#screen.vp .vp-pos{padding:0 6px;font-size:13px;color:var(--muted)}
+#screen.vp .vp-pos b{color:var(--text);font-weight:500}
+#screen.vp .vp-ord{margin-left:6px;font-size:12.5px;color:var(--muted)}
+#screen.vp .vp-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-bottom:12px}
+#screen.vp .vp-2 .vp-sec{margin-bottom:0}
+#screen.vp .vp-rk{list-style:none;margin:0;padding:0}
+#screen.vp .vp-rk li{padding:8px 0;border-top:1px solid var(--border-subtle);font-size:13.5px;line-height:20px}
+#screen.vp .vp-rk li:first-child{border-top:0;padding-top:2px}
+#screen.vp .vp-rk a,#screen.vp .vp-rkt{color:var(--text);font-weight:500}
+#screen.vp .vp-rk a{text-decoration:underline;text-decoration-color:var(--dim);text-underline-offset:3px}
+#screen.vp .vp-rk a:hover{text-decoration-color:var(--text)}
+#screen.vp .vp-rk span:not(.vp-rkt){display:block;font-size:13px;color:var(--muted)}
+#screen.vp .vp-dias{border-collapse:collapse;width:100%;max-width:440px;font-size:13px}
+#screen.vp .vp-dias th,#screen.vp .vp-dias td{text-align:left;padding:5px 10px 5px 0;border-bottom:1px solid var(--border-subtle);font-weight:400;color:var(--text)}
+#screen.vp .vp-dias thead th{font:500 12px var(--sans);color:var(--muted)}
+#screen.vp .vp-dias .r{text-align:right}
+#screen.vp .vp-dias .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+#screen.vp .vp-sec p.m{margin:8px 0 0;font-size:13px;color:var(--muted)}
+#screen.vp .vp-fj{margin-bottom:12px}
+#screen .fj-off{font:500 12.5px var(--sans);color:var(--muted)}
+#screen .forja .ask.col{flex-direction:column;align-items:flex-start;gap:6px}
+#screen .forja .ask.col p{flex:none;max-width:78ch}
+@media (max-width:900px){
+  #screen.vp .vp-2{grid-template-columns:minmax(0,1fr)}
+  #screen.vp .vp-pg .btn{min-height:44px}
+}
+
+/* ============================================================ Rodada 9 (09/10/2026) */
+/* o seletor "Comparar com…" do canal próprio leva à tela comparar.html: select + botão */
+#screen .pn .cmpf{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+#screen .pn .cmpf .btn{min-height:30px;padding:0 12px}
+@media (max-width:900px){ #screen .pn .cmpf .btn{min-height:44px} }
+/* vídeo próprio: o pedido à forja ainda não existe, então o botão não pode parecer ação (sem o verde cheio da forja; contorno apagado, texto legível) */
+#screen.vp .vp-fj .btn.forja-solid[aria-disabled="true"],#screen.vp .vp-fj .btn.forja-solid[aria-disabled="true"]:hover{background:transparent;border-color:var(--border-strong);border-style:dashed;color:var(--muted);font-weight:500;cursor:default}
+
+/* ============================================================ Rodada 11 (09/10/2026) */
+/* Tokens de cor da rodada 11. Cores literais (nada de color-mix(): o navegador do dono o renderiza transparente).
+   Cada lado da comparação tem uma: o canal próprio é SEMPRE o laranja do selo; o outro lado é um azul frio claro; sem canal próprio, o lado A é areia.
+   "Não medido" é malva-rosado (rodada 12; era violeta) com hachura, a MESMA no gráfico de impressões e na comparação. */
+:root{
+  --lado-o:#FF8240;--lado-b:#7CC8F8;--lado-n:#D9C08F;
+  --nm:#E59CC0;--nm-bg:#3A2232;--nm-line:#B0678F;   /* rodada 12: era violeta (#A59BD6), que em deuteranopia se confundia com o azul do lado B (ΔE 10); malva-rosado, ΔE 29 */
+  --im-bar:#FF8240;--im-cl:#38BDF8;--im-zero:#7A8FA6;
+  --terco-baixo:#F2C14E;
+}
+/* a hachura do "não medido": listras a 135°, a mesma do gráfico (impressoes.js desenha o mesmo padrão em SVG) */
+.nm-h{display:inline-block;width:14px;height:14px;border-radius:3px;flex:none;border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm) 0 2px,var(--nm-bg) 2px 5px)}
+/* cabeçalho do canal: mais respiro (múltiplos de 4 px). Medido antes e depois: ver LEIAME, "Rodada 11". */
+#screen .chead{margin-bottom:14px}
+#screen .chead .nrow{margin:10px 0 8px}
+#screen .chead .nclip.n2{margin:10px 0 8px;padding-top:12px}
+#screen .nstrip{margin-left:-21px;gap:12px 0}
+#screen .nstrip .nc{padding:0 20px}
+@media (max-width:900px){ #screen .nstrip{gap:12px 0} }
+@media (max-width:600px){ #screen .nstrip{margin-left:-15px} #screen .nstrip .nc{padding:0 14px} }

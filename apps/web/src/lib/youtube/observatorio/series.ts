@@ -18,6 +18,14 @@ export interface EngineCtx {
   niches: readonly NicheDef[]
 }
 
+/**
+ * For the functions that aggregate ACROSS the site's channels: on the dataset of one channel (scope 'canal') they would
+ * answer with that channel alone and no error, so they refuse it. Takes the context's `ds` only.
+ */
+export function assertSiteScope(ctx: { ds: Pick<Dataset, 'scope'> }, what: string): void {
+  if (ctx.ds.scope === 'canal') throw new Error(what + " aggregates across the site's channels, and this dataset holds only one (loadChannelDataset): its answer would be that channel's alone, with no error. Read the whole site (loadPageDataset) for it.")
+}
+
 /** Per-video idx → point index, built once. The mockup's `series[i - firstIdx]` assumes a contiguous series; this does not. */
 const POINTS = new WeakMap<readonly SeriesPoint[], Map<number, SeriesPoint>>()
 function pointsOf(v: ObsVideo): Map<number, SeriesPoint> {

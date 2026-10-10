@@ -3,7 +3,8 @@
  * "Views por dia e cada troca": the step curve, the expected curve dashed in --muted, the lanes, the change lines and
  * the tooltip (port of renderChart/renderLanes/legend). Pixel mapping only; the numbers and texts come from the view model.
  */
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { HoverTip } from '../_chrome/flut/flut'
 import type { ChartView, ComparisonView, LaneType, LaneView, LanesAxisView, LegendItem, MarkerView, RangeView } from './view-model'
 import { RichText } from '../_mudancas/rich'
 import type { RangeId } from './many-versions'
@@ -36,7 +37,8 @@ export function shownTicks(px: number[], gap = 64): boolean[] {
   return show
 }
 
-interface TipState { m: MarkerView | null; g: GroupTip | null; type: LaneType; px: number; laneTop: number }
+/** `el` = the marker or group counter the tooltip points at: the floating layer places it against that element. */
+interface TipState { m: MarkerView | null; g: GroupTip | null; type: LaneType; el: HTMLElement }
 const coarse = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer:coarse),(max-width:900px)').matches
 
 export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectPair, onGoVersion, range, onRange, groupLegend }: {
@@ -46,10 +48,9 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
   /** Period filter (null = not offered) and what a choice does; the legend text of a group of close items. */
   range?: RangeView | null; onRange?: (id: RangeId) => void; groupLegend?: string
 }) {
-  const wrap = useRef<HTMLDivElement>(null), tipRef = useRef<HTMLDivElement>(null)
+  const wrap = useRef<HTMLDivElement>(null)
   const [w, setW] = useState(1100)
   const [tip, setTip] = useState<TipState | null>(null)
-  const [tipTop, setTipTop] = useState(0)
   const [minpx, setMinpx] = useState(MINPX)
   useLayoutEffect(() => {
     const el = wrap.current
@@ -61,9 +62,6 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
-  useLayoutEffect(() => {
-    if (tip && tipRef.current) setTipTop(tip.laneTop - tipRef.current.offsetHeight - 8)
-  }, [tip])
   useLayoutEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setTip(null); onHl(null) } }
     document.addEventListener('keydown', onKey)
@@ -82,18 +80,17 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
   const onMarker = (m: MarkerView, type: LaneType, el: HTMLElement | null) => {
     if (!el) { setTip(null); onHl(null); return }
     onHl({ type, i: m.idx, ev: m.idx })
-    const wr = wrap.current?.getBoundingClientRect(), r = el.getBoundingClientRect()
-    setTip({ m, g: null, type, px: wr ? r.left - wr.left + r.width / 2 : x(m.h), laneTop: wr ? r.top - wr.top : 0 })
+    setTip({ m, g: null, type, el })
   }
   // the hint of a group: not interactive, opens upwards (over the chart), closes with Esc from anywhere
   const onGroupTip = (g: GroupTip | null, el: HTMLElement | null) => {
     if (!g || !el) { setTip(null); return }
-    const wr = wrap.current?.getBoundingClientRect(), r = el.getBoundingClientRect()
-    setTip({ m: null, g, type: g.type, px: wr ? r.left - wr.left + r.width / 2 : 0, laneTop: wr ? r.top - wr.top : 0 })
+    setTip({ m: null, g, type: g.type, el })
   }
-  const tw = Math.min(310, w - 8)
-  const tipLeft = tip ? Math.max(0, Math.min(tip.px - tw / 2, w - tw)) : 0
   const events = lanes.flatMap(l => l.markers.filter(m => m.inRange).map(m => ({ type: l.type, m })))
+  // the marker (or group counter) under the mouse/focus left the page (the lanes regrouped, another video): the browser fires no
+  // mouseleave/blur for a removed node, so the tip would stay armed and hidden, watching the whole body for the trigger to come back
+  useEffect(() => { if (tip && !tip.el.isConnected) { setTip(null); onHl(null) } })
 
   return (
     <section className="card timeline" aria-labelledby="hv-tlh">
@@ -122,7 +119,7 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
         ) : (
           <ChartSvg chart={chart} geom={geom} pair={pair} hlRange={hlVer ? [hlVer.fromH, hlVer.toH] : null} />
         )) : null}
-        <Lanes lanes={lanes} layouts={layouts} geom={geom} stale={chart?.stale ?? null} fewAxis={chart?.fewAxis ?? null} fromH={fromH} hl={hl} onHl={onHl}
+        <Lanes lanes={lanes} layouts={layouts} geom={geom} stale={chart?.stale ?? null} fewAxis={chart?.fewAxis ?? null} fromH={fromH} hl={hl} tipMarker={tip?.m?.changeId ?? null} onHl={onHl}
           onMarker={onMarker} onMarkerClick={m => { setTip(null); if (m.pairK) onSelectPair(m.pairK) }} onClip={onGoVersion} onGroupTip={onGroupTip} />
         {!chart && ticks.length ? (
           <div className="lane-axis fx-axis" aria-hidden="true">
@@ -138,11 +135,13 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
               : <div key={m.changeId} className={'vline' + on} style={{ left: x(m.h), ['--c' as string]: TYPE_COLOR[type] }} />
           })}
         </div>
-        <div className={'tip' + (tip ? ' show' : '')} id="hv-tip" role="tooltip" ref={tipRef}
-          style={{ left: tipLeft, top: tipTop, ['--c' as string]: tip ? TYPE_COLOR[tip.type] : undefined }}>
-          {tip?.m ? <TipBody m={tip.m} /> : null}
-          {tip?.g ? <><h4>{tip.g.title}</h4><div className="when">{tip.g.when}</div>{tip.g.seq ? <div className="seq">{tip.g.seq}</div> : null}<p className="hint">Enter, espaço ou clique abre a lista.</p></> : null}
-        </div>
+        {/* the tooltip lives in the floating layer (#flut): above the marker, centred on it, 8 px away; the window is its limit */}
+        <HoverTip show={!!tip} anchor={() => tip?.el ?? null} id="hv-tip" className="hv-tip" pref="cima" align="meio" gap={8} maxW={310}>
+          <div style={{ ['--c' as string]: tip ? TYPE_COLOR[tip.type] : undefined }}>
+            {tip?.m ? <TipBody m={tip.m} /> : null}
+            {tip?.g ? <><h4>{tip.g.title}</h4><div className="when">{tip.g.when}</div>{tip.g.seq ? <div className="seq">{tip.g.seq}</div> : null}<p className="hint">Enter, espaço ou clique abre a lista.</p></> : null}
+          </div>
+        </HoverTip>
       </div>
       {/* what the period filter left inside, right under the lanes: changing it never pushes the chart */}
       {range ? <p className="rng-txt" id="hv-rngtxt" role="status"><RichText r={range.text} /></p> : null}

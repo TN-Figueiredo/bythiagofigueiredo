@@ -116,7 +116,9 @@ test.describe('canais · vagas (semântica dos estados 74 de 75 / 75 de 75)', ()
       await expect(screen.locator('.quota')).toContainText(`14 de ${limit} canais`)
       // canais.html:591 (renderNiche): the limit's tooltip says what is left; with no slot the add control is off and
       // its TITLE (not a visible text) carries "Sem vagas: N de N concorrentes. Remova um canal para adicionar outro."
-      const tip = screen.locator('.quota [role="tooltip"]'), off = screen.locator('.btn.primary[aria-disabled="true"]')
+      // the words live in the floating layer (#flut) and exist only while the "?" is focused or hovered
+      await screen.locator('.quota .tip').focus()
+      const tip = p.locator('#flut [role="tooltip"]'), off = screen.locator('.btn.primary[aria-disabled="true"]')
       if (free) {
         await expect(screen).not.toContainText('Sem vagas')
         await expect(tip).toContainText('Até 15 concorrentes acompanhados; o seu canal não ocupa vaga. Sobra 1 vaga.')
@@ -138,7 +140,8 @@ test.describe('canais · vagas (semântica dos estados 74 de 75 / 75 de 75)', ()
       const screen = p.locator('[data-obs-screen="canais"]')
       await screen.waitFor()
       await expect(screen.locator('.quota')).toContainText('14 de 15 canais')
-      await expect(screen.locator('.quota [role="tooltip"]')).toContainText('Até 15 concorrentes acompanhados; os seus canais não ocupam vaga. Sobra 1 vaga.')
+      await screen.locator('.quota .tip').focus()
+      await expect(p.locator('#flut [role="tooltip"]')).toContainText('Até 15 concorrentes acompanhados; os seus canais não ocupam vaga. Sobra 1 vaga.')
     } finally { await ctx.close() }
   })
 })

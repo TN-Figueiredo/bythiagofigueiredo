@@ -18,15 +18,26 @@
   };
 
   /* ---------------------------------------------------------------- as situações (spec 7.2) */
+  /* rodada 5: a primeira linha da barra percorre o pedido inteiro, na ordem em que ele acontece */
   var ESTADOS = [
-    ['nunca', 'Nunca pedida'], ['fila', 'Pedida: na fila'], ['pronta', 'Pronta'], ['desatualizada', 'Pronta, desatualizada'], ['falhou', 'Falhou']
+    ['nunca', 'Nunca pedida'], ['fila', 'Na fila'], ['trabalhando', 'Escrevendo'], ['conferindo', 'Escrevendo: conferindo os números'], ['pronta', 'Pronta'],
+    ['atraso', 'Com atraso'], ['semmaquina', 'Forja desligada'], ['falhou', 'Não deu']
   ];
   var VARIANTES = [
-    ['trabalhando', 'Escrevendo'], ['retry', 'Nova tentativa'], ['liberado', 'Liberado sozinho'], ['atraso', 'Com atraso'], ['semmaquina', 'Forja desligada'],
-    ['limite', 'Pronta, limite do dia'], ['precisa', 'Precisa de você (dado velho)'], ['travou', 'Falhou: travou 3 vezes'], ['semevid', 'Falhou: sem evidências'], ['hoje', 'Canal: como é hoje (sem 7.3)']
+    ['retry', 'Nova tentativa'], ['liberado', 'Voltou para a fila sozinho'], ['desatualizada', 'Pronta, desatualizada'],
+    ['limite', 'Pronta, limite do dia'], ['precisa', 'Precisa de você (dado velho)'], ['travou', 'Não deu: travou 3 vezes'], ['semevid', 'Não deu: sem evidências'], ['hoje', 'Canal: como é hoje (sem 7.3)']
   ];
   var VALIDOS = ESTADOS.concat(VARIANTES).map(function(x){ return x[0]; });
-  var EM_ANDAMENTO = ['fila', 'trabalhando', 'retry', 'liberado', 'atraso', 'semmaquina'];
+  var EM_ANDAMENTO = ['fila', 'trabalhando', 'conferindo', 'retry', 'liberado', 'atraso', 'semmaquina'];
+  /* rodada 5: as etapas do pedido são uma sequência de verdade. Cada situação aponta a etapa em que o pedido está e como ela vai:
+     'now' em andamento, 'late' em andamento com atraso, 'fail' parou ali. `ped` = há quantos minutos o pedido foi feito (cenário do mockup). */
+  var ETAPAS = ['Na fila', 'Escrevendo', 'Conferindo os números', 'Pronta'];
+  /* rodada 7 (decisão do dono): TRÊS etapas. "Conferindo os números" é só detalhe de "Escrevendo", como no código de produção
+     ('na fila', 'trabalhando', 'publicado'; a validação acontece dentro de 'trabalhando'). A versão de 4 etapas foi descartada. */
+  var nEtapas = 3;
+  var ETAPAS3 = ['Na fila', 'Escrevendo', 'Pronta'];
+  var PASSO = { fila: [0, 'now', 4], liberado: [0, 'now', 25], atraso: [0, 'late', 40], semmaquina: [0, 'late', 100], trabalhando: [1, 'now', 4], retry: [1, 'now', 30],
+    conferindo: [2, 'now', 16], travou: [1, 'fail', 0], falhou: [2, 'fail', 0], semevid: [2, 'fail', 0] };
 
   /* ---------------------------------------------------------------- estado e simulação do botão */
   var est = 'nunca', cfg = { onChange: function(){}, say: function(){}, toast: function(){} }, mounts = [], timers = [], pausado = false, pendente = null, simulando = false, ajuda = null, emTreino = false;
@@ -51,7 +62,8 @@
   }
   function avancar(prox, fala){
     est = prox; cfg.onChange(prox); cfg.say(fala); refresh();
-    if (prox === 'trabalhando') agendar('pronta', 2800, 'Pronta: leitura publicada.');
+    if (prox === 'trabalhando') agendar('conferindo', 2600, 'Aguardando: a forja está conferindo os números do texto.');
+    else if (prox === 'conferindo') agendar('pronta', 2200, 'Pronta: leitura publicada.');
     else if (prox === 'pronta'){ simulando = false; refresh(); }
   }
 
@@ -177,10 +189,11 @@
   var EXPLICA = 'A forja é um computador nosso que lê estes números e escreve uma leitura com as evidências. Não muda nada no canal. Leva de 10 a 25 minutos; pode sair desta página.';
 
   function situacao(e, ctx, lbl){
-    var alvo = ctx.escopo === 'canal' ? 'canal' : 'vídeo', desde = hhmm(NOW - 4 * MIN);
+    var alvo = ctx.escopo === 'canal' ? 'canal' : 'vídeo', desde = hhmm(simulando ? NOW : NOW - 4 * MIN);
     switch (e){
       case 'fila': return { k: 'wait', ic: IC.clock, t: 'Aguardando: na fila desde ' + desde + '.', cancelar: true, sub: 'atualizado há 1 min' };
-      case 'trabalhando': return { k: 'wait', ic: IC.clock, t: 'Aguardando: a forja está escrevendo desde ' + hhmm(NOW - 3 * MIN) + '. Leva de 10 a 25 minutos.', sub: 'atualizado há 1 min' };
+      case 'trabalhando': return { k: 'wait', ic: IC.clock, t: 'Aguardando: a forja está escrevendo desde ' + hhmm(simulando ? NOW : NOW - 3 * MIN) + '. Leva de 10 a 25 minutos.', sub: 'atualizado há 1 min' };
+      case 'conferindo': return { k: 'wait', ic: IC.clock, t: 'Aguardando: a forja está conferindo os números do texto contra os dados desde ' + hhmm(simulando ? NOW : NOW - 1 * MIN) + '. Leva poucos minutos.', sub: 'atualizado há 1 min' };
       case 'retry': return { k: 'wait', ic: IC.clock, t: 'Aguardando: o texto citava números que não batem com os dados. A forja tenta de novo às ' + hhmm(NOW + 15 * MIN) + '.', sub: 'atualizado há 1 min' };
       case 'liberado': return { k: 'wait', ic: IC.clock, t: 'Aguardando: o pedido travou e voltou para a fila sozinho, às ' + hhmm(NOW - 10 * MIN) + '.', sub: 'atualizado há 1 min' };
       case 'atraso': return { k: 'late', ic: IC.clockw, t: 'Aguardando, com atraso: esperando há 40 min, mais que o normal. Se passar de ' + hhmm(NOW + 25 * MIN) + ', a tela avisa aqui.', cancelar: true, sub: 'atualizado há 1 min' };
@@ -193,6 +206,25 @@
       case 'semevid': return { k: 'bad', ic: IC.warn, t: 'Não deu: a leitura saiu sem evidências. Pode pedir de novo.', de: true };
     }
     return null;
+  }
+
+  /* rodada 5: as etapas do pedido, na ordem. Só a etapa atual se move (o ponto pulsa); sem movimento, as palavras "em andamento" carregam o sentido. */
+  var CHK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.2 8.3l2.4 2.4 5.2-5.4"/></svg>', XIS = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 5l6 6M11 5l-6 6"/></svg>';
+  function etapas(e){
+    var p = PASSO[e]; if (!p) return '';
+    var i = p[0], k = p[1], lista = ETAPAS, det = '';
+    if (nEtapas === 3){ lista = ETAPAS3; if (i >= 2){ i = 1; det = k === 'fail' ? ' ao conferir os números' : ': conferindo os números'; } }
+    return '<ol class="fj-steps' + (nEtapas === 3 ? ' n3' : '') + '" aria-label="Etapas do pedido">' + lista.map(function(n, j){
+      var s = j < i ? 'done' : j === i ? k : 'todo';
+      var sub = s === 'now' ? 'em andamento' + det : s === 'fail' && det ? 'parou aqui,' + det : s === 'late' ? 'em andamento, com atraso' : s === 'fail' ? 'parou aqui' : '';
+      return '<li class="' + s + '"' + (j === i && k !== 'fail' ? ' aria-current="step"' : '') + '><span class="fj-dot" aria-hidden="true">' + (s === 'done' ? CHK : s === 'fail' ? XIS : '') + '</span>' +
+        '<span class="fj-sn">' + n + '</span>' + (sub ? '<span class="fj-ss">' + sub + '</span>' : '<span class="sr">' + (s === 'done' ? ', concluída' : ', a seguir') + '</span>') + '</li>';
+    }).join('') + '</ol>';
+  }
+  function decorrido(e){
+    var p = PASSO[e]; if (!p || p[1] === 'fail') return '';
+    if (simulando) return 'Pedido feito agora, às ' + hhmm(NOW) + '.';
+    return 'Pedido feito há ' + (p[2] >= 60 ? Math.floor(p[2] / 60) + ' h ' + (p[2] % 60) + ' min' : p[2] + ' min') + ', às ' + hhmm(NOW - p[2] * MIN) + '.';
   }
 
   function card(ctx){
@@ -209,22 +241,25 @@
     var sit = situacao(e, ctx, lbl);
     var rotBtn, btnOff = false, sub = '';
     if (e === 'nunca'){ rotBtn = 'Pedir leitura ' + (canal ? 'deste canal' : 'deste vídeo') + ' à forja'; sub = 'Ainda não há leitura ' + (canal ? 'deste canal' : 'deste vídeo') + '. Ninguém pediu uma até hoje.'; }
-    else if (EM_ANDAMENTO.indexOf(e) >= 0){ rotBtn = 'Pedir leitura ' + (canal ? 'deste canal' : 'deste vídeo') + ' à forja'; btnOff = true; sub = 'Há um pedido de ' + F.dataHora(NOW - 4 * MIN) + ' ainda em andamento.'; }
+    else if (EM_ANDAMENTO.indexOf(e) >= 0){ rotBtn = ''; }   /* rodada 5: com pedido em andamento não há botão de pedir; as etapas dizem onde ele está */
     else if (e === 'limite'){ rotBtn = 'Pedir nova leitura ' + (canal ? 'deste canal' : 'deste vídeo') + ' à forja'; btnOff = true; sub = 'Já houve uma leitura ' + (canal ? 'deste canal' : 'deste vídeo') + ' hoje. Libera amanhã às 00:00.'; }
     else if (e === 'precisa'){ rotBtn = 'Pedir leitura ' + (canal ? 'deste canal' : 'deste vídeo') + ' à forja'; btnOff = true; sub = 'Sincronize o ' + alvo + ' primeiro. Depois, pode pedir de novo.'; }
     else { rotBtn = (e === 'falhou' || e === 'travou' || e === 'semevid') ? 'Pedir de novo' : 'Pedir nova leitura ' + (canal ? 'deste canal' : 'deste vídeo') + ' à forja'; }
     var abertoAjuda = ajuda == null ? !ehLeitura : ajuda;
 
     var h = '<section class="forja fj" role="region" aria-labelledby="fjH" id="fjCard">' +
-      '<div class="fj-top"><h3 id="fjH">Leitura da forja</h3><button type="button" class="lk" data-fj="ajuda" aria-expanded="' + abertoAjuda + '" aria-controls="fjOq">O que é a forja?</button></div>' +
+      '<div class="fj-top"><h3 id="fjH" tabindex="-1">Leitura da forja' + (EM_ANDAMENTO.indexOf(e) >= 0 ? '<span class="fj-run">em andamento</span>' : '') + '</h3><button type="button" class="lk" data-fj="ajuda" aria-expanded="' + abertoAjuda + '" aria-controls="fjOq">O que é a forja?</button></div>' +
       '<p class="what" id="fjOq"' + (abertoAjuda ? '' : ' hidden') + '>' + EXPLICA + '</p>';
     if (sit){
+      var andando = EM_ANDAMENTO.indexOf(e) >= 0;
+      h += etapas(e);
       h += '<div class="fj-sit ' + sit.k + '" id="fjSit" tabindex="-1">' + sit.ic + '<p>' + esc(sit.t) + '</p>' +
-        (sit.sub || sit.cancelar ? '<div class="fj-acts">' + (sit.sub ? '<span class="fj-upd">' + sit.sub + (pausado ? ' (atualização pausada)' : '') + '</span>' : '') +
+        (andando ? '<p class="fj-upd">' + decorrido(e) + ' Tela ' + sit.sub.replace('atualizado', 'atualizada') + (pausado ? ' (atualização pausada)' : '') + '. Pode sair desta página: o pedido continua.</p>' : '') +
+        (sit.sub || sit.cancelar ? '<div class="fj-acts">' +
           (sit.cancelar ? '<button type="button" class="btn" data-fj="cancelar">Cancelar pedido</button>' : '') +
-          (sit.sub ? '<button type="button" class="btn ghost" data-fj="pausar" aria-pressed="' + pausado + '">' + (pausado ? 'Retomar atualização automática' : 'Pausar atualização automática') + '</button>' : '') + '</div>' : '') +
+          (sit.sub ? '<button type="button" class="btn" data-fj="pausar" aria-pressed="' + pausado + '">' + (pausado ? 'Retomar atualização automática' : 'Pausar atualização automática') + '</button>' : '') + '</div>' : '') +
         (sit.sync ? '<div class="fj-acts"><button type="button" class="btn" data-fj="sync">Sincronizar este ' + alvo + '</button></div>' : '') + '</div>';
-      if (simulando && EM_ANDAMENTO.indexOf(e) >= 0) h += '<p class="fj-sim">Simulação do mockup: a situação avança sozinha em poucos segundos. Nada é enviado à forja.</p>';
+      if (simulando && andando) h += '<p class="fj-sim">Simulação do mockup: as etapas avançam sozinhas em poucos segundos. Nada é enviado à forja.</p>';
     }
     if (e === 'hoje'){
       h += '<div class="ask"><button type="button" class="btn forja-solid" aria-disabled="true" aria-describedby="fjPq">Pedir leitura deste canal à forja</button><p id="fjPq">Leitura por canal ainda não existe. Por enquanto, a leitura do nicho Viagem está logo abaixo.</p></div><hr>' +
@@ -255,18 +290,19 @@
         (apos.length && canal ? ' <a class="lk" href="' + esc(ctx.hrefTrocas()) + '" data-tab="trocas">Ver ' + (apos.length === 1 ? 'a troca' : 'as ' + apos.length + ' trocas') + '</a>' : '') +
         (apos.length && !canal ? ' <a class="lk" href="#compare">Ver em Antes e depois</a>' : '') + '</p>';
     }
-    h += '<div class="ask"><button type="button" class="btn ' + (btnOff ? '' : '') + 'forja-solid" data-fj="pedir"' + (btnOff ? ' aria-disabled="true" aria-describedby="fjPq"' : '') + '>' + rotBtn + '</button>' +
-      (sub ? '<p id="fjPq">' + esc(sub) + '</p>' : '') + '</div></section>';
-    return h;
+    if (rotBtn) h += '<div class="ask"><button type="button" class="btn forja-solid" data-fj="pedir"' + (btnOff ? ' aria-disabled="true" aria-describedby="fjPq"' : '') + '>' + rotBtn + '</button>' +
+      (sub ? '<p id="fjPq">' + esc(sub) + '</p>' : '') + '</div>';
+    return h + '</section>';
   }
 
   function refresh(foco){
     mounts.forEach(function(m){
       var ativo = document.activeElement, dentro = ativo && m.el.contains(ativo), qual = ativo && ativo.dataset ? ativo.dataset.fj : null;
+      if (qual === 'cancelar' || qual === 'pausar'){ var temAinda = PASSO[est] && (qual === 'pausar' || est === 'fila' || est === 'atraso' || est === 'semmaquina'); if (!temAinda) qual = null; }
       m.el.innerHTML = card(m.ctx());
       if (foco || (dentro && !m.el.contains(document.activeElement))){
         var b = qual && m.el.querySelector('[data-fj="' + qual + '"]:not([aria-disabled])');
-        var s = m.el.querySelector('#fjSit');
+        var s = m.el.querySelector('#fjH');   /* rodada 5: o foco do pedido vai para o título do cartão */
         (foco && s ? s : b || s || m.el.querySelector('button')).focus({ preventScroll: true });
       }
     });
@@ -285,7 +321,7 @@
   });
 
   window.FORJA = {
-    ESTADOS: ESTADOS, VARIANTES: VARIANTES, VALIDOS: VALIDOS,
+    ESTADOS: ESTADOS, VARIANTES: VARIANTES, VALIDOS: VALIDOS, EM_ANDAMENTO: EM_ANDAMENTO,
     init: function(o){ Object.assign(cfg, o); },
     estado: function(){ return est; },
     set: set,

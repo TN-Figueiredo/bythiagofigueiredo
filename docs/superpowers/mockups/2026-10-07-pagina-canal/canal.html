@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="viewer.css?v=r41791464653"><link rel="stylesheet" href="canal.css?v=r41791464653">
+<link rel="stylesheet" href="camadas.css?v=r12"><link rel="stylesheet" href="viewer.css?v=r12"><link rel="stylesheet" href="canal.css?v=r12"><link rel="stylesheet" href="forja-etapas.css?v=r12"><link rel="stylesheet" href="meu-canal.css?v=r12">
 </head>
 <body>
 
@@ -22,7 +22,7 @@
     <div class="mk-row"><span class="mk-lbl" id="mkL">Leitura da forja</span><div class="mk-items" role="group" aria-labelledby="mkL" id="mkLeitura"></div></div>
     <div class="mk-row"><span class="mk-lbl" id="mkV">Variantes da leitura</span><div class="mk-items" role="group" aria-labelledby="mkV" id="mkVar"></div></div>
     <div class="mk-row"><span class="mk-lbl">Dado ausente</span><div class="mk-items" id="mkCasos"></div></div>
-    <p><b>Simulação:</b> o botão “Pedir leitura” percorre fila, escrevendo e pronta em cerca de 5 segundos; nada é enviado à forja. Todo texto de leitura é escrito para o mockup e vem marcado “exemplo”.</p>
+    <p><b>Simulação:</b> o botão “Pedir leitura” percorre as três etapas (na fila, escrevendo, pronta) em cerca de 7 segundos; nada é enviado à forja. Todo texto de leitura é escrito para o mockup e vem marcado “exemplo”.</p>
     <p>Os vídeos, os números e a série diária são do banco de produção. Os casos de “dado ausente”, os 3 fixados e as 7 trocas foram fabricados a partir de vídeos reais (o canal não tem nenhum): a lista está no LEIAME.</p>
   </div>
 </details>
@@ -45,7 +45,7 @@
       <!-- Moldura do Observatório nesta página: só a trilha (sem abas de seção nem barra de nicho). -->
       <nav class="crumbs" aria-label="Caminho">
         <ol>
-          <li><a href="../2026-10-04-multi-canal/observatorio-n-nichos.html" id="crumbCanais">Canais</a></li>
+          <li><a href="canais.html" id="crumbCanais">Canais</a></li>
           <li aria-current="page" id="crumbCanal"></li>
         </ol>
         <span class="tz">Horários em São Paulo</span>
@@ -104,10 +104,12 @@
   </div>
 </div>
 
-<script src="dados.js?v=r41791464653"></script>
-<script src="forja.js?v=r41791464653"></script>
-<script src="hist-dados.js?v=r41791464653"></script>
-<script src="viewer.js?v=r41791464653"></script>
-<script src="canal.js?v=r41791464653"></script>
+<script src="flut.js?v=r12"></script>
+<script src="dados.js?v=r12"></script>
+<script src="forja.js?v=r12"></script>
+<script src="hist-dados.js?v=r12"></script>
+<script src="viewer.js?v=r12"></script>
+<script src="canal.js?v=r12"></script>
+<script src="meu-canal.js?v=r12"></script>
 </body>
 </html>

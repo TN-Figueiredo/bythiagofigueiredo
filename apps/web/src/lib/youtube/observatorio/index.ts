@@ -6,7 +6,7 @@ import { createClock, type Clock } from './time'
 import { createFmt, type Fmt } from './fmt'
 import { RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, bandOf, winOf, tierOf } from './rules'
 import { median, quant } from './stats'
-import { viewsAtIdx, rate, vpdSince, vpd7, periodRate, expectedCurve, type Derived, type PeriodRate, type ExpectedCurve } from './series'
+import { viewsAtIdx, rate, vpdSince, vpd7, periodRate, expectedCurve, assertSiteScope, type Derived, type PeriodRate, type ExpectedCurve } from './series'
 import { diffLines, titleDiff } from './text-diff'
 import { effect, effectAt, type EffectResult } from './effect'
 import { multiplierAt, multiplierCardText, type MultiplierResult, type MultiplierCardText } from './multiplier'
@@ -158,6 +158,8 @@ export function createObservatory(input: Dataset, opts?: { seriesStartLabel?: st
   const clock = createClock(ds.now, ds.seriesStart, ds.snap0)
   let maxT = -Infinity
   for (const v of ds.videos) for (const p of v.series) if (p.t > maxT) maxT = p.t
+  // a one-channel dataset: the site's newest record, not the channel's (the channel may be a day or more behind)
+  if (ds.lastSeriesAt != null && ds.lastSeriesAt > maxT) maxT = ds.lastSeriesAt
   // No series at all (empty dataset): fall back to now, never -Infinity (Review Focus 2).
   const LAST_IDX = clock.snapIdxAtOrBefore(maxT === -Infinity ? ds.now : maxT)
   const last = ds.sync.last, next = ds.sync.next
@@ -181,23 +183,36 @@ export function createObservatory(input: Dataset, opts?: { seriesStartLabel?: st
   }
   const changes = deriveChanges(ctx)
   const scopes: NicheScope[] = ['todos', ...nicheIds]
-  const TAB_COUNTS: Record<string, { canais: number; mud: number; out: number }> = Object.fromEntries(scopes.map(n => [n, tabCounts(ctx, n)]))
-  // Load-time assertion (dados.js:1952): the derived tab counts must match an independent recount.
-  const integrity: { ok: boolean; errors: string[] } = { ok: true, errors: [] }
-  for (const n of scopes) {
-    const inN = (x: { niche: string | null }) => n === 'todos' || x.niche === n
-    const want = {
-      canais: ds.channels.filter(c => !c.own && inN(c)).length,
-      mud: changes.filter(c => c.at > ds.now - 30 * 864e5 && inN(c) && !CH.get(c.ch)!.own).length,
-      out: videos.filter(v => v.tracked && v.fmt === 'long' && inN(v) && !CH.get(v.ch)!.own && v.ageDays <= 90 && v.mult!.value != null && v.mult!.value >= 2 && !v.mult!.weak).length,
+  // The tab counts and their load-time assertion (dados.js:1952: the derived counts must match an independent recount) are the SITE's.
+  // The whole-site engine computes them now, as always; a one-channel set (scope 'canal') computes nothing here and throws when they are READ
+  // (creating the engine on that set must not fail: the channel's own screen never needs them).
+  const siteCounts = (): { TAB_COUNTS: Record<string, { canais: number; mud: number; out: number }>; integrity: { ok: boolean; errors: string[] } } => {
+    assertSiteScope(ctx, 'TAB_COUNTS / integrity')
+    const TAB_COUNTS: Record<string, { canais: number; mud: number; out: number }> = Object.fromEntries(scopes.map(n => [n, tabCounts(ctx, n)]))
+    const integrity: { ok: boolean; errors: string[] } = { ok: true, errors: [] }
+    for (const n of scopes) {
+      const inN = (x: { niche: string | null }) => n === 'todos' || x.niche === n
+      const want = {
+        canais: ds.channels.filter(c => !c.own && inN(c)).length,
+        mud: changes.filter(c => c.at > ds.now - 30 * 864e5 && inN(c) && !CH.get(c.ch)!.own).length,
+        out: videos.filter(v => v.tracked && v.fmt === 'long' && inN(v) && !CH.get(v.ch)!.own && v.ageDays <= 90 && v.mult!.value != null && v.mult!.value >= 2 && !v.mult!.weak).length,
+      }
+      for (const k of ['canais', 'mud', 'out'] as const) if (TAB_COUNTS[n]![k] !== want[k]) { integrity.ok = false; integrity.errors.push('tabCounts(' + n + ').' + k + ' = ' + TAB_COUNTS[n]![k] + ', esperado ' + want[k]) }
     }
-    for (const k of ['canais', 'mud', 'out'] as const) if (TAB_COUNTS[n]![k] !== want[k]) { integrity.ok = false; integrity.errors.push('tabCounts(' + n + ').' + k + ' = ' + TAB_COUNTS[n]![k] + ', esperado ' + want[k]) }
+    return { TAB_COUNTS, integrity }
   }
+  const counts = ds.scope === 'canal' ? null : siteCounts()
+  const countsOf = () => counts ?? siteCounts()
   const vid = (id: string) => { const v = V.get(id); if (!v) throw new Error('unknown video ' + id); return v }
-  const hasCompetitors = (n: Niche) => ds.channels.some(c => !c.own && c.niche === n)
+  // "does the niche have a competitor" is a question about the SITE's channels: one channel's set cannot answer it
+  const hasCompetitors = (n: Niche) => { assertSiteScope(ctx, 'hasCompetitors'); return ds.channels.some(c => !c.own && c.niche === n) }
   // sem concorrente a forja não tem o que ler: o pedido do nicho é recusado e ele fica fora da divisão de "Todos"
   const askable = hasCompetitors
-  const forja = createForja(ctx, ds, clock, CH, V, { defs: niches, todos: forjaOrder(niches).filter(askable) }, askable, opts?.testScenarios)
+  // the niches a "Todos" request splits into: computed now on the whole site (as always); on a one-channel set it throws when READ, not when created
+  const nx: NicheCtx = ds.scope === 'canal'
+    ? { defs: niches, get todos(): readonly Niche[] { assertSiteScope(ctx, 'forja.niches'); return [] } }
+    : { defs: niches, todos: forjaOrder(niches).filter(askable) }
+  const forja = createForja(ctx, ds, clock, CH, V, nx, askable, opts?.testScenarios)
   return {
     NOW: ds.now, SERIES_START: ds.seriesStart, OBS_START: ds.obsStart, DAY: 864e5, H: 36e5,
     channels: [...CH.values()], videos, channel: id => CH.get(id), video: id => V.get(id),
@@ -208,7 +223,8 @@ export function createObservatory(input: Dataset, opts?: { seriesStartLabel?: st
     effect: id => effect(ctx, id), effectAt: (id, L) => effectAt(ctx, id, L),
     multiplier: id => vid(id).mult!, multiplierAt: (id, t) => multiplierAt(ctx, vid(id), t), multiplierCard: id => multiplierCardText(ctx, vid(id).mult!),
     phaseOf: (x, o) => phaseOf(ctx, vid(typeof x === 'string' ? x : x.id), o), PHASES: phases(ctx),
-    outliers: q => outliers(ctx, q), tabCounts: n => tabCounts(ctx, n), TAB_TITLES, TAB_COUNTS, integrity,
+    outliers: q => outliers(ctx, q), tabCounts: n => tabCounts(ctx, n), TAB_TITLES,
+    get TAB_COUNTS() { return countsOf().TAB_COUNTS }, get integrity() { return countsOf().integrity },
     RULES, AGE_BANDS, OUT_WINDOWS, DEFAULT_AGES, NICHES: Object.fromEntries(niches.map(n => [n.id, n])), niches,
     nicheLabel: n => nicheLabel(niches, n), nicheColor: n => { const d = niches.find(x => x.id === n); return d ? { dark: d.color.dark, light: d.color.light } : null },
     scopeOf: n => (n === 'todos' || (n != null && known.has(n)) ? n : 'todos'), hasThemes, hasCompetitors,
@@ -264,6 +280,9 @@ function createForja(ctx: ForjaCtx, ds: Dataset, clock: Clock, CH: Map<string, O
     reset() { st = { base: 'sem pedido', type: 'padroes-titulo', video: null }; s = createSession(initial, machine, clock, sessionOpts(st.base, st.type, st.video)); return s.current('todos') },
     replay: () => state(), state,
   }
+  // read once, then the same array (it was a field computed at creation); on a one-channel set reading it throws (nx.todos)
+  let nichesCache: Niche[] | null = null
+  const nichesList = (): Niche[] => (nichesCache ??= [...(nx.todos ?? forjaOrder(nx.defs))])
   const requests = [...ds.requests]
   // the quota sentence names the site's niches (the built-in pair gives the sentence of dados.js)
   const quotaScope = { ...FORJA_QUEUE.quotaScope, text: quotaScopeText(nx.defs.map(d => d.label)) }
@@ -277,7 +296,7 @@ function createForja(ctx: ForjaCtx, ds: Dataset, clock: Clock, CH: Map<string, O
     byId: ctx.READ, latest: (type, niche) => latest(ds.readings, type, niche), since: id => since(ctx, id), eligibleChannels: n => eligibleChannels(ctx, n),
     preview: (type, niche, f) => preview(ctx, type, niche, f), readingScope: (id, filt) => readingScope(ctx, id, filt),
     timing: (type, niche, o) => timing(requests, type, niche, o), readingTypes: readingTypes(requests, forjaOrder(nx.defs)), readingTypeFor, shortsNote: SHORTS_NOTE,
-    niches: [...(nx.todos ?? forjaOrder(nx.defs))], nicheCtx: nx, askable,
+    get niches() { return nichesList() }, nicheCtx: nx, askable,
     buildSent: (type, target) => buildSentCtx(ctx, type, target),
     ...(tests && tests.scenarioReadings ? { scenarioReadings: tests.scenarioReadings } : {}),
     ...(tests ? { requestScenario: (st0: string, t?: ScenarioTarget) => { const b = tests.build(st0, t); return b ? summarize(b.requests, b.machine, b.scopeTodos, clock, nx) : null } } : {}),
