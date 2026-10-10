@@ -20,7 +20,7 @@ type Modo = 'clique' | 'foco'
  *  (a prova põe espaçadores no contêiner que rola, senão um gatilho do alto da tela nunca chega ao pé da janela). `fixo: true` = o
  *  gatilho NÃO rola (sticky/fixed): então a prova AFIRMA o contrário, que o top não se mexeu. Medido em 10/10: nenhuma família é fixa
  *  (o menu ⋯ e o Frescor ficam no alto do conteúdo, que rola). `texto`: o que a caixa tem de dizer. */
-interface Familia { id: string; gatilho: string; modo: Modo; caixa: string; max?: number; fixo?: boolean; texto?: RegExp }
+interface Familia { folgaPe?: number; folgaTopo?: number; id: string; gatilho: string; modo: Modo; caixa: string; max?: number; fixo?: boolean; texto?: RegExp }
 const TELAS: Array<{ nome: string; url: () => string; familias: Familia[] }> = [
   { nome: 'canais', url: () => '/cms/youtube/competitors', familias: [
     { id: '"?" da tabela', gatilho: '[data-obs-screen="canais"] .tip', modo: 'foco', caixa: '#flut .cn-tt', max: 8 },
@@ -47,7 +47,12 @@ const TELAS: Array<{ nome: string; url: () => string; familias: Familia[] }> = [
   ] },
 ]
 const LARGURAS = [1440, 390] as const
-const POS = [['centro', 'center'], ['colado embaixo', 'end'], ['colado em cima', 'start']] as const
+// 'natural' = onde a página entrega o gatilho (rola só o mínimo para ele ficar visível, antes dos espaçadores); as outras três, com espaçador
+const POSICOES = [['natural', 'nearest'], ['centro', 'center'], ['colado embaixo', 'end'], ['colado em cima', 'start']] as const
+/** Quanto o extremo pode ficar longe do pé da janela / do topo da área visível (px). Medido em 10/10 nas 4 telas, 2 larguras, 2 temas, em
+ *  TODOS os gatilhos de todas as famílias: distância 0..0 nas duas pontas (com os espaçadores o scroll encosta exato). 4 px cobre só o
+ *  arredondamento; por isso nenhuma família usa `folgaPe`/`folgaTopo` (a folga por família existe para um motivo legítimo, declarado). */
+const TOL_EXTREMO = 4
 
 interface Res { ok: boolean; dentro: boolean; topo: boolean; cobre: boolean; noFlut: boolean; fundo: boolean; texto: boolean; quem: string; caixa?: string }
 /** Roda no navegador. As dicas de mouse têm pointer-events:none: a prova liga durante a medida, senão elementsFromPoint não as vê. */
@@ -87,9 +92,16 @@ const ESPACOS = (e: Element) => {
   c.setAttribute('data-prova-espacos', '')
   for (const lado of ['prepend', 'append'] as const) {
     const d = document.createElement('div')
-    d.setAttribute('aria-hidden', 'true'); d.style.cssText = `height:${innerHeight}px;flex:none`
+    d.setAttribute('aria-hidden', 'true'); d.setAttribute('data-prova-espaco', ''); d.style.cssText = `height:${innerHeight}px;flex:none`
     c[lado](d)
   }
+}
+
+/** Roda no navegador. Tira os espaçadores e volta os contêineres ao topo: a família seguinte mede a posição natural de uma página limpa. */
+const LIMPAR = () => {
+  document.querySelectorAll('[data-prova-espaco]').forEach(d => d.remove())
+  document.querySelectorAll('[data-prova-espacos]').forEach(c => { c.removeAttribute('data-prova-espacos'); c.scrollTop = 0 })
+  document.documentElement.scrollTop = 0
 }
 
 /** Índices dos gatilhos visíveis, espalhados do primeiro ao último, no máximo `max`. */
@@ -109,20 +121,29 @@ for (const tema of THEMES) for (const largura of LARGURAS) for (const tela of TE
     // o indicador do `next dev` (<nextjs-portal>, canto inferior esquerdo, z-index máximo) não é do produto: sai da medida
     await page.addStyleTag({ content: 'nextjs-portal{display:none!important}' })
     const falhas: string[] = []
+    const janelaH = 900
     let total = 0
     for (const f of tela.familias) {
       const modos: Record<string, number> = {}
-      const tops: Record<string, number[]> = {} // por gatilho (índice): o top medido em cada posição, na ordem de POS
-      let exercitados = 0, pulados = 0
+      // por gatilho (índice): a medida de cada posição, na ordem de POSICOES. topo/pe = do gatilho; areaTopo = topo da área visível do
+      // contêiner que rola (0 se a página rola no documento); janela = innerHeight
+      type Med = { pos: string; top: number; pe: number; areaTopo: number }
+      const medidas: Record<string, Med[]> = {}
+      let exercitados = 0, pulados = 0, naturais = 0
       const indices = await amostra(page, f.gatilho, f.max)
       if (!indices.length) falhas.push(`${f.id}: família declarada para a tela "${tela.nome}" mas nenhum gatilho visível (${f.gatilho})`)
-      for (const n of indices) {
+      // 1ª passada: a posição natural de TODOS os gatilhos, antes de qualquer espaçador (o gatilho onde a página o entrega, rolando só o
+      // mínimo para ele ficar visível); 2ª: os espaçadores entram e vêm as três posições. Os espaçadores saem no fim da família.
+      for (const passada of [POSICOES.slice(0, 1), POSICOES.slice(1)] as const) for (const n of indices) {
         const g = page.locator(f.gatilho).nth(n)
-        await g.evaluate(ESPACOS)
-        for (const [pos, bloco] of POS) {
-          await g.evaluate((e, b) => e.scrollIntoView({ block: b as ScrollLogicalPosition, inline: 'nearest' }), bloco)
+        if (passada.length > 1) await g.evaluate(ESPACOS)
+        for (const [pos, bloco] of passada) {
+          await g.evaluate((e, b) => e.scrollIntoView({ block: b as ScrollLogicalPosition, inline: 'nearest', behavior: 'instant' }), bloco)
           if (!(await g.isVisible())) { pulados++; continue }
-          ;(tops[n] ??= []).push(await g.evaluate(e => Math.round(e.getBoundingClientRect().top)))
+          ;(medidas[n] ??= []).push(await g.evaluate((e, pos) => {
+            const r = e.getBoundingClientRect(), c = e.closest('[data-prova-espacos]')
+            return { pos, top: Math.round(r.top), pe: Math.round(r.bottom), areaTopo: c && c !== document.body ? Math.max(0, Math.round(c.getBoundingClientRect().top)) : 0 }
+          }, pos))
           let modo = f.modo === 'clique' ? 'clique' : 'teclado'
           if (f.modo === 'clique') {
             await g.click()
@@ -135,6 +156,7 @@ for (const tema of THEMES) for (const largura of LARGURAS) for (const tela of TE
           modos[modo] = (modos[modo] ?? 0) + 1
           await page.waitForTimeout(80)
           exercitados++
+          if (bloco === 'nearest') naturais++
           total++
           const r = await conferir(page, f.gatilho, n, f.caixa, f.texto)
           if (!r.ok) falhas.push(`${f.id} #${n} ${pos} (${modo}): ${JSON.stringify(r)}`)
@@ -147,22 +169,31 @@ for (const tema of THEMES) for (const largura of LARGURAS) for (const tela of TE
           await page.mouse.move(1, 1)
         }
       }
-      // (a) a família foi exercitada; (b) nada foi pulado em silêncio; (c) as três posições aconteceram de verdade
+      // (a) a família foi exercitada; (b) nada foi pulado em silêncio; (c) a posição natural e as três posições aconteceram de verdade
       if (indices.length && exercitados === 0) falhas.push(`${f.id}: os ${pulados} casos foram pulados (gatilho invisível depois do scroll): nada foi exercitado (${f.gatilho})`)
       else if (pulados) falhas.push(`${f.id}: ${pulados} caso(s) pulado(s) por gatilho invisível depois do scroll (${exercitados} exercitados)`)
-      const medidos = Object.values(tops).filter(t => t.length === POS.length)
-      // POS = [centro, embaixo, em cima]: o top tem de crescer de cima para baixo (em cima < centro < embaixo), com folga de 8 px
-      const variou = (t: number[]) => t[1]! > t[0]! + 8 && t[0]! > t[2]! + 8
+      if (indices.length && naturais === 0) falhas.push(`${f.id}: nenhuma medida na posição natural do gatilho (antes dos espaçadores)`)
+      await page.evaluate(LIMPAR)
+      const medidos = Object.values(medidas).filter(m => m.length === POSICOES.length)
+      const tops = (m: Med[]) => m.slice(1).map(x => x.top) // [centro, embaixo, em cima]
+      // em cima < centro < embaixo, com folga de 8 px
+      const variou = (m: Med[]) => { const t = tops(m); return t[1]! > t[0]! + 8 && t[0]! > t[2]! + 8 }
+      // N3: "colado embaixo" termina perto do pé da janela e "colado em cima" começa perto do topo da área visível do contêiner
+      const extremos = (m: Med[]) => (m[2]!.pe >= janelaH - TOL_EXTREMO - (f.folgaPe ?? 0)) && (m[3]!.top <= m[3]!.areaTopo + TOL_EXTREMO + (f.folgaTopo ?? 0))
       const comVariacao = medidos.filter(variou).length
       if (exercitados) {
         if (f.fixo) {
-          if (medidos.some(t => Math.max(...t) - Math.min(...t) > 8)) falhas.push(`${f.id}: declarada fixa (fixo: true) mas o gatilho se moveu entre as posições: ${JSON.stringify(tops)}`)
+          if (medidos.some(m => Math.max(...tops(m)) - Math.min(...tops(m)) > 8)) falhas.push(`${f.id}: declarada fixa (fixo: true) mas o gatilho se moveu entre as posições: ${JSON.stringify(medidas)}`)
         } else if (comVariacao < medidos.length || !medidos.length) {
-          falhas.push(`${f.id}: em ${medidos.length - comVariacao} de ${medidos.length} gatilhos o top não seguiu em cima < centro < embaixo, [centro, embaixo, em cima] = ${JSON.stringify(tops)}: as três posições não aconteceram; se o gatilho não rola, declare fixo: true`)
+          falhas.push(`${f.id}: em ${medidos.length - comVariacao} de ${medidos.length} gatilhos o top não seguiu em cima < centro < embaixo, [centro, embaixo, em cima] = ${JSON.stringify(medidos.map(tops))}: as três posições não aconteceram; se o gatilho não rola, declare fixo: true`)
+        } else {
+          const fora = medidos.filter(m => !extremos(m))
+          if (fora.length) falhas.push(`${f.id}: em ${fora.length} de ${medidos.length} gatilhos o extremo não chegou: "colado embaixo" devia terminar a menos de ${TOL_EXTREMO + (f.folgaPe ?? 0)} px do pé da janela (${janelaH}) e "colado em cima" começar a menos de ${TOL_EXTREMO + (f.folgaTopo ?? 0)} px do topo da área visível; medido: ${JSON.stringify(fora)}. Se o motivo é legítimo, declare folgaPe/folgaTopo na família`)
         }
       }
-      const ex = Object.values(tops).flat()
-      console.info(`[prova-flutuantes] ${tela.nome} ${largura} ${tema} | ${f.id}: ${exercitados} exercitados, ${pulados} pulados, ${medidos.length} gatilhos × 3 posições, ${f.fixo ? 'fixo (top ' + [...new Set(ex)].join('/') + ')' : comVariacao + ' de ' + medidos.length + ' com top variando'} | modos ${JSON.stringify(modos)}`)
+      const ex = medidos.flatMap(m => m.map(x => x.top))
+      const dPe = medidos.map(m => janelaH - m[2]!.pe), dTopo = medidos.map(m => m[3]!.top - m[3]!.areaTopo)
+      console.info(`[prova-flutuantes] ${tela.nome} ${largura} ${tema} | ${f.id}: ${exercitados} exercitados (${naturais} naturais + ${exercitados - naturais} com espaçador), ${pulados} pulados, ${medidos.length} gatilhos × 4 posições, ${f.fixo ? 'fixo (top ' + [...new Set(ex)].join('/') + ')' : comVariacao + ' de ' + medidos.length + ' com top variando'}, dist. do pé ${Math.min(...dPe)}..${Math.max(...dPe)}, dist. do topo ${Math.min(...dTopo)}..${Math.max(...dTopo)} | modos ${JSON.stringify(modos)}`)
     }
     console.info(`[prova-flutuantes] ${tela.nome} ${largura} ${tema}: ${total - falhas.length} de ${total}`)
     expect(total, 'nenhuma flutuante foi exercitada: o seletor do gatilho mudou?').toBeGreaterThan(0)
