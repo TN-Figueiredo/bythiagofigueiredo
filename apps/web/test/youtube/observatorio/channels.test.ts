@@ -99,3 +99,29 @@ describe('inscritos ocultos (subs null) e snapshot com 0 inscritos', () => {
     expect(s.growth30.roundingText).not.toBe('sem contagem')
   })
 })
+
+describe('engajamento: comentário nulo fora da base', () => {
+  // um canal com os vídeos dados (todos longos, acompanhados, de 30 dias); devolve o que channelStats dá para o engajamento
+  const engajamentoDe = (vs: Array<{ views: number; likes: number; comments: number | null }>) => {
+    const d = structuredClone(DS0)
+    const ch = d.channels.find(c => !c.own)!
+    const outros = d.videos.filter(v => v.ch !== ch.id)
+    const meus = d.videos.filter(v => v.ch === ch.id)
+    const molde = meus.find(v => v.fmt === 'long')!
+    d.videos = [...outros, ...vs.map((x, i) => ({ ...molde, id: 'eng-' + i, tracked: true, fmt: 'long' as const, ageDays: 30, views: x.views, likes: x.likes, comments: x.comments }))]
+    return createObservatory(d).channelStats(ch.id, 'long').engagement
+  }
+  it('comentário nulo fora da base do engajamento: não vira likes / views', () => {
+    const comBase = engajamentoDe([{ views: 1000, likes: 50, comments: 10 }, { views: 1000, likes: 50, comments: 10 }])
+    const comNulo = engajamentoDe([{ views: 1000, likes: 50, comments: 10 }, { views: 1000, likes: 50, comments: null }])
+    expect(comBase.n).toBe(2)
+    expect(comNulo.n).toBe(comBase.n - 1)
+    expect(comNulo.median).toBe(comBase.median)   // a mediana é a do vídeo que tem os dois números
+  })
+  it('todos sem contagem de comentários: nenhuma base, nunca 0 %', () => {
+    const e = engajamentoDe([{ views: 1000, likes: 50, comments: null }])
+    expect(e.n).toBe(0)
+    expect(e.median).toBeNull()
+    expect(e.label).toBe('sem vídeos com contagem')
+  })
+})

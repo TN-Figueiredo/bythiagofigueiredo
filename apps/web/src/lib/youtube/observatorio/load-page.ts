@@ -7,10 +7,11 @@
 // never from a URL parameter. Channel ids come from the site-filtered read of competitor_channels below.
 import 'server-only'
 import { unstable_cache } from 'next/cache'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { Dataset } from './types'
-import { loadLiveRows, mapLimit, rowsToDataset, type ObservatoryRows } from './load'
+import { loadLiveRows, loadChannelLiveRows, mapLimit, rowsToDataset, type ChannelRow, type ObservatoryRows } from './load'
 import { loadChannelRows, assembleRows } from './load-channel'
 import { packChannel, unpackChannel, PACK_VERSION, PACK_BUDGET, type ChannelRows } from './pack'
 import { observatoryTag } from './cache-tag'
@@ -58,23 +59,40 @@ async function buildPack(siteId: string, channelId: string, videoLimit: number, 
 }
 const cachedPack = (siteId: string) => unstable_cache(buildPack, ['observatorio-pack', String(PACK_VERSION)], { tags: [observatoryTag(siteId)], revalidate: PACK_TTL_SECONDS })
 
+/** One channel's heavy rows: the stored pack when it can be trusted, the database otherwise. */
+async function readChannel(sb: SupabaseClient, siteId: string, c: ChannelRow, seriesStartAt: number | null, now: number): Promise<ChannelRows> {
+  const direct = () => loadChannelRows(sb, { channelId: c.id, videoLimit: c.video_limit, seriesStart: seriesStartAt, now })
+  // A channel that never finished a sync is filling up right now (the first sync runs in after() and writes for up to
+  // a minute, invalidating only at its end): a stored pack would freeze "buscando vídeos (N de M)" at the count of the
+  // first render. It has few rows, so it is read on every render until its first good sync.
+  if (!observatoryCacheEnabled() || c.last_ok_synced_at == null) return direct()
+  const rows = unpackChannel(await cachedPack(siteId)(siteId, c.id, c.video_limit, seriesStartAt, c.last_ok_synced_at))
+  if (rows) return rows
+  // an entry of another PACK_VERSION or a damaged one: this render reads the database, never an empty channel
+  warn('observatório: a entrada de cache do canal ' + c.id + ' não pôde ser lida; a tela leu o banco', { siteId, channelId: c.id })
+  return direct()
+}
+
 export async function loadPageRows(siteId: string, now: number): Promise<ObservatoryRows> {
   const sb = getSupabaseServiceClient()
   const { seriesStartAt, ...live } = await loadLiveRows(sb, siteId, now)
-  const read = observatoryCacheEnabled() ? cachedPack(siteId) : null
-  const parts = await mapLimit(live.channels, CHANNEL_CONCURRENCY, async (c): Promise<ChannelRows> => {
-    const direct = () => loadChannelRows(sb, { channelId: c.id, videoLimit: c.video_limit, seriesStart: seriesStartAt, now })
-    // A channel that never finished a sync is filling up right now (the first sync runs in after() and writes for up to
-    // a minute, invalidating only at its end): a stored pack would freeze "buscando vídeos (N de M)" at the count of the
-    // first render. It has few rows, so it is read on every render until its first good sync.
-    if (!read || c.last_ok_synced_at == null) return direct()
-    const rows = unpackChannel(await read(siteId, c.id, c.video_limit, seriesStartAt, c.last_ok_synced_at))
-    if (rows) return rows
-    // an entry of another PACK_VERSION or a damaged one: this render reads the database, never an empty channel
-    warn('observatório: a entrada de cache do canal ' + c.id + ' não pôde ser lida; a tela leu o banco', { siteId, channelId: c.id })
-    return direct()
-  })
+  const parts = await mapLimit(live.channels, CHANNEL_CONCURRENCY, c => readChannel(sb, siteId, c, seriesStartAt, now))
   return assembleRows(live, parts, seriesStartAt, now)
+}
+
+/**
+ * The dataset of ONE channel of this site, without reading the others (spec telas v9, 5.10). Same pack and same cache
+ * key as loadPageRows: a channel the list already warmed costs no heavy read here. null = not a channel of this site.
+ * SECURITY: service client, no RLS. The caller runs the access guard first and takes `siteId` from getSiteContext();
+ * `channelId` may come from the URL, and loadChannelLiveRows refuses one of another site.
+ */
+export async function loadChannelDataset(siteId: string, channelId: string, now: number): Promise<Dataset | null> {
+  const sb = getSupabaseServiceClient()
+  const found = await loadChannelLiveRows(sb, siteId, channelId, now)
+  if (!found) return null
+  const { seriesStartAt, ...live } = found
+  const parts = await mapLimit(live.channels, 1, c => readChannel(sb, siteId, c, seriesStartAt, now))
+  return rowsToDataset(assembleRows(live, parts, seriesStartAt, now), now)
 }
 
 /** Cached rows, fresh clock: the dataset is always built with this render's `now`. */

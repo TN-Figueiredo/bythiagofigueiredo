@@ -42,9 +42,9 @@ export function datasetFromOracle(o: Oracle): Dataset {
     id: c.id, name: c.name, fullName: c.fullName ?? c.name, niche: c.niche, own: !!c.own, lang: c.lang, subs: c.subs,
     video_limit: c.video_limit, url: c.url, handle: c.handle, gender: c.gender ?? 'n', color: c.color, ini: c.ini,
     sync: { state: c.sync.state, last: c.sync.last, next: c.sync.next ?? null, added: c.sync.added, errorSince: c.sync.errorSince ?? null, msg: c.sync.msg ?? null, backfill: c.sync.backfill ?? null },
-    activity: structuredClone(c.activity), lastIdx: c.lastIdx, snapshots: structuredClone(c.snapshots),
+    activity: structuredClone(c.activity), lastIdx: c.lastIdx, snapshots: structuredClone(c.snapshots), undated: [],
   }))
-  const videos: ObsVideo[] = o.videos.map((v: any) => pick<ObsVideo>(v, VIDEO_INPUT))
+  const videos: ObsVideo[] = o.videos.map((v: any) => ({ ...pick<ObsVideo>(v, VIDEO_INPUT), isShort: v.fmt === 'short' }))
   return {
     now: o.NOW, seriesStart: o.SERIES_START, snap0: o.date.snapTime(0), obsStart: o.OBS_START, dailyCappedFrom: null, channels, videos,
     sync: { last: o.SYNC.last, next: o.SYNC.next },

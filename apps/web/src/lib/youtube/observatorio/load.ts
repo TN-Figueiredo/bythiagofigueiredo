@@ -3,7 +3,7 @@ import { isCertainShort } from '@/lib/youtube/short-classifier'
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ReadingBase, ReadingEffect, ForjaRequest, ChannelSnapshot } from './types'
+import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ReadingBase, ReadingEffect, ForjaRequest, ChannelSnapshot, UndatedVideo } from './types'
 import { DAY, H, spDayStart, spDateStart, spDateOf } from './time'
 import { RULES } from './rules'
 import { formulasOf, THEME } from './catalog'
@@ -231,8 +231,14 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   const byAdded = [...rows.channels].sort((a, b) => (ms(a.added_at) ?? Infinity) - (ms(b.added_at) ?? Infinity) || a.channel_name.localeCompare(b.channel_name, 'pt-BR') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   for (const c of byAdded) {
     const limit = Math.min(c.video_limit, RULES.videoLimitMax)
-    // a video without published_at cannot be aged or banded: it stays out of the dataset
-    const vs = (videosBy.get(c.id) ?? []).map(v => ({ v, pub: ms(v.published_at) })).filter((x): x is { v: VideoRow; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
+    const all = (videosBy.get(c.id) ?? []).map(v => ({ v, pub: ms(v.published_at) }))
+    // a video without published_at cannot be aged or banded: it stays out of `videos` and is listed in `undated`
+    const vs = all.filter((x): x is { v: VideoRow; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
+    const undated: UndatedVideo[] = all.filter(x => x.pub == null).map(({ v }) => ({
+      id: v.id, ytId: v.video_id, title: v.title ?? '', isShort: v.is_short ?? null, dur: v.duration_seconds,
+      url: v.is_short ? 'https://www.youtube.com/shorts/' + v.video_id : 'https://www.youtube.com/watch?v=' + v.video_id,
+      views: v.view_count, likes: v.like_count, comments: v.comment_count, pinned: v.pinned_at != null, checkedAt: ms(v.last_checked_at),
+    }))
     const nTracked = Math.min(vs.length, limit)
     const state = deriveSyncState({ ...c, tracked: nTracked }, now)
     let lastIdx: number | null = null
@@ -270,12 +276,12 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       const descs = withLegacy<DescVersion>(legacyBy.get(v.id + '|description') ?? [], realDescs, pub, now, () => ({ lines: null, hasText: false }), () => ({ lines: null, hasText: false }))
       const title = v.title ?? titles[titles.length - 1]!.text
       videos.push({
-        id: v.id, ch: c.id, niche: isNiche(c.niche) ? c.niche : null, fmt, pub, ageDays: ageOf(pub, now),
+        id: v.id, ch: c.id, niche: isNiche(c.niche) ? c.niche : null, fmt, isShort: v.is_short ?? null, pub, ageDays: ageOf(pub, now),
         tracked: k < nTracked, pinned: v.pinned_at != null, checkedAt: ms(v.last_checked_at),
         ...(pinState ? { pinState } : {}),
         title, theme: themes.get(v.id) ?? null, formulas: formulasOf(title),
         url: fmt === 'short' ? 'https://www.youtube.com/shorts/' + v.video_id : 'https://www.youtube.com/watch?v=' + v.video_id, ytId: v.video_id, dur: v.duration_seconds,
-        views: v.view_count, viewsAt: ms(v.last_checked_at) ?? ms(c.last_ok_synced_at) ?? now, likes: v.like_count, comments: v.comment_count ?? 0,
+        views: v.view_count, viewsAt: ms(v.last_checked_at) ?? ms(c.last_ok_synced_at) ?? now, likes: v.like_count, comments: v.comment_count,
         series, firstIdx: series.length ? series[0]!.idx : null, titles, thumbs, descs,
         ...(cappedFrom != null && pub >= seriesStart && pub < cappedFrom ? { truncated: true } : {}),
       })
@@ -294,19 +300,28 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       },
       activity: activityOf(vs.map(x => x.pub), now),
       lastIdx: state === 'backfill' ? null : lastIdx,
-      snapshots,
+      snapshots, undated,
     })
   }
 
   const ownVideosBy = groupBy(rows.ownVideos, v => v.channel_id)
   for (const oc of rows.ownChannels) {
     const ownNiche: Niche | null = isNiche(oc.niche) ? oc.niche : null
-    const vs = (ownVideosBy.get(oc.id) ?? []).map(v => ({ v, pub: ms(v.published_at) })).filter((x): x is { v: OwnVideoRow; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
+    const allOwn = (ownVideosBy.get(oc.id) ?? []).map(v => ({ v, pub: ms(v.published_at) }))
+    const vs = allOwn.filter((x): x is { v: OwnVideoRow; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
+    const undated: UndatedVideo[] = allOwn.filter(x => x.pub == null).map(({ v }) => {
+      const short = ownIsShort(v)
+      return {
+        id: v.id, ytId: v.youtube_video_id, title: v.title, isShort: short, dur: v.duration_seconds,
+        url: (short ? 'https://www.youtube.com/shorts/' : 'https://www.youtube.com/watch?v=') + v.youtube_video_id,
+        views: v.view_count, likes: v.like_count, comments: v.comment_count, pinned: false, checkedAt: ms(v.updated_at),
+      }
+    })
     const last = ms(oc.last_synced_at) // null = never synced: no date is invented
     vs.forEach(({ v, pub }, k) => {
       const fmt: Fmt = ownIsShort(v) ? 'short' : 'long'
       videos.push({
-        id: v.id, ch: oc.id, niche: ownNiche, fmt, pub, ageDays: ageOf(pub, now), tracked: k < RULES.videoLimitMax, pinned: false,
+        id: v.id, ch: oc.id, niche: ownNiche, fmt, isShort: ownIsShort(v), pub, ageDays: ageOf(pub, now), tracked: k < RULES.videoLimitMax, pinned: false,
         title: v.title, theme: themes.get(v.id) ?? null, formulas: formulasOf(v.title),
         url: fmt === 'short' ? 'https://www.youtube.com/shorts/' + v.youtube_video_id : 'https://www.youtube.com/watch?v=' + v.youtube_video_id, ytId: v.youtube_video_id, dur: v.duration_seconds,
         views: v.view_count, viewsAt: ms(v.updated_at) ?? last ?? now, likes: v.like_count, comments: v.comment_count,
@@ -319,7 +334,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       url: 'https://www.youtube.com/channel/' + oc.channel_id, handle: oc.handle, gender: 'n', color: OWN_COLOR, ini: initials(oc.name),
       avatar: oc.thumbnail_url || null,
       sync: { state: 'ok', last, next, added: ms(oc.created_at) ?? last, errorSince: null, msg: null, backfill: null },
-      activity: activityOf(vs.map(x => x.pub), now), lastIdx: null, snapshots: [],
+      activity: activityOf(vs.map(x => x.pub), now), lastIdx: null, snapshots: [], undated,
     })
   }
 
@@ -426,6 +441,8 @@ export async function readAll<T>(table: string, build: () => RangeQuery): Promis
     if (page.length < PAGE) return out
   }
 }
+/** Postgres: invalid input syntax for type uuid. */
+const INVALID_UUID = '22P02'
 const OWN_CHANNEL_COLS = 'id, channel_id, name, handle, subscriber_count, last_synced_at, locale, created_at, thumbnail_url'
 /** Postgres 42703 (undefined_column) / PostgREST PGRST204: a migration do nicho ainda não chegou a este banco. */
 const NO_COLUMN = new Set(['42703', 'PGRST204'])
@@ -516,6 +533,43 @@ export async function loadLiveRows(sb: SupabaseClient, siteId: string, now: numb
     readNiches(sb, siteId),
   ])
   return { settings, channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeat: heartbeats[0] ?? null, niches, seriesStartAt: ssAt != null ? spDayStart(ssAt) : null }
+}
+
+/**
+ * The live rows of ONE channel of this site: the site's settings, niches and forja queue as loadLiveRows reads them,
+ * and only this channel's row (a competitor, or an own channel with its videos). null = `channelId` is not a channel
+ * of `siteId`; the id comes from a URL, so the site filter here is the access boundary.
+ * competitor_changes has no channel column: the trade rows stay the site's (rowsToDataset ignores those of videos
+ * that are not in the set).
+ */
+export async function loadChannelLiveRows(sb: SupabaseClient, siteId: string, channelId: string, now: number): Promise<(LiveRows & { seriesStartAt: number | null }) | null> {
+  const ch = await sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).eq('id', channelId).maybeSingle()
+  // a URL id that is not a uuid is not a channel of anybody (Postgres says 22P02): null, never a server error
+  if (ch.error && ch.error.code !== INVALID_UUID) throw new ObservatoryLoadError('competitor_channels', ch.error.code, ch.error.message)
+  const channel = ch.error ? null : (ch.data as ChannelRow | null) ?? null
+  const own = channel ? null : (await readOwnChannels(sb, siteId)).find(c => c.id === channelId) ?? null
+  if (!channel && !own) return null
+
+  const st = await sb.from('competitor_settings').select('series_started_at, channel_limit').eq('site_id', siteId).maybeSingle()
+  if (st.error) throw new ObservatoryLoadError('competitor_settings', st.error.code, st.error.message)
+  const settings = (st.data as SettingsRow | null) ?? null
+  const ssAt = ms(settings?.series_started_at)
+
+  const [ownVideos, legacyChanges, readings, tasks, heartbeats, niches] = await Promise.all([
+    own ? readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('channel_id', channelId).eq('is_hidden', false).order('id')) : Promise.resolve([] as OwnVideoRow[]),
+    channel ? readAll<LegacyChangeRow>('competitor_changes', () => sb.from('competitor_changes').select('id, video_id, change_type, old_title, new_title, detected_at')
+      .eq('site_id', siteId).is('from_version_id', null).in('change_type', ['title', 'description']).order('id')) : Promise.resolve([] as LegacyChangeRow[]),
+    readAll<ReadingRow>('competitor_readings', () => sb.from('competitor_readings').select('id, task_id, task_type, niche, video_id, fmt, model, generated_at, sent, analysis, text, evidence')
+      .eq('site_id', siteId).gte('generated_at', new Date(now - READING_DAYS * DAY).toISOString()).order('id')),
+    readAll<TaskRow>('youtube_intelligence_tasks', () => sb.from('youtube_intelligence_tasks').select(TASK_COLS)
+      .eq('site_id', siteId).in('task_type', [...OBS_TASK_TYPES]).gte('requested_at', new Date(now - TASK_DAYS * DAY).toISOString()).order('id')),
+    readAll<HeartbeatRow>('forja_heartbeat', () => sb.from('forja_heartbeat').select('last_poll_at, capabilities').eq('site_id', siteId).order('site_id')),
+    readNiches(sb, siteId),
+  ])
+  return {
+    settings, channels: channel ? [channel] : [], ownChannels: own ? [own] : [], ownVideos, legacyChanges, readings, tasks,
+    heartbeat: heartbeats[0] ?? null, niches, seriesStartAt: ssAt != null ? spDayStart(ssAt) : null,
+  }
 }
 
 export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {

@@ -3,6 +3,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { fakeSupabase, type FakeDb, type Row } from '../../helpers/fake-supabase'
 import { createFakeNextCache, type FakeNextCache } from '../../helpers/fake-next-cache'
 import { buildTables, ids } from './load-fixture'
+import { loadChannelLiveRows } from '@/lib/youtube/observatorio/load'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 const NOW = Date.now(), DAY = 864e5
 const HEAVY = ['competitor_videos', 'competitor_video_versions', 'competitor_video_daily', 'competitor_channel_snapshots']
@@ -280,5 +282,74 @@ describe('observatoryCacheEnabled', () => {
   it('em produção OBS_E2E=1 é ignorado', async () => {
     vi.stubEnv('OBS_E2E', '1'); vi.stubEnv('NODE_ENV', 'production')
     expect((await setup({})).observatoryCacheEnabled()).toBe(true)
+  })
+})
+
+describe('loadChannelDataset — um canal só', () => {
+  const tabelas = () => buildTables({ siteId: 'a', now: NOW, channels: 3, videosPerChannel: 4 })
+  it('igual ao recorte do site inteiro para o mesmo canal', async () => {
+    const { loadChannelDataset, loadPageDataset } = await setup(tabelas())
+    const id = ids.channel('a', 1)
+    const site = await loadPageDataset('a', NOW), um = (await loadChannelDataset('a', id, NOW))!
+    expect(um.channels).toEqual(site.channels.filter(c => c.id === id))
+    expect(um.videos).toEqual(site.videos.filter(v => v.ch === id))
+    expect(um.videos.length).toBeGreaterThan(0)
+  })
+  it('não lê os outros canais: uma ida a cada tabela pesada, contra três do site inteiro', async () => {
+    const { loadChannelDataset, db } = await setup(tabelas())
+    await loadChannelDataset('a', ids.channel('a', 1), NOW)
+    expect(db.trips.filter(t => t === 'competitor_videos')).toHaveLength(1)
+    expect(db.trips.filter(t => t === 'competitor_channel_snapshots')).toHaveLength(1)
+  })
+  it('usa o mesmo pacote do cache que a lista de canais já guardou: zero leitura pesada', async () => {
+    const { loadChannelDataset, loadPageRows, db } = await setup(tabelas())
+    await loadPageRows('a', NOW)
+    const antes = heavy(db)
+    await loadChannelDataset('a', ids.channel('a', 1), NOW)
+    expect(heavy(db) - antes).toBe(0)
+  })
+  it('canal de outro site: null e nenhuma leitura pesada', async () => {
+    const { loadChannelDataset, db } = await setup(merged(tabelas(), buildTables({ siteId: 'b', now: NOW, channels: 1, videosPerChannel: 4 })))
+    expect(await loadChannelDataset('a', ids.channel('b', 0), NOW)).toBeNull()
+    expect(heavy(db)).toBe(0)
+  })
+  it('canal próprio de outro site: null e nenhuma leitura pesada', async () => {
+    const { loadChannelDataset, db } = await setup(merged(tabelas(), buildTables({ siteId: 'b', now: NOW, channels: 1, videosPerChannel: 4 })))
+    expect(await loadChannelDataset('a', 'b-own', NOW)).toBeNull()
+    expect(heavy(db)).toBe(0)
+    expect(db.trips).not.toContain('youtube_videos')
+  })
+  it('id que não existe: null', async () => {
+    const { loadChannelDataset } = await setup(tabelas())
+    expect(await loadChannelDataset('a', '00000000-0000-4000-8000-000000000000', NOW)).toBeNull()
+  })
+  it('falha de banco lança e nada é guardado (nunca um canal vazio)', async () => {
+    const { loadChannelDataset, cache } = await setup(tabelas(), { failOn: 'competitor_videos' })
+    await expect(loadChannelDataset('a', ids.channel('a', 1), NOW)).rejects.toThrow()
+    expect(cache.entries.size).toBe(0)
+  })
+  it('canal próprio: só ele, vídeos próprios sem série, nenhuma ida a competitor_videos', async () => {
+    const { loadChannelDataset, db } = await setup(tabelas())
+    const ds = (await loadChannelDataset('a', 'a-own', NOW))!
+    expect(ds.channels.map(c => [c.id, c.own])).toEqual([['a-own', true]])
+    expect(ds.videos).toHaveLength(1)
+    expect(ds.videos.every(v => v.ch === 'a-own' && v.series.length === 0)).toBe(true)
+    expect(db.trips).not.toContain('competitor_videos')
+    expect(heavy(db)).toBe(0)
+  })
+})
+
+describe('loadChannelLiveRows — id da URL', () => {
+  const client = (code: string) => ({
+    from: (table: string) => {
+      const q = { select: () => q, eq: () => q, order: () => q, range: async () => ({ data: [], error: null }), maybeSingle: async () => ({ data: null, error: table === 'competitor_channels' ? { code, message: 'x' } : null }) }
+      return q
+    },
+  }) as unknown as SupabaseClient
+  it('id que não é uuid (22P02): null, não erro de servidor', async () => {
+    expect(await loadChannelLiveRows(client('22P02'), 'a', 'lixo', NOW)).toBeNull()
+  })
+  it('outro erro de banco lança', async () => {
+    await expect(loadChannelLiveRows(client('XX000'), 'a', 'lixo', NOW)).rejects.toThrow()
   })
 })
