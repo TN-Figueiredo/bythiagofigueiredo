@@ -26,6 +26,8 @@ export interface ChannelVideoView {
   vpdText: string | null; multText: string | null; multTier: 'mid' | 'high' | 'top' | null; multWord: string | null
   /** Quando faltam views/dia E múltiplo: a frase única que ocupa as duas colunas. null = há pelo menos um dos dois. */
   semMedida: string | null
+  /** Canal em primeira sincronização: o múltiplo e as views/dia ainda não valem (a base são só os vídeos que já chegaram). A Lista diz a frase nas colunas e na de Trocas. */
+  aguardando: boolean
   likesText: string | null; commentsText: string | null
   badges: string[]                                               // "fixado", "sem duração", "formato não confirmado", "sem data", "2 trocas"
   /** Topo do menu "Ações do vídeo": a base do múltiplo e o motivo de cada "não medido" do cartão. */
@@ -35,6 +37,8 @@ export interface ChannelVideoView {
 
 export interface CanalVideosView { videos: ChannelVideoView[]; nota: string; semVideos: string | null }
 
+/** A frase de quando o canal ainda está na primeira sincronização (a mesma do cabeçalho). */
+export const AGUARDANDO = 'quando a sincronização terminar'
 const NB = ' '
 const WORD = { mid: 'alto', high: 'muito alto', top: 'topo' } as const
 
@@ -57,6 +61,8 @@ export function buildCanalVideos(obs: Observatory, channelId: string): CanalVide
   const thumbOf = (ytId: string, cur?: string | null) => cur ?? (ytId ? `https://i.ytimg.com/vi/${ytId}/mqdefault.jpg` : null)
   const swapsOf = (id: string) => obs.changesIn({ days: 30, video: id }).filter(c => c.type !== 'desc').length
   const noTitle = 'sem título'
+  // primeira sincronização: o motor calcularia o múltiplo sobre a metade dos vídeos; nenhum número assim vai para a tela
+  const backfill = ch.sync.state === 'backfill'
 
   const dated = obs.videos.filter(v => v.ch === ch.id).sort((a, b) => b.pub - a.pub)
   const out: ChannelVideoView[] = []
@@ -65,20 +71,23 @@ export function buildCanalVideos(obs: Observatory, channelId: string): CanalVide
     const v: ObsVideo = dv
     const grupo: Grupo = v.tracked ? 'acompanhado' : v.pinned ? 'fixado-antigo' : 'antigo'
     const pinned = v.pinned === true
-    const vpd7 = dv.vpd7
+    const vpd7 = backfill ? null : dv.vpd7
     const m = obs.multiplier(v.id)
-    const mult = m.value
+    const mult = backfill ? null : m.value
     const tier = tierOf(mult)
     const swaps = swapsOf(v.id)
     const viewsMissing = v.views == null ? viewsMissingText(ch, D.dmhm) : null
 
-    const semMedida = grupo === 'fixado-antigo' ? 'fixado antigo: sem views/dia nem múltiplo'
+    const semMedida = backfill ? `views/dia e múltiplo: ${AGUARDANDO}`
+      : grupo === 'fixado-antigo' ? 'fixado antigo: sem views/dia nem múltiplo'
       : vpd7 == null && mult == null ? 'views/dia e múltiplo: não medido' : null
 
     const notas: string[] = []
     if (mult != null) {
       const card = obs.multiplierCard(v.id)
       notas.push(`contra os ${v.fmt === 'short' ? 'Shorts' : 'longos'} do canal ${card.ref}, ${card.nText.slice(1, -1)}${m.weak ? `; base fraca (n = ${m.n})` : ''}`)
+    } else if (backfill) {
+      notas.push(`Múltiplo e views por dia: aparecem ${AGUARDANDO}.`)
     } else if (grupo === 'acompanhado' && m.method != null && m.n === 0) {
       notas.push('sem comparação: nenhum vídeo do canal na mesma faixa de idade')
     } else if (grupo === 'acompanhado' && m.reason === 'mediana zero') {
@@ -103,7 +112,7 @@ export function buildCanalVideos(obs: Observatory, channelId: string): CanalVide
       durText: durText(v.dur), ageText: F.age(v), pubISO: new Date(v.pub).toISOString(), pubTitle: `${D.dmy(v.pub)} ${D.hm(v.pub)} (São Paulo)`,
       viewsText: num(v.views), viewsMissing,
       vpdText: vpdText(vpd7, F.num), multText: mult == null ? null : F.mult(mult), multTier: tier, multWord: tier ? WORD[tier] : null,
-      semMedida, likesText: num(v.likes), commentsText: num(v.comments), badges, notas, pin: pinViewOf(obs, v),
+      semMedida, aguardando: backfill, likesText: num(v.likes), commentsText: num(v.comments), badges, notas, pin: pinViewOf(obs, v),
     })
   }
 
@@ -122,7 +131,7 @@ export function buildCanalVideos(obs: Observatory, channelId: string): CanalVide
       thumbSrc: thumbOf(u.ytId), durText: durText(u.dur), ageText: null, pubISO: null, pubTitle: null,
       viewsText: num(u.views), viewsMissing: u.views == null ? viewsMissingText(ch, D.dmhm) : null,
       vpdText: null, multText: null, multTier: null, multWord: null,
-      semMedida: 'views/dia e múltiplo: não medido', likesText: num(u.likes), commentsText: num(u.comments), badges, notas, pin: null,
+      semMedida: 'views/dia e múltiplo: não medido', aguardando: false, likesText: num(u.likes), commentsText: num(u.comments), badges, notas, pin: null,
     })
   }
 

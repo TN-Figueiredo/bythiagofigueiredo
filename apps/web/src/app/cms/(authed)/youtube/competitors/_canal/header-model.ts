@@ -107,8 +107,10 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
   const engajamento = engOf('long', SL, 'longos', 'longo')
 
   const acima2x = cell('acima2x', 'vídeos acima de 2× em 90 dias', {
-    value: String(SL.outliers90), missing: '',
-    base: `${SL.outliers90} de ${SL.pctOutliersN} longos de até 90 dias com múltiplo de 2× ou mais`,
+    // sem nenhum longo com múltiplo em 90 dias não há de quê contar: a frase, nunca "0" (o zero medido é "0 de 2")
+    value: SL.pctOutliersN === 0 ? null : String(SL.outliers90), missing: 'sem base: nenhum longo com múltiplo em 90 dias',
+    base: SL.pctOutliersN === 0 ? 'nenhum longo de até 90 dias com múltiplo calculado, então não há o que contar'
+      : `${SL.outliers90} de ${SL.pctOutliersN} longos de até 90 dias com múltiplo de 2× ou mais`,
   })
 
   /* ---------------------------------------------------------------- todos os números */

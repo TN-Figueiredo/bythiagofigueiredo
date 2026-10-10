@@ -38,7 +38,7 @@ export interface TrocaCard {
   trocas: TrocaView[]
 }
 export interface CanalTrocasView {
-  /** "7 em 30 d", na aba. */
+  /** "7 em 30 d", na aba; vazio com o canal na primeira sincronização (nada foi comparado ainda: nem zero). */
   tabCount: string
   titulo: string
   intro: string
@@ -68,7 +68,7 @@ export function buildCanalTrocas(obs: Observatory, channelId: string): CanalTroc
   if (!ch || backfill) {
     const next = obs.SYNC.next
     return {
-      ...base, tabCount: '0 em 30 d', cards: [], total: 0, mudancasLink: null,
+      ...base, tabCount: backfill ? '' : '0 em 30 d', cards: [], total: 0, mudancasLink: null,
       vazio: backfill
         ? `Trocas são detectadas comparando versões entre sincronizações, então ainda não há o que comparar.${next != null ? ` A primeira detecção possível é na sincronização das ${D.hm(next)}.` : ''}`
         : VAZIO,

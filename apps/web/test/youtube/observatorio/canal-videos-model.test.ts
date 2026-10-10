@@ -104,4 +104,25 @@ describe('vídeos do canal: dado ausente (spec 5.9)', () => {
     expect(gzipSync(json).length).toBeLessThan(200_000)
     console.log(`buildCanalVideos com 3.000 antigos: ${Math.round(ms)} ms`)   // registrar no ledger
   })
+
+  describe('I-2: canal em primeira sincronização (backfill)', () => {
+    const backfill = (ds: import('@/lib/youtube/observatorio').Dataset, id: string) => { const sy = ds.channels.find(x => x.id === id)!.sync; sy.state = 'backfill'; sy.backfill = { done: 12, total: 48 } }
+    it('nenhum múltiplo nem views/dia calculado sobre a metade: tudo nulo e a frase única', () => {
+      const w = canalWorld(backfill)
+      const dated = buildCanalVideos(w.obs, w.chId).videos.filter(v => v.grupo !== 'sem-data')
+      expect(dated.length).toBeGreaterThan(10)
+      for (const v of dated) {
+        expect(v.mult, v.id).toBeNull(); expect(v.multText).toBeNull(); expect(v.multTier).toBeNull(); expect(v.multWord).toBeNull()
+        expect(v.vpd7).toBeNull(); expect(v.vpdText).toBeNull()
+        expect(v.aguardando).toBe(true)
+        expect(v.semMedida).toBe('views/dia e múltiplo: quando a sincronização terminar')
+        expect(v.notas.join(' ')).toContain('aparecem quando a sincronização terminar')
+      }
+    })
+    it('fora do backfill o mesmo canal mostra múltiplo e nada fica aguardando (controle)', () => {
+      const vs = buildCanalVideos(canalWorld().obs, 'matt-wolfe').videos
+      expect(vs.some(v => v.multText != null)).toBe(true)
+      expect(vs.every(v => !v.aguardando)).toBe(true)
+    })
+  })
 })

@@ -85,6 +85,12 @@ describe('cabeçalho do canal', () => {
     const he = buildCanalHeader(err.obs, err.chId)!
     expect(he.sync.tone).toBe('danger'); expect(he.sync.banner).toMatch(/^Erro: a última sincronização falhou em /)
   })
+  it('D7: canal sincronizado há 3 h (estado ok): linha em tom normal e nenhuma faixa; o aviso duplicado só existe quando o motor diz "atrasado" (spec 5.9: linha + faixa)', () => {
+    const w = canalWorld((ds, id) => { const s = ds.channels.find(x => x.id === id)!.sync; s.state = 'ok'; s.last = ds.now - 3 * 36e5 })
+    const h = buildCanalHeader(w.obs, w.chId)!
+    expect(h.sync.tone).toBe('ok'); expect(h.sync.banner).toBeNull()
+    expect(h.sync.text).toMatch(/^Sincronizado há 3 h \(/); expect(h.sync.text).not.toMatch(/atrasada/)
+  })
   it('canal em backfill: faixa "Sincronizando: N de M vídeos" e nenhuma célula com número', () => {
     const { obs, chId } = canalWorld((ds, id) => { const s = ds.channels.find(x => x.id === id)!.sync; s.state = 'backfill'; s.backfill = { done: 12, total: 48 } })
     const h = buildCanalHeader(obs, chId)!
@@ -127,10 +133,15 @@ describe('cabeçalho do canal', () => {
     expect(h.todos.find(x => x.key === 'vpdShorts')!.missing).toBe('nenhum Short acompanhado')
     expect(h.todos.find(x => x.key === 'engShorts')!.missing).toBe('nenhum Short em 90 dias')
   })
-  it('zero medido é "0": nenhum longo acima de 2× não vira frase', () => {
-    const w = canalWorld((ds, id) => { ds.videos.forEach(v => { if (v.ch === id) v.pub = v.pub - 200 * 864e5, v.ageDays += 200 }) })
-    const c = buildCanalHeader(w.obs, w.chId)!.faixa.find(x => x.key === 'acima2x')!
-    expect(c.value).toBe('0'); expect(c.missing).toBeNull()
+  it('com longos de 90 dias que têm múltiplo, a célula é um número medido (o "0" só aparece quando N > 0), nunca a frase', () => {
+    const c = buildCanalHeader(canalWorld().obs, 'matt-wolfe')!.faixa.find(x => x.key === 'acima2x')!
+    expect(c.value).toMatch(/^\d+$/); expect(c.missing).toBeNull(); expect(c.base).toMatch(/^\d+ de [1-9]\d* longos/)
+  })
+  it('I-4: sem nenhum longo com múltiplo em 90 dias, "acima de 2×" diz a frase (nunca "0"); a base não diz "0 de 0"', () => {
+    const w = canalWorld((ds, id) => { ds.videos = ds.videos.filter(v => v.ch !== id || v.fmt !== 'long') })
+    const h = buildCanalHeader(w.obs, w.chId)!, c = h.faixa.find(x => x.key === 'acima2x')!
+    expect(c.value).toBeNull(); expect(c.missing).toBe('sem base: nenhum longo com múltiplo em 90 dias')
+    expect(c.base).not.toMatch(/0 de 0/)
   })
   it('fixado antigo e sem data entram na frase e na soma, com plural certo', () => {
     const w = canalWorld((ds, id) => {

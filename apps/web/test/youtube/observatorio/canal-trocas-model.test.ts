@@ -188,6 +188,7 @@ describe('trocas do canal: o modelo', () => {
     const v = buildCanalTrocas(obs, chId)
     expect(v.cards).toEqual([]); expect(v.total).toBe(0)
     expect(v.vazio).toMatch(/ainda não há o que comparar/)
+    expect(v.tabCount).toBe('')   // I-2: nem "0 em 30 d"
   })
 
   it('funciona no conjunto de um canal (scope "canal"), que lança em tudo que agrega entre canais', () => {
