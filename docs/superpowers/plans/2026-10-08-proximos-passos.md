@@ -151,6 +151,20 @@ Decisões das rodadas 9 a 12, a levar ao spec v9:
 
 **Custo desta sessão (subagentes):** 2,50 milhões de tokens (2,21 milhões em Sonnet, 286 mil em Opus): L2 792 mil, mockup rodadas 9 a 12 1,20 milhão, conserto da dica 149 mil, spec v9 363 mil. Cada rodada de mockup custou de 200 a 400 mil.
 
+## 3f. Onde retomar (escrito em 10/10 à tarde: A0 em produção, Task 11 do L2 conferida)
+
+**A0 está em produção** desde 10/10 08:08 (`staging` `17731aa4`, `main` `1840d083`, sem migration). CI e deploys verdes. Falta só o dono abrir o Observatório logado em produção (em especial no Opera, onde os flutuantes não foram testados). Ledger: `.superpowers/sdd/2026-10-10-telas-a0-fundacao-plan/progress.md`. Custo de subagentes da A0: ≈4,52 M tokens Sonnet + 373 k Opus.
+
+**Task 11 do L2 conferida por SELECT em 10/10 15:45.** A execução das 09:03 veio sem falha: alcance com 0 erros (o bytea pelo PostgREST real funcionou), 87 linhas em `yt_own_video_reach_daily`, 93.440 em `yt_own_video_daily`, 144,7 s de 270 s. Dois achados, anotados no ledger do L2, sem correção:
+- **A.** A Analytics API devolve todos os dias da janela com zero: 97,6% das linhas do diário têm `views = 0`, e nelas `avg_view_percentage` e `avg_view_duration_seconds` vêm 0 em vez de nulo. O spec da coleta supunha que esses dias não vinham. Decisão do dono: anular as médias quando `views = 0` (e corrigir as linhas já gravadas) ou aceitar. Pesa na A4, que lê essa tabela.
+- **B.** A fila de relatórios drena 16 por execução e recebe ~8 por dia; os 168 `listado` levam cerca de três semanas. Observar `atrasados`.
+
+**Próximos passos, em ordem:**
+1. Dono: conferir 3 vídeos contra o YouTube Studio; aceite 9 formal depois de 11/10 à noite; fecho do L2 e a pergunta sobre apagar a pasta.
+2. **Plano da A1** (canal do concorrente), com o "pode" do dono. O plano carrega: aposentar ou reescrever os ~305 testes e2e de fidelidade contra os mockups de 02/10 (ruling G1); valores do tema claro em `tokens-telas.css` (D7); a guarda de acesso antes de `loadChannelDataset` e os campos que lançam no conjunto de um canal; flutuante dentro de modal (achado 9) e `aria-describedby` nas dicas (achado 6); os pulados de `nice-to-have.md` e os 3 menores de `final-fix-rereview.md`; a decisão sobre `comment_count ?? 0` (ruling G2).
+3. 11/10: fechar o L1a e perguntar se apaga as pastas do L1a e do L1b.
+4. Depois de A1: A2 e A3, A4, e então o A/B Lab (itens 5 da seção 3e seguem valendo).
+
 ## 4. Ordem recomendada do trabalho
 
 | # | Etapa | Spec | Depende de |
