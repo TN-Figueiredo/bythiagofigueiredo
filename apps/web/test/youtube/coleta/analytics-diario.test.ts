@@ -54,6 +54,27 @@ describe('diarioDoVideo', () => {
     expect(dias[0]!.valores).toEqual({ views: 5 })
   })
 
+  it('dia com views 0: as duas médias viram null (chaves presentes), contagens e dias com view ficam como vieram', async () => {
+    const f = vi.fn().mockResolvedValue(resp({
+      columnHeaders: cab('day', 'views', 'averageViewDuration', 'averageViewPercentage', 'likes'),
+      rows: [['2026-10-01', 0, 0, 0, 0], ['2026-10-02', 5, 31, 42.5, 1], ['2026-10-03', 0, 0, 0, 2]],
+    }))
+    const { dias } = await chamar(f)
+    expect(dias[0]!.valores).toEqual({ views: 0, likes: 0, avg_view_percentage: null, avg_view_duration_seconds: null })
+    expect('avg_view_percentage' in dias[0]!.valores).toBe(true)
+    expect(dias[1]!.valores).toEqual({ views: 5, avg_view_duration_seconds: 31, avg_view_percentage: 42.5, likes: 1 })
+    expect(dias[2]!.valores).toEqual({ views: 0, likes: 2, avg_view_percentage: null, avg_view_duration_seconds: null })
+  })
+
+  it('cabeçalho sem views e médias 0: as médias ficam 0 como vieram (sem views não se sabe se o dia é vazio)', async () => {
+    const f = vi.fn().mockResolvedValue(resp({
+      columnHeaders: cab('day', 'averageViewDuration', 'averageViewPercentage'),
+      rows: [['2026-10-01', 0, 0]],
+    }))
+    const { dias } = await chamar(f)
+    expect(dias[0]!.valores).toEqual({ avg_view_duration_seconds: 0, avg_view_percentage: 0 })
+  })
+
   it('null, vazio e NaN numa coluna presente: chave ausente; 0 legítimo entra; texto numérico é lido', async () => {
     const f = vi.fn().mockResolvedValue(resp({
       columnHeaders: cab('day', 'views', 'likes', 'comments', 'shares', 'subscribersGained', 'desconhecida'),
