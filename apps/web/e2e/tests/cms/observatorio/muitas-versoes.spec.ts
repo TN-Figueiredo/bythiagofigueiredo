@@ -14,6 +14,8 @@ test.beforeAll(async () => { ids = seedIdsOf(await ensureSeeded({ manyVersions: 
 
 const S = '[data-obs-screen="historico"]'
 const WIDTHS = [1440, 1100, 760] as const
+/** How long a period switch may take to reach the URL: it is a server render (2 to 10 s measured in `next dev`). */
+const URL_MS = 20_000
 type Box = { x: number; y: number; width: number; height: number }
 const box = async (l: Locator): Promise<Box> => { await l.waitFor({ state: 'visible' }); const b = await l.boundingBox(); if (!b) throw new Error('sem retângulo: ' + l); return b }
 /**
@@ -88,13 +90,14 @@ for (const width of WIDTHS) {
     const chart = page.locator(S + ' svg.hv-chart'), lanes = page.locator(S + ' .lanes'), b7 = page.locator(S + ' [data-range="7"]')
     const before = [await docY(page, chart), await docY(page, lanes)]
     await b7.click()
-    await expect(page).toHaveURL(/[?&]range=7(&|$)/)
+    // the new period is a server render in `next dev`: measured 2 to 10 s for this video (8 of 15 runs went over the 5 s default and failed while the app was right)
+    await expect(page).toHaveURL(/[?&]range=7(&|$)/, { timeout: URL_MS })
     await expect(page.locator(S + ' #hv-rngtxt')).toContainText('De 17/10 15:02 até agora')
     await expect(b7).toHaveAttribute('aria-pressed', 'true')
     await expect(b7).toBeFocused()
     expect([await docY(page, chart), await docY(page, lanes)]).toEqual(before)
     await page.locator(S + ' [data-range="tudo"]').click()
-    await expect(page).not.toHaveURL(/range=/)
+    await expect(page).not.toHaveURL(/range=/, { timeout: URL_MS })
   })
 
   test(`${width} px: "Ver todas" não move o botão; escolher na faixa um período recolhido abre a grade e leva ao cartão`, async ({ page }) => {
