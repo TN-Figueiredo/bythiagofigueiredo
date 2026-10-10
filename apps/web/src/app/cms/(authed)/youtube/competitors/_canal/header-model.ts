@@ -108,8 +108,10 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
   })
 
   /* ---------------------------------------------------------------- todos os números */
+  /* `SL.changes30` conta também a troca de descrição; o ⓘ e o spec (emenda 44.2) dizem "título e thumbnail" */
+  const trocas30N = obs.changesIn({ days: 30, channel: ch.id }).filter(c => c.type === 'title' || c.type === 'thumb').length
   const trocas30 = cell('trocas30', 'trocas em 30 dias', {
-    value: String(SL.changes30), missing: '', base: 'título e thumbnail, últimos 30 dias',
+    value: String(trocas30N), missing: '', base: 'título e thumbnail, últimos 30 dias',
   })
 
   const vpdPorMil = cell('vpdPorMil', 'views/dia por mil inscritos', {

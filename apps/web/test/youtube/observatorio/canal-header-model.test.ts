@@ -28,7 +28,14 @@ describe('cabeçalho do canal', () => {
     expect(h.faixa.find(c => c.key === 'ritmo')!.value).toBe(stat(/^Ritmo/))
     expect(h.faixa.find(c => c.key === 'engajamento')!.value ?? '—').toBe(stat(/^Engajamento/))
     if (S.vpdMedian != null) expect(h.faixa.find(c => c.key === 'vpd')!.value).not.toBeNull()
-    expect(h.todos.find(c => c.key === 'trocas30')!.value).toBe(String(S.changes30))
+  })
+  it('trocas em 30 dias contam só título e thumbnail: uma troca de descrição não entra', () => {
+    const { obs, chId } = canalWorld(), h = buildCanalHeader(obs, chId)!
+    const todas = obs.changesIn({ days: 30, channel: chId })
+    const contam = todas.filter(c => c.type === 'title' || c.type === 'thumb')
+    expect(todas.some(c => c.type === 'desc')).toBe(true)          // o canal do oráculo tem troca de descrição na janela
+    expect(contam.length).toBeLessThan(todas.length)
+    expect(h.todos.find(c => c.key === 'trocas30')!.value).toBe(String(contam.length))
   })
   it('sem longo em 90 dias: "nenhum longo em 90 dias" no engajamento', () => {
     const { obs, chId } = canalWorld((ds, id) => { ds.videos = ds.videos.filter(v => v.ch !== id || v.fmt !== 'long' || v.ageDays > 90) })
