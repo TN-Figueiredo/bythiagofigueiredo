@@ -13,7 +13,7 @@ const numericos = (f: string) => (semComentario(fs.readFileSync(f, 'utf8')).matc
 
 /** Arquivos que nasceram na fase A: nenhum z-index numérico. A lista cresce a cada fase. */
 const NOVOS = ['_chrome/tokens-telas.css', '_chrome/flut/flut.css', '_chrome/kit.css']
-/** z-index numéricos nos arquivos antigos em 10/10/2026, antes da A0 (34 declarações; a 35ª linha do grep é um comentário). Catraca: só pode cair. */
+/** z-index numéricos nos arquivos antigos em 10/10/2026, antes da A0 (34 declarações; a 35ª linha do grep é um comentário). Catraca EXATA: cada migração baixa o número e o teto baixa junto, na mesma mudança. */
 const TETO_ANTIGOS = 28 // 34 → 31 na Tarefa 4 (Canais: .tt 40, :has 3, .menu 30 saíram) → 29 na Tarefa 5 (moldura: .obs-ch-pop 40, .fx-hint 30 saíram) → 28 na Tarefa 6 (Mudanças: .more-pop 20 saiu)
 
 describe('Observatório · escala de camadas', () => {
@@ -32,9 +32,9 @@ describe('Observatório · escala de camadas', () => {
   it('arquivo novo não tem z-index numérico', () => {
     for (const f of NOVOS) if (fs.existsSync(path.join(DIR, f))) expect(numericos(path.join(DIR, f)), f).toBe(0)
   })
-  it('catraca: os z-index numéricos dos arquivos antigos só diminuem', () => {
+  it('catraca: os z-index numéricos dos arquivos antigos são exatamente o teto (cada migração baixa os dois)', () => {
     const antigos = cssFiles(DIR).filter(f => !NOVOS.some(n => f.endsWith(n)) && !f.endsWith('camadas.css'))
-    expect(antigos.reduce((n, f) => n + numericos(f), 0)).toBeLessThanOrEqual(TETO_ANTIGOS)
+    expect(antigos.reduce((n, f) => n + numericos(f), 0)).toBe(TETO_ANTIGOS)
   })
 })
 
