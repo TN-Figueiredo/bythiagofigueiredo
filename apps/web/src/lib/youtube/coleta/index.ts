@@ -201,8 +201,9 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
 
   // Alcance: normaliza o bruto que o passo de relatórios acabou de baixar. `servidos` vazio de propósito: sem tempo,
   // este passo NÃO registra tentativa — uma `nao_alcancado_orcamento` de kind `relatorio` no canal sobrescreveria a
-  // tentativa `ok` que o passo de relatórios gravou hoje. O que ficou por fazer aparece em `pendentes` e, se durar,
-  // no critério "baixado há mais de 2 dias sem normalizar".
+  // tentativa `ok` que o passo de relatórios gravou hoje. Sem tempo, o resumo sai `pendentes: 0` (são os `servidos`,
+  // vazios) com `sem_tempo: true`: o `pendentes` não é o sinal. O que ficou por fazer só deixa o cron vermelho pelo
+  // critério "baixado há mais de 2 dias sem normalizar", se durar.
   if (PASSOS_LIGADOS.alcance) {
     const r = await passo('alcance', TETOS_MS.alcance, 'relatorio', [], passoAlcance)
     if (r) resumo.alcance = r

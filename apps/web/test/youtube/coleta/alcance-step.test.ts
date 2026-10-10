@@ -86,7 +86,28 @@ describe('passoAlcance', () => {
     expect(relatorio(db, 'r1')).toMatchObject({ status: 'erro', error: motivo, normalized_at: null })
     expect(alcance(db)).toHaveLength(0)
     expect(resumo).toMatchObject({ erros: 1, normalizados: 0, vazios: 0, pendentes: 0 })
-    expect(ctx.falhas).toEqual([]) // quem avisa é o critério de relatório em erro
+    // Vermelho no dia em que acontece, qualquer que seja a idade do relatório (o critério de 14 dias só vê os recentes).
+    expect(ctx.falhas).toEqual([`alcance: relatório r1 de Canal Um não pôde ser normalizado (${motivo})`])
+  })
+
+  it('3b. relatório de mais de 14 dias que vira erro: a execução fica vermelha mesmo fora da janela do critério', async () => {
+    const velho = new Date(AGORA.getTime() - 20 * 86_400_000).toISOString()
+    const db = banco([rel('r-velho', { create_time: velho })], [])
+    const ctx = ctxDe(db)
+    const resumo = await passoAlcance(ctx)
+    expect(relatorio(db, 'r-velho')).toMatchObject({ status: 'erro', error: 'bruto_ausente' })
+    expect(resumo.erros).toBe(1)
+    expect(ctx.falhas).not.toEqual([])
+    expect(ctx.falhas).toEqual(['alcance: relatório r-velho de Canal Um não pôde ser normalizado (bruto_ausente)'])
+  })
+
+  it('3c. erro ao marcar o relatório como erro: ele continua na fila e a nota de erro não sai (só a falha do banco)', async () => {
+    const db = banco([rel('r1')], [])
+    db.writeErrors.yt_reporting_reports = { code: '57014', message: 'x' }
+    const ctx = ctxDe(db)
+    const resumo = await passoAlcance(ctx)
+    expect(resumo).toMatchObject({ erros: 0, pendentes: 1 })
+    expect(ctx.falhas).toEqual(['erro de banco ao gravar yt_reporting_reports'])
   })
 
   it('4. relatório mais antigo não sobrescreve o mais novo (aceite 9), mas é marcado normalizado', async () => {
@@ -126,18 +147,25 @@ describe('passoAlcance', () => {
 
   it('7. channel_id do CSV diferente do canal do relatório: erro canal_inesperado, nada gravado', async () => {
     const db = banco([rel('r1')], [blob('r1', csvDe([[S1, 3, 0.5]], 'UCoutroCanal'))])
-    const resumo = await passoAlcance(ctxDe(db))
+    const ctx = ctxDe(db)
+    const resumo = await passoAlcance(ctx)
     expect(relatorio(db, 'r1')).toMatchObject({ status: 'erro', error: 'canal_inesperado', normalized_at: null })
     expect(alcance(db)).toHaveLength(0)
     expect(resumo.erros).toBe(1)
+    expect(ctx.falhas).toEqual(['alcance: relatório r1 de Canal Um não pôde ser normalizado (canal_inesperado)'])
   })
 
   it('8. bruto ausente e gzip corrompido viram erro', async () => {
     const db = banco([rel('r-sem'), rel('r-ruim')], [{ report_id: 'r-ruim', site_id: 'site-1', csv_gz: '\\x00ff' }])
-    const resumo = await passoAlcance(ctxDe(db))
+    const ctx = ctxDe(db)
+    const resumo = await passoAlcance(ctx)
     expect(relatorio(db, 'r-sem')).toMatchObject({ status: 'erro', error: 'bruto_ausente', normalized_at: null })
     expect(relatorio(db, 'r-ruim')).toMatchObject({ status: 'erro', error: 'gzip_invalido', normalized_at: null })
     expect(resumo.erros).toBe(2)
+    expect(ctx.falhas).toEqual([
+      'alcance: relatório r-sem de Canal Um não pôde ser normalizado (bruto_ausente)',
+      'alcance: relatório r-ruim de Canal Um não pôde ser normalizado (gzip_invalido)',
+    ])
   })
 
   it('9. prazo vencido: nada além da fila é lido ou gravado; pendentes = tamanho da fila', async () => {

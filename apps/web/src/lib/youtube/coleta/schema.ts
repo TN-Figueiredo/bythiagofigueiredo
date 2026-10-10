@@ -18,6 +18,9 @@ export function pushUnico(falhas: string[], nota: string): void {
   if (!falhas.includes(nota)) falhas.push(nota)
 }
 
+/** Início da nota que o passo `alcance` anota quando marca um relatório como `erro` (`… de <canal> não pôde ser normalizado (<motivo>)`). */
+export const prefixoNotaErroAlcance = (reportId: string): string => `alcance: relatório ${reportId} de `
+
 export type Escrita = 'ok' | 'schema_ausente' | 'erro'
 
 /** Confere o `error` de uma resposta do Supabase e registra a falha crítica correspondente. */

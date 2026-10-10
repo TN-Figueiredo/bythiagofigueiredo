@@ -432,7 +432,7 @@ describe('rodarColeta: L1b', () => {
     expect(passoMetadados).not.toHaveBeenCalled()
   })
 
-  it('fase depois: ms só de relatorios; reautorizar e a nota somam ao acao_do_dono do critério', async () => {
+  it('fase depois: ms dos passos relatorios, alcance e diario; reautorizar e a nota somam ao acao_do_dono do critério', async () => {
     const db = fakeSupabase({ youtube_channels: [canalL1b({ id: 'ch-1', name: 'Canal Um', collection_status: 'reautorizar' })] })
     const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
     expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['alcance', 'diario', 'relatorios'])

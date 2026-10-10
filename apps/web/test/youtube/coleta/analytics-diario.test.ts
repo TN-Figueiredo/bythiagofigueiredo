@@ -66,6 +66,18 @@ describe('diarioDoVideo', () => {
     expect('shares' in dias[0]!.valores).toBe(false)
   })
 
+  it('texto só de espaços (ou de quebras de linha) não vira 0: chave ausente; "0" e " 7 " continuam sendo lidos', async () => {
+    const f = vi.fn().mockResolvedValue(resp({
+      columnHeaders: cab('day', 'views', 'likes', 'comments', 'shares', 'subscribersGained'),
+      rows: [['2026-10-01', ' ', '\t\n', '0', ' 7 ', '   ']],
+    }))
+    const { dias } = await chamar(f)
+    expect(dias[0]!.valores).toEqual({ comments: 0, shares: 7 })
+    expect('views' in dias[0]!.valores).toBe(false)
+    expect('likes' in dias[0]!.valores).toBe(false)
+    expect('subscribers_gained' in dias[0]!.valores).toBe(false)
+  })
+
   it.each([
     ['rows vazio', { columnHeaders: cab('day', 'views'), rows: [] }],
     ['sem rows', { columnHeaders: cab('day', 'views') }],

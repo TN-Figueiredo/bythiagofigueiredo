@@ -54,6 +54,14 @@ describe('criteriosRelatorios', () => {
     expect(ctx.falhas).toEqual(['relatórios: Canal Um tem relatório de alcance channel_reach_basic_a1 em erro'])
   })
 
+  it('relatório recente em erro que o normalizador já anotou nesta execução: o critério não repete a falha', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [rel('a', 'erro', 1)] })
+    const ctx = ctxDe(db)
+    ctx.falhas.push('alcance: relatório a de Canal Um não pôde ser normalizado (gzip_invalido)')
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual(['alcance: relatório a de Canal Um não pôde ser normalizado (gzip_invalido)'])
+  })
+
   it('alcance em erro há 15 dias: perdido, não falha', async () => {
     const db = fakeSupabase({ yt_reporting_reports: [rel('a', 'erro', 15)] })
     const ctx = ctxDe(db)

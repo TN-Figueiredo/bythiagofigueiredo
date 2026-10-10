@@ -63,7 +63,8 @@ interface Corpo {
 
 function numeroOuNada(v: unknown): number | undefined {
   if (typeof v === 'number') return Number.isFinite(v) ? v : undefined
-  if (typeof v === 'string' && v !== '') {
+  // Texto vazio ou só de espaços não é número: Number('  ') é 0, e "nulo, nunca zero".
+  if (typeof v === 'string' && v.trim() !== '') {
     const n = Number(v)
     return Number.isFinite(n) ? n : undefined
   }

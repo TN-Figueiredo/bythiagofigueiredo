@@ -9,7 +9,7 @@ import { deBytea } from '@/lib/youtube/reporting/client'
 import { agregarAlcance, CsvAlcanceError, lerAlcanceBasico, type LinhaAlcance } from '@/lib/youtube/reporting/reach-csv'
 import { restante } from './clock'
 import { metricVersion } from './metric-version'
-import { conferirBanco, pushUnico, type ErroBanco } from './schema'
+import { conferirBanco, prefixoNotaErroAlcance, pushUnico, type ErroBanco } from './schema'
 import type { ColetaChannel, StepCtx, StepResumo } from './types'
 
 export const MAX_NORMALIZAR = 200
@@ -19,7 +19,7 @@ const MAX_VIDEOS_LIDOS = 1000
 export interface AlcanceResumo extends StepResumo {
   /** Relatórios com dado normalizados nesta execução. */
   normalizados: number
-  /** Relatórios `vazio` conferidos (cabeçalho certo) e marcados como normalizados. */
+  /** Relatórios normalizados sem nenhuma linha de alcance (dia sem impressão: o cabeçalho foi conferido; vale pelo conteúdo, não pelo `status`). Não chamam a função do banco. */
   vazios: number
   /** Relatórios que viraram `erro` nesta execução (cabeçalho, linha, canal, bruto). */
   erros: number
@@ -80,11 +80,17 @@ export async function passoAlcance(ctx: StepCtx): Promise<AlcanceResumo> {
     return mapa
   }
 
-  /** Marca o relatório como `erro`. Falha ao marcar: ele continua na fila. */
+  /**
+   * Marca o relatório como `erro`. Falha ao marcar: ele continua na fila.
+   * A nota em `falhas` deixa o cron vermelho no dia em que acontece, qualquer que seja a idade do `create_time`: o critério
+   * de relatório em erro só olha os últimos 14 dias (mais velho que isso o erro só conta em `perdidos`). Nos dias seguintes
+   * quem avisa é esse critério, que não repete a falha deste relatório (ele reconhece o prefixo de `prefixoNotaErroAlcance`).
+   */
   const marcarErro = async (rel: Fila, motivo: string): Promise<Desfecho> => {
     const upd = await ctx.supabase.from('yt_reporting_reports').update({ status: 'erro', error: motivo }).eq('report_id', rel.report_id)
     if (conferirBanco(upd, 'yt_reporting_reports', ctx.falhas) !== 'ok') return 'pendente'
     resumo.erros++
+    pushUnico(ctx.falhas, `${prefixoNotaErroAlcance(rel.report_id)}${canais.get(rel.channel_id)?.name ?? rel.channel_id} não pôde ser normalizado (${motivo})`)
     return 'feito'
   }
 

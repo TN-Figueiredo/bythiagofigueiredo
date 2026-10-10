@@ -9,7 +9,7 @@
 import { REACH_TYPES, REPORT_TYPES_ENABLED } from '@/lib/youtube/reporting/types'
 import { scopeJob } from './attempts'
 import { addDays, boundsAnalytics, utcDay } from './day-pt'
-import { conferirBanco, pushUnico } from './schema'
+import { conferirBanco, prefixoNotaErroAlcance, pushUnico } from './schema'
 import type { AttemptKind, StepCtx } from './types'
 
 const DIA_MS = 86_400_000
@@ -115,7 +115,8 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     }
     const porJob = new Map<string, Recente[]>()
     for (const r of recentes) {
-      if (r.status === 'erro') {
+      // O passo `alcance` já anotou este relatório na execução em que o marcou `erro`: não repete a mesma falha.
+      if (r.status === 'erro' && !ctx.falhas.some(n => n.startsWith(prefixoNotaErroAlcance(r.report_id)))) {
         pushUnico(ctx.falhas, `relatórios: ${nome(r.channel_id)} tem relatório de alcance ${r.report_type_id} em erro`)
       }
       const chave = `${r.channel_id}|${r.report_type_id}`

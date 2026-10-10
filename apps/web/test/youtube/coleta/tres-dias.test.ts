@@ -419,7 +419,11 @@ describe('três dias com alcance e diário de verdade', () => {
     google.colunaExtra = true
     google.publicar(DIA_2, 1, 'dia2') // o formato mudou: uma coluna a mais
     const d2 = await rodarDia(db, DIA_2)
-    expect(d2.falhas).toContain(nota)
+    // Vermelho no mesmo dia, uma vez só: a nota do normalizador (com o motivo) cobre o relatório, e o critério de erro não a repete.
+    expect(d2.falhas.filter(n => n.includes('não pôde ser normalizado'))).toEqual([
+      expect.stringMatching(new RegExp(`^alcance: relatório dia2-.* de ${ANTIGO.name} não pôde ser normalizado \\(cabecalho_inesperado\\)$`)),
+    ])
+    expect(d2.falhas).not.toContain(nota)
     const doDia1 = alcanceDe(db, ANTIGO.id).filter(r => String(r.report_id).startsWith('dia1-'))
     const doDia2 = alcanceDe(db, ANTIGO.id).filter(r => String(r.report_id).startsWith('dia2-'))
     expect(doDia1).toHaveLength(1)
