@@ -21,10 +21,16 @@ export function canalActions(over: Partial<CanalActions> = {}): CanalActions {
   }
 }
 
-export function mountCanal(o: { mut?: (ds: Dataset, id: string) => void; sp?: Record<string, string | undefined>; act?: CanalActions; leitura?: ReactNode } = {}) {
+export function mountCanal(o: { mut?: (ds: Dataset, id: string) => void; sp?: Record<string, string | undefined>; act?: CanalActions; leitura?: ReactNode; urlSearch?: string } = {}) {
   const { obs, chId } = canalWorld(o.mut)
   const view = buildCanalView(obs, chId, o.sp ?? {})!
   const act = o.act ?? canalActions()
+  // a tela segue a URL quando ela diverge do estado inicial: a URL do teste espelha o `sp` que o servidor leu (os parâmetros fora do estado, como from/back, ficam)
+  const uq = new URLSearchParams(window.location.search)
+  for (const k of ['tab', 'fmt', 'sort', 'dir', 'q', 'ver', 'n', 'video', 'nums']) uq.delete(k)
+  for (const [k, v] of Object.entries(o.sp ?? {})) if (v !== undefined && !['from', 'back'].includes(k)) uq.set(k, v)
+  const us = o.urlSearch ?? (uq.toString() ? '?' + uq.toString() : '')
+  window.history.replaceState(null, '', window.location.pathname + us)
   const r = render(
     <ToastProvider><div data-obs="">
       <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin leitura={o.leitura ?? null} actions={act} />

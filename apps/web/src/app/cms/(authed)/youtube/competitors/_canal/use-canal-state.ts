@@ -34,6 +34,25 @@ export function useCanalState(initial: CanalState): [CanalState, (patch: Partial
     setState(next)
     escreverUrl(next, next.tab !== antes.tab ? 'push' : 'replace')
   }, [])
+  // O servidor manda um `initial` novo quando a navegação muda a query (Link para ?tab=leitura): o Next não remonta o componente,
+  // então o estado acompanha, comparando por VALOR (uma rerrenderização do servidor sem mudar a query, como após "Fixar", não mexe).
+  // Na montagem, se a URL divergir do que o servidor mandou (volta de outra rota com cache do Next), a tela segue a URL.
+  const chave = canalQuery(initial)
+  const chaveAnterior = useRef<string | null>(null)
+  useEffect(() => {
+    const primeira = chaveAnterior.current === null
+    if (!primeira && chaveAnterior.current === chave) return
+    chaveAnterior.current = chave
+    let next = initial
+    if (primeira) {
+      const daUrl = parseCanalState(Object.fromEntries(new URLSearchParams(window.location.search)))
+      if (canalQuery(daUrl) === chave) return
+      next = daUrl
+    }
+    ref.current = next
+    setState(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `initial` só importa quando a chave (seu valor) muda
+  }, [chave])
   // o Voltar/Avançar do navegador: a URL é a verdade, o estado a relê
   useEffect(() => {
     const onPop = () => {

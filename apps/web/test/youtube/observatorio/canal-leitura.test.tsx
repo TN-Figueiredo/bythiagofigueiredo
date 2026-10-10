@@ -85,6 +85,7 @@ describe('aba Leitura: a moldura', () => {
     const fetchSpy = vi.fn(); vi.stubGlobal('fetch', fetchSpy)
     const { act } = await montaLeitura()
     const b = screen.getByRole('button', { name: 'Pedir leitura deste canal à forja' })
+    const url0 = window.location.pathname + window.location.search
     await userEvent.setup().click(b)
     fireEvent.keyDown(b, { key: 'Enter' })
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -92,7 +93,7 @@ describe('aba Leitura: a moldura', () => {
     for (const f of Object.values(act)) expect(f).not.toHaveBeenCalled()
     expect(screen.queryByText(/Pedido enviado|Pedido não enviado/)).toBeNull()
     expect(b.getAttribute('aria-disabled')).toBe('true')
-    expect(window.location.pathname + window.location.search).toBe(URL0)
+    expect(window.location.pathname + window.location.search).toBe(url0)
   })
 
   it('o cartão da leitura do nicho é o de Mudanças, sem botão de pedir', async () => {
@@ -210,5 +211,49 @@ describe('as abas: Leitura é navegação de verdade', () => {
     cleanup()
     mountCanal({ leitura, sp: { tab: 'trocas' } })
     expect(screen.queryByRole('region', { name: 'Leitura da forja' })).toBeNull()
+  })
+})
+
+describe('aba Leitura: o estado do cliente acompanha a navegação do servidor', () => {
+  const NO = <p data-testid="no-leitura">conteúdo da leitura</p>
+  const abaSel = () => screen.getByRole('navigation', { name: 'Seções do canal' }).querySelector('[aria-current="page"]')?.textContent ?? ''
+
+  async function reMonta(sp: Record<string, string>, leitura: ReactNode, rerender: (ui: ReactElement) => void, m: Awaited<ReturnType<typeof mountCanal>>) {
+    const { buildCanalView } = await import('@/app/cms/(authed)/youtube/competitors/_canal/view-model')
+    const { CanalScreen } = await import('@/app/cms/(authed)/youtube/competitors/_canal/canal-screen')
+    const { nicheOptions } = await import('@/app/cms/(authed)/youtube/competitors/_canais/view-model')
+    const { ToastProvider } = await import('@/app/cms/(authed)/youtube/competitors/_chrome/toasts')
+    const view = buildCanalView(m.obs, m.chId, sp)!
+    rerender(<ToastProvider><div data-obs=""><CanalScreen view={view} niches={nicheOptions(m.obs)} canAdmin leitura={leitura} actions={m.act} /></div></ToastProvider>)
+  }
+
+  it('de videos para leitura (Link): a tela mostra a Leitura e marca a aba', async () => {
+    const m = mountCanal()
+    expect(screen.queryByTestId('no-leitura')).toBeNull()
+    await reMonta({ tab: 'leitura' }, NO, m.rerender, m)
+    expect(screen.getByTestId('no-leitura')).toBeTruthy()
+    expect(abaSel()).toMatch(/Leitura/)
+  })
+
+  it('de leitura para videos (Link): a grade volta', async () => {
+    const m = mountCanal({ sp: { tab: 'leitura' }, leitura: NO })
+    expect(screen.getByTestId('no-leitura')).toBeTruthy()
+    await reMonta({}, null, m.rerender, m)
+    expect(screen.queryByTestId('no-leitura')).toBeNull()
+    expect(document.querySelector('ul.cv-grid')).toBeTruthy()
+    expect(abaSel()).toMatch(/Vídeos/)
+  })
+
+  it('o mesmo view.state por valor (objeto novo) não desfaz o que o usuário mudou no cliente', async () => {
+    const m = mountCanal()
+    await userEvent.click(screen.getByRole('link', { name: /^Trocas/ }))
+    expect(abaSel()).toMatch(/Trocas/)
+    await reMonta({}, null, m.rerender, m)
+    expect(abaSel()).toMatch(/Trocas/)
+  })
+
+  it('montagem com a URL divergente do estado inicial segue a URL', async () => {
+    mountCanal({ urlSearch: '?tab=trocas' })
+    expect(abaSel()).toMatch(/Trocas/)
   })
 })
