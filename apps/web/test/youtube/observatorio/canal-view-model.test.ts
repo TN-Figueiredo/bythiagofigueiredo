@@ -8,14 +8,15 @@ describe('buildCanalView', () => {
     const { obs } = canalWorld()
     expect(buildCanalView(obs, 'nao-existe', {})).toBeNull()
   })
-  it('junta cabeçalho, vídeos e estado da URL; trocas ainda não existe', () => {
+  it('junta cabeçalho, vídeos, trocas e estado da URL', () => {
     const { obs, chId } = canalWorld()
     const v = buildCanalView(obs, chId, { nums: '1', fmt: 'shorts' })!
     expect(v.header.id).toBe(chId)
     expect(v.videos.videos.length).toBeGreaterThan(0)
     expect(v.state.nums).toBe(true)
     expect(v.state.fmt).toBe('shorts')
-    expect(v.trocas).toBeNull()
+    expect(v.trocas.total).toBe(obs.changesIn({ days: 30, channel: chId }).filter(c => c.type !== 'desc').length)
+    expect(v.trocas.tabCount).toBe(`${v.trocas.total} em 30 d`)
     expect(v.own).toBe(false)
   })
   it('canal próprio: own true (a página redireciona para o painel de Canais até a A4)', () => {
@@ -36,6 +37,13 @@ describe('buildCanalView', () => {
     const m = buildCanalView(obs, chId, { from: 'mudancas', back: '?win=30' })!
     expect(m.origemText).toBe('Mudanças')
     expect(m.canaisHref).toBe(link.mudancas() + '?win=30')
+  })
+  it('origem: as abas levam from e back junto; de Canais não levam nada', () => {
+    const { obs, chId } = canalWorld()
+    expect(buildCanalView(obs, chId, {})!.origem).toEqual({})
+    expect(buildCanalView(obs, chId, { from: 'outliers', back: '?min=3' })!.origem).toEqual({ from: 'outliers', back: '?min=3' })
+    expect(buildCanalView(obs, chId, { from: 'mudancas', back: 'https://x' })!.origem).toEqual({ from: 'mudancas', back: '' })
+    expect(buildCanalView(obs, chId, { from: 'video', back: '?a=1' })!.origem).toEqual({})
   })
   it('trilha: de Outliers sem back volta à tela sem filtro; back que não começa por ? é ignorado; outra origem cai em Canais', () => {
     const { obs, chId } = canalWorld()

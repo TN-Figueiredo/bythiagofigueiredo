@@ -1,14 +1,14 @@
 'use client'
 /**
- * A página do canal do concorrente (spec 5). Nesta tarefa: o cabeçalho, a faixa de aviso de sincronização, o diálogo de remoção e a
- * aba Vídeos (controles, grade de capas ou tabela e "Carregar mais"). As abas Trocas e Leitura entram nas tarefas seguintes. Server
- * actions chegam por props (`actions`); nenhum `Link` chega de um Server Component.
+ * A página do canal do concorrente (spec 5). Nesta tarefa: o cabeçalho, as abas (nav "Seções do canal"), a faixa de aviso de
+ * sincronização, o diálogo de remoção, a aba Vídeos (controles, grade de capas ou tabela e "Carregar mais") e a aba Trocas. A aba
+ * Leitura entra na tarefa seguinte. Server actions chegam por props (`actions`); nenhum `Link` chega de um Server Component.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Niche } from '@/lib/youtube/observatorio/niche'
-import { link } from '@/lib/youtube/observatorio/links'
+import { link, type CanalTab } from '@/lib/youtube/observatorio/links'
 import type { syncCompetitorNow, removeCompetitorChannel, getCompetitorRemovalImpactAction } from '../actions'
 import type { setChannelNiche } from '../niche-actions'
 import { Icon } from '../_chrome/icons'
@@ -22,6 +22,7 @@ import { CarregarMais } from './carregar-mais'
 import { Controles, FMT_NOME, SORT_NOME } from './controles'
 import { Grade } from './grade'
 import { Tabela } from './tabela'
+import { Trocas } from './trocas'
 import { montarLista } from './lista'
 import { canalQuery, LOTE, type CanalState } from './params'
 import { useCanalState } from './use-canal-state'
@@ -81,6 +82,29 @@ const contagem = (n: number) => plural(n, 'vídeo', 'vídeos')
 function vizinhanca(ids: readonly string[], i: number): string[] {
   const a = Math.max(0, Math.min(i - 50, ids.length - 100))
   return ids.slice(a, a + 100)
+}
+
+/** As abas do canal: links de verdade (nav), não tablist. Clique simples troca a aba no cliente; Ctrl/Cmd/Shift seguem o link. */
+function AbasNav({ view, state, onAba }: { view: CanalView; state: CanalState; onAba: (tab: CanalTab) => void }) {
+  const abas: Array<{ tab: CanalTab; texto: string; n: string }> = [
+    { tab: 'videos', texto: 'Vídeos', n: String(view.videos.videos.length) },
+    { tab: 'trocas', texto: 'Trocas', n: view.trocas.tabCount },
+  ]
+  return (
+    <nav className="ctabs" aria-label="Seções do canal">
+      <ul>
+        {abas.map(a => (
+          <li key={a.tab}>
+            <a href={link.canal(view.header.id, { tab: a.tab, fmt: state.fmt, sort: state.sort, dir: state.dir, q: state.q, ver: state.ver, n: state.n, nums: state.nums ? 1 : undefined, ...view.origem })}
+              aria-current={state.tab === a.tab ? 'page' : undefined}
+              onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return; e.preventDefault(); onAba(a.tab) }}>
+              {a.texto} <span className="n">{a.n}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
 }
 
 /** A aba Vídeos: controles, a vista (grade de capas ou tabela), "Carregar mais" e a nota fixa. */
@@ -186,7 +210,7 @@ function AbaVideos({ view, state, set, nome, channelId, onSync }: {
   if (state.tab !== 'videos') return null
   return (
     <section aria-labelledby="cv-h2" className="cv-sec">
-      <h2 className="obs-ch-sr" id="cv-h2">Vídeos</h2>
+      <h2 className="obs-ch-sr" id="cv-h2" tabIndex={-1}>Vídeos</h2>
       <p className="obs-ch-sr cv-status" role="status" aria-atomic="true">{msg}</p>
       {temControles ? (
         <>
@@ -229,6 +253,23 @@ export function CanalScreen({ view, niches, canAdmin, actions }: { view: CanalVi
   const h = view.header
   const [state, set] = useCanalState(view.state)
   const nums = state.nums
+  /* trocar de aba move o foco para o título da aba nova (sem rolar); o Voltar do navegador (popstate) não mexe no foco */
+  const focoNaAba = useRef(false)
+  const setAba = useCallback((patch: Partial<CanalState>) => {
+    if (patch.tab && patch.tab !== state.tab) focoNaAba.current = true
+    set(patch)
+  }, [set, state.tab])
+  const irParaAba = (tab: CanalTab) => {
+    if (tab === state.tab) { document.getElementById(tab === 'trocas' ? 'ct-h2' : 'cv-h2')?.focus({ preventScroll: true }); return }
+    setAba({ tab, video: null })
+  }
+  useLayoutEffect(() => {
+    if (!focoNaAba.current) return
+    focoNaAba.current = false
+    document.getElementById(state.tab === 'trocas' ? 'ct-h2' : 'cv-h2')?.focus({ preventScroll: true })
+  }, [state.tab])
+  const filtroTrocas = state.video ? view.videos.videos.find(v => v.id === state.video) ?? null : null
+  const hrefTodasTrocas = link.canal(h.id, { tab: 'trocas', ...view.origem })
   const [syncing, setSyncing] = useState(false)
   const [confirm, setConfirm] = useState(false)
   const menuBtn = useRef<HTMLButtonElement>(null)
@@ -294,10 +335,15 @@ export function CanalScreen({ view, niches, canAdmin, actions }: { view: CanalVi
         <div data-obs-screen="canal">
           <CanalHeader h={h} nums={nums} syncing={syncing} canAdmin={canAdmin} menuBtnRef={menuBtn}
             onToggleNums={toggleNums} onSync={() => { void syncOne() }} onAskRemove={() => setConfirm(true)} onNiche={n => { void setNiche(n) }} />
+          <AbasNav view={view} state={state} onAba={irParaAba} />
           {h.sync.banner ? <Banner text={h.sync.banner} tone={h.sync.tone} /> : null}
           <PinProvider onPin={actions.onPin} onUnpin={actions.onUnpin}>
-            <AbaVideos view={view} state={state} set={set} nome={h.name} channelId={h.id} onSync={() => { void syncOne() }} />
+            <AbaVideos view={view} state={state} set={setAba} nome={h.name} channelId={h.id} onSync={() => { void syncOne() }} />
           </PinProvider>
+          {state.tab === 'trocas' ? (
+            <Trocas view={view.trocas} filtro={filtroTrocas ? { id: filtroTrocas.id, title: filtroTrocas.title } : null} hrefTodas={hrefTodasTrocas}
+              onTodas={() => set({ video: null })} onAmpliar={src => window.open(src, '_blank', 'noopener,noreferrer')} onAbrir={href => router.push(href)} />
+          ) : null}
           {confirm ? <RemoveDialog id={h.id} name={h.name} onImpact={actions.onRemovalImpact} onCancel={closeConfirm} onConfirm={() => { void doRemove() }} trap={trapTab} /> : null}
         </div>
       </NichePendingContext.Provider>

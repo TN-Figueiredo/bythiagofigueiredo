@@ -333,10 +333,10 @@ describe('Capas: o menu "Ações do vídeo"', () => {
   it('"Ver trocas" troca para a aba Trocas com video=<id>, sem navegar', async () => {
     const { all } = mountCanal()
     const v = all.find(x => x.swaps > 0)!
-    const replaceState = vi.spyOn(window.history, 'replaceState')
+    const pushState = vi.spyOn(window.history, 'pushState')   // trocar de aba abre uma entrada no histórico: o Voltar a desfaz
     const { user, menu } = await abrir(v.id)
     await user.click(within(menu).getByRole('menuitem', { name: /^Ver trocas/ }))
-    const last = replaceState.mock.calls.at(-1)![2] as string
+    const last = pushState.mock.calls.at(-1)![2] as string
     const q = new URL(last, 'http://x').searchParams
     expect(q.get('tab')).toBe('trocas')
     expect(q.get('video')).toBe(v.id)
