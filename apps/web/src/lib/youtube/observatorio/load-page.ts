@@ -83,12 +83,17 @@ export async function loadPageRows(siteId: string, now: number): Promise<Observa
 /**
  * The dataset of ONE channel of this site, without reading the others (spec telas v9, 5.10). Same pack and same cache
  * key as loadPageRows: a channel the list already warmed costs no heavy read here. null = not a channel of this site.
- * WHAT IT SERVES: what a channel's own screen computes about that channel (its row, its videos with series, versions,
- * multiplier, phase and effect; channelStats, cadence, SYNC, OBS_START and LAST_IDX, which carry the site's values
- * through `siteScope` / `lastSeriesAt`). WHAT IT DOES NOT: anything that aggregates ACROSS channels (channel slots, niche
- * reference and stats, heatmap, theme trend, the insights' base and the forja's), because the set holds this channel
- * alone. The dataset says so (`scope: 'canal'`) and those functions throw on it (assertSiteScope) instead of
- * returning the channel's number as if it were the site's. `readings` and `requests` are the site's whole.
+ * WHAT IT SERVES: what a channel's own screen computes about that channel: its row, its videos with series, versions,
+ * multiplier, phase and effect; `outliers`, `changes`/`changesIn`, channelStats, cadence, SYNC, OBS_START and LAST_IDX (these
+ * three carry the site's values through `siteScope` / `lastSeriesAt`), the niche list and labels, and the forja's
+ * site-wide parts that do not depend on the channels (`readings`, `requests`, queue, quota, timing).
+ * WHAT IT DOES NOT: anything that aggregates ACROSS the site's channels, because the set holds this channel alone. The dataset
+ * says so (`scope: 'canal'`) and these THROW (assertSiteScope) instead of returning the channel's number as if it were the
+ * site's: channelSlots, heatmap, nicheRef, nicheStats, ownNicheStats, themeTrend, ownCoverage, ownChannels, patternsNow,
+ * tabCounts, TAB_COUNTS and integrity, hasCompetitors, and the forja's niches, nicheCtx.todos, askable, eligibleChannels,
+ * preview, buildSent, session.ask, and the `since` of a reading about a niche (it asks which channels are out). `createObservatory` on this set does NOT
+ * throw: TAB_COUNTS, integrity, forja.niches and nicheCtx.todos fail when READ. The tab strip and the forja request of a channel
+ * page therefore come from the site's dataset (loadPageDataset), never from this one.
  * SECURITY: service client, no RLS. The caller runs the access guard first and takes `siteId` from getSiteContext();
  * `channelId` may come from the URL, and loadChannelLiveRows refuses one of another site.
  */

@@ -557,6 +557,18 @@ describe('loadChannelDataset — contrato do conjunto de um canal', () => {
     ['ownChannels', o => o.ownChannels()],
     ['patternsNow (usa o último dia do site)', o => o.patternsNow('todos')],
     ['forja.preview (base do nicho)', o => o.forja.preview('padroes-titulo', 'todos')],
+    // revisão final (achado 2): funções de nível de site que respondiam com o canal sozinho, sem erro
+    ['tabCounts', o => o.tabCounts('todos')],
+    ['TAB_COUNTS', o => o.TAB_COUNTS],
+    ['integrity', o => o.integrity],
+    ['hasCompetitors', o => o.hasCompetitors('ia')],
+    ['forja.askable', o => o.forja.askable('ia')],
+    ['forja.niches', o => o.forja.niches],
+    ['forja.nicheCtx.todos', o => o.forja.nicheCtx.todos],
+    ['forja.eligibleChannels', o => o.forja.eligibleChannels('todos')],
+    ['forja.buildSent (nicho)', o => o.forja.buildSent('padroes-titulo', { niche: 'ia' })],
+    ['forja.session.ask (Todos)', o => o.forja.session.ask('todos', { type: 'padroes-titulo' })],
+    ['forja.session.ask (um nicho)', o => o.forja.session.ask('ia', { type: 'padroes-titulo' })],
   ]
   const par = async () => {
     const { loadChannelDataset, loadPageDataset } = await setup(buildTables({ siteId: 'a', now: NOW, channels: 3, videosPerChannel: 4 }))
@@ -579,7 +591,23 @@ describe('loadChannelDataset — contrato do conjunto de um canal', () => {
   it('o que é do próprio canal segue funcionando sobre o conjunto de um canal', async () => {
     const { one } = await par()
     const o = createObservatory(one), id = ids.channel('a', 1)
-    expect(() => { o.channelStats(id); o.cadence(id); o.channel(id); o.SYNC; o.LAST_IDX; o.tabCounts('todos') }).not.toThrow()
+    // `tabCounts` saiu desta lista na revisão final: contava "Canais 1" e as trocas/outliers só do canal, em verde; agora lança (acima)
+    expect(() => { o.channelStats(id); o.cadence(id); o.channel(id); o.SYNC; o.LAST_IDX; o.outliers(); o.changesIn({ days: 30 }) }).not.toThrow()
+  })
+  it('criar o motor sobre o conjunto de um canal NÃO lança (TAB_COUNTS, integrity, forja.niches e nicheCtx.todos só falham quando lidos)', async () => {
+    const { one } = await par()
+    expect(() => createObservatory(one)).not.toThrow()
+    const o = createObservatory(one)
+    expect(() => o.TAB_COUNTS).toThrow(/aggregates across the site's channels/)
+    expect(() => o.forja.niches).toThrow(/aggregates across the site's channels/)
+  })
+  it('no site inteiro TAB_COUNTS, integrity e forja.niches têm o mesmo valor de sempre, e a leitura repetida devolve o mesmo objeto', async () => {
+    const { site } = await par()
+    const o = createObservatory(site)
+    expect(o.integrity).toEqual({ ok: true, errors: [] })
+    expect(Object.keys(o.TAB_COUNTS)[0]).toBe('todos')
+    expect(o.TAB_COUNTS).toBe(o.TAB_COUNTS)
+    expect(o.forja.niches).toBe(o.forja.niches)
   })
 })
 

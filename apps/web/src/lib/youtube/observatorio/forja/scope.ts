@@ -4,7 +4,7 @@ import { RULES, OUT_WINDOWS } from '../rules'
 import { median } from '../stats'
 import { BUILTIN_NICHES, forjaOrder, inNiche, type NicheScope } from '../niche'
 import { NEVER_SYNCED } from '../channels'
-import type { EngineCtx } from '../series'
+import { assertSiteScope, type EngineCtx } from '../series'
 import type { Fmt, ForjaRequest, FrozenReading, Niche } from '../types'
 
 /** The engine context the forja needs on top of the observatory's: the frozen readings by id and the last daily record. */
@@ -31,6 +31,8 @@ export interface Eligible { in: string[]; out: Array<{ id: string; reason: strin
  * "<Canal> fica fora: nunca sincronizado com sucesso").
  */
 export function eligibleChannels(ctx: EngineCtx, niche: NicheScope | Niche | 'all' | null | undefined): Eligible {
+  // a niche's channels are the SITE's: on one channel's set the list would hold that channel alone (or nobody), with no error
+  assertSiteScope(ctx, 'eligibleChannels')
   const { clock } = ctx
   const inn: string[] = [], out: Array<{ id: string; reason: string }> = []
   for (const c of ctx.CH.values()) {
