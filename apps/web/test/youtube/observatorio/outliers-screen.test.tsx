@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { render, screen, within, fireEvent } from '@testing-library/react'
+import { render, screen, within, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
@@ -325,6 +325,47 @@ describe('Outliers · flutuantes na camada única (A0.1)', () => {
     expect(dica()).toBeNull()
     focar(a, false) // coming back, the window re-focuses the link
     expect(dica()).toBeNull()
+  })
+  it('com outro popover aberto (a dica se esconde), o ⓘ com o mouse em cima não aponta aria-describedby para um id que não existe', () => {
+    const { container } = mount()
+    const [a, b] = [...container.querySelectorAll<HTMLButtonElement>('.obs-out-info')]
+    fireEvent.mouseEnter(a!)
+    expect(a!.getAttribute('aria-describedby')).toBe(document.querySelector('#flut .obs-out-tip')!.id)
+    fireEvent.click(b!) // another popover opens: it hides the hover tip of the first
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-tip')).toBeNull()
+    expect(a!.hasAttribute('aria-describedby')).toBe(false)
+    expect(b!.getAttribute('aria-describedby')).toBe(document.querySelector('#flut .obs-out-tip.obs-fl-pop')!.id)
+  })
+  it('Tab para fora do ⓘ aberto com o mouse parado em cima: a conta volta como dica (não fica suprimida)', () => {
+    const { container } = mount()
+    const btn = info(container)
+    fireEvent.mouseEnter(btn)
+    fireEvent.click(btn) // opens and, in the layer, the focus goes to the button
+    expect(document.activeElement).toBe(btn)
+    const seguinte = container.querySelector<HTMLElement>('a.obs-out-ib')!
+    act(() => { seguinte.focus() }) // Tab: the focus leaves, the layer closes the popover
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-pop')).toBeNull()
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-tip')).not.toBeNull()
+  })
+  it('a conta é posicionada pelo bloco do múltiplo (.obs-out-mult), não pelo botão; o foco e o Esc continuam no botão', () => {
+    const { container } = mount()
+    const btn = info(container), bloco = btn.closest('.obs-out-mult') as HTMLElement
+    const rect = (l: number, t: number, w: number, h: number) => ({ left: l, top: t, width: w, height: h, right: l + w, bottom: t + h, x: l, y: t, toJSON: () => ({}) }) as DOMRect
+    vi.spyOn(btn, 'getBoundingClientRect').mockReturnValue(rect(400, 100, 32, 32))
+    vi.spyOn(bloco, 'getBoundingClientRect').mockReturnValue(rect(250, 90, 180, 60))
+    fireEvent.click(btn)
+    const tip = document.querySelector<HTMLElement>('#flut .obs-out-tip.obs-fl-pop')!
+    const compact = !!btn.closest('td')
+    // a card block starts at the block ('inicio' = 250); in a table it ends at the block ('fim' = 430 - width, width 0 in jsdom)
+    expect(parseFloat(tip.style.left)).toBe(compact ? 430 : 250)
+    expect(parseFloat(tip.style.top)).toBe(150 + 6) // 6 px under the block, as the old absolute box
+    fireEvent.keyDown(btn, { key: 'Escape' })
+    expect(document.activeElement).toBe(btn)
+  })
+  it('a tipografia das caixas é a de antes (raiz da tela): fonte do CMS, line-height 1.5; --tip-bg sem uso foi embora', () => {
+    expect(CSS).not.toMatch(/--tip-bg\s*:|var\(--tip-bg/)
+    expect(CSS).toMatch(/#flut \.obs-fl-tip\.obs-out-ibtip\{[^}]*font-family:var\(--font-sans\)[^}]*line-height:1\.5/)
+    expect(CSS).toMatch(/#flut \.obs-fl-pop\.obs-out-tip,#flut \.obs-fl-tip\.obs-out-tip\{[^}]*font-family:var\(--font-sans\)/)
   })
   it('as regras das caixas têm duas classes (vencem a base #flut .obs-fl-* por especificidade, não por ordem)', () => {
     expect(CSS).toMatch(/#flut \.obs-fl-pop\.obs-out-tip,#flut \.obs-fl-tip\.obs-out-tip\{/)

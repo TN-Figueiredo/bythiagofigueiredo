@@ -5,7 +5,7 @@
  * (approval 02/10). Every text and number arrives ready from the view model.
  */
 import { useRef, useState, type AnchorHTMLAttributes, type ReactNode } from 'react'
-import { HoverTip, Popover } from '../_chrome/flut/flut'
+import { HoverTip, Popover, useTipShown } from '../_chrome/flut/flut'
 import type { OutlierCardView, Rich } from './view-model'
 
 const P: Record<string, ReactNode> = {
@@ -71,7 +71,10 @@ export function MultBlock({ c, compact, lead }: { c: MultData; compact?: boolean
   // "(n = 14)" / "(este tinha 31 dias; n = 5)" never breaks inside (mockup nTxt is .nw)
   const cut = vs.lastIndexOf(' (')
   const vsHead = cut >= 0 ? vs.slice(0, cut + 1) : vs, vsTail = cut >= 0 ? vs.slice(cut + 1) : ''
-  const tipShown = (hover || foco) && !off && !open
+  // true only while the box is really in the document: another popover opening hides it, and the id must not be named then
+  const tipShown = useTipShown((hover || foco) && !off && !open)
+  // the account is positioned by the whole multiplier block (as before the layer: absolute inside .obs-out-mult), not by the button; focus, Esc and Tab stay on the button
+  const block = () => btn.current?.closest('.obs-out-mult') ?? null
   // inside a table the block is flush right: the box grows leftwards from the button's end; in a card it starts at the button
   const align = compact ? 'fim' : 'inicio'
   return (
@@ -83,9 +86,10 @@ export function MultBlock({ c, compact, lead }: { c: MultData; compact?: boolean
           onMouseEnter={() => { setHover(true); setOff(false) }} onMouseLeave={() => { setHover(false); setOff(false) }}
           onFocus={e => { setFoco(focoDeTeclado(e.currentTarget)); if (!closing.current) setOff(false) }} onBlur={() => { setFoco(false); setOff(false) }}
           onKeyDown={e => { if (e.key === 'Escape') { setHover(false); setFoco(false) } }}><span aria-hidden="true">i</span></button>
-        <HoverTip show={tipShown} anchor={() => btn.current} id={id} className="obs-out-tip" pref="baixo" align={align} gap={0} maxW={320}><RichText parts={c.tip} /></HoverTip>
-        <Popover open={open} anchor={() => btn.current} id={id} role="tooltip" className="obs-out-tip" pref="baixo" align={align} gap={0} maxW={320}
-          onClose={() => { closing.current = true; queueMicrotask(() => { closing.current = false }); setOpen(false); setOff(true) }}><RichText parts={c.tip} /></Popover></>}</span>
+        <HoverTip show={tipShown} anchor={() => btn.current} posAnchor={block} id={id} className="obs-out-tip" pref="baixo" align={align} maxW={320}><RichText parts={c.tip} /></HoverTip>
+        <Popover open={open} anchor={() => btn.current} posAnchor={block} id={id} role="tooltip" className="obs-out-tip" pref="baixo" align={align} maxW={320}
+          // off only while the button still has the focus (Esc, a click away): when the focus left for another control (Tab) a still mouse on the "i" shows the account again
+          onClose={() => { closing.current = true; queueMicrotask(() => { closing.current = false }); setOpen(false); setOff(document.activeElement === btn.current) }}><RichText parts={c.tip} /></Popover></>}</span>
       {c.flags.map(f => <span className="obs-out-flag" key={f}><OutIcon name="warn" /><span>{f}</span></span>)}
     </div>
   )
