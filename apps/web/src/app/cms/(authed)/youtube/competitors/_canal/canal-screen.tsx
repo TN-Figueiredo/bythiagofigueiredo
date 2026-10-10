@@ -1,7 +1,7 @@
 'use client'
 /**
  * A página do canal do concorrente (spec 5). Nesta tarefa: o cabeçalho, a faixa de aviso de sincronização, o diálogo de remoção e a
- * aba Vídeos (controles, grade de capas e "Carregar mais"). A Lista, as abas Trocas e Leitura entram nas tarefas seguintes. Server
+ * aba Vídeos (controles, grade de capas ou tabela e "Carregar mais"). As abas Trocas e Leitura entram nas tarefas seguintes. Server
  * actions chegam por props (`actions`); nenhum `Link` chega de um Server Component.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
@@ -21,6 +21,7 @@ import { CanalHeader } from './canal-header'
 import { CarregarMais } from './carregar-mais'
 import { Controles, FMT_NOME, SORT_NOME } from './controles'
 import { Grade } from './grade'
+import { Tabela } from './tabela'
 import { montarLista } from './lista'
 import { canalQuery, LOTE, type CanalState } from './params'
 import { useCanalState } from './use-canal-state'
@@ -82,7 +83,7 @@ function vizinhanca(ids: readonly string[], i: number): string[] {
   return ids.slice(a, a + 100)
 }
 
-/** A aba Vídeos: controles, grade de capas (a Lista chega na Tarefa 6), "Carregar mais" e a nota fixa. */
+/** A aba Vídeos: controles, a vista (grade de capas ou tabela), "Carregar mais" e a nota fixa. */
 function AbaVideos({ view, state, set, nome, channelId, onSync }: {
   view: CanalView; state: CanalState; set: (patch: Partial<CanalState>) => void; nome: string; channelId: string; onSync: () => void
 }) {
@@ -127,6 +128,14 @@ function AbaVideos({ view, state, set, nome, channelId, onSync }: {
     const l = montarLista(all, { ...state, sort, dir: 'desc', n: 0 })
     set({ sort, dir: 'desc', n: 0 })
     anunciar(() => `Ordenado por ${SORT_NOME[sort]}, decrescente, ${contagem(l.visiveis.length)}`)
+  }
+  /* cabeçalho de coluna da Lista: a coluna ativa inverte a direção; outra coluna ordena por ela em decrescente (como o select) */
+  const onColuna = (sort: CanalState['sort']) => {
+    if (sort !== state.sort) { onSort(sort); return }
+    const dir = state.dir === 'asc' ? 'desc' : 'asc'
+    const l = montarLista(all, { ...state, dir, n: 0 })
+    set({ dir, n: 0 })
+    anunciar(() => `Ordenado por ${SORT_NOME[sort]}, ${dir === 'asc' ? 'crescente' : 'decrescente'}, ${contagem(l.visiveis.length)}`)
   }
   const onQ = (q: string) => {
     set({ q, n: 0 })
@@ -185,7 +194,11 @@ function AbaVideos({ view, state, set, nome, channelId, onSync }: {
             onFmt={onFmt} onSort={onSort} onQ={onQ} onClearQ={onClearQ} onVer={onVer} />
           <PinMessages />
           {lista.secoes.length ? <a className="lk cv-skip" href="#cv-fim" onClick={e => { e.preventDefault(); document.getElementById('cv-fim')?.focus() }}>Pular a lista de vídeos</a> : null}
-          {lista.secoes.length ? <Grade lista={lista} sort={state.sort} nome={nome} hrefDe={hrefs} onAmpliar={ampliar} onTrocas={verTrocas} /> : null}
+          {lista.secoes.length
+            ? state.ver === 'lista'
+              ? <Tabela lista={lista} state={state} nome={nome} descrito="cv-foot" hrefDe={hrefs} onSort={onColuna} onAmpliar={ampliar} onTrocas={verTrocas} />
+              : <Grade lista={lista} sort={state.sort} nome={nome} hrefDe={hrefs} onAmpliar={ampliar} onTrocas={verTrocas} />
+            : null}
           <div id="cv-fim" tabIndex={-1} />
           {lista.vazio ? (
             <div className="cv-empty">
@@ -199,7 +212,7 @@ function AbaVideos({ view, state, set, nome, channelId, onSync }: {
             </div>
           ) : null}
           {lista.mais ? <CarregarMais mais={lista.mais} onMais={onMais} /> : null}
-          <p className="cv-foot">{view.videos.nota}</p>
+          <p className="cv-foot" id="cv-foot">{view.videos.nota}</p>
         </>
       ) : (
         <div className="cv-empty">

@@ -229,6 +229,38 @@
 [data-obs-screen="canal"] .cv-empty-acts{display:flex;gap:8px;flex-wrap:wrap}
 [data-obs-screen="canal"] .cv-foot{margin:18px 0 0;font-size:12.5px;line-height:1.55;color:var(--muted);max-width:92ch;border-top:1px solid var(--border-subtle);padding-top:10px}
 
+/* ---------------------------------------------------------------- vista Lista (spec 5.1; mockup canal.css "Lista"): linha de 56 px, thumbnail de 96 px */
+[data-obs-screen="canal"] :is(.cv-tl,.cv-lst th button){scroll-margin-top:calc(var(--obs-sticky-h,0px) + 48px)}
+[data-obs-screen="canal"] :is(.cv-tl,.cv-lst th button):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[data-obs-screen="canal"] .cv-tw{min-width:0}
+[data-obs-screen="canal"] table.cv-lst{width:100%;border-collapse:collapse;font-size:13px}
+[data-obs-screen="canal"] .cv-lst th{font:500 12.5px var(--font-sans),system-ui,sans-serif;color:var(--muted);text-align:left;padding:0 8px;height:34px;border-bottom:1px solid var(--border);white-space:nowrap}
+[data-obs-screen="canal"] .cv-lst th.r,[data-obs-screen="canal"] .cv-lst td.r{text-align:right}
+[data-obs-screen="canal"] .cv-lst th button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;min-height:28px;color:var(--muted);font:500 12.5px var(--font-sans),system-ui,sans-serif;border-radius:3px}
+[data-obs-screen="canal"] .cv-lst th button:hover{color:var(--text)}
+[data-obs-screen="canal"] .cv-lst th[aria-sort] button{color:var(--text);font-weight:600}
+[data-obs-screen="canal"] .cv-lst th .arr{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+[data-obs-screen="canal"] .cv-lst td{padding:0 8px;height:56px;border-bottom:1px solid var(--border-subtle);vertical-align:middle;color:var(--muted);white-space:nowrap}
+[data-obs-screen="canal"] .cv-lst td::before{display:none}
+[data-obs-screen="canal"] .cv-lst tbody tr.cv-row:hover td{background:var(--surface)}
+[data-obs-screen="canal"] .cv-lst td.v{white-space:normal;width:38%;min-width:240px;padding-left:2px}
+[data-obs-screen="canal"] .cv-lst .cv-tl{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text);border-radius:5px;min-height:50px}
+[data-obs-screen="canal"] .cv-lst .cv-tthumb{position:relative;display:block;width:96px;aspect-ratio:16/9;flex:none;border-radius:4px;overflow:hidden;background:var(--surface-2)}
+[data-obs-screen="canal"] .cv-lst .cv-tthumb img{display:block;width:100%;height:100%;object-fit:cover}
+[data-obs-screen="canal"] .cv-lst .cv-seal{padding:0 4px;right:3px;bottom:3px}
+[data-obs-screen="canal"] .cv-lst .cv-tx{min-width:0;display:block}
+[data-obs-screen="canal"] .cv-lst .cv-ttl{margin:0;height:auto;font:500 13px/1.35 var(--font-sans),system-ui,sans-serif}
+[data-obs-screen="canal"] .cv-lst .cv-tags{display:block;font-size:12px;color:var(--muted);font-weight:400}
+[data-obs-screen="canal"] .cv-lst td .lv{font-family:var(--font-sans),system-ui,sans-serif;font-size:12.5px;letter-spacing:0}
+[data-obs-screen="canal"] .cv-lst td.on{color:var(--text);font-weight:600}
+[data-obs-screen="canal"] .cv-lst td .t-mid{color:var(--tier-mid)}
+[data-obs-screen="canal"] .cv-lst td .t-high{color:var(--tier-high)}
+[data-obs-screen="canal"] .cv-lst td .t-top{color:var(--tier-top)}
+[data-obs-screen="canal"] .cv-lst td .obs-ch-nm{display:inline;padding:0 4px;white-space:normal;text-align:left;font:400 12px/16px var(--font-sans),system-ui,sans-serif;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+[data-obs-screen="canal"] .cv-lst td.a{width:36px;padding:0 2px}
+[data-obs-screen="canal"] .cv-lst tr.cv-grp th{height:40px;font:600 13px var(--font-sans),system-ui,sans-serif;color:var(--text);border-bottom:1px solid var(--border);vertical-align:bottom;padding-bottom:6px}
+[data-obs-screen="canal"] .cv-lst tr.cv-grp th small{font:400 12.5px var(--font-sans),system-ui,sans-serif;color:var(--muted);margin-left:8px}
+
 /* alvos de 44 px sob toque e em viewport estreita (<= 900 px) */
 @media (max-width:900px){
   [data-obs-screen="canal"] .cv-seg button{min-height:44px;min-width:44px}
@@ -241,14 +273,36 @@
   [data-obs-screen="canal"] .cv-fscroll::-webkit-scrollbar{display:none}
   [data-obs-screen="canal"] .cv-search{max-width:none;flex:1 1 100%;order:5}
   [data-obs-screen="canal"] .cv-ctl .cv-gap{display:none}
+  [data-obs-screen="canal"] .cv-lst th button{min-height:44px;min-width:44px;justify-content:flex-end}
 }
 @media (pointer:coarse){
+  [data-obs-screen="canal"] .cv-lst th button{min-height:44px;min-width:44px;justify-content:flex-end}
   [data-obs-screen="canal"] .cv-seg button{min-height:44px;min-width:44px}
   [data-obs-screen="canal"] .cv-seg{padding:1px}
   [data-obs-screen="canal"] .cv-sel select,[data-obs-screen="canal"] .cv-search{height:44px}
   [data-obs-screen="canal"] .cv-search .clr{width:40px;height:40px}
   [data-obs-screen="canal"] .cv-amp,[data-obs-screen="canal"] .cv-abtn{width:44px;height:44px}
   [data-obs-screen="canal"] .cv-meta{height:44px;padding-right:0}
+}
+
+/* Lista vira pilha com rótulo abaixo de 820 px (nove colunas não cabem antes sem rolagem horizontal): o cabeçalho some, cada
+   linha é um bloco e cada célula leva o rótulo de data-label; duas colunas de blocos até 480 px, uma abaixo. */
+@media (max-width:820px){
+  [data-obs-screen="canal"] table.cv-lst,[data-obs-screen="canal"] .cv-lst tbody,[data-obs-screen="canal"] .cv-lst tr,[data-obs-screen="canal"] .cv-lst td,[data-obs-screen="canal"] .cv-lst th{display:block}
+  [data-obs-screen="canal"] .cv-lst thead{display:none}
+  [data-obs-screen="canal"] .cv-lst tbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+  [data-obs-screen="canal"] .cv-lst tbody+tbody{margin-top:10px}
+  [data-obs-screen="canal"] .cv-lst tr.cv-row{background:var(--surface);border:1px solid var(--border-subtle);border-radius:8px;padding:8px 10px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 10px;position:relative}
+  [data-obs-screen="canal"] .cv-lst tr.cv-grp{grid-column:1/-1}
+  [data-obs-screen="canal"] .cv-lst tr.cv-grp th{height:auto;border:0;padding:6px 0 0}
+  [data-obs-screen="canal"] .cv-lst td{height:auto;border:0;padding:2px 0;white-space:normal;text-align:left!important;grid-column:1/-1;font-size:13px}
+  [data-obs-screen="canal"] .cv-lst td[data-label]::before{display:inline;content:attr(data-label) ": ";color:var(--muted);font-family:var(--font-sans),system-ui,sans-serif;font-weight:400}
+  [data-obs-screen="canal"] .cv-lst td.v{width:auto;min-width:0;padding:0 0 6px;grid-column:1/2}
+  [data-obs-screen="canal"] .cv-lst td.a{grid-column:2/3;grid-row:1;width:auto;padding:0}
+  [data-obs-screen="canal"] .cv-lst tbody tr.cv-row:hover td{background:none}
+}
+@media (max-width:480px){
+  [data-obs-screen="canal"] .cv-lst tbody{grid-template-columns:minmax(0,1fr)}
 }
 
 /* menu "Ações do vídeo" (em #flut): as notas no topo e a nota de cada item */
