@@ -137,11 +137,15 @@
 .obs-out .obs-out-info{width:32px;height:32px;margin:-9px -8px -9px -6px;border:0;background:none;padding:0;cursor:help;display:inline-grid;place-items:center;vertical-align:middle;color:var(--dim)}
 .obs-out .obs-out-info span{width:17px;height:17px;border-radius:50%;border:1px solid var(--border-strong);display:grid;place-items:center;font-size:10.5px;font-weight:600}
 .obs-out .obs-out-info:hover span{color:var(--text);border-color:var(--muted)}
-.obs-out .obs-out-tip{position:absolute;left:0;top:calc(100% + 6px);z-index:20;width:min(320px,80vw);background:var(--tip-bg);border:1px solid var(--border-strong);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--muted);line-height:1.5;display:none;box-shadow:0 8px 24px rgba(0,0,0,.3);font-weight:400;text-align:left}
-.obs-out .obs-out-tip b{color:var(--text);font-weight:500}
-.obs-out .obs-out-tip .obs-out-w,.obs-out .obs-out-w{color:var(--warning-text)}
-.obs-out .obs-out-mult:has(.obs-out-info:hover) .obs-out-tip,.obs-out .obs-out-mult:has(.obs-out-info:focus-visible) .obs-out-tip,.obs-out .obs-out-mult.obs-out-open .obs-out-tip{display:block}
-.obs-out .obs-out-mult.obs-out-tipoff .obs-out-tip{display:none!important}
+/* A conta do ⓘ e a dica dos ícones moram em #flut (fora de .obs-out): variáveis só de [data-obs]; o --tip-bg da tela vira
+   literal nos dois temas. Duas classes em cada regra principal: vencem a base #flut .obs-fl-* (1,1,0) por especificidade, não por ordem.
+   O que a base muda e a regra desfaz: fonte 12px/1.5 (a base é 12.5px/1.45), padding, raio, sombra, cor do texto. */
+#flut .obs-fl-pop.obs-out-tip,#flut .obs-fl-tip.obs-out-tip{width:min(320px,80vw);background:#100E0B;border-radius:6px;padding:10px 12px;font-size:12px;font-weight:400;color:var(--muted);line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+[data-theme="light"] #flut .obs-fl-pop.obs-out-tip,[data-theme="light"] #flut .obs-fl-tip.obs-out-tip,[data-theme="light"] #flut .obs-fl-tip.obs-out-ibtip{background:#FFFFFF}
+#flut .obs-out-tip b{color:var(--text);font-weight:500}
+#flut .obs-out-tip .obs-out-w{color:var(--warning-text)}
+.obs-out .obs-out-w{color:var(--warning-text)}
+#flut .obs-fl-tip.obs-out-ibtip{background:#100E0B;color:var(--text);font-size:11.5px;line-height:1.45;padding:4px 8px;border-radius:4px;box-shadow:none;white-space:nowrap}
 
 /* ruler (log scale) */
 .obs-out .obs-out-ruler{position:relative;height:16px;margin-top:-2px}
@@ -163,7 +167,6 @@
 .obs-out .obs-out-acts{margin-left:auto;display:flex;gap:2px}
 .obs-out .obs-out-ib{width:32px;height:32px;border:0;background:none;border-radius:5px;display:grid;place-items:center;color:var(--dim);cursor:pointer;position:relative;text-decoration:none}
 .obs-out .obs-out-ib:hover{background:var(--surface-2);color:var(--text)}
-.obs-out .obs-out-ib[data-tip]:hover:after,.obs-out .obs-out-ib[data-tip]:focus-visible:after{content:attr(data-tip);position:absolute;bottom:calc(100% + 4px);right:0;background:var(--tip-bg);border:1px solid var(--border-strong);color:var(--text);font-size:11.5px;padding:4px 8px;border-radius:4px;white-space:nowrap;z-index:10}
 
 /* thumbnail (placeholder art or the archived image) */
 .obs-out .obs-out-thumb{position:relative;aspect-ratio:16/9;overflow:hidden;display:block;flex:0 0 auto;container-type:inline-size;background:var(--surface-2)}
@@ -200,7 +203,6 @@
 .obs-out .obs-out-vcell .obs-out-ttl{-webkit-line-clamp:1}
 .obs-out td .obs-out-mult{justify-content:flex-end}
 .obs-out td .obs-out-mult .obs-out-x{font-size:16px}
-.obs-out td .obs-out-tip{left:auto;right:0}
 .obs-out td .obs-out-ruler{margin-top:4px}
 .obs-out td .obs-out-acts{justify-content:flex-end}
 .obs-out .obs-out-vnote{font-size:11px;color:var(--dim)}

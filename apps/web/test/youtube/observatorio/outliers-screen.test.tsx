@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -25,6 +25,7 @@ const CSS = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.
 const rule = (sel: string) => { const i = CSS.indexOf(sel + '{'); return i < 0 ? '' : CSS.slice(i, CSS.indexOf('}', i)) }
 
 beforeEach(() => { push.mockReset() })
+afterEach(() => { document.getElementById('flut')?.remove() })
 
 describe('OutliersScreen', () => {
   it('passes the DOM audits on the default view and in the empty state', () => {
@@ -130,17 +131,20 @@ describe('OutliersScreen', () => {
     expect(linkCountsMatch(container, counts)).toEqual([])
     expect(empty.querySelectorAll('.btn-primary').length).toBeLessThanOrEqual(1)
   })
-  it('the "i" opens the explanation of the multiplier; Esc hides it', async () => {
+  it('the "i" opens the explanation of the multiplier in #flut; Esc hides it', async () => {
     const user = userEvent.setup()
     const { container } = mount()
     const card = container.querySelectorAll('[data-outlier]:not(.obs-out-lead)')[0] as HTMLElement
     const info = within(card).getByRole('button', { name: /^Como o .+× é calculado$/ })
-    const tip = document.getElementById(info.getAttribute('aria-describedby')!)!
-    expect(tip.textContent).toMatch(/÷/)
+    expect(info.getAttribute('aria-describedby')).toBeNull() // the box is not rendered: nothing to describe
     await user.click(info)
-    expect(info.closest('.obs-out-mult')!.classList.contains('obs-out-open')).toBe(true)
+    const tip = document.getElementById(info.getAttribute('aria-describedby')!)!
+    expect(tip.closest('#flut')).not.toBeNull()
+    expect(tip.textContent).toMatch(/÷/)
+    expect(info.getAttribute('aria-expanded')).toBe('true')
     await user.keyboard('{Escape}')
-    expect(info.closest('.obs-out-mult')!.classList.contains('obs-out-open')).toBe(false)
+    expect(info.getAttribute('aria-expanded')).toBe('false')
+    expect(document.querySelector('#flut .obs-out-tip')).toBeNull()
   })
   it('the main card explains the base in the open (no tooltip) and links to the history and YouTube', () => {
     const { container } = mount()
@@ -176,5 +180,82 @@ describe('OutliersScreen', () => {
       const name = el.getAttribute('aria-label') ?? el.textContent?.trim()
       expect(name, el.outerHTML.slice(0, 120)).toBeTruthy()
     }
+  })
+})
+
+describe('Outliers · flutuantes na camada única (A0.1)', () => {
+  const info = (container: HTMLElement) => container.querySelector<HTMLButtonElement>('.obs-out-info')!
+  it('o ⓘ do múltiplo abre a conta em #flut por clique e fecha com Esc, com o foco de volta', () => {
+    const { container } = mount()
+    const btn = info(container)
+    expect(container.querySelector('.obs-out-tip')).toBeNull()
+    fireEvent.click(btn)
+    const tip = document.querySelector('#flut .obs-out-tip')!
+    expect(tip.closest('.obs-out-card, td')).toBeNull()
+    expect(tip.getAttribute('role')).toBe('tooltip')
+    expect(btn.getAttribute('aria-expanded')).toBe('true')
+    expect(btn.getAttribute('aria-describedby')).toBe(tip.id)
+    fireEvent.keyDown(btn, { key: 'Escape' })
+    expect(document.querySelector('#flut .obs-out-tip')).toBeNull()
+    expect(document.activeElement).toBe(btn)
+  })
+  it('depois do Esc a conta não volta como dica enquanto o mouse e o foco ficam no ⓘ', () => {
+    const { container } = mount()
+    const btn = info(container)
+    fireEvent.mouseEnter(btn)
+    fireEvent.click(btn)
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-pop')).not.toBeNull()
+    fireEvent.keyDown(btn, { key: 'Escape' })
+    expect(document.querySelector('#flut .obs-out-tip')).toBeNull()
+    fireEvent.mouseLeave(btn)
+    fireEvent.mouseEnter(btn)
+    expect(document.querySelector('#flut .obs-out-tip.obs-fl-tip')).not.toBeNull()
+  })
+  it('passar o mouse no ⓘ mostra a mesma conta, sem abrir popover', () => {
+    const { container } = mount()
+    const btn = info(container)
+    fireEvent.mouseEnter(btn)
+    const tip = document.querySelector('#flut .obs-out-tip.obs-fl-tip')!
+    expect(tip).not.toBeNull()
+    expect(btn.getAttribute('aria-describedby')).toBe(tip.id)
+    expect(btn.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.mouseLeave(btn)
+    expect(document.querySelector('#flut .obs-out-tip')).toBeNull()
+    expect(btn.getAttribute('aria-describedby')).toBeNull()
+  })
+  it('sair com o mouse não esconde a conta de um ⓘ que ainda tem o foco', () => {
+    const { container } = mount()
+    const btn = info(container)
+    fireEvent.mouseEnter(btn)
+    fireEvent.focus(btn)
+    fireEvent.mouseLeave(btn)
+    expect(document.querySelector('#flut .obs-out-tip')).not.toBeNull()
+    fireEvent.blur(btn)
+    expect(document.querySelector('#flut .obs-out-tip')).toBeNull()
+  })
+  it('a dica do ícone "Ver histórico do vídeo" abre em #flut no foco e some ao sair', () => {
+    const { container } = mount()
+    const a = container.querySelector<HTMLAnchorElement>('a.obs-out-ib[data-hist]')!
+    expect(a.hasAttribute('data-tip')).toBe(false)
+    fireEvent.focus(a)
+    expect(document.querySelector('#flut .obs-out-ibtip')!.textContent).toBe('Ver histórico do vídeo')
+    fireEvent.blur(a)
+    expect(document.querySelector('#flut .obs-out-ibtip')).toBeNull()
+  })
+  it('a dica do ícone aceita mouse e foco separados e vale para "Abrir no YouTube"', () => {
+    const { container } = mount()
+    const a = container.querySelector<HTMLAnchorElement>('a.obs-out-ib[data-yt]')!
+    fireEvent.mouseEnter(a)
+    fireEvent.focus(a)
+    fireEvent.mouseLeave(a)
+    expect(document.querySelector('#flut .obs-out-ibtip')!.textContent).toBe('Abrir no YouTube')
+    fireEvent.blur(a)
+    expect(document.querySelector('#flut .obs-out-ibtip')).toBeNull()
+  })
+  it('as regras das caixas têm duas classes (vencem a base #flut .obs-fl-* por especificidade, não por ordem)', () => {
+    expect(CSS).toMatch(/#flut \.obs-fl-pop\.obs-out-tip,#flut \.obs-fl-tip\.obs-out-tip\{/)
+    expect(CSS).toMatch(/#flut \.obs-fl-tip\.obs-out-ibtip\{/)
+    expect(CSS).toMatch(/\[data-theme="light"\] #flut \.obs-fl-pop\.obs-out-tip/)
+    expect(CSS).not.toMatch(/(^|\n)#flut \.obs-out-(tip|ibtip)\{/)
   })
 })
