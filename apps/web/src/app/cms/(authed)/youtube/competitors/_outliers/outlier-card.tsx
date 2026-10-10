@@ -105,13 +105,14 @@ export function Ruler({ c, legend }: { c: OutlierCardView; legend?: boolean }) {
   </>
 }
 
-/** Icon link with a tip in the floating layer (#flut): mouse and focus are separate, the words are already its aria-label. */
+/** Icon link with a tip in the floating layer (#flut): mouse and focus are separate, the words are already its aria-label. Esc hides the tip (WCAG 1.4.13) and leaves the focus where it is. */
 function IbLink({ tip, children, ...rest }: { tip: string; children: ReactNode } & AnchorHTMLAttributes<HTMLAnchorElement>) {
   const el = useRef<HTMLAnchorElement>(null)
   const [hover, setHover] = useState(false)
   const [foco, setFoco] = useState(false)
   return (
-    <a {...rest} ref={el} className="obs-out-ib" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onFocus={e => setFoco(focoDeTeclado(e.currentTarget))} onBlur={() => setFoco(false)}>
+    <a {...rest} ref={el} className="obs-out-ib" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onFocus={e => setFoco(focoDeTeclado(e.currentTarget))} onBlur={() => setFoco(false)}
+      onKeyDown={e => { if (e.key === 'Escape' && (hover || foco)) { setHover(false); setFoco(false) } }}>
       {children}
       <HoverTip show={hover || foco} anchor={() => el.current} className="obs-out-ibtip" pref="cima" align="fim" gap={4} ariaHidden>{tip}</HoverTip>
     </a>

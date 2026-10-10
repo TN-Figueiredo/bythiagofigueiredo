@@ -269,6 +269,19 @@ describe('Outliers · flutuantes na camada única (A0.1)', () => {
     fireEvent.blur(a)
     expect(document.querySelector('#flut .obs-out-ibtip')).toBeNull()
   })
+  it('Esc esconde a dica do ícone (foco ou mouse); o mouse que entra de novo a mostra', () => {
+    const { container } = mount()
+    const a = container.querySelector<HTMLAnchorElement>('a.obs-out-ib[data-yt]')!
+    focar(a, true)
+    expect(document.querySelector('#flut .obs-out-ibtip')).not.toBeNull()
+    fireEvent.keyDown(a, { key: 'Escape' })
+    expect(document.querySelector('#flut .obs-out-ibtip')).toBeNull()
+    // the mouse still over the icon does not bring it back; leaving and entering again does
+    fireEvent.mouseEnter(a)
+    expect(document.querySelector('#flut .obs-out-ibtip')).not.toBeNull()
+    fireEvent.keyDown(a, { key: 'Escape' })
+    expect(document.querySelector('#flut .obs-out-ibtip')).toBeNull()
+  })
   it('foco de teclado no ⓘ mostra a conta; foco de mouse (clique) não', () => {
     const { container } = mount()
     const btn = info(container)
