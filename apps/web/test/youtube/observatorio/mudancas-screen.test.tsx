@@ -54,6 +54,23 @@ describe('MudancasScreen', () => {
     expect(document.querySelector('#flut .mu-more-pop')).toBeNull()
     expect(document.activeElement).toBe(btn)
   })
+  it('"Mais filtros": o botão anuncia o painel (aria-haspopup, aria-controls só aberto) e o painel continua aberto depois de mudar um filtro', async () => {
+    const user = userEvent.setup()
+    const { container } = mount()
+    const btn = container.querySelector<HTMLButtonElement>('.filters .more-btn')!
+    expect(btn.getAttribute('aria-haspopup')).toBe('dialog')
+    expect(btn.hasAttribute('aria-controls')).toBe(false)
+    fireEvent.click(btn)
+    const pop = document.querySelector('#flut .mu-more-pop')!
+    expect(btn.getAttribute('aria-controls')).toBe(pop.id)
+    expect(pop.getAttribute('role')).toBe('dialog')
+    await user.click(pop.querySelector<HTMLInputElement>('input[type="checkbox"]')!)
+    expect(replace).toHaveBeenCalled() // the filter was applied...
+    expect(document.querySelector('#flut .mu-more-pop')).not.toBeNull() // ...and the panel stays for the next one
+    expect(btn.getAttribute('aria-expanded')).toBe('true')
+    await user.selectOptions(pop.querySelector<HTMLSelectElement>('#mu-fChannel')!, pop.querySelectorAll('#mu-fChannel option')[1]!.getAttribute('value')!)
+    expect(document.querySelector('#flut .mu-more-pop')).not.toBeNull()
+  })
   it('every interactive element has an accessible name', () => {
     const { container } = mount()
     const els = container.querySelectorAll('[data-obs-screen] :is(button, a[href], select, input, summary)')

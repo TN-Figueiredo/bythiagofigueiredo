@@ -64,9 +64,9 @@ export function Filters({ view }: { view: MudancasView }) {
           <option value="loss">Menor efeito primeiro</option>
         </select>
       </div>
-      <button ref={moreBtn} type="button" className={'more-btn' + (c.moreCount ? ' on' : '')} aria-expanded={more} aria-controls={more ? 'mu-more' : undefined}
+      <button ref={moreBtn} type="button" className={'more-btn' + (c.moreCount ? ' on' : '')} aria-haspopup="dialog" aria-expanded={more} aria-controls={more ? 'mu-more' : undefined}
         onClick={() => setMore(m => !m)}>{c.moreCount ? 'Mais filtros (' + c.moreCount + ')' : 'Mais filtros'}</button>
-      <Popover open={more} anchor={() => moreBtn.current} onClose={() => setMore(false)} id="mu-more" className="mu-more-pop" role="group" label="Mais filtros" align="fim">
+      <Popover open={more} anchor={() => moreBtn.current} onClose={() => setMore(false)} id="mu-more" className="mu-more-pop" role="dialog" label="Mais filtros" align="fim">
         <div className="field"><label className="lbl" htmlFor="mu-fChannel">Canal</label>
           <select className="sel" id="mu-fChannel" value={f.channel} onChange={e => go({ channel: e.target.value === 'all' ? null : e.target.value })}>
             <option value="all">Todos os canais</option>

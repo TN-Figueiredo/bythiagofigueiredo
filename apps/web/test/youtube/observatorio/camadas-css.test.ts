@@ -96,3 +96,9 @@ describe('Observatório · tokens das telas novas', () => {
     for (const f of cssFiles(DIR)) expect(semComentario(fs.readFileSync(f, 'utf8')), f).not.toMatch(/color-mix\s*\(/)
   })
 })
+
+describe('Observatório · tipografia das flutuantes que vieram de dentro da tela', () => {
+  it('o painel "Mais filtros" de Mudanças mantém 14px/1.5 que herdava da raiz da tela (a base de #flut é 12.5px/1.45)', () => {
+    expect(semComentario(read('_mudancas/mudancas.css'))).toMatch(/#flut \.obs-fl-pop\.mu-more-pop\{font:400 14px\/1\.5 /)
+  })
+})

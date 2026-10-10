@@ -130,7 +130,8 @@
 [data-obs-screen="mudancas"] .more-btn[aria-expanded="true"]{color:var(--text);border-color:var(--border-strong)}
 [data-obs-screen="mudancas"] .more-btn.on{color:var(--text);border-color:var(--text)}
 /* "Mais filtros" mora em #flut (fora de [data-obs-screen]): as regras dos controles são copiadas com #flut na frente; só usam variáveis de [data-obs] */
-#flut .obs-fl-pop.mu-more-pop{min-width:260px;padding:12px;display:flex;flex-direction:column;gap:10px}
+/* the panel used to sit inside the screen and inherit 14px/1.5 from its root (chrome.css .obs-ch-root); the base of #flut is 12.5px/1.45 */
+#flut .obs-fl-pop.mu-more-pop{font:400 14px/1.5 var(--font-sans),system-ui,sans-serif;min-width:260px;padding:12px;display:flex;flex-direction:column;gap:10px}
 #flut .mu-more-pop .field{display:flex;flex-direction:column;gap:4px}
 #flut .mu-more-pop .field > .lbl{font-size:11.5px;color:var(--dim)}
 #flut .mu-more-pop .sel{height:32px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);padding:0 8px;font-size:12.5px;max-width:none;width:100%}
