@@ -364,15 +364,14 @@ describe('Histórico · flutuantes na camada única (A0.1)', () => {
     expect(root.querySelectorAll('[aria-describedby="hv-tip"]').length).toBe(0)
     expect(g.hasAttribute('aria-controls')).toBe(false)
     expect(root.querySelectorAll('.gbtn[aria-controls]').length).toBe(0)
-    // the tooltip of a marker: only the marker whose tooltip is shown points at it
-    if (mk) {
-      fireEvent.focus(mk)
-      expect(mk.getAttribute('aria-describedby')).toBe('hv-tip')
-      expect(document.getElementById('hv-tip')).not.toBeNull()
-      expect(root.querySelectorAll('[aria-describedby="hv-tip"]').length).toBe(1)
-      fireEvent.blur(mk)
-      expect(mk.hasAttribute('aria-describedby')).toBe(false)
-    }
+    // the tooltip of a marker: only the marker whose tooltip is shown points at it (the fixture must have a marker, or this part would not run)
+    expect(mk).not.toBeNull()
+    fireEvent.focus(mk!)
+    expect(mk!.getAttribute('aria-describedby')).toBe('hv-tip')
+    expect(document.getElementById('hv-tip')).not.toBeNull()
+    expect(root.querySelectorAll('[aria-describedby="hv-tip"]').length).toBe(1)
+    fireEvent.blur(mk!)
+    expect(mk!.hasAttribute('aria-describedby')).toBe(false)
     // the list of a group: the counter points at it only while it is open
     fireEvent.click(g)
     const id = g.getAttribute('aria-controls')
@@ -420,6 +419,41 @@ describe('Histórico · flutuantes na camada única (A0.1)', () => {
     expect(document.querySelector('#flut .hv-gpop')).toBeNull()
     const sel = root.querySelector('#hv-compare [data-k="' + linha.dataset.pair + '"]')!
     expect(sel.getAttribute('aria-pressed') === 'true' || sel.getAttribute('aria-selected') === 'true').toBe(true)
+  })
+  it('Esc com uma imagem fixada e a lista de um grupo aberta: o primeiro fecha só a lista (a fixação fica); o segundo solta a imagem', () => {
+    const { root, laneOf } = mount(VID.many)
+    const pin = within(root.querySelector<HTMLElement>('#hv-isum')!).getByRole('button', { name: 'A: fixar o destaque desta imagem' })
+    pin.focus(); fireEvent.click(pin)
+    expect(pin.getAttribute('aria-pressed')).toBe('true')
+    const g = laneOf('thumb').querySelector<HTMLButtonElement>('.mkg')!
+    fireEvent.click(g)
+    expect(document.querySelector('#flut .hv-gpop')).not.toBeNull()
+    act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })) })
+    expect(document.querySelector('#flut .hv-gpop')).toBeNull()
+    expect(pin.getAttribute('aria-pressed')).toBe('true') // one Esc, one thing
+    act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })) })
+    expect(pin.getAttribute('aria-pressed')).toBe('false')
+  })
+  it('Esc com a lista aberta solta também o destaque de passagem e a dica armada (como antes da camada: uma tecla, as duas coisas)', () => {
+    const { root, laneOf } = mount(VID.many)
+    const item = laneOf('title').querySelector<HTMLElement>('[data-k]') ?? laneOf('thumb').querySelector<HTMLElement>('[data-k]')!
+    fireEvent.mouseEnter(item)
+    expect(root.querySelectorAll('.is-hl').length).toBeGreaterThan(0)
+    fireEvent.click(laneOf('thumb').querySelector<HTMLButtonElement>('.mkg')!)
+    expect(document.querySelector('#flut .hv-gpop')).not.toBeNull()
+    act(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })) })
+    expect(document.querySelector('#flut .hv-gpop')).toBeNull()
+    expect(root.querySelectorAll('.is-hl').length).toBe(0)
+  })
+  it('a lista de um grupo é nomeada pelo próprio título (aria-labelledby), sem repetir o texto num aria-label', () => {
+    const { laneOf } = mount(VID.many)
+    fireEvent.click(laneOf('thumb').querySelector<HTMLButtonElement>('.mkg')!)
+    const pop = document.querySelector<HTMLElement>('#flut .hv-gpop')!
+    expect(pop.hasAttribute('aria-label')).toBe(false)
+    const h = document.getElementById(pop.getAttribute('aria-labelledby')!)!
+    expect(pop.contains(h)).toBe(true)
+    expect(h.tagName).toBe('H4')
+    expect(h.textContent).toMatch(/neste trecho$/)
   })
   it('Esc de qualquer lugar fecha a lista aberta', () => {
     const { laneOf } = mount(VID.many)

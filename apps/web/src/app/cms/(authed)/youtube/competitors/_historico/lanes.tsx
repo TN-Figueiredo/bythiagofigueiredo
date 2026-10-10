@@ -48,6 +48,8 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
   const [rove, setRove] = useState<Record<string, number>>({})
   // a new layout (width, period filter) has other groups: nothing stays open
   useEffect(() => { setOpen(null) }, [layouts])
+  // Esc over an open list closes it AND lets go of the chart's highlight and the armed tip (before the layer the screen's own Esc handler also ran: one key, both)
+  const closeList = (viaEsc: boolean) => { setOpen(null); if (viaEsc) { onGroupTip(null, null); onHl(null) } }
   // Esc (from anywhere, the focus goes back to the counter) and a click outside close the open list: the floating layer does it (flut.tsx)
 
   const onKeys = (e: RKeyboardEvent<HTMLDivElement>, type: LaneType) => {
@@ -148,7 +150,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
                       {it.letters ? <span className="gl" aria-hidden="true">{it.letters}</span> : null}
                       <span className="gn" aria-hidden="true">{hlLabel && on ? fitCount(on + ' de ' + it.members.length + ': ' + hlLabel, on + '/' + it.members.length, it.width) : it.count}</span>
                     </button>
-                    <GroupPop id={id} gkey={it.key} open={isOpen} gap={1} onClose={() => setOpen(null)} title={tip.title + ' neste trecho'}>
+                    <GroupPop id={id} gkey={it.key} open={isOpen} gap={1} onClose={closeList} title={tip.title + ' neste trecho'}>
                       {it.members.map(m => (
                         <li key={m.i}><button type="button" data-go={lane.type + ':' + m.i} onClick={() => { setOpen(null); onClip(lane.type, m.i) }}>
                           <span className="gk">{m.v.label}</span><span className="g1">{cap(m.v.span)}</span>
@@ -159,7 +161,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
                   </div>
                 )
               }
-              return <MarkerGroup key={it.key} it={it} id={id} lane={lane} color={c} isOpen={isOpen} btn={btn} wrapBlur={wrapBlur} tipTitle={tip.title} onClose={() => setOpen(null)}
+              return <MarkerGroup key={it.key} it={it} id={id} lane={lane} color={c} isOpen={isOpen} btn={btn} wrapBlur={wrapBlur} tipTitle={tip.title} onClose={closeList}
                 onPick={m => { setOpen(null); onMarkerClick(m) }} />
             })}
             {lane.runs.length ? (
@@ -192,7 +194,7 @@ const cap = (t: string) => (t ? t[0]!.toUpperCase() + t.slice(1) : '')
 function MarkerGroup({ it, id, lane, color, isOpen, btn, wrapBlur, tipTitle, onClose, onPick }: {
   it: MarkGroup; id: string; lane: LaneView; color: string; isOpen: boolean
   btn: Record<string, unknown>; wrapBlur: (e: { currentTarget: HTMLElement; relatedTarget: EventTarget | null }) => void
-  tipTitle: string; onClose: () => void; onPick: (m: MarkerView) => void
+  tipTitle: string; onClose: (viaEsc: boolean) => void; onPick: (m: MarkerView) => void
 }) {
   return (
     <div className={'gwrap mg' + (isOpen ? ' open' : '')} style={{ left: it.left, width: it.width, ['--c' as string]: color }} onBlur={wrapBlur}>
@@ -216,11 +218,11 @@ function MarkerGroup({ it, id, lane, color, isOpen, btn, wrapBlur, tipTitle, onC
 }
 
 /** The list of a group: born in the floating layer (#flut) when opened, below its counter (the one with data-group = gkey; aria-controls exists only while the list is open). */
-function GroupPop({ id, gkey, open, gap, onClose, title, children }: { id: string; gkey: string; open: boolean; gap: number; onClose: () => void; title: string; children: ReactNode }) {
+function GroupPop({ id, gkey, open, gap, onClose, title, children }: { id: string; gkey: string; open: boolean; gap: number; onClose: (viaEsc: boolean) => void; title: string; children: ReactNode }) {
   return (
-    <Popover open={open} anchor={() => document.querySelector('[data-group="' + gkey + '"]')} onClose={onClose} id={id} className="hv-gpop gpop" role="group" label={title}
-      pref="baixo" align="inicio" gap={gap} maxW={380}>
-      <h4>{title}</h4>
+    <Popover open={open} anchor={() => document.querySelector('[data-group="' + gkey + '"]')} onClose={onClose} id={id} className="hv-gpop gpop" role="group" labelledBy={id + '-t'}
+      pref="baixo" align="inicio" gap={gap} maxW={380} maxWvw={0.86}>
+      <h4 id={id + '-t'}>{title}</h4>
       <ul>{children}</ul>
     </Popover>
   )

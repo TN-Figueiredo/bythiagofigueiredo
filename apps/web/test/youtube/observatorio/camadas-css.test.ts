@@ -102,3 +102,12 @@ describe('Observatório · tipografia das flutuantes que vieram de dentro da tel
     expect(semComentario(read('_mudancas/mudancas.css'))).toMatch(/#flut \.obs-fl-pop\.mu-more-pop\{font:400 14px\/1\.5 /)
   })
 })
+
+describe('Observatório · dica do Histórico entra com o fade e o deslize de antes', () => {
+  const hist = semComentario(read('_historico/historico.css'))
+  it('animação de entrada de .12 s (opacity + translateY 4px) e desligada com prefers-reduced-motion', () => {
+    expect(hist).toMatch(/#flut \.obs-fl-tip\.hv-tip\{[^}]*animation:hv-tip-in \.12s\}/)
+    expect(hist).toMatch(/@keyframes hv-tip-in\{from\{opacity:0;transform:translateY\(4px\)\}\}/)
+    expect(hist).toMatch(/@media \(prefers-reduced-motion:reduce\)\{\s*#flut \.obs-fl-tip\.hv-tip\{animation:none\}\s*\}/)
+  })
+})

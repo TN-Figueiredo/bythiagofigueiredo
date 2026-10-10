@@ -120,6 +120,8 @@ describe('flut · place', () => {
   it('em 390 px a largura máxima é a janela menos 16', () => {
     expect(maxWidthFor(390)).toBe(374)
     expect(maxWidthFor(1440, 310)).toBe(310)
+    expect(maxWidthFor(390, 380, 0.86)).toBeCloseTo(335.4, 5) // min(380px, 86vw) of the group list
+    expect(maxWidthFor(1440, 380, 0.86)).toBe(380)
     const p = place(box(300, 400), { w: 374, h: 100 }, { w: 390, h: 844 })
     expect(p.left).toBe(EDGE)
   })

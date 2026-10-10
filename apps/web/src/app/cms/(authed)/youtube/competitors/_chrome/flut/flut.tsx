@@ -15,7 +15,7 @@ import { flutHost, claimFlut, releaseFlut, currentFlut, subscribeFlut, tabInside
  * button that is only next to the anchor would close it on mousedown and reopen it on the click that follows.
  */
 export type Anchor = () => Element | null
-type Opts = PlaceOpts & { maxW?: number }
+type Opts = PlaceOpts & { maxW?: number; maxWvw?: number }
 
 /**
  * Whether a HoverTip is really on screen: `show` and no popover open (a popover hides every tip). A trigger that points to
@@ -58,7 +58,7 @@ function usePlacement(active: boolean, ref: RefObject<HTMLDivElement | null>, an
     const vp = { w: document.documentElement.clientWidth || window.innerWidth, h: window.innerHeight }
     // scrolled out of the window (a rect with no size says nothing: no layout, as in jsdom)
     if ((r.width || r.height) && (r.bottom < 0 || r.top > vp.h || r.right < 0 || r.left > vp.w)) { el.style.visibility = 'hidden'; gone(); return }
-    el.style.maxWidth = maxWidthFor(vp.w, opts.maxW) + 'px'
+    el.style.maxWidth = maxWidthFor(vp.w, opts.maxW, opts.maxWvw) + 'px'
     el.style.maxHeight = ''
     el.style.overflowY = ''
     // measured from the corner: a left/top left from the last placement could wrap the text near the edge and measure a width that is too small
@@ -91,15 +91,19 @@ function usePlacement(active: boolean, ref: RefObject<HTMLDivElement | null>, an
   }, [active, run, ref])
 }
 
-export function Popover({ open, anchor, posAnchor, onClose, children, id, className, role = 'dialog', label, pref, align, maxW, gap, gapQueda, lado, queda }: {
+export function Popover({ open, anchor, posAnchor, onClose, children, id, className, role = 'dialog', label, labelledBy, pref, align, maxW, maxWvw, gap, gapQueda, lado, queda }: {
   open: boolean; anchor: Anchor
   /** Measure the position on this element instead of the trigger (focus, Esc and Tab still use the trigger). */
   posAnchor?: Anchor
-  /** Close it (set your state). The focus goes back to the trigger by itself when it was Esc. */
-  onClose: () => void
+  /** Close it (set your state). The focus goes back to the trigger by itself when it was Esc; `viaEsc` tells that case apart (outside click, focus out and "trigger gone" are false). */
+  onClose: (viaEsc: boolean) => void
   children: ReactNode
   id?: string; className?: string; role?: 'dialog' | 'menu' | 'tooltip' | 'group'; label?: string
+  /** The id of the element that names the box (use it instead of `label` when a visible heading already says it). */
+  labelledBy?: string
   pref?: Side; align?: 'fim' | 'meio' | 'inicio'; maxW?: number
+  /** Also at most this fraction of the window width (0.86 = 86vw). */
+  maxWvw?: number
   /** Placement knobs of place(): the distance to the trigger, and for pref 'lado' the side tried first and the fallback. */
   gap?: number; gapQueda?: number; lado?: PlaceOpts['lado']; queda?: PlaceOpts['queda']
 }) {
@@ -114,7 +118,7 @@ export function Popover({ open, anchor, posAnchor, onClose, children, id, classN
       id: pid, anchor: () => live.current.anchor(), el: () => ref.current,
       close: focus => {
         const a = live.current.anchor()
-        live.current.onClose()
+        live.current.onClose(focus)
         if (focus && a instanceof HTMLElement) a.focus()
       },
     })
@@ -128,11 +132,11 @@ export function Popover({ open, anchor, posAnchor, onClose, children, id, classN
     const a = live.current.anchor(), act = document.activeElement
     if (a instanceof HTMLElement && act !== a && !a.contains(act) && !ref.current?.contains(act)) a.focus({ preventScroll: true })
   }, [open, client])
-  usePlacement(open && client, ref, anchor, posAnchor, { pref, align, maxW, gap, gapQueda, lado, queda }, () => live.current.onClose())
+  usePlacement(open && client, ref, anchor, posAnchor, { pref, align, maxW, maxWvw, gap, gapQueda, lado, queda }, () => live.current.onClose(false))
   if (!open || !client) return null
   return createPortal(
     // tabIndex -1: the box can take the focus (the owner moves it in when it wants; the keyboard ring below needs a focusable box)
-    <div ref={ref} id={pid} role={role} aria-label={label} tabIndex={-1} className={'obs-fl-pop' + (className ? ' ' + className : '')} style={{ position: 'fixed', left: 0, top: 0 }}
+    <div ref={ref} id={pid} role={role} aria-label={label} aria-labelledby={labelledBy} tabIndex={-1} className={'obs-fl-pop' + (className ? ' ' + className : '')} style={{ position: 'fixed', left: 0, top: 0 }}
       onKeyDown={e => tabInside(e, ref.current, live.current.anchor())}>{children}</div>,
     flutHost(),
   )

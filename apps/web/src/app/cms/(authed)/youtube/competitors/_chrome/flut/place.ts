@@ -26,7 +26,9 @@ export interface Placed { left: number; top: number; maxHeight: number | null; s
 /** Distance kept from every edge of the viewport. */
 export const EDGE = 8
 
-export const maxWidthFor = (viewportW: number, maxW?: number): number => Math.min(maxW ?? Infinity, viewportW - 2 * EDGE)
+/** The widest a surface may be: `maxW` px, the window minus the edges, and `vwFrac` of the window (0.86 = 86vw) when given. */
+export const maxWidthFor = (viewportW: number, maxW?: number, vwFrac?: number): number =>
+  Math.min(maxW ?? Infinity, viewportW - 2 * EDGE, vwFrac != null ? viewportW * vwFrac : Infinity)
 
 export function place(anchor: Box, size: { w: number; h: number }, vp: { w: number; h: number }, o: PlaceOpts = {}): Placed {
   let G = o.gap ?? 6

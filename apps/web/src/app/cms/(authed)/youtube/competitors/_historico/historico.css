@@ -350,7 +350,10 @@
 #flut .hv-tip,#flut .hv-gpop{--shadow-pop:0 12px 32px rgba(0,0,0,.45);--well:#181511;--del-fg:#FCA5A5;--t-title:#60A5FA;--t-thumb:#A78BFA;--t-desc:#22D3EE;--f4-row:36px}
 [data-theme="light"] #flut .hv-tip,[data-theme="light"] #flut .hv-gpop{--shadow-pop:0 12px 28px rgba(60,40,10,.16);--well:#F2EBDF;--del-fg:#B42318;--t-title:#1D4ED8;--t-thumb:#6D28D9;--t-desc:#0E7490}
 @media (pointer:coarse),(max-width:900px){ #flut .hv-tip,#flut .hv-gpop{--f4-row:44px} }
-#flut .obs-fl-tip.hv-tip{width:310px;padding:12px 14px;border-radius:8px;box-shadow:var(--shadow-pop);font:400 12.5px/1.5 var(--font-sans),system-ui,sans-serif}
+#flut .obs-fl-tip.hv-tip{width:310px;padding:12px 14px;border-radius:8px;box-shadow:var(--shadow-pop);font:400 12.5px/1.5 var(--font-sans),system-ui,sans-serif;animation:hv-tip-in .12s}
+/* the old tip faded in and slid up 4px (opacity/transform .12s); the box now mounts when it is shown, so only the way in is animated */
+@keyframes hv-tip-in{from{opacity:0;transform:translateY(4px)}}
+@media (prefers-reduced-motion:reduce){ #flut .obs-fl-tip.hv-tip{animation:none} }
 #flut .hv-tip h4{margin:0 0 2px;font-size:12px;font-weight:600;color:var(--c)}
 #flut .hv-tip .when{color:var(--muted);margin:0 0 6px}
 #flut .hv-tip .bef{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--del-fg)}
