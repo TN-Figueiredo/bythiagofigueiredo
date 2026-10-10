@@ -12,7 +12,7 @@ const cssFiles = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes:
 const numericos = (f: string) => (semComentario(fs.readFileSync(f, 'utf8')).match(/z-index\s*:\s*-?\d+/g) ?? []).length
 
 /** Arquivos que nasceram na fase A: nenhum z-index numérico. A lista cresce a cada fase. */
-const NOVOS = ['_chrome/tokens-telas.css', '_chrome/flut/flut.css', '_chrome/kit.css']
+const NOVOS = ['_chrome/camadas.css', '_chrome/tokens-telas.css', '_chrome/flut/flut.css', '_chrome/kit.css']
 /** z-index numéricos nos arquivos antigos em 10/10/2026, antes da A0 (34 declarações; a 35ª linha do grep é um comentário). Catraca EXATA: cada migração baixa o número e o teto baixa junto, na mesma mudança. */
 const TETO_ANTIGOS = 22 // 34 → 31 na Tarefa 4 (Canais: .tt 40, :has 3, .menu 30 saíram) → 29 na Tarefa 5 (moldura: .obs-ch-pop 40, .fx-hint 30 saíram) → 28 na Tarefa 6 (Mudanças: .more-pop 20 saiu) → 26 na Tarefa 7 (Outliers: .obs-out-tip 20 e a dica do .obs-out-ib 10 saíram) → 22 na Tarefa 8 (Histórico: .tip 10, .gwrap.open 20 duas vezes e .gpop 21 saíram)
 
@@ -29,11 +29,17 @@ describe('Observatório · escala de camadas', () => {
     expect(regra).toMatch(/z-index\s*:\s*var\(--z-flutuante\)/)
     expect(regra).toMatch(/pointer-events\s*:\s*none/)
   })
+  it('fora do :root, todo z-index de camadas.css vem de var(--z-*) (nunca número, calc ou outra forma)', () => {
+    const foraDaRaiz = camadas.replace(/:root\s*\{[^}]*\}/, '')
+    const valores = [...foraDaRaiz.matchAll(/z-index\s*:\s*([^;}]*)/g)].map(m => m[1].trim())
+    expect(valores.length).toBeGreaterThan(0) // a regra de #flut existe: o teste não passa por não achar nada
+    for (const v of valores) expect(v).toMatch(/^var\(--z-[a-z-]+\)$/)
+  })
   it('arquivo novo não tem z-index numérico', () => {
     for (const f of NOVOS) if (fs.existsSync(path.join(DIR, f))) expect(numericos(path.join(DIR, f)), f).toBe(0)
   })
   it('catraca: os z-index numéricos dos arquivos antigos são exatamente o teto (cada migração baixa os dois)', () => {
-    const antigos = cssFiles(DIR).filter(f => !NOVOS.some(n => f.endsWith(n)) && !f.endsWith('camadas.css'))
+    const antigos = cssFiles(DIR).filter(f => !NOVOS.some(n => f.endsWith(n)))
     expect(antigos.reduce((n, f) => n + numericos(f), 0)).toBe(TETO_ANTIGOS)
   })
 })
