@@ -52,13 +52,7 @@
 [data-obs-screen="canais"] .quota{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:2px}
 [data-obs-screen="canais"] .tip{position:relative;display:inline-grid;place-items:center;width:32px;height:32px;margin:-8px -8px -8px -6px;cursor:help;flex:none;background:none;border:0;padding:0;vertical-align:middle}
 [data-obs-screen="canais"] .tip::before{content:"?";display:grid;place-items:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--border-strong);color:var(--muted);font-size:10px;font-weight:700}
-[data-obs-screen="canais"] .tip .tt{display:none;position:absolute;z-index:40;top:30px;left:50%;transform:translateX(-50%);width:270px;padding:9px 11px;background:var(--surface);border:1px solid var(--border-strong);border-radius:7px;box-shadow:var(--shadow);color:var(--text);font:400 12.5px/1.45 Inter,sans-serif;text-align:left;white-space:normal;cursor:auto}
-[data-obs-screen="canais"] .tip:hover .tt,[data-obs-screen="canais"] .tip:focus .tt,[data-obs-screen="canais"] .tip:focus-within .tt{display:block}
-[data-obs-screen="canais"] .tip.left .tt{left:auto;right:-6px;transform:none}
-/* A dica aberta fica acima de tudo. Cada td:first-child da tabela e sticky com z-index:1 (contexto de empilhamento proprio) e a linha de baixo, pintada depois, cobria a dica da linha de cima: a celula que tem a dica aberta sobe acima das outras. */
-[data-obs-screen="canais"] td:first-child:has(.tip:hover),[data-obs-screen="canais"] td:first-child:has(.tip:focus-within){z-index:3}
-/* .tablebox tem overflow-x:auto (o y vira auto tambem) e cortaria a dica da ultima linha, que abre para baixo: nela a dica abre para cima. */
-[data-obs-screen="canais"] tbody tr:last-child .tip .tt{top:auto;bottom:30px}
+#flut .cn-tt{width:270px}
 
 [data-obs-screen="canais"] .toolbar2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 10px;min-height:32px}
 [data-obs-screen="canais"] .toolbar2 .spacer{flex:1}
@@ -204,13 +198,14 @@
 [data-obs-screen="canais"] .pbar i{display:block;height:100%;background:var(--info)}
 [data-obs-screen="canais"] .more{width:32px;height:32px;min-width:32px;flex:none;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center}
 [data-obs-screen="canais"] .more:hover{border-color:var(--border-strong);color:var(--text)}
-[data-obs-screen="canais"] .menu{position:fixed;z-index:30;min-width:230px;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);padding:4px;display:none}
-[data-obs-screen="canais"] .menu.on{display:block}
-[data-obs-screen="canais"] .menu button{display:flex;width:100%;text-align:left;gap:8px;align-items:center;border:0;background:transparent;padding:0 10px;min-height:34px;border-radius:5px;cursor:pointer;font-size:13px}
-[data-obs-screen="canais"] .menu button:hover,[data-obs-screen="canais"] .menu button:focus-visible{background:var(--surface-hover);outline:none}
-[data-obs-screen="canais"] .menu button.del{color:var(--danger-text)}
-[data-obs-screen="canais"] .menu .cw{color:var(--cowork)}
-[data-obs-screen="canais"] .menu hr{border:0;border-top:1px solid var(--border-subtle);margin:4px 0}
+/* --danger-text is a token of the screen, not of [data-obs]: the menu no longer lives inside the screen, so it defines it here */
+#flut .cn-menu{--danger-text:#F26B6B;min-width:230px;padding:4px}
+[data-theme="light"] #flut .cn-menu{--danger-text:#B42318}
+#flut .cn-menu button{display:flex;width:100%;text-align:left;gap:8px;align-items:center;border:0;background:transparent;padding:0 10px;min-height:34px;border-radius:5px;cursor:pointer;font-size:13px}
+#flut .cn-menu button:hover,#flut .cn-menu button:focus-visible{background:var(--surface-hover);outline:none}
+#flut .cn-menu button.del{color:var(--danger-text)}
+#flut .cn-menu .cw{color:var(--cowork)}
+#flut .cn-menu hr{border:0;border-top:1px solid var(--border-subtle);margin:4px 0}
 [data-obs-screen="canais"] .na{color:var(--muted);font-size:12px;line-height:1.35;max-width:220px;display:block}
 [data-obs-screen="canais"] .na.r{text-align:right;max-width:135px}
 [data-obs-screen="canais"] td.r .na.r,[data-obs-screen="canais"] td.r .capr{margin-left:auto}
@@ -323,7 +318,6 @@
 }
 [data-obs-screen="canais"] .thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 [data-obs-screen="canais"] .thumb.img{background:var(--surface-2)}
-[data-obs-screen="canais"] .menu{display:block}
 
 /* ---------------------------------------------------------------- immediate feedback (no text: aria-busy, opacity, a thin bar) */
 [data-obs-screen="canais"] .cn-navbar{position:sticky;top:0;height:0;z-index:25;pointer-events:none}

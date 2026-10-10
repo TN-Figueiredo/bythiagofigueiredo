@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
 const siteAdmin = vi.hoisted(() => ({ value: true }))
@@ -7,7 +7,7 @@ vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
   useCanAdminSite: () => siteAdmin.value,
 }))
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { loadOracle, loadOracleOwns, datasetFromOracle } from './oracle'
 import type { OwnPreset } from '../../fixtures/observatorio/own-presets'
@@ -47,6 +47,7 @@ function destCounts() {
 const quota = () => [...document.querySelector('.quota')!.childNodes].filter(n => !(n instanceof Element && n.classList.contains('tip'))).map(n => n.textContent).join('').replace(/\u00a0/g, ' ').trim()
 
 beforeEach(() => { replace.mockReset(); refresh.mockReset(); search = '' })
+afterEach(() => document.getElementById('flut')?.remove())
 
 describe('CanaisScreen', () => {
   it('passes the DOM audits; the only filled button is "Adicionar canal"', () => {
@@ -595,5 +596,41 @@ describe('CanaisScreen: nicho otimista', () => {
     first.res({ ok: false })
     await toastBad('Não deu para mudar o nicho')
     expect(sel('Luke Damant').value).toBe(before)
+  })
+})
+
+describe('Canais · flutuantes na camada única (A0.1)', () => {
+  it('a dica do "?" não é descendente de célula nem de linha: abre em #flut no foco e some no blur', () => {
+    const { container } = mount()
+    const q = container.querySelector<HTMLElement>('[data-obs-screen="canais"] td .tip')!
+    expect(q.querySelector('[role="tooltip"]')).toBeNull()
+    fireEvent.focus(q)
+    const tip = document.querySelector('#flut .cn-tt')!
+    expect(tip.closest('td, tr, table')).toBeNull()
+    expect(q.getAttribute('aria-describedby')).toBe(tip.id)
+    expect(tip.textContent!.length).toBeGreaterThan(10)
+    fireEvent.blur(q)
+    expect(document.querySelector('#flut .cn-tt')).toBeNull()
+    expect(q.hasAttribute('aria-describedby')).toBe(false)
+  })
+  it('Esc com a dica aberta esconde a dica e mantém o foco no "?"', () => {
+    const { container } = mount()
+    const q = container.querySelector<HTMLElement>('[data-obs-screen="canais"] td .tip')!
+    q.focus(); fireEvent.focus(q)
+    expect(document.querySelector('#flut .cn-tt')).not.toBeNull()
+    fireEvent.keyDown(q, { key: 'Escape' })
+    expect(document.querySelector('#flut .cn-tt')).toBeNull()
+    expect(document.activeElement).toBe(q)
+  })
+  it('o menu da linha mora em #flut; Esc fecha e devolve o foco ao botão ⋯', () => {
+    const { container } = mount()
+    const btn = container.querySelector<HTMLElement>('[data-menu]')!
+    fireEvent.click(btn)
+    const menu = document.querySelector('#flut [role="menu"]')!
+    expect(menu.classList.contains('cn-menu')).toBe(true)
+    expect(container.querySelector('[role="menu"]')).toBeNull()
+    fireEvent.keyDown(menu.querySelector('button')!, { key: 'Escape' })
+    expect(document.querySelector('#flut [role="menu"]')).toBeNull()
+    expect(document.activeElement).toBe(btn)
   })
 })

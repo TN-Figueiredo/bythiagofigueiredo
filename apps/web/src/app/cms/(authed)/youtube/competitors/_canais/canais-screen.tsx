@@ -157,11 +157,10 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const closeMenu = (focus: boolean) => { const id = menu; setMenu(null); if (focus && id) rowMenuButton(id)?.focus() }
   const closeConfirm = () => { setConfirm(null); returnFocus.current?.focus() }
 
-  // Esc closes the topmost layer (canais.html keydown).
+  // Esc closes the topmost layer (canais.html keydown). The row menu is not here: the floating layer closes it first and returns the focus.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      if (menu) { closeMenu(true); return }
       if (confirm) { closeConfirm(); return }
       if (addOpen) { closeAdd(); return }
       if (nicheOpen) { closeNiche(); return }
@@ -170,14 +169,6 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   })
-  // Click outside closes the row menu.
-  useEffect(() => {
-    if (!menu) return
-    const onDown = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('[role="menu"],[data-menu]')) setMenu(null) }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [menu])
-
   // The server said the channel of ?channel= is in another niche than the explicit filter: drop it from the URL.
   useEffect(() => { if (view.drawerDropped) go({ channel: null, tab: null }) }, [view.drawerDropped]) // eslint-disable-line react-hooks/exhaustive-deps
 
