@@ -1,14 +1,14 @@
 // @vitest-environment node
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { fakeSupabase, type FakeDb, type Row } from '../../helpers/fake-supabase'
+import { fakeSupabase, type Row } from '../../helpers/fake-supabase'
 import { createFakeNextCache, type FakeNextCache } from '../../helpers/fake-next-cache'
-import { buildTables, ids } from './load-fixture'
+import { buildTables, ids, spDate, heavyTrips } from './load-fixture'
 import { loadChannelLiveRows } from '@/lib/youtube/observatorio/load'
+import { createObservatory, type Observatory } from '@/lib/youtube/observatorio'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 const NOW = Date.now(), DAY = 864e5
-const HEAVY = ['competitor_videos', 'competitor_video_versions', 'competitor_video_daily', 'competitor_channel_snapshots']
-const heavy = (db: FakeDb) => db.trips.filter(t => HEAVY.includes(t)).length
+const heavy = heavyTrips
 const ENV = { ...process.env }
 const captureMessage = vi.fn()
 
@@ -336,6 +336,171 @@ describe('loadChannelDataset — um canal só', () => {
     expect(ds.videos.every(v => v.ch === 'a-own' && v.series.length === 0)).toBe(true)
     expect(db.trips).not.toContain('competitor_videos')
     expect(heavy(db)).toBe(0)
+  })
+})
+
+describe('loadChannelDataset — igualdade nos ramos que a leitura de um canal toca', () => {
+  const base = { siteId: 'a', now: NOW, channels: 3, videosPerChannel: 4 }
+  const id = ids.channel('a', 1)
+  const equalToSite = async (tables: Record<string, Row[]>, expectPinned = false) => {
+    const { loadChannelDataset, loadPageDataset } = await setup(tables)
+    const site = await loadPageDataset('a', NOW), um = (await loadChannelDataset('a', id, NOW))!
+    expect(um.channels).toEqual(site.channels.filter(c => c.id === id))
+    expect(um.videos).toEqual(site.videos.filter(v => v.ch === id))
+    expect(um.videos.length).toBeGreaterThan(0)
+    if (expectPinned) expect(um.videos.some(v => v.pinned && !v.tracked)).toBe(true)
+    return { um, site }
+  }
+  it('vídeo fixado fora do limite: o fixado e o diário dele vêm iguais', async () => {
+    const { um } = await equalToSite(buildTables({ ...base, pinOldest: true }), true)
+    expect(um.videos.find(v => v.pinned && !v.tracked)!.series.length).toBeGreaterThan(0)
+  })
+  it('canal em primeira sincronização (last_ok_synced_at nulo, sem cache): igual ao site inteiro', async () => {
+    const t = buildTables(base)
+    t.competitor_channels![1]!.last_ok_synced_at = null
+    const { um } = await equalToSite(t)
+    expect(um.channels[0]!.sync.last).toBeNull()
+  })
+  it('série não iniciada: seriesStart no relógio e janela do diário a partir de ontem, igual ao site inteiro', async () => {
+    const { um, site } = await equalToSite(buildTables({ ...base, seriesStarted: false }))
+    expect(um.seriesStart).toBe(site.seriesStart)
+    expect(um.dailyCappedFrom).toBe(site.dailyCappedFrom)
+    expect(um.sync).toEqual(site.sync)
+    expect(um.obsStart).toBe(site.obsStart)
+  })
+  it('cache desligado (OBS_E2E=1): o canal lido direto do banco é igual ao do site inteiro lido pelo cache', async () => {
+    const tables = buildTables({ ...base, pinOldest: true })
+    delete process.env.OBS_E2E; vi.stubEnv('NODE_ENV', 'development')
+    const site = await (await setup(tables)).loadPageDataset('a', NOW)
+    vi.stubEnv('OBS_E2E', '1')
+    const { loadChannelDataset, cache, db } = await setup(tables)
+    const um = (await loadChannelDataset('a', id, NOW))!
+    expect(cache.entries.size).toBe(0)
+    expect(heavy(db)).toBeGreaterThan(0)
+    expect(um.channels).toEqual(site.channels.filter(c => c.id === id))
+    expect(um.videos).toEqual(site.videos.filter(v => v.ch === id))
+    expect(um.obsStart).toBe(site.obsStart)
+    expect(um.sync).toEqual(site.sync)
+  })
+})
+
+describe('loadChannelDataset — valores do site por leitura leve', () => {
+  const tabelas = () => buildTables({ siteId: 'a', now: NOW, channels: 3, videosPerChannel: 4 })
+  it('a leitura leve só pede as duas colunas dos canais e uma linha do diário; nenhum vídeo dos outros canais', async () => {
+    const { loadChannelDataset, db } = await setup(tabelas())
+    await loadChannelDataset('a', ids.channel('a', 1), NOW)
+    expect(db.selects.filter(s => s.table === 'competitor_channels').map(s => s.cols)).toContain('added_at, last_ok_synced_at')
+    const daily = db.selects.filter(s => s.table === 'competitor_video_daily' && s.cols.includes('!inner'))
+    expect(daily).toHaveLength(1)
+    expect(daily[0]!.cols).toBe('snap_date, taken_at, competitor_videos!inner(competitor_channels!inner(site_id))')
+    expect(db.trips.filter(t => t === 'competitor_videos')).toHaveLength(1)
+  })
+  it('o diário de OUTRO site não vira o "último dia" deste (a leitura leve filtra por site)', async () => {
+    const b = buildTables({ siteId: 'b', now: NOW, channels: 1, videosPerChannel: 4 })
+    for (const r of b.competitor_video_daily!) r.taken_at = new Date(NOW + 0).toISOString()
+    // o site b tem um registro bem mais novo que o do a: o do a (atrasado um dia) é o que vale para o a
+    const a = tabelas()
+    const lag = spDate(NOW)
+    a.competitor_video_daily = a.competitor_video_daily!.filter(r => r.snap_date !== lag)
+    const { loadChannelDataset, loadPageDataset } = await setup(merged(a, b))
+    const um = (await loadChannelDataset('a', ids.channel('a', 1), NOW))!, site = await loadPageDataset('a', NOW)
+    expect(um.lastSeriesAt).not.toBeNull()
+    expect(createObservatory(um).LAST_IDX).toBe(createObservatory(site).LAST_IDX)
+    expect(Math.max(...site.videos.flatMap(v => v.series.map(p => p.t)))).toBe(um.lastSeriesAt)
+  })
+  it('site sem registro diário: lastSeriesAt nulo (o motor cai no relógio, como no site inteiro)', async () => {
+    const t = buildTables({ siteId: 'a', now: NOW, channels: 3, videosPerChannel: 4, seriesStarted: false })
+    t.competitor_video_daily = []
+    const { loadChannelDataset, loadPageDataset } = await setup(t)
+    const um = (await loadChannelDataset('a', ids.channel('a', 1), NOW))!
+    expect(um.lastSeriesAt).toBeNull()
+    expect(createObservatory(um).LAST_IDX).toBe(createObservatory(await loadPageDataset('a', NOW)).LAST_IDX)
+  })
+  it('o registro mais novo com taken_at fora do dia dele: lê o resto da data e dá o mesmo instante do site inteiro', async () => {
+    const t = tabelas()
+    // o maior taken_at da data mais nova cai no dia seguinte (inutilizável): vale o maior dos que cabem no dia
+    const today = spDate(NOW)
+    const rows = t.competitor_video_daily!.filter(r => r.snap_date === today)
+    rows[0]!.taken_at = new Date(NOW + 2 * DAY).toISOString()
+    const { loadChannelDataset, loadPageDataset, db } = await setup(t)
+    const um = (await loadChannelDataset('a', ids.channel('a', 1), NOW))!, site = await loadPageDataset('a', NOW)
+    expect(db.selects.filter(x => x.table === 'competitor_video_daily' && x.cols.includes('!inner'))).toHaveLength(2)
+    expect(um.lastSeriesAt).toBe(Math.max(...site.videos.flatMap(v => v.series.map(p => p.t))))
+    expect(createObservatory(um).LAST_IDX).toBe(createObservatory(site).LAST_IDX)
+  })
+  it('erro do banco na leitura leve do diário lança (nunca cai no valor do canal)', async () => {
+    const { loadChannelDataset } = await setup(tabelas(), { failOn: 'competitor_video_daily' })
+    await expect(loadChannelDataset('a', ids.channel('a', 1), NOW)).rejects.toThrow()
+  })
+})
+
+/**
+ * Igualdade no nível do MOTOR: o que a tela de um canal calcula com o conjunto de um canal é o que a tela do site calcula
+ * com o site inteiro. O site abaixo tem 3 canais; o pedido (índice 1) não é o primeiro adicionado, não tem a
+ * sincronização mais nova e está um dia ou mais atrás no registro diário (o canal 2 tem o dia de hoje, o 1 não).
+ */
+describe('loadChannelDataset — igualdade no nível do motor', () => {
+  const FMTS = [undefined, 'long', 'short'] as const
+  const motorTabelas = () => {
+    const t = buildTables({ siteId: 'a', now: NOW, channels: 3, videosPerChannel: 4, days: 6 })
+    const ch = t.competitor_channels!
+    ch[1]!.last_ok_synced_at = new Date(NOW - 5 * 36e5).toISOString()
+    ch[2]!.last_ok_synced_at = new Date(NOW - 36e5).toISOString()
+    ch[2]!.added_at = new Date(NOW - 10 * DAY).toISOString()
+    // o canal pedido está atrasado: sem os dois dias mais novos do diário
+    const lag = new Set([0, 1].map(d => spDate(NOW - d * DAY)))
+    t.competitor_video_daily = t.competitor_video_daily!.filter(r => !(String(r.video_id).startsWith(ids.channel('a', 1) + '-') && lag.has(String(r.snap_date))))
+    return t
+  }
+  const pair = async (tables: Record<string, Row[]>, id: string) => {
+    const { loadChannelDataset, loadPageDataset } = await setup(tables)
+    const siteDs = await loadPageDataset('a', NOW), oneDs = (await loadChannelDataset('a', id, NOW))!
+    return { siteDs, oneDs, siteObs: createObservatory(siteDs), oneObs: createObservatory(oneDs) }
+  }
+  const sameForChannel = (siteObs: Observatory, oneObs: Observatory, id: string) => {
+    expect.soft(oneObs.OBS_START, 'OBS_START').toBe(siteObs.OBS_START)
+    expect.soft(oneObs.SERIES_START, 'SERIES_START').toBe(siteObs.SERIES_START)
+    expect.soft(oneObs.SYNC, 'SYNC').toEqual(siteObs.SYNC)
+    expect.soft(oneObs.LAST_IDX, 'LAST_IDX').toBe(siteObs.LAST_IDX)
+    expect.soft(oneObs.channel(id), 'channel').toEqual(siteObs.channel(id))
+    for (const f of FMTS) {
+      expect.soft(oneObs.channelStats(id, f), 'channelStats ' + f).toEqual(siteObs.channelStats(id, f))
+      expect.soft(oneObs.cadence(id, f), 'cadence ' + f).toEqual(siteObs.cadence(id, f))
+    }
+    const mine = (o: Observatory) => o.videos.filter(v => v.ch === id)
+    expect(mine(oneObs).length).toBeGreaterThan(0)
+    expect(mine(oneObs), 'videos (vpd, vpd7, mult)').toEqual(mine(siteObs))
+    for (const v of mine(siteObs)) {
+      expect.soft(oneObs.multiplier(v.id), 'multiplier ' + v.id).toEqual(siteObs.multiplier(v.id))
+      expect.soft(oneObs.phaseOf(v.id), 'phaseOf ' + v.id).toEqual(siteObs.phaseOf(v.id))
+      expect.soft(oneObs.effect(v.id), 'effect ' + v.id).toEqual(siteObs.effect(v.id))
+    }
+  }
+  it('canal concorrente atrasado, nem o primeiro nem o mais novo: os campos de site e o canal iguais ao do site inteiro', async () => {
+    const id = ids.channel('a', 1)
+    const { siteDs, oneDs, siteObs, oneObs } = await pair(motorTabelas(), id)
+    expect.soft(oneDs.obsStart, 'ds.obsStart').toBe(siteDs.obsStart)
+    expect.soft(oneDs.sync, 'ds.sync').toEqual(siteDs.sync)
+    expect.soft(oneDs.seriesStart).toBe(siteDs.seriesStart)
+    expect.soft(oneDs.snap0).toBe(siteDs.snap0)
+    expect.soft(oneDs.dailyCappedFrom).toBe(siteDs.dailyCappedFrom)
+    // o fixture vale: o pedido não é o primeiro adicionado, não é o sincronizado mais recente e está atrasado
+    expect(siteDs.channels.find(c => c.id === id)!.sync.added).toBeGreaterThan(siteDs.obsStart)
+    expect(siteDs.sync.last).toBeGreaterThan(siteDs.channels.find(c => c.id === id)!.sync.last!)
+    expect(siteObs.channel(id)!.lastIdx!).toBeLessThan(siteObs.LAST_IDX)
+    sameForChannel(siteObs, oneObs, id)
+  })
+  it('canal próprio: os campos de site e o canal iguais ao do site inteiro', async () => {
+    const { siteDs, oneDs, siteObs, oneObs } = await pair(motorTabelas(), 'a-own')
+    expect.soft(oneDs.obsStart, 'ds.obsStart').toBe(siteDs.obsStart)
+    expect.soft(oneDs.sync, 'ds.sync').toEqual(siteDs.sync)
+    expect(siteDs.sync.last).not.toBeNull()
+    expect.soft(oneObs.OBS_START).toBe(siteObs.OBS_START)
+    expect.soft(oneObs.SYNC).toEqual(siteObs.SYNC)
+    expect.soft(oneObs.LAST_IDX, 'LAST_IDX').toBe(siteObs.LAST_IDX)
+    expect.soft(oneObs.channel('a-own')).toEqual(siteObs.channel('a-own'))
+    for (const f of FMTS) expect.soft(oneObs.channelStats('a-own', f)).toEqual(siteObs.channelStats('a-own', f))
+    expect.soft(oneObs.videos.filter(v => v.ch === 'a-own')).toEqual(siteObs.videos.filter(v => v.ch === 'a-own'))
   })
 })
 

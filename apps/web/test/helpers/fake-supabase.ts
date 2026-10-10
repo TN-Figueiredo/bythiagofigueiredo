@@ -14,6 +14,11 @@ export interface FakeDb {
   tables: Record<string, Row[]>
 }
 type Result = { data: unknown; error: { message: string; code: string } | null }
+/** Foreign keys the loaders embed through (`child.fk → parent.id`): enough for `competitor_videos!inner(competitor_channels!inner(site_id))`. */
+const FK: Record<string, Record<string, string>> = {
+  competitor_video_daily: { competitor_videos: 'video_id' },
+  competitor_videos: { competitor_channels: 'competitor_channel_id' },
+}
 const cmp = (a: unknown, b: unknown) => (a === b ? 0 : (a as string | number) < (b as string | number) ? -1 : 1)
 
 export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: string } = {}): FakeDb {
@@ -22,6 +27,13 @@ export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: str
     let rows = [...(tables[table] ?? [])]
     let cols: string[] | null = null
     const orders: Array<{ col: string; asc: boolean }> = []
+    // value of a dotted column ("competitor_videos.competitor_channels.site_id") reached through the FK map above
+    const reach = (r: Row, path: string[], tbl: string): unknown => {
+      if (path.length === 1) return r[path[0]!]
+      const parent = path[0]!, fk = FK[tbl]?.[parent]
+      const p = fk ? (tables[parent] ?? []).find(x => x.id === r[fk]) : undefined
+      return p ? reach(p, path.slice(1), parent) : undefined
+    }
     const run = (slice?: [number, number], single?: boolean): Result => {
       db.trips.push(table)
       if (opts.failOn === table) return { data: null, error: { message: 'boom', code: 'XX000' } }
@@ -33,8 +45,8 @@ export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: str
       return { data, error: null }
     }
     const q = {
-      select(s: string) { db.selects.push({ table, cols: s }); cols = s === '*' ? null : s.split(',').map(x => x.trim()); return q },
-      eq(c: string, v: unknown) { rows = rows.filter(r => r[c] === v); return q },
+      select(s: string) { db.selects.push({ table, cols: s }); cols = s === '*' ? null : s.replace(/,?\s*[a-z_]+!inner\(.*$/, '').split(',').map(x => x.trim()).filter(Boolean); return q },
+      eq(c: string, v: unknown) { rows = c.includes('.') ? rows.filter(r => reach(r, c.split('.'), table) === v) : rows.filter(r => r[c] === v); return q },
       neq(c: string, v: unknown) { rows = rows.filter(r => r[c] !== v); return q },
       in(c: string, vs: readonly unknown[]) { const set = new Set(vs); rows = rows.filter(r => set.has(r[c])); return q },
       is(c: string, v: unknown) { rows = rows.filter(r => (r[c] ?? null) === v); return q },

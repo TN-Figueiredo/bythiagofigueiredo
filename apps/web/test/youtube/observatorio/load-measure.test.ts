@@ -3,7 +3,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { fakeSupabase } from '../../helpers/fake-supabase'
 import { createFakeNextCache } from '../../helpers/fake-next-cache'
-import { buildTables, ids } from './load-fixture'
+import { buildTables, ids, heavyTrips } from './load-fixture'
 import { loadRows } from '@/lib/youtube/observatorio/load'
 
 const NOW = Date.now()
@@ -45,7 +45,6 @@ describe('medição: carregador das páginas (cache por canal)', () => {
 })
 
 describe('medição: um canal só (loadChannelDataset)', () => {
-  const HEAVY = ['competitor_videos', 'competitor_video_versions', 'competitor_video_daily', 'competitor_channel_snapshots']
   it.each(SHAPES)('$name', async shape => {
     vi.resetModules()
     const cache = createFakeNextCache(), db = fakeSupabase(buildTables({ siteId: 'site-m', now: NOW, ...shape }))
@@ -55,9 +54,9 @@ describe('medição: um canal só (loadChannelDataset)', () => {
     const { loadChannelDataset } = await import('@/lib/youtube/observatorio/load-page')
     const id = ids.channel('site-m', 0)
     const cold = (await loadChannelDataset('site-m', id, NOW))!
-    const coldTrips = db.trips.length, coldBytes = db.bytes, coldVideos = db.trips.filter(t => t === 'competitor_videos').length
+    const coldTrips = db.trips.length, coldBytes = db.bytes, coldHeavy = heavyTrips(db), coldVideos = db.trips.filter(t => t === 'competitor_videos').length
     const warm = (await loadChannelDataset('site-m', id, NOW))!
-    const warmHeavy = db.trips.slice(coldTrips).filter(t => HEAVY.includes(t)).length
+    const warmHeavy = heavyTrips(db) - coldHeavy
     console.info('[medicao] um canal |', shape.name, '| fria: idas', coldTrips, 'bytes', coldBytes, '| quente: idas', db.trips.length - coldTrips, 'bytes do banco', db.bytes - coldBytes)
     expect(cold.videos).toHaveLength(100)
     expect(warm).toEqual(cold)

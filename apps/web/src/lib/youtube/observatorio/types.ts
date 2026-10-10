@@ -107,6 +107,12 @@ export interface Dataset {
   /** Start (ms, SP midnight) of the daily lookback when the cap cut into the series (seriesStart older than the cap); null = whole series read. */
   dailyCappedFrom: number | null
   channels: ObsChannel[]; videos: ObsVideo[]
+  /**
+   * Only on the dataset of ONE channel: the instant of the newest daily record of the WHOLE site (null = the site has none).
+   * The engine's LAST_IDX is the newest point of the videos it was given; with one channel it would be that channel's,
+   * so the loader hands the site's. Absent (the whole site was read) = derive it from `videos`, as always.
+   */
+  lastSeriesAt?: number | null
   /** last = newest OK sync of any competitor channel; null when none ever synced. */
   sync: { last: number | null; next: number | null }
   readings: FrozenReading[]; requests: ForjaRequest[]

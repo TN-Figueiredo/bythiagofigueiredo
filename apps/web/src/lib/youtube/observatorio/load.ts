@@ -64,6 +64,21 @@ export interface ObservatoryRows {
   readings: ReadingRow[]; tasks: TaskRow[]; heartbeat: HeartbeatRow | null
   /** Os nichos do site (youtube_niches). null / ausente = a tabela ainda não existe neste banco: valem os dois de fábrica. */
   niches?: NicheRow[] | null
+  /**
+   * Present only when `channels` holds ONE channel of the site (loadChannelLiveRows): the values that belong to the whole
+   * site and cannot be derived from the rows at hand. When present they win over what would be derived from `channels`
+   * and `videos`; absent (the whole site was read) changes nothing.
+   */
+  siteScope?: SiteScope
+}
+/** The site-wide facts a one-channel read still needs (a light read of two columns, never the videos). */
+export interface SiteScope {
+  /** Earliest `added_at` of the site's competitor channels, epoch ms; null = none has one. */
+  firstAddedAt: number | null
+  /** Newest `last_ok_synced_at` of the site's competitor channels, epoch ms; null = none ever synced OK. */
+  lastOkSyncedAt: number | null
+  /** The daily records of the site's newest record date (one row in the normal case); empty = the site has none in the read window. */
+  lastDaily: ReadonlyArray<{ snap_date: string; taken_at: string }>
 }
 
 /* ------------------------------------------------------------------ constants */
@@ -203,7 +218,7 @@ function withLegacy<T extends Base>(legacy: readonly LegacyChangeRow[], real: T[
 }
 
 /** taken_at as epoch ms when it is a valid instant inside the record's own SP day; else null (caller falls back to nominal). */
-function realReadAt(d: DailyRow, dayStart: number): number | null {
+function realReadAt(d: Pick<DailyRow, 'taken_at'>, dayStart: number): number | null {
   const t = ms(d.taken_at)
   return t != null && t >= dayStart && t < dayStart + DAY ? t : null
 }
@@ -339,12 +354,19 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   }
 
   const readingOfTask = new Map(rows.readings.filter(r => r.task_id).map(r => [r.task_id!, r.id]))
+  // site-wide values: from the whole site's channels, or from the light read of a one-channel set (siteScope)
   const okSyncs = rows.channels.map(c => ms(c.last_ok_synced_at)).filter((x): x is number => x != null)
   const added = rows.channels.map(c => ms(c.added_at)).filter((x): x is number => x != null)
+  const sc = rows.siteScope
+  const firstAdded = sc ? sc.firstAddedAt : added.length ? Math.min(...added) : null
+  const lastOk = sc ? sc.lastOkSyncedAt : okSyncs.length ? Math.max(...okSyncs) : null
+  // the instant of the site's newest daily record, as the series points above carry it (taken_at, else the nominal noon)
+  const siteSeriesTs = (sc?.lastDaily ?? []).map(d => realReadAt(d, spDateStart(d.snap_date)) ?? snap0 + dayIndex(d.snap_date) * DAY)
   return {
-    now, seriesStart, snap0, dailyCappedFrom: cappedFrom, obsStart: added.length ? Math.min(...added) : seriesStart,
+    now, seriesStart, snap0, dailyCappedFrom: cappedFrom, obsStart: firstAdded ?? seriesStart,
     channels, videos, niches,
-    sync: { last: okSyncs.length ? Math.max(...okSyncs) : null, next },
+    ...(sc ? { lastSeriesAt: siteSeriesTs.length ? Math.max(...siteSeriesTs) : null } : {}),
+    sync: { last: lastOk, next },
     readings: rows.readings.map(r => toReading(r, known)).filter((x): x is FrozenReading => x != null),
     // a published request points at the reading it produced (competitor_readings.task_id): "leitura nova às HH:MM"
     requests: orderRequests(rows.tasks.map(t => taskRowToRequest(t, ms(rows.heartbeat?.last_poll_at), now, known)).filter((x): x is ForjaRequest => x != null)
@@ -441,6 +463,13 @@ export async function readAll<T>(table: string, build: () => RangeQuery): Promis
     if (page.length < PAGE) return out
   }
 }
+/** The first row of an ordered read, or null when there is none; a DB error throws. */
+async function firstRow<T>(table: string, build: () => RangeQuery): Promise<T | null> {
+  return (await build().range(0, 0).then(r => { if (r.error) throw new ObservatoryLoadError(table, r.error.code, r.error.message); return Array.isArray(r.data) ? (r.data as T[]) : [] }))[0] ?? null
+}
+/** snap_date and taken_at of a daily record, and the video → channel → site path the read filters by (PostgREST inner join). */
+const DAILY_SITE_COLS = 'snap_date, taken_at, competitor_videos!inner(competitor_channels!inner(site_id))'
+interface DailySiteRow { snap_date: string; taken_at: string }
 /** Postgres: invalid input syntax for type uuid. */
 const INVALID_UUID = '22P02'
 const OWN_CHANNEL_COLS = 'id, channel_id, name, handle, subscriber_count, last_synced_at, locale, created_at, thumbnail_url'
@@ -509,7 +538,7 @@ export function snapshotReadFrom(now: number): string { return spDate(now - SNAP
 export interface LoadOptions { siteId: string; now: number; supabase?: SupabaseClient }
 
 /** The small tables every render reads fresh: settings, channel rows, own channels and videos, niches and the forja queue. */
-export type LiveRows = Pick<ObservatoryRows, 'settings' | 'channels' | 'ownChannels' | 'ownVideos' | 'legacyChanges' | 'readings' | 'tasks' | 'heartbeat' | 'niches'>
+export type LiveRows = Pick<ObservatoryRows, 'settings' | 'channels' | 'ownChannels' | 'ownVideos' | 'legacyChanges' | 'readings' | 'tasks' | 'heartbeat' | 'niches' | 'siteScope'>
 
 /** `seriesStartAt`: SP midnight of the series start, or null while there is no daily record yet (never the clock). */
 export async function loadLiveRows(sb: SupabaseClient, siteId: string, now: number): Promise<LiveRows & { seriesStartAt: number | null }> {
@@ -535,6 +564,35 @@ export async function loadLiveRows(sb: SupabaseClient, siteId: string, now: numb
   return { settings, channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeat: heartbeats[0] ?? null, niches, seriesStartAt: ssAt != null ? spDayStart(ssAt) : null }
 }
 
+const seriesStartAt = (ssAt: number | null): number | null => (ssAt != null ? spDayStart(ssAt) : null)
+
+/**
+ * The site-wide facts a one-channel dataset cannot derive from its own rows (see SiteScope): two columns of every
+ * competitor channel of the site, and the newest daily record of the site. Both reads filter by `site_id` and never
+ * touch the videos, versions or snapshots; the daily one asks the database for ONE row (plus the rest of its date only
+ * when that row's taken_at is unusable). The window is the one loadRows reads, so the answer is the one a whole-site
+ * read would have: a database error throws, and "the site has no daily record" is `lastDaily: []`, never a guess.
+ */
+export async function readSiteScope(sb: SupabaseClient, siteId: string, seriesStart: number | null, now: number): Promise<SiteScope> {
+  const from = dailyReadFrom(seriesStart ?? now, now), to = spDate(now)
+  const newest = () => sb.from('competitor_video_daily').select(DAILY_SITE_COLS).eq('competitor_videos.competitor_channels.site_id', siteId)
+    .gte('snap_date', from).lte('snap_date', to).order('snap_date', { ascending: false }).order('taken_at', { ascending: false })
+  const [chs, top] = await Promise.all([
+    readAll<{ added_at: string | null; last_ok_synced_at: string | null }>('competitor_channels', () => sb.from('competitor_channels').select('added_at, last_ok_synced_at').eq('site_id', siteId).order('id')),
+    firstRow<DailySiteRow>('competitor_video_daily', newest),
+  ])
+  const adds = chs.map(c => ms(c.added_at)).filter((x): x is number => x != null)
+  const oks = chs.map(c => ms(c.last_ok_synced_at)).filter((x): x is number => x != null)
+  let lastDaily: SiteScope['lastDaily'] = top ? [top] : []
+  // the newest row's taken_at is outside its own SP day (the series then falls back to the nominal noon, or to another row
+  // of that date): only then is the rest of that date read, so the instant is the one the whole-site read would give
+  if (top && realReadAt(top, spDateStart(top.snap_date)) == null) {
+    lastDaily = await readAll<DailySiteRow>('competitor_video_daily', () => sb.from('competitor_video_daily').select(DAILY_SITE_COLS)
+      .eq('competitor_videos.competitor_channels.site_id', siteId).eq('snap_date', top.snap_date).order('taken_at'))
+  }
+  return { firstAddedAt: adds.length ? Math.min(...adds) : null, lastOkSyncedAt: oks.length ? Math.max(...oks) : null, lastDaily: lastDaily.map(d => ({ snap_date: d.snap_date, taken_at: d.taken_at })) }
+}
+
 /**
  * The live rows of ONE channel of this site: the site's settings, niches and forja queue as loadLiveRows reads them,
  * and only this channel's row (a competitor, or an own channel with its videos). null = `channelId` is not a channel
@@ -555,7 +613,8 @@ export async function loadChannelLiveRows(sb: SupabaseClient, siteId: string, ch
   const settings = (st.data as SettingsRow | null) ?? null
   const ssAt = ms(settings?.series_started_at)
 
-  const [ownVideos, legacyChanges, readings, tasks, heartbeats, niches] = await Promise.all([
+  const [siteScope, ownVideos, legacyChanges, readings, tasks, heartbeats, niches] = await Promise.all([
+    readSiteScope(sb, siteId, seriesStartAt(ssAt), now),
     own ? readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('channel_id', channelId).eq('is_hidden', false).order('id')) : Promise.resolve([] as OwnVideoRow[]),
     channel ? readAll<LegacyChangeRow>('competitor_changes', () => sb.from('competitor_changes').select('id, video_id, change_type, old_title, new_title, detected_at')
       .eq('site_id', siteId).is('from_version_id', null).in('change_type', ['title', 'description']).order('id')) : Promise.resolve([] as LegacyChangeRow[]),
@@ -568,7 +627,7 @@ export async function loadChannelLiveRows(sb: SupabaseClient, siteId: string, ch
   ])
   return {
     settings, channels: channel ? [channel] : [], ownChannels: own ? [own] : [], ownVideos, legacyChanges, readings, tasks,
-    heartbeat: heartbeats[0] ?? null, niches, seriesStartAt: ssAt != null ? spDayStart(ssAt) : null,
+    heartbeat: heartbeats[0] ?? null, niches, seriesStartAt: ssAt != null ? spDayStart(ssAt) : null, siteScope,
   }
 }
 

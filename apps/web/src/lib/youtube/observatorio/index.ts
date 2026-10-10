@@ -158,6 +158,8 @@ export function createObservatory(input: Dataset, opts?: { seriesStartLabel?: st
   const clock = createClock(ds.now, ds.seriesStart, ds.snap0)
   let maxT = -Infinity
   for (const v of ds.videos) for (const p of v.series) if (p.t > maxT) maxT = p.t
+  // a one-channel dataset: the site's newest record, not the channel's (the channel may be a day or more behind)
+  if (ds.lastSeriesAt != null && ds.lastSeriesAt > maxT) maxT = ds.lastSeriesAt
   // No series at all (empty dataset): fall back to now, never -Infinity (Review Focus 2).
   const LAST_IDX = clock.snapIdxAtOrBefore(maxT === -Infinity ? ds.now : maxT)
   const last = ds.sync.last, next = ds.sync.next
