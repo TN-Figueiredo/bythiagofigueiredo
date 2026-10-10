@@ -1,0 +1,18 @@
+/* A ESCALA DE CAMADAS do Observatório, num lugar só (spec de telas v9, 19.1). Arquivo novo usa só estas variáveis.
+   Toda dica, popover e menu mora em #flut, filho direto do <body>: nenhum ancestral (overflow, transform, contain,
+   sticky) consegue prendê-la ou cortá-la. O contêiner é criado por _chrome/flut/store.ts e carrega data-obs, para
+   herdar os tokens de [data-obs] nos dois temas. */
+:root{
+  --z-fundo:0;
+  --z-conteudo:1;
+  --z-marca:2;
+  --z-marca-alta:3;
+  --z-marca-topo:4;
+  --z-grudado:10;
+  --z-flutuante:1000;
+  --z-aviso:1100;
+  --z-modal:2000;
+}
+#flut{position:fixed;inset:0;z-index:var(--z-flutuante);pointer-events:none}
+#flut>*{pointer-events:auto}
+#flut>.obs-fl-tip{pointer-events:none}
