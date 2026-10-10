@@ -4,7 +4,7 @@
  * Dado ausente é `value: null` com a frase em `missing`: nunca zero, nunca traço. Zero medido é "0".
  *
  * Não chama nada que agregue entre canais (o conjunto de um canal lança nisso): só `channel`, `videos`, `channelStats`,
- * `cadence`, `fmt`, `date`, `RULES`, `nicheLabel`, `median` e `theme`.
+ * `cadence`, `changesIn`, `fmt`, `date`, `RULES`, `nicheLabel`, `median` e `theme`.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { ObsChannel } from '@/lib/youtube/observatorio/types'
