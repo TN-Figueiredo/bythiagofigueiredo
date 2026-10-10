@@ -2,9 +2,12 @@
 
 Hub pessoal + CMS Engine do ecossistema `@tnf/*`.
 
+> Este arquivo carrega em toda sessão e em todo subagente. Mantenha **≤200 linhas**: regra e ponteiro
+> aqui, detalhe e histórico em `docs/`.
+
 ## REGRA: gates rápidos no commit, build/teste pesado no Vercel + CI
 
-Decisão (2026-06-06): o pre-commit hook **NÃO** roda mais `next build` nem os suites de teste — isso travava cada commit por 20-30min (pior com thrashing de CPU). A divisão de gates agora é:
+Decisão (2026-06-06): o pre-commit **NÃO** roda `next build` nem os suites de teste.
 
 | Gate | Quando | O que roda | Custo |
 |------|--------|-----------|-------|
@@ -13,111 +16,102 @@ Decisão (2026-06-06): o pre-commit hook **NÃO** roda mais `next build` nem os 
 | **Vercel** | todo deploy | `next build` (paridade real de build) | nuvem |
 | **CI** (`ci.yml`) | push staging | typecheck + testes + audit | nuvem |
 
-### Se mexeu em `packages/*/src/`:
-`npm run build:packages` IMEDIATAMENTE — recompila `dist/` que `apps/web`/`apps/api` consomem (senão imports quebram no typecheck).
+- Mexeu em `packages/*/src/`: `npm run build:packages` IMEDIATAMENTE (recompila o `dist/` que `apps/web`/`apps/api` consomem). Não commitar sem isso.
+- Mudança arriscada: rode `next build` e/ou os testes manualmente antes; não é obrigatório.
+- Commit → push (staging→main). Só rebuilde local (`npm run build:web`) se o Vercel realmente falhar.
+- NÃO re-adicionar `next build`/suites ao pre-commit "por segurança". `--no-verify` em código: evitar.
+- Categorias de pacote, gates automáticos e árvore de decisão: `docs/ops/workspace-package-builds.md`.
 
-### Fluxo:
-1. Faça a mudança; rode `npm run build:packages` se tocou em packages/.
-2. Para mudanças arriscadas, rode `next build` e/ou os testes manualmente ANTES (mas não é mais obrigatório — o pre-commit não força).
-3. Commit (rápido) → push (staging→main). O Vercel builda; a CI testa.
-4. **Só rebuilde local (`npm run build:web`) se o Vercel realmente falhar.**
+## Pausa com cache quente (decisão de 2026-10-09)
 
-### O que NÃO fazer:
-- NÃO re-adicionar `next build`/suites ao pre-commit "por segurança" — Vercel+CI cobrem.
-- NÃO commitar sem `build:packages` se mexeu em packages/.
-- `--no-verify` em código: evitar; mas como o hook agora é leve (typecheck), use o hook normal.
+O cache da sessão principal dura 1 h depois do último passo; reescrever custa 40× reler. Quando o
+turno termina **esperando o dono** e a sessão é grande (acima de ~150K tokens) ou há agentes rodando:
+
+1. Arme **um** timer em background: `bash ~/.claude/hooks/pausa-timer.sh 1`. Ele segura o Mac acordado,
+   espera 45 min desde a última atividade da sessão (enquanto o dono trabalha, só se estende) e, se o
+   cache já esfriou, fica calado em vez de acordar o modelo. Não arme outro enquanto esse estiver vivo.
+2. Quando ele sair, a saída diz o que fazer. Responda com **uma linha** (`ping n/10`), cheque agentes
+   só se houver, e rearme com o `n` indicado (`n=1` se o dono falou desde o último ping). Nada de reler
+   arquivo nem resumir estado: cada ping relê a sessão inteira.
+3. Saída `ÚLTIMO` (10 pings na tomada, 4 na bateria): escreva o handoff em
+   `~/Workspace/handoff/<projeto>/AAAA-MM-DD-HHMM-<tema>.md`, **não rearme** e encerre. O handoff traz
+   estado, próximo passo, arquivos a ler (aponta para planos e ledgers, não duplica) e, no topo, o
+   prompt de retomada para colar num terminal novo.
+4. **Sem pings** em "vacas magras" ou se o `/usage` não mostrar `1h TTL` (em excedente o TTL cai para
+   5 min e cada ping vira reescrita): handoff direto.
+
+Diário das decisões do timer (energia, tampa, saltos do relógio): `~/Workspace/handoff/.pausa.log`.
+
+## Economia de tokens (vale para a sessão principal E para subagentes)
+
+Medido em 2026-10-09 sobre 30 dias (`python3 ~/.claude/hooks/claude-custo.py 30`): 74% do custo foi
+subagente, 93% foi Opus, e a maior reescrita evitável foi **subagente parado mais de 5 min** (260×).
+
+- **Subagente nunca fica parado mais de 4 min** num comando ou espera: o cache dele dura 5 min e a
+  volta reescreve a janela inteira. Comando longo vai em background com saída em arquivo; se a espera
+  for inevitável (CI, deploy), devolva o controle à sessão principal em vez de esperar.
+- **Modelo e effort explícitos em todo despacho:** Sonnet executa, Opus só planeja e faz a revisão
+  final de um lote; effort `high` no começo, `medium` quando as revisões voltam limpas; nunca `xhigh`/`max`.
+- **Relatório de subagente em até 10 linhas;** o detalhe vai para um arquivo. Brief também em arquivo.
+- **Nunca mandar "só mais uma coisa" a um agente que terminou** (recarrega o histórico dele em cache
+  frio): abra um agente novo com o brief.
+- **Não trocar de modelo nem ligar `/fast` no meio da sessão** (joga o cache fora); só logo após `/clear`.
+- **Fase nova = sessão nova:** plano e estado em arquivo, `/clear`, e a sessão seguinte lê só o arquivo.
+- **Buscar antes de ler** (grep → ler só o trecho). Suíte de testes e build: saída para arquivo, e no
+  contexto entram só as falhas. Readiness: um único comando limitado, nunca polling por tool call.
+- Diff pequeno a sessão principal confere direto; sem ondas de revisores nem fan-out especulativo.
 
 ## Tech Stack
 
 | Camada | Stack |
 |--------|-------|
-| Web | Next.js 15 + React 19 + Tailwind 4 + TypeScript 5 |
+| Web | Next.js 16 + React 19 + Tailwind 4 + TypeScript 5 |
 | API | Fastify 5 + TypeScript 5 + Zod |
 | DB | Supabase (PostgreSQL 17 + Auth + Storage) |
-| Monorepo | npm workspaces |
-| Tests | Vitest |
-| Error tracking | Sentry |
+| Monorepo | npm workspaces · Tests: Vitest · Error tracking: Sentry |
 
 ## Database — Supabase CLI
 
-**Single project (prod):** `novkqtvcnsiwhkxihurk` em org `ByThiagoFigueiredo` (region: São Paulo).
+**Single project (prod):** `novkqtvcnsiwhkxihurk` em org `ByThiagoFigueiredo` (São Paulo).
+Scripts: `db:link:prod`, `db:push:prod` (confirmação YES), `db:which`, `db:start`, `db:stop`, `db:reset`, `db:status`, `db:env`.
 
-```bash
-npm run db:link:prod         # Link CLI ao project remoto (uma vez)
-npm run db:push:prod         # Push migrations pra prod (com confirmação YES)
-npm run db:which             # Mostra qual project linkado
-npm run db:start             # Sobe Supabase local via Docker
-npm run db:stop              # Para containers
-npm run db:reset             # Reset schema local
-npm run db:status            # Status + endpoints locais
-npm run db:env               # Gera .env.local-db com keys locais
-```
+- **Nova migration: `npm run db:new <nome_descritivo>`** → editar em `supabase/migrations/` → `npm run db:push:prod`.
+  NUNCA criar o arquivo à mão nem usar `npx supabase migration new`: o script garante timestamp
+  posterior à última migration (evita "out of order" e `--include-all`).
+- **Idempotência:** sempre `drop policy if exists` antes de `create policy`, `drop trigger if exists` antes de `create trigger`.
+- DB password em keychain/1Password (Supabase Dashboard → Project Settings → Database).
 
-### Nova migration
+## Testes
 
-```bash
-npm run db:new <nome_descritivo>   # OBRIGATÓRIO — gera timestamp sequencial correto
-# Edita o arquivo em supabase/migrations/
-npm run db:push:prod               # Push pra prod
-```
+- Com DB local: gated em `process.env.HAS_LOCAL_DB` (`npm run db:start && HAS_LOCAL_DB=1 npm test`); sem DB é o default da CI.
+  Convenção: `describe.skipIf(skipIfNoLocalDb())(...)`. Helpers: `apps/{api,web}/test/helpers/db-skip.ts`, `apps/web/test/helpers/db-seed.ts`. Integração em `apps/web/test/integration/`.
+- Suíte completa (`npx vitest run`) leva ~160s e **não trava**: antes de um push grande, rode inteira.
 
-**NUNCA criar arquivos de migration manualmente nem usar `npx supabase migration new`.**
-O script `npm run db:new` garante que o timestamp é sempre posterior à última migration existente,
-evitando erro de "out of order" que exigiria `--include-all`.
+### Regras anti-regressão (histórico de cada uma: `docs/ops/regras-anti-regressao-testes.md`)
 
-DB password salvo em keychain/1Password. Recuperar via Supabase Dashboard → Project Settings → Database.
+- **Bump de dependência:** rodar os testes dos consumidores diretos ANTES do push (`grep -rl <pacote> apps/{web,api}/src apps/web/lib packages/*/src`).
+- **Sanitizers nunca sob happy-dom:** server-side → `// @vitest-environment node`; componente client → `// @vitest-environment jsdom`.
+- **Fixtures temporais sempre relativas ou com fake timers:** nunca hardcodar ano/trimestre futuro.
+- **Fix que exige mudança em teste vai no MESMO commit do bump.**
+- **Next 16:** nunca passar `next/link` (ou componente importado num Server Component) como prop para client component; envolva num módulo `'use client'` (`src/app/cms/(authed)/_shared/cms-link.tsx`).
+- **Upgrade de framework/pacote que toca o CMS exige validação AUTENTICADA antes da promoção:** `docs/ops/runbook-cms-e2e-local.md`.
+- **Env com fallback:** escreva um teste que **apaga** a variável (`delete process.env.X`) e afirma sobre o valor padrão; idem para "invocação sem a flag". Um default que todo teste sobrescreve nunca roda.
 
-## Testes com DB local
+## RLS e RBAC
 
-Tests que dependem de Supabase local gated em `process.env.HAS_LOCAL_DB`. Helper: `apps/{api,web}/test/helpers/db-skip.ts`.
-
-```bash
-npm run db:start && HAS_LOCAL_DB=1 npm test   # Completa
-npm test                                        # Sem DB (CI default)
-```
-
-Convenção: `describe.skipIf(skipIfNoLocalDb())('<suite>', () => { ... })`. Integration tests em `apps/web/test/integration/`. Seed helpers em `apps/web/test/helpers/db-seed.ts`.
-
-## Regras anti-regressão de testes (aprendidas 2026-07-03)
-
-- **Bump de dependência → rodar os testes dos consumidores diretos ANTES do push:** `grep -rl <pacote> apps/{web,api}/src apps/web/lib packages/*/src` → `npx vitest run <arquivos de teste dos consumidores>` (deps transitivas sem import próprio: rodar as suites da feature que as usa). Runs direcionados custam ~1s. **A suíte completa NÃO trava mais** — medido em 2026-09-03: `npx vitest run` = 1078 arquivos, 13.780 testes, **160s**. A crença de que ela travava é obsoleta; antes de um push grande, rodar a suíte inteira é barato e vale mais que qualquer recorte. Um bump de dompurify pushado só com testes de blob causou CI red evitável.
-- **Sanitizers nunca sob happy-dom:** DOMPurify ≥3.4.11 falha aberto no happy-dom (mantém `<script>`, dropa tags permitidas). Teste de código server-side → `// @vitest-environment node`; componente client → `// @vitest-environment jsdom`. Canary: `test/unit/newsletter/archive-sanitizer.test.ts`.
-- **Fixtures temporais sempre relativas ou com fake timers:** nunca hardcodar ano/trimestre futuro (`'2027-06-01'`, `'Q2 2026'`) em teste que compara com wall clock — quebra o CI sozinho na virada (aconteceu 2026-07-01). Use `new Date(Date.now() + N * 864e5).toISOString()` ou `vi.useFakeTimers({ now, toFake: ['Date'] })`.
-- **Fix que exige mudança em teste vai no MESMO commit do bump** (bisectabilidade — a árvore nunca fica com testes vermelhos).
-- **Next 16: nunca passar `next/link` (ou qualquer componente importado num Server Component) como prop para um client component.** Em Server Components `next/link` resolve para o build react-server (função, não client reference) → `Functions cannot be passed directly to Client Components` → `/cms` em 500 (2026-09-06). Envolva num módulo `'use client'` (`src/app/cms/(authed)/_shared/cms-link.tsx`).
-- **Upgrade de framework/pacote que toca o CMS exige validação AUTENTICADA antes da promoção** — CI, `next build` e smoke público não têm sessão. Receita de 5 min: `docs/ops/runbook-cms-e2e-local.md`.
-- **Um ramo-padrão de variável de ambiente que todo teste sobrescreve nunca é exercitado.** `os.environ.get('X') or <default>` (ou `process.env.X ?? <default>`) com **todos** os testes setando `X` significa que o `<default>` — o único caminho que a produção usa — nunca roda. A suíte fica verde e a produção quebra no primeiro boot. Custou um crashloop de cron na forja em 22/09 com **687 asserções verdes**: o worker resolvia `sitio.py` pelo fallback de `AGENTE_SITIO`, e todo teste passava `AGENTE_SITIO` explicitamente. **Regra:** ao ler env com fallback, escreva um teste que **apaga** a variável (`delete process.env.X` / `monkeypatch.delenv`) e afirma sobre o valor padrão. Vale igual para "invocação sem a flag" — `--sombra` sem `--snapshot` estourou `TypeError` pelo mesmo motivo: o grupo de testes sempre passava a flag.
-
-## Database RLS helpers
-
-- Helpers em `public`: `user_role()`, `is_staff()`, `is_admin()`, `site_visible(uuid)`.
-- Policies de leitura pública DEVEM usar `public.site_visible(site_id)` — nunca duplicar inline.
+- Helpers em `public`: `user_role()`, `is_staff()`, `is_admin()`, `site_visible(uuid)`. Policies de leitura pública DEVEM usar `public.site_visible(site_id)`, nunca inline.
 - GUC `app.site_id`: middleware seta por request. Vazio = sem filtro (admin). Inválido = fail closed.
-- **Idempotência em migrations:** sempre `drop policy if exists` antes de `create policy`, `drop trigger if exists` antes de `create trigger`.
-
-## Multi-ring RBAC v3
-
-4 roles: `super_admin` (master ring org_admin), `org_admin`, `editor`, `reporter` (read/edit own only, no publish).
-
-**Key RLS helpers (SECURITY DEFINER):** `is_super_admin()`, `is_org_admin(uuid)`, `can_view_site(uuid)`, `can_edit_site(uuid)`, `can_publish_site(uuid)`, `can_admin_site_users(uuid)`, `is_member_staff()` (DB-checked, closes JWT staleness).
-
-**Publish guard:** trigger `enforce_publish_permission` blocks publish when `NOT can_publish_site(site_id)`.
-
-**Audit log:** `audit_log` table with triggers. GUC `app.client_ip` + `app.user_agent` via `set_audit_context(ip, ua)` RPC.
-
-**Site resolution:** middleware resolves `Host → site` via `SupabaseRingContext.getSiteByDomain()`, sets `x-site-id`, `x-org-id`, `x-default-locale`. Server components read via `getSiteContext()`.
-
-**Server actions security:** write actions DEVEM chamar `requireSiteAdmin(postId)` no topo. `getSupabaseServiceClient()` bypassa RLS — sem guard explícito, cross-ring writes possíveis.
+- **RBAC v3:** `super_admin`, `org_admin`, `editor`, `reporter` (read/edit own only, no publish).
+- Helpers SECURITY DEFINER: `is_super_admin()`, `is_org_admin(uuid)`, `can_view_site(uuid)`, `can_edit_site(uuid)`, `can_publish_site(uuid)`, `can_admin_site_users(uuid)`, `is_member_staff()`.
+- **Publish guard:** trigger `enforce_publish_permission`. **Audit log:** `audit_log` + `set_audit_context(ip, ua)`.
+- **Site resolution:** middleware resolve `Host → site` (`SupabaseRingContext.getSiteByDomain()`), seta `x-site-id`, `x-org-id`, `x-default-locale`; server components leem via `getSiteContext()`.
+- **Server actions:** write actions DEVEM chamar `requireSiteAdmin(postId)` no topo. `getSupabaseServiceClient()` bypassa RLS.
 
 ## @tn-figueiredo/cms package
 
-Workspace em `packages/cms/`, consumido via `"@tn-figueiredo/cms": "*"` + `transpilePackages` no `next.config.ts`.
-
-**MDX strategy:** `compile()` on save → `content_compiled` column → `run()` at render. Fallback runtime compile se `content_compiled IS NULL`.
-
-**Dev loop:** após mudança em `packages/cms/src/*`: `npm run build -w packages/cms` ou `npm install`.
-
-`transpilePackages: ['@tn-figueiredo/cms', '@tn-figueiredo/newsletter', '@tn-figueiredo/newsletter-admin']`
+Workspace em `packages/cms/`, consumido via `"@tn-figueiredo/cms": "*"` + `transpilePackages: ['@tn-figueiredo/cms', '@tn-figueiredo/newsletter', '@tn-figueiredo/newsletter-admin']`.
+MDX: `compile()` on save → `content_compiled` → `run()` at render (fallback: compile em runtime se nulo).
+Após mudança em `packages/cms/src/*`: `npm run build -w packages/cms`.
 
 ## Feature modules (completed — read code for details)
 
@@ -129,124 +123,49 @@ Workspace em `packages/cms/`, consumido via `"@tn-figueiredo/cms": "*"` + `trans
 | 5f | Links Engine | `lib/links/`, `app/cms/links/`, `app/go/`, `packages/links*/` |
 | 5g | Media System | `lib/media/`, `app/cms/media/` |
 
-### Key architectural patterns
-
-- **LGPD:** 3-phase deletion (phase1 instant+ban → phase2 no-op → phase3 D+15 hard delete). Cookie banner only in `app/(public)/layout.tsx`, never in `/admin`, `/cms`, `/account`. 6 adapters wired in `lib/lgpd/container.ts`. Sentry error tracking = legítimo interesse LGPD Art. 7 VIII; Replay/Tracing need analytics consent.
-- **SEO:** `app/sitemap.ts` + `app/robots.ts` do direct host lookup (NOT middleware-dependent — Next.js #58436). JSON-LD `@graph` composition via `schema-dts`. Identity profiles committed as JSON (not DB) — security-grade. OG image 5-step precedence: seo_extras → cover_image → dynamic OG → site default → `/og-default.png`.
-- **Newsletter:** AWS SES-only since 2026-04-30 (Resend + Svix removed; Brevo before that). CAS for edition status transitions. Crash recovery via `ON CONFLICT DO NOTHING`. RFC 8058 one-click unsubscribe. Delivery/open/click/bounce tracking via SES config set (`bythiago-marketing`) → SNS → `app/api/webhooks/ses` (cert-based SNS signature verification, no shared secret). React Email templates in `src/emails/`.
-- **Links:** `go.{domain}` subdomain routing via middleware rewrite to `/go/${code}`. Daily-rotating visitor ID `SHA-256(ip|ua|date)`. Partitioned `link_clicks` table. Watermark-based hourly aggregation.
-- **Media:** Vercel Blob storage (`@vercel/blob`). SHA-256 dedup. EXIF strip (LGPD). 7-day orphan grace → 30-day hard delete. SVG sanitization via DOMPurify. `<MediaGalleryDialog>` reusable picker wired into blog/author/newsletter/campaign editors.
-
-### Remaining operational flags (boolean feature flags removed 2026-05-07)
-
-LGPD: `LGPD_CRON_SWEEP_ENABLED` (safety valve — irreversible data deletion cron)
-SEO: `SEO_AI_CRAWLERS_BLOCKED` (controls robots.txt AI crawler rules)
-Links: `LINKS_SHORT_DOMAIN` (string)
-Tracking: `GEO_PROVIDER` (string — default `auto`, set `stub` for dev/test)
-Ads: `AD_GOOGLE_ENABLED`, `AD_TRACKING_ENABLED`, `AD_REVENUE_SYNC_ENABLED` (require external Google setup)
-YouTube A/B Lab: `AB_AUTO_APPLY_WINNER` (default off — a confiança bayesiana do teste roda sobre cliques que são sempre zero, então o vencedor é só sugerido e espera confirmação humana antes de ser aplicado no canal)
+- **LGPD:** deleção em 3 fases (phase1 instant+ban → phase2 no-op → phase3 D+15 hard delete). Cookie banner só em `app/(public)/layout.tsx`. 6 adapters em `lib/lgpd/container.ts`. Sentry errors = legítimo interesse; Replay/Tracing exigem consentimento.
+- **SEO:** `app/sitemap.ts` + `app/robots.ts` fazem host lookup direto (não dependem do middleware — Next.js #58436). JSON-LD `@graph` via `schema-dts`. OG image: seo_extras → cover_image → dynamic OG → site default → `/og-default.png`.
+- **Newsletter:** AWS SES-only desde 2026-04-30. CAS nas transições de status. RFC 8058 one-click unsubscribe. Tracking: SES config set `bythiago-marketing` → SNS → `app/api/webhooks/ses` (assinatura por certificado). Templates em `src/emails/`.
+- **Links:** `go.{domain}` via rewrite do middleware para `/go/${code}`. Visitor ID diário `SHA-256(ip|ua|date)`. `link_clicks` particionada.
+- **Media:** Vercel Blob. SHA-256 dedup. EXIF strip (LGPD). Órfão: 7 dias de carência → hard delete em 30. SVG via DOMPurify. `<MediaGalleryDialog>` é o picker reutilizável.
 
 ## A forja — fila de inteligência do YouTube (em produção desde 2026-09-22)
 
-Uma máquina Ubuntu na casa do dono (`ssh forja`, usuário `thiago`) drena a cada 10 min, por **cron
-do `thiago`**, a fila `youtube_intelligence_tasks` do site: claim → snapshot → **Gemma 12B local** →
-validador → `PATCH /api/pipeline/youtube/intelligence` → Health Coach. É o único consumidor da fila.
+Máquina Ubuntu na casa do dono (`ssh forja`, usuário `thiago`) drena a cada 10 min, por cron, a fila
+`youtube_intelligence_tasks`: claim → snapshot → Gemma 12B local → validador →
+`PATCH /api/pipeline/youtube/intelligence` → Health Coach. É o único consumidor da fila.
 
-| | |
-|---|---|
-| Worker | `/opt/agente/docs/trilha/fila_intel.py` (cópia única) · venv em `/opt/agente/venv` |
-| Segredo | `/opt/agente/fila_intel.env` 0600 — `SITIO_CHAVE_FILA`, `CANAIS_FILA` (aceita rótulos locais como `PT`, slugs do site como `tnfigueiredotv`, ou `*`; slug/`*` consultam `GET /api/pipeline/youtube/channels`) |
-| Log | `/opt/agente/log/fila_intel.jsonl` (1 linha por execução) · `.err` = traceback |
-| Vigilância | bloco no `pulso.sh` → check `URL_FILA` no healthchecks (período 1 h, grace 45 min), **separado** do principal |
-| Chave no site | `pipeline_api_keys` `name='forja (fila)'`, escopo `{read,intelligence}` |
-| Escopo da fase 2a | **só views e séries** — sem CTR, sem retenção, sem recomendação por vídeo |
-
-- **Runbook (desligar, religar, trocar a chave, canal EN, ler o jsonl, `URL_FILA` vermelho, "o texto
-  saiu pobre"): `docs/ops/forja-fila-inteligencia-runbook.md`.** Spec e plano em
-  `docs/superpowers/{specs,plans}/2026-09-1{8,9}-forja-fila-inteligencia-*`; o que de fato aconteceu
-  está no ledger `.superpowers/sdd/2026-09-19-forja-fila-inteligencia-plan/progress.md`.
-- **O kit da forja é `~/Workspace/forja/ferramentas` — git LOCAL, sem remoto.** Se o Mac morrer, o
-  único backup é a cópia na forja, e ela **já está atrás** (dois commits nunca instalados, §2 do
-  runbook). Toda mudança no kit termina em `git commit -- <caminhos>`.
-- **Escrita na forja é do dono, sem exceção.** Nenhum agente roda `ssh forja '<escreve>'`, `scp` para
-  a forja, `crontab -`, `install`, `mv` ou `systemctl` lá. O agente **prepara** os comandos — curtos,
-  **um por linha** — e o dono cola. Leitura por `ssh forja '<comando de leitura>'` é permitida e
-  esperada: confira contra a máquina antes de afirmar.
-- **Este sistema falha em VERDE.** `series.json` ausente, fallback para template, `recent_window`
-  nula e o `fail` descartado no `indeterminado` produzem `desfecho: ok` e check verde com saída vazia
-  de conteúdo. Quem detectou na primeira vez foi o dono olhando a tela. Ao mexer aqui, pergunte
-  sempre *"o que acontece quando o dado não existe?"* antes de *"o que acontece quando dá erro?"*.
-- **Orçamento acoplado em três lugares:** 20 min do claim < `timeout -k 30s 25m` do cron <
-  `STALE_THRESHOLD_MINUTES` (30 min) do watchdog, e o pulso corta em 70 min. Mexer em um exige
-  refazer a conta dos outros.
+- **Runbook (caminhos, segredo, log, vigilância, desligar/religar, trocar chave):** `docs/ops/forja-fila-inteligencia-runbook.md`. Ledger: `.superpowers/sdd/2026-09-19-forja-fila-inteligencia-plan/progress.md`.
+- **O kit é `~/Workspace/forja/ferramentas` — git LOCAL, sem remoto;** a cópia na forja está atrás (§2 do runbook). Toda mudança no kit termina em `git commit -- <caminhos>`.
+- **Escrita na forja é do dono, sem exceção.** Nenhum agente roda `ssh forja '<escreve>'`, `scp`, `crontab -`, `install`, `mv` ou `systemctl` lá. O agente **prepara** os comandos — curtos, **um por linha** — e o dono cola. Leitura por `ssh forja '<leitura>'` é permitida e esperada.
+- **Este sistema falha em VERDE:** dado ausente (`series.json`, `recent_window` nula, fallback para template) produz `desfecho: ok` com saída vazia. Pergunte sempre *"o que acontece quando o dado não existe?"* antes de *"quando dá erro?"*.
+- **Orçamento acoplado:** 20 min do claim < `timeout -k 30s 25m` do cron < `STALE_THRESHOLD_MINUTES` (30 min) do watchdog; o pulso corta em 70 min. Mexer em um exige refazer a conta dos outros.
+- Escopo da fase 2a: **só views e séries** — sem CTR, sem retenção, sem recomendação por vídeo.
 
 ## Pipeline Integrity
 
 Ao criar/deletar routes em `apps/web/src/app/api/pipeline/`:
 1. Atualizar `apps/web/src/lib/pipeline/api-registry.ts` — add/remove endpoint entry **e** ajustar `endpoint_count` do domain
 2. Atualizar `apps/web/data/pipeline-docs/cowork-docs-{domain}.md` com documentação do endpoint
-3. Se o JSON schema de uma section (ideia, roteiro, postprod, etc.) mudou, atualizar `docs/cowork-pipeline-reference.md`
-4. Domain novo (raro): criar domain const + `DomainId` + `DOMAIN_LABELS` + `capabilities[]` + doc file — testes guiam o resto
-Tests validam estrutura (registry ↔ route files, endpoint_count, doc files, métodos exportados) mas NÃO conteúdo dos docs.
-Chave permanente: `PIPELINE_COWORK_KEY` em `.env.local`. **Nunca criar/revogar keys.**
+3. Se o JSON schema de uma section mudou, atualizar `docs/cowork-pipeline-reference.md`
+4. Domain novo (raro): domain const + `DomainId` + `DOMAIN_LABELS` + `capabilities[]` + doc file — testes guiam o resto
 
-## Environment Variables
+Tests validam estrutura, NÃO conteúdo dos docs. Chave permanente: `PIPELINE_COWORK_KEY` em `.env.local`. **Nunca criar/revogar keys.**
 
-### Web (`apps/web/.env.local`)
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN`, `CRON_SECRET`, `NEWSLETTER_FROM_DOMAIN`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `CAMPAIGN_PDF_SIGNED_URL_TTL`, `YOUTUBE_API_KEY`, `BLOB_READ_WRITE_TOKEN`, `PIPELINE_MCP_HMAC_SECRET`, `YT_ANALYTICS_SYNC_WINDOW_DAYS`, `NTFY_URL`, `UPTIME_PROBE_TARGET`, `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `INSTAGRAM_ALLOW_META_SECRET_FALLBACK`, `SOCIAL_MASTER_KEY` + operational flags above.
+## Variáveis de ambiente e flags
 
-`PIPELINE_MCP_HMAC_SECRET` (gerar com `openssl rand -hex 32`): assina os confirmation tokens de ações destrutivas do MCP pipeline (`lib/pipeline/mcp/safety.ts`). Deliberadamente separado de `PIPELINE_COWORK_KEY` — essa viaja em todo request via `X-Pipeline-Key`, então usá-la para assinar os tokens deixaria quem tem a chave forjar a própria confirmação. **Ordem obrigatória de rollout:** setar a variável (`.env.local` e Vercel) primeiro, deploy do código depois — invertido, `getHmacSecret()` lança e derruba as tools MCP.
+Lista completa, flags operacionais e o detalhe de cada variável: **`docs/ops/env-vars.md`**. Regras que não podem ser esquecidas:
 
-`META_REQUEST_INSIGHTS_SCOPES` (opcional, default desligado): quando `1`, o start do OAuth social
-pede também `read_insights` e `instagram_manage_insights`. **Desligado desde 2026-09-18** porque o
-diálogo da Meta recusou o pedido inteiro com `Invalid Scopes: read_insights,
-instagram_manage_insights` — um escopo indisponível não degrada o pedido, ele BLOQUEIA o diálogo e
-derruba a reconexão de publicação junto. Ligue só depois que as duas permissões estiverem liberadas
-para o app (App Review / acesso avançado) e reconecte uma vez; enquanto estiver desligado, as
-chamadas a `/insights` do `metrics-poller` falham por entrega e aparecem em `cron_runs`.
-
-`YT_ANALYTICS_SYNC_WINDOW_DAYS` (opcional, default `90`): controla o tamanho da janela consultada na YouTube Analytics API pelo cron `app/api/cron/sync-analytics-metrics/route.ts`.
-
-`INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET` (App Dashboard > Instagram > API setup with Instagram login >
-Business login settings): habilitam `Connect with Instagram` em `/cms/settings/instagram`. Lidos de
-`process.env` direto (declarados `.optional()` no `serverSchema`) — `getServerEnv()` lançaria e derrubaria
-a rota inteira. Sem eles a UI mostra "Instagram OAuth isn't configured yet" e a cola manual continua
-funcionando. `INSTAGRAM_ALLOW_META_SECRET_FALLBACK=1` aceita `META_APP_SECRET` na verificação do
-`signed_request` até **2026-10-06** (`META_SECRET_FALLBACK_DEADLINE_MS`); depois é ignorado.
-`SOCIAL_MASTER_KEY` (32 bytes hex) cifra o token em repouso — sem ela o OAuth responde 503
-`vault_unavailable`.
-
-Sentry: `NEXT_PUBLIC_SENTRY_DSN` required em prod/preview, optional em dev (empty → no-op). `SENTRY_ORG/PROJECT/AUTH_TOKEN` build-only (source map upload).
-
-### API (`apps/api/.env.local`)
-`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `PORT`, `WEB_URL`, `SENTRY_DSN`
-
-### Production (Vercel)
-`NEXT_PUBLIC_APP_URL=https://bythiagofigueiredo.com`, `NEXT_PUBLIC_API_URL=https://bythiagofigueiredo-api.vercel.app`
-
-## Instagram OAuth (entrega de 2026-09-06)
-
-Oito commits sequenciais em `staging`, nesta ordem: **A → A4 → A5 → B → C1 → C2 → C4 → C3**
-(A5 tem dois corpos possíveis, decididos pelo gate de herança de `maxDuration` depois de A).
-Rollback obrigatoriamente na ordem inversa **C3 → C4 → C2 → C1 → B → A5 → A4 → A**.
-
-- **Depois de promover C2:** `curl -fsS -H "Authorization: Bearer $CRON_SECRET"` nos **dois** crons
-  (`/api/cron/instagram-token-refresh` **e** `/api/cron/instagram-sync`) **no mesmo minuto** — os dois
-  mudam de agenda (`"0 11 * * *"` e `"0 13 * * *"`) e sem isso o `/api/health` fica `degraded` por
-  ~12 h e o watchdog pagina ~1×/h.
-- **Rollback de C2 = `git revert` + passo de banco obrigatório** (zerar `access_token like 'v1:%'`,
-  `ig_user_id_source='legacy'`, `ig_professional_id=null` e limpar as chaves de `ops_alert_state`).
-  "Só reverter o deploy" está **proibido** para C2. Detalhe em
-  `docs/superpowers/specs/2026-09-06-instagram-oauth-reconnect-design.md` §7.
-- **C3** acrescenta as rotas `/api/instagram/oauth`, `/api/instagram/oauth/callback`,
-  `/api/instagram/deauthorize`, `/api/instagram/data-deletion` e a página pública `/data-deletion`.
-  Runbook: `docs/ops/instagram-token-alert-runbook.md`.
+- `PIPELINE_MCP_HMAC_SECRET`: setar a variável (`.env.local` e Vercel) **antes** do deploy do código; invertido, as tools MCP caem.
+- `META_REQUEST_INSIGHTS_SCOPES`: desligado; um escopo indisponível BLOQUEIA o diálogo da Meta inteiro. Só ligar após App Review.
+- `LGPD_CRON_SWEEP_ENABLED`: válvula de segurança de deleção irreversível.
+- `AB_AUTO_APPLY_WINNER`: default off; vencedor de A/B é só sugerido, espera confirmação humana.
+- Produção: `NEXT_PUBLIC_APP_URL=https://bythiagofigueiredo.com`, `NEXT_PUBLIC_API_URL=https://bythiagofigueiredo-api.vercel.app`.
+- Instagram OAuth (ordem dos 8 commits, rollback de C2 com passo de banco obrigatório): `docs/ops/instagram-oauth-entrega-2026-09-06.md`.
 
 ## Roadmap
 
-**Done:** Sprints 0, 1a, 1b, 2, 3, 4a, 4b, 4.5, 4.75, 5a, 5b, 5c, 5e, 5f, 5g
-**Next:** Sprint 5h (Social Hub, ~78h) → Sprint 5d (Vercel deploy hardening) → Sprint 6 (MVP Launch, 30h)
-Source of truth: `docs/roadmap/README.md`
+**Next:** Sprint 5h (Social Hub, ~78h) → Sprint 5d (Vercel deploy hardening) → Sprint 6 (MVP Launch, 30h). Source of truth: `docs/roadmap/README.md`.
 
 ## Code Standards
 
@@ -257,10 +176,7 @@ Source of truth: `docs/roadmap/README.md`
 
 ## Ecosystem Packages (@tn-figueiredo/*)
 
-Consumidos via `.npmrc` → `npm.pkg.github.com`. Versões exatas (sem `^`) — pre-commit hook valida.
-
-- **api:** `auth@1.3.0`, `auth-fastify@1.1.0`, `auth-supabase@1.1.0`, `audit@0.1.0`, `lgpd@0.1.0`, `shared@0.8.0`
-- **web:** `admin@0.3.0`, `auth-nextjs@2.2.0`, `cms@0.1.0-dev`, `email@0.2.0`, `links@0.1.0-dev`, `links-admin@0.1.0-dev`, `newsletter@0.1.0`, `newsletter-admin@0.1.0`, `notifications@0.1.0`, `seo@0.1.0`, `shared@0.8.0`, `social@0.1.0-dev`
+Consumidos via `.npmrc` → `npm.pkg.github.com`. Versões exatas (sem `^`) — pre-commit valida; a versão vigente é a do `package.json` de cada app.
 
 ## CI
 
@@ -272,38 +188,6 @@ Consumidos via `.npmrc` → `npm.pkg.github.com`. Versões exatas (sem `^`) — 
 
 Secrets: `NPM_TOKEN` (read:packages), `CRON_SECRET` (health checks), `LHCI_GITHUB_APP_TOKEN` (optional).
 
-## Workspace Package Build Confidence
-
-Automated pipeline that guarantees zero CI failures from stale workspace packages. All gates are automatic — no manual checklist.
-
-### How it works
-
-| Gate | When | What it checks | Cost |
-|------|------|----------------|------|
-| `postinstall` | `npm ci`/`npm install` | Builds workspace packages | +5-8s |
-| Pre-commit | Every commit | build:packages → tests → next build → api typecheck | +5-8s |
-| Post-merge | After `git pull` | Auto-rebuilds if `packages/*/src/` changed | +5-8s |
-| Pre-push | Every push | Full ecosystem: rebuild + pinning + imports + typecheck | +45-60s |
-
-### Single source of truth
-
-`npm run build:packages` — defined once in root `package.json`, consumed by all gates and CI. Adding a new package = edit this one line.
-
-### Package categories
-
-- **Need build (dist/ export):** `@tn-figueiredo/links`, `@tn-figueiredo/social` — must be in `build:packages`
-- **No build (src/ export):** `@tn-figueiredo/links-admin` — in `transpilePackages`. In `build:packages` for consistency.
-- **Exception:** `@app/shared` (`packages/shared`) — raw TS, `transpilePackages`, NodeNext incompatible with workspace build
-- **Published:** All other `@tn-figueiredo/*` — from GitHub Packages, pinned exact versions
-
-### Decision tree
-
-- **Created new workspace package with dist/ export?** → Add to `build:packages` in root package.json. Test blocks commit if you forget.
-- **Modified workspace package source?** → Nothing manual. Pre-commit auto-rebuilds.
-- **After git pull and something broken?** → Run `npm run build:packages`. Post-merge should have done this.
-- **CI typecheck fails on @tn-figueiredo/* types?** → Verify package is in `build:packages`.
-- **Import works locally but not CI?** → Declare it in consuming app's package.json.
-
 ## O que NÃO fazer
 
 - Não instalar deps sem validar
@@ -313,4 +197,4 @@ Automated pipeline that guarantees zero CI failures from stale workspace package
 - Não fazer force-push em `main` ou `staging` sem autorização explícita
 - Não chamar `getSupabaseServiceClient()` sem antes validar `canAdminSite(siteId)`
 - Não importar server actions diretamente em client components — passe callbacks via props
-- Não criar arquivos de migration manualmente — usar **`npm run db:new <nome>`** (garante timestamp sequencial)
+- Não criar arquivos de migration manualmente — usar **`npm run db:new <nome>`**
