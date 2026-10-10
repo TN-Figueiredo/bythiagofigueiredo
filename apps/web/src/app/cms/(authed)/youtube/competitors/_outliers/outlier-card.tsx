@@ -37,7 +37,11 @@ export function RichText({ parts }: { parts: Rich }) {
     : <abbr key={i} title={p.title}>{p.abbr}</abbr>)}</>
 }
 
-export function Thumb({ c, rank }: { c: OutlierCardView; rank?: boolean }) {
+/** The slices of a card that Thumb and MultBlock read: other screens (channel, video) pass only these. */
+export type ThumbData = Pick<OutlierCardView, 'art' | 'thumb' | 'dur'>
+export type MultData = Pick<OutlierCardView, 'id' | 'mult' | 'multLabel' | 'tier' | 'stale' | 'weak' | 'neutral' | 'flags' | 'tip'>
+
+export function Thumb({ c, rank }: { c: ThumbData; rank?: boolean }) {
   const art = c.art
   return (
     <span className="obs-out-thumb" data-thumb="" aria-hidden="true"
@@ -52,7 +56,7 @@ export function Thumb({ c, rank }: { c: OutlierCardView; rank?: boolean }) {
   )
 }
 
-export function MultBlock({ c, compact, lead }: { c: OutlierCardView; compact?: boolean; lead?: boolean }) {
+export function MultBlock({ c, compact, lead }: { c: MultData; compact?: boolean; lead?: boolean }) {
   const [open, setOpen] = useState(false)
   // hover and focus are separate: leaving with the mouse does not hide the account of a button that still has the focus
   const [hover, setHover] = useState(false)

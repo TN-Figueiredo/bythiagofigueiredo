@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import './_chrome/chrome.css'
 import './_chrome/camadas.css'
+import './_chrome/kit.css'
 import './_chrome/tokens-telas.css'
 import './_chrome/flut/flut.css'
 
