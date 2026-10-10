@@ -4,6 +4,7 @@
   'use strict';
   var C = window.CANAL, F = C.fmt, $ = function(id){ return document.getElementById(id); };
   var screen = $('screen');
+  var OWN = !!C.own, PAGE = OWN ? 'canal-proprio.html' : 'canal.html';   /* rodada 5: canal-proprio.html carrega dados-proprio.js, que troca o canal de window.CANAL pelo canal do dono */
   /* rodada 3: o múltiplo do canal passa a ser o MESMO da tela de histórico do vídeo (mediana dos outros vídeos do mesmo formato e da mesma faixa de idade), para o número não mudar entre as duas telas */
   if (window.HM) C.videos.forEach(function(v){
     var m = window.HM.mult(v.id);
@@ -35,15 +36,21 @@
 
   /* ---------------------------------------------------------------- estado ⇄ URL (os padrões ficam fora da URL) */
   var LOTE = 40;   /* rodada 3: "Carregar mais" traz os antigos, sem contagem diária, de 40 em 40 */
-  var DEF = { tab: 'videos', fmt: 'todos', sort: 'recentes', dir: 'desc', q: '', ver: 'capas', n: 0 };   /* n = quantos dos antigos já foram carregados */
-  var OK = { tab: ['videos', 'trocas', 'leitura'], fmt: ['todos', 'longos', 'shorts', 'fixados'], sort: ['recentes', 'vistos', 'multiplo', 'vpd'], dir: ['asc', 'desc'], ver: ['capas', 'lista'],
+  var DEF = { tab: 'videos', fmt: 'todos', sort: 'recentes', dir: 'desc', q: '', ver: 'capas', n: 0, nums: '' };   /* nums=1: "Todos os números" aberto (rodada 5) */   /* n = quantos dos antigos já foram carregados */
+  var OK = { tab: OWN ? ['videos', 'trocas', 'leitura', 'retencao'] : ['videos', 'trocas', 'leitura'], fmt: OWN ? ['todos', 'longos', 'shorts'] : ['todos', 'longos', 'shorts', 'fixados'], sort: OWN ? ['recentes', 'vistos', 'multiplo', 'imp'] : ['recentes', 'vistos', 'multiplo', 'vpd'], dir: ['asc', 'desc'], ver: ['capas', 'lista'],
     estado: ['normal', 'carregando', 'erro', 'backfill', 'atrasada', 'vazio'], dens: ['conf', 'padrao', 'comp'], leitura: window.FORJA.VALIDOS };
   var st = {};
   function lerUrl(){
     /* a URL real é ?fmt=…; aberto direto do disco (file://) o navegador recusa pushState, então o mesmo estado vai no # */
     var p = new URLSearchParams(location.search.length > 1 ? location.search : location.hash.replace(/^#/, ''));
     ['tab', 'fmt', 'sort', 'dir', 'ver'].forEach(function(k){ var v = p.get(k); st[k] = OK[k].indexOf(v) >= 0 ? v : DEF[k]; });
-    st.q = (p.get('q') || '').slice(0, 80);
+    st.cliques = 'sempre';   /* rodada 7 (decisão do dono): sem corte, sempre a contagem, nunca percentual por vídeo */
+    /* rodada 8: "Como o canal está" nasce RECOLHIDA. ?painel=1 abre, ?painel=0 fecha; sem parâmetro vale o que a pessoa deixou (pc:painel8); com ?comparar= a comparação precisa dele aberto */
+    /* rodada 9: a comparação saiu daqui e mora em comparar.html. Link antigo ?comparar=<id> redireciona para a tela nova. */
+    st.comparar = '';
+    if (OWN && p.get('comparar')) location.replace('comparar.html?a=proprio&b=' + encodeURIComponent(p.get('comparar')));
+    st.painel = p.get('painel') === '0' ? '0' : p.get('painel') === '1' ? '1' : (function(){ try { return localStorage.getItem('pc:painel8') === '1' ? '1' : '0'; } catch (e) { return '0'; } })();
+    st.q = (p.get('q') || '').slice(0, 80); st.nums = p.get('nums') === '1' ? '1' : '';
     var n = parseInt(p.get('n'), 10); st.n = n > 0 ? Math.ceil(n / LOTE) * LOTE : DEF.n;
     st.video = p.get('video') || '';
     /* só do mockup */
@@ -53,9 +60,10 @@
   }
   function query(extra){
     var p = new URLSearchParams(), s = Object.assign({}, st, extra || {});
-    ['tab', 'fmt', 'sort', 'dir', 'q', 'ver'].forEach(function(k){ if (s[k] !== DEF[k]) p.set(k, s[k]); });
+    ['tab', 'fmt', 'sort', 'dir', 'q', 'ver', 'nums'].forEach(function(k){ if (s[k] !== DEF[k]) p.set(k, s[k]); });
     if (s.n !== DEF.n) p.set('n', s.n);
     if (s.tab === 'trocas' && s.video) p.set('video', s.video);
+    if (OWN && s.painel === '1') p.set('painel', '1');
     if (s.estado !== 'normal') p.set('estado', s.estado);
     if (s.dens !== 'padrao') p.set('dens', s.dens);
     if (s.leitura && s.leitura !== 'nunca') p.set('leitura', s.leitura);
@@ -82,23 +90,23 @@
     }
     return { vids: C.videos, base: C.base };
   }
-  function syncMs(){ return st.estado === 'atrasada' ? C.NOW - 34 * 36e5 : Date.parse(C.canal.syncAt); }
+  function syncMs(){ return st.estado === 'atrasada' ? C.NOW - 34 * 36e5 : OWN ? C.reach.lidoEm : Date.parse(C.canal.syncAt); }
 
   /* ---------------------------------------------------------------- filtro, busca e ordenação */
   var FMT_NOME = { todos: 'Todos', longos: 'Longos', shorts: 'Shorts', fixados: 'Fixados' };
-  var SORT_NOME = { recentes: 'Publicado', vistos: 'Views', multiplo: 'Múltiplo', vpd: 'Views/dia' };
+  var SORT_NOME = { recentes: 'Publicado', vistos: 'Views', multiplo: 'Múltiplo', vpd: 'Views/dia', imp: 'Impressões' };
   var SEM = {
     vistos: ['Sem contagem de views', 'o YouTube ainda não devolveu a contagem'],
     multiplo: ['Sem múltiplo ainda', 'formato não confirmado, fixado antigo ou sem contagem'],
     vpd: ['Sem views por dia ainda', 'fora dos ' + C.canal.limite + ' vídeos acompanhados, fixado antigo ou sem contagem'],
-    recentes: ['', '']
+    recentes: ['', ''], imp: ['', '']
   };
   function passaFmt(v, f){ return f === 'todos' || (f === 'longos' && v.fmt === 'long') || (f === 'shorts' && v.fmt === 'short') || (f === 'fixados' && v.pinned); }
   function filtrar(f, q){
     var k = F.semAcento(q.trim());
     return ds().vids.filter(function(v){ return passaFmt(v, f) && (!k || F.semAcento(v.t).indexOf(k) >= 0); });
   }
-  function chave(v){ return st.sort === 'recentes' ? v.pub : st.sort === 'vistos' ? v.views : st.sort === 'multiplo' ? v.mult : v.vpd; }
+  function chave(v){ return st.sort === 'recentes' ? v.pub : st.sort === 'vistos' ? v.views : st.sort === 'multiplo' ? v.mult : st.sort === 'imp' ? v.imp : v.vpd; }
   function grupos(lista){
     var semData = lista.filter(function(v){ return v.pub == null; }), com = lista.filter(function(v){ return v.pub != null; });
     var main = com.filter(function(v){ return chave(v) != null; }), sem = com.filter(function(v){ return chave(v) == null; });
@@ -111,7 +119,20 @@
   }
 
   /* ---------------------------------------------------------------- textos de cada número (o que falta diz por quê) */
+  var PERIODO = OWN ? C.fmt.data(C.reach.de) + ' a ' + C.fmt.data(C.reach.ate) : '';
+  var MIN_IMP = 10;   /* proposta do mockup (pergunta ao dono): abaixo de 10 impressões no período a tela não fala de cliques */
+  function impTexto(v){
+    if (!v.imp) return 'nenhuma nos relatórios lidos de ' + PERIODO + '.';
+    return F.plural(v.imp, 'impressão', 'impressões') + ' de miniatura em ' + F.plural(v.impDias, 'dia', 'dias') + ', de ' + PERIODO + '. ' +
+      (v.imp < MIN_IMP && st.cliques !== 'sempre' ? 'Poucas impressões para dizer algo sobre cliques.' : (v.cliques ? F.plural(v.cliques, 'clique estimado', 'cliques estimados') : 'Nenhum clique estimado') + ' (impressões × CTR de cada dia). É contagem, não percentual: com tão poucas impressões o CTR de um dia não diz nada.');
+  }
+  function linha3(v){
+    if (!v.imp) return 'sem impressão no período';
+    if (v.imp < MIN_IMP && st.cliques !== 'sempre') return 'poucas impressões para dizer algo';
+    return (v.cliques ? F.plural(v.cliques, 'clique', 'cliques') : 'nenhum clique') + ' em ' + F.plural(v.impDias, 'dia', 'dias');
+  }
   function vpdTexto(v){
+    if (OWN) return 'ainda não medido. A coleta diária de views por vídeo começa em breve.';
     if (v.vpd != null) return F.taxa(v.vpd) + ' por dia, média de ' + F.plural(v.vpdDias, 'dia', 'dias') + ' (' + F.data(Date.parse(v.serie[0][0] + 'T15:00:00Z')) + ' a ' + F.data(Date.parse(v.serie[v.serie.length - 1][0] + 'T15:00:00Z')) + '; a contagem diária existe desde 03/10)';
     if (v.vpdMotivo === 'fixado-antigo') return 'fixado antigo: sem views/dia. Última contagem de views em ' + F.data(v.chk) + '.';
     if (v.vpdMotivo === 'um-dia') return 'primeira contagem diária em ' + F.data(Date.parse(v.serie[0][0] + 'T15:00:00Z')) + '. A média aparece no segundo dia.';
@@ -131,13 +152,14 @@
   }
   function viewsTexto(v){
     if (v.views == null) return 'sem contagem: ' + v.viewsMotivo + '.';
+    if (OWN) return F.num(v.views) + ' (lido em ' + F.data(C.reach.lidoEm, true) + ')';
     var velha = v.chk != null && C.NOW - v.chk > 48 * 36e5;
     return F.num(v.views) + ' (contagem de ' + (velha ? F.data(v.chk, true) : F.dataHora(v.chk)) + ')';
   }
   function detalhe(v){
     var l = v.likes == null ? 'não medido (o YouTube não devolveu a contagem)' : F.num(v.likes);
     var c = v.comments == null ? 'não medido (o YouTube não devolveu a contagem)' : F.num(v.comments);
-    return '<span><b>Views:</b> ' + esc(viewsTexto(v)) + '</span><span><b>Views/dia:</b> ' + esc(vpdTexto(v)) + '</span><span><b>Múltiplo:</b> ' + esc(multTexto(v)) + '</span>' +
+    return '<span><b>Views:</b> ' + esc(viewsTexto(v)) + '</span>' + (OWN ? '<span><b>Impressões:</b> ' + esc(impTexto(v)) + '</span>' : '') + '<span><b>Views/dia:</b> ' + esc(vpdTexto(v)) + '</span><span><b>Múltiplo:</b> ' + esc(multTexto(v)) + '</span>' +
       '<span><b>Curtidas:</b> ' + l + '</span><span><b>Comentários:</b> ' + c + '</span>' +
       (v.pinned && !v.serie && !v.pinAntigo ? '<span><b>Fixado:</b> aguardando a primeira sincronização.</span>' : '') +
       (v.pinned && v.pinAt && v.pinAntigo ? '<span><b>Fixado</b> em ' + F.data(v.pinAt) + '.</span>' : '');
@@ -146,6 +168,7 @@
   /* ---------------------------------------------------------------- link para o vídeo (leva a vizinhança filtrada e ordenada) */
   var ordemAtual = [];
   function hrefVideo(v){
+    if (OWN) return 'video-proprio.html?id=' + encodeURIComponent(v.id) + '&back=' + encodeURIComponent(query());   /* rodada 7: o histórico mínimo do vídeo próprio */
     var i = ordemAtual.indexOf(v.id), tot = ordemAtual.length, a = Math.max(0, Math.min(i - 50, tot - 100));
     var p = new URLSearchParams();
     p.set('id', v.id); p.set('from', 'canais'); p.set('canal', C.canal.id); p.set('back', query());
@@ -168,6 +191,8 @@
   }
   function nd(rotulo){ return '<span class="c nd"><span class="sr">' + rotulo + ': </span><b>não medido</b> <i aria-hidden="true">' + rotulo + '</i></span>'; }
   function nums(v){
+    if (OWN) return cel(F.num(v.views), 'views', st.sort === 'vistos') + cel(F.num(v.imp), v.imp === 1 ? 'impressão' : 'impressões', st.sort === 'imp') +
+      (v.mult != null ? cel(F.mult(v.mult), v.nivel || 'múltiplo', st.sort === 'multiplo', v.tier, v.nivel ? ' (múltiplo)' : '') : nd('múltiplo'));
     if (v.views == null) return '<span class="c s3 txt">sem contagem: ' + esc(v.viewsMotivo) + '</span>';
     var c1 = cel(F.num(v.views), 'views', st.sort === 'vistos');
     if (v.pinAntigo) return c1 + '<span class="c s2 txt">fixado antigo: sem views/dia nem múltiplo</span>';
@@ -181,27 +206,27 @@
   }
   function card(v){
     return '<li class="card" data-id="' + v.id + '">' +
-      '<a class="lnk" id="v-' + v.id + '" href="' + esc(hrefVideo(v)) + '" data-go="' + v.id + '">' +
+      '<a class="lnk" id="v-' + v.id + '" href="' + esc(hrefVideo(v)) + '" ' + (OWN ? 'data-own' : 'data-go') + '="' + v.id + '">' +
         '<span class="thumb"><img src="' + v.thumb + '" alt="" width="320" height="180" loading="lazy" decoding="async">' + selos(v) + '</span>' +
         '<span class="ttl">' + esc(v.t) + '</span></a>' +
       '<button type="button" class="amp" tabindex="-1" data-amp="' + v.id + ':" aria-label="Ampliar a thumbnail: ' + esc(v.t) + '">' + window.VIEWER_ICON + '</button>' +
       '<div class="meta">' + quando(v) + botaoAcoes(v) + '</div>' +
-      '<p class="nums">' + nums(v) + '</p></li>';
+      '<p class="nums">' + nums(v) + '</p>' + (OWN ? '<p class="n3">' + linha3(v) + '</p>' : '') + '</li>';
   }
   function cardSk(){
     return '<li class="card sk"><span class="thumb"></span><span class="ttl"><span class="bone"></span><span class="bone"></span></span>' +
-      '<div class="meta"><span class="bone"></span></div><p class="nums"><span class="c"><span class="bone"></span></span><span class="c"><span class="bone"></span></span><span class="c"><span class="bone"></span></span></p></li>';
+      '<div class="meta"><span class="bone"></span></div><p class="nums"><span class="c"><span class="bone"></span></span><span class="c"><span class="bone"></span></span><span class="c"><span class="bone"></span></span></p>' + (OWN ? '<p class="n3"><span class="bone"></span></p>' : '') + '</li>';
   }
 
   /* ---------------------------------------------------------------- linha (Lista) */
-  var COLS = [['recentes', 'Publicado'], ['vistos', 'Views'], ['vpd', 'Views/dia'], ['multiplo', 'Múltiplo']];
+  var COLS = OWN ? [['recentes', 'Publicado'], ['vistos', 'Views'], ['imp', 'Impressões'], ['multiplo', 'Múltiplo']] : [['recentes', 'Publicado'], ['vistos', 'Views'], ['vpd', 'Views/dia'], ['multiplo', 'Múltiplo']];
   function thead(){
     var h = '<thead><tr><th scope="col">Vídeo</th>';
     COLS.forEach(function(c){
       var on = st.sort === c[0];
       h += '<th scope="col" class="r"' + (on ? ' aria-sort="' + (st.dir === 'asc' ? 'ascending' : 'descending') + '"' : '') + '><button type="button" data-sortcol="' + c[0] + '">' + c[1] + (on ? (st.dir === 'asc' ? I.up : I.down) : '') + '</button></th>';
     });
-    return h + '<th scope="col" class="r">Curtidas</th><th scope="col" class="r">Comentários</th><th scope="col" class="r">Trocas</th><th scope="col"><span class="sr">Ações</span></th></tr></thead>';
+    return h + '<th scope="col" class="r">Curtidas</th><th scope="col" class="r">Comentários</th><th scope="col" class="r">' + (OWN ? 'Cliques' : 'Trocas') + '</th><th scope="col"><span class="sr">Ações</span></th></tr></thead>';
   }
   function td(rot, html, on, extra){ return '<td class="r num' + (on ? ' on' : '') + (extra || '') + '"><span class="lbl">' + rot + ': </span>' + html + '</td>'; }
   function ndl(t){ return '<span class="nd">' + t + '</span>'; }
@@ -214,13 +239,13 @@
     var views = v.views == null ? ndl('sem contagem: ' + esc(v.viewsMotivo)) : F.num(v.views);
     var vpd = v.vpd != null ? F.taxa(v.vpd) : ndl(v.views == null ? 'sem contagem' : v.pinAntigo ? 'fixado antigo' : 'não medido');
     var mu = v.mult != null ? '<span' + (v.tier ? ' class="t-' + v.tier + '"' : '') + '>' + F.mult(v.mult) + (v.nivel ? ' <span class="lv">' + v.nivel + '</span>' : '') + '</span>' : ndl(v.views == null ? 'sem contagem' : v.pinAntigo ? 'fixado antigo' : 'não medido');
-    return '<tr class="row" data-id="' + v.id + '"><td class="v"><a class="lnk" id="v-' + v.id + '" href="' + esc(hrefVideo(v)) + '" data-go="' + v.id + '">' +
+    return '<tr class="row" data-id="' + v.id + '"><td class="v"><a class="lnk" id="v-' + v.id + '" href="' + esc(hrefVideo(v)) + '" ' + (OWN ? 'data-own' : 'data-go') + '="' + v.id + '">' +
       '<span class="thumb"><img src="' + v.thumb + '" alt="" width="320" height="180" loading="lazy" decoding="async">' + selo + '</span>' +
       '<span><span class="ttl">' + esc(v.t) + '</span>' + (marc.length ? '<span class="tags">' + marc.join(', ') + '</span>' : '') + '</span></a></td>' +
       '<td class="r' + (st.sort === 'recentes' ? ' on' : '') + '"><span class="lbl">Publicado: </span>' + (v.pub == null ? ndl('sem data') : '<time datetime="' + F.iso(v.pub) + '">' + F.ha(v.pub) + '</time>') + '</td>' +
-      td('Views', views, st.sort === 'vistos') + td('Views/dia', vpd, st.sort === 'vpd') + td('Múltiplo', mu, st.sort === 'multiplo') +
+      td('Views', views, st.sort === 'vistos') + (OWN ? td('Impressões', F.num(v.imp), st.sort === 'imp') : td('Views/dia', vpd, st.sort === 'vpd')) + td('Múltiplo', mu, st.sort === 'multiplo') +
       td('Curtidas', v.likes == null ? ndl('não medido') : F.num(v.likes)) + td('Comentários', v.comments == null ? ndl('não medido') : F.num(v.comments)) +
-      td('Trocas', String(v.trocas)) + '<td class="a">' + botaoAcoes(v) + '</td></tr>';
+      (OWN ? td('Cliques', v.imp >= MIN_IMP || (st.cliques === 'sempre' && v.imp) ? String(v.cliques) : ndl(v.imp ? 'poucas impressões' : 'sem impressão')) : td('Trocas', String(v.trocas))) + '<td class="a">' + botaoAcoes(v) + '</td></tr>';
   }
   function linhaSk(){
     var c = '<td class="r"><span class="bone"></span></td>';
@@ -229,7 +254,7 @@
 
   /* ---------------------------------------------------------------- miolo da aba Vídeos */
   var carregando = false, esqueleto = false, primeiroNovo = null;
-  function antigo(v){ return !v.serie && !v.viewsMotivo && !v.pinAntigo; }   /* fora dos acompanhados e não fixado: só com "Carregar mais" */
+  function antigo(v){ if (OWN) return false; return !v.serie && !v.viewsMotivo && !v.pinAntigo; }   /* fora dos acompanhados e não fixado: só com "Carregar mais" */
   function miolo(){
     var m = $('miolo'), total = ds().vids.length;
     $('ctl').hidden = total === 0; $('skip').hidden = total === 0 || st.estado === 'erro';
@@ -275,6 +300,9 @@
       '<button type="button" class="btn primary big" data-more>' + (prox === falta ? 'Carregar ' + (prox === 1 ? 'o último vídeo' : 'os últimos ' + prox + ' vídeos') : 'Carregar mais ' + prox + ' vídeos') + '</button></div>' : '';
     var b = ds().base, pe = '<p class="foot" id="foot"><b>Múltiplo</b> = views do vídeo ÷ mediana de views dos outros vídeos do mesmo formato e da mesma faixa de idade neste canal (o mesmo número da tela de histórico do vídeo; mediana geral: longos ' + F.num((ds().base.long || {}).med) + ', Shorts ' + F.num((ds().base.short || {}).med) + ')' +
       '. De 2× a 5×, “alto”; de 5× a 10×, “muito alto”; 10× ou mais, “topo”. <b>Views/dia</b> = média entre a primeira e a última contagem diária dos últimos 7 dias; a contagem diária existe desde 03/10 e só para os ' + C.canal.limite + ' vídeos acompanhados. O motivo de cada “não medido” está em “Ações do vídeo”.</p>';
+    if (OWN) pe = '<p class="foot" id="foot"><b>Múltiplo</b> = views do vídeo ÷ mediana de views dos outros vídeos do seu canal na mesma faixa de idade (mediana geral: ' + F.num((ds().base.long || {}).med) + ' views). De 2× a 5×, “alto”; de 5× a 10×, “muito alto”; 10× ou mais, “topo”. ' +
+      '<b>Impressões</b> = vezes em que a miniatura apareceu no YouTube, somadas de ' + PERIODO + ' (' + (C.reach.diasCom + C.reach.diasVazios) + ' relatórios lidos; ' + (C.reach.diasPeriodo - C.reach.diasCom - C.reach.diasVazios) + ' dias ainda sem relatório baixado). <b>Cliques</b> = impressões × CTR de cada dia, somados e arredondados' + (st.cliques === 'sempre' ? '; sempre em contagem, nunca em percentual. ' : '; aparecem só com ' + MIN_IMP + ' impressões ou mais. ') +
+      '<b>Views por dia</b> de cada vídeo ainda não existem: a coleta diária começa em breve. O detalhe de cada vídeo está em “Ações do vídeo”.</p>';
     m.innerHTML = sobra + (st.ver === 'lista' ? '<div class="tw"><table class="lst" aria-describedby="foot"><caption class="sr">Vídeos de ' + esc(C.canal.nome) + '</caption>' + thead() + html + '</table></div>' : '<ul class="grid" aria-label="Vídeos de ' + esc(C.canal.nome) + '">' + html + '</ul>') + mais + pe;
     return { n: lista.length };
   }
@@ -286,49 +314,205 @@
         (emTodos ? '<p class="m">Em Todos, ' + (emTodos === 1 ? 'há 1 vídeo' : 'há ' + emTodos + ' vídeos') + ' com esse texto.</p>' : '') +
         '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-clearq>Limpar busca</button>' + (emTodos ? '<button type="button" class="btn" data-fmt="todos">Buscar em Todos</button>' : '') + '</div></div>';
     }
-    var t = st.fmt === 'shorts' ? 'Nenhum Short neste canal.' : st.fmt === 'fixados' ? 'Nenhum vídeo fixado. Fixe um vídeo para acompanhá-lo mesmo quando sair dos mais recentes.' : st.fmt === 'longos' ? 'Nenhum vídeo longo neste canal.' : 'Este canal ainda não tem vídeos sincronizados.';
+    var t = st.fmt === 'shorts' ? (OWN ? 'Seu canal não tem Shorts. Os 35 vídeos são longos.' : 'Nenhum Short neste canal.') : st.fmt === 'fixados' ? 'Nenhum vídeo fixado. Fixe um vídeo para acompanhá-lo mesmo quando sair dos mais recentes.' : st.fmt === 'longos' ? 'Nenhum vídeo longo neste canal.' : 'Este canal ainda não tem vídeos sincronizados.';
     return '<div class="empty"><p>' + t + '</p></div>';
   }
 
   /* ---------------------------------------------------------------- cabeçalho, abas, controles, faixas */
+  /* ---------------------------------------------------------------- rodada 5: a faixa de números do cabeçalho.
+     Cada célula: v = valor (ou null), n = "n = 2" ao lado do valor quando a base é fraca, f = frase curta quando não há valor
+     (nunca zero nem traço sozinho), l = rótulo, b = a base do número (vai no ⓘ). A origem de cada um, com arquivo e linha, está no LEIAME. */
+  var DIA = 864e5, SEM13 = 13, FRACA = 3;   /* RULES.habit.weeks e RULES.weakBase de produção (rules.ts) */
+  function med(a){ if (!a.length) return null; var x = a.slice().sort(function(p, q){ return p - q; }), m = x.length >> 1; return x.length % 2 ? x[m] : (x[m - 1] + x[m]) / 2; }
+  function pct1(x){ return F.dec(x * 100, 1) + '%'; }
+  function fraca(n){ return n > 0 && n < FRACA ? 'n = ' + n : ''; }
+  function idade(v){ return v.pub == null ? null : (C.NOW - v.pub) / DIA; }
+  function engaj(V, fmt, dias){
+    var a = V.filter(function(v){ return v.fmt === fmt && v.views != null && v.views > 0 && v.likes != null && (dias == null || (v.serie && idade(v) != null && idade(v) <= dias)); })
+      .map(function(v){ return (v.likes + (v.comments || 0)) / v.views; });
+    return { m: med(a), n: a.length };
+  }
+  function habito(vs){
+    var pares = {}, DS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+    vs.forEach(function(v){ var d = new Date(v.pub - 3 * 36e5), k = d.getUTCDay() + '|' + d.getUTCHours(); pares[k] = (pares[k] || 0) + 1; });
+    var best = Object.keys(pares).sort(function(a, b){ return pares[b] - pares[a]; })[0];
+    if (best && pares[best] >= 3 && pares[best] / vs.length >= 0.3){ var x = best.split('|'); return { v: DS[+x[0]] + ', ' + x[1] + ' h', b: pares[best] + ' de ' + vs.length + ' longos das últimas 13 semanas saíram nesse dia e hora.' }; }
+    return { v: null, f: vs.length ? 'horário variado (' + F.plural(vs.length, 'longo', 'longos') + ')' : 'nenhum longo em 13 semanas', b: 'Só diz “costuma publicar” com 3 vídeos ou mais no mesmo dia e hora, e 30% ou mais dos longos de 13 semanas.' };
+  }
+  function numerosConcorrente(){
+    var c = C.canal, h = C.cabecalho, V = ds().vids, de = C.NOW - SEM13 * 7 * DIA;
+    var rec = V.filter(function(v){ return v.pub != null && v.pub > de; }), lg = rec.filter(function(v){ return v.fmt === 'long'; }), sh = rec.filter(function(v){ return v.fmt === 'short'; });
+    var vpd = function(f){ var a = V.filter(function(v){ return v.fmt === f && v.vpd != null; }).map(function(v){ return v.vpd; }); return { m: med(a), n: a.length }; };
+    var vL = vpd('long'), vS = vpd('short'), eL = engaj(V, 'long', 90), eS = engaj(V, 'short', 90);
+    var m90 = V.filter(function(v){ return v.serie && v.mult != null && idade(v) != null && idade(v) <= 90; }), o90 = m90.filter(function(v){ return v.mult >= 2; });
+    var top = m90.slice().sort(function(a, b){ return b.mult - a.mult; })[0], tip = med(m90.map(function(v){ return v.mult; }));
+    var abs = h.inscritosAntes != null ? c.inscritos - h.inscritosAntes : null, un = c.inscritos < 1000 ? 1 : Math.pow(10, Math.floor(Math.log10(c.inscritos)) - 2);
+    var ult = V.filter(function(v){ return v.pub != null; }).sort(function(a, b){ return b.pub - a.pub; })[0];
+    var durs = V.filter(function(v){ return v.fmt === 'long' && v.dur != null; }).map(function(v){ return v.dur; });
+    var acomp = V.filter(function(v){ return v.serie; }), soma = acomp.reduce(function(a, v){ return a + (v.views || 0); }, 0), B = ds().base, hb = habito(lg);
+    var r1 = [
+      { v: F.num(c.inscritos), l: 'inscritos', b: 'Contagem pública do YouTube, que arredonda a 3 algarismos (aqui, de 10 em 10).' },
+      abs == null ? { f: 'sem contagem de 30 dias atrás', l: 'inscritos em 30 dias', b: 'Precisa de duas contagens com 30 dias entre elas.' }
+        : { v: Math.abs(abs) <= un ? '≈ 0' : (abs > 0 ? '+' : '−') + F.dec(Math.abs(h.cresc30), 1) + '%', l: 'inscritos em 30 dias', b: 'De ' + h.inscritosAntes.toLocaleString('pt-BR') + ' em 07/09 para ' + c.inscritos.toLocaleString('pt-BR') + ' em 07/10 (' + (abs > 0 ? '+' : '') + abs + ', com ±' + un + ' de arredondamento do YouTube).' },
+      { v: F.dec(Math.round(lg.length / SEM13 * 10) / 10, 1) + ' + ' + F.dec(Math.round(sh.length / SEM13 * 10) / 10, 1), l: 'longos + Shorts por semana', b: F.plural(lg.length, 'longo', 'longos') + ' e ' + F.plural(sh.length, 'Short', 'Shorts') + ' publicados nas últimas 13 semanas, divididos por 13.' },
+      vL.m == null ? { f: 'sem contagem diária ainda', l: 'views/dia nos longos', b: 'Nenhum longo com dois registros diários.' }
+        : { v: F.taxa(vL.m), n: fraca(vL.n), l: 'views/dia nos longos', b: 'Mediana das views ganhas por dia em ' + F.plural(vL.n, 'longo', 'longos') + ' com contagem diária, desde 03/10.' },
+      eL.m == null ? { f: 'nenhum longo em 90 dias', l: 'engajamento nos longos', b: '(curtidas + comentários) ÷ views, por longo acompanhado de até 90 dias.' }
+        : { v: pct1(eL.m), n: fraca(eL.n), l: 'engajamento nos longos', b: '(curtidas + comentários) ÷ views, mediana de ' + F.plural(eL.n, 'longo acompanhado', 'longos acompanhados') + ' de até 90 dias.' + (eL.n < FRACA ? ' Base fraca: menos de 3 vídeos.' : '') },
+      !m90.length ? { f: 'nenhum vídeo com múltiplo em 90 dias', l: 'acima de 2× em 90 dias', b: 'Conta os vídeos acompanhados de até 90 dias com múltiplo de 2× ou mais.' }
+        : { v: String(o90.length), l: 'acima de 2× em 90 dias', b: o90.length + ' de ' + m90.length + ': ' + F.plural(o90.length, 'vídeo', 'vídeos') + ' com 2× ou mais entre os ' + m90.length + ' acompanhados de até 90 dias que têm múltiplo (' + o90.filter(function(v){ return v.fmt === 'long'; }).length + ' longos, ' + o90.filter(function(v){ return v.fmt === 'short'; }).length + ' Shorts).' }
+    ];
+    var r2 = [
+      { v: String(C.trocas.length), l: 'trocas em 30 dias', b: 'Trocas de título e de thumbnail vistas nos últimos 30 dias. Neste mockup as 7 são fabricadas (o canal real não tem nenhuma).' },
+      vL.m == null || !c.inscritos ? { f: 'sem contagem diária ainda', l: 'views/dia por mil inscritos', b: 'Views/dia nos longos ÷ (inscritos ÷ 1.000).' }
+        : { v: F.dec(vL.m / (c.inscritos / 1000), 1), l: 'views/dia por mil inscritos', b: 'Views/dia nos longos (' + F.taxa(vL.m) + ') ÷ ' + F.dec(c.inscritos / 1000, 2) + ' mil inscritos.' },
+      vS.m == null ? { f: 'sem contagem diária ainda', l: 'views/dia nos Shorts', b: 'Nenhum Short com dois registros diários.' }
+        : { v: F.taxa(vS.m), n: fraca(vS.n), l: 'views/dia nos Shorts', b: 'Mediana em ' + F.plural(vS.n, 'Short', 'Shorts') + ' com contagem diária, desde 03/10. Zero medido: a maioria não ganhou views nesses dias.' },
+      eS.m == null ? { f: 'nenhum Short em 90 dias', l: 'engajamento nos Shorts', b: '(curtidas + comentários) ÷ views, por Short acompanhado de até 90 dias.' }
+        : { v: pct1(eS.m), n: fraca(eS.n), l: 'engajamento nos Shorts', b: 'Mediana de ' + F.plural(eS.n, 'Short acompanhado', 'Shorts acompanhados') + ' de até 90 dias.' + (eS.n < FRACA ? ' Base fraca: menos de 3 vídeos.' : '') },
+      tip == null ? { f: 'nenhum vídeo com múltiplo em 90 dias', l: 'múltiplo típico em 90 dias', b: 'Mediana dos múltiplos dos vídeos de até 90 dias.' }
+        : { v: F.mult(tip), n: fraca(m90.length), l: 'múltiplo típico em 90 dias', b: 'Mediana dos múltiplos de ' + F.plural(m90.length, 'vídeo acompanhado', 'vídeos acompanhados') + ' de até 90 dias.' },
+      !top ? { f: 'nenhum vídeo com múltiplo em 90 dias', l: 'maior múltiplo em 90 dias', b: 'O maior múltiplo entre os vídeos de até 90 dias.' }
+        : { v: F.mult(top.mult), l: 'maior múltiplo em 90 dias', b: '“' + top.t + '”, ' + F.num(top.views) + ' views.' },
+      !ult ? { f: 'sem vídeo com data', l: 'desde o último vídeo', b: '' } : { v: F.plural(Math.floor(idade(ult)), 'dia', 'dias'), l: 'desde o último vídeo', b: 'Publicado em ' + F.data(ult.pub, true) + ': “' + ult.t + '”.' },
+      { v: hb.v, f: hb.f, l: 'dia e hora em que mais publica', b: hb.b },
+      durs.length < C.REGRA.minBase ? { f: 'poucos longos: ' + durs.length + '; precisa de ' + C.REGRA.minBase, l: 'duração mediana dos longos', b: '' }
+        : { v: F.dur(Math.round(med(durs))), l: 'duração mediana dos longos', b: 'Mediana de ' + durs.length + ' longos com duração conhecida.' },
+      { v: F.num(soma), l: 'views somadas dos ' + acomp.length + ' acompanhados', b: 'Soma da última contagem de views dos ' + acomp.length + ' vídeos com contagem diária.' },
+      { v: F.num((B.long || {}).med) + ' e ' + F.num((B.short || {}).med), l: 'mediana de views, longos e Shorts', b: 'Mediana em ' + (B.long || {}).n + ' longos e ' + (B.short || {}).n + ' Shorts. É a base do múltiplo geral.' },
+      { f: 'sem tema ainda', l: 'tema dominante', b: 'A forja ainda não classificou os vídeos deste canal por tema. '+'Aparece quando um tema tem 3 vídeos ou mais e 40% ou mais dos vídeos com tema.' }
+    ];
+    return { r1: r1, r2: r2 };
+  }
+  function numerosProprio(){
+    var V = ds().vids, R = C.reach, soma = V.reduce(function(a, v){ return a + (v.views || 0); }, 0), lidos = R.diasCom + R.diasVazios;
+    var ult = V.filter(function(v){ return v.pub != null; }).sort(function(a, b){ return b.pub - a.pub; })[0], top = V.slice().sort(function(a, b){ return (b.views || 0) - (a.views || 0); })[0];
+    var e90 = engaj(V.map(function(v){ return Object.assign({}, v, { serie: 1 }); }), 'long', 90), eT = engaj(V, 'long', null);
+    var durs = V.filter(function(v){ return v.dur != null; }).map(function(v){ return v.dur; }), nS = V.filter(function(v){ return v.fmt === 'short'; }).length;
+    var r1 = [
+      { v: '1,16 mil', l: 'inscritos', b: 'Contagem do YouTube lida em 09/10/2026: 1.160 inscritos.' },
+      { v: String(V.length), l: nS ? 'vídeos' : 'vídeos, todos longos', b: V.length + ' vídeos guardados, ' + (V.length - nS) + ' longos e ' + nS + ' Shorts.' },
+      { v: F.num(soma), l: 'views somadas', b: 'Soma das views dos ' + V.length + ' vídeos, lidas em ' + F.data(R.lidoEm, true) + '.' },
+      { v: F.num(R.imp), l: 'impressões de ' + PERIODO, b: 'Vezes em que a miniatura de um vídeo apareceu no YouTube, somadas de ' + PERIODO + ' (' + R.diasPeriodo + ' dias). ' + lidos + ' relatórios lidos; ' + (R.diasPeriodo - lidos) + ' dias ainda sem relatório baixado.' },
+      { v: R.diasCom + ' de ' + lidos, l: 'dias com impressão', b: 'Dos ' + lidos + ' relatórios diários lidos, ' + R.diasCom + ' trouxeram impressões e ' + R.diasVazios + ' vieram vazios.' },
+      !ult ? { f: 'sem vídeo com data', l: 'desde o último vídeo', b: '' } : { v: F.plural(Math.floor(idade(ult)), 'dia', 'dias'), l: 'desde o último vídeo', b: 'Publicado em ' + F.data(ult.pub, true) + ': “' + ult.t + '”.' }
+    ];
+    var r2 = [
+      { v: String(R.cliques), l: 'cliques estimados no período', b: 'Impressões × CTR de cada dia e vídeo, somados. ' + R.imp + ' impressões e ' + F.plural(R.cliques, 'clique', 'cliques') + ' em ' + R.diasPeriodo + ' dias: pouco demais para falar em percentual.' },
+      { v: R.videosCom + ' de ' + V.length, l: 'vídeos com alguma impressão', b: 'Vídeos que apareceram ao menos uma vez nos relatórios lidos.' },
+      { v: F.num((ds().base.long || {}).med), l: 'mediana de views por vídeo', b: 'Mediana das views dos ' + V.length + ' vídeos. É a base do múltiplo geral.' },
+      { v: F.num(top.views), l: 'views do vídeo mais visto', b: '“' + top.t + '”.' },
+      e90.m == null ? { f: 'nenhum vídeo em 90 dias', l: 'engajamento em 90 dias', b: '(curtidas + comentários) ÷ views, por vídeo de até 90 dias. O último vídeo é de ' + F.data(ult.pub, true) + '.' } : { v: pct1(e90.m), n: fraca(e90.n), l: 'engajamento em 90 dias', b: '' },
+      { v: pct1(eT.m), l: 'engajamento, todos os vídeos', b: '(curtidas + comentários) ÷ views, mediana dos ' + eT.n + ' vídeos, sem janela de tempo.' },
+      { v: F.dur(Math.round(med(durs))), l: 'duração mediana', b: 'Mediana de ' + durs.length + ' vídeos.' },
+      { f: 'parado: nenhum em 13 semanas', l: 'longos + Shorts por semana', b: 'Vídeos publicados nas últimas 13 semanas, divididos por 13.' },
+      { f: 'a coleta começa em breve', l: 'views/dia por vídeo', b: 'A coleta diária de views por vídeo do canal próprio ainda não está em produção.' },
+      { f: 'ainda não coletada (lote L3)', l: 'retenção e percentual assistido', b: 'Chega com o lote L3 da coleta.' },
+      { f: 'sem contagem de 30 dias atrás', l: 'inscritos em 30 dias', b: 'Precisa de duas contagens com 30 dias entre elas; o site ainda não guarda a contagem diária de inscritos do seu canal.' }
+    ];
+    return { r1: r1, r2: r2 };
+  }
+  /* ---------------------------------------------------------------- rodada 6: posição do canal próprio no nicho e comparação lado a lado.
+     Tudo calculado de canais-dados.js (13 concorrentes reais + o próprio). Posição = 1 + quantos canais têm valor maior; nunca inventada. */
+  var NI = window.CANAIS || null;
+  function posicao(k){
+    var P = NI.proprio, todos = NI.canais.concat([P]).filter(function(c){ return c[k] != null; });
+    if (P[k] == null) return null;
+    return { pos: 1 + todos.filter(function(c){ return c[k] > P[k]; }).length, de: todos.length, emp: todos.filter(function(c){ return c[k] === P[k] && c !== P; }).map(function(c){ return c.nome; }) };
+  }
+  function linhaPosicao(){
+    if (!OWN || !NI) return '';
+    var itens = [['inscritos', 'em inscritos'], ['med', 'em mediana de views'], ['l90', 'em longos em 90 dias']].map(function(x){
+      var r = posicao(x[0]);
+      return '<a href="canais.html?sort=' + x[0] + '">' + r.pos + 'º ' + x[1] + (x[0] === 'l90' && NI.proprio.l90 === 0 ? ' (nenhum)' : r.emp.length ? ' (empate)' : '') + '</a>';
+    });
+    var acima = NI.canais.filter(function(c){ return c.med > NI.proprio.med; }).sort(function(a, b){ return a.med - b.med; })[0];
+    var ops = NI.canais.slice().sort(function(a, b){ return (a === acima ? -1 : 0) - (b === acima ? -1 : 0) || b.inscritos - a.inscritos; });
+    return '<p class="pos">Entre ' + (NI.canais.length + 1) + ' canais de ' + esc(NI.nicho) + ': ' + itens.join(', ') + '. <a href="canais.html?sort=vpm">Views/dia por mil inscritos: ainda não medido</a>.</p>';
+  }
+  /* rodada 9: o seletor "Comparar com…" agora LEVA à tela comparar.html (formulário GET: um select e um botão, duas paradas de Tab, sem navegar a cada seta). */
+  function acimaDeVoce(){ return NI.canais.filter(function(c){ return c.inscritos > NI.proprio.inscritos; }).sort(function(a, b){ return a.inscritos - b.inscritos; })[0] || NI.canais.slice().sort(function(a, b){ return b.inscritos - a.inscritos; })[0]; }
+  function seletorComparar(){
+    if (!OWN || !NI) return '';
+    var acima = acimaDeVoce();
+    var ops = NI.canais.slice().sort(function(a, b){ return (a === acima ? -1 : 0) - (b === acima ? -1 : 0) || b.inscritos - a.inscritos; });
+    return '<form class="cmpf" action="comparar.html" method="get"><input type="hidden" name="a" value="proprio"><span class="sel cmpsel"><label class="sr" for="cmpSel">Comparar o seu canal com um concorrente</label><select id="cmpSel" name="b">' +
+      ops.map(function(c){ return '<option value="' + c.id + '"' + (c === acima ? ' selected' : '') + '>' + esc(c.nome) + (c === acima ? ' (logo acima de você)' : '') + '</option>'; }).join('') +
+      '</select>' + I.chev + '</span><button type="submit" class="btn">Comparar</button></form>';
+  }
+  function comparacao(){ return ''; }
+  /* ---------------------------------------------------------------- rodada 7: "Como o canal está" (só no canal próprio).
+     Fica ACIMA das abas e é recolhível (lembra o estado em localStorage e na URL, ?painel=0): assim a grade de capas continua na
+     primeira dobra. O que é característico aqui é o gráfico dos três estados (impressoes.js); o resto é texto quieto. */
+  function painel(){
+    var el = $('painel'); if (!el) return;
+    if (!OWN || st.estado === 'backfill' || st.estado === 'vazio'){ el.hidden = true; el.innerHTML = ''; return; }
+    var IM = window.IMPRESSOES, S = IM.serie(null), R = IM.resumo(S), aberto = st.painel === '1', p1 = posicao('inscritos');
+    var top5 = C.videos.slice().filter(function(v){ return v.imp > 0; }).sort(function(a, b){ return b.imp - a.imp || b.cliques - a.cliques; }).slice(0, 5);
+    el.hidden = false;
+    el.innerHTML = '<div class="pn-h"><h2 id="pnH"><button type="button" id="pnBtn" aria-expanded="' + aberto + '" aria-controls="pnB">Como o canal está' + I.chev + '</button></h2>' +
+      '<p class="pn-r">' + F.plural(R.imp, 'impressão', 'impressões') + ' e ' + F.plural(R.cl, 'clique estimado', 'cliques estimados') + ' em ' + R.dias + ' dias. ' + p1.pos + 'º de ' + p1.de + ' canais de ' + esc(NI.nicho) + ' em inscritos.</p></div>' +
+      '<div class="pn-b" id="pnB"' + (aberto ? '' : ' hidden') + '>' +
+      '<p class="pn-lead">Com ' + R.imp + ' impressões em ' + R.dias + ' dias, ainda é pouco para dizer qual vídeo ou qual capa funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.</p>' +
+      '<div class="pn-g"><div class="pn-c"><h3>Impressões por dia, de ' + PERIODO + '</h3><div id="pnChart"></div></div>' +
+      '<div class="pn-s"><h3>Vídeos que mais apareceram</h3><ol class="pn-top">' + top5.map(function(v){
+        return '<li><a href="' + esc(hrefVideo(v)) + '"><img src="' + v.thumb + '" alt="" width="64" height="36" loading="lazy"><span><b>' + esc(v.t) + '</b><small>' + F.plural(v.imp, 'impressão', 'impressões') + ', ' + (v.cliques ? F.plural(v.cliques, 'clique', 'cliques') : 'nenhum clique') + ' em ' + F.plural(v.impDias, 'dia', 'dias') + '</small></span></a></li>';
+      }).join('') + '</ol></div></div>' +
+      '<div class="pn-g two"><div><h3>No nicho</h3>' + linhaPosicao() + '<p class="pn-cmp">' + seletorComparar() + '<a class="lk" href="canais.html">Ver a lista de Canais</a></p></div>' +
+      '<div><h3>O que ainda não é medido</h3><dl class="pn-nm">' +
+        '<div><dt>Views por dia de cada vídeo</dt><dd>a coleta diária entra nos próximos dias. Até lá a tela tem só o total de views.</dd></div>' +
+        '<div><dt>Percentual assistido e retenção</dt><dd>chegam no lote seguinte da coleta.</dd></div>' +
+        '<div><dt>Origem do tráfego</dt><dd>o relatório já é baixado todo dia, mas esta tela ainda não o lê.</dd></div></dl></div></div>' +
+      comparacao() + '</div>';
+    if (aberto) IM.render($('pnChart'), S, { titulo: 'Impressões por dia do canal', ph: 180 });
+  }
+  var NUMS = null, SLUG = F.semAcento(C.canal.nome).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  function celula(x){
+    return '<div class="nc"><dt>' + esc(x.l) + '</dt>' + (x.v != null ? '<dd><b class="num">' + esc(x.v) + '</b>' + (x.n ? ' <small class="num">' + x.n + '</small>' : '') + '</dd>' : '<dd class="nf">' + esc(x.f) + '</dd>') + '</div>';
+  }
   function cabecalho(){
-    var c = C.canal, h = C.cabecalho, V = ds().vids, sm = syncMs();
+    var c = C.canal, V = ds().vids, sm = syncMs(), semNum = st.estado === 'backfill' || st.estado === 'vazio';
     var acomp = V.filter(function(v){ return v.serie || v.viewsMotivo; }).length, antigos = V.filter(function(v){ return v.pinAntigo; }).length, fora = V.length - acomp - antigos;
-    var l2 = '<span><b class="num">' + F.dec(h.longosSem, 1) + '</b> longo + <b class="num">' + F.dec(h.shortsSem, 1) + '</b> Short por semana</span><span aria-hidden="true">·</span>' +
-      '<span><b class="num">' + (h.vpdMediana == null ? 'não medido' : F.taxa(h.vpdMediana)) + '</b> views/dia nos longos</span><span aria-hidden="true">·</span>' +
-      '<span class="last"><span><b class="num">' + (h.cresc30 == null ? 'não medido' : (h.cresc30 >= 0 ? '+' : '−') + F.dec(Math.abs(h.cresc30), 1) + '%') + '</b> inscritos em 30 d</span>' +
-      '<button type="button" class="ibtn" id="tipBtn" aria-expanded="false" aria-controls="tip" aria-label="Sobre os números do canal">' + I.info + '</button></span>';
+    NUMS = semNum ? null : OWN ? numerosProprio() : numerosConcorrente();
+    var aberto = st.nums === '1' && !!NUMS;
+    var faixaN = NUMS
+      ? '<div class="nrow"><div class="nclip"><dl class="nstrip" aria-label="Números do canal">' + NUMS.r1.map(celula).join('') + '</dl></div></div>'
+      : '<p class="l2">' + (c.inscritos != null ? '<span><b class="num">' + F.num(c.inscritos) + '</b> inscritos.</span> ' : '') + '<span>Os outros números do canal aparecem quando a primeira sincronização terminar.</span></p>';
     var l3, cls = '';
-    if (st.estado === 'backfill') l3 = 'Primeira sincronização em andamento <span aria-hidden="true">·</span> 12 de 48 vídeos';
-    else if (st.estado === 'vazio') l3 = 'Ainda sem sincronização <span aria-hidden="true">·</span> nenhum vídeo';
+    if (st.estado === 'backfill') l3 = 'Primeira sincronização em andamento: 12 de 48 vídeos.';
+    else if (st.estado === 'vazio') l3 = 'Ainda sem sincronização, nenhum vídeo.';
+    else if (OWN && st.estado !== 'atrasada') l3 = '<span>Dados lidos em <time datetime="' + F.iso(sm) + '">' + F.data(sm, true) + '</time>. ' + V.length + ' vídeos, todos longos. Impressões de ' + PERIODO + ': ' + (C.reach.diasCom + C.reach.diasVazios) + ' relatórios lidos, ' + (C.reach.diasPeriodo - C.reach.diasCom - C.reach.diasVazios) + ' dias ainda sem relatório baixado.</span>';
     else {
       if (st.estado === 'atrasada') cls = ' warn';
-      l3 = (st.estado === 'atrasada' ? I.warn + '<span>Sincronização atrasada: a última foi ' : '<span>Sincronizado ') + '<time datetime="' + F.iso(sm) + '">' + F.ha(sm) + ' (' + F.dataHora(sm) + ')</time></span><span aria-hidden="true">·</span><span>' +
-        V.length + ' vídeos: ' + acomp + ' acompanhados' + (antigos ? ', ' + F.plural(antigos, 'fixado antigo', 'fixados antigos') : '') + (fora > 0 ? ', ' + fora + ' mais antigos sem contagem diária' : '') + '</span>';
+      l3 = (st.estado === 'atrasada' ? I.warn + '<span>Sincronização atrasada: a última foi ' : '<span>Sincronizado ') + '<time datetime="' + F.iso(sm) + '">' + F.ha(sm) + ' (' + F.dataHora(sm) + ')</time>. ' +
+        (OWN ? V.length + ' vídeos, todos longos.' : V.length + ' vídeos: ' + acomp + ' acompanhados' + (antigos ? ', ' + F.plural(antigos, 'fixado antigo', 'fixados antigos') : '') + (fora > 0 ? ', ' + fora + ' mais antigos sem contagem diária' : '') + '.') + '</span>';
     }
     $('chead').innerHTML =
-      '<span class="av" aria-hidden="true"><img src="' + esc(c.avatar) + '" alt="" width="44" height="44" onerror="this.replaceWith(document.createTextNode(\'' + esc(c.nome.slice(0, 1)) + '\'))"></span>' +
+      '<span class="av" aria-hidden="true">' + (c.avatar ? '<img src="' + esc(c.avatar) + '" alt="" width="44" height="44" onerror="this.replaceWith(document.createTextNode(\'' + esc(c.nome.slice(0, 1)) + '\'))">' : esc(c.nome.slice(0, 1).toUpperCase())) + '</span>' +
       '<div class="l1"><h1 tabindex="-1" id="h1">' + esc(c.nome) + '</h1>' +
-        '<span class="niche"><label class="sr" for="nicho">Nicho</label><select id="nicho"><option selected>Viagem</option><option>IA</option></select>' + I.chev + '</span>' +
-        (c.handle ? '<a class="lk" href="https://www.youtube.com/' + esc(c.handle) + '" target="_blank" rel="noopener">' + esc(c.handle) + I.ext + '<span class="sr"> (abre em nova aba)</span></a>' : '') +
-        '<span class="sub"><b class="num">' + F.num(c.inscritos) + '</b> inscritos</span></div>' +
-      '<div class="acts"><a class="btn" href="https://www.youtube.com/channel/' + esc(c.ytId) + '" target="_blank" rel="noopener">Abrir no YouTube' + I.ext + '<span class="sr"> (abre em nova aba)</span></a>' +
+        (OWN ? '<span class="own-seal">seu canal</span>' : '<span class="niche"><label class="sr" for="nicho">Nicho</label><select id="nicho"><option selected>Viagem</option><option>IA</option></select>' + I.chev + '</span>') +
+        (c.handle ? '<a class="lk" href="https://www.youtube.com/' + esc(c.handle) + '" target="_blank" rel="noopener">' + esc(c.handle) + I.ext + '<span class="sr"> (abre em nova aba)</span></a>' : '') + '</div>' +
+      '<div class="acts">' + (OWN ? '<a class="btn" href="comparar.html?a=proprio&b=' + acimaDeVoce().id + '" title="Abre a comparação com ' + esc(acimaDeVoce().nome) + ', o concorrente logo acima de você em inscritos">Comparar com…</a>' : '<a class="btn" href="comparar.html?a=proprio&b=' + SLUG + '">Comparar com o meu canal</a>') + '<a class="btn" href="https://www.youtube.com/channel/' + esc(c.ytId) + '" target="_blank" rel="noopener">Abrir no YouTube' + I.ext + '<span class="sr"> (abre em nova aba)</span></a>' +
         '<button type="button" class="btn icon" id="chMenu" aria-haspopup="menu" aria-expanded="false" aria-label="Ações do canal">' + I.dots + '</button></div>' +
-      '<p class="l2">' + l2 + '</p><p class="l3' + cls + '">' + l3 + '</p>';
+      faixaN + '<div class="lrow"><p class="l3' + cls + '">' + l3 + '</p>' +
+      (NUMS ? '<div class="ntools"><button type="button" class="ibtn" id="tipBtn" aria-expanded="false" aria-controls="tip" aria-label="De onde vêm os números do canal">' + I.info + '</button>' +
+        '<button type="button" class="nmore" id="numsBtn" aria-expanded="' + aberto + '" aria-controls="nums2">Todos os números' + I.chev + '</button></div>' : '') + '</div>' +
+      (NUMS ? '<div class="nclip n2" id="nums2"' + (aberto ? '' : ' hidden') + '><dl class="nstrip" aria-label="Mais números do canal">' + NUMS.r2.map(celula).join('') + '</dl></div>' : '');
     $('crumbCanal').textContent = c.nome;
-    document.title = c.nome + ' — Canal — Observatório';
+    document.title = c.nome + ' — ' + (OWN ? 'Seu canal' : 'Canal') + ' — Observatório';
   }
   function abas(){
     var nT = st.estado === 'normal' || st.estado === 'atrasada' || st.estado === 'carregando' || st.estado === 'erro' ? C.trocas.length : 0;
-    var t = [['videos', 'Vídeos', String(ds().vids.length)], ['trocas', 'Trocas', nT + ' em 30 d'], ['leitura', 'Leitura', '']];
+    var t = OWN ? [['videos', 'Vídeos', String(ds().vids.length)], ['trocas', 'Trocas', ''], ['leitura', 'Leitura', ''], ['retencao', 'Retenção', '']]
+      : [['videos', 'Vídeos', String(ds().vids.length)], ['trocas', 'Trocas', nT + ' em 30 d'], ['leitura', 'Leitura', '']];
     $('ctabs').innerHTML = t.map(function(x){
-      return '<li><a href="canal.html' + esc(query({ tab: x[0], video: '' })) + '" data-tab="' + x[0] + '"' + (st.tab === x[0] ? ' aria-current="page"' : '') + '>' + x[1] + (x[2] ? ' <span class="n">' + x[2] + '</span>' : '') + '</a></li>';
+      return '<li><a href="' + PAGE + esc(query({ tab: x[0], video: '' })) + '" data-tab="' + x[0] + '"' + (st.tab === x[0] ? ' aria-current="page"' : '') + '>' + x[1] + (x[2] ? ' <span class="n">' + x[2] + '</span>' : '') + '</a></li>';
     }).join('');
   }
   function controles(){
     var V = ds().vids, n = { todos: V.length, longos: 0, shorts: 0, fixados: 0 };
     V.forEach(function(v){ if (v.fmt === 'long') n.longos++; if (v.fmt === 'short') n.shorts++; if (v.pinned) n.fixados++; });
-    $('fFmt').innerHTML = ['todos', 'longos', 'shorts', 'fixados'].map(function(k){
+    $('fFmt').innerHTML = OK.fmt.map(function(k){
       return '<button type="button" data-fmt="' + k + '" aria-pressed="' + (st.fmt === k) + '" aria-label="' + FMT_NOME[k] + ', ' + n[k] + '">' + FMT_NOME[k] + ' <span class="n" aria-hidden="true">' + n[k] + '</span></button>';
     }).join('');
     $('fVer').innerHTML = [['capas', 'Capas', I.grid], ['lista', 'Lista', I.list]].map(function(x){
@@ -343,6 +527,7 @@
     var r = $('res'), q = st.q.trim(), V = ds().vids, nc = V.filter(function(v){ return v.fmt === 'nc'; }).length, txt = '';
     if (st.tab === 'videos' && !esqueleto && !carregando && st.estado !== 'erro' && V.length){
       if (q) txt = F.plural(n, 'vídeo', 'vídeos') + ' com “' + q + '”' + (st.fmt !== 'todos' ? ' em ' + FMT_NOME[st.fmt] : '');
+      else if (OWN) txt = 'Views por dia e retenção ainda não são medidas no seu canal.';
       else if (nc && st.fmt === 'todos') txt = V.length + ' vídeos: ' + cont.longos + ' longos, ' + cont.shorts + ' Shorts, ' + nc + ' com formato não confirmado.';
     }
     r.textContent = txt; r.hidden = !txt;
@@ -370,10 +555,11 @@
     return txt.charAt(txt.length - 1) === '.' ? txt : txt + '.';
   }
   function trocas(){
+    if (OWN){ $('trocas').innerHTML = '<div class="empty"><p>Trocas dos seus vídeos ainda não são lidas nesta tela.</p><p class="m">Os testes de título e thumbnail do seu canal ficam no A/B Lab.</p></div>'; return; }
     var el = $('trocas'), T = st.estado === 'backfill' || st.estado === 'vazio' ? [] : C.trocas;
     if (!T.length){ el.innerHTML = '<div class="empty"><p>Nenhuma troca de título ou thumbnail nos últimos 30 dias.</p></div>'; return; }
     var alvoV = st.video && C.porId(st.video), L = alvoV ? T.filter(function(t){ return t.video === alvoV.id; }) : T, h = '';
-    if (alvoV) h += '<p class="chip"><span>Só as trocas de “' + esc(alvoV.t) + '”: ' + L.length + ' de ' + T.length + '</span><a class="lk" href="canal.html' + esc(query({ tab: 'trocas', video: '' })) + '" data-tab="trocas">Ver as ' + T.length + ' trocas do canal</a></p>';
+    if (alvoV) h += '<p class="chip"><span>Só as trocas de “' + esc(alvoV.t) + '”: ' + L.length + ' de ' + T.length + '</span><a class="lk" href="' + PAGE + esc(query({ tab: 'trocas', video: '' })) + '" data-tab="trocas">Ver as ' + T.length + ' trocas do canal</a></p>';
     if (!L.length) h += '<div class="empty"><p>Este vídeo não teve troca de título nem de thumbnail nos últimos 30 dias.</p></div>';
     /* o pager do vídeo anda pelos vídeos que têm troca, na ordem da lista */
     var vids = []; L.forEach(function(t){ if (vids.indexOf(t.video) < 0) vids.push(t.video); });
@@ -411,17 +597,19 @@
     return 'video.html?' + p.toString();
   }
   function leitura(){
+    if (OWN){ $('leitura').innerHTML = '<div class="empty"><p>A leitura da forja para o seu canal ainda não foi desenhada.</p><p class="m">Hoje a forja lê views públicas, títulos, thumbnails e trocas de concorrentes. Para o seu canal ela teria também impressões, e isso é uma decisão sua (pergunta no LEIAME).</p></div>'; return; }
     if (window.FORJA.estado() !== st.leitura) window.FORJA.set(st.leitura, { silencioso: true });
-    window.FORJA.montar($('leitura'), function(){ return { escopo: 'canal', href: hrefEv, hrefTrocas: function(){ return 'canal.html' + alvo(query({ tab: 'trocas', video: '' })); } }; });
+    window.FORJA.montar($('leitura'), function(){ return { escopo: 'canal', href: hrefEv, hrefTrocas: function(){ return PAGE + alvo(query({ tab: 'trocas', video: '' })); } }; });
   }
 
   /* ---------------------------------------------------------------- render */
   var perf = { sync: null, frame: null };
   function render(medir){
     var t0 = medir ? performance.now() : 0;
-    screen.dataset.dens = st.dens; screen.dataset.ord = st.sort; screen.dataset.vista = st.ver;   /* nomes próprios: data-ver e data-fmt são dos botões */
-    cabecalho(); abas(); faixas();
+    screen.dataset.own = OWN ? '1' : '0'; screen.dataset.dens = st.dens; screen.dataset.ord = st.sort; screen.dataset.vista = st.ver;   /* nomes próprios: data-ver e data-fmt são dos botões */
+    cabecalho(); painel(); abas(); faixas();
     $('tabVideos').hidden = st.tab !== 'videos'; $('tabTrocas').hidden = st.tab !== 'trocas'; $('tabLeitura').hidden = st.tab !== 'leitura';
+    if ($('tabRetencao')) $('tabRetencao').hidden = st.tab !== 'retencao';
     var r = { n: 0 }, cont = controles();
     if (st.tab === 'videos') r = miolo();
     if (st.tab === 'trocas') trocas();
@@ -458,18 +646,11 @@
   var menu = null, dono = null;
   function fecharMenu(devolver){
     if (!menu) return;
-    menu.remove(); menu = null;
-    if (dono){ dono.setAttribute('aria-expanded', 'false'); if (devolver) dono.focus(); }
-    dono = null;
-  }
-  function posicionar(pop, btn){
-    var r = btn.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
-    var x = Math.min(Math.max(8, r.right - w), innerWidth - w - 8), y = r.bottom + 6;
-    if (y + h > innerHeight - 8) y = Math.max(8, r.top - h - 6);
-    pop.style.left = x + 'px'; pop.style.top = y + 'px';
+    var d = dono; FLUT.fechar(false);
+    if (devolver && d) d.focus();
   }
   function abrirMenu(btn, rotulo, det, itens){
-    fecharMenu(false); fecharDica(false);
+    fecharMenu(false);
     menu = document.createElement('div'); menu.className = 'pop menu'; menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', rotulo);
     if (det) menu.setAttribute('aria-describedby', 'menuDet');
     menu.innerHTML = (det ? '<p class="det" id="menuDet">' + det + '</p>' : '') + itens.map(function(it, i){
@@ -477,7 +658,7 @@
       var c = (it.ico || '') + '<span>' + it.txt + '</span>' + (it.nota ? '<small>' + it.nota + '</small>' : '');
       return it.href && !it.off ? '<a' + a + ' href="' + esc(it.href) + '"' + (it.ext ? ' target="_blank" rel="noopener"' : '') + '>' + c + (it.ext ? '<span class="sr"> (abre em nova aba)</span>' : '') + '</a>' : '<button type="button"' + a + '>' + c + '</button>';
     }).join('');
-    document.body.appendChild(menu); dono = btn; btn.setAttribute('aria-expanded', 'true'); posicionar(menu, btn);
+    dono = btn; FLUT.abrir(btn, menu, { pref: 'baixo', alinhar: 'fim', aoFechar: function(){ menu = null; dono = null; } });
     var els = [].slice.call(menu.querySelectorAll('[role="menuitem"]'));
     els[0].focus();
     menu.addEventListener('keydown', function(e){
@@ -499,7 +680,10 @@
   }
   function menuVideo(btn){
     var v = null, V = ds().vids; for (var i = 0; i < V.length; i++) if (V[i].id === btn.dataset.acts) v = V[i];
-    abrirMenu(btn, 'Ações do vídeo: ' + v.t, detalhe(v), [
+    abrirMenu(btn, 'Ações do vídeo: ' + v.t, detalhe(v), OWN ? [
+      { txt: 'Ampliar thumbnail', ico: window.VIEWER_ICON, fn: function(d){ window.VIEWER.open(v.id, null, d); } },
+      { txt: 'Abrir no YouTube', ico: I.ext, href: v.url, ext: true }
+    ] : [
       { txt: v.pinned ? 'Desafixar' : 'Fixar', ico: I.pin, fn: function(){
           v.pinned = !v.pinned; if (!v.pinned){ v.pinAntigo = false; } v.pinAt = v.pinned ? C.NOW : null;
           if (st.fmt === 'fixados' || true) render();
@@ -508,34 +692,34 @@
         } },
       { txt: 'Ampliar thumbnail', ico: window.VIEWER_ICON, fn: function(d){ window.VIEWER.open(v.id, null, d); } },
       { txt: 'Abrir no YouTube', ico: I.ext, href: v.url, ext: true },
-      { txt: 'Ver trocas', ico: I.swap, off: !v.trocas, nota: v.trocas ? String(v.trocas) + ' em 30 d' : 'nenhuma em 30 d', href: 'canal.html' + alvo(query({ tab: 'trocas', video: v.id })), tab: true,
+      { txt: 'Ver trocas', ico: I.swap, off: !v.trocas, nota: v.trocas ? String(v.trocas) + ' em 30 d' : 'nenhuma em 30 d', href: PAGE + alvo(query({ tab: 'trocas', video: v.id })), tab: true,
         fn: function(){ st.tab = 'trocas'; st.video = v.id; gravarUrl(true); render(); $('hTrocas').setAttribute('tabindex', '-1'); $('hTrocas').focus(); } }
     ]);
   }
   function menuCanal(btn){
     abrirMenu(btn, 'Ações do canal', '', [
-      { txt: 'Sincronizar só este canal', ico: I.sync, fn: function(d){ d.focus(); aviso('Sincronização iniciada'); } },
+      { txt: 'Sincronizar só este canal', ico: I.sync, fn: function(d){ d.focus(); aviso('Sincronização iniciada'); } }
+    ].concat(OWN ? [] : [
       { txt: 'Remover canal…', ico: I.trash, cls: 'del', nota: 'só para quem administra', fn: function(d){ d.focus(); aviso('No mockup, nada é removido.'); } }
-    ]);
+    ]));
   }
   var dica = null, donoDica = null;
   function fecharDica(devolver){
-    if (!dica) return; dica.remove(); dica = null;
-    if (donoDica){ donoDica.setAttribute('aria-expanded', 'false'); donoDica.removeAttribute('aria-describedby'); if (devolver) donoDica.focus(); }
-    donoDica = null;
+    if (!dica) return;
+    var d = donoDica; FLUT.fechar(false);
+    if (devolver && d) d.focus();
   }
   function abrirDica(btn, html){
     if (donoDica === btn){ fecharDica(true); return; }
-    fecharDica(false); fecharMenu(false);
+    fecharMenu(false); fecharDica(false);
     dica = document.createElement('div'); dica.className = 'pop tip'; dica.id = 'tip'; dica.setAttribute('role', 'note'); dica.innerHTML = html;
-    document.body.appendChild(dica); donoDica = btn; btn.setAttribute('aria-expanded', 'true'); btn.setAttribute('aria-describedby', 'tip'); posicionar(dica, btn);
+    donoDica = btn; FLUT.abrir(btn, dica, { pref: 'baixo', alinhar: 'fim', descreve: true, aoFechar: function(){ dica = null; donoDica = null; } });
   }
   function dicaCanal(){
-    var h = C.cabecalho;
-    return '<h3>De onde vêm os números do canal</h3><ul>' +
-      '<li><b>Ritmo:</b> ' + F.plural(h.longos90, 'longo', 'longos') + ' e ' + F.plural(h.shorts90, 'Short', 'Shorts') + ' publicados nos últimos 90 dias, divididos por 12,9 semanas.</li>' +
-      '<li><b>Views/dia nos longos:</b> ' + (h.vpdN ? 'mediana em ' + h.vpdN + ' longos com contagem diária (desde 03/10).' : 'não medido: nenhum longo com contagem diária.') + '</li>' +
-      '<li><b>Inscritos em 30 d:</b> de ' + F.num(h.inscritosAntes) + ' em 07/09 para ' + F.num(C.canal.inscritos) + ' em 07/10. O YouTube arredonda a contagem.</li></ul>';
+    if (!NUMS) return '<h3>De onde vêm os números do canal</h3><p>Aparecem quando a primeira sincronização terminar.</p>';
+    function li(x){ return x.b ? '<li><b>' + esc(x.l.charAt(0).toUpperCase() + x.l.slice(1)) + ':</b> ' + esc(x.b) + '</li>' : ''; }
+    return '<h3>De onde vêm os números do canal</h3><ul>' + NUMS.r1.map(li).join('') + '</ul>' +
+      (st.nums === '1' ? '<h3>Todos os números</h3><ul>' + NUMS.r2.map(li).join('') + '</ul>' : '<p class="m">Abra “Todos os números” para ver a base dos outros ' + NUMS.r2.length + '.</p>');
   }
 
   /* ---------------------------------------------------------------- ações da tela */
@@ -570,6 +754,19 @@
     if ((b = t.closest('[data-acts]'))){ if (dono === b) fecharMenu(true); else menuVideo(b); return; }
     if ((b = t.closest('#chMenu'))){ if (dono === b) fecharMenu(true); else menuCanal(b); return; }
     if ((b = t.closest('#tipBtn'))){ abrirDica(b, dicaCanal()); return; }
+    if ((b = t.closest('#numsBtn'))){
+      st.nums = st.nums === '1' ? '' : '1'; gravarUrl(false); fecharDica(false); cabecalho(); $('numsBtn').focus();
+      anunciar(st.nums === '1' ? 'Todos os números do canal, ' + NUMS.r2.length + ' a mais.' : 'Números recolhidos.'); return;
+    }
+    if (t.closest('#pnBtn')){
+      st.painel = st.painel === '0' ? '1' : '0'; try { localStorage.setItem('pc:painel8', st.painel); } catch (x) {}
+      gravarUrl(false); painel(); $('pnBtn').focus(); anunciar(st.painel === '0' ? 'Como o canal está: recolhido.' : 'Como o canal está: aberto.'); return;
+    }
+    if ((b = t.closest('[data-cliques]'))){ st.cliques = b.dataset.cliques; gravarUrl(false); render(); return; }
+    if ((b = t.closest('a[data-own]'))){
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+      return;
+    }
     if ((b = t.closest('[data-fmt]'))){
       var r = mudar({ fmt: b.dataset.fmt });
       var nb = $('fFmt').querySelector('[data-fmt="' + st.fmt + '"]'); if (nb) nb.focus();
@@ -610,8 +807,6 @@
     }
   });
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && dica){ fecharDica(true); } });
-  addEventListener('scroll', function(){ fecharMenu(false); fecharDica(false); }, { passive: true });
-  addEventListener('resize', function(){ fecharMenu(false); fecharDica(false); });
   addEventListener('popstate', function(){ lerUrl(); render(); });
 
   /* ---------------------------------------------------------------- voltar do vídeo: foco e rolagem no cartão do último vídeo visto */
@@ -646,6 +841,8 @@
     $('mkEstados').innerHTML = EST.map(function(x){ return '<button type="button" data-estado="' + x[0] + '" aria-pressed="' + (st.estado === x[0] && !(x[0] === 'normal' && busca)) + '">' + x[1] + '</button>'; }).join('') +
       '<button type="button" data-estado="busca" aria-pressed="' + busca + '">Busca sem resultado</button>';
     $('mkDens').innerHTML = [['conf', '4 (capa maior)'], ['padrao', '5 (proposto)'], ['comp', '6 (compacto)']].map(function(x){ return '<button type="button" data-dens="' + x[0] + '" aria-pressed="' + (st.dens === x[0]) + '">' + x[1] + '</button>'; }).join('');
+    if ($('mkCliques')) $('mkCliques').innerHTML = [['corte', 'Com corte: abaixo de 10 impressões, “poucas impressões para dizer algo”'], ['sempre', 'Sempre a contagem, sem corte']].map(function(x){ return '<button type="button" data-cliques="' + x[0] + '" aria-pressed="' + (st.cliques === x[0]) + '">' + x[1] + '</button>'; }).join('');
+    if (!$('mkLeitura')) return;
     var e = window.FORJA.estado();
     function bt(x){ return '<button type="button" data-leitura="' + x[0] + '" aria-pressed="' + (e === x[0]) + '">' + x[1] + '</button>'; }
     $('mkLeitura').innerHTML = window.FORJA.ESTADOS.map(bt).join('');

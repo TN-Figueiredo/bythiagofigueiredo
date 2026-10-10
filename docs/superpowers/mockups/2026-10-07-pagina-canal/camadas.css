@@ -1,0 +1,17 @@
+/* camadas.css — rodada 12. A ESCALA DE CAMADAS, num lugar só. Nenhum CSS do mockup usa número de z-index: todos usam estas variáveis.
+   Regra: toda superfície flutuante (dica, popover, menu, aviso) mora no contêiner #flut, filho direto do <body>, acima de todo o conteúdo
+   da página e abaixo só do visualizador modal. Assim nenhum ancestral (overflow, transform, contain, sticky) consegue prender ou cortar a dica. */
+:root{
+  --z-fundo:0;          /* hachuras, linhas de grade: atrás do conteúdo do mesmo componente */
+  --z-conteudo:1;       /* conteúdo posicionado dentro de um componente (barras, traços) */
+  --z-marca:2;          /* marca em destaque dentro do componente (traço deste vídeo, marcadores) */
+  --z-marca-alta:3;     /* rótulo sobre a marca */
+  --z-marca-topo:4;     /* alvo clicável sobre as marcas */
+  --z-grudado:10;       /* barras que ficam coladas na rolagem (linha do canal no pé, barra de seleção) */
+  --z-flutuante:1000;   /* dicas, popovers, menus: o contêiner #flut */
+  --z-aviso:1100;       /* aviso temporário (toast) */
+  --z-modal:2000;       /* visualizador de thumbnail: acima de tudo */
+}
+#flut{position:fixed;inset:0;z-index:var(--z-flutuante);pointer-events:none}
+#flut>*{pointer-events:auto}
+#flut>.rg-tip,#flut>.ic-tip,#flut>.tip{pointer-events:none}

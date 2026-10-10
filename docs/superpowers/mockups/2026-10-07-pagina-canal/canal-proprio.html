@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Canal — Observatório</title>
+<title>Seu canal — Observatório</title>
 <!-- Fontes: as mesmas do produto. Sem rede o mockup cai em system-ui e continua legível. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="camadas.css?v=r12"><link rel="stylesheet" href="viewer.css?v=r12"><link rel="stylesheet" href="canal.css?v=r12"><link rel="stylesheet" href="forja-etapas.css?v=r12"><link rel="stylesheet" href="meu-canal.css?v=r12">
+<link rel="stylesheet" href="camadas.css?v=r12"><link rel="stylesheet" href="viewer.css?v=r12"><link rel="stylesheet" href="canal.css?v=r12"><link rel="stylesheet" href="forja-etapas.css?v=r12"><link rel="stylesheet" href="meu-canal.css?v=r12"><link rel="stylesheet" href="impressoes.css?v=r12">
 </head>
 <body>
 
@@ -19,11 +19,7 @@
     <div class="mk-row"><span class="mk-lbl" id="mkE">Estado</span><div class="mk-items" role="group" aria-labelledby="mkE" id="mkEstados"></div></div>
     <div class="mk-row"><span class="mk-lbl" id="mkD">Cartões por linha</span><div class="mk-items" role="group" aria-labelledby="mkD" id="mkDens"></div></div>
     <div class="mk-row"><span class="mk-lbl">Carga</span><div class="mk-items"><button type="button" id="mkLoad">Simular carga de 800 ms</button><button type="button" id="mkLoadFast">Simular carga de 60 ms (não mostra esqueleto)</button></div></div>
-    <div class="mk-row"><span class="mk-lbl" id="mkL">Leitura da forja</span><div class="mk-items" role="group" aria-labelledby="mkL" id="mkLeitura"></div></div>
-    <div class="mk-row"><span class="mk-lbl" id="mkV">Variantes da leitura</span><div class="mk-items" role="group" aria-labelledby="mkV" id="mkVar"></div></div>
-    <div class="mk-row"><span class="mk-lbl">Dado ausente</span><div class="mk-items" id="mkCasos"></div></div>
-    <p><b>Simulação:</b> o botão “Pedir leitura” percorre as três etapas (na fila, escrevendo, pronta) em cerca de 7 segundos; nada é enviado à forja. Todo texto de leitura é escrito para o mockup e vem marcado “exemplo”.</p>
-    <p>Os vídeos, os números e a série diária são do banco de produção. Os casos de “dado ausente”, os 3 fixados e as 7 trocas foram fabricados a partir de vídeos reais (o canal não tem nenhum): a lista está no LEIAME.</p>
+    <p><b>Canal próprio (rodadas 5 a 7).</b> Os dados são reais, do canal tnFigueiredo, lidos em 09/10/2026: 35 vídeos, 1.160 inscritos e 82 linhas de impressões e CTR de miniatura por vídeo e dia (09/09 a 07/10); 8 dias vieram com o relatório vazio e 10 dias do período ainda não têm relatório baixado. Não vieram na exportação: avatar e horário de sincronização. A seção “Como o canal está” nasce recolhida; lembra se a pessoa a abriu (localStorage) e <code>?painel=1</code> a abre. O clique num vídeo abre o histórico mínimo do vídeo próprio.</p>
   </div>
 </details>
 
@@ -53,6 +49,8 @@
 
       <header class="chead" id="chead"></header>
 
+      <section class="pn" id="painel" aria-labelledby="pnH" hidden></section>
+
       <nav class="ctabs" aria-label="Seções do canal">
         <ul id="ctabs"></ul>
         <p class="res" id="res" hidden></p>
@@ -71,7 +69,7 @@
               <option value="recentes">Mais recentes</option>
               <option value="vistos">Mais vistos</option>
               <option value="multiplo">Maior múltiplo</option>
-              <option value="vpd">Mais views por dia</option>
+              <option value="imp">Mais impressões no período</option>
             </select>
             <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
           </span>
@@ -91,8 +89,14 @@
 
       <!-- Aba Trocas -->
       <section id="tabTrocas" aria-labelledby="hTrocas" hidden>
-        <h2 class="sec" id="hTrocas">Trocas de título e thumbnail nos últimos 30 dias</h2>
+        <h2 class="sec" id="hTrocas">Trocas de título e thumbnail</h2>
         <div id="trocas"></div>
+      </section>
+
+      <!-- Aba Retenção (só no canal próprio) -->
+      <section id="tabRetencao" aria-labelledby="hRet" hidden>
+        <h2 class="sec" id="hRet">Retenção</h2>
+        <div class="empty"><p>Retenção ainda não coletada: chega com o lote L3.</p><p class="m">Quando chegar, esta aba mostra a curva de retenção e o percentual assistido de cada vídeo.</p></div>
       </section>
 
       <!-- Aba Leitura -->
@@ -106,9 +110,12 @@
 
 <script src="flut.js?v=r12"></script>
 <script src="dados.js?v=r12"></script>
+<script src="dados-proprio.js?v=r12"></script>
+<script src="canais-dados.js?v=r12b"></script>
 <script src="forja.js?v=r12"></script>
 <script src="hist-dados.js?v=r12"></script>
 <script src="viewer.js?v=r12"></script>
+<script src="impressoes.js?v=r12"></script>
 <script src="canal.js?v=r12"></script>
 <script src="meu-canal.js?v=r12"></script>
 </body>

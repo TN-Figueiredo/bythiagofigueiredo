@@ -145,11 +145,11 @@ svg.i.f{fill:currentColor;stroke:none}
 
 #screen .timeline{padding:6px 20px 12px;margin-bottom:16px}
 #screen .tl-wrap{position:relative;margin-top:4px}
-#screen #chart{display:block;width:100%;height:200px;overflow:visible;position:relative;z-index:1}
+#screen #chart{display:block;width:100%;height:200px;overflow:visible;position:relative;z-index:var(--z-conteudo)}
 #screen #chart text{paint-order:stroke;stroke:var(--surface);stroke-width:7px;stroke-linejoin:round;font:11px "JetBrains Mono",monospace;fill:var(--dim)}
 #screen #chart .vl{font:500 11px "JetBrains Mono",monospace;fill:var(--muted)}
 #screen #chart .note{font:12px Inter,sans-serif;fill:var(--dim)}
-#screen .lanes{position:relative;margin-top:4px;z-index:1}
+#screen .lanes{position:relative;margin-top:4px;z-index:var(--z-conteudo)}
 #screen .lane-axis{position:relative;height:22px;font:11px "JetBrains Mono",monospace;color:var(--dim)}
 #screen .lane-axis span{position:absolute;top:4px;transform:translateX(-50%);white-space:nowrap}
 #screen .lane-axis span:first-child{transform:none}
@@ -165,7 +165,7 @@ svg.i.f{fill:currentColor;stroke:none}
 #screen .lane.thumbs .clip{padding:0 6px 0 0}
 #screen .lane.thumbs .clip .th{height:100%;flex:none;border-radius:3px 0 0 3px}
 #screen .lane.thumbs .clip.narrow{padding:0;justify-content:center}
-#screen .clip.tiny{padding:0;justify-content:center;background:transparent;border-color:transparent;overflow:visible;z-index:2}
+#screen .clip.tiny{padding:0;justify-content:center;background:transparent;border-color:transparent;overflow:visible;z-index:var(--z-marca)}
 #screen .clip.tiny .bar{position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);width:var(--bw);border-radius:3px;background:var(--well);border:1px solid var(--border-strong)}
 #screen .clip.tiny .vid{position:relative}
 #screen .clip.tiny.is-hl{border:0;background:transparent}
@@ -174,24 +174,25 @@ svg.i.f{fill:currentColor;stroke:none}
 #screen .clip.is-hl{border:2px solid var(--hl);background:var(--surface-2);color:var(--text)}
 #screen .lane .pre{position:absolute;top:12px;bottom:2px;border:1px dashed var(--border-strong);border-radius:4px;background:repeating-linear-gradient(135deg,transparent 0 6px,var(--border-subtle) 6px 8px);display:flex;align-items:center;padding:0 8px;font-size:12px;color:var(--muted);overflow:hidden;white-space:nowrap}
 #screen .lane .pre span{background:var(--surface);padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-#screen .lane .stale{position:absolute;top:12px;bottom:2px;border:1px dashed var(--border-strong);border-radius:4px;background:repeating-linear-gradient(135deg,transparent 0 6px,var(--border-subtle) 6px 8px);z-index:1}
+#screen .lane .stale{position:absolute;top:12px;bottom:2px;border:1px dashed var(--border-strong);border-radius:4px;background:repeating-linear-gradient(135deg,transparent 0 6px,var(--border-subtle) 6px 8px);z-index:var(--z-conteudo)}
 #screen .lane .win{position:absolute;top:12px;bottom:2px;border-left:1px dashed var(--c);border-right:1px dashed var(--c);background:var(--wa)}
-#screen .mk{position:absolute;top:-4px;width:32px;height:32px;margin-left:-16px;border:0;background:transparent;padding:0;cursor:pointer;z-index:3;display:grid;place-items:center}
+#screen .mk{position:absolute;top:-4px;width:32px;height:32px;margin-left:-16px;border:0;background:transparent;padding:0;cursor:pointer;z-index:var(--z-marca-alta);display:grid;place-items:center}
 #screen .mk span{width:22px;height:22px;border-radius:50%;border:2px solid var(--c);background:var(--surface);display:grid;place-items:center;color:var(--c)}
 #screen .mk svg{width:11px;height:11px}
 #screen .mk:hover span,#screen .mk:focus-visible span,#screen .mk.on span{background:var(--c);color:var(--surface)}
-#screen .vlines{position:absolute;left:0;right:0;bottom:0;top:0;pointer-events:none;z-index:0}
+#screen .vlines{position:absolute;left:0;right:0;bottom:0;top:0;pointer-events:none;z-index:var(--z-fundo)}
 #screen .vline{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed var(--c);opacity:.55}
 #screen .vband{position:absolute;top:0;bottom:0;background:var(--wa);border-inline:1px dashed var(--c)}
 #screen .vline.on{opacity:1;border-left-style:solid}
 #screen .vband.on{border-inline-style:solid}
-#screen .tip{position:absolute;z-index:10;width:310px;max-width:calc(100% - 8px);background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow-pop);padding:12px 14px;font-size:12.5px;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
-#screen .tip.show{opacity:1;transform:none}
-#screen .tip h4{margin:0 0 2px;font-size:12px;font-weight:600;color:var(--c)}
-#screen .tip .when{color:var(--muted);margin:0 0 6px}
-#screen .tip .bef{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--del-fg)}
-#screen .tip .aft{color:var(--text);margin-top:3px}
-#screen .tip .thpair{display:grid;grid-template-columns:1fr 18px 1fr;align-items:center;gap:6px;color:var(--dim)}
+.tip{position:fixed;width:310px;max-width:calc(100% - 8px);background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow-pop);padding:12px 14px;font-size:12.5px;pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
+.tip{visibility:hidden}
+.tip.show{opacity:1;transform:none;visibility:visible}
+.tip h4{margin:0 0 2px;font-size:12px;font-weight:600;color:var(--c)}
+.tip .when{color:var(--muted);margin:0 0 6px}
+.tip .bef{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--del-fg)}
+.tip .aft{color:var(--text);margin-top:3px}
+.tip .thpair{display:grid;grid-template-columns:1fr 18px 1fr;align-items:center;gap:6px;color:var(--dim)}
 #screen .legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;font-size:12px;color:var(--muted)}
 #screen .legend > span{display:inline-flex;align-items:center;gap:6px}
 #screen .sw{display:inline-block;width:18px;height:0;border-top:2px solid var(--curve)}
@@ -453,7 +454,7 @@ svg.i.f{fill:currentColor;stroke:none}
 #screen .fcard .vt{gap:6px;flex-wrap:wrap}
 /* período estreito: desenhado na largura real, com preenchimento que se vê; nunca cresce por cima do vizinho.
    A área de clique passa da barra só por um pseudo-elemento invisível. */
-#screen .clip.sm{padding:8px 0 0;justify-content:center;overflow:visible;min-width:3px;z-index:2;background:linear-gradient(var(--fill,var(--dim)) 0 8px,var(--well) 8px);border-color:var(--muted)}
+#screen .clip.sm{padding:8px 0 0;justify-content:center;overflow:visible;min-width:3px;z-index:var(--z-marca);background:linear-gradient(var(--fill,var(--dim)) 0 8px,var(--well) 8px);border-color:var(--muted)}
 #screen .lane.thumbs .clip.sm{padding-top:12px;background:linear-gradient(var(--fill,var(--dim)) 0 12px,var(--well) 12px)}
 #screen .clip.sm .vid{font-size:10.5px}
 #screen .clip.sm::after{content:"";position:absolute;top:0;bottom:0;left:50%;width:max(100%,24px);transform:translateX(-50%)}
@@ -462,48 +463,48 @@ svg.i.f{fill:currentColor;stroke:none}
 /* grupo de períodos estreitos vizinhos: um alvo só, na extensão real do grupo; dentro, um traço por período,
    as letras em ordem e a contagem com a unidade */
 #screen .gwrap{position:absolute;top:0;bottom:0}
-#screen .gwrap.open{z-index:20}
-#screen .cgrp{position:absolute;left:0;width:100%;padding:0;border:1px solid var(--muted);border-radius:4px;background:var(--well);cursor:pointer;overflow:visible;z-index:2}
+#screen .gwrap.open{}
+#screen .cgrp{position:absolute;left:0;width:100%;padding:0;border:1px solid var(--muted);border-radius:4px;background:var(--well);cursor:pointer;overflow:visible;z-index:var(--z-marca)}
 #screen .cgrp::after{content:"";position:absolute;top:0;bottom:0;left:50%;width:max(100%,var(--f4-hit));transform:translateX(-50%)}
 #screen .cgrp .sl{position:absolute;top:0;height:8px;box-sizing:border-box;background:var(--fill,var(--dim));box-shadow:inset 0 0 0 1px var(--muted)}
 #screen .lane.thumbs .cgrp .sl{height:12px}
-#screen .cgrp .sl.is-hl{box-shadow:inset 0 0 0 2px var(--hl);background-image:linear-gradient(var(--hl),var(--hl));background-size:100% 3px;background-repeat:no-repeat;background-position:bottom;z-index:1}
+#screen .cgrp .sl.is-hl{box-shadow:inset 0 0 0 2px var(--hl);background-image:linear-gradient(var(--hl),var(--hl));background-size:100% 3px;background-repeat:no-repeat;background-position:bottom;z-index:var(--z-conteudo)}
 #screen .cgrp .gl{position:absolute;left:0;right:0;top:12px;font:600 10.5px/12px "JetBrains Mono",monospace;color:var(--text);text-align:center;white-space:nowrap;overflow:hidden}
-#screen .cgrp .gn{position:absolute;left:50%;bottom:0;transform:translateX(-50%);font:500 10.5px/12px Inter,sans-serif;color:var(--text);white-space:nowrap;padding:0 4px;background:var(--well);border-radius:3px;z-index:1;max-width:100%;box-sizing:border-box;overflow:hidden}
+#screen .cgrp .gn{position:absolute;left:50%;bottom:0;transform:translateX(-50%);font:500 10.5px/12px Inter,sans-serif;color:var(--text);white-space:nowrap;padding:0 4px;background:var(--well);border-radius:3px;z-index:var(--z-conteudo);max-width:100%;box-sizing:border-box;overflow:hidden}
 #screen .cgrp.is-hl{outline:2px solid var(--hl);outline-offset:-1px;background:var(--surface-2)}
 #screen .cgrp.is-hl:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #screen .cgrp.is-hl .gn{background:var(--surface-2);font-weight:700}
 #screen .gwrap.open .cgrp,#screen .cgrp:hover{border-color:var(--text)}
 /* marcadores: um marcador sozinho fica exatamente no horário da troca. Marcadores próximos demais viram um contador
    ("5 trocas") em cima; os traços descem dele até as barras, cada um no horário real da sua troca. */
-#screen .gwrap.mg{top:0;bottom:auto;height:var(--lt);pointer-events:none;z-index:4}
+#screen .gwrap.mg{top:0;bottom:auto;height:var(--lt);pointer-events:none;z-index:var(--z-marca-topo)}
 #screen .gwrap.mg > .mkg,#screen .gwrap.mg > .gpop{pointer-events:auto}
-#screen .gwrap.mg.open{z-index:20}
-#screen .mtick{position:absolute;top:calc(var(--lt) - 11px);width:0;height:11px;border-left:2px solid var(--c);margin-left:-1px;z-index:3;pointer-events:none}
-#screen .mspan{position:absolute;top:calc(var(--lt) - 11px);height:0;border-top:2px solid var(--c);z-index:3;pointer-events:none}
-#screen .mkg{position:absolute;top:-4px;left:50%;transform:translateX(-50%);min-width:var(--f4-hit);height:var(--f4-hit);padding:0;border:0;background:transparent;cursor:pointer;z-index:4;display:grid;place-items:center}
+#screen .gwrap.mg.open{}
+#screen .mtick{position:absolute;top:calc(var(--lt) - 11px);width:0;height:11px;border-left:2px solid var(--c);margin-left:-1px;z-index:var(--z-marca-alta);pointer-events:none}
+#screen .mspan{position:absolute;top:calc(var(--lt) - 11px);height:0;border-top:2px solid var(--c);z-index:var(--z-marca-alta);pointer-events:none}
+#screen .mkg{position:absolute;top:-4px;left:50%;transform:translateX(-50%);min-width:var(--f4-hit);height:var(--f4-hit);padding:0;border:0;background:transparent;cursor:pointer;z-index:var(--z-marca-topo);display:grid;place-items:center}
 #screen .mkg span{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:999px;border:2px solid var(--c);background:var(--surface);color:var(--text);font:600 11px/1 Inter,sans-serif;white-space:nowrap}
 #screen .mkg svg{width:11px;height:11px;flex:none;color:var(--c)}
 #screen .mkg abbr{text-decoration:none}
 #screen .gwrap.open .mkg span,#screen .mkg:hover span,#screen .mkg.on span{background:var(--surface-2);border-width:3px;padding:0 7px}
 #screen .mk.ln-i:focus-visible,#screen .mkg:focus-visible{outline-offset:0}
 /* lista do grupo: abre com Enter, espaço ou clique; Esc fecha de qualquer lugar */
-#screen .gpop{position:absolute;top:calc(100% - 1px);left:0;z-index:21;width:max-content;max-width:min(380px,86vw);padding:6px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);box-shadow:var(--shadow-pop);display:none}
-#screen .gwrap.open .gpop{display:block}
-#screen .gpop h4{margin:2px 6px 4px;font-size:12px;font-weight:600;color:var(--text)}
-#screen .gpop ul{list-style:none;margin:0;padding:0;max-height:264px;overflow:auto}
-#screen .gpop button{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 8px;align-items:center;width:100%;min-height:var(--f4-row);padding:4px 8px;border:2px solid transparent;border-radius:5px;background:transparent;text-align:left;cursor:pointer;font-size:12.5px;color:var(--muted)}
-#screen .gpop button:hover{background:var(--surface-2);color:var(--text)}
-#screen .gpop button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;background:var(--surface-2);color:var(--text)}
-#screen .gpop .gk{font:600 11.5px "JetBrains Mono",monospace;color:var(--text);min-width:18px}
-#screen .gpop .g1{color:var(--text)}
-#screen .gpop .g2{grid-column:2;font-size:12px;color:var(--muted)}
-#screen .gpop svg{width:12px;height:12px;vertical-align:-2px;margin-right:4px}
-#screen .tip .hint{margin:6px 0 0;color:var(--muted)}
-#screen .tip .seq{font:600 12px "JetBrains Mono",monospace;color:var(--text);overflow-wrap:anywhere}
+.gpop{position:fixed;width:max-content;max-width:min(380px,86vw);padding:6px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);box-shadow:var(--shadow-pop);display:none}
+.gpop.aberto{display:block}
+.gpop h4{margin:2px 6px 4px;font-size:12px;font-weight:600;color:var(--text)}
+.gpop ul{list-style:none;margin:0;padding:0;max-height:264px;overflow:auto}
+.gpop button{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 8px;align-items:center;width:100%;min-height:var(--f4-row);padding:4px 8px;border:2px solid transparent;border-radius:5px;background:transparent;text-align:left;cursor:pointer;font-size:12.5px;color:var(--muted)}
+.gpop button:hover{background:var(--surface-2);color:var(--text)}
+.gpop button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;background:var(--surface-2);color:var(--text)}
+.gpop .gk{font:600 11.5px "JetBrains Mono",monospace;color:var(--text);min-width:18px}
+.gpop .g1{color:var(--text)}
+.gpop .g2{grid-column:2;font-size:12px;color:var(--muted)}
+.gpop svg{width:12px;height:12px;vertical-align:-2px;margin-right:4px}
+.tip .hint{margin:6px 0 0;color:var(--muted)}
+.tip .seq{font:600 12px "JetBrains Mono",monospace;color:var(--text);overflow-wrap:anywhere}
 
 /* --- item 6: trocas em sequência na linha do tempo: barra opaca, por cima das linhas verticais --- */
-#screen .runrow{position:absolute;left:0;right:0;bottom:1px;height:18px;background:var(--surface);z-index:2}
+#screen .runrow{position:absolute;left:0;right:0;bottom:1px;height:18px;background:var(--surface);z-index:var(--z-marca)}
 #screen .runb{position:absolute;top:1px;bottom:1px;box-sizing:border-box;border:1px solid var(--c);border-left-width:3px;border-radius:3px;background:var(--well);min-width:8px;overflow:hidden}
 #screen .runb.open{border-right:2px dashed var(--c);border-radius:3px 0 0 3px}
 #screen .runb.cutl{border-left:2px dashed var(--c)}
@@ -590,8 +591,8 @@ svg.i.f{fill:currentColor;stroke:none}
 #screen .note.seq b{color:var(--text);font-weight:600}
 #screen .note ul{margin:0 0 3px;padding:0;list-style:none;display:grid;gap:3px}
 
-#screen .tip .th{width:100%}
-#screen .tip .thpair .th{aspect-ratio:16/9}
+.tip .th{width:100%}
+.tip .thpair .th{aspect-ratio:16/9}
 @media (prefers-reduced-motion:reduce){ #screen .more-row .btn svg{transition:none} }
 /* alto contraste do sistema: o que era só preenchimento ganha borda, e a seleção ganha marca própria */
 @media (forced-colors:active){
@@ -666,7 +667,7 @@ svg.i.f{fill:currentColor;stroke:none}
 #screen .do-site b{color:var(--text);font-weight:600}
 #screen .forja code{font:12.5px var(--mono)}
 
-.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:50;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);padding:8px 8px 8px 14px;font:400 13px var(--sans);color:var(--text);display:flex;gap:10px;align-items:center;max-width:calc(100vw - 24px)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:var(--z-aviso);background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);padding:8px 8px 8px 14px;font:400 13px var(--sans);color:var(--text);display:flex;gap:10px;align-items:center;max-width:calc(100vw - 24px)}
 .toast button{width:28px;height:28px;border:0;background:none;color:var(--muted);cursor:pointer;display:grid;place-items:center;border-radius:5px}
 
 

@@ -1,0 +1,41 @@
+/* impressoes.css — rodada 7: o gráfico dos três estados (barra, zero medido, não medido). Só tokens do CMS. */
+.ic{margin:0;min-width:0;position:relative}
+.ic-svg{display:block;width:100%;max-width:860px;height:auto}
+.ic-grid{stroke:var(--border-subtle);stroke-width:1}
+.ic-ax{font:400 12px var(--mono);fill:var(--muted)}
+.ic-bar{fill:var(--im-bar,#FF8240)}
+.ic-dot{fill:var(--im-cl,#38BDF8);stroke:#16130F;stroke-width:1.4}
+.ic-val{font:500 12px var(--mono);fill:var(--text)}
+.ic-zero{stroke:var(--im-zero,#7A8FA6);stroke-width:3;stroke-linecap:round}
+.ic-hb{fill:var(--nm-bg,#3A2232)}
+.ic-hl{stroke:var(--nm,#E59CC0);stroke-width:2}
+.ic-falta{stroke:none}
+.ic-an{font:400 12px var(--sans);fill:var(--muted)}
+.ic-cln{font:600 12px var(--mono);fill:var(--im-cl,#38BDF8)}
+.ic-an.r{fill:var(--im-cl,#38BDF8)}
+.ic-hit{fill:transparent;stroke:none;cursor:default;outline:none}
+.ic-hit:hover{fill:rgba(245,239,230,.09);stroke:var(--dim);stroke-width:1}
+.ic-hit:focus{fill:rgba(245,239,230,.13);stroke:var(--accent);stroke-width:2}
+.ic-tip{position:fixed;max-width:min(420px,100%);padding:5px 10px;background:var(--surface);border:1px solid var(--border-strong);border-radius:6px;box-shadow:var(--shadow);font:400 12.5px/1.4 var(--sans);color:var(--text);pointer-events:none;white-space:normal}
+.ic-tip[hidden]{display:none}
+.ic-leg{margin:8px 0 0;max-width:860px;font-size:12.5px;line-height:18px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 18px}
+.ic-lg{display:inline-flex;align-items:center;gap:7px}
+.ic-sw{display:inline-block;flex:none}
+.ic-sw.imp{width:12px;height:12px;border-radius:2px;background:var(--im-bar,#FF8240)}
+.ic-sw.cl{width:11px;height:11px;border-radius:50%;background:var(--im-cl,#38BDF8);box-shadow:0 0 0 1.5px #16130F,0 0 0 2.5px var(--border-strong)}
+.ic-sw.zero{width:16px;height:3px;border-radius:2px;background:var(--im-zero,#7A8FA6)}
+.ic-tab{margin-top:4px;font-size:13px}
+.ic-tab summary{cursor:pointer;color:var(--text);text-decoration:underline;text-underline-offset:2px;width:max-content;min-height:24px;display:inline-flex;align-items:center;list-style:none;border-radius:4px}
+.ic-tab summary::-webkit-details-marker{display:none}
+.ic-tab summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ic-tw{overflow:auto;max-height:320px;margin-top:6px;border:1px solid var(--border-subtle);border-radius:6px}
+.ic-tab table{border-collapse:collapse;width:100%;font-size:12.5px}
+.ic-tab th,.ic-tab td{text-align:left;padding:5px 10px;border-bottom:1px solid var(--border-subtle);font-weight:400;color:var(--text)}
+.ic-tab thead th{position:sticky;top:0;background:var(--surface-2);color:var(--muted);font-weight:500}
+.ic-tab .r{text-align:right}
+.ic-tab .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.ic-tab tr.falta td,.ic-tab tr.falta th,.ic-tab .nd{color:var(--muted);font-family:var(--sans)}
+.ic-tab tr.zero td:nth-child(4){color:var(--muted)}
+@media (max-width:900px){.ic-tab summary{min-height:44px}}
+.ic-sc{overflow-x:auto;border-radius:4px}
+

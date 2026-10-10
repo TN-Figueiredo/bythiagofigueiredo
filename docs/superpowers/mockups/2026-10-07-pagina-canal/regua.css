@@ -1,0 +1,107 @@
+/* regua.css — rodada 10 (rodada 11: as primitivas .rg, .rg-t, .rg-me, .rg-base valem em qualquer #screen; a comparação reusa) (09/10/2026). "Este vídeo no canal": frase, tabela com uma régua por número, legenda.
+   Só tokens do CMS e três cores literais da escala do múltiplo (violeta = muito alto, azul = alto; o creme é o texto). Sem color-mix(). */
+/* o par: "Este vídeo no canal" ocupa dois terços; "Dias em que apareceu" o terço restante. Abaixo de 1180 px empilham. */
+#screen.vp .vp-2{grid-template-columns:minmax(0,1fr)}
+@media (min-width:1180px){ #screen.vp .vp-2{grid-template-columns:minmax(0,2fr) minmax(0,1fr)} }
+
+#screen.vp .rg-fr{margin:2px 0 12px;font-size:15px;line-height:1.55;color:var(--text);max-width:70ch}
+#screen.vp .rg-cl{display:inline-block;margin-right:12px}
+#screen.vp .rg-mk{width:11px;height:11px;margin:0 5px 0 0;vertical-align:-1px;flex:none}
+#screen.vp .rg-mk0{display:inline-block;width:11px;height:11px;margin-right:5px;flex:none}
+
+#screen.vp .rg-tw{overflow:visible}
+#screen.vp .rg-t0{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px}
+#screen.vp .cg-nm{width:112px}#screen.vp .cg-v{width:76px}#screen.vp .cg-e{width:48px}#screen.vp .cg-e2{width:56px}#screen.vp .cg-p{width:150px}
+#screen.vp .rg-t0 th,#screen.vp .rg-t0 td{padding:0;text-align:left;font-weight:400;vertical-align:middle}
+/* cabeçalho */
+#screen.vp .rg-t0 thead th{font:400 12px/1.3 var(--sans);color:var(--muted);padding:0 0 4px;border-bottom:1px solid var(--border-subtle)}
+#screen.vp .rg-hv{width:76px;text-align:right!important;padding-right:14px!important}
+#screen.vp .rg-hp{width:150px;padding-left:12px!important}
+#screen.vp .rg-hh{display:flex;justify-content:space-between;gap:8px;padding:0 4px}
+#screen.vp .rg-hm{color:var(--dim)}
+#screen.vp .rg-t0 thead th{vertical-align:bottom}
+/* grupo: rótulo em caixa normal, apagado */
+#screen.vp .rg-g th{font:500 12.5px/1.3 var(--sans);color:var(--muted);padding:12px 0 2px;letter-spacing:0;text-transform:none}
+#screen.vp .rg-r>*{height:36px}
+#screen.vp .rg-nm{width:112px;color:var(--text);font-size:13.5px}
+#screen.vp .rg-v{width:76px;text-align:right;padding-right:14px;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:14px;font-weight:500;color:var(--text)}
+#screen.vp .rg-e{width:46px;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted)}
+#screen.vp .rg-mn{text-align:right;padding-right:8px}
+#screen.vp .rg-mx{text-align:left;padding-left:8px;width:54px}
+#screen.vp .rg-c{padding:0}
+#screen.vp .rg-p{width:150px;padding-left:12px;font-size:13px;color:var(--text);line-height:1.25}
+#screen.vp .rg-p .rg-pt{display:inline-block;vertical-align:middle;max-width:calc(100% - 20px)}
+#screen.vp .rg-p .rg-mk,#screen.vp .rg-p .rg-mk0{vertical-align:middle}
+#screen.vp .rg-p small{display:block;font-size:12px;color:var(--dim)}
+#screen.vp .rg-p a{color:var(--text);text-decoration:underline;text-decoration-color:var(--dim);text-underline-offset:3px}
+#screen.vp .rg-p a:hover{text-decoration-color:var(--text)}
+#screen.vp .rg-sem{color:var(--muted);font-size:13.5px}
+
+/* a régua */
+#screen .rg{position:relative;display:block;height:34px;border-radius:4px;cursor:crosshair;touch-action:pan-y}
+#screen .rg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#screen .rg-in{position:absolute;left:6px;right:6px;top:0;bottom:0}
+#screen .rg-base{position:absolute;left:0;right:0;bottom:9px;height:1px;background:var(--border-strong)}
+#screen .rg-t{position:absolute;bottom:10px;width:2px;height:12px;margin-left:-1px;background:var(--dim);border-radius:1px}
+#screen .rg-t.on{height:20px;background:var(--text);width:2px}
+#screen .rg-t.rg-me{width:4px;height:26px;margin-left:-2px;background:var(--text);border-radius:1px;box-shadow:0 0 0 1px var(--surface);z-index:var(--z-marca)}
+#screen .rg-t.rg-me.b-cima{background:#A78BFA}
+#screen .rg-t.rg-me.b-meio{background:#38BDF8}
+#screen .rg-t.rg-me.b-baixo{background:#F2C14E}
+#screen .rg-t.rg-me.on{box-shadow:0 0 0 1px var(--surface),0 0 0 3px var(--muted)}
+/* mediana: um pequeno triângulo sob a linha de base */
+#screen .rg-med{position:absolute;bottom:2px;width:0;height:0;margin-left:-4px;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:6px solid var(--muted)}
+
+/* legenda e notas */
+#screen.vp .rg-lg{display:flex;flex-wrap:wrap;gap:4px 16px;margin:12px 0 4px;font-size:12px;color:var(--muted);line-height:1.4}
+#screen.vp .rg-lg1{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+#screen.vp .rg-lg .rg-mk{margin:0}
+#screen.vp .rg-ex{position:relative;display:inline-block;width:6px;height:16px}
+#screen.vp .rg-ex .rg-t{bottom:0;left:3px}
+#screen.vp .rg-ex .rg-t.rg-me{height:16px}
+#screen.vp .rg-lg .rg-medx{position:static;display:inline-block;margin:0}
+#screen.vp .rg-esc,#screen.vp .rg-hon{margin:6px 0 0;font-size:12.5px;line-height:1.5;color:var(--muted);max-width:76ch}
+#screen.vp .rg-hon{color:var(--text);font-size:13px;padding-top:8px;border-top:1px solid var(--border-subtle);margin-top:10px}
+
+/* dica do traço mais perto do ponteiro */
+.rg-tip{position:fixed;max-width:300px;padding:7px 10px;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 12px 32px rgba(0,0,0,.45);font:400 12.5px/1.4 var(--sans);color:var(--text);pointer-events:none}
+.rg-tip b{display:block;font-weight:500;margin-bottom:2px}
+.rg-tip span{color:var(--muted)}
+.rg-tip .num{font-family:var(--mono);color:var(--text)}
+.rg-tip[hidden]{display:none}
+
+/* estreito: cada linha vira três faixas (nome e valor; régua; pontas e posição). As pontas vão para baixo da régua. */
+@media (max-width:700px){
+  #screen.vp .rg-t0,#screen.vp .rg-t0 tbody,#screen.vp .rg-t0 tr,#screen.vp .rg-t0 thead{display:block}
+  #screen.vp .rg-t0 thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  #screen.vp .rg-t0 tr.rg-r{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nm v" "rg rg" "mn mx" "p p";gap:0 10px;padding:8px 0 6px;border-top:1px solid var(--border-subtle)}
+  #screen.vp .rg-g th{display:block;padding:12px 0 4px}
+  #screen.vp .rg-r>*{height:auto}
+  #screen.vp .rg-nm{grid-area:nm;width:auto}
+  #screen.vp .rg-v{grid-area:v;width:auto;padding:0;text-align:right}
+  #screen.vp .rg-c{grid-area:rg;display:block;padding:6px 0 0}
+  #screen.vp .rg-mn{grid-area:mn;display:block;width:auto;text-align:left;padding:0}
+  #screen.vp .rg-mx{grid-area:mx;display:block;width:auto;text-align:right;padding:0}
+  #screen.vp .rg-p{grid-area:p;display:block;width:auto;padding:2px 0 0}
+  #screen.vp .rg-p .rg-pt{max-width:none}
+  #screen.vp .rg-p small{display:inline;margin-left:6px}
+  #screen.vp .rg-sem{grid-column:1/-1;display:block}
+  #screen .rg{height:40px}
+  #screen .rg-t{height:14px}
+}
+
+/* "Dias em que apareceu" tem 300 px de conteúdo contra 600 do bloco da régua: esticar a caixa deixaria 300 px vazios dentro dela.
+   Cada caixa termina onde o conteúdo termina (alinhadas no topo); a decisão está no LEIAME. */
+@media (min-width:1180px){ #screen.vp .vp-2{align-items:start} }
+
+/* rodada 11 -------------------------------------------------------------------------------------------------------- */
+/* a régua do nicho (comparar.html): mais alta, com a letra de cada lado sob a linha de base; sem mediana nem dica */
+#screen .rg.cmp{height:46px;cursor:default;touch-action:auto;width:100%;background:transparent;border:0;padding:0;margin:0;display:block}
+#screen .rg.cmp .rg-base{bottom:18px}
+#screen .rg.cmp .rg-t{bottom:19px;height:12px;background:var(--dim)}
+#screen .rg.cmp .rg-t.rg-me{width:4px;height:24px;margin-left:-2px;background:var(--c);box-shadow:0 0 0 1px var(--surface);border-radius:1px;z-index:var(--z-marca)}
+#screen .rg.cmp .rg-ch{position:absolute;bottom:0;transform:translateX(calc(-50% + var(--dx,0px)));min-width:16px;height:16px;padding:0 3px;border-radius:3px;background:var(--c);color:#16130F;font:700 11px/16px var(--mono);text-align:center;z-index:var(--z-marca-alta)}
+/* legenda de ⓘ ao lado das amostras do vídeo */
+#screen.vp .rg-lg .rg-info{width:20px;height:20px;margin-left:2px}
+#screen.vp .rg-lg .rg-info svg{width:14px;height:14px}
+@media (max-width:900px){ #screen.vp .rg-lg .rg-info{width:44px;height:44px;margin:-12px 0} }

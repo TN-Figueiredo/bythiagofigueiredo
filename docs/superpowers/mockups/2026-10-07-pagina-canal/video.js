@@ -98,7 +98,7 @@ function renderHeader(){
    +'<div class="actions"><div class="fx-top"><div class="arow">'
      +'<button class="btn" type="button" id="pinBtn" aria-pressed="'+S.pinned+'">'+IC.pin+'<span>'+(S.pinned?'Desafixar':'Fixar vídeo')+'</span></button>'
      +'<a class="btn" href="'+v.url+'" target="_blank" rel="noopener noreferrer">'+IC.ext+'Abrir no YouTube<span class="sr"> (abre em nova aba)</span></a></div></div>'
-     +'<div class="frow"><button class="btn forja-solid" type="button" id="forjaBtn">'+IC.forja+'Pedir leitura à forja</button></div></div>'
+     +'<div class="frow"><button class="btn forja-solid" type="button" id="forjaBtn" aria-describedby="forjaBtnNota"></button><p class="fbtn-nota" id="forjaBtnNota" hidden></p></div></div>'
    +'<div class="vm"><div class="facts">'
      +'<span class="chan"><span class="av" style="background:'+ch.color+';overflow:hidden" aria-hidden="true">'+avatar+'</span>'+esc(ch.name)+'<span class="niche">Viagem</span></span>'
      +viewsHtml+pubHtml
@@ -249,6 +249,7 @@ function laneHTML(type){
 }
 function renderLanes(){
   gid=0; anyGroup=false;
+  [...document.querySelectorAll('#flut .gpop')].forEach(p=>p.remove());     // lista de grupo aberta pertence às faixas que vão ser refeitas
   $('#lanes').innerHTML=TYPES.map(laneHTML).join('');
   $$('#lanes .lane').forEach(l=>{ const it=[...l.querySelectorAll('.ln-i')]; it.forEach((b,i)=>b.tabIndex=i?-1:0) });     // uma parada de Tab por faixa
   $('#vlines').innerHTML=visChanges().map(c=>{ const T=TYPE[c.type];
@@ -556,22 +557,28 @@ function showTip(btn){
         :'<div class="aft">A descrição mudou. Comparação linha a linha em Descrições, abaixo.</div>');
   }
   tip.style.setProperty('--c',color); tip.innerHTML=html; tip.classList.add('show');
-  const w=$('#tlwrap').getBoundingClientRect(), b=btn.getBoundingClientRect(), th=tip.offsetHeight, tw=tip.offsetWidth;
-  tip.style.left=Math.max(4,Math.min(w.width-tw-4,b.left-w.left+b.width/2-tw/2))+'px';
-  tip.style.top=Math.max(0,b.top-w.top-th-6)+'px';                        // acima do alvo: nunca cobre as faixas de baixo
+  FLUT.posicionar(tip,btn,{pref:'cima',alinhar:'meio'});            // acima do alvo, dentro da janela: nunca cobre as faixas de baixo
 }
 const hideTip=()=>$('#tip').classList.remove('show');
 
 /* ===================== grupos (faixas densas) ===================== */
 function setGroup(w,on){
   w.classList.toggle('open',on); w.querySelector('.gbtn').setAttribute('aria-expanded',on);
-  if(on){ hideTip(); const pop=w.querySelector('.gpop'); pop.style.left='0px'; if(w.classList.contains('mg')) pop.style.top='26px';
-    const pr=pop.getBoundingClientRect(), tr=$('#tlwrap').getBoundingClientRect(), over=pr.right-tr.right+4;
-    if(over>0) pop.style.left=(-over)+'px'; const under=tr.left+4-(pr.left-Math.max(0,over)); if(under>0) pop.style.left=(parseFloat(pop.style.left)+under)+'px'; }
+  const pop=w.querySelector('.gpop')||document.getElementById(w.querySelector('.gbtn').getAttribute('aria-controls'));
+  if(on){ hideTip(); pop._home=w; ligarPop(pop); FLUT.montar(pop); pop.classList.add('aberto'); FLUT.posicionar(pop,w.querySelector('.gbtn'),{pref:'baixo',alinhar:'inicio',gap:2}); }
+  else if(pop&&pop._home){ pop.classList.remove('aberto'); pop._home.appendChild(pop); }
+}
+/* a lista do grupo mora em #flut (acima de tudo, dentro da janela); os eventos que a linha do tempo ouvia por delegação são religados nela */
+function ligarPop(pop){
+  if(pop._ligado) return; pop._ligado=true;
+  pop.addEventListener('click',e=>{ const go=e.target.closest('[data-go]'); if(go){ closeGroups(); goVersion(go.dataset.go); return } const pr=e.target.closest('[data-pair]'); if(pr){ hideTip(); closeGroups(); selectPair(pairOfChange(pr.dataset.pair).k,{scroll:true}) } });
+  pop.addEventListener('focusout',e=>{ const w=pop._home; if(w&&!w.contains(e.relatedTarget)&&!pop.contains(e.relatedTarget)) setGroup(w,false) });
 }
 const closeGroups=except=>$$('#lanes .gwrap.open').forEach(x=>{ if(x!==except) setGroup(x,false) });
 function wireLanes(){
   const tl=$('#tlwrap');
+  FLUT.montar($('#tip'));      // a dica mora em #flut
+  FLUT.aoAbrirEsconder(()=>hideTip());
   const hint=(e,on)=>{
     const b=e.target.closest('.mk,.gbtn'); if(b){ if(on&&!(b.classList.contains('gbtn')&&b.closest('.gwrap').classList.contains('open'))) showTip(b); else hideTip() }
     const mk=e.target.closest('.mk'); if(mk){ const c=HM.change(mk.dataset.pair); S.hover=on?{type:c.type,i:c.idx,label:c.type==='thumb'?c.to.label:null,ev:c.idx}:null; applyHl() }
@@ -581,7 +588,7 @@ function wireLanes(){
   tl.addEventListener('dblclick',e=>{ const cl=e.target.closest('.clip[data-k^="thumb:"]'); if(cl){ e.preventDefault(); window.VIEWER.open(v.id,+cl.dataset.k.split(':')[1],cl) } });
   tl.addEventListener('mouseover',e=>hint(e,true)); tl.addEventListener('mouseout',e=>hint(e,false));
   tl.addEventListener('focusin',e=>hint(e,true));
-  tl.addEventListener('focusout',e=>{ hint(e,false); const w=e.target.closest('.gwrap'); if(w&&!w.contains(e.relatedTarget)) setGroup(w,false) });
+  tl.addEventListener('focusout',e=>{ hint(e,false); const w=e.target.closest('.gwrap'); const pp=w&&w.querySelector('.gpop')||(w&&document.getElementById(w.querySelector('.gbtn').getAttribute('aria-controls'))); if(w&&!w.contains(e.relatedTarget)&&!(pp&&pp.contains(e.relatedTarget))) setGroup(w,false) });
   tl.addEventListener('click',e=>{
     const go=e.target.closest('[data-go]'); if(go){ closeGroups(); goVersion(go.dataset.go); return }
     const pr=e.target.closest('.gpop [data-pair],.mk[data-pair]'); if(pr){ hideTip(); closeGroups(); selectPair(pairOfChange(pr.dataset.pair).k,{scroll:true}); return }
@@ -595,7 +602,7 @@ function wireLanes(){
     if(e.key==='ArrowRight') n=all[Math.min(all.length-1,k+1)]; else if(e.key==='ArrowLeft') n=all[Math.max(0,k-1)]; else if(e.key==='Home') n=all[0]; else if(e.key==='End') n=all[all.length-1];
     if(n){ e.preventDefault(); const w=it.closest('.gwrap'); if(w) setGroup(w,false); all.forEach(x=>x.tabIndex=-1); n.tabIndex=0; n.focus() }
   });
-  document.addEventListener('click',e=>{ if(!e.target.closest('.gwrap')) closeGroups() });
+  document.addEventListener('click',e=>{ if(!e.target.closest('.gwrap,.gpop')) closeGroups() });
 }
 
 /* ===================== ligações do resto da tela ===================== */
@@ -608,13 +615,13 @@ function wire(){
     if(e.key!=='Escape') return;
     const tipOn=$('#tip').classList.contains('show'), open=$$('#lanes .gwrap.open');
     hideTip();
-    open.forEach(w=>{ const had=w.contains(document.activeElement); setGroup(w,false); if(had) w.querySelector('.gbtn').focus() });
+    open.forEach(w=>{ const pp=document.getElementById(w.querySelector('.gbtn').getAttribute('aria-controls')); const had=w.contains(document.activeElement)||(pp&&pp.contains(document.activeElement)); setGroup(w,false); if(had) w.querySelector('.gbtn').focus() });
     if(!tipOn&&!open.length&&S.pin){ const l=S.pin.label, had=document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#isumSec'); S.pin=null; renderSummary(); applyHl(); $('#live').textContent='Destaque solto.';
       if(had){ const nb=document.querySelector('[data-pinimg="'+l+'"]'); if(nb) nb.focus() } }     // o foco volta ao botão que fixou
   });
   scr.addEventListener('click',e=>{
     const rb=e.target.closest('[data-range]'); if(rb){ setRange(rb.dataset.range,true); return }
-    if(e.target.closest('#pinBtn')){ S.pinned=!S.pinned; renderHeader(); $('#pinBtn').focus(); $('#live').textContent=S.pinned?'Vídeo fixado.':'Vídeo desafixado.'; aviso(S.pinned?'Vídeo fixado':'Vídeo desafixado'); return }
+    if(e.target.closest('#pinBtn')){ S.pinned=!S.pinned; renderHeader(); forjaBtnSync(); $('#pinBtn').focus(); $('#live').textContent=S.pinned?'Vídeo fixado.':'Vídeo desafixado.'; aviso(S.pinned?'Vídeo fixado':'Vídeo desafixado'); return }
     if(e.target.closest('#forjaBtn')){ pedirDoCabecalho(); return }
     const pb=e.target.closest('#compare .pair'); if(pb){ selectPair(pb.dataset.k); document.querySelector('#compare .pair[aria-pressed="true"]').focus(); return }
     const fb=e.target.closest('[data-flt]'); if(fb){ const grp=fb.dataset.flt, val=fb.dataset.v; if(grp==='field') S.fField=val; else S.fVerdict=val; refreshCompare();
@@ -654,10 +661,31 @@ function setRange(r,keepFocus){
 }
 
 /* ===================== rodada 3: o botão "Pedir leitura à forja" do cabeçalho, a chegada pela aba Trocas, a barra do mockup ===================== */
+/* rodada 5 (resposta c do dono): o botão do cabeçalho ROLA até o cartão E JÁ PEDE. O nome da ação é o mesmo do começo ao fim:
+   "Pedir leitura à forja" → "Pedindo…" → "Leitura em andamento: ver" → "Ver a leitura". Com pedido em andamento ou leitura pronta, ele só rola. */
+let pedindo=false;
+const PODE_PEDIR=['nunca','falhou','travou','semevid'];
+function forjaBtnSync(){
+  const b=$('#forjaBtn'), n=$('#forjaBtnNota'); if(!b) return;
+  const e=FJ.estado(), semViews=window.CANAL.porId(v.id).views==null, pronta=['pronta','limite','desatualizada'].includes(e)&&!semViews;
+  let cls='btn forja-solid', txt=IC.forja+'Pedir leitura à forja', nota='';
+  if(pedindo){ txt='<span class="fj-dot mini" aria-hidden="true"></span>Pedindo…' }
+  else if(FJ.EM_ANDAMENTO.includes(e)){ cls='btn forja-outline'; txt=IC.forja+'Leitura em andamento: ver' }
+  else if(pronta){ cls='btn forja-outline'; txt=IC.forja+'Ver a leitura'; if(e==='limite') nota='Já houve uma leitura deste vídeo hoje. Libera amanhã às 00:00.'; if(e==='desatualizada') nota='A leitura está desatualizada.' }
+  else if(e==='precisa'||semViews&&e!=='nunca'){ cls='btn forja-outline'; txt=IC.forja+'Leitura: precisa de você, ver'; nota='Sincronize o canal primeiro.' }
+  else if(e!=='nunca'){ txt=IC.forja+'Pedir leitura à forja de novo' }
+  b.className=cls; b.innerHTML=txt; if(pedindo) b.setAttribute('aria-busy','true'); else b.removeAttribute('aria-busy');
+  n.textContent=nota; n.hidden=!nota;
+}
 function pedirDoCabecalho(){
-  const sec=$('#forja'); sec.scrollIntoView({behavior:reduced()?'auto':'smooth',block:'start'});
-  const est=FJ.estado(), pode=['nunca','falhou','travou','semevid'].includes(est);
-  setTimeout(()=>{ if(pode) FJ.pedir(); else { const t=$('#fjSit')||sec.querySelector('button'); if(t) t.focus({preventScroll:true}); $('#live').textContent='A leitura da forja já tem uma situação; ela está logo abaixo.' } },reduced()?0:350);
+  if(pedindo) return;
+  const sec=$('#forja'), est=FJ.estado(), pode=PODE_PEDIR.includes(est);
+  if(pode){ pedindo=true; forjaBtnSync(); $('#live').textContent='Pedindo a leitura à forja.' }
+  sec.scrollIntoView({behavior:reduced()?'auto':'smooth',block:'start'});
+  setTimeout(()=>{
+    if(pode){ pedindo=false; FJ.pedir(); forjaBtnSync() }   /* FJ.pedir põe o cartão em andamento e leva o foco ao título dele */
+    else { const t=$('#fjH')||sec.querySelector('button'); if(t) t.focus({preventScroll:true}); $('#live').textContent=FJ.EM_ANDAMENTO.includes(est)?'Leitura em andamento. O cartão está logo abaixo.':'A leitura da forja está logo abaixo.' }
+  },reduced()?250:650);
 }
 let tToast=0;
 function aviso(txt){
@@ -680,7 +708,8 @@ function mockBar(){
   const sy=new URLSearchParams(location.search), atr=q.get('sync')==='atrasada'; if(atr) sy.delete('sync'); else sy.set('sync','atrasada');
   $('#mkSync').innerHTML='<a class="mkb" href="video.html?'+esc(sy.toString())+'">'+(atr?'Voltar a em dia':'Sincronização atrasada')+'</a>';
 }
-$('#mock').addEventListener('click',e=>{ const b=e.target.closest('[data-leitura]'); if(b) FJ.set(b.dataset.leitura) });
+$('#mock').addEventListener('click',e=>{
+  const b=e.target.closest('[data-leitura]'); if(b){ FJ.set(b.dataset.leitura); forjaBtnSync(); $('#forja').scrollIntoView({block:'start'}) } });
 document.addEventListener('click',e=>{
   const a=e.target.closest('a[data-nav]'); if(a){ e.preventDefault(); if(a.getAttribute('aria-disabled')!=='true') ir(a.dataset.nav==='ant'?antId:proxId,a.dataset.nav); return }
   if(e.target.closest('[data-sync]')){ aviso('Sincronização iniciada'); return }
@@ -696,7 +725,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='[') ir(antId,'ant'); if(e.key===']') ir(proxId,'prox');
 });
 FJ.init({say:t=>{ const s=$('#live'); s.textContent=''; setTimeout(()=>s.textContent=t,30) },toast:aviso,
-  onChange:e=>{ try{ const u=new URLSearchParams(location.search); if(e==='nunca') u.delete('leitura'); else u.set('leitura',e); history.replaceState(null,'',location.pathname+(u.toString()?'?'+u.toString():'')) }catch(x){} mockBar() }});
+  onChange:e=>{ try{ const u=new URLSearchParams(location.search); if(e==='nunca') u.delete('leitura'); else u.set('leitura',e); history.replaceState(null,'',location.pathname+(u.toString()?'?'+u.toString():'')) }catch(x){} mockBar(); forjaBtnSync() }});
 
 /* ===================== montagem ===================== */
 document.title='Histórico do vídeo: '+v.title+' — Observatório';
@@ -710,7 +739,7 @@ S.pair=defaultPair();
 if(arrivedId){ const pr=pairOfChange(arrivedId); if(pr) S.pair=pr.k }
 FJ.set(FJ.VALIDOS.includes(q.get('leitura'))?q.get('leitura'):'nunca',{silencioso:true});
 renderTimeline(); renderSummary(); renderCompare(); renderChart(); renderLegend(); renderForja(); renderThumbs(); renderTitles(); renderDescs(); applyHl();
-mockBar();
+mockBar(); forjaBtnSync();
 wire();
 /* chegada: com troca na URL, ela fica destacada no gráfico, nas faixas e em "Antes e depois", e o foco vai para a marca dela */
 (function chegada(){

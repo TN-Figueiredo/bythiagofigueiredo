@@ -112,6 +112,32 @@ Ledger com tudo (rulings, achados, esforço): `.superpowers/sdd/2026-10-09-colet
 
 **Pendência que a revisão final do L2 levantou:** o critério B do alcance não avalia os dois canais reais (estão fora do filtro "publicou nos últimos 90 dias"); é o item 4b da seção 3, ainda sem decisão.
 
+## 3d. Mockup aprovado em 10/10 (rodadas 5 a 12) e o que rever no fim
+
+**O dono aprovou o mockup "por enquanto" em 10/10**, depois da rodada 12, e mandou prosseguir: spec de telas v9, o "pode" dele, plano da fase A. **L2 em produção desde 09/10 à noite** (`main` em `c8d26d0b`); falta a Task 11 (conferência da execução das 09:00) e o aceite 9. **Aceite do L1b com revogação real: não fazer**; fica "coberto só por teste", e se um canal cair em `reautorizar` sozinho, conferir a volta a `ok`. O conserto da dica presa na tabela de Canais está commitado (`45a9bbfb`), **sem push por decisão do dono**: vai num push só com o que vier.
+
+Decisões das rodadas 9 a 12, a levar ao spec v9:
+- **Tela própria de comparação** (`comparar.html?a=&b=`): dois canais lado a lado, seletor de cada lado, "Inverter lados"; entradas pelo cabeçalho do concorrente, pela lista de Canais e pelo canal próprio. O canal próprio é sempre laranja, o outro azul, e sem canal próprio o lado A é areia. "Leitura rápida" calculada no topo; régua do nicho com os dois canais marcados e a posição escrita ("13º de 14"), não percentil; "maior" a partir de 10% de diferença, "×" só acima de 2×, percentual abaixo; "maior não é melhor". Bloco "Só o seu canal mede". Cartão da leitura da forja (pacote novo, não existe no produto).
+- **"Este vídeo no canal"**: frase-resumo e uma régua por número (um traço por vídeo do canal, pelo valor; cor por terço; duração neutra); impressões contam "de 33" quando 2 vídeos não têm impressão.
+- **Cor por estado no gráfico de impressões** e uma cor única de "não medido" (rosa com hachura) em todas as telas.
+- **Dicas sempre acima do conteúdo**: camada única no fim da página, viram para cima, nunca saem da janela; quatro itens de aceite na subseção "Para o produto" da rodada 12 do LEIAME.
+- **Lista de Canais com "Todos | Longos | Shorts"**, padrão Longos; em "Todos" as duas medidas por célula, sem mediana misturada, ordem pelos longos.
+- Cliques sempre em contagem, sem percentual (mantido).
+
+**A rever no fim, com tudo implementado (pedido do dono em 10/10; são os pontos que o controlador acha fracos):**
+1. "Todos" na lista de Canais está pesado: "longos"/"Shorts" repetidos em cada célula; levar o rótulo para o cabeçalho da coluna.
+2. "escala √" embaixo de réguas é texto de engenheiro; vai para o ⓘ.
+3. A coluna Ritmo da tabela de produção (uploads por semana) não existe na lista do mockup.
+4. Um ⓘ por linha ao lado dos inscritos dá 72 paradas de Tab na lista de 70.
+5. A tela de comparação é densa (cinco colunas); a Leitura rápida ainda é uma linha comprida quando um lado ganha em muita coisa.
+6. Muitos "não medido" no lado do canal próprio; três linhas se resolvem com o L2 em produção (views por dia), conferir depois.
+7. Concorrente × concorrente é magro no mockup por falta de dados (só Leo Khev e o canal próprio têm vídeos); conferir com dados reais.
+8. Dica de uma linha do meio encostada no pé da janela ainda é cortada em produção (o conserto `45a9bbfb` cobre a linha de baixo e a última); some quando a dica ganhar camada própria na fase A.
+9. Não testados em nenhuma rodada: toque real, leitor de tela, rotação em aparelho, contraste medido na tela (foi calculado por script), outros navegadores além do Chrome. O dono usa Opera.
+10. A lista de grupo da linha do tempo do Histórico foi movida para a camada nova sem dado para exercitá-la.
+11. Empate na régua com um lado destacado afasta 2,6 px em vez de empilhar.
+12. Leitura da forja para comparação e para vídeo próprio: cartões de exemplo; são pacotes novos (L4).
+
 ## 4. Ordem recomendada do trabalho
 
 | # | Etapa | Spec | Depende de |
