@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { lembrarUltimoVideo, renovarUltimoVideo } from '../_chrome/ultimo-video'
+import { DOUBLE_CLICK_MS } from '../_canal/use-rolagem-ao-voltar'
 import { useAvisoLeituraPublicada, useForjaRefresh } from '../_chrome/use-forja-refresh'
 import { marcarPagerUsado, tomarPagerUsado, videoDoHref } from './pager-usado'
 import { currentFlut } from '../_chrome/flut/store'
@@ -28,8 +29,6 @@ import type { ForjaAsk, ForjaCancel } from '../_chrome/forja-view-model'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { PinProvider, PinButton, PinMessage, PinChips, PinIcon, type PinAction } from '../_chrome/pin-kit'
 
-/** A janela do duplo clique na miniatura da raia Thumbnail: o clique simples de ponteiro só rola ao cartão depois dela. */
-const DOUBLE_CLICK_MS = 250
 const reduced = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /**
@@ -159,14 +158,17 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
   // "Pausar atualização automática" (spec 11, linha 14) vive aqui porque o efeito mora aqui; outro vídeo começa sem pausa.
   const [pausado, setPausado] = useState(false)
   useEffect(() => { setPausado(false) }, [view.video?.id])
-  const { lastAt } = useForjaRefresh(!!view.forja?.status?.active, pausado)
+  // a pausa vale para o pedido em que foi feita: quando ele acaba (ou é cancelado), o pedido seguinte começa sem pausa
+  const forjaAtiva = !!view.forja?.status?.active
+  useEffect(() => { if (!forjaAtiva) setPausado(false) }, [forjaAtiva])
+  const { lastAt } = useForjaRefresh(forjaAtiva, pausado)
   useAvisoLeituraPublicada(view.forja)
   // "Tela atualizada há N min": o último refresh do intervalo, ou a chegada de uma tela nova (o pedido, o cancelar e o sincronizar também atualizam)
   const [telaEm, setTelaEm] = useState(() => Date.now())
   useEffect(() => { setTelaEm(Date.now()) }, [view])
   // The one request (both forja buttons send it) and the card the header button scrolls to, found through the screen's ref
   const cardRef = useRef<HTMLElement>(null)
-  const pedido = usePedidoForja({ forja: view.forja, onAsk: onAskForja, videoId: view.video?.id })
+  const pedido = usePedidoForja({ forja: view.forja, onAsk: onAskForja, videoId: view.video?.id, situacao: view.forjaCard?.situacao ?? null })
   const forjaCard = view.forja && view.forjaCard ? view.forjaCard : null
   const atualizacao = { paused: pausado, onTogglePause: () => setPausado(p => !p), lastAt: Math.max(lastAt, telaEm) }
   const cartao = forjaCard && view.forja && view.video
@@ -251,7 +253,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
                 </div>
                 <div className="fx-under">{pv ? <PinMessage k={pv.videoId} /> : null}</div>
               </div>
-              {forjaCard ? <div className="frow"><HeaderAskButton ask={headerAsk(forjaCard)} pedido={pedido} cardRef={cardRef} say={setLive} bloqueado={forjaCard.bloqueado} /></div> : null}
+              {forjaCard ? <div className="frow"><HeaderAskButton ask={headerAsk(forjaCard)} pedido={pedido} cardRef={cardRef} say={setLive} videoId={view.video?.id} bloqueado={forjaCard.botao.por === 'bloqueado' ? forjaCard.bloqueado : null} /></div> : null}
             </div>
             <div className="vm">
               <div className="facts">

@@ -197,10 +197,8 @@ describe('o cartão na tela', () => {
     const tela = () => card()!.querySelector('.obs-fj-upd')!.textContent!
     expect(tela()).toMatch(/^Pedido feito há 4 min, às 14:58\. Tela atualizada agora\. Pode sair desta página: o pedido continua\.$/)
     const pausar = within(card()!).getByRole('button', { name: 'Pausar atualização automática' })
-    expect(pausar.getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(pausar)
     const retomar = within(card()!).getByRole('button', { name: 'Retomar atualização automática' })
-    expect(retomar.getAttribute('aria-pressed')).toBe('true')
     expect(live(root)).toBe('Atualização automática pausada.')
     act(() => { vi.advanceTimersByTime(3 * 60_000) })
     expect(nav.refresh).not.toHaveBeenCalled()
@@ -683,5 +681,265 @@ describe('sem pedido, sem etapa; vazio; o que não se perde', () => {
     const semMovimento = css.replace(/@media\s*\(prefers-reduced-motion:\s*no-preference\)\s*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '')
     expect(semMovimento).not.toMatch(/animation\s*:/)
     expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*no-preference\)\s*\{[^@]*animation\s*:/)
+  })
+})
+
+/* ================================================================== Rodada de conserto 1 (Tarefa 8) */
+const FRASE_SEM_NICHO = 'Este canal ainda não tem nicho; a forja lê por nicho.'
+const semNicho = (leitura: boolean) => world(ds => { if (!leitura) semLeitura(ds); ds.videos.find(v => v.id === ID)!.niche = null })
+const outroVideo = () => SEM_LEITURA.videos.find(v => v.id !== ID && v.tracked && !SEM_LEITURA.channel(v.ch)!.own)!
+const foco = () => document.activeElement as HTMLElement | null
+
+describe('conserto 1, item 4: vídeo de um canal sem nicho (a forja lê por nicho; o servidor recusa "vídeo desconhecido")', () => {
+  it('sem leitura: os dois botões ficam apagados com o motivo verdadeiro; nada de "já houve uma leitura hoje"; nenhum pedido sai', () => {
+    const { root, card, view } = mount(semNicho(false), null)
+    expect(view.forjaCard!.botao).toMatchObject({ habilitado: false, motivo: FRASE_SEM_NICHO, por: 'sem-nicho', visivel: true })
+    const b = header(root)
+    expect(b.getAttribute('aria-disabled')).toBe('true')
+    expect(root.querySelector('#askStatus')!.textContent).toBe(FRASE_SEM_NICHO)
+    const doCartao = card()!.querySelector<HTMLElement>('[data-fj="pedir"]')!
+    expect(doCartao.getAttribute('aria-disabled')).toBe('true')
+    expect(card()!.querySelector('#' + doCartao.getAttribute('aria-describedby'))!.textContent).toBe(FRASE_SEM_NICHO)
+    expect(card()!.textContent).not.toMatch(/Já houve uma leitura|hoje|Libera amanhã/)
+    fireEvent.click(b); fireEvent.click(doCartao)
+    expect(ask).not.toHaveBeenCalled()
+  })
+
+  it('mesmo com leitura guardada de antes: nenhum dos botões promete "limite do dia" e nenhum pedido sai', () => {
+    const { root, card } = mount(semNicho(true), null)
+    const doCartao = card()!.querySelector<HTMLElement>('[data-fj="pedir"]')!
+    expect(doCartao.getAttribute('aria-disabled')).toBe('true')
+    expect(card()!.querySelector('#' + doCartao.getAttribute('aria-describedby'))!.textContent).toBe(FRASE_SEM_NICHO)
+    expect(root.textContent).not.toMatch(/Já houve uma leitura|Libera amanhã/)
+    fireEvent.click(header(root)); fireEvent.click(doCartao)
+    expect(ask).not.toHaveBeenCalled()
+  })
+
+  it('"Não deu" em vídeo sem nicho: a faixa não promete "Pode pedir de novo"', () => {
+    const o = worldDb(ds => { semLeitura(ds); ds.videos.find(v => v.id === ID)!.niche = null; ds.requests.push(dbReq(ds, { state: 'falhou', failedAt: ds.now - 2 * MIN })) })
+    const { card, view } = mount(o, undefined)
+    expect(view.forjaCard!.botao.por).toBe('sem-nicho')
+    expect(card()!.querySelector('.obs-fj-sit')!.textContent).not.toContain('Pode pedir de novo')
+  })
+})
+
+describe('conserto 1, item 6: o motivo do botão apagado aparece uma vez só (sob o botão)', () => {
+  const comBloqueioFalhou = () => worldDb(ds => {
+    semLeitura(ds)
+    const outro = ds.videos.find(v => v.niche === 'ia' && v.id !== ID && v.tracked)!
+    ds.requests.push(dbReq(ds, { state: 'falhou', failedAt: ds.now - 2 * MIN }))
+    ds.requests.push({ ...dbReq(ds, { state: 'na fila' }), id: 'db-lv-outro', video: outro.id, target: { kind: 'video', niche: 'ia', video: outro.id } })
+  })
+  it('"Não deu" com o botão apagado por outro vídeo do nicho: a faixa não repete o motivo que está sob o botão', () => {
+    const { card } = mount(comBloqueioFalhou(), undefined)
+    const faixa = card()!.querySelector('.obs-fj-sit')!.textContent!
+    expect(faixa).toMatch(/^Não deu: o pedido falhou/)
+    const doCartao = card()!.querySelector<HTMLElement>('[data-fj="pedir"]')!
+    const nota = card()!.querySelector('#' + doCartao.getAttribute('aria-describedby'))!.textContent!
+    expect(nota).toMatch(/^Já há uma leitura de vídeo de IA em andamento/)
+    expect(faixa).not.toContain('Já há uma leitura')
+    expect((card()!.textContent ?? '').split('Já há uma leitura de vídeo de IA em andamento').length - 1, 'o motivo aparece uma vez só no cartão').toBe(1)
+  })
+  it('com o botão aceso a faixa continua dizendo "Pode pedir de novo."', () => {
+    const { card } = mount(COM_LEITURA, 'falhou')
+    expect(card()!.querySelector('.obs-fj-sit')!.textContent).toMatch(/Pode pedir de novo\.$/)
+  })
+})
+
+describe('conserto 1, item 2: duplo clique humano no botão do cabeçalho', () => {
+  const tituloDoCartao = (c: HTMLElement) => c.querySelector('h3')
+  it('a ação sai NA HORA, uma vez; a rolagem e o foco esperam a janela do duplo clique e são reagendados, não duplicados', async () => {
+    vi.useFakeTimers()
+    ask.mockReturnValue(new Promise(() => {}))                 // o servidor ainda não respondeu quando o segundo clique chega (120 ms)
+    const { root, card } = mount(SEM_LEITURA, null)
+    const b = header(root)
+    fireEvent.click(b, { detail: 1 })
+    expect(ask, 'o pedido não espera').toHaveBeenCalledTimes(1)
+    expect(scrollTo, 'a rolagem espera').not.toHaveBeenCalled()
+    expect(foco()).not.toBe(tituloDoCartao(card()!))
+    await act(async () => { await vi.advanceTimersByTimeAsync(120) })
+    fireEvent.click(b, { detail: 2 })                         // o segundo clique, 120 ms depois, ainda cai no botão
+    expect(ask).toHaveBeenCalledTimes(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(240) })   // 360 ms do primeiro, 240 ms do segundo
+    expect(scrollTo, 'reagendada: conta a partir do último clique').not.toHaveBeenCalled()
+    await act(async () => { await vi.advanceTimersByTimeAsync(20) })
+    expect(scrollTo).toHaveBeenCalledTimes(1)
+    expect(foco()).toBe(tituloDoCartao(card()!))
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    expect(scrollTo).toHaveBeenCalledTimes(1)
+    expect(ask).toHaveBeenCalledTimes(1)
+  })
+
+  it('"Ver a leitura" (só rola): dois cliques em 120 ms fazem UMA rolagem, depois da janela', async () => {
+    vi.useFakeTimers()
+    const { root, card } = mount(COM_LEITURA, null)
+    const b = header(root)
+    fireEvent.click(b, { detail: 1 })
+    await act(async () => { await vi.advanceTimersByTimeAsync(120) })
+    fireEvent.click(b, { detail: 2 })
+    expect(scrollTo).not.toHaveBeenCalled()
+    await act(async () => { await vi.advanceTimersByTimeAsync(260) })
+    expect(scrollTo).toHaveBeenCalledTimes(1)
+    expect(foco()).toBe(tituloDoCartao(card()!))
+    expect(ask).not.toHaveBeenCalled()
+  })
+
+  it('com teclado (Enter/Espaço chegam como clique com detail 0) não há espera', () => {
+    vi.useFakeTimers()
+    const { root, card } = mount(SEM_LEITURA, null)
+    fireEvent.click(header(root), { detail: 0 })
+    expect(scrollTo).toHaveBeenCalledTimes(1)
+    expect(foco()).toBe(tituloDoCartao(card()!))
+  })
+
+  it('trocar de vídeo cancela a rolagem que o clique estava esperando', async () => {
+    vi.useFakeTimers()
+    const { root, again } = mount(SEM_LEITURA, null)
+    fireEvent.click(header(root), { detail: 1 })
+    again(SEM_LEITURA, null, outroVideo().id)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(scrollTo).not.toHaveBeenCalled()
+  })
+
+  it('a mesma janela da raia: uma constante só', async () => {
+    const { DOUBLE_CLICK_MS } = await import('@/app/cms/(authed)/youtube/competitors/_canal/use-rolagem-ao-voltar')
+    expect(DOUBLE_CLICK_MS).toBe(250)
+  })
+})
+
+describe('conserto 1, item 3: o foco nunca se perde quando o botão focado some', () => {
+  it('"Cancelar pedido" some ao passar para Escrevendo: o foco vai para o título do cartão', () => {
+    const { card, again } = mount(COM_LEITURA, 'na fila')
+    const cancelar = within(card()!).getByRole('button', { name: 'Cancelar pedido' })
+    cancelar.focus()
+    expect(foco()).toBe(cancelar)
+    again(COM_LEITURA, 'trabalhando')
+    expect(within(card()!).queryByRole('button', { name: 'Cancelar pedido' })).toBeNull()
+    expect(foco()).toBe(card()!.querySelector('h3'))
+  })
+
+  it('depois do clique em "Cancelar pedido" aceito, o botão some e o foco fica no cartão', async () => {
+    const { card, again } = mount(COM_LEITURA, 'na fila')
+    const cancelar = within(card()!).getByRole('button', { name: 'Cancelar pedido' })
+    cancelar.focus()
+    fireEvent.click(cancelar)
+    await flush()
+    again(COM_LEITURA, null)
+    expect(within(card()!).queryByRole('button', { name: 'Cancelar pedido' })).toBeNull()
+    expect(foco()).toBe(card()!.querySelector('h3'))
+  })
+
+  it('"Pausar atualização automática" some ao fim do pedido: o foco vai para o título do cartão', () => {
+    const { card, again } = mount(COM_LEITURA, 'trabalhando')
+    const pausar = within(card()!).getByRole('button', { name: 'Pausar atualização automática' })
+    pausar.focus()
+    expect(foco()).toBe(pausar)
+    again(COM_LEITURA, null)
+    expect(within(card()!).queryByRole('button', { name: /atualização automática/ })).toBeNull()
+    expect(foco()).toBe(card()!.querySelector('h3'))
+  })
+
+  it('o botão de pedir do cartão some quando o pedido entra: o foco vai para o título do cartão', () => {
+    const { card, again } = mount(SEM_LEITURA, null)
+    const pedir = card()!.querySelector<HTMLElement>('[data-fj="pedir"]')!
+    pedir.focus()
+    expect(foco()).toBe(pedir)
+    again(SEM_LEITURA, 'na fila')
+    expect(card()!.querySelector('[data-fj="pedir"]')).toBeNull()
+    expect(foco()).toBe(card()!.querySelector('h3'))
+  })
+
+  it('um refresh NUNCA rouba o foco de quem está em outro lugar da tela', () => {
+    const { root, card, again } = mount(COM_LEITURA, 'na fila')
+    const titulo = root.querySelector<HTMLElement>('.vhead h2')!
+    titulo.focus()
+    again(COM_LEITURA, 'trabalhando')                                  // "Cancelar pedido" some, o foco não estava nele
+    expect(foco()).toBe(titulo)
+    again(COM_LEITURA, null)
+    expect(foco()).toBe(titulo)
+    // o cabeçalho também: o foco fica nele
+    header(root).focus()
+    again(SEM_LEITURA, 'na fila')
+    expect(foco()).toBe(header(root))
+    expect(card()).not.toBeNull()
+  })
+
+  it('quem saiu do botão antes de ele sumir (clicou no corpo da página) também não é puxado de volta', () => {
+    const { card, again } = mount(COM_LEITURA, 'na fila')
+    const cancelar = within(card()!).getByRole('button', { name: 'Cancelar pedido' })
+    cancelar.focus()
+    cancelar.blur()                                                    // o foco foi para o corpo por vontade da pessoa
+    return Promise.resolve().then(() => {
+      again(COM_LEITURA, 'trabalhando')
+      expect(foco()).toBe(document.body)
+    })
+  })
+
+  it('um botão que continua no cartão mantém o foco', () => {
+    const { card, again } = mount(COM_LEITURA, 'na fila')
+    const pausar = within(card()!).getByRole('button', { name: 'Pausar atualização automática' })
+    pausar.focus()
+    again(COM_LEITURA, 'atrasado')
+    expect(foco()).toBe(within(card()!).getByRole('button', { name: 'Pausar atualização automática' }))
+  })
+})
+
+describe('conserto 1, item 5: o que vaza de um pedido para o seguinte', () => {
+  it('"Canal sincronizado. Pode pedir de novo." não fica velho quando a situação muda', async () => {
+    const { card, again } = mount(COM_LEITURA, 'recusado (dado velho)')
+    fireEvent.click(within(card()!).getByRole('button', { name: 'Sincronizar este canal' }))
+    await flush()
+    expect(card()!.querySelector('[data-fj-sync-status]')!.textContent).toBe('Canal sincronizado. Pode pedir de novo.')
+    again(COM_LEITURA, 'na fila')
+    expect(card()!.querySelector('[data-fj-sync-status]')).toBeNull()
+  })
+
+  it('a pausa não vaza: pausar, o pedido acabar e outro pedido começar abre com "Pausar atualização automática"', () => {
+    const { card, again } = mount(COM_LEITURA, 'na fila')
+    fireEvent.click(within(card()!).getByRole('button', { name: 'Pausar atualização automática' }))
+    expect(within(card()!).getByRole('button', { name: 'Retomar atualização automática' })).toBeTruthy()
+    again(COM_LEITURA, null)
+    again(COM_LEITURA, 'na fila')
+    expect(within(card()!).getByRole('button', { name: 'Pausar atualização automática' })).toBeTruthy()
+  })
+
+  it('o motivo da recusa some quando o pedido muda (e não reaparece no pedido seguinte)', async () => {
+    ask.mockResolvedValue({ ok: false, reason: 'não foi possível pedir agora', results: [] })
+    const { root, again } = mount(SEM_LEITURA, null)
+    fireEvent.click(header(root))
+    await flush()
+    expect(root.querySelector('#askStatus')!.textContent).toBe('Não foi possível pedir agora.')
+    again(SEM_LEITURA, 'na fila')                                       // a leitura chegou por outro caminho: a recusa velha não vale mais
+    expect(root.querySelector('#askStatus')).toBeNull()
+    again(SEM_LEITURA, null)
+    expect(root.querySelector('#askStatus')?.textContent ?? '').not.toContain('Não foi possível')
+  })
+})
+
+describe('conserto 1, outros: o que a tela sempre garante', () => {
+  it('quando há situação a frase nunca é nula e a faixa existe (falha em verde = cartão sem faixa e sem erro)', () => {
+    for (const s of ['na fila', 'trabalhando', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia', 'publicado', 'falhou', 'recusado (dado velho)', null]) {
+      const { card, view, unmount } = mount(COM_LEITURA, s)
+      if (view.forjaCard!.situacao != null) {
+        expect([s, !!view.forjaCard!.frase]).toEqual([s, true])
+        expect([s, card()!.querySelector('.obs-fj-sit p')?.textContent ?? '']).not.toEqual([s, ''])
+      }
+      unmount()
+    }
+  })
+
+  it('"Pausar/Retomar atualização automática": o rótulo diz o estado; sem aria-pressed (o leitor não diz "pressionado" duas vezes)', () => {
+    const { card } = mount(COM_LEITURA, 'na fila')
+    const b = within(card()!).getByRole('button', { name: 'Pausar atualização automática' })
+    expect(b.hasAttribute('aria-pressed')).toBe(false)
+    fireEvent.click(b)
+    expect(within(card()!).getByRole('button', { name: 'Retomar atualização automática' }).hasAttribute('aria-pressed')).toBe(false)
+  })
+
+  it('o link do outro vídeo no cabeçalho vem do dado estruturado, não da igualdade de duas frases', () => {
+    const cardRef = { current: document.createElement('section') }
+    const b = { text: 'Já há uma leitura de vídeo de IA em andamento, do vídeo “Outro”.', title: 'Outro', href: '/cms/youtube/competitors/video/x' }
+    const { container } = render(<HeaderAskButton ask={{ label: 'Pedir leitura à forja', modo: 'apagado', frase: 'outra redação qualquer', aviso: null }} pedido={{ busy: false, recusa: null, pedir: vi.fn() }} cardRef={cardRef} say={vi.fn()} bloqueado={b} />)
+    expect(within(container.querySelector('#askStatus') as HTMLElement).getByRole('link').getAttribute('href')).toBe(b.href)
   })
 })

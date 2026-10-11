@@ -56,6 +56,9 @@ function avisarVoltou(): void {
 
 const chave = () => PREFIXO + window.location.pathname + window.location.search
 
+/** A janela do duplo clique: um clique de ponteiro que vai rolar a tela espera por ela, e o segundo clique reagenda a rolagem (a tela não anda debaixo do cursor). */
+export const DOUBLE_CLICK_MS = 250
+
 /** O contêiner que rola: o ancestral mais próximo com overflow-y rolável; senão o documento. */
 export function rolavel(raiz: Element | null): HTMLElement {
   for (let p = raiz?.parentElement ?? null; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {

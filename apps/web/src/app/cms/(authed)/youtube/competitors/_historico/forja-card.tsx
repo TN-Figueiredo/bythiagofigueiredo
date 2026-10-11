@@ -9,10 +9,10 @@
  */
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useTransition, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useTransition, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from 'react'
 import { Popover } from '../_chrome/flut/flut'
 import { useToast } from '../_chrome/toasts'
-import { rolavel } from '../_canal/use-rolagem-ao-voltar'
+import { DOUBLE_CLICK_MS, rolavel } from '../_canal/use-rolagem-ao-voltar'
 import type { ForjaAsk, ForjaCancel, ForjaView } from '../_chrome/forja-view-model'
 import { PODE_SAIR, type EtapaView, type ForjaCardView, type HeaderAskView, type LeituraView } from './forja-card-model'
 import './forja-card.css'
@@ -61,6 +61,23 @@ export function irAoCartao(cartao: RefObject<HTMLElement | null>): boolean {
   return true
 }
 
+/**
+ * O clique do cabeçalho: a AÇÃO sai na hora, mas a rolagem e o foco no título esperam a janela do duplo clique (como o clique na miniatura da raia): rolar já no
+ * primeiro clique tirava o botão de baixo do cursor e o segundo clique caía em outro controle. O segundo clique reagenda a espera (uma rolagem só); teclado
+ * (`detail === 0`) não espera; outro vídeo, ou a saída da tela, cancela a que estava marcada.
+ */
+export function useIrAoCartao(cartao: RefObject<HTMLElement | null>, videoId: string | undefined): (detail: number) => void {
+  const timer = useRef<number | null>(null)
+  const cancelar = useCallback(() => { if (timer.current != null) { window.clearTimeout(timer.current); timer.current = null } }, [])
+  useEffect(() => cancelar, [cancelar])
+  useEffect(() => { cancelar() }, [videoId, cancelar])
+  return useCallback((detail: number) => {
+    cancelar()
+    if (!detail) { irAoCartao(cartao); return }
+    timer.current = window.setTimeout(() => { timer.current = null; irAoCartao(cartao) }, DOUBLE_CLICK_MS)
+  }, [cartao, cancelar])
+}
+
 /* ------------------------------------------------------------------ o pedido (um só para os dois botões) */
 export interface PedidoForja {
   /** O servidor ainda está respondendo, ou a tela nova ainda não chegou depois do aceite. */
@@ -74,7 +91,7 @@ export interface PedidoForja {
  * O pedido de leitura do vídeo. O voo é uma `ref` (o estado só muda depois do render, e dois cliques cabem antes dele); "Pedindo…" dura até a tela nova chegar
  * (`useTransition` + `router.refresh()`); o motivo da recusa sobrevive ao refresh e zera quando o vídeo muda (o Next não remonta a tela nesse caso).
  */
-export function usePedidoForja({ forja, onAsk, videoId }: { forja: ForjaView | null; onAsk?: ForjaAsk; videoId: string | undefined }): PedidoForja {
+export function usePedidoForja({ forja, onAsk, videoId, situacao = null }: { forja: ForjaView | null; onAsk?: ForjaAsk; videoId: string | undefined; situacao?: ForjaCardView['situacao'] }): PedidoForja {
   const router = useRouter(), toast = useToast()
   const [asking, setAsking] = useState(false)
   const [recusa, setRecusa] = useState<string | null>(null)
@@ -83,7 +100,9 @@ export function usePedidoForja({ forja, onAsk, videoId }: { forja: ForjaView | n
   const vivo = useRef({ forja, onAsk, videoId })
   useLayoutEffect(() => { vivo.current = { forja, onAsk, videoId } })
   // outro vídeo: um pedido que ainda não voltou deixa de valer para esta tela (a resposta dele é descartada abaixo)
-  useEffect(() => { voo.current = false; setAsking(false); setRecusa(null) }, [videoId])
+  useEffect(() => { voo.current = false; setAsking(false) }, [videoId])
+  // o motivo da recusa vale para o pedido em que veio: outro vídeo, ou uma situação nova (a leitura chegou por outro caminho), zera
+  useEffect(() => { setRecusa(null) }, [videoId, situacao])
   const pedir = useCallback(async (): Promise<boolean> => {
     const { forja: f, onAsk: ask } = vivo.current
     if (voo.current || !ask || !f || !f.videoId) return false
@@ -110,27 +129,30 @@ function Bloqueado({ b }: { b: NonNullable<ForjaCardView['bloqueado']> }) {
 }
 
 /* ------------------------------------------------------------------ o botão do cabeçalho */
-export function HeaderAskButton({ ask, pedido, cardRef, say, bloqueado }: {
+export function HeaderAskButton({ ask, pedido, cardRef, say, bloqueado, videoId }: {
   ask: HeaderAskView; pedido: PedidoForja; cardRef: RefObject<HTMLElement | null>
   /** O status da tela (`role="status"`): lê o aviso ao rolar e o motivo da recusa. */
   say: (t: string) => void
+  /** O outro vídeo do nicho que tem o pedido; a tela só o passa quando o botão está apagado POR ISSO (`botao.por === 'bloqueado'`): o link não depende de igualdade de frase. */
   bloqueado: ForjaCardView['bloqueado']
+  videoId?: string
 }) {
   const ocupado = pedido.busy && ask.modo === 'pedir'
   const recusa = pedido.recusa != null ? frasePedido(pedido.recusa) : null
+  const irAo = useIrAoCartao(cardRef, videoId)
   useEffect(() => { if (recusa) say(recusa) }, [recusa, say])
-  const clicar = () => {
-    if (ask.modo === 'apagado' || ocupado) return
-    irAoCartao(cardRef)
+  const clicar = (e: ReactMouseEvent) => {
+    if (ask.modo === 'apagado') return
+    irAo(e.detail)                                             // a rolagem e o foco esperam o duplo clique; o pedido abaixo não espera
     if (ask.modo === 'so-rola') { if (ask.aviso) say(ask.aviso); return }
-    void pedido.pedir()
+    void pedido.pedir()                                        // um voo só: o segundo clique do duplo não envia outro
   }
-  const nota: ReactNode = recusa ?? (ask.modo === 'apagado' && bloqueado && ask.frase === bloqueado.text ? <Bloqueado b={bloqueado} /> : ask.frase)
+  const nota: ReactNode = recusa ?? (ask.modo === 'apagado' && bloqueado ? <Bloqueado b={bloqueado} /> : ask.frase)
   return (
     <>
       <button className="btn forja-solid" type="button" id="askForja" aria-disabled={ask.modo === 'apagado' || undefined} aria-busy={ocupado || undefined}
         aria-describedby={nota ? 'askStatus' : undefined} onClick={clicar}
-        // um segundo clique seguido (duplo clique) não pode roubar do título do cartão o foco que o primeiro acabou de pôr lá
+        // um segundo clique seguido (duplo clique) não pode roubar do título do cartão o foco que a rolagem acabou de pôr lá
         onMouseDown={e => { if (ocupado) e.preventDefault() }}>
         {ocupado ? <span className="obs-fj-pulso" aria-hidden="true" /> : FORJA}{ocupado ? 'Pedindo…' : ask.label}
       </button>
@@ -245,6 +267,17 @@ export function ForjaCard({ card, forja, pedido, onCancel, onSyncChannel, refres
   const cancelVoo = useRef(false)
   const [sync, setSync] = useState<'parado' | 'ocupado' | 'ok' | 'falhou'>('parado')
   const syncVoo = useRef(false)
+  // "Canal sincronizado…" é do momento em que a pessoa sincronizou: quando a situação muda (ela pediu, a leitura chegou) deixa de valer
+  useEffect(() => { setSync(s => (s === 'ocupado' ? s : 'parado')) }, [card.situacao])
+  // O foco nunca se perde: se o elemento que o tinha (Cancelar pedido, Pausar, o botão de pedir) some numa atualização, ele vai para o título do cartão;
+  // quem está em outro lugar da tela não é tocado (só vale quando o foco caiu no corpo da página porque o elemento saiu).
+  const focado = useRef<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const antes = focado.current, ativo = document.activeElement
+    if (!antes || antes.isConnected || (ativo && ativo !== document.body)) return
+    focado.current = null
+    cardRef.current?.querySelector<HTMLElement>('[data-fj-titulo]')?.focus({ preventScroll: true })
+  })
   const anuncio = useAnuncio(card)
   const ativo = card.andamento != null
   const agora = useAgora(ativo)
@@ -283,10 +316,16 @@ export function ForjaCard({ card, forja, pedido, onCancel, onSyncChannel, refres
   const andamento = card.andamento != null
     ? (card.andamento.endsWith(' ' + PODE_SAIR) ? card.andamento.slice(0, -PODE_SAIR.length - 1) : card.andamento) + ' Tela atualizada ' + (quando < 1 ? 'agora' : 'há ' + quando + ' min') + (refresh.paused ? ' (atualização pausada)' : '') + '. ' + PODE_SAIR
     : null
+  // o motivo do botão apagado fecha a frase da situação no modelo ("…falhou às 21:00. Já há uma leitura…"): aparece UMA vez, sob o botão
+  const sufixo = b.visivel && recusa == null && b.motivo != null && b.por !== 'sincronizar' ? ' ' + b.motivo : null
+  const frase = card.frase != null && sufixo != null && card.frase.endsWith(sufixo) ? card.frase.slice(0, -sufixo.length) : card.frase
   const mostraAvisos = !b.visivel && (card.excluido != null || card.bloqueado != null)
 
   return (
-    <section ref={cardRef} className="card obs-fj" role="region" aria-labelledby={tid} data-forja-anchor="" data-situacao={card.situacao ?? ''}>
+    <section ref={cardRef} className="card obs-fj" role="region" aria-labelledby={tid} data-forja-anchor="" data-situacao={card.situacao ?? ''}
+      onFocus={e => { const el = e.target as HTMLElement; if (e.currentTarget.contains(el)) focado.current = el }}
+      // sair do botão por vontade da pessoa (clicar no corpo da página) limpa o registro; um botão que SAI da página também dispara isto, mas já desligado, e aí o registro serve
+      onBlur={e => { const el = e.target as HTMLElement; queueMicrotask(() => { if (el.isConnected && focado.current === el) focado.current = null }) }}>
       <div className="obs-fj-top">
         <h3 id={tid} tabIndex={-1} data-fj-titulo="">Leitura da forja{ativo ? <>{' '}<span className="obs-fj-run">em andamento</span></> : null}</h3>
         <button type="button" className="obs-fj-lk" aria-expanded={aberta} aria-controls={oq} onClick={() => setAjuda(!aberta)}>O que é a forja?</button>
@@ -294,15 +333,15 @@ export function ForjaCard({ card, forja, pedido, onCancel, onSyncChannel, refres
       <p className="obs-fj-what" id={oq} hidden={!aberta}>{card.explicacao.texto}</p>
       {mostraAvisos ? <p className="obs-fj-aviso">{IC.warn}<span>{card.excluido != null ? card.excluido : card.bloqueado ? <Bloqueado b={card.bloqueado} /> : null}</span></p> : null}
       {card.etapas ? <Etapas etapas={card.etapas} /> : null}
-      {faixa && card.frase ? (
+      {faixa && frase ? (
         <div className={'obs-fj-sit obs-fj-' + faixa.k}>
           {faixa.ic}
-          <p>{card.frase}</p>
+          <p>{frase}</p>
           {andamento ? <p className="obs-fj-upd">{andamento}</p> : null}
           {card.cancelar || ativo || card.acoes.length || sync !== 'parado' ? (
             <div className="obs-fj-acts">
               {card.cancelar ? <button type="button" className="btn" data-fj="cancelar" aria-busy={cancelando || undefined} onClick={cancelar}>Cancelar pedido</button> : null}
-              {ativo ? <button type="button" className="btn" data-fj="pausar" aria-pressed={refresh.paused} onClick={pausar}>{refresh.paused ? 'Retomar atualização automática' : 'Pausar atualização automática'}</button> : null}
+              {ativo ? <button type="button" className="btn" data-fj="pausar" onClick={pausar}>{refresh.paused ? 'Retomar atualização automática' : 'Pausar atualização automática'}</button> : null}
               {card.acoes.map(a => a.id === 'ver-trocas'
                 ? <Link key={a.id} className="btn" href={a.href}>{a.label}</Link>
                 : a.id === 'ver-raias'

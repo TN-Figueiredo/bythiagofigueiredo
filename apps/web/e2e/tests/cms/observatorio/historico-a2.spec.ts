@@ -1045,20 +1045,41 @@ async function abrirVideoLivre(page: Page): Promise<string> {
   }
   throw new Error('nenhum vídeo candidato com o botão "Pedir leitura à forja" aceso: ' + CANDIDATOS_LIVRES.join(', '))
 }
-/** Responde a server action de pedir no próprio navegador: devolve a lista dos corpos que chegaram e NUNCA deixa a requisição seguir. */
-async function interceptarPedido(page: Page, resposta: { ok: boolean; reason: string | null }): Promise<string[]> {
-  const chegaram: string[] = []
-  await page.route('**/*', async route => {
+/**
+ * FAIL-CLOSED: TODA server action (POST com o cabeçalho `next-action`) que a página faz durante estes testes é tratada aqui e NUNCA segue para o servidor.
+ * O pedido da forja (o corpo traz `leitura-video`) é respondido no próprio navegador e registrado em `chegaram`; qualquer outra ação é ABORTADA e registrada em
+ * `intrusos`, e o teste falha no fim (`afterEach`) dizendo qual. Se o Next mudar a codificação do corpo e o pedido da forja deixar de casar, ele cai em `intrusos`
+ * (abortado, nada escrito) e o teste falha: o pior caso é um teste vermelho, nunca uma linha em `youtube_intelligence_tasks`.
+ * Instale ANTES de abrir a página. A resposta Flight montada à mão (`"b":"development"`) só vale para `next dev`, que é como este projeto de teste sobe.
+ * `segurar: true` segura a resposta até `liberar()`: o "Pedindo…" fica de pé o tempo que o teste precisar (sem corrida com a resposta).
+ */
+interface GuardaAcoes { chegaram: string[]; intrusos: string[]; liberar: () => void }
+let guarda: GuardaAcoes | null = null
+test.afterEach(() => {
+  const g = guarda
+  guarda = null
+  if (g && g.intrusos.length) throw new Error(`Server action INESPERADA abortada (nada chegou ao servidor): ${g.intrusos.length} requisição(ões). Primeira: ${g.intrusos[0]!.slice(0, 300)}`)
+})
+async function interceptarPedido(page: Page, resposta: { ok: boolean; reason: string | null }, opcoes: { segurar?: boolean } = {}): Promise<GuardaAcoes> {
+  const g: GuardaAcoes = { chegaram: [], intrusos: [], liberar: () => {} }
+  const portao = new Promise<void>(ok => { g.liberar = ok })
+  if (!opcoes.segurar) g.liberar()
+  guarda = g
+  await page.context().route('**/*', async route => {
     const r = route.request()
-    if (r.method() === 'POST' && r.headers()['next-action'] && (r.postData() ?? '').includes('leitura-video')) {
-      chegaram.push(r.postData() ?? '')
-      await route.fulfill({ status: 200, headers: { 'content-type': 'text/x-component', vary: 'RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Url' },
-        body: `0:{"a":"$@1","f":"","b":"development"}\n1:${JSON.stringify({ ok: resposta.ok, reason: resposta.reason, results: [] })}\n` })
+    if (r.method() !== 'POST' || !r.headers()['next-action']) { await route.continue(); return }
+    const corpo = r.postData() ?? ''
+    if (!corpo.includes('leitura-video')) {
+      g.intrusos.push(`${r.headers()['next-action']} ${r.url()} ${corpo}`)
+      await route.abort('blockedbyclient')
       return
     }
-    await route.continue()
+    g.chegaram.push(corpo)
+    await portao
+    await route.fulfill({ status: 200, headers: { 'content-type': 'text/x-component', vary: 'RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Url' },
+      body: `0:{"a":"$@1","f":"","b":"development"}\n1:${JSON.stringify({ ok: resposta.ok, reason: resposta.reason, results: [] })}\n` })
   })
-  return chegaram
+  return g
 }
 const noCartao = (page: Page) => page.locator(`${HV} .obs-fj:visible`).first()
 /** O cartão está dentro da área que rola e o foco está no título dele. */
@@ -1069,19 +1090,24 @@ const cartaoAVista = (page: Page) => page.evaluate(() => {
   return { topo: Math.round(r.top - area.top), abaixo: Math.round(r.top - area.bottom), focoNoTitulo: !!a && a.matches('h3[data-fj-titulo]') && c.contains(a) }
 })
 
-test('A2.8 um clique no botão do cabeçalho faz uma requisição só, rola e foca o cartão', async ({ page }) => {
+test('A2.8 um clique no botão do cabeçalho faz uma requisição só, mostra "Pedindo…", rola e foca o cartão', async ({ page }) => {
+  const g = await interceptarPedido(page, { ok: false, reason: 'recusa de teste: nada foi escrito' }, { segurar: true })
   const oracle = await abrirVideoLivre(page)
-  const chegaram = await interceptarPedido(page, { ok: false, reason: 'recusa de teste: nada foi escrito' })
   expect(await rolagem(page), 'a tela abre no alto').toBe(0)
   const antes = await cartaoAVista(page)
   expect(antes.abaixo, 'o topo do cartão começa abaixo da dobra (senão rolar não prova nada)').toBeGreaterThan(100)
   const b = page.locator(`${PEDIR}:visible`).first()
-  await b.dblclick()                                   // dois cliques seguidos: continua uma requisição só
-  await expect(b).toHaveText('Pedir leitura à forja', { timeout: 15_000 })   // "Pedindo…" passou e o botão voltou
-  await expect.poll(() => chegaram.length).toBe(1)
-  expect(chegaram[0]).toContain(ids.video(oracle))
-  await page.waitForTimeout(800)                       // a rolagem suave termina
-  expect(chegaram, 'nenhuma segunda requisição').toHaveLength(1)
+  await b.click()
+  // com a resposta segurada, "Pedindo…" é de verdade (o botão muda de texto e fica ocupado), e o do cartão também
+  await expect(b).toHaveText('Pedindo…')
+  await expect(b).toHaveAttribute('aria-busy', 'true')
+  await expect(noCartao(page).locator('[data-fj="pedir"]')).toHaveAttribute('aria-busy', 'true')
+  await expect.poll(() => g.chegaram.length).toBe(1)
+  g.liberar()
+  await expect(b).toHaveText('Pedir leitura à forja', { timeout: 15_000 })   // a recusa voltou: o botão volta a ser o de antes
+  await page.waitForTimeout(900)                       // a rolagem (que espera a janela do duplo clique) e a animação terminam
+  expect(g.chegaram, 'nenhuma segunda requisição').toHaveLength(1)
+  expect(g.chegaram[0]).toContain(ids.video(oracle))
   const depois = await cartaoAVista(page)
   medida(`${oracle}: o cartão foi de ${antes.topo} px para ${depois.topo} px do topo da área; foco no título: ${depois.focoNoTitulo}; rolagem ${await rolagem(page)} px`)
   expect(await rolagem(page)).toBeGreaterThan(200)
@@ -1092,6 +1118,38 @@ test('A2.8 um clique no botão do cabeçalho faz uma requisição só, rola e fo
   await expect(page.locator(`${HV} #askStatus:visible`).first()).toHaveText(/^Recusa de teste: nada foi escrito\.$/)
   await expect(noCartao(page).locator('ol[aria-label="Etapas do pedido"]')).toHaveCount(0)
   await expect(noCartao(page).locator('.obs-fj-sit')).toHaveCount(0)
+  expect(g.intrusos).toEqual([])
+})
+
+test('A2.8 duplo clique humano (dois cliques de mouse, 120 ms, mesmas coordenadas): uma requisição, e o segundo clique não aciona outro controle', async ({ page }) => {
+  const g = await interceptarPedido(page, { ok: false, reason: 'recusa de teste: nada foi escrito' }, { segurar: true })
+  await abrirVideoLivre(page)
+  expect(await rolagem(page), 'a tela abre no alto').toBe(0)
+  const b = page.locator(`${PEDIR}:visible`).first()
+  const caixa = (await b.boundingBox())!
+  const x = caixa.x + 16, y = caixa.y + caixa.height / 2          // perto da borda esquerda: o botão encolhe em "Pedindo…" e continua debaixo do cursor
+  const url0 = page.url()
+  // quem recebe cada clique (fase de captura): se a tela andasse debaixo do cursor, o segundo cairia em outro elemento
+  await page.evaluate(() => {
+    const w = window as unknown as { __cliques: string[] }
+    w.__cliques = []
+    document.addEventListener('click', e => { const t = e.target as Element; w.__cliques.push(t.closest('#askForja') ? 'askForja' : (t.closest('a,button,[role="button"],summary')?.outerHTML.slice(0, 90) ?? t.tagName)) }, true)
+  })
+  await page.mouse.click(x, y)
+  await page.waitForTimeout(120)
+  await page.mouse.click(x, y)
+  expect(await page.evaluate(() => (window as unknown as { __cliques: string[] }).__cliques), 'os dois cliques caíram no botão do cabeçalho').toEqual(['askForja', 'askForja'])
+  await expect.poll(() => g.chegaram.length).toBe(1)
+  await expect(b).toHaveText('Pedindo…')
+  g.liberar()
+  await expect(b).toHaveText('Pedir leitura à forja', { timeout: 15_000 })
+  await page.waitForTimeout(1000)
+  expect(g.chegaram, 'uma requisição só').toHaveLength(1)
+  expect(page.url(), 'nenhum link foi seguido').toBe(url0)
+  const depois = await cartaoAVista(page)
+  expect(await rolagem(page), 'a rolagem aconteceu, uma vez, depois da janela do duplo clique').toBeGreaterThan(200)
+  expect(depois.focoNoTitulo, 'o foco está no título do cartão').toBe(true)
+  expect(g.intrusos).toEqual([])
 })
 
 test('A2.7 o cartão sem leitura mostra a frase de vazio', async ({ page }) => {
@@ -1174,11 +1232,12 @@ test.describe('A2.7 as etapas do pedido (um pedido em andamento semeado)', () =>
   })
 
   test('A2.8 com pedido em andamento o botão do cabeçalho só rola: nenhuma requisição, foco no título do cartão', async ({ page }) => {
+    const g = await interceptarPedido(page, { ok: true, reason: null })
     await abrirVideo(page, V.full)
-    const chegaram = await interceptarPedido(page, { ok: true, reason: null })
     await page.locator(`${PEDIR}:visible`).first().click()
     await page.waitForTimeout(900)
-    expect(chegaram).toHaveLength(0)
+    expect(g.chegaram).toHaveLength(0)
+    expect(g.intrusos).toEqual([])
     const a = await cartaoAVista(page)
     expect(a.focoNoTitulo).toBe(true)
     await expect(page.locator(`${HV} #hv-live:visible, ${HV} #hv-live`).first()).toHaveText('A leitura da forja já tem uma situação; ela está logo abaixo.')

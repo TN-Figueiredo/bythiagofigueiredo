@@ -63,7 +63,7 @@ export interface ForjaCardView {
    * O botão DO CARTÃO. `visivel: false` com pedido em andamento (não há botão de pedir). `por` diz POR QUE está apagado
    * (o cabeçalho lê isso; nunca compara frase).
    */
-  botao: { label: string; habilitado: boolean; motivo: string | null; visivel: boolean; por: 'limite' | 'excluido' | 'bloqueado' | 'incapaz' | 'sincronizar' | null }
+  botao: { label: string; habilitado: boolean; motivo: string | null; visivel: boolean; por: 'limite' | 'excluido' | 'bloqueado' | 'incapaz' | 'sem-nicho' | 'sincronizar' | null }
   vazio: string | null
   excluido: string | null
   bloqueado: { text: string; title: string; href: string } | null
@@ -85,6 +85,8 @@ export const PODE_SAIR = 'Pode sair desta página: o pedido continua.'
 export const AVISO_JA_TEM_SITUACAO = 'A leitura da forja já tem uma situação; ela está logo abaixo.'
 export const VAZIO = 'Ainda não há leitura deste vídeo. Ninguém pediu uma até hoje.'
 const SINCRONIZE = 'Sincronize o canal primeiro. Depois, pode pedir de novo.'
+/** A forja lê por nicho: o servidor recusa o pedido de um vídeo cujo canal não tem nicho ("vídeo desconhecido"). */
+export const SEM_NICHO = 'Este canal ainda não tem nicho; a forja lê por nicho.'
 
 const MIN = 6e4
 const cap = (t: string) => (t ? t[0]!.toUpperCase() + t.slice(1) : t)
@@ -247,7 +249,9 @@ export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel, pr
 
   /* ---- o botão do cartão (o que o servidor aceitaria; a frase de "limite" não é a do motor) */
   const capable = forja.capable
-  const limite = forja.button.mode === 'disabled' && capable && !excluido && !bloqueado
+  const semNicho = !v.niche
+  // sem nicho não há de quem falar nem cota a gastar: o botão apaga porque a forja lê por nicho, não por limite do dia
+  const limite = forja.button.mode === 'disabled' && capable && !excluido && !bloqueado && !semNicho
   // sem pedido deste vídeo o limite pode ter sido gasto por outro do nicho; sem nicho não há de quem falar: a frase fala do vídeo
   const limiteFrase = (r || !v.niche ? 'Já houve uma leitura deste vídeo hoje. ' : 'Já houve uma leitura de ' + obs.nicheLabel(v.niche) + ' hoje. ') + tomorrow
   const ativo = r != null && classeDoEstado(r.state) !== 'terminal'
@@ -256,6 +260,7 @@ export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel, pr
   let por: ForjaCardView['botao']['por'] = null
   if (excluido) { motivo = excluido; por = 'excluido' }
   else if (!capable) { motivo = forja.incapableText; por = 'incapaz' }
+  else if (semNicho) { motivo = SEM_NICHO; por = 'sem-nicho' }
   else if (bloqueado) { motivo = bloqueado.text; por = 'bloqueado' }
   else if (limite) { motivo = limiteFrase; por = 'limite' }
   // recusa por dado velho: só se pede de novo depois que o canal sincronizou (depois da recusa)
@@ -275,7 +280,8 @@ export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel, pr
   let passo: Passo | null = null
   let andamento: string | null = null
   const acoes: ForjaCardView['acoes'] = []
-  if (r && classeDoEstado(r.state) !== 'terminal') {
+  // todo estado do motor decide aqui (exaustivo): um estado novo não compila sem uma frase (ou um `break` explícito dos terminais)
+  if (r) {
     switch (r.state) {
       case 'na fila': frase = 'Aguardando: na fila desde ' + hm(r.createdAt) + '.'; passo = { i: 0, k: 'atual', texto: 'em andamento' }; break
       case 'liberado pelo vigia':
@@ -306,8 +312,12 @@ export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel, pr
         }
         passo = { i: 0, k: 'atrasada', texto: 'em andamento, com atraso' }
         break
-      default: break    // os terminais não chegam aqui (a guarda acima); `classeDoEstado` é quem garante a exaustão
+      // os terminais não têm frase de pedido em andamento: a situação (abaixo) já a decidiu pela leitura
+      case 'publicado': case 'falhou': case 'recusado (dado velho)': break
+      default: { const fora: never = r.state; void fora }
     }
+  }
+  if (r && classeDoEstado(r.state) !== 'terminal') {
     const minutos = Math.floor((NOW - r.createdAt) / MIN)
     andamento = 'Pedido feito ' + (minutos < 1 ? 'agora' : 'há ' + dur(minutos)) + ', às ' + hm(r.createdAt) + '. ' + PODE_SAIR
   } else {

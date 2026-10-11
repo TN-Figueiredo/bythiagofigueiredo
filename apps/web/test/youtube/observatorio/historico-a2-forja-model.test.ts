@@ -723,11 +723,13 @@ describe('I4: vídeo sem nicho', () => {
   it('nenhuma frase diz "de este nicho" nem inventa um nicho', () => {
     for (const ler of [true, false]) expect(strings(semNicho(ler)).filter(t => /este nicho|\bde este\b|undefined|null/.test(t))).toEqual([])
   })
-  it('a frase do limite do dia fala do vídeo', () => {
+  it('o botão apagado diz a verdade: a forja lê por nicho (o servidor recusa o pedido); não é "limite do dia"', () => {
     for (const ler of [true, false]) {
       const c = semNicho(ler)
       expect(c.botao.habilitado).toBe(false)
-      expect(c.botao.motivo).toBe('Já houve uma leitura deste vídeo hoje. Libera amanhã às 00:00.')
+      expect(c.botao.por).toBe('sem-nicho')
+      expect(c.botao.motivo).toBe('Este canal ainda não tem nicho; a forja lê por nicho.')
+      expect(strings(c).filter(t => /Já houve uma leitura|Libera amanhã/.test(t))).toEqual([])
     }
   })
 })
