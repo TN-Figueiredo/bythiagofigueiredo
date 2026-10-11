@@ -4,7 +4,7 @@
  * "leitura de comparação" é um pacote novo da forja (L4) que não existe no produto: o cartão não tem etapas, leitura de exemplo nem ação.
  * O botão é apagado (spec 17.4): `aria-disabled="true"` (focável), contorno tracejado, texto `--muted`, sem mudança no hover, sem `onClick`; o
  * porquê é um parágrafo ligado por `aria-describedby`. Texto com canal próprio: o do mockup (comparar.js, `forjaCard`, ramo dono), que
- * confere com 17.4; sem canal próprio: D4 (e). Nenhuma server action.
+ * confere com 17.4; sem canal próprio: D4 (e). O porquê com canal próprio não cita a coleta diária (a mesma tela diz que ela já roda) nem promete data. Nenhuma server action.
  */
 import { useId } from 'react'
 import type { ParView } from './par-model'
@@ -27,7 +27,7 @@ export function ForjaIndisponivel({ par }: { par: ParView }) {
         <button type="button" className="cp-fj-btn" aria-disabled="true" aria-describedby={porque}>{FORJA}Pedir leitura desta comparação à forja</button>
         <p id={porque}>
           {dono
-            ? 'Ainda não dá: a forja hoje só recebe dados públicos de concorrentes; a comparação com o seu canal chega depois que a coleta diária estiver no ar.'
+            ? 'Ainda não dá: a forja ainda não escreve leitura de comparação entre canais.'
             : PACOTE_NOVO}
         </p>
       </div>

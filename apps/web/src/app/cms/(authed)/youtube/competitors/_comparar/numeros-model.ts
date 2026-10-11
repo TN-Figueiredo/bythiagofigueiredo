@@ -151,7 +151,12 @@ export function numerosDoCanal(obs: Observatory, channelId: string, avisar?: (a:
   // D10: só os longos (channelStats().tracked soma todos os formatos)
   const longosAcomp = seguro('longosAcomp', () => com(() => { const n = longs.filter(v => v.tracked).length; return medido(n, String(n)) }))
   // D9: 90 dias corridos, como o cabeçalho do canal; todo longo guardado com data, acompanhado ou não
-  const longos90 = seguro('longos90', () => com(() => { const n = longs.filter(v => v.ageDays <= 90).length; return medido(n, String(n)) }))
+  // Sem nenhum vídeo com data não há como contar: o zero seria um zero que o site não mediu (só há vídeos sem `published_at`).
+  const longos90 = seguro('longos90', () => com(() => {
+    if (vids.length === 0) return naoMedido({ k: 'semDataVideo' })
+    const n = longs.filter(v => v.ageDays <= 90).length
+    return medido(n, String(n))
+  }))
 
   const ritmo = seguro('ritmo', () => com(() => {
     const kl = obs.cadence(ch.id, 'long'), ks = obs.cadence(ch.id, 'short'), sem = obs.RULES.habit.weeks

@@ -118,7 +118,8 @@ describe('top5', () => {
       expect(t.short).toBe(v.fmt === 'short')
       expect(t.titulo).toBe(v.title)
       expect(t.thumb).toBe(`https://i.ytimg.com/vi/${v.ytId}/mqdefault.jpg`)
-      expect(t.href).toBe(link.historico(v.id, { from: 'canais' }))
+      expect(t.abre).toBe(true) // vídeo com data: o Histórico o conhece
+      expect('href' in t).toBe(false) // o destino depende do par; quem o monta é a tela
       expect(t.viewsTexto).toBe(`${BASE.obs.fmt.num(v.views)} views`)
       expect(t.idadeTexto).toBe(BASE.obs.fmt.age(v))
     })
@@ -168,14 +169,17 @@ describe('top5', () => {
     const c = canal(buildCompararPack(w.obs), CH)
     expect(c.top5).toEqual([]); expect(c.top5Nota).toBe('Nenhum vídeo tem contagem de views.')
   })
-  it('vídeo sem data entra, com "sem data" na idade, e abre o histórico', () => {
+  it('vídeo sem data entra no ranking por views, com "sem data" na idade, mas NÃO abre o histórico (o Histórico não o conhece)', () => {
     const w = world(ds => {
       ds.videos = ds.videos.filter(v => v.ch !== OWN2)
       ds.channels.find(c => c.id === OWN2)!.undated = undated(2, { views: 999_999 })
     })
     const c = canal(buildCompararPack(w.obs), OWN2)
     expect(c.top5.length).toBe(2)
-    expect(c.top5[0]).toMatchObject({ idadeTexto: 'sem data', short: false, href: link.historico('sd-0', { from: 'canais' }), thumb: 'https://i.ytimg.com/vi/sdyt0/mqdefault.jpg' })
+    expect(c.top5[0]).toMatchObject({ idadeTexto: 'sem data', short: false, abre: false, thumb: 'https://i.ytimg.com/vi/sdyt0/mqdefault.jpg' })
+    expect('href' in c.top5[0]!).toBe(false)
+    // o conjunto do site não acha o vídeo: é por isso que ele não vira link
+    expect(w.obs.video('sd-0')).toBeUndefined()
     expect(c.top5Nota).toBe('Só 2 vídeos com contagem de views.')
   })
   it('título ausente: "sem título", nunca vazio; sem ytId, sem thumb', () => {

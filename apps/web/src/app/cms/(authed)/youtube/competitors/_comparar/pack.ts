@@ -13,7 +13,8 @@ import { DAY } from '@/lib/youtube/observatorio/time'
 import { ownChannelHref } from '../_chrome/own-channels'
 import { numerosDoCanal, type AvisoNumero, type Numero, type NumeroId } from './numeros-model'
 
-export interface Top5Item { id: string; href: string; titulo: string; thumb: string | null; viewsTexto: string; idadeTexto: string; short: boolean }
+/** `abre`: o Histórico sabe abrir este vídeo. Vídeo sem data de publicação não está no conjunto do site (`obs.video` não o acha): aparece sem link. O destino do link depende do par e é montado pela tela. */
+export interface Top5Item { id: string; abre: boolean; titulo: string; thumb: string | null; viewsTexto: string; idadeTexto: string; short: boolean }
 export interface Pub90Item { t: number; fmt: 'long' | 'short' | null; dataTexto: string }
 
 export interface CanalPack {
@@ -76,13 +77,13 @@ export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero
     const semVideos = guardados === 0
 
     /* ---- os cinco mais vistos: vídeos com data e vídeos sem data, todos com contagem de views (nunca como 0) */
-    type Cand = { id: string; titulo: string; ytId: string; views: number; short: boolean; idade: string; pub: number }
+    type Cand = { id: string; titulo: string; ytId: string; views: number; short: boolean; idade: string; pub: number; abre: boolean }
     const cand: Cand[] = [
-      ...vids.flatMap(v => (v.views == null ? [] : [{ id: v.id, titulo: v.title, ytId: v.ytId, views: v.views, short: v.fmt === 'short', idade: F.age(v), pub: v.pub }])),
-      ...semData.flatMap(u => (u.views == null ? [] : [{ id: u.id, titulo: u.title ?? '', ytId: u.ytId, views: u.views, short: u.isShort === true, idade: 'sem data', pub: Number.NEGATIVE_INFINITY }])),
+      ...vids.flatMap(v => (v.views == null ? [] : [{ id: v.id, titulo: v.title, ytId: v.ytId, views: v.views, short: v.fmt === 'short', idade: F.age(v), pub: v.pub, abre: true }])),
+      ...semData.flatMap(u => (u.views == null ? [] : [{ id: u.id, titulo: u.title ?? '', ytId: u.ytId, views: u.views, short: u.isShort === true, idade: 'sem data', pub: Number.NEGATIVE_INFINITY, abre: false }])),
     ].sort((a, b) => b.views - a.views || b.pub - a.pub || a.id.localeCompare(b.id))
     const top5: Top5Item[] = cand.slice(0, 5).map(c => ({
-      id: c.id, href: link.historico(c.id, { from: 'canais' }), titulo: c.titulo.trim() ? c.titulo : 'sem título', thumb: thumbDe(c.ytId),
+      id: c.id, abre: c.abre, titulo: c.titulo.trim() ? c.titulo : 'sem título', thumb: thumbDe(c.ytId),
       viewsTexto: c.views === 1 ? '1 view' : `${F.num(c.views)} views`, idadeTexto: c.idade, short: c.short,
     }))
     // em backfill o motor busca os mais recentes primeiro, mas o canal pode ter mais vídeos: o aviso vale para qualquer ramo

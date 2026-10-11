@@ -20,7 +20,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => { throw new Error('a tela n
 const DIA = 86_400_000
 const ALL = (v: number): OpcoesCanal['n'] => Object.fromEntries(NUMEROS.map(k => [k, v])) as OpcoesCanal['n']
 const top = (id: string, titulo: string, o: Partial<Top5Item> = {}): Top5Item => ({
-  id, href: '/ignorado', titulo, thumb: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`, viewsTexto: '12 mil views', idadeTexto: 'há 3 dias', short: false, ...o,
+  id, abre: true, titulo, thumb: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`, viewsTexto: '12 mil views', idadeTexto: 'há 3 dias', short: false, ...o,
 })
 const base = pacoteDe([])
 const pub = (dias: number, fmt: Pub90Item['fmt'], dataTexto = '10/03 14:00'): Pub90Item => ({ t: base.now - dias * DIA, fmt, dataTexto })
@@ -242,6 +242,19 @@ describe('Publicação nos últimos 90 dias', () => {
     expect(r.container.textContent).toMatch(/Longos publicados em 90 dias: 0/)
   })
 
+  it('I-B: canal COM vídeos, mas nenhum com data: a frase do pacote e "não medido (nenhum vídeo com data de publicação)", nunca "0"', () => {
+    const semData: CanalPack = {
+      ...canalDe('b1', { name: 'Beto', comDatas: false, motivos: { longos90: 'nenhum vídeo com data de publicação' }, n: { inscritos: 10 } }),
+      semVideos: false, pub90Nota: 'Os vídeos deste canal ainda não têm data de publicação.',
+    }
+    const p = pacote(comVideos('a1', { name: 'Ana' }), semData)
+    const { container } = dentro(<Publicacao par={par(p, 'a1', 'b1')} pack={p} />)
+    const lado = [...container.querySelectorAll<HTMLElement>('.cp-pr')].find(l => l.textContent!.includes('Beto'))!
+    expect(lado.textContent).toContain('Os vídeos deste canal ainda não têm data de publicação.')
+    expect(lado.textContent).toMatch(/Longos publicados em 90 dias: não medido \(nenhum vídeo com data de publicação\)/)
+    expect(lado.textContent).not.toMatch(/Longos publicados em 90 dias: 0/)
+  })
+
   it('nenhum dos dois com datas: o bloco não existe (nem o título nem um eixo vazio) e o rodapé da tela diz', () => {
     const p = pacote(semVideos('a1', { name: 'Ana' }), semVideos('b1', { name: 'Beto' }))
     const { container } = dentro(<Publicacao par={par(p, 'a1', 'b1')} pack={p} />)
@@ -261,6 +274,30 @@ describe('Publicação nos últimos 90 dias', () => {
   })
 })
 
+describe('Os 5 mais vistos: vídeo que o Histórico não sabe abrir (I-A)', () => {
+  it('o item sem data aparece SEM link, com o motivo; os outros continuam links', () => {
+    const c = comVideos('c1', { name: 'Leo Khev', subs: 5000 }, {
+      top5: [top('c1-1', 'Com data'), top('sd-1', 'Sem data nenhuma', { idadeTexto: 'sem data', abre: false }), top('c1-3', 'Outro com data')],
+      top5Nota: '3 de 3 vídeos guardados, por views.',
+    })
+    const { container } = dentro(<MaisVistos par={par(pacote(comVideos('eu', { own: true, name: 'tnFigueiredo' }), c), 'eu', 'c1')} />)
+    const itens = [...container.querySelectorAll('.cp-vc')[1]!.querySelectorAll('li')]
+    expect(itens).toHaveLength(3) // a contagem continua: ele está na lista
+    expect(itens[0]!.querySelector('a')).not.toBeNull()
+    expect(itens[2]!.querySelector('a')).not.toBeNull()
+    expect(itens[1]!.querySelector('a')).toBeNull()
+    expect(itens[1]!.textContent).toContain('Sem data nenhuma')
+    expect(itens[1]!.textContent).toContain('sem data de publicação: o histórico não abre')
+    // nenhum link da coluna promete o Histórico de um vídeo que ele não acha
+    const hrefs = [...container.querySelectorAll<HTMLAnchorElement>('.cp-vc:nth-child(2) a')].map(a => a.getAttribute('href')!)
+    expect(hrefs.some(h => h.includes('sd-1'))).toBe(false)
+  })
+  it('o texto do motivo não aparece em itens que abrem', () => {
+    const { container } = dentro(<MaisVistos par={par(PACK, 'eu', 'c1')} />)
+    expect(container.textContent).not.toContain('o histórico não abre')
+  })
+})
+
 describe('Cartão da forja: ainda não disponível', () => {
   const FRASE_PACOTE = 'A leitura de comparação é um pacote novo para a forja e ainda não existe.'
   const botao = () => screen.getByRole('button', { name: /Pedir leitura desta comparação à forja/ })
@@ -274,7 +311,8 @@ describe('Cartão da forja: ainda não disponível', () => {
     expect(b.getAttribute('aria-disabled')).toBe('true')
     expect(b.hasAttribute('disabled')).toBe(false) // apagado, mas focável
     const porque = document.getElementById(b.getAttribute('aria-describedby')!)!
-    expect(porque.textContent).toBe('Ainda não dá: a forja hoje só recebe dados públicos de concorrentes; a comparação com o seu canal chega depois que a coleta diária estiver no ar.')
+    expect(porque.textContent).toBe('Ainda não dá: a forja ainda não escreve leitura de comparação entre canais.')
+    expect(porque.textContent).not.toMatch(/coleta/i) // a mesma tela diz que a coleta diária do seu canal já roda
     expect(r.textContent).toContain(FRASE_PACOTE)
     // com o canal próprio do lado B também
     cleanup()

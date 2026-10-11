@@ -44,6 +44,19 @@ const linhaDe = (nome: string) => [...tabela().querySelectorAll<HTMLElement>('th
 beforeEach(() => { window.history.replaceState(null, '', '/cms/youtube/competitors/comparar?a=eu&b=c1') })
 afterEach(() => { cleanup(); vi.restoreAllMocks(); document.getElementById('flut')?.remove() })
 
+describe('a tela não se contradiz sobre a coleta diária (I-C)', () => {
+  it('com o canal próprio no par: nenhuma frase diz que a coleta diária ainda vai chegar, enquanto outra diz que ela já roda', () => {
+    const { container } = wrap()
+    const texto = container.textContent!
+    expect(texto).toContain('a coleta diária do seu canal já roda') // o motivo do "não medido"
+    expect(texto).not.toMatch(/depois que a coleta/i)
+    expect(texto).not.toMatch(/coleta[^.]*(estiver no ar|ainda não (está|esta)|chega)/i)
+    // o cartão da forja diz o motivo verdadeiro, sem prometer data e sem citar a coleta
+    const porque = screen.getByText(/Ainda não dá:/)
+    expect(porque.textContent).toBe('Ainda não dá: a forja ainda não escreve leitura de comparação entre canais.')
+  })
+})
+
 describe('cabeçalho', () => {
   it('h1 "Comparar canais", o subtítulo do par e o botão "Inverter lados"', () => {
     wrap()

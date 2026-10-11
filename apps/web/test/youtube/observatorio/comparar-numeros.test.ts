@@ -147,6 +147,20 @@ describe('longos em 90 dias', () => {
   it('canal sem vídeos → "sem vídeos"', () => {
     naoMedido(nums(world(semVideos(CH)).obs, CH).longos90, 'sem vídeos')
   })
+  it('I-B: canal só com vídeos SEM data → não medido, motivo "nenhum vídeo com data de publicação"; nunca "0"', () => {
+    const w = world(ds => {
+      ds.videos = ds.videos.filter(v => v.ch !== OWN2)
+      ds.channels.find(c => c.id === OWN2)!.undated = [{ id: 'sd-1', ytId: 'abc', title: 'Sem data', url: 'https://youtu.be/abc', isShort: false, dur: 600, views: 10, likes: 1, comments: 0, pinned: false, checkedAt: null }]
+    })
+    const n = nums(w.obs, OWN2).longos90
+    expect(n.x).toBeNull(); expect(n.texto).toBeNull()
+    expect(n.motivo).toBe('nenhum vídeo com data de publicação')
+  })
+  it('I-B: canal com vídeos datados, mas nenhum longo em 90 dias, continua com o zero MEDIDO', () => {
+    const w = world(ds => { ds.videos = ds.videos.filter(v => !(v.ch === CH && v.fmt === 'long' && v.ageDays <= 90)) })
+    const n = nums(w.obs, CH).longos90
+    expect(n.x).toBe(0); expect(n.texto).toBe('0')
+  })
 })
 
 describe('ritmo', () => {

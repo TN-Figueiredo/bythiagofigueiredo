@@ -29,9 +29,8 @@ export function ReguaNicho({ regua, cores }: { regua: ReguaView; cores: { A: str
   const ticks = useRef<Array<HTMLElement | null>>([])
   const letraA = useRef<HTMLElement>(null), letraB = useRef<HTMLElement>(null)
   const ultimo = useRef(-1) // o traço do teclado
-  const focoDoPonteiro = useRef(false) // o clique ou o toque acabou de apontar um traço: o foco que vem a seguir não é do teclado
+  const focoDoPonteiro = useRef(false) // a origem da interação: o clique ou o toque apontou um traço, e o foco que vem a seguir é dele, não do teclado
   const apontado = useRef(-1) // o traço do último clique ou toque
-  const temporizador = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [ativo, setAtivo] = useState<Ativo | null>(null)
   const [fala, setFala] = useState('')
   const { tracos, un } = regua
@@ -59,7 +58,13 @@ export function ReguaNicho({ regua, cores }: { regua: ReguaView; cores: { A: str
     ultimo.current = -1
     setAtivo(null); setFala('')
   }, [assinatura])
-  useEffect(() => () => { if (temporizador.current) clearTimeout(temporizador.current) }, [])
+  // a marca do ponteiro é consumida no foco (sem relógio: no toque o foco sintetizado chega depois do levantar do dedo, 50 a 150 ms depois do pointerdown).
+  // Uma tecla apertada antes do foco (um Tab vindo de outro lugar) mostra que o foco que vem é do teclado.
+  useEffect(() => {
+    const tecla = () => { focoDoPonteiro.current = false }
+    document.addEventListener('keydown', tecla, true)
+    return () => document.removeEventListener('keydown', tecla, true)
+  }, [])
 
   // as letras dos dois lados se afastam quando os traços colidem (os traços não saem do valor); refeito se a largura muda.
   // Sem um dos lados não há o que afastar: o deslocamento que sobrou de antes volta a zero.
@@ -167,15 +172,20 @@ export function ReguaNicho({ regua, cores }: { regua: ReguaView; cores: { A: str
     if (i >= 0) mostrar(i, true, false)
   }
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    // clique e toque focam o grupo (tabindex=0): marca que o foco a seguir é do ponteiro. Se o grupo já tinha o foco, nenhum onFocus vem
-    // e a marca expira no próximo ciclo, para não valer para um Tab de verdade.
-    focoDoPonteiro.current = true
-    if (temporizador.current) clearTimeout(temporizador.current)
-    temporizador.current = setTimeout(() => { focoDoPonteiro.current = false }, 0)
     const i = maisPerto(e.clientX, e.clientY)
     apontado.current = i
+    if (document.activeElement === grupoRef.current) {
+      // o grupo já tem o foco: nenhum onFocus virá, não há o que marcar; o teclado passa a partir do traço clicado
+      focoDoPonteiro.current = false
+      if (i >= 0) ultimo.current = i
+    } else {
+      // clique e toque focam o grupo (tabindex=0), no mouse na hora e no toque depois do touchend: a marca vale até o foco a consumir
+      // (ou até um pointercancel, uma tecla ou um blur a desfazer), nunca por tempo.
+      focoDoPonteiro.current = true
+    }
     if (i >= 0) mostrar(i, true, false)
   }
+  const onPointerCancel = () => { focoDoPonteiro.current = false }
   const onPointerLeave = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'touch') return // o dedo levantado não esconde a dica; um toque fora esconde
     if (document.activeElement === grupoRef.current && ultimo.current >= 0) mostrar(ultimo.current, false, false)
@@ -186,7 +196,7 @@ export function ReguaNicho({ regua, cores }: { regua: ReguaView; cores: { A: str
   return (
     <div className="obs-rg-wrap">
       <div ref={grupoRef} className="obs-rg" role="group" tabIndex={0} aria-label={regua.aria}
-        onFocus={onFocus} onBlur={onBlur} onKeyDown={onKeyDown} onPointerMove={onPointerMove} onPointerDown={onPointerDown} onPointerLeave={onPointerLeave}>
+        onFocus={onFocus} onBlur={onBlur} onKeyDown={onKeyDown} onPointerMove={onPointerMove} onPointerDown={onPointerDown} onPointerCancel={onPointerCancel} onPointerLeave={onPointerLeave}>
         <div ref={dentroRef} className="obs-rg-in" aria-hidden="true">
           <i className="obs-rg-base" />
           {tracos.map((tr, i) => {

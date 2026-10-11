@@ -27,17 +27,18 @@ function Capa({ thumb }: { thumb: string | null }) {
 }
 
 function Item({ v, back }: { v: Top5Item; back: string }) {
-  return (
-    <li>
-      <Link href={link.historico(v.id, { from: 'comparar', back })}>
-        <Capa thumb={v.thumb} />
-        <span className="cp-vt">
-          <b>{v.titulo}</b>
-          <small><span className="num">{v.viewsTexto}</span>, {v.idadeTexto}{v.short ? <span className="cp-short"> · Short</span> : null}</small>
-        </span>
-      </Link>
-    </li>
+  const corpo = (
+    <>
+      <Capa thumb={v.thumb} />
+      <span className="cp-vt">
+        <b>{v.titulo}</b>
+        <small><span className="num">{v.viewsTexto}</span>, {v.idadeTexto}{v.short ? <span className="cp-short"> · Short</span> : null}</small>
+        {v.abre ? null : <small className="cp-sem-link">sem data de publicação: o histórico não abre</small>}
+      </span>
+    </>
   )
+  // um vídeo que o Histórico não sabe abrir ("Vídeo não encontrado") não vira link: a frase que promete uma ação só vale com destino válido
+  return <li>{v.abre ? <Link href={link.historico(v.id, { from: 'comparar', back })}>{corpo}</Link> : <div className="cp-sem-abrir">{corpo}</div>}</li>
 }
 
 function Coluna({ lado, canal, cor, back }: { lado: 'A' | 'B'; canal: CanalPack; cor: CorLado; back: string }) {

@@ -294,6 +294,85 @@ describe('ReguaNicho · foco que vem do ponteiro (I1)', () => {
   })
 })
 
+describe('ReguaNicho · toque real: o foco chega depois do levantar do dedo (Q1)', () => {
+  const rect = (l: number, w = 2) => ({ left: l, right: l + w, top: 10, bottom: 22, width: w, height: 12, x: l, y: 10, toJSON: () => ({}) }) as DOMRect
+  const dispor = (container: HTMLElement) => {
+    container.querySelectorAll<HTMLElement>('[data-i]').forEach(t => { t.getBoundingClientRect = () => rect(100 + Number(t.getAttribute('data-i')) * 40) })
+  }
+  const ligados = (c: HTMLElement) => [...c.querySelectorAll<HTMLElement>('[data-i].obs-rg-on')].map(e => e.getAttribute('data-i'))
+  afterEach(() => { vi.useRealTimers() })
+
+  it('toque: pointerdown, 150 ms de dedo na tela e SÓ DEPOIS o foco sintetizado: a dica continua a do traço tocado', () => {
+    vi.useFakeTimers()
+    const { container } = render(<ReguaNicho regua={regua()} cores={CORES} />)
+    dispor(container)
+    const g = grupo(container)
+    fireEvent.pointerDown(g, { clientX: 100 + 2 * 40, clientY: 16, pointerType: 'touch' }) // Beto Rota, que não é o lado A
+    act(() => { vi.advanceTimersByTime(150) })
+    fireEvent.pointerUp(g, { clientX: 100 + 2 * 40, clientY: 16, pointerType: 'touch' })
+    act(() => { vi.advanceTimersByTime(150) })
+    act(() => g.focus()) // o mousedown sintetizado depois do touchend
+    expect(tips()).toHaveLength(1)
+    expect(tips()[0]!.textContent).toContain('Beto Rota')
+    expect(tips()[0]!.textContent).not.toContain('lado A')
+    expect(live(container)).toBe('')
+    expect(ligados(container)).toEqual(['2'])
+  })
+
+  it('não há temporizador na marca: nenhum setTimeout é armado pelo pointerdown', () => {
+    vi.useFakeTimers()
+    const { container } = render(<ReguaNicho regua={regua()} cores={CORES} />)
+    dispor(container)
+    const antes = vi.getTimerCount()
+    fireEvent.pointerDown(grupo(container), { clientX: 140, clientY: 16, pointerType: 'touch' })
+    expect(vi.getTimerCount()).toBe(antes)
+  })
+
+  it('o toque que vira rolagem (pointercancel) e não dá foco não deixa a marca: o Tab de depois mostra o lado A', () => {
+    const { container } = render(<ReguaNicho regua={regua()} cores={CORES} />)
+    dispor(container)
+    const g = grupo(container)
+    fireEvent.pointerDown(g, { clientX: 100 + 2 * 40, clientY: 16, pointerType: 'touch' })
+    fireEvent.pointerCancel(g, { pointerType: 'touch' })
+    fireEvent.pointerDown(document.body, { clientX: 5, clientY: 5, pointerType: 'touch' }) // um toque fora fecha a dica
+    expect(tips()).toHaveLength(0)
+    act(() => g.focus())
+    expect(tips()[0]!.textContent).toContain('lado A')
+    expect(live(container)).toContain('Ana Viaja, lado A')
+  })
+
+  it('uma tecla antes do foco (Tab vindo de outro lugar) desfaz a marca do ponteiro', () => {
+    const { container } = render(<ReguaNicho regua={regua()} cores={CORES} />)
+    dispor(container)
+    const g = grupo(container)
+    fireEvent.pointerDown(g, { clientX: 100 + 2 * 40, clientY: 16, pointerType: 'mouse' })
+    fireEvent.keyDown(document.body, { key: 'Tab' })
+    act(() => g.focus())
+    expect(tips()[0]!.textContent).toContain('lado A')
+  })
+
+  it('Q2: com o grupo já focado, clicar noutro traço leva o teclado a ele (a seta parte do clicado)', () => {
+    const { container } = render(<ReguaNicho regua={regua()} cores={CORES} />)
+    dispor(container)
+    const g = grupo(container)
+    act(() => g.focus()) // lado A (índice 1)
+    fireEvent.pointerDown(g, { clientX: 100 + 5 * 40, clientY: 16, pointerType: 'mouse' }) // Fabi Mapa? índice 5
+    fireEvent.keyDown(g, { key: 'ArrowRight' })
+    expect(ligados(container)).toEqual(['6'])
+  })
+
+  it('o clique com o grupo já focado não deixa a marca armada para um foco futuro', () => {
+    const { container } = render(<ReguaNicho regua={regua()} cores={CORES} />)
+    dispor(container)
+    const g = grupo(container)
+    act(() => g.focus())
+    fireEvent.pointerDown(g, { clientX: 140, clientY: 16, pointerType: 'mouse' })
+    act(() => g.blur())
+    act(() => g.focus())
+    expect(tips()[0]!.textContent).toContain('lado A')
+  })
+})
+
 describe('ReguaNicho · a régua troca com o componente montado (M1, M2)', () => {
   const mk = (n: number) => buildRegua(vals().slice(0, n), [{ id: 'c1', letra: 'A', nome: 'Ana Viaja', motivo: null }, { id: 'c2', letra: 'B', nome: 'Beto Rota', motivo: null }], O)
   it('M2: com a dica aberta num índice alto, uma régua menor não deixa dica vazia nem índice velho', () => {
