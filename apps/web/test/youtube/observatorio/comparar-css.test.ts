@@ -19,7 +19,7 @@ describe('comparar.css', () => {
     expect(tam.length + atalho.length).toBeGreaterThan(5)
   })
   it('alvos de 44 px sob pointer:coarse: seletor, botão de inverter, ⓘ e links', () => {
-    const blocos = [...SEM_COMENTARIO.matchAll(/@media\s*\(pointer:\s*coarse\)\s*\{([\s\S]*?)\n\}/g)].map(m => m[1]!).join('\n')
+    const blocos = [...SEM_COMENTARIO.matchAll(/@media\s*\(pointer:\s*coarse\)(?:\s*,\s*\(max-width:\s*900px\))?\s*\{([\s\S]*?)\n\}/g)].map(m => m[1]!).join('\n')
     expect(blocos).toBeTruthy()
     for (const seletor of ['select', '.cp-swap', '.ibtn', '.cp-open a']) expect(blocos, seletor).toContain(seletor)
     expect(blocos).toMatch(/44px/)
@@ -44,7 +44,7 @@ describe('comparar.css', () => {
     const regra = SEM_COMENTARIO.match(/\.cp-fj-btn,\[data-obs-screen="comparar"\] \.cp-fj-btn:hover\{([^}]*)\}/)
     expect(regra, 'regra do botão e do :hover juntas').not.toBeNull()
     expect(regra![1]).toMatch(/border:1px dashed/); expect(regra![1]).toMatch(/color:var\(--muted\)/); expect(regra![1]).toMatch(/cursor:default/)
-    expect(SEM_COMENTARIO).toMatch(/@media \(pointer:coarse\)\{[^@]*\.cp-fj-btn\{min-height:44px/)
+    expect(SEM_COMENTARIO).toMatch(/@media \(pointer:coarse\)(?:,\(max-width:900px\))?\{[^@]*\.cp-fj-btn\{min-height:44px/)
   })
   it('T9: as colunas dos mais vistos e as faixas de publicação empilham abaixo de 820 px', () => {
     const bloco = SEM_COMENTARIO.match(/@media \(max-width:820px\)\{\s*\[data-obs-screen="comparar"\] \.cp-vids\{([^}]*)\}[\s\S]*?\n\}/)
@@ -68,7 +68,7 @@ describe('comparar.css', () => {
     expect(regra![1]).toMatch(/font:600 12px/)
   })
   it('44 px sob pointer:coarse: cada alvo tem a medida na PRÓPRIA regra (não basta 44px aparecer em qualquer lugar do bloco)', () => {
-    const blocos = [...SEM_COMENTARIO.matchAll(/@media\s*\(pointer:\s*coarse\)\s*\{([\s\S]*?)\n\}/g)].map(m => m[1]!).join('\n')
+    const blocos = [...SEM_COMENTARIO.matchAll(/@media\s*\(pointer:\s*coarse\)(?:\s*,\s*\(max-width:\s*900px\))?\s*\{([\s\S]*?)\n\}/g)].map(m => m[1]!).join('\n')
     for (const [seletor, prop] of [['.sel select', 'height'], ['.cp-swap', 'min-height'], ['.ibtn', 'width'], ['.ibtn', 'height'], ['.cp-open a', 'min-height'], ['.cp-fj-btn', 'min-height']] as const) {
       const regra = blocos.split('\n').find(l => l.includes(seletor + '{'))
       expect(regra, seletor).toBeTruthy()
@@ -77,5 +77,23 @@ describe('comparar.css', () => {
   })
   it('o laço de z-index não é vácuo: a regex enxerga uma ocorrência conhecida', () => {
     expect([...'a{z-index:var(--z-marca)}'.matchAll(/z-index\s*:\s*([^;}]+)/g)]).toHaveLength(1)
+  })
+})
+
+describe('A3 Tarefa 11 (achados no navegador)', () => {
+  it('44 px também em janela estreita (spec 11 #16: pointer:coarse OU até 900 px): o mouse a 390 px não é um toque, mas a tela é a mesma', () => {
+    expect(SEM_COMENTARIO).toMatch(/@media \(pointer:coarse\),\(max-width:900px\)\{/)
+    const blocos = [...SEM_COMENTARIO.matchAll(/@media \(pointer:coarse\),\(max-width:900px\)\{([\s\S]*?)\n\}/g)].map(m => m[1]!).join('\n')
+    for (const [seletor, prop] of [['.sel select', 'height'], ['.cp-swap', 'min-height'], ['.ibtn', 'width'], ['.ibtn', 'height'], ['.cp-open a', 'min-height'], ['.cp-fj-btn', 'min-height']] as const) {
+      const regra = blocos.split('\n').find(l => l.includes(seletor + '{'))
+      expect(regra, seletor).toBeTruthy()
+      expect(regra!, `${seletor} ${prop}`).toMatch(new RegExp(`${prop}:44px`))
+    }
+  })
+  it('o selo "seu canal" usa os tokens do kit (--youtag-*), que têm a versão do tema claro com 4,5:1; nunca --accent sobre --accent-subtle (4,31:1 no claro)', () => {
+    const regra = SEM_COMENTARIO.split('\n').find(l => l.includes('.cp-seal{'))
+    expect(regra).toBeTruthy()
+    expect(regra!).toMatch(/color:var\(--youtag-text\)/); expect(regra!).toMatch(/background:var\(--youtag-bg\)/); expect(regra!).toMatch(/border:1px solid var\(--youtag-border\)/)
+    expect(regra!).not.toMatch(/--accent/)
   })
 })

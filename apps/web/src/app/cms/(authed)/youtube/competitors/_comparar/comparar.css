@@ -35,7 +35,7 @@
 [data-obs-screen="comparar"] .cp-nm h2{margin:0;font:600 17px/1.25 var(--font-fraunces-var),Fraunces,Georgia,serif;letter-spacing:-.005em;font-variation-settings:"opsz" 48;overflow-wrap:anywhere}
 [data-obs-screen="comparar"] .cp-m{margin:3px 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:3px 10px;font-size:13px;color:var(--muted)}
 [data-obs-screen="comparar"] .cp-m b{color:var(--text);font-weight:500}
-[data-obs-screen="comparar"] .cp-seal{display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:5px;font-size:12px;font-weight:600;white-space:nowrap;background:var(--accent-subtle);color:var(--accent)}
+[data-obs-screen="comparar"] .cp-seal{display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:5px;font-size:12px;font-weight:600;white-space:nowrap;background:var(--youtag-bg);color:var(--youtag-text);border:1px solid var(--youtag-border)}
 [data-obs-screen="comparar"] .cp-open{margin:8px 0 0;font-size:13px}
 [data-obs-screen="comparar"] .cp-semp{color:var(--muted)}
 
@@ -135,7 +135,7 @@
   [data-obs-screen="comparar"] .cp-lr li{font-size:13.5px}
   [data-obs-screen="comparar"] .cp-t .v1{font-size:14px}
 }
-@media (pointer:coarse){
+@media (pointer:coarse),(max-width:900px){
   [data-obs-screen="comparar"] .sel select{height:44px}
   [data-obs-screen="comparar"] .cp-swap{min-height:44px}
   [data-obs-screen="comparar"] .ibtn{width:44px;height:44px}
@@ -212,6 +212,6 @@
   [data-obs-screen="comparar"] .cp-pr{grid-template-columns:minmax(0,1fr)}
   [data-obs-screen="comparar"] .cp-ax .cp-pl{display:none}
 }
-@media (pointer:coarse){
+@media (pointer:coarse),(max-width:900px){
   [data-obs-screen="comparar"] .cp-fj-btn{min-height:44px}
 }
