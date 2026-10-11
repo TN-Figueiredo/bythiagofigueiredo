@@ -4,12 +4,14 @@
  * They only lay out what the view model computed.
  */
 import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
+import Link from 'next/link'
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { HoverTip, useTipShown } from '../_chrome/flut/flut'
 import type { CadenceCell, CanaisRow, GrowthCell, OutCell, SwapCell, SyncCell, Thumb, VpdCell } from './view-model'
 import { NicheSelect } from './niche-editor'
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
+import { usePrefetchOnIntent } from './use-prefetch-on-intent'
 
 const P: Record<string, ReactNode> = {
   wait: <path d="M4 1.5h8M4 14.5h8M5 1.5c0 3 6 3.5 6 6.5s-6 3.5-6 6.5M11 1.5c0 3-6 3.5-6 6.5s6 3.5 6 6.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />,
@@ -185,18 +187,24 @@ export function SyncView({ c, local, onRetry, onRemove }: { c: SyncCell; local: 
 }
 
 /**
- * Channel cell (canais.html chCell): avatar, name button (opens the drawer) with the language mark of an own channel,
- * niche select, subscribers with the rounding tip. An own channel takes two .sub lines: "seu canal" + niche, then subscribers.
+ * Channel cell (canais.html chCell): avatar, name with the language mark of an own channel, niche select, subscribers with the
+ * rounding tip. A competitor's name and avatar are links to its channel page (`r.href`, warmed after 150 ms of hover or focus);
+ * an own channel's name is still the button that opens the drawer. An own channel takes two .sub lines: "seu canal" + niche,
+ * then subscribers.
  */
 export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string; onOpen: () => void; onNiche: (n: Niche) => void }) {
   // "Administrar o site" step: the niche of an OWN channel is part of its identity (admins only); it shows as text.
   const canAdminSite = useCanAdminSite()
+  const intent = usePrefetchOnIntent(r.href)
+  const avatar = <ChannelAvatar as="div" src={r.avatar} ini={r.ini} color={r.color} />
   return (
     <div className="ch">
-      <ChannelAvatar as="div" src={r.avatar} ini={r.ini} color={r.color} />
+      {r.href ? <Link href={r.href} prefetch={false} className="avlink" data-avatar-link="" aria-hidden="true" tabIndex={-1}>{avatar}</Link> : avatar}
       <div style={{ minWidth: 0 }}>
         <div className="nmrow">
-          <button type="button" className="nmbtn" data-open={r.id} title={r.name} aria-label={`Abrir detalhes de ${r.name}`} onClick={onOpen}>{r.name}</button>
+          {r.href
+            ? <Link href={r.href} prefetch={false} className="nmbtn" data-open={r.id} title={r.name} aria-label={`Abrir a página de ${r.name}`} {...intent}>{r.name}</Link>
+            : <button type="button" className="nmbtn" data-open={r.id} title={r.name} aria-label={`Abrir detalhes de ${r.name}`} onClick={onOpen}>{r.name}</button>}
           {r.lang ? <abbr className="langtag" title={r.lang.title}>{r.lang.code}</abbr> : null}
         </div>
         {r.own ? (

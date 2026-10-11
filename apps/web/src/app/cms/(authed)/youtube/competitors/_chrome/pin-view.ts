@@ -31,6 +31,6 @@ export function pinViewOf(obs: Observatory, v: ObsVideo, o: { withOut?: boolean 
   return {
     videoId: v.id, channelId: ch.id, title: v.title, pinned, chips,
     hint: 'Um vídeo fixado tem gráfico de views e conferência de título, thumbnail e descrição a cada ' + hours + ' h, mesmo fora dos ' + N + ' mais recentes de ' + ch.name + '. Limite: ' + obs.RULES.pinLimit + ' por canal.',
-    pinnedHref: obs.link.canais({ channel: ch.id, tab: 'videos' }) + '#fixados',
+    pinnedHref: obs.link.canal(ch.id, { fmt: 'fixados' }),
   }
 }

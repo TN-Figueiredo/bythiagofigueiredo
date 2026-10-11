@@ -60,6 +60,8 @@ export interface Hero {
   id: string; type: ChangeType; typeLabel: string
   video: {
     id: string; title: string; channel: string; ago: string; historyHref: string; url: string
+    /** The channel's page, with `from` and `back` of this list; null for an own channel (it has no page). */
+    channelHref: string | null
     color: string; ini: string; avatar: string | null; ink: string; niche: string | null; nicheLabel: string | null; meta: string[]; syncNote: string | null
     /** The pin control and the state chips (null: own channel's video). */
     pin: PinView | null
@@ -456,6 +458,7 @@ export function buildMudancasView(obs: Observatory, p: Record<string, string | u
       video: {
         id: v.id, title: v.title, channel: ch.name, ago: F.age(v),
         historyHref: obs.link.historico(v.id, { from: 'mudancas', ids: visibleVideos, back }), url: v.url,
+        channelHref: ch.own ? null : obs.link.canal(ch.id, { from: 'mudancas', back }),
         color: ch.color, ini: ch.ini, avatar: ch.avatar ?? null, ink: inkOn(ch.color), niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null, meta,
         syncNote: ch.sync.problemPhrase ? cap(ch.sync.problemPhrase) : null,
         pin: pinViewOf(obs, v, { withOut: true }), observed: isObserved(v),

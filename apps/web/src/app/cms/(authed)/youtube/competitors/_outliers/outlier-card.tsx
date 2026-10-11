@@ -4,6 +4,7 @@
  * phase, long videos) spans two columns, follows the row's height and anchors its footer at the bottom
  * (approval 02/10). Every text and number arrives ready from the view model.
  */
+import Link from 'next/link'
 import { useRef, useState, type AnchorHTMLAttributes, type ReactNode } from 'react'
 import { HoverTip, Popover, useTipShown } from '../_chrome/flut/flut'
 import type { OutlierCardView, Rich } from './view-model'
@@ -141,10 +142,17 @@ export function StageChip({ c }: { c: OutlierCardView }) {
   return <span className={'obs-out-stagechip obs-out-' + c.phase.tone}><OutIcon name={c.phase.id} />{c.phase.label}</span>
 }
 
+/** The channel's name: a link to its page (from and back of this list), plain text only for a channel without one. */
+export function ChannelName({ c, title }: { c: Pick<OutlierCardView, 'channel' | 'channelHref'>; title: string }) {
+  return c.channelHref
+    ? <Link className="obs-out-chn obs-out-chlink" href={c.channelHref} title={title} prefetch={false}>{c.channel}</Link>
+    : <span className="obs-out-chn" title={title}>{c.channel}</span>
+}
+
 function Who({ c }: { c: OutlierCardView }) {
   return (
     <div className="obs-out-who">
-      <span className="obs-out-chn" title={c.channelFull}>{c.channel}</span>
+      <ChannelName c={c} title={c.channelFull} />
       {c.niche ? <span className={'obs-out-niche obs-out-niche-' + c.niche}>{c.nicheLabel}</span> : null}
       {c.showPhase ? <StageChip c={c} /> : null}
     </div>

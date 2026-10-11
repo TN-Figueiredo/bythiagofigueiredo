@@ -7,7 +7,7 @@ import { test, expect, type Page, type Locator } from '@playwright/test'
 import { ADMIN_STATE, ensureSeeded, seedIdsOf } from './fidelity'
 
 test.use({ storageState: ADMIN_STATE })
-const FULL = 'matt-opus55', CH = 'matt-wolfe'
+const FULL = 'matt-opus55'
 let ids: ReturnType<typeof seedIdsOf>
 test.beforeAll(async () => { ids = seedIdsOf(await ensureSeeded({})) })
 
@@ -58,19 +58,6 @@ async function holdActions(page: Page, needle: string) {
     await route.abort('failed') // an aborted action rejects on the client → the kit shows its own failure sentence
   })
   return { release }
-}
-
-/**
- * Opens the removal confirmation from the channel drawer. Dispatched, not clicked: what is measured is the dialog, and at
- * 320 × 480 the drawer's footer is outside the viewport (and, in dev, the Next badge sits over it).
- */
-async function openRemove(page: Page): Promise<void> {
-  const b = page.locator('.cn-drawer').getByRole('button', { name: 'Remover canal…', exact: true })
-  // the button is in the server HTML before React hydrates: a click dispatched then is lost (seen after a cold route compile).
-  // No hydration marker exists, so click again until the dialog is really there (a click that took effect stops the loop).
-  const dlg = page.locator('[role="dialog"][aria-labelledby="cn-cfT"]')
-  await b.waitFor()
-  await expect(async () => { await b.dispatchEvent('click'); await expect(dlg).toBeVisible({ timeout: 1500 }) }).toPass({ timeout: 15_000 })
 }
 
 const HIST_WIDTHS = [390, 768, 1099, 1100, 1440], MUD_WIDTHS = [390, 768, 999, 1440]
@@ -172,31 +159,9 @@ test('Mudanças 390 px: o selo e as views que chegam depois de fixar cabem na al
   expect(await relBox(btn, card)).toEqual(before)
 })
 
-test('Diálogo de remover: "Remover canal" não se move quando a contagem chega', async ({ page }) => {
-  for (const size of [{ width: 1440, height: 900 }, { width: 768, height: 1024 }, { width: 320, height: 480 }]) {
-    await page.setViewportSize(size)
-    const hold = await holdActions(page, ids.channel(CH))
-    await page.goto('/cms/youtube/competitors?channel=' + ids.channel(CH))
-    await openRemove(page)
-    // below the drawer's modal width the drawer is a dialog too: this is the confirmation only
-    const dlg = page.locator('[role="dialog"][aria-labelledby="cn-cfT"]'), yes = dlg.getByRole('button', { name: 'Remover canal', exact: true })
-    await expect(dlg.locator('.fx-loss')).toHaveAttribute('aria-busy', 'true')
-    await expect(dlg.getByRole('button', { name: 'Cancelar' })).toBeFocused()
-    await settle(page, yes, { idle: false }) // the count is held: the network is not idle on purpose
-    const counting = await box(yes), boxBefore = await box(dlg.locator('.box'))
-    hold.release() // the aborted count lands on "não foi possível contar"
-    await expect(dlg.locator('.fx-msg.fx-err')).toBeVisible()
-    expect(await box(yes)).toEqual(counting)
-    expect((await box(dlg.locator('.box'))).height).toBe(boxBefore.height)
-    await page.unroute('**/*')
-    await page.keyboard.press('Escape')
-    // and with the real count
-    await openRemove(page)
-    await expect(dlg.locator('.fx-loss')).not.toHaveAttribute('aria-busy', 'true')
-    expect(await box(yes)).toEqual(counting)
-    await page.keyboard.press('Escape')
-  }
-})
+// "Diálogo de remover: 'Remover canal' não se move quando a contagem chega" and the removal dialog's 44 px targets lived here, opened
+// from the competitor's side panel. The panel no longer opens for a competitor (A1 task 9): both moved to the channel page's
+// own removal dialog (task 10 / the page's e2e), which is where "Remover canal…" is now.
 
 test.describe('ponteiro grosso', () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
@@ -207,9 +172,5 @@ test.describe('ponteiro grosso', () => {
     await page.goto('/cms/youtube/competitors/mudancas?win=90&video=' + ids.video(FULL))
     await page.waitForLoadState('networkidle')
     expect((await box(page.locator('article.vid [data-pin]').first())).height).toBeGreaterThanOrEqual(44)
-    await page.goto('/cms/youtube/competitors?channel=' + ids.channel(CH))
-    await openRemove(page)
-    await page.locator('[role="dialog"][aria-labelledby="cn-cfT"] .acts .btn').first().waitFor()
-    for (const b of await page.locator('[role="dialog"][aria-labelledby="cn-cfT"] .acts .btn').all()) expect((await box(b)).height).toBeGreaterThanOrEqual(44)
   })
 })

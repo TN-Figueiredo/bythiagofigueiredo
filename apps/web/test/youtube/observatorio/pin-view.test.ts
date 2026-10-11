@@ -24,8 +24,9 @@ describe('pinViewOf', () => {
     const p = pinViewOf(base, v, { withOut: true })!
     expect(p).toMatchObject({ videoId: v.id, channelId: ch.id, title: v.title, pinned: false, chips: [] })
     expect(p.hint).toBe('Um vídeo fixado tem gráfico de views e conferência de título, thumbnail e descrição a cada 6 h, mesmo fora dos ' + ch.video_limit + ' mais recentes de ' + ch.name + '. Limite: ' + base.RULES.pinLimit + ' por canal.')
-    expect(p.pinnedHref).toBe(base.link.canais({ channel: ch.id, tab: 'videos' }) + '#fixados')
-    expect(p.pinnedHref).toContain('tab=videos')
+    // o painel lateral saiu para concorrente: "Ver fixados" leva à vista Fixados da página do canal
+    expect(p.pinnedHref).toBe(base.link.canal(ch.id, { fmt: 'fixados' }))
+    expect(p.pinnedHref).toBe('/cms/youtube/competitors/canal/' + ch.id + '?fmt=fixados')
   })
   it('não fixado, fora dos acompanhados: o selo "Fora dos acompanhados" só quando a tela pede', () => {
     const { obs, v } = withVideo(UNTR, {})

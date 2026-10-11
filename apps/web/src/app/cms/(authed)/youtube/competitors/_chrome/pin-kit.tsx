@@ -134,6 +134,21 @@ export function PinButton({ pin, k, className }: { pin: PinView; k?: string; cla
   )
 }
 
+/**
+ * The pin state of one video for a control that is not the PinButton (a menu item): what it would do (`pinned` includes the
+ * answer not yet refreshed), whether it is running, and `run`, which goes through the same provider (guard, timeout, live
+ * regions, messages). `msgKeys` lists the keys that have a message to show with <PinMessage k>. null outside a PinProvider.
+ */
+export function usePinControl(): { pinned: (pin: PinView) => boolean; busy: (videoId: string) => boolean; run: (pin: PinView, key: string) => void; msgKeys: string[] } | null {
+  const c = useContext(PinCtx)
+  return useMemo(() => c ? {
+    pinned: pin => c.over[pin.videoId] ?? pin.pinned,
+    busy: id => c.busy[id] != null,
+    run: (pin, key) => c.run(pin, key, c.over[pin.videoId] ?? pin.pinned),
+    msgKeys: Object.keys(c.msgs),
+  } : null, [c])
+}
+
 /** The action's answer for one control, below it. Three treatments by `kind`, each with its own icon (not colour alone). */
 export function PinMessage({ k }: { k: string }) {
   const msg = useContext(PinCtx)?.msgs[k]

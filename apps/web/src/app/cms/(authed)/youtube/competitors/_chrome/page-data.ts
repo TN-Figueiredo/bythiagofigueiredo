@@ -8,7 +8,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { createObservatory, type Observatory } from '@/lib/youtube/observatorio'
 import { rowsToDataset, type ObservatoryRows } from '@/lib/youtube/observatorio/load'
-import { loadPageRows } from '@/lib/youtube/observatorio/load-page'
+import { loadChannelDataset, loadPageRows } from '@/lib/youtube/observatorio/load-page'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { parseNiche, type NicheScope } from '@/lib/youtube/observatorio/niche'
 
@@ -32,4 +32,24 @@ export async function openObservatoryPage<T = undefined>(extra?: (siteId: string
     extra ? extra(siteId) : Promise.resolve(undefined as T),
   ])
   return { siteId, now, rows, obs: createObservatory(rowsToDataset(rows, now)), savedNiche: parseNiche(pref.data?.niche) ?? 'todos', extra: more }
+}
+
+export interface ChannelPage { siteId: string; now: number; obs: Observatory | null; canEdit: boolean }
+
+/**
+ * Entry of the channel page. The access check comes FIRST (same two exits as openObservatoryPage); only then is the
+ * one-channel dataset read. `obs` null = the id is not a channel of this site (unknown, removed, another site's): the page
+ * says so inside its frame, with status 200, and nothing is thrown or sent to Sentry. A failed read still throws.
+ * `canEdit` is the edit permission of the site (the page asks the admin permission on top of it for what only admins do).
+ */
+export async function openChannelPage(channelId: string): Promise<ChannelPage> {
+  const { siteId } = await getSiteContext()
+  const access = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
+  if (!access.ok) redirect(access.reason === 'unauthenticated' ? '/cms/login' : '/?error=insufficient_access')
+  const now = observatoryNow()
+  const [ds, edit] = await Promise.all([
+    loadChannelDataset(siteId, channelId, now),
+    requireSiteScope({ area: 'cms', siteId, mode: 'edit' }),
+  ])
+  return { siteId, now, obs: ds ? createObservatory(ds) : null, canEdit: edit.ok }
 }

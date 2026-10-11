@@ -56,6 +56,10 @@ describe('Observatório chrome · fixed layers resolve against the viewport', ()
     // (the screen is its sibling) depended on being inside the container
     const files = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? files(path.join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [path.join(dir, e.name)] : [])
     const outside = files(DIR).filter(f => !f.includes(`${path.sep}_chrome${path.sep}`)).map(f => fs.readFileSync(f, 'utf8')).join('\n')
-    expect([...classes].filter(c => new RegExp(`\\b${c}\\b`).test(outside))).toEqual([])
+    // `obs-ch-btn` é do kit (kit.css: "Botão: use .obs-ch-btn"): a tela do canal o usa. A regra em container que o cita só vale
+    // dentro de `.obs-ch-actions>`, e essa continua proibida fora do chrome.
+    const KIT = new Set(['obs-ch-btn'])
+    expect([...classes].filter(c => !KIT.has(c) && new RegExp(`\\b${c}\\b`).test(outside))).toEqual([])
+    expect(queried.filter(r => /\.obs-ch-btn\b/.test(r.sel)).every(r => /\.obs-ch-actions>/.test(r.sel))).toBe(true)
   })
 })

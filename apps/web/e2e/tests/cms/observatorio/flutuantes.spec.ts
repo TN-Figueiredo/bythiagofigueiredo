@@ -39,6 +39,18 @@ const TELAS: Array<{ nome: string; url: () => string; familias: Familia[] }> = [
   { nome: 'canais-cards', url: () => '/cms/youtube/competitors?layout=cards', familias: [
     { id: 'menu da linha (cards)', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4 },
   ] },
+  // a página do canal do concorrente (A1): o ⓘ dos números, o menu ⋯ do canal e o menu "Ações do vídeo" (de um cartão do alto ao do pé da
+  // grade: a amostra espalha 6 gatilhos do primeiro ao último dos ~120) em Capas e em Lista. Todos moram em #flut (Popover).
+  { nome: 'canal', url: () => '/cms/youtube/competitors/canal/' + ids.channel('matt-wolfe'), familias: [
+    { id: 'ⓘ dos números', gatilho: '[data-obs-screen="canal"] .ntools .ibtn', modo: 'clique', caixa: '#flut .canal-tip', gap: 6 },
+    { id: 'menu ⋯ do canal', gatilho: '[data-obs-screen="canal"] .chead .acts [aria-haspopup="menu"]', modo: 'clique', caixa: '#flut .canal-menu', gap: 4 },
+    // folgaTopo/folgaPe: o ⋯ do cartão tem scroll-margin de propósito (canal.css): o alto se afasta da barra de topo da casca (52) e da barra de
+    // controles presa (50) mais 12, e abaixo de 768 px o pé se afasta da barra de navegação da casca (76). "Colado em cima" para a 114 px, não a 4.
+    { id: 'menu Ações do vídeo (Capas)', gatilho: '[data-obs-screen="canal"] .cv-grid .cv-abtn', modo: 'clique', caixa: '#flut .canal-menu', max: 6, gap: 4, folgaTopo: 112, folgaPe: 74 },
+  ] },
+  { nome: 'canal-lista', url: () => '/cms/youtube/competitors/canal/' + ids.channel('matt-wolfe') + '?ver=lista', familias: [
+    { id: 'menu Ações do vídeo (Lista)', gatilho: '[data-obs-screen="canal"] .cv-lst .cv-abtn', modo: 'clique', caixa: '#flut .canal-menu', max: 6, gap: 4, folgaTopo: 112, folgaPe: 74 },
+  ] },
   { nome: 'outliers', url: () => '/cms/youtube/competitors/outliers', familias: [
     { id: 'ⓘ do múltiplo', gatilho: '.obs-out-info', modo: 'clique', caixa: '#flut .obs-out-tip', max: 6, gap: 6, ref: '.obs-out-mult', folgaProx: 2 },
     { id: 'dica de ícone', gatilho: 'a.obs-out-ib', modo: 'foco', caixa: '#flut .obs-out-ibtip', max: 6, gap: 4 },
@@ -349,7 +361,12 @@ test.describe('teclado', () => {
   })
 
   test('menu da linha de Canais: Esc fecha o menu e a gaveta aberta fica', async ({ page }) => {
-    await page.locator('[data-obs-screen="canais"] .nmbtn[data-open]').first().click()
+    // a gaveta só abre para o canal próprio (o concorrente tem página): é o botão, não o link. O canal próprio é de Viagem: em Todos ele aparece
+    // no alto, e no nicho salvo por outra prova (IA) ele sairia da tabela
+    await page.goto('/cms/youtube/competitors?niche=todos')
+    await page.locator('[data-obs-screen="canais"] tbody tr').first().waitFor()
+    await page.waitForLoadState('networkidle')
+    await page.locator('[data-obs-screen="canais"] button.nmbtn[data-open]').first().click()
     await expect(page.locator('.cn-drawer')).toBeVisible()
     await page.locator('[data-obs-screen="canais"] [data-menu]').first().click()
     await expect(page.locator('#flut .cn-menu')).toBeVisible()

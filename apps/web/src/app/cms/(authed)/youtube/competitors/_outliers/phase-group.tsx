@@ -4,7 +4,7 @@
  * as a grid of cards of equal height per row ([data-outlier-row]) or as the list table.
  */
 import type { OutlierGroupView } from './view-model'
-import { OutlierCard, OutIcon, MultBlock, Ruler, Actions, StageChip, Thumb } from './outlier-card'
+import { ChannelName, OutlierCard, OutIcon, MultBlock, Ruler, Actions, StageChip, Thumb } from './outlier-card'
 
 const isPhase = (k: string) => k !== 'flat' && k !== 'above' && k !== 'below'
 
@@ -41,7 +41,7 @@ function ListTable({ g }: { g: OutlierGroupView }) {
           <tr key={c.id} data-id={c.id} data-phase={c.phase.id} data-weak={String(c.weak)}>
             <td className="obs-out-v"><div className="obs-out-vcell"><Thumb c={c} /><div className="obs-out-t1">
               <h3 className="obs-out-ttl" title={c.title}>{c.title}</h3>
-              <div className="obs-out-who"><span className="obs-out-chn" title={c.channel}>{c.channel}</span>
+              <div className="obs-out-who"><ChannelName c={c} title={c.channel} />
                 {c.niche ? <span className={'obs-out-niche obs-out-niche-' + c.niche}>{c.nicheLabel}</span> : null}
                 {c.showPhase ? <StageChip c={c} /> : null}
                 {c.reuse ? <span className="obs-out-stagechip obs-out-old">assunto de {c.reuse.month}: ainda relevante?</span> : null}

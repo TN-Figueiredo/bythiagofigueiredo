@@ -1,0 +1,385 @@
+'use client'
+/**
+ * A página do canal do concorrente (spec 5): o cabeçalho, as abas (nav "Seções do canal"), a faixa de aviso de sincronização, o
+ * diálogo de remoção, a aba Vídeos (controles, grade de capas ou tabela e "Carregar mais"), a aba Trocas e a aba Leitura. Vídeos e
+ * Trocas trocam no navegador (mesmo pacote de dados); Leitura é navegação de verdade, porque o servidor lê o conjunto do site para ela
+ * (D3). Server actions chegam por props (`actions`); nenhum `Link` chega de um Server Component.
+ */
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import type { Niche } from '@/lib/youtube/observatorio/niche'
+import { link, type CanalTab } from '@/lib/youtube/observatorio/links'
+import type { syncCompetitorNow, removeCompetitorChannel, getCompetitorRemovalImpactAction } from '../actions'
+import type { setChannelNiche } from '../niche-actions'
+import { Icon } from '../_chrome/icons'
+import { PinProvider, type PinAction } from '../_chrome/pin-kit'
+import { useToast } from '../_chrome/toasts'
+import { RemoveDialog } from '../_canais/remove-dialog'
+import { NicheOptionsContext, NichePendingContext, type NichePending } from '../_canais/niche-editor'
+import type { NicheOption } from '../_canais/view-model'
+import { CanalHeader } from './canal-header'
+import { CarregarMais } from './carregar-mais'
+import { Controles, FMT_NOME, SORT_NOME } from './controles'
+import { Grade } from './grade'
+import { Tabela } from './tabela'
+import { Trocas } from './trocas'
+import { montarLista, type ListaView } from './lista'
+import { canalQuery, LOTE, type CanalState } from './params'
+import { useCanalState } from './use-canal-state'
+import { useRolagemAoVoltar } from './use-rolagem-ao-voltar'
+import { PinMessages } from './video-menu'
+import type { ChannelVideoView } from './videos-model'
+import type { CanalView } from './view-model'
+import './canal.css'
+
+export interface CanalActions {
+  onSyncOne: typeof syncCompetitorNow
+  onRemove: typeof removeCompetitorChannel
+  onRemovalImpact: typeof getCompetitorRemovalImpactAction
+  onSetNiche: typeof setChannelNiche
+  onPin: PinAction
+  onUnpin: PinAction
+}
+
+/** Acha um elemento da tela pelo id, a partir da raiz DESTA tela: depois de um Voltar o Next 16 mantém a cópia escondida da rota no documento, com os mesmos ids, e `document.getElementById` devolve a primeira na ordem do documento. */
+function porId(raiz: RefObject<HTMLElement | null>, id: string): HTMLElement | null {
+  return raiz.current?.querySelector<HTMLElement>(`[id="${id}"]`) ?? null
+}
+
+const FOCUSABLE = 'button:not([disabled]),a[href],select,input,textarea,[tabindex="0"]'
+/** Tab / Shift+Tab ficam dentro do diálogo. */
+function trapTab(e: KeyboardEvent<HTMLElement>) {
+  if (e.key !== 'Tab') return
+  const f = [...e.currentTarget.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(x => !x.closest('[hidden]'))
+  if (!f.length) return
+  const first = f[0]!, last = f[f.length - 1]!
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+}
+
+/** O id não é um canal deste site (desconhecido, removido, de outro site): dentro da moldura, status 200, sem erro. */
+export function CanalNotFound({ canaisHref }: { canaisHref: string }) {
+  return (
+    <div data-obs-screen="canal">
+      <div className="vazio">
+        <p>Canal não encontrado. Ele pode ter sido removido.</p>
+        <Link className="obs-ch-btn" href={canaisHref}>Voltar para Canais</Link>
+      </div>
+    </div>
+  )
+}
+
+/** "Atenção:" e "Erro:" saem em negrito; o resto da frase é o do modelo, sem mudar uma letra. */
+function Banner({ text, tone }: { text: string; tone: 'ok' | 'warn' | 'danger' }) {
+  const m = /^(Atenção:|Erro:|Sincronizando:)([\s\S]*)$/.exec(text)
+  const cls = tone === 'warn' ? 'warn' : tone === 'danger' ? 'err' : 'info'
+  return (
+    <div className={'band ' + cls}>
+      {tone === 'ok' ? Icon.sync() : Icon.warn()}
+      <p>{m ? <><b>{m[1]}</b>{m[2]}</> : text}</p>
+    </div>
+  )
+}
+
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`
+const contagem = (n: number) => plural(n, 'vídeo', 'vídeos')
+
+/** Os ids de até 100 vídeos em torno de `i` (a janela encosta no começo e no fim da lista): a vizinhança do Anterior/Próximo do Histórico. */
+function vizinhanca(ids: readonly string[], i: number): string[] {
+  const a = Math.max(0, Math.min(i - 50, ids.length - 100))
+  return ids.slice(a, a + 100)
+}
+
+/**
+ * As abas do canal: links de verdade (nav), não tablist. Clique simples em Vídeos/Trocas troca a aba no cliente; Ctrl/Cmd/Shift seguem
+ * o link. Leitura é sempre um `Link` de navegação, e a partir da Leitura (que o servidor montou sem o miolo das outras) Vídeos e Trocas
+ * também são. Retenção não aparece: é só de canal próprio (spec 5.8).
+ */
+function AbasNav({ view, state, resumo, onAba }: { view: CanalView; state: CanalState; resumo: string | null; onAba: (tab: CanalTab) => void }) {
+  const abas: Array<{ tab: CanalTab; texto: string; n: string }> = [
+    { tab: 'videos', texto: 'Vídeos', n: String(view.videos.videos.length) },
+    { tab: 'trocas', texto: 'Trocas', n: view.trocas.tabCount },
+    { tab: 'leitura', texto: 'Leitura', n: '' },
+  ]
+  return (
+    <nav className="ctabs" aria-label="Seções do canal">
+      <ul>
+        {abas.map(a => {
+          const href = link.canal(view.header.id, { tab: a.tab, fmt: state.fmt, sort: state.sort, dir: state.dir, q: state.q, ver: state.ver, n: state.n, nums: state.nums ? 1 : undefined, ...view.origem })
+          const atual = state.tab === a.tab ? 'page' : undefined
+          const conteudo = <>{a.texto}{a.n ? <> <span className="n">{a.n}</span></> : null}</>
+          return (
+            <li key={a.tab}>
+              {a.tab === 'leitura' || state.tab === 'leitura'
+                ? <Link href={href} aria-current={atual}>{conteudo}</Link>
+                : <a href={href} aria-current={atual}
+                  onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return; e.preventDefault(); onAba(a.tab) }}>{conteudo}</a>}
+            </li>
+          )
+        })}
+      </ul>
+      {resumo ? <p className="res">{resumo}</p> : null}
+    </nav>
+  )
+}
+
+/** A aba Vídeos: controles, a vista (grade de capas ou tabela), "Carregar mais" e a nota fixa. */
+function AbaVideos({ view, state, lista, set, nome, channelId, onSync, raiz }: {
+  view: CanalView; state: CanalState; lista: ListaView; set: (patch: Partial<CanalState>) => void; nome: string; channelId: string; onSync: () => void
+  raiz: RefObject<HTMLElement | null>
+}) {
+  const all = view.videos.videos
+  const listaRef = useRef(lista)
+  useEffect(() => { listaRef.current = lista })
+
+  /* status: role=status, atômico. Cada mudança anuncia uma vez; a busca espera 500 ms depois da última tecla. Nunca move o foco. */
+  const [msg, setMsg] = useState('')
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const anunciar = useCallback((txt: () => string, espera = 0) => {
+    clearTimeout(timer.current)
+    // o mesmo texto de novo precisa mudar o DOM para o leitor de tela falar outra vez
+    const dizer = () => setMsg(prev => { const t = txt(); return t === prev ? t + '\u200b' : t })
+    if (espera) timer.current = setTimeout(dizer, espera); else dizer()
+  }, [])
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  const barRef = useRef<HTMLDivElement>(null), inputRef = useRef<HTMLInputElement>(null)
+  const temControles = all.length > 0
+  /* A linha de controles fica presa só com largura >= 768 px e altura >= 600 px; --obs-sticky-h (0 fora disso) alimenta o scroll-margin-top de todo alvo de foco */
+  useEffect(() => {
+    const bar = barRef.current, raiz = bar?.closest<HTMLElement>('[data-obs-screen]')
+    if (!bar || !raiz) return
+    const mq = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width:768px) and (min-height:600px)') : null
+    const medir = () => raiz.style.setProperty('--obs-sticky-h', mq?.matches ? Math.round(bar.getBoundingClientRect().height) + 'px' : '0px')
+    medir()
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(medir)
+    ro?.observe(bar)
+    mq?.addEventListener?.('change', medir)
+    return () => { ro?.disconnect(); mq?.removeEventListener?.('change', medir); raiz.style.removeProperty('--obs-sticky-h') }
+  }, [temControles, state.tab])   // a barra só existe na aba Vídeos: refaz o observer a cada montagem real
+
+  /* filtro, ordenação e busca recomeçam em acompanhados (n zera); a vista mantém o que foi carregado */
+  const onFmt = (fmt: CanalState['fmt']) => {
+    const l = montarLista(all, { ...state, fmt, n: 0 })
+    set({ fmt, n: 0 })
+    anunciar(() => `${FMT_NOME[fmt]}, ${contagem(l.visiveis.length)}`)
+  }
+  const onSort = (sort: CanalState['sort']) => {
+    const l = montarLista(all, { ...state, sort, dir: 'desc', n: 0 })
+    set({ sort, dir: 'desc', n: 0 })
+    anunciar(() => `Ordenado por ${SORT_NOME[sort]}, decrescente, ${contagem(l.visiveis.length)}`)
+  }
+  /* cabeçalho de coluna da Lista: a coluna ativa inverte a direção; outra coluna ordena por ela em decrescente (como o select) */
+  const onColuna = (sort: CanalState['sort']) => {
+    if (sort !== state.sort) { onSort(sort); return }
+    const dir = state.dir === 'asc' ? 'desc' : 'asc'
+    const l = montarLista(all, { ...state, dir, n: 0 })
+    set({ dir, n: 0 })
+    anunciar(() => `Ordenado por ${SORT_NOME[sort]}, ${dir === 'asc' ? 'crescente' : 'decrescente'}, ${contagem(l.visiveis.length)}`)
+  }
+  const onQ = (q: string) => {
+    set({ q, n: 0 })
+    anunciar(() => (q.trim() ? listaRef.current.resultado : contagem(listaRef.current.visiveis.length)), 500)
+  }
+  const onClearQ = () => {
+    const l = montarLista(all, { ...state, q: '', n: 0 })
+    set({ q: '', n: 0 })
+    inputRef.current?.focus()
+    anunciar(() => `Busca limpa, ${contagem(l.visiveis.length)}`)
+  }
+  const onVer = (ver: CanalState['ver']) => {
+    set({ ver })
+    anunciar(() => `Vista ${ver === 'lista' ? 'Lista' : 'Capas'}, ${contagem(lista.visiveis.length)}`)
+  }
+  const buscarEmTodos = () => {
+    const l = montarLista(all, { ...state, fmt: 'todos', n: 0 })
+    set({ fmt: 'todos', n: 0 })
+    anunciar(() => `${FMT_NOME.todos}, ${contagem(l.visiveis.length)}`)
+  }
+
+  /* "Carregar mais": o foco vai para o primeiro cartão novo (sem rolar) e o status diz quantos vieram */
+  const focoNoNovo = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    const id = focoNoNovo.current
+    if (!id) return
+    focoNoNovo.current = null
+    porId(raiz, 'cv-lnk-' + id)?.focus({ preventScroll: true })
+  })
+  const onMais = () => {
+    const n = state.n + LOTE
+    const depois = montarLista(all, { ...state, n })
+    const antes = new Set(lista.visiveis)
+    const novos = depois.visiveis.filter(id => !antes.has(id))
+    focoNoNovo.current = novos[0] ?? null
+    set({ n })
+    anunciar(() => `Mostrando ${depois.visiveis.length} de ${depois.mais?.total ?? depois.visiveis.length} vídeos. `
+      + `${plural(novos.length, 'vídeo antigo carregado', 'vídeos antigos carregados')}${depois.mais ? '.' : '. Não falta nenhum.'}`)
+  }
+
+  const ampliar = (v: ChannelVideoView) => { if (v.thumbSrc) window.open(v.thumbSrc, '_blank', 'noopener,noreferrer') }
+  const verTrocas = (v: ChannelVideoView) => set({ tab: 'trocas', video: v.id })
+  const hrefs = useMemo(() => {
+    const back = canalQuery(state), pos = new Map(lista.visiveis.map((id, i) => [id, i]))
+    return (v: ChannelVideoView) => link.historico(v.id, { from: 'canais', canal: channelId, back, ids: vizinhanca(lista.visiveis, pos.get(v.id) ?? 0) })
+  }, [lista, state, channelId])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (state.tab !== 'videos') return null
+  return (
+    <section aria-labelledby="cv-h2" className="cv-sec">
+      <h2 className="obs-ch-sr" id="cv-h2" tabIndex={-1}>Vídeos</h2>
+      <p className="obs-ch-sr cv-status" role="status" aria-atomic="true">{msg}</p>
+      {temControles ? (
+        <>
+          <Controles state={state} counts={lista.counts} barRef={barRef} inputRef={inputRef}
+            onFmt={onFmt} onSort={onSort} onQ={onQ} onClearQ={onClearQ} onVer={onVer} />
+          <PinMessages />
+          {lista.secoes.length ? <a className="lk cv-skip" href="#cv-fim" onClick={e => { e.preventDefault(); porId(raiz, 'cv-fim')?.focus() }}>Pular a lista de vídeos</a> : null}
+          {lista.secoes.length
+            ? state.ver === 'lista'
+              ? <Tabela lista={lista} state={state} nome={nome} descrito="cv-foot" hrefDe={hrefs} onSort={onColuna} onAmpliar={ampliar} onTrocas={verTrocas} />
+              : <Grade lista={lista} sort={state.sort} nome={nome} hrefDe={hrefs} onAmpliar={ampliar} onTrocas={verTrocas} />
+            : null}
+          <div id="cv-fim" tabIndex={-1} />
+          {lista.vazio ? (
+            <div className="cv-empty">
+              <p>{lista.vazio.text}</p>
+              {lista.vazio.acao ? (
+                <div className="cv-empty-acts">
+                  <button type="button" className="obs-ch-btn" onClick={onClearQ}>Limpar busca</button>
+                  {lista.vazio.acao === 'buscar-em-todos' ? <button type="button" className="obs-ch-btn" onClick={buscarEmTodos}>Buscar em Todos</button> : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {lista.mais ? <CarregarMais mais={lista.mais} onMais={onMais} /> : null}
+          <p className="cv-foot" id="cv-foot">{view.videos.nota}</p>
+        </>
+      ) : (
+        <div className="cv-empty">
+          <p>{view.videos.semVideos}</p>
+          <button type="button" className="obs-ch-btn" onClick={onSync}>Sincronizar só este canal</button>
+        </div>
+      )}
+    </section>
+  )
+}
+
+export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view: CanalView; niches: NicheOption[]; canAdmin: boolean; leitura: ReactNode | null; actions: CanalActions }) {
+  const router = useRouter(), toast = useToast()
+  const h = view.header
+  const [state, set] = useCanalState(view.state)
+  const raiz = useRef<HTMLDivElement>(null)
+  useRolagemAoVoltar(raiz)
+  const nums = state.nums
+  // a lista (filtro, ordem, busca, n) é montada aqui: a aba Vídeos a desenha e o resumo à direita das abas a lê
+  const todos = view.videos.videos
+  const lista = useMemo(() => montarLista(todos, state), [todos, state.fmt, state.sort, state.dir, state.q, state.n])   // eslint-disable-line react-hooks/exhaustive-deps
+  // spec 5.3 e 5.5: à direita das abas, na aba Vídeos, "133 vídeos: 61 longos, 71 Shorts, 1 com formato não confirmado." (com busca: "5 vídeos com “lisboa”"; sem nenhum, a caixa de vazio já diz a frase)
+  const resumo = state.tab !== 'videos' || !todos.length ? null : state.q.trim() ? (lista.vazio ? null : lista.resultado) : state.fmt === 'todos' ? view.header.result : null
+  /* trocar de aba move o foco para o título da aba nova; o Voltar do navegador (popstate) não mexe no foco */
+  const focoNaAba = useRef(false)
+  const setAba = useCallback((patch: Partial<CanalState>) => {
+    if (patch.tab && patch.tab !== state.tab) focoNaAba.current = true
+    set(patch)
+  }, [set, state.tab])
+  const irParaAba = (tab: CanalTab) => {
+    if (tab === state.tab) { porId(raiz, tab === 'trocas' ? 'ct-h2' : 'cv-h2')?.focus({ preventScroll: true }); return }
+    setAba({ tab, video: null })
+  }
+  /* Toda troca de aba depois da primeira montagem (clique, "Ver trocas", popstate) rola até o título da aba nova: a página encolhe e o
+     navegador a prende no fim, então sem isso o título e a linha "Só as trocas de…" ficariam fora da tela. O scroll-margin-top do
+     título já desconta a barra presa; com prefers-reduced-motion a rolagem é instantânea. O foco só vai junto quando a pessoa agiu. */
+  const abaAnterior = useRef(state.tab)
+  useLayoutEffect(() => {
+    const mudou = abaAnterior.current !== state.tab
+    abaAnterior.current = state.tab
+    const titulo = porId(raiz, state.tab === 'trocas' ? 'ct-h2' : 'cv-h2')
+    if (focoNaAba.current) { focoNaAba.current = false; titulo?.focus({ preventScroll: true }) }
+    if (!mudou) return
+    const reduzir = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    titulo?.scrollIntoView?.({ block: 'start', behavior: reduzir ? 'auto' : 'smooth' })
+  }, [state.tab])
+  const filtroTrocas = state.video ? view.videos.videos.find(v => v.id === state.video) ?? null : null
+  const hrefTodasTrocas = link.canal(h.id, { tab: 'trocas', ...view.origem })
+  const [syncing, setSyncing] = useState(false)
+  const [confirm, setConfirm] = useState(false)
+  const menuBtn = useRef<HTMLButtonElement>(null)
+
+  /** "Todos os números" põe nums=1 na URL SEM navegar (replaceState): o servidor não relê, e o resto da URL (from, back…) fica. */
+  const toggleNums = () => set({ nums: !nums })
+
+  const syncOne = async () => {
+    if (syncing) return
+    if (view.backfilling) { toast('warn', `${h.name} ainda está buscando vídeos; sincronize depois que a busca terminar.`, ''); return }
+    setSyncing(true)
+    toast('', `Sincronizando ${h.name}…`, '')
+    let ok = false
+    try { ok = (await actions.onSyncOne(h.id)).ok } catch { ok = false }
+    setSyncing(false)
+    if (ok) toast('ok', `${h.name} sincronizado`, 'Dados atualizados agora.')
+    else toast('bad', `${h.name} não sincronizou`, 'A sincronização não respondeu. Tente de novo em alguns minutos.')
+    router.refresh()
+  }
+
+  // nicho: o escolhido aparece já; some quando a ação falha ou quando o servidor manda dados novos
+  const [pending, setPending] = useState<NichePending>({})
+  const seq = useRef(0)
+  const [seenView, setSeenView] = useState(view)
+  if (seenView !== view) {
+    setSeenView(view)
+    if (Object.values(pending).some(p => !p.busy)) setPending(cur => Object.fromEntries(Object.entries(cur).filter(([, p]) => p.busy)))
+  }
+  const setNiche = async (n: Niche) => {
+    const mine = ++seq.current
+    setPending(cur => ({ ...cur, [h.id]: { niche: n, busy: true } }))
+    let ok = false
+    try { ok = (await actions.onSetNiche(h.id, n)).ok } catch { ok = false }
+    if (seq.current === mine) {
+      if (ok) setPending(cur => ({ ...cur, [h.id]: { niche: n, busy: false } }))
+      else setPending(cur => Object.fromEntries(Object.entries(cur).filter(([id]) => id !== h.id)))
+    }
+    if (!ok) { toast('bad', 'Não deu para mudar o nicho', h.niche ? `${h.name} continua no nicho anterior.` : `${h.name} continua sem nicho.`); return }
+    toast('ok', `Nicho de ${h.name} alterado para ${niches.find(o => o.id === n)?.label ?? n}`, '')
+    router.refresh()
+  }
+
+  const closeConfirm = () => { setConfirm(false); requestAnimationFrame(() => menuBtn.current?.focus()) }
+  // Esc fecha o diálogo de remoção (aria-modal), como em Canais.
+  useEffect(() => {
+    if (!confirm) return
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') closeConfirm() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  })
+  const doRemove = async () => {
+    setConfirm(false)
+    let res: { ok: boolean; error?: string } = { ok: false }
+    try { res = await actions.onRemove(h.id) } catch { res = { ok: false } }
+    if (!res.ok) { toast('bad', 'Não deu para remover o canal', res.error ?? `${h.name} continua no observatório.`); return }
+    toast('ok', `${h.name} removido`, 'O canal saiu do observatório e os dados coletados dele foram apagados.')
+    router.replace(link.canais())
+  }
+
+  return (
+    <NicheOptionsContext.Provider value={niches}>
+      <NichePendingContext.Provider value={pending}>
+        <div data-obs-screen="canal" ref={raiz}>
+          <CanalHeader h={h} nums={nums} syncing={syncing} canAdmin={canAdmin} menuBtnRef={menuBtn}
+            onToggleNums={toggleNums} onSync={() => { void syncOne() }} onAskRemove={() => setConfirm(true)} onNiche={n => { void setNiche(n) }} />
+          <AbasNav view={view} state={state} resumo={resumo} onAba={irParaAba} />
+          {h.sync.banner ? <Banner text={h.sync.banner} tone={h.sync.tone} /> : null}
+          <PinProvider onPin={actions.onPin} onUnpin={actions.onUnpin}>
+            <AbaVideos view={view} state={state} lista={lista} set={setAba} nome={h.name} channelId={h.id} onSync={() => { void syncOne() }} raiz={raiz} />
+          </PinProvider>
+          {state.tab === 'trocas' ? (
+            <Trocas view={view.trocas} filtro={filtroTrocas ? { id: filtroTrocas.id, title: filtroTrocas.title } : null} hrefTodas={hrefTodasTrocas}
+              onTodas={() => set({ video: null })} onAmpliar={src => window.open(src, '_blank', 'noopener,noreferrer')} onAbrir={href => router.push(href)} />
+          ) : null}
+          {state.tab === 'leitura' ? leitura : null}
+          {confirm ? <RemoveDialog id={h.id} name={h.name} onImpact={actions.onRemovalImpact} onCancel={closeConfirm} onConfirm={() => { void doRemove() }} trap={trapTab} /> : null}
+        </div>
+      </NichePendingContext.Provider>
+    </NicheOptionsContext.Provider>
+  )
+}

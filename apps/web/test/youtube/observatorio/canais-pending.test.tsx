@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, within, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { loadOracle, datasetFromOracle } from './oracle'
+import { loadOracleOwns, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildCanaisView, type CanaisParams } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { CanaisScreen } from '@/app/cms/(authed)/youtube/competitors/_canais/canais-screen'
@@ -27,7 +27,8 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(''),
 }))
 
-const obs = createObservatory(datasetFromOracle(loadOracle()))
+// the drawer only opens for an OWN channel (a competitor has a page of its own): two own channels
+const obs = createObservatory(datasetFromOracle(loadOracleOwns('2')))
 const ok = async () => ({ ok: true })
 const view = (p: Partial<CanaisParams> = {}) => buildCanaisView(obs, { niche: 'todos', limit: 75, ...p })
 const tree = (p: Partial<CanaisParams> = {}) => (
@@ -50,18 +51,19 @@ describe('Canais · immediate feedback', () => {
   it('a row click opens the drawer at once with what the row already shows, busy until the server answers', async () => {
     const user = userEvent.setup()
     const r = render(tree())
-    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de Luke Damant' }))
-    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?channel=luke-damant', { scroll: false })
+    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo' }))
+    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?channel=tnfigueiredo', { scroll: false })
     const d = drawerEl()!
     expect(d).not.toBeNull()
-    expect(d).toHaveAttribute('data-drawer', 'luke-damant')
+    expect(d).toHaveAttribute('data-drawer', 'tnfigueiredo')
     expect(d).toHaveAttribute('aria-busy', 'true')
-    expect(within(d).getByRole('heading', { name: 'Luke Damant' })).toBeInTheDocument()
-    expect(within(d).getByRole('combobox', { name: 'Nicho de Luke Damant' })).toHaveValue('viagem')
-    expect(within(d).getByText('1,93 mi')).toBeInTheDocument()
+    expect(within(d).getByRole('heading', { name: 'tnFigueiredo' })).toBeInTheDocument()
+    // the niche is read-only text here (no site-admin context): an own channel's niche is its identity
+    expect(within(d).getByText('Viagem')).toBeInTheDocument()
+    expect(d.querySelector('.dhead .meta .num')!.textContent).toBe(view().own.rows.find(x => x.id === 'tnfigueiredo')!.subs)
     expect(root()).toHaveClass('drawer-open')
     expect(root()).toHaveAttribute('data-nav-pending')
-    expect(document.querySelector('tr.obs-cn-row[data-id="luke-damant"]')).toHaveClass('sel')
+    expect(document.querySelector('tr.obs-cn-row[data-id="tnfigueiredo"]')).toHaveClass('sel')
     // the close button has the focus from the first frame, and it is the same button once the content arrives
     const close = within(d).getByRole('button', { name: 'Fechar detalhes do canal' })
     expect(document.activeElement).toBe(close)
@@ -72,7 +74,7 @@ describe('Canais · immediate feedback', () => {
     expect(noJunkText(r.container)).toEqual([])
     expect(forbiddenVocabulary(r.container)).toEqual([])
 
-    await answer(r, { channel: 'luke-damant' })
+    await answer(r, { channel: 'tnfigueiredo' })
     expect(drawerEl()).toBe(d)
     expect(d).not.toHaveAttribute('aria-busy')
     expect(d.querySelector('.dstats .v')).not.toBeNull()
@@ -85,11 +87,11 @@ describe('Canais · immediate feedback', () => {
   it('the tab picked while the drawer loads is the tab shown when it arrives', async () => {
     const user = userEvent.setup()
     const r = render(tree())
-    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de Matt Wolfe' }))
+    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo EN' }))
     const d = drawerEl()!
     await user.click(within(d).getByRole('tab', { name: 'Vídeos' }))
     expect(within(d).getByRole('tab', { name: 'Vídeos' })).toHaveAttribute('aria-selected', 'true')
-    await answer(r, { channel: 'matt-wolfe' })
+    await answer(r, { channel: 'tnfigueiredo-en' })
     expect(within(d).getByRole('tab', { name: /^Vídeos/ })).toHaveAttribute('aria-selected', 'true')
     expect(d.querySelector('#cn-pVid')).not.toHaveAttribute('hidden')
     expect(d.querySelector('#cn-pSwaps')).toHaveAttribute('hidden')
@@ -97,13 +99,13 @@ describe('Canais · immediate feedback', () => {
 
   it('another row while a drawer is open swaps to that channel at once; closing is instant', async () => {
     const user = userEvent.setup()
-    const r = render(tree({ channel: 'matt-wolfe' }))
-    expect(drawerEl()).toHaveAttribute('data-drawer', 'matt-wolfe')
+    const r = render(tree({ channel: 'tnfigueiredo-en' }))
+    expect(drawerEl()).toHaveAttribute('data-drawer', 'tnfigueiredo-en')
     // below 1280 px the open drawer is modal (the table is inert), so the second open comes from the row menu path
-    await act(async () => { screen.getByRole('button', { name: 'Abrir detalhes de Luke Damant', hidden: true }).click() })
-    expect(drawerEl()).toHaveAttribute('data-drawer', 'luke-damant')
+    await act(async () => { screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo', hidden: true }).click() })
+    expect(drawerEl()).toHaveAttribute('data-drawer', 'tnfigueiredo')
     expect(drawerEl()).toHaveAttribute('aria-busy', 'true')
-    expect(within(drawerEl()!).queryByText('Matt Wolfe')).toBeNull()
+    expect(within(drawerEl()!).queryByText('tnFigueiredo EN')).toBeNull()
     await user.keyboard('{Escape}')
     expect(drawerEl()).toBeNull()
     expect(root()).not.toHaveClass('drawer-open')
@@ -113,13 +115,13 @@ describe('Canais · immediate feedback', () => {
 
   it('reopening the channel that was just closed opens it again', async () => {
     const user = userEvent.setup()
-    const r = render(tree({ channel: 'matt-wolfe' }))
+    const r = render(tree({ channel: 'tnfigueiredo-en' }))
     await user.keyboard('{Escape}')
     expect(drawerEl()).toBeNull()
-    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de Matt Wolfe' }))
-    expect(drawerEl()).toHaveAttribute('data-drawer', 'matt-wolfe')
-    await answer(r, { channel: 'matt-wolfe' })
-    expect(drawerEl()).toHaveAttribute('data-drawer', 'matt-wolfe')
+    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo EN' }))
+    expect(drawerEl()).toHaveAttribute('data-drawer', 'tnfigueiredo-en')
+    await answer(r, { channel: 'tnfigueiredo-en' })
+    expect(drawerEl()).toHaveAttribute('data-drawer', 'tnfigueiredo-en')
     expect(drawerEl()).not.toHaveAttribute('aria-busy')
   })
 
@@ -226,7 +228,7 @@ describe('Canais · immediate feedback', () => {
   it('the server answers with no drawer after the shell: the shell goes away, nothing breaks', async () => {
     const user = userEvent.setup()
     const r = render(tree())
-    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de Luke Damant' }))
+    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo' }))
     expect(drawerEl()).toHaveAttribute('aria-busy', 'true')
     await answer(r, {})
     expect(drawerEl()).toBeNull()
@@ -236,15 +238,15 @@ describe('Canais · immediate feedback', () => {
 
   it('two quick opens A then B: the late answer of A never replaces the shell of B', async () => {
     const r = render(tree())
-    await act(async () => { screen.getByRole('button', { name: 'Abrir detalhes de Luke Damant' }).click() })
-    await act(async () => { screen.getByRole('button', { name: 'Abrir detalhes de Matt Wolfe', hidden: true }).click() })
-    expect(drawerEl()).toHaveAttribute('data-drawer', 'matt-wolfe')
+    await act(async () => { screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo' }).click() })
+    await act(async () => { screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo EN', hidden: true }).click() })
+    expect(drawerEl()).toHaveAttribute('data-drawer', 'tnfigueiredo-en')
     // A's page arrives while B is still in flight
-    await act(async () => { r.rerender(tree({ channel: 'luke-damant' })); await Promise.resolve() })
-    expect(drawerEl()).toHaveAttribute('data-drawer', 'matt-wolfe')
+    await act(async () => { r.rerender(tree({ channel: 'tnfigueiredo' })); await Promise.resolve() })
+    expect(drawerEl()).toHaveAttribute('data-drawer', 'tnfigueiredo-en')
     expect(drawerEl()).toHaveAttribute('aria-busy', 'true')
-    await answer(r, { channel: 'matt-wolfe' })
-    expect(drawerEl()).toHaveAttribute('data-drawer', 'matt-wolfe')
+    await answer(r, { channel: 'tnfigueiredo-en' })
+    expect(drawerEl()).toHaveAttribute('data-drawer', 'tnfigueiredo-en')
     expect(drawerEl()).not.toHaveAttribute('aria-busy')
   })
 
@@ -258,7 +260,7 @@ describe('Canais · immediate feedback', () => {
   })
 
   it('at rest nothing says busy and the loading bar is not in the DOM', () => {
-    render(tree({ channel: 'matt-wolfe' }))
+    render(tree({ channel: 'tnfigueiredo-en' }))
     expect(document.querySelector('[aria-busy]')).toBeNull()
     expect(root()).not.toHaveAttribute('data-nav-pending')
     expect(document.querySelector('.cn-navbar')).toBeNull()

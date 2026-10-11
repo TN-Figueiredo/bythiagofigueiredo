@@ -18,10 +18,10 @@ import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/to
 import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrome/sync-context'
 import { noJunkText, oneFilledButton, linkCountsMatch, forbiddenVocabulary, brokenLinks } from './audits'
 
-const replace = vi.fn(), refresh = vi.fn()
+const replace = vi.fn(), refresh = vi.fn(), push = vi.fn(), prefetch = vi.fn()
 let search = ''
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace, refresh, push: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({ replace, refresh, push, prefetch, back: vi.fn() }),
   usePathname: () => '/cms/youtube/competitors',
   useSearchParams: () => new URLSearchParams(search),
 }))
@@ -46,7 +46,7 @@ function destCounts() {
 /** The counter, as read (numbers in mono spans, joined by no-break spaces; the tooltip excluded). */
 const quota = () => [...document.querySelector('.quota')!.childNodes].filter(n => !(n instanceof Element && n.classList.contains('tip'))).map(n => n.textContent).join('').replace(/\u00a0/g, ' ').trim()
 
-beforeEach(() => { replace.mockReset(); refresh.mockReset(); search = '' })
+beforeEach(() => { replace.mockReset(); refresh.mockReset(); push.mockReset(); prefetch.mockReset(); search = '' })
 afterEach(() => document.getElementById('flut')?.remove())
 
 describe('CanaisScreen', () => {
@@ -184,13 +184,13 @@ describe('CanaisScreen', () => {
   })
   it('drawer (below 1280 px = modal): Esc closes it and returns the focus to the row button', async () => {
     const user = userEvent.setup()
-    mount({}, { channel: 'matt-wolfe' })
-    const d = screen.getByRole('dialog', { name: 'Matt Wolfe' })
+    mountOwns('2', {}, { channel: 'tnfigueiredo' })
+    const d = screen.getByRole('dialog', { name: 'tnFigueiredo' })
     expect(d).toHaveAttribute('aria-modal', 'true')
     expect(document.activeElement).toBe(within(d).getByRole('button', { name: 'Fechar detalhes do canal' }))
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('dialog', { name: 'Matt Wolfe' })).toBeNull()
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Abrir detalhes de Matt Wolfe' }))
+    expect(screen.queryByRole('dialog', { name: 'tnFigueiredo' })).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo' }))
     expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors', { scroll: false })
   })
   it('Esc com o menu ⋯ e a gaveta abertos juntos fecha só o menu; o segundo Esc fecha a gaveta', async () => {
@@ -221,12 +221,6 @@ describe('CanaisScreen', () => {
     f[f.length - 1]!.focus()
     await user.tab()
     expect(document.activeElement).toBe(f[0])
-  })
-  it('opening a row puts ?channel= in the URL', async () => {
-    const user = userEvent.setup()
-    mount()
-    await user.click(screen.getByRole('button', { name: 'Abrir detalhes de Luke Damant' }))
-    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?channel=luke-damant', { scroll: false })
   })
   it('removing asks first, saying what is deleted, then calls the action', async () => {
     const user = userEvent.setup()
@@ -297,6 +291,125 @@ describe('CanaisScreen', () => {
 
 
 // Task 35b (canais.html #scrollHint): the sideways-scroll hint appears only when the table really overflows
+describe('CanaisScreen — concorrente leva à página do canal', () => {
+  const CANAL = (id: string) => '/cms/youtube/competitors/canal/' + id
+  const rowOf = (id: string) => document.querySelector<HTMLElement>(`tr.obs-cn-row[data-id="${id}"]`)!
+  it('nome e avatar de um concorrente são link para a página do canal, não botão que abre o painel', () => {
+    mount()
+    const row = rowOf('luke-damant')
+    const a = within(row).getByRole('link', { name: 'Abrir a página de Luke Damant' })
+    expect(a).toHaveAttribute('href', CANAL('luke-damant'))
+    expect(a).toHaveAttribute('title', 'Luke Damant')
+    expect(a.textContent).toBe('Luke Damant')
+    expect(within(row).queryByRole('button', { name: /^Abrir detalhes de/ })).toBeNull()
+    // o avatar leva ao mesmo lugar, fora da ordem de Tab e fora da árvore de acessibilidade (o nome já é o link)
+    const av = row.querySelector<HTMLAnchorElement>('a[data-avatar-link]')!
+    expect(av.getAttribute('href')).toBe(CANAL('luke-damant'))
+    expect(av).toHaveAttribute('tabindex', '-1')
+    expect(av).toHaveAttribute('aria-hidden', 'true')
+    expect(within(row).getAllByRole('link', { name: /Abrir a página de/ })).toHaveLength(1)
+  })
+  it('nos cartões também', () => {
+    mount({}, { layout: 'cards' })
+    const card = document.querySelector<HTMLElement>('article.card[data-id="luke-damant"]')!
+    expect(within(card).getByRole('link', { name: 'Abrir a página de Luke Damant' })).toHaveAttribute('href', CANAL('luke-damant'))
+    expect(within(card).queryByRole('button', { name: /^Abrir detalhes de/ })).toBeNull()
+  })
+  it('clicar no nome de um concorrente não abre o painel nem mexe na URL de Canais', async () => {
+    const user = userEvent.setup()
+    mount()
+    const a = within(rowOf('luke-damant')).getByRole('link', { name: 'Abrir a página de Luke Damant' })
+    a.addEventListener('click', e => e.preventDefault())   // jsdom não navega
+    await user.click(a)
+    expect(replace).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+  it('clicar no resto da linha de um concorrente leva à página do canal (nenhum painel)', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(rowOf('luke-damant').querySelector('td:nth-child(2)')!)
+    expect(push).toHaveBeenCalledWith(CANAL('luke-damant'))
+    expect(replace).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+  it('"Abrir detalhes" do menu da linha de um concorrente leva à página do canal', async () => {
+    const user = userEvent.setup()
+    mount()
+    await user.click(screen.getByRole('button', { name: 'Mais ações para Luke Damant' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Abrir detalhes' }))
+    expect(push).toHaveBeenCalledWith(CANAL('luke-damant'))
+    expect(replace).not.toHaveBeenCalled()
+  })
+  it('nome de canal próprio continua sendo o botão "Abrir detalhes de <nome>" e abre o painel', async () => {
+    const user = userEvent.setup()
+    mountOwns('2')
+    const row = rowOf('tnfigueiredo')
+    expect(within(row).queryByRole('link', { name: /^Abrir a página de/ })).toBeNull()
+    expect(row.querySelector('a[data-avatar-link]')).toBeNull()
+    await user.click(within(row).getByRole('button', { name: 'Abrir detalhes de tnFigueiredo' }))
+    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?channel=tnfigueiredo', { scroll: false })
+    expect(push).not.toHaveBeenCalled()
+  })
+  it('o "?" dos inscritos e o menu da linha continuam na linha do concorrente', () => {
+    mount()
+    const row = rowOf('luke-damant')
+    expect(within(row).getByRole('button', { name: 'Sobre o número de inscritos' })).toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: 'Mais ações para Luke Damant' })).toBeInTheDocument()
+    expect(within(row).getByRole('combobox', { name: 'Nicho de Luke Damant' })).toBeInTheDocument()
+  })
+
+  describe('pré-carga por intenção (D10)', () => {
+    beforeEach(() => { vi.useFakeTimers() })
+    afterEach(() => { vi.runOnlyPendingTimers(); vi.useRealTimers() })
+    const link = (id: string) => within(rowOf(id)).getByRole('link', { name: /^Abrir a página de / })
+    const IDS = ['luke-damant', 'matt-wolfe', 'paddy-doyle', 'vou-sem-volta']
+    it('150 ms de hover chama router.prefetch com o href; antes disso, nada', () => {
+      mount()
+      fireEvent.mouseEnter(link('luke-damant'))
+      vi.advanceTimersByTime(149)
+      expect(prefetch).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(1)
+      expect(prefetch).toHaveBeenCalledTimes(1)
+      expect(prefetch).toHaveBeenCalledWith(CANAL('luke-damant'))
+    })
+    it('150 ms de foco também chama', () => {
+      mount()
+      fireEvent.focus(link('matt-wolfe'))
+      vi.advanceTimersByTime(150)
+      expect(prefetch).toHaveBeenCalledWith(CANAL('matt-wolfe'))
+    })
+    it('sair (mouse ou foco) antes de 150 ms não chama', () => {
+      mount()
+      fireEvent.mouseEnter(link('luke-damant')); vi.advanceTimersByTime(100); fireEvent.mouseLeave(link('luke-damant'))
+      fireEvent.focus(link('matt-wolfe')); vi.advanceTimersByTime(100); fireEvent.blur(link('matt-wolfe'))
+      vi.advanceTimersByTime(1000)
+      expect(prefetch).not.toHaveBeenCalled()
+    })
+    it('no máximo 3 em andamento: o quarto não é pedido enquanto não há vaga, e é pedido na próxima intenção depois que uma termina', async () => {
+      const done: Array<() => void> = []
+      prefetch.mockImplementation(() => new Promise<void>(res => { done.push(res) }))
+      mount()
+      for (const id of IDS) fireEvent.mouseEnter(link(id))
+      vi.advanceTimersByTime(150)
+      expect(prefetch).toHaveBeenCalledTimes(3)
+      expect(prefetch.mock.calls.map(c => c[0])).toEqual(IDS.slice(0, 3).map(CANAL))
+      // uma termina: a vaga volta, e o quarto (mouse ainda em cima) é pedido na próxima intenção
+      done[0]!()
+      await vi.advanceTimersByTimeAsync(0)
+      fireEvent.mouseLeave(link(IDS[3]!)); fireEvent.mouseEnter(link(IDS[3]!))
+      vi.advanceTimersByTime(150)
+      expect(prefetch).toHaveBeenCalledTimes(4)
+      expect(prefetch).toHaveBeenLastCalledWith(CANAL(IDS[3]!))
+    })
+    it('canal próprio não pré-carrega nada (não há página)', () => {
+      mountOwns('2')
+      fireEvent.mouseEnter(screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo' }))
+      vi.advanceTimersByTime(500)
+      expect(prefetch).not.toHaveBeenCalled()
+    })
+  })
+})
+
 describe('CanaisScreen — scroll hint', () => {
   it('absent when the table fits; present when it overflows', () => {
     const { unmount } = mount()

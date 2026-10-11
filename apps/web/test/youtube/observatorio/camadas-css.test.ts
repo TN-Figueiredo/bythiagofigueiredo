@@ -97,6 +97,22 @@ describe('Observatório · tokens das telas novas', () => {
   })
 })
 
+describe('Observatório · contraste do "não medido" no tema claro (WCAG)', () => {
+  const lum = (hex: string) => { const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)); return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! }
+  const contraste = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x! + 0.05) / (y! + 0.05) }
+  const claro = (css: string) => css.match(/\[data-theme="light"\] \[data-obs\]\{([^}]*)\}/g) ?? []
+  const token = (blocos: string[], nome: string) => {
+    for (const b of blocos) { const m = b.match(new RegExp('--' + nome + ':(#[0-9A-Fa-f]{6})')); if (m) return m[1]! }
+    throw new Error('token claro ausente: --' + nome)
+  }
+  const tokens = claro(semComentario(read('_chrome/tokens-telas.css')))
+  const surface = token(claro(semComentario(read('_chrome/chrome.css'))), 'surface')
+  const nm = token(tokens, 'nm'), nmLine = token(tokens, 'nm-line'), nmBg = token(tokens, 'nm-bg')
+  it('--nm sobre --surface >= 4,5', () => { expect(contraste(nm, surface)).toBeGreaterThanOrEqual(4.5) })
+  it('--nm sobre --nm-bg >= 4,5', () => { expect(contraste(nm, nmBg)).toBeGreaterThanOrEqual(4.5) })
+  it('--nm-line sobre --surface >= 3', () => { expect(contraste(nmLine, surface)).toBeGreaterThanOrEqual(3) })
+})
+
 describe('Observatório · tipografia das flutuantes que vieram de dentro da tela', () => {
   it('o painel "Mais filtros" de Mudanças mantém 14px/1.5 que herdava da raiz da tela (a base de #flut é 12.5px/1.45)', () => {
     expect(semComentario(read('_mudancas/mudancas.css'))).toMatch(/#flut \.obs-fl-pop\.mu-more-pop\{font:400 14px\/1\.5 /)

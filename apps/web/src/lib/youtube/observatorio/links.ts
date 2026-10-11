@@ -3,6 +3,23 @@ import type { Fmt } from './types'
 
 export const OBS_BASE = '/cms/youtube/competitors'
 
+export type CanalTab = 'videos' | 'trocas' | 'leitura'
+export type CanalFmt = 'todos' | 'longos' | 'shorts' | 'fixados'
+export type CanalSort = 'recentes' | 'vistos' | 'multiplo' | 'vpd'
+export interface CanalLinkParams {
+  tab?: CanalTab
+  fmt?: CanalFmt
+  sort?: CanalSort
+  dir?: 'asc' | 'desc'
+  q?: string
+  ver?: 'capas' | 'lista'
+  n?: number
+  video?: string
+  nums?: 1
+  from?: 'outliers' | 'mudancas' | 'video'
+  back?: string
+}
+
 /** Object keys that prevent niche= from being included in the query string. */
 const OBJ_KEYS = ['video', 'change', 'changes', 'channel', 'reading'] as const
 
@@ -131,6 +148,30 @@ export const link = {
   },
 
   /**
+   * Link to the competitor channel page. Values equal to the default stay out of the URL;
+   * key order follows CanalLinkParams.
+   */
+  canal(id: string, p?: CanalLinkParams): string {
+    const q: Record<string, unknown> = {}
+    if (p) {
+      if (p.tab && p.tab !== 'videos') q.tab = p.tab
+      if (p.fmt && p.fmt !== 'todos') q.fmt = p.fmt
+      if (p.sort && p.sort !== 'recentes') q.sort = p.sort
+      if (p.dir && p.dir !== 'desc') q.dir = p.dir
+      if (p.q) q.q = p.q
+      if (p.ver && p.ver !== 'capas') q.ver = p.ver
+      if (p.n) q.n = p.n
+      if (p.video) q.video = p.video
+      if (p.nums) q.nums = p.nums
+      if (p.from) {
+        q.from = p.from
+        if (typeof p.back === 'string' && p.back.startsWith('?')) q.back = p.back
+      }
+    }
+    return OBS_BASE + '/canal/' + encodeURIComponent(id) + buildQuery(q)
+  },
+
+  /**
    * Link to video historico screen.
    */
   historico(
@@ -139,9 +180,15 @@ export const link = {
       from?: 'canais' | 'mudancas' | 'outliers' | 'insights'
       back?: string
       ids?: string[]
+      canal?: string
+      troca?: string
     },
   ): string {
-    const cleaned = cleanLink(p)
+    // Fixed key order: from, back, ids, canal, troca (independent of the caller's object order)
+    const ordered: Record<string, unknown> = p
+      ? { from: p.from, back: p.back, ids: p.ids, canal: p.canal, troca: p.troca }
+      : {}
+    const cleaned = cleanLink(ordered)
 
     // Ignore back parameter if it doesn't start with '?'
     if (cleaned.back != null && typeof cleaned.back === 'string' && !cleaned.back.startsWith('?')) {

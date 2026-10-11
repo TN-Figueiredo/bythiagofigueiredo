@@ -1,0 +1,12 @@
+/* A trilha das páginas de dentro de um canal (medidas de canal.css do mockup, rodada 12: .crumbs e .tz). Hex e rgba
+   literais; nenhum color-mix e nenhum z-index. */
+[data-obs] .obs-tr-top{display:flex;justify-content:space-between;align-items:center;gap:4px 12px;flex-wrap:wrap;min-height:26px;margin-bottom:2px}
+[data-obs] .obs-tr-top .crumbs{min-width:0;font-size:13px;color:var(--muted)}
+[data-obs] .obs-tr-top .crumbs ol{display:flex;gap:6px;list-style:none;margin:0;padding:0;flex-wrap:wrap}
+[data-obs] .obs-tr-top .crumbs li{display:flex;align-items:center;min-height:26px}
+[data-obs] .obs-tr-top .crumbs li + li::before{content:"›";margin-right:6px;color:var(--dim)}
+[data-obs] .obs-tr-top .crumbs a{display:inline-flex;align-items:center;min-height:26px;color:var(--muted);text-decoration:none}
+[data-obs] .obs-tr-top .crumbs a:hover{color:var(--text);text-decoration:underline}
+[data-obs] .obs-tr-top .crumbs [aria-current]{color:var(--text)}
+[data-obs] .obs-tr-top .obs-tr-tz{font-size:12.5px;color:var(--muted)}
+@media (pointer:coarse){[data-obs] .obs-tr-top .crumbs a{min-height:44px}}

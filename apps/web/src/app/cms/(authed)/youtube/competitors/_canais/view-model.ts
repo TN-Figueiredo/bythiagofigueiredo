@@ -3,16 +3,17 @@
  * Pure: every number, date and sentence comes from the engine (Observatory). The component only lays it out.
  */
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
+import { viewsMissingText } from '../_chrome/views-text'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { joinLabels, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, Niche, ObsChannel, ObsVideo, SyncState } from '@/lib/youtube/observatorio/types'
 import type { OutlierItem } from '@/lib/youtube/observatorio/outliers'
-import type { EffectResult } from '@/lib/youtube/observatorio/effect'
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
 import { humanizeSyncError, type ChannelStats } from '@/lib/youtube/observatorio/channels'
 import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
 import { langChip, ownTexts, type LangChip } from '../_chrome/own-channels'
+import { effView } from '../_chrome/effect-view'
 
 const NB = ' '
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
@@ -56,6 +57,8 @@ export interface CanaisRow {
   growth: string; growthTitle: string
   sync: { label: string; phrase: string | null; state: SyncState }
   own: boolean
+  /** A página do canal para um concorrente; null para canal próprio, que continua abrindo o painel lateral. */
+  href: string | null
   /** Language mark of an own channel; null for competitors and when the site has a single own channel. */
   lang: LangChip | null
   color: string; ini: string; avatar: string | null; subs: string; subsTip: string; url: string; handle: string; backfill: boolean; paused: boolean
@@ -224,9 +227,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const viewsTxt = (c: ObsChannel, v: ObsVideo): ViewsText => {
     const S = stats(c.id, 'long')
     if (v.views != null) return { num: num(v.views), text: ` views${stale(c, S) ? ',' + stale(c, S) : ''}` }
-    const why = c.sync.state === 'erro' ? 'sincronização do canal com erro' + sinceN(c.sync.errorSince ?? c.sync.last)
-      : c.sync.state === 'atrasado' ? 'sincronização do canal atrasada' + sinceN(c.sync.last) : 'sem registro diário ainda'
-    return { num: null, text: `sem contagem: ${why}` }
+    return { num: null, text: viewsMissingText(c, D.dmhm) }
   }
   const multVs = (m: MultiplierResult) => (m.method === 'mesmo dia de vida' ? 'mesmo dia de vida' : (m.band ?? '').replace(' dias', NB + 'd'))
   const methodText = (m: MultiplierResult) => (m.fallbackText ? cap(m.fallbackText) : 'Método: ' + m.method)
@@ -323,7 +324,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     const sync = syncCell(c, S)
     const outN = obs.outliers({ channel: c.id, fmt, includeOwn: c.own }).count
     return {
-      id: c.id, name: c.name, niche: c.niche, own: c.own, lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
+      id: c.id, name: c.name, niche: c.niche, own: c.own, href: c.own ? null : obs.link.canal(c.id), lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
       outliers: { n: outN, href: obs.link.outliers({ channel: c.id, fmt }) },
       changes: { n: c.own ? 0 : obs.changesIn({ channel: c.id }).length, href: obs.link.mudancas({ channel: c.id }) },
       growth: growth.kind === 'na' ? growth.text : growth.big, growthTitle: growth.kind === 'ok' ? growth.title : growth.kind === 'na' ? growth.title : growth.cap,
@@ -398,30 +399,6 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const drawerDropped = !!dc && p.nicheExplicit === true && niche !== 'todos' && dc.niche != null && dc.niche !== niche
   const drawer = dc && !drawerDropped ? drawerOf(dc) : null
 
-  function effView(e: EffectResult | null): EffectView | null {
-    if (!e) return null
-    const VD: Record<string, [EffectView['vd'], EffectView['icon'], string]> = {
-      ganhou: ['won', 'up', 'Ganhou'], perdeu: ['lost', 'down', 'Perdeu'], neutro: ['neu', 'eq', 'Neutro'], inconclusivo: ['inc', 'q', 'Inconclusivo'],
-      aguardando: ['wait', 'wait', 'Aguardando'], 'sem-serie': ['wait', 'nodata', 'Sem série antes da troca'], 'sem-antes': ['wait', 'nodata', 'Sem base para comparar'],
-    }
-    const V = VD[e.status] ?? ['wait', 'q', e.label]
-    if (e.status === 'aguardando' && e.waitText) return { vd: 'wait', icon: 'wait', label: null, main: [{ t: e.waitText }], sub: null, subWeak: null }
-    if (e.status === 'aguardando') return { vd: 'wait', icon: 'wait', label: 'Aguardando', main: [{ t: `${e.collected ?? 0} de 7 dias coletados, ${e.readyText ?? ''}.` }], sub: e.willBeInconclusive ?? null, subWeak: null }
-    if (e.status === 'sem-serie' || e.status === 'sem-antes') return { vd: V[0], icon: V[1], label: V[2], main: [{ t: e.reason }], sub: null, subWeak: null }
-    const bd = e.beforeDays ?? 0
-    const antes = /antes|anterior/i.test(e.reason || '')
-    const range = e.iqr && e.iqr[0] != null ? ` Intervalo dos outros vídeos: ${F.pct(e.iqr[0])} a ${F.pct(e.iqr[1] ?? null)}.` : ''
-    const meth = e.n ? ` Esperado = variação mediana dos outros vídeos do canal, ${(e.methodFallback && e.fallbackText ? e.fallbackText : `${e.method}, ${e.band}`).replace(/\s*\(n\s*=\s*0\)/, '')}.` : ''
-    const main: EffectView['main'] = e.n
-      ? [{ t: e.numbersFlat ?? e.numbers ?? '', mono: true }, ...(e.effectPp != null ? [{ t: ' · efeito ' }, { t: F.pp(e.effectPp), mono: true }] : [])]
-      : [{ t: 'observado ' }, { t: F.pct(e.observed ?? null), mono: true }, { t: `; ${e.noBaseText ?? ''}` }]
-    return {
-      vd: V[0], icon: V[1], label: V[2], main,
-      sub: `Views/dia, 7 dias depois${antes ? '' : ` vs ${bd} ${bd === 1 ? 'dia' : 'dias'} antes`}.${meth}${range} ${cap(F.lcfirst(e.reason || ''))}`,
-      subWeak: bd < 7 && !antes ? `Antes: ${bd} ${bd === 1 ? 'dia' : 'dias'} (${e.beforeCutBy ? 'desde a troca anterior do mesmo vídeo' : `a coleta por vídeo começou em ${obs.SERIES_START_LABEL}`}).` : null,
-    }
-  }
-
   function drawerOf(c: ObsChannel): DrawerView {
     const bf = isBf(c), empty = ownLongEmpty(c)
     const S = stats(c.id), SL = stats(c.id, 'long'), st = stale(c, SL)
@@ -489,7 +466,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
         } : null,
         thumbNote: thS ? `Horário da thumbnail detectado pela mudança do arquivo da imagem.${thS.revertTo ? ' Voltou a uma versão anterior: sinal de Testar e comparar (teste A/B do YouTube).' : ''}` : null,
         precNote: tS && tS.prec === '1d' ? `Antes de ${obs.SERIES_START_LABEL} a sincronização era diária às ${obs.SYNC.dailyBefore.replace(':00', 'h')}: a troca de título tem janela de 1 dia.` : null,
-        effect: effView(eff), sameNote, histHref: hist(v.id), ytUrl: v.url,
+        effect: effView(obs, eff), sameNote, histHref: hist(v.id), ytUrl: v.url,
       }
     })
     const swapNote = bf ? `${c.sync.added != null ? `Canal adicionado ${D.ago(c.sync.added)}. ` : ''}Trocas são detectadas comparando versões entre sincronizações, então ainda não há o que comparar.${nextSync != null ? ` A primeira detecção possível é na sincronização das ${D.hm(nextSync)}.` : ''}`

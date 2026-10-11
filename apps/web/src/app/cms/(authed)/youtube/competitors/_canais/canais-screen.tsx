@@ -143,6 +143,13 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
 
   const rowButton = (id: string) => document.querySelector<HTMLElement>(`[data-obs-screen="canais"] .nmbtn[data-open="${CSS.escape(id)}"]`)
   const openDrawer = (id: string) => { returnFocus.current = rowButton(id); setMenu(null); setClosedDrawer(null); go({ channel: id, tab: null }, { channel: id }) }
+  /** A row's "open": a competitor has a page of its own (no drawer); an own channel still opens the drawer. */
+  const openRow = (id: string) => {
+    const href = rowOf(id)?.href
+    if (!href) { openDrawer(id); return }
+    setMenu(null)
+    router.push(href)
+  }
   const closeDrawer = useCallback(() => {
     if (!panel) return
     const id = panel.id
@@ -257,7 +264,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     : view.filter === 'problemas' ? <>{view.emptyText} <Link className="btn small link" href={view.problems.clearHref} onClick={e => linkNav(e, view.problems.clearHref, { busy: true })}>Mostrar todos</Link></> : view.emptyLink ? <>{view.emptyText.slice(0, view.emptyText.lastIndexOf(view.emptyLink.text))}<Link className="inl" href={view.emptyLink.href}>{view.emptyLink.text}</Link>.</> : <>{view.emptyText}</>
 
   const h: RowHandlers = {
-    open: openDrawer, niche: (r, n, ctx) => { void setNiche(r, n, ctx) },
+    open: openRow, niche: (r, n, ctx) => { void setNiche(r, n, ctx) },
     menu: id => { if (menu === id) closeMenu(true); else setMenu(id) },
     retry: id => { void syncOne(id) }, remove: askRemove, local: id => local[id], roundRunning: running, upnextHref: UPNEXT, menuFor: menu, selected: panel?.id ?? null,
   }
@@ -389,7 +396,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
 
       {menuRow ? (
         <RowMenu row={menuRow} onClose={closeMenu}
-          onOpen={() => openDrawer(menuRow.id)}
+          onOpen={() => openRow(menuRow.id)}
           onSync={() => { closeMenu(true); void syncOne(menuRow.id) }}
           onYoutube={() => { closeMenu(true); window.open(menuRow.url, '_blank', 'noopener') }}
           onCopy={() => { closeMenu(true); void copyCowork(menuRow) }}

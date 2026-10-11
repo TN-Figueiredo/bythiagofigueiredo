@@ -565,9 +565,13 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const ctx = context()
   function context(): { crumb: string; href: string; ids: string[]; keepIds: string[] | null; of: string; outside: string; sub: { text: string; href: string } | null } {
     const n = ctxNiche, vv = v!
+    // A competitor has a page of its own: the channel item of the trail goes there. Coming from that page (canal=<its id>) it
+    // takes the page's state (`back`, e.g. ?tab=trocas) along; from anywhere else it is the bare page. An own channel has no page.
+    const channelItem = (): { text: string; href: string } | null => (ch.own ? null
+      : { text: ch.name, href: obs.link.canal(vv.ch) + (p.canal === vv.ch && back ? back : '') })
     if (from === 'outliers') {
       const href = backHref('outliers', obs.link.outliers({ niche: userNiche }))
-      if (qids.length) return { crumb: 'Outliers', href, ids: qids, keepIds: qids, of: 'em Outliers, na ordem da lista aberta', outside: 'fora da lista de Outliers aberta', sub: null }
+      if (qids.length) return { crumb: 'Outliers', href, ids: qids, keepIds: qids, of: 'em Outliers, na ordem da lista aberta', outside: 'fora da lista de Outliers aberta', sub: channelItem() }
       // The list Outliers shows for these params (same parser, defaults, age aliases and reading scope as the screen).
       const params: Record<string, string | undefined> = Object.fromEntries(bp)
       if (!params.niche) params.niche = userNiche
@@ -578,7 +582,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       const desc = [q.niche !== 'todos' ? 'nicho ' + obs.nicheLabel(q.niche) : 'todos os nichos', q.fmt === 'short' ? 'Shorts' : 'longos', ageTxt, minTxt,
         q.channel ? obs.channel(q.channel)?.name ?? null : null, q.formula ? obs.formula(q.formula)?.label ?? null : null, q.topic ? (obs.theme(q.topic)?.label ?? q.topic) : null,
         q.reading ? 'escopo da leitura' : null, q.sort === 'vpd' ? 'por views/dia' : q.sort === 'recent' ? 'mais recentes primeiro' : 'por fase'].filter(Boolean).join(', ')
-      return { crumb: 'Outliers', href, ids: ov.pageIds, keepIds: null, of: 'em Outliers (' + desc + ')', outside: 'fora da lista de Outliers (' + desc + ')', sub: null }
+      return { crumb: 'Outliers', href, ids: ov.pageIds, keepIds: null, of: 'em Outliers (' + desc + ')', outside: 'fora da lista de Outliers (' + desc + ')', sub: channelItem() }
     }
     if (from === 'canais') {
       const own = obs.videos.filter(x => x.ch === vv.ch && isObserved(x) && x.fmt === vv.fmt).sort((a, b) => b.pub - a.pub).map(x => x.id)
@@ -589,12 +593,12 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
         href = tabPath(obs, 'canais') + (qs ? '?' + qs : '')
         subHref = tabPath(obs, 'canais') + back!
       } else { href = backHref('canais', obs.link.canais({ niche: userNiche })); subHref = obs.link.canais({ channel: vv.ch }) }
-      return { crumb: 'Canais', href, ids, keepIds: qids.length ? qids : null, sub: { text: ch.name, href: subHref },
+      return { crumb: 'Canais', href, ids, keepIds: qids.length ? qids : null, sub: channelItem() ?? { text: ch.name, href: subHref },
         of: 'de ' + ch.name + ' (' + (vv.fmt === 'short' ? 'Shorts' : 'longos') + ' acompanhados, do mais novo ao mais antigo)', outside: 'fora dos vídeos acompanhados de ' + ch.name }
     }
-    if (from === 'insights') return { crumb: 'Insights', href: backHref('insights', obs.link.insights({ niche: userNiche })), ids: [], keepIds: null, of: '', outside: 'aberto a partir de Insights', sub: null }
+    if (from === 'insights') return { crumb: 'Insights', href: backHref('insights', obs.link.insights({ niche: userNiche })), ids: [], keepIds: null, of: '', outside: 'aberto a partir de Insights', sub: channelItem() }
     const href = backHref('mudancas', obs.link.mudancas({ video: vv.id }))
-    if (qids.length) return { crumb: 'Mudanças', href, ids: qids, keepIds: qids, of: 'em Mudanças, na ordem da lista aberta', outside: 'fora da lista de Mudanças aberta', sub: null }
+    if (qids.length) return { crumb: 'Mudanças', href, ids: qids, keepIds: qids, of: 'em Mudanças, na ordem da lista aberta', outside: 'fora da lista de Mudanças aberta', sub: channelItem() }
     // The list Mudanças shows for these params (same parseFilters, query, search, saved set and sort as the screen).
     const params: Record<string, string | undefined> = Object.fromEntries(bp)
     if (!parseNiche(params.niche)) params.niche = userNiche
@@ -605,7 +609,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       f.fmt !== 'all' && !f.video ? (f.fmt === 'short' ? 'Shorts' : 'longos') : null, f.video ? 'um vídeo' : null,
       f.changes ? F.plural(f.changes.length, 'troca marcada', 'trocas marcadas') : f.win + ' dias', f.measured ? 'só efeito medido' : null,
       f.saved ? 'só salvas' : null, f.q ? 'busca “' + f.q + '”' : null, SL[f.sort] ?? null, F.plural(ordered.length, 'troca', 'trocas')].filter(Boolean).join(', ')
-    return { crumb: 'Mudanças', href, ids, keepIds: null, of: 'com trocas em Mudanças (' + desc + ')', outside: 'fora da lista de Mudanças (' + desc + ')', sub: null }
+    return { crumb: 'Mudanças', href, ids, keepIds: null, of: 'com trocas em Mudanças (' + desc + ')', outside: 'fora da lista de Mudanças (' + desc + ')', sub: channelItem() }
   }
   const k = ctx.ids.indexOf(v.id)
   const navHref = (j: number) => (j < 0 || j >= ctx.ids.length ? null

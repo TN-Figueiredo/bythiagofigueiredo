@@ -67,7 +67,15 @@ export interface SeedOptions {
    * 9 títulos e 3 descrições, todos dentro da janela do oráculo (04/10 a 23/10/2026). Id do oráculo: MANY_VERSIONS_ID.
    */
   manyVersions?: boolean
+  /**
+   * A página do canal (A1, tarefa 10): o canal matt-wolfe, que já tem 259 vídeos além dos `video_limit` acompanhados, ganha os casos
+   * que o oráculo não tem: um vídeo antigo fixado, um vídeo sem data de publicação, um com `is_short` nulo e um com `comment_count`
+   * nulo. As duas trocas no mesmo vídeo já existem (matt-opus55: 3 títulos e 4 thumbnails).
+   */
+  canalCompleto?: boolean
 }
+/** Os ids de oráculo que `canalCompleto` mexe, em matt-wolfe. */
+export const CANAL_COMPLETO = { canal: 'matt-wolfe', fixadoAntigo: 'matt-wolfe-l150', shortNulo: 'matt-wolfe-l5', comentariosNulo: 'matt-wolfe-l6', semData: 'canal-completo-sem-data' } as const
 export type NicheTone = 'ameixa' | 'rosa' | 'lima' | 'ardosia'
 export interface ExtraNiche { slug: string; label: string; tone?: NicheTone; /** concorrentes (ids do oráculo) movidos para o nicho; vazio = nicho recém-criado */ channels?: string[] }
 /** A paleta aprovada dos nichos criados (a do CHECK de youtube_niches e de n-nichos.js), na ordem do ciclo. */
@@ -409,6 +417,15 @@ export async function seedObservatory(siteId: string, opts: SeedOptions = {}, cl
       versionRows.push(versionRow('desc', d, { value_text: text, value_hash: text != null ? sha1(text) : 'sem-texto:' + d.id, has_text: text != null }))
       if (i > 0) changeRows.push(changeRow('description', v.descs[i - 1]!, d, {}))
     })
+  }
+  if (opts.canalCompleto) {
+    const C = CANAL_COMPLETO, byId = (oid: string) => videoRows.find(r => (r as { id: string }).id === ids.get(oid)) as Record<string, unknown> | undefined
+    const fixado = byId(C.fixadoAntigo), curto = byId(C.shortNulo), coment = byId(C.comentariosNulo), base = byId('matt-wolfe-l7')
+    if (!fixado || !curto || !coment || !base) throw new Error('observatorio-seed: canalCompleto precisa dos vídeos de matt-wolfe no oráculo')
+    fixado.pinned_at = iso(O.NOW - 40 * DAY)
+    curto.is_short = null
+    coment.comment_count = null
+    videoRows.push({ ...base, id: U('video', C.semData), video_id: 'semDataCanal1', title: 'Vídeo sem data de publicação no YouTube', published_at: null, is_short: false, view_count: 4200, like_count: 120, comment_count: 9, pinned_at: null })
   }
   await insertAll(sb, 'competitor_videos', videoRows)
   await insertAll(sb, 'competitor_video_versions', versionRows, 2000)

@@ -1,35 +1,18 @@
 // apps/web/e2e/tests/cms/observatorio/canais.spec.ts
 // Fidelity of the Canais screen against the N-own-channels canais.html of 03/10 (its states bar: MOCK at canais.html:887-893),
-// drawer included. The mockup's own channels are picked by URL (?owns=1|2|5|mix|zero), never by the "Seus canais" buttons
+// the drawer of an OWN channel included (a competitor has a page of its own since A1 task 9; its states retired by plan decision D8,
+// the page's fidelity is canal.spec.ts). The mockup's own channels are picked by URL (?owns=1|2|5|mix|zero), never by the "Seus canais" buttons
 // of the states bar (they reload the page). Presets 5 / mix / zero run too: two own channels may share a language (multi-canal).
-// The "Pedido à forja" states of the channel drawer are in forja.spec.ts (CANAIS_FORJA).
 // Every allowance below is one element or one text, scoped to the states it affects, with its ruling.
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
 import { runFidelity, ensureSeeded, type Allow, type MockupState, type ScreenSpec } from './fidelity'
 import type { OwnPreset } from '../../../../test/fixtures/observatorio/own-presets'
-import { CANAIS_TABLE_EXCLUDE, BALD_ROW_SUFFIX_F11, HANDLE_R61, OWN_DRAWER_R60, OWN_DRAWER_R79, ADD_SENTENCE_R62 } from './allowances'
+import { CANAIS_TABLE_EXCLUDE, BALD_ROW_SUFFIX_F11, OWN_DRAWER_R60, OWN_DRAWER_R79, ADD_SENTENCE_R62 } from './allowances'
 
-/** The mockup's drawer channels: [oracle id, state-bar label]. */
-const DRAWERS: Array<[string, string]> = [
-  ['matt-wolfe', 'Matt Wolfe'], ['luke-damant', 'Luke Damant'], ['nomade-raiz', 'Nômade Raiz (teste A/B de thumbnail)'],
-  ['vou-sem-volta', 'Vou sem volta (buscando vídeos)'], ['esq-unltd-daily', 'Esq Unltd (erro)'], ['bald-and-bankrupt', 'bald (parado)'],
-]
-const TABS: Array<[string, string]> = [['trocas', 'Trocas'], ['videos', 'Vídeos'], ['outliers', 'Outliers']]
-
-/**
- * F11 / Task 23 ruling (brief test, CONVENCOES:267): the numbers of a "parado" channel (bald and bankrupt) say "até o
- * registro diário de DD/MM HH:MM"; canais.html prints that suffix only for atrasado/erro. Only in bald's drawer states.
- */
 // R75: with ≤ 5 free slots an admin sees "Destravar mais N vagas" (the +25 unlock works since the F1 fix); canais.html has
 // no wording for it, so the button exists on the implementation side only. Its behaviour is unit-tested (competitor-slots).
 const UNLOCK_R75: Allow = { drop: /Destravar mais \d+ vagas/ }
-const PARADO_SUFFIX_F11: Allow = { drop: / ?,? até o registro diário de 24\/10 12:00(?=,| |$)/ }
-/**
- * The same suffix in the middle of a video's line (drawer · Vídeos: "1,5 mi views, até o registro diário de 24/10
- * 12:00, 0,7× a mediana"): cut with nothing left behind, or the drop's space would stand before the next comma.
- */
-const PARADO_SUFFIX_MID_F11: Allow = { cut: /(?<= views), até o registro diário de 24\/10 12:00(?=, \d)/ }
 
 /** The state with the preset's own channels on both sides: ownPreset in the seed, ?owns= in the mockup URL. */
 const withOwns = (p: OwnPreset, s: MockupState): MockupState => ({
@@ -68,14 +51,10 @@ const BASE_STATES: MockupState[] = [
     // R62: the add action syncs right away, so the dialog says the true sentence (Task 23)
     textAllow: [ADD_SENTENCE_R62],
   },
-  ...DRAWERS.flatMap(([id, label]) => TABS.map(([tab, tabLabel]) => ({
-    label: `Drawer: ${label} · ${tabLabel}`, mockupClicks: [label], mockupTabClicks: [tabLabel], seed: {}, query: `?channel=<channel:${id}>&tab=${tab}`,
-    exclude: HANDLE_R61, ...(id === 'bald-and-bankrupt' ? { textAllow: [PARADO_SUFFIX_MID_F11, PARADO_SUFFIX_F11] } : {}),
-  }))),
   // the niche filter with two own channels, both of Viagem: in IA the group says "nenhum de IA · 2 em outro nicho (aparecem em Todos)"
   { label: 'Filtro Viagem', seed: {}, query: '?niche=viagem', mockupQuery: '?niche=viagem' },
   { label: 'Filtro IA', seed: {}, query: '?niche=ia', mockupQuery: '?niche=ia' },
-  // an own channel's drawer; no HANDLE_R61 here: an own channel has a handle on both sides
+  // an own channel's drawer; an own channel has a handle on both sides
   { label: 'Drawer: tnFigueiredo EN (seu canal) · Trocas', mockupClicks: ['tnFigueiredo EN (seu canal)'], seed: {}, query: '?channel=<own:tnfigueiredo-en>',
     // R60 (FU-5): only the numbers of the drawer's "Views/dia" and "Crescimento, 30 d" stats (allowances.ts)
     // R79: and the coverage line, which must not claim daily views of an own channel

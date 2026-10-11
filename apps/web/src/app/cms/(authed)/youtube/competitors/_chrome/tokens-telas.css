@@ -8,3 +8,7 @@
 /* "não medido": a hachura é a forma, o rosa é o reforço. Sempre com o texto do motivo dentro ou ao lado. */
 [data-obs] .obs-ch-nm{display:inline-block;padding:1px 6px;border:1px solid var(--nm-line);border-radius:4px;color:var(--nm);
   background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,rgba(229,156,192,.14) 6px 8px)}
+
+/* Tema claro: só os tokens que a página do canal usa (plano da A1, D7). Cor a confirmar com o dono. */
+[data-theme="light"] [data-obs]{--nm:#8E2A62;--nm-line:#A85585;--nm-bg:#F7E1EC}
+[data-theme="light"] [data-obs] .obs-ch-nm{background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,rgba(142,42,98,.10) 6px 8px)}

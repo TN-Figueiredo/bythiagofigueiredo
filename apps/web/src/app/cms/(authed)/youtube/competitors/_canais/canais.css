@@ -126,6 +126,7 @@
 [data-obs-screen="canais"] .ch{display:flex;gap:10px;align-items:center;min-width:205px}
 [data-obs-screen="canais"] .av{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:12px;color:#fff;letter-spacing:-.02em}
 [data-obs-screen="canais"] .nmbtn{all:unset;cursor:pointer;font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;display:block;min-height:32px;line-height:32px;margin:-5px 0}
+[data-obs-screen="canais"] .avlink{display:contents}
 [data-obs-screen="canais"] .nmbtn:hover{text-decoration:underline;text-underline-offset:3px}
 [data-obs-screen="canais"] .nmbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
 [data-obs-screen="canais"] .ch .sub{display:flex;align-items:center;gap:6px;margin-top:1px;font-size:12px;color:var(--muted)}

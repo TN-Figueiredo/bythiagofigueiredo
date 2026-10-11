@@ -106,3 +106,29 @@ describe('links', () => {
     expect(link.historico('v1', { back: 'niche=ia' })).toBe('/cms/youtube/competitors/video/v1')
   })
 })
+
+describe('link.canal', () => {
+  it('padrões ficam fora da URL', () => {
+    expect(link.canal('abc')).toBe('/cms/youtube/competitors/canal/abc')
+    expect(link.canal('abc', { tab: 'videos', fmt: 'todos', sort: 'recentes', ver: 'capas', n: 0 })).toBe('/cms/youtube/competitors/canal/abc')
+  })
+  it('estado fora do padrão vai na URL', () => {
+    expect(link.canal('abc', { tab: 'trocas', video: 'v1' })).toBe('/cms/youtube/competitors/canal/abc?tab=trocas&video=v1')
+    expect(link.canal('abc', { fmt: 'fixados', sort: 'vistos', dir: 'asc', q: 'são joão', ver: 'lista', n: 80, nums: 1 }))
+      .toBe('/cms/youtube/competitors/canal/abc?fmt=fixados&sort=vistos&dir=asc&q=s%C3%A3o+jo%C3%A3o&ver=lista&n=80&nums=1')
+  })
+  it('id com caractere especial é codificado', () => {
+    expect(link.canal('a/b?c')).toBe('/cms/youtube/competitors/canal/a%2Fb%3Fc')
+  })
+  it('back só vale começando por "?" e só com from', () => {
+    expect(link.canal('abc', { from: 'outliers', back: '?fmt=short' })).toContain('back=%3Ffmt%3Dshort')
+    expect(link.canal('abc', { from: 'outliers', back: 'https://x' })).not.toContain('back=')
+    expect(link.canal('abc', { back: '?x=1' })).not.toContain('back=')
+  })
+})
+describe('link.historico com origem no canal', () => {
+  it('leva canal e troca', () => {
+    expect(link.historico('v1', { from: 'canais', canal: 'abc', troca: 'chg-9', back: '?fmt=longos' }))
+      .toBe('/cms/youtube/competitors/video/v1?from=canais&back=%3Ffmt%3Dlongos&canal=abc&troca=chg-9')
+  })
+})
