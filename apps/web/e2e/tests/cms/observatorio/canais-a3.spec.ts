@@ -489,32 +489,43 @@ test('A3.2 "Ir até a linha" traz a linha à área visível e põe o foco nela; 
   expect(await page.getByRole('searchbox', { name: 'Buscar canal' }).inputValue()).toBe('')
 })
 
-test('A3.2 a linha presa não cobre o foco: Tab por toda a lista, nenhuma linha em foco fica sob ela', async ({ page }) => {
-  await abrir(page, '?fmt=longos&sort=subs')
-  const max = await page.evaluate(() => { const s = (window as unknown as W).__sc(); return s.scrollHeight - s.clientHeight })
-  await rolarPara(page, Math.round(max / 3))
-  await expect.poll(() => peVisivel(page)).toBe(true)
-  // começa no primeiro botão de nome de canal da tabela
-  await page.locator(`${S}:visible tbody tr.row .nmbtn`).first().focus()
-  let comPin = 0, sobrepostos: string[] = []
-  const passos = 70
-  for (let i = 0; i < passos; i++) {
-    await page.keyboard.press('Tab')
-    const r = await page.evaluate(() => {
-      const a = document.activeElement as HTMLElement | null
-      const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
-      const pin = raiz.querySelector<HTMLElement>('.cn-pin')
-      if (!a || !pin || pin.hidden || !raiz.contains(a) || pin.contains(a)) return null
-      const x = a.getBoundingClientRect(), p = pin.getBoundingClientRect()
-      const cobre = Math.min(x.bottom, p.bottom) - Math.max(x.top, p.top)
-      return { desc: `${a.tagName}.${String(a.className).slice(0, 20)} em ${Math.round(x.top)}..${Math.round(x.bottom)} sob a linha presa ${Math.round(p.top)}..${Math.round(p.bottom)}`, cobre: Math.round(cobre) }
-    })
-    if (r) { comPin++; if (r.cobre > 1) sobrepostos.push(r.desc) }
+/** Quanto do foco a linha presa cobre (px) e outras medidas, para o elemento que está em foco agora; null com a linha presa escondida. */
+const coberturaDoFoco = (page: Page) => page.evaluate(() => {
+  const a = document.activeElement as HTMLElement | null
+  const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
+  const pin = raiz.querySelector<HTMLElement>('.cn-pin')
+  if (!a || !pin || pin.hidden || !raiz.contains(a) || pin.contains(a) || a === document.body) return null
+  const x = a.getBoundingClientRect(), p = pin.getBoundingClientRect(), area = (window as unknown as W).__sc().getBoundingClientRect()
+  return {
+    desc: `${a.tagName}.${String(a.className).slice(0, 20)} em ${Math.round(x.top)}..${Math.round(x.bottom)} sob a linha presa ${Math.round(p.top)}..${Math.round(p.bottom)}`,
+    cobre: Math.round(Math.min(x.bottom, p.bottom) - Math.max(x.top, p.top)),
+    pinH: Math.round(p.height), variavel: raiz.style.getPropertyValue('--cn-pin-cobre'), pinAoPe: Math.round(area.bottom - p.top),
   }
-  medida(`Tab: ${passos} passos, ${comPin} com a linha presa visível; ${sobrepostos.length} focos sob ela${sobrepostos.length ? ': ' + sobrepostos.slice(0, 3).join(' | ') : ''}`)
-  expect(comPin, 'a prova só vale se a linha presa esteve visível em vários passos').toBeGreaterThan(8)
-  expect(sobrepostos).toEqual([])
 })
+for (const largura of [1440, 390] as const) for (const sentido of ['Tab', 'Shift+Tab'] as const) {
+  test(`A3.2 a linha presa não cobre o foco a ${largura} px: ${sentido} por toda a lista, nenhum elemento em foco fica sob ela`, async ({ page }) => {
+    await abrir(page, '?fmt=longos&sort=subs', { width: largura, height: largura === 390 ? 800 : 900 })
+    const max = await page.evaluate(() => { const s = (window as unknown as W).__sc(); return s.scrollHeight - s.clientHeight })
+    const foco = page.locator(`${S}:visible :is(.tablebox, .cards) :is(a, button, select, input, [tabindex]):visible`)
+    // sem linha presa na tela (no topo, com o bloco à vista) o Tab não ganha margem nenhuma
+    await rolarPara(page, 0)
+    await expect.poll(() => peVisivel(page)).toBe(false)
+    expect(await foco.first().evaluate(e => getComputedStyle(e).scrollMarginBottom), 'linha presa escondida: margem zero').toBe('0px')
+    await rolarPara(page, Math.round(max * (sentido === 'Tab' ? 0.3 : 0.8)))
+    await expect.poll(() => peVisivel(page)).toBe(true)
+    await (sentido === 'Tab' ? foco.first() : foco.last()).focus()
+    let comPin = 0; const sobrepostos: string[] = []; const alturas = new Set<number>()
+    const passos = 70
+    for (let i = 0; i < passos; i++) {
+      await page.keyboard.press(sentido)
+      const r = await coberturaDoFoco(page)
+      if (r) { comPin++; alturas.add(r.pinH); if (r.cobre > 1) sobrepostos.push(r.desc) }
+    }
+    medida(`${sentido} a ${largura} px: ${passos} passos, ${comPin} com a linha presa visível (altura ${[...alturas].join('/')} px); ${sobrepostos.length} focos sob ela${sobrepostos.length ? ': ' + sobrepostos.slice(0, 3).join(' | ') : ''}`)
+    expect(comPin, 'a prova só vale se a linha presa esteve visível em vários passos').toBeGreaterThan(8)
+    expect(sobrepostos).toEqual([])
+  })
+}
 
 test('A3.2 I3: reordenar com o canal próprio passando entre "com medida" e "sem medida" não deixa a linha presa visível com a linha do canal à vista', async ({ page }) => {
   // a janela é alta o bastante para ter o cabeçalho e o canal sob o divisor ao mesmo tempo, com o bloco já fora da tela

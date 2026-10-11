@@ -163,15 +163,69 @@ describe('I3: a linha presa observa a linha do canal depois que ela passa entre 
   })
 })
 
-describe('I4 (achado no navegador): o foco por Tab não fica sob a linha presa no pé', () => {
+describe('I4 / I-B (achado no navegador e na revisão): o foco por Tab não fica sob a linha presa no pé, em nenhuma largura', () => {
   // o navegador só rola para revelar o que está fora da área; um controle na faixa que a linha presa cobre já "está à vista". A margem de rolagem
-  // dos controles da lista faz o Tab levá-lo para cima da linha presa. O jsdom não rola: a prova real é o Tab do canais-a3.spec.ts; aqui a regra existe.
+  // dos controles da lista faz o Tab levá-lo para cima da linha presa. O jsdom não rola: a prova real é o Tab do canais-a3.spec.ts (a 1440 e a 390 px,
+  // para frente e para trás). Aqui: a regra de CSS lê a variável, e o componente escreve a altura REAL (e zero quando a linha presa não está na tela).
   const css = fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_canais/canais.css'), 'utf8')
-  it('os controles da tabela e dos cartões têm scroll-margin-bottom que cobre a linha presa (pé de 66 px + 34 px)', () => {
+  it('os controles da tabela e dos cartões leem a margem da variável --cn-pin-cobre (zero sem linha presa), nunca de um número fixo', () => {
     const regra = css.split('\n').find(l => l.includes('scroll-margin-bottom') && l.includes('.tablebox') && l.includes('.cards'))
     expect(regra, 'regra de scroll-margin-bottom para .tablebox e .cards').toBeDefined()
-    const px = Number(/scroll-margin-bottom:\s*(\d+)px/.exec(regra!)?.[1])
-    expect(px).toBeGreaterThanOrEqual(100)
+    expect(regra).toMatch(/scroll-margin-bottom:\s*var\(--cn-pin-cobre,\s*0px\)/)
+    expect(regra).not.toMatch(/scroll-margin-bottom:\s*\d+px/)
+  })
+
+  const rects = new Map<string, Partial<DOMRect>>()
+  let spy: ReturnType<typeof vi.spyOn> | null = null
+  const rodar = (): HTMLElement => document.querySelector<HTMLElement>('[data-obs-screen="canais"]')!
+  const tudoLongeDaTela = (io: FakeIO) => io.cb([...io.alvos].map(t => ({ target: t, isIntersecting: false }) as IntersectionObserverEntry), io as unknown as IntersectionObserver)
+  const montar = () => {
+    vi.stubGlobal('IntersectionObserver', FakeIO)
+    search = 'fmt=longos&sort=subs'
+    rects.clear()
+    // a geometria que o jsdom não tem: a área que rola (main) termina em 900; a linha presa fica a 66 px do pé e tem 32 de altura
+    spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const r = this.classList.contains('cn-pin') ? rects.get('pin') : this.tagName === 'MAIN' ? rects.get('main') : undefined
+      return { x: 0, y: 0, left: 0, right: 0, width: 0, height: 0, top: 0, bottom: 0, toJSON: () => ({}), ...r } as DOMRect
+    })
+    rects.set('main', { top: 0, bottom: 900 }); rects.set('pin', { top: 802, bottom: 834, height: 32 })
+    return render(<main style={{ overflowY: 'auto' }}>{tree(view({ sort: 'subs' }))}</main>)
+  }
+  afterEach(() => { spy?.mockRestore(); spy = null })
+
+  it('com a linha presa à vista, o componente escreve a distância real do topo dela ao pé da área (mais 14 px de folga); escondida, zero', () => {
+    montar()
+    expect(rodar().style.getPropertyValue('--cn-pin-cobre'), 'nasce escondida: zero').toBe('0px')
+    act(() => { FakeIO.vivos.forEach(tudoLongeDaTela) })
+    expect(document.querySelector('.cn-pin')!.hasAttribute('hidden')).toBe(false)
+    expect(rodar().style.getPropertyValue('--cn-pin-cobre')).toBe(`${900 - 802 + 14}px`)
+    // o canal volta à tela: a linha presa some e a margem volta a zero
+    act(() => { FakeIO.vivos.forEach(io => io.cb([...io.alvos].map(t => ({ target: t, isIntersecting: true }) as IntersectionObserverEntry), io as unknown as IntersectionObserver)) })
+    expect(document.querySelector('.cn-pin')!.hasAttribute('hidden')).toBe(true)
+    expect(rodar().style.getPropertyValue('--cn-pin-cobre')).toBe('0px')
+  })
+
+  it('se a linha presa muda de altura (o texto quebra em duas linhas num celular), a margem acompanha', () => {
+    let aviso: ResizeObserverCallback | null = null
+    vi.stubGlobal('ResizeObserver', class { constructor(cb: ResizeObserverCallback) { aviso = cb } observe() {} unobserve() {} disconnect() {} })
+    montar()
+    act(() => { FakeIO.vivos.forEach(tudoLongeDaTela) })
+    expect(rodar().style.getPropertyValue('--cn-pin-cobre')).toBe('112px')
+    rects.set('pin', { top: 762, bottom: 834, height: 72 }) // 72 px a 390 px de janela
+    act(() => { aviso!([], {} as ResizeObserver) })
+    expect(rodar().style.getPropertyValue('--cn-pin-cobre')).toBe(`${900 - 762 + 14}px`)
+  })
+
+  it('sem linha presa na tela (site sem canal próprio) a variável não existe e o Tab não ganha margem', () => {
+    vi.stubGlobal('IntersectionObserver', FakeIO)
+    search = 'fmt=longos'
+    const semDono = a3World(ds => {
+      const own = new Set(ds.channels.filter(c => c.own).map(c => c.id))
+      ds.channels = ds.channels.filter(c => !own.has(c.id)); ds.videos = ds.videos.filter(x => !own.has(x.ch))
+    })
+    render(tree(view({}, semDono.obs)))
+    expect(document.querySelector('.cn-pin')).toBeNull()
+    expect(rodar().style.getPropertyValue('--cn-pin-cobre')).toBe('')
   })
 })
 
