@@ -290,13 +290,13 @@ describe('Lista: grupos, "Carregar mais" e medidas', () => {
     expect(tabela().getAttribute('aria-describedby')).toBe(foot.id)
   })
 
-  it('a linha tem 56 px e a thumbnail 96 px de largura (classes; a medida real é da Tarefa 10)', () => {
+  it('a linha tem 50 px e a thumbnail 80 px de largura (classes; a medida real é da Tarefa 10)', () => {
     mountCanal({ sp: LISTA })
     const r = linhas()[0]!
     expect(r.querySelector('td.v a.cv-tl .cv-tthumb img')).not.toBeNull()
     const css = cssTxt()
-    expect(css).toMatch(/\.cv-lst td\{[^}]*height:56px/)
-    expect(css).toMatch(/\.cv-lst \.cv-tthumb\{[^}]*width:96px/)
+    expect(css).toMatch(/\.cv-lst td\{[^}]*height:50px/)
+    expect(css).toMatch(/\.cv-lst \.cv-tthumb\{[^}]*width:80px/)
   })
 
   it('abaixo de 820 px cada célula carrega o rótulo (data-label) para a pilha', () => {
