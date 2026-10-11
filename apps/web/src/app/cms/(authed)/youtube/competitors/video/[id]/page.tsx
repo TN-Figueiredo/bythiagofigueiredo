@@ -5,6 +5,7 @@ import { openObservatoryPage } from '../../_chrome/page-data'
 import { loadSwipeRows, savedFromRows } from '../../_mudancas/swipe-rows'
 import { buildHistoricoView, historicoTrail } from '../../_historico/view-model'
 import { HistoricoScreen } from '../../_historico/historico-screen'
+import { Pager } from '../../_historico/pager'
 import '../../_historico/historico.css'
 import { askForjaReading, cancelForjaReading } from '../../forja-actions'
 import { pinVideo, unpinVideo } from '../../actions'
@@ -29,8 +30,8 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
   // The frame is only the trail (spec A2.6, emenda 25): no section tabs, no niche bar, in every origin. The trail is the way back for whoever
   // came from Mudanças, Outliers, Insights or a channel page. A video of another niche shows it only beside the channel, in the header.
   return (
-    <TrailChrome crumbs={historicoTrail(view.crumbs)}>
-      <HistoricoScreen view={view} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} onPin={pinVideo} onUnpin={unpinVideo} />
+    <TrailChrome crumbs={historicoTrail(view.crumbs)} aside={view.pager ? <Pager pager={view.pager} naTrilha /> : undefined}>
+      <HistoricoScreen view={view} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} onPin={pinVideo} onUnpin={unpinVideo} pagerNaTrilha />
     </TrailChrome>
   )
 }

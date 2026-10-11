@@ -9,7 +9,7 @@ import { flushSync } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { lembrarUltimoVideo, renovarUltimoVideo } from '../_chrome/ultimo-video'
 import { useAvisoLeituraPublicada, useForjaRefresh } from '../_chrome/use-forja-refresh'
-import { marcarPagerUsado, tomarPagerUsado } from './pager-usado'
+import { marcarPagerUsado, tomarPagerUsado, videoDoHref } from './pager-usado'
 import { currentFlut } from '../_chrome/flut/store'
 import type { HistoricoView, LaneType } from './view-model'
 import type { Hl } from './lanes'
@@ -26,12 +26,14 @@ import type { ForjaAsk, ForjaCancel } from '../_chrome/forja-view-model'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { PinProvider, PinButton, PinMessage, PinChips, PinIcon, type PinAction } from '../_chrome/pin-kit'
 
-/** The video a pager href leads to (`/…/video/<id>?…`). */
-const videoOf = (href: string) => { try { return decodeURIComponent(new URL(href, 'http://x').pathname.split('/').pop() ?? '') } catch { return '' } }
-
 const reduced = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpin }: { view: HistoricoView; onAskForja?: ForjaAsk; onCancelForja?: ForjaCancel; onPin?: PinAction; onUnpin?: PinAction }) {
+/**
+ * `pagerNaTrilha`: a página já pôs o pager na linha da trilha da moldura (mockup aprovado: trilha à esquerda, pager à direita, a mesma linha);
+ * a tela não o desenha de novo, mas continua sendo ela que decide o foco depois de Anterior/Próximo e que atende `[` e `]`, então procura os
+ * botões em toda a moldura (`[data-obs]`), não só na própria raiz.
+ */
+export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpin, pagerNaTrilha = false }: { view: HistoricoView; onAskForja?: ForjaAsk; onCancelForja?: ForjaCancel; onPin?: PinAction; onUnpin?: PinAction; pagerNaTrilha?: boolean }) {
   const [pairK, setPairK] = useState<string | null>(view.defaultPair)
   const [hover, setHover] = useState<Hl | null>(null)
   /** Thumbnail image whose highlight is pinned (image summary); Esc lets it go. */
@@ -45,7 +47,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   const root = useRef<HTMLDivElement>(null)
   // Which pager button (or key) was used and the video it leads to lives OUTSIDE this component (pager-usado.ts): Anterior/Próximo change the
   // `[id]` segment, Next may remount the screen, and a ref would be born empty in the new one.
-  const onPage = useCallback((which: 'prev' | 'next', href: string) => { marcarPagerUsado(which, videoOf(href)) }, [])
+  const onPage = useCallback((which: 'prev' | 'next', href: string) => { marcarPagerUsado(which, videoDoHref(href)) }, [])
   // 30 days is the default (spec 6.4): it leaves the URL; `tudo` is written out. With an arrival the period may have been widened by the
   // change, so every choice (30 included) is written out: without it "30 d" would patch away a `range` that is not there and do nothing.
   const onRange = (id: string) => go({ range: id === '30' && !view.arrival ? null : id })
@@ -88,10 +90,11 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     // the last arrival this video had on screen: coming back to it (a period that holds it again) is not an arrival
     seen.current = { video: view.video?.id, arrival: arrivalKey, last: arrivalKey || (sameVideo ? before.last : '') }
     if (!r || view.state === 'not-found') return
+    const frame = r.closest<HTMLElement>('[data-obs]') ?? r   // the pager may live in the frame's trail row (pagerNaTrilha)
     if (sameVideo && !used && (arrivalKey === '' || arrivalKey === before.last)) return
     // the button that was used, if the video it promised is the one that arrived; when it is gone (end of the list) the other one
     const btn = used && used.to === view.video?.id && view.pager
-      ? r.querySelector<HTMLElement>('[data-pager-' + used.which + ']') ?? r.querySelector<HTMLElement>('[data-pager-prev], [data-pager-next]') : null
+      ? frame.querySelector<HTMLElement>('[data-pager-' + used.which + ']') ?? frame.querySelector<HTMLElement>('[data-pager-prev], [data-pager-next]') : null
     if (btn && view.pager) { btn.focus({ preventScroll: true }); setLive(view.pager.status); return }
     const a = view.arrival
     const mark = a ? r.querySelector<HTMLElement>('[data-arrival]') : null
@@ -111,7 +114,8 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
       if ((e.key !== '[' && e.key !== ']') || e.repeat || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return
       const which = e.key === '[' ? 'prev' : 'next', href = pg[which]
       const r = root.current, at = document.activeElement as HTMLElement | null
-      if (!href || !r || !at || !r.contains(at)) return
+      const frame = r?.closest<HTMLElement>('[data-obs]') ?? r
+      if (!href || !r || !at || !frame || !frame.contains(at)) return
       if (at.matches('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return
       if (at !== r.querySelector('.vhead h2') && !at.closest('[data-pager]')) return
       e.preventDefault()
@@ -184,7 +188,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     <PinProvider onPin={onPin} onUnpin={onUnpin}>
       <div data-obs-screen="historico" data-state={view.state} ref={root}>
         <div className="page">
-          <Pager pager={view.pager} onPage={onPage} />
+          {pagerNaTrilha ? null : <Pager pager={view.pager} onPage={onPage} />}
           {/* DOM order = screen order: thumbnail, title, actions, facts and chips. Only the title (which never changes) is
               before the actions row, so the pin button keeps its rectangle whatever appears below. */}
           <section className="vhead" id="vhead" aria-label="Vídeo">

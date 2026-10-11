@@ -19,7 +19,11 @@ import './trail-chrome.css'
  */
 export interface Crumb { text: string; href?: string; voltaAoCanal?: string }
 
-export function TrailChrome({ crumbs, children }: { crumbs: Crumb[]; children: ReactNode }) {
+/**
+ * `aside` é o que a página põe na linha da trilha, entre ela e a nota de fuso (o pager do Histórico do vídeo, como no mockup aprovado: trilha à
+ * esquerda, pager à direita, a mesma linha). É um elemento já montado pelo servidor; nenhuma função passa por aqui.
+ */
+export function TrailChrome({ crumbs, aside, children }: { crumbs: Crumb[]; aside?: ReactNode; children: ReactNode }) {
   return (
     <div data-obs="" className="obs-ch-root">
       <ToastProvider>
@@ -39,6 +43,7 @@ export function TrailChrome({ crumbs, children }: { crumbs: Crumb[]; children: R
                 })}
               </ol>
             </nav>
+            {aside ? <div className="obs-tr-aside">{aside}</div> : null}
             <span className="obs-tr-tz">Horários em São Paulo</span>
           </div>
           <div className="obs-ch-screen">{children}</div>

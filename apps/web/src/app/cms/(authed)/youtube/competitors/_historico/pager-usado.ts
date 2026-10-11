@@ -24,3 +24,8 @@ export function tomarPagerUsado(): { which: LadoDoPager; to: string } | null {
 export function limparPagerUsado(): void {
   usado = null
 }
+
+/** O vídeo para onde um href do pager leva (`/…/video/<id>?…`). */
+export function videoDoHref(href: string): string {
+  try { return decodeURIComponent(new URL(href, 'http://x').pathname.split('/').pop() ?? '') } catch { return '' }
+}

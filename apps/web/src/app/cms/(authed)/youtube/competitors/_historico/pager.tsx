@@ -8,16 +8,20 @@ import Link from 'next/link'
 import type { PagerView } from './view-model'
 import { HIcon } from './icons'
 import { cliqueSimples } from '../_chrome/clique-simples'
+import { marcarPagerUsado, videoDoHref } from './pager-usado'
 
-export function Pager({ pager, onPage }: { pager: PagerView | null; onPage?: (which: 'prev' | 'next', href: string) => void }) {
+/**
+ * `naTrilha`: o pager mora na linha da trilha (a moldura o recebe por `aside`), sem a linha própria de `.pager-row`. Sem `onPage`, o clique
+ * registra o botão usado direto em `pager-usado.ts` (o registro é de módulo, não da tela: a tela pode nem estar montada ainda).
+ */
+export function Pager({ pager, onPage = (which, href) => marcarPagerUsado(which, videoDoHref(href)), naTrilha = false }: { pager: PagerView | null; onPage?: (which: 'prev' | 'next', href: string) => void; naTrilha?: boolean }) {
   if (!pager) return null
-  return (
-    <div className="pager-row">
+  const corpo = (
       <div className="pager" data-pager="" role="group" aria-label="Vídeos da lista de origem">
         {pager.prev ? <Link className="btn ghost" href={pager.prev} replace={pager.replace} onClick={e => { if (cliqueSimples(e)) onPage?.('prev', pager.prev!) }} aria-label={pager.prevLabel} data-pager-prev=""><HIcon name="prev" />Anterior</Link> : null}
         <span data-pager-pos="">{pager.position}</span>
         {pager.next ? <Link className="btn ghost" href={pager.next} replace={pager.replace} onClick={e => { if (cliqueSimples(e)) onPage?.('next', pager.next!) }} aria-label={pager.nextLabel} data-pager-next="">Próximo<HIcon name="next" /></Link> : null}
       </div>
-    </div>
   )
+  return naTrilha ? corpo : <div className="pager-row">{corpo}</div>
 }

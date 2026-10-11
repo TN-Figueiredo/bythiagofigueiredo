@@ -104,6 +104,36 @@ describe('moldura do Histórico: só a trilha', () => {
     }
   })
 
+  it('o pager mora na linha da trilha (mockup aprovado): um só, dentro de .obs-tr-top, fora da raiz da tela; Próximo e a tecla ] continuam valendo e o foco vai ao botão usado', async () => {
+    const ids = base.videos.filter(v => v.tracked !== false).slice(0, 3).map(v => v.id)
+    const meio = ids[1]!, depois = ids[2]!
+    const sp = { from: 'mudancas', ids: ids.join(',') }
+    const { container, unmount } = await pagina(meio, sp)
+    const todos = container.querySelectorAll('[data-pager]')
+    expect(todos).toHaveLength(1)
+    const pager = todos[0]!
+    expect(pager.closest('.obs-tr-top')).not.toBeNull()
+    expect(pager.closest('[data-obs-screen="historico"]')).toBeNull()
+    expect(pager.closest('.obs-tr-aside')).not.toBeNull()
+    expect(container.querySelector('.pager-row')).toBeNull()
+    // a tecla ] com o foco no título faz o que Próximo faz (a tela procura o pager na moldura, não só na raiz)
+    const h2 = container.querySelector<HTMLElement>('.vhead h2')!
+    h2.focus()
+    fireEvent.keyDown(h2, { key: ']' })
+    expect(nav.replace).toHaveBeenCalledTimes(1)
+    expect(new URL(nav.replace.mock.calls[0]![0] as string, 'http://x').pathname.endsWith('/' + depois)).toBe(true)
+    // o clique registra o botão usado; o vídeo seguinte (outra árvore, como no Next) põe o foco nele e o status lê a posição
+    fireEvent.click(container.querySelector<HTMLElement>('[data-pager-next]')!)
+    unmount()
+    const r2 = await pagina(depois, sp)
+    await act(async () => { await Promise.resolve() })
+    const prev = r2.container.querySelector<HTMLElement>('[data-pager-prev]')!
+    // no fim da lista o Próximo some: o foco vai ao outro botão (como a tela sempre fez)
+    expect(r2.container.querySelector('[data-pager-next]')).toBeNull()
+    expect(document.activeElement).toBe(prev)
+    expect(r2.container.querySelector('#hv-live')!.textContent).toMatch(/^Vídeo 3 de 3: /)
+  })
+
   it('vídeo não encontrado: a mesma moldura, a trilha de volta e o cartão "Vídeo não encontrado"', async () => {
     const back = '?fmt=longos&sort=views'
     for (const [sp, esperada] of [
