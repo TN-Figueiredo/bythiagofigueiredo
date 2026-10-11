@@ -389,7 +389,8 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const HR = obs.RULES.history
   const trocaFound: ObsChange | null = observed && p.troca ? changes.find(c => c.id === p.troca && obs.effect(c.id) != null) ?? null : null
   const askedRange: RangeId | null = isRangeId(p.range) ? p.range : null
-  const rangeId: RangeId = askedRange ?? (trocaFound ? rangeFor(trocaFound.at, now) : RANGE_DEFAULT)
+  // without a chart there is no selector to widen the period again, so a video outside the tracked ones shows ALL it has stored
+  const rangeId: RangeId = !observed ? 'tudo' : askedRange ?? (trocaFound ? rangeFor(trocaFound.at, now) : RANGE_DEFAULT)
   /** The period opened wider than the default only because of the change (no explicit `range`): the screen says why. */
   const widenedBy = askedRange == null && trocaFound != null && rangeId !== RANGE_DEFAULT
   const t0 = rangeStart(rangeId, pub, now), cut = t0 > pub, fromH = cut ? hx(t0) : 0

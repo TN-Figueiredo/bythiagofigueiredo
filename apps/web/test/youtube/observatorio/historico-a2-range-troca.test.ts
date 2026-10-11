@@ -70,6 +70,44 @@ describe('período: 30 dias por padrão', () => {
       expect([n.state, n.chart, n.range, n.arrival]).toEqual(['not-found', null, null, null])
     }
   })
+  it('vídeo FORA dos acompanhados mostra o histórico inteiro: versões e trocas com mais de 30 dias continuam na tela, com ou sem range na URL', () => {
+    // título trocado há 70 e há 60 dias; a última conferência (ds.now) é de hoje, então tudo isto é anterior ao período padrão
+    const w = canalWorld(ds => setTitles(ds, V.untr, [ds.now - 70 * DAY, ds.now - 60 * DAY]))
+    const base = JSON.stringify(hv(V.untr, {}, w.obs))
+    const real = changesOf(V.untr, w.obs)
+    expect(real.length).toBe(2)
+    expect(real.every(c => w.obs.effect(c.id) != null && w.obs.NOW - c.at > 30 * DAY)).toBe(true)
+    // sem gráfico não há seletor nem chegada: nem `range=` nem uma troca= REAL (e antiga) mudam a tela; o guarda de `troca=` e o período
+    // do vídeo sem gráfico são os dois que esta afirmação protege (apagar qualquer um muda o JSON)
+    const entradas = [{}, { range: '7' }, { range: 'abc' }, { range: '30' }, { range: 'tudo' }, ...real.map(c => ({ troca: c.id })), ...real.map(c => ({ troca: c.id, range: '7' }))]
+    for (const p of entradas) {
+      const v = hv(V.untr, p, w.obs)
+      expect([JSON.stringify(p), v.state, v.range, v.chart]).toEqual([JSON.stringify(p), 'untr', null, null])
+      expect([JSON.stringify(p), JSON.stringify(v)]).toEqual([JSON.stringify(p), base])
+      const titulos = v.versions!.titles.items
+      expect(titulos.length).toBeGreaterThanOrEqual(3)
+      expect(titulos.every(t => t.inRange)).toBe(true)
+      const faixa = v.lanes.find(l => l.type === 'title')!
+      expect(faixa.versions.length).toBe(titulos.length)
+      expect(faixa.versions.every(x => x.inRange)).toBe(true)
+      expect(faixa.markers.length).toBeGreaterThanOrEqual(2)
+      expect(faixa.markers.every(m => m.inRange)).toBe(true)
+    }
+  })
+  it('vídeo fora dos acompanhados cuja última conferência é antiga (>30 dias): a versão atual e as raias não somem', () => {
+    const w = canalWorld(ds => {
+      setTitles(ds, V.untr, [ds.now - 90 * DAY, ds.now - 80 * DAY])
+      // a última conferência do vídeo ficou para trás
+      const t = ds.videos.find(x => x.id === V.untr)!.titles
+      t[t.length - 1]!.last_seen = ds.now - 45 * DAY
+    })
+    const v = hv(V.untr, {}, w.obs)
+    expect(v.state).toBe('untr')
+    const titulos = v.versions!.titles.items
+    expect(titulos.length).toBeGreaterThanOrEqual(3)
+    expect(titulos.every(t => t.inRange)).toBe(true)
+    expect(v.lanes.find(l => l.type === 'title')!.versions.every(x => x.inRange)).toBe(true)
+  })
   it('a faixa "antes de 03/10, sem registro" continua no gráfico de 30 dias', () => {
     const v = hv(V.pre)
     expect(v.range!.cut).toBe(true)
