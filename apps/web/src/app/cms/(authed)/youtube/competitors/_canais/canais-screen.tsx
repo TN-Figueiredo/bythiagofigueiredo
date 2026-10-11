@@ -318,7 +318,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     if (!p || view.sort !== p.sort || view.dir !== p.dir) return
     pedidoOrd.current = null
     const dono = view.pe ? view.list.ranked.find(r => r.id === view.pe!.canalId) ?? view.list.unranked.find(r => r.id === view.pe!.canalId) : null
-    setAnuncioOrd(`${view.sortNote}.${dono ? ' ' + fraseSeuCanal(dono.pos, view.conjunto) : ''}`)
+    setAnuncioOrd(`${view.sortNote}.${dono ? ' ' + fraseSeuCanal(dono.pos, view.conjunto, dono.semMedida) : ''}`)
   }, [view])
   const onSort = (k: CanaisSort) => {
     const asc = sort === k && dir === 'desc'
@@ -443,8 +443,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           </div>
 
           {layout === 'table'
-            ? <ChannelTable view={view} ranked={ranked} unranked={unranked} h={h} onSort={onSort} empty={empty} busy={listBusy} busySort={listBusy ? opt.sort : undefined} />
-            : <ChannelCards view={view} ranked={ranked} unranked={unranked} h={h} empty={empty} busy={listBusy} />}
+            ? <ChannelTable view={view} ranked={ranked} unranked={unranked} buscando={!!ql} h={h} onSort={onSort} empty={empty} busy={listBusy} busySort={listBusy ? opt.sort : undefined} />
+            : <ChannelCards view={view} ranked={ranked} unranked={unranked} buscando={!!ql} h={h} empty={empty} busy={listBusy} />}
 
           <div className="legend">
             <span><i aria-hidden="true" /> vídeo longo</span>
@@ -454,7 +454,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           </div>
           {view.pe ? (
             <PePreso pe={view.pe} topoRef={topoRef} linha={() => linhasRef.current.get(view.pe!.canalId) ?? null}
-              versao={`${layout}|${[...ranked, ...unranked].some(r => r.id === view.pe!.canalId) ? 'na-tela' : 'fora'}`}
+              versao={`${layout}|${ranked.some(r => r.id === view.pe!.canalId) ? 'com-medida' : unranked.some(r => r.id === view.pe!.canalId) ? 'sem-medida' : 'fora'}`}
               onIr={() => irAte(view.pe!.canalId)} onTopo={voltarAoTopo} />
           ) : null}
         </div>

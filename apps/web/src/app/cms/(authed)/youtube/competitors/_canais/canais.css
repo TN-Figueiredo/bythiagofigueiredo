@@ -113,11 +113,8 @@
 [data-obs-screen="canais"] thead th:first-child,[data-obs-screen="canais"] .tablebox thead th:nth-child(2){z-index:2;background:var(--surface-2)}
 [data-obs-screen="canais"] tbody td:first-child{background:var(--surface)}
 [data-obs-screen="canais"] tbody tr.row:hover td:first-child{background:var(--surface-hover)}
-[data-obs-screen="canais"] tr.group td{background:var(--surface-2);padding:7px 0;font-size:12.5px;color:var(--muted);border-bottom:1px solid var(--border)}
-[data-obs-screen="canais"] .cardsep .gin{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
 [data-obs-screen="canais"] tr.group .gin{position:sticky;left:0;display:inline-flex;align-items:center;gap:8px;padding:0 12px;flex-wrap:wrap}
 [data-obs-screen="canais"] tr.group strong{color:var(--text);font-weight:600}
-[data-obs-screen="canais"] tr.group .flag{display:inline-flex;align-items:center;gap:4px}
 [data-obs-screen="canais"] tr.you td{background:var(--you-row)}
 [data-obs-screen="canais"] tr.you td:first-child{box-shadow:inset 3px 0 0 var(--you);background:var(--you-cell)}
 [data-obs-screen="canais"] tr.you:hover td{background:var(--you-row)}
@@ -138,8 +135,6 @@
    variáveis vêm no style do elemento (niche-editor.tsx nicheStyle); o preenchimento é rgba literal, nunca color-mix. */
 [data-obs-screen="canais"] .niche.custom{background-color:var(--obs-sw-dark-subtle);color:var(--obs-sw-dark)}
 [data-theme="light"] [data-obs-screen="canais"] .niche.custom{background-color:var(--obs-sw-light-subtle);color:var(--obs-sw-light)}
-[data-obs-screen="canais"] .dot.custom{--obs-niche:var(--obs-sw-dark)}
-[data-theme="light"] [data-obs-screen="canais"] .dot.custom{--obs-niche:var(--obs-sw-light)}
 [data-obs-screen="canais"] .niche option{color:#231C14;background:#FBF7F0}
 [data-obs-screen="canais"] .youtag,[data-obs-screen="canais"] .langtag{white-space:nowrap;flex:none}
 [data-obs-screen="canais"] .nmrow{display:flex;align-items:center;gap:7px;min-width:0;max-width:163px}

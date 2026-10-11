@@ -34,8 +34,8 @@ function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }
   )
 }
 
-export function ChannelCards({ view, ranked, unranked, h, empty, busy }: { view: CanaisView; ranked: CanaisRow[]; unranked: CanaisRow[]; h: RowHandlers; empty: React.ReactNode; busy?: boolean }) {
-  const semConcorrente = !ranked.some(r => !r.own) && !unranked.some(r => !r.own)
+export function ChannelCards({ view, ranked, unranked, buscando, h, empty, busy }: { view: CanaisView; ranked: CanaisRow[]; unranked: CanaisRow[]; buscando: boolean; h: RowHandlers; empty: React.ReactNode; busy?: boolean }) {
+  const semConcorrente = buscando ? ranked.length + unranked.length === 0 : !ranked.some(r => !r.own) && !unranked.some(r => !r.own)
   return (
     <div className="cards" aria-busy={busy || undefined}>
       {ranked.map(r => <Card key={r.id} r={r} h={h} view={view} />)}

@@ -526,6 +526,7 @@ const vizinhosDe = (txt: string) => ({
 describe('A3.3 acréscimos da revisão: ordem crescente, texto da célula, empate escrito, "de N"', () => {
   it('I1: ordenar em ordem CRESCENTE não inverte a posição: mesma posição e mesmo total em asc e desc, contra o oráculo; os vizinhos trocam de lado', () => {
     const obs = BASE.obs
+    let vizinhosComparados = 0
     for (const niche of ['todos', 'viagem'] as const) for (const { sort, scale, fmt } of COMBOS) {
       const d = view({ niche, sort, scale, fmt, dir: 'desc' }), a = view({ niche, sort, scale, fmt, dir: 'asc' })
       const ids = obs.channels.filter(c => niche === 'todos' || c.niche === niche).map(c => c.id)
@@ -542,9 +543,12 @@ describe('A3.3 acréscimos da revisão: ordem crescente, texto da célula, empat
           const vd = vizinhosDe(l.vizinhos), va = vizinhosDe(la.vizinhos)
           expect(va.acima?.[0] ?? null).toBe(vd.abaixo?.[0] ?? null)
           expect(va.abaixo?.[0] ?? null).toBe(vd.acima?.[0] ?? null)
+          // null === null passaria sem comparar nada: só conta quando ao menos um vizinho foi lido de verdade
+          if (vd.acima || vd.abaixo) vizinhosComparados++
         }
       }
     }
+    expect(vizinhosComparados, 'vizinhos realmente lidos e trocados de lado').toBeGreaterThan(10)
   })
   it('I2: o valor da frase do bloco e dos vizinhos é o texto que a CÉLULA mostra (Inscritos e Views/dia, nas duas escalas, em Longos, Shorts e Todos)', () => {
     let conferidos = 0

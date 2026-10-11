@@ -14,6 +14,7 @@ import { CanaisScreen } from '@/app/cms/(authed)/youtube/competitors/_canais/can
 import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
 import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrome/sync-context'
 import { forbiddenVocabulary } from './audits'
+import { motivoTexto } from '@/app/cms/(authed)/youtube/competitors/_canais/posicao-model'
 import type { Observatory } from '@/lib/youtube/observatorio'
 
 const replace = vi.fn(), refresh = vi.fn(), push = vi.fn(), prefetch = vi.fn()
@@ -139,7 +140,9 @@ describe('A3.3 a lista única na tabela', () => {
     // sem ninguém sem medida, sem divisor
     const w = a3World(ds => { ds.channels = ds.channels.filter(c => c.id !== 'vou-sem-volta'); ds.videos = ds.videos.filter(x => x.ch !== 'vou-sem-volta') })
     const v2 = view({}, w.obs)
-    if (v2.list.unranked.length === 0) { const { container: c2 } = mount({}, w.obs); expect(c2.querySelector('[data-divisor]')).toBeNull() }
+    expect(v2.list.unranked.length, 'o mundo sem o canal sem medida não tem ninguém sem medida').toBe(0)
+    const { container: c2 } = mount({}, w.obs)
+    expect(c2.querySelector('[data-divisor]')).toBeNull()
   })
   it('uma linha ordenada SEM posição (canal próprio sem nicho num nicho escolhido) desenha sem quebrar, com "sem posição" e um traço visível', () => {
     const w = a3World(undefined, 'mix')
@@ -371,7 +374,10 @@ describe('A3.3 busca e ordenação', () => {
     await user.click(container.querySelector<HTMLElement>('thead th[data-k="growth"] button')!)
     const vC = view({ niche: 'viagem', sort: 'growth' })
     rerender(tree(vC))
-    expect(st().textContent).toBe(`${vC.sortNote}. Seu canal ainda sem medida nesta coluna.`)
+    // o canal TEM medida em Crescimento e só não há posição escrita: o anúncio diz o mesmo que o bloco e o cartão (motivoTexto), não "sem medida"
+    const donoC = vC.list.ranked.find(r => r.id === vC.pe!.canalId) ?? vC.list.unranked.find(r => r.id === vC.pe!.canalId)!
+    expect(st().textContent).toBe(`${vC.sortNote}. ${motivoTexto(donoC.semMedida ?? 'ordenacao-sem-posicao')}`)
+    expect(st().textContent).not.toContain('ainda sem medida nesta coluna')
   })
   it('nenhum elemento novo é buscado por document.getElementById (a árvore escondida do Voltar teria o mesmo id)', async () => {
     const user = userEvent.setup()

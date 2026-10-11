@@ -55,8 +55,8 @@ function Row({ r, h, todos, ordenacaoComPosicao }: { r: CanaisRow; h: RowHandler
   )
 }
 
-export function ChannelTable({ view, ranked, unranked, h, onSort, empty, busy, busySort }: {
-  view: CanaisView; ranked: CanaisRow[]; unranked: CanaisRow[]; h: RowHandlers; onSort: (k: CanaisSort) => void
+export function ChannelTable({ view, ranked, unranked, buscando, h, onSort, empty, busy, busySort }: {
+  view: CanaisView; ranked: CanaisRow[]; unranked: CanaisRow[]; /** Há busca: o vazio só aparece quando nenhuma linha (própria ou não) restou. */ buscando: boolean; h: RowHandlers; onSort: (k: CanaisSort) => void
   /** A frase de vazio; aparece sob as linhas quando não sobra nenhum concorrente (filtro, busca ou nicho sem canais). */
   empty: React.ReactNode
   /** A navigation that changes these numbers or their order is in flight: the rows are the previous ones. */
@@ -68,7 +68,7 @@ export function ChannelTable({ view, ranked, unranked, h, onSort, empty, busy, b
   const box = useRef<HTMLDivElement>(null)
   const todos = view.fmt === 'todos'
   const ordenacaoComPosicao = temPosicao(view.sort)
-  const semConcorrente = !ranked.some(r => !r.own) && !unranked.some(r => !r.own)
+  const semConcorrente = buscando ? ranked.length + unranked.length === 0 : !ranked.some(r => !r.own) && !unranked.some(r => !r.own)
   const [overflow, setOverflow] = useState(false)
   useEffect(() => {
     const el = box.current

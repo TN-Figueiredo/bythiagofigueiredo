@@ -222,7 +222,8 @@ describe('A3.1 duas medidas', () => {
     expect(cartao(semVideos).textContent).not.toMatch(/Shorts\s*sem vídeos/)
     // um canal com os dois formatos continua com os quatro rótulos
     const comAmbos = conc.find(c => c.id !== semShorts && c.id !== semVideos && w.ds.videos.some(v => v.ch === c.id && v.fmt === 'short' && v.tracked))
-    if (comAmbos) expect(rotulos(comAmbos.id)).toContain('Shorts')
+    expect(comAmbos, 'o mundo tem um canal com longos e Shorts acompanhados').toBeDefined()
+    expect(rotulos(comAmbos!.id)).toContain('Shorts')
   })
   it('Todos: a ressalva de dado velho ("até o registro diário de DD/MM") aparece em texto na célula de views/dia, não só no title', () => {
     const alvo = BASE.ds.channels.find(c => !c.own && c.sync.state !== 'backfill')!.id
