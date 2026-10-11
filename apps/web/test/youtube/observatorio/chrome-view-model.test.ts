@@ -3,10 +3,18 @@ import { describe, it, expect } from 'vitest'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildChromeView, coworkText, syncResultToast } from '@/app/cms/(authed)/youtube/competitors/_chrome/view-model'
+import { ownMenuOf } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
 
 const obs = createObservatory(datasetFromOracle(loadOracle()))
 
 describe('chrome view model', () => {
+  it('owns: os canais próprios do site para o atalho "Meu canal", os mesmos em toda aba e em todo nicho (o nicho não esconde o canal próprio)', () => {
+    const esperado = ownMenuOf(obs)
+    expect(esperado.itens.length).toBeGreaterThan(0)
+    for (const tab of ['canais', 'mudancas', 'outliers', 'insights'] as const) for (const niche of ['todos', 'viagem', 'ia'] as const) {
+      expect(buildChromeView(obs, { tab, niche }).owns).toEqual(esperado)
+    }
+  })
   it('"Definir nicho dos canais" opens the niche editor on Canais (?nicheEditor=1)', () => {
     expect(buildChromeView(obs, { tab: 'mudancas', niche: 'ia' }).nicheEditorHref).toBe('/cms/youtube/competitors?nicheEditor=1')
   })

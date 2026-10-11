@@ -1,5 +1,6 @@
 import { link } from '@/lib/youtube/observatorio/links'
 import { openObservatoryPage } from '../_chrome/page-data'
+import { ownMenuOf } from '../_chrome/own-menu'
 import type { ObsSearchParams } from '../_chrome/resolve-niche'
 import { TrailChrome } from '../_chrome/trail-chrome'
 import { CompararScreen } from '../_comparar/comparar-screen'
@@ -24,7 +25,7 @@ export default async function CompararPage({ searchParams }: { searchParams: Pro
   const pack = buildCompararPack(obs)
   const inicial = resolverPar(pack, primeiro(sp?.a), primeiro(sp?.b))
   return (
-    <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: 'Comparar' }]}>
+    <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: 'Comparar' }]} owns={ownMenuOf(obs)}>
       <CompararScreen pack={pack} inicial={inicial} />
     </TrailChrome>
   )

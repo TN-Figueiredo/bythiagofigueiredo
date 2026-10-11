@@ -67,6 +67,8 @@ export interface CanaisRow {
   own: boolean
   /** A página do canal para um concorrente; null para canal próprio, que continua abrindo o painel lateral. */
   href: string | null
+  /** "Comparar" com o canal próprio principal (D16); null em canal próprio e quando o site não tem canal próprio com vídeos. `label` é o nome acessível. */
+  comparar: { href: string; label: string } | null
   /** Language mark of an own channel; null for competitors and when the site has a single own channel. */
   lang: LangChip | null
   color: string; ini: string; avatar: string | null; subs: string; subsTip: string; url: string; handle: string; backfill: boolean; paused: boolean
@@ -142,6 +144,8 @@ export interface CanaisView {
   sort: CanaisSort; dir: 'asc' | 'desc'; sortNote: string; vpdUnit: string
   /** A lista única (A3): os canais próprios na posição deles entre os concorrentes, em qualquer filtro de nicho. */
   list: CanaisLista
+  /** A coluna "Com o meu canal" (e o link dos cartões) existe só quando há um canal próprio com vídeos para comparar. */
+  compararColuna: boolean
   /** O conjunto em que a posição é contada: o nicho escolhido, ou todos os canais do site (emenda 45). */
   conjunto: Conjunto
   /** O aviso da posição geral (emenda 45); null dentro de um nicho. */
@@ -287,6 +291,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   /* ---------------------------------------------------------------- own channels (canais.html:620-627) */
   const allOwns = obs.ownChannels() // R73: subscribers, largest first
   const many = allOwns.length > 1, T = ownTexts(many)
+  // "o meu canal" de "Comparar": o primeiro canal próprio COM vídeos na ordem do motor (D16); sem ele não há com quem comparar
+  const comVideos = new Set(obs.videos.filter(v => allOwns.some(o => o.id === v.ch)).map(v => v.ch))
+  const principal = allOwns.find(o => comVideos.has(o.id)) ?? null
 
   /* ---------------------------------------------------------------- slots */
   const { used, limit, free } = obs.channelSlots(p.limit)
@@ -441,7 +448,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     const outN = obs.outliers({ channel: c.id, fmt, includeOwn: c.own }).count
     const valor = valoresOf(c), pos = posMap.get(c.id) ?? null
     return {
-      id: c.id, name: c.name, niche: c.niche, own: c.own, href: c.own ? null : obs.link.canal(c.id), lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
+      id: c.id, name: c.name, niche: c.niche, own: c.own, href: c.own ? null : obs.link.canal(c.id),
+      comparar: !c.own && principal ? { href: obs.link.comparar(principal.id, c.id), label: `Comparar ${c.name} com o meu canal` } : null,
+      lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
       outliers: { n: outN, href: obs.link.outliers({ channel: c.id, fmt }) },
       changes: { n: c.own ? 0 : obs.changesIn({ channel: c.id }).length, href: obs.link.mudancas({ channel: c.id }) },
       growth: growth.kind === 'na' ? growth.text : growth.big, growthTitle: growth.kind === 'ok' ? growth.title : growth.kind === 'na' ? growth.title : growth.cap,
@@ -709,6 +718,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     sortNote: `Ordenado por ${SORTNAME[sort]}${sort === 'vpd' ? (rel ? ' por mil inscritos' : ' em número absoluto') : ''}, ${dir === 'desc' ? 'maior' : 'menor'} primeiro${todos && (sort === 'vpd' || sort === 'active' || sort === 'outliers') ? '; ordenado pelos longos' : ''}`,
     vpdUnit: rel ? `por mil inscritos, mediana ${window}` : `mediana dos vídeos, ${window}`,
     own: { many, block: ownBlock },
+    compararColuna: principal != null,
     drawer, drawerDropped, filter, addOpen: p.add === '1', nicheEditorOpen: p.nicheEditor === '1',
     niche, nicheLabel,
     problems: { n: np, filterHref: obs.link.canais({ filter: 'problemas', fmt: filtro }), clearHref: obs.link.canais({ fmt: filtro }) },

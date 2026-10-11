@@ -3,7 +3,7 @@
 import type { CanaisRow, CanaisView } from './view-model'
 import { CadenceView, ChCell, GrowthView, OutView, SwapView, SyncView, VpdView } from './cells'
 import { fraseDoCartao, motivoTexto, temPosicao } from './posicao-model'
-import type { RowHandlers } from './channel-table'
+import { CompararLink, type RowHandlers } from './channel-table'
 
 /** A frase do canal próprio no cartão: a posição na ordenação atual, ou o motivo de não ter. Concorrente não tem a frase. */
 function Voce({ r, view }: { r: CanaisRow; view: CanaisView }) {
@@ -30,6 +30,7 @@ function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }
         <div><div className="l">Trocas, 30{' '}d</div><SwapView c={c.swap} /></div>
         <div className="sync"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} /></div>
       </div>
+      {r.comparar ? <div className="cmp-card"><CompararLink r={r} texto="Comparar com o meu canal" /></div> : null}
       {r.own ? null : <div><button type="button" className="btn small" data-menu={r.id} aria-haspopup="menu" aria-expanded={h.menuFor === r.id} onClick={() => h.menu(r.id)}>Mais ações</button></div>}
     </article>
   )

@@ -26,11 +26,11 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
   const [{ id }, sp] = await Promise.all([params, searchParams])
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
-  const { obs, siteId } = await openChannelPage(id)
+  const { obs, siteId, owns } = await openChannelPage(id)
   const view = obs ? buildCanalView(obs, id, flat) : null
   if (!obs || !view) {
     return (
-      <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: 'Canal não encontrado' }]}>
+      <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: 'Canal não encontrado' }]} owns={owns}>
         <CanalNotFound canaisHref={link.canais()} />
       </TrailChrome>
     )
@@ -41,8 +41,8 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
   // Só a aba Leitura lê o conjunto do site (o do canal não tem o que agrega entre canais, como forja.niches); as outras abas não pagam por isso.
   const leitura = view.state.tab === 'leitura' ? await leituraDoNicho(view.header.niche, view.header.nicheLabel) : null
   return (
-    <TrailChrome crumbs={[{ text: view.origemText, href: view.canaisHref }, { text: view.header.name }]}>
-      <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin={canAdmin} leitura={leitura}
+    <TrailChrome crumbs={[{ text: view.origemText, href: view.canaisHref }, { text: view.header.name }]} owns={owns}>
+      <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin={canAdmin} leitura={leitura} compararHref={owns.principal ? link.comparar(owns.principal.id, id) : null}
         actions={{ onSyncOne: syncCompetitorNow, onRemove: removeCompetitorChannel, onRemovalImpact: getCompetitorRemovalImpactAction, onSetNiche: setChannelNiche, onPin: pinVideo, onUnpin: unpinVideo }} />
     </TrailChrome>
   )

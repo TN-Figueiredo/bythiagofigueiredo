@@ -10,6 +10,8 @@ import { ToastProvider } from './toasts'
 import { marcarVoltaPelaTrilha, renovarUltimoVideo } from './ultimo-video'
 import { cliqueSimples } from './clique-simples'
 import { esperarVoltaAoCanal } from '../_canal/use-rolagem-ao-voltar'
+import { MeuCanal } from './meu-canal'
+import type { OwnMenu } from './own-menu'
 import './trail-chrome.css'
 
 /**
@@ -23,7 +25,14 @@ export interface Crumb { text: string; href?: string; voltaAoCanal?: string }
  * `aside` é o que a página põe na linha da trilha, entre ela e a nota de fuso (o pager do Histórico do vídeo, como no mockup aprovado: trilha à
  * esquerda, pager à direita, a mesma linha). É um elemento já montado pelo servidor; nenhuma função passa por aqui.
  */
-export function TrailChrome({ crumbs, aside, children }: { crumbs: Crumb[]; aside?: ReactNode; children: ReactNode }) {
+export function TrailChrome({ crumbs, aside, owns, atual, children }: {
+  crumbs: Crumb[]; aside?: ReactNode
+  /** Os canais próprios do site para o atalho "Meu canal" (spec 15.2), à direita da trilha. Dado simples; sem canal próprio (ou sem o dado) a trilha fica sem o atalho. */
+  owns?: OwnMenu | null
+  /** O id do canal próprio cuja página está aberta (o item do menu leva aria-current="page"). */
+  atual?: string
+  children: ReactNode
+}) {
   return (
     <div data-obs="" className="obs-ch-root">
       <ToastProvider>
@@ -43,6 +52,7 @@ export function TrailChrome({ crumbs, aside, children }: { crumbs: Crumb[]; asid
                 })}
               </ol>
             </nav>
+            {owns ? <MeuCanal owns={owns} atual={atual} /> : null}
             {aside ? <div className="obs-tr-aside">{aside}</div> : null}
             <span className="obs-tr-tz">Horários em São Paulo</span>
           </div>

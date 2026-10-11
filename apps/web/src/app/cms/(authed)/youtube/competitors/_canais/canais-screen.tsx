@@ -30,6 +30,7 @@ import { NicheEditorDialog, NicheOptionsContext, NichePendingContext, type Niche
 import { Ic, Tip, type LocalSync } from './cells'
 import { OwnBlockView } from './own-block'
 import { PePreso } from './pe-preso'
+import { useFocoAoVoltar } from '../_chrome/gatilho-volta'
 import { fraseSeuCanal } from './posicao-model'
 import { comportamentoDeRolagem, contentorQueRola } from './rolagem'
 import './canais.css'
@@ -91,6 +92,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   /** O bloco "Seus canais" e as linhas dos canais próprios, achados por ref: a árvore antiga da rota fica escondida no DOM depois do Voltar. */
   const topoRef = useRef<HTMLElement | null>(null)
   const linhasRef = useRef(new Map<string, HTMLElement>())
+  // o Voltar da comparação põe o foco no "Comparar" que a pessoa usou (spec 3; D18)
+  useFocoAoVoltar('canais', telaRef, (id, raiz) => [...raiz.querySelectorAll<HTMLElement>('a[data-comparar]')].find(a => a.dataset.comparar === id) ?? null)
   const [irPendente, setIrPendente] = useState<string | null>(null)
   const [closedDrawer, setClosedDrawer] = useState<string | null>(null)
   const [addClosed, setAddClosed] = useState(false)

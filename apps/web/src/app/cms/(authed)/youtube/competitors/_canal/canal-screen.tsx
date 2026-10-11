@@ -18,6 +18,7 @@ import { viewerSoAtual } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 import { PinProvider, type PinAction } from '../_chrome/pin-kit'
 import { useToast } from '../_chrome/toasts'
 import { chegouPelaTrilha, esquecerUltimoVideo, lembrarSaida, lerUltimoVideo, type UltimoVideo } from '../_chrome/ultimo-video'
+import { lerGatilho } from '../_chrome/gatilho-volta'
 import { RemoveDialog } from '../_canais/remove-dialog'
 import { NicheOptionsContext, NichePendingContext, type NichePending } from '../_canais/niche-editor'
 import type { NicheOption } from '../_canais/view-model'
@@ -278,7 +279,11 @@ function AbaVideos({ view, state, lista, set, nome, channelId, onSync, onAmpliar
   )
 }
 
-export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view: CanalView; niches: NicheOption[]; canAdmin: boolean; leitura: ReactNode | null; actions: CanalActions }) {
+export function CanalScreen({ view, niches, canAdmin, leitura, actions, compararHref = null }: {
+  view: CanalView; niches: NicheOption[]; canAdmin: boolean; leitura: ReactNode | null; actions: CanalActions
+  /** A comparação deste canal com o canal próprio principal (D16), montada pelo servidor; null = sem canal próprio com vídeos (sem o botão "Comparar com o meu canal"). */
+  compararHref?: string | null
+}) {
   const router = useRouter(), toast = useToast()
   const h = view.header
   const [state, set] = useCanalState(view.state)
@@ -318,6 +323,8 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
     })
   }
   const aoVoltar = () => {
+    // o Voltar da comparação (spec 3, tabela de entradas): o foco volta ao botão "Comparar com o meu canal" do cabeçalho, o gatilho que a pessoa usou
+    if (lerGatilho('canal') === h.id) { raiz.current?.querySelector<HTMLElement>('[data-comparar-canal]')?.focus({ preventScroll: true }); return }
     const reg = lerUltimoVideo(h.id)
     if (!reg) return
     esquecerUltimoVideo(h.id)
@@ -450,7 +457,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
     <NicheOptionsContext.Provider value={niches}>
       <NichePendingContext.Provider value={pending}>
         <div data-obs-screen="canal" ref={raiz} onClickCapture={guardarSaida}>
-          <CanalHeader h={h} nums={nums} syncing={syncing} canAdmin={canAdmin} menuBtnRef={menuBtn}
+          <CanalHeader h={h} nums={nums} syncing={syncing} canAdmin={canAdmin} menuBtnRef={menuBtn} compararHref={compararHref}
             onToggleNums={toggleNums} onSync={() => { void syncOne() }} onAskRemove={() => setConfirm(true)} onNiche={n => { void setNiche(n) }} />
           <AbasNav view={view} state={state} resumo={resumo} onAba={irParaAba} />
           {h.sync.banner ? <Banner text={h.sync.banner} tone={h.sync.tone} /> : null}

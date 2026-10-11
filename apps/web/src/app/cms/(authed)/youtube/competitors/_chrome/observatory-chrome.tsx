@@ -14,6 +14,7 @@ import { Freshness } from './freshness'
 import { Tabs } from './tabs'
 import { NicheBar, NICHE_BAR_FIXED } from './niche-bar'
 import { Menu } from './menu'
+import { MeuCanal } from './meu-canal'
 import { ToastProvider, useToast } from './toasts'
 import { ChromeSyncContext } from './sync-context'
 import { Icon } from './icons'
@@ -199,6 +200,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
             <Link className="obs-ch-btn" href={view.addHref} title="Adicionar canal">
               {Icon.plus()}<span className="obs-ch-lbl-t">Adicionar canal</span>
             </Link>
+            <MeuCanal owns={view.owns} />
             <Menu
               open={pop === 'menu'} focusAt={menuAt} btnRef={menuBtn}
               cowork={view.cowork} nicheEditorHref={view.nicheEditorHref} onOpenNicheEditor={onOpenNicheEditor}

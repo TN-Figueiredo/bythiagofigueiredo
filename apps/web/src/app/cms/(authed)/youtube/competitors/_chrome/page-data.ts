@@ -11,6 +11,10 @@ import { rowsToDataset, type ObservatoryRows } from '@/lib/youtube/observatorio/
 import { loadChannelDataset, loadPageRows } from '@/lib/youtube/observatorio/load-page'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { parseNiche, type NicheScope } from '@/lib/youtube/observatorio/niche'
+import { loadOwnMenuRows } from '@/lib/youtube/observatorio/own-menu'
+import { createFmt } from '@/lib/youtube/observatorio/fmt'
+import { createClock } from '@/lib/youtube/observatorio/time'
+import { ownMenuFromRows, type OwnMenu } from './own-menu'
 
 export interface ObservatoryPage<T> {
   siteId: string; now: number; rows: ObservatoryRows; obs: Observatory
@@ -34,22 +38,29 @@ export async function openObservatoryPage<T = undefined>(extra?: (siteId: string
   return { siteId, now, rows, obs: createObservatory(rowsToDataset(rows, now)), savedNiche: parseNiche(pref.data?.niche) ?? 'todos', extra: more }
 }
 
-export interface ChannelPage { siteId: string; now: number; obs: Observatory | null; canEdit: boolean }
+export interface ChannelPage {
+  siteId: string; now: number; obs: Observatory | null; canEdit: boolean
+  /** Os canais próprios do site para o atalho "Meu canal": o conjunto de um canal lança em `ownChannels`, então vêm de uma leitura leve. Existe também quando o canal não foi encontrado. */
+  owns: OwnMenu
+}
 
 /**
  * Entry of the channel page. The access check comes FIRST (same two exits as openObservatoryPage); only then is the
  * one-channel dataset read. `obs` null = the id is not a channel of this site (unknown, removed, another site's): the page
  * says so inside its frame, with status 200, and nothing is thrown or sent to Sentry. A failed read still throws.
  * `canEdit` is the edit permission of the site (the page asks the admin permission on top of it for what only admins do).
+ * `owns`: the own channels of the site (light read, same guard, in parallel with the channel's set); a failed read throws, it never becomes an empty menu.
  */
 export async function openChannelPage(channelId: string): Promise<ChannelPage> {
   const { siteId } = await getSiteContext()
   const access = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
   if (!access.ok) redirect(access.reason === 'unauthenticated' ? '/cms/login' : '/?error=insufficient_access')
   const now = observatoryNow()
-  const [ds, edit] = await Promise.all([
+  const [ds, edit, ownRows] = await Promise.all([
     loadChannelDataset(siteId, channelId, now),
     requireSiteScope({ area: 'cms', siteId, mode: 'edit' }),
+    loadOwnMenuRows(siteId),
   ])
-  return { siteId, now, obs: ds ? createObservatory(ds) : null, canEdit: edit.ok }
+  const obs = ds ? createObservatory(ds) : null
+  return { siteId, now, obs, canEdit: edit.ok, owns: ownMenuFromRows(ownRows, obs ? obs.fmt : createFmt(createClock(now, now, now))) }
 }

@@ -29,7 +29,7 @@ function actions(over: Partial<CanalActions> = {}): CanalActions {
     ...over,
   }
 }
-function mount(o: { mut?: (ds: Dataset, id: string) => void; sp?: Record<string, string | undefined>; canAdmin?: boolean; act?: CanalActions } = {}) {
+function mount(o: { mut?: (ds: Dataset, id: string) => void; sp?: Record<string, string | undefined>; canAdmin?: boolean; act?: CanalActions; compararHref?: string | null } = {}) {
   const { obs, chId } = canalWorld(o.mut)
   const view = buildCanalView(obs, chId, o.sp ?? {})!
   const act = o.act ?? actions()
@@ -41,7 +41,7 @@ function mount(o: { mut?: (ds: Dataset, id: string) => void; sp?: Record<string,
   window.history.replaceState(null, '', window.location.pathname + us)
   const r = render(
     <ToastProvider><div data-obs="">
-      <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin={o.canAdmin ?? true} leitura={null} actions={act} />
+      <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin={o.canAdmin ?? true} leitura={null} actions={act} compararHref={o.compararHref ?? null} />
     </div></ToastProvider>,
   )
   return { ...r, view, act, obs, chId }
@@ -273,7 +273,11 @@ describe('cabeçalho do canal', () => {
     expect(a.onRemove).not.toHaveBeenCalled()
   })
 
-  it('"Comparar com o meu canal" não existe nesta fase (D4)', () => {
+  it('"Comparar com o meu canal" (o lugar que a A1 reservou, D4) existe quando o servidor manda o destino, ao lado de "Abrir no YouTube", e some sem ele', () => {
+    const href = link.comparar('proprio', 'matt-wolfe')
+    const a = mount({ compararHref: href })
+    expect(screen.getByRole('link', { name: 'Comparar com o meu canal' }).getAttribute('href')).toBe(href)
+    a.unmount(); cleanup()
     const { container } = mount()
     expect(screen.queryByText(/Comparar com o meu canal/)).toBeNull()
     expect(container.textContent).not.toMatch(/Comparar/)

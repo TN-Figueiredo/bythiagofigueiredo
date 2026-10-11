@@ -1,9 +1,12 @@
 'use client'
 /** Table view of Canais (port of canais.html thead + renderBody rows and group rows). */
+import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import type { CanaisRow, CanaisSort, CanaisView } from './view-model'
 import { temPosicao } from './posicao-model'
+import { cliqueSimples } from '../_chrome/clique-simples'
+import { lembrarGatilho } from '../_chrome/gatilho-volta'
 import { CadenceView, ChCell, GrowthView, OutView, SwapView, SyncView, Tip, VpdView, type LocalSync } from './cells'
 
 export interface RowHandlers {
@@ -31,7 +34,16 @@ function PosCell({ r, ordenacaoComPosicao }: { r: CanaisRow; ordenacaoComPosicao
   return <td className="p num"><span className="sr">sem posição</span>{ordenacaoComPosicao ? <span aria-hidden="true">–</span> : null}</td>
 }
 
-function Row({ r, h, todos, ordenacaoComPosicao }: { r: CanaisRow; h: RowHandlers; todos: boolean; ordenacaoComPosicao: boolean }) {
+/** "Comparar" é um link visível (spec 15.2): a única ação própria da coluna. O nome acessível diz de quem; o clique simples lembra o gatilho para o Voltar devolver o foco. */
+export function CompararLink({ r, texto }: { r: CanaisRow; texto: string }) {
+  if (!r.comparar) return null
+  return (
+    <Link className="cmpl" href={r.comparar.href} aria-label={r.comparar.label} data-comparar={r.id}
+      onClick={e => { if (cliqueSimples(e)) lembrarGatilho('canais', r.id) }}>{texto}</Link>
+  )
+}
+
+function Row({ r, h, todos, ordenacaoComPosicao, comparar }: { r: CanaisRow; h: RowHandlers; todos: boolean; ordenacaoComPosicao: boolean; comparar: boolean }) {
   const c = r.cells
   return (
     <tr className={`row obs-cn-row ${r.own ? 'you' : ''} ${h.selected === r.id ? 'sel' : ''}`} data-id={r.id}
@@ -45,6 +57,7 @@ function Row({ r, h, todos, ordenacaoComPosicao }: { r: CanaisRow; h: RowHandler
       <td><SwapView c={c.swap} /></td>
       <td className="r grow c-hide"><GrowthView c={c.growth} /></td>
       <td className="sync c-hide"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} /></td>
+      {comparar ? <td className="cmp">{r.own ? <><span aria-hidden="true">–</span><span className="sr">seu canal, sem comparação</span></> : <CompararLink r={r} texto="Comparar" />}</td> : null}
       <td>{r.own ? null : (
         <button type="button" className="more" aria-label={`Mais ações para ${r.name}`} aria-haspopup="menu" aria-expanded={h.menuFor === r.id} data-menu={r.id}
           onClick={e => { e.stopPropagation(); h.menu(r.id) }}>
@@ -103,15 +116,16 @@ export function ChannelTable({ view, ranked, unranked, buscando, h, onSort, empt
             )
           })}
           <th scope="col" className="c-hide">Sincronização <Tip label="Sobre a cobertura" left>{view.syncTip}</Tip><span className="unit">e vídeos acompanhados</span></th>
+          {view.compararColuna ? <th scope="col" className="cmp">Com o meu canal</th> : null}
           <th scope="col"><span className="sr">Ações</span></th>
         </tr></thead>
         <tbody>
-          {ranked.map(r => <Row key={r.id} r={r} h={h} todos={todos} ordenacaoComPosicao={ordenacaoComPosicao} />)}
+          {ranked.map(r => <Row key={r.id} r={r} h={h} todos={todos} ordenacaoComPosicao={ordenacaoComPosicao} comparar={view.compararColuna} />)}
           {view.list.divisor && unranked.length ? (
-            <tr className="group" data-divisor=""><th scope="rowgroup" colSpan={9}><span className="gin"><strong>{view.list.divisor.titulo.replace(/\(\d+\)$/, `(${unranked.length})`)}</strong><small>{view.list.divisor.nota}</small></span></th></tr>
+            <tr className="group" data-divisor=""><th scope="rowgroup" colSpan={view.compararColuna ? 10 : 9}><span className="gin"><strong>{view.list.divisor.titulo.replace(/\(\d+\)$/, `(${unranked.length})`)}</strong><small>{view.list.divisor.nota}</small></span></th></tr>
           ) : null}
-          {unranked.map(r => <Row key={r.id} r={r} h={h} todos={todos} ordenacaoComPosicao={ordenacaoComPosicao} />)}
-          {semConcorrente ? <tr><td colSpan={9} style={{ padding: '28px 14px', color: 'var(--muted)' }}>{empty}</td></tr> : null}
+          {unranked.map(r => <Row key={r.id} r={r} h={h} todos={todos} ordenacaoComPosicao={ordenacaoComPosicao} comparar={view.compararColuna} />)}
+          {semConcorrente ? <tr><td colSpan={view.compararColuna ? 10 : 9} style={{ padding: '28px 14px', color: 'var(--muted)' }}>{empty}</td></tr> : null}
         </tbody>
       </table>
     </div>

@@ -849,3 +849,182 @@ test('medidas: altura do bloco "Seus canais" com dois canais próprios e com um'
     ids = seedIdsOf(await ensureSeeded(SEED2))
   }
 })
+
+/* ================================================================== A3 Tarefa 10: as entradas da comparação e o atalho "Meu canal" */
+const NOME_DO_PRIMEIRO_PROPRIO = 'tnFigueiredo'
+const compararDe = (page: Page, canal: string) => tela(page).locator(`a[data-comparar="${canal}"]`).first()
+const focoComparar = (page: Page) => page.evaluate(() => (document.activeElement as HTMLElement | null)?.getAttribute('data-comparar') ?? null)
+const naComparacao = (page: Page) => page.locator('[data-obs-screen="comparar"]:visible table').first()
+const atalhoMeuCanal = (page: Page) => page.locator('[data-meu-canal] button:visible').first()
+const menuMeuCanal = (page: Page) => page.locator('#flut [role="menu"][aria-label], #flut [role="menu"]').filter({ hasText: 'Meus canais' }).first()
+
+test('A3.10 "Comparar" numa linha abre a comparação com o par certo; o Voltar devolve a lista com o foco no "Comparar" daquela linha', async ({ page }) => {
+  await abrir(page, '?fmt=longos&sort=subs')
+  const leo = ids.channel('leo-khev')
+  const alvo = compararDe(page, leo)
+  await expect(alvo).toHaveText('Comparar')
+  await expect(alvo).toHaveAttribute('aria-label', 'Comparar Leo Khev com o meu canal')
+  await expect(alvo).toHaveAttribute('href', `${ROTA}/comparar?a=${idDoPrimeiroProprio()}&b=${leo}`)
+  // o canal próprio não tem a ação: a célula dele não promete nada
+  await expect(donoLinha(page).locator('a[data-comparar]')).toHaveCount(0)
+  await alvo.scrollIntoViewIfNeeded()
+  await page.evaluate(() => { (window as unknown as { __mole: boolean }).__mole = true }) // marcador: navegação do cliente, sem recarregar
+  const antes = await rolagem(page)
+  await alvo.click()
+  await page.waitForURL(u => u.pathname === `${ROTA}/comparar`, { timeout: 60_000 })
+  expect(param(page, 'a')).toBe(idDoPrimeiroProprio()); expect(param(page, 'b')).toBe(leo)
+  await naComparacao(page).waitFor({ timeout: 60_000 })
+  await page.waitForLoadState('networkidle')
+  await page.goBack()
+  await page.waitForURL(u => u.pathname === ROTA, { timeout: 30_000 })
+  await expect.poll(() => focoComparar(page), { timeout: 20_000, message: 'o foco volta ao "Comparar" da linha' }).toBe(leo)
+  const depois = await rolagem(page)
+  medida(`tabela: rolagem antes do clique ${antes}, depois do Voltar ${depois}; foco em "Comparar" de Leo Khev`)
+  expect(await page.evaluate(() => (window as unknown as { __mole?: boolean }).__mole), 'foi navegação do cliente').toBe(true)
+  // o gatilho vale um Voltar só: ir adiante e voltar de novo não repete o foco num lugar errado
+  expect(await page.evaluate(() => window.sessionStorage.getItem('obs:gatilho-comparar'))).toBeNull()
+})
+
+test('A3.10 nos cartões (390 px) o link diz "Comparar com o meu canal"; abre a comparação e o Voltar devolve o foco ao cartão', async ({ page }) => {
+  await abrir(page, '?fmt=longos&sort=subs&layout=cards', { width: 390, height: 844 })
+  const leo = ids.channel('leo-khev')
+  const alvo = compararDe(page, leo)
+  await expect(alvo).toHaveText('Comparar com o meu canal')
+  await expect(alvo).toHaveAttribute('aria-label', 'Comparar Leo Khev com o meu canal')
+  await expect(tela(page).locator('article.you a[data-comparar]')).toHaveCount(0)
+  await alvo.scrollIntoViewIfNeeded()
+  const c = await caixa(alvo)
+  medida(`cartão: "Comparar com o meu canal" ${c.w} x ${c.h} px, x ${c.x}..${c.right}`)
+  expect(c.right).toBeLessThanOrEqual(390)
+  await alvo.click()
+  await page.waitForURL(u => u.pathname === `${ROTA}/comparar`, { timeout: 60_000 })
+  expect(param(page, 'a')).toBe(idDoPrimeiroProprio()); expect(param(page, 'b')).toBe(leo)
+  await naComparacao(page).waitFor({ timeout: 60_000 })
+  await page.goBack()
+  await page.waitForURL(u => u.pathname === ROTA, { timeout: 30_000 })
+  await expect.poll(() => focoComparar(page), { timeout: 20_000 }).toBe(leo)
+})
+
+for (const fmt of ['longos', 'shorts', 'todos'] as const) {
+  test(`A3.10 a tabela continua SEM rolagem horizontal a 1440 px em ${fmt}, com a coluna "Com o meu canal" inteira no invólucro`, async ({ page }) => {
+    await abrir(page, `?fmt=${fmt}&sort=subs`)
+    const m = await medirTabela(page)
+    // a largura que a tabela PEDE (mínimo do conteúdo), medida com a tabela espremida; o invólucro deixa uma folga
+    const natural = await page.evaluate(() => {
+      const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
+      const t = raiz.querySelector<HTMLElement>('table')!, antes = t.style.width
+      t.style.width = '1px'; const w = t.offsetWidth; t.style.width = antes
+      return w
+    })
+    const col = await page.evaluate(() => {
+      const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
+      const box = raiz.querySelector<HTMLElement>('.tablebox')!.getBoundingClientRect()
+      const th = raiz.querySelector<HTMLElement>('thead th.cmp')!
+      const links = [...raiz.querySelectorAll<HTMLElement>('tbody td.cmp a')]
+      const fora = links.filter(a => { const b = a.getBoundingClientRect(); return b.left < box.left || b.right > box.right }).length
+      return { th: th.textContent?.trim(), w: Math.round(th.getBoundingClientRect().width), links: links.length, fora, textos: [...new Set(links.map(a => a.textContent))] }
+    })
+    medida(`${fmt} 1440: invólucro ${m.box} px, tabela ${m.tabela} px (scrollWidth ${m.scroll}); LARGURA NATURAL (mínimo do conteúdo) ${natural} px, folga ${m.box - natural} px; coluna "${col.th}" ${col.w} px; ${col.links} links "Comparar" (${col.fora} fora do invólucro); colunas ${m.colunas}`)
+    expect(col.th).toBe('Com o meu canal')
+    expect(col.links).toBeGreaterThan(5); expect(col.fora).toBe(0); expect(col.textos).toEqual(['Comparar'])
+    expect(m.scroll, 'a tabela cabe: o invólucro não rola na horizontal').toBeLessThanOrEqual(m.box)
+    expect(natural, 'a tabela pede menos que o invólucro').toBeLessThanOrEqual(m.box)
+    expect(m.hint, 'sem rolagem interna não há a dica "Role a tabela"').toBe(false)
+    expect(m.cortes).toEqual([])
+    expect(m.docRola).toBe(false); expect(m.mainRola).toBe(false)
+    await page.screenshot({ path: path.join(SHOTS, `t10-lista-${fmt}-1440.png`) })
+  })
+}
+
+test('A3.10 o gráfico de ritmo da tabela, em 100 px, mostra as 13 semanas inteiras (nada cortado)', async ({ page }) => {
+  await abrir(page, '?fmt=longos&sort=subs')
+  const r = await page.evaluate(() => {
+    const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
+    const svg = raiz.querySelector<SVGSVGElement>('tbody tr.row .cad > svg')!
+    const b = svg.getBoundingClientRect()
+    const barras = [...svg.querySelectorAll('rect')].map(x => x.getBoundingClientRect()).filter(x => x.width > 0)
+    return { w: Math.round(b.width), h: Math.round(b.height), viewBox: svg.getAttribute('viewBox'), foraDoSvg: barras.filter(x => x.right > b.right + 0.5 || x.left < b.left - 0.5).length, barras: barras.length }
+  })
+  medida(`gráfico de ritmo na tabela: ${r.w} x ${r.h} px, viewBox ${r.viewBox}, ${r.barras} barras, ${r.foraDoSvg} fora do desenho`)
+  expect(r.viewBox).toBe('0 0 130 30'); expect(r.w).toBe(100); expect(r.foraDoSvg).toBe(0)
+  // nos cartões continua com 130 px
+  await abrir(page, '?fmt=longos&sort=subs&layout=cards')
+  const c = await page.evaluate(() => Math.round(([...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!.querySelector('.cards .cad > svg') as SVGSVGElement).getBoundingClientRect().width))
+  expect(c).toBe(130)
+})
+
+test('A3.10 o atalho "Meu canal" na lista: abre na camada flutuante, por cima da tabela; setas andam; Esc fecha e devolve o foco; o item leva ao canal; "Ver meus canais" leva à lista', async ({ page }) => {
+  await abrir(page, '?fmt=longos&sort=subs')
+  const b = atalhoMeuCanal(page)
+  await expect(b).toHaveAccessibleName(`Meu canal: ${NOME_DO_PRIMEIRO_PROPRIO}`)
+  await expect(b.locator('xpath=ancestor::*[contains(@class,"obs-ch-actions")]')).toHaveCount(1) // no grupo de ações do cabeçalho
+  const add = page.locator('[data-obs-chrome] .obs-ch-actions a[title="Adicionar canal"]').first()
+  const cb = await caixa(b), ca = await caixa(add)
+  medida(`atalho no cabeçalho: ${cb.w} x ${cb.h} px em x ${cb.x}; "Adicionar canal" termina em ${ca.right}; o atalho começa em ${cb.x}`)
+  expect(cb.x, 'ao lado de "Adicionar canal"').toBeGreaterThanOrEqual(ca.right - 1)
+  expect(cb.right).toBeLessThanOrEqual(1440)
+  await b.click()
+  const m = menuMeuCanal(page)
+  await expect(m).toBeVisible()
+  const cm = await caixa(m)
+  expect(cm.x).toBeGreaterThanOrEqual(0); expect(cm.right).toBeLessThanOrEqual(1440); expect(cm.bottom).toBeLessThanOrEqual(900)
+  // por cima de tudo: o ponto do meio do menu pertence ao menu (a tabela não o corta) e o primeiro item tem o foco
+  const topo = await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('#flut'), { x: cm.x + cm.w / 2, y: cm.y + cm.h / 2 })
+  expect(topo, 'o menu é o elemento de cima no ponto do meio dele').toBe(true)
+  const itens = m.locator('[role="menuitem"]')
+  await expect(itens).toHaveCount(3) // dois canais com vídeos e "Ver meus canais"
+  await expect(itens.nth(0)).toBeFocused()
+  await expect(itens.nth(0)).toContainText(NOME_DO_PRIMEIRO_PROPRIO)
+  await expect(itens.nth(0)).toContainText('vídeos')
+  await page.keyboard.press('ArrowDown'); await expect(itens.nth(1)).toBeFocused()
+  await page.keyboard.press('End'); await expect(itens.nth(2)).toBeFocused()
+  await page.keyboard.press('Home'); await expect(itens.nth(0)).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(m).toHaveCount(0)
+  await expect(b).toBeFocused()
+  await expect(b).toHaveAttribute('aria-expanded', 'false')
+  // o item do canal próprio leva ao destino de ownChannelHref (hoje o painel lateral da lista)
+  await b.click()
+  await menuMeuCanal(page).locator('[role="menuitem"]').nth(0).click()
+  await expect.poll(() => param(page, 'channel'), { timeout: 20_000 }).toBe(idDoPrimeiroProprio())
+  await page.keyboard.press('Escape')
+  // "Ver meus canais na lista de Canais"
+  await atalhoMeuCanal(page).click()
+  await page.getByRole('menuitem', { name: 'Ver meus canais na lista de Canais' }).click()
+  await expect.poll(() => new URL(page.url()).pathname, { timeout: 20_000 }).toBe(ROTA)
+  expect(await atalhoMeuCanal(page).count()).toBe(1)
+})
+
+test('A3.10 o atalho "Meu canal" a 390 px: o rótulo "Meu canal:" some e o nome acessível o guarda; o grupo de ações quebra sem estourar; o menu abre inteiro com alvos de 44 px', async ({ page }) => {
+  await abrir(page, '?fmt=longos&sort=subs')
+  const b = atalhoMeuCanal(page)
+  expect(await b.locator('.mc-l').evaluate(e => e.getBoundingClientRect().width), 'a 1440 px o rótulo está à vista').toBeGreaterThan(30)
+  // 390 px
+  await abrir(page, '?fmt=longos&sort=subs', { width: 390, height: 844 })
+  const b3 = atalhoMeuCanal(page)
+  const c = await caixa(b3)
+  const rotulo = await b3.locator('.mc-l').evaluate(e => e.getBoundingClientRect().width)
+  const acoes = await page.evaluate(() => { const a = document.querySelector<HTMLElement>('[data-obs-chrome] .obs-ch-actions')!; return { sw: a.scrollWidth, cw: a.clientWidth, right: Math.round(a.getBoundingClientRect().right) } })
+  medida(`atalho a 390 px: ${c.w} x ${c.h} px, x ${c.x}..${c.right}; rótulo "Meu canal:" ocupa ${rotulo} px; grupo de ações scrollWidth ${acoes.sw} clientWidth ${acoes.cw} termina em ${acoes.right}`)
+  expect(rotulo, 'o rótulo some da vista').toBeLessThanOrEqual(2)
+  await expect(b3).toHaveAccessibleName(`Meu canal: ${NOME_DO_PRIMEIRO_PROPRIO}`)
+  expect(c.right, 'o botão cabe na janela de 390 px').toBeLessThanOrEqual(390)
+  expect(acoes.sw, 'o grupo de ações não transborda').toBeLessThanOrEqual(acoes.cw + 1)
+  const t = await page.evaluate(() => { const s = (window as unknown as W).__sc(); return s.scrollWidth > s.clientWidth + 1 })
+  expect(t, 'a página não rola na horizontal').toBe(false)
+  await page.screenshot({ path: path.join(SHOTS, 't10-atalho-390.png') })
+  // o menu abre inteiro na janela
+  const max = await page.evaluate(() => { const s = (window as unknown as W).__sc(); return s.scrollHeight - s.clientHeight })
+  await rolarPara(page, 0)
+  await b3.click()
+  const m = menuMeuCanal(page)
+  await expect(m).toBeVisible()
+  const cm = await caixa(m)
+  expect(cm.x).toBeGreaterThanOrEqual(0); expect(cm.right).toBeLessThanOrEqual(390)
+  await page.screenshot({ path: path.join(SHOTS, 't10-atalho-390-menu.png') })
+  const alvos = await m.locator('[role="menuitem"]').evaluateAll(es => es.map(e => Math.round(e.getBoundingClientRect().height)))
+  medida(`menu a 390 px: ${cm.w} x ${cm.h} px; altura dos itens ${alvos.join(', ')}; rolagem máxima da lista ${max}`)
+  for (const h of alvos) expect(h, 'alvo de toque').toBeGreaterThanOrEqual(44)
+  await page.keyboard.press('Escape')
+  await expect(b3).toBeFocused()
+})

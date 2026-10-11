@@ -440,3 +440,20 @@
    pelo componente em --cn-pin-cobre enquanto ela está à vista; escondida ou inexistente, é 0 e o Tab não rola à toa. */
 [data-obs-screen="canais"] :is(.tablebox, .cards) :is(a, button, select, input, [tabindex]){scroll-margin-bottom:var(--cn-pin-cobre,0px)}
 [data-obs-screen="canais"] .cn-pin p{margin:0;flex:1 1 280px;min-width:0;color:var(--muted)}
+
+/* A3 Tarefa 10: a coluna "Com o meu canal" (spec 15.2) e o link do cartão. Link visível, não menu: a única ação própria da coluna.
+   A coluna nova custa uns 68 px e a tabela cabe em 1.440 px (invólucro de 1.152) e não pode voltar a rolar: o respiro lateral das células cai de 6 para 4 px,
+   o gráfico de ritmo da TABELA de 130 para 100 px (o desenho é o mesmo, em escala: o svg tem viewBox; nos cartões continua com 130) e a coluna da posição de 40 para 32.
+   Com a gaveta aberta valem as regras próprias dela (mais acima). */
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox th,[data-obs-screen="canais"]:not(.drawer-open) .tablebox td{padding-left:4px;padding-right:4px}
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox .cad{min-width:100px}
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox .cad > svg{width:100px;height:auto}
+[data-obs-screen="canais"] table th.p,[data-obs-screen="canais"] table td.p{width:32px;min-width:32px}
+[data-obs-screen="canais"] table th.cmp,[data-obs-screen="canais"] table td.cmp{width:64px;min-width:64px;text-align:left;white-space:nowrap}
+[data-obs-screen="canais"] table th.cmp{white-space:normal;line-height:1.25}
+[data-obs-screen="canais"] table td.cmp [aria-hidden]{color:var(--dim)}
+[data-obs-screen="canais"] .cmpl{font-size:12.5px;color:var(--muted);text-decoration:underline;text-underline-offset:2px;display:inline-flex;align-items:center;min-height:24px;white-space:nowrap}
+[data-obs-screen="canais"] .cmpl:hover{color:var(--text)}
+[data-obs-screen="canais"] .cmpl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+[data-obs-screen="canais"] .card .cmp-card{margin:0}
+@media (pointer:coarse){[data-obs-screen="canais"] .cmpl{min-height:44px}}

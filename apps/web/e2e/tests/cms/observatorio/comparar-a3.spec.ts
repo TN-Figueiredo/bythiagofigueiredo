@@ -303,10 +303,13 @@ test('Voltar para fora da comparação não escreve a e b na URL de destino (lis
   await page.setViewportSize(VP.w1440)
   await page.goto(`${LISTA}?fmt=longos`)
   await page.waitForLoadState('networkidle')
-  // navegação do cliente (o hook fica montado quando o Voltar chega): o roteador do Next, como o Link faria
-  const temRoteador = await page.evaluate(() => typeof (window as unknown as { next?: { router?: { push?: unknown } } }).next?.router?.push === 'function')
-  expect(temRoteador, 'window.next.router.push existe').toBe(true)
-  await page.evaluate(u => (window as unknown as { next: { router: { push(u: string): void } } }).next.router.push(u), par(OWN(), LEO()))
+  // a entrada de verdade (A3 Tarefa 10): o clique em "Comparar" da linha de Leo Khev. A tela precisa estar hidratada (o clique antes dela seria uma navegação de documento).
+  await page.locator('[data-obs-screen="canais"] .toolbar:visible').first().waitFor({ timeout: 60_000 })
+  await page.evaluate(() => { (window as unknown as { __mole: boolean }).__mole = true })
+  await page.locator(`[data-obs-screen="canais"]:visible a[data-comparar="${LEO()}"]`).first().click()
+  await page.waitForURL(u => u.pathname === ROTA, { timeout: 60_000 })
+  expect(param(page, 'a')).toBe(OWN()); expect(param(page, 'b')).toBe(LEO())
+  expect(await page.evaluate(() => (window as unknown as { __mole?: boolean }).__mole), 'a entrada foi navegação do cliente').toBe(true)
   await tela(page).locator('table').waitFor({ timeout: 60_000 })
   await page.waitForLoadState('networkidle')
   await page.evaluate(() => { (window as unknown as { __viva: boolean }).__viva = true })
@@ -352,3 +355,136 @@ test('a 390 px cada valor da tabela diz de que lado é (letra A ou B no chip da 
   await page.setViewportSize(VP.w1440)
   expect(await tela(page).locator('tbody tr:not(.grp) .cp-lb:visible').count(), 'a 1440 px o rótulo some').toBe(0)
 })
+
+/* ------------------------------------------------------------------------------------------------------------------------------
+   A3 Tarefa 10: as entradas pela página do canal do concorrente e o atalho "Meu canal" na trilha. */
+const CANAL = '/cms/youtube/competitors/canal'
+const doCanal = (page: Page) => page.locator('[data-obs-screen="canal"]:visible')
+const aberturaDoCanal = async (page: Page, id: string, size: { width: number; height: number } = VP.w1440) => {
+  await page.setViewportSize(size)
+  await page.goto(`${CANAL}/${id}`)
+  await doCanal(page).locator('h1').first().waitFor({ timeout: 60_000 })
+  await page.waitForLoadState('networkidle')
+}
+const retangulo = (l: import('@playwright/test').Locator) => l.evaluate(e => { const r = e.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), r: Math.round(r.right), b: Math.round(r.bottom), w: Math.round(r.width), h: Math.round(r.height) } })
+
+test('"Comparar com o meu canal" no cabeçalho do concorrente: ao lado de "Abrir no YouTube", fora do menu ⋯, abre a comparação com o par certo e o Voltar devolve o canal com o foco no botão', async ({ page }) => {
+  await aberturaDoCanal(page, LEO())
+  const b = doCanal(page).locator('[data-comparar-canal]')
+  await expect(b).toHaveText('Comparar com o meu canal')
+  await expect(b).toHaveAttribute('href', `${ROTA}?a=${OWN()}&b=${LEO()}`)
+  const abrir = doCanal(page).locator('.acts a', { hasText: 'Abrir no YouTube' })
+  const cb = await retangulo(b), ca = await retangulo(abrir), cab = await retangulo(doCanal(page).locator('header.chead'))
+  medida(`cabeçalho do concorrente a 1440 px: altura ${cab.h} px (teto 150); "Comparar com o meu canal" ${cb.w} x ${cb.h} em x ${cb.x}; "Abrir no YouTube" em x ${ca.x}`)
+  expect(cb.r, 'o botão fica ao lado esquerdo de "Abrir no YouTube"').toBeLessThanOrEqual(ca.x + 1)
+  expect(Math.abs(cb.y - ca.y), 'na mesma linha').toBeLessThanOrEqual(2)
+  expect(cab.h, 'o cabeçalho continua com até 150 px').toBeLessThanOrEqual(150)
+  // fora do menu ⋯
+  await doCanal(page).getByRole('button', { name: 'Ações do canal' }).click()
+  const menu = page.locator('#flut [role="menu"]').first()
+  await expect(menu).toBeVisible()
+  await expect(menu).not.toContainText('Comparar')
+  await page.keyboard.press('Escape')
+  // a entrada de verdade
+  await page.evaluate(() => { (window as unknown as { __mole: boolean }).__mole = true })
+  await b.click()
+  await page.waitForURL(u => u.pathname === ROTA, { timeout: 60_000 })
+  expect(param(page, 'a')).toBe(OWN()); expect(param(page, 'b')).toBe(LEO())
+  await tela(page).locator('table').waitFor({ timeout: 60_000 })
+  await page.waitForLoadState('networkidle')
+  await page.goBack()
+  await page.waitForURL(u => u.pathname === `${CANAL}/${LEO()}`, { timeout: 30_000 })
+  await expect.poll(() => page.evaluate(() => (document.activeElement as HTMLElement | null)?.hasAttribute('data-comparar-canal') ?? false), { timeout: 20_000, message: 'o foco volta ao botão do cabeçalho' }).toBe(true)
+  expect(await page.evaluate(() => (window as unknown as { __mole?: boolean }).__mole), 'navegação do cliente').toBe(true)
+})
+
+test('o cabeçalho do concorrente a 390 px: o botão "Comparar com o meu canal" cabe, o cabeçalho continua dentro da janela e a página não rola na horizontal', async ({ page }) => {
+  await aberturaDoCanal(page, LEO(), VP.w390)
+  const b = doCanal(page).locator('[data-comparar-canal]')
+  await expect(b).toBeVisible()
+  const cb = await retangulo(b), cab = await retangulo(doCanal(page).locator('header.chead'))
+  medida(`cabeçalho do concorrente a 390 px: altura ${cab.h} px; botão ${cb.w} x ${cb.h} em x ${cb.x}..${cb.r}`)
+  expect(cb.r).toBeLessThanOrEqual(390); expect(cb.x).toBeGreaterThanOrEqual(0)
+  expect(await page.evaluate(() => { const raiz = document.querySelector('[data-obs-screen="canal"]')!; const out: string[] = []; for (let p: Element | null = raiz; p && p !== document.body; p = p.parentElement) if (p.scrollWidth > p.clientWidth + 1) out.push(p.tagName + '.' + String(p.className).slice(0, 20) + ' ' + p.scrollWidth + '>' + p.clientWidth); if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1) out.push('html'); return out }), 'rolagem horizontal').toEqual([])
+  await page.screenshot({ path: path.resolve(__dirname, '../../../../test-results/canal-comparar-390.png') })
+})
+
+/** A trilha ("Canais › X", o atalho, o pager do Histórico, a nota de fuso): nada se sobrepõe nem sai da janela. */
+async function medirTrilha(page: Page, largura: number) {
+  const top = page.locator('.obs-tr-top:visible').first()
+  const partes = {
+    trilha: await retangulo(top.locator('nav.crumbs')),
+    atalho: await retangulo(top.locator('[data-meu-canal] button')),
+    fuso: await retangulo(top.locator('.obs-tr-tz')),
+    pager: (await top.locator('.obs-tr-aside').count()) ? await retangulo(top.locator('.obs-tr-aside')) : null,
+  }
+  const caixas = Object.entries(partes).filter(([, v]) => v != null) as Array<[string, { x: number; y: number; r: number; b: number; w: number; h: number }]>
+  const sobrepoe: string[] = []
+  for (let i = 0; i < caixas.length; i++) for (let j = i + 1; j < caixas.length; j++) {
+    const [na, a] = caixas[i]!, [nb, c] = caixas[j]!
+    if (a.x < c.r - 1 && c.x < a.r - 1 && a.y < c.b - 1 && c.y < a.b - 1) sobrepoe.push(`${na} x ${nb}`)
+  }
+  const fora = caixas.filter(([, v]) => v.r > largura + 1 || v.x < -1).map(([n]) => n)
+  return { partes, sobrepoe, fora, linha: await retangulo(top) }
+}
+const semRolagemH = (page: Page) => page.evaluate(() => {
+  const raiz = [...document.querySelectorAll('[data-obs-screen]')].find(e => e.getClientRects().length > 0)!
+  const out: string[] = []
+  for (let p: Element | null = raiz; p && p !== document.body; p = p.parentElement) if (p.scrollWidth > p.clientWidth + 1) out.push(p.tagName.toLowerCase() + '.' + String(p.className).slice(0, 24) + ' ' + p.scrollWidth + '>' + p.clientWidth)
+  if (document.documentElement.scrollWidth > document.documentElement.clientWidth + 1) out.push('html')
+  return out
+})
+for (const largura of [1440, 390] as const) {
+  test(`o atalho "Meu canal" na trilha da página do canal, da comparação e do Histórico do vídeo (com o pager) a ${largura} px: convive com o pager, nada se sobrepõe nem sai da janela, abre, navega e fecha com Esc`, async ({ page }) => {
+    const tam = largura === 1440 ? VP.w1440 : VP.w390
+    // 1) a página do canal
+    await aberturaDoCanal(page, LEO(), tam)
+    let m = await medirTrilha(page, largura)
+    medida(`${largura} px, canal: linha da trilha ${m.linha.w} x ${m.linha.h}; atalho ${m.partes.atalho.w} x ${m.partes.atalho.h} em x ${m.partes.atalho.x}; sobreposições: ${m.sobrepoe.join(', ') || 'nenhuma'}`)
+    expect(m.sobrepoe).toEqual([]); expect(m.fora).toEqual([])
+    expect(await semRolagemH(page), 'canal: rolagem horizontal').toEqual([])
+    const atalho = page.locator('.obs-tr-top:visible [data-meu-canal] button').first()
+    await expect(atalho).toHaveAccessibleName('Meu canal: tnFigueiredo')
+    // abre, anda, fecha com Esc devolvendo o foco
+    await atalho.click()
+    const itens = page.locator('#flut [role="menu"] [role="menuitem"]')
+    await expect(itens).toHaveCount(3)
+    await expect(itens.nth(0)).toBeFocused()
+    const cm = await retangulo(page.locator('#flut [role="menu"]').first())
+    expect(cm.x).toBeGreaterThanOrEqual(0); expect(cm.r).toBeLessThanOrEqual(largura)
+    await page.keyboard.press('ArrowDown'); await expect(itens.nth(1)).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(page.locator('#flut [role="menu"]')).toHaveCount(0)
+    await expect(atalho).toBeFocused()
+    // navega: "Ver meus canais na lista de Canais"
+    await atalho.click()
+    await page.getByRole('menuitem', { name: 'Ver meus canais na lista de Canais' }).click()
+    await page.waitForURL(u => u.pathname === '/cms/youtube/competitors', { timeout: 60_000 })
+    // 2) a comparação
+    await page.setViewportSize(tam)
+    await page.goto(par(OWN(), LEO()))
+    await tela(page).locator('table').waitFor({ timeout: 60_000 })
+    m = await medirTrilha(page, largura)
+    medida(`${largura} px, comparação: linha da trilha ${m.linha.w} x ${m.linha.h}; atalho x ${m.partes.atalho.x}..${m.partes.atalho.r}; sobreposições: ${m.sobrepoe.join(', ') || 'nenhuma'}`)
+    expect(m.sobrepoe).toEqual([]); expect(m.fora).toEqual([])
+    expect(await rolaNaHorizontal(page), 'comparação: rolagem horizontal').toEqual([])
+    // 3) o Histórico do vídeo, a partir da grade do canal (com pager)
+    await aberturaDoCanal(page, LEO(), tam)
+    await doCanal(page).locator('a[id^="cv-lnk-"]').first().click()
+    await page.waitForURL(/\/competitors\/video\//, { timeout: 60_000 })
+    await page.getByRole('heading', { level: 1 }).first().waitFor({ timeout: 60_000 })
+    await page.waitForLoadState('networkidle')
+    m = await medirTrilha(page, largura)
+    medida(`${largura} px, Histórico do vídeo: linha da trilha ${m.linha.w} x ${m.linha.h}; trilha ${JSON.stringify(m.partes.trilha)}; atalho ${JSON.stringify(m.partes.atalho)}; pager ${JSON.stringify(m.partes.pager)}; fuso ${JSON.stringify(m.partes.fuso)}; sobreposições: ${m.sobrepoe.join(', ') || 'nenhuma'}`)
+    expect(m.partes.pager, 'o pager do Histórico está na trilha').not.toBeNull()
+    expect(m.sobrepoe).toEqual([]); expect(m.fora).toEqual([])
+    if (largura === 1440) {
+      // numa linha só: trilha, atalho, pager, fuso (da esquerda para a direita), todos na mesma faixa vertical
+      expect(m.partes.atalho.x).toBeGreaterThanOrEqual(m.partes.trilha.r - 1)
+      expect(m.partes.pager!.x).toBeGreaterThanOrEqual(m.partes.atalho.r - 1)
+      expect(m.partes.fuso.x).toBeGreaterThanOrEqual(m.partes.pager!.r - 1)
+    }
+    expect(await semRolagemH(page), 'Histórico: rolagem horizontal').toEqual([])
+    await page.screenshot({ path: path.resolve(__dirname, `../../../../test-results/trilha-atalho-${largura}.png`) })
+  })
+}

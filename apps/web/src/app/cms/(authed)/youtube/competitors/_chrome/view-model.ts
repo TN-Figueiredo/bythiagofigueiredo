@@ -6,6 +6,7 @@ import type { Observatory } from '@/lib/youtube/observatorio'
 import { BUILTIN_NICHES, nicheLabel, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Niche, ObsChannel } from '@/lib/youtube/observatorio/types'
 import type { ForjaView } from './forja-view-model'
+import { ownMenuOf, type OwnMenu } from './own-menu'
 
 export type ChromeTab = 'canais' | 'mudancas' | 'outliers' | 'insights'
 const TABS: readonly ChromeTab[] = ['canais', 'mudancas', 'outliers', 'insights']
@@ -32,6 +33,8 @@ export interface ChromeView {
     rows: ChromeFreshRow[]; popoverSub: string; problemsHref: string
   }
   addHref: string; nicheEditorHref: string; cowork: string
+  /** Os canais próprios do site, para o atalho "Meu canal" ao lado de "Adicionar canal" (spec 15.2). */
+  owns: OwnMenu
   /** The forja segment (Task 35): button, status and heartbeat of the screen's request type; null when the page has none. */
   forja: ForjaView | null
 }
@@ -93,6 +96,7 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
     },
     addHref: obs.link.canais({ add: 1 }), nicheEditorHref: obs.link.canais({ nicheEditor: 1 }),
     cowork: coworkText(o.tab, niche, nl),
+    owns: ownMenuOf(obs),
     // Task 22's guard: the segment exists only when the forja tables are ready
     forja: o.forja && o.forja.ready ? o.forja : null,
   }

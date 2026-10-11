@@ -68,10 +68,10 @@ export function ThumbView({ t, lg }: { t: Thumb | null; lg?: boolean }) {
 export function Strip({ cell }: { cell: CadenceCell }) {
   const W = 130, H = 30
   if (cell.kind === 'na') return (
-    <svg width={W} height={H} aria-hidden="true">{Array.from({ length: 13 }, (_, i) => <rect key={i} x={i * 10 + 3} y={H - 2} width={3} height={2} fill="var(--strip-empty)" />)}</svg>
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">{Array.from({ length: 13 }, (_, i) => <rect key={i} x={i * 10 + 3} y={H - 2} width={3} height={2} fill="var(--strip-empty)" />)}</svg>
   )
   return (
-    <svg width={W} height={H} role="img" aria-label={cell.label}>
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={cell.label}>
       {cell.weeks.map((w, i) => {
         const x = i * 10
         if (!w.long && !w.short) return <rect key={i} x={x + 3} y={H - 2} width={3} height={2} fill="var(--strip-empty)" />

@@ -134,7 +134,7 @@ describe('A3.3 a lista única na tabela', () => {
     const { container } = mount()
     const d = container.querySelector('tr.group[data-divisor] th')!
     expect(d.getAttribute('scope')).toBe('rowgroup')
-    expect(d.getAttribute('colspan')).toBe('9')
+    expect(d.getAttribute('colspan'), 'o divisor cobre todas as colunas, inclusive "Com o meu canal"').toBe(String(container.querySelectorAll('thead th').length))
     expect(d.textContent).toContain(v.list.divisor!.titulo)
     expect(d.textContent).toContain(v.list.divisor!.nota)
     // sem ninguém sem medida, sem divisor

@@ -1,0 +1,34 @@
+/* O atalho "Meu canal" (mockup meu-canal.css, rodada 7). Só tokens do CMS; hex e rgba literais; nenhum color-mix e nenhum z-index (a camada é a #flut). */
+[data-obs] .mc{position:relative;flex:none}
+[data-obs] .mc-b{display:inline-flex;align-items:center;gap:5px;min-height:34px;padding:0 10px;border:1px solid var(--border-strong);border-radius:6px;background:transparent;color:var(--muted);font:400 12.5px/1.2 var(--font-sans),Inter,system-ui,sans-serif;cursor:pointer;white-space:nowrap;max-width:100%}
+[data-obs] .mc-b b{color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;max-width:22ch}
+[data-obs] .mc-b:hover{background:var(--surface);color:var(--text)}
+[data-obs] .mc-b:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[data-obs] .mc-b svg{width:12px;height:12px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+/* na linha da trilha o botão é mais baixo (a linha tem 26 px) */
+[data-obs] .obs-tr-top .mc-b{min-height:26px}
+#flut .obs-fl-pop.mc-m{width:290px;max-width:calc(100vw - 32px);padding:8px;font:400 13px/1.4 Inter,var(--font-sans),system-ui,sans-serif}
+#flut .mc-m .mc-h{margin:2px 8px 6px;font-size:12px;color:var(--muted)}
+#flut .mc-m ul{list-style:none;margin:0;padding:0}
+#flut .mc-m li{display:block;margin:0;padding:0}
+#flut .mc-m li::before{content:none}
+#flut .mc-m [role="menuitem"]{display:flex;flex-direction:column;gap:1px;padding:7px 8px;border-radius:6px;text-decoration:none;color:var(--text);min-height:0;cursor:pointer}
+#flut .mc-m a[role="menuitem"]:hover{background:var(--surface-2);text-decoration:none}
+#flut .mc-m a[role="menuitem"]:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;background:var(--surface-2)}
+#flut .mc-m a[aria-current="page"]{background:var(--surface-2)}
+#flut .mc-m b{font-weight:500}
+#flut .mc-m small{font-size:12px;color:var(--muted)}
+#flut .mc-m .off{cursor:default}
+#flut .mc-m .off b{color:var(--muted)}
+#flut .mc-m .sep{border-top:1px solid var(--border-subtle);margin-top:6px;padding-top:6px}
+#flut .mc-m .sep a[role="menuitem"]{text-decoration:underline;text-underline-offset:2px}
+@media (max-width:900px){
+  /* em celular "Meu canal:" some da vista e continua no nome acessível; só o nome fica no botão */
+  [data-obs] .mc-l{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  #flut .mc-m a[role="menuitem"]{min-height:44px;justify-content:center}
+}
+@media (pointer:coarse){[data-obs] .mc-b{min-height:44px}}
+/* contêiner estreito (celular): o grupo de ações não cabe numa linha com o botão da forja, o sincronizar, o + e o atalho; ele quebra e o atalho (com o ⋯) vai para a linha de baixo */
+@container obscontent (max-width: 560px){
+  [data-obs] .obs-ch-actions:has(> [data-meu-canal]){flex-wrap:wrap}
+}
