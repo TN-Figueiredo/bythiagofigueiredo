@@ -19,7 +19,8 @@ import { buildOutliersView, ages2label } from '../_outliers/view-model'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
 import { imageLetters, thumbCaption, versionClock } from '../_chrome/version-span'
 import type { ViewerInput, ViewerVersion } from '../_chrome/thumb-viewer/viewer-model'
-import { buildForjaView, forjaReadingView, patternsOf, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
+import { buildForjaView, forjaReadingView, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
+import { buildForjaCard, excludedOf, nicheOf, type ForjaCardView } from './forja-card-model'
 
 export type HistState = 'full' | 'pre' | 'few' | 'none' | 'noreg' | 'untr' | 'old' | 'err' | 'bf' | 'not-found'
 export type LaneType = 'title' | 'thumb' | 'desc'
@@ -283,6 +284,8 @@ export interface HistoricoView {
   /** The forja (leitura do vídeo, Task 35): the screen's solid button, blockedBy and the card. */
   forja: ForjaView | null
   forjaCard: HistForjaCard | null
+  /** O cartão novo (A2, Tarefa 7): a Tarefa 8 o desenha e apaga `forjaCard`. */
+  forjaCard2: ForjaCardView | null
   /** Period filter: offered whenever there is a chart (30 days by default); null only without a chart (a video outside the observed ones, not found). */
   range: RangeView | null
   /** One row per image: null unless some image came back on air (and never for a video outside the observed ones). */
@@ -355,7 +358,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     const href = backHref(from, from === 'mudancas' ? obs.link.mudancas({ niche: userNiche }) : from === 'outliers' ? obs.link.outliers({ niche: userNiche }) : from === 'canais' ? obs.link.canais({ niche: userNiche }) : obs.link.insights({ niche: userNiche }))
     return {
       video: null, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null,
-      versions: null, pager: null, viewer: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null,
+      versions: null, pager: null, viewer: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null, forjaCard2: null,
       range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND,
       crumbs: canalOrigem
         ? { from, crumb: FROM_LABEL[from], href: obs.link.canais({ niche: userNiche }), sub: { text: canalOrigem.name, href: obs.link.canal(canalOrigem.id) + (back ?? '') }, canal: canalOrigem.id }
@@ -1032,10 +1035,9 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
 }
 
 /* ------------------------------------------------------------------ forja (historico-video.html renderForja) */
-function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoView, 'forja' | 'forjaCard'> {
+function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoView, 'forja' | 'forjaCard' | 'forjaCard2'> {
   // no product sentence explains "own video" and the untracked one says something else: the block is simply not shown
-  if (ch.own) return { forja: null, forjaCard: null }
-  const D = obs.date, F = obs.fmt
+  if (ch.own) return { forja: null, forjaCard: null, forjaCard2: null }
   const forja = buildForjaView(obs, { screen: 'historico', niche: v.niche ?? 'todos', videoId: v.id })
   const sc = obs.forja.session.current(null, { type: 'leitura-video', video: v.id })
   const r = sc.empty ? null : sc.request
@@ -1049,28 +1051,8 @@ function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoV
   const noSince = (x: ForjaReadingView): ForjaReadingView => ({ ...x, since: null })
   const prev = fresh ? (older ? noSince(forjaReadingView(obs, older, { active: false, isNew: false, activeNote: null })) : null) : vr
   const tm = obs.forja.timing('leitura-video', v.niche ?? 'todos')
-  const exReason = !isObserved(v) ? 'Vídeo fora dos acompanhados: não há dados para a forja ler' : v.niche ? obs.forja.eligibleChannels(v.niche).out.find(o => o.id === v.ch)?.reason ?? null : null
-  const exAct = !isObserved(v) ? '' : ch.sync.state === 'erro' ? 'Corrija o canal em Canais antes de pedir uma leitura.' : ch.sync.state === 'backfill' ? 'Espere a busca de vídeos terminar antes de pedir uma leitura.' : 'Sincronize o canal antes de pedir uma leitura deste vídeo.'
-  const excluded = exReason ? (endDot(exReason) + ' ' + exAct).trim() : null
-  const nicheBlk = (): HistForjaCard['niche'] => {
-    if (!v.niche) return null
-    const nr = obs.forja.latest('padroes-titulo', v.niche)
-    if (!nr) return null
-    const pats = patternsOf(nr).filter(p => p.evidence.includes(v.id))
-    const when = D.dm(nr.generatedAt) + ' ' + D.hm(nr.generatedAt)
-    if (!pats.length) return { text: 'Ainda não há leitura deste vídeo, e a leitura de padrões do nicho de ' + when + ' não o cita.', items: [], foot: null }
-    if (pats.every(p => p.verdict.id === 'sem-diferenca')) return { text: 'Ainda não há leitura deste vídeo. A leitura de padrões do nicho de ' + when + ' não viu diferença para as fórmulas deste título: ' + pats.map(p => F.lcfirst(obs.formula(p.formula)?.label ?? p.formula)).join(', ') + '.', items: [], foot: null }
-    const s0 = obs.forja.since(nr.id)
-    return {
-      text: 'Ainda não há leitura deste vídeo. O que a leitura de padrões do nicho de ' + D.dmOrDmy(nr.generatedAt) + ' diz sobre as fórmulas deste título:',
-      items: pats.map(p => {
-        const n = obs.outliers({ niche: v.niche!, fmt: nr.fmt ?? 'long', formula: p.formula, reading: nr.id }).count
-        return { text: endDot(p.verdict.text + (p.attribution && p.verdict.id === 'padrao' ? '. ' + p.attribution : '')), label: n === 1 ? 'Ver o outlier' : 'Ver os ' + n + ' outliers',
-          href: obs.link.outliers({ niche: v.niche!, fmt: nr.fmt ?? 'long', formula: p.formula, reading: nr.id, min: obs.RULES.outlierMin }) }
-      }),
-      foot: (nr.sent.text ? cap(nr.sent.text) + '. ' : '') + (s0 ? (forja.status?.active ? s0.textNoAsk : s0.text) : ''),
-    }
-  }
+  const excluded = excludedOf(obs, v, ch)
+  const nicheBlk = (): HistForjaCard['niche'] => nicheOf(obs, v, forja)
   const label = forja.button.label
   // historico-video.html:718/731: the action name is a link to the header button (#vhead), not a quoted string
   const toTopLink = { pre: 'Para pedir de novo, use ', label, post: ' no cabeçalho do vídeo.' }
@@ -1090,6 +1072,7 @@ function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoV
   const blocked = forja.blockedBy ? { text: cap(forja.blockedBy.reason.replace(/^Nada enviado:\s*/, '')), title: forja.blockedBy.title, href: forja.blockedBy.href } : null
   return {
     forja,
+    forjaCard2: buildForjaCard(obs, v, ch),
     forjaCard: {
       pill: r ? { text: sc.statusLabel ?? r.state, cls } : null,
       statusText: r ? sc.statusText : null, extra, toTop,
