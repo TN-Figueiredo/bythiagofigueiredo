@@ -1030,3 +1030,157 @@ test.describe('A2.3 o visualizador de thumbnail', () => {
     expect(cincoXX).toEqual([])
   })
 })
+
+/* ================================================================== A2.7 e A2.8: o cartão "Leitura da forja" e o botão do cabeçalho */
+// A ação de pedir é INTERCEPTADA no navegador (`page.route` na requisição da server action) e respondida ali: nada chega à fila da forja nem ao banco.
+// Os vídeos do oráculo que nunca tiveram leitura nem pedido ativo aparecem com o botão livre; qual deles é depende do conjunto, então se procura.
+const CANDIDATOS_LIVRES = ['matt-gpt6-astra', 'matt-fast-cheap', 'dale-ninja-dojo', 'luke-hidden-village', 'nate-ai-agent-business']
+const PEDIR = `${HV} #askForja`
+/** Abre o primeiro vídeo candidato cujo botão do cabeçalho diz "Pedir leitura à forja" e está aceso. */
+async function abrirVideoLivre(page: Page): Promise<string> {
+  for (const oracle of CANDIDATOS_LIVRES) {
+    await abrirVideo(page, oracle)
+    const b = page.locator(`${PEDIR}:visible`).first()
+    if ((await b.textContent())?.trim() === 'Pedir leitura à forja' && (await b.getAttribute('aria-disabled')) !== 'true') return oracle
+  }
+  throw new Error('nenhum vídeo candidato com o botão "Pedir leitura à forja" aceso: ' + CANDIDATOS_LIVRES.join(', '))
+}
+/** Responde a server action de pedir no próprio navegador: devolve a lista dos corpos que chegaram e NUNCA deixa a requisição seguir. */
+async function interceptarPedido(page: Page, resposta: { ok: boolean; reason: string | null }): Promise<string[]> {
+  const chegaram: string[] = []
+  await page.route('**/*', async route => {
+    const r = route.request()
+    if (r.method() === 'POST' && r.headers()['next-action'] && (r.postData() ?? '').includes('leitura-video')) {
+      chegaram.push(r.postData() ?? '')
+      await route.fulfill({ status: 200, headers: { 'content-type': 'text/x-component', vary: 'RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Url' },
+        body: `0:{"a":"$@1","f":"","b":"development"}\n1:${JSON.stringify({ ok: resposta.ok, reason: resposta.reason, results: [] })}\n` })
+      return
+    }
+    await route.continue()
+  })
+  return chegaram
+}
+const noCartao = (page: Page) => page.locator(`${HV} .obs-fj:visible`).first()
+/** O cartão está dentro da área que rola e o foco está no título dele. */
+const cartaoAVista = (page: Page) => page.evaluate(() => {
+  const raiz = [...document.querySelectorAll('[data-obs-screen="historico"]')].find(e => e.getClientRects().length > 0)!
+  const c = raiz.querySelector<HTMLElement>('.obs-fj')!, area = (window as unknown as W).__sc().getBoundingClientRect(), r = c.getBoundingClientRect()
+  const a = document.activeElement as HTMLElement | null
+  return { topo: Math.round(r.top - area.top), abaixo: Math.round(r.top - area.bottom), focoNoTitulo: !!a && a.matches('h3[data-fj-titulo]') && c.contains(a) }
+})
+
+test('A2.8 um clique no botão do cabeçalho faz uma requisição só, rola e foca o cartão', async ({ page }) => {
+  const oracle = await abrirVideoLivre(page)
+  const chegaram = await interceptarPedido(page, { ok: false, reason: 'recusa de teste: nada foi escrito' })
+  expect(await rolagem(page), 'a tela abre no alto').toBe(0)
+  const antes = await cartaoAVista(page)
+  expect(antes.abaixo, 'o topo do cartão começa abaixo da dobra (senão rolar não prova nada)').toBeGreaterThan(100)
+  const b = page.locator(`${PEDIR}:visible`).first()
+  await b.dblclick()                                   // dois cliques seguidos: continua uma requisição só
+  await expect(b).toHaveText('Pedir leitura à forja', { timeout: 15_000 })   // "Pedindo…" passou e o botão voltou
+  await expect.poll(() => chegaram.length).toBe(1)
+  expect(chegaram[0]).toContain(ids.video(oracle))
+  await page.waitForTimeout(800)                       // a rolagem suave termina
+  expect(chegaram, 'nenhuma segunda requisição').toHaveLength(1)
+  const depois = await cartaoAVista(page)
+  medida(`${oracle}: o cartão foi de ${antes.topo} px para ${depois.topo} px do topo da área; foco no título: ${depois.focoNoTitulo}; rolagem ${await rolagem(page)} px`)
+  expect(await rolagem(page)).toBeGreaterThan(200)
+  expect(depois.topo, 'o cartão chega perto do topo da área').toBeLessThan(120)
+  expect(depois.topo).toBeGreaterThanOrEqual(0)
+  expect(depois.focoNoTitulo, 'o foco está no título do cartão').toBe(true)
+  // a recusa (respondida aqui) aparece ao lado do botão; nenhuma etapa foi inventada
+  await expect(page.locator(`${HV} #askStatus:visible`).first()).toHaveText(/^Recusa de teste: nada foi escrito\.$/)
+  await expect(noCartao(page).locator('ol[aria-label="Etapas do pedido"]')).toHaveCount(0)
+  await expect(noCartao(page).locator('.obs-fj-sit')).toHaveCount(0)
+})
+
+test('A2.7 o cartão sem leitura mostra a frase de vazio', async ({ page }) => {
+  await abrirVideoLivre(page)
+  const c = noCartao(page)
+  await expect(c.getByRole('heading', { level: 3, name: 'Leitura da forja' })).toBeVisible()
+  await expect(c.locator('.obs-fj-ask')).toContainText('Ainda não há leitura deste vídeo. Ninguém pediu uma até hoje.')
+  await expect(c.getByRole('button', { name: 'O que é a forja?' })).toHaveAttribute('aria-expanded', 'true')
+  await expect(c.locator('.obs-fj-what')).toContainText('A forja é um computador nosso que lê estes números')
+  await expect(c.getByRole('button', { name: 'Pedir leitura deste vídeo à forja' })).toBeVisible()
+  await c.scrollIntoViewIfNeeded()
+  const pasta = path.resolve(__dirname, '../../../../test-results')
+  fs.mkdirSync(pasta, { recursive: true })
+  await page.screenshot({ path: path.join(pasta, 'historico-a2-forja-vazio.png'), clip: { x: 230, y: 52, width: 1210, height: 848 } })
+  const dois = await page.locator(`${HV} .btn.forja-solid:visible`).count()
+  expect(dois, 'os dois botões da forja são o caso previsto no spec 7.1').toBe(2)
+})
+
+test.describe('A2.7 as etapas do pedido (um pedido em andamento semeado)', () => {
+  test.beforeAll(async () => {
+    test.setTimeout(240_000)
+    ids = seedIdsOf(await ensureSeeded({ canalCompleto: true, forjaState: 'trabalhando', forjaType: 'leitura-video' }))
+  })
+  test.afterAll(async () => {
+    test.setTimeout(240_000)
+    await ensureSeeded({ canalCompleto: true })
+  })
+
+  test('A2.7 as etapas não dependem só de cor (captura em escala de cinza)', async ({ page }) => {
+    await abrirVideo(page, V.full)
+    const c = noCartao(page)
+    const passos = c.locator('ol[aria-label="Etapas do pedido"] > li')
+    await expect(passos).toHaveCount(3)
+    await expect(passos.nth(0)).toContainText('Na fila')
+    await expect(passos.nth(1)).toContainText('Escrevendo')
+    await expect(passos.nth(2)).toContainText('Pronta')
+    // o botão do cabeçalho só rola; o do cartão não existe com pedido andando
+    await expect(page.locator(`${PEDIR}:visible`).first()).toHaveText('Leitura em andamento: ver')
+    await expect(c.locator('[data-fj="pedir"]')).toHaveCount(0)
+    await c.scrollIntoViewIfNeeded()
+    // 1) cada etapa se distingue SEM cor: a feita tem o visto E a palavra; a atual tem "em andamento" e o ponto cheio; a seguinte tem o ponto vazio e nenhuma palavra
+    const sinais = await passos.evaluateAll(lis => lis.map(li => {
+      const dot = li.querySelector('.obs-fj-dot') as HTMLElement, cs = getComputedStyle(dot)
+      return { classe: [...li.classList].find(x => /^obs-fj-(done|now|late|fail|todo)$/.test(x)), visto: !!dot.querySelector('svg'), palavra: (li.querySelector('.obs-fj-ss')?.textContent ?? '').trim(),
+        cheio: cs.backgroundColor !== 'rgba(0, 0, 0, 0)', contorno: parseFloat(cs.borderTopWidth) > 0, atual: li.getAttribute('aria-current') }
+    }))
+    medida('sinais por etapa: ' + JSON.stringify(sinais))
+    expect(sinais[0]).toMatchObject({ classe: 'obs-fj-done', visto: true, palavra: 'concluída', atual: null })
+    expect(sinais[1]).toMatchObject({ classe: 'obs-fj-now', visto: false, palavra: 'em andamento', cheio: true, atual: 'step' })
+    expect(sinais[2]).toMatchObject({ classe: 'obs-fj-todo', visto: false, palavra: '', cheio: false, contorno: true, atual: null })
+    // 2) a captura em escala de cinza (para olho humano) e uma conta de luminância: o ponto cheio e o vazio não são o mesmo quadrado
+    await page.addStyleTag({ content: 'html{filter:grayscale(1)!important}' })
+    const pasta = path.resolve(__dirname, '../../../../test-results')
+    fs.mkdirSync(pasta, { recursive: true })
+    await c.evaluate(el => el.scrollIntoView({ block: 'start' }))
+    await page.waitForTimeout(300)
+    const caixa = (await c.boundingBox())!
+    await page.screenshot({ path: path.join(pasta, 'historico-a2-forja-etapas-cinza.png'), clip: { x: caixa.x, y: Math.max(0, caixa.y), width: caixa.width, height: Math.min(caixa.height, 330) } })
+    const lum = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('.obs-fj:not([hidden]) .obs-fj-steps .obs-fj-dot')].filter(d => d.getClientRects().length > 0).map(d => {
+      const cs = getComputedStyle(d), m = (x: string) => (x.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number)
+      const [r, g, b] = m(cs.backgroundColor), a = /rgba\(.*,\s*0\)$/.test(cs.backgroundColor) ? 0 : 1
+      return { fundo: a ? Math.round(0.2126 * r! + 0.7152 * g! + 0.0722 * b!) : null, svg: !!d.querySelector('svg') }
+    }))
+    medida('pontos em cinza: ' + JSON.stringify(lum))
+    expect(lum[0]!.svg).toBe(true)
+    expect(lum[1]!.fundo, 'o ponto da etapa atual é cheio').not.toBeNull()
+    expect(lum[2]!.fundo, 'o ponto da etapa seguinte é só contorno').toBeNull()
+    await page.screenshot({ path: path.join(pasta, 'historico-a2-forja-etapas-cinza-tela.png') })
+  })
+
+  test('A2.7 prefers-reduced-motion: o ponto da etapa atual não pulsa e as palavras continuam', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await abrirVideo(page, V.full)
+    const ponto = noCartao(page).locator('.obs-fj-steps .obs-fj-now .obs-fj-dot')
+    await expect(ponto).toBeVisible()
+    expect(await ponto.evaluate(e => getComputedStyle(e).animationName)).toBe('none')
+    await expect(noCartao(page).locator('.obs-fj-steps .obs-fj-now')).toContainText('em andamento')
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
+    expect(await ponto.evaluate(e => getComputedStyle(e).animationName)).toBe('obs-fj-pulse')
+  })
+
+  test('A2.8 com pedido em andamento o botão do cabeçalho só rola: nenhuma requisição, foco no título do cartão', async ({ page }) => {
+    await abrirVideo(page, V.full)
+    const chegaram = await interceptarPedido(page, { ok: true, reason: null })
+    await page.locator(`${PEDIR}:visible`).first().click()
+    await page.waitForTimeout(900)
+    expect(chegaram).toHaveLength(0)
+    const a = await cartaoAVista(page)
+    expect(a.focoNoTitulo).toBe(true)
+    await expect(page.locator(`${HV} #hv-live:visible, ${HV} #hv-live`).first()).toHaveText('A leitura da forja já tem uma situação; ela está logo abaixo.')
+  })
+})

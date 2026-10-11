@@ -57,7 +57,7 @@ function avisarVoltou(): void {
 const chave = () => PREFIXO + window.location.pathname + window.location.search
 
 /** O contêiner que rola: o ancestral mais próximo com overflow-y rolável; senão o documento. */
-function rolavel(raiz: Element | null): HTMLElement {
+export function rolavel(raiz: Element | null): HTMLElement {
   for (let p = raiz?.parentElement ?? null; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
     const o = getComputedStyle(p).overflowY
     if (o === 'auto' || o === 'scroll' || o === 'overlay') return p

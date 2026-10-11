@@ -19,8 +19,8 @@ import { buildOutliersView, ages2label } from '../_outliers/view-model'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
 import { imageLetters, thumbCaption, versionClock } from '../_chrome/version-span'
 import type { ViewerInput, ViewerVersion } from '../_chrome/thumb-viewer/viewer-model'
-import { buildForjaView, forjaReadingView, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
-import { buildForjaCard, excludedOf, nicheOf, type ForjaCardView } from './forja-card-model'
+import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
+import { buildForjaCard, type ForjaCardView } from './forja-card-model'
 
 export type HistState = 'full' | 'pre' | 'few' | 'none' | 'noreg' | 'untr' | 'old' | 'err' | 'bf' | 'not-found'
 export type LaneType = 'title' | 'thumb' | 'desc'
@@ -281,11 +281,10 @@ export interface HistoricoView {
   /** `state` mirrors ObsVideo.pinState (null = not pinned); `note` is the sentence of 'aguardando-primeira', else null. */
   pin: { pinned: boolean; used: number; limit: number; state: 'aguardando-primeira' | 'sem-resposta' | 'ativo' | null; note: string | null } | null
   notFound: { title: string; text: string; href: string; back: string } | null
-  /** The forja (leitura do vídeo, Task 35): the screen's solid button, blockedBy and the card. */
+  /** The forja (leitura do vídeo, Task 35): the screen's solid button and blockedBy. */
   forja: ForjaView | null
-  forjaCard: HistForjaCard | null
-  /** O cartão novo (A2, Tarefa 7): a Tarefa 8 o desenha e apaga `forjaCard`. */
-  forjaCard2: ForjaCardView | null
+  /** O cartão "Leitura da forja" (A2, Tarefas 7 e 8): situação, etapas, frases e a leitura; null = vídeo de canal próprio. */
+  forjaCard: ForjaCardView | null
   /** Period filter: offered whenever there is a chart (30 days by default); null only without a chart (a video outside the observed ones, not found). */
   range: RangeView | null
   /** One row per image: null unless some image came back on air (and never for a video outside the observed ones). */
@@ -294,30 +293,6 @@ export interface HistoricoView {
   /** Legend entry of a group of close markers or narrow periods (the grouping depends on the width, so the screen decides when). */
   groupLegend: string
 }
-/** historico-video.html renderForja: the request state (pill, engine sentence, steps) or the reading(s). */
-export interface HistForjaCard {
-  pill: { text: string; cls: '' | 'warn' | 'bad' } | null
-  statusText: string | null
-  /** One line under the status: timing, preview, quota, machine… (by state). */
-  extra: string | null
-  /** After `extra`, a link to the header's forja button (historico-video.html toTop / "Ir para o botão"). */
-  toTop: { pre: string; label: string; post: string } | null
-  /** 0 na fila · 1 trabalhando · 3 publicado; null = no steps. */
-  step: 0 | 1 | 3 | null
-  cancel: boolean
-  /** failed/refused: "Para pedir de novo, use … no cabeçalho do vídeo." */
-  again: string | null
-  excluded: string | null
-  intro: string | null
-  /** The new reading (published now) and the previous / current one ("Leitura anterior"). */
-  fresh: ForjaReadingView | null
-  reading: ForjaReadingView | null; readingLabel: string | null
-  /** No video reading: what the niche's patterns reading says about this title (site content, no seal). */
-  niche: { text: string; items: Array<{ text: string; href: string; label: string }>; foot: string | null } | null
-  /** "Seu pedido …" text when the button is refused or blocked (with the link to the other video). */
-  blocked: { text: string; title: string; href: string } | null
-}
-
 const H_MS = 36e5, DAY = 864e5
 const TYPE_NAME: Record<LaneType, string> = { title: 'Título', thumb: 'Thumbnail', desc: 'Descrição' }
 const FEM: Record<LaneType, boolean> = { title: false, thumb: true, desc: true }
@@ -358,7 +333,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     const href = backHref(from, from === 'mudancas' ? obs.link.mudancas({ niche: userNiche }) : from === 'outliers' ? obs.link.outliers({ niche: userNiche }) : from === 'canais' ? obs.link.canais({ niche: userNiche }) : obs.link.insights({ niche: userNiche }))
     return {
       video: null, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null,
-      versions: null, pager: null, viewer: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null, forjaCard2: null,
+      versions: null, pager: null, viewer: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null,
       range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND,
       crumbs: canalOrigem
         ? { from, crumb: FROM_LABEL[from], href: obs.link.canais({ niche: userNiche }), sub: { text: canalOrigem.name, href: obs.link.canal(canalOrigem.id) + (back ?? '') }, canal: canalOrigem.id }
@@ -1034,58 +1009,12 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   }
 }
 
-/* ------------------------------------------------------------------ forja (historico-video.html renderForja) */
-function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoView, 'forja' | 'forjaCard' | 'forjaCard2'> {
+/* ------------------------------------------------------------------ forja (o botão da tela e o cartão novo) */
+function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoView, 'forja' | 'forjaCard'> {
   // no product sentence explains "own video" and the untracked one says something else: the block is simply not shown
-  if (ch.own) return { forja: null, forjaCard: null, forjaCard2: null }
+  if (ch.own) return { forja: null, forjaCard: null }
   const forja = buildForjaView(obs, { screen: 'historico', niche: v.niche ?? 'todos', videoId: v.id })
-  const sc = obs.forja.session.current(null, { type: 'leitura-video', video: v.id })
-  const r = sc.empty ? null : sc.request
-  const block = forja.niches[0]
-  const vr = block?.reading ?? null
-  const fresh = vr && vr.isNew ? vr : null
-  // the reading that existed before the request published (the newest one that is not the fresh one)
-  const older = obs.forja.readings.filter(x => x.type === 'leitura-video' && x.target?.video === v.id && x.id !== fresh?.id).sort((a, b) => b.generatedAt - a.generatedAt)[0]
-  // historico-video.html:725 (done): right after a reading is published neither block carries "Desde então" — the new
-  // one has nothing after it, and the previous one's delta is what the new reading already read
-  const noSince = (x: ForjaReadingView): ForjaReadingView => ({ ...x, since: null })
-  const prev = fresh ? (older ? noSince(forjaReadingView(obs, older, { active: false, isNew: false, activeNote: null })) : null) : vr
-  const tm = obs.forja.timing('leitura-video', v.niche ?? 'todos')
-  const excluded = excludedOf(obs, v, ch)
-  const nicheBlk = (): HistForjaCard['niche'] => nicheOf(obs, v, forja)
-  const label = forja.button.label
-  // historico-video.html:718/731: the action name is a link to the header button (#vhead), not a quoted string
-  const toTopLink = { pre: 'Para pedir de novo, use ', label, post: ' no cabeçalho do vídeo.' }
-  const st = r?.state ?? null
-  const cls: '' | 'warn' | 'bad' = st === 'falhou' ? 'bad' : st && ['atrasado', 'sem máquina', 'recusado (dado velho)'].includes(st) ? 'warn' : ''
-  const extra = !r ? null
-    : st === 'na fila' ? cap(tm.text) + '.'
-      : st === 'trabalhando' ? obs.forja.preview('leitura-video', v.niche ?? 'todos').text + '.'
-        : st === 'publicado' ? endDot(cap(sc.quota.text))
-          : st === 'atrasado' ? (r.busyWith ? cap(r.busyWith) + '.' : null)
-            : st === 'sem máquina' ? sc.machine.text + '.'
-              : st === 'falhou' ? 'Nada foi publicado.'
-                : st === 'recusado (dado velho)' ? endDot(cap(sc.quota.text)) : null
-  const toTop = !r ? null
-    : st === 'falhou' ? toTopLink
-      : st === 'recusado (dado velho)' ? (/peça de novo|pedir de novo/i.test(sc.statusText) ? { pre: '', label: 'Ir para o botão “' + label + '”', post: '' } : toTopLink) : null
-  const blocked = forja.blockedBy ? { text: cap(forja.blockedBy.reason.replace(/^Nada enviado:\s*/, '')), title: forja.blockedBy.title, href: forja.blockedBy.href } : null
-  return {
-    forja,
-    forjaCard2: buildForjaCard(obs, v, ch),
-    forjaCard: {
-      pill: r ? { text: sc.statusLabel ?? r.state, cls } : null,
-      statusText: r ? sc.statusText : null, extra, toTop,
-      step: !r ? null : st === 'trabalhando' ? 1 : st === 'publicado' ? 3 : ['falhou', 'recusado (dado velho)'].includes(st!) ? null : 0,
-      cancel: forja.cancel.length > 0,
-      again: null,
-      excluded,
-      intro: !vr && !r ? 'A leitura deste vídeo resume as trocas e diz o que os números permitem concluir. A forja (Gemma 12B) não julga thumbnails e não afirma causa.' : null,
-      fresh: fresh ? noSince(fresh) : null, reading: prev, readingLabel: r ? 'Leitura anterior' : null,
-      niche: vr ? null : nicheBlk(),
-      blocked,
-    },
-  }
+  return { forja, forjaCard: buildForjaCard(obs, v, ch, forja) }
 }
 
 const miss = (): ThumbImg => ({ src: null, missing: 'Imagem não registrada.', alt: 'Thumbnail' })

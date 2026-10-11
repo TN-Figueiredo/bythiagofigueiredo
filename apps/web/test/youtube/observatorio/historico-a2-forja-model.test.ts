@@ -454,14 +454,44 @@ describe('o resto do contrato', () => {
   })
   it('o bloco do nicho ("o que a leitura de padrões diz sobre este título") continua quando não há leitura do vídeo', () => {
     const semLeitura = world(ds => { ds.readings = ds.readings.filter(r => r.id !== READING_ID) })
-    // o vídeo de teste pode não aparecer na leitura de padrões: o bloco é o mesmo de hoje, e o de hoje é a referência
+    // O que o cartão antigo entregava (`forjaCard.niche`) para estes três vídeos, fixado ANTES de ele sair: o bloco não muda de conteúdo.
+    const doCartaoAntigo: Record<string, unknown> = {
+      "matt-opus55": {
+        "text": "Ainda não há leitura deste vídeo. O que a leitura de padrões do nicho de 20/10 diz sobre as fórmulas deste título:",
+        "items": [
+          {
+            "text": "Reação com hipérbole: mediana 1,4× com vs 1,0× sem (n = 25 vs 342). Matt Wolfe e Nate Herk assinam 4 dos 4 outliers com essa fórmula.",
+            "label": "Ver os 4 outliers",
+            "href": "/cms/youtube/competitors/outliers?fmt=long&formula=reacao-hiperbole&reading=padroes-titulo-ia-20-10&min=2"
+          },
+          {
+            "text": "Nome do modelo de IA: sem diferença que passe a regra (1,0× com vs 0,9× sem, n = 128).",
+            "label": "Ver os 8 outliers",
+            "href": "/cms/youtube/competitors/outliers?fmt=long&formula=nome-do-modelo&reading=padroes-titulo-ia-20-10&min=2"
+          }
+        ],
+        "foot": "Dados enviados à forja: 368 longos até 19/10 12:00 (6 canais, 6 meses). Desde então: +8 vídeos novos, 2 vídeos ganharam base de comparação, 11 saíram da janela de 6 meses, 1 com título trocado, Esq Unltd Daily: sem sincronização há 3 dias — uma nova leitura deixaria esse canal de fora. Peça nova leitura à forja para atualizar."
+      },
+      "nate-ai-agent-business": {
+        "text": "Ainda não há leitura deste vídeo, e a leitura de padrões do nicho de 20/10 06:10 não o cita.",
+        "items": [],
+        "foot": null
+      },
+      "matt-gpt6-astra": {
+        "text": "Ainda não há leitura deste vídeo. A leitura de padrões do nicho de 20/10 06:10 não viu diferença para as fórmulas deste título: nome do modelo de IA.",
+        "items": [],
+        "foot": null
+      }
+    }
     for (const id of [ID, 'nate-ai-agent-business', 'matt-gpt6-astra']) {
       const v = semLeitura.video(id)!
       semLeitura.forja.session.reset()
-      const hoje = buildHistoricoView(semLeitura, id, {}).forjaCard!
       const c = buildForjaCard(semLeitura, v, semLeitura.channel(v.ch)!)!
       expect(c.leitura).toBeNull()
-      expect(c.doNicho).toEqual(hoje.niche)
+      expect([id, c.doNicho]).toEqual([id, doCartaoAntigo[id]])
+      // e é o mesmo que a tela recebe
+      semLeitura.forja.session.reset()
+      expect([id, buildHistoricoView(semLeitura, id, {}).forjaCard!.doNicho]).toEqual([id, doCartaoAntigo[id]])
     }
     const alguma = buildForjaCard(semLeitura, semLeitura.video(ID)!, semLeitura.channel(semLeitura.video(ID)!.ch)!)!
     expect(alguma.doNicho).not.toBeNull()
@@ -482,12 +512,12 @@ describe('o resto do contrato', () => {
     ]
     for (const c of variantes) for (const t of texts(c)) expect([t, proibidas.test(t)]).toEqual([t, false])
   })
-  it('o Histórico entrega o cartão novo ao lado do de hoje: forjaCard2', () => {
+  it('o Histórico entrega o cartão novo ao lado do de hoje: forjaCard', () => {
     shared.forja.session.reset()
     const h = buildHistoricoView(shared, ID, {})
     expect(h.forjaCard).not.toBeNull()
-    expect(h.forjaCard2).toEqual(buildForjaCard(shared, shared.video(ID)!, shared.channel(shared.video(ID)!.ch)!))
-    expect(buildHistoricoView(shared, 'id-que-nao-existe', {}).forjaCard2).toBeNull()
+    expect(h.forjaCard).toEqual(buildForjaCard(shared, shared.video(ID)!, shared.channel(shared.video(ID)!.ch)!))
+    expect(buildHistoricoView(shared, 'id-que-nao-existe', {}).forjaCard).toBeNull()
   })
 })
 

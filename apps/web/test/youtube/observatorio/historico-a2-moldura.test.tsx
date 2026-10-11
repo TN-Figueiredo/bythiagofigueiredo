@@ -34,7 +34,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
 vi.mock('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows', () => ({ loadSwipeRows: async () => [], savedFromRows: () => ({ saved: new Set<string>() }) }))
 const ask = vi.hoisted(() => vi.fn())
 vi.mock('@/app/cms/(authed)/youtube/competitors/forja-actions', () => ({ askForjaReading: ask, cancelForjaReading: vi.fn() }))
-vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({ pinVideo: vi.fn(), unpinVideo: vi.fn() }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({ pinVideo: vi.fn(), unpinVideo: vi.fn(), syncCompetitorNow: vi.fn() }))
 
 const oracle = loadOracle()
 const fresh = (): Dataset => datasetFromOracle(oracle)
@@ -168,8 +168,11 @@ describe('moldura do Histórico: só a trilha', () => {
   })
 
   it('os avisos (toasts) da tela continuam funcionando dentro da moldura nova', async () => {
-    const { container } = await pagina(FULL, { niche: 'ia' })
+    // A2/Tarefa 8: com leitura pronta o botão do cabeçalho é "Ver a leitura" (só rola); o pedido sai do botão "Pedir leitura à forja", de um vídeo sem leitura
+    const ds = fresh(); ds.readings = ds.readings.filter(r => !(r.type === 'leitura-video' && r.target?.video === FULL))
+    const { container } = await pagina(FULL, { niche: 'ia' }, createObservatory(ds))
     const botao = container.querySelector<HTMLButtonElement>('#askForja')!
+    expect(botao.textContent).toBe('Pedir leitura à forja')
     expect(botao.getAttribute('aria-disabled')).not.toBe('true')
     fireEvent.click(botao)
     expect(await screen.findByText('Pedido enviado à forja')).toBeTruthy()

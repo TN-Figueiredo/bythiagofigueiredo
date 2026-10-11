@@ -8,7 +8,7 @@ import { HistoricoScreen } from '../../_historico/historico-screen'
 import { Pager } from '../../_historico/pager'
 import '../../_historico/historico.css'
 import { askForjaReading, cancelForjaReading } from '../../forja-actions'
-import { pinVideo, unpinVideo } from '../../actions'
+import { pinVideo, unpinVideo, syncCompetitorNow } from '../../actions'
 
 export const metadata = { title: 'Histórico do vídeo · Competidores' }
 export const dynamic = 'force-dynamic'
@@ -31,7 +31,7 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
   // came from Mudanças, Outliers, Insights or a channel page. A video of another niche shows it only beside the channel, in the header.
   return (
     <TrailChrome crumbs={historicoTrail(view.crumbs)} aside={view.pager ? <Pager pager={view.pager} naTrilha /> : undefined}>
-      <HistoricoScreen view={view} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} onPin={pinVideo} onUnpin={unpinVideo} pagerNaTrilha />
+      <HistoricoScreen view={view} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} onSyncChannel={syncCompetitorNow} onPin={pinVideo} onUnpin={unpinVideo} pagerNaTrilha />
     </TrailChrome>
   )
 }

@@ -22,7 +22,8 @@ import { Versions } from './versions'
 import { HIcon, TYPE_COLOR } from './icons'
 import { Thumb, type ThumbZoom } from './thumb'
 import { useThumbViewer } from '../_chrome/thumb-viewer/thumb-viewer'
-import { ForjaAskButton, VideoReading } from './video-reading'
+import { ForjaCard, HeaderAskButton, usePedidoForja } from './forja-card'
+import { headerAsk } from './forja-card-model'
 import type { ForjaAsk, ForjaCancel } from '../_chrome/forja-view-model'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { PinProvider, PinButton, PinMessage, PinChips, PinIcon, type PinAction } from '../_chrome/pin-kit'
@@ -36,7 +37,12 @@ const reduced = () => typeof window !== 'undefined' && typeof window.matchMedia 
  * a tela não o desenha de novo, mas continua sendo ela que decide o foco depois de Anterior/Próximo e que atende `[` e `]`, então procura os
  * botões em toda a moldura (`[data-obs]`), não só na própria raiz.
  */
-export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpin, pagerNaTrilha = false }: { view: HistoricoView; onAskForja?: ForjaAsk; onCancelForja?: ForjaCancel; onPin?: PinAction; onUnpin?: PinAction; pagerNaTrilha?: boolean }) {
+export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel, onPin, onUnpin, pagerNaTrilha = false }: {
+  view: HistoricoView; onAskForja?: ForjaAsk; onCancelForja?: ForjaCancel
+  /** "Sincronizar este canal" (a situação "Precisa de você"): a mesma ação de servidor que a página do canal usa. */
+  onSyncChannel?: (channelRowId: string) => Promise<{ ok: boolean }>
+  onPin?: PinAction; onUnpin?: PinAction; pagerNaTrilha?: boolean
+}) {
   const [pairK, setPairK] = useState<string | null>(view.defaultPair)
   const [hover, setHover] = useState<Hl | null>(null)
   /** Thumbnail image whose highlight is pinned (image summary); Esc lets it go. */
@@ -150,8 +156,22 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   }, [fromChannel])
   // While a forja request is in progress the screen refreshes itself (it used to come with the whole frame; the trail-only frame has no such
   // effect, D7), and a request that reaches "publicado" says so once.
-  useForjaRefresh(!!view.forja?.status?.active)
+  // "Pausar atualização automática" (spec 11, linha 14) vive aqui porque o efeito mora aqui; outro vídeo começa sem pausa.
+  const [pausado, setPausado] = useState(false)
+  useEffect(() => { setPausado(false) }, [view.video?.id])
+  const { lastAt } = useForjaRefresh(!!view.forja?.status?.active, pausado)
   useAvisoLeituraPublicada(view.forja)
+  // "Tela atualizada há N min": o último refresh do intervalo, ou a chegada de uma tela nova (o pedido, o cancelar e o sincronizar também atualizam)
+  const [telaEm, setTelaEm] = useState(() => Date.now())
+  useEffect(() => { setTelaEm(Date.now()) }, [view])
+  // The one request (both forja buttons send it) and the card the header button scrolls to, found through the screen's ref
+  const cardRef = useRef<HTMLElement>(null)
+  const pedido = usePedidoForja({ forja: view.forja, onAsk: onAskForja, videoId: view.video?.id })
+  const forjaCard = view.forja && view.forjaCard ? view.forjaCard : null
+  const atualizacao = { paused: pausado, onTogglePause: () => setPausado(p => !p), lastAt: Math.max(lastAt, telaEm) }
+  const cartao = forjaCard && view.forja && view.video
+    ? <ForjaCard key={view.video.id} card={forjaCard} forja={view.forja} pedido={pedido} onCancel={onCancelForja} onSyncChannel={onSyncChannel} refresh={atualizacao} cardRef={cardRef} say={setLive} />
+    : null
 
   // Clique de ponteiro na miniatura da raia Thumbnail (spec 6.3, gatilho 4): o alvo é marcado na hora, mas a rolagem e o foco no cartão esperam a janela do
   // duplo clique, e o segundo clique a cancela. Rolar no primeiro clique tirava a miniatura de baixo do cursor: o segundo caía em outro elemento.
@@ -231,7 +251,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
                 </div>
                 <div className="fx-under">{pv ? <PinMessage k={pv.videoId} /> : null}</div>
               </div>
-              {view.forja && view.forjaCard ? <div className="frow"><ForjaAskButton forja={view.forja} card={view.forjaCard} onAsk={onAskForja} /></div> : null}
+              {forjaCard ? <div className="frow"><HeaderAskButton ask={headerAsk(forjaCard, view.forja!)} pedido={pedido} cardRef={cardRef} say={setLive} bloqueado={forjaCard.bloqueado} /></div> : null}
             </div>
             <div className="vm">
               <div className="facts">
@@ -265,6 +285,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
                 <Timeline chart={null} axis={view.lanesAxis} lanes={view.lanes} legend={view.legends[''] ?? []} pair={null} hl={hl} onHl={onHl}
                   onSelectPair={selectPair} onGoVersion={onClip} onZoomVersion={viewer ? onClipDouble : undefined} groupLegend={view.groupLegend} />
               ) : null}
+              {forjaCard?.situacao != null ? cartao : null}
               {view.versions ? <Versions versions={view.versions} hl={hl} onHl={onHl} expanded={expanded} onToggle={() => setExpanded(e => !e)} target={target} onTargetBlur={() => setTarget(null)} zoomOf={zoomOf} /> : null}
             </>
           ) : (
@@ -276,7 +297,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
               {view.imageSummary ? <ImageSummary sum={view.imageSummary} active={hl?.label ?? null} pinned={pinImg} onHover={l => setHover(l ? { type: 'thumb', i: -1, ev: null, label: l } : null)} onPin={pinImage} /> : null}
               <Compare comparisons={view.comparisons} compare={view.compare} selected={pairK} empty={view.compareEmpty} onSelect={setPairK} onDescLink={openDesc}
                 filter={flt} onFilter={setFlt} onWholeVideo={() => onRange('tudo')} arrival={view.arrival} zoomOf={zoomOf} />
-              {view.forja && view.forjaCard ? <VideoReading card={view.forjaCard} forja={view.forja} onCancel={onCancelForja} /> : null}
+              {cartao}
               {view.versions ? <Versions versions={view.versions} hl={hl} onHl={onHl} expanded={expanded} onToggle={() => setExpanded(e => !e)} target={target} onTargetBlur={() => setTarget(null)} zoomOf={zoomOf} /> : null}
             </>
           )}

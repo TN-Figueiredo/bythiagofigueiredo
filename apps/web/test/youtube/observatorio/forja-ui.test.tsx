@@ -148,6 +148,8 @@ describe('header flow per screen (R58)', () => {
 describe('Histórico blockedBy', () => {
   it('another video of the niche in the queue: the button is disabled with the reason and a link to that video', () => {
     const ds = fresh()
+    // A2/Tarefa 8: com leitura pronta o botão do cabeçalho passa a ser "Ver a leitura" (spec 6.5), que só rola; o bloqueio vale para quem ainda não tem leitura
+    ds.readings = ds.readings.filter(r => !(r.type === 'leitura-video' && r.target?.video === SHOWCASE))
     const obs0 = createObservatory(ds)
     const other = obs0.videos.find(v => v.niche === 'ia' && v.id !== SHOWCASE && v.tracked && !obs0.channel(v.ch)!.own)!
     ds.requests.push(dbReq(ds, 'ia', { type: 'leitura-video', video: other.id }))

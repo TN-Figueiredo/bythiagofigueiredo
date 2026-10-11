@@ -1,7 +1,7 @@
 /**
  * A2, Tarefa 7: o modelo puro do cartão "Leitura da forja" do Histórico do vídeo (spec 7.1, 7.2 e 7.4, e o botão do
  * cabeçalho de 6.5). Sem componente e sem relógio: as horas vêm de `obs.date`, os pedidos de `obs.forja.session`, as
- * leituras de `obs.forja`. A Tarefa 8 desenha o cartão a partir daqui e apaga o cartão antigo (`HistForjaCard`).
+ * leituras de `obs.forja`. `forja-card.tsx` desenha o cartão a partir daqui (o cartão antigo saiu na Tarefa 8).
  *
  * Este sistema falha em VERDE: dado ausente (pedido sem horário, leitura sem `sent`, leitura sem itens) não pode virar
  * "ok" com saída vazia nem um número inventado. Cada campo diz o que sai quando o dado não existe, e o teste fixa.
@@ -14,7 +14,6 @@ import { isObserved } from '@/lib/youtube/observatorio/observed'
 import { failKindOf, FORJA_QUEUE } from '@/lib/youtube/observatorio/forja/states'
 import type { ForjaRequest, FrozenReading, ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
 import { buildForjaView, patternsOf, readingModel, type ForjaView } from '../_chrome/forja-view-model'
-import type { HistForjaCard } from './view-model'
 
 export type Situacao = 'aguardando' | 'atrasado' | 'pronta' | 'desatualizada' | 'precisa-de-voce' | 'nao-deu'
 export type EtapaId = 'fila' | 'escrevendo' | 'pronta'
@@ -39,7 +38,11 @@ export interface LeituraView {
   /** "Leitura anterior" na leitura que ficou para trás enquanto um pedido novo anda. */
   rotulo: string | null
 }
+/** O que a leitura de padrões do nicho diz sobre as fórmulas deste título (site, não forja): o bloco que o cartão antigo já tinha. */
+export interface NichoView { text: string; items: Array<{ text: string; href: string; label: string }>; foot: string | null }
 export interface ForjaCardView {
+  /** O canal do vídeo (`syncCompetitorNow` recebe este id): a ação "Sincronizar este canal" precisa dele. */
+  canalId: string
   /** null = nenhum pedido e nenhuma leitura. */
   situacao: Situacao | null
   frase: string | null
@@ -61,7 +64,7 @@ export interface ForjaCardView {
   excluido: string | null
   bloqueado: { text: string; title: string; href: string } | null
   /** O que o site diz sobre este título pela leitura de padrões do nicho (o bloco "niche" de hoje): não se perde. */
-  doNicho: HistForjaCard['niche']
+  doNicho: NichoView | null
 }
 export interface HeaderAskView {
   label: string
@@ -91,7 +94,7 @@ function dur(min: number): string {
 }
 const ACTIVE = new Set<string>(['na fila', 'trabalhando', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia'])
 
-/* ------------------------------------------------------------------ o que o Histórico de hoje já calcula (a Tarefa 8 apaga a cópia de lá) */
+/* ------------------------------------------------------------------ o que o Histórico já calculava para o cartão antigo (a cópia de lá saiu) */
 /** Por que o vídeo não pode ser lido, com o que fazer; null quando pode. */
 export function excludedOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): string | null {
   const reason = !isObserved(v) ? 'Vídeo fora dos acompanhados: não há dados para a forja ler' : v.niche ? obs.forja.eligibleChannels(v.niche).out.find(o => o.id === v.ch)?.reason ?? null : null
@@ -100,7 +103,7 @@ export function excludedOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): strin
   return (endDot(reason) + ' ' + act).trim()
 }
 /** Sem leitura do vídeo: o que a leitura de padrões do nicho diz sobre as fórmulas deste título. */
-export function nicheOf(obs: Observatory, v: ObsVideo, forja: ForjaView): HistForjaCard['niche'] {
+export function nicheOf(obs: Observatory, v: ObsVideo, forja: ForjaView): NichoView | null {
   if (!v.niche) return null
   const D = obs.date, F = obs.fmt
   const nr = obs.forja.latest('padroes-titulo', v.niche)
@@ -169,11 +172,12 @@ function etapasDe(p: Passo): EtapaView[] {
   return base.map((b, j) => ({ ...b, estado: j < p.i ? 'feita' : j === p.i ? p.k : 'futura', texto: j === p.i ? p.texto : '' }))
 }
 
-export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel): ForjaCardView | null {
+/** `forja`: a visão da forja deste vídeo, quando quem chama já a construiu (a tela a usa também para o botão do cabeçalho). */
+export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel, pronta?: ForjaView): ForjaCardView | null {
   // o vídeo de um canal próprio não é lido pela forja: nenhuma frase do produto o explica, o cartão simplesmente não existe
   if (ch.own) return null
   const D = obs.date, NOW = obs.NOW
-  const forja = buildForjaView(obs, { screen: 'historico', niche: v.niche ?? 'todos', videoId: v.id })
+  const forja = pronta ?? buildForjaView(obs, { screen: 'historico', niche: v.niche ?? 'todos', videoId: v.id })
   const sc = obs.forja.session.current(null, { type: 'leitura-video', video: v.id })
   const r: ForjaRequest | null = sc.empty ? null : sc.request
   const vr = forja.niches[0]?.reading ?? null
@@ -293,6 +297,7 @@ export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel): F
   const anterior = outra ? leituraView(obs, v.id, outra, { rotulo: 'Leitura anterior', doSite: [] }) : null
 
   return {
+    canalId: ch.id,
     situacao, frase,
     etapas: passo ? etapasDe(passo) : null,
     andamento,

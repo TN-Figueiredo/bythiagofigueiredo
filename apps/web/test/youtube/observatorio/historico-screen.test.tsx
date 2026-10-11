@@ -45,7 +45,7 @@ describe('HistoricoScreen', () => {
     const btns = [...root.querySelectorAll('.vhead .actions .frow button')]
     expect(btns.map(b => b.id)).toEqual(['askForja'])
     expect(btns[0]).toHaveClass('forja-solid')
-    expect(btns[0]!.textContent).toMatch(/Pedir (nova )?leitura à forja|Pedido em andamento/)
+    expect(btns[0]!.textContent).toMatch(/^(Pedir leitura à forja( de novo)?|Ver a leitura|Leitura em andamento: ver)$/)
     // R43: no per-video swipe in the header (follow-up FU-2): no control that does nothing
     expect(root.textContent).not.toMatch(/swipe file/i)
   })
