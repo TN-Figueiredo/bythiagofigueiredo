@@ -18,7 +18,7 @@ import { viewerSoAtual } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 import { PinProvider, type PinAction } from '../_chrome/pin-kit'
 import { useToast } from '../_chrome/toasts'
 import { chegouPelaTrilha, esquecerUltimoVideo, lembrarSaida, lerUltimoVideo, type UltimoVideo } from '../_chrome/ultimo-video'
-import { lerGatilho } from '../_chrome/gatilho-volta'
+import { descartarGatilhoSeNaoVoltou, lerGatilho } from '../_chrome/gatilho-volta'
 import { RemoveDialog } from '../_canais/remove-dialog'
 import { NicheOptionsContext, NichePendingContext, type NichePending } from '../_canais/niche-editor'
 import type { NicheOption } from '../_canais/view-model'
@@ -324,7 +324,11 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
   }
   const aoVoltar = () => {
     // o Voltar da comparação (spec 3, tabela de entradas): o foco volta ao botão "Comparar com o meu canal" do cabeçalho, o gatilho que a pessoa usou
-    if (lerGatilho('canal') === h.id) { raiz.current?.querySelector<HTMLElement>('[data-comparar-canal]')?.focus({ preventScroll: true }); return }
+    // (o registro só vale com a mesma URL de origem; sem o botão na tela o Voltar segue para o último vídeo visto)
+    if (lerGatilho('canal') === h.id) {
+      const botao = raiz.current?.querySelector<HTMLElement>('[data-comparar-canal]')
+      if (botao) { botao.focus({ preventScroll: true }); return }
+    }
     const reg = lerUltimoVideo(h.id)
     if (!reg) return
     esquecerUltimoVideo(h.id)
@@ -356,6 +360,8 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
     if (linha && !t!.closest('button')) lembrarSaida(h.id, id, 'troca', linha.dataset.troca)
   }
   useRolagemAoVoltar(raiz, aoVoltar, () => chegouPelaTrilha(h.id))
+  // uma montagem que não veio de um Voltar descarta o gatilho que ficou de uma saída por outro caminho (num macrotarefa: o popstate chega primeiro)
+  useEffect(() => { const t = window.setTimeout(() => descartarGatilhoSeNaoVoltou('canal'), 0); return () => window.clearTimeout(t) }, [])
   useLayoutEffect(() => {
     const alvo = focoNoUltimo.current
     if (!alvo) return

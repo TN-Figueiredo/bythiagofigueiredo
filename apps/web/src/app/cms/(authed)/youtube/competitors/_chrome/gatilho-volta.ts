@@ -13,7 +13,10 @@ const VALE_MS = 30 * 60_000
 /** Quanto tempo depois de um `popstate` uma montagem nova ainda conta como "voltou". */
 const JANELA_POP_MS = 10_000
 
-interface Guardado { lugar: LugarDoGatilho; canalId: string; t: number }
+/** `origem`: a URL (pathname + query) da tela de onde a pessoa saiu pelo gatilho. O registro só vale para a tela que volta SE ela é essa URL. */
+interface Guardado { lugar: LugarDoGatilho; canalId: string; t: number; origem: string }
+
+const urlAgora = (): string => `${window.location.pathname}${window.location.search}`
 
 function apagar(): void { try { window.sessionStorage.removeItem(CHAVE) } catch { /* conforto */ } }
 
@@ -21,7 +24,7 @@ export function lembrarGatilho(lugar: LugarDoGatilho, canalId: string): void {
   // o ouvinte do módulo pode não existir na cópia que a tela remontada carrega (desenvolvimento): quem sai pelo gatilho deixa um ouvinte vivo no documento, que
   // anota na sessão o Voltar que vem a seguir
   if (typeof window !== 'undefined') window.addEventListener('popstate', marcarPop, { capture: true, once: true })
-  try { window.sessionStorage.setItem(CHAVE, JSON.stringify({ lugar, canalId, t: Date.now() } satisfies Guardado)) } catch { /* conforto */ }
+  try { window.sessionStorage.setItem(CHAVE, JSON.stringify({ lugar, canalId, t: Date.now(), origem: urlAgora() } satisfies Guardado)) } catch { /* conforto */ }
 }
 
 /** O canal do gatilho lembrado para este lugar, ou null (sem registro, de outro lugar, velho ou estragado). Lê e apaga; o registro de outro lugar fica. */
@@ -32,9 +35,12 @@ export function lerGatilho(lugar: LugarDoGatilho): string | null {
     let g: Partial<Guardado> | null = null
     try { g = JSON.parse(raw) as Partial<Guardado> } catch { g = null }
     const bom = !!g && typeof g === 'object' && (g.lugar === 'canais' || g.lugar === 'canal') && typeof g.canalId === 'string' && g.canalId !== ''
-      && typeof g.t === 'number' && Date.now() - g.t <= VALE_MS && g.t - Date.now() <= 60_000
+      && typeof g.t === 'number' && Date.now() - g.t <= VALE_MS && g.t - Date.now() <= 60_000 && typeof g.origem === 'string' && g.origem !== ''
     if (!bom) { apagar(); return null }
     if (g!.lugar !== lugar) return null
+    // quem saiu da comparação por OUTRO caminho (trilha, link, atalho "Meu canal") deixou o registro vivo: um Voltar para outra tela, ou para a mesma
+    // tela noutra URL, não é o Voltar que ele esperava
+    if (g!.origem !== urlAgora()) { apagar(); return null }
     apagar()
     return g!.canalId!
   } catch { return null }
@@ -56,6 +62,18 @@ function haQuantoPop(): number {
     if (Number.isFinite(g) && g > t) t = g
   } catch { /* conforto */ }
   return Date.now() - t
+}
+
+/** Uma montagem que NÃO veio de um Voltar descarta o registro deste lugar: ele pertencia a uma saída que não voltou por aqui. O de outro lugar fica. */
+export function descartarGatilhoSeNaoVoltou(lugar: LugarDoGatilho): void {
+  try {
+    if (haQuantoPop() < JANELA_POP_MS) return
+    const raw = window.sessionStorage.getItem(CHAVE)
+    if (raw == null) return
+    let g: Partial<Guardado> | null = null
+    try { g = JSON.parse(raw) as Partial<Guardado> } catch { g = null }
+    if (!g || typeof g !== 'object' || g.lugar === lugar) apagar()
+  } catch { /* conforto */ }
 }
 
 const visivel = (el: Element): boolean => el.getClientRects().length > 0
@@ -87,7 +105,7 @@ export function useFocoAoVoltar(lugar: LugarDoGatilho, raiz: RefObject<HTMLEleme
     window.addEventListener('popstate', esperar, true)
     // montagem nova logo depois de um Voltar. Num macrotarefa depois: o roteador do Next remonta a tela dentro do próprio `popstate`, antes de o ouvinte que anota o
     // instante rodar, então a leitura imediata ainda não o vê
-    const depois = window.setTimeout(() => { if (haQuantoPop() < JANELA_POP_MS) esperar() }, 0)
+    const depois = window.setTimeout(() => { if (haQuantoPop() < JANELA_POP_MS) esperar(); else descartarGatilhoSeNaoVoltou(lugar) }, 0)
     return () => { window.removeEventListener('popstate', esperar, true); window.clearTimeout(depois); cancelAnimationFrame(quadro) }
   }, [lugar, raiz])
 }

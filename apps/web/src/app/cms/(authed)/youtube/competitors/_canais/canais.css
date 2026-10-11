@@ -388,10 +388,11 @@
 
 /* ---------------------------------------------------------------- A3: posição, bloco "Seus canais", divisor e linha presa no pé */
 /* a coluna da posição é a primeira e fica presa (a regra de th/td:first-child já a prende); o nome fica preso ao lado dela */
-[data-obs-screen="canais"] table th.p,[data-obs-screen="canais"] table td.p{width:40px;min-width:40px;text-align:right;color:var(--muted);font-size:12.5px;padding-left:6px;padding-right:2px;white-space:nowrap}
+[data-obs-screen="canais"]{--cn-pos-w:32px}
+[data-obs-screen="canais"] table th.p,[data-obs-screen="canais"] table td.p{width:var(--cn-pos-w);min-width:var(--cn-pos-w);text-align:right;color:var(--muted);font-size:12.5px;padding-left:6px;padding-right:2px;white-space:nowrap}
 [data-obs-screen="canais"] table td.p .sr + [aria-hidden]{color:var(--dim)}
 [data-obs-screen="canais"] tbody tr.you td.p{color:var(--text)}
-[data-obs-screen="canais"] .tablebox thead th:nth-child(2),[data-obs-screen="canais"] .tablebox tbody td:nth-child(2){left:48px}
+[data-obs-screen="canais"] .tablebox thead th:nth-child(2),[data-obs-screen="canais"] .tablebox tbody td:nth-child(2){left:var(--cn-pos-w)}
 [data-obs-screen="canais"] .tablebox tbody td:nth-child(2){background:var(--surface)}
 [data-obs-screen="canais"] .tablebox tbody tr.row:hover td:nth-child(2){background:var(--surface-hover)}
 [data-obs-screen="canais"] .tablebox tr.you td:nth-child(2),[data-obs-screen="canais"] .tablebox tr.you:hover td:nth-child(2){background:var(--you-cell)}
@@ -448,7 +449,7 @@
 [data-obs-screen="canais"]:not(.drawer-open) .tablebox th,[data-obs-screen="canais"]:not(.drawer-open) .tablebox td{padding-left:4px;padding-right:4px}
 [data-obs-screen="canais"]:not(.drawer-open) .tablebox .cad{min-width:100px}
 [data-obs-screen="canais"]:not(.drawer-open) .tablebox .cad > svg{width:100px;height:auto}
-[data-obs-screen="canais"] table th.p,[data-obs-screen="canais"] table td.p{width:32px;min-width:32px}
+[data-obs-screen="canais"] table th.p,[data-obs-screen="canais"] table td.p{width:var(--cn-pos-w);min-width:var(--cn-pos-w)}
 [data-obs-screen="canais"] table th.cmp,[data-obs-screen="canais"] table td.cmp{width:64px;min-width:64px;text-align:left;white-space:nowrap}
 [data-obs-screen="canais"] table th.cmp{white-space:normal;line-height:1.25}
 [data-obs-screen="canais"] table td.cmp [aria-hidden]{color:var(--dim)}

@@ -17,7 +17,7 @@ import { buildCanalView } from '@/app/cms/(authed)/youtube/competitors/_canal/vi
 import { CanalScreen, type CanalActions } from '@/app/cms/(authed)/youtube/competitors/_canal/canal-screen'
 import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
 import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrome/sync-context'
-import { lerGatilho } from '@/app/cms/(authed)/youtube/competitors/_chrome/gatilho-volta'
+import { lembrarGatilho, lerGatilho } from '@/app/cms/(authed)/youtube/competitors/_chrome/gatilho-volta'
 import { link } from '@/lib/youtube/observatorio/links'
 import type { Observatory } from '@/lib/youtube/observatorio'
 
@@ -214,6 +214,34 @@ describe('o gatilho de "Comparar" e o Voltar (D18)', () => {
       expect(document.activeElement).toBe(antes)
     } finally { vi.useRealTimers() }
   })
+  it('I-1: uma montagem da lista sem Voltar APAGA o registro da lista que ficou de uma saída por outro caminho; o de outro lugar fica', async () => {
+    comLayout()
+    window.sessionStorage.setItem('obs:gatilho-pop', '0')
+    lembrarGatilho('canais', 'qualquer')
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(Date.now() + 120_000)
+    try {
+      mount(DOIS().obs)
+      await new Promise(r => setTimeout(r, 40))
+      expect(window.sessionStorage.getItem('obs:gatilho-comparar')).toBeNull()
+    } finally { vi.useRealTimers() }
+  })
+  it('I-1: o registro de outra URL de origem não leva o foco ao "Comparar" quando um Voltar chega à lista', async () => {
+    comLayout()
+    const user = userEvent.setup()
+    const w = DOIS()
+    window.history.replaceState(null, '', '/cms/youtube/competitors?fmt=longos')
+    const { container } = mount(w.obs)
+    const alvo = linksComparar(container)[3]!
+    alvo.addEventListener('click', e => e.preventDefault())
+    await user.click(alvo) // gravou com a URL ?fmt=longos
+    window.history.replaceState(null, '', '/cms/youtube/competitors?fmt=longos&sort=vpd') // saiu pela trilha e voltou a uma lista de outra URL
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    const antes = document.activeElement
+    voltar()
+    await new Promise(r => setTimeout(r, 60))
+    expect(document.activeElement).toBe(antes)
+    expect(window.sessionStorage.getItem('obs:gatilho-comparar')).toBeNull()
+  })
   it('o clique com tecla de modificação (outra aba) não lembra nada', async () => {
     const user = userEvent.setup()
     const { container } = mount(DOIS().obs)
@@ -259,7 +287,7 @@ describe('o gatilho de "Comparar" e o Voltar (D18)', () => {
   })
   it('um registro de OUTRO lugar (o cabeçalho do canal) não move o foco da lista e fica para quem vai ler', async () => {
     comLayout()
-    window.sessionStorage.setItem('obs:gatilho-comparar', JSON.stringify({ lugar: 'canal', canalId: 'x', t: Date.now() }))
+    lembrarGatilho('canal', 'x') // com a URL de origem desta tela
     mount(DOIS().obs)
     ;(document.activeElement as HTMLElement | null)?.blur()
     const antes = document.activeElement
@@ -319,6 +347,20 @@ describe('cabeçalho do concorrente', () => {
     ;(document.activeElement as HTMLElement | null)?.blur()
     act(() => { window.dispatchEvent(new PopStateEvent('popstate')) })
     await waitFor(() => expect(document.activeElement).toBe(b))
+  })
+  it('I-1: a página do canal montada SEM Voltar apaga o registro que ficou de uma saída por outro caminho (um Voltar de um vídeo não perde o foco do último vídeo visto)', async () => {
+    vi.spyOn(Element.prototype, 'getClientRects').mockImplementation(function (this: Element) { return [{}] as unknown as DOMRectList })
+    window.sessionStorage.setItem('obs:gatilho-pop', '0')
+    const { chId } = mountCanal(HREF) // monta a página (define a URL do canal)
+    cleanup()
+    window.history.replaceState(null, '', '/cms/youtube/competitors/canal/' + chId)
+    lembrarGatilho('canal', chId) // saiu da comparação pela trilha: o registro ficou
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(Date.now() + 5 * 60_000)
+    try {
+      mountCanal(HREF)
+      await new Promise(r => setTimeout(r, 40))
+      expect(window.sessionStorage.getItem('obs:gatilho-comparar')).toBeNull()
+    } finally { vi.useRealTimers() }
   })
   it('sem registro o Voltar não mexe no foco do cabeçalho', async () => {
     vi.spyOn(Element.prototype, 'getClientRects').mockImplementation(function (this: Element) { return [{}] as unknown as DOMRectList })
