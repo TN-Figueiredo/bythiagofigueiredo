@@ -283,6 +283,19 @@ describe('período, na tela', () => {
     fireEvent.click(btn(b.root, BALL))
     expect(new URLSearchParams((nav.replace.mock.calls.at(-1)![0] as string).split('?')[1]).get('range')).toBe('tudo')
   })
+  it('m1: a URL guarda uma troca antiga e a pessoa escolheu 7 d: voltar para 30 d grava range=30 explícito (senão a troca alarga o período de novo, para 90 d)', () => {
+    // a chegada de 60 dias abriu em 90 d; a pessoa clicou 7 d: a URL tem troca= e range=7, e a tela não tem mais chegada
+    nav.search = 'from=mudancas&troca=' + encodeURIComponent(old52.id) + '&range=7'
+    const a = mount({ troca: old52.id, range: '7' }, obs, HIDDEN)
+    expect(a.view.arrival).toBeNull()
+    expect(btn(a.root, B7).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(btn(a.root, B30))
+    const url = nav.replace.mock.calls.at(-1)![0] as string
+    expect(new URLSearchParams(url.split('?')[1]).get('range')).toBe('30')
+    // e o modelo respeita: com range=30 explícito o período fica em 30 d, sem frase de ampliação
+    const depois = build({ troca: old52.id, range: '30' }, obs, HIDDEN)
+    expect(depois.range!.value).toBe('30')
+  })
   it('F1/A: com a URL já em range=30 e a troca antiga (fora do período), a tela é a normal: sem chegada, par padrão, 30 d marcado', () => {
     nav.search = 'from=mudancas&troca=' + encodeURIComponent(old52.id) + '&range=30'
     const a = mount({ troca: old52.id, range: '30' }, obs, HIDDEN)

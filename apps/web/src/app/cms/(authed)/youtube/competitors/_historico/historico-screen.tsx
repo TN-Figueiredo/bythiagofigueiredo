@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { lembrarUltimoVideo, renovarUltimoVideo } from '../_chrome/ultimo-video'
 import { DOUBLE_CLICK_MS } from '../_canal/use-rolagem-ao-voltar'
 import { useAvisoLeituraPublicada, useForjaRefresh } from '../_chrome/use-forja-refresh'
@@ -66,9 +66,13 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
   // Which pager button (or key) was used and the video it leads to lives OUTSIDE this component (pager-usado.ts): Anterior/Próximo change the
   // `[id]` segment, Next may remount the screen, and a ref would be born empty in the new one.
   const onPage = useCallback((which: 'prev' | 'next', href: string) => { marcarPagerUsado(which, videoDoHref(href)) }, [])
-  // 30 days is the default (spec 6.4): it leaves the URL; `tudo` is written out. With an arrival the period may have been widened by the
-  // change, so every choice (30 included) is written out: without it "30 d" would patch away a `range` that is not there and do nothing.
-  const onRange = (id: string) => go({ range: id === '30' && !view.arrival ? null : id })
+  // 30 days is the default (spec 6.4): it leaves the URL; `tudo` is written out. While the URL carries a `troca=` the period may be widened by
+  // that change whenever `range` is absent (the model's rule), so every choice (30 included) is written out: dropping it would hand the period
+  // back to the change (7 d, then 30 d, and the screen would jump to 90 d). The test is the URL, not `view.arrival`: the arrival is gone as soon
+  // as a smaller period is chosen, and `troca=` stays.
+  const search = useSearchParams()
+  const comTroca = view.arrival != null || !!search?.get('troca')
+  const onRange = (id: string) => go({ range: id === '30' && !comTroca ? null : id })
   const onHl = useCallback((h: Hl | null) => setHover(h), [])
   const hl: Hl | null = hover ?? (pinImg ? { type: 'thumb', i: -1, ev: null, label: pinImg } : null)
   const rangeValue = view.range?.value ?? 'tudo'
