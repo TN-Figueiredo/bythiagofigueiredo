@@ -89,9 +89,13 @@ export const MOTIVOS: readonly Motivo[] = [
   { k: 'semMultiplo', proprio: true },
 ]
 
-function medido(x: number, texto: string, nota: string | null = null): Numero {
-  // um número que não é finito ou um texto vazio nunca sai como medido: falha alto em vez de falhar em verde
-  if (!Number.isFinite(x) || texto.trim() === '') throw new Error(`número medido inválido: x=${x} texto="${texto}"`)
+/**
+ * Um número que não é finito, um texto vazio, ou um negativo onde a grandeza não admite (só inscritos em 30 dias pode cair)
+ * nunca sai como medido: falha alto (vira "inválido" com UM aviso por pacote) em vez de falhar em verde, e o par nunca recebe
+ * um valor que não saiba comparar.
+ */
+function medido(x: number, texto: string, nota: string | null = null, podeSerNegativo = false): Numero {
+  if (!Number.isFinite(x) || texto.trim() === '' || (x < 0 && !podeSerNegativo)) throw new Error(`número medido inválido: x=${x} texto="${texto}"`)
   return { x, texto, motivo: null, nota }
 }
 const naoMedido = (m: Motivo): Numero => ({ x: null, texto: null, motivo: motivoTexto(m), nota: null })
@@ -99,8 +103,8 @@ const naoMedido = (m: Motivo): Numero => ({ x: null, texto: null, motivo: motivo
 /** Zero medido é "0"; qualquer outro valor, uma casa decimal. */
 const umaCasa = (v: number, dec1: (x: number) => string) => (v === 0 ? '0' : dec1(v))
 
-/** O que sai quando um número está em estado inesperado: quem chama manda ao Sentry; a tela mostra "não medido" com a frase genérica. */
-export interface AvisoNumero { canal: string; numero: NumeroId; erro: string }
+/** O que sai quando um número está em estado inesperado: quem chama manda UM aviso ao Sentry (com a pilha de `excecao`); a tela mostra "não medido" com a frase genérica. */
+export interface AvisoNumero { canal: string; numero: NumeroId; erro: string; excecao: Error }
 
 export function numerosDoCanal(obs: Observatory, channelId: string, avisar?: (a: AvisoNumero) => void): Record<NumeroId, Numero> {
   const ch = obs.channel(channelId)
@@ -120,7 +124,8 @@ export function numerosDoCanal(obs: Observatory, channelId: string, avisar?: (a:
   /** Um número em estado inesperado (valor não finito, texto vazio) vira "não medido" com a frase genérica e um aviso: nunca um 500 para a página inteira. */
   const seguro = (numero: NumeroId, f: () => Numero): Numero => {
     try { return f() } catch (e) {
-      avisar?.({ canal: ch.id, numero, erro: e instanceof Error ? e.message : String(e) })
+      const excecao = e instanceof Error ? e : new Error(String(e))
+      avisar?.({ canal: ch.id, numero, erro: excecao.message, excecao })
       return naoMedido({ k: 'invalido' })
     }
   }
@@ -137,9 +142,9 @@ export function numerosDoCanal(obs: Observatory, channelId: string, avisar?: (a:
     if (g.pending) return naoMedido({ k: 'sem30', falta: g.pending === 'sem contagem' ? null : g.pending })
     const de = ch.snapshots.find(s => s.t === g.from), para = ch.snapshots.find(s => s.t === g.to)
     const nota = de && para ? `de ${F.int(de.subs)} para ${F.int(para.subs)}` : null
-    if (g.withinRounding) return medido(g.pct ?? 0, '≈ 0', nota)
+    if (g.withinRounding) return medido(g.pct ?? 0, '≈ 0', nota, true)
     if (g.pct == null) return naoMedido({ k: 'semPercentual' })
-    return medido(g.pct, g.pct === 0 ? '0,0%' : `${g.pct > 0 ? '+' : '−'}${F.dec1(Math.abs(g.pct * 100))}%`, nota)
+    return medido(g.pct, g.pct === 0 ? '0,0%' : `${g.pct > 0 ? '+' : '−'}${F.dec1(Math.abs(g.pct * 100))}%`, nota, true)
   })
 
   /* ---------------------------------------------------------------- Publicação */

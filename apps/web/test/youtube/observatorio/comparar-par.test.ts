@@ -11,7 +11,7 @@ import { NUMEROS, NO_NICHO, type NumeroId } from '@/app/cms/(authed)/youtube/com
 import { buildPar, resolverPar, type LinhaPar, type ParView, type Relacao } from '@/app/cms/(authed)/youtube/competitors/_comparar/par-model'
 import { dec, fx, haDias, juntar, quanto } from '@/app/cms/(authed)/youtube/competitors/_comparar/formatos'
 
-vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn() }))
+vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 
 const PALAVRAS_INTERNAS = /\b(pack|pacote|dataset|conjunto do site|motor|sentinela|R73|escala √|ranking)\b/i
 const PROIBIDAS = /ganha|vencedor|perdedor|melhor que|Infinity|NaN|undefined|\bnull\b|menor|menos que/i
@@ -544,6 +544,112 @@ describe('invariantes sobre TODOS os pares (base e mundo extremo)', () => {
       expect(r).not.toBeNull()
       expect(() => buildPar(p, r.a, r.b)).not.toThrow()
       expect(BASE_PACK.canais.find(c => c.id === r.a)!.own).toBe(true) // o padrão do fixture: o canal próprio no lado A
+    }
+  })
+})
+
+/* ------------------------------------------------------------------------------------------------------------------ conserto: relação coerente com o número escrito */
+describe('relação coerente com o número ESCRITO (I-T6-1)', () => {
+  const pTxt = (id: NumeroId, a: [number, string], b: [number, string]) => linha(duo(id, a, b), id)
+  it('0,26 e 0,34 views por dia, ambos escritos "0,3": praticamente igual, posição empatada, e a Leitura os põe entre os iguais', () => {
+    const l = pTxt('vpd', [0.26, '0,3'], [0.34, '0,3'])
+    expect(l.relacao).toEqual({ tipo: 'igual', texto: 'praticamente igual' })
+    expect(l.pos[0]!.texto).toMatch(/\(empate\)/); expect(l.pos[1]!.texto).toMatch(/\(empate\)/)
+    const v = duo('vpd', [0.26, '0,3'], [0.34, '0,3'])
+    expect(v.leitura.some(i => i.simbolo === 'igual' && i.texto.includes('views por dia'))).toBe(true)
+    expect(v.leitura.some(i => i.simbolo === 'maior')).toBe(false)
+  })
+  it('os dois "menos de 0,1" (0,01 e 0,04): praticamente igual, nunca "4,0×"', () => {
+    const l = pTxt('vpdPorMil', [0.01, 'menos de 0,1'], [0.04, 'menos de 0,1'])
+    expect(l.relacao).toEqual({ tipo: 'igual', texto: 'praticamente igual' })
+  })
+  it('textos diferentes continuam comparados pelo valor: 0,26 ("0,3") contra 0,34 ("0,34") é maior', () => {
+    expect(pTxt('vpd', [0.26, '0,3'], [0.34, '0,34']).relacao?.tipo).toBe('maior')
+  })
+  it('vale em todas as linhas com relação: dois valores bem diferentes escritos igual dão "igual" (ou o zero de gente, nunca a razão)', () => {
+    for (const id of NUMEROS) {
+      const l = linha(duo(id, [1, 'x'], [50, 'x']), id)
+      if (id === 'inscritos30') { expect(l.relacao).toBeNull(); continue }
+      expect(l.relacao?.tipo, id).toBe(id === 'diasUltimo' ? 'recente' : 'igual')
+    }
+  })
+  it('invariante sobre TODOS os pares dos dois mundos: texto igual nos dois lados ⇒ relação "igual"; nunca duas células iguais com uma diferença ao lado', () => {
+    let iguais = 0
+    for (const [mundo, p] of MUNDOS) for (const [a, b] of pares(p)) for (const l of buildPar(p, a, b).linhas) {
+      const [na, nb] = l.lados
+      if (na.texto == null || nb.texto == null || na.texto !== nb.texto || !l.relacao) continue
+      iguais++
+      expect(l.relacao.tipo, `${mundo}/${a}×${b}/${l.id}: ${l.relacao.texto}`).toBe('igual')
+    }
+    expect(iguais).toBeGreaterThan(0)
+  })
+  it('invariante sobre um mundo com faixas pequenas: pares de canais de mentira com textos iguais e valores diferentes', () => {
+    const textos = ['0', '0,3', 'menos de 0,1', '1,2', '10']
+    const valores = [0.01, 0.04, 0.26, 0.34, 1.2, 1.24, 9.97, 10.04]
+    for (const t of textos) for (const xa of valores) for (const xb of valores) {
+      const l = pTxt('vpd', [xa, t], [xb, t])
+      if (xa === 0 || xb === 0) continue
+      expect(l.relacao?.tipo, `${t}: ${xa}/${xb}`).toBe('igual')
+    }
+  })
+})
+
+describe('"+100%" nunca aparece abaixo de 2× (o percentual e o limiar de "×" concordam)', () => {
+  it('quanto(): 1,996 vira "2,0×"; 1,99 continua "+99%"; de 1,1 a 3 em passos de 0,0001 nunca sai "+100%" nem "+N%" com N >= 100', () => {
+    expect(quanto(1.996)).toBe('2,0×'); expect(quanto(1.999999)).toBe('2,0×'); expect(quanto(1.99)).toBe('+99%'); expect(quanto(1.994)).toBe('+99%')
+    for (let q = 1.1; q < 3; q += 0.0001) {
+      const t = quanto(q)
+      expect(t, String(q)).not.toMatch(/^\+(\d{3,}|100)%$/)
+      if (q >= 2) expect(t, String(q)).toMatch(/×$/)
+    }
+  })
+  it('a relação com razão 1,996: "2,0× …" com a forma do ×, nunca "+100% de …"', () => {
+    const r = rel('engajamento', 100, 199.6)!
+    expect(r.texto).toMatch(/2,0× /); expect(r.texto).not.toMatch(/\+100%/)
+    expect(rel('engajamento', 100, 199)!.texto).toMatch(/\+99% de engajamento/)
+  })
+  it('a Leitura rápida também: nunca "+100%"', () => {
+    const v = duo('vpd', 100, 199.6)
+    expect(v.leitura.map(i => i.texto).join(' ')).not.toMatch(/\+100%/)
+    expect(v.leitura.map(i => i.texto).join(' ')).toMatch(/2,0×/)
+  })
+  it('invariante sobre todos os pares: nenhum texto de relação ou da Leitura tem "+100%" ou mais', () => {
+    for (const [mundo, p] of MUNDOS) for (const [a, b] of pares(p)) {
+      const v = buildPar(p, a, b)
+      for (const t of [...v.linhas.flatMap(l => (l.relacao ? [l.relacao.texto] : [])), ...v.leitura.map(i => i.texto)]) expect(t, `${mundo}/${a}×${b}`).not.toMatch(/\+(100|[1-9]\d{2,})%/)
+    }
+  })
+})
+
+describe('o mesmo canal dos dois lados é recusado', () => {
+  it('buildPar(x, x) lança em vez de comparar o canal com ele mesmo', () => {
+    expect(() => buildPar(BASE_PACK, 'leo-khev', 'leo-khev')).toThrow(/mesmo canal/)
+    expect(() => buildPar(BASE_PACK, 'tnfigueiredo', 'tnfigueiredo')).toThrow(/mesmo canal/)
+  })
+  it('resolverPar nunca devolve a === b (a e b iguais, só um dado, ou o mesmo dos dois lados na URL)', () => {
+    for (const [, p] of MUNDOS) {
+      for (const id of p.ordem) { const r = resolverPar(p, id, id); expect(r).not.toBeNull(); expect(r!.a).not.toBe(r!.b) }
+    }
+  })
+})
+
+describe('relação ausente com os dois lados medidos: só onde a regra manda, nunca calada', () => {
+  it('em todos os pares dos dois mundos, linha com os dois lados medidos tem relação, exceto inscritos em 30 dias (o valor não finito ou negativo não chega ao par: o modelo dos números o recusa)', () => {
+    let vistas = 0
+    for (const [mundo, p] of MUNDOS) for (const [a, b] of pares(p)) for (const l of buildPar(p, a, b).linhas) {
+      if (l.lados[0].x == null || l.lados[1].x == null) continue
+      vistas++
+      if (l.id === 'inscritos30') { expect(l.relacao).toBeNull(); continue }
+      expect(l.relacao, `${mundo}/${a}×${b}/${l.id}`).not.toBeNull()
+      for (const x of [l.lados[0].x, l.lados[1].x]) { expect(Number.isFinite(x)).toBe(true); expect(x).toBeGreaterThanOrEqual(0) }
+    }
+    expect(vistas).toBeGreaterThan(1000)
+  })
+  it('os 12 números que não são inscritos em 30 dias nunca saem negativos do modelo dos números, em todos os canais dos dois mundos', () => {
+    for (const [mundo, p] of MUNDOS) for (const c of p.canais) for (const k of NUMEROS) {
+      if (k === 'inscritos30') continue
+      const x = c.numeros[k].x
+      if (x != null) expect(x, `${mundo}/${c.id}/${k}`).toBeGreaterThanOrEqual(0)
     }
   })
 })

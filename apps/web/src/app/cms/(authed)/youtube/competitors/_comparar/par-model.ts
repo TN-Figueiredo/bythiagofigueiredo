@@ -16,7 +16,7 @@
 import { posicoes, conjuntoTexto, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
 import type { CanalPack, CompararPack } from './pack'
 import { NO_NICHO, NUMEROS, type Numero, type NumeroId } from './numeros-model'
-import { dec, haDias, juntar, minuscula, numeros, ordinal, quanto, TOL } from './formatos'
+import { dec, emVezes, haDias, juntar, minuscula, numeros, ordinal, quanto, TOL } from './formatos'
 
 export type CorLado = 'o' | 'b' | 'n' // --lado-o (seu canal), --lado-b, --lado-n
 
@@ -137,10 +137,21 @@ type Cmp =
   | { t: 'igual' }
   | { t: 'maior'; lado: 0 | 1; q: number }
 
-/** null = valor que não dá para comparar (não finito ou negativo): nunca vira relação. Nenhuma divisão acontece antes de checar os zeros. */
-function comparar(xa: number, xb: number): Cmp | null {
-  if (!Number.isFinite(xa) || !Number.isFinite(xb) || xa < 0 || xb < 0) return null
+/**
+ * null = valor que não dá para comparar (não finito ou negativo): nunca vira relação. IMPOSSÍVEL para um pacote do
+ * servidor: `medido()` (numeros-model) recusa não finito, e os doze números com relação não aceitam negativo (só inscritos
+ * em 30 dias pode ser negativo e essa linha nunca tem relação); o que seria negativo vira "inválido" com aviso, não relação
+ * calada. Um teste percorre todos os pares e afirma que linha com os dois lados medidos sempre tem relação.
+ *
+ * Os DOIS TEXTOS escritos iguais (0,26 e 0,34 viram "0,3"): "praticamente igual", sempre. A tela nunca mostra duas células
+ * iguais com uma diferença percentual ao lado, nem "(empate)" na posição e "+31%" na relação: o empate de posição também
+ * decide pelo texto escrito. Nenhuma divisão acontece antes de checar os zeros.
+ */
+function comparar(na: Numero, nb: Numero): Cmp | null {
+  const xa = na.x, xb = nb.x
+  if (xa == null || xb == null || !Number.isFinite(xa) || !Number.isFinite(xb) || xa < 0 || xb < 0) return null
   if (xa === 0 && xb === 0) return { t: 'doisZero' }
+  if (na.texto != null && na.texto === nb.texto) return { t: 'igual' }
   if (xa === 0 || xb === 0) return { t: 'umZero', zero: xa === 0 ? 0 : 1 }
   const lado = xb > xa ? 1 : 0
   const q = lado === 1 ? xb / xa : xa / xb // maior ÷ menor, sempre >= 1
@@ -153,7 +164,12 @@ export function coresDoPar(a: CanalPack, b: CanalPack): [CorLado, CorLado] {
   return a.own ? ['o', 'b'] : b.own ? ['b', 'o'] : ['n', 'b']
 }
 
+/**
+ * O par de dois canais DIFERENTES: o mesmo canal dos dois lados lança (`resolverPar` nunca o devolve; a tela escolhe o par
+ * por ele e o seletor deixa o canal do outro lado desabilitado).
+ */
 export function buildPar(pack: CompararPack, idA: string, idB: string): ParView {
+  if (idA === idB) throw new Error(`par com o mesmo canal dos dois lados: ${idA}`)
   const a = pack.canais.find(c => c.id === idA), b = pack.canais.find(c => c.id === idB)
   if (!a || !b) throw new Error(`canal desconhecido no par: ${idA} / ${idB}`)
   const lados = [a, b] as const
@@ -203,7 +219,7 @@ export function buildPar(pack: CompararPack, idA: string, idB: string): ParView 
     if (na.x == null || nb.x == null || m.tipo === 'nenhuma') return null
     if (m.tipo === 'dias') return relacaoDias(na.x, nb.x)
     const noun = m.noun!
-    const cmp = comparar(na.x, nb.x)
+    const cmp = comparar(na, nb)
     if (!cmp) return null
     switch (cmp.t) {
       case 'doisZero': return { tipo: 'igual', texto: zeroDois(id) }
@@ -213,7 +229,7 @@ export function buildPar(pack: CompararPack, idA: string, idB: string): ParView 
         const maior = cmp.lado, menor = maior === 0 ? 1 : 0
         const ref = `${noun.g} ${voce(menor) ? `${POSS[noun.g]} ${noun.t}` : `${noun.t} de ${lados[menor].name}`}`
         const q = quanto(cmp.q)
-        const corpo = cmp.q >= 2 - TOL ? `${q} ${ref}` : `${q} de ${noun.t}`
+        const corpo = emVezes(cmp.q) ? `${q} ${ref}` : `${q} de ${noun.t}`
         return { tipo: 'maior', lado: maior, quem: quem(maior), texto: `${quem(maior)}: ${corpo}` }
       }
       default: { const nunca: never = cmp; return nunca }
@@ -286,7 +302,7 @@ export function buildPar(pack: CompararPack, idA: string, idB: string): ParView 
         else if (r?.tipo === 'igual') iguais.push(m.curto)
         continue
       }
-      const cmp = comparar(na.x, nb.x)
+      const cmp = comparar(na, nb)
       if (!cmp) continue
       switch (cmp.t) {
         case 'igual':

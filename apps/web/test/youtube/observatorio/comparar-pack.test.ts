@@ -11,10 +11,10 @@ import { link, OBS_BASE } from '@/lib/youtube/observatorio/links'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
 import { createTestObservatory } from './oracle'
 
-beforeEach(() => { sentry.captureMessage.mockClear() })
+beforeEach(() => { sentry.captureMessage.mockClear(); sentry.captureException.mockClear() })
 
 // o aviso de número inválido vai para o Sentry (a cópia que roda no servidor); aqui só se conta
-const sentry = vi.hoisted(() => ({ captureMessage: vi.fn() }))
+const sentry = vi.hoisted(() => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 vi.mock('@sentry/nextjs', () => sentry)
 
 const DAY = 86_400_000
@@ -248,18 +248,34 @@ describe('o pacote como um todo', () => {
     }
     sem(p, 'pack')
   })
-  it('um número em estado inesperado não derruba o pacote: vira "não medido" e um aviso vai ao Sentry, uma vez por número', () => {
-    sentry.captureMessage.mockClear()
+  it('um número em estado inesperado não derruba o pacote: vira "não medido" e UM aviso vai ao Sentry, com a pilha e os números afetados nos dados', () => {
     const w = world(ds => { ds.channels.find(c => c.id === CH)!.subs = Number.NaN })
     const p = buildCompararPack(w.obs)
     expect(canal(p, CH).numeros.inscritos).toEqual({ x: null, texto: null, motivo: 'este número não pôde ser calculado', nota: null })
     expect(canal(p, 'nate-herk').numeros.inscritos.x).not.toBeNull()
-    const chamadas = sentry.captureMessage.mock.calls.filter(c => String(c[0]).includes(CH))
-    expect(chamadas.length).toBeGreaterThanOrEqual(1)
-    expect(chamadas[0]![0]).toMatch(/comparação/); expect(chamadas[0]![1]).toMatchObject({ level: 'warning', extra: { canal: CH, numero: 'inscritos' } })
-    sentry.captureMessage.mockClear()
-    buildCompararPack(BASE.obs) // sem número inválido: nenhum aviso
     expect(sentry.captureMessage).not.toHaveBeenCalled()
+    expect(sentry.captureException).toHaveBeenCalledTimes(1)
+    const [erro, ctx] = sentry.captureException.mock.calls[0]!
+    expect(erro).toBeInstanceOf(Error); expect((erro as Error).stack).toBeTruthy()
+    expect(ctx).toMatchObject({ level: 'warning', fingerprint: ['comparar-numero-invalido'], extra: { total: 1, numeros: { inscritos: 1 }, canais: [CH] } })
+    sentry.captureException.mockClear()
+    buildCompararPack(BASE.obs) // sem número inválido: nenhum aviso
+    expect(sentry.captureException).not.toHaveBeenCalled(); expect(sentry.captureMessage).not.toHaveBeenCalled()
+  })
+  it('dado ruim em todos os canais: continua UM aviso por montagem do pacote (nunca um por canal e número), com a lista agregada e cortada', () => {
+    const w = world(ds => { for (const c of ds.channels) c.subs = Number.NaN })
+    const p = buildCompararPack(w.obs)
+    expect(p.canais.every(c => c.numeros.inscritos.x == null)).toBe(true)
+    expect(sentry.captureMessage).not.toHaveBeenCalled()
+    expect(sentry.captureException).toHaveBeenCalledTimes(1)
+    const ctx = sentry.captureException.mock.calls[0]![1] as { extra: { total: number; numeros: Record<string, number>; canais: string[] } }
+    expect(ctx.extra.numeros.inscritos).toBe(p.canais.length)
+    expect(ctx.extra.total).toBeGreaterThanOrEqual(p.canais.length)
+    expect(ctx.extra.canais.length).toBeLessThanOrEqual(10)
+  })
+  it('nenhum número do pacote sai como inválido no conjunto base (se sair, é bug a consertar, não a esconder)', () => {
+    for (const c of BASE_PACK.canais) for (const k of NUMEROS) expect(c.numeros[k].motivo, `${c.id}/${k}`).not.toBe('este número não pôde ser calculado')
+    expect(sentry.captureException).not.toHaveBeenCalled()
   })
   it('nenhum texto do pacote traz palavra interna', () => {
     const textos: string[] = []

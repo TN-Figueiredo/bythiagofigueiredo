@@ -17,9 +17,17 @@ export function fx(q: number): string {
   return `${dec(q, Number(q.toFixed(1)) >= 10 ? 0 : 1)}×`
 }
 
-/** A razão maior÷menor (sempre >= 1) em palavras curtas: "×" a partir de 2×, abaixo disso "+N%" sobre o menor. */
+/**
+ * "×" em vez de "+N%": a partir de 2× e também onde o percentual arredondado chegaria a 100 (entre 1,995 e 2). O limiar de
+ * "×" e o arredondamento do percentual têm de concordar: nunca "+100%" abaixo de 2×.
+ */
+export function emVezes(q: number): boolean {
+  return q >= 2 - TOL || Math.round((q - 1) * 100) >= 100
+}
+
+/** A razão maior÷menor (sempre >= 1) em palavras curtas: "×" a partir de 2× (`emVezes`), abaixo disso "+N%" sobre o menor. */
 export function quanto(q: number): string {
-  return q >= 2 - TOL ? fx(q) : `+${dec(Math.round((q - 1) * 100), 0)}%`
+  return emVezes(q) ? fx(q) : `+${dec(Math.round((q - 1) * 100), 0)}%`
 }
 
 /** "hoje" | "há 1 dia" | "há 5 dias". */

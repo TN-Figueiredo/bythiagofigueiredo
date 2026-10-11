@@ -46,12 +46,22 @@ export interface CompararPack {
 
 const thumbDe = (ytId: string) => (ytId ? `https://i.ytimg.com/vi/${encodeURIComponent(ytId)}/mqdefault.jpg` : null)
 
-/** Um número em estado inesperado já virou "não medido" na tela; aqui o aviso vai ao Sentry, um por número (nunca um 500). */
-const avisarSentry = (a: AvisoNumero) => {
-  Sentry.captureMessage(`observatório: comparação com número inválido (${a.canal}/${a.numero})`, { level: 'warning', extra: { canal: a.canal, numero: a.numero, erro: a.erro } })
+/**
+ * Números em estado inesperado já viraram "não medido" na tela; aqui vai UM aviso por montagem do pacote (nunca um por
+ * canal × número: uma tela de 75 canais mandaria quase mil eventos por abertura), com a pilha da primeira exceção e os
+ * números afetados agregados nos dados do evento. Um bug de código aparece no Sentry com pilha, não só como "não pôde
+ * ser calculado" em verde.
+ */
+const avisarSentry = (avisos: AvisoNumero[]) => {
+  if (!avisos.length) return
+  const numeros: Record<string, number> = {}
+  for (const a of avisos) numeros[a.numero] = (numeros[a.numero] ?? 0) + 1
+  const canais = [...new Set(avisos.map(a => a.canal))].slice(0, 10)
+  Sentry.captureException(avisos[0]!.excecao, { level: 'warning', fingerprint: ['comparar-numero-invalido'], extra: { total: avisos.length, numeros, canais, primeiro: avisos[0]!.erro } })
 }
 
-export function buildCompararPack(obs: Observatory, avisar: (a: AvisoNumero) => void = avisarSentry): CompararPack {
+export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero[]) => void = avisarSentry): CompararPack {
+  const avisos: AvisoNumero[] = []
   const owns = obs.ownChannels() // lança no conjunto de um canal: é a guarda de escopo
   const F = obs.fmt, D = obs.date
   const now = obs.NOW, inicio90 = now - 90 * DAY
@@ -102,9 +112,11 @@ export function buildCompararPack(obs: Observatory, avisar: (a: AvisoNumero) => 
       semVideos, comDatas: vids.length > 0,
       // concorrente sempre tem página (sem vídeos ela diz "ainda não tem vídeos sincronizados"); o canal próprio só com vídeos
       href: ch.own ? (semVideos ? null : ownChannelHref(ch.id)) : link.canal(ch.id),
-      numeros: numerosDoCanal(obs, ch.id, avisar), top5, top5Nota, pub90, pub90Nota,
+      numeros: numerosDoCanal(obs, ch.id, a => avisos.push(a)), top5, top5Nota, pub90, pub90Nota,
     }
   })
+
+  avisar(avisos)
 
   const comps = obs.channels.filter(c => !c.own)
     .sort((a, b) => (a.subs == null ? 1 : 0) - (b.subs == null ? 1 : 0) || (b.subs ?? 0) - (a.subs ?? 0) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))

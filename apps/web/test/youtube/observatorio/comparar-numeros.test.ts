@@ -568,6 +568,14 @@ describe('um número em estado inesperado nunca derruba a página (M7)', () => {
     // os que dependem da contagem de inscritos (inscritos em 30 dias lê o último registro) ou de dividir por ela ficam de fora
     for (const k of NUMEROS) if (k !== 'inscritos' && k !== 'inscritos30' && k !== 'vpdPorMil') expect(n[k], k).toEqual(ok[k])
   })
+  it('negativo onde só inscritos em 30 dias pode ser negativo também é inválido (nunca uma relação calada depois)', () => {
+    const w = world(ds => { ds.channels.find(c => c.id === CH)!.subs = -5 })
+    const avisos: Array<{ numero: string; excecao: Error }> = []
+    const n = numerosDoCanal(w.obs, CH, a => avisos.push(a))
+    naoMedido(n.inscritos, 'este número não pôde ser calculado')
+    expect(avisos.map(a => a.numero)).toContain('inscritos')
+    expect(avisos[0]!.excecao).toBeInstanceOf(Error); expect(avisos[0]!.excecao.stack).toBeTruthy()
+  })
   it('sem avisador, o número também vira "não medido" (não lança)', () => {
     const w = world(ds => { ds.channels.find(c => c.id === CH)!.subs = Number.POSITIVE_INFINITY })
     expect(() => numerosDoCanal(w.obs, CH)).not.toThrow()
@@ -613,6 +621,14 @@ describe('invariantes sobre todos os canais', () => {
   it('nenhum motivo traz palavra interna (todos os motivos possíveis e todos os que saem no fixture)', () => {
     for (const m of MOTIVOS) expect(motivoTexto(m), m.k).not.toMatch(PALAVRAS_INTERNAS)
     for (const [, obs] of mundos) for (const { n } of todos(obs)) for (const s of [n.motivo, n.nota, n.texto]) if (s) expect(s).not.toMatch(PALAVRAS_INTERNAS)
+  })
+  it('NENHUM número sai como inválido nos conjuntos base e extremo, e o avisador nunca é chamado (se sair, é bug a consertar)', () => {
+    for (const [nome, obs] of mundos) for (const c of obs.channels) {
+      const avisos: unknown[] = []
+      const n = numerosDoCanal(obs, c.id, a => avisos.push(a))
+      expect(avisos, `${nome}/${c.id}`).toEqual([])
+      for (const k of NUMEROS) expect(n[k].motivo, `${nome}/${c.id}/${k}`).not.toBe(motivoTexto({ k: 'invalido' }))
+    }
   })
   it('cada tipo de motivo tem uma frase própria e não vazia', () => {
     const frases = MOTIVOS.map(m => motivoTexto(m))
