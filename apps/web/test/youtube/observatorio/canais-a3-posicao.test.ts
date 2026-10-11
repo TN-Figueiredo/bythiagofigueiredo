@@ -40,13 +40,14 @@ function comTodos(ds: Dataset): string {
 /** Os concorrentes de um mundo, na ordem do conjunto, que não são o `fora`. */
 const outrosConc = (ds: Dataset, fora: string[] = []) => ds.channels.filter(c => !c.own && !fora.includes(c.id)).map(c => c.id)
 
-/** Oráculo independente: 1 + quantos têm valor maior, entre `ids`; quem não tem valor fica fora. */
-function oraculo(ids: string[], x: (id: string) => number | null) {
+/** Oráculo independente: 1 + quantos têm valor maior, entre `ids`; quem não tem valor fica fora. Com `txt`, o empate é pelo valor ESCRITO. */
+function oraculo(ids: string[], x: (id: string) => number | null, txt?: (n: number) => string) {
   const com = ids.filter(id => x(id) != null)
   return (id: string) => {
     const v = x(id)
     if (v == null) return null
-    return { pos: 1 + com.filter(o => x(o)! > v).length, de: com.length, empate: com.filter(o => o !== id && x(o) === v).length > 0 }
+    const igual = (o: string) => (txt ? txt(x(o)!) === txt(v) : x(o) === v)
+    return { pos: 1 + com.filter(o => x(o)! > v && !igual(o)).length, de: com.length, empate: com.filter(o => o !== id && igual(o)).length > 0 }
   }
 }
 const subsDe = (obs: Observatory) => (id: string) => obs.channel(id)!.subs
@@ -170,7 +171,7 @@ describe('A3.2 posição só onde existe', () => {
     }
     // as duas escalas dão posições diferentes para o mesmo canal (por mil ≠ absoluto)
     const a = view({ sort: 'vpd', scale: 'abs' }), p = view({ sort: 'vpd', scale: 'per-mil' })
-    const ora = (rel: boolean) => oraculo(obs.channels.map(c => c.id), vpdDe(obs, rel, 'long'))
+    const ora = (rel: boolean) => oraculo(obs.channels.map(c => c.id), vpdDe(obs, rel, 'long'), n => (rel ? obs.fmt.dec1(n) : obs.fmt.num(n)))
     for (const r of a.list.ranked) expect(r.pos).toEqual(ora(false)(r.id))
     for (const r of p.list.ranked) expect(r.pos).toEqual(ora(true)(r.id))
     expect(a.list.ranked.map(r => r.id)).not.toEqual(p.list.ranked.map(r => r.id))
@@ -405,7 +406,7 @@ describe('A3.2 formato, filtro e busca', () => {
     const L = view({ sort: 'vpd', fmt: 'longos' }), T = view({ sort: 'vpd', fmt: 'todos' }), S = view({ sort: 'vpd', fmt: 'shorts' })
     for (const r of all(L)) expect(byId(T, r.id).pos).toEqual(r.pos)
     expect(all(T).map(r => r.id)).toEqual(all(L).map(r => r.id))
-    const oraS = oraculo(obs.channels.map(c => c.id), vpdDe(obs, true, 'short'))
+    const oraS = oraculo(obs.channels.map(c => c.id), vpdDe(obs, true, 'short'), n => obs.fmt.dec1(n))
     for (const r of all(S)) expect(r.pos).toEqual(oraS(r.id))
     const id = ownIds(obs)[0]!
     expect(cheia(T, id).frase).toBe(cheia(L, id).frase)
@@ -493,5 +494,123 @@ describe('A3.2 invariantes', () => {
     expect(v.own.many).toBe(true)
     expect(all(v).length).toBe(BASE.obs.channels.length)
     expect(compIds(BASE.obs).every(id => all(v).some(r => r.id === id))).toBe(true)
+  })
+})
+
+/* ---------------------------------------------------------------- A3 Tarefa 3, acréscimo da revisão da Tarefa 2 */
+/** Oráculo pelo valor ESCRITO: 1 + quantos têm valor maior e se escrevem diferente; empate = outro com o mesmo texto. */
+function oraculoEscrito(ids: string[], x: (id: string) => number | null, txt: (n: number) => string) {
+  const com = ids.filter(id => x(id) != null)
+  return (id: string) => {
+    const v = x(id)
+    if (v == null) return null
+    return {
+      pos: 1 + com.filter(o => x(o)! > v && txt(x(o)!) !== txt(v)).length, de: com.length,
+      empate: com.filter(o => o !== id && txt(x(o)!) === txt(v)).length > 0,
+    }
+  }
+}
+const COMBOS: Array<{ sort: 'subs' | 'vpd'; scale: 'per-mil' | 'abs'; fmt: 'longos' | 'shorts' | 'todos' }> = [
+  { sort: 'subs', scale: 'per-mil', fmt: 'longos' }, { sort: 'vpd', scale: 'per-mil', fmt: 'longos' }, { sort: 'vpd', scale: 'abs', fmt: 'longos' },
+  { sort: 'vpd', scale: 'per-mil', fmt: 'shorts' }, { sort: 'vpd', scale: 'abs', fmt: 'shorts' }, { sort: 'vpd', scale: 'abs', fmt: 'todos' },
+]
+const celulaTxt = (r: CanaisRow, sort: 'subs' | 'vpd') => (sort === 'subs' ? r.subs : r.vpd)
+const escrito = (obs: Observatory, sort: 'subs' | 'vpd', scale: 'per-mil' | 'abs') => (n: number) => (sort === 'subs' ? obs.fmt.subs(n) : scale === 'per-mil' ? obs.fmt.dec1(n) : obs.fmt.num(n))
+const valorDe = (obs: Observatory, sort: 'subs' | 'vpd', scale: 'per-mil' | 'abs', fmt: string) =>
+  (sort === 'subs' ? subsDe(obs) : vpdDe(obs, scale === 'per-mil', fmt === 'shorts' ? 'short' : 'long'))
+const vizinhosDe = (txt: string) => ({
+  acima: /Logo acima: (.+?) \(([^)]*)\)\./.exec(txt)?.slice(1) ?? null,
+  abaixo: /Logo abaixo: (.+?) \(([^)]*)\)\./.exec(txt)?.slice(1) ?? null,
+})
+
+describe('A3.3 acréscimos da revisão: ordem crescente, texto da célula, empate escrito, "de N"', () => {
+  it('I1: ordenar em ordem CRESCENTE não inverte a posição: mesma posição e mesmo total em asc e desc, contra o oráculo; os vizinhos trocam de lado', () => {
+    const obs = BASE.obs
+    for (const niche of ['todos', 'viagem'] as const) for (const { sort, scale, fmt } of COMBOS) {
+      const d = view({ niche, sort, scale, fmt, dir: 'desc' }), a = view({ niche, sort, scale, fmt, dir: 'asc' })
+      const ids = obs.channels.filter(c => niche === 'todos' || c.niche === niche).map(c => c.id)
+      const esperado = oraculoEscrito(ids, valorDe(obs, sort, scale, fmt), escrito(obs, sort, scale))
+      for (const id of ids) {
+        expect(byId(d, id).pos, `${niche} ${sort} ${scale} ${fmt} desc ${id}`).toEqual(esperado(id))
+        expect(byId(a, id).pos, `${niche} ${sort} ${scale} ${fmt} asc ${id}`).toEqual(esperado(id))
+      }
+      for (const l of d.own.block!.linhas) {
+        if (l.tipo !== 'cheia') continue
+        const la = cheia(a, l.id)
+        expect(la.frase, `${niche} ${sort} ${fmt}`).toBe(l.frase)
+        if (l.pos && l.vizinhos && la.vizinhos) {
+          const vd = vizinhosDe(l.vizinhos), va = vizinhosDe(la.vizinhos)
+          expect(va.acima?.[0] ?? null).toBe(vd.abaixo?.[0] ?? null)
+          expect(va.abaixo?.[0] ?? null).toBe(vd.acima?.[0] ?? null)
+        }
+      }
+    }
+  })
+  it('I2: o valor da frase do bloco e dos vizinhos é o texto que a CÉLULA mostra (Inscritos e Views/dia, nas duas escalas, em Longos, Shorts e Todos)', () => {
+    let conferidos = 0
+    for (const { sort, scale, fmt } of COMBOS) for (const dir of ['desc', 'asc'] as const) {
+      const v = view({ sort, scale, fmt, dir })
+      for (const l of v.own.block!.linhas) {
+        if (l.tipo !== 'cheia' || !l.pos) continue
+        const r = byId(v, l.id)
+        expect(l.frase.endsWith(`com ${celulaTxt(r, sort)}.`), `${sort} ${scale} ${fmt}: ${l.frase} / célula ${celulaTxt(r, sort)}`).toBe(true)
+        expect(v.pe!.texto.endsWith(`com ${celulaTxt(byId(v, v.pe!.canalId), sort)}.`)).toBe(true)
+        const viz = vizinhosDe(l.vizinhos ?? '')
+        for (const lado of [viz.acima, viz.abaixo]) {
+          if (!lado) continue
+          const vizinha = all(v).find(x => x.name === lado[0])!
+          expect(lado[1], `${sort} ${scale} ${fmt}: vizinho ${lado[0]}`).toBe(celulaTxt(vizinha, sort))
+          conferidos++
+        }
+      }
+    }
+    expect(conferidos).toBeGreaterThan(10)
+  })
+  it('M1: duas linhas com o mesmo valor ESCRITO têm a mesma posição e "(empate)": nenhuma combinação mostra "9º e 10º com 0,2"', () => {
+    const w = a3World(ds => {
+      const [a, b] = ds.channels.filter(c => !c.own && c.subs != null)
+      a!.subs = 777000; b!.subs = 777400 // números diferentes, "777 mil" nos dois
+    })
+    const obs = w.obs
+    const v = view({ sort: 'subs' }, w.obs)
+    const dois = all(v).filter(r => r.subs.replace(/\u00a0/g, ' ') === '777 mil')
+    expect(dois).toHaveLength(2)
+    expect(dois[0]!.pos).toEqual(dois[1]!.pos)
+    expect(dois[0]!.pos!.empate).toBe(true)
+    // vale para o mundo todo, em todas as combinações
+    for (const world of [obs, BASE.obs]) for (const { sort, scale, fmt } of COMBOS) for (const dir of ['desc', 'asc'] as const) {
+      const vv = view({ sort, scale, fmt, dir }, world)
+      const porTexto = new Map<string, Set<number>>()
+      for (const r of all(vv)) if (r.pos) porTexto.set(celulaTxt(r, sort), (porTexto.get(celulaTxt(r, sort)) ?? new Set()).add(r.pos.pos))
+      for (const [t, ps] of porTexto) expect(ps.size, `${sort} ${scale} ${fmt} "${t}"`).toBe(1)
+    }
+    // o canal próprio no empate diz "(empate)" na frase
+    const dono = all(view({ sort: 'subs' }, w.obs)).find(r => r.own)!
+    expect(dono).toBeDefined()
+    const w2 = a3World(ds => { const own = ds.channels.find(c => c.own)!; const o = ds.channels.find(c => !c.own && c.subs != null)!; o.subs = 12300; own.subs = 12340 })
+    const f = cheia(view({ sort: 'subs' }, w2.obs), w2.owns[0]!)
+    expect(f.pos!.empate).toBe(true)
+    expect(f.frase).toContain('(empate)')
+  })
+  it('"de N": a tela diz o conjunto que conta quando a lista mostra outra coisa (canal próprio sem nicho num nicho; "só com problema")', () => {
+    const mix = a3World(undefined, 'mix')
+    const noNicho = view({ niche: 'viagem', sort: 'subs' }, mix.obs)
+    expect(noNicho.posicaoNota).toBe('A posição conta só os canais de Viagem; o seu canal sem nicho aparece na lista, sem posição.')
+    const rankedComPos = noNicho.list.ranked.filter(r => r.pos).length
+    expect(noNicho.list.ranked.length).toBe(rankedComPos + 1) // a diferença que a nota explica
+    // dois sem nicho: plural
+    const dois = a3World(ds => { for (const c of ds.channels.filter(x => x.own).slice(0, 2)) c.niche = null }, 'mix')
+    expect(view({ niche: 'viagem' }, dois.obs).posicaoNota).toBe('A posição conta só os canais de Viagem; os seus 3 canais sem nicho aparecem na lista, sem posição.')
+    // sob "só com problema" a lista é menor que o "de N"
+    const prob = view({ filter: 'problemas' })
+    expect(prob.posicaoNota).toBe('Posição na lista inteira, não só nos canais com problema.')
+    expect(prob.list.ranked.length).toBeLessThan(prob.list.ranked.find(r => r.pos)!.pos!.de)
+    // os dois juntos
+    expect(view({ niche: 'viagem', filter: 'problemas' }, mix.obs).posicaoNota).toBe(
+      'A posição conta só os canais de Viagem; o seu canal sem nicho aparece na lista, sem posição. Posição na lista inteira, não só nos canais com problema.')
+    // nada a explicar: null (nicho Todos, ou nicho sem canal próprio sem nicho)
+    expect(view({}).posicaoNota).toBeNull()
+    expect(view({ niche: 'viagem' }).posicaoNota).toBeNull()
+    expect(view({ sort: 'subs' }, mix.obs).posicaoNota).toBeNull()
   })
 })

@@ -392,4 +392,13 @@ describe('A3.3 busca e ordenação', () => {
     expect(container.querySelector('[data-own-block] li')).not.toBeNull()
     expect(screen.getAllByRole('button', { name: /^Ir até a linha/ }).length).toBeGreaterThan(0)
   })
+  it('a nota do "de N" aparece sob o controle quando a lista mostra outra coisa (só com problema; canal próprio sem nicho num nicho) e some quando não há o que explicar', () => {
+    const w = a3World(ds => { const c = ds.channels.find(x => !x.own)!; c.sync.state = 'erro'; c.sync.msg = 'falhou' }, 'mix')
+    const { container, unmount } = mount({ filter: 'problemas', niche: 'viagem' }, w.obs)
+    expect(container.querySelector('[data-k="posicao-nota"]')!.textContent).toBe(view({ filter: 'problemas', niche: 'viagem' }, w.obs).posicaoNota)
+    expect(container.querySelector('[data-k="posicao-nota"]')!.textContent).toContain('Posição na lista inteira, não só nos canais com problema.')
+    unmount()
+    const { container: c2 } = mount()
+    expect(c2.querySelector('[data-k="posicao-nota"]')).toBeNull()
+  })
 })

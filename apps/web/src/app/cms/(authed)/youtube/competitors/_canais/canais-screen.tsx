@@ -416,6 +416,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           </div>
           {view.fmtNota ? <p className="cn-fnota" data-k="fmt-nota">{view.fmtNota}</p> : null}
           {view.conjuntoAviso ? <p className="cn-fnota" data-k="conjunto-aviso">{view.conjuntoAviso}</p> : null}
+          {view.posicaoNota ? <p className="cn-fnota" data-k="posicao-nota">{view.posicaoNota}</p> : null}
           {ql ? <p className="cn-fnota" data-k="busca-nota">{view.buscaNota}</p> : null}
           <div className="toolbar2">
             <span className="sortnote">{view.sortNote}</span>

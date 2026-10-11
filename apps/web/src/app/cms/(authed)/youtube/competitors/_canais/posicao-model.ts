@@ -111,3 +111,6 @@ export function fraseDoCartao(p: Posicao, c: Conjunto): string {
 export function fraseSeuCanal(p: Posicao | null, c: Conjunto): string {
   return p ? `Seu canal: ${p.pos}º de ${p.de} ${conjuntoTexto(c)}${p.empate ? ' (empate)' : ''}.` : 'Seu canal ainda sem medida nesta coluna.'
 }
+
+/** Sob o filtro "só com problema" a lista é menor que o "de N": a posição continua a da lista inteira. */
+export const PROBLEMAS_NOTA = 'Posição na lista inteira, não só nos canais com problema.'

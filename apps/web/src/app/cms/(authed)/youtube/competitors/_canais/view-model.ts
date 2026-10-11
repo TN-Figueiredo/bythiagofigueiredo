@@ -15,7 +15,7 @@ import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
 import { langChip, ownChannelHref, ownTexts, type LangChip } from '../_chrome/own-channels'
 import { posicoes, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
 import {
-  BUSCA_NOTA, CONJUNTO_AVISO, divisorDe, emTexto, fraseDePosicao, fraseVizinhos, motivoSemValor, motivoTexto, temPosicao,
+  BUSCA_NOTA, CONJUNTO_AVISO, PROBLEMAS_NOTA, divisorDe, emTexto, fraseDePosicao, fraseVizinhos, motivoSemValor, motivoTexto, temPosicao,
   type MotivoSemMedida,
 } from './posicao-model'
 import { effView } from '../_chrome/effect-view'
@@ -147,6 +147,8 @@ export interface CanaisView {
   conjuntoAviso: string | null
   /** A frase sob a busca: a posição é a da lista inteira. */
   buscaNota: string
+  /** O que o "de N" conta quando a lista mostra outra coisa (canal próprio sem nicho num nicho; filtro "só com problema"); null quando nada a explicar. */
+  posicaoNota: string | null
   /** A linha presa no pé: fala do primeiro canal próprio com vídeos (D16). null sem canal próprio. */
   pe: { canalId: string; texto: string } | null
   /** O bloco "Seus canais" do topo; os canais próprios estão também na lista, na posição deles. */
@@ -463,8 +465,17 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   // O conjunto da posição (D11, emenda 45): o nicho escolhido, próprios incluídos, ou todos os canais do site. Vem ANTES do
   // filtro "só com problema" e da busca: eles escondem linhas, nunca renumeram ninguém.
   const conjunto: Conjunto = niche === 'todos' ? { tipo: 'geral' } : { tipo: 'nicho', niche, label: nicheLabel }
+  /**
+   * O valor de um canal como a célula o mostra (só as ordenações com posição). Sai do valor, não da linha: os vizinhos são
+   * os do conjunto inteiro, também os que o filtro "só com problema" esconde (a posição é a da lista inteira). É também a
+   * chave do empate: quem se escreve igual divide a posição.
+   */
+  const valorTxt = (c: ObsChannel) => {
+    const x = valoresOf(c)[sort]!
+    return sort === 'subs' ? subsTxt(x) : rel ? F.dec1(x) : num(x)
+  }
   const posMap: Map<string, Posicao | null> = temPosicao(sort)
-    ? posicoes(all.filter(inNiche).map(c => ({ id: c.id, x: valoresOf(c)[sort] })))
+    ? posicoes(all.filter(inNiche).map(c => { const x = valoresOf(c)[sort]; return { id: c.id, x, chave: x == null ? undefined : valorTxt(c) } }))
     : new Map()
   const sgn = dir === 'desc' ? 1 : -1
   // sem valor (null) vai para o fim em qualquer direção; a ordem entre os que têm valor é a de sempre
@@ -494,14 +505,6 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const unranked = baseLista.filter(r => r.valor[sort] == null).sort((a, b) => (a.own ? 1 : 0) - (b.own ? 1 : 0) || subsDesc(a, b))
   const emDaOrdem = emTexto(sort, fmt, rel)
   const list: CanaisLista = { ranked, unranked, divisor: unranked.length ? divisorDe(unranked.length, emDaOrdem) : null }
-  /**
-   * O valor de um canal como a célula o mostra (só as ordenações com posição). Sai do valor, não da linha: os vizinhos são
-   * os do conjunto inteiro, também os que o filtro "só com problema" esconde (a posição é a da lista inteira).
-   */
-  const valorTxt = (c: ObsChannel) => {
-    const x = valoresOf(c)[sort]!
-    return sort === 'subs' ? subsTxt(x) : rel ? F.dec1(x) : num(x)
-  }
   const fila = temPosicao(sort) ? all.filter(c => inNiche(c) && valoresOf(c)[sort] != null).sort((a, b) => (valoresOf(b)[sort]! - valoresOf(a)[sort]!) * sgn) : []
   const fraseDe = (r: CanaisRow): { frase: string; vizinhos: string | null } => {
     const c = obs.channel(r.id)!
@@ -523,6 +526,13 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     partes: ownParts,
   } : null
   // a linha presa no pé fala do primeiro canal próprio com vídeos (D16), com a frase curta (sem os vizinhos)
+  // o que o "de N" conta quando a lista mostra outra coisa: o canal próprio sem nicho (fora do conjunto de um nicho) e o filtro "só com problema"
+  const semNichoNaLista = niche !== 'todos' ? ownRows.filter(r => r.niche == null) : []
+  const posicaoNotas: string[] = []
+  if (temPosicao(sort)) {
+    if (semNichoNaLista.length) posicaoNotas.push(`A posição conta só os canais de ${nicheLabel}; ${semNichoNaLista.length === 1 ? 'o seu canal sem nicho aparece' : `os seus ${semNichoNaLista.length} canais sem nicho aparecem`} na lista, sem posição.`)
+    if (filter === 'problemas') posicaoNotas.push(PROBLEMAS_NOTA)
+  }
   const peRow = ownRows.find(r => temVideos(r.id))
   const pe = peRow ? { canalId: peRow.id, texto: `seu canal · ${fraseDe(peRow).frase}` } : null
   const np = comps.filter(c => c.sync.state !== 'ok').length
@@ -688,7 +698,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const t = R.tiers
   return {
     ...forjaOf(obs, niche, drawer),
-    list, conjunto, conjuntoAviso: conjunto.tipo === 'geral' ? CONJUNTO_AVISO : null, buscaNota: BUSCA_NOTA, pe,
+    list, conjunto, conjuntoAviso: conjunto.tipo === 'geral' ? CONJUNTO_AVISO : null, buscaNota: BUSCA_NOTA, posicaoNota: posicaoNotas.length ? posicaoNotas.join(' ') : null, pe,
     slots, scale, fmt: filtro, fmtNaUrl: fmtLido != null, layout, sort, dir,
     fmtNota: filtro === 'todos' ? 'Longos e Shorts lado a lado, sem mediana única (views de Short e de longo não se comparam); ordem pelos longos.'
       : filtro === 'shorts' ? 'Só Shorts; quem não publica Shorts fica no fim da lista.' : null,

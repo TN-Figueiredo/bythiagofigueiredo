@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { posicoes, conjuntoTexto, type Conjunto } from '@/lib/youtube/observatorio/posicao'
 
-const v = (id: string, x: number | null) => ({ id, x })
+const v = (id: string, x: number | null, chave?: string) => ({ id, x, chave })
 
 describe('A3.2 posicoes: 1 + quantos têm valor maior', () => {
   it('1 + quantos são maiores; "de" é o número de quem tem valor', () => {
@@ -56,5 +56,20 @@ describe('A3.2 conjuntoTexto', () => {
   })
   it('usa o rótulo, não o id (nicho criado pelo dono)', () => {
     expect(conjuntoTexto({ tipo: 'nicho', niche: 'cozinha-2', label: 'Cozinha de rua' })).toBe('em Cozinha de rua')
+  })
+})
+
+describe('A3.2 posicoes: o empate é decidido pelo valor como está escrito', () => {
+  it('valores diferentes que se escrevem igual dividem a posição e levam "empate"; a ordem entre eles não muda', () => {
+    const m = posicoes([v('a', 0.24, '0,2'), v('b', 0.21, '0,2'), v('c', 0.9, '0,9'), v('d', 0.05, '0,1')])
+    expect(m.get('c')).toEqual({ pos: 1, de: 4, empate: false })
+    expect(m.get('a')).toEqual({ pos: 2, de: 4, empate: true })
+    expect(m.get('b')).toEqual({ pos: 2, de: 4, empate: true })
+    expect(m.get('d')).toEqual({ pos: 4, de: 4, empate: false })
+  })
+  it('sem a chave escrita vale o número cru (como antes)', () => {
+    const m = posicoes([v('a', 0.24), v('b', 0.21)])
+    expect(m.get('a')).toEqual({ pos: 1, de: 2, empate: false })
+    expect(m.get('b')).toEqual({ pos: 2, de: 2, empate: false })
   })
 })
