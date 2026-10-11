@@ -233,6 +233,12 @@
   [data-obs] .obs-ch-actions .obs-ch-lf{display:none}
   [data-obs] .obs-ch-forja-seg{padding:2px 10px}
 }
+/* contêiner estreito (celular): a faixa de frescor (sincronização + forja) passava da largura e fazia a página rolar na horizontal (41 px a 390 px).
+   Quebra de linha: o trecho da forja vai para a linha de baixo da própria faixa, com um fio em cima no lugar do fio à esquerda. Acima disto, nada muda. */
+@container obscontent (max-width: 420px){
+  [data-obs] .obs-ch-fresh{flex-wrap:wrap}
+  [data-obs] .obs-ch-fresh>.obs-ch-forja-seg{flex:1 1 100%;border-left:0;border-top:1px solid var(--border)}
+}
 
 /* ---------- Fixar vídeo (R118; mockup 2026-10-06-historico-fixar-video/fixar.css). Shared by the three screens.
    .fx-btn.fx-btn.fx-btn (0,4,0 with [data-obs]) beats .btn, .btn.small, .ghost and .arow > .btn of any screen, whatever the

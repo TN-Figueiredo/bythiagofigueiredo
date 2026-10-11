@@ -699,13 +699,16 @@ const transbordo = (page: Page) => page.evaluate(() => {
   return { falhas: falhas.slice(0, 6), faixa, tabela: box && box.getClientRects().length ? { dentro: box.clientWidth, total: box.scrollWidth } : null }
 })
 for (const fmt of ['longos', 'todos', 'shorts'] as const) {
-  test(`sem rolagem horizontal da página em 1440, 1280, 1024, 768, 390 e 320 px, tabela e cartões, em ${fmt}`, async ({ page }) => {
+  test(`sem rolagem horizontal da página em 1440, 1280, 1024, 768 e 390 px, e a lista cabe a 320 px, tabela e cartões, em ${fmt}`, async ({ page }) => {
     const linhas: string[] = []
     for (const layout of ['table', 'cards'] as const) for (const w of LARGURAS) {
       await abrir(page, `?fmt=${fmt}&sort=subs&layout=${layout}`, { width: w, height: w <= 390 ? 800 : 900 })
       const t = await transbordo(page)
       linhas.push(`${layout} ${w}px: ${t.falhas.length ? 'FALHA ' + t.falhas.join(' | ') : t.faixa ? 'lista sem transbordo; ' + t.faixa : 'sem transbordo'}${t.tabela ? `; invólucro ${t.tabela.dentro} px, tabela ${t.tabela.total} px (rola por dentro: ${t.tabela.total > t.tabela.dentro + 1})` : ''}`)
       expect(t.falhas, `${fmt} ${layout} ${w}px`).toEqual([])
+      // a PÁGINA (main) não rola na horizontal até 390 px: a faixa de frescor da moldura quebra de linha. A 320 px o cabeçalho "Abrir no Cowork" da
+      // casca do CMS (fora do Observatório) ainda passa: é o test.fixme logo abaixo, com a medida.
+      if (w >= 390) expect(t.faixa, `${fmt} ${layout} ${w}px: a moldura não faz a página rolar`).toBeNull()
       // o bloco e a linha presa cabem na largura
       const b = await caixa(page.locator(`${S}:visible [data-own-block]`))
       expect(b.right, `bloco ${w}px`).toBeLessThanOrEqual(w + 1)
@@ -714,6 +717,15 @@ for (const fmt of ['longos', 'todos', 'shorts'] as const) {
     medida(`${fmt}:\n  ` + linhas.join('\n  '))
   })
 }
+
+// ACHADO ANTERIOR À FASE A3 (a moldura/casca é a mesma do commit c8672312): a 320 px o cabeçalho da casca do CMS ("Abrir no Cowork", `div.flex.items-center.gap-3`,
+// 215 px de largura, termina em 337 px) e o menu ⋯ (termina em 349 px) passam da janela e `main` rola 29 px na horizontal (scrollWidth 349 > 320) em TODAS as
+// telas do Observatório. Fica fora do Observatório (componente do CMS inteiro); o conserto é do cabeçalho da casca, não da lista.
+test.fixme('a página não rola na horizontal a 320 px: o cabeçalho "Abrir no Cowork" e o menu ⋯ da casca do CMS terminam em 349 px (> 320)', async ({ page }) => {
+  await abrir(page, '?fmt=longos&sort=subs&layout=cards', { width: 320, height: 800 })
+  const t = await transbordo(page)
+  expect(t.faixa, 'main não rola a 320 px').toBeNull()
+})
 
 test('a linha presa a 390 e 320 px: cabe na largura, e a altura passa de 30 px só quando o texto quebra', async ({ page }) => {
   for (const w of [390, 320]) {
