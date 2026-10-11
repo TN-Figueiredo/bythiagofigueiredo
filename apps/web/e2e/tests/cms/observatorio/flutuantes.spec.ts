@@ -30,14 +30,16 @@ interface Familia { folgaPe?: number; folgaTopo?: number; id: string; gatilho: s
   ref?: string }
 const TELAS: Array<{ nome: string; url: () => string; familias: Familia[] }> = [
   { nome: 'canais', url: () => '/cms/youtube/competitors', familias: [
-    { id: '"?" da tabela', gatilho: '[data-obs-screen="canais"] .tip', modo: 'foco', caixa: '#flut .cn-tt', max: 8, gap: 6 },
-    { id: 'menu da linha', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4 },
+    // folgaPe 112: os controles da lista de Canais têm scroll-margin-bottom de 112 px de propósito (canais.css): o Tab não deixa o foco sob a linha presa no pé (canais-a3.spec.ts),
+    // e o `scrollIntoView` do navegador respeita a margem; "colado embaixo" termina 112 px acima do pé da janela.
+    { id: '"?" da tabela', gatilho: '[data-obs-screen="canais"] .tip', modo: 'foco', caixa: '#flut .cn-tt', max: 8, gap: 6, folgaPe: 112 },
+    { id: 'menu da linha', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4, folgaPe: 112 },
     { id: 'menu ⋯ da moldura', gatilho: '.obs-ch-menu-wrap [aria-haspopup="menu"]', modo: 'clique', caixa: '#flut #obs-ch-menu', gap: 6 },
     { id: 'frescor por canal', gatilho: '.obs-ch-fresh > button', modo: 'clique', caixa: '#flut #obs-ch-fresh-pop', gap: 6 },
   ] },
   // a visão em Cards de Canais: o menu da linha mora em outro contêiner (o cartão), com a mesma função de posição
   { nome: 'canais-cards', url: () => '/cms/youtube/competitors?layout=cards', familias: [
-    { id: 'menu da linha (cards)', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4 },
+    { id: 'menu da linha (cards)', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4, folgaPe: 112 }, // mesma margem de rolagem de canais.css
   ] },
   // a página do canal do concorrente (A1): o ⓘ dos números, o menu ⋯ do canal e o menu "Ações do vídeo" (de um cartão do alto ao do pé da
   // grade: a amostra espalha 6 gatilhos do primeiro ao último dos ~120) em Capas e em Lista. Todos moram em #flut (Popover).
