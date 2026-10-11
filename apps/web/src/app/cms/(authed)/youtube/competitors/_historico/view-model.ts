@@ -17,6 +17,7 @@ import { imageSummary, isRangeId, rangeFor, rangeStart, RANGE_DEFAULT, situation
 import { mudancasList, effectView, type EffectView, type Rich } from '../_mudancas/view-model'
 import { buildOutliersView, ages2label } from '../_outliers/view-model'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
+import type { ViewerInput, ViewerVersion } from '../_chrome/thumb-viewer/viewer-model'
 import { buildForjaView, forjaReadingView, patternsOf, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
 
 export type HistState = 'full' | 'pre' | 'few' | 'none' | 'noreg' | 'untr' | 'old' | 'err' | 'bf' | 'not-found'
@@ -152,7 +153,8 @@ export interface ChartView {
   table: Array<[string, string, string, string]> | null
 }
 
-export interface BaSide { thumb: ThumbImg | null; title: string | null; label: string }
+/** `at` = o índice, em `HistoricoView.viewer.versions`, da versão que a imagem mostra (o gatilho abre o visualizador nela); null = a imagem não é uma versão (antes do arquivo, sem registro). */
+export interface BaSide { thumb: ThumbImg | null; title: string | null; label: string; at: number | null }
 export interface ScaleView {
   aria: string; hasBase: boolean
   iqr: { left: number; width: number } | null; med: number | null; obs: number; zero: number
@@ -264,6 +266,8 @@ export interface HistoricoView {
   compareEmpty: string | null
   versions: VersionsView | null
   pager: PagerView | null
+  /** O visualizador de thumbnail (spec 6.3): uma versão por período de thumbnail, com a legenda do cartão; null = nenhuma versão de thumbnail guardada. `start` = a atual. */
+  viewer: ViewerInput | null
   state: HistState
   /** Outside the observed videos (R117): the notice the screen prints, and the channel's link. */
   untracked: { notice: string; href: string } | null
@@ -350,7 +354,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     const href = backHref(from, from === 'mudancas' ? obs.link.mudancas({ niche: userNiche }) : from === 'outliers' ? obs.link.outliers({ niche: userNiche }) : from === 'canais' ? obs.link.canais({ niche: userNiche }) : obs.link.insights({ niche: userNiche }))
     return {
       video: null, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null,
-      versions: null, pager: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null,
+      versions: null, pager: null, viewer: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null,
       range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND,
       crumbs: canalOrigem
         ? { from, crumb: FROM_LABEL[from], href: obs.link.canais({ niche: userNiche }), sub: { text: canalOrigem.name, href: obs.link.canal(canalOrigem.id) + (back ?? '') }, canal: canalOrigem.id }
@@ -506,6 +510,18 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   }
   const titles = versionsOf('title', v.titles)
   const thumbs = versionsOf('thumb', v.thumbs)
+  // o visualizador de thumbnail (spec 6.3): a legenda, o período e o tempo no ar são os do cartão da versão, sem recalcular
+  const viewerVersions: ViewerVersion[] = thumbs.map((t, i) => {
+    const x = v.thumbs[i]!, nx = v.thumbs[i + 1]
+    return {
+      label: 'Capa ' + t.label, current: t.cur, archived: t.thumb?.src ?? null, youtubeId: t.cur ? v.ytId || null : null,
+      caption: 'Capa ' + t.label + (t.cur ? ' (' + (t.tag?.text ?? 'no ar') + ')' : '') + ': ' + t.span + '; no ar por ' + t.dur,
+      from: dmhmY(lateObs(x) ? obsSince! : startMs(x)), to: nx ? dmhmY(nx.first_seen) : stalled ? dmhmY(endNow) : 'agora',
+      preview: t.thumb?.src ?? null,
+    }
+  })
+  const viewer: ViewerInput | null = viewerVersions.length ? { title: v.title.trim() ? v.title : 'sem título', versions: viewerVersions, start: viewerVersions.length - 1 } : null
+  const verAt = (t: VersionView | null | undefined): number | null => { const k = t ? thumbs.indexOf(t) : -1; return k >= 0 ? k : null }
   const descs = versionsOf('desc', v.descs)
   titles.forEach((t, i) => { if (i) t.titleDiff = titleDiffView(obs, v.titles[i - 1]!.text, v.titles[i]!.text) })
   const t0v = v.thumbs[0]
@@ -839,7 +855,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     // before/after comparison (every change of this video reads 'sem-serie'). The notice says which of the two cases it is.
     const stored = v.thumbs.length > 0 || v.descs.length > 0 || v.titles.some(t => t.id !== v.id + '/title')
     const href = obs.link.canais({ channel: v.ch })
-    const common = { video: videoOut, crumbs, header, chart: null, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null, pager, state, notFound: null, pin, pinView, ...forjaOf(obs, v, ch),
+    const common = { video: videoOut, crumbs, header, chart: null, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null, pager, viewer, state, notFound: null, pin, pinView, ...forjaOf(obs, v, ch),
       range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND }
     const outside = 'Este vídeo está fora dos ' + ch.video_limit + ' mais recentes acompanhados de ' + ch.name + '.'
     const noChart = 'O gráfico de views só aparece para vídeos acompanhados ou fixados.'
@@ -929,17 +945,17 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       if (q.e2) {
         const tb = thumbs.find(t => t.id === c0.fromId), ta = thumbs.find(t => t.id === c0.toId), tl = thumbs.find(t => t.id === last.toId)
         ba = [
-          { thumb: tb?.thumb ?? miss(), title: null, label: keyOf((c0.before as { key: string }).key) + ' até ' + c0.whenText },
-          { thumb: ta?.thumb ?? miss(), title: null, label: keyOf((c0.after as { key: string }).key) + ' por ' + D.dur(c0.nextLivedMs ?? 0) },
-          { thumb: tl?.thumb ?? miss(), title: null, label: keyOf((last.after as { key: string }).key) + ' de volta em ' + dmhmY(last.at) },
+          { thumb: tb?.thumb ?? miss(), title: null, label: keyOf((c0.before as { key: string }).key) + ' até ' + c0.whenText, at: verAt(tb) },
+          { thumb: ta?.thumb ?? miss(), title: null, label: keyOf((c0.after as { key: string }).key) + ' por ' + D.dur(c0.nextLivedMs ?? 0), at: verAt(ta) },
+          { thumb: tl?.thumb ?? miss(), title: null, label: keyOf((last.after as { key: string }).key) + ' de volta em ' + dmhmY(last.at), at: verAt(tl) },
         ]
       } else {
         const preMs = (c0.window ? c0.window[0] : c0.at) - 60e3, postMs = Math.max(...q.group.map(g => g.at)) + 60e3
         const tb = versionAt('thumb', preMs), ta = versionAt('thumb', postMs), Tb = versionAt('title', preMs), Ta = versionAt('title', postMs)
         const known = !!tb.raw && !(openStart(tb.raw) && tb.raw.first_seen > preMs)
         ba = [
-          { thumb: known ? tb.view!.thumb : tb.raw ? { src: null, missing: 'Thumbnail antes de ' + preLabel + ': não registrada', alt: 'Thumbnail' } : null, title: Tb.text, label: 'Antes (' + (Tb.view?.label ?? '') + (known ? ', thumbnail ' + tb.view!.label : '') + ')' },
-          { thumb: ta.view?.thumb ?? null, title: Ta.text, label: 'Depois (' + (Ta.view?.label ?? '') + (ta.view ? ', thumbnail ' + ta.view.label : '') + ')' },
+          { thumb: known ? tb.view!.thumb : tb.raw ? { src: null, missing: 'Thumbnail antes de ' + preLabel + ': não registrada', alt: 'Thumbnail' } : null, title: Tb.text, label: 'Antes (' + (Tb.view?.label ?? '') + (known ? ', thumbnail ' + tb.view!.label : '') + ')', at: known ? verAt(tb.view) : null },
+          { thumb: ta.view?.thumb ?? null, title: Ta.text, label: 'Depois (' + (Ta.view?.label ?? '') + (ta.view ? ', thumbnail ' + ta.view.label : '') + ')', at: verAt(ta.view) },
         ]
       }
     }
@@ -1053,7 +1069,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   return {
     video: videoOut, crumbs, header, chart, lanes, legends, comparisons, defaultPair, arrival,
     compareEmpty: pairs.length ? null : endDot(watchText()) + ' Se o canal trocar título, thumbnail ou descrição, a troca aparece na curva acima e entra em Mudanças.',
-    versions, pager, state, untracked: null, lanesAxis: null, pin, pinView, notFound: null, ...forjaOf(obs, v, ch),
+    versions, pager, viewer, state, untracked: null, lanesAxis: null, pin, pinView, notFound: null, ...forjaOf(obs, v, ch),
     range: rangeView, imageSummary: imageSummaryView, compare, groupLegend: GROUP_LEGEND,
   }
 }

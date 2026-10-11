@@ -13,6 +13,8 @@ import { link, type CanalTab } from '@/lib/youtube/observatorio/links'
 import type { syncCompetitorNow, removeCompetitorChannel, getCompetitorRemovalImpactAction } from '../actions'
 import type { setChannelNiche } from '../niche-actions'
 import { Icon } from '../_chrome/icons'
+import { useThumbViewer } from '../_chrome/thumb-viewer/thumb-viewer'
+import { viewerSoAtual } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 import { PinProvider, type PinAction } from '../_chrome/pin-kit'
 import { useToast } from '../_chrome/toasts'
 import { chegouPelaTrilha, esquecerUltimoVideo, lembrarSaida, lerUltimoVideo, type UltimoVideo } from '../_chrome/ultimo-video'
@@ -127,8 +129,9 @@ function AbasNav({ view, state, resumo, onAba }: { view: CanalView; state: Canal
 }
 
 /** A aba Vídeos: controles, a vista (grade de capas ou tabela), "Carregar mais" e a nota fixa. */
-function AbaVideos({ view, state, lista, set, nome, channelId, onSync, raiz }: {
+function AbaVideos({ view, state, lista, set, nome, channelId, onSync, onAmpliar, raiz }: {
   view: CanalView; state: CanalState; lista: ListaView; set: (patch: Partial<CanalState>) => void; nome: string; channelId: string; onSync: () => void
+  onAmpliar: (v: ChannelVideoView, trigger: HTMLElement | null) => void
   raiz: RefObject<HTMLElement | null>
 }) {
   const all = view.videos.videos
@@ -219,7 +222,6 @@ function AbaVideos({ view, state, lista, set, nome, channelId, onSync, raiz }: {
       + `${plural(novos.length, 'vídeo antigo carregado', 'vídeos antigos carregados')}${depois.mais ? '.' : '. Não falta nenhum.'}`)
   }
 
-  const ampliar = (v: ChannelVideoView) => { if (v.thumbSrc) window.open(v.thumbSrc, '_blank', 'noopener,noreferrer') }
   const verTrocas = (v: ChannelVideoView) => set({ tab: 'trocas', video: v.id })
   const hrefs = useMemo(() => {
     const back = canalQuery(state)
@@ -248,8 +250,8 @@ function AbaVideos({ view, state, lista, set, nome, channelId, onSync, raiz }: {
           {lista.secoes.length ? <a className="lk cv-skip" href="#cv-fim" onClick={e => { e.preventDefault(); porId(raiz, 'cv-fim')?.focus() }}>Pular a lista de vídeos</a> : null}
           {lista.secoes.length
             ? state.ver === 'lista'
-              ? <Tabela lista={lista} state={state} nome={nome} descrito="cv-foot" hrefDe={hrefs} onSort={onColuna} onAmpliar={ampliar} onTrocas={verTrocas} />
-              : <Grade lista={lista} sort={state.sort} nome={nome} hrefDe={hrefs} onAmpliar={ampliar} onTrocas={verTrocas} />
+              ? <Tabela lista={lista} state={state} nome={nome} descrito="cv-foot" hrefDe={hrefs} onSort={onColuna} onAmpliar={onAmpliar} onTrocas={verTrocas} />
+              : <Grade lista={lista} sort={state.sort} nome={nome} hrefDe={hrefs} onAmpliar={onAmpliar} onTrocas={verTrocas} />
             : null}
           <div id="cv-fim" tabIndex={-1} />
           {lista.vazio ? (
@@ -282,6 +284,14 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
   const [state, set] = useCanalState(view.state)
   const raiz = useRef<HTMLDivElement>(null)
   const todos = view.videos.videos
+  /* O visualizador de thumbnail (spec 6.3, gatilhos 5 e 6). Se o gatilho sumir com o diálogo aberto (a aba mudou, a lista mudou), o foco vai ao
+     título da aba que está na tela AGORA (lido na hora de fechar), nunca se perde no body. */
+  const aba = useRef<CanalTab>(state.tab)
+  useLayoutEffect(() => { aba.current = state.tab })
+  const { open: abrirViewer, node: viewerNode } = useThumbViewer({
+    fallback: () => (aba.current === 'leitura' ? raiz.current?.querySelector<HTMLElement>('nav.ctabs [aria-current="page"]') ?? null : porId(raiz, aba.current === 'trocas' ? 'ct-h2' : 'cv-h2')),
+  })
+  const ampliarVideo = useCallback((v: ChannelVideoView, trigger: HTMLElement | null) => { const vw = v.viewer ?? viewerSoAtual(v); if (vw) abrirViewer(vw, trigger) }, [abrirViewer])
   /* O Voltar do Histórico (spec 3): o foco no cartão do ÚLTIMO vídeo visto (Anterior/Próximo substituem a entrada do histórico, então a URL que
      volta é a de antes do primeiro), e `n` cresce até incluí-lo. A rolagem é a de antes (use-rolagem-ao-voltar). Sem registro, a página volta
      como volta o navegador. O registro vale um Voltar só. Se `n` precisa crescer, o foco espera o render com ele (efeito logo abaixo). */
@@ -445,13 +455,14 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
           <AbasNav view={view} state={state} resumo={resumo} onAba={irParaAba} />
           {h.sync.banner ? <Banner text={h.sync.banner} tone={h.sync.tone} /> : null}
           <PinProvider onPin={actions.onPin} onUnpin={actions.onUnpin}>
-            <AbaVideos view={view} state={state} lista={lista} set={setAba} nome={h.name} channelId={h.id} onSync={() => { void syncOne() }} raiz={raiz} />
+            <AbaVideos view={view} state={state} lista={lista} set={setAba} nome={h.name} channelId={h.id} onSync={() => { void syncOne() }} onAmpliar={ampliarVideo} raiz={raiz} />
           </PinProvider>
           {state.tab === 'trocas' ? (
             <Trocas view={view.trocas} filtro={filtroTrocas ? { id: filtroTrocas.id, title: filtroTrocas.title } : null} hrefTodas={hrefTodasTrocas}
-              onTodas={() => set({ video: null })} onAmpliar={src => window.open(src, '_blank', 'noopener,noreferrer')} onAbrir={href => router.push(href)} />
+              onTodas={() => set({ video: null })} onAmpliar={(c, trigger) => { if (c.viewer) abrirViewer(c.viewer, trigger) }} onAbrir={href => router.push(href)} />
           ) : null}
           {state.tab === 'leitura' ? leitura : null}
+          {viewerNode}
           {confirm ? <RemoveDialog id={h.id} name={h.name} onImpact={actions.onRemovalImpact} onCancel={closeConfirm} onConfirm={() => { void doRemove() }} trap={trapTab} /> : null}
         </div>
       </NichePendingContext.Provider>

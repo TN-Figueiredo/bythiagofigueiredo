@@ -20,7 +20,8 @@ import { ImageSummary } from './image-summary'
 import { useGo } from '../_mudancas/filters'
 import { Versions } from './versions'
 import { HIcon, TYPE_COLOR } from './icons'
-import { Thumb } from './thumb'
+import { Thumb, type ThumbZoom } from './thumb'
+import { useThumbViewer } from '../_chrome/thumb-viewer/thumb-viewer'
 import { ForjaAskButton, VideoReading } from './video-reading'
 import type { ForjaAsk, ForjaCancel } from '../_chrome/forja-view-model'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
@@ -45,6 +46,16 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   const go = useGo()
   const router = useRouter()
   const root = useRef<HTMLDivElement>(null)
+  // The thumbnail viewer (spec 6.3, triggers 1 to 4). If its trigger is gone when it closes (another period, a new list) the focus goes to the
+  // video's title, never to the body. Found through the root's ref: after a Voltar Next keeps the old tree hidden in the document.
+  const { open: openViewer, node: viewerNode } = useThumbViewer({ fallback: () => root.current?.querySelector<HTMLElement>('.vhead h2') ?? null })
+  const viewer = view.viewer
+  const ampliar = useCallback((i: number, trigger: HTMLElement | null) => { if (viewer) openViewer({ ...viewer, start: i }, trigger) }, [viewer, openViewer])
+  /** The trigger of the thumbnail of version `i` ("Capa B"); null/out of range = not a version, so not a button. */
+  const zoomOf = (i: number | null): ThumbZoom | undefined => {
+    const ver = viewer && i != null ? viewer.versions[i] : undefined
+    return ver ? { label: 'Ampliar a thumbnail: ' + ver.label, onOpen: el => ampliar(i!, el) } : undefined
+  }
   // Which pager button (or key) was used and the video it leads to lives OUTSIDE this component (pager-usado.ts): Anterior/Próximo change the
   // `[id]` segment, Next may remount the screen, and a ref would be born empty in the new one.
   const onPage = useCallback((which: 'prev' | 'next', href: string) => { marcarPagerUsado(which, videoDoHref(href)) }, [])
@@ -192,7 +203,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
           {/* DOM order = screen order: thumbnail, title, actions, facts and chips. Only the title (which never changes) is
               before the actions row, so the pin button keeps its rectangle whatever appears below. */}
           <section className="vhead" id="vhead" aria-label="Vídeo">
-            <div className="cur"><Thumb t={h.thumb} dur={h.dur} /></div>
+            <div className="cur"><Thumb t={h.thumb} dur={h.dur} zoom={zoomOf(viewer ? viewer.start : null)} /></div>
             <div className="vt"><h2 tabIndex={-1}>{v.title}</h2></div>
             <div className="actions">
               <div className="fx-top">
@@ -234,24 +245,25 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
               </section>
               {view.lanesAxis ? (
                 <Timeline chart={null} axis={view.lanesAxis} lanes={view.lanes} legend={view.legends[''] ?? []} pair={null} hl={hl} onHl={onHl}
-                  onSelectPair={selectPair} onGoVersion={goVersion} groupLegend={view.groupLegend} />
+                  onSelectPair={selectPair} onGoVersion={goVersion} onZoomVersion={viewer ? ampliar : undefined} groupLegend={view.groupLegend} />
               ) : null}
-              {view.versions ? <Versions versions={view.versions} hl={hl} onHl={onHl} expanded={expanded} onToggle={() => setExpanded(e => !e)} target={target} onTargetBlur={() => setTarget(null)} /> : null}
+              {view.versions ? <Versions versions={view.versions} hl={hl} onHl={onHl} expanded={expanded} onToggle={() => setExpanded(e => !e)} target={target} onTargetBlur={() => setTarget(null)} zoomOf={zoomOf} /> : null}
             </>
           ) : (
             <>
               {view.chart ? (
                 <Timeline chart={view.chart} lanes={view.lanes} legend={legend} pair={pair} hl={hl} onHl={onHl}
-                  onSelectPair={selectPair} onGoVersion={goVersion} range={view.range} onRange={onRange} groupLegend={view.groupLegend} arrivalId={view.arrival?.changeId ?? null} />
+                  onSelectPair={selectPair} onGoVersion={goVersion} onZoomVersion={viewer ? ampliar : undefined} range={view.range} onRange={onRange} groupLegend={view.groupLegend} arrivalId={view.arrival?.changeId ?? null} />
               ) : null}
               {view.imageSummary ? <ImageSummary sum={view.imageSummary} active={hl?.label ?? null} pinned={pinImg} onHover={l => setHover(l ? { type: 'thumb', i: -1, ev: null, label: l } : null)} onPin={pinImage} /> : null}
               <Compare comparisons={view.comparisons} compare={view.compare} selected={pairK} empty={view.compareEmpty} onSelect={setPairK} onDescLink={openDesc}
-                filter={flt} onFilter={setFlt} onWholeVideo={() => onRange('tudo')} arrival={view.arrival} />
+                filter={flt} onFilter={setFlt} onWholeVideo={() => onRange('tudo')} arrival={view.arrival} zoomOf={zoomOf} />
               {view.forja && view.forjaCard ? <VideoReading card={view.forjaCard} forja={view.forja} onCancel={onCancelForja} /> : null}
-              {view.versions ? <Versions versions={view.versions} hl={hl} onHl={onHl} expanded={expanded} onToggle={() => setExpanded(e => !e)} target={target} onTargetBlur={() => setTarget(null)} /> : null}
+              {view.versions ? <Versions versions={view.versions} hl={hl} onHl={onHl} expanded={expanded} onToggle={() => setExpanded(e => !e)} target={target} onTargetBlur={() => setTarget(null)} zoomOf={zoomOf} /> : null}
             </>
           )}
         </div>
+        {viewerNode}
       </div>
     </PinProvider>
   )

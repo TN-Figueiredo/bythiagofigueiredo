@@ -662,3 +662,299 @@ test('vídeo não encontrado e vídeo fora dos acompanhados: moldura só com a t
   }
   medida('fora dos acompanhados (sem query, com troca=, com range e canal): aviso presente, sem seletor de período, foco no título, console limpo, sem 5xx')
 })
+
+/* ================================================================== A2.3 (tarefa 6): o visualizador de thumbnail */
+// O oráculo semeado não traz imagens arquivadas (thumb_blob_url nulo) e a rede de imagens não deve ser tocada: o banco LOCAL ganha, só para estes
+// testes, endereços de Blob para três dos quatro períodos de thumbnail de matt-opus55 (A, B, A, C: o B fica sem cópia), e as respostas das imagens
+// (i.ytimg.com e *.public.blob.vercel-storage.com) são feitas aqui, por `page.route`. A CSP continua a do site: o que ela barra, barra de verdade.
+// Os endereços são devolvidos a nulo no fim (afterAll), para os outros arquivos continuarem com o oráculo como ele é.
+import { localServiceClient } from '../../../fixtures/observatorio-seed'
+
+const BLOB_HOST = 'https://e2e-obs.public.blob.vercel-storage.com'
+const blobDe = (i: number) => `${BLOB_HOST}/obs/${V.full}-${i}.svg`
+const svg = (w: number, h: number, rotulo: string, cor: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="${cor}"/><circle cx="${w / 2}" cy="${h / 2}" r="${h / 4}" fill="#fff" opacity=".85"/><text x="24" y="${h - 24}" font-size="${Math.round(h / 12)}" fill="#fff" font-family="sans-serif">${rotulo}</text></svg>`
+/** `lentoMs`: segura a resposta das imagens do YouTube (para ver o que o diálogo mostra enquanto a maior ainda não chegou). */
+async function rotearImagens(page: Page, o: { lentoMs?: number } = {}): Promise<{ pedidos: string[] }> {
+  const pedidos: string[] = []
+  await page.route('https://i.ytimg.com/**', async route => {
+    const url = route.request().url()
+    pedidos.push(url)
+    if (o.lentoMs) await new Promise(r => setTimeout(r, o.lentoMs))
+    if (/\/maxresdefault\.jpg/.test(url)) return route.fulfill({ status: 200, contentType: 'image/svg+xml', headers: { 'access-control-allow-origin': '*' }, body: svg(1280, 720, 'maxresdefault 1280x720', '#14532d') })
+    // as miniaturas de 320x180 dos cartões do canal e o que mais o YouTube serviria
+    return route.fulfill({ status: 200, contentType: 'image/svg+xml', headers: { 'access-control-allow-origin': '*' }, body: svg(320, 180, 'mqdefault 320x180', '#1e3a8a') })
+  })
+  await page.route(`${BLOB_HOST}/**`, route => {
+    const url = route.request().url()
+    pedidos.push(url)
+    return route.fulfill({ status: 200, contentType: 'image/svg+xml', headers: { 'access-control-allow-origin': '*' }, body: svg(480, 360, 'arquivada ' + url.split('/').pop(), '#7c2d12') })
+  })
+  return { pedidos }
+}
+async function arquivar(ligar: boolean): Promise<void> {
+  const sb = localServiceClient(), vid = ids.video(V.full)
+  const { data, error } = await sb.from('competitor_video_versions').select('id').eq('video_id', vid).eq('field', 'thumb').order('first_seen_at')
+  if (error || !data) throw new Error('arquivar: ' + (error?.message ?? 'sem linhas'))
+  for (const [i, row] of data.entries()) {
+    const { error: e } = await sb.from('competitor_video_versions').update({ thumb_blob_url: ligar && i !== 1 ? blobDe(i) : null }).eq('id', row.id)
+    if (e) throw new Error('arquivar: ' + e.message)
+  }
+}
+
+test.describe('A2.3 o visualizador de thumbnail', () => {
+  test.beforeAll(async () => { test.setTimeout(240_000); ids = seedIdsOf(await ensureSeeded({ canalCompleto: true })); await arquivar(true) })
+  test.afterAll(async () => { await arquivar(false) })
+
+  const dlg = (page: Page) => page.locator('.obs-tv-box[role="dialog"]')
+  const fundoCobre = (page: Page) => page.evaluate(() => {
+    // em cada canto e no centro da janela, o que está por cima pertence ao diálogo (ou ao contêiner dele): nada da tela fica acima
+    const w = innerWidth, h = innerHeight, falhas: string[] = []
+    for (const [x, y] of [[2, 2], [w - 3, 2], [2, h - 3], [w - 3, h - 3], [w / 2, h / 2], [w / 2, 3]] as const) {
+      const e = document.elementFromPoint(x, y)
+      if (!e?.closest('.obs-tv')) falhas.push(`${Math.round(x)},${Math.round(y)} → ${e?.tagName}.${String((e as HTMLElement | null)?.className ?? '').slice(0, 30)}`)
+    }
+    return falhas
+  })
+  const foco2 = (page: Page) => page.evaluate(() => { const a = document.activeElement as HTMLElement | null; return { tag: a?.tagName ?? '', id: a?.id ?? '', dentro: !!a?.closest('.obs-tv'), texto: (a?.textContent ?? '').trim().slice(0, 60), rotulo: a?.getAttribute('aria-label') ?? '' } })
+
+  test('A2.3 os gatilhos do Histórico abrem o visualizador e Esc devolve o foco', async ({ page }) => {
+    await rotearImagens(page)
+    const { erros, cincoXX } = await vigiar(page, async () => { await abrirVideo(page, V.full) })
+    const tela = page.locator(`${HV}:visible`).first()
+    // ---- o gatilho 1 (cabeçalho), 3 (cartões) e 2 (Antes e depois), cada um com sua versão esperada
+    const casos: Array<{ nome: string; alvo: () => Locator; esperado: RegExp }> = [
+      { nome: 'gatilho 1: o cabeçalho', alvo: () => tela.locator('.vhead .cur [role="button"]'), esperado: /· 4 de 4$/ },
+      { nome: 'gatilho 3: o cartão do período 1', alvo: () => tela.locator('.film .fcard').nth(0).locator('[role="button"]'), esperado: /· 1 de 4$/ },
+      { nome: 'gatilho 3: o cartão do período 2 (sem cópia)', alvo: () => tela.locator('.film .fcard').nth(1).locator('[role="button"]'), esperado: /· 2 de 4$/ },
+      { nome: 'gatilho 3: o cartão do período 4', alvo: () => tela.locator('.film .fcard').nth(3).locator('[role="button"]'), esperado: /· 4 de 4$/ },
+    ]
+    for (const c of casos) {
+      const g = c.alvo()
+      await g.scrollIntoViewIfNeeded()
+      await g.focus()
+      await g.press('Enter')
+      await expect(dlg(page), c.nome).toBeVisible()
+      await expect(dlg(page).locator('.obs-tv-pos')).toHaveText(c.esperado)
+      const f = await foco2(page)
+      expect(f.tag, c.nome + ': o foco abre no título do diálogo').toBe('H2')
+      expect(f.dentro).toBe(true)
+      expect(await dlg(page).locator('xpath=ancestor::*[contains(@class,"obs-tv")][1]').evaluate(e => getComputedStyle(e).zIndex), c.nome + ': camada do modal').toBe('2000')
+      expect(await fundoCobre(page), c.nome + ': nada da tela fica acima do diálogo').toEqual([])
+      await page.keyboard.press('Escape')
+      await expect(dlg(page)).toHaveCount(0)
+      expect(await g.evaluate(e => e === document.activeElement), c.nome + ': Esc devolve o foco ao gatilho').toBe(true)
+    }
+    // ---- o gatilho 2: os dois lados de uma troca de thumbnail em "Antes e depois"
+    const trocas = tela.locator('#hv-compare .pair, #hv-compare li[data-k]')
+    let achou = 0
+    for (let k = 0; k < await trocas.count() && achou < 2; k++) {
+      await trocas.nth(k).click()
+      const lados = tela.locator('#hv-compare .ba .side [role="button"]')
+      const n = await lados.count()
+      if (n < 2) continue
+      for (let j = 0; j < n; j++) {
+        const g = lados.nth(j)
+        await g.focus(); await g.press('Space')
+        await expect(dlg(page)).toBeVisible()
+        const pos = (await dlg(page).locator('.obs-tv-pos').textContent()) ?? ''
+        medida(`gatilho 2, troca ${k}, lado ${j}: abre em "${pos}"`)
+        await page.keyboard.press('Escape')
+        await expect(dlg(page)).toHaveCount(0)
+        expect(await g.evaluate(e => e === document.activeElement), 'gatilho 2: Esc devolve o foco').toBe(true)
+      }
+      achou++
+    }
+    expect(achou, 'há ao menos uma troca de thumbnail com os dois lados').toBeGreaterThan(0)
+    // ---- o gatilho 4: o clique simples vai ao cartão na hora; o duplo abre o diálogo
+    const clip = tela.locator('.lane[data-lane="thumb"] button.clip:visible').first()
+    await expect(clip).toBeVisible()
+    const k = (await clip.getAttribute('data-k')) ?? ''
+    const i = Number(k.split(':')[1])
+    const t0 = Date.now()
+    await clip.click()
+    const noCartao = await page.evaluate(() => document.activeElement?.getAttribute('data-ver') ?? null)
+    medida(`gatilho 4: o clique simples levou o foco a data-ver="${noCartao}" em ${Date.now() - t0} ms (clique incluído); sem diálogo: ${await dlg(page).count() === 0}`)
+    expect(noCartao).toBe('thumb:' + i)
+    await expect(dlg(page)).toHaveCount(0)
+    await clip.dblclick()
+    await expect(dlg(page)).toBeVisible()
+    await expect(dlg(page).locator('.obs-tv-pos')).toHaveText(new RegExp(`· ${i + 1} de 4$`))
+    await page.keyboard.press('Escape')
+    await expect(dlg(page)).toHaveCount(0)
+    // a legenda do gráfico diz isso
+    await expect(tela.locator('[data-legend]')).toContainText('clique duplo numa miniatura da faixa Thumbnail a amplia')
+    medida(`A2.3 gatilhos 1 a 4 conferidos; erros de console ${erros.length}; 5xx ${cincoXX.length}`)
+    expect(cincoXX).toEqual([])
+  })
+
+  test('A2.3 o diálogo mostra a imagem que já estava na tela enquanto a maior carrega; e a maior entra depois', async ({ page }) => {
+    await rotearImagens(page, { lentoMs: 1500 })
+    await abrirVideo(page, V.full)
+    const g = page.locator(`${HV}:visible .vhead .cur [role="button"]`).first()
+    await g.click()
+    await expect(dlg(page)).toBeVisible()
+    const antes = await dlg(page).locator('.obs-tv-main').evaluate(e => ({ img: e.querySelector('img')?.getAttribute('src') ?? null, texto: (e.textContent ?? '').trim() }))
+    medida(`preview antes da maior: img=${antes.img}; texto do quadro="${antes.texto}"`)
+    expect(antes.img, 'a imagem do cabeçalho aparece na hora').toBe(blobDe(3))
+    expect(antes.texto).not.toMatch(/Carregando a imagem/)
+    await expect(dlg(page).locator('.obs-tv-stage img')).toHaveAttribute('src', /maxresdefault\.jpg/, { timeout: 20_000 })
+    await expect(dlg(page).locator('.obs-tv-res')).toContainText('maxresdefault.jpg, 1280×720 px (maior resolução disponível)')
+  })
+
+  test('A2.3 a roda amplia em torno do cursor e arrastar move; os percentuais e o 100% batem com os pixels; o fundo fica inerte; D10 (Baixar)', async ({ page }) => {
+    const msgs: string[] = []
+    page.on('console', m => { if (m.type() === 'error') msgs.push(m.text().slice(0, 300)) })
+    await rotearImagens(page)
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await abrirVideo(page, V.full)
+    await page.locator(`${HV}:visible .vhead .cur [role="button"]`).first().click()
+    const stage = dlg(page).locator('.obs-tv-stage')
+    await expect(stage.locator('img')).toHaveAttribute('src', /maxresdefault\.jpg/, { timeout: 20_000 })
+    const img = stage.locator('img')
+    const medidaImg = () => img.evaluate(e => { const r = e.getBoundingClientRect(), s = e.closest('.obs-tv-stage')!.getBoundingClientRect(); return { w: r.width, h: r.height, x: r.left - s.left, y: r.top - s.top, nw: (e as HTMLImageElement).naturalWidth, sw: s.width, sh: s.height } })
+    const m0 = await medidaImg()
+    const pctTexto = async () => parseInt(((await dlg(page).locator('.obs-tv-pct').textContent()) ?? '0').replace('%', ''), 10)
+    medida(`Ajustar: imagem ${m0.w.toFixed(1)}×${m0.h.toFixed(1)} na caixa ${m0.sw}×${m0.sh}; natural ${m0.nw}; escrito ${await pctTexto()}%; esperado ${(m0.w / m0.nw * 100).toFixed(1)}%`)
+    expect(Math.abs(await pctTexto() - Math.round(m0.w / m0.nw * 100))).toBeLessThanOrEqual(1)
+    // "100%": um pixel da imagem por pixel da tela
+    await dlg(page).getByRole('button', { name: '100%' }).click()
+    const m100 = await medidaImg()
+    medida(`100%: largura ${m100.w.toFixed(2)} para natural ${m100.nw}`)
+    expect(Math.abs(m100.w - m100.nw)).toBeLessThanOrEqual(0.6)
+    await dlg(page).getByRole('button', { name: 'Ajustar' }).click()
+    // a roda amplia em torno do cursor: o ponto da imagem sob o cursor fica sob o cursor
+    const sb = (await stage.boundingBox())!
+    // perto do centro: mais longe, a borda da imagem que ficaria à mostra a empurra de volta (o enquadramento nunca abre um vão), e o ponto sob o cursor anda
+    const cx = sb.x + sb.width * 0.45, cy = sb.y + sb.height * 0.6
+    const ponto = async () => { const m = await medidaImg(); return { u: (cx - sb.x - m.x) / m.w, v: (cy - sb.y - m.y) / m.h, w: m.w } }
+    const p0 = await ponto()
+    await page.mouse.move(cx, cy)
+    await page.mouse.wheel(0, -400)
+    await expect.poll(async () => (await ponto()).w).toBeGreaterThan(p0.w * 1.2)
+    const p1 = await ponto()
+    medida(`roda -400 em (${Math.round(cx)},${Math.round(cy)}): largura ${p0.w.toFixed(0)} → ${p1.w.toFixed(0)}; ponto da imagem sob o cursor (${p0.u.toFixed(3)},${p0.v.toFixed(3)}) → (${p1.u.toFixed(3)},${p1.v.toFixed(3)}); escrito ${await pctTexto()}%`)
+    expect(Math.abs(p1.u - p0.u)).toBeLessThan(0.01); expect(Math.abs(p1.v - p0.v)).toBeLessThan(0.01)
+    // arrastar move (e não passa da borda)
+    const a0 = await medidaImg()
+    await page.mouse.down(); await page.mouse.move(cx - 60, cy - 40, { steps: 6 }); await page.mouse.up()
+    const a1 = await medidaImg()
+    medida(`arrastar (-60,-40): posição ${a0.x.toFixed(1)},${a0.y.toFixed(1)} → ${a1.x.toFixed(1)},${a1.y.toFixed(1)}`)
+    expect(Math.abs((a1.x - a0.x) + 60) + Math.abs((a1.y - a0.y) + 40)).toBeLessThan(1.5)
+    // clique duplo alterna Ajustar e 100% (o "Ajustar" muda de percentual quando a linha de status aparece e encolhe a caixa: a referência é a de agora)
+    await dlg(page).getByRole('button', { name: 'Ajustar' }).click()
+    const ajuste = await pctTexto()
+    medida(`Ajustar agora: ${ajuste}% (era ${Math.round(m0.w / m0.nw * 100)}% antes de a linha de status aparecer)`)
+    await stage.dblclick({ position: { x: 100, y: 100 } })
+    await expect.poll(async () => (await pctTexto())).toBe(100)
+    await stage.dblclick({ position: { x: 100, y: 100 } })
+    await expect.poll(async () => (await pctTexto())).toBe(ajuste)
+    // o fundo está inerte: nenhuma Tab alcança a tela de trás; Shift+Tab a partir do título vai ao último controle
+    const titulo = dlg(page).locator('h2')
+    await titulo.focus()
+    const visitados = new Set<string>()
+    for (let n = 0; n < 24; n++) { await page.keyboard.press('Tab'); const f = await foco2(page); visitados.add(f.tag + '|' + f.texto + f.rotulo); if (!f.dentro) throw new Error('Tab saiu do diálogo: ' + JSON.stringify(f)) }
+    medida(`Tab: ${visitados.size} paradas distintas, todas dentro do diálogo`)
+    await titulo.focus()
+    await page.keyboard.press('Shift+Tab')
+    expect((await foco2(page)).texto, 'Shift+Tab do título vai ao Baixar').toContain('Baixar')
+    // ---- D10, a thumbnail ATUAL (i.ytimg.com): o fetch é barrado pela CSP; cai em abrir em outra aba, com o aviso
+    const fetchYt = await page.evaluate(() => fetch('https://i.ytimg.com/vi/x/hqdefault.jpg').then(r => 'passou ' + r.status, e => 'recusado: ' + String(e)))
+    medida(`D10 fetch(i.ytimg.com) pela página: ${fetchYt}`)
+    expect(fetchYt).toMatch(/^recusado/)
+    const popupP = page.waitForEvent('popup', { timeout: 15_000 }).catch(() => null)
+    await dlg(page).getByRole('button', { name: 'Baixar' }).click()
+    const popup = await popupP
+    medida(`D10 Baixar da atual: popup ${popup ? popup.url().slice(0, 90) : 'NÃO abriu'}; status "${((await dlg(page).locator('.obs-tv-msg').textContent()) ?? '').trim()}"`)
+    expect(popup, 'Baixar da atual abre outra aba').not.toBeNull()
+    expect(popup!.url()).toMatch(/i\.ytimg\.com\/vi\/.+\/maxresdefault\.jpg/)
+    await popup!.close()
+    await expect(dlg(page).locator('.obs-tv-msg')).toContainText('salve por lá')
+    expect(msgs.some(t => /Content Security Policy|connect-src/i.test(t)), 'a violação de connect-src aparece no console').toBe(true)
+    medida(`D10 console: ${msgs.filter(t => /Content Security Policy|connect-src/i.test(t)).slice(0, 1).join(' | ').slice(0, 220)}`)
+    // ---- D10, uma versão ARQUIVADA (Blob): o fetch passa e o arquivo baixa
+    const fetchBlob = await page.evaluate(u => fetch(u).then(r => 'passou ' + r.status, e => 'recusado: ' + String(e)), blobDe(2))
+    medida(`D10 fetch(Blob simulado) pela página: ${fetchBlob}`)
+    expect(fetchBlob).toBe('passou 200')
+    await dlg(page).getByRole('button', { name: 'Anterior' }).click()   // 3 de 4: a arquivada A
+    await expect(dlg(page).locator('.obs-tv-pos')).toHaveText(/· 3 de 4$/)
+    await expect(dlg(page).locator('.obs-tv-stage img')).toHaveAttribute('src', blobDe(2), { timeout: 20_000 })
+    const baixar = page.waitForEvent('download', { timeout: 15_000 }).catch(() => null)
+    const popup2 = page.waitForEvent('popup', { timeout: 4_000 }).catch(() => null)
+    await dlg(page).getByRole('button', { name: 'Baixar' }).click()
+    const d = await baixar
+    medida(`D10 Baixar da arquivada: ${d ? 'download "' + d.suggestedFilename() + '"' : 'SEM download (popup: ' + ((await popup2)?.url() ?? 'não') + ')'}`)
+    expect(d, 'Baixar da arquivada baixa o arquivo').not.toBeNull()
+    expect(d!.suggestedFilename()).toBe('thumbnail-capa-a.svg')
+  })
+
+  test('A2.3 o diálogo fica acima de tudo e dentro da janela em 1440 e 390 px', async ({ page }) => {
+    await rotearImagens(page)
+    for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+      await abrirVideo(page, V.full, '', size)
+      const g = page.locator(`${HV}:visible .vhead .cur [role="button"]`).first()
+      await g.scrollIntoViewIfNeeded()
+      await g.click()
+      await expect(dlg(page)).toBeVisible()
+      await expect(dlg(page).locator('.obs-tv-stage img')).toHaveAttribute('src', /maxresdefault\.jpg/, { timeout: 20_000 })
+      const box = (await dlg(page).boundingBox())!
+      const dentro = box.x >= -0.5 && box.y >= -0.5 && box.x + box.width <= size.width + 0.5 && box.y + box.height <= size.height + 0.5
+      const tr = await transbordo(page)
+      const naoCobre = await fundoCobre(page)
+      const alvos = await dlg(page).locator('button:visible, a[role="link"]:visible').evaluateAll(bs => bs.map(b => { const r = b.getBoundingClientRect(); return { n: (b.getAttribute('aria-label') ?? b.textContent ?? '').trim().slice(0, 24), w: Math.round(r.width), h: Math.round(r.height) } }))
+      const pequenos = alvos.filter(a => Math.min(a.w, a.h) < 44)
+      const rola = await page.evaluate(() => ({ h: document.documentElement.scrollWidth - document.documentElement.clientWidth, caixa: (document.querySelector('.obs-tv-box') as HTMLElement).scrollHeight - (document.querySelector('.obs-tv-box') as HTMLElement).clientHeight }))
+      medida(`${size.width}×${size.height}: caixa ${Math.round(box.x)},${Math.round(box.y)} ${Math.round(box.width)}×${Math.round(box.height)} dentro=${dentro}; fundo coberto=${naoCobre.length === 0}; rolagem horizontal ${rola.h}, rolagem da caixa ${rola.caixa}; alvos < 44 px: ${pequenos.length ? pequenos.map(a => `${a.n} ${a.w}×${a.h}`).join(', ') : 'nenhum'} (de ${alvos.length})`)
+      expect(dentro, size.width + ': a caixa cabe na janela').toBe(true)
+      expect(naoCobre, size.width + ': nada acima do diálogo').toEqual([])
+      expect(rola.h, size.width + ': sem rolagem horizontal').toBeLessThanOrEqual(1)
+      void tr
+      if (size.width < 900) expect(pequenos, '390 px: alvos de 44 px').toEqual([])
+      await page.keyboard.press('Escape')
+      await expect(dlg(page)).toHaveCount(0)
+    }
+  })
+
+  test('A2.3 a lupa da grade do canal abre o visualizador', async ({ page }) => {
+    await rotearImagens(page)
+    const { erros, cincoXX } = await vigiar(page, async () => { await abrirCanal(page) })
+    const tela = page.locator(`${CV}:visible`).first()
+    const cartao = tela.locator('li.cv-card').first()
+    const lupa = cartao.locator('.cv-amp')
+    await lupa.focus()
+    await lupa.click()
+    await expect(dlg(page)).toBeVisible()
+    expect((await foco2(page)).tag).toBe('H2')
+    const titulo = ((await dlg(page).locator('h2').textContent()) ?? '').replace(/^Thumbnail: /, '')
+    expect(titulo).toBe(((await cartao.locator('.cv-ttl').textContent()) ?? '').trim())
+    await expect(dlg(page).locator('.obs-tv-stage img')).toHaveAttribute('src', /maxresdefault\.jpg/, { timeout: 20_000 })
+    expect(await fundoCobre(page)).toEqual([])
+    await page.keyboard.press('Escape')
+    await expect(dlg(page)).toHaveCount(0)
+    expect(await lupa.evaluate(e => e === document.activeElement), 'Esc devolve o foco à lupa').toBe(true)
+    // o item "Ampliar thumbnail" do menu "Ações do vídeo": o foco volta ao botão ⋯
+    const abtn = cartao.getByRole('button', { name: /^Ações do vídeo: / })
+    await abtn.click()
+    await page.getByRole('menuitem', { name: 'Ampliar thumbnail' }).click()
+    await expect(dlg(page)).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(dlg(page)).toHaveCount(0)
+    expect(await abtn.evaluate(e => e === document.activeElement), 'Esc devolve o foco ao botão ⋯').toBe(true)
+    // o vídeo com quatro períodos (matt-opus55) abre na atual e oferece as outras
+    const q = tela.locator('li.cv-card', { has: page.locator(`#cv-lnk-${ids.video(V.full)}`) })
+    if (await q.count()) {
+      await q.locator('.cv-amp').click()
+      await expect(dlg(page).locator('.obs-tv-pos')).toHaveText(/· 4 de 4$/)
+      await page.keyboard.press('Escape')
+    } else medida('matt-opus55 não está no primeiro lote da grade; a atual com as outras versões fica provada no jsdom')
+    // a aba Trocas
+    await abrirCanal(page, '?tab=trocas')
+    const cardT = tela.locator('li.ct-card').first()
+    await cardT.locator('.cv-amp').click()
+    await expect(dlg(page)).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(dlg(page)).toHaveCount(0)
+    expect(erros.filter(t => !/Content Security Policy/.test(t)), 'console').toEqual([])
+    expect(cincoXX).toEqual([])
+  })
+})

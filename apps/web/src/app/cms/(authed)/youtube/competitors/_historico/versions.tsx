@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { LaneType, RunNoteView, VersionView, VersionsView } from './view-model'
 import type { Hl } from './lanes'
 import { HIcon } from './icons'
-import { Thumb } from './thumb'
+import { Thumb, type ThumbZoom } from './thumb'
 
 const cap = (t: string) => (t ? t[0]!.toUpperCase() + t.slice(1) : '')
 
@@ -20,12 +20,14 @@ function RunNote({ note, color }: { note: RunNoteView; color: string }) {
   )
 }
 
-export function Versions({ versions, hl, onHl, expanded = false, onToggle, target = null, onTargetBlur }: {
+export function Versions({ versions, hl, onHl, expanded = false, onToggle, target = null, onTargetBlur, zoomOf }: {
   versions: VersionsView; hl: Hl | null; onHl: (h: Hl | null) => void
   /** The thumbnail grid shows every period (state lives in the screen: a lane click on a hidden period opens it). */
   expanded?: boolean; onToggle?: () => void
   /** "type:i" of the card a lane click led to: it keeps its own ring until the focus leaves. */
   target?: string | null; onTargetBlur?: () => void
+  /** The viewer trigger of the card at index `i` (spec 6.3, trigger 3); absent = plain images. */
+  zoomOf?: (i: number) => ThumbZoom | undefined
 }) {
   const is = (type: LaneType, i: number, list: VersionView[]) => !!hl && hl.type === type
     && (hl.label != null ? type === 'thumb' && list[i]?.label === hl.label : hl.i === i || (type === 'thumb' && list[i]?.label === list[hl.i]?.label))
@@ -66,7 +68,7 @@ export function Versions({ versions, hl, onHl, expanded = false, onToggle, targe
           {cards.map(({ t, i }, j) => (
             <div key={t.id} className={'fcard' + (is('thumb', i, thumbs.cards) ? ' is-hl' : '') + tcls('thumb', i)} role="group" aria-label={'Thumbnail ' + t.label + ', ' + t.span}
               data-img={t.label} hidden={j < hiddenN} {...bind('thumb', i)}>
-              {t.thumb ? <Thumb t={t.thumb} /> : null}
+              {t.thumb ? <Thumb t={t.thumb} zoom={zoomOf?.(i)} /> : null}
               <div className="meta">
                 <div className="vt"><span>Versão {t.label}</span>{t.tag ? <span className={'tag ' + t.tag.kind}>{t.tag.text}</span> : null}</div>
                 <span className="mono">{cap(t.span)}</span>

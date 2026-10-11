@@ -341,15 +341,18 @@ describe('Capas: o menu "Ações do vídeo"', () => {
     expect(within(b.menu).getAllByRole('menuitem').map(i => norm(i.textContent))[0]).toBe('Desafixar')
   })
 
-  it('"Ampliar thumbnail" (menu e lupa) abre a imagem em nova aba na A1', async () => {
+  it('"Ampliar thumbnail" (menu e lupa) abre o visualizador de thumbnail (A2.3), não mais a imagem em nova aba', async () => {
     const { all } = mountCanal()
     const open = vi.spyOn(window, 'open').mockReturnValue(null)
     const v = all[0]!
     fireEvent.click(within(cardOf(v.id)).getByRole('button', { name: 'Ampliar a thumbnail: ' + v.title }))
-    expect(open).toHaveBeenLastCalledWith(v.thumbSrc, '_blank', 'noopener,noreferrer')
+    expect(screen.getByRole('dialog').querySelector('h2')!.textContent).toBe('Thumbnail: ' + v.title)
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
     const { user, menu } = await abrir(v.id)
     await user.click(within(menu).getByRole('menuitem', { name: 'Ampliar thumbnail' }))
-    expect(open).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('dialog').querySelector('h2')!.textContent).toBe('Thumbnail: ' + v.title)
+    expect(open).not.toHaveBeenCalled()
     expect(screen.queryByRole('menu')).toBeNull()
   })
 

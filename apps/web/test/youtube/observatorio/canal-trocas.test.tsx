@@ -90,12 +90,13 @@ describe('aba Trocas: os cartões', () => {
     }
   })
 
-  it('a lupa amplia a thumbnail do vídeo (nova aba), como na grade', async () => {
+  it('a lupa amplia a thumbnail do vídeo no visualizador (A2.3), como na grade, não em nova aba', async () => {
     const open = vi.fn(); vi.stubGlobal('open', open)
-    const { view, all } = comTroca()
+    const { view } = comTroca()
     const c0 = view.trocas!.cards[0]!
     await userEvent.setup().click(within(cards()[0]!).getByRole('button', { name: 'Ampliar a thumbnail: ' + c0.title }))
-    expect(open).toHaveBeenCalledWith(all.find(v => v.id === c0.videoId)!.thumbSrc, '_blank', 'noopener,noreferrer')
+    expect(screen.getByRole('dialog').querySelector('h2')!.textContent).toBe('Thumbnail: ' + c0.title)
+    expect(open).not.toHaveBeenCalled()
   })
 
   it('a linha de uma troca é clicável com o mouse (vai ao destino dela); clicar num link não dispara a linha', async () => {

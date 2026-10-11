@@ -12,6 +12,8 @@ import { tierOf } from '@/lib/youtube/observatorio/rules'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
 import { viewsMissingText } from '../_chrome/views-text'
 import { vpdText } from './numeros'
+import type { ViewerInput } from '../_chrome/thumb-viewer/viewer-model'
+import { viewerOfVideo } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 
 export type Grupo = 'acompanhado' | 'fixado-antigo' | 'antigo' | 'sem-data'
 
@@ -21,7 +23,14 @@ export interface ChannelVideoView {
   pub: number | null; views: number | null; vpd7: number | null; mult: number | null
   isShort: boolean | null; pinned: boolean; tracked: boolean; dur: number | null; likes: number | null; comments: number | null; swaps: number
   // prontos para a tela
-  thumbSrc: string | null; durText: string | null; ageText: string | null; pubISO: string | null; pubTitle: string | null
+  thumbSrc: string | null
+  /**
+   * O visualizador de thumbnail deste vídeo (spec 6.3): as versões do conjunto do canal e a atual como ponto de partida. null = o vídeo não carrega versões
+   * no pacote (o antigo, na forma enxuta, e o sem data: 3.000 deles pesam megabytes) ou não tem thumbnail nenhuma; a tela abre só a atual (`viewerSoAtual`)
+   * quando há `thumbSrc`.
+   */
+  viewer: ViewerInput | null
+  durText: string | null; ageText: string | null; pubISO: string | null; pubTitle: string | null
   viewsText: string | null; viewsMissing: string | null          // "sem contagem: <motivo>"
   vpdText: string | null; multText: string | null; multTier: 'mid' | 'high' | 'top' | null; multWord: string | null
   /** Quando faltam views/dia E múltiplo: a frase única que ocupa as duas colunas. null = há pelo menos um dos dois. */
@@ -105,10 +114,12 @@ export function buildCanalVideos(obs: Observatory, channelId: string): CanalVide
     if (v.isShort == null) badges.push('formato não confirmado')
     if (swaps) badges.push(swaps === 1 ? '1 troca' : `${swaps} trocas`)
 
+    const title = v.title.trim() ? v.title : noTitle
+    const thumbSrc = thumbOf(v.ytId, v.thumbs.find(t => t.current)?.blobUrl ?? null)
     out.push({
-      id: v.id, ytId: v.ytId, title: v.title.trim() ? v.title : noTitle, url: v.url, grupo,
+      id: v.id, ytId: v.ytId, title, url: v.url, grupo,
       pub: v.pub, views: v.views, vpd7, mult, isShort: v.isShort, pinned, tracked: v.tracked, dur: v.dur, likes: v.likes, comments: v.comments, swaps,
-      thumbSrc: thumbOf(v.ytId, v.thumbs.find(t => t.current)?.blobUrl ?? null),
+      thumbSrc, viewer: grupo === 'antigo' ? null : viewerOfVideo(v, title, obs.NOW, D, thumbSrc),
       durText: durText(v.dur), ageText: F.age(v), pubISO: new Date(v.pub).toISOString(), pubTitle: `${D.dmy(v.pub)} ${D.hm(v.pub)} (São Paulo)`,
       viewsText: num(v.views), viewsMissing,
       vpdText: vpdText(vpd7, F.num), multText: mult == null ? null : F.mult(mult), multTier: tier, multWord: tier ? WORD[tier] : null,
@@ -128,7 +139,7 @@ export function buildCanalVideos(obs: Observatory, channelId: string): CanalVide
     out.push({
       id: u.id, ytId: u.ytId, title: u.title?.trim() ? u.title : noTitle, url: u.url, grupo: 'sem-data',
       pub: null, views: u.views, vpd7: null, mult: null, isShort: u.isShort, pinned: u.pinned, tracked: false, dur: u.dur, likes: u.likes, comments: u.comments, swaps: 0,
-      thumbSrc: thumbOf(u.ytId), durText: durText(u.dur), ageText: null, pubISO: null, pubTitle: null,
+      thumbSrc: thumbOf(u.ytId), viewer: null, durText: durText(u.dur), ageText: null, pubISO: null, pubTitle: null,
       viewsText: num(u.views), viewsMissing: u.views == null ? viewsMissingText(ch, D.dmhm) : null,
       vpdText: null, multText: null, multTier: null, multWord: null,
       semMedida: 'views/dia e múltiplo: não medido', aguardando: false, likesText: num(u.likes), commentsText: num(u.comments), badges, notas, pin: null,

@@ -27,7 +27,7 @@ export function isHl(hl: Hl | null, lane: LaneView, i: number): boolean {
   return lane.type === 'thumb' && lane.versions[i]?.label === lane.versions[hl.i]?.label
 }
 
-export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMarker, arrivalId = null, onHl, onMarker, onMarkerClick, onClip, onGroupTip }: {
+export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMarker, arrivalId = null, onHl, onMarker, onMarkerClick, onClip, onClipDouble, onGroupTip }: {
   lanes: LaneView[]; layouts: LaneItem[][]; geom: Geom
   stale: { fromH: number; title: string } | null
   fewAxis: Array<{ h: number; label: string }> | null
@@ -42,6 +42,8 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
   onMarker: (m: MarkerView, type: LaneType, el: HTMLElement | null) => void
   onMarkerClick: (m: MarkerView) => void
   onClip: (type: LaneType, i: number) => void
+  /** Double click on a thumbnail period (spec 6.3, trigger 4): opens the viewer on it. The single click (`onClip`) is NOT delayed. */
+  onClipDouble?: (i: number, trigger: HTMLElement) => void
   onGroupTip: (g: GroupTip | null, el: HTMLElement | null) => void
 }) {
   const { x, H } = geom
@@ -99,6 +101,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
                   type: 'button' as const, tabIndex: tab, 'data-k': lane.type + ':' + i, 'aria-label': v.name, title: v.aria,
                   onMouseEnter: () => onHl({ type: lane.type, i, ev: null }), onFocus: () => onHl({ type: lane.type, i, ev: null }),
                   onMouseLeave: () => onHl(null), onBlur: () => onHl(null), onClick: () => onClip(lane.type, i),
+                  ...(lane.type === 'thumb' && onClipDouble ? { onDoubleClick: (e: { currentTarget: HTMLElement }) => onClipDouble(i, e.currentTarget) } : {}),
                 }
                 const cls = 'ln-i' + (v.cur ? ' cur' : '') + (isHl(hl, lane, i) ? ' is-hl' : '')
                 if (it.small) return <button key={'p' + i} {...common} className={'clip sm ' + cls} style={{ left: it.left, width: W }}>{W >= 14 ? <span className="vid">{v.label}</span> : null}</button>

@@ -351,3 +351,69 @@ describe('ThumbViewer · diálogo', () => {
     expect(document.activeElement).toBe(r.getByTestId('b'))
   })
 })
+
+describe('ThumbViewer · preview (a imagem que já está na tela)', () => {
+  const PREV = 'https://i.ytimg.com/vi/vid1234/mqdefault.jpg'
+  it('enquanto a resolução maior carrega, mostra a imagem da tela no lugar de "Carregando a imagem…"', () => {
+    abrir({ title: 'Vídeo', start: 0, versions: [atual({ preview: PREV })] })
+    const quadro = dialog().querySelector('.obs-tv-main')!
+    expect(quadro.querySelector('img')!.getAttribute('src')).toBe(PREV)
+    expect(quadro.querySelector('.obs-tv-miss')).toBeNull()
+    expect(quadro.textContent).not.toMatch(/Carregando a imagem/)
+  })
+  it('quando a maior chega, a maior ocupa o lugar do preview', async () => {
+    abrir({ title: 'Vídeo', start: 0, versions: [atual({ preview: PREV })] })
+    await carregada()
+    expect(stage().querySelector('img')!.getAttribute('src')).toBe(YT('maxresdefault'))
+  })
+  it('sem preview o quadro continua dizendo "Carregando a imagem…"', () => {
+    abrir(um())
+    expect(dialog().querySelector('.obs-tv-main')!.textContent).toMatch(/Carregando a imagem/)
+  })
+  it('imagem que não carrega em nenhuma resolução: "A imagem não carregou." vale mais que o preview', async () => {
+    rede = new Map()
+    abrir({ title: 'Vídeo', start: 0, versions: [atual({ preview: PREV })] })
+    await waitFor(() => expect(dialog().querySelector('.obs-tv-main')!.textContent).toMatch(/A imagem não carregou\./))
+    expect(dialog().querySelector('.obs-tv-main img')).toBeNull()
+  })
+  it('versão sem imagem para mostrar: o quadro explicativo vale mais que o preview', () => {
+    abrir({ title: 'Vídeo', start: 0, versions: [velha({ archived: null, preview: PREV })] })
+    expect(dialog().querySelector('.obs-tv-miss')!.textContent).toMatch(/A coleta só guarda a thumbnail/)
+    expect(dialog().querySelector('.obs-tv-main img')).toBeNull()
+  })
+})
+
+describe('ThumbViewer · gatilho desmontado ao fechar', () => {
+  function Host2({ input, mostra }: { input: ViewerInput; mostra: boolean }) {
+    const v = useThumbViewer({ fallback: () => document.getElementById('titulo-da-tela') })
+    return (
+      <>
+        <h1 id="titulo-da-tela" tabIndex={-1}>Título da tela</h1>
+        {mostra ? <button data-testid="gatilho" onClick={e => v.open(input, e.currentTarget)}>ampliar</button> : null}
+        {v.node}
+      </>
+    )
+  }
+  it('o gatilho saiu da tela: o foco vai para o título da tela, nunca fica no body', () => {
+    const r = render(<Host2 input={dois()} mostra />)
+    r.getByTestId('gatilho').focus()
+    fireEvent.click(r.getByTestId('gatilho'))
+    r.rerender(<Host2 input={dois()} mostra={false} />)
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(document.getElementById('titulo-da-tela'))
+  })
+  it('o gatilho continua na tela: o foco volta a ele, não ao título', () => {
+    const r = render(<Host2 input={dois()} mostra />)
+    r.getByTestId('gatilho').focus()
+    fireEvent.click(r.getByTestId('gatilho'))
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(document.activeElement).toBe(r.getByTestId('gatilho'))
+  })
+  it('sem fallback e sem gatilho, o fechamento não lança', () => {
+    const r = render(<Host input={dois()} />)
+    fireEvent.click(r.getByTestId('gatilho'))
+    r.unmount()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})

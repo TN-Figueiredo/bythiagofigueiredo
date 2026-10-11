@@ -59,7 +59,8 @@ function Missing({ children }: { children: ReactNode }): ReactElement {
 function Frame({ v, state }: { v: ViewerVersion; state: LoadState }): ReactElement {
   if (state.status === 'none') return <Missing><p>{missingText(v)}</p></Missing>
   if (state.status === 'fail') return <Missing><p><b>A imagem não carregou.</b></p></Missing>
-  if (state.status === 'loading') return <Missing><p>Carregando a imagem…</p></Missing>
+  // a imagem que a tela já tinha entra na hora; a maior a substitui quando chega
+  if (state.status === 'loading') return v.preview ? <div className="obs-tv-fig"><img src={v.preview} alt={`${v.label}`} draggable={false} /></div> : <Missing><p>Carregando a imagem…</p></Missing>
   return <div className="obs-tv-fig"><img src={state.url} alt={`${v.label}`} draggable={false} /></div>
 }
 const resText = (s: LoadState): string => (s.status === 'ok' ? resolutionLine(s.file, s.w, s.h, s.fellBack, s.archived) : s.status === 'loading' ? 'Carregando a imagem…' : '')
@@ -67,7 +68,7 @@ const resText = (s: LoadState): string => (s.status === 'ok' ? resolutionLine(s.
 const STEP = 1.25
 const ARROW_PX = 60
 
-export function ThumbViewer({ input, onClose, trigger }: { input: ViewerInput; onClose: () => void; trigger?: HTMLElement | null }): ReactElement | null {
+export function ThumbViewer({ input, onClose, trigger, fallback }: { input: ViewerInput; onClose: () => void; trigger?: HTMLElement | null; fallback?: () => HTMLElement | null }): ReactElement | null {
   const { title, versions } = input
   const n = versions.length
   const uid = useId()
@@ -98,6 +99,7 @@ export function ThumbViewer({ input, onClose, trigger }: { input: ViewerInput; o
   const boxRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
+  const fallbackRef = useRef(fallback)
 
   /* ---- zoom derivado: nada de efeito para "ajustar quando a imagem chega" ---- */
   const loaded = main.status === 'ok' ? main : null
@@ -107,7 +109,7 @@ export function ThumbViewer({ input, onClose, trigger }: { input: ViewerInput; o
   const shown: View | null = img ? (cv && cv.key === key ? clampView(cv.v, img, box) : fit(img, box)) : null
   const zoomed = !!(shown && img && !isFit(shown, img, box))
   const latest = useRef({ shown, img, box, key, stageOn })
-  useLayoutEffect(() => { latest.current = { shown, img, box, key, stageOn }; onCloseRef.current = onClose })
+  useLayoutEffect(() => { latest.current = { shown, img, box, key, stageOn }; onCloseRef.current = onClose; fallbackRef.current = fallback })
 
   const commit = useCallback((v: View) => {
     const L = latest.current
@@ -138,7 +140,8 @@ export function ThumbViewer({ input, onClose, trigger }: { input: ViewerInput; o
     return () => {
       for (const [e, antes] of back) { if (antes === null) e.removeAttribute('inert'); else e.setAttribute('inert', antes) }
       host.remove()
-      if (opener?.isConnected) opener.focus()
+      // o gatilho saiu da tela com o diálogo aberto (outro período, lista nova): o foco vai ao título da tela, nunca se perde no body
+      if (opener?.isConnected) opener.focus(); else fallbackRef.current?.()?.focus()
     }
   }, [host, opener])
 
@@ -345,14 +348,18 @@ export function ThumbViewer({ input, onClose, trigger }: { input: ViewerInput; o
 }
 
 /**
- * O gancho de quem abre: `open(input, gatilho)` mostra o diálogo; o gatilho é onde o foco volta ao fechar.
+ * O gancho de quem abre: `open(input, gatilho)` mostra o diálogo; o gatilho é onde o foco volta ao fechar (`fallback`: onde, se o gatilho sumiu).
  * `node` vai em qualquer lugar da árvore (o diálogo sai por portal no fim do <body>).
  */
-export function useThumbViewer(): { open: (input: ViewerInput, trigger: HTMLElement | null) => void; node: ReactNode } {
+export function useThumbViewer(opts: { fallback?: () => HTMLElement | null } = {}): { open: (input: ViewerInput, trigger: HTMLElement | null) => void; node: ReactNode } {
   const [st, setSt] = useState<{ input: ViewerInput; trigger: HTMLElement | null; seq: number } | null>(null)
   const seq = useRef(0)
   const open = useCallback((input: ViewerInput, trigger: HTMLElement | null) => setSt({ input, trigger, seq: ++seq.current }), [])
   const close = useCallback(() => setSt(null), [])
-  const node = st ? <ThumbViewer key={st.seq} input={st.input} trigger={st.trigger} onClose={close} /> : null
+  // quem abre diz onde o foco cai se o gatilho não existir mais; lido na hora de fechar, com a tela como ela está então
+  const fb = useRef(opts.fallback)
+  useLayoutEffect(() => { fb.current = opts.fallback })
+  const fallback = useCallback(() => fb.current?.() ?? null, [])
+  const node = st ? <ThumbViewer key={st.seq} input={st.input} trigger={st.trigger} fallback={fallback} onClose={close} /> : null
   return { open, node }
 }

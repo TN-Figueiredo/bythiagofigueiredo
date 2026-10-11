@@ -3,12 +3,14 @@
  * (a descrição fica fora, como no número do cabeçalho). Puro: tudo vem do motor (`obs`); a frase de efeito é a do Histórico.
  *
  * Não chama nada que agregue entre canais (o conjunto de um canal lança nisso): só `channel`, `video`, `changesIn`, `effect`,
- * `fmt`, `date`, `SYNC` e `link`.
+ * `fmt`, `date`, `SYNC`, `NOW` e `link`.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import { link } from '@/lib/youtube/observatorio/links'
 import { effLine } from '../_chrome/effect-view'
+import type { ViewerInput } from '../_chrome/thumb-viewer/viewer-model'
+import { viewerOfVideo } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 
 export interface TrocaView {
   id: string
@@ -30,6 +32,8 @@ export interface TrocaCard {
   videoId: string
   title: string
   thumbSrc: string | null
+  /** O visualizador de thumbnail do vídeo (as versões do conjunto do canal, abrindo na atual); null = nem versão nem id do YouTube. */
+  viewer: ViewerInput | null
   /** "2 trocas neste vídeo" (a tela só mostra com duas ou mais). */
   contagem: string
   /** Uma troca: o Histórico já nela. Duas ou mais: o Histórico do vídeo todo, sem troca escolhida. */
@@ -107,8 +111,9 @@ export function buildCanalTrocas(obs: Observatory, channelId: string): CanalTroc
       }
     })
     const multi = views.length > 1
+    const thumbSrc = v.thumbs.find(t => t.current)?.blobUrl ?? (v.ytId ? `https://i.ytimg.com/vi/${v.ytId}/mqdefault.jpg` : null)
     return {
-      videoId, title, thumbSrc: v.thumbs.find(t => t.current)?.blobUrl ?? (v.ytId ? `https://i.ytimg.com/vi/${v.ytId}/mqdefault.jpg` : null),
+      videoId, title, thumbSrc, viewer: viewerOfVideo(v, title, obs.NOW, D, thumbSrc),
       contagem: `${views.length} ${multi ? 'trocas' : 'troca'} neste vídeo`,
       href: multi ? hrefDe(videoId, i) : views[0]!.href,
       hrefLabel: `Abrir histórico do vídeo: ${title}`,

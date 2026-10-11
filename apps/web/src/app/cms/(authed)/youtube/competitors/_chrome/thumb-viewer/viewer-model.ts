@@ -8,6 +8,8 @@ export interface ViewerVersion {
   youtubeId: string | null
   caption: string               // "Capa B (no ar): 05/10 14:22 até agora; no ar por 2 d 7 h"
   from: string; to: string      // para o quadro da versão não arquivada
+  /** A imagem desta versão que JÁ está na tela de quem abriu (cartão, miniatura): o diálogo a mostra enquanto a resolução maior carrega. */
+  preview?: string | null
 }
 export interface ViewerInput { title: string; versions: ViewerVersion[]; start: number }
 

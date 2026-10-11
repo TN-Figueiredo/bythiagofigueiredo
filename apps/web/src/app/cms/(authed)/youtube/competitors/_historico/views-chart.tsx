@@ -39,12 +39,16 @@ export function shownTicks(px: number[], gap = 64): boolean[] {
 
 /** `el` = the marker or group counter the tooltip points at: the floating layer places it against that element. */
 interface TipState { m: MarkerView | null; g: GroupTip | null; type: LaneType; el: HTMLElement }
+/** The legend line that says what the thumbnail periods of the lane do (spec 6.3, trigger 4). */
+const ZOOM_HINT = 'clique duplo numa miniatura da faixa Thumbnail a amplia; o clique simples leva ao cartão da versão'
 const coarse = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer:coarse),(max-width:900px)').matches
 
-export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectPair, onGoVersion, range, onRange, groupLegend, arrivalId }: {
+export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectPair, onGoVersion, onZoomVersion, range, onRange, groupLegend, arrivalId }: {
   chart: ChartView | null; axis?: LanesAxisView | null; lanes: LaneView[]; legend: LegendItem[]; pair: ComparisonView | null
   hl: Hl | null; onHl: (h: Hl | null) => void
   onSelectPair: (k: string) => void; onGoVersion: (type: LaneType, i: number) => void
+  /** Double click on a thumbnail period of the lane: the viewer (spec 6.3, trigger 4). Absent = the legend does not promise it. */
+  onZoomVersion?: (i: number, trigger: HTMLElement) => void
   /** Period filter (null = not offered) and what a choice does; the legend text of a group of close items. */
   range?: RangeView | null; onRange?: (id: RangeId) => void; groupLegend?: string
   /** The change `troca=` opened the screen on (its marker gets the ring). */
@@ -77,7 +81,8 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
   const fromH = chart?.fromH ?? 0
   const layouts = useMemo(() => lanes.map(l => layoutLane(l, geom.x, minpx)), [lanes, geom, minpx])
   const anyGroup = layouts.some(l => l.some(i => i.kind === 'pgroup' || i.kind === 'mgroup'))
-  const fullLegend = anyGroup && groupLegend ? [...legend, { kind: 'grp' as const, text: groupLegend }] : legend
+  const zoomHint = onZoomVersion && lanes.some(l => l.type === 'thumb' && l.versions.some(v => v.inRange && v.thumb))
+  const fullLegend: LegendItem[] = [...legend, ...(anyGroup && groupLegend ? [{ kind: 'grp' as const, text: groupLegend }] : []), ...(zoomHint ? [{ kind: 'thumb' as const, text: ZOOM_HINT }] : [])]
 
   const onMarker = (m: MarkerView, type: LaneType, el: HTMLElement | null) => {
     if (!el) { setTip(null); onHl(null); return }
@@ -123,7 +128,7 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
           <ChartSvg chart={chart} geom={geom} pair={pair} hlRange={hlVer ? [hlVer.fromH, hlVer.toH] : null} />
         )) : null}
         <Lanes lanes={lanes} layouts={layouts} geom={geom} stale={chart?.stale ?? null} fewAxis={chart?.fewAxis ?? null} fromH={fromH} hl={hl} tipMarker={tip?.m?.changeId ?? null} arrivalId={arrivalId ?? null} onHl={onHl}
-          onMarker={onMarker} onMarkerClick={m => { setTip(null); if (m.pairK) onSelectPair(m.pairK) }} onClip={onGoVersion} onGroupTip={onGroupTip} />
+          onMarker={onMarker} onMarkerClick={m => { setTip(null); if (m.pairK) onSelectPair(m.pairK) }} onClip={onGoVersion} onClipDouble={onZoomVersion} onGroupTip={onGroupTip} />
         {!chart && ticks.length ? (
           <div className="lane-axis fx-axis" aria-hidden="true">
             {ticks.map((t, i) => <i key={'m' + i} style={{ left: t.px }} />)}

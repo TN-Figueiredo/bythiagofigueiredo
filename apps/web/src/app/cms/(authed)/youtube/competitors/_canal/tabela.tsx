@@ -65,7 +65,7 @@ function marcas(v: ChannelVideoView): string[] {
 }
 
 function Linha({ v, sort, href, onAmpliar, onTrocas }: {
-  v: ChannelVideoView; sort: CanalSort; href: string; onAmpliar: (v: ChannelVideoView) => void; onTrocas: (v: ChannelVideoView) => void
+  v: ChannelVideoView; sort: CanalSort; href: string; onAmpliar: (v: ChannelVideoView, trigger: HTMLElement | null) => void; onTrocas: (v: ChannelVideoView) => void
 }) {
   const on = (s: CanalSort) => (sort === s ? ' on' : '')
   const selo = v.isShort ? 'Short' : v.durText
@@ -109,7 +109,7 @@ export function Tabela({ lista, state, nome, descrito, hrefDe, onSort, onAmpliar
   descrito?: string
   hrefDe: (v: ChannelVideoView) => string
   onSort: (s: CanalSort) => void
-  onAmpliar: (v: ChannelVideoView) => void; onTrocas: (v: ChannelVideoView) => void
+  onAmpliar: (v: ChannelVideoView, trigger: HTMLElement | null) => void; onTrocas: (v: ChannelVideoView) => void
 }) {
   return (
     <div className="cv-tw">
