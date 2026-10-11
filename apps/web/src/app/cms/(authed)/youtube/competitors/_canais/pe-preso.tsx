@@ -54,7 +54,11 @@ export function PePreso({ pe, topoRef, linha, versao, onIr, onTopo }: {
     window.addEventListener('resize', escrever)
     return () => { ro?.disconnect(); window.removeEventListener('resize', escrever) }
   }, [oculta])
-  useEffect(() => () => { raiz.current?.closest<HTMLElement>('[data-obs-screen]')?.style.removeProperty(COBRE) }, [])
+  // o React já zerou `raiz.current` quando a limpeza roda: a tela é capturada no corpo do efeito (se só a linha presa desmonta, a variável não fica presa)
+  useEffect(() => {
+    const tela = raiz.current?.closest<HTMLElement>('[data-obs-screen]')
+    return () => { tela?.style.removeProperty(COBRE) }
+  }, [])
   return (
     <div className="cn-pin" ref={raiz} hidden={oculta} role="group" aria-label="Seu canal">
       <p>{pe.texto}</p>

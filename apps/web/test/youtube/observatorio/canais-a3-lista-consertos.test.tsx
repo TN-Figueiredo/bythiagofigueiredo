@@ -216,6 +216,18 @@ describe('I4 / I-B (achado no navegador e na revisão): o foco por Tab não fica
     expect(rodar().style.getPropertyValue('--cn-pin-cobre')).toBe(`${900 - 762 + 14}px`)
   })
 
+  it('M-N1: se só a linha presa desmonta com a tela viva, a margem do foco volta a zero (sem valor: o CSS usa 0px)', () => {
+    const { rerender } = montar()
+    act(() => { FakeIO.vivos.forEach(tudoLongeDaTela) })
+    expect(rodar().style.getPropertyValue('--cn-pin-cobre')).toBe(`${900 - 802 + 14}px`)
+    const v = view({ sort: 'subs' })
+    expect(v.pe).not.toBeNull()
+    act(() => { rerender(<main style={{ overflowY: 'auto' }}>{tree({ ...v, pe: null })}</main>) })
+    expect(document.querySelector('.cn-pin'), 'a linha presa saiu').toBeNull()
+    expect(rodar(), 'a tela continua viva').not.toBeNull()
+    expect(rodar().style.getPropertyValue('--cn-pin-cobre')).toBe('')
+  })
+
   it('sem linha presa na tela (site sem canal próprio) a variável não existe e o Tab não ganha margem', () => {
     vi.stubGlobal('IntersectionObserver', FakeIO)
     search = 'fmt=longos'
