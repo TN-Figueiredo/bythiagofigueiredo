@@ -296,18 +296,62 @@ test('A3.1 Todos mostra duas medidas por célula e o cabeçalho diz "longos em c
   expect(todos.alturaLinha, 'Todos tem duas medidas por célula: a linha é mais alta que a de Longos').toBeGreaterThanOrEqual(longos.alturaLinha)
 })
 
-test('A3.1 Todos a 1440 px: a tabela rola por dentro do invólucro, a página não; o nome do canal não fica comprimido', async ({ page }) => {
-  await abrir(page, '?fmt=todos')
-  const m = await page.evaluate(() => {
-    const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
-    const box = raiz.querySelector<HTMLElement>('.tablebox')!, t = raiz.querySelector<HTMLElement>('table')!, bloco = raiz.querySelector<HTMLElement>('[data-own-block]')!
-    const d = document.documentElement, sc = (window as unknown as W).__sc()
-    const nome = raiz.querySelector<HTMLElement>('tbody tr.row .nmbtn')!
-    return { box: box.clientWidth, tabela: t.offsetWidth, rolaPorDentro: box.scrollWidth > box.clientWidth + 1, bloco: Math.round(bloco.getBoundingClientRect().width), docRola: d.scrollWidth > d.clientWidth + 1, mainRola: sc.scrollWidth > sc.clientWidth + 1, nomeH: Math.round(nome.getBoundingClientRect().height), dica: !!raiz.querySelector('[data-scroll-hint]') }
+/** A tabela da tela visível: quanto mede o invólucro, quanto a tabela, e o que passa da própria célula sem reticências. */
+const medirTabela = (page: Page) => page.evaluate(() => {
+  const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
+  const box = raiz.querySelector<HTMLElement>('.tablebox')!, t = raiz.querySelector<HTMLElement>('table')!
+  const d = document.documentElement, sc = (window as unknown as W).__sc()
+  const cortes: string[] = []
+  // (1) elemento com overflow oculto cujo conteúdo passa da caixa: só vale se mostra reticências
+  box.querySelectorAll<HTMLElement>('*').forEach(e => {
+    if (e.closest('.sr') || e.getClientRects().length === 0) return
+    const cs = getComputedStyle(e)
+    if (cs.overflowX !== 'visible' && e.scrollWidth > e.clientWidth + 1 && cs.textOverflow !== 'ellipsis') cortes.push(`${e.tagName}.${String(e.className).slice(0, 24)} oculta ${e.scrollWidth - e.clientWidth} px sem reticências`)
   })
-  medida(`Todos 1440: invólucro ${m.box} px, tabela ${m.tabela} px, bloco "Seus canais" ${m.bloco} px; rola por dentro: ${m.rolaPorDentro}; dica de rolagem: ${m.dica}; nome do canal com ${m.nomeH} px de altura`)
-  expect(m.docRola).toBe(false); expect(m.mainRola).toBe(false)
-  expect(m.dica, 'a dica "Role a tabela" aparece exatamente quando a tabela rola por dentro').toBe(m.rolaPorDentro)
+  // (2) conteúdo que escapa da própria célula (invade a vizinha)
+  box.querySelectorAll<HTMLElement>('tbody td').forEach(td => {
+    const r = td.getBoundingClientRect()
+    td.querySelectorAll<HTMLElement>('*').forEach(e => {
+      // o alvo de toque do "?" (.tip, 32 px) passa 1 a 2 px da célula; o glifo não: não é texto cortado
+      if (e.closest('.sr') || e.classList.contains('tip') || e.getClientRects().length === 0) return
+      const b = e.getBoundingClientRect()
+      if (b.width > 0 && b.right > r.right + 1) cortes.push(`${e.tagName}.${String(e.className).slice(0, 24)} passa ${Math.round(b.right - r.right)} px da célula`)
+    })
+  })
+  return {
+    box: box.clientWidth, scroll: box.scrollWidth, tabela: t.offsetWidth, hint: !!raiz.querySelector('[data-scroll-hint]'),
+    ressalvas: [...raiz.querySelectorAll<HTMLElement>('.ressalva')].filter(e => e.getClientRects().length > 0).length,
+    erros: raiz.querySelectorAll('tbody .sync .msg').length,
+    cortes: [...new Set(cortes)].slice(0, 6), docRola: d.scrollWidth > d.clientWidth + 1, mainRola: sc.scrollWidth > sc.clientWidth + 1,
+    nomeH: Math.round(raiz.querySelector<HTMLElement>('tbody tr.row .nmbtn')!.getBoundingClientRect().height),
+    colunas: [...t.querySelectorAll('thead th')].map(h => `${(h.textContent ?? '').trim().slice(0, 12)}=${Math.round(h.getBoundingClientRect().width)}`).join(' | '),
+  }
+})
+for (const fmt of ['longos', 'shorts', 'todos'] as const) {
+  test(`A3.1 a tabela CABE no invólucro a 1440 px em ${fmt} (sem rolagem horizontal da tabela), com canal em erro e a ressalva de dado velho na lista; nenhuma coluna com texto cortado sem reticências`, async ({ page }) => {
+    await abrir(page, `?fmt=${fmt}&sort=subs`)
+    const m = await medirTabela(page)
+    medida(`${fmt} 1440: invólucro ${m.box} px, tabela ${m.tabela} px (scrollWidth ${m.scroll}); ressalvas visíveis ${m.ressalvas}; linhas com mensagem de sincronização ${m.erros}; dica de rolagem ${m.hint}; colunas ${m.colunas}; cortes: ${m.cortes.length ? m.cortes.join(' | ') : 'nenhum'}`)
+    expect(m.erros, 'a semente tem canal em erro/atrasado (mensagem na coluna Sincronização)').toBeGreaterThan(0)
+    if (fmt === 'todos') expect(m.ressalvas, 'Todos mostra a ressalva de dado velho à vista').toBeGreaterThan(0)
+    expect(m.scroll, 'a tabela cabe: o invólucro não rola na horizontal').toBeLessThanOrEqual(m.box)
+    expect(m.hint, 'sem rolagem interna não há a dica "Role a tabela"').toBe(false)
+    expect(m.cortes).toEqual([])
+    expect(m.docRola).toBe(false); expect(m.mainRola).toBe(false)
+    expect(m.nomeH, 'o nome do canal não fica comprimido').toBeLessThanOrEqual(34)
+  })
+}
+
+test('A3.1 abaixo da largura em que a tabela cabe, ela rola por dentro do próprio invólucro (a página não) e a dica "Role a tabela" aparece; a largura natural não passa de 1.148 px', async ({ page }) => {
+  for (const fmt of ['longos', 'todos'] as const) for (const w of [1280, 1200]) {
+    await abrir(page, `?fmt=${fmt}&sort=subs`, { width: w, height: 900 })
+    const m = await medirTabela(page)
+    medida(`${fmt} ${w}: invólucro ${m.box} px, largura natural da tabela ${m.tabela} px; rola por dentro: ${m.scroll > m.box + 1}; dica ${m.hint}; a tabela cabe a partir de uma janela de ${w + (m.tabela - m.box)} px (a casca tira ${w - m.box} px)`)
+    expect(m.tabela, `${fmt} ${w}: a largura natural da tabela`).toBeLessThanOrEqual(1148)
+    expect(m.hint, 'a dica de rolagem aparece exatamente quando a tabela rola por dentro').toBe(m.scroll > m.box + 2)
+    expect(m.docRola).toBe(false); expect(m.mainRola).toBe(false)
+    expect(m.cortes).toEqual([])
+  }
 })
 
 /* ================================================================== A3.2 */

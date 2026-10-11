@@ -184,3 +184,28 @@ describe('I5 (achado no navegador): os cartões cabem em 320 px', () => {
     expect(regra).not.toMatch(/minmax\(320px/)
   })
 })
+
+describe('I6 (achado no navegador): a tabela cabe no invólucro de 1.152 px de uma janela de 1.440 px', () => {
+  // a prova real é a medida do canais-a3.spec.ts (a tabela larga só se vê no navegador); aqui ficam as regras que a causaram
+  const css = fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_canais/canais.css'), 'utf8')
+  const linhas = css.split('\n')
+  it('a ressalva de dado velho quebra de linha: um nowrap nela alarga a coluna Views/dia em Todos', () => {
+    const regra = linhas.find(l => /\.fm \.ressalva\{/.test(l))
+    expect(regra).toBeDefined()
+    expect(regra).toContain('white-space:normal')
+  })
+  it('a largura mínima da tabela não passa de 1.000 px (a natural das colunas decide, e a tabela larga rola por dentro)', () => {
+    const mins = linhas.flatMap(l => [...l.matchAll(/(?:^|[^-\w.])\[data-obs-screen="canais"\] table\{[^}]*min-width:(\d+)px/g)].map(m => Number(m[1])))
+    expect(mins.length).toBeGreaterThan(0)
+    expect(Math.max(...mins)).toBeLessThanOrEqual(1000)
+  })
+  it('as colunas largas não têm piso maior que o necessário: canal 180, ritmo 130, outliers 188, trocas 104, sincronização 140', () => {
+    // a regra que vale é a última que declara o piso (fora dos @media de gaveta aberta, que começam por .drawer-open)
+    const piso = (sel: string) => Number([...css.matchAll(new RegExp(`\\[data-obs-screen="canais"\\] ${sel.replace('.', '\\.')}\\{[^}]*min-width:(\\d+)px`, 'g'))].at(-1)?.[1])
+    expect(piso('.ch')).toBeLessThanOrEqual(180)
+    expect(piso('.cad')).toBeLessThanOrEqual(130)
+    expect(piso('.out')).toBeLessThanOrEqual(188)
+    expect(piso('.swap')).toBeLessThanOrEqual(104)
+    expect(piso('.sync')).toBeLessThanOrEqual(140)
+  })
+})
