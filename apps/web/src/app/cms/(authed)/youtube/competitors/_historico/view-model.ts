@@ -394,11 +394,12 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const nextSnapMs = D.snapTime(obs.LAST_IDX + 1), nextSnap = D.dm(nextSnapMs) + ' ' + D.hh(nextSnapMs)
   // ---------- period filter (spec 6.4): ?range=7|30|90|tudo; absent or garbage = 30 days ----------
   // `troca=` (spec 6.2): a change of THIS video that has a pair in "Antes e depois". Anything else (another video, garbage,
-  // a change without a pair) opens the screen as it always did. A change older than the default period, with no explicit
-  // `range`, opens the smallest period that includes it (D3); an explicit `range` wins and the change stays selected.
+  // a change without a pair) opens the screen as it always did. With a valid `troca=` the chart period is the LARGER of the
+  // URL's `range` and the smallest period that includes the change (D3 as amended): the arrival change is never outside it.
   const HR = obs.RULES.history
   const trocaChange: ObsChange | null = observed && p.troca ? changes.find(c => c.id === p.troca && obs.effect(c.id) != null) ?? null : null
-  const rangeId: RangeId = isRangeId(p.range) ? p.range : trocaChange ? rangeFor(trocaChange.at, now) : RANGE_DEFAULT
+  const asked: RangeId = isRangeId(p.range) ? p.range : RANGE_DEFAULT
+  const rangeId: RangeId = trocaChange && RANGE_IDS.indexOf(rangeFor(trocaChange.at, now)) > RANGE_IDS.indexOf(asked) ? rangeFor(trocaChange.at, now) : asked
   const t0 = rangeStart(rangeId, pub, now), cut = t0 > pub, fromH = cut ? hx(t0) : 0
   /** Short instant of a version or change: a thumbnail has the minute; title and description only the sync hour. */
   const tm = (type: LaneType, ms: number) => (type === 'thumb' ? dmhmY(ms) : D.dmOrDmy(ms) + ' ' + D.hh(ms))

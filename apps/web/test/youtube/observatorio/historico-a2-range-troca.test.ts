@@ -150,17 +150,30 @@ describe('chegada pela troca (troca=)', () => {
     const t = hv(V.old, { troca: old.id }, w.obs)
     expect([t.range!.value, t.range!.cut, t.arrival?.changeId, t.defaultPair]).toEqual(['tudo', false, old.id, t.arrival?.pairK])
   })
-  it('troca= antiga com range=7 na URL: vale o 7 e a troca continua selecionada (comparisons a contém com inRange false)', () => {
+  it('troca= antiga com range=7 na URL: o período sobe para o que inclui a troca e ela fica dentro do gráfico (inRange true)', () => {
     const mid = changesOf(V.hidden)[0]!
     const v = hv(V.hidden, { troca: mid.id, range: '7' })
-    expect(v.range!.value).toBe('7')
+    // 52 dias: o menor período que a inclui é 90; o 7 da URL só vale quando já a inclui
+    expect(v.range!.value).toBe('90')
     expect(v.arrival?.changeId).toBe(mid.id)
     expect(v.defaultPair).toBe(v.arrival!.pairK)
     const cmp = v.comparisons.find(c => c.changeId === v.defaultPair)!
     expect(cmp).toBeDefined()
-    expect(cmp.inRange).toBe(false)
+    expect(cmp.inRange).toBe(true)
+    // range=30 também sobe; range=90 e range=tudo (o maior) ficam como estão
+    expect(rangeId(V.hidden, { troca: mid.id, range: '30' })).toBe('90')
+    expect(rangeId(V.hidden, { troca: mid.id, range: '90' })).toBe('90')
+    expect(rangeId(V.hidden, { troca: mid.id, range: 'tudo' })).toBe('tudo')
     // range inválido não vale como explícito: a troca antiga leva ao período que a inclui
     expect(rangeId(V.hidden, { troca: mid.id, range: 'abc' })).toBe('90')
+  })
+  it('range=tudo com troca recente: fica tudo (o período da URL é o maior)', () => {
+    const recent = changesOf(V.street)[0]!
+    expect(obs.NOW - recent.at).toBeLessThanOrEqual(30 * DAY)
+    const v = hv(V.street, { troca: recent.id, range: 'tudo' })
+    expect([v.range!.value, v.arrival?.changeId]).toEqual(['tudo', recent.id])
+    // sem troca= o range=7 continua valendo como sempre
+    expect(rangeId(V.street, { range: '7' })).toBe('7')
   })
   it('a chegada não muda nada além do par e do período: o resto da tela é o de sempre', () => {
     const c = full.find(x => x.type === 'thumb' && !x.window)!
