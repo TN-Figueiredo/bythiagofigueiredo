@@ -262,6 +262,15 @@ describe('I1: o clique simples da raia espera a janela do duplo clique', () => {
     expect(document.activeElement).toBe(c)
     expect(rolagens).not.toHaveBeenCalled()
   })
+  it('trocar de vídeo (a tela não remonta quando só o vídeo muda) cancela a rolagem pendente do clique na raia', () => {
+    // o clique pendente aponta para o cartão `thumb:1`; o outro vídeo também tem um (senão a rolagem tardia não acharia onde cair e o teste passaria à toa)
+    const outro = obs.videos.find(v => v.id !== FULL && v.tracked && !obs.channel(v.ch)!.own && v.thumbs.length >= 2)!
+    const { root, rerender } = mount()
+    fireEvent.click(clip(root, 1), { detail: 1 })
+    rerender(<ToastProvider><HistoricoScreen view={build({}, obs, outro.id)} /></ToastProvider>)
+    act(() => { vi.advanceTimersByTime(2000) })
+    expect(rolagens).not.toHaveBeenCalled()
+  })
   it('desmontar com o clique pendente não rola nem estoura', () => {
     const { root, unmount } = mount()
     fireEvent.click(clip(root, 3), { detail: 1 })

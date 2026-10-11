@@ -159,6 +159,8 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   const clipTimer = useRef<number | null>(null)
   const cancelClip = () => { if (clipTimer.current != null) { window.clearTimeout(clipTimer.current); clipTimer.current = null } }
   useEffect(() => cancelClip, [])
+  // another video (Next 16 keeps this component when only the `[id]` changes): the scroll the click was waiting to do would land on the new video's card
+  useEffect(() => { cancelClip() }, [view.video?.id])
   const goVersion = (type: LaneType, i: number) => {
     const find = () => root.current?.querySelector<HTMLElement>('[data-ver="' + type + ':' + i + '"]')
     let t = find()
