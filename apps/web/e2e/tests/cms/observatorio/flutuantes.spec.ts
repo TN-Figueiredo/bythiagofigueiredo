@@ -20,7 +20,7 @@ type Modo = 'clique' | 'foco'
  *  (a prova põe espaçadores no contêiner que rola, senão um gatilho do alto da tela nunca chega ao pé da janela). `fixo: true` = o
  *  gatilho NÃO rola (sticky/fixed): então a prova AFIRMA o contrário, que o top não se mexeu. Medido em 10/10: nenhuma família é fixa
  *  (o menu ⋯ e o Frescor ficam no alto do conteúdo, que rola). `texto`: o que a caixa tem de dizer. */
-interface Familia { folgaPe?: number; folgaTopo?: number; id: string; gatilho: string; modo: Modo; caixa: string; max?: number; fixo?: boolean; texto?: RegExp
+interface Familia { peExato?: boolean; folgaPe?: number; folgaTopo?: number; id: string; gatilho: string; modo: Modo; caixa: string; max?: number; fixo?: boolean; texto?: RegExp
   /** O `gap` que o código da flutuante passa (px entre a caixa e o gatilho). A caixa tem de ficar a no máximo `gap + TOL_PROX` dele. */
   gap: number
   /** Folga a mais, só com `ref`: a caixa guarda o `gap` do GATILHO e mede o resto no bloco (`posAnchor`), então do bloco ela pode ficar até 2 px mais longe que o `gap`
@@ -30,16 +30,17 @@ interface Familia { folgaPe?: number; folgaTopo?: number; id: string; gatilho: s
   ref?: string }
 const TELAS: Array<{ nome: string; url: () => string; familias: Familia[] }> = [
   { nome: 'canais', url: () => '/cms/youtube/competitors', familias: [
-    // folgaPe 112: os controles da lista de Canais têm scroll-margin-bottom de 112 px de propósito (canais.css): o Tab não deixa o foco sob a linha presa no pé (canais-a3.spec.ts),
-    // e o `scrollIntoView` do navegador respeita a margem; "colado embaixo" termina 112 px acima do pé da janela.
-    { id: '"?" da tabela', gatilho: '[data-obs-screen="canais"] .tip', modo: 'foco', caixa: '#flut .cn-tt', max: 8, gap: 6, folgaPe: 112 },
-    { id: 'menu da linha', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4, folgaPe: 112 },
+    // peExato: os controles da lista de Canais têm scroll-margin-bottom (a altura real da linha presa, canais.css --cn-pin-cobre): o Tab não deixa o foco sob ela
+    // (canais-a3.spec.ts), e o `scrollIntoView` do navegador respeita a margem, então "colado embaixo" pararia acima do pé. Estas famílias levam o gatilho ao pé
+    // da janela por `scrollTop` (sem folga): o caso do menu e da dica com o gatilho ENCOSTADO no pé (inverter para cima) continua provado inteiro.
+    { id: '"?" da tabela', gatilho: '[data-obs-screen="canais"] .tip', modo: 'foco', caixa: '#flut .cn-tt', max: 8, gap: 6, peExato: true },
+    { id: 'menu da linha', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4, peExato: true },
     { id: 'menu ⋯ da moldura', gatilho: '.obs-ch-menu-wrap [aria-haspopup="menu"]', modo: 'clique', caixa: '#flut #obs-ch-menu', gap: 6 },
     { id: 'frescor por canal', gatilho: '.obs-ch-fresh > button', modo: 'clique', caixa: '#flut #obs-ch-fresh-pop', gap: 6 },
   ] },
   // a visão em Cards de Canais: o menu da linha mora em outro contêiner (o cartão), com a mesma função de posição
   { nome: 'canais-cards', url: () => '/cms/youtube/competitors?layout=cards', familias: [
-    { id: 'menu da linha (cards)', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4, folgaPe: 112 }, // mesma margem de rolagem de canais.css
+    { id: 'menu da linha (cards)', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4, peExato: true }, // mesma margem de rolagem de canais.css
   ] },
   // a página do canal do concorrente (A1): o ⓘ dos números, o menu ⋯ do canal e o menu "Ações do vídeo" (de um cartão do alto ao do pé da
   // grade: a amostra espalha 6 gatilhos do primeiro ao último dos ~120) em Capas e em Lista. Todos moram em #flut (Popover).
@@ -81,7 +82,7 @@ const LARGURAS = [1440, 390] as const
 const POSICOES = [['natural', 'nearest'], ['centro', 'center'], ['colado embaixo', 'end'], ['colado em cima', 'start']] as const
 /** Quanto o extremo pode ficar longe do pé da janela / do topo da área visível (px). Medido em 10/10 nas 4 telas, 2 larguras, 2 temas, em
  *  TODOS os gatilhos de todas as famílias: distância 0..0 nas duas pontas (com os espaçadores o scroll encosta exato). 4 px cobre só o
- *  arredondamento; por isso nenhuma família usa `folgaPe`/`folgaTopo` (a folga por família existe para um motivo legítimo, declarado). */
+ *  arredondamento; por isso só as famílias da tela `canal` usam `folgaPe`/`folgaTopo` (cada uma com o motivo declarado na própria linha); as de Canais usam `peExato`. */
 const TOL_EXTREMO = 4
 /** Quanto a caixa pode ficar além do `gap` do código, longe do gatilho (px, distância entre as bordas mais próximas dos dois retângulos).
  *  A posição vem de Math.round() sobre medidas fracionárias (gatilho e caixa): até 1 px de cada lado. 2 px cobre só isso; um defeito de
@@ -183,7 +184,14 @@ for (const tema of THEMES) for (const largura of LARGURAS) for (const tela of TE
         const g = page.locator(f.gatilho).nth(n)
         if (passada.length > 1) await g.evaluate(ESPACOS)
         for (const [pos, bloco] of passada) {
-          await g.evaluate((e, b) => e.scrollIntoView({ block: b as ScrollLogicalPosition, inline: 'nearest', behavior: 'instant' }), bloco)
+          if (bloco === 'end' && f.peExato) {
+            // encosta o gatilho no pé da janela pelo scrollTop do contêiner que rola (o scrollIntoView pararia na scroll-margin-bottom)
+            await g.evaluate(e => {
+              let c: HTMLElement | null = e.parentElement
+              while (c && !(['auto', 'scroll'].includes(getComputedStyle(c).overflowY) && c.scrollHeight > c.clientHeight)) c = c.parentElement
+              ;(c ?? document.scrollingElement as HTMLElement).scrollTop += e.getBoundingClientRect().bottom - window.innerHeight
+            })
+          } else await g.evaluate((e, b) => e.scrollIntoView({ block: b as ScrollLogicalPosition, inline: 'nearest', behavior: 'instant' }), bloco)
           if (!(await g.isVisible())) { pulados++; continue }
           ;(medidas[n] ??= []).push(await g.evaluate((e, pos) => {
             const r = e.getBoundingClientRect(), c = e.closest('[data-prova-espacos]')

@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest'
 import { a3World } from './a3-fixture'
 import { buildCanaisView, type CanaisParams, type CanaisRow, type CanaisSort, type CanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
-import { motivoTexto, POSICIONADAS, type MotivoSemMedida } from '@/app/cms/(authed)/youtube/competitors/_canais/posicao-model'
+import { fraseSeuCanal, motivoTexto, POSICIONADAS, type MotivoSemMedida } from '@/app/cms/(authed)/youtube/competitors/_canais/posicao-model'
 import { ownChannelHref } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-channels'
 import { link } from '@/lib/youtube/observatorio/links'
 import type { Observatory } from '@/lib/youtube/observatorio'
@@ -616,5 +616,29 @@ describe('A3.3 acréscimos da revisão: ordem crescente, texto da célula, empat
     expect(view({}).posicaoNota).toBeNull()
     expect(view({ niche: 'viagem' }).posicaoNota).toBeNull()
     expect(view({ sort: 'subs' }, mix.obs).posicaoNota).toBeNull()
+  })
+})
+
+describe('A3.2 o motivo nunca é inventado (revisão da Tarefa 4, M-4)', () => {
+  it('todo canal próprio sem posição carrega o motivo: em nenhuma ordenação × formato × escala × direção × nicho o modelo devolve pos nulo com semMedida nulo', () => {
+    const mundos = [BASE, mundoSemMedida(), a3World(ds => { for (const v of ds.videos) semDiario(v) })]
+    let semPosicao = 0
+    for (const w of mundos) for (const niche of ['todos', 'viagem', 'ia'] as const) for (const scale of SCALES) for (const fmt of FMTS) for (const sort of SORTS) for (const dir of ['desc', 'asc'] as const) {
+      const v = view({ niche, scale, fmt, sort, dir } as Partial<CanaisParams>, w.obs)
+      for (const r of all(v)) {
+        if (!r.own || r.pos) continue
+        semPosicao++
+        expect(r.semMedida, `${niche} ${scale} ${fmt} ${sort} ${dir}: ${r.name} sem posição precisa de um motivo`).not.toBeNull()
+      }
+      // a frase do bloco e a da linha presa dizem o motivo do modelo, nunca um padrão
+      for (const l of v.own.block?.linhas ?? []) if (l.tipo === 'cheia') expect(l.frase.length).toBeGreaterThan(0)
+      if (v.pe) expect(v.pe.texto.length).toBeGreaterThan(0)
+    }
+    expect(semPosicao, 'a prova só vale se houve canal próprio sem posição').toBeGreaterThan(20)
+  }, 60_000)
+  it('fraseSeuCanal sem posição e sem motivo é vazia: não escolhe um motivo por conta própria', () => {
+    expect(fraseSeuCanal(null, { tipo: 'geral' } as never, null)).toBe('')
+    expect(fraseSeuCanal(null, { tipo: 'geral' } as never, undefined)).toBe('')
+    expect(fraseSeuCanal(null, { tipo: 'geral' } as never, 'sem-views-dia-proprio')).toBe(motivoTexto('sem-views-dia-proprio'))
   })
 })

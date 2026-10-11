@@ -508,7 +508,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const fila = temPosicao(sort) ? all.filter(c => inNiche(c) && valoresOf(c)[sort] != null).sort((a, b) => (valoresOf(b)[sort]! - valoresOf(a)[sort]!) * sgn) : []
   const fraseDe = (r: CanaisRow): { frase: string; vizinhos: string | null } => {
     const c = obs.channel(r.id)!
-    if (!r.pos) return { frase: motivoTexto(r.semMedida ?? 'ordenacao-sem-posicao'), vizinhos: null }
+    if (!r.pos) return { frase: r.semMedida ? motivoTexto(r.semMedida) : '', vizinhos: null } // sem motivo seria erro do modelo (testado): nunca inventa um
     const i = fila.findIndex(x => x.id === r.id), ac = fila[i - 1], ab = fila[i + 1]
     return {
       frase: fraseDePosicao(r.pos, conjunto, emDaOrdem, valorTxt(c)),

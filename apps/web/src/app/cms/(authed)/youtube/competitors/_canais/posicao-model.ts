@@ -109,7 +109,9 @@ export function fraseDoCartao(p: Posicao, c: Conjunto): string {
 
 /** O fim do anúncio de ordenação (leitor de tela): "Seu canal: 14º de 14 em Viagem." ou, sem posição, o MESMO motivo que o bloco e o cartão dizem (`motivoTexto`). */
 export function fraseSeuCanal(p: Posicao | null, c: Conjunto, semMedida: MotivoSemMedida | null | undefined): string {
-  return p ? `Seu canal: ${p.pos}º de ${p.de} ${conjuntoTexto(c)}${p.empate ? ' (empate)' : ''}.` : motivoTexto(semMedida ?? 'ordenacao-sem-posicao')
+  // sem posição e sem motivo seria erro do modelo (o teste de invariante percorre todas as ordenações): a frase não escolhe um motivo por conta própria
+  if (p) return `Seu canal: ${p.pos}º de ${p.de} ${conjuntoTexto(c)}${p.empate ? ' (empate)' : ''}.`
+  return semMedida ? motivoTexto(semMedida) : ''
 }
 
 /** Sob o filtro "só com problema" a lista é menor que o "de N": a posição continua a da lista inteira. */

@@ -8,7 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { test, expect, type Page, type Locator } from '@playwright/test'
 import { ADMIN_STATE, ensureSeeded, seedIdsOf, THEMES } from './fidelity'
-import { resetViewerPrefs } from '../../../fixtures/observatorio-seed'
+import { CANAL_COMPLETO, resetViewerPrefs } from '../../../fixtures/observatorio-seed'
 import { getSeedSiteId } from '../../../fixtures/seed-helpers'
 
 test.use({ storageState: ADMIN_STATE })
@@ -272,6 +272,11 @@ test('A3.1 Todos mostra duas medidas por célula e o cabeçalho diz "longos em c
     })
   }
   const longos = await emDobra()
+  // em Longos a mesma linha mostra UMA medida por célula: nenhum rótulo de Shorts
+  const emLongos = await page.locator(`${S}:visible tbody tr.row[data-id="${ids.channel('matt-wolfe')}"]`).first().evaluate(tr => ([3, 4, 5] as const).map(n => ({ fm: tr.children[n - 1]!.querySelectorAll('.fm').length, shorts: /Shorts/.test(tr.children[n - 1]!.textContent ?? '') })))
+  // (a faixa de Ritmo desenha as barras dos dois formatos e o nome acessível dela cita os Shorts; o número, não)
+  expect(emLongos.map(c => c.fm), 'Longos: nenhuma medida empilhada').toEqual([0, 0, 0])
+  expect(emLongos.slice(1).map(c => c.shorts), 'Longos: Views/dia e Outliers não citam Shorts').toEqual([false, false])
   await botaoFmt(page, 'Todos').click(); await expect.poll(() => param(page, 'fmt')).toBe('todos'); await assentou(page)
   await rolarPara(page, 0)
   // o cabeçalho: três colunas dizem a regra; a coluna ordenada (Views/dia) diz que ordena pelos longos
@@ -279,21 +284,29 @@ test('A3.1 Todos mostra duas medidas por célula e o cabeçalho diz "longos em c
   expect(cabs).toHaveLength(3)
   for (const c of cabs) expect(c).toContain('longos em cima, Shorts embaixo')
   expect(cabs.join(' ')).toContain('ordenado pelos longos')
-  // cada célula que depende de formato tem duas medidas (o canal comum tem os dois formatos): a linha de um concorrente com Shorts é mais alta
-  const duas = await page.evaluate(() => {
-    const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
-    return [...raiz.querySelectorAll<HTMLElement>('tbody tr.row:not(.you)')].slice(0, 8).map(r => ({
-      vpd: r.querySelectorAll('td:nth-child(4) .vpd-l, td:nth-child(4) > *').length, txt: (r.querySelector('td:nth-child(4)')?.textContent ?? '').slice(0, 90), h: Math.round(r.getBoundingClientRect().height),
-    }))
-  })
-  medida(`Todos, células de Views/dia (primeiras 8 linhas): ${JSON.stringify(duas.map(d => d.txt))}`)
+  // cada célula que depende de formato mostra as DUAS medidas, rotuladas e empilhadas (longos em cima, Shorts embaixo): a linha conhecida da semente é a de
+  // Matt Wolfe (longos e Shorts, com outliers só nos longos); Ritmo, Views/dia e Outliers são as três colunas que dependem de formato
+  const mw = page.locator(`${S}:visible tbody tr.row[data-id="${ids.channel('matt-wolfe')}"]`).first()
+  const celulas = await mw.evaluate(tr => ([3, 4, 5] as const).map(n => {
+    const td = tr.children[n - 1] as HTMLElement
+    return [...td.querySelectorAll<HTMLElement>('.fm')].map(f => ({ txt: (f.textContent ?? '').replace(/\s+/g, ' ').trim(), top: Math.round(f.getBoundingClientRect().top) }))
+  }))
+  medida(`Todos, linha de Matt Wolfe: Ritmo ${JSON.stringify(celulas[0]!.map(f => f.txt))}; Views/dia ${JSON.stringify(celulas[1]!.map(f => f.txt))}; Outliers ${JSON.stringify(celulas[2]!.map(f => f.txt))}`)
+  for (const [i, nome] of ['Ritmo', 'Views/dia', 'Outliers'].entries()) {
+    const f = celulas[i]!
+    expect(f, `${nome}: duas medidas na célula`).toHaveLength(2)
+    expect(f[1]!.top, `${nome}: a de Shorts fica embaixo da de longos`).toBeGreaterThan(f[0]!.top + 12)
+  }
+  expect(celulas[0]!.map(f => f.txt)).toEqual(['4,0 longos/sem', '0,7 Shorts/sem'])
+  expect(celulas[1]!.map(f => f.txt)).toEqual(['longos: 0,7 636/dia, n = 102', 'Shorts: 0,3 236/dia, n = 18'])
+  expect(celulas[2]![0]!.txt).toMatch(/^longos: 6,0× 2 outliers no canal$/)
+  expect(celulas[2]![1]!.txt).toMatch(/^Shorts: Nenhum Short com 2× ou mais\. Base fraca \(n = 1\)\.$/)
   const todos = await emDobra()
   await botaoFmt(page, 'Shorts').click(); await expect.poll(() => param(page, 'fmt')).toBe('shorts'); await assentou(page)
   const shorts = await emDobra()
   medida(`linhas INTEIRAS na dobra (janela 1440x900, tabela no alto da área que rola, área de ${longos.areaH} px, cabeçalho de ${longos.cab} px): Longos ${longos.janela} (${longos.semPin} sem a linha presa de ${longos.pin} px; linha de ${longos.alturaLinha} px), Todos ${todos.janela} (${todos.semPin} sem a linha presa; linha de ${todos.alturaLinha} px, cabeçalho ${todos.cab} px), Shorts ${shorts.janela} (${shorts.semPin} sem a linha presa; linha de ${shorts.alturaLinha} px) — o mockup deu 12, 11 e 11 com 70 linhas e outra casca`)
   expect(longos.janela).toBeGreaterThanOrEqual(5)
   expect(todos.janela).toBeGreaterThanOrEqual(4)
-  expect(todos.alturaLinha, 'Todos tem duas medidas por célula: a linha é mais alta que a de Longos').toBeGreaterThanOrEqual(longos.alturaLinha)
 })
 
 /** A tabela da tela visível: quanto mede o invólucro, quanto a tabela, e o que passa da própria célula sem reticências. */
@@ -643,9 +656,10 @@ test('a dica dos inscritos e o "formato não confirmado" abrem na camada flutuan
   const dicas: Array<{ nome: string; gatilho: Locator }> = [
     { nome: 'inscritos', gatilho: page.locator(`${S}:visible tbody tr.row [aria-label="Sobre o número de inscritos"]`).first() },
   ]
-  const nc = page.locator(`${S}:visible tbody tr.row [aria-label="Sobre os vídeos sem formato confirmado"]`)
-  if (await nc.count()) dicas.push({ nome: 'formato não confirmado', gatilho: nc.first() })
-  else medida('nenhum canal da semente tem vídeo com formato não confirmado: a dica correspondente não foi aberta (a semente padrão não o traz)')
+  // a semente (`canalCompleto`) dá a Matt Wolfe um vídeo com formato não confirmado: se o caso deixar de existir, o teste FALHA em vez de pular a dica
+  const nc = page.locator(`${S}:visible tbody tr.row[data-id="${ids.channel(CANAL_COMPLETO.canal)}"] [aria-label="Sobre os vídeos sem formato confirmado"]`)
+  await expect(nc, 'a semente tem um canal com vídeo de formato não confirmado (CANAL_COMPLETO)').toHaveCount(1)
+  dicas.push({ nome: 'formato não confirmado', gatilho: nc.first() })
   for (const d of dicas) {
     await d.gatilho.scrollIntoViewIfNeeded()
     await d.gatilho.focus()
@@ -811,23 +825,27 @@ test('medidas: altura do bloco "Seus canais" com dois canais próprios e com um'
   await abrir(page, '?fmt=longos&sort=subs')
   const dois = await caixa(page.locator(`${S}:visible [data-own-block]`))
   const linhas2 = await page.locator(`${S}:visible [data-own-block] li`).count()
-  // a mesma semente com UM canal próprio (a última prova do arquivo: as outras já rodaram com o preset 2)
-  ids = seedIdsOf(await ensureSeeded({ ...SEED2, ownPreset: '1' }))
-  await abrir(page, '?fmt=longos&sort=subs')
-  const um = await caixa(page.locator(`${S}:visible [data-own-block]`))
-  const linhas1 = await page.locator(`${S}:visible [data-own-block] li`).count()
-  const tabela = await page.evaluate(() => {
-    const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
-    const box = raiz.querySelector<HTMLElement>('.tablebox')!
-    return { dentro: box.clientWidth, total: box.scrollWidth, bloco: Math.round(raiz.querySelector<HTMLElement>('[data-own-block]')!.getBoundingClientRect().width) }
-  })
-  medida(`bloco com 2 canais próprios: ${dois.h} px (${linhas2} linhas); com 1: ${um.h} px (${linhas1} linha); a 1440 px o bloco tem ${tabela.bloco} px de largura, a tabela ${tabela.total} px num invólucro de ${tabela.dentro} px (${tabela.total > tabela.dentro + 1 ? 'rola por dentro' : 'cabe'})`)
-  expect(linhas2).toBe(2); expect(linhas1).toBe(1)
-  expect(um.h).toBeLessThan(dois.h)
-  // com um canal só a frase fala dele e a linha presa também
-  await expect(page.locator(`${S}:visible [data-own-block] li`)).toHaveCount(1)
-  const max = await page.evaluate(() => { const s = (window as unknown as W).__sc(); return s.scrollHeight - s.clientHeight })
-  await rolarPara(page, Math.round(max / 2))
-  await expect.poll(() => peVisivel(page)).toBe(true)
-  ids = seedIdsOf(await ensureSeeded(SEED2))
+  // a mesma semente com UM canal próprio (a última prova do arquivo: as outras já rodaram com o preset 2). `finally`: se algo falhar no meio, a semente
+  // volta ao preset 2 e o spec seguinte não herda o banco trocado
+  try {
+    ids = seedIdsOf(await ensureSeeded({ ...SEED2, ownPreset: '1' }))
+    await abrir(page, '?fmt=longos&sort=subs')
+    const um = await caixa(page.locator(`${S}:visible [data-own-block]`))
+    const linhas1 = await page.locator(`${S}:visible [data-own-block] li`).count()
+    const tabela = await page.evaluate(() => {
+      const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
+      const box = raiz.querySelector<HTMLElement>('.tablebox')!
+      return { dentro: box.clientWidth, total: box.scrollWidth, bloco: Math.round(raiz.querySelector<HTMLElement>('[data-own-block]')!.getBoundingClientRect().width) }
+    })
+    medida(`bloco com 2 canais próprios: ${dois.h} px (${linhas2} linhas); com 1: ${um.h} px (${linhas1} linha); a 1440 px o bloco tem ${tabela.bloco} px de largura, a tabela ${tabela.total} px num invólucro de ${tabela.dentro} px (${tabela.total > tabela.dentro + 1 ? 'rola por dentro' : 'cabe'})`)
+    expect(linhas2).toBe(2); expect(linhas1).toBe(1)
+    expect(um.h).toBeLessThan(dois.h)
+    // com um canal só a frase fala dele e a linha presa também
+    await expect(page.locator(`${S}:visible [data-own-block] li`)).toHaveCount(1)
+    const max = await page.evaluate(() => { const s = (window as unknown as W).__sc(); return s.scrollHeight - s.clientHeight })
+    await rolarPara(page, Math.round(max / 2))
+    await expect.poll(() => peVisivel(page)).toBe(true)
+  } finally {
+    ids = seedIdsOf(await ensureSeeded(SEED2))
+  }
 })
