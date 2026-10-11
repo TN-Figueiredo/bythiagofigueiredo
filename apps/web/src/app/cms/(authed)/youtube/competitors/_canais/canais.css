@@ -370,3 +370,22 @@
 [data-obs-screen="canais"] .modal .fx-remove .acts{position:sticky;bottom:0;margin:0 -20px;padding:12px 20px 20px;background:var(--surface);border-top:1px solid var(--border-subtle)}
 [data-obs-screen="canais"] .modal .btn[aria-disabled="true"],[data-obs-screen="canais"] .modal .btn[aria-disabled="true"]:hover,[data-obs-screen="canais"] .modal .btn[aria-disabled="true"]:active{cursor:not-allowed;background:transparent;border-style:dashed;border-color:var(--border-strong);color:var(--muted)}
 @media (pointer:coarse){[data-obs-screen="canais"] .modal .fx-remove .acts .btn.btn{min-height:44px}}
+
+/* ============================================================ A3.1: filtro de formato (Todos | Longos | Shorts), forma de M/canais.css (rodada 12) */
+[data-obs-screen="canais"] .cn-fnota{margin:-4px 0 10px;font-size:12.5px;line-height:18px;color:var(--muted)}
+/* "Todos": duas medidas por célula, uma sobre a outra; o rótulo sobe para o cabeçalho (só o leitor de tela o ouve na tabela) */
+[data-obs-screen="canais"] .fm{display:flex;justify-content:flex-start;align-items:baseline;gap:6px;line-height:16px;white-space:nowrap}
+[data-obs-screen="canais"] td.r .fm{justify-content:flex-end}
+[data-obs-screen="canais"] .fm .cap2{font-size:12px;color:var(--muted)}
+[data-obs-screen="canais"] .fm .nd{font-size:12px;color:var(--muted);white-space:normal;max-width:190px;line-height:1.35}
+[data-obs-screen="canais"] .fl{font-size:12px;line-height:16px;color:var(--dim)}
+[data-obs-screen="canais"] .cad .v .fm + .fm,[data-obs-screen="canais"] .cad .v .fm + small{margin-top:1px}
+[data-obs-screen="canais"] table.todos th,[data-obs-screen="canais"] table.todos td{padding-top:3px;padding-bottom:3px}
+[data-obs-screen="canais"] table.todos td.dois{padding-top:4px;padding-bottom:4px}
+[data-obs-screen="canais"] table.todos thead th{padding-top:6px;padding-bottom:6px}
+[data-obs-screen="canais"] thead th .unit.cab-fmt{font-size:12px;white-space:normal;max-width:150px;color:var(--muted)}
+[data-obs-screen="canais"] thead th .unit.cab-fmt strong{color:var(--text);font-weight:600}
+/* os cartões não têm cabeçalho de coluna: o rótulo é visível e quebra junto com o número, nunca para fora do cartão */
+[data-obs-screen="canais"] .card .fm{flex-wrap:wrap;white-space:normal;gap:0 6px}
+/* "formato não confirmado (N)": mora na linha do canal, com a dica na camada flutuante */
+[data-obs-screen="canais"] .ch .sub.semfmt{font-size:12px;color:var(--warning-text)}

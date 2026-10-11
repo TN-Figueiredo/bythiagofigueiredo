@@ -5,16 +5,16 @@ import { CadenceView, ChCell, GrowthView, OutView, SwapView, SyncView, VpdView }
 import { GroupMeta, OwnGroupParts, type RowHandlers } from './channel-table'
 
 function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }) {
-  const c = r.cells
+  const c = r.cells, todos = view.fmt === 'todos'
   return (
     <article className={'card ' + (r.own ? 'you' : '')} data-id={r.id}>
       <ChCell r={r} ctx="card" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'card')} />
-      <div><CadenceView c={c.cadence} /></div>
+      <div><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} /></div>
       <div className="kv">
-        <div><div className="l">Views/dia, {view.scale === 'per-mil' ? 'por mil inscritos' : 'mediana'}</div><VpdView c={c.vpd} /></div>
+        <div><div className="l">Views/dia, {view.scale === 'per-mil' ? 'por mil inscritos' : 'mediana'}</div><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} visible /></div>
         <div><div className="l">Crescimento, 30{' '}d</div><div className="grow"><GrowthView c={c.growth} /></div></div>
       </div>
-      <div><div className="l" style={{ marginBottom: 4 }}>Outliers, até 90{' '}d</div><OutView c={c.out} upnextHref={h.upnextHref} /></div>
+      <div><div className="l" style={{ marginBottom: 4 }}>Outliers, até 90{' '}d</div><OutView c={c.out} c2={todos ? c.out2 : undefined} upnextHref={h.upnextHref} visible /></div>
       <div className="kv">
         <div><div className="l">Trocas, 30{' '}d</div><SwapView c={c.swap} /></div>
         <div className="sync"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} /></div>

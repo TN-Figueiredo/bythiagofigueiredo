@@ -14,6 +14,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useSyncExternalStore, useTransition, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import { DEFAULT_SORT, type CanaisRow, type CanaisSort, type CanaisView } from './view-model'
+import { FMT_LEMBRADO, FMT_PADRAO, anuncioFmt, parseCanaisFmt, type CanaisFmt } from './formato'
 import { useToast } from '../_chrome/toasts'
 import { useChromeSync } from '../_chrome/sync-context'
 import { ChannelTable, type RowHandlers } from './channel-table'
@@ -64,7 +65,7 @@ function useWide(): boolean {
  * What the screen shows ahead of the server while a navigation is in flight. `channel`: the drawer asked for (null:
  * closed). `busy`: the list's numbers or order are about to change (the list is marked aria-busy, never rewritten).
  */
-interface Optimistic { channel?: string | null; fmt?: CanaisView['fmt']; scale?: CanaisView['scale']; layout?: CanaisView['layout']; add?: boolean; sort?: CanaisSort; dir?: CanaisView['dir']; busy?: boolean }
+interface Optimistic { channel?: string | null; fmt?: CanaisFmt; scale?: CanaisView['scale']; layout?: CanaisView['layout']; add?: boolean; sort?: CanaisSort; dir?: CanaisView['dir']; busy?: boolean }
 const FOCUSABLE = 'button:not([disabled]),a[href],select,input,textarea,[tabindex="0"]'
 /** Tab / Shift+Tab stay inside the dialog (canais.html trapEl). */
 function trapTab(e: KeyboardEvent<HTMLElement>) {
@@ -277,7 +278,21 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const onCardSort = (k: CanaisSort) => go({ sort: k === DEFAULT_SORT ? null : k, dir: null }, { sort: k, dir: 'desc', busy: true })
   // Tabela/Cards draws the same rows another way: it swaps at once. Formato and Escala change numbers only the server has.
   const fmt = opt.fmt ?? view.fmt, scale = opt.scale ?? view.scale
-  const pickFmt = (v: CanaisView['fmt']) => go({ fmt: v === 'long' ? null : v }, { fmt: v, busy: true })
+  // Formato: a URL sempre o traz (inclusive Longos) e o navegador o lembra; a escolha é anunciada no status
+  const [anuncio, setAnuncio] = useState('')
+  const pickFmt = (v: CanaisFmt) => {
+    try { localStorage.setItem(FMT_LEMBRADO, v) } catch { /* sem armazenamento a tela funciona com o padrão */ }
+    setAnuncio(anuncioFmt(v))
+    go({ fmt: v }, { fmt: v, busy: true })
+  }
+  // URL sem um formato válido: grava o lembrado (ou Longos) uma vez; roda de novo só se a query voltar a perdê-lo (por valor, não por montagem)
+  const query = search?.toString() ?? ''
+  useEffect(() => {
+    if (view.fmtNaUrl) return
+    let lembrado: CanaisFmt | null = null
+    try { lembrado = parseCanaisFmt(localStorage.getItem(FMT_LEMBRADO) ?? undefined) } catch { lembrado = null }
+    router.replace(urlWith({ fmt: lembrado ?? FMT_PADRAO }), { scroll: false })
+  }, [view.fmtNaUrl, query]) // eslint-disable-line react-hooks/exhaustive-deps
   const pickScale = (v: CanaisView['scale']) => go({ scale: v === 'per-mil' ? null : v }, { scale: v, busy: true })
   const pickLayout = (v: CanaisView['layout']) => go({ layout: v === 'table' ? null : v }, { layout: v })
 
@@ -328,8 +343,10 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               <input name="q" type="search" placeholder="Buscar canal" aria-label="Buscar canal" value={q} onChange={e => setQ(e.target.value)} />
             </div>
             <div className="seg" role="group" aria-label="Formato">
-              <button type="button" aria-pressed={fmt === 'long'} onClick={() => pickFmt('long')}>Longos</button>
-              <button type="button" aria-pressed={fmt === 'short'} onClick={() => pickFmt('short')}>Shorts</button>
+              <button type="button" aria-pressed={fmt === 'todos'} onClick={() => pickFmt('todos')}>Todos</button>
+              <button type="button" aria-pressed={fmt === 'longos'} onClick={() => pickFmt('longos')}>Longos</button>
+              <button type="button" aria-pressed={fmt === 'shorts'} onClick={() => pickFmt('shorts')}>Shorts</button>
+              <span className="sr" role="status" aria-live="polite" data-k="fmt-anuncio">{anuncio}</span>
             </div>
             <div className="seg" role="group" aria-label="Escala de views/dia">
               <button type="button" aria-pressed={scale === 'abs'} onClick={() => pickScale('abs')}>Absoluto</button>
@@ -345,6 +362,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               </select>
             </label>
           </div>
+          {view.fmtNota ? <p className="cn-fnota" data-k="fmt-nota">{view.fmtNota}</p> : null}
           <div className="toolbar2">
             <span className="sortnote" aria-live="polite">{view.sortNote}</span>
             <span>

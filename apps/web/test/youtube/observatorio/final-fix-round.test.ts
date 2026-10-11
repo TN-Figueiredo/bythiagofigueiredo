@@ -49,7 +49,7 @@ describe('F4 (R80): lista vazia aponta o editor de nicho quando há concorrente 
     const ds = withoutComp('viagem'); unnicheN(ds, 3)
     const v = canais(ds, { niche: 'viagem' })
     expect(v.emptyText).toBe('Nenhum concorrente em Viagem. Há 3 concorrentes sem nicho: defina o nicho deles.')
-    expect(v.emptyLink).toEqual({ text: 'defina o nicho deles', href: createObservatory(ds).link.canais({ nicheEditor: 1 }) })
+    expect(v.emptyLink).toEqual({ text: 'defina o nicho deles', href: createObservatory(ds).link.canais({ nicheEditor: 1, fmt: 'longos' }) })
   })
   it('1 concorrente sem nicho: singular', () => {
     const ds = withoutComp('viagem'); unnicheN(ds, 1)

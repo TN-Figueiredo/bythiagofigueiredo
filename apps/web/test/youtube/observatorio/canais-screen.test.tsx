@@ -27,7 +27,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 const obs = createObservatory(datasetFromOracle(loadOracle()))
-const view = (p: Partial<CanaisParams> = {}) => buildCanaisView(obs, { niche: 'todos', limit: 75, ...p })
+const view = (p: Partial<CanaisParams> = {}) => buildCanaisView(obs, { niche: 'todos', limit: 75, fmt: 'longos', ...p })
 const ok = async () => ({ ok: true })
 function mount(props: Partial<CanaisScreenProps> = {}, p: Partial<CanaisParams> = {}, running = false) {
   // the screen lives inside the chrome, which owns the toasts
@@ -180,7 +180,7 @@ describe('CanaisScreen', () => {
     const rows = [...document.querySelectorAll('tr.obs-cn-row')].map(r => r.getAttribute('data-id'))
     expect(rows).toEqual(expect.arrayContaining(['paddy-doyle', 'vou-sem-volta', 'esq-unltd-daily']))
     expect(rows).not.toContain('matt-wolfe')
-    expect(screen.getByRole('link', { name: 'Mostrar todos' })).toHaveAttribute('href', '/cms/youtube/competitors')
+    expect(screen.getByRole('link', { name: 'Mostrar todos' })).toHaveAttribute('href', '/cms/youtube/competitors?fmt=longos')
   })
   it('drawer (below 1280 px = modal): Esc closes it and returns the focus to the row button', async () => {
     const user = userEvent.setup()
@@ -438,7 +438,7 @@ describe('CanaisScreen — drawer Outliers of a backfilling channel', () => {
 const engines = new Map<OwnPreset, ReturnType<typeof createObservatory>>()
 const obsOf = (preset: OwnPreset) => { let o = engines.get(preset); if (!o) { o = createObservatory(datasetFromOracle(loadOracleOwns(preset))); engines.set(preset, o) } return o }
 function mountOwns(preset: OwnPreset, props: Partial<CanaisScreenProps> = {}, p: Partial<CanaisParams> = {}) {
-  const v = buildCanaisView(obsOf(preset), { niche: 'todos', limit: 75, ...p })
+  const v = buildCanaisView(obsOf(preset), { niche: 'todos', limit: 75, fmt: 'longos', ...p })
   return render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><div data-obs-chrome=""><button type="button" aria-label="Mais ações">⋯</button></div><CanaisScreen view={v} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
 }
 const toastTitle = (t: string) => screen.findByText(t, { selector: '.obs-ch-toast b' })
@@ -506,7 +506,7 @@ describe('CanaisScreen — Seus canais', () => {
     ds.channels = ds.channels.filter(c => !c.own); ds.videos = ds.videos.filter(x => !owns.has(x.ch))
     const o = createObservatory(ds)
     for (const layout of ['table', 'cards']) {
-      const { container, unmount } = render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={buildCanaisView(o, { niche: 'todos', limit: 75, layout })} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
+      const { container, unmount } = render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={buildCanaisView(o, { niche: 'todos', limit: 75, fmt: 'longos', layout })} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
       expect(container.querySelector('[data-own-group]')).toBeNull()
       expect(container.querySelector('.you')).toBeNull()
       expect(noJunkText(container)).toEqual([])
@@ -642,8 +642,8 @@ describe('CanaisScreen — Seus canais', () => {
     expect(dlg.textContent).not.toContain('Seu canal não tem nicho aqui')
     expect(within(dlg).queryByRole('combobox', { name: 'Nicho de tnFigueiredo' })).toBeNull()
   })
-  it('auditorias nos presets 1, 2, 5 e mix, em tabela, cards, Shorts e com a gaveta de um canal próprio', () => {
-    for (const preset of ['1', '2', '5', 'mix'] as const) for (const p of [{}, { layout: 'cards' }, { fmt: 'short' }, { niche: 'viagem' as const }, { channel: 'tnfigueiredo' }]) {
+  it('auditorias nos presets 1, 2, 5 e mix, em tabela, cards, Shorts, Todos e com a gaveta de um canal próprio', () => {
+    for (const preset of ['1', '2', '5', 'mix'] as const) for (const p of [{}, { layout: 'cards' }, { fmt: 'short' }, { fmt: 'todos' }, { fmt: 'todos', layout: 'cards' }, { niche: 'viagem' as const }, { channel: 'tnfigueiredo' }]) {
       const { container, unmount } = mountOwns(preset, {}, p)
       expect(noJunkText(container)).toEqual([])
       expect(oneFilledButton(container)).toEqual([])

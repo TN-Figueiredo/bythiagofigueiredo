@@ -52,9 +52,9 @@ describe('Canais view model', () => {
   })
   it('defaults and URL params: scale, fmt, layout, add, filter, drawer tab', () => {
     const d = buildCanaisView(obs, { niche: 'todos', limit: 75 })
-    expect([d.scale, d.fmt, d.layout, d.filter, d.addOpen, d.drawer]).toEqual(['per-mil', 'long', 'table', 'todos', false, null])
+    expect([d.scale, d.fmt, d.layout, d.filter, d.addOpen, d.drawer]).toEqual(['per-mil', 'longos', 'table', 'todos', false, null])
     const v = buildCanaisView(obs, { niche: 'todos', limit: 75, scale: 'abs', fmt: 'short', layout: 'cards', add: '1', channel: 'matt-wolfe', tab: 'videos' })
-    expect([v.scale, v.fmt, v.layout, v.addOpen, v.drawer?.tab]).toEqual(['abs', 'short', 'cards', true, 'videos'])
+    expect([v.scale, v.fmt, v.layout, v.addOpen, v.drawer?.tab]).toEqual(['abs', 'shorts', 'cards', true, 'videos'])
     expect(buildCanaisView(obs, { niche: 'todos', limit: 75, channel: 'nope' }).drawer).toBeNull()
   })
   it('drawer links: "Ver as N trocas em Mudanças" count = Mudanças filtered by channel', () => {

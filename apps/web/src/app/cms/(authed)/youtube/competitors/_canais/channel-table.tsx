@@ -12,10 +12,11 @@ export interface RowHandlers {
   local: (id: string) => LocalSync; roundRunning: boolean; upnextHref: string; menuFor: string | null; selected: string | null
 }
 
-const COLS: Array<{ k: CanaisSort; label: string; unit: string | null; r?: boolean; hide?: boolean; minW?: number }> = [
-  { k: 'active', label: 'Ritmo', unit: 'uploads por semana, 13 sem' },
-  { k: 'vpd', label: 'Views/dia', unit: null, r: true, minW: 118 },
-  { k: 'outliers', label: 'Outliers', unit: '2× ou mais, até 90 dias' },
+/** `fm`: a coluna depende do formato (em "Todos" tem duas medidas e o rótulo sobe para o cabeçalho). */
+const COLS: Array<{ k: CanaisSort; label: string; unit: string | null; r?: boolean; hide?: boolean; minW?: number; fm?: boolean }> = [
+  { k: 'active', label: 'Ritmo', fm: true, unit: 'uploads por semana, 13 sem' },
+  { k: 'vpd', label: 'Views/dia', fm: true, unit: null, r: true, minW: 118 },
+  { k: 'outliers', label: 'Outliers', fm: true, unit: '2× ou mais, até 90 dias' },
   { k: 'swaps', label: 'Trocas', unit: '30 d, por evento, longos e Shorts' },
   { k: 'growth', label: 'Crescimento', unit: 'inscritos, 30 d', r: true, hide: true },
 ]
@@ -44,15 +45,15 @@ export function groupDotStyle(g: Pick<CanaisGroup, 'key' | 'color'>): CSSPropert
   return g.color ? { background: dot, ...nicheStyle(g.color) } : { background: dot === 'var(--obs-niche)' ? 'var(--muted)' : dot }
 }
 
-function Row({ r, h }: { r: CanaisRow; h: RowHandlers }) {
+function Row({ r, h, todos }: { r: CanaisRow; h: RowHandlers; todos: boolean }) {
   const c = r.cells
   return (
     <tr className={`row obs-cn-row ${r.own ? 'you' : ''} ${h.selected === r.id ? 'sel' : ''}`} data-id={r.id}
       onClick={e => { if (!(e.target as HTMLElement).closest('select,button,a,.tip')) h.open(r.id) }}>
       <td><ChCell r={r} ctx="row" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'row')} /></td>
-      <td><CadenceView c={c.cadence} /></td>
-      <td className="r"><VpdView c={c.vpd} /></td>
-      <td><OutView c={c.out} upnextHref={h.upnextHref} /></td>
+      <td><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} /></td>
+      <td className={todos ? 'r dois' : 'r'}><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} /></td>
+      <td className={todos ? 'dois' : undefined}><OutView c={c.out} c2={todos ? c.out2 : undefined} upnextHref={h.upnextHref} /></td>
       <td><SwapView c={c.swap} /></td>
       <td className="r grow c-hide"><GrowthView c={c.growth} /></td>
       <td className="sync c-hide"><SyncView c={c.sync} local={h.local(r.id) ?? (h.roundRunning && c.sync.queued ? 'queued' : undefined)} onRetry={() => h.retry(r.id)} onRemove={() => h.remove(r.id, null)} /></td>
@@ -75,6 +76,7 @@ export function ChannelTable({ view, own, groups, h, onSort, empty, busy, busySo
 }) {
   // canais.html #scrollHint: says the table scrolls sideways only when it really overflows (drawer open, narrow screen)
   const box = useRef<HTMLDivElement>(null)
+  const todos = view.fmt === 'todos'
   const [overflow, setOverflow] = useState(false)
   useEffect(() => {
     const el = box.current
@@ -90,7 +92,7 @@ export function ChannelTable({ view, own, groups, h, onSort, empty, busy, busySo
     <>
     {overflow ? <p className="cap" data-scroll-hint="" style={{ whiteSpace: 'normal', margin: '0 0 6px' }}>Role a tabela para o lado para ver todas as colunas.</p> : null}
     <div className="tablebox" ref={box} aria-busy={busy || undefined}>
-      <table aria-label="Canais acompanhados">
+      <table aria-label="Canais acompanhados" className={todos ? 'todos' : undefined}>
         <thead><tr>
           <th scope="col" className="sortable" data-k="subs" aria-sort={view.sort === 'subs' ? (view.dir === 'desc' ? 'descending' : 'ascending') : undefined}>
             <button type="button" aria-busy={busySort === 'subs' || undefined} title="Ordenar por inscritos" onClick={() => onSort('subs')}>Canal <span className="arrow" aria-hidden="true">{view.sort === 'subs' ? (view.dir === 'desc' ? '▼' : '▲') : ''}</span></button>
@@ -103,6 +105,7 @@ export function ChannelTable({ view, own, groups, h, onSort, empty, busy, busySo
                 aria-sort={on ? (view.dir === 'desc' ? 'descending' : 'ascending') : undefined} style={col.minW ? { minWidth: col.minW } : undefined}>
                 <button type="button" aria-busy={busySort === col.k || undefined} onClick={() => onSort(col.k)}>{col.label} <span className="arrow" aria-hidden="true">{on ? (view.dir === 'desc' ? '▼' : '▲') : ''}</span></button>
                 <span className="unit">{col.unit ?? view.vpdUnit}</span>
+                {todos && col.fm && view.fmtCab ? <span className="unit cab-fmt" data-cab-fmt="">{view.fmtCab.dois}{on ? <>. <strong>{view.fmtCab.ordenado}</strong></> : null}</span> : null}
               </th>
             )
           })}
@@ -111,10 +114,10 @@ export function ChannelTable({ view, own, groups, h, onSort, empty, busy, busySo
         </tr></thead>
         <tbody>
           {own.group ? <tr className="group" data-own-group=""><td colSpan={8}><span className="gin"><strong>{own.group.label}</strong><OwnGroupParts parts={own.group.parts} /></span></td></tr> : null}
-          {own.rows.map(r => <Row key={r.id} r={r} h={h} />)}
+          {own.rows.map(r => <Row key={r.id} r={r} h={h} todos={todos} />)}
           {groups.map(g => [
             <tr key={'g-' + g.key} className="group"><td colSpan={8}><span className="gin"><span className={g.color ? 'dot custom' : 'dot'} style={groupDotStyle(g)} /><strong>{g.label}</strong><span>{g.count}</span><GroupMeta g={g} /></span></td></tr>,
-            ...g.rows.map(r => <Row key={r.id} r={r} h={h} />),
+            ...g.rows.map(r => <Row key={r.id} r={r} h={h} todos={todos} />),
           ])}
           {groups.length ? null : <tr><td colSpan={8} style={{ padding: '28px 14px', color: 'var(--muted)' }}>{empty}</td></tr>}
         </tbody>

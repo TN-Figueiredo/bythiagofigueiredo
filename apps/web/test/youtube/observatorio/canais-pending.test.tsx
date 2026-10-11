@@ -30,7 +30,7 @@ vi.mock('next/navigation', () => ({
 // the drawer only opens for an OWN channel (a competitor has a page of its own): two own channels
 const obs = createObservatory(datasetFromOracle(loadOracleOwns('2')))
 const ok = async () => ({ ok: true })
-const view = (p: Partial<CanaisParams> = {}) => buildCanaisView(obs, { niche: 'todos', limit: 75, ...p })
+const view = (p: Partial<CanaisParams> = {}) => buildCanaisView(obs, { niche: 'todos', limit: 75, fmt: 'longos', ...p })
 const tree = (p: Partial<CanaisParams> = {}) => (
   <ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs="">
     <CanaisScreen view={view(p)} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
@@ -130,7 +130,7 @@ describe('Canais · immediate feedback', () => {
     const r = render(tree())
     const before = document.querySelector('.tablebox')!.textContent
     await user.click(screen.getByRole('button', { name: 'Shorts' }))
-    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?fmt=short', { scroll: false })
+    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?fmt=shorts', { scroll: false })
     expect(screen.getByRole('button', { name: 'Shorts' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Longos' })).toHaveAttribute('aria-pressed', 'false')
     expect(document.querySelector('.tablebox')).toHaveAttribute('aria-busy', 'true')
