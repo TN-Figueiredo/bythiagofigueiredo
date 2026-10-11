@@ -1029,6 +1029,65 @@ test.describe('A2.3 o visualizador de thumbnail', () => {
     expect(erros.filter(t => !/Content Security Policy/.test(t)), 'console').toEqual([])
     expect(cincoXX).toEqual([])
   })
+
+  // O diálogo põe `inert` no resto da página. O Next mantém escondida a árvore da rota que a pessoa deixou: se a limpeza do `inert` não roda nela,
+  // a página seguinte (ou a anterior, ao avançar) fica inerte e nada responde. Prova: Voltar e Avançar com o visualizador ABERTO.
+  const inertesVisiveis = (page: Page) => page.evaluate(() => [...document.querySelectorAll('[inert]')]
+    .filter(e => e.getClientRects().length > 0).map(e => e.tagName + '.' + String((e as HTMLElement).className).slice(0, 30)))
+  const inertesTotal = (page: Page) => page.evaluate(() => document.querySelectorAll('[inert]').length)
+
+  test('A2.3 Voltar do navegador com o visualizador ABERTO: a página do canal responde ao clique e ao teclado, nada visível fica inerte; Avançar devolve o Histórico funcional', async ({ page }) => {
+    await rotearImagens(page)
+    const { erros, cincoXX } = await vigiar(page, async () => {
+      await abrirDaGrade(page, 3)
+      const tela = page.locator(`${HV}:visible`).first()
+      const gatilho = tela.locator('.vhead .cur [role="button"]')
+      await gatilho.focus()
+      await gatilho.press('Enter')
+      await expect(dlg(page)).toBeVisible()
+      expect(await inertesVisiveis(page), 'com o diálogo aberto o resto da página está inerte (a premissa do teste)').not.toEqual([])
+      // ---- Voltar com o diálogo aberto
+      await page.goBack()
+      await page.waitForURL(/\/competitors\/canal\//, { timeout: 60_000 })
+      await canalPronto(page)
+      medida(`Voltar com o diálogo aberto: ${await inertesTotal(page)} [inert] no documento, ${(await inertesVisiveis(page)).length} visível(is); diálogos abertos: ${await page.locator('.obs-tv-box[role="dialog"]').count()}`)
+      expect(await inertesVisiveis(page), 'depois do Voltar nenhum elemento visível tem inert').toEqual([])
+      expect(await page.locator('.obs-tv-box[role="dialog"]:visible').count(), 'o diálogo não acompanha a pessoa para a página do canal').toBe(0)
+      // clique: a lupa de um cartão do canal abre o visualizador (um clique em página inerte não chega)
+      const lupa = page.locator(`${CV}:visible`).first().locator('li.cv-card:visible').first().locator('.cv-amp')
+      await lupa.click({ timeout: 10_000 })
+      await expect(dlg(page)).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(dlg(page)).toHaveCount(0)
+      expect(await inertesVisiveis(page), 'depois de abrir e fechar o diálogo do canal, nada visível inerte').toEqual([])
+      // teclado: Tab leva o foco a um controle visível da página do canal
+      await page.locator(`${CV}:visible`).first().locator('.chead h1').evaluate(e => (e as HTMLElement).focus?.())
+      await page.keyboard.press('Tab')
+      const f = await foco(page)
+      expect(f.tag, 'Tab com a página do canal visível leva o foco a um controle').not.toBe('BODY')
+      expect(f.visivel).toBe(true)
+      // ---- Avançar: o Histórico volta, com o diálogo fechado ou funcional, nunca travado
+      await page.goForward()
+      await page.waitForURL(/\/competitors\/video\//, { timeout: 60_000 })
+      await videoPronto(page)
+      const abertos = await page.locator('.obs-tv-box[role="dialog"]:visible').count()
+      medida(`Avançar: ${await inertesTotal(page)} [inert] no documento, ${(await inertesVisiveis(page)).length} visível(is); diálogo aberto: ${abertos}`)
+      if (abertos > 0) { await page.keyboard.press('Escape'); await expect(dlg(page)).toHaveCount(0) }
+      expect(await inertesVisiveis(page), 'depois de Avançar nenhum elemento visível tem inert').toEqual([])
+      const tela2 = page.locator(`${HV}:visible`).first()
+      const g2 = tela2.locator('.vhead .cur [role="button"]')
+      await g2.click({ timeout: 10_000 })
+      await expect(dlg(page)).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(dlg(page)).toHaveCount(0)
+      expect(await inertesVisiveis(page)).toEqual([])
+      await tela2.locator('.vhead h2').focus()
+      await page.keyboard.press('Tab')
+      expect((await foco(page)).tag, 'Tab no Histórico leva o foco a um controle').not.toBe('BODY')
+    })
+    expect(erros.filter(t => !/Content Security Policy/.test(t)), 'console').toEqual([])
+    expect(cincoXX).toEqual([])
+  })
 })
 
 /* ================================================================== A2.7 e A2.8: o cartão "Leitura da forja" e o botão do cabeçalho */
