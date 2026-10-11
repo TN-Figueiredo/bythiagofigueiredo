@@ -11,11 +11,10 @@ const passesOf = (id: string): Pass[] => plain(HM.versions(id, 'thumb') as Array
 const pub = (id: string) => obs.video(id)!.pub
 
 describe('filtro de período: ?range=', () => {
-  it('só 7, 30 e 90 valem, e só quando o filtro é oferecido', () => {
+  it('7, 30, 90 e tudo valem; ausente ou lixo é 30 dias (spec 6.4: o padrão deixou de ser o vídeo inteiro)', () => {
     expect(RANGE_IDS).toEqual(['7', '30', '90', 'tudo'])
-    expect(['7', '30', '90'].map(r => parseRange(r, true))).toEqual(['7', '30', '90'])
-    for (const bad of [undefined, '', 'tudo', '0', '8', '-7', '7d', '7 ', 'abc', '90;drop']) expect(parseRange(bad, true), String(bad)).toBe('tudo')
-    expect(parseRange('7', false)).toBe('tudo')
+    expect(['7', '30', '90', 'tudo'].map(r => parseRange(r))).toEqual(['7', '30', '90', 'tudo'])
+    for (const bad of [undefined, '', '0', '8', '-7', '7d', '7 ', 'abc', '90;drop']) expect(parseRange(bad), String(bad)).toBe('30')
   })
   it('o período nunca começa antes da publicação', () => {
     const now = ds.now

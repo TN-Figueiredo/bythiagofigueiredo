@@ -12,11 +12,15 @@ import type { Niche, ObsChannel, ObsVideo, SeriesPoint } from '@/lib/youtube/obs
 import type { TitleOp } from '@/lib/youtube/observatorio/text-diff'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
 import { RUN_CAVEAT, runCardText, runCore, runShort, runText, runsOf } from '@/lib/youtube/observatorio/test-run'
-import { imageSummary, parseRange, rangeStart, situationOf, statusLine, kindShort, RANGE_IDS, RANGE_LABEL, RANGE_LONG, type Pass, type RangeId, type Situation } from './many-versions'
+import { origemDoCanal } from './origem-canal'
+import { imageSummary, isRangeId, rangeFor, rangeStart, RANGE_DEFAULT, situationOf, statusLine, kindShort, RANGE_IDS, RANGE_LABEL, RANGE_LONG, type Pass, type RangeId, type Situation } from './many-versions'
 import { mudancasList, effectView, type EffectView, type Rich } from '../_mudancas/view-model'
 import { buildOutliersView, ages2label } from '../_outliers/view-model'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
-import { buildForjaView, forjaReadingView, patternsOf, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
+import { imageLetters, thumbCaption, versionClock } from '../_chrome/version-span'
+import type { ViewerInput, ViewerVersion } from '../_chrome/thumb-viewer/viewer-model'
+import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
+import { buildForjaCard, type ForjaCardView } from './forja-card-model'
 
 export type HistState = 'full' | 'pre' | 'few' | 'none' | 'noreg' | 'untr' | 'old' | 'err' | 'bf' | 'not-found'
 export type LaneType = 'title' | 'thumb' | 'desc'
@@ -67,6 +71,8 @@ export interface RangeView {
   fromH: number; cut: boolean
   /** "De … até agora: X de Y períodos…": the same sentence shape on every option. */
   text: Rich
+  /** Why the period opened wider than the default (the change `troca=` opened lies further back); null otherwise. */
+  why: string | null
 }
 export interface ImageRow {
   label: string; thumb: ThumbImg | null
@@ -149,7 +155,8 @@ export interface ChartView {
   table: Array<[string, string, string, string]> | null
 }
 
-export interface BaSide { thumb: ThumbImg | null; title: string | null; label: string }
+/** `at` = o índice, em `HistoricoView.viewer.versions`, da versão que a imagem mostra (o gatilho abre o visualizador nela); null = a imagem não é uma versão (antes do arquivo, sem registro). */
+export interface BaSide { thumb: ThumbImg | null; title: string | null; label: string; at: number | null }
 export interface ScaleView {
   aria: string; hasBase: boolean
   iqr: { left: number; width: number } | null; med: number | null; obs: number; zero: number
@@ -193,8 +200,26 @@ export interface CompareView {
   situations: Array<{ id: Situation; label: string }>
 }
 
-export interface CrumbsView { from: FromTab; crumb: string; href: string; sub: { text: string; href: string } | null }
-export interface PagerView { prev: string | null; next: string | null; backHref: string; position: string; prevLabel: string; nextLabel: string }
+/** `canal` = o id do canal quando a pessoa veio da página dele (`canal=<id do canal do vídeo>`); a tela guarda daí o último vídeo visto. */
+export interface CrumbsView { from: FromTab; crumb: string; href: string; sub: { text: string; href: string } | null; canal: string | null }
+/** Um item da trilha da moldura (a forma de `Crumb`, de `_chrome/trail-chrome.tsx`, sem importar um módulo cliente aqui). */
+export interface TrailItem { text: string; href?: string; voltaAoCanal?: string }
+
+/** A trilha do Histórico: "<origem> › <canal> › Histórico do vídeo". O item do canal leva `voltaAoCanal` quando a pessoa veio da página dele. */
+export function historicoTrail(c: CrumbsView): TrailItem[] {
+  return [
+    { text: c.crumb, href: c.href },
+    ...(c.sub ? [{ text: c.sub.text, href: c.sub.href, ...(c.canal ? { voltaAoCanal: c.canal } : {}) }] : []),
+    { text: 'Histórico do vídeo' },
+  ]
+}
+export interface PagerView {
+  prev: string | null; next: string | null; backHref: string; position: string; prevLabel: string; nextLabel: string
+  /** Anterior/Próximo substituem a entrada do histórico do navegador (spec 3), sempre. */
+  replace: true
+  /** O anúncio depois de trocar de vídeo: "Vídeo 8 de 51: <título>"; vazio quando o vídeo não está na lista de origem. */
+  status: string
+}
 
 export interface HeaderView {
   thumb: ThumbImg; dur: string | null
@@ -229,22 +254,22 @@ export type DiffRow = { kind: 'fold'; text: string } | { kind: 'ctx' | 'add' | '
 export interface HistoricoView {
   video: {
     id: string; title: string; channel: string; niche: Niche | null; age: string; url: string
-    /** Toast when the video belongs to another niche than the chosen one (display only, nothing persisted). */
-    nicheToast: string | null
   } | null
-  /** The niche the chrome shows for this view (the video's when it differs from the persisted one). */
-  chromeNiche: NicheScope
   crumbs: CrumbsView
   header: HeaderView | null
   chart: ChartView | null
   lanes: LaneView[]
   legends: Record<string, LegendItem[]>
   comparisons: ComparisonView[]
-  /** The comparison selected on load (first with a verdict, else the first). */
+  /** The comparison selected on load: the arrival change's pair (`troca=`), else the first with a verdict, else the first. */
   defaultPair: string | null
+  /** `troca=` of a change of this video that has a pair in "Antes e depois" (spec 6.2); null = the screen opens as usual. `markerIdx` is the version index in `lane` (a lane marker's `idx`). */
+  arrival: { pairK: string; changeId: string; lane: LaneType; markerIdx: number; line: string; status: string } | null
   compareEmpty: string | null
   versions: VersionsView | null
   pager: PagerView | null
+  /** O visualizador de thumbnail (spec 6.3): uma versão por período de thumbnail, com a legenda do cartão; null = nenhuma versão de thumbnail guardada. `start` = a atual. */
+  viewer: ViewerInput | null
   state: HistState
   /** Outside the observed videos (R117): the notice the screen prints, and the channel's link. */
   untracked: { notice: string; href: string } | null
@@ -256,10 +281,11 @@ export interface HistoricoView {
   /** `state` mirrors ObsVideo.pinState (null = not pinned); `note` is the sentence of 'aguardando-primeira', else null. */
   pin: { pinned: boolean; used: number; limit: number; state: 'aguardando-primeira' | 'sem-resposta' | 'ativo' | null; note: string | null } | null
   notFound: { title: string; text: string; href: string; back: string } | null
-  /** The forja (leitura do vídeo, Task 35): the screen's solid button, blockedBy and the card. */
+  /** The forja (leitura do vídeo, Task 35): the screen's solid button and blockedBy. */
   forja: ForjaView | null
-  forjaCard: HistForjaCard | null
-  /** Period filter: null when it is not offered (short series and no long lane, or a video outside the observed ones). */
+  /** O cartão "Leitura da forja" (A2, Tarefas 7 e 8): situação, etapas, frases e a leitura; null = vídeo de canal próprio. */
+  forjaCard: ForjaCardView | null
+  /** Period filter: offered whenever there is a chart (30 days by default); null only without a chart (a video outside the observed ones, not found). */
   range: RangeView | null
   /** One row per image: null unless some image came back on air (and never for a video outside the observed ones). */
   imageSummary: ImageSummaryView | null
@@ -267,30 +293,6 @@ export interface HistoricoView {
   /** Legend entry of a group of close markers or narrow periods (the grouping depends on the width, so the screen decides when). */
   groupLegend: string
 }
-/** historico-video.html renderForja: the request state (pill, engine sentence, steps) or the reading(s). */
-export interface HistForjaCard {
-  pill: { text: string; cls: '' | 'warn' | 'bad' } | null
-  statusText: string | null
-  /** One line under the status: timing, preview, quota, machine… (by state). */
-  extra: string | null
-  /** After `extra`, a link to the header's forja button (historico-video.html toTop / "Ir para o botão"). */
-  toTop: { pre: string; label: string; post: string } | null
-  /** 0 na fila · 1 trabalhando · 3 publicado; null = no steps. */
-  step: 0 | 1 | 3 | null
-  cancel: boolean
-  /** failed/refused: "Para pedir de novo, use … no cabeçalho do vídeo." */
-  again: string | null
-  excluded: string | null
-  intro: string | null
-  /** The new reading (published now) and the previous / current one ("Leitura anterior"). */
-  fresh: ForjaReadingView | null
-  reading: ForjaReadingView | null; readingLabel: string | null
-  /** No video reading: what the niche's patterns reading says about this title (site content, no seal). */
-  niche: { text: string; items: Array<{ text: string; href: string; label: string }>; foot: string | null } | null
-  /** "Seu pedido …" text when the button is refused or blocked (with the link to the other video). */
-  blocked: { text: string; title: string; href: string } | null
-}
-
 const H_MS = 36e5, DAY = 864e5
 const TYPE_NAME: Record<LaneType, string> = { title: 'Título', thumb: 'Thumbnail', desc: 'Descrição' }
 const FEM: Record<LaneType, boolean> = { title: false, thumb: true, desc: true }
@@ -325,13 +327,21 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const v = obs.video(id)
 
   if (!v) {
+    // Vindo da página de um canal que existe (`canal=`): a trilha é Canais › <canal> › Histórico do vídeo e o caminho de volta é a página do canal, com o estado dela
+    const cn = from === 'canais' && p.canal ? obs.channel(p.canal) : null
+    const canalOrigem = cn && !cn.own ? cn : null
     const href = backHref(from, from === 'mudancas' ? obs.link.mudancas({ niche: userNiche }) : from === 'outliers' ? obs.link.outliers({ niche: userNiche }) : from === 'canais' ? obs.link.canais({ niche: userNiche }) : obs.link.insights({ niche: userNiche }))
     return {
-      video: null, chromeNiche: userNiche, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, compareEmpty: null,
-      versions: null, pager: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null,
+      video: null, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null,
+      versions: null, pager: null, viewer: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null,
       range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND,
-      crumbs: { from, crumb: FROM_LABEL[from], href, sub: null },
-      notFound: { title: 'Vídeo não encontrado: “' + id + '”.', text: 'Ele não está entre os vídeos observados: o link pode estar errado ou o vídeo saiu da lista do canal.', href, back: 'Voltar para ' + FROM_LABEL[from] },
+      crumbs: canalOrigem
+        ? { from, crumb: FROM_LABEL[from], href: obs.link.canais({ niche: userNiche }), sub: { text: canalOrigem.name, href: obs.link.canal(canalOrigem.id) + (back ?? '') }, canal: canalOrigem.id }
+        : { from, crumb: FROM_LABEL[from], href, sub: null, canal: null },
+      notFound: {
+        title: 'Vídeo não encontrado: “' + id + '”.', text: 'Ele não está entre os vídeos observados: o link pode estar errado ou o vídeo saiu da lista do canal.',
+        href: canalOrigem ? obs.link.canal(canalOrigem.id) + (back ?? '') : href, back: 'Voltar para ' + (canalOrigem ? canalOrigem.name : FROM_LABEL[from]),
+      },
     }
   }
 
@@ -344,12 +354,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const syncOk = sy.state === 'ok'
   const observed = isObserved(v)
 
-  // ---------- niche: another niche changes the niche only for this view (nothing persisted) ----------
-  let chromeNiche: NicheScope = userNiche, nicheToast: string | null = null
-  if (v.niche && userNiche !== 'todos' && userNiche !== v.niche) {
-    if (p.nicheParam) nicheToast = 'Este vídeo é do nicho ' + obs.nicheLabel(v.niche) + '; o paginador continua no nicho do vídeo'
-    else { chromeNiche = v.niche; nicheToast = 'Nicho mudou para ' + obs.nicheLabel(v.niche) + ' para mostrar este vídeo' }
-  }
+  // ---------- niche: a video of another niche shows its niche only beside the channel (header), no toast and no chrome niche (A2.6) ----------
   const ctxNiche: NicheScope = userNiche !== 'todos' && userNiche !== v.niche ? (v.niche ?? 'todos') : userNiche
 
   // ---------- series → bins (views/day between records) ----------
@@ -364,25 +369,11 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   for (let i = 1; i < pts.length; i++) bins.push({ a: hx(pts[i - 1]!.t), b: hx(pts[i]!.t), v: (pts[i]!.views - pts[i - 1]!.views) / ((pts[i]!.t - pts[i - 1]!.t) / DAY), from0: false, t: pts[i]!.t })
   const seriesStartH = bins.length ? bins[0]!.a : pts.length ? hx(pts[0]!.t) : H
   const changes: ObsChange[] = obs.changes.filter(c => c.video === v.id).sort((a, b) => a.at - b.at)
-  const obsSince: number | null = sy.added ?? ch.snapshots[0]?.t ?? null
-  // R117: a video outside the observed ones has no schedule of its own. Its versions end at the last time one of them was
-  // seen, never "agora": the rest of the screen reads that as a stalled check.
-  const seenAt = [...v.titles, ...v.thumbs, ...v.descs].map(x => x.last_seen)
-  const lastSeen = seenAt.length ? Math.min(now, Math.max(...seenAt)) : now
-  // D13: a video pinned outside the tracked ones and not checked since is in the same position until its first check
-  const pinPending = v.pinState === 'aguardando-primeira'
-  // the channel synced after the pin and YouTube did not return the video: same position, and no deadline to promise
-  const pinGone = v.pinState === 'sem-resposta'
-  const unchecked = !observed || pinPending || pinGone
-  const chStalled = (sy.state === 'atrasado' || sy.state === 'erro') && sy.last != null
-  const stalled = unchecked || chStalled
-  const endNow = unchecked ? lastSeen : chStalled ? Math.min(now, sy.last!) : now
+  // the period/duration of a version is ONE account, shared with the channel page (`_chrome/version-span.ts`): stalled channel, unchecked video, pre-archive start
+  const clock = versionClock(obs, v, ch)
+  const { obsSince, pinPending, pinGone, unchecked, chStalled, stalled, endNow } = clock
   // the first check only has a deadline while the channel is syncing; otherwise it waits for the channel (mockup r4, N1)
   const pinNote = pinGone ? PIN_GONE_NOTE : !pinPending ? null : syncOk ? 'Fixado agora. A primeira conferência acontece em até 6 h.' : 'Fixado agora. A primeira conferência acontece na próxima sincronização do canal.'
-  // dados.js keeps sync.added only for a channel that joined AFTER the observatory began (the founding ones have none);
-  // production stores added_at for every channel, so one added on the observatory's first day is a founding channel,
-  // watched "desde DD/MM", not a recent add first checked at that instant
-  const recentAdd = sy.added != null && sy.added > pub && sy.added - obs.OBS_START >= DAY
   const few = pts.length < 2
   const stale = pts.length > 0 && pts[pts.length - 1]!.idx < obs.LAST_IDX
   // a pinned video outside the tracked ones whose series stopped: the points come back with the next daily record,
@@ -390,12 +381,20 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const gapText = v.pinned === true && !v.tracked && stale && pts.length
     ? 'sem pontos depois de ' + D.dm(pts[pts.length - 1]!.t) + (v.pinState === 'sem-resposta' ? ': o YouTube não devolveu este vídeo na última sincronização' : ': o gráfico volta a ganhar pontos na próxima sincronização do canal depois das 12:00') : null
   const nextSnapMs = D.snapTime(obs.LAST_IDX + 1), nextSnap = D.dm(nextSnapMs) + ' ' + D.hh(nextSnapMs)
-  // ---------- period filter (Fase 4 item 3): ?range=7|30|90, anything else is the whole video ----------
+  // ---------- period filter (spec 6.4): ?range=7|30|90|tudo; absent or garbage = 30 days ----------
+  // `troca=` (spec 6.2): a change of THIS video that has a pair in "Antes e depois". Anything else (another video, garbage,
+  // a change without a pair) opens the screen as it always did. D3 (final): with no `range` in the URL the period is the smallest
+  // that includes the change; with an EXPLICIT `range` the URL wins, and a change outside that period is no arrival at all (the
+  // screen opens as usual). So an arrival always has its change inside the period, visible in "Antes e depois".
   const HR = obs.RULES.history
-  const spanDays = pts.length > 1 ? (pts[pts.length - 1]!.t - pts[0]!.t) / DAY : 0
-  const rangeOffered = observed && (spanDays > HR.rangeFromDays || [v.titles, v.thumbs, v.descs].some(a => a.length > HR.collapseAbove))
-  const rangeId = parseRange(p.range, rangeOffered)
+  const trocaFound: ObsChange | null = observed && p.troca ? changes.find(c => c.id === p.troca && obs.effect(c.id) != null) ?? null : null
+  const askedRange: RangeId | null = isRangeId(p.range) ? p.range : null
+  // without a chart there is no selector to widen the period again, so a video outside the tracked ones shows ALL it has stored
+  const rangeId: RangeId = !observed ? 'tudo' : askedRange ?? (trocaFound ? rangeFor(trocaFound.at, now) : RANGE_DEFAULT)
+  /** The period opened wider than the default only because of the change (no explicit `range`): the screen says why. */
+  const widenedBy = askedRange == null && trocaFound != null && rangeId !== RANGE_DEFAULT
   const t0 = rangeStart(rangeId, pub, now), cut = t0 > pub, fromH = cut ? hx(t0) : 0
+  const trocaChange: ObsChange | null = trocaFound && (!cut || trocaFound.at >= t0) ? trocaFound : null
   /** Short instant of a version or change: a thumbnail has the minute; title and description only the sync hour. */
   const tm = (type: LaneType, ms: number) => (type === 'thumb' ? dmhmY(ms) : D.dmOrDmy(ms) + ' ' + D.hh(ms))
   const compress = !cut && pub < SS && (SS - pub) / (now - pub) > 0.14
@@ -403,25 +402,13 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
 
   // ---------- versions ----------
   type Ver = { id: string; first_seen: number; last_seen: number; current: boolean; prec: string | null; window: [number, number] | null; seenSinceArchive?: boolean; text?: string; lines?: string[] | null; hasText?: boolean }
-  // Production writes the first version of a video as precision 'first' with first_seen = the sync that saw it
-  // (competitor-versions.ts). The oracle rule (dados.js:524): only a video published BEFORE the archive start
-  // (SERIES_START) has a first version whose start was not observed ("visto desde DD/MM", seenSinceArchive);
-  // a video published after it was watched from publication, so its 'first' version stands from publication.
-  const preArchive = pub < SS
-  const isPub = (x: Ver) => x.prec === 'publicacao' || ((x.prec === 'first' || x.prec == null) && (x.first_seen <= pub || !preArchive))
-  const lateObs = (x: Ver) => isPub(x) && obsSince != null && obsSince > pub && x.first_seen <= pub
-  const openStart = (x: Ver) => lateObs(x) || x.prec === 'desde-arquivo' || !!x.seenSinceArchive || (x.prec === 'first' && x.first_seen > pub && preArchive)
-  /** Effective start: a 'first' version that stands from publication starts at the publication. */
-  const startMs = (x: Ver) => (isPub(x) ? Math.min(x.first_seen, pub) : x.first_seen)
-  const du = (ms: number) => D.dur(ms).replace(/ 0 h$/, '').replace(/ 0 min$/, '')
-  const thumbKeys = new Map<string, string>()
-  for (const t of v.thumbs) if (!thumbKeys.has(t.key)) { const k = thumbKeys.size; thumbKeys.set(t.key, k < 26 ? String.fromCharCode(65 + k) : 'Z' + (k - 25)) }
+  const { isPub, lateObs, openStart, startMs, curWord } = clock
+  const thumbKeys = imageLetters(v.thumbs)
   const verLabel = new Map<string, string>()
   v.titles.forEach((t, i) => verLabel.set(t.id, 'T' + (i + 1)))
   v.descs.forEach((t, i) => verLabel.set(t.id, 'D' + (i + 1)))
   v.thumbs.forEach(t => verLabel.set(t.id, thumbKeys.get(t.key)!))
   const keyOf = (k: string) => thumbKeys.get(k) ?? k
-  const curWord = (type: LaneType) => (stalled ? (FEM[type] ? 'última vista' : 'último visto') : 'no ar')
   const revertedIds = new Set(changes.filter(c => c.revertTo).map(c => c.toId))
 
   const thumbImg = (t: { blobUrl: string | null }, label: string): ThumbImg => ({
@@ -436,22 +423,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     const o = FEM[type] ? 'a' : 'o'
     return arr.map((x, i) => {
       const nx = arr[i + 1]
-      const startLbl = lateObs(x)
-        ? (recentAdd ? 'vist' + o + ' na 1ª conferência, ' + dmhmY(obsSince!) : 'vist' + o + ' desde ' + D.dmOrDmy(obsSince!))
-        : isPub(x) ? dmhmY(pub) + ' (publicação)'
-          : x.prec === 'min' ? dmhmY(x.first_seen)
-            : openStart(x) ? 'vist' + o + ' desde ' + D.dmOrDmy(x.first_seen)
-              : 'vist' + o + ' pela 1ª vez ' + D.dmOrDmy(x.first_seen) + ' ' + D.hh(x.first_seen)
-      const sObs = lateObs(x) ? obsSince! : startMs(x)
-      const sLo = x.window ? x.window[0] : sObs, sHi = sObs
-      const eLo = nx ? (nx.window ? nx.window[0] : nx.first_seen) : endNow, eHi = nx ? nx.first_seen : endNow
-      const open = openStart(x), openEnd = !nx && stalled
-      const dMin = eLo - sHi, dMax = eHi - sLo
-      const rng = dMax - dMin < H_MS ? du(dMax) : du(Math.max(0, dMin)) + ' a ' + du(dMax)
-      const atLeast = open || openEnd
-      const durTxt = atLeast ? 'pelo menos ' + du(Math.max(0, dMin)) : rng
-      const end = nx ? (nx.window ? 'trocad' + o + ' ' + D.windowText(nx.window[0], nx.window[1]) : dmhmY(nx.first_seen)) : stalled ? 'até ' + dmhmY(endNow) + ' (última conferência)' : 'agora'
-      const span = /^trocad[ao] /.test(end) ? startLbl + '; ' + end : end.startsWith('até ') ? startLbl + ' ' + end : startLbl + ' até ' + end
+      const { startLbl, end, span, durTxt, open, atLeast, sLo, eLo, eHi } = clock.timing(type, arr, i)
       const label = verLabel.get(x.id) ?? x.id
       const desc = type === 'desc' ? x : null
       const noText = !!desc && (desc.lines == null || !desc.hasText)
@@ -477,6 +449,15 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   }
   const titles = versionsOf('title', v.titles)
   const thumbs = versionsOf('thumb', v.thumbs)
+  // o visualizador de thumbnail (spec 6.3): a legenda, o período e o tempo no ar são os do cartão da versão, sem recalcular
+  const viewerVersions: ViewerVersion[] = thumbs.map(t => ({
+    label: 'Capa ' + t.label, current: t.cur, archived: t.thumb?.src ?? null, youtubeId: t.cur ? v.ytId || null : null,
+    caption: thumbCaption(t.label, t.cur, t.tag?.text ?? 'no ar', t.span, t.dur),
+    from: t.from, to: t.to, span: t.span,
+    preview: t.thumb?.src ?? null,
+  }))
+  const viewer: ViewerInput | null = viewerVersions.length ? { title: v.title.trim() ? v.title : 'sem título', versions: viewerVersions, start: viewerVersions.length - 1 } : null
+  const verAt = (t: VersionView | null | undefined): number | null => { const k = t ? thumbs.indexOf(t) : -1; return k >= 0 ? k : null }
   const descs = versionsOf('desc', v.descs)
   titles.forEach((t, i) => { if (i) t.titleDiff = titleDiffView(obs, v.titles[i - 1]!.text, v.titles[i]!.text) })
   const t0v = v.thumbs[0]
@@ -525,6 +506,17 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     return { type: c.type, idx, c, h: win ? (win[0] + win[1]) / 2 : hx(c.at), win, inRange: !cut || c.at >= t0 }
   })
   const shown = events.filter(e => e.inRange)
+  // arrival by `troca=`: the change, its pair and the two sentences of spec 6.2 ("<troca>" = the change's own name, "<quando>" = its precision)
+  const arrivalPairK = trocaChange ? pairOfChange(trocaChange.id) : null
+  const arrivalEv = trocaChange ? events.find(e => e.c.id === trocaChange.id) : undefined
+  const arrival: HistoricoView['arrival'] = trocaChange && arrivalPairK && arrivalEv && arrivalEv.idx > 0
+    ? (() => {
+        const what = nameOf(trocaChange) + ', ' + trocaChange.whenText
+        return { pairK: arrivalPairK, changeId: trocaChange.id, lane: trocaChange.type, markerIdx: arrivalEv.idx,
+          line: 'Aberta pela aba Trocas do canal: ' + what + '.',
+          status: 'Aberta a troca: ' + what + '. Ela está destacada no gráfico, na faixa e em Antes e depois.' }
+      })()
+    : null
   const tipOf = (c: ObsChange, idx: number): TipView => {
     const arr = arrOf(c.type), b = arr[idx - 1], a = arr[idx]
     const when = (c.window ? c.whenText + ' (janela de ' + (c.prec === '1d' ? '1 dia, sincronização antiga' : '6 h') + ')' : c.whenText + ', horário exato') + ', ' + partAgo(c)
@@ -560,10 +552,11 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   }))
 
   // ---------- context: breadcrumb + pager (rebuilds the origin list) ----------
-  const qids = (p.ids ?? '').split(',').map(x => x.trim()).filter(x => x && obs.video(x))
+  const rawIds = (p.ids ?? '').split(',').map(x => x.trim()).filter(Boolean)
+  const qids = rawIds.filter(x => obs.video(x))
   const bp = new URLSearchParams(back ? back.slice(1) : '')
   const ctx = context()
-  function context(): { crumb: string; href: string; ids: string[]; keepIds: string[] | null; of: string; outside: string; sub: { text: string; href: string } | null } {
+  function context(): { crumb: string; href: string; ids: string[]; keepIds: string[] | null; of: string; outside: string; sub: { text: string; href: string } | null; canal: boolean; genericOf?: string } {
     const n = ctxNiche, vv = v!
     // A competitor has a page of its own: the channel item of the trail goes there. Coming from that page (canal=<its id>) it
     // takes the page's state (`back`, e.g. ?tab=trocas) along; from anywhere else it is the bare page. An own channel has no page.
@@ -571,7 +564,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       : { text: ch.name, href: obs.link.canal(vv.ch) + (p.canal === vv.ch && back ? back : '') })
     if (from === 'outliers') {
       const href = backHref('outliers', obs.link.outliers({ niche: userNiche }))
-      if (qids.length) return { crumb: 'Outliers', href, ids: qids, keepIds: qids, of: 'em Outliers, na ordem da lista aberta', outside: 'fora da lista de Outliers aberta', sub: channelItem() }
+      if (qids.length) return { crumb: 'Outliers', href, ids: qids, keepIds: qids, of: 'em Outliers, na ordem da lista aberta', outside: 'fora da lista de Outliers aberta', sub: channelItem(), canal: false }
       // The list Outliers shows for these params (same parser, defaults, age aliases and reading scope as the screen).
       const params: Record<string, string | undefined> = Object.fromEntries(bp)
       if (!params.niche) params.niche = userNiche
@@ -582,9 +575,18 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       const desc = [q.niche !== 'todos' ? 'nicho ' + obs.nicheLabel(q.niche) : 'todos os nichos', q.fmt === 'short' ? 'Shorts' : 'longos', ageTxt, minTxt,
         q.channel ? obs.channel(q.channel)?.name ?? null : null, q.formula ? obs.formula(q.formula)?.label ?? null : null, q.topic ? (obs.theme(q.topic)?.label ?? q.topic) : null,
         q.reading ? 'escopo da leitura' : null, q.sort === 'vpd' ? 'por views/dia' : q.sort === 'recent' ? 'mais recentes primeiro' : 'por fase'].filter(Boolean).join(', ')
-      return { crumb: 'Outliers', href, ids: ov.pageIds, keepIds: null, of: 'em Outliers (' + desc + ')', outside: 'fora da lista de Outliers (' + desc + ')', sub: channelItem() }
+      return { crumb: 'Outliers', href, ids: ov.pageIds, keepIds: null, of: 'em Outliers (' + desc + ')', outside: 'fora da lista de Outliers (' + desc + ')', sub: channelItem(), canal: false }
     }
     if (from === 'canais') {
+      // From the channel page (`canal=` is this video's channel): the list is the one the page showed, passed in `ids=`. It is never
+      // rebuilt here: no ids = no list. "Canais" in the trail is the bare channels list; the channel item carries the page's state.
+      if (p.canal === vv.ch && !ch.own) {
+        const o = origemDoCanal(p.back ?? '', ch.name)
+        return { crumb: 'Canais', href: obs.link.canais({ niche: userNiche }), ids: qids, keepIds: qids.length ? qids : null, sub: channelItem(),
+          of: o ? o.of : 'na lista aberta de ' + ch.name, outside: o ? o.outside : 'fora da lista aberta de ' + ch.name, canal: true,
+          // quando a contagem (pos/tot) não é confiável a frase não descreve filtro nem ordenação: só conta o que veio em ids=
+          genericOf: 'na lista aberta de ' + ch.name }
+      }
       const own = obs.videos.filter(x => x.ch === vv.ch && isObserved(x) && x.fmt === vv.fmt).sort((a, b) => b.pub - a.pub).map(x => x.id)
       const ids = qids.length ? qids : own
       let href: string, subHref: string
@@ -594,11 +596,11 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
         subHref = tabPath(obs, 'canais') + back!
       } else { href = backHref('canais', obs.link.canais({ niche: userNiche })); subHref = obs.link.canais({ channel: vv.ch }) }
       return { crumb: 'Canais', href, ids, keepIds: qids.length ? qids : null, sub: channelItem() ?? { text: ch.name, href: subHref },
-        of: 'de ' + ch.name + ' (' + (vv.fmt === 'short' ? 'Shorts' : 'longos') + ' acompanhados, do mais novo ao mais antigo)', outside: 'fora dos vídeos acompanhados de ' + ch.name }
+        of: 'de ' + ch.name + ' (' + (vv.fmt === 'short' ? 'Shorts' : 'longos') + ' acompanhados, do mais novo ao mais antigo)', outside: 'fora dos vídeos acompanhados de ' + ch.name, canal: false }
     }
-    if (from === 'insights') return { crumb: 'Insights', href: backHref('insights', obs.link.insights({ niche: userNiche })), ids: [], keepIds: null, of: '', outside: 'aberto a partir de Insights', sub: channelItem() }
+    if (from === 'insights') return { crumb: 'Insights', href: backHref('insights', obs.link.insights({ niche: userNiche })), ids: [], keepIds: null, of: '', outside: 'aberto a partir de Insights', sub: channelItem(), canal: false }
     const href = backHref('mudancas', obs.link.mudancas({ video: vv.id }))
-    if (qids.length) return { crumb: 'Mudanças', href, ids: qids, keepIds: qids, of: 'em Mudanças, na ordem da lista aberta', outside: 'fora da lista de Mudanças aberta', sub: channelItem() }
+    if (qids.length) return { crumb: 'Mudanças', href, ids: qids, keepIds: qids, of: 'em Mudanças, na ordem da lista aberta', outside: 'fora da lista de Mudanças aberta', sub: channelItem(), canal: false }
     // The list Mudanças shows for these params (same parseFilters, query, search, saved set and sort as the screen).
     const params: Record<string, string | undefined> = Object.fromEntries(bp)
     if (!parseNiche(params.niche)) params.niche = userNiche
@@ -609,17 +611,36 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       f.fmt !== 'all' && !f.video ? (f.fmt === 'short' ? 'Shorts' : 'longos') : null, f.video ? 'um vídeo' : null,
       f.changes ? F.plural(f.changes.length, 'troca marcada', 'trocas marcadas') : f.win + ' dias', f.measured ? 'só efeito medido' : null,
       f.saved ? 'só salvas' : null, f.q ? 'busca “' + f.q + '”' : null, SL[f.sort] ?? null, F.plural(ordered.length, 'troca', 'trocas')].filter(Boolean).join(', ')
-    return { crumb: 'Mudanças', href, ids, keepIds: null, of: 'com trocas em Mudanças (' + desc + ')', outside: 'fora da lista de Mudanças (' + desc + ')', sub: channelItem() }
+    return { crumb: 'Mudanças', href, ids, keepIds: null, of: 'com trocas em Mudanças (' + desc + ')', outside: 'fora da lista de Mudanças (' + desc + ')', sub: channelItem(), canal: false }
   }
   const k = ctx.ids.indexOf(v.id)
-  const navHref = (j: number) => (j < 0 || j >= ctx.ids.length ? null
-    : obs.link.historico(ctx.ids[j]!, { from, ...(ctx.keepIds ? { ids: ctx.keepIds } : {}), ...(back ? { back } : {}) }))
-  const pager: PagerView = {
-    prev: k < 0 ? null : navHref(k - 1), next: k < 0 ? null : navHref(k + 1), backHref: ctx.href,
-    position: k < 0 ? ctx.outside : 'vídeo ' + (k + 1) + ' de ' + ctx.ids.length + ' ' + ctx.of,
-    prevLabel: 'Vídeo anterior em ' + ctx.crumb, nextLabel: 'Próximo vídeo em ' + ctx.crumb,
+  // From the channel page the position is the video's place in the list the page showed (`pos` of `tot`), because `ids=` is only the
+  // 100 neighbours around it. It counts only when it fits what `ids=` says: whole positive numbers, pos <= tot, and the window of ids
+  // (this video at its own index) lies inside 1..tot. Otherwise the sentence counts `ids=` alone (never "vídeo 0 de 0", never "120 de 51").
+  const whole = (raw: string | undefined) => (raw != null && /^[1-9]\d*$/.test(raw) ? Number(raw) : null)
+  const place: { first: number; tot: number } | null = (() => {
+    if (!ctx.canal) return null
+    const pos = whole(p.pos), tot = whole(p.tot), at = rawIds.indexOf(v.id)
+    if (pos == null || tot == null || at < 0 || pos > tot) return null
+    const first = pos - at   // the position of the first id of the window
+    return first >= 1 && first - 1 + rawIds.length <= tot ? { first, tot } : null
+  })()
+  const posOf = (id: string): number | null => { const r = rawIds.indexOf(id); return place && r >= 0 ? place.first + r : null }
+  const navHref = (j: number) => {
+    const to = ctx.ids[j]
+    if (to == null) return null
+    const pos = posOf(to)
+    return obs.link.historico(to, { from, ...(ctx.keepIds ? { ids: ctx.keepIds } : {}), ...(back ? { back } : {}),
+      ...(ctx.canal ? { canal: v.ch, ...(place && pos != null ? { pos, tot: place.tot } : {}) } : {}) })
   }
-  const crumbs: CrumbsView = { from, crumb: ctx.crumb, href: ctx.href, sub: ctx.sub }
+  const nowN = k < 0 ? 0 : place ? posOf(v.id)! : k + 1, ofN = place ? place.tot : ctx.ids.length
+  const pager: PagerView | null = ctx.canal && !ctx.ids.length ? null : {
+    prev: k < 0 ? null : navHref(k - 1), next: k < 0 ? null : navHref(k + 1), backHref: ctx.href,
+    position: k < 0 ? ctx.outside : 'vídeo ' + nowN + ' de ' + ofN + ' ' + (ctx.canal && !place && ctx.genericOf ? ctx.genericOf : ctx.of),
+    prevLabel: 'Vídeo anterior em ' + ctx.crumb, nextLabel: 'Próximo vídeo em ' + ctx.crumb,
+    replace: true, status: k < 0 ? '' : 'Vídeo ' + nowN + ' de ' + ofN + ': ' + (v.title.trim() || 'sem título'),
+  }
+  const crumbs: CrumbsView = { from, crumb: ctx.crumb, href: ctx.href, sub: ctx.sub, canal: ctx.canal ? v.ch : null }
 
   // ---------- coverage texts ----------
   const syncPhrase = () => {
@@ -763,14 +784,14 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     : { pinned: v.pinned === true, used: ch.pinnedCount ?? obs.videos.filter(x => x.ch === v.ch && x.pinned === true).length, limit: obs.RULES.pinLimit, state: v.pinState ?? null, note: pinNote }
   const pinView = pinViewOf(obs, v)
 
-  const videoOut = { id: v.id, title: v.title, channel: ch.name, niche: v.niche, age: F.age(v), url: v.url, nicheToast }
+  const videoOut = { id: v.id, title: v.title, channel: ch.name, niche: v.niche, age: F.age(v), url: v.url }
   const state = stateOf(obs, v, ch, changes)
   if (!observed) {
     // R117 (replaces the display half of R37): what was stored is shown. There is no daily record, so no chart and no
     // before/after comparison (every change of this video reads 'sem-serie'). The notice says which of the two cases it is.
     const stored = v.thumbs.length > 0 || v.descs.length > 0 || v.titles.some(t => t.id !== v.id + '/title')
     const href = obs.link.canais({ channel: v.ch })
-    const common = { video: videoOut, chromeNiche, crumbs, header, chart: null, comparisons: [], defaultPair: null, compareEmpty: null, pager, state, notFound: null, pin, pinView, ...forjaOf(obs, v, ch),
+    const common = { video: videoOut, crumbs, header, chart: null, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null, pager, viewer, state, notFound: null, pin, pinView, ...forjaOf(obs, v, ch),
       range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND }
     const outside = 'Este vídeo está fora dos ' + ch.video_limit + ' mais recentes acompanhados de ' + ch.name + '.'
     const noChart = 'O gráfico de views só aparece para vídeos acompanhados ou fixados.'
@@ -860,17 +881,17 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       if (q.e2) {
         const tb = thumbs.find(t => t.id === c0.fromId), ta = thumbs.find(t => t.id === c0.toId), tl = thumbs.find(t => t.id === last.toId)
         ba = [
-          { thumb: tb?.thumb ?? miss(), title: null, label: keyOf((c0.before as { key: string }).key) + ' até ' + c0.whenText },
-          { thumb: ta?.thumb ?? miss(), title: null, label: keyOf((c0.after as { key: string }).key) + ' por ' + D.dur(c0.nextLivedMs ?? 0) },
-          { thumb: tl?.thumb ?? miss(), title: null, label: keyOf((last.after as { key: string }).key) + ' de volta em ' + dmhmY(last.at) },
+          { thumb: tb?.thumb ?? miss(), title: null, label: keyOf((c0.before as { key: string }).key) + ' até ' + c0.whenText, at: verAt(tb) },
+          { thumb: ta?.thumb ?? miss(), title: null, label: keyOf((c0.after as { key: string }).key) + ' por ' + D.dur(c0.nextLivedMs ?? 0), at: verAt(ta) },
+          { thumb: tl?.thumb ?? miss(), title: null, label: keyOf((last.after as { key: string }).key) + ' de volta em ' + dmhmY(last.at), at: verAt(tl) },
         ]
       } else {
         const preMs = (c0.window ? c0.window[0] : c0.at) - 60e3, postMs = Math.max(...q.group.map(g => g.at)) + 60e3
         const tb = versionAt('thumb', preMs), ta = versionAt('thumb', postMs), Tb = versionAt('title', preMs), Ta = versionAt('title', postMs)
         const known = !!tb.raw && !(openStart(tb.raw) && tb.raw.first_seen > preMs)
         ba = [
-          { thumb: known ? tb.view!.thumb : tb.raw ? { src: null, missing: 'Thumbnail antes de ' + preLabel + ': não registrada', alt: 'Thumbnail' } : null, title: Tb.text, label: 'Antes (' + (Tb.view?.label ?? '') + (known ? ', thumbnail ' + tb.view!.label : '') + ')' },
-          { thumb: ta.view?.thumb ?? null, title: Ta.text, label: 'Depois (' + (Ta.view?.label ?? '') + (ta.view ? ', thumbnail ' + ta.view.label : '') + ')' },
+          { thumb: known ? tb.view!.thumb : tb.raw ? { src: null, missing: 'Thumbnail antes de ' + preLabel + ': não registrada', alt: 'Thumbnail' } : null, title: Tb.text, label: 'Antes (' + (Tb.view?.label ?? '') + (known ? ', thumbnail ' + tb.view!.label : '') + ')', at: known ? verAt(tb.view) : null },
+          { thumb: ta.view?.thumb ?? null, title: Ta.text, label: 'Depois (' + (Ta.view?.label ?? '') + (ta.view ? ', thumbnail ' + ta.view.label : '') + ')', at: verAt(ta.view) },
         ]
       }
     }
@@ -928,7 +949,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     }
   })
   const pairsIn = pairs.filter(q => !cut || q.group.some(g => g.at >= t0))
-  const defaultPair = (pairsIn.find(q => ['neutro', 'ganhou', 'perdeu'].includes(q.e.status)) ?? pairsIn[0])?.k ?? null
+  const defaultPair = arrival ? arrival.pairK : (pairsIn.find(q => ['neutro', 'ganhou', 'perdeu'].includes(q.e.status)) ?? pairsIn[0])?.k ?? null
   const compare: CompareView = (() => {
     const scope = cut ? ' no período' : ''
     const base = { scope, total: pairs.length, fields: (['title', 'thumb', 'desc'] as LaneType[]).map(t => ({ id: t, label: TYPE_NAME[t], name: TYPE_LOW[t] })),
@@ -947,13 +968,14 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       + (pairsIn.length ? 'Uma troca só é medida com ' + E.afterDays + ' dias sem outra troca do vídeo depois dela e pelo menos ' + E.minBeforeDays + ' antes.' : ''))
     return { mode: 'list', sum, ...base }
   })()
-  const rangeView: RangeView | null = !rangeOffered ? null : (() => {
+  const rangeView: RangeView = (() => {
     const one = (a: number, b: number, sing: string, plur: string): Rich => [{ b: a + ' de ' + b }, ' ' + (b === 1 ? sing : plur)]
     const dayN = (list: typeof allBins) => Math.round(list.filter(b => !b.from0).reduce((s, b) => s + (b.b - b.a), 0) / 24)
     const head = cut ? 'De ' + dmhmY(t0) + untilTxt
       : 'Vídeo inteiro, desde ' + dmhmY(pub) + (rangeId !== 'tudo' ? ' (menos que os ' + rangeId + ' dias do filtro)' : '')
     return {
       value: rangeId, fromH, cut,
+      why: widenedBy && arrival ? 'Período ampliado para ' + (rangeId === 'tudo' ? 'o vídeo inteiro' : rangeId + ' dias') + ' para incluir a troca aberta.' : null,
       options: RANGE_IDS.map(id => ({ id, label: RANGE_LABEL[id], aria: RANGE_LABEL[id] + ': ' + RANGE_LONG[id] })),
       text: [head + ': ', ...one(nIn(thumbs), thumbs.length, 'período de thumbnail', 'períodos de thumbnail'), ', ', ...one(nIn(titles), titles.length, 'título', 'títulos'), ', ',
         ...one(nIn(descs), descs.length, 'descrição', 'descrições'), ', ', ...one(shown.length, events.length, 'troca', 'trocas'), ' e ',
@@ -981,85 +1003,19 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   for (const q of pairs) legends[q.k] = legendFor(q.k)
 
   return {
-    video: videoOut, chromeNiche, crumbs, header, chart, lanes, legends, comparisons, defaultPair,
+    video: videoOut, crumbs, header, chart, lanes, legends, comparisons, defaultPair, arrival,
     compareEmpty: pairs.length ? null : endDot(watchText()) + ' Se o canal trocar título, thumbnail ou descrição, a troca aparece na curva acima e entra em Mudanças.',
-    versions, pager, state, untracked: null, lanesAxis: null, pin, pinView, notFound: null, ...forjaOf(obs, v, ch),
+    versions, pager, viewer, state, untracked: null, lanesAxis: null, pin, pinView, notFound: null, ...forjaOf(obs, v, ch),
     range: rangeView, imageSummary: imageSummaryView, compare, groupLegend: GROUP_LEGEND,
   }
 }
 
-/* ------------------------------------------------------------------ forja (historico-video.html renderForja) */
+/* ------------------------------------------------------------------ forja (o botão da tela e o cartão novo) */
 function forjaOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): Pick<HistoricoView, 'forja' | 'forjaCard'> {
   // no product sentence explains "own video" and the untracked one says something else: the block is simply not shown
   if (ch.own) return { forja: null, forjaCard: null }
-  const D = obs.date, F = obs.fmt
   const forja = buildForjaView(obs, { screen: 'historico', niche: v.niche ?? 'todos', videoId: v.id })
-  const sc = obs.forja.session.current(null, { type: 'leitura-video', video: v.id })
-  const r = sc.empty ? null : sc.request
-  const block = forja.niches[0]
-  const vr = block?.reading ?? null
-  const fresh = vr && vr.isNew ? vr : null
-  // the reading that existed before the request published (the newest one that is not the fresh one)
-  const older = obs.forja.readings.filter(x => x.type === 'leitura-video' && x.target?.video === v.id && x.id !== fresh?.id).sort((a, b) => b.generatedAt - a.generatedAt)[0]
-  // historico-video.html:725 (done): right after a reading is published neither block carries "Desde então" — the new
-  // one has nothing after it, and the previous one's delta is what the new reading already read
-  const noSince = (x: ForjaReadingView): ForjaReadingView => ({ ...x, since: null })
-  const prev = fresh ? (older ? noSince(forjaReadingView(obs, older, { active: false, isNew: false, activeNote: null })) : null) : vr
-  const tm = obs.forja.timing('leitura-video', v.niche ?? 'todos')
-  const exReason = !isObserved(v) ? 'Vídeo fora dos acompanhados: não há dados para a forja ler' : v.niche ? obs.forja.eligibleChannels(v.niche).out.find(o => o.id === v.ch)?.reason ?? null : null
-  const exAct = !isObserved(v) ? '' : ch.sync.state === 'erro' ? 'Corrija o canal em Canais antes de pedir uma leitura.' : ch.sync.state === 'backfill' ? 'Espere a busca de vídeos terminar antes de pedir uma leitura.' : 'Sincronize o canal antes de pedir uma leitura deste vídeo.'
-  const excluded = exReason ? (endDot(exReason) + ' ' + exAct).trim() : null
-  const nicheBlk = (): HistForjaCard['niche'] => {
-    if (!v.niche) return null
-    const nr = obs.forja.latest('padroes-titulo', v.niche)
-    if (!nr) return null
-    const pats = patternsOf(nr).filter(p => p.evidence.includes(v.id))
-    const when = D.dm(nr.generatedAt) + ' ' + D.hm(nr.generatedAt)
-    if (!pats.length) return { text: 'Ainda não há leitura deste vídeo, e a leitura de padrões do nicho de ' + when + ' não o cita.', items: [], foot: null }
-    if (pats.every(p => p.verdict.id === 'sem-diferenca')) return { text: 'Ainda não há leitura deste vídeo. A leitura de padrões do nicho de ' + when + ' não viu diferença para as fórmulas deste título: ' + pats.map(p => F.lcfirst(obs.formula(p.formula)?.label ?? p.formula)).join(', ') + '.', items: [], foot: null }
-    const s0 = obs.forja.since(nr.id)
-    return {
-      text: 'Ainda não há leitura deste vídeo. O que a leitura de padrões do nicho de ' + D.dmOrDmy(nr.generatedAt) + ' diz sobre as fórmulas deste título:',
-      items: pats.map(p => {
-        const n = obs.outliers({ niche: v.niche!, fmt: nr.fmt ?? 'long', formula: p.formula, reading: nr.id }).count
-        return { text: endDot(p.verdict.text + (p.attribution && p.verdict.id === 'padrao' ? '. ' + p.attribution : '')), label: n === 1 ? 'Ver o outlier' : 'Ver os ' + n + ' outliers',
-          href: obs.link.outliers({ niche: v.niche!, fmt: nr.fmt ?? 'long', formula: p.formula, reading: nr.id, min: obs.RULES.outlierMin }) }
-      }),
-      foot: (nr.sent.text ? cap(nr.sent.text) + '. ' : '') + (s0 ? (forja.status?.active ? s0.textNoAsk : s0.text) : ''),
-    }
-  }
-  const label = forja.button.label
-  // historico-video.html:718/731: the action name is a link to the header button (#vhead), not a quoted string
-  const toTopLink = { pre: 'Para pedir de novo, use ', label, post: ' no cabeçalho do vídeo.' }
-  const st = r?.state ?? null
-  const cls: '' | 'warn' | 'bad' = st === 'falhou' ? 'bad' : st && ['atrasado', 'sem máquina', 'recusado (dado velho)'].includes(st) ? 'warn' : ''
-  const extra = !r ? null
-    : st === 'na fila' ? cap(tm.text) + '.'
-      : st === 'trabalhando' ? obs.forja.preview('leitura-video', v.niche ?? 'todos').text + '.'
-        : st === 'publicado' ? endDot(cap(sc.quota.text))
-          : st === 'atrasado' ? (r.busyWith ? cap(r.busyWith) + '.' : null)
-            : st === 'sem máquina' ? sc.machine.text + '.'
-              : st === 'falhou' ? 'Nada foi publicado.'
-                : st === 'recusado (dado velho)' ? endDot(cap(sc.quota.text)) : null
-  const toTop = !r ? null
-    : st === 'falhou' ? toTopLink
-      : st === 'recusado (dado velho)' ? (/peça de novo|pedir de novo/i.test(sc.statusText) ? { pre: '', label: 'Ir para o botão “' + label + '”', post: '' } : toTopLink) : null
-  const blocked = forja.blockedBy ? { text: cap(forja.blockedBy.reason.replace(/^Nada enviado:\s*/, '')), title: forja.blockedBy.title, href: forja.blockedBy.href } : null
-  return {
-    forja,
-    forjaCard: {
-      pill: r ? { text: sc.statusLabel ?? r.state, cls } : null,
-      statusText: r ? sc.statusText : null, extra, toTop,
-      step: !r ? null : st === 'trabalhando' ? 1 : st === 'publicado' ? 3 : ['falhou', 'recusado (dado velho)'].includes(st!) ? null : 0,
-      cancel: forja.cancel.length > 0,
-      again: null,
-      excluded,
-      intro: !vr && !r ? 'A leitura deste vídeo resume as trocas e diz o que os números permitem concluir. A forja (Gemma 12B) não julga thumbnails e não afirma causa.' : null,
-      fresh: fresh ? noSince(fresh) : null, reading: prev, readingLabel: r ? 'Leitura anterior' : null,
-      niche: vr ? null : nicheBlk(),
-      blocked,
-    },
-  }
+  return { forja, forjaCard: buildForjaCard(obs, v, ch, forja) }
 }
 
 const miss = (): ThumbImg => ({ src: null, missing: 'Imagem não registrada.', alt: 'Thumbnail' })

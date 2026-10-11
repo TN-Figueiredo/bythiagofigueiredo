@@ -22,4 +22,12 @@ export const Icon = {
   info: () => S(<><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5h.01" /></>),
   /** The forja's anvil (moldura-forja.html ICON.anvil). */
   anvil: () => S(<path d="M3 7h13a5 5 0 0 1-5 5H9v3h6v3H6v-3h1v-3H7A4 4 0 0 1 3 8z" />, 1.9),
+  /** Visualizador de thumbnail (viewer.js IC): lupa com mais, menos, anterior, próxima, abrir fora, baixar, comparar. */
+  zoom: () => S(<><circle cx="11" cy="11" r="6" /><path d="M20 20l-4.5-4.5M11 8v6M8 11h6" /></>),
+  minus: () => S(<path d="M5 12h14" />, 2.2),
+  prev: () => S(<path d="m15 18-6-6 6-6" />),
+  next: () => S(<path d="m9 18 6-6-6-6" />),
+  ext: () => S(<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />),
+  download: () => S(<path d="M12 4v11M7 11l5 5 5-5M5 20h14" />),
+  compare: () => S(<><rect x="3" y="5" width="8" height="14" rx="1" /><rect x="13" y="5" width="8" height="14" rx="1" /></>),
 }

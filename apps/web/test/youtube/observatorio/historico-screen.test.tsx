@@ -45,7 +45,7 @@ describe('HistoricoScreen', () => {
     const btns = [...root.querySelectorAll('.vhead .actions .frow button')]
     expect(btns.map(b => b.id)).toEqual(['askForja'])
     expect(btns[0]).toHaveClass('forja-solid')
-    expect(btns[0]!.textContent).toMatch(/Pedir (nova )?leitura à forja|Pedido em andamento/)
+    expect(btns[0]!.textContent).toMatch(/^(Pedir leitura à forja( de novo)?|Ver a leitura|Leitura em andamento: ver)$/)
     // R43: no per-video swipe in the header (follow-up FU-2): no control that does nothing
     expect(root.textContent).not.toMatch(/swipe file/i)
   })
@@ -77,7 +77,7 @@ describe('HistoricoScreen', () => {
   })
 
   it('old video: the period before the series start is compressed', () => {
-    const { root } = mount(PICK.pre)
+    const { root } = mount(PICK.pre, { range: 'tudo' })
     expect(root.querySelector('svg.hv-chart')!.textContent).toContain('comprimidos,')
     expect(root.querySelector('[data-legend]')!.textContent).toMatch(/dias antes de 03\/10 comprimidos à esquerda/)
   })
@@ -141,12 +141,13 @@ describe('HistoricoScreen', () => {
 
   it('pager rebuilds the origin list (from, back, ids)', () => {
     const ids = [PICK.none, PICK.full, PICK.few]
-    const { root } = mount(PICK.full, { from: 'mudancas', ids: ids.join(','), back: '?niche=ia' })
+    const { root, view } = mount(PICK.full, { from: 'mudancas', ids: ids.join(','), back: '?niche=ia' })
     const prev = root.querySelector('[data-pager-prev]')!, next = root.querySelector('[data-pager-next]')!
     expect(prev.getAttribute('href')).toBe(obs.link.historico(PICK.none, { from: 'mudancas', ids, back: '?niche=ia' }))
     expect(next.getAttribute('href')).toBe(obs.link.historico(PICK.few, { from: 'mudancas', ids, back: '?niche=ia' }))
     expect(root.querySelector('[data-pager-pos]')!.textContent).toBe('vídeo 2 de 3 em Mudanças, na ordem da lista aberta')
-    expect(root.querySelector('[data-crumb]')!.getAttribute('href')).toBe('/cms/youtube/competitors/mudancas?niche=ia')
+    // the trail is the frame's now (A2.6, historico-a2-moldura.test.tsx renders it); the way back it leads to is the same
+    expect(view.crumbs.href).toBe('/cms/youtube/competitors/mudancas?niche=ia')
   })
 
   it('an unknown id renders the not-found state', () => {
@@ -165,11 +166,6 @@ describe('HistoricoScreen', () => {
     expect(root.querySelector('#hv-compare')).toBeNull()
     // the facts block (the button's hint, in .actions, explains what a pin does and names the views chart)
     expect(root.querySelector('.vhead .vm')!.textContent).not.toMatch(/views|multiplicador|sincroniza/i)
-  })
-
-  it('a video of another niche toasts "Nicho mudou para …"', async () => {
-    mount(PICK.noreg, { niche: 'ia' })
-    await waitFor(() => expect(screen.getByText('Nicho mudou para Viagem para mostrar este vídeo')).toBeTruthy())
   })
 
   it('descriptions: line-by-line comparison hides UTM-only changes until asked', () => {

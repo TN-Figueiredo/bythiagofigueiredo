@@ -12,9 +12,17 @@ export const RANGE_IDS: readonly RangeId[] = ['7', '30', '90', 'tudo']
 export const RANGE_LABEL: Record<RangeId, string> = { '7': '7 d', '30': '30 d', '90': '90 d', tudo: 'tudo' }
 export const RANGE_LONG: Record<RangeId, string> = { '7': 'últimos 7 dias', '30': 'últimos 30 dias', '90': 'últimos 90 dias', tudo: 'desde a publicação' }
 
-/** Anything that is not one of the three windows (absent, garbage, or a video the filter is not offered for) is the whole video. */
-export function parseRange(raw: string | undefined, offered: boolean): RangeId {
-  return offered && (raw === '7' || raw === '30' || raw === '90') ? raw : 'tudo'
+/** The chart opens on the last 30 days (spec 6.4); the whole video is `range=tudo`. */
+export const RANGE_DEFAULT: RangeId = '30'
+export const isRangeId = (raw: string | undefined): raw is RangeId => raw === '7' || raw === '30' || raw === '90' || raw === 'tudo'
+/** Absent or garbage = 30 days; 'tudo' = the whole video. The selector is offered whenever there is a chart, so there is no "offered" input. */
+export function parseRange(raw: string | undefined): RangeId {
+  return isRangeId(raw) ? raw : RANGE_DEFAULT
+}
+/** The smallest period that includes `at` (ms): '30', else '90', else 'tudo'. */
+export function rangeFor(at: number, now: number): RangeId {
+  const age = now - at
+  return age <= 30 * DAY ? '30' : age <= 90 * DAY ? '90' : 'tudo'
 }
 /** Start (ms) of the shown period: never before the publication. */
 export function rangeStart(range: RangeId, pub: number, now: number): number {

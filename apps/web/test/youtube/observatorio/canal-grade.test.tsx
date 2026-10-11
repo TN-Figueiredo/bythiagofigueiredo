@@ -172,6 +172,24 @@ describe('Capas: a grade e o cartão', () => {
     expect(norm(t.textContent)).toContain(all[0]!.pubTitle!)
   })
 
+  it('vídeo sem data não entra em ids= nem na conta de pos/tot (não existe no Histórico); o cartão dele não leva lista', () => {
+    const undated = { id: 'u1', ytId: 'yt-u1', title: 'sem data aqui', url: 'https://youtu.be/yt-u1', isShort: false, dur: null, views: 10, likes: null, comments: null, pinned: false, checkedAt: null }
+    mountCanal({ mut: (ds, id) => { ds.channels.find(c => c.id === id)!.undated.push(undated) }, sp: { fmt: 'longos' } })
+    const cs = cartoes()
+    const u = (c: HTMLElement) => new URL(c.querySelector('a.cv-lnk')!.getAttribute('href')!, 'http://x').searchParams
+    const sem = cs.find(c => c.dataset.id === 'u1')!
+    const datados = cs.filter(c => c.dataset.id !== 'u1')
+    expect(sem).toBeTruthy()
+    expect(datados.length).toBe(cs.length - 1)
+    datados.forEach((c, i) => {
+      expect(u(c).get('ids')!.split(','), `cartão ${i}`).not.toContain('u1')
+      expect([u(c).get('pos'), u(c).get('tot')], `cartão ${i}`).toEqual([String(i + 1), String(datados.length)])
+    })
+    // o dele: o Histórico não o conhece, então não há posição nem vizinhança para dizer
+    expect([u(sem).get('pos'), u(sem).get('tot'), u(sem).get('ids')]).toEqual([null, null, null])
+    expect(u(sem).get('canal')).toBe('matt-wolfe')
+  })
+
   it('divisores com contagem são h3 dentro da lista e não somem com filtro', () => {
     const undated = { id: 'u1', ytId: 'yt-u1', title: 'sem data aqui', url: 'https://youtu.be/yt-u1', isShort: false, dur: null, views: 10, likes: null, comments: null, pinned: false, checkedAt: null }
     const mut = (ds: Ds, id: string) => { ds.channels.find(c => c.id === id)!.undated.push(undated) }
@@ -229,6 +247,11 @@ describe('Capas: a grade e o cartão', () => {
     expect(mid).toEqual(ordem.slice(a, a + 100))
     expect(mid.indexOf(ordem[60]!)).toBe(60 - a)
     expect(all.length).toBeGreaterThan(100)
+    // pos e tot (D4): a posição do cartão na lista que a tela mostra (a partir de 1) e o tamanho dela, não o da janela de ids
+    expect([u0.searchParams.get('pos'), u0.searchParams.get('tot')]).toEqual(['1', String(ordem.length)])
+    expect([href(i).searchParams.get('pos'), href(i).searchParams.get('tot')]).toEqual([String(i + 1), String(ordem.length)])
+    expect(href(60).searchParams.get('pos')).toBe('61')
+    expect(ordem.length).toBeGreaterThan(100)
   })
 
   it('o back do cartão é vazio no estado padrão', () => {
@@ -318,15 +341,18 @@ describe('Capas: o menu "Ações do vídeo"', () => {
     expect(within(b.menu).getAllByRole('menuitem').map(i => norm(i.textContent))[0]).toBe('Desafixar')
   })
 
-  it('"Ampliar thumbnail" (menu e lupa) abre a imagem em nova aba na A1', async () => {
+  it('"Ampliar thumbnail" (menu e lupa) abre o visualizador de thumbnail (A2.3), não mais a imagem em nova aba', async () => {
     const { all } = mountCanal()
     const open = vi.spyOn(window, 'open').mockReturnValue(null)
     const v = all[0]!
     fireEvent.click(within(cardOf(v.id)).getByRole('button', { name: 'Ampliar a thumbnail: ' + v.title }))
-    expect(open).toHaveBeenLastCalledWith(v.thumbSrc, '_blank', 'noopener,noreferrer')
+    expect(screen.getByRole('dialog').querySelector('h2')!.textContent).toBe('Thumbnail: ' + v.title)
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
     const { user, menu } = await abrir(v.id)
     await user.click(within(menu).getByRole('menuitem', { name: 'Ampliar thumbnail' }))
-    expect(open).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('dialog').querySelector('h2')!.textContent).toBe('Thumbnail: ' + v.title)
+    expect(open).not.toHaveBeenCalled()
     expect(screen.queryByRole('menu')).toBeNull()
   })
 

@@ -56,7 +56,7 @@ function Selos({ v }: { v: ChannelVideoView }) {
 }
 
 export function VideoCard({ v, sort, href, onAmpliar, onTrocas }: {
-  v: ChannelVideoView; sort: CanalSort; href: string; onAmpliar: (v: ChannelVideoView) => void; onTrocas: (v: ChannelVideoView) => void
+  v: ChannelVideoView; sort: CanalSort; href: string; onAmpliar: (v: ChannelVideoView, trigger: HTMLElement | null) => void; onTrocas: (v: ChannelVideoView) => void
 }) {
   return (
     <li className="cv-card" data-id={v.id}>
@@ -66,7 +66,7 @@ export function VideoCard({ v, sort, href, onAmpliar, onTrocas }: {
       </Link>
       <Selos v={v} />
       {v.thumbSrc ? (
-        <button type="button" className="cv-amp" tabIndex={-1} aria-label={'Ampliar a thumbnail: ' + v.title} onClick={() => onAmpliar(v)}>
+        <button type="button" className="cv-amp" tabIndex={-1} aria-label={'Ampliar a thumbnail: ' + v.title} onClick={e => onAmpliar(v, e.currentTarget)}>
           <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14M5 7h4M7 5v4" /></svg>
         </button>
       ) : null}

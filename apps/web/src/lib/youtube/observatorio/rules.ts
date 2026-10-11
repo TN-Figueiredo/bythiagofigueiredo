@@ -16,7 +16,7 @@ export const RULES = {
   // days apart belong to the same run ("trocas em sequência"). The comparison is inclusive: exactly 14 days is the same run.
   testRunGapDays: 14,
   // New (same plan): the thumbnail grid collapses above `collapseAbove` periods; the comparison turns into a list from
-  // `compareListFrom` changes; the period filter is offered with more than `rangeFromDays` days of series (or a collapsed lane).
+  // `compareListFrom` changes; the period filter is offered whenever there is a chart (spec 6.4, A2): `rangeFromDays` no longer decides it.
   history: { collapseAbove: 8, compareListFrom: 7, rangeFromDays: 30 },
   staleSyncHours: 24,
   videoLimitMax: 200,

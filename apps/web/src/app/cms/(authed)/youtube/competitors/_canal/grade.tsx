@@ -21,7 +21,7 @@ export function notaDoDivisor(d: Divisor, sort: CanalSort): string {
 export function Grade({ lista, sort, nome, hrefDe, onAmpliar, onTrocas }: {
   lista: ListaView; sort: CanalSort; nome: string
   hrefDe: (v: ChannelVideoView) => string
-  onAmpliar: (v: ChannelVideoView) => void; onTrocas: (v: ChannelVideoView) => void
+  onAmpliar: (v: ChannelVideoView, trigger: HTMLElement | null) => void; onTrocas: (v: ChannelVideoView) => void
 }) {
   return (
     <ul className="cv-grid" data-ord={sort} aria-label={'Vídeos de ' + nome}>

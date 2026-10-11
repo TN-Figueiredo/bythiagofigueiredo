@@ -46,7 +46,7 @@ function Itens({ v, onAmpliar, onTrocas, onPin, pinLabel, pinBusy }: {
   )
 }
 
-export function VideoMenu({ v, onAmpliar, onTrocas }: { v: ChannelVideoView; onAmpliar: (v: ChannelVideoView) => void; onTrocas: (v: ChannelVideoView) => void }) {
+export function VideoMenu({ v, onAmpliar, onTrocas }: { v: ChannelVideoView; onAmpliar: (v: ChannelVideoView, trigger: HTMLElement | null) => void; onTrocas: (v: ChannelVideoView) => void }) {
   const [open, setOpen] = useState(false)
   const btn = useRef<HTMLButtonElement>(null)
   const id = 'cv-menu-' + useId().replace(/:/g, '')
@@ -63,7 +63,7 @@ export function VideoMenu({ v, onAmpliar, onTrocas }: { v: ChannelVideoView; onA
       <Popover open={open} anchor={() => btn.current} onClose={() => setOpen(false)} id={id} role="menu" label={'Ações do vídeo: ' + v.title} className="canal-menu" pref="baixo" align="fim" gap={4} maxW={300}>
         <Itens v={v} pinLabel={pin && pc?.pinned(pin) ? 'Desafixar' : 'Fixar'} pinBusy={pin ? !!pc?.busy(pin.videoId) : false}
           onPin={pin && pc ? () => { fechar(); pc.run(pin, pinKey(v.id)) } : null}
-          onAmpliar={() => { fechar(); onAmpliar(v) }}
+          onAmpliar={() => { fechar(); onAmpliar(v, btn.current) }}
           onTrocas={() => { setOpen(false); onTrocas(v) }} />
       </Popover>
     </>

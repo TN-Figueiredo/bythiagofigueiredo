@@ -148,6 +148,8 @@ describe('header flow per screen (R58)', () => {
 describe('Histórico blockedBy', () => {
   it('another video of the niche in the queue: the button is disabled with the reason and a link to that video', () => {
     const ds = fresh()
+    // A2/Tarefa 8: com leitura pronta o botão do cabeçalho passa a ser "Ver a leitura" (spec 6.5), que só rola; o bloqueio vale para quem ainda não tem leitura
+    ds.readings = ds.readings.filter(r => !(r.type === 'leitura-video' && r.target?.video === SHOWCASE))
     const obs0 = createObservatory(ds)
     const other = obs0.videos.find(v => v.niche === 'ia' && v.id !== SHOWCASE && v.tracked && !obs0.channel(v.ch)!.own)!
     ds.requests.push(dbReq(ds, 'ia', { type: 'leitura-video', video: other.id }))
@@ -157,8 +159,8 @@ describe('Histórico blockedBy', () => {
     const b = document.getElementById('askForja')!
     expect(b).toHaveAttribute('aria-disabled', 'true')
     const why = document.getElementById('askStatus')!
-    // the engine's blockedBy.reason, without the "Nada enviado:" lead (historico-video.html bbMsg)
-    expect(why.textContent).toMatch(/^Já há uma leitura de vídeo de IA na fila · pedido \d\d:\d\d, do vídeo “.+”\.$/)
+    // the card writes its own sentence (no engine state label on screen, spec 7.2): the other video is "aguardando"
+    expect(why.textContent).toMatch(/^Já há uma leitura de vídeo de IA em andamento \(aguardando\), do vídeo “.+”\.$/)
     expect(within(why).getByRole('link', { name: other.title })).toHaveAttribute('href', obs.link.historico(other.id))
   })
 })

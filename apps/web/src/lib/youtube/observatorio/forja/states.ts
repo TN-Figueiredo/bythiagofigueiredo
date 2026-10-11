@@ -30,7 +30,11 @@ export const FORJA_QUEUE = {
 } as const
 
 /** Every state a request can be in, in the mockup's order (REQ_SCENARIOS keys). */
-export const REQUEST_STATES: readonly RequestState[] = ['na fila', 'trabalhando', 'publicado', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia', 'falhou', 'recusado (dado velho)']
+const ALL_REQUEST_STATES = ['na fila', 'trabalhando', 'publicado', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia', 'falhou', 'recusado (dado velho)'] as const satisfies readonly RequestState[]
+// a lista tem que ter TODO estado do tipo: um estado novo sem entrada aqui não compila (o teste de varredura cobre o que a lista cobre)
+const requestStatesCompleto: [Exclude<RequestState, (typeof ALL_REQUEST_STATES)[number]>] extends [never] ? true : never = true
+void requestStatesCompleto
+export const REQUEST_STATES: readonly RequestState[] = ALL_REQUEST_STATES
 /** `forja.states` of the mockup (dados.js:1436): the eight states the screens list. */
 export const STATES: readonly RequestState[] = ['na fila', 'trabalhando', 'publicado', 'atrasado', 'sem máquina', 'nova tentativa', 'falhou', 'recusado (dado velho)']
 export const ACTIVE_STATES: readonly RequestState[] = ['na fila', 'trabalhando', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia']

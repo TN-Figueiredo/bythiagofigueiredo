@@ -61,7 +61,7 @@ describe('períodos', () => {
   })
   it('nenhum item passa do vizinho, nos vídeos do mockup, em três larguras', () => {
     for (const id of [VID.many, VID.dense, VID.open]) for (const [w, minpx] of [[1100, MINPX], [760, MINPX_COARSE], [390, MINPX_COARSE]] as const) {
-      const v = buildHistoricoView(obs, id, {}), H = v.chart!.H, x = (h: number) => 92 + (h / H) * (w - 106)
+      const v = buildHistoricoView(obs, id, { range: 'tudo' }), H = v.chart!.H, x = (h: number) => 92 + (h / H) * (w - 106)
       for (const l of v.lanes) {
         const items = layoutLane(l, x, minpx), per = items.filter(i => i.kind === 'clip' || i.kind === 'pgroup')
         for (let k = 1; k < per.length; k++) expect(per[k - 1]!.left + per[k - 1]!.width, id + l.type + w).toBeLessThanOrEqual(per[k]!.left + 1.5)
@@ -76,7 +76,7 @@ describe('períodos', () => {
     }
   })
   it('estado 2 em 760 px: a faixa de thumbnail vira dois grupos com as letras em ordem', () => {
-    const v = buildHistoricoView(obs, VID.many, {}), H = v.chart!.H
+    const v = buildHistoricoView(obs, VID.many, { range: 'tudo' }), H = v.chart!.H
     const items = layoutLane(v.lanes[1]!, h => 92 + (h / H) * (620 - 106), MINPX_COARSE).filter(i => i.kind === 'pgroup')
     expect(items.map(i => i.kind === 'pgroup' && [i.letters, i.count])).toEqual([['A B A C A B C D A D B D', '12 períodos'], ['E C E B E D E C E D E', '11 períodos']])
   })

@@ -27,7 +27,7 @@ export function isHl(hl: Hl | null, lane: LaneView, i: number): boolean {
   return lane.type === 'thumb' && lane.versions[i]?.label === lane.versions[hl.i]?.label
 }
 
-export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMarker, onHl, onMarker, onMarkerClick, onClip, onGroupTip }: {
+export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMarker, arrivalId = null, onHl, onMarker, onMarkerClick, onClip, onClipDouble, onGroupTip }: {
   lanes: LaneView[]; layouts: LaneItem[][]; geom: Geom
   stale: { fromH: number; title: string } | null
   fewAxis: Array<{ h: number; label: string }> | null
@@ -36,10 +36,15 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
   hl: Hl | null
   /** The change whose tooltip is shown right now (null = none): only its marker points at the tooltip box with aria-describedby (and not while a group list is open: the layer hides the tooltip then). */
   tipMarker: string | null
+  /** The change `troca=` opened the screen on: its marker (or the counter of the group that holds it) carries the ring (`data-arrival`). */
+  arrivalId?: string | null
   onHl: (h: Hl | null) => void
   onMarker: (m: MarkerView, type: LaneType, el: HTMLElement | null) => void
   onMarkerClick: (m: MarkerView) => void
-  onClip: (type: LaneType, i: number) => void
+  /** `detail` is the click count of a pointer click (1, 2…); absent or 0 = keyboard or a list row. The screen decides whether to wait for a double click. */
+  onClip: (type: LaneType, i: number, detail?: number) => void
+  /** Double click on a thumbnail period (spec 6.3, trigger 4): opens the viewer on it. */
+  onClipDouble?: (i: number, trigger: HTMLElement) => void
   onGroupTip: (g: GroupTip | null, el: HTMLElement | null) => void
 }) {
   const { x, H } = geom
@@ -96,7 +101,8 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
                 const common = {
                   type: 'button' as const, tabIndex: tab, 'data-k': lane.type + ':' + i, 'aria-label': v.name, title: v.aria,
                   onMouseEnter: () => onHl({ type: lane.type, i, ev: null }), onFocus: () => onHl({ type: lane.type, i, ev: null }),
-                  onMouseLeave: () => onHl(null), onBlur: () => onHl(null), onClick: () => onClip(lane.type, i),
+                  onMouseLeave: () => onHl(null), onBlur: () => onHl(null), onClick: (e: { detail: number }) => onClip(lane.type, i, e.detail),
+                  ...(lane.type === 'thumb' && onClipDouble ? { onDoubleClick: (e: { currentTarget: HTMLElement }) => onClipDouble(i, e.currentTarget) } : {}),
                 }
                 const cls = 'ln-i' + (v.cur ? ' cur' : '') + (isHl(hl, lane, i) ? ' is-hl' : '')
                 if (it.small) return <button key={'p' + i} {...common} className={'clip sm ' + cls} style={{ left: it.left, width: W }}>{W >= 14 ? <span className="vid">{v.label}</span> : null}</button>
@@ -118,7 +124,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
                 const m = it.m
                 return (
                   <button key={m.changeId} className={'mk ln-i' + (hl && hl.type === lane.type && hl.ev === m.idx ? ' on' : '')} type="button" tabIndex={tab}
-                    style={{ left: it.px, ['--c' as string]: c }} data-ev={lane.type + ':' + m.idx} aria-label={m.aria} aria-describedby={open === null && tipMarker === m.changeId ? 'hv-tip' : undefined}
+                    style={{ left: it.px, ['--c' as string]: c }} data-ev={lane.type + ':' + m.idx} data-arrival={arrivalId != null && m.changeId === arrivalId ? '' : undefined} aria-label={m.aria} aria-describedby={open === null && tipMarker === m.changeId ? 'hv-tip' : undefined}
                     onMouseEnter={e => onMarker(m, lane.type, e.currentTarget)} onFocus={e => onMarker(m, lane.type, e.currentTarget)}
                     onMouseLeave={() => onMarker(m, lane.type, null)} onBlur={() => onMarker(m, lane.type, null)}
                     onClick={() => onMarkerClick(m)}>
@@ -161,7 +167,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
                   </div>
                 )
               }
-              return <MarkerGroup key={it.key} it={it} id={id} lane={lane} color={c} isOpen={isOpen} btn={btn} wrapBlur={wrapBlur} tipTitle={tip.title} onClose={closeList}
+              return <MarkerGroup key={it.key} it={it} id={id} lane={lane} color={c} isOpen={isOpen} btn={btn} arrivalId={arrivalId} wrapBlur={wrapBlur} tipTitle={tip.title} onClose={closeList}
                 onPick={m => { setOpen(null); onMarkerClick(m) }} />
             })}
             {lane.runs.length ? (
@@ -191,8 +197,8 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
 
 const cap = (t: string) => (t ? t[0]!.toUpperCase() + t.slice(1) : '')
 
-function MarkerGroup({ it, id, lane, color, isOpen, btn, wrapBlur, tipTitle, onClose, onPick }: {
-  it: MarkGroup; id: string; lane: LaneView; color: string; isOpen: boolean
+function MarkerGroup({ it, id, lane, color, isOpen, btn, arrivalId, wrapBlur, tipTitle, onClose, onPick }: {
+  it: MarkGroup; id: string; lane: LaneView; color: string; isOpen: boolean; arrivalId: string | null
   btn: Record<string, unknown>; wrapBlur: (e: { currentTarget: HTMLElement; relatedTarget: EventTarget | null }) => void
   tipTitle: string; onClose: (viaEsc: boolean) => void; onPick: (m: MarkerView) => void
 }) {
@@ -200,7 +206,7 @@ function MarkerGroup({ it, id, lane, color, isOpen, btn, wrapBlur, tipTitle, onC
     <div className={'gwrap mg' + (isOpen ? ' open' : '')} style={{ left: it.left, width: it.width, ['--c' as string]: color }} onBlur={wrapBlur}>
       <span className="mspan" style={{ left: 0, width: it.width }} />
       {it.members.map(m => <span key={m.m.changeId} className="mtick" style={{ left: m.px - it.left }} />)}
-      <button {...btn} className="mkg gbtn ln-i" data-pairs={it.members.map(m => m.m.changeId).join(' ')}>
+      <button {...btn} className="mkg gbtn ln-i" data-arrival={arrivalId != null && it.members.some(m => m.m.changeId === arrivalId) ? '' : undefined} data-pairs={it.members.map(m => m.m.changeId).join(' ')}>
         <span><HIcon name={lane.type} />{it.abbr ? <>{it.n} <abbr title="trocas">tr.</abbr></> : it.n + ' trocas'}</span>
       </button>
       <GroupPop id={id} gkey={it.key} open={isOpen} gap={0} onClose={onClose} title={tipTitle + ' neste trecho'}>

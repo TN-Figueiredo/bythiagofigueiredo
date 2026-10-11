@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { loadOracle, loadOracleOwns, datasetFromOracle, createTestObservatory } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildHistoricoView } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
+import { headerAsk } from '@/app/cms/(authed)/youtube/competitors/_historico/forja-card-model'
 import { buildMudancasView, mudancasList, effectView } from '@/app/cms/(authed)/youtube/competitors/_mudancas/view-model'
 import { buildOutliersView } from '@/app/cms/(authed)/youtube/competitors/_outliers/view-model'
 
@@ -148,19 +149,6 @@ describe('historico view model', () => {
     expect(v.crumbs.crumb).toBe('Outliers')
   })
 
-  it('a video of another niche changes the niche only for this view, with the toast', () => {
-    const v = buildHistoricoView(obs, PICK.noreg, { niche: 'ia' })
-    expect(obs.video(PICK.noreg)!.niche).toBe('viagem')
-    expect(v.video!.nicheToast).toBe('Nicho mudou para Viagem para mostrar este vídeo')
-    expect(v.chromeNiche).toBe('viagem')
-    // an explicit ?niche= is the user's choice: the chrome keeps it and says the pager stays on the video niche
-    const w = buildHistoricoView(obs, PICK.noreg, { niche: 'ia', nicheParam: 'ia' })
-    expect(w.chromeNiche).toBe('ia')
-    expect(w.video!.nicheToast).toBe('Este vídeo é do nicho Viagem; o paginador continua no nicho do vídeo')
-    expect(buildHistoricoView(obs, PICK.noreg, { niche: 'todos' }).video!.nicheToast).toBeNull()
-    expect(buildHistoricoView(obs, PICK.noreg, { niche: 'viagem' }).video!.nicheToast).toBeNull()
-  })
-
   it('the views/day curve is steps; the expected curve comes from the engine', () => {
     const c = buildHistoricoView(obs, PICK.full, {}).chart!
     expect(c.bins.length).toBeGreaterThan(5)
@@ -173,7 +161,7 @@ describe('historico view model', () => {
   })
 
   it('the period before the series start is compressed for old videos', () => {
-    const v = buildHistoricoView(obs, PICK.pre, {})
+    const v = buildHistoricoView(obs, PICK.pre, { range: 'tudo' })
     expect(v.chart!.compressedBefore).toBe(obs.SERIES_START)
     expect(v.chart!.pre!.lines[0]).toBe('antes de ' + obs.SERIES_START_LABEL)
     expect(v.legends['']!.some(l => /dias antes de 03\/10 comprimidos à esquerda/.test(l.text))).toBe(true)
@@ -295,7 +283,7 @@ describe('historico view model', () => {
     expect(lane(PICK.full, 'thumb').versions[0]!.thumb).toEqual({ src: null, missing: 'A imagem desta versão não foi arquivada.', alt: 'Thumbnail A' })
     expect(lane(PICK.none, 'thumb').versions[0]!.thumb!.missing).toBe('A imagem desta versão não foi arquivada.')
     // what lies before the archive uses the series start label
-    const pre = buildHistoricoView(obs, PICK.pre, {})
+    const pre = buildHistoricoView(obs, PICK.pre, { range: 'tudo' })
     expect(pre.lanes.find(l => l.type === 'thumb')!.pre!.text).toBe('antes de ' + obs.SERIES_START_LABEL)
     expect(pre.comparisons[0]!.ba![0]!.thumb!.missing).toBe('Thumbnail antes de ' + obs.SERIES_START_LABEL + ': não registrada')
     const ds = datasetFromOracle(oracle)
@@ -357,49 +345,53 @@ describe('historico view model — production-shaped sync data', () => {
   })
 })
 
-// Task 35b (historico-video.html:718/731): after a failure or refusal, the action is a link to the header button
+// Tarefa 8 (A2): o cartão antigo (o da pílula, "Nada foi publicado.", o link "Para pedir de novo, use…") saiu; o cartão novo (`forjaCard`, modelo da
+// Tarefa 7) diz a mesma coisa de outro jeito, e o botão do cabeçalho é quem manda pedir de novo. Os testes que fixavam o cartão antigo foram trocados por estes.
 describe('historico view model — forja card "pedir de novo"', () => {
   const card = (state: string) => {
     const o = createTestObservatory(datasetFromOracle(oracle))
     o.forja.session.setBase(state, { type: 'leitura-video', video: PICK.full })
-    return buildHistoricoView(o, PICK.full, {}).forjaCard!
+    return buildHistoricoView(o, PICK.full, {})
   }
-  it('falhou: "Nada foi publicado." then the link sentence, no quotes around the action', () => {
-    const c = card('falhou')
-    expect(c.extra).toBe('Nada foi publicado.')
-    expect(c.toTop).toEqual({ pre: 'Para pedir de novo, use ', label: 'Pedir nova leitura à forja', post: ' no cabeçalho do vídeo.' })
+  it('falhou: "Não deu", sem etapa de sucesso, o botão do cartão vira "Pedir de novo" e o do cabeçalho "Pedir leitura à forja de novo"', () => {
+    const v = card('falhou')
+    expect(v.forjaCard!.situacao).toBe('nao-deu')
+    expect(v.forjaCard!.frase).toMatch(/^Não deu: .* Pode pedir de novo\.$/)
+    expect(v.forjaCard!.botao).toMatchObject({ label: 'Pedir de novo', habilitado: true, visivel: true })
+    expect(headerAsk(v.forjaCard!)).toMatchObject({ label: 'Pedir leitura à forja de novo', modo: 'pedir' })
   })
-  it('recusado: when the status already says to ask again, "Ir para o botão “…”"', () => {
-    const c = card('recusado (dado velho)')
-    if (/peça de novo|pedir de novo/i.test(c.statusText ?? '')) expect(c.toTop).toEqual({ pre: '', label: 'Ir para o botão “Pedir nova leitura à forja”', post: '' })
-    else expect(c.toTop!.pre).toBe('Para pedir de novo, use ')
+  it('recusado: "Precisa de você", a ação "Sincronizar este canal" e o botão apagado até o canal sincronizar', () => {
+    const v = card('recusado (dado velho)')
+    expect(v.forjaCard!.situacao).toBe('precisa-de-voce')
+    expect(v.forjaCard!.acoes.map(a => a.label)).toEqual(['Sincronizar este canal'])
+    expect(v.forjaCard!.botao).toMatchObject({ habilitado: false, por: 'sincronizar' })
+    expect(headerAsk(v.forjaCard!).modo).toBe('apagado')
   })
 })
 
-// Task 35b fix 2 (historico-video.html:682, 708, 725): the reading line and "Desde então" of the forja card
+// Task 35b fix 2, refeito na Tarefa 8: a linha da leitura e o "Desde então" do cartão novo
 describe('historico view model — forja card readings', () => {
   const card = (state: string) => {
     const o = createTestObservatory(datasetFromOracle(oracle))
     o.forja.session.setBase(state, { type: 'leitura-video', video: PICK.full })
     return buildHistoricoView(o, PICK.full, {}).forjaCard!
   }
-  it('the reading line says the day and how long ago ("24/10, há 12 min"), not a clock time', () => {
+  it('o selo diz o dia e a hora em que a leitura foi gerada, em São Paulo', () => {
     const c = card('publicado')
-    expect(c.fresh!.whenAgo).toBe('24/10, há 12 min')
-    expect(c.reading!.whenAgo).toMatch(/^20\/10, há \d+ dias$/)
+    expect(c.leitura!.selo).toBe('forja · Gemma 12B · em treino · gerada 24/10 14:50 (SP)')
+    expect(c.anterior!.selo).toMatch(/^forja · .* · em treino · gerada 20\/10 \d\d:\d\d \(SP\)$/)
   })
-  it('publicado: neither the new reading nor "Leitura anterior" carries "Desde então"', () => {
+  it('publicado: nem a leitura nova nem a "Leitura anterior" traz "Do site: desde então"', () => {
     const c = card('publicado')
-    expect(c.fresh).not.toBeNull()
-    expect(c.fresh!.since).toBeNull()
-    expect(c.reading).not.toBeNull()
-    expect(c.reading!.since).toBeNull()
+    expect(c.leitura).not.toBeNull()
+    expect(c.leitura!.doSite).toEqual([])
+    expect(c.anterior).not.toBeNull()
+    expect(c.anterior!.doSite).toEqual([])
   })
-  it('every other state keeps "Desde então" on the reading it shows', () => {
+  it('todo outro estado mantém o "desde então" na leitura que mostra', () => {
     for (const s of ['na fila', 'trabalhando', 'atrasado', 'falhou']) {
       const c = card(s)
-      expect([s, c.fresh]).toEqual([s, null])
-      expect([s, c.reading!.since?.shortText.startsWith('Desde então')]).toEqual([s, true])
+      expect([s, c.leitura!.doSite[0]?.startsWith('desde então')]).toEqual([s, true])
     }
   })
 })

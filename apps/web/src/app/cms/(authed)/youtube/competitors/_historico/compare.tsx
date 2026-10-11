@@ -7,19 +7,24 @@ import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import type { BaSide, CompareView, ComparisonView, LaneType } from './view-model'
 import type { Situation } from './many-versions'
 import { HIcon, TYPE_COLOR, type HIconName } from './icons'
-import { Thumb } from './thumb'
+import { Thumb, type ThumbZoom } from './thumb'
 import { RichText } from '../_mudancas/rich'
 
 const STATUS_ICON = (s: string): HIconName | null =>
   ['neutro', 'ganhou', 'perdeu', 'inconclusivo', 'aguardando', 'sem-serie', 'sem-antes'].includes(s) ? (s as HIconName) : null
 const SIT_ICON: Record<Situation, HIconName> = { ganhou: 'ganhou', perdeu: 'perdeu', neutro: 'neutro', inconclusivo: 'inconclusivo', aguardando: 'aguardando', 'sem-base': 'sem-antes' }
+/** "Aberta pela aba Trocas do canal: …" with the lead in bold (the sentence comes whole from the view model). */
+const boldLead = (line: string) => { const k = line.indexOf(': '); return k < 0 ? line : <><b>{line.slice(0, k + 1)}</b>{line.slice(k + 1)}</> }
 const trocas = (n: number) => n + (n === 1 ? ' troca' : ' trocas')
 
 export interface CompareFilter { field: LaneType | 'all'; situation: Situation | 'all' }
 export const NO_FILTER: CompareFilter = { field: 'all', situation: 'all' }
 
-function Side({ s }: { s: BaSide }) {
-  const th = s.thumb ? <Thumb t={s.thumb} /> : null
+/** Opens the thumbnail viewer on version `at`; `name` is the version's label ("Capa B") for the accessible name. */
+export type ZoomOf = (at: number | null) => ThumbZoom | undefined
+
+function Side({ s, zoomOf }: { s: BaSide; zoomOf?: ZoomOf }) {
+  const th = s.thumb ? <Thumb t={s.thumb} zoom={zoomOf?.(s.at)} /> : null
   return (
     <div className={'side' + (s.title && th ? '' : ' solo')}>
       {th}
@@ -28,12 +33,12 @@ function Side({ s }: { s: BaSide }) {
   )
 }
 
-function Detail({ p, onDescLink }: { p: ComparisonView; onDescLink: () => void }) {
+function Detail({ p, onDescLink, zoomOf }: { p: ComparisonView; onDescLink: () => void; zoomOf?: ZoomOf }) {
   return (
     <>
       {p.ba ? (
         <div className={'ba' + (p.ba.length === 3 ? ' three' : '')}>
-          {p.ba.map((s, i) => [i ? <span key={'a' + i} className="arr" aria-hidden="true">→</span> : null, <Side key={'s' + i} s={s} />])}
+          {p.ba.map((s, i) => [i ? <span key={'a' + i} className="arr" aria-hidden="true">→</span> : null, <Side key={'s' + i} s={s} zoomOf={zoomOf} />])}
         </div>
       ) : null}
       {p.nobase ? <div className="nobase" data-nobase=""><strong>{p.nobase.strong}</strong>{p.nobase.text}</div> : null}
@@ -44,13 +49,17 @@ function Detail({ p, onDescLink }: { p: ComparisonView; onDescLink: () => void }
   )
 }
 
-export function Compare({ comparisons, compare, selected, empty, onSelect, onDescLink, filter = NO_FILTER, onFilter, onWholeVideo }: {
+export function Compare({ comparisons, compare, selected, empty, onSelect, onDescLink, filter = NO_FILTER, onFilter, onWholeVideo, arrival = null, zoomOf }: {
   comparisons: ComparisonView[]; compare: CompareView; selected: string | null; empty: string | null
   onSelect: (k: string) => void; onDescLink: () => void
   /** List mode: the two filters (state lives in the screen: a marker of a filtered-out change clears them). */
   filter?: CompareFilter; onFilter?: (f: CompareFilter) => void
   /** List mode with a period that holds no change: back to the whole video. */
   onWholeVideo?: () => void
+  /** Opened by `troca=` (spec 6.2): its sentence shows while its pair is the one on display. */
+  arrival?: { pairK: string; line: string } | null
+  /** The viewer trigger of a side's thumbnail (spec 6.3, trigger 2); absent = the thumbnails are plain images. */
+  zoomOf?: ZoomOf
 }) {
   const list = useRef<HTMLUListElement>(null)
   const all = comparisons.filter(c => c.inRange)
@@ -70,6 +79,7 @@ export function Compare({ comparisons, compare, selected, empty, onSelect, onDes
       <span className="src">média de views/dia, 7 dias depois contra até 7 dias antes, ajustada pela idade</span>
     </div>
   )
+  const arrive = arrival && p?.changeId === arrival.pairK ? <p className="arrive" data-arrive="">{boldLead(arrival.line)}</p> : null
   if (!comparisons.length) {
     return (
       <section className="card compare" id="hv-compare" aria-labelledby="hv-cmph">
@@ -82,6 +92,7 @@ export function Compare({ comparisons, compare, selected, empty, onSelect, onDes
     return (
       <section className="card compare" id="hv-compare" aria-labelledby="hv-cmph">
         {head}
+        {arrive}
         {!p ? <div className="nobase" style={{ marginTop: 12 }}><strong>Nenhuma troca neste período.</strong></div> : (
           <>
             <div className="pairs" role="group" aria-label="Escolher troca">
@@ -94,7 +105,7 @@ export function Compare({ comparisons, compare, selected, empty, onSelect, onDes
                 )
               })}
             </div>
-            <Detail p={p} onDescLink={onDescLink} />
+            <Detail p={p} onDescLink={onDescLink} zoomOf={zoomOf} />
           </>
         )}
       </section>
@@ -127,6 +138,7 @@ export function Compare({ comparisons, compare, selected, empty, onSelect, onDes
   return (
     <section className="card compare" id="hv-compare" aria-labelledby="hv-cmph" data-mode="list">
       {head}
+      {arrive}
       {compare.sum ? <p className="cmp-sum"><RichText r={compare.sum} /></p> : null}
       <div className="flt">
         <div className="flt-g" role="group" aria-labelledby="hv-fl1">
@@ -168,7 +180,7 @@ export function Compare({ comparisons, compare, selected, empty, onSelect, onDes
                 )
               })}
             </ul>
-            <div className="cdet" id="hv-cdet" role="region" aria-label="Troca selecionada"><Detail p={p} onDescLink={onDescLink} /></div>
+            <div className="cdet" id="hv-cdet" role="region" aria-label="Troca selecionada"><Detail p={p} onDescLink={onDescLink} zoomOf={zoomOf} /></div>
           </>
         )}
       </div>

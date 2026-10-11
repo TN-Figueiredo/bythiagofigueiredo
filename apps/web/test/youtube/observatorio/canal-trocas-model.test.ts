@@ -167,6 +167,10 @@ describe('trocas do canal: o modelo', () => {
     }
     // o pager anda pelos vídeos com troca, na ordem dos cartões
     expect(q(v.cards[0]!.href).get('ids')).toBe(v.cards.map(c => c.videoId).join(','))
+    // pos e tot (D4): a posição do cartão entre os vídeos com troca (a partir de 1) e o total; a troca de uma linha não muda a posição
+    v.cards.forEach((c, i) => {
+      for (const h of [c.href, ...c.trocas.map(t => t.href)]) expect([q(h).get('pos'), q(h).get('tot')], c.videoId).toEqual([String(i + 1), String(v.cards.length)])
+    })
   })
 
   it('o link "Ver as N trocas em Mudanças" continua no fim', () => {

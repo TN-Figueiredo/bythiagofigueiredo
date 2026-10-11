@@ -27,7 +27,7 @@ function Imagem({ src, alt }: { src: string | null; alt: string }) {
 function Linha({ t, multi, onAbrir }: { t: TrocaView; multi: boolean; onAbrir: (href: string) => void }) {
   const thumb = t.campo === 'Thumbnail trocada'
   return (
-    <li className="ct-sw" onClick={e => {
+    <li className="ct-sw" data-troca={t.id} onClick={e => {
       if (!cliqueSimples(e) || (e.target as HTMLElement).closest('a,button')) return
       onAbrir(t.href)
     }}>
@@ -53,7 +53,7 @@ function Linha({ t, multi, onAbrir }: { t: TrocaView; multi: boolean; onAbrir: (
   )
 }
 
-function Cartao({ c, onAmpliar, onAbrir }: { c: TrocaCard; onAmpliar: (src: string) => void; onAbrir: (href: string) => void }) {
+function Cartao({ c, onAmpliar, onAbrir }: { c: TrocaCard; onAmpliar: (c: TrocaCard, trigger: HTMLElement | null) => void; onAbrir: (href: string) => void }) {
   const multi = c.trocas.length > 1
   return (
     <li className={'ct-card' + (multi ? ' multi' : '')} data-id={c.videoId}>
@@ -61,8 +61,8 @@ function Cartao({ c, onAmpliar, onAbrir }: { c: TrocaCard; onAmpliar: (src: stri
         <Link prefetch={false} className="ct-thumb" href={c.href} tabIndex={-1} aria-hidden="true">
           {c.thumbSrc ? <img src={c.thumbSrc} alt="" width={320} height={180} loading="lazy" decoding="async" /> : null}
         </Link>
-        {c.thumbSrc ? (
-          <button type="button" className="cv-amp" aria-label={'Ampliar a thumbnail: ' + c.title} onClick={() => onAmpliar(c.thumbSrc!)}>
+        {c.viewer ? (
+          <button type="button" className="cv-amp" aria-label={'Ampliar a thumbnail: ' + c.title} onClick={e => onAmpliar(c, e.currentTarget)}>
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14M5 7h4M7 5v4" /></svg>
           </button>
         ) : null}
@@ -84,7 +84,7 @@ export function Trocas({ view, filtro, hrefTodas, onTodas, onAmpliar, onAbrir }:
   filtro: { id: string; title: string } | null
   hrefTodas: string
   onTodas: () => void
-  onAmpliar: (src: string) => void
+  onAmpliar: (c: TrocaCard, trigger: HTMLElement | null) => void
   onAbrir: (href: string) => void
 }) {
   const semTroca = view.total === 0

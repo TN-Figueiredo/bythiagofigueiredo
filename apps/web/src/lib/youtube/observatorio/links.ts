@@ -173,6 +173,8 @@ export const link = {
 
   /**
    * Link to video historico screen.
+   * `range` stays out of the URL when it is the default (30 days); `pos`/`tot` (position of this video in the list it came
+   * from, 1-based, and the list's size) go in only when they are positive whole numbers.
    */
   historico(
     videoId: string,
@@ -182,11 +184,15 @@ export const link = {
       ids?: string[]
       canal?: string
       troca?: string
+      range?: '7' | '30' | '90' | 'tudo'
+      pos?: number
+      tot?: number
     },
   ): string {
-    // Fixed key order: from, back, ids, canal, troca (independent of the caller's object order)
+    const count = (n: number | undefined) => (typeof n === 'number' && Number.isInteger(n) && n > 0 ? n : undefined)
+    // Fixed key order: from, back, ids, canal, troca, range, pos, tot (independent of the caller's object order)
     const ordered: Record<string, unknown> = p
-      ? { from: p.from, back: p.back, ids: p.ids, canal: p.canal, troca: p.troca }
+      ? { from: p.from, back: p.back, ids: p.ids, canal: p.canal, troca: p.troca, range: p.range === '30' ? undefined : p.range, pos: count(p.pos), tot: count(p.tot) }
       : {}
     const cleaned = cleanLink(ordered)
 

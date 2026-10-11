@@ -1,0 +1,122 @@
+/* A2, Tarefa 8: o cartão "Leitura da forja" do Histórico e o botão do cabeçalho (spec 7.1, 7.2, 7.4).
+   Forma e medidas: docs/superpowers/mockups/2026-10-07-pagina-canal/{forja-etapas.css,hist.css} (.forja.fj, .fj-*). Só tokens que já existem
+   (historico.css e chrome.css): nenhuma cor nova, sem mistura de cores calculada no navegador, nenhum z-index. Texto no mínimo de 12 px.
+   Movimento: um só, o ponto da etapa atual e o do botão "Pedindo…". Com prefers-reduced-motion eles ficam parados e as palavras
+   ("em andamento", "concluída", "parou aqui") carregam o sentido; a cor nunca é o único sinal. */
+
+[data-obs-screen="historico"] .obs-fj{display:grid;gap:10px;padding:16px 20px;margin-bottom:16px;border-left:3px solid var(--forja)}
+[data-obs-screen="historico"] .obs-fj [hidden]{display:none!important}
+[data-obs-screen="historico"] .obs-fj-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+[data-obs-screen="historico"] .obs-fj-top h3{margin:0;font-size:15px;font-weight:600;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;border-radius:4px}
+[data-obs-screen="historico"] .obs-fj-top h3:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+[data-obs-screen="historico"] .obs-fj-run{font:500 12.5px var(--font-sans),system-ui,sans-serif;color:var(--forja)}
+[data-obs-screen="historico"] .obs-fj-lk{background:none;border:0;padding:0 2px;min-height:32px;cursor:pointer;font-size:12.5px;font-weight:500;color:var(--forja);text-decoration:underline;text-underline-offset:2px;border-radius:4px}
+[data-obs-screen="historico"] .obs-fj-lk:focus-visible,[data-obs-screen="historico"] .obs-fj-i:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[data-obs-screen="historico"] .obs-fj-what{margin:0;font-size:13px;color:var(--muted);max-width:78ch}
+[data-obs-screen="historico"] .obs-fj-aviso{display:flex;gap:8px;margin:0;font-size:13px;color:var(--muted)}
+[data-obs-screen="historico"] .obs-fj-aviso .obs-fj-ico{width:15px;height:15px;flex:none;margin-top:2px;color:var(--warning-text)}
+
+/* as três etapas */
+[data-obs-screen="historico"] .obs-fj-steps{list-style:none;margin:2px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+[data-obs-screen="historico"] .obs-fj-steps li{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:8px;align-items:center;align-content:start;padding:9px 8px 2px 0;border-top:2px solid var(--border-strong);font:400 13px/18px var(--font-sans),system-ui,sans-serif;color:var(--muted);min-height:52px}
+[data-obs-screen="historico"] .obs-fj-sn{min-width:0}
+[data-obs-screen="historico"] .obs-fj-ss{grid-column:2;font-size:12.5px;line-height:17px;color:var(--muted)}
+[data-obs-screen="historico"] .obs-fj-dot{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--dim);display:inline-grid;place-items:center;justify-self:center;box-sizing:border-box}
+[data-obs-screen="historico"] .obs-fj-dot svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+[data-obs-screen="historico"] .obs-fj-steps .obs-fj-done{border-top-color:var(--forja);color:var(--text)}
+[data-obs-screen="historico"] .obs-fj-steps .obs-fj-done .obs-fj-dot{border:0;color:var(--forja);width:16px;height:16px}
+[data-obs-screen="historico"] .obs-fj-steps .obs-fj-done .obs-fj-dot svg{width:16px;height:16px}
+[data-obs-screen="historico"] .obs-fj-steps .obs-fj-now{border-top-color:var(--forja);color:var(--text);font-weight:600}
+[data-obs-screen="historico"] .obs-fj-steps .obs-fj-now .obs-fj-dot{background:var(--forja);border-color:var(--forja)}
+[data-obs-screen="historico"] .obs-fj-steps .obs-fj-now .obs-fj-ss{color:var(--forja);font-weight:500}
+[data-obs-screen="historico"] .obs-fj-steps .obs-fj-late{border-top-color:var(--warning);color:var(--text);font-weight:600}
+[data-obs-screen="historico"] .obs-fj-steps .obs-fj-late .obs-fj-dot{background:var(--warning);border-color:var(--warning)}
+[data-obs-screen="historico"] .obs-fj-steps .obs-fj-late .obs-fj-ss{color:var(--warning-text);font-weight:500}
+[data-obs-screen="historico"] .obs-fj-steps .obs-fj-fail{border-top-color:var(--danger);color:var(--text);font-weight:600}
+[data-obs-screen="historico"] .obs-fj-steps .obs-fj-fail .obs-fj-dot{border:0;color:var(--danger);width:16px;height:16px}
+[data-obs-screen="historico"] .obs-fj-steps .obs-fj-fail .obs-fj-dot svg{width:16px;height:16px}
+[data-obs-screen="historico"] .obs-fj-steps .obs-fj-fail .obs-fj-ss{color:var(--danger-text);font-weight:500}
+@keyframes obs-fj-pulse{50%{opacity:.3}}
+@media (prefers-reduced-motion: no-preference){
+  [data-obs-screen="historico"] .obs-fj-steps .obs-fj-now .obs-fj-dot,
+  [data-obs-screen="historico"] .obs-fj-steps .obs-fj-late .obs-fj-dot,
+  [data-obs-screen="historico"] .btn .obs-fj-pulso{animation:obs-fj-pulse 1.4s ease-in-out infinite}
+}
+@media (max-width:640px){
+  [data-obs-screen="historico"] .obs-fj-steps{grid-template-columns:minmax(0,1fr);gap:0}
+  [data-obs-screen="historico"] .obs-fj-steps li{border-top:0;border-left:2px solid var(--border-strong);padding:6px 0 6px 12px;min-height:0}
+  [data-obs-screen="historico"] .obs-fj-steps .obs-fj-done,[data-obs-screen="historico"] .obs-fj-steps .obs-fj-now{border-left-color:var(--forja)}
+  [data-obs-screen="historico"] .obs-fj-steps .obs-fj-late{border-left-color:var(--warning)}
+  [data-obs-screen="historico"] .obs-fj-steps .obs-fj-fail{border-left-color:var(--danger)}
+}
+
+/* a faixa da situação (spec 7.2): ícone distinto para espera, atraso, pronta, desatualizada e falha */
+[data-obs-screen="historico"] .obs-fj-sit{display:flex;gap:6px 10px;align-items:flex-start;flex-wrap:wrap;border:1px solid var(--border-strong);border-radius:8px;padding:9px 12px;background:var(--surface-2);font-size:13.5px}
+[data-obs-screen="historico"] .obs-fj-ico{width:16px;height:16px;flex:none;margin-top:2px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+[data-obs-screen="historico"] .obs-fj-sit p{margin:0;flex:1 1 280px;min-width:0}
+[data-obs-screen="historico"] .obs-fj-sit.obs-fj-wait>.obs-fj-ico{color:var(--muted)}
+[data-obs-screen="historico"] .obs-fj-sit.obs-fj-late{background:var(--warn-subtle);border-color:var(--warning)}
+[data-obs-screen="historico"] .obs-fj-sit.obs-fj-late>.obs-fj-ico{color:var(--warning-text)}
+[data-obs-screen="historico"] .obs-fj-sit.obs-fj-ok{background:var(--ok-subtle);border-color:var(--success)}
+[data-obs-screen="historico"] .obs-fj-sit.obs-fj-ok>.obs-fj-ico{color:var(--success)}
+[data-obs-screen="historico"] .obs-fj-sit.obs-fj-bad{background:var(--danger-subtle);border-color:var(--danger)}
+[data-obs-screen="historico"] .obs-fj-sit.obs-fj-bad>.obs-fj-ico{color:var(--danger-text)}
+[data-obs-screen="historico"] .obs-fj-sit p.obs-fj-upd{flex:1 1 100%;font-size:12.5px;color:var(--muted);padding-left:26px}
+[data-obs-screen="historico"] .obs-fj-acts{display:flex;gap:6px 10px;flex-wrap:wrap;align-items:center;width:100%;padding-left:26px}
+[data-obs-screen="historico"] .obs-fj-acts p.obs-fj-sync{flex:0 1 auto;font-size:12.5px;color:var(--muted)}
+[data-obs-screen="historico"] .obs-fj-acts .btn[aria-busy="true"]{cursor:progress}
+@media (max-width:640px){
+  [data-obs-screen="historico"] .obs-fj-sit p.obs-fj-upd,[data-obs-screen="historico"] .obs-fj-acts{padding-left:0}
+}
+
+/* a leitura */
+[data-obs-screen="historico"] .obs-fj-leitura{display:grid;gap:6px;padding-top:12px;border-top:1px solid var(--border-subtle)}
+[data-obs-screen="historico"] .obs-fj-row{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap}
+[data-obs-screen="historico"] .obs-fj-stamp{display:inline-flex;gap:6px;align-items:flex-start;font:500 12.5px var(--font-sans),system-ui,sans-serif;color:var(--forja);border:1px solid var(--forja);background:var(--forja-subtle);border-radius:4px;padding:2px 8px;max-width:100%;min-width:0}
+/* o ícone fica colado à primeira palavra: sem `flex-wrap`, o texto quebra por dentro e nunca empurra o ícone sozinho para uma linha */
+[data-obs-screen="historico"] .obs-fj-stamp>svg{flex:0 0 auto;margin-top:2px}
+[data-obs-screen="historico"] .obs-fj-rotulo{margin-left:auto;font-size:12.5px;color:var(--muted)}
+[data-obs-screen="historico"] .obs-fj-i{width:24px;height:24px;border:0;background:none;padding:0;cursor:pointer;display:inline-grid;place-items:center;color:var(--muted);border-radius:50%}
+[data-obs-screen="historico"] .obs-fj-i:hover{color:var(--text)}
+[data-obs-screen="historico"] .obs-fj-i svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
+@media (pointer:coarse),(max-width:900px){
+  [data-obs-screen="historico"] .obs-fj-i{width:44px;height:44px}
+  [data-obs-screen="historico"] .obs-fj-lk{min-height:44px}
+}
+[data-obs-screen="historico"] .obs-fj-leu{margin:0;font-size:13px;color:var(--muted)}
+[data-obs-screen="historico"] .obs-fj-texto{display:grid;gap:4px;border-left:2px solid var(--forja);padding-left:14px;max-width:78ch}
+[data-obs-screen="historico"] .obs-fj-lead{margin:2px 0 0;font:400 16px/1.6 var(--font-fraunces-var),Georgia,serif;max-width:68ch}
+[data-obs-screen="historico"] .obs-fj-itens{margin:6px 0 0;padding-left:18px;font:400 16px/1.6 var(--font-fraunces-var),Georgia,serif;display:grid;gap:6px;max-width:68ch}
+[data-obs-screen="historico"] a.obs-fj-fn{color:var(--forja);text-decoration:none;font:600 12px var(--font-sans),system-ui,sans-serif;padding:0 1px}
+[data-obs-screen="historico"] a.obs-fj-fn sup{font-size:12px;vertical-align:super;line-height:0}
+[data-obs-screen="historico"] a.obs-fj-fn:hover{text-decoration:underline}
+@media (pointer:coarse),(max-width:900px){
+  [data-obs-screen="historico"] a.obs-fj-fn{padding:12px 8px;margin:-12px -5px}
+  [data-obs-screen="historico"] .obs-fj-evid li a{display:inline-block;padding:11px 0;line-height:1.3}
+}
+[data-obs-screen="historico"] .obs-fj-evid{max-width:78ch}
+[data-obs-screen="historico"] .obs-fj-evid h4{margin:0 0 4px;font:600 13.5px var(--font-sans),system-ui,sans-serif}
+[data-obs-screen="historico"] .obs-fj-evid ol{margin:0;padding-left:22px;display:grid;gap:5px;font-size:13px;color:var(--muted);list-style:decimal}
+[data-obs-screen="historico"] .obs-fj-evid li a{color:var(--text);text-underline-offset:2px}
+[data-obs-screen="historico"] .obs-fj-site{border-top:1px dashed var(--border-strong);padding-top:10px;margin-top:2px;font-size:13px;color:var(--muted)}
+[data-obs-screen="historico"] .obs-fj-site p{margin:0 0 4px}
+[data-obs-screen="historico"] .obs-fj-site b{color:var(--text);font-weight:600}
+[data-obs-screen="historico"] details.obs-fj-prev{border-top:1px solid var(--border-subtle);padding-top:10px}
+[data-obs-screen="historico"] details.obs-fj-prev>summary{cursor:pointer;min-height:32px;display:flex;align-items:center;font-size:12.5px;color:var(--muted)}
+[data-obs-screen="historico"] details.obs-fj-prev[open]>summary{margin-bottom:8px}
+
+/* o bloco do nicho: o que a leitura de padrões diz sobre este título (site, não forja) */
+[data-obs-screen="historico"] .obs-fj-nicho{border-top:1px dashed var(--border-strong);padding-top:10px;font-size:13px;color:var(--muted)}
+[data-obs-screen="historico"] p.obs-fj-nicho{margin:0}
+[data-obs-screen="historico"] section.obs-fj-nicho p{margin:0 0 4px}
+[data-obs-screen="historico"] .obs-fj-nicho h4{margin:0 0 6px;font:600 12px/1.4 var(--font-sans),system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+[data-obs-screen="historico"] .obs-fj-nicho ul{margin:6px 0 0;padding-left:20px;font-size:13px;line-height:1.5}
+[data-obs-screen="historico"] .obs-fj-nicho a{display:inline-flex;align-items:center;min-height:32px;color:var(--forja);font-size:12.5px;font-weight:500}
+
+/* o botão do cartão e a frase sob ele */
+[data-obs-screen="historico"] .obs-fj-ask{display:flex;gap:6px 12px;align-items:center;flex-wrap:wrap}
+[data-obs-screen="historico"] .obs-fj-ask p{margin:0;font-size:13px;color:var(--muted);flex:1 1 280px}
+[data-obs-screen="historico"] .btn .obs-fj-pulso{width:8px;height:8px;border-radius:50%;background:currentColor;display:inline-block}
+[data-obs-screen="historico"] .btn[aria-busy="true"]{cursor:progress}
+/* a janela do ⓘ do selo (camada única, #flut) */
+#flut .obs-fj-pop{padding:10px 12px;font-size:13px;line-height:1.45}

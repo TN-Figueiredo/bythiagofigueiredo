@@ -7,11 +7,23 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { ToastProvider } from './toasts'
+import { marcarVoltaPelaTrilha, renovarUltimoVideo } from './ultimo-video'
+import { cliqueSimples } from './clique-simples'
+import { esperarVoltaAoCanal } from '../_canal/use-rolagem-ao-voltar'
 import './trail-chrome.css'
 
-export interface Crumb { text: string; href?: string }
+/**
+ * `voltaAoCanal` (id do canal) marca o item que leva à página do canal a partir do Histórico do vídeo: o clique simples é um `push`, não um
+ * `popstate`, e o spec (3, 6.5) o trata como o Voltar: a página do canal devolve a rolagem e põe o foco no último vídeo visto. É um dado, não
+ * uma função, porque a trilha chega de um Server Component (Next 16: nada de função como prop).
+ */
+export interface Crumb { text: string; href?: string; voltaAoCanal?: string }
 
-export function TrailChrome({ crumbs, children }: { crumbs: Crumb[]; children: ReactNode }) {
+/**
+ * `aside` é o que a página põe na linha da trilha, entre ela e a nota de fuso (o pager do Histórico do vídeo, como no mockup aprovado: trilha à
+ * esquerda, pager à direita, a mesma linha). É um elemento já montado pelo servidor; nenhuma função passa por aqui.
+ */
+export function TrailChrome({ crumbs, aside, children }: { crumbs: Crumb[]; aside?: ReactNode; children: ReactNode }) {
   return (
     <div data-obs="" className="obs-ch-root">
       <ToastProvider>
@@ -23,12 +35,15 @@ export function TrailChrome({ crumbs, children }: { crumbs: Crumb[]; children: R
                   const last = i === crumbs.length - 1
                   return (
                     <li key={i} aria-current={last ? 'page' : undefined}>
-                      {!last && c.href ? <Link href={c.href}>{c.text}</Link> : c.text}
+                      {!last && c.href
+                        ? <Link href={c.href} onClick={c.voltaAoCanal ? (e => { if (cliqueSimples(e)) { renovarUltimoVideo(c.voltaAoCanal!); marcarVoltaPelaTrilha(c.voltaAoCanal!); esperarVoltaAoCanal() } }) : undefined}>{c.text}</Link>
+                        : c.text}
                     </li>
                   )
                 })}
               </ol>
             </nav>
+            {aside ? <div className="obs-tr-aside">{aside}</div> : null}
             <span className="obs-tr-tz">Horários em São Paulo</span>
           </div>
           <div className="obs-ch-screen">{children}</div>
