@@ -5,7 +5,7 @@
  * aba (Vídeos, Trocas) usa `history.pushState`: o Voltar do navegador a desfaz, e o `popstate` relê a URL com `parseCanalState`.
  * O resto da URL (`from`, `back`…) fica como está.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { canalQuery, parseCanalState, type CanalState } from './params'
 
 /** Os parâmetros que o estado possui; todos os outros da URL passam intactos. */
@@ -34,24 +34,24 @@ export function useCanalState(initial: CanalState): [CanalState, (patch: Partial
     setState(next)
     escreverUrl(next, next.tab !== antes.tab ? 'push' : 'replace')
   }, [])
-  // O servidor manda um `initial` novo quando a navegação muda a query (Link para ?tab=leitura): o Next não remonta o componente,
-  // então o estado acompanha, comparando por VALOR (uma rerrenderização do servidor sem mudar a query, como após "Fixar", não mexe).
-  // Na montagem, se a URL divergir do que o servidor mandou (volta de outra rota com cache do Next), a tela segue a URL.
+  // O servidor manda um `initial` novo quando a navegação muda a query (Link para ?tab=leitura, Voltar): o Next não remonta o
+  // componente, então o estado acompanha, comparando por VALOR (uma rerrenderização do servidor sem mudar a query, como após
+  // "Fixar", não mexe). A URL é a fonte da verdade: o `initial` pode vir velho (o Voltar até uma entrada criada por `pushState`
+  // devolve o RSC da query anterior, e o `popstate` já pôs a aba certa), e a URL do navegador já é a da navegação quando o
+  // efeito roda. Por isso o efeito sempre relê a URL; `initial` só decide quando a chave muda (e vale quando a URL não diz nada).
   const chave = canalQuery(initial)
   const chaveAnterior = useRef<string | null>(null)
-  useEffect(() => {
+  // layout effect: o estado certo entra antes da primeira pintura (sem o lampejo da aba ou da lista erradas depois do Voltar)
+  useLayoutEffect(() => {
     const primeira = chaveAnterior.current === null
     if (!primeira && chaveAnterior.current === chave) return
     chaveAnterior.current = chave
-    let next = initial
-    if (primeira) {
-      const daUrl = parseCanalState(Object.fromEntries(new URLSearchParams(window.location.search)))
-      if (canalQuery(daUrl) === chave) return
-      next = daUrl
-    }
-    ref.current = next
-    setState(next)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `initial` só importa quando a chave (seu valor) muda
+    const daUrl = parseCanalState(Object.fromEntries(new URLSearchParams(window.location.search)))
+    if (primeira && canalQuery(daUrl) === chave) return
+    if (canalQuery(daUrl) === canalQuery(ref.current)) return
+    ref.current = daUrl
+    setState(daUrl)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a chave (o valor de `initial`) é o gatilho; o que vale é a URL
   }, [chave])
   // o Voltar/Avançar do navegador: a URL é a verdade, o estado a relê
   useEffect(() => {

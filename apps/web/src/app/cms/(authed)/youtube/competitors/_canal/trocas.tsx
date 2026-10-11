@@ -7,6 +7,7 @@
  * imagem inventada. Server actions e navegação chegam por props.
  */
 import type { MouseEvent } from 'react'
+import Link from 'next/link'
 import type { CanalTrocasView, TrocaCard, TrocaView } from './trocas-model'
 
 const Swap = () => (
@@ -47,7 +48,7 @@ function Linha({ t, multi, onAbrir }: { t: TrocaView; multi: boolean; onAbrir: (
         </dl>
         <p className="ct-efeito"><b>No histórico, efeito em 7 dias:</b> {t.efeito}</p>
       </div>
-      {multi ? <a className="ct-rowgo" href={t.href} aria-label={t.hrefLabel}>Abrir nesta troca <Chev /></a> : null}
+      {multi ? <Link prefetch={false} className="ct-rowgo" href={t.href} aria-label={t.hrefLabel}>Abrir nesta troca <Chev /></Link> : null}
     </li>
   )
 }
@@ -57,9 +58,9 @@ function Cartao({ c, onAmpliar, onAbrir }: { c: TrocaCard; onAmpliar: (src: stri
   return (
     <li className={'ct-card' + (multi ? ' multi' : '')} data-id={c.videoId}>
       <span className="ct-twrap">
-        <a className="ct-thumb" href={c.href} tabIndex={-1} aria-hidden="true">
+        <Link prefetch={false} className="ct-thumb" href={c.href} tabIndex={-1} aria-hidden="true">
           {c.thumbSrc ? <img src={c.thumbSrc} alt="" width={320} height={180} loading="lazy" decoding="async" /> : null}
-        </a>
+        </Link>
         {c.thumbSrc ? (
           <button type="button" className="cv-amp" aria-label={'Ampliar a thumbnail: ' + c.title} onClick={() => onAmpliar(c.thumbSrc!)}>
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14M5 7h4M7 5v4" /></svg>
@@ -67,9 +68,9 @@ function Cartao({ c, onAmpliar, onAbrir }: { c: TrocaCard; onAmpliar: (src: stri
         ) : null}
       </span>
       <div className="ct-gh">
-        <h3><a href={c.href}>{c.title}</a></h3>
+        <h3><Link prefetch={false} href={c.href}>{c.title}</Link></h3>
         {multi ? <span className="ct-mesmo"><Swap />{c.contagem}</span> : null}
-        <a className="obs-ch-btn ct-go" href={c.href} aria-label={c.hrefLabel}>Abrir histórico do vídeo <Chev /></a>
+        <Link prefetch={false} className="obs-ch-btn ct-go" href={c.href} aria-label={c.hrefLabel}>Abrir histórico do vídeo <Chev /></Link>
       </div>
       {multi ? <p className="ct-also">O botão abre o histórico do vídeo todo. Cada troca abaixo tem o seu link e abre o histórico já nela.</p> : null}
       <ul className="ct-rows">{c.trocas.map(t => <Linha key={t.id} t={t} multi={multi} onAbrir={onAbrir} />)}</ul>
@@ -109,7 +110,7 @@ export function Trocas({ view, filtro, hrefTodas, onTodas, onAmpliar, onAbrir }:
               {cards.map(c => <Cartao key={c.videoId} c={c} onAmpliar={onAmpliar} onAbrir={onAbrir} />)}
             </ul>
           ) : null}
-          {view.mudancasLink ? <p className="ct-mud"><a className="lk" href={view.mudancasLink.href}>{view.mudancasLink.text}</a></p> : null}
+          {view.mudancasLink ? <p className="ct-mud"><Link prefetch={false} className="lk" href={view.mudancasLink.href}>{view.mudancasLink.text}</Link></p> : null}
         </>
       )}
     </section>

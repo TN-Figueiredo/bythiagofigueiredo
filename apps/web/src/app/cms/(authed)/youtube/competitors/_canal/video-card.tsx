@@ -5,6 +5,7 @@
  * visíveis. Duas paradas de Tab: o link e o ⋯ (a lupa tem tabindex -1; o teclado amplia pelo menu). A thumbnail não usa o `Thumb`
  * de Outliers: o dele é preso a `.obs-out` e leva só a duração, e aqui os selos são seis.
  */
+import Link from 'next/link'
 import type { CanalSort } from '@/lib/youtube/observatorio/links'
 import type { ChannelVideoView } from './videos-model'
 import { VideoMenu } from './video-menu'
@@ -31,7 +32,7 @@ function Numeros({ v, sort }: { v: ChannelVideoView; sort: CanalSort }) {
     return <p className="cv-nums">{views}<span className="cv-c s2 txt"><span className="obs-ch-nm">{v.semMedida}</span></span></p>
   }
   return (
-    <p className="cv-nums">
+    <p className="cv-nums cv-nums3">
       {views}
       {v.vpdText != null ? <Cell valor={v.vpdText} rotulo="views/dia" on={sort === 'vpd'} /> : <Nd rotulo="views/dia" />}
       {v.multText != null
@@ -59,10 +60,10 @@ export function VideoCard({ v, sort, href, onAmpliar, onTrocas }: {
 }) {
   return (
     <li className="cv-card" data-id={v.id}>
-      <a className="cv-lnk" id={'cv-lnk-' + v.id} href={href}>
+      <Link prefetch={false} className="cv-lnk" id={'cv-lnk-' + v.id} href={href}>
         <span className="cv-thumb">{v.thumbSrc ? <img src={v.thumbSrc} alt="" width={320} height={180} loading="lazy" decoding="async" /> : null}</span>
         <span className="cv-ttl obs-ch-ttl">{v.title}</span>
-      </a>
+      </Link>
       <Selos v={v} />
       {v.thumbSrc ? (
         <button type="button" className="cv-amp" tabIndex={-1} aria-label={'Ampliar a thumbnail: ' + v.title} onClick={() => onAmpliar(v)}>

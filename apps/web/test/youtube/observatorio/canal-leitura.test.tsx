@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { screen, within, cleanup, fireEvent } from '@testing-library/react'
+import { screen, within, cleanup, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement, ReactNode } from 'react'
 import { mountCanal } from './canal-mount'
@@ -218,12 +218,16 @@ describe('aba Leitura: o estado do cliente acompanha a navegação do servidor',
   const NO = <p data-testid="no-leitura">conteúdo da leitura</p>
   const abaSel = () => screen.getByRole('navigation', { name: 'Seções do canal' }).querySelector('[aria-current="page"]')?.textContent ?? ''
 
-  async function reMonta(sp: Record<string, string>, leitura: ReactNode, rerender: (ui: ReactElement) => void, m: Awaited<ReturnType<typeof mountCanal>>) {
+  async function reMonta(sp: Record<string, string>, leitura: ReactNode, rerender: (ui: ReactElement) => void, m: Awaited<ReturnType<typeof mountCanal>>, url?: string) {
     const { buildCanalView } = await import('@/app/cms/(authed)/youtube/competitors/_canal/view-model')
     const { CanalScreen } = await import('@/app/cms/(authed)/youtube/competitors/_canal/canal-screen')
     const { nicheOptions } = await import('@/app/cms/(authed)/youtube/competitors/_canais/view-model')
     const { ToastProvider } = await import('@/app/cms/(authed)/youtube/competitors/_chrome/toasts')
     const view = buildCanalView(m.obs, m.chId, sp)!
+    // o Next escreve a URL da navegação no mesmo commit em que entrega o RSC novo: o efeito da tela já a encontra pronta
+    const q = new URLSearchParams(sp).toString()
+    if (url === undefined) window.history.replaceState(null, '', window.location.pathname + (q ? '?' + q : ''))
+    else window.history.replaceState(null, '', window.location.pathname + url)
     rerender(<ToastProvider><div data-obs=""><CanalScreen view={view} niches={nicheOptions(m.obs)} canAdmin leitura={leitura} actions={m.act} /></div></ToastProvider>)
   }
 
@@ -250,6 +254,21 @@ describe('aba Leitura: o estado do cliente acompanha a navegação do servidor',
     expect(abaSel()).toMatch(/Trocas/)
     await reMonta({}, null, m.rerender, m)
     expect(abaSel()).toMatch(/Trocas/)
+  })
+
+  it('I-1: Trocas (clique) -> Leitura (Link) -> Voltar: o RSC velho (sem tab) não desfaz a aba que a URL diz', async () => {
+    const m = mountCanal()
+    await userEvent.click(screen.getByRole('link', { name: /^Trocas/ }))     // pushState: ?tab=trocas
+    expect(window.location.search).toBe('?tab=trocas')
+    await reMonta({ tab: 'leitura' }, NO, m.rerender, m)                       // Link: servidor com ?tab=leitura
+    expect(abaSel()).toMatch(/Leitura/)
+    // Voltar: a URL volta a ?tab=trocas e o popstate põe Trocas; o Next entrega o RSC da entrada que o pushState copiou (sem tab)
+    window.history.replaceState(null, '', window.location.pathname + '?tab=trocas')
+    act(() => { window.dispatchEvent(new PopStateEvent('popstate')) })
+    expect(abaSel()).toMatch(/Trocas/)
+    await reMonta({}, null, m.rerender, m, '?tab=trocas')
+    expect(abaSel()).toMatch(/Trocas/)
+    expect(window.location.search).toBe('?tab=trocas')
   })
 
   it('montagem com a URL divergente do estado inicial segue a URL', async () => {

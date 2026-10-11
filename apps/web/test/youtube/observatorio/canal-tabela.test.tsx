@@ -55,6 +55,15 @@ describe('Lista: a tabela', () => {
     expect(tabela().querySelector('caption')!.textContent).toBe('Vídeos de Matt Wolfe')
   })
 
+  it('I-2: canal em backfill: Múltiplo, Views/dia e Trocas dizem a frase em .obs-ch-nm, nunca "0" nem número calculado', () => {
+    mountCanal({ sp: LISTA, mut: (ds, id) => { const sy = ds.channels.find(x => x.id === id)!.sync; sy.state = 'backfill'; sy.backfill = { done: 12, total: 48 } } })
+    const linha = tabela().querySelector<HTMLElement>('tr.cv-row')!
+    for (const rot of ['Views/dia', 'Múltiplo', 'Trocas']) {
+      const td = linha.querySelector<HTMLElement>(`td[data-label="${rot}"]`)!
+      expect(norm(td.textContent), rot).toBe('quando a sincronização terminar')
+      expect(td.querySelector('.obs-ch-nm'), rot).not.toBeNull()
+    }
+  })
   it('as colunas ordenáveis têm um botão dentro do th; aria-sort só na coluna ativa', () => {
     mountCanal({ sp: LISTA })
     for (const nome of ['Publicado', 'Views', 'Views/dia', 'Múltiplo']) expect(th(nome).querySelector('button'), nome).not.toBeNull()

@@ -5,7 +5,7 @@
  * Trocas trocam no navegador (mesmo pacote de dados); Leitura é navegação de verdade, porque o servidor lê o conjunto do site para ela
  * (D3). Server actions chegam por props (`actions`); nenhum `Link` chega de um Server Component.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Niche } from '@/lib/youtube/observatorio/niche'
@@ -24,7 +24,7 @@ import { Controles, FMT_NOME, SORT_NOME } from './controles'
 import { Grade } from './grade'
 import { Tabela } from './tabela'
 import { Trocas } from './trocas'
-import { montarLista } from './lista'
+import { montarLista, type ListaView } from './lista'
 import { canalQuery, LOTE, type CanalState } from './params'
 import { useCanalState } from './use-canal-state'
 import { useRolagemAoVoltar } from './use-rolagem-ao-voltar'
@@ -40,6 +40,11 @@ export interface CanalActions {
   onSetNiche: typeof setChannelNiche
   onPin: PinAction
   onUnpin: PinAction
+}
+
+/** Acha um elemento da tela pelo id, a partir da raiz DESTA tela: depois de um Voltar o Next 16 mantém a cópia escondida da rota no documento, com os mesmos ids, e `document.getElementById` devolve a primeira na ordem do documento. */
+function porId(raiz: RefObject<HTMLElement | null>, id: string): HTMLElement | null {
+  return raiz.current?.querySelector<HTMLElement>(`[id="${id}"]`) ?? null
 }
 
 const FOCUSABLE = 'button:not([disabled]),a[href],select,input,textarea,[tabindex="0"]'
@@ -91,7 +96,7 @@ function vizinhanca(ids: readonly string[], i: number): string[] {
  * o link. Leitura é sempre um `Link` de navegação, e a partir da Leitura (que o servidor montou sem o miolo das outras) Vídeos e Trocas
  * também são. Retenção não aparece: é só de canal próprio (spec 5.8).
  */
-function AbasNav({ view, state, onAba }: { view: CanalView; state: CanalState; onAba: (tab: CanalTab) => void }) {
+function AbasNav({ view, state, resumo, onAba }: { view: CanalView; state: CanalState; resumo: string | null; onAba: (tab: CanalTab) => void }) {
   const abas: Array<{ tab: CanalTab; texto: string; n: string }> = [
     { tab: 'videos', texto: 'Vídeos', n: String(view.videos.videos.length) },
     { tab: 'trocas', texto: 'Trocas', n: view.trocas.tabCount },
@@ -114,16 +119,17 @@ function AbasNav({ view, state, onAba }: { view: CanalView; state: CanalState; o
           )
         })}
       </ul>
+      {resumo ? <p className="res">{resumo}</p> : null}
     </nav>
   )
 }
 
 /** A aba Vídeos: controles, a vista (grade de capas ou tabela), "Carregar mais" e a nota fixa. */
-function AbaVideos({ view, state, set, nome, channelId, onSync }: {
-  view: CanalView; state: CanalState; set: (patch: Partial<CanalState>) => void; nome: string; channelId: string; onSync: () => void
+function AbaVideos({ view, state, lista, set, nome, channelId, onSync, raiz }: {
+  view: CanalView; state: CanalState; lista: ListaView; set: (patch: Partial<CanalState>) => void; nome: string; channelId: string; onSync: () => void
+  raiz: RefObject<HTMLElement | null>
 }) {
   const all = view.videos.videos
-  const lista = useMemo(() => montarLista(all, state), [all, state.fmt, state.sort, state.dir, state.q, state.n])   // eslint-disable-line react-hooks/exhaustive-deps
   const listaRef = useRef(lista)
   useEffect(() => { listaRef.current = lista })
 
@@ -198,7 +204,7 @@ function AbaVideos({ view, state, set, nome, channelId, onSync }: {
     const id = focoNoNovo.current
     if (!id) return
     focoNoNovo.current = null
-    document.getElementById('cv-lnk-' + id)?.focus({ preventScroll: true })
+    porId(raiz, 'cv-lnk-' + id)?.focus({ preventScroll: true })
   })
   const onMais = () => {
     const n = state.n + LOTE
@@ -228,7 +234,7 @@ function AbaVideos({ view, state, set, nome, channelId, onSync }: {
           <Controles state={state} counts={lista.counts} barRef={barRef} inputRef={inputRef}
             onFmt={onFmt} onSort={onSort} onQ={onQ} onClearQ={onClearQ} onVer={onVer} />
           <PinMessages />
-          {lista.secoes.length ? <a className="lk cv-skip" href="#cv-fim" onClick={e => { e.preventDefault(); document.getElementById('cv-fim')?.focus() }}>Pular a lista de vídeos</a> : null}
+          {lista.secoes.length ? <a className="lk cv-skip" href="#cv-fim" onClick={e => { e.preventDefault(); porId(raiz, 'cv-fim')?.focus() }}>Pular a lista de vídeos</a> : null}
           {lista.secoes.length
             ? state.ver === 'lista'
               ? <Tabela lista={lista} state={state} nome={nome} descrito="cv-foot" hrefDe={hrefs} onSort={onColuna} onAmpliar={ampliar} onTrocas={verTrocas} />
@@ -263,8 +269,14 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
   const router = useRouter(), toast = useToast()
   const h = view.header
   const [state, set] = useCanalState(view.state)
-  useRolagemAoVoltar()
+  const raiz = useRef<HTMLDivElement>(null)
+  useRolagemAoVoltar(raiz)
   const nums = state.nums
+  // a lista (filtro, ordem, busca, n) é montada aqui: a aba Vídeos a desenha e o resumo à direita das abas a lê
+  const todos = view.videos.videos
+  const lista = useMemo(() => montarLista(todos, state), [todos, state.fmt, state.sort, state.dir, state.q, state.n])   // eslint-disable-line react-hooks/exhaustive-deps
+  // spec 5.3 e 5.5: à direita das abas, na aba Vídeos, "133 vídeos: 61 longos, 71 Shorts, 1 com formato não confirmado." (com busca: "5 vídeos com “lisboa”"; sem nenhum, a caixa de vazio já diz a frase)
+  const resumo = state.tab !== 'videos' || !todos.length ? null : state.q.trim() ? (lista.vazio ? null : lista.resultado) : state.fmt === 'todos' ? view.header.result : null
   /* trocar de aba move o foco para o título da aba nova; o Voltar do navegador (popstate) não mexe no foco */
   const focoNaAba = useRef(false)
   const setAba = useCallback((patch: Partial<CanalState>) => {
@@ -272,7 +284,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
     set(patch)
   }, [set, state.tab])
   const irParaAba = (tab: CanalTab) => {
-    if (tab === state.tab) { document.getElementById(tab === 'trocas' ? 'ct-h2' : 'cv-h2')?.focus({ preventScroll: true }); return }
+    if (tab === state.tab) { porId(raiz, tab === 'trocas' ? 'ct-h2' : 'cv-h2')?.focus({ preventScroll: true }); return }
     setAba({ tab, video: null })
   }
   /* Toda troca de aba depois da primeira montagem (clique, "Ver trocas", popstate) rola até o título da aba nova: a página encolhe e o
@@ -282,7 +294,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
   useLayoutEffect(() => {
     const mudou = abaAnterior.current !== state.tab
     abaAnterior.current = state.tab
-    const titulo = document.getElementById(state.tab === 'trocas' ? 'ct-h2' : 'cv-h2')
+    const titulo = porId(raiz, state.tab === 'trocas' ? 'ct-h2' : 'cv-h2')
     if (focoNaAba.current) { focoNaAba.current = false; titulo?.focus({ preventScroll: true }) }
     if (!mudou) return
     const reduzir = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -352,13 +364,13 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
   return (
     <NicheOptionsContext.Provider value={niches}>
       <NichePendingContext.Provider value={pending}>
-        <div data-obs-screen="canal">
+        <div data-obs-screen="canal" ref={raiz}>
           <CanalHeader h={h} nums={nums} syncing={syncing} canAdmin={canAdmin} menuBtnRef={menuBtn}
             onToggleNums={toggleNums} onSync={() => { void syncOne() }} onAskRemove={() => setConfirm(true)} onNiche={n => { void setNiche(n) }} />
-          <AbasNav view={view} state={state} onAba={irParaAba} />
+          <AbasNav view={view} state={state} resumo={resumo} onAba={irParaAba} />
           {h.sync.banner ? <Banner text={h.sync.banner} tone={h.sync.tone} /> : null}
           <PinProvider onPin={actions.onPin} onUnpin={actions.onUnpin}>
-            <AbaVideos view={view} state={state} set={setAba} nome={h.name} channelId={h.id} onSync={() => { void syncOne() }} />
+            <AbaVideos view={view} state={state} lista={lista} set={setAba} nome={h.name} channelId={h.id} onSync={() => { void syncOne() }} raiz={raiz} />
           </PinProvider>
           {state.tab === 'trocas' ? (
             <Trocas view={view.trocas} filtro={filtroTrocas ? { id: filtroTrocas.id, title: filtroTrocas.title } : null} hrefTodas={hrefTodasTrocas}

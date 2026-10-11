@@ -6,11 +6,12 @@
  * pilha e cada célula mostra o rótulo (`data-label`). Só desenha: quem muda o estado, escreve a URL e anuncia é a tela
  * (`onSort`); o menu ⋯ é o mesmo da grade. Dado ausente é "não medido" (classe `obs-ch-nm`), nunca zero.
  */
+import Link from 'next/link'
 import type { CanalSort } from '@/lib/youtube/observatorio/links'
 import { notaDoDivisor } from './grade'
 import type { ListaView } from './lista'
 import type { CanalState } from './params'
-import type { ChannelVideoView } from './videos-model'
+import { AGUARDANDO, type ChannelVideoView } from './videos-model'
 import { VideoMenu } from './video-menu'
 
 /** Coluna ordenável -> ordenação (a mesma do select "Ordenar"). */
@@ -51,7 +52,7 @@ const Nm = ({ children }: { children: string }) => <span className="obs-ch-nm">{
 
 /** O que a célula diz quando não há views por dia nem múltiplo: o motivo, em poucas palavras (mockup `linha`). */
 function semMedida(v: ChannelVideoView): string {
-  return v.views == null ? 'sem contagem' : v.grupo === 'fixado-antigo' ? 'fixado antigo' : 'não medido'
+  return v.aguardando ? AGUARDANDO : v.views == null ? 'sem contagem' : v.grupo === 'fixado-antigo' ? 'fixado antigo' : 'não medido'
 }
 
 /** As marcas sob o título (o selo de duração fica na thumbnail). */
@@ -73,7 +74,7 @@ function Linha({ v, sort, href, onAmpliar, onTrocas }: {
   return (
     <tr className="cv-row" data-id={v.id}>
       <td className="v">
-        <a className="cv-tl" id={'cv-lnk-' + v.id} href={href}>
+        <Link prefetch={false} className="cv-tl" id={'cv-lnk-' + v.id} href={href}>
           <span className="cv-tthumb">
             {v.thumbSrc ? <img src={v.thumbSrc} alt="" width={320} height={180} loading="lazy" decoding="async" /> : null}
             {selo ? <span className={'cv-seal br' + (v.isShort ? '' : ' num')}>{selo}</span> : null}
@@ -82,7 +83,7 @@ function Linha({ v, sort, href, onAmpliar, onTrocas }: {
             <span className="cv-ttl obs-ch-ttl">{v.title}</span>
             {tags.length ? <span className="cv-tags">{tags.join(', ')}</span> : null}
           </span>
-        </a>
+        </Link>
       </td>
       <td className={'r' + on('recentes')} data-label="Publicado">
         {v.pub == null ? <Nm>sem data</Nm> : <time dateTime={v.pubISO ?? undefined}>{v.ageText}<span className="obs-ch-sr"> ({v.pubTitle})</span></time>}
@@ -96,7 +97,7 @@ function Linha({ v, sort, href, onAmpliar, onTrocas }: {
       </td>
       <td className="r num" data-label="Curtidas">{v.likesText ?? <Nm>não medido</Nm>}</td>
       <td className="r num" data-label="Comentários">{v.commentsText ?? <Nm>não medido</Nm>}</td>
-      <td className="r num" data-label="Trocas">{v.swaps}</td>
+      <td className="r num" data-label="Trocas">{v.aguardando ? <Nm>{AGUARDANDO}</Nm> : v.swaps}</td>
       <td className="a"><VideoMenu v={v} onAmpliar={onAmpliar} onTrocas={onTrocas} /></td>
     </tr>
   )

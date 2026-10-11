@@ -19,7 +19,8 @@ test.beforeEach(async ({ page }) => {
   // o contêiner que rola: a casca do CMS rola dentro do próprio contêiner, não no documento
   await page.addInitScript(() => {
     ;(window as unknown as { __sc: () => HTMLElement }).__sc = () => {
-      const raiz = document.querySelector('[data-obs-screen]')
+      // depois de um Voltar por navegação do Next o documento tem a cópia escondida da rota: a raiz é a tela VISÍVEL
+      const raiz = [...document.querySelectorAll('[data-obs-screen]')].find(e => e.getClientRects().length > 0) ?? document.querySelector('[data-obs-screen]')
       for (let p = raiz?.parentElement ?? null; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
         const o = getComputedStyle(p).overflowY
         if ((o === 'auto' || o === 'scroll' || o === 'overlay') && p.scrollHeight > p.clientHeight + 1) return p
@@ -346,7 +347,7 @@ test('A1.6 Voltar do Histórico reabre a grade com os mesmos cartões e a mesma 
   await esperarParado(page, page.locator(`${SCREEN} .chead`))
   expect(page.url()).toBe(urlAntes)
   expect(await page.locator(`${SCREEN} .cv-card`).count(), 'os mesmos cartões').toBe(total)
-  const topoDepois = await rolagem(page), y1 = (await caixa(page.locator('#' + idAlvo))).y
+  const topoDepois = await rolagem(page), y1 = (await caixa(page.locator('#' + idAlvo + ':visible').first())).y
   medida(`Voltar do Histórico: ${total} cartões; rolagem ${topoAntes} -> ${topoDepois}; o cartão aberto estava a ${y0} px do topo da janela e voltou a ${y1} px`)
   expect(Math.abs(topoDepois - topoAntes), 'a mesma rolagem (até 24 px)').toBeLessThanOrEqual(24)
 })
@@ -589,6 +590,169 @@ for (const tema of THEMES) {
   })
 }
 
+/* ================================================================== onda de consertos da fase A1 (D1 a D3, resumo, título, links) */
+/** Roda no navegador: nenhum dos números do rodapé de um cartão (`.cv-c`) se sobrepõe a outro nem passa da própria coluna ou do cartão. */
+const rodapes = (page: Page, sintetico: boolean) => page.evaluate(sint => {
+  const falhas: string[] = []
+  if (sint) {
+    // o pior caso que a semente talvez não traga: views de 6 algarismos + "não medido" + o nível mais comprido
+    const nums = document.querySelector('.cv-grid .cv-card .cv-nums')!
+    nums.className = 'cv-nums cv-nums3'
+    nums.innerHTML = '<span class="cv-c"><b class="num">672,3 mil</b> <i>views</i></span>'
+      + '<span class="cv-c nd"><span class="obs-ch-sr">views/dia: </span><span class="obs-ch-nm">não medido</span> <i aria-hidden="true">views/dia</i></span>'
+      + '<span class="cv-c"><b class="num t-high">10,2×</b> <i class="t-high">muito alto</i></span>'
+  }
+  let n = 0
+  document.querySelectorAll('.cv-grid .cv-card').forEach(card => {
+    const nums = card.querySelector('.cv-nums'), cr = card.getBoundingClientRect()
+    if (!nums || cr.width === 0) return
+    n++
+    // o retângulo do TEXTO de cada coluna (o `b` e o `i` esticam até a largura da coluna mesmo quando o texto passa dela)
+    const texto = (c: Element) => { const r = document.createRange(); r.selectNodeContents(c); let l = Infinity, rt = -Infinity; for (const x of r.getClientRects()) { if (x.width === 0) continue; l = Math.min(l, x.left); rt = Math.max(rt, x.right) } return { l, r: rt } }
+    const cs = [...nums.querySelectorAll<HTMLElement>(':scope > .cv-c')], rs = cs.map(c => c.getBoundingClientRect()), ts = cs.map(c => {
+      const parts = [...c.querySelectorAll<HTMLElement>('b, .obs-ch-nm, i')].filter(e => !e.closest('.obs-ch-sr') && getComputedStyle(e).textOverflow !== 'ellipsis').map(texto)
+      return { l: Math.min(...parts.map(p => p.l)), r: Math.max(...parts.map(p => p.r)) }
+    })
+    for (let i = 0; i < cs.length; i++) {
+      if (ts[i]!.r > cr.right - 2 + 0.5) falhas.push(`${card.getAttribute('data-id')}: coluna ${i} passa do cartão (${Math.round(ts[i]!.r)}>${Math.round(cr.right)})`)
+      if (ts[i]!.r > rs[i]!.right + 0.5) falhas.push(`${card.getAttribute('data-id')}: o texto da coluna ${i} passa da própria coluna (${Math.round(ts[i]!.r)}>${Math.round(rs[i]!.right)})`)
+      for (let j = i + 1; j < cs.length; j++) if (Math.min(ts[i]!.r, ts[j]!.r) - Math.max(ts[i]!.l, ts[j]!.l) > 0.5) falhas.push(`${card.getAttribute('data-id')}: colunas ${i} e ${j} se sobrepõem`)
+    }
+  })
+  return { n, falhas: falhas.slice(0, 8) }
+}, sintetico)
+
+for (const tema of THEMES) {
+  test(`D1 (${tema === 'dark' ? 'escuro' : 'claro'}): no rodapé do cartão, views, "não medido" e múltiplo não se sobrepõem, em 1440, 1280 e 1024 px (e no pior caso de largura)`, async ({ page }) => {
+    await page.context().addCookies([{ name: 'btf_theme', value: tema, url: 'http://localhost:3099' }])
+    await abrir(page, '', { width: 1440, height: 900 })
+    for (const w of [1440, 1280, 1024]) {
+      await page.setViewportSize({ width: w, height: 900 })
+      await page.waitForTimeout(300)
+      const r = await rodapes(page, false)
+      medida(`${tema} ${w}px: ${r.n} cartões, ${r.falhas.length} rodapés com sobreposição`)
+      expect(r.n).toBeGreaterThan(100)
+      expect(r.falhas, `rodapés em ${w} px`).toEqual([])
+    }
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.waitForTimeout(300)
+    const pior = await rodapes(page, true)
+    medida(`${tema} 1440px, pior caso sintético (672,3 mil + não medido + muito alto): ${pior.falhas.length} falhas ${pior.falhas.join(' | ')}`)
+    expect(pior.falhas, 'pior caso na largura de 224 px').toEqual([])
+  })
+
+  test(`D2 (${tema === 'dark' ? 'escuro' : 'claro'}): em 390 px o cabeçalho tem o nome numa largura sã, a faixa em duas colunas inteiras e a sincronização na largura toda`, async ({ page }) => {
+    await page.context().addCookies([{ name: 'btf_theme', value: tema, url: 'http://localhost:3099' }])
+    await abrir(page, '', { width: 390, height: 844 })
+    const m = await page.evaluate(() => {
+      const q = (s: string) => document.querySelector<HTMLElement>(`[data-obs-screen="canal"] ${s}`)!
+      const r = (e: Element) => { const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height, r: b.right, b: b.bottom } }
+      const head = r(q('.chead')), h1 = r(q('.chead h1')), strip = r(q('.nrow .nstrip')), lrow = r(q('.chead .lrow')), clip = q('.nrow .nclip')
+      const cells = [...document.querySelectorAll<HTMLElement>('[data-obs-screen="canal"] .nrow .nc')].map(c => r(c))
+      const cortadas = [...document.querySelectorAll<HTMLElement>('[data-obs-screen="canal"] .nrow .nc')].filter(c => c.scrollWidth > c.clientWidth + 1).length
+      const cs = getComputedStyle(q('.chead h1'))
+      const linhasH1 = Math.round(h1.h / parseFloat(cs.lineHeight))
+      const colunas = new Set(cells.map(c => Math.round(c.x))).size
+      const sobre = cells.some((a, i) => cells.some((b, j) => j > i && Math.min(a.r, b.r) - Math.max(a.x, b.x) > 1 && Math.min(a.b, b.b) - Math.max(a.y, b.y) > 1))
+      return { head, h1, strip, lrow, linhasH1, colunas, sobre, cortadas, clipOk: clip.scrollWidth <= clip.clientWidth + 1, docW: document.documentElement.scrollWidth }
+    })
+    medida(`${tema} 390px: cabeçalho ${Math.round(m.head.w)}x${Math.round(m.head.h)}; h1 ${Math.round(m.h1.w)}x${Math.round(m.h1.h)} (${m.linhasH1} linhas); faixa ${Math.round(m.strip.w)} px em ${m.colunas} colunas; linha de sincronização ${Math.round(m.lrow.w)} px`)
+    expect(m.h1.w, 'largura do nome (antes: uma letra por linha, ~20 px)').toBeGreaterThanOrEqual(80)
+    expect(m.h1.h, 'o nome não quebra letra por letra').toBeLessThanOrEqual(2 * 27 + 1)
+    expect(m.linhasH1).toBeLessThanOrEqual(2)
+    expect(m.strip.w, 'a faixa usa a largura da tela').toBeGreaterThanOrEqual(m.head.w - 20)
+    expect(m.colunas, 'duas colunas').toBe(2)
+    expect(m.sobre, 'células sobrepostas').toBe(false)
+    expect(m.clipOk, 'a faixa não corta nada').toBe(true)
+    expect(m.cortadas).toBe(0)
+    expect(m.lrow.w, 'a sincronização ocupa a largura toda').toBeGreaterThanOrEqual(m.head.w - 2)
+    expect(m.docW).toBeLessThanOrEqual(390)
+  })
+}
+
+test('D3: em 390 px o segmento Formato mostra "Fixados" inteiro (nada cortado nem rolando); a barra é presa só com largura ≥ 768 px (spec 5.2: em 390 nada fica preso) e o resumo desce para a linha de baixo', async ({ page }) => {
+  await abrir(page, '', { width: 390, height: 844 })
+  const r = await page.evaluate(() => {
+    const sc = document.querySelector<HTMLElement>('[data-obs-screen="canal"] .cv-fscroll')!, seg = sc.querySelector<HTMLElement>('.cv-seg')!
+    const bs = [...seg.querySelectorAll<HTMLElement>('button')].map(b => ({ t: (b.textContent ?? '').trim(), r: b.getBoundingClientRect() }))
+    const ult = bs[bs.length - 1]!, box = sc.getBoundingClientRect()
+    const ctl = document.querySelector<HTMLElement>('[data-obs-screen="canal"] .cv-ctl')!
+    return { textos: bs.map(b => b.t), direita: ult.r.right, limite: box.right, rolagem: sc.scrollWidth - sc.clientWidth, esquerda: bs[0]!.r.left, limE: box.left, pos: getComputedStyle(ctl).position, cortado: [...seg.querySelectorAll<HTMLElement>('button')].filter(b => b.scrollWidth > b.clientWidth + 1).length }
+  })
+  medida(`390px: Formato ${r.textos.join(' | ')}; último botão termina em ${Math.round(r.direita)} (limite ${Math.round(r.limite)}); rolagem lateral ${r.rolagem}px; barra ${r.pos}`)
+  expect(r.textos).toHaveLength(4); expect(r.textos[3]).toMatch(/^Fixados\s*\d+$/)
+  expect(r.direita, '"Fixados" termina dentro da caixa do segmento').toBeLessThanOrEqual(r.limite + 0.5)
+  expect(r.esquerda).toBeGreaterThanOrEqual(r.limE - 0.5)
+  expect(r.rolagem, 'sem rolagem lateral no segmento').toBeLessThanOrEqual(1)
+  expect(r.cortado).toBe(0)
+  expect(r.pos, 'em 390 px a barra não fica presa').toBe('static')
+  const res = await page.evaluate(() => { const u = document.querySelector('[data-obs-screen="canal"] .ctabs ul')!.getBoundingClientRect(), p = document.querySelector('[data-obs-screen="canal"] .ctabs .res')!.getBoundingClientRect(); return { abaixo: p.top >= u.bottom - 1, txt: (document.querySelector('[data-obs-screen="canal"] .ctabs .res')!.textContent ?? '') } })
+  expect(res.abaixo, 'o resumo desce abaixo das abas em 390 px').toBe(true)
+})
+
+test('resumo à direita das abas: "N vídeos: X longos, Y Shorts…" na mesma linha em 1440 px; com busca diz "N vídeos com “texto”"; some na aba Trocas', async ({ page }) => {
+  await abrir(page, '', { width: 1440, height: 900 })
+  const res = page.locator(`${SCREEN} .ctabs .res`)
+  await expect(res).toBeVisible()
+  const txt = ((await res.textContent()) ?? '').trim()
+  medida(`resumo: "${txt}"`)
+  expect(txt).toMatch(/^\d+ vídeos: \d+ longos?, \d+ Shorts?(, \d+ com formato não confirmado)?\.$/)
+  const g = await page.evaluate(() => { const u = document.querySelector('[data-obs-screen="canal"] .ctabs ul')!.getBoundingClientRect(), p = document.querySelector('[data-obs-screen="canal"] .ctabs .res')!.getBoundingClientRect(), n = document.querySelector('[data-obs-screen="canal"] .ctabs')!.getBoundingClientRect(); return { naLinha: p.top < u.bottom && p.bottom > u.top, aDireita: p.left >= u.right - 1, naBorda: n.right - p.right < 4 } })
+  expect(g.naLinha, 'na mesma linha das abas').toBe(true); expect(g.aDireita).toBe(true); expect(g.naBorda, 'encostado à direita').toBe(true)
+  await page.locator(`${SCREEN} #cv-q`).fill('ai')
+  await expect(res).toHaveText(/^(\d+ vídeos?|Nenhum vídeo) com “ai”/)
+  await page.locator(`${SCREEN} #cv-q`).fill('')
+  await page.locator(`${SCREEN} .cv-seg[aria-label="Formato"] button`, { hasText: /^Shorts/ }).click()
+  await expect(res).toHaveCount(0)
+  await page.locator(`${SCREEN} .ctabs a`, { hasText: 'Trocas' }).click()
+  await expect(page.locator(`${SCREEN} #ct-h2:visible`).first()).toBeVisible()
+  await expect(res).toHaveCount(0)
+})
+
+test('título do cartão: até 2 linhas, nunca 1 só cortada (cartões da mesma altura)', async ({ page }) => {
+  await abrir(page, '', { width: 1440, height: 900 })
+  const r = await page.evaluate(() => {
+    const out = { dois: 0, total: 0, altura: new Set<number>(), clamp: '', display: '' }
+    document.querySelectorAll<HTMLElement>('[data-obs-screen="canal"] .cv-grid .cv-ttl').forEach(e => {
+      const cs = getComputedStyle(e), lh = parseFloat(cs.lineHeight)
+      out.total++; out.altura.add(Math.round(e.getBoundingClientRect().height)); out.clamp = cs.getPropertyValue('-webkit-line-clamp'); out.display = cs.display
+      const clone = e.cloneNode(true) as HTMLElement
+      clone.style.cssText = `position:absolute;visibility:hidden;display:block;-webkit-line-clamp:none;height:auto;width:${e.clientWidth}px;margin:0`
+      e.parentElement!.appendChild(clone)
+      const natural = Math.round(clone.getBoundingClientRect().height / lh); clone.remove()
+      // dois ou mais pelo texto: a caixa mostra duas linhas (a altura reservada é de duas)
+      if (natural >= 2 && e.getBoundingClientRect().height >= 2 * lh - 1) out.dois++
+    })
+    return { ...out, altura: [...out.altura] }
+  })
+  medida(`${r.total} títulos, ${r.dois} com duas linhas visíveis; line-clamp ${r.clamp}; alturas ${r.altura.join('/')}`)
+  expect(r.clamp).toBe('2')
+  expect(r.altura).toHaveLength(1)
+  expect(r.dois, 'há títulos de duas linhas e eles aparecem em duas').toBeGreaterThan(0)
+})
+
+test('D4: o link do cartão e o da linha são navegação do Next (o documento não recarrega), com href, foco e Voltar', async ({ page }) => {
+  await abrir(page, '', { width: 1440, height: 900 })
+  await page.evaluate(() => { (window as unknown as { __marca: number }).__marca = 42 })
+  const link = page.locator(`${SCREEN} .cv-card:visible a.cv-lnk`).first()
+  expect(await link.getAttribute('href')).toMatch(/\/competitors\/video\//)
+  await link.focus()
+  await expect(link).toBeFocused()
+  await link.click()
+  await page.waitForURL(/\/competitors\/video\//, { timeout: 30_000 })
+  expect(await page.evaluate(() => (window as unknown as { __marca?: number }).__marca), 'o documento não foi recarregado').toBe(42)
+  await page.goBack()
+  await page.waitForURL(u => u.pathname.includes('/canal/'), { timeout: 30_000 })
+  await expect(page.locator(`${SCREEN} .cv-grid:visible`).first()).toBeVisible({ timeout: 30_000 })
+  expect(await page.evaluate(() => (window as unknown as { __marca?: number }).__marca)).toBe(42)
+  // a Lista: o mesmo
+  await page.goto(url('?ver=lista')); await pronta(page)
+  await page.evaluate(() => { (window as unknown as { __marca: number }).__marca = 43 })
+  await page.locator(`${SCREEN} table.cv-lst a.cv-tl`).first().click()
+  await page.waitForURL(/\/competitors\/video\//, { timeout: 30_000 })
+  expect(await page.evaluate(() => (window as unknown as { __marca?: number }).__marca), 'a Lista também navega sem recarregar').toBe(43)
+})
+
 /* ================================================================== console e 5xx */
 test('console sem erro e nenhuma resposta 5xx na página do canal, nas três abas', async ({ page }) => {
   const erros: string[] = [], cincoXX: string[] = []
@@ -714,6 +878,39 @@ test('aba Leitura pelo clique: mostra o conteúdo (não só a URL), Vídeos volt
   expect(tab()).toBeNull()
   await expect(abas.locator('a[aria-current="page"]')).toHaveText(/^Vídeos/)
   medida('Leitura pelo clique: Vídeos > Leitura > Vídeos > Voltar > Voltar, tela e URL de acordo em cada passo')
+})
+
+test('I-1: Trocas (clique) -> Leitura (Link) -> Voltar: a tela mostra Trocas e a URL diz ?tab=trocas (o RSC velho não desfaz a aba)', async ({ page }) => {
+  await abrir(page, '', { width: 1440, height: 900 })
+  const abas = page.locator(`${SCREEN} .ctabs:visible`).first()
+  const tab = () => new URL(page.url()).searchParams.get('tab')
+  const ativa = () => page.locator(`${SCREEN} .ctabs:visible a[aria-current="page"]`).first()
+  await abas.getByRole('link', { name: /^Trocas/ }).click()                    // pushState, sem servidor
+  await expect(page.locator(`${SCREEN} #ct-h2:visible`).first()).toBeVisible()
+  expect(tab()).toBe('trocas')
+  await abas.getByRole('link', { name: /^Leitura/ }).click()                   // Link: o servidor entrega ?tab=leitura
+  await expect(page.locator(`${SCREEN} #cl-h2:visible`).first()).toBeVisible({ timeout: 30_000 })
+  expect(tab()).toBe('leitura')
+  await page.goBack()
+  await expect(page.locator(`${SCREEN} #ct-h2:visible`).first()).toBeVisible({ timeout: 30_000 })
+  // o RSC da entrada velha chega depois do popstate: espera o assentar antes de olhar a tela
+  await page.waitForTimeout(1500)
+  expect(tab()).toBe('trocas')
+  await expect(ativa()).toHaveText(/^Trocas/)
+  await expect(page.locator(`${SCREEN} #ct-h2:visible`).first()).toBeVisible()
+  await expect(page.locator(`${SCREEN} .cv-grid:visible`)).toHaveCount(0)
+  // e o inverso: chegar por ?tab=trocas, ir a Vídeos (push), Leitura (Link) e voltar
+  await page.goto(url('?tab=trocas')); await pronta(page)
+  await abas.getByRole('link', { name: /^Vídeos/ }).click()
+  await expect(page.locator(`${SCREEN} .cv-grid:visible`).first()).toBeVisible()
+  await abas.getByRole('link', { name: /^Leitura/ }).click()
+  await expect(page.locator(`${SCREEN} #cl-h2:visible`).first()).toBeVisible({ timeout: 30_000 })
+  await page.goBack()
+  await expect(page.locator(`${SCREEN} .cv-grid:visible`).first()).toBeVisible({ timeout: 30_000 })
+  await page.waitForTimeout(1500)
+  expect(tab()).toBeNull()
+  await expect(ativa()).toHaveText(/^Vídeos/)
+  medida('I-1: Trocas > Leitura > Voltar e Vídeos > Leitura > Voltar (entrada por ?tab=trocas): tela e URL de acordo depois do assentar')
 })
 
 test('Voltar vindo do Histórico: a página do canal reabre na aba Trocas (tela e URL de acordo)', async ({ page }) => {

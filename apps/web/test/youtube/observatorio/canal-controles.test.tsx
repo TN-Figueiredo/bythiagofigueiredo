@@ -19,6 +19,24 @@ const urlNow = () => new URL(window.location.href).searchParams
 beforeEach(() => { push.mockReset(); replace.mockReset(); refresh.mockReset(); window.history.replaceState(null, '', '/cms/youtube/competitors/canal/matt-wolfe') })
 afterEach(() => { vi.useRealTimers(); cleanup(); document.getElementById('flut')?.remove(); vi.restoreAllMocks() })
 
+describe('resumo à direita das abas (spec 5.3 e 5.5)', () => {
+  const res = () => document.querySelector<HTMLElement>('nav.ctabs .res')
+  it('aba Vídeos, Todos, sem busca: a linha de resultado do cabeçalho; com Shorts escolhido ou na aba Trocas, nada', () => {
+    const { view } = mountCanal()
+    expect(norm(res()!.textContent)).toBe(view.header.result)
+    cleanup(); mountCanal({ sp: { fmt: 'shorts' } })
+    expect(res()).toBeNull()
+    cleanup(); mountCanal({ sp: { tab: 'trocas' } })
+    expect(res()).toBeNull()
+  })
+  it('com busca: "N vídeos com “texto”"; sem nenhum, só a caixa de vazio diz a frase (nenhum texto repetido)', () => {
+    mountCanal({ sp: { q: 'ai' } })
+    expect(norm(res()!.textContent)).toMatch(/^\d+ vídeos? com “ai”$/)
+    cleanup(); mountCanal({ sp: { q: 'zzzz-sem-resultado' } })
+    expect(res()).toBeNull()
+  })
+})
+
 describe('controles da aba Vídeos', () => {
   it('grupo "Formato": role=group, botões com aria-pressed e a contagem no nome ("Longos, 61")', () => {
     const { view } = mountCanal()

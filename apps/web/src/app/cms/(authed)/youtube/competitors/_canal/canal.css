@@ -78,6 +78,11 @@
 [data-obs-screen="canal"] .vazio p{margin:0;font-size:14px}
 
 @media (max-width:900px){
+  /* o cabeçalho passa a duas colunas (avatar, nome): as ações descem para a própria linha e a faixa, a sincronização e as células ocupam a largura toda;
+     com a terceira coluna "auto" das ações o nome ficava com uma letra por linha e a faixa, em 160 px (mockup canal.css, 900 px) */
+  [data-obs-screen="canal"] .chead{grid-template-columns:auto minmax(0,1fr);row-gap:6px}
+  [data-obs-screen="canal"] .chead .av{grid-row:auto}
+  [data-obs-screen="canal"] .chead .acts{grid-column:1/3;flex-wrap:wrap;justify-content:flex-end}
   [data-obs-screen="canal"] .chead .nrow,[data-obs-screen="canal"] .chead .nclip.n2,[data-obs-screen="canal"] .chead .lrow{grid-column:1/3}
   [data-obs-screen="canal"] .chead .ntools{height:44px;margin-left:-10px}
   /* 768 px: três colunas iguais (6 números = 2 linhas cheias, sem célula órfã); o rótulo quebra em vez de rolar para o lado */
@@ -85,6 +90,7 @@
   [data-obs-screen="canal"] .nstrip dt{white-space:normal}
   [data-obs-screen="canal"] .nmore{min-height:44px}
 }
+@media (max-width:480px){[data-obs-screen="canal"] .chead h1{font-size:20px}}
 @media (max-width:600px){
   /* 390 e 320 px: duas colunas, com o rótulo quebrando em vez de rolar para o lado (nenhum número fica escondido) */
   [data-obs-screen="canal"] .nstrip{margin-left:-15px}
@@ -194,6 +200,10 @@
 [data-obs-screen="canal"] .cv-abtn svg{width:16px;height:16px}
 /* três colunas fixas de número, valor em cima (mono) e rótulo embaixo; a ordenação só muda qual fica em --text */
 [data-obs-screen="canal"] .cv-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 5px;margin:2px 6px 10px 10px;height:34px;font-size:12px;line-height:16px;color:var(--muted)}
+/* os três números (views, views/dia, múltiplo): cada coluna tem a largura do que carrega ("672,3 mil", o chip "não medido", "muito alto") e a sobra vira o vão
+   entre elas, em vez de três terços fixos em que o valor passava da coluna e se sobrepunha à vizinha; se mesmo assim faltar largura, só o rótulo da última corta */
+[data-obs-screen="canal"] .cv-nums3{grid-template-columns:auto auto minmax(0,auto);justify-content:space-between;gap:0 2px;margin-right:2px}
+[data-obs-screen="canal"] .cv-nums3 .cv-c:last-child i{overflow:hidden;text-overflow:ellipsis}
 [data-obs-screen="canal"] .cv-c{display:flex;flex-direction:column;min-width:0}
 [data-obs-screen="canal"] .cv-c b{font:500 13px/18px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em;color:var(--muted);white-space:nowrap}
 [data-obs-screen="canal"] .cv-c i{font-style:normal;white-space:nowrap}
@@ -206,7 +216,7 @@
 [data-obs-screen="canal"] .cv-c.s3{grid-column:span 3}
 [data-obs-screen="canal"] .cv-c.txt{justify-content:center}
 /* "não medido": em linha, para a borda e o respiro não esticarem a altura fixa do cartão */
-[data-obs-screen="canal"] .cv-c .obs-ch-nm{display:inline;padding:0 4px;font:400 12px/16px var(--font-sans),system-ui,sans-serif;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+[data-obs-screen="canal"] .cv-c .obs-ch-nm{display:inline;padding:0 2px;font:400 12px/16px var(--font-sans),system-ui,sans-serif;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 [data-obs-screen="canal"] .cv-c.nd .obs-ch-nm{white-space:nowrap}
 
 /* divisores de fim de lista */
@@ -286,6 +296,12 @@
   [data-obs-screen="canal"] .cv-ctl .cv-gap{display:none}
   [data-obs-screen="canal"] .cv-lst th button{min-height:44px;min-width:44px;justify-content:flex-end}
 }
+/* 390 px: os quatro botões do Formato (com a contagem) cabem na largura, repartindo-a pelo conteúdo, sem cortar "Fixados"; a rolagem lateral
+   fica só de reserva para 320 px */
+@media (max-width:600px){
+  [data-obs-screen="canal"] .cv-fscroll .cv-seg{display:flex}
+  [data-obs-screen="canal"] .cv-fscroll .cv-seg button{flex:1 1 auto;padding:0 5px;gap:4px;min-width:0}
+}
 @media (pointer:coarse){
   [data-obs-screen="canal"] .cv-lst th button{min-height:44px;min-width:44px;justify-content:flex-end}
   [data-obs-screen="canal"] .cv-seg button{min-height:44px;min-width:44px}
@@ -320,7 +336,9 @@
 }
 
 /* ---------------------------------------------------------------- abas do canal (nav "Seções do canal"; mockup canal.css .ctabs) */
-[data-obs-screen="canal"] .ctabs{display:flex;align-items:flex-end;border-bottom:1px solid var(--border);margin:0 0 4px}
+[data-obs-screen="canal"] .ctabs{display:flex;align-items:flex-end;gap:4px 16px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin:0 0 4px}
+/* a linha de resultado fica à direita das abas, na mesma linha (spec 5.3); em largura estreita desce para a linha de baixo */
+[data-obs-screen="canal"] .ctabs .res{margin:0 0 0 auto;padding:0 0 8px;font-size:12.5px;color:var(--muted);min-width:0}
 [data-obs-screen="canal"] .ctabs ul{display:flex;gap:2px;list-style:none;margin:0;padding:0;min-width:0}
 [data-obs-screen="canal"] .ctabs a{display:flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;color:var(--muted);text-decoration:none;font-size:13.5px;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;border-radius:4px 4px 0 0}
 [data-obs-screen="canal"] .ctabs a:hover{color:var(--text)}
@@ -328,6 +346,7 @@
 [data-obs-screen="canal"] .ctabs a:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 [data-obs-screen="canal"] .ctabs a .n{font:400 12px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;color:var(--muted)}
 @media (max-width:900px){
+  [data-obs-screen="canal"] .ctabs .res{margin-left:0;padding-top:6px;flex:1 1 100%}
   [data-obs-screen="canal"] .ctabs a{min-height:44px}
   [data-obs-screen="canal"] .ctabs ul{overflow-x:auto;scrollbar-width:none;padding:4px;margin:-4px;max-width:calc(100% + 8px)}
   [data-obs-screen="canal"] .ctabs ul::-webkit-scrollbar{display:none}

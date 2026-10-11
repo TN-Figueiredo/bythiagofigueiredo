@@ -28,7 +28,20 @@ describe('useRolagemAoVoltar', () => {
     const b = render(<Harness useIt={hook} />)
     expect(b.getByTestId('rola').scrollTop).toBe(3785)
     // usada uma vez: a chave sai
-    expect(window.sessionStorage.length).toBe(0)
+    expect(Object.keys(window.sessionStorage).filter(k => k.startsWith('canal-rolagem:'))).toEqual([])
+  })
+
+  it('o Voltar que veio antes da montagem vale mesmo se o módulo foi avaliado de novo (a cópia nova não viu o popstate)', async () => {
+    ir('?n=40')
+    const hookA = await carregar()
+    const a = render(<Harness useIt={hookA} />)
+    a.getByTestId('rola').scrollTop = 3785
+    fireEvent.click(a.getByText('abrir'))
+    a.unmount()
+    window.dispatchEvent(new PopStateEvent('popstate'))   // só a cópia velha do módulo o ouve
+    const hookB = await carregar()                        // a cópia nova (ultimoPop = nunca)
+    const b = render(<Harness useIt={hookB} />)
+    expect(b.getByTestId('rola').scrollTop).toBe(3785)
   })
 
   it('uma visita nova à mesma URL (sem Voltar) abre no alto', async () => {

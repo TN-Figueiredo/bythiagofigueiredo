@@ -23,6 +23,19 @@ beforeEach(() => { push.mockReset(); replace.mockReset(); refresh.mockReset(); w
 afterEach(() => { cleanup(); document.getElementById('flut')?.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('"Carregar mais"', () => {
+  it('I-3: com a cópia escondida da rota no documento (Voltar do Next 16), "Pular a lista" e o foco do "Carregar mais" agem na tela VISÍVEL, não na cópia de mesmo id', () => {
+    mountCanal({ mut: comAntigos(ANT) })   // a cópia escondida: vem primeiro no documento e tem os mesmos ids
+    mountCanal({ mut: comAntigos(ANT) })
+    const [velha, nova] = [...document.querySelectorAll<HTMLElement>('[data-obs-screen="canal"]')]
+    fireEvent.click(within(nova!).getByRole('link', { name: 'Pular a lista de vídeos' }))
+    expect((document.activeElement as HTMLElement).id).toBe('cv-fim')
+    expect(nova!.contains(document.activeElement)).toBe(true)
+    expect(velha!.contains(document.activeElement)).toBe(false)
+    fireEvent.click(within(nova!).getByRole('button', { name: 'Carregar mais 40 vídeos' }))
+    expect((document.activeElement as HTMLElement).id).toMatch(/^cv-lnk-/)
+    expect(nova!.contains(document.activeElement)).toBe(true)
+  })
+
   it('o bloco tem role=progressbar com aria-valuenow e aria-valuemax, "Mostrando 120 de 202 vídeos" e a frase do que vem', () => {
     mountCanal({ mut: comAntigos(ANT) })
     expect(cartoes()).toHaveLength(ACOMP)
