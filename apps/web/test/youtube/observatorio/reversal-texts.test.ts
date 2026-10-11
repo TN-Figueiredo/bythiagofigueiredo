@@ -16,7 +16,7 @@ function abca() {
 }
 const badges = (obs: ReturnType<typeof createObservatory>, video: string) =>
   Object.fromEntries(buildMudancasView(obs, { video, win: '90' }, new Set()).heroes.map(h => [h.id, h.badges.filter(b => b.kind === 'rev').map(b => b.text)]))
-const thumbNotes = (obs: ReturnType<typeof createObservatory>, video: string) => buildHistoricoView(obs, video, {}).versions!.thumbs.notes.filter(n => n.kind === 'ab').map(n => n.text)
+const thumbNotes = (obs: ReturnType<typeof createObservatory>, video: string) => buildHistoricoView(obs, video, { range: 'tudo' }).versions!.thumbs.notes.filter(n => n.kind === 'ab').map(n => n.text)
 
 describe('motor: a volta é imediata ou não', () => {
   it('A → B → C → A: a volta NÃO é imediata, com 2 imagens no intervalo; a perna B → C não foi "revertida"', () => {

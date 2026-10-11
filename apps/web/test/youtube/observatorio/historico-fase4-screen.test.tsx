@@ -23,7 +23,8 @@ const flut = () => document.getElementById('flut')
 
 const { ds } = loadFase4(), obs = createObservatory(ds)
 function mount(id: string, p: Record<string, string | undefined> = {}) {
-  const view = buildHistoricoView(obs, id, p)
+  // the chart opens on 30 days now (spec 6.4); these tests were written for the whole video, so they ask for it
+  const view = buildHistoricoView(obs, id, { range: 'tudo', ...p })
   const r = render(<ToastProvider><HistoricoScreen view={view} /></ToastProvider>)
   const root = r.container.querySelector<HTMLElement>('[data-obs-screen="historico"]')!
   const laneOf = (t: string) => root.querySelector<HTMLElement>('[data-lane="' + t + '"]')!
@@ -131,15 +132,17 @@ describe('filtro de período (Task 6)', () => {
     expect(within(ctl).getAllByRole('button').map(b => [b.textContent, b.getAttribute('aria-pressed'), b.getAttribute('aria-label')])).toEqual([
       ['7 d', 'false', '7 d: últimos 7 dias'], ['30 d', 'false', '30 d: últimos 30 dias'], ['90 d', 'false', '90 d: últimos 90 dias'], ['tudo', 'true', 'tudo: desde a publicação']])
   })
-  it('escolher um período escreve ?range= na URL sem rolar a página; "tudo" tira o parâmetro', () => {
+  it('escolher um período escreve ?range= na URL sem rolar a página; "30 d" (o padrão) tira o parâmetro e "tudo" o escreve', () => {
     const a = mount(VID.many)
     fireEvent.click(within(a.root.querySelector<HTMLElement>('.rng-ctl')!).getByRole('button', { name: '7 d: últimos 7 dias' }))
     expect(replace).toHaveBeenLastCalledWith('/cms/youtube/competitors/video/x?from=mudancas&range=7', { scroll: false })
     a.unmount()
     const b = mount(VID.many, { range: '7' })
     expect(within(b.root.querySelector<HTMLElement>('.rng-ctl')!).getByRole('button', { name: '7 d: últimos 7 dias' }).getAttribute('aria-pressed')).toBe('true')
-    fireEvent.click(within(b.root.querySelector<HTMLElement>('.rng-ctl')!).getByRole('button', { name: 'tudo: desde a publicação' }))
+    fireEvent.click(within(b.root.querySelector<HTMLElement>('.rng-ctl')!).getByRole('button', { name: '30 d: últimos 30 dias' }))
     expect(replace).toHaveBeenLastCalledWith('/cms/youtube/competitors/video/x?from=mudancas', { scroll: false })
+    fireEvent.click(within(b.root.querySelector<HTMLElement>('.rng-ctl')!).getByRole('button', { name: 'tudo: desde a publicação' }))
+    expect(replace).toHaveBeenLastCalledWith('/cms/youtube/competitors/video/x?from=mudancas&range=tudo', { scroll: false })
   })
   it('com 7 d: a frase fica abaixo das faixas e as faixas só têm o que está dentro', () => {
     const { root, laneOf } = mount(VID.many, { range: '7' })
@@ -150,9 +153,9 @@ describe('filtro de período (Task 6)', () => {
     expect(laneOf('thumb').querySelectorAll('[data-k]').length + laneOf('thumb').querySelectorAll('[data-sl]').length).toBe(3)
     expect(root.querySelectorAll('.vlines > *').length).toBe(3)
   })
-  it('vídeo curto: o filtro não aparece', () => {
+  it('vídeo curto: o filtro aparece também (spec 6.4: sempre que há gráfico)', () => {
     const { root } = mount(VID.few, { range: '7' })
-    expect([root.querySelector('.rng-ctl'), root.querySelector('#hv-rngtxt')]).toEqual([null, null])
+    expect([!!root.querySelector('.rng-ctl'), !!root.querySelector('#hv-rngtxt')]).toEqual([true, true])
   })
 })
 
@@ -315,7 +318,7 @@ describe('comparação em lista (Task 8)', () => {
     const back = root.querySelector<HTMLElement>('#hv-fltclear')!
     expect(back.textContent).toBe('Mostrar o vídeo inteiro')
     fireEvent.click(back)
-    expect(replace).toHaveBeenLastCalledWith('/cms/youtube/competitors/video/x?from=mudancas', { scroll: false })
+    expect(replace).toHaveBeenLastCalledWith('/cms/youtube/competitors/video/x?from=mudancas&range=tudo', { scroll: false })
   })
 })
 

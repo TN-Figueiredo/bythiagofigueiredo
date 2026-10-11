@@ -9,20 +9,21 @@ import { buildHistoricoView, type HistoricoView } from '@/app/cms/(authed)/youtu
 import type { Rich } from '@/app/cms/(authed)/youtube/competitors/_mudancas/view-model'
 
 const { ds } = loadFase4(), obs = createObservatory(ds)
-const view = (id: string, range?: string) => buildHistoricoView(obs, id, range ? { range } : {})
+// the chart opens on 30 days now (spec 6.4); these tests were written for the whole video, so they ask for it
+const view = (id: string, range = 'tudo') => buildHistoricoView(obs, id, { range })
 const flat = (r: Rich | null | undefined) => (r ?? []).map(x => (typeof x === 'string' ? x : 'b' in x ? x.b : x.num)).join('')
 const texts = (v: HistoricoView) => JSON.stringify(v)
 
 describe('quando cada coisa nova aparece', () => {
-  it('poucas versões (estado 1): nada novo. Sem filtro, sem resumo, sem recolher, sem sequência, botões de par', () => {
+  it('poucas versões (estado 1): nada novo. Sem resumo, sem recolher, sem sequência, botões de par (o seletor de período aparece sempre, spec 6.4)', () => {
     const v = view(VID.few)
-    expect([v.range, v.imageSummary, v.versions!.thumbs.more, v.versions!.thumbs.runNote, v.versions!.titles.runNote, v.compare.mode, v.compare.sum]).toEqual([null, null, null, null, null, 'pairs', null])
+    expect([v.range?.value, v.imageSummary, v.versions!.thumbs.more, v.versions!.thumbs.runNote, v.versions!.titles.runNote, v.compare.mode, v.compare.sum]).toEqual(['tudo', null, null, null, null, 'pairs', null])
     expect(v.lanes.flatMap(l => l.runs)).toEqual([])
     expect(v.legends['']!.some(l => l.kind === 'run')).toBe(false)
     expect(v.lanes.every(l => l.versions.every(x => x.inRange) && l.markers.every(m => m.inRange))).toBe(true)
   })
-  it('filtro: só com mais de 30 dias de série ou alguma faixa com mais de 8 períodos', () => {
-    expect([VID.few, VID.many, VID.dense, VID.open, VID.closed].map(id => view(id).range?.value ?? null)).toEqual([null, 'tudo', 'tudo', null, 'tudo'])
+  it('filtro: sempre que há gráfico, aberto em 30 dias (antes só com mais de 30 dias de série ou alguma faixa com mais de 8 períodos)', () => {
+    expect([VID.few, VID.many, VID.dense, VID.open, VID.closed].map(id => buildHistoricoView(obs, id, {}).range?.value ?? null)).toEqual(['30', '30', '30', '30', '30'])
   })
   it('resumo: só quando alguma imagem voltou ao ar', () => {
     expect([VID.few, VID.many, VID.dense, VID.open, VID.closed].map(id => !!view(id).imageSummary)).toEqual([false, true, true, true, true])
@@ -110,11 +111,11 @@ describe('filtro de período', () => {
     expect([v90.range!.value, v90.range!.cut, v90.chart!.fromH]).toEqual(['90', false, 0])
     expect(flat(v90.range!.text)).toMatch(/^Vídeo inteiro, desde 13\/10 11:00 \(menos que os 90 dias do filtro\): 24 de 24/)
   })
-  it('?range= inválido é o vídeo inteiro; num vídeo sem filtro, ?range=7 não corta nada', () => {
-    for (const bad of ['xx', '', '8', '-7', '7d']) expect(view(VID.many, bad).range!.value, bad).toBe('tudo')
-    const few = view(VID.few, '7')
-    expect([few.range, few.chart!.fromH, few.lanes.every(l => l.versions.every(x => x.inRange))]).toEqual([null, 0, true])
-    expect(JSON.stringify(few)).toBe(JSON.stringify(view(VID.few)))
+  it('?range= inválido é 30 dias; num vídeo mais novo que o período, o filtro não corta nada', () => {
+    for (const bad of ['xx', '', '8', '-7', '7d']) expect(view(VID.many, bad).range!.value, bad).toBe('30')
+    const few = view(VID.few, '30')
+    expect([few.range!.cut, few.chart!.fromH, few.lanes.every(l => l.versions.every(x => x.inRange))]).toEqual([false, 0, true])
+    expect(JSON.stringify({ ...few, range: null })).toBe(JSON.stringify({ ...view(VID.few), range: null }))
   })
   it('gráfico, faixas e versões cortam juntos, no mesmo instante', () => {
     const v = view(VID.many, '7'), from = v.range!.fromH
@@ -161,7 +162,7 @@ describe('filtro de período', () => {
     const w = loadFase4(), vid = w.ds.videos.find(x => x.id === VID.many)!
     const before = vid.series.length
     vid.series = vid.series.filter((_, i) => i < 20 || i > 23) // 4 daily records missing in the middle
-    const v = buildHistoricoView(createObservatory(w.ds), VID.many, {})
+    const v = buildHistoricoView(createObservatory(w.ds), VID.many, { range: 'tudo' })
     expect(vid.series.length).toBe(before - 4)
     expect(flat(v.range!.text)).toMatch(/ e 60 de 60 dias de views\./)
     expect(v.chart!.src.bold).toBe('57 registros diários')
@@ -237,14 +238,14 @@ describe('entradas que a especificação não descreve', () => {
     const w = loadFase4(), vid = w.ds.videos.find(x => x.id === VID.few)!
     vid.thumbs = [{ ...vid.thumbs[0]!, current: true, last_seen: w.ds.now }]; vid.titles = [{ ...vid.titles[0]!, current: true, last_seen: w.ds.now }]
     const v = buildHistoricoView(createObservatory(w.ds), VID.few, { range: '7' })
-    expect([v.range, v.imageSummary, v.compare.mode, v.comparisons.length, v.versions!.thumbs.more, v.header!.counts.map(c => c.text)]).toEqual([null, null, 'pairs', 0, null, ['Nenhuma troca registrada']])
+    expect([v.range?.value, v.imageSummary, v.compare.mode, v.comparisons.length, v.versions!.thumbs.more, v.header!.counts.map(c => c.text)]).toEqual(['7', null, 'pairs', 0, null, ['Nenhuma troca registrada']])
     expect(texts(v)).not.toMatch(/NaN|undefined|Infinity/)
   })
   it('200 períodos de thumbnail: a tela inteira é montada, as contas fecham e as letras passam de Z', () => {
     const w = loadFase4(), vid = w.ds.videos.find(x => x.id === VID.closed)!, keys = Array.from({ length: 30 }, (_, i) => 'k' + i)
     const start = vid.pub + DAY
     setThumbs(w.ds, VID.closed, [['k0'], ...Array.from({ length: 199 }, (_, i): [string, number] => [keys[(i * 7 + 1) % 30]!, start + i * 5 * H])])
-    const v = buildHistoricoView(createObservatory(w.ds), VID.closed, {})
+    const v = buildHistoricoView(createObservatory(w.ds), VID.closed, { range: 'tudo' })
     expect(v.versions!.thumbs.cards.length).toBe(200)
     expect(v.versions!.thumbs.more!.open).toBe('Ver todas (200)')
     expect(v.imageSummary!.rows.length).toBe(30)
@@ -256,8 +257,8 @@ describe('entradas que a especificação não descreve', () => {
     expect(texts(v)).not.toMatch(/NaN|undefined|Infinity/)
   })
   it('o oráculo de 02/10 continua igual nos campos que já existiam: só a legenda da sequência entra', () => {
-    const o = createObservatory(datasetFromOracle(loadOracle())), v = buildHistoricoView(o, 'matt-opus55', {})
-    expect([v.range, v.compare.mode, v.versions!.thumbs.more, !!v.imageSummary]).toEqual([null, 'pairs', null, true])
+    const o = createObservatory(datasetFromOracle(loadOracle())), v = buildHistoricoView(o, 'matt-opus55', { range: 'tudo' })
+    expect([v.range?.value, v.compare.mode, v.versions!.thumbs.more, !!v.imageSummary]).toEqual(['tudo', 'pairs', null, true])
     expect(v.header!.counts.find(c => c.type === 'thumb')!.text).toBe('3 thumbnails em 4 períodos (uma voltou)')
     expect(v.legends['']!.filter(l => l.kind === 'run').length).toBe(1)
     expect(v.versions!.thumbs.runNote!.items[0]!.strong).toBe('Trocas em sequência: 3 trocas em 5 dias, ainda aberta')

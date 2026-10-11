@@ -35,7 +35,8 @@ async function fitWholeScreen(page: Page, width: number) {
   })
   await page.setViewportSize({ width, height: 900 + extra + 20 })
 }
-async function open(page: Page, width: number, query = '') {
+// The chart opens on 30 days now (spec 6.4); these measurements were written for the whole video, so the default asks for it.
+async function open(page: Page, width: number, query = '?range=tudo') {
   await page.setViewportSize({ width, height: 900 })
   await page.goto('/cms/youtube/competitors/video/' + ids.video(MANY_VERSIONS_ID) + query)
   await page.locator(S + ' .lanes .ln-i').first().waitFor()
@@ -96,8 +97,10 @@ for (const width of WIDTHS) {
     await expect(b7).toHaveAttribute('aria-pressed', 'true')
     await expect(b7).toBeFocused()
     expect([await docY(page, chart), await docY(page, lanes)]).toEqual(before)
-    await page.locator(S + ' [data-range="tudo"]').click()
+    await page.locator(S + ' [data-range="30"]').click()
     await expect(page).not.toHaveURL(/range=/, { timeout: URL_MS })
+    await page.locator(S + ' [data-range="tudo"]').click()
+    await expect(page).toHaveURL(/[?&]range=tudo(&|$)/, { timeout: URL_MS })
   })
 
   test(`${width} px: "Ver todas" não move o botão; escolher na faixa um período recolhido abre a grade e leva ao cartão`, async ({ page }) => {

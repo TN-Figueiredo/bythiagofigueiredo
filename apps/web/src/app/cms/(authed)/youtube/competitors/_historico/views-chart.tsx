@@ -41,12 +41,14 @@ export function shownTicks(px: number[], gap = 64): boolean[] {
 interface TipState { m: MarkerView | null; g: GroupTip | null; type: LaneType; el: HTMLElement }
 const coarse = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer:coarse),(max-width:900px)').matches
 
-export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectPair, onGoVersion, range, onRange, groupLegend }: {
+export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectPair, onGoVersion, range, onRange, groupLegend, arrivalId }: {
   chart: ChartView | null; axis?: LanesAxisView | null; lanes: LaneView[]; legend: LegendItem[]; pair: ComparisonView | null
   hl: Hl | null; onHl: (h: Hl | null) => void
   onSelectPair: (k: string) => void; onGoVersion: (type: LaneType, i: number) => void
   /** Period filter (null = not offered) and what a choice does; the legend text of a group of close items. */
   range?: RangeView | null; onRange?: (id: RangeId) => void; groupLegend?: string
+  /** The change `troca=` opened the screen on (its marker gets the ring). */
+  arrivalId?: string | null
 }) {
   const wrap = useRef<HTMLDivElement>(null)
   const [w, setW] = useState(1100)
@@ -119,7 +121,7 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
         ) : (
           <ChartSvg chart={chart} geom={geom} pair={pair} hlRange={hlVer ? [hlVer.fromH, hlVer.toH] : null} />
         )) : null}
-        <Lanes lanes={lanes} layouts={layouts} geom={geom} stale={chart?.stale ?? null} fewAxis={chart?.fewAxis ?? null} fromH={fromH} hl={hl} tipMarker={tip?.m?.changeId ?? null} onHl={onHl}
+        <Lanes lanes={lanes} layouts={layouts} geom={geom} stale={chart?.stale ?? null} fewAxis={chart?.fewAxis ?? null} fromH={fromH} hl={hl} tipMarker={tip?.m?.changeId ?? null} arrivalId={arrivalId ?? null} onHl={onHl}
           onMarker={onMarker} onMarkerClick={m => { setTip(null); if (m.pairK) onSelectPair(m.pairK) }} onClip={onGoVersion} onGroupTip={onGroupTip} />
         {!chart && ticks.length ? (
           <div className="lane-axis fx-axis" aria-hidden="true">

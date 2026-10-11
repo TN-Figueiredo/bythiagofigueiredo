@@ -12,7 +12,7 @@ import type { Niche, ObsChannel, ObsVideo, SeriesPoint } from '@/lib/youtube/obs
 import type { TitleOp } from '@/lib/youtube/observatorio/text-diff'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
 import { RUN_CAVEAT, runCardText, runCore, runShort, runText, runsOf } from '@/lib/youtube/observatorio/test-run'
-import { imageSummary, parseRange, rangeStart, situationOf, statusLine, kindShort, RANGE_IDS, RANGE_LABEL, RANGE_LONG, type Pass, type RangeId, type Situation } from './many-versions'
+import { imageSummary, isRangeId, rangeFor, rangeStart, RANGE_DEFAULT, situationOf, statusLine, kindShort, RANGE_IDS, RANGE_LABEL, RANGE_LONG, type Pass, type RangeId, type Situation } from './many-versions'
 import { mudancasList, effectView, type EffectView, type Rich } from '../_mudancas/view-model'
 import { buildOutliersView, ages2label } from '../_outliers/view-model'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
@@ -240,8 +240,10 @@ export interface HistoricoView {
   lanes: LaneView[]
   legends: Record<string, LegendItem[]>
   comparisons: ComparisonView[]
-  /** The comparison selected on load (first with a verdict, else the first). */
+  /** The comparison selected on load: the arrival change's pair (`troca=`), else the first with a verdict, else the first. */
   defaultPair: string | null
+  /** `troca=` of a change of this video that has a pair in "Antes e depois" (spec 6.2); null = the screen opens as usual. `markerIdx` is the version index in `lane` (a lane marker's `idx`). */
+  arrival: { pairK: string; changeId: string; lane: LaneType; markerIdx: number; line: string; status: string } | null
   compareEmpty: string | null
   versions: VersionsView | null
   pager: PagerView | null
@@ -259,7 +261,7 @@ export interface HistoricoView {
   /** The forja (leitura do vídeo, Task 35): the screen's solid button, blockedBy and the card. */
   forja: ForjaView | null
   forjaCard: HistForjaCard | null
-  /** Period filter: null when it is not offered (short series and no long lane, or a video outside the observed ones). */
+  /** Period filter: offered whenever there is a chart (30 days by default); null only without a chart (a video outside the observed ones, not found). */
   range: RangeView | null
   /** One row per image: null unless some image came back on air (and never for a video outside the observed ones). */
   imageSummary: ImageSummaryView | null
@@ -327,7 +329,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   if (!v) {
     const href = backHref(from, from === 'mudancas' ? obs.link.mudancas({ niche: userNiche }) : from === 'outliers' ? obs.link.outliers({ niche: userNiche }) : from === 'canais' ? obs.link.canais({ niche: userNiche }) : obs.link.insights({ niche: userNiche }))
     return {
-      video: null, chromeNiche: userNiche, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, compareEmpty: null,
+      video: null, chromeNiche: userNiche, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null,
       versions: null, pager: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null,
       range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND,
       crumbs: { from, crumb: FROM_LABEL[from], href, sub: null },
@@ -390,11 +392,13 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const gapText = v.pinned === true && !v.tracked && stale && pts.length
     ? 'sem pontos depois de ' + D.dm(pts[pts.length - 1]!.t) + (v.pinState === 'sem-resposta' ? ': o YouTube não devolveu este vídeo na última sincronização' : ': o gráfico volta a ganhar pontos na próxima sincronização do canal depois das 12:00') : null
   const nextSnapMs = D.snapTime(obs.LAST_IDX + 1), nextSnap = D.dm(nextSnapMs) + ' ' + D.hh(nextSnapMs)
-  // ---------- period filter (Fase 4 item 3): ?range=7|30|90, anything else is the whole video ----------
+  // ---------- period filter (spec 6.4): ?range=7|30|90|tudo; absent or garbage = 30 days ----------
+  // `troca=` (spec 6.2): a change of THIS video that has a pair in "Antes e depois". Anything else (another video, garbage,
+  // a change without a pair) opens the screen as it always did. A change older than the default period, with no explicit
+  // `range`, opens the smallest period that includes it (D3); an explicit `range` wins and the change stays selected.
   const HR = obs.RULES.history
-  const spanDays = pts.length > 1 ? (pts[pts.length - 1]!.t - pts[0]!.t) / DAY : 0
-  const rangeOffered = observed && (spanDays > HR.rangeFromDays || [v.titles, v.thumbs, v.descs].some(a => a.length > HR.collapseAbove))
-  const rangeId = parseRange(p.range, rangeOffered)
+  const trocaChange: ObsChange | null = observed && p.troca ? changes.find(c => c.id === p.troca && obs.effect(c.id) != null) ?? null : null
+  const rangeId: RangeId = isRangeId(p.range) ? p.range : trocaChange ? rangeFor(trocaChange.at, now) : RANGE_DEFAULT
   const t0 = rangeStart(rangeId, pub, now), cut = t0 > pub, fromH = cut ? hx(t0) : 0
   /** Short instant of a version or change: a thumbnail has the minute; title and description only the sync hour. */
   const tm = (type: LaneType, ms: number) => (type === 'thumb' ? dmhmY(ms) : D.dmOrDmy(ms) + ' ' + D.hh(ms))
@@ -525,6 +529,17 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     return { type: c.type, idx, c, h: win ? (win[0] + win[1]) / 2 : hx(c.at), win, inRange: !cut || c.at >= t0 }
   })
   const shown = events.filter(e => e.inRange)
+  // arrival by `troca=`: the change, its pair and the two sentences of spec 6.2 ("<troca>" = the change's own name, "<quando>" = its precision)
+  const arrivalPairK = trocaChange ? pairOfChange(trocaChange.id) : null
+  const arrivalEv = trocaChange ? events.find(e => e.c.id === trocaChange.id) : undefined
+  const arrival: HistoricoView['arrival'] = trocaChange && arrivalPairK && arrivalEv && arrivalEv.idx > 0
+    ? (() => {
+        const what = nameOf(trocaChange) + ', ' + trocaChange.whenText
+        return { pairK: arrivalPairK, changeId: trocaChange.id, lane: trocaChange.type, markerIdx: arrivalEv.idx,
+          line: 'Aberta pela aba Trocas do canal: ' + what + '.',
+          status: 'Aberta a troca: ' + what + '. Ela está destacada no gráfico, na faixa e em Antes e depois.' }
+      })()
+    : null
   const tipOf = (c: ObsChange, idx: number): TipView => {
     const arr = arrOf(c.type), b = arr[idx - 1], a = arr[idx]
     const when = (c.window ? c.whenText + ' (janela de ' + (c.prec === '1d' ? '1 dia, sincronização antiga' : '6 h') + ')' : c.whenText + ', horário exato') + ', ' + partAgo(c)
@@ -770,7 +785,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     // before/after comparison (every change of this video reads 'sem-serie'). The notice says which of the two cases it is.
     const stored = v.thumbs.length > 0 || v.descs.length > 0 || v.titles.some(t => t.id !== v.id + '/title')
     const href = obs.link.canais({ channel: v.ch })
-    const common = { video: videoOut, chromeNiche, crumbs, header, chart: null, comparisons: [], defaultPair: null, compareEmpty: null, pager, state, notFound: null, pin, pinView, ...forjaOf(obs, v, ch),
+    const common = { video: videoOut, chromeNiche, crumbs, header, chart: null, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null, pager, state, notFound: null, pin, pinView, ...forjaOf(obs, v, ch),
       range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND }
     const outside = 'Este vídeo está fora dos ' + ch.video_limit + ' mais recentes acompanhados de ' + ch.name + '.'
     const noChart = 'O gráfico de views só aparece para vídeos acompanhados ou fixados.'
@@ -928,7 +943,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     }
   })
   const pairsIn = pairs.filter(q => !cut || q.group.some(g => g.at >= t0))
-  const defaultPair = (pairsIn.find(q => ['neutro', 'ganhou', 'perdeu'].includes(q.e.status)) ?? pairsIn[0])?.k ?? null
+  const defaultPair = arrival ? arrival.pairK : (pairsIn.find(q => ['neutro', 'ganhou', 'perdeu'].includes(q.e.status)) ?? pairsIn[0])?.k ?? null
   const compare: CompareView = (() => {
     const scope = cut ? ' no período' : ''
     const base = { scope, total: pairs.length, fields: (['title', 'thumb', 'desc'] as LaneType[]).map(t => ({ id: t, label: TYPE_NAME[t], name: TYPE_LOW[t] })),
@@ -947,7 +962,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       + (pairsIn.length ? 'Uma troca só é medida com ' + E.afterDays + ' dias sem outra troca do vídeo depois dela e pelo menos ' + E.minBeforeDays + ' antes.' : ''))
     return { mode: 'list', sum, ...base }
   })()
-  const rangeView: RangeView | null = !rangeOffered ? null : (() => {
+  const rangeView: RangeView = (() => {
     const one = (a: number, b: number, sing: string, plur: string): Rich => [{ b: a + ' de ' + b }, ' ' + (b === 1 ? sing : plur)]
     const dayN = (list: typeof allBins) => Math.round(list.filter(b => !b.from0).reduce((s, b) => s + (b.b - b.a), 0) / 24)
     const head = cut ? 'De ' + dmhmY(t0) + untilTxt
@@ -981,7 +996,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   for (const q of pairs) legends[q.k] = legendFor(q.k)
 
   return {
-    video: videoOut, chromeNiche, crumbs, header, chart, lanes, legends, comparisons, defaultPair,
+    video: videoOut, chromeNiche, crumbs, header, chart, lanes, legends, comparisons, defaultPair, arrival,
     compareEmpty: pairs.length ? null : endDot(watchText()) + ' Se o canal trocar título, thumbnail ou descrição, a troca aparece na curva acima e entra em Mudanças.',
     versions, pager, state, untracked: null, lanesAxis: null, pin, pinView, notFound: null, ...forjaOf(obs, v, ch),
     range: rangeView, imageSummary: imageSummaryView, compare, groupLegend: GROUP_LEGEND,

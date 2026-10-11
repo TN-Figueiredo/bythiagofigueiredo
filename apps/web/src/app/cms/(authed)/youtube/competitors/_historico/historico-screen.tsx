@@ -37,7 +37,8 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   const [live, setLive] = useState('')
   const go = useGo()
   const root = useRef<HTMLDivElement>(null)
-  const onRange = (id: string) => go({ range: id === 'tudo' ? null : id })
+  // 30 days is the default (spec 6.4): it leaves the URL; `tudo` is written out
+  const onRange = (id: string) => go({ range: id === '30' ? null : id })
   const onHl = useCallback((h: Hl | null) => setHover(h), [])
   const hl: Hl | null = hover ?? (pinImg ? { type: 'thumb', i: -1, ev: null, label: pinImg } : null)
   const rangeValue = view.range?.value ?? 'tudo'
@@ -58,7 +59,27 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     setPinImg(next); setLive(next ? 'Imagem ' + next + ' fixada no destaque. Esc solta.' : 'Destaque solto.')
   }
   const toasted = useRef<string | null>(null)
-  useEffect(() => { setPairK(view.defaultPair) }, [view.defaultPair])
+  // Next 16 keeps this component when only the query changes: whatever is born from the URL (the pair, the arrival) is re-read here
+  useEffect(() => { setPairK(view.defaultPair) }, [view.defaultPair, view.arrival?.changeId, view.video?.id])
+  // Focus on arrival (spec 6.2): the change's marker (or its group's counter), else the pair on display; scroll only when it is
+  // out of the visible part of the scrolling container (the CMS shell scrolls in <main>, not in the window). Without an
+  // arrival the title takes the focus. The effect follows the video and the arrival, not the other parameters.
+  const arrivalKey = view.arrival ? view.arrival.changeId : ''
+  useEffect(() => {
+    const r = root.current
+    if (!r || view.state === 'not-found') return
+    const a = view.arrival
+    if (!a) { r.querySelector<HTMLElement>('.vhead h2')?.focus({ preventScroll: true }); return }
+    const target = r.querySelector<HTMLElement>('[data-arrival]')
+      ?? r.querySelector<HTMLElement>('#hv-compare .pair[aria-pressed="true"], #hv-compare [role="option"][aria-selected="true"]')
+    if (!target) return
+    target.focus({ preventScroll: true })
+    const box = target.closest('main')?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight }
+    const at = target.getBoundingClientRect()
+    if (at.top < box.top + 8 || at.bottom > box.bottom - 8) target.scrollIntoView?.({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' })
+    setLive(a.status)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the arrival is read through its key
+  }, [view.video?.id, arrivalKey])
   useEffect(() => {
     const t = view.video?.nicheToast
     if (t && toasted.current !== view.video!.id) { toasted.current = view.video!.id; toast('', t, '') }
@@ -167,11 +188,11 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
             <>
               {view.chart ? (
                 <Timeline chart={view.chart} lanes={view.lanes} legend={legend} pair={pair} hl={hl} onHl={onHl}
-                  onSelectPair={selectPair} onGoVersion={goVersion} range={view.range} onRange={onRange} groupLegend={view.groupLegend} />
+                  onSelectPair={selectPair} onGoVersion={goVersion} range={view.range} onRange={onRange} groupLegend={view.groupLegend} arrivalId={view.arrival?.changeId ?? null} />
               ) : null}
               {view.imageSummary ? <ImageSummary sum={view.imageSummary} active={hl?.label ?? null} pinned={pinImg} onHover={l => setHover(l ? { type: 'thumb', i: -1, ev: null, label: l } : null)} onPin={pinImage} /> : null}
               <Compare comparisons={view.comparisons} compare={view.compare} selected={pairK} empty={view.compareEmpty} onSelect={setPairK} onDescLink={openDesc}
-                filter={flt} onFilter={setFlt} onWholeVideo={() => onRange('tudo')} />
+                filter={flt} onFilter={setFlt} onWholeVideo={() => onRange('tudo')} arrival={view.arrival} />
               {view.forja && view.forjaCard ? <VideoReading card={view.forjaCard} forja={view.forja} onCancel={onCancelForja} /> : null}
               {view.versions ? <Versions versions={view.versions} hl={hl} onHl={onHl} expanded={expanded} onToggle={() => setExpanded(e => !e)} target={target} onTargetBlur={() => setTarget(null)} /> : null}
             </>

@@ -77,7 +77,7 @@ describe('HistoricoScreen', () => {
   })
 
   it('old video: the period before the series start is compressed', () => {
-    const { root } = mount(PICK.pre)
+    const { root } = mount(PICK.pre, { range: 'tudo' })
     expect(root.querySelector('svg.hv-chart')!.textContent).toContain('comprimidos,')
     expect(root.querySelector('[data-legend]')!.textContent).toMatch(/dias antes de 03\/10 comprimidos à esquerda/)
   })

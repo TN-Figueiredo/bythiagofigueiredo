@@ -173,7 +173,7 @@ describe('historico view model', () => {
   })
 
   it('the period before the series start is compressed for old videos', () => {
-    const v = buildHistoricoView(obs, PICK.pre, {})
+    const v = buildHistoricoView(obs, PICK.pre, { range: 'tudo' })
     expect(v.chart!.compressedBefore).toBe(obs.SERIES_START)
     expect(v.chart!.pre!.lines[0]).toBe('antes de ' + obs.SERIES_START_LABEL)
     expect(v.legends['']!.some(l => /dias antes de 03\/10 comprimidos à esquerda/.test(l.text))).toBe(true)
@@ -295,7 +295,7 @@ describe('historico view model', () => {
     expect(lane(PICK.full, 'thumb').versions[0]!.thumb).toEqual({ src: null, missing: 'A imagem desta versão não foi arquivada.', alt: 'Thumbnail A' })
     expect(lane(PICK.none, 'thumb').versions[0]!.thumb!.missing).toBe('A imagem desta versão não foi arquivada.')
     // what lies before the archive uses the series start label
-    const pre = buildHistoricoView(obs, PICK.pre, {})
+    const pre = buildHistoricoView(obs, PICK.pre, { range: 'tudo' })
     expect(pre.lanes.find(l => l.type === 'thumb')!.pre!.text).toBe('antes de ' + obs.SERIES_START_LABEL)
     expect(pre.comparisons[0]!.ba![0]!.thumb!.missing).toBe('Thumbnail antes de ' + obs.SERIES_START_LABEL + ': não registrada')
     const ds = datasetFromOracle(oracle)
