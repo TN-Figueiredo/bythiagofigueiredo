@@ -145,7 +145,7 @@ describe('Canais view model — grupo "Seus canais" (N canais próprios)', () =>
     expect(v.slots.tip).toContain('os seus canais não ocupam vaga')
     expect(v.add.cap).toContain('(os seus canais não contam)')
     expect(v.syncbar.meta).toBe(SYNC_MANY)
-    expect(v.sortNote).toBe('Ordenado por Views/dia por mil inscritos, maior primeiro; os seus canais ficam sempre no topo')
+    expect(v.sortNote).toBe('Ordenado por Views/dia por mil inscritos, maior primeiro')
     expect(v.slots.text).toBe('14 de 75 canais')
   })
   it('preset 2, IA: nenhuma linha própria e o grupo diz onde os canais estão', () => {
@@ -229,7 +229,7 @@ describe('Canais view model — grupo "Seus canais" (N canais próprios)', () =>
     const o = createObservatory(ds)
     for (const niche of ['todos', 'viagem', 'ia'] as const) for (const filter of [undefined, 'problemas']) {
       const v = buildCanaisView(o, { niche, limit: 75, filter })
-      expect(v.own).toEqual({ rows: [], group: null, many: false })
+      expect(v.own).toEqual({ rows: [], group: null, many: false, block: null })
       expect(v.rows.some(r => r.own)).toBe(false)
       expect(v.slots.tip).toContain('o seu canal não ocupa vaga')
       expect(v.add.cap).toContain('(o seu canal não conta)')
