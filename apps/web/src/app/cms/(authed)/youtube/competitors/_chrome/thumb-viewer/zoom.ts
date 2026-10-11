@@ -47,7 +47,23 @@ export function pan(v: View, dx: number, dy: number, img: Size, box: Size): View
   return clampView({ scale: v.scale, x: v.x + dx, y: v.y + dy }, img, box)
 }
 
-/** Está no Ajustar (com folga de 1%, para não depender de ponto flutuante)? */
+/**
+ * Está no Ajustar? Só quando a escala É a do ajuste (folga relativa de 1 milionésimo, contra o ponto flutuante).
+ * Uma folga larga (antes: 0,01 absoluta) descartava como "ainda no Ajustar" cada passo pequeno da roda e do trackpad,
+ * e como cada passo parte do Ajustar, ninguém saía dele. `zoomTo` já trava a escala mínima em `fitScale`, então ao
+ * ampliar de verdade o resultado é sempre maior que o ajuste.
+ */
 export function isFit(v: View, img: Size, box: Size): boolean {
-  return Math.abs(v.scale - fitScale(img, box)) < 0.01
+  const f = fitScale(img, box)
+  return Math.abs(v.scale - f) <= f * 1e-6
+}
+
+/** Uma linha de roda do Firefox (`deltaMode` 1) vale 16 px; uma página (`deltaMode` 2), 100 px. */
+export function wheelPixels(deltaY: number, deltaMode: number): number {
+  return deltaY * (deltaMode === 1 ? 16 : deltaMode === 2 ? 100 : 1)
+}
+
+/** O fator de zoom de um evento de roda ou de pinça de trackpad (para cima, deltaY negativo, amplia). */
+export function wheelFactor(deltaY: number, deltaMode: number): number {
+  return Math.exp(-wheelPixels(deltaY, deltaMode) * 0.0015)
 }

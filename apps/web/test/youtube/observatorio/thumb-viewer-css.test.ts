@@ -19,4 +19,10 @@ describe('thumb-viewer.css', () => {
   it('nenhum corpo de texto abaixo de 12 px', () => {
     for (const m of css.matchAll(/font(?:-size)?\s*:\s*(?:[\w\s]*?)(\d+(?:\.\d+)?)px/g)) expect(Number(m[1]), m[0]).toBeGreaterThanOrEqual(12)
   })
+  it('a região viva do status nunca some da árvore de acessibilidade: nada de :empty{display:none}; a altura de uma linha fica reservada', () => {
+    expect(css).not.toMatch(/\.obs-tv-msg:empty/)
+    expect(css).toMatch(/\.obs-tv-msg\s*\{[^}]*min-height\s*:/)
+    // e nenhuma regra esconde a região (display:none, visibility:hidden) por qualquer via
+    for (const m of css.matchAll(/([^{}]*\.obs-tv-msg[^{}]*)\{([^}]*)\}/g)) expect(m[2], m[1]).not.toMatch(/display\s*:\s*none|visibility\s*:\s*hidden/)
+  })
 })

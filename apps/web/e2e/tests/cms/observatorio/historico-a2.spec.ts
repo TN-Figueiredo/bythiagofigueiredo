@@ -841,10 +841,15 @@ test.describe('A2.3 o visualizador de thumbnail', () => {
     const a1 = await medidaImg()
     medida(`arrastar (-60,-40): posição ${a0.x.toFixed(1)},${a0.y.toFixed(1)} → ${a1.x.toFixed(1)},${a1.y.toFixed(1)}`)
     expect(Math.abs((a1.x - a0.x) + 60) + Math.abs((a1.y - a0.y) + 40)).toBeLessThan(1.5)
-    // clique duplo alterna Ajustar e 100% (o "Ajustar" muda de percentual quando a linha de status aparece e encolhe a caixa: a referência é a de agora)
+    // clique duplo alterna Ajustar e 100%. A linha de status já apareceu (100%, roda e Ajustar a usaram) e NÃO encolhe a caixa:
+    // a região tem a altura de uma linha reservada, então o "Ajustar" dá o mesmo percentual e a mesma caixa de antes
     await dlg(page).getByRole('button', { name: 'Ajustar' }).click()
     const ajuste = await pctTexto()
-    medida(`Ajustar agora: ${ajuste}% (era ${Math.round(m0.w / m0.nw * 100)}% antes de a linha de status aparecer)`)
+    const mAjuste = await medidaImg()
+    medida(`Ajustar agora: ${ajuste}% (era ${Math.round(m0.w / m0.nw * 100)}% antes de a linha de status aparecer); caixa ${mAjuste.sw}×${mAjuste.sh} (era ${m0.sw}×${m0.sh})`)
+    expect(ajuste, 'o status não encolhe a caixa: Ajustar dá o mesmo percentual').toBe(Math.round(m0.w / m0.nw * 100))
+    expect(mAjuste.sh, 'a caixa da imagem tem a mesma altura com o status à mostra').toBe(m0.sh)
+    expect(await dlg(page).locator('.obs-tv-msg').textContent(), 'a linha de status está preenchida agora').toMatch(/\S/)
     await stage.dblclick({ position: { x: 100, y: 100 } })
     await expect.poll(async () => (await pctTexto())).toBe(100)
     await stage.dblclick({ position: { x: 100, y: 100 } })

@@ -1,7 +1,7 @@
 // @vitest-environment node
 // Matemática pura do zoom do visualizador de thumbnail (spec telas v9, 6.3).
 import { describe, it, expect } from 'vitest'
-import { fit, zoomAt, pan, zoomTo, MAX_SCALE, type View } from '@/app/cms/(authed)/youtube/competitors/_chrome/thumb-viewer/zoom'
+import { fit, zoomAt, pan, zoomTo, isFit, wheelFactor, wheelPixels, MAX_SCALE, type View } from '@/app/cms/(authed)/youtube/competitors/_chrome/thumb-viewer/zoom'
 
 const IMG = { w: 1280, h: 720 }
 const BOX = { w: 800, h: 600 }
@@ -61,5 +61,35 @@ describe('thumb-viewer · zoom', () => {
     const v = pan(v0, 99999, 99999, IMG, { w: 800, h: 900 })
     expect(v.y).toBe((900 - 720) / 2) // o eixo em que a imagem cabe não anda
     expect(v.x).toBe(0) // o outro encosta na borda
+  })
+
+  it('isFit: só o ajuste exato conta; um grão acima do ajuste já é zoom (folga relativa, não absoluta)', () => {
+    const f = fit(IMG, BOX)
+    expect(isFit(f, IMG, BOX)).toBe(true)
+    expect(isFit({ ...f, scale: f.scale * 1.001 }, IMG, BOX)).toBe(false)
+    expect(isFit({ ...f, scale: f.scale + 0.005 }, IMG, BOX)).toBe(false) // antes (folga absoluta de 0,01) valia como ajuste
+    // caixa pequena (ajuste de 30%): a folga absoluta de 0,01 era 3% do ajuste
+    const pequena = { w: 384, h: 216 }
+    const g = fit(IMG, pequena)
+    expect(isFit({ ...g, scale: g.scale + 0.005 }, IMG, pequena)).toBe(false)
+  })
+  it('passos pequenos da roda acumulam e saem do Ajustar', () => {
+    let v = fit(IMG, BOX)
+    for (let k = 0; k < 10; k++) {
+      v = zoomAt(v, wheelFactor(-1, 0), { x: 100, y: 100 }, IMG, BOX)
+      expect(isFit(v, IMG, BOX), `passo ${k + 1}`).toBe(false)
+    }
+    expect(v.scale).toBeGreaterThan(fit(IMG, BOX).scale)
+    // um passo de 0,5 px (trackpad) sozinho já sai
+    expect(isFit(zoomAt(fit(IMG, BOX), wheelFactor(-0.5, 0), { x: 100, y: 100 }, IMG, BOX), IMG, BOX)).toBe(false)
+  })
+  it('deltaMode: pixels x1, linhas x16, páginas x100; para cima amplia, para baixo reduz', () => {
+    expect(wheelPixels(-3, 0)).toBe(-3)
+    expect(wheelPixels(-3, 1)).toBe(-48)
+    expect(wheelPixels(-1, 2)).toBe(-100)
+    expect(wheelFactor(-3, 1)).toBeCloseTo(wheelFactor(-48, 0), 12)
+    expect(wheelFactor(-100, 0)).toBeGreaterThan(1)
+    expect(wheelFactor(100, 0)).toBeLessThan(1)
+    expect(wheelFactor(0, 0)).toBe(1)
   })
 })

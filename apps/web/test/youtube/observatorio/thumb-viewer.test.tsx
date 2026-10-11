@@ -50,6 +50,9 @@ const abrir = (input: ViewerInput) => {
 }
 const dialog = () => screen.getByRole('dialog')
 const stage = () => dialog().querySelector<HTMLElement>('.obs-tv-stage')!
+const mainEl = () => dialog().querySelector<HTMLElement>('.obs-tv-main')!
+/** O elemento que recebe o foco da imagem: um alvo ESTÁVEL do diálogo (a caixa da imagem), não o palco que desmonta a cada troca. */
+const focoDoPalco = () => mainEl()
 const pct = () => dialog().querySelector('.obs-tv-pct')!.textContent
 const carregada = async () => { await waitFor(() => expect(stage().querySelector('img')).not.toBeNull()) }
 
@@ -98,13 +101,16 @@ describe('ThumbViewer · diálogo', () => {
     expect(host.hasAttribute('inert')).toBe(false)
     const titulo = document.getElementById(d.getAttribute('aria-labelledby')!)!
     const ultimo = within(d).getByRole('button', { name: 'Baixar' })
+    const fechar = within(d).getByRole('button', { name: 'Fechar' })
     ultimo.focus()
     fireEvent.keyDown(ultimo, { key: 'Tab' })
-    expect(document.activeElement).toBe(titulo)
-    fireEvent.keyDown(titulo, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(fechar) // o título (tabindex=-1) não conta como elemento do anel
+    fireEvent.keyDown(fechar, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(ultimo)
+    titulo.focus()
+    fireEvent.keyDown(titulo, { key: 'Tab', shiftKey: true }) // logo depois de abrir: o foco está no título
     expect(document.activeElement).toBe(ultimo)
     // Tab no meio do ciclo não é interceptado
-    const fechar = within(d).getByRole('button', { name: 'Fechar' })
     fechar.focus()
     const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
     fechar.dispatchEvent(ev)
@@ -226,14 +232,14 @@ describe('ThumbViewer · diálogo', () => {
     expect(pct()).toBe('100%')
     const img = stage().querySelector('img')!
     const antes = img.style.transform
-    stage().focus()
-    fireEvent.keyDown(stage(), { key: 'ArrowRight' })
+    focoDoPalco().focus()
+    fireEvent.keyDown(focoDoPalco(), { key: 'ArrowRight' })
     expect(img.style.transform).not.toBe(antes)
     expect(img.style.transform).toContain('translate(-300px')
     expect(within(d).getByText('Capa B · 2 de 2')).toBeTruthy() // com zoom a seta não troca de versão
     fireEvent.keyDown(d, { key: '0' })
     expect(pct()).toBe('63%')
-    fireEvent.keyDown(stage(), { key: 'ArrowLeft' }) // sem zoom, a seta troca de versão
+    fireEvent.keyDown(focoDoPalco(), { key: 'ArrowLeft' }) // sem zoom, a seta troca de versão
     expect(within(d).getByText('Capa A · 1 de 2')).toBeTruthy()
   })
 
@@ -300,35 +306,6 @@ describe('ThumbViewer · diálogo', () => {
     const sel = within(dialog()).getByLabelText('Comparar com') as HTMLSelectElement
     expect(sel.options[sel.selectedIndex].textContent).toBe('Capa A (não arquivada)')
     expect(dialog().querySelector('.obs-tv-cmp .obs-tv-miss')).not.toBeNull()
-  })
-
-  it('"Baixar" que o navegador recusa: abre em outra aba e o status diz para salvar por lá', async () => {
-    abrir(um())
-    await carregada()
-    const fetchMock = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
-    vi.stubGlobal('fetch', fetchMock)
-    const abrirAba = vi.spyOn(window, 'open').mockReturnValue(null)
-    fireEvent.click(within(dialog()).getByRole('button', { name: 'Baixar' }))
-    await waitFor(() => expect(abrirAba).toHaveBeenCalledWith(YT('maxresdefault'), '_blank', 'noopener'))
-    expect(fetchMock).toHaveBeenCalledOnce()
-    await waitFor(() => expect(within(dialog()).getByText(/salve por lá/)).toBeTruthy())
-    expect(within(dialog()).getByText(/salve por lá/).closest('[role="status"]')).not.toBeNull()
-  })
-
-  it('"Baixar" que o navegador deixa: baixa o arquivo e o status diz o nome', async () => {
-    abrir(um())
-    await carregada()
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(['x'], { type: 'image/jpeg' }) }))
-    const criar = vi.fn().mockReturnValue('blob:fake'), revogar = vi.fn()
-    Object.assign(URL, { createObjectURL: criar, revokeObjectURL: revogar })
-    const clique = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
-      expect(this.download).toBe('thumbnail-vid1234-maxresdefault.jpg')
-    })
-    const abrirAba = vi.spyOn(window, 'open').mockReturnValue(null)
-    fireEvent.click(within(dialog()).getByRole('button', { name: 'Baixar' }))
-    await waitFor(() => expect(clique).toHaveBeenCalledOnce())
-    expect(abrirAba).not.toHaveBeenCalled()
-    await waitFor(() => expect(within(dialog()).getByText('Download iniciado: thumbnail-vid1234-maxresdefault.jpg')).toBeTruthy())
   })
 
   it('"Abrir original em nova aba" aponta para a resolução que está na tela', async () => {
@@ -415,5 +392,384 @@ describe('ThumbViewer · gatilho desmontado ao fechar', () => {
     fireEvent.click(r.getByTestId('gatilho'))
     r.unmount()
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+
+/* ======================================================= Rodada de conserto 1 (revisão da Tarefa 5) */
+describe('ThumbViewer · C1: o foco não se perde quando a versão troca', () => {
+  it('foco no palco, troca de versão, a imagem nova ainda não chegou: o foco continua dentro do diálogo e a seta seguinte ainda troca', async () => {
+    abrir(dois(1))
+    await carregada()
+    const d = dialog()
+    const alvo = [stage(), mainEl()].find(e => { e.focus(); return document.activeElement === e })
+    expect(alvo, 'a área da imagem aceita foco').toBeTruthy()
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
+    // a imagem de "Capa A" ainda não chegou (a rede responde em outro turno): nada de foco no body
+    expect(within(d).getByText('Capa A · 1 de 2')).toBeTruthy()
+    expect(d.contains(document.activeElement), 'o foco ficou dentro do diálogo').toBe(true)
+    expect(document.activeElement).not.toBe(document.body)
+    await waitFor(() => expect(stage().querySelector('img')?.getAttribute('src')).toBe(BLOB_A))
+    expect(d.contains(document.activeElement)).toBe(true)
+    // a tecla seguinte ainda funciona (antes, o teclado do diálogo morria)
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight' })
+    expect(within(d).getByText('Capa B · 2 de 2')).toBeTruthy()
+    fireEvent.keyDown(document.activeElement!, { key: '1' })
+    await waitFor(() => expect(stage().querySelector('img')?.getAttribute('src')).toBe(YT('maxresdefault')))
+    fireEvent.keyDown(document.activeElement!, { key: '1' })
+    expect(pct()).toBe('100%')
+  })
+
+  it('a versão nova não tem imagem (não arquivada): o foco também fica no diálogo e as setas voltam', async () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 1 })
+    await carregada()
+    ;[stage(), mainEl()].find(e => { e.focus(); return document.activeElement === e })
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
+    expect(dialog().contains(document.activeElement)).toBe(true)
+    expect(document.activeElement).not.toBe(document.body)
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight' })
+    expect(within(dialog()).getByText('Capa B · 2 de 2')).toBeTruthy()
+  })
+
+  it('Tab nunca sai do diálogo depois de uma troca de versão com o foco na imagem', async () => {
+    abrir(dois(1))
+    await carregada()
+    ;[stage(), mainEl()].find(e => { e.focus(); return document.activeElement === e })
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
+    await waitFor(() => expect(stage().querySelector('img')?.getAttribute('src')).toBe(BLOB_A))
+    const baixar = within(dialog()).getByRole('button', { name: 'Baixar' })
+    baixar.focus()
+    const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    baixar.dispatchEvent(ev)
+    expect(ev.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(within(dialog()).getByRole('button', { name: 'Fechar' }))
+  })
+})
+
+describe('ThumbViewer · I1: o anel de foco', () => {
+  it('Shift+Tab no primeiro focável real (Fechar) vai ao último; o título não é elemento do anel', () => {
+    abrir(dois())
+    const d = dialog()
+    const fechar = within(d).getByRole('button', { name: 'Fechar' })
+    fechar.focus()
+    const ev = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true })
+    fechar.dispatchEvent(ev)
+    expect(ev.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(within(d).getByRole('button', { name: 'Baixar' }))
+  })
+
+  it('último focável apagado (aria-disabled): Tab nele volta ao Fechar, Shift+Tab no Fechar volta a ele, e o apagado entra no anel', async () => {
+    rede = new Map()
+    abrir(um())
+    await waitFor(() => expect(within(dialog()).getByText('A imagem não carregou.')).toBeTruthy())
+    const d = dialog()
+    const baixar = within(d).getByRole('button', { name: 'Baixar' })
+    const original = within(d).getByRole('link', { name: /Abrir original/ })
+    const fechar = within(d).getByRole('button', { name: 'Fechar' })
+    expect(baixar.getAttribute('aria-disabled')).toBe('true')
+    expect(original.getAttribute('aria-disabled')).toBe('true')
+    baixar.focus()
+    fireEvent.keyDown(baixar, { key: 'Tab' })
+    expect(document.activeElement).toBe(fechar)
+    fireEvent.keyDown(fechar, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(baixar)
+    // o primeiro focável (Fechar) nunca é apagado; os apagados do meio continuam no caminho natural do Tab
+    expect(fechar.getAttribute('aria-disabled')).toBeNull()
+  })
+
+  it('clicar num texto do diálogo (foco na caixa) não mata o teclado: os atalhos valem e Shift+Tab gira', async () => {
+    abrir(um())
+    await carregada()
+    const caixa = dialog()
+    expect(caixa.getAttribute('tabindex')).toBe('-1')
+    caixa.focus()
+    expect(document.activeElement).toBe(caixa)
+    fireEvent.keyDown(caixa, { key: '1' })
+    expect(pct()).toBe('100%')
+    fireEvent.keyDown(caixa, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(within(caixa).getByRole('button', { name: 'Baixar' }))
+  })
+})
+
+describe('ThumbViewer · I2: roda e trackpad com passos pequenos', () => {
+  const roda = (init: WheelEventInit) => act(() => { stage().dispatchEvent(new WheelEvent('wheel', { clientX: 100, clientY: 100, bubbles: true, cancelable: true, ...init })) })
+  it('10 eventos de deltaY pequeno saem do Ajustar (antes, cada um era descartado)', async () => {
+    abrir(um())
+    await carregada()
+    expect(pct()).toBe('63%')
+    const escala = () => Number(/scale\(([\d.]+)\)/.exec(stage().querySelector('img')!.style.transform)![1])
+    const ajuste = escala()
+    for (let k = 0; k < 10; k++) roda({ deltaY: -1 })
+    expect(stage().getAttribute('data-zoomed')).toBe('true')
+    expect(escala()).toBeGreaterThan(ajuste * 1.01) // 10 passos de 0,15% acumulam: ~1,5%
+    // e eles acumulam: 40 passos a mais chegam bem acima
+    for (let k = 0; k < 40; k++) roda({ deltaY: -10 })
+    expect(Number.parseInt(pct()!, 10)).toBeGreaterThan(90)
+  })
+  it('um passo fracionário (trackpad do Mac, deltaY -0,5) também sai do Ajustar', async () => {
+    abrir(um())
+    await carregada()
+    roda({ deltaY: -0.5 })
+    expect(stage().getAttribute('data-zoomed')).toBe('true')
+  })
+  it('deltaMode=1 (linhas, Firefox) vale 16 px por linha: três linhas ampliam como 48 px', async () => {
+    abrir(um())
+    await carregada()
+    roda({ deltaY: -3, deltaMode: 1 })
+    const linhas = pct()
+    expect(Number.parseInt(linhas!, 10)).toBeGreaterThan(63)
+    cleanup()
+    abrir(um())
+    await carregada()
+    roda({ deltaY: -48, deltaMode: 0 })
+    expect(pct()).toBe(linhas)
+  })
+  it('deltaMode=2 (páginas) vale 100 px', async () => {
+    abrir(um())
+    await carregada()
+    roda({ deltaY: -1, deltaMode: 2 })
+    const paginas = pct()
+    cleanup()
+    abrir(um())
+    await carregada()
+    roda({ deltaY: -100, deltaMode: 0 })
+    expect(pct()).toBe(paginas)
+  })
+  it('para fora, a roda volta ao Ajustar e para nele (o mínimo é o ajuste)', async () => {
+    abrir(um())
+    await carregada()
+    fireEvent.keyDown(dialog(), { key: '1' })
+    roda({ deltaY: 4000 })
+    expect(pct()).toBe('63%')
+    expect(stage().getAttribute('data-zoomed')).toBeNull()
+  })
+})
+
+describe('ThumbViewer · I3: a região viva do status', () => {
+  it('existe sempre na árvore (role=status, aria-live), vazia no começo, e só ganha texto depois', async () => {
+    abrir(um())
+    await carregada()
+    const msg = dialog().querySelector<HTMLElement>('.obs-tv-msg')!
+    expect(msg).not.toBeNull()
+    expect(msg.getAttribute('role')).toBe('status')
+    expect(msg.getAttribute('aria-live')).toBe('polite')
+    expect(msg.textContent).toBe('')
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Ajustar' }))
+    expect(dialog().querySelector('.obs-tv-msg')).toBe(msg) // o mesmo nó: a região já estava lá e só recebeu texto
+    expect(msg.textContent).toBe('Ajustado à janela, 63%')
+  })
+  it('"Ajustar" dá o mesmo percentual antes e depois do status aparecer', async () => {
+    abrir(um())
+    await carregada()
+    const antes = pct()
+    fireEvent.click(within(dialog()).getByRole('button', { name: '100%' }))
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Ajustar' }))
+    expect(pct()).toBe(antes)
+  })
+})
+
+describe('ThumbViewer · I4: a versão ATUAL sem imagem não diz que saiu do ar', () => {
+  it('sem youtubeId e sem cópia: "A imagem não carregou.", Baixar e Abrir original apagados, e o seletor não diz "não arquivada"', () => {
+    abrir({ title: 'T', versions: [velha(), atual({ youtubeId: null, archived: null })], start: 1 })
+    const d = dialog()
+    expect(within(d).getByText('A imagem não carregou.')).toBeTruthy()
+    expect(d.textContent).not.toMatch(/saiu do ar antes disso/)
+    expect(d.querySelector('img')).toBeNull()
+    expect(within(d).getByRole('button', { name: 'Baixar' }).getAttribute('aria-disabled')).toBe('true')
+    expect(within(d).getByRole('link', { name: /Abrir original/ }).getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(within(d).getByRole('button', { name: 'Comparar lado a lado' }))
+    const sel = within(d).getByLabelText('Comparar com') as HTMLSelectElement
+    expect(sel.options[sel.selectedIndex].textContent).toBe('Capa A')
+  })
+  it('a versão anterior sem cópia continua com o quadro do spec', () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 0 })
+    expect(within(dialog()).getByText(missingText(velha({ archived: null })))).toBeTruthy()
+  })
+  it('comparar: o lado da atual sem imagem diz "A imagem não carregou."', () => {
+    abrir({ title: 'T', versions: [velha(), atual({ youtubeId: null, archived: null })], start: 0 })
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Comparar lado a lado' }))
+    expect(within(dialog().querySelector<HTMLElement>('.obs-tv-cmp')!).getByText('A imagem não carregou.')).toBeTruthy()
+  })
+})
+
+describe('ThumbViewer · I5: Baixar honesto', () => {
+  it('imagem do YouTube: NÃO tenta fetch; abre a aba de forma síncrona no clique e o status manda salvar por lá', async () => {
+    abrir(um())
+    await carregada()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const aba = { opener: 'x' as unknown }
+    const abrirAba = vi.spyOn(window, 'open').mockReturnValue(aba as unknown as Window)
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Baixar' }))
+    // síncrono: já foi chamado ANTES de qualquer await (a ativação do clique ainda vale)
+    expect(abrirAba).toHaveBeenCalledTimes(1)
+    expect(abrirAba.mock.calls[0]![0]).toBe(YT('maxresdefault'))
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(aba.opener, 'a aba aberta não guarda referência à tela').toBeNull()
+    await waitFor(() => expect(dialog().querySelector('.obs-tv-msg')!.textContent).toMatch(/salve por lá/))
+    expect(dialog().querySelector('.obs-tv-msg')!.textContent).toMatch(/abriu em outra aba/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it('imagem do YouTube e o navegador bloqueia a aba: o status diz que bloqueou, sem afirmar que abriu', async () => {
+    abrir(um())
+    await carregada()
+    vi.stubGlobal('fetch', vi.fn())
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Baixar' }))
+    const t = dialog().querySelector('.obs-tv-msg')!.textContent ?? ''
+    expect(t).toMatch(/bloque/i)
+    expect(t).not.toMatch(/abriu em outra aba/)
+    expect(t).toMatch(/Abrir original em nova aba/)
+  })
+  it('imagem arquivada (Blob): fetch + download, o nome no status, e a URL de blob é revogada depois', async () => {
+    abrir({ title: 'T', versions: [velha()], start: 0 })
+    await carregada()
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(['x'], { type: 'image/jpeg' }) })
+    vi.stubGlobal('fetch', fetchMock)
+    const criar = vi.fn().mockReturnValue('blob:fake'), revogar = vi.fn()
+    Object.assign(URL, { createObjectURL: criar, revokeObjectURL: revogar })
+    const clique = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      expect(this.download).toBe('thumbnail-capa-a.jpg')
+      expect(this.href).toBe('blob:fake')
+    })
+    const abrirAba = vi.spyOn(window, 'open').mockReturnValue(null)
+    vi.useFakeTimers()
+    try {
+      fireEvent.click(within(dialog()).getByRole('button', { name: 'Baixar' }))
+      await act(async () => { await vi.advanceTimersByTimeAsync(10) })
+      expect(fetchMock).toHaveBeenCalledWith(BLOB_A, { mode: 'cors' })
+      expect(clique).toHaveBeenCalledOnce()
+      expect(abrirAba).not.toHaveBeenCalled()
+      expect(dialog().querySelector('.obs-tv-msg')!.textContent).toBe('Download iniciado: thumbnail-capa-a.jpg')
+      expect(revogar).not.toHaveBeenCalled()
+      await act(async () => { await vi.advanceTimersByTimeAsync(4100) })
+      expect(revogar).toHaveBeenCalledWith('blob:fake')
+    } finally { vi.useRealTimers() }
+  })
+  it('imagem arquivada e o navegador recusa o fetch: abre em outra aba e o status manda salvar por lá', async () => {
+    abrir({ title: 'T', versions: [velha()], start: 0 })
+    await carregada()
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+    const abrirAba = vi.spyOn(window, 'open').mockReturnValue({ opener: 'x' } as unknown as Window)
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Baixar' }))
+    await waitFor(() => expect(abrirAba).toHaveBeenCalledOnce())
+    expect(abrirAba.mock.calls[0]![0]).toBe(BLOB_A)
+    await waitFor(() => expect(dialog().querySelector('.obs-tv-msg')!.textContent).toMatch(/salve por lá/))
+  })
+  it('imagem arquivada, fetch recusado e aba bloqueada: não afirma que abriu', async () => {
+    abrir({ title: 'T', versions: [velha()], start: 0 })
+    await carregada()
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Baixar' }))
+    await waitFor(() => expect(dialog().querySelector('.obs-tv-msg')!.textContent).toMatch(/bloque/i))
+    expect(dialog().querySelector('.obs-tv-msg')!.textContent).not.toMatch(/abriu em outra aba/)
+  })
+})
+
+describe('ThumbViewer · "Abrir original" apagado', () => {
+  it('é focável, anuncia que está indisponível (aria-disabled) e não navega', () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 0 })
+    const a = within(dialog()).getByRole('link', { name: /Abrir original/ })
+    expect(a.getAttribute('aria-disabled')).toBe('true')
+    expect(a.getAttribute('tabindex')).toBe('0')
+    expect(a.hasAttribute('href')).toBe(false)
+    a.focus()
+    expect(document.activeElement).toBe(a)
+    expect(fireEvent.click(a), 'o clique é cancelado').toBe(false)
+  })
+  it('o nome acessível não repete "em nova aba"', async () => {
+    abrir(um())
+    await carregada()
+    const a = within(dialog()).getByRole('link', { name: /Abrir original/ })
+    expect(a.textContent?.replace(/\s+/g, ' ').trim()).toBe('Abrir original em nova aba')
+  })
+})
+
+describe('ThumbViewer · arrastar, zoom por versão, inert e carga', () => {
+  it('arrastar com o mouse move a imagem; o botão do meio/direito não inicia arrasto', async () => {
+    // jsdom não tem PointerEvent: sem ele o evento perde clientX/pointerType
+    class FakePointerEvent extends MouseEvent { pointerId: number; pointerType: string; constructor(t: string, i: MouseEventInit & { pointerId?: number; pointerType?: string } = {}) { super(t, i); this.pointerId = i.pointerId ?? 0; this.pointerType = i.pointerType ?? 'mouse' } }
+    vi.stubGlobal('PointerEvent', FakePointerEvent)
+    abrir(um())
+    await carregada()
+    fireEvent.keyDown(dialog(), { key: '1' })
+    const img = stage().querySelector('img')!
+    const t0 = img.style.transform
+    fireEvent.pointerDown(stage(), { pointerId: 7, pointerType: 'mouse', button: 2, clientX: 400, clientY: 300 })
+    fireEvent.pointerMove(stage(), { pointerId: 7, pointerType: 'mouse', clientX: 340, clientY: 260 })
+    fireEvent.pointerUp(stage(), { pointerId: 7, pointerType: 'mouse', button: 2 })
+    expect(img.style.transform).toBe(t0)
+    fireEvent.pointerDown(stage(), { pointerId: 8, pointerType: 'mouse', button: 0, clientX: 400, clientY: 300 })
+    fireEvent.pointerMove(stage(), { pointerId: 8, pointerType: 'mouse', clientX: 340, clientY: 260 })
+    fireEvent.pointerUp(stage(), { pointerId: 8, pointerType: 'mouse', button: 0 })
+    const m = (t: string) => /translate\((-?[\d.]+)px,(-?[\d.]+)px\)/.exec(t)!.slice(1).map(Number)
+    const [x0, y0] = m(t0), [x1, y1] = m(img.style.transform)
+    expect(x1! - x0!).toBeCloseTo(-60, 3)
+    expect(y1! - y0!).toBeCloseTo(-40, 3)
+    // depois de soltar, mover sem apertar não arrasta
+    const t1 = img.style.transform
+    fireEvent.pointerMove(stage(), { pointerId: 8, pointerType: 'mouse', clientX: 100, clientY: 100 })
+    expect(img.style.transform).toBe(t1)
+  })
+
+  it('trocar de versão zera o zoom: A ampliada, B, de volta a A, reabre no Ajustar', async () => {
+    abrir(dois(1))
+    await carregada()
+    fireEvent.keyDown(dialog(), { key: '1' })
+    expect(pct()).toBe('100%')
+    fireEvent.click(within(dialog()).getByRole('button', { name: /Anterior/ }))
+    await waitFor(() => expect(stage().querySelector('img')?.getAttribute('src')).toBe(BLOB_A))
+    fireEvent.click(within(dialog()).getByRole('button', { name: /Próxima/ }))
+    await waitFor(() => expect(stage().querySelector('img')?.getAttribute('src')).toBe(YT('maxresdefault')))
+    expect(pct()).toBe('63%')
+  })
+
+  it('a janela cresce com o zoom abaixo do novo Ajustar: a escala sobe ao novo mínimo', async () => {
+    abrir(um())
+    await carregada()
+    fireEvent.keyDown(dialog(), { key: '+' }) // 62,5% -> 78%
+    expect(pct()).toBe('78%')
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 1100 })
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 700 })
+    act(() => { window.dispatchEvent(new Event('resize')) })
+    expect(pct()).toBe('86%') // 1100/1280; nunca menor que o Ajustar
+  })
+
+  it('fechar (ou desmontar) com o diálogo aberto devolve o inert de cada filho do body', () => {
+    const lixo = document.createElement('aside'); lixo.setAttribute('inert', ''); document.body.appendChild(lixo)
+    const livre = document.createElement('aside'); document.body.appendChild(livre)
+    const r = abrir(dois())
+    expect(livre.hasAttribute('inert')).toBe(true)
+    r.unmount() // sem Esc: a navegação desmontou a árvore
+    expect(document.querySelector('.obs-tv-host')).toBeNull()
+    expect(livre.hasAttribute('inert')).toBe(false)
+    expect(lixo.hasAttribute('inert')).toBe(true)
+    lixo.remove(); livre.remove()
+  })
+
+  it('"Carregando a imagem…" aparece uma vez só e o quadro de carga não é o tracejado da versão sem imagem', () => {
+    abrir(um())
+    expect(within(dialog()).getAllByText('Carregando a imagem…')).toHaveLength(1)
+    expect(dialog().querySelector('.obs-tv-miss')!.getAttribute('data-load')).not.toBeNull()
+  })
+
+  it('uma sonda que nunca responde vira "A imagem não carregou." depois do tempo-limite', async () => {
+    class MudaImage { onload: (() => void) | null = null; onerror: (() => void) | null = null; naturalWidth = 0; naturalHeight = 0; set src(_u: string) { /* pendurada */ } }
+    vi.stubGlobal('Image', MudaImage)
+    vi.useFakeTimers()
+    try {
+      abrir(um())
+      expect(within(dialog()).getByText('Carregando a imagem…')).toBeTruthy()
+      await act(async () => { await vi.advanceTimersByTimeAsync(4 * 20_000 + 100) })
+      expect(within(dialog()).getByText('A imagem não carregou.')).toBeTruthy()
+    } finally { vi.useRealTimers() }
+  })
+
+  it('uma URL com "|" não quebra a lista de candidatas', async () => {
+    const url = 'https://x.public.blob.vercel-storage.com/t/a|b.jpg'
+    rede.set(url, { w: 480, h: 360 })
+    abrir({ title: 'T', versions: [velha({ archived: url })], start: 0 })
+    await waitFor(() => expect(stage().querySelector('img')?.getAttribute('src')).toBe(url))
   })
 })

@@ -12,19 +12,30 @@ import { createPortal } from 'react-dom'
 import { Icon } from '../icons'
 import { focusables } from '../flut/store'
 import { candidates, downloadName, fileOf, isYoutubeUrl, missingText, positionLabel, PLACEHOLDER_MAX_W, resolutionLine, type ViewerInput, type ViewerVersion } from './viewer-model'
-import { clampView, fit, isFit, pan, zoomAt, zoomTo, type Point, type Size, type View } from './zoom'
+import { clampView, fit, fitScale, isFit, pan, wheelFactor, zoomAt, zoomTo, type Point, type Size, type View } from './zoom'
 import './thumb-viewer.css'
 
 /* ---------------------------------------------------------------- carga da imagem */
 interface Loaded { url: string; file: string; w: number; h: number; fellBack: boolean; archived: boolean }
 type LoadState = { status: 'none' } | { status: 'loading' } | { status: 'fail' } | ({ status: 'ok' } & Loaded)
 
+/** Quanto esperar por UMA resolução antes de desistir dela (uma conexão pendurada não pode deixar "Carregando…" para sempre). */
+const PROBE_TIMEOUT_MS = 20_000
 const probe = (url: string): Promise<Size | null> => new Promise(done => {
   const im = new Image()
-  im.onload = () => done({ w: im.naturalWidth, h: im.naturalHeight })
-  im.onerror = () => done(null)
+  const timer = setTimeout(() => { im.onload = null; im.onerror = null; done(null) }, PROBE_TIMEOUT_MS)
+  im.onload = () => { clearTimeout(timer); done({ w: im.naturalWidth, h: im.naturalHeight }) }
+  im.onerror = () => { clearTimeout(timer); done(null) }
   im.src = url
 })
+
+/** Abre a imagem em outra aba. Devolve se a aba abriu (null = o navegador bloqueou). Sem `noopener` na chamada, para saber; o vínculo com esta tela é cortado na aba aberta. */
+function openTab(url: string): boolean {
+  const w = window.open(url, '_blank')
+  if (!w) return false
+  try { w.opener = null } catch { /* aba de outra origem já navegou: nada a cortar */ }
+  return true
+}
 
 /** A primeira URL da lista que carrega. O quadro de 120×90 com que o YouTube responde a uma variante que não existe não vale. */
 async function loadFirst(urls: string[], archivedUrl: string | null): Promise<Loaded | null> {
@@ -38,13 +49,13 @@ async function loadFirst(urls: string[], archivedUrl: string | null): Promise<Lo
 }
 
 function useLoaded(v: ViewerVersion | undefined): LoadState {
-  const key = v ? candidates(v).join('|') : ''
+  const key = v ? candidates(v).join('\n') : ''
   const archivedUrl = v?.archived ?? null
   const [res, setRes] = useState<{ key: string; r: Loaded | null } | null>(null)
   useEffect(() => {
     if (!key) return
     let live = true
-    void loadFirst(key.split('|'), archivedUrl).then(r => { if (live) setRes({ key, r }) })
+    void loadFirst(key.split('\n'), archivedUrl).then(r => { if (live) setRes({ key, r }) })
     return () => { live = false }
   }, [key, archivedUrl])
   if (!key) return { status: 'none' }
@@ -53,17 +64,18 @@ function useLoaded(v: ViewerVersion | undefined): LoadState {
 }
 
 /* ---------------------------------------------------------------- peças */
-function Missing({ children }: { children: ReactNode }): ReactElement {
-  return <div className="obs-tv-miss"><div>{children}</div></div>
+function Missing({ children, load }: { children: ReactNode; load?: boolean }): ReactElement {
+  return <div className="obs-tv-miss" data-load={load ? '' : undefined}><div>{children}</div></div>
 }
 function Frame({ v, state }: { v: ViewerVersion; state: LoadState }): ReactElement {
-  if (state.status === 'none') return <Missing><p>{missingText(v)}</p></Missing>
+  // a versão no ar sem imagem NÃO "saiu do ar": o quadro do spec só vale para as anteriores
+  if (state.status === 'none') return v.current ? <Missing><p><b>A imagem não carregou.</b></p></Missing> : <Missing><p>{missingText(v)}</p></Missing>
   if (state.status === 'fail') return <Missing><p><b>A imagem não carregou.</b></p></Missing>
   // a imagem que a tela já tinha entra na hora; a maior a substitui quando chega
-  if (state.status === 'loading') return v.preview ? <div className="obs-tv-fig"><img src={v.preview} alt={`${v.label}`} draggable={false} /></div> : <Missing><p>Carregando a imagem…</p></Missing>
+  if (state.status === 'loading') return v.preview ? <div className="obs-tv-fig"><img src={v.preview} alt={`${v.label}`} draggable={false} /></div> : <Missing load><p>Carregando a imagem…</p></Missing>
   return <div className="obs-tv-fig"><img src={state.url} alt={`${v.label}`} draggable={false} /></div>
 }
-const resText = (s: LoadState): string => (s.status === 'ok' ? resolutionLine(s.file, s.w, s.h, s.fellBack, s.archived) : s.status === 'loading' ? 'Carregando a imagem…' : '')
+const resText = (s: LoadState): string => (s.status === 'ok' ? resolutionLine(s.file, s.w, s.h, s.fellBack, s.archived) : '')
 
 const STEP = 1.25
 const ARROW_PX = 60
@@ -98,6 +110,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
   const titleRef = useRef<HTMLHeadingElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
+  const mainRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   const fallbackRef = useRef(fallback)
 
@@ -106,8 +119,8 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
   const stageOn = !cmp && loaded != null
   const img: Size | null = loaded ? { w: loaded.w, h: loaded.h } : null
   const key = loaded?.url ?? ''
-  const shown: View | null = img ? (cv && cv.key === key ? clampView(cv.v, img, box) : fit(img, box)) : null
-  const zoomed = !!(shown && img && !isFit(shown, img, box))
+  const shown: View | null = img ? (cv && cv.key === key ? clampView({ ...cv.v, scale: Math.max(cv.v.scale, fitScale(img, box)) }, img, box) : fit(img, box)) : null
+  const zoomed = !!(stageOn && shown && img && !isFit(shown, img, box))
   const latest = useRef({ shown, img, box, key, stageOn })
   useLayoutEffect(() => { latest.current = { shown, img, box, key, stageOn }; onCloseRef.current = onClose; fallbackRef.current = fallback })
 
@@ -163,7 +176,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
       if (!L.shown || !L.img) return
       e.preventDefault()
       const r = el.getBoundingClientRect()
-      commit(zoomAt(L.shown, Math.exp(-e.deltaY * 0.0015), { x: e.clientX - r.left, y: e.clientY - r.top }, L.img, L.box))
+      commit(zoomAt(L.shown, wheelFactor(e.deltaY, e.deltaMode), { x: e.clientX - r.left, y: e.clientY - r.top }, L.img, L.box))
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     let ro: ResizeObserver | null = null
@@ -181,6 +194,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     const L = latest.current
     if (!L.shown) return
+    if (e.pointerType === 'mouse' && e.button !== 0) return // o menu de contexto não entrega pointerup: o ponteiro ficaria preso no mapa
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     e.currentTarget.setPointerCapture?.(e.pointerId)
     if (pointers.current.size === 2) { pinch.current = { d: dist() || 1, scale: L.shown.scale }; drag.current = null } else drag.current = { x: e.clientX, y: e.clientY, v: L.shown }
@@ -208,12 +222,17 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
   }
 
   /* ---- versões, comparar, abrir, baixar ---- */
-  const go = (d: number) => { const k = i + d; if (k < 0 || k >= n) return; setI(k); setMsg('') }
+  const go = (d: number) => { const k = i + d; if (k < 0 || k >= n) return; setI(k); setCv(null); setMsg('') }
   const downloading = useRef(false)
+  const FALLBACK_MSG = 'A imagem abriu em outra aba: salve por lá.'
+  const BLOCKED_MSG = 'O navegador bloqueou a nova aba. Use "Abrir original em nova aba" e salve a imagem por lá.'
   const download = async () => {
     if (!cur || main.status !== 'ok' || downloading.current) return
-    downloading.current = true
     const nome = downloadName(cur, main.file, main.archived), url = main.url
+    // A imagem do YouTube nunca passa pelo fetch: a política de conteúdo do site (connect-src) a barra sempre, e gastaria a ativação do clique
+    // (o navegador só deixa abrir aba no instante do clique). Abre na hora, de forma síncrona, e manda salvar por lá.
+    if (isYoutubeUrl(url)) { say(openTab(url) ? FALLBACK_MSG : BLOCKED_MSG); return }
+    downloading.current = true
     try {
       const r = await fetch(url, { mode: 'cors' })
       if (!r.ok) throw new Error(String(r.status))
@@ -224,9 +243,8 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
       setTimeout(() => URL.revokeObjectURL(href), 4000)
       say(`Download iniciado: ${nome}`)
     } catch {
-      // CORS do host da imagem ou a política de conteúdo do site: abre a imagem e deixa o navegador salvar
-      window.open(url, '_blank', 'noopener')
-      say('O navegador não deixou baixar direto. A imagem abriu em outra aba: salve por lá.')
+      // o host da cópia guardada não deixou ler o arquivo (CORS): abre a imagem e deixa o navegador salvar. Depois do await o clique pode já ter expirado: o retorno diz.
+      say(openTab(url) ? FALLBACK_MSG : BLOCKED_MSG)
     } finally { downloading.current = false }
   }
 
@@ -234,11 +252,14 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Tab') {
       if (e.ctrlKey || e.altKey || e.metaKey) return
+      // O anel é só o que o Tab alcança de verdade: o título e a caixa têm tabindex=-1 e não entram. Mas o foco PODE estar neles
+      // (o título ao abrir, a caixa depois de um clique em texto): dali, Shift+Tab também dá a volta para o último.
       const root = boxRef.current, t = titleRef.current
       if (!root || !t) return
-      const ring = [t, ...focusables(root)]
+      const ring = focusables(root)
       const first = ring[0] ?? t, last = ring[ring.length - 1] ?? t, active = document.activeElement
-      if (e.shiftKey && (active === first || !root.contains(active))) { e.preventDefault(); last.focus() }
+      const antesDoPrimeiro = active === first || active === t || active === root
+      if (e.shiftKey && (antesDoPrimeiro || !root.contains(active))) { e.preventDefault(); last.focus() }
       else if (!e.shiftKey && (active === last || !root.contains(active))) { e.preventDefault(); first.focus() }
       return
     }
@@ -248,7 +269,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
     else if (e.key === '-' || e.key === '_') { e.preventDefault(); zoomBy(1 / STEP) }
     else if (e.key === '0') { e.preventDefault(); doFit() }
     else if (e.key === '1') { e.preventDefault(); actual() }
-    else if (e.target === stageRef.current && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+    else if (e.target === mainRef.current && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
       e.preventDefault()
       if (zoomed) {
         const dx = e.key === 'ArrowLeft' ? ARROW_PX : e.key === 'ArrowRight' ? -ARROW_PX : 0
@@ -270,7 +291,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
   return createPortal(
     <div className="obs-tv" onKeyDown={onKeyDown}>
       <div className="obs-tv-back" onClick={onClose} />
-      <div className="obs-tv-box" ref={boxRef} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={cmp ? undefined : capId}>
+      <div className="obs-tv-box" ref={boxRef} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={cmp ? undefined : capId} tabIndex={-1}>
         <div className="obs-tv-top">
           <h2 id={titleId} ref={titleRef} tabIndex={-1}>{`Thumbnail: ${title}`}</h2>
           <button type="button" className="obs-tv-b obs-tv-icon" aria-label="Fechar" onClick={onClose}><Icon.x /></button>
@@ -285,18 +306,20 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
             </>
           ) : null}
           <button type="button" className="obs-tv-b obs-tv-cmpbtn" aria-pressed={cmp} aria-disabled={!multi} aria-describedby={multi ? undefined : whyId}
-            onClick={() => { if (multi) setCmp(c => !c) }}><Icon.compare /><span>Comparar lado a lado</span></button>
+            onClick={() => { if (multi) { setCmp(c => !c); setCv(null) } }}><Icon.compare /><span>Comparar lado a lado</span></button>
           {multi ? null : <span id={whyId} className="obs-tv-why">Só há uma versão de thumbnail deste vídeo.</span>}
           {cmp && multi ? (
             <label className="obs-tv-sel" htmlFor={cmpId}><span>Comparar com</span>
               <select id={cmpId} value={o} onChange={e => setOther(Number(e.target.value))}>
-                {versions.map((v, k) => (k === i ? null : <option key={k} value={k}>{v.label}{candidates(v).length ? '' : ' (não arquivada)'}</option>))}
+                {versions.map((v, k) => (k === i ? null : <option key={k} value={k}>{v.label}{candidates(v).length || v.current ? '' : ' (não arquivada)'}</option>))}
               </select>
             </label>
           ) : null}
         </div>
 
-        <div className="obs-tv-main">
+        {/* O alvo de foco da imagem é ESTA caixa, que nunca desmonta: o palco abaixo sai e volta a cada troca de versão, e com o foco dentro dele o teclado morria. */}
+        <div className="obs-tv-main" ref={mainRef} tabIndex={0} role="group" aria-roledescription="imagem"
+          aria-label={cur ? `${cur.label}, ${title}. Setas movem a imagem ou trocam de versão; mais e menos dão zoom; 0 ajusta; 1 mostra a 100%.` : undefined}>
           {!cur ? <Missing><p>Este vídeo não tem versão de thumbnail registrada.</p></Missing>
             : cmp && second ? (
               <div className="obs-tv-cmp">
@@ -311,8 +334,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
               </div>
             )
             : loaded && shown ? (
-              <div className="obs-tv-stage" ref={stageRef} tabIndex={0} role="img" data-zoomed={zoomed || undefined}
-                aria-label={`${cur.label}, ${title}. Setas movem a imagem ou trocam de versão; mais e menos dão zoom; 0 ajusta; 1 mostra a 100%.`}
+              <div className="obs-tv-stage" ref={stageRef} data-zoomed={zoomed || undefined}
                 onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onDoubleClick={onDoubleClick}>
                 <img src={loaded.url} alt="" draggable={false} style={{ width: loaded.w, height: loaded.h, transform: `translate(${shown.x}px,${shown.y}px) scale(${shown.scale})` }} />
               </div>
@@ -323,6 +345,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
         <div className="obs-tv-info">
           {cmp || !cur ? null : <p id={capId} className="obs-tv-cap">{cur.caption}</p>}
           {cmp ? null : <p className="obs-tv-res" role="status" aria-live="polite" aria-atomic="true">{resText(main)}</p>}
+          {/* sempre na árvore (e com a altura de uma linha reservada no CSS): uma região viva que nasce já com texto não é anunciada */}
           <p className="obs-tv-msg" role="status" aria-live="polite" aria-atomic="true">{cmp && cur && second ? `Comparando ${cur.label} com ${second.label}` : msg}</p>
         </div>
 
@@ -335,8 +358,9 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
             <button type="button" className="obs-tv-b" aria-disabled={!zoomOn} onClick={noop(actual)}>100%</button>
           </div>
           <div className="obs-tv-grp" role="group" aria-label="Arquivo">
-            <a className="obs-tv-b" role="link" target="_blank" rel="noopener noreferrer" href={opened ?? undefined} aria-disabled={opened ? undefined : true}>
-              <Icon.ext /><span>Abrir original em nova aba<span className="obs-tv-sr"> (abre em nova aba)</span></span>
+            <a className="obs-tv-b" role="link" target="_blank" rel="noopener noreferrer" href={opened ?? undefined} aria-disabled={opened ? undefined : true}
+              tabIndex={opened ? undefined : 0} onClick={opened ? undefined : e => e.preventDefault()}>
+              <Icon.ext /><span>Abrir original em nova aba</span>
             </a>
             <button type="button" className="obs-tv-b" aria-disabled={!opened} onClick={opened ? () => { void download() } : undefined}><Icon.download /><span>Baixar</span></button>
           </div>
