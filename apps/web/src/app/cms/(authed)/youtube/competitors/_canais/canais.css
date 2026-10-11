@@ -109,8 +109,8 @@
 [data-obs-screen="canais"] tbody tr.row{cursor:pointer}
 [data-obs-screen="canais"] tbody tr.row:hover td{background:var(--surface-hover)}
 [data-obs-screen="canais"] tbody tr.row.sel td{background:var(--accent-subtle)}
-[data-obs-screen="canais"] td:first-child,[data-obs-screen="canais"] th:first-child{position:sticky;left:0;z-index:1}
-[data-obs-screen="canais"] thead th:first-child{z-index:2;background:var(--surface-2)}
+[data-obs-screen="canais"] td:first-child,[data-obs-screen="canais"] th:first-child,[data-obs-screen="canais"] .tablebox tbody td:nth-child(2),[data-obs-screen="canais"] .tablebox thead th:nth-child(2){position:sticky;left:0;z-index:1}
+[data-obs-screen="canais"] thead th:first-child,[data-obs-screen="canais"] .tablebox thead th:nth-child(2){z-index:2;background:var(--surface-2)}
 [data-obs-screen="canais"] tbody td:first-child{background:var(--surface)}
 [data-obs-screen="canais"] tbody tr.row:hover td:first-child{background:var(--surface-hover)}
 [data-obs-screen="canais"] tr.group td{background:var(--surface-2);padding:7px 0;font-size:12.5px;color:var(--muted);border-bottom:1px solid var(--border)}
@@ -390,3 +390,55 @@
 [data-obs-screen="canais"] .card .fm{flex-wrap:wrap;white-space:normal;gap:0 6px}
 /* "formato não confirmado (N)": mora na linha do canal, com a dica na camada flutuante */
 [data-obs-screen="canais"] .ch .sub.semfmt{font-size:12px;color:var(--warning-text)}
+
+/* ---------------------------------------------------------------- A3: posição, bloco "Seus canais", divisor e linha presa no pé */
+/* a coluna da posição é a primeira e fica presa (a regra de th/td:first-child já a prende); o nome fica preso ao lado dela */
+[data-obs-screen="canais"] table th.p,[data-obs-screen="canais"] table td.p{width:40px;min-width:40px;text-align:right;color:var(--muted);font-size:12.5px;padding-left:6px;padding-right:2px;white-space:nowrap}
+[data-obs-screen="canais"] table td.p .sr + [aria-hidden]{color:var(--dim)}
+[data-obs-screen="canais"] tbody tr.you td.p{color:var(--text)}
+[data-obs-screen="canais"] .tablebox thead th:nth-child(2),[data-obs-screen="canais"] .tablebox tbody td:nth-child(2){left:48px}
+[data-obs-screen="canais"] .tablebox tbody td:nth-child(2){background:var(--surface)}
+[data-obs-screen="canais"] .tablebox tbody tr.row:hover td:nth-child(2){background:var(--surface-hover)}
+[data-obs-screen="canais"] .tablebox tr.you td:nth-child(2),[data-obs-screen="canais"] .tablebox tr.you:hover td:nth-child(2){background:var(--you-cell)}
+[data-obs-screen="canais"] table{min-width:1128px}
+[data-obs-screen="canais"] tr.row:focus-visible,[data-obs-screen="canais"] .card:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+/* o divisor "Ainda sem medida para ordenar (N)" é uma linha de grupo */
+[data-obs-screen="canais"] tr.group th{background:var(--surface-2);padding:7px 0;font-size:12.5px;font-weight:400;color:var(--muted);border-bottom:1px solid var(--border);text-align:left}
+[data-obs-screen="canais"] tr.group th .gin{position:sticky;left:0;display:inline-flex;align-items:baseline;gap:8px;padding:0 12px;flex-wrap:wrap}
+[data-obs-screen="canais"] tr.group th strong,[data-obs-screen="canais"] .cardsep strong{color:var(--text);font-weight:600}
+[data-obs-screen="canais"] tr.group th small,[data-obs-screen="canais"] .cardsep small{font-size:12.5px;font-weight:400;color:var(--muted)}
+/* o cartão: a posição no canto e a frase do canal próprio */
+[data-obs-screen="canais"] .card{position:relative}
+[data-obs-screen="canais"] .card .cp{position:absolute;top:12px;right:14px;font-size:12.5px;color:var(--muted)}
+[data-obs-screen="canais"] .card .voce{margin:0;font-size:13px;line-height:18px;color:var(--text)}
+/* bloco "Seus canais": a mesma superfície da tabela, o selo laranja e um fio à esquerda; uma linha por canal próprio */
+[data-obs-screen="canais"] .cn-top{margin:0 0 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface);box-shadow:inset 2px 0 0 var(--accent);padding:8px 12px 8px 14px}
+[data-obs-screen="canais"] .cn-top h2{margin:0 0 2px;font:500 12px/18px var(--sans, inherit);color:var(--muted)}
+[data-obs-screen="canais"] .cn-top ul{list-style:none;margin:0;padding:0}
+[data-obs-screen="canais"] .cn-top li{display:grid;grid-template-columns:26px minmax(150px,auto) minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:6px 0}
+[data-obs-screen="canais"] .cn-top li + li{border-top:1px solid var(--border-subtle)}
+[data-obs-screen="canais"] .cn-top li .av{width:26px;height:26px;font-size:11.5px}
+[data-obs-screen="canais"] .cn-top li.fina{display:block;padding:3px 0 3px 38px}
+[data-obs-screen="canais"] .cn-top li.fina p{margin:0;font-size:13px;line-height:20px;color:var(--muted)}
+[data-obs-screen="canais"] .cn-top .tn{display:flex;align-items:center;gap:8px;min-width:0;font-weight:500;white-space:nowrap;color:var(--text)}
+[data-obs-screen="canais"] .cn-top .tp{margin:0;font-size:13px;line-height:19px;color:var(--muted);min-width:0}
+[data-obs-screen="canais"] .cn-top .tp b{color:var(--text);font-weight:600}
+[data-obs-screen="canais"] .cn-top .ta{display:flex;gap:8px;justify-content:flex-end}
+[data-obs-screen="canais"] .cn-top .cn-own{margin:6px 0 0;font-size:12.5px;line-height:18px;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 10px}
+[data-obs-screen="canais"] .cn-top .flag{display:inline-flex;align-items:center;gap:4px}
+[data-obs-screen="canais"] .lk{all:unset;cursor:pointer;font-size:12.5px;color:var(--text);text-decoration:underline;text-decoration-color:var(--border-strong);text-underline-offset:3px;min-height:24px;display:inline-flex;align-items:center}
+[data-obs-screen="canais"] .lk:hover{text-decoration-color:var(--text)}
+[data-obs-screen="canais"] .lk:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+@media (max-width:1100px){
+  [data-obs-screen="canais"] .cn-top li{grid-template-columns:26px minmax(0,1fr) auto}
+  [data-obs-screen="canais"] .cn-top .tp{grid-column:1/-1;grid-row:2}
+}
+@media (max-width:600px){
+  [data-obs-screen="canais"] .cn-top li{grid-template-columns:26px minmax(0,1fr)}
+  [data-obs-screen="canais"] .cn-top .ta{grid-column:1/-1;justify-content:flex-start;flex-wrap:wrap}
+}
+/* linha presa no pé, fina (30 px): só quando nem o bloco do topo nem a linha do canal estão na tela. Fica depois da legenda: ao fim
+   da rolagem ocupa o lugar dela e não cobre a última linha da tabela */
+[data-obs-screen="canais"] .cn-pin{position:sticky;bottom:10px;margin-top:10px;min-height:30px;display:flex;align-items:center;gap:4px 14px;flex-wrap:wrap;padding:3px 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-2);box-shadow:var(--shadow);font-size:12.5px;z-index:var(--z-grudado)}
+[data-obs-screen="canais"] .cn-pin[hidden]{display:none}
+[data-obs-screen="canais"] .cn-pin p{margin:0;flex:1 1 280px;min-width:0;color:var(--muted)}

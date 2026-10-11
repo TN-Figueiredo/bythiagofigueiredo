@@ -101,3 +101,13 @@ export function divisorDe(n: number, em: string): { titulo: string; nota: string
 export const CONJUNTO_AVISO = 'Canais de nichos diferentes têm públicos de tamanhos diferentes, então a posição geral ordena, não julga.'
 /** Spec 15.5: a busca filtra as linhas, as posições são as da lista inteira. */
 export const BUSCA_NOTA = 'Posição na lista inteira, não só nos resultados da busca.'
+
+/** Nos cartões (spec 15.2, mockup): "Você está na 10ª posição de 14 em Viagem nesta ordenação." Sem posição, a tela diz o motivo (`motivoTexto`). */
+export function fraseDoCartao(p: Posicao, c: Conjunto): string {
+  return `Você está na ${p.pos}ª posição de ${p.de} ${conjuntoTexto(c)} nesta ordenação${p.empate ? ', em empate' : ''}.`
+}
+
+/** O fim do anúncio de ordenação (leitor de tela): "Seu canal: 14º de 14 em Viagem." ou que não há medida na coluna. */
+export function fraseSeuCanal(p: Posicao | null, c: Conjunto): string {
+  return p ? `Seu canal: ${p.pos}º de ${p.de} ${conjuntoTexto(c)}${p.empate ? ' (empate)' : ''}.` : 'Seu canal ainda sem medida nesta coluna.'
+}

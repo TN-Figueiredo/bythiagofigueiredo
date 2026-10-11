@@ -1,15 +1,19 @@
 'use client'
 /** Table view of Canais (port of canais.html thead + renderBody rows and group rows). */
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import type { CanaisGroup, CanaisRow, CanaisSort, CanaisView, OwnGroupPart } from './view-model'
+import { useEffect, useRef, useState } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
-import { nicheStyle } from './niche-editor'
-import { CadenceView, ChCell, GrowthView, Ic, OutView, SwapView, SyncView, Tip, VpdView, type LocalSync } from './cells'
+import type { CanaisRow, CanaisSort, CanaisView } from './view-model'
+import { temPosicao } from './posicao-model'
+import { CadenceView, ChCell, GrowthView, OutView, SwapView, SyncView, Tip, VpdView, type LocalSync } from './cells'
 
 export interface RowHandlers {
   open: (id: string) => void; niche: (r: CanaisRow, n: Niche, ctx: string) => void; menu: (id: string) => void
   retry: (id: string) => void; remove: (id: string, from: HTMLElement | null) => void
   local: (id: string) => LocalSync; roundRunning: boolean; upnextHref: string; menuFor: string | null; selected: string | null
+  /** Rola até a linha (ou o cartão) do canal e põe o foco nela; com a busca escondendo a linha, limpa a busca antes. */
+  irAte: (id: string) => void
+  /** Guarda o elemento da linha do canal próprio (achado por ref, nunca por id global); null ao desmontar. */
+  reg: (id: string, el: HTMLElement | null) => void
 }
 
 /** `fm`: a coluna depende do formato (em "Todos" tem duas medidas e o rótulo sobe para o cabeçalho). */
@@ -21,35 +25,19 @@ const COLS: Array<{ k: CanaisSort; label: string; unit: string | null; r?: boole
   { k: 'growth', label: 'Crescimento', unit: 'inscritos, 30 d', r: true, hide: true },
 ]
 
-export function GroupMeta({ g }: { g: CanaisGroup }) {
-  const look = { erro: ['var(--danger-text)', 'warn'], atrasado: ['var(--warning-text)', 'clock'], backfill: ['var(--info)', 'spin'], parado: ['var(--warning-text)', 'pause'] } as const
-  return <>{g.flags.map(f => <span key={f.kind} className="flag" style={{ color: look[f.kind][0] }}><Ic n={look[f.kind][1]} />{f.text}</span>)}</>
-}
-/** The pieces of the "Seus canais" line (canais.html ownParts): one <span> each; the texts come from the view model. */
-export function OwnGroupParts({ parts }: { parts: OwnGroupPart[] }) {
-  return <>{parts.map((p, i) => (
-    <span key={i}>
-      {p.warn ? <span className="flag" style={{ color: 'var(--warning-text)' }}><Ic n="warn" />{p.text}</span>
-        : p.num != null ? <><span className="num">{p.num}</span> {p.text}</> : p.text}
-    </span>
-  ))}</>
-}
-/**
- * The group dot: the built-in niches keep their tokens; "Sem nicho" is muted; a niche the owner created uses its own
- * colour through --obs-niche (canais.css resolves it from --obs-sw-dark / --obs-sw-light by theme).
- */
-export const groupColor = (k: CanaisGroup['key']) => (k === 'ia' ? 'var(--ai)' : k === 'viagem' ? 'var(--travel)' : k === 'sem' ? 'var(--muted)' : 'var(--obs-niche)')
-export function groupDotStyle(g: Pick<CanaisGroup, 'key' | 'color'>): CSSProperties {
-  const dot = groupColor(g.key)
-  // a niche without its colour (never the case for a row of youtube_niches) falls back to the muted dot, not to an unset variable
-  return g.color ? { background: dot, ...nicheStyle(g.color) } : { background: dot === 'var(--obs-niche)' ? 'var(--muted)' : dot }
+/** A posição: "13º" (com "(empate)" só para o leitor de tela); sem posição, "sem posição" só para o leitor e, numa ordenação que tem posição, um traço. */
+function PosCell({ r, ordenacaoComPosicao }: { r: CanaisRow; ordenacaoComPosicao: boolean }) {
+  if (r.pos) return <td className="p num">{r.pos.pos}º{r.pos.empate ? <span className="sr"> (empate)</span> : null}</td>
+  return <td className="p num"><span className="sr">sem posição</span>{ordenacaoComPosicao ? <span aria-hidden="true">–</span> : null}</td>
 }
 
-function Row({ r, h, todos }: { r: CanaisRow; h: RowHandlers; todos: boolean }) {
+function Row({ r, h, todos, ordenacaoComPosicao }: { r: CanaisRow; h: RowHandlers; todos: boolean; ordenacaoComPosicao: boolean }) {
   const c = r.cells
   return (
     <tr className={`row obs-cn-row ${r.own ? 'you' : ''} ${h.selected === r.id ? 'sel' : ''}`} data-id={r.id}
+      tabIndex={r.own ? -1 : undefined} ref={r.own ? el => h.reg(r.id, el) : undefined}
       onClick={e => { if (!(e.target as HTMLElement).closest('select,button,a,.tip')) h.open(r.id) }}>
+      <PosCell r={r} ordenacaoComPosicao={ordenacaoComPosicao} />
       <td><ChCell r={r} ctx="row" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'row')} /></td>
       <td><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} /></td>
       <td className={todos ? 'r dois' : 'r'}><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} /></td>
@@ -67,8 +55,10 @@ function Row({ r, h, todos }: { r: CanaisRow; h: RowHandlers; todos: boolean }) 
   )
 }
 
-export function ChannelTable({ view, own, groups, h, onSort, empty, busy, busySort }: {
-  view: CanaisView; own: CanaisView['own']; groups: CanaisGroup[]; h: RowHandlers; onSort: (k: CanaisSort) => void; empty: React.ReactNode
+export function ChannelTable({ view, ranked, unranked, h, onSort, empty, busy, busySort }: {
+  view: CanaisView; ranked: CanaisRow[]; unranked: CanaisRow[]; h: RowHandlers; onSort: (k: CanaisSort) => void
+  /** A frase de vazio; aparece sob as linhas quando não sobra nenhum concorrente (filtro, busca ou nicho sem canais). */
+  empty: React.ReactNode
   /** A navigation that changes these numbers or their order is in flight: the rows are the previous ones. */
   busy?: boolean
   /** The column whose header was clicked and whose order has not arrived yet. */
@@ -77,6 +67,8 @@ export function ChannelTable({ view, own, groups, h, onSort, empty, busy, busySo
   // canais.html #scrollHint: says the table scrolls sideways only when it really overflows (drawer open, narrow screen)
   const box = useRef<HTMLDivElement>(null)
   const todos = view.fmt === 'todos'
+  const ordenacaoComPosicao = temPosicao(view.sort)
+  const semConcorrente = !ranked.some(r => !r.own) && !unranked.some(r => !r.own)
   const [overflow, setOverflow] = useState(false)
   useEffect(() => {
     const el = box.current
@@ -87,13 +79,14 @@ export function ChannelTable({ view, own, groups, h, onSort, empty, busy, busySo
     ro?.observe(el)
     window.addEventListener('resize', on)
     return () => { ro?.disconnect(); window.removeEventListener('resize', on) }
-  }, [groups, own.rows])
+  }, [ranked, unranked])
   return (
     <>
     {overflow ? <p className="cap" data-scroll-hint="" style={{ whiteSpace: 'normal', margin: '0 0 6px' }}>Role a tabela para o lado para ver todas as colunas.</p> : null}
     <div className="tablebox" ref={box} aria-busy={busy || undefined}>
       <table aria-label="Canais acompanhados" className={todos ? 'todos' : undefined}>
         <thead><tr>
+          <th scope="col" className="p"><span className="sr">Posição</span></th>
           <th scope="col" className="sortable" data-k="subs" aria-sort={view.sort === 'subs' ? (view.dir === 'desc' ? 'descending' : 'ascending') : undefined}>
             <button type="button" aria-busy={busySort === 'subs' || undefined} title="Ordenar por inscritos" onClick={() => onSort('subs')}>Canal <span className="arrow" aria-hidden="true">{view.sort === 'subs' ? (view.dir === 'desc' ? '▼' : '▲') : ''}</span></button>
             <span className="unit">nicho e inscritos</span>
@@ -113,13 +106,12 @@ export function ChannelTable({ view, own, groups, h, onSort, empty, busy, busySo
           <th scope="col"><span className="sr">Ações</span></th>
         </tr></thead>
         <tbody>
-          {own.group ? <tr className="group" data-own-group=""><td colSpan={8}><span className="gin"><strong>{own.group.label}</strong><OwnGroupParts parts={own.group.parts} /></span></td></tr> : null}
-          {own.rows.map(r => <Row key={r.id} r={r} h={h} todos={todos} />)}
-          {groups.map(g => [
-            <tr key={'g-' + g.key} className="group"><td colSpan={8}><span className="gin"><span className={g.color ? 'dot custom' : 'dot'} style={groupDotStyle(g)} /><strong>{g.label}</strong><span>{g.count}</span><GroupMeta g={g} /></span></td></tr>,
-            ...g.rows.map(r => <Row key={r.id} r={r} h={h} todos={todos} />),
-          ])}
-          {groups.length ? null : <tr><td colSpan={8} style={{ padding: '28px 14px', color: 'var(--muted)' }}>{empty}</td></tr>}
+          {ranked.map(r => <Row key={r.id} r={r} h={h} todos={todos} ordenacaoComPosicao={ordenacaoComPosicao} />)}
+          {view.list.divisor && unranked.length ? (
+            <tr className="group" data-divisor=""><th scope="rowgroup" colSpan={9}><span className="gin"><strong>{view.list.divisor.titulo.replace(/\(\d+\)$/, `(${unranked.length})`)}</strong><small>{view.list.divisor.nota}</small></span></th></tr>
+          ) : null}
+          {unranked.map(r => <Row key={r.id} r={r} h={h} todos={todos} ordenacaoComPosicao={ordenacaoComPosicao} />)}
+          {semConcorrente ? <tr><td colSpan={9} style={{ padding: '28px 14px', color: 'var(--muted)' }}>{empty}</td></tr> : null}
         </tbody>
       </table>
     </div>

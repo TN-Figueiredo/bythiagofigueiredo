@@ -60,7 +60,7 @@ describe('Canais · immediate feedback', () => {
     expect(within(d).getByRole('heading', { name: 'tnFigueiredo' })).toBeInTheDocument()
     // the niche is read-only text here (no site-admin context): an own channel's niche is its identity
     expect(within(d).getByText('Viagem')).toBeInTheDocument()
-    expect(d.querySelector('.dhead .meta .num')!.textContent).toBe(view().own.rows.find(x => x.id === 'tnfigueiredo')!.subs)
+    expect(d.querySelector('.dhead .meta .num')!.textContent).toBe([...view().list.ranked, ...view().list.unranked].find(x => x.id === 'tnfigueiredo')!.subs)
     expect(root()).toHaveClass('drawer-open')
     expect(root()).toHaveAttribute('data-nav-pending')
     expect(document.querySelector('tr.obs-cn-row[data-id="tnfigueiredo"]')).toHaveClass('sel')

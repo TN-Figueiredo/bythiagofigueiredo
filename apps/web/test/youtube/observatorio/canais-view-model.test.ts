@@ -6,14 +6,19 @@ import type { OwnPreset } from '../../fixtures/observatorio/own-presets'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildCanaisView, type CanaisParams } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 const obs = createObservatory(datasetFromOracle(loadOracle()))
+// A3 Tarefa 3: a lista é uma só (`list`); os canais próprios estão nela, na posição deles, e no bloco, na ordem do motor (R73)
+type V = ReturnType<typeof buildCanaisView>
+const rowsOf = (v: V) => [...v.list.ranked, ...v.list.unranked]
+const comps = (v: V) => rowsOf(v).filter(r => !r.own)
+const ownOf = (v: V) => (v.own.block?.linhas ?? []).map(l => rowsOf(v).find(r => r.id === l.id)!)
 describe('Canais view model', () => {
   it('"14 de 75 canais" — own channel not counted', () => expect(buildCanaisView(obs, { niche: 'todos', limit: 75 }).slots.text).toBe('14 de 75 canais'))
   it('R124: cada linha leva a foto do canal; no oráculo (sem foto) é sempre nulo', () => {
-    for (const r of buildCanaisView(obs, { niche: 'todos', limit: 75 }).rows) expect(r.avatar).toBeNull()
+    for (const r of rowsOf(buildCanaisView(obs, { niche: 'todos', limit: 75 }))) expect(r.avatar).toBeNull()
   })
   it('CanaisRow.href: a página do canal para concorrente, null para canal próprio (que continua abrindo o painel)', () => {
     const v = buildCanaisView(createObservatory(datasetFromOracle(loadOracleOwns('2'))), { niche: 'todos', limit: 75 })
-    const all = [...v.own.rows, ...v.rows, ...v.groups.flatMap(g => g.rows)]
+    const all = rowsOf(v)
     expect(all.some(r => r.own)).toBe(true)
     for (const r of all) expect(r.href).toBe(r.own ? null : obs.link.canal(r.id))
     expect(all.find(r => r.id === 'luke-damant')!.href).toBe('/cms/youtube/competitors/canal/luke-damant')
@@ -21,16 +26,16 @@ describe('Canais view model', () => {
   it('never negative slots', () => expect(buildCanaisView(obs, { niche: 'todos', limit: 10 }).slots.free).toBe(0))
   it('link N = destination N (outliers and changes per channel)', () => {
     const v = buildCanaisView(obs, { niche: 'todos', limit: 75 })
-    for (const r of v.rows.filter(r => !r.own)) {
+    for (const r of comps(v)) {
       expect(r.outliers.n).toBe(obs.outliers({ channel: r.id, fmt: 'long' }).count)
       expect(r.changes.n).toBe(obs.changesIn({ channel: r.id }).length)
     }
   })
   it('problem rows use problemPhrase verbatim', () => {
-    for (const r of buildCanaisView(obs, { niche: 'todos', limit: 75 }).rows) expect(r.sync.phrase).toBe(obs.channel(r.id)!.sync.problemPhrase ?? null)
+    for (const r of rowsOf(buildCanaisView(obs, { niche: 'todos', limit: 75 }))) expect(r.sync.phrase).toBe(obs.channel(r.id)!.sync.problemPhrase ?? null)
   })
   it('?filter=problemas keeps only non-ok channels', () => {
-    expect(buildCanaisView(obs, { niche: 'todos', limit: 75, filter: 'problemas' }).rows.every(r => r.sync.state !== 'ok')).toBe(true)
+    expect(comps(buildCanaisView(obs, { niche: 'todos', limit: 75, filter: 'problemas' })).every(r => r.sync.state !== 'ok')).toBe(true)
   })
   it('stalled channel numbers say "até o registro diário de DD/MM HH:MM"', () => {
     const v = buildCanaisView(obs, { niche: 'todos', limit: 75, channel: 'bald-and-bankrupt' })
@@ -43,12 +48,15 @@ describe('Canais view model', () => {
     expect(v.slots.fullText).toBe('Sem vagas: 14 de 14 concorrentes. Remova um canal para adicionar outro.')
     expect(buildCanaisView(obs, { niche: 'todos', limit: 75 }).slots.fullText).toBeNull()
   })
-  it('own channel first, then Viagem and IA groups; a niche keeps only its group', () => {
+  it('lista única sem grupos por nicho: Todos junta os nichos; um nicho tem só os dele; o canal próprio fica na lista', () => {
     const v = buildCanaisView(obs, { niche: 'todos', limit: 75 })
-    expect(v.own.rows[0]?.own).toBe(true)
-    expect(v.groups.map(g => g.label)).toEqual(['Viagem', 'IA'])
-    expect(buildCanaisView(obs, { niche: 'ia', limit: 75 }).groups.map(g => g.label)).toEqual(['IA'])
-    expect(v.groups[0]!.flags.map(f => f.text)).toEqual(['1 com sincronização atrasada', '1 buscando vídeos', '1 parado'])
+    expect(ownOf(v)[0]?.own).toBe(true)
+    expect(new Set(comps(v).map(r => r.niche))).toEqual(new Set(['viagem', 'ia']))
+    expect(comps(buildCanaisView(obs, { niche: 'ia', limit: 75 })).every(r => r.niche === 'ia')).toBe(true)
+    expect('groups' in v || 'rows' in v).toBe(false)
+    // os avisos por grupo saíram; o filtro "só com problema" fica, com a contagem de canais fora de ordem
+    expect(v.problems.n).toBe(comps(v).filter(r => r.sync.state !== 'ok').length)
+    expect(v.problems.n).toBeGreaterThan(0)
   })
   it('defaults and URL params: scale, fmt, layout, add, filter, drawer tab', () => {
     const d = buildCanaisView(obs, { niche: 'todos', limit: 75 })
@@ -65,7 +73,7 @@ describe('Canais view model', () => {
     for (const s of v.drawer!.outliers.sections) if (s.link) expect(s.link.n).toBe(obs.outliers({ channel: 'matt-wolfe', fmt: s.fmt }).count)
   })
   it('backfill channel: no numbers invented, progress from the engine', () => {
-    const r = buildCanaisView(obs, { niche: 'todos', limit: 75 }).rows.find(x => x.id === 'vou-sem-volta')!
+    const r = rowsOf(buildCanaisView(obs, { niche: 'todos', limit: 75 })).find(x => x.id === 'vou-sem-volta')!
     expect(r.sync.label).toBe('Buscando vídeos')
     expect(r.cells.sync.progress).toEqual({ done: 18, total: 50 })
     expect(r.cells.vpd.kind).toBe('na')
@@ -93,10 +101,10 @@ describe('Canais view model', () => {
     const v = buildCanaisView(obs, { niche: 'todos', limit: 75 })
     expect(v.syncbar.text).toBe('Sincronização em andamento: 11 concorrentes na rodada; fora da rodada: Vou sem volta (ainda buscando vídeos). O resultado de cada canal aparece quando a rodada termina.')
     expect(v.syncbar.meta).toBe('Seu canal não entra nesta rodada; ele sincroniza pelo Painel. O canal em coleta continua a própria coleta.')
-    const row = (id: string) => v.groups.flatMap(g => g.rows).find(r => r.id === id)!
+    const row = (id: string) => rowsOf(v).find(r => r.id === id)!
     expect(row('matt-wolfe').cells.sync.queued?.label).toBe('Na fila desta rodada')
     expect(row('paddy-doyle').cells.sync.queued).toBeNull()
-    expect(v.own.rows[0]!.cells.sync.queued).toBeNull()
+    expect(ownOf(v)[0]!.cells.sync.queued).toBeNull()
   })
 })
 
@@ -106,7 +114,7 @@ describe('Canais view model — fidelity with canais.html', () => {
   it('the own channel with tracked videos but no daily views says so (never "Nenhum vídeo longo acompanhado")', () => {
     const ds = datasetFromOracle(loadOracle())
     for (const v of ds.videos) if (ds.channels.find(c => c.id === v.ch)?.own) v.series = []
-    const own = buildCanaisView(createObservatory(ds), { niche: 'todos', limit: 75 }).own.rows[0]!
+    const own = ownOf(buildCanaisView(createObservatory(ds), { niche: 'todos', limit: 75 }))[0]!
     expect(own.cells.vpd).toMatchObject({ kind: 'na', text: 'Sem views diárias do seu canal.' })
   })
 })
@@ -116,17 +124,18 @@ describe('Canais view model — fidelity with canais.html', () => {
 const cache = new Map<OwnPreset, ReturnType<typeof createObservatory>>()
 const obsOf = (preset: OwnPreset) => { let o = cache.get(preset); if (!o) { o = createObservatory(datasetFromOracle(loadOracleOwns(preset))); cache.set(preset, o) } return o }
 const viewOf = (preset: OwnPreset, p: Partial<CanaisParams> = {}) => buildCanaisView(obsOf(preset), { niche: 'todos', limit: 75, ...p })
-const texts = (v: ReturnType<typeof buildCanaisView>) => v.own.group?.parts.map(x => (x.num ? x.num + ' ' : '') + x.text) ?? null
+const texts = (v: ReturnType<typeof buildCanaisView>) => v.own.block?.partes.map(x => (x.num ? x.num + ' ' : '') + x.text) ?? null
 const SYNC_ONE = 'Seu canal não entra nesta rodada; ele sincroniza pelo Painel. O canal em coleta continua a própria coleta.'
 const SYNC_MANY = 'Seus canais não entram nesta rodada; eles sincronizam pelo Painel. O canal em coleta continua a própria coleta.'
 
 describe('Canais view model — grupo "Seus canais" (N canais próprios)', () => {
-  it('preset 1, Todos: sem cabeçalho de grupo, sem chip de idioma, textos no singular', () => {
+  it('preset 1, Todos: bloco "Seu canal" no singular, sem chip de idioma, textos no singular', () => {
     const v = viewOf('1')
-    expect(v.own.group).toBeNull()
+    expect(v.own.block!.titulo).toBe('Seu canal')
+    expect(texts(v)).toEqual(['1 canal', 'fora do limite de concorrentes'])
     expect(v.own.many).toBe(false)
-    expect(v.own.rows).toHaveLength(1)
-    expect(v.own.rows[0]!.lang).toBeNull()
+    expect(ownOf(v)).toHaveLength(1)
+    expect(ownOf(v)[0]!.lang).toBeNull()
     expect(v.slots.tip).toContain('o seu canal não ocupa vaga')
     expect(v.add.cap).toContain('(o seu canal não conta)')
     expect(v.syncbar.meta).toBe(SYNC_ONE)
@@ -134,14 +143,14 @@ describe('Canais view model — grupo "Seus canais" (N canais próprios)', () =>
   })
   it('preset 2, Todos: grupo com "2 canais", ordem R73, chips PT/EN, textos no plural', () => {
     const v = viewOf('2')
-    expect(v.own.group!.label).toBe('Seus canais')
-    expect(v.own.group!.parts).toEqual([
+    expect(v.own.block!.titulo).toBe('Seus canais')
+    expect(v.own.block!.partes).toEqual([
       { num: '2', text: 'canais', warn: false },
       { num: null, text: 'fora do limite de concorrentes', warn: false },
     ])
     expect(v.own.many).toBe(true)
-    expect(v.own.rows.map(r => r.name)).toEqual(['tnFigueiredo', 'tnFigueiredo EN'])
-    expect(v.own.rows.map(r => r.lang)).toEqual([{ code: 'PT', title: 'Canal em português' }, { code: 'EN', title: 'Canal em inglês' }])
+    expect(ownOf(v).map(r => r.name)).toEqual(['tnFigueiredo', 'tnFigueiredo EN'])
+    expect(ownOf(v).map(r => r.lang)).toEqual([{ code: 'PT', title: 'Canal em português' }, { code: 'EN', title: 'Canal em inglês' }])
     expect(v.slots.tip).toContain('os seus canais não ocupam vaga')
     expect(v.add.cap).toContain('(os seus canais não contam)')
     expect(v.syncbar.meta).toBe(SYNC_MANY)
@@ -150,59 +159,67 @@ describe('Canais view model — grupo "Seus canais" (N canais próprios)', () =>
   })
   it('preset 2, IA: nenhuma linha própria e o grupo diz onde os canais estão', () => {
     const v = viewOf('2', { niche: 'ia' })
-    expect(v.own.rows).toEqual([])
+    expect(ownOf(v)).toEqual([])
+    expect(v.own.block!.linhas).toEqual([])
     expect(texts(v)).toEqual(['nenhum de IA', '2 em outro nicho (aparecem em Todos)', 'fora do limite de concorrentes'])
-    expect(v.rows.some(r => r.own)).toBe(false)
+    expect(rowsOf(v).some(r => r.own)).toBe(false)
   })
   it('preset mix, Viagem: os do nicho e o sem nicho, na ordem R73; partes com o aviso', () => {
     const v = viewOf('mix', { niche: 'viagem' })
-    expect(v.own.rows.map(r => r.name)).toEqual(['Thiago na Estrada', 'tnFigueiredo', 'Mochila Leve', 'tnFigueiredo EN'])
-    expect(v.own.group!.parts).toEqual([
+    expect(ownOf(v).map(r => r.name)).toEqual(['Thiago na Estrada', 'tnFigueiredo', 'Mochila Leve', 'tnFigueiredo EN'])
+    expect(v.own.block!.partes).toEqual([
       { num: '3', text: 'de Viagem', warn: false },
       { num: null, text: '1 sem nicho: escolha o nicho na linha do canal', warn: true },
       { num: null, text: '1 em outro nicho (aparece em Todos)', warn: false },
       { num: null, text: 'fora do limite de concorrentes', warn: false },
     ])
-    expect(v.own.rows.find(r => r.name === 'Mochila Leve')!.niche).toBeNull()
+    expect(ownOf(v).find(r => r.name === 'Mochila Leve')!.niche).toBeNull()
   })
   it('preset mix, Todos: "5 canais", o aviso de sem nicho, e nenhuma parte "em outro nicho"', () => {
     const v = viewOf('mix')
-    expect(v.own.group!.parts[0]).toEqual({ num: '5', text: 'canais', warn: false })
+    expect(v.own.block!.partes[0]).toEqual({ num: '5', text: 'canais', warn: false })
     expect(texts(v)).toContain('1 sem nicho: escolha o nicho na linha do canal')
     expect(texts(v)!.some(t => t.includes('em outro nicho'))).toBe(false)
-    expect(v.own.rows).toHaveLength(5)
+    expect(ownOf(v)).toHaveLength(5)
   })
   it('preset mix, IA: o canal de IA e o sem nicho; os três de Viagem ficam em Todos', () => {
     const v = viewOf('mix', { niche: 'ia' })
-    expect(v.own.rows.map(r => r.name)).toEqual(['Thiago testa IA', 'Mochila Leve'])
+    expect(ownOf(v).map(r => r.name)).toEqual(['Thiago testa IA', 'Mochila Leve'])
     expect(texts(v)).toEqual(['1 de IA', '1 sem nicho: escolha o nicho na linha do canal', '3 em outro nicho (aparecem em Todos)', 'fora do limite de concorrentes'])
   })
   it('preset 5: cinco linhas próprias na ordem R73, e nenhuma ocupa vaga', () => {
     const o = obsOf('5'), v = buildCanaisView(o, { niche: 'todos', limit: 75 })
-    expect(v.own.rows.map(r => r.id)).toEqual(o.ownChannels().map(c => c.id))
-    expect(v.own.rows.map(r => r.name)).toEqual(['Thiago na Estrada', 'tnFigueiredo', 'Slow Roads', 'Mochila Leve', 'tnFigueiredo EN'])
+    expect(ownOf(v).map(r => r.id)).toEqual(o.ownChannels().map(c => c.id))
+    expect(ownOf(v).map(r => r.name)).toEqual(['Thiago na Estrada', 'tnFigueiredo', 'Slow Roads', 'Mochila Leve', 'tnFigueiredo EN'])
     expect(v.slots.used).toBe(14)
-    expect(v.rows.slice(0, 5).map(r => r.id)).toEqual(v.own.rows.map(r => r.id))
+    // a lista não os fixa mais no topo: cada um está uma vez, na posição que a ordenação lhe dá
+    expect(rowsOf(v).filter(r => r.own).map(r => r.id).sort()).toEqual(ownOf(v).map(r => r.id).sort())
+    expect(rowsOf(v)).toHaveLength(o.channels.length)
   })
   it('sem ?sort= a ordem é Views/dia (a mesma de ?sort=vpd); ?sort=subs ordena os concorrentes por inscritos', () => {
-    const comp = (v: ReturnType<typeof buildCanaisView>) => v.groups.flatMap(g => g.rows)
+    const comp = comps
     const def = viewOf('1')
     expect(def.sort).toBe('vpd')
     expect(comp(def).map(r => r.id)).toEqual(comp(viewOf('1', { sort: 'vpd' })).map(r => r.id))
     expect(viewOf('1', { scale: 'abs' }).sortNote).toBe('Ordenado por Views/dia em número absoluto, maior primeiro')
     const subs = viewOf('1', { sort: 'subs', niche: 'viagem' })
     expect(subs.sortNote).toBe('Ordenado por Inscritos, maior primeiro')
-    const keys = comp(subs).map(r => r.sortKeys.subs)
+    const keys = comp(subs).map(r => r.valor.subs as number)
     expect(keys.length).toBeGreaterThan(2)
     expect(keys).toEqual([...keys].sort((a, b) => b - a))
     expect(new Set(keys).size).toBeGreaterThan(1)
   })
-  it('a coluna clicada não reordena os canais próprios (R73 fica)', () => {
-    const base = viewOf('5').own.rows.map(r => r.id)
-    for (const sort of ['active', 'vpd', 'outliers', 'swaps', 'growth', 'subs']) for (const dir of ['asc', 'desc'])
-      expect(viewOf('5', { sort, dir }).own.rows.map(r => r.id)).toEqual(base)
+  it('a coluna clicada reordena os canais próprios na lista (a posição deles muda); o bloco "Seus canais" segue a ordem do motor (R73)', () => {
+    const base = ownOf(viewOf('5')).map(r => r.id)
+    const lugares = new Set<string>()
+    for (const sort of ['active', 'vpd', 'outliers', 'swaps', 'growth', 'subs']) for (const dir of ['asc', 'desc']) {
+      const v = viewOf('5', { sort, dir })
+      expect(ownOf(v).map(r => r.id)).toEqual(base)
+      lugares.add(rowsOf(v).filter(r => r.own).map(r => r.id).join())
+    }
+    expect(lugares.size).toBeGreaterThan(1)
   })
-  it('um canal próprio sem nicho: o grupo aparece pedindo o nicho, e o canal aparece em Todos, Viagem e IA', () => {
+  it('um canal próprio sem nicho: o bloco aparece pedindo o nicho, e o canal aparece em Todos, Viagem e IA', () => {
     const ds = datasetFromOracle(loadOracleOwns('1'))
     const id = ds.channels.find(c => c.own)!.id
     for (const c of ds.channels) if (c.id === id) c.niche = null
@@ -210,18 +227,18 @@ describe('Canais view model — grupo "Seus canais" (N canais próprios)', () =>
     const o = createObservatory(ds)
     const all = buildCanaisView(o, { niche: 'todos', limit: 75 })
     expect(texts(all)).toEqual(['1 canal', '1 sem nicho: escolha o nicho na linha do canal', 'fora do limite de concorrentes'])
-    expect(all.own.group!.parts[1]!.warn).toBe(true)
+    expect(all.own.block!.partes[1]!.warn).toBe(true)
     for (const niche of ['todos', 'viagem', 'ia'] as const) {
       const v = buildCanaisView(o, { niche, limit: 75 })
-      expect(v.own.rows.map(r => r.id)).toEqual([id])
-      expect(v.own.rows[0]!.niche).toBeNull()
-      expect(v.own.group).not.toBeNull()
+      expect(ownOf(v).map(r => r.id)).toEqual([id])
+      expect(ownOf(v)[0]!.niche).toBeNull()
+      expect(v.own.block).not.toBeNull()
     }
     expect(texts(buildCanaisView(o, { niche: 'ia', limit: 75 }))).toEqual(['nenhum de IA', '1 sem nicho: escolha o nicho na linha do canal', 'fora do limite de concorrentes'])
     // textos continuam no singular: é um canal só
     expect(all.slots.tip).toContain('o seu canal não ocupa vaga')
   })
-  it('dataset sem canal próprio: nada lança, sem grupo, sem linha, textos no singular, unidade com o início da série', () => {
+  it('dataset sem canal próprio: nada lança, sem bloco, sem linha, textos no singular, unidade com o início da série', () => {
     const ds = datasetFromOracle(loadOracle())
     const owns = new Set(ds.channels.filter(c => c.own).map(c => c.id))
     ds.channels = ds.channels.filter(c => !c.own)
@@ -229,8 +246,8 @@ describe('Canais view model — grupo "Seus canais" (N canais próprios)', () =>
     const o = createObservatory(ds)
     for (const niche of ['todos', 'viagem', 'ia'] as const) for (const filter of [undefined, 'problemas']) {
       const v = buildCanaisView(o, { niche, limit: 75, filter })
-      expect(v.own).toEqual({ rows: [], group: null, many: false, block: null })
-      expect(v.rows.some(r => r.own)).toBe(false)
+      expect(v.own).toEqual({ many: false, block: null })
+      expect(rowsOf(v).some(r => r.own)).toBe(false)
       expect(v.slots.tip).toContain('o seu canal não ocupa vaga')
       expect(v.add.cap).toContain('(o seu canal não conta)')
       expect(v.syncbar.meta).toBe(SYNC_ONE)
@@ -239,14 +256,15 @@ describe('Canais view model — grupo "Seus canais" (N canais próprios)', () =>
       expect(JSON.stringify(v)).not.toMatch(/undefined|NaN/)
     }
   })
-  it('?filter=problemas: as linhas próprias continuam em own.rows e saem da lista plana', () => {
+  it('?filter=problemas: as linhas próprias continuam na lista e no bloco; os concorrentes são só os com problema', () => {
     const v = viewOf('2', { filter: 'problemas' })
-    expect(v.own.rows).toHaveLength(2)
-    expect(v.rows.some(r => r.own)).toBe(false)
-    expect(v.rows.length).toBeGreaterThan(0)
+    expect(ownOf(v)).toHaveLength(2)
+    expect(rowsOf(v).filter(r => r.own)).toHaveLength(2)
+    expect(comps(v).length).toBeGreaterThan(0)
+    expect(comps(v).every(r => r.sync.state !== 'ok')).toBe(true)
   })
   it('cada linha própria: trocas no A/B Lab, nunca na fila da rodada', () => {
-    for (const preset of ['1', '2', '5', 'mix'] as const) for (const r of viewOf(preset).own.rows) {
+    for (const preset of ['1', '2', '5', 'mix'] as const) for (const r of ownOf(viewOf(preset))) {
       expect(r.own).toBe(true)
       expect(r.cells.swap).toEqual({ kind: 'na', text: 'Suas trocas ficam no A/B Lab.' })
       expect(r.cells.sync.queued).toBeNull()
@@ -255,15 +273,15 @@ describe('Canais view model — grupo "Seus canais" (N canais próprios)', () =>
   it('canal próprio sem vídeos no formato: a linha diz que não há vídeos, nunca um veredito contra a mediana', () => {
     const o = obsOf('5')
     expect(o.videos.some(x => x.ch === 'mochila-leve' && x.fmt === 'short')).toBe(false)
-    const r = buildCanaisView(o, { niche: 'todos', limit: 75, fmt: 'short' }).own.rows.find(x => x.id === 'mochila-leve')!
+    const r = rowsOf(buildCanaisView(o, { niche: 'todos', limit: 75, fmt: 'short' })).find(x => x.id === 'mochila-leve')!
     expect(r.cells.vpd.kind).toBe('na')
     expect(r.cells.out).toMatchObject({ kind: 'na', text: 'Não publicou Shorts em 90\u00a0d.' })
     expect(JSON.stringify(r.cells)).not.toMatch(/a mediana|▼|NaN|undefined/)
   })
   it('lang só nos canais próprios; concorrente nunca tem chip', () => {
     const v = viewOf('5')
-    expect(v.groups.flatMap(g => g.rows).every(r => r.lang === null)).toBe(true)
-    expect(v.own.rows.every(r => r.lang !== null)).toBe(true)
+    expect(comps(v).every(r => r.lang === null)).toBe(true)
+    expect(ownOf(v).every(r => r.lang !== null)).toBe(true)
   })
 })
 
@@ -322,7 +340,7 @@ describe('inscritos ocultos pelo canal (subs === null)', () => {
   const hidden = structuredClone(dsH)
   hidden.channels.find(c => c.id === target.id)!.subs = null
   const oH = createObservatory(hidden)
-  const rowOf = (p: Partial<CanaisParams>) => buildCanaisView(oH, { niche: 'todos', limit: 75, ...p }).groups.flatMap(g => g.rows).find(r => r.id === target.id)!
+  const rowOf = (p: Partial<CanaisParams>) => rowsOf(buildCanaisView(oH, { niche: 'todos', limit: 75, ...p })).find(r => r.id === target.id)!
   it('a linha diz Inscritos ocultos e a dica diz que o canal esconde a contagem', () => {
     const r = rowOf({})
     expect(r.subs).toBe('Inscritos ocultos')
@@ -331,7 +349,7 @@ describe('inscritos ocultos pelo canal (subs === null)', () => {
   })
   it('escala por mil inscritos: a célula aponta o Absoluto, nunca "Nenhum vídeo longo acompanhado."', () => {
     expect(rowOf({ scale: 'per-mil' }).vpd).toBe('Inscritos ocultos: veja em Absoluto.')
-    const cell = buildCanaisView(oH, { niche: 'todos', limit: 75 }).groups.flatMap(g => g.rows).find(r => r.id === target.id)!.cells.vpd
+    const cell = rowsOf(buildCanaisView(oH, { niche: 'todos', limit: 75 })).find(r => r.id === target.id)!.cells.vpd
     expect(cell).toMatchObject({ kind: 'na', title: 'O canal não informa os inscritos; veja a escala Absoluto.' })
   })
   it('escala Absoluto: a célula mostra o número', () => {

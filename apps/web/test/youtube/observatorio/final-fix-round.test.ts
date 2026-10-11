@@ -31,7 +31,7 @@ describe('F9: gaveta de concorrente diz o mesmo motivo que a tabela', () => {
     const ds = datasetFromOracle(loadOracle()); const c = ds.channels.find(x => !x.own && x.sync.state === 'ok' && x.niche != null)!
     for (const v of ds.videos) if (v.ch === c.id) v.series = []
     const view = canais(ds, { channel: c.id })
-    const row = view.groups.flatMap(g => g.rows).find(r => r.id === c.id)!
+    const row = [...view.list.ranked, ...view.list.unranked].find(r => r.id === c.id)!
     expect(row.vpd).toBe('Aguardando o 2º registro diário.')
     const sub = view.drawer!.stats.find(s => s.label.startsWith('Views/dia'))!.sub
     expect(sub).toBe('Aguardando o 2º registro diário.')
@@ -58,7 +58,7 @@ describe('F4 (R80): lista vazia aponta o editor de nicho quando há concorrente 
   it('sem canal próprio visível mantém "canal" no primeiro período (R80)', () => {
     const ds = withoutComp('ia'); unnicheN(ds, 0); for (const c of ds.channels.filter(x => !x.own && x.niche === 'viagem').slice(0, 2)) c.niche = null
     const v = canais(ds, { niche: 'ia' })
-    expect(v.own.rows).toHaveLength(0)
+    expect(v.own.block?.linhas ?? []).toHaveLength(0)
     expect(v.emptyText).toBe('Nenhum canal em IA. Há 2 concorrentes sem nicho: defina o nicho deles.')
   })
   it('sem concorrente sem nicho: a frase de antes, sem link', () => {

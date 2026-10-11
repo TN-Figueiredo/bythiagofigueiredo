@@ -145,7 +145,7 @@ describe('CanaisScreen', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-      const done = view().rows.find(r => !r.own && !r.backfill)!
+      const done = [...view().list.ranked, ...view().list.unranked].find(r => !r.own && !r.backfill)!
       const onAdd = vi.fn(async () => ({ ok: true, title: done.name }))
       mount({ onAdd }, { add: '1' })
       const dlg = screen.getByRole('dialog', { name: 'Adicionar canal' })
@@ -163,7 +163,7 @@ describe('CanaisScreen', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-      const bf = view().rows.find(r => !r.own && r.backfill)!
+      const bf = [...view().list.ranked, ...view().list.unranked].find(r => !r.own && r.backfill)!
       mount({ onAdd: vi.fn(async () => ({ ok: true, title: bf.name })) }, { add: '1' })
       const dlg = screen.getByRole('dialog', { name: 'Adicionar canal' })
       await user.type(within(dlg).getByLabelText('Canal do YouTube'), '@CanalNovo')
@@ -444,22 +444,22 @@ function mountOwns(preset: OwnPreset, props: Partial<CanaisScreenProps> = {}, p:
 const toastTitle = (t: string) => screen.findByText(t, { selector: '.obs-ch-toast b' })
 
 describe('CanaisScreen — Seus canais', () => {
-  it('preset 2: a linha do grupo "Seus canais" e duas linhas próprias, cada uma com chip de idioma e seletor de nicho', () => {
+  it('preset 2: o bloco "Seus canais" e duas linhas próprias na lista, cada uma com chip de idioma e seletor de nicho', () => {
     const { container } = mountOwns('2')
-    const group = container.querySelector('tr.group[data-own-group]')!
-    expect(group.textContent).toContain('Seus canais')
-    expect(group.querySelector('.num')!.textContent).toBe('2')
+    const group = container.querySelector('[data-own-block]')!
+    expect(group.querySelector('h2')!.textContent).toBe('Seus canais')
+    expect(group.querySelector('.cn-own .num')!.textContent).toBe('2')
     expect(group.textContent).toContain('fora do limite de concorrentes')
-    expect(group.querySelector('.dot')).toBeNull()
     const own = [...container.querySelectorAll('tr.you')]
     expect(own.map(r => r.querySelector('.nmbtn')!.textContent)).toEqual(['tnFigueiredo', 'tnFigueiredo EN'])
     expect(own.map(r => r.querySelector('abbr.langtag')!.textContent)).toEqual(['PT', 'EN'])
     expect(own.map(r => r.querySelector('abbr.langtag')!.getAttribute('title'))).toEqual(['Canal em português', 'Canal em inglês'])
     expect(own.map(r => r.querySelector('select')!.getAttribute('aria-label'))).toEqual(['Nicho de tnFigueiredo', 'Nicho de tnFigueiredo EN'])
-    // the group line comes before the own rows, and these before the competitor groups
-    const order = [...container.querySelectorAll('tbody > tr')]
-    expect(order[0]).toBe(group)
-    expect(order.slice(1, 3)).toEqual(own)
+    // A3: os canais próprios estão na posição que a ordenação lhes dá, não fixos no topo; o bloco vem antes da barra de controles
+    const order = [...container.querySelectorAll('tbody > tr.row')]
+    expect(order.slice(0, 2)).not.toEqual(own)
+    for (const r of own) expect(order).toContain(r)
+    expect(group.compareDocumentPosition(container.querySelector('.toolbar')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     for (const r of own) {
       expect(r.querySelectorAll('.ch .sub')).toHaveLength(2)
       expect(r.querySelector('.ch .sub .youtag')!.textContent).toBe('seu canal')
@@ -469,9 +469,9 @@ describe('CanaisScreen — Seus canais', () => {
     }
     expect(container.querySelector('.sortnote')!.textContent).toBe('Ordenado por Views/dia por mil inscritos, maior primeiro')
   })
-  it('preset 1: sem linha de grupo, sem chip de idioma, e a linha própria tem o seletor de nicho', () => {
+  it('preset 1: bloco "Seu canal" no singular, sem chip de idioma, e a linha própria tem o seletor de nicho', () => {
     const { container } = mountOwns('1')
-    expect(container.querySelector('[data-own-group]')).toBeNull()
+    expect(container.querySelector('[data-own-block] h2')!.textContent).toBe('Seu canal')
     expect(container.querySelector('.langtag')).toBeNull()
     const own = container.querySelectorAll('tr.you')
     expect(own).toHaveLength(1)
@@ -479,7 +479,7 @@ describe('CanaisScreen — Seus canais', () => {
     // a competitor keeps one .sub line
     expect(container.querySelector('tr[data-id="luke-damant"]')!.querySelectorAll('.ch .sub')).toHaveLength(1)
   })
-  it('canal próprio sem nicho: seletor tracejado pedindo o nicho, e o aviso na linha do grupo', () => {
+  it('canal próprio sem nicho: seletor tracejado pedindo o nicho, e o aviso no bloco', () => {
     const { container } = mountOwns('mix')
     const sel = container.querySelector<HTMLSelectElement>('tr[data-id="mochila-leve"] select')!
     expect(sel).toHaveClass('niche', 'none')
@@ -487,27 +487,27 @@ describe('CanaisScreen — Seus canais', () => {
     expect(sel.value).toBe('')
     const first = sel.options[0]!
     expect([first.textContent, first.value, first.disabled]).toEqual(['Escolher nicho', '', true])
-    const flag = container.querySelector('tr[data-own-group] .flag')!
+    const flag = container.querySelector('[data-own-block] .flag')!
     expect(flag.textContent).toBe('1 sem nicho: escolha o nicho na linha do canal')
     expect(flag.querySelector('svg')).not.toBeNull()
     // a channel with a niche offers no empty option
     expect(container.querySelector<HTMLSelectElement>('tr[data-id="tnfigueiredo"] select')!.options).toHaveLength(2)
   })
-  it('nicho que não tem canal seu: a linha do grupo aparece sozinha e diz onde eles estão', () => {
+  it('nicho que não tem canal seu: o bloco aparece sozinho, sem linhas, e diz onde eles estão', () => {
     const { container } = mountOwns('2', {}, { niche: 'ia' })
     expect(container.querySelectorAll('tr.you')).toHaveLength(0)
-    const t = container.querySelector('tr[data-own-group]')!.textContent!
+    const t = container.querySelector('[data-own-block]')!.textContent!
     expect(t).toContain('nenhum de IA')
     expect(t).toContain('2 em outro nicho (aparecem em Todos)')
   })
-  it('site sem canal próprio: nenhuma linha de grupo, nenhuma linha própria, auditorias limpas', () => {
+  it('site sem canal próprio: nenhum bloco, nenhuma linha própria, auditorias limpas', () => {
     const ds = datasetFromOracle(loadOracle())
     const owns = new Set(ds.channels.filter(c => c.own).map(c => c.id))
     ds.channels = ds.channels.filter(c => !c.own); ds.videos = ds.videos.filter(x => !owns.has(x.ch))
     const o = createObservatory(ds)
     for (const layout of ['table', 'cards']) {
       const { container, unmount } = render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={buildCanaisView(o, { niche: 'todos', limit: 75, fmt: 'longos', layout })} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
-      expect(container.querySelector('[data-own-group]')).toBeNull()
+      expect(container.querySelector('[data-own-block]')).toBeNull()
       expect(container.querySelector('.you')).toBeNull()
       expect(noJunkText(container)).toEqual([])
       unmount()
@@ -536,8 +536,8 @@ describe('CanaisScreen — Seus canais', () => {
     expect(onSetOwnNiche).not.toHaveBeenCalled()
     expect(await toastTitle('Nicho de Luke Damant alterado para IA')).toBeInTheDocument()
     expect(screen.getByText('Ele saiu do filtro Viagem.')).toBeInTheDocument()
-    // the row leaves on the refresh: the focus goes to the first row that stays (an own channel, on top)
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo' })))
+    // the row leaves on the refresh: the focus goes to the first row that stays (A3: a primeira da lista, não mais o canal próprio fixo no topo)
+    await waitFor(() => expect(document.activeElement).toBe(document.querySelector('tbody tr.row:not([data-id="luke-damant"]) .nmbtn')))
   })
   it('falha: "Não deu para mudar o nicho", com o que continua valendo (nicho anterior ou sem nicho)', async () => {
     const user = userEvent.setup()
@@ -560,10 +560,11 @@ describe('CanaisScreen — Seus canais', () => {
     expect(await toastTitle('Não deu para mudar o nicho')).toBeInTheDocument()
     expect(refresh).not.toHaveBeenCalled()
   })
-  it('cards: o separador "Seus canais" e um card por canal próprio', () => {
+  it('cards: o bloco "Seus canais" e um card por canal próprio, na posição dele', () => {
     const { container } = mountOwns('2', {}, { layout: 'cards' })
-    const sep = container.querySelector('.cardsep[data-own-group]')!
-    expect(sep.querySelector('strong')!.textContent).toBe('Seus canais')
+    expect(container.querySelector('.cardsep[data-own-group]')).toBeNull()
+    const sep = container.querySelector('[data-own-block]')!
+    expect(sep.querySelector('h2')!.textContent).toBe('Seus canais')
     expect(sep.textContent).toContain('fora do limite de concorrentes')
     const cards = [...container.querySelectorAll('article.card.you')]
     expect(cards.map(c => c.getAttribute('data-id'))).toEqual(['tnfigueiredo', 'tnfigueiredo-en'])
@@ -573,7 +574,7 @@ describe('CanaisScreen — Seus canais', () => {
       expect(c.querySelector('[data-menu]')).toBeNull()
     }
     const r1 = mountOwns('1', {}, { layout: 'cards' })
-    expect(r1.container.querySelector('[data-own-group]')).toBeNull()
+    expect(r1.container.querySelector('[data-own-block] h2')!.textContent).toBe('Seu canal')
     expect(r1.container.querySelectorAll('article.card.you')).toHaveLength(1)
   })
   it('gaveta de canal próprio: "seu canal", o chip, o seletor de nicho e nenhum "Remover canal"', () => {
@@ -608,8 +609,8 @@ describe('CanaisScreen — Seus canais', () => {
     expect(screen.getByText('Ele saiu do filtro Viagem.')).toBeInTheDocument()
     expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?niche=viagem', { scroll: false })
     expect(screen.queryByRole('dialog', { name: 'tnFigueiredo' })).toBeNull()
-    // the focus leaves the closed drawer for a row that stays in the filter
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo EN' })))
+    // the focus leaves the closed drawer for a row that stays in the filter (A3: a primeira da lista, não mais o canal próprio fixo no topo)
+    await waitFor(() => expect(document.activeElement).toBe(document.querySelector('tbody tr.row:not([data-id="tnfigueiredo"]) .nmbtn')))
   })
   it('trocar o nicho sem sair do filtro mantém a gaveta aberta', async () => {
     const user = userEvent.setup()

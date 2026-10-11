@@ -69,9 +69,7 @@ export interface CanaisRow {
   /** Language mark of an own channel; null for competitors and when the site has a single own channel. */
   lang: LangChip | null
   color: string; ini: string; avatar: string | null; subs: string; subsTip: string; url: string; handle: string; backfill: boolean; paused: boolean
-  /** null = sem valor para ordenar neste formato (a linha vai para o fim, em qualquer direção); nunca um número de mentira. */
-  sortKeys: Record<CanaisSort, number | null>
-  /** O mesmo que `sortKeys` (mesmos números): o nome novo, a ser usado pela tela da Tarefa 3. null = sem medida. */
+  /** O valor de cada coluna para ordenar neste formato. null = sem medida: a linha vai para o fim, em qualquer direção; nunca um número de mentira. */
   valor: Record<CanaisSort, number | null>
   /** A posição na ordenação atual, no conjunto da lista (`CanaisView.conjunto`); null fora de POSICIONADAS, sem valor ou sem conjunto. */
   pos: Posicao | null
@@ -88,10 +86,8 @@ export interface CanaisRow {
   /** Toast texts of "Sincronizar só este canal" (the screen builds no text). */
   syncOneText: { start: string; ok: string; okBody: string; fail: string; failBody: string; backfill: string }
 }
-/** One piece of the "Seus canais" group line (canais.html ownParts): a mono number, a sentence, or a warning. */
+/** One piece of the "Seus canais" line (canais.html ownParts): a mono number, a sentence, or a warning. */
 export interface OwnGroupPart { num: string | null; text: string; warn: boolean }
-/** `color`: the niche's own colour (CSS variables) for a niche the owner created; null for the built-in ones (var(--travel) / var(--ai)) and for "Sem nicho". */
-export interface CanaisGroup { key: Niche | 'sem'; label: string; color: NicheVars | null; count: string; flags: Array<{ kind: 'erro' | 'atrasado' | 'backfill' | 'parado'; text: string }>; rows: CanaisRow[] }
 
 /** O bloco "Seus canais" do topo (spec 15.2): uma linha por canal próprio, na ordem do motor (inscritos, maior primeiro). */
 export type OwnBlockLinha =
@@ -143,8 +139,7 @@ export interface CanaisView {
   /** Só em "Todos": o rótulo que sobe para o cabeçalho das colunas que dependem de formato. */
   fmtCab: { dois: string; ordenado: string } | null
   sort: CanaisSort; dir: 'asc' | 'desc'; sortNote: string; vpdUnit: string
-  rows: CanaisRow[]
-  /** A lista única (A3): os canais próprios na posição deles entre os concorrentes. `rows` e `groups` ficam até a Tarefa 3. */
+  /** A lista única (A3): os canais próprios na posição deles entre os concorrentes, em qualquer filtro de nicho. */
   list: CanaisLista
   /** O conjunto em que a posição é contada: o nicho escolhido, ou todos os canais do site (emenda 45). */
   conjunto: Conjunto
@@ -154,9 +149,8 @@ export interface CanaisView {
   buscaNota: string
   /** A linha presa no pé: fala do primeiro canal próprio com vídeos (D16). null sem canal próprio. */
   pe: { canalId: string; texto: string } | null
-  /** Every own channel shown under the current niche scope, in the engine's order (R73); never sorted by the clicked column. */
-  own: { rows: CanaisRow[]; group: { label: string; parts: OwnGroupPart[] } | null; many: boolean; block: OwnBlock | null }
-  groups: CanaisGroup[]
+  /** O bloco "Seus canais" do topo; os canais próprios estão também na lista, na posição deles. */
+  own: { many: boolean; block: OwnBlock | null }
   drawer: DrawerView | null
   /** The URL asked for the drawer of a channel that is in another niche than the explicit filter: the screen drops ?channel=. */
   drawerDropped: boolean
@@ -450,7 +444,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       color: c.color, ini: c.ini, avatar: c.avatar ?? null, subs: c.subs == null ? HIDDEN_ROW : subsTxt(c.subs), url: c.url, handle: c.handle, backfill: bf, paused: c.activity.state === 'parado',
       subsTip: c.subs == null ? 'Este canal esconde a contagem de inscritos no YouTube.'
         : `O YouTube informa inscritos arredondados a 3 algarismos. ${subsTxt(c.subs)} pode estar ${stats(c.id, 'long').growth30.roundingText} do número real.`,
-      sortKeys: valor, valor, pos, semMedida: semMedidaOf(c, S, valor, pos),
+      valor, pos, semMedida: semMedidaOf(c, S, valor, pos),
       cells: { cadence, vpd, out, swap, growth, sync, ...cells2 },
       semFormato: nulos ? { n: nulos, label: `formato não confirmado (${nulos})`, tip: SEM_FORMATO_TIP } : null,
       cowork: coworkOf(c),
@@ -475,7 +469,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const sgn = dir === 'desc' ? 1 : -1
   // sem valor (null) vai para o fim em qualquer direção; a ordem entre os que têm valor é a de sempre
   const byKey = (a: CanaisRow, b: CanaisRow) => {
-    const x = a.sortKeys[sort], y = b.sortKeys[sort]
+    const x = a.valor[sort], y = b.valor[sort]
     if (x == null || y == null) return x == null && y == null ? 0 : x == null ? 1 : -1
     return (y - x) * sgn
   }
@@ -489,7 +483,6 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   if (ownNone) ownParts.push({ num: null, text: `${ownNone} sem nicho: escolha o nicho na linha do canal`, warn: true })
   if (ownHidden) ownParts.push({ num: null, text: `${ownHidden} em outro nicho (${ownHidden === 1 ? 'aparece' : 'aparecem'} em Todos)`, warn: false })
   ownParts.push({ num: null, text: 'fora do limite de concorrentes', warn: false })
-  const ownGroup = allOwns.length && (many || ownShown.length !== allOwns.length || ownNone > 0) ? { label: 'Seus canais', parts: ownParts } : null
   const ownRows = ownShown.map(rowOf)
 
   /* ---------------------------------------------------------------- lista única (A3): os canais próprios na posição deles */
@@ -532,21 +525,6 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   // a linha presa no pé fala do primeiro canal próprio com vídeos (D16), com a frase curta (sem os vizinhos)
   const peRow = ownRows.find(r => temVideos(r.id))
   const pe = peRow ? { canalId: peRow.id, texto: `seu canal · ${fraseDe(peRow).frase}` } : null
-  // Todos: one group per niche of the site, in the tab order, and "Sem nicho" last (a group without rows is not drawn)
-  const groupKeys: Array<[Niche | 'sem', string]> = niche === 'todos' ? [...nicheOpts.map((o): [Niche, string] => [o.id, o.label]), ['sem', 'Sem nicho']] : [[niche, NL(niche)]]
-  const groups: CanaisGroup[] = groupKeys.map(([key, label]) => {
-    const rows = compRows.filter(r => (key === 'sem' ? r.niche == null : r.niche === key))
-    const chs = rows.map(r => obs.channel(r.id)!)
-    const n = (f: (c: ObsChannel) => boolean) => chs.filter(f).length
-    const flags: CanaisGroup['flags'] = []
-    const e = n(c => c.sync.state === 'erro'), l = n(c => c.sync.state === 'atrasado'), b = n(isBf), pz = n(c => c.activity.state === 'parado')
-    if (e) flags.push({ kind: 'erro', text: `${e} com erro de sincronização` })
-    if (l) flags.push({ kind: 'atrasado', text: `${l} com sincronização atrasada` })
-    if (b) flags.push({ kind: 'backfill', text: `${b} buscando vídeos` })
-    if (pz) flags.push({ kind: 'parado', text: `${pz} parado` })
-    return { key, label, color: key === 'sem' ? null : nicheOpts.find(o => o.id === key)?.color ?? null, count: F.plural(rows.length, 'canal', 'canais'), flags, rows }
-  }).filter(g => g.rows.length)
-
   const np = comps.filter(c => c.sync.state !== 'ok').length
   // F4: competitors with no niche are invisible in a niche tab; say how many and point at the niche editor (same exit as Insights R78)
   const unniched = niche !== 'todos' ? all.filter(c => !c.own && c.niche == null).length : 0
@@ -717,10 +695,8 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     fmtCab: todos ? { dois: 'longos em cima, Shorts embaixo', ordenado: 'ordenado pelos longos' } : null,
     sortNote: `Ordenado por ${SORTNAME[sort]}${sort === 'vpd' ? (rel ? ' por mil inscritos' : ' em número absoluto') : ''}, ${dir === 'desc' ? 'maior' : 'menor'} primeiro${todos && (sort === 'vpd' || sort === 'active' || sort === 'outliers') ? '; ordenado pelos longos' : ''}`,
     vpdUnit: rel ? `por mil inscritos, mediana ${window}` : `mediana dos vídeos, ${window}`,
-    // the problems filter lists only channels in trouble; the screen still pins the own rows on top (own.rows)
-    rows: [...(filter !== 'problemas' ? ownRows : []), ...compRows],
-    own: { rows: ownRows, group: ownGroup, many, block: ownBlock },
-    groups, drawer, drawerDropped, filter, addOpen: p.add === '1', nicheEditorOpen: p.nicheEditor === '1',
+    own: { many, block: ownBlock },
+    drawer, drawerDropped, filter, addOpen: p.add === '1', nicheEditorOpen: p.nicheEditor === '1',
     niche, nicheLabel,
     problems: { n: np, filterHref: obs.link.canais({ filter: 'problemas', fmt: filtro }), clearHref: obs.link.canais({ fmt: filtro }) },
     emptyText, emptyLink,

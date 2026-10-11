@@ -10,7 +10,7 @@ import type { Dataset } from '@/lib/youtube/observatorio/types'
 
 const BASE = a3World() // lido uma vez por arquivo; os testes que mutam pedem outro mundo
 const view = (p: Partial<CanaisParams> = {}, obs: Observatory = BASE.obs) => buildCanaisView(obs, { niche: 'todos', limit: 75, ...p })
-const rowsOf = (v: ReturnType<typeof view>): CanaisRow[] => v.rows
+const rowsOf = (v: ReturnType<typeof view>): CanaisRow[] => [...v.list.ranked, ...v.list.unranked]
 const byId = (v: ReturnType<typeof view>, id: string) => rowsOf(v).find(r => r.id === id)!
 const FMTS = ['longos', 'todos', 'shorts'] as const
 
@@ -44,7 +44,7 @@ describe('A3.1 formato: parâmetro da URL', () => {
       expect(parseCanaisFmt(raw)).toBeNull()
       const v = view({ fmt: raw })
       expect([v.fmt, v.fmtNaUrl]).toEqual(['longos', false])
-      expect(v.rows.length).toBeGreaterThan(0)
+      expect(rowsOf(v).length).toBeGreaterThan(0)
     }
   })
   it('fmtDaOrdem: só o filtro Shorts ordena pelos Shorts', () => {
@@ -146,7 +146,7 @@ describe('A3.1 formato: ordem', () => {
   it('Todos ordena pelos longos: a ordem é a mesma de Longos e sortNote diz "ordenado pelos longos"', () => {
     for (const sort of ['vpd', 'active', 'outliers', 'subs'] as const) for (const dir of ['desc', 'asc'] as const) {
       const t = view({ fmt: 'todos', sort, dir }), l = view({ fmt: 'longos', sort, dir })
-      expect(t.rows.map(r => r.id)).toEqual(l.rows.map(r => r.id))
+      expect(rowsOf(t).map(r => r.id)).toEqual(rowsOf(l).map(r => r.id))
     }
     expect(view({ fmt: 'todos' }).sortNote).toContain('ordenado pelos longos')
     expect(view({ fmt: 'todos', sort: 'active' }).sortNote).toContain('ordenado pelos longos')
@@ -162,16 +162,16 @@ describe('A3.1 formato: ordem', () => {
     const w = a3World(semShortsDe(alvo))
     for (const dir of ['desc', 'asc'] as const) for (const sort of ['vpd', 'active', 'outliers'] as const) {
       const v = view({ fmt: 'shorts', sort, dir }, w.obs)
-      const comps = v.rows.filter(r => !r.own)
+      const comps = [...v.list.ranked, ...v.list.unranked].filter(r => !r.own)
       const sem = comps.find(r => r.id === alvo)!
-      expect(sem.sortKeys[sort]).toBeNull()
+      expect(sem.valor[sort]).toBeNull()
       // vai para o fim em qualquer direção, depois de todo canal com valor
-      const ultimoComValor = comps.map(r => r.sortKeys[sort]).reduce<number>((acc, k, i) => (k != null ? i : acc), -1)
+      const ultimoComValor = comps.map(r => r.valor[sort]).reduce<number>((acc, k, i) => (k != null ? i : acc), -1)
       expect(comps.findIndex(r => r.id === alvo)).toBeGreaterThan(ultimoComValor)
-      for (const r of comps) if (r.sortKeys[sort] === null) expect(comps.slice(0, ultimoComValor + 1).includes(r)).toBe(false)
+      for (const r of comps) if (r.valor[sort] === null) expect(comps.slice(0, ultimoComValor + 1).includes(r)).toBe(false)
     }
     const vL = view({ fmt: 'longos' }, w.obs)
-    expect(byId(vL, alvo).sortKeys.vpd).not.toBeNull() // em Longos o canal tem valor
+    expect(byId(vL, alvo).valor.vpd).not.toBeNull() // em Longos o canal tem valor
   })
 })
 

@@ -243,7 +243,6 @@ describe('A3.2 sem medida', () => {
         if (r.valor[sort] == null) expect(r.pos, `${r.id} ${sort}`).toBeNull()
         for (const k of SORTS) { expect(r.valor[k]).not.toBe(-1); expect(r.valor[k]).not.toBe(-99) }
         if (r.pos) { expect(r.pos.pos).toBeGreaterThanOrEqual(1); expect(r.pos.pos).toBeLessThanOrEqual(r.pos.de) }
-        expect(r.sortKeys).toEqual(r.valor)
       }
       // os que têm valor vêm antes dos que não têm, e só os de valor numeram o "de N"
       const nComValor = v.list.ranked.filter(r => r.pos).length
@@ -484,13 +483,15 @@ describe('A3.2 invariantes', () => {
     expect(v.sortNote).toBe('Ordenado por Views/dia por mil inscritos, maior primeiro')
     expect(v.sortNote).not.toContain('topo')
   })
-  it('as estruturas de hoje continuam até a Tarefa 3: groups, own.rows e rows', () => {
+  it('as estruturas antigas saíram (groups, rows, own.rows, own.group, sortKeys): a tela desenha só list e own.block', () => {
     const v = view({})
-    expect(v.own.rows.map(r => r.id)).toEqual(ownIds(BASE.obs))
-    expect(v.groups.length).toBeGreaterThan(0)
-    expect(v.rows.length).toBe(BASE.obs.channels.length)
+    expect(Object.keys(v)).not.toContain('groups')
+    expect(Object.keys(v)).not.toContain('rows')
+    expect(Object.keys(v.own).sort()).toEqual(['block', 'many'])
+    expect(Object.keys(v.list.ranked[0]!)).not.toContain('sortKeys')
+    expect(v.own.block!.linhas.map(l => l.id)).toEqual(ownIds(BASE.obs))
     expect(v.own.many).toBe(true)
-    expect(v.own.block!.partes.map(p => p.text)).toEqual(v.own.group?.parts.map(p => p.text) ?? v.own.block!.partes.map(p => p.text))
-    expect(compIds(BASE.obs).every(id => v.groups.flatMap(g => g.rows).some(r => r.id === id))).toBe(true)
+    expect(all(v).length).toBe(BASE.obs.channels.length)
+    expect(compIds(BASE.obs).every(id => all(v).some(r => r.id === id))).toBe(true)
   })
 })
