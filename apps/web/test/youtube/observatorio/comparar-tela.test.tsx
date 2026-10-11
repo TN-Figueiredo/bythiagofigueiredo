@@ -189,6 +189,39 @@ describe('"Número a número"', () => {
     cleanup(); wrap(zeros, { a: 'c2', b: 'c1' })
     expect(linhaDe('Longos publicados em 90 dias').querySelectorAll('td')[3]!.textContent).toContain('tnLeo não publicou longos em 90 dias')
   })
+  it('a maiúscula da relação tem teste que morde: o modelo entrega em minúscula e a tela escreve a frase exata com a maiúscula', () => {
+    // "praticamente igual": eu (10) × Ana Viaja (10) na mediana de views
+    const igual = buildPar(PACK, 'eu', 'c2').linhas.find(l => l.id === 'medianaViews')!.relacao!
+    expect(igual.texto).toBe('praticamente igual') // o modelo continua entregando em minúscula
+    wrap(PACK, { a: 'eu', b: 'c2' })
+    expect(linhaDe('Mediana de views dos longos').querySelectorAll('td')[3]!.querySelector('.rt')!.textContent).toBe('Praticamente igual')
+    // zero do canal próprio, dois zeros, e um canal chamado "os" (o nome não impede a maiúscula de "os dois em 0")
+    const p = pacoteDe([
+      mk('eu', 1000, { own: true, name: 'tnFigueiredo', n: { ...ALL(10), longos90: 0, ritmo: 0 } }),
+      mk('c1', 5000, { name: 'Leo Khev', n: { ...ALL(10), longos90: 7, ritmo: 0 } }),
+      mk('os', 100, { name: 'os', n: { ...ALL(10), longos90: 0, ritmo: 0, engajamento: 0 } }),
+      mk('c3', 90, { name: 'Zeca', n: { ...ALL(10), engajamento: 0 } }),
+    ])
+    expect(buildPar(p, 'eu', 'c1').linhas.find(l => l.id === 'longos90')!.relacao!.texto).toBe('você não publicou longos em 90 dias')
+    cleanup(); wrap(p, { a: 'eu', b: 'c1' })
+    expect(linhaDe('Longos publicados em 90 dias').querySelectorAll('td')[3]!.querySelector('.rt')!.textContent).toBe('Você não publicou longos em 90 dias')
+    expect(linhaDe('Longos + Shorts por semana').querySelectorAll('td')[3]!.querySelector('.rt')!.textContent).toBe('Nenhum dos dois publicou em 13 semanas')
+    cleanup(); wrap(p, { a: 'os', b: 'c3' })
+    expect(buildPar(p, 'os', 'c3').linhas.find(l => l.id === 'engajamento')!.relacao!.texto).toBe('os dois em 0')
+    expect(linhaDe('Engajamento nos longos').querySelectorAll('td')[3]!.querySelector('.rt')!.textContent).toBe('Os dois em 0')
+  })
+  it('a 390 px cada valor leva o rótulo do lado (letra A/B, na cor e no chip do lado); o rótulo existe também na célula "não medido"', () => {
+    wrap()
+    for (const tr of tabela().querySelectorAll('tbody tr:not(.grp)')) {
+      const a = tr.querySelector('td.cA')!, b = tr.querySelector('td.cB')!
+      const la = a.querySelector('.cp-lb')!, lb = b.querySelector('.cp-lb')!
+      expect(la.textContent).toBe('A'); expect(lb.textContent).toBe('B')
+      expect(la.getAttribute('aria-hidden')).toBe('true') // a tabela já tem os cabeçalhos de coluna para o leitor de tela
+      expect(a.firstElementChild).toBe(la)
+    }
+    // a célula sem medida (inscritos em 30 dias do canal próprio) também diz de que lado é
+    expect(linhaDe('Inscritos em 30 dias').querySelector('td.cA.nd .cp-lb')!.textContent).toBe('A')
+  })
   it('posição escrita sob o valor nas seis linhas do nicho; nunca percentil', () => {
     wrap()
     const par = buildPar(PACK, 'eu', 'c1')

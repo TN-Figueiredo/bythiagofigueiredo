@@ -57,4 +57,25 @@ describe('comparar.css', () => {
     const alturas = [...SEM_COMENTARIO.matchAll(/\.cp-strip \.t\.(lg|sh|nc)\{height:(\d+)px/g)].map(m => `${m[1]}:${m[2]}`)
     expect(new Set(alturas.map(a => a.split(':')[1])).size).toBe(3)
   })
+
+  it('o rótulo do lado na célula (.cp-lb) só aparece na pilha de 820 px, com a cor do lado e o corpo de 12 px; na tabela larga some', () => {
+    expect(SEM_COMENTARIO).toMatch(/\.cp-lb\{display:none\}/)
+    const media = SEM_COMENTARIO.match(/@media \(max-width:820px\)\{([\s\S]*?)\n\}\n@media \(max-width:640px\)/)
+    expect(media, 'media de 820 px da tabela').not.toBeNull()
+    const regra = media![1]!.match(/\.cp-t td \.cp-lb\{([^}]*)\}/)
+    expect(regra, 'regra do rótulo na pilha').not.toBeNull()
+    expect(regra![1]).toMatch(/display:inline-flex/); expect(regra![1]).toMatch(/background:var\(--c\)/); expect(regra![1]).toMatch(/color:var\(--on-lado\)/)
+    expect(regra![1]).toMatch(/font:600 12px/)
+  })
+  it('44 px sob pointer:coarse: cada alvo tem a medida na PRÓPRIA regra (não basta 44px aparecer em qualquer lugar do bloco)', () => {
+    const blocos = [...SEM_COMENTARIO.matchAll(/@media\s*\(pointer:\s*coarse\)\s*\{([\s\S]*?)\n\}/g)].map(m => m[1]!).join('\n')
+    for (const [seletor, prop] of [['.sel select', 'height'], ['.cp-swap', 'min-height'], ['.ibtn', 'width'], ['.ibtn', 'height'], ['.cp-open a', 'min-height'], ['.cp-fj-btn', 'min-height']] as const) {
+      const regra = blocos.split('\n').find(l => l.includes(seletor + '{'))
+      expect(regra, seletor).toBeTruthy()
+      expect(regra!, `${seletor} ${prop}`).toMatch(new RegExp(`${prop}:44px`))
+    }
+  })
+  it('o laço de z-index não é vácuo: a regex enxerga uma ocorrência conhecida', () => {
+    expect([...'a{z-index:var(--z-marca)}'.matchAll(/z-index\s*:\s*([^;}]+)/g)]).toHaveLength(1)
+  })
 })

@@ -1,7 +1,7 @@
 // apps/web/e2e/tests/cms/observatorio/comparar-a3.spec.ts
 // Teste de fumaça da tela de comparação (A3, tarefa 8; a prova completa é da tarefa 11): a rota abre logada com um par da semente, a tabela tem as
 // linhas, trocar o seletor não navega, "Inverter lados" troca os lados, ids ruins na URL não dão 500, sem erro de console, sem rolagem horizontal a
-// 1440 e a 390 px. Nada é escrito no banco: todo POST de server action é abortado e reprova o teste. As medidas vão para test-results/comparar-a3-medidas.txt.
+// 1440 e a 390 px. Esta tela não escreve nada; o spec só semeia o banco local e reseta as preferências do visualizador (`resetViewerPrefs`), e todo POST de server action é abortado e reprova o teste. As medidas vão para test-results/comparar-a3-medidas.txt.
 import fs from 'node:fs'
 import path from 'node:path'
 import { gzipSync } from 'node:zlib'
@@ -267,7 +267,7 @@ test('o botão apagado da forja é focável, não faz requisição nenhuma e a t
   page.on('request', r => { if (!/^data:/.test(r.url())) pedidos.push(`${r.method()} ${r.resourceType()} ${r.url().slice(0, 100)}`) })
   await botao.focus()
   await expect(botao).toBeFocused()
-  await botao.click(); await page.keyboard.press('Enter'); await page.keyboard.press('Space')
+  await botao.click({ force: true }) /* o Playwright trata aria-disabled como desabilitado: força o clique de mouse de verdade */; await page.keyboard.press('Enter'); await page.keyboard.press('Space')
   await page.waitForTimeout(600)
   expect(pedidos, 'requisições depois dos cliques').toEqual([])
   expect(await tela(page).getByRole('region', { name: 'Leitura da forja' }).locator('ol, [aria-current="step"]').count()).toBe(0)
@@ -293,3 +293,62 @@ for (const [nome, vp] of [['1440', VP.w1440], ['390', VP.w390]] as const) {
     await page.screenshot({ path: path.resolve(__dirname, `../../../../test-results/comparar-blocos-${nome}.png`) })
   })
 }
+
+/* ------------------------------------------------------------------------------------------------------------------------------
+   Consertos da revisão da Tarefa 8 (fumaça no navegador). */
+const LISTA = '/cms/youtube/competitors'
+const temAB = (url: string) => { const q = new URL(url).searchParams; return q.has('a') || q.has('b') }
+
+test('Voltar para fora da comparação não escreve a e b na URL de destino (lista de Canais); Avançar devolve a comparação com o par escolhido', async ({ page }) => {
+  await page.setViewportSize(VP.w1440)
+  await page.goto(`${LISTA}?fmt=longos`)
+  await page.waitForLoadState('networkidle')
+  // navegação do cliente (o hook fica montado quando o Voltar chega): o roteador do Next, como o Link faria
+  const temRoteador = await page.evaluate(() => typeof (window as unknown as { next?: { router?: { push?: unknown } } }).next?.router?.push === 'function')
+  expect(temRoteador, 'window.next.router.push existe').toBe(true)
+  await page.evaluate(u => (window as unknown as { next: { router: { push(u: string): void } } }).next.router.push(u), par(OWN(), LEO()))
+  await tela(page).locator('table').waitFor({ timeout: 60_000 })
+  await page.waitForLoadState('networkidle')
+  await page.evaluate(() => { (window as unknown as { __viva: boolean }).__viva = true })
+  const outro = ids.channel('nate-herk')
+  await selB(page).selectOption(outro)
+  await expect.poll(() => param(page, 'b')).toBe(outro)
+  // o Next reescreve a URL do destino por conta própria e apaga o estrago depois; por isso a prova olha as ESCRITAS, não só a URL final
+  await page.evaluate(() => {
+    const w = window as unknown as { __escritas: string[] }
+    w.__escritas = []
+    const original = window.history.replaceState.bind(window.history)
+    window.history.replaceState = (estado: unknown, titulo: string, url?: string | URL | null) => { w.__escritas.push(String(url ?? '')); original(estado, titulo, url) }
+  })
+  await page.goBack()
+  await page.waitForURL(u => u.pathname === LISTA, { timeout: 30_000 })
+  await page.waitForTimeout(800) // o popstate chega com a tela ainda montada; deixa qualquer escrita indevida acontecer
+  const escritas = await page.evaluate(() => (window as unknown as { __escritas: string[] }).__escritas)
+  medida(`escritas na URL durante o Voltar: ${JSON.stringify(escritas)}`)
+  expect(escritas.filter(u => /[?&](a|b)=/.test(u)), `escritas na URL durante o Voltar: ${JSON.stringify(escritas)}`).toEqual([])
+  expect(temAB(page.url()), `a lista de Canais não pode ganhar a nem b: ${page.url()}`).toBe(false)
+  expect(new URL(page.url()).searchParams.get('fmt')).toBe('longos')
+  expect(await page.evaluate(() => (window as unknown as { __viva?: boolean }).__viva), 'foi navegação do cliente, sem recarregar').toBe(true)
+  await page.goForward()
+  await tela(page).locator('table').waitFor({ timeout: 60_000 })
+  expect(new URL(page.url()).pathname).toBe(ROTA)
+  expect(param(page, 'a')).toBe(OWN()); expect(param(page, 'b')).toBe(outro)
+  await expect(tela(page).locator('thead th.cB')).toContainText('Nate Herk')
+})
+
+test('a 390 px cada valor da tabela diz de que lado é (letra A ou B no chip da cor do lado), e a 1440 px o rótulo não aparece', async ({ page }) => {
+  await abrir(page, par(OWN(), LEO()), VP.w390)
+  const rotulos = tela(page).locator('tbody tr:not(.grp) td.cA .cp-lb:visible')
+  const n = await linhas(page).count()
+  expect(await rotulos.count(), 'um rótulo A por linha').toBe(n)
+  expect(await tela(page).locator('tbody tr:not(.grp) td.cB .cp-lb:visible').count(), 'um rótulo B por linha').toBe(n)
+  const ult = linhas(page).last()
+  await ult.scrollIntoViewIfNeeded()
+  const medida390 = await ult.locator('td.cA .cp-lb').evaluate(e => { const cs = getComputedStyle(e); const r = e.getBoundingClientRect(); return { fundo: cs.backgroundColor, w: Math.round(r.width), h: Math.round(r.height), tamanho: cs.fontSize, texto: e.textContent } })
+  expect(medida390.texto).toBe('A'); expect(medida390.fundo).not.toBe('rgba(0, 0, 0, 0)'); expect(parseFloat(medida390.tamanho)).toBeGreaterThanOrEqual(12)
+  medida(`rótulo do lado a 390 px: chip ${medida390.w} x ${medida390.h}, fundo ${medida390.fundo}`)
+  expect(await rolaNaHorizontal(page)).toEqual([])
+  await page.screenshot({ path: path.resolve(__dirname, '../../../../test-results/comparar-rotulo-390.png') })
+  await page.setViewportSize(VP.w1440)
+  expect(await tela(page).locator('tbody tr:not(.grp) .cp-lb:visible').count(), 'a 1440 px o rótulo some').toBe(0)
+})

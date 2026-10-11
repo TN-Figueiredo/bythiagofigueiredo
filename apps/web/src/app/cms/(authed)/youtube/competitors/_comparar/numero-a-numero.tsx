@@ -25,16 +25,24 @@ const GRUPOS: Record<LinhaPar['grupo'], { nome: string; icone: ReactNode }> = {
 
 /** O modelo entrega a relação em minúscula quando ela começa por uma frase ("praticamente igual", "os dois em 0"); o nome de um canal, nunca é mexido ("tnFigueiredo"). */
 export function capitalizar(texto: string, nomes: readonly string[]): string {
-  if (!texto || nomes.some(n => n && texto.startsWith(n))) return texto
+  // o nome só conta quando é a primeira PALAVRA ("Ana Viaja: …", "tnLeo não …")
+  if (!texto || nomes.some(n => n && (texto.startsWith(n + ' ') || texto.startsWith(n + ':')))) return texto
   return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
 
 const vars = (cor: string): CSSProperties => ({ '--c': cor } as CSSProperties)
 
+/** Na pilha de telas estreitas (≤ 820 px) o cabeçalho de coluna fica longe: cada valor leva a letra do lado, no chip da cor do lado. Some na tabela larga. */
+function Rotulo({ lado }: { lado: 'A' | 'B' }) {
+  return <span className="cp-lb" aria-hidden="true">{lado}</span>
+}
+
 function Celula({ n, pos, classe, cor }: { n: Numero; pos: LinhaPar['pos'][number]; classe: string; cor: string }) {
+  const lado = classe === 'cA' ? 'A' : 'B'
   if (n.x == null) {
     return (
       <td role="cell" className={`nd ${classe}`} style={vars(cor)}>
+        <Rotulo lado={lado} />
         <span className="obs-ch-nm">não medido</span>
         <small className="why">{n.motivo}</small>
       </td>
@@ -42,6 +50,7 @@ function Celula({ n, pos, classe, cor }: { n: Numero; pos: LinhaPar['pos'][numbe
   }
   return (
     <td role="cell" className={classe} style={vars(cor)}>
+      <Rotulo lado={lado} />
       <span className="v1 num">{n.texto}</span>
       {pos ? <small className="pos">{pos.texto}</small> : null}
       {pos?.geral ? <small className="pos geral">{pos.geral}</small> : null}
@@ -75,7 +84,7 @@ function CelulaRelacao({ linha, par }: { linha: LinhaPar; par: ParView }) {
     case 'recente':
       return <td role="cell" className="rel"><span className="sy" style={vars(corVar(par.cores[r.lado]))} aria-hidden="true">●</span><span className="obs-ch-sr">{r.quem} é o mais recente. </span><span className="rt">{r.texto}</span></td>
     case 'igual':
-      return <td role="cell" className="rel"><span className="sy eq" aria-hidden="true">＝</span><span className="obs-ch-sr">Praticamente iguais. </span><span className="rt">{capitalizar(r.texto, nomes)}</span></td>
+      return <td role="cell" className="rel"><span className="sy eq" aria-hidden="true">＝</span><span className="obs-ch-sr">Praticamente iguais. </span><span className="rt">{capitalizar(r.texto, [])}</span></td> // nunca começa por nome de canal: "praticamente igual", "os dois em 0", "nenhum dos dois…"
     case 'zero':
       return <td role="cell" className="rel dim"><span className="rt">{capitalizar(r.texto, nomes)}</span></td>
     default: { const nunca: never = r; return nunca }

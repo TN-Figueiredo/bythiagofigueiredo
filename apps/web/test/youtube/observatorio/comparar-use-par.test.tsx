@@ -99,6 +99,32 @@ describe('usePar', () => {
     act(() => { url(''); window.dispatchEvent(new PopStateEvent('popstate')) })
     expect(result.current.a).toBe('eu')
   })
+  it('Voltar para FORA da comparação: o popstate com outro pathname não muda o par e não escreve na URL do destino', () => {
+    url('?a=eu&b=c2')
+    const { result } = renderHook(() => usePar(PACK, { a: 'eu', b: 'c2' }))
+    act(() => result.current.trocar('b', 'c3'))
+    replace.mockClear(); push.mockClear()
+    // o navegador já está na lista de Canais (sem a nem b) quando o popstate chega, com o hook ainda montado
+    act(() => { window.history.replaceState(null, '', '/cms/youtube/competitors?fmt=longos'); replace.mockClear(); window.dispatchEvent(new PopStateEvent('popstate')) })
+    expect(replace).not.toHaveBeenCalled()
+    expect(push).not.toHaveBeenCalled()
+    expect(window.location.pathname + window.location.search).toBe('/cms/youtube/competitors?fmt=longos')
+    expect(busca().has('a')).toBe(false); expect(busca().has('b')).toBe(false)
+    expect([result.current.a, result.current.b]).toEqual(['eu', 'c3']) // o par da tela ficou como estava
+    // e o Avançar de volta à comparação relê a URL dela
+    act(() => { window.history.replaceState(null, '', '/cms/youtube/competitors/comparar?a=c1&b=c4'); replace.mockClear(); window.dispatchEvent(new PopStateEvent('popstate')) })
+    expect([result.current.a, result.current.b]).toEqual(['c1', 'c4'])
+    expect(replace).not.toHaveBeenCalled()
+  })
+  it('o popstate só LÊ: nem com a URL inválida ele escreve (o estado cai no padrão, a URL fica como o navegador a pôs)', () => {
+    url('?a=eu&b=c2')
+    const { result } = renderHook(() => usePar(PACK, { a: 'eu', b: 'c2' }))
+    replace.mockClear()
+    act(() => { url('?a=lixo&b=lixo'); replace.mockClear(); window.dispatchEvent(new PopStateEvent('popstate')) })
+    expect(replace).not.toHaveBeenCalled()
+    expect(result.current.a).toBe('eu')
+    expect(busca().get('a')).toBe('lixo')
+  })
   it('id em maiúsculas não é canal deste pacote: cai no padrão', () => {
     url('?a=EU&b=C2')
     const { result } = renderHook(() => usePar(PACK, { a: 'eu', b: 'c1' }))

@@ -100,6 +100,9 @@
 [data-obs-screen="comparar"] .b2t i{display:block;height:100%;min-width:3px;border-radius:3px;background:var(--c)}
 [data-obs-screen="comparar"] .b2t i.zero{min-width:0}
 
+/* o rótulo do lado dentro da célula: só na pilha de telas estreitas (o cabeçalho de coluna fica longe) */
+[data-obs-screen="comparar"] .cp-lb{display:none}
+
 /* a tabela vira linhas de pilha abaixo de 820 px, mantendo as duas colunas lado a lado: rótulo, os dois valores, a régua e a relação */
 @media (max-width:820px){
   [data-obs-screen="comparar"] .cp-t,[data-obs-screen="comparar"] .cp-t thead,[data-obs-screen="comparar"] .cp-t tbody,[data-obs-screen="comparar"] .cp-t tr{display:block}
@@ -119,6 +122,8 @@
   [data-obs-screen="comparar"] .cp-t td.cN:empty{display:none}
   [data-obs-screen="comparar"] .cp-t td.rel{grid-column:1/-1;margin-top:6px;font-size:12.5px;color:var(--muted)}
   [data-obs-screen="comparar"] .cp-t td.rel.off{display:none}
+  [data-obs-screen="comparar"] .cp-t td .cp-lb{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;margin:0 6px 2px 0;padding:0 4px;border-radius:4px;box-sizing:border-box;background:var(--c);color:var(--on-lado);font:600 12px/18px var(--font-sans),system-ui,sans-serif;vertical-align:top}
+  [data-obs-screen="comparar"] .cp-t td.cA,[data-obs-screen="comparar"] .cp-t td.cB{border-left:3px solid var(--c);padding-left:8px}
 }
 @media (max-width:640px){
   [data-obs-screen="comparar"] .cp-sides{grid-template-columns:minmax(0,1fr)}

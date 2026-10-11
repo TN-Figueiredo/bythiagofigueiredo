@@ -6,7 +6,7 @@
  *   (uma rerrenderização do servidor com a mesma query não desfaz a escolha local).
  * - A URL é a fonte da verdade: o `inicial` pode vir velho (o Voltar até uma entrada que `replaceState` reescreveu devolve o RSC da
  *   query anterior). Por isso o efeito relê a URL; `inicial` só vale quando a URL não diz nada.
- * - Voltar e Avançar (`popstate`) releem a URL. Par inválido (id de outro site, inventado, em maiúsculas, `a === b`, ausente) cai no
+ * - Voltar e Avançar (`popstate`) releem a URL, só enquanto o pathname é o da comparação, e nunca escrevem nela. Par inválido (id de outro site, inventado, em maiúsculas, `a === b`, ausente) cai no
  *   padrão de `resolverPar`, sem mensagem de erro.
  * - A URL é conforto: se o navegador recusar (`history` que lança), a tela já mudou.
  */
@@ -73,14 +73,17 @@ export function usePar(pack: CompararPack, inicial: ParIds): ParIds & { trocar(l
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a chave (o valor de `inicial`) é o gatilho; o que vale é a URL
   }, [chave])
 
-  // Voltar e Avançar do navegador: a URL é a verdade
+  // Voltar e Avançar do navegador: a URL é a verdade, e o `popstate` só LÊ (como `use-canal-state`). Ao apertar Voltar para fora da comparação
+  // (a lista de Canais, por exemplo) o evento chega com este componente ainda montado e `window.location` já é a do DESTINO: lê-la aqui e
+  // gravar `a` e `b` nela sujaria a URL de outra página. Só vale enquanto o pathname é o da comparação; e nunca se escreve.
   useEffect(() => {
+    const caminho = window.location.pathname
     const onPop = () => {
+      if (window.location.pathname !== caminho) return
       const q = new URLSearchParams(window.location.search)
       const next = resolverPar(packRef.current, q.get('a') ?? undefined, q.get('b') ?? undefined) ?? ref.current
       ref.current = next
       setPar(next)
-      if (!urlCanonica(next)) escreverUrl(next)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
