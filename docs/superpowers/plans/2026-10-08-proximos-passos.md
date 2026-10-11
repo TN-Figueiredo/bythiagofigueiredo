@@ -167,7 +167,7 @@ Decisões das rodadas 9 a 12, a levar ao spec v9:
 
 ## 3g. Onde retomar (escrito em 10/10 à noite: A1 em staging)
 
-**Estado.** Fase A1 (página do canal do concorrente, `canal/<id>`) implementada e em `staging` remoto (`1ac235a5`): as 10 tarefas de código do plano `2026-10-10-telas-a1-canal-concorrente-plan.md`, a revisão final em Opus e uma onda de conserto. Promoção para `main` ainda não feita. Ledger: `.superpowers/sdd/2026-10-10-telas-a1-canal-plan/progress.md`.
+**Estado.** Fase A1 (página do canal do concorrente, `canal/<id>`) implementada e em `staging` remoto (`1ac235a5`): as 10 tarefas de código do plano `2026-10-10-telas-a1-canal-concorrente-plan.md`, a revisão final em Opus e uma onda de conserto. Promovida para produção em 10/10 à noite: `main` = `31425bf9` (árvore igual à de `staging` `1ac235a5`), CI e deploys de produção verdes. Ledger: `.superpowers/sdd/2026-10-10-telas-a1-canal-plan/progress.md`.
 
 **Medido em 10/10.** Vitest inteiro: 22.385 testes, zero falhas. Typecheck limpo. `next build` verde. Playwright local (`canal.spec.ts` + `flutuantes.spec.ts`): 85 passando. Validação logada no CMS local: roteiro inteiro em 1440 px no tema escuro, console limpo, nenhuma resposta 500. O CI ficou vermelho nos dois primeiros pushes por limite de tempo do executor de testes (todos os testes verdes); conserto no fixture em `1ac235a5`.
 
@@ -191,7 +191,7 @@ Decisões das rodadas 9 a 12, a levar ao spec v9:
 
 **Custo de subagentes em 10/10 (A1).** Cerca de 5,6 milhões de tokens Sonnet (10 implementadores, 9 revisores, 4 consertos, validação em navegador, re-revisão) e 225 mil Opus (revisão final).
 
-**Próximo passo.** Dono confere em staging; promoção; depois a fase A2 (Histórico: chegada pela troca, `canal=` no pager e na trilha).
+**Próximo passo.** Dono confere em produção; depois a fase A2 (Histórico: chegada pela troca, `canal=` no pager e na trilha).
 
 ## 4. Ordem recomendada do trabalho
 
