@@ -377,6 +377,7 @@
 [data-obs-screen="canais"] .fm{display:flex;justify-content:flex-start;align-items:baseline;gap:6px;line-height:16px;white-space:nowrap}
 [data-obs-screen="canais"] td.r .fm{justify-content:flex-end}
 [data-obs-screen="canais"] .fm .cap2{font-size:12px;color:var(--muted)}
+[data-obs-screen="canais"] .fm .ressalva{display:block;color:var(--warning-text)}
 [data-obs-screen="canais"] .fm .nd{font-size:12px;color:var(--muted);white-space:normal;max-width:190px;line-height:1.35}
 [data-obs-screen="canais"] .fl{font-size:12px;line-height:16px;color:var(--dim)}
 [data-obs-screen="canais"] .cad .v .fm + .fm,[data-obs-screen="canais"] .cad .v .fm + small{margin-top:1px}

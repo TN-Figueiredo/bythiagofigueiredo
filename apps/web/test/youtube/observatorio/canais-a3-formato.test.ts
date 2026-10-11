@@ -116,7 +116,7 @@ describe('A3.1 formato: células', () => {
     const v = view({ fmt: 'todos' }, w.obs)
     const a = byId(v, alvo)
     expect(a.cells.cadence2).toEqual({ kind: 'na', text: 'sem Shorts', title: 'O canal não tem Shorts guardados.' })
-    expect(a.cells.vpd2).toEqual({ kind: 'na', text: 'sem Shorts', title: 'O canal não tem Shorts guardados.' })
+    expect(a.cells.vpd2).toEqual({ kind: 'na', text: 'sem Shorts', title: 'O canal não tem Shorts guardados.', falta: true })
     expect(a.cells.out2).toMatchObject({ kind: 'na', text: 'sem Shorts' })
     expect(a.cells.vpd.kind).toBe('ok') // os longos continuam medidos
     const o = byId(v, outro)

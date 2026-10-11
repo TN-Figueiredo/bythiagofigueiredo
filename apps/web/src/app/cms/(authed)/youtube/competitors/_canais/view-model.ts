@@ -40,10 +40,11 @@ export type CadenceCell =
   | { kind: 'na'; text: string; title: string }
   | { kind: 'ok'; weeks: Array<{ long: number; short: number }>; label: string; pw: string; unit: string; sub: string | null; paused: string | null }
 export type VpdCell =
-  | { kind: 'na'; text: string; title: string }
+  /** `falta`: a frase é a da ausência do formato ("sem Shorts", "sem vídeos"); em "Todos" ela vem sem rótulo na frente. */
+  | { kind: 'na'; text: string; title: string; falta?: true }
   | { kind: 'ok'; big: string; abs: string | null; n: number; weak: boolean; tail: string | null }
 export type OutCell =
-  | { kind: 'na'; text: string; weak: string | null; upnext: string | null }
+  | { kind: 'na'; text: string; weak: string | null; upnext: string | null; falta?: true }
   | { kind: 'ok'; title: string; videoTitle: string; thumb: Thumb; mult: string; tier: Tier; vs: string; n: number; published: string; publishedTitle: string; count: string }
 export type SwapCell = { kind: 'na'; text: string } | { kind: 'ok'; n: number; last: string; lastTitle: string | null }
 export type GrowthCell =
@@ -355,7 +356,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     if (bf) return { kind: 'na', text: `1ª contagem ${D.dm(obs.NOW + obs.DAY)}`, title: `Primeira contagem diária de views amanhã, ${D.dm(obs.NOW + obs.DAY)}` }
     if (second) {
       const falta = faltaShorts(c)
-      if (falta) return { kind: 'na', text: falta.text, title: falta.title }
+      if (falta) return { kind: 'na', text: falta.text, title: falta.title, falta: true }
     }
     // the channel hides its subscriber count: per-thousand is undefined, point to the absolute scale instead of "nenhum acompanhado"
     if (rel && S.vpdMedian != null && S.perMilSubs == null && c.subs == null) return { kind: 'na', text: 'Inscritos ocultos: veja em Absoluto.', title: 'O canal não informa os inscritos; veja a escala Absoluto.' }
@@ -372,7 +373,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     if (bf) return { kind: 'na', text: 'Após a busca', weak: null, upnext: null }
     if (second) {
       const falta = faltaShorts(c)
-      if (falta) return { kind: 'na', text: falta.text, weak: null, upnext: null }
+      if (falta) return { kind: 'na', text: falta.text, weak: null, upnext: null, falta: true }
     }
     if (empty) return { kind: 'na', text: 'Nada para comparar sem vídeo longo recente.', weak: null, upnext: 'Planejar em Próximos' }
     if (!o) {

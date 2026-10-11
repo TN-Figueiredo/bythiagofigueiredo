@@ -117,16 +117,22 @@ export function CadenceView({ c, c2 }: { c: CadenceCell; c2?: CadenceCell }) {
 /** Uma medida de Views/dia em uma linha (a de "Todos"): o número e a base; o resto vai na dica nativa. */
 function VpdLinha({ c }: { c: VpdCell }) {
   if (c.kind === 'na') return <span className="nd" title={c.title}>{c.text}</span>
+  const ressalva = c.tail ? c.tail.replace(/^,\s*/, '') : null
   return (
-    <span title={c.tail ? c.tail.replace(/^,\s*/, '') : undefined}>
+    <span>
       <span className="big num" data-k="vpd">{c.big}</span>{' '}
       <span className={'cap2' + (c.weak ? ' weak' : '')}>{c.abs ? <><span className="num">{c.abs}</span>/dia, </> : null}n{' '}={' '}<span data-k="n">{c.n}</span>{c.weak ? ', base fraca' : ''}</span>
+      {/* a ressalva de dado velho fica à vista (teclado e toque não leem title): o número não parece atual */}
+      {ressalva ? <span className="cap2 ressalva" data-ressalva="">{' '}{ressalva}</span> : null}
     </span>
   )
 }
 
+/** A frase da falta de formato ("sem Shorts", "sem vídeos") já diz o que é: nunca leva rótulo visível na frente. */
+const semRotulo = (c: VpdCell | OutCell) => c.kind === 'na' && c.falta === true
+
 export function VpdView({ c, c2, visible }: { c: VpdCell; c2?: VpdCell; visible?: boolean }) {
-  if (c2) return <><Fm label="longos" visible={visible}><VpdLinha c={c} /></Fm><Fm label="Shorts" visible={visible}><VpdLinha c={c2} /></Fm></>
+  if (c2) return <><Fm label="longos" visible={visible}><VpdLinha c={c} /></Fm><Fm label="Shorts" visible={visible && !semRotulo(c2)}><VpdLinha c={c2} /></Fm></>
   if (c.kind === 'na') return <span className="na r" title={c.title}>{c.text}</span>
   return (
     <>
@@ -147,7 +153,7 @@ function OutLinha({ c, upnextHref }: { c: OutCell; upnextHref: string }) {
 }
 
 export function OutView({ c, c2, upnextHref, visible }: { c: OutCell; c2?: OutCell; upnextHref: string; visible?: boolean }) {
-  if (c2) return <><Fm label="longos" visible={visible}><OutLinha c={c} upnextHref={upnextHref} /></Fm><Fm label="Shorts" visible={visible}><OutLinha c={c2} upnextHref={upnextHref} /></Fm></>
+  if (c2) return <><Fm label="longos" visible={visible}><OutLinha c={c} upnextHref={upnextHref} /></Fm><Fm label="Shorts" visible={visible && !semRotulo(c2)}><OutLinha c={c2} upnextHref={upnextHref} /></Fm></>
   if (c.kind === 'na') return (
     <span className="na">
       {c.text}{c.weak ? <> <span className="weak">{c.weak}</span></> : null}

@@ -202,6 +202,41 @@ describe('A3.1 duas medidas', () => {
     expect(noJunkText(container)).toEqual([])
     expect(forbiddenVocabulary(container)).toEqual([])
   })
+  it('Todos nos cartões: "sem Shorts" e "sem vídeos" vêm sem rótulo visível na frente (a frase já diz); os rótulos "longos" e "Shorts" ficam onde há número', () => {
+    const conc = BASE.ds.channels.filter(c => !c.own && BASE.ds.videos.some(v => v.ch === c.id && v.fmt === 'short'))
+    const semShorts = conc[0]!.id, semVideos = conc[1]!.id
+    const w = a3World(ds => {
+      ds.videos = ds.videos.filter(v => !(v.ch === semShorts && v.fmt === 'short') && v.ch !== semVideos)
+    })
+    search = 'fmt=todos&layout=cards'
+    const { container } = mount({ fmt: 'todos', layout: 'cards' }, w.obs)
+    const rotulos = (id: string) => [...container.querySelector(`article.card[data-id="${id}"]`)!.querySelectorAll('.fm .fl')].map(x => x.textContent)
+    const cartao = (id: string) => container.querySelector(`article.card[data-id="${id}"]`)!
+    // sem Shorts: Views/dia e Outliers têm o rótulo "longos" (há número) e a frase da falta sem rótulo
+    expect(rotulos(semShorts)).not.toContain('Shorts')
+    expect(cartao(semShorts).textContent).toContain('sem Shorts')
+    expect(cartao(semShorts).textContent).not.toMatch(/Shorts\s*sem Shorts/)
+    // sem vídeo algum: nenhum rótulo de formato diante de "sem vídeos"
+    expect(rotulos(semVideos)).not.toContain('Shorts')
+    expect(cartao(semVideos).textContent).toContain('sem vídeos')
+    expect(cartao(semVideos).textContent).not.toMatch(/Shorts\s*sem vídeos/)
+    // um canal com os dois formatos continua com os quatro rótulos
+    const comAmbos = conc.find(c => c.id !== semShorts && c.id !== semVideos && w.ds.videos.some(v => v.ch === c.id && v.fmt === 'short' && v.tracked))
+    if (comAmbos) expect(rotulos(comAmbos.id)).toContain('Shorts')
+  })
+  it('Todos: a ressalva de dado velho ("até o registro diário de DD/MM") aparece em texto na célula de views/dia, não só no title', () => {
+    const alvo = BASE.ds.channels.find(c => !c.own && c.sync.state !== 'backfill')!.id
+    const w = a3World(ds => { const s = ds.channels.find(c => c.id === alvo)!.sync; s.state = 'erro'; s.msg = 'falhou' })
+    const texto = (f: 'todos' | 'longos') => {
+      search = `fmt=${f}`
+      const { container, unmount } = mount({ fmt: f }, w.obs)
+      const t = container.querySelector(`tr[data-id="${alvo}"]`)!.querySelectorAll('td')[2]!.textContent ?? ''
+      unmount()
+      return t
+    }
+    expect(texto('longos')).toMatch(/até o registro diário de \d{2}\/\d{2}/) // o que o filtro Longos já mostra
+    expect(texto('todos')).toMatch(/até o registro diário de \d{2}\/\d{2}/)
+  })
   it('"formato não confirmado (N)" aparece na linha, com a dica na camada flutuante', () => {
     const alvo = BASE.ds.channels.find(c => !c.own)!.id
     const w = a3World(ds => { ds.videos.filter(v => v.ch === alvo && v.tracked).slice(0, 3).forEach(v => { v.isShort = null }) })
