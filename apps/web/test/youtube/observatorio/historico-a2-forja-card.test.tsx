@@ -9,7 +9,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, within, cleanup, fireEvent, act } from '@testing-library/react'
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import { Suspense, use, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { loadOracle, loadOracleOwns, datasetFromOracle, createTestObservatory } from './oracle'
 import { plain } from './fase4-world'
 import { SHOWCASE } from './forja-scenarios'
@@ -941,5 +941,62 @@ describe('conserto 1, outros: o que a tela sempre garante', () => {
     const b = { text: 'Já há uma leitura de vídeo de IA em andamento, do vídeo “Outro”.', title: 'Outro', href: '/cms/youtube/competitors/video/x' }
     const { container } = render(<HeaderAskButton ask={{ label: 'Pedir leitura à forja', modo: 'apagado', frase: 'outra redação qualquer', aviso: null }} pedido={{ busy: false, recusa: null, pedir: vi.fn() }} cardRef={cardRef} say={vi.fn()} bloqueado={b} />)
     expect(within(container.querySelector('#askStatus') as HTMLElement).getByRole('link').getAttribute('href')).toBe(b.href)
+  })
+})
+
+describe('rodada final: o cabeçalho com o aceite dado e a tela nova ainda a caminho', () => {
+  // O `router.refresh()` do Next dentro de `startTransition` mantém `isPending` até a tela nova chegar. No teste, o refresh põe uma promessa que um filho
+  // suspenso espera (dentro da mesma transição): o mesmo efeito, sem rede.
+  let travar: ((p: Promise<void>) => void) | null = null
+  function Espera({ p }: { p: Promise<void> | null }) { if (p) use(p); return null }
+  function Porta() { const [p, setP] = useState<Promise<void> | null>(null); travar = setP; return <Suspense fallback={null}><Espera p={p} /></Suspense> }
+
+  it('N1: um segundo clique entre o aceite e a tela nova só rola, não pede de novo nem deixa uma recusa falsa presa', async () => {
+    const chegou = deferred<void>()
+    nav.refresh.mockImplementation(() => { travar!(chegou.p) })
+    // o 1o pedido é aceito; qualquer 2o chamaria o servidor, que recusaria (o que a pessoa veria como "Nada enviado…")
+    ask.mockReset()
+    ask.mockResolvedValueOnce({ ok: true, reason: null, results: [] })
+    ask.mockResolvedValue({ ok: false, reason: 'Nada enviado: já há um pedido de leitura deste vídeo', results: [] })
+    const view = viewOf(SEM_LEITURA, null)
+    const r = render(<Tela view={view}><Porta /></Tela>)
+    const root = r.container.querySelector<HTMLElement>('[data-obs-screen="historico"]')!
+    fireEvent.click(header(root))
+    await flush()
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(nav.refresh).toHaveBeenCalledTimes(1)
+    // a janela do bug: a ação já respondeu (voo zerado), a tela nova ainda não chegou ("Pedindo…" vem só da transição pendente)
+    expect(header(root).getAttribute('aria-busy')).toBe('true')
+    expect(header(root).textContent).toBe('Pedindo…')
+    scrollTo.mockClear()
+    fireEvent.click(header(root), { detail: 0 })      // teclado: rola na hora
+    await flush()
+    fireEvent.click(header(root), { detail: 0 })
+    await flush()
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(root.querySelector('#askStatus')?.textContent ?? '').not.toMatch(/Nada enviado/)
+    expect(scrollTo).toHaveBeenCalled()               // o clique ocupado ainda leva ao cartão
+    // a tela nova chega: o botão sai de "Pedindo…" e continua sem recusa
+    await act(async () => { chegou.ok() })
+    expect(header(root).getAttribute('aria-busy')).not.toBe('true')
+    expect(ask).toHaveBeenCalledTimes(1)
+    expect(root.querySelector('#askStatus')?.textContent ?? '').not.toMatch(/Nada enviado/)
+  })
+})
+
+describe('rodada final: o registro de foco do cartão não fica velho', () => {
+  it('M1: o foco saiu do botão por conta própria e o botão some num refresh; um refresh depois, com o foco no corpo, NÃO puxa o foco para o título do cartão', async () => {
+    const { root, card, again } = mount(COM_LEITURA, 'na fila')
+    const cancelar = within(card()!).getByRole('button', { name: 'Cancelar pedido' })
+    cancelar.focus()
+    const titulo = root.querySelector<HTMLElement>('.vhead h2')!
+    titulo.focus()                                                     // o foco saiu do cartão antes de o botão sumir (sem esperar o microtask do blur)
+    again(COM_LEITURA, 'trabalhando')                                  // o botão some, o foco já estava em outro lugar: nada é puxado
+    expect(foco()).toBe(titulo)
+    titulo.blur()                                                      // a pessoa clicou no corpo da página
+    await Promise.resolve()
+    expect(foco()).toBe(document.body)
+    again(COM_LEITURA, null)                                           // um refresh posterior: o registro velho não pode tirar o foco do corpo
+    expect(foco()).toBe(document.body)
   })
 })

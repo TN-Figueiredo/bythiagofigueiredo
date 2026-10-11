@@ -145,6 +145,7 @@ export function HeaderAskButton({ ask, pedido, cardRef, say, bloqueado, videoId 
     if (ask.modo === 'apagado') return
     irAo(e.detail)                                             // a rolagem e o foco esperam o duplo clique; o pedido abaixo não espera
     if (ask.modo === 'so-rola') { if (ask.aviso) say(ask.aviso); return }
+    if (ocupado) return                                        // "Pedindo…" (a ação respondeu e a tela nova ainda não chegou): o clique só rola
     void pedido.pedir()                                        // um voo só: o segundo clique do duplo não envia outro
   }
   const nota: ReactNode = recusa ?? (ask.modo === 'apagado' && bloqueado ? <Bloqueado b={bloqueado} /> : ask.frase)
@@ -273,9 +274,12 @@ export function ForjaCard({ card, forja, pedido, onCancel, onSyncChannel, refres
   // quem está em outro lugar da tela não é tocado (só vale quando o foco caiu no corpo da página porque o elemento saiu).
   const focado = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
-    const antes = focado.current, ativo = document.activeElement
-    if (!antes || antes.isConnected || (ativo && ativo !== document.body)) return
+    const antes = focado.current
+    if (!antes || antes.isConnected) return
+    // o elemento saiu: o registro dele morre aqui, com o foco no corpo ou já em outro lugar (um registro velho puxaria o foco num refresh posterior)
     focado.current = null
+    const ativo = document.activeElement
+    if (ativo && ativo !== document.body) return
     cardRef.current?.querySelector<HTMLElement>('[data-fj-titulo]')?.focus({ preventScroll: true })
   })
   const anuncio = useAnuncio(card)

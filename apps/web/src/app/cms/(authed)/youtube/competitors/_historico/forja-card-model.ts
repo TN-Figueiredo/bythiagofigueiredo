@@ -252,8 +252,8 @@ export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel, pr
   const semNicho = !v.niche
   // sem nicho não há de quem falar nem cota a gastar: o botão apaga porque a forja lê por nicho, não por limite do dia
   const limite = forja.button.mode === 'disabled' && capable && !excluido && !bloqueado && !semNicho
-  // sem pedido deste vídeo o limite pode ter sido gasto por outro do nicho; sem nicho não há de quem falar: a frase fala do vídeo
-  const limiteFrase = (r || !v.niche ? 'Já houve uma leitura deste vídeo hoje. ' : 'Já houve uma leitura de ' + obs.nicheLabel(v.niche) + ' hoje. ') + tomorrow
+  // sem pedido deste vídeo o limite pode ter sido gasto por outro do nicho (o limite já exclui vídeo sem nicho: o `!` abaixo vale só quando `limite` é verdadeiro)
+  const limiteFrase = (r ? 'Já houve uma leitura deste vídeo hoje. ' : 'Já houve uma leitura de ' + obs.nicheLabel(v.niche!) + ' hoje. ') + tomorrow
   const ativo = r != null && classeDoEstado(r.state) !== 'terminal'
   let habilitado = (forja.button.mode === 'free' || forja.button.mode === 'free-niche') && forja.ask != null
   let motivo: string | null = null
