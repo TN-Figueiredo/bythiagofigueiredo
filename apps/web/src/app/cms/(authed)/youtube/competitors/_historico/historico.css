@@ -401,6 +401,7 @@
 [data-obs-screen="historico"] .rng-ctl{display:flex;align-items:center;gap:8px;flex:none}
 [data-obs-screen="historico"] .rng-l,[data-obs-screen="historico"] .flt-l{font-size:12.5px;color:var(--muted)}
 [data-obs-screen="historico"] .rng-txt{margin:10px 0 0;font-size:12.5px;line-height:1.5;color:var(--muted)}
+[data-obs-screen="historico"] .rng-why{margin:0 0 10px;font-size:12.5px;line-height:1.5;color:var(--muted)}
 [data-obs-screen="historico"] .rng-txt b{color:var(--text);font-weight:600}
 
 /* --- item 4: faixas densas ---
@@ -561,6 +562,6 @@
 }
 
 /* Chegada pela troca (spec 6.2): a frase no cartão de "Antes e depois" e o anel do marcador na faixa. */
-[data-obs-screen="historico"] .arrive{margin:8px 0 0;font-size:13px;border:1px solid var(--accent);border-radius:6px;padding:4px 10px;background:var(--accent-subtle);max-width:76ch}
+[data-obs-screen="historico"] .arrive{margin:8px 0 0;font-size:13px;border:1px solid var(--accent);border-radius:6px;padding:4px 10px;background:var(--accent-subtle)}
 [data-obs-screen="historico"] .arrive b{font-weight:600}
 [data-obs-screen="historico"] .mk[data-arrival] span,[data-obs-screen="historico"] .mkg[data-arrival] span{outline:3px solid var(--accent);outline-offset:2px}

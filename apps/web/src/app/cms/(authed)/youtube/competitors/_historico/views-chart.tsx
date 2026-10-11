@@ -108,6 +108,7 @@ export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectP
         ) : null}
         <span className="src">{chart ? <>{chart.src.bold ? <b>{chart.src.bold}</b> : null}{chart.src.text}</> : 'o eixo vai da primeira versão guardada à última vez em que o vídeo foi conferido'}</span>
       </div>
+      {range?.why ? <p className="rng-why" data-rng-why="">{range.why}</p> : null}
       <div className="tl-wrap" ref={wrap}>
         {chart ? (chart.few && chart.empty ? (
           <div className="empty-chart" data-empty-chart="">

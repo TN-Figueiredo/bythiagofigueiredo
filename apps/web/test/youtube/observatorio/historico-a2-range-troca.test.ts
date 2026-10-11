@@ -58,10 +58,15 @@ describe('período: 30 dias por padrão', () => {
     const v = hv(V.old, { range: 'abc', troca: 'abc' })
     expect([v.range!.value, v.arrival]).toEqual(['30', null])
   })
-  it('vídeo sem gráfico (fora dos acompanhados, não encontrado): range é null, sem erro', () => {
-    for (const p of [{}, { range: '7' }, { range: 'tudo', troca: 'qualquer' }]) {
-      const u = hv(V.untr, p), n = hv('nao-existe', p)
-      expect([u.state, u.chart, u.range, u.arrival]).toEqual(['untr', null, null, null])
+  it('vídeo sem gráfico (fora dos acompanhados, não encontrado): range é null, sem erro, e uma troca REAL do vídeo não vira chegada', () => {
+    // o vídeo fora dos acompanhados do oráculo não tem troca nenhuma: ganha duas de título (id de verdade, efeito 'sem-serie' NÃO nulo)
+    const w = canalWorld(ds => setTitles(ds, V.untr, [ds.now - 10 * DAY, ds.now - 3 * DAY]))
+    const real = changesOf(V.untr, w.obs)
+    expect(real.map(c => c.id)).toEqual([V.untr + '/title/2', V.untr + '/title/1'])
+    expect(real.every(c => w.obs.effect(c.id) != null)).toBe(true)
+    for (const p of [{}, { range: '7' }, { range: 'tudo', troca: 'qualquer' }, ...real.map(c => ({ troca: c.id })), ...real.map(c => ({ troca: c.id, range: 'tudo' }))]) {
+      const u = hv(V.untr, p, w.obs), n = hv('nao-existe', p, w.obs)
+      expect([u.state, u.chart, u.range, u.arrival, u.defaultPair]).toEqual(['untr', null, null, null, null])
       expect([n.state, n.chart, n.range, n.arrival]).toEqual(['not-found', null, null, null])
     }
   })
@@ -150,30 +155,63 @@ describe('chegada pela troca (troca=)', () => {
     const t = hv(V.old, { troca: old.id }, w.obs)
     expect([t.range!.value, t.range!.cut, t.arrival?.changeId, t.defaultPair]).toEqual(['tudo', false, old.id, t.arrival?.pairK])
   })
-  it('troca= antiga com range=7 na URL: o período sobe para o que inclui a troca e ela fica dentro do gráfico (inRange true)', () => {
+  it('troca= antiga com range explícito menor que ela: NÃO há chegada, a tela abre como hoje (par padrão, sem linha)', () => {
     const mid = changesOf(V.hidden)[0]!
-    const v = hv(V.hidden, { troca: mid.id, range: '7' })
-    // 52 dias: o menor período que a inclui é 90; o 7 da URL só vale quando já a inclui
-    expect(v.range!.value).toBe('90')
-    expect(v.arrival?.changeId).toBe(mid.id)
-    expect(v.defaultPair).toBe(v.arrival!.pairK)
-    const cmp = v.comparisons.find(c => c.changeId === v.defaultPair)!
-    expect(cmp).toBeDefined()
-    expect(cmp.inRange).toBe(true)
-    // range=30 também sobe; range=90 e range=tudo (o maior) ficam como estão
-    expect(rangeId(V.hidden, { troca: mid.id, range: '30' })).toBe('90')
-    expect(rangeId(V.hidden, { troca: mid.id, range: '90' })).toBe('90')
-    expect(rangeId(V.hidden, { troca: mid.id, range: 'tudo' })).toBe('tudo')
+    expect(Math.round((obs.NOW - mid.at) / DAY)).toBe(52)
+    for (const r of ['7', '30']) {
+      const v = hv(V.hidden, { troca: mid.id, range: r }), plain = hv(V.hidden, { range: r })
+      expect([r, v.range!.value, v.arrival, v.range!.why]).toEqual([r, r, null, null])
+      // idêntica à tela sem troca=: mesmo par padrão, mesmas comparações
+      expect(JSON.stringify(v)).toBe(JSON.stringify(plain))
+    }
+    // range explícito que já a inclui (90, tudo): vale o da URL e a chegada existe, sem texto de "ampliado"
+    for (const r of ['90', 'tudo'] as const) {
+      const v = hv(V.hidden, { troca: mid.id, range: r })
+      expect([r, v.range!.value, v.arrival?.changeId, v.range!.why]).toEqual([r, r, mid.id, null])
+    }
     // range inválido não vale como explícito: a troca antiga leva ao período que a inclui
     expect(rangeId(V.hidden, { troca: mid.id, range: 'abc' })).toBe('90')
   })
-  it('range=tudo com troca recente: fica tudo (o período da URL é o maior)', () => {
+  it('range=tudo com troca recente: fica tudo e a chegada existe', () => {
     const recent = changesOf(V.street)[0]!
     expect(obs.NOW - recent.at).toBeLessThanOrEqual(30 * DAY)
     const v = hv(V.street, { troca: recent.id, range: 'tudo' })
-    expect([v.range!.value, v.arrival?.changeId]).toEqual(['tudo', recent.id])
+    expect([v.range!.value, v.arrival?.changeId, v.range!.why]).toEqual(['tudo', recent.id, null])
     // sem troca= o range=7 continua valendo como sempre
     expect(rangeId(V.street, { range: '7' })).toBe('7')
+  })
+  it('invariante: uma chegada sempre tem a troca dentro do período, com marcador na raia e par visível em "Antes e depois"', () => {
+    const w = canalWorld(ds => setTitles(ds, V.old, [ds.now - 120 * DAY, ds.now - 20 * DAY]))
+    let withArrival = 0, without = 0
+    for (const id of [V.full, V.hidden, V.old, V.street, V.pre]) {
+      for (const c of changesOf(id, w.obs)) {
+        for (const range of [undefined, '7', '30', '90', 'tudo', 'abc']) {
+          const v = hv(id, { troca: c.id, range }, w.obs), a = v.arrival
+          if (!a) { without++; expect(v.defaultPair).toBe(hv(id, { range }, w.obs).defaultPair); continue }
+          withArrival++
+          const cmp = v.comparisons.find(x => x.changeId === a.pairK)
+          expect([id, c.id, range, cmp?.inRange]).toEqual([id, c.id, range, true])
+          expect(v.defaultPair).toBe(a.pairK)
+          const lane = v.lanes.find(l => l.type === c.type)!
+          expect(lane.markers.find(m => m.changeId === c.id)?.inRange).toBe(true)
+          if (v.range!.value !== 'tudo') expect(c.at).toBeGreaterThanOrEqual(w.obs.NOW - Number(v.range!.value) * DAY)
+        }
+      }
+    }
+    expect(withArrival).toBeGreaterThan(20)
+    expect(without).toBeGreaterThan(5)
+  })
+  it('período ampliado pela troca (sem range na URL): o texto diz por quê; nos outros casos não há texto', () => {
+    const mid = changesOf(V.hidden)[0]!
+    expect(hv(V.hidden, { troca: mid.id }).range!.why).toBe('Período ampliado para 90 dias para incluir a troca aberta.')
+    const w = canalWorld(ds => setTitles(ds, V.old, [ds.now - 120 * DAY]))
+    const old = changesOf(V.old, w.obs).find(c => c.type === 'title')!
+    expect(hv(V.old, { troca: old.id }, w.obs).range!.why).toBe('Período ampliado para o vídeo inteiro para incluir a troca aberta.')
+    // troca recente, sem troca, troca inválida, range explícito: nenhum texto
+    expect(hv(V.street, { troca: changesOf(V.street)[0]!.id }).range!.why).toBeNull()
+    expect(hv(V.hidden).range!.why).toBeNull()
+    expect(hv(V.hidden, { troca: 'abc' }).range!.why).toBeNull()
+    expect(hv(V.hidden, { troca: mid.id, range: '90' }).range!.why).toBeNull()
   })
   it('a chegada não muda nada além do par e do período: o resto da tela é o de sempre', () => {
     const c = full.find(x => x.type === 'thumb' && !x.window)!

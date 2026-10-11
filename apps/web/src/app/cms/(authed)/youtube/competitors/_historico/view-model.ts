@@ -68,6 +68,8 @@ export interface RangeView {
   fromH: number; cut: boolean
   /** "De … até agora: X de Y períodos…": the same sentence shape on every option. */
   text: Rich
+  /** Why the period opened wider than the default (the change `troca=` opened lies further back); null otherwise. */
+  why: string | null
 }
 export interface ImageRow {
   label: string; thumb: ThumbImg | null
@@ -402,13 +404,17 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const nextSnapMs = D.snapTime(obs.LAST_IDX + 1), nextSnap = D.dm(nextSnapMs) + ' ' + D.hh(nextSnapMs)
   // ---------- period filter (spec 6.4): ?range=7|30|90|tudo; absent or garbage = 30 days ----------
   // `troca=` (spec 6.2): a change of THIS video that has a pair in "Antes e depois". Anything else (another video, garbage,
-  // a change without a pair) opens the screen as it always did. With a valid `troca=` the chart period is the LARGER of the
-  // URL's `range` and the smallest period that includes the change (D3 as amended): the arrival change is never outside it.
+  // a change without a pair) opens the screen as it always did. D3 (final): with no `range` in the URL the period is the smallest
+  // that includes the change; with an EXPLICIT `range` the URL wins, and a change outside that period is no arrival at all (the
+  // screen opens as usual). So an arrival always has its change inside the period, visible in "Antes e depois".
   const HR = obs.RULES.history
-  const trocaChange: ObsChange | null = observed && p.troca ? changes.find(c => c.id === p.troca && obs.effect(c.id) != null) ?? null : null
-  const asked: RangeId = isRangeId(p.range) ? p.range : RANGE_DEFAULT
-  const rangeId: RangeId = trocaChange && RANGE_IDS.indexOf(rangeFor(trocaChange.at, now)) > RANGE_IDS.indexOf(asked) ? rangeFor(trocaChange.at, now) : asked
+  const trocaFound: ObsChange | null = observed && p.troca ? changes.find(c => c.id === p.troca && obs.effect(c.id) != null) ?? null : null
+  const askedRange: RangeId | null = isRangeId(p.range) ? p.range : null
+  const rangeId: RangeId = askedRange ?? (trocaFound ? rangeFor(trocaFound.at, now) : RANGE_DEFAULT)
+  /** The period opened wider than the default only because of the change (no explicit `range`): the screen says why. */
+  const widenedBy = askedRange == null && trocaFound != null && rangeId !== RANGE_DEFAULT
   const t0 = rangeStart(rangeId, pub, now), cut = t0 > pub, fromH = cut ? hx(t0) : 0
+  const trocaChange: ObsChange | null = trocaFound && (!cut || trocaFound.at >= t0) ? trocaFound : null
   /** Short instant of a version or change: a thumbnail has the minute; title and description only the sync hour. */
   const tm = (type: LaneType, ms: number) => (type === 'thumb' ? dmhmY(ms) : D.dmOrDmy(ms) + ' ' + D.hh(ms))
   const compress = !cut && pub < SS && (SS - pub) / (now - pub) > 0.14
@@ -1005,6 +1011,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       : 'Vídeo inteiro, desde ' + dmhmY(pub) + (rangeId !== 'tudo' ? ' (menos que os ' + rangeId + ' dias do filtro)' : '')
     return {
       value: rangeId, fromH, cut,
+      why: widenedBy && arrival ? 'Período ampliado para ' + (rangeId === 'tudo' ? 'o vídeo inteiro' : rangeId + ' dias') + ' para incluir a troca aberta.' : null,
       options: RANGE_IDS.map(id => ({ id, label: RANGE_LABEL[id], aria: RANGE_LABEL[id] + ': ' + RANGE_LONG[id] })),
       text: [head + ': ', ...one(nIn(thumbs), thumbs.length, 'período de thumbnail', 'períodos de thumbnail'), ', ', ...one(nIn(titles), titles.length, 'título', 'títulos'), ', ',
         ...one(nIn(descs), descs.length, 'descrição', 'descrições'), ', ', ...one(shown.length, events.length, 'troca', 'trocas'), ' e ',

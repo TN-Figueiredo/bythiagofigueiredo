@@ -79,7 +79,6 @@ export function Compare({ comparisons, compare, selected, empty, onSelect, onDes
     return (
       <section className="card compare" id="hv-compare" aria-labelledby="hv-cmph">
         {head}
-        {arrive}
         <div className="nobase" style={{ marginTop: 12 }}><strong>Nada para comparar: nenhuma troca registrada.</strong>{empty}</div>
       </section>
     )

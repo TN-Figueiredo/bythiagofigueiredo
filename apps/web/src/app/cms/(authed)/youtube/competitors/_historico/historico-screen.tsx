@@ -46,8 +46,9 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   /** Which pager button (or key) was used and the video it leads to: the focus effect puts the focus back on it once that video is on screen. */
   const pagerUsed = useRef<{ which: 'prev' | 'next'; to: string } | null>(null)
   const onPage = useCallback((which: 'prev' | 'next', href: string) => { pagerUsed.current = { which, to: videoOf(href) } }, [])
-  // 30 days is the default (spec 6.4): it leaves the URL; `tudo` is written out
-  const onRange = (id: string) => go({ range: id === '30' ? null : id })
+  // 30 days is the default (spec 6.4): it leaves the URL; `tudo` is written out. With an arrival the period may have been widened by the
+  // change, so every choice (30 included) is written out: without it "30 d" would patch away a `range` that is not there and do nothing.
+  const onRange = (id: string) => go({ range: id === '30' && !view.arrival ? null : id })
   const onHl = useCallback((h: Hl | null) => setHover(h), [])
   const hl: Hl | null = hover ?? (pinImg ? { type: 'thumb', i: -1, ev: null, label: pinImg } : null)
   const rangeValue = view.range?.value ?? 'tudo'
@@ -70,31 +71,34 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   const toasted = useRef<string | null>(null)
   // Next 16 keeps this component when only the query changes: whatever is born from the URL (the pair, the arrival) is re-read here
   useEffect(() => { setPairK(view.defaultPair) }, [view.defaultPair, view.arrival?.changeId, view.video?.id])
-  // Focus after a video change: ONE place decides it. On arrival (spec 6.2) the change's marker (or its group's counter), else the pair on
-  // display; scroll only when it is out of the visible part of the scrolling container (the CMS shell scrolls in <main>, not in the
-  // window). After the pager (Anterior/Próximo or `[` `]`, spec 6.5) the button that was used, and the status reads "Vídeo 8 de 51:
-  // <título>". Otherwise the title takes the focus. The effect follows the video and the arrival, not the other parameters.
+  // Focus: ONE place decides it, and only when a video ARRIVES on the screen (a new video, or a new arrival change on the same one).
+  // 1. After the pager (Anterior/Próximo or `[` `]`, spec 6.5): the button that was used; the status reads "Vídeo 8 de 51: <título>".
+  // 2. Else, on an arrival (spec 6.2): the change's marker (or its group's counter); scroll only when it is out of the visible part of
+  //    the scrolling container (the CMS shell scrolls in <main>, not in the window). Its status is read only when the marker took the focus.
+  // 3. Else the title takes the focus.
+  // Never on a re-render with the same video and the same arrival (another period, `router.refresh()`), and never when the arrival merely
+  // goes away on the same video (a period chosen by hand that no longer holds the change): the focus stays where the person put it.
   const arrivalKey = view.arrival ? view.arrival.changeId : ''
+  const seen = useRef<{ video: string | undefined; arrival: string } | null>(null)
   useEffect(() => {
     const r = root.current
     const used = pagerUsed.current
     pagerUsed.current = null
+    const before = seen.current
+    seen.current = { video: view.video?.id, arrival: arrivalKey }
     if (!r || view.state === 'not-found') return
+    if (before && before.video === view.video?.id && arrivalKey === '' && !used) return
+    // the button that was used, if the video it promised is the one that arrived; when it is gone (end of the list) the other one
+    const btn = used && used.to === view.video?.id && view.pager
+      ? r.querySelector<HTMLElement>('[data-pager-' + used.which + ']') ?? r.querySelector<HTMLElement>('[data-pager-prev], [data-pager-next]') : null
+    if (btn && view.pager) { btn.focus({ preventScroll: true }); setLive(view.pager.status); return }
     const a = view.arrival
-    if (!a) {
-      // the button that was used, if the video it promised is the one that arrived; when it is gone (end of the list) the other one
-      const btn = used && used.to === view.video?.id && view.pager
-        ? r.querySelector<HTMLElement>('[data-pager-' + used.which + ']') ?? r.querySelector<HTMLElement>('[data-pager-prev], [data-pager-next]') : null
-      if (btn && view.pager) { btn.focus({ preventScroll: true }); setLive(view.pager.status); return }
-      r.querySelector<HTMLElement>('.vhead h2')?.focus({ preventScroll: true }); return
-    }
-    const target = r.querySelector<HTMLElement>('[data-arrival]')
-      ?? r.querySelector<HTMLElement>('#hv-compare .pair[aria-pressed="true"], #hv-compare [role="option"][aria-selected="true"]')
-    if (!target) return
-    target.focus({ preventScroll: true })
-    const box = target.closest('main')?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight }
-    const at = target.getBoundingClientRect()
-    if (at.top < box.top + 8 || at.bottom > box.bottom - 8) target.scrollIntoView?.({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' })
+    const mark = a ? r.querySelector<HTMLElement>('[data-arrival]') : null
+    if (!a || !mark) { r.querySelector<HTMLElement>('.vhead h2')?.focus({ preventScroll: true }); return }
+    mark.focus({ preventScroll: true })
+    const box = mark.closest('main')?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight }
+    const at = mark.getBoundingClientRect()
+    if (at.top < box.top + 8 || at.bottom > box.bottom - 8) mark.scrollIntoView?.({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' })
     setLive(a.status)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the arrival is read through its key
   }, [view.video?.id, arrivalKey])
