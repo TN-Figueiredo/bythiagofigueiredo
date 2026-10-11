@@ -6,11 +6,12 @@
  * Lê o conjunto inteiro do site: `obs.ownChannels()` é a primeira chamada e LANÇA no conjunto de um canal, em vez de
  * devolver números de um canal só.
  */
+import * as Sentry from '@sentry/nextjs'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { link } from '@/lib/youtube/observatorio/links'
 import { DAY } from '@/lib/youtube/observatorio/time'
 import { ownChannelHref } from '../_chrome/own-channels'
-import { numerosDoCanal, type Numero, type NumeroId } from './numeros-model'
+import { numerosDoCanal, type AvisoNumero, type Numero, type NumeroId } from './numeros-model'
 
 export interface Top5Item { id: string; href: string; titulo: string; thumb: string | null; viewsTexto: string; idadeTexto: string; short: boolean }
 export interface Pub90Item { t: number; fmt: 'long' | 'short' | null; dataTexto: string }
@@ -25,7 +26,7 @@ export interface CanalPack {
   top5: Top5Item[]
   /** "5 de 133 vídeos guardados, por views." | "Só 3 vídeos com contagem de views." | "Este canal não tem vídeos." */
   top5Nota: string
-  /** Um item por vídeo com data nos últimos 90 dias. `t` nunca fica antes de `inicio90` (o traço do vídeo de 90 dias e meio encosta no início do eixo); a data escrita é a real. */
+  /** Um item por vídeo com data nos últimos 90 dias. `t` fica entre `inicio90` e `now`: o traço do vídeo de 90 dias e meio encosta no início do eixo e uma estreia agendada, em hoje; a data escrita é a real. */
   pub90: Pub90Item[]
   pub90Nota: string
 }
@@ -41,7 +42,12 @@ export interface CompararPack {
 
 const thumbDe = (ytId: string) => (ytId ? `https://i.ytimg.com/vi/${encodeURIComponent(ytId)}/mqdefault.jpg` : null)
 
-export function buildCompararPack(obs: Observatory): CompararPack {
+/** Um número em estado inesperado já virou "não medido" na tela; aqui o aviso vai ao Sentry, um por número (nunca um 500). */
+const avisarSentry = (a: AvisoNumero) => {
+  Sentry.captureMessage(`observatório: comparação com número inválido (${a.canal}/${a.numero})`, { level: 'warning', extra: { canal: a.canal, numero: a.numero, erro: a.erro } })
+}
+
+export function buildCompararPack(obs: Observatory, avisar: (a: AvisoNumero) => void = avisarSentry): CompararPack {
   const owns = obs.ownChannels() // lança no conjunto de um canal: é a guarda de escopo
   const F = obs.fmt, D = obs.date
   const now = obs.NOW, inicio90 = now - 90 * DAY
@@ -72,17 +78,18 @@ export function buildCompararPack(obs: Observatory): CompararPack {
 
     /* ---- a publicação em 90 dias: o mesmo corte do número "longos em 90 dias" (ageDays <= 90, D9) */
     const v90 = vids.filter(v => v.ageDays <= 90).sort((a, b) => a.pub - b.pub || a.id.localeCompare(b.id))
-    const pub90: Pub90Item[] = v90.map(v => ({ t: Math.max(v.pub, inicio90), fmt: v.isShort === null ? null : v.fmt, dataTexto: D.dmhm(v.pub) }))
+    const pub90: Pub90Item[] = v90.map(v => ({ t: Math.min(now, Math.max(v.pub, inicio90)), fmt: v.isShort === null ? null : v.fmt, dataTexto: D.dmhm(v.pub) }))
+    // em backfill o motor busca os mais recentes primeiro, mas o canal pode ter mais vídeos: o aviso vale para qualquer ramo com vídeos
+    const aindaSincroniza = ch.sync.state === 'backfill' ? ' A sincronização do canal ainda não terminou: pode haver mais vídeos.' : ''
     let pub90Nota: string
     if (semVideos) pub90Nota = 'ainda sem vídeos sincronizados'
     else if (vids.length === 0) pub90Nota = 'Os vídeos deste canal ainda não têm data de publicação.'
     else if (v90.length === 0) {
       const ult = Math.max(...vids.map(v => v.pub))
-      pub90Nota = `Nenhum vídeo nos últimos 90 dias; o último foi em ${D.dmOrDmy(ult)}, ${D.ago(ult)}.`
+      pub90Nota = `Nenhum vídeo nos últimos 90 dias; o último foi em ${D.dmOrDmy(ult)}, ${D.ago(ult)}.${aindaSincroniza}`
     } else {
       const nl = pub90.filter(p => p.fmt === 'long').length, ns = pub90.filter(p => p.fmt === 'short').length, nc = pub90.filter(p => p.fmt === null).length
-      pub90Nota = `${F.plural(nl, 'longo', 'longos')} e ${F.plural(ns, 'Short', 'Shorts')} nos últimos 90 dias${nc ? ` e ${nc} de formato não confirmado` : ''}.`
-        + (ch.sync.state === 'backfill' ? ' A sincronização do canal ainda não terminou: pode haver mais vídeos.' : '')
+      pub90Nota = `${F.plural(nl, 'longo', 'longos')} e ${F.plural(ns, 'Short', 'Shorts')} nos últimos 90 dias${nc ? ` e ${nc} de formato não confirmado` : ''}.${aindaSincroniza}`
     }
 
     return {
@@ -91,7 +98,7 @@ export function buildCompararPack(obs: Observatory): CompararPack {
       semVideos,
       // concorrente sempre tem página (sem vídeos ela diz "ainda não tem vídeos sincronizados"); o canal próprio só com vídeos
       href: ch.own ? (semVideos ? null : ownChannelHref(ch.id)) : link.canal(ch.id),
-      numeros: numerosDoCanal(obs, ch.id), top5, top5Nota, pub90, pub90Nota,
+      numeros: numerosDoCanal(obs, ch.id, avisar), top5, top5Nota, pub90, pub90Nota,
     }
   })
 

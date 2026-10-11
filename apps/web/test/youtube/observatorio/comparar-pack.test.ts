@@ -1,7 +1,7 @@
 // @vitest-environment node
 // A3 Tarefa 5: o pacote que vai do servidor ao navegador na comparação (modelo, sem tela): só dados simples, os treze
 // números de todos os canais, os cinco mais vistos e a publicação em 90 dias.
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { gzipSync } from 'node:zlib'
 import { a3World } from './a3-fixture'
 import { buildCompararPack, type CanalPack, type CompararPack } from '@/app/cms/(authed)/youtube/competitors/_comparar/pack'
@@ -11,16 +11,18 @@ import { link, OBS_BASE } from '@/lib/youtube/observatorio/links'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
 import { createTestObservatory } from './oracle'
 
+beforeEach(() => { sentry.captureMessage.mockClear() })
+
+// o aviso de número inválido vai para o Sentry (a cópia que roda no servidor); aqui só se conta
+const sentry = vi.hoisted(() => ({ captureMessage: vi.fn() }))
+vi.mock('@sentry/nextjs', () => sentry)
+
 const DAY = 86_400_000
+/** Teto do tamanho cru do pacote de 75 canais (guarda barata de regressão; o gzip é o que viaja). */
+const TETO_CRU = 800 * 1024
 const PALAVRAS_INTERNAS = /\b(pack|pacote|dataset|conjunto do site|motor|sentinela|R73|escala √|ranking)\b/i
 
-function secondsOf(d: unknown): number | null {
-  if (typeof d === 'number' || d == null) return d ?? null
-  return String(d).split(':').map(Number).reduce((a, x) => a * 60 + x, 0)
-}
-function world(mut?: (ds: Dataset) => void) {
-  return a3World(ds => { for (const v of ds.videos) v.dur = secondsOf(v.dur); mut?.(ds) })
-}
+const world = a3World
 const BASE = world()
 const BASE_PACK = buildCompararPack(BASE.obs)
 const OWN = 'tnfigueiredo'
@@ -182,6 +184,13 @@ describe('pub90', () => {
     expect(velho).toBeDefined()
     expect(velho!.dataTexto).toBe(w.obs.date.dmhm(BASE.obs.NOW - 90.5 * DAY))
   })
+  it('estreia agendada (publicação depois de agora) não cai à direita de "hoje": o traço fica em agora (M7)', () => {
+    const w = world(ds => { const v = vidsOf(ds, CH).find(v => v.ageDays <= 90)!; v.pub = BASE.obs.NOW + 3 * 3_600_000; v.ageDays = 0 })
+    const p = buildCompararPack(w.obs), c = canal(p, CH)
+    expect(Math.max(...c.pub90.map(x => x.t))).toBe(p.now)
+    expect(c.pub90.every(x => x.t <= p.now && x.t >= p.inicio90)).toBe(true)
+    expect(c.pub90.length).toBe(c.numeros.longos90.x! + c.pub90.filter(x => x.fmt !== 'long').length) // a contagem não muda
+  })
   it('isShort nulo → fmt null e a nota conta "de formato não confirmado"', () => {
     const w = world(ds => { vidsOf(ds, CH).filter(v => v.ageDays <= 90).slice(0, 2).forEach(v => { v.isShort = null }) })
     const c = canal(buildCompararPack(w.obs), CH)
@@ -198,6 +207,14 @@ describe('pub90', () => {
     const c = canal(buildCompararPack(w.obs), CH), ult = Math.max(...vidsOf(w.ds, CH).map(v => v.pub))
     expect(c.pub90).toEqual([])
     expect(c.pub90Nota).toBe(`Nenhum vídeo nos últimos 90 dias; o último foi em ${w.obs.date.dmOrDmy(ult)}, ${w.obs.date.ago(ult)}.`)
+  })
+  it('canal que ainda sincroniza: o aviso "pode haver mais vídeos" vem também quando não há vídeo nos últimos 90 dias (M6)', () => {
+    const w = world(ds => { vidsOf(ds, 'vou-sem-volta').forEach((v, i) => { v.ageDays = 120 + i; v.pub = BASE.obs.NOW - v.ageDays * DAY }) })
+    const c = canal(buildCompararPack(w.obs), 'vou-sem-volta')
+    expect(vidsOf(w.ds, 'vou-sem-volta').length).toBeGreaterThan(0) // precondição: tem vídeos, nenhum recente
+    expect(BASE.obs.channel('vou-sem-volta')!.sync.state).toBe('backfill')
+    expect(c.pub90).toEqual([])
+    expect(c.pub90Nota).toMatch(/^Nenhum vídeo nos últimos 90 dias; o último foi em .+\. A sincronização do canal ainda não terminou: pode haver mais vídeos\.$/)
   })
   it('canal sem nenhum vídeo → "ainda sem vídeos sincronizados"', () => {
     const c = canal(buildCompararPack(world(semVideos(CH)).obs), CH)
@@ -223,6 +240,19 @@ describe('o pacote como um todo', () => {
     }
     sem(p, 'pack')
   })
+  it('um número em estado inesperado não derruba o pacote: vira "não medido" e um aviso vai ao Sentry, uma vez por número', () => {
+    sentry.captureMessage.mockClear()
+    const w = world(ds => { ds.channels.find(c => c.id === CH)!.subs = Number.NaN })
+    const p = buildCompararPack(w.obs)
+    expect(canal(p, CH).numeros.inscritos).toEqual({ x: null, texto: null, motivo: 'este número não pôde ser calculado', nota: null })
+    expect(canal(p, 'nate-herk').numeros.inscritos.x).not.toBeNull()
+    const chamadas = sentry.captureMessage.mock.calls.filter(c => String(c[0]).includes(CH))
+    expect(chamadas.length).toBeGreaterThanOrEqual(1)
+    expect(chamadas[0]![0]).toMatch(/comparação/); expect(chamadas[0]![1]).toMatchObject({ level: 'warning', extra: { canal: CH, numero: 'inscritos' } })
+    sentry.captureMessage.mockClear()
+    buildCompararPack(BASE.obs) // sem número inválido: nenhum aviso
+    expect(sentry.captureMessage).not.toHaveBeenCalled()
+  })
   it('nenhum texto do pacote traz palavra interna', () => {
     const textos: string[] = []
     const ver = (x: unknown): void => { if (typeof x === 'string') textos.push(x); else if (x && typeof x === 'object') Object.values(x).forEach(ver) }
@@ -235,27 +265,53 @@ describe('o pacote como um todo', () => {
     const um: Dataset = { ...ds, scope: 'canal', channels: ds.channels.filter(c => c.id === CH), videos: ds.videos.filter(v => v.ch === CH) }
     expect(() => buildCompararPack(createTestObservatory(um))).toThrow()
   })
-  it('tamanho: 75 canais com 200 vídeos cada ficam abaixo de 250 KB com gzip (registrar o medido)', () => {
+  it('tamanho: 75 canais com 200 vídeos DIFERENTES cada ficam abaixo de 250 KB com gzip e de um teto no cru (registrar o medido)', () => {
     const { ds } = world()
     const modelo = ds.videos.filter(v => v.ch === 'sabrina-ramonov').slice(0, 200)
     const molde = ds.channels.find(c => c.id === 'sabrina-ramonov')!
+    // gerador com semente fixa (mulberry32): dado variado e repetível, sem Math.random
+    let seed = 20_261_011
+    const rnd = () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296 }
+    const int = (a: number, b: number) => a + Math.floor(rnd() * (b - a + 1))
+    const ALFA = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-'
+    const ytId = () => Array.from({ length: 11 }, () => ALFA[int(0, ALFA.length - 1)]).join('')
+    const SIL = ['ba', 'ko', 'ri', 'mu', 'tel', 'zon', 'fa', 'lu', 'gen', 'pri', 'vo', 'cra', 'sin', 'do', 'ver', 'mat', 'ex', 'pol', 'qui', 'nes']
+    const palavra = () => Array.from({ length: int(1, 4) }, () => SIL[int(0, SIL.length - 1)]).join('')
+    const titulo = () => Array.from({ length: int(4, 11) }, palavra).join(' ')
     const canais: Dataset['channels'] = [], videos: Dataset['videos'] = []
     const proprios = ds.channels.filter(c => c.own)
     canais.push(...proprios); videos.push(...ds.videos.filter(v => proprios.some(c => c.id === v.ch)))
     for (let i = 0; i < 73; i++) {
-      const id = `ch-${i}`
-      canais.push({ ...molde, id, name: `Canal número ${i}`, fullName: `Canal número ${i} oficial`, subs: 10_000 + i * 12_345, handle: `@canal${i}`, snapshots: molde.snapshots })
-      modelo.forEach((v, j) => videos.push({ ...v, id: `${id}-v${j}`, ch: id, ytId: `yt${i}x${j}`, title: `Vídeo ${j} do canal ${i}: um título de tamanho bem comum para a conta`, series: [], firstIdx: null }))
+      const id = `ch-${i}`, nome = `${palavra()} ${palavra()}`
+      canais.push({
+        ...molde, id, name: nome, fullName: `${nome} ${palavra()}`, subs: int(1_000, 9_000_000), handle: `@${palavra()}${i}`,
+        snapshots: molde.snapshots.map(s => ({ ...s, subs: Math.round(s.subs * (0.2 + rnd() * 3)), views: Math.round(s.views * (0.2 + rnd() * 3)) })),
+      })
+      modelo.forEach((v, j) => {
+        const idade = rnd() < 0.5 ? int(0, 90) : int(91, 1800), pub = ds.now - idade * DAY - int(0, DAY - 1)
+        const views = Math.round(10 ** (2 + rnd() * 5)), k = 0.1 + rnd() * 4
+        videos.push({
+          ...v, id: `${id}-v${j}-${ytId()}`, ch: id, ytId: ytId(), title: titulo(), pub, ageDays: idade, tracked: rnd() < 0.7, views,
+          likes: Math.round(views * rnd() * 0.08), comments: Math.round(views * rnd() * 0.01), dur: int(20, 5_400), isShort: rnd() < 0.3 ? true : rnd() < 0.05 ? null : false,
+          fmt: 'long', series: v.series.map(p => ({ ...p, views: Math.round(p.views * k) })),
+        })
+      })
     }
+    for (const v of videos) if (v.isShort === true) v.fmt = 'short'
     const grande: Dataset = { ...ds, channels: canais, videos }
     expect(canais.length).toBe(75)
+    // dado de verdade variado: os títulos e os ids não se repetem entre canais
+    expect(new Set(videos.filter(v => v.ch.startsWith('ch-')).map(v => v.title)).size).toBeGreaterThan(14_000)
+    expect(new Set(videos.filter(v => v.ch.startsWith('ch-')).map(v => v.ytId)).size).toBeGreaterThan(14_000)
+    const t0 = Date.now()
     const p = buildCompararPack(createTestObservatory(grande))
     const json = JSON.stringify(p), gz = gzipSync(json).length
     // eslint-disable-next-line no-console
-    console.info(`pacote com 75 canais × 200 vídeos: ${(json.length / 1024).toFixed(1)} KB sem compressão, ${(gz / 1024).toFixed(1)} KB com gzip`)
+    console.info(`pacote com 75 canais × 200 vídeos variados: ${(json.length / 1024).toFixed(1)} KB sem compressão, ${(gz / 1024).toFixed(1)} KB com gzip, ${Date.now() - t0} ms para montar`)
     expect(p.canais.length).toBe(75)
     expect(gz).toBeLessThan(250 * 1024)
-  }, 60_000)
+    expect(json.length).toBeLessThan(TETO_CRU)
+  }, 120_000)
 })
 
 describe('link.comparar', () => {

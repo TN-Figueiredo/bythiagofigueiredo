@@ -4,7 +4,7 @@
 // quando o dado não existe?" antes de "quando dá erro?".
 import { describe, it, expect } from 'vitest'
 import { a3World } from './a3-fixture'
-import { numerosDoCanal, NUMEROS, NO_NICHO, MOTIVOS, motivoTexto, type Numero, type NumeroId } from '@/app/cms/(authed)/youtube/competitors/_comparar/numeros-model'
+import { numerosDoCanal, NUMEROS, NO_NICHO, MOTIVOS, motivoTexto, type Numero } from '@/app/cms/(authed)/youtube/competitors/_comparar/numeros-model'
 import { buildCanalHeader } from '@/app/cms/(authed)/youtube/competitors/_canal/header-model'
 import { buildCanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { acima2x, durText, vpdText } from '@/app/cms/(authed)/youtube/competitors/_canal/numeros'
@@ -14,15 +14,7 @@ import type { Dataset } from '@/lib/youtube/observatorio/types'
 const DAY = 86_400_000
 const PALAVRAS_INTERNAS = /\b(pack|pacote|dataset|conjunto do site|motor|sentinela|R73|escala √|ranking)\b/i
 
-/** O oráculo guarda a duração como "mm:ss"; o dataset de produção a guarda em segundos (ObsVideo.dur). */
-function secondsOf(d: unknown): number | null {
-  if (typeof d === 'number' || d == null) return d ?? null
-  return String(d).split(':').map(Number).reduce((a, x) => a * 60 + x, 0)
-}
-/** O mundo da A3, com a duração em segundos como a produção a entrega; `mut` roda numa cópia, antes do motor. */
-function world(mut?: (ds: Dataset) => void) {
-  return a3World(ds => { for (const v of ds.videos) v.dur = secondsOf(v.dur); mut?.(ds) })
-}
+const world = a3World
 const BASE = world() // lido uma vez por arquivo
 const CH = 'leo-khev' // concorrente sincronizado, com longos e Shorts, 78 longos com mais de 90 dias e 15 com até 90
 const OWN = 'tnfigueiredo'
@@ -211,10 +203,19 @@ describe('dias desde o último vídeo', () => {
     naoMedido(nums(world(semVideos(CH)).obs, CH).diasUltimo, 'sem vídeos')
     naoMedido(nums(BASE.obs, BF).diasUltimo, 'a primeira sincronização ainda não terminou')
   })
-  it('Short conta: o último vídeo é o mais recente de qualquer formato (como o cabeçalho)', () => {
-    const h = buildCanalHeader(BASE.obs, CH)!.todos.find(c => c.key === 'ultimoVideo')!
-    const n = nums(BASE.obs, CH).diasUltimo
-    expect(h.base).toContain(n.nota!.replace('publicado em ', '').slice(0, 5))
+  it('Short conta: se o vídeo mais novo é um Short, é ele que conta (qualquer formato, como o cabeçalho)', () => {
+    const w = world(ds => {
+      const curto = vidsOf(ds, CH).find(v => v.fmt === 'short')!
+      curto.pub = BASE.obs.NOW - 2 * DAY; curto.ageDays = 2
+      for (const v of vidsOf(ds, CH)) if (v !== curto && v.pub > curto.pub) { v.pub = curto.pub - 5 * DAY; v.ageDays = 7 } // nenhum vídeo é mais novo que ele
+    })
+    const curto = vidsOf(w.ds, CH).find(v => v.fmt === 'short' && v.pub === w.obs.NOW - 2 * DAY)!
+    expect(vidsOf(w.ds, CH).every(v => v.pub <= curto.pub)).toBe(true) // precondição
+    const n = nums(w.obs, CH).diasUltimo
+    expect(n.x).toBe(2); expect(n.texto).toBe('2'); expect(n.nota).toBe(`publicado em ${w.obs.date.dmOrDmy(curto.pub)}`)
+    // se contasse só os longos, o número seria o do longo mais novo
+    const longoNovo = Math.max(...vidsOf(w.ds, CH).filter(v => v.fmt === 'long').map(v => v.pub))
+    expect(Math.floor((w.obs.NOW - longoNovo) / DAY)).toBeGreaterThan(2)
   })
 })
 
@@ -263,11 +264,11 @@ describe('views por dia e por mil inscritos', () => {
       expect(buildCanalHeader(BASE.obs, r.id)!.todos.find(c => c.key === 'vpdPorMil')!.value, r.id).toBe(cel.big)
     }
   })
-  it('canal próprio → não medido "a coleta diária do seu canal começa em breve", nos dois números', () => {
+  it('canal próprio → não medido com o motivo verdadeiro (a coleta já roda; é a tela que ainda não a lê), nos dois números', () => {
     for (const id of [OWN, OWN2]) {
       const n = nums(BASE.obs, id)
-      naoMedido(n.vpd, 'a coleta diária do seu canal começa em breve')
-      naoMedido(n.vpdPorMil, 'a coleta diária do seu canal começa em breve')
+      naoMedido(n.vpd, 'a coleta diária do seu canal já roda, mas esta tela ainda não a lê; os números chegam com a página do canal próprio')
+      naoMedido(n.vpdPorMil, 'a coleta diária do seu canal já roda, mas esta tela ainda não a lê; os números chegam com a página do canal próprio')
     }
   })
   it('concorrente sem 2º registro diário → "aguarda o 2º registro diário", nos dois', () => {
@@ -275,6 +276,31 @@ describe('views por dia e por mil inscritos', () => {
     expect(w.obs.channelStats(CH, 'long').vpdMedian).toBeNull() // precondição
     const n = nums(w.obs, CH)
     naoMedido(n.vpd, 'aguarda o 2º registro diário'); naoMedido(n.vpdPorMil, 'aguarda o 2º registro diário')
+  })
+  it('concorrente SEM nenhum longo acompanhado (só Shorts, ou nenhum longo no limite): "nenhum vídeo longo acompanhado", nunca "aguarda o 2º registro diário" (I1)', () => {
+    const FRASE = 'nenhum vídeo longo acompanhado'
+    // só Shorts: não há longo, então esperar um dia não resolve
+    const w = world(ds => { ds.videos = ds.videos.filter(v => !(v.ch === CH && v.fmt === 'long')) })
+    expect(vidsOf(w.ds, CH).some(v => v.fmt === 'short')).toBe(true) // precondição: o canal publica Shorts
+    const n = nums(w.obs, CH)
+    naoMedido(n.vpd, FRASE); naoMedido(n.vpdPorMil, FRASE)
+    // longos guardados, nenhum acompanhado: é o mesmo caso
+    const w2 = world(ds => { vidsOf(ds, CH).filter(v => v.fmt === 'long').forEach(v => { v.tracked = false }) })
+    naoMedido(nums(w2.obs, CH).vpd, FRASE)
+    // o canal do mundo extremo (matheus-fonseca, só Shorts)
+    const ext = world(ds => { ds.videos = ds.videos.filter(v => !(v.ch === 'matheus-fonseca' && v.fmt === 'long')) })
+    expect(vidsOf(ext.ds, 'matheus-fonseca').some(v => v.fmt === 'short')).toBe(true)
+    naoMedido(nums(ext.obs, 'matheus-fonseca').vpd, FRASE)
+    // a lista de Canais diz o mesmo, com as mesmas palavras ("Nenhum vídeo longo acompanhado.")
+    const lista = buildCanaisView(w.obs, { niche: 'todos', limit: 75, fmt: 'longos', scale: 'abs' })
+    const cel = [...lista.list.ranked, ...lista.list.unranked].find(r => r.id === CH)!.cells.vpd
+    expect(cel.kind).toBe('na')
+    expect(cel.kind === 'na' && cel.text.toLowerCase()).toBe(FRASE + '.')
+  })
+  it('com longos acompanhados mas sem o 2º registro, a frase continua "aguarda o 2º registro diário" (o caso que o tempo resolve)', () => {
+    const w = world(ds => { vidsOf(ds, CH).forEach(v => { v.series = []; v.firstIdx = null }) })
+    expect(vidsOf(w.ds, CH).some(v => v.fmt === 'long' && v.tracked)).toBe(true)
+    naoMedido(nums(w.obs, CH).vpd, 'aguarda o 2º registro diário')
   })
   it('inscritos ocultos: views por dia medido, por mil → "inscritos ocultos pelo canal"', () => {
     const w = world(ds => { ds.channels.find(c => c.id === CH)!.subs = null })
@@ -377,6 +403,19 @@ describe('vídeos acima de 2×', () => {
     naoMedido(nums(world(sem(CH)).obs, CH).acima2x, 'nenhum vídeo com múltiplo em 90 dias')
     naoMedido(nums(world(sem(OWN)).obs, OWN).acima2x, 'nenhum vídeo seu nos últimos 90 dias')
   })
+  it('canal próprio COM longo recente mas sem múltiplo calculado não diz que não publicou (M2)', () => {
+    // um longo próprio de até 90 dias, sozinho: não há outros vídeos para dar o múltiplo
+    const w = world(ds => {
+      const meus = ds.videos.filter(v => v.ch === OWN && v.fmt === 'long'), recente = meus.find(v => v.ageDays <= 90) ?? meus[0]!
+      recente.ageDays = 5; recente.pub = BASE.obs.NOW - 5 * DAY; recente.tracked = true
+      ds.videos = ds.videos.filter(v => v.ch !== OWN || v === recente)
+    })
+    const S = w.obs.channelStats(OWN, 'long')
+    expect(S.pctOutliersN).toBe(0) // precondição: o motor não calculou múltiplo
+    const n = nums(w.obs, OWN)
+    expect(n.longos90.x).toBe(1)
+    naoMedido(n.acima2x, 'nenhum vídeo seu com múltiplo calculado em 90 dias')
+  })
   it('canal sem vídeos → "sem vídeos"; primeira sincronização → a frase da sincronização', () => {
     naoMedido(nums(world(semVideos(CH)).obs, CH).acima2x, 'sem vídeos')
     naoMedido(nums(BASE.obs, BF).acima2x, 'a primeira sincronização ainda não terminou')
@@ -447,6 +486,99 @@ describe('o mesmo canal mostra o mesmo número na comparação, no cabeçalho do
   })
 })
 
+/** A lista escreve um espaço que não quebra linha antes de "mil"; fora isso o texto é o mesmo. */
+const sem = (t: string) => t.replace(/\u00a0/g, ' ')
+
+describe('views por dia: o MESMO texto na lista de Canais, no cabeçalho do canal e na comparação (I2, spec 19.3)', () => {
+  /** Muda a escala das views diárias de um canal até a mediana de views por dia dos longos ficar perto de `alvo`. */
+  const escalar = (id: string, alvo: number) => (ds: Dataset) => {
+    const f = alvo / BASE.obs.channelStats(id, 'long').vpdMedian!
+    for (const v of ds.videos.filter(v => v.ch === id)) { const p0 = v.series[0]; if (p0) v.series = v.series.map(p => ({ ...p, views: p0.views + (p.views - p0.views) * f })) }
+  }
+  // 0,4 e 3,4 (uma casa), 0,02 (menos de 0,1), 9,97 (arredonda para 10) e 12,6 (inteiro), mais o zero exato e o que o fixture já tem
+  const mundo = world(ds => {
+    escalar('leo-khev', 3.44)(ds); escalar('nate-herk', 0.4)(ds); escalar('matt-wolfe', 0.02)(ds)
+    escalar('dale-philip', 9.97)(ds); escalar('luke-damant', 12.6)(ds)
+    for (const v of ds.videos.filter(v => v.ch === 'sabrina-ramonov')) { const p0 = v.series[0]; v.series = p0 ? v.series.map(p => ({ ...p, views: p0.views })) : [] }
+  })
+  const pares = (obs: Observatory, fmt: 'longos' | 'shorts') => {
+    const v = buildCanaisView(obs, { niche: 'todos', limit: 75, fmt, scale: 'abs' })
+    return [...v.list.ranked, ...v.list.unranked].filter(r => !r.own)
+  }
+  it('longos: lista (absoluto), cabeçalho e comparação escrevem igual, em todos os canais com a medida (e o mundo tem cada faixa de formato)', () => {
+    const vistos: string[] = []
+    for (const [nome, obs] of [['base', BASE.obs], ['faixas', mundo.obs]] as const) {
+      for (const r of pares(obs, 'longos')) {
+        const cel = r.cells.vpd, n = nums(obs, r.id).vpd, h = buildCanalHeader(obs, r.id)!.faixa.find(c => c.key === 'vpd')!.value
+        if (cel.kind !== 'ok') continue
+        expect(n.texto, `${nome}/${r.id} comparação`).toBe(sem(cel.big))
+        expect(h, `${nome}/${r.id} cabeçalho`).toBe(sem(cel.big))
+        vistos.push(sem(cel.big))
+      }
+    }
+    expect(vistos.length).toBeGreaterThan(16)
+    expect(vistos).toContain('menos de 0,1'); expect(vistos).toContain('0'); expect(vistos).toContain('10')
+    expect(vistos.some(t => /^\d,\d$/.test(t))).toBe(true); expect(vistos.some(t => /^\d\d$/.test(t) && t !== '10')).toBe(true)
+  })
+  it('a segunda medida: nos Shorts a lista escreve como o cabeçalho; em "Todos" as duas linhas (longos e Shorts) também', () => {
+    const todos = buildCanaisView(mundo.obs, { niche: 'todos', limit: 75, fmt: 'todos', scale: 'abs' })
+    let achou = 0
+    for (const r of [...todos.list.ranked, ...todos.list.unranked].filter(r => !r.own)) {
+      const h = buildCanalHeader(mundo.obs, r.id)!
+      if (r.cells.vpd.kind === 'ok') { expect(sem(r.cells.vpd.big), `${r.id} longos em Todos`).toBe(h.faixa.find(c => c.key === 'vpd')!.value); achou++ }
+      const c2 = r.cells.vpd2
+      if (c2 && c2.kind === 'ok') { expect(sem(c2.big), `${r.id} Shorts em Todos`).toBe(h.todos.find(c => c.key === 'vpdShorts')!.value); achou++ }
+    }
+    for (const r of pares(mundo.obs, 'shorts')) {
+      const c = r.cells.vpd
+      if (c.kind === 'ok') { expect(sem(c.big), `${r.id} Shorts`).toBe(buildCanalHeader(mundo.obs, r.id)!.todos.find(x => x.key === 'vpdShorts')!.value); achou++ }
+    }
+    expect(achou).toBeGreaterThan(20)
+  })
+  it('a escala "por mil" mostra, ao lado, a medida absoluta no mesmo formato', () => {
+    const v = buildCanaisView(mundo.obs, { niche: 'todos', limit: 75, fmt: 'longos', scale: 'per-mil' })
+    const r = [...v.list.ranked, ...v.list.unranked].find(r => r.id === 'matt-wolfe')!
+    expect(r.cells.vpd.kind === 'ok' && r.cells.vpd.abs).toBe('menos de 0,1')
+    const r2 = [...v.list.ranked, ...v.list.unranked].find(r => r.id === 'leo-khev')!
+    expect(r2.cells.vpd.kind === 'ok' && sem(r2.cells.vpd.abs ?? '')).toBe(nums(mundo.obs, 'leo-khev').vpd.texto)
+  })
+  it('a contagem de Trocas da lista NÃO muda (conta a descrição, coluna de produção); a comparação conta título e thumbnail', () => {
+    const id = 'matt-wolfe'
+    const lista = [...buildCaisLista(BASE.obs)].find(r => r.id === id)!
+    const todas = BASE.obs.changesIn({ days: 30, channel: id }).length
+    expect(lista.cells.swap.kind === 'ok' && lista.cells.swap.n).toBe(todas)
+    expect(Number(nums(BASE.obs, id).trocas30.texto)).toBeLessThan(todas)
+  })
+})
+function buildCaisLista(obs: Observatory) {
+  const v = buildCanaisView(obs, { niche: 'todos', limit: 75, fmt: 'longos', scale: 'abs' })
+  return [...v.list.ranked, ...v.list.unranked]
+}
+
+describe('um número em estado inesperado nunca derruba a página (M7)', () => {
+  it('inscritos não finitos → "não medido" com a frase genérica, os outros doze intactos, e UM aviso por número', () => {
+    const w = world(ds => { ds.channels.find(c => c.id === CH)!.subs = Number.NaN })
+    const avisos: Array<{ canal: string; numero: string; erro: string }> = []
+    const n = numerosDoCanal(w.obs, CH, a => avisos.push(a))
+    naoMedido(n.inscritos, 'este número não pôde ser calculado')
+    expect(n.inscritos.nota).toBeNull()
+    expect(avisos.map(a => [a.canal, a.numero])).toEqual([[CH, 'inscritos']])
+    expect(avisos[0]!.erro).toMatch(/inválido/)
+    const ok = numerosDoCanal(BASE.obs, CH)
+    // os que dependem da contagem de inscritos (inscritos em 30 dias lê o último registro) ou de dividir por ela ficam de fora
+    for (const k of NUMEROS) if (k !== 'inscritos' && k !== 'inscritos30' && k !== 'vpdPorMil') expect(n[k], k).toEqual(ok[k])
+  })
+  it('sem avisador, o número também vira "não medido" (não lança)', () => {
+    const w = world(ds => { ds.channels.find(c => c.id === CH)!.subs = Number.POSITIVE_INFINITY })
+    expect(() => numerosDoCanal(w.obs, CH)).not.toThrow()
+    naoMedido(numerosDoCanal(w.obs, CH).inscritos, 'este número não pôde ser calculado')
+  })
+  it('a frase genérica não traz palavra interna e é verdadeira para qualquer número', () => {
+    expect(motivoTexto({ k: 'invalido' })).toBe('este número não pôde ser calculado')
+    expect(motivoTexto({ k: 'invalido' })).not.toMatch(PALAVRAS_INTERNAS)
+  })
+})
+
 describe('invariantes sobre todos os canais', () => {
   /** Um mundo com todas as causas de ausência ao mesmo tempo. */
   const extremo = world(ds => {
@@ -475,7 +607,7 @@ describe('invariantes sobre todos os canais', () => {
   it('o mundo extremo tem de verdade nulos de cada tipo (o teste acima não passa por não ter o que olhar)', () => {
     const motivos = new Set(todos(extremo.obs).map(x => x.n.motivo).filter((m): m is string => m != null))
     for (const frase of ['inscritos ocultos pelo canal', 'sem vídeos', 'a primeira sincronização ainda não terminou', 'aguarda o 2º registro diário',
-      'a coleta diária do seu canal começa em breve', 'as trocas do seu canal ficam no A/B Lab', 'sem contagem de 30 dias atrás']) expect(motivos.has(frase), frase).toBe(true)
+      'a coleta diária do seu canal já roda, mas esta tela ainda não a lê; os números chegam com a página do canal próprio', 'as trocas do seu canal ficam no A/B Lab', 'sem contagem de 30 dias atrás']) expect(motivos.has(frase), frase).toBe(true)
     expect([...motivos].some(m => m.startsWith('sem contagem de 30 dias atrás'))).toBe(true)
   })
   it('nenhum motivo traz palavra interna (todos os motivos possíveis e todos os que saem no fixture)', () => {

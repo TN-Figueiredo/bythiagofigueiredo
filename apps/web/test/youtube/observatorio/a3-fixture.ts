@@ -8,9 +8,17 @@ import type { Dataset } from '@/lib/youtube/observatorio/types'
 import type { Observatory } from '@/lib/youtube/observatorio'
 
 const bases = new Map<OwnPreset, Dataset>()
+/** O oráculo guarda a duração como "mm:ss"; o dataset de produção a guarda em segundos (`ObsVideo.dur: number | null`). */
+function segundos(ds: Dataset): void {
+  for (const v of ds.videos) {
+    const d: unknown = v.dur
+    if (typeof d === 'string') v.dur = d.split(':').map(Number).reduce((a, x) => a * 60 + x, 0)
+  }
+}
+
 function baseDataset(preset: OwnPreset): Dataset {
   let b = bases.get(preset)
-  if (!b) { b = plain(datasetFromOracle(loadOracleOwns(preset))); bases.set(preset, b) }
+  if (!b) { b = plain(datasetFromOracle(loadOracleOwns(preset))); segundos(b); bases.set(preset, b) }
   return b
 }
 
