@@ -206,8 +206,11 @@ describe('atualização automática com pedido em andamento (D7)', () => {
     ds2.requests.push({ ...pub, status: 'completed', state: 'publicado', claimedAt: ds2.now - 3 * 6e4, publishedAt: ds2.now - 6e4 })
     const publicado = createObservatory(ds2)
     const st = buildHistoricoView(publicado, FULL, { niche: 'ia' }).forja?.status
-    // sem um estado "publicado" que o motor devolva para este vídeo o aviso não se aplica: o teste só vale com ele
-    if (!st || st.active || !/publicad/.test(st.text) || st.warn) return
+    // pré-condição: o motor devolve o estado "publicado" para este vídeo; se o dataset mudar, o teste falha em vez de passar sem afirmar nada
+    expect(st, 'o motor devolve o estado do pedido').toBeTruthy()
+    expect(st!.active).toBe(false)
+    expect(st!.text).toMatch(/publicad/)
+    expect(st!.warn).toBeFalsy()
     const r = render(<Scr o={andando} video={FULL} />)
     r.rerender(<Scr o={publicado} video={FULL} />)
     await waitFor(() => expect(screen.getByText('Leitura publicada')).toBeTruthy())

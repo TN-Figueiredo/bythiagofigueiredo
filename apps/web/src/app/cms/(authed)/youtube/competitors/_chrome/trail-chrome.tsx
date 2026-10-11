@@ -7,7 +7,7 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { ToastProvider } from './toasts'
-import { marcarVoltaPelaTrilha } from './ultimo-video'
+import { marcarVoltaPelaTrilha, renovarUltimoVideo } from './ultimo-video'
 import { cliqueSimples } from './clique-simples'
 import { esperarVoltaAoCanal } from '../_canal/use-rolagem-ao-voltar'
 import './trail-chrome.css'
@@ -32,7 +32,7 @@ export function TrailChrome({ crumbs, children }: { crumbs: Crumb[]; children: R
                   return (
                     <li key={i} aria-current={last ? 'page' : undefined}>
                       {!last && c.href
-                        ? <Link href={c.href} onClick={c.voltaAoCanal ? (e => { if (cliqueSimples(e)) { marcarVoltaPelaTrilha(c.voltaAoCanal!); esperarVoltaAoCanal() } }) : undefined}>{c.text}</Link>
+                        ? <Link href={c.href} onClick={c.voltaAoCanal ? (e => { if (cliqueSimples(e)) { renovarUltimoVideo(c.voltaAoCanal!); marcarVoltaPelaTrilha(c.voltaAoCanal!); esperarVoltaAoCanal() } }) : undefined}>{c.text}</Link>
                         : c.text}
                     </li>
                   )

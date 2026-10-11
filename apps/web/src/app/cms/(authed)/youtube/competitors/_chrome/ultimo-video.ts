@@ -17,13 +17,13 @@ export type SaidaDoCartao = 'cartao' | 'troca'
 export interface UltimoVideo { id: string; via: SaidaDoCartao; troca: string | null }
 interface Guardado { v: string; t: number; via: SaidaDoCartao; troca: string | null; trilha: number | null }
 
-function ler(canalId: string): Guardado | null {
+function ler(canalId: string, ignorarPrazo = false): Guardado | null {
   try {
     const raw = window.sessionStorage.getItem(PREFIXO + canalId)
     if (raw == null) return null
     let g: Partial<Guardado> | null = null
     try { g = JSON.parse(raw) as Partial<Guardado> } catch { g = null }
-    if (!g || typeof g.v !== 'string' || !g.v || typeof g.t !== 'number' || Date.now() - g.t > VALE_MS || g.t - Date.now() > 60_000) {
+    if (!g || typeof g.v !== 'string' || !g.v || typeof g.t !== 'number' || (!ignorarPrazo && Date.now() - g.t > VALE_MS) || g.t - Date.now() > 60_000) {
       window.sessionStorage.removeItem(PREFIXO + canalId)   // formato antigo, lixo ou velho: ignorado e apagado
       return null
     }
@@ -47,9 +47,13 @@ export function lembrarUltimoVideo(canalId: string, videoId: string): void {
   else gravar(canalId, { v: videoId, t: Date.now(), via: 'cartao', troca: null, trilha: null })
 }
 
-/** Renova o prazo (a pessoa ainda está no Histórico, por exemplo ao clicar num link dele). */
+/**
+ * Renova o prazo (a pessoa ainda está no Histórico, por exemplo ao clicar num link dele). Vale também para um registro que já passou dos
+ * 30 min: quem o escreveu foi o Histórico que está na tela, e o clique prova que a pessoa continua nele (sem isso, mais de 30 min parado no
+ * mesmo vídeo e um clique no item do canal da trilha perdiam o foco e a rolagem da volta). Registro estragado continua sendo apagado.
+ */
 export function renovarUltimoVideo(canalId: string): void {
-  const g = ler(canalId)
+  const g = ler(canalId, true)
   if (g) gravar(canalId, { ...g, t: Date.now() })
 }
 

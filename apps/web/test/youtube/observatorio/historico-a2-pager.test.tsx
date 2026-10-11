@@ -333,6 +333,21 @@ describe('o item do canal na trilha (spec 3 e 6.5): equivale ao Voltar', () => {
     m.mockRestore()
   })
 
+  it('I1: o registro do último vídeo visto venceu (mais de 30 min parado no vídeo): o clique no item do canal da trilha o renova e marca a volta', () => {
+    mount(5)
+    expect(lerUltimoVideo(chId)).not.toBeNull()
+    const m = longe(40 * 60_000)   // 40 min depois: sem renovar, o registro já expirou (30 min) e a marca da volta se perde
+    expect(lerUltimoVideo(chId)).toBeNull()
+    m.mockRestore()
+    lembrarUltimoVideo(chId, alvo.id)
+    const m2 = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 40 * 60_000)
+    const canal = document.querySelectorAll<HTMLAnchorElement>('nav.crumbs li a')[1]!
+    fireEvent.click(canal)
+    expect(chegouPelaTrilha(chId)).toBe(true)
+    expect(lerUltimoVideo(chId)?.id).toBe(alvo.id)
+    m2.mockRestore()
+  })
+
   it('chegando pela trilha (push, sem popstate) o foco vai ao cartão do último vídeo visto, n cresce e o registro é consumido', () => {
     const m = longe(120_000)   // o último popstate dos outros testes ficou longe: aqui NÃO houve Voltar
     lembrarUltimoVideo(w.chId, alvo.id)
