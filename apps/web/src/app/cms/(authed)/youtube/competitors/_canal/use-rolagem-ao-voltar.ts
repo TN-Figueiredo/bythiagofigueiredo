@@ -18,19 +18,23 @@ let documentoJaMontou = false
 // capture: o roteador do Next também ouve `popstate`; aqui o aviso vem antes. O instante vai também para a sessão: em desenvolvimento o módulo pode
 // ser avaliado de novo na volta (a cópia nova não viu o evento), e a montagem precisa saber que acabou de haver um Voltar.
 let esperaVoltar = 0
+/** Voltar por navegação suave: o Next devolve a rota sem remontar a tela e só depois de a rede responder (em desenvolvimento, mais de um segundo),
+ *  então os efeitos do React não servem de gatilho. Fica de olho até aparecer uma tela do canal visível e devolve a rolagem guardada para a URL.
+ *  Também é o gatilho do item do canal na trilha do Histórico (um `push` que o spec 6.5 trata como o Voltar). */
+export function esperarVoltaAoCanal(): void {
+  cancelAnimationFrame(esperaVoltar)
+  let n = 0
+  const espera = () => {
+    if (document.querySelector('[data-obs-screen="canal"]') && [...document.querySelectorAll('[data-obs-screen="canal"]')].some(e => e.getClientRects().length > 0)) { restaurar(); avisarVoltou(); return }
+    if (++n < 180) esperaVoltar = requestAnimationFrame(espera)
+  }
+  esperaVoltar = requestAnimationFrame(espera)
+}
 if (typeof window !== 'undefined') {
   window.addEventListener('popstate', () => {
     ultimoPop = Date.now()
     try { window.sessionStorage.setItem(CHAVE_POP, String(ultimoPop)) } catch { /* conforto */ }
-    // Voltar por navegação suave: o Next devolve a rota sem remontar a tela e só depois de a rede responder (em desenvolvimento, mais de um segundo),
-    // então os efeitos do React não servem de gatilho. Fica de olho até aparecer uma tela do canal visível e devolve a rolagem guardada para a URL.
-    cancelAnimationFrame(esperaVoltar)
-    let n = 0
-    const espera = () => {
-      if (document.querySelector('[data-obs-screen="canal"]') && [...document.querySelectorAll('[data-obs-screen="canal"]')].some(e => e.getClientRects().length > 0)) { restaurar(); avisarVoltou(); return }
-      if (++n < 180) esperaVoltar = requestAnimationFrame(espera)
-    }
-    esperaVoltar = requestAnimationFrame(espera)
+    esperarVoltaAoCanal()
   }, true)
 }
 /** Há quanto tempo foi o último `popstate` (o da memória ou o da sessão). */
@@ -72,6 +76,18 @@ function guardar(raiz?: RefObject<HTMLElement | null>): void {
   } catch { /* a rolagem é conforto */ }
 }
 
+/** A restauração em curso: `parar` a encerra; `pendentes` esperam a rolagem assentar (os primeiros quadros reafirmam a posição guardada). */
+let parar: (() => void) | null = null
+let assentou = true
+const pendentes: Array<() => void> = []
+/** Roda `fn` depois que a rolagem restaurada assentou (na hora, se não há restauração em curso). Um gesto da pessoa a descarta. */
+export function aposRestaurar(fn: () => void): void {
+  if (parar && !assentou) pendentes.push(fn)
+  else fn()
+}
+/** Encerra a restauração em curso (quem vai rolar de propósito não pode brigar com a rolagem reafirmada). */
+export function pararRestauracao(): void { parar?.() }
+
 /** Devolve a rolagem guardada para a URL de agora (e a consome). Depois da montagem alguém ainda mexe na rolagem: a tela cresce (a casca termina de
  *  montar, o estado do cliente — `n`, a ordem — é reconciliado com a URL), e o Next, quando a rota volta pela rede, rola o segmento para o alto
  *  quando o RSC chega (em desenvolvimento, segundos depois). Por isso a rolagem é reafirmada a cada quadro por meio segundo e, depois, sempre que
@@ -92,26 +108,32 @@ function restaurar(raiz?: RefObject<HTMLElement | null>): void {
       clearTimeout(fim); cancelAnimationFrame(quadro)
       el.removeEventListener('scroll', aoRolar)
       for (const ev of eventos) window.removeEventListener(ev, para)
+      pendentes.length = 0   // um gesto da pessoa (ou o fim do prazo) cancela o que esperava a rolagem assentar
+      if (parar === para) parar = null
     }
+    parar = para
     const aoRolar = () => { if (longe()) el.scrollTop = top }
     el.addEventListener('scroll', aoRolar, { passive: true })
     for (const ev of eventos) window.addEventListener(ev, para, { passive: true })
     fim = window.setTimeout(para, 6000)
     const reafirma = () => {
       if (longe()) el.scrollTop = top
-      if (++tentativas < 30) quadro = requestAnimationFrame(reafirma)
+      if (++tentativas < 30) { quadro = requestAnimationFrame(reafirma); return }
+      assentou = true   // a rolagem assentou: o que esperava por isso roda agora
+      for (const f of pendentes.splice(0)) f()
     }
+    assentou = false
     quadro = requestAnimationFrame(reafirma)
   } catch { /* a rolagem é conforto */ }
 }
 
 /** `aoVoltar` roda uma vez por Voltar, quando a tela do canal volta à vista (montagem nova ou rota que o Next devolve sem remontar). */
-export function useRolagemAoVoltar(raiz?: RefObject<HTMLElement | null>, aoVoltar?: () => void): void {
-  const fn = useRef(aoVoltar)
-  useLayoutEffect(() => { fn.current = aoVoltar })
+export function useRolagemAoVoltar(raiz?: RefObject<HTMLElement | null>, aoVoltar?: () => void, tambemVoltou?: () => boolean): void {
+  const fn = useRef(aoVoltar), tb = useRef(tambemVoltou)
+  useLayoutEffect(() => { fn.current = aoVoltar; tb.current = tambemVoltou })
   // montagem nova (volta por navegação inteira, ou a rota remontada)
   useLayoutEffect(() => {
-    let voltou = haQuantoPop() < JANELA_POP_MS
+    let voltou = haQuantoPop() < JANELA_POP_MS || (tb.current?.() ?? false)   // popstate recente, ou chegada pelo item do canal na trilha
     if (!documentoJaMontou) {
       documentoJaMontou = true
       const nav = typeof performance !== 'undefined' && typeof performance.getEntriesByType === 'function' ? performance.getEntriesByType('navigation')[0] : undefined

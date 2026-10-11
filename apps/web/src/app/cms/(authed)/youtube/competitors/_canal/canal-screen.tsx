@@ -5,7 +5,7 @@
  * Trocas trocam no navegador (mesmo pacote de dados); Leitura é navegação de verdade, porque o servidor lê o conjunto do site para ela
  * (D3). Server actions chegam por props (`actions`); nenhum `Link` chega de um Server Component.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Niche } from '@/lib/youtube/observatorio/niche'
@@ -15,7 +15,7 @@ import type { setChannelNiche } from '../niche-actions'
 import { Icon } from '../_chrome/icons'
 import { PinProvider, type PinAction } from '../_chrome/pin-kit'
 import { useToast } from '../_chrome/toasts'
-import { esquecerUltimoVideo, lerUltimoVideo } from '../_chrome/ultimo-video'
+import { chegouPelaTrilha, esquecerUltimoVideo, lembrarSaida, lerUltimoVideo, type UltimoVideo } from '../_chrome/ultimo-video'
 import { RemoveDialog } from '../_canais/remove-dialog'
 import { NicheOptionsContext, NichePendingContext, type NichePending } from '../_canais/niche-editor'
 import type { NicheOption } from '../_canais/view-model'
@@ -28,7 +28,8 @@ import { Trocas } from './trocas'
 import { montarLista, type ListaView } from './lista'
 import { canalQuery, LOTE, parseCanalState, type CanalState } from './params'
 import { useCanalState } from './use-canal-state'
-import { useRolagemAoVoltar } from './use-rolagem-ao-voltar'
+import { aposRestaurar, pararRestauracao, useRolagemAoVoltar } from './use-rolagem-ao-voltar'
+import { precisaTrazer } from './cartao-a-vista'
 import { PinMessages } from './video-menu'
 import type { ChannelVideoView } from './videos-model'
 import type { CanalView } from './view-model'
@@ -221,9 +222,17 @@ function AbaVideos({ view, state, lista, set, nome, channelId, onSync, raiz }: {
   const ampliar = (v: ChannelVideoView) => { if (v.thumbSrc) window.open(v.thumbSrc, '_blank', 'noopener,noreferrer') }
   const verTrocas = (v: ChannelVideoView) => set({ tab: 'trocas', video: v.id })
   const hrefs = useMemo(() => {
-    const back = canalQuery(state), pos = new Map(lista.visiveis.map((id, i) => [id, i]))
+    const back = canalQuery(state)
+    // O vídeo sem data de publicação não existe no Histórico (não está em `obs.video`): fora de `ids=` e fora da conta de pos/tot, senão o pager
+    // passaria por ele e abriria "Vídeo não encontrado" no meio do caminho. O cartão dele leva ao Histórico sem lista.
+    const semData = new Set(all.filter(v => v.grupo === 'sem-data').map(v => v.id))
+    const entram = lista.visiveis.filter(id => !semData.has(id)), pos = new Map(entram.map((id, i) => [id, i]))
     // pos/tot (D4): o lugar do cartão na lista que a tela mostra e o tamanho dela; `ids=` é só a vizinhança de 100
-    return (v: ChannelVideoView) => link.historico(v.id, { from: 'canais', canal: channelId, back, ids: vizinhanca(lista.visiveis, pos.get(v.id) ?? 0), pos: (pos.get(v.id) ?? 0) + 1, tot: lista.visiveis.length })
+    return (v: ChannelVideoView) => {
+      const i = pos.get(v.id)
+      if (i == null) return link.historico(v.id, { from: 'canais', canal: channelId, back })
+      return link.historico(v.id, { from: 'canais', canal: channelId, back, ids: vizinhanca(entram, i), pos: i + 1, tot: entram.length })
+    }
   }, [lista, state, channelId])   // eslint-disable-line react-hooks/exhaustive-deps
 
   if (state.tab !== 'videos') return null
@@ -276,29 +285,60 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
   /* O Voltar do Histórico (spec 3): o foco no cartão do ÚLTIMO vídeo visto (Anterior/Próximo substituem a entrada do histórico, então a URL que
      volta é a de antes do primeiro), e `n` cresce até incluí-lo. A rolagem é a de antes (use-rolagem-ao-voltar). Sem registro, a página volta
      como volta o navegador. O registro vale um Voltar só. Se `n` precisa crescer, o foco espera o render com ele (efeito logo abaixo). */
-  const focoNoUltimo = useRef<{ id: string; tab: CanalTab; n: number; ate: number } | null>(null)
-  const focarUltimo = (alvo: { id: string; tab: CanalTab }): void => {
-    const r = raiz.current
-    const el = alvo.tab === 'trocas'
-      ? [...(r?.querySelectorAll<HTMLElement>('li.ct-card') ?? [])].find(li => li.dataset.id === alvo.id)?.querySelector<HTMLElement>('a.ct-go')
-      : porId(raiz, 'cv-lnk-' + alvo.id)
-    el?.focus({ preventScroll: true })
+  const focoNoUltimo = useRef<{ reg: UltimoVideo; tab: CanalTab; n: number; ate: number } | null>(null)
+  const focarUltimo = (alvo: { reg: UltimoVideo; tab: CanalTab }): void => {
+    const r = raiz.current, { reg } = alvo
+    let el: HTMLElement | null | undefined
+    if (alvo.tab === 'trocas') {
+      // spec 3, tabela de entradas: o link "Abrir nesta troca" que a pessoa usou, ou o botão do cartão
+      const card = [...(r?.querySelectorAll<HTMLElement>('li.ct-card') ?? [])].find(li => li.dataset.id === reg.id)
+      const linha = reg.via === 'troca' ? [...(card?.querySelectorAll<HTMLElement>('li.ct-sw') ?? [])].find(li => li.dataset.troca === reg.troca) : undefined
+      el = linha?.querySelector<HTMLElement>('a.ct-rowgo') ?? card?.querySelector<HTMLElement>('a.ct-go')
+    } else el = porId(raiz, 'cv-lnk-' + reg.id)
+    if (!el) return
+    el.focus({ preventScroll: true })
+    // depois de a rolagem restaurada assentar: o cartão pode estar fora da área visível de <main> (a pessoa andou vários vídeos com o pager)
+    aposRestaurar(() => {
+      const caixa = el.closest('main')?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight }
+      const r2 = el.getBoundingClientRect()
+      if (!precisaTrazer({ top: r2.top, bottom: r2.bottom }, caixa)) return
+      pararRestauracao()   // senão a rolagem reafirmada puxa de volta
+      el.scrollIntoView?.({ block: 'nearest' })
+      el.focus({ preventScroll: true })
+    })
   }
   const aoVoltar = () => {
-    const id = lerUltimoVideo(h.id)
-    if (!id) return
+    const reg = lerUltimoVideo(h.id)
+    if (!reg) return
     esquecerUltimoVideo(h.id)
+    const id = reg.id
     const atual = parseCanalState(Object.fromEntries(new URLSearchParams(window.location.search)))
-    if (atual.tab === 'trocas') { focarUltimo({ id, tab: 'trocas' }); return }
+    if (atual.tab === 'trocas') { focarUltimo({ reg, tab: 'trocas' }); return }
     if (atual.tab !== 'videos') return
     let n = atual.n
     while (n <= todos.length + LOTE && !montarLista(todos, { ...atual, n }).visiveis.includes(id)) n += LOTE
     if (n > todos.length + LOTE) return   // o vídeo não está nesta lista (outro filtro, outra busca): nada a focar
-    if (n === atual.n) { focarUltimo({ id, tab: 'videos' }); return }
-    focoNoUltimo.current = { id, tab: 'videos', n, ate: Date.now() + 5000 }
+    if (n === atual.n) { focarUltimo({ reg, tab: 'videos' }); return }
+    focoNoUltimo.current = { reg, tab: 'videos', n, ate: Date.now() + 5000 }
     set({ n })
   }
-  useRolagemAoVoltar(raiz, aoVoltar)
+  /* Por onde a pessoa saiu da aba Trocas (link da troca, botão do cartão, clique na linha): o Voltar devolve o foco ali. Só clique simples. */
+  const guardarSaida = (e: MouseEvent<HTMLElement>) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+    const t = e.target as Element | null
+    const card = t?.closest<HTMLElement>('li.ct-card'), id = card?.dataset.id
+    if (!card || !id) return
+    const a = t!.closest<HTMLAnchorElement>('a[href]')
+    if (a) {
+      if (!card.contains(a) || !/\/video\//.test(a.getAttribute('href') ?? '')) return
+      if (a.classList.contains('ct-rowgo')) lembrarSaida(h.id, id, 'troca', a.closest<HTMLElement>('li.ct-sw')?.dataset.troca)
+      else lembrarSaida(h.id, id, 'cartao')
+      return
+    }
+    const linha = t!.closest<HTMLElement>('li.ct-sw')   // clique na linha (fora de link e botão): abre a troca
+    if (linha && !t!.closest('button')) lembrarSaida(h.id, id, 'troca', linha.dataset.troca)
+  }
+  useRolagemAoVoltar(raiz, aoVoltar, () => chegouPelaTrilha(h.id))
   useLayoutEffect(() => {
     const alvo = focoNoUltimo.current
     if (!alvo) return
@@ -399,7 +439,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
   return (
     <NicheOptionsContext.Provider value={niches}>
       <NichePendingContext.Provider value={pending}>
-        <div data-obs-screen="canal" ref={raiz}>
+        <div data-obs-screen="canal" ref={raiz} onClickCapture={guardarSaida}>
           <CanalHeader h={h} nums={nums} syncing={syncing} canAdmin={canAdmin} menuBtnRef={menuBtn}
             onToggleNums={toggleNums} onSync={() => { void syncOne() }} onAskRemove={() => setConfirm(true)} onNiche={n => { void setNiche(n) }} />
           <AbasNav view={view} state={state} resumo={resumo} onAba={irParaAba} />

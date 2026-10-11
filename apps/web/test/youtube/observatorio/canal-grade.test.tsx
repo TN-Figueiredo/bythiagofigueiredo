@@ -172,6 +172,24 @@ describe('Capas: a grade e o cartão', () => {
     expect(norm(t.textContent)).toContain(all[0]!.pubTitle!)
   })
 
+  it('vídeo sem data não entra em ids= nem na conta de pos/tot (não existe no Histórico); o cartão dele não leva lista', () => {
+    const undated = { id: 'u1', ytId: 'yt-u1', title: 'sem data aqui', url: 'https://youtu.be/yt-u1', isShort: false, dur: null, views: 10, likes: null, comments: null, pinned: false, checkedAt: null }
+    mountCanal({ mut: (ds, id) => { ds.channels.find(c => c.id === id)!.undated.push(undated) }, sp: { fmt: 'longos' } })
+    const cs = cartoes()
+    const u = (c: HTMLElement) => new URL(c.querySelector('a.cv-lnk')!.getAttribute('href')!, 'http://x').searchParams
+    const sem = cs.find(c => c.dataset.id === 'u1')!
+    const datados = cs.filter(c => c.dataset.id !== 'u1')
+    expect(sem).toBeTruthy()
+    expect(datados.length).toBe(cs.length - 1)
+    datados.forEach((c, i) => {
+      expect(u(c).get('ids')!.split(','), `cartão ${i}`).not.toContain('u1')
+      expect([u(c).get('pos'), u(c).get('tot')], `cartão ${i}`).toEqual([String(i + 1), String(datados.length)])
+    })
+    // o dele: o Histórico não o conhece, então não há posição nem vizinhança para dizer
+    expect([u(sem).get('pos'), u(sem).get('tot'), u(sem).get('ids')]).toEqual([null, null, null])
+    expect(u(sem).get('canal')).toBe('matt-wolfe')
+  })
+
   it('divisores com contagem são h3 dentro da lista e não somem com filtro', () => {
     const undated = { id: 'u1', ytId: 'yt-u1', title: 'sem data aqui', url: 'https://youtu.be/yt-u1', isShort: false, dur: null, views: 10, likes: null, comments: null, pinned: false, checkedAt: null }
     const mut = (ds: Ds, id: string) => { ds.channels.find(c => c.id === id)!.undated.push(undated) }

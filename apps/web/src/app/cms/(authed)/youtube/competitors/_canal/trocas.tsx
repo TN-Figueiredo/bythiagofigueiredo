@@ -27,7 +27,7 @@ function Imagem({ src, alt }: { src: string | null; alt: string }) {
 function Linha({ t, multi, onAbrir }: { t: TrocaView; multi: boolean; onAbrir: (href: string) => void }) {
   const thumb = t.campo === 'Thumbnail trocada'
   return (
-    <li className="ct-sw" onClick={e => {
+    <li className="ct-sw" data-troca={t.id} onClick={e => {
       if (!cliqueSimples(e) || (e.target as HTMLElement).closest('a,button')) return
       onAbrir(t.href)
     }}>

@@ -8,7 +8,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { useToast } from '../_chrome/toasts'
-import { lembrarUltimoVideo } from '../_chrome/ultimo-video'
+import { lembrarUltimoVideo, marcarVoltaPelaTrilha, renovarUltimoVideo } from '../_chrome/ultimo-video'
+import { esperarVoltaAoCanal } from '../_canal/use-rolagem-ao-voltar'
+import { marcarPagerUsado, tomarPagerUsado } from './pager-usado'
 import { currentFlut } from '../_chrome/flut/store'
 import type { HistoricoView, LaneType } from './view-model'
 import type { Hl } from './lanes'
@@ -43,9 +45,12 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   const go = useGo()
   const router = useRouter()
   const root = useRef<HTMLDivElement>(null)
-  /** Which pager button (or key) was used and the video it leads to: the focus effect puts the focus back on it once that video is on screen. */
-  const pagerUsed = useRef<{ which: 'prev' | 'next'; to: string } | null>(null)
-  const onPage = useCallback((which: 'prev' | 'next', href: string) => { pagerUsed.current = { which, to: videoOf(href) } }, [])
+  // Which pager button (or key) was used and the video it leads to lives OUTSIDE this component (pager-usado.ts): Anterior/Próximo change the
+  // `[id]` segment, Next may remount the screen, and a ref would be born empty in the new one.
+  const onPage = useCallback((which: 'prev' | 'next', href: string) => { marcarPagerUsado(which, videoOf(href)) }, [])
+  // The channel item of the trail is a push, not a popstate, and the spec (3, 6.5) treats it as the Voltar: the channel page restores
+  // the scroll and puts the focus on the last video seen. Plain click only.
+  const onCanal = useCallback(() => { if (view.crumbs.canal) { marcarVoltaPelaTrilha(view.crumbs.canal); esperarVoltaAoCanal() } }, [view.crumbs.canal])
   // 30 days is the default (spec 6.4): it leaves the URL; `tudo` is written out. With an arrival the period may have been widened by the
   // change, so every choice (30 included) is written out: without it "30 d" would patch away a `range` that is not there and do nothing.
   const onRange = (id: string) => go({ range: id === '30' && !view.arrival ? null : id })
@@ -82,8 +87,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   const seen = useRef<{ video: string | undefined; arrival: string } | null>(null)
   useEffect(() => {
     const r = root.current
-    const used = pagerUsed.current
-    pagerUsed.current = null
+    const used = tomarPagerUsado()
     const before = seen.current
     seen.current = { video: view.video?.id, arrival: arrivalKey }
     if (!r || view.state === 'not-found') return
@@ -107,7 +111,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     const pg = view.pager
     if (!pg) return
     const key = (e: KeyboardEvent) => {
-      if ((e.key !== '[' && e.key !== ']') || e.ctrlKey || e.metaKey || e.altKey) return
+      if ((e.key !== '[' && e.key !== ']') || e.repeat || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return
       const which = e.key === '[' ? 'prev' : 'next', href = pg[which]
       const r = root.current, at = document.activeElement as HTMLElement | null
       if (!href || !r || !at || !r.contains(at)) return
@@ -123,6 +127,13 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   // the last video seen from a channel page: its page puts the focus on that card when the person comes back
   const fromChannel = view.crumbs.canal, videoId = view.video?.id
   useEffect(() => { if (fromChannel && videoId) lembrarUltimoVideo(fromChannel, videoId) }, [fromChannel, videoId])
+  // the record expires (30 min): leaving through any link of this screen renews it, so a long visit still gets its focus back on the Voltar
+  useEffect(() => {
+    if (!fromChannel) return
+    const leave = (e: MouseEvent) => { if ((e.target as Element | null)?.closest?.('a[href]') && root.current?.contains(e.target as Node)) renovarUltimoVideo(fromChannel) }
+    document.addEventListener('click', leave, true)
+    return () => document.removeEventListener('click', leave, true)
+  }, [fromChannel])
   useEffect(() => {
     const t = view.video?.nicheToast
     if (t && toasted.current !== view.video!.id) { toasted.current = view.video!.id; toast('', t, '') }
@@ -158,7 +169,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     return (
       <div data-obs-screen="historico" ref={root}>
         <div className="page">
-          <Crumbs crumbs={view.crumbs} pager={null} />
+          <Crumbs crumbs={view.crumbs} pager={null} onCanal={onCanal} />
           <section className="card nobase-card" data-not-found="">
             <div className="nfin"><strong>{view.notFound.title}</strong>{view.notFound.text} <a className="inl" href={view.notFound.href}>{view.notFound.back}</a></div>
           </section>
@@ -177,7 +188,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     <PinProvider onPin={onPin} onUnpin={onUnpin}>
       <div data-obs-screen="historico" data-state={view.state} ref={root}>
         <div className="page">
-          <Crumbs crumbs={view.crumbs} pager={view.pager} onPage={onPage} />
+          <Crumbs crumbs={view.crumbs} pager={view.pager} onPage={onPage} onCanal={onCanal} />
           {/* DOM order = screen order: thumbnail, title, actions, facts and chips. Only the title (which never changes) is
               before the actions row, so the pin button keeps its rectangle whatever appears below. */}
           <section className="vhead" id="vhead" aria-label="Vídeo">

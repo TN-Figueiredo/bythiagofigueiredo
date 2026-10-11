@@ -102,12 +102,13 @@ describe('Histórico vindo da página do canal', () => {
     const janelaN = ok.ids!.split(',').length
     const k = ok.ids!.split(',').indexOf(ids[i]!)
     const so = (p: Record<string, string | undefined>) => hv(ids[i]!, p).pager!
-    const contaIds = new RegExp(`^vídeo ${k + 1} de ${janelaN} `)
+    // forma genérica: conta só ids= e NÃO descreve filtro nem ordenação (a contagem que a descrição afirmaria não é confiável)
+    const generica = `vídeo ${k + 1} de ${janelaN} na lista aberta de ${NOME}`
     // pos/tot ausentes, só um deles, pos > tot, pos antes do começo possível da janela, tot menor que a janela
     for (const bad of [{ pos: undefined, tot: undefined }, { tot: undefined }, { pos: undefined }, { pos: '60', tot: '51' }, { pos: '2', tot: '80' }, { pos: '7', tot: '30' }, { pos: 'x', tot: '80' }, { pos: '0', tot: '0' }, { pos: '-3', tot: '50' }, { pos: '7.5', tot: '80' }]) {
       const pg = so({ ...ok, ...bad })
-      expect([JSON.stringify(bad), pg.position]).toEqual([JSON.stringify(bad), expect.stringMatching(contaIds)])
-      expect(pg.position).toBe(`vídeo ${k + 1} de ${janelaN} de ${NOME} (longos, do mais novo ao mais antigo)`)
+      expect([JSON.stringify(bad), pg.position]).toEqual([JSON.stringify(bad), generica])
+      expect(pg.position).not.toMatch(/longos|mais novo|mais antigo/)
       expect(pg.position).not.toMatch(/vídeo 0 de|vídeo \d+ de 0 /)
       // o status e os links também ficam sem a posição inventada
       expect(pg.status).toBe(`Vídeo ${k + 1} de ${janelaN}: ${obs.video(ids[i]!)!.title}`)
@@ -118,6 +119,12 @@ describe('Histórico vindo da página do canal', () => {
       const pg = so({ ...ok, back: bad })
       expect(pg.position, bad).toBe(`vídeo ${i + 1} de ${ids.length} na lista aberta de ${NOME}`)
     }
+  })
+  it('pos e tot coerentes mantêm a frase descritiva (a genérica só entra quando a contagem não bate)', () => {
+    const { back, ids } = grade('?fmt=longos&sort=vistos')
+    const pg = hv(ids[6]!, doCartao(ids, 6, back)).pager!
+    expect(pg.position).toBe(`vídeo 7 de ${ids.length} de ${NOME} (longos, mais vistos primeiro)`)
+    expect(pg.position).not.toMatch(/na lista aberta/)
   })
   it('canal= de outro canal: ignora canal, pos e tot (o vídeo manda)', () => {
     const { back, ids } = grade('?fmt=longos')
@@ -168,6 +175,29 @@ describe('Histórico vindo da página do canal', () => {
     expect(v.crumbs.canal).toBe(chId)
     // canal= que não é o do vídeo: não é uma origem de canal
     expect(hv(ids[3]!, { ...doCartao(ids, 3, back), canal: 'outro' }).crumbs.canal).toBeNull()
+  })
+  it('vídeo não encontrado vindo do canal: a trilha é Canais › <canal> › Histórico do vídeo e o link de volta leva à página do canal, com o estado dela', () => {
+    const { back } = grade('?fmt=longos&sort=vistos')
+    const v = hv('video-que-nao-existe', { from: 'canais', canal: chId, back, ids: 'a,b', pos: '1', tot: '2' })
+    expect(v.state).toBe('not-found')
+    expect(v.pager).toBeNull()
+    expect(v.crumbs.crumb).toBe('Canais')
+    expect(v.crumbs.href).toBe(hv('video-que-nao-existe', { from: 'canais' }).crumbs.href)
+    expect(v.crumbs.href).not.toMatch(/fmt=|sort=|tab=/)
+    expect(v.crumbs.sub).toEqual({ text: NOME, href: link.canal(chId) + back })
+    expect(v.notFound!.href).toBe(link.canal(chId) + back)
+    expect(v.notFound!.back).toBe('Voltar para ' + NOME)
+    // sem estado de canal em back= (padrão): a página limpa do canal
+    expect(hv('video-que-nao-existe', { from: 'canais', canal: chId }).notFound!.href).toBe(link.canal(chId))
+    // canal= que não existe, ou de canal próprio: nada de trilha de canal, como hoje
+    const sem = hv('video-que-nao-existe', { from: 'canais', canal: 'nao-existe', back })
+    expect(sem.crumbs.sub).toBeNull()
+    expect(sem.notFound!.href).toBe(link.canais().split('?')[0] + back)
+    expect(sem.notFound!.back).toBe('Voltar para Canais')
+    // outras origens: iguais às de hoje
+    const mud = hv('video-que-nao-existe', { from: 'mudancas', canal: chId, back: '?win=7' })
+    expect(mud.crumbs.sub).toBeNull()
+    expect(mud.notFound!.back).toBe('Voltar para Mudanças')
   })
   it('lista de origem vazia (sem ids e sem lista reconstruível): pager null', () => {
     const { back, ids } = grade('?fmt=longos')
