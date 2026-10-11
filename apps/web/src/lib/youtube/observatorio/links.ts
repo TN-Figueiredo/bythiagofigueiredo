@@ -148,6 +148,14 @@ export const link = {
   },
 
   /**
+   * Link to the comparison of two channels. Only the data goes in the URL, in the fixed order a, b; an argument that is
+   * missing or empty stays out (the screen then picks the default for that side).
+   */
+  comparar(a?: string, b?: string): string {
+    return OBS_BASE + '/comparar' + buildQuery({ a, b })
+  },
+
+  /**
    * Link to the competitor channel page. Values equal to the default stay out of the URL;
    * key order follows CanalLinkParams.
    */
