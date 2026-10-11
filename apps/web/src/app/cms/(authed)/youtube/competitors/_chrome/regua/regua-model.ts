@@ -45,6 +45,9 @@ export interface Traco {
 /** Um lado que não tem traço (sem valor naquele número) e a frase que diz de quem é e por quê. */
 export interface SemTraco { letra: 'A' | 'B'; nome: string; texto: string }
 
+/** A posição de um lado já escrita ("13º de 14 em Viagem", com " (empate)" quando é): a MESMA conta do `aria`, para a tela escrevê-la ao lado do valor. */
+export interface PosicaoRegua { pos: number; de: number; empate: boolean; texto: string }
+
 export interface ReguaView {
   /** Do menor ao maior valor (empate: pelo nome). Vazio quando `vazio` existe. */
   tracos: Traco[]
@@ -56,12 +59,18 @@ export interface ReguaView {
   /** Frase no lugar da régua quando há poucos canais com valor. */
   vazio: string | null
   semTraco: SemTraco[]
+  /** A posição dos dois lados no conjunto (null: lado sem valor). Existe também quando a régua não se desenha ("poucos canais"). */
+  posicao: { A: PosicaoRegua | null; B: PosicaoRegua | null }
   /** A unidade para a fala ("inscritos"); vazia quando o valor escrito já a traz. */
   un: string
 }
 
 export interface ValorRegua { id: string; nome: string; x: number; texto: string }
-export interface MarcaRegua { id: string; letra: 'A' | 'B'; nome: string; /** Por que o lado não tem valor (o motivo do "não medido"); só é lido quando falta o valor. */ motivo?: string | null }
+export interface MarcaRegua {
+  id: string; letra: 'A' | 'B'; nome: string
+  /** Por que o lado não tem valor (o motivo do "não medido"). Obrigatório no tipo: quem tem valor passa `null`; lado sem valor e sem motivo é erro. */
+  motivo: string | null
+}
 
 const PASSO_LADO = 2.6 // entre dois vizinhos do mesmo lado
 const BASE_LADO = 4.4 // do destacado (4 px de largura, mais o contorno) ao primeiro vizinho
@@ -85,30 +94,41 @@ export function buildRegua(vals: ReadonlyArray<ValorRegua>, marcas: ReadonlyArra
   const marcaDe = new Map(marcas.map(m => [m.id, m.letra] as const))
   const noConjunto = new Set(d.map(v => v.id))
 
-  // quem tem marca e não tem valor: sem traço, e a frase diz por quê
-  const semTraco: SemTraco[] = marcas.filter(m => !noConjunto.has(m.id)).map(m => ({
-    letra: m.letra, nome: m.nome, texto: `sem traço de ${m.nome} (lado ${m.letra}): ${m.motivo ? m.motivo : 'este número não foi medido'}`,
-  }))
+  // quem tem marca e não tem valor: sem traço, e a frase diz por quê (sem o motivo a tela afirmaria "não medido" sem causa: falha alto)
+  const semTraco: SemTraco[] = marcas.filter(m => !noConjunto.has(m.id)).map(m => {
+    if (!m.motivo || !m.motivo.trim()) throw new Error(`régua: lado ${m.letra} (${m.nome}) sem valor e sem motivo`)
+    return { letra: m.letra, nome: m.nome, texto: `sem traço de ${m.nome} (lado ${m.letra}): ${m.motivo}` }
+  })
 
   const pos = posicoes(d.map(v => ({ id: v.id, x: v.x, chave: v.texto })))
+  const posDe = (letra: 'A' | 'B'): PosicaoRegua | null => {
+    const m = marcas.find(x => x.letra === letra)
+    const p = m ? pos.get(m.id) : null
+    return p ? { pos: p.pos, de: p.de, empate: p.empate, texto: `${ord(p.pos)} de ${p.de} ${o.conjunto}${p.empate ? ' (empate)' : ''}` } : null
+  }
+  const posicao = { A: posDe('A'), B: posDe('B') }
   const escrita = (m: MarcaRegua): string => {
-    const p = pos.get(m.id)
+    const p = posicao[m.letra]
     if (!p) return semTraco.find(s => s.letra === m.letra)?.texto ?? `sem traço de ${m.nome} (lado ${m.letra})`
-    return `Lado ${m.letra}, ${m.nome}: ${ord(p.pos)} de ${p.de} ${o.conjunto}${p.empate ? ' (empate)' : ''}`
+    return `Lado ${m.letra}, ${m.nome}: ${p.texto}`
   }
 
   const vazio = n < MIN_REGUA ? `poucos canais para comparar ${o.conjunto} (${n}; precisa de ${MIN_REGUA})` : null
   const es = escalar(d.map(v => v.x))
   const comprimida = !vazio && es.comprimida
 
+  // só se diz "destacado" do que existe: dois, um ou nenhum traço de lado
+  const comTraco = marcas.filter(m => noConjunto.has(m.id)).map(m => m.letra).sort()
+  const destacados = comTraco.length === 2 ? '; os destacados são os lados A e B' : comTraco.length === 1 ? `; o destacado é o lado ${comTraco[0]}` : ''
+
   const aria = vazio
     ? [`Posição em ${o.numero} ${o.conjunto}: ${vazio}.`, ...semTraco.map(s => s.texto + '.')].join(' ')
     : `Posição em ${o.numero} ${o.conjunto}. ${[...marcas].sort((a, b) => a.letra.localeCompare(b.letra)).map(escrita).join('; ')}.` +
-      ` Do menor ao maior, um traço por canal ${o.conjunto}; os destacados são os lados A e B.` +
+      ` Do menor ao maior, um traço por canal ${o.conjunto}${destacados}.` +
       (comprimida ? ' Escala comprimida.' : '') +
       ' Uma parada de Tab; as setas percorrem os canais do menor ao maior valor; Esc fecha a dica.'
 
-  if (vazio) return { tracos: [], n, comprimida: false, aria, vazio, semTraco, un }
+  if (vazio) return { tracos: [], n, comprimida: false, aria, vazio, semTraco, posicao, un }
 
   const tracos: Traco[] = d.map(v => ({
     id: v.id, nome: v.nome, x: v.x, texto: v.texto, pct: es.pct(v.x), marca: marcaDe.get(v.id) ?? null, dx: 0, pilha: null, grupo: [v.nome],
@@ -142,7 +162,7 @@ export function buildRegua(vals: ReadonlyArray<ValorRegua>, marcas: ReadonlyArra
       lado = -lado
     })
   }
-  return { tracos, n, comprimida, aria, vazio: null, semTraco, un }
+  return { tracos, n, comprimida, aria, vazio: null, semTraco, posicao, un }
 }
 
 /** A distância mínima entre os centros de duas letras (px); com menos que isto elas se afastam. */

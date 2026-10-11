@@ -20,7 +20,7 @@ const CORES = { A: 'var(--lado-o)', B: 'var(--lado-b)' }
 const O = { numero: 'inscritos', conjunto: 'em Viagem', un: 'inscritos' }
 const NOMES = ['Leo Khev', 'Ana Viaja', 'Beto Rota', 'Cris Mala', 'Dani Voo', 'Edu Trilha', 'Fabi Mapa', 'Gui Porto']
 const vals = () => NOMES.map((nome, i) => ({ id: 'c' + i, nome, x: (i + 1) * 1000, texto: ((i + 1) * 1.0).toLocaleString('pt-BR') + ' mil' }))
-const regua = (marcas: Parameters<typeof buildRegua>[1] = [{ id: 'c1', letra: 'A', nome: 'Ana Viaja' }, { id: 'c6', letra: 'B', nome: 'Fabi Mapa' }], v = vals(), o = O): ReguaView => buildRegua(v, marcas, o)
+const regua = (marcas: Parameters<typeof buildRegua>[1] = [{ id: 'c1', letra: 'A', nome: 'Ana Viaja', motivo: null }, { id: 'c6', letra: 'B', nome: 'Fabi Mapa', motivo: null }], v = vals(), o = O): ReguaView => buildRegua(v, marcas, o)
 const flut = () => document.getElementById('flut')
 const grupo = (c: HTMLElement) => c.querySelector<HTMLElement>('[role="group"]')!
 const tips = () => [...(flut()?.querySelectorAll('[role="tooltip"]') ?? [])] as HTMLElement[]
@@ -70,7 +70,7 @@ describe('ReguaNicho · desenho e texto', () => {
   })
 
   it('lado sem valor não ganha traço nem letra, e a tela diz de quem falta e por quê, com o selo de "não medido"', () => {
-    const r = regua([{ id: 'c1', letra: 'A', nome: 'Ana Viaja' }, { id: 'zz', letra: 'B', nome: 'Gabi Sem Dado', motivo: 'inscritos ocultos pelo canal' }])
+    const r = regua([{ id: 'c1', letra: 'A', nome: 'Ana Viaja', motivo: null }, { id: 'zz', letra: 'B', nome: 'Gabi Sem Dado', motivo: 'inscritos ocultos pelo canal' }])
     const { container } = render(<ReguaNicho regua={r} cores={CORES} />)
     expect(container.querySelectorAll('[data-marca]')).toHaveLength(1)
     expect(container.querySelector('[data-letra="B"]')).toBeNull()
@@ -81,7 +81,7 @@ describe('ReguaNicho · desenho e texto', () => {
   })
 
   it('poucos canais: sem régua e sem parada de Tab, só a frase com o conjunto', () => {
-    const r = buildRegua([{ id: 'a', nome: 'Ana', x: 1, texto: '1' }, { id: 'b', nome: 'Beto', x: 2, texto: '2' }], [{ id: 'a', letra: 'A', nome: 'Ana' }, { id: 'b', letra: 'B', nome: 'Beto' }], O)
+    const r = buildRegua([{ id: 'a', nome: 'Ana', x: 1, texto: '1' }, { id: 'b', nome: 'Beto', x: 2, texto: '2' }], [{ id: 'a', letra: 'A', nome: 'Ana', motivo: null }, { id: 'b', letra: 'B', nome: 'Beto', motivo: null }], O)
     const { container } = render(<ReguaNicho regua={r} cores={CORES} />)
     expect(container.querySelector('[role="group"]')).toBeNull()
     expect(container.querySelector('[tabindex]')).toBeNull()
@@ -90,7 +90,7 @@ describe('ReguaNicho · desenho e texto', () => {
 
   it('nenhum texto da régua diz "escala √" nem "raiz", nem com escala comprimida', () => {
     const baixos = [...Array.from({ length: 12 }, (_, i) => ({ id: 'b' + i, nome: 'B' + i, x: 1 + i, texto: String(1 + i) })), { id: 'g', nome: 'Grande', x: 1000, texto: '1000' }]
-    const r = buildRegua(baixos, [{ id: 'b0', letra: 'A', nome: 'B0' }], O)
+    const r = buildRegua(baixos, [{ id: 'b0', letra: 'A', nome: 'B0', motivo: null }], O)
     expect(r.comprimida).toBe(true)
     const { container } = render(<ReguaNicho regua={r} cores={CORES} />)
     fireEvent.focus(grupo(container))
@@ -133,7 +133,7 @@ describe('ReguaNicho · teclado', () => {
   })
 
   it('sem lado destacado com valor, o foco cai no traço do meio; perder o foco fecha a dica', () => {
-    const { container } = render(<ReguaNicho regua={regua([{ id: 'zz', letra: 'A', nome: 'Sem Dado' }])} cores={CORES} />)
+    const { container } = render(<ReguaNicho regua={regua([{ id: 'zz', letra: 'A', nome: 'Sem Dado', motivo: 'sem vídeos' }])} cores={CORES} />)
     const g = grupo(container)
     act(() => g.focus())
     expect([...container.querySelectorAll('.obs-rg-on')].map(e => e.getAttribute('data-i'))).toEqual(['4']) // 8 canais: o índice 4
@@ -208,7 +208,7 @@ describe('ReguaNicho · dica na camada flutuante', () => {
     expect(t).toContain('Beto Rota')
   })
 
-  it('toque mostra a dica do traço tocado, sem mexer no foco', () => {
+  it('toque mostra a dica do traço tocado (o foco que o navegador dá depois é coberto em "foco que vem do ponteiro")', () => {
     const { container } = render(<ReguaNicho regua={regua()} cores={CORES} />)
     dispor(container)
     fireEvent.pointerDown(grupo(container), { clientX: 100 + 2 * 40, clientY: 16, pointerType: 'touch' })
@@ -244,6 +244,135 @@ describe('ReguaNicho · dica na camada flutuante', () => {
   })
 })
 
+describe('ReguaNicho · foco que vem do ponteiro (I1)', () => {
+  const rect = (l: number, w = 2) => ({ left: l, right: l + w, top: 10, bottom: 22, width: w, height: 12, x: l, y: 10, toJSON: () => ({}) }) as DOMRect
+  const dispor = (container: HTMLElement) => {
+    container.querySelectorAll<HTMLElement>('[data-i]').forEach(t => { t.getBoundingClientRect = () => rect(100 + Number(t.getAttribute('data-i')) * 40) })
+  }
+  for (const tipo of ['touch', 'mouse'] as const) {
+    it(`${tipo}: tocar/clicar num traço e o grupo ganhar o FOCO não troca a dica do traço apontado pela do lado A, nem fala`, () => {
+      const { container } = render(<ReguaNicho regua={regua()} cores={CORES} />)
+      dispor(container)
+      const g = grupo(container)
+      fireEvent.pointerDown(g, { clientX: 100 + 2 * 40, clientY: 16, pointerType: tipo }) // Beto Rota
+      expect(tips()[0]!.textContent).toContain('Beto Rota')
+      act(() => g.focus()) // o navegador foca o div tabindex=0 depois do pointerdown
+      expect(document.activeElement).toBe(g)
+      expect(tips()).toHaveLength(1)
+      expect(tips()[0]!.textContent).toContain('Beto Rota')
+      expect(tips()[0]!.textContent).not.toContain('lado A')
+      expect(live(container)).toBe('')
+      expect([...container.querySelectorAll<HTMLElement>('[data-i].obs-rg-on')].map(e => e.getAttribute('data-i'))).toEqual(['2'])
+    })
+  }
+  it('depois do foco do ponteiro o teclado continua de onde o ponteiro parou', () => {
+    const { container } = render(<ReguaNicho regua={regua()} cores={CORES} />)
+    dispor(container)
+    const g = grupo(container)
+    fireEvent.pointerDown(g, { clientX: 100 + 2 * 40, clientY: 16, pointerType: 'mouse' })
+    act(() => g.focus())
+    fireEvent.keyDown(g, { key: 'ArrowRight' })
+    expect([...container.querySelectorAll<HTMLElement>('[data-i].obs-rg-on')].map(e => e.getAttribute('data-i'))).toEqual(['3'])
+    expect(live(container)).toContain('Cris Mala')
+  })
+  it('foco de teclado (sem ponteiro antes) continua mostrando e falando o lado A', () => {
+    const { container } = render(<ReguaNicho regua={regua()} cores={CORES} />)
+    act(() => grupo(container).focus())
+    expect(tips()[0]!.textContent).toContain('lado A')
+    expect(live(container)).toContain('Ana Viaja, lado A')
+  })
+  it('o foco que vem depois de uma saída e volta por Tab não herda o ponteiro de antes', () => {
+    const { container } = render(<ReguaNicho regua={regua()} cores={CORES} />)
+    dispor(container)
+    const g = grupo(container)
+    fireEvent.pointerDown(g, { clientX: 100 + 2 * 40, clientY: 16, pointerType: 'mouse' })
+    act(() => g.focus())
+    act(() => g.blur())
+    expect(tips()).toHaveLength(0)
+    act(() => g.focus())
+    expect(tips()[0]!.textContent).toContain('lado A')
+  })
+})
+
+describe('ReguaNicho · a régua troca com o componente montado (M1, M2)', () => {
+  const mk = (n: number) => buildRegua(vals().slice(0, n), [{ id: 'c1', letra: 'A', nome: 'Ana Viaja', motivo: null }, { id: 'c2', letra: 'B', nome: 'Beto Rota', motivo: null }], O)
+  it('M2: com a dica aberta num índice alto, uma régua menor não deixa dica vazia nem índice velho', () => {
+    const { container, rerender } = render(<ReguaNicho regua={mk(8)} cores={CORES} />)
+    const g = grupo(container)
+    act(() => g.focus())
+    fireEvent.keyDown(g, { key: 'End' })
+    expect(tips()[0]!.textContent).toContain('Gui Porto')
+    rerender(<ReguaNicho regua={mk(4)} cores={CORES} />)
+    // nenhuma caixa vazia flutuando
+    for (const t of tips()) expect(t.textContent!.trim()).not.toBe('')
+    expect(tips()).toHaveLength(0)
+    expect(live(container)).toBe('')
+    // e o teclado não ficou preso além do fim: a seta anda do começo
+    fireEvent.keyDown(g, { key: 'ArrowRight' })
+    expect(tips()).toHaveLength(1)
+    expect(tips()[0]!.textContent!.trim()).not.toBe('')
+  })
+  it('M2: a mesma régua refeita (objeto novo, mesmo conteúdo) não fecha a dica aberta', () => {
+    const { container, rerender } = render(<ReguaNicho regua={mk(8)} cores={CORES} />)
+    act(() => grupo(container).focus())
+    expect(tips()).toHaveLength(1)
+    rerender(<ReguaNicho regua={mk(8)} cores={CORES} />)
+    expect(tips()).toHaveLength(1)
+  })
+  it('M1: quando um lado perde o valor o deslocamento da letra que ficou volta a 0', () => {
+    class RO { constructor(_f: ResizeObserverCallback) {} observe() {} unobserve() {} disconnect() {} }
+    vi.stubGlobal('ResizeObserver', RO)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const l = this.classList.contains('obs-rg-in') ? 400 : 0
+      return { left: 0, right: l, top: 0, bottom: 0, width: l, height: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect
+    })
+    const empatados = vals().map(x => x.id === 'c3' ? { ...x, x: 3000, texto: '3 mil' } : x)
+    const ambos = buildRegua(empatados, [{ id: 'c2', letra: 'A', nome: 'Beto Rota', motivo: null }, { id: 'c3', letra: 'B', nome: 'Cris Mala', motivo: null }], O)
+    const soA = buildRegua(empatados.filter(x => x.id !== 'c3'), [{ id: 'c2', letra: 'A', nome: 'Beto Rota', motivo: null }, { id: 'c3', letra: 'B', nome: 'Cris Mala', motivo: 'sem vídeos' }], O)
+    const { container, rerender } = render(<ReguaNicho regua={ambos} cores={CORES} />)
+    const la = () => container.querySelector<HTMLElement>('[data-letra="A"]')!
+    expect(parseFloat(la().style.getPropertyValue('--dx'))).toBeLessThan(0)
+    rerender(<ReguaNicho regua={soA} cores={CORES} />)
+    expect(container.querySelector('[data-letra="B"]')).toBeNull()
+    expect(la().style.getPropertyValue('--dx')).toBe('0px')
+  })
+})
+
+describe('ReguaNicho · desmontar (M7)', () => {
+  it('o ResizeObserver é desconectado e os ouvintes de janela e documento saem', () => {
+    const disconnect = vi.fn()
+    class RO { constructor(_f: ResizeObserverCallback) {} observe() {} unobserve() {} disconnect() { disconnect() } }
+    vi.stubGlobal('ResizeObserver', RO)
+    const addW = vi.spyOn(window, 'addEventListener'), remW = vi.spyOn(window, 'removeEventListener')
+    const addD = vi.spyOn(document, 'addEventListener'), remD = vi.spyOn(document, 'removeEventListener')
+    const { container, unmount } = render(<ReguaNicho regua={regua()} cores={CORES} />)
+    const g = grupo(container)
+    fireEvent.pointerDown(g, { clientX: 0, clientY: 0, pointerType: 'touch' }) // liga o ouvinte de "toque fora"
+    act(() => g.focus()) // liga resize e scroll
+    unmount()
+    expect(disconnect).toHaveBeenCalled()
+    const pares = (add: typeof addW, rem: typeof remW, tipo: string) => ({
+      adds: add.mock.calls.filter(c => c[0] === tipo).length, rems: rem.mock.calls.filter(c => c[0] === tipo).length,
+    })
+    const rs = pares(addW, remW, 'resize'); expect(rs.adds).toBeGreaterThan(0); expect(rs.rems).toBe(rs.adds)
+    const sc = pares(addD, remD, 'scroll'); expect(sc.adds).toBeGreaterThan(0); expect(sc.rems).toBe(sc.adds)
+    const pd = pares(addD, remD, 'pointerdown'); expect(pd.adds).toBeGreaterThan(0); expect(pd.rems).toBe(pd.adds)
+  })
+})
+
+describe('ReguaNicho · A e B empatados (M7)', () => {
+  it('o texto acessível diz "(empate)" para os dois lados e a dica diz "2 canais com X" com os dois nomes', () => {
+    const v = vals().map(x => (x.id === 'c1' || x.id === 'c6') ? { ...x, x: 5500, texto: '5,5 mil' } : x)
+    const r = regua(undefined, v)
+    expect(r.aria).toContain('Lado A, Ana Viaja: 3º de 8 em Viagem (empate)')
+    expect(r.aria).toContain('Lado B, Fabi Mapa: 3º de 8 em Viagem (empate)')
+    const { container } = render(<ReguaNicho regua={r} cores={CORES} />)
+    act(() => grupo(container).focus())
+    expect(tips()[0]!.textContent).toContain('2 canais com 5,5 mil')
+    expect(live(container)).toContain('2 canais com 5,5 mil')
+  })
+})
+
 describe('ReguaNicho · letras que colidem', () => {
   it('o afastamento é medido pela largura real e refeito quando a largura muda (ResizeObserver)', () => {
     let cb: ResizeObserverCallback = () => {}
@@ -256,7 +385,7 @@ describe('ReguaNicho · letras que colidem', () => {
     })
     // A e B no mesmo valor, numa régua de 400 px
     const v = vals().map(x => x.id === 'c3' ? { ...x, x: 3000, texto: '3 mil' } : x) // B no mesmo valor de A (c2)
-    const r = regua([{ id: 'c2', letra: 'A', nome: 'Beto Rota' }, { id: 'c3', letra: 'B', nome: 'Cris Mala' }], v)
+    const r = regua([{ id: 'c2', letra: 'A', nome: 'Beto Rota', motivo: null }, { id: 'c3', letra: 'B', nome: 'Cris Mala', motivo: null }], v)
     const { container } = render(<ReguaNicho regua={r} cores={CORES} />)
     const la = container.querySelector<HTMLElement>('[data-letra="A"]')!, lb = container.querySelector<HTMLElement>('[data-letra="B"]')!
     const dx = (e: HTMLElement) => parseFloat(e.style.getPropertyValue('--dx'))

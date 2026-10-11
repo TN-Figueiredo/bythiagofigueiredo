@@ -9,6 +9,7 @@ import { buildPar, resolverPar } from '@/app/cms/(authed)/youtube/competitors/_c
 import { NUMEROS, NO_NICHO } from '@/app/cms/(authed)/youtube/competitors/_comparar/numeros-model'
 import { CompararScreen } from '@/app/cms/(authed)/youtube/competitors/_comparar/comparar-screen'
 import { link } from '@/lib/youtube/observatorio/links'
+import { reguaDaLinha } from '@/app/cms/(authed)/youtube/competitors/_comparar/regua-da-linha'
 
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 vi.mock('next/navigation', () => ({ useRouter: () => { throw new Error('a tela não usa o router') } }))
@@ -224,6 +225,37 @@ describe('"Número a número"', () => {
     p.canais[2]!.numeros.inscritos = { x: Number.POSITIVE_INFINITY, texto: '∞', motivo: null, nota: null }
     expect(() => wrap(p, { a: 'a1', b: 'c1' })).not.toThrow()
     expect(tabela().textContent).toContain('sem traço de')
+  })
+})
+
+describe('a posição escrita ao lado e a da régua vêm da mesma conta (T7 M5)', () => {
+  it('em todo par do fixture, a posição das seis linhas é a que a régua expõe (e a do aria dela)', () => {
+    const pack = buildCompararPack(a3World().obs)
+    let visto = 0
+    for (const a of pack.canais) for (const b of pack.canais) {
+      if (a.id === b.id) continue
+      const par = buildPar(pack, a.id, b.id)
+      for (const l of par.linhas) {
+        if (l.eixo.tipo !== 'regua') continue
+        const r = reguaDaLinha(pack, par, l.id)!
+        expect(r.posicao.A?.texto ?? null, `${a.id}/${b.id}/${l.id}`).toBe(l.pos[0]?.texto ?? null)
+        expect(r.posicao.B?.texto ?? null, `${a.id}/${b.id}/${l.id}`).toBe(l.pos[1]?.texto ?? null)
+        if (r.posicao.A && !r.vazio) expect(r.aria).toContain(`Lado A, ${a.name}: ${r.posicao.A.texto}`)
+        visto++
+      }
+    }
+    expect(visto).toBeGreaterThan(500)
+  })
+  it('a célula escreve a posição que a régua expõe, também quando o nicho tem poucos canais (sem traços)', () => {
+    const p = pacoteDe([
+      mk('v1', 300, { name: 'Ana Viaja', n: { ...ALL(10), inscritos: 300 } }), mk('v2', 200, { name: 'Beto Rota', n: { ...ALL(11), inscritos: 200 } }),
+      mk('i1', 900, { name: 'Edu IA', niche: 'ia', nicheLabel: 'IA', n: { ...ALL(30), inscritos: 900 } }),
+    ])
+    wrap(p, { a: 'v1', b: 'v2' })
+    const tds = linhaDe('Inscritos').querySelectorAll('td')
+    expect(tds[0]!.querySelector('.pos')?.textContent).toBe('1º de 2 em Viagem')
+    expect(tds[1]!.querySelector('.pos')?.textContent).toBe('2º de 2 em Viagem')
+    expect(linhaDe('Inscritos').textContent).toContain('poucos canais para comparar em Viagem (2; precisa de 3)')
   })
 })
 

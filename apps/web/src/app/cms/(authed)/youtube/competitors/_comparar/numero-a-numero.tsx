@@ -50,6 +50,17 @@ function Celula({ n, pos, classe, cor }: { n: Numero; pos: LinhaPar['pos'][numbe
   )
 }
 
+/**
+ * A posição escrita sob o valor. Onde há régua, o texto vem DA régua (a mesma conta do aria e dos traços; a posição escrita e a desenhada
+ * não podem divergir); a posição geral apagada continua a do modelo do par. Sem régua (número fora das seis), vale a do modelo.
+ */
+function posDoLado(l: LinhaPar, regua: ReguaView | undefined, i: 0 | 1): LinhaPar['pos'][number] {
+  const doModelo = l.pos[i]
+  const daRegua = regua?.posicao[i === 0 ? 'A' : 'B']
+  if (daRegua) return { texto: daRegua.texto, geral: doModelo?.geral ?? null }
+  return doModelo
+}
+
 function CelulaRelacao({ linha, par }: { linha: LinhaPar; par: ParView }) {
   const r: Relacao | null = linha.relacao
   const nomes = [par.a.name, par.b.name]
@@ -148,8 +159,8 @@ export function NumeroANumero({ pack, par }: { pack: CompararPack; par: ParView 
               {linhas.map(l => (
                 <tr role="row" key={l.id}>
                   <th scope="row" role="rowheader" className="rl">{l.nome}<small>{l.base}</small></th>
-                  <Celula n={l.lados[0]} pos={l.pos[0]} classe="cA" cor={corVar(ca)} />
-                  <Celula n={l.lados[1]} pos={l.pos[1]} classe="cB" cor={corVar(cb)} />
+                  <Celula n={l.lados[0]} pos={posDoLado(l, reguas.get(l.id), 0)} classe="cA" cor={corVar(ca)} />
+                  <Celula n={l.lados[1]} pos={posDoLado(l, reguas.get(l.id), 1)} classe="cB" cor={corVar(cb)} />
                   <CelulaEixo linha={l} par={par} regua={reguas.get(l.id) ?? null} chave={`${chaveDoPar}|${l.id}`} />
                   <CelulaRelacao linha={l} par={par} />
                 </tr>

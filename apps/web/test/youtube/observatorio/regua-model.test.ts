@@ -6,8 +6,9 @@ import { escalar, buildRegua, afastarLetras, alturaPilha, MIN_REGUA, type Traco,
 const n = (x: number) => String(x)
 const val = (id: string, x: number, nome = id) => ({ id, nome, x, texto: n(x) })
 const O = { numero: 'inscritos', conjunto: 'em Viagem', un: 'inscritos' }
-const A = (id: string, nome = id) => ({ id, letra: 'A' as const, nome })
-const B = (id: string, nome = id) => ({ id, letra: 'B' as const, nome })
+// `motivo` é obrigatório no tipo (T7 M3): quem tem valor leva `null`, quem não tem leva o motivo do "não medido"
+const A = (id: string, nome = id, motivo: string | null = null) => ({ id, letra: 'A' as const, nome, motivo })
+const B = (id: string, nome = id, motivo: string | null = null) => ({ id, letra: 'B' as const, nome, motivo })
 const tr = (v: ReguaView, id: string): Traco => { const t = v.tracos.find(x => x.id === id); if (!t) throw new Error('sem traço ' + id); return t }
 /** Todo texto que o modelo devolve (para varrer palavras proibidas). */
 const textos = (v: ReguaView): string[] => [v.aria, v.vazio ?? '', ...v.semTraco.map(s => s.texto), ...v.tracos.flatMap(t => [t.nome, t.texto, ...t.grupo])]
@@ -60,7 +61,7 @@ describe('buildRegua · traços e ordem', () => {
     expect(v.tracos.map(t => t.pct)).toEqual([0, 50, 100, 100])
   })
   it('só entra na régua quem tem valor: a marca de um lado sem valor não vira traço', () => {
-    const v = buildRegua([val('a', 10), val('b', 20), val('c', 30), val('d', 40)], [A('a'), B('zz', 'Sem Medida')], O)
+    const v = buildRegua([val('a', 10), val('b', 20), val('c', 30), val('d', 40)], [A('a'), B('zz', 'Sem Medida', 'sem vídeos')], O)
     expect(v.n).toBe(4)
     expect(v.tracos.filter(t => t.marca)).toHaveLength(1)
     expect(tr(v, 'a').marca).toBe('A')
@@ -146,7 +147,7 @@ describe('buildRegua · empates', () => {
 describe('buildRegua · posição escrita e aria', () => {
   const mundo = () => Array.from({ length: 14 }, (_, i) => val('c' + i, (i + 1) * 100, 'Canal ' + (i + 1)))
   it('o aria diz a posição dos dois lados e o conjunto ("13º de 14 em Viagem"), 1º = o maior', () => {
-    const v = buildRegua(mundo(), [{ id: 'c1', letra: 'A', nome: 'Canal 2' }, { id: 'c13', letra: 'B', nome: 'Canal 14' }], O)
+    const v = buildRegua(mundo(), [A('c1', 'Canal 2'), B('c13', 'Canal 14')], O)
     expect(v.aria).toContain('Lado A, Canal 2: 13º de 14 em Viagem')
     expect(v.aria).toContain('Lado B, Canal 14: 1º de 14 em Viagem')
     expect(v.aria).toContain('inscritos')
@@ -173,9 +174,24 @@ describe('buildRegua · posição escrita e aria', () => {
     expect(v.aria).toContain('sem traço de Fulano (lado B): inscritos ocultos pelo canal')
     expect(v.aria).not.toMatch(/Lado B, Fulano: \d/)
   })
-  it('lado sem valor e sem motivo informado: o texto ainda diz que não foi medido (nunca vazio)', () => {
-    const v = buildRegua(mundo(), [A('c4', 'Canal 5'), { id: 'x', letra: 'B', nome: 'Fulano' }], O)
-    expect(v.semTraco[0]!.texto).toBe('sem traço de Fulano (lado B): este número não foi medido')
+  it('lado sem valor e sem motivo (null): o modelo falha alto, nunca escreve "não foi medido" sem causa (M3)', () => {
+    expect(() => buildRegua(mundo(), [A('c4', 'Canal 5'), B('x', 'Fulano', null)], O)).toThrow(/motivo/)
+    expect(() => buildRegua(mundo(), [A('c4', 'Canal 5'), B('x', 'Fulano', '  ')], O)).toThrow(/motivo/)
+    // lado COM valor não precisa de motivo
+    expect(() => buildRegua(mundo(), [A('c4', 'Canal 5'), B('c5', 'Canal 6')], O)).not.toThrow()
+  })
+  it('o aria só fala dos "destacados" que existem (M4): dois, um ou nenhum traço de lado', () => {
+    const dois = buildRegua(mundo(), [A('c1', 'Canal 2'), B('c13', 'Canal 14')], O)
+    expect(dois.aria).toContain('Do menor ao maior, um traço por canal em Viagem; os destacados são os lados A e B.')
+    const um = buildRegua(mundo(), [A('c1', 'Canal 2'), B('x', 'Fulano', 'inscritos ocultos pelo canal')], O)
+    expect(um.aria).toContain('Do menor ao maior, um traço por canal em Viagem; o destacado é o lado A.')
+    expect(um.aria).not.toContain('os destacados')
+    const nenhum = buildRegua(mundo(), [A('x', 'Fulano', 'sem vídeos'), B('y', 'Beltrano', 'sem vídeos')], O)
+    expect(nenhum.tracos).toHaveLength(14)
+    expect(nenhum.aria).not.toMatch(/destacad/)
+    expect(nenhum.aria).toContain('Do menor ao maior, um traço por canal em Viagem.')
+    expect(nenhum.aria).toContain('sem traço de Fulano (lado A): sem vídeos')
+    expect(nenhum.aria).toContain('sem traço de Beltrano (lado B): sem vídeos')
   })
   it('"escala comprimida" no aria só quando é', () => {
     const linear = buildRegua(mundo(), [A('c0')], O)
@@ -186,7 +202,7 @@ describe('buildRegua · posição escrita e aria', () => {
   })
   it('nenhum texto do modelo diz "escala √" nem "raiz" (nem palavra interna)', () => {
     const baixos = [...Array.from({ length: 12 }, (_, i) => val('b' + i, 1 + i, 'B' + i)), val('g1', 500), val('g2', 1000)]
-    for (const v of [buildRegua(baixos, [A('b0')], O), buildRegua(mundo(), [A('c0'), B('zz', 'Z')], O), buildRegua([val('a', 1)], [], O)]) {
+    for (const v of [buildRegua(baixos, [A('b0')], O), buildRegua(mundo(), [A('c0'), B('zz', 'Z', 'sem vídeos')], O), buildRegua([val('a', 1)], [], O)]) {
       for (const t of textos(v)) { expect(t).not.toMatch(/√/); expect(t).not.toMatch(/raiz/i); expect(t).not.toMatch(/\b(pacote|dataset|ranking|sentinela|motor|R73)\b|conjunto do site/i) }
     }
   })
@@ -204,7 +220,7 @@ describe('buildRegua · poucos canais', () => {
     expect(v.tracos).toHaveLength(0)
   })
   it('nenhum canal com valor: a frase diz 0, nunca "NaN" nem traço', () => {
-    const v = buildRegua([], [A('a', 'Aa'), B('b', 'Bb')], O)
+    const v = buildRegua([], [A('a', 'Aa', 'sem vídeos'), B('b', 'Bb', 'sem vídeos')], O)
     expect(v.vazio).toBe('poucos canais para comparar em Viagem (0; precisa de 3)')
     expect(v.semTraco.map(s => s.letra)).toEqual(['A', 'B'])
   })
@@ -247,5 +263,41 @@ describe('afastarLetras', () => {
   it('largura zero ou inválida (sem layout) não mexe nem devolve NaN', () => {
     expect(afastarLetras(50, 50, 0)).toEqual([0, 0])
     expect(afastarLetras(50, 50, NaN)).toEqual([0, 0])
+  })
+})
+
+describe('buildRegua · posição dos dois lados exposta (M5)', () => {
+  const mundo = () => Array.from({ length: 14 }, (_, i) => val('c' + i, (i + 1) * 100, 'Canal ' + (i + 1)))
+  it('devolve a posição escrita dos dois lados, com o conjunto, a mesma do aria', () => {
+    const v = buildRegua(mundo(), [A('c1', 'Canal 2'), B('c13', 'Canal 14')], O)
+    expect(v.posicao.A).toEqual({ pos: 13, de: 14, empate: false, texto: '13º de 14 em Viagem' })
+    expect(v.posicao.B).toEqual({ pos: 1, de: 14, empate: false, texto: '1º de 14 em Viagem' })
+    expect(v.aria).toContain(`Lado A, Canal 2: ${v.posicao.A!.texto}`)
+    expect(v.aria).toContain(`Lado B, Canal 14: ${v.posicao.B!.texto}`)
+  })
+  it('empate dito no texto; conjunto "no geral"', () => {
+    const v = buildRegua([val('a', 90, 'Aa'), val('b', 90, 'Bb'), val('c', 10, 'Cc'), val('d', 5, 'Dd')], [A('a', 'Aa'), B('c', 'Cc')], { numero: 'inscritos', conjunto: 'no geral' })
+    expect(v.posicao.A!.texto).toBe('1º de 4 no geral (empate)')
+    expect(v.posicao.B!.texto).toBe('3º de 4 no geral')
+  })
+  it('lado sem valor: posição null (nunca "0º")', () => {
+    const v = buildRegua(mundo(), [A('c1', 'Canal 2'), B('x', 'Fulano', 'sem vídeos')], O)
+    expect(v.posicao.A).not.toBeNull(); expect(v.posicao.B).toBeNull()
+  })
+  it('também no ramo "poucos canais": a posição existe, com o "de N" de quem tem valor', () => {
+    const v = buildRegua([val('a', 10, 'Aa'), val('b', 20, 'Bb')], [A('a', 'Aa'), B('b', 'Bb')], O)
+    expect(v.vazio).not.toBeNull()
+    expect(v.posicao.A).toEqual({ pos: 2, de: 2, empate: false, texto: '2º de 2 em Viagem' })
+    expect(v.posicao.B).toEqual({ pos: 1, de: 2, empate: false, texto: '1º de 2 em Viagem' })
+    const so = buildRegua([], [A('a', 'Aa', 'sem vídeos'), B('b', 'Bb', 'sem vídeos')], O)
+    expect(so.posicao).toEqual({ A: null, B: null })
+  })
+})
+describe('buildRegua · A e B empatados (M7)', () => {
+  it('o aria diz "(empate)" para os dois lados', () => {
+    const v = buildRegua([val('a', 50, 'Aa'), val('b', 50, 'Bb'), val('lo', 10), val('hi', 90)], [A('a', 'Aa'), B('b', 'Bb')], O)
+    expect(v.aria).toContain('Lado A, Aa: 2º de 4 em Viagem (empate)')
+    expect(v.aria).toContain('Lado B, Bb: 2º de 4 em Viagem (empate)')
+    expect(v.posicao.A!.empate).toBe(true); expect(v.posicao.B!.empate).toBe(true)
   })
 })

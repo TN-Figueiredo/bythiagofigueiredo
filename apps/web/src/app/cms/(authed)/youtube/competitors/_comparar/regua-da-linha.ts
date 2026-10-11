@@ -2,8 +2,8 @@
  * A régua do nicho de UMA linha do par (spec 18.5). Pura: monta `vals` com os canais do conjunto do par (o nicho, quando os dois
  * são do mesmo nicho; senão todos) que têm o número medido, e as marcas A e B. Nulo, NaN ou infinito NUNCA entra em `vals` (`buildRegua`
  * lança com valor não finito): o lado vira "sem traço" com o motivo do "não medido", não uma exceção na tela inteira.
- * A posição escrita ao lado do valor vem de `ParView.linhas[].pos`; a régua calcula a dela pela MESMA regra (`posicoes()`, chave pelo valor
- * escrito), então as duas frases não divergem.
+ * A posição escrita ao lado do valor é a da régua (`ReguaView.posicao`): a posição escrita e a desenhada vêm de UMA conta, e um teste
+ * confirma que ela coincide com `ParView.linhas[].pos` em todos os pares do fixture.
  */
 import { conjuntoTexto } from '@/lib/youtube/observatorio/posicao'
 import { buildRegua, type ReguaView, type MarcaRegua, type ValorRegua } from '../_chrome/regua/regua-model'

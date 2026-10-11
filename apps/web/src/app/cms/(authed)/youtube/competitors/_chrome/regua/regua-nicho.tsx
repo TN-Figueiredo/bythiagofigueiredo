@@ -29,6 +29,9 @@ export function ReguaNicho({ regua, cores }: { regua: ReguaView; cores: { A: str
   const ticks = useRef<Array<HTMLElement | null>>([])
   const letraA = useRef<HTMLElement>(null), letraB = useRef<HTMLElement>(null)
   const ultimo = useRef(-1) // o traço do teclado
+  const focoDoPonteiro = useRef(false) // o clique ou o toque acabou de apontar um traço: o foco que vem a seguir não é do teclado
+  const apontado = useRef(-1) // o traço do último clique ou toque
+  const temporizador = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [ativo, setAtivo] = useState<Ativo | null>(null)
   const [fala, setFala] = useState('')
   const { tracos, un } = regua
@@ -47,12 +50,24 @@ export function ReguaNicho({ regua, cores }: { regua: ReguaView; cores: { A: str
   }, [tracos, falaDe])
   const fechar = useCallback(() => { setAtivo(null) }, [])
 
-  // as letras dos dois lados se afastam quando os traços colidem (os traços não saem do valor); refeito se a largura muda
+  // outra régua (outro par, outro número): índices e fala do traço anterior não valem mais. Compara pelo conteúdo, não pela identidade do objeto.
+  const assinatura = `${regua.aria}|${tracos.length}|${tracos.map(t => t.id).join(',')}`
+  const vista = useRef(assinatura)
+  useEffect(() => {
+    if (vista.current === assinatura) return
+    vista.current = assinatura
+    ultimo.current = -1
+    setAtivo(null); setFala('')
+  }, [assinatura])
+  useEffect(() => () => { if (temporizador.current) clearTimeout(temporizador.current) }, [])
+
+  // as letras dos dois lados se afastam quando os traços colidem (os traços não saem do valor); refeito se a largura muda.
+  // Sem um dos lados não há o que afastar: o deslocamento que sobrou de antes volta a zero.
   useLayoutEffect(() => {
     const dentro = dentroRef.current, a = letraA.current, b = letraB.current
-    if (!dentro || !a || !b) return
+    const zerar = () => { a?.style.setProperty('--dx', '0px'); b?.style.setProperty('--dx', '0px') }
     const ta = tracos.find(t => t.marca === 'A'), tb = tracos.find(t => t.marca === 'B')
-    if (!ta || !tb) return
+    if (!dentro || !a || !b || !ta || !tb) { zerar(); return }
     const medir = () => {
       const [da, db] = afastarLetras(ta.pct, tb.pct, dentro.getBoundingClientRect().width)
       a.style.setProperty('--dx', `${da}px`); b.style.setProperty('--dx', `${db}px`)
@@ -113,17 +128,25 @@ export function ReguaNicho({ regua, cores }: { regua: ReguaView; cores: { A: str
 
   const onFocus = (e: React.FocusEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return
+    if (focoDoPonteiro.current) {
+      // o foco veio do clique ou do toque (o navegador foca o div tabindex=0): o traço apontado fica, sem fala, e o teclado parte dele
+      focoDoPonteiro.current = false
+      if (apontado.current >= 0) ultimo.current = apontado.current
+      return
+    }
     const i = ultimo.current >= 0 ? ultimo.current : inicial()
     ultimo.current = i
     mostrar(i, false, true)
   }
   const onBlur = (e: React.FocusEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return
+    focoDoPonteiro.current = false
     ultimo.current = -1
     fechar(); setFala('')
   }
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return
+    focoDoPonteiro.current = false
     const n = tracos.length
     let i = ultimo.current >= 0 ? ultimo.current : inicial()
     switch (e.key) {
@@ -144,8 +167,13 @@ export function ReguaNicho({ regua, cores }: { regua: ReguaView; cores: { A: str
     if (i >= 0) mostrar(i, true, false)
   }
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.pointerType !== 'touch') return
+    // clique e toque focam o grupo (tabindex=0): marca que o foco a seguir é do ponteiro. Se o grupo já tinha o foco, nenhum onFocus vem
+    // e a marca expira no próximo ciclo, para não valer para um Tab de verdade.
+    focoDoPonteiro.current = true
+    if (temporizador.current) clearTimeout(temporizador.current)
+    temporizador.current = setTimeout(() => { focoDoPonteiro.current = false }, 0)
     const i = maisPerto(e.clientX, e.clientY)
+    apontado.current = i
     if (i >= 0) mostrar(i, true, false)
   }
   const onPointerLeave = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -178,7 +206,7 @@ export function ReguaNicho({ regua, cores }: { regua: ReguaView; cores: { A: str
       </div>
       <span className="obs-rg-sr" aria-live="polite" aria-atomic="true">{fala}</span>
       <SemTraco regua={regua} />
-      <HoverTip show={ativo != null} anchor={() => grupoRef.current} cx={ativo?.cx} pref="cima" gap={4} maxW={300} className="obs-rg-tip">
+      <HoverTip show={ativo != null && t != null} anchor={() => grupoRef.current} cx={ativo?.cx} pref="cima" gap={4} maxW={300} className="obs-rg-tip">
         {t && (ativo?.ponteiro && t.grupo.length > 1
           ? <>
             <span className="obs-rg-tip-t">{t.grupo.length} canais com {t.texto}</span>
