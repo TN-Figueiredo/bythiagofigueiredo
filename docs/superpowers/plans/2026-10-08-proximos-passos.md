@@ -165,6 +165,34 @@ Decisões das rodadas 9 a 12, a levar ao spec v9:
 3. 11/10: fechar o L1a e perguntar se apaga as pastas do L1a e do L1b.
 4. Depois de A1: A2 e A3, A4, e então o A/B Lab (itens 5 da seção 3e seguem valendo).
 
+## 3g. Onde retomar (escrito em 10/10 à noite: A1 em staging)
+
+**Estado.** Fase A1 (página do canal do concorrente, `canal/<id>`) implementada e em `staging` remoto (`1ac235a5`): as 10 tarefas de código do plano `2026-10-10-telas-a1-canal-concorrente-plan.md`, a revisão final em Opus e uma onda de conserto. Promoção para `main` ainda não feita. Ledger: `.superpowers/sdd/2026-10-10-telas-a1-canal-plan/progress.md`.
+
+**Medido em 10/10.** Vitest inteiro: 22.385 testes, zero falhas. Typecheck limpo. `next build` verde. Playwright local (`canal.spec.ts` + `flutuantes.spec.ts`): 85 passando. Validação logada no CMS local: roteiro inteiro em 1440 px no tema escuro, console limpo, nenhuma resposta 500. O CI ficou vermelho nos dois primeiros pushes por limite de tempo do executor de testes (todos os testes verdes); conserto no fixture em `1ac235a5`.
+
+**Decisões tomadas pelo controlador (o dono pode reverter).**
+- Teto de tamanho da D2: 3.000 vídeos antigos dão 3,77 MB de JSON cru e 114 KB com gzip; o teste passou a exigir 200 KB gzip no lugar de 1,2 MB cru. Corte barato disponível: tirar `pin.hint` de cada vídeo e derivar campos no cliente.
+- O painel lateral de concorrente continua montado no modelo de Canais (a página redireciona antes); o corte do código morto e de uns 25 testes é tarefa própria.
+- A barra de controles não fica presa em 390 px: o spec 5.2 só prende com largura de 768 px ou mais.
+- Push para `staging` feito pelo controlador, por ordem do dono em 10/10.
+
+**Decisões do dono em aberto.**
+1. Cor do "não medido" no tema claro (D7: `#8E2A62` sobre `#F7E1EC`); a validação achou legível.
+2. A vista Lista mostra 7 linhas inteiras em 1440×900 e o plano pede 8 (a casca do CMS ocupa 181 px que o mockup não desenha): apertar a linha ou aceitar 7. O teste está como falha esperada.
+3. Frescor: fechar quando o gatilho sai da janela (item pulado da A0).
+4. Apagar a pasta da A0 em `.superpowers/sdd/` (as linhas que a A1 cita estão copiadas no ledger da A1).
+
+**O que nenhum agente conferiu.** Canal próprio abrindo o painel lateral em navegador (o banco local não tem canal próprio; só teste unitário); o roteiro em 390 px e no tema claro fora do que o Playwright mede; Opera; leitor de tela (VoiceOver: filtrar, buscar, trocar a vista, tabela por célula, `aria-describedby` das dicas); zoom de 200 a 400% em 320 px; toque real; o menu ⋯ fechando antes de o diálogo de remoção abrir; tempo de Canais até a página em build de produção.
+
+**Pendências herdadas da A0.** `session.current('todos')` e `compose` com `split` lançam com a mensagem de `forja.niches`: adiado, a página do canal não os chama. `onHl(null)` pode limpar destaque de outra origem: adiado, impacto desprezível. `gap` da prova de flutuantes declarado à mão: adiado, segue como segunda fonte.
+
+**Menores adiados da A1.** Lista completa nas linhas `minor (deferred)` do ledger. Os de mais peso: links de vídeo levam `ids=` com até 100 vizinhos na URL (cerca de 4 KB); `use-rolagem-ao-voltar.ts` pode reaplicar rolagem velha num Voltar entre abas; aviso intermitente de `key` duplicada do React visto uma vez; "Ver as N trocas em Mudanças" abre uma tela que também conta troca de descrição.
+
+**Custo de subagentes em 10/10 (A1).** Cerca de 5,6 milhões de tokens Sonnet (10 implementadores, 9 revisores, 4 consertos, validação em navegador, re-revisão) e 225 mil Opus (revisão final).
+
+**Próximo passo.** Dono confere em staging; promoção; depois a fase A2 (Histórico: chegada pela troca, `canal=` no pager e na trilha).
+
 ## 4. Ordem recomendada do trabalho
 
 | # | Etapa | Spec | Depende de |
