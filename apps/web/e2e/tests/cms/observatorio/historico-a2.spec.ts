@@ -1243,3 +1243,46 @@ test.describe('A2.7 as etapas do pedido (um pedido em andamento semeado)', () =>
     await expect(page.locator(`${HV} #hv-live:visible, ${HV} #hv-live`).first()).toHaveText('A leitura da forja já tem uma situação; ela está logo abaixo.')
   })
 })
+
+/* ================================================================== rodada final: dois defeitos visuais */
+test('visual: a lupa nunca cobre o texto de uma miniatura sem imagem arquivada (cabeçalho e "Antes e depois", 1440 px)', async ({ page }) => {
+  await abrirVideo(page, V.full)
+  const tela = page.locator(`${HV}:visible`).first()
+  await tela.locator('#hv-compare').scrollIntoViewIfNeeded()
+  const medidas = await page.evaluate(() => {
+    const out: Array<{ onde: string; texto: boolean; sobrepoe: boolean; w: number }> = []
+    for (const th of document.querySelectorAll<HTMLElement>('[data-obs-screen="historico"] .th.missing.zoomable')) {
+      if (th.getClientRects().length === 0) continue
+      const lupa = th.querySelector<HTMLElement>('.th-lupa'), span = th.querySelector<HTMLElement>('span:not(.th-lupa)')
+      if (!lupa || !span) continue
+      const L = lupa.getBoundingClientRect(), rg = document.createRange()
+      rg.selectNodeContents(span)
+      const caixas = [...rg.getClientRects()].filter(r => r.width > 0)
+      const sobrepoe = caixas.some(r => r.left < L.right && r.right > L.left && r.top < L.bottom && r.bottom > L.top)
+      out.push({ onde: th.closest('.ba, .vhead, .film, section')?.className.toString().slice(0, 20) ?? '?', texto: caixas.length > 0, sobrepoe, w: Math.round(th.getBoundingClientRect().width) })
+    }
+    return out
+  })
+  medida('miniaturas sem imagem com lupa: ' + JSON.stringify(medidas))
+  expect(medidas.length, 'há miniaturas sem imagem com lupa na tela').toBeGreaterThan(0)
+  for (const m of medidas) { expect(m.texto, JSON.stringify(m)).toBe(true); expect(m.sobrepoe, 'a lupa cobre o texto: ' + JSON.stringify(m)).toBe(false) }
+})
+
+test('visual: em 390 px o selo da forja não deixa o ícone sozinho na primeira linha', async ({ page }) => {
+  await abrirVideo(page, V.full, '', { width: 390, height: 844 })
+  const selo = page.locator(`${HV}:visible .obs-fj-stamp`).first()
+  await selo.scrollIntoViewIfNeeded()
+  await expect(selo).toBeVisible()
+  const m = await selo.evaluate(e => {
+    const ic = e.querySelector('svg')!.getBoundingClientRect(), no = [...e.childNodes].find(n => n.nodeType === 3)!
+    const rg = document.createRange(); rg.selectNodeContents(no)
+    const linhas = [...rg.getClientRects()].filter(r => r.width > 0)
+    const primeira = linhas[0]!, caixa = e.getBoundingClientRect()
+    return { icTop: ic.top, icBottom: ic.bottom, l1Top: primeira.top, l1Bottom: primeira.bottom, linhas: linhas.length, direita: caixa.right, janela: innerWidth }
+  })
+  medida('selo em 390 px: ' + JSON.stringify(m))
+  // o ícone está na altura da primeira linha do texto (não numa linha só dele acima do texto)
+  expect(m.icTop, JSON.stringify(m)).toBeGreaterThanOrEqual(m.l1Top - 2)
+  expect(m.icBottom, JSON.stringify(m)).toBeLessThanOrEqual(m.l1Bottom + 2)
+  expect(m.direita, 'o selo cabe na tela').toBeLessThanOrEqual(m.janela)
+})

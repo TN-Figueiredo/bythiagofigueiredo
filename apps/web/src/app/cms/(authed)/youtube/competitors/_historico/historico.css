@@ -527,7 +527,10 @@
 [data-obs-screen="historico"] .th.zoomable:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 [data-obs-screen="historico"] .th .th-lupa{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:6px;background:rgba(0,0,0,.72);color:#fff;display:grid;place-items:center;font-size:12px}
 [data-obs-screen="historico"] .th.zoomable:hover .th-lupa{background:rgba(0,0,0,.9)}
+/* a lupa não cobre texto: na miniatura sem imagem o texto reserva o canto dela (largura da lupa + folga) */
+[data-obs-screen="historico"] .th.missing.zoomable{padding-right:calc(28px + 12px)}
 [data-obs-screen="historico"] .th .th-lupa svg{width:16px;height:16px}
 @media (max-width:900px),(pointer:coarse){
   [data-obs-screen="historico"] .th .th-lupa{width:min(44px,40cqw);height:min(44px,40cqw)}
+  [data-obs-screen="historico"] .th.missing.zoomable{padding-right:calc(min(44px,40cqw) + 12px)}
 }
