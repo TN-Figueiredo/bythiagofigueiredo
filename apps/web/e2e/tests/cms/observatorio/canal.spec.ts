@@ -206,22 +206,19 @@ test('A1.3 sem rolagem horizontal da página em 1440, 1280, 1024, 768, 390 e 320
 })
 
 /* ================================================================== A1.4 */
-// MEDIDO: 7 linhas inteiras (o mockup tem 9). A tabela começa a 438 px do topo da janela; 181 px são da casca do CMS (cabeçalho, barra de seções
-// do YouTube e respiro) e a página gasta 257 (trilha, cabeçalho de 109, abas, controles de 50, título de coluna de 34). Para 8 faltam ~40 px, que só
-// a casca ou o desenho da página dão. test.fail: se a linha de baixo passar a caber (ou a casca encolher), este teste avisa que a ressalva acabou.
-test('A1.4 Lista: 8 ou mais linhas inteiras na carga em 1440×900 (MEDIDO 7: ressalva aberta)', async ({ page }) => {
-  test.fail(true, 'a casca real do CMS gasta 181 px acima da página: cabem 7 linhas, o mockup (sem a casca) mostra 9')
+// A1.4: a casca real do CMS gasta 181 px acima da página (tabela a 438 px do topo). Com linha de 56 px cabiam 7; a Lista é para comparar números de
+// muitos vídeos de relance, então a linha foi apertada para 50 px e a miniatura para 80 px (a vista Capas é a dona da miniatura). Cabem 8 ou mais.
+test('A1.4 Lista: 8 ou mais linhas inteiras na carga em 1440×900 (linha de 50 px, miniatura de 80 px); abaixo de 820 px vira pilha', async ({ page }) => {
+  await page.context().addCookies([{ name: 'btf_theme', value: 'dark', url: 'http://localhost:3099' }])
   await abrir(page, '?ver=lista', { width: 1440, height: 900 })
   const linhas = await page.locator(`${SCREEN} tr.cv-row`).evaluateAll(els => els.map(e => { const r = e.getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), h: Math.round(r.height) } }))
   const inteiras = linhas.filter(l => l.top >= 0 && l.bottom <= 900).length
-  medida(`linhas inteiras da Lista na carga em 1440×900: ${inteiras} (meta 8; mockup 9); altura da linha ${linhas[0]!.h} px (mockup 56)`)
+  const ultima = linhas.filter(l => l.top >= 0 && l.bottom <= 900).at(-1)!
+  medida(`linhas inteiras da Lista na carga em 1440×900: ${inteiras}; altura da linha ${linhas[0]!.h} px; folga abaixo da última inteira ${900 - ultima.bottom} px`)
   expect(inteiras).toBeGreaterThanOrEqual(8)
-})
-
-test('A1.4 Lista: 7 ou mais linhas inteiras na carga; abaixo de 820 px vira pilha', async ({ page }) => {
-  await abrir(page, '?ver=lista', { width: 1440, height: 900 })
-  const linhas = await page.locator(`${SCREEN} tr.cv-row`).evaluateAll(els => els.map(e => { const r = e.getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom) } }))
-  expect(linhas.filter(l => l.top >= 0 && l.bottom <= 900).length).toBeGreaterThanOrEqual(7)
+  expect(linhas[0]!.h).toBe(50)
+  const mini = await page.locator(`${SCREEN} tr.cv-row .cv-tthumb`).first().evaluate(e => { const r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) } })
+  expect(mini.w).toBe(80)
   const cab = page.locator(`${SCREEN} table.cv-lst thead`)
   expect(await cab.evaluate(e => getComputedStyle(e).display)).not.toBe('none')
   for (const w of [821, 820, 819, 390]) {
@@ -231,6 +228,9 @@ test('A1.4 Lista: 7 ou mais linhas inteiras na carga; abaixo de 820 px vira pilh
     medida(`Lista a ${w} px: thead ${pilha.thead}, td ${pilha.td}, rótulo ${pilha.rotulo}`)
     if (w <= 820) { expect(pilha.thead).toBe('none'); expect(pilha.td).toBe('block'); expect(pilha.rotulo).toContain('Publicado') } else { expect(pilha.thead).not.toBe('none') }
   }
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.waitForTimeout(250)
+  await page.screenshot({ path: process.env.LISTA_SHOT ?? 'lista-1440.png' })
 })
 
 test('A1.4 Lista entre 821 e 1000 px de janela: a página não ganha rolagem horizontal (a tabela larga rola dentro do próprio invólucro)', async ({ page }) => {
