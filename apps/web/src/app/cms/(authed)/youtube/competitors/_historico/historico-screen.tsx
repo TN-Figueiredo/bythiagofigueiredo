@@ -7,14 +7,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { useToast } from '../_chrome/toasts'
-import { lembrarUltimoVideo, marcarVoltaPelaTrilha, renovarUltimoVideo } from '../_chrome/ultimo-video'
-import { esperarVoltaAoCanal } from '../_canal/use-rolagem-ao-voltar'
+import { lembrarUltimoVideo, renovarUltimoVideo } from '../_chrome/ultimo-video'
+import { useAvisoLeituraPublicada, useForjaRefresh } from '../_chrome/use-forja-refresh'
 import { marcarPagerUsado, tomarPagerUsado } from './pager-usado'
 import { currentFlut } from '../_chrome/flut/store'
 import type { HistoricoView, LaneType } from './view-model'
 import type { Hl } from './lanes'
-import { Crumbs } from './pager'
+import { Pager } from './pager'
 import { Timeline } from './views-chart'
 import { Compare, NO_FILTER, type CompareFilter } from './compare'
 import { ImageSummary } from './image-summary'
@@ -33,7 +32,6 @@ const videoOf = (href: string) => { try { return decodeURIComponent(new URL(href
 const reduced = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpin }: { view: HistoricoView; onAskForja?: ForjaAsk; onCancelForja?: ForjaCancel; onPin?: PinAction; onUnpin?: PinAction }) {
-  const toast = useToast()
   const [pairK, setPairK] = useState<string | null>(view.defaultPair)
   const [hover, setHover] = useState<Hl | null>(null)
   /** Thumbnail image whose highlight is pinned (image summary); Esc lets it go. */
@@ -48,9 +46,6 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   // Which pager button (or key) was used and the video it leads to lives OUTSIDE this component (pager-usado.ts): Anterior/Próximo change the
   // `[id]` segment, Next may remount the screen, and a ref would be born empty in the new one.
   const onPage = useCallback((which: 'prev' | 'next', href: string) => { marcarPagerUsado(which, videoOf(href)) }, [])
-  // The channel item of the trail is a push, not a popstate, and the spec (3, 6.5) treats it as the Voltar: the channel page restores
-  // the scroll and puts the focus on the last video seen. Plain click only.
-  const onCanal = useCallback(() => { if (view.crumbs.canal) { marcarVoltaPelaTrilha(view.crumbs.canal); esperarVoltaAoCanal() } }, [view.crumbs.canal])
   // 30 days is the default (spec 6.4): it leaves the URL; `tudo` is written out. With an arrival the period may have been widened by the
   // change, so every choice (30 included) is written out: without it "30 d" would patch away a `range` that is not there and do nothing.
   const onRange = (id: string) => go({ range: id === '30' && !view.arrival ? null : id })
@@ -73,7 +68,6 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     const next = pinImg === label ? null : label
     setPinImg(next); setLive(next ? 'Imagem ' + next + ' fixada no destaque. Esc solta.' : 'Destaque solto.')
   }
-  const toasted = useRef<string | null>(null)
   // Next 16 keeps this component when only the query changes: whatever is born from the URL (the pair, the arrival) is re-read here
   useEffect(() => { setPairK(view.defaultPair) }, [view.defaultPair, view.arrival?.changeId, view.video?.id])
   // Focus: ONE place decides it, and only when a video ARRIVES on the screen (a new video, or a new arrival change on the same one).
@@ -137,10 +131,10 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     document.addEventListener('click', leave, true)
     return () => document.removeEventListener('click', leave, true)
   }, [fromChannel])
-  useEffect(() => {
-    const t = view.video?.nicheToast
-    if (t && toasted.current !== view.video!.id) { toasted.current = view.video!.id; toast('', t, '') }
-  }, [view.video, toast])
+  // While a forja request is in progress the screen refreshes itself (it used to come with the whole frame; the trail-only frame has no such
+  // effect, D7), and a request that reaches "publicado" says so once.
+  useForjaRefresh(!!view.forja?.status?.active)
+  useAvisoLeituraPublicada(view.forja)
 
   const goVersion = (type: LaneType, i: number) => {
     const find = () => root.current?.querySelector<HTMLElement>('[data-ver="' + type + ':' + i + '"]')
@@ -172,7 +166,6 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     return (
       <div data-obs-screen="historico" ref={root}>
         <div className="page">
-          <Crumbs crumbs={view.crumbs} pager={null} onCanal={onCanal} />
           <section className="card nobase-card" data-not-found="">
             <div className="nfin"><strong>{view.notFound.title}</strong>{view.notFound.text} <a className="inl" href={view.notFound.href}>{view.notFound.back}</a></div>
           </section>
@@ -191,7 +184,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     <PinProvider onPin={onPin} onUnpin={onUnpin}>
       <div data-obs-screen="historico" data-state={view.state} ref={root}>
         <div className="page">
-          <Crumbs crumbs={view.crumbs} pager={view.pager} onPage={onPage} onCanal={onCanal} />
+          <Pager pager={view.pager} onPage={onPage} />
           {/* DOM order = screen order: thumbnail, title, actions, facts and chips. Only the title (which never changes) is
               before the actions row, so the pin button keeps its rectangle whatever appears below. */}
           <section className="vhead" id="vhead" aria-label="Vídeo">

@@ -148,19 +148,6 @@ describe('historico view model', () => {
     expect(v.crumbs.crumb).toBe('Outliers')
   })
 
-  it('a video of another niche changes the niche only for this view, with the toast', () => {
-    const v = buildHistoricoView(obs, PICK.noreg, { niche: 'ia' })
-    expect(obs.video(PICK.noreg)!.niche).toBe('viagem')
-    expect(v.video!.nicheToast).toBe('Nicho mudou para Viagem para mostrar este vídeo')
-    expect(v.chromeNiche).toBe('viagem')
-    // an explicit ?niche= is the user's choice: the chrome keeps it and says the pager stays on the video niche
-    const w = buildHistoricoView(obs, PICK.noreg, { niche: 'ia', nicheParam: 'ia' })
-    expect(w.chromeNiche).toBe('ia')
-    expect(w.video!.nicheToast).toBe('Este vídeo é do nicho Viagem; o paginador continua no nicho do vídeo')
-    expect(buildHistoricoView(obs, PICK.noreg, { niche: 'todos' }).video!.nicheToast).toBeNull()
-    expect(buildHistoricoView(obs, PICK.noreg, { niche: 'viagem' }).video!.nicheToast).toBeNull()
-  })
-
   it('the views/day curve is steps; the expected curve comes from the engine', () => {
     const c = buildHistoricoView(obs, PICK.full, {}).chart!
     expect(c.bins.length).toBeGreaterThan(5)

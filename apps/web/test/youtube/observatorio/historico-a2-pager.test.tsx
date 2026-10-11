@@ -7,9 +7,9 @@ import { render, fireEvent, cleanup } from '@testing-library/react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { canalWorld } from './canal-fixture'
 import { link } from '@/lib/youtube/observatorio/links'
-import { buildHistoricoView } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
+import { buildHistoricoView, historicoTrail } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
+import { TrailChrome } from '@/app/cms/(authed)/youtube/competitors/_chrome/trail-chrome'
 import { HistoricoScreen } from '@/app/cms/(authed)/youtube/competitors/_historico/historico-screen'
-import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
 import { lembrarUltimoVideo, lembrarSaida, lerUltimoVideo, marcarVoltaPelaTrilha, chegouPelaTrilha } from '@/app/cms/(authed)/youtube/competitors/_chrome/ultimo-video'
 import { limparPagerUsado } from '@/app/cms/(authed)/youtube/competitors/_historico/pager-usado'
 import { buildCanalVideos } from '@/app/cms/(authed)/youtube/competitors/_canal/videos-model'
@@ -41,7 +41,9 @@ const params = (i: number, from = 'canais'): Record<string, string | undefined> 
   return Object.fromEntries(new URL(href, 'http://x').searchParams)
 }
 const build = (i: number, from = 'canais') => buildHistoricoView(obs, ids[i]!, params(i, from))
-const Screen = ({ i, from }: { i: number; from?: string }) => <ToastProvider><HistoricoScreen view={build(i, from)} /></ToastProvider>
+// A trilha é da moldura (A2.6): a tela monta dentro de TrailChrome, como a página faz, com a mesma trilha da vista.
+const Moldura = ({ view }: { view: ReturnType<typeof build> }) => <TrailChrome crumbs={historicoTrail(view.crumbs)}><HistoricoScreen view={view} /></TrailChrome>
+const Screen = ({ i, from }: { i: number; from?: string }) => <Moldura view={build(i, from)} />
 const mount = (i: number, from?: string) => {
   const r = render(<Screen i={i} from={from} />)
   const root = r.container.querySelector<HTMLElement>('[data-obs-screen="historico"]')!
@@ -61,7 +63,7 @@ describe('pager do Histórico', () => {
     expect(prev(root)!.dataset.replace).toBe('true')
     expect(next(root)!.dataset.replace).toBe('true')
     // o item do canal e o "Canais" da trilha são navegação comum: o Voltar é deles
-    expect([...root.querySelectorAll<HTMLAnchorElement>('nav.crumbs li a')].map(a => a.dataset.replace)).toEqual(['false', 'false'])
+    expect([...document.querySelectorAll<HTMLAnchorElement>('nav.crumbs li a')].map(a => a.dataset.replace)).toEqual(['false', 'false'])
   })
 
   it('depois de trocar de vídeo o foco fica no botão usado e o status lê "Vídeo 8 de 51: <título>"', () => {
@@ -214,7 +216,7 @@ describe('pager do Histórico', () => {
 
   it('lista de origem vazia: sem pager na tela', () => {
     const v = buildHistoricoView(obs, ids[3]!, { ...params(3), ids: undefined })
-    const r = render(<ToastProvider><HistoricoScreen view={v} /></ToastProvider>)
+    const r = render(<Moldura view={v} />)
     expect(r.container.querySelector('[data-pager]')).toBeNull()
     expect(r.container.querySelector('nav.crumbs')).not.toBeNull()
   })
@@ -317,7 +319,7 @@ describe('o item do canal na trilha (spec 3 e 6.5): equivale ao Voltar', () => {
 
   it('no Histórico, clicar no item do canal marca a volta pela trilha; com tecla de modificação ou no "Canais" não marca', () => {
     const r = mount(5)
-    const [canais, canal] = [...r.root.querySelectorAll<HTMLAnchorElement>('nav.crumbs li a')]
+    const [canais, canal] = [...document.querySelectorAll<HTMLAnchorElement>('nav.crumbs li a')]
     fireEvent.click(canais!)
     expect(chegouPelaTrilha(chId)).toBe(false)
     fireEvent.click(canal!, { ctrlKey: true })

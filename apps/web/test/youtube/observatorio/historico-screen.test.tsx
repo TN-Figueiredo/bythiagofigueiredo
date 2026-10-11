@@ -141,12 +141,13 @@ describe('HistoricoScreen', () => {
 
   it('pager rebuilds the origin list (from, back, ids)', () => {
     const ids = [PICK.none, PICK.full, PICK.few]
-    const { root } = mount(PICK.full, { from: 'mudancas', ids: ids.join(','), back: '?niche=ia' })
+    const { root, view } = mount(PICK.full, { from: 'mudancas', ids: ids.join(','), back: '?niche=ia' })
     const prev = root.querySelector('[data-pager-prev]')!, next = root.querySelector('[data-pager-next]')!
     expect(prev.getAttribute('href')).toBe(obs.link.historico(PICK.none, { from: 'mudancas', ids, back: '?niche=ia' }))
     expect(next.getAttribute('href')).toBe(obs.link.historico(PICK.few, { from: 'mudancas', ids, back: '?niche=ia' }))
     expect(root.querySelector('[data-pager-pos]')!.textContent).toBe('vídeo 2 de 3 em Mudanças, na ordem da lista aberta')
-    expect(root.querySelector('[data-crumb]')!.getAttribute('href')).toBe('/cms/youtube/competitors/mudancas?niche=ia')
+    // the trail is the frame's now (A2.6, historico-a2-moldura.test.tsx renders it); the way back it leads to is the same
+    expect(view.crumbs.href).toBe('/cms/youtube/competitors/mudancas?niche=ia')
   })
 
   it('an unknown id renders the not-found state', () => {
@@ -165,11 +166,6 @@ describe('HistoricoScreen', () => {
     expect(root.querySelector('#hv-compare')).toBeNull()
     // the facts block (the button's hint, in .actions, explains what a pin does and names the views chart)
     expect(root.querySelector('.vhead .vm')!.textContent).not.toMatch(/views|multiplicador|sincroniza/i)
-  })
-
-  it('a video of another niche toasts "Nicho mudou para …"', async () => {
-    mount(PICK.noreg, { niche: 'ia' })
-    await waitFor(() => expect(screen.getByText('Nicho mudou para Viagem para mostrar este vídeo')).toBeTruthy())
   })
 
   it('descriptions: line-by-line comparison hides UTM-only changes until asked', () => {

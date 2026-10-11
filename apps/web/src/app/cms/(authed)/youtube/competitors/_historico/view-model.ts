@@ -198,6 +198,17 @@ export interface CompareView {
 
 /** `canal` = o id do canal quando a pessoa veio da página dele (`canal=<id do canal do vídeo>`); a tela guarda daí o último vídeo visto. */
 export interface CrumbsView { from: FromTab; crumb: string; href: string; sub: { text: string; href: string } | null; canal: string | null }
+/** Um item da trilha da moldura (a forma de `Crumb`, de `_chrome/trail-chrome.tsx`, sem importar um módulo cliente aqui). */
+export interface TrailItem { text: string; href?: string; voltaAoCanal?: string }
+
+/** A trilha do Histórico: "<origem> › <canal> › Histórico do vídeo". O item do canal leva `voltaAoCanal` quando a pessoa veio da página dele. */
+export function historicoTrail(c: CrumbsView): TrailItem[] {
+  return [
+    { text: c.crumb, href: c.href },
+    ...(c.sub ? [{ text: c.sub.text, href: c.sub.href, ...(c.canal ? { voltaAoCanal: c.canal } : {}) }] : []),
+    { text: 'Histórico do vídeo' },
+  ]
+}
 export interface PagerView {
   prev: string | null; next: string | null; backHref: string; position: string; prevLabel: string; nextLabel: string
   /** Anterior/Próximo substituem a entrada do histórico do navegador (spec 3), sempre. */
@@ -239,11 +250,7 @@ export type DiffRow = { kind: 'fold'; text: string } | { kind: 'ctx' | 'add' | '
 export interface HistoricoView {
   video: {
     id: string; title: string; channel: string; niche: Niche | null; age: string; url: string
-    /** Toast when the video belongs to another niche than the chosen one (display only, nothing persisted). */
-    nicheToast: string | null
   } | null
-  /** The niche the chrome shows for this view (the video's when it differs from the persisted one). */
-  chromeNiche: NicheScope
   crumbs: CrumbsView
   header: HeaderView | null
   chart: ChartView | null
@@ -342,7 +349,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     const canalOrigem = cn && !cn.own ? cn : null
     const href = backHref(from, from === 'mudancas' ? obs.link.mudancas({ niche: userNiche }) : from === 'outliers' ? obs.link.outliers({ niche: userNiche }) : from === 'canais' ? obs.link.canais({ niche: userNiche }) : obs.link.insights({ niche: userNiche }))
     return {
-      video: null, chromeNiche: userNiche, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null,
+      video: null, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null,
       versions: null, pager: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null,
       range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND,
       crumbs: canalOrigem
@@ -364,12 +371,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const syncOk = sy.state === 'ok'
   const observed = isObserved(v)
 
-  // ---------- niche: another niche changes the niche only for this view (nothing persisted) ----------
-  let chromeNiche: NicheScope = userNiche, nicheToast: string | null = null
-  if (v.niche && userNiche !== 'todos' && userNiche !== v.niche) {
-    if (p.nicheParam) nicheToast = 'Este vídeo é do nicho ' + obs.nicheLabel(v.niche) + '; o paginador continua no nicho do vídeo'
-    else { chromeNiche = v.niche; nicheToast = 'Nicho mudou para ' + obs.nicheLabel(v.niche) + ' para mostrar este vídeo' }
-  }
+  // ---------- niche: a video of another niche shows its niche only beside the channel (header), no toast and no chrome niche (A2.6) ----------
   const ctxNiche: NicheScope = userNiche !== 'todos' && userNiche !== v.niche ? (v.niche ?? 'todos') : userNiche
 
   // ---------- series → bins (views/day between records) ----------
@@ -830,14 +832,14 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     : { pinned: v.pinned === true, used: ch.pinnedCount ?? obs.videos.filter(x => x.ch === v.ch && x.pinned === true).length, limit: obs.RULES.pinLimit, state: v.pinState ?? null, note: pinNote }
   const pinView = pinViewOf(obs, v)
 
-  const videoOut = { id: v.id, title: v.title, channel: ch.name, niche: v.niche, age: F.age(v), url: v.url, nicheToast }
+  const videoOut = { id: v.id, title: v.title, channel: ch.name, niche: v.niche, age: F.age(v), url: v.url }
   const state = stateOf(obs, v, ch, changes)
   if (!observed) {
     // R117 (replaces the display half of R37): what was stored is shown. There is no daily record, so no chart and no
     // before/after comparison (every change of this video reads 'sem-serie'). The notice says which of the two cases it is.
     const stored = v.thumbs.length > 0 || v.descs.length > 0 || v.titles.some(t => t.id !== v.id + '/title')
     const href = obs.link.canais({ channel: v.ch })
-    const common = { video: videoOut, chromeNiche, crumbs, header, chart: null, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null, pager, state, notFound: null, pin, pinView, ...forjaOf(obs, v, ch),
+    const common = { video: videoOut, crumbs, header, chart: null, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null, pager, state, notFound: null, pin, pinView, ...forjaOf(obs, v, ch),
       range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND }
     const outside = 'Este vídeo está fora dos ' + ch.video_limit + ' mais recentes acompanhados de ' + ch.name + '.'
     const noChart = 'O gráfico de views só aparece para vídeos acompanhados ou fixados.'
@@ -1049,7 +1051,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   for (const q of pairs) legends[q.k] = legendFor(q.k)
 
   return {
-    video: videoOut, chromeNiche, crumbs, header, chart, lanes, legends, comparisons, defaultPair, arrival,
+    video: videoOut, crumbs, header, chart, lanes, legends, comparisons, defaultPair, arrival,
     compareEmpty: pairs.length ? null : endDot(watchText()) + ' Se o canal trocar título, thumbnail ou descrição, a troca aparece na curva acima e entra em Mudanças.',
     versions, pager, state, untracked: null, lanesAxis: null, pin, pinView, notFound: null, ...forjaOf(obs, v, ch),
     range: rangeView, imageSummary: imageSummaryView, compare, groupLegend: GROUP_LEGEND,

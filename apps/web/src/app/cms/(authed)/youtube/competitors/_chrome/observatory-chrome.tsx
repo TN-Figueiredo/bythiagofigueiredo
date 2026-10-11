@@ -20,6 +20,7 @@ import { Icon } from './icons'
 import type { ForjaAsk } from './forja-view-model'
 import { ForjaHeaderButtons, ForjaMachineSegment, goToForjaAnchor } from './forja-status'
 import { ForjaHeaderContext } from './forja-context'
+import { useAvisoLeituraPublicada, useForjaRefresh } from './use-forja-refresh'
 
 export interface ObservatoryChromeProps {
   view: ChromeView
@@ -49,9 +50,6 @@ export function ObservatoryChrome(props: ObservatoryChromeProps) {
 }
 
 type Pop = null | 'menu' | 'fresh'
-
-/** Minutes between refreshes while a forja request is in progress (the forja polls every 10 min). */
-const FORJA_REFRESH_MS = 60_000
 
 function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, onOpenNicheEditor, onAskForja, readingCopy }: ObservatoryChromeProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
@@ -108,18 +106,9 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
     goToForjaAnchor()
   }
   // while a request is in progress the page refreshes itself (the forja polls every 10 min); a request that reaches
-  // "publicado" says so once ("Pedido enviado à forja" → "Leitura publicada")
-  const active = !!forja?.status?.active
-  useEffect(() => {
-    if (!active) return
-    const t = setInterval(() => router.refresh(), FORJA_REFRESH_MS)
-    return () => clearInterval(t)
-  }, [active, router])
-  const prevActive = useRef(active)
-  useEffect(() => {
-    if (prevActive.current && forja?.status && !forja.status.active && /publicad/.test(forja.status.text) && !forja.status.warn) toast('ok', 'Leitura publicada', forja.typeLabel)
-    prevActive.current = active
-  }, [active, forja, toast])
+  // "publicado" says so once ("Pedido enviado à forja" → "Leitura publicada"). Both effects live in use-forja-refresh.ts (the Histórico uses them too).
+  useForjaRefresh(!!forja?.status?.active)
+  useAvisoLeituraPublicada(forja)
 
   // The server already rendered the new niche: drop the optimistic one.
   useEffect(() => { setPendingNiche(null) }, [view.niche])

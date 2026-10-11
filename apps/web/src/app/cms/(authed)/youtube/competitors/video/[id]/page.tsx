@@ -1,9 +1,9 @@
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
-import { ObservatoryChromeServer } from '../../_chrome/chrome-server'
+import { TrailChrome } from '../../_chrome/trail-chrome'
 import type { ObsSearchParams } from '../../_chrome/resolve-niche'
 import { openObservatoryPage } from '../../_chrome/page-data'
 import { loadSwipeRows, savedFromRows } from '../../_mudancas/swipe-rows'
-import { buildHistoricoView } from '../../_historico/view-model'
+import { buildHistoricoView, historicoTrail } from '../../_historico/view-model'
 import { HistoricoScreen } from '../../_historico/historico-screen'
 import '../../_historico/historico.css'
 import { askForjaReading, cancelForjaReading } from '../../forja-actions'
@@ -20,19 +20,17 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
   const { siteId, obs, savedNiche } = await openObservatoryPage()
   const formParam = parseNiche(flat.niche) ?? undefined
   // parseNiche checks the form; the engine says whether the niche exists (an unknown one is ignored: the saved niche, else Todos)
-  const nicheParam = formParam != null && obs.scopeOf(formParam) === formParam ? formParam : undefined
-  const niche = nicheParam ?? obs.scopeOf(savedNiche)
+  const niche = formParam != null && obs.scopeOf(formParam) === formParam ? formParam : obs.scopeOf(savedNiche)
   // The pager rebuilds a "Só salvas" Mudanças list with the same swipe rows the Mudanças screen reads.
   const saved = flat.from !== 'outliers' && flat.from !== 'canais' && /(^|[?&])saved=1(&|$)/.test(flat.back ?? '')
     ? savedFromRows(obs, await loadSwipeRows(siteId)).saved : undefined
   // An unknown id renders the not-found state inside the chrome (never a 500).
-  const view = buildHistoricoView(obs, id, { ...flat, niche, nicheParam }, { savedChangeIds: saved })
-  // In Histórico the current tab is the origin (?from=, default Mudanças). A video of another niche shows its niche for
-  // this view only (nicheOverride, R47: never persisted).
+  const view = buildHistoricoView(obs, id, { ...flat, niche }, { savedChangeIds: saved })
+  // The frame is only the trail (spec A2.6, emenda 25): no section tabs, no niche bar, in every origin. The trail is the way back for whoever
+  // came from Mudanças, Outliers, Insights or a channel page. A video of another niche shows it only beside the channel, in the header.
   return (
-    <ObservatoryChromeServer tab={view.crumbs.from} searchParams={sp} obs={obs} coworkFor="historico"
-      nicheOverride={view.chromeNiche !== niche ? view.chromeNiche : undefined} forja={view.forja}>
+    <TrailChrome crumbs={historicoTrail(view.crumbs)}>
       <HistoricoScreen view={view} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} onPin={pinVideo} onUnpin={unpinVideo} />
-    </ObservatoryChromeServer>
+    </TrailChrome>
   )
 }
