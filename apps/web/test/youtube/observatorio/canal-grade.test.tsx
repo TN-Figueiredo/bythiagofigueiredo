@@ -229,6 +229,11 @@ describe('Capas: a grade e o cartão', () => {
     expect(mid).toEqual(ordem.slice(a, a + 100))
     expect(mid.indexOf(ordem[60]!)).toBe(60 - a)
     expect(all.length).toBeGreaterThan(100)
+    // pos e tot (D4): a posição do cartão na lista que a tela mostra (a partir de 1) e o tamanho dela, não o da janela de ids
+    expect([u0.searchParams.get('pos'), u0.searchParams.get('tot')]).toEqual(['1', String(ordem.length)])
+    expect([href(i).searchParams.get('pos'), href(i).searchParams.get('tot')]).toEqual([String(i + 1), String(ordem.length)])
+    expect(href(60).searchParams.get('pos')).toBe('61')
+    expect(ordem.length).toBeGreaterThan(100)
   })
 
   it('o back do cartão é vazio no estado padrão', () => {

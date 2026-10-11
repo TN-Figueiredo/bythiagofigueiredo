@@ -6,7 +6,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
+import { useRouter } from 'next/navigation'
 import { useToast } from '../_chrome/toasts'
+import { lembrarUltimoVideo } from '../_chrome/ultimo-video'
 import { currentFlut } from '../_chrome/flut/store'
 import type { HistoricoView, LaneType } from './view-model'
 import type { Hl } from './lanes'
@@ -23,6 +25,9 @@ import type { ForjaAsk, ForjaCancel } from '../_chrome/forja-view-model'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { PinProvider, PinButton, PinMessage, PinChips, PinIcon, type PinAction } from '../_chrome/pin-kit'
 
+/** The video a pager href leads to (`/…/video/<id>?…`). */
+const videoOf = (href: string) => { try { return decodeURIComponent(new URL(href, 'http://x').pathname.split('/').pop() ?? '') } catch { return '' } }
+
 const reduced = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpin }: { view: HistoricoView; onAskForja?: ForjaAsk; onCancelForja?: ForjaCancel; onPin?: PinAction; onUnpin?: PinAction }) {
@@ -36,7 +41,11 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   const [flt, setFlt] = useState<CompareFilter>(NO_FILTER)
   const [live, setLive] = useState('')
   const go = useGo()
+  const router = useRouter()
   const root = useRef<HTMLDivElement>(null)
+  /** Which pager button (or key) was used and the video it leads to: the focus effect puts the focus back on it once that video is on screen. */
+  const pagerUsed = useRef<{ which: 'prev' | 'next'; to: string } | null>(null)
+  const onPage = useCallback((which: 'prev' | 'next', href: string) => { pagerUsed.current = { which, to: videoOf(href) } }, [])
   // 30 days is the default (spec 6.4): it leaves the URL; `tudo` is written out
   const onRange = (id: string) => go({ range: id === '30' ? null : id })
   const onHl = useCallback((h: Hl | null) => setHover(h), [])
@@ -61,15 +70,24 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   const toasted = useRef<string | null>(null)
   // Next 16 keeps this component when only the query changes: whatever is born from the URL (the pair, the arrival) is re-read here
   useEffect(() => { setPairK(view.defaultPair) }, [view.defaultPair, view.arrival?.changeId, view.video?.id])
-  // Focus on arrival (spec 6.2): the change's marker (or its group's counter), else the pair on display; scroll only when it is
-  // out of the visible part of the scrolling container (the CMS shell scrolls in <main>, not in the window). Without an
-  // arrival the title takes the focus. The effect follows the video and the arrival, not the other parameters.
+  // Focus after a video change: ONE place decides it. On arrival (spec 6.2) the change's marker (or its group's counter), else the pair on
+  // display; scroll only when it is out of the visible part of the scrolling container (the CMS shell scrolls in <main>, not in the
+  // window). After the pager (Anterior/Próximo or `[` `]`, spec 6.5) the button that was used, and the status reads "Vídeo 8 de 51:
+  // <título>". Otherwise the title takes the focus. The effect follows the video and the arrival, not the other parameters.
   const arrivalKey = view.arrival ? view.arrival.changeId : ''
   useEffect(() => {
     const r = root.current
+    const used = pagerUsed.current
+    pagerUsed.current = null
     if (!r || view.state === 'not-found') return
     const a = view.arrival
-    if (!a) { r.querySelector<HTMLElement>('.vhead h2')?.focus({ preventScroll: true }); return }
+    if (!a) {
+      // the button that was used, if the video it promised is the one that arrived; when it is gone (end of the list) the other one
+      const btn = used && used.to === view.video?.id && view.pager
+        ? r.querySelector<HTMLElement>('[data-pager-' + used.which + ']') ?? r.querySelector<HTMLElement>('[data-pager-prev], [data-pager-next]') : null
+      if (btn && view.pager) { btn.focus({ preventScroll: true }); setLive(view.pager.status); return }
+      r.querySelector<HTMLElement>('.vhead h2')?.focus({ preventScroll: true }); return
+    }
     const target = r.querySelector<HTMLElement>('[data-arrival]')
       ?? r.querySelector<HTMLElement>('#hv-compare .pair[aria-pressed="true"], #hv-compare [role="option"][aria-selected="true"]')
     if (!target) return
@@ -80,6 +98,27 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     setLive(a.status)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the arrival is read through its key
   }, [view.video?.id, arrivalKey])
+  // `[` and `]` do what Anterior and Próximo do, only with the focus on the title or inside the pager (never in a field, never with a modifier)
+  useEffect(() => {
+    const pg = view.pager
+    if (!pg) return
+    const key = (e: KeyboardEvent) => {
+      if ((e.key !== '[' && e.key !== ']') || e.ctrlKey || e.metaKey || e.altKey) return
+      const which = e.key === '[' ? 'prev' : 'next', href = pg[which]
+      const r = root.current, at = document.activeElement as HTMLElement | null
+      if (!href || !r || !at || !r.contains(at)) return
+      if (at.matches('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return
+      if (at !== r.querySelector('.vhead h2') && !at.closest('[data-pager]')) return
+      e.preventDefault()
+      onPage(which, href)
+      router.replace(href)
+    }
+    document.addEventListener('keydown', key)
+    return () => document.removeEventListener('keydown', key)
+  }, [view.pager, router, onPage])
+  // the last video seen from a channel page: its page puts the focus on that card when the person comes back
+  const fromChannel = view.crumbs.canal, videoId = view.video?.id
+  useEffect(() => { if (fromChannel && videoId) lembrarUltimoVideo(fromChannel, videoId) }, [fromChannel, videoId])
   useEffect(() => {
     const t = view.video?.nicheToast
     if (t && toasted.current !== view.video!.id) { toasted.current = view.video!.id; toast('', t, '') }
@@ -134,7 +173,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     <PinProvider onPin={onPin} onUnpin={onUnpin}>
       <div data-obs-screen="historico" data-state={view.state} ref={root}>
         <div className="page">
-          <Crumbs crumbs={view.crumbs} pager={view.pager} />
+          <Crumbs crumbs={view.crumbs} pager={view.pager} onPage={onPage} />
           {/* DOM order = screen order: thumbnail, title, actions, facts and chips. Only the title (which never changes) is
               before the actions row, so the pin button keeps its rectangle whatever appears below. */}
           <section className="vhead" id="vhead" aria-label="Vídeo">

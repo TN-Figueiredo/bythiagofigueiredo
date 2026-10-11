@@ -6,7 +6,7 @@
  * já estão nela), e devolvida só quando a página volta por Voltar/Avançar: um `popstate` recente (navegação do Next) ou, na carga do
  * documento, o tipo `back_forward` (navegação inteira). Uma visita nova à mesma URL abre no alto.
  */
-import { useEffect, useLayoutEffect, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 
 const PREFIXO = 'canal-rolagem:'
 /** Quanto tempo depois de um `popstate` uma montagem ainda conta como "voltou". */
@@ -27,7 +27,7 @@ if (typeof window !== 'undefined') {
     cancelAnimationFrame(esperaVoltar)
     let n = 0
     const espera = () => {
-      if (document.querySelector('[data-obs-screen="canal"]') && [...document.querySelectorAll('[data-obs-screen="canal"]')].some(e => e.getClientRects().length > 0)) { restaurar(); return }
+      if (document.querySelector('[data-obs-screen="canal"]') && [...document.querySelectorAll('[data-obs-screen="canal"]')].some(e => e.getClientRects().length > 0)) { restaurar(); avisarVoltou(); return }
       if (++n < 180) esperaVoltar = requestAnimationFrame(espera)
     }
     esperaVoltar = requestAnimationFrame(espera)
@@ -38,6 +38,16 @@ function haQuantoPop(): number {
   let t = ultimoPop
   try { const g = Number(window.sessionStorage.getItem(CHAVE_POP)); if (Number.isFinite(g) && g > t) t = g } catch { /* conforto */ }
   return Date.now() - t
+}
+
+/** Quem quer saber que a página voltou (o foco no último vídeo visto): as telas do canal montadas, com a raiz para saber qual delas está à vista. */
+const ouvintes = new Set<{ raiz?: RefObject<HTMLElement | null>; fn: () => void }>()
+/** Avisa as telas à vista (a cópia escondida que o Next 16 mantém depois de um Voltar não ouve). */
+function avisarVoltou(): void {
+  for (const o of ouvintes) {
+    const el = o.raiz?.current
+    if (!el || el.getClientRects().length > 0) o.fn()
+  }
 }
 
 const chave = () => PREFIXO + window.location.pathname + window.location.search
@@ -95,7 +105,10 @@ function restaurar(raiz?: RefObject<HTMLElement | null>): void {
   } catch { /* a rolagem é conforto */ }
 }
 
-export function useRolagemAoVoltar(raiz?: RefObject<HTMLElement | null>): void {
+/** `aoVoltar` roda uma vez por Voltar, quando a tela do canal volta à vista (montagem nova ou rota que o Next devolve sem remontar). */
+export function useRolagemAoVoltar(raiz?: RefObject<HTMLElement | null>, aoVoltar?: () => void): void {
+  const fn = useRef(aoVoltar)
+  useLayoutEffect(() => { fn.current = aoVoltar })
   // montagem nova (volta por navegação inteira, ou a rota remontada)
   useLayoutEffect(() => {
     let voltou = haQuantoPop() < JANELA_POP_MS
@@ -104,8 +117,13 @@ export function useRolagemAoVoltar(raiz?: RefObject<HTMLElement | null>): void {
       const nav = typeof performance !== 'undefined' && typeof performance.getEntriesByType === 'function' ? performance.getEntriesByType('navigation')[0] : undefined
       if ((nav as PerformanceNavigationTiming | undefined)?.type === 'back_forward') voltou = true
     }
-    if (voltou) restaurar(raiz)
+    if (voltou) { restaurar(raiz); fn.current?.() }
   }, [])   // eslint-disable-line react-hooks/exhaustive-deps -- a ref é estável
+  useEffect(() => {
+    const o = { raiz, fn: () => fn.current?.() }
+    ouvintes.add(o)
+    return () => { ouvintes.delete(o) }
+  }, [raiz])
   useEffect(() => {
     // capture: antes de qualquer navegação por link; pagehide cobre fechar a aba e a navegação inteira por URL digitada
     const aoClicar = (e: MouseEvent) => { if ((e.target as Element | null)?.closest?.('a[href]')) guardar(raiz) }

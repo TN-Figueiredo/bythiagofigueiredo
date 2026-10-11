@@ -15,6 +15,7 @@ import type { setChannelNiche } from '../niche-actions'
 import { Icon } from '../_chrome/icons'
 import { PinProvider, type PinAction } from '../_chrome/pin-kit'
 import { useToast } from '../_chrome/toasts'
+import { esquecerUltimoVideo, lerUltimoVideo } from '../_chrome/ultimo-video'
 import { RemoveDialog } from '../_canais/remove-dialog'
 import { NicheOptionsContext, NichePendingContext, type NichePending } from '../_canais/niche-editor'
 import type { NicheOption } from '../_canais/view-model'
@@ -25,7 +26,7 @@ import { Grade } from './grade'
 import { Tabela } from './tabela'
 import { Trocas } from './trocas'
 import { montarLista, type ListaView } from './lista'
-import { canalQuery, LOTE, type CanalState } from './params'
+import { canalQuery, LOTE, parseCanalState, type CanalState } from './params'
 import { useCanalState } from './use-canal-state'
 import { useRolagemAoVoltar } from './use-rolagem-ao-voltar'
 import { PinMessages } from './video-menu'
@@ -221,7 +222,8 @@ function AbaVideos({ view, state, lista, set, nome, channelId, onSync, raiz }: {
   const verTrocas = (v: ChannelVideoView) => set({ tab: 'trocas', video: v.id })
   const hrefs = useMemo(() => {
     const back = canalQuery(state), pos = new Map(lista.visiveis.map((id, i) => [id, i]))
-    return (v: ChannelVideoView) => link.historico(v.id, { from: 'canais', canal: channelId, back, ids: vizinhanca(lista.visiveis, pos.get(v.id) ?? 0) })
+    // pos/tot (D4): o lugar do cartão na lista que a tela mostra e o tamanho dela; `ids=` é só a vizinhança de 100
+    return (v: ChannelVideoView) => link.historico(v.id, { from: 'canais', canal: channelId, back, ids: vizinhanca(lista.visiveis, pos.get(v.id) ?? 0), pos: (pos.get(v.id) ?? 0) + 1, tot: lista.visiveis.length })
   }, [lista, state, channelId])   // eslint-disable-line react-hooks/exhaustive-deps
 
   if (state.tab !== 'videos') return null
@@ -270,10 +272,43 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions }: { view
   const h = view.header
   const [state, set] = useCanalState(view.state)
   const raiz = useRef<HTMLDivElement>(null)
-  useRolagemAoVoltar(raiz)
+  const todos = view.videos.videos
+  /* O Voltar do Histórico (spec 3): o foco no cartão do ÚLTIMO vídeo visto (Anterior/Próximo substituem a entrada do histórico, então a URL que
+     volta é a de antes do primeiro), e `n` cresce até incluí-lo. A rolagem é a de antes (use-rolagem-ao-voltar). Sem registro, a página volta
+     como volta o navegador. O registro vale um Voltar só. Se `n` precisa crescer, o foco espera o render com ele (efeito logo abaixo). */
+  const focoNoUltimo = useRef<{ id: string; tab: CanalTab; n: number; ate: number } | null>(null)
+  const focarUltimo = (alvo: { id: string; tab: CanalTab }): void => {
+    const r = raiz.current
+    const el = alvo.tab === 'trocas'
+      ? [...(r?.querySelectorAll<HTMLElement>('li.ct-card') ?? [])].find(li => li.dataset.id === alvo.id)?.querySelector<HTMLElement>('a.ct-go')
+      : porId(raiz, 'cv-lnk-' + alvo.id)
+    el?.focus({ preventScroll: true })
+  }
+  const aoVoltar = () => {
+    const id = lerUltimoVideo(h.id)
+    if (!id) return
+    esquecerUltimoVideo(h.id)
+    const atual = parseCanalState(Object.fromEntries(new URLSearchParams(window.location.search)))
+    if (atual.tab === 'trocas') { focarUltimo({ id, tab: 'trocas' }); return }
+    if (atual.tab !== 'videos') return
+    let n = atual.n
+    while (n <= todos.length + LOTE && !montarLista(todos, { ...atual, n }).visiveis.includes(id)) n += LOTE
+    if (n > todos.length + LOTE) return   // o vídeo não está nesta lista (outro filtro, outra busca): nada a focar
+    if (n === atual.n) { focarUltimo({ id, tab: 'videos' }); return }
+    focoNoUltimo.current = { id, tab: 'videos', n, ate: Date.now() + 5000 }
+    set({ n })
+  }
+  useRolagemAoVoltar(raiz, aoVoltar)
+  useLayoutEffect(() => {
+    const alvo = focoNoUltimo.current
+    if (!alvo) return
+    if (Date.now() > alvo.ate) { focoNoUltimo.current = null; return }
+    if (state.tab !== alvo.tab || state.n < alvo.n) return
+    focoNoUltimo.current = null
+    focarUltimo(alvo)
+  })
   const nums = state.nums
   // a lista (filtro, ordem, busca, n) é montada aqui: a aba Vídeos a desenha e o resumo à direita das abas a lê
-  const todos = view.videos.videos
   const lista = useMemo(() => montarLista(todos, state), [todos, state.fmt, state.sort, state.dir, state.q, state.n])   // eslint-disable-line react-hooks/exhaustive-deps
   // spec 5.3 e 5.5: à direita das abas, na aba Vídeos, "133 vídeos: 61 longos, 71 Shorts, 1 com formato não confirmado." (com busca: "5 vídeos com “lisboa”"; sem nenhum, a caixa de vazio já diz a frase)
   const resumo = state.tab !== 'videos' || !todos.length ? null : state.q.trim() ? (lista.vazio ? null : lista.resultado) : state.fmt === 'todos' ? view.header.result : null

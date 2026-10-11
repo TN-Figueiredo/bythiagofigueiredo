@@ -83,7 +83,7 @@ export function buildCanalTrocas(obs: Observatory, channelId: string): CanalTroc
   const videoIds = [...porVideo.keys()]
 
   const hrefDe = (videoId: string, i: number, troca?: string) =>
-    link.historico(videoId, { from: 'canais', canal: channelId, back: BACK, ids: vizinhanca(videoIds, i), troca })
+    link.historico(videoId, { from: 'canais', canal: channelId, back: BACK, ids: vizinhanca(videoIds, i), pos: i + 1, tot: videoIds.length, troca })
 
   const cards: TrocaCard[] = videoIds.map((videoId, i) => {
     const v = obs.video(videoId)!

@@ -12,6 +12,7 @@ import type { Niche, ObsChannel, ObsVideo, SeriesPoint } from '@/lib/youtube/obs
 import type { TitleOp } from '@/lib/youtube/observatorio/text-diff'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
 import { RUN_CAVEAT, runCardText, runCore, runShort, runText, runsOf } from '@/lib/youtube/observatorio/test-run'
+import { origemDoCanal } from './origem-canal'
 import { imageSummary, isRangeId, rangeFor, rangeStart, RANGE_DEFAULT, situationOf, statusLine, kindShort, RANGE_IDS, RANGE_LABEL, RANGE_LONG, type Pass, type RangeId, type Situation } from './many-versions'
 import { mudancasList, effectView, type EffectView, type Rich } from '../_mudancas/view-model'
 import { buildOutliersView, ages2label } from '../_outliers/view-model'
@@ -193,8 +194,15 @@ export interface CompareView {
   situations: Array<{ id: Situation; label: string }>
 }
 
-export interface CrumbsView { from: FromTab; crumb: string; href: string; sub: { text: string; href: string } | null }
-export interface PagerView { prev: string | null; next: string | null; backHref: string; position: string; prevLabel: string; nextLabel: string }
+/** `canal` = o id do canal quando a pessoa veio da página dele (`canal=<id do canal do vídeo>`); a tela guarda daí o último vídeo visto. */
+export interface CrumbsView { from: FromTab; crumb: string; href: string; sub: { text: string; href: string } | null; canal: string | null }
+export interface PagerView {
+  prev: string | null; next: string | null; backHref: string; position: string; prevLabel: string; nextLabel: string
+  /** Anterior/Próximo substituem a entrada do histórico do navegador (spec 3), sempre. */
+  replace: true
+  /** O anúncio depois de trocar de vídeo: "Vídeo 8 de 51: <título>"; vazio quando o vídeo não está na lista de origem. */
+  status: string
+}
 
 export interface HeaderView {
   thumb: ThumbImg; dur: string | null
@@ -332,7 +340,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       video: null, chromeNiche: userNiche, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null,
       versions: null, pager: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null,
       range: null, imageSummary: null, compare: EMPTY_COMPARE, groupLegend: GROUP_LEGEND,
-      crumbs: { from, crumb: FROM_LABEL[from], href, sub: null },
+      crumbs: { from, crumb: FROM_LABEL[from], href, sub: null, canal: null },
       notFound: { title: 'Vídeo não encontrado: “' + id + '”.', text: 'Ele não está entre os vídeos observados: o link pode estar errado ou o vídeo saiu da lista do canal.', href, back: 'Voltar para ' + FROM_LABEL[from] },
     }
   }
@@ -576,10 +584,11 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   }))
 
   // ---------- context: breadcrumb + pager (rebuilds the origin list) ----------
-  const qids = (p.ids ?? '').split(',').map(x => x.trim()).filter(x => x && obs.video(x))
+  const rawIds = (p.ids ?? '').split(',').map(x => x.trim()).filter(Boolean)
+  const qids = rawIds.filter(x => obs.video(x))
   const bp = new URLSearchParams(back ? back.slice(1) : '')
   const ctx = context()
-  function context(): { crumb: string; href: string; ids: string[]; keepIds: string[] | null; of: string; outside: string; sub: { text: string; href: string } | null } {
+  function context(): { crumb: string; href: string; ids: string[]; keepIds: string[] | null; of: string; outside: string; sub: { text: string; href: string } | null; canal: boolean } {
     const n = ctxNiche, vv = v!
     // A competitor has a page of its own: the channel item of the trail goes there. Coming from that page (canal=<its id>) it
     // takes the page's state (`back`, e.g. ?tab=trocas) along; from anywhere else it is the bare page. An own channel has no page.
@@ -587,7 +596,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       : { text: ch.name, href: obs.link.canal(vv.ch) + (p.canal === vv.ch && back ? back : '') })
     if (from === 'outliers') {
       const href = backHref('outliers', obs.link.outliers({ niche: userNiche }))
-      if (qids.length) return { crumb: 'Outliers', href, ids: qids, keepIds: qids, of: 'em Outliers, na ordem da lista aberta', outside: 'fora da lista de Outliers aberta', sub: channelItem() }
+      if (qids.length) return { crumb: 'Outliers', href, ids: qids, keepIds: qids, of: 'em Outliers, na ordem da lista aberta', outside: 'fora da lista de Outliers aberta', sub: channelItem(), canal: false }
       // The list Outliers shows for these params (same parser, defaults, age aliases and reading scope as the screen).
       const params: Record<string, string | undefined> = Object.fromEntries(bp)
       if (!params.niche) params.niche = userNiche
@@ -598,9 +607,16 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       const desc = [q.niche !== 'todos' ? 'nicho ' + obs.nicheLabel(q.niche) : 'todos os nichos', q.fmt === 'short' ? 'Shorts' : 'longos', ageTxt, minTxt,
         q.channel ? obs.channel(q.channel)?.name ?? null : null, q.formula ? obs.formula(q.formula)?.label ?? null : null, q.topic ? (obs.theme(q.topic)?.label ?? q.topic) : null,
         q.reading ? 'escopo da leitura' : null, q.sort === 'vpd' ? 'por views/dia' : q.sort === 'recent' ? 'mais recentes primeiro' : 'por fase'].filter(Boolean).join(', ')
-      return { crumb: 'Outliers', href, ids: ov.pageIds, keepIds: null, of: 'em Outliers (' + desc + ')', outside: 'fora da lista de Outliers (' + desc + ')', sub: channelItem() }
+      return { crumb: 'Outliers', href, ids: ov.pageIds, keepIds: null, of: 'em Outliers (' + desc + ')', outside: 'fora da lista de Outliers (' + desc + ')', sub: channelItem(), canal: false }
     }
     if (from === 'canais') {
+      // From the channel page (`canal=` is this video's channel): the list is the one the page showed, passed in `ids=`. It is never
+      // rebuilt here: no ids = no list. "Canais" in the trail is the bare channels list; the channel item carries the page's state.
+      if (p.canal === vv.ch && !ch.own) {
+        const o = origemDoCanal(p.back ?? '', ch.name)
+        return { crumb: 'Canais', href: obs.link.canais({ niche: userNiche }), ids: qids, keepIds: qids.length ? qids : null, sub: channelItem(),
+          of: o ? o.of : 'na lista aberta de ' + ch.name, outside: o ? o.outside : 'fora da lista aberta de ' + ch.name, canal: true }
+      }
       const own = obs.videos.filter(x => x.ch === vv.ch && isObserved(x) && x.fmt === vv.fmt).sort((a, b) => b.pub - a.pub).map(x => x.id)
       const ids = qids.length ? qids : own
       let href: string, subHref: string
@@ -610,11 +626,11 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
         subHref = tabPath(obs, 'canais') + back!
       } else { href = backHref('canais', obs.link.canais({ niche: userNiche })); subHref = obs.link.canais({ channel: vv.ch }) }
       return { crumb: 'Canais', href, ids, keepIds: qids.length ? qids : null, sub: channelItem() ?? { text: ch.name, href: subHref },
-        of: 'de ' + ch.name + ' (' + (vv.fmt === 'short' ? 'Shorts' : 'longos') + ' acompanhados, do mais novo ao mais antigo)', outside: 'fora dos vídeos acompanhados de ' + ch.name }
+        of: 'de ' + ch.name + ' (' + (vv.fmt === 'short' ? 'Shorts' : 'longos') + ' acompanhados, do mais novo ao mais antigo)', outside: 'fora dos vídeos acompanhados de ' + ch.name, canal: false }
     }
-    if (from === 'insights') return { crumb: 'Insights', href: backHref('insights', obs.link.insights({ niche: userNiche })), ids: [], keepIds: null, of: '', outside: 'aberto a partir de Insights', sub: channelItem() }
+    if (from === 'insights') return { crumb: 'Insights', href: backHref('insights', obs.link.insights({ niche: userNiche })), ids: [], keepIds: null, of: '', outside: 'aberto a partir de Insights', sub: channelItem(), canal: false }
     const href = backHref('mudancas', obs.link.mudancas({ video: vv.id }))
-    if (qids.length) return { crumb: 'Mudanças', href, ids: qids, keepIds: qids, of: 'em Mudanças, na ordem da lista aberta', outside: 'fora da lista de Mudanças aberta', sub: channelItem() }
+    if (qids.length) return { crumb: 'Mudanças', href, ids: qids, keepIds: qids, of: 'em Mudanças, na ordem da lista aberta', outside: 'fora da lista de Mudanças aberta', sub: channelItem(), canal: false }
     // The list Mudanças shows for these params (same parseFilters, query, search, saved set and sort as the screen).
     const params: Record<string, string | undefined> = Object.fromEntries(bp)
     if (!parseNiche(params.niche)) params.niche = userNiche
@@ -625,17 +641,36 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       f.fmt !== 'all' && !f.video ? (f.fmt === 'short' ? 'Shorts' : 'longos') : null, f.video ? 'um vídeo' : null,
       f.changes ? F.plural(f.changes.length, 'troca marcada', 'trocas marcadas') : f.win + ' dias', f.measured ? 'só efeito medido' : null,
       f.saved ? 'só salvas' : null, f.q ? 'busca “' + f.q + '”' : null, SL[f.sort] ?? null, F.plural(ordered.length, 'troca', 'trocas')].filter(Boolean).join(', ')
-    return { crumb: 'Mudanças', href, ids, keepIds: null, of: 'com trocas em Mudanças (' + desc + ')', outside: 'fora da lista de Mudanças (' + desc + ')', sub: channelItem() }
+    return { crumb: 'Mudanças', href, ids, keepIds: null, of: 'com trocas em Mudanças (' + desc + ')', outside: 'fora da lista de Mudanças (' + desc + ')', sub: channelItem(), canal: false }
   }
   const k = ctx.ids.indexOf(v.id)
-  const navHref = (j: number) => (j < 0 || j >= ctx.ids.length ? null
-    : obs.link.historico(ctx.ids[j]!, { from, ...(ctx.keepIds ? { ids: ctx.keepIds } : {}), ...(back ? { back } : {}) }))
-  const pager: PagerView = {
-    prev: k < 0 ? null : navHref(k - 1), next: k < 0 ? null : navHref(k + 1), backHref: ctx.href,
-    position: k < 0 ? ctx.outside : 'vídeo ' + (k + 1) + ' de ' + ctx.ids.length + ' ' + ctx.of,
-    prevLabel: 'Vídeo anterior em ' + ctx.crumb, nextLabel: 'Próximo vídeo em ' + ctx.crumb,
+  // From the channel page the position is the video's place in the list the page showed (`pos` of `tot`), because `ids=` is only the
+  // 100 neighbours around it. It counts only when it fits what `ids=` says: whole positive numbers, pos <= tot, and the window of ids
+  // (this video at its own index) lies inside 1..tot. Otherwise the sentence counts `ids=` alone (never "vídeo 0 de 0", never "120 de 51").
+  const whole = (raw: string | undefined) => (raw != null && /^[1-9]\d*$/.test(raw) ? Number(raw) : null)
+  const place: { first: number; tot: number } | null = (() => {
+    if (!ctx.canal) return null
+    const pos = whole(p.pos), tot = whole(p.tot), at = rawIds.indexOf(v.id)
+    if (pos == null || tot == null || at < 0 || pos > tot) return null
+    const first = pos - at   // the position of the first id of the window
+    return first >= 1 && first - 1 + rawIds.length <= tot ? { first, tot } : null
+  })()
+  const posOf = (id: string): number | null => { const r = rawIds.indexOf(id); return place && r >= 0 ? place.first + r : null }
+  const navHref = (j: number) => {
+    const to = ctx.ids[j]
+    if (to == null) return null
+    const pos = posOf(to)
+    return obs.link.historico(to, { from, ...(ctx.keepIds ? { ids: ctx.keepIds } : {}), ...(back ? { back } : {}),
+      ...(ctx.canal ? { canal: v.ch, ...(place && pos != null ? { pos, tot: place.tot } : {}) } : {}) })
   }
-  const crumbs: CrumbsView = { from, crumb: ctx.crumb, href: ctx.href, sub: ctx.sub }
+  const nowN = k < 0 ? 0 : place ? posOf(v.id)! : k + 1, ofN = place ? place.tot : ctx.ids.length
+  const pager: PagerView | null = ctx.canal && !ctx.ids.length ? null : {
+    prev: k < 0 ? null : navHref(k - 1), next: k < 0 ? null : navHref(k + 1), backHref: ctx.href,
+    position: k < 0 ? ctx.outside : 'vídeo ' + nowN + ' de ' + ofN + ' ' + ctx.of,
+    prevLabel: 'Vídeo anterior em ' + ctx.crumb, nextLabel: 'Próximo vídeo em ' + ctx.crumb,
+    replace: true, status: k < 0 ? '' : 'Vídeo ' + nowN + ' de ' + ofN + ': ' + (v.title.trim() || 'sem título'),
+  }
+  const crumbs: CrumbsView = { from, crumb: ctx.crumb, href: ctx.href, sub: ctx.sub, canal: ctx.canal ? v.ch : null }
 
   // ---------- coverage texts ----------
   const syncPhrase = () => {
