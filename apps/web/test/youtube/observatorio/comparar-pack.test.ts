@@ -141,6 +141,17 @@ describe('top5', () => {
     const c = canal(buildCompararPack(world(semVideos(CH)).obs), CH)
     expect(c.top5).toEqual([]); expect(c.top5Nota).toBe('Este canal não tem vídeos.')
   })
+  it('canal em primeira sincronização: com vídeos, a nota avisa que pode haver mais; sem nenhum, não diz "não tem vídeos" (ainda sincroniza)', () => {
+    const AVISO = ' A sincronização do canal ainda não terminou: pode haver mais vídeos.'
+    const c = canal(BASE_PACK, 'vou-sem-volta')
+    expect(BASE.obs.channel('vou-sem-volta')!.sync.state).toBe('backfill')
+    expect(c.top5.length).toBeGreaterThan(0)
+    expect(c.top5Nota.endsWith(AVISO)).toBe(true)
+    expect(canal(BASE_PACK, CH).top5Nota.endsWith(AVISO)).toBe(false) // canal que não sincroniza: igual a antes
+    const vazio = canal(buildCompararPack(world(semVideos('vou-sem-volta')).obs), 'vou-sem-volta')
+    expect(vazio.top5).toEqual([])
+    expect(vazio.top5Nota).toBe('A primeira sincronização ainda não terminou: os vídeos aparecem quando ela terminar.')
+  })
   it('vídeo sem contagem de views não entra (nunca como 0)', () => {
     const w = world(ds => {
       const v = vidsOf(ds, CH).filter(x => x.views != null).sort((a, b) => b.views! - a.views!)

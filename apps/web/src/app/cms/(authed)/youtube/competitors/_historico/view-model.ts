@@ -24,7 +24,7 @@ import { buildForjaCard, type ForjaCardView } from './forja-card-model'
 
 export type HistState = 'full' | 'pre' | 'few' | 'none' | 'noreg' | 'untr' | 'old' | 'err' | 'bf' | 'not-found'
 export type LaneType = 'title' | 'thumb' | 'desc'
-export type FromTab = 'canais' | 'mudancas' | 'outliers' | 'insights'
+export type FromTab = 'canais' | 'mudancas' | 'outliers' | 'insights' | 'comparar'
 /** How the start of a version is known: at publication, to the minute, inside a 6 h / 1 d window, or not observed. */
 export type VersionPrecision = 'publicacao' | 'min' | '6h' | '1d' | 'aberto'
 
@@ -297,7 +297,7 @@ const H_MS = 36e5, DAY = 864e5
 const TYPE_NAME: Record<LaneType, string> = { title: 'Título', thumb: 'Thumbnail', desc: 'Descrição' }
 const FEM: Record<LaneType, boolean> = { title: false, thumb: true, desc: true }
 const PIN_GONE_NOTE = 'Fixado. O YouTube não devolveu este vídeo na última sincronização; ele pode ter sido apagado ou ficado privado.'
-const FROM_LABEL: Record<FromTab, string> = { mudancas: 'Mudanças', outliers: 'Outliers', canais: 'Canais', insights: 'Insights' }
+const FROM_LABEL: Record<FromTab, string> = { mudancas: 'Mudanças', outliers: 'Outliers', canais: 'Canais', insights: 'Insights', comparar: 'Comparar canais' }
 const cap = (t: string) => (t ? t[0]!.toUpperCase() + t.slice(1) : '')
 const TYPE_LOW: Record<LaneType, string> = { title: 'título', thumb: 'thumbnail', desc: 'descrição' }
 const LANE_UNIT: Record<LaneType, [string, string]> = { title: ['título', 'títulos'], thumb: ['período', 'períodos'], desc: ['descrição', 'descrições'] }
@@ -306,12 +306,12 @@ const EMPTY_COMPARE: CompareView = { mode: 'pairs', sum: null, scope: '', total:
 const endDot = (t: string) => { const s = String(t).trim(); return /[.!?…]$/.test(s) ? s : s + '.' }
 
 export function parseFrom(raw: string | undefined): FromTab {
-  return raw === 'canais' || raw === 'outliers' || raw === 'insights' || raw === 'mudancas' ? raw : 'mudancas'
+  return raw === 'canais' || raw === 'outliers' || raw === 'insights' || raw === 'mudancas' || raw === 'comparar' ? raw : 'mudancas'
 }
 
 /** Base path (no query) of an Observatório tab. */
 function tabPath(obs: Observatory, page: FromTab): string {
-  const l = page === 'canais' ? obs.link.canais() : page === 'mudancas' ? obs.link.mudancas() : page === 'outliers' ? obs.link.outliers() : obs.link.insights()
+  const l = page === 'canais' ? obs.link.canais() : page === 'mudancas' ? obs.link.mudancas() : page === 'outliers' ? obs.link.outliers() : page === 'comparar' ? obs.link.comparar() : obs.link.insights()
   return l.split('?')[0]!
 }
 
@@ -330,7 +330,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     // Vindo da página de um canal que existe (`canal=`): a trilha é Canais › <canal> › Histórico do vídeo e o caminho de volta é a página do canal, com o estado dela
     const cn = from === 'canais' && p.canal ? obs.channel(p.canal) : null
     const canalOrigem = cn && !cn.own ? cn : null
-    const href = backHref(from, from === 'mudancas' ? obs.link.mudancas({ niche: userNiche }) : from === 'outliers' ? obs.link.outliers({ niche: userNiche }) : from === 'canais' ? obs.link.canais({ niche: userNiche }) : obs.link.insights({ niche: userNiche }))
+    const href = backHref(from, from === 'mudancas' ? obs.link.mudancas({ niche: userNiche }) : from === 'outliers' ? obs.link.outliers({ niche: userNiche }) : from === 'canais' ? obs.link.canais({ niche: userNiche }) : from === 'comparar' ? obs.link.comparar() : obs.link.insights({ niche: userNiche }))
     return {
       video: null, header: null, chart: null, lanes: [], legends: {}, comparisons: [], defaultPair: null, arrival: null, compareEmpty: null,
       versions: null, pager: null, viewer: null, state: 'not-found', untracked: null, lanesAxis: null, pin: null, pinView: null, forja: null, forjaCard: null,
@@ -598,6 +598,8 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       return { crumb: 'Canais', href, ids, keepIds: qids.length ? qids : null, sub: channelItem() ?? { text: ch.name, href: subHref },
         of: 'de ' + ch.name + ' (' + (vv.fmt === 'short' ? 'Shorts' : 'longos') + ' acompanhados, do mais novo ao mais antigo)', outside: 'fora dos vídeos acompanhados de ' + ch.name, canal: false }
     }
+    // Da comparação entre dois canais: sem lista de origem (como Insights); a trilha volta à comparação com o MESMO par, que vem em `back=`.
+    if (from === 'comparar') return { crumb: 'Comparar canais', href: backHref('comparar', obs.link.comparar()), ids: [], keepIds: null, of: '', outside: 'aberto a partir de Comparar canais', sub: channelItem(), canal: false }
     if (from === 'insights') return { crumb: 'Insights', href: backHref('insights', obs.link.insights({ niche: userNiche })), ids: [], keepIds: null, of: '', outside: 'aberto a partir de Insights', sub: channelItem(), canal: false }
     const href = backHref('mudancas', obs.link.mudancas({ video: vv.id }))
     if (qids.length) return { crumb: 'Mudanças', href, ids: qids, keepIds: qids, of: 'em Mudanças, na ordem da lista aberta', outside: 'fora da lista de Mudanças aberta', sub: channelItem(), canal: false }

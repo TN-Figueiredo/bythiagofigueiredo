@@ -85,16 +85,16 @@ export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero
       id: c.id, href: link.historico(c.id, { from: 'canais' }), titulo: c.titulo.trim() ? c.titulo : 'sem título', thumb: thumbDe(c.ytId),
       viewsTexto: c.views === 1 ? '1 view' : `${F.num(c.views)} views`, idadeTexto: c.idade, short: c.short,
     }))
-    const top5Nota = semVideos ? 'Este canal não tem vídeos.'
-      : cand.length === 0 ? 'Nenhum vídeo tem contagem de views.'
-      : cand.length < 5 ? `Só ${cand.length === 1 ? '1 vídeo' : `${cand.length} vídeos`} com contagem de views.`
-      : `5 de ${guardados} vídeos guardados, por views.`
+    // em backfill o motor busca os mais recentes primeiro, mas o canal pode ter mais vídeos: o aviso vale para qualquer ramo
+    const aindaSincroniza = ch.sync.state === 'backfill' ? ' A sincronização do canal ainda não terminou: pode haver mais vídeos.' : ''
+    const top5Nota = semVideos ? (aindaSincroniza ? 'A primeira sincronização ainda não terminou: os vídeos aparecem quando ela terminar.' : 'Este canal não tem vídeos.')
+      : cand.length === 0 ? `Nenhum vídeo tem contagem de views.${aindaSincroniza}`
+      : cand.length < 5 ? `Só ${cand.length === 1 ? '1 vídeo' : `${cand.length} vídeos`} com contagem de views.${aindaSincroniza}`
+      : `5 de ${guardados} vídeos guardados, por views.${aindaSincroniza}`
 
     /* ---- a publicação em 90 dias: o mesmo corte do número "longos em 90 dias" (ageDays <= 90, D9) */
     const v90 = vids.filter(v => v.ageDays <= 90).sort((a, b) => a.pub - b.pub || a.id.localeCompare(b.id))
     const pub90: Pub90Item[] = v90.map(v => ({ t: Math.min(now, Math.max(v.pub, inicio90)), fmt: v.isShort === null ? null : v.fmt, dataTexto: D.dmhm(v.pub) }))
-    // em backfill o motor busca os mais recentes primeiro, mas o canal pode ter mais vídeos: o aviso vale para qualquer ramo com vídeos
-    const aindaSincroniza = ch.sync.state === 'backfill' ? ' A sincronização do canal ainda não terminou: pode haver mais vídeos.' : ''
     let pub90Nota: string
     if (semVideos) pub90Nota = 'ainda sem vídeos sincronizados'
     else if (vids.length === 0) pub90Nota = 'Os vídeos deste canal ainda não têm data de publicação.'

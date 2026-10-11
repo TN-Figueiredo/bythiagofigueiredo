@@ -11,6 +11,9 @@ import type { CompararPack } from './pack'
 import { buildPar } from './par-model'
 import { Lados } from './lados'
 import { NumeroANumero } from './numero-a-numero'
+import { MaisVistos } from './mais-vistos'
+import { Publicacao } from './publicacao'
+import { ForjaIndisponivel } from './forja-indisponivel'
 import { usePar } from './use-par'
 import './comparar.css'
 
@@ -56,6 +59,9 @@ function ComPar({ pack, inicial }: { pack: CompararPack; inicial: { a: string; b
       <p className="obs-ch-sr" role="status" aria-atomic="true">{anuncio}</p>
       <Lados pack={pack} a={par.a} b={par.b} cores={par.cores} onTrocar={trocar} />
       <NumeroANumero pack={pack} par={par} />
+      <MaisVistos par={par} />
+      <Publicacao par={par} pack={pack} />
+      <ForjaIndisponivel par={par} />
     </div>
   )
 }

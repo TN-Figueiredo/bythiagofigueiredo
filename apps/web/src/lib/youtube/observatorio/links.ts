@@ -187,7 +187,7 @@ export const link = {
   historico(
     videoId: string,
     p?: {
-      from?: 'canais' | 'mudancas' | 'outliers' | 'insights'
+      from?: 'canais' | 'mudancas' | 'outliers' | 'insights' | 'comparar'
       back?: string
       ids?: string[]
       canal?: string

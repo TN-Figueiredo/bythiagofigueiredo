@@ -193,3 +193,103 @@ test('a 390 px a tabela vira pilha e a página não rola na horizontal', async (
   await tela(page).getByRole('button', { name: /Inverter lados/ }).click()
   expect(await rolaNaHorizontal(page)).toEqual([])
 })
+
+/* ------------------------------------------------------------------------------------------------------------------------------
+   Tarefa 9: os cinco mais vistos, a publicação em 90 dias e o cartão da forja "ainda não disponível" (fumaça; a prova completa é da tarefa 11). */
+const secao = (page: Page, nome: string) => tela(page).getByRole('heading', { level: 2, name: nome }).locator('xpath=ancestor::section[1]')
+
+test('os três blocos novos aparecem com o par da semente, na ordem certa, e o cartão da forja fica no fim', async ({ page }) => {
+  await abrir(page, par(OWN(), LEO()))
+  const mv = secao(page, 'Os 5 vídeos mais vistos de cada canal'), pub = secao(page, 'Publicação nos últimos 90 dias')
+  await expect(mv).toBeVisible(); await expect(pub).toBeVisible()
+  const cartao = tela(page).getByRole('region', { name: 'Leitura da forja' })
+  await expect(cartao).toBeVisible()
+  expect(await mv.locator('.cp-vc').count()).toBe(2)
+  expect(await mv.locator('.cp-t5 a').count()).toBeGreaterThan(0)
+  expect(await pub.locator('.cp-strip').count() + await pub.locator('.cp-pv').count(), 'uma faixa ou uma frase por canal').toBe(2)
+  expect(await pub.locator('.cp-axis span').allTextContents()).toHaveLength(4)
+  // a ordem na página: Número a número, mais vistos, publicação, forja (o cartão é o último filho da tela)
+  const ys = await tela(page).evaluate(e => ['Número a número', 'Os 5 vídeos mais vistos de cada canal', 'Publicação nos últimos 90 dias'].map(t => [...e.querySelectorAll('h2')].find(h => h.textContent!.startsWith(t))!.getBoundingClientRect().top))
+  expect(ys[0]! < ys[1]! && ys[1]! < ys[2]!).toBe(true)
+  expect(await tela(page).evaluate(e => (e.lastElementChild as HTMLElement).getAttribute('aria-labelledby') != null && e.lastElementChild!.tagName === 'SECTION')).toBe(true)
+  const traços = await pub.locator('.cp-strip').first().evaluate(e => ({ n: e.querySelectorAll('i.t').length, aria: e.getAttribute('aria-label'), role: e.getAttribute('role') }))
+  expect(traços.role).toBe('img'); expect(traços.aria!.length).toBeGreaterThan(20)
+  medida(`mais vistos: ${await mv.locator('.cp-t5 a').count()} links; publicação: ${await pub.locator('.cp-strip i.t').count()} traços`)
+  expect(await rolaNaHorizontal(page), 'rolagem horizontal a 1440 px').toEqual([])
+  await mv.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: path.resolve(__dirname, '../../../../test-results/comparar-blocos-1440.png') })
+})
+
+test('um vídeo dos mais vistos abre o Histórico do vídeo e o Voltar devolve a comparação com o MESMO par', async ({ page }) => {
+  const outro = ids.channel('nate-herk')
+  await abrir(page, par(OWN(), outro))
+  const mv = secao(page, 'Os 5 vídeos mais vistos de cada canal')
+  // os links dos dois lados vão ao Histórico, com a origem "comparar" e o back da comparação
+  const hrefs = await mv.locator('.cp-t5 a').evaluateAll(es => es.map(e => e.getAttribute('href')!))
+  expect(hrefs.length).toBeGreaterThan(1)
+  for (const h of hrefs) {
+    const u = new URL(h, 'http://x')
+    expect(u.pathname).toMatch(/\/competitors\/video\//)
+    expect(u.searchParams.get('from')).toBe('comparar')
+    expect(u.searchParams.get('back')).toBe(`?a=${OWN()}&b=${outro}`)
+  }
+  const doB = mv.locator('.cp-vc').nth(1).locator('.cp-t5 a').first()
+  await doB.click()
+  await page.waitForURL(/\/competitors\/video\//, { timeout: 60_000 })
+  await page.getByRole('heading', { level: 1 }).first().waitFor({ timeout: 60_000 })
+  // a trilha do Histórico diz de onde veio e o item "Comparar canais" volta ao mesmo par
+  const crumb = page.getByRole('navigation').getByRole('link', { name: 'Comparar canais' }).first()
+  await expect(crumb).toBeVisible()
+  const hc = new URL((await crumb.getAttribute('href'))!, 'http://x')
+  expect(hc.pathname).toBe(ROTA); expect(hc.searchParams.get('a')).toBe(OWN()); expect(hc.searchParams.get('b')).toBe(outro)
+  // o Voltar do navegador
+  await page.goBack()
+  await tela(page).locator('table').waitFor({ timeout: 60_000 })
+  expect(new URL(page.url()).pathname).toBe(ROTA)
+  expect(param(page, 'a')).toBe(OWN()); expect(param(page, 'b')).toBe(outro)
+  expect(await nomesDosLados(page)).toHaveLength(2)
+  // e pela trilha
+  await mv.locator('.cp-vc').nth(1).locator('.cp-t5 a').first().click()
+  await page.waitForURL(/\/competitors\/video\//, { timeout: 60_000 })
+  await page.getByRole('navigation').getByRole('link', { name: 'Comparar canais' }).first().click()
+  await tela(page).locator('table').waitFor({ timeout: 60_000 })
+  expect(param(page, 'a')).toBe(OWN()); expect(param(page, 'b')).toBe(outro)
+})
+
+test('o botão apagado da forja é focável, não faz requisição nenhuma e a tela continua a mesma', async ({ page }) => {
+  await abrir(page, par(OWN(), LEO()))
+  const botao = tela(page).getByRole('button', { name: /Pedir leitura desta comparação à forja/ })
+  await botao.scrollIntoViewIfNeeded()
+  await expect(botao).toHaveAttribute('aria-disabled', 'true')
+  const porque = await botao.getAttribute('aria-describedby')
+  await expect(page.locator(`#${porque}`)).toContainText('Ainda não dá')
+  const pedidos: string[] = []
+  page.on('request', r => { if (!/^data:/.test(r.url())) pedidos.push(`${r.method()} ${r.resourceType()} ${r.url().slice(0, 100)}`) })
+  await botao.focus()
+  await expect(botao).toBeFocused()
+  await botao.click(); await page.keyboard.press('Enter'); await page.keyboard.press('Space')
+  await page.waitForTimeout(600)
+  expect(pedidos, 'requisições depois dos cliques').toEqual([])
+  expect(await tela(page).getByRole('region', { name: 'Leitura da forja' }).locator('ol, [aria-current="step"]').count()).toBe(0)
+  expect(param(page, 'a')).toBe(OWN())
+  // concorrente × concorrente: o mesmo cartão, sem "para o seu canal"
+  await selA(page).selectOption(ids.channel('nate-herk'))
+  await expect(tela(page).getByRole('region', { name: 'Leitura da forja' })).not.toContainText('para o seu canal')
+  await expect(botao).toHaveAttribute('aria-disabled', 'true')
+})
+
+for (const [nome, vp] of [['1440', VP.w1440], ['390', VP.w390]] as const) {
+  test(`os blocos novos não criam rolagem horizontal a ${nome} px`, async ({ page }) => {
+    await abrir(page, par(OWN(), LEO()), vp)
+    await secao(page, 'Publicação nos últimos 90 dias').scrollIntoViewIfNeeded()
+    expect(await rolaNaHorizontal(page), `rolagem horizontal a ${nome} px`).toEqual([])
+    await tela(page).getByRole('region', { name: 'Leitura da forja' }).scrollIntoViewIfNeeded()
+    expect(await rolaNaHorizontal(page)).toEqual([])
+    if (nome === '390') {
+      // as colunas dos mais vistos empilham
+      const ys = await secao(page, 'Os 5 vídeos mais vistos de cada canal').locator('.cp-vc').evaluateAll(es => es.map(e => Math.round(e.getBoundingClientRect().top)))
+      expect(ys[1]!).toBeGreaterThan(ys[0]!)
+    }
+    await page.screenshot({ path: path.resolve(__dirname, `../../../../test-results/comparar-blocos-${nome}.png`) })
+  })
+}

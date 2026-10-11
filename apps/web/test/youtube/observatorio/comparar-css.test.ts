@@ -39,4 +39,22 @@ describe('comparar.css', () => {
     expect(SEM_COMENTARIO).toMatch(/border-bottom:\s*3px solid var\(--c\)/)
     expect(SEM_COMENTARIO).toMatch(/color:\s*var\(--on-lado\)/)
   })
+
+  it('T9: o botão apagado da forja é tracejado, em --muted, e o hover não muda nada (spec 17.4); alvo de 44 px no toque', () => {
+    const regra = SEM_COMENTARIO.match(/\.cp-fj-btn,\[data-obs-screen="comparar"\] \.cp-fj-btn:hover\{([^}]*)\}/)
+    expect(regra, 'regra do botão e do :hover juntas').not.toBeNull()
+    expect(regra![1]).toMatch(/border:1px dashed/); expect(regra![1]).toMatch(/color:var\(--muted\)/); expect(regra![1]).toMatch(/cursor:default/)
+    expect(SEM_COMENTARIO).toMatch(/@media \(pointer:coarse\)\{[^@]*\.cp-fj-btn\{min-height:44px/)
+  })
+  it('T9: as colunas dos mais vistos e as faixas de publicação empilham abaixo de 820 px', () => {
+    const bloco = SEM_COMENTARIO.match(/@media \(max-width:820px\)\{\s*\[data-obs-screen="comparar"\] \.cp-vids\{([^}]*)\}[\s\S]*?\n\}/)
+    expect(bloco, 'media de 820 px dos blocos novos').not.toBeNull()
+    expect(bloco![1]).toContain('grid-template-columns:minmax(0,1fr)')
+    expect(bloco![0]).toMatch(/\.cp-pr\{grid-template-columns:minmax\(0,1fr\)/)
+  })
+  it('T9: o traço de formato não confirmado tem outra forma (tracejado), não só outra cor', () => {
+    expect(SEM_COMENTARIO).toMatch(/\.cp-strip \.t\.nc\{[^}]*border:1px dashed var\(--c\)/)
+    const alturas = [...SEM_COMENTARIO.matchAll(/\.cp-strip \.t\.(lg|sh|nc)\{height:(\d+)px/g)].map(m => `${m[1]}:${m[2]}`)
+    expect(new Set(alturas.map(a => a.split(':')[1])).size).toBe(3)
+  })
 })
