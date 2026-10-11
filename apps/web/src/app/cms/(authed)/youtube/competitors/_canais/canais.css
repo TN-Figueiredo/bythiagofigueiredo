@@ -212,7 +212,7 @@
 [data-obs-screen="canais"] .legend i.e{width:3px;height:2px;background:var(--strip-empty)}
 
 /* cards alt view */
-[data-obs-screen="canais"] .cards{display:none;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+[data-obs-screen="canais"] .cards{display:none;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
 [data-obs-screen="canais"] .view-cards .cards{display:grid}
 [data-obs-screen="canais"] .view-cards .tablebox{display:none}
 @media (min-width:1280px){[data-obs-screen="canais"].drawer-open table{min-width:0}[data-obs-screen="canais"].drawer-open .out .thumb,[data-obs-screen="canais"].drawer-open .cad small{display:none}[data-obs-screen="canais"].drawer-open .out{min-width:120px}[data-obs-screen="canais"].drawer-open .ch{min-width:140px}[data-obs-screen="canais"].drawer-open .ch .sub{flex-wrap:wrap;row-gap:4px}[data-obs-screen="canais"].drawer-open .cad{min-width:104px}[data-obs-screen="canais"].drawer-open .cad > svg{width:104px;height:auto}[data-obs-screen="canais"].drawer-open .cad .v,[data-obs-screen="canais"].drawer-open .cad .paused{white-space:normal}[data-obs-screen="canais"].drawer-open .paused{max-width:118px}[data-obs-screen="canais"].drawer-open thead th,[data-obs-screen="canais"].drawer-open thead th *{white-space:normal}[data-obs-screen="canais"].drawer-open .swap{min-width:100px}[data-obs-screen="canais"].drawer-open th,[data-obs-screen="canais"].drawer-open td{padding-left:10px;padding-right:10px}}
@@ -436,4 +436,7 @@
    da rolagem ocupa o lugar dela e não cobre a última linha da tabela */
 [data-obs-screen="canais"] .cn-pin{position:sticky;bottom:10px;margin-top:10px;min-height:30px;display:flex;align-items:center;gap:4px 14px;flex-wrap:wrap;padding:3px 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-2);box-shadow:var(--shadow);font-size:12.5px;z-index:var(--z-grudado)}
 [data-obs-screen="canais"] .cn-pin[hidden]{display:none}
+/* o Tab não deixa o foco sob a linha presa: o navegador só rola para revelar o que está fora da área, e um controle na faixa que a linha presa cobre
+   (30 px a 66 px do pé, por causa do respiro de 56 px da casca) já "está à vista". A margem faz o Tab levá-lo para cima da faixa. */
+[data-obs-screen="canais"] :is(.tablebox, .cards) :is(a, button, select, input, [tabindex]){scroll-margin-bottom:112px}
 [data-obs-screen="canais"] .cn-pin p{margin:0;flex:1 1 280px;min-width:0;color:var(--muted)}

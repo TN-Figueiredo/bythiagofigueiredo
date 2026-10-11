@@ -14,6 +14,8 @@ import { CanaisScreen } from '@/app/cms/(authed)/youtube/competitors/_canais/can
 import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
 import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrome/sync-context'
 import type { Observatory } from '@/lib/youtube/observatorio'
+import fs from 'node:fs'
+import path from 'node:path'
 
 const replace = vi.fn(), refresh = vi.fn(), push = vi.fn(), prefetch = vi.fn()
 let search = 'fmt=longos'
@@ -158,5 +160,27 @@ describe('I3: a linha presa observa a linha do canal depois que ela passa entre 
     act(() => { rerender(tree(vB)) })
     const depois = container.querySelector<HTMLElement>(`tbody tr.row[data-id="${id}"]`)!
     expect(FakeIO.vivos.some(io => io.alvos.has(depois))).toBe(true)
+  })
+})
+
+describe('I4 (achado no navegador): o foco por Tab não fica sob a linha presa no pé', () => {
+  // o navegador só rola para revelar o que está fora da área; um controle na faixa que a linha presa cobre já "está à vista". A margem de rolagem
+  // dos controles da lista faz o Tab levá-lo para cima da linha presa. O jsdom não rola: a prova real é o Tab do canais-a3.spec.ts; aqui a regra existe.
+  const css = fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_canais/canais.css'), 'utf8')
+  it('os controles da tabela e dos cartões têm scroll-margin-bottom que cobre a linha presa (pé de 66 px + 34 px)', () => {
+    const regra = css.split('\n').find(l => l.includes('scroll-margin-bottom') && l.includes('.tablebox') && l.includes('.cards'))
+    expect(regra, 'regra de scroll-margin-bottom para .tablebox e .cards').toBeDefined()
+    const px = Number(/scroll-margin-bottom:\s*(\d+)px/.exec(regra!)?.[1])
+    expect(px).toBeGreaterThanOrEqual(100)
+  })
+})
+
+describe('I5 (achado no navegador): os cartões cabem em 320 px', () => {
+  const css = fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_canais/canais.css'), 'utf8')
+  it('a grade dos cartões nunca pede coluna maior que o espaço (minmax(min(320px,100%),1fr)): em 320 px de janela o espaço é de 292 px', () => {
+    const regra = css.split('\n').find(l => l.includes('.cards{') && l.includes('grid-template-columns'))
+    expect(regra).toBeDefined()
+    expect(regra).toContain('minmax(min(320px,100%),1fr)')
+    expect(regra).not.toMatch(/minmax\(320px/)
   })
 })
