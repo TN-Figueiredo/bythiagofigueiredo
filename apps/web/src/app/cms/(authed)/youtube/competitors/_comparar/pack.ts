@@ -20,6 +20,8 @@ export interface CanalPack {
   id: string; name: string; own: boolean; niche: string | null; nicheLabel: string | null
   avatar: string | null; ini: string; color: string; subsTexto: string | null
   semVideos: boolean
+  /** Tem ao menos um vídeo com data de publicação: sem isso a faixa de 90 dias não tem o que marcar (spec 18.7). */
+  comDatas: boolean
   /** "Abrir o canal …": página do concorrente; painel do canal próprio com vídeos; null sem página (canal próprio sem vídeos). */
   href: string | null
   numeros: Record<NumeroId, Numero>
@@ -33,6 +35,8 @@ export interface CanalPack {
 
 export interface CompararPack {
   now: number; inicio90: number
+  /** Semanas da janela do ritmo (`RULES.habit.weeks`): a frase "não publicou em N semanas" usa o mesmo número da conta. */
+  semanasRitmo: number
   /** Os quatro rótulos do eixo de 90 dias: início, +30, +60 e hoje. */
   eixo: [string, string, string, string]
   canais: CanalPack[]
@@ -95,7 +99,7 @@ export function buildCompararPack(obs: Observatory, avisar: (a: AvisoNumero) => 
     return {
       id: ch.id, name: ch.name, own: ch.own, niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null,
       avatar: ch.avatar ?? null, ini: ch.ini, color: ch.color, subsTexto: ch.subs == null ? null : F.subs(ch.subs),
-      semVideos,
+      semVideos, comDatas: vids.length > 0,
       // concorrente sempre tem página (sem vídeos ela diz "ainda não tem vídeos sincronizados"); o canal próprio só com vídeos
       href: ch.own ? (semVideos ? null : ownChannelHref(ch.id)) : link.canal(ch.id),
       numeros: numerosDoCanal(obs, ch.id, avisar), top5, top5Nota, pub90, pub90Nota,
@@ -105,7 +109,7 @@ export function buildCompararPack(obs: Observatory, avisar: (a: AvisoNumero) => 
   const comps = obs.channels.filter(c => !c.own)
     .sort((a, b) => (a.subs == null ? 1 : 0) - (b.subs == null ? 1 : 0) || (b.subs ?? 0) - (a.subs ?? 0) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
   return {
-    now, inicio90,
+    now, inicio90, semanasRitmo: obs.RULES.habit.weeks,
     eixo: [D.dm(inicio90), D.dm(inicio90 + 30 * DAY), D.dm(inicio90 + 60 * DAY), `hoje, ${D.dm(now)}`],
     canais, ordem: [...owns.map(c => c.id), ...comps.map(c => c.id)],
   }

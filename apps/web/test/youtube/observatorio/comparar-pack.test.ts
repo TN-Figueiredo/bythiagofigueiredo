@@ -68,6 +68,14 @@ describe('ordem e identidade', () => {
     for (const c of BASE_PACK.canais) expect(c.numeros, c.id).toEqual(numerosDoCanal(BASE.obs, c.id))
     expect(Object.keys(canal(BASE_PACK, CH).numeros)).toEqual([...NUMEROS])
   })
+  it('comDatas: tem ao menos um vídeo com data; sem vídeos ou só com vídeos sem data, não. semanasRitmo é a janela da regra', () => {
+    expect(canal(BASE_PACK, CH).comDatas).toBe(true)
+    expect(BASE_PACK.semanasRitmo).toBe(BASE.obs.RULES.habit.weeks)
+    const w = world(ds => { semVideos(OWN2)(ds); ds.videos = ds.videos.filter(v => v.ch !== OWN); ds.channels.find(c => c.id === OWN)!.undated = undated(2) })
+    const p = buildCompararPack(w.obs)
+    expect(canal(p, OWN2).comDatas).toBe(false); expect(canal(p, OWN2).semVideos).toBe(true)
+    expect(canal(p, OWN).comDatas).toBe(false); expect(canal(p, OWN).semVideos).toBe(false) // só vídeos sem data
+  })
   it('o eixo de 90 dias: início, +30, +60 e hoje', () => {
     const D = BASE.obs.date
     expect(BASE_PACK.now).toBe(BASE.obs.NOW)
