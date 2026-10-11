@@ -81,17 +81,20 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   // 2. Else, on an arrival (spec 6.2): the change's marker (or its group's counter); scroll only when it is out of the visible part of
   //    the scrolling container (the CMS shell scrolls in <main>, not in the window). Its status is read only when the marker took the focus.
   // 3. Else the title takes the focus.
-  // Never on a re-render with the same video and the same arrival (another period, `router.refresh()`), and never when the arrival merely
-  // goes away on the same video (a period chosen by hand that no longer holds the change): the focus stays where the person put it.
+  // Never on a re-render with the same video and the same arrival (another period, `router.refresh()`), never when the arrival merely
+  // goes away on the same video (a period chosen by hand that no longer holds the change), and never when it COMES BACK (another period
+  // that holds the same change again): the arrival is read once per video opened. The focus stays where the person put it.
   const arrivalKey = view.arrival ? view.arrival.changeId : ''
-  const seen = useRef<{ video: string | undefined; arrival: string } | null>(null)
+  const seen = useRef<{ video: string | undefined; arrival: string; last: string } | null>(null)
   useEffect(() => {
     const r = root.current
     const used = tomarPagerUsado()
     const before = seen.current
-    seen.current = { video: view.video?.id, arrival: arrivalKey }
+    const sameVideo = !!before && before.video === view.video?.id
+    // the last arrival this video had on screen: coming back to it (a period that holds it again) is not an arrival
+    seen.current = { video: view.video?.id, arrival: arrivalKey, last: arrivalKey || (sameVideo ? before.last : '') }
     if (!r || view.state === 'not-found') return
-    if (before && before.video === view.video?.id && arrivalKey === '' && !used) return
+    if (sameVideo && !used && (arrivalKey === '' || arrivalKey === before.last)) return
     // the button that was used, if the video it promised is the one that arrived; when it is gone (end of the list) the other one
     const btn = used && used.to === view.video?.id && view.pager
       ? r.querySelector<HTMLElement>('[data-pager-' + used.which + ']') ?? r.querySelector<HTMLElement>('[data-pager-prev], [data-pager-next]') : null

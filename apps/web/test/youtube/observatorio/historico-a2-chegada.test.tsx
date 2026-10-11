@@ -154,6 +154,38 @@ describe('um só dono do foco', () => {
     expect(document.activeElement).toBe(root.querySelector('button[data-range="30"]'))
     expect(root.querySelector('[data-arrival]')).toBeNull()
   })
+  it('Q1: a chegada que some (7 d, 30 d) e VOLTA ao trocar de período não rouba o foco do botão nem rola a tela', () => {
+    const rolou = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, writable: true, value: rolou })
+    try {
+      const r = render(<Scr v={view({ troca: old52.id })} />)
+      const root = r.container.querySelector<HTMLElement>('[data-obs-screen="historico"]')!
+      expect(document.activeElement).toBe(root.querySelector('[data-arrival]'))
+      const chamadas = rolou.mock.calls.length
+      const live = root.querySelector('#hv-live')!.textContent
+      // 30 d: a troca de 52 dias sai do período, a chegada some
+      root.querySelector<HTMLElement>('button[data-range="30"]')!.focus()
+      r.rerender(<Scr v={view({ troca: old52.id, range: '30' })} />)
+      expect(root.querySelector('[data-arrival]')).toBeNull()
+      // 90 d: o período volta a conter a troca, a mesma chegada reaparece
+      root.querySelector<HTMLElement>('button[data-range="90"]')!.focus()
+      r.rerender(<Scr v={view({ troca: old52.id, range: '90' })} />)
+      expect(root.querySelector('[data-arrival]')).not.toBeNull()
+      expect(document.activeElement).toBe(root.querySelector('button[data-range="90"]'))
+      expect(rolou.mock.calls.length).toBe(chamadas)
+      expect(root.querySelector('#hv-live')!.textContent).toBe(live)
+    } finally { delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView }
+  })
+  it('Q1: outra troca no mesmo vídeo, depois de a chegada sumir, ainda recebe o foco', () => {
+    const r = render(<Scr v={view({ troca: thumb.id }, FULL)} />)
+    const root = r.container.querySelector<HTMLElement>('[data-obs-screen="historico"]')!
+    r.rerender(<Scr v={view({}, FULL)} />)
+    expect(root.querySelector('[data-arrival]')).toBeNull()
+    const second = view({ troca: title.id }, FULL)
+    expect(second.arrival).not.toBeNull()
+    r.rerender(<Scr v={second} />)
+    expect(document.activeElement).toBe(root.querySelector('[data-arrival]'))
+  })
   it('sem chegada, um rerender com o mesmo vídeo (período, refresh) não leva o foco ao título', () => {
     const r = render(<Scr v={view({ range: '7' })} />)
     const root = r.container.querySelector<HTMLElement>('[data-obs-screen="historico"]')!
