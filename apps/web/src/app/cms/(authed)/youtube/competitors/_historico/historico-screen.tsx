@@ -251,7 +251,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
                 </div>
                 <div className="fx-under">{pv ? <PinMessage k={pv.videoId} /> : null}</div>
               </div>
-              {forjaCard ? <div className="frow"><HeaderAskButton ask={headerAsk(forjaCard, view.forja!)} pedido={pedido} cardRef={cardRef} say={setLive} bloqueado={forjaCard.bloqueado} /></div> : null}
+              {forjaCard ? <div className="frow"><HeaderAskButton ask={headerAsk(forjaCard)} pedido={pedido} cardRef={cardRef} say={setLive} bloqueado={forjaCard.bloqueado} /></div> : null}
             </div>
             <div className="vm">
               <div className="facts">

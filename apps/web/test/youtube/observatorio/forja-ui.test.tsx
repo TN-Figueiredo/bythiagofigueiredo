@@ -159,8 +159,8 @@ describe('Histórico blockedBy', () => {
     const b = document.getElementById('askForja')!
     expect(b).toHaveAttribute('aria-disabled', 'true')
     const why = document.getElementById('askStatus')!
-    // the engine's blockedBy.reason, without the "Nada enviado:" lead (historico-video.html bbMsg)
-    expect(why.textContent).toMatch(/^Já há uma leitura de vídeo de IA na fila · pedido \d\d:\d\d, do vídeo “.+”\.$/)
+    // the card writes its own sentence (no engine state label on screen, spec 7.2): the other video is "aguardando"
+    expect(why.textContent).toMatch(/^Já há uma leitura de vídeo de IA em andamento \(aguardando\), do vídeo “.+”\.$/)
     expect(within(why).getByRole('link', { name: other.title })).toHaveAttribute('href', obs.link.historico(other.id))
   })
 })

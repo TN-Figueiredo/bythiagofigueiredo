@@ -45,15 +45,18 @@ const reduzido = () => typeof window !== 'undefined' && typeof window.matchMedia
  * Rola até o cartão e põe o foco no título dele. A casca do CMS rola dentro de `main`, não na janela: o contêiner é o ancestral que rola (o mesmo da volta ao
  * canal). O cartão é achado pela `ref` da tela, nunca pelo documento (depois de um Voltar o Next mantém a árvore antiga escondida). Devolve false sem cartão.
  */
-export function irAoCartao(cartao: RefObject<HTMLElement | null>): boolean {
-  const el = cartao.current
-  if (!el) return false
+function rolarAte(el: HTMLElement): void {
   const box = rolavel(el)
   const janela = box === document.scrollingElement || box === document.documentElement
   const topo = Math.max(0, el.getBoundingClientRect().top - (janela ? 0 : box.getBoundingClientRect().top) + box.scrollTop - FOLGA)
   const behavior: ScrollBehavior = reduzido() ? 'auto' : 'smooth'
   if (typeof box.scrollTo === 'function') box.scrollTo({ top: topo, behavior })
   else box.scrollTop = topo
+}
+export function irAoCartao(cartao: RefObject<HTMLElement | null>): boolean {
+  const el = cartao.current
+  if (!el) return false
+  rolarAte(el)
   el.querySelector<HTMLElement>('[data-fj-titulo]')?.focus({ preventScroll: true })
   return true
 }
@@ -255,6 +258,12 @@ export function ForjaCard({ card, forja, pedido, onCancel, onSyncChannel, refres
     else toast('warn', 'Não deu para cancelar', frasePedido(r.reason ?? ''))
     router.refresh()
   }
+  // "Ver as trocas no gráfico": o gráfico é desta tela (`href` é o âncora `#hv-tlh`), achado pela raiz dela, nunca pelo documento
+  const verRaias = (ancora: string) => {
+    const titulo = cardRef.current?.closest('[data-obs-screen]')?.querySelector<HTMLElement>(ancora)
+    const alvo = titulo?.closest<HTMLElement>('section') ?? titulo
+    if (alvo) rolarAte(alvo)
+  }
   const sincronizar = async () => {
     if (!onSyncChannel || syncVoo.current) return
     syncVoo.current = true; setSync('ocupado')
@@ -296,7 +305,9 @@ export function ForjaCard({ card, forja, pedido, onCancel, onSyncChannel, refres
               {ativo ? <button type="button" className="btn" data-fj="pausar" aria-pressed={refresh.paused} onClick={pausar}>{refresh.paused ? 'Retomar atualização automática' : 'Pausar atualização automática'}</button> : null}
               {card.acoes.map(a => a.id === 'ver-trocas'
                 ? <Link key={a.id} className="btn" href={a.href}>{a.label}</Link>
-                : <button key={a.id} type="button" className="btn" data-fj="sync" aria-busy={sync === 'ocupado' || undefined} onClick={sincronizar}>{a.label}</button>)}
+                : a.id === 'ver-raias'
+                  ? <button key={a.id} type="button" className="btn" data-fj="ver-raias" onClick={() => verRaias(a.href)}>{a.label}</button>
+                  : <button key={a.id} type="button" className="btn" data-fj="sync" aria-busy={sync === 'ocupado' || undefined} onClick={sincronizar}>{a.label}</button>)}
               {sync !== 'parado' ? (
                 <p className="obs-fj-sync" role="status" data-fj-sync-status="">
                   {sync === 'ocupado' ? 'Sincronizando…' : sync === 'ok' ? 'Canal sincronizado. Pode pedir de novo.' : 'A sincronização não respondeu. Tente de novo em alguns minutos.'}

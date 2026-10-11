@@ -12,7 +12,7 @@
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
 import { failKindOf, FORJA_QUEUE } from '@/lib/youtube/observatorio/forja/states'
-import type { ForjaRequest, FrozenReading, ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
+import type { ForjaRequest, FrozenReading, ObsChannel, ObsVideo, RequestState } from '@/lib/youtube/observatorio/types'
 import { buildForjaView, patternsOf, readingModel, type ForjaView } from '../_chrome/forja-view-model'
 
 export type Situacao = 'aguardando' | 'atrasado' | 'pronta' | 'desatualizada' | 'precisa-de-voce' | 'nao-deu'
@@ -51,7 +51,11 @@ export interface ForjaCardView {
   /** "Pedido feito há 16 min, às 21:59. Pode sair desta página: o pedido continua." A tela põe "Tela atualizada há N min." no meio. */
   andamento: string | null
   cancelar: boolean
-  acoes: Array<{ id: 'ver-trocas' | 'sincronizar'; label: string; href: string }>
+  /**
+   * 'ver-trocas' abre a aba Trocas do canal já no vídeo: só existe quando o número da frase conta apenas o que a aba mostra
+   * (título e thumbnail deste vídeo, nos 30 dias). 'ver-raias' leva ao gráfico do próprio Histórico (`href` é o âncora `#hv-tlh`).
+   */
+  acoes: Array<{ id: 'ver-trocas' | 'ver-raias' | 'sincronizar'; label: string; href: string }>
   /** Aberta até a primeira leitura publicada do vídeo; depois recolhe no botão "O que é a forja?". */
   explicacao: { aberta: boolean; texto: string }
   leitura: LeituraView | null; anterior: LeituraView | null
@@ -92,7 +96,27 @@ function dur(min: number): string {
   const h = Math.floor(m / 60), r = m % 60
   return h + ' h' + (r ? ' ' + r + ' min' : '')
 }
-const ACTIVE = new Set<string>(['na fila', 'trabalhando', 'atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia'])
+/**
+ * Como a pessoa vê o estado do pedido (spec 7.2). `switch` exaustivo sobre o tipo do motor: um estado novo não compila sem
+ * decidir aqui (a lista de ativos vem do motor, não de uma cópia nossa).
+ */
+function classeDoEstado(s: RequestState): 'aguardando' | 'atrasado' | 'terminal' {
+  switch (s) {
+    case 'na fila': case 'trabalhando': case 'nova tentativa': case 'liberado pelo vigia': return 'aguardando'
+    case 'atrasado': case 'sem máquina': return 'atrasado'
+    case 'publicado': case 'falhou': case 'recusado (dado velho)': return 'terminal'
+    default: { const fora: never = s; return fora }
+  }
+}
+/**
+ * A mensagem de bloqueio, escrita aqui a partir de dados (nunca o `reason` do motor, que cola o rótulo de estado do OUTRO
+ * vídeo: "liberado pelo vigia · 15:05"). A situação dele usa as palavras de tela do spec 7.2.
+ */
+function bloqueioFrase(obs: Observatory, v: ObsVideo, outroVideo: string | null, title: string): string {
+  const st = outroVideo ? obs.forja.session.current(null, { type: 'leitura-video', video: outroVideo }).request?.state ?? null : null
+  const sit = st == null ? '' : ' (' + (classeDoEstado(st) === 'atrasado' ? 'aguardando, com atraso' : 'aguardando') + ')'
+  return 'Já há uma leitura de vídeo' + (v.niche ? ' de ' + obs.nicheLabel(v.niche) : '') + ' em andamento' + sit + ', do vídeo “' + title + '”.'
+}
 
 /* ------------------------------------------------------------------ o que o Histórico já calculava para o cartão antigo (a cópia de lá saiu) */
 /** Por que o vídeo não pode ser lido, com o que fazer; null quando pode. */
@@ -102,19 +126,24 @@ export function excludedOf(obs: Observatory, v: ObsVideo, ch: ObsChannel): strin
   const act = !isObserved(v) ? '' : ch.sync.state === 'erro' ? 'Corrija o canal em Canais antes de pedir uma leitura.' : ch.sync.state === 'backfill' ? 'Espere a busca de vídeos terminar antes de pedir uma leitura.' : 'Sincronize o canal antes de pedir uma leitura deste vídeo.'
   return (endDot(reason) + ' ' + act).trim()
 }
-/** Sem leitura do vídeo: o que a leitura de padrões do nicho diz sobre as fórmulas deste título. */
-export function nicheOf(obs: Observatory, v: ObsVideo, forja: ForjaView): NichoView | null {
+/**
+ * Sem leitura do vídeo: o que a leitura de padrões do nicho diz sobre as fórmulas deste título. `jaDiz`: a frase de vazio
+ * ("Ainda não há leitura deste vídeo. Ninguém pediu uma até hoje.") está na tela ao lado do botão, então o bloco não repete
+ * a primeira oração (a frase aparece uma vez só no cartão).
+ */
+export function nicheOf(obs: Observatory, v: ObsVideo, forja: ForjaView, jaDiz = false): NichoView | null {
   if (!v.niche) return null
   const D = obs.date, F = obs.fmt
   const nr = obs.forja.latest('padroes-titulo', v.niche)
   if (!nr) return null
   const pats = patternsOf(nr).filter(p => p.evidence.includes(v.id))
   const when = D.dm(nr.generatedAt) + ' ' + D.hm(nr.generatedAt)
-  if (!pats.length) return { text: 'Ainda não há leitura deste vídeo, e a leitura de padrões do nicho de ' + when + ' não o cita.', items: [], foot: null }
-  if (pats.every(p => p.verdict.id === 'sem-diferenca')) return { text: 'Ainda não há leitura deste vídeo. A leitura de padrões do nicho de ' + when + ' não viu diferença para as fórmulas deste título: ' + pats.map(p => F.lcfirst(obs.formula(p.formula)?.label ?? p.formula)).join(', ') + '.', items: [], foot: null }
+  const sem = 'Ainda não há leitura deste vídeo'
+  if (!pats.length) return { text: jaDiz ? 'A leitura de padrões do nicho de ' + when + ' não cita este título.' : sem + ', e a leitura de padrões do nicho de ' + when + ' não o cita.', items: [], foot: null }
+  if (pats.every(p => p.verdict.id === 'sem-diferenca')) return { text: (jaDiz ? '' : sem + '. ') + 'A leitura de padrões do nicho de ' + when + ' não viu diferença para as fórmulas deste título: ' + pats.map(p => F.lcfirst(obs.formula(p.formula)?.label ?? p.formula)).join(', ') + '.', items: [], foot: null }
   const s0 = obs.forja.since(nr.id)
   return {
-    text: 'Ainda não há leitura deste vídeo. O que a leitura de padrões do nicho de ' + D.dmOrDmy(nr.generatedAt) + ' diz sobre as fórmulas deste título:',
+    text: (jaDiz ? '' : sem + '. ') + 'O que a leitura de padrões do nicho de ' + D.dmOrDmy(nr.generatedAt) + ' diz sobre as fórmulas deste título:',
     items: pats.map(p => {
       const n = obs.outliers({ niche: v.niche!, fmt: nr.fmt ?? 'long', formula: p.formula, reading: nr.id }).count
       return { text: endDot(p.verdict.text + (p.attribution && p.verdict.id === 'padrao' ? '. ' + p.attribution : '')), label: n === 1 ? 'Ver o outlier' : 'Ver os ' + n + ' outliers',
@@ -188,28 +217,40 @@ export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel, pr
   const since = shown && !fresh ? obs.forja.since(shown.id) : null
   const novas = since?.newChanges ?? []
   const excluido = excludedOf(obs, v, ch)
-  const bloqueado = forja.blockedBy ? { text: cap(forja.blockedBy.reason.replace(/^Nada enviado:\s*/, '')), title: forja.blockedBy.title, href: forja.blockedBy.href } : null
+  const bloqueado = forja.blockedBy ? { text: bloqueioFrase(obs, v, sc.blockedBy?.video ?? null, forja.blockedBy.title), title: forja.blockedBy.title, href: forja.blockedBy.href } : null
   const machine = sc.machine
   const hm = D.hm
   const tomorrow = 'Libera amanhã às 00:00.'
 
-  /* ---- a situação */
-  let situacao: Situacao | null = null
-  let motivoNaoDeu: 'validador' | 'travou' | 'outro' | 'sem-evidencia' | 'sumiu' | null = null
-  if (r && ACTIVE.has(r.state)) situacao = r.state === 'atrasado' || r.state === 'sem máquina' ? 'atrasado' : 'aguardando'
-  else if (r?.state === 'recusado (dado velho)') situacao = 'precisa-de-voce'
-  else if (r?.state === 'falhou') { situacao = 'nao-deu'; motivoNaoDeu = failKindOf(r) }
-  else if (r?.state === 'publicado' && !shown) { situacao = 'nao-deu'; motivoNaoDeu = 'sumiu' }
-  else if (shown) {
-    if (items.length === 0) { situacao = 'nao-deu'; motivoNaoDeu = 'sem-evidencia' }
-    else situacao = novas.length ? 'desatualizada' : 'pronta'
+  /* ---- a situação (switch exaustivo sobre o estado do motor) */
+  type Motivo = 'validador' | 'travou' | 'outro' | 'sem-evidencia' | 'sumiu'
+  type Decisao = { situacao: Situacao | null; motivoNaoDeu: Motivo | null }
+  const daLeitura = (): Decisao => {
+    if (!shown) return { situacao: null, motivoNaoDeu: null }
+    if (items.length === 0) return { situacao: 'nao-deu', motivoNaoDeu: 'sem-evidencia' }
+    return { situacao: novas.length ? 'desatualizada' : 'pronta', motivoNaoDeu: null }
   }
+  const decidir = (): Decisao => {
+    if (!r) return daLeitura()
+    switch (r.state) {
+      case 'na fila': case 'trabalhando': case 'nova tentativa': case 'liberado pelo vigia': return { situacao: 'aguardando', motivoNaoDeu: null }
+      case 'atrasado': case 'sem máquina': return { situacao: 'atrasado', motivoNaoDeu: null }
+      case 'recusado (dado velho)': return { situacao: 'precisa-de-voce', motivoNaoDeu: null }
+      case 'falhou': return { situacao: 'nao-deu', motivoNaoDeu: failKindOf(r) }
+      // pedido publicado: a leitura dele precisa estar ligada ao pedido. Sem ela (`readingId` nulo no carregador) o que o vídeo
+      // tem é uma leitura de antes, e dizer "Pronta" com a hora do pedido ao lado dela seria dar a velha por nova.
+      case 'publicado': return !shown || !fresh ? { situacao: 'nao-deu', motivoNaoDeu: 'sumiu' } : daLeitura()
+      default: { const fora: never = r.state; return fora }
+    }
+  }
+  const { situacao, motivoNaoDeu } = decidir()
 
   /* ---- o botão do cartão (o que o servidor aceitaria; a frase de "limite" não é a do motor) */
   const capable = forja.capable
   const limite = forja.button.mode === 'disabled' && capable && !excluido && !bloqueado
-  const limiteFrase = (r ? 'Já houve uma leitura deste vídeo hoje. ' : 'Já houve uma leitura de ' + (v.niche ? obs.nicheLabel(v.niche) : 'este nicho') + ' hoje. ') + tomorrow
-  const ativo = situacao === 'aguardando' || situacao === 'atrasado'
+  // sem pedido deste vídeo o limite pode ter sido gasto por outro do nicho; sem nicho não há de quem falar: a frase fala do vídeo
+  const limiteFrase = (r || !v.niche ? 'Já houve uma leitura deste vídeo hoje. ' : 'Já houve uma leitura de ' + obs.nicheLabel(v.niche) + ' hoje. ') + tomorrow
+  const ativo = r != null && classeDoEstado(r.state) !== 'terminal'
   let habilitado = (forja.button.mode === 'free' || forja.button.mode === 'free-niche') && forja.ask != null
   let motivo: string | null = null
   let por: ForjaCardView['botao']['por'] = null
@@ -225,62 +266,95 @@ export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel, pr
     label: situacao === 'nao-deu' ? 'Pedir de novo' : shown ? 'Pedir nova leitura deste vídeo à forja' : 'Pedir leitura deste vídeo à forja',
     habilitado, motivo, visivel: !ativo, por,
   }
-  // o "Pode pedir de novo." só vale se o botão deixa: a leitura sem evidências gasta o limite do dia
-  const tail = por === 'limite' ? ' ' + limiteFrase : ' Pode pedir de novo.'
+  // o "Pode pedir de novo." só vale se o botão deixa; senão a frase termina com o motivo real (limite do dia, outro vídeo do
+  // nicho, vídeo excluído, forja sem o tipo). "Sincronize o canal" é motivo só de "Precisa de você", que tem a ação própria.
+  const tail = habilitado ? ' Pode pedir de novo.' : motivo != null && por !== 'sincronizar' ? ' ' + motivo : ''
 
   /* ---- a frase, as etapas e as ações */
   let frase: string | null = null
   let passo: Passo | null = null
   let andamento: string | null = null
   const acoes: ForjaCardView['acoes'] = []
-  if (r && ACTIVE.has(r.state)) {
-    const s = r.state
-    if (s === 'na fila') { frase = 'Aguardando: na fila desde ' + hm(r.createdAt) + '.'; passo = { i: 0, k: 'atual', texto: 'em andamento' } }
-    else if (s === 'liberado pelo vigia') {
-      frase = 'Aguardando: o pedido travou e voltou para a fila sozinho' + (r.releasedAt != null ? ', às ' + hm(r.releasedAt) : '') + '.'
-      passo = { i: 0, k: 'atual', texto: 'em andamento' }
-    } else if (s === 'trabalhando') {
-      const t = r.claimedAt ?? r.startedAt
-      frase = 'Aguardando: a forja está escrevendo' + (t != null ? ' desde ' + hm(t) : '') + '. Leva de 10 a 25 minutos.'
-      passo = { i: 1, k: 'atual', texto: 'em andamento' }
-    } else if (s === 'nova tentativa') {
-      // a próxima consulta que já passou não é uma promessa: só se diz a hora quando ela ainda vem
-      const nx = machine.nextPollAt != null && machine.nextPollAt > NOW ? 'às ' + hm(machine.nextPollAt) : 'na próxima consulta'
-      frase = 'Aguardando: o texto citava números que não batem com os dados. A forja tenta de novo ' + nx + '.'
-      passo = { i: 1, k: 'atual', texto: 'em andamento: o texto citava números que não batem; a forja tenta de novo ' + nx }
-    } else if (s === 'sem máquina' && !machine.alive) {
-      frase = 'Aguardando, com atraso: a forja está desligada ou sem internet' + (machine.lastPollAt != null ? ' desde ' + hm(machine.lastPollAt) : '') + '. O pedido fica guardado e roda quando ela voltar.'
-      passo = { i: 0, k: 'atrasada', texto: 'em andamento, com atraso' }
-    } else {
-      // 'atrasado', e 'sem máquina' com a forja ligada (24 h sem pegar o pedido): a espera é o que se diz
-      const espera = r.waitingMinutes ?? Math.round((NOW - (r.releasedAt || r.createdAt)) / MIN)
-      const limiteAviso = machine.lastPollAt != null ? machine.lastPollAt + FORJA_QUEUE.HEARTBEAT_DEAD_MINUTES * MIN : null
-      frase = 'Aguardando, com atraso: esperando há ' + dur(espera) + ', mais que o normal.' + (limiteAviso != null && limiteAviso > NOW ? ' Se passar de ' + hm(limiteAviso) + ', a tela avisa aqui.' : '')
-      passo = { i: 0, k: 'atrasada', texto: 'em andamento, com atraso' }
+  if (r && classeDoEstado(r.state) !== 'terminal') {
+    switch (r.state) {
+      case 'na fila': frase = 'Aguardando: na fila desde ' + hm(r.createdAt) + '.'; passo = { i: 0, k: 'atual', texto: 'em andamento' }; break
+      case 'liberado pelo vigia':
+        frase = 'Aguardando: o pedido travou e voltou para a fila sozinho' + (r.releasedAt != null ? ', às ' + hm(r.releasedAt) : '') + '.'
+        passo = { i: 0, k: 'atual', texto: 'em andamento' }
+        break
+      case 'trabalhando': {
+        const t = r.claimedAt ?? r.startedAt
+        frase = 'Aguardando: a forja está escrevendo' + (t != null ? ' desde ' + hm(t) : '') + '. Leva de 10 a 25 minutos.'
+        passo = { i: 1, k: 'atual', texto: 'em andamento' }
+        break
+      }
+      case 'nova tentativa': {
+        // a próxima consulta que já passou não é uma promessa: só se diz a hora quando ela ainda vem
+        const nx = machine.nextPollAt != null && machine.nextPollAt > NOW ? 'às ' + hm(machine.nextPollAt) : 'na próxima consulta'
+        frase = 'Aguardando: o texto citava números que não batem com os dados. A forja tenta de novo ' + nx + '.'
+        passo = { i: 1, k: 'atual', texto: 'em andamento: o texto citava números que não batem; a forja tenta de novo ' + nx }
+        break
+      }
+      case 'atrasado': case 'sem máquina':
+        if (r.state === 'sem máquina' && !machine.alive) {
+          frase = 'Aguardando, com atraso: a forja está desligada ou sem internet' + (machine.lastPollAt != null ? ' desde ' + hm(machine.lastPollAt) : '') + '. O pedido fica guardado e roda quando ela voltar.'
+        } else {
+          // 'atrasado', e 'sem máquina' com a forja ligada (24 h sem pegar o pedido): a espera é o que se diz
+          const espera = r.waitingMinutes ?? Math.round((NOW - (r.releasedAt || r.createdAt)) / MIN)
+          const limiteAviso = machine.lastPollAt != null ? machine.lastPollAt + FORJA_QUEUE.HEARTBEAT_DEAD_MINUTES * MIN : null
+          frase = 'Aguardando, com atraso: esperando há ' + dur(espera) + ', mais que o normal.' + (limiteAviso != null && limiteAviso > NOW ? ' Se passar de ' + hm(limiteAviso) + ', a tela avisa aqui.' : '')
+        }
+        passo = { i: 0, k: 'atrasada', texto: 'em andamento, com atraso' }
+        break
+      default: break    // os terminais não chegam aqui (a guarda acima); `classeDoEstado` é quem garante a exaustão
     }
     const minutos = Math.floor((NOW - r.createdAt) / MIN)
     andamento = 'Pedido feito ' + (minutos < 1 ? 'agora' : 'há ' + dur(minutos)) + ', às ' + hm(r.createdAt) + '. ' + PODE_SAIR
-  } else if (situacao === 'precisa-de-voce' && r) {
-    frase = 'Precisa de você: os dados deste canal ' + (r.refusedDataAsOf != null ? 'são de ' + D.dmOrDmy(r.refusedDataAsOf) + ', antigos' : 'estão antigos') + ' demais para ler.' + (sincronizou ? ' Pode pedir de novo.' : '')
-    if (!sincronizou) acoes.push({ id: 'sincronizar', label: 'Sincronizar este canal', href: '' })
-  } else if (situacao === 'nao-deu') {
-    const parou = (texto: string): Passo => ({ i: 1, k: 'parou', texto })
-    if (motivoNaoDeu === 'validador') { frase = 'Não deu: o texto citava números que não batem com os dados, em todas as tentativas.' + tail; passo = parou('parou aqui, ao conferir os números') }
-    else if (motivoNaoDeu === 'travou') {
-      const n = /^travou-(\d+)x/.exec(r?.failReason ?? '')?.[1]
-      frase = 'Não deu: o pedido travou ' + (n ? n + ' vezes' : 'várias vezes') + '.' + tail; passo = parou('parou aqui')
-    } else if (motivoNaoDeu === 'outro') { frase = 'Não deu: o pedido falhou' + (r?.failedAt != null ? ' às ' + hm(r.failedAt) : '') + '.' + tail; passo = parou('parou aqui') }
-    else if (motivoNaoDeu === 'sem-evidencia') { frase = 'Não deu: a leitura saiu sem evidências.' + tail; passo = r ? parou('parou aqui, ao conferir os números') : null }
-    else { frase = 'Não deu: o pedido terminou, mas a leitura não está aqui.' + tail }
-  } else if (situacao === 'pronta' || situacao === 'desatualizada') {
-    if (situacao === 'desatualizada') {
-      frase = 'Pronta, mas desatualizada: depois que ela foi escrita, ' + (novas.length === 1 ? 'saiu 1 troca' : 'saíram ' + novas.length + ' trocas') + '.'
-      acoes.push({ id: 'ver-trocas', label: verTrocas(novas.length), href: obs.link.canal(ch.id, { tab: 'trocas' }) })
-    } else {
-      const at = (r?.state === 'publicado' ? r.publishedAt : null) ?? shown!.generatedAt
-      frase = 'Pronta: leitura publicada ' + (D.dmy(at) === D.dmy(NOW) ? '' : 'em ' + D.dmOrDmy(at) + ' ') + 'às ' + hm(at) + '.'
+  } else {
+    // sem pedido em andamento: a situação (já decidida pelo estado do pedido e pela leitura) diz a frase
+    switch (situacao) {
+      case null: case 'aguardando': case 'atrasado': break
+      case 'precisa-de-voce':
+        frase = 'Precisa de você: os dados deste canal ' + (r?.refusedDataAsOf != null ? 'são de ' + D.dmOrDmy(r.refusedDataAsOf) + ', antigos' : 'estão antigos') + ' demais para ler.' + (sincronizou ? tail : '')
+        if (!sincronizou) acoes.push({ id: 'sincronizar', label: 'Sincronizar este canal', href: '' })
+        break
+      case 'nao-deu': {
+        const parou = (texto: string): Passo => ({ i: 1, k: 'parou', texto })
+        if (motivoNaoDeu === 'validador') { frase = 'Não deu: o texto citava números que não batem com os dados, em todas as tentativas.' + tail; passo = parou('parou aqui, ao conferir os números') }
+        else if (motivoNaoDeu === 'travou') {
+          const n = /^travou-(\d+)x/.exec(r?.failReason ?? '')?.[1]
+          frase = 'Não deu: o pedido travou ' + (n ? n + ' vezes' : 'várias vezes') + '.' + tail; passo = parou('parou aqui')
+        } else if (motivoNaoDeu === 'outro') { frase = 'Não deu: o pedido falhou' + (r?.failedAt != null ? ' às ' + hm(r.failedAt) : '') + '.' + tail; passo = parou('parou aqui') }
+        else if (motivoNaoDeu === 'sem-evidencia') { frase = 'Não deu: a leitura saiu sem evidências.' + tail; passo = r ? parou('parou aqui, ao conferir os números') : null }
+        else { frase = 'Não deu: o pedido terminou, mas a leitura não está aqui.' + tail }
+        break
+      }
+      case 'pronta': {
+        const at = (r?.state === 'publicado' ? r.publishedAt : null) ?? shown!.generatedAt
+        frase = 'Pronta: leitura publicada ' + (D.dmy(at) === D.dmy(NOW) ? '' : 'em ' + D.dmOrDmy(at) + ' ') + 'às ' + hm(at) + '.'
+        break
+      }
+      case 'desatualizada': {
+        // O número da frase e o da ação são o MESMO conjunto: a aba Trocas mostra título e thumbnail deste vídeo nos 30 dias.
+        // Se algo do que saiu fica fora disso (descrição, ou troca mais antiga), a frase conta tudo e diz o que são, e a ação leva
+        // ao gráfico do próprio Histórico, onde as raias mostram o que a aba não mostra.
+        const n = novas.length
+        const naAba = new Set(obs.changesIn({ days: 30, video: v.id }).filter(c => c.type === 'title' || c.type === 'thumb').map(c => c.id))
+        const dentro = novas.filter(id => naAba.has(id)).length
+        const desc = novas.filter(id => obs.change(id)?.type === 'desc').length
+        const antigas = n - dentro - desc
+        const resto = [desc ? (desc === n ? 'de descrição' : desc + ' de descrição') : '', antigas ? (antigas === n ? 'de mais de 30 dias' : antigas + ' de mais de 30 dias') : ''].filter(Boolean)
+        frase = 'Pronta, mas desatualizada: depois que ela foi escrita, ' + (n === 1 ? 'saiu 1 troca' : 'saíram ' + n + ' trocas') + (resto.length ? ', ' + resto.join(' e ') : '') + '.'
+        if (resto.length === 0) acoes.push({ id: 'ver-trocas', label: verTrocas(n), href: obs.link.canal(ch.id, { tab: 'trocas', video: v.id }) })
+        else acoes.push({ id: 'ver-raias', label: 'Ver as trocas no gráfico', href: '#hv-tlh' })
+        break
+      }
+      default: { const fora: never = situacao; void fora }
     }
   }
+
+  // a frase de vazio só aparece ao lado do botão aceso (a tela mostra o motivo do botão no lugar dela quando ele está apagado)
+  const vazio = !r && !shown ? VAZIO : null
 
   /* ---- as leituras */
   const doSite: string[] = []
@@ -305,16 +379,16 @@ export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel, pr
     acoes,
     explicacao: { aberta: shown == null, texto: FORJA_EXPLICACAO },
     leitura, anterior, botao,
-    vazio: !r && !shown ? VAZIO : null,
+    vazio,
     excluido, bloqueado,
-    doNicho: shown ? null : nicheOf(obs, v, forja),
+    doNicho: shown ? null : nicheOf(obs, v, forja, vazio != null && botao.motivo == null),
   }
 }
 
 /** O rótulo e o comportamento do botão do CABEÇALHO, por situação (spec 6.5). */
-export function headerAsk(card: ForjaCardView, forja: ForjaView): HeaderAskView {
+export function headerAsk(card: ForjaCardView): HeaderAskView {
   const b = card.botao, sit = card.situacao
-  const pode = b.habilitado && forja.ask != null
+  const pode = b.habilitado       // `habilitado` já inclui "a forja aceitaria o pedido" (forja.ask): uma fonte só
   const apagado = (label: string): HeaderAskView => ({ label, modo: 'apagado', frase: b.motivo, aviso: null })
   if (sit === 'aguardando' || sit === 'atrasado') return { label: 'Leitura em andamento: ver', modo: 'so-rola', frase: null, aviso: AVISO_JA_TEM_SITUACAO }
   if (sit === 'pronta' || sit === 'desatualizada') return { label: 'Ver a leitura', modo: 'so-rola', frase: b.por === 'limite' ? b.motivo : null, aviso: AVISO_JA_TEM_SITUACAO }

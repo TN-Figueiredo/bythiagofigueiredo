@@ -358,14 +358,14 @@ describe('historico view model — forja card "pedir de novo"', () => {
     expect(v.forjaCard!.situacao).toBe('nao-deu')
     expect(v.forjaCard!.frase).toMatch(/^Não deu: .* Pode pedir de novo\.$/)
     expect(v.forjaCard!.botao).toMatchObject({ label: 'Pedir de novo', habilitado: true, visivel: true })
-    expect(headerAsk(v.forjaCard!, v.forja!)).toMatchObject({ label: 'Pedir leitura à forja de novo', modo: 'pedir' })
+    expect(headerAsk(v.forjaCard!)).toMatchObject({ label: 'Pedir leitura à forja de novo', modo: 'pedir' })
   })
   it('recusado: "Precisa de você", a ação "Sincronizar este canal" e o botão apagado até o canal sincronizar', () => {
     const v = card('recusado (dado velho)')
     expect(v.forjaCard!.situacao).toBe('precisa-de-voce')
     expect(v.forjaCard!.acoes.map(a => a.label)).toEqual(['Sincronizar este canal'])
     expect(v.forjaCard!.botao).toMatchObject({ habilitado: false, por: 'sincronizar' })
-    expect(headerAsk(v.forjaCard!, v.forja!).modo).toBe('apagado')
+    expect(headerAsk(v.forjaCard!).modo).toBe('apagado')
   })
 })
 

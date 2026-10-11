@@ -284,16 +284,30 @@ describe('o cartão na tela', () => {
   })
 
   it('"Pronta, mas desatualizada": faixa âmbar com ícone próprio e as duas ações', () => {
-    const o = world(ds => { ds.readings.find(r => r.id === READING_ID)!.generatedAt = createTestObservatory(plain(baseDataset())).changes.filter(c => c.video === ID).sort((a, b) => a.at - b.at).at(-3)!.at - 36e5 })
+    // só título e thumbnail depois da leitura (a descrição de 14/10 15h é anterior): o número da frase é o da aba Trocas
+    const o = world(ds => { ds.readings.find(r => r.id === READING_ID)!.generatedAt = Date.parse('2026-10-14T16:00:00Z') })
     const { card } = mount(o, null)
     const faixa = card()!.querySelector('.obs-fj-sit')!
     expect(faixa.classList.contains('obs-fj-late')).toBe(true)
     expect(faixa.querySelector('[data-ico="stale"]')).not.toBeNull()
     expect(faixa.querySelector('[data-ico="clockw"], [data-ico="ok"]')).toBeNull()
-    expect(faixa.textContent).toContain('Pronta, mas desatualizada: depois que ela foi escrita, saíram 3 trocas.')
-    const ver = within(card()!).getByRole('link', { name: 'Ver as 3 trocas' })
-    expect(ver.getAttribute('href')).toBe(o.link.canal(o.video(ID)!.ch, { tab: 'trocas' }))
+    expect(faixa.textContent).toContain('Pronta, mas desatualizada: depois que ela foi escrita, saíram 2 trocas.')
+    const ver = within(card()!).getByRole('link', { name: 'Ver as 2 trocas' })
+    expect(ver.getAttribute('href')).toBe(o.link.canal(o.video(ID)!.ch, { tab: 'trocas', video: ID }))
     expect(within(card()!).getByRole('button', { name: 'Pedir nova leitura deste vídeo à forja' }).getAttribute('aria-disabled')).not.toBe('true')
+  })
+
+  it('com descrição entre as trocas novas: a frase diz o que são e "Ver as trocas no gráfico" rola até o gráfico, sem link para a aba', () => {
+    const o = world(ds => { ds.readings.find(r => r.id === READING_ID)!.generatedAt = Date.parse('2026-10-14T14:00:00Z') })
+    const { card, root } = mount(o, null)
+    const c = card()!
+    expect(c.querySelector('.obs-fj-sit')!.textContent).toContain('saíram 3 trocas, 1 de descrição.')
+    expect(within(c).queryByRole('link', { name: /^Ver (as|a) /u })).toBeNull()
+    const grafico = root.querySelector<HTMLElement>('#hv-tlh')!.closest('section')!
+    expect(grafico).not.toBeNull()
+    scrollTo.mockClear()
+    fireEvent.click(within(c).getByRole('button', { name: 'Ver as trocas no gráfico' }))
+    expect(scrollTo).toHaveBeenCalledTimes(1)
   })
 
   it('"Precisa de você": a ação "Sincronizar este canal" liga a ação do servidor com o canal, atualiza e diz "Pode pedir de novo."', async () => {
@@ -558,7 +572,7 @@ describe('o botão do cabeçalho', () => {
     const doCartao = card()!.querySelector('[data-fj="pedir"]')!
     expect(doCartao.getAttribute('aria-disabled')).toBe('true')
     const nota = card()!.querySelector('#' + doCartao.getAttribute('aria-describedby'))!
-    expect(nota.textContent).toMatch(/^Já há uma leitura de vídeo de IA na fila · pedido \d\d:\d\d, do vídeo “.+”\.$/)
+    expect(nota.textContent).toMatch(/^Já há uma leitura de vídeo de IA em andamento \(aguardando\), do vídeo “.+”\.$/)
     expect(within(nota as HTMLElement).getByRole('link').getAttribute('href')).toContain('/video/')
   })
   it('apagado (outro vídeo do nicho tem pedido, sem leitura deste): aria-disabled, o motivo com o link do outro vídeo, e o clique não faz nada', () => {
@@ -573,7 +587,7 @@ describe('o botão do cabeçalho', () => {
     expect(b.getAttribute('aria-disabled')).toBe('true')
     expect(b.getAttribute('aria-describedby')).toBe('askStatus')
     const why = root.querySelector('#askStatus')!
-    expect(why.textContent).toMatch(/^Já há uma leitura de vídeo de IA na fila · pedido \d\d:\d\d, do vídeo “.+”\.$/)
+    expect(why.textContent).toMatch(/^Já há uma leitura de vídeo de IA em andamento \(aguardando\), do vídeo “.+”\.$/)
     const link = within(why as HTMLElement).getByRole('link')
     expect(link.getAttribute('href')).toContain('/video/')
     fireEvent.click(b)
@@ -613,12 +627,21 @@ describe('sem pedido, sem etapa; vazio; o que não se perde', () => {
   it('o bloco "o que a leitura de padrões do nicho diz sobre este título" continua quando não há leitura do vídeo', () => {
     const { card } = mount(SEM_LEITURA, null)
     const nb = card()!.querySelector('.obs-fj-nicho')!
-    expect(nb.textContent).toContain('Ainda não há leitura deste vídeo. O que a leitura de padrões do nicho de 20/10 diz sobre as fórmulas deste título:')
+    expect(nb.textContent).toContain('O que a leitura de padrões do nicho de 20/10 diz sobre as fórmulas deste título:')
+    expect(nb.textContent).not.toContain('Ainda não há leitura deste vídeo')
     expect(within(nb as HTMLElement).getByRole('link', { name: 'Ver os 4 outliers' }).getAttribute('href')).toBe('/cms/youtube/competitors/outliers?fmt=long&formula=reacao-hiperbole&reading=padroes-titulo-ia-20-10&min=2')
     expect(nb.textContent).toContain('Dados enviados à forja: 368 longos até 19/10 12:00')
     // com leitura do vídeo, como hoje, o bloco não aparece
     cleanup()
     expect(mount(COM_LEITURA, null).card()!.querySelector('.obs-fj-nicho')).toBeNull()
+  })
+
+  it('a oração "Ainda não há leitura deste vídeo" aparece UMA vez no cartão renderizado (sem leitura, com o bloco do nicho)', () => {
+    const { card } = mount(SEM_LEITURA, null)
+    const c = card()!
+    expect(c.querySelector('.obs-fj-nicho')).not.toBeNull()
+    expect(c.querySelector('.obs-fj-ask')!.textContent).toContain(VAZIO)
+    expect((c.textContent ?? '').split('Ainda não há leitura deste vídeo').length - 1).toBe(1)
   })
 
   it('canal próprio e vídeo fora dos acompanhados: como hoje (sem cartão / botão apagado com o motivo)', () => {
