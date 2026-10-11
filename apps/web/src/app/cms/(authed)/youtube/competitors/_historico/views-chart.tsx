@@ -46,7 +46,7 @@ const coarse = () => typeof window !== 'undefined' && typeof window.matchMedia =
 export function Timeline({ chart, axis, lanes, legend, pair, hl, onHl, onSelectPair, onGoVersion, onZoomVersion, range, onRange, groupLegend, arrivalId }: {
   chart: ChartView | null; axis?: LanesAxisView | null; lanes: LaneView[]; legend: LegendItem[]; pair: ComparisonView | null
   hl: Hl | null; onHl: (h: Hl | null) => void
-  onSelectPair: (k: string) => void; onGoVersion: (type: LaneType, i: number) => void
+  onSelectPair: (k: string) => void; onGoVersion: (type: LaneType, i: number, detail?: number) => void
   /** Double click on a thumbnail period of the lane: the viewer (spec 6.3, trigger 4). Absent = the legend does not promise it. */
   onZoomVersion?: (i: number, trigger: HTMLElement) => void
   /** Period filter (null = not offered) and what a choice does; the legend text of a group of close items. */

@@ -692,19 +692,43 @@ async function rotearImagens(page: Page, o: { lentoMs?: number } = {}): Promise<
   })
   return { pedidos }
 }
-async function arquivar(ligar: boolean): Promise<void> {
+/** Tira do banco local TODO endereço de Blob falso desta suíte (qualquer vídeo, qualquer versão). Devolve quantas linhas estavam sujas. */
+async function limparArquivadas(): Promise<number> {
+  const sb = localServiceClient()
+  const { data, error } = await sb.from('competitor_video_versions').update({ thumb_blob_url: null }).like('thumb_blob_url', `${BLOB_HOST}/%`).select('id')
+  if (error) throw new Error('limparArquivadas: ' + error.message)
+  return data?.length ?? 0
+}
+async function arquivar(): Promise<void> {
   const sb = localServiceClient(), vid = ids.video(V.full)
   const { data, error } = await sb.from('competitor_video_versions').select('id').eq('video_id', vid).eq('field', 'thumb').order('first_seen_at')
   if (error || !data) throw new Error('arquivar: ' + (error?.message ?? 'sem linhas'))
   for (const [i, row] of data.entries()) {
-    const { error: e } = await sb.from('competitor_video_versions').update({ thumb_blob_url: ligar && i !== 1 ? blobDe(i) : null }).eq('id', row.id)
+    if (i === 1) continue                                  // o 2º período fica sem cópia
+    const { error: e } = await sb.from('competitor_video_versions').update({ thumb_blob_url: blobDe(i) }).eq('id', row.id)
     if (e) throw new Error('arquivar: ' + e.message)
   }
 }
+// A marca de "o banco já tem esta semeadura" (fidelity.ts) é apagada enquanto os endereços falsos existem e devolvida quando eles saem: se o
+// executor morrer no meio (SIGKILL, queda de energia, sem afterAll), a marca fica ausente e a próxima `ensureSeeded` semeia de novo, limpo.
+const MARCA = path.resolve(__dirname, '../../../../test-results/.observatorio-seed.json')
+let marcaGuardada: string | null = null
 
 test.describe('A2.3 o visualizador de thumbnail', () => {
-  test.beforeAll(async () => { test.setTimeout(240_000); ids = seedIdsOf(await ensureSeeded({ canalCompleto: true })); await arquivar(true) })
-  test.afterAll(async () => { await arquivar(false) })
+  test.beforeAll(async () => {
+    test.setTimeout(240_000)
+    ids = seedIdsOf(await ensureSeeded({ canalCompleto: true }))
+    // 1) sobra de uma rodada anterior que morreu no meio: limpa ANTES de gravar
+    const sujas = await limparArquivadas()
+    medida(`limpeza do início: ${sujas} linha(s) com endereço de Blob falso`)
+    // 2) a marca sai enquanto o banco está sujo; a gravação é protegida: se falhar no meio, desfaz o que gravou
+    try { marcaGuardada = fs.readFileSync(MARCA, 'utf8') } catch { marcaGuardada = null }
+    try { fs.rmSync(MARCA) } catch { /* nenhuma */ }
+    try { await arquivar() } catch (e) { await limparArquivadas(); if (marcaGuardada != null) fs.writeFileSync(MARCA, marcaGuardada); throw e }
+  })
+  test.afterAll(async () => {
+    try { await limparArquivadas() } finally { if (marcaGuardada != null) { fs.mkdirSync(path.dirname(MARCA), { recursive: true }); fs.writeFileSync(MARCA, marcaGuardada) } }
+  })
 
   const dlg = (page: Page) => page.locator('.obs-tv-box[role="dialog"]')
   const fundoCobre = (page: Page) => page.evaluate(() => {
@@ -773,9 +797,9 @@ test.describe('A2.3 o visualizador de thumbnail', () => {
     const i = Number(k.split(':')[1])
     const t0 = Date.now()
     await clip.click()
-    const noCartao = await page.evaluate(() => document.activeElement?.getAttribute('data-ver') ?? null)
-    medida(`gatilho 4: o clique simples levou o foco a data-ver="${noCartao}" em ${Date.now() - t0} ms (clique incluído); sem diálogo: ${await dlg(page).count() === 0}`)
-    expect(noCartao).toBe('thumb:' + i)
+    // o clique simples de ponteiro espera a janela do duplo clique (250 ms) antes de rolar e levar o foco ao cartão
+    await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-ver') ?? null), { timeout: 4000 }).toBe('thumb:' + i)
+    medida(`gatilho 4: o clique simples levou o foco a data-ver="thumb:${i}" em ${Date.now() - t0} ms (clique incluído, com a janela do duplo clique); sem diálogo: ${await dlg(page).count() === 0}`)
     await expect(dlg(page)).toHaveCount(0)
     await clip.dblclick()
     await expect(dlg(page)).toBeVisible()
@@ -787,6 +811,52 @@ test.describe('A2.3 o visualizador de thumbnail', () => {
     medida(`A2.3 gatilhos 1 a 4 conferidos; erros de console ${erros.length}; 5xx ${cincoXX.length}`)
     expect(cincoXX).toEqual([])
   })
+
+  // I1 (conserto 1): o gesto REAL. `page.mouse.dblclick` manda mousedown/mouseup/click, mousedown/mouseup/click, dblclick nas MESMAS coordenadas, sem rolar o elemento
+  // de volta para a tela antes (o que `locator.dblclick()` faz e escondia o defeito): se o primeiro clique rolasse a página até o cartão, o segundo cairia em outro elemento.
+  // três ritmos do mesmo gesto: os dois cliques colados (`mouse.dblclick`), colados com movimento reduzido (a rolagem do primeiro clique é instantânea) e com a pausa
+  // de uma pessoa (120 ms entre os cliques, a rolagem suave já andou)
+  for (const { reduzido, pausa } of [{ reduzido: false, pausa: 0 }, { reduzido: true, pausa: 0 }, { reduzido: false, pausa: 120 }]) {
+    test(`A2.3 duplo clique de verdade na miniatura da raia${reduzido ? ' (movimento reduzido)' : ''}${pausa ? ` (${pausa} ms entre os cliques)` : ''}: abre o diálogo, a página não rola e o foco volta à miniatura`, async ({ page }) => {
+      if (reduzido) await page.emulateMedia({ reducedMotion: 'reduce' })
+      await rotearImagens(page)
+      await abrirVideo(page, V.full)
+      const tela = page.locator(`${HV}:visible`).first()
+      const clip = tela.locator('.lane[data-lane="thumb"] button.clip:visible').first()
+      await expect(clip).toBeVisible()
+      const i = Number(((await clip.getAttribute('data-k')) ?? '').split(':')[1])
+      await clip.scrollIntoViewIfNeeded()
+      const rolagem = () => page.evaluate(() => (window as unknown as { __sc: () => HTMLElement }).__sc().scrollTop)
+      // a miniatura no meio da janela: o cartão da versão fica longe dela, então qualquer rolagem aparece
+      await clip.evaluate(e => e.scrollIntoView({ block: 'center' }))
+      await page.waitForTimeout(300)
+      const antes = await rolagem()
+      const cx = await clip.boundingBox()
+      expect(cx, 'a miniatura tem caixa').not.toBeNull()
+      const x = cx!.x + cx!.width / 2, y = cx!.y + cx!.height / 2
+      expect(await page.evaluate(([px, py]) => document.elementFromPoint(px!, py!)?.closest('button.clip')?.getAttribute('data-k') ?? null, [x, y]), 'o ponto do clique é a miniatura').toBe('thumb:' + i)
+      const cartao = tela.locator(`[data-ver="thumb:${i}"]`)
+      const cb = (await cartao.boundingBox())!
+      medida(`duplo clique real${reduzido ? ' (reduzido)' : ''}${pausa ? ` (pausa ${pausa} ms)` : ''}: miniatura em y=${Math.round(y)}, cartão da versão em y=${Math.round(cb.y)} (janela ${page.viewportSize()!.height}); rolagem antes ${antes}`)
+      await page.mouse.move(x, y)
+      if (!pausa) await page.mouse.dblclick(x, y)
+      else {
+        await page.mouse.down({ clickCount: 1 }); await page.mouse.up({ clickCount: 1 })
+        await page.waitForTimeout(pausa)
+        await page.mouse.down({ clickCount: 2 }); await page.mouse.up({ clickCount: 2 })
+      }
+      await expect(dlg(page)).toBeVisible()
+      await expect(dlg(page).locator('.obs-tv-pos')).toHaveText(new RegExp(`· ${i + 1} de 4$`))
+      await page.waitForTimeout(800)                       // a rolagem suave, se houvesse, já teria andado
+      expect(await rolagem(), 'a página não rolou até o cartão').toBe(antes)
+      await page.keyboard.press('Escape')
+      await expect(dlg(page)).toHaveCount(0)
+      expect(await clip.evaluate(e => e === document.activeElement), 'o foco volta à miniatura da raia').toBe(true)
+      await page.waitForTimeout(500)
+      expect(await rolagem(), 'fechar também não rola a página').toBe(antes)
+      expect(await cartao.evaluate(e => e.classList.contains('target')), 'o duplo clique não deixa o cartão marcado').toBe(false)
+    })
+  }
 
   test('A2.3 o diálogo mostra a imagem que já estava na tela enquanto a maior carrega; e a maior entra depois', async ({ page }) => {
     await rotearImagens(page, { lentoMs: 1500 })
@@ -904,7 +974,6 @@ test.describe('A2.3 o visualizador de thumbnail', () => {
       await expect(dlg(page).locator('.obs-tv-stage img')).toHaveAttribute('src', /maxresdefault\.jpg/, { timeout: 20_000 })
       const box = (await dlg(page).boundingBox())!
       const dentro = box.x >= -0.5 && box.y >= -0.5 && box.x + box.width <= size.width + 0.5 && box.y + box.height <= size.height + 0.5
-      const tr = await transbordo(page)
       const naoCobre = await fundoCobre(page)
       const alvos = await dlg(page).locator('button:visible, a[role="link"]:visible').evaluateAll(bs => bs.map(b => { const r = b.getBoundingClientRect(); return { n: (b.getAttribute('aria-label') ?? b.textContent ?? '').trim().slice(0, 24), w: Math.round(r.width), h: Math.round(r.height) } }))
       const pequenos = alvos.filter(a => Math.min(a.w, a.h) < 44)
@@ -913,7 +982,6 @@ test.describe('A2.3 o visualizador de thumbnail', () => {
       expect(dentro, size.width + ': a caixa cabe na janela').toBe(true)
       expect(naoCobre, size.width + ': nada acima do diálogo').toEqual([])
       expect(rola.h, size.width + ': sem rolagem horizontal').toBeLessThanOrEqual(1)
-      void tr
       if (size.width < 900) expect(pequenos, '390 px: alvos de 44 px').toEqual([])
       await page.keyboard.press('Escape')
       await expect(dlg(page)).toHaveCount(0)
@@ -947,11 +1015,10 @@ test.describe('A2.3 o visualizador de thumbnail', () => {
     expect(await abtn.evaluate(e => e === document.activeElement), 'Esc devolve o foco ao botão ⋯').toBe(true)
     // o vídeo com quatro períodos (matt-opus55) abre na atual e oferece as outras
     const q = tela.locator('li.cv-card', { has: page.locator(`#cv-lnk-${ids.video(V.full)}`) })
-    if (await q.count()) {
-      await q.locator('.cv-amp').click()
-      await expect(dlg(page).locator('.obs-tv-pos')).toHaveText(/· 4 de 4$/)
-      await page.keyboard.press('Escape')
-    } else medida('matt-opus55 não está no primeiro lote da grade; a atual com as outras versões fica provada no jsdom')
+    await expect(q, 'matt-opus55 está na grade').toHaveCount(1)
+    await q.locator('.cv-amp').click()
+    await expect(dlg(page).locator('.obs-tv-pos')).toHaveText(/· 4 de 4$/)
+    await page.keyboard.press('Escape')
     // a aba Trocas
     await abrirCanal(page, '?tab=trocas')
     const cardT = tela.locator('li.ct-card').first()

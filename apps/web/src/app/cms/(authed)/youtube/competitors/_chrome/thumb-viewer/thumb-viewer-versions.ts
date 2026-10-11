@@ -1,17 +1,12 @@
-// Monta o ViewerInput de um vídeo a partir das versões de thumbnail do motor (ObsVideo). Puro: sem DOM, sem motor inteiro.
-// É a forma enxuta, a da página do canal: o rótulo (a letra da imagem), o período e o tempo no ar saem só de `first_seen`.
-// O Histórico do vídeo tem a sua própria conta (precisão, janelas, "última vista"), que vive no view-model dele.
-import type { ThumbVersion } from '@/lib/youtube/observatorio/types'
+// Monta o ViewerInput de um vídeo a partir das versões de thumbnail do motor (ObsVideo). Puro: sem DOM.
+// A legenda, o período e o tempo no ar de cada versão são os do Histórico do vídeo: a mesma conta (`../version-span.ts`), com a precisão
+// (publicação, minuto, janela, "vista desde"), o canal parado e o "pelo menos". Duas contas dariam duas legendas para o mesmo vídeo.
+import type { Observatory } from '@/lib/youtube/observatorio'
+import type { ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
+import { imageLetters, thumbCaption, versionClock } from '../version-span'
 import { isYoutubeUrl, type ViewerInput, type ViewerVersion } from './viewer-model'
 
-export interface ViewerClock { dmhm(ms: number): string; dur(ms: number): string }
-
-/** A letra de cada imagem, na ordem em que aparece pela primeira vez: A, B, … (a mesma conta do Histórico; depois de Z, Z1, Z2…). */
-export function imageLetters(thumbs: readonly Pick<ThumbVersion, 'key'>[]): Map<string, string> {
-  const keys = new Map<string, string>()
-  for (const t of thumbs) if (!keys.has(t.key)) { const k = keys.size; keys.set(t.key, k < 26 ? String.fromCharCode(65 + k) : 'Z' + (k - 25)) }
-  return keys
-}
+export { imageLetters }
 
 /**
  * O visualizador de um vídeo que só se conhece pela tela: a thumbnail atual e mais nada (o vídeo antigo, na forma enxuta, que não carrega versões
@@ -28,25 +23,23 @@ export function viewerSoAtual(v: { title: string; ytId: string; thumbSrc: string
  * Uma versão por período de thumbnail; a atual é a que o motor marca. Sem versão nenhuma (vídeo antigo, forma enxuta) vira uma só, a atual,
  * com a imagem do YouTube; sem versão e sem id do YouTube não há o que mostrar (null). `preview` é a imagem que a tela já exibe.
  */
-export function viewerOfVideo(v: { ytId: string; thumbs: readonly ThumbVersion[] }, title: string, now: number, D: ViewerClock, preview: string | null): ViewerInput | null {
+export function viewerOfVideo(obs: Observatory, v: ObsVideo, ch: ObsChannel, title: string, preview: string | null): ViewerInput | null {
   const ytId = v.ytId || null
   if (!v.thumbs.length) {
     if (!ytId) return null
     const one: ViewerVersion = { label: 'Capa atual', current: true, archived: null, youtubeId: ytId, caption: 'Capa atual (no ar): a thumbnail que o YouTube mostra agora', from: '', to: 'agora', preview }
     return { title, versions: [one], start: 0 }
   }
+  const clock = versionClock(obs, v, ch)
   const letter = imageLetters(v.thumbs)
   const versions = v.thumbs.map((t, i): ViewerVersion => {
-    const nx = v.thumbs[i + 1]
-    const label = 'Capa ' + (letter.get(t.key) ?? t.key)
-    const from = D.dmhm(t.first_seen), to = nx ? D.dmhm(nx.first_seen) : 'agora'
-    const lived = D.dur(Math.max(0, (nx ? nx.first_seen : now) - t.first_seen))
+    const label = letter.get(t.key) ?? t.key, cur = !v.thumbs[i + 1]   // a atual é a última, como no Histórico
+    const { startLbl, end, span, durTxt } = clock.timing('thumb', v.thumbs, i)
     return {
-      label, current: t.current, archived: t.blobUrl ?? null, youtubeId: t.current ? ytId : null,
-      caption: `${label}${t.current ? ' (no ar)' : ''}: ${from} até ${to}; no ar por ${lived}`,
-      from, to, preview: t.blobUrl ?? (t.current ? preview : null),
+      label: 'Capa ' + label, current: cur, archived: t.blobUrl ?? null, youtubeId: cur ? ytId : null,
+      caption: thumbCaption(label, cur, clock.curWord('thumb'), span, durTxt),
+      from: startLbl, to: end, span, preview: t.blobUrl ?? (cur ? preview : null),
     }
   })
-  const cur = versions.findIndex(x => x.current)
-  return { title, versions, start: cur >= 0 ? cur : versions.length - 1 }
+  return { title, versions, start: versions.length - 1 }
 }

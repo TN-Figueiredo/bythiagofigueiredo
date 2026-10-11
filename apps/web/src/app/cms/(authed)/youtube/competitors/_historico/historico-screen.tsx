@@ -27,6 +27,8 @@ import type { ForjaAsk, ForjaCancel } from '../_chrome/forja-view-model'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { PinProvider, PinButton, PinMessage, PinChips, PinIcon, type PinAction } from '../_chrome/pin-kit'
 
+/** A janela do duplo clique na miniatura da raia Thumbnail: o clique simples de ponteiro só rola ao cartão depois dela. */
+const DOUBLE_CLICK_MS = 250
 const reduced = () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 /**
@@ -151,6 +153,12 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
   useForjaRefresh(!!view.forja?.status?.active)
   useAvisoLeituraPublicada(view.forja)
 
+  // Clique de ponteiro na miniatura da raia Thumbnail (spec 6.3, gatilho 4): o alvo é marcado na hora, mas a rolagem e o foco no cartão esperam a janela do
+  // duplo clique, e o segundo clique a cancela. Rolar no primeiro clique tirava a miniatura de baixo do cursor: o segundo caía em outro elemento.
+  // Teclado (`detail === 0`) e as outras raias não esperam.
+  const clipTimer = useRef<number | null>(null)
+  const cancelClip = () => { if (clipTimer.current != null) { window.clearTimeout(clipTimer.current); clipTimer.current = null } }
+  useEffect(() => cancelClip, [])
   const goVersion = (type: LaneType, i: number) => {
     const find = () => root.current?.querySelector<HTMLElement>('[data-ver="' + type + ':' + i + '"]')
     let t = find()
@@ -161,6 +169,14 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
     t.scrollIntoView?.({ behavior: reduced() ? 'auto' : 'smooth', block: 'center' })
     t.focus({ preventScroll: true })
   }
+  const onClip = (type: LaneType, i: number, detail?: number) => {
+    cancelClip()
+    if (type !== 'thumb' || !detail) { goVersion(type, i); return }
+    if (detail > 1) return                                   // o segundo clique do duplo: o dblclick abre o visualizador
+    setTarget(type + ':' + i)
+    clipTimer.current = window.setTimeout(() => { clipTimer.current = null; goVersion(type, i) }, DOUBLE_CLICK_MS)
+  }
+  const onClipDouble = (i: number, trigger: HTMLElement) => { cancelClip(); setTarget(null); ampliar(i, trigger) }
   const selectPair = (k: string) => {
     // a change the list filters hide: clear the filters, then select
     const cmp = view.comparisons.find(x => x.changeId === k)
@@ -245,7 +261,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
               </section>
               {view.lanesAxis ? (
                 <Timeline chart={null} axis={view.lanesAxis} lanes={view.lanes} legend={view.legends[''] ?? []} pair={null} hl={hl} onHl={onHl}
-                  onSelectPair={selectPair} onGoVersion={goVersion} onZoomVersion={viewer ? ampliar : undefined} groupLegend={view.groupLegend} />
+                  onSelectPair={selectPair} onGoVersion={onClip} onZoomVersion={viewer ? onClipDouble : undefined} groupLegend={view.groupLegend} />
               ) : null}
               {view.versions ? <Versions versions={view.versions} hl={hl} onHl={onHl} expanded={expanded} onToggle={() => setExpanded(e => !e)} target={target} onTargetBlur={() => setTarget(null)} zoomOf={zoomOf} /> : null}
             </>
@@ -253,7 +269,7 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onPin, onUnpi
             <>
               {view.chart ? (
                 <Timeline chart={view.chart} lanes={view.lanes} legend={legend} pair={pair} hl={hl} onHl={onHl}
-                  onSelectPair={selectPair} onGoVersion={goVersion} onZoomVersion={viewer ? ampliar : undefined} range={view.range} onRange={onRange} groupLegend={view.groupLegend} arrivalId={view.arrival?.changeId ?? null} />
+                  onSelectPair={selectPair} onGoVersion={onClip} onZoomVersion={viewer ? onClipDouble : undefined} range={view.range} onRange={onRange} groupLegend={view.groupLegend} arrivalId={view.arrival?.changeId ?? null} />
               ) : null}
               {view.imageSummary ? <ImageSummary sum={view.imageSummary} active={hl?.label ?? null} pinned={pinImg} onHover={l => setHover(l ? { type: 'thumb', i: -1, ev: null, label: l } : null)} onPin={pinImage} /> : null}
               <Compare comparisons={view.comparisons} compare={view.compare} selected={pairK} empty={view.compareEmpty} onSelect={setPairK} onDescLink={openDesc}

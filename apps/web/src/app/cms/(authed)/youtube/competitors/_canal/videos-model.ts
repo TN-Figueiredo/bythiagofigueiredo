@@ -119,7 +119,7 @@ export function buildCanalVideos(obs: Observatory, channelId: string): CanalVide
     out.push({
       id: v.id, ytId: v.ytId, title, url: v.url, grupo,
       pub: v.pub, views: v.views, vpd7, mult, isShort: v.isShort, pinned, tracked: v.tracked, dur: v.dur, likes: v.likes, comments: v.comments, swaps,
-      thumbSrc, viewer: grupo === 'antigo' ? null : viewerOfVideo(v, title, obs.NOW, D, thumbSrc),
+      thumbSrc, viewer: grupo === 'antigo' ? null : viewerOfVideo(obs, v, ch, title, thumbSrc),
       durText: durText(v.dur), ageText: F.age(v), pubISO: new Date(v.pub).toISOString(), pubTitle: `${D.dmy(v.pub)} ${D.hm(v.pub)} (São Paulo)`,
       viewsText: num(v.views), viewsMissing,
       vpdText: vpdText(vpd7, F.num), multText: mult == null ? null : F.mult(mult), multTier: tier, multWord: tier ? WORD[tier] : null,

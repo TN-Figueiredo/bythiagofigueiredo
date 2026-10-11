@@ -17,6 +17,7 @@ import { imageSummary, isRangeId, rangeFor, rangeStart, RANGE_DEFAULT, situation
 import { mudancasList, effectView, type EffectView, type Rich } from '../_mudancas/view-model'
 import { buildOutliersView, ages2label } from '../_outliers/view-model'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
+import { imageLetters, thumbCaption, versionClock } from '../_chrome/version-span'
 import type { ViewerInput, ViewerVersion } from '../_chrome/thumb-viewer/viewer-model'
 import { buildForjaView, forjaReadingView, patternsOf, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
 
@@ -390,25 +391,11 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   for (let i = 1; i < pts.length; i++) bins.push({ a: hx(pts[i - 1]!.t), b: hx(pts[i]!.t), v: (pts[i]!.views - pts[i - 1]!.views) / ((pts[i]!.t - pts[i - 1]!.t) / DAY), from0: false, t: pts[i]!.t })
   const seriesStartH = bins.length ? bins[0]!.a : pts.length ? hx(pts[0]!.t) : H
   const changes: ObsChange[] = obs.changes.filter(c => c.video === v.id).sort((a, b) => a.at - b.at)
-  const obsSince: number | null = sy.added ?? ch.snapshots[0]?.t ?? null
-  // R117: a video outside the observed ones has no schedule of its own. Its versions end at the last time one of them was
-  // seen, never "agora": the rest of the screen reads that as a stalled check.
-  const seenAt = [...v.titles, ...v.thumbs, ...v.descs].map(x => x.last_seen)
-  const lastSeen = seenAt.length ? Math.min(now, Math.max(...seenAt)) : now
-  // D13: a video pinned outside the tracked ones and not checked since is in the same position until its first check
-  const pinPending = v.pinState === 'aguardando-primeira'
-  // the channel synced after the pin and YouTube did not return the video: same position, and no deadline to promise
-  const pinGone = v.pinState === 'sem-resposta'
-  const unchecked = !observed || pinPending || pinGone
-  const chStalled = (sy.state === 'atrasado' || sy.state === 'erro') && sy.last != null
-  const stalled = unchecked || chStalled
-  const endNow = unchecked ? lastSeen : chStalled ? Math.min(now, sy.last!) : now
+  // the period/duration of a version is ONE account, shared with the channel page (`_chrome/version-span.ts`): stalled channel, unchecked video, pre-archive start
+  const clock = versionClock(obs, v, ch)
+  const { obsSince, pinPending, pinGone, unchecked, chStalled, stalled, endNow } = clock
   // the first check only has a deadline while the channel is syncing; otherwise it waits for the channel (mockup r4, N1)
   const pinNote = pinGone ? PIN_GONE_NOTE : !pinPending ? null : syncOk ? 'Fixado agora. A primeira conferência acontece em até 6 h.' : 'Fixado agora. A primeira conferência acontece na próxima sincronização do canal.'
-  // dados.js keeps sync.added only for a channel that joined AFTER the observatory began (the founding ones have none);
-  // production stores added_at for every channel, so one added on the observatory's first day is a founding channel,
-  // watched "desde DD/MM", not a recent add first checked at that instant
-  const recentAdd = sy.added != null && sy.added > pub && sy.added - obs.OBS_START >= DAY
   const few = pts.length < 2
   const stale = pts.length > 0 && pts[pts.length - 1]!.idx < obs.LAST_IDX
   // a pinned video outside the tracked ones whose series stopped: the points come back with the next daily record,
@@ -436,25 +423,13 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
 
   // ---------- versions ----------
   type Ver = { id: string; first_seen: number; last_seen: number; current: boolean; prec: string | null; window: [number, number] | null; seenSinceArchive?: boolean; text?: string; lines?: string[] | null; hasText?: boolean }
-  // Production writes the first version of a video as precision 'first' with first_seen = the sync that saw it
-  // (competitor-versions.ts). The oracle rule (dados.js:524): only a video published BEFORE the archive start
-  // (SERIES_START) has a first version whose start was not observed ("visto desde DD/MM", seenSinceArchive);
-  // a video published after it was watched from publication, so its 'first' version stands from publication.
-  const preArchive = pub < SS
-  const isPub = (x: Ver) => x.prec === 'publicacao' || ((x.prec === 'first' || x.prec == null) && (x.first_seen <= pub || !preArchive))
-  const lateObs = (x: Ver) => isPub(x) && obsSince != null && obsSince > pub && x.first_seen <= pub
-  const openStart = (x: Ver) => lateObs(x) || x.prec === 'desde-arquivo' || !!x.seenSinceArchive || (x.prec === 'first' && x.first_seen > pub && preArchive)
-  /** Effective start: a 'first' version that stands from publication starts at the publication. */
-  const startMs = (x: Ver) => (isPub(x) ? Math.min(x.first_seen, pub) : x.first_seen)
-  const du = (ms: number) => D.dur(ms).replace(/ 0 h$/, '').replace(/ 0 min$/, '')
-  const thumbKeys = new Map<string, string>()
-  for (const t of v.thumbs) if (!thumbKeys.has(t.key)) { const k = thumbKeys.size; thumbKeys.set(t.key, k < 26 ? String.fromCharCode(65 + k) : 'Z' + (k - 25)) }
+  const { isPub, lateObs, openStart, startMs, curWord } = clock
+  const thumbKeys = imageLetters(v.thumbs)
   const verLabel = new Map<string, string>()
   v.titles.forEach((t, i) => verLabel.set(t.id, 'T' + (i + 1)))
   v.descs.forEach((t, i) => verLabel.set(t.id, 'D' + (i + 1)))
   v.thumbs.forEach(t => verLabel.set(t.id, thumbKeys.get(t.key)!))
   const keyOf = (k: string) => thumbKeys.get(k) ?? k
-  const curWord = (type: LaneType) => (stalled ? (FEM[type] ? 'última vista' : 'último visto') : 'no ar')
   const revertedIds = new Set(changes.filter(c => c.revertTo).map(c => c.toId))
 
   const thumbImg = (t: { blobUrl: string | null }, label: string): ThumbImg => ({
@@ -469,22 +444,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     const o = FEM[type] ? 'a' : 'o'
     return arr.map((x, i) => {
       const nx = arr[i + 1]
-      const startLbl = lateObs(x)
-        ? (recentAdd ? 'vist' + o + ' na 1ª conferência, ' + dmhmY(obsSince!) : 'vist' + o + ' desde ' + D.dmOrDmy(obsSince!))
-        : isPub(x) ? dmhmY(pub) + ' (publicação)'
-          : x.prec === 'min' ? dmhmY(x.first_seen)
-            : openStart(x) ? 'vist' + o + ' desde ' + D.dmOrDmy(x.first_seen)
-              : 'vist' + o + ' pela 1ª vez ' + D.dmOrDmy(x.first_seen) + ' ' + D.hh(x.first_seen)
-      const sObs = lateObs(x) ? obsSince! : startMs(x)
-      const sLo = x.window ? x.window[0] : sObs, sHi = sObs
-      const eLo = nx ? (nx.window ? nx.window[0] : nx.first_seen) : endNow, eHi = nx ? nx.first_seen : endNow
-      const open = openStart(x), openEnd = !nx && stalled
-      const dMin = eLo - sHi, dMax = eHi - sLo
-      const rng = dMax - dMin < H_MS ? du(dMax) : du(Math.max(0, dMin)) + ' a ' + du(dMax)
-      const atLeast = open || openEnd
-      const durTxt = atLeast ? 'pelo menos ' + du(Math.max(0, dMin)) : rng
-      const end = nx ? (nx.window ? 'trocad' + o + ' ' + D.windowText(nx.window[0], nx.window[1]) : dmhmY(nx.first_seen)) : stalled ? 'até ' + dmhmY(endNow) + ' (última conferência)' : 'agora'
-      const span = /^trocad[ao] /.test(end) ? startLbl + '; ' + end : end.startsWith('até ') ? startLbl + ' ' + end : startLbl + ' até ' + end
+      const { startLbl, end, span, durTxt, open, atLeast, sLo, eLo, eHi } = clock.timing(type, arr, i)
       const label = verLabel.get(x.id) ?? x.id
       const desc = type === 'desc' ? x : null
       const noText = !!desc && (desc.lines == null || !desc.hasText)
@@ -511,15 +471,12 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const titles = versionsOf('title', v.titles)
   const thumbs = versionsOf('thumb', v.thumbs)
   // o visualizador de thumbnail (spec 6.3): a legenda, o período e o tempo no ar são os do cartão da versão, sem recalcular
-  const viewerVersions: ViewerVersion[] = thumbs.map((t, i) => {
-    const x = v.thumbs[i]!, nx = v.thumbs[i + 1]
-    return {
-      label: 'Capa ' + t.label, current: t.cur, archived: t.thumb?.src ?? null, youtubeId: t.cur ? v.ytId || null : null,
-      caption: 'Capa ' + t.label + (t.cur ? ' (' + (t.tag?.text ?? 'no ar') + ')' : '') + ': ' + t.span + '; no ar por ' + t.dur,
-      from: dmhmY(lateObs(x) ? obsSince! : startMs(x)), to: nx ? dmhmY(nx.first_seen) : stalled ? dmhmY(endNow) : 'agora',
-      preview: t.thumb?.src ?? null,
-    }
-  })
+  const viewerVersions: ViewerVersion[] = thumbs.map(t => ({
+    label: 'Capa ' + t.label, current: t.cur, archived: t.thumb?.src ?? null, youtubeId: t.cur ? v.ytId || null : null,
+    caption: thumbCaption(t.label, t.cur, t.tag?.text ?? 'no ar', t.span, t.dur),
+    from: t.from, to: t.to, span: t.span,
+    preview: t.thumb?.src ?? null,
+  }))
   const viewer: ViewerInput | null = viewerVersions.length ? { title: v.title.trim() ? v.title : 'sem título', versions: viewerVersions, start: viewerVersions.length - 1 } : null
   const verAt = (t: VersionView | null | undefined): number | null => { const k = t ? thumbs.indexOf(t) : -1; return k >= 0 ? k : null }
   const descs = versionsOf('desc', v.descs)

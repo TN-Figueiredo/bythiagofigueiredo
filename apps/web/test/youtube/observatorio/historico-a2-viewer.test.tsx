@@ -2,7 +2,7 @@
 // Fase A2, tarefa 6, no Histórico: os quatro gatilhos do visualizador de thumbnail (spec 6.3), a legenda do gráfico e o foco quando o gatilho some.
 // jsdom não tem layout: o gráfico tem 1100 px (o padrão do componente) e o ponteiro é fino. A rede de imagens não existe: o diálogo abre e mostra o que a tela já tinha.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, fireEvent, cleanup, screen, within } from '@testing-library/react'
+import { render, fireEvent, cleanup, screen, within, act } from '@testing-library/react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { canalWorld } from './canal-fixture'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
@@ -155,16 +155,10 @@ describe('gatilho 3: os cartões de "Thumbnails"', () => {
 
 describe('gatilho 4: o clique duplo na miniatura da raia', () => {
   const clip = (root: HTMLElement, i: number) => root.querySelector<HTMLElement>(`.lane[data-lane="thumb"] [data-k="thumb:${i}"]`)
-  it('o clique simples continua indo ao cartão da versão, na hora, e não abre o diálogo; o duplo abre o visualizador', () => {
+  it('o duplo clique abre o visualizador na versão da miniatura', () => {
     const { root } = mount()
     const c = clip(root, 3)
     expect(c, 'a raia desenha o período').not.toBeNull()
-    fireEvent.click(c!)
-    expect(document.activeElement).toBe(root.querySelector('[data-ver="thumb:3"]'))
-    expect(screen.queryByRole('dialog')).toBeNull()
-    // o navegador manda click, click, dblclick: o segundo clique também é imediato
-    fireEvent.click(c!)
-    expect(screen.queryByRole('dialog')).toBeNull()
     fireEvent.doubleClick(c!)
     expect(posicao()).toBe('Capa C · 4 de 4')
   })
@@ -183,6 +177,97 @@ describe('gatilho 4: o clique duplo na miniatura da raia', () => {
     const t = root.querySelector<HTMLElement>('.lane[data-lane="title"] [data-k^="title:"]')!
     fireEvent.doubleClick(t)
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+// Conserto 1, I1: o clique simples de PONTEIRO só rola ao cartão depois da janela do duplo clique (o alvo é marcado na hora); o segundo clique cancela a rolagem.
+// Teclado (`detail === 0`) não espera. Em jsdom `fireEvent.click` sem `detail` é teclado; o ponteiro leva `detail: 1` e `detail: 2`, como o navegador.
+describe('I1: o clique simples da raia espera a janela do duplo clique', () => {
+  const clip = (root: HTMLElement, i: number) => root.querySelector<HTMLElement>(`.lane[data-lane="thumb"] [data-k="thumb:${i}"]`)!
+  const rolagens = vi.fn()
+  beforeEach(() => {
+    vi.useFakeTimers()
+    rolagens.mockReset()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, writable: true, value: rolagens })
+  })
+  afterEach(() => { vi.useRealTimers(); delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView })
+  const aoCartao = (root: HTMLElement, i: number) => root.querySelector<HTMLElement>(`[data-ver="thumb:${i}"]`)!
+
+  it('um clique de ponteiro: o alvo é marcado na hora e a rolagem com o foco vêm depois de 250 ms, uma vez só', () => {
+    const { root } = mount()
+    const c = clip(root, 3)
+    fireEvent.click(c, { detail: 1 })
+    expect(rolagens).not.toHaveBeenCalled()
+    expect(document.activeElement).not.toBe(aoCartao(root, 3))
+    expect(aoCartao(root, 3).classList.contains('target'), 'o alvo está marcado').toBe(true)
+    act(() => { vi.advanceTimersByTime(249) })
+    expect(rolagens).not.toHaveBeenCalled()
+    act(() => { vi.advanceTimersByTime(1) })
+    expect(rolagens).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(aoCartao(root, 3))
+    act(() => { vi.advanceTimersByTime(2000) })
+    expect(rolagens).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+  it('dois cliques dentro da janela: o visualizador abre na versão da miniatura e a rolagem nunca acontece', () => {
+    const { root } = mount()
+    const c = clip(root, 2)
+    fireEvent.click(c, { detail: 1 })
+    act(() => { vi.advanceTimersByTime(120) })
+    fireEvent.click(c, { detail: 2 })
+    fireEvent.doubleClick(c)
+    expect(posicao()).toBe('Capa A · 3 de 4')
+    act(() => { vi.advanceTimersByTime(5000) })
+    expect(rolagens).not.toHaveBeenCalled()
+    expect(document.activeElement).not.toBe(aoCartao(root, 2))
+  })
+  it('o segundo clique sozinho (sem o dblclick chegar) também cancela a rolagem', () => {
+    const { root } = mount()
+    const c = clip(root, 1)
+    fireEvent.click(c, { detail: 1 })
+    fireEvent.click(c, { detail: 2 })
+    act(() => { vi.advanceTimersByTime(5000) })
+    expect(rolagens).not.toHaveBeenCalled()
+  })
+  it('Enter na miniatura (teclado, detail 0) vai ao cartão na hora, sem espera', () => {
+    const { root } = mount()
+    fireEvent.click(clip(root, 3), { detail: 0 })
+    expect(rolagens).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(aoCartao(root, 3))
+  })
+  it('as raias de título e de descrição não esperam: o clique de ponteiro rola na hora', () => {
+    const { root } = mount()
+    const t = root.querySelector<HTMLElement>('.lane[data-lane="title"] [data-k^="title:"]')!
+    fireEvent.click(t, { detail: 1 })
+    expect(rolagens).toHaveBeenCalledTimes(1)
+  })
+  it('com prefers-reduced-motion vale o mesmo (a espera é de qualquer clique de ponteiro)', () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation((q: string) => ({ matches: /reduce/.test(q), media: q, onchange: null, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false }) as MediaQueryList)
+    const { root } = mount()
+    const c = clip(root, 3)
+    fireEvent.click(c, { detail: 1 })
+    expect(rolagens).not.toHaveBeenCalled()
+    fireEvent.click(c, { detail: 2 }); fireEvent.doubleClick(c)
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(rolagens).not.toHaveBeenCalled()
+    expect(posicao()).toBe('Capa C · 4 de 4')
+  })
+  it('ao fechar, o foco volta à miniatura da raia', () => {
+    const { root } = mount()
+    const c = clip(root, 3)
+    c.focus()
+    fireEvent.click(c, { detail: 1 }); fireEvent.click(c, { detail: 2 }); fireEvent.doubleClick(c)
+    expect(screen.queryByRole('dialog')).not.toBeNull()
+    fechar()
+    expect(document.activeElement).toBe(c)
+    expect(rolagens).not.toHaveBeenCalled()
+  })
+  it('desmontar com o clique pendente não rola nem estoura', () => {
+    const { root, unmount } = mount()
+    fireEvent.click(clip(root, 3), { detail: 1 })
+    unmount()
+    expect(() => act(() => { vi.advanceTimersByTime(1000) })).not.toThrow()
+    expect(rolagens).not.toHaveBeenCalled()
   })
 })
 

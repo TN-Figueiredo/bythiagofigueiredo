@@ -41,8 +41,9 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
   onHl: (h: Hl | null) => void
   onMarker: (m: MarkerView, type: LaneType, el: HTMLElement | null) => void
   onMarkerClick: (m: MarkerView) => void
-  onClip: (type: LaneType, i: number) => void
-  /** Double click on a thumbnail period (spec 6.3, trigger 4): opens the viewer on it. The single click (`onClip`) is NOT delayed. */
+  /** `detail` is the click count of a pointer click (1, 2…); absent or 0 = keyboard or a list row. The screen decides whether to wait for a double click. */
+  onClip: (type: LaneType, i: number, detail?: number) => void
+  /** Double click on a thumbnail period (spec 6.3, trigger 4): opens the viewer on it. */
   onClipDouble?: (i: number, trigger: HTMLElement) => void
   onGroupTip: (g: GroupTip | null, el: HTMLElement | null) => void
 }) {
@@ -100,7 +101,7 @@ export function Lanes({ lanes, layouts, geom, stale, fewAxis, fromH, hl, tipMark
                 const common = {
                   type: 'button' as const, tabIndex: tab, 'data-k': lane.type + ':' + i, 'aria-label': v.name, title: v.aria,
                   onMouseEnter: () => onHl({ type: lane.type, i, ev: null }), onFocus: () => onHl({ type: lane.type, i, ev: null }),
-                  onMouseLeave: () => onHl(null), onBlur: () => onHl(null), onClick: () => onClip(lane.type, i),
+                  onMouseLeave: () => onHl(null), onBlur: () => onHl(null), onClick: (e: { detail: number }) => onClip(lane.type, i, e.detail),
                   ...(lane.type === 'thumb' && onClipDouble ? { onDoubleClick: (e: { currentTarget: HTMLElement }) => onClipDouble(i, e.currentTarget) } : {}),
                 }
                 const cls = 'ln-i' + (v.cur ? ' cur' : '') + (isHl(hl, lane, i) ? ' is-hl' : '')

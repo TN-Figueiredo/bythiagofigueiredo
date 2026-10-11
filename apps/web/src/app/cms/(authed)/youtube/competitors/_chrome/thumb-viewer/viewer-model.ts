@@ -8,6 +8,8 @@ export interface ViewerVersion {
   youtubeId: string | null
   caption: string               // "Capa B (no ar): 05/10 14:22 até agora; no ar por 2 d 7 h"
   from: string; to: string      // para o quadro da versão não arquivada
+  /** O período como o cartão da versão o escreve ("vista desde 03/10 até 05/10 14:22"): o quadro da versão não arquivada o usa, igual à legenda. Sem ele, "de from até to". */
+  span?: string
   /** A imagem desta versão que JÁ está na tela de quem abriu (cartão, miniatura): o diálogo a mostra enquanto a resolução maior carrega. */
   preview?: string | null
 }
@@ -48,8 +50,8 @@ export function resolutionLine(file: string, w: number, h: number, fellBack: boo
 }
 
 /** O texto do quadro tracejado da versão que saiu do ar antes de a coleta guardar a imagem (spec 6.3). */
-export function missingText(v: Pick<ViewerVersion, 'from' | 'to'>): string {
-  return `A coleta só guarda a thumbnail a partir do momento em que a vê. Esta versão (${v.from} até ${v.to}) saiu do ar antes disso, então não há imagem para mostrar nem para baixar.`
+export function missingText(v: Pick<ViewerVersion, 'from' | 'to' | 'span'>): string {
+  return `A coleta só guarda a thumbnail a partir do momento em que a vê. Esta versão (${v.span ?? `${v.from} até ${v.to}`}) saiu do ar antes disso, então não há imagem para mostrar nem para baixar.`
 }
 
 export const positionLabel = (label: string, index: number, total: number): string => `${label} · ${index + 1} de ${total}`

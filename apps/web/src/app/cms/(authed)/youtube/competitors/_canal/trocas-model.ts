@@ -113,7 +113,7 @@ export function buildCanalTrocas(obs: Observatory, channelId: string): CanalTroc
     const multi = views.length > 1
     const thumbSrc = v.thumbs.find(t => t.current)?.blobUrl ?? (v.ytId ? `https://i.ytimg.com/vi/${v.ytId}/mqdefault.jpg` : null)
     return {
-      videoId, title, thumbSrc, viewer: viewerOfVideo(v, title, obs.NOW, D, thumbSrc),
+      videoId, title, thumbSrc, viewer: viewerOfVideo(obs, v, ch, title, thumbSrc),
       contagem: `${views.length} ${multi ? 'trocas' : 'troca'} neste vídeo`,
       href: multi ? hrefDe(videoId, i) : views[0]!.href,
       hrefLabel: `Abrir histórico do vídeo: ${title}`,
