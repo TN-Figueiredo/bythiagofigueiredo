@@ -14,8 +14,10 @@ import { removeCompetitorChannel, syncCompetitorNow, pinVideo, unpinVideo, getCo
 import { setChannelNiche } from '../../niche-actions'
 import { carregarExtrasProprio } from '../../_proprio/carregar-extras'
 import { lerDadosDoCanal } from '../../_proprio/dados'
+import { ComoEsta } from '../../_proprio/como-esta'
+import { montarComoEsta } from '../../_proprio/como-esta-model'
 import { dmDia } from '../../_proprio/extras'
-import { posicaoDoSite } from '../../_proprio/posicao-do-site'
+import { concorrentesDoSite, posicaoDoSite } from '../../_proprio/posicao-do-site'
 import { ProprioScreen, ProprioSemVideos } from '../../_proprio/proprio-screen'
 import { buildProprioView } from '../../_proprio/view-model'
 import { buildMudancasView } from '../../_mudancas/view-model'
@@ -56,11 +58,18 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
     const site = await openObservatoryPage()
     const extras = await carregarExtrasProprio(site.obs, site.siteId, now, undefined, { edicao, canalId: proprio.id, diario: dados.diario })
     const { posicao, concorrenteAcima } = posicaoDoSite(site.obs, proprio.id, extras)
-    const pv = buildProprioView(obs, proprio.id, flat, dados, { hoje: dayPt(new Date(now)), dm: dmDia, posicao, concorrenteAcima, muitosProprios: owns.itens.length > 1 })
+    const hoje = dayPt(new Date(now))
+    const pv = buildProprioView(obs, proprio.id, flat, dados, { hoje, dm: dmDia, posicao, concorrenteAcima, muitosProprios: owns.itens.length > 1 })
     if (pv) {
+      // "Como o canal está" (16.5): o MESMO dado que o cabeçalho leu; a posição é a linha do cabeçalho (uma fonte só); os concorrentes do formulário vêm do conjunto do site
+      const { view, grafico } = montarComoEsta({
+        dados, hoje, dm: dmDia, posicao, posicaoItens: pv.header.posicaoItens, canalId: proprio.id,
+        videos: pv.videos.videos.map(v => ({ id: v.id, ytId: v.ytId, title: v.title, thumb: v.thumbSrc })),
+        concorrentes: concorrentesDoSite(site.obs, proprio.id),
+      })
       return (
         <TrailChrome crumbs={crumbs} owns={owns} atual={proprio.id}>
-          <ProprioScreen view={pv} />
+          <ProprioScreen view={pv} comoEsta={<ComoEsta key={proprio.id} view={view} grafico={grafico} painel={painelDe(flat.painel)} canalId={proprio.id} />} />
         </TrailChrome>
       )
     }
@@ -82,6 +91,11 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
         actions={{ onSyncOne: syncCompetitorNow, onRemove: removeCompetitorChannel, onRemovalImpact: getCompetitorRemovalImpactAction, onSetNiche: setChannelNiche, onPin: pinVideo, onUnpin: unpinVideo }} />
     </TrailChrome>
   )
+}
+
+/** `?painel=1` abre e `?painel=0` fecha "Como o canal está"; qualquer outro valor (ou nenhum) deixa valer o que a pessoa deixou. */
+function painelDe(v: string | undefined): '1' | '0' | null {
+  return v === '1' ? '1' : v === '0' ? '0' : null
 }
 
 /**

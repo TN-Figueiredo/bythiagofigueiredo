@@ -1,0 +1,245 @@
+/**
+ * Modelo da seção "Como o canal está" (spec 16.5, D12 e D13; mockup M/canal.js `painel()`). Puro: recebe o alcance JÁ lido (`resumir`, `alcancePorVideo`), a
+ * posição JÁ calculada no servidor e as opções do formulário; não lê banco, não pede a prova de edição e não importa os leitores (uma varredura de teste
+ * barra). O que sai daqui é o QUE VAI PARA O NAVEGADOR: sem permissão ou com a leitura falha, nenhum número, título de vídeo ou série está na view.
+ *
+ * Regra de ouro (este sistema falha em VERDE): cada frase diz só o que o dado sustenta. Dia não medido não entra como zero em soma nem em média; série curta
+ * ou com buracos diz a base ("em 19 dos 29 dias"); coleta parada diz "parou em dd/mm"; sem relatório, sem permissão, leitura que falhou, nenhum dia lido
+ * e todos os dias em zero são cinco frases diferentes, e só o último é zero medido.
+ */
+import { link } from '@/lib/youtube/observatorio/links'
+import { conjuntoTexto } from '@/lib/youtube/observatorio/posicao'
+import { alcancePorVideo, montarDias, resumir, type AlcanceVideo, type Periodo, type ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
+import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
+import type { DadosDoCanal } from './dados'
+import { nichoDoLink, type PosicaoItens, type PosicaoNoNicho } from './header-model'
+import { buildImpressoes, ERRO_ALCANCE, int, paradaEm, SEM_PERMISSAO, SEM_RELATORIO, type ImpressoesView } from './impressoes-model'
+import type { OpcaoConcorrente } from './posicao-do-site'
+
+/** D13: abaixo disto a frase do spec ("ainda é pouco para dizer qual vídeo ou qual capa funciona melhor"); a partir daqui, a de D13. */
+export const POUCO_VOLUME = 1000
+/** Quantos vídeos a lista mostra (spec 16.5). */
+const TOP_N = 5
+/** Altura da área de barras do gráfico do canal (spec 16.6: 180 px para o dia de 71 impressões não apagar o de 1). */
+const ALTURA_CANAL = 180
+/** A seção aberta volta ao canal aberta: o `back` do paginador do vídeo (`link.historico` só aceita `back` que começa com `?`). */
+const VOLTAR_ABERTA = '?painel=1'
+
+export interface ComoEstaTop { id: string; titulo: string; href: string; imp: string; cliques: string; dias: string; thumb: string | null }
+export interface ComoEstaNicho {
+  /** "Entre 14 canais de Viagem:" */
+  intro: string
+  /** Os itens da linha de posição do cabeçalho (uma fonte só): `href` = a lista de Canais já ordenada por ele; null = texto. */
+  linhas: Array<{ texto: string; href: string | null }>
+  /** O formulário "Comparar com…"; vazio = sem concorrente, o formulário não existe. */
+  opcoes: Array<{ id: string; name: string }>
+  /** A ação do formulário GET: `link.comparar()` (o canal vai em `a` oculto, o concorrente em `b`). */
+  acao: string
+  /** "Ver a lista de Canais", no nicho da posição. */
+  listaHref: string
+}
+export interface ComoEstaView {
+  /** A linha de uma frase, sempre visível: o alcance e a posição em inscritos. */
+  recolhida: string
+  /** A frase única do topo da seção aberta, calculada do volume. */
+  frase: string
+  top: ComoEstaTop[]
+  topVazio: string | null
+  /** Vídeos que saíram do canal e tiveram impressões (não têm cartão): dito, nunca somado em silêncio. */
+  topNota: string | null
+  noNicho: ComoEstaNicho | null
+  /** "O que ainda não é medido": rótulo e frase. */
+  naoMedido: Array<{ rotulo: string; texto: string }>
+}
+
+export interface EntradaComoEsta {
+  resumo: ResumoAlcance
+  periodo: Periodo | null
+  acesso: 'ok' | 'negado' | 'erro'
+  porVideo: ReadonlyMap<string, AlcanceVideo>
+  videos: ReadonlyArray<{ id: string; ytId: string; title: string; thumb?: string | null }>
+  posicao: PosicaoNoNicho | null
+  /** A linha de posição do cabeçalho em pedaços (`ProprioHeaderView.posicaoItens`). */
+  posicaoItens: PosicaoItens | null
+  concorrentes: ReadonlyArray<OpcaoConcorrente>
+  canalId: string
+  dm: (d: DiaYt) => string
+  /** O dia de hoje (dia do YouTube). OBRIGATÓRIO: sem ele a coleta parada não seria dita (falha em verde por omissão). */
+  hoje: DiaYt
+}
+
+type Estado = 'negado' | 'erro' | 'sem-relatorio' | 'nada-lido' | 'zero' | 'ok'
+
+function estadoDe(a: EntradaComoEsta): Estado {
+  if (a.acesso === 'negado') return 'negado'
+  if (a.acesso === 'erro') return 'erro'
+  if (!a.periodo) return 'sem-relatorio'
+  if (a.resumo.diasLidos === 0 || a.resumo.imp == null) return 'nada-lido'
+  if (a.resumo.imp === 0) return 'zero'
+  return 'ok'
+}
+
+const plural = (n: number, um: string, muitos: string): string => `${int(n)} ${n === 1 ? um : muitos}`
+
+/** "29 dias" quando todos os dias do período foram medidos; "19 dos 29 dias" quando há buracos (o dia sem relatório não conta como medido). */
+function diasTexto(r: ResumoAlcance, p: Periodo): string {
+  return r.diasNaoMedidos > 0 ? `${int(r.diasLidos)} dos ${plural(p.dias, 'dia', 'dias')}` : plural(p.dias, 'dia', 'dias')
+}
+
+/** Os cliques estimados dentro da frase "N impressões e M cliques estimados em D dias." */
+function alcanceFrase(r: ResumoAlcance, p: Periodo): string {
+  const imp = plural(r.imp ?? 0, 'impressão', 'impressões')
+  const dias = diasTexto(r, p)
+  if (r.cliques == null) return `${imp} em ${dias}; cliques estimados não medidos em algum dia.`
+  const c = r.cliques
+  const cliques = c <= 0 ? 'nenhum clique estimado' : Math.round(c) === 0 ? 'menos de 1 clique estimado' : plural(Math.round(c), 'clique estimado', 'cliques estimados')
+  return `${imp} e ${cliques} em ${dias}.`
+}
+
+/** "Nenhuma impressão em 10 dias lidos.": só vale quando houve dia lido, e fala só dos dias lidos. */
+const zeroBase = (r: ResumoAlcance): string => `Nenhuma impressão em ${plural(r.diasLidos, 'dia lido', 'dias lidos')}.`
+
+function fraseDoTopo(estado: Estado, a: EntradaComoEsta): string {
+  const { resumo: r, periodo: p } = a
+  switch (estado) {
+    case 'negado': return SEM_PERMISSAO
+    case 'erro': return ERRO_ALCANCE
+    case 'sem-relatorio': return SEM_RELATORIO
+    case 'nada-lido':
+      return p && p.dias === 1
+        ? 'Ainda não há relatório lido: o dia do período não tem impressões nem cliques medidos.'
+        : `Ainda não há relatório lido: nenhum dos ${int(p?.dias ?? 0)} dias do período tem impressões ou cliques medidos.`
+    case 'zero': {
+      const base = zeroBase(r)
+      if (r.diasNaoMedidos === 0) return base
+      return `${base} ${r.diasNaoMedidos === 1 ? 'O 1 dia sem relatório lido não entra' : `Os ${int(r.diasNaoMedidos)} dias sem relatório lido não entram`} na conta.`
+    }
+    case 'ok': {
+      const imp = plural(r.imp ?? 0, 'impressão', 'impressões')
+      const dias = diasTexto(r, p!)
+      return (r.imp ?? 0) < POUCO_VOLUME
+        ? `Com ${imp} em ${dias}, ainda é pouco para dizer qual vídeo ou qual capa funciona melhor. O que já dá para ver é em que dias o canal apareceu, e em quais não há dado.`
+        : `Com ${imp} em ${dias} dá para ver em que dias e em quais vídeos o canal apareceu. Nenhum vídeo sozinho diz que uma capa funciona melhor.`
+    }
+    default: { const nunca: never = estado; return nunca }
+  }
+}
+
+/** A primeira metade da linha recolhida: o alcance, ou o motivo de não haver. */
+function alcanceRecolhido(estado: Estado, a: EntradaComoEsta): string {
+  switch (estado) {
+    case 'negado': return 'Só quem edita o site vê as impressões e os cliques.'
+    case 'erro': return ERRO_ALCANCE
+    case 'sem-relatorio': return SEM_RELATORIO
+    case 'nada-lido': return fraseDoTopo(estado, a)
+    case 'zero': return zeroBase(a.resumo)
+    case 'ok': return alcanceFrase(a.resumo, a.periodo!)
+    default: { const nunca: never = estado; return nunca }
+  }
+}
+
+/** "14º de 14 canais de Viagem em inscritos." (o conjunto é o da posição: nicho ou "no geral"); null = a posição não foi calculada. */
+function posicaoRecolhida(p: PosicaoNoNicho | null): string | null {
+  if (!p) return null
+  const q = p.inscritos
+  if (!q) return 'Sem posição em inscritos.'
+  const c = p.conjunto
+  const onde = c.tipo === 'nicho' ? `canais de ${c.label}` : `canais ${conjuntoTexto(c)}`
+  return `${q.pos}º de ${q.de} ${onde} em inscritos${q.empate ? ' (empate)' : ''}.`
+}
+
+function cliquesDoVideo(c: number | null): string {
+  if (c == null) return 'cliques não medidos'
+  if (c <= 0) return 'nenhum clique'
+  if (Math.round(c) === 0) return 'menos de 1 clique estimado'
+  return plural(Math.round(c), 'clique estimado', 'cliques estimados')
+}
+
+const SEM_TOP_NEGADO = 'Só quem edita o site vê os vídeos que mais apareceram.'
+
+function topDe(estado: Estado, a: EntradaComoEsta): { top: ComoEstaTop[]; topVazio: string | null; topNota: string | null } {
+  const vazio = (topVazio: string) => ({ top: [], topVazio, topNota: null })
+  switch (estado) {
+    case 'negado': return vazio(SEM_TOP_NEGADO)
+    case 'erro': return vazio(ERRO_ALCANCE)
+    case 'sem-relatorio': return vazio('Sem relatório de alcance, não há vídeo para listar.')
+    case 'nada-lido': return vazio('Nenhum dia do período foi lido ainda, então nenhum vídeo aparece aqui.')
+    case 'zero': return vazio(`Nenhum vídeo teve impressão ${a.resumo.diasLidos === 1 ? 'no' : 'nos'} ${plural(a.resumo.diasLidos, 'dia lido', 'dias lidos')}.`)
+    case 'ok': break
+    default: { const nunca: never = estado; return nunca }
+  }
+  if (a.videos.length === 0) return vazio('Este canal não tem vídeos guardados.')
+  const porYt = new Map(a.videos.map(v => [v.ytId, v]))
+  const dentro: Array<{ v: (typeof a.videos)[number]; r: AlcanceVideo }> = []
+  let fora = 0
+  for (const [yt, r] of a.porVideo) {
+    const v = porYt.get(yt)
+    if (v) dentro.push({ v, r })
+    else fora++
+  }
+  const titulo = (v: { title: string }) => (v.title.trim() ? v.title : 'Vídeo sem título')
+  dentro.sort((x, y) => y.r.imp - x.r.imp || (y.r.cliques ?? -1) - (x.r.cliques ?? -1) || titulo(x.v).localeCompare(titulo(y.v), 'pt-BR') || (x.v.id < y.v.id ? -1 : x.v.id > y.v.id ? 1 : 0))
+  const escolhidos = dentro.slice(0, TOP_N)
+  if (escolhidos.length === 0) {
+    return vazio(fora > 0 ? 'Os vídeos que apareceram saíram do canal e não têm cartão.' : 'Nenhum vídeo com impressão no período lido.')
+  }
+  const ids = escolhidos.map(e => e.v.id)
+  const top = escolhidos.map(({ v, r }, i): ComoEstaTop => ({
+    id: v.id, titulo: titulo(v),
+    href: link.historico(v.id, { from: 'canais', canal: a.canalId, back: VOLTAR_ABERTA, ids, pos: i + 1, tot: ids.length }),
+    imp: plural(r.imp, 'impressão', 'impressões'), cliques: cliquesDoVideo(r.cliques), dias: `em ${plural(r.diasComImpressao, 'dia', 'dias')} com impressão`,
+    thumb: v.thumb ?? null,
+  }))
+  const topNota = fora === 0 ? null
+    : fora === 1 ? '1 vídeo que saiu do canal também teve impressões e não tem cartão.'
+      : `${int(fora)} vídeos que saíram do canal também tiveram impressões e não têm cartão.`
+  return { top, topVazio: null, topNota }
+}
+
+/** D12 (b) e (c): o que ainda não é medido, em frase. Não depende do dado privado. */
+const NAO_MEDIDO: ComoEstaView['naoMedido'] = [
+  { rotulo: 'Views por dia de cada vídeo', texto: 'já são coletadas; o desenho delas nesta tela ainda não existe.' },
+  { rotulo: 'Percentual assistido e retenção', texto: 'ainda não coletados; chegam com a coleta de retenção.' },
+  { rotulo: 'Origem do tráfego', texto: 'ainda não é lida nesta tela.' },
+]
+
+export function buildComoEsta(a: EntradaComoEsta): ComoEstaView {
+  const estado = estadoDe(a)
+  // sem permissão ou com a leitura falha, nada do que veio entra na view (nem o resumo, nem os vídeos)
+  const parou = a.periodo && (estado === 'ok' || estado === 'zero' || estado === 'nada-lido') ? paradaEm(a.periodo, a.hoje) : null
+  const pos = posicaoRecolhida(a.posicao)
+  const recolhida = [alcanceRecolhido(estado, a), parou ? `A coleta parou em ${a.dm(parou)}.` : null, pos].filter((x): x is string => x != null).join(' ')
+  return {
+    recolhida,
+    frase: fraseDoTopo(estado, a),
+    ...topDe(estado, a),
+    noNicho: a.posicaoItens
+      ? {
+        intro: a.posicaoItens.intro,
+        linhas: a.posicaoItens.itens.map(i => ({ texto: i.texto, href: i.href })),
+        opcoes: a.concorrentes.map(c => ({ id: c.id, name: c.acima ? `${c.name} (logo acima de você)` : c.name })),
+        acao: link.comparar(),
+        listaHref: link.canais({ niche: a.posicao ? nichoDoLink(a.posicao.conjunto) : 'todos' }),
+      }
+      : null,
+    naoMedido: NAO_MEDIDO.map(x => ({ ...x })),
+  }
+}
+
+/** A seção e o gráfico a partir do dado privado do canal (o mesmo `montarDias` alimenta os dois: um número só, uma regra só). */
+export function montarComoEsta(a: {
+  dados: DadosDoCanal; hoje: DiaYt; dm: (d: DiaYt) => string; posicao: PosicaoNoNicho | null; posicaoItens: PosicaoItens | null
+  videos: EntradaComoEsta['videos']; concorrentes: ReadonlyArray<OpcaoConcorrente>; canalId: string
+}): { view: ComoEstaView; grafico: ImpressoesView } {
+  const al = a.dados.alcance
+  const lido = al.acesso === 'ok' ? montarDias(al.dado) : null
+  const dias = lido?.dias ?? []
+  const periodo = lido?.periodo ?? null
+  const porVideo = al.acesso === 'ok' ? alcancePorVideo(al.dado) : new Map<string, AlcanceVideo>()
+  const grafico = buildImpressoes(dias, periodo, { escopo: 'canal', alturaArea: ALTURA_CANAL, dm: a.dm, acesso: al.acesso, hoje: a.hoje })
+  const view = buildComoEsta({
+    resumo: resumir(dias), periodo, acesso: al.acesso, porVideo, videos: a.videos, posicao: a.posicao, posicaoItens: a.posicaoItens,
+    concorrentes: a.concorrentes, canalId: a.canalId, dm: a.dm, hoje: a.hoje,
+  })
+  return { view, grafico }
+}

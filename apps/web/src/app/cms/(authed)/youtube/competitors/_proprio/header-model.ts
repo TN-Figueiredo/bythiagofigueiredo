@@ -297,7 +297,7 @@ function entreTexto(c: Conjunto, de: number, F: Fmt): string {
 }
 
 /** O nicho da lista de Canais que a posição usa: o do conjunto, ou "todos" no geral (e para um nicho que a lista não conhece). */
-function nichoDoLink(c: Conjunto): NicheScope {
+export function nichoDoLink(c: Conjunto): NicheScope {
   switch (c.tipo) {
     case 'nicho': return parseNiche(c.niche) ?? 'todos'
     case 'geral': return 'todos'
