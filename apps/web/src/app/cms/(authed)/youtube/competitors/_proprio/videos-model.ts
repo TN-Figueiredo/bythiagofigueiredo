@@ -5,8 +5,8 @@
  * Puro: recebe o dado privado JÁ LIDO (`DadosDoCanal`, com os estados ok / negado / erro) e não lê banco, não pede a prova de
  * edição e não importa os leitores (uma varredura de teste barra). Parte de `buildCanalVideos` (o mesmo vídeo, o mesmo
  * múltiplo, as mesmas notas) e acrescenta o que é do canal próprio. Dado ausente é `null` no tipo e uma frase na tela, nunca
- * zero: vídeo que não aparece nos relatórios lidos é "sem impressão no período" (não "0 impressões"); cliques sem CTR são "não
- * medido"; leitura negada, com erro ou sem relatório diz o motivo UMA vez, na nota do conjunto (`motivoAlcance`), e o cartão
+ * zero: vídeo que não aparece em NENHUM relatório medido é ZERO MEDIDO (`semImpressao`, "0" na caixa vazada, como no gráfico) e só o dia sem relatório é
+ * "não medido"; cliques sem a taxa de clique de algum dia são "não medido"; leitura negada, com erro ou sem relatório diz o motivo UMA vez, na nota do conjunto (`motivoAlcance`), e o cartão
  * só leva a palavra curta da coluna.
  *
  * A ordenação por impressões é do cliente, como todas as da lista (`montarLista` roda no navegador sobre `imp`): este modelo só
@@ -27,10 +27,15 @@ import { cliquesTexto, FRASE_NADA_LIDO, fraseDoAlcance, lerEstado } from './head
 import { VPD_SO_LONGOS, longosAcompanhados } from './extras'
 
 export interface ProprioVideoView extends ChannelVideoView {
-  /** Impressões de miniatura no período dos relatórios. null = sem impressão no período OU alcance não lido (a frase diz qual). Nunca 0. */
+  /**
+   * true = ZERO MEDIDO: o alcance foi lido, houve dia medido e este vídeo não apareceu em nenhum (a tela mostra "0" na caixa vazada, em impressões e
+   * em cliques). false = tem número, ou o alcance não foi lido (palavra do motivo na hachura). Nunca é true sem dia medido.
+   */
+  semImpressao: boolean
+  /** Impressões de miniatura no período dos relatórios. null = sem impressão no período (`semImpressao`) OU alcance não lido (a frase diz qual). Nunca 0. */
   imp: number | null
   impText: string | null
-  /** A palavra curta da coluna quando não há número ("sem impressão", "só quem edita vê"…); null quando há. */
+  /** A palavra curta da coluna quando não há número ("só quem edita vê", "leitura falhou"…); null quando há número ou quando é zero medido (`semImpressao`). */
   impMissing: string | null
   /** Cliques estimados (impressões × CTR por dia, somados SEM arredondar). null = sem impressão, alcance não lido ou CTR nulo em algum dia. */
   cliques: number | null
@@ -118,7 +123,7 @@ export function buildProprioVideos(
     const notas = [...v.notas]
 
     /* alcance: impressões, cliques e a terceira linha */
-    let imp: number | null = null, impText: string | null = null, impMissing: string | null = null
+    let imp: number | null = null, impText: string | null = null, impMissing: string | null = null, semImpressao = false
     let cliques: number | null = null, cliquesText: string | null = null, cliquesMissing: string | null = null
     let terceira = ''
     if (estado !== 'ok') {
@@ -127,15 +132,18 @@ export function buildProprioVideos(
       const a = porVideo?.get(v.ytId) ?? null
       terceira = terceiraLinha(a)
       if (a == null) {
-        impMissing = cliquesMissing = 'sem impressão'
-        notas.push(`Impressões: nenhuma nos relatórios lidos ${periodoTxt}.`)
+        // o alcance tem dia medido (estado 'ok' aqui exclui "nada lido") e o vídeo não apareceu em nenhum: zero medido, não "não medido"
+        semImpressao = true
+        const medidos = alc.estado === 'ok' ? alc.resumo.diasLidos : 0
+        const sem = alc.estado === 'ok' && alc.resumo.diasNaoMedidos > 0 ? ` (${plural(alc.resumo.diasNaoMedidos, 'dia', 'dias')} sem relatório)` : ''
+        notas.push(`Impressões: nenhuma ${medidos === 1 ? 'em' : 'nos'} ${plural(medidos, 'dia medido', 'dias medidos')}${sem}, ${periodoTxt}.`)
       } else {
         imp = a.imp
         impText = numNb(F, a.imp)   // o espaço antes de "mil"/"mi" não quebra linha, como nas views do cartão
         notas.push(`Impressões: ${F.num(a.imp)} em ${plural(a.diasComImpressao, 'dia', 'dias')}, ${periodoTxt} (dia do YouTube).`)
         if (a.cliques == null) {
           cliquesMissing = 'não medido'
-          notas.push('Cliques: o YouTube não devolveu o CTR de algum dia com impressão deste vídeo.')
+          notas.push('Cliques: o YouTube não informou a taxa de clique de algum dia com impressões deste vídeo.')
         } else {
           cliques = a.cliques
           cliquesText = cliquesTexto(a.cliques, F)
@@ -165,7 +173,7 @@ export function buildProprioVideos(
       ...v, notas,
       // o cartão do canal próprio tem as suas colunas: "views/dia e múltiplo: não medido" é frase do concorrente
       semMedida: null,
-      imp, impText, impMissing, cliques, cliquesText, cliquesMissing, terceira,
+      semImpressao, imp, impText, impMissing, cliques, cliquesText, cliquesMissing, terceira,
       vpdDiario, vpdDiarioText, vpdDiarioMissing,
     }
   })
@@ -173,7 +181,7 @@ export function buildProprioVideos(
   const nota = 'Múltiplo = views do vídeo ÷ mediana dos outros vídeos do seu canal, do mesmo formato e da mesma faixa de idade. '
     + 'De 2 a 5, alto; de 5 a 10, muito alto; 10 ou mais, topo. '
     + `Impressões = vezes em que a miniatura do vídeo apareceu no YouTube, somadas ${periodoTxt ?? 'no período dos relatórios de alcance'}. `
-    + 'Cliques = impressões × CTR de cada dia, somados e arredondados só no fim; é contagem, nunca percentual. '
+    + 'Cliques = impressões × taxa de clique de cada dia, somados e arredondados só no fim; é contagem, nunca percentual. '
     + 'O dia é o do YouTube (horário do Pacífico), não o de São Paulo.'
     + (motivoAlcance != null ? ` Impressões e cliques: ${motivoAlcance}.` : '')
 

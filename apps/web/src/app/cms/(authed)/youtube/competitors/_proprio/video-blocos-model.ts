@@ -371,7 +371,7 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
   if (a.dados.acesso !== 'ok') {
     const negado = a.dados.acesso === 'negado'
     const reguas = buildReguas({
-      videoId, videos, porVideo: new Map(), alcanceLido: false, periodoTexto: null, hrefs, hrefVideo: a.hrefVideo, fmt: F,
+      videoId, videos, porVideo: new Map(), alcanceLido: false, dias: { medidos: 0, semRelatorio: 0 }, periodoTexto: null, hrefs, hrefVideo: a.hrefVideo, fmt: F,
       motivoImpressoes: negado ? 'só quem edita o site vê as impressões' : 'a leitura das impressões falhou agora; recarregue a página',
     })
     return {
@@ -428,7 +428,8 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
     }
   }
   const reguas = buildReguas({
-    videoId, videos, porVideo: lidoAlcance.estado === 'ok' ? lidoAlcance.porVideo : new Map(), alcanceLido: lidoAlcance.estado === 'ok', periodoTexto, hrefs, hrefVideo: a.hrefVideo, fmt: F,
+    videoId, videos, porVideo: lidoAlcance.estado === 'ok' ? lidoAlcance.porVideo : new Map(), alcanceLido: lidoAlcance.estado === 'ok',
+    dias: lidoAlcance.estado === 'ok' ? { medidos: lidoAlcance.resumo.diasLidos, semRelatorio: lidoAlcance.resumo.diasNaoMedidos } : { medidos: 0, semRelatorio: 0 }, periodoTexto, hrefs, hrefVideo: a.hrefVideo, fmt: F,
     ...(diarioReguas ? { diario: diarioReguas } : {}),
   })
 

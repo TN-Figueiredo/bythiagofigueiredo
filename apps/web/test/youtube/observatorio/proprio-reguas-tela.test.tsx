@@ -28,7 +28,7 @@ const diario = (o: Partial<DiarioReguas> = {}): DiarioReguas => ({
   naoPosicionaVpd: null, naoPosicionaPct: null, semVpd: 'sem 7 dias de medida', semPct: 'sem views nos 28 dias', ...o,
 })
 const base = (videoId: string, o: Partial<EntradaReguas> = {}): EntradaReguas => ({
-  videoId, videos, porVideo, alcanceLido: true, periodoTexto: 'de 09/09 a 07/10', hrefs: { vistos: '/v', imp: '/i' }, hrefVideo: id => '/video/' + id + '?back=%3Fsort%3Dimp', diario: diario(), ...o,
+  videoId, videos, porVideo, alcanceLido: true, dias: { medidos: 19, semRelatorio: 2 }, periodoTexto: 'de 09/09 a 07/10', hrefs: { vistos: '/v', imp: '/i' }, hrefVideo: id => '/video/' + id + '?back=%3Fsort%3Dimp', diario: diario(), ...o,
 })
 const view = (videoId = 'v2', o: Partial<EntradaReguas> = {}): ReguasView => buildReguas(base(videoId, o))
 const montar = (v: ReguasView) => render(<Reguas view={v} />)
@@ -153,12 +153,12 @@ describe('13.4 réguas na tela: base sempre ao lado da frase (H17)', () => {
     expect(com.container.querySelector('.vb-rg-pouco')!.textContent).toBe(v.pouco)
   })
 
-  it('"N sem medida" aparece em toda linha que deixa vídeos de fora, junto da posição', () => {
+  it('"N sem medida" aparece em toda linha que deixa vídeos de fora, junto da posição; em impressões (dia medido) é "N sem impressão no período" (B2: zero, não "sem medida")', () => {
     const v = view('v2')
     const { container } = montar(v)
     const imp = linha(container, 'impressoes')
-    expect(v.linhas.find(l => l.numero === 'impressoes')!.semMedida).toBe('2 sem medida')
-    expect(imp.querySelector('.vb-rg-sm')!.textContent).toBe('2 sem medida')
+    expect(v.linhas.find(l => l.numero === 'impressoes')!.semMedida).toBe('2 sem impressão no período')
+    expect(imp.querySelector('.vb-rg-sm')!.textContent).toBe('2 sem impressão no período')
     expect(linha(container, 'comentarios').querySelector('.vb-rg-sm')!.textContent).toBe('1 sem medida')
   })
 })

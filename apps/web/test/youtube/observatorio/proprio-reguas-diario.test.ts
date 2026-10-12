@@ -7,7 +7,7 @@ import { buildReguas, type DiarioReguas, type EntradaReguas } from '@/app/cms/(a
 afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
 
 const videos = Array.from({ length: 6 }, (_, k) => ({ id: 'v' + k, ytId: 'y' + k, views: (k + 1) * 100, likes: k, comments: 1, dur: 600 + k }))
-const base: Omit<EntradaReguas, 'videoId'> = { videos, porVideo: new Map([['y0', { imp: 18, cliques: 2, diasComImpressao: 6 }]]), alcanceLido: true, periodoTexto: 'de 09/09 a 07/10', hrefs: { vistos: '/v', imp: '/i' } }
+const base: Omit<EntradaReguas, 'videoId'> = { videos, porVideo: new Map([['y0', { imp: 18, cliques: 2, diasComImpressao: 6 }]]), alcanceLido: true, dias: { medidos: 19, semRelatorio: 2 }, periodoTexto: 'de 09/09 a 07/10', hrefs: { vistos: '/v', imp: '/i' } }
 const diario = (o: Partial<DiarioReguas> = {}): DiarioReguas => ({
   vpd: new Map(videos.map((v, k) => [v.id, k + 1.5] as const)),
   pct: new Map(videos.map((v, k) => [v.id, 40 + 5 * k] as const)),

@@ -89,7 +89,7 @@ describe('impressões e cliques', () => {
     const zero = g.colunas.find(c => c.situacao === 'zero-medido')!
     expect(zero.dica).toMatch(/o relatório do dia não trouxe este vídeo/)
     expect(g.colunas.filter(c => c.situacao === 'com-impressoes')).toHaveLength(1)
-    expect(g.resumo).toBe('7.919 impressões e 1.584 cliques estimados em 19 dias: 1 dia com impressão, 18 dias medidos em zero e 0 dias não medidos.')
+    expect(g.resumo).toBe('7.919 impressões e 1.584 cliques estimados em 19 dias: 1 dia com impressão e 18 sem impressão.')
   })
 
   it('abaixo de 100 impressões a frase acrescenta "É pouco para dizer se a capa funciona: leia como contagem."; de 100 em diante, não', () => {
@@ -148,7 +148,7 @@ describe('impressões de vídeo recente: o dia anterior à publicação não exi
     const g = b.grafico!
     expect(g.colunas).toHaveLength(1)
     expect(g.colunas[0]!.situacao).toBe('com-impressoes')
-    expect(g.resumo).toBe('400 impressões e 20 cliques estimados em 1 dia: 1 dia com impressão, 0 dias medidos em zero e 0 dias não medidos.')
+    expect(g.resumo).toBe('400 impressões e 20 cliques estimados em 1 dia: 1 dia com impressão.')
     expect(g.periodoTexto).toMatch(/^de \d\d\/\d\d a \d\d\/\d\d · 1 dia/)
     expect(g.periodoTexto).toBe(`de ${dmDia(addDays(w.hoje, -3))} a ${dmDia(addDays(w.hoje, -3))} · 1 dia · dia do YouTube`)
   })
@@ -158,7 +158,7 @@ describe('impressões de vídeo recente: o dia anterior à publicação não exi
     const g = blocos(w, dados, id).impressoes!.grafico!
     expect(g.colunas).toHaveLength(3)
     expect(g.colunas.every(c => c.situacao === 'com-impressoes')).toBe(true)
-    expect(g.resumo).toBe('1.200 impressões e 60 cliques estimados em 3 dias: 3 dias com impressão, 0 dias medidos em zero e 0 dias não medidos.')
+    expect(g.resumo).toBe('1.200 impressões e 60 cliques estimados em 3 dias: todos com impressão.')
     expect(g.periodoTexto).toContain(`de ${dmDia(addDays(w.hoje, -5))} a ${dmDia(addDays(w.hoje, -3))} · 3 dias`)
     expect(g.legenda.map(l => l.situacao)).toContain('publicacao')
   })
