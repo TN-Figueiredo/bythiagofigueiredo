@@ -296,13 +296,49 @@ describe('passoJobs: tempo e 409 sem job', () => {
     expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'erro' })
   })
 
-  it('lista vazia de tipos da API: os quatro viram tipo_indisponivel e o dono é avisado', async () => {
+  it('lista vazia de tipos da API: é "o dado não existe", não "todos indisponíveis": nenhuma linha, nenhum aviso, UMA falha do passo', async () => {
     api.reportTypesList.mockResolvedValue([])
     const db = fakeSupabase()
-    const resumo = await passoJobs(ctxDe(db))
-    expect(estados(db)).toEqual(Object.fromEntries(REPORT_TYPES_ENABLED.map(t => [t, 'tipo_indisponivel'])))
-    expect(resumo.tipo_indisponivel).toHaveLength(4)
-    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel', 'channel_reach_basic_a1')
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(db.tables.yt_reporting_jobs ?? []).toEqual([])
+    expect(api.jobsCreate).not.toHaveBeenCalled()
+    expect(avisarEntrada).not.toHaveBeenCalled()
+    expect(resumo.tipo_indisponivel).toEqual([])
+    expect(ctx.falhas).toEqual(['jobs: Canal Um: o YouTube não devolveu a lista de tipos de relatório'])
+    expect(tentativaCanal(db)).toMatchObject({ outcome: 'erro_http', scope_id: 'ch-1' })
+  })
+
+  it('lista não vazia mas sem NENHUM tipo habilitado: mesma coisa (nada marcado indisponível, uma falha)', async () => {
+    api.reportTypesList.mockResolvedValue([{ id: 'channel_demographics_a1' }, { id: 'channel_annotations_a1' }])
+    const db = fakeSupabase()
+    const ctx = ctxDe(db)
+    await passoJobs(ctx)
+    expect(estados(db)).toEqual({})
+    expect(avisarEntrada).not.toHaveBeenCalled()
+    expect(ctx.falhas).toEqual(['jobs: Canal Um: o YouTube não devolveu a lista de tipos de relatório'])
+  })
+
+  it('lista vazia num dia e boa no seguinte: a segunda execução cria os jobs e a falha não volta', async () => {
+    const db = fakeSupabase()
+    api.reportTypesList.mockResolvedValueOnce([]).mockResolvedValue(TIPOS)
+    const dia1 = ctxDe(db)
+    await passoJobs(dia1)
+    expect(dia1.falhas).toHaveLength(1)
+    const dia2 = ctxDe(db)
+    await passoJobs(dia2)
+    expect(dia2.falhas).toEqual([])
+    expect(estados(db)).toEqual(Object.fromEntries(REPORT_TYPES_ENABLED.map(t => [t, 'ativo'])))
+  })
+
+  it('um tipo isolado ausente de uma lista não vazia continua sendo tipo_indisponivel (os outros seguem)', async () => {
+    api.reportTypesList.mockResolvedValue(TIPOS.filter(t => t.id !== 'channel_basic_a3'))
+    const db = fakeSupabase()
+    const ctx = ctxDe(db)
+    await passoJobs(ctx)
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'tipo_indisponivel' })
+    expect(job(db, 'channel_reach_basic_a1')).toMatchObject({ status: 'ativo' })
+    expect(ctx.falhas).toEqual([])
   })
 
   it('prazo que acaba no meio da listagem: nao_alcancado_orcamento, jobs intocados, restantes pendentes, sem falha', async () => {
