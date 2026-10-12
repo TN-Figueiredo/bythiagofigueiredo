@@ -169,7 +169,7 @@ function naoMedidoTexto(m: MotivoDia | null): string {
 function dicaDoDia(d: DiaAlcance, rotulo: string, escopo: 'canal' | 'video', unidade: Unidade): string {
   if (unidade === 'views') {
     if (d.situacao === 'com-impressoes') return `${rotulo}: ${plural(d.imp ?? 0, 'view', 'views')}`
-    if (d.situacao === 'zero-medido') return `${rotulo}: ${escopo === 'video' ? 'ninguém viu neste dia' : 'o YouTube registrou nenhuma view'} (nenhuma view)`
+    if (d.situacao === 'zero-medido') return escopo === 'video' ? `${rotulo}: ninguém viu neste dia (nenhuma view)` : `${rotulo}: o YouTube registrou nenhuma view`
     return `${rotulo}: ${NAO_ENTREGUE} (não medido)`
   }
   switch (d.situacao) {
@@ -322,13 +322,17 @@ const vazioView = (vazio: string, o: OpcoesImpressoes): ImpressoesView => {
   }
 }
 
-export function buildImpressoes(dias: readonly DiaAlcance[], periodo: Periodo | null, o: OpcoesImpressoes): ImpressoesView {
+/** Um dia "com impressões" sem valor não é barra de 0: é não medido (este sistema falha em verde; as views entram por aqui também). */
+const semValorViraNaoMedido = (d: DiaAlcance): DiaAlcance => (d.situacao === 'com-impressoes' && d.imp == null ? { ...d, situacao: 'nao-medido', cliques: null } : d)
+
+export function buildImpressoes(diasIn: readonly DiaAlcance[], periodo: Periodo | null, o: OpcoesImpressoes): ImpressoesView {
   // sem permissão nada do dado privado entra na view, mesmo que alguém tenha passado os dias
   const unidade = o.unidade ?? 'impressoes'
   const views = unidade === 'views'
   if (o.acesso === 'negado') return vazioView(views ? SEM_PERMISSAO_VIEWS : SEM_PERMISSAO, o)
   if (o.acesso === 'erro') return vazioView(views ? ERRO_VIEWS : ERRO_ALCANCE, o)
-  if (!periodo || dias.length === 0) return vazioView(views ? SEM_VIEWS : SEM_RELATORIO, o)
+  if (!periodo || diasIn.length === 0) return vazioView(views ? SEM_VIEWS : SEM_RELATORIO, o)
+  const dias = diasIn.map(semValorViraNaoMedido)
 
   let max = 0
   for (const d of dias) if (d.situacao === 'com-impressoes' && d.imp != null && d.imp > max) max = d.imp
