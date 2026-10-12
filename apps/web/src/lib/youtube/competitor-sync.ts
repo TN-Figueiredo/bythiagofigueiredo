@@ -556,15 +556,19 @@ export async function syncCompetitorChannel(
     late('não foi possível atualizar a linha do canal', chErr)
 
     // Daily snapshot (non-blocking). (A5, D2) Sem a parte statistics não há retrato do dia: gravar nulo/0 criaria um "dia medido em zero"
-    // (e o upsert apagaria um retrato bom do mesmo dia). A coluna aceita nulo, mas nulo nos três também lê como dia medido: sem linha é "não medido".
+    // (e o upsert apagaria um retrato bom do mesmo dia). O mesmo vale para `statistics` presente SEM nenhuma contagem (`{}`): um retrato
+    // todo nulo também lê como dia medido e cobriria um bom. O retrato só é gravado quando ao menos uma contagem veio; sem linha é "não medido".
+    const snapshotViews = optCount(stats?.viewCount)
+    // `hiddenSubscriberCount: true` é a resposta afirmativa sobre os inscritos (o canal os esconde), não ausência; `false` sozinho não mede nada.
+    const snapshotMeasured = subscriberCount !== null || youtubeVideoCount !== null || snapshotViews !== null || stats?.hiddenSubscriberCount === true
     try {
-      if (!chObserved.partsMissing.includes('statistics')) await supabase
+      if (!chObserved.partsMissing.includes('statistics') && snapshotMeasured) await supabase
         .from('competitor_channel_snapshots')
         .upsert({
           competitor_channel_id: channelRow.id,
           subscriber_count: subscriberCount,
           video_count: youtubeVideoCount,
-          view_count: optCount(stats?.viewCount),
+          view_count: snapshotViews,
           snapshot_date: snapDate,
           subscribers_hidden: chObserved.patch.subscribers_hidden,
         }, { onConflict: 'competitor_channel_id,snapshot_date' })
