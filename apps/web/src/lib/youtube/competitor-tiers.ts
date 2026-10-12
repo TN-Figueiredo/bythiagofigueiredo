@@ -23,7 +23,9 @@ const byRecency = (a: TierVideo, b: TierVideo): number => {
 
 export function classifyTiers(videos: readonly TierVideo[], o: { videoLimit: number; nowMs: number; today: string }): TierPlan {
   const ordered = [...videos].sort(byRecency)
-  const top = new Set(ordered.slice(0, o.videoLimit).map(v => v.id))
+  // videoLimit vem do banco sem trava: inteiro, de 0 ao teto (NaN e negativo valem 0).
+  const limit = Math.max(0, Math.min(Math.trunc(o.videoLimit) || 0, RULES.videoLimitMax))
+  const top = new Set(ordered.slice(0, limit).map(v => v.id))
   const why = new Map<string, Why>(ordered.map(v => [v.id,
     v.pinned ? 'fixado'
       : top.has(v.id) ? 'top'
@@ -55,7 +57,7 @@ export function classifyTiers(videos: readonly TierVideo[], o: { videoLimit: num
  * 8 dias (null = nenhum nesse intervalo).
  */
 export function weeklyDue(v: { ytId: string; lastPoint: string | null; tierSince: string | null }, today: string): boolean {
-  if (v.lastPoint === today) return false
+  if (v.lastPoint != null && v.lastPoint.slice(0, 10) === today.slice(0, 10)) return false // vale pelo dia, mesmo se vier com hora
   if (dayNumber(today) % 7 === weekSlotOf(v.ytId)) return true
   const since = v.lastPoint ?? v.tierSince
   return since != null && dayNumber(today) - dayNumber(since) >= RULES.series.weeklyEveryDays
@@ -63,7 +65,8 @@ export function weeklyDue(v: { ytId: string; lastPoint: string | null; tierSince
 
 /** Promoção por ganho: entre dois pontos a no máximo 8 dias, ganhou `minViews` e pelo menos `minShare` do total. */
 export function shouldPromote(prev: { date: string; views: number } | null, cur: { views: number }, today: string): boolean {
-  if (!prev) return false
+  // views nulo/ausente = não medido, e falta de medida não é ganho.
+  if (!prev || !Number.isFinite(prev.views) || !Number.isFinite(cur.views)) return false
   const days = dayNumber(today) - dayNumber(prev.date)
   if (days < 1 || days > RULES.series.weeklyMaxGapDays) return false
   const gain = cur.views - prev.views
