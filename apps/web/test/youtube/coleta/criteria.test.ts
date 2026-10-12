@@ -47,11 +47,27 @@ describe('criteriosRelatorios', () => {
     expect(c2.falhas).toEqual([])
   })
 
-  it('relatório de alcance em erro é falha; de outro tipo, não', async () => {
-    const db = fakeSupabase({ yt_reporting_reports: [rel('a', 'erro', 1), rel('b', 'erro', 1, 'channel_basic_a3')] })
+  it('relatório em erro é falha em qualquer tipo habilitado: o de alcance com o texto de sempre, o que só guarda bruto com o motivo', async () => {
+    const db = fakeSupabase({
+      yt_reporting_reports: [
+        rel('a', 'erro', 1),
+        { ...rel('b', 'erro', 1, 'channel_basic_a3'), error: 'grande_demais' },
+        rel('c', 'erro', 1, 'channel_traffic_source_a3'),
+      ],
+    })
     const ctx = ctxDe(db)
     await criteriosRelatorios(ctx)
-    expect(ctx.falhas).toEqual(['relatórios: Canal Um tem relatório de alcance channel_reach_basic_a1 em erro'])
+    expect(ctx.falhas).toEqual([
+      'relatórios: Canal Um tem relatório de alcance channel_reach_basic_a1 em erro',
+      'relatórios: Canal Um tem relatório channel_basic_a3 em erro (grande_demais)',
+      'relatórios: Canal Um tem relatório channel_traffic_source_a3 em erro (sem texto)',
+    ])
+  })
+
+  it('erro de tipo fora da lista habilitada não é falha', async () => {
+    const ctx = ctxDe(fakeSupabase({ yt_reporting_reports: [rel('a', 'erro', 1, 'channel_annotations_a1')] }))
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual([])
   })
 
   it('relatório recente em erro que o normalizador já anotou nesta execução: o critério não repete a falha', async () => {
@@ -131,13 +147,13 @@ describe('criteriosRelatorios', () => {
     expect(ctx.falhas).toEqual(['relatórios: Canal Um está sem relatório novo de channel_reach_basic_a1 há mais de 6 dias'])
   })
 
-  it('o mesmo job não é falha se: tem relatório de 2 dias, ou o canal não publica há 90 dias, ou o job tem 5 dias, ou o tipo não é de alcance', async () => {
+  it('o mesmo job não é falha se: tem relatório de 2 dias, ou o canal não publica há 90 dias, ou o job tem 5 dias, ou o tipo não é de alcance e já listou relatório novo', async () => {
     const video = { id: 'v1', channel_id: 'ch-1', published_at: ha(30) }
     const casos: Array<Record<string, Row[]>> = [
       { yt_reporting_jobs: [jobAtivo(7)], yt_reporting_reports: [rel('novo', 'listado', 2)], youtube_videos: [video] },
       { yt_reporting_jobs: [jobAtivo(7)], youtube_videos: [{ ...video, published_at: ha(120) }] },
       { yt_reporting_jobs: [jobAtivo(5)], youtube_videos: [video] },
-      { yt_reporting_jobs: [jobAtivo(7, 'channel_basic_a3')], youtube_videos: [video] },
+      { yt_reporting_jobs: [{ ...jobAtivo(7, 'channel_basic_a3'), last_create_time: ha(1) }], youtube_videos: [video] },
     ]
     for (const seed of casos) {
       const ctx = ctxDe(fakeSupabase(seed))
@@ -322,7 +338,7 @@ describe('estados do dono, perdidos e prazos', () => {
         { channel_id: 'ch-1', report_type_id: 'channel_reach_basic_a1', status: 'sem_acesso' },
         { channel_id: 'ch-1', report_type_id: 'channel_reach_combined_a1', status: 'api_nao_ativada' },
         { channel_id: 'ch-1', report_type_id: 'channel_basic_a3', status: 'tipo_indisponivel' },
-        { channel_id: 'ch-1', report_type_id: 'channel_traffic_source_a3', status: 'desativado' },
+        { channel_id: 'ch-1', report_type_id: 'channel_annotations_a1', status: 'desativado' },
       ],
     })
     const ctx = ctxDe(db)
@@ -335,14 +351,15 @@ describe('estados do dono, perdidos e prazos', () => {
     ])
   })
 
-  it('perdidos só conta alcance em erro e qualquer expirado; erro de outro tipo velho não conta', async () => {
+  it('perdidos conta erro velho de qualquer tipo habilitado e qualquer expirado; erro velho de tipo fora da lista não conta', async () => {
     const db = fakeSupabase({
       yt_reporting_reports: [
         rel('a', 'erro', 20), rel('b', 'expirado_sem_baixar', 20, 'channel_basic_a3'), rel('c', 'erro', 20, 'channel_basic_a3'),
+        rel('d', 'erro', 20, 'channel_annotations_a1'),
       ],
     })
     const ctx = ctxDe(db)
-    expect((await criteriosRelatorios(ctx)).perdidos).toBe(2)
+    expect((await criteriosRelatorios(ctx)).perdidos).toBe(3)
     expect(ctx.falhas).toEqual([])
   })
 
@@ -598,9 +615,66 @@ describe('fix round 1', () => {
     expect(ctx.falhas).toEqual([])
   })
 
-  it('jobs desativados não entram na leitura da lista', async () => {
-    const ctx = ctxDe(fakeSupabase({ yt_reporting_jobs: [{ channel_id: 'ch-1', report_type_id: 'channel_reach_basic_a1', status: 'desativado', job_create_time: ha(30), created_at: ha(30) }], youtube_videos: [video] }))
+  it('tipo habilitado com a linha em desativado: o job não foi criado e isso é falha, com os tipos em ordem', async () => {
+    const ctx = ctxDe(fakeSupabase({
+      yt_reporting_jobs: [
+        { channel_id: 'ch-1', report_type_id: 'channel_traffic_source_a3', status: 'desativado' },
+        { channel_id: 'ch-1', report_type_id: 'channel_basic_a3', status: 'desativado' },
+        { channel_id: 'ch-1', report_type_id: 'channel_annotations_a1', status: 'desativado' }, // fora da lista: é o estado certo
+      ],
+    }))
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual(['jobs: Canal Um tem 2 tipo(s) de relatório habilitado(s) sem job: channel_basic_a3, channel_traffic_source_a3'])
+  })
+
+  it('tipo habilitado em desativado num canal que perdeu a autorização: ação do dono, não falha', async () => {
+    const db = fakeSupabase({ yt_reporting_jobs: [{ channel_id: 'ch-1', report_type_id: 'channel_basic_a3', status: 'desativado' }] })
+    const ctx = { supabase: db.client, falhas: [] as string[], channels: [{ ...canal, collection_status: 'reautorizar' as const }] }
+    const r = await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual([])
+    expect(r.acao_do_dono).toEqual(['Canal Um tem 1 tipo(s) de relatório habilitado(s) sem job: channel_basic_a3 (o canal precisa ser reconectado)'])
+  })
+
+  it('tipo habilitado em desativado num canal com a sincronização desligada: nada (o canal não pede job)', async () => {
+    const db = fakeSupabase({ yt_reporting_jobs: [{ channel_id: 'ch-1', report_type_id: 'channel_basic_a3', status: 'desativado' }] })
+    const ctx = { supabase: db.client, falhas: [] as string[], channels: [{ ...canal, sync_enabled: false }] }
+    const r = await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual([])
+    expect(r.acao_do_dono).toEqual([])
+  })
+
+  it('job ativo de tipo que só guarda bruto, há mais de 6 dias, sem relatório novo (marca nula ou velha): falha; com marca recente, não', async () => {
+    const job = (tipo: string, marca: string | null): Row => ({
+      channel_id: 'ch-1', report_type_id: tipo, status: 'ativo', job_id: `j-${tipo}`, job_create_time: ha(10), created_at: ha(10), last_create_time: marca,
+    })
+    const ctx = ctxDe(fakeSupabase({
+      yt_reporting_jobs: [job('channel_basic_a3', null), job('channel_traffic_source_a3', ha(7)), { ...job('channel_annotations_a1', null) }],
+    }))
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual([
+      'relatórios: Canal Um está sem relatório novo de channel_basic_a3 há mais de 6 dias',
+      'relatórios: Canal Um está sem relatório novo de channel_traffic_source_a3 há mais de 6 dias',
+    ])
+
+    const bom = ctxDe(fakeSupabase({ yt_reporting_jobs: [job('channel_basic_a3', ha(1))] }))
+    await criteriosRelatorios(bom)
+    expect(bom.falhas).toEqual([])
+  })
+
+  it('job ativo de tipo que só guarda bruto criado há menos de 6 dias e ainda sem relatório: cedo demais, não é falha', async () => {
+    const ctx = ctxDe(fakeSupabase({
+      yt_reporting_jobs: [{ channel_id: 'ch-1', report_type_id: 'channel_basic_a3', status: 'ativo', job_id: 'j', job_create_time: ha(3), created_at: ha(3), last_create_time: null }],
+    }))
     await criteriosRelatorios(ctx)
     expect(ctx.falhas).toEqual([])
+  })
+
+  it('a leitura dos jobs falha: nenhum dos critérios de job avalia como "nada de errado"', async () => {
+    const db = fakeSupabase({})
+    db.errors.yt_reporting_jobs = { code: 'XX000', message: 'boom' }
+    const ctx = ctxDe(db)
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toContain('critérios: não foi possível avaliar tipos habilitados sem job (yt_reporting_jobs)')
+    expect(ctx.falhas).toContain('critérios: não foi possível avaliar jobs de alcance sem relatório novo (yt_reporting_jobs)')
   })
 })
