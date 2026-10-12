@@ -163,6 +163,16 @@ describe('T11 faixa de números (spec 17.2)', () => {
     expect(m.conta).toContain('os outros 2 vídeos')
   })
 
+  it('um único outro vídeo para comparar: singular ("o outro vídeo"), nunca "1 vídeos"; base fraca avisada (achado da captura em 1440 px)', () => {
+    const w = exato(undefined, 2)
+    const m = cel(w, 'v0', 'multiplo')
+    expect(m.value).toBe('0,9×')
+    expect(m.conta).toContain('118 ÷ 138 = 0,9×; 138 é a mediana de views do outro vídeo longo do canal')
+    expect(m.conta).not.toMatch(/1 vídeos|outros 1\b/)
+    expect(m.conta).toMatch(/Base fraca: só 1 vídeo para comparar/)
+    expect(m.sub).toBe('o outro vídeo: 138 views')
+  })
+
   it('sem duração: a célula diz "sem duração" e a conta o motivo, nunca 00:00', () => {
     const w = exato(a => { a.dur = null })
     expect(cel(w, 'v0', 'duracao')).toMatchObject({ value: null, missing: 'sem duração' })
@@ -270,6 +280,7 @@ describe('T11 paginador (D11, spec 17.1)', () => {
     expect(p.nextOff).toBeUndefined()
     expect(p.next).toBe(href('v1', {}))
     expect(p.replace).toBe(true)
+    expect(p.compacto).toBe(true)
     expect(p.status).toBe('Vídeo 1 de 35: Vídeo 0')
   })
 

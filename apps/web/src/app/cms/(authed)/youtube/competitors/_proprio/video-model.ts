@@ -82,7 +82,7 @@ function faixaDe(obs: Observatory, ch: ObsChannel, cv: ChannelVideoView, semData
   const F = obs.fmt, D = obs.date
   const v = semData ? null : obs.video(cv.id)!
   const { views, likes, comments } = cv
-  const formato = cv.isShort ? 'Shorts' : 'longos'
+  const formato = cv.isShort ? 'Shorts' : 'longos', formatoUn = cv.isShort ? 'Short' : 'longo'
 
   /* views */
   const viewsCel: CelulaVideo = {
@@ -134,10 +134,11 @@ function faixaDe(obs: Observatory, ch: ObsChannel, cv: ChannelVideoView, semData
     if (m.value != null && m.base != null) {
       const card = obs.multiplierCard(cv.id)
       const texto = F.mult(m.value)
+      const um = m.n === 1   // "mediana" de um só vídeo: o singular diz isso sem "1 vídeos"
       multiplo = mult(texto, null,
-        `${F.int(views)} ÷ ${F.int(m.base)} = ${texto}; ${F.int(m.base)} é a mediana de views dos outros ${m.n} vídeos ${formato} do canal ${card.ref}. 1× é o vídeo típico do canal.`
+        `${F.int(views)} ÷ ${F.int(m.base)} = ${texto}; ${F.int(m.base)} é a mediana de views ${um ? `do outro vídeo ${formatoUn}` : `dos outros ${m.n} vídeos ${formato}`} do canal ${card.ref}. 1× é o vídeo típico do canal.`
         + (m.weak ? ` Base fraca: só ${un(F, m.n, 'vídeo', 'vídeos')} para comparar (menos de ${obs.RULES.weakBase}).` : ''),
-        `mediana dos outros ${m.n}: ${F.int(m.base)} views`)
+        um ? `o outro vídeo: ${F.int(m.base)} views` : `mediana dos outros ${m.n}: ${F.int(m.base)} views`)
     } else if (m.reason === 'mediana zero') {
       multiplo = mult(null, 'a mediana dos outros é 0 views', 'Os outros vídeos do canal na mesma faixa de idade têm mediana de 0 views: dividir por 0 não dá múltiplo, então o vídeo fica sem comparação.')
     } else if (m.n === 0) {
@@ -251,7 +252,7 @@ function paginador(obs: Observatory, ch: ObsChannel, videoId: string, titulo: st
   }
   const prevOff = motivo('anterior'), nextOff = motivo('próximo')
   return {
-    prev, next, backHref, position, prevLabel: 'Vídeo anterior da lista', nextLabel: 'Próximo vídeo da lista', replace: true,
+    prev, next, backHref, position, prevLabel: 'Vídeo anterior da lista', nextLabel: 'Próximo vídeo da lista', replace: true, compacto: true,
     ...(prevOff ? { prevOff } : {}), ...(nextOff ? { nextOff } : {}),
     status: k < 0 ? '' : `Vídeo ${agora} de ${de}: ${titulo}`,
   }
