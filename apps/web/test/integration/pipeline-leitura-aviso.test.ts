@@ -44,6 +44,7 @@ describe.skipIf(skipIfNoLocalDb())('E19: registro de leitura no banco local', ()
     const linhas = await minhas()
     expect(linhas).toHaveLength(1)
     expect(JSON.stringify(linhas[0])).not.toContain('h'.repeat(64)) // o hash da chave não vai para a linha
+    expect(linhas[0]!.after_data).not.toHaveProperty('perdidas')   // onda 3: o campo só existe quando houve leitura perdida
     expect(linhas[0]).toMatchObject({ resource_type: RECURSO_CHAVE, site_id: null, actor_user_id: null, after_data: { site_id: siteId, key_id: keyId, rota: '/api/pipeline/stats', metodo: 'GET', tem_read: true } })
   })
 

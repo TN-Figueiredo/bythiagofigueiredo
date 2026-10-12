@@ -45,7 +45,15 @@ let diaDosVistos = ''
 const vistos = new Set<string>()
 let avisouAtraso = ''
 let avisouTeto = ''
-const ultimaFalha: { gravacao: number; contagem: number; disjuntor: number } = { gravacao: 0, contagem: 0, disjuntor: 0 }
+type Limite = 'gravacao' | 'contagem' | 'disjuntor'
+// `dia` = dia de São Paulo do último aviso: o silêncio de 1 hora ZERA na virada do dia (onda 3, A), senão uma falha às 23:50
+// calaria as de 00:00 a 00:50 e o dia seguinte sairia "medido" com leituras sem registro.
+const ultimaFalha: Record<Limite, { em: number; dia: string }> = { gravacao: { em: 0, dia: '' }, contagem: { em: 0, dia: '' }, disjuntor: { em: 0, dia: '' } }
+// Leituras por chave que passaram SEM registro (falha, estouro de 1,5 s ou pulada pelo disjuntor aberto). A primeira gravação
+// que der certo leva a conta em after_data (`perdidas`, `perdidas_desde`) e a janela marca esses dias como "não medido".
+// Em memória por instância: se a instância morrer com o buraco pendente a conta se perde; isso segue coberto pelo --falhas= do script.
+let perdidas = 0
+let perdidasDesde: string | null = null
 // Disjuntor (E19, onda 1, M1). Estado por instância (função serverless): cada instância aprende sozinha que o audit_log pendurou.
 let falhasSeguidas = 0
 let abertoAte = 0
@@ -59,9 +67,11 @@ export function zerarEstadoDoRegistro(): void {
   vistos.clear()
   avisouAtraso = ''
   avisouTeto = ''
-  ultimaFalha.gravacao = 0
-  ultimaFalha.contagem = 0
-  ultimaFalha.disjuntor = 0
+  ultimaFalha.gravacao = { em: 0, dia: '' }
+  ultimaFalha.contagem = { em: 0, dia: '' }
+  ultimaFalha.disjuntor = { em: 0, dia: '' }
+  perdidas = 0
+  perdidasDesde = null
   falhasSeguidas = 0
   abertoAte = 0
 }
@@ -71,11 +81,18 @@ export function zerarEstadoDoRegistro(): void {
  * um evento por leitura. `tipo: 'gravacao'` é o que marca o dia como "não medido" no fechamento da janela (a linha pode não
  * ter sido gravada); `'contagem'` não marca (a linha foi gravada, só o teto ficou sem número).
  */
-function avisarFalha(tipo: 'gravacao' | 'contagem', e: unknown, limite: 'gravacao' | 'contagem' | 'disjuntor' = tipo): void {
+function avisarFalha(tipo: 'gravacao' | 'contagem', e: unknown, limite: Limite = tipo): void {
   const agora = Date.now()
-  if (agora - ultimaFalha[limite] < 3_600_000) return
-  ultimaFalha[limite] = agora
+  const dia = diaSP(new Date(agora))
+  const ultima = ultimaFalha[limite]
+  if (ultima.dia === dia && agora - ultima.em < 3_600_000) return
+  ultimaFalha[limite] = { em: agora, dia }
   Sentry.captureException(e, { tags: { component: 'pipeline', action: 'leitura_registro', tipo }, level: 'warning' })
+}
+
+function perderLeitura(agora: number): void {
+  perdidas++
+  perdidasDesde ??= new Date(agora).toISOString()
 }
 
 type Cliente = ReturnType<typeof getSupabaseServiceClient>
@@ -114,6 +131,7 @@ export async function registrarLeitura(req: NextRequest, auth: PipelineAuth, des
   const agora = Date.now()
   if (falhasSeguidas >= DISJUNTOR_FALHAS) {
     if (agora < abertoAte) {
+      perderLeitura(agora)
       avisarFalha('gravacao', new Error(`pipeline leitura: disjuntor do registro aberto (leituras sem registro até ${new Date(abertoAte).toISOString()})`), 'disjuntor')
       return
     }
@@ -134,6 +152,7 @@ export async function registrarLeitura(req: NextRequest, auth: PipelineAuth, des
     falhasSeguidas = 0
     abertoAte = 0
   } catch (e) {
+    perderLeitura(Date.now())
     avisarFalha('gravacao', e)
     falhasSeguidas++
     if (falhasSeguidas >= DISJUNTOR_FALHAS) {
@@ -179,8 +198,12 @@ async function gravar(req: NextRequest, auth: PipelineAuth, keyId: string, desfe
     Sentry.captureMessage(`pipeline: o registro de leitura bateu no teto de ${TETO_LINHAS_DIA} linhas hoje (E19); registro reduzido até o fim do dia e contagem de vezes cortada`, 'warning')
   }
   const reduzido = foraDoCheio || noTeto
+  // A linha que leva o buraco nunca é descartada pela marca do dia nem pela conferência de duplicata.
+  const levaBuraco = perdidas > 0
+  const perdidasNaLinha = perdidas
+  const perdidasDesdeNaLinha = perdidasDesde
   const marca = `${keyId}|${rota}|${metodo}|${action}|${temRead}`
-  if (reduzido) {
+  if (reduzido && !levaBuraco) {
     if (diaDosVistos !== hoje) {
       vistos.clear()
       diaDosVistos = hoje
@@ -195,6 +218,7 @@ async function gravar(req: NextRequest, auth: PipelineAuth, keyId: string, desfe
       .eq('after_data->>key_id', keyId)
       .eq('after_data->>rota', rota)
       .eq('after_data->>metodo', metodo)
+      .eq('after_data->>tem_read', String(temRead))
       .abortSignal(sinal)
     if (!ja.error && (ja.count ?? 0) > 0) {
       vistos.add(marca)
@@ -209,10 +233,18 @@ async function gravar(req: NextRequest, auth: PipelineAuth, keyId: string, desfe
       action,
       resource_type: RECURSO_CHAVE,
       site_id: null,
-      after_data: { site_id: auth.siteId, key_id: keyId, key_name: auth.keyName ?? null, rota, metodo, tem_read: temRead },
+      after_data: {
+        site_id: auth.siteId, key_id: keyId, key_name: auth.keyName ?? null, rota, metodo, tem_read: temRead,
+        ...(levaBuraco ? { perdidas: perdidasNaLinha, perdidas_desde: perdidasDesdeNaLinha } : {}),
+      },
     })
     .abortSignal(sinal)
   if (error) throw new Error(`audit_log recusou a linha de leitura (${error.code ?? 'sem código'})`)
+  if (levaBuraco) {
+    // Só depois da linha aceita; o que se perdeu enquanto ela ia ao banco fica para a próxima.
+    perdidas -= perdidasNaLinha
+    if (perdidas <= 0) { perdidas = 0; perdidasDesde = null }
+  }
   if (reduzido) vistos.add(marca)
   if (contagem && contagem.dia === hoje) contagem.n++
 }

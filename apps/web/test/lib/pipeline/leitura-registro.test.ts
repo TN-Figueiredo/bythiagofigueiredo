@@ -266,6 +266,20 @@ describe('registrarLeitura: teto de tempo, e o Sentry sem enxurrada', () => {
     await registrarLeitura(pedido(), chave(['read']), 'aviso')
     expect(doErro()).toBe(2)
   })
+  // Onda 3, A (dados I-1a, software I3): a hora de silêncio não atravessa a meia-noite de São Paulo.
+  it('a primeira falha de cada dia de São Paulo sempre avisa: 23:50 e 00:05 são dois avisos, não um', async () => {
+    banco.erroInsert = { code: '42501', message: 'recusado' }
+    const doErro = () => vi.mocked(Sentry.captureException).mock.calls.filter(c => !/disjuntor/i.test(String((c[0] as Error).message))).length
+    vi.setSystemTime(new Date('2026-10-14T02:50:00.000Z'))   // 23:50 de 13/10 em São Paulo
+    await registrarLeitura(pedido(), chave(['read']), 'aviso')
+    expect(doErro()).toBe(1)
+    vi.setSystemTime(new Date('2026-10-14T03:05:00.000Z'))   // 00:05 de 14/10: 15 minutos depois, outro dia
+    await registrarLeitura(pedido(), chave(['read']), 'aviso')
+    expect(doErro()).toBe(2)
+    vi.setSystemTime(new Date('2026-10-14T03:20:00.000Z'))   // ainda 14/10, dentro da hora: calado
+    await registrarLeitura(pedido(), chave(['read']), 'aviso')
+    expect(doErro()).toBe(2)
+  })
   it('falha de contagem e falha de gravação têm tipos diferentes: uma não cala a outra', async () => {
     banco.erroSelect = { code: '57014', message: 'timeout' }
     banco.erroInsert = { code: '42501', message: 'recusado' }
@@ -359,14 +373,140 @@ describe('registrarLeitura: disjuntor (M1)', () => {
     for (const c of chamadas) expect(c[1]).toMatchObject({ tags: { action: 'leitura_registro', tipo: 'gravacao' } })
     expect(chamadas.some(c => /disjuntor/i.test(String((c[0] as Error).message)))).toBe(true)
   })
-  it('um dia inteiro de disjuntor aberto NÃO é dia medido na janela', async () => {
+  // Onda 3, F (software M1): a trava do meio-aberto. Duas leituras simultâneas não podem as duas tentar gravar.
+  it('meio-aberto com o banco pendurado: duas leituras ao mesmo tempo, UMA só ida ao banco', async () => {
+    vi.useFakeTimers({ now: AGORA })
+    banco.erroInsert = { code: '08006', message: 'caiu' }
+    await falhar(DISJUNTOR_FALHAS)
+    vi.setSystemTime(new Date(AGORA.getTime() + DISJUNTOR_PAUSA_MS + 1))
+    banco.erroInsert = null
+    banco.pendura = true
+    const idasAntes = banco.sinais.length   // cada ida ao banco leva um AbortSignal
+    const a = registrarLeitura(pedido(), chave(['read']), 'aviso')
+    const b = registrarLeitura(pedido('/api/pipeline/stats'), chave(['read']), 'aviso')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(banco.sinais.length - idasAntes).toBe(1)
+    await vi.advanceTimersByTimeAsync(TETO_REGISTRO_MS + 1)
+    await Promise.all([a, b])
+  })
+  // Onda 3, F (software M2): o aviso de dentro do disjuntor aberto tem de existir por si, não só o da abertura.
+  it('leitura pulada durante o meio-aberto (a hora do aviso da abertura já passou) deixa o aviso na hora, antes de a tentativa terminar', async () => {
+    vi.useFakeTimers({ now: AGORA })
+    banco.erroInsert = { code: '08006', message: 'caiu' }
+    await falhar(DISJUNTOR_FALHAS)
+    vi.setSystemTime(new Date(AGORA.getTime() + 61 * 60_000))   // 61 min depois: o limite de 1 por hora liberou
+    banco.erroInsert = null
+    banco.pendura = true
+    const antes = vi.mocked(Sentry.captureException).mock.calls.length
+    const a = registrarLeitura(pedido(), chave(['read']), 'aviso')   // a tentativa do meio-aberto, pendurada
+    const b = registrarLeitura(pedido(), chave(['read']), 'aviso')   // pulada: tem de avisar agora
+    await vi.advanceTimersByTimeAsync(0)
+    const novas = vi.mocked(Sentry.captureException).mock.calls.slice(antes)
+    expect(novas).toHaveLength(1)
+    expect(String((novas[0]![0] as Error).message)).toMatch(/disjuntor.*aberto/i)
+    expect(novas[0]![1]).toMatchObject({ tags: { action: 'leitura_registro', tipo: 'gravacao' } })
+    await vi.advanceTimersByTimeAsync(TETO_REGISTRO_MS + 1)
+    await Promise.all([a, b])
+  })
+  // Onda 3, F (software M2): reescrito. O antigo chamava montarJanela([]) e passava com ou sem disjuntor.
+  it('um dia inteiro de disjuntor aberto NÃO é dia medido: o dia sai das linhas do banco simulado, e a leitura perdida vai na linha seguinte', async () => {
     banco.erroInsert = { code: '08006', message: 'caiu' }
     await falhar(DISJUNTOR_FALHAS)
     banco.erroInsert = null
-    await falhar(50)   // o dia todo, com o banco já de volta, mas o disjuntor aberto: nada gravado
+    await falhar(50)   // o banco já voltou, mas o disjuntor segue aberto: nada gravado
     expect(banco.linhas).toHaveLength(0)
-    const j = montarJanela([], { desde: '2026-10-14', hoje: '2026-10-15' })
-    expect(j.dias.find(d => d.dia === '2026-10-14')).toMatchObject({ estado: 'nao_medido', motivo: 'sem_linha_de_controle' })
-    expect(j.dias_medidos).toBe(0)
+    vi.setSystemTime(new Date(AGORA.getTime() + DISJUNTOR_PAUSA_MS + 1))
+    await falhar(1)   // meio-aberto: grava e fecha, levando o buraco no dado
+    expect(banco.linhas).toHaveLength(1)
+    const linha = banco.linhas[0]!
+    expect(linha.after_data).toMatchObject({ perdidas: DISJUNTOR_FALHAS + 50, perdidas_desde: AGORA.toISOString() })
+    const dia = diaSP(AGORA)
+    const porDia = new Map<string, { dia_sp: string; controle: number; sem_read: number; perdidas: number }>()
+    for (const l of banco.linhas) {
+      const d = diaSP(new Date(l.created_at))
+      const atual = porDia.get(d) ?? { dia_sp: d, controle: 0, sem_read: 0, perdidas: 0 }
+      if (l.after_data.tem_read === true) atual.controle++
+      else atual.sem_read++
+      atual.perdidas += Number(l.after_data.perdidas ?? 0)
+      porDia.set(d, atual)
+    }
+    expect(porDia.get(dia)!.controle).toBe(1)   // o dia TEM linha de controle, e mesmo assim:
+    const j = montarJanela([...porDia.values()], { desde: '2026-10-13', hoje: '2026-10-15' })
+    expect(j.dias.find(d => d.dia === dia)).toMatchObject({ estado: 'nao_medido', motivo: 'leituras_perdidas' })
+  })
+})
+
+// Onda 3, B (dados I-1b): o buraco do disjuntor visível NO DADO. Estado em memória por instância.
+describe('registrarLeitura: leituras perdidas ficam no dado', () => {
+  const falhar = async (n: number) => { for (let i = 0; i < n; i++) await registrarLeitura(pedido(), chave(['read']), 'aviso') }
+  it('conta as que passaram sem registro (as que falharam e as puladas pelo disjuntor), leva na PRÓXIMA linha gravada e zera depois', async () => {
+    banco.erroInsert = { code: '08006', message: 'caiu' }
+    await falhar(DISJUNTOR_FALHAS)   // 3 falhas: 3 perdidas, disjuntor aberto
+    banco.erroInsert = null
+    await falhar(4)                  // puladas: +4
+    expect(banco.linhas).toHaveLength(0)
+    vi.setSystemTime(new Date(AGORA.getTime() + DISJUNTOR_PAUSA_MS + 1))
+    await falhar(2)                  // a 1ª grava (leva o buraco), a 2ª é normal
+    expect(banco.linhas).toHaveLength(2)
+    expect(banco.linhas[0]!.after_data).toMatchObject({ perdidas: DISJUNTOR_FALHAS + 4, perdidas_desde: AGORA.toISOString() })
+    expect(banco.linhas[1]!.after_data).not.toHaveProperty('perdidas')
+    expect(banco.linhas[1]!.after_data).not.toHaveProperty('perdidas_desde')
+  })
+  it('a contagem só zera depois da gravação aceita: gravação que falha leva as perdidas adiante, e a falha entra na conta', async () => {
+    banco.erroInsert = { code: '08006', message: 'caiu' }
+    await falhar(DISJUNTOR_FALHAS)
+    vi.setSystemTime(new Date(AGORA.getTime() + DISJUNTOR_PAUSA_MS + 1))
+    await falhar(1)                  // meio-aberto falha: +1 (4 no total), reabre
+    banco.erroInsert = null
+    vi.setSystemTime(new Date(AGORA.getTime() + 2 * DISJUNTOR_PAUSA_MS + 2))
+    await falhar(1)
+    expect(banco.linhas[0]!.after_data).toMatchObject({ perdidas: DISJUNTOR_FALHAS + 1, perdidas_desde: AGORA.toISOString() })
+  })
+  it('um buraco novo depois do zero tem o seu próprio instante de início', async () => {
+    banco.erroInsert = { code: '08006', message: 'caiu' }
+    await falhar(1)
+    banco.erroInsert = null
+    const depois = new Date(AGORA.getTime() + 10 * 60_000)
+    vi.setSystemTime(depois)
+    await falhar(1)
+    expect(banco.linhas[0]!.after_data).toMatchObject({ perdidas: 1, perdidas_desde: AGORA.toISOString() })
+    banco.erroInsert = { code: '08006', message: 'caiu' }
+    const outro = new Date(AGORA.getTime() + 20 * 60_000)
+    vi.setSystemTime(outro)
+    await falhar(1)
+    banco.erroInsert = null
+    vi.setSystemTime(new Date(AGORA.getTime() + 30 * 60_000))
+    await falhar(1)
+    expect(banco.linhas[1]!.after_data).toMatchObject({ perdidas: 1, perdidas_desde: outro.toISOString() })
+  })
+  it('sessão de usuário não conta como perdida (não é leitura por chave)', async () => {
+    banco.erroInsert = { code: '08006', message: 'caiu' }
+    await falhar(DISJUNTOR_FALHAS)
+    for (let i = 0; i < 5; i++) await registrarLeitura(pedido(), { siteId: 'site-1', permissions: ['read'], source: 'session' }, 'aviso')
+    banco.erroInsert = null
+    vi.setSystemTime(new Date(AGORA.getTime() + DISJUNTOR_PAUSA_MS + 1))
+    await falhar(1)
+    expect(banco.linhas[0]!.after_data).toMatchObject({ perdidas: DISJUNTOR_FALHAS })
+  })
+  it('modo reduzido: a linha com o buraco é gravada mesmo com a marca do dia já vista', async () => {
+    vi.setSystemTime(new Date('2026-10-27T15:00:00.000Z'))   // 15º dia: reduzido
+    await falhar(1)                  // grava e marca (chave, rota, método)
+    banco.erroInsert = { code: '08006', message: 'caiu' }
+    await registrarLeitura(pedido('/api/pipeline/stats'), chave(['read']), 'aviso')   // perde uma
+    banco.erroInsert = null
+    await falhar(1)                  // mesma marca já vista: sem o buraco não gravaria
+    expect(banco.linhas).toHaveLength(2)
+    expect(banco.linhas[1]!.after_data).toMatchObject({ perdidas: 1 })
+  })
+})
+
+// Onda 3, F (dados M-1)
+describe('registrarLeitura: duplicata do modo reduzido respeita tem_read', () => {
+  it('chave que perde o read no meio do dia: a linha tem_read = false do dia é gravada mesmo com a tem_read = true já lá', async () => {
+    vi.setSystemTime(new Date('2026-10-27T15:00:00.000Z'))
+    await registrarLeitura(pedido(), chave(['read']), 'aviso')
+    zerarEstadoDoRegistro()   // outra instância: só o banco sabe da linha de hoje
+    await registrarLeitura(pedido(), chave(['intelligence']), 'aviso')
+    expect(banco.linhas.map(l => l.after_data.tem_read)).toEqual([true, false])
   })
 })
