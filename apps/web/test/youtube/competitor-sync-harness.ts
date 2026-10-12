@@ -84,12 +84,22 @@ export type SetupOpts = {
   selectFail?: string
   /** O que as funções de ausência devolvem; omitido = lista vazia / nulo. */
   missed?: Record<string, unknown>[]; channelMissed?: Record<string, unknown> | null
+  /** Campos extras da linha que a trava do canal devolve (por exemplo `last_seen_at`). */
+  lock?: Record<string, unknown>
+  /** Esta função SQL devolve erro de banco só quando algum item de `p_open` é deste vídeo (uuid): a falha de UM vídeo, não do canal. */
+  rpcFailFor?: { fn: string; videoId: string }
+  /** O carimbo `update competitor_videos set last_seen_at ... in(id)` devolve erro de banco. */
+  failStamp?: boolean
+  /** O `update` da linha do canal (o que leva `miss_streak`) devolve erro de banco. */
+  failChannelUpdate?: boolean
 }
 
 export function setup(opts: SetupOpts = {}) {
   const db = fakeDb((c) => {
     if (opts.selectFail === 'competitor_channels' && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: null, error: { message: 'boom' } }
-    if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [lockRow] }
+    if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [{ ...lockRow, ...opts.lock }] }
+    if (opts.failChannelUpdate && c.table === 'competitor_channels' && first(c) === 'update' && 'miss_streak' in (arg(c, 'update') ?? {})) return { data: null, error: { message: 'boom' } }
+    if (opts.failStamp && c.table === 'competitor_videos' && first(c) === 'update' && Object.keys(arg(c, 'update') ?? {}).join() === 'last_seen_at') return { data: null, error: { message: 'boom' } }
     if (c.table === 'competitor_videos' && first(c) === 'update' && opts.failUpdates) {
       const eq = c.ops.find(o => o[0] === 'eq' && o[1][0] === 'id')
       const msg = eq ? opts.failUpdates[String(eq[1][1])] : undefined
@@ -119,6 +129,10 @@ export function setup(opts: SetupOpts = {}) {
     if (c.table.startsWith('rpc:')) {
       const name = c.table.slice(4)
       if (opts.rpcFail === name) return { data: null, error: { message: 'boom' } }
+      if (opts.rpcFailFor?.fn === name) {
+        const a = c.ops[0]![1][0] as { p_open?: Array<{ video_id?: unknown }> }
+        if ((a.p_open ?? []).some(o => o.video_id === opts.rpcFailFor!.videoId)) return { data: null, error: { message: 'boom' } }
+      }
       if (name === 'competitor_mark_missing') return { data: opts.missed ?? [] }
       if (name === 'competitor_channel_mark_missing') return { data: opts.channelMissed ?? null }
       if (name === 'youtube_quota_add') return { data: 1 }

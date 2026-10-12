@@ -147,7 +147,7 @@ describe('A5 E1: captura (campos e raw)', () => {
   })
   it('o "visto" só é carimbado DEPOIS da captura: se ela falha, last_seen_at não é gravado, a série do dia já foi, a linha do vídeo foi regravada com last_checked_at, e o canal termina em erro', async () => {
     const db = setup({ lastDaily: '2026-10-23', existing: [ROW1], rpcFail: 'apply_competitor_field_plan' })
-    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page()), ...quiet })).rejects.toThrow(/captura|histórico de campos/)
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page()), ...quiet })).rejects.toThrow(/^não foi possível guardar o histórico de campos \(apply_competitor_field_plan: boom\)$/)
     expect(db.calls.some(c => c.table === 'competitor_videos' && 'last_seen_at' in (arg(c, 'update') ?? {}))).toBe(false)
     expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toBe(true)
     expect(updatesOf(db, 'v-1').some(u => u.last_checked_at === NOW_ISO)).toBe(true)
@@ -280,7 +280,7 @@ describe('A5 E1 (consertos da revisão da 6b): parte ausente nunca apaga o grava
     // snippet presente e vazio: a parte veio (regra já decidida), então as chaves dela são gravadas
     const db3 = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, snippet: {}, statistics: {} }] }), ...quiet })
-    expect(chUpdate(db3)).toMatchObject({ channel_name: '', thumbnail_url: null, subscriber_count: null, youtube_video_count: 0 })
+    expect(chUpdate(db3)).toMatchObject({ channel_name: '', thumbnail_url: null, subscriber_count: null, youtube_video_count: null })
   })
 })
 
@@ -437,5 +437,201 @@ describe('A5 E1 (D2 no retrato do canal): resposta sem statistics não grava um 
     const db2 = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics: {} }] }), ...quiet })
     expect(snapshots(db2)).toHaveLength(1)
+  })
+})
+
+describe('A5 E1 (conserto da Tarefa 7): captura fora da página, primeiro erro, disjuntor e contadores', () => {
+  const opened = (db: ReturnType<typeof setup>) => rpcCalls(db, 'apply_competitor_field_plan').flatMap(a => a.p_open as Array<Record<string, unknown>>)
+  const rawOpened = (db: ReturnType<typeof setup>) => rpcCalls(db, 'apply_competitor_raw_plan').flatMap(a => a.p_open as Array<Record<string, unknown>>)
+  const ids = (u: string) => decodeURIComponent(u.match(/[?&]id=([^&]*)/)![1]!).split(',')
+  const caught = async (p: Promise<unknown>): Promise<unknown> => { try { await p } catch (e) { return e } throw new Error('não lançou') }
+  const stamps = (db: ReturnType<typeof setup>) => db.calls
+    .filter(c => c.table === 'competitor_videos' && first(c) === 'update' && Object.keys(arg(c, 'update') ?? {}).join() === 'last_seen_at')
+    .map(c => c.ops.find(o => o[0] === 'in')![1][1] as string[])
+  const dailyRows = (db: ReturnType<typeof setup>) => db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'upsert').flatMap(c => c.ops[0]![1][0] as Array<{ video_id: string }>).map(r => r.video_id)
+  const tr = (n: number) => ({ id: 'v-' + n, video_id: 'vid-' + n, title: 'X', thumbnail_url: null })
+  const TRACKED2 = [{ ...tr(1), title: 'T' }, tr(2)]
+  const item = (id: string, over: Record<string, unknown> = {}) => ({ id, snippet: { title: 'X', description: '', publishedAt: OLD, tags: ['z'], categoryId: '22' }, statistics: { viewCount: '5' }, contentDetails: { duration: 'PT5M' }, ...over })
+  const FIELDS_V = ['availability', 'category_id', 'comments_disabled', 'default_audio_language', 'default_language', 'duration_seconds', 'likes_hidden', 'live_broadcast_content', 'tags', 'views_hidden']
+  const FIELD_PLAN = 'apply_competitor_field_plan'
+  const FRASE = /^não foi possível guardar o histórico de campos \(apply_competitor_field_plan: boom\)$/
+
+  it('I1: vídeo que só aparece na passada diária ganha campos, raw e carimbo; o pedido e não devolvido não é capturado', async () => {
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1], tracked: [...TRACKED2, tr(3)] })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page(), 200, { daily: (_n, u) => ids(u).filter(i => i === 'vid-2').map(i => item(i)) }), ...quiet })
+    expect(opened(db).filter(x => x.video_id === 'v-2').map(x => x.field).sort()).toEqual(FIELDS_V)
+    expect(opened(db).find(x => x.video_id === 'v-2' && x.field === 'tags')).toMatchObject({ value: ['z'], precision: 'first' })
+    expect(rawOpened(db).map(x => x.video_id)).toEqual([null, 'v-1', 'v-2'])
+    expect(stamps(db)).toEqual([['v-1'], ['v-2']])
+    expect(opened(db).some(x => x.video_id === 'v-3')).toBe(false) // pedido e não devolvido: nada de "tudo nulo"
+    expect(rpcCalls(db, 'competitor_mark_missing')[0]!.p_video_ids).toEqual(['v-3'])
+  })
+  it('I1: vídeo fixado, lido só na passada dos fixados, ganha campos, raw e carimbo', async () => {
+    const db = setup({ pinned: [PIN], existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { daily: (_n, u) => ids(u).map(i => item(i, { snippet: { title: 'Fixado', publishedAt: OLD, tags: ['p'] } })) }), ...quiet })
+    expect(opened(db).find(x => x.video_id === 'v-pin' && x.field === 'tags')).toMatchObject({ value: ['p'] })
+    expect(rawOpened(db).map(x => x.video_id)).toEqual([null, 'v-1', 'v-pin'])
+    expect(stamps(db)).toEqual([['v-1'], ['v-pin']])
+  })
+  it('I1: erro de captura na passada diária vai para o erro guardado sem custar a série do dia', async () => {
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1], tracked: TRACKED2, rpcFailFor: { fn: FIELD_PLAN, videoId: 'v-2' } })
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page(), 200, { daily: (_n, u) => ids(u).map(i => item(i)) }), ...quiet })).rejects.toThrow(FRASE)
+    expect(dailyRows(db).sort()).toEqual(['v-1', 'v-2'])
+    expect(updatesOf(db, 'v-2')).toHaveLength(1) // a linha do vídeo foi regravada antes da captura
+    expect(stamps(db)).toEqual([['v-1']]) // o carimbo do v-2 não vai: a captura dele falhou
+    const upd = db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!)
+    expect(upd.at(-1)).toMatchObject({ sync_status: 'error', sync_error: expect.stringMatching(FRASE) })
+    expect(upd.some(u => 'last_ok_synced_at' in u)).toBe(false)
+  })
+  it('I1: erro de captura nos fixados vai para o erro guardado sem custar o resto (a linha do fixado e a marca de ausência seguem)', async () => {
+    const gone = { id: 'v-gone', video_id: 'vid-gone', title: 'Sumido', thumbnail_url: null, last_seen_at: '2026-10-24T03:00:00.000Z' }
+    const db = setup({ pinned: [PIN, gone], existing: [ROW1], rpcFailFor: { fn: FIELD_PLAN, videoId: 'v-pin' }, missed: [{ id: 'v-gone', miss_streak: 1, miss_first_at: EARLY.toISOString(), missing_since: null, last_seen_at: gone.last_seen_at }] })
+    const e = await caught(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { daily: (_n, u) => ids(u).filter(i => i === 'vid-pin').map(i => item(i)) }), ...quiet }))
+    expect((e as Error).message).toMatch(FRASE)
+    expect(updatesOf(db, 'v-pin')).toHaveLength(1)
+    expect(rpcCalls(db, 'competitor_mark_missing')).toHaveLength(1)
+    expect(db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')).at(-1)).toMatchObject({ sync_status: 'error' })
+  })
+
+  it('M2: o PRIMEIRO erro vale também contra o erro da captura e o da marca de ausência', async () => {
+    setup({ lastDaily: '2026-10-24', existing: [ROW1], failUpdateOf: 'v-1', rpcFailFor: { fn: FIELD_PLAN, videoId: 'v-1' } })
+    const e1 = await caught(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet }))
+    expect((e1 as Error).message).toBe('não foi possível atualizar a linha do vídeo: boom')
+    setup({ pinned: [{ ...PIN, last_seen_at: '2026-10-24T03:00:00.000Z' }], existing: [ROW1], failUpdateOf: 'v-1', rpcFail: 'competitor_mark_missing' })
+    const e2 = await caught(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { daily: () => [] }), ...quiet }))
+    expect((e2 as Error).message).toBe('não foi possível atualizar a linha do vídeo: boom')
+  })
+  it('M9: a janela da mudança do canal começa na última leitura boa do canal (last_seen_at da linha lida na trava)', async () => {
+    const prev = '2026-10-24T03:00:00.000Z'
+    const chItem = { id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal', description: 'nova' }, statistics: { subscriberCount: '10' } }
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1], lock: { last_seen_at: prev }, fields: [{ id: 31, video_id: null, field: 'description', value_hash: fieldHash('antiga') }] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [chItem] }), ...quiet })
+    const plan = rpcCalls(db, FIELD_PLAN).find(a => (a.p_open as Array<{ field: string; video_id: unknown }>).some(o => o.field === 'description' && o.video_id === null))!
+    expect(plan.p_close).toEqual([{ id: 31, last_seen_at: prev }])
+    expect((plan.p_open as Array<Record<string, unknown>>).find(o => o.field === 'description')).toMatchObject({ window_start: prev, precision: '6h' })
+  })
+  it('M14: erro ao carimbar a última leitura dos vídeos termina o canal em erro, com a frase', async () => {
+    setup({ lastDaily: '2026-10-24', existing: [ROW1], failStamp: true })
+    await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })).rejects.toThrow(/^não foi possível guardar a última leitura dos vídeos: boom$/)
+  })
+  it('M18: erro ao gravar a linha do canal termina o canal em erro, com a frase, e a série do dia é gravada', async () => {
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1], failChannelUpdate: true })
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page()), ...quiet })).rejects.toThrow(/^não foi possível atualizar a linha do canal: boom$/)
+    expect(dailyRows(db)).toEqual(['v-1'])
+  })
+
+  it('I3: a captura do canal falha → nenhuma leitura nem gravação de captura nos blocos seguintes; série, marca e erro seguem; captureSkipped conta os itens', async () => {
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1], tracked: TRACKED2, selectFail: 'competitor_field_versions' })
+    const e = await caught(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page(), 200, { daily: (_n, u) => ids(u).map(i => item(i)) }), ...quiet }))
+    expect((e as Error).message).toBe('não foi possível ler o histórico de campos (competitor_field_versions: boom)') // a primeira falha
+    expect(db.calls.filter(c => c.table === 'competitor_field_versions')).toHaveLength(1)
+    expect(db.calls.filter(c => c.table === 'competitor_raw')).toHaveLength(0)
+    expect(rpcCalls(db, FIELD_PLAN)).toEqual([])
+    expect(rpcCalls(db, 'apply_competitor_raw_plan')).toEqual([])
+    expect(stamps(db)).toEqual([])
+    expect(dailyRows(db).sort()).toEqual(['v-1', 'v-2'])
+    expect(syncStatsOf(e)).toMatchObject({ captureSkipped: 2 }) // v-1 (página e passada, um só) e v-2
+    expect(db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')).at(-1)).toMatchObject({ sync_status: 'error' })
+  })
+  it('I3: a captura de um bloco da página falha → passada diária e fixados não capturam; só conta quem nunca foi tentado', async () => {
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1], tracked: TRACKED2, rpcFailFor: { fn: FIELD_PLAN, videoId: 'v-1' } })
+    const e = await caught(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page(), 200, { daily: (_n, u) => ids(u).map(i => item(i)) }), ...quiet }))
+    expect((e as Error).message).toMatch(FRASE)
+    expect(db.calls.filter(c => c.table === 'competitor_field_versions')).toHaveLength(2) // o canal e o bloco da página
+    expect(rpcCalls(db, FIELD_PLAN)).toHaveLength(2)
+    expect(opened(db).some(x => x.video_id === 'v-2')).toBe(false)
+    expect(stamps(db)).toEqual([])
+    expect(dailyRows(db).sort()).toEqual(['v-1', 'v-2'])
+    expect(syncStatsOf(e)).toMatchObject({ captureSkipped: 1 })
+    const db2 = setup({ pinned: [PIN], existing: [ROW1], rpcFailFor: { fn: FIELD_PLAN, videoId: 'v-1' } })
+    const e2 = await caught(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { daily: (_n, u) => ids(u).map(i => item(i)) }), ...quiet }))
+    expect(syncStatsOf(e2)).toMatchObject({ captureSkipped: 1 })
+    expect(opened(db2).some(x => x.video_id === 'v-pin')).toBe(false)
+    expect(updatesOf(db2, 'v-pin')).toHaveLength(1) // o fixado foi lido e regravado, só não capturado
+  })
+  it('sem falha de captura não há captureSkipped; o campo não aparece', async () => {
+    setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })
+    expect('captureSkipped' in r).toBe(false)
+  })
+
+  it('m2/m3: fieldsClosed e rawClosed chegam ao resultado; rawTooBig também (nível da sincronização)', async () => {
+    const prev = '2026-10-24T03:00:00.000Z'
+    setup({ lastDaily: '2026-10-24', existing: [{ ...ROW1, last_seen_at: prev }], fields: [{ id: 41, video_id: 'v-1', field: 'tags', value_hash: fieldHash(['a']) }], raws: [{ id: 7, video_id: 'v-1', raw_sha256: 'antigo' }] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page({ snippet: { ...page().snippet, tags: ['b'] } })), ...quiet })
+    expect(r).toMatchObject({ fieldsClosed: 1, rawClosed: 1 })
+    setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    const r2 = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page({ snippet: { ...page().snippet, description: 'x'.repeat(120_000) } })), ...quiet })
+    expect(r2.rawTooBig).toBe(1)
+    expect('fieldsClosed' in r2).toBe(false)
+  })
+})
+
+describe('A5 E1 (conserto da Tarefa 8): newlyMissing é a versão "sumiu" aberta nesta execução', () => {
+  const PINROW = { ...PIN, last_seen_at: '2026-10-24T03:00:00.000Z' }
+  const PINROW2 = { id: 'v-pin2', video_id: 'vid-pin2', title: 'Fixado 2', thumbnail_url: null, last_seen_at: '2026-10-24T03:00:00.000Z' }
+  const caught = async (p: Promise<unknown>): Promise<unknown> => { try { await p } catch (e) { return e } throw new Error('não lançou') }
+  const gone = (id: string, streak: number) => ({ id, miss_streak: streak, miss_first_at: '2026-10-24T00:00:00.000Z', missing_since: '2026-10-24', last_seen_at: PINROW.last_seen_at })
+  const run = (opts: Parameters<typeof setup>[0]) => { const db = setup({ pinned: [PINROW, PINROW2], existing: [ROW1], ...opts }); return { db, r: syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { daily: () => [] }), ...quiet }) } }
+  it('(a) o que cruza para missing_since e ainda estava "no_ar" conta; o que já tinha a versão "sumiu" não', async () => {
+    const { r } = run({ missed: [gone('v-pin', 2), gone('v-pin2', 2)], fields: [{ id: 9, video_id: 'v-pin', field: 'availability', value_hash: fieldHash('no_ar') }, { id: 10, video_id: 'v-pin2', field: 'availability', value_hash: fieldHash('sumiu') }] })
+    expect(await r).toMatchObject({ missed: 2, newlyMissing: 1 })
+  })
+  it('(b) a mesma situação reexecutada (a versão "sumiu" já está gravada) → 0 e nenhuma gravação de versão', async () => {
+    const { db, r } = run({ missed: [gone('v-pin', 3)], fields: [{ id: 9, video_id: 'v-pin', field: 'availability', value_hash: fieldHash('sumiu') }] })
+    const res = await r
+    expect(res).toMatchObject({ missed: 1 })
+    expect('newlyMissing' in res).toBe(false)
+    expect(rpcCalls(db, 'apply_competitor_field_plan').flatMap(a => a.p_open as Array<{ value: unknown }>).some(o => o.value === 'sumiu')).toBe(false)
+  })
+  it('(c) a execução anterior marcou missing_since e falhou antes de abrir a versão: esta abre e conta 1 (o evento não se perde, mesmo com miss_streak além de 2)', async () => {
+    const { db, r } = run({ missed: [gone('v-pin', 4)], fields: [{ id: 9, video_id: 'v-pin', field: 'availability', value_hash: fieldHash('no_ar') }] })
+    expect(await r).toMatchObject({ missed: 1, newlyMissing: 1 })
+    expect(rpcCalls(db, 'apply_competitor_field_plan').flatMap(a => a.p_open as Array<Record<string, unknown>>).find(o => o.value === 'sumiu')).toMatchObject({ video_id: 'v-pin', field: 'availability' })
+  })
+  it('(d) falta ainda única (sem missing_since): conta falta, não "sumiu"', async () => {
+    const { r } = run({ missed: [{ id: 'v-pin', miss_streak: 2, miss_first_at: EARLY.toISOString(), missing_since: null, last_seen_at: PINROW.last_seen_at }] })
+    const res = await r
+    expect(res).toMatchObject({ missed: 1 })
+    expect('newlyMissing' in res).toBe(false)
+  })
+  it('a gravação da versão "sumiu" falha depois da marca: missed chega ao erro (a marca já estava no banco), newlyMissing só conta o confirmado', async () => {
+    const { r } = run({ missed: [gone('v-pin', 2), gone('v-pin2', 2)], rpcFailFor: { fn: 'apply_competitor_field_plan', videoId: 'v-pin2' } })
+    const e = await caught(r)
+    expect((e as Error).message).toMatch(/deixou de vir do YouTube|guardar o histórico de campos/)
+    expect(syncStatsOf(e)).toMatchObject({ missed: 2 })
+    expect(syncStatsOf(e)?.newlyMissing ?? 0).toBe(0)
+  })
+})
+
+describe('A5 E1 (conserto da Tarefa 8, D2): contagem ausente do canal nunca vira zero', () => {
+  const base = { id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' } }
+  const chUpdate = (db: ReturnType<typeof setup>) => db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).find(u => 'last_seen_at' in u)!
+  const snap = (db: ReturnType<typeof setup>) => arg(db.calls.find(c => c.table === 'competitor_channel_snapshots')!, 'upsert')
+  const run = async (statistics: Record<string, unknown>) => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics }] }), ...quiet })
+    return db
+  }
+  it('statistics presente e vazio: a contagem de vídeos é nula no retrato e na linha do canal (e as outras também)', async () => {
+    const db = await run({})
+    expect(snap(db)).toMatchObject({ video_count: null, subscriber_count: null, view_count: null })
+    expect(chUpdate(db)).toMatchObject({ youtube_video_count: null, subscriber_count: null })
+  })
+  it('statistics sem videoCount mas com as outras: só a contagem de vídeos é nula', async () => {
+    const db = await run({ subscriberCount: '10', viewCount: '99' })
+    expect(snap(db)).toMatchObject({ video_count: null, subscriber_count: 10, view_count: 99 })
+    expect(chUpdate(db)).toMatchObject({ youtube_video_count: null, subscriber_count: 10 })
+  })
+  it('videoCount "0" presente é zero medido e grava 0', async () => {
+    const db = await run({ videoCount: '0', subscriberCount: '0', viewCount: '0' })
+    expect(snap(db)).toMatchObject({ video_count: 0, subscriber_count: 0, view_count: 0 })
+    expect(chUpdate(db)).toMatchObject({ youtube_video_count: 0, subscriber_count: 0 })
+  })
+  it('subscriberCount ausente sem hiddenSubscriberCount é nulo, não zero; escondido também', async () => {
+    const db = await run({ videoCount: '4' })
+    expect(snap(db)).toMatchObject({ subscriber_count: null, video_count: 4, view_count: null })
+    const db2 = await run({ videoCount: '4', hiddenSubscriberCount: true, subscriberCount: '12' })
+    expect(snap(db2)).toMatchObject({ subscriber_count: null, subscribers_hidden: true })
   })
 })
