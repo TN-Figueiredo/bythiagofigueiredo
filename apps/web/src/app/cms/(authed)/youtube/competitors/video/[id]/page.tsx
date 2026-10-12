@@ -8,6 +8,9 @@ import { buildHistoricoView, historicoTrail } from '../../_historico/view-model'
 import { HistoricoScreen } from '../../_historico/historico-screen'
 import { Pager } from '../../_historico/pager'
 import '../../_historico/historico.css'
+import { lerDadosDoCanal, longosAcompanhadosDe, podeVerPrivado } from '../../_proprio/dados'
+import { buildProprioVideoPage, canalProprioDoVideo } from '../../_proprio/video-model'
+import { ProprioVideoScreen } from '../../_proprio/video-screen'
 import { askForjaReading, cancelForjaReading } from '../../forja-actions'
 import { pinVideo, unpinVideo, syncCompetitorNow } from '../../actions'
 
@@ -19,7 +22,23 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
   const [{ id }, sp] = await Promise.all([params, searchParams])
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
-  const { siteId, obs, savedNiche, meuCanalLembrado } = await openObservatoryPage()
+  const { siteId, obs, savedNiche, meuCanalLembrado, now } = await openObservatoryPage()
+  // O dono do canal do vídeo decide a tela (spec 17): vídeo de canal próprio abre a tela do vídeo próprio; o resto continua no Histórico, como sempre.
+  // A decisão é do servidor, a partir do canal resolvido do vídeo; nenhum parâmetro da URL entra nela.
+  const proprio = canalProprioDoVideo(obs, id)
+  if (proprio) {
+    // o dado privado do canal INTEIRO (as réguas precisam de todos os vídeos), depois da guarda de edição; erro de leitura LANÇA (D5)
+    const edicao = await podeVerPrivado(siteId)
+    const dados = await lerDadosDoCanal({ canalId: proprio.id, longosAcompanhados: longosAcompanhadosDe(obs, proprio.id), agora: now, edicao })
+    const pv = buildProprioVideoPage(obs, id, flat, dados)
+    if (pv) {
+      return (
+        <TrailChrome crumbs={pv.crumbs} owns={ownMenuOf(obs, meuCanalLembrado)} aside={<Pager pager={pv.pager} naTrilha />}>
+          <ProprioVideoScreen header={pv.header} pager={pv.pager} alcanceNota={pv.alcanceNota} fromCanal={pv.fromCanal} />
+        </TrailChrome>
+      )
+    }
+  }
   const formParam = parseNiche(flat.niche) ?? undefined
   // parseNiche checks the form; the engine says whether the niche exists (an unknown one is ignored: the saved niche, else Todos)
   const niche = formParam != null && obs.scopeOf(formParam) === formParam ? formParam : obs.scopeOf(savedNiche)
