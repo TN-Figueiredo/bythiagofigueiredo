@@ -3,10 +3,20 @@
 import { createHash } from 'node:crypto'
 import { gunzipSync, gzipSync } from 'node:zlib'
 import { motivoDoGoogle } from '@/lib/youtube/coleta/google-erro'
-import { ReportingHttpError, type Job, type Report, type ReportType } from './types'
+import { ArquivoGrandeDemaisError, ReportingHttpError, type Job, type Report, type ReportType } from './types'
 
 export const REPORTING_BASE = 'https://youtubereporting.googleapis.com/v1'
 const MAX_PAGINAS = 20
+
+/** Teto do corpo que CHEGA da rede (o gzip). O maior relatório real até hoje tem 564 bytes comprimidos. Vale para o
+ *  `Content-Length` e, na falta dele, para a leitura do corpo, que aborta ao ultrapassar. */
+export const MAX_GZ_BYTES = 10 * 1024 * 1024
+/** Teto do CSV DESCOMPRIMIDO, em bytes. Os relatórios são CSV (razão de compressão de 10x a 20x): 10 MB de gzip podem ser
+ *  100 a 200 MB, e uma bomba, bem mais. Conta de memória (função da Vercel com 1 GB no pior caso): `empacotarCsv` segura ao
+ *  mesmo tempo o buffer (N), a string do `toString` (N a 2N) e o array do `split` (até 2N com o custo por linha), cerca de
+ *  5N no pico, mais ~300 MB de base do Next. Com N = 64 MB são ~320 MB de pico, ~620 MB no total: cabe com folga. 100 MB
+ *  já passaria de 800 MB. Mais de 64 MB de CSV é mais de 100 vezes o maior real (564 bytes comprimidos). */
+export const MAX_CSV_BYTES = 64 * 1024 * 1024
 
 export interface PacoteCsv {
   /** Sempre gzip. */
@@ -25,13 +35,58 @@ export interface ReportingClient {
   download(downloadUrl: string): Promise<PacoteCsv>
 }
 
-/** `csv_gz` é sempre gzip: se os dois primeiros bytes são 1f 8b guarda como veio; senão comprime. */
+/** `csv_gz` é sempre gzip: se os dois primeiros bytes são 1f 8b guarda como veio; senão comprime.
+ *  Lança `ArquivoGrandeDemaisError` (lado `descomprimido`) quando o CSV passa de MAX_CSV_BYTES: a descompressão para no teto,
+ *  nunca materializa o resto. Bytes que o zlib não abre continuam lançando o erro `Z_*` do zlib. */
 export function empacotarCsv(bruto: Buffer): PacoteCsv {
   const jaGzip = bruto.length >= 2 && bruto[0] === 0x1f && bruto[1] === 0x8b
-  const csv = jaGzip ? gunzipSync(bruto) : bruto
+  const recusar = (): never => {
+    throw new ArquivoGrandeDemaisError('descomprimido', bruto.length, `${bruto.length} bytes comprimidos descomprimem a mais de ${MAX_CSV_BYTES} bytes; teto ${MAX_CSV_BYTES} descomprimido`)
+  }
+  let csv: Buffer
+  if (jaGzip) {
+    try {
+      csv = gunzipSync(bruto, { maxOutputLength: MAX_CSV_BYTES })
+    } catch (e) {
+      if ((e as { code?: unknown } | null)?.code === 'ERR_BUFFER_TOO_LARGE') return recusar()
+      throw e
+    }
+  } else {
+    if (bruto.length > MAX_CSV_BYTES) return recusar()
+    csv = bruto
+  }
   const gz = jaGzip ? bruto : gzipSync(bruto)
   const linhas = csv.toString('utf8').split('\n').filter(l => l.trim().length > 0).length
   return { gz, sha256: createHash('sha256').update(csv).digest('hex'), rowCount: Math.max(0, linhas - 1) }
+}
+
+/**
+ * Lê o corpo do download com limite. `Content-Length` acima do teto: recusa sem ler o corpo. Sem ele (ou ilegível): lê em
+ * pedaços e aborta ao passar do teto, em vez de `arrayBuffer()` cego. Corpo de 0 byte ou ausente NÃO é "relatório vazio":
+ * um CSV da API sempre tem ao menos o cabeçalho; 0 byte é resposta cortada, e a falha é passageira (tenta amanhã).
+ */
+async function lerCorpoLimitado(res: Response): Promise<Buffer> {
+  const declarado = res.headers.get('content-length')?.trim() ?? ''
+  if (/^\d+$/.test(declarado) && Number(declarado) > MAX_GZ_BYTES) {
+    await res.body?.cancel().catch(() => undefined)
+    throw new ArquivoGrandeDemaisError('comprimido', Number(declarado), `${declarado} bytes comprimidos (Content-Length); teto ${MAX_GZ_BYTES}`)
+  }
+  if (!res.body) throw new ReportingHttpError(res.status, 'corpo_vazio')
+  const leitor = res.body.getReader()
+  const partes: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await leitor.read()
+    if (done) break
+    total += value.byteLength
+    if (total > MAX_GZ_BYTES) {
+      await leitor.cancel().catch(() => undefined)
+      throw new ArquivoGrandeDemaisError('comprimido', total, `mais de ${MAX_GZ_BYTES} bytes comprimidos lidos sem Content-Length confiável (parou em ${total}); teto ${MAX_GZ_BYTES}`)
+    }
+    partes.push(value)
+  }
+  if (total === 0) throw new ReportingHttpError(res.status, 'corpo_vazio')
+  return Buffer.concat(partes, total)
 }
 
 /** Forma em que o PostgREST aceita e devolve `bytea`: `\x` + hex. */
@@ -112,7 +167,7 @@ export function criarReportingClient(accessToken: string, f: typeof fetch): Repo
       if (!urlDeDownloadPermitida(downloadUrl)) throw new ReportingHttpError(0, 'url_inesperada')
       const res = await f(downloadUrl, { headers: { ...headers, 'Accept-Encoding': 'gzip' } })
       if (!res.ok) throw new ReportingHttpError(res.status, await motivoDoGoogle(res))
-      return empacotarCsv(Buffer.from(await res.arrayBuffer()))
+      return empacotarCsv(await lerCorpoLimitado(res))
     },
   }
 }

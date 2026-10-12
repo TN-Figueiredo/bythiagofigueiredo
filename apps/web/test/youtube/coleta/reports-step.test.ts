@@ -16,7 +16,7 @@ vi.mock('@/lib/youtube/coleta/alerts', () => ({ avisarEntrada: vi.fn(), avisarSa
 import { passoRelatorios, MAX_DOWNLOADS, MAX_GZ_BYTES } from '@/lib/youtube/coleta/reports-step'
 import { ensureFreshToken, NoActiveConnectionError, TokenRevokedError } from '@/lib/social/token-refresh'
 import { criarReportingClient, empacotarCsv, deBytea } from '@/lib/youtube/reporting/client'
-import { ReportingHttpError, SEM_NORMALIZADOR } from '@/lib/youtube/reporting/types'
+import { ArquivoGrandeDemaisError, ReportingHttpError, SEM_NORMALIZADOR } from '@/lib/youtube/reporting/types'
 import { SemTempoError, TETOS_MS } from '@/lib/youtube/coleta/clock'
 import type { StepCtx } from '@/lib/youtube/coleta/types'
 import { fakeSupabase, type FakeDb, type Row } from './fake-supabase'
@@ -674,6 +674,70 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
     expect(ctx.falhas).toEqual([
       `relatórios: channel_reach_basic_a1 recusado por tamanho (${MAX_GZ_BYTES + 1} bytes comprimidos; teto ${MAX_GZ_BYTES}): o bruto NÃO foi guardado`,
     ])
+  })
+
+  it('o cliente recusa por Content-Length/leitura (comprimido): vira grande_demais terminal com o tamanho na nota, não erro de rede', async () => {
+    api.download.mockRejectedValue(new ArquivoGrandeDemaisError('comprimido', MAX_GZ_BYTES + 5, `${MAX_GZ_BYTES + 5} bytes comprimidos (Content-Length); teto ${MAX_GZ_BYTES}`))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    expect(rel(db, 'r1')).toMatchObject({ status: 'erro', error: 'grande_demais', bytes: MAX_GZ_BYTES + 5 })
+    expect(rel(db, 'r1')!.sha256 ?? null).toBeNull() // o corpo não foi lido: sem hash nem contagem inventados
+    expect(rel(db, 'r1')!.row_count ?? null).toBeNull()
+    expect(db.tables.yt_reporting_report_blobs ?? []).toEqual([])
+    expect(resumo).toMatchObject({ erros_download: 1, maior_bytes: MAX_GZ_BYTES + 5, pendentes: 0 })
+    expect(ctx.falhas).toEqual([
+      `relatórios: channel_reach_basic_a1 recusado por tamanho (${MAX_GZ_BYTES + 5} bytes comprimidos (Content-Length); teto ${MAX_GZ_BYTES}): o bruto NÃO foi guardado`,
+    ])
+    // Nunca é "erro de rede": nenhuma tentativa erro_http (que contaria para o aviso de 3 dias e tentaria de novo).
+    expect((db.tables.yt_own_collection_attempts ?? []).filter(t => t.scope_type === 'job' && t.outcome === 'erro_http')).toEqual([])
+  })
+
+  it('gzip pequeno que descomprime acima do teto (bomba): grande_demais terminal com o tamanho comprimido; no dia seguinte não é baixado de novo', async () => {
+    api.download.mockRejectedValue(new ArquivoGrandeDemaisError('descomprimido', 812, '812 bytes comprimidos descomprimem a mais de 67108864 bytes; teto 67108864 descomprimido'))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    const ctx = ctxDe(db)
+    await passoRelatorios(ctx)
+    expect(rel(db, 'r1')).toMatchObject({ status: 'erro', error: 'grande_demais', bytes: 812 })
+    expect(ctx.falhas).toEqual([
+      'relatórios: channel_reach_basic_a1 recusado por tamanho (812 bytes comprimidos descomprimem a mais de 67108864 bytes; teto 67108864 descomprimido): o bruto NÃO foi guardado',
+    ])
+    expect(api.download).toHaveBeenCalledTimes(1)
+    vi.setSystemTime(new Date(AGORA.getTime() + DIA_MS))
+    await passoRelatorios(ctxDe(db))
+    expect(api.download).toHaveBeenCalledTimes(1) // `erro` não volta para a fila
+  })
+
+  it('corpo vazio da API (corpo_vazio) NÃO vira relatório "vazio": continua listado, com tentativa erro_http', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(200, 'corpo_vazio'))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    const resumo = await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'r1')!.status).toBe('listado')
+    expect(resumo).toMatchObject({ erros_download: 1, vazios: 0, baixados: 0, pendentes: 1 })
+    expect(db.tables.yt_own_collection_attempts!.find(t => t.scope_type === 'job')).toMatchObject({ outcome: 'erro_http' })
+  })
+
+  it('abort DURANTE a leitura do corpo, com o prazo do passo esgotado: sem_tempo (listado, nao_alcancado_orcamento), nunca erro de download', async () => {
+    api.download.mockImplementation(async () => {
+      vi.setSystemTime(new Date(Date.now() + 120_000)) // o prazo acaba com o corpo a meio caminho
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    })
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1'), listado('r2', { create_time: ha(0.5) })] })
+    const resumo = await passoRelatorios(ctxDe(db))
+    expect(comStatus(db, 'listado').map(r => r.report_id).sort()).toEqual(['r1', 'r2'])
+    expect(resumo.erros_download).toBe(0)
+    expect(api.download).toHaveBeenCalledTimes(1) // o passo para
+    const t = db.tables.yt_own_collection_attempts ?? []
+    expect(t.find(x => x.scope_type === 'canal' && x.outcome === 'nao_alcancado_orcamento')).toBeTruthy()
+    expect(t.filter(x => x.outcome === 'erro_http')).toEqual([])
+  })
+
+  it('abort por tempo da CHAMADA (15 s) com prazo do passo sobrando continua sendo erro de download passageiro', async () => {
+    api.download.mockRejectedValue(new DOMException('timeout', 'TimeoutError'))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    const resumo = await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'r1')!.status).toBe('listado')
+    expect(resumo.erros_download).toBe(1)
   })
 
   it('mais da metade do teto: o bruto é guardado e a execução avisa antes de perder; exatamente a metade não avisa', async () => {
