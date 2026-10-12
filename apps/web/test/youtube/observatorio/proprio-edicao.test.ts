@@ -51,31 +51,55 @@ describe('provarEdicao: o token de edição do site', () => {
     expect(t.siteId).toBe('site-1')
   })
   describe('forjados que o instanceof deixava passar: nenhum abre o dado (negado, nenhuma consulta)', () => {
-    const forjados: Array<[string, () => unknown]> = [
-      ['Object.create(prototype) com o siteId como propriedade própria', () => Object.create(EdicaoDoSite.prototype, { siteId: { value: 'site-1' } })],
-      ['Object.create(prototype) puro', () => Object.create(EdicaoDoSite.prototype)],
-      ['Reflect.construct do construtor', () => Reflect.construct(EdicaoDoSite, ['site-1'])],
-      ['Reflect.construct com a chave inventada', () => Reflect.construct(EdicaoDoSite, ['site-1', Symbol('chave')])],
-      ['subclasse que chama super', () => {
+    // `lanca`: a fabricação já recusa com TypeError (o construtor exige a chave e o new.target); senão o objeto nasce, e o brand check o recusa
+    const forjados: Array<{ nome: string; lanca: boolean; fabrica: () => unknown }> = [
+      { nome: 'Object.create(prototype) com o siteId como propriedade própria', lanca: false, fabrica: () => Object.create(EdicaoDoSite.prototype, { siteId: { value: 'site-1' } }) },
+      { nome: 'Object.create(prototype) puro', lanca: false, fabrica: () => Object.create(EdicaoDoSite.prototype) },
+      { nome: 'Reflect.construct do construtor', lanca: true, fabrica: () => Reflect.construct(EdicaoDoSite, ['site-1']) },
+      { nome: 'Reflect.construct com a chave inventada', lanca: true, fabrica: () => Reflect.construct(EdicaoDoSite, ['site-1', Symbol('chave')]) },
+      { nome: 'subclasse que chama super', lanca: true, fabrica: () => {
         // @ts-expect-error construtor privado: o tsc barra, e esta linha prova que a execução também recusa
         class F extends EdicaoDoSite { constructor() { super('site-1') } }
         return new F()
-      }],
+      } },
     ]
-    for (const [nome, fabrica] of forjados) {
+    const naoAbreODado = async (f: unknown) => {
+      expect(edicaoValida(f)).toBe(false)
+      const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [] })
+      const pedido = { canalId: '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10', hoje: '2026-10-10' }
+      // o leitor só aceita o que `edicaoValida` aceita; o tipo é a barreira do descuido, a execução é a do forjado
+      const edicao = f as EdicaoDoSite
+      expect(await lerAlcance(db.client, { ...pedido, edicao })).toEqual({ acesso: 'negado' })
+      expect(await lerDiario(db.client, { ...pedido, edicao, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
+      expect(db.trips).toEqual([])
+    }
+    for (const { nome, lanca, fabrica } of forjados) {
       it(nome, async () => {
-        let f: unknown
-        try { f = fabrica() } catch { return } // recusar na fabricação também vale: ninguém tem um token forjado
-        expect(edicaoValida(f)).toBe(false)
-        const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [] })
-        const pedido = { canalId: '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10', hoje: '2026-10-10' }
-        // o leitor só aceita o que `edicaoValida` aceita; o tipo é a barreira do descuido, a execução é a do forjado
-        const edicao = f as EdicaoDoSite
-        expect(await lerAlcance(db.client, { ...pedido, edicao })).toEqual({ acesso: 'negado' })
-        expect(await lerDiario(db.client, { ...pedido, edicao, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
-        expect(db.trips).toEqual([])
+        if (lanca) {
+          // a fabricação recusa, e recusa pelo motivo certo (não por um erro de digitação da fábrica)
+          expect(fabrica).toThrow(TypeError)
+          expect(fabrica).toThrow(/EdicaoDoSite só nasce em provarEdicao/)
+          return
+        }
+        await naoAbreODado(fabrica()) // a fabricação NÃO lança: quem recusa é o brand check
       })
     }
+    it('os três que lançam têm o que provar também no leitor: o objeto que chegasse até ele seria negado (o brand check é a segunda barreira)', async () => {
+      // o mesmo caminho de execução dos que não lançam, com um objeto sem o campo privado
+      await naoAbreODado({ siteId: 'site-1' })
+      await naoAbreODado(Object.create(null))
+    })
+  })
+  it('a estática do brand check não se regrava: regravá-la ou trocar `provar` não muda o veredito, e a classe está congelada', async () => {
+    expect(Object.isFrozen(EdicaoDoSite)).toBe(true)
+    // Reflect.set não lança: devolve false quando a classe não aceita a escrita
+    expect(Reflect.set(EdicaoDoSite, 'ehEdicao', () => true)).toBe(false)
+    expect(Reflect.set(EdicaoDoSite, 'provar', async () => null)).toBe(false)
+    expect(Reflect.defineProperty(EdicaoDoSite, 'ehEdicao', { value: () => true })).toBe(false)
+    expect(edicaoValida({ siteId: 'S' })).toBe(false)
+    expect(edicaoValida(Object.create(EdicaoDoSite.prototype))).toBe(false)
+    requireSiteScope.mockResolvedValue({ ok: true, user: { id: 'u1' } })
+    expect(edicaoValida(await provarEdicao('site-1'))).toBe(true) // o token real continua válido
   })
   it('o token não serializa o site como dado solto: JSON do token não carrega nada privado', async () => {
     requireSiteScope.mockResolvedValue({ ok: true, user: { id: 'u1' } })

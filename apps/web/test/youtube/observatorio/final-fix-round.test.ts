@@ -92,7 +92,7 @@ describe('F6: Views/dia do canal próprio sem views diárias diz o motivo real',
     for (const r of rows) {
       const cell = r.cells![idx]!
       expect(cell.kind).toBe('nodata')
-      if (cell.kind === 'nodata') { expect(cell.base).toBe('sem views diárias do seu canal'); expect(cell.baseTitle).toBe('O observatório guarda a contagem diária de views só dos concorrentes.') }
+      if (cell.kind === 'nodata') { expect(cell.base).toBe('sem views diárias do seu canal'); expect(cell.baseTitle).toBe('As views por dia do seu canal ficam na página do seu canal, e só nos vídeos longos.') }
     }
   })
 })

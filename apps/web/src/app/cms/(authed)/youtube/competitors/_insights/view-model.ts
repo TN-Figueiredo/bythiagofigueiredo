@@ -9,6 +9,7 @@ import type { Fmt as VideoFmt, Niche } from '@/lib/youtube/observatorio/types'
 import { bestPatterns, buildForjaView, evLink, forjaReadingView, patternsOf, readingSeal, type ForjaReadingView, type ForjaView } from '../_chrome/forja-view-model'
 import type { FrozenReading, ObsChannel } from '@/lib/youtube/observatorio/types'
 import { langChip, listPt, type LangChip } from '../_chrome/own-channels'
+import { SEM_VPD_PROPRIO_DICA } from '../_proprio/extras'
 
 /** Rich text: plain strings, bold and monospace numbers (the mockup's <b> and <span class="mono">). */
 export type RichPart = string | { b: string } | { mono: string } | { bmono: string }
@@ -599,7 +600,7 @@ function youSection(obs: Observatory, niche: Niche, fmt: VideoFmt): YouSection {
     const cells: YouCell[] = COLS.map(col => {
       const cell = row[col.key]
       // R60/FU-5: the observatory keeps no daily views of an own channel — that, not a thin base, is why Views/dia has no value
-      if (cell.value == null && col.key === 'perMilSubs') return { kind: 'nodata', text: cell.verdictText, base: 'sem views diárias do seu canal', baseTitle: 'O observatório guarda a contagem diária de views só dos concorrentes.' }
+      if (cell.value == null && col.key === 'perMilSubs') return { kind: 'nodata', text: cell.verdictText, base: 'sem views diárias do seu canal', baseTitle: SEM_VPD_PROPRIO_DICA }
       if (cell.value == null) return { kind: 'nodata', text: cell.verdictText, base: 'base fraca (n = ' + cell.n + ')', baseTitle: 'Menos de ' + R.weakBase + ' vídeos deste canal com base de comparação' }
       // ruling R74: a weak base keeps the arrow and loses the colour
       return { kind: 'value', value: col.f(cell.value), verdict: (cell.verdict || '≈') + ' ' + cell.short, few: cell.few ? 'n = ' + cell.n + ', pouco para concluir' : null,
