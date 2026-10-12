@@ -100,7 +100,9 @@ async function listarJob(ctx: StepCtx, c: ColetaChannel, api: ReportingClient, j
         create_time: r.createTime,
         job_expire_time: r.jobExpireTime ?? null,
         download_url: r.downloadUrl,
-        is_backfill: criadoEm !== null && instante(r.startTime) < criadoEm,
+        // Sem a data de criação do job não dá para separar histórico de corrente: vale o prazo curto (30 dias).
+        // Ausência nunca alonga prazo: `false` aqui daria 60 dias a um arquivo que pode sumir aos 30.
+        is_backfill: criadoEm === null || !(instante(r.startTime) >= criadoEm), // startTime ilegível (NaN) também cai no prazo curto
         status: 'listado',
       }))
       // ignoreDuplicates: a listagem nunca altera uma linha que já existe.
