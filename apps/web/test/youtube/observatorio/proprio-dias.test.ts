@@ -1,0 +1,101 @@
+import { describe, it, expect } from 'vitest'
+import { periodoDoAlcance, montarDias, resumir, alcancePorVideo, motivoDiaTexto, JANELA_ALCANCE_DIAS } from '@/lib/youtube/observatorio/proprio/dias'
+import type { AlcanceCanal, RelatorioDia, AlcanceLinha } from '@/lib/youtube/observatorio/proprio/tipos'
+
+const rel = (dia: string, status: RelatorioDia['status'] = 'baixado', normalizado = true): RelatorioDia => ({ dia, status, normalizado })
+const lin = (ytId: string, dia: string, imp: number | null, ctr: number | null): AlcanceLinha => ({ ytId, dia, imp, ctr })
+const canal = (relatorios: RelatorioDia[], linhas: AlcanceLinha[]): AlcanceCanal => ({ canalId: 'c1', relatorios, linhas })
+
+describe('período do alcance', () => {
+  it('sem relatório nenhum: null (nunca um período inventado)', () => {
+    expect(periodoDoAlcance([])).toBeNull()
+  })
+  it('termina no relatório mais novo, de qualquer status, e começa no mais antigo quando há menos de 30 dias', () => {
+    expect(periodoDoAlcance([rel('2026-10-01'), rel('2026-10-05', 'listado', false)])).toEqual({ de: '2026-10-01', ate: '2026-10-05', dias: 5 })
+  })
+  it('corta em 30 dias', () => {
+    const p = periodoDoAlcance([rel('2026-08-01'), rel('2026-10-08')])
+    expect(p).toEqual({ de: '2026-09-09', ate: '2026-10-08', dias: JANELA_ALCANCE_DIAS })
+  })
+})
+
+describe('os três estados do dia', () => {
+  const a = canal(
+    [rel('2026-10-01'), rel('2026-10-02', 'vazio'), rel('2026-10-03', 'listado', false), rel('2026-10-05', 'erro', false), rel('2026-10-06', 'baixado', false), rel('2026-10-07', 'expirado_sem_baixar', false)],
+    [lin('v1', '2026-10-01', 10, 0.1), lin('v2', '2026-10-01', 5, 0.2)],
+  )
+  const { dias, periodo } = montarDias(a)
+  const de = (d: string) => dias.find(x => x.dia === d)!
+  it('todo dia do período aparece, inclusive o que não tem relatório', () => {
+    expect(periodo).toEqual({ de: '2026-10-01', ate: '2026-10-07', dias: 7 })
+    expect(dias.map(d => d.dia)).toEqual(['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06', '2026-10-07'])
+  })
+  it('dia com linha: impressões somadas e cliques sem arredondar', () => {
+    expect(de('2026-10-01')).toEqual({ dia: '2026-10-01', situacao: 'com-impressoes', motivo: null, imp: 15, cliques: 2 })
+  })
+  it('relatório vazio e normalizado: ZERO MEDIDO, com 0 e não null', () => {
+    expect(de('2026-10-02')).toEqual({ dia: '2026-10-02', situacao: 'zero-medido', motivo: null, imp: 0, cliques: 0 })
+  })
+  it('não medido tem null nas duas contagens e o motivo de cada caso', () => {
+    expect(de('2026-10-03')).toMatchObject({ situacao: 'nao-medido', motivo: 'nao-baixado', imp: null, cliques: null })
+    expect(de('2026-10-04')).toMatchObject({ situacao: 'nao-medido', motivo: 'sem-relatorio', imp: null, cliques: null })
+    expect(de('2026-10-05')).toMatchObject({ situacao: 'nao-medido', motivo: 'erro', imp: null })
+    expect(de('2026-10-06')).toMatchObject({ situacao: 'nao-medido', motivo: 'nao-baixado', imp: null })
+    expect(de('2026-10-07')).toMatchObject({ situacao: 'nao-medido', motivo: 'expirado', imp: null })
+  })
+  it('status que o código não conhece é não medido, nunca zero', () => {
+    const x = montarDias(canal([rel('2026-10-01', 'desconhecido', true)], []))
+    expect(x.dias[0]).toMatchObject({ situacao: 'nao-medido', imp: null })
+  })
+})
+
+describe('o vídeo dentro do canal', () => {
+  const a = canal([rel('2026-10-01'), rel('2026-10-02'), rel('2026-10-03', 'listado', false)], [lin('v1', '2026-10-01', 10, 0.1), lin('v2', '2026-10-02', 4, 0.5)])
+  it('dia medido em que o vídeo não veio é zero medido; dia não medido continua não medido', () => {
+    const { dias } = montarDias(a, 'v1')
+    expect(dias.map(d => [d.situacao, d.imp])).toEqual([['com-impressoes', 10], ['zero-medido', 0], ['nao-medido', null]])
+  })
+  it('vídeo que nunca apareceu: todos os dias medidos em zero, nenhum inventado', () => {
+    expect(montarDias(a, 'v9').dias.map(d => d.imp)).toEqual([0, 0, null])
+  })
+})
+
+describe('CTR ausente e linha órfã', () => {
+  it('dia com impressão e CTR nulo: impressões valem, cliques é null (não medido), nunca 0', () => {
+    const { dias } = montarDias(canal([rel('2026-10-01')], [lin('v1', '2026-10-01', 10, null), lin('v2', '2026-10-01', 5, 0.2)]))
+    expect(dias[0]).toMatchObject({ imp: 15, cliques: null })
+  })
+  it('linha com impressões nulas não soma e não vira zero', () => {
+    const { dias } = montarDias(canal([rel('2026-10-01')], [lin('v1', '2026-10-01', null, null)]))
+    expect(dias[0]).toMatchObject({ situacao: 'zero-medido', imp: 0 })
+  })
+  it('linha de alcance em dia sem relatório medido: vale a linha e sai um aviso', () => {
+    const x = montarDias(canal([rel('2026-10-01', 'listado', false)], [lin('v1', '2026-10-01', 3, 0)]))
+    expect(x.dias[0]).toMatchObject({ situacao: 'com-impressoes', imp: 3, cliques: 0 })
+    expect(x.avisos).toHaveLength(1)
+  })
+  it('dois relatórios no mesmo dia: basta um medido', () => {
+    const x = montarDias(canal([rel('2026-10-01', 'listado', false), rel('2026-10-01', 'vazio')], []))
+    expect(x.dias[0]).toMatchObject({ situacao: 'zero-medido', imp: 0 })
+  })
+})
+
+describe('resumo e por vídeo', () => {
+  const a = canal([rel('2026-10-01'), rel('2026-10-02', 'vazio'), rel('2026-10-03', 'listado', false)], [lin('v1', '2026-10-01', 10, 0.1), lin('v2', '2026-10-01', 5, 0.2)])
+  it('conta dias lidos, com impressão e não medidos; o não medido não entra na soma', () => {
+    expect(resumir(montarDias(a).dias)).toEqual({ imp: 15, cliques: 2, diasComImpressao: 1, diasLidos: 2, diasNaoMedidos: 1 })
+  })
+  it('nenhum dia lido: impressões e cliques são null, não 0', () => {
+    expect(resumir(montarDias(canal([rel('2026-10-01', 'listado', false)], [])).dias)).toEqual({ imp: null, cliques: null, diasComImpressao: 0, diasLidos: 0, diasNaoMedidos: 1 })
+    expect(resumir([])).toEqual({ imp: null, cliques: null, diasComImpressao: 0, diasLidos: 0, diasNaoMedidos: 0 })
+  })
+  it('por vídeo: só quem teve impressão; fora do período não conta', () => {
+    const m = alcancePorVideo(canal([rel('2026-10-01'), rel('2026-10-02')], [lin('v1', '2026-10-01', 10, 0.1), lin('v1', '2026-10-02', 2, 0.5), lin('v1', '2026-08-01', 99, 1), lin('v3', '2026-10-02', 0, 0)]))
+    expect([...m.keys()]).toEqual(['v1'])
+    expect(m.get('v1')).toEqual({ imp: 12, cliques: 2, diasComImpressao: 2 })
+  })
+  it('motivoDiaTexto: as frases do spec 16.6, sem palavra interna', () => {
+    expect(motivoDiaTexto('nao-baixado')).toBe('relatório ainda não baixado (não medido)')
+    for (const m of ['sem-relatorio', 'nao-baixado', 'erro', 'expirado'] as const) expect(motivoDiaTexto(m)).toMatch(/não medido/)
+  })
+})
