@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import type { CookieOptions } from '@supabase/ssr'
 import { getSiteContext } from '../../../../../lib/cms/site-context'
 import { requireOrgAdmin } from '../_lib/require-org-admin'
+import { aplicarFiltrosDeAuditoria } from './filtros'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,9 +78,7 @@ export default async function AuditPage({ searchParams }: Props) {
     .order('created_at', { ascending: false })
     .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) // PAGE_SIZE + 1 rows inclusive
 
-  if (org) query = query.eq('org_id', org)
-  if (actionFilter) query = query.eq('action', actionFilter)
-  if (resourceFilter) query = query.eq('resource_type', resourceFilter)
+  query = aplicarFiltrosDeAuditoria(query, { org, action: actionFilter, resource: resourceFilter })
 
   const { data: rows, error } = await query
 
