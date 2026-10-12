@@ -3,9 +3,9 @@ import type { Fmt } from './types'
 
 export const OBS_BASE = '/cms/youtube/competitors'
 
-export type CanalTab = 'videos' | 'trocas' | 'leitura'
+export type CanalTab = 'videos' | 'trocas' | 'leitura' | 'retencao'
 export type CanalFmt = 'todos' | 'longos' | 'shorts' | 'fixados'
-export type CanalSort = 'recentes' | 'vistos' | 'multiplo' | 'vpd'
+export type CanalSort = 'recentes' | 'vistos' | 'multiplo' | 'vpd' | 'imp'
 export interface CanalLinkParams {
   tab?: CanalTab
   fmt?: CanalFmt
