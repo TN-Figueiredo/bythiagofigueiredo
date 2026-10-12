@@ -18,6 +18,7 @@ import type { AlcanceVideo } from '@/lib/youtube/observatorio/proprio/dias'
 import { durText, numNb } from '../_canal/videos-model'
 import { escalar, MIN_REGUA } from '../_chrome/regua/regua-model'
 import { POUCO_VOLUME } from './como-esta-model'
+import { foraDosGuardadosFrase } from './extras'
 
 export type Terco = 'cima' | 'meio' | 'baixo'
 export interface PosVideo { pos: number; de: number; empates: number; terco: Terco }
@@ -82,7 +83,7 @@ export interface ReguasView {
   linhas: LinhaRegua[]
   /** A base e a janela das impressões ("Entre 4 vídeos com impressões medidas de 09/09 a 07/10."); null = alcance não lido ou sem impressão em vídeo nenhum. */
   base: string | null
-  /** O aviso de pouco volume (abaixo de `POUCO_VOLUME` impressões no canal); null = não se aplica. */
+  /** O aviso de pouco volume (abaixo de `POUCO_VOLUME` impressões no RELATÓRIO do canal, que pode incluir vídeos fora dos guardados); null = não se aplica. */
   pouco: string | null
 }
 
@@ -222,9 +223,10 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     }
   })
 
-  /* o volume de impressões do canal no período (a soma do relatório lido) */
-  let total = 0
-  if (a.alcanceLido) for (const r of a.porVideo.values()) total += r.imp
+  /* o volume de impressões do RELATÓRIO no período (a soma do que foi lido, inclusive de vídeos que não estão entre os guardados do canal) */
+  let total = 0, fora = 0
+  const guardados = new Set(a.videos.map(v => v.ytId))
+  if (a.alcanceLido) for (const [yt, r] of a.porVideo) { total += r.imp; if (!guardados.has(yt)) fora++ }
   const poucoVolume = a.alcanceLido && total > 0 && total < POUCO_VOLUME
   const periodo = a.periodoTexto ?? 'no período'
   const nImp = linhas[0]!.pos ? linhas[0]!.pos.de : a.videos.filter(v => cru('impressoes', v) != null).length
@@ -232,7 +234,7 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     ? (nImp === 1 ? `Só 1 vídeo tem impressões medidas ${periodo}.` : `Entre ${nImp} vídeos com impressões medidas ${periodo}.`)
     : null
   const pouco = poucoVolume
-    ? `${F.int(total)} ${total === 1 ? 'impressão' : 'impressões'} no canal ${periodo}. Com tão poucas, a posição em impressões muda de um dia para o outro.`
+    ? `${F.int(total)} ${total === 1 ? 'impressão' : 'impressões'} no relatório ${periodo}. ${fora > 0 ? `${foraDosGuardadosFrase(fora, F.int)} ` : ''}Com tão poucas, a posição em impressões muda de um dia para o outro.`
     : null
 
   return { frase: fraseDe(linhas, a.alcanceLido, poucoVolume), linhas, base, pouco }
@@ -262,7 +264,7 @@ function fraseDe(linhas: readonly LinhaRegua[], alcanceLido: boolean, poucoVolum
   sai(primeiros, n => `▲ Primeiro do canal em ${n}.`)
   sai(cima.filter(l => !primeiros.includes(l)), n => `▲ Entre os primeiros em ${n}.`)
   sai(meio, n => `● No meio em ${n}.`)
-  sai(ultimos, n => `▼ Último do canal em ${n}.`)
+  sai(ultimos, n => `▼ O menor do canal em ${n}.`)
   sai(baixo.filter(l => !ultimos.includes(l)), n => `▼ Entre os últimos em ${n}.`)
 
   // com o dado e sem comparação (menos de MIN_REGUA vídeos): dito, sem forma de terço

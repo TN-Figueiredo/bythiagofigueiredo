@@ -213,7 +213,7 @@ describe('T8 o cartão (Capas) do canal próprio', () => {
     const c = cartoes().find(x => x.dataset.id === comImp.id)!
     const cols = [...c.querySelectorAll('.cv-nums > .cv-c')]
     expect(cols).toHaveLength(3)
-    expect(norm(cols[0]!.textContent)).toBe(`${comImp.viewsText} views`)
+    expect(norm(cols[0]!.textContent)).toBe(norm(`${comImp.viewsText} views`))
     expect(norm(cols[1]!.textContent)).toBe(`${comImp.impText} ${comImp.imp === 1 ? 'impressão' : 'impressões'}`)
     expect(norm(cols[2]!.textContent)).toContain(comImp.multText!)
     expect(norm(c.querySelector('p.cv-n3')!.textContent)).toBe(comImp.terceira)

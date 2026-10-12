@@ -49,7 +49,7 @@ export interface CanalVideosView { videos: ChannelVideoView[]; nota: string; sem
 
 /** A frase de quando o canal ainda está na primeira sincronização (a mesma do cabeçalho). */
 export const AGUARDANDO = 'quando a sincronização terminar'
-const NB = ' '
+const NB = '\u00A0'
 const WORD = { mid: 'alto', high: 'muito alto', top: 'topo' } as const
 
 export function durText(sec: number | null): string | null {
@@ -62,7 +62,11 @@ export function durText(sec: number | null): string | null {
 /** O número como o cartão e a faixa do vídeo o escrevem: o espaço antes de "mil"/"mi" não quebra linha. */
 export const numNb = (F: Pick<Fmt, 'num'>, n: number): string => F.num(n).replace(/ (mil|mi)$/, NB + '$1')
 
-export function buildCanalVideos(obs: Observatory, channelId: string): CanalVideosView {
+/**
+ * `soVideo`: monta só o cartão desse vídeo (a tela do vídeo próprio precisa de um e não do canal inteiro: cada cartão consulta as trocas do motor).
+ * O cartão é o mesmo da lista inteira; um id que não é deste canal devolve a lista vazia.
+ */
+export function buildCanalVideos(obs: Observatory, channelId: string, o: { soVideo?: string } = {}): CanalVideosView {
   const ch: ObsChannel | undefined = obs.channel(channelId)
   const F = obs.fmt, D = obs.date
   const nota = 'Múltiplo = views do vídeo ÷ mediana dos outros vídeos do mesmo formato e da mesma faixa de idade do canal. '
@@ -81,6 +85,7 @@ export function buildCanalVideos(obs: Observatory, channelId: string): CanalVide
   const out: ChannelVideoView[] = []
 
   for (const dv of dated) {
+    if (o.soVideo != null && dv.id !== o.soVideo) continue
     const v: ObsVideo = dv
     const grupo: Grupo = v.tracked ? 'acompanhado' : v.pinned ? 'fixado-antigo' : 'antigo'
     const pinned = v.pinned === true
@@ -132,6 +137,7 @@ export function buildCanalVideos(obs: Observatory, channelId: string): CanalVide
   }
 
   for (const u of ch.undated as UndatedVideo[]) {
+    if (o.soVideo != null && u.id !== o.soVideo) continue
     const notas = ['sem data de publicação: sem idade nem múltiplo']
     if (u.comments == null) notas.push('Comentários: o YouTube não devolveu a contagem.')
     if (u.pinned) notas.push('Fixado: sem data de publicação, sem views por dia.')

@@ -4,7 +4,7 @@
  * importa os leitores (uma varredura de teste barra).
  *
  * Regra de ouro (este sistema falha em VERDE): os três estados nunca se confundem. Dia com impressões é barra; ZERO MEDIDO (o relatório do
- * dia foi lido e não trouxe impressão) é um traço de 3 px com o texto "0"; NÃO MEDIDO (sem relatório, não baixado, com erro, expirado) é a
+ * dia foi lido e não trouxe impressão) é uma caixa vazada com o texto "0"; NÃO MEDIDO (sem relatório, não baixado, com erro, expirado) é a
  * coluna inteira hachurada, sem número, com o motivo na dica. O não medido nunca é altura zero, nunca entra numa soma e nunca é "0".
  * Cliques são estimados (impressões × CTR) e só arredondam na hora de escrever.
  */

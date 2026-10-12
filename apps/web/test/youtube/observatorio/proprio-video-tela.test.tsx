@@ -16,7 +16,7 @@ import { limparPagerUsado } from '@/app/cms/(authed)/youtube/competitors/_histor
 import { lerUltimoVideo } from '@/app/cms/(authed)/youtube/competitors/_chrome/ultimo-video'
 import { ProprioVideoScreen } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-screen'
 import { buildProprioVideoPage } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-model'
-import type { Dataset, ObsVideo } from '@/lib/youtube/observatorio/types'
+import type { ObsVideo } from '@/lib/youtube/observatorio/types'
 
 const nav = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }))
 vi.mock('next/navigation', () => ({
@@ -41,7 +41,6 @@ const W = proprioWorld({
       Object.assign(v, { id: 'v' + i, ytId: 'yt' + i, title: 'Vídeo ' + i, pub: ds.now - (700 + i) * DAY, ageDays: 700 + i, fmt: 'long', isShort: false, tracked: true, views: i === 0 ? 118 : 138, likes: 12, comments: i === 2 ? null : 6, dur: 2397 })
       ds.videos.push(v)
     }
-    void (null as unknown as Dataset)
   },
 })
 const dados = (c: keyof typeof DADOS = 'cheio') => DADOS[c](W.canalId, W.ytIds, W.hoje)

@@ -3,6 +3,8 @@
 // curta ou com buracos diz a base; coleta parada diz "parou em dd/mm"; sem relatório, sem permissão e relatório todo vazio dizem coisas diferentes.
 import { describe, it, expect } from 'vitest'
 import { link } from '@/lib/youtube/observatorio/links'
+import { BACK_DO_TOP_IMP } from '@/app/cms/(authed)/youtube/competitors/_historico/origem-canal'
+import { foraDosGuardadosFrase } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
 import type { Posicao } from '@/lib/youtube/observatorio/posicao'
 import { alcancePorVideo, montarDias, resumir, type AlcanceVideo, type Periodo, type ResumoAlcance } from '@/lib/youtube/observatorio/proprio/dias'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
@@ -195,9 +197,10 @@ describe('T10 "Vídeos que mais apareceram"', () => {
     expect(x.top[1]).toMatchObject({ imp: '40 impressões', cliques: 'menos de 1 clique estimado' })
     expect(x.top[3]).toMatchObject({ id: 'v1', imp: '18 impressões', cliques: '2 cliques estimados', dias: 'em 6 dias com impressão' })
     expect(x.topVazio).toBeNull()
-    // cada um abre a tela do vídeo, na ordem da lista, voltando ao canal com a seção aberta
+    // cada um abre a tela do vídeo, na ordem da lista, voltando ao canal com a seção aberta; o back leva o marcador do top (T13.0 H1: o paginador diz a ordem verdadeira)
     const ids = x.top.map(t => t.id)
-    x.top.forEach((t, i) => expect(t.href).toBe(link.historico(t.id, { from: 'canais', canal: CANAL, back: '?painel=1', ids, pos: i + 1, tot: 5 })))
+    x.top.forEach((t, i) => expect(t.href).toBe(link.historico(t.id, { from: 'canais', canal: CANAL, back: BACK_DO_TOP_IMP, ids, pos: i + 1, tot: 5 })))
+    expect(BACK_DO_TOP_IMP).toMatch(/^\?painel=1&/)   // continua abrindo a seção
     expect(x.top[0]!.thumb).toBe('https://i.ytimg.com/vi/yt2/mqdefault.jpg')
   })
 
@@ -231,7 +234,12 @@ describe('T10 "Vídeos que mais apareceram"', () => {
     // só vídeos de fora: a frase de vazio não finge que o canal não teve impressão
     const so = v({ porVideo: mapa(['yt-fora1', 500, 5, 3]) })
     expect(so.top).toEqual([])
-    expect(so.topVazio).toBe('Os vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.')
+    // T13.0 H10: a frase é a da função única, com o singular de 1 (antes era um literal escrito à mão, sempre no plural)
+    expect(so.topVazio).toBe(foraDosGuardadosFrase(1, v => String(v)))
+    expect(so.topVazio).toBe('1 vídeo com impressões no relatório não está entre os vídeos guardados deste canal.')
+    const tres = v({ porVideo: mapa(['yt-fora1', 500, 5, 3], ['yt-fora2', 20, 1, 1], ['yt-fora3', 7, 0, 1]) })
+    expect(tres.topVazio).toBe(foraDosGuardadosFrase(3, v => String(v)))
+    expect(tres.topVazio).toBe('3 vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.')
     // nenhuma das frases afirma POR QUE o vídeo não está guardado (apagado? privado? só não sincronizado?)
     for (const t of [x.topNota!, so.topVazio ?? '']) expect(t).not.toMatch(/saíram|saiu|apagad|privad/)
   })
