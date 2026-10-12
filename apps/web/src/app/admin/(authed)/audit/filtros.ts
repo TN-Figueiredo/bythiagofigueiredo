@@ -7,7 +7,7 @@ export interface ConsultaDeAuditoria<Q> {
 
 /**
  * Filtros da listagem de /admin/audit. O registro de leitura do pipeline (E19) grava uma linha por leitura feita por chave:
- * sem isto, a listagem padrão do super admin viraria só essas linhas. Filtrando pela ação elas aparecem.
+ * sem isto, a listagem padrão do super admin viraria só essas linhas. Filtrando pela ação (só por URL: o <select> de /admin/audit não lista as duas ações, de propósito) elas aparecem, e só para quem a RLS deixa ler (org_id nulo = super admin).
  */
 export function aplicarFiltrosDeAuditoria<Q extends ConsultaDeAuditoria<Q>>(q: Q, f: { org?: string; action?: string; resource?: string }): Q {
   let out = q
