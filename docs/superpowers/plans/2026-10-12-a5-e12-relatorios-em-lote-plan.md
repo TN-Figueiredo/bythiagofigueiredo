@@ -90,12 +90,12 @@ Se o tempo real por download for pior que 0,90 s, o relógio corta a fila, o res
 | Fila acima de 1000 | corte silencioso | nota (Tarefa 2) | `relatórios: fila de download cortada em 1000 ...` |
 | Tipo que o YouTube não oferece ao canal | `tipo_indisponivel`; aviso único que diz "relatório de alcance" para qualquer tipo | aviso por tipo, com o nome do tipo (Tarefa 4) | notificação e `acao_do_dono` |
 | Tipo habilitado cujo job não foi criado (linha segue `desativado`) | invisível: os critérios ignoram `desativado` | nota (Tarefa 3) | `jobs: <canal> tem N tipo(s) de relatório habilitado(s) sem job: ...` |
-| Job criado e o YouTube nunca gera relatório | invisível fora do alcance: zero relatórios é "nada a baixar" | nota aos 6 dias (Tarefa 3) | `relatórios: <canal> está sem relatório novo de <tipo> há mais de 6 dias` |
+| Job criado e o YouTube nunca gera relatório | invisível fora do alcance: zero relatórios é "nada a baixar" | `acao_do_dono` aos 6 dias (onda 4; antes era vermelho, mudou para não ficar vermelho para sempre) | `<canal>: <tipo> nunca gerou relatório desde <data>; confira se o YouTube gera esse tipo para este canal` |
 | Erro ao criar o job | `erro`; nota aos 3 dias | igual | `jobs: <canal> está com o job <tipo> em erro há 3 dias` |
 
 ## Review Focus
 
-1. **Job novo ativo e nenhum relatório chega nunca.** Esperado: vermelho aos 6 dias, não "0 pendentes, tudo certo". Teste na Tarefa 3.
+1. **Job novo ativo e nenhum relatório chega nunca.** Esperado: visível aos 6 dias em `acao_do_dono` (não vermelho; vermelho só para o tipo que gerou e parou), nunca "0 pendentes, tudo certo". Teste na Tarefa 3 e na onda 4.
 2. **Relatório com `is_backfill` nulo ou `create_time` ilegível.** Esperado: tratado como o de prazo mais curto e posto na frente da fila, nunca no fim. Teste na Tarefa 1.
 3. **Download cortado que parece um arquivo.** Esperado: nova tentativa no dia seguinte, não um `erro` definitivo e mudo. Teste na Tarefa 2.
 4. **Leitura de critério que falha.** Esperado: `critérios: não foi possível avaliar ...`, nunca verde. Testes na Tarefa 3.
@@ -1475,9 +1475,11 @@ Não é tarefa de implementador: é do controlador, com as respostas anotadas em
 cd /Users/figueiredo/Workspace/bythiagofigueiredo && npx supabase db query --linked "<consulta>" 2>&1 | grep '"l"'
 ```
 
+**Datas de calendário.** D0 = a primeira execução do cron (12:00 UTC) depois do deploy no ar; o deploy tem de estar em `main` antes das 12:00 UTC do dia escolhido. Com **D0 = 13/10/2026**: D+1 = 14/10, D+3 = 16/10, D+7 = 20/10, D+9 = 22/10, D+11 = 24/10, D+14 = 27/10, D+30 = 12/11, D+31 = 13/11, D+61 = 13/12. Se o D0 for outro dia, desloque todas as datas e as grave no ledger no dia do deploy. Primeiro vencimento na origem (medido em 12/10): histórico de `channel_basic_a3` em 08/11/2026 02:34 UTC.
+
 - [ ] **Antes do deploy (D−0): retrato de partida.** Anote o resultado das consultas A, B e D abaixo e a data e hora do deploy em `main` (é o `<deploy>` do item 95).
 
-- [ ] **Depois da primeira execução (D, 12:05 UTC ou mais): item 94.**
+- [ ] **Depois da primeira execução (D0, 12:06 UTC ou mais; não dispare o cron à mão entre 12:00 e 12:06 UTC): item 94.** Guarde no ledger, no próprio D0, a leitura de `acao_do_dono` (descontinuação) e de `ms_passos.jobs`: a sondagem dos tipos só roda no D0 (com o canal completo ela não roda mais), então é a única chance de ler a data de descontinuação.
 
 Consulta A (jobs por tipo e estado):
 
@@ -1485,7 +1487,7 @@ Consulta A (jobs por tipo e estado):
 select report_type_id || ' | ' || status || ' | n=' || count(*) as l from yt_reporting_jobs group by report_type_id, status order by 1, 2
 ```
 
-Esperado: os 13 tipos da lista com `ativo | n=2`; `channel_annotations_a1` e os 6 `playlist_*` com `desativado | n=2`. Um tipo da lista em `tipo_indisponivel`: anote o tipo e o canal (o aviso chega com o nome). Um tipo da lista em `desativado` ou `erro`: o cron tem de estar vermelho com a nota da Tarefa 3; se estiver verde, é defeito, pare.
+Esperado: os 13 tipos da lista com `ativo | n=2`; `channel_annotations_a1` e os 6 `playlist_*` com `desativado | n=2`. Um tipo da lista em `tipo_indisponivel`: anote o tipo e o canal (o aviso chega com o nome). Um tipo da lista em `desativado` ou `erro` **sem `job_id`** (nunca teve job, por exemplo um 500 em `reportTypes.list` ou um 429 em `jobs.create` no D0): o cron tem de estar vermelho **já nesta execução**, com a nota `jobs: <canal> tem N tipo(s) de relatório habilitado(s) sem job: ...`; se estiver verde, é defeito, pare. Cada dia sem job é um dia de histórico que não volta: o cron do dia seguinte tenta criar de novo sozinho, mas confira.
 
 Consulta B (a execução: tempos e resumo; itens 96 e 97):
 
@@ -1493,7 +1495,7 @@ Consulta B (a execução: tempos e resumo; itens 96 e 97):
 select to_char(ran_at, 'MM-DD HH24:MI') || ' | total=' || ms_total || ' | passos=' || ms_passos::text || ' | rel=' || coalesce((resumo->'relatorios')::text, '-') || ' | dono=' || array_to_string(acao_do_dono, ' ; ') || ' | falhas=' || array_to_string(falhas, ' ; ') as l from yt_own_collection_runs order by ran_at desc limit 3
 ```
 
-Esperado na primeira execução: `baixados + vazios` perto de 100, `pendentes` caindo, `vence_primeiro_em_dias` maior que 20, `ms_passos.relatorios` abaixo de 120000, `ms_total` abaixo de 270000, `falhas` vazio. Procure em `dono` a palavra "descontinuação": se aparecer, anote o tipo e a data (responde ao "NC" do spec sobre a versão corrente). Anote `ms_listar`, `ms_baixar` e `ms_baixar ÷ (baixados + vazios)`: é a medida real por download.
+Esperado na primeira execução: `baixados + vazios` perto de 100, `pendentes` caindo, `vence_primeiro_em_dias` maior que 20, `ms_passos.relatorios` abaixo de 120000, **`ms_passos.jobs` abaixo de 20000** (o passo de jobs do D0 faz 18 `jobs.create`; a estimativa é de 13 s e nunca foi medida: anote o valor real), `ms_total` abaixo de 270000, `falhas` vazio. Procure em `dono` a palavra "descontinuação": se aparecer, anote o tipo e a data (responde ao "NC" do spec sobre a versão corrente). Anote `ms_listar`, `ms_baixar` e `ms_baixar ÷ (baixados + vazios)`: é a medida real por download.
 
 - [ ] **D+1 a D+3: o histórico dos tipos novos aparece.**
 
@@ -1503,7 +1505,7 @@ Consulta C (a fila, por tipo, com o primeiro vencimento):
 select report_type_id || ' | listado=' || count(*) || ' | vence_primeiro=' || to_char(min(create_time + case when is_backfill then interval '30 days' else interval '60 days' end), 'MM-DD HH24:MI') as l from yt_reporting_reports where status = 'listado' group by report_type_id order by 2
 ```
 
-Esperado: os 9 tipos novos com cerca de 62 cada no pico; `channel_traffic_source_a3` e `channel_basic_a3` de histórico zerados na primeira execução. Zero relatórios de um tipo novo depois de D+3: não é "ok"; aos 6 dias o cron fica vermelho (Tarefa 3). Anote já.
+Esperado: os 9 tipos novos com cerca de 62 cada no pico; `channel_traffic_source_a3` e `channel_basic_a3` de histórico zerados na primeira execução. Zero relatórios de um tipo novo depois de D+3: não é "ok". Se ele **nunca** gerou, a partir do 6º dia o cron o põe em `acao_do_dono` ("nunca gerou relatório desde ..."): **não fica vermelho** (decisão da onda 4: um tipo que o YouTube não gera para o canal deixaria o cron vermelho para sempre, sem conserto). Se gerou o histórico e parou (por volta de D+9), aí sim fica vermelho: ver o runbook, seção 10. Como `acao_do_dono` não notifica ninguém, **a leitura em D+3 (16/10) e em D+7 (20/10) é a única vigilância**: anote o resultado de cada uma no ledger no dia.
 
 - [ ] **Três execuções seguidas: item 97.** Anote `ms_passos.relatorios`, `ms_listar`, `ms_baixar` e `ms_total` das três (consulta B). Se o tempo por download medido passar de 0,90 s, refaça a conta e baixe `MAX_DOWNLOADS` (o teste obriga).
 
@@ -1533,7 +1535,9 @@ select 'grande_demais=' || count(*) filter (where status = 'erro' and error = 'g
 select 'blobs=' || count(*) || ' | bytes=' || sum(octet_length(csv_gz)) || ' | tabela=' || pg_total_relation_size('public.yt_reporting_report_blobs') as l from yt_reporting_report_blobs
 ```
 
-Esperado: `grande_demais=0`; `maior_bytes` abaixo de 5.242.880 (metade do teto); o tamanho da tabela anotado e comparado com a estimativa de 7.4 ("centenas de kB por ano" no canal de hoje). Partida em 12/10: 160 brutos, 21.262 bytes, tabela de 180.224 bytes.
+Esperado: `grande_demais=0`; o tamanho da tabela anotado e comparado com a estimativa de 7.4 ("centenas de kB por ano" no canal de hoje). Partida em 12/10: 160 brutos, 21.262 bytes, tabela de 180.224 bytes.
+
+**Atenção à grandeza.** O `max(bytes)` desta consulta é o **gzip guardado**, não o que o teto mede. O teto (`MAX_GZ_BYTES` = 2 MB) e o aviso de metade (**1.048.576 bytes lidos do corpo**) medem os bytes **lidos** da resposta, que com gzip de transporte são o CSV puro (uma ordem de grandeza maior que o gzip guardado). A medida do item 96 é o resumo do cron: `resumo->'relatorios'->'maior_bytes'` (bytes lidos; tem de ficar abaixo de 1.048.576), `maior_lido_por_tipo` (por tipo: `{ bytes, gz }`) e `corpos_gz` (quantos corpos vieram como `.gz` de verdade; responde ao `Content-Encoding` real). Leia o resumo da execução (consulta B, acrescentando `resumo->'relatorios'->'maior_lido_por_tipo'` ao `select`) em D+3 e anote por tipo no ledger.
 
 - [ ] **Sanidade do dado ausente.**
 
@@ -1541,15 +1545,15 @@ Esperado: `grande_demais=0`; `maior_bytes` abaixo de 5.242.880 (metade do teto);
 select 'jobs_ativos_sem_data=' || count(*) as l from yt_reporting_jobs where status = 'ativo' and job_create_time is null
 ```
 
-Esperado: 0. Se não for zero: sem `job_create_time` o passo não reconhece relatório de histórico (`is_backfill` fica falso) e passa a contar 60 dias para um arquivo que vence em 30. Anote e avise o dono; o conserto é recriar o job (runbook, seção 9).
+Esperado: 0. **Rode no D0, logo depois da primeira execução, e não só no fim:** os 8 jobs ativos de produção passam pela sondagem no D0, e uma lista do YouTube sem `createTime` não pode apagar a data gravada (onda 6, G3; a consulta é a prova). Se não for zero: sem `job_create_time` o passo não consegue separar histórico de corrente e trata o relatório como histórico (`is_backfill` fica **verdadeiro**, prazo conservador de 30 dias; o erro seria o contrário). Anote e avise o dono; o conserto é recriar o job (runbook, seção 9).
 
 **O que é do dono nesta etapa:** responder às perguntas do topo; reconectar um canal se aparecer "precisa ser reconectado"; o `update` do runbook (seção 8) se algum dia houver `grande_demais`; conferir a cota no Google Cloud Console se quiser. **O que o deploy faz sozinho:** cria 18 jobs no YouTube pela Reporting API (escrita externa, do cron). **O que é do agente:** commits, push de `staging`, CI, promoção para `main` e todas as leituras acima.
 
 ## Limites conhecidos (ficam no plano, não viram tarefa)
 
-- **Memória com relatório grande.** O download e a descompressão são feitos em memória antes da conferência de tamanho, e o bruto vai ao banco como texto hexadecimal (o dobro do tamanho). Com o maior relatório real em 564 bytes isso é teórico; o aviso de "mais da metade do teto" existe para a conversa acontecer antes.
+- **Memória com relatório grande.** O download e a descompressão são feitos em memória antes da conferência de tamanho, e o bruto vai ao banco como texto hexadecimal (o dobro do tamanho). Com o maior relatório real em 564 bytes isso é teórico; o aviso de "mais da metade do teto" (1.048.576 bytes lidos do corpo, a mesma unidade da recusa) existe para a conversa acontecer antes.
 - **Cota da Reporting API não documentada.** Evidência: 4 execuções a 1,6 chamada por segundo sem recusa; o ritmo novo é o mesmo, por mais tempo. Um 429 deixa o relatório `listado` para o dia seguinte e, em 3 dias, o cron fica vermelho.
 - **A limpeza de 180 dias segue valendo** para o bruto sem normalizador (a partir de abril de 2027). Quem a troca por "só apaga o que foi exportado" é a E10 (spec 9.2), não esta etapa.
 - **Fora deste plano: as conferências de leitura da retenção (7.2, item 58) e da E11 (7.3, item 83).** A tabela da seção 14 as põe "junto" da E12, mas são chamadas autenticadas à Analytics API e pertencem aos planos da E8 e da E11. Uma delas (se o CSV de tráfego traz o termo pesquisado) pode ser respondida lendo um bruto já baixado, quando o plano da E11 for escrito.
-- **Job sem `job_create_time`.** Sem essa data o passo não reconhece relatório de histórico e conta 60 dias para um arquivo que vence em 30. Em produção todos os jobs têm a data; a Tarefa 8 confere, e o plano não muda a regra de `is_backfill`.
+- **Job sem `job_create_time`.** Sem essa data o passo não consegue separar histórico de corrente: `is_backfill` fica **verdadeiro** (prazo curto de 30 dias; ausência nunca alonga prazo, decisão do bf120578). Em produção todos os jobs têm a data; a Tarefa 8 confere no D0, e uma listagem sem `createTime` não apaga a data gravada.
 - **Nenhum leitor novo.** O bruto dos 9 tipos não é lido por tela, forja nem Cowork; a RLS de hoje segue (o bruto só é lido com a chave de serviço).
