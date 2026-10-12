@@ -107,14 +107,20 @@ describe('button', () => {
     expect(buildForjaView(createObservatory(ds), { screen: 'mudancas', niche: 'ia' }).button.disabledText).toBe(INCAPABLE_TEXT)
     expect(buildForjaView(createObservatory(ds), { screen: 'outliers', niche: 'ia' }).button.mode).toBe('free')
   })
-  it('quota used (published today) → disabled with the quota text', () => {
+  it('11d: published today but the data changed since the reading → the button asks again (no daily quota)', () => {
     const obs = createTestObservatory(fresh())
-    const sc = obs.forja.session.setBase('publicado', { type: 'padroes-titulo' })
-    expect(sc.quota.usedToday).toBeGreaterThan(0)
+    obs.forja.session.setBase('publicado', { type: 'padroes-titulo' })
     const v = buildForjaView(obs, { screen: 'insights', niche: 'ia' })
+    expect(v.button).toMatchObject({ mode: 'free', label: 'Pedir nova leitura à forja' })
+    expect(v.card.askNote).toBeNull()
+  })
+  it('11d: the reading already uses the latest data → disabled with the sentence of the rule (forja-novidade-tela.test.ts has the full matrix)', () => {
+    const ds = fresh()
+    const r = ds.readings.find(x => x.id === 'padroes-titulo-ia-20-10')!
+    r.sent.asOf = createObservatory(ds).date.snapTime(createObservatory(ds).LAST_IDX); delete r.sent.asOfIdx; delete r.base
+    const v = buildForjaView(createObservatory(ds), { screen: 'insights', niche: 'ia' })
     expect(v.button.mode).toBe('disabled')
-    expect(v.button.disabledText).toBe('Cota de hoje usada; libera domingo, 25/10 às 00:00')
-    expect(v.card.quotaNote).toBe('Cota de hoje usada; libera domingo, 25/10 às 00:00.')
+    expect(v.button.disabledText).toBe('A leitura de IA já usa o dado mais recente. Dá para pedir de novo quando houver coleta nova.')
   })
   it('failure does not count: after "falhou" the button asks again', () => {
     const obs = createTestObservatory(fresh())

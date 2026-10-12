@@ -40,6 +40,7 @@ const goneParts = (ctx: ForjaCtx, changes: number, videos: number, channels = 0)
   return { long, short }
 }
 const CANT = 'Não dá para comparar esta leitura com os dados de hoje: '
+const NOTHING = 'Nada mudou desde a leitura.'
 /** The daily record the reading was frozen at: the mockup stores it; production derives it from asOf (snap0 moves with the loaded window). */
 const asOfIdx = (ctx: ForjaCtx, r: FrozenReading) => r.sent.asOfIdx ?? ctx.clock.snapIdxAtOrBefore(r.sent.asOf)
 
@@ -168,4 +169,14 @@ export function since(ctx: ForjaCtx, readingId: string): SinceResult | null {
   if (!r) return null
   const x = r.type === 'leitura-video' ? sinceVideo(ctx, r) : r.type === 'resumo-trocas' ? sinceChanges(ctx, r) : sinceOutliers(ctx, r)
   return { ...x, textNoAsk: noAskText(x.text) }
+}
+
+/**
+ * O que o "Desde então" de uma leitura diz, em uma palavra: 'mudou' (há o que dizer), 'igual' ("Nada mudou desde a leitura.") ou
+ * 'nao-compara' (a leitura não traz com que comparar, ou o vídeo saiu do observatório). Só a regra de pedir de novo (novidade.ts) lê isto.
+ */
+export function sinceStatus(ctx: ForjaCtx, readingId: string): 'mudou' | 'igual' | 'nao-compara' | null {
+  const s = since(ctx, readingId)
+  if (!s) return null
+  return s.text.startsWith(CANT) ? 'nao-compara' : s.text === NOTHING ? 'igual' : 'mudou'
 }

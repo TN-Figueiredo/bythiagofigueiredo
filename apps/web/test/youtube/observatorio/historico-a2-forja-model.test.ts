@@ -11,6 +11,7 @@ import { loadOracle, loadOracleOwns, datasetFromOracle, createTestObservatory } 
 import { plain } from './fase4-world'
 import { SHOWCASE } from './forja-scenarios'
 import { createObservatory, type Observatory } from '@/lib/youtube/observatorio'
+import { createClock } from '@/lib/youtube/observatorio/time'
 import type { Dataset, ForjaRequest, FrozenReading } from '@/lib/youtube/observatorio/types'
 import { buildForjaView } from '@/app/cms/(authed)/youtube/competitors/_chrome/forja-view-model'
 import { REQUEST_STATES, ACTIVE_STATES } from '@/lib/youtube/observatorio/forja/states'
@@ -70,6 +71,13 @@ function dbReq(ds: Dataset, o: Partial<ForjaRequest> & { state: ForjaRequest['st
 }
 const withReq = (o: Partial<ForjaRequest> & { state: ForjaRequest['state'] }) => worldDb(ds => { ds.requests.push(dbReq(ds, o)) })
 const readingOf = (ds: Dataset): FrozenReading => ds.readings.find(r => r.id === READING_ID)!
+/** 11d: a leitura do vídeo congelada no último registro diário do canal dele, sem nada novo depois (a regra de pedir de novo: forja/novidade.ts). */
+function emDia(ds: Dataset) {
+  const obs = createObservatory(ds), r = readingOf(ds)
+  r.sent.asOf = createClock(ds.now, ds.seriesStart, ds.snap0).snapTime(obs.channel(obs.video(ID)!.ch)!.lastIdx!)
+  delete r.sent.asOfIdx; delete r.base; r.effects = []; r.generatedAt = ds.now - 5 * MIN
+}
+const SEM_NOVIDADE = 'A leitura deste vídeo já usa o dado mais recente. Dá para pedir de novo quando houver coleta nova.'
 
 /**
  * TODA string que o cartão (ou o botão do cabeçalho) entrega, em qualquer profundidade; só ficam de fora os campos que não são
@@ -270,15 +278,15 @@ describe('tabela 7.2: Não deu', () => {
   it('falhou e leitura sem evidências → "Escrevendo, parou aqui, ao conferir os números"', () => {
     // publicado agora, mas a leitura chegou sem itens: o texto não tem em que se apoiar
     const obs = worldDb(ds => {
-      readingOf(ds).text.items = []; readingOf(ds).generatedAt = ds.now - 5 * MIN
+      readingOf(ds).text.items = []; emDia(ds)
       ds.requests.push(dbReq(ds, { state: 'publicado', status: 'completed', createdAt: ds.now - 25 * MIN, publishedAt: ds.now - 5 * MIN }))
     })
     const c = cardOf(obs, 'db')
     expect(c.situacao).toBe('nao-deu')
-    // a leitura publicada hoje gastou o limite do dia: o "Pode pedir de novo." seria falso, a frase diz quando
-    expect(c.frase).toBe('Não deu: a leitura saiu sem evidências. Já houve uma leitura deste vídeo hoje. Libera amanhã às 00:00.')
+    // a leitura vazia já usa o dado mais recente: o "Pode pedir de novo." seria falso, a frase diz o motivo real (11d: não há limite por dia)
+    expect(c.frase).toBe('Não deu: a leitura saiu sem evidências. ' + SEM_NOVIDADE)
     expect(c.etapas![1]).toMatchObject({ estado: 'parou', texto: 'parou aqui, ao conferir os números' })
-    expect(c.botao).toMatchObject({ label: 'Pedir de novo', habilitado: false, por: 'limite' })
+    expect(c.botao).toMatchObject({ label: 'Pedir de novo', habilitado: false, por: 'sem-novidade' })
   })
   it('leitura sem itens e sem pedido na tela: "Não deu", mas sem etapas (não há pedido)', () => {
     const obs = world(ds => { readingOf(ds).text.items = [] })
@@ -293,8 +301,8 @@ describe('tabela 7.2: Não deu', () => {
     const c = cardOf(obs, 'db')
     expect(c.situacao).toBe('nao-deu')
     expect(c.leitura).toBeNull()
-    // publicado hoje gasta o limite do dia: o "Pode pedir de novo." seria falso, a frase diz quando
-    expect(c.frase).toBe('Não deu: o pedido terminou, mas a leitura não está aqui. Já houve uma leitura deste vídeo hoje. Libera amanhã às 00:00.')
+    // a leitura que o vídeo tem é de 20/10 e há registros diários mais novos: dá para pedir de novo (11d: publicar hoje não gasta nada)
+    expect(c.frase).toBe('Não deu: o pedido terminou, mas a leitura não está aqui. Pode pedir de novo.')
     expect(c.etapas).toBeNull()
   })
 })
@@ -413,21 +421,25 @@ describe('a leitura', () => {
   })
 })
 
-describe('limite do dia, bloqueio e exclusão', () => {
-  it('limite do dia usado: botão do cartão apagado com "Já houve uma leitura deste vídeo hoje. Libera amanhã às 00:00."', () => {
-    const c = sharedCard('publicado')
-    expect(c.botao).toEqual({ label: 'Pedir nova leitura deste vídeo à forja', habilitado: false, motivo: 'Já houve uma leitura deste vídeo hoje. Libera amanhã às 00:00.', visivel: true, por: 'limite' })
+describe('dado igual, bloqueio e exclusão', () => {
+  it('leitura em dia: botão do cartão apagado com a frase da regra nova', () => {
+    const c = cardOf(worldDb(ds => { emDia(ds); ds.requests.push(dbReq(ds, { state: 'publicado', status: 'completed', createdAt: ds.now - 25 * MIN, publishedAt: ds.now - 5 * MIN, readingId: READING_ID })) }), 'db')
+    expect(c.botao).toEqual({ label: 'Pedir nova leitura deste vídeo à forja', habilitado: false, motivo: SEM_NOVIDADE, visivel: true, por: 'sem-novidade' })
   })
-  it('limite usado por outro vídeo do nicho: a frase diz o nicho, não "deste vídeo"', () => {
+  it('publicado hoje, mas com dado novo desde a leitura: o botão segue aceso (não há limite por dia)', () => {
+    const c = sharedCard('publicado')
+    expect(c.botao).toMatchObject({ habilitado: true, motivo: null, por: null })
+  })
+  it('leitura de outro vídeo do nicho, publicada hoje: não apaga o botão deste (11d: a leitura de vídeo não bloqueia os outros do nicho)', () => {
     const obs = worldDb(ds => {
       const outro = ds.videos.find(v => v.id !== ID && v.niche === 'ia' && v.tracked)!
       ds.requests.push({ ...dbReq(ds, { state: 'publicado', status: 'completed', publishedAt: ds.now - 3 * MIN }), id: 'db-outro', video: outro.id, target: { kind: 'video', niche: 'ia', video: outro.id } })
     })
     const c = cardOf(obs, 'db')
-    expect(c.botao.habilitado).toBe(false)
-    expect(c.botao.motivo).toBe('Já houve uma leitura de IA hoje. Libera amanhã às 00:00.')
+    expect(c.botao.habilitado).toBe(true)
+    expect(c.botao.motivo).toBeNull()
   })
-  it('falha e recusa não gastam o limite do dia: o botão segue aceso', () => {
+  it('falha e recusa não impedem um novo pedido: o botão segue aceso', () => {
     expect(sharedCard('falhou').botao.habilitado).toBe(true)
   })
   it('vídeo fora dos acompanhados: excluído, botão apagado com o motivo, sem inventar situação', () => {
@@ -546,9 +558,10 @@ describe('o botão do cabeçalho (spec 6.5)', () => {
   it('depois de Não deu → "Pedir leitura à forja de novo" (pede)', () => {
     expect(ask('falhou')).toEqual({ label: 'Pedir leitura à forja de novo', modo: 'pedir', frase: null, aviso: null })
   })
-  it('limite do dia → "Ver a leitura" com a frase', () => {
-    expect(ask('publicado')).toEqual({
-      label: 'Ver a leitura', modo: 'so-rola', frase: 'Já houve uma leitura deste vídeo hoje. Libera amanhã às 00:00.',
+  it('dado igual → "Ver a leitura" com a frase', () => {
+    const obs = worldDb(ds => { emDia(ds); ds.requests.push(dbReq(ds, { state: 'publicado', status: 'completed', createdAt: ds.now - 25 * MIN, publishedAt: ds.now - 5 * MIN, readingId: READING_ID })) })
+    expect(headerAsk(cardOf(obs, 'db'))).toEqual({
+      label: 'Ver a leitura', modo: 'so-rola', frase: SEM_NOVIDADE,
       aviso: 'A leitura da forja já tem uma situação; ela está logo abaixo.',
     })
   })
@@ -602,10 +615,10 @@ function cenarios(): Array<[string, ForjaCardView, HeaderAskView]> {
     out.push([nome + ', falhou', dbDe(worldDb(ds => { cond(ds); ds.requests.push(falhou(ds)) }))])
     out.push([nome + ', recusado e sincronizado', dbDe(worldDb(ds => { cond(ds); sincronizado(ds); ds.requests.push(recusado(ds)) }))])
   }
-  // limite do dia
-  out.push(['limite, leitura sem evidências publicada hoje', dbDe(worldDb(ds => { readingOf(ds).text.items = []; readingOf(ds).generatedAt = ds.now - 5 * MIN; ds.requests.push(dbReq(ds, { state: 'publicado', status: 'completed', createdAt: ds.now - 25 * MIN, publishedAt: ds.now - 5 * MIN })) }))])
-  out.push(['limite, publicado sem leitura', dbDe(worldDb(ds => { ds.readings = ds.readings.filter(r => r.id !== READING_ID); ds.requests.push(dbReq(ds, { state: 'publicado', status: 'completed', publishedAt: ds.now - 3 * MIN })) }))])
-  out.push(['limite, usado por outro vídeo', dbDe(worldDb(ds => {
+  // dado igual (11d)
+  out.push(['dado igual, leitura sem evidências publicada hoje', dbDe(worldDb(ds => { readingOf(ds).text.items = []; emDia(ds); ds.requests.push(dbReq(ds, { state: 'publicado', status: 'completed', createdAt: ds.now - 25 * MIN, publishedAt: ds.now - 5 * MIN })) }))])
+  out.push(['dado novo, publicado sem leitura', dbDe(worldDb(ds => { ds.readings = ds.readings.filter(r => r.id !== READING_ID); ds.requests.push(dbReq(ds, { state: 'publicado', status: 'completed', publishedAt: ds.now - 3 * MIN })) }))])
+  out.push(['outro vídeo do nicho publicado hoje', dbDe(worldDb(ds => {
     const outro = ds.videos.find(v => v.id !== ID && v.niche === 'ia' && v.tracked)!
     ds.requests.push({ ...dbReq(ds, { state: 'publicado', status: 'completed', publishedAt: ds.now - 3 * MIN }), id: 'db-outro', video: outro.id, target: { kind: 'video', niche: 'ia', video: outro.id } })
   }))])
@@ -701,7 +714,8 @@ describe('I3: pedido publicado cuja leitura não foi ligada', () => {
     const c = velha()
     expect(c.situacao).toBe('nao-deu')
     expect(c.frase).not.toMatch(/Pronta/)
-    expect(c.frase).toBe('Não deu: o pedido terminou, mas a leitura não está aqui. Já houve uma leitura deste vídeo hoje. Libera amanhã às 00:00.')
+    // 11d: a leitura velha é de 20/10 e o dado mudou desde então: dá para pedir de novo
+    expect(c.frase).toBe('Não deu: o pedido terminou, mas a leitura não está aqui. Pode pedir de novo.')
   })
   it('a leitura velha aparece como anterior, com a data DELA', () => {
     const c = velha()
@@ -723,7 +737,7 @@ describe('I4: vídeo sem nicho', () => {
   it('nenhuma frase diz "de este nicho" nem inventa um nicho', () => {
     for (const ler of [true, false]) expect(strings(semNicho(ler)).filter(t => /este nicho|\bde este\b|undefined|null/.test(t))).toEqual([])
   })
-  it('o botão apagado diz a verdade: a forja lê por nicho (o servidor recusa o pedido); não é "limite do dia"', () => {
+  it('o botão apagado diz a verdade: a forja lê por nicho (o servidor recusa o pedido); não é "dado igual"', () => {
     for (const ler of [true, false]) {
       const c = semNicho(ler)
       expect(c.botao.habilitado).toBe(false)
@@ -830,10 +844,11 @@ describe('frase de vazio e bloco do nicho: a oração "Ainda não há leitura de
     expect(c.doNicho).not.toBeNull()
     expect(diz(c)).toBe(1)
   })
-  it('botão apagado pelo limite (a tela mostra o motivo no lugar do vazio): o bloco do nicho é quem diz', () => {
+  it('botão apagado (a tela mostra o motivo no lugar do vazio): o bloco do nicho é quem diz', () => {
+    // sem leitura do vídeo e com um pedido da forja em andamento para outro vídeo do nicho, o botão apaga e o vazio sai
     const c = dbDe(semLeitura(ds => {
       const outro = ds.videos.find(v => v.id !== ID && v.niche === 'ia' && v.tracked)!
-      ds.requests.push({ ...dbReq(ds, { state: 'publicado', status: 'completed', publishedAt: ds.now - 3 * MIN }), id: 'db-outro', video: outro.id, target: { kind: 'video', niche: 'ia', video: outro.id } })
+      ds.requests.push({ ...dbReq(ds, { state: 'na fila' }), id: 'db-outro', video: outro.id, target: { kind: 'video', niche: 'ia', video: outro.id } })
     }))
     expect(c.botao.habilitado).toBe(false)
     expect(c.doNicho!.text).toMatch(/^Ainda não há leitura deste vídeo/)

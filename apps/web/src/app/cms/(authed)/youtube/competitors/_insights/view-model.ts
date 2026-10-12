@@ -34,7 +34,7 @@ export interface HeroReadingView {
 export type HeroPara = string | { before: string; after: string }
 export interface InsightsHero {
   statusChip: { text: string; dot: string; pulse: boolean } | null
-  quotaLine: string | null; scopeNote: string | null
+  askLine: string | null; scopeNote: string | null
   /** The state box (no reading yet, or a request in progress / failed). */
   /** `link`: a niche without competitors has nothing to read — the box points at the competitors' niche editor instead. */
   box: { title: string; paras: HeroPara[]; steps: boolean; stillNone: string | null; link?: LinkText } | null
@@ -734,7 +734,7 @@ function heroOf(obs: Observatory, f: ForjaView, niche: Niche, fmt: VideoFmt): In
       case 'nova tentativa': case 'liberado pelo vigia': box = { title: cap(r.state), paras: [st, tm], steps: false, stillNone }; break
       case 'sem máquina': box = { title: 'A forja não está consultando a fila', paras: [sc.machine.text + '; o limite é ' + Q.HEARTBEAT_DEAD_MINUTES + ' min.', st, { before: 'Para religar, veja o ', after: ', seção “desligar e religar”.' }], steps: false, stillNone }; break
       case 'falhou': box = { title: 'O pedido das ' + DT.hm(r.createdAt) + ' não foi publicado', paras: [st, ...(rd ? ['A leitura de ' + DT.dm(obs.forja.byId[rd.id]!.generatedAt) + ' continua valendo.'] : [])], steps: false, stillNone }; break
-      case 'recusado (dado velho)': box = { title: 'A forja recusou o pedido das ' + DT.hm(r.createdAt), paras: [st, { before: cap(sc.quota.text) + '. Se repetir, veja o ', after: '.' }], steps: false, stillNone }; break
+      case 'recusado (dado velho)': box = { title: 'A forja recusou o pedido das ' + DT.hm(r.createdAt), paras: [st, { before: 'Se repetir, veja o ', after: '.' }], steps: false, stillNone }; break
     }
   }
   const P = rd ? obs.forja.byId[rd.id] ?? null : null
@@ -743,7 +743,7 @@ function heroOf(obs: Observatory, f: ForjaView, niche: Niche, fmt: VideoFmt): In
   return {
     view,
     statusChip: r ? { text: sc.statusLabel ?? r.state, dot: DOT[r.state] ?? 'var(--muted)', pulse: r.state === 'trabalhando' } : null,
-    quotaLine: f.card.quotaNote, scopeNote: out.length ? out.join('. ') + '.' : null,
+    askLine: f.card.askNote, scopeNote: out.length ? out.join('. ') + '.' : null,
     box, publishedNote, reading: rd, themes: rd ? themes : null,
     prevLabel: rd && r && r.state !== 'publicado' ? 'Ver a última leitura publicada (' + DT.dm(obs.forja.byId[rd.id]!.generatedAt) + ')' : null,
     noteLabel: 'Nota do site, ' + DT.dm(obs.NOW),

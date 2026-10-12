@@ -28,7 +28,15 @@ vi.mock('@/lib/youtube/observatorio', async () => {
     date: createClock(OBS_NOW, OBS_NOW - 30 * 864e5, OBS_NOW - 30 * 864e5), video: () => undefined, niches,
     nicheLabel: (n: string) => nicheLabel(niches, n), scopeOf: (n: string) => (n === 'todos' || known.has(n) ? n : 'todos'),
     hasThemes: (n: string) => n === 'viagem' || n === 'ia',
-    forja: { eligibleChannels: () => ({ in: [], out: [] }), nicheCtx: { defs: niches, todos: ['ia', 'viagem', 'jogos'] }, askable: (n: string) => n !== 'pessoal' },
+    forja: {
+      eligibleChannels: () => ({ in: [], out: [] }), nicheCtx: { defs: niches, todos: ['ia', 'viagem', 'jogos'] }, askable: (n: string) => n !== 'pessoal',
+      // the planner's options as the facade builds them (forja.planOpts): this site has no readings, so nothing says the data is the same
+      planOpts: {
+        capabilities: ['temas', 'resumo-trocas'], eligible: () => ({ in: [], out: [] }), videoOf: () => undefined,
+        niches: { defs: niches, todos: ['ia', 'viagem', 'jogos'] }, askable: (n: string) => n !== 'pessoal', hasThemes: (n: string) => n === 'viagem' || n === 'ia',
+        novidade: () => ({ pode: true, porque: 'sem-leitura' }),
+      },
+    },
   }) }
 })
 

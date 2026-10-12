@@ -5,6 +5,7 @@
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
 import { viewsMissingText } from '../_chrome/views-text'
 import type { Observatory } from '@/lib/youtube/observatorio'
+import { semNovidadeText } from '@/lib/youtube/observatorio/forja/novidade'
 import { joinLabels, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, Niche, ObsChannel, ObsVideo, SyncState } from '@/lib/youtube/observatorio/types'
 import type { OutlierItem } from '@/lib/youtube/observatorio/outliers'
@@ -787,10 +788,10 @@ function forjaOf(obs: Observatory, niche: NicheScope, drawer: DrawerView | null)
     button = { ...button, label: 'Pedido em andamento', disabled: true }
     const fr = niche === 'todos' ? (forja.ask?.niches ?? []).filter(x => x !== n) : []
     if (fr.length) { const L = joinLabels(fr.map(NL)); why += ' O pedido de ' + NLn + ' está em andamento; ' + L + (fr.length > 1 ? ' estão livres.' : ' está livre.'); free = { label: 'Pedir leitura de ' + L, niches: fr } }
-  } else if (q && q.state === 'publicado') {
+  } else if (q && q.state === 'publicado' && !obs.forja.novidade(type, n).pode) {
+    // a leitura publicada já usa o dado mais recente: só se pede de novo quando houver dado novo (forja/novidade.ts)
     button = { ...button, disabled: true }
-    const qn = sc.quota.byNiche?.[n]
-    why += ' ' + NLn + ': ' + (qn ? qn.text : sc.quota.text) + '.'
+    why += ' ' + semNovidadeText('de ' + NLn)
   }
   return { forja, forjaBar, drawerForja: { niche: n, head, lines: split, chip, stateText, readingHref, why, button, free } }
 }

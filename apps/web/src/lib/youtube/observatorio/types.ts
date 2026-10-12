@@ -100,7 +100,7 @@ export interface ForjaRequest {
   forecast?: ForjaForecast | null
   /** Canonical header label (CONVENCOES line 218), filled by the engine. */
   statusLabel?: string
-  queuePos?: number; queueSize?: number; firstInQueue?: boolean; quotaConsumed?: boolean
+  queuePos?: number; queueSize?: number; firstInQueue?: boolean
 }
 export interface Dataset {
   now: number; seriesStart: number; snap0: number; obsStart: number

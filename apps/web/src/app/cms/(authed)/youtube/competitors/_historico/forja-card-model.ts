@@ -6,12 +6,13 @@
  * Este sistema falha em VERDE: dado ausente (pedido sem horário, leitura sem `sent`, leitura sem itens) não pode virar
  * "ok" com saída vazia nem um número inventado. Cada campo diz o que sai quando o dado não existe, e o teste fixa.
  *
- * Palavras que não aparecem em tela (spec 7.2): "cota", "vigia", "validador", "conferência". As frases do motor
- * (`statusText`, `quota.text`) falam assim e por isso NÃO são reaproveitadas; as da tabela 7.2 moram aqui.
+ * Palavras que não aparecem em tela (spec 7.2): "cota" (que nem existe mais, 11d), "vigia", "validador", "conferência". As frases do motor
+ * (`statusText`) falam assim e por isso NÃO são reaproveitadas; as da tabela 7.2 moram aqui.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
 import { failKindOf, FORJA_QUEUE } from '@/lib/youtube/observatorio/forja/states'
+import { SEM_MARCA_TEXT, semNovidadeText } from '@/lib/youtube/observatorio/forja/novidade'
 import type { ForjaRequest, FrozenReading, ObsChannel, ObsVideo, RequestState } from '@/lib/youtube/observatorio/types'
 import { buildForjaView, patternsOf, readingModel, type ForjaView } from '../_chrome/forja-view-model'
 
@@ -63,7 +64,7 @@ export interface ForjaCardView {
    * O botão DO CARTÃO. `visivel: false` com pedido em andamento (não há botão de pedir). `por` diz POR QUE está apagado
    * (o cabeçalho lê isso; nunca compara frase).
    */
-  botao: { label: string; habilitado: boolean; motivo: string | null; visivel: boolean; por: 'limite' | 'excluido' | 'bloqueado' | 'incapaz' | 'sem-nicho' | 'sincronizar' | null }
+  botao: { label: string; habilitado: boolean; motivo: string | null; visivel: boolean; por: 'sem-novidade' | 'excluido' | 'bloqueado' | 'incapaz' | 'sem-nicho' | 'sincronizar' | null }
   vazio: string | null
   excluido: string | null
   bloqueado: { text: string; title: string; href: string } | null
@@ -222,7 +223,6 @@ export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel, pr
   const bloqueado = forja.blockedBy ? { text: bloqueioFrase(obs, v, sc.blockedBy?.video ?? null, forja.blockedBy.title), title: forja.blockedBy.title, href: forja.blockedBy.href } : null
   const machine = sc.machine
   const hm = D.hm
-  const tomorrow = 'Libera amanhã às 00:00.'
 
   /* ---- a situação (switch exaustivo sobre o estado do motor) */
   type Motivo = 'validador' | 'travou' | 'outro' | 'sem-evidencia' | 'sumiu'
@@ -250,10 +250,13 @@ export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel, pr
   /* ---- o botão do cartão (o que o servidor aceitaria; a frase de "limite" não é a do motor) */
   const capable = forja.capable
   const semNicho = !v.niche
-  // sem nicho não há de quem falar nem cota a gastar: o botão apaga porque a forja lê por nicho, não por limite do dia
-  const limite = forja.button.mode === 'disabled' && capable && !excluido && !bloqueado && !semNicho
-  // sem pedido deste vídeo o limite pode ter sido gasto por outro do nicho (o limite já exclui vídeo sem nicho: o `!` abaixo vale só quando `limite` é verdadeiro)
-  const limiteFrase = (r ? 'Já houve uma leitura deste vídeo hoje. ' : 'Já houve uma leitura de ' + obs.nicheLabel(v.niche!) + ' hoje. ') + tomorrow
+  // sem nicho não há de quem falar: o botão apaga porque a forja lê por nicho, não por falta de dado novo
+  const semNovidade = forja.button.mode === 'disabled' && capable && !excluido && !bloqueado && !semNicho
+  // a leitura deste vídeo já usa o dado mais recente (a mesma regra do servidor, forja/novidade.ts); nenhum limite por dia
+  const semNovidadeFrase = semNovidadeText('deste vídeo')
+  // leitura sem marca de registro diário: o botão deixa pedir, e a frase diz que não dá para saber com que dados ela foi escrita
+  const nv = v.niche ? obs.forja.novidade('leitura-video', v.niche, v.id) : null
+  const semMarca = shown != null && nv != null && nv.pode && nv.porque === 'sem-marca'
   const ativo = r != null && classeDoEstado(r.state) !== 'terminal'
   let habilitado = (forja.button.mode === 'free' || forja.button.mode === 'free-niche') && forja.ask != null
   let motivo: string | null = null
@@ -262,7 +265,7 @@ export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel, pr
   else if (!capable) { motivo = forja.incapableText; por = 'incapaz' }
   else if (semNicho) { motivo = SEM_NICHO; por = 'sem-nicho' }
   else if (bloqueado) { motivo = bloqueado.text; por = 'bloqueado' }
-  else if (limite) { motivo = limiteFrase; por = 'limite' }
+  else if (semNovidade) { motivo = semNovidadeFrase; por = 'sem-novidade' }
   // recusa por dado velho: só se pede de novo depois que o canal sincronizou (depois da recusa)
   const sincronizou = ch.sync.last != null && r != null && ch.sync.last > (r.refusedAt ?? r.createdAt)
   if (situacao === 'precisa-de-voce' && !sincronizou && motivo == null) { motivo = SINCRONIZE; por = 'sincronizar' }
@@ -271,9 +274,9 @@ export function buildForjaCard(obs: Observatory, v: ObsVideo, ch: ObsChannel, pr
     label: situacao === 'nao-deu' ? 'Pedir de novo' : shown ? 'Pedir nova leitura deste vídeo à forja' : 'Pedir leitura deste vídeo à forja',
     habilitado, motivo, visivel: !ativo, por,
   }
-  // o "Pode pedir de novo." só vale se o botão deixa; senão a frase termina com o motivo real (limite do dia, outro vídeo do
-  // nicho, vídeo excluído, forja sem o tipo). "Sincronize o canal" é motivo só de "Precisa de você", que tem a ação própria.
-  const tail = habilitado ? ' Pode pedir de novo.' : motivo != null && por !== 'sincronizar' ? ' ' + motivo : ''
+  // o "Pode pedir de novo." só vale se o botão deixa; senão a frase termina com o motivo real (dado igual, outro vídeo do
+  // nicho em andamento, vídeo excluído, forja sem o tipo). "Sincronize o canal" é motivo só de "Precisa de você", que tem a ação própria.
+  const tail = habilitado ? ' ' + (semMarca ? SEM_MARCA_TEXT : 'Pode pedir de novo.') : motivo != null && por !== 'sincronizar' ? ' ' + motivo : ''
 
   /* ---- a frase, as etapas e as ações */
   let frase: string | null = null
@@ -401,7 +404,7 @@ export function headerAsk(card: ForjaCardView): HeaderAskView {
   const pode = b.habilitado       // `habilitado` já inclui "a forja aceitaria o pedido" (forja.ask): uma fonte só
   const apagado = (label: string): HeaderAskView => ({ label, modo: 'apagado', frase: b.motivo, aviso: null })
   if (sit === 'aguardando' || sit === 'atrasado') return { label: 'Leitura em andamento: ver', modo: 'so-rola', frase: null, aviso: AVISO_JA_TEM_SITUACAO }
-  if (sit === 'pronta' || sit === 'desatualizada') return { label: 'Ver a leitura', modo: 'so-rola', frase: b.por === 'limite' ? b.motivo : null, aviso: AVISO_JA_TEM_SITUACAO }
+  if (sit === 'pronta' || sit === 'desatualizada') return { label: 'Ver a leitura', modo: 'so-rola', frase: b.por === 'sem-novidade' ? b.motivo : null, aviso: AVISO_JA_TEM_SITUACAO }
   if (sit === 'nao-deu') return pode ? { label: 'Pedir leitura à forja de novo', modo: 'pedir', frase: null, aviso: null } : apagado('Pedir leitura à forja de novo')
   if (sit === 'precisa-de-voce') return pode ? { label: 'Pedir leitura à forja de novo', modo: 'pedir', frase: null, aviso: null } : apagado('Pedir leitura à forja')
   return pode ? { label: 'Pedir leitura à forja', modo: 'pedir', frase: null, aviso: null } : apagado('Pedir leitura à forja')

@@ -79,7 +79,7 @@ export function ReadingCard({ view, onAsk }: { view: MudancasView; onAsk?: Forja
       ) : (
         <p className="forja-status" id="forjaStatus">{f.card.sentNow ? f.card.sentNow + ' ' + (f.card.statusText ?? '') : f.card.statusText}</p>
       )) : null}
-      {f.card.quotaNote ? <p className="forja-note">{f.card.quotaNote}</p> : null}
+      {f.card.askNote ? <p className="forja-note">{f.card.askNote}</p> : null}
       {f.niches.map(b => {
         const r = b.reading
         if (!r) return <div className="fj-niche" key={b.niche}><p className="forja-note"><b style={{ color: 'var(--text)' }}>{b.label}</b>: {b.emptyText}</p></div>

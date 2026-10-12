@@ -89,7 +89,7 @@ export function ReadingHero({ hero }: { hero: InsightsHero }) {
           <span className="status" role="status"><i style={{ background: hero.statusChip.dot }} className={hero.statusChip.pulse ? 'pulse' : undefined} aria-hidden="true" />{hero.statusChip.text}</span>
         ) : null}
       </div>
-      {hero.quotaLine ? <p className="scopenote" id="quotaMsg">{hero.quotaLine}</p> : null}
+      {hero.askLine ? <p className="scopenote" id="askMsg">{hero.askLine}</p> : null}
       {hero.scopeNote ? <p className="scopenote">{hero.scopeNote}</p> : null}
       {hero.box ? (
         <div className="statebox">

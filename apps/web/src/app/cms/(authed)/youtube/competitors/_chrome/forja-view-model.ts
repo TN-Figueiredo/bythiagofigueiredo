@@ -2,7 +2,7 @@
  * The forja in the Observatório (Task 35): ONE view model for the header segment, the buttons, the per-screen cards and
  * the drawer (ports of chrome.js forjaHtml/forjaFromScenario, moldura-forja.html drawer/runCard and the forja cards of
  * canais/mudancas/outliers/insights/historico-video). Pure: requests come from obs.forja.session (DB rows in production),
- * texts from the engine (statusLabel/statusLines/statusText, quota, since, preview, timing). Nothing reads the clock.
+ * texts from the engine (statusLabel/statusLines/statusText, novidade, since, preview, timing). Nothing reads the clock.
  *
  * "Falha em verde" (CLAUDE.md): every branch answers "what if the data does not exist?" — no heartbeat row, no
  * capability, no reading, a reading without items, a frozen `sent` missing — with its own honest text.
@@ -15,6 +15,7 @@ import type { Scenario } from '@/lib/youtube/observatorio/forja/states'
 import type { AskOutcome, ObsType } from '@/lib/pipeline/services/forja-queue'
 import { ACTIVE_STATES } from '@/lib/youtube/observatorio/forja/states'
 import { NOT_ANNOUNCED, NO_COMPETITORS_ANY, noCompetitorsText } from '@/lib/youtube/observatorio/forja/session'
+import { semNovidadeText } from '@/lib/youtube/observatorio/forja/novidade'
 
 export type { ObsType }
 /** The server actions as the client components receive them (askForjaReading / cancelForjaReading, passed as props). */
@@ -104,14 +105,16 @@ export interface ForjaView {
     statusText: string | null; lines: string[]
     /** "Pedido de IA enviado agora." — a request created in the last minute. */
     sentNow: string | null
-    /** Only with the quota used and nothing in progress. */
-    quotaNote: string | null
+    /** Only when nothing can be asked because the reading already uses the latest data, with nothing in progress (forja/novidade.ts). */
+    askNote: string | null
     previewText: string
   }
   blockedBy: { reason: string; href: string; title: string } | null
 }
 
 const MIN = 6e4
+/** Vídeo sem nicho (ou de canal próprio): a forja lê por nicho, não há o que pedir. */
+const NO_NICHE_ASK = 'Este canal ainda não tem nicho; a forja lê por nicho.'
 const WARN_STATES = ['atrasado', 'sem máquina', 'nova tentativa', 'liberado pelo vigia']
 const DEAD = ['falhou', 'recusado (dado velho)']
 const isActiveQ = (q: Pick<ForjaRequest, 'state'>) => (ACTIVE_STATES as readonly string[]).includes(q.state)
@@ -288,14 +291,11 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
   const typeLabel = obs.forja.readingTypes.find(t => t.id === type)?.label ?? type
   const reqOf = (n: Niche) => (hasReq(sc) ? sc.requests.find(q => q.niche === n) ?? null : null)
 
-  // free niche = the same rule as session.ask: no active request of this type and the quota free (failure/refusal don't count)
-  const quotaFree = (n: Niche) => {
-    const q = reqOf(n)
-    if (q) return DEAD.includes(q.state)
-    return isVid ? obs.forja.quotaFor(type, n).free : true
-  }
+  // free niche = the same rule as session.ask: no active request of this type and new data since the last reading of the same target
+  // (forja/novidade.ts; failure and refusal are no reading and block nothing; there is no daily limit)
   const busy = scopeNiches.filter(n => { const q = reqOf(n); return !!q && isActiveQ(q) })
-  const free = scopeNiches.filter(n => !busy.includes(n) && quotaFree(n))
+  const sameData = (n: Niche) => !obs.forja.novidade(type, n, isVid ? videoId : null).pode
+  const free = scopeNiches.filter(n => !busy.includes(n) && !sameData(n))
 
   // readings per niche (a published request's own reading first)
   const NOW = obs.NOW
@@ -328,16 +328,18 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
   else if (blockedBy) button = { mode: 'disabled', label: baseLabel, ariaLabel: baseLabel, disabledText: blockedBy.reason }
   else if (noComp && !status?.active) button = { mode: 'disabled', label: baseLabel, ariaLabel: baseLabel, disabledText: noComp }
   else if (scopeNiche === 'todos' && free.length && free.length < scopeNiches.length) {
-    // CONVENCOES F10/F11: Todos with a niche busy (or its quota used) keeps the button for the free one
+    // CONVENCOES F10/F11: Todos with a niche busy (or already on the latest data) keeps the button for the free one
     const fl = joinE(free.map(NL)), label = 'Pedir leitura de ' + fl + ' à forja'
     button = { mode: 'free-niche', label, short: 'Ler ' + fl, ariaLabel: label }
   } else if (status?.active && !free.length) button = { mode: 'busy', label: 'Pedido em andamento', ariaLabel: 'Pedido em andamento' }
   else if (!free.length) {
-    const qt = cap(isVid && !hasReq(sc) ? obs.forja.quotaFor(type, scopeNiches[0]!).text : sc.quota.text)
+    // nothing is active here (the branch above), so every niche in scope already has a reading on the latest data
+    const qt = !scopeNiches.length ? NO_NICHE_ASK
+      : isVid ? semNovidadeText('deste vídeo') : semNovidadeText(scopeNiches.length === 1 ? 'de ' + NL(scopeNiches[0]!) : 'de cada nicho')
     button = { mode: 'disabled', label: baseLabel, ariaLabel: baseLabel, disabledText: qt }
   } else button = { mode: 'free', label: baseLabel, ariaLabel: baseLabel }
 
-  const quotaUsed = !free.length && !status?.active && hasReq(sc)
+  const askBlocked = !free.length && !status?.active && hasReq(sc) && scopeNiches.length > 0
   const r0 = hasReq(sc) ? sc.requests[0]! : null
   const stateLabel = !r0 ? null : sc.requests.length > 1 ? (sc.anyActive ? 'em andamento' : sc.requests.some(q => DEAD.includes(q.state)) ? 'terminou com falha' : 'publicado') : r0.state
   const stateKind: ForjaView['card']['stateKind'] = !r0 ? null
@@ -360,7 +362,7 @@ export function buildForjaView(obs: Observatory, o: ForjaViewOpts): ForjaView {
     card: {
       stateLabel, stateKind, statusText: hasReq(sc) ? sc.statusText : null, lines: sc.statusLines && sc.requests.length > 1 ? sc.statusLines : [],
       sentNow: sent.length ? (sent.length > 1 ? 'Pedidos de ' + joinE(sent) + ' enviados agora.' : (isVid ? 'Pedido de leitura deste vídeo enviado agora.' : 'Pedido de ' + sent[0] + ' enviado agora.')) : null,
-      quotaNote: quotaUsed ? period(cap(sc.quota.text)) : null,
+      askNote: askBlocked ? button.disabledText ?? null : null,
       previewText: pv.text,
     },
     blockedBy,

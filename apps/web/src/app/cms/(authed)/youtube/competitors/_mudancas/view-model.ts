@@ -660,7 +660,7 @@ function forjaOf(obs: Observatory, f: MudancasFilters): Pick<MudancasView, 'forj
         scope: forja.ask.scope,
       } : null,
       outSummary: out.length ? pl(out.length, 'canal fora do próximo pedido', 'canais fora do próximo pedido') + '; o que a forja faz' : 'O que a forja faz aqui',
-      outText: out.join('. ') + (out.length ? '. ' : '') + 'A forja classifica o texto das trocas (longos e Shorts); não julga thumbnails nem diz o que funcionou.' + (busy ? '' : ' ' + obs.forja.queue.quotaScope.text),
+      outText: out.join('. ') + (out.length ? '. ' : '') + 'A forja classifica o texto das trocas (longos e Shorts); não julga thumbnails nem diz o que funcionou.' + (busy ? '' : ' ' + obs.forja.queue.askScope.text),
       shorts: f.fmt === 'short' ? {
         text: obs.forja.shortsNote + ' ' + forja.niches.map(b => { const sr = obs.forja.latest(shortsType, b.niche); return b.label + ': ' + (sr ? 'última de ' + obs.date.dm(sr.generatedAt) : 'sem leitura') }).join('; ') + '.',
         href: obs.link.insights(f.niche === 'todos' ? undefined : { niche: f.niche }) + (f.niche === 'todos' ? '?fmt=short' : '&fmt=short'),

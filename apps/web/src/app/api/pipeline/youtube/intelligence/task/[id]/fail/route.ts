@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 /**
  * retry: back to the queue (failTask; it clears released_at, R27). refuse (observatory only): the forja declines the
- * task, e.g. 'dado-velho' — refuseTask, which does not use the quota. The two are mutually exclusive.
+ * task, e.g. 'dado-velho' — refuseTask, which does not block a new request. The two are mutually exclusive.
  */
 const FailSchema = z.object({
   reason: z.string().max(500),

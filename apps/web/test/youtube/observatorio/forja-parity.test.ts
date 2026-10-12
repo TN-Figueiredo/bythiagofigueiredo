@@ -14,7 +14,15 @@ const niches = new Map(ds.videos.map(v => [v.id, v.niche]))
 const gen = forjaScenarios({ clock, videoNiche: id => niches.get(id) ?? null, lastPollAt: ds.queue.lastPollAt!, tickMinutes: ds.queue.tickMinutes })
 const strip = (reqs: ForjaRequest[]) => reqs.map(q => { const { stateNote: _n, behind: _b, ...rest } = q; return rest as ForjaRequest })
 const FIELDS = ['statusLabel', 'statusLines', 'statusText', 'terminal', 'anyActive', 'split'] as const
-const pick = (sc: Record<string, unknown> & { quota: { text: string } }) => ({ ...Object.fromEntries(FIELDS.map(k => [k, sc[k]])), quotaText: sc.quota.text })
+/**
+ * Tarefa 11d: a cota diária saiu da produção (o mockup, que é o oráculo, ainda a tem). O que o oráculo diz da cota não se compara: o campo
+ * `quota` não existe mais, e as duas frases do texto de status que falavam dela perderam o trecho ("Falha não conta na cota." e
+ * "...não conta na cota; você pode pedir de novo a de X agora." → "...não gerou leitura."). Todo o resto continua letra por letra.
+ */
+const semCota = (t: unknown) => (typeof t === 'string'
+  ? t.replace(/ Falha não conta na cota\./g, '').replace(/não conta na cota; você pode pedir de novo a de [^.]+? agora\./g, 'não gerou leitura.')
+  : t)
+const pick = (sc: Record<string, unknown>) => Object.fromEntries(FIELDS.map(k => [k, k === 'statusText' ? semCota(sc[k]) : sc[k]]))
 
 describe('forja parity — fixture requests summarised by PRODUCTION code = oracle requestScenario', () => {
   it('the request states are the oracle\'s', () => {
@@ -51,8 +59,8 @@ describe('forja parity — fixture requests summarised by PRODUCTION code = orac
 })
 
 describe('forja parity — session planner (production createSession behind the facade) = oracle session', () => {
-  type Sc = Record<string, unknown> & { quota: { text: string; byNiche?: unknown }; blockedBy?: unknown; machineBusy?: unknown; empty?: boolean }
-  const view = (sc: Sc) => ({ ...pick(sc), byNiche: sc.quota.byNiche ?? null, blockedBy: sc.blockedBy ?? null, busy: sc.machineBusy ? true : false, empty: !!sc.empty })
+  type Sc = Record<string, unknown> & { blockedBy?: unknown; machineBusy?: unknown; empty?: boolean }
+  const view = (sc: Sc) => ({ ...pick(sc), blockedBy: sc.blockedBy ?? null, busy: sc.machineBusy ? true : false, empty: !!sc.empty })
   type R = { niche: string; video?: string; ok: boolean; reason?: string | null }
   const askView = (a: { ok: boolean; reason: string | null; results: R[]; scenario: Sc }) =>
     ({ ok: a.ok, reason: a.reason, results: a.results.map(r => ({ niche: r.niche, video: r.video ?? null, ok: r.ok, reason: r.reason ?? null })), scenario: view(a.scenario) })
@@ -60,10 +68,13 @@ describe('forja parity — session planner (production createSession behind the 
   const VIEWS: Array<[string | null, Record<string, string> | undefined]> = [['todos', undefined], ['ia', undefined], ['viagem', undefined], ['viagem', { type: 'temas' }],
     [null, LV('matt-opus55')], ['ia', LV('matt-gpt6-astra')], ['viagem', LV('luke-kfc')]]
   type S = { reset(): unknown; setBase(b: string, o?: unknown): unknown; ask(s: unknown, o?: unknown): never; cancel(s: unknown, o?: unknown): never; current(s: unknown, o?: unknown): never }
+  // Tarefa 11d: com a base 'publicado' o oráculo recusa todo pedido novo ("cota de hoje usada"); a produção só recusa se o dado não mudou (forja-novidade.test.ts),
+  // e neste mundo as leituras são de 20/10, bem antes do último registro diário. Dessa base se compara só o estado inicial, sem os pedidos que vêm depois.
   const script = (S: S, base: string, type: string) => {
     const out: unknown[] = []
     const views = () => VIEWS.forEach(([sc, o]) => out.push(view(S.current(sc, o))))
     S.reset(); out.push(view(S.setBase(base, type === 'leitura-video' ? LV('nate-claude-code-danger') : { type }) as never)); views()
+    if (base === 'publicado') { S.reset(); return out }
     out.push(askView(S.ask('ia'))); views()
     out.push(askView(S.ask('todos'))); views()
     out.push(view(S.cancel('viagem'))); views()
@@ -80,6 +91,14 @@ describe('forja parity — session planner (production createSession behind the 
     const want = script(oracle.forja.session, base, type)
     expect(script(prod.forja.session as unknown as S, base, type)).toEqual(want)
     expect(script(stripped.forja.session as unknown as S, base, type)).toEqual(want)
+  })
+  it('base publicado: pedir de novo no mesmo dia é aceito quando o dado mudou desde a leitura (o oráculo recusava pela cota)', () => {
+    const S = prod.forja.session
+    S.reset(); S.setBase('publicado', { type: 'padroes-titulo' })
+    const r = S.ask('ia')
+    expect(r.ok).toBe(true)
+    expect(r.scenario.statusLabel).toMatch(/^na fila · pedido \d\d:\d\d/)
+    S.reset()
   })
 })
 
