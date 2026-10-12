@@ -1,0 +1,137 @@
+/* comparar-direcao.css: acréscimos de "Comparar canais: base e direção" sobre a4.css. Só tokens existentes; sem color-mix(), sem z-index numérico, texto >= 12 px. */
+.cd-head{display:flex;align-items:baseline;gap:6px 16px;flex-wrap:wrap;margin:2px 0 12px}
+.cd-head h1{font:600 22px/1.2 var(--serif);letter-spacing:-.01em;font-variation-settings:"opsz" 72}
+.cd-sub{margin:0;font-size:13px;color:var(--muted);max-width:70ch}
+.lado .m .dim{color:var(--dim)}
+.cd-sec{margin:16px 0 0}
+.cd-sec>h2{font:600 15px var(--sans);display:flex;align-items:center;gap:4px;margin:0 0 8px}
+.cd-n{margin:10px 0 0;font-size:13px;color:var(--muted);max-width:92ch}
+
+/* Leitura rápida: direção primeiro */
+.cd-lr{border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:12px 16px 10px;margin:0 0 14px}
+.cd-lr h3{font:600 13.5px var(--sans);margin:0 0 8px}
+.cd-lr ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.cd-lr li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start;font-size:14px;line-height:21px}
+.cd-lr .lr-t b{font-weight:600}
+.cd-lr .lr-n{margin:9px 0 0;font-size:12.5px;line-height:18px;color:var(--muted)}
+.cd-lr .sy,.cd-t .dr .sy{width:22px;height:22px;border-radius:5px;display:grid;place-items:center;background:var(--d,var(--muted));color:var(--on-lado);font:700 12px/1 var(--sans)}
+.cd-lr .sy.up{--d:var(--dir-up)}.cd-lr .sy.dn{--d:var(--dir-dn)}.cd-lr .sy.eq{--d:var(--dir-eq)}
+.cd-lr .cb-lado{height:20px;min-width:20px;vertical-align:1px;margin-right:4px;font-size:12px}
+.cd-lr h3 .ex{margin-left:8px;font-weight:400}
+.cd-lr .sy.tam{background:none;color:var(--dim);border:1px solid var(--border-strong);font-size:12px}
+.cd-lr .sy.nmk{background:repeating-linear-gradient(135deg,var(--nm-bg) 0 4px,var(--nm-fio) 4px 6px);border:1px solid var(--nm-line);color:var(--nm)}
+
+/* tabela */
+.cd-tw{overflow-x:auto;max-width:100%}
+.cd-t{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px}
+.cd-t col.k0{width:22%}.cd-t col.k1{width:18%}.cd-t col.k2{width:24%}.cd-t col.k3{width:18%}
+.cd-t th,.cd-t td{text-align:left;vertical-align:top;padding:11px 12px;border-bottom:1px solid var(--border-subtle)}
+.cd-t thead th{font-weight:500;font-size:12.5px;color:var(--muted);border-bottom:1px solid var(--border);vertical-align:bottom}
+.cd-t thead th.cA,.cd-t thead th.cB{color:var(--text);box-shadow:inset 0 -2px 0 var(--c)}
+.cd-t thead th .cb-lado{margin-right:7px}
+.cd-t thead th small{display:block;font-size:12px;color:var(--dim)}
+.cd-t td.cA,.cd-t td.cB{box-shadow:inset 2px 0 0 var(--c)}
+.cd-t .rl{font-weight:500;font-size:13px}
+.cd-t .rl small,.cd-t td small{display:block;font-weight:400;font-size:12px;line-height:16px;color:var(--muted);margin-top:2px}
+.cd-t td .v1{font:500 15px/22px var(--mono);font-variant-numeric:tabular-nums}
+.cd-t td small.pos{color:var(--dim)}
+.cd-t td.nd .why{margin-top:4px}
+.cd-t .rl .ex{display:flex;width:max-content;margin:4px 0 0}
+.cd-t tr.grp th{padding:20px 0 8px;border-bottom:1px solid var(--border);font-weight:600}
+.cd-t tr.grp .gh{display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px;min-height:44px}
+.cd-t tr.grp .gt{display:inline-flex;align-items:center;gap:7px;font:600 14px var(--sans)}
+.cd-t tr.grp .gx{font:400 12.5px/18px var(--sans);color:var(--muted);display:inline-flex;align-items:center;gap:2px;flex-wrap:wrap}
+.cd-t tbody:first-of-type tr.grp th{padding-top:12px}
+.cd-t td.cN{padding-left:16px;padding-right:16px}
+.cd-t .sub-n{margin-top:6px;display:block}
+.cd-t .nm-s{margin-left:6px;font-size:12px;white-space:normal}
+.cd-t td.rel{font-size:13px;line-height:19px;color:var(--text)}
+.cd-t td.rel .sy2{display:inline-block;margin-right:6px;font-size:12px;vertical-align:middle}
+.cd-t td.rel .cb-lado{height:20px;min-width:20px}
+.cd-t tr.exr td{padding:8px 0 2px;border-bottom:0}
+.cd-t tr.exr .exband{margin:0}
+.cd-t td.nd .nm-sw{align-items:flex-start}
+.cd-t td.nd .nm-sw .nm-h{margin-top:1px}
+.cd-t td.rel .sy2.eq{color:var(--muted)}
+td[data-l]::before{display:none}
+
+/* direção: símbolo em quadrado cheio (forma e cor), palavra e percentual */
+.dr{display:inline-flex;align-items:center;gap:8px;min-height:24px}
+.dr b{font-weight:600;font-size:14px}
+.dr .pc{font:500 14px var(--mono);color:var(--text)}
+.dr.up{--d:var(--dir-up)}.dr.dn{--d:var(--dir-dn)}.dr.eq{--d:var(--dir-eq)}
+.dr.dr-s .sy{width:20px;height:20px;font-size:12px}
+.dr.dr-s b{font-size:13px}.dr.dr-s .pc{font-size:13px}
+.dr-m{display:block;margin-top:8px}
+
+/* ressalva do viés, visível e curta */
+.cd-t tr.ress td{padding:10px 0 8px;border-bottom:0}
+.cd-t tr.ress p{margin:0;display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:19px;color:var(--text);border:1px solid var(--border-strong);border-radius:6px;padding:7px 12px;background:var(--surface-2);max-width:900px}
+.cd-t tr.ress b{font-weight:600}
+.ress-s{flex:none;width:18px;height:18px;border-radius:50%;background:var(--dim);color:var(--bg);display:grid;place-items:center;font:700 12px/1 var(--serif);font-style:italic;margin-top:1px}
+
+/* frase-resumo dos primeiros dias */
+.cd-t tr.frase td{padding:6px 0 10px;border-bottom:0}
+.cd-t tr.frase p{margin:0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:14px;line-height:21px;border:1px dashed var(--nm-line);border-radius:6px;padding:9px 12px;background:var(--nm-fio);max-width:900px}
+.cd-t tr.frase.hoje p{align-items:flex-start}
+.cd-t tr.frase .fr-i{display:inline-flex;align-items:center;gap:8px;margin-right:8px}
+.cd-t tr.frase .nm-h{margin-top:3px}
+
+/* régua do nicho (traços) */
+.rg{position:relative;height:66px;margin-top:2px}
+.rg.dir{height:86px}
+.rg-t{position:absolute;left:0;right:0;top:30px;height:1px;background:var(--border-strong);display:block}
+.rg-t .tk{position:absolute;top:-6px;width:1px;height:13px;background:var(--dim)}
+.rg-t .tk.m{top:-9px;width:3px;height:19px;margin-left:-1px;background:var(--c);border-radius:1px}
+.rg-b{position:absolute;margin-left:-12px}
+.rg-b.a{top:-34px}.rg-b.b{top:12px}
+.rg-eq{position:absolute;top:-10px;height:21px;background:var(--surface-2);border:1px dashed var(--dim);border-radius:3px}
+.rg-0{position:absolute;top:-12px;height:25px;width:1px;background:var(--muted)}
+.rg-ax{font-family:var(--sans);position:absolute;left:0;right:0;bottom:-2px;display:flex;justify-content:space-between;font-size:12px;line-height:14px;color:var(--muted)}
+.rg-ax span:nth-child(2){position:absolute;left:50%;transform:translateX(-50%)}
+
+/* seletor de base: dois botões de 44 px, a escolha na URL */
+.seg-w{display:inline-flex;align-items:center;gap:6px 12px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--dim);border-radius:7px;overflow:hidden;background:var(--surface)}
+.seg-o{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;font:500 13px var(--sans);color:var(--muted);text-decoration:none;white-space:nowrap}
+.seg-o+.seg-o{border-left:1px solid var(--dim)}
+.seg-o[aria-current="true"]{background:var(--surface-2);color:var(--text);box-shadow:inset 0 -3px 0 var(--accent);font-weight:600}
+.seg-o:hover{color:var(--text)}
+.seg-n{font:400 12.5px/18px var(--sans);color:var(--muted);display:inline-flex;align-items:center;gap:2px}
+
+/* primeiros 30 dias: uma barra por vídeo, do mais antigo ao mais novo, mesma escala nos dois lados; traço = mediana */
+.b30{position:relative;display:flex;align-items:flex-end;gap:2px;height:46px;margin-top:8px;max-width:190px;border-bottom:1px solid var(--border-strong)}
+.b30 i{flex:1;min-width:3px;max-width:9px;background:var(--c);border-radius:2px 2px 0 0;opacity:.9}
+.b30 s{position:absolute;left:0;right:0;height:0;border-top:1.5px dashed var(--text);opacity:.85}
+
+@media (max-width:1180px){.cd-t col.k0{width:20%}.cd-t col.k1{width:20%}.cd-t col.k2{width:26%}.cd-t col.k3{width:14%}}
+
+/* telas estreitas: cada linha vira um bloco; A e B lado a lado; régua e relação em largura total */
+@media (max-width:860px){
+  .cd-tw{overflow:visible}
+  .cd-t,.cd-t tbody,.cd-t tr,.cd-t th,.cd-t td{display:block;width:auto}
+  .cd-t colgroup,.cd-t thead{display:none}
+  .cd-t tr:not(.grp):not(.ress):not(.frase){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 10px;padding:12px 0;border-bottom:1px solid var(--border-subtle)}
+  .cd-t tr:not(.grp):not(.ress):not(.frase)>th,.cd-t tr:not(.grp):not(.ress):not(.frase)>td{border:0;padding:0}
+  .cd-t tr>th.rl{grid-column:1/-1;margin-bottom:8px}
+  .cd-t tr:not(.grp):not(.ress):not(.frase)>td.cA,.cd-t tr:not(.grp):not(.ress):not(.frase)>td.cB{padding:2px 0 2px 12px;box-shadow:inset 3px 0 0 var(--c)}
+  .cd-t td[data-l]::before{display:flex;width:max-content;content:attr(data-l);align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 5px;border-radius:4px;background:var(--c);color:var(--on-lado);font:700 12px var(--sans);margin-bottom:3px}
+  .cd-t td.cN{grid-column:1/-1;padding:10px 0 0!important}
+  .cd-t td.rel{grid-column:1/-1;padding:8px 0 0!important}
+  .cd-t td.rel.off,.cd-t td.cN:empty,.cd-t td.rel:empty{display:none}
+  .cd-t tr.grp th{padding:18px 0 6px}
+  .cd-t tr.ress td,.cd-t tr.frase td,.cd-t tr.exr td{display:block}
+  .cd-t tr.exr:not(.grp):not(.ress):not(.frase){display:block;padding:0;border:0}
+  .cd-t td.cB[data-l]::before{border-radius:10px}
+  .seg{width:100%}.seg-o{flex:1;justify-content:center;padding:0 8px}
+  .rg-ax{font-size:12px}
+}
+@media (max-width:420px){
+  .cd-head h1{font-size:20px}
+  .dr b{font-size:13.5px}
+  .cd-lr li{font-size:13.5px}
+}
+/* faixa única de "não medido" acima das linhas que dependem de 3 longos em 90 dias */
+.exband.nmband{align-items:flex-start;color:var(--muted)}
+.exband.nmband .nm-h{margin-top:1px;flex:none}
+.cd-t th.cR small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
