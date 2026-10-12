@@ -33,6 +33,13 @@ export const RULES = {
   // New in the production port (Task 27; PEDIDOS-API.md:160): a median is shown only with n ≥ this (Temas, Lacunas);
   // below it, "pouco para concluir (n = N)".
   medianMinN: 5,
+  // New (A5, E2; spec 4.3). Faixas da série dos concorrentes: diária até `dailyAgeDays` de idade (além dos N mais
+  // recentes, dos fixados e dos promovidos); o resto é lido a cada `weeklyEveryDays` e nunca fica mais de
+  // `weeklyMaxGapDays` sem ponto; as primeiras `earlyHours` de um vídeo descoberto até `earlyDiscoverHours` depois de publicado.
+  series: { dailyAgeDays: 30, weeklyEveryDays: 7, weeklyMaxGapDays: 8, earlyHours: 72, earlyDiscoverHours: 24 },
+  // New (A5, E2; pergunta 6 ao dono, padrão do spec). Um vídeo semanal que ganha `minViews` E `minShare` do total numa semana,
+  // ou que troca de título ou descrição, vai para a diária por `days` dias.
+  promotion: { minViews: 1000, minShare: 0.05, days: 28 },
 }
 export interface AgeBand { id: string; lo: number; hi: number; label: string }
 export const AGE_BANDS: AgeBand[] = [
