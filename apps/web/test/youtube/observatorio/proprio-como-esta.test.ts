@@ -293,11 +293,10 @@ describe('T10 "No nicho"', () => {
 })
 
 describe('T10 "O que ainda não é medido"', () => {
-  it('views por dia de cada vídeo (D12 c), percentual assistido e retenção, origem do tráfego', () => {
+  it('13.3: só a curva de retenção e a origem do tráfego (views por dia e % assistido já têm desenho)', () => {
     expect(v().naoMedido).toEqual([
-      { rotulo: 'Views por dia de cada vídeo', texto: 'já são coletadas; o desenho delas nesta tela ainda não existe.' },
-      { rotulo: 'Percentual assistido e retenção', texto: 'ainda não coletados; chegam com a coleta de retenção.' },
-      { rotulo: 'Origem do tráfego', texto: 'ainda não é lida nesta tela.' },
+      { rotulo: 'Curva de retenção', texto: 'ainda não é coletada.' },
+      { rotulo: 'Origem do tráfego', texto: 'ainda não aparece aqui.' },
     ])
   })
 

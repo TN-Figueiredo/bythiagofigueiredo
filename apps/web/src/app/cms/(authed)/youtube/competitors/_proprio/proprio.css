@@ -60,7 +60,17 @@
 [data-obs-screen="canal"][data-own="1"] .pn h3{margin:0 0 8px;font:600 13px/1.3 var(--font-sans),system-ui,sans-serif;color:var(--text)}
 [data-obs-screen="canal"][data-own="1"] .pn-g{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:18px 28px}
 [data-obs-screen="canal"][data-own="1"] .pn-g.two{grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:10px;padding-top:12px;border-top:1px solid var(--border-subtle)}
-[data-obs-screen="canal"][data-own="1"] .pn-c{min-width:0}
+[data-obs-screen="canal"][data-own="1"] .pn-c{min-width:0;display:grid;gap:22px;align-content:start}
+/* o bloco "Taxa de clique do canal" (mockup 12/10): título com o ⓘ, a frase com o valor e os limites em negrito, a faixa e a nota */
+[data-obs-screen="canal"][data-own="1"] .pn-taxa{display:grid;gap:6px;max-width:760px;min-width:0}
+[data-obs-screen="canal"][data-own="1"] .pn-taxa h3{margin:0;display:flex;align-items:center;gap:4px;font:600 14px/20px var(--font-sans),system-ui,sans-serif}
+[data-obs-screen="canal"][data-own="1"] .pn-fr{margin:0;font:400 14px/21px var(--font-sans),system-ui,sans-serif}
+[data-obs-screen="canal"][data-own="1"] .pn-fr b{font-weight:600}
+[data-obs-screen="canal"][data-own="1"] .pn-nt{margin:0;font:400 12.5px/18px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
+[data-obs-screen="canal"][data-own="1"] .pn-info{width:24px;height:24px;border:0;background:none;padding:0;cursor:pointer;display:inline-grid;place-items:center;color:var(--muted);border-radius:50%}
+[data-obs-screen="canal"][data-own="1"] .pn-info:hover{color:var(--text)}
+[data-obs-screen="canal"][data-own="1"] .pn-info:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[data-obs-screen="canal"][data-own="1"] .pn-info svg{width:16px;height:16px}
 [data-obs-screen="canal"][data-own="1"] .pn-s{border-left:1px solid var(--border-subtle);padding-left:28px;min-width:0}
 [data-obs-screen="canal"][data-own="1"] .pn-top{list-style:none;margin:0;padding:0;display:grid;gap:2px}
 [data-obs-screen="canal"][data-own="1"] .pn-top a{display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;align-items:center;min-height:44px;padding:4px;margin:0 -4px;border-radius:6px;text-decoration:none;color:var(--text)}
@@ -91,6 +101,7 @@
   [data-obs-screen="canal"][data-own="1"] .pn-h button{min-height:44px}
 }
 @media (pointer:coarse){
+  [data-obs-screen="canal"][data-own="1"] .pn-info{width:44px;height:44px}
   [data-obs-screen="canal"][data-own="1"] .pn-h button{min-height:44px}
   [data-obs-screen="canal"][data-own="1"] .pn .cmpsel select{height:44px}
   [data-obs-screen="canal"][data-own="1"] .pn .cmpf .obs-ch-btn{min-height:44px}

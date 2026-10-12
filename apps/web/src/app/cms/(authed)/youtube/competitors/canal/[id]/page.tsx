@@ -62,14 +62,14 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
     const pv = buildProprioView(obs, proprio.id, flat, dados, { hoje, dm: dmDia, posicao, concorrenteAcima, muitosProprios: owns.itens.length > 1 })
     if (pv) {
       // "Como o canal está" (16.5): o MESMO dado que o cabeçalho leu; a posição é a linha do cabeçalho (uma fonte só); os concorrentes do formulário vêm do conjunto do site
-      const { view, grafico } = montarComoEsta({
+      const { view, grafico, graficoViews } = montarComoEsta({
         dados, hoje, dm: dmDia, posicao, posicaoItens: pv.header.posicaoItens, canalId: proprio.id,
         videos: pv.videos.videos.map(v => ({ id: v.id, ytId: v.ytId, title: v.title, thumb: v.thumbSrc })),
         concorrentes: concorrentesDoSite(site.obs, proprio.id),
       })
       return (
         <TrailChrome crumbs={crumbs} owns={owns} atual={proprio.id}>
-          <ProprioScreen view={pv} comoEsta={<ComoEsta key={proprio.id} view={view} grafico={grafico} painel={painelDe(flat.painel)} canalId={proprio.id} />} />
+          <ProprioScreen view={pv} comoEsta={<ComoEsta key={proprio.id} view={view} grafico={grafico} graficoViews={graficoViews} painel={painelDe(flat.painel)} canalId={proprio.id} />} />
         </TrailChrome>
       )
     }

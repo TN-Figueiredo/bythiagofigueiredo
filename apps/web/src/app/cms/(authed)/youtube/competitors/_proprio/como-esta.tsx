@@ -12,12 +12,16 @@
  */
 import Link from 'next/link'
 import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
-import type { ComoEstaView } from './como-esta-model'
+import type { ComoEstaView, TaxaBlocoView } from './como-esta-model'
 import { Impressoes } from './impressoes'
 import type { ImpressoesView } from './impressoes-model'
+import { TaxaFaixa } from './taxa-faixa'
+import { METODO_TAXA_CANAL } from './taxa-faixa-model'
 
 const TITULO_GRAFICO = 'Impressões por dia do canal'
+const TITULO_VIEWS = 'Views por dia, soma dos vídeos'
 const chaveDe = (canalId: string): string => 'obs:como-esta:' + canalId
 
 /** O que a pessoa deixou. Sem `localStorage` (bloqueado, modo privado, servidor): recolhida. */
@@ -70,7 +74,30 @@ function Formulario({ n, canalId }: { n: NonNullable<ComoEstaView['noNicho']>; c
   )
 }
 
-function Corpo({ view, grafico, canalId }: { view: ComoEstaView; grafico: ImpressoesView; canalId: string }) {
+/** "Taxa de clique do canal": o valor, "X de Y", o intervalo em texto e em faixa, a nota e o ⓘ com o método. Sem taxa, só a frase do motivo. */
+function Taxa({ t }: { t: TaxaBlocoView }) {
+  const baseId = useId().replace(/[^A-Za-z0-9_-]/g, '')
+  const popId = 'ctr' + baseId
+  const btn = useRef<HTMLButtonElement>(null)
+  const [info, setInfo] = useState(false)
+  return (
+    <section className="pn-taxa" aria-labelledby={popId + 'h'}>
+      <h3 id={popId + 'h'}>
+        {t.titulo}
+        <button ref={btn} type="button" className="pn-info" aria-label="Como a taxa é calculada" aria-expanded={info} aria-controls={popId} onClick={() => setInfo(o => !o)}>{Icon.info()}</button>
+      </h3>
+      <Popover open={info} anchor={() => btn.current} onClose={() => setInfo(false)} id={popId} role="dialog" labelledBy={popId + 't'} className="ic-pop" pref="baixo" align="fim" maxW={380}>
+        <h3 id={popId + 't'}>Como a taxa é calculada</h3>
+        {METODO_TAXA_CANAL.map(p => <p key={p}>{p}</p>)}
+      </Popover>
+      {t.frase ? <p className="pn-fr">{t.frase.map((x, i) => (x.b ? <b key={i}>{x.t}</b> : <span key={i}>{x.t}</span>))}</p> : <p className="pn-vazio">{t.vazio}</p>}
+      {t.faixa ? <TaxaFaixa view={t.faixa} /> : null}
+      {t.nota ? <p className="pn-nt">{t.nota}</p> : null}
+    </section>
+  )
+}
+
+function Corpo({ view, grafico, graficoViews, canalId }: { view: ComoEstaView; grafico: ImpressoesView; graficoViews: ImpressoesView; canalId: string }) {
   const topId = useId()
   const n = view.noNicho
   return (
@@ -78,7 +105,11 @@ function Corpo({ view, grafico, canalId }: { view: ComoEstaView; grafico: Impres
       {/* sem o que desenhar o gráfico já diz a mesma frase: ela não se repete três vezes (linha recolhida, topo e gráfico) */}
       {view.frase !== grafico.vazio ? <p className="pn-lead">{view.frase}</p> : null}
       <div className="pn-g">
-        <div className="pn-c"><Impressoes view={grafico} titulo={TITULO_GRAFICO} /></div>
+        <div className="pn-c">
+          <Impressoes view={grafico} titulo={TITULO_GRAFICO} />
+          <Taxa t={view.taxa} />
+          <Impressoes view={graficoViews} titulo={TITULO_VIEWS} />
+        </div>
         <div className="pn-s">
           <h3 id={topId}>Vídeos que mais apareceram</h3>
           {view.top.length ? (
@@ -118,9 +149,11 @@ function Corpo({ view, grafico, canalId }: { view: ComoEstaView; grafico: Impres
   )
 }
 
-export function ComoEsta({ view, grafico, painel, canalId }: {
+export function ComoEsta({ view, grafico, graficoViews, painel, canalId }: {
   view: ComoEstaView
   grafico: ImpressoesView
+  /** "Views por dia, soma dos vídeos": os 28 dias do diário (sem a faixa de cliques). */
+  graficoViews: ImpressoesView
   /** O que a URL diz: '1' abre, '0' fecha, ausente = o que a pessoa deixou (ou recolhida). */
   painel: '1' | '0' | null
   canalId: string
@@ -153,7 +186,7 @@ export function ComoEsta({ view, grafico, painel, canalId }: {
         <p className="pn-r">{view.recolhida}</p>
       </div>
       <div className="pn-b" id={bId} hidden={!aberto}>
-        {aberto ? <Corpo view={view} grafico={grafico} canalId={canalId} /> : null}
+        {aberto ? <Corpo view={view} grafico={grafico} graficoViews={graficoViews} canalId={canalId} /> : null}
       </div>
     </section>
   )

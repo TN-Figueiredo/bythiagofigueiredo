@@ -70,3 +70,9 @@ export function buildTaxaFaixa(e: EntradaTaxaFaixa): TaxaFaixaView {
   linhas.push(linha(e.alvo, e.canal ? (e.rotuloAlvo === undefined ? 'Este vídeo' : e.rotuloAlvo) : null, inconclusiva ? 'inc' : 'proprio'))
   return { alt: e.alt, topo, eixo: [0, topo / 2, topo].map((t, i) => ({ pos: i / 2, txt: dec(t) + '%' })), linhas }
 }
+
+/** O ⓘ "Como a taxa é calculada" da taxa do canal: texto estático (nada do dado do canal), por isso mora no módulo do desenho e não viaja na view. */
+export const METODO_TAXA_CANAL: readonly string[] = [
+  'Cliques estimados ÷ impressões, no período. Os cliques são estimados dia a dia (impressões × taxa que o YouTube informa para o dia), porque o YouTube não entrega a contagem de cliques.',
+  'A faixa colorida é o intervalo de 95% de confiança (método de Wilson): com poucas impressões ela é larga, e a taxa de um período não diz muito. É a mesma regra que mantém a taxa de um vídeo sozinho fora desta tela: com 18 impressões o intervalo vai de 3% a 33%.',
+]

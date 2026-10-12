@@ -17,11 +17,16 @@ import { BACK_DO_TOP_IMP } from '../_historico/origem-canal'
 import { foraDosGuardadosFrase } from './extras'
 import { POUCO_VOLUME } from './formato'
 import { buildImpressoes, ERRO_ALCANCE, int, paradaEm, SEM_PERMISSAO, SEM_RELATORIO, type ImpressoesView } from './impressoes-model'
+import { taxaDoCanal, viewsDoCanalPorDia } from './canal-agregados'
+import { buildTaxaFaixa, pctUm, type TaxaFaixaView } from './taxa-faixa-model'
+import { canalLargo } from '@/lib/youtube/observatorio/proprio/taxa'
 import type { OpcaoConcorrente } from './posicao-do-site'
 
 export { POUCO_VOLUME }
 /** Quantos vídeos a lista mostra (spec 16.5). */
 const TOP_N = 5
+/** Altura da área de barras do gráfico de views por dia (a mesma do de impressões). */
+const ALTURA_VIEWS = 180
 /** Altura da área de barras do gráfico do canal (spec 16.6: 180 px para o dia de 71 impressões não apagar o de 1). */
 const ALTURA_CANAL = 180
 
@@ -38,6 +43,18 @@ export interface ComoEstaNicho {
   /** "Ver a lista de Canais", no nicho da posição. */
   listaHref: string
 }
+/** Um pedaço da frase: `b` = em negrito (o valor e os limites da taxa). */
+export interface TrechoFrase { t: string; b?: boolean }
+
+/** O bloco "Taxa de clique do canal" (mockup 1, rodada 12/10). Sem taxa: `vazio` diz por quê e nada mais do bloco existe. */
+export interface TaxaBlocoView {
+  titulo: string
+  frase: TrechoFrase[] | null
+  faixa: TaxaFaixaView | null
+  vazio: string | null
+  nota: string | null
+}
+
 export interface ComoEstaView {
   /** A linha de uma frase, sempre visível: o alcance e a posição em inscritos. */
   recolhida: string
@@ -50,6 +67,7 @@ export interface ComoEstaView {
   noNicho: ComoEstaNicho | null
   /** "O que ainda não é medido": rótulo e frase. */
   naoMedido: Array<{ rotulo: string; texto: string }>
+  taxa: TaxaBlocoView
 }
 
 export interface EntradaComoEsta {
@@ -194,12 +212,37 @@ function topDe(estado: Estado, a: EntradaComoEsta): { top: ComoEstaTop[]; topVaz
   return { top, topVazio: null, topNota }
 }
 
-/** D12 (b) e (c): o que ainda não é medido, em frase. Não depende do dado privado. */
+/** O que ainda não é medido (A4 13.3): só a curva de retenção e a origem do tráfego; views por dia e % assistido já têm desenho. Não depende do dado privado. */
 const NAO_MEDIDO: ComoEstaView['naoMedido'] = [
-  { rotulo: 'Views por dia de cada vídeo', texto: 'já são coletadas; o desenho delas nesta tela ainda não existe.' },
-  { rotulo: 'Percentual assistido e retenção', texto: 'ainda não coletados; chegam com a coleta de retenção.' },
-  { rotulo: 'Origem do tráfego', texto: 'ainda não é lida nesta tela.' },
+  { rotulo: 'Curva de retenção', texto: 'ainda não é coletada.' },
+  { rotulo: 'Origem do tráfego', texto: 'ainda não aparece aqui.' },
 ]
+
+const NOTA_TAXA = 'Compare com os seus próprios vídeos e períodos, não com outros canais: o YouTube só entrega a taxa de clique ao dono do canal.'
+
+/** O bloco da taxa: o valor, "X de Y", o intervalo e a faixa; sem taxa, só a frase do motivo. */
+function taxaBloco(estado: Estado, a: EntradaComoEsta): TaxaBlocoView {
+  const titulo = 'Taxa de clique do canal'
+  const sem = (vazio: string): TaxaBlocoView => ({ titulo, frase: null, faixa: null, vazio, nota: null })
+  switch (estado) {
+    case 'negado': return sem('Só quem edita o site vê a taxa de clique.')
+    case 'erro': return sem(ERRO_ALCANCE)
+    case 'sem-relatorio': return sem('Sem relatório de alcance não há como calcular a taxa.')
+    case 'nada-lido': return sem('Nenhum dia do período foi lido ainda, então não há taxa.')
+    case 'zero': return sem('Nenhuma impressão nos dias lidos, então não há taxa.')
+    case 'ok': break
+    default: { const nunca: never = estado; return nunca }
+  }
+  const t = taxaDoCanal(a.resumo)
+  if (!t) return sem('A taxa não é calculada: algum dia com impressão veio sem a taxa de cliques.')
+  const frase: TrechoFrase[] = [
+    { t: pctUm(t.taxa), b: true }, { t: ` das impressões viraram clique (${int(Math.round(t.cliques))} de ${int(t.imp)}). Com este volume, a taxa real fica entre ` },
+    { t: pctUm(t.lo), b: true }, { t: ' e ' }, { t: pctUm(t.hi), b: true },
+    { t: canalLargo(t) ? '. Ainda não dá para dizer se é alta ou baixa.' : '.' },
+  ]
+  const faixa = buildTaxaFaixa({ alvo: t, canal: null, alt: `Taxa de clique do canal: ${pctUm(t.taxa)}, intervalo de 95% de ${pctUm(t.lo)} a ${pctUm(t.hi)}` })
+  return { titulo, frase, faixa, vazio: null, nota: NOTA_TAXA }
+}
 
 export function buildComoEsta(a: EntradaComoEsta): ComoEstaView {
   const estado = estadoDe(a)
@@ -221,6 +264,7 @@ export function buildComoEsta(a: EntradaComoEsta): ComoEstaView {
       }
       : null,
     naoMedido: NAO_MEDIDO.map(x => ({ ...x })),
+    taxa: taxaBloco(estado, a),
   }
 }
 
@@ -228,16 +272,20 @@ export function buildComoEsta(a: EntradaComoEsta): ComoEstaView {
 export function montarComoEsta(a: {
   dados: DadosDoCanal; hoje: DiaYt; dm: (d: DiaYt) => string; posicao: PosicaoNoNicho | null; posicaoItens: PosicaoItens | null
   videos: EntradaComoEsta['videos']; concorrentes: ReadonlyArray<OpcaoConcorrente>; canalId: string
-}): { view: ComoEstaView; grafico: ImpressoesView } {
+}): { view: ComoEstaView; grafico: ImpressoesView; graficoViews: ImpressoesView } {
   const al = a.dados.alcance
   const lido = al.acesso === 'ok' ? montarDias(al.dado) : null
   const dias = lido?.dias ?? []
   const periodo = lido?.periodo ?? null
   const porVideo = al.acesso === 'ok' ? alcancePorVideo(al.dado) : new Map<string, AlcanceVideo>()
   const grafico = buildImpressoes(dias, periodo, { escopo: 'canal', alturaArea: ALTURA_CANAL, dm: a.dm, acesso: al.acesso, hoje: a.hoje })
+  // views por dia, soma dos vídeos longos acompanhados: do diário, que tem o seu próprio acesso (e o seu próprio "dia mais novo")
+  const ytIds = a.videos.map(v => v.ytId)
+  const vs = viewsDoCanalPorDia(a.dados.diario, ytIds)
+  const graficoViews = buildImpressoes(vs.dias, vs.periodo, { escopo: 'canal', alturaArea: ALTURA_VIEWS, unidade: 'views', dm: a.dm, acesso: a.dados.diario.acesso, hoje: a.hoje })
   const view = buildComoEsta({
     resumo: resumir(dias), periodo, acesso: al.acesso, porVideo, videos: a.videos, posicao: a.posicao, posicaoItens: a.posicaoItens,
     concorrentes: a.concorrentes, canalId: a.canalId, dm: a.dm, hoje: a.hoje,
   })
-  return { view, grafico }
+  return { view, grafico, graficoViews }
 }
