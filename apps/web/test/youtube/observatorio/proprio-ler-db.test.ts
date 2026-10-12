@@ -1,12 +1,16 @@
 // @vitest-environment node
 // Leitores do canal próprio contra o Postgres LOCAL (PostgREST de verdade: limite de 1000 linhas, tipos bigint/numeric).
 // Semeia e limpa o que semeou, só no banco local (HAS_LOCAL_DB=1).
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, seedSite, seedYoutubeChannelAndVideo } from '../../helpers/db-seed'
+import { edicaoDe } from './edicao-teste'
 import { lerAlcance, lerDiario, TIPO_ALCANCE, TETO_VIDEOS_DIARIO } from '@/lib/youtube/observatorio/proprio/ler'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
+
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
 describe.skipIf(skipIfNoLocalDb())('leitores do canal próprio (banco local)', () => {
   const sb = createClient(SUPABASE_URL, SERVICE_KEY)
@@ -59,7 +63,7 @@ describe.skipIf(skipIfNoLocalDb())('leitores do canal próprio (banco local)', (
   }, 60_000)
 
   it('diário: 1400 linhas passam do limite de 1000 e chegam inteiras; zero medido continua 0; nada de outro site nem fora da janela', async () => {
-    const r = await lerDiario(sb, { siteId, canalId, hoje: HOJE, podeEditar: true, ytIds })
+    const r = await lerDiario(sb, { edicao: await edicaoDe(siteId), canalId, hoje: HOJE, ytIds })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.dado.linhas).toHaveLength(TETO_VIDEOS_DIARIO * 28)
     expect(r.dado.ultimoDia).toBe(d(3))
@@ -67,15 +71,15 @@ describe.skipIf(skipIfNoLocalDb())('leitores do canal próprio (banco local)', (
     expect(r.dado.linhas.some(l => l.dia === d(300))).toBe(false)
   })
   it('diário: o id de um canal de outro site não alcança o dado dele', async () => {
-    const r = await lerDiario(sb, { siteId, canalId, hoje: HOJE, podeEditar: true, ytIds: ['seedoutro01'] })
+    const r = await lerDiario(sb, { edicao: await edicaoDe(siteId), canalId, hoje: HOJE, ytIds: ['seedoutro01'] })
     // nenhuma linha do vídeo de outro site; o último dia é o do PRÓPRIO canal (consulta sem janela e sem filtro de vídeo)
     expect(r).toEqual({ acesso: 'ok', dado: { canalId, ultimoDia: d(3), linhas: [], descartados: 0 } })
-    const r2 = await lerDiario(sb, { siteId, canalId: outroCanal, hoje: HOJE, podeEditar: true, ytIds: ['seedoutro01'] })
+    const r2 = await lerDiario(sb, { edicao: await edicaoDe(siteId), canalId: outroCanal, hoje: HOJE, ytIds: ['seedoutro01'] })
     expect(r2.acesso === 'ok' && r2.dado.linhas.length).toBe(0)
     expect(r2.acesso === 'ok' && r2.dado.ultimoDia).toBeNull() // o dia 'd(3)' do outro site não vaza
   })
   it('alcance: relatórios com os três estados, linhas com bigint/numeric já como número, só do site e canal', async () => {
-    const r = await lerAlcance(sb, { siteId, canalId, hoje: HOJE, podeEditar: true })
+    const r = await lerAlcance(sb, { edicao: await edicaoDe(siteId), canalId, hoje: HOJE })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.dado.relatorios).toHaveLength(3)
     expect(r.dado.relatorios).toEqual(expect.arrayContaining([
@@ -84,7 +88,7 @@ describe.skipIf(skipIfNoLocalDb())('leitores do canal próprio (banco local)', (
     expect(r.dado.linhas).toEqual([{ ytId: ytIds[0], dia: d(3), imp: 120, ctr: 0.0425 }])
   })
   it('quem não edita: negado, sem consulta', async () => {
-    expect(await lerAlcance(sb, { siteId, canalId, hoje: HOJE, podeEditar: false })).toEqual({ acesso: 'negado' })
-    expect(await lerDiario(sb, { siteId, canalId, hoje: HOJE, podeEditar: false, ytIds })).toEqual({ acesso: 'negado' })
+    expect(await lerAlcance(sb, { edicao: null, canalId, hoje: HOJE })).toEqual({ acesso: 'negado' })
+    expect(await lerDiario(sb, { edicao: null, canalId, hoje: HOJE, ytIds })).toEqual({ acesso: 'negado' })
   })
 })
