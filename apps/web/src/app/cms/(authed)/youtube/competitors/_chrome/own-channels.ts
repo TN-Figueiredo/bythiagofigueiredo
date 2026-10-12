@@ -36,9 +36,9 @@ export function listPt(xs: readonly string[]): string {
 }
 
 /**
- * Para onde "Abrir meu canal" leva. A3: o painel lateral da lista de Canais (o canal próprio ainda não tem página);
- * a A4 troca esta linha por `link.canal(id)`. Todo link para "o meu canal" passa por aqui.
+ * Para onde "Abrir meu canal" leva: a PÁGINA do canal (A4, D9; na A3 era o painel lateral de Canais, porque o canal próprio ainda não tinha página).
+ * Todo link para "o meu canal" passa por aqui. Canal sem vídeos não tem página: quem monta o link já o deixa de fora.
  */
 export function ownChannelHref(id: string): string {
-  return link.canais({ channel: id })
+  return link.canal(id)
 }

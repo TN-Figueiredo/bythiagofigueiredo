@@ -59,6 +59,17 @@ export function semComentarios(ds: Dataset): void {
   for (const v of ds.videos) if (v.ch === id) v.comments = null
 }
 
+/**
+ * O conjunto que a PÁGINA DO CANAL lê em produção (`loadChannelDataset`): UM canal, marcado `scope: 'canal'`; o que agrega entre canais (`ownChannels`, `channels`
+ * do site) LANÇA nele. Os modelos da página têm de montar com ele (o navegador achou o `ownChannels()` do cabeçalho que o conjunto do site escondia).
+ */
+export function umCanal(ds: Dataset): void {
+  const id = primeiroProprio(ds).id
+  ds.channels = ds.channels.filter(c => c.id === id)
+  ds.videos = ds.videos.filter(v => v.ch === id)
+  ds.scope = 'canal'
+}
+
 /** O site sem canal próprio: tira os canais próprios e os vídeos deles. */
 export function semCanalProprio(ds: Dataset): void {
   const ids = new Set(ds.channels.filter(c => c.own).map(c => c.id))

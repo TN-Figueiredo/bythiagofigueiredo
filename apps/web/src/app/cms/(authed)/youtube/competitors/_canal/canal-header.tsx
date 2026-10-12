@@ -17,12 +17,12 @@ import { cliqueSimples } from '../_chrome/clique-simples'
 import { lembrarGatilho } from '../_chrome/gatilho-volta'
 import type { CanalHeaderView, NumCell } from './header-model'
 
-const Ext = () => (
+export const Ext = () => (
   <svg className="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M9 3h4v4M13 3L7.5 8.5M12 9.5V12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2.5" /></svg>
 )
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+export const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-function Cell({ c }: { c: NumCell }) {
+export function Cell({ c }: { c: NumCell }) {
   // no DOM o valor vem antes do rótulo ("84 mil inscritos"); na tela os dois ficam um sobre o outro
   return (
     <div className="nc">

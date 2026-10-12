@@ -156,14 +156,21 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   }, [panel?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const rowButton = (id: string) => document.querySelector<HTMLElement>(`[data-obs-screen="canais"] .nmbtn[data-open="${CSS.escape(id)}"]`)
-  const openDrawer = (id: string) => { returnFocus.current = rowButton(id); setMenu(null); setClosedDrawer(null); go({ channel: id, tab: null }, { channel: id }) }
-  /** A row's "open": a competitor has a page of its own (no drawer); an own channel still opens the drawer. */
+  const openDrawer = (id: string, mode: 'replace' | 'push' = 'replace') => { returnFocus.current = rowButton(id); setMenu(null); setClosedDrawer(null); nav(mode, urlWith({ channel: id, tab: null }), { channel: id }) }
+  /** An own channel with videos has a page (A4): "Abrir meu canal" goes there. Without videos it has none (spec 16.8). */
+  const paginaPropria = (id: string): string | null => {
+    const l = view.own.block?.linhas.find(x => x.id === id)
+    return l?.tipo === 'cheia' ? l.abrirHref : null
+  }
+  /** A row's "open": a competitor has a page of its own (no drawer). An own channel's ROW still goes through the drawer, which the server now sends to the page (the drawer leaves with Task 16). */
   const openRow = (id: string) => {
     const href = rowOf(id)?.href
-    if (!href) { openDrawer(id); return }
+    // own channel with a page: the drawer request is a PUSH, so the server's redirect to the page leaves the list as the previous entry (Voltar returns to it)
+    if (!href) { openDrawer(id, paginaPropria(id) ? 'push' : 'replace'); return }
     setMenu(null)
     router.push(href)
   }
+  const openOwn = (id: string) => { const href = paginaPropria(id); if (href) { setMenu(null); router.push(href) } else openDrawer(id) }
   const closeDrawer = useCallback(() => {
     if (!panel) return
     const id = panel.id
@@ -390,7 +397,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           {view.forjaBar ? (
             <details className="fbar" id="forjaBar" data-forja-anchor=""><summary><b>forja</b> <span>{view.forjaBar.lines}</span></summary><p>{view.forjaBar.text}</p></details>
           ) : null}
-          {view.own.block ? <OwnBlockView block={view.own.block} topoRef={topoRef} onIr={irAte} onAbrir={openDrawer} /> : null}
+          {view.own.block ? <OwnBlockView block={view.own.block} topoRef={topoRef} onIr={irAte} onAbrir={openOwn} /> : null}
           <p className="sr" role="status" aria-live="polite" data-k="ord-anuncio">{anuncioOrd}</p>
           <div className="toolbar">
             <div className="search">

@@ -476,9 +476,9 @@ describe('A3.2 formato, filtro e busca', () => {
 })
 
 describe('A3.2 invariantes', () => {
-  it('invariante: toda linha cheia do bloco tem abrirHref = ownChannelHref(id) e o canal existe em list', () => {
+  it('invariante: toda linha cheia do bloco tem abrirHref = ownChannelHref(id) = a página do canal e o canal existe em list', () => {
     const mundos: Array<[string, OwnPreset]> = [['1', '1'], ['2', '2'], ['5', '5'], ['mix', 'mix'], ['zero', 'zero']]
-    expect(ownChannelHref('abc')).toBe(link.canais({ channel: 'abc' }))
+    expect(ownChannelHref('abc')).toBe(link.canal('abc')) // A4: a página do canal (na A3 era o painel, link.canais({ channel }))
     let linhas = 0
     for (const [, preset] of mundos) {
       const obs = a3World(undefined, preset).obs
