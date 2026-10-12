@@ -44,6 +44,8 @@ function NumerosProprios({ v, sort }: { v: ProprioVideoView; sort: CanalSort }) 
     <>
       <p className="cv-nums cv-nums3">{views}{imp}{mult}</p>
       {v.terceira ? <p className="cv-n3">{v.terceira}</p> : null}
+      {/* 13.3: as views por dia do diário (média dos 28 dias com medida); sem o número a linha não existe e o motivo mora uma vez, no topo da grade */}
+      {v.vpdDiarioText != null ? <p className="cv-vpd"><b className="num">{v.vpdDiarioText}</b> views por dia</p> : null}
     </>
   )
 }

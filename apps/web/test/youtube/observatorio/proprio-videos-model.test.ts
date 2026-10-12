@@ -9,7 +9,7 @@ import {
   proprioWorld, mundoSemProprio, DADOS, CHEIO, alcanceComLinhas, alcanceSoVazios, alcanceNadaLido, alcanceVazio, diarioCheio, type CenarioDados,
 } from './proprio-fixture'
 import {
-  buildProprioVideos, SEM_VIEWS_DIARIAS, type ProprioVideoView, type ProprioVideosView,
+  buildProprioVideos, VIEWS_POR_DIA_BASE, type ProprioVideoView, type ProprioVideosView,
 } from '@/app/cms/(authed)/youtube/competitors/_proprio/videos-model'
 import { buildProprioHeader, FRASE_ERRO, FRASE_NADA_LIDO, FRASE_NEGADO, FRASE_SEM_RELATORIO } from '@/app/cms/(authed)/youtube/competitors/_proprio/header-model'
 import { VPD_SO_LONGOS, dmDia } from '@/app/cms/(authed)/youtube/competitors/_proprio/extras'
@@ -45,7 +45,7 @@ const [A, B, C] = BASE.ytIds as [string, string, string]
 
 /** Todo texto que a tela pode mostrar para um vídeo, mais a nota do conjunto. */
 function textos(v: ProprioVideosView): string[] {
-  const out = [v.nota, v.semViewsDiarias, v.semVideos ?? '', v.motivoAlcance ?? '']
+  const out = [v.nota, v.viewsPorDiaFrase, v.semVideos ?? '', v.motivoAlcance ?? '']
   // só o que a tela escreve (ids, urls e datas ISO não são texto de tela)
   const VISIVEIS = [
     'title', 'durText', 'ageText', 'pubTitle', 'viewsText', 'viewsMissing', 'multText', 'multWord', 'impText', 'impMissing', 'cliquesText', 'cliquesMissing',
@@ -320,13 +320,23 @@ describe('views por dia de cada vídeo (o número existe; a tela o explica em "A
     }
   })
 
-  it('semViewsDiarias: a frase de D12 (c), uma só', () => {
-    expect(SEM_VIEWS_DIARIAS).toBe('Views por dia de cada vídeo: já são coletadas; o desenho delas nesta tela ainda não existe.')
+  it('13.3 viewsPorDiaFrase: a base quando algum cartão tem o número; o motivo (uma frase só) quando nenhum tem; nenhum cartão a repete', () => {
+    expect(VIEWS_POR_DIA_BASE).toBe('Views por dia: média dos últimos 28 dias com medida.')
+    const esperado: Record<string, RegExp | string> = {
+      cheio: VIEWS_POR_DIA_BASE,
+      curto: 'Views por dia: menos de 7 dias medidos nos últimos 28.',
+      vazio: 'Views por dia: a coleta diária ainda não gravou este canal.',
+      parado: /^Views por dia: a coleta diária deste canal parou em \d\d\/\d\d\.$/,
+      negado: 'Views por dia: só quem edita o site vê.',
+      erro: 'Views por dia: a leitura falhou agora; recarregue a página.',
+    }
     for (const c of CENARIOS) {
       const v = build(BASE, DADOS[c](BASE.canalId, BASE.ytIds, BASE.hoje))
-      expect(v.semViewsDiarias).toBe(SEM_VIEWS_DIARIAS)
+      const e = esperado[c]!
+      if (typeof e === 'string') expect(v.viewsPorDiaFrase, c).toBe(e)
+      else expect(v.viewsPorDiaFrase, c).toMatch(e)
       // uma só: nenhum cartão a repete
-      expect(v.videos.filter(x => [...x.notas, x.terceira, x.impMissing ?? ''].some(t => t.includes('Views por dia de cada vídeo')))).toHaveLength(0)
+      expect(v.videos.filter(x => [...x.notas, x.terceira, x.impMissing ?? ''].some(t => t.includes('Views por dia: média dos últimos 28 dias com medida'))), c).toHaveLength(0)
     }
   })
 })
