@@ -1,6 +1,8 @@
-# Observatório, fase A5 (spec v2.2), parte 06: ciclo de vida do dado, volume e cota
+# Observatório, fase A5 (spec v2.3), parte 06: ciclo de vida do dado, volume e cota
 
 > Parte do spec da A5 v2.2, dividido em 12/10/2026 só movendo texto (nenhuma frase mudou; a numeração de seções, etapas, migrations, perguntas e itens de aceite é a do original). Índice, cabeçalho "O que mudou" e tabela "onde está cada seção": [`../2026-10-12-observatorio-a5-concorrentes-design.md`](../2026-10-12-observatorio-a5-concorrentes-design.md).
+
+> **v2.3 (12/10/2026, resposta ao portão de fim de spec).** Emendas localizadas, marcadas "v2.3", e uma seção nova, **9.6**, com as contas refeitas pelo revisor de dados e pelas decisões 32 a 37 do dono. **Onde 9.1 a 9.5 divergirem de 9.6, vale 9.6.** As três que mudam o desenho: a data e o alcance do apagamento do bruto dos relatórios estavam errados (corrigidos aqui e resolvidos pela E20, 7.6); remover um canal passa a exigir **pausar a coleta** dele antes do export; e a "regra dura" ganhou a **lista fechada do que apaga**. A numeração antiga não mudou. Respostas aos revisores: `.superpowers/sdd/a5/resposta-revisao-spec.md`.
 
 ## 9. Ciclo de vida do dado, volume e cota (etapa E10)
 
@@ -18,7 +20,7 @@ Médias medidas nos 15 canais: 93 vídeos guardados, 98 novos por ano, 61% Short
 | `competitor_raw` (93 existentes + 98 novos + ~80 mudanças, ~3 kB) | 270 | 0,8 | só as versões que deixaram de ser a corrente |
 | Versões de título, miniatura e descrição; linhas de vídeo; canal por dia | ~1.100 | 0,7 | **não** |
 | Histórico de campo; marcas de idade 1, 7 e 30 (MG4) | ~1.200 | 0,2 | **não** |
-| Playlists (E3) | ~500 | 0,15 | **não** |
+| ~~Playlists (E3)~~ *(retirada na v2.3, decisão 32 do dono)* | ~~~500~~ | ~~0,15~~ 0 | — |
 | **Total** | | **≈ 5,8** | série: 3,9 (67%); o resto: 1,9 |
 
 ### 9.2 Ciclo de vida do dado
@@ -29,16 +31,16 @@ Médias medidas nos 15 canais: 93 vídeos guardados, 98 novos por ano, 61% Short
 
 - **Padrão proposto: 12 meses online** [DONO, pergunta 2]. Motivo: o carregador das telas já tem teto de 365 dias (fato 7), então com 12 meses nenhuma tela de hoje perde dado; com 6 meses, toda tela que mostra "último ano" passaria a depender do "Ver antigo". O ganho de espaço entre 6 e 12 meses é pequeno (9.3).
 - **Com lote semestral, o banco guarda entre o corte e o corte mais 6 meses** (com corte de 12: de 12 a 18 meses de série). Um lote leva os meses de calendário inteiros cuja última linha é mais velha que o corte.
-- **O que vai para o arquivo, pela idade da linha:** `competitor_video_daily` (diária e semanal), `competitor_video_early`, as versões não correntes de `competitor_raw`, as leituras antigas de `yt_own_video_retention` (a mais recente de cada vídeo e janela fica) e o bruto dos relatórios em lote do canal próprio (`yt_reporting_report_blobs`, que hoje é **apagado sem export** 180 dias depois do download, a partir de abril de 2027: passa a valer a regra de exportar antes).
-- **O que nunca sai do online, por ser pequeno e necessário às telas:** as linhas de vídeo e de canal; as versões de título, miniatura e descrição; o histórico de campo; **as marcas de views nas idades 1, 7 e 30** (`competitor_video_marks`, seção 5); o canal por dia (`competitor_channel_snapshots`: 365 linhas por canal por ano, base de M3(a) e M8); a versão corrente do `raw`; playlists; as decisões da fila de 4.5; o registro dos lotes (abaixo); e todo o canal próprio depois da dieta (`yt_own_video_daily` com menos de 1 MB, alcance, cobertura).
+- **O que vai para o arquivo, pela idade da linha:** `competitor_video_daily` (diária e semanal), `competitor_video_early`, as versões não correntes de `competitor_raw`, as leituras antigas de `yt_own_video_retention` (a mais recente de cada vídeo e janela fica) e o bruto dos relatórios em lote do canal próprio (`yt_reporting_report_blobs`, que hoje é **apagado sem export** 180 dias depois do download, a partir de abril de 2027: passa a valer a regra de exportar antes). **Corrigido na v2.3 (achado C-1, crítico):** a função apaga também todo bruto de tipo **normalizado** 90 dias depois da normalização, e por isso **a primeira deleção seria em 07/01/2027**, não em abril. A E20 (7.6, migration MG13) desliga esse apagamento antes da data; a MG6 desta etapa, mais tarde, só o religa para bruto que esteja num lote confirmado no NAS.
+- **O que nunca sai do online, por ser pequeno e necessário às telas:** as linhas de vídeo e de canal; as versões de título, miniatura e descrição; o histórico de campo; **as marcas de views nas idades 1, 7 e 30** (`competitor_video_marks`, seção 5); o canal por dia (`competitor_channel_snapshots`: 365 linhas por canal por ano, base de M3(a) e M8); a versão corrente do `raw`; playlists; as decisões da fila de 4.5; o registro dos lotes (abaixo); e todo o canal próprio depois da dieta (`yt_own_video_daily` com menos de 1 MB, alcance, cobertura). **v2.3:** também nunca saem as versões de título, thumbnail e descrição do vídeo próprio (`yt_own_video_versions` e `yt_own_versions_state`, E18: menos de 1 MB por ano), as faixas no tempo (`competitor_video_tier_spans`) e os mapas de hora. **E uma correção (achado I-9):** "todo o canal próprio depois da dieta fica pequeno" não era verdade para `yt_own_video_meta_daily`, que cresce cerca de 9 MB por ano para 35 vídeos e não estava em conta nenhuma; ela ganha dieta própria na parte 2 da E18 (7.5.10) e está em 9.6. "Playlists" sai desta lista (E3 retirada).
 - **Canal sem publicar há 12 meses:** o sistema **sugere** arquivar o canal inteiro (um item na mesma aba da fila de 4.5, seção "Sugestões": nome, última publicação, quanto ocupa). Nada acontece sem o dono confirmar.
-- **"Apagar um canal que não interessa mais" passa pela mesma regra:** exportar o canal inteiro (todas as tabelas dele e as miniaturas do Blob), conferir, o dono confirma que o arquivo está no NAS, só então o canal é removido pelo fluxo que já existe. O diálogo de remover canal ganha esse passo e não deixa pular (a exceção é a resposta "apagar" de 4.5, cujo propósito é não guardar).
+- **"Apagar um canal que não interessa mais" passa pela mesma regra:** exportar o canal inteiro (todas as tabelas dele e as miniaturas do Blob), conferir, o dono confirma que o arquivo está no NAS, só então o canal é removido pelo fluxo que já existe. O diálogo de remover canal ganha esse passo e não deixa pular (a exceção é a resposta "apagar" de 4.5, cujo propósito é não guardar). **v2.3 (achado I-6 da revisão de dados): passo 0, pausar a coleta do canal.** O canal é lido 4 vezes por dia (e de hora em hora com a E15): entre `exportar` e `apagar` sempre entrariam linhas, e a recusa "a contagem difere do manifesto" (item 75) dispararia sempre. Por isso o diálogo de remover começa por **pausar**: grava `competitor_channels.collection_paused_at` e quem pausou (colunas na MG6, abaixo); nenhuma tarefa da agenda lê canal pausado; `exportar` **recusa** canal que não esteja pausado. O canal pausado aparece com a pastilha "coleta pausada desde dd/mm (para exportar)", com o botão de despausar. **Pausado é dado que deixa de ser coletado todo dia:** canal pausado há mais de 7 dias sem remoção concluída aparece no cabeçalho do Observatório e no retorno do cron, pelo nome; nunca fica esquecido em silêncio.
 
 **O export.**
 
 - **Formato: CSV com cabeçalho, comprimido com gzip, mais um manifesto em JSON por lote.** Por quê: é aberto, legível em qualquer máquina sem instalar nada, e volta para um Postgres (o do NAS, ou o online, numa emergência) com um `\copy` por arquivo; `jsonb` vai como texto. Parquet é menor e guarda os tipos, mas exige biblioteca nas duas pontas e não entra em Postgres sem ferramenta. `pg_dump` não serve: é por tabela inteira, não por canal e período, e amarra à versão do Postgres. Os tipos que o CSV perde ficam no manifesto.
 - **Granularidade: um arquivo por tabela, canal e mês de calendário** (`<lote>/<tabela>/<id do canal>/<AAAA-MM>.csv.gz`), para que um canal ou um mês possa ser recarregado, ou expurgado, sem tocar no resto.
-- **Manifesto** (`<lote>/manifesto.json` e `<lote>/manifesto.sha256`): por arquivo, a tabela, o canal, o mês, o **número de linhas**, uma **soma de controle** do conteúdo (a soma de `views`, onde existe), a menor e a maior chave, o **sha256** do arquivo, e a lista de colunas com os tipos; por lote, o DDL das tabelas na data e a versão do script.
+- **Manifesto** (`<lote>/manifesto.json` e `<lote>/manifesto.sha256`): por arquivo, a tabela, o canal, o mês, o **número de linhas**, uma **soma de controle** do conteúdo (a soma de `views`, onde existe), a menor e a maior chave, o **sha256** do arquivo, e a lista de colunas com os tipos; por lote, o DDL das tabelas na data e a versão do script. **v2.3 (achado I-7): o manifesto lista também os arquivos de miniatura.** As miniaturas só existem no Vercel Blob (707 hoje, uma cópia, em URL pública). Para cada canal do lote, o `exportar` baixa as miniaturas das versões do período para a pasta do lote e o manifesto traz, por arquivo: o caminho no Blob, os bytes e o sha256; o registro do lote ganha `blob_count` e `blob_bytes`, e `conferir` refaz os três. Na remoção de canal isso já era exigido ("todas as tabelas dele e as miniaturas"); agora vale para todo lote, inclusive o por idade da fase de manutenção. **v2.3 (achado M-4): a sessão do export é fixada** em `set time zone 'UTC'` e `set extra_float_digits = 3`, para os instantes e os vetores `real[]` do mapa de horas sobreviverem à ida e volta do item 74 sem diferença de arredondamento. **Reexportar um lote que já tinha sido conferido zera `verified_at` e `nas_confirmed_at`** (o arquivo mudou; a conferência antiga não vale).
 - **Onde o arquivo fica até ir ao NAS:** numa pasta local do dono, fora do repositório (`~/Workspace/arquivo-observatorio/<lote>/`). Não vai para o Vercel Blob (URL pública) nem para o banco.
 - **Quatro comandos, em ordem; cada um recusa rodar se o anterior não fechou.**
 
@@ -50,6 +52,29 @@ Médias medidas nos 15 canais: 93 vídeos guardados, 98 novos por ano, 61% Short
 | 4 | `apagar <lote>` (**lote por idade: fase de manutenção**; nesta fase o passo 4 é só a remoção de um canal inteiro, pelo fluxo que já existe, liberada pelo lote confirmado) | chama `obs_archive_delete(p_batch)`: recusa se não houver confirmação do NAS; **dentro da transação** reconta as linhas e a soma de controle e aborta se diferirem do manifesto; apaga; grava `deleted_at` e uma linha em `audit_log` | **só o dono** |
 
 - **Regra dura:** nada é apagado do online antes de o dono confirmar que o arquivo está no NAS. Não há apagamento por cron, por prazo, nem "automático depois de N dias".
+
+  **v2.3: a regra dura vale para dado coletado de série, e a lista do que apaga é fechada.** Do jeito que estava escrita, a frase contradizia rotinas que o próprio spec cria (a identidade do autor aos 28 dias, a passagem da leitura crua, a poda da agenda), e os itens 67 e 78 mandavam testar "todas as rotinas" sem dizer quais. Esta é a lista inteira; **um teste lê o código do Observatório, da coleta e do cron de concorrentes e falha se achar um `delete` fora dela** (item 231):
+
+  | # | Rotina | O que apaga | Por decisão de quem | Exporta antes? |
+  |---|---|---|---|---|
+  | 1 | resposta "apagar" da fila (4.5), `competitor_video_purge` | tudo de um vídeo, canal ou comentário que saiu do YouTube | o dono, caso a caso (decisão 7) | não, de propósito |
+  | 2 | remoção de canal (fluxo que já existe) | tudo do canal | o dono, com o canal pausado e o lote confirmado no NAS | sim |
+  | 3 | `anular_identidade` (4.6.6) | a linha de identidade do autor aos 28 dias | o dono (decisão 20) | não: é o propósito |
+  | 4 | `podas`: linhas de `competitor_agenda_runs` com mais de 90 dias; registro de dias somados com mais de 60 **(v2.3, 2ª passada, N-1 de dados: só de vídeo e dia cujas leituras cruas já foram apagadas; com o interruptor da linha 5 desligado, nenhuma: 4.7.4)**; registro de acesso de IA com mais de 400 dias e contador de taxa `obs_ai_rate` com mais de 2 dias (8.1.4) | estado de execução, não dado coletado | este spec | não |
+  | 5 | `podas`: leitura crua de hora em hora com mais de 60 dias | dado coletado | **só com o interruptor ligado**, depois da resposta do dono à pergunta 36 (4.7.3) | conforme a resposta dele |
+  | 6 | `yt_own_daily_apply`, `yt_own_dim_apply` | a linha de um dia que o YouTube revisou para zero (a cobertura do dia continua) | este spec (7.1, D11): é substituição pelo valor novo | não |
+  | 7 | dieta: MG15, MG16 e MG17 | linhas redundantes do diário e de `yt_own_video_meta_daily` | o dono, no ritual de 7.1 | cópia em CSV fora do banco |
+  | 8 | `yt_reporting_blobs_purge` | **nada**, desde a MG13 (7.6); depois da MG6, só bruto em lote confirmado | — | sim |
+  | 9 | soltar o arrendamento no `finally` do despachante (4.8.4) | a linha de `competitor_agenda_lease` **do próprio disparo** (`holder` = o dele); estado de execução | este spec | não |
+  | 10 | `competitor_hour_refold` e `yt_own_public_hour_refold` (4.7.4) | as linhas do mapa e do registro de soma de **um mês**, regravadas do bruto na mesma transação; recusa se faltar leitura. É derivado, refeito do bruto | comando do dono (o agente prepara) | não: o bruto fica |
+  | 11 | remoção de canal **próprio**, `youtube_channel_remove` (já existe: `20261008000002_coleta_canais_proprios_l1b.sql:143-190`; a fase a recria para tratar as tabelas novas com `on delete restrict`, C0.11) | tudo do canal próprio | o dono, com o slug digitado | **não:** esta fase não tem export do canal próprio (é o fluxo de hoje) |
+  | 12 | limpeza das execuções do cron do canal próprio (já existe: `app/api/cron/sync-analytics-metrics/route.ts:607`) | linhas de `yt_own_collection_runs` com mais de 90 dias; estado de execução | spec de coleta (L1b) | não |
+  | 13 | fechar alerta resolvido (já existe: `lib/youtube/coleta/alerts.ts:89`) | a linha de `ops_alert_state` daquela chave; estado de execução | spec de coleta | não |
+  | 14 | gravação das duas tabelas de lote da E11 (7.3, bullet "Escrita atômica") | as linhas de um (canal, dia) vindas de relatório mais velho, substituídas pelas do mais novo na mesma transação (substituição pelo valor novo) | este spec | não: o bruto fica (E20) |
+
+  **v2.3, 2ª passada (N-3 de dados): a lista tinha oito linhas e não batia com o código.** O teste do item 231 falharia hoje em `coleta/alerts.ts:89`, e faltavam quatro rotinas que a própria fase cria ou recria (linhas 9, 10, 11 e 14) e uma que já roda (12). **São catorze.** As linhas 2, 8, 11, 12 e 13 já existem no código de hoje: o teste nasce verde sobre elas, antes de qualquer commit da fase, e cada etapa acrescenta a sua linha ao teste no mesmo commit em que cria a rotina. Continua valendo a frase de baixo: nenhuma das catorze apaga série, versão, texto de comentário ou bruto de relatório **por prazo**.
+
+  Fora da lista, e só na fase de manutenção: `obs_archive_delete` (lote por idade). **Nada nesta fase apaga série, versão, texto de comentário ou bruto de relatório por prazo.**
 - **O espaço:** depois de apagar, o banco **para de crescer** (o Postgres reaproveita o espaço); o número de `pg_database_size` só cai com `vacuum full`, que é comando do dono e só se for preciso.
 - **Expurgo no arquivo** (para a resposta "apagar" de 4.5): o script gera os comandos que reescrevem os arquivos do canal sem as linhas do vídeo e refazem o manifesto; o dono os roda no NAS.
 
@@ -68,6 +93,8 @@ create table if not exists public.obs_archive_batches (              -- migratio
   row_count bigint not null,
   control_sum numeric,                      -- nulo onde a tabela não tem coluna somável
   file_sha256 text not null,
+  blob_count integer,                       -- v2.3 (I-7): arquivos de miniatura do canal no lote; nulo = a tabela não tem miniatura
+  blob_bytes bigint,                        -- v2.3: soma dos bytes desses arquivos
   exported_at timestamptz not null,
   verified_at timestamptz,                  -- passo 2
   nas_confirmed_at timestamptz,             -- passo 3
@@ -79,11 +106,29 @@ alter table public.obs_archive_batches enable row level security;
 drop policy if exists "obs_archive_batches_select" on public.obs_archive_batches;
 create policy "obs_archive_batches_select" on public.obs_archive_batches
   for select using (public.can_edit_site(site_id));
+
+-- v2.3 (achado I-6): pausar a coleta de um canal antes de exportá-lo.
+alter table public.competitor_channels
+  add column if not exists collection_paused_at timestamptz,    -- nulo = coleta ligada
+  add column if not exists collection_paused_by uuid;           -- auth.users.id de quem pausou
+
+-- v2.3 (revisão de dados, seção 6): o sinal de tamanho não tinha DDL nem RLS; tabela em public sem RLS fica exposta pela API.
+create table if not exists public.obs_db_size_daily (
+  day date primary key,                     -- dia de São Paulo
+  db_bytes bigint not null,
+  competitor_bytes bigint not null,
+  own_bytes bigint not null,
+  measured_at timestamptz not null default now()
+);
+alter table public.obs_db_size_daily enable row level security;
+drop policy if exists "obs_db_size_daily_select" on public.obs_db_size_daily;
+create policy "obs_db_size_daily_select" on public.obs_db_size_daily
+  for select using (public.is_member_staff());   -- é do sistema, não de um site (como a agenda, 4.8.6); nenhuma policy de escrita
 ```
 
-A mesma migration troca `yt_reporting_blobs_purge` para só apagar bruto que esteja num lote com `nas_confirmed_at`.
+A mesma migration troca `yt_reporting_blobs_purge` para só apagar bruto que esteja num lote com `nas_confirmed_at`. **v2.3:** quando a MG6 chegar, a função já não apaga nada (MG13, E20). A MG6 troca o corpo "devolve 0" por "apaga só o que está em lote confirmado", **com a mesma assinatura** (`yt_reporting_blobs_purge(text[])`), porque o cron diário a chama com o mesmo argumento.
 
-**O sinal de "banco chegando ao limite".** Uma linha por dia em `obs_db_size_daily (day date primary key, db_bytes bigint, competitor_bytes bigint, own_bytes bigint)`, gravada pelo cron diário que já existe, por uma função `obs_db_size()` (security definer, `execute` só para `service_role`). A projeção é a reta dos últimos 28 dias. **Amarelo** a partir de 350 MB (70%); **vermelho** a partir de 425 MB (85%) **ou** quando a projeção chega a 500 MB em menos de 90 dias. Aparece no cabeçalho do Observatório para quem edita o site ("banco: 216 de 500 MB; no ritmo dos últimos 28 dias, chega ao limite em jan/2030") e no retorno do cron. Com menos de 14 dias de registro a projeção é "não medida", e sem a linha do dia o sinal é "sem leitura hoje": nunca verde por falta.
+**O sinal de "banco chegando ao limite".** Uma linha por dia em `obs_db_size_daily (day date primary key, db_bytes bigint, competitor_bytes bigint, own_bytes bigint)`, gravada pelo cron diário que já existe, por uma função `obs_db_size()` (security definer, `execute` só para `service_role`). **v2.3 (achado I9 da revisão de software):** "o cron diário que já existe" não dizia qual. É a tarefa `tamanho_do_banco` da agenda única (4.8.2: leve, a partir das 05:00 de São Paulo, 5 s), com chave e tolerância próprias no vigia. A projeção é a reta dos últimos 28 dias. **Amarelo** a partir de 350 MB (70%); **vermelho** a partir de 425 MB (85%) **ou** quando a projeção chega a 500 MB em menos de 90 dias. Aparece no cabeçalho do Observatório para quem edita o site ("banco: 216 de 500 MB; no ritmo dos últimos 28 dias, chega ao limite em jan/2030") e no retorno do cron. Com menos de 14 dias de registro a projeção é "não medida", e sem a linha do dia o sinal é "sem leitura hoje": nunca verde por falta.
 
 **O que é desta fase e o que é da fase de manutenção.**
 
@@ -113,7 +158,7 @@ Consequência: nesta fase o export é usado para **remover canais** com seguran�
 
 > **Emenda v2.1:** as duas tabelas abaixo são as da v2, **sem** os comentários (E14) e **sem** o ritmo por hora (E15). Com os dois a folga sem arquivo cai de 4 a 8 meses (15 canais: mês 30; 20: mês 24; 30: mês 17; 40: mês 13), e com corte de 12 meses os 15 canais de hoje deixam de caber em cinco anos. Tabelas refeitas em 9.5.
 
-Base: 179 MB hoje; menos 70 MB da dieta; mais cerca de 7 MB, uma vez, da retroação do canal próprio (7.3); o resto do site cresce cerca de 22 MB por ano (20 do site, mais a retenção e as tabelas do canal próprio no ritmo de views de hoje). Cada canal concorrente: 5,8 MB no primeiro ano (9.1).
+Base: 179 MB hoje; *(v2.3: a base medida em 12/10 é 170,7 MB e a retroação de 7 MB não existe mais; os números que valem estão em 9.6)* menos 70 MB da dieta; mais cerca de 7 MB, uma vez, da retroação do canal próprio (7.3); o resto do site cresce cerca de 22 MB por ano (20 do site, mais a retenção e as tabelas do canal próprio no ritmo de views de hoje). Cada canal concorrente: 5,8 MB no primeiro ano (9.1).
 
 **Achado que corrige a expectativa: o arquivo estabiliza a série, não o banco inteiro.** A série diária fica em patamar (3,0 MB por canal com 12 meses online). Duas coisas continuam crescendo: o que nunca sai (cerca de 1,4 MB por canal por ano) e a série semanal, que é lida para um catálogo cada vez maior (mais 0,8 MB por canal a cada ano). Depois do primeiro ano, cada canal cresce cerca de **2,2 MB por ano com arquivo**, contra 6,6 e subindo sem ele. O banco passa a crescer três vezes mais devagar; não para.
 
@@ -181,7 +226,7 @@ Só as linhas afetadas. **Onde 9.1, 9.3 e 9.4 divergirem daqui, vale esta seçã
 | **Soma da E15 (o que ela acrescenta)** | | **≈ 0,85** | |
 | **Total por canal no 1º ano** (era ≈ 5,8) | | **≈ 8,0** (7,1 só com a E14) | série: 4,5 (57%, já com a curva horária); comentários: 1,3; o resto: 2,2 |
 
-Para comparar, o que **não** foi proposto na E15: uma linha por vídeo e por hora para os 50 acompanhados custaria cerca de **46 MB por canal por ano**; só para os vídeos de até 14 dias, cerca de **3,5 MB** (4.7.3).
+Para comparar, o que **não** foi proposto na E15: uma linha por vídeo e por hora para os 50 acompanhados custaria cerca de **46 MB por canal por ano**; só para os vídeos de até 14 dias, cerca de **3,5 MB** (4.7.3). *(v2.3, 2ª passada, N-4 de dados: com a linha de 156 B, cerca de 68 MB e cerca de 5,2 MB; vale 9.6.)*
 
 Nenhuma das duas parcelas acelera: são sempre os vídeos novos do ano. Sem arquivo, o canal passa a crescer 8,0 MB no primeiro ano, 8,8 no segundo, 9,6 no terceiro (a subida é a da série semanal, 9.3). Com arquivo, comentários e curva horária ficam num patamar (juntos, 1,9 a 2,9 MB por canal, corte de 6 e de 12 meses, no pico) e só o mapa segue crescendo, 0,25 MB por canal por ano: **o que nunca sai do online passa de cerca de 1,4 para cerca de 1,7 MB por canal por ano**, e o crescimento com arquivo, de 2,2 para cerca de 2,5. A retroação de comentários (pergunta 12), se for "sim", soma cerca de 0,6 MB por canal, uma vez.
 
@@ -231,15 +276,77 @@ O que cada opção soma. Da E14, por canal e dia: respostas completas das conver
 
 **No padrão proposto a cota continua não sendo o limite em nenhum cenário** (61% de folga com 200 canais). Com todas as opções ligadas ela **passa do teto com 200 canais**; até 75 canais, sobra. O que pesa no dia a dia é o número de chamadas HTTP no relógio de cada cron, e por isso os dois passos têm teto próprio (4.6.4 e 4.7.5).
 
+### 9.6 Emenda v2.3: contas refeitas (revisão de dados, seção 5, e decisões 32 a 37 do dono)
+
+**Onde 9.1 a 9.5 divergirem daqui, vale esta seção.** Marcas: **MEDIDO** = consulta de 12/10 em produção, feita pelo revisor de dados; **ESTIMATIVA** = conta sobre suposição escrita. Os itens 122, 139 e 149 mandam medir e corrigir esta seção.
+
+**Um canal concorrente, no 1º ano** (base MEDIDA: 1.390 vídeos, 15 canais, 127 publicados em 30 dias, cerca de 103 por canal por ano; 156 B por linha de série).
+
+| Parcela | Era (9.1 e 9.5) | Vale | Por quê |
+|---|---|---|---|
+| Série diária (50 × 365) | 3,0 MB | **2,85** | 156 B medidos, contra 166 |
+| Série semanal | 0,8 | **0,35 no 1º ano; cresce 0,8 por ano** | a conta antiga lia toda semana também os 50 que já são diários |
+| Curva das primeiras 72 horas | 0,75 | **≈ 0,9** | linha de cerca de 130 B com a chave (ESTIMATIVA) |
+| Linhas de vídeo, versões, canal por dia | 0,7 | **0,68** | 1.986 B por vídeo, 1.010 B por versão, 523 B por dia de canal (MEDIDO) |
+| Playlists | 0,15 | **0** | decisão 32 |
+| Comentários; mapa de horas; `raw`; marcas e histórico de campo | 1,3; 0,25; 0,8; 0,2 | sem mudança | não há dado para medir (ESTIMATIVA do spec) |
+| Faixas no tempo (`competitor_video_tier_spans`) | — | menos de 0,01 | duas ou três linhas por vídeo na vida |
+| **Total sem a leitura crua de hora em hora** | **≈ 8,0** | **≈ 7,4** | o spec estava do lado seguro |
+| Leitura crua de hora em hora, guardada 60 dias (4.7.3) | 0,05 | **≈ 0,85, em regime; não cresce** | 3,8 vídeos × 24 × 60 dias × 156 B |
+| A mesma, se nunca for apagada (pergunta 36) | — | ~~≈ 3,5 por ano~~ **≈ 5,2 por ano** (v2.3, 2ª passada, N-4 de dados) | 3,8 vídeos × 24 × 365 = 33.288 linhas × 156 B. **O tamanho de linha que vale nesta seção é 156 B** (medido na série diária, com o índice); os 3,5 vinham da linha de 105 B estimada na v2.1, ao lado de uma linha de cima já feita com 156 B |
+| Registro de dias somados (4.7.4) | junto da leitura crua, sem crescer | **≈ 0,07 por ano, crescendo enquanto o bruto não for apagado** (v2.3, 2ª passada, N-1 de dados) | o registro vive pelo menos tanto quanto o bruto que cobre: cerca de 1.400 linhas por canal por ano |
+
+**O banco inteiro: o que muda nas bases de 9.3.**
+
+| Base | Era | Vale |
+|---|---|---|
+| Tamanho hoje | 179 MB | **170,7 MB** (MEDIDO em 12/10 às 14h; `yt_own_video_daily` 68,7 MB) |
+| Retroação do canal próprio | +7 MB, uma vez | **0** (decisão 32) |
+| Resto do site por ano | 22 MB | **22 MB, mais cerca de 9 MB de `yt_own_video_meta_daily`** enquanto ela não tiver dieta (7.5.10) *(v2.3, 2ª passada, m-8 de dados: os 9 MB são para 35 vídeos fixos; com os 100 vídeos novos por ano de 7.5.8, a média do primeiro ano é de 85 vídeos e a tabela sem dieta chega a cerca de 22 MB no ano, ESTIMATIVA. Não muda decisão: a MG17 vem em semanas)*, se ela não estava dentro dos "20 do site". **Não se sabe de onde saíram os 20:** só `cron_runs` cresce cerca de 15 MB por ano (7,23 MB em 178 dias, MEDIDO). Conferência a fazer no dia do deploy da E10, com o sinal de tamanho |
+| Versões do vídeo próprio (E18) | — | menos de 1 MB por ano (7.5.8) |
+| Bruto dos relatórios, sem apagar (E20) | — | centenas de kB por ano hoje; cerca de 3 MB por canal por ano num canal ativo (7.4) |
+| Registro de acesso de IA (E17) | não contado | cerca de 2 MB por ano com 20 consultas por dia; **com teto**: linha de cerca de 0,2 kB, 500 chamadas por dia por chave e 400 dias de guarda dão no máximo cerca de 80 MB, com as duas chaves no teto todos os dias (8.1.4). ESTIMATIVA |
+| Tabelas `yt_own_public_*` (ritmo por hora do canal do dono) | — | desprezível hoje (2 canais, poucas views) |
+
+**Quando o banco cruza 500 MB, sem arquivo, com 15 canais** (mês contado de outubro de 2026). Conta: 102,7 + 31 × (m ÷ 12) + 15 × o acumulado por canal (7,4; 8,2; 9,0 por ano). ESTIMATIVA.
+
+| Cenário | Mês |
+|---|---|
+| A conta do spec (9.5) | 30 |
+| Refeita, com `meta_daily` por fora dos 20 MB do site | **≈ 31** |
+| Refeita, se ela já estava dentro | ≈ 34 |
+| Com a leitura crua de hora em hora guardada 60 dias | ≈ 30 |
+| Com a leitura crua nunca apagada e nunca levada ao NAS | ~~≈ 24~~ **≈ 21** (v2.3, 2ª passada, N-4 de dados: mais 15 × 5,2 = 78 MB por ano, 6,5 por mês. Mês 21: 102,7 + 54,3 + 203,3 + 136,5 ≈ 497; mês 22: 102,7 + 56,8 + 213,5 + 143,0 ≈ 516) |
+
+**O que a conta diz, sem suavizar.** (1) A conclusão de 9.3 e de 9.5 se mantém, com mais ou menos três meses. (2) Guardar a leitura crua para sempre **no banco online** custa cerca de ~~sete~~ **dez** meses de folga (v2.3, 2ª passada, N-4 de dados: de ≈ 31 para ≈ 21); é por isso que a pergunta 36 fala em guardar **para o NAS**, não online. (3) **O objetivo do dono, "daqui a 5 anos ainda ter os dados de 5 anos", não cabe no plano gratuito sem a fase do NAS:** com 15 canais e sem arquivo, o banco passa de 900 MB no mês 60 (942 na tabela de 9.5). O objetivo depende inteiro de uma fase que ainda não tem spec; está escrito no critério de sucesso 3 e é o risco 42.
+
+**Cota da Data API por dia, com 15 canais.** Tudo ESTIMATIVA: `youtube_quota_usage` tem zero linhas hoje (MEDIDO), e só a E1 passa a registrá-la.
+
+| Parcela | Era | Vale |
+|---|---|---|
+| Sincronização de hoje (4 × 3 chamadas, mais a passada diária) | ≈ 200 | ≈ 200 |
+| Série semanal (E2) | ≈ 15 | ≈ 15 (uma chamada por canal por dia; juntando canais na mesma chamada cairia para cerca de 3: melhoria registrada, não exigida) |
+| Playlists | ≈ 22 | **0** |
+| Comentários e autor de destaque (E14) | 32 | 32 (pior caso da conferência por id: +96) |
+| Leitura horária (E15) | 48 | 48 (55 vídeos de até 14 dias, MEDIDO: 2 chamadas por hora; as novas tentativas dos minutos 20 e 40 só em falha, teto de +96) |
+| **Total** | **≈ 322** | **≈ 295 (3% de 10.000)** |
+
+**Relógio.** Agenda de concorrentes: pior disparo de 205 s em 270 (4.8.2), contra os 265 s da v2.2. Cron do canal próprio: 200 s de tetos em 270 hoje, **antes** do passo "dimensões" (E11) e da retenção (40 s, E8): sobram 30 s para as dimensões. O plano da E11 refaz a soma antes de ligar, e a cota da Analytics API continua não confirmada (conferência C0.2). O passo de versões (E18) leva menos de 1 s.
+
 ## Itens de aceite deste arquivo (blocos da seção 10 do spec, com a numeração original)
 
 **E10: ciclo de vida**
-74. **Ida e volta:** `exportar` e `conferir` sobre a semente; recarregar os arquivos numa tabela vazia reproduz as linhas idênticas (incluindo `jsonb`, nulos, texto com vírgula e quebra de linha); contagem e soma de controle batem com o manifesto.
-75. A remoção de um canal recusa sem lote do canal com `nas_confirmed_at`, e recusa se a contagem ou a soma de controle do banco diferem do manifesto; nos dois casos não apaga nada (teste). A exceção é a resposta "apagar" de 4.5.
+74. **Ida e volta:** `exportar` e `conferir` sobre a semente; recarregar os arquivos numa tabela vazia reproduz as linhas idênticas (incluindo `jsonb`, nulos, texto com vírgula e quebra de linha); contagem e soma de controle batem com o manifesto. **v2.3 (achado M-4):** a ida e volta inclui os vetores `real[]` do mapa de horas e instantes com fração de segundo, com a sessão em UTC e `extra_float_digits = 3`.
+75. A remoção de um canal recusa sem lote do canal com `nas_confirmed_at`, e recusa se a contagem ou a soma de controle do banco diferem do manifesto; nos dois casos não apaga nada (teste). A exceção é a resposta "apagar" de 4.5. **v2.3 (achado I-6):** e recusa exportar um canal que não esteja **pausado** (item 229); com o canal pausado, a contagem do banco não muda entre `exportar` e a remoção.
 76. Depois de remover um canal com lote confirmado: as linhas removidas batem com o `row_count` do lote; nenhuma linha de outro canal mudou; uma linha em `audit_log`; o registro do lote continua online.
-77. O export recusa arquivar a série de um vídeo com idade 30 fechada e sem marca nem motivo registrado.
-78. **Nenhum caminho desta fase apaga série por idade:** não existe comando, cron nem função que o faça (o `apagar <lote>` por idade é da fase de manutenção); teste que avança o relógio 24 meses e afirma que a contagem de `competitor_video_daily` não cai.
+77. O export recusa arquivar a série de um vídeo com idade 30 fechada e sem marca nem motivo registrado. **v2.3 (achado M-5):** vale para o lote **por idade** (fase de manutenção). **Não bloqueia a remoção de canal** desta fase: nela o canal inteiro sai, as marcas vão no mesmo export, e a recusa não se aplica (teste dos dois casos).
+78. **Nenhum caminho desta fase apaga série por idade:** não existe comando, cron nem função que o faça (o `apagar <lote>` por idade é da fase de manutenção); teste que avança o relógio 24 meses e afirma que a contagem de `competitor_video_daily` não cai. **v2.3:** "não existe comando, cron nem função" é provado pela lista fechada de 9.2 (item 231), e em produção pela consulta diária do item 67.
 79. Canal sem publicar há 12 meses aparece em "Sugestões"; nada é exportado nem apagado sem a confirmação do dono.
-80. **Sinal de limite:** no dia do deploy, anotados no ledger o tamanho do banco, o das tabelas de concorrentes e a projeção, comparados com a tabela de 9.3; `obs_db_size_daily` ganha a linha do dia; com menos de 14 dias a projeção diz "não medida"; **apagando** a linha do dia o sinal diz "sem leitura hoje" (nunca verde); os limiares de 350 e 425 MB e o de 90 dias têm teste de borda.
-81. `yt_reporting_blobs_purge` não apaga bruto que não esteja num lote com `nas_confirmed_at` (teste).
+80. **Sinal de limite:** no dia do deploy, anotados no ledger o tamanho do banco, o das tabelas de concorrentes e a projeção, comparados com a tabela de 9.3; `obs_db_size_daily` ganha a linha do dia; com menos de 14 dias a projeção diz "não medida"; **apagando** a linha do dia o sinal diz "sem leitura hoje" (nunca verde); os limiares de 350 e 425 MB e o de 90 dias têm teste de borda. **v2.3:** a linha do dia é gravada pela tarefa `tamanho_do_banco` da agenda, e o vigia acusa a falta dela pelo nome (item 211); a comparação do dia do deploy é contra 9.6, e inclui a conferência de onde vêm os "20 MB por ano do site".
+81. `yt_reporting_blobs_purge` não apaga bruto que não esteja num lote com `nas_confirmed_at` (teste). **v2.3:** antes da MG6 quem garante que nada é apagado é a MG13 (item 204).
 82. **Ensaio com o dono, de ponta a ponta,** num canal que ele queira remover (ou num canal de teste): os quatro passos, com a cópia ao NAS e o `sha256sum -c` rodado **lá**, os comandos preparados um por linha, e o resultado anotado no runbook.
+
+**E10: o que as revisões acrescentaram (v2.3)**
+229. **Pausa de coleta (achado I-6):** canal com `collection_paused_at` não é lido por nenhuma tarefa da agenda (teste que conta as chamadas com um canal pausado entre 15); `exportar` recusa canal não pausado; entre `exportar` e a remoção de um canal pausado, a contagem de linhas dele no banco é igual (teste com a sincronização rodando no meio); canal pausado há mais de 7 dias aparece no cabeçalho e no retorno do cron, pelo nome.
+230. **Miniaturas no manifesto (achado I-7):** o lote de um canal da semente traz, por miniatura, caminho, bytes e sha256; `blob_count` e `blob_bytes` batem com os arquivos; trocar um byte de uma miniatura faz `conferir` parar; reexportar um lote já conferido zera `verified_at` e `nas_confirmed_at`.
+231. **Lista fechada do que apaga:** um teste varre `lib/youtube/observatorio/`, `lib/youtube/coleta/`, `app/api/cron/sync-youtube/` e as funções SQL das migrations da fase, e falha se houver um `delete` (ou `.delete(`) fora das oito rotinas da tabela de 9.2. `obs_db_size_daily` tem RLS: `anon` e usuário sem vínculo de equipe não leem (teste). **v2.3, 2ª passada (N-3 de dados):** onde este item diz "oito rotinas", leia-se **as catorze** da tabela de 9.2. A varredura inclui também `app/api/cron/sync-analytics-metrics/` e `C/` (a pasta do Observatório no CMS), e as funções SQL que a fase cria **ou recria**. Procura `.delete()` do cliente do banco (sem argumento: `Map.delete(chave)` não conta) e `delete from` em SQL. Cada ocorrência é casada com uma linha da tabela por um par (arquivo ou função, tabela apagada) escrito no teste a partir de 9.2; **ocorrência sem linha falha**. **O teste passa no código de hoje, antes de qualquer commit da fase**, com as cinco ocorrências que já existem: `C/actions.ts:157` (linha 2), `yt_reporting_blobs_purge` (8), `youtube_channel_remove` (11), `sync-analytics-metrics/route.ts:607` (12) e `coleta/alerts.ts:89` (13). No fim da fase, toda linha da tabela tem pelo menos uma ocorrência casada (linha sem ocorrência também falha).

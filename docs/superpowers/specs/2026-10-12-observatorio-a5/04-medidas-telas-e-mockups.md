@@ -1,6 +1,8 @@
-# Observatório, fase A5 (spec v2.2), parte 04: medidas, telas e mockups
+# Observatório, fase A5 (spec v2.3), parte 04: medidas, telas e mockups
 
 > Parte do spec da A5 v2.2, dividido em 12/10/2026 só movendo texto (nenhuma frase mudou; a numeração de seções, etapas, migrations, perguntas e itens de aceite é a do original). Índice, cabeçalho "O que mudou" e tabela "onde está cada seção": [`../2026-10-12-observatorio-a5-concorrentes-design.md`](../2026-10-12-observatorio-a5-concorrentes-design.md).
+
+> **v2.3 (12/10/2026, resposta ao portão de fim de spec).** Emendas localizadas, marcadas "v2.3". O que entrou: **as regras de cor e de tela que o dono aprovou nos mockups** (6.1, ponto 9), o **placar dos mockups 1 a 9** (6.5), os itens de aceite que faltavam para eles (241 a 244), a retirada das playlists (E3) e o T0 liberado. A numeração antiga não mudou. Onde um trecho antigo divergir de uma emenda v2.3, vale a emenda. Respostas aos revisores: `.superpowers/sdd/a5/resposta-revisao-spec.md`.
 
 ## 5. Medidas derivadas (etapa E4): contas fixas sobre o que a Parte 1 grava
 
@@ -10,9 +12,9 @@ Regras comuns. (a) Toda medida devolve `{ estado: 'medido', valor, n, janela }` 
 |---|---|---|---|---|---|
 | **M1** | **Views na idade N** (N = 1, 7, 30 dias) | views do vídeo no instante `publicação + N dias`, por interpolação linear entre as duas leituras vizinhas (`viewsAtAge`, `series.ts`). N = 1 usa as leituras das primeiras horas; N = 7 e 30, a série diária. Do canal: mediana entre os vídeos do formato publicados na janela | vídeo: fixa na idade; canal: publicados nos últimos 90 dias | vídeo publicado antes de 03/10/2026 ("a contagem diária começou em 03/10"); descoberto com mais de 24 h ("descoberto tarde"); leituras vizinhas a mais de 36 h (8 h para N = 1); idade menor que N ("fecha em dd/mm"); canal com menos de 3 vídeos medidos | interpolar entre leituras espaçadas subestima a subida inicial; o horário de publicação e o fim de semana pesam mais em N = 1 e 7 |
 | **M2** | **Curva por idade** | para as idades 1, 2, 3, 5, 7, 14, 21 e 30 dias (e 60, 90 com a série diária ou semanal), a mediana de M1 entre os vídeos do canal medidos naquela idade; e a versão relativa: fração de V30 já alcançada em cada idade | publicados nos últimos 180 dias | ponto com menos de 3 vídeos (cada ponto escreve o seu `n`) | os pontos de idade alta só têm os vídeos mais velhos: a curva não é de um mesmo grupo |
-| **M3** | **Direção do canal** (cada canal contra ele mesmo) | três leituras, mostradas com o nome: **(a) do canal inteiro:** views totais ganhas nos últimos 28 dias ÷ nos 28 anteriores (`competitor_channel_snapshots.view_count`); **(b) dos vídeos novos, acumulada:** mediana das views atuais dos longos publicados nos últimos 90 dias ÷ a dos 90 anteriores (a da Parte D do mockup); **(c) dos vídeos novos, justa:** o mesmo com V30 (M1) no lugar das views atuais. ▲ se ≥ +10%, ▼ se ≤ −10%, ＝ no meio | 28 × 28 dias (a); 90 × 90 dias (b, c) | (a) menos de 56 dias de registro, ou dia sem registro na borda; (b) menos de 3 longos em algum dos períodos; (c) idem com V30: **só existe a partir de abril de 2027** (180 dias de série desde 03/10/2026) | (a) inclui Shorts e vídeos apagados; antes de 19/10/2026 a janela cruza a mudança de contagem; (b) "descer pode ser só idade: os vídeos mais antigos tiveram mais tempo"; subir apesar disso é sinal forte; (c) sem viés de idade |
+| **M3** | **Direção do canal** (cada canal contra ele mesmo) | três leituras, mostradas com o nome: **(a) do canal inteiro:** views totais ganhas nos últimos 28 dias ÷ nos 28 anteriores (`competitor_channel_snapshots.view_count`); **(b) dos vídeos novos, acumulada:** mediana das views atuais dos longos publicados nos últimos 90 dias ÷ a dos 90 anteriores (a da Parte D do mockup); **(c) dos vídeos novos, justa:** o mesmo com V30 (M1) no lugar das views atuais. ▲ se ≥ +10%, ▼ se ≤ −10%, ＝ no meio (**v2.3:** a cor de cada um é a regra aprovada pelo dono, 6.1, ponto 9) | 28 × 28 dias (a); 90 × 90 dias (b, c) | (a) menos de 56 dias de registro, ou dia sem registro na borda; (b) menos de 3 longos em algum dos períodos; (c) idem com V30: **só existe a partir de abril de 2027** (180 dias de série desde 03/10/2026) | (a) inclui Shorts e vídeos apagados; antes de 19/10/2026 a janela cruza a mudança de contagem; (b) "descer pode ser só idade: os vídeos mais antigos tiveram mais tempo"; subir apesar disso é sinal forte; (c) sem viés de idade |
 | **M4** | **Taxa de acerto** | fração dos longos publicados nos últimos 90 dias, com 7 dias ou mais, cujo múltiplo (motor atual, `multiplier.ts`) é ≥ 2 (`RULES.outlierMin`); ao lado, a de fracasso: múltiplo ≤ 0,5 | 90 dias | menos de 5 vídeos com múltiplo de base não fraca (`RULES.medianMinN`) | o múltiplo é contra a mediana do próprio canal: mede regularidade, não tamanho; não compara canais em valor absoluto. Sempre "3 de 12"; percentual só com 10 ou mais |
-| **M5** | **O que mudou antes e depois de subir** | (i) efeito de troca: o do motor atual (`effect.ts`: 7 dias depois contra até 7 antes, comparado com os outros vídeos do canal), só para título e miniatura; (ii) **subida**: primeiro dia em que a taxa dos 7 dias seguintes é ≥ 2× a dos 7 anteriores **e** o ganho nesses 7 dias é ≥ 1.000 views [DONO]; para cada subida, a lista de todas as mudanças registradas nos 14 dias anteriores (título, miniatura, descrição, tags, categoria, duração, capítulos, entrada em playlist) | 14 dias antes da subida; 7 depois da troca | sem série diária nos 14 dias (vídeo em faixa semanal: "série semanal") ou antes de 03/10 | lista coincidências, **não afirma causa**; não vê o que acontece fora do YouTube nem o que o YouTube recomenda; mudanças simultâneas não se separam |
+| **M5** | **O que mudou antes e depois de subir** | (i) efeito de troca: o do motor atual (`effect.ts`: 7 dias depois contra até 7 antes, comparado com os outros vídeos do canal), só para título e miniatura; (ii) **subida**: primeiro dia em que a taxa dos 7 dias seguintes é ≥ 2× a dos 7 anteriores **e** o ganho nesses 7 dias é ≥ 1.000 views [DONO]; para cada subida, a lista de todas as mudanças registradas nos 14 dias anteriores (título, miniatura, descrição, tags, categoria, duração, capítulos, entrada em playlist) (**v2.3:** "entrada em playlist" não existe nesta fase; E3 retirada pela decisão 32) | 14 dias antes da subida; 7 depois da troca | sem série diária nos 14 dias (vídeo em faixa semanal: "série semanal") ou antes de 03/10 | lista coincidências, **não afirma causa**; não vê o que acontece fora do YouTube nem o que o YouTube recomenda; mudanças simultâneas não se separam |
 | **M6** | **Ritmo e regularidade** | por formato: publicações por semana em 13 semanas (existe, `cadence`); **intervalo mediano** entre publicações; **semanas com publicação** ("11 de 13"); **maior buraco** em 26 semanas, em dias | 13 e 26 semanas | menos de 4 publicações na janela (3 intervalos); canal ainda buscando vídeos ("ritmo parcial", já existe) | vídeo apagado some da conta nos dados anteriores à E1; estreia conta pela data de publicação |
 | **M7** | **Engajamento por view** | por vídeo: (curtidas + comentários) ÷ views **na idade de 30 dias** (leitura do dia 30); sem ela, sobre o total de hoje para vídeos de até 90 dias (existe, `engagementOf`), rotulado "total de hoje". Do canal: mediana. Curtidas e comentários também separados | idade 30 dias; ou 90 dias | curtidas ocultas **e** comentários desligados; com só um ausente, mostra o outro, rotulado ("só curtidas: comentários desligados"); vídeo com menos de 100 views | a taxa cai com a idade (views tardias engajam menos); por isso a idade fixa |
 | **M8** | **Estado do canal** | **ativo**; **parado**: dias desde a última publicação > maior entre 28 e 4× o intervalo mediano (M6); **em queda sustentada**: M3(a) ≤ −10% em três janelas de 28 dias seguidas; **fora do ar**: `channels.list` sem o canal em duas leituras seguidas (`missing_since`) | 112 dias para a queda | queda: menos de 112 dias de registro sem cruzar 24/08/2026 (**primeira leitura limpa em 14/12/2026**); parado: M6 não medido usa só o piso de 28 dias | canal sazonal parece parado; inscritos não entram (arredondados a 3 algarismos) |
@@ -31,6 +33,9 @@ create table if not exists public.competitor_video_marks (        -- migration M
   views bigint not null,              -- interpolado, como M1
   likes bigint,                       -- nulo = oculto ou não medido
   comments bigint,                    -- nulo = desligado ou não medido
+  likes_hidden boolean,               -- v2.3 (M-1 da revisão de dados): o estado NA MARCA. true = oculto pelo canal; false ou nulo com likes nulo = não medido
+  comments_disabled boolean,          -- v2.3: idem para comentários. Sem as duas, o nulo juntava "oculto" e "não medido"
+  rule_version smallint not null default 1,   -- v2.3: versão da regra de M1 (interpolação e limites de distância) com que a marca foi gravada
   gap_hours numeric not null,         -- distância entre as duas leituras usadas (a tela mostra)
   computed_at timestamptz not null default now(),
   primary key (video_id, age_days)
@@ -58,17 +63,23 @@ Regra do dono: **mockup antes de código, sempre com a skill `frontend-design`, 
 3. **Vídeo fora da série diária:** "série semanal" é um estado com forma própria (ponto por semana, sem veredito de efeito), não um gráfico diário com buracos.
 4. **Contagem oculta ou arredondada:** inscritos a 3 algarismos ("≈ 0, dentro do arredondamento"); inscritos ocultos; curtidas ocultas; comentários desligados.
 5. **"Não medido" com motivo**, da lista fechada: contagem começou em 03/10; histórico de campo desde dd/mm; descoberto tarde; fecha em dd/mm; menos de N vídeos; série semanal; oculto pelo canal; não veio mais do YouTube; o YouTube não mostra isso de canal de terceiro; arquivado (no arquivo desde dd/mm); não coletada (a retenção do vídeo próprio antes da E8, ou vídeo com poucas views para o YouTube devolver curva).
-6. **Comparável com o canal próprio ou não.** Do concorrente só existe o público. Views na idade N, ritmo, engajamento e direção são comparáveis **desde que do mesmo relógio**: o canal próprio entra pela série pública dele em `competitor_*` quando existir, nunca pelo diário privado (dia do YouTube, outra fonte). Retenção, impressões, taxa de clique, tráfego: só no cartão "Só o seu canal mede".
+6. **Comparável com o canal próprio ou não.** Do concorrente só existe o público. Views na idade N, ritmo, engajamento e direção são comparáveis **desde que do mesmo relógio**: o canal próprio entra pela série pública dele ~~em `competitor_*`~~ quando existir, nunca pelo diário privado (dia do YouTube, outra fonte). **v2.3 (achados C-5 e I2):** a série pública do canal do dono fica nas tabelas `yt_own_public_*` (4.7.4), não em `competitor_*`; nesta fase ela só existe de hora em hora, para vídeos de até 14 dias (ritmo por hora e curva de 72 horas). Os contadores públicos **por dia** do canal próprio continuam fora (12.1, R4). Retenção, impressões, taxa de clique, tráfego: só no cartão "Só o seu canal mede".
 7. **Mudança de contagem de 24/08/2026:** linha de corte em toda série longa.
 8. **1440 e 390 px, tema escuro e claro**, com a página no tamanho cheio e no magro.
+9. **v2.3: regras de cor e de tela aprovadas pelo dono nos mockups (decisões 32, 33 e 35). Valem para toda tela desta fase e têm item de aceite (241 a 244).**
+   - **Direção:** **verde** para "subindo" (▲); **âmbar** (ocre no tema claro) para "descendo" (▼) e para "parado"; **nunca vermelho**. Essa dupla de cores é usada **só para direção** (aprovação do mockup 9). Cada estado tem também o símbolo, e é legível em escala de cinza. **NC:** se o "parado" do dono é o "＝" (sem mudança, entre −10% e +10%) ou o estado "parado" de M8; nos dois casos a cor é âmbar, e o plano confere a forma nos mockups 1 e 9 aprovados.
+   - **"Não medido":** rosa com hachura, uma forma só em toda tela (já era regra).
+   - **Seletor de canal:** agrupado por nicho (mockup 7). A marca "exemplo" é dos canais fictícios do mockup e **não existe em produção**.
+   - **Troca de descrição na lista e no painel:** dentro da tela real, à parte da conta "Trocas"; a linha com o acréscimo mede de 132 a 155 px, **aceito pelo dono** (a meta de cerca de 110 px não foi atingida e ele não pediu corte; mockup 8, segunda versão).
+   - **Três regras aprovadas que são da A4, não desta fase** (Tarefas 13 e 14 do plano dela; registradas aqui para não se perderem, e repassadas no relatório da v2.3): a **taxa de clique por vídeo, com intervalo, fica** (cai o veto de 09/10; mockup 4); o **% assistido** usa a régua "na média = até 2 pontos" (mockup 5), que tem de virar constante com teste de borda; e o **conserto `bordaFinal`** (a última data do eixo cortada a 390 px) é ligado também na tela do canal já aprovada ("liga o conserto"). Mais duas, do mesmo lote: **cliques estimados em marca clara**, que não pode ser lida como escala, e os botões **"dia anterior / dia seguinte"**.
 
 ### 6.2 Telas existentes: o que muda
 
 | Tela | Já desenhado | Passa a poder mostrar | O mockup precisa considerar |
 |---|---|---|---|
 | **Comparar canais** (`C/_comparar/`) | Parte D: base de 90 dias × todos; direção; primeiros 7 e 30 dias; "Longos acompanhados" fora do ranking; Leitura rápida por direção | M3 nas três leituras; M1 com N = 1; M4; M7 na idade 30; M8 no cartão de cada lado | qual das três direções é a principal (proposta: (a) hoje, (c) quando existir) e como as outras aparecem sem virar três vereditos; canal de nichos diferentes; lado sem canal próprio |
-| **Seletor de canal da comparação** | C1: combobox com busca | busca também por handle e país; "sem vídeos", "inscritos ocultos", "fora do ar" como pastilha | 75 ou mais canais; canal fora do ar não some da lista |
-| **Lista de Canais e painel** | C2: descrição à parte da conta principal, com hábito | coluna Direção (M3a) e estado (M8); filtro "parados" e "em queda" | a conta "Trocas" segue título + miniatura; mudanças de campo novas ficam fora dela; a decisão D16 (cortar o painel) conflita com C2: o dono escolhe |
+| **Seletor de canal da comparação** | C1: combobox com busca | busca também por handle e país; "sem vídeos", "inscritos ocultos", "fora do ar" como pastilha (**v2.3:** agrupado por nicho, como no mockup 7 aprovado) | 75 ou mais canais; canal fora do ar não some da lista |
+| **Lista de Canais e painel** | C2: descrição à parte da conta principal, com hábito | coluna Direção (M3a) e estado (M8); filtro "parados" e "em queda" | a conta "Trocas" segue título + miniatura; mudanças de campo novas ficam fora dela; a decisão D16 (cortar o painel) conflita com C2: o dono escolhe. **v2.3:** o dono aprovou em 12/10 o mockup 8 (segunda versão), **com** o painel; a leitura deste spec é que a última aprovação vale e o painel fica, e a confirmação é a pergunta 40 |
 | **Página do canal** | não | aba ou bloco "Lançamentos" (6.3); cabeçalho com direção e estado; M6 completo; M4 | o cabeçalho já tem seis células: o que sai para entrar direção |
 | **Histórico do vídeo** | não | curva do vídeo contra M2 do canal; primeiras 72 horas; marcas de mudança de campo no eixo; subida marcada com a lista de M5; "série semanal"; "sumiu em dd/mm" | o gráfico já tem raias de título e miniatura: quantas raias cabem antes de virar ruído |
 | **Trocas / Mudanças** | não | filtro "outras mudanças" (tags, categoria, duração, formato), separado | não inflar a contagem da aba |
@@ -83,7 +94,7 @@ Regra do dono: **mockup antes de código, sempre com a skill `frontend-design`, 
 ### 6.3 Telas novas que se justificam (três: duas dentro da página do canal e a fila do que saiu do YouTube)
 
 1. **Lançamentos:** as curvas dos primeiros 30 dias dos vídeos recentes do canal, alinhadas pela idade, sobre a mediana do canal (M2). Responde P2 e P7 de relance ("este saiu acima do normal já no dia 2"). Sem ela, M1 e M2 só existem como número em tabela.
-2. **Linha do tempo do canal:** um eixo de tempo com as views ganhas por dia do canal (M3a) e, sobre ele, publicações, mudanças de campo, trocas e playlists. Responde P3 ("o que ele mudou antes de subir") no nível do canal. Depende da E1 (e da E3 para playlists).
+2. **Linha do tempo do canal:** um eixo de tempo com as views ganhas por dia do canal (M3a) e, sobre ele, publicações, mudanças de campo, trocas e playlists. Responde P3 ("o que ele mudou antes de subir") no nível do canal. Depende da E1 (e da E3 para playlists). **v2.3:** sem playlists nesta fase (E3 retirada); a raia de playlists não é desenhada.
 3. **Fila "Saíram do YouTube"** (4.5): uma aba do Observatório com contador. Lista os itens sem resposta, com o que se sabe de cada um e os dois botões; abaixo, os já respondidos ("mantidos", "apagados": só id e datas). O mockup considera: fila vazia (o estado normal); um canal inteiro fora do ar como um item só; a confirmação escrita de "apagar" com a contagem do que some; o estado "apagando" (miniaturas ou arquivo pendentes); "voltou ao ar"; e a frase fixa "o YouTube não diz o motivo".
 
 Fase de manutenção, só registrada para o desenho não fechar a porta: **"Ver antigo"** (9.2), um botão nas telas de série que pede ao arquivo o período que já saiu do banco online.
@@ -92,7 +103,7 @@ Nenhuma tela para playlists sozinha.
 
 ### 6.4 Defeito em produção: o contêiner da comparação para no meio do monitor (T0)
 
-**Sintoma relatado pelo dono:** na tela Comparar, o conteúdo é cortado em cerca de 925 px numa janela de cerca de 1.060 px; o documento mede 1.205 px de altura (1.931 de largura) e abaixo do corte o fundo é preto. **Hipótese não verificada:** o documento rola além do `main` da casca do CMS. Já descartado: o foco do `h1` usa `preventScroll`. **Exigência:** reproduzir em navegador (1440 × 1060 e 390 px, tema escuro e claro, página cheia e magra), medir `document.scrollingElement`, o `main` da casca e o contêiner da tela, e só então consertar; o conserto leva um teste e2e que falha no estado atual. Não depende de mockup nem de dado. Por decisão do dono de 12/10 os ajustes da A3 estão "só em planejamento": este item entra no plano e executa quando ele liberar (pergunta 4).
+**Sintoma relatado pelo dono:** na tela Comparar, o conteúdo é cortado em cerca de 925 px numa janela de cerca de 1.060 px; o documento mede 1.205 px de altura (1.931 de largura) e abaixo do corte o fundo é preto. **Hipótese não verificada:** o documento rola além do `main` da casca do CMS. Já descartado: o foco do `h1` usa `preventScroll`. **Exigência:** reproduzir em navegador (1440 × 1060 e 390 px, tema escuro e claro, página cheia e magra), medir `document.scrollingElement`, o `main` da casca e o contêiner da tela, e só então consertar; o conserto leva um teste e2e que falha no estado atual. Não depende de mockup nem de dado. Por decisão do dono de 12/10 os ajustes da A3 estão "só em planejamento": este item entra no plano e executa quando ele liberar (pergunta 4). **v2.3: liberado pelo dono em 12/10 (decisão 32: "conserto do contêiner cortado da comparação (T0): liberado já").** A pergunta 4 está fechada.
 
 ### 6.5 Etapa E13: fazer e validar os mockups (entre a coleta e o código de tela)
 
@@ -102,7 +113,7 @@ Pedido do dono (12/10): "preciso que você adicione uma etapa do spec para fazer
 
 **(b) A lista, na ordem de aprovação.**
 
-*Já existem e aguardam aprovação* (`mockups/2026-10-12-a4-proprio-e-ajustes/`, itens 1 a 9 da `REVISAO.md`):
+*Já existem* ~~e aguardam aprovação~~ *(v2.3: oito aprovados em 12/10 e um em ajuste; placar logo abaixo da tabela)* (`mockups/2026-10-12-a4-proprio-e-ajustes/`, itens 1 a 9 da `REVISAO.md`):
 
 | # | Mockup | Abrir |
 |---|---|---|
@@ -116,13 +127,30 @@ Pedido do dono (12/10): "preciso que você adicione uma etapa do spec para fazer
 | 8 | Troca de descrição na lista e no painel | `c2-trocas.html` |
 | 9 | Comparar canais por base e direção | `comparar-direcao.html` |
 
+**v2.3: placar dos nove, em 12/10 (decisões 33 e 35 do dono; rito: o controlador abre a tela, o dono responde).**
+
+| # | Estado | Quem implementa | O que a aprovação fixou |
+|---|---|---|---|
+| 1 | **aprovado** | A4, Tarefa 13 | caso magro e "sem dado" |
+| 2 | **aprovado** | A4, Tarefa 13 | gráfico de impressões por dia; `bordaFinal` ligado depois ("liga o conserto") |
+| 3 | **em ajuste, 3ª rodada** (achados N1 a N4 da `REVISAO-UX-7.md`) **(v2.3, 2ª passada, N12: a 3ª rodada terminou; pela `REVISAO-UX-8.md` está "pronto para o dono", com acordo entre desenhista e revisor; aberto para ele, sem resposta ainda)** | a tela do vídeo é da A4; o bloco "Trocas deste vídeo" e as marcas de troca são da **E18** (7.5) | o dono pediu redesenhar a marca de cliques (foi lida como escala) e marcar troca de título e de thumbnail com antes × depois. **Elementos novos que a E18 traz e que ainda não estão desenhados:** a faixa "em teste A/B" no gráfico e a faixa "antes do início do registro" (7.5.3 e 7.5.4). Pedem desenho, revisão de UX e aprovação antes de código |
+| 4 | **aprovado** | A4, Tarefas 13 e 14 | taxa de clique por vídeo com intervalo; cai o veto de 09/10 |
+| 5 | **aprovado** | A4, Tarefa 13 | régua "na média = até 2 pontos" |
+| 6 | **aprovado** (com dado de exemplo) | E8, item 64 | a curva de retenção. Se o mockup 11, "com dado real", ainda é portão antes do código: pergunta 39 |
+| 7 | **aprovado** | E5 | seletor com busca, agrupado por nicho; abre fechado |
+| 8 | **aprovado** (segunda versão, dentro do Observatório) | E5 | troca de descrição na lista e no painel, com as linhas de 132 a 155 px. Caminho: YouTube → aba Competidores (`/cms/youtube/competitors`) |
+| 9 | **aprovado** | E5 | comparar dois canais por direção; verde subindo, âmbar descendo, só para direção |
+
+**Para a A4 não ficar presa ao mockup 3:** a tela do vídeo próprio pode ir a produção antes da E18 com o bloco de trocas no estado **"trocas: ainda não registradas"** (não medido, com a data em que passam a existir), que é o estado real até a E18 entregar. É repasse ao plano da A4 (relatório da v2.3).
+
 *Faltam* (a ordem segue o que destrava código primeiro e onde o dado novo aparece antes):
 
 | # | Mockup | Depende de dado de |
 |---|---|---|
 | 10 | **Fila "Saíram do YouTube"**, com a confirmação escrita do dono (6.3, item 3) | nada (a E1 enche a fila no segundo dia) |
 | 11 | **Retenção do vídeo próprio com dado real** (refaz o item 6) | primeira leva da E8 |
-| 12 | **Canal e vídeo próprios: origem de tráfego, termos de pesquisa, aparelho, país, inscritos** | retroação da E11 |
+| 11 (nota v2.3) | o mockup 6 foi aprovado em 12/10 com dado de exemplo. Padrão proposto na pergunta 39: o 6 é o portão do código, e o "dado real" passa a ser conferido na tela implementada (itens 64 e 106), sem nova rodada de aprovação | — |
+| 12 | **Canal e vídeo próprios: origem de tráfego, termos de pesquisa, aparelho, país, inscritos** | ~~retroação da E11~~ **(v2.3, 2ª passada, N12: a retroação caiu, decisão 32; depende da coleta da E11 a partir do ponto de partida de 7.3)** |
 | 13 | **Histórico do vídeo de concorrente:** curva por idade (M2), **primeiras 72 horas**, marcas de mudança de campo, subida (M5), "série semanal", "saiu do YouTube" | E1 e E2 (uma semana de dado) |
 | 14 | **A leitura M10** ("Estourou e parou"; nome alternativo a pesar no mockup: "Muitas views, pouco sinal de que agradou"), com o texto obrigatório | só exemplo até 2027: o mockup diz isso |
 | 15 | **Página do canal de concorrente:** cabeçalho com direção e estado, Lançamentos, Linha do tempo | E1, E2 e E4 |
@@ -154,7 +182,7 @@ Pedido do dono (12/10): "preciso que você adicione uma etapa do spec para fazer
 - **O mesmo revisor confere a tela implementada contra o mockup aprovado antes de a tela ir a produção** (em navegador, nos mesmos tamanhos e temas); divergência não declarada é achado "corrige".
 - Custo: o revisor roda em Sonnet (é a definição dele) e é o único que abre navegador, como manda a regra de economia do projeto; as capturas ficam em arquivo.
 
-**(e) O que não espera mockup** e pode ser planejado e executado antes: toda a coleta (E12, E1, E2, E3, E8 e E11, sem as telas), as medidas como modelo puro (E4), a dieta (E6), o export e o sinal no retorno do cron (E10), a parte de servidor da fila (E9), o Cowork (E7) e o conserto T0.
+**(e) O que não espera mockup** e pode ser planejado e executado antes: toda a coleta (E12, E1, E2, E3, E8 e E11, sem as telas) (**v2.3:** sem a E3, retirada; e com a E14, a E15, a E16, a E18 menos a tela, a E19 e a E20), as medidas como modelo puro (E4), a dieta (E6), o export e o sinal no retorno do cron (E10), a parte de servidor da fila (E9), o Cowork (E7) e o conserto T0.
 
 ## Itens de aceite deste arquivo (blocos da seção 10 do spec, com a numeração original)
 
@@ -167,13 +195,13 @@ Pedido do dono (12/10): "preciso que você adicione uma etapa do spec para fazer
 32. Longos e Shorts nunca na mesma mediana (teste com canal misto).
 
 **E5: telas**
-33. T0: o defeito do contêiner reproduzido em navegador com medidas anotadas; teste e2e vermelho antes e verde depois; a 1440 e 390 px, nos dois temas, a página rola até o fim e não há faixa preta.
+33. T0: o defeito do contêiner reproduzido em navegador com medidas anotadas; teste e2e vermelho antes e verde depois; a 1440 e 390 px, nos dois temas, a página rola até o fim e não há faixa preta. **v2.3:** liberado pelo dono (decisão 32); não espera mais resposta.
 34. Cada tela só começa a ser codificada com o mockup correspondente aprovado (etapa E13, 6.5; itens 98 a 106).
 35. Em cada tela, cada número novo tem base, janela e ⓘ com a conta e a frase "cálculo do Observatório sobre dados públicos do YouTube".
 36. Cada tela foi vista em navegador nos estados: vazio (banco de antes da E1), parcial (uma semana de dado) e cheio (semente de um ano), a 1440 e 390 px, tema escuro e claro, sem rolagem horizontal e sem erro de console.
 37. "Não medido" usa a cor e a forma únicas, e o motivo vem da lista fechada de 6.1.5; nenhum zero aparece onde a contagem é oculta ou ausente.
-38. Seletor: digitar, setas, Enter, Esc e o canal indisponível funcionam por teclado; busca sem acento; itens de 44 px a 390 px.
-39. A conta "Trocas" é igual na lista, no painel e na comparação; a descrição aparece à parte nos dois lugares.
+38. Seletor: digitar, setas, Enter, Esc e o canal indisponível funcionam por teclado; busca sem acento; itens de 44 px a 390 px. **v2.3 (achado I13):** o agrupamento por nicho e a marca "exemplo" não eram testados; o teste é o do item 243.
+39. A conta "Trocas" é igual na lista, no painel e na comparação; a descrição aparece à parte nos dois lugares. **v2.3:** a altura de linha aprovada e a forma do acréscimo são o item 244.
 40. `?base=` ausente dá a base de 90 dias (teste que apaga o parâmetro).
 41. Usuário só de leitura não vê nada de `competitor_raw` no HTML nem no RSC.
 
@@ -191,7 +219,13 @@ Pedido do dono (12/10): "preciso que você adicione uma etapa do spec para fazer
 100. O ledger da fase tem uma linha por mockup com data e veredito do dono (aprovado, ajuste pedido, reprovado); nenhum mockup foi apresentado antes da resposta ao anterior.
 103. **Nenhum mockup foi ao dono com achado "bloqueia" ou "corrige" aberto:** para cada mockup, a `REVISAO-UX.md` traz o veredito "pronto para o dono" em todas as telas, com data anterior à da apresentação.
 104. A `REVISAO-UX.md` de cada rodada fica ao lado do mockup e traz, por tela, as medidas (contraste de texto e de elemento gráfico nos dois temas, com o número; alvos de toque; 390 px sem rolagem horizontal) e a lista do que o revisor **não** conseguiu verificar.
-105. Os nove mockups de `2026-10-12-a4-proprio-e-ajustes/` passaram pelo revisor antes de serem levados ao dono.
+105. Os nove mockups de `2026-10-12-a4-proprio-e-ajustes/` passaram pelo revisor antes de serem levados ao dono. **v2.3:** cumprido para 1, 2, 4, 5, 6, 7, 8 e 9 (aprovados em 12/10); o 3 está na 3ª rodada.
 106. Cada tela implementada foi conferida pelo `revisor-ux-senior` contra o mockup aprovado, em navegador, antes de ir a produção, e a conferência está registrada (divergência não declarada foi corrigida ou aceita pelo dono por escrito).
 101. **Nenhuma tela virou código sem mockup aprovado:** cada tarefa de tela do plano cita a linha do ledger com a aprovação, e a revisão final da fase confere a lista de telas entregues contra o ledger (o T0 é a única exceção, por ser conserto).
 102. O mockup do "Ver antigo" é um esboço marcado como tal, e nenhuma tarefa de código desta fase depende dele.
+
+**E5 e E13: o que o dono aprovou nos mockups e não tinha item (v2.3, achado I13 da revisão de software)**
+241. **Cor de direção:** o componente de direção usa o token verde para "subindo" e o token âmbar (ocre no tema claro) para "descendo" e para "parado", nos dois temas; nenhum uso do token de erro em direção; o símbolo acompanha a cor (teste do componente com os três estados e com "não medido"); o `revisor-ux-senior` mede o contraste dos três nos dois temas e confere que se distinguem em escala de cinza. `grep` pelos tokens de direção fora dos componentes de direção = 0 (a dupla de cores é só para direção).
+242. **Comparar por direção (mockup 9):** a tela Comparar mostra, para cada lado, a direção com a base escrita e a régua; par com um lado "não medido" mostra o motivo, não uma seta; conferida em navegador contra o mockup aprovado, com os pares do mockup (item 106).
+243. **Seletor agrupado por nicho (mockup 7):** os canais aparecem em grupos com o nome do nicho; as setas atravessam os grupos; a busca filtra dentro de todos e esconde grupo vazio; canal sem nicho tem grupo próprio; o seletor abre fechado, e ao abrir o foco vai para o campo. A palavra "exemplo" não existe no componente de produção (`grep` = 0).
+244. **Troca de descrição na lista e no painel (mockup 8):** a troca de descrição aparece à parte da conta "Trocas", na Lista de Canais e no painel do canal, em `/cms/youtube/competitors`; a linha com o acréscimo mede entre 132 e 155 px a 1440 px (medido pelo `revisor-ux-senior`) e não há rolagem horizontal a 390 px.
