@@ -11,7 +11,7 @@
 [data-obs-screen="canal"][data-own="1"] .pausa{display:inline-block;width:8px;height:10px;border-left:3px solid currentColor;border-right:3px solid currentColor;box-sizing:border-box;flex:none}
 
 /* a faixa de números: segunda linha da célula, "parado", valor em cinza (pouca base) e o quadradinho de "não medido" */
-[data-obs-screen="canal"][data-own="1"] .nstrip dd.nsub{font:400 12px/16px var(--font-sans),system-ui,sans-serif;color:var(--muted);white-space:normal;max-width:24ch}
+[data-obs-screen="canal"][data-own="1"] .nstrip dd.nsub{font:400 12px/16px var(--font-sans),system-ui,sans-serif;color:var(--muted);white-space:normal;max-width:32ch}
 [data-obs-screen="canal"][data-own="1"] .nstrip .nc.parado dd b{color:var(--dir-dn);font-weight:600}
 [data-obs-screen="canal"][data-own="1"] .nstrip .nc.parado dd{display:flex;align-items:center;gap:8px}
 [data-obs-screen="canal"][data-own="1"] .parado-tag{display:inline-flex;align-items:center;gap:5px;font:600 12px/16px var(--font-sans),system-ui,sans-serif;color:var(--dir-dn);border:1px solid var(--dir-dn);border-radius:4px;padding:0 6px}
@@ -46,6 +46,7 @@
 @media (pointer:coarse){
   [data-obs-screen="canal"][data-own="1"] .chead .pos a{display:inline-flex;align-items:center;min-height:44px}
   [data-obs-screen="canal"][data-own="1"] .chead .langtag{min-height:44px}
+  [data-obs-screen="canal"][data-own="1"] .chead .handle{display:inline-flex;align-items:center;min-height:44px}
 }
 
 /* ---------------------------------------------------------------- "Como o canal está" (spec 16.5; mockup canal.css, rodada 7): acima das abas, recolhida por padrão */
