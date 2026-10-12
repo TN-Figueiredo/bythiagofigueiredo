@@ -583,10 +583,10 @@ export async function syncCompetitorChannel(
 
     // Daily snapshot (non-blocking). (A5, D2) Sem a parte statistics não há retrato do dia: gravar nulo/0 criaria um "dia medido em zero"
     // (e o upsert apagaria um retrato bom do mesmo dia). O mesmo vale para `statistics` presente SEM nenhuma contagem (`{}`): um retrato
-    // todo nulo também lê como dia medido e cobriria um bom. O retrato só é gravado quando ao menos uma contagem veio; sem linha é "não medido".
+    // todo nulo também lê como dia medido e cobriria um bom. O retrato só é gravado quando ao menos uma contagem veio (inscritos escondidos sozinhos não contam); sem linha é "não medido".
     const snapshotViews = optCount(stats?.viewCount)
-    // `hiddenSubscriberCount: true` é a resposta afirmativa sobre os inscritos (o canal os esconde), não ausência; `false` sozinho não mede nada.
-    const snapshotMeasured = subscriberCount !== null || youtubeVideoCount !== null || snapshotViews !== null || stats?.hiddenSubscriberCount === true
+    // Só contagem mede: `hiddenSubscriberCount` sozinho (true ou false), sem número nenhum, grava uma linha toda nula que o upsert poria por cima de um retrato bom do dia.
+    const snapshotMeasured = subscriberCount !== null || youtubeVideoCount !== null || snapshotViews !== null
     try {
       if (!chObserved.partsMissing.includes('statistics') && snapshotMeasured) await supabase
         .from('competitor_channel_snapshots')

@@ -170,8 +170,8 @@ describe('A5 E1: captura (campos e raw)', () => {
   })
   it('o snapshot do canal leva subscribers_hidden', async () => {
     const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
-    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { hiddenSubscriberCount: true } }] }), ...quiet })
-    expect(arg(db.calls.find(c => c.table === 'competitor_channel_snapshots')!, 'upsert')).toMatchObject({ subscribers_hidden: true, subscriber_count: null })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { hiddenSubscriberCount: true, viewCount: '99' } }] }), ...quiet })
+    expect(arg(db.calls.find(c => c.table === 'competitor_channel_snapshots')!, 'upsert')).toMatchObject({ subscribers_hidden: true, subscriber_count: null, view_count: 99 })
   })
   it('erro na trava do canal lança (antes virava "pulado" em silêncio: é o que aconteceria sem a MG1)', async () => {
     setup({ selectFail: 'competitor_channels' })
@@ -446,10 +446,13 @@ describe('A5 E1 (D2 no retrato do canal): resposta sem statistics não grava um 
       expect(snapshots(db2)).toHaveLength(0)
     }
   })
-  it('o canal que ESCONDE os inscritos (hiddenSubscriberCount: true) é uma resposta afirmativa: o retrato é gravado, com o sinalizador', async () => {
+  it('o canal que esconde os inscritos E trouxe uma contagem grava o retrato com o sinalizador; hiddenSubscriberCount: true SOZINHO não grava (um retrato todo nulo cobriria um bom do mesmo dia)', async () => {
     const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics: { hiddenSubscriberCount: true, viewCount: '99' } }] }), ...quiet })
+    expect(arg(snapshots(db)[0]!, 'upsert')).toMatchObject({ subscribers_hidden: true, subscriber_count: null, view_count: 99 })
+    const db2 = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics: { hiddenSubscriberCount: true } }] }), ...quiet })
-    expect(arg(snapshots(db)[0]!, 'upsert')).toMatchObject({ subscribers_hidden: true, subscriber_count: null })
+    expect(snapshots(db2)).toHaveLength(0)
   })
   it('basta UMA contagem para gravar o retrato (as outras seguem nulas, nunca zero)', async () => {
     for (const [stats, expected] of [
