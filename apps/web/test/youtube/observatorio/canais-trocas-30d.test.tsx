@@ -8,7 +8,7 @@ vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
   useCanAdminSite: () => siteAdmin.value,
 }))
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { a3World } from './a3-fixture'
 import { buildCanaisView, type CanaisParams, type CanaisRow, type CanaisSort, type CanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { CanaisScreen } from '@/app/cms/(authed)/youtube/competitors/_canais/canais-screen'
@@ -66,7 +66,7 @@ describe('11b B3: a coluna Trocas da lista não conta descrição', () => {
     }
   })
 
-  it('a descrição saiu da conta: o canal com 1 troca de título e 1 de descrição mostra 1, e o que só tem descrição mostra 0 medido com "nenhuma em 30 d"', () => {
+  it('a descrição saiu da conta: o canal com 1 troca de título e 1 de descrição mostra 1, e o que só tem descrição mostra 0 medido com "nenhuma de título ou thumbnail em 30 d"', () => {
     const v = view()
     const misto = comDescricao(BASE.obs).find(c => tipos(BASE.obs, c.id).some(t => t !== 'desc'))!
     const todas = tipos(BASE.obs, misto.id)
@@ -76,7 +76,7 @@ describe('11b B3: a coluna Trocas da lista não conta descrição', () => {
     const soDesc = comDescricao(BASE.obs).find(c => tipos(BASE.obs, c.id).every(t => t === 'desc'))!
     const s = byId(v, soDesc.id)
     expect(s.cells.swap.kind).toBe('ok')
-    if (s.cells.swap.kind === 'ok') { expect(s.cells.swap.n).toBe(0); expect(s.cells.swap.last).toMatch(/^nenhuma em 30\s?d$/); expect(s.cells.swap.lastTitle).toBeNull() }
+    if (s.cells.swap.kind === 'ok') { expect(s.cells.swap.n).toBe(0); expect(s.cells.swap.last).toMatch(/^nenhuma de título ou thumbnail em 30\s?d$/); expect(s.cells.swap.lastTitle).toBeNull() }
     expect(s.valor.swaps, 'zero medido, não nulo').toBe(0)
   })
 
@@ -141,5 +141,18 @@ describe('11b B3: a coluna Trocas da lista não conta descrição', () => {
     // cada número desenhado (tabela e cartões) é uma das contas novas; nenhum é a conta antiga de quem tem descrição
     for (const el of cartoes) expect(valores).toContain(el.textContent)
     expect(cartoes.some(el => el.textContent === '7'), 'matt-wolfe tinha 7 com a descrição').toBe(false)
+  })
+
+  it('I-11b-1: a célula sem troca diz do que fala ("de título ou thumbnail") e o cartão ganha a unidade da coluna', () => {
+    const { container } = mount(view())
+    const textos = [...container.querySelectorAll('.swap .last')].map(e => (e.textContent ?? '').replace(/\s+/g, ' ').trim())
+    expect(textos.some(t => t === 'nenhuma de título ou thumbnail em 30 d'), 'há ao menos um canal sem troca no fixture').toBe(true)
+    expect(textos.some(t => t === 'nenhuma em 30 d')).toBe(false)
+    cleanup()
+    const cartoes = mount(view({ layout: 'cards' })).container
+    expect([...cartoes.querySelectorAll('.swap .last')].some(e => /^nenhuma de título ou thumbnail em 30\s?d$/.test((e.textContent ?? '').trim()))).toBe(true)
+    const rotulos = [...cartoes.querySelectorAll('.l')].map(e => (e.textContent ?? '').replace(/\s+/g, ' ').trim()).filter(t => /^Trocas/.test(t))
+    expect(rotulos.length).toBeGreaterThan(0)
+    for (const t of rotulos) expect(t).toBe('Trocas de título e thumbnail, 30 d')
   })
 })

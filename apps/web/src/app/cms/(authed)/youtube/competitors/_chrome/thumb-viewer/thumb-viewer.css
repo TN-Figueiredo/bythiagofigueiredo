@@ -21,6 +21,8 @@
 .obs-tv-pos,.obs-tv-pct{color:var(--muted);font-size:12.5px;padding:0 4px;text-align:center}
 .obs-tv-pct{min-width:4.2em}
 .obs-tv-why{color:var(--muted);font-size:12.5px}
+/* só para leitor de tela: o motivo do botão apagado (aria-describedby) */
+.obs-tv-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .obs-tv-sel{display:inline-flex;gap:6px;align-items:center;color:var(--muted);font-size:12.5px}
 .obs-tv-sel select{min-height:34px;border-radius:6px;border:1px solid var(--dim);background:var(--surface);color:var(--text);font:400 13px var(--font-sans),system-ui,sans-serif;padding:0 8px}
 .obs-tv-main{min-height:0;min-width:0;display:flex;flex-direction:column;gap:6px}

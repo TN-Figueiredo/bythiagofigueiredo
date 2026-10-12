@@ -689,6 +689,97 @@ describe('ThumbViewer · "Abrir original" apagado', () => {
   })
 })
 
+describe('ThumbViewer · I-11b-2: Baixar e Abrir original apagados dizem o motivo', () => {
+  const descricao = (el: HTMLElement) => (el.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean).map(id => document.getElementById(id)?.textContent ?? '').join(' ').trim()
+  const aviso = () => dialog().querySelector('.obs-tv-msg')!.textContent
+  const lado = (rotulo: string) => [...dialog().querySelectorAll<HTMLElement>('.obs-tv-side')].find(s => s.querySelector('.obs-tv-lab')!.textContent!.startsWith(rotulo))!
+
+  it('sem imagem: o clique em Baixar e em Abrir original diz "sem imagem nesta versão" na região de aviso, sem navegar nem abrir aba', () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 0 })
+    const abrirAba = vi.spyOn(window, 'open').mockReturnValue(null)
+    expect(aviso()).toBe('')
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Baixar' }))
+    expect(aviso()).toBe('Não dá para baixar: sem imagem nesta versão.')
+    fireEvent.click(within(dialog()).getByRole('link', { name: /Abrir original/ }))
+    expect(aviso()).toBe('Não dá para abrir o original: sem imagem nesta versão.')
+    expect(abrirAba).not.toHaveBeenCalled()
+  })
+
+  it('o Abrir original apagado avisa também com Enter e com espaço (o link sem href não dispara clique sozinho)', () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 0 })
+    const a = within(dialog()).getByRole('link', { name: /Abrir original/ })
+    a.focus()
+    expect(fireEvent.keyDown(a, { key: 'Enter' }), 'Enter cancelado').toBe(false)
+    expect(aviso()).toBe('Não dá para abrir o original: sem imagem nesta versão.')
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Baixar' }))
+    expect(aviso()).toBe('Não dá para baixar: sem imagem nesta versão.')
+    expect(fireEvent.keyDown(a, { key: ' ' }), 'espaço cancelado').toBe(false)
+    expect(aviso()).toBe('Não dá para abrir o original: sem imagem nesta versão.')
+  })
+
+  it('o Baixar apagado, acionado por Enter ou espaço (o navegador converte em clique no botão), diz o motivo; botão continua focável e sem disabled nativo', () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 0 })
+    const b = within(dialog()).getByRole('button', { name: 'Baixar' })
+    expect(b.hasAttribute('disabled')).toBe(false)
+    b.focus()
+    expect(document.activeElement).toBe(b)
+    fireEvent.click(b)
+    expect(aviso()).toBe('Não dá para baixar: sem imagem nesta versão.')
+  })
+
+  it('o motivo também é a descrição acessível dos dois apagados (nome acessível não muda)', () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 0 })
+    const b = within(dialog()).getByRole('button', { name: 'Baixar' })
+    const a = within(dialog()).getByRole('link', { name: /Abrir original/ })
+    expect(descricao(b)).toBe('Sem imagem nesta versão.')
+    expect(descricao(a)).toBe('Sem imagem nesta versão.')
+  })
+
+  it('enquanto a imagem carrega, o motivo é "a imagem ainda está carregando"; quando chega, o botão volta a valer e a descrição some', async () => {
+    rede = new Map([[YT('maxresdefault'), { w: 1280, h: 720 }]])
+    abrir(um())
+    // o sinal de rede ainda não respondeu: está carregando
+    const b = within(dialog()).getByRole('button', { name: 'Baixar' })
+    expect(b.getAttribute('aria-disabled')).toBe('true')
+    expect(descricao(b)).toBe('A imagem ainda está carregando.')
+    fireEvent.click(b)
+    expect(aviso()).toBe('Não dá para baixar: a imagem ainda está carregando.')
+    const a = within(dialog()).getByRole('link', { name: /Abrir original/ })
+    fireEvent.click(a)
+    expect(aviso()).toBe('Não dá para abrir o original: a imagem ainda está carregando.')
+    await carregada()
+    const b2 = within(dialog()).getByRole('button', { name: 'Baixar' })
+    expect(b2.getAttribute('aria-disabled')).not.toBe('true')
+    expect(descricao(b2)).toBe('')
+    expect(descricao(within(dialog()).getByRole('link', { name: /Abrir original/ }))).toBe('')
+  })
+
+  it('imagem que falhou ao carregar: "sem imagem", não "carregando"', async () => {
+    rede = new Map()
+    abrir(um())
+    await waitFor(() => expect(within(dialog()).getByText('A imagem não carregou.')).toBeTruthy())
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Baixar' }))
+    expect(aviso()).toBe('Não dá para baixar: sem imagem nesta versão.')
+  })
+
+  it('no comparar cada lado tem o seu motivo, com ids próprios, e o nome acessível continua "Baixar Capa A"', async () => {
+    rede = new Map([[YT('maxresdefault'), { w: 1280, h: 720 }]])
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 1 })
+    await carregada()
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Comparar lado a lado' }))
+    await waitFor(() => expect(within(lado('Capa B')).getByRole('link', { name: /Abrir original/ }).getAttribute('href')).toBe(YT('maxresdefault')))
+    const bA = within(lado('Capa A')).getByRole('button', { name: 'Baixar Capa A' })
+    const aA = within(lado('Capa A')).getByRole('link', { name: /Abrir original/ })
+    expect(descricao(bA)).toBe('Sem imagem deste lado.')
+    expect(descricao(aA)).toBe('Sem imagem deste lado.')
+    fireEvent.click(aA)
+    expect(aviso()).toBe('Não dá para abrir o original da Capa A: sem imagem deste lado.')
+    const ids = [...dialog().querySelectorAll('[id]')].map(e => e.id)
+    expect(new Set(ids).size, 'ids únicos').toBe(ids.length)
+    expect(descricao(within(lado('Capa B')).getByRole('button', { name: 'Baixar Capa B' }))).toBe('')
+  })
+})
+
 describe('ThumbViewer · arrastar, zoom por versão, inert e carga', () => {
   it('arrastar com o mouse move a imagem; o botão do meio/direito não inicia arrasto', async () => {
     // jsdom não tem PointerEvent: sem ele o evento perde clientX/pointerType
@@ -927,7 +1018,7 @@ describe('ThumbViewer · 11b B2: um par (Baixar, Abrir original) por imagem no m
     expect(within(lado('Capa B')).getByRole('button', { name: 'Baixar Capa B' }).getAttribute('aria-disabled')).not.toBe('true')
   })
 
-  it('o Baixar apagado de um lado não faz nada (nem fetch nem aba)', async () => {
+  it('o Baixar apagado de um lado não baixa nem abre aba (nem fetch nem aba), mas diz o motivo na região de aviso (I-11b-2: antes era silêncio)', async () => {
     abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 1 })
     await carregada()
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Comparar lado a lado' }))
@@ -935,6 +1026,7 @@ describe('ThumbViewer · 11b B2: um par (Baixar, Abrir original) por imagem no m
     const abrirAba = vi.spyOn(window, 'open').mockReturnValue(null)
     fireEvent.click(within(lado('Capa A')).getByRole('button', { name: 'Baixar Capa A' }))
     expect(fetchMock).not.toHaveBeenCalled(); expect(abrirAba).not.toHaveBeenCalled()
+    expect(dialog().querySelector('.obs-tv-msg')!.textContent).toBe('Não dá para baixar a Capa A: sem imagem deste lado.')
   })
 
   it('fora do modo comparar nada muda: um só grupo Arquivo na barra, com os nomes de sempre; ao sair do comparar ele volta', async () => {

@@ -77,17 +77,35 @@ function Frame({ v, state }: { v: ViewerVersion; state: LoadState }): ReactEleme
 }
 /**
  * O par "Abrir original / Baixar" de UMA imagem. Fora do modo comparar é o grupo "Arquivo" da barra; no modo comparar, cada lado tem o seu
- * (`lado` = o rótulo da versão, no nome acessível: "Baixar Capa A"; o texto visível continua o mesmo). Sem imagem (`url` nulo), os dois ficam apagados.
+ * (`lado` = o rótulo da versão, no nome acessível: "Baixar Capa A"; o texto visível continua o mesmo). Sem imagem (`url` nulo), os dois ficam apagados
+ * (`aria-disabled`, nunca `disabled`: continuam na tabulação) e dizem o motivo: na descrição acessível e, ao serem acionados, na região de aviso.
  */
-function ArquivoGrupo({ url, lado, onDownload }: { url: string | null; lado?: string; onDownload: () => void }): ReactElement {
+function motivoSemImagem(s: LoadState, lado?: string): string | null {
+  switch (s.status) {
+    case 'ok': return null
+    case 'loading': return 'a imagem ainda está carregando'
+    case 'none':
+    case 'fail': return lado ? 'sem imagem deste lado' : 'sem imagem nesta versão'
+    default: { const nunca: never = s; return nunca }
+  }
+}
+function ArquivoGrupo({ state, id, lado, onDownload, say }: { state: LoadState; id: string; lado?: string; onDownload: () => void; say: (t: string) => void }): ReactElement {
+  const url = state.status === 'ok' ? state.url : null
+  const motivo = motivoSemImagem(state, lado)
+  const dica = motivo ? `${motivo[0]!.toUpperCase()}${motivo.slice(1)}.` : null
+  const recusa = (acao: string) => { if (motivo) say(`Não dá para ${acao}: ${motivo}.`) }
   return (
     <div className="obs-tv-grp" role="group" aria-label={lado ? `Arquivo da ${lado}` : 'Arquivo'}>
+      {dica ? <span id={id} className="obs-tv-sr">{dica}</span> : null}
       <a className="obs-tv-b" role="link" target="_blank" rel="noopener noreferrer" href={url ?? undefined} aria-disabled={url ? undefined : true}
-        aria-label={lado ? `Abrir original em nova aba, ${lado}` : undefined}
-        tabIndex={url ? undefined : 0} onClick={url ? undefined : e => e.preventDefault()}>
+        aria-label={lado ? `Abrir original em nova aba, ${lado}` : undefined} aria-describedby={dica ? id : undefined}
+        tabIndex={url ? undefined : 0}
+        onClick={url ? undefined : e => { e.preventDefault(); recusa(lado ? `abrir o original da ${lado}` : 'abrir o original') }}
+        onKeyDown={url ? undefined : e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); recusa(lado ? `abrir o original da ${lado}` : 'abrir o original') } }}>
         <Icon.ext /><span>Abrir original em nova aba</span>
       </a>
-      <button type="button" className="obs-tv-b" aria-label={lado ? `Baixar ${lado}` : undefined} aria-disabled={!url} onClick={url ? onDownload : undefined}><Icon.download /><span>Baixar</span></button>
+      <button type="button" className="obs-tv-b" aria-label={lado ? `Baixar ${lado}` : undefined} aria-disabled={!url} aria-describedby={dica ? id : undefined}
+        onClick={url ? onDownload : () => recusa(lado ? `baixar a ${lado}` : 'baixar')}><Icon.download /><span>Baixar</span></button>
     </div>
   )
 }
@@ -302,7 +320,6 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
   const multi = n > 1
   const zoomOn = stageOn
   const pct = cmp ? 'sem zoom' : shown ? `${Math.round(shown.scale * 100)}%` : '—'
-  const opened = main.status === 'ok' ? main.url : null
   const noop = (f: () => void) => (zoomOn ? f : undefined)
 
   return createPortal(
@@ -343,7 +360,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
             <button type="button" className="obs-tv-b" aria-disabled={!zoomOn} onClick={noop(doFit)}>Ajustar</button>
             <button type="button" className="obs-tv-b" aria-disabled={!zoomOn} onClick={noop(actual)}>100%</button>
           </div>
-          {cmp && second ? null : <ArquivoGrupo url={opened} onDownload={() => { void download(cur, main) }} />}
+          {cmp && second ? null : <ArquivoGrupo state={main} id={`${uid}-arq`} onDownload={() => { void download(cur, main) }} say={say} />}
         </div>
 
         {/* O alvo de foco da imagem é ESTA caixa, que nunca desmonta: o palco abaixo sai e volta a cada troca de versão, e com o foco dentro dele o teclado morria. */}
@@ -356,7 +373,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
                   <div className="obs-tv-side" key={v.label + (v === cur ? 'a' : 'b')}>
                     <p className="obs-tv-lab">{v.label}{v.current ? ' (no ar)' : ''}</p>
                     <Frame v={v} state={s} />
-                    <ArquivoGrupo url={s.status === 'ok' ? s.url : null} lado={v.label} onDownload={() => { void download(v, s) }} />
+                    <ArquivoGrupo state={s} id={`${uid}-arq-${v === cur ? 'a' : 'b'}`} lado={v.label} onDownload={() => { void download(v, s) }} say={say} />
                     <p className="obs-tv-cap">{v.caption}</p>
                     {s.status === 'ok' ? <p className="obs-tv-cap">{resText(s)}</p> : null}
                   </div>

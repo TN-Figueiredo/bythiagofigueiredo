@@ -448,7 +448,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     const trocas = c.own ? [] : trocasDe30(obs, c.id), g = groupsOf(trocas, true)[0]
     const swap: SwapCell = c.own ? { kind: 'na', text: 'Suas trocas ficam no A/B Lab.' }
       : bf ? { kind: 'na', text: 'Trocas são detectadas a partir de agora.' }
-        : { kind: 'ok', n: trocas.length, last: g ? groupText(g) : `nenhuma em 30${NB}d`, lastTitle: g ? `${g.map(i => i.whenText).join('; ')} (São Paulo)` : null }
+        : { kind: 'ok', n: trocas.length, last: g ? groupText(g) : `nenhuma de título ou thumbnail em 30${NB}d`, lastTitle: g ? `${g.map(i => i.whenText).join('; ')} (São Paulo)` : null }
     const growth = growthCell(c, S.growth30)
     const sync = syncCell(c, S)
     const outN = obs.outliers({ channel: c.id, fmt, includeOwn: c.own }).count
