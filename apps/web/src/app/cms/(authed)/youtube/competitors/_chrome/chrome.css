@@ -33,6 +33,11 @@
 }
 
 /* ---------------------------------------------------------------- base */
+/* The CMS shell is `div.h-screen > main.overflow-y-auto`: only <main> may scroll. <main> is position:static, so an absolute
+   element with no positioned ancestor (the .obs-ch-sr / .sr screen-reader text, the .fx-live region) is laid out against the
+   initial containing block, escapes <main>'s clip and stretches the DOCUMENT: the window scrolls past the shell and a blank strip
+   shows under it. This wrapper is the containing block for every such element, so <main> clips them. Do not remove it. */
+[data-obs-layout]{position:relative}
 [data-obs] [hidden]{display:none!important}
 [data-obs],[data-obs] *,[data-obs] *::before,[data-obs] *::after{box-sizing:border-box}
 [data-obs].obs-ch-root{color:var(--text);font:400 14px/1.5 var(--font-sans),system-ui,sans-serif;-webkit-font-smoothing:antialiased}
