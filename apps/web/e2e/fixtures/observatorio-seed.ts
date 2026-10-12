@@ -81,7 +81,7 @@ export interface SeedOptions {
    */
   ownL2?: OwnL2
 }
-export type OwnL2 = 'cheio' | 'curto' | 'parado' | 'ativo' | 'velho' | 'grande' | 'lacunas'
+export type OwnL2 = 'cheio' | 'curto' | 'parado' | 'ativo' | 'velho' | 'grande' | 'lacunas' | 'retencao'
 /** Os ids de oráculo que `canalCompleto` mexe, em matt-wolfe. */
 export const CANAL_COMPLETO = { canal: 'matt-wolfe', fixadoAntigo: 'matt-wolfe-l150', shortNulo: 'matt-wolfe-l5', comentariosNulo: 'matt-wolfe-l6', semData: 'canal-completo-sem-data' } as const
 export type NicheTone = 'ameixa' | 'rosa' | 'lima' | 'ardosia'
@@ -312,6 +312,8 @@ interface PerfilL2 {
   semDiarioPrimeiro?: boolean
   /** uma linha de alcance de um vídeo que NÃO existe em youtube_videos (video_id nulo, id só no relatório): detector de vazamento do id cru */
   orfao?: boolean
+  /** `retencao`: alcance e diário DESENHADOS, vídeo a vídeo, para a aba Retenção e para a tela do vídeo (veja MAPA_RETENCAO e `linhasAlcanceRetencao`) */
+  mapa?: 'retencao'
 }
 /** O id do vídeo que só existe no relatório de alcance do perfil `grande` (sem linha em youtube_videos). */
 export const ORFAO_YT_ID = 'orfaoRel001'
@@ -324,6 +326,68 @@ export const PERFIS_L2: Record<OwnL2, PerfilL2> = {
   velho: { fimDias: 12, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'tres' },
   grande: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'maioria', impBase: 2713, orfao: true },
   lacunas: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'maioria', diarioCurtos: 4, semDiarioPrimeiro: true },
+  retencao: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'tres', mapa: 'retencao' },
+}
+
+/** Os vídeos do canal `tnfigueiredo` do oráculo que o perfil `retencao` usa (ids do YouTube; a semente falha alto se o oráculo mudar). */
+export const RET = {
+  /** longo publicado há 2 dias do relógio do oráculo: depois do último dia coletado, então "vídeo novo" (sem dia de alcance nem de diário válido) */
+  novo: 'RPdOoDA127j',
+  /** longo de 886 s: UM dia de alcance com 18 impressões e 2 cliques estimados (taxa 11,1%, de 3,1% a 32,8%: "ainda não conclui") */
+  magro: 'Fv7Orf5gRqx',
+  /** longo de 554 s: volume alto (taxa de 6,6% contra a do canal): veredito "acima"; no dia 2 do relatório é o único com impressão (19.983, 1.139 cliques) ao lado de um dia não medido */
+  volumeAlto: 'DvP4RC_VIjz',
+  /** curto com volume alto e taxa baixa (3%): puxa a taxa do canal para baixo para o vídeo acima se separar dela */
+  volumeBaixo: 'yDSmNLUJxTZ',
+  /** curto publicado há 14 dias com alcance pequeno */
+  curto: 'yXGNu4kxWgP',
+} as const
+/** O dia (índice no relatório) do alcance de 18 impressões do vídeo magro e o dia do 1.139: ambos depois da publicação de cada um. */
+export const RET_DIA_MAGRO = 24
+export const RET_DIA_1139 = 2
+export const RET_1139 = { imp: 19983, ctr: 0.057 } as const
+export const RET_MAGRO = { imp: 18, ctr: 0.1111 } as const
+export interface VideoRetencao {
+  yt: string
+  /** % assistido de todo dia com view (pontos; 112,5 passa de 100) */
+  pct: number
+  /** o diário só cobre os últimos N dias (os de antes não têm linha) */
+  ultimosDias?: number
+  /** só estas views por dia-índice (resto zero medido): o vídeo com menos de 10 views na janela */
+  poucas?: Record<number, number>
+  /** um dia (índice 0..27) com este % acima de 100, com views */
+  diaCem?: { dia: number; pct: number }
+}
+/**
+ * Faixa "5 a 15 min": 5 vídeos com views (normal 50 = a mediana de 38, 45, 50, 52, 53: 52 fica a 2 pontos, "na média"; 53 a 3, "acima"), mais um com 7 views.
+ * Faixa "Acima de 15 min": só 4 vídeos com views ("poucos vídeos para comparar (4; precisa de 5)"); um passa de 100% sempre e outro tem um dia de 139,38%.
+ */
+export const MAPA_RETENCAO: readonly VideoRetencao[] = [
+  { yt: 'Fv7Orf5gRqx', pct: 50 },
+  { yt: 'DvP4RC_VIjz', pct: 52 },
+  { yt: 'cY76nv73Qkf', pct: 53 },
+  { yt: 'lqqH14-w84j', pct: 38 },
+  { yt: 'zSvhy3lJc4u', pct: 45, ultimosDias: 14 },
+  { yt: 'YSsFxMlqbOA', pct: 61, poucas: { 20: 2, 22: 3, 25: 2 } },
+  { yt: 'DNxcPR2DNIV', pct: 60, diaCem: { dia: 20, pct: 139.38 } },
+  { yt: 'F1llCrDzvR2', pct: 55 },
+  { yt: 'xsi7iiX5Hvd', pct: 112.5 },
+  { yt: 'bsUv93jytXZ', pct: 41 },
+]
+/** Alcance do perfil `retencao` num dia baixado (índice `i` do relatório): [índice em `ids`, impressões, CTR]. */
+function linhasAlcanceRetencao(i: number): Array<[string, number, number]> {
+  if (i === RET_DIA_1139) return [[RET.volumeAlto, RET_1139.imp, RET_1139.ctr]]
+  const l: Array<[string, number, number]> = [
+    [RET.volumeAlto, 700 + ((i * 37) % 300), 0.085],
+    [RET.volumeBaixo, 2000 + ((i * 53) % 500), 0.03],
+  ]
+  if (i >= 18) l.push([RET.curto, 120 + ((i * 11) % 60), 0.05])
+  if (i === RET_DIA_MAGRO) l.push([RET.magro, RET_MAGRO.imp, RET_MAGRO.ctr])
+  return l
+}
+/** % assistido de um dia e a duração média em segundos (a coluna é `numeric`; nulos num dia sem view, como na coleta). */
+function assistidoDoDia(pct: number, durSeg: number): { avg_view_percentage: number; avg_view_duration_seconds: number } {
+  return { avg_view_percentage: Math.round(pct * 100) / 100, avg_view_duration_seconds: Math.round((pct / 100) * durSeg * 100) / 100 }
 }
 const PACIFICO = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia do YouTube (Pacífico) em que o instante cai: o mesmo `hoje` que as páginas usam. */
@@ -361,6 +425,11 @@ export async function seedOwnL2(siteId: string, perfil: OwnL2, preset?: OwnPrese
     status: 'ativo', last_listed_at: iso(O.NOW - P.fimDias * DAY), last_create_time: iso(O.NOW - P.fimDias * DAY),
   }))
   const seis = vids.slice(0, 6)
+  const porYt = new Map(vids.map(v => [v.ytId, v]))
+  if (P.mapa === 'retencao') {
+    // o perfil desenhado depende destes vídeos do oráculo: se o oráculo mudar, falha alto em vez de semear outra coisa
+    for (const yt of [...Object.values(RET), ...MAPA_RETENCAO.map(m => m.yt)]) if (!porYt.has(yt)) throw new Error('observatorio-seed: o perfil retencao precisa do vídeo ' + yt + ' no canal ' + oid)
+  }
   const reports: object[] = [], reach: object[] = []
   for (let i = 0; i < n; i++) {
     const dia = somaDias(primeiro, i), kind = P.relatorios[i]!
@@ -372,6 +441,16 @@ export async function seedOwnL2(siteId: string, perfil: OwnL2, preset?: OwnPrese
       downloaded_at: kind === 'L' ? null : create, normalized_at: kind === 'L' ? null : create,
     })
     if (kind !== 'I') continue
+    if (P.mapa === 'retencao') {
+      for (const [yt, imp, ctr] of linhasAlcanceRetencao(i)) {
+        const v = porYt.get(yt)!
+        reach.push({
+          youtube_video_id: yt, day_pt: dia, site_id: siteId, video_id: vuuid(v), channel_id: canalId, thumbnail_impressions: imp, thumbnail_ctr: ctr,
+          source_report_id: id, report_create_time: create, source: 'reporting_api', metric_version: 'views_desde_2026-08-27',
+        })
+      }
+      continue
+    }
     const quantos = 1 + (i % 3), inicio = i % 6
     for (let j = 0; j < quantos; j++) {
       const vi = (inicio + j) % 6, v = seis[vi]!
@@ -399,6 +478,23 @@ export async function seedOwnL2(siteId: string, perfil: OwnL2, preset?: OwnPrese
   const diario: object[] = []
   const semDiario = P.semDiarioPrimeiro ? seis.find(v => v.fmt === 'long') : undefined
   if (P.semDiarioPrimeiro && !semDiario) throw new Error('observatorio-seed: semDiarioPrimeiro precisa de um vídeo longo entre os 6 com alcance')
+  if (P.mapa === 'retencao') {
+    MAPA_RETENCAO.forEach((m, mi) => {
+      const v = porYt.get(m.yt)!, durSeg = durSeconds(v.dur)
+      for (let d = 0; d < P.diarioDias; d++) {
+        if (m.ultimosDias != null && d < P.diarioDias - m.ultimosDias) continue
+        const dia = somaDias(ultimo, -(P.diarioDias - 1 - d))
+        const views = m.poucas ? (m.poucas[d] ?? 0) : (d + mi) % 4 !== 0 ? 15 + ((d * 29 + mi * 47) % 70) : 0
+        const pct = m.diaCem && m.diaCem.dia === d ? m.diaCem.pct : m.pct
+        diario.push({
+          youtube_video_id: v.ytId, day_pt: dia, site_id: siteId, video_id: vuuid(v), channel_id: canalId, views, source: 'analytics_api', metric_version: 'views_desde_2026-08-27',
+          ...(views > 0 ? assistidoDoDia(pct, durSeg) : { avg_view_percentage: null, avg_view_duration_seconds: null }),
+        })
+      }
+    })
+    await insertAll(sb, 'yt_own_video_daily', diario)
+    return { canalId, ytIdsAlcance: [...new Set(reach.map(r => (r as { youtube_video_id: string }).youtube_video_id))], ytIdsDiario: MAPA_RETENCAO.map(m => m.yt), ultimoDia: ultimo, primeiroDia: primeiro }
+  }
   for (let d = 0; d < P.diarioDias; d++) {
     const dia = somaDias(ultimo, -(P.diarioDias - 1 - d))
     longos.forEach((v, li) => {
@@ -406,7 +502,12 @@ export async function seedOwnL2(siteId: string, perfil: OwnL2, preset?: OwnPrese
       const curto = li >= longos.length - (P.diarioCurtos ?? 0)
       if (curto && d < P.diarioDias - 5) return
       const views = curto ? 400 + ((d * 13 + li * 7) % 90) : li < comViews && (d + li) % 4 !== 0 ? 15 + ((d * 29 + li * 47) % 70) : 0
-      diario.push({ youtube_video_id: v.ytId, day_pt: dia, site_id: siteId, video_id: vuuid(v), channel_id: canalId, views, source: 'analytics_api', metric_version: 'views_desde_2026-08-27' })
+      // % assistido e duração média: nulos em dia sem view (como na coleta); o segundo vídeo tem UM dia acima de 100% (trecho revisto)
+      const pct = li === 1 && d === P.diarioDias - 10 ? 139.38 : 30 + ((li * 11 + d * 3) % 45)
+      diario.push({
+        youtube_video_id: v.ytId, day_pt: dia, site_id: siteId, video_id: vuuid(v), channel_id: canalId, views, source: 'analytics_api', metric_version: 'views_desde_2026-08-27',
+        ...(views > 0 ? assistidoDoDia(pct, durSeconds(v.dur)) : { avg_view_percentage: null, avg_view_duration_seconds: null }),
+      })
     })
   }
   await insertAll(sb, 'yt_own_video_daily', diario)
