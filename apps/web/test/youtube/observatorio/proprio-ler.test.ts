@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeAll } from 'vitest'
 import { fakeSupabase, type Row } from '../../helpers/fake-supabase'
 import { edicaoDe } from './edicao-teste'
 import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
-import { lerAlcance, lerDiario, TIPO_ALCANCE, TETO_VIDEOS_DIARIO } from '@/lib/youtube/observatorio/proprio/ler'
+import { lerAlcance, lerDiario, TIPO_ALCANCE, TETO_VIDEOS_DIARIO, PCT_ASSISTIDO_MAX } from '@/lib/youtube/observatorio/proprio/ler'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
 import { vpdDoCanal, motivoVpdTexto } from '@/lib/youtube/observatorio/proprio/vpd'
 import { diarioDoVideo } from '@/lib/youtube/coleta/analytics-diario'
@@ -216,11 +216,11 @@ describe('lerDiario', () => {
     expect(r.dado.linhas).toHaveLength(1900)
     expect(db.trips.length).toBeGreaterThanOrEqual(2)
   })
-  it('coleta parada há 60 dias: nenhuma linha na janela, mas ultimoDia é aquele dia (não "nunca coletado")', async () => {
-    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(60), 3), diario('v1', d(61), 3)] })
+  it('coleta parada há 60 dias: ultimoDia é aquele dia (não "nunca coletado") e a janela vem dele para trás, não de hoje', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(60), 3), diario('v1', d(61), 3), diario('v1', d(120), 3)] })
     const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
-    expect(r.dado.linhas).toEqual([]); expect(r.dado.ultimoDia).toBe(d(60))
+    expect(r.dado.linhas.map(l => l.dia).sort()).toEqual([d(61), d(60)]); expect(r.dado.ultimoDia).toBe(d(60))
     expect(db.ranges.some(x => x.table === 'yt_own_video_daily' && x.range?.[0] === 0 && x.range?.[1] === 0)).toBe(true)
   })
   it('ultimoDia só olha o site e o canal: dia mais novo de outro site ou canal não conta', async () => {
@@ -229,12 +229,32 @@ describe('lerDiario', () => {
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.dado.ultimoDia).toBe(d(10))
   })
-  it('fronteira da janela do diário: o dia -38 entra, o -39 não', async () => {
-    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(38), 1), diario('v1', d(39), 1)] })
+  it('fronteira da janela do diário (ancorada no último dia gravado): o dia -38 antes dele entra, o -39 não', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(10), 1), diario('v1', d(48), 1), diario('v1', d(49), 1)] })
     const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
-    expect(r.dado.linhas.map(l => l.dia)).toEqual([d(38)])
-    expect(r.dado.ultimoDia).toBe(d(38))
+    expect(r.dado.linhas.map(l => l.dia).sort()).toEqual([d(48), d(10)])
+    expect(r.dado.ultimoDia).toBe(d(10))
+  })
+  it('diário parado há 20 dias: a janela de 28 dias que termina no ÚLTIMO dia gravado vem inteira (do dia -47 ao -20)', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(20), 5), diario('v1', d(47), 5), diario('v1', d(30), 5), diario('v1', d(60), 5)] })
+    const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.ultimoDia).toBe(d(20))
+    const dias = r.dado.linhas.map(l => l.dia)
+    expect(dias).toEqual(expect.arrayContaining([d(20), d(30), d(47)]))
+    expect(dias).not.toContain(d(60))
+  })
+  it('a leitura acompanha o último dia: pelo vídeo do vídeo parado há 20 dias o % assistido usa os 28 dias, não os 8 que sobrariam', async () => {
+    const linhas = Array.from({ length: 28 }, (_, k) => diario('v1', d(20 + k), 10, { avg_view_percentage: 50 }))
+    const db = fakeSupabase({ yt_own_video_daily: linhas })
+    const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
+    expect(assistidoDoVideo(r, 'v1').dias).toBe(28)
+  })
+  it('custo: a leitura do diário continua sendo o último dia (1 linha) mais as páginas das linhas, nunca uma ida por vídeo', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(20), 5), diario('v2', d(20), 5)] })
+    await lerDiario(db.client, { ...pedido, ytIds: ['v1', 'v2'] })
+    expect(db.trips).toEqual(['yt_own_video_daily', 'yt_own_video_daily'])
   })
   it('views negativas viram nulas e contam como descartadas', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), -4), diario('v1', d(4), 6)] })
@@ -249,7 +269,7 @@ describe('lerDiario', () => {
     expect(db.trips).toEqual([])
   })
   it('nenhuma consulta do diário pede select *', async () => {
-    const db = fakeSupabase({ yt_own_video_daily: [] })
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 4)] })
     await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
     expect(db.selects.length).toBe(2)
     for (const x of db.selects) expect(x.cols).not.toContain('*')
@@ -363,12 +383,12 @@ describe('lerDiario: % assistido e duração média (colunas avg_view_percentage
     expect(r.dado.descartados).toBe(0)
   })
   it('as consultas pedem as duas colunas novas (e nada de select *)', async () => {
-    const { db } = await ler([])
+    const { db } = await ler([diario('v1', d(3), 4)])
     const diarioSel = db.selects.filter(x => x.table === 'yt_own_video_daily').map(x => x.cols)
     expect(diarioSel.some(c => c.includes('avg_view_percentage') && c.includes('avg_view_duration_seconds'))).toBe(true)
     for (const c of diarioSel) expect(c).not.toContain('*')
   })
-  describe('contrato da unidade de avg_view_percentage: PONTOS de 0 a 100, não fração', () => {
+  describe('contrato da unidade de avg_view_percentage: PONTOS (0 em diante), não fração', () => {
     it('os extremos 0 e 100 passam; 51,5 passa como 51,5 (sem multiplicar nem dividir por 100)', async () => {
       const { r } = await ler([diario('v1', d(3), 5, medias({ avg_view_percentage: 0 })), diario('v1', d(4), 5, medias({ avg_view_percentage: 100 })), diario('v1', d(5), 5, medias({ avg_view_percentage: 51.5 }))])
       expect(r.dado.linhas.map(l => l.pctAssistido)).toEqual([51.5, 100, 0])
@@ -378,10 +398,16 @@ describe('lerDiario: % assistido e duração média (colunas avg_view_percentage
       const { r } = await ler([diario('v1', d(3), 5, medias({ avg_view_percentage: 0.5 }))])
       expect(r.dado.linhas[0]!.pctAssistido).toBe(0.5)
     })
-    it('acima de 100 ou negativo: nulo (não medido) e conta em descartados, a linha e as views ficam', async () => {
-      const { r } = await ler([diario('v1', d(3), 9, medias({ avg_view_percentage: 100.01 })), diario('v1', d(4), 8, medias({ avg_view_percentage: -1 })), diario('v1', d(5), 7, medias({ avg_view_percentage: 5100 }))])
-      expect(r.dado.linhas.map(l => [l.views, l.pctAssistido])).toEqual([[7, null], [8, null], [9, null]])
-      expect(r.dado.descartados).toBe(3)
+    it('acima de 100 é dado VÁLIDO (o espectador reviu trechos): 100,01 e 139,38 passam sem descarte; PCT_ASSISTIDO_MAX = 999,99', async () => {
+      const { r } = await ler([diario('v1', d(3), 9, medias({ avg_view_percentage: 100.01 })), diario('v1', d(4), 8, medias({ avg_view_percentage: 139.38 })), diario('v1', d(5), 7, medias({ avg_view_percentage: 999.99 }))])
+      expect(r.dado.linhas.map(l => [l.views, l.pctAssistido])).toEqual([[7, 999.99], [8, 139.38], [9, 100.01]])
+      expect(r.dado.descartados).toBe(0)
+      expect(PCT_ASSISTIDO_MAX).toBe(999.99)
+    })
+    it('negativo ou acima do teto de sanidade (1000): nulo (não medido) e conta em descartados, a linha e as views ficam', async () => {
+      const { r } = await ler([diario('v1', d(3), 9, medias({ avg_view_percentage: 1000 })), diario('v1', d(4), 8, medias({ avg_view_percentage: -1 }))])
+      expect(r.dado.linhas.map(l => [l.views, l.pctAssistido])).toEqual([[8, null], [9, null]])
+      expect(r.dado.descartados).toBe(2)
     })
     it('duração média negativa: nula e descartada; zero fica zero', async () => {
       const { r } = await ler([diario('v1', d(3), 9, medias({ avg_view_duration_seconds: -3 })), diario('v1', d(4), 9, medias({ avg_view_duration_seconds: 0 }))])
@@ -389,7 +415,7 @@ describe('lerDiario: % assistido e duração média (colunas avg_view_percentage
       expect(r.dado.descartados).toBe(1)
     })
     it('linha com três valores ruins (views, % e duração) conta UMA vez em descartados', async () => {
-      const { r } = await ler([diario('v1', d(3), -1, medias({ avg_view_percentage: 300, avg_view_duration_seconds: -9 })), diario('v1', d(4), 5, medias({ avg_view_percentage: 50 }))])
+      const { r } = await ler([diario('v1', d(3), -1, medias({ avg_view_percentage: 3000, avg_view_duration_seconds: -9 })), diario('v1', d(4), 5, medias({ avg_view_percentage: 50 }))])
       expect(r.dado.descartados).toBe(1)
     })
     it('a corrente inteira: o que a coleta grava da Analytics API (51,5) é o que o leitor entrega e o que o % assistido calcula', async () => {

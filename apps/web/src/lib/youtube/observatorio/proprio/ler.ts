@@ -77,14 +77,18 @@ function ctrDe(x: unknown): { v: number | null; ruim: boolean } {
   return n != null && (n < 0 || n > 1) ? { v: null, ruim: true } : { v: n, ruim: false }
 }
 
+/** Teto de sanidade do % assistido, em pontos: passar de 100 é dado válido (o espectador reviu trechos); só o absurdo é descartado. */
+export const PCT_ASSISTIDO_MAX = 999.99
+
 /**
- * `avg_view_percentage` é a média do percentual assistido, em PONTOS de 0 a 100 (a Analytics API entrega 51,5 para 51,5%; a coleta
- * grava o número como veio, sem escala; fixado em proprio-ler.test.ts). Fora de 0 a 100 o valor não é confiável: vira nulo (não
- * medido) e `ruim` avisa. Nunca se reescala: 0,5 é meio ponto percentual, não 50%.
+ * `avg_view_percentage` é a média do percentual assistido, em PONTOS de 0 em diante (a Analytics API entrega 51,5 para 51,5%; a
+ * coleta grava o número como veio, sem escala; fixado em proprio-ler.test.ts). Acima de 100 é válido (139,38 existe em produção).
+ * Negativo ou acima de PCT_ASSISTIDO_MAX não é confiável: vira nulo (não medido) e `ruim` avisa. Nunca se reescala nem se recorta:
+ * 0,5 é meio ponto percentual, não 50%.
  */
 function pctDe(x: unknown): { v: number | null; ruim: boolean } {
   const n = num(x)
-  return n != null && (n < 0 || n > 100) ? { v: null, ruim: true } : { v: n, ruim: false }
+  return n != null && (n < 0 || n > PCT_ASSISTIDO_MAX) ? { v: null, ruim: true } : { v: n, ruim: false }
 }
 
 /** Relatórios do tipo de alcance e linhas de alcance dos últimos JANELA_ALCANCE_DIAS + 5 dias. Erro de banco é LANÇADO; valor ruim (CTR fora de 0 a 1, negativo, data inválida) não lança: vira nulo ou é descartado e entra em `descartados`. */
@@ -120,24 +124,23 @@ export async function lerAlcance(sb: SupabaseClient, p: Pedido): Promise<Privado
   return { acesso: 'ok', dado: { canalId: p.canalId, relatorios, linhas: out, ultimoRelatorio: diaUtc(recente?.start_time), descartados } }
 }
 
-/** Diário dos `ytIds` (no máximo TETO_VIDEOS_DIARIO; o resto é ignorado) dos últimos JANELA_DIARIO_DIAS + 10 dias. Lista vazia: nenhuma linha, mas o `ultimoDia` real do canal. */
+/** Diário dos `ytIds` (no máximo TETO_VIDEOS_DIARIO; o resto é ignorado) dos JANELA_DIARIO_DIAS + 10 dias que terminam no ÚLTIMO dia gravado do canal (não em hoje: a coleta atrasa e o canal pode estar parado). Lista vazia: nenhuma linha, mas o `ultimoDia` real do canal. */
 export async function lerDiario(sb: SupabaseClient, p: Pedido & { ytIds: readonly string[] }): Promise<Privado<DiarioCanal>> {
   const siteId = siteAutorizado(p)
   if (siteId == null) return { acesso: 'negado' }
   const ytIds = p.ytIds.slice(0, TETO_VIDEOS_DIARIO)
-  const desde = addDays(p.hoje, -(JANELA_DIARIO_DIAS + 10))
   // SEM janela e sem filtro de vídeo: o último dia gravado do canal, mesmo parado há meses (a série é que é limitada).
   // Roda também com a lista de vídeos vazia: um canal sem longo acompanhado com o diário cheio não é "nunca coletado".
   const ultimoQ = () => primeiraLinha<{ day_pt: string }>('yt_own_video_daily', sb.from('yt_own_video_daily').select('day_pt')
     .eq('site_id', siteId).eq('channel_id', p.canalId)
     .order('day_pt', { ascending: false }).range(0, 0))
-  const [rows, ultimo] = await Promise.all([
-    ytIds.length === 0 ? Promise.resolve<DiarioRow[]>([]) : readAll<DiarioRow>('yt_own_video_daily', () => sb.from('yt_own_video_daily')
-      .select('youtube_video_id, day_pt, views, avg_view_percentage, avg_view_duration_seconds, collected_at')
-      .eq('site_id', siteId).eq('channel_id', p.canalId)
-      .in('youtube_video_id', ytIds).gte('day_pt', desde).order('day_pt').order('youtube_video_id')),
-    ultimoQ(),
-  ])
+  const ultimo = await ultimoQ()
+  // Âncora no último dia gravado: a janela de 28 dias do % assistido e da série termina nele, não em hoje. Sem dia gravado não há o que ler.
+  const desde = ultimo == null ? null : addDays(ultimo.day_pt, -(JANELA_DIARIO_DIAS + 10))
+  const rows = ytIds.length === 0 || desde == null ? [] : await readAll<DiarioRow>('yt_own_video_daily', () => sb.from('yt_own_video_daily')
+    .select('youtube_video_id, day_pt, views, avg_view_percentage, avg_view_duration_seconds, collected_at')
+    .eq('site_id', siteId).eq('channel_id', p.canalId)
+    .in('youtube_video_id', ytIds).gte('day_pt', desde).order('day_pt').order('youtube_video_id'))
   let descartados = 0
   const linhas: DiarioLinha[] = umaPorVideoDia(rows).map(r => {
     const views = medida(r.views), pct = pctDe(r.avg_view_percentage), duracao = medida(r.avg_view_duration_seconds)

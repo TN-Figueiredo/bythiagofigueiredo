@@ -1,5 +1,5 @@
 // % assistido do canal próprio, calculado do diário por vídeo (yt_own_video_daily). Puro, sem banco.
-// UNIDADE: pontos de 0 a 100 (a Analytics API entrega 51,5 para 51,5%; a coleta grava o número como veio; o leitor valida 0 a 100).
+// UNIDADE: pontos (0 em diante; passar de 100 é válido) (a Analytics API entrega 51,5 para 51,5%; a coleta grava o número como veio; o leitor só descarta negativo ou acima de 999,99; passar de 100 é válido).
 // Regra de ouro: "não medido" nunca vira zero. Dia sem linha, sem view, sem percentual ou fora da janela não entra na conta;
 // sem nenhum dia que entre, o resultado é null com o MOTIVO.
 import { addDays } from '@/lib/youtube/coleta/day-pt'
@@ -16,7 +16,7 @@ export const NA_MEDIA_PONTOS = 2
 export type MotivoSemAssistido = 'sem-acesso' | 'leitura-falhou' | 'sem-diario' | 'sem-views'
 
 export interface AssistidoVideo {
-  /** pontos de 0 a 100; null = sem número (veja `motivo`) */
+  /** pontos de 0 em diante (pode passar de 100: trechos revistos); null = sem número (veja `motivo`) */
   pct: number | null
   /** views da base: a soma das views dos dias que entraram na média */
   n: number
@@ -101,7 +101,7 @@ export type LeituraContraNormal = 'acima' | 'na-media' | 'abaixo'
 
 /**
  * UMA função só para a aba Retenção, a seção do vídeo e a régua. A diferença é arredondada em pontos INTEIROS (meio ponto vai
- * para longe do zero) e só depois comparada: |dif| <= 2 = na média; >= 3 = acima/abaixo. Sem % ou sem normal: null.
+ * para longe do zero) e só depois comparada: |dif| <= 2 = na média (então a zona vai até 2,49 pontos: o dono aprovou "até 2" vendo números inteiros); >= 3 = acima/abaixo. Sem % ou sem normal: null.
  */
 export function contraNormal(pct: number | null, normal: number | null): { dif: number; leitura: LeituraContraNormal } | null {
   if (pct == null || normal == null) return null
