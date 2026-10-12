@@ -215,21 +215,35 @@ describe('passoRelatorios: baixar', () => {
     expect(api.download).toHaveBeenLastCalledWith('https://dl.test/r-079')
   })
 
-  it('prioridade: alcance básico → combinado → tráfego → channel_basic_a3; dentro do tipo, create_time crescente', async () => {
+  it('ordem de drenagem: o que vence em até 7 dias, depois o alcance, depois o resto pelo vencimento; o tipo só desempata', async () => {
     const db = bancoComPurge({
       yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
       yt_reporting_reports: [
-        listado('basic-velho', { report_type_id: 'channel_basic_a3', create_time: ha(9) }),
-        listado('trafego', { report_type_id: 'channel_traffic_source_a3', create_time: ha(8) }),
-        listado('combinado', { report_type_id: 'channel_reach_combined_a1', create_time: ha(7) }),
-        listado('alcance-2', { create_time: ha(1) }),
-        listado('alcance-1', { create_time: ha(2) }),
+        listado('trafego-corrente', { report_type_id: 'channel_traffic_source_a3', create_time: ha(20) }),               // vence em 40 dias
+        listado('basic-historico', { report_type_id: 'channel_basic_a3', create_time: ha(10), is_backfill: true }),      // vence em 20 dias
+        listado('alcance-novo', { create_time: ha(1) }),                                                                  // vence em 59 dias
+        listado('basic-quase-vencendo', { report_type_id: 'channel_basic_a3', create_time: ha(24), is_backfill: true }), // vence em 6 dias
       ],
     })
     await passoRelatorios(ctxDe(db))
     expect(api.download.mock.calls.map(c => c[0])).toEqual([
-      'https://dl.test/alcance-1', 'https://dl.test/alcance-2', 'https://dl.test/combinado', 'https://dl.test/trafego', 'https://dl.test/basic-velho',
+      'https://dl.test/basic-quase-vencendo', 'https://dl.test/alcance-novo', 'https://dl.test/basic-historico', 'https://dl.test/trafego-corrente',
     ])
+  })
+
+  it('fila maior que o teto: o que vence primeiro entra, mesmo criado por último e de tipo de menor prioridade; fica para trás o que vence por último', async () => {
+    const correntes = Array.from({ length: MAX_DOWNLOADS }, (_, i) =>
+      listado(`corrente-${i}`, { report_type_id: 'channel_traffic_source_a3', create_time: new Date(AGORA.getTime() - 5 * DIA_MS + i * 1000).toISOString() }))
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [...correntes, listado('historico', { report_type_id: 'channel_basic_a3', create_time: ha(2), is_backfill: true })],
+    })
+    const resumo = await passoRelatorios(ctxDe(db))
+    expect(api.download.mock.calls[0]![0]).toBe('https://dl.test/historico')
+    expect(rel(db, 'historico')!.status).toBe('baixado')
+    expect(comStatus(db, 'listado')).toHaveLength(1)
+    expect(rel(db, `corrente-${MAX_DOWNLOADS - 1}`)!.status).toBe('listado')
+    expect(resumo.pendentes).toBe(1)
   })
 
   it('URL que devolve 403 é renovada: reportsList sem createdAfter uma vez, update do download_url e novo download', async () => {

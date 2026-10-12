@@ -1,5 +1,5 @@
 // Passo 1C (spec, seção 5) — recorte do lote L1a: só listar e baixar o bruto. A normalização é L2.
-// O histórico inicial some em 30 dias: por isso a fila é por prioridade (alcance primeiro) e o
+// O histórico inicial some em 30 dias: por isso a fila é pelo vencimento na origem (fila-relatorios.ts) e o
 // download usa a URL gravada na listagem, renovando-a quando o Google a recusa.
 import * as Sentry from '@sentry/nextjs'
 import { channelNote, describeCronCause } from '@/lib/cron/failure-note'
@@ -8,13 +8,13 @@ import { ReportingHttpError, SEM_NORMALIZADOR, type Report } from '@/lib/youtube
 import { obterToken } from './autorizacao'
 import { contarPorResultado, registrarTentativa, scopeJob } from './attempts'
 import { emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
+import { DIA_MS, VALIDADE_DIAS, ordenarFila } from './fila-relatorios'
 import { conferirBanco, pushUnico } from './schema'
 import { descreverErro, HABILITADOS, statusHttp } from './token'
 import type { ColetaChannel, StepCtx, StepResumo } from './types'
 
 export const MAX_DOWNLOADS = 40
 export const MAX_GZ_BYTES = 2 * 1024 * 1024
-const DIA_MS = 86_400_000
 const MAX_PAGINAS = 50
 
 export interface RelatoriosResumo extends StepResumo {
@@ -44,6 +44,7 @@ interface Pendente {
   job_id: string
   download_url: string
   create_time: string
+  is_backfill: boolean
 }
 
 const instante = (s: string): number => new Date(s).getTime()
@@ -314,7 +315,7 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
 
   // ── 2. Expirar por idade: 60 dias, ou 30 se for backfill ─────────────────
   const agora = Date.now()
-  for (const [backfill, dias] of [[true, 30], [false, 60]] as const) {
+  for (const [backfill, dias] of [[true, VALIDADE_DIAS.historico], [false, VALIDADE_DIAS.corrente]] as const) {
     const r = await ctx.supabase
       .from('yt_reporting_reports')
       .update({ status: 'expirado_sem_baixar', error: 'passou do prazo sem baixar' })
@@ -327,24 +328,18 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
     if (escrita === 'ok') resumo.expirados += ((r.data ?? []) as unknown[]).length
   }
 
-  // ── 3. Baixar: por prioridade de tipo e create_time crescente, no máximo 40 ──
+  // ── 3. Baixar: pelo vencimento na origem (fila-relatorios.ts), no máximo MAX_DOWNLOADS ──
   const idsDosCanais = canais.map(c => c.id)
   const filaLida = await ctx.supabase
     .from('yt_reporting_reports')
-    .select('site_id, report_id, channel_id, report_type_id, job_id, download_url, create_time')
+    .select('site_id, report_id, channel_id, report_type_id, job_id, download_url, create_time, is_backfill')
     .eq('status', 'listado')
     .in('channel_id', idsDosCanais)
     .in('report_type_id', [...HABILITADOS]) // os `listado` de um tipo desligado ficam como estão
     .order('create_time', { ascending: true })
     .limit(1000)
   if (conferirBanco(filaLida, 'yt_reporting_reports', ctx.falhas, 'ler') !== 'ok') return fechar()
-  const prioridade = (tipo: string): number => {
-    const i = HABILITADOS.indexOf(tipo)
-    return i === -1 ? HABILITADOS.length : i
-  }
-  const fila = ((filaLida.data ?? []) as Pendente[])
-    .filter(p => clientes.has(p.channel_id))
-    .sort((a, b) => prioridade(a.report_type_id) - prioridade(b.report_type_id) || instante(a.create_time) - instante(b.create_time))
+  const fila = ordenarFila(((filaLida.data ?? []) as Pendente[]).filter(p => clientes.has(p.channel_id)), agora)
 
   const urls = new Map<string, string>()
   const renovados = new Set<string>()
