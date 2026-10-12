@@ -7,9 +7,10 @@
 // server action é abortado e reprova o teste. As medidas vão para test-results/proprio-a4-medidas.txt e para as anotações de cada teste.
 import fs from 'node:fs'
 import path from 'node:path'
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type BrowserContext, type Page } from '@playwright/test'
+import { z } from 'zod'
 import { ADMIN_STATE, clearSeeded, ensureSeeded, seedIdsOf } from './fidelity'
-import { resetViewerPrefs, localServiceClient, ownSeedUuid, type SeedOptions } from '../../../fixtures/observatorio-seed'
+import { resetViewerPrefs, localServiceClient, ownSeedUuid, fixarPublicacaoProprio, seedOwnL2, clearOwnL2, ORACLE_NOW, ORFAO_YT_ID, type SeedOptions } from '../../../fixtures/observatorio-seed'
 import { getSeedSiteId } from '../../../fixtures/seed-helpers'
 
 test.use({ storageState: ADMIN_STATE })
@@ -775,14 +776,16 @@ test('T11 390 px com toque: os botões do pager, o ⓘ e as ações têm 44 px',
 // no banco LOCAL e prova as telas das Tarefas 5 a 11 com número real. Os valores esperados saem das LINHAS DO BANCO (somas e contagens feitas aqui,
 // nunca copiadas da tela). Cada bloco termina com `clearSeeded()`: as tabelas privadas voltam a ficar vazias mesmo se um teste falhar.
 const PT = (n: number): string => n.toLocaleString('pt-BR')
-type W = { __sc: () => HTMLElement }
-const rolagemMain = (page: Page) => page.evaluate(() => (window as unknown as W).__sc().scrollTop)
-const rolarMainPara = (page: Page, top: number) => page.evaluate(t => { (window as unknown as W).__sc().scrollTop = t }, top)
+/** A casca que rola é achada pelo script de `addInitScript` do bloco; a função fica em `window.__sc`. */
+declare global { interface Window { __sc?: () => HTMLElement } }
+const rolagemMain = (page: Page) => page.evaluate(() => window.__sc!().scrollTop)
+const rolarMainPara = (page: Page, top: number) => page.evaluate(t => { window.__sc!().scrollTop = t }, top)
 const dm = (dia: string): string => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`
 
+const LinhasSchema = z.array(z.record(z.string(), z.unknown()))
 interface Privado {
   rels: Array<{ dia: string; status: string; normalizado: boolean }>
-  reach: Array<{ ytId: string; dia: string; imp: number; ctr: number | null }>
+  reach: Array<{ ytId: string; videoId: string | null; dia: string; imp: number; ctr: number | null }>
   diario: Array<{ ytId: string; dia: string; views: number }>
 }
 /** As quatro tabelas do canal próprio lidas direto do banco local (service role): a verdade contra a qual a tela é medida. */
@@ -791,11 +794,11 @@ async function lerPrivado(canalOracle = 'tnfigueiredo'): Promise<Privado> {
   const ler = async (t: string, cols: string) => {
     const r = await sb.from(t).select(cols).eq('site_id', siteId).eq('channel_id', canal).limit(5000)
     if (r.error) throw new Error(t + ': ' + r.error.message)
-    return r.data as unknown as Array<Record<string, unknown>>
+    return LinhasSchema.parse(r.data)
   }
   return {
     rels: (await ler('yt_reporting_reports', 'status, start_time, normalized_at')).map(r => ({ dia: String(r.start_time).slice(0, 10), status: String(r.status), normalizado: r.normalized_at != null })),
-    reach: (await ler('yt_own_video_reach_daily', 'youtube_video_id, day_pt, thumbnail_impressions, thumbnail_ctr')).map(r => ({ ytId: String(r.youtube_video_id), dia: String(r.day_pt), imp: Number(r.thumbnail_impressions), ctr: r.thumbnail_ctr == null ? null : Number(r.thumbnail_ctr) })),
+    reach: (await ler('yt_own_video_reach_daily', 'youtube_video_id, video_id, day_pt, thumbnail_impressions, thumbnail_ctr')).map(r => ({ ytId: String(r.youtube_video_id), videoId: r.video_id == null ? null : String(r.video_id), dia: String(r.day_pt), imp: Number(r.thumbnail_impressions), ctr: r.thumbnail_ctr == null ? null : Number(r.thumbnail_ctr) })),
     diario: (await ler('yt_own_video_daily', 'youtube_video_id, day_pt, views')).map(r => ({ ytId: String(r.youtube_video_id), dia: String(r.day_pt), views: Number(r.views) })),
   }
 }
@@ -833,7 +836,7 @@ function blocoT15(nome: string, seed: SeedOptions, corpo: () => void, opcoes: { 
     test.afterAll(async () => { test.setTimeout(120_000); await clearSeeded() })
     test.beforeEach(async ({ page }) => {
       await page.addInitScript(() => {
-        ;(window as unknown as W).__sc = () => {
+        ;window.__sc = () => {
           const raiz = [...document.querySelectorAll('[data-obs-screen]')].find(e => e.getClientRects().length > 0) ?? document.querySelector('[data-obs-screen]')
           for (let p = raiz?.parentElement ?? null; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
             const o = getComputedStyle(p).overflowY
@@ -1187,16 +1190,19 @@ blocoT15('T15 canal próprio com dado cheio (29 dias de relatório; 11 com impre
 }, { mochila: true })
 
 
-/** Tira (só no banco local) `dias` da data de publicação de todos os vídeos do canal próprio: o canal "parado" (a produção: o último vídeo é de 10/12/2024). */
-async function envelhecerVideos(canalOracle: string, dias: number): Promise<void> {
+/** Põe (só no banco local) a publicação dos vídeos do canal próprio em `data do oráculo - dias`: valor ABSOLUTO, então rodar de novo (o Playwright reinicia o worker e o
+ *  `beforeAll` volta) dá o mesmo banco. Confere em seguida, lendo o banco, que o vídeo mais novo está de fato na janela esperada: parado (mais de 13 semanas) e dentro do limite. */
+async function envelhecerVideos(canalOracle: string, dias: number, preset: SeedOptions['ownPreset'] = '2'): Promise<void> {
   const sb = localServiceClient(), siteId = await getSeedSiteId()
-  const r = await sb.from('youtube_videos').select('id, published_at').eq('site_id', siteId).eq('channel_id', ids.own(canalOracle))
+  const esperadoMs = await fixarPublicacaoProprio(siteId, canalOracle, dias, preset, sb)
+  const r = await sb.from('youtube_videos').select('published_at').eq('site_id', siteId).eq('channel_id', ids.own(canalOracle))
   if (r.error) throw new Error('youtube_videos: ' + r.error.message)
-  for (const v of r.data as Array<{ id: string; published_at: string }>) {
-    const novo = new Date(Date.parse(v.published_at) - dias * 864e5).toISOString()
-    const u = await sb.from('youtube_videos').update({ published_at: novo }).eq('id', v.id).eq('site_id', siteId)
-    if (u.error) throw new Error('youtube_videos update: ' + u.error.message)
-  }
+  const pubs = (r.data as Array<{ published_at: string | null }>).map(v => Date.parse(String(v.published_at))).filter(n => Number.isFinite(n))
+  const maisNovo = Math.max(...pubs)
+  expect(maisNovo, 'o vídeo mais novo está na data absoluta (oráculo - dias), não deslocado de novo').toBe(esperadoMs)
+  const idade = Math.floor((ORACLE_NOW - maisNovo) / 864e5)
+  expect(idade, 'canal parado: o vídeo mais novo tem mais de 13 semanas (91 dias)').toBeGreaterThanOrEqual(91)
+  expect(idade, 'e não passa de 200 dias + a idade que o vídeo tinha no oráculo (limite do perfil)').toBeLessThanOrEqual(dias + 60)
 }
 const textoDe = (loc: ReturnType<Page['locator']>) => loc.evaluate(e => (e.textContent ?? '').replace(/\s+/g, ' ').trim())
 const NUM_VPD = (v: number) => new RegExp(`^(${Math.floor(v)}|${Math.ceil(v)})$`)
@@ -1337,7 +1343,7 @@ blocoT15('T15 canal parado (29 relatórios vazios, diário de zeros, nenhum víd
       await page.screenshot({ path: SHOTS_DADO(`canal-parado-${nome}-grafico`) })
     }
   })
-}, { antes: async () => { await envelhecerVideos('tnfigueiredo', 200) } })
+}, { antes: async () => { await envelhecerVideos('tnfigueiredo', 200); await envelhecerVideos('tnfigueiredo', 200) /* de novo: o worker reiniciado roda o beforeAll outra vez */ } })
 
 blocoT15('T15 coleta parada há 12 dias ("parou em dd/mm")', { ownPreset: '2', ownL2: 'velho' }, () => {
   test('a lista, a comparação e o gráfico dizem em que dia a coleta parou; a série existente continua sendo mostrada', async ({ page }) => {
@@ -1593,6 +1599,7 @@ test.describe('T15 pendentes: espera a Tarefa 13/14', () => {
   test.fixme('espera a Tarefa 13: o gráfico "Impressões por dia" do VÍDEO: barra cheia, caixa vazada para o dia medido sem o vídeo e hachura para o dia não medido; teclado e toque a 390 px', async () => { /* idem */ })
   test.fixme('espera a Tarefa 13: alvos de toque de 44 px a 390 px nos traços da régua em foco da tela do vídeo', async () => { /* a régua do vídeo ainda não existe */ })
   test.fixme('espera a Tarefa 14: a comparação de um canal seu com um concorrente mostra o cartão "Só o seu canal mede" com impressões e cliques estimados', async () => { /* o cartão ainda não existe */ })
+  test.fixme('alvo de toque de 44 px por dia no gráfico a 390 px: hoje cada uma das 29 colunas tem 8,5 px de largura (cabem 5,2 colunas num alvo de 44 px); espera a decisão do dono no mockup: botões "dia anterior / dia seguinte"', async () => { /* medido em "alvo de toque por coluna, 390"; a dica abre pelo toque exato e a tabela alternativa cumpre, mas a coluna sozinha não é um alvo de 44 px */ })
   test.fixme('espera a Tarefa 14: com dois canais seus o cartão "Só o seu canal mede" mostra os dois lados; sem canal próprio ele não existe', async () => { /* idem */ })
 })
 
