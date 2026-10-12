@@ -9,6 +9,14 @@ const SRC = join(__dirname, '../../../src')
 const EDICAO = 'lib/youtube/observatorio/proprio/edicao.ts'
 const LER = 'lib/youtube/observatorio/proprio/ler.ts'
 const DADOS = 'app/cms/(authed)/youtube/competitors/_proprio/dados.ts'
+/** A prova de tipo do token (compilada pelo tsc do web, nunca executada): o único outro arquivo que nomeia a classe como valor. */
+const TIPOS = 'lib/youtube/observatorio/proprio/edicao.type-test.ts'
+/** Usos do token como VALOR (a classe em si), que o brand check de edicao.ts não pode deixar de cobrir: estender, protótipo, construção reflexiva, typeof, instanceof. */
+const USO_COMO_VALOR = /\bextends\s+EdicaoDoSite\b|\bEdicaoDoSite\s*\.\s*(prototype|ehEdicao)\b|\bReflect\s*\.\s*construct\s*\([^)]*\bEdicaoDoSite\b|\bObject\s*\.\s*create\s*\([^)]*\bEdicaoDoSite\b|\btypeof\s+EdicaoDoSite\b|\binstanceof\s+EdicaoDoSite\b/
+/** `import { EdicaoDoSite }` sem `type` traz a classe como valor. */
+const importaComoValor = (s: string) =>
+  [...s.matchAll(/import\s*(?!type\b)\{([^}]*)\}\s*from\s*['"][^'"]*proprio\/edicao['"]/g)].some(m => m[1]!.split(',').some(n => /^\s*EdicaoDoSite\b/.test(n)))
+const importaNamespace = (s: string) => /import\s*\*\s*as\s+\w+\s+from\s*['"][^'"]*proprio\/edicao['"]|import\s*\(\s*['"][^'"]*proprio\/edicao['"]\s*\)|require\s*\(\s*['"][^'"]*proprio\/edicao['"]\s*\)/.test(s)
 /** Quem pode pedir a prova de edição e chamar os leitores: o módulo da guarda. */
 const PODE_PROVAR = new Set([EDICAO, DADOS])
 const PODE_LER = new Set([LER, DADOS])
@@ -29,7 +37,11 @@ export function violacoes(fontes: Record<string, string>): string[] {
   const v: string[] = []
   for (const [arq, bruto] of Object.entries(fontes)) {
     const s = semComentarios(bruto)
-    if (arq !== EDICAO && /\bnew\s+EdicaoDoSite\b|\bEdicaoDoSite\.provar\b/.test(s)) v.push(`${arq}: constrói o token de edição`)
+    if (arq !== EDICAO && arq !== TIPOS && /\bnew\s+EdicaoDoSite\b|\bEdicaoDoSite\.provar\b/.test(s)) v.push(`${arq}: constrói o token de edição`)
+    if (arq !== EDICAO && arq !== TIPOS && USO_COMO_VALOR.test(s)) v.push(`${arq}: usa a classe do token como valor (estender, protótipo, Reflect.construct, Object.create, typeof, instanceof)`)
+    if (arq !== EDICAO && arq !== TIPOS && importaComoValor(s)) v.push(`${arq}: importa a classe do token como valor (só \`import type\`)`)
+    if (arq !== EDICAO && arq !== TIPOS && importaNamespace(s)) v.push(`${arq}: importa o módulo do token por namespace ou dinâmico`)
+    if (arq !== TIPOS && /edicao\.type-test['"]/.test(s)) v.push(`${arq}: importa a prova de tipo (ela não roda)`)
     if (!PODE_PROVAR.has(arq) && /\bprovarEdicao\s*\(/.test(s)) v.push(`${arq}: pede a prova de edição fora do módulo da guarda`)
     if (!PODE_LER.has(arq) && /\b(lerAlcance|lerDiario)\s*\(/.test(s)) v.push(`${arq}: chama um leitor do dado privado`)
     if (!PODE_LER.has(arq) && /from\s+['"][^'"]*proprio\/ler['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
@@ -49,6 +61,17 @@ describe('varredura: o dado privado do canal próprio', () => {
   it('a varredura enxerga os arquivos do módulo (não passa por varrer uma pasta errada)', () => {
     for (const a of [EDICAO, LER, DADOS]) expect(Object.keys(reais), a).toContain(a)
     expect(Object.keys(reais).length).toBeGreaterThan(300)
+  })
+  it('a prova de tipo do token está no tsc do web: 3 diretivas, uma única função exportada, nada fora dela', () => {
+    expect(Object.keys(reais)).toContain(TIPOS)
+    const bruto = reais[TIPOS]!
+    expect(bruto.match(/^\s*\/\/ @ts-expect-error/gm)).toHaveLength(3)
+    const s = semComentarios(bruto)
+    expect(s.match(/^export\b/gm)).toEqual(['export'])
+    expect(s).toMatch(/^export function provasDeTipo\(\): void \{/m)
+    // nada de statement no topo além do import e da função (nenhuma chamada, nenhum new fora da função)
+    const fora = s.replace(/^export function provasDeTipo\(\): void \{[\s\S]*\n\}\s*$/m, '').replace(/^import .*$/gm, '').trim()
+    expect(fora).toBe('')
   })
   it('a prova de edição pede a guarda com mode "edit" e nenhum outro', () => {
     const s = semComentarios(reais[EDICAO]!)
@@ -78,6 +101,32 @@ describe('varredura: o dado privado do canal próprio', () => {
       expect(violacoes({ ...base, 'app/x/a.ts': "import { lerDiario } from '@/lib/youtube/observatorio/proprio/ler'" })).toHaveLength(1)
       expect(violacoes({ ...base, 'app/x/c.tsx': "'use client'\nimport { x } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'" })).toHaveLength(1)
       expect(violacoes({ ...base, 'app/x/c.tsx': "'use client'\nimport type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'" })).toHaveLength(1)
+    })
+    it('usar a classe do token como valor fora de edicao.ts: estender, protótipo, Reflect.construct, Object.create, typeof, instanceof', () => {
+      for (const codigo of [
+        'class F extends EdicaoDoSite {}',
+        'Object.create(EdicaoDoSite.prototype, { siteId: { value: "s" } })',
+        'Reflect.construct(EdicaoDoSite, ["s"])',
+        'Object.create(EdicaoDoSite)',
+        'const k = typeof EdicaoDoSite',
+        'if (x instanceof EdicaoDoSite) {}',
+        'EdicaoDoSite.ehEdicao(x)',
+      ]) expect(violacoes({ ...base, 'app/x/a.ts': codigo }), codigo).toHaveLength(1)
+      // como TIPO é permitido
+      expect(violacoes({ ...base, 'app/x/a.ts': "import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'\nconst f = (e: EdicaoDoSite | null): Promise<EdicaoDoSite | null> => Promise.resolve(e)" })).toEqual([])
+      expect(violacoes({ ...base, 'app/x/a.ts': "import { edicaoValida, type EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'" })).toEqual([])
+    })
+    it('importar a classe como valor, ou o módulo por namespace ou dinâmico', () => {
+      expect(violacoes({ ...base, 'app/x/a.ts': "import { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'" })).toHaveLength(1)
+      expect(violacoes({ ...base, 'app/x/a.ts': "import { provarEdicao, EdicaoDoSite } from './proprio/edicao'" })).toHaveLength(1)
+      expect(violacoes({ ...base, 'app/x/a.ts': "import * as E from '@/lib/youtube/observatorio/proprio/edicao'" })).toHaveLength(1)
+      expect(violacoes({ ...base, 'app/x/a.ts': "const m = await import('@/lib/youtube/observatorio/proprio/edicao')" })).toHaveLength(1)
+    })
+    it('importar a prova de tipo (ela não deve rodar)', () => {
+      expect(violacoes({ ...base, 'app/x/a.ts': "import { provasDeTipo } from '@/lib/youtube/observatorio/proprio/edicao.type-test'" })).toHaveLength(1)
+    })
+    it('a prova de tipo pode nomear a classe (não acusa a si mesma)', () => {
+      expect(violacoes({ ...base, [TIPOS]: "import { EdicaoDoSite } from './edicao'\nclass S extends EdicaoDoSite {}\nnew EdicaoDoSite('s', Symbol())" })).toEqual([])
     })
     it('voltar ao booleano', () => {
       expect(violacoes({ ...base, [DADOS]: 'a: { podeEditar: boolean }' })).toHaveLength(1)
