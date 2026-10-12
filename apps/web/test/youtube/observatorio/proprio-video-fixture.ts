@@ -2,7 +2,9 @@
 // improváveis, escolhidos para não colidirem com nenhum número público da tela (os testes de segurança procuram esses textos no HTML).
 //  - o vídeo em foco (`foco`) é o mais novo dos longos acompanhados com 20 dias de vida ou mais (o mais novo de todos tem 2 dias: é o "vídeo novo");
 //  - alcance dele: 7.919 impressões num dia só (CTR 0,2 = 1.584 cliques estimados), mais o dos outros vídeos;
-//  - diário dele: 1.234 views por dia em 20 dias (24.680 no total), % assistido 77,7 (= 78%);
+//  - taxa de clique dele: 20,0% (1.584 de 7.919), intervalo de Wilson de 19,1% a 20,9%: os três são derivados e têm sentinela própria;
+//  - diário dele: 1.234 views por dia em 20 dias (24.680 no total), % assistido 77,7 (= 78%), duração média 4.711,37 s por dia (78:31; a tela
+//    não a mostra: o grupo existe para um vazamento futuro só da duração derrubar a segurança);
 //  - nenhuma data fixa: tudo relativo a `hoje` (dia do YouTube de `obs.NOW`).
 import { addDays } from '@/lib/youtube/coleta/day-pt'
 import type { AlcanceCanal, AlcanceLinha, DiarioCanal, DiarioLinha, DiaYt, RelatorioDia } from '@/lib/youtube/observatorio/proprio/tipos'
@@ -12,8 +14,12 @@ import { proprioWorld } from './proprio-fixture'
 
 export const SENTINELAS = {
   imp: '7.919', cliques: '1.584', viewsDia: '1.234', views28: '24.680', pct: '78%',
+  taxa: '20,0%', taxaMin: '19,1%', taxaMax: '20,9%',
 } as const
 export const TEXTOS_PRIVADOS = Object.values(SENTINELAS)
+/** A duração média por dia do vídeo em foco (segundos) e todas as formas em que ela poderia aparecer: segundos, com ponto de milhar, mm:ss, h:mm:ss e o nome do campo. */
+export const DURACAO_MEDIA_SEG = 4711.37
+export const DURACAO_MEDIA_FORMAS = /(?<![\d.,])4[.,]?711(?![\d])|78:31|1:18:31|duracaoMediaSeg|avg_view_duration/
 /** A sentinela como TEXTO: não precedida de dígito, ponto ou vírgula (uma coordenada de SVG "23.78%" não é o "78%" do % assistido). */
 export const temSentinela = (texto: string, s: string): boolean => new RegExp('(?<![\\d.,])' + s.replace(/[.%]/g, c => '\\' + c)).test(texto)
 
@@ -44,7 +50,7 @@ export function diarioDoFoco(canalId: string, foco: string, outros: readonly str
   const pctFoco = o.pctFoco === undefined ? 77.7 : o.pctFoco
   for (let n = 0; n < diasFoco; n++) {
     if (o.semLinhaEm?.includes(n)) continue
-    linhas.push({ ytId: foco, dia: addDays(ultimo, -n), views: viewsFoco, pctAssistido: viewsFoco > 0 ? pctFoco : null, duracaoMediaSeg: null })
+    linhas.push({ ytId: foco, dia: addDays(ultimo, -n), views: viewsFoco, pctAssistido: viewsFoco > 0 ? pctFoco : null, duracaoMediaSeg: DURACAO_MEDIA_SEG })
   }
   outros.forEach((y, j) => { for (let n = 0; n < 30; n++) linhas.push({ ytId: y, dia: addDays(ultimo, -n), views: (j + 1) * 2, pctAssistido: o.pctOutros ?? 40 + 3 * j, duracaoMediaSeg: null }) })
   return { canalId, ultimoDia: ultimo, linhas, descartados: 0 }

@@ -13,7 +13,7 @@ import { fakeSupabase, type FakeDb, type Row } from '../../helpers/fake-supabase
 import { TIPO_ALCANCE } from '@/lib/youtube/observatorio/proprio/ler'
 import type { AlcanceCanal, DiarioCanal } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
-import { mundoVideo, SENTINELAS, temSentinela, TEXTOS_PRIVADOS } from './proprio-video-fixture'
+import { DURACAO_MEDIA_FORMAS, DURACAO_MEDIA_SEG, mundoVideo, SENTINELAS, temSentinela, TEXTOS_PRIVADOS } from './proprio-video-fixture'
 import { primeiroProprio } from './proprio-fixture'
 
 const S = '9d1a7c3e-0000-4000-8000-000000000001'
@@ -88,10 +88,25 @@ describe('13.4 segurança do vídeo próprio: quem edita × quem só lê', () =>
     for (const s of TEXTOS_PRIVADOS) expect(temSentinela(el, s), s).toBe(true)
   })
 
+  it('controle positivo da DURAÇÃO MÉDIA e da TAXA: o leitor real entrega a duração do foco a quem edita (a tela não a mostra, então a negativa só vale se o dado existe), e a taxa e os dois extremos do intervalo estão no HTML', async () => {
+    const { lerDadosDoVideo, podeVerPrivado } = await import('@/app/cms/(authed)/youtube/competitors/_proprio/dados')
+    const edicao = await podeVerPrivado(S)
+    const lido = await lerDadosDoVideo({ canalId: CANAL, ytId: w.foco.ytId, longosAcompanhados: w.outros, agora: w.obs.NOW, edicao })
+    if (lido.acesso !== 'ok') throw new Error('o editor devia ler')
+    const doFoco = lido.dado.diario.linhas.filter(l => l.ytId === w.foco.ytId)
+    expect(doFoco.length).toBeGreaterThan(0)
+    expect(doFoco.every(l => l.duracaoMediaSeg === DURACAO_MEDIA_SEG)).toBe(true)
+    // as formas que a duração teria na página: o padrão as acha em um exemplo de cada (o padrão não é vazio)
+    for (const forma of ['4711', '4.711', '4,711', '78:31', '1:18:31', 'duracaoMediaSeg']) expect(DURACAO_MEDIA_FORMAS.test(forma), forma).toBe(true)
+    render(await rota(proprio.id))
+    for (const s of [SENTINELAS.taxa, SENTINELAS.taxaMin, SENTINELAS.taxaMax]) expect(temSentinela(html(), s), s).toBe(true)
+  })
+
   it('quem só lê o site: o HTML não tem nenhuma das sentinelas, o cliente de serviço nem é criado e o banco não é consultado', async () => {
     guarda.ok = false
     render(await rota(proprio.id))
     for (const s of TEXTOS_PRIVADOS) expect(temSentinela(html(), s), s).toBe(false)
+    expect(html()).not.toMatch(DURACAO_MEDIA_FORMAS)
     expect(servico.criado).toBe(0)
     expect(db.trips).toEqual([])
     expect(document.querySelector('[data-privado-nota]')!.textContent).toBe('Só quem edita o site vê as views por dia, as impressões e cliques, o % assistido e a posição deste vídeo nessas medidas.')
@@ -107,7 +122,8 @@ describe('13.4 segurança do vídeo próprio: quem edita × quem só lê', () =>
     guarda.ok = false
     const el = SERIALIZADO(await rota(proprio.id))
     for (const s of TEXTOS_PRIVADOS) expect(temSentinela(el, s), s).toBe(false)
-    expect(el).not.toMatch(/"relatorios"|"linhas":\[\{"ytId"|"pctAssistido"|"ctr"|"thumbnail_impressions"|avg_view_percentage/)
+    expect(el).not.toMatch(DURACAO_MEDIA_FORMAS)
+    expect(el).not.toMatch(/"relatorios"|"linhas":\[\{"ytId"|"pctAssistido"|"ctr"|"taxa"|"cliques"|"duracaoMediaSeg"|"thumbnail_impressions"|avg_view_percentage|avg_view_duration_seconds/)
     expect(el).toContain('"acesso":"negado"')
   })
 
@@ -126,6 +142,7 @@ describe('13.4 segurança do vídeo próprio: quem edita × quem só lê', () =>
       const m = await generateMetadata({ params: Promise.resolve({ id: proprio.id }) })
       expect(m).toEqual({ title: 'Vídeo · Competidores' })
       for (const s of TEXTOS_PRIVADOS) expect(temSentinela(JSON.stringify(m), s), s).toBe(false)
+      expect(JSON.stringify(m)).not.toMatch(DURACAO_MEDIA_FORMAS)
       expect(guarda.chamadas).toBe(0)
       expect(db.trips).toEqual([])
       expect(servico.criado).toBe(0)
