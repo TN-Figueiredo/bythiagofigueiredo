@@ -24,7 +24,7 @@
 .ic-val{font:500 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--text)}
 .ic-dot{fill:var(--ic-cl);stroke:var(--ic-ring);stroke-width:1.4}
 .ic-cln{font:600 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--ic-cl)}
-.ic-zero{stroke:var(--ic-zero);stroke-width:3;stroke-linecap:round}
+.ic-zero{stroke:var(--ic-zero);fill:none}   /* caixa vazada de 6 px: a barra mínima (3 px) é cheia, e o não medido é hachurado */
 .ic-hb{fill:var(--nm-bg)}
 .ic-hl{stroke:var(--nm);stroke-width:2}
 .ic-nm,.ic-nm-cl{stroke:none}
@@ -36,7 +36,7 @@
 .ic-sw{display:inline-block;flex:none}
 .ic-sw.imp{width:12px;height:12px;border-radius:2px;background:var(--ic-bar)}
 .ic-sw.cl{width:11px;height:11px;border-radius:50%;background:var(--ic-cl);box-shadow:0 0 0 1.5px var(--ic-ring),0 0 0 2.5px var(--border-strong)}
-.ic-sw.zero{width:16px;height:3px;border-radius:2px;background:var(--ic-zero)}
+.ic-sw.zero{width:16px;height:7px;box-sizing:border-box;border-radius:2px;border:1.5px solid var(--ic-zero);background:none}
 .ic-sw.nm{width:14px;height:14px;padding:0;vertical-align:middle}
 .ic-tab{margin-top:6px;font:400 13px/18px var(--font-sans),system-ui,sans-serif}
 .ic-tab summary{cursor:pointer;color:var(--text);text-decoration:underline;text-underline-offset:2px;width:max-content;min-height:24px;display:inline-flex;align-items:center;list-style:none;border-radius:4px}

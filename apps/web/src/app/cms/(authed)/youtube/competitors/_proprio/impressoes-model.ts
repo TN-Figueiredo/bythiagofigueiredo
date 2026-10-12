@@ -18,7 +18,7 @@ export interface ColunaView {
   /** "dd/mm" */
   rotulo: string
   situacao: Situacao
-  /** Altura da coluna na área do gráfico: a barra (mínimo 3 px), o traço do zero medido (3 px) ou a área inteira (não medido). */
+  /** Altura da coluna na área do gráfico: a barra cheia (mínimo 3 px), a caixa vazada do zero medido (6 px) ou a área inteira (não medido). */
   alturaPx: number
   /** O texto do número em cima da barra e na tabela; null = não medido. */
   imp: string | null
@@ -59,16 +59,23 @@ export interface OpcoesImpressoes {
   escopo: 'canal' | 'video'
   alturaArea: number
   dm: (d: DiaYt) => string
-  acesso: 'ok' | 'negado'
-  /** O dia de hoje (dia do YouTube), para dizer que a coleta parou. Ausente = não diz. */
-  hoje?: DiaYt
+  /** 'erro' = a leitura falhou: a frase diz que falhou, nunca "sem relatório" (falha em verde). */
+  acesso: 'ok' | 'negado' | 'erro'
+  /**
+   * O dia de hoje (dia do YouTube), para dizer que a coleta parou. OBRIGATÓRIO: opcional, quem esquecesse perdia o aviso em silêncio (falha em verde);
+   * a prova de tipo está em impressoes.type-test.ts.
+   */
+  hoje: DiaYt
 }
 
 export const SEM_RELATORIO = 'Ainda não há relatório de alcance deste canal.'
 export const SEM_PERMISSAO = 'Só quem edita o site vê as impressões.'
+export const ERRO_ALCANCE = 'A leitura do alcance falhou agora; recarregue a página.'
 /** Menos dias medidos que isto = "ainda é pouco para ver um padrão". */
 export const DIAS_PARA_PADRAO = 7
 const BARRA_MINIMA_PX = 3
+/** A caixa vazada do zero medido: mais alta que a barra mínima (3 px), para as duas nunca terem o mesmo tamanho nem dependerem de rótulo ou de cor. */
+export const ZERO_PX = 6
 
 /** 4, 10 ou múltiplo de 20 (spec 16.6). Nunca 0, para a escala nunca dividir por zero. */
 export function tetoDoEixo(max: number): number {
@@ -163,7 +170,7 @@ function colunaDe(d: DiaAlcance, i: number, n: number, teto: number, o: OpcoesIm
       }
     }
     case 'zero-medido':
-      return { ...comum, alturaPx: BARRA_MINIMA_PX, imp: '0', cliques: '0', cliquesFaixa: null }
+      return { ...comum, alturaPx: ZERO_PX, imp: '0', cliques: '0', cliquesFaixa: null }
     case 'nao-medido':
       // não medido NÃO é barra de altura zero: a coluna ocupa a área inteira, hachurada
       return { ...comum, alturaPx: o.alturaArea, imp: null, cliques: null, cliquesFaixa: null }
@@ -180,14 +187,22 @@ function resumoTexto(r: ResumoAlcance, total: number): string {
       ? 'O dia do período não tem relatório lido: impressões e cliques não medidos.'
       : `Nenhum dos ${int(total)} dias do período tem relatório lido: impressões e cliques não medidos.`
   }
+  // a frase só fala dos dias MEDIDOS: o dia sem relatório não entra na soma e a manchete não finge que entrou (nem que não houve impressão nele)
+  const buracos = r.diasNaoMedidos > 0
   const zero = r.diasLidos - r.diasComImpressao
-  const partes = `${plural(r.diasComImpressao, 'dia com impressão', 'dias com impressão')}, ${plural(zero, 'dia medido em zero', 'dias medidos em zero')} e ${plural(r.diasNaoMedidos, 'dia não medido', 'dias não medidos')}`
-  const em = plural(total, 'dia', 'dias')
-  if (r.imp === 0) return `Nenhuma impressão em ${em}: ${partes}.`
+  const comImp = plural(r.diasComImpressao, 'dia com impressão', 'dias com impressão')
+  const emZero = plural(zero, 'dia medido em zero', 'dias medidos em zero')
+  const partes = buracos ? `${comImp} e ${emZero}` : `${comImp}, ${emZero} e ${plural(0, 'dia não medido', 'dias não medidos')}`
+  const sem = buracos ? ` (${int(r.diasNaoMedidos)} sem relatório lido)` : ''
+  const dias = buracos ? plural(r.diasLidos, 'dia medido', 'dias medidos') : plural(total, 'dia', 'dias')
+  if (r.imp === 0) {
+    const onde = buracos ? `${r.diasLidos === 1 ? 'no' : 'nos'} ${dias}` : `em ${dias}`
+    return `Nenhuma impressão ${onde}${sem}: ${partes}.`
+  }
   const imp = plural(r.imp, 'impressão', 'impressões')
-  if (r.cliques == null) return `${imp} em ${em}, com cliques estimados não medidos em algum dia: ${partes}.`
+  if (r.cliques == null) return `${imp} em ${dias}${sem}, com cliques estimados não medidos em algum dia: ${partes}.`
   const cliques = r.cliques <= 0 ? 'nenhum clique estimado' : Math.round(r.cliques) === 0 ? 'menos de 1 clique estimado' : plural(Math.round(r.cliques), 'clique estimado', 'cliques estimados')
-  return `${imp} e ${cliques} em ${em}: ${partes}.`
+  return `${imp} e ${cliques} em ${dias}${sem}: ${partes}.`
 }
 
 function legendaDe(escopo: 'canal' | 'video'): LegendaItem[] {
@@ -210,11 +225,17 @@ function metodoDe(escopo: 'canal' | 'video'): string[] {
   ]
 }
 
+/** O último dia do período, quando a coleta parou (o relatório mais novo é de mais de 7 dias atrás); null = não parou. */
+export function paradaEm(periodo: Periodo, hoje: DiaYt): DiaYt | null {
+  return diffDias(periodo.ate, hoje) > DIARIO_PARADO_DIAS ? periodo.ate : null
+}
+
 function avisosDe(r: ResumoAlcance, periodo: Periodo, o: OpcoesImpressoes): string[] {
   const avisos: string[] = []
   if (r.diasLidos > 0 && r.diasLidos < DIAS_PARA_PADRAO) avisos.push(`Menos de ${DIAS_PARA_PADRAO} dias medidos (${r.diasLidos}): ainda é pouco para ver um padrão.`)
   if (r.diasLidos > 0 && r.diasNaoMedidos > 0) avisos.push('Dias não medidos não contam como zero nem entram nas somas.')
-  if (o.hoje && diffDias(periodo.ate, o.hoje) > DIARIO_PARADO_DIAS) avisos.push(`A coleta de relatórios deste canal parou em ${o.dm(periodo.ate)}.`)
+  const parou = paradaEm(periodo, o.hoje)
+  if (parou) avisos.push(`A coleta de relatórios deste canal parou em ${o.dm(parou)}.`)
   return avisos
 }
 
@@ -225,6 +246,7 @@ const vazioView = (vazio: string, o: OpcoesImpressoes): ImpressoesView => ({
 export function buildImpressoes(dias: readonly DiaAlcance[], periodo: Periodo | null, o: OpcoesImpressoes): ImpressoesView {
   // sem permissão nada do dado privado entra na view, mesmo que alguém tenha passado os dias
   if (o.acesso === 'negado') return vazioView(SEM_PERMISSAO, o)
+  if (o.acesso === 'erro') return vazioView(ERRO_ALCANCE, o)
   if (!periodo || dias.length === 0) return vazioView(SEM_RELATORIO, o)
 
   let max = 0

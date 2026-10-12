@@ -321,7 +321,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   // recente; design D-C da 11c, no lugar da D16); sem ele não há com quem comparar
   const principalId = principalDoMotor(obs, p.lembrado)
   const principal = allOwns.find(o => o.id === principalId) ?? null
-  const candidatosN = allOwns.filter(o => obs.videos.some(v => v.ch === o.id)).length
+  const candidatosN = allOwns.filter(o => canalTemVideos(obs, o.id)).length
 
   /* ---------------------------------------------------------------- slots */
   const { used, limit, free } = obs.channelSlots(p.limit)
@@ -363,7 +363,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   const oneOf = (f: Fmt) => (f === 'long' ? 'vídeo longo' : 'Short')
   /** O que falta ao canal neste formato, para a segunda medida de "Todos": sem vídeo algum, ou sem Shorts. Nunca zero. */
   const faltaShorts = (c: ObsChannel): { text: string; title: string } | null => {
-    if (!obs.videos.some(v => v.ch === c.id)) return { text: 'sem vídeos', title: 'O canal não tem vídeos guardados.' }
+    if (!canalTemVideos(obs, c.id)) return { text: 'sem vídeos', title: 'O canal não tem vídeos guardados.' }
     if (!obs.videos.some(v => v.ch === c.id && v.fmt === 'short')) return { text: 'sem Shorts', title: 'O canal não tem Shorts guardados.' }
     return null
   }
@@ -462,7 +462,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   function semMedidaOf(c: ObsChannel, S: CStats, valor: Record<CanaisSort, number | null>, pos: Posicao | null): MotivoSemMedida | null {
     if (valor[sort] == null) {
       return motivoSemValor({
-        sort, porMil: rel, bf: isBf(c), own: c.own, semVideos: !obs.videos.some(x => x.ch === c.id), semShorts: semShortsDe(c),
+        sort, porMil: rel, bf: isBf(c), own: c.own, semVideos: !canalTemVideos(obs, c.id), semShorts: semShortsDe(c),
         subsOcultos: c.subs == null, temMedianaAbsoluta: vpdOf(c, fmt, S).abs != null,
         aguarda2o: obs.videos.some(x => x.ch === c.id && x.fmt === fmt && x.tracked),
       })

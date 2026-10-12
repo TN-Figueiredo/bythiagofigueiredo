@@ -9,7 +9,7 @@ import userEvent from '@testing-library/user-event'
 import fs from 'node:fs'
 import path from 'node:path'
 import { renderToString } from 'react-dom/server'
-import { montarDias } from '@/lib/youtube/observatorio/proprio/dias'
+import { montarDias, type DiaAlcance } from '@/lib/youtube/observatorio/proprio/dias'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 import { addDays } from '@/lib/youtube/coleta/day-pt'
 import { buildImpressoes, type ImpressoesView } from '@/app/cms/(authed)/youtube/competitors/_proprio/impressoes-model'
@@ -28,7 +28,7 @@ if (typeof window.PointerEvent === 'undefined') {
 const dm = (d: DiaYt) => d.slice(8, 10) + '/' + d.slice(5, 7)
 const HOJE: DiaYt = '2026-10-03'
 const TITULO = 'Impressões por dia do canal'
-const O = { escopo: 'canal' as const, alturaArea: 180, dm, acesso: 'ok' as const }
+const O = { escopo: 'canal' as const, alturaArea: 180, dm, acesso: 'ok' as const, hoje: HOJE }
 
 const larguraOriginal = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth')
 let largura = 700
@@ -71,12 +71,12 @@ describe('os três estados têm forma própria, além da cor', () => {
     // a barra: retângulo com a classe da barra e o número em cima
     for (const g of por('com-impressoes')) {
       expect(g.querySelector('rect.ic-bar')).not.toBeNull()
-      expect(g.querySelector('line.ic-zero, rect.ic-nm')).toBeNull()
+      expect(g.querySelector('rect.ic-zero, rect.ic-nm')).toBeNull()
       expect(g.querySelector('text.ic-val')!.textContent).toBe('17')
     }
     // o zero medido: um traço (line), sem barra e sem número em cima
     for (const g of por('zero-medido')) {
-      expect(g.querySelector('line.ic-zero')).not.toBeNull()
+      expect(g.querySelector('rect.ic-zero')).not.toBeNull()
       expect(g.querySelector('rect.ic-bar, rect.ic-nm, text.ic-val')).toBeNull()
     }
     // o não medido: coluna hachurada (pattern) de cima a baixo, também na faixa dos cliques; nenhum número
@@ -84,7 +84,7 @@ describe('os três estados têm forma própria, além da cor', () => {
       const rs = [...g.querySelectorAll('rect.ic-nm')]
       expect(rs).toHaveLength(2)
       for (const r of rs) expect(r.getAttribute('fill')).toMatch(/^url\(#[A-Za-z0-9_-]+\)$/)
-      expect(g.querySelector('line.ic-zero, rect.ic-bar, text.ic-val, text.ic-cln, circle')).toBeNull()
+      expect(g.querySelector('rect.ic-zero, rect.ic-bar, text.ic-val, text.ic-cln, circle')).toBeNull()
     }
     // a hachura existe de verdade no SVG
     const pat = container.querySelector('pattern')!
@@ -100,8 +100,10 @@ describe('os três estados têm forma própria, além da cor', () => {
     expect(Number(nm.getAttribute('height'))).toBe(area)
     const bar = container.querySelector('g[data-situacao="com-impressoes"] rect.ic-bar')!
     expect(Number(bar.getAttribute('height'))).toBeCloseTo(area * 17 / 20, 3)
-    const traco = container.querySelector('g[data-situacao="zero-medido"] line.ic-zero')!
-    expect(traco.getAttribute('y1')).toBe(traco.getAttribute('y2'))
+    // o zero medido é uma caixa VAZADA assentada na linha de base (a barra cheia fica acima dela pela altura)
+    const zero = container.querySelector('g[data-situacao="zero-medido"] rect.ic-zero')!
+    expect(zero.getAttribute('fill')).toBe('none')
+    expect(Number(zero.getAttribute('y')) + Number(zero.getAttribute('height'))).toBeCloseTo(Number(bar.getAttribute('y')) + Number(bar.getAttribute('height')), 3)
   })
 
   it('cliques: círculo na base da barra e o número na faixa "cliques" só nos dias com clique; dia sem CTR e dia não medido não ganham número', () => {
@@ -112,6 +114,39 @@ describe('os três estados têm forma própria, além da cor', () => {
     expect(nums).toHaveLength(11)
     expect(new Set(nums)).toEqual(new Set(['2']))
     expect(container.querySelector('g[data-situacao="nao-medido"] circle, g[data-situacao="zero-medido"] circle')).toBeNull()
+  })
+
+  it('I3 (revisão da T9) contraria o mockup: o zero medido tem FORMA própria (caixa vazada), diferente da barra mínima (cheia) e da coluna hachurada, mesmo com os rótulos omitidos', () => {
+    // 29 dias em 300 px: ~8 px por coluna, os números em cima da barra somem
+    largura = 300
+    const dias: DiaAlcance[] = []
+    for (let i = 0; i < 29; i++) dias.push(i === 3 ? { dia: addDays('2026-09-01', i), situacao: 'com-impressoes', motivo: null, imp: 1, cliques: 0 }
+      : i === 4 ? { dia: addDays('2026-09-01', i), situacao: 'zero-medido', motivo: null, imp: 0, cliques: 0 }
+      : i === 5 ? { dia: addDays('2026-09-01', i), situacao: 'nao-medido', motivo: 'sem-relatorio', imp: null, cliques: null }
+      : { dia: addDays('2026-09-01', i), situacao: 'com-impressoes', motivo: null, imp: 400, cliques: 3 })
+    const v = buildImpressoes(dias, { de: '2026-09-01', ate: '2026-09-29', dias: 29 }, O)
+    const { container } = montar(v)
+    expect(container.querySelectorAll('text.ic-val').length).toBeLessThan(29)   // rótulos omitidos quando apertam
+    const g = (sit: string, i: number) => container.querySelectorAll<SVGElement>(`g[data-situacao="${sit}"]`)[i]!
+    const minimo = g('com-impressoes', 3).querySelector('rect.ic-bar')!        // dia 4: 1 impressão
+    const zero = g('zero-medido', 0).querySelector('rect.ic-zero')!
+    const nao = g('nao-medido', 0)
+    // 1) a mínima é barra CHEIA de 3 px, o zero é caixa vazada mais alta que ela (nada de retângulos de 3 px iguais)
+    expect(minimo.getAttribute('height')).toBe('3')
+    expect(minimo.getAttribute('fill')).toBeNull()                              // preenchida pela classe .ic-bar
+    expect(zero.getAttribute('fill')).toBe('none')
+    expect(Number(zero.getAttribute('height'))).toBeGreaterThan(3)
+    expect(zero.getAttribute('class')).not.toBe(minimo.getAttribute('class'))
+    expect(zero.getAttribute('stroke-width') ?? '').not.toBe('')
+    // 2) o não medido é outra coisa: nenhum rect.ic-bar/ic-zero, só as colunas hachuradas
+    expect(nao.querySelector('rect.ic-bar, rect.ic-zero')).toBeNull()
+    expect(nao.querySelectorAll('rect.ic-nm')).toHaveLength(2)
+    expect(nao.querySelector('rect.ic-nm')!.getAttribute('fill')).toMatch(/^url\(#/)
+    // 3) a legenda segue: o zero tem amostra de caixa vazada (classe própria), não a barra
+    expect(container.querySelector('.ic-sw.zero')).not.toBeNull()
+    // 4) os três têm o mesmo x de coluna mas atributos de desenho diferentes (em escala de cinza ainda se separam pela forma)
+    const assinatura = (e: Element) => `${e.tagName}|${e.getAttribute('class')}|${e.getAttribute('fill')}|${e.getAttribute('height')}`
+    expect(new Set([assinatura(minimo), assinatura(zero), assinatura(nao.querySelector('rect.ic-nm')!)]).size).toBe(3)
   })
 
   it('o dia com impressão e CTR nulo mostra a marca hachurada na faixa de cliques (não medido), nunca "0"', () => {
@@ -481,14 +516,14 @@ describe('estados da série', () => {
     const { container } = montar(v)
     expect(screen.getByText('Nenhum dos 3 dias do período tem relatório lido: impressões e cliques não medidos.')).toBeTruthy()
     expect(container.querySelectorAll('g[data-situacao="nao-medido"]')).toHaveLength(3)
-    expect(container.querySelector('line.ic-zero, rect.ic-bar')).toBeNull()
+    expect(container.querySelector('rect.ic-zero, rect.ic-bar')).toBeNull()
   })
 
   it('todos os dias lidos em zero: só traços, com "Nenhuma impressão" na frase', () => {
     const v = de(alcanceSoVazios('c', HOJE, 10))
     const { container } = montar(v)
     expect(screen.getByText(/^Nenhuma impressão em 10 dias/)).toBeTruthy()
-    expect(container.querySelectorAll('g[data-situacao="zero-medido"] line.ic-zero')).toHaveLength(10)
+    expect(container.querySelectorAll('g[data-situacao="zero-medido"] rect.ic-zero')).toHaveLength(10)
     expect(container.querySelector('rect.ic-bar, rect.ic-nm')).toBeNull()
     expect(container.innerHTML).not.toMatch(/NaN/)
   })

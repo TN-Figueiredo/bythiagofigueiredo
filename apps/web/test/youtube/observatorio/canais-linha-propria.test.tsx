@@ -11,8 +11,9 @@ vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
   useCanAdminSite: () => true,
 }))
 import { a3World } from './a3-fixture'
-import { buildCanaisView, type CanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
+import { buildCanaisView, type CanaisRow, type CanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { CanaisScreen } from '@/app/cms/(authed)/youtube/competitors/_canais/canais-screen'
+import { RowMenu } from '@/app/cms/(authed)/youtube/competitors/_canais/row-menu'
 import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
 import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrome/sync-context'
 import { link } from '@/lib/youtube/observatorio/links'
@@ -124,5 +125,50 @@ describe('I1 · a linha do canal próprio SEM vídeos', () => {
     const li = [...container.querySelectorAll('[data-own-block] li.fina')]
     expect(li).toHaveLength(1)
     expect(within(li[0] as HTMLElement).getAllByRole('button').map(b => b.textContent)).toEqual(['Ir até a linha'])
+  })
+})
+
+describe('T10 (I1 da revisão da T9) · o menu ⋯ e o canal próprio', () => {
+  const menu = () => screen.queryByRole('menu', { name: 'Ações do canal' })
+
+  it('a linha e o cartão do canal próprio (com e sem vídeos) NÃO têm ⋯: o item "Abrir detalhes" morto não é alcançável pela lista', () => {
+    const { container } = montar()
+    for (const id of [ID_COM, ID_SEM]) {
+      expect(container.querySelector(`[data-menu="${id}"]`)).toBeNull()
+      expect(within(tr(container, id)).queryByRole('button', { name: /^Mais ações/ })).toBeNull()
+    }
+    // o concorrente continua com o ⋯ (a guarda não esconde o menu de todo mundo)
+    const c = linhas(viewDe()).find(r => !r.own)!
+    expect(container.querySelector(`tbody tr.row[data-id="${c.id}"] [data-menu="${c.id}"]`)).not.toBeNull()
+  })
+
+  const menuDe = (row: CanaisRow, onOpen = vi.fn()) => {
+    render(<div data-obs-screen="canais"><button data-menu={row.id} type="button">⋯</button>
+      <RowMenu row={row} onClose={vi.fn()} onOpen={onOpen} onSync={vi.fn()} onYoutube={vi.fn()} onCopy={vi.fn()} onRemove={vi.fn()} /></div>)
+    return onOpen
+  }
+
+  it('RowMenu de uma linha sem página (defesa): "Abrir detalhes" fica desabilitado e diz por quê; clicar não faz nada; o foco nunca para no item morto', async () => {
+    const user = userEvent.setup()
+    const sem = linhas(viewDe()).find(r => r.id === ID_SEM)!
+    const onOpen = menuDe(sem)
+    const item = screen.getByRole('menuitem', { name: 'Abrir detalhes' }) as HTMLButtonElement
+    expect(item.disabled).toBe(true)
+    expect(item.getAttribute('title')).toBe('sem vídeos: ainda sem página')
+    await user.click(item)
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(document.activeElement).not.toBe(item)
+    expect(menu()!.contains(document.activeElement)).toBe(true)
+  })
+
+  it('RowMenu de uma linha com página: "Abrir detalhes" continua habilitado, sem title, e chama onOpen', async () => {
+    const user = userEvent.setup()
+    const c = linhas(viewDe()).find(r => !r.own)!
+    const onOpen = menuDe(c)
+    const item = screen.getByRole('menuitem', { name: 'Abrir detalhes' }) as HTMLButtonElement
+    expect(item.disabled).toBe(false)
+    expect(item.getAttribute('title')).toBeNull()
+    await user.click(item)
+    expect(onOpen).toHaveBeenCalledTimes(1)
   })
 })
