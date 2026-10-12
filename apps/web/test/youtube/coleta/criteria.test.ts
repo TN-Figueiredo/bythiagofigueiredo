@@ -853,3 +853,65 @@ describe('E12 onda 2, D1: job de tipo que só guarda bruto sem relatório novo e
     expect(semVideo.falhas).toEqual([MSG])
   })
 })
+
+describe('E12 onda 2, D4: tipo habilitado sem NENHUMA linha de job', () => {
+  const TIPOS = ['channel_reach_basic_a1', 'channel_reach_combined_a1', 'channel_basic_a3', 'channel_traffic_source_a3']
+  const linha = (tipo: string, status = 'ativo'): Row => ({ channel_id: 'ch-1', report_type_id: tipo, status, job_id: `j-${tipo}`, job_create_time: ha(1), created_at: ha(1), last_create_time: ha(0) })
+  const sondagemOk = (dias = 0): Row => tentativa('canal', 'ch-1', 'sondagem', 'ok', dias)
+  const rodar = async (tabelas: Record<string, Row[]>, canalAjustado: Partial<typeof canal> = {}, erros: Record<string, FakeErr> = {}) => {
+    const db = fakeSupabase(tabelas)
+    Object.assign(db.errors, erros)
+    const ctx = { supabase: db.client, falhas: [] as string[], channels: [{ ...canal, ...canalAjustado }] }
+    const r = await criteriosRelatorios(ctx)
+    return { ctx, r }
+  }
+
+  it('canal com coleta ligada, o passo de jobs já rodou (sondagem ok) e um tipo habilitado não tem linha: falha visível', async () => {
+    const { ctx } = await rodar({
+      yt_reporting_jobs: TIPOS.filter(t => t !== 'channel_basic_a3').map(t => linha(t)),
+      yt_own_collection_attempts: [sondagemOk(1)],
+    })
+    expect(ctx.falhas).toEqual(['jobs: Canal Um tem 1 tipo(s) de relatório habilitado(s) sem job: channel_basic_a3'])
+  })
+
+  it('nenhuma linha de job nenhuma, depois de uma sondagem ok: todos os tipos habilitados aparecem', async () => {
+    const { ctx } = await rodar({ yt_own_collection_attempts: [sondagemOk(2)] })
+    expect(ctx.falhas).toEqual([`jobs: Canal Um tem 4 tipo(s) de relatório habilitado(s) sem job: ${[...TIPOS].sort().join(', ')}`])
+  })
+
+  it('o passo de jobs nunca rodou para o canal (nenhuma sondagem ok): ainda é cedo, silêncio', async () => {
+    const { ctx } = await rodar({
+      yt_reporting_jobs: [linha('channel_reach_basic_a1')],
+      yt_own_collection_attempts: [tentativa('canal', 'ch-1', 'sondagem', 'sem_conexao', 0), tentativa('canal', 'ch-1', 'sondagem', 'erro_http', 1)],
+    })
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('linha desativado e linha ausente do mesmo canal viram UMA nota com os dois tipos', async () => {
+    const { ctx } = await rodar({
+      yt_reporting_jobs: [linha('channel_reach_basic_a1'), linha('channel_reach_combined_a1', 'desativado'), linha('channel_traffic_source_a3')],
+      yt_own_collection_attempts: [sondagemOk(1)],
+    })
+    expect(ctx.falhas).toEqual(['jobs: Canal Um tem 2 tipo(s) de relatório habilitado(s) sem job: channel_basic_a3, channel_reach_combined_a1'])
+  })
+
+  it('canal em reautorizar: nota do dono ("precisa ser reconectado"), não falha; canal com sync desligado: nada', async () => {
+    const tabelas = { yt_own_collection_attempts: [sondagemOk(3)] }
+    const a = await rodar(tabelas, { collection_status: 'reautorizar' })
+    expect(a.ctx.falhas).toEqual([])
+    expect(a.r.acao_do_dono).toEqual([`Canal Um tem 4 tipo(s) de relatório habilitado(s) sem job: ${[...TIPOS].sort().join(', ')} (o canal precisa ser reconectado)`])
+    const b = await rodar(tabelas, { sync_enabled: false })
+    expect(b.ctx.falhas).toEqual([])
+    expect(b.r.acao_do_dono).toEqual([])
+  })
+
+  it('os quatro tipos com linha: nada (a ausência só é falha quando falta de fato)', async () => {
+    const { ctx } = await rodar({ yt_reporting_jobs: TIPOS.map(t => linha(t)), yt_own_collection_attempts: [sondagemOk(0)] })
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('a leitura das sondagens falha: não avaliou (nunca verde)', async () => {
+    const { ctx } = await rodar({ yt_reporting_jobs: [linha('channel_reach_basic_a1')] }, {}, { yt_own_collection_attempts: ERRO })
+    expect(naoAvaliou(ctx.falhas, 'tipos habilitados sem job (yt_own_collection_attempts)')).toBe(true)
+  })
+})
