@@ -118,6 +118,8 @@ export interface EntradaBlocos {
   /** o dia de hoje no dia do YouTube */
   hoje: DiaYt
   dm: (d: DiaYt) => string
+  /** Para onde Enter e o segundo toque num traço da régua levam (preserva o `back=` da página); ausente = os traços não abrem nada. */
+  hrefVideo?: (id: string) => string
 }
 
 /* ---------------------------------------------------------------- frases fixas */
@@ -309,13 +311,13 @@ const AINDA = 'Origem do tráfego (esta tela ainda não a lê) e trocas de títu
 
 /* ---------------------------------------------------------------- as réguas */
 
-interface VideoDoCanal { id: string; ytId: string; views: number | null; likes: number | null; comments: number | null; dur: number | null }
+interface VideoDoCanal { id: string; ytId: string; titulo: string; views: number | null; likes: number | null; comments: number | null; dur: number | null }
 
 /** Os vídeos do canal como as réguas os leem: os datados do motor e os guardados sem data. Sem montar os cartões do canal (cada um consulta as trocas). */
 function videosDoCanal(obs: Observatory, canalId: string): VideoDoCanal[] {
   const ch = obs.channel(canalId)
-  const datados = obs.videos.filter(v => v.ch === canalId).map(v => ({ id: v.id, ytId: v.ytId, views: v.views, likes: v.likes, comments: v.comments, dur: v.dur }))
-  const sem = (ch?.undated ?? []).map(u => ({ id: u.id, ytId: u.ytId, views: u.views, likes: u.likes, comments: u.comments, dur: u.dur }))
+  const datados = obs.videos.filter(v => v.ch === canalId).map(v => ({ id: v.id, ytId: v.ytId, titulo: v.title, views: v.views, likes: v.likes, comments: v.comments, dur: v.dur }))
+  const sem = (ch?.undated ?? []).map(u => ({ id: u.id, ytId: u.ytId, titulo: u.title ?? 'Vídeo sem título', views: u.views, likes: u.likes, comments: u.comments, dur: u.dur }))
   return [...datados, ...sem]
 }
 
@@ -351,7 +353,7 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
   if (a.dados.acesso !== 'ok') {
     const negado = a.dados.acesso === 'negado'
     const reguas = buildReguas({
-      videoId, videos, porVideo: new Map(), alcanceLido: false, periodoTexto: null, hrefs, fmt: F,
+      videoId, videos, porVideo: new Map(), alcanceLido: false, periodoTexto: null, hrefs, hrefVideo: a.hrefVideo, fmt: F,
       motivoImpressoes: negado ? 'só quem edita o site vê as impressões' : 'a leitura das impressões falhou agora; recarregue a página',
     })
     return {
@@ -405,7 +407,7 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
     }
   }
   const reguas = buildReguas({
-    videoId, videos, porVideo: lidoAlcance.estado === 'ok' ? lidoAlcance.porVideo : new Map(), alcanceLido: lidoAlcance.estado === 'ok', periodoTexto, hrefs, fmt: F,
+    videoId, videos, porVideo: lidoAlcance.estado === 'ok' ? lidoAlcance.porVideo : new Map(), alcanceLido: lidoAlcance.estado === 'ok', periodoTexto, hrefs, hrefVideo: a.hrefVideo, fmt: F,
     ...(diarioReguas ? { diario: diarioReguas } : {}),
   })
 

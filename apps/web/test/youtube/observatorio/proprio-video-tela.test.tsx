@@ -15,7 +15,7 @@ import { Pager } from '@/app/cms/(authed)/youtube/competitors/_historico/pager'
 import { limparPagerUsado } from '@/app/cms/(authed)/youtube/competitors/_historico/pager-usado'
 import { lerUltimoVideo } from '@/app/cms/(authed)/youtube/competitors/_chrome/ultimo-video'
 import { ProprioVideoScreen } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-screen'
-import { buildProprioVideoPage } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-model'
+import { buildProprioVideoBase } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-model'
 import type { ObsVideo } from '@/lib/youtube/observatorio/types'
 
 const nav = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }))
@@ -47,12 +47,12 @@ const dados = (c: keyof typeof DADOS = 'cheio') => DADOS[c](W.canalId, W.ytIds, 
 const ORIGEM = { from: 'canais', canal: W.canalId, back: '?sort=imp', ids: 'v0,v1,v2,v3,v4' }
 const pagina = (id: string, sp: Record<string, string> = {}, d = dados()) => {
   const posicao = Number(id.slice(1)) + 1
-  return buildProprioVideoPage(W.obs, id, { ...ORIGEM, pos: String(posicao), tot: '5', ...sp }, d)!
+  return buildProprioVideoBase(W.obs, id, { ...ORIGEM, pos: String(posicao), tot: '5', ...sp })!
 }
 
 const Tela = ({ page, children }: { page: ReturnType<typeof pagina>; children?: ReactNode }) => (
   <TrailChrome crumbs={page.crumbs} aside={<Pager pager={page.pager} naTrilha />}>
-    <ProprioVideoScreen header={page.header} pager={page.pager} alcanceNota={page.alcanceNota} fromCanal={page.fromCanal}>{children}</ProprioVideoScreen>
+    <ProprioVideoScreen header={page.header} pager={page.pager} fromCanal={page.fromCanal}>{children}</ProprioVideoScreen>
   </TrailChrome>
 )
 const mount = (id = 'v1', sp: Record<string, string> = {}, d = dados(), children?: ReactNode) => {
@@ -266,7 +266,7 @@ describe('T11 o último vídeo visto (o Voltar da página do canal põe o foco n
 
   it('não veio da página do canal: nada é gravado', () => {
     window.sessionStorage.clear()
-    render(<Tela page={buildProprioVideoPage(W.obs, 'v1', {}, dados())!} />)
+    render(<Tela page={buildProprioVideoBase(W.obs, 'v1', {})!} />)
     expect(window.sessionStorage.length).toBe(0)
   })
 
@@ -278,21 +278,13 @@ describe('T11 o último vídeo visto (o Voltar da página do canal põe o foco n
 })
 
 describe('T11 alcance e o lugar das próximas tarefas', () => {
-  it('negado: a frase certa aparece, e nenhum número do alcance está na tela', () => {
-    mount('v0', {}, dados('negado'))
-    const nota = raiz().querySelector('[data-alcance-nota]')!
-    expect(nota.textContent).toBe('Impressões e cliques deste vídeo: só quem edita o site vê este número.')
-    expect(raiz().textContent).not.toMatch(/\b187\b/)
-  })
-  it('erro e sem relatório: cada um a sua frase; lido: nenhuma frase', () => {
-    mount('v0', {}, dados('erro'))
-    expect(raiz().querySelector('[data-alcance-nota]')!.textContent).toMatch(/a leitura do alcance falhou agora/)
-    cleanup()
-    mount('v0', {}, dados('vazio'))
-    expect(raiz().querySelector('[data-alcance-nota]')!.textContent).toMatch(/ainda sem relatório de alcance deste canal/)
-    cleanup()
-    mount('v0', {}, dados('cheio'))
-    expect(raiz().querySelector('[data-alcance-nota]')).toBeNull()
+  it('H4: alcanceNota saiu: nenhum [data-alcance-nota] na tela, em nenhum estado do dado', () => {
+    for (const c of ['negado', 'erro', 'vazio', 'cheio'] as const) {
+      mount('v0', {}, dados(c))
+      expect(raiz().querySelector('[data-alcance-nota]'), c).toBeNull()
+      expect(raiz().textContent, c).not.toMatch(/Impressões e cliques deste vídeo/)
+      cleanup()
+    }
   })
   it('children (Tarefas 12 e 13) entram depois da faixa, dentro da raiz', () => {
     mount('v0', {}, dados(), <section data-testid="encaixe">x</section>)
