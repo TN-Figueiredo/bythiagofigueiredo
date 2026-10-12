@@ -89,7 +89,7 @@ function Desenho({ view, W, pid, ativo }: { view: ImpressoesView; W: number; pid
                 <rect className="ic-nm" x={x0 + 1} y={yCl + 3} width={Math.max(2, bw - 2)} height={CR - 6} fill={hach} />
               </>
             ) : c.situacao === 'zero-medido' ? (
-              <line className="ic-zero" x1={x - largBarra / 2} x2={x + largBarra / 2} y1={T + PH} y2={T + PH} />
+              <rect className="ic-zero" x={x - largBarra / 2} y={T + PH - c.alturaPx} width={largBarra} height={c.alturaPx} rx="1" fill="none" strokeWidth="1.5" />
             ) : (
               <>
                 <rect className="ic-bar" x={x - largBarra / 2} y={topo} width={largBarra} height={c.alturaPx} rx="1.5" />

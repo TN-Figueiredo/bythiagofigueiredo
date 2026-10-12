@@ -165,7 +165,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   /** A row's "open": a competitor and an own channel with videos have a page of their own (`href`, no drawer). An own channel without videos has neither a page nor a drawer: its row is not clickable (the drawer leaves with Task 16). */
   const openRow = (id: string) => {
     const href = rowOf(id)?.href
-    if (!href) { if (!rowOf(id)?.semPagina) openDrawer(id); return }   // canal próprio sem vídeos (`semPagina`) não tem página nem gaveta: não há o que abrir
+    if (!href) { if (rowOf(id)?.semPagina) setMenu(null); else openDrawer(id); return }   // canal próprio sem vídeos (`semPagina`) não tem página nem gaveta: não há o que abrir
     setMenu(null)
     router.push(href)
   }
