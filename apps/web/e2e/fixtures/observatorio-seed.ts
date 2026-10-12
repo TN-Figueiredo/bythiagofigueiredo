@@ -339,8 +339,10 @@ export const RET = {
   volumeAlto: 'DvP4RC_VIjz',
   /** curto com volume alto e taxa baixa (3%): puxa a taxa do canal para baixo para o vídeo acima se separar dela */
   volumeBaixo: 'yDSmNLUJxTZ',
-  /** curto publicado há 14 dias com alcance pequeno */
-  curto: 'yXGNu4kxWgP',
+  /** curto publicado há 14 dias: taxa de clique perto de 0% (0,1%): a faixa colada no começo do eixo */
+  taxaBaixa: 'yXGNu4kxWgP',
+  /** curto de 167 dias: dois dias de alcance com taxa de 97%: a faixa colada no fim do eixo (dado extremo, só para a medida de layout) */
+  taxaAlta: 'dNVq3MzoX4L',
 } as const
 /** O dia (índice no relatório) do alcance de 18 impressões do vídeo magro e o dia do 1.139: ambos depois da publicação de cada um. */
 export const RET_DIA_MAGRO = 24
@@ -381,7 +383,8 @@ function linhasAlcanceRetencao(i: number): Array<[string, number, number]> {
     [RET.volumeAlto, 700 + ((i * 37) % 300), 0.085],
     [RET.volumeBaixo, 2000 + ((i * 53) % 500), 0.03],
   ]
-  if (i >= 18) l.push([RET.curto, 120 + ((i * 11) % 60), 0.05])
+  if (i >= 18) l.push([RET.taxaBaixa, 120 + ((i * 11) % 60), 0.001])
+  if (i === 14 || i === 15) l.push([RET.taxaAlta, 40, 0.97])
   if (i === RET_DIA_MAGRO) l.push([RET.magro, RET_MAGRO.imp, RET_MAGRO.ctr])
   return l
 }
