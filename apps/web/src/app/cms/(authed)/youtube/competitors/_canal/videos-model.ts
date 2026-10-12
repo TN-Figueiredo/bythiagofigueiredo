@@ -7,6 +7,7 @@
  * `multiplier`, `multiplierCard`, `changesIn`, `fmt`, `date`, `RULES` e `SERIES_START_LABEL`.
  */
 import type { Observatory } from '@/lib/youtube/observatorio'
+import type { Fmt } from '@/lib/youtube/observatorio/fmt'
 import type { ObsChannel, ObsVideo, UndatedVideo } from '@/lib/youtube/observatorio/types'
 import { tierOf } from '@/lib/youtube/observatorio/rules'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
@@ -51,12 +52,15 @@ export const AGUARDANDO = 'quando a sincronização terminar'
 const NB = ' '
 const WORD = { mid: 'alto', high: 'muito alto', top: 'topo' } as const
 
-function durText(sec: number | null): string | null {
+export function durText(sec: number | null): string | null {
   if (sec == null) return null
   const s = Math.round(sec), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60
   const p2 = (n: number) => (n < 10 ? '0' : '') + n
   return h ? `${h}:${p2(m)}:${p2(r)}` : `${p2(m)}:${p2(r)}`
 }
+
+/** O número como o cartão e a faixa do vídeo o escrevem: o espaço antes de "mil"/"mi" não quebra linha. */
+export const numNb = (F: Pick<Fmt, 'num'>, n: number): string => F.num(n).replace(/ (mil|mi)$/, NB + '$1')
 
 export function buildCanalVideos(obs: Observatory, channelId: string): CanalVideosView {
   const ch: ObsChannel | undefined = obs.channel(channelId)
@@ -66,7 +70,7 @@ export function buildCanalVideos(obs: Observatory, channelId: string): CanalVide
     + `Views por dia = média entre a primeira e a última contagem diária dos últimos 7 dias; a contagem diária existe desde ${obs.SERIES_START_LABEL} e só para os vídeos acompanhados.`
   if (!ch) return { videos: [], nota, semVideos: 'Este canal ainda não tem vídeos sincronizados.' }
 
-  const num = (n: number | null) => (n == null ? null : F.num(n).replace(/ (mil|mi)$/, NB + '$1'))
+  const num = (n: number | null) => (n == null ? null : numNb(F, n))
   const thumbOf = (ytId: string, cur?: string | null) => cur ?? (ytId ? `https://i.ytimg.com/vi/${ytId}/mqdefault.jpg` : null)
   const swapsOf = (id: string) => obs.changesIn({ days: 30, video: id }).filter(c => c.type !== 'desc').length
   const noTitle = 'sem título'
