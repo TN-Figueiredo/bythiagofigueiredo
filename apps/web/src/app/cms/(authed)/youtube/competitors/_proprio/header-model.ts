@@ -336,7 +336,8 @@ const plural1 = (n: number, um: string, muitos: string, F: Pick<Fmt, 'int'>): st
 /** A linha sob o nome (mockup 2): "Canal parado há N dias" ou "Último vídeo há N dias", e o que o alcance diz em uma oração. Nenhum número privado sem permissão. */
 function resumoDoCanal(ultimo: ObsVideo | null, parado: boolean, alc: AlcanceLido, noun: (n: number, um: string, muitos: string) => string, F: Pick<Fmt, 'int'>): ResumoCanalView | null {
   if (!ultimo) return null
-  const destaque = `${parado ? 'Canal parado' : 'Último vídeo'} há ${noun(ultimo.ageDays, 'dia', 'dias')}`
+  // vídeo de hoje: "há 0 dias" soaria a erro
+  const destaque = ultimo.ageDays === 0 ? 'Último vídeo hoje' : `${parado ? 'Canal parado' : 'Último vídeo'} há ${noun(ultimo.ageDays, 'dia', 'dias')}`
   let resto: string
   switch (alc.estado) {
     case 'negado': resto = '; só quem edita o site vê os números de alcance.'; break
