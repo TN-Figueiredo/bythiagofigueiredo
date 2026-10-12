@@ -39,7 +39,7 @@ interface Medida {
   fora: string[]; menorTexto: number; quemMenor: string; ibtn: { w: number; h: number } | null
   linhas: Array<{ chave: string; empilhada: boolean; ladoALado: boolean }>
   faixa: { textos: number; sobrepostos: string[]; foraDoCartao: string[]; svgW: number } | null
-  textoCartao: string; ordem: { depoisDosLados: boolean; antesDoNumero: boolean }; semNumeroNoDom: boolean
+  textoCartao: string; ordem: { depoisDosLados: boolean; depoisDoNumero: boolean }; semNumeroNoDom: boolean
 }
 
 async function medir(page: Page): Promise<Medida> {
@@ -53,7 +53,7 @@ async function medir(page: Page): Promise<Medida> {
     const contScroll = cont ? cont.scrollWidth - cont.clientWidth : 0
     const out: Medida = {
       docScroll: document.documentElement.scrollWidth - innerWidth, contScroll, larguraJanela: innerWidth, cartao: null, fora: [], menorTexto: 999, quemMenor: '', ibtn: null, linhas: [],
-      faixa: null, textoCartao: '', ordem: { depoisDosLados: false, antesDoNumero: false }, semNumeroNoDom: false,
+      faixa: null, textoCartao: '', ordem: { depoisDosLados: false, depoisDoNumero: false }, semNumeroNoDom: false,
     }
     if (!c) return out
     const r = c.getBoundingClientRect()
@@ -93,7 +93,7 @@ async function medir(page: Page): Promise<Medida> {
     }
     const num = [...raiz.querySelectorAll('h2')].find(h => /^Número a número/.test(h.textContent ?? ''))
     const lados = raiz.querySelector('.cp-sides')
-    out.ordem = { depoisDosLados: !!lados && !!(lados.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING), antesDoNumero: !!num && !!(num.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_PRECEDING) }
+    out.ordem = { depoisDosLados: !!lados && !!(lados.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING), depoisDoNumero: !!num && !!(num.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) }
     out.semNumeroNoDom = c.querySelectorAll('.so-vl').length === 0
     return out
   })
@@ -158,7 +158,7 @@ for (const caso of CASOS) {
           expect(m.contScroll, 'rolagem horizontal do contêiner').toBeLessThanOrEqual(0)
           expect(m.fora, 'elementos fora do cartão').toEqual([])
           expect(m.menorTexto, `texto de 12 px ou mais: ${m.quemMenor}`).toBeGreaterThanOrEqual(12)
-          expect(m.ordem, 'o cartão vem logo abaixo dos dois lados e antes de "Número a número"').toEqual({ depoisDosLados: true, antesDoNumero: true })
+          expect(m.ordem, 'o cartão vem no fim da página, depois dos dois lados e de "Número a número" (decisão do dono, 12/10)').toEqual({ depoisDosLados: true, depoisDoNumero: true })
           expect(m.linhas).toHaveLength(4)
           if (toque) {
             expect(m.ibtn!.w, 'alvo de toque do ⓘ').toBeGreaterThanOrEqual(43.5)
