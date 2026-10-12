@@ -267,7 +267,26 @@ async function baixarUm(
     const blob = await ctx.supabase
       .from('yt_reporting_report_blobs')
       .upsert({ report_id: p.report_id, site_id: p.site_id, csv_gz: paraBytea(pacote.gz) }, { onConflict: 'report_id' })
-    if (conferirBanco(blob, 'yt_reporting_report_blobs', ctx.falhas) !== 'ok') return
+    // Falha ao gravar o bruto: o relatório fica `listado` (tenta amanhã), mas deixa rastro. Sem a tentativa o alerta de 3 dias
+    // (criterioJobsEmErro) nunca dispararia, e a nota genérica de "erro de banco" não diz canal, tipo nem tamanho.
+    // `outcome` só aceita os valores do check de yt_own_collection_attempts (sem migration): o motivo vai no texto de `error`.
+    const falhasBlob: string[] = []
+    const gravou = conferirBanco(blob, 'yt_reporting_report_blobs', falhasBlob)
+    if (gravou === 'schema_ausente') {
+      for (const f of falhasBlob) pushUnico(ctx.falhas, f)
+      return
+    }
+    if (gravou === 'erro') {
+      const motivo = (blob.error?.message ?? blob.error?.code ?? 'sem texto').replace(/\s+/g, ' ').slice(0, 120)
+      const nome = ctx.channels.find(c => c.id === p.channel_id)?.name ?? p.channel_id
+      resumo.erros_download++
+      pushUnico(ctx.falhas, `relatórios: ${channelNote(nome, `a GRAVAÇÃO do bruto de ${p.report_type_id} falhou (${pacote.gz.length} bytes comprimidos; banco: ${motivo}); o relatório continua na fila`)}`)
+      await registrarTentativa(ctx, {
+        site_id: p.site_id, scope_type: 'job', scope_id: scopeJob(p.channel_id, p.report_type_id), kind: 'relatorio',
+        outcome: 'erro_http', error: `erro_gravacao: ${p.report_type_id}, ${pacote.gz.length} bytes, ${motivo}`, channel_id: p.channel_id,
+      })
+      return
+    }
 
     const vazio = pacote.rowCount === 0
     const fim = await marcar({
