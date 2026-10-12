@@ -235,7 +235,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const nicheOpts = nicheOptions(obs), tabIdx = (n: Niche | null) => { const i = n == null ? -1 : nicheOpts.findIndex(o => o.id === n); return i < 0 ? nicheOpts.length : i }
   const stats = (id: string, f: Fmt = fmt) => obs.channelStats(id, f)
   const num = (n: number | null) => F.num(n).replace(/ (mil|mi)$/, NB + '$1')
-  /** Views por dia em número absoluto, no formato de todas as telas (spec 19.3, emenda 37): abaixo de 10 uma casa, "menos de 0,1", "0" exato. */
+  /** Views por dia (absoluto OU por mil inscritos), no formato de todas as telas (spec 19.3, emenda 37; `vpdText`): abaixo de 10 uma casa, "menos de 0,1", "0" exato. */
   const vpdAbs = (v: number) => (vpdText(v, F.num) ?? F.num(v)).replace(/ (mil|mi)$/, NB + '$1')
   const subsTxt = (n: number) => F.subs(n).replace(/ (mil|mi)$/, NB + '$1')
   const HIDDEN_ROW = 'Inscritos ocultos'
@@ -379,7 +379,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     // series.ts periodRate), never "nenhum acompanhado" with a title that contradicts it
     if (v == null && S.vpdMedian == null && videosOf(c.id).some(x => x.fmt === f && x.tracked)) return { kind: 'na', text: 'Aguardando o 2º registro diário.', title: `${S.tracked} vídeos acompanhados; a média por dia precisa de dois registros diários` }
     if (v == null) return { kind: 'na', text: `Nenhum ${one} acompanhado.`, title: `${S.tracked} vídeos acompanhados` }
-    return { kind: 'ok', big: rel ? F.dec1(v) : vpdAbs(v), abs: rel && S.vpdMedian != null ? vpdAbs(S.vpdMedian) : null, n: S.vpdN, weak: S.vpdN < R.weakBase, tail: empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : null }
+    return { kind: 'ok', big: vpdAbs(v), abs: rel && S.vpdMedian != null ? vpdAbs(S.vpdMedian) : null, n: S.vpdN, weak: S.vpdN < R.weakBase, tail: empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : null }
   }
   function outCell(c: ObsChannel, f: Fmt, S: CStats, bf: boolean, empty: boolean, second: boolean): OutCell {
     const fmtName = wordOf(f), one = oneOf(f), o = S.bestOutlier
@@ -491,7 +491,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
    */
   const valorTxt = (c: ObsChannel) => {
     const x = valoresOf(c)[sort]!
-    return sort === 'subs' ? subsTxt(x) : rel ? F.dec1(x) : vpdAbs(x)
+    return sort === 'subs' ? subsTxt(x) : vpdAbs(x)
   }
   const posMap: Map<string, Posicao | null> = temPosicao(sort)
     ? posicoes(all.filter(inNiche).map(c => { const x = valoresOf(c)[sort]; return { id: c.id, x, chave: x == null ? undefined : valorTxt(c) } }))
@@ -600,7 +600,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
         syncStat,
       ]
     } else {
-      const vAbs = S.vpdMedian != null ? vpdAbs(S.vpdMedian) : '—', vRel = S.perMilSubs != null ? F.dec1(S.perMilSubs) : '—', g = S.growth30
+      const vAbs = S.vpdMedian != null ? vpdAbs(S.vpdMedian) : '—', vRel = S.perMilSubs != null ? vpdAbs(S.perMilSubs) : '—', g = S.growth30
       const until = c.sync.state !== 'ok' && g.to != null ? ', até ' + D.dmhm(g.to) : ''
       statsV = [
         { label: `Ritmo, 13${NB}sem`, labelTitle: null, value: `${F.dec1(kl.pw)} + ${F.dec1(ks.pw)}`,

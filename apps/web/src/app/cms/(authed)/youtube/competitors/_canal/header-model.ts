@@ -116,7 +116,7 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
   })
 
   const vpdPorMil = cell('vpdPorMil', 'views/dia por mil inscritos', {
-    value: SL.perMilSubs == null ? null : F.dec1(SL.perMilSubs), n: SL.vpdN,
+    value: SL.perMilSubs == null ? null : vpdText(SL.perMilSubs, F.num), n: SL.vpdN,
     missing: ch.subs == null ? 'inscritos ocultos pelo canal' : 'sem contagem diária ainda',
     base: 'views/dia nos longos ÷ milhares de inscritos',
   })

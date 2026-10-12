@@ -2,7 +2,7 @@ import type { Observatory } from '@/lib/youtube/observatorio'
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { Fmt, ObsVideo } from '@/lib/youtube/observatorio/types'
 
-/** Views por dia (spec 19.3): zero medido é "0"; abaixo de 10, uma casa; de 10 a 999, inteiro; milhar depois. */
+/** Views por dia, absoluto OU por mil inscritos (spec 19.3): zero medido é "0"; positivo que arredondaria para 0,0 é "menos de 0,1"; abaixo de 10, uma casa; de 10 a 999, inteiro; milhar depois. A lista, o painel, o cabeçalho e a comparação usam só esta função (e a posição empata pelo texto que ela escreve). */
 export function vpdText(v: number | null, num: (n: number) => string): string | null {
   if (v == null || v < 0) return null
   if (v === 0) return '0'

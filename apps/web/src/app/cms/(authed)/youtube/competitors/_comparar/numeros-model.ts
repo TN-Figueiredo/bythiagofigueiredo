@@ -190,8 +190,9 @@ export function numerosDoCanal(obs: Observatory, channelId: string, avisar?: (a:
     if (ch.subs == null) return naoMedido({ k: 'subsOcultos' })
     const v = SL.perMilSubs
     if (v == null) return naoMedido(SL.vpdMedian == null ? semDiarioMotivo() : { k: 'subsZero' })
-    // positivo pequeno demais para uma casa decimal não vira "0,0": seria um zero escrito onde há medida
-    return medido(v, v === 0 ? '0' : v < 0.05 ? 'menos de 0,1' : F.dec1(v))
+    // o mesmo formatador da lista, do painel e do cabeçalho (vpdText): zero medido "0", positivo pequeno demais para uma casa "menos de 0,1", nunca "0,0"
+    const t = vpdText(v, F.num)
+    return t == null ? naoMedido(semDiarioMotivo()) : medido(v, t)
   }))
 
   // engajamento SEM janela de 90 dias (spec 18.4): o mesmo critério para os dois lados. Comentário nulo fica de fora, não é 0.
