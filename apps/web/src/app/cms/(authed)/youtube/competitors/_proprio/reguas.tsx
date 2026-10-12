@@ -19,6 +19,8 @@ import './reguas.css'
 const FORMA: Record<Terco, string> = { cima: '▲', meio: '●', baixo: '▼' }
 const NOME_TERCO: Record<Terco, string> = { cima: 'terço de cima', meio: 'terço do meio', baixo: 'terço de baixo' }
 const GRUPOS: ReadonlyArray<LinhaRegua['grupo']> = ['Alcance', 'Resposta', 'Formato']
+/** Até que distância (px) do centro de um traço o clique do mouse abre o vídeo dele. */
+const ALCANCE_CLIQUE_PX = 12
 const vars = (o: Record<string, string>) => o as CSSProperties
 
 interface Ativo { i: number; toque: boolean; cx: number | undefined }
@@ -55,7 +57,8 @@ function Regua({ linha, falar }: { linha: LinhaRegua; falar: (s: string) => void
     return () => document.removeEventListener('pointerdown', fora)
   }, [toque])
 
-  const maisPerto = (cx: number): number => {
+  /** O traço mais perto de `cx` e a distância até ele, em px. */
+  const maisPertoDe = (cx: number): { i: number; d: number } => {
     let melhor = -1, menor = Infinity
     ticks.current.forEach((el, i) => {
       if (!el) return
@@ -63,8 +66,9 @@ function Regua({ linha, falar }: { linha: LinhaRegua; falar: (s: string) => void
       const d = Math.abs(b.left + b.width / 2 - cx)
       if (d < menor) { menor = d; melhor = i }
     })
-    return melhor
+    return { i: melhor, d: menor }
   }
+  const maisPerto = (cx: number): number => maisPertoDe(cx).i
 
   const onFocus = (e: React.FocusEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return
@@ -104,6 +108,8 @@ function Regua({ linha, falar }: { linha: LinhaRegua; falar: (s: string) => void
       else mostrar(i, true, true)
       return
     }
+    // o clique do mouse só abre o vídeo com o ponteiro em cima do traço (a faixa tem 44 px de altura e a régua é longa): um clique solto no vão não navega
+    if (maisPertoDe(e.clientX).d > ALCANCE_CLIQUE_PX) return
     ultimo.current = i
     abrir(tracos[i])
   }
