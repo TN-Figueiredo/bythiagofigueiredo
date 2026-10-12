@@ -1,9 +1,14 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeAll } from 'vitest'
 import { fakeSupabase, type Row } from '../../helpers/fake-supabase'
+import { edicaoDe } from './edicao-teste'
+import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
 import { lerAlcance, lerDiario, TIPO_ALCANCE, TETO_VIDEOS_DIARIO } from '@/lib/youtube/observatorio/proprio/ler'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
 import { vpdDoCanal, motivoVpdTexto } from '@/lib/youtube/observatorio/proprio/vpd'
+
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
 const S = 'site-a', C = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10', HOJE = dayPt(new Date())
 const d = (n: number) => addDays(HOJE, -n)
@@ -13,12 +18,29 @@ const relatorio = (dia: string, status: string, norm: boolean, over: Row = {}): 
 })
 const alcance = (yt: string, dia: string, imp: number | null, ctr: number | null, over: Row = {}): Row => ({ youtube_video_id: yt, day_pt: dia, site_id: S, channel_id: C, thumbnail_impressions: imp, thumbnail_ctr: ctr, ...over })
 const diario = (yt: string, dia: string, views: number | null, over: Row = {}): Row => ({ youtube_video_id: yt, day_pt: dia, site_id: S, channel_id: C, views, ...over })
-const pedido = { siteId: S, canalId: C, hoje: HOJE, podeEditar: true }
+let pedido: { edicao: EdicaoDoSite | null; canalId: string; hoje: string }
+beforeAll(async () => { pedido = { edicao: await edicaoDe(S), canalId: C, hoje: HOJE } })
+
+describe('o token de edição', () => {
+  it('um objeto de fora (forjado, sem passar pela guarda) não abre nada: negado e nenhuma consulta', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(3), 'baixado', true)], yt_own_video_reach_daily: [alcance('v1', d(3), 5, 0.1)], yt_own_video_daily: [diario('v1', d(3), 4)] })
+    // @ts-expect-error literal não é um EdicaoDoSite
+    const forjado: EdicaoDoSite = { siteId: S }
+    expect(await lerAlcance(db.client, { ...pedido, edicao: forjado })).toEqual({ acesso: 'negado' })
+    expect(await lerDiario(db.client, { ...pedido, edicao: forjado, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
+    expect(db.trips).toEqual([])
+  })
+  it('o site das consultas é o do token, não outro: dado de outro site não aparece', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [alcance('v1', d(3), 5, 0.1)] })
+    const r = await lerAlcance(db.client, { ...pedido, edicao: await edicaoDe('outro-site') })
+    expect(r).toMatchObject({ acesso: 'ok', dado: { linhas: [] } })
+  })
+})
 
 describe('lerAlcance', () => {
   it('quem não edita o site: negado e NENHUMA consulta', async () => {
     const db = fakeSupabase({ yt_reporting_reports: [relatorio(d(3), 'baixado', true)], yt_own_video_reach_daily: [alcance('v1', d(3), 5, 0.1)] })
-    expect(await lerAlcance(db.client, { ...pedido, podeEditar: false })).toEqual({ acesso: 'negado' })
+    expect(await lerAlcance(db.client, { ...pedido, edicao: null })).toEqual({ acesso: 'negado' })
     expect(db.trips).toEqual([])
   })
   it('tabelas vazias: ok com listas vazias (o modelo decide a frase), nunca um zero', async () => {
@@ -133,8 +155,8 @@ describe('lerAlcance', () => {
 describe('lerDiario', () => {
   it('negado: nenhuma consulta', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 4)] })
-    expect(await lerDiario(db.client, { ...pedido, podeEditar: false, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
-    expect(await lerDiario(db.client, { ...pedido, podeEditar: false, ytIds: [] })).toEqual({ acesso: 'negado' })
+    expect(await lerDiario(db.client, { ...pedido, edicao: null, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
+    expect(await lerDiario(db.client, { ...pedido, edicao: null, ytIds: [] })).toEqual({ acesso: 'negado' })
     expect(db.trips).toEqual([])
   })
   it('lista de vídeos vazia: não lê linhas, mas lê o último dia do canal (canal sem longo acompanhado com o diário cheio não é "nunca coletado")', async () => {

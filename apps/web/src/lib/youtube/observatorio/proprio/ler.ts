@@ -7,6 +7,7 @@ import { addDays } from '@/lib/youtube/coleta/day-pt'
 import { readAll } from '../load'
 import { ObservatoryLoadError } from '../niches-db'
 import { JANELA_ALCANCE_DIAS } from './dias'
+import { edicaoValida, type EdicaoDoSite } from './edicao'
 import type { AlcanceCanal, AlcanceLinha, DiarioCanal, DiarioLinha, DiaYt, Privado, RelatorioDia, StatusRelatorio } from './tipos'
 
 export const TIPO_ALCANCE = 'channel_reach_basic_a1'
@@ -14,15 +15,16 @@ export const JANELA_DIARIO_DIAS = 28
 export const TETO_VIDEOS_DIARIO = 50
 
 /**
- * QUEM CHAMA valida o acesso ao site; este leitor só recebe o resultado em `podeEditar` (critério `can_edit_site`,
- * o mesmo da RLS das tabelas) e, sendo falso, devolve 'negado' SEM consultar nada. `siteId` vem de getSiteContext(),
- * nunca da URL; `canalId` é o canal próprio do site, e toda consulta filtra por site E por canal.
+ * O acesso ao dado privado é a PROVA de edição do site (`EdicaoDoSite`, de `./edicao`), não um booleano: ela só nasce depois
+ * da guarda `can_edit_site` (o critério da RLS das tabelas) e leva o `siteId` dentro. Sem prova (null) ou com um objeto
+ * que não veio da guarda, o leitor devolve 'negado' SEM consultar nada. `canalId` é o canal próprio do site já resolvido
+ * pela página (nunca o texto cru da URL); toda consulta filtra por site E por canal.
  */
-export interface Pedido { siteId: string; canalId: string; hoje: DiaYt; podeEditar: boolean }
+export interface Pedido { edicao: EdicaoDoSite | null; canalId: string; hoje: DiaYt }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-/** Id que não é uuid (vindo da URL, por exemplo) não chega ao banco: o Postgres lançaria 22P02. Devolve 'negado', sem consulta e sem número. */
-const semConsulta = (p: Pedido): boolean => !p.podeEditar || !UUID.test(p.canalId)
+/** O site da prova de edição, ou null: sem prova, ou id que não é uuid (o Postgres lançaria 22P02) = 'negado', sem consulta e sem número. A página resolve o canal ANTES e dá "não encontrado" ao id malformado. */
+const siteAutorizado = (p: Pedido): string | null => (edicaoValida(p.edicao) && UUID.test(p.canalId) ? p.edicao.siteId : null)
 
 const STATUS = new Set<string>(['listado', 'baixado', 'vazio', 'erro', 'expirado_sem_baixar'])
 const statusDe = (s: unknown): StatusRelatorio => (typeof s === 'string' && STATUS.has(s) ? (s as StatusRelatorio) : 'desconhecido')
@@ -77,19 +79,20 @@ function ctrDe(x: unknown): { v: number | null; ruim: boolean } {
 
 /** Relatórios do tipo de alcance e linhas de alcance dos últimos JANELA_ALCANCE_DIAS + 5 dias. Erro de banco é LANÇADO; valor ruim (CTR fora de 0 a 1, negativo, data inválida) não lança: vira nulo ou é descartado e entra em `descartados`. */
 export async function lerAlcance(sb: SupabaseClient, p: Pedido): Promise<Privado<AlcanceCanal>> {
-  if (semConsulta(p)) return { acesso: 'negado' }
+  const siteId = siteAutorizado(p)
+  if (siteId == null) return { acesso: 'negado' }
   const desde = addDays(p.hoje, -(JANELA_ALCANCE_DIAS + 5))
   const filtroRel = () => sb.from('yt_reporting_reports').select('report_id, status, start_time, normalized_at')
-    .eq('site_id', p.siteId).eq('channel_id', p.canalId).eq('report_type_id', TIPO_ALCANCE)
+    .eq('site_id', siteId).eq('channel_id', p.canalId).eq('report_type_id', TIPO_ALCANCE)
   const [rels, linhas, recente] = await Promise.all([
     readAll<RelatorioRow>('yt_reporting_reports', () => filtroRel().gte('start_time', desde + 'T00:00:00Z').order('report_id')),
     readAll<AlcanceRow>('yt_own_video_reach_daily', () => sb.from('yt_own_video_reach_daily')
       .select('youtube_video_id, day_pt, thumbnail_impressions, thumbnail_ctr, collected_at')
-      .eq('site_id', p.siteId).eq('channel_id', p.canalId)
+      .eq('site_id', siteId).eq('channel_id', p.canalId)
       .gte('day_pt', desde).order('day_pt').order('youtube_video_id')),
     // SEM janela: o canal parado há mais que a janela ainda diz quando foi o último relatório
     primeiraLinha<{ start_time: string }>('yt_reporting_reports', sb.from('yt_reporting_reports').select('start_time')
-      .eq('site_id', p.siteId).eq('channel_id', p.canalId).eq('report_type_id', TIPO_ALCANCE)
+      .eq('site_id', siteId).eq('channel_id', p.canalId).eq('report_type_id', TIPO_ALCANCE)
       .order('start_time', { ascending: false }).range(0, 0)),
   ])
   let descartados = 0
@@ -109,18 +112,19 @@ export async function lerAlcance(sb: SupabaseClient, p: Pedido): Promise<Privado
 
 /** Diário dos `ytIds` (no máximo TETO_VIDEOS_DIARIO; o resto é ignorado) dos últimos JANELA_DIARIO_DIAS + 10 dias. Lista vazia: nenhuma linha, mas o `ultimoDia` real do canal. */
 export async function lerDiario(sb: SupabaseClient, p: Pedido & { ytIds: readonly string[] }): Promise<Privado<DiarioCanal>> {
-  if (semConsulta(p)) return { acesso: 'negado' }
+  const siteId = siteAutorizado(p)
+  if (siteId == null) return { acesso: 'negado' }
   const ytIds = p.ytIds.slice(0, TETO_VIDEOS_DIARIO)
   const desde = addDays(p.hoje, -(JANELA_DIARIO_DIAS + 10))
   // SEM janela e sem filtro de vídeo: o último dia gravado do canal, mesmo parado há meses (a série é que é limitada).
   // Roda também com a lista de vídeos vazia: um canal sem longo acompanhado com o diário cheio não é "nunca coletado".
   const ultimoQ = () => primeiraLinha<{ day_pt: string }>('yt_own_video_daily', sb.from('yt_own_video_daily').select('day_pt')
-    .eq('site_id', p.siteId).eq('channel_id', p.canalId)
+    .eq('site_id', siteId).eq('channel_id', p.canalId)
     .order('day_pt', { ascending: false }).range(0, 0))
   const [rows, ultimo] = await Promise.all([
     ytIds.length === 0 ? Promise.resolve<DiarioRow[]>([]) : readAll<DiarioRow>('yt_own_video_daily', () => sb.from('yt_own_video_daily')
       .select('youtube_video_id, day_pt, views, collected_at')
-      .eq('site_id', p.siteId).eq('channel_id', p.canalId)
+      .eq('site_id', siteId).eq('channel_id', p.canalId)
       .in('youtube_video_id', ytIds).gte('day_pt', desde).order('day_pt').order('youtube_video_id')),
     ultimoQ(),
   ])
