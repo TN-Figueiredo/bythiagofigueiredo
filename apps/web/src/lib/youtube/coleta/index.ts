@@ -15,6 +15,7 @@ import { criterioJobsEmErro, criterioMetadados, criterioOrcamento, criteriosRela
 import { criteriosL2 } from './criteria-l2'
 import { ontemPt } from './day-pt'
 import { passoDiario } from './diario-step'
+import { conferirGuarda } from './guarda'
 import { passoJobs, type JobsResumo } from './jobs-step'
 import { passoMetadados } from './meta-step'
 import { passoRelatorios } from './reports-step'
@@ -198,6 +199,17 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   if (PASSOS_LIGADOS.relatorios) {
     const r = await passo('relatorios', TETOS_MS.relatorios, 'relatorio', ativos, passoRelatorios)
     relPasso = r ? { ...r } : undefined
+  }
+
+  // E20 (MG13): a guarda do bruto é conferida em TODA execução desta fase, mesmo se o passo de relatórios não rodou (sem
+  // tempo) ou lançou: por isso está aqui, fora do passo. Tem prazo próprio (guarda.ts). Falha da conferência nunca vira
+  // "0 órfãos": vira nota, e o campo `guarda` fica ausente. Duas saídas de `executar` não chegam aqui, ambas já vermelhas:
+  // a leitura de `youtube_channels` falha (return acima) e a rede de segurança de `rodarColeta` (executar lançou).
+  try {
+    resumo.guarda = await conferirGuarda({ supabase: ctx.supabase, falhas })
+  } catch (e) {
+    falhou('guarda do bruto', e)
+    pushUnico(falhas, 'relatórios: guarda do bruto não conferida (a conferência lançou)')
   }
 
   // Alcance: normaliza o bruto que o passo de relatórios acabou de baixar. `servidos` vazio de propósito: sem tempo,

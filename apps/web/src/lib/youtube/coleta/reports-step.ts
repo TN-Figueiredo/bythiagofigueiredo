@@ -524,11 +524,12 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
   }
 
   resumo.ms_baixar = Date.now() - t1
-  // ── 4. Limpar o bruto ────────────────────────────────────────────────────
+  // ── 4. Limpeza do bruto: desde a MG13 devolve 0 (a MG6 da E10 reabre só para lote confirmado no NAS) ──
   if (restante(ctx.deadline) > 0) {
     const purge = await ctx.supabase.rpc('yt_reporting_blobs_purge', { p_sem_normalizador: SEM_NORMALIZADOR })
     if (conferirBanco(purge, 'yt_reporting_blobs_purge', ctx.falhas) === 'ok' && typeof purge.data === 'number') {
       resumo.bruto_apagado = purge.data
+      if (purge.data > 0) pushUnico(ctx.falhas, `relatórios: a limpeza apagou ${purge.data} bruto(s) nesta execução; desde a MG13 o esperado é 0 (a função foi recriada com o corpo antigo?)`)
     }
   }
 

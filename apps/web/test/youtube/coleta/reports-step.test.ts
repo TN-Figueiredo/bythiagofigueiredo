@@ -389,12 +389,22 @@ describe('passoRelatorios: baixar', () => {
 })
 
 describe('passoRelatorios: limpeza, orçamento e schema', () => {
-  it('chama a limpeza do bruto com os tipos sem normalizador', async () => {
+  it('chama a limpeza do bruto com os tipos sem normalizador; desde a MG13 qualquer bruto apagado é falha', async () => {
     const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')] })
     db.rpcHandlers.yt_reporting_blobs_purge = () => ({ data: 3, error: null })
-    const resumo = await passoRelatorios(ctxDe(db))
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
     expect(db.rpcCalls.find(c => c.name === 'yt_reporting_blobs_purge')!.args).toEqual({ p_sem_normalizador: SEM_NORMALIZADOR })
     expect(resumo.bruto_apagado).toBe(3)
+    expect(ctx.falhas).toContain('relatórios: a limpeza apagou 3 bruto(s) nesta execução; desde a MG13 o esperado é 0 (a função foi recriada com o corpo antigo?)')
+  })
+
+  it('limpeza que devolve 0 (o esperado desde a MG13): nenhuma nota', async () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')] })
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    expect(resumo.bruto_apagado).toBe(0)
+    expect(ctx.falhas.filter(n => n.includes('limpeza'))).toEqual([])
   })
 
   it('passo que recebe 0 s: nao_alcancado_orcamento por canal, pendentes > 0, nenhuma chamada', async () => {

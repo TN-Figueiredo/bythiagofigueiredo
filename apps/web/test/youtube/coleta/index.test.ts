@@ -27,6 +27,8 @@ import { passoDiario } from '@/lib/youtube/coleta/diario-step'
 import { criteriosL2 } from '@/lib/youtube/coleta/criteria-l2'
 import { criteriosRelatorios, criterioJobsEmErro, criterioOrcamento, criterioMetadados } from '@/lib/youtube/coleta/criteria'
 import { criarRelogio } from '@/lib/youtube/coleta/clock'
+import { GUARDA_PRAZO_MS } from '@/lib/youtube/coleta/guarda'
+import * as Sentry from '@sentry/nextjs'
 import type { StepCtx } from '@/lib/youtube/coleta/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fakeSupabase, type FakeDb } from './fake-supabase'
@@ -565,6 +567,99 @@ describe('rodarColeta: L1b', () => {
       const r = await rodar('antes')
       expect(r.resumo).not.toHaveProperty('conferencias_vencidas')
       expect(r.falhas).toEqual([])
+    })
+  })
+  describe('guarda do bruto conferida em toda execução (E20, MG13)', () => {
+    const baixado = { report_id: 'r1', status: 'baixado', downloaded_at: '2026-10-01T12:00:00.000Z' }
+    const comBruto = (extra: Record<string, Array<Record<string, unknown>>> = {}) => fakeSupabase({
+      youtube_channels: canais, yt_reporting_reports: [baixado], yt_reporting_report_blobs: [{ report_id: 'r1', site_id: 'site-1', csv_gz: '\\x00' }], ...extra,
+    })
+
+    it('fase depois: resumo.guarda traz números; sem execução anterior a base é nula; nenhuma falha', async () => {
+      const r = await rodarColeta({ supabase: comBruto().client, relogio: criarRelogio(), fase: 'depois' })
+      expect(r.resumo.guarda).toEqual({
+        blobs_guardados: 1, blobs_guardados_antes: null, baixados_sem_bruto: 0, brutos_sem_baixado: 0, perdas_reconhecidas: 0, expirados_sem_registro: 0,
+      })
+      expect(r.falhas).toEqual([])
+    })
+
+    it('com o passo de relatórios SEM TEMPO a conferência roda do mesmo jeito (não está dentro do passo)', async () => {
+      const r = await rodarColeta({ supabase: comBruto().client, relogio: criarRelogio(Date.now() - 300_000), fase: 'depois' })
+      expect(passoRelatorios).not.toHaveBeenCalled()
+      expect(r.resumo.guarda).toMatchObject({ blobs_guardados: 1, baixados_sem_bruto: 0 })
+    })
+
+    it('com o passo de relatórios LANÇANDO a conferência roda do mesmo jeito', async () => {
+      vi.mocked(passoRelatorios).mockRejectedValue(new Error('boom'))
+      const r = await rodarColeta({ supabase: comBruto().client, relogio: criarRelogio(), fase: 'depois' })
+      expect(r.falhas).toEqual(['relatorios: unexpected error (Error)'])
+      expect(r.resumo.guarda).toMatchObject({ blobs_guardados: 1 })
+    })
+
+    it('baixado sem bruto: falha na execução, com o resumo preenchido', async () => {
+      const db = fakeSupabase({ youtube_channels: canais, yt_reporting_reports: [baixado] })
+      const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+      expect(r.resumo.guarda).toMatchObject({ blobs_guardados: 0, baixados_sem_bruto: 1 })
+      expect(r.falhas).toEqual(['relatórios: 1 relatório(s) baixado(s) estão sem o bruto guardado (1 baixados, 0 brutos): liste e resolva pela seção 13 do runbook da coleta (devolver à fila ou reconhecer a perda)'])
+    })
+
+    it('queda contra a última execução gravada: falha de um dia, com os dois números', async () => {
+      const db = comBruto({ yt_own_collection_runs: [{ ran_at: '2026-10-06T12:02:00.000Z', resumo: { guarda: { blobs_guardados: 4 } } }] })
+      const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+      expect(r.resumo.guarda).toMatchObject({ blobs_guardados: 1, blobs_guardados_antes: 4 })
+      expect(r.falhas).toEqual(['relatórios: os brutos guardados caíram de 4 para 1 desde a última execução conferida: canal próprio removido ou perda (confira qual)'])
+    })
+
+    it('a conferência LANÇA: nota em falhas, Sentry avisado, rodarColeta não lança e o resto da execução segue', async () => {
+      const db = comBruto()
+      db.rpcHandlers.yt_reporting_guarda_conferir = () => { throw new Error('x') }
+      const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+      expect(r.falhas).toEqual(['guarda do bruto: unexpected error (Error)', 'relatórios: guarda do bruto não conferida (a conferência lançou)'])
+      expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error), { tags: { cron: 'sync-analytics-metrics', passo: 'guarda do bruto' } })
+      expect(r.resumo).not.toHaveProperty('guarda')
+      expect(criterioOrcamento).toHaveBeenCalledTimes(1)
+    })
+
+    it('a função do banco NÃO RESPONDE: o prazo próprio corta em GUARDA_PRAZO_MS, vira nota e a execução termina', async () => {
+      vi.useRealTimers()
+      vi.useFakeTimers({ now: AGORA, toFake: ['Date', 'setTimeout', 'clearTimeout'] })   // este teste precisa do setTimeout falso: o do arquivo só falsifica Date
+      const db = comBruto()
+      db.rpcHandlers.yt_reporting_guarda_conferir = () => new Promise<never>(() => {})
+      const andamento = rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+      for (let i = 0; i < 5000 && vi.getTimerCount() === 0; i++) await Promise.resolve()   // até a conferência armar o prazo (só microtarefas)
+      expect(vi.getTimerCount()).toBe(1)
+      await vi.advanceTimersByTimeAsync(GUARDA_PRAZO_MS - 1)
+      expect(criterioOrcamento).not.toHaveBeenCalled()   // ainda esperando a conferência, que é a única coisa pendente
+      await vi.advanceTimersByTimeAsync(1)
+      const r = await andamento
+      expect(r.falhas).toEqual([`relatórios: guarda do bruto não conferida (passou do prazo de ${GUARDA_PRAZO_MS} ms)`])
+      expect(r.resumo.guarda).toMatchObject({ blobs_guardados: null, baixados_sem_bruto: null })
+      expect(criterioOrcamento).toHaveBeenCalledTimes(1)
+    })
+
+    it('a fase antes não confere a guarda', async () => {
+      const db = comBruto()
+      const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+      expect(r.resumo).not.toHaveProperty('guarda')
+      expect(db.rpcCalls.map(c => c.name)).not.toContain('yt_reporting_guarda_conferir')
+    })
+
+    it('as duas saídas sem a guarda (G2), ambas já vermelhas: a leitura de youtube_channels falha; o executar lança', async () => {
+      const lerFalha = fakeSupabase()
+      lerFalha.errors.youtube_channels = { code: '57014', message: 'statement timeout' }
+      const a = await rodarColeta({ supabase: lerFalha.client, relogio: criarRelogio(), fase: 'depois' })
+      expect(a.falhas).toEqual(['erro de banco ao ler youtube_channels'])
+      expect(a.resumo).not.toHaveProperty('guarda')
+      expect(lerFalha.rpcCalls.map(c => c.name)).not.toContain('yt_reporting_guarda_conferir')
+
+      // O que escapa dos try internos cai na rede de segurança de rodarColeta: um getter que lança, depois da leitura dos canais.
+      const lanca = fakeSupabase({ youtube_channels: canais })
+      const b = await rodarColeta({
+        supabase: lanca.client, relogio: criarRelogio(), fase: 'depois',
+        get autorizadosAntes(): string[] { throw new Error('fora dos try') },
+      })
+      expect(b.falhas).toEqual(['coleta: unexpected error (Error)'])
+      expect(b.resumo).not.toHaveProperty('guarda')
     })
   })
 })
