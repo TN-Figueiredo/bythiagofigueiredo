@@ -834,6 +834,23 @@ describe('13.2: botões "Dia anterior" e "Dia seguinte" e a frase do dia', () =>
     }
   })
 
+  it('o dia escolhido pelo botão marca a coluna e escreve a frase embaixo, mas não abre a dica flutuante sobre o gráfico (o teclado e o mouse seguem abrindo)', async () => {
+    const user = userEvent.setup()
+    const v = cheio()
+    const { container } = montar(v)
+    await user.click(botoes().seg)
+    expect(status(container).textContent).toBe(v.colunas[0]!.dica)
+    expect(hit(0).getAttribute('class')).toContain('on')
+    expect(tips()).toHaveLength(0)
+    fireEvent.pointerMove(hit(3), { pointerType: 'mouse' })
+    expect(tips().map(t => t.textContent)).toEqual([v.colunas[3]!.dica])
+    await user.click(botoes().seg)
+    expect(tips()).toHaveLength(0)
+    act(() => grupo(container).focus())
+    await user.keyboard('{ArrowRight}')
+    expect(tips()).toHaveLength(1)
+  })
+
   it('o botão guarda o dia para o teclado continuar dele, e o toque numa coluna seguido do botão anda a partir dela', async () => {
     const user = userEvent.setup()
     const v = cheio()
@@ -1048,6 +1065,6 @@ describe('13.2: regras do CSS do desenho aprovado', () => {
 
   it('a caixa do desenho não estoura a coluna de 390 px (o contêiner rola por dentro) e o ⓘ tem alvo de 44 px no toque', () => {
     expect(css).toMatch(/\.ic-sc\{[^}]*overflow-x:auto/)
-    expect(css).toMatch(/@media \(pointer:coarse\)\{[^}]*\.ic-info\{width:44px;height:44px\}/)
+    expect(css).toMatch(/@media \(pointer:coarse\)\{[^}]*\.ic-info\{width:44px;height:44px;margin:-10px 0\}/)
   })
 })
