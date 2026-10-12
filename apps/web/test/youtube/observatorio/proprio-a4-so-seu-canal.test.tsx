@@ -106,15 +106,15 @@ describe('14 modelo: buildSoSeuCanal', () => {
   })
 
   it('% assistido: com menos de 30 views leva a nota de pouca base; com menos de 10 fica marcado fraco; sem views é não medido, nunca 0%', () => {
-    const com = (views: number, dias = 1) => linha(viewDe(monta(alc3de140(), diarioPct([{ dias, views, pct: 47.5 }]))), 'assistido')
+    // `views` é o total na janela, repartido em 7 dias (o mínimo para o número aparecer): 7 dias num vídeo e o resto no dia mais novo de outro
+    const com = (views: number) => linha(viewDe(monta(alc3de140(), diarioPct([{ dias: 7, views: Math.floor(views / 7), pct: 47.5 }, { dias: 1, views: views % 7, pct: 47.5 }]))), 'assistido')
     expect(com(20)).toMatchObject({ valor: '48%', nota: 'só 20 views: pouco para uma média', fraco: false })
     expect(com(29)).toMatchObject({ nota: 'só 29 views: pouco para uma média', fraco: false })
     expect(com(30)).toMatchObject({ valor: '48%', nota: null, fraco: false })
     expect(com(8)).toMatchObject({ valor: '48%', nota: 'só 8 views: pouco para uma média', fraco: true })
     expect(com(10)).toMatchObject({ fraco: false })
     expect(com(9).fraco).toBe(true)
-    // 1 view: singular
-    expect(com(1).nota).toBe('só 1 view: pouco para uma média')
+    // (o singular "só 1 view" deixou de ser alcançável: com 7 dias de dado há pelo menos 7 views; as fronteiras de 6 e 7 dias estão em -fix14)
     // sem views na janela: valor nulo, nunca "0%", e nenhuma nota inventada
     const semViews = linha(viewDe(monta(alc3de140(), diarioPct([{ dias: 10, views: 0, pct: 60 }]))), 'assistido')
     expect(semViews).toMatchObject({ valor: null, nota: null, fraco: false })
@@ -144,7 +144,9 @@ describe('14 modelo: buildSoSeuCanal', () => {
       expect(v.frase).toContain('falta medir, não é zero')
       expect(v.frase).toContain('tnFigueiredo')
       expect(v.linhas.map(l => l.chave)).toEqual(['impressoes', 'cliques', 'taxa', 'assistido'])
-      for (const l of v.linhas) expect(l, l.chave).toMatchObject({ valor: null, nota: null, fraco: false })
+      // as três linhas do alcance: só o quadradinho; o % assistido segue o estado dele (diário vazio: a nota da coleta diária)
+      for (const l of v.linhas.filter(x => x.chave !== 'assistido')) expect(l, l.chave).toMatchObject({ valor: null, nota: null, fraco: false })
+      expect(linha(v, 'assistido')).toMatchObject({ valor: null, nota: 'a coleta diária ainda não gravou este canal', fraco: false })
       expect(v.taxa).toBeNull()
       expect(JSON.stringify(v)).not.toMatch(/"valor":"/)
     }
