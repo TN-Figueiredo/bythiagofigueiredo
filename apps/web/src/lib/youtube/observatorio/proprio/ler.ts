@@ -38,7 +38,7 @@ function num(x: unknown): number | null {
 
 interface RelatorioRow { report_id: string; status: string; start_time: string; normalized_at: string | null }
 interface AlcanceRow { youtube_video_id: string; day_pt: string; thumbnail_impressions: unknown; thumbnail_ctr: unknown; collected_at: string | null }
-interface DiarioRow { youtube_video_id: string; day_pt: string; views: unknown; collected_at: string | null }
+interface DiarioRow { youtube_video_id: string; day_pt: string; views: unknown; avg_view_percentage: unknown; avg_view_duration_seconds: unknown; collected_at: string | null }
 
 /** Data UTC ('AAAA-MM-DD') de um timestamptz, qualquer que seja o fuso em que o banco o escreveu; inválido devolve null. */
 function diaUtc(ts: unknown): DiaYt | null {
@@ -65,7 +65,7 @@ function umaPorVideoDia<T extends { youtube_video_id: string; day_pt: string; co
   return [...por.values()]
 }
 
-/** Medida que não pode ser negativa (impressões, views). Negativo é lixo da fonte: vira nulo (não medido) e `ruim` avisa. */
+/** Medida que não pode ser negativa (impressões, views, duração média). Negativo é lixo da fonte: vira nulo (não medido) e `ruim` avisa. */
 function medida(x: unknown): { v: number | null; ruim: boolean } {
   const n = num(x)
   return n != null && n < 0 ? { v: null, ruim: true } : { v: n, ruim: false }
@@ -75,6 +75,16 @@ function medida(x: unknown): { v: number | null; ruim: boolean } {
 function ctrDe(x: unknown): { v: number | null; ruim: boolean } {
   const n = num(x)
   return n != null && (n < 0 || n > 1) ? { v: null, ruim: true } : { v: n, ruim: false }
+}
+
+/**
+ * `avg_view_percentage` é a média do percentual assistido, em PONTOS de 0 a 100 (a Analytics API entrega 51,5 para 51,5%; a coleta
+ * grava o número como veio, sem escala; fixado em proprio-ler.test.ts). Fora de 0 a 100 o valor não é confiável: vira nulo (não
+ * medido) e `ruim` avisa. Nunca se reescala: 0,5 é meio ponto percentual, não 50%.
+ */
+function pctDe(x: unknown): { v: number | null; ruim: boolean } {
+  const n = num(x)
+  return n != null && (n < 0 || n > 100) ? { v: null, ruim: true } : { v: n, ruim: false }
 }
 
 /** Relatórios do tipo de alcance e linhas de alcance dos últimos JANELA_ALCANCE_DIAS + 5 dias. Erro de banco é LANÇADO; valor ruim (CTR fora de 0 a 1, negativo, data inválida) não lança: vira nulo ou é descartado e entra em `descartados`. */
@@ -123,16 +133,16 @@ export async function lerDiario(sb: SupabaseClient, p: Pedido & { ytIds: readonl
     .order('day_pt', { ascending: false }).range(0, 0))
   const [rows, ultimo] = await Promise.all([
     ytIds.length === 0 ? Promise.resolve<DiarioRow[]>([]) : readAll<DiarioRow>('yt_own_video_daily', () => sb.from('yt_own_video_daily')
-      .select('youtube_video_id, day_pt, views, collected_at')
+      .select('youtube_video_id, day_pt, views, avg_view_percentage, avg_view_duration_seconds, collected_at')
       .eq('site_id', siteId).eq('channel_id', p.canalId)
       .in('youtube_video_id', ytIds).gte('day_pt', desde).order('day_pt').order('youtube_video_id')),
     ultimoQ(),
   ])
   let descartados = 0
   const linhas: DiarioLinha[] = umaPorVideoDia(rows).map(r => {
-    const views = medida(r.views)
-    if (views.ruim) descartados++
-    return { ytId: r.youtube_video_id, dia: r.day_pt, views: views.v }
+    const views = medida(r.views), pct = pctDe(r.avg_view_percentage), duracao = medida(r.avg_view_duration_seconds)
+    if (views.ruim || pct.ruim || duracao.ruim) descartados++
+    return { ytId: r.youtube_video_id, dia: r.day_pt, views: views.v, pctAssistido: pct.v, duracaoMediaSeg: duracao.v }
   })
   return { acesso: 'ok', dado: { canalId: p.canalId, ultimoDia: ultimo?.day_pt ?? null, linhas, descartados } }
 }

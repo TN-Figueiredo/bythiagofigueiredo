@@ -142,21 +142,21 @@ export function alcanceNadaLido(canalId: string, hoje: DiaYt): AlcanceCanal {
 export function diarioCheio(canalId: string, longos: readonly string[], hoje: DiaYt): DiarioCanal {
   const ultimo = addDays(hoje, -2)
   const linhas: DiarioLinha[] = []
-  longos.forEach((ytId, j) => { for (let n = 0; n < 30; n++) linhas.push({ ytId, dia: addDays(ultimo, -n), views: (j + 1) * 2 }) })
+  longos.forEach((ytId, j) => { for (let n = 0; n < 30; n++) linhas.push({ ytId, dia: addDays(ultimo, -n), views: (j + 1) * 2, pctAssistido: null, duracaoMediaSeg: null }) })
   return diarioDe(canalId, linhas, ultimo)
 }
 
 /** Diário curto: três dias (menos de 7 medidos). */
 export function diarioCurto(canalId: string, longos: readonly string[], hoje: DiaYt): DiarioCanal {
   const ultimo = addDays(hoje, -1)
-  const linhas: DiarioLinha[] = longos.flatMap(ytId => [0, 1, 2].map(n => ({ ytId, dia: addDays(ultimo, -n), views: 5 })))
+  const linhas: DiarioLinha[] = longos.flatMap(ytId => [0, 1, 2].map(n => ({ ytId, dia: addDays(ultimo, -n), views: 5, pctAssistido: null, duracaoMediaSeg: null })))
   return diarioDe(canalId, linhas, ultimo)
 }
 
 /** Diário que parou: o último dia gravado tem mais de 7 dias. */
 export function diarioParado(canalId: string, longos: readonly string[], hoje: DiaYt): DiarioCanal {
   const ultimo = addDays(hoje, -20)
-  const linhas: DiarioLinha[] = longos.flatMap(ytId => Array.from({ length: 30 }, (_, n) => ({ ytId, dia: addDays(ultimo, -n), views: 7 })))
+  const linhas: DiarioLinha[] = longos.flatMap(ytId => Array.from({ length: 30 }, (_, n) => ({ ytId, dia: addDays(ultimo, -n), views: 7, pctAssistido: null, duracaoMediaSeg: null })))
   return diarioDe(canalId, linhas, ultimo)
 }
 

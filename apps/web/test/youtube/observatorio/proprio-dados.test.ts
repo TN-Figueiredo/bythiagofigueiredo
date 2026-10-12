@@ -14,7 +14,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: (...a: u
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => getSupabaseServiceClient() }))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => captureMessage(...a), captureException: (...a: unknown[]) => captureException(...a) }))
 
-import { podeVerPrivado, lerDadosDoCanal, lerDiarioDosCanais, longosAcompanhadosDe } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
+import { podeVerPrivado, lerDadosDoCanal, lerDadosDoVideo, lerDiarioDosCanais, longosAcompanhadosDe } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
 
 const S = 'site-1'
 const BOM = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10', RUIM = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a11', TERC = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a12'
@@ -70,7 +70,7 @@ describe('lerDadosDoCanal', () => {
     const r = await lerDadosDoCanal({ canalId: BOM, longosAcompanhados: ['v1'], agora: AGORA, edicao: await token() })
     if (r.alcance.acesso !== 'ok' || r.diario.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.alcance.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), imp: 100, ctr: 0.05 }])
-    expect(r.diario.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), views: 4 }])
+    expect(r.diario.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), views: 4, pctAssistido: null, duracaoMediaSeg: null }])
     expect(captureMessage).not.toHaveBeenCalled()
   })
   it('erro de banco: lança (a página mostra a tela de erro, nunca um canal vazio)', async () => {
@@ -94,6 +94,93 @@ describe('lerDadosDoCanal', () => {
     expect(r.alcance.acesso).toBe('ok'); expect(r.diario.acesso).toBe('ok')
     expect(captureMessage).toHaveBeenCalledTimes(1)
     expect(captureMessage.mock.calls[0]![1]).toMatchObject({ level: 'warning', extra: { siteId: S, descartados: 4 } })
+  })
+})
+
+describe('lerDadosDoVideo (a leitura da tela do vídeo próprio)', () => {
+  const SENTINELA_PCT = 73.4
+  const comPct = (yt: string, dia: string, views: number, canal = BOM): Row => ({ ...diario(yt, dia, views, canal), avg_view_percentage: SENTINELA_PCT, avg_view_duration_seconds: 123 })
+  const mundo = () => fakeSupabase({
+    yt_reporting_reports: [relatorio(d(3))],
+    yt_own_video_reach_daily: [alcance('v1', d(3), 100, 0.05)],
+    yt_own_video_daily: [comPct('v1', d(3), 9)],
+  })
+  it('sem permissão: negado, nenhum cliente de serviço criado e nenhum dígito privado no que sai', async () => {
+    com(mundo())
+    const r = await lerDadosDoVideo({ canalId: BOM, ytId: 'v1', longosAcompanhados: ['v1'], agora: AGORA, edicao: null })
+    expect(r).toEqual({ acesso: 'negado' })
+    expect(JSON.stringify(r)).toBe('{"acesso":"negado"}')
+    expect(getSupabaseServiceClient).not.toHaveBeenCalled()
+  })
+  it('token forjado (objeto de fora): negado e nenhum cliente criado', async () => {
+    // @ts-expect-error literal não é um EdicaoDoSite
+    const forjado: EdicaoDoSite = { siteId: S }
+    expect(await lerDadosDoVideo({ canalId: BOM, ytId: 'v1', longosAcompanhados: ['v1'], agora: AGORA, edicao: forjado })).toEqual({ acesso: 'negado' })
+    expect(getSupabaseServiceClient).not.toHaveBeenCalled()
+  })
+  it('usuário só de leitura (requireSiteScope recusa a edição): podeVerPrivado dá null e o leitor entrega negado, sem tocar o banco', async () => {
+    const db = mundo()
+    com(db)
+    requireSiteScope.mockResolvedValue({ ok: false, reason: 'insufficient_access' })
+    const edicao = await podeVerPrivado(S)
+    expect(edicao).toBeNull()
+    const r = await lerDadosDoVideo({ canalId: BOM, ytId: 'v1', longosAcompanhados: ['v1'], agora: AGORA, edicao })
+    expect(r).toEqual({ acesso: 'negado' })
+    expect(db.trips).toEqual([])
+    expect(getSupabaseServiceClient).not.toHaveBeenCalled()
+  })
+  it('com permissão: ok, com o alcance e o diário (inclusive % assistido e duração) do canal do token', async () => {
+    com(mundo())
+    const r = await lerDadosDoVideo({ canalId: BOM, ytId: 'v1', longosAcompanhados: ['v1'], agora: AGORA, edicao: await token() })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.alcance.linhas).toEqual([{ ytId: 'v1', dia: d(3), imp: 100, ctr: 0.05 }])
+    expect(r.dado.diario.linhas).toEqual([{ ytId: 'v1', dia: d(3), views: 9, pctAssistido: SENTINELA_PCT, duracaoMediaSeg: 123 }])
+  })
+  it('lê só o site do token e só o canal pedido', async () => {
+    com(fakeSupabase({
+      yt_reporting_reports: [], yt_own_video_reach_daily: [alcance('v9', d(3), 7, 0.5, RUIM)],
+      yt_own_video_daily: [comPct('v1', d(3), 9), { ...comPct('v1', d(4), 99), site_id: 'outro-site' }, comPct('v9', d(3), 5, RUIM)],
+    }))
+    const r = await lerDadosDoVideo({ canalId: BOM, ytId: 'v1', longosAcompanhados: ['v1'], agora: AGORA, edicao: await token() })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.diario.linhas.map(l => l.ytId + l.dia)).toEqual(['v1' + d(3)])
+    expect(r.dado.alcance.linhas).toEqual([])
+  })
+  it('o vídeo da tela entra no pedido mesmo fora da lista de longos acompanhados, e sem duplicar quando já está nela', async () => {
+    com(fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [comPct('fora', d(3), 4), comPct('v1', d(3), 2)] }))
+    const r = await lerDadosDoVideo({ canalId: BOM, ytId: 'fora', longosAcompanhados: ['v1'], agora: AGORA, edicao: await token() })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.diario.linhas.map(l => l.ytId).sort()).toEqual(['fora', 'v1'])
+    com(fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [comPct('v1', d(3), 2)] }))
+    const r2 = await lerDadosDoVideo({ canalId: BOM, ytId: 'v1', longosAcompanhados: ['v1', 'v1'], agora: AGORA, edicao: await token() })
+    if (r2.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r2.dado.diario.linhas).toHaveLength(1)
+  })
+  it('o vídeo da tela vai na FRENTE: com 50 longos na lista e o teto de 50, ele não é o que o teto corta', async () => {
+    const longos = Array.from({ length: 50 }, (_, k) => 'l' + String(k).padStart(2, '0'))
+    com(fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [comPct('fora', d(3), 4), comPct('l49', d(3), 1)] }))
+    const r = await lerDadosDoVideo({ canalId: BOM, ytId: 'fora', longosAcompanhados: longos, agora: AGORA, edicao: await token() })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    expect(r.dado.diario.linhas.map(l => l.ytId)).toEqual(['fora'])
+  })
+  it('erro de banco: lança (a página mostra a tela de erro, nunca um vídeo "sem dados")', async () => {
+    com(fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [] }, { failOn: 'yt_own_video_daily' }))
+    await expect(lerDadosDoVideo({ canalId: BOM, ytId: 'v1', longosAcompanhados: ['v1'], agora: AGORA, edicao: await token() })).rejects.toThrow()
+  })
+  it('valores ruins (% fora de 0 a 100, CTR fora de 0 a 1): UM aviso ao Sentry com a soma', async () => {
+    com(fakeSupabase({
+      yt_reporting_reports: [relatorio(d(3))],
+      yt_own_video_reach_daily: [alcance('v1', d(3), 100, 7)],
+      yt_own_video_daily: [{ ...diario('v1', d(3), 5), avg_view_percentage: 140 }, diario('v1', d(4), -1)],
+    }))
+    await lerDadosDoVideo({ canalId: BOM, ytId: 'v1', longosAcompanhados: ['v1'], agora: AGORA, edicao: await token() })
+    expect(captureMessage).toHaveBeenCalledTimes(1)
+    expect(captureMessage.mock.calls[0]![1]).toMatchObject({ level: 'warning', extra: { siteId: S, descartados: 3 } })
+  })
+  it('tudo bem: nenhum aviso', async () => {
+    com(mundo())
+    await lerDadosDoVideo({ canalId: BOM, ytId: 'v1', longosAcompanhados: ['v1'], agora: AGORA, edicao: await token() })
+    expect(captureMessage).not.toHaveBeenCalled()
   })
 })
 
