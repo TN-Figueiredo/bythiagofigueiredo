@@ -430,13 +430,26 @@ describe('A5 E1 (D2 no retrato do canal): resposta sem statistics não grava um 
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [base] }), ...quiet })
     expect(snapshots(db)).toHaveLength(0)
   })
-  it('com a parte statistics (mesmo vazia): o retrato é gravado como sempre foi', async () => {
+  it('com a parte statistics e ao menos uma contagem: o retrato é gravado como sempre foi', async () => {
     const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics: { subscriberCount: '10', videoCount: '4', viewCount: '99' } }] }), ...quiet })
     expect(arg(snapshots(db)[0]!, 'upsert')).toMatchObject({ subscriber_count: 10, video_count: 4, view_count: 99 })
-    const db2 = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+  })
+  it('statistics presente mas SEM nenhuma contagem (statistics: {}): nenhuma linha de retrato (um retrato todo nulo cobriria um bom do mesmo dia)', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics: {} }] }), ...quiet })
-    expect(snapshots(db2)).toHaveLength(1)
+    expect(snapshots(db)).toHaveLength(0)
+    // chave desconhecida, ou "não escondido" sozinho, sem número nenhum, também não é medida
+    for (const statistics of [{ foo: 'bar' }, { hiddenSubscriberCount: false }]) {
+      const db2 = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+      await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics }] }), ...quiet })
+      expect(snapshots(db2)).toHaveLength(0)
+    }
+  })
+  it('o canal que ESCONDE os inscritos (hiddenSubscriberCount: true) é uma resposta afirmativa: o retrato é gravado, com o sinalizador', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics: { hiddenSubscriberCount: true } }] }), ...quiet })
+    expect(arg(snapshots(db)[0]!, 'upsert')).toMatchObject({ subscribers_hidden: true, subscriber_count: null })
   })
   it('basta UMA contagem para gravar o retrato (as outras seguem nulas, nunca zero)', async () => {
     for (const [stats, expected] of [
@@ -625,9 +638,9 @@ describe('A5 E1 (conserto da Tarefa 8, D2): contagem ausente do canal nunca vira
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics }] }), ...quiet })
     return db
   }
-  it('statistics presente e vazio: a contagem de vídeos é nula no retrato e na linha do canal (e as outras também)', async () => {
+  it('statistics presente e vazio: a contagem de vídeos é nula na linha do canal (e as outras também); o retrato do dia nem é gravado', async () => {
     const db = await run({})
-    expect(snap(db)).toMatchObject({ video_count: null, subscriber_count: null, view_count: null })
+    expect(db.calls.some(c => c.table === 'competitor_channel_snapshots')).toBe(false) // retrato todo nulo não é gravado (acréscimo da Tarefa 9)
     expect(chUpdate(db)).toMatchObject({ youtube_video_count: null, subscriber_count: null })
   })
   it('statistics sem videoCount mas com as outras: só a contagem de vídeos é nula', async () => {
