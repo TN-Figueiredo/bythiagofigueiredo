@@ -392,7 +392,7 @@ describe('captureItems', () => {
   const item: CaptureItem = { videoId: 'v1', fields: [{ field: 'tags', value: ['a'] }], raw: { sha: 'r1', raw: { id: 'x' }, bytes: 10 }, prevSeenAt: null, weeklySince: null }
   it('item 223: nada mudou → duas leituras e ZERO gravações', async () => {
     const db = captureDb({ fields: [{ id: 1, video_id: 'v1', field: 'tags', value_hash: fieldHash(['a']) }], raws: [{ id: 2, video_id: 'v1', raw_sha256: 'r1' }] })
-    expect(await captureItems(db.sb, { ...base, items: [item] })).toEqual({ fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0, sanitized: 0 })
+    expect(await captureItems(db.sb, { ...base, items: [item] })).toEqual({ fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0, sanitized: 0, duplicates: 0, invalid: 0 })
     expect(db.calls.filter(c => c.kind === 'rpc')).toEqual([])
     expect(db.calls.filter(c => c.kind === 'select')).toHaveLength(2)
   })
@@ -412,8 +412,9 @@ describe('captureItems', () => {
     await expect(captureItems(captureDb({}).sb, { ...base, items: Array.from({ length: 51 }, (_, i) => ({ ...item, videoId: 'v' + i })) })).rejects.toThrow(/50/)
   })
   it('erro de leitura lança com o nome da tabela; erro de gravação lança; nunca "sem mudança"', async () => {
-    await expect(captureItems(captureDb({ fail: 'competitor_field_versions' }).sb, { ...base, items: [item] })).rejects.toThrow(/captura.*competitor_field_versions/)
-    await expect(captureItems(captureDb({ fail: 'apply_competitor_raw_plan' }).sb, { ...base, items: [item] })).rejects.toThrow(/captura.*apply_competitor_raw_plan/)
+    await expect(captureItems(captureDb({ fail: 'competitor_field_versions' }).sb, { ...base, items: [item] })).rejects.toThrow(/^não foi possível ler o histórico de campos \(competitor_field_versions: boom\)$/)
+    await expect(captureItems(captureDb({ fail: 'apply_competitor_raw_plan' }).sb, { ...base, items: [item] })).rejects.toThrow(/^não foi possível guardar o texto bruto \(apply_competitor_raw_plan: boom\)$/)
+    await expect(captureItems(captureDb({ fail: 'apply_competitor_field_plan' }).sb, { ...base, items: [item] })).rejects.toThrow(/^não foi possível guardar o histórico de campos \(apply_competitor_field_plan: boom\)$/)
   })
   it('leitura que bate no teto de 1.000 linhas lança (corte silencioso é proibido)', async () => {
     await expect(captureItems(captureDb({ long: true }).sb, { ...base, items: [item] })).rejects.toThrow(/1000/)
@@ -425,6 +426,62 @@ describe('captureItems', () => {
     const sizes = db.calls.filter(c => c.name === 'apply_competitor_raw_plan').map(c => (c.args as { p_open: unknown[] }).p_open.length)
     expect(sizes.reduce((a, b) => a + b, 0)).toBe(30)
     expect(Math.max(...sizes)).toBeLessThanOrEqual(11) // 11 × 90 kB = 990 kB
+  })
+})
+describe('captureItems: raw que mudou e guardas do lote', () => {
+  const NOW = '2026-06-10T15:00:00.000Z'
+  const base = { siteId: 's', channelId: 'c', scope: 'video' as const, nowIso: NOW }
+  type RawArgs = { p_close: Array<{ id: number }>; p_open: Array<{ video_id: string }> }
+  it('I-1: raw trocado em 30 vídeos: cada lote fecha as versões dos MESMOS vídeos que abre, e rawClosed conta', async () => {
+    const raws: StoredRaw[] = Array.from({ length: 30 }, (_, i) => ({ id: 100 + i, video_id: 'v' + i, raw_sha256: 'old' }))
+    const items: CaptureItem[] = Array.from({ length: 30 }, (_, i) => ({ videoId: 'v' + i, fields: [], raw: { sha: 'new', raw: { id: 'x' }, bytes: 90_000 }, prevSeenAt: '2026-06-10T09:00:00.000Z', weeklySince: null }))
+    const db = captureDb({ raws })
+    const st = await captureItems(db.sb, { ...base, items })
+    const batches = db.calls.filter(c => c.name === 'apply_competitor_raw_plan').map(c => c.args as RawArgs)
+    expect(batches.length).toBeGreaterThan(1)
+    for (const b of batches) {
+      expect(b.p_close.length).toBe(b.p_open.length)
+      expect(b.p_close.map(c => c.id)).toEqual(b.p_open.map(o => 100 + Number(o.video_id.slice(1))))
+    }
+    expect(batches.flatMap(b => b.p_close.map(c => c.id)).sort((a, b) => a - b)).toEqual(raws.map(r => r.id))
+    expect(st).toMatchObject({ rawOpened: 30, rawClosed: 30 })
+  })
+  it('um raw trocado: fecha a corrente com a última leitura boa e abre a nova no mesmo chamado', async () => {
+    const db = captureDb({ raws: [{ id: 7, video_id: 'v1', raw_sha256: 'old' }] })
+    const st = await captureItems(db.sb, { ...base, items: [{ videoId: 'v1', fields: [], raw: { sha: 'new', raw: { id: 'x' }, bytes: 10 }, prevSeenAt: '2026-06-10T09:00:00.000Z', weeklySince: null }] })
+    const a = db.calls.find(c => c.name === 'apply_competitor_raw_plan')!.args as { p_close: unknown[]; p_open: unknown[] }
+    expect(a.p_close).toEqual([{ id: 7, last_seen_at: '2026-06-10T09:00:00.000Z' }])
+    expect(a.p_open).toHaveLength(1)
+    expect(st).toMatchObject({ rawOpened: 1, rawClosed: 1 })
+  })
+  const mk = (videoId: string | null, value: string): CaptureItem => ({ videoId, fields: [{ field: 'tags', value: [value] }], raw: { sha: 'r' + value, raw: { id: value }, bytes: 10 }, prevSeenAt: null, weeklySince: null })
+  it('item repetido no lote (mesmo escopo e id): o primeiro vale, entra uma vez só e é contado', async () => {
+    const db = captureDb({})
+    const st = await captureItems(db.sb, { ...base, items: [mk('v1', 'a'), mk('v1', 'b'), mk('v2', 'c')] })
+    const f = db.calls.find(c => c.name === 'apply_competitor_field_plan')!.args as { p_open: Array<{ video_id: string; value: unknown }> }
+    expect(f.p_open.map(o => [o.video_id, o.value])).toEqual([['v1', ['a']], ['v2', ['c']]])
+    const r = db.calls.find(c => c.name === 'apply_competitor_raw_plan')!.args as { p_open: Array<{ video_id: string; raw_sha256: string }> }
+    expect(r.p_open.map(o => [o.video_id, o.raw_sha256])).toEqual([['v1', 'ra'], ['v2', 'rc']])
+    expect(st).toMatchObject({ fieldsOpened: 2, rawOpened: 2, duplicates: 1, invalid: 0 })
+  })
+  it('escopo video com videoId nulo ou vazio não entra no plano e é contado', async () => {
+    const db = captureDb({})
+    const st = await captureItems(db.sb, { ...base, items: [mk(null, 'a'), mk('', 'b'), mk('v1', 'c')] })
+    const f = db.calls.find(c => c.name === 'apply_competitor_field_plan')!.args as { p_open: Array<{ video_id: string | null }> }
+    expect(f.p_open.map(o => o.video_id)).toEqual(['v1'])
+    expect(st).toMatchObject({ fieldsOpened: 1, rawOpened: 1, duplicates: 0, invalid: 2 })
+  })
+  it('só itens inválidos: nenhuma leitura de versões com lista vazia, nenhuma gravação', async () => {
+    const db = captureDb({})
+    const st = await captureItems(db.sb, { ...base, items: [mk(null, 'a')] })
+    expect(db.calls.filter(c => c.kind === 'rpc')).toEqual([])
+    expect(st).toMatchObject({ invalid: 1, fieldsOpened: 0, rawOpened: 0 })
+  })
+  it('escopo canal: o item do canal (videoId nulo) vale e dois itens do canal contam como repetido', async () => {
+    const db = captureDb({})
+    const ch = (v: string): CaptureItem => ({ ...mk(null, v), fields: [{ field: 'name', value: v }] })
+    const st = await captureItems(db.sb, { ...base, scope: 'canal', items: [ch('a'), ch('b')] })
+    expect(st).toMatchObject({ fieldsOpened: 1, duplicates: 1, invalid: 0 })
   })
 })
 describe('markMissing', () => {
@@ -450,7 +507,7 @@ describe('markMissing', () => {
     const db = captureDb({})
     expect(await markMissing(db.sb, { siteId: 's', channelId: 'c', videoIds: [], nowIso: NOW, weeklySinceOf: () => null })).toEqual({ missed: 0, newlyMissing: 0 })
     expect(db.calls).toEqual([])
-    await expect(markMissing(captureDb({ fail: 'competitor_mark_missing' }).sb, { siteId: 's', channelId: 'c', videoIds: ['v1'], nowIso: NOW, weeklySinceOf: () => null })).rejects.toThrow(/ausência/)
+    await expect(markMissing(captureDb({ fail: 'competitor_mark_missing' }).sb, { siteId: 's', channelId: 'c', videoIds: ['v1'], nowIso: NOW, weeklySinceOf: () => null })).rejects.toThrow(/^não foi possível marcar o que deixou de vir do YouTube \(competitor_mark_missing: boom\)$/)
   })
 })
 
@@ -495,16 +552,16 @@ describe('markMissing / markChannelMissing: forma da resposta', () => {
   const NOW = '2026-06-10T15:00:00.000Z'
   const args = { siteId: 's', channelId: 'c', videoIds: ['v1'], nowIso: NOW, weeklySinceOf: () => null }
   it('resposta nula ou linha sem os campos de ausência lança (nunca "ninguém sumiu")', async () => {
-    await expect(markMissing(captureDb({ missed: null }).sb, args)).rejects.toThrow(/ausência.*nula/)
-    await expect(markMissing(captureDb({ missed: [{ id: 'v1', miss_streak: 2 }] }).sb, args)).rejects.toThrow(/ausência.*fora da forma esperada/)
+    await expect(markMissing(captureDb({ missed: null }).sb, args)).rejects.toThrow(/deixou de vir do YouTube.*nula/)
+    await expect(markMissing(captureDb({ missed: [{ id: 'v1', miss_streak: 2 }] }).sb, args)).rejects.toThrow(/deixou de vir do YouTube.*fora da forma esperada/)
     await expect(markMissing(captureDb({ missed: [{ id: 'v1', miss_streak: 2, miss_first_at: null, missing_since: 5, last_seen_at: null }] }).sb, args)).rejects.toThrow(/fora da forma esperada/)
   })
   it('canal: nulo é "sem canal" (a função documenta); forma estranha lança; com missing_since abre "sumiu" do canal', async () => {
     const a = { siteId: 's', channelId: 'c', nowIso: NOW }
     expect(await markChannelMissing(captureDb({ channelMissed: null }).sb, a)).toEqual({ missingSince: null })
-    await expect(markChannelMissing(captureDb({ channelMissed: 'oops' }).sb, a)).rejects.toThrow(/ausência do canal.*fora da forma esperada/)
+    await expect(markChannelMissing(captureDb({ channelMissed: 'oops' }).sb, a)).rejects.toThrow(/^não foi possível marcar o que deixou de vir do YouTube \(.*fora da forma esperada/)
     await expect(markChannelMissing(captureDb({ channelMissed: { id: 'c', miss_streak: 1 } }).sb, a)).rejects.toThrow(/fora da forma esperada/)
-    await expect(markChannelMissing(captureDb({ fail: 'competitor_channel_mark_missing' }).sb, a)).rejects.toThrow(/ausência do canal/)
+    await expect(markChannelMissing(captureDb({ fail: 'competitor_channel_mark_missing' }).sb, a)).rejects.toThrow(/^não foi possível marcar o que deixou de vir do YouTube \(competitor_channel_mark_missing: boom\)$/)
     const one = captureDb({ channelMissed: { id: 'c', miss_streak: 2, miss_first_at: '2026-06-10T09:00:00.000Z', missing_since: '2026-06-10', last_seen_at: '2026-06-10T03:00:00.000Z' } })
     expect(await markChannelMissing(one.sb, a)).toEqual({ missingSince: '2026-06-10' })
     expect(one.calls.find(c => c.name === 'apply_competitor_field_plan')!.args).toMatchObject({ p_open: [{ video_id: null, field: 'availability', value: 'sumiu' }] })
