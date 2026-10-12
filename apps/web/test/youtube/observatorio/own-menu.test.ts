@@ -37,12 +37,12 @@ describe('ownMenuOf (telas que leem o site)', () => {
     expect(m.itens.map(i => i.id)).toEqual(obs.ownChannels().map(c => c.id))
     expect(m.itens).toHaveLength(2)
     for (const i of m.itens) {
-      const c = obs.channel(i.id)!, n = obs.videos.filter(v => v.ch === i.id).length
+      const c = obs.channel(i.id)!
       expect(i.name).toBe(c.name)
-      expect(i.nota).toBe(`${n} ${n === 1 ? 'vídeo' : 'vídeos'}, ${obs.fmt.subs(c.subs)} inscritos`)
+      expect(i.nota).toMatch(new RegExp(`^último vídeo (hoje|há \\d+ dias?), ${obs.fmt.subs(c.subs)} inscritos$`)) // 11c: a recência primeiro (D-C.5)
       expect(i.href).toBe(ownChannelHref(i.id))
     }
-    expect(m.itens[0]!.nota).toBe('58 vídeos, 3,21 mil inscritos')
+    expect(m.itens[0]!.nota).toBe('último vídeo hoje, 3,21 mil inscritos')
     expect(m.listaHref).toBe(link.canais())
   })
   it('o sem vídeos tem href null e a nota "sem vídeos, N inscritos: ainda sem página"; o principal é o primeiro com vídeos', () => {
@@ -69,19 +69,19 @@ describe('ownMenuOf (telas que leem o site)', () => {
     expect(vazio.itens).toEqual([])
     expect(vazio.principal).toBeNull()
   })
-  it('singular: "1 vídeo" e "1 inscrito"', () => {
+  it('singular: "1 inscrito"', () => {
     const { obs } = a3World(ds => {
       const own = ds.channels.find(c => c.own)!
       own.subs = 1
       let keep = true
       ds.videos = ds.videos.filter(v => v.ch !== own.id || (keep && !(keep = false)))
     }, '1')
-    expect(ownMenuOf(obs).itens[0]!.nota).toBe('1 vídeo, 1 inscrito')
+    expect(ownMenuOf(obs).itens[0]!.nota).toBe('último vídeo hoje, 1 inscrito')
   })
   it('inscritos escondidos pelo YouTube não viram zero: a nota diz que a contagem não é informada', () => {
     const { obs } = a3World(ds => { ds.channels.find(c => c.own)!.subs = null }, '1')
     const nota = ownMenuOf(obs).itens[0]!.nota
-    expect(nota).toBe('58 vídeos, inscritos ocultos')
+    expect(nota).toBe('último vídeo hoje, inscritos ocultos')
     expect(nota).not.toMatch(/\b0\b|—/)
   })
   it('num conjunto de UM canal ele lança: por isso a página do canal usa a leitura leve', () => {
@@ -118,10 +118,10 @@ function fakeDb(tables: Record<string, Array<Record<string, unknown>>>, erro?: {
 function bancoDo(world: ReturnType<typeof a3World>) {
   const { obs } = world
   const canais = obs.ownChannels().map(c => ({ id: c.id, channel_id: 'UC' + c.id, name: c.name, handle: c.handle, subscriber_count: c.subs, site_id: 'site-1', last_synced_at: null }))
-  const videos = obs.videos.filter(v => canais.some(c => c.id === v.ch)).map(v => ({ id: v.id, channel_id: v.ch, site_id: 'site-1', is_hidden: false }))
+  const videos = obs.videos.filter(v => canais.some(c => c.id === v.ch)).map(v => ({ id: v.id, channel_id: v.ch, site_id: 'site-1', is_hidden: false, published_at: new Date(v.pub).toISOString() }))
   return {
     youtube_channels: [...canais, { id: 'outro', channel_id: 'UCoutro', name: 'De outro site', handle: '@o', subscriber_count: 99, site_id: 'site-2', last_synced_at: null }],
-    youtube_videos: [...videos, ...(canais[0] ? [{ id: 'esc', channel_id: canais[0].id, site_id: 'site-1', is_hidden: true }] : []), { id: 'o1', channel_id: 'outro', site_id: 'site-2', is_hidden: false }],
+    youtube_videos: [...videos, ...(canais[0] ? [{ id: 'esc', channel_id: canais[0].id, site_id: 'site-1', is_hidden: true, published_at: new Date(obs.NOW).toISOString() }] : []), { id: 'o1', channel_id: 'outro', site_id: 'site-2', is_hidden: false, published_at: new Date(obs.NOW).toISOString() }],
   }
 }
 
@@ -136,12 +136,18 @@ describe('loadOwnMenuRows (a leitura leve da página do canal)', () => {
     expect(v.eq).toContainEqual(['is_hidden', false])
     const tn = rows.find(r => r.id === w.obs.ownChannels()[0]!.id)!
     expect(tn.videos).toBe(w.obs.videos.filter(x => x.ch === tn.id).length) // o escondido ficou de fora
+    // `ultimo` = a publicação do vídeo mais novo VISÍVEL: o escondido (publicado "agora") não conta
+    expect(tn.ultimo).toBe(Math.max(...w.obs.videos.filter(x => x.ch === tn.id).map(x => x.pub)))
+    expect(tn.ultimo).toBeLessThan(w.obs.NOW)
   })
   it('PARIDADE: as linhas da leitura leve dão o mesmo menu que o motor (com dois, um sem vídeos, nenhum com vídeos e sem canal próprio)', async () => {
     for (const w of [a3World(), doisUmSemVideos(), nenhumComVideos(), semProprios(), a3World(undefined, '1')]) {
       client = fakeDb(bancoDo(w)).sb
       const rows = await loadOwnMenuRows('site-1')
-      expect(ownMenuFromRows(rows, w.obs.fmt)).toEqual(ownMenuOf(w.obs))
+      // com e sem a escolha do dono (11c): a regra é a mesma nas duas origens, a nota e o `ultimo` também
+      for (const lembrado of [null, ...w.obs.ownChannels().map(c => c.id), 'lixo']) {
+        expect(ownMenuFromRows(rows, w.obs.fmt, { lembrado, agora: w.obs.NOW }), String(lembrado)).toEqual(ownMenuOf(w.obs, lembrado))
+      }
     }
   })
   it('um erro de leitura é propagado (lista vazia esconderia o atalho em silêncio)', async () => {

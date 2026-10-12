@@ -43,7 +43,7 @@ const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
 export const nicheLabelOf = (obs: Observatory, n: NicheScope): string => (n === 'todos' ? 'Todos' : obs.nicheLabel(n))
 const colorOf = (obs: Observatory, n: NicheScope) => (n === 'todos' ? null : obs.nicheColor(n))
 
-export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: NicheScope; forja?: ForjaView | null }): ChromeView {
+export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: NicheScope; forja?: ForjaView | null; /** a escolha do dono para "o meu canal" */ lembrado?: string | null }): ChromeView {
   const { niche } = o, F = obs.fmt, D = obs.date
   const counts = obs.tabCounts(niche)
   const countOf: Record<ChromeTab, number | null> = { canais: counts.canais, mudancas: counts.mud, outliers: counts.out, insights: null }
@@ -96,7 +96,7 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
     },
     addHref: obs.link.canais({ add: 1 }), nicheEditorHref: obs.link.canais({ nicheEditor: 1 }),
     cowork: coworkText(o.tab, niche, nl),
-    owns: ownMenuOf(obs),
+    owns: ownMenuOf(obs, o.lembrado ?? null),
     // Task 22's guard: the segment exists only when the forja tables are ready
     forja: o.forja && o.forja.ready ? o.forja : null,
   }

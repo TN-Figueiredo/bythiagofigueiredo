@@ -19,7 +19,7 @@ const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v
 
 export default async function OutliersPage({ searchParams }: { searchParams: Promise<ObsSearchParams> }) {
   const sp = await searchParams
-  const { obs, savedNiche } = await openObservatoryPage()
+  const { obs, savedNiche, meuCanalLembrado } = await openObservatoryPage()
   // The chrome persists a valid ?niche= (resolveNiche); here it is only read. An invalid one falls back to the saved niche.
   // parseNiche checks the form; the engine says whether the niche exists (an unknown ?niche= falls back to the saved niche, like a malformed one).
   const urlNiche = parseNiche(first(sp.niche) === 'all' ? 'todos' : first(sp.niche))
@@ -29,7 +29,7 @@ export default async function OutliersPage({ searchParams }: { searchParams: Pro
   params.niche = niche
   const view = buildOutliersView(obs, params)
   return (
-    <ObservatoryChromeServer tab="outliers" searchParams={sp} obs={obs} nicheOverride={view.query.niche !== niche ? view.query.niche : undefined} forja={view.forja}>
+    <ObservatoryChromeServer tab="outliers" searchParams={sp} obs={obs} nicheOverride={view.query.niche !== niche ? view.query.niche : undefined} forja={view.forja} meuCanalLembrado={meuCanalLembrado}>
       <OutliersScreen view={view} />
     </ObservatoryChromeServer>
   )

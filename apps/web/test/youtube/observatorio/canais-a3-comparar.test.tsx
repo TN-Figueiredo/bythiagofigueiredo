@@ -20,6 +20,7 @@ import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrom
 import { lembrarGatilho, lerGatilho } from '@/app/cms/(authed)/youtube/competitors/_chrome/gatilho-volta'
 import { link } from '@/lib/youtube/observatorio/links'
 import type { Observatory } from '@/lib/youtube/observatorio'
+import { principalDoMotor } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
 
 const replace = vi.fn(), refresh = vi.fn(), push = vi.fn(), prefetch = vi.fn()
 let search = 'fmt=longos'
@@ -44,12 +45,12 @@ const SEM_PROPRIO = () => a3World(ds => {
 })
 const UM = () => a3World(undefined, '1')
 const DOIS = () => a3World()
-/** O MAIOR canal próprio sem vídeos: o principal (D16) é o segundo. */
+/** O MAIOR canal próprio sem vídeos: o principal (`escolherPrincipal`) é o segundo. */
 const PRIMEIRO_SEM_VIDEOS = () => a3World(ds => {
   const first = ds.channels.filter(c => c.own).sort((a, b) => (b.subs ?? 0) - (a.subs ?? 0))[0]!
   ds.videos = ds.videos.filter(v => v.ch !== first.id)
 })
-const principalDe = (obs: Observatory) => obs.ownChannels().find(c => obs.videos.some(v => v.ch === c.id))!
+const principalDe = (obs: Observatory, lembrado: string | null = null) => obs.channel(principalDoMotor(obs, lembrado)!)!
 
 const FORA_DO_ARMAZENAMENTO = (() => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v) }, removeItem: (k: string) => { m.delete(k) }, clear: () => m.clear() } })()
 beforeEach(() => {
@@ -76,7 +77,8 @@ describe('"Comparar" na tabela', () => {
       const nome = [...v.list.ranked, ...v.list.unranked].find(r => r.id === l.dataset.id)!.name
       const a = l.children[idx]!.querySelector('a')!
       expect(a.textContent, nome).toBe('Comparar')
-      expect(screen.getByRole('link', { name: `Comparar ${nome} com o meu canal` })).toBe(a)
+      // com dois canais próprios com vídeos o nome acessível diz de qual (11c, D-C.5); o texto visível não muda
+      expect(screen.getByRole('link', { name: `Comparar ${nome} com o meu canal (${principalDe(w.obs).name})` })).toBe(a)
     }
   })
   it('o link leva a comparar?a=<canal próprio principal>&b=<concorrente>', () => {
@@ -89,7 +91,7 @@ describe('"Comparar" na tabela', () => {
       expect(a.getAttribute('href')).toBe(link.comparar(principal.id, b))
     }
   })
-  it('com dois canais próprios, o primeiro SEM vídeos: o "meu canal" do link é o primeiro COM vídeos (D16)', () => {
+  it('com dois canais próprios, o primeiro SEM vídeos: o "meu canal" do link é o que tem vídeos', () => {
     const w = PRIMEIRO_SEM_VIDEOS(), principal = principalDe(w.obs)
     expect(principal.id).not.toBe(w.obs.ownChannels()[0]!.id)
     const { container } = mount(w.obs)
@@ -150,6 +152,48 @@ describe('"Comparar" na tabela', () => {
   })
 })
 
+describe('"Comparar" com vários canais próprios: a regra única, a escolha do dono e o nome acessível (11c, D-C)', () => {
+  /** O canal próprio que NÃO é o padrão por recência no mundo de dois canais. */
+  const outroDe = (w: ReturnType<typeof DOIS>) => w.owns.find(id => id !== principalDe(w.obs).id)!
+  it('sem escolha: o link e o rótulo falam do canal próprio de publicação mais recente', () => {
+    const w = DOIS(), principal = principalDe(w.obs)
+    const maisRecente = w.obs.ownChannels().map(c => ({ id: c.id, t: Math.max(...w.obs.videos.filter(v => v.ch === c.id).map(v => v.pub)) })).sort((a, b) => b.t - a.t)[0]!
+    expect(principal.id).toBe(maisRecente.id)
+    for (const a of linksComparar(mount(w.obs).container)) expect(a.getAttribute('href')).toContain('a=' + encodeURIComponent(principal.id))
+  })
+  it('com a escolha do dono (cookie) em outro canal ativo: o link, o nome acessível e a linha presa mudam juntos', () => {
+    const w = DOIS(), outro = outroDe(w), nome = w.obs.channel(outro)!.name
+    const v = view(w.obs, { lembrado: outro })
+    const { container } = mount(w.obs, { lembrado: outro })
+    for (const a of linksComparar(container)) {
+      expect(a.getAttribute('href')).toBe(link.comparar(outro, a.closest('tr')!.dataset.id!))
+      expect(a.getAttribute('aria-label')).toMatch(new RegExp(`com o meu canal \\(${nome}\\)$`))
+    }
+    expect(v.pe!.canalId).toBe(outro) // a linha presa fala do MESMO canal
+    cleanup()
+    // o teste que apaga o cookie: sem ele, volta à recência
+    expect(view(w.obs, { lembrado: null }).pe!.canalId).toBe(principalDe(w.obs).id)
+    expect(view(w.obs).pe!.canalId).toBe(principalDe(w.obs).id)
+  })
+  it('lembrança de canal que não é próprio, removido ou lixo: ignorada, sem erro', () => {
+    const w = DOIS(), esperado = principalDe(w.obs).id
+    const concorrente = w.obs.channels.find(c => !c.own)!.id
+    for (const lembrado of [concorrente, '00000000-0000-4000-8000-0000000000ff', 'lixo', '']) {
+      expect(view(w.obs, { lembrado }).pe!.canalId, lembrado).toBe(esperado)
+      expect(linksComparar(mount(w.obs, { lembrado }).container)[0]!.getAttribute('href'), lembrado).toContain('a=' + encodeURIComponent(esperado))
+      cleanup()
+    }
+  })
+  it('um só canal com vídeos (o outro é canal novo): o nome acessível é o de antes, sem o nome do canal', () => {
+    const w = PRIMEIRO_SEM_VIDEOS()
+    for (const a of linksComparar(mount(w.obs).container)) expect(a.getAttribute('aria-label')).toMatch(/^Comparar .+ com o meu canal$/)
+  })
+  it('a lembrança de um canal sem vídeos (canal novo) é ignorada', () => {
+    const w = PRIMEIRO_SEM_VIDEOS(), semVideos = w.obs.ownChannels().find(c => !w.obs.videos.some(v => v.ch === c.id))!
+    expect(view(w.obs, { lembrado: semVideos.id }).pe!.canalId).toBe(principalDe(w.obs).id)
+  })
+})
+
 describe('"Comparar" nos cartões', () => {
   it('nos cartões o link diz "Comparar com o meu canal", com o mesmo destino da linha', () => {
     const w = DOIS(), principal = principalDe(w.obs)
@@ -160,7 +204,7 @@ describe('"Comparar" nos cartões', () => {
       expect(a.textContent).toBe('Comparar com o meu canal')
       const nome = a.closest('article')!.querySelector('.nm, .nmbtn, a')?.textContent
       expect(a.getAttribute('href')).toBe(link.comparar(principal.id, a.closest('article')!.dataset.id!))
-      expect(a.getAttribute('aria-label') ?? '').toMatch(/^Comparar .+ com o meu canal$/)
+      expect(a.getAttribute('aria-label') ?? '').toMatch(/^Comparar .+ com o meu canal \(.+\)$/)
       expect(nome).toBeTruthy()
     }
     for (const art of container.querySelectorAll<HTMLElement>('article.you')) expect(art.querySelector('a[data-comparar]')).toBeNull()

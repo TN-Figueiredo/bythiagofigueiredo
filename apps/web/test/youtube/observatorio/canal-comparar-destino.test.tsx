@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // I-4 (revisão da Tarefa 10): o DESTINO do botão "Comparar com o meu canal" do cabeçalho do concorrente. A página (Server Component) decide
-// `compararHref` a partir de `owns.principal` (D16: o primeiro canal próprio COM vídeos, na ordem do motor). Os testes do cabeçalho só recebem a
+// `compararHref` a partir de `owns.principal` (`escolherPrincipal`, 11c: a escolha do dono, ou o canal próprio de publicação mais recente; empate: a ordem do motor). Os testes do cabeçalho só recebem a
 // string pronta; aqui a página roda de verdade (mocks só nas leituras) com 0, 1 e 2 canais próprios, inclusive o maior sem vídeos.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
@@ -26,10 +26,11 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChan
 import CanalPage from '@/app/cms/(authed)/youtube/competitors/canal/[id]/page'
 
 const FMT = { subs: (n: number) => String(n) }
-type Linha = { id: string; name: string; subs: number | null; videos: number }
-async function compararHrefDaPagina(rows: Linha[]): Promise<{ href: string | null | undefined; chId: string; itens: number }> {
+const AGORA = Date.UTC(2026, 9, 24, 18, 0, 0), DIA = 86_400_000
+type Linha = { id: string; name: string; subs: number | null; videos: number; ultimo?: number | null }
+async function compararHrefDaPagina(rows: Linha[], lembrado: string | null = null): Promise<{ href: string | null | undefined; chId: string; itens: number }> {
   const { obs, chId } = canalWorld()
-  const owns = ownMenuFromRows(rows, FMT)
+  const owns = ownMenuFromRows(rows.map(l => ({ ...l, ultimo: l.ultimo === undefined ? (l.videos > 0 ? AGORA - 5 * DIA : null) : l.ultimo })), FMT, { lembrado, agora: AGORA })
   mocks.openChannelPage.mockResolvedValue({ siteId: 's1', now: 0, obs, canEdit: true, owns })
   const el = (await CanalPage({ params: Promise.resolve({ id: chId }), searchParams: Promise.resolve({}) })) as ReactElement<{ children: ReactElement<{ compararHref?: string | null }> }>
   return { href: el.props.children.props.compararHref, chId, itens: owns.itens.length }
@@ -56,6 +57,17 @@ describe('o botão "Comparar com o meu canal" do cabeçalho: para onde a página
     expect((await compararHrefDaPagina([a, b])).href).toBe(link.comparar('grande', (await compararHrefDaPagina([a, b])).chId))
     const r = await compararHrefDaPagina([b, a])
     expect(r.href).toBe(link.comparar('grande', r.chId))
+  })
+  it('dois ativos: o de publicação mais recente é o lado A, ainda que tenha menos inscritos (11c)', async () => {
+    const r = await compararHrefDaPagina([{ id: 'grande', name: 'Grande', subs: 500, videos: 3, ultimo: AGORA - 20 * DIA }, { id: 'pequeno', name: 'Pequeno', subs: 10, videos: 3, ultimo: AGORA - 2 * DIA }])
+    expect(r.href).toBe(link.comparar('pequeno', r.chId))
+  })
+  it('dois ativos, com a escolha do dono (cookie): a escolha vale; sem o cookie, a recência (o teste que apaga o cookie)', async () => {
+    const linhas = [{ id: 'grande', name: 'Grande', subs: 500, videos: 3, ultimo: AGORA - 20 * DIA }, { id: 'pequeno', name: 'Pequeno', subs: 10, videos: 3, ultimo: AGORA - 2 * DIA }]
+    const com = await compararHrefDaPagina(linhas, 'grande')
+    expect(com.href).toBe(link.comparar('grande', com.chId))
+    const sem = await compararHrefDaPagina(linhas, null)
+    expect(sem.href).toBe(link.comparar('pequeno', sem.chId))
   })
   it('dois, o PRIMEIRO sem vídeos: o link leva ao segundo, nunca ao primeiro da lista (D16)', async () => {
     const r = await compararHrefDaPagina([{ id: 'grande-sem-videos', name: 'Grande', subs: 900, videos: 0 }, { id: 'pequeno-com-videos', name: 'Pequeno', subs: 10, videos: 4 }])

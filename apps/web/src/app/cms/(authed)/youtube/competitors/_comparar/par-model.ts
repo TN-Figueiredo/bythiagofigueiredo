@@ -14,6 +14,8 @@
  *   leitor de tela.
  */
 import { posicoes, conjuntoTexto, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
+import { DAY } from '@/lib/youtube/observatorio/time'
+import { escolherPrincipal, type LinhaPrincipal } from '../_chrome/principal'
 import type { CanalPack, CompararPack } from './pack'
 import { NO_NICHO, NUMEROS, type Numero, type NumeroId } from './numeros-model'
 import { dec, emVezes, haDias, juntar, minuscula, numeros, ordinal, quanto, TOL } from './formatos'
@@ -23,11 +25,12 @@ export type CorLado = 'o' | 'b' | 'n' // --lado-o (seu canal), --lado-b, --lado-
 /* ================================================================================================================== resolverPar */
 
 /**
- * a e b válidos e diferentes. `a` ausente ou inválido = o canal próprio (D16: o primeiro com vídeos); sem canal próprio, o
- * maior concorrente. `b` ausente, inválido ou igual a `a` = o concorrente logo acima de A em inscritos, ou, sem ninguém
+ * a e b válidos e diferentes. `a` ausente ou inválido = "o meu canal" (`escolherPrincipal`: a escolha do dono, `lembrado`, ou o canal próprio
+ * de publicação mais recente; a data vem dos dias desde o último vídeo que o pacote já tem, sem dado novo); sem canal próprio com vídeos, o
+ * maior concorrente. A URL sempre vence: `lembrado` só preenche o que a URL não diz. `b` ausente, inválido ou igual a `a` = o concorrente logo acima de A em inscritos, ou, sem ninguém
  * acima (ou sem a contagem de A), o maior dos outros. null = não há dois canais.
  */
-export function resolverPar(pack: CompararPack, a: string | undefined, b: string | undefined): { a: string; b: string } | null {
+export function resolverPar(pack: CompararPack, a: string | undefined, b: string | undefined, lembrado: string | null = null): { a: string; b: string } | null {
   if (pack.canais.length < 2) return null
   const por = new Map(pack.canais.map(c => [c.id, c] as const))
   const ordem = [...new Set([...pack.ordem.filter(id => por.has(id)), ...pack.canais.map(c => c.id)])]
@@ -36,7 +39,11 @@ export function resolverPar(pack: CompararPack, a: string | undefined, b: string
 
   const padraoA = (excluir: string | undefined): string | undefined => {
     const livres = ordem.filter(id => id !== excluir)
-    return livres.find(id => proprio(id) && !por.get(id)!.semVideos) ?? livres.find(id => !proprio(id)) ?? livres[0]
+    const proprios = livres.filter(proprio).map((id): LinhaPrincipal => {
+      const c = por.get(id)!, dias = c.numeros.diasUltimo.x
+      return { id, videos: c.semVideos ? 0 : 1, ultimo: dias == null ? null : pack.now - dias * DAY }
+    })
+    return escolherPrincipal(proprios, lembrado, pack.now) ?? livres.find(id => !proprio(id)) ?? livres[0]
   }
   const padraoB = (de: string): string | undefined => {
     const outros = ordem.filter(id => id !== de)

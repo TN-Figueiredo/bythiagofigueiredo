@@ -63,7 +63,7 @@ function MenuItems({ syncing, canAdmin, onSync, onRemove }: { syncing: boolean; 
 
 export function CanalHeader({ h, nums, syncing, canAdmin, menuBtnRef, compararHref = null, onToggleNums, onSync, onAskRemove, onNiche }: {
   h: CanalHeaderView; nums: boolean; syncing: boolean; canAdmin: boolean
-  /** A comparação deste canal com o canal próprio principal (D16); null = sem canal próprio com vídeos: o botão não existe. Chega pronto do servidor. */
+  /** A comparação deste canal com o canal próprio principal (`escolherPrincipal`); null = sem canal próprio com vídeos: o botão não existe. Chega pronto do servidor. */
   compararHref?: string | null
   menuBtnRef: RefObject<HTMLButtonElement | null>
   onToggleNums: () => void; onSync: () => void; onAskRemove: () => void; onNiche: (n: Niche) => void

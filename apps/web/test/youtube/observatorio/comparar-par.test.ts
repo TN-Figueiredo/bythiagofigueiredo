@@ -69,6 +69,28 @@ describe('resolverPar', () => {
     const so = pacoteDe([mk('eu-vazio', { own: true, subs: 3, semVideos: true }), mk('ca', { subs: 5000 }), mk('cb', { subs: 3000 })])
     expect(resolverPar(so, undefined, undefined)).toEqual({ a: 'ca', b: 'cb' })
   })
+  it('11c, "o meu canal" com vários canais próprios: o lado A padrão é o de publicação mais recente (dias desde o último vídeo), a escolha do dono vale, e a URL vence tudo', () => {
+    const w = pacoteDe([
+      mk('eu-grande', { own: true, subs: 3000, n: { diasUltimo: 20 } }), mk('eu-novo', { own: true, subs: 40, n: { diasUltimo: 2 } }), mk('eu-parado', { own: true, subs: 900, n: { diasUltimo: 400 } }),
+      mk('ca', { subs: 5000 }), mk('cb', { subs: 100 }),
+    ])
+    expect(resolverPar(w, undefined, undefined)!.a).toBe('eu-novo') // sem lembrança: o mais recente
+    expect(resolverPar(w, undefined, undefined, null)!.a).toBe('eu-novo') // o teste que apaga o cookie
+    expect(resolverPar(w, undefined, undefined, 'eu-grande')!.a).toBe('eu-grande') // a lembrança (ativa) vale
+    expect(resolverPar(w, undefined, undefined, 'eu-parado')!.a).toBe('eu-novo') // lembrança de canal parado cede ao ativo
+    expect(resolverPar(w, undefined, undefined, 'ca')!.a).toBe('eu-novo') // lembrança de quem não é próprio: ignorada
+    expect(resolverPar(w, undefined, undefined, 'removido')!.a).toBe('eu-novo')
+    expect(resolverPar(w, 'eu-parado', undefined, 'eu-grande')!.a).toBe('eu-parado') // a URL sempre vence
+    expect(resolverPar(w, 'ca', 'cb', 'eu-grande')).toEqual({ a: 'ca', b: 'cb' })
+    // b vem da URL e é o próprio mais recente: o A padrão não pode ser o mesmo canal; cai no seguinte
+    expect(resolverPar(w, undefined, 'eu-novo')!.a).toBe('eu-grande')
+  })
+  it('11c: todos os próprios sem data → a ordem do pacote; canal novo sem vídeos nunca é padrão nem por lembrança', () => {
+    const sem = pacoteDe([mk('eu1', { own: true, subs: 500 }), mk('eu2', { own: true, subs: 400 }), mk('ca', { subs: 5000 })])
+    expect(resolverPar(sem, undefined, undefined)!.a).toBe('eu1')
+    const novo = pacoteDe([mk('eu-novo', { own: true, subs: 40, semVideos: true }), mk('eu', { own: true, subs: 100, n: { diasUltimo: 300 } }), mk('ca', { subs: 5000 })])
+    expect(resolverPar(novo, undefined, undefined, 'eu-novo')!.a).toBe('eu')
+  })
   it('inscritos escondidos: quem não tem a contagem nunca é "o logo acima"; sem a contagem de A, vale o maior', () => {
     const w = pacoteDe([mk('eu', { own: true, subs: 1000 }), mk('ca', { subs: null }), mk('cb', { subs: 3000 })])
     expect(resolverPar(w, undefined, undefined)).toEqual({ a: 'eu', b: 'cb' })
@@ -351,7 +373,7 @@ describe('o canal sem vídeos entra no par', () => {
 describe('roda no navegador: não importa o motor nem nada de servidor', () => {
   const dir = resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_comparar')
   /** Os módulos de que o par depende, seguidos até o fim (só os do próprio diretório e os puros de lib). */
-  const PERMITIDOS = /^(\.\/(formatos|numeros-model|pack)|\.\.\/_canal\/numeros|@\/lib\/youtube\/observatorio\/(posicao|time))$/
+  const PERMITIDOS = /^(\.\/(formatos|numeros-model|pack)|\.\.\/_canal\/numeros|\.\.\/_chrome\/principal|@\/lib\/youtube\/observatorio\/(posicao|time))$/
   const importacoes = (arq: string) => {
     const src = readFileSync(resolve(dir, arq), 'utf8')
     return [...src.matchAll(/^import\s+(type\s+)?[^'"]*from\s+['"]([^'"]+)['"]/gm)].map(m => ({ tipo: !!m[1], de: m[2]! }))

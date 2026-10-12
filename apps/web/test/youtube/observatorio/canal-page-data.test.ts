@@ -9,9 +9,13 @@ function oneChannelDataset(): Dataset {
   return { ...ds, scope: 'canal', channels: ds.channels.filter(c => c.id === chId), videos: ds.videos.filter(v => v.ch === chId) }
 }
 
-const DUAS_LINHAS = [{ id: 'o1', name: 'tnFigueiredo', subs: 1160, videos: 35 }, { id: 'o2', name: 'Thiago Figueiredo', subs: 3, videos: 0 }]
+const O1 = '00000000-0000-4000-8000-000000000001', O2 = '00000000-0000-4000-8000-000000000002'
+const DIA = 86_400_000
+/** `ultimo` relativo ao relógio real: o `now` da página é `Date.now()` fora do e2e. */
+const DUAS_LINHAS = () => [{ id: O1, name: 'tnFigueiredo', subs: 1160, videos: 35, ultimo: Date.now() - 3 * DIA - 3_600_000 }, { id: O2, name: 'Thiago Figueiredo', subs: 3, videos: 0, ultimo: null }]
+type Linhas = ReturnType<typeof DUAS_LINHAS>
 
-async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: false; reason: string }; editOk?: boolean; ds?: Dataset | null; loadError?: Error; ownRows?: typeof DUAS_LINHAS; ownError?: Error } = {}) {
+async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: false; reason: string }; editOk?: boolean; ds?: Dataset | null; loadError?: Error; ownRows?: Linhas; ownError?: Error; cookie?: string | null | 'lança' } = {}) {
   vi.resetModules()
   const order: string[] = []
   const loadChannelDataset = vi.fn(async (_siteId: string, _channelId: string, _now: number) => {
@@ -28,8 +32,14 @@ async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: fa
   const loadOwnMenuRows = vi.fn(async (_siteId: string) => {
     order.push('own')
     if (o.ownError) throw o.ownError
-    return o.ownRows ?? DUAS_LINHAS
+    return o.ownRows ?? DUAS_LINHAS()
   })
+  vi.doMock('next/headers', () => ({
+    cookies: async () => {
+      if (o.cookie === 'lança') throw new Error('fora de um pedido')
+      return { get: (n: string) => (n === 'obs-meu-canal' && o.cookie != null ? { name: n, value: o.cookie } : undefined) }
+    },
+  }))
   vi.doMock('server-only', () => ({}))
   vi.doMock('@/lib/youtube/observatorio/own-menu', () => ({ loadOwnMenuRows }))
   vi.doMock('@sentry/nextjs', () => ({ captureException }))
@@ -95,9 +105,37 @@ describe('openChannelPage', () => {
     const page = await openChannelPage('matt-wolfe')
     expect(loadOwnMenuRows).toHaveBeenCalledTimes(1)
     expect(loadOwnMenuRows.mock.calls[0]![0]).toBe('site-1') // do contexto do site, nunca da URL
-    expect(page.owns.itens.map(i => [i.id, i.nota, i.href != null])).toEqual([['o1', '35 vídeos, 1,16 mil inscritos', true], ['o2', 'sem vídeos, 3 inscritos: ainda sem página', false]])
-    expect(page.owns.principal!.id).toBe('o1')
+    expect(page.owns.itens.map(i => [i.id, i.nota, i.href != null])).toEqual([[O1, 'último vídeo há 3 dias, 1,16 mil inscritos', true], [O2, 'sem vídeos, 3 inscritos: ainda sem página', false]])
+    expect(page.owns.principal!.id).toBe(O1)
     expect(page.owns.listaHref).toBe('/cms/youtube/competitors')
+  })
+  describe('a escolha do dono para "o meu canal" (cookie obs-meu-canal, 11c)', () => {
+    const DOIS_ATIVOS = (): Linhas => [{ id: O1, name: 'Grande', subs: 900, videos: 20, ultimo: Date.now() - 30 * DIA }, { id: O2, name: 'Pequeno', subs: 10, videos: 5, ultimo: Date.now() - 2 * DIA }]
+    it('sem o cookie (apagado): vale a recência; meuCanalLembrado é null', async () => {
+      const { openChannelPage } = await setup({ ownRows: DOIS_ATIVOS(), cookie: null })
+      const page = await openChannelPage('matt-wolfe')
+      expect(page.meuCanalLembrado).toBeNull()
+      expect(page.owns.principal!.id).toBe(O2)
+    })
+    it('com o cookie de um canal próprio com vídeos: a escolha vale e chega em meuCanalLembrado', async () => {
+      const { openChannelPage } = await setup({ ownRows: DOIS_ATIVOS(), cookie: O1 })
+      const page = await openChannelPage('matt-wolfe')
+      expect(page.meuCanalLembrado).toBe(O1)
+      expect(page.owns.principal!.id).toBe(O1)
+    })
+    it('valor ruim (lixo, vazio, de canal que não é próprio ou removido) é ignorado sem erro', async () => {
+      for (const cookie of ['lixo', '', '<script>', '00000000-0000-4000-8000-0000000000ff']) {
+        const { openChannelPage } = await setup({ ownRows: DOIS_ATIVOS(), cookie })
+        const page = await openChannelPage('matt-wolfe')
+        expect(page.owns.principal!.id, cookie).toBe(O2)
+      }
+    })
+    it('cookies() que lança (fora de um pedido) não derruba a página: sem escolha', async () => {
+      const { openChannelPage } = await setup({ ownRows: DOIS_ATIVOS(), cookie: 'lança' })
+      const page = await openChannelPage('matt-wolfe')
+      expect(page.meuCanalLembrado).toBeNull()
+      expect(page.owns.principal!.id).toBe(O2)
+    })
   })
   it('canal não encontrado também traz os canais próprios (a moldura do "Canal não encontrado" tem o atalho)', async () => {
     const { openChannelPage } = await setup({ ds: null })

@@ -18,6 +18,11 @@
 #flut .mc-m a[aria-current="page"]{background:var(--surface-2)}
 #flut .mc-m b{font-weight:500}
 #flut .mc-m small{font-size:12px;color:var(--muted)}
+#flut .mc-m .mc-dica{margin:0 8px 6px;font-size:12px;color:var(--muted)}
+#flut .mc-m .mc-n{display:flex;align-items:center;gap:6px;min-width:0}
+#flut .mc-m .mc-ok{display:inline-flex;flex:none;color:var(--accent)}
+#flut .mc-m .mc-ok svg{width:14px;height:14px;fill:none;stroke:currentColor}
+#flut .mc-m .mc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 #flut .mc-m .off{cursor:default}
 #flut .mc-m .off b{color:var(--muted)}
 #flut .mc-m .sep{border-top:1px solid var(--border-subtle);margin-top:6px;padding-top:6px}

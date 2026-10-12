@@ -13,6 +13,7 @@ import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
 import { humanizeSyncError, type ChannelStats } from '@/lib/youtube/observatorio/channels'
 import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
 import { langChip, ownChannelHref, ownTexts, type LangChip } from '../_chrome/own-channels'
+import { principalDoMotor } from '../_chrome/own-menu'
 import { posicoes, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
 import {
   BUSCA_NOTA, CONJUNTO_AVISO, PROBLEMAS_NOTA, divisorDe, emTexto, fraseDePosicao, fraseVizinhos, motivoSemValor, motivoTexto, temPosicao,
@@ -67,7 +68,7 @@ export interface CanaisRow {
   own: boolean
   /** A página do canal para um concorrente; null para canal próprio, que continua abrindo o painel lateral. */
   href: string | null
-  /** "Comparar" com o canal próprio principal (D16); null em canal próprio e quando o site não tem canal próprio com vídeos. `label` é o nome acessível. */
+  /** "Comparar" com o canal próprio principal (`escolherPrincipal`); null em canal próprio e quando o site não tem canal próprio com vídeos. `label` é o nome acessível. */
   comparar: { href: string; label: string } | null
   /** Language mark of an own channel; null for competitors and when the site has a single own channel. */
   lang: LangChip | null
@@ -154,7 +155,7 @@ export interface CanaisView {
   buscaNota: string
   /** O que o "de N" conta quando a lista mostra outra coisa (canal próprio sem nicho num nicho; filtro "só com problema"); null quando nada a explicar. */
   posicaoNota: string | null
-  /** A linha presa no pé: fala do primeiro canal próprio com vídeos (D16). null sem canal próprio. */
+  /** A linha presa no pé: fala do mesmo canal que o "Comparar" (`escolherPrincipal`). null sem canal próprio. */
   pe: { canalId: string; texto: string } | null
   /** O bloco "Seus canais" do topo; os canais próprios estão também na lista, na posição deles. */
   own: { many: boolean; block: OwnBlock | null }
@@ -198,6 +199,8 @@ export interface CanaisParams {
   sort?: string; dir?: string; nicheEditor?: string; unlockStep?: number
   /** ?niche= is in the URL (a click on the niche bar), not only the persisted preference. */
   nicheExplicit?: boolean
+  /** A escolha do dono para "o meu canal" (cookie `obs-meu-canal`, lido no servidor); `escolherPrincipal` decide com ela. Ausente = sem escolha. */
+  lembrado?: string | null
 }
 
 const pick = <T extends string>(v: string | undefined, ok: readonly T[], d: T): T => (v && (ok as readonly string[]).includes(v) ? (v as T) : d)
@@ -292,9 +295,11 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   /* ---------------------------------------------------------------- own channels (canais.html:620-627) */
   const allOwns = obs.ownChannels() // R73: subscribers, largest first
   const many = allOwns.length > 1, T = ownTexts(many)
-  // "o meu canal" de "Comparar": o primeiro canal próprio COM vídeos na ordem do motor (D16); sem ele não há com quem comparar
-  const comVideos = new Set(obs.videos.filter(v => allOwns.some(o => o.id === v.ch)).map(v => v.ch))
-  const principal = allOwns.find(o => comVideos.has(o.id)) ?? null
+  // "o meu canal" de "Comparar" e da linha presa no pé: a regra única `escolherPrincipal` (a escolha do dono, ou o canal de publicação mais
+  // recente; design D-C da 11c, no lugar da D16); sem ele não há com quem comparar
+  const principalId = principalDoMotor(obs, p.lembrado)
+  const principal = allOwns.find(o => o.id === principalId) ?? null
+  const candidatosN = allOwns.filter(o => obs.videos.some(v => v.ch === o.id)).length
 
   /* ---------------------------------------------------------------- slots */
   const { used, limit, free } = obs.channelSlots(p.limit)
@@ -450,7 +455,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     const valor = valoresOf(c), pos = posMap.get(c.id) ?? null
     return {
       id: c.id, name: c.name, niche: c.niche, own: c.own, href: c.own ? null : obs.link.canal(c.id),
-      comparar: !c.own && principal ? { href: obs.link.comparar(principal.id, c.id), label: `Comparar ${c.name} com o meu canal` } : null,
+      comparar: !c.own && principal ? { href: obs.link.comparar(principal.id, c.id), label: candidatosN > 1 ? `Comparar ${c.name} com o meu canal (${principal.name})` : `Comparar ${c.name} com o meu canal` } : null,
       lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
       outliers: { n: outN, href: obs.link.outliers({ channel: c.id, fmt }) },
       changes: { n: c.own ? 0 : obs.changesIn({ channel: c.id }).length, href: obs.link.mudancas({ channel: c.id }) },
@@ -538,7 +543,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     }),
     partes: ownParts,
   } : null
-  // a linha presa no pé fala do primeiro canal próprio com vídeos (D16), com a frase curta (sem os vizinhos)
+  // a linha presa no pé fala do mesmo canal que o "Comparar" (a regra única), com a frase curta (sem os vizinhos)
   // o que o "de N" conta quando a lista mostra outra coisa: o canal próprio sem nicho (fora do conjunto de um nicho) e o filtro "só com problema"
   const semNichoNaLista = niche !== 'todos' ? ownRows.filter(r => r.niche == null) : []
   const posicaoNotas: string[] = []
@@ -546,7 +551,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     if (semNichoNaLista.length) posicaoNotas.push(`A posição conta só os canais de ${nicheLabel}; ${semNichoNaLista.length === 1 ? 'o seu canal sem nicho aparece' : `os seus ${semNichoNaLista.length} canais sem nicho aparecem`} na lista, sem posição.`)
     if (filter === 'problemas') posicaoNotas.push(PROBLEMAS_NOTA)
   }
-  const peRow = ownRows.find(r => temVideos(r.id))
+  const peRow = principal ? ownRows.find(r => r.id === principal.id) : undefined
   const pe = peRow ? { canalId: peRow.id, texto: `seu canal · ${fraseDe(peRow).frase}` } : null
   const np = comps.filter(c => c.sync.state !== 'ok').length
   // F4: competitors with no niche are invisible in a niche tab; say how many and point at the niche editor (same exit as Insights R78)

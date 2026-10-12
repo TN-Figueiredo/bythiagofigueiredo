@@ -31,7 +31,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   const sp = await searchParams
   // The channel drawer reuses ?tab=outliers together with ?channel=; only a bare ?tab= is a legacy dashboard link.
   if (!one(sp.channel)) legacyTabRedirect(one(sp.tab))
-  const { rows, obs, savedNiche, extra: canUnlock } = await openObservatoryPage(canUnlockChannels)
+  const { rows, obs, savedNiche, meuCanalLembrado, extra: canUnlock } = await openObservatoryPage(canUnlockChannels)
   // a competitor has a page of its own; the drawer (?channel=) only serves an own channel. The panel's tab has no equivalent there.
   competitorChannelRedirect(obs, one(sp.channel))
   // The chrome persists a valid ?niche= and drops an invalid one; here it is only read. parseNiche checks the form;
@@ -40,12 +40,12 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   const urlNiche = parsed != null && obs.scopeOf(parsed) === parsed ? parsed : null
   const niche = urlNiche ?? obs.scopeOf(savedNiche)
   const view = buildCanaisView(obs, {
-    niche, nicheExplicit: urlNiche != null, limit: rows.settings?.channel_limit ?? DEFAULT_CHANNEL_LIMIT, unlockStep: UNLOCK_STEP,
+    niche, nicheExplicit: urlNiche != null, lembrado: meuCanalLembrado, limit: rows.settings?.channel_limit ?? DEFAULT_CHANNEL_LIMIT, unlockStep: UNLOCK_STEP,
     channel: one(sp.channel), tab: one(sp.tab), add: one(sp.add), filter: one(sp.filter), scale: one(sp.scale), fmt: one(sp.fmt),
     layout: one(sp.layout), sort: one(sp.sort), dir: one(sp.dir), nicheEditor: one(sp.nicheEditor),
   })
   return (
-    <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja}>
+    <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}>
       <CanaisScreen
         view={view} canUnlock={canUnlock}
         onAdd={addChannelFromCanais} onRemove={removeCompetitorChannel} onUnlock={unlockMoreChannels}

@@ -21,11 +21,11 @@ const primeiro = (v: string | string[] | undefined): string | undefined => (Arra
  * navegador. Só dados simples vão à tela; nenhuma server action (a tela só lê).
  */
 export default async function CompararPage({ searchParams }: { searchParams: Promise<ObsSearchParams> }) {
-  const [sp, { obs }] = await Promise.all([searchParams, openObservatoryPage()])
+  const [sp, { obs, meuCanalLembrado }] = await Promise.all([searchParams, openObservatoryPage()])
   const pack = buildCompararPack(obs)
-  const inicial = resolverPar(pack, primeiro(sp?.a), primeiro(sp?.b))
+  const inicial = resolverPar(pack, primeiro(sp?.a), primeiro(sp?.b), meuCanalLembrado)
   return (
-    <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: 'Comparar' }]} owns={ownMenuOf(obs)}>
+    <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: 'Comparar' }]} owns={ownMenuOf(obs, meuCanalLembrado)}>
       <CompararScreen pack={pack} inicial={inicial} />
     </TrailChrome>
   )

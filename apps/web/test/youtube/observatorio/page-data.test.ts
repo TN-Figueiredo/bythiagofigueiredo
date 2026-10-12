@@ -2,11 +2,17 @@
 import { describe, it, expect, vi } from 'vitest'
 
 const EMPTY = { settings: null, channels: [], ownChannels: [], videos: [], ownVideos: [], versions: [], legacyChanges: [], daily: [], snapshots: [], readings: [], tasks: [], heartbeat: null }
-async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: false; reason: string }; pref?: unknown; prefError?: boolean; loadError?: Error } = {}) {
+async function setup(o: { access?: { ok: true; user: { id: string } } | { ok: false; reason: string }; pref?: unknown; prefError?: boolean; loadError?: Error; cookie?: string | null | 'lança' } = {}) {
   vi.resetModules()
   const order: string[] = []
   const loadPageRows = vi.fn(async (_siteId: string, _now: number) => { order.push('load'); if (o.loadError) throw o.loadError; return EMPTY })
   const prefEq = vi.fn()
+  vi.doMock('next/headers', () => ({
+    cookies: async () => {
+      if (o.cookie === 'lança') throw new Error('fora de um pedido')
+      return { get: (n: string) => (n === 'obs-meu-canal' && o.cookie != null ? { name: n, value: o.cookie } : undefined) }
+    },
+  }))
   vi.doMock('server-only', () => ({}))
   vi.doMock('next/navigation', () => ({ redirect: (url: string) => { throw new Error('REDIRECT ' + url) } }))
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 'site-1' }) }))
@@ -55,6 +61,13 @@ describe('openObservatoryPage', () => {
     const ok = await setup({ pref: 'viagem' })
     expect((await ok.openObservatoryPage()).savedNiche).toBe('viagem')
     expect(ok.prefEq.mock.calls).toEqual([['competitor_user_prefs', 'user_id', 'u1'], ['competitor_user_prefs', 'site_id', 'site-1']])
+  })
+  it('"o meu canal" lembrado (cookie obs-meu-canal): só um uuid vale; ausente, lixo e cookies() que lança viram null, sem erro (11c)', async () => {
+    const ID = '00000000-0000-4000-8000-0000000000aa'
+    expect((await (await setup({ cookie: ID })).openObservatoryPage()).meuCanalLembrado).toBe(ID)
+    for (const cookie of [null, '', 'lixo', "'; --", ID + 'x', 'lança'] as const) {
+      expect((await (await setup({ cookie })).openObservatoryPage()).meuCanalLembrado, String(cookie)).toBeNull()
+    }
   })
   it('a carga falhou: o erro sobe (a tela mostra o erro), nunca um Observatório vazio', async () => {
     const { openObservatoryPage } = await setup({ loadError: new Error('observatório: falha ao ler competitor_videos: boom') })

@@ -11,6 +11,8 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Popover } from './flut/flut'
+import { Icon } from './icons'
+import { lembrarMeuCanal } from './meu-canal-lembrado'
 import type { OwnMenu } from './own-menu'
 import './meu-canal.css'
 
@@ -52,25 +54,41 @@ function Atalho({ owns, atual }: { owns: OwnMenu; atual?: string }) {
       </button>
       <Popover open={aberto} anchor={() => botao.current} onClose={() => setAberto(false)} id="mc-menu" role="menu" labelledBy="mc-menu-t" className="mc-m" pref="baixo" align="fim" gap={4}>
         <div ref={caixa} onKeyDown={aoTeclarMenu} style={{ display: 'contents' }}>
-          <p className="mc-h" id="mc-menu-t">Meus canais</p>
-          <ul role="none">
-            {owns.itens.map(c => (
-              <li key={c.id} role="none">
-                {c.href ? (
-                  <Link role="menuitem" href={c.href} aria-current={atual === c.id ? 'page' : undefined} onClick={() => setAberto(false)}>
-                    <b>{c.name}</b><small>{c.nota}</small>
-                  </Link>
-                ) : (
-                  <span role="menuitem" aria-disabled="true" className="off"><b>{c.name}</b><small>{c.nota}</small></span>
-                )}
-              </li>
-            ))}
-            <li role="none" className="sep">
-              <Link role="menuitem" href={owns.listaHref} onClick={() => setAberto(false)}>Ver meus canais na lista de Canais</Link>
-            </li>
-          </ul>
+          <ItensMeuCanal owns={owns} atual={atual} aoEscolher={() => setAberto(false)} idTitulo="mc-menu-t" />
         </div>
       </Popover>
     </div>
+  )
+}
+
+/**
+ * O miolo do menu "Meus canais": o cabeçalho, a dica, os itens e "Ver meus canais na lista de Canais". Os dois menus o usam (o do atalho e, em
+ * janela estreita, o ⋯ das abas). Clicar num item abre o canal E o torna "o meu canal" (cookie, D-C.2): só num gesto do dono, nunca ao abrir.
+ * Com dois ou mais canais com vídeos o principal leva um ✓ (com texto para leitor de tela) e uma dica diz o que o ✓ significa e como trocar.
+ */
+export function ItensMeuCanal({ owns, atual, aoEscolher, idTitulo }: { owns: OwnMenu; atual?: string; aoEscolher: () => void; idTitulo?: string }) {
+  const varios = owns.itens.filter(c => c.href != null).length >= 2
+  return (
+    <>
+      <p className="mc-h" id={idTitulo}>Meus canais</p>
+      {varios ? <p className="mc-dica">Comparar com o meu canal usa o canal com ✓. Para trocar, abra outro daqui.</p> : null}
+      <ul role="none">
+        {owns.itens.map(c => (
+          <li key={c.id} role="none">
+            {c.href ? (
+              <Link role="menuitem" href={c.href} aria-current={atual === c.id ? 'page' : undefined} onClick={() => { lembrarMeuCanal(c.id); aoEscolher() }}>
+                <span className="mc-n"><b>{c.name}</b>{varios && owns.principal?.id === c.id ? <><span className="mc-ok" aria-hidden="true">{Icon.check()}</span><span className="mc-sr"> (usado em Comparar com o meu canal)</span></> : null}</span>
+                <small>{c.nota}</small>
+              </Link>
+            ) : (
+              <span role="menuitem" aria-disabled="true" className="off"><span className="mc-n"><b>{c.name}</b></span><small>{c.nota}</small></span>
+            )}
+          </li>
+        ))}
+        <li role="none" className="sep">
+          <Link role="menuitem" href={owns.listaHref} onClick={aoEscolher}>Ver meus canais na lista de Canais</Link>
+        </li>
+      </ul>
+    </>
   )
 }

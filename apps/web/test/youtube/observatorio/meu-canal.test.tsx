@@ -14,7 +14,7 @@ import { MeuCanal } from '@/app/cms/(authed)/youtube/competitors/_chrome/meu-can
 import { TrailChrome } from '@/app/cms/(authed)/youtube/competitors/_chrome/trail-chrome'
 import { ObservatoryChrome } from '@/app/cms/(authed)/youtube/competitors/_chrome/observatory-chrome'
 import { buildChromeView, type ChromeTab } from '@/app/cms/(authed)/youtube/competitors/_chrome/view-model'
-import { ownMenuOf, type OwnMenu } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
+import { ownMenuOf, ownMenuFromRows, type OwnMenu } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
 import { ownChannelHref } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-channels'
 import { link } from '@/lib/youtube/observatorio/links'
 
@@ -35,7 +35,7 @@ const flut = () => document.getElementById('flut')
 const menu = () => within(flut()!).getByRole('menu', { name: 'Meus canais' })
 
 beforeEach(() => { siteAdmin.value = true })
-afterEach(() => { cleanup(); document.getElementById('flut')?.remove() })
+afterEach(() => { cleanup(); document.getElementById('flut')?.remove(); document.cookie = 'obs-meu-canal=; path=/cms; max-age=0' })
 
 describe('MeuCanal', () => {
   it('o botão diz "Meu canal: <nome>" com aria-haspopup e aria-expanded; sem canal próprio o componente não existe', () => {
@@ -198,5 +198,62 @@ describe('ObservatoryChrome com o atalho', () => {
     const { container } = render(<ObservatoryChrome view={buildChromeView(w.obs, { tab: 'canais', niche: 'todos' })}><div /></ObservatoryChrome>)
     expect(container.querySelector('[data-meu-canal]')).toBeNull()
     expect(buildChromeView(w.obs, { tab: 'canais', niche: 'todos' }).owns.itens).toEqual([])
+  })
+})
+
+describe('MeuCanal com vários canais próprios (11c, D-C.4 e D-C.5)', () => {
+  it('com 2 ou mais canais com vídeos: o principal leva o ✓ (com texto para leitor de tela) e o menu traz a dica; os outros não levam ✓', async () => {
+    const user = userEvent.setup()
+    render(<MeuCanal owns={doisComVideos} />)
+    await user.click(screen.getByRole('button', { name: /^Meu canal:/ }))
+    const m = menu()
+    expect(within(m).getByText('Comparar com o meu canal usa o canal com ✓. Para trocar, abra outro daqui.')).toBeTruthy()
+    const oks = m.querySelectorAll('.mc-ok')
+    expect(oks).toHaveLength(1)
+    expect(oks[0]!.closest('[role="menuitem"]')!.textContent).toContain(doisComVideos.principal!.name)
+    expect(oks[0]!.closest('[role="menuitem"]')!.textContent).toContain('(usado em Comparar com o meu canal)') // o ✓ nunca é o único sinal
+    expect(oks[0]!.getAttribute('aria-hidden')).toBe('true')
+  })
+  it('com UM canal com vídeos (o outro é canal novo): sem ✓ e sem dica', async () => {
+    const user = userEvent.setup()
+    render(<MeuCanal owns={umSemVideos} />)
+    await user.click(screen.getByRole('button', { name: /^Meu canal:/ }))
+    expect(menu().querySelectorAll('.mc-ok')).toHaveLength(0)
+    expect(within(menu()).queryByText(/usa o canal com ✓/)).toBeNull()
+  })
+  it('a nota de cada item começa pela recência e o item tem o nome do canal', async () => {
+    const user = userEvent.setup()
+    render(<MeuCanal owns={doisComVideos} />)
+    await user.click(screen.getByRole('button', { name: /^Meu canal:/ }))
+    for (const i of doisComVideos.itens) expect(within(menu()).getByText(i.nota)).toBeTruthy()
+    expect(doisComVideos.itens.every(i => /^(parado: )?último vídeo /.test(i.nota))).toBe(true)
+  })
+  it('clicar num item torna esse canal "o meu canal" (cookie obs-meu-canal com o id, path /cms); abrir o menu NÃO grava nada', async () => {
+    window.history.replaceState(null, '', '/cms/youtube/competitors') // o cookie é de path /cms: só fica visível nas páginas do CMS
+    const user = userEvent.setup()
+    // ids de canal de verdade são uuids (o cookie só aceita esse formato); o fixture usa slugs
+    const U1 = '00000000-0000-4000-8000-000000000001', U2 = '00000000-0000-4000-8000-000000000002'
+    const AGORA = mundo.obs.NOW
+    const uuids = ownMenuFromRows([{ id: U1, name: 'Um', subs: 900, videos: 9, ultimo: AGORA - 86_400_000 }, { id: U2, name: 'Dois', subs: 50, videos: 9, ultimo: AGORA - 5 * 86_400_000 }], mundo.obs.fmt, { lembrado: null, agora: AGORA })
+    expect(uuids.principal!.id).toBe(U1)
+    render(<MeuCanal owns={uuids} />)
+    await user.click(screen.getByRole('button', { name: /^Meu canal:/ }))
+    expect(document.cookie).not.toContain('obs-meu-canal') // abrir não grava
+    const outro = uuids.itens.find(i => i.href && i.id !== uuids.principal!.id)!
+    const a = within(menu()).getAllByRole('menuitem').find(x => x.getAttribute('href') === outro.href)!
+    a.addEventListener('click', e => e.preventDefault()) // o jsdom não navega
+    await user.click(a)
+    expect(document.cookie).toContain(`obs-meu-canal=${outro.id}`)
+  })
+  it('clicar no canal sem vídeos (apagado) ou em "Ver meus canais" não grava', async () => {
+    const user = userEvent.setup()
+    render(<MeuCanal owns={umSemVideos} />)
+    await user.click(screen.getByRole('button', { name: /^Meu canal:/ }))
+    const sem = within(menu()).getByText(umSemVideos.itens.find(i => !i.href)!.name).closest('[role="menuitem"]')!
+    await user.click(sem)
+    const ver = within(menu()).getByRole('menuitem', { name: 'Ver meus canais na lista de Canais' })
+    ver.addEventListener('click', e => e.preventDefault())
+    await user.click(ver)
+    expect(document.cookie).not.toContain('obs-meu-canal')
   })
 })

@@ -1455,6 +1455,66 @@ test('Meu canal em Canais, no canal, no Histórico e na comparação: um por tel
   await expect(page.locator('[data-meu-canal]:visible button')).toHaveCount(1)
 })
 
+test('C2 "meu canal" com dois canais próprios: clicar no outro item do menu grava o cookie, a lista seguinte aponta o "Comparar" (?a=) e o rótulo para ele; a URL vence o cookie; trocar o seletor A grava; nenhum POST', async ({ page }) => {
+  const EN = ids.own('tnfigueiredo-en')
+  const cookie = async () => (await page.context().cookies()).find(c => c.name === 'obs-meu-canal') ?? null
+  const abrirLista = async () => {
+    await page.goto(`${LISTA}?fmt=longos`)
+    await page.locator('[data-obs-screen="canais"] .toolbar:visible').first().waitFor({ timeout: 60_000 })
+    await page.waitForLoadState('networkidle')
+  }
+  // sem o cookie: a recência decide (tnFigueiredo publicou depois do EN na semente)
+  expect(await cookie()).toBeNull()
+  await abrirLista()
+  const atalho = page.locator('[data-meu-canal]:visible button').first()
+  await expect(atalho).toHaveAccessibleName('Meu canal: tnFigueiredo')
+  const comparar = page.locator('a[data-comparar]:visible').first()
+  expect(await comparar.getAttribute('href')).toContain('a=' + OWN())
+  expect(await comparar.getAttribute('aria-label')).toMatch(/com o meu canal \(tnFigueiredo\)$/)
+  expect(await cookie(), 'abrir a tela não grava').toBeNull()
+  // o menu: ✓ no principal e a dica
+  await atalho.click()
+  const menu = page.locator('#flut [role="menu"]').first()
+  await expect(menu.getByText('Comparar com o meu canal usa o canal com ✓. Para trocar, abra outro daqui.')).toBeVisible()
+  await expect(menu.locator('.mc-ok')).toHaveCount(1)
+  // clicar no outro canal próprio o torna o principal
+  await menu.getByRole('menuitem', { name: /tnFigueiredo EN/ }).click()
+  await page.waitForURL(/channel=/, { timeout: 60_000 })
+  const c = await cookie()
+  expect(c?.value).toBe(EN)
+  expect(c?.path).toBe('/cms'); expect(c?.sameSite).toBe('Lax'); expect(c?.httpOnly).toBe(false)
+  await abrirLista()
+  await expect(page.locator('[data-meu-canal]:visible button').first()).toHaveAccessibleName('Meu canal: tnFigueiredo EN')
+  expect(await page.locator('a[data-comparar]:visible').first().getAttribute('href')).toContain('a=' + EN)
+  // a comparação sem ?a=: o lado A é o escolhido
+  await abrir(page, `${ROTA}?b=${LEO()}`)
+  await expect(selA(page)).toHaveValue(EN)
+  // um cookie ruim é ignorado sem erro: a tela abre no padrão por recência
+  await page.context().addCookies([{ name: 'obs-meu-canal', value: 'lixo', domain: 'localhost', path: '/cms' }])
+  expect(await abrir(page, `${ROTA}?b=${LEO()}`)).toBe(200)
+  await expect(selA(page)).toHaveValue(OWN())
+  // sem o cookie (apagado): a recência
+  await page.context().clearCookies({ name: 'obs-meu-canal' })
+  await abrir(page, `${ROTA}?b=${LEO()}`)
+  await expect(selA(page)).toHaveValue(OWN())
+  // a URL vence o cookie; abrir não grava
+  await page.context().addCookies([{ name: 'obs-meu-canal', value: EN, domain: 'localhost', path: '/cms' }])
+  await abrir(page, par(OWN(), LEO()))
+  await expect(selA(page)).toHaveValue(OWN())
+  expect((await cookie())?.value, 'a URL vence e abrir não regrava').toBe(EN)
+  // trocar o seletor A para o outro canal próprio grava (e só então)
+  await page.context().addCookies([{ name: 'obs-meu-canal', value: OWN(), domain: 'localhost', path: '/cms' }])
+  await abrir(page, par(OWN(), LEO()))
+  expect((await cookie())?.value, 'abrir não regrava').toBe(OWN())
+  await selA(page).selectOption(EN)
+  await expect.poll(async () => (await cookie())?.value).toBe(EN)
+  // inverter os lados: o canal próprio que ficou no lado A é o que fica
+  await selB(page).selectOption(OWN())
+  await expect.poll(async () => (await cookie())?.value).toBe(EN) // o A continua sendo o EN
+  await page.getByRole('button', { name: 'Inverter lados' }).click()
+  await expect.poll(async () => (await cookie())?.value).toBe(OWN())
+})
+
 test('o topo (moldura) a 390 px nas sete telas: altura medida e comparada com a da moldura sem o atalho "Meu canal"; nada se sobrepõe nem sai da janela', async ({ page }) => {
   const ROTAS: Array<[string, string, string]> = [
     ['Canais', `${LISTA}?fmt=longos`, '.obs-ch-head'], ['Mudanças', `${LISTA}/mudancas`, '.obs-ch-head'], ['Outliers', `${LISTA}/outliers`, '.obs-ch-head'], ['Insights', `${LISTA}/insights`, '.obs-ch-head'],

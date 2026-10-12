@@ -9,10 +9,13 @@
  * - Voltar e Avançar (`popstate`) releem a URL, só enquanto o pathname é o da comparação, e nunca escrevem nela. Par inválido (id de outro site, inventado, em maiúsculas, `a === b`, ausente) cai no
  *   padrão de `resolverPar`, sem mensagem de erro.
  * - A URL é conforto: se o navegador recusar (`history` que lança), a tela já mudou.
+ * - "O meu canal" (D-C.2 da 11c): trocar um seletor ou inverter os lados, gestos do dono, grava o canal próprio com vídeos que ficou no lado A (se
+ *   o A não é próprio, o do lado B; se nenhum é, não grava). Abrir a tela e Voltar/Avançar nunca gravam. A URL sempre vence o cookie.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CompararPack } from './pack'
 import { resolverPar } from './par-model'
+import { lembrarMeuCanal, lerMeuCanalNoNavegador } from '../_chrome/meu-canal-lembrado'
 
 export interface ParIds { a: string; b: string }
 
@@ -29,7 +32,16 @@ function escreverUrl(par: ParIds): void {
 function lerUrl(pack: CompararPack): ParIds | null | 'vazia' {
   const q = new URLSearchParams(window.location.search)
   if (!q.has('a') && !q.has('b')) return 'vazia'
-  return resolverPar(pack, q.get('a') ?? undefined, q.get('b') ?? undefined)
+  return resolverPar(pack, q.get('a') ?? undefined, q.get('b') ?? undefined, lerMeuCanalNoNavegador())
+}
+
+/** O canal próprio com vídeos que o dono acabou de pôr à frente (lado A, depois B), ou null. */
+function proprioDoPar(pack: CompararPack, par: ParIds): string | null {
+  for (const id of [par.a, par.b]) {
+    const c = pack.canais.find(x => x.id === id)
+    if (c && c.own && !c.semVideos) return c.id
+  }
+  return null
 }
 
 const mesmo = (x: ParIds, y: ParIds) => x.a === y.a && x.b === y.b
@@ -49,6 +61,8 @@ export function usePar(pack: CompararPack, inicial: ParIds): ParIds & { trocar(l
     ref.current = next
     setPar(next)
     escreverUrl(next)
+    const meu = proprioDoPar(packRef.current, next)
+    if (meu) lembrarMeuCanal(meu)
   }, [])
 
   const trocar = useCallback((lado: 'a' | 'b', id: string) => {
@@ -81,7 +95,7 @@ export function usePar(pack: CompararPack, inicial: ParIds): ParIds & { trocar(l
     const onPop = () => {
       if (window.location.pathname !== caminho) return
       const q = new URLSearchParams(window.location.search)
-      const next = resolverPar(packRef.current, q.get('a') ?? undefined, q.get('b') ?? undefined) ?? ref.current
+      const next = resolverPar(packRef.current, q.get('a') ?? undefined, q.get('b') ?? undefined, lerMeuCanalNoNavegador()) ?? ref.current
       ref.current = next
       setPar(next)
     }

@@ -281,7 +281,7 @@ function AbaVideos({ view, state, lista, set, nome, channelId, onSync, onAmpliar
 
 export function CanalScreen({ view, niches, canAdmin, leitura, actions, compararHref = null }: {
   view: CanalView; niches: NicheOption[]; canAdmin: boolean; leitura: ReactNode | null; actions: CanalActions
-  /** A comparação deste canal com o canal próprio principal (D16), montada pelo servidor; null = sem canal próprio com vídeos (sem o botão "Comparar com o meu canal"). */
+  /** A comparação deste canal com o canal próprio principal (`escolherPrincipal`), montada pelo servidor; null = sem canal próprio com vídeos (sem o botão "Comparar com o meu canal"). */
   compararHref?: string | null
 }) {
   const router = useRouter(), toast = useToast()

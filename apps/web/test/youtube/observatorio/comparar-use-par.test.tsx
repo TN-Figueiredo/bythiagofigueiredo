@@ -146,3 +146,59 @@ describe('usePar', () => {
     expect([result.current.a, result.current.b]).toEqual(['eu', 'c1'])
   })
 })
+
+describe('usePar grava "o meu canal" só em gesto do dono (11c, D-C.2)', () => {
+  const U1 = '00000000-0000-4000-8000-000000000001', U2 = '00000000-0000-4000-8000-000000000002'
+  const P2 = pacoteDe([mk(U1, 1000, { own: true }), mk(U2, 400, { own: true }), mk('c1', 5000), mk('c2', 3000), mk('vazio', 5, { own: true, semVideos: true })])
+  const meu = () => { const m = document.cookie.match(/obs-meu-canal=([^;]+)/); return m ? m[1] : null }
+  beforeEach(() => { document.cookie = 'obs-meu-canal=; path=/cms; max-age=0' })
+  afterEach(() => { document.cookie = 'obs-meu-canal=; path=/cms; max-age=0' })
+  it('abrir a tela não grava, nem com ?a= na URL', () => {
+    url(`?a=${U2}&b=c1`)
+    renderHook(() => usePar(P2, { a: U2, b: 'c1' }))
+    expect(meu()).toBeNull()
+  })
+  it('trocar o seletor do lado A para outro canal próprio grava esse canal', () => {
+    url(`?a=${U1}&b=c1`)
+    const { result } = renderHook(() => usePar(P2, { a: U1, b: 'c1' }))
+    act(() => result.current.trocar('a', U2))
+    expect(meu()).toBe(U2)
+  })
+  it('trocar o lado B quando o A é próprio grava o A; se o A não é próprio, grava o próprio do lado B; se nenhum é próprio, não grava', () => {
+    url(`?a=${U1}&b=c1`)
+    const { result } = renderHook(() => usePar(P2, { a: U1, b: 'c1' }))
+    act(() => result.current.trocar('b', 'c2'))
+    expect(meu()).toBe(U1)
+    cleanup(); document.cookie = 'obs-meu-canal=; path=/cms; max-age=0'
+    url('?a=c1&b=c2')
+    const r2 = renderHook(() => usePar(P2, { a: 'c1', b: 'c2' }))
+    act(() => r2.result.current.trocar('b', U2))
+    expect(meu()).toBe(U2) // o A (c1) é concorrente: vale o próprio do lado B
+    cleanup(); document.cookie = 'obs-meu-canal=; path=/cms; max-age=0'
+    url('?a=c1&b=c2')
+    const r3 = renderHook(() => usePar(P2, { a: 'c1', b: 'c2' }))
+    act(() => r3.result.current.trocar('a', 'eu-nao-existe'))
+    expect(meu()).toBeNull()
+  })
+  it('inverter os lados grava o próprio que ficou à frente (A)', () => {
+    url(`?a=c1&b=${U2}`)
+    const { result } = renderHook(() => usePar(P2, { a: 'c1', b: U2 }))
+    act(() => result.current.inverter())
+    expect(result.current.a).toBe(U2)
+    expect(meu()).toBe(U2)
+  })
+  it('um canal próprio sem vídeos escolhido no seletor nunca vira "o meu canal"', () => {
+    url(`?a=c1&b=c2`)
+    const { result } = renderHook(() => usePar(P2, { a: 'c1', b: 'c2' }))
+    act(() => result.current.trocar('a', 'vazio'))
+    expect(result.current.a).toBe('vazio')
+    expect(meu()).toBeNull()
+  })
+  it('Voltar/Avançar (popstate) nunca grava', () => {
+    url(`?a=${U1}&b=c1`)
+    renderHook(() => usePar(P2, { a: U1, b: 'c1' }))
+    url(`?a=${U2}&b=c2`)
+    act(() => { window.dispatchEvent(new PopStateEvent('popstate')) })
+    expect(meu()).toBeNull()
+  })
+})
