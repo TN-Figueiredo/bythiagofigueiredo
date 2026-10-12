@@ -3,8 +3,8 @@
 // download usa a URL gravada na listagem, renovando-a quando o Google a recusa.
 import * as Sentry from '@sentry/nextjs'
 import { channelNote, describeCronCause } from '@/lib/cron/failure-note'
-import { classificarErro, criarReportingClient, paraBytea, type PacoteCsv, type ReportingClient } from '@/lib/youtube/reporting/client'
-import { ReportingHttpError, SEM_NORMALIZADOR, type Report } from '@/lib/youtube/reporting/types'
+import { classificarErro, criarReportingClient, MAX_GZ_BYTES, paraBytea, type PacoteCsv, type ReportingClient } from '@/lib/youtube/reporting/client'
+import { ArquivoGrandeDemaisError, ReportingHttpError, SEM_NORMALIZADOR, type Report } from '@/lib/youtube/reporting/types'
 import { obterToken } from './autorizacao'
 import { contarPorResultado, registrarTentativa, scopeJob } from './attempts'
 import { emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
@@ -16,9 +16,9 @@ import type { ColetaChannel, StepCtx, StepResumo } from './types'
 // Tetos da E12 (A5). Medida de produção, 09 a 12/10/2026: até 0,90 s por download (um por vez) e o maior relatório
 // com 564 bytes comprimidos. 100 downloads + a listagem cabem em TETOS_MS.relatorios; reports-step.test.ts refaz a conta.
 export const MAX_DOWNLOADS = 100
-/** Acima disto o relatório vira `erro: grande_demais` e o bruto NÃO é guardado. O download e a descompressão acontecem
- *  em memória antes desta conferência: subir este número pede conferir a memória da função. */
-export const MAX_GZ_BYTES = 10 * 1024 * 1024
+/** Acima disto o relatório vira `erro: grande_demais` e o bruto NÃO é guardado. O teto vale no cliente (Content-Length e
+ *  leitura limitada) e há um segundo, do CSV descomprimido (MAX_CSV_BYTES): reporting/client.ts. Reexportado aqui. */
+export { MAX_GZ_BYTES }
 const MAX_PAGINAS = 50
 /** O PostgREST devolve no máximo 1000 linhas por resposta (max-rows): a fila é lida em páginas, nunca com um `limit` só. */
 const TAMANHO_PAGINA = 1000
@@ -68,6 +68,12 @@ const instante = (s: string): number => new Date(s).getTime()
 const ehGzipInvalido = (e: unknown): boolean => {
   const code = (e as { code?: unknown } | null)?.code
   return typeof code === 'string' && code.startsWith('Z_')
+}
+
+/** Abort por sinal (AbortSignal.timeout ou controller): `TimeoutError`/`AbortError`. */
+const ehAbort = (e: unknown): boolean => {
+  const nome = (e as { name?: unknown } | null)?.name
+  return nome === 'TimeoutError' || nome === 'AbortError'
 }
 
 /** Todas as páginas de `reports.list` de um job. */
@@ -167,6 +173,13 @@ async function baixarUm(
 ): Promise<'sem_tempo' | void> {
   const marcar = (campos: Record<string, unknown>) =>
     ctx.supabase.from('yt_reporting_reports').update(campos).eq('report_id', p.report_id)
+  // Recusa por tamanho: sem conserto automático, o bruto não é guardado. Fica vermelho na hora (aqui) e por 14 dias (critérios).
+  const recusarPorTamanho = async (bytes: number, detalhe: string, extra: Record<string, unknown>): Promise<void> => {
+    resumo.maior_bytes = Math.max(resumo.maior_bytes, bytes)
+    resumo.erros_download++
+    pushUnico(ctx.falhas, `relatórios: ${p.report_type_id} recusado por tamanho (${detalhe}): o bruto NÃO foi guardado`)
+    conferirBanco(await marcar({ status: 'erro', error: 'grande_demais', bytes, ...extra }), 'yt_reporting_reports', ctx.falhas)
+  }
   try {
     let pacote: PacoteCsv | null = null
     let erro: unknown = null
@@ -205,8 +218,17 @@ async function baixarUm(
       }
     }
 
-    // O prazo do passo acabou no meio do relatório: ele continua `listado`, intocado.
+    // O prazo do passo acabou no meio do relatório: ele continua `listado`, intocado. O abort do prazo durante a LEITURA do
+    // corpo chega como TimeoutError/AbortError (só o `fetch` é embrulhado em SemTempoError): sem prazo sobrando, é falta de tempo.
     if (erro instanceof SemTempoError) return 'sem_tempo'
+    if (erro && ehAbort(erro) && restante(ctx.deadline) <= 0) return 'sem_tempo'
+
+    if (erro instanceof ArquivoGrandeDemaisError) {
+      // O cliente recusou antes de guardar (Content-Length, leitura limitada ou bomba de descompressão): mesmo caminho do
+      // `grande_demais` abaixo. Terminal, nota visível com o tamanho; nunca `gzip_invalido` nem erro de rede (que tentam de novo).
+      await recusarPorTamanho(erro.bytes, erro.detalhe, {})
+      return
+    }
 
     if (erro || !pacote) {
       if (classificarErro(erro) === 'url_inesperada') {
@@ -231,17 +253,11 @@ async function baixarUm(
       return
     }
 
-    resumo.maior_bytes = Math.max(resumo.maior_bytes, pacote.gz.length)
     if (pacote.gz.length > MAX_GZ_BYTES) {
-      resumo.erros_download++
-      // Sem conserto automático: o bruto não é guardado. Fica vermelho na hora (aqui) e por 14 dias (critérios).
-      pushUnico(ctx.falhas, `relatórios: ${p.report_type_id} recusado por tamanho (${pacote.gz.length} bytes comprimidos; teto ${MAX_GZ_BYTES}): o bruto NÃO foi guardado`)
-      conferirBanco(
-        await marcar({ status: 'erro', error: 'grande_demais', bytes: pacote.gz.length, sha256: pacote.sha256, row_count: pacote.rowCount }),
-        'yt_reporting_reports', ctx.falhas,
-      )
+      await recusarPorTamanho(pacote.gz.length, `${pacote.gz.length} bytes comprimidos; teto ${MAX_GZ_BYTES}`, { sha256: pacote.sha256, row_count: pacote.rowCount })
       return
     }
+    resumo.maior_bytes = Math.max(resumo.maior_bytes, pacote.gz.length)
 
     const blob = await ctx.supabase
       .from('yt_reporting_report_blobs')

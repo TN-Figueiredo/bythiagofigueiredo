@@ -2,8 +2,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 import { gzipSync, gunzipSync } from 'node:zlib'
-import { criarReportingClient, classificarErro, empacotarCsv, paraBytea, deBytea, REPORTING_BASE } from '@/lib/youtube/reporting/client'
-import { REPORT_TYPES_ENABLED, REACH_TYPES, SEM_NORMALIZADOR, ReportingHttpError } from '@/lib/youtube/reporting/types'
+import { criarReportingClient, classificarErro, empacotarCsv, paraBytea, deBytea, REPORTING_BASE, MAX_GZ_BYTES, MAX_CSV_BYTES } from '@/lib/youtube/reporting/client'
+import { REPORT_TYPES_ENABLED, REACH_TYPES, SEM_NORMALIZADOR, ReportingHttpError, ArquivoGrandeDemaisError } from '@/lib/youtube/reporting/types'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const chamada = (f: ReturnType<typeof vi.fn>, i: number) => f.mock.calls[i] as unknown as [string, RequestInit | undefined]
@@ -169,5 +169,110 @@ describe('download: URL só do Google', () => {
     expect(e).toMatchObject({ reason: 'url_inesperada' })
     expect(classificarErro(e)).toBe('url_inesperada')
     expect(f).not.toHaveBeenCalled()
+  })
+})
+
+describe('download: tetos de tamanho (comprimido no fio, descomprimido na memória)', () => {
+  const URL_OK = 'https://youtubereporting.googleapis.com/v1/media/x?alt=media'
+  const MB = 1024 * 1024
+
+  /** Corpo em pedaços de `chunk` bytes que registra quantos pedaços foram puxados e se foi cancelado. */
+  const corpo = (pedacos: number, chunk: number, headers: Record<string, string> = {}) => {
+    const estado = { puxados: 0, cancelado: false }
+    let i = 0
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) {
+        estado.puxados++
+        if (i++ >= pedacos) c.close()
+        else c.enqueue(new Uint8Array(chunk))
+      },
+      cancel() { estado.cancelado = true },
+    })
+    return { estado, res: new Response(stream, { headers }) }
+  }
+  const baixar = (res: Response) => criarReportingClient('tok', vi.fn().mockResolvedValue(res) as unknown as typeof fetch).download(URL_OK)
+
+  it('os tetos: 10 MB comprimido e 64 MB descomprimido (a conta está no relatório da onda 3)', () => {
+    expect(MAX_GZ_BYTES).toBe(10 * MB)
+    expect(MAX_CSV_BYTES).toBe(64 * MB)
+  })
+
+  it('Content-Length acima do teto: recusa ANTES de ler o corpo (nenhum pedaço puxado) e cancela a resposta', async () => {
+    const { estado, res } = corpo(3, MB, { 'content-length': String(MAX_GZ_BYTES + 1) })
+    const e = await baixar(res).catch(x => x)
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'comprimido', bytes: MAX_GZ_BYTES + 1 })
+    expect(e.detalhe).toContain(`${MAX_GZ_BYTES + 1} bytes comprimidos`)
+    expect(estado.cancelado).toBe(true)
+    expect(estado.puxados).toBeLessThanOrEqual(1) // o ReadableStream puxa 1 vez ao nascer; nenhum pedaço foi lido por nós
+    expect(classificarErro(e)).toBe('outro')
+  })
+
+  it('sem Content-Length e corpo que passa do teto no meio do fluxo: aborta ao ultrapassar, sem ler o resto', async () => {
+    const { estado, res } = corpo(200, MB) // 200 MB se fosse lido inteiro
+    const e = await baixar(res).catch(x => x)
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'comprimido' })
+    expect(e.bytes).toBeGreaterThan(MAX_GZ_BYTES)
+    expect(e.bytes).toBeLessThanOrEqual(MAX_GZ_BYTES + 2 * MB)
+    expect(e.detalhe).toContain('sem Content-Length')
+    expect(estado.cancelado).toBe(true)
+    expect(estado.puxados).toBeLessThan(20)
+  })
+
+  it('Content-Length ilegível ("abc") não vale como ausência de limite: lê com limite', async () => {
+    const { res } = corpo(200, MB, { 'content-length': 'abc' })
+    await expect(baixar(res)).rejects.toBeInstanceOf(ArquivoGrandeDemaisError)
+  })
+
+  it('gzip pequeno que descomprime acima do teto (bomba): recusa como descomprimido, com o tamanho comprimido, sem erro de zlib', async () => {
+    const bomba = gzipSync(Buffer.alloc(MAX_CSV_BYTES + 1, 'a'))
+    expect(bomba.length).toBeLessThan(MB) // pequeno no fio
+    const e = await baixar(new Response(bomba)).catch(x => x)
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'descomprimido', bytes: bomba.length })
+    expect(e.detalhe).toContain(`${bomba.length} bytes comprimidos`)
+    expect(e.detalhe).toContain(`${MAX_CSV_BYTES}`)
+    expect((e as { code?: string }).code).toBeUndefined() // não é erro Z_ do zlib: não pode cair em gzip_invalido
+    expect(classificarErro(e)).toBe('outro')
+  })
+
+  it('exatamente no teto descomprimido passa', async () => {
+    const csv = Buffer.alloc(MAX_CSV_BYTES, 'a')
+    csv.write('date,views\n', 0)
+    const p = await baixar(new Response(gzipSync(csv)))
+    expect(p.sha256).toBe(createHash('sha256').update(csv).digest('hex'))
+  })
+
+  it('caso normal intacto: Content-Length correto e corpo pequeno viram o mesmo pacote de sempre', async () => {
+    const gz = gzipSync(Buffer.from('date,video_id\n20261006,abc\n20261006,def\n'))
+    const p = await baixar(new Response(gz, { headers: { 'content-length': String(gz.length) } }))
+    expect(p.rowCount).toBe(2)
+    expect(p.gz.equals(gz)).toBe(true)
+  })
+
+  it('CSV puro acima do teto descomprimido (sem ser gzip) também é recusado em empacotarCsv', () => {
+    const e = (() => { try { empacotarCsv(Buffer.alloc(MAX_CSV_BYTES + 1, 'a')) } catch (x) { return x } })()
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'descomprimido' })
+  })
+
+  it('corpo vazio (0 byte) NÃO vira relatório "vazio": é falha passageira (corpo_vazio), tenta amanhã', async () => {
+    const e = await baixar(new Response(new Uint8Array(0))).catch(x => x)
+    expect(e).toBeInstanceOf(ReportingHttpError)
+    expect(e).toMatchObject({ reason: 'corpo_vazio' })
+  })
+
+  it('resposta sem corpo (null) também é corpo_vazio', async () => {
+    const e = await baixar(new Response(null, { status: 200 })).catch(x => x)
+    expect(e).toMatchObject({ reason: 'corpo_vazio' })
+  })
+
+  it('erro durante a leitura do corpo (rede cortada, abort) chega a quem chamou, sem virar sucesso', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) { c.enqueue(new Uint8Array(10)); c.error(new DOMException('aborted', 'TimeoutError')) },
+    })
+    const e = await baixar(new Response(stream)).catch(x => x)
+    expect(e).toMatchObject({ name: 'TimeoutError' })
   })
 })
