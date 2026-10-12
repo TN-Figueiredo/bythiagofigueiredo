@@ -1006,6 +1006,84 @@ test.describe('A2.3 o visualizador de thumbnail', () => {
     }
   })
 
+  test('A2.3 11b B2: no modo comparar cada imagem tem o seu Baixar e o seu Abrir original, e cada um age sobre a imagem do seu lado', async ({ page }) => {
+    const msgs: string[] = []
+    page.on('console', m => { if (m.type() === 'error') msgs.push(m.text().slice(0, 300)) })
+    await rotearImagens(page)
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await abrirVideo(page, V.full)
+    await page.locator(`${HV}:visible .vhead .cur [role="button"]`).first().click()
+    await expect(dlg(page).locator('.obs-tv-stage img')).toHaveAttribute('src', /maxresdefault\.jpg/, { timeout: 20_000 })
+    // fora do comparar: um só par, na barra de cima
+    await expect(dlg(page).getByRole('group', { name: 'Arquivo' })).toHaveCount(1)
+    await dlg(page).getByRole('button', { name: 'Comparar lado a lado' }).click()
+    const lados = dlg(page).locator('.obs-tv-side')
+    await expect(lados).toHaveCount(2)
+    await expect(dlg(page).locator('.obs-tv-cmp img')).toHaveCount(2)
+    await expect(lados.nth(0).locator('img')).toHaveAttribute('src', /maxresdefault\.jpg/, { timeout: 20_000 })
+    await expect(lados.nth(1).locator('img')).toHaveAttribute('src', blobDe(0), { timeout: 20_000 })
+    // o par só habilita quando a imagem do lado terminou de carregar (até lá o lado mostra a miniatura que a tela já tinha)
+    await expect(lados.nth(0).getByRole('link', { name: /Abrir original/ })).toHaveAttribute('href', /maxresdefault\.jpg/, { timeout: 20_000 })
+    await expect(lados.nth(1).getByRole('link', { name: /Abrir original/ })).toHaveAttribute('href', blobDe(0), { timeout: 20_000 })
+    await expect(dlg(page).getByRole('group', { name: 'Arquivo', exact: true }), 'a barra de cima já não tem o par: ele é de cada imagem').toHaveCount(0)
+    const info = await lados.evaluateAll(ss => ss.map(s => ({
+      rotulo: (s.querySelector('.obs-tv-lab')?.textContent ?? '').trim(),
+      baixar: s.querySelector('button[aria-label^="Baixar"]')?.getAttribute('aria-label') ?? null,
+      abrir: s.querySelector('a[aria-label^="Abrir original"]')?.getAttribute('aria-label') ?? null,
+      href: s.querySelector('a[aria-label^="Abrir original"]')?.getAttribute('href') ?? null,
+      alvo: (() => { const b = s.querySelector('button[aria-label^="Baixar"]')!.getBoundingClientRect(), a = s.querySelector('a[aria-label^="Abrir original"]')!.getBoundingClientRect(); return { h: Math.round(Math.min(a.height, b.height)), dentro: a.right <= window.innerWidth && b.right <= window.innerWidth } })(),
+    })))
+    medida(`B2 comparar: ${info.map(i => `${i.rotulo} → "${i.baixar}" / "${i.abrir}" → ${String(i.href).slice(0, 70)}`).join(' | ')}`)
+    const nomeLado = info.map(i => i.rotulo.replace(/ \(no ar\)$/, ''))
+    expect(info[0]!.baixar).toBe(`Baixar ${nomeLado[0]}`); expect(info[1]!.baixar).toBe(`Baixar ${nomeLado[1]}`)
+    expect(info[0]!.abrir).toBe(`Abrir original em nova aba, ${nomeLado[0]}`); expect(info[1]!.abrir).toBe(`Abrir original em nova aba, ${nomeLado[1]}`)
+    expect(nomeLado[0], 'os dois lados têm nomes diferentes para o leitor de tela').not.toBe(nomeLado[1])
+    expect(info[0]!.href).toMatch(/i\.ytimg\.com\/vi\/.+\/maxresdefault\.jpg/)
+    expect(info[1]!.href).toBe(blobDe(0))
+    for (const i of info) expect(i.alvo.dentro, 'o par cabe na largura da janela').toBe(true)
+    // Abrir original do lado direito abre a imagem DELE
+    const popupA = page.waitForEvent('popup', { timeout: 15_000 }).catch(() => null)
+    await lados.nth(1).getByRole('link', { name: /Abrir original/ }).click()
+    const pa = await popupA
+    expect(pa, 'Abrir original abre outra aba').not.toBeNull()
+    medida(`B2 Abrir original do lado direito: ${pa!.url().slice(0, 90)}`)
+    expect(pa!.url()).toBe(blobDe(0))
+    await pa!.close()
+    // Baixar do lado direito (arquivada): o arquivo é o DELE
+    const baixou = page.waitForEvent('download', { timeout: 15_000 }).catch(() => null)
+    await lados.nth(1).getByRole('button', { name: /^Baixar/ }).click()
+    const d = await baixou
+    medida(`B2 Baixar do lado direito: ${d ? 'download "' + d.suggestedFilename() + '"' : 'SEM download'}`)
+    expect(d, 'Baixar do lado arquivado baixa o arquivo').not.toBeNull()
+    expect(d!.suggestedFilename()).toBe(`thumbnail-${nomeLado[1]!.toLowerCase().replace(/\s+/g, '-')}.svg`)
+    await expect(dlg(page).locator('.obs-tv-msg'), 'o retorno aparece no modo comparar').toContainText('Download iniciado')
+    // Baixar do lado esquerdo (YouTube): a CSP barra o fetch, então abre a imagem em outra aba, com o aviso
+    const popupB = page.waitForEvent('popup', { timeout: 15_000 }).catch(() => null)
+    await lados.nth(0).getByRole('button', { name: /^Baixar/ }).click()
+    const pb = await popupB
+    medida(`B2 Baixar do lado esquerdo (YouTube): popup ${pb ? pb.url().slice(0, 90) : 'NÃO abriu'}; status "${((await dlg(page).locator('.obs-tv-msg').textContent()) ?? '').trim()}"`)
+    expect(pb, 'Baixar do lado do YouTube abre outra aba').not.toBeNull()
+    expect(pb!.url()).toMatch(/i\.ytimg\.com\/vi\/.+\/maxresdefault\.jpg/)
+    await pb!.close()
+    await expect(dlg(page).locator('.obs-tv-msg')).toContainText('salve por lá')
+    // o anel de foco inclui os dois pares e nunca sai do diálogo
+    const visitados = new Set<string>()
+    await dlg(page).locator('h2').focus()
+    for (let n = 0; n < 24; n++) { await page.keyboard.press('Tab'); const f = await foco2(page); visitados.add(f.rotulo || f.texto); if (!f.dentro) throw new Error('Tab saiu do diálogo: ' + JSON.stringify(f)) }
+    for (const rotulo of [info[0]!.baixar!, info[0]!.abrir!, info[1]!.baixar!, info[1]!.abrir!]) expect(visitados.has(rotulo), 'o Tab alcança ' + rotulo).toBe(true)
+    medida(`B2 Tab no comparar: ${visitados.size} paradas distintas, todas dentro do diálogo`)
+    expect(msgs, 'nenhum erro no console (o Baixar do YouTube nunca tenta fetch)').toEqual([])
+    // 390 px: os pares continuam com alvo de 44 px e cabem na largura
+    await page.setViewportSize({ width: 390, height: 844 })
+    const peq = await dlg(page).locator('.obs-tv-side button:visible, .obs-tv-side a[role="link"]:visible').evaluateAll(bs => bs.map(b => { const r = b.getBoundingClientRect(); return { n: (b.getAttribute('aria-label') ?? '').slice(0, 40), w: Math.round(r.width), h: Math.round(r.height), fora: r.right > window.innerWidth + 0.5 } }))
+    medida(`B2 390 px: ${peq.map(a => `${a.n} ${a.w}×${a.h}${a.fora ? ' FORA' : ''}`).join(', ')}`)
+    expect(peq.length).toBe(4)
+    expect(peq.filter(a => Math.min(a.w, a.h) < 44), '390 px: alvos de 44 px').toEqual([])
+    expect(peq.filter(a => a.fora), '390 px: nada além da largura').toEqual([])
+    await page.keyboard.press('Escape')
+    await expect(dlg(page)).toHaveCount(0)
+  })
+
   test('A2.3 a lupa da grade do canal abre o visualizador', async ({ page }) => {
     await rotearImagens(page)
     const { erros, cincoXX } = await vigiar(page, async () => { await abrirCanal(page) })

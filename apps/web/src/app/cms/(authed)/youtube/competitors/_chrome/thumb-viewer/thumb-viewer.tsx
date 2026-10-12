@@ -75,6 +75,22 @@ function Frame({ v, state }: { v: ViewerVersion; state: LoadState }): ReactEleme
   if (state.status === 'loading') return v.preview ? <div className="obs-tv-fig"><img src={v.preview} alt={`${v.label}`} draggable={false} /></div> : <Missing load><p>Carregando a imagem…</p></Missing>
   return <div className="obs-tv-fig"><img src={state.url} alt={`${v.label}`} draggable={false} /></div>
 }
+/**
+ * O par "Abrir original / Baixar" de UMA imagem. Fora do modo comparar é o grupo "Arquivo" da barra; no modo comparar, cada lado tem o seu
+ * (`lado` = o rótulo da versão, no nome acessível: "Baixar Capa A"; o texto visível continua o mesmo). Sem imagem (`url` nulo), os dois ficam apagados.
+ */
+function ArquivoGrupo({ url, lado, onDownload }: { url: string | null; lado?: string; onDownload: () => void }): ReactElement {
+  return (
+    <div className="obs-tv-grp" role="group" aria-label={lado ? `Arquivo da ${lado}` : 'Arquivo'}>
+      <a className="obs-tv-b" role="link" target="_blank" rel="noopener noreferrer" href={url ?? undefined} aria-disabled={url ? undefined : true}
+        aria-label={lado ? `Abrir original em nova aba, ${lado}` : undefined}
+        tabIndex={url ? undefined : 0} onClick={url ? undefined : e => e.preventDefault()}>
+        <Icon.ext /><span>Abrir original em nova aba</span>
+      </a>
+      <button type="button" className="obs-tv-b" aria-label={lado ? `Baixar ${lado}` : undefined} aria-disabled={!url} onClick={url ? onDownload : undefined}><Icon.download /><span>Baixar</span></button>
+    </div>
+  )
+}
 const resText = (s: LoadState): string => (s.status === 'ok' ? resolutionLine(s.file, s.w, s.h, s.fellBack, s.archived) : '')
 
 const STEP = 1.25
@@ -226,9 +242,10 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
   const downloading = useRef(false)
   const FALLBACK_MSG = 'A imagem abriu em outra aba: salve por lá.'
   const BLOCKED_MSG = 'O navegador bloqueou a nova aba. Use "Abrir original em nova aba" e salve a imagem por lá.'
-  const download = async () => {
-    if (!cur || main.status !== 'ok' || downloading.current) return
-    const nome = downloadName(cur, main.file, main.archived), url = main.url
+  // `v`/`s`: a versão e a carga da imagem que a pessoa quer baixar (no modo comparar, a do lado em que ela clicou)
+  const download = async (v: ViewerVersion | undefined, s: LoadState) => {
+    if (!v || s.status !== 'ok' || downloading.current) return
+    const nome = downloadName(v, s.file, s.archived), url = s.url
     // A imagem do YouTube nunca passa pelo fetch: a política de conteúdo do site (connect-src) a barra sempre, e gastaria a ativação do clique
     // (o navegador só deixa abrir aba no instante do clique). Abre na hora, de forma síncrona, e manda salvar por lá.
     if (isYoutubeUrl(url)) { say(openTab(url) ? FALLBACK_MSG : BLOCKED_MSG); return }
@@ -308,11 +325,11 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
               </>
             ) : null}
             <button type="button" className="obs-tv-b" aria-pressed={cmp} aria-disabled={!multi} aria-describedby={multi ? undefined : whyId}
-              onClick={() => { if (multi) { setCmp(c => !c); setCv(null) } }}><Icon.compare /><span>Comparar lado a lado</span></button>
+              onClick={() => { if (multi) { setCmp(c => !c); setCv(null); setMsg('') } }}><Icon.compare /><span>Comparar lado a lado</span></button>
             {multi ? null : <span id={whyId} className="obs-tv-why">Só há uma versão de thumbnail deste vídeo.</span>}
             {cmp && multi ? (
               <label className="obs-tv-sel" htmlFor={cmpId}><span>Comparar com</span>
-                <select id={cmpId} value={o} onChange={e => setOther(Number(e.target.value))}>
+                <select id={cmpId} value={o} onChange={e => { setOther(Number(e.target.value)); setMsg('') }}>
                   {versions.map((v, k) => (k === i ? null : <option key={k} value={k}>{v.label}{candidates(v).length || v.current ? '' : ' (não arquivada)'}</option>))}
                 </select>
               </label>
@@ -326,13 +343,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
             <button type="button" className="obs-tv-b" aria-disabled={!zoomOn} onClick={noop(doFit)}>Ajustar</button>
             <button type="button" className="obs-tv-b" aria-disabled={!zoomOn} onClick={noop(actual)}>100%</button>
           </div>
-          <div className="obs-tv-grp" role="group" aria-label="Arquivo">
-            <a className="obs-tv-b" role="link" target="_blank" rel="noopener noreferrer" href={opened ?? undefined} aria-disabled={opened ? undefined : true}
-              tabIndex={opened ? undefined : 0} onClick={opened ? undefined : e => e.preventDefault()}>
-              <Icon.ext /><span>Abrir original em nova aba</span>
-            </a>
-            <button type="button" className="obs-tv-b" aria-disabled={!opened} onClick={opened ? () => { void download() } : undefined}><Icon.download /><span>Baixar</span></button>
-          </div>
+          {cmp && second ? null : <ArquivoGrupo url={opened} onDownload={() => { void download(cur, main) }} />}
         </div>
 
         {/* O alvo de foco da imagem é ESTA caixa, que nunca desmonta: o palco abaixo sai e volta a cada troca de versão, e com o foco dentro dele o teclado morria. */}
@@ -345,6 +356,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
                   <div className="obs-tv-side" key={v.label + (v === cur ? 'a' : 'b')}>
                     <p className="obs-tv-lab">{v.label}{v.current ? ' (no ar)' : ''}</p>
                     <Frame v={v} state={s} />
+                    <ArquivoGrupo url={s.status === 'ok' ? s.url : null} lado={v.label} onDownload={() => { void download(v, s) }} />
                     <p className="obs-tv-cap">{v.caption}</p>
                     {s.status === 'ok' ? <p className="obs-tv-cap">{resText(s)}</p> : null}
                   </div>
@@ -364,7 +376,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
           {cmp || !cur ? null : <p id={capId} className="obs-tv-cap">{cur.caption}</p>}
           {cmp ? null : <p className="obs-tv-res" role="status" aria-live="polite" aria-atomic="true">{resText(main)}</p>}
           {/* sempre na árvore (e com a altura de uma linha reservada no CSS): uma região viva que nasce já com texto não é anunciada */}
-          <p className="obs-tv-msg" role="status" aria-live="polite" aria-atomic="true">{cmp && cur && second ? `Comparando ${cur.label} com ${second.label}` : msg}</p>
+          <p className="obs-tv-msg" role="status" aria-live="polite" aria-atomic="true">{msg || (cmp && cur && second ? `Comparando ${cur.label} com ${second.label}` : '')}</p>
         </div>
       </div>
     </div>,

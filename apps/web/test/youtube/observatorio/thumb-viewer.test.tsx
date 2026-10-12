@@ -831,3 +831,137 @@ describe('ThumbViewer · 11b B1: controles na posição do mockup', () => {
     expect(within(dialog()).queryByRole('button', { name: 'Anterior' })).toBeNull()
   })
 })
+
+/* ---------------------------------------------------------------- 11b · B2: "Baixar" e "Abrir original" por imagem no modo comparar */
+describe('ThumbViewer · 11b B2: um par (Baixar, Abrir original) por imagem no modo comparar', () => {
+  // dois(1): a esquerda é a Capa B (no ar, do YouTube); a direita é a Capa A (arquivada, Blob)
+  const comparar = async () => {
+    abrir(dois(1))
+    await carregada()
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Comparar lado a lado' }))
+    await waitFor(() => expect(dialog().querySelectorAll('.obs-tv-cmp img')).toHaveLength(2))
+    await waitFor(() => expect(dialog().querySelectorAll('.obs-tv-cmp .obs-tv-cap').length).toBeGreaterThanOrEqual(4)) // as duas medidas chegaram
+  }
+  const lado = (rotulo: string) => [...dialog().querySelectorAll<HTMLElement>('.obs-tv-side')].find(s => s.querySelector('.obs-tv-lab')!.textContent!.startsWith(rotulo))!
+
+  it('cada lado traz o seu par, com o lado no nome acessível; a barra de cima perde o grupo Arquivo (ele não age mais sobre um lado só)', async () => {
+    await comparar()
+    const d = dialog()
+    expect(within(d).queryByRole('group', { name: 'Arquivo' })).toBeNull()
+    expect(d.querySelector('.obs-tv-tools')!.querySelector('a, [aria-label*="Baixar"]')).toBeNull()
+    for (const [rotulo, nome] of [['Capa B', 'Capa B'], ['Capa A', 'Capa A']] as const) {
+      const s = within(lado(rotulo))
+      expect(s.getByRole('group', { name: `Arquivo da ${nome}` })).toBeTruthy()
+      expect(s.getByRole('button', { name: `Baixar ${nome}` })).toBeTruthy()
+      expect(s.getByRole('link', { name: `Abrir original em nova aba, ${nome}` })).toBeTruthy()
+    }
+    // o texto visível continua sendo o de sempre (o nome acessível o contém, sem trocar a palavra)
+    expect(within(lado('Capa A')).getByRole('button', { name: 'Baixar Capa A' }).textContent).toBe('Baixar')
+    expect(within(lado('Capa A')).getByRole('link', { name: /Abrir original/ }).textContent).toBe('Abrir original em nova aba')
+    expect(within(d).getAllByRole('button', { name: /^Baixar/ })).toHaveLength(2)
+    expect(within(d).getAllByRole('link', { name: /^Abrir original/ })).toHaveLength(2)
+  })
+
+  it('cada "Abrir original" aponta para a imagem do SEU lado', async () => {
+    await comparar()
+    expect(within(lado('Capa B')).getByRole('link', { name: /Abrir original/ }).getAttribute('href')).toBe(YT('maxresdefault'))
+    expect(within(lado('Capa A')).getByRole('link', { name: /Abrir original/ }).getAttribute('href')).toBe(BLOB_A)
+    for (const a of dialog().querySelectorAll('.obs-tv-side a')) { expect(a.getAttribute('target')).toBe('_blank'); expect(a.getAttribute('rel')).toContain('noopener') }
+  })
+
+  it('"Baixar" do lado arquivado baixa a imagem DELE (fetch + download); o do lado do YouTube abre a aba na imagem DELE, sem fetch', async () => {
+    await comparar()
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(['x'], { type: 'image/jpeg' }) })
+    vi.stubGlobal('fetch', fetchMock)
+    Object.assign(URL, { createObjectURL: vi.fn().mockReturnValue('blob:fake'), revokeObjectURL: vi.fn() })
+    const baixados: string[] = []
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { baixados.push(this.download) })
+    const abrirAba = vi.spyOn(window, 'open').mockReturnValue({ opener: 'x' } as unknown as Window)
+    // o lado do YouTube: aba na hora (síncrono), nenhum fetch
+    fireEvent.click(within(lado('Capa B')).getByRole('button', { name: 'Baixar Capa B' }))
+    expect(abrirAba).toHaveBeenCalledTimes(1)
+    expect(abrirAba.mock.calls[0]![0]).toBe(YT('maxresdefault'))
+    expect(fetchMock).not.toHaveBeenCalled()
+    // o lado arquivado: o fetch é da imagem DELE, e o arquivo leva o nome DELE
+    fireEvent.click(within(lado('Capa A')).getByRole('button', { name: 'Baixar Capa A' }))
+    await waitFor(() => expect(baixados).toEqual(['thumbnail-capa-a.jpg']))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(BLOB_A, { mode: 'cors' })
+    expect(abrirAba).toHaveBeenCalledTimes(1)
+  })
+
+  it('o retorno do Baixar aparece na linha de status também no modo comparar (antes a frase "Comparando…" o escondia)', async () => {
+    await comparar()
+    const status = () => dialog().querySelector('.obs-tv-msg')!.textContent
+    expect(status()).toBe('Comparando Capa B com Capa A')
+    vi.stubGlobal('fetch', vi.fn())
+    vi.spyOn(window, 'open').mockReturnValue({ opener: 'x' } as unknown as Window)
+    fireEvent.click(within(lado('Capa B')).getByRole('button', { name: 'Baixar Capa B' }))
+    await waitFor(() => expect(status()).toMatch(/salve por lá/))
+    // trocar o "Comparar com" apaga o aviso de um arquivo que já não está na tela e volta a dizer o par
+    fireEvent.change(within(dialog()).getByLabelText('Comparar com'), { target: { value: '0' } })
+    expect(status()).toBe('Comparando Capa B com Capa A')
+  })
+
+  it('aba bloqueada no lado do YouTube: o status diz que bloqueou, sem afirmar que abriu', async () => {
+    await comparar()
+    vi.stubGlobal('fetch', vi.fn())
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    fireEvent.click(within(lado('Capa B')).getByRole('button', { name: 'Baixar Capa B' }))
+    const t = dialog().querySelector('.obs-tv-msg')!.textContent ?? ''
+    expect(t).toMatch(/bloque/i)
+    expect(t).not.toMatch(/abriu em outra aba/)
+  })
+
+  it('lado sem imagem (versão não arquivada): o par DESSE lado fica apagado e o do outro lado continua valendo', async () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 1 })
+    await carregada()
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Comparar lado a lado' }))
+    await waitFor(() => expect(within(lado('Capa B')).getByRole('link', { name: /Abrir original/ }).getAttribute('href')).toBe(YT('maxresdefault')))
+    const semImagem = within(lado('Capa A'))
+    expect(semImagem.getByRole('button', { name: 'Baixar Capa A' }).getAttribute('aria-disabled')).toBe('true')
+    const link = semImagem.getByRole('link', { name: /Abrir original/ })
+    expect(link.getAttribute('aria-disabled')).toBe('true')
+    expect(link.hasAttribute('href')).toBe(false)
+    expect(fireEvent.click(link), 'o clique é cancelado').toBe(false)
+    expect(within(lado('Capa B')).getByRole('button', { name: 'Baixar Capa B' }).getAttribute('aria-disabled')).not.toBe('true')
+  })
+
+  it('o Baixar apagado de um lado não faz nada (nem fetch nem aba)', async () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 1 })
+    await carregada()
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Comparar lado a lado' }))
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock)
+    const abrirAba = vi.spyOn(window, 'open').mockReturnValue(null)
+    fireEvent.click(within(lado('Capa A')).getByRole('button', { name: 'Baixar Capa A' }))
+    expect(fetchMock).not.toHaveBeenCalled(); expect(abrirAba).not.toHaveBeenCalled()
+  })
+
+  it('fora do modo comparar nada muda: um só grupo Arquivo na barra, com os nomes de sempre; ao sair do comparar ele volta', async () => {
+    abrir(dois(1))
+    await carregada()
+    const d = dialog()
+    expect(within(d).getByRole('group', { name: 'Arquivo' })).toBeTruthy()
+    expect(within(d).getByRole('button', { name: 'Baixar' })).toBeTruthy()
+    expect(within(d).getByRole('link', { name: 'Abrir original em nova aba' })).toBeTruthy()
+    const cmp = within(d).getByRole('button', { name: 'Comparar lado a lado' })
+    fireEvent.click(cmp)
+    await waitFor(() => expect(d.querySelectorAll('.obs-tv-cmp img')).toHaveLength(2))
+    expect(within(d).queryByRole('button', { name: 'Baixar' })).toBeNull()
+    fireEvent.click(cmp)
+    await carregada()
+    expect(within(d).getByRole('group', { name: 'Arquivo' })).toBeTruthy()
+    expect(within(d).getByRole('button', { name: 'Baixar' })).toBeTruthy()
+    expect(d.querySelectorAll('.obs-tv-side')).toHaveLength(0)
+  })
+
+  it('o anel de foco no modo comparar inclui os dois pares: o último é o Baixar do lado direito e dele o Tab volta ao Fechar', async () => {
+    await comparar()
+    const ultimo = within(lado('Capa A')).getByRole('button', { name: 'Baixar Capa A' })
+    ultimo.focus()
+    const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    ultimo.dispatchEvent(ev)
+    expect(ev.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(within(dialog()).getByRole('button', { name: 'Fechar' }))
+  })
+})
