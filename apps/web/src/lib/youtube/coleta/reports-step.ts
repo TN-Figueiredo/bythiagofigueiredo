@@ -8,7 +8,7 @@ import { ReportingHttpError, SEM_NORMALIZADOR, type Report } from '@/lib/youtube
 import { obterToken } from './autorizacao'
 import { contarPorResultado, registrarTentativa, scopeJob } from './attempts'
 import { emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
-import { DIA_MS, VALIDADE_DIAS, ordenarFila } from './fila-relatorios'
+import { DIA_MS, VALIDADE_DIAS, ordenarFila, venceEm, type ItemDaFila } from './fila-relatorios'
 import { conferirBanco, pushUnico } from './schema'
 import { descreverErro, HABILITADOS, statusHttp } from './token'
 import type { ColetaChannel, StepCtx, StepResumo } from './types'
@@ -16,6 +16,8 @@ import type { ColetaChannel, StepCtx, StepResumo } from './types'
 export const MAX_DOWNLOADS = 40
 export const MAX_GZ_BYTES = 2 * 1024 * 1024
 const MAX_PAGINAS = 50
+/** O PostgREST corta em 1000 linhas: bater nisso é leitura cortada, nunca "tudo lido". */
+const LIMITE_FILA = 1000
 
 export interface RelatoriosResumo extends StepResumo {
   /** Relatórios devolvidos pela listagem nesta execução (inclui os que já existiam). */
@@ -25,6 +27,14 @@ export interface RelatoriosResumo extends StepResumo {
   expirados: number
   erros_download: number
   bruto_apagado: number
+  /** Maior relatório comprimido visto nesta execução, em bytes (inclui o recusado por tamanho). 0 = nenhum download. */
+  maior_bytes: number
+  /** Dos `expirados`, quantos por tipo HABILITADO: é o que vira nota em falhas[]. */
+  expirados_por_tipo: Record<string, number>
+  /** Dias inteiros até vencer o primeiro relatório que ficou `listado`. null = nada ficou para trás (ou a leitura falhou: aí há nota em falhas[]). */
+  vence_primeiro_em_dias: number | null
+  ms_listar: number
+  ms_baixar: number
 }
 
 interface JobRow {
@@ -132,6 +142,12 @@ async function listarJob(ctx: StepCtx, c: ColetaChannel, api: ReportingClient, j
   }
 }
 
+/** Relatório que venceu sem ser baixado: só o de tipo habilitado conta (o de tipo desligado ninguém ia baixar). */
+function contarVencido(resumo: RelatoriosResumo, tipo: string): void {
+  if (!HABILITADOS.includes(tipo)) return
+  resumo.expirados_por_tipo[tipo] = (resumo.expirados_por_tipo[tipo] ?? 0) + 1
+}
+
 /** Baixa um relatório pelo download_url gravado. Nunca lança. */
 async function baixarUm(
   ctx: StepCtx,
@@ -191,27 +207,27 @@ async function baixarUm(
         resumo.erros_download++
         return
       }
-      if (ehGzipInvalido(erro)) {
-        conferirBanco(await marcar({ status: 'erro', error: 'gzip_invalido' }), 'yt_reporting_reports', ctx.falhas)
-        resumo.erros_download++
-        return
-      }
       if (erro instanceof ReportingHttpError && (erro.status === 404 || erro.status === 410)) {
         conferirBanco(await marcar({ status: 'expirado_sem_baixar', error: `HTTP ${erro.status}` }), 'yt_reporting_reports', ctx.falhas)
         resumo.expirados++
+        contarVencido(resumo, p.report_type_id)
         return
       }
-      // Erro passageiro: continua `listado` e tenta amanhã.
+      // Erro passageiro: continua `listado` e tenta amanhã. Gzip que não abre entra aqui: um download cortado no meio
+      // chega assim, e marcá-lo `erro` seria desistir de um relatório que ainda existe na origem.
       resumo.erros_download++
       await registrarTentativa(ctx, {
         site_id: p.site_id, scope_type: 'job', scope_id: scopeJob(p.channel_id, p.report_type_id), kind: 'relatorio',
-        outcome: 'erro_http', http_status: statusHttp(erro), error: descreverErro(erro), channel_id: p.channel_id,
+        outcome: 'erro_http', http_status: statusHttp(erro), error: ehGzipInvalido(erro) ? 'gzip_invalido' : descreverErro(erro), channel_id: p.channel_id,
       })
       return
     }
 
+    resumo.maior_bytes = Math.max(resumo.maior_bytes, pacote.gz.length)
     if (pacote.gz.length > MAX_GZ_BYTES) {
       resumo.erros_download++
+      // Sem conserto automático: o bruto não é guardado. Fica vermelho na hora (aqui) e por 14 dias (critérios).
+      pushUnico(ctx.falhas, `relatórios: ${p.report_type_id} recusado por tamanho (${pacote.gz.length} bytes comprimidos; teto ${MAX_GZ_BYTES}): o bruto NÃO foi guardado`)
       conferirBanco(
         await marcar({ status: 'erro', error: 'grande_demais', bytes: pacote.gz.length, sha256: pacote.sha256, row_count: pacote.rowCount }),
         'yt_reporting_reports', ctx.falhas,
@@ -237,6 +253,9 @@ async function baixarUm(
     if (vazio) resumo.vazios++
     else resumo.baixados++
     resumo.gravados++
+    if (pacote.gz.length > MAX_GZ_BYTES / 2) {
+      pushUnico(ctx.falhas, `relatórios: ${p.report_type_id} chegou a ${pacote.gz.length} bytes comprimidos, mais da metade do teto de ${MAX_GZ_BYTES}`)
+    }
   } catch (e) {
     Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', passo: 'relatorios' }, extra: { report: p.report_id } })
     pushUnico(ctx.falhas, `relatórios: ${describeCronCause(e)}`)
@@ -246,8 +265,15 @@ async function baixarUm(
 export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
   const resumo: RelatoriosResumo = {
     gravados: 0, tentativas: {}, pendentes: 0, vistos: 0, baixados: 0, vazios: 0, expirados: 0, erros_download: 0, bruto_apagado: 0,
+    maior_bytes: 0, expirados_por_tipo: {}, vence_primeiro_em_dias: null, ms_listar: 0, ms_baixar: 0,
   }
   const fechar = (): RelatoriosResumo => {
+    // Em toda saída do passo: o que venceu sem baixar nesta execução vira nota, com a contagem por tipo.
+    const vencidos = Object.entries(resumo.expirados_por_tipo)
+    if (vencidos.length > 0) {
+      const total = vencidos.reduce((soma, [, n]) => soma + n, 0)
+      pushUnico(ctx.falhas, `relatórios: ${total} relatório(s) venceram sem baixar nesta execução (${vencidos.map(([t, n]) => `${t}: ${n}`).join(', ')})`)
+    }
     resumo.tentativas = contarPorResultado(ctx.tentativas, ['relatorio'])
     return resumo
   }
@@ -265,6 +291,7 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
   const f = fetchComPrazo(ctx.deadline)
   const clientes = new Map<string, ReportingClient>()
 
+  const t0 = Date.now()
   // ── 1. Listar ────────────────────────────────────────────────────────────
   // Só o relógio conta como `nao_alcancado_orcamento`: quando acaba, o canal em curso e os seguintes
   // ficam pendentes e os downloads são pulados (os `listado` esperam a próxima execução).
@@ -313,6 +340,7 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
     }
   }
 
+  resumo.ms_listar = Date.now() - t0
   // ── 2. Expirar por idade: 60 dias, ou 30 se for backfill ─────────────────
   const agora = Date.now()
   for (const [backfill, dias] of [[true, VALIDADE_DIAS.historico], [false, VALIDADE_DIAS.corrente]] as const) {
@@ -322,10 +350,14 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
       .eq('status', 'listado')
       .eq('is_backfill', backfill)
       .lt('create_time', new Date(agora - dias * DIA_MS).toISOString())
-      .select('report_id')
+      .select('report_id, report_type_id')
     const escrita = conferirBanco(r, 'yt_reporting_reports', ctx.falhas)
     if (escrita === 'schema_ausente') return fechar()
-    if (escrita === 'ok') resumo.expirados += ((r.data ?? []) as unknown[]).length
+    if (escrita === 'ok') {
+      const linhas = (r.data ?? []) as Array<{ report_type_id: string }>
+      resumo.expirados += linhas.length
+      for (const l of linhas) contarVencido(resumo, l.report_type_id)
+    }
   }
 
   // ── 3. Baixar: pelo vencimento na origem (fila-relatorios.ts), no máximo MAX_DOWNLOADS ──
@@ -337,13 +369,17 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
     .in('channel_id', idsDosCanais)
     .in('report_type_id', [...HABILITADOS]) // os `listado` de um tipo desligado ficam como estão
     .order('create_time', { ascending: true })
-    .limit(1000)
+    .limit(LIMITE_FILA)
   if (conferirBanco(filaLida, 'yt_reporting_reports', ctx.falhas, 'ler') !== 'ok') return fechar()
+  if (((filaLida.data ?? []) as unknown[]).length >= LIMITE_FILA) {
+    pushUnico(ctx.falhas, `relatórios: fila de download cortada em ${LIMITE_FILA} relatórios; a ordem por vencimento não cobre o que ficou de fora`)
+  }
   const fila = ordenarFila(((filaLida.data ?? []) as Pendente[]).filter(p => clientes.has(p.channel_id)), agora)
 
   const urls = new Map<string, string>()
   const renovados = new Set<string>()
   const alvo = fila.slice(0, MAX_DOWNLOADS)
+  const t1 = Date.now()
   for (let i = 0; i < alvo.length && !semTempo; i++) {
     const p = alvo[i]!
     // Um de cada vez: o buffer do relatório anterior já foi liberado.
@@ -356,6 +392,7 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
     }
   }
 
+  resumo.ms_baixar = Date.now() - t1
   // ── 4. Limpar o bruto ────────────────────────────────────────────────────
   if (restante(ctx.deadline) > 0) {
     const purge = await ctx.supabase.rpc('yt_reporting_blobs_purge', { p_sem_normalizador: SEM_NORMALIZADOR })
@@ -364,14 +401,23 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
     }
   }
 
-  // ── 5. O que ficou para depois ───────────────────────────────────────────
+  // ── 5. O que ficou para depois, e quando vence o primeiro ────────────────
   const resta = await ctx.supabase
     .from('yt_reporting_reports')
-    .select('report_id', { count: 'exact', head: true })
+    .select('report_type_id, create_time, is_backfill', { count: 'exact' })
     .eq('status', 'listado')
     .in('channel_id', idsDosCanais)
     .in('report_type_id', [...HABILITADOS]) // o que nunca será baixado não é pendência
-  if (conferirBanco(resta, 'yt_reporting_reports', ctx.falhas, 'ler') === 'ok') resumo.pendentes += resta.count ?? 0
+    .order('create_time', { ascending: true })
+    .limit(LIMITE_FILA)
+  if (conferirBanco(resta, 'yt_reporting_reports', ctx.falhas, 'ler') === 'ok') {
+    const linhas = (resta.data ?? []) as ItemDaFila[]
+    // Contagem ausente não é zero: vale o número de linhas lidas.
+    resumo.pendentes += resta.count ?? linhas.length
+    if (linhas.length > 0) {
+      resumo.vence_primeiro_em_dias = Math.floor((Math.min(...linhas.map(venceEm)) - Date.now()) / DIA_MS)
+    }
+  }
 
   return fechar()
 }

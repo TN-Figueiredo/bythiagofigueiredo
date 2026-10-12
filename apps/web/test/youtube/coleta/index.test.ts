@@ -40,7 +40,10 @@ beforeEach(() => {
   vi.useFakeTimers({ now: AGORA, toFake: ['Date'] })
   vi.mocked(passoMetadados).mockResolvedValue({ ...resumoVazio, gravados: 35, day_pt: '2026-10-06', dias_sem_meta: { 'ch-1': 0 } })
   vi.mocked(passoJobs).mockResolvedValue({ ...resumoVazio, acao_do_dono: ['Canal Um: sem_acesso'], tipo_indisponivel: [], estados: {} })
-  vi.mocked(passoRelatorios).mockResolvedValue({ ...resumoVazio, vistos: 0, baixados: 3, vazios: 0, expirados: 0, erros_download: 0, bruto_apagado: 0 })
+  vi.mocked(passoRelatorios).mockResolvedValue({
+    ...resumoVazio, vistos: 0, baixados: 3, vazios: 0, expirados: 0, erros_download: 0, bruto_apagado: 0,
+    maior_bytes: 0, expirados_por_tipo: {}, vence_primeiro_em_dias: null, ms_listar: 0, ms_baixar: 0,
+  })
   vi.mocked(passoAlcance).mockResolvedValue({ ...resumoVazio, normalizados: 2, vazios: 1, erros: 0, sem_par: 0 })
   vi.mocked(passoDiario).mockResolvedValue({ ...resumoVazio, gravados: 9, ate: '2026-10-07', estendidas_recusadas: 0 })
   vi.mocked(criteriosRelatorios).mockResolvedValue({ perdidos: 2, atrasados: 0, acao_do_dono: ['Canal Um: x em sem_acesso'] })
