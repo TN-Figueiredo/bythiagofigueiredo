@@ -635,3 +635,66 @@ describe('A5 E1 (conserto da Tarefa 8, D2): contagem ausente do canal nunca vira
     expect(snap(db2)).toMatchObject({ subscriber_count: null, subscribers_hidden: true })
   })
 })
+
+describe('A5 E1 (revisão da Tarefa 8, I1 e I2): só a resposta com a lista de itens conta ausência', () => {
+  const PINROW = { ...PIN, last_seen_at: '2026-10-24T03:00:00.000Z' }
+  const ids = (u: string) => decodeURIComponent(u.match(/[?&]id=([^&]*)/)![1]!).split(',')
+  const MALFORMED = [['sem items', {}], ['com error', { error: { code: 403, message: 'quotaExceeded' } }], ['items não é lista', { items: 'x' }], ['items nulo', { items: null }], ['items com error', { items: [], error: { code: 500 } }]] as const
+  /** Troca o corpo (200) da n-ésima chamada a videos.list; as demais seguem o falso de sempre. */
+  const videosBody = (inner: typeof fetch, which: number, body: unknown): typeof fetch => {
+    let n = 0
+    return (async (input: RequestInfo | URL, init?: RequestInit) => (String(input).includes('/videos?') && ++n === which ? Response.json(body) : inner(input, init))) as typeof fetch
+  }
+  const channelBody = (inner: typeof fetch, body: unknown): typeof fetch =>
+    (async (input: RequestInfo | URL, init?: RequestInit) => (String(input).includes('/channels?') ? Response.json(body) : inner(input, init))) as typeof fetch
+
+  it('página: videos.list 200 malformado não marca ninguém e a chamada falha como um 500', async () => {
+    for (const [, body] of MALFORMED) {
+      const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+      await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: videosBody(apiFetch(page()), 1, body), ...quiet })).rejects.toThrow(/resposta sem a lista de vídeos/)
+      expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([])
+    }
+  })
+  it('passada diária: videos.list 200 malformado não marca ninguém (nem os da página) e o canal termina em erro', async () => {
+    for (const [, body] of MALFORMED) {
+      const tracked = [{ id: 'v-1', video_id: 'vid-1', title: 'T', thumbnail_url: null }, { id: 'v-2', video_id: 'vid-2', title: 'X', thumbnail_url: null }]
+      const db = setup({ lastDaily: '2026-10-23', existing: [ROW1], tracked })
+      await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: videosBody(apiFetch(page(), 200, { daily: (_n, u) => ids(u).map(id => ({ id, statistics: { viewCount: '5' } })) }), 2, body), ...quiet })).rejects.toThrow(/resposta sem a lista de vídeos/)
+      expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([])
+      expect(db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')).at(-1)).toMatchObject({ sync_status: 'error' })
+    }
+  })
+  it('fixados: videos.list 200 malformado não marca ninguém', async () => {
+    for (const [, body] of MALFORMED) {
+      const db = setup({ pinned: [PINROW], existing: [ROW1] })
+      await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: videosBody(apiFetch(page()), 2, body), ...quiet })).rejects.toThrow(/resposta sem a lista de vídeos/)
+      expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([])
+    }
+  })
+  it('canal: channels.list 200 sem items (ou com error) é falha da chamada, não sumiço; items [] e totalResults 0 são sumiço', async () => {
+    for (const body of [{}, { error: { code: 500 } }, { items: 'x' }, { items: [], error: { code: 500 } }, { pageInfo: { totalResults: 3 } }]) {
+      const db = setup({})
+      await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: channelBody(apiFetch(page()), body), ...quiet })).rejects.toThrow(/resposta sem o canal/)
+      expect(rpcCalls(db, 'competitor_channel_mark_missing')).toEqual([])
+    }
+    for (const body of [{ items: [] }, { pageInfo: { totalResults: 0, resultsPerPage: 5 } }]) {
+      const db = setup({})
+      await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: channelBody(apiFetch(page()), body), ...quiet })).rejects.toThrow(/404/)
+      expect(rpcCalls(db, 'competitor_channel_mark_missing')).toHaveLength(1)
+    }
+  })
+  it('legítimo: items [] em cada chamada de videos.list conta a falta (página, passada diária e fixados)', async () => {
+    const tracked = [{ id: 'v-1', video_id: 'vid-1', title: 'T', thumbnail_url: null }, { id: 'v-2', video_id: 'vid-2', title: 'X', thumbnail_url: null }]
+    const d = setup({ lastDaily: '2026-10-23', existing: [ROW1], tracked })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: videosBody(apiFetch(page()), 2, { items: [] }), ...quiet })
+    expect(rpcCalls(d, 'competitor_mark_missing')[0]!.p_video_ids).toEqual(['v-2']) // v-1 veio na página
+    const p = setup({ pinned: [PINROW], existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: videosBody(apiFetch(page()), 2, { items: [] }), ...quiet })
+    expect(rpcCalls(p, 'competitor_mark_missing')[0]!.p_video_ids).toEqual(['v-pin'])
+  })
+  it('I2: vídeo que SÓ a página de uploads pede (sem passada diária, sem fixar) e vem com items [] → uma falta', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: videosBody(apiFetch(page()), 1, { items: [] }), ...quiet })
+    expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([{ p_channel_id: 'cc-1', p_video_ids: ['v-1'], p_now: EARLY.toISOString() }])
+  })
+})

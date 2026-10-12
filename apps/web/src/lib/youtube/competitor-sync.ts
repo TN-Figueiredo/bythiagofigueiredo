@@ -121,6 +121,16 @@ export function parseIsoDuration(durationStr: string | undefined): number | null
          (parseInt(match[3] ?? '0', 10) * 60) + parseInt(match[4] ?? '0', 10)
 }
 
+/**
+ * O corpo de um videos.list só vale se trouxe a lista (`items` é array) e nenhum `error`: um 200 `{}` ou com `error` (proxy, cota)
+ * não é "nenhum vídeo devolvido". É falha da chamada, igual a um 500, e nunca conta ninguém como ausente.
+ */
+function videoItemsOf(body: unknown): unknown[] {
+  const b = (typeof body === 'object' && body !== null ? body : {}) as { items?: unknown; error?: unknown }
+  if (b.error != null || !Array.isArray(b.items)) throw new Error('YouTube API: resposta sem a lista de vídeos')
+  return b.items
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
@@ -476,6 +486,13 @@ export async function syncCompetitorChannel(
     if (!channelRes.ok) throw new Error(`YouTube API ${channelRes.status} for channel ${channelRow.channel_id}`)
 
     const channelData = await channelRes.json()
+    // Só sumiço de verdade marca ausência do canal: `items` lista vazia, ou sem `items` com `pageInfo.totalResults === 0`.
+    // Corpo sem `items`, com `error` ou fora da forma é falha da chamada (igual a um 500) e lança antes de qualquer marca.
+    {
+      const items: unknown = channelData?.items
+      const absent = Array.isArray(items) ? items.length === 0 : items == null && channelData?.pageInfo?.totalResults === 0
+      if (channelData?.error != null || (!Array.isArray(items) && !absent)) throw new Error(`YouTube API: resposta sem o canal ${channelRow.channel_id}`)
+    }
     const uploadsPlaylistId = channelData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads
     if (!uploadsPlaylistId) {
       // `items: []` = channel removed/closed or a mistyped id. Never stamp last_ok_synced_at; the catch below records the
@@ -574,6 +591,7 @@ export async function syncCompetitorChannel(
       if (!videosRes.ok) throw new Error(`YouTube API ${videosRes.status} for video details`)
 
       const videosData = await videosRes.json()
+      videoItemsOf(videosData) // antes de qualquer `asked`: corpo malformado não vira falta
 
       // Batch lookup existing videos
       const { data: existingVideos } = await supabase
@@ -714,6 +732,7 @@ export async function syncCompetitorChannel(
           const res = await api(`${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
           if (!res.ok) throw new Error(`YouTube API ${res.status} for daily statistics`)
           const body = await res.json()
+          videoItemsOf(body)
           for (const c of chunk) asked.add(c.id) // a chamada respondeu: o que não veio nela conta como pedido e não devolvido
           const byYt = new Map(chunk.map(c => [c.video_id, c]))
           const items = ((body.items ?? []) as FetchedItem[]).filter(it => byYt.has(it.id))
@@ -765,6 +784,7 @@ export async function syncCompetitorChannel(
       const res = await api(`${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
       if (!res.ok) throw new Error(`YouTube API ${res.status} for pinned videos`)
       const body = await res.json()
+      videoItemsOf(body)
       for (const c of chunk) asked.add(c.id)
       const fetched = (body.items ?? []) as FetchedItem[], byYt = new Map(chunk.map(c => [c.video_id, c]))
       await reconcileFetched(fetched, byYt)
