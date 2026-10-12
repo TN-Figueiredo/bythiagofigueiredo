@@ -346,12 +346,16 @@ describe('Leitura rápida, ⓘ e rodapé', () => {
     expect(par.rodape).toContain('Maior não quer dizer melhor: são canais de tamanhos diferentes.')
     expect(par.rodape).toContain('12 números ficaram de fora')
   })
-  it('"Só o seu canal mede" não existe nesta fase, em nenhum par (D17)', () => {
+  it('"Só o seu canal mede" não existe em par SEM canal próprio (D17; desde a A4 o cartão aparece quando um lado é canal seu)', () => {
+    const donos = new Set(PACK.canais.filter(c => c.own).map(c => c.id))
+    let semDono = 0
     for (const a of PACK.ordem) for (const b of PACK.ordem) {
-      if (a === b) continue
+      if (a === b || donos.has(a) || donos.has(b)) continue
+      semDono++
       cleanup(); wrap(PACK, { a, b })
       expect(document.body.textContent, `${a}×${b}`).not.toMatch(/Só o seu canal mede/)
     }
+    expect(semDono).toBeGreaterThan(10) // o laço tem o que olhar
   })
 })
 

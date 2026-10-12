@@ -214,3 +214,27 @@
 @media (pointer:coarse),(max-width:900px){
   [data-obs-screen="comparar"] .cp-fj-btn{min-height:44px}
 }
+
+/* "Só o seu canal mede" (A4 Tarefa 14, mockup de 12/10): fio de destaque à esquerda; os valores são do canal próprio (--lado-o) e o valor fraco, cinza.
+   Este cartão não diz direção: nenhum verde/âmbar. Não medido é o quadradinho hachurado do kit (.obs-ch-nm). */
+[data-obs-screen="comparar"] .so{border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;background:var(--surface);padding:14px 16px 16px;margin:0 0 12px;min-width:0}
+[data-obs-screen="comparar"] .so h2{display:flex;align-items:center;gap:4px;margin:0 0 4px;font:600 15px/1.3 var(--font-sans),system-ui,sans-serif}
+[data-obs-screen="comparar"] .so-lead{display:flex;align-items:flex-start;gap:8px;margin:0 0 10px;font-size:13.5px;line-height:20px;max-width:88ch;color:var(--muted)}
+[data-obs-screen="comparar"] .so-lead b{color:var(--text);font-weight:600}
+[data-obs-screen="comparar"] .so-lead>span{min-width:0;overflow-wrap:anywhere}
+[data-obs-screen="comparar"] .so-nm{flex:none;display:inline-block;width:14px;height:14px;padding:0;border-radius:3px;vertical-align:middle;margin-top:3px}
+[data-obs-screen="comparar"] .so-linhas{display:grid;gap:0;margin:0;padding:0;list-style:none}
+[data-obs-screen="comparar"] .so-linhas li{display:grid;grid-template-columns:minmax(160px,230px) minmax(0,1fr);gap:4px 16px;padding:10px 0;border-top:1px solid var(--border-subtle);align-items:start}
+[data-obs-screen="comparar"] .so-rt{font-size:13px;min-width:0}
+[data-obs-screen="comparar"] .so-rt small{display:block;color:var(--muted);font-size:12px;line-height:16px;margin-top:1px}
+[data-obs-screen="comparar"] .so-val{min-width:0}
+[data-obs-screen="comparar"] .so-vl{font:500 15px/22px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;color:var(--lado-o)}
+[data-obs-screen="comparar"] .so-vl.fraco{color:var(--muted)}
+[data-obs-screen="comparar"] .so-vl small,[data-obs-screen="comparar"] .so-nota{font:400 12.5px var(--font-sans),system-ui,sans-serif;color:var(--muted);margin-left:6px;overflow-wrap:anywhere}
+[data-obs-screen="comparar"] .so-val .tf{margin-top:6px}
+[data-obs-screen="comparar"] .cp-aviso{display:flex;gap:8px;align-items:flex-start;margin:8px 0 0;font-size:12.5px;line-height:18px;color:var(--muted);max-width:110ch}
+[data-obs-screen="comparar"] .cp-aviso-i{flex:none;display:inline-flex;margin-top:1px}
+@media (max-width:640px){
+  [data-obs-screen="comparar"] .so{padding:12px 12px 14px}
+  [data-obs-screen="comparar"] .so-linhas li{grid-template-columns:minmax(0,1fr)}
+}
