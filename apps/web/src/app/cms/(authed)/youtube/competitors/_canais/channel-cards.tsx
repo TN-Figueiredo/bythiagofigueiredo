@@ -8,7 +8,7 @@ import { CompararLink, type RowHandlers } from './channel-table'
 /** A frase do canal próprio no cartão: a posição na ordenação atual, ou o motivo de não ter. Concorrente não tem a frase. */
 function Voce({ r, view }: { r: CanaisRow; view: CanaisView }) {
   if (!r.own) return null
-  const frase = r.pos ? fraseDoCartao(r.pos, view.conjunto) : r.semMedida ? motivoTexto(r.semMedida) : null // sem posição e sem motivo seria erro do modelo (testado): nada a dizer
+  const frase = r.pos ? fraseDoCartao(r.pos, view.conjunto) : r.semMedida ? motivoTexto(r.semMedida, r.semMedidaTexto ?? undefined) : null // sem posição e sem motivo seria erro do modelo (testado): nada a dizer
   return frase ? <p className="voce">{frase}</p> : null
 }
 

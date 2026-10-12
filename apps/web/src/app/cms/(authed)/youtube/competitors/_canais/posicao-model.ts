@@ -5,6 +5,7 @@
  */
 import { conjuntoTexto, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
 import type { Fmt } from '@/lib/youtube/observatorio/types'
+import { motivoVpdTexto } from '@/lib/youtube/observatorio/proprio/vpd'
 import type { CanaisSort } from './view-model'
 
 /** As ordenações que têm posição escrita (D3): Inscritos e Views/dia (nas duas escalas). Ampliar é acrescentar a chave. */
@@ -15,12 +16,15 @@ export type MotivoSemMedida =
   | 'sem-videos' | 'sem-shorts' | 'sem-views-dia-proprio' | 'aguarda-2o-registro'
   | 'buscando-videos' | 'inscritos-ocultos' | 'sem-nicho' | 'ordenacao-sem-posicao'
 
-/** Os textos são os de 15.2 e 15.5 do spec e o de D4 (b) do plano. Switch exaustivo: um motivo novo não compila sem a frase. */
-export function motivoTexto(m: MotivoSemMedida): string {
+/**
+ * Os textos são os de 15.2 e 15.5 do spec; o de 'sem-views-dia-proprio' leva o motivo de `motivoVpdTexto` (A4): `textoVpd`, que a linha
+ * traz pronto. Sem ele vale o de 'sem-diario' (o dado não foi lido). Switch exaustivo: um motivo novo não compila sem a frase.
+ */
+export function motivoTexto(m: MotivoSemMedida, textoVpd?: string): string {
   switch (m) {
     case 'sem-videos': return 'Sem vídeos: fora das posições por vídeo.'
     case 'sem-shorts': return 'Sem Shorts: fora das posições de Shorts.'
-    case 'sem-views-dia-proprio': return 'Ainda sem views por dia medidas: a coleta diária do seu canal começa em breve. Sem posição nesta ordenação.'
+    case 'sem-views-dia-proprio': return `Ainda sem views por dia medidas: ${textoVpd ?? motivoVpdTexto('sem-diario', { ultimoDia: null }, () => '')}. Sem posição nesta ordenação.`
     case 'aguarda-2o-registro': return 'Aguardando o 2º registro diário: sem contagem diária ainda. Sem posição nesta ordenação.'
     case 'buscando-videos': return 'A primeira sincronização ainda não terminou: a medida aparece quando ela terminar. Sem posição nesta ordenação.'
     case 'inscritos-ocultos': return 'Inscritos ocultos pelo canal: sem esta medida e sem posição nesta ordenação.'
@@ -108,10 +112,10 @@ export function fraseDoCartao(p: Posicao, c: Conjunto): string {
 }
 
 /** O fim do anúncio de ordenação (leitor de tela): "Seu canal: 14º de 14 em Viagem." ou, sem posição, o MESMO motivo que o bloco e o cartão dizem (`motivoTexto`). */
-export function fraseSeuCanal(p: Posicao | null, c: Conjunto, semMedida: MotivoSemMedida | null | undefined): string {
+export function fraseSeuCanal(p: Posicao | null, c: Conjunto, semMedida: MotivoSemMedida | null | undefined, textoVpd?: string): string {
   // sem posição e sem motivo seria erro do modelo (o teste de invariante percorre todas as ordenações): a frase não escolhe um motivo por conta própria
   if (p) return `Seu canal: ${p.pos}º de ${p.de} ${conjuntoTexto(c)}${p.empate ? ' (empate)' : ''}.`
-  return semMedida ? motivoTexto(semMedida) : ''
+  return semMedida ? motivoTexto(semMedida, textoVpd) : ''
 }
 
 /** Sob o filtro "só com problema" a lista é menor que o "de N": a posição continua a da lista inteira. */

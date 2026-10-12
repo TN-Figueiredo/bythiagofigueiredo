@@ -23,6 +23,8 @@ import {
 import { effView } from '../_chrome/effect-view'
 import { contaComoTroca, trocas30, trocasDe30, vpdText } from '../_canal/numeros'
 import { FMT_PADRAO, fmtDaOrdem, parseCanaisFmt, type CanaisFmt } from './formato'
+import { SEM_LEITURA, type ExtrasProprio } from '../_proprio/extras'
+import { baseVpdTexto, motivoVpdTexto, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
 
 const NB = ' '
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
@@ -45,7 +47,8 @@ export type CadenceCell =
 export type VpdCell =
   /** `falta`: a frase é a da ausência do formato ("sem Shorts", "sem vídeos"); em "Todos" ela vem sem rótulo na frente. */
   | { kind: 'na'; text: string; title: string; falta?: true }
-  | { kind: 'ok'; big: string; abs: string | null; n: number; weak: boolean; tail: string | null }
+  /** `title`: a base escrita do número do canal próprio (a janela do diário); ausente nos concorrentes. */
+  | { kind: 'ok'; big: string; abs: string | null; n: number; weak: boolean; tail: string | null; title?: string }
 export type OutCell =
   | { kind: 'na'; text: string; weak: string | null; upnext: string | null; falta?: true }
   | { kind: 'ok'; title: string; videoTitle: string; thumb: Thumb; mult: string; tier: Tier; vs: string; n: number; published: string; publishedTitle: string; count: string }
@@ -80,6 +83,8 @@ export interface CanaisRow {
   pos: Posicao | null
   /** Por que não tem posição: sem valor na coluna ordenada, ou (só canal próprio) sem nicho num nicho escolhido, ou ordenação sem posição. */
   semMedida: MotivoSemMedida | null
+  /** A frase do motivo de 'sem-views-dia-proprio' (de `motivoVpdTexto`), para `motivoTexto`; null nos outros motivos e quando o dado não foi lido. */
+  semMedidaTexto: string | null
   cells: {
     cadence: CadenceCell; vpd: VpdCell; out: OutCell; swap: SwapCell; growth: GrowthCell; sync: SyncCell
     /** Só em "Todos": a medida dos Shorts, com o mesmo tipo da primeira (a primeira é a dos longos). */
@@ -216,7 +221,11 @@ export function nicheOptions(obs: Observatory): NicheOption[] {
   return obs.niches.map(n => ({ id: n.id, label: n.label, color: n.builtin ? null : nicheVars(n.color) }))
 }
 
-export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
+/**
+ * `extras`: o dado privado do canal próprio (views por dia do diário), lido no servidor só para quem edita o site. Ausente = o dado não foi
+ * lido: o canal próprio fica sem número e a frase é a de "sem-diario" (nunca um número, nunca zero).
+ */
+export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: ExtrasProprio): CanaisView {
   const D = obs.date, F = obs.fmt, R = obs.RULES
   // `filtro` é o que a pessoa escolheu (Todos, Longos, Shorts); `fmt` é o formato que ordena e posiciona (Todos ordena pelos longos)
   const fmtLido = parseCanaisFmt(p.fmt)
@@ -282,7 +291,17 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     if (g.length > 1) return `${verb(g[0]!).label} e ${verb(g[1]!).label.toLowerCase()} trocados na mesma janela, ${whenPh(g)}`
     const t = verb(g[0]!); return `${t.label} ${t.verb}, ${whenPh(g)}`
   }
-  const vpdVal = (S: CStats) => (S.vpdMedian == null ? null : rel ? S.perMilSubs : S.vpdMedian)
+  /** Views por dia do canal próprio, dos longos (D3): só com `extras`, só no formato longo e só para canal com vídeos. Concorrente: null. */
+  const vpdProprio = (c: ObsChannel, f: Fmt): VpdCanal | null => (extras && c.own && f === 'long' && obs.videos.some(x => x.ch === c.id) ? extras.vpd.get(c.id) ?? SEM_LEITURA : null)
+  /**
+   * O número da coluna Views/dia de um canal: `abs` (absoluto) e `val` (na escala escolhida). O canal próprio com `extras` vem do diário, e o
+   * por mil é valor ÷ (inscritos ÷ 1000), sem inscritos = null; o concorrente, e o canal próprio sem `extras`, vêm do motor como sempre.
+   */
+  const vpdOf = (c: ObsChannel, f: Fmt, S: CStats): { ev: VpdCanal | null; abs: number | null; val: number | null } => {
+    const ev = vpdProprio(c, f)
+    if (ev) return { ev, abs: ev.valor, val: ev.valor == null ? null : rel ? (c.subs != null && c.subs > 0 ? ev.valor / (c.subs / 1000) : null) : ev.valor }
+    return { ev: null, abs: S.vpdMedian, val: S.vpdMedian == null ? null : rel ? S.perMilSubs : S.vpdMedian }
+  }
   const syncPhrase = (c: ObsChannel) => c.sync.problemPhrase ?? null
   const viewsTxt = (c: ObsChannel, v: ObsVideo): ViewsText => {
     const S = stats(c.id, 'long')
@@ -365,20 +384,32 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     }
   }
   function vpdCell(c: ObsChannel, f: Fmt, S: CStats, bf: boolean, empty: boolean, second: boolean): VpdCell {
-    const one = oneOf(f), v = vpdVal(S)
+    const one = oneOf(f), o = vpdOf(c, f, S), v = o.val
     if (bf) return { kind: 'na', text: `1ª contagem ${D.dm(obs.NOW + obs.DAY)}`, title: `Primeira contagem diária de views amanhã, ${D.dm(obs.NOW + obs.DAY)}` }
     if (second) {
       const falta = faltaShorts(c)
       if (falta) return { kind: 'na', text: falta.text, title: falta.title, falta: true }
     }
     // the channel hides its subscriber count: per-thousand is undefined, point to the absolute scale instead of "nenhum acompanhado"
-    if (rel && S.vpdMedian != null && S.perMilSubs == null && c.subs == null) return { kind: 'na', text: 'Inscritos ocultos: veja em Absoluto.', title: 'O canal não informa os inscritos; veja a escala Absoluto.' }
+    if (rel && o.abs != null && v == null && c.subs == null) return { kind: 'na', text: 'Inscritos ocultos: veja em Absoluto.', title: 'O canal não informa os inscritos; veja a escala Absoluto.' }
+    // o canal próprio mede 0 inscritos: o por mil não existe (o absoluto está na outra escala)
+    if (o.ev && o.abs != null && v == null) return { kind: 'na', text: 'O canal ainda não tem inscritos.', title: 'Sem inscritos não há views por dia por mil inscritos; veja a escala Absoluto.' }
     // the own channel's videos are tracked but the observatory keeps no daily views for them: never "nenhum acompanhado"
-    if (v == null && c.own && S.tracked > 0) return { kind: 'na', text: 'Sem views diárias do seu canal.', title: 'O observatório guarda a contagem diária de views só dos concorrentes.' }
+    if (v == null && c.own && S.tracked > 0) {
+      // com o dado lido, a célula diz o motivo da ausência (a mesma frase da posição); sem ele, a de sempre
+      if (o.ev && extras) { const t = cap(motivoVpdTexto(o.ev.motivo ?? 'sem-diario', o.ev, extras.dm)) + '.'; return { kind: 'na', text: t, title: t } }
+      return { kind: 'na', text: 'Sem views diárias do seu canal.', title: 'O observatório guarda a contagem diária de views só dos concorrentes.' }
+    }
     // tracked videos of this format but no per-day median yet: say what is really missing (the engine's own wording,
     // series.ts periodRate), never "nenhum acompanhado" with a title that contradicts it
-    if (v == null && S.vpdMedian == null && videosOf(c.id).some(x => x.fmt === f && x.tracked)) return { kind: 'na', text: 'Aguardando o 2º registro diário.', title: `${S.tracked} vídeos acompanhados; a média por dia precisa de dois registros diários` }
+    if (v == null && o.abs == null && videosOf(c.id).some(x => x.fmt === f && x.tracked)) return { kind: 'na', text: 'Aguardando o 2º registro diário.', title: `${S.tracked} vídeos acompanhados; a média por dia precisa de dois registros diários` }
     if (v == null) return { kind: 'na', text: `Nenhum ${one} acompanhado.`, title: `${S.tracked} vídeos acompanhados` }
+    if (o.ev && extras) {
+      // canal próprio: a base escrita é a janela do diário (D3), à vista na ressalva e inteira na dica
+      const dias = o.ev.janela ? `, de ${extras.dm(o.ev.janela.de)} a ${extras.dm(o.ev.janela.ate)}` : ''
+      const base = baseVpdTexto(o.ev, extras.dm)
+      return { kind: 'ok', big: vpdAbs(v), abs: rel && o.abs != null ? vpdAbs(o.abs) : null, n: o.ev.n, weak: o.ev.n < R.weakBase, tail: dias + (empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : ''), ...(base ? { title: base } : {}) }
+    }
     return { kind: 'ok', big: vpdAbs(v), abs: rel && S.vpdMedian != null ? vpdAbs(S.vpdMedian) : null, n: S.vpdN, weak: S.vpdN < R.weakBase, tail: empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : null }
   }
   function outCell(c: ObsChannel, f: Fmt, S: CStats, bf: boolean, empty: boolean, second: boolean): OutCell {
@@ -416,7 +447,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       active: semShorts || bf ? null : obs.cadence(c.id, fmt).pw,
       outliers: semShorts || bf ? null : S.outliers90,
       growth: S.growth30.pending ? null : S.growth30.pct,
-      vpd: semShorts || bf ? null : vpdVal(S),
+      vpd: semShorts || bf ? null : vpdOf(c, fmt, S).val,
       swaps: bf || c.own ? null : trocas30(obs, c.id), // a mesma conta do cabeçalho do canal e da comparação: título e thumbnail
       subs: c.subs,
     }
@@ -428,12 +459,27 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     if (valor[sort] == null) {
       return motivoSemValor({
         sort, porMil: rel, bf: isBf(c), own: c.own, semVideos: !obs.videos.some(x => x.ch === c.id), semShorts: semShortsDe(c),
-        subsOcultos: c.subs == null, temMedianaAbsoluta: S.vpdMedian != null,
+        subsOcultos: c.subs == null, temMedianaAbsoluta: vpdOf(c, fmt, S).abs != null,
         aguarda2o: obs.videos.some(x => x.ch === c.id && x.fmt === fmt && x.tracked),
       })
     }
     if (pos || !c.own) return null
     return temPosicao(sort) ? 'sem-nicho' : 'ordenacao-sem-posicao'
+  }
+
+  /** A frase do motivo quando o canal próprio fica sem views por dia (só com `extras`; sem eles vale a de "sem-diario" em `motivoTexto`). */
+  function semMedidaTextoOf(c: ObsChannel, S: CStats, m: MotivoSemMedida | null): string | null {
+    if (m !== 'sem-views-dia-proprio' || !c.own || !extras) return null
+    if (fmt !== 'long') return 'as views por dia do seu canal só são medidas nos vídeos longos'
+    const o = vpdOf(c, fmt, S)
+    if (o.ev == null) return null
+    if (o.ev.valor != null) return 'o canal ainda não tem inscritos' // há valor e não há posição: só o por mil sem inscritos
+    return motivoVpdTexto(o.ev.motivo ?? 'sem-diario', o.ev, extras.dm)
+  }
+
+  const semMedidaDe = (c: ObsChannel, S: CStats, valor: Record<CanaisSort, number | null>, pos: Posicao | null) => {
+    const semMedida = semMedidaOf(c, S, valor, pos)
+    return { semMedida, semMedidaTexto: semMedidaTextoOf(c, S, semMedida) }
   }
 
   function rowOf(c: ObsChannel): CanaisRow {
@@ -465,7 +511,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       color: c.color, ini: c.ini, avatar: c.avatar ?? null, subs: c.subs == null ? HIDDEN_ROW : subsTxt(c.subs), url: c.url, handle: c.handle, backfill: bf, paused: c.activity.state === 'parado',
       subsTip: c.subs == null ? 'Este canal esconde a contagem de inscritos no YouTube.'
         : `O YouTube informa inscritos arredondados a 3 algarismos. ${subsTxt(c.subs)} pode estar ${stats(c.id, 'long').growth30.roundingText} do número real.`,
-      valor, pos, semMedida: semMedidaOf(c, S, valor, pos),
+      valor, pos, ...semMedidaDe(c, S, valor, pos),
       cells: { cadence, vpd, out, swap, growth, sync, ...cells2 },
       semFormato: nulos ? { n: nulos, label: `formato não confirmado (${nulos})`, tip: SEM_FORMATO_TIP } : null,
       cowork: coworkOf(c),
@@ -527,7 +573,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const fila = temPosicao(sort) ? all.filter(c => inNiche(c) && valoresOf(c)[sort] != null).sort((a, b) => (valoresOf(b)[sort]! - valoresOf(a)[sort]!) * sgn) : []
   const fraseDe = (r: CanaisRow): { frase: string; vizinhos: string | null } => {
     const c = obs.channel(r.id)!
-    if (!r.pos) return { frase: r.semMedida ? motivoTexto(r.semMedida) : '', vizinhos: null } // sem motivo seria erro do modelo (testado): nunca inventa um
+    if (!r.pos) return { frase: r.semMedida ? motivoTexto(r.semMedida, r.semMedidaTexto ?? undefined) : '', vizinhos: null } // sem motivo seria erro do modelo (testado): nunca inventa um
     const i = fila.findIndex(x => x.id === r.id), ac = fila[i - 1], ab = fila[i + 1]
     return {
       frase: fraseDePosicao(r.pos, conjunto, emDaOrdem, valorTxt(c)),

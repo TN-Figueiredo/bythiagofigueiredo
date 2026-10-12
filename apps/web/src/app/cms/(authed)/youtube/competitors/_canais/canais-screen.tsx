@@ -321,7 +321,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     if (!p || view.sort !== p.sort || view.dir !== p.dir) return
     pedidoOrd.current = null
     const dono = view.pe ? view.list.ranked.find(r => r.id === view.pe!.canalId) ?? view.list.unranked.find(r => r.id === view.pe!.canalId) : null
-    setAnuncioOrd(`${view.sortNote}.${dono ? ' ' + fraseSeuCanal(dono.pos, view.conjunto, dono.semMedida) : ''}`)
+    setAnuncioOrd(`${view.sortNote}.${dono ? ' ' + fraseSeuCanal(dono.pos, view.conjunto, dono.semMedida, dono.semMedidaTexto ?? undefined) : ''}`)
   }, [view])
   const onSort = (k: CanaisSort) => {
     const asc = sort === k && dir === 'desc'

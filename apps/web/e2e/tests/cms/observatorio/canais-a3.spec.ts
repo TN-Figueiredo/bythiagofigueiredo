@@ -391,7 +391,7 @@ test('A3.2 o canal próprio está na posição dele (a do bloco = a da célula =
   const motivo = (await blocoLinha(page).locator('.tp').textContent())!.trim()
   medida(`bloco em Views/dia: "${motivo}"`)
   expect(motivo).toContain('Ainda sem views por dia medidas')
-  expect(await anuncioOrd(page)).toMatch(/Ainda sem views por dia medidas: a coleta diária do seu canal começa em breve\. Sem posição nesta ordenação\.$/)
+  expect(await anuncioOrd(page)).toMatch(/Ainda sem views por dia medidas: a coleta diária ainda não gravou este canal\. Sem posição nesta ordenação\.$/)
   // Ritmo (D3: sem posição escrita, mas o canal TEM medida): o anúncio não diz "sem medida"
   await ordenarPor(page, 'active')
   const frase = (await blocoLinha(page).locator('.tp').textContent())!.trim()
