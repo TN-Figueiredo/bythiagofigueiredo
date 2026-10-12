@@ -18,6 +18,8 @@ export const SEM_NORMALIZADOR: string[] = REPORT_TYPES_ENABLED.filter(t => t !==
 export interface ReportType {
   id: string
   name?: string
+  /** Quando o YouTube marcou (ou vai marcar) o tipo como descontinuado. Ausente = tipo corrente. */
+  deprecateTime?: string
 }
 
 export interface Job {
