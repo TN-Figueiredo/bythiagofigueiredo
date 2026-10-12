@@ -34,7 +34,7 @@ async function privado(sb: ReturnType<typeof localServiceClient>, siteId: string
   return {
     jobs: await ler('yt_reporting_jobs', 'job_id, status'),
     rels: await ler('yt_reporting_reports', 'report_id, status, start_time, normalized_at'),
-    reach: await ler('yt_own_video_reach_daily', 'youtube_video_id, day_pt, thumbnail_impressions, thumbnail_ctr, source_report_id'),
+    reach: await ler('yt_own_video_reach_daily', 'youtube_video_id, video_id, day_pt, thumbnail_impressions, thumbnail_ctr, source_report_id'),
     diario: await ler('yt_own_video_daily', 'youtube_video_id, day_pt, views'),
   }
 }
@@ -107,6 +107,7 @@ test('ownL2: a semente do dado privado escreve o que o perfil diz (datas relativ
     p = await privado(supabase, siteId, canal)
     expect(p.reach.length).toBeGreaterThan(0)
     expect(p.reach.every(r => Number(r.thumbnail_impressions) >= 2713 + 40)).toBe(true)
+    expect(p.reach.filter(r => r.video_id == null).map(r => r.youtube_video_id)).toEqual(['orfaoRel001'])
     // lacunas: 4 longos com só 5 dias de diário e um vídeo com alcance e SEM diário
     await seedOwnL2(siteId, 'lacunas', undefined, supabase)
     p = await privado(supabase, siteId, canal)
