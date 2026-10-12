@@ -20,6 +20,7 @@ import type { AlcanceVideo } from '@/lib/youtube/observatorio/proprio/dias'
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 import { motivoVpdTexto, vpdDoCanal, vpdDoVideo, type MotivoSemVpd, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
 import { buildCanalVideos, type ChannelVideoView } from '../_canal/videos-model'
+import { numNb } from '../_canal/formato'
 import { vpdText } from '../_canal/numeros'
 import type { DadosDoCanal } from './dados'
 import { cliquesTexto, FRASE_NADA_LIDO, fraseDoAlcance, lerEstado } from './header-model'
@@ -130,8 +131,8 @@ export function buildProprioVideos(
         notas.push(`Impressões: nenhuma nos relatórios lidos ${periodoTxt}.`)
       } else {
         imp = a.imp
-        impText = F.num(a.imp)
-        notas.push(`Impressões: ${impText} em ${plural(a.diasComImpressao, 'dia', 'dias')}, ${periodoTxt} (dia do YouTube).`)
+        impText = numNb(F, a.imp)   // o espaço antes de "mil"/"mi" não quebra linha, como nas views do cartão
+        notas.push(`Impressões: ${F.num(a.imp)} em ${plural(a.diasComImpressao, 'dia', 'dias')}, ${periodoTxt} (dia do YouTube).`)
         if (a.cliques == null) {
           cliquesMissing = 'não medido'
           notas.push('Cliques: o YouTube não devolveu o CTR de algum dia com impressão deste vídeo.')
