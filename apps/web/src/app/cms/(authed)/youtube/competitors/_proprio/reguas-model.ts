@@ -47,7 +47,7 @@ export function posicaoNoCanal(vals: ReadonlyArray<{ id: string; x: number | nul
   return { pos, de, empates, terco }
 }
 
-export type NumeroRegua = 'impressoes' | 'views' | 'engajamento' | 'curtidas' | 'comentarios' | 'duracao'
+export type NumeroRegua = 'impressoes' | 'views' | 'vpd' | 'engajamento' | 'assistido' | 'curtidas' | 'comentarios' | 'duracao'
 
 export interface LinhaRegua {
   numero: NumeroRegua
@@ -62,6 +62,8 @@ export interface LinhaRegua {
   semRegua: string | null
   /** Quantos vídeos do canal ficam fora da conta por não terem o dado: "2 sem medida". null = nenhum (ou a leitura nem existe). */
   semMedida: string | null
+  /** A segunda linha do nome ("média dos últimos 28 dias"); null = sem ela. */
+  sub: string | null
   /** Um traço por vídeo com o dado, do menor ao maior valor. Vazio quando não há régua. */
   tracos: Array<{ id: string; pct: number; este: boolean }>
   min: string | null
@@ -86,6 +88,25 @@ export interface ReguasView {
   pouco: string | null
 }
 
+/**
+ * As duas linhas que nascem do diário (A4 13.4): "Views por dia" e "% assistido". Vêm em `EntradaReguas.diario`; sem ele a régua tem as seis
+ * linhas da Tarefa 12. As chaves dos mapas são os `id` dos vídeos de `videos`.
+ */
+export interface DiarioReguas {
+  /** views por dia (média dos 28 dias) de cada vídeo; null = sem 7 dias de medida */
+  vpd: ReadonlyMap<string, number | null>
+  /** % assistido (pontos, pode passar de 100) de cada vídeo; null = sem views nos 28 dias */
+  pct: ReadonlyMap<string, number | null>
+  /** Por que ESTE vídeo não pode ser posicionado em views por dia (poucas views); o valor continua escrito. null = pode. */
+  naoPosicionaVpd: string | null
+  /** Idem para o % assistido. */
+  naoPosicionaPct: string | null
+  /** A frase de quando ESTE vídeo não tem o número ("sem 7 dias de medida"). */
+  semVpd: string
+  /** Idem ("sem views nos 28 dias"). */
+  semPct: string
+}
+
 export interface EntradaReguas {
   videoId: string
   videos: ReadonlyArray<{ id: string; ytId: string; views: number | null; likes: number | null; comments: number | null; dur: number | null }>
@@ -94,6 +115,10 @@ export interface EntradaReguas {
   alcanceLido: boolean
   /** "de 09/09 a 07/10", como a tela o escreve; null = sem período. */
   periodoTexto: string | null
+  /** Por que as impressões não foram lidas ("só quem edita o site vê as impressões"); sem ele, a frase é a de "impressões não medidas". Só vale com `alcanceLido: false`. */
+  motivoImpressoes?: string
+  /** As linhas "Views por dia" e "% assistido"; ausente = a régua tem só as seis linhas. */
+  diario?: DiarioReguas
   hrefs: { vistos: string; imp: string }
   /** Os formatadores do motor (`obs.fmt`); sem eles, os mesmos da fábrica (o texto é igual). */
   fmt?: Fmt
@@ -101,17 +126,22 @@ export interface EntradaReguas {
 
 /* ---------------------------------------------------------------- definição das seis linhas */
 
-interface Def { numero: NumeroRegua; grupo: LinhaRegua['grupo']; nome: string }
+interface Def { numero: NumeroRegua; grupo: LinhaRegua['grupo']; nome: string; sub?: string }
 
 /** A ordem do spec 17.3: Alcance, Resposta, Formato. */
 const DEFS: readonly Def[] = [
   { numero: 'impressoes', grupo: 'Alcance', nome: 'Impressões' },
   { numero: 'views', grupo: 'Alcance', nome: 'Views' },
+  { numero: 'vpd', grupo: 'Alcance', nome: 'Views por dia', sub: 'média dos últimos 28 dias' },
   { numero: 'engajamento', grupo: 'Resposta', nome: 'Engajamento' },
+  { numero: 'assistido', grupo: 'Resposta', nome: '% assistido', sub: 'média pelas views, 28 dias' },
   { numero: 'curtidas', grupo: 'Resposta', nome: 'Curtidas' },
   { numero: 'comentarios', grupo: 'Resposta', nome: 'Comentários' },
   { numero: 'duracao', grupo: 'Formato', nome: 'Duração' },
 ]
+
+/** As duas linhas do diário: ficam fora das frases de "poucos vídeos" e "sem medida" (a linha diz o seu motivo). */
+const DO_DIARIO: readonly NumeroRegua[] = ['vpd', 'assistido']
 
 const FALA_TERCO: Record<Terco, string> = { cima: 'terço de cima', meio: 'terço do meio', baixo: 'terço de baixo' }
 const FORMA_TERCO: Record<Terco, string> = { cima: '▲', meio: '●', baixo: '▼' }
@@ -140,6 +170,8 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     switch (numero) {
       case 'impressoes': return a.alcanceLido ? num(a.porVideo.get(v.ytId)?.imp ?? null) : null
       case 'views': return num(v.views)
+      case 'vpd': return num(a.diario?.vpd.get(v.id) ?? null)
+      case 'assistido': return num(a.diario?.pct.get(v.id) ?? null)
       case 'engajamento': return engajamentoDe(v)
       case 'curtidas': return num(v.likes)
       case 'comentarios': return num(v.comments)
@@ -152,6 +184,8 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     switch (numero) {
       case 'impressoes': return F.num(x)
       case 'views': case 'curtidas': case 'comentarios': return numNb(F, x)
+      case 'vpd': return x === 0 ? '0' : x < 10 ? F.dec1(x) : F.int(x)
+      case 'assistido': return F.int(x) + '%'
       case 'engajamento': return F.dec1(x * 100) + '%'
       case 'duracao': return durText(x) ?? ''
       default: { const nunca: never = numero; return nunca }
@@ -162,6 +196,8 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     switch (numero) {
       case 'impressoes': return `${t} ${x === 1 ? 'impressão' : 'impressões'}`
       case 'views': return `${t} ${x === 1 ? 'view' : 'views'}`
+      case 'vpd': return `${t} ${x === 1 ? 'view' : 'views'} por dia`
+      case 'assistido': return `${t} do vídeo assistido`
       case 'engajamento': return `engajamento de ${t}`
       case 'curtidas': return `${t} ${x === 1 ? 'curtida' : 'curtidas'}`
       case 'comentarios': return `${t} ${x === 1 ? 'comentário' : 'comentários'}`
@@ -172,8 +208,10 @@ export function buildReguas(a: EntradaReguas): ReguasView {
   /** Por que ESTE vídeo não tem o dado. */
   const semODado = (numero: NumeroRegua): string => {
     switch (numero) {
-      case 'impressoes': return !a.alcanceLido ? 'impressões não medidas' : a.periodoTexto ? `sem impressão ${a.periodoTexto}` : 'sem impressão no período'
+      case 'impressoes': return !a.alcanceLido ? a.motivoImpressoes ?? 'impressões não medidas' : a.periodoTexto ? `sem impressão ${a.periodoTexto}` : 'sem impressão no período'
       case 'views': return 'sem contagem de views'
+      case 'vpd': return a.diario?.semVpd ?? 'sem medida'
+      case 'assistido': return a.diario?.semPct ?? 'sem medida'
       case 'engajamento':
         if (num(este.views) == null) return 'sem contagem de views'
         if (num(este.likes) == null || num(este.comments) == null) return 'não medido'
@@ -184,7 +222,8 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     }
   }
 
-  const linhas: LinhaRegua[] = DEFS.map((d): LinhaRegua => {
+  const defs = DEFS.filter(d => !DO_DIARIO.includes(d.numero) || a.diario != null)
+  const linhas: LinhaRegua[] = defs.map((d): LinhaRegua => {
     const entradas = a.videos.map(v => {
       const x = cru(d.numero, v)
       return { id: v.id, x, chave: x == null ? undefined : texto(d.numero, x) }
@@ -197,14 +236,16 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     const neutro = d.numero === 'duracao'
     const nomeBaixo = d.nome.toLowerCase()
     const valor = eu ? eu.chave : null
-    const pos = eu ? posicaoNoCanal(entradas, este.id) : null
+    // poucas views neste vídeo: o número fica escrito e a posição não (o diário de um vídeo quase sem view não ordena nada)
+    const trava = eu == null ? null : d.numero === 'vpd' ? a.diario?.naoPosicionaVpd ?? null : d.numero === 'assistido' ? a.diario?.naoPosicionaPct ?? null : null
+    const pos = eu && !trava ? posicaoNoCanal(entradas, este.id) : null
     const href = pos == null ? null : d.numero === 'impressoes' ? a.hrefs.imp : d.numero === 'views' ? a.hrefs.vistos : null
-    const semRegua = eu == null ? semODado(d.numero) : pos == null ? `poucos vídeos para comparar (${n})` : null
+    const semRegua = eu == null ? semODado(d.numero) : trava ? trava : pos == null ? `poucos vídeos para comparar (${n})` : null
     const vazia = { tracos: [] as LinhaRegua['tracos'], min: null, max: null, medianaPct: null, comprimida: false }
 
     if (!eu || !pos) {
       const sr = eu ? `${nomeBaixo}: ${fala(d.numero, eu.x, eu.chave)}; ${semRegua}` : `${nomeBaixo}: ${semRegua}`
-      return { numero: d.numero, grupo: d.grupo, nome: d.nome, valor, pos: null, posTexto: null, semRegua, semMedida, ...vazia, neutro, href, sr }
+      return { numero: d.numero, grupo: d.grupo, nome: d.nome, sub: d.sub ?? null, valor, pos: null, posTexto: null, semRegua, semMedida, ...vazia, neutro, href, sr }
     }
 
     const xs = com.map(e => e.x)
@@ -217,7 +258,7 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     const sr = `${pos.pos}º de ${pos.de} em ${nomeBaixo}` + (neutro ? '' : `, ${FALA_TERCO[pos.terco]}`) + (pos.empates > 0 ? `, empate com ${pos.empates}` : '')
       + `; ${fala(d.numero, eu.x, eu.chave)}; no canal de ${min} a ${max}; mediana ${texto(d.numero, med)}`
     return {
-      numero: d.numero, grupo: d.grupo, nome: d.nome, valor, pos, posTexto, semRegua, semMedida,
+      numero: d.numero, grupo: d.grupo, nome: d.nome, sub: d.sub ?? null, valor, pos, posTexto, semRegua, semMedida,
       tracos, min, max, medianaPct: es.pct(med), comprimida: es.comprimida, neutro, href, sr,
     }
   })
@@ -267,10 +308,10 @@ function fraseDe(linhas: readonly LinhaRegua[], alcanceLido: boolean, poucoVolum
   sai(baixo.filter(l => !ultimos.includes(l)), n => `▼ Entre os últimos em ${n}.`)
 
   // com o dado e sem comparação (menos de MIN_REGUA vídeos): dito, sem forma de terço
-  const poucos = alvo.filter(l => l.valor != null && l.pos == null && (l.numero !== 'impressoes' || alcanceLido))
+  const poucos = alvo.filter(l => l.valor != null && l.pos == null && (l.numero !== 'impressoes' || alcanceLido) && !DO_DIARIO.includes(l.numero))
   sai(poucos, n => `Poucos vídeos para comparar em ${n}.`)
   // sem o dado neste vídeo (impressões já têm a sua frase)
-  const sem = alvo.filter(l => l.valor == null && l.numero !== 'impressoes')
+  const sem = alvo.filter(l => l.valor == null && l.numero !== 'impressoes' && !DO_DIARIO.includes(l.numero))
   sai(sem, n => `Sem medida neste vídeo: ${n}.`)
 
   return partes.length ? partes.join(' ') : 'Nada para comparar este vídeo com o resto do canal.'
