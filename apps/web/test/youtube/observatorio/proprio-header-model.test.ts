@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   proprioWorld, mundoSemProprio, parado, semVideos, inscritosOcultos, semComentarios, DADOS, CHEIO, diarioCheio, alcanceCheio, alcanceSoVazios,
-  alcanceNadaLido, type CenarioDados,
+  alcanceNadaLido, alcanceComLinhas, primeiroProprio, type CenarioDados,
 } from './proprio-fixture'
 import {
   buildProprioHeader, FRASE_CTR, FRASE_ERRO, FRASE_NADA_LIDO, FRASE_NEGADO, FRASE_SEM_RELATORIO, fraseDoAlcance,
@@ -22,6 +22,7 @@ import { addDays } from '@/lib/youtube/coleta/day-pt'
 import { vpdDoCanal } from '@/lib/youtube/observatorio/proprio/vpd'
 import type { DadosDoCanal } from '@/app/cms/(authed)/youtube/competitors/_proprio/dados'
 import type { AlcanceCanal } from '@/lib/youtube/observatorio/proprio/tipos'
+import type { Dataset } from '@/lib/youtube/observatorio/types'
 
 // Arquivo todo síncrono: uma macrotarefa por teste, para o executor do Vitest responder no CI (ver canais-a3-posicao.test.ts).
 afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
@@ -475,6 +476,178 @@ describe('A4.6 cabeçalho próprio: texto e dependências', () => {
 const NICHO_GERAL = { tipo: 'geral' } as const
 
 /** As quatro dependências que um modelo puro não pode ter: leitor, prova de edição, módulo de servidor e import de valor de `./dados`. */
+/* ---------------------------------------------------------------- a conta feita à mão (I1 da revisão da Tarefa 6) */
+// Cada caso abaixo nasceu de um mutante que sobrevivia: o teste afirma o texto EXATO e o recalcula sem usar o código do modelo.
+
+const DIA_MS = 86_400_000
+const meio = (xs: number[]): number | null => {
+  if (xs.length === 0) return null
+  const o = [...xs].sort((a, b) => a - b), k = o.length >> 1
+  return o.length % 2 ? o[k]! : (o[k - 1]! + o[k]!) / 2
+}
+/** 3,69… → "3,7%" (uma casa, vírgula): escrito aqui, não importado do formatador do produto. */
+const pct1 = (x: number) => (Math.round(x * 1000) / 10).toFixed(1).replace('.', ',') + '%'
+const mmss = (sec: number) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.round(sec % 60)).padStart(2, '0')}`
+const proprios = (w: World) => w.obs.videos.filter(v => v.ch === w.canalId)
+const pw = (n: number) => (Math.round(n / 13 * 10) / 10).toFixed(1).replace('.', ',')
+/** Os que o ritmo conta: publicados nas últimas 13 semanas (91 dias) do relógio do oráculo. */
+const naJanela = (w: World, fmt: 'long' | 'short') => proprios(w).filter(v => v.fmt === fmt && v.pub > w.obs.NOW - 91 * DIA_MS).length
+const soOsPrimeirosLongos = (n: number) => (ds: Dataset) => {
+  const id = primeiroProprio(ds).id
+  const fica = ds.videos.filter(v => v.ch === id && v.fmt === 'long').slice(0, n)
+  ds.videos = ds.videos.filter(v => v.ch !== id).concat(fica)
+}
+/** Empurra para 100 dias atrás todos os vídeos do formato; o outro formato fica como está. */
+const envelhece = (fmt: 'long' | 'short') => (ds: Dataset) => {
+  const id = primeiroProprio(ds).id
+  for (const v of ds.videos) if (v.ch === id && v.fmt === fmt) { v.pub -= 100 * DIA_MS; v.ageDays += 100 }
+}
+
+describe('A4.6 cabeçalho próprio: os números públicos batem com a conta à mão (texto exato)', () => {
+  it('engajamento em 90 dias: mediana de (curtidas + comentários) ÷ views só dos LONGOS de até 90 dias; os Shorts dariam outro número', () => {
+    const w = BASE
+    const vs = proprios(w)
+    const taxas = (fmt: 'long' | 'short') => vs.filter(v => v.tracked && v.fmt === fmt && v.ageDays <= 90 && v.views != null && v.views > 0 && v.likes != null && v.comments != null)
+      .map(v => (v.likes! + v.comments!) / v.views!)
+    const longos = taxas('long'), shorts = taxas('short')
+    // a fixture discrimina: lendo os Shorts o texto seria outro
+    expect(pct1(meio(shorts)!)).toBe('3,2%')
+    expect(pct1(meio(longos)!)).toBe('3,7%')
+    const c = por(build(w).todos, 'engajamento90')
+    medida(c, '3,7%')
+    expect(c.value).toBe(pct1(meio(longos)!))
+    expect(c.base).toBe(`(curtidas + comentários) ÷ views, mediana em ${longos.length} longos de até 90 dias`)
+    expect(longos).toHaveLength(8)
+    expect(c.n).toBeNull() // 8 longos: base suficiente
+  })
+
+  it('engajamento de todos os vídeos, texto exato', () => {
+    const w = BASE
+    const taxas = proprios(w).filter(v => v.views! > 0 && v.likes != null && v.comments != null).map(v => (v.likes! + v.comments!) / v.views!)
+    const c = por(build(w).todos, 'engajamentoTodos')
+    medida(c, '3,5%')
+    expect(c.value).toBe(pct1(meio(taxas)!))
+  })
+
+  it('vídeos novos com 0 views, 0 curtidas e 0 comentários: a conta os deixa de fora (0 ÷ 0 não é taxa), nunca "NaN%"', () => {
+    // 40 dos 58 vídeos recém-publicados e zerados: sem a guarda de views > 0 os NaN dominariam a mediana
+    const zerados = (ds: Dataset) => {
+      const id = primeiroProprio(ds).id
+      for (const v of ds.videos.filter(x => x.ch === id).sort((a, b) => a.ageDays - b.ageDays).slice(0, 40)) { v.views = 0; v.likes = 0; v.comments = 0 }
+    }
+    const w = proprioWorld({ mut: zerados })
+    expect(proprios(w).filter(v => v.views === 0)).toHaveLength(40) // sanidade: a mutação pegou
+    const h = build(w)
+    const c90 = por(h.todos, 'engajamento90'), cT = por(h.todos, 'engajamentoTodos')
+    const validos = (so90: boolean) => proprios(w).filter(v => (!so90 || (v.tracked && v.fmt === 'long' && v.ageDays <= 90)) && v.views! > 0 && v.likes != null && v.comments != null)
+    const conta = (so90: boolean) => meio(validos(so90).map(v => (v.likes! + v.comments!) / v.views!))!
+    expect(validos(false)).toHaveLength(18)
+    expect(cT.value).toMatch(/^\d+,\d%$/)
+    medida(cT, pct1(conta(false)))
+    expect(cT.base).toContain('mediana em 18 vídeos')
+    // todos os longos de 90 dias foram zerados: não sobra taxa, a célula diz a frase em vez de um número
+    expect(validos(true)).toHaveLength(0)
+    naoMedida(c90, 'nenhum longo de 90 dias com curtidas e comentários medidos')
+    // views 0 é contagem medida: entra na soma
+    expect(por(h.faixa, 'viewsSomadas').value).toBe(w.obs.fmt.num(proprios(w).reduce((a, v) => a + (v.views ?? 0), 0)))
+  })
+
+  it('duração mediana dos longos: mm:ss exato da mediana de `dur` (um valor dobrado ou de Shorts seria outro)', () => {
+    const w = BASE
+    const durs = proprios(w).filter(v => v.tracked && v.fmt === 'long').map(v => v.dur!)
+    const c = por(build(w).todos, 'duracaoMediana')
+    medida(c, '20:38')
+    expect(c.value).toBe(mmss(meio(durs)!))
+    expect(c.base).toBe('mediana em 29 longos acompanhados')
+    // os Shorts dariam 00:39: a conta não os mistura
+    expect(mmss(meio(proprios(w).filter(v => v.fmt === 'short').map(v => v.dur!))!)).toBe('00:39')
+  })
+
+  it('ritmo: "longos + Shorts" nessa ordem, cada um pela sua contagem de 13 semanas (os dois números são diferentes)', () => {
+    const w = BASE
+    const l = naJanela(w, 'long'), sh = naJanela(w, 'short')
+    expect([l, sh]).toEqual([8, 7])
+    const c = por(build(w).todos, 'ritmo')
+    medida(c, '0,6 + 0,5')
+    expect(c.value).toBe(`${pw(l)} + ${pw(sh)}`)
+    expect(c.base).toBe('longos + Shorts por semana, média de 13 semanas (8 longos, 7 Shorts)')
+  })
+
+  it('canal que só posta Shorts (nenhum longo em 13 semanas) NÃO está parado: "0,0 + 0,5"', () => {
+    const w = proprioWorld({ mut: envelhece('long') })
+    expect(naJanela(w, 'long')).toBe(0)
+    const c = por(build(w).todos, 'ritmo')
+    medida(c, `0,0 + ${pw(naJanela(w, 'short'))}`)
+    expect(c.value).toBe('0,0 + 0,5')
+    expect(c.value).not.toContain('parado')
+  })
+
+  it('canal que só posta longos (nenhum Short em 13 semanas) NÃO está parado: "0,6 + 0,0"', () => {
+    const w = proprioWorld({ mut: envelhece('short') })
+    expect(naJanela(w, 'short')).toBe(0)
+    const c = por(build(w).todos, 'ritmo')
+    medida(c, '0,6 + 0,0')
+    expect(c.value).not.toContain('parado')
+  })
+
+  it('base fraca: com menos de 3 vídeos o aviso "n = k" aparece em mediana de views e em views/dia; com 3 some', () => {
+    for (const [n, aviso] of [[1, 'n = 1'], [2, 'n = 2'], [3, null]] as const) {
+      const w = proprioWorld({ mut: soOsPrimeirosLongos(n) })
+      expect(proprios(w)).toHaveLength(n)
+      const h = build(w)
+      expect(por(h.todos, 'medianaViews').n, `medianaViews com ${n}`).toBe(aviso)
+      expect(por(h.todos, 'vpdVideo').n, `vpdVideo com ${n}`).toBe(aviso)
+      expect(por(h.todos, 'vpdVideo').value, `vpdVideo com ${n}`).not.toBeNull() // o aviso acompanha um número, não substitui
+    }
+  })
+})
+
+describe('A4.6 cabeçalho próprio: vídeos com impressão, cliques e views/dia na janela certa', () => {
+  const d = (n: number) => addDays(BASE.hoje, -n)
+  const linha = (ytId: string, n: number, imp: number, ctr: number | null) => ({ ytId, dia: d(n), imp, ctr })
+  const SHORT = proprios(BASE).find(v => v.fmt === 'short')!.ytId
+  const [A] = BASE.ytIds as [string]
+  const vi = (linhas: ReturnType<typeof linha>[]) => por(build(comDados({ alcance: ok(alcanceComLinhas(BASE.canalId, BASE.hoje, linhas)) })).todos, 'videosComImpressao')
+
+  it('vídeos com impressão contam Shorts também (não só os longos)', () => {
+    medida(vi([linha(A, 5, 10, 0.1), linha(SHORT, 5, 4, 0.1)]), '2 de 58')
+    medida(vi([linha(SHORT, 5, 4, 0.1)]), '1 de 58')
+  })
+
+  it('vídeos com impressão: o numerador é do mesmo conjunto do total; linha de vídeo que saiu do canal não conta ("5 de 3" não existe)', () => {
+    medida(vi([linha(A, 5, 10, 0.1), linha('yt-que-saiu-do-canal', 5, 99, 0.1)]), '1 de 58')
+    // só vídeo que saiu: zero medido, nunca a frase de ausência
+    medida(vi([linha('yt-que-saiu-do-canal', 5, 99, 0.1)]), '0 de 58')
+    // canal pequeno: nenhum numerador passa do total
+    const w = proprioWorld({ mut: soOsPrimeirosLongos(2) })
+    const [x, y] = w.ytIds as [string, string]
+    const c = por(build(comDados({ alcance: ok(alcanceComLinhas(w.canalId, w.hoje, [linha(x, 5, 3, 0.1), linha(y, 5, 3, 0.1), linha('s1', 5, 3, 0.1), linha('s2', 6, 3, 0.1), linha('s3', 7, 3, 0.1)])) }, soOsPrimeirosLongos(2))).todos, 'videosComImpressao')
+    medida(c, '2 de 2')
+  })
+
+  it('cliques sem CTR: a frase do motivo aparece UMA vez na célula (a palavra "não medido" não se repete) e o texto é exato', () => {
+    const c = por(build(comDados({ alcance: ok(alcanceComLinhas(BASE.canalId, BASE.hoje, [linha(A, 5, 20, 0.1), linha(A, 6, 10, null)])) })).todos, 'cliques')
+    naoMedida(c, 'não medido: o YouTube não devolveu o CTR de algum dia com impressão')
+    expect(FRASE_CTR).toBe(c.missing)
+    const todoTexto = [c.missing, c.label, c.base].join(' | ')
+    expect(todoTexto.split('não medido')).toHaveLength(2) // uma ocorrência
+    expect(c.base).toContain('Algum dia com impressão veio sem CTR, então o total não é calculado.')
+  })
+
+  it('views/dia: a coleta que terminou há 7 dias ainda vale, a de 8 dias já "parou" (o `hoje` do modelo chega a vpdDoCanal sem deslocamento)', () => {
+    const w = BASE
+    const com = (atras: number) => {
+      const diario = { acesso: 'ok' as const, dado: diarioCheio(w.canalId, w.ytIds, addDays(w.hoje, -(atras - 2))) } // termina em hoje - atras
+      return por(build(comDados({ diario })).todos, 'vpdVideo')
+    }
+    const em7 = com(7)
+    expect(em7.missing).toBeNull()
+    expect(em7.value).not.toBeNull()
+    const em8 = com(8)
+    naoMedida(em8, `a coleta diária deste canal parou em ${w.dm(addDays(w.hoje, -8))}`)
+  })
+})
+
 function violacoesDeImport(src: string): string[] {
   const v: string[] = []
   if (/from\s+['"][^'"]*proprio\/ler['"]/.test(src)) v.push('importa os leitores')
