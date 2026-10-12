@@ -59,10 +59,12 @@ function ComPar({ pack, inicial }: { pack: CompararPack; inicial: { a: string; b
       </header>
       <p className="obs-ch-sr" role="status" aria-atomic="true">{anuncio}</p>
       <Lados pack={pack} a={par.a} b={par.b} cores={par.cores} onTrocar={trocar} />
-      <SoSeuCanal pack={pack} par={par} />
       <NumeroANumero pack={pack} par={par} />
       <MaisVistos par={par} />
       <Publicacao par={par} pack={pack} />
+      {/* decisão do dono (12/10): "Só o seu canal mede" não compara nada (só um lado tem os números), então fica no fim, depois de "Número a número"
+          e do resto da comparação; o cartão da forja segue sendo o último filho da tela */}
+      <SoSeuCanal pack={pack} par={par} />
       <ForjaIndisponivel par={par} />
     </div>
   )

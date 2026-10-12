@@ -1847,7 +1847,7 @@ async function esperadoDoCartao(canalOracle = 'tnfigueiredo') {
 const pct1 = (f: number): string => (f * 100).toFixed(1).replace('.', ',') + '%'
 
 blocoT15('T14 comparação: o cartão "Só o seu canal mede" (canal seu × concorrente), com dado completo', { ownPreset: '2', ownL2: 'ativo' }, () => {
-  test('quatro linhas na ordem do mockup (impressões, cliques estimados, taxa de clique com intervalo e faixa, % assistido), os valores do banco, a frase "não porque sejam zero" e o cartão logo abaixo dos dois lados e antes de "Número a número"', async ({ page }) => {
+  test('quatro linhas na ordem do mockup (impressões, cliques estimados, taxa de clique com intervalo e faixa, % assistido), os valores do banco, a frase "não porque sejam zero" e o cartão no fim da página, depois de "Número a número"', async ({ page }) => {
     const x = await esperadoDoCartao()
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto(`${ROTA}/comparar?a=${PROPRIO()}&b=${ids.channel('matt-wolfe')}`)
@@ -1882,15 +1882,15 @@ blocoT15('T14 comparação: o cartão "Só o seu canal mede" (canal seu × conco
     expect(x.assistido, 'o perfil ativo tem % assistido').not.toBeNull()
     expect(x.diasAssistido).toBeGreaterThanOrEqual(7)
     expect(await valor('assistido')).toBe(`${x.assistido}%`)
-    // a posição: depois dos dois lados e antes de "Número a número"
+    // a posição (decisão do dono, 12/10): depois dos dois lados e DEPOIS de "Número a número", no fim da página
     const ordem = await page.locator('[data-obs-screen="comparar"]:visible').first().evaluate(raiz => {
       const num = [...raiz.querySelectorAll('h2')].find(h => /^Número a número/.test(h.textContent ?? ''))
       const lados = raiz.querySelector('.cp-sides')
       const c = raiz.querySelector('[data-so-seu-canal]')!
-      return { depoisDosLados: !!lados && !!(lados.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING), antesDoNumero: !!num && !!(num.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_PRECEDING) }
+      return { depoisDosLados: !!lados && !!(lados.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING), depoisDoNumero: !!num && !!(num.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) }
     })
     expect(ordem.depoisDosLados, 'o cartão vem depois dos dois lados').toBe(true)
-    expect(ordem.antesDoNumero, 'o cartão vem antes de "Número a número"').toBe(true)
+    expect(ordem.depoisDoNumero, 'o cartão vem depois de "Número a número"').toBe(true)
     medida(`cartão: impressões ${PT(x.e.imp)}, cliques ${PT(x.e.cliques!)}, taxa ${pct1(x.t!.taxa)} (${pct1(x.t!.lo)} a ${pct1(x.t!.hi)}), % assistido ${x.assistido}% (${x.diasAssistido} dias, ${x.viewsAssistido} views)`)
   })
 
