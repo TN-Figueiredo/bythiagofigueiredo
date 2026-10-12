@@ -233,6 +233,36 @@ describe('13.4 réguas na tela: teclado, fala e toque', () => {
     expect(nav.push).toHaveBeenCalledWith('/video/v5?back=%3Fsort%3Dimp')
   })
 
+  it('mouse: clicar longe de qualquer traço (mais de 12 px) não abre nada; perto de um traço, abre (I-M4)', () => {
+    const { container } = montar(view('v2'))
+    dispor(container)
+    const g = regua(container, 'views')
+    // os traços ficam de 40 em 40 px (centro em 101 + 40k): 20 px de qualquer um deles é o meio do vão
+    fireEvent.pointerDown(g, { clientX: 101 + 3 * 40 + 20, clientY: 6, pointerType: 'mouse' })
+    expect(nav.push).not.toHaveBeenCalled()
+    fireEvent.pointerDown(g, { clientX: 101 + 3 * 40 + 13, clientY: 6, pointerType: 'mouse' })
+    expect(nav.push).not.toHaveBeenCalled()
+    fireEvent.pointerDown(g, { clientX: 101 + 3 * 40 + 11, clientY: 6, pointerType: 'mouse' })
+    expect(nav.push).toHaveBeenCalledTimes(1)
+    expect(nav.push).toHaveBeenCalledWith('/video/v3?back=%3Fsort%3Dimp')
+  })
+
+  it('toque fora da régua fecha a dica aberta pelo toque; toque dentro dela não a fecha por esse caminho (M5)', () => {
+    const { container } = montar(view('v2'))
+    dispor(container)
+    const g = regua(container, 'views')
+    fireEvent.pointerDown(g, { clientX: 101 + 4 * 40, clientY: 6, pointerType: 'touch' })
+    expect(tips()).toHaveLength(1)
+    // um toque em outra parte da página
+    act(() => { fireEvent.pointerDown(document.body, { clientX: 5, clientY: 5, pointerType: 'touch' }) })
+    expect(tips()).toHaveLength(0)
+    // reabre e confere: o toque na própria régua não a fecha
+    fireEvent.pointerDown(g, { clientX: 101 + 1 * 40, clientY: 6, pointerType: 'touch' })
+    expect(tips()).toHaveLength(1)
+    fireEvent.pointerDown(g.querySelector('.vb-rg-in')!, { clientX: 101 + 1 * 40, clientY: 6, pointerType: 'touch' })
+    expect(tips()).toHaveLength(1)
+  })
+
   it('empate: o mesmo valor escrito abre 2,6 px para o lado (o primeiro fica no valor); com este vídeo no empate ele fica no valor exato e os outros abrem 4,4 px', () => {
     const dxDe = (c: HTMLElement) => [...regua(c, 'curtidas').querySelectorAll<HTMLElement>('.vb-rg-t')].map(x => ({ este: x.hasAttribute('data-este'), dx: Number(x.style.getPropertyValue('--dx').replace('px', '')) }))
     // três vídeos (v1, v3, v4) empatados em 9 no meio da régua, este vídeo (v2) fora do empate
