@@ -43,7 +43,8 @@ function Cartao({ v, unico }: { v: SoSeuCanalCartao; unico: boolean }) {
         Só o seu canal mede{unico ? '' : `: ${v.canal}`}
         <button ref={botao} type="button" className="ibtn" aria-expanded={aberta} aria-controls={dica} aria-label={INFO_SO_SEU_CANAL.titulo} onClick={() => setAberta(o => !o)}>{Icon.info()}</button>
       </h2>
-      <Popover open={aberta} anchor={() => botao.current} onClose={() => setAberta(false)} id={dica} role="dialog" labelledBy={dica + 't'} className="cp-tip" pref="baixo" align="inicio" maxW={400}>
+      {/* alinhado pelo fim: abre para a esquerda do ⓘ e não cobre a coluna dos valores (como no mockup) */}
+      <Popover open={aberta} anchor={() => botao.current} onClose={() => setAberta(false)} id={dica} role="dialog" labelledBy={dica + 't'} className="cp-tip" pref="baixo" align="fim" maxW={400}>
         <h3 id={dica + 't'}>{INFO_SO_SEU_CANAL.titulo}</h3>
         <ul>{INFO_SO_SEU_CANAL.itens.map(i => <li key={i.forte}><b>{i.forte}</b> {i.texto}</li>)}</ul>
       </Popover>
