@@ -147,8 +147,8 @@ test.describe('T8 a página do canal próprio abre com a base de hoje (sem dado 
     await expect(cartao).not.toContainText(/\b0 impress/)
     // a frase das views por dia: UMA vez, na linha das abas
     // A4 (13.3): o desenho das views por dia existe; sem diário a linha das abas diz o motivo, uma vez só
-    await expect(tela(page).getByText('Views por dia: a coleta diária ainda não gravou este canal.')).toHaveCount(1)
-    await expect(tela(page).locator('nav.ctabs p.res')).toHaveText('Views por dia: a coleta diária ainda não gravou este canal.')
+    await expect(tela(page).getByText('Views por dia: ainda não há coleta diária deste canal.')).toHaveCount(1)
+    await expect(tela(page).locator('nav.ctabs p.res')).toHaveText('Views por dia: ainda não há coleta diária deste canal.')
     medida(`cartões: ${await tela(page).locator('ul.cv-grid > li.cv-card').count()}`)
   })
 
@@ -197,7 +197,7 @@ test.describe('T8 a página do canal próprio abre com a base de hoje (sem dado 
     await sel.selectOption('imp')
     // sem relatório nenhum, nenhum vídeo tem impressão: o divisor e a nota miúda dizem a verdade
     await expect(tela(page).locator('tr.cv-grp th').first()).toContainText('Sem impressão medida no período')
-    await expect(tela(page).locator('tr.cv-grp small').first()).toHaveText('o vídeo não apareceu nos relatórios de alcance lidos, ou o alcance do canal não pôde ser lido')
+    await expect(tela(page).locator('tr.cv-grp small').first()).toHaveText('o vídeo não teve impressão nos dias medidos, ou o alcance do canal não pôde ser medido')
   })
 
   test('o link do cartão leva ao vídeo com canal=, ids=, pos= e tot=; o Voltar traz a página de volta', async ({ page }) => {
@@ -899,14 +899,14 @@ blocoT15('T15 tabelas privadas vazias (sem ownL2): nenhuma frase de número, nen
     await page.goto(`${ROTA}?niche=todos`)
     const linha = page.locator(`[data-obs-screen="canais"]:visible tbody tr.row[data-id="${PROPRIO()}"]`)
     await linha.waitFor({ timeout: 40_000 })
-    await expect(linha).toContainText(/a coleta diária ainda não gravou este canal/i)
+    await expect(linha).toContainText(/ainda não há coleta diária deste canal/i)
     await expect(linha).not.toContainText(/\/dia, n =/)
     // a comparação: o lado do canal próprio diz o mesmo
     await page.goto(`${ROTA}/comparar?a=${PROPRIO()}&b=${ids.channel('matt-wolfe')}`)
     const vpd = page.locator('[data-obs-screen]:visible tr').filter({ hasText: /^Views por dia nos longos/ }).first()
     await vpd.waitFor({ timeout: 40_000 })
     await expect(vpd.locator('td.cA .obs-ch-nm')).toHaveText('não medido')
-    await expect(vpd.locator('td.cA small.why')).toHaveText(/a coleta diária ainda não gravou este canal/i)
+    await expect(vpd.locator('td.cA small.why')).toHaveText(/ainda não há coleta diária deste canal/i)
   })
 }, { mochila: true })
 
@@ -956,8 +956,8 @@ blocoT15('T15 canal próprio com dado cheio (29 dias de relatório; 11 com impre
     const g = grafico(page)
     await g.locator('svg.ic-svg').waitFor()
     await expect(g.locator('.ic-res')).toContainText(`${PT(e.imp)} impressões`)
-    await expect(g.locator('.ic-res')).toContainText(`${medidos} dias medidos (${e.naoMedidos.length} sem relatório lido)`)
-    await expect(g.locator('.ic-res')).toContainText(`${e.comImp.length} dias com impressão e ${e.zeros.length} dias medidos em zero`)
+    await expect(g.locator('.ic-res')).toContainText(`${medidos} dias medidos (outros ${e.naoMedidos.length} sem relatório)`)
+    await expect(g.locator('.ic-res')).toContainText(`${e.comImp.length} dias com impressão e ${e.zeros.length} sem impressão`)
     await expect(g.locator('.ic-per')).toContainText(`de ${dm(e.primeiroRel!)} a ${dm(e.ultimoRel!)} · ${total} dias · dia do YouTube`)
     await expect(g.locator('.ic-avisos li').first()).toHaveText('Dias não medidos não contam como zero nem entram nas somas.')
     // vídeos que mais apareceram: o primeiro é o de mais impressões no banco, com o número do banco
@@ -1260,7 +1260,7 @@ blocoT15('T15 views por dia reais (canal ativo): a lista, a comparação e o cab
     await linha.waitFor({ timeout: 40_000 })
     const txtLinha = await textoDe(linha)
     expect(txtLinha).toContain(`${cmpVpd}/dia, n = ${e.nVpd}, ${janela}`)
-    expect(txtLinha).not.toMatch(/não medido|ainda não gravou/)
+    expect(txtLinha).not.toMatch(/não medido|ainda não há coleta diária/)
     await linha.scrollIntoViewIfNeeded()
     await page.screenshot({ path: SHOTS_DADO('lista-1440-escuro-views-por-dia') })
     // 3) o cabeçalho do canal: "Todos os números" e a linha de posição escrevem os mesmos números
@@ -1357,7 +1357,7 @@ blocoT15('T15 canal parado (29 relatórios vazios, diário de zeros, nenhum víd
     const linha = page.locator(`[data-obs-screen="canais"]:visible tbody tr.row[data-id="${PROPRIO()}"]`)
     await linha.waitFor({ timeout: 40_000 })
     expect(await textoDe(linha)).toMatch(/0\/dia, n = \d+, de \d\d\/\d\d a \d\d\/\d\d/)
-    expect(await textoDe(linha)).not.toMatch(/não medido|ainda não gravou|menos de 7/i)
+    expect(await textoDe(linha)).not.toMatch(/não medido|ainda não há coleta diária|menos de 7/i)
     // 390 e tema claro
     await page.context().addCookies([{ name: 'btf_theme', value: 'light', url: 'http://localhost:3099' }])
     await abrirComGrafico(page, { width: 390, height: 844 })
@@ -1493,7 +1493,7 @@ blocoT15('T15 cinco canais próprios (preset 5): a lista posiciona cada um; a co
     // só o primeiro tem diário: os outros quatro dizem o motivo, nunca um número
     for (const c of CINCO.slice(1)) {
       const t = await textoDe(lista.locator(`tbody tr.row[data-id="${ids.own(c)}"]`))
-      expect(t, c).toMatch(/a coleta diária ainda não gravou este canal/i)
+      expect(t, c).toMatch(/ainda não há coleta diária deste canal/i)
       expect(t, c).not.toMatch(/\/dia, n =/)
     }
     expect(await textoDe(lista.locator(`tbody tr.row[data-id="${PROPRIO()}"]`))).toMatch(/0\/dia, n = \d+, de \d\d\/\d\d a \d\d\/\d\d/)
@@ -1522,7 +1522,7 @@ blocoT15('T15 cinco canais próprios (preset 5): a lista posiciona cada um; a co
     await expect(page.getByRole('link', { name: /^Abrir o canal / })).toHaveCount(2)
     await expect(tabela.locator('td.cA .v1')).toHaveText('0')
     await expect(tabela.locator('td.cB .obs-ch-nm')).toHaveText('não medido')
-    await expect(tabela.locator('td.cB small.why')).toHaveText(/a coleta diária ainda não gravou este canal/i)
+    await expect(tabela.locator('td.cB small.why')).toHaveText(/ainda não há coleta diária deste canal/i)
     await page.screenshot({ path: SHOTS_DADO('comparar-2-proprios-1440-escuro') })
   })
 })

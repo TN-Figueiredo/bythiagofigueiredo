@@ -39,7 +39,7 @@ const NBSP = / /g
 const SEIS: Array<[MotivoSemVpd, DiaYt | null, string]> = [
   ['sem-acesso', null, 'só quem edita o site vê as views por dia do seu canal'],
   ['leitura-falhou', null, 'a leitura das views por dia falhou agora; recarregue a página'],
-  ['sem-diario', null, 'a coleta diária ainda não gravou este canal'],
+  ['sem-diario', null, 'ainda não há coleta diária deste canal'],
   ['diario-parado', '2026-10-02', 'a coleta diária deste canal parou em 02/10'],
   ['sem-longos', '2026-10-08', 'nenhum vídeo longo acompanhado'],
   ['poucos-dias', '2026-10-08', 'menos de 7 dias medidos nos últimos 28'],
@@ -112,11 +112,11 @@ describe('A4.5 comparação: números do lado próprio', () => {
     }
   })
 
-  it('sem extras (o dado não foi lido): "a coleta diária ainda não gravou este canal", nunca um número, nunca a frase antiga', () => {
+  it('sem extras (o dado não foi lido): "ainda não há coleta diária deste canal", nunca um número, nunca a frase antiga', () => {
     const n = nums(BASE.obs, OWN)
-    naoMedido(n.vpd, 'a coleta diária ainda não gravou este canal'); naoMedido(n.vpdPorMil, 'a coleta diária ainda não gravou este canal')
+    naoMedido(n.vpd, 'ainda não há coleta diária deste canal'); naoMedido(n.vpdPorMil, 'ainda não há coleta diária deste canal')
     // canal que o mapa não traz = como não lido
-    naoMedido(nums(BASE.obs, OWN2, extras({ [OWN]: medido(1) })).vpd, 'a coleta diária ainda não gravou este canal')
+    naoMedido(nums(BASE.obs, OWN2, extras({ [OWN]: medido(1) })).vpd, 'ainda não há coleta diária deste canal')
   })
 
   it('inscritos ocultos e zero inscritos: o absoluto continua medido; o por mil diz o motivo de hoje', () => {

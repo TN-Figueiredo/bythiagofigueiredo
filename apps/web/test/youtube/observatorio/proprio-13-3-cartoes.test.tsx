@@ -49,7 +49,7 @@ describe('13.3 cartões: views por dia', () => {
     }
   })
   it.each([
-    ['vazio', 'Views por dia: a coleta diária ainda não gravou este canal.'],
+    ['vazio', 'Views por dia: ainda não há coleta diária deste canal.'],
     ['negado', 'Views por dia: só quem edita o site vê.'],
     ['erro', 'Views por dia: a leitura falhou agora; recarregue a página.'],
     ['curto', 'Views por dia: menos de 7 dias medidos nos últimos 28.'],

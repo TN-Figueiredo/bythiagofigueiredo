@@ -60,7 +60,10 @@ function Cartao({ v, unico }: { v: SoSeuCanalCartao; unico: boolean }) {
               <div className="so-val">
                 {l.valor != null
                   ? <span className={'so-vl num' + (l.fraco ? ' fraco' : '')}>{l.valor}{l.nota ? <small>{l.nota}</small> : null}</span>
-                  : <Fragment><span className="obs-ch-nm so-nm" role="img" aria-label="não medido" />{l.nota ? <small className="so-nota">{l.nota}</small> : null}</Fragment>}
+                  : l.aindaNaoDa
+                    // há dado, pouco demais: só a frase, sem o quadradinho (que é "não medido")
+                    ? <small className="so-nota so-ainda">{l.nota}</small>
+                    : <Fragment><span className="obs-ch-nm so-nm" role="img" aria-label="não medido" />{l.nota ? <small className="so-nota">{l.nota}</small> : null}</Fragment>}
                 {l.chave === 'taxa' && v.taxa ? <FaixaDaTaxa taxa={v.taxa} /> : null}
               </div>
             </li>

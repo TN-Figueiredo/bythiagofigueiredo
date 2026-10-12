@@ -18,7 +18,7 @@ export function notaDoDivisor(d: Divisor, sort: CanalSort): string {
     case 'vistos': return 'o YouTube ainda não devolveu a contagem'
     case 'multiplo': return 'formato não confirmado, fixado antigo ou sem contagem'
     // canal próprio: o vídeo que não aparece no relatório de alcance E o alcance que não pôde ser lido caem aqui (o motivo de cada caso está na nota sob a grade)
-    case 'imp': return 'o vídeo não apareceu nos relatórios de alcance lidos, ou o alcance do canal não pôde ser lido'
+    case 'imp': return 'o vídeo não teve impressão nos dias medidos, ou o alcance do canal não pôde ser medido'
     case 'recentes':
     case 'vpd': return 'fora dos acompanhados, fixado antigo ou sem contagem'
     default: { const nunca: never = sort; return nunca }

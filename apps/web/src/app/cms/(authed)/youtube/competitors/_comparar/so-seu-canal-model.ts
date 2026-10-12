@@ -21,7 +21,11 @@ import { pctUm } from '../_proprio/taxa-faixa-model'
 export type ChaveLinha = 'impressoes' | 'cliques' | 'taxa' | 'assistido'
 
 /** Uma linha do cartão. `valor` nulo = não medido (o quadradinho hachurado); `nota` = a segunda linha pequena ao lado do valor; `fraco` = valor em cinza (pouca base). */
-export interface LinhaSoSeuCanal { chave: ChaveLinha; rotulo: string; sub: string; valor: string | null; nota: string | null; fraco: boolean }
+export interface LinhaSoSeuCanal {
+  chave: ChaveLinha; rotulo: string; sub: string; valor: string | null; nota: string | null; fraco: boolean
+  /** true = HÁ dado, mas pouco demais para dizer (o % assistido com menos de 7 dias): a tela escreve só a frase, SEM o quadradinho de "não medido". */
+  aindaNaoDa: boolean
+}
 
 export interface SoSeuCanalView {
   canal: string
@@ -45,8 +49,8 @@ export const FRASE_ERRO_CARTAO = 'A leitura do alcance falhou agora; recarregue 
 export const NEGRITO_NAO_ZERO = 'não porque sejam zero'
 export const PREFIXO_NAO_MEDIDO = 'Não medido.'
 export const NOTA_TAXA_LARGA = 'Ainda não dá para dizer se é alta ou baixa.'
-const NOTA_CTR = 'não medido: o YouTube não devolveu o CTR de algum dia com impressão'
-const NOTA_SEM_IMPRESSAO = 'nenhuma impressão nos dias lidos, então não há taxa'
+const NOTA_CTR = 'não medido: o YouTube não informou a taxa de clique de algum dia com impressões'
+const NOTA_SEM_IMPRESSAO = 'nenhuma impressão nos dias medidos, então não há taxa'
 
 export const INFO_SO_SEU_CANAL = {
   titulo: 'De onde vêm estes números',
@@ -70,15 +74,15 @@ function cliquesTexto(cliques: number, F: Pick<Fmt, 'int'>): string {
   return cliques > 0 && Math.round(cliques) === 0 ? 'menos de 1' : F.int(Math.round(cliques))
 }
 
-const linha = (chave: ChaveLinha, rotulo: string, sub: string, valor: string | null = null, nota: string | null = null, fraco = false): LinhaSoSeuCanal =>
-  ({ chave, rotulo, sub, valor, nota, fraco })
+const linha = (chave: ChaveLinha, rotulo: string, sub: string, valor: string | null = null, nota: string | null = null, fraco = false, aindaNaoDa = false): LinhaSoSeuCanal =>
+  ({ chave, rotulo, sub, valor, nota, fraco, aindaNaoDa })
 
 /** A nota de uma linha de % assistido sem número; `sem-views` não tem nada a dizer além do que a linha já diz. */
 function notaSemAssistido(m: MotivoAssistidoCanal | null): string | null {
   switch (m) {
     case 'sem-acesso': return 'só quem edita o site vê este número'
     case 'leitura-falhou': return 'a leitura do % assistido falhou agora; recarregue a página'
-    case 'sem-diario': return 'a coleta diária ainda não gravou este canal'
+    case 'sem-diario': return 'ainda não há coleta diária deste canal'
     case 'sem-percentual': return 'o YouTube ainda não entregou o % assistido'
     case 'sem-views':
     case null: return null
@@ -90,7 +94,7 @@ function linhaAssistido(diario: Privado<DiarioCanal>, longos: readonly string[],
   const a = assistidoDoCanal(diario, longos)
   if (a.pct == null) return linha('assistido', '% assistido', SUB.assistidoSemNumero, null, semNota ? null : notaSemAssistido(a.motivo))
   // há dado, mas menos de 7 dias: o mesmo veredito do cabeçalho do canal (header-model.ts), nunca um número cravado em cima de quase nada
-  if (a.dias < MIN_DIAS_ASSISTIDO) return linha('assistido', '% assistido', SUB.assistidoSemNumero, null, `só ${a.dias} ${a.dias === 1 ? 'dia' : 'dias'} com dado; precisa de ${MIN_DIAS_ASSISTIDO}`)
+  if (a.dias < MIN_DIAS_ASSISTIDO) return linha('assistido', '% assistido', SUB.assistidoSemNumero, null, `Ainda não dá para dizer: só ${a.dias} ${a.dias === 1 ? 'dia' : 'dias'} com dado; precisa de ${MIN_DIAS_ASSISTIDO}.`, false, true)
   // acima de 100 é dado válido (trecho revisto): o número real, sem recortar
   const nota = a.n < POUCAS_VIEWS_MEDIA ? `só ${a.n} ${a.n === 1 ? 'view' : 'views'}: pouco para uma média` : null
   return linha('assistido', '% assistido', SUB.assistido, `${Math.round(a.pct)}%`, nota, a.n < POUCAS_VIEWS)

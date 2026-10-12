@@ -233,7 +233,7 @@ function paginador(obs: Observatory, ch: ObsChannel, videoId: string, titulo: st
   // a frase só afirma a ordem que o site SABE: a do top de impressões (marcador próprio no back), a de uma lista da grade (descrita pelo back) ou,
   // sem `ids=`, a do canal por data. Um back que não descreve lista (`?painel=1` de um link antigo) não afirma ordem nenhuma.
   const descDaLista = canais ? descricaoDaOrigem(back ?? '') : null
-  const ordemDaLista = veioDoTopDeImpressoes(back) ? 'na ordem do top de impressões' : (descDaLista != null ? `na ordem da lista: ${descDaLista}` : 'na ordem em que a lista estava quando você abriu')
+  const ordemDaLista = veioDoTopDeImpressoes(back) ? 'na ordem do top de impressões' : (descDaLista != null ? `na ordem da lista: ${descDaLista}` : 'na ordem da lista de onde você veio')
   // sem `ids=` a tela anda pela data do canal: é "a ordem da lista" só quando a lista de origem é essa mesma (sem `back`, ou a grade no padrão)
   const listaEhPorData = back == null || descDaLista === ORDEM_PADRAO
   const ordem = naLista

@@ -146,7 +146,7 @@ describe('14 modelo: buildSoSeuCanal', () => {
       expect(v.linhas.map(l => l.chave)).toEqual(['impressoes', 'cliques', 'taxa', 'assistido'])
       // as três linhas do alcance: só o quadradinho; o % assistido segue o estado dele (diário vazio: a nota da coleta diária)
       for (const l of v.linhas.filter(x => x.chave !== 'assistido')) expect(l, l.chave).toMatchObject({ valor: null, nota: null, fraco: false })
-      expect(linha(v, 'assistido')).toMatchObject({ valor: null, nota: 'a coleta diária ainda não gravou este canal', fraco: false })
+      expect(linha(v, 'assistido')).toMatchObject({ valor: null, nota: 'ainda não há coleta diária deste canal', fraco: false })
       expect(v.taxa).toBeNull()
       expect(JSON.stringify(v)).not.toMatch(/"valor":"/)
     }
@@ -177,7 +177,7 @@ describe('14 modelo: buildSoSeuCanal', () => {
     const semPct = linha(viewDe(monta(alc3de140(), diarioPct([{ dias: 10, views: 5, pct: null }]))), 'assistido')
     expect(semPct).toMatchObject({ valor: null, nota: 'o YouTube ainda não entregou o % assistido' })
     // a coleta diária ainda não gravou o canal
-    expect(linha(viewDe(monta(alc3de140(), ok({ canalId, ultimoDia: null, linhas: [], descartados: 0 }))), 'assistido')).toMatchObject({ valor: null, nota: 'a coleta diária ainda não gravou este canal' })
+    expect(linha(viewDe(monta(alc3de140(), ok({ canalId, ultimoDia: null, linhas: [], descartados: 0 }))), 'assistido')).toMatchObject({ valor: null, nota: 'ainda não há coleta diária deste canal' })
   })
 
   it('cliques sem CTR em algum dia com impressão: cliques e taxa são "não medido", as impressões seguem; nunca 0', () => {
@@ -185,7 +185,7 @@ describe('14 modelo: buildSoSeuCanal', () => {
     const v = viewDe(monta(ok(semCtr), DIARIO_CHEIO()))
     expect(linha(v, 'impressoes').valor).toBe('100')
     expect(linha(v, 'cliques')).toMatchObject({ valor: null })
-    expect(linha(v, 'cliques').nota).toContain('CTR')
+    expect(linha(v, 'cliques').nota).toContain('taxa de clique')   // antes: 'CTR' (jargão)
     expect(linha(v, 'taxa')).toMatchObject({ valor: null })
     expect(v.taxa).toBeNull()
   })

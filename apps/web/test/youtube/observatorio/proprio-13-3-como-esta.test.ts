@@ -57,14 +57,14 @@ describe('13.3 bloco "Taxa de clique do canal"', () => {
 
   it('sem relatório e nenhum dia lido: nula, com a frase de cada um (nunca 0%)', () => {
     expect(monta({ ...w.dados, alcance: { acesso: 'ok', dado: alcanceVazio(w.canalId) } }).view.taxa).toMatchObject({ frase: null, faixa: null, vazio: 'Sem relatório de alcance não há como calcular a taxa.' })
-    expect(monta({ ...w.dados, alcance: { acesso: 'ok', dado: alcanceNadaLido(w.canalId, w.hoje) } }).view.taxa).toMatchObject({ frase: null, faixa: null, vazio: 'Nenhum dia do período foi lido ainda, então não há taxa.' })
+    expect(monta({ ...w.dados, alcance: { acesso: 'ok', dado: alcanceNadaLido(w.canalId, w.hoje) } }).view.taxa).toMatchObject({ frase: null, faixa: null, vazio: 'Nenhum dia do período foi medido ainda, então não há taxa.' })
   })
 
   it('zero impressão nos dias lidos: não há taxa; algum dia sem CTR: a taxa não é calculada', () => {
     const base = alcanceCheio(w.canalId, w.ytIds, w.hoje)
-    expect(monta({ ...w.dados, alcance: { acesso: 'ok', dado: { ...base, linhas: [] } } }).view.taxa).toMatchObject({ frase: null, vazio: 'Nenhuma impressão nos dias lidos, então não há taxa.' })
+    expect(monta({ ...w.dados, alcance: { acesso: 'ok', dado: { ...base, linhas: [] } } }).view.taxa).toMatchObject({ frase: null, vazio: 'Nenhuma impressão nos dias medidos, então não há taxa.' })
     const semCtr = { ...base, linhas: base.linhas.map((l, i) => (i === 0 ? { ...l, ctr: null } : l)) }
-    expect(monta({ ...w.dados, alcance: { acesso: 'ok', dado: semCtr } }).view.taxa).toMatchObject({ frase: null, faixa: null, vazio: 'A taxa não é calculada: algum dia com impressão veio sem a taxa de cliques.' })
+    expect(monta({ ...w.dados, alcance: { acesso: 'ok', dado: semCtr } }).view.taxa).toMatchObject({ frase: null, faixa: null, vazio: 'Não dá para calcular a taxa: o YouTube não informou a taxa de clique de pelo menos um dia com impressões.' })
   })
 
   it('usuário só de leitura: a view do bloco não leva nenhum dígito (sentinelas)', () => {
@@ -75,7 +75,7 @@ describe('13.3 bloco "Taxa de clique do canal"', () => {
 })
 
 describe('13.3 gráfico "Views por dia, soma dos vídeos"', () => {
-  it('cheio: 28 dias de views, sem faixa de cliques, que terminam no último dia gravado', () => {
+  it('cheio: 28 dias de views, sem faixa de cliques, que terminam no último dia medido', () => {
     const { graficoViews: g } = monta()
     expect(g.unidade).toBe('views')
     expect(g.faixaCliques).toBe(false)

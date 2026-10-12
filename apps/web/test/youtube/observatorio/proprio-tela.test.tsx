@@ -201,7 +201,7 @@ describe('T8 controles do canal próprio', () => {
     expect(imps.slice(0, 2).every(t => t != null)).toBe(true) // a fixture tem dois vídeos com impressão
     const div = raiz().querySelector('li.cv-div')!
     expect(div.querySelector('h3')!.textContent).toMatch(/^Sem impressão medida no período \(\d+\)$/)
-    expect(div.querySelector('small')!.textContent).toBe('o vídeo não apareceu nos relatórios de alcance lidos, ou o alcance do canal não pôde ser lido')
+    expect(div.querySelector('small')!.textContent).toBe('o vídeo não teve impressão nos dias medidos, ou o alcance do canal não pôde ser medido')
     expect(screen.getByRole('status').textContent).toMatch(/Ordenado por Impressões, decrescente/)
   })
 })

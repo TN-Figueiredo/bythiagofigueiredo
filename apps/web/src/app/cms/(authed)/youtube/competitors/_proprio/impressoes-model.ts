@@ -332,7 +332,7 @@ function metodoDe(escopo: 'canal' | 'video', unidade: Unidade): string[] {
     escopo === 'video'
       ? 'Barra cheia: o relatório do dia trouxe impressões deste vídeo. Caixa vazada: o relatório foi lido e não trouxe este vídeo (zero medido). Coluna hachurada: o dia não foi medido (relatório ausente, ainda não baixado, com erro ou expirado) e não conta como zero nem entra em soma.'
       : 'Barra cheia: o relatório do dia trouxe impressões. Caixa vazada: o relatório foi lido e veio vazio (zero medido). Coluna hachurada: o dia não foi medido (relatório ausente, ainda não baixado, com erro ou expirado) e não conta como zero nem entra em soma.',
-    'Cliques estimados são impressões × taxa de cliques (CTR) de cada vídeo no dia, somados e arredondados só na hora de escrever. O total pode diferir da soma dos números escritos.',
+    'Cliques estimados são impressões × taxa de clique de cada vídeo no dia, somados e arredondados só na hora de escrever. O total pode diferir da soma dos números escritos.',
     'A faixa sob as datas mostra os cliques estimados do dia: um ponto por dia com clique, todos na mesma linha, e o número embaixo (a altura do ponto não mede nada; quem mede é o número). Dia com impressões e sem taxa de cliques fica hachurado na faixa.',
     'Use os botões Dia anterior e Dia seguinte, as setas do teclado ou a tabela para ler um dia de cada vez.',
   ]

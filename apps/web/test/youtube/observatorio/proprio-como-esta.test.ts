@@ -71,17 +71,17 @@ describe('T10 a linha recolhida e a frase do topo (spec 16.5, D13)', () => {
     for (const f of [abaixo, igual]) expect(f).not.toMatch(/a melhor capa|capa vencedora|compare as capas/i)
   })
 
-  it('nenhum dia lido: a frase diz que ainda não há relatório lido e a recolhida não escreve "0 impressões"', () => {
+  it('nenhum dia lido: a frase diz que ainda não há dia medido e a recolhida não escreve "0 impressões"', () => {
     const { dias, periodo } = montarDias(alcanceNadaLido(CANAL, HOJE))
     const r = resumir(dias)
     expect(r.imp).toBeNull()
     const x = v({ resumo: r, periodo })
     expect(periodo).not.toBeNull()
-    expect(x.frase).toBe(`Ainda não há relatório lido: nenhum dos ${periodo!.dias} dias do período tem impressões ou cliques medidos.`)
-    expect(x.recolhida).toContain('Ainda não há relatório lido')
+    expect(x.frase).toBe(`Ainda não há dia medido: nenhum dos ${periodo!.dias} dias do período tem impressões ou cliques medidos.`)
+    expect(x.recolhida).toContain('Ainda não há dia medido')
     expect(x.recolhida).not.toMatch(/\b0 impress|nenhuma impress/i)
     expect(x.recolhida).not.toMatch(/\d+ impressões/)
-    expect(x.topVazio).toBe('Nenhum dia do período foi lido ainda, então nenhum vídeo aparece aqui.')
+    expect(x.topVazio).toBe('Nenhum dia do período foi medido ainda, então nenhum vídeo aparece aqui.')
   })
 
   it('sem relatório nenhum: a frase do gráfico ("Ainda não há relatório de alcance deste canal."), sem número e sem "0"', () => {
@@ -98,19 +98,19 @@ describe('T10 a linha recolhida e a frase do topo (spec 16.5, D13)', () => {
     const r = resumir(dias)
     expect(r).toMatchObject({ imp: 0, diasLidos: 10, diasComImpressao: 0 })
     const x = v({ resumo: r, periodo })
-    expect(x.frase).toBe('Nenhuma impressão em 10 dias lidos.')
-    expect(x.recolhida).toBe('Nenhuma impressão em 10 dias lidos. 14º de 14 canais de Viagem em inscritos.')
-    expect(x.topVazio).toBe('Nenhum vídeo teve impressão nos 10 dias lidos.')
+    expect(x.frase).toBe('Nenhuma impressão em 10 dias medidos.')
+    expect(x.recolhida).toBe('Nenhuma impressão em 10 dias medidos. 14º de 14 canais de Viagem em inscritos.')
+    expect(x.topVazio).toBe('Nenhum vídeo teve impressão nos 10 dias medidos.')
   })
 
   it('um dia lido em zero: singular; zero com dias não medidos diz que eles ficam fora da conta', () => {
     const um = v({ resumo: { imp: 0, cliques: 0, diasComImpressao: 0, diasLidos: 1, diasNaoMedidos: 0 }, periodo: { de: '2026-10-07', ate: '2026-10-07', dias: 1 } })
-    expect(um.frase).toBe('Nenhuma impressão em 1 dia lido.')
+    expect(um.frase).toBe('Nenhuma impressão em 1 dia medido.')
     // o vazio do topo concorda também: "em 1 dia lido", nunca "no 1 dia lido"
-    expect(um.topVazio).toBe('Nenhum vídeo teve impressão em 1 dia lido.')
+    expect(um.topVazio).toBe('Nenhum vídeo teve impressão em 1 dia medido.')
     const buraco = v({ resumo: { imp: 0, cliques: 0, diasComImpressao: 0, diasLidos: 6, diasNaoMedidos: 2 }, periodo: { de: '2026-09-30', ate: '2026-10-07', dias: 8 } })
-    expect(buraco.frase).toBe('Nenhuma impressão em 6 dias lidos. Os 2 dias sem relatório lido não entram na conta.')
-    expect(buraco.topVazio).toBe('Nenhum vídeo teve impressão nos 6 dias lidos.')
+    expect(buraco.frase).toBe('Nenhuma impressão em 6 dias medidos. Os 2 dias sem relatório não entram na conta.')
+    expect(buraco.topVazio).toBe('Nenhum vídeo teve impressão nos 6 dias medidos.')
   })
 
   it('série com buracos diz a base: "em 19 dos 29 dias", e o dia não medido não entra como zero', () => {
@@ -143,7 +143,7 @@ describe('T10 a linha recolhida e a frase do topo (spec 16.5, D13)', () => {
     expect(v().recolhida).not.toContain('parou')   // o dia do último relatório é ontem
     // também no zero medido e no nada lido
     const { dias, periodo } = montarDias(alcanceSoVazios(CANAL, '2026-10-01', 10))
-    expect(v({ resumo: resumir(dias), periodo, hoje: '2026-10-30' }).recolhida).toMatch(/Nenhuma impressão em 10 dias lidos\. A coleta parou em \d\d\/\d\d\./)
+    expect(v({ resumo: resumir(dias), periodo, hoje: '2026-10-30' }).recolhida).toMatch(/Nenhuma impressão em 10 dias medidos\. A coleta parou em \d\d\/\d\d\./)
   })
 
   it('cliques: não medidos (CTR ausente), nenhum e "menos de 1" nunca viram um número falso', () => {
@@ -231,17 +231,17 @@ describe('T10 "Vídeos que mais apareceram"', () => {
   it('vídeo com impressões que não está entre os guardados do canal não tem cartão: fica fora da lista e a nota diz o fato e quantos (sem afirmar a causa)', () => {
     const x = v({ porVideo: mapa(['yt-fora1', 500, 5, 3], ['yt-fora2', 20, 1, 1], ['yt1', 10, 1, 2]) })
     expect(x.top.map(t => t.id)).toEqual(['v1'])
-    expect(x.topNota).toBe('2 vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.')
-    expect(v({ porVideo: mapa(['yt-fora1', 500, 5, 3], ['yt1', 10, 1, 2]) }).topNota).toBe('1 vídeo com impressões no relatório não está entre os vídeos guardados deste canal.')
+    expect(x.topNota).toBe('2 vídeos com impressões no relatório não estão na lista de vídeos deste canal.')
+    expect(v({ porVideo: mapa(['yt-fora1', 500, 5, 3], ['yt1', 10, 1, 2]) }).topNota).toBe('1 vídeo com impressões no relatório não está na lista de vídeos deste canal.')
     // só vídeos de fora: a frase de vazio não finge que o canal não teve impressão
     const so = v({ porVideo: mapa(['yt-fora1', 500, 5, 3]) })
     expect(so.top).toEqual([])
     // T13.0 H10: a frase é a da função única, com o singular de 1 (antes era um literal escrito à mão, sempre no plural)
     expect(so.topVazio).toBe(foraDosGuardadosFrase(1, v => String(v)))
-    expect(so.topVazio).toBe('1 vídeo com impressões no relatório não está entre os vídeos guardados deste canal.')
+    expect(so.topVazio).toBe('1 vídeo com impressões no relatório não está na lista de vídeos deste canal.')
     const tres = v({ porVideo: mapa(['yt-fora1', 500, 5, 3], ['yt-fora2', 20, 1, 1], ['yt-fora3', 7, 0, 1]) })
     expect(tres.topVazio).toBe(foraDosGuardadosFrase(3, v => String(v)))
-    expect(tres.topVazio).toBe('3 vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.')
+    expect(tres.topVazio).toBe('3 vídeos com impressões no relatório não estão na lista de vídeos deste canal.')
     // nenhuma das frases afirma POR QUE o vídeo não está guardado (apagado? privado? só não sincronizado?)
     for (const t of [x.topNota!, so.topVazio ?? '']) expect(t).not.toMatch(/saíram|saiu|apagad|privad/)
   })

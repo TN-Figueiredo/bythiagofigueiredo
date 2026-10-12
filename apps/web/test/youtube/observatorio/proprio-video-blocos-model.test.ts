@@ -229,7 +229,7 @@ describe('taxa de clique deste vídeo', () => {
   it('CTR nulo em algum dia com impressão: a taxa é "não medida", nunca 0%', () => {
     const b = blocos(mundoVideo({ mut: umaFaixa, alcance: { impFoco: 500, ctrFoco: null } })).impressoes!
     expect(b.taxa).toBeNull()
-    expect(b.semTaxa).toBe('A taxa de clique deste vídeo não é medida: o YouTube não devolveu a taxa de algum dia com impressão.')
+    expect(b.semTaxa).toBe('Não dá para calcular a taxa de clique deste vídeo: o YouTube não informou a taxa de pelo menos um dia com impressões.')
     expect(JSON.stringify(b)).not.toMatch(/0,0%/)
   })
 })
@@ -257,9 +257,9 @@ describe('% assistido', () => {
     expect(blocos(mundoVideo({ mut: umaFaixa, diario: { viewsFoco: 9, diasFoco: 1 } })).assistido!.estado).toBe('pouco')
   })
 
-  it('acima de 100% é dado válido: o número real na frase, a frase diz que reviram trechos, a barra não estoura, e o ⓘ explica', () => {
+  it('acima de 100% é dado válido: o número real na frase, a frase diz que acontece quando muita gente revê trechos, a barra não estoura, e o ⓘ explica', () => {
     const a = blocos(mundoVideo({ mut: umaFaixa, diario: { pctFoco: 139.38 } })).assistido!
-    expect(a.partes.map(p => p.t).join('')).toBe('Quem assiste vê em média 139% do vídeo: 13:56 assistidos num vídeo de 10:00, porque as pessoas reviram trechos. Baseado em 24.680 views.')
+    expect(a.partes.map(p => p.t).join('')).toBe('Quem assiste vê em média 139% do vídeo (13:56 num vídeo de 10:00): acontece quando muita gente revê trechos. Baseado em 24.680 views.')
     expect(a.partes.map(p => p.t).join('')).not.toMatch(/\(13:56 de 10:00\)/)
     expect(a.barraPct).toBe(100)
     expect(a.metodo.join(' ')).toContain('Acima de 100%: trecho que muita gente voltou para rever.')
@@ -460,7 +460,7 @@ describe('segurança: acesso negado não leva nenhum número privado', () => {
 })
 
 describe('relógio e datas', () => {
-  it('nada fixo: com o relógio andando um dia a janela anda junto (o gráfico termina no último dia gravado, não em "hoje")', () => {
+  it('nada fixo: com o relógio andando um dia a janela anda junto (o gráfico termina no último dia medido, não em "hoje")', () => {
     const g = blocos(W).views!.grafico!
     const ultimo = addDays(W.hoje, -2)
     expect(g.periodoTexto).toMatch(new RegExp(`a ${dmDia(ultimo)} · 28 dias`))

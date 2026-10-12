@@ -80,8 +80,8 @@ export const FRASE_NEGADO = 'só quem edita o site vê este número'
 export const FRASE_ERRO = 'a leitura do alcance falhou agora; recarregue a página'
 export const FRASE_SEM_RELATORIO = 'ainda sem relatório de alcance deste canal'
 /** Há relatório, mas nenhum dia do período foi lido ainda (todos por baixar, com erro ou expirados). */
-export const FRASE_NADA_LIDO = 'nenhum dia do período foi lido ainda'
-export const FRASE_CTR = 'não medido: o YouTube não devolveu o CTR de algum dia com impressão'
+export const FRASE_NADA_LIDO = 'nenhum dia do período foi medido ainda'
+export const FRASE_CTR = 'não medido: o YouTube não informou a taxa de clique de algum dia com impressões'
 
 /** A frase de cada estado em que não há número; `ok` não tem frase. Switch exaustivo: um estado novo não compila sem a sua frase. */
 export function fraseDoAlcance(e: EstadoAlcance): string | null {
@@ -181,7 +181,7 @@ export function buildProprioHeader(
     value: alc.estado === 'ok' && !nada ? F.num(alc.resumo.imp ?? 0) : null,
     missing: faltaAlcance(),
     base: alc.estado === 'ok'
-      ? `Vezes em que a miniatura de um vídeo apareceu no YouTube, somadas ${periodoTxt} (${noun(alc.periodo.dias, 'dia', 'dias')}). ${noun(lidos, 'dia lido', 'dias lidos')}; ${alc.resumo.diasNaoMedidos ? `${noun(alc.resumo.diasNaoMedidos, 'dia', 'dias')} sem relatório lido ficam fora da soma` : 'nenhum dia fica sem relatório lido'}. ${DIA_YT}${INCLUI}`
+      ? `Vezes em que a miniatura de um vídeo apareceu no YouTube, somadas ${periodoTxt} (${noun(alc.periodo.dias, 'dia', 'dias')}). ${noun(lidos, 'dia medido', 'dias medidos')}; ${alc.resumo.diasNaoMedidos ? `${noun(alc.resumo.diasNaoMedidos, 'dia', 'dias')} sem relatório ficam fora da soma` : 'nenhum dia fica sem relatório'}. ${DIA_YT}${INCLUI}`
       : 'Vezes em que a miniatura de um vídeo apareceu no YouTube, somadas no período dos relatórios de alcance do canal.',
   }, { sub: periodoTxt && !nada ? periodoTxt : null })
 
@@ -189,7 +189,7 @@ export function buildProprioHeader(
     value: alc.estado === 'ok' && !nada ? `${alc.resumo.diasComImpressao} de ${alc.resumo.diasLidos}` : null,
     missing: faltaAlcance(),
     base: alc.estado === 'ok'
-      ? `Dos ${noun(lidos, 'dia lido', 'dias lidos')} ${periodoTxt}, ${alc.resumo.diasComImpressao} trouxeram impressões e ${lidos - alc.resumo.diasComImpressao} vieram vazios. ${alc.resumo.diasNaoMedidos ? `${noun(alc.resumo.diasNaoMedidos, 'dia', 'dias')} sem relatório lido ficam fora da conta. ` : ''}${DIA_YT}`
+      ? `Dos ${noun(lidos, 'dia medido', 'dias medidos')} ${periodoTxt}, ${alc.resumo.diasComImpressao} trouxeram impressões e ${lidos - alc.resumo.diasComImpressao} vieram vazios. ${alc.resumo.diasNaoMedidos ? `${noun(alc.resumo.diasNaoMedidos, 'dia', 'dias')} sem relatório ficam fora da conta. ` : ''}${DIA_YT}`
       : 'Dias do período em que algum vídeo teve impressões, sobre os dias com relatório de alcance lido.',
   })
 
@@ -205,19 +205,19 @@ export function buildProprioHeader(
   /* ---------------------------------------------------------------- todos os números */
   const cliquesOk = alc.estado === 'ok' && !nada
   const cliquesTotal = alc.estado === 'ok' ? alc.resumo.cliques : null
-  const BASE_CLIQUES = `Estimado: impressões × CTR de cada dia e vídeo, somados e arredondados uma vez, no total; por isso o total pode diferir da soma das partes escritas. O YouTube não informa cliques.${INCLUI}`
+  const BASE_CLIQUES = `Estimado: impressões × taxa de clique de cada dia e vídeo, somados e arredondados uma vez, no total; por isso o total pode diferir da soma das partes escritas. O YouTube não informa cliques.${INCLUI}`
   const cliques = cell('cliques', 'cliques estimados no período', {
     // arredonda só o total que aparece; um total positivo que arredondaria para 0 diz "menos de 1", nunca "0"
     value: cliquesOk && cliquesTotal != null ? cliquesTexto(cliquesTotal, F) : null,
     missing: cliquesOk ? FRASE_CTR : faltaAlcance(),
-    base: cliquesOk && cliquesTotal == null ? `${BASE_CLIQUES} Algum dia com impressão veio sem CTR, então o total não é calculado.` : BASE_CLIQUES,
+    base: cliquesOk && cliquesTotal == null ? `${BASE_CLIQUES} Algum dia com impressões veio sem a taxa de clique, então o total não é calculado.` : BASE_CLIQUES,
   }, { sub: cliquesOk && cliquesTotal != null ? 'impressões × taxa de cada dia' : null })
 
   // taxa de clique do canal: cliques estimados ÷ impressões do período, com o intervalo de 95% (Wilson); sem impressão não há taxa (nula, nunca 0%)
   const taxa = cliquesOk ? taxaDoCanal(alc.resumo) : null
   const taxaClique = cell('taxaClique', 'taxa de clique do canal', {
     value: taxa ? pctUm(taxa.taxa) : null,
-    missing: !cliquesOk ? faltaAlcance() : alc.estado === 'ok' && alc.resumo.imp === 0 ? 'nenhuma impressão nos dias lidos, então não há taxa' : FRASE_CTR,
+    missing: !cliquesOk ? faltaAlcance() : alc.estado === 'ok' && alc.resumo.imp === 0 ? 'nenhuma impressão nos dias medidos, então não há taxa' : FRASE_CTR,
     base: taxa
       ? `Cliques estimados ÷ impressões, no período ${periodoTxt}. O intervalo de ${pctUm(taxa.lo)} a ${pctUm(taxa.hi)} é o de 95% de confiança (Wilson): com poucas impressões ele é largo. ${taxaLargaFrase(taxa)}`
       : 'Cliques estimados ÷ impressões, no período dos relatórios de alcance do canal.',
@@ -229,7 +229,7 @@ export function buildProprioHeader(
   const videosComImpressao = cell('videosComImpressao', 'vídeos com alguma impressão', {
     value: alc.estado === 'ok' && !nada ? `${comImpressao} de ${total}` : null,
     missing: faltaAlcance(),
-    base: alc.estado === 'ok' ? `Vídeos que apareceram ao menos uma vez nos dias lidos ${periodoTxt}. ${DIA_YT}` : 'Vídeos do canal que apareceram ao menos uma vez nos dias com relatório de alcance lido.',
+    base: alc.estado === 'ok' ? `Vídeos que apareceram ao menos uma vez nos dias medidos ${periodoTxt}. ${DIA_YT}` : 'Vídeos do canal que apareceram ao menos uma vez nos dias com alcance medido.',
   })
 
   const medianaN = obs.median(comViews.map(v => v.views))
@@ -345,8 +345,8 @@ function resumoDoCanal(ultimo: ObsVideo | null, parado: boolean, alc: AlcanceLid
     case 'sem-relatorio': resto = '; ainda sem números de alcance.'; break
     case 'ok': {
       const r = alc.resumo
-      if (r.diasLidos === 0 || r.imp == null) resto = '; nenhum dia de alcance foi lido ainda.'
-      else if (r.imp === 0) resto = `; nenhuma impressão em ${plural1(r.diasLidos, 'dia lido', 'dias lidos', F)}.`
+      if (r.diasLidos === 0 || r.imp == null) resto = '; ainda não há dia de alcance medido.'
+      else if (r.imp === 0) resto = `; nenhuma impressão em ${plural1(r.diasLidos, 'dia medido', 'dias medidos', F)}.`
       else resto = `; ${plural1(r.imp, 'impressão', 'impressões', F)} em ${plural1(alc.periodo.dias, 'dia', 'dias', F)}.`
       break
     }
@@ -382,7 +382,7 @@ function motivoAssistido(a: AssistidoCanal, dm: (d: DiaYt) => string): string {
   switch (a.motivo) {
     case 'sem-acesso': return FRASE_NEGADO
     case 'leitura-falhou': return 'a leitura do % assistido falhou agora; recarregue a página'
-    case 'sem-diario': return 'a coleta diária ainda não gravou este canal'
+    case 'sem-diario': return 'ainda não há coleta diária deste canal'
     case 'sem-views': return a.janela ? `nenhum vídeo teve views nos 28 dias até ${dm(a.janela.ate)}` : 'nenhum vídeo teve views nos 28 dias'
     case 'sem-percentual': return 'o YouTube ainda não entregou o % assistido'
     case null: return ''
@@ -390,7 +390,7 @@ function motivoAssistido(a: AssistidoCanal, dm: (d: DiaYt) => string): string {
   }
 }
 
-const BASE_ASSISTIDO = 'Média do percentual assistido de cada dia, pesada pelas views do dia, nos vídeos longos acompanhados, nos 28 dias que terminam no último dia gravado. Acima de 100%: trecho que muita gente voltou para rever.'
+const BASE_ASSISTIDO = 'Média do percentual assistido de cada dia, pesada pelas views do dia, nos vídeos longos acompanhados, nos 28 dias que terminam no último dia medido. Acima de 100%: trecho que muita gente voltou para rever.'
 
 function celulaAssistido(a: AssistidoCanal, cell: (key: string, label: string, v: Parameters<MakeCell>[2], x?: Partial<Omit<ProprioCell, keyof NumCell>>) => ProprioCell, dm: (d: DiaYt) => string): ProprioCell {
   if (a.pct == null) return cell('assistido', '% assistido', { value: null, missing: motivoAssistido(a, dm), base: BASE_ASSISTIDO })
