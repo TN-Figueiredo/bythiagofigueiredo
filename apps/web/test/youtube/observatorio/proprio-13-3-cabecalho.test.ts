@@ -116,6 +116,14 @@ describe('13.3 % assistido do canal', () => {
     const w = comPct(mundo(12), [{ dias: 10, views: 5, pct: 45 }])
     expect(a(w)).toMatchObject({ value: '45%', sub: 'média pelas views, 28 dias', fraco: false })
   })
+  it('as fronteiras: 30 views já é média (29 ainda é "pouco"); 10 views não é cinza (9 é)', () => {
+    const w = mundo(12)
+    const duas = (n1: number, d1: number, n2: number, d2: number) => a(comPct(w, [{ dias: d1, views: n1, pct: 40 }, { dias: d2, views: n2, pct: 40 }]))
+    expect(duas(3, 10, 0, 0)).toMatchObject({ sub: 'média pelas views, 28 dias' })              // 30 views
+    expect(duas(3, 9, 2, 1)).toMatchObject({ sub: 'só 29 views: pouco para uma média' })       // 29 views
+    expect(duas(1, 10, 0, 0)).toMatchObject({ sub: 'só 10 views: pouco para uma média', fraco: false })   // 10 views: não é cinza
+    expect(duas(1, 9, 0, 0)).toMatchObject({ fraco: true })    // 9 views em 9 dias
+  })
   it('acima de 100 é dado válido: o número real, sem recorte', () => {
     const w = comPct(mundo(12), [{ dias: 10, views: 5, pct: 112.4 }])
     expect(a(w).value).toBe('112%')
