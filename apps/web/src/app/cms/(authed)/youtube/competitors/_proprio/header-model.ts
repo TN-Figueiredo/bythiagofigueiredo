@@ -21,7 +21,7 @@ import {
 import { durText, duracaoMediana, vpdText } from '../_canal/numeros'
 import { langChip, type LangChip } from '../_chrome/own-channels'
 import type { DadosDoCanal } from './dados'
-import { longosAcompanhados } from './extras'
+import { foraDosGuardadosFrase, longosAcompanhados } from './extras'
 
 export type { NumCell }
 
@@ -142,11 +142,11 @@ export function buildProprioHeader(
     base: `soma de ${noun(comViews.length, 'vídeo', 'vídeos')}; ${vids.length - comViews.length ? `${vids.length - comViews.length} sem contagem ficam fora` : 'nenhum fica sem contagem'}`,
   })
 
-  // os totais de impressões e cliques são os do canal no relatório: somam também as linhas de vídeos que saíram do canal (apagados, privados),
+  // os totais de impressões e cliques são os do canal no relatório: somam também as linhas de vídeos que não estão entre os guardados do canal (sem dizer por quê: o site não sabe),
   // que não têm cartão nem entram em "vídeos com impressão"; a base diz quantos são, para a soma dos cartões não parecer erro
   const doCanal = new Set<string>([...vids.map(v => v.ytId), ...ch.undated.map(u => u.ytId)])
   const foraDoCanal = alc.estado === 'ok' ? [...alc.porVideo.keys()].filter(id => !doCanal.has(id)).length : 0
-  const INCLUI = foraDoCanal ? ` O total inclui ${noun(foraDoCanal, 'vídeo que saiu', 'vídeos que saíram')} do canal (apagados ou privados), que não têm cartão.` : ''
+  const INCLUI = foraDoCanal ? ` O total é o do relatório. ${foraDosGuardadosFrase(foraDoCanal, F.int)}` : ''
 
   const DIA_YT = 'O dia é o do YouTube (horário do Pacífico), não o de São Paulo.'
   const periodoTxt = alc.estado === 'ok' ? `de ${dm(alc.periodo.de)} a ${dm(alc.periodo.ate)}` : null

@@ -71,7 +71,7 @@ describe('T8 a base do engajamento diz o motivo certo (M4 da Tarefa 7)', () => {
   })
 })
 
-describe('T8 o total do cabeçalho inclui vídeos que saíram do canal, e diz quantos (M3 da Tarefa 7)', () => {
+describe('T8 o total do cabeçalho inclui vídeos que não estão entre os guardados do canal, e diz o fato e quantos (M3 da Tarefa 7)', () => {
   const orfao = (ytId: string) => ({ ytId, dia: d(5), imp: 99, ctr: 0.1 })
   const comOrfaos = (n: number): DadosDoCanal => {
     const base = DADOS.cheio(BASE.canalId, BASE.ytIds, BASE.hoje)
@@ -79,17 +79,18 @@ describe('T8 o total do cabeçalho inclui vídeos que saíram do canal, e diz qu
     return { ...base, alcance: { acesso: 'ok', dado: a } }
   }
   const h = (dados: DadosDoCanal) => buildProprioHeader(BASE.obs, BASE.canalId, dados, { ...O, posicao: null })!
-  it('o total de impressões é o do relatório (soma as linhas órfãs) e o ⓘ diz "inclui 2 vídeos que saíram do canal"', () => {
+  it('o total de impressões é o do relatório (soma as linhas órfãs) e o ⓘ diz o fato: "2 vídeos com impressões no relatório não estão entre os vídeos guardados deste canal"', () => {
     const x = h(comOrfaos(2))
     const imp = x.faixa.find(c => c.key === 'impressoes')!
     expect(imp.value).toBe(BASE.obs.fmt.num(CHEIO.imp + 2 * 99))
-    expect(imp.base).toContain('inclui 2 vídeos que saíram do canal')
+    expect(imp.base).toContain('2 vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.')
+    expect(imp.base).not.toMatch(/saíram|saiu|apagad|privad/)
     const cl = x.todos.find(c => c.key === 'cliques')!
-    expect(cl.base).toContain('inclui 2 vídeos que saíram do canal')
+    expect(cl.base).toContain('2 vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.')
   })
   it('com um só: singular; sem nenhum: a frase não aparece', () => {
-    expect(h(comOrfaos(1)).faixa.find(c => c.key === 'impressoes')!.base).toContain('inclui 1 vídeo que saiu do canal')
-    for (const c of [...h(BASE.dados).faixa, ...h(BASE.dados).todos]) expect(c.base, c.key).not.toMatch(/saíram do canal|saiu do canal/)
+    expect(h(comOrfaos(1)).faixa.find(c => c.key === 'impressoes')!.base).toContain('1 vídeo com impressões no relatório não está entre os vídeos guardados deste canal.')
+    for (const c of [...h(BASE.dados).faixa, ...h(BASE.dados).todos]) expect(c.base, c.key).not.toMatch(/guardados deste canal|saíram|saiu/)
   })
 })
 
