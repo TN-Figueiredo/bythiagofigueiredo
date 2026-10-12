@@ -5,6 +5,7 @@ import type { NextRequest } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { requirePermission, type PipelineAuth } from './auth'
 import { modoLeitura } from './leitura-modo'
+import { padraoDaRota } from './leitura-rotas'
 
 // (emenda do portão: S19-M7) As quatro constantes moram em leitura-acoes.ts, que não importa nada: a tela de /admin/audit
 // as usa sem carregar o Sentry nem o cliente de serviço.
@@ -18,8 +19,10 @@ const TTL_CONTAGEM_MS = 5 * 60_000
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
 
-/** Caminho sem query string (pode trazer texto de busca), com ids trocados por marcador para a lista agrupar por rota. */
+/** Padrão da rota (`/items/[id]/...`), sem query string (pode trazer texto de busca). Rota fora da lista: ids trocados por marcador. */
 export function rotaNormalizada(pathname: string): string {
+  const padrao = padraoDaRota(pathname)
+  if (padrao) return padrao
   return pathname.replace(UUID, ':id').replace(/\/\d+(?=\/|$)/g, '/:n').slice(0, 200)
 }
 
@@ -42,7 +45,14 @@ let diaDosVistos = ''
 const vistos = new Set<string>()
 let avisouAtraso = ''
 let avisouTeto = ''
-const ultimaFalha: { gravacao: number; contagem: number } = { gravacao: 0, contagem: 0 }
+const ultimaFalha: { gravacao: number; contagem: number; disjuntor: number } = { gravacao: 0, contagem: 0, disjuntor: 0 }
+// Disjuntor (E19, onda 1, M1). Estado por instância (função serverless): cada instância aprende sozinha que o audit_log pendurou.
+let falhasSeguidas = 0
+let abertoAte = 0
+/** Estouros de tempo ou erros SEGUIDOS de gravação que abrem o disjuntor. */
+export const DISJUNTOR_FALHAS = 3
+/** Aberto, a leitura nem tenta registrar por este tempo; passado, uma tentativa (meio-aberto) decide fechar ou reabrir. */
+export const DISJUNTOR_PAUSA_MS = 3 * 60_000
 export function zerarEstadoDoRegistro(): void {
   contagem = null
   diaDosVistos = ''
@@ -51,6 +61,9 @@ export function zerarEstadoDoRegistro(): void {
   avisouTeto = ''
   ultimaFalha.gravacao = 0
   ultimaFalha.contagem = 0
+  ultimaFalha.disjuntor = 0
+  falhasSeguidas = 0
+  abertoAte = 0
 }
 
 /**
@@ -58,10 +71,10 @@ export function zerarEstadoDoRegistro(): void {
  * um evento por leitura. `tipo: 'gravacao'` é o que marca o dia como "não medido" no fechamento da janela (a linha pode não
  * ter sido gravada); `'contagem'` não marca (a linha foi gravada, só o teto ficou sem número).
  */
-function avisarFalha(tipo: 'gravacao' | 'contagem', e: unknown): void {
+function avisarFalha(tipo: 'gravacao' | 'contagem', e: unknown, limite: 'gravacao' | 'contagem' | 'disjuntor' = tipo): void {
   const agora = Date.now()
-  if (agora - ultimaFalha[tipo] < 3_600_000) return
-  ultimaFalha[tipo] = agora
+  if (agora - ultimaFalha[limite] < 3_600_000) return
+  ultimaFalha[limite] = agora
   Sentry.captureException(e, { tags: { component: 'pipeline', action: 'leitura_registro', tipo }, level: 'warning' })
 }
 
@@ -96,6 +109,16 @@ export const TETO_REGISTRO_MS = 1500
  */
 export async function registrarLeitura(req: NextRequest, auth: PipelineAuth, desfecho: 'aviso' | 'recusada'): Promise<void> {
   if (auth.source !== 'api_key' || !auth.keyId) return
+  // Disjuntor aberto: a leitura segue sem espera e SEM registro. Esse período fica "não medido" (sem linha de controle, e o
+  // aviso abaixo é tipo 'gravacao', que a janela trata como dia com falha): o aviso nunca parece limpo por causa dele.
+  const agora = Date.now()
+  if (falhasSeguidas >= DISJUNTOR_FALHAS) {
+    if (agora < abertoAte) {
+      avisarFalha('gravacao', new Error(`pipeline leitura: disjuntor do registro aberto (leituras sem registro até ${new Date(abertoAte).toISOString()})`), 'disjuntor')
+      return
+    }
+    abertoAte = agora + DISJUNTOR_PAUSA_MS   // meio-aberto: esta tentativa passa e as concorrentes esperam; falhar reabre, ter sucesso fecha
+  }
   const corte = new AbortController()
   let relogio: ReturnType<typeof setTimeout> | undefined
   try {
@@ -108,8 +131,15 @@ export async function registrarLeitura(req: NextRequest, auth: PipelineAuth, des
         }, TETO_REGISTRO_MS)
       }),
     ])
+    falhasSeguidas = 0
+    abertoAte = 0
   } catch (e) {
     avisarFalha('gravacao', e)
+    falhasSeguidas++
+    if (falhasSeguidas >= DISJUNTOR_FALHAS) {
+      abertoAte = Date.now() + DISJUNTOR_PAUSA_MS
+      avisarFalha('gravacao', new Error(`pipeline leitura: disjuntor do registro aberto por ${DISJUNTOR_PAUSA_MS / 60_000} min após ${falhasSeguidas} falhas seguidas`), 'disjuntor')
+    }
   } finally {
     clearTimeout(relogio)
   }
