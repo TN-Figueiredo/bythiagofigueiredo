@@ -33,8 +33,10 @@ próprio e o `python -B` sozinho abriu um REPL.
 | Sombras | `/opt/agente/sombra/<CANAL>-<AAAAMMDDThhmmss>.json` |
 | Pulso | `/opt/agente/docs/pulso.sh`, de hora em hora; bloco entre `# >>> fila_intel (F4)` e `# <<< fila_intel (F4)` |
 | Check | `URL_FILA` no healthchecks.io — **Simple, período 1 h, grace 45 min**. Separado do principal (`Forja — Agente`) de propósito: uma task reprovada não pode calar um proxy caído |
-| Chave no site | `pipeline_api_keys` com `name = 'forja (fila)'`, permissões `{read,intelligence}` |
+| Chave no site | `pipeline_api_keys` com `name = 'forja (fila)'`, permissões `{intelligence}` (medido em produção em 12/10/2026) |
 | Escopo da fase 2a | só **views e séries** — sem CTR, sem retenção, sem recomendação por vídeo |
+
+A E19 da A5 (leitura do pipeline) está em **modo aviso** desde o envio do lote 1 (`avisoDesde` 2026-10-12 em `leitura-modo.ts`): nenhuma leitura é recusada, cada leitura por chave grava uma linha em `audit_log` (`pipeline_leitura_aviso`). A recusa (chave sem `read` toma 403 nas rotas de leitura) só entra num commit posterior, depois de 7 dias medidos (veredito por `scripts/e19-janela.ts`); até lá nada muda para a fila. Quando a recusa valer, a chave `forja (fila)` (`{intelligence}`) continuará passando só em `POST youtube/intelligence/task/claim`, `GET`/`PATCH youtube/intelligence`, `POST …/task/[id]/fail`, `GET`/`POST youtube/competitors/readings` e `GET youtube/channels`. `GET youtube/intelligence/task` (rota legada do Cowork) exige também `write` e já dá 403 para a chave da fila; a fila usa `POST …/task/claim`. A lista da fase 2 do `sitio.py` permite à fila as 13 rotas de leitura da fase 1, mas nenhum código as chama: com a recusa ligada, um cartão futuro que as use com a chave da fila receberá 403; a leitura tem de ir com `SITIO_CHAVE` (a chave `{read}`).
 
 ### A linha viva do crontab
 

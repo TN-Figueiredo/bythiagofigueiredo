@@ -18,7 +18,9 @@ vi.mock('@/lib/supabase/service', () => ({
   }),
 }))
 
-vi.mock('@/lib/pipeline/auth', () => ({
+// E19: authenticateRead agora chama requirePermission (para decidir a recusa); a versão real basta.
+vi.mock('@/lib/pipeline/auth', async () => ({
+  requirePermission: (await vi.importActual<typeof import('@/lib/pipeline/auth')>('@/lib/pipeline/auth')).requirePermission,
   authenticatePipeline: vi.fn(() => ({
     ok: true,
     auth: { siteId: 'site-1', permissions: ['read', 'write'], source: 'api_key', keyHash: 'abc' },

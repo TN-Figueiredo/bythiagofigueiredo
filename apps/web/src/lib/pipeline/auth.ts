@@ -13,6 +13,8 @@ export interface PipelineAuth {
   keyHash?: string
   /** pipeline_api_keys.id — set only when source === 'api_key'. */
   keyId?: string
+  /** pipeline_api_keys.name — só para o registro de leitura (E19). Nunca a chave. */
+  keyName?: string | null
 }
 
 const rateLimitMap = new Map<string, { count: number; window_start: number }>()
@@ -81,7 +83,7 @@ export async function authenticatePipeline(req: NextRequest): Promise<
     const supabase = getSupabaseServiceClient()
     const { data: keyRow } = await supabase
       .from('pipeline_api_keys')
-      .select('id, site_id, permissions')
+      .select('id, site_id, name, permissions')
       .eq('key_hash', keyHash)
       .is('revoked_at', null)
       .single()
@@ -90,12 +92,20 @@ export async function authenticatePipeline(req: NextRequest): Promise<
       return { ok: false, status: 401, error: 'Invalid or revoked API key' }
     }
 
+    // A5, 8.1.4 (N2): a chave do perfil `observatorio_leitura` só vale no servidor MCP do Observatório. Em /api/pipeline/*
+    // é recusada sempre, antes de qualquer outra permissão e sem depender do modo da E19 (reverter a recusa não a reabre).
+    // `permissions` ausente ou fora do formato vira lista vazia: nunca "tudo liberado" nem exceção no helper.
+    const permissions: string[] = Array.isArray(keyRow.permissions) ? keyRow.permissions : []
+    if (permissions.includes('observatorio_leitura')) {
+      return { ok: false, status: 403, error: 'Forbidden' }
+    }
+
     await supabase
       .from('pipeline_api_keys')
       .update({ last_used_at: new Date().toISOString() })
       .eq('id', keyRow.id)
 
-    return { ok: true, auth: { siteId: keyRow.site_id, permissions: keyRow.permissions, source: 'api_key', keyHash, keyId: keyRow.id } }
+    return { ok: true, auth: { siteId: keyRow.site_id, permissions, source: 'api_key', keyHash, keyId: keyRow.id, keyName: keyRow.name ?? null } }
   }
 
   // Fall back to session auth

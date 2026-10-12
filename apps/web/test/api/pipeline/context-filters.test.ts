@@ -13,11 +13,11 @@ const MOCK_REFS = [
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock('@/lib/pipeline/auth', () => ({
-  authenticatePipeline: vi.fn(),
   buildRateLimitHeaders: vi.fn(() => ({})),
 }))
 
 vi.mock('@/lib/pipeline/helpers', () => ({
+  authenticateRead: vi.fn(),
   pipelineError: vi.fn(
     (code: string, msg: string, status: number) =>
       new Response(JSON.stringify({ error: { code, message: msg } }), { status }),
@@ -40,7 +40,7 @@ vi.mock('@/lib/pipeline/services/utilities', () => ({
   listContext: vi.fn(),
 }))
 
-import { authenticatePipeline } from '@/lib/pipeline/auth'
+import { authenticateRead } from '@/lib/pipeline/helpers'
 import { serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
 import { listContext } from '@/lib/pipeline/services/utilities'
 import { PipelineServiceError } from '@/lib/pipeline/services/types'
@@ -48,7 +48,7 @@ import { PipelineServiceError } from '@/lib/pipeline/services/types'
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function mockAuth() {
-  vi.mocked(authenticatePipeline).mockResolvedValue({
+  vi.mocked(authenticateRead).mockResolvedValue({
     ok: true as const,
     auth: { siteId: MOCK_SITE_ID, permissions: ['read', 'write'], source: 'api_key' as const, keyHash: 'abc' },
   })
