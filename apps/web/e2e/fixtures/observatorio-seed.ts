@@ -310,7 +310,11 @@ interface PerfilL2 {
   diarioCurtos?: number
   /** o primeiro longo entre os 6 vídeos com alcance fica SEM nenhuma linha de diário (impressões sem views por dia) */
   semDiarioPrimeiro?: boolean
+  /** uma linha de alcance de um vídeo que NÃO existe em youtube_videos (video_id nulo, id só no relatório): detector de vazamento do id cru */
+  orfao?: boolean
 }
+/** O id do vídeo que só existe no relatório de alcance do perfil `grande` (sem linha em youtube_videos). */
+export const ORFAO_YT_ID = 'orfaoRel001'
 const REL_CHEIO = 'ILIVVILIVVLIVLIIVLILLILVILVLI'.slice(0, 29)
 export const PERFIS_L2: Record<OwnL2, PerfilL2> = {
   cheio: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: true, diarioDias: 28, diario: 'tres' },
@@ -318,7 +322,7 @@ export const PERFIS_L2: Record<OwnL2, PerfilL2> = {
   parado: { fimDias: 3, relatorios: 'V'.repeat(29), ctrNulo: false, diarioDias: 28, diario: 'zeros' },
   ativo: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'maioria' },
   velho: { fimDias: 12, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'tres' },
-  grande: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'maioria', impBase: 2713 },
+  grande: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'maioria', impBase: 2713, orfao: true },
   lacunas: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'maioria', diarioCurtos: 4, semDiarioPrimeiro: true },
 }
 const PACIFICO = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' })
@@ -378,6 +382,13 @@ export async function seedOwnL2(siteId: string, perfil: OwnL2, preset?: OwnPrese
         source_report_id: id, report_create_time: create, source: 'reporting_api', metric_version: 'views_desde_2026-08-27',
       })
     }
+  }
+  if (P.orfao) {
+    const i = [...P.relatorios].findIndex(k => k === 'I'), dia = somaDias(primeiro, i), create = `${somaDias(dia, 1)}T09:00:00Z`
+    reach.push({
+      youtube_video_id: ORFAO_YT_ID, day_pt: dia, site_id: siteId, video_id: null, channel_id: canalId, thumbnail_impressions: 3571, thumbnail_ctr: 0.0333,
+      source_report_id: `seed-${pref}-${dia}`, report_create_time: create, source: 'reporting_api', metric_version: 'views_desde_2026-08-27',
+    })
   }
   await insertAll(sb, 'yt_reporting_reports', reports)
   await insertAll(sb, 'yt_own_video_reach_daily', reach)
