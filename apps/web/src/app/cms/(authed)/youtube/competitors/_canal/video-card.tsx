@@ -34,8 +34,11 @@ function NumerosProprios({ v, sort }: { v: ProprioVideoView; sort: CanalSort }) 
   const views = v.viewsText == null
     ? <span className="cv-c nd"><span className="obs-ch-sr">views: </span><span className="obs-ch-nm">{v.viewsMissing}</span> <i aria-hidden="true">views</i></span>
     : <Cell valor={v.viewsText} rotulo="views" on={sort === 'vistos'} />
+  // zero medido (o alcance foi lido e o vídeo não apareceu): "0" na caixa vazada, a mesma do gráfico; a hachura é só de "não medido" de verdade
   const imp = v.impText != null
     ? <Cell valor={v.impText} rotulo={v.imp === 1 ? 'impressão' : 'impressões'} on={sort === 'imp'} />
+    : v.semImpressao
+    ? <span className={'cv-c' + (sort === 'imp' ? ' on' : '')}><b className="num"><span className="obs-ch-zero">0<span className="obs-ch-sr"> (zero medido)</span></span></b> <i>impressões</i></span>
     : <span className="cv-c nd"><span className="obs-ch-sr">impressões: </span><span className="obs-ch-nm">{v.impMissing}</span> <i aria-hidden="true">impressões</i></span>
   const mult = v.multText != null
     ? <Cell valor={v.multText} rotulo={v.multWord ?? 'múltiplo'} on={sort === 'multiplo'} tier={v.multTier} sr={v.multWord ? ' (múltiplo)' : undefined} />

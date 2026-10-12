@@ -255,25 +255,33 @@ function colunaDe(d: DiaAlcance, i: number, n: number, teto: number, o: OpcoesIm
   }
 }
 
+/**
+ * "1 dia com impressão e 5 sem impressão" / "todos com impressão". Só diz o que sobra: contagem zerada não é recitada (a frase não repete o que
+ * a manchete já disse). `sem` é o rótulo do dia medido sem o número ("sem impressão", "sem view").
+ */
+function partesDosDias(com: number, zero: number, umCom: string, muitosCom: string, sem: string, todos: string): string {
+  if (zero === 0) return com === 1 ? `1 ${umCom}` : todos
+  return `${com === 1 ? `1 ${umCom}` : `${int(com)} ${muitosCom}`} e ${int(zero)} ${sem}`
+}
+
 function resumoTexto(r: ResumoAlcance, total: number): string {
   if (r.diasLidos === 0 || r.imp == null) {
     return total === 1
-      ? 'O dia do período não tem relatório lido: impressões e cliques não medidos.'
-      : `Nenhum dos ${int(total)} dias do período tem relatório lido: impressões e cliques não medidos.`
+      ? 'O dia do período não foi medido: impressões e cliques não medidos.'
+      : `Nenhum dos ${int(total)} dias do período foi medido: impressões e cliques não medidos.`
   }
   // a frase só fala dos dias MEDIDOS: o dia sem relatório não entra na soma e a manchete não finge que entrou (nem que não houve impressão nele)
   const buracos = r.diasNaoMedidos > 0
   const zero = r.diasLidos - r.diasComImpressao
-  const comImp = plural(r.diasComImpressao, 'dia com impressão', 'dias com impressão')
-  const emZero = plural(zero, 'dia medido em zero', 'dias medidos em zero')
-  const partes = buracos ? `${comImp} e ${emZero}` : `${comImp}, ${emZero} e ${plural(0, 'dia não medido', 'dias não medidos')}`
-  const sem = buracos ? ` (${int(r.diasNaoMedidos)} sem relatório lido)` : ''
   const dias = buracos ? plural(r.diasLidos, 'dia medido', 'dias medidos') : plural(total, 'dia', 'dias')
   if (r.imp === 0) {
     // um único dia medido: "em 1 dia medido" (nunca "no 1 dia medido"); vários: "nos N dias medidos"
     const onde = buracos && r.diasLidos !== 1 ? `nos ${dias}` : `em ${dias}`
-    return `Nenhuma impressão ${onde}${sem}: ${partes}.`
+    const sem = buracos ? ` (${plural(r.diasNaoMedidos, 'dia', 'dias')} sem relatório)` : ''
+    return `Nenhuma impressão ${onde}${sem}.`
   }
+  const sem = buracos ? ` (${r.diasNaoMedidos === 1 ? 'outro dia' : `outros ${int(r.diasNaoMedidos)}`} sem relatório)` : ''
+  const partes = partesDosDias(r.diasComImpressao, zero, 'dia com impressão', 'dias com impressão', 'sem impressão', 'todos com impressão')
   const imp = plural(r.imp, 'impressão', 'impressões')
   if (r.cliques == null) return `${imp} em ${dias}${sem}, com cliques estimados não medidos em algum dia: ${partes}.`
   const cliques = r.cliques <= 0 ? 'nenhum clique estimado' : Math.round(r.cliques) === 0 ? 'menos de 1 clique estimado' : plural(Math.round(r.cliques), 'clique estimado', 'cliques estimados')
@@ -286,14 +294,11 @@ function resumoViews(r: ResumoAlcance, total: number): string {
   }
   const buracos = r.diasNaoMedidos > 0
   const zero = r.diasLidos - r.diasComImpressao
-  const comView = plural(r.diasComImpressao, 'dia com view', 'dias com view')
-  const emZero = plural(zero, 'dia medido em zero', 'dias medidos em zero')
   const nm = plural(r.diasNaoMedidos, 'dia não medido', 'dias não medidos')
-  const partes = buracos ? `${comView} e ${emZero}` : `${comView}, ${emZero} e ${plural(0, 'dia não medido', 'dias não medidos')}`
   const sem = buracos ? ` (${nm})` : ''
   const dias = buracos ? plural(r.diasLidos, 'dia medido', 'dias medidos') : plural(total, 'dia', 'dias')
-  if (r.imp === 0) return `Nenhuma view ${buracos && r.diasLidos !== 1 ? 'nos' : 'em'} ${dias}${sem}: ${partes}.`
-  return `${plural(r.imp, 'view', 'views')} em ${dias}${sem}: ${partes}.`
+  if (r.imp === 0) return `Nenhuma view ${buracos && r.diasLidos !== 1 ? 'nos' : 'em'} ${dias}${sem}.`
+  return `${plural(r.imp, 'view', 'views')} em ${dias}${sem}: ${partesDosDias(r.diasComImpressao, zero, 'dia com view', 'dias com view', 'sem view', 'todos com view')}.`
 }
 
 function legendaDe(escopo: 'canal' | 'video', unidade: Unidade): LegendaItem[] {
@@ -307,8 +312,8 @@ function legendaDe(escopo: 'canal' | 'video', unidade: Unidade): LegendaItem[] {
   return [
     { situacao: 'com-impressoes', texto: 'impressões do dia (barra cheia)' },
     { situacao: 'cliques', texto: 'cliques estimados do dia' },
-    { situacao: 'zero-medido', texto: escopo === 'video' ? 'zero medido (caixa vazada): relatório sem impressão deste vídeo' : 'zero medido (caixa vazada): relatório vazio' },
-    { situacao: 'nao-medido', texto: 'não medido (hachura): relatório ausente, não baixado, com erro ou expirado' },
+    { situacao: 'zero-medido', texto: escopo === 'video' ? 'zero medido (caixa vazada): o YouTube enviou o dia sem impressões deste vídeo' : 'zero medido (caixa vazada): o YouTube enviou o dia sem impressões' },
+    { situacao: 'nao-medido', texto: 'não medido (hachura): o YouTube não entregou o relatório do dia' },
   ]
 }
 

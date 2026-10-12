@@ -70,6 +70,8 @@ export interface LinhaRegua {
   nome: string
   /** O valor deste vídeo como a tela o escreve; null = este vídeo não tem o dado (a causa está em `semRegua`). Nunca "0" no lugar de nulo. */
   valor: string | null
+  /** true = `valor` é "0" e é ZERO MEDIDO: houve dia medido e o vídeo não apareceu nele (caixa vazada). Nunca vale para "não medido" (valor nulo, hachura). */
+  zeroMedido: boolean
   pos: PosVideo | null
   /** "18º de 35 · empate com 2". null = sem posição. */
   posTexto: string | null
@@ -128,6 +130,11 @@ export interface EntradaReguas {
   porVideo: Map<string, AlcanceVideo>
   /** false = o alcance não foi lido (sem permissão, leitura que falhou, sem relatório): nenhuma impressão é "0", todas são "não medidas". */
   alcanceLido: boolean
+  /**
+   * Quantos dias do período foram MEDIDOS (relatório lido) e quantos ficaram sem relatório. Decide se o vídeo ausente do relatório é ZERO MEDIDO
+   * (`medidos > 0`: houve dia medido e ele não apareceu) ou se ainda não dá para dizer (`medidos === 0`: nenhum dia foi medido). Alcance não lido: 0 e 0.
+   */
+  dias: { medidos: number; semRelatorio: number }
   /** "de 09/09 a 07/10", como a tela o escreve; null = sem período. */
   periodoTexto: string | null
   /** Por que as impressões não foram lidas ("só quem edita o site vê as impressões"); sem ele, a frase é a de "impressões não medidas". Só vale com `alcanceLido: false`. */
@@ -196,6 +203,14 @@ function abrirEmpates(tracos: TracoRegua[]): TracoRegua[] {
 
 const FMT_PADRAO = createFmt(createClock(0, 0, 0))
 
+/** A frase do vídeo ausente de relatório MEDIDO: zero medido, com os dias medidos, os dias sem relatório e a base de comparação. */
+function fraseZeroImpressao(d: EntradaReguas['dias'], nCom: number): string {
+  const onde = d.medidos === 1 ? 'em 1 dia medido' : `nos ${d.medidos} dias medidos`
+  const sem = d.semRelatorio > 0 ? ` (${d.semRelatorio === 1 ? '1 dia' : `${d.semRelatorio} dias`} sem relatório)` : ''
+  const base = nCom > 0 ? ` Abaixo ${nCom === 1 ? 'do 1 vídeo' : `dos ${nCom} vídeos`} com impressão.` : ''
+  return `Nenhuma impressão ${onde}${sem}.${base}`
+}
+
 export function buildReguas(a: EntradaReguas): ReguasView {
   const F = a.fmt ?? FMT_PADRAO
   const este = a.videos.find(v => v.id === a.videoId)
@@ -248,7 +263,7 @@ export function buildReguas(a: EntradaReguas): ReguasView {
   /** Por que ESTE vídeo não tem o dado. */
   const semODado = (numero: NumeroRegua): string => {
     switch (numero) {
-      case 'impressoes': return !a.alcanceLido ? a.motivoImpressoes ?? 'impressões não medidas' : a.periodoTexto ? `sem impressão ${a.periodoTexto}` : 'sem impressão no período'
+      case 'impressoes': return !a.alcanceLido ? a.motivoImpressoes ?? 'impressões não medidas' : a.dias.medidos === 0 ? 'ainda não há dia de alcance medido' : fraseZeroImpressao(a.dias, nImpressao)
       case 'views': return 'sem contagem de views'
       case 'vpd': return a.diario?.semVpd ?? 'sem medida'
       case 'assistido': return a.diario?.semPct ?? 'sem medida'
@@ -262,6 +277,11 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     }
   }
 
+  /** Quantos vídeos têm impressão medida: a base da posição ("5º de 5 com impressão") e da frase do vídeo sem impressão. */
+  const nImpressao = a.videos.filter(v => cru('impressoes', v) != null).length
+  /** Impressões com dia medido: o vídeo ausente do relatório é ZERO MEDIDO. Sem dia medido (nada lido) ou sem alcance, é "não medido". */
+  const zeroPossivel = a.alcanceLido && a.dias.medidos > 0
+
   const titulos = new Map(a.videos.map(v => [v.id, v.titulo] as const))
   const defs = DEFS.filter(d => !DO_DIARIO.includes(d.numero) || a.diario != null)
   const linhas: LinhaRegua[] = defs.map((d): LinhaRegua => {
@@ -273,10 +293,12 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     const eu = com.find(e => e.id === este.id) ?? null
     const n = com.length
     const semMedidaN = a.videos.length - n
-    const semMedida = semMedidaN > 0 && !(d.numero === 'impressoes' && !a.alcanceLido) ? `${semMedidaN} sem medida` : null
+    const impZero = d.numero === 'impressoes' && zeroPossivel
+    const semMedida = semMedidaN > 0 && !(d.numero === 'impressoes' && !a.alcanceLido) ? `${semMedidaN} ${impZero ? 'sem impressão no período' : 'sem medida'}` : null
     const neutro = d.numero === 'duracao'
     const nomeBaixo = d.nome.toLowerCase()
-    const valor = eu ? eu.chave : null
+    const zeroMedido = impZero && eu == null
+    const valor = eu ? eu.chave : zeroMedido ? '0' : null
     // poucas views neste vídeo: o número fica escrito e a posição não (o diário de um vídeo quase sem view não ordena nada)
     const trava = eu == null ? null : d.numero === 'vpd' ? a.diario?.naoPosicionaVpd ?? null : d.numero === 'assistido' ? a.diario?.naoPosicionaPct ?? null : null
     const pos = eu && !trava ? posicaoNoCanal(entradas, este.id) : null
@@ -285,8 +307,8 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     const vazia = { tracos: [] as LinhaRegua['tracos'], min: null, max: null, medianaPct: null, comprimida: false }
 
     if (!eu || !pos) {
-      const sr = eu ? `${nomeBaixo}: ${fala(d.numero, eu.x, eu.chave)}; ${semRegua}` : `${nomeBaixo}: ${semRegua}`
-      return { numero: d.numero, grupo: d.grupo, nome: d.nome, sub: d.sub ?? null, valor, pos: null, posTexto: null, semRegua, semMedida, ...vazia, neutro, href, sr }
+      const sr = eu ? `${nomeBaixo}: ${fala(d.numero, eu.x, eu.chave)}; ${semRegua}` : zeroMedido ? `${nomeBaixo}: zero medido; ${semRegua}` : `${nomeBaixo}: ${semRegua}`
+      return { numero: d.numero, grupo: d.grupo, nome: d.nome, sub: d.sub ?? null, valor, zeroMedido, pos: null, posTexto: null, semRegua, semMedida, ...vazia, neutro, href, sr }
     }
 
     const xs = com.map(e => e.x)
@@ -298,11 +320,13 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     })))
     const med = mediana(xs)
     const min = texto(d.numero, es.min), max = texto(d.numero, es.max)
-    const posTexto = `${pos.pos}º de ${pos.de}` + (pos.empates > 0 ? ` · empate com ${pos.empates}` : '')
-    const sr = `${pos.pos}º de ${pos.de} em ${nomeBaixo}` + (neutro ? '' : `, ${FALA_TERCO[pos.terco]}`) + (pos.empates > 0 ? `, empate com ${pos.empates}` : '')
+    // a base da posição em impressões é o vídeo COM impressão: os que não aparecem no relatório são zero medido e ficam fora da régua
+    const baseTxt = d.numero === 'impressoes' ? ' com impressão' : ''
+    const posTexto = `${pos.pos}º de ${pos.de}${baseTxt}` + (pos.empates > 0 ? ` · empate com ${pos.empates}` : '')
+    const sr = `${pos.pos}º de ${pos.de}${baseTxt} em ${nomeBaixo}` + (neutro ? '' : `, ${FALA_TERCO[pos.terco]}`) + (pos.empates > 0 ? `, empate com ${pos.empates}` : '')
       + `; ${fala(d.numero, eu.x, eu.chave)}; no canal de ${min} a ${max}; mediana ${texto(d.numero, med)}`
     return {
-      numero: d.numero, grupo: d.grupo, nome: d.nome, sub: d.sub ?? null, valor, pos, posTexto, semRegua, semMedida,
+      numero: d.numero, grupo: d.grupo, nome: d.nome, sub: d.sub ?? null, valor, zeroMedido: false, pos, posTexto, semRegua, semMedida,
       tracos, min, max, medianaPct: es.pct(med), comprimida: es.comprimida, neutro, href, sr,
     }
   })
@@ -313,7 +337,7 @@ export function buildReguas(a: EntradaReguas): ReguasView {
   if (a.alcanceLido) for (const [yt, r] of a.porVideo) { total += r.imp; if (!guardados.has(yt)) fora++ }
   const poucoVolume = a.alcanceLido && total > 0 && total < POUCO_VOLUME
   const periodo = a.periodoTexto ?? 'no período'
-  const nImp = linhas[0]!.pos ? linhas[0]!.pos.de : a.videos.filter(v => cru('impressoes', v) != null).length
+  const nImp = nImpressao
   const base = a.alcanceLido && nImp > 0
     ? (nImp === 1 ? `Só 1 vídeo tem impressões medidas ${periodo}.` : `Entre ${nImp} vídeos com impressões medidas ${periodo}.`)
     : null
@@ -330,7 +354,7 @@ function fraseDe(linhas: readonly LinhaRegua[], alcanceLido: boolean, poucoVolum
   const partes: string[] = []
   const imp = linhas[0]!
   // sem impressão neste vídeo (alcance lido): a frase abre com isso; alcance não lido, a frase nem fala de impressões
-  if (alcanceLido && imp.valor == null) partes.push('Sem impressão no período.')
+  if (imp.zeroMedido) partes.push('Sem impressão no período.')
 
   const alvo = linhas.filter(l => !l.neutro)
   const nomes = (ls: readonly LinhaRegua[]) => lista(ls.map(l => l.nome.toLowerCase()))
@@ -348,7 +372,10 @@ function fraseDe(linhas: readonly LinhaRegua[], alcanceLido: boolean, poucoVolum
   sai(primeiros, n => `▲ Primeiro do canal em ${n}.`)
   sai(cima.filter(l => !primeiros.includes(l)), n => `▲ Entre os primeiros em ${n}.`)
   sai(meio, n => `● No meio em ${n}.`)
-  sai(ultimos, n => `▼ O menor do canal em ${n}.`)
+  // em impressões a base é só o vídeo COM impressão (os outros são zero e ficam fora da régua): "o menor do canal" afirmaria demais
+  const ultimoImp = ultimos.find(l => l.numero === 'impressoes')
+  sai(ultimos.filter(l => l !== ultimoImp), n => `▼ O menor do canal em ${n}.`)
+  if (ultimoImp) partes.push(`▼ O que menos teve impressões entre os ${ultimoImp.pos.de} vídeos com impressão.`)
   sai(baixo.filter(l => !ultimos.includes(l)), n => `▼ Entre os últimos em ${n}.`)
 
   // com o dado e sem comparação (menos de MIN_REGUA vídeos): dito, sem forma de terço

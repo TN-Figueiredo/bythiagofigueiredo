@@ -46,18 +46,18 @@ describe('posição no canal', () => {
 describe('as réguas do vídeo', () => {
   const videos = Array.from({ length: 6 }, (_, k) => ({ id: 'v' + k, ytId: 'y' + k, views: (k + 1) * 100, likes: k, comments: k === 5 ? null : 1, dur: 600 + k }))
   const porVideo = new Map([['y0', { imp: 18, cliques: 2, diasComImpressao: 6 }], ['y1', { imp: 8, cliques: 0, diasComImpressao: 4 }], ['y2', { imp: 3, cliques: 0, diasComImpressao: 1 }], ['y3', { imp: 1, cliques: 0, diasComImpressao: 1 }]])
-  const base = { videos, porVideo, alcanceLido: true, periodoTexto: 'de 09/09 a 07/10', hrefs: { vistos: '/v', imp: '/i' } }
+  const base = { videos, porVideo, alcanceLido: true, dias: { medidos: 19, semRelatorio: 2 }, periodoTexto: 'de 09/09 a 07/10', hrefs: { vistos: '/v', imp: '/i' } }
   it('seis linhas em três grupos, na ordem do spec 17.3', () => {
     const r = buildReguas({ ...base, videoId: 'v0' })
     expect(r.linhas.map(l => [l.grupo, l.numero])).toEqual([['Alcance', 'impressoes'], ['Alcance', 'views'], ['Resposta', 'engajamento'], ['Resposta', 'curtidas'], ['Resposta', 'comentarios'], ['Formato', 'duracao']])
   })
   it('impressões são "de 4", não "de 6": quem não teve impressão fica fora da régua e da posição', () => {
     const l = buildReguas({ ...base, videoId: 'v0' }).linhas[0]!
-    expect(l.pos).toEqual({ pos: 1, de: 4, empates: 0, terco: 'cima' }); expect(l.tracos).toHaveLength(4); expect(l.posTexto).toBe('1º de 4')
+    expect(l.pos).toEqual({ pos: 1, de: 4, empates: 0, terco: 'cima' }); expect(l.tracos).toHaveLength(4); expect(l.posTexto).toBe('1º de 4 com impressão')
   })
-  it('vídeo sem impressão: a linha diz "sem impressão de 09/09 a 07/10", sem régua, sem posição, sem zero; a frase abre com "Sem impressão no período."', () => {
+  it('vídeo sem impressão em dia medido: ZERO MEDIDO ("0", sem régua e sem posição) com a frase dos dias medidos; a frase abre com "Sem impressão no período." (B2: antes era valor nulo e "sem impressão de 09/09 a 07/10")', () => {
     const r = buildReguas({ ...base, videoId: 'v5' })
-    expect(r.linhas[0]).toMatchObject({ valor: null, pos: null, tracos: [], semRegua: 'sem impressão de 09/09 a 07/10' })
+    expect(r.linhas[0]).toMatchObject({ valor: '0', zeroMedido: true, pos: null, tracos: [], semRegua: 'Nenhuma impressão nos 19 dias medidos (2 dias sem relatório). Abaixo dos 4 vídeos com impressão.' })
     expect(r.frase.startsWith('Sem impressão no período.')).toBe(true)
   })
   it('alcance não lido: a linha de impressões diz o motivo e a frase não fala de impressões', () => {
@@ -146,7 +146,7 @@ describe('as réguas do vídeo: dado ausente, base e frase', () => {
   })
   const imp = (...xs: Array<[string, number]>) => new Map(xs.map(([y, n]) => [y, { imp: n, cliques: 0, diasComImpressao: 1 }] as const))
   const H = { vistos: '/v', imp: '/i' }
-  const base = (videos: EntradaReguas['videos'], porVideo = new Map(), alcanceLido = true): Omit<EntradaReguas, 'videoId'> => ({ videos, porVideo, alcanceLido, periodoTexto: 'de 09/09 a 07/10', hrefs: H })
+  const base = (videos: EntradaReguas['videos'], porVideo = new Map(), alcanceLido = true): Omit<EntradaReguas, 'videoId'> => ({ videos, porVideo, alcanceLido, dias: { medidos: 19, semRelatorio: 2 }, periodoTexto: 'de 09/09 a 07/10', hrefs: H })
   const linha = (r: ReturnType<typeof buildReguas>, n: string) => r.linhas.find(l => l.numero === n)!
 
   it('views nulas: o vídeo fica fora da régua e da contagem ("de 5") e não vira o último (mutante: views null → 0)', () => {
@@ -214,15 +214,17 @@ describe('as réguas do vídeo: dado ausente, base e frase', () => {
     // lido, com os mesmos dados, há posição: é o alcance lido que liga a posição
     expect(linha(buildReguas({ ...base(mk(6), porVideo, true), videoId: 'v0' }), 'impressoes').pos).toMatchObject({ pos: 3, de: 4 })
   })
-  it('lido mas sem nenhum vídeo com impressão: "sem impressão" na linha, sem base e sem "pouco" (nada a comparar)', () => {
+  it('lido mas sem nenhum vídeo com impressão: zero medido na linha (sem "abaixo dos 0"), sem base e sem "pouco" (nada a comparar) (B2)', () => {
     const r = buildReguas({ ...base(mk(6), new Map(), true), videoId: 'v0' })
-    expect(linha(r, 'impressoes')).toMatchObject({ valor: null, pos: null, semRegua: 'sem impressão de 09/09 a 07/10' })
+    expect(linha(r, 'impressoes')).toMatchObject({ valor: '0', zeroMedido: true, pos: null, semRegua: 'Nenhuma impressão nos 19 dias medidos (2 dias sem relatório).' })
     expect(r.base).toBeNull(); expect(r.pouco).toBeNull()
     expect(r.frase.startsWith('Sem impressão no período.')).toBe(true)
   })
-  it('lido, sem período escrito: "sem impressão no período"', () => {
+  it('lido, sem período escrito: a frase dos dias medidos não depende do período (B2); sem nenhum dia medido, "ainda não há dia de alcance medido" e nunca zero', () => {
     const r = buildReguas({ ...base(mk(6), new Map(), true), periodoTexto: null, videoId: 'v0' })
-    expect(linha(r, 'impressoes').semRegua).toBe('sem impressão no período')
+    expect(linha(r, 'impressoes').semRegua).toBe('Nenhuma impressão nos 19 dias medidos (2 dias sem relatório).')
+    const nada = buildReguas({ ...base(mk(6), new Map(), true), dias: { medidos: 0, semRelatorio: 3 }, videoId: 'v0' })
+    expect(linha(nada, 'impressoes')).toMatchObject({ valor: null, zeroMedido: false, semRegua: 'ainda não há dia de alcance medido' })
   })
   it('a base e a janela estão escritas ao lado da frase: "Entre N vídeos com impressões medidas de 09/09 a 07/10."', () => {
     const r = buildReguas({ ...base(mk(6), imp(['y0', 5], ['y1', 9], ['y2', 2], ['y3', 7])), videoId: 'v0' })
@@ -243,7 +245,8 @@ describe('as réguas do vídeo: dado ausente, base e frase', () => {
     ]
     for (const c of casos) {
       const f = buildReguas(c).frase
-      expect(f).not.toMatch(/porque|por causa|devido|culpa|motivo|razão|\d/i)
+      // o único número permitido é a base de "▼ O que menos teve impressões entre os N vídeos com impressão" (V1: diz entre quantos)
+      expect(f.replace(/entre os \d+ vídeos com impressão/, 'entre os N vídeos com impressão')).not.toMatch(/porque|por causa|devido|culpa|motivo|razão|\d/i)
       expect(f.length).toBeGreaterThan(0)
     }
   })
@@ -281,7 +284,9 @@ describe('as réguas do vídeo: dado ausente, base e frase', () => {
   it('T13.0 H19: ninguém é "Último do canal" (tom duro); o menor é "O menor do canal", e a base vai junto de toda posição em impressões', () => {
     const r = buildReguas({ ...base(mk(6), imp(['y0', 2], ['y1', 9], ['y2', 5], ['y3', 7])), videoId: 'v0' })
     expect(linha(r, 'impressoes').pos).toMatchObject({ pos: 4, de: 4 })
-    expect(r.frase).toMatch(/▼ O menor do canal em impressões/)
+    // V1: a base em impressões é só o vídeo COM impressão, então a frase diz entre quantos (antes: "O menor do canal em impressões")
+    expect(r.frase).toMatch(/▼ O que menos teve impressões entre os 4 vídeos com impressão\./)
+    expect(r.frase).not.toMatch(/O menor do canal em impressões/)
     expect(r.frase).not.toMatch(/[Úú]ltimo do canal/)
     // a posição em impressões só é afirmada com a base ao lado
     expect(r.base).toBe('Entre 4 vídeos com impressões medidas de 09/09 a 07/10.')
@@ -358,7 +363,7 @@ describe('o mesmo número tem o mesmo texto da faixa do vídeo (T11) e do cartã
   const porVideo = alc.estado === 'ok' ? alc.porVideo : new Map()
   const entrada = (videoId: string): EntradaReguas => ({
     videoId, videos: cartoes.map(c => ({ id: c.id, ytId: c.ytId, views: c.views, likes: c.likes, comments: c.comments, dur: c.dur })),
-    porVideo, alcanceLido: alc.estado === 'ok', periodoTexto: alc.estado === 'ok' ? 'de 01/01 a 02/01' : null, hrefs: { vistos: '/v', imp: '/i' }, fmt: w.obs.fmt,
+    porVideo, alcanceLido: alc.estado === 'ok', dias: alc.estado === 'ok' ? { medidos: alc.resumo.diasLidos, semRelatorio: alc.resumo.diasNaoMedidos } : { medidos: 0, semRelatorio: 0 }, periodoTexto: alc.estado === 'ok' ? 'de 01/01 a 02/01' : null, hrefs: { vistos: '/v', imp: '/i' }, fmt: w.obs.fmt,
   })
   it('views, curtidas, comentários e duração: o texto do cartão; engajamento: o da faixa', () => {
     expect(cartoes.length).toBeGreaterThan(5)
