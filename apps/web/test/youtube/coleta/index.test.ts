@@ -74,11 +74,11 @@ describe('rodarColeta', () => {
     expect(r.resumo).toMatchObject({ metadados: { gravados: 35 }, jobs: { acao_do_dono: ['Canal Um: sem_acesso'] }, acao_do_dono: ['Canal Um: sem_acesso'] })
   })
 
-  it('fase depois: roda relatórios com 60 s, junta perdidos e atrasados, e confere o orçamento', async () => {
+  it('fase depois: roda relatórios com 120 s, junta perdidos e atrasados, e confere o orçamento', async () => {
     const db = fakeSupabase({ youtube_channels: canais })
     const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
     const ctxRel = vi.mocked(passoRelatorios).mock.calls[0]![0] as StepCtx
-    expect(ctxRel.deadline - Date.now()).toBe(60_000)
+    expect(ctxRel.deadline - Date.now()).toBe(120_000)
     expect(passoMetadados).not.toHaveBeenCalled()
     expect(passoJobs).not.toHaveBeenCalled()
     expect(r.resumo).toMatchObject({

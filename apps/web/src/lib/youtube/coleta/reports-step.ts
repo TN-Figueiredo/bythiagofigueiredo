@@ -13,8 +13,12 @@ import { conferirBanco, pushUnico } from './schema'
 import { descreverErro, HABILITADOS, statusHttp } from './token'
 import type { ColetaChannel, StepCtx, StepResumo } from './types'
 
-export const MAX_DOWNLOADS = 40
-export const MAX_GZ_BYTES = 2 * 1024 * 1024
+// Tetos da E12 (A5). Medida de produção, 09 a 12/10/2026: até 0,90 s por download (um por vez) e o maior relatório
+// com 564 bytes comprimidos. 100 downloads + a listagem cabem em TETOS_MS.relatorios; reports-step.test.ts refaz a conta.
+export const MAX_DOWNLOADS = 100
+/** Acima disto o relatório vira `erro: grande_demais` e o bruto NÃO é guardado. O download e a descompressão acontecem
+ *  em memória antes desta conferência: subir este número pede conferir a memória da função. */
+export const MAX_GZ_BYTES = 10 * 1024 * 1024
 const MAX_PAGINAS = 50
 /** O PostgREST corta em 1000 linhas: bater nisso é leitura cortada, nunca "tudo lido". */
 const LIMITE_FILA = 1000
@@ -388,7 +392,7 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
     const r = restante(ctx.deadline) <= 0 ? 'sem_tempo' : await baixarUm(ctx, clientes.get(p.channel_id)!, p, urls, renovados, resumo)
     if (r === 'sem_tempo') {
       semTempo = true
-      // Só o relógio conta como nao_alcancado_orcamento; o teto de 40 e a fila não.
+      // Só o relógio conta como nao_alcancado_orcamento; o teto de downloads e a fila não.
       const afetados = new Set(alvo.slice(i).map(x => x.channel_id))
       for (const c of canais) if (afetados.has(c.id)) await registrarTentativa(ctx, { ...tCanal(c), outcome: 'nao_alcancado_orcamento' })
     }

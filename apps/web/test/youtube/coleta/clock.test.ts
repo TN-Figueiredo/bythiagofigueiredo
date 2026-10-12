@@ -13,9 +13,16 @@ afterEach(() => {
 describe('relógio da coleta', () => {
   it('as constantes são as do spec', () => {
     expect(RELOGIO_GLOBAL_MS).toBe(270_000)
-    expect(TETOS_MS).toEqual({ metadados: 30_000, jobs: 20_000, relatorios: 60_000, alcance: 20_000, diario: 50_000 })
+    expect(TETOS_MS).toEqual({ metadados: 30_000, jobs: 20_000, relatorios: 120_000, alcance: 20_000, diario: 50_000 })
     expect(FETCH_TIMEOUT_MS).toBe(15_000)
     expect(PARALELO).toBe(4)
+  })
+
+  it('a conta do orçamento fecha: a soma dos tetos mais a reserva da parte antiga da rota cabe no relógio global', () => {
+    // Parte antiga da rota (analytics por janela), medida em produção de 09 a 12/10/2026: 19,9 a 23,7 s.
+    const RESERVA_PARTE_ANTIGA_MS = 30_000
+    const soma = Object.values(TETOS_MS).reduce((s, n) => s + n, 0)
+    expect(soma + RESERVA_PARTE_ANTIGA_MS).toBeLessThanOrEqual(RELOGIO_GLOBAL_MS)
   })
 
   it('prazo do passo = min(teto, o que resta do relógio global)', () => {

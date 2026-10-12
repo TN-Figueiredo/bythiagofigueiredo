@@ -42,6 +42,7 @@ import { ehMetadadosAntes, rodarColeta } from '@/lib/youtube/coleta'
 import { marcarReautorizar } from '@/lib/youtube/coleta/autorizacao'
 import { diarioDoVideo } from '@/lib/youtube/coleta/analytics-diario'
 import { criarRelogio } from '@/lib/youtube/coleta/clock'
+import { MAX_DOWNLOADS } from '@/lib/youtube/coleta/reports-step'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { criarReportingClient, empacotarCsv, type ReportingClient } from '@/lib/youtube/reporting/client'
 import { REACH_TYPES, REPORT_TYPES_ENABLED, ReportingHttpError, type Job, type Report } from '@/lib/youtube/reporting/types'
@@ -213,7 +214,7 @@ afterEach(() => {
 })
 
 describe('três dias seguidos, passos e critérios de verdade', () => {
-  it('(a) Reporting API ativada: jobs no dia 1, histórico listado no dia 2 (40 baixados), o resto no dia 3 — verde nos três dias', async () => {
+  it('(a) Reporting API ativada: jobs no dia 1, histórico listado e baixado inteiro no dia 2 (64 < teto de 100), o dia 3 só leva o relatório novo — verde nos três dias', async () => {
     google.semDado.add(SEM_VIDEO.channel_id)
     const db = banco(VIDEOS_ANTIGOS)
 
@@ -228,27 +229,28 @@ describe('três dias seguidos, passos e critérios de verdade', () => {
     expect(relatoriosDe(d1)).toMatchObject({ vistos: 0, baixados: 0, vazios: 0, pendentes: 0 })
     expect(d1.depois.vazios_sem_publicacao).toEqual([])
 
-    // ── Dia 2: o Google publicou o histórico dos dois canais; o teto de 40 downloads corta a fila.
+    // ── Dia 2: o Google publicou o histórico dos dois canais; 64 relatórios cabem no teto de downloads (MAX_DOWNLOADS = 100): a fila esvazia no mesmo dia.
     google.publicar(DIA_2, HISTORICO_POR_JOB, 'hist')
     const d2 = await rodarDia(db, DIA_2)
     expect(d2.falhas).toEqual([])
     expect(d2.acao_do_dono).toEqual([])
     expect(google.chamadas.jobsCreate).toBe(8) // nada recriado
-    expect(relatoriosDe(d2)).toMatchObject({ vistos: 64, pendentes: 24, erros_download: 0, expirados: 0 })
-    expect(relatoriosDe(d2).baixados! + relatoriosDe(d2).vazios!).toBe(40)
-    expect(google.chamadas.download).toBe(40)
+    expect(relatoriosDe(d2)).toMatchObject({ vistos: 64, pendentes: 0, erros_download: 0, expirados: 0 })
+    expect(relatoriosDe(d2).baixados! + relatoriosDe(d2).vazios!).toBe(64)
+    expect(64).toBeLessThanOrEqual(MAX_DOWNLOADS)
+    expect(google.chamadas.download).toBe(64)
     // A prioridade pôs o alcance na frente: o canal sem vídeo já tem os 16 de alcance, todos só com cabeçalho.
     expect(porStatus(db, SEM_VIDEO.id, 'vazio', REACH_TYPES)).toBe(16)
     expect(porStatus(db, ANTIGO.id, 'baixado', REACH_TYPES)).toBe(16)
     expect(d2.antes.metadados).toMatchObject({ gravados: 3, dias_sem_meta: { [ANTIGO.id]: 0, [SEM_VIDEO.id]: 0 } })
 
-    // ── Dia 3: mais um relatório por job; a fila esvazia.
+    // ── Dia 3: mais um relatório por job (8 jobs); a fila continua vazia.
     google.publicar(DIA_3, 1, 'dia3')
     const d3 = await rodarDia(db, DIA_3)
     expect(d3.falhas).toEqual([])
     expect(d3.acao_do_dono).toEqual([])
     expect(relatoriosDe(d3)).toMatchObject({ pendentes: 0, erros_download: 0, expirados: 0, perdidos: 0, atrasados: 0 })
-    expect(relatoriosDe(d3).baixados! + relatoriosDe(d3).vazios!).toBe(32)
+    expect(relatoriosDe(d3).baixados! + relatoriosDe(d3).vazios!).toBe(8)
     expect(google.chamadas.download).toBe(72)
     expect((db.tables.yt_reporting_reports ?? []).filter(r => r.status === 'listado')).toEqual([])
     expect(db.tables.yt_reporting_report_blobs).toHaveLength(72)

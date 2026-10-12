@@ -1,7 +1,8 @@
 // Relógio global e tetos da coleta. Sem import de banco nem de rede: a rota importa daqui.
 
 export const RELOGIO_GLOBAL_MS = 270_000
-export const TETOS_MS = { metadados: 30_000, jobs: 20_000, relatorios: 60_000, alcance: 20_000, diario: 50_000 } as const
+// Soma dos tetos: 240 s. Com os 30 s de reserva da parte antiga da rota fecha os 270 s do relógio (clock.test.ts).
+export const TETOS_MS = { metadados: 30_000, jobs: 20_000, relatorios: 120_000, alcance: 20_000, diario: 50_000 } as const
 export const FETCH_TIMEOUT_MS = 15_000
 export const PARALELO = 4
 
