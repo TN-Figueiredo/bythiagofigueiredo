@@ -103,11 +103,11 @@ function painelDe(v: string | undefined): '1' | '0' | null {
  * a mostrar nem conjunto a ler (o motor já anula o nicho que o site não conhece).
  */
 async function leituraDoNicho(niche: string | null, nicheLabel: string | null): Promise<ReactNode> {
-  if (!niche || !nicheLabel) return <LeituraDoNicho nicheLabel={null}>{null}</LeituraDoNicho>
+  if (!niche || !nicheLabel) return <LeituraDoNicho key="leitura-do-nicho" nicheLabel={null}>{null}</LeituraDoNicho>
   const site = await openObservatoryPage()
   const mv = buildMudancasView(site.obs, { niche }, new Set())
   return (
-    <LeituraDoNicho nicheLabel={nicheLabel}>
+    <LeituraDoNicho key={niche} nicheLabel={nicheLabel}>
       <div data-obs-screen="mudancas"><section className="forja"><ReadingCard view={mv} /></section></div>
     </LeituraDoNicho>
   )

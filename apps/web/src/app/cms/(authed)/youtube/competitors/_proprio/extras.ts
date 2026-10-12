@@ -34,3 +34,14 @@ export const VPD_SO_LONGOS = 'as views por dia do seu canal só são medidas nos
 
 /** A dica das telas que ainda não leem o diário do canal próprio (Insights; a lista sem o dado lido): o diário existe, mora na página do canal. */
 export const SEM_VPD_PROPRIO_DICA = 'As views por dia do seu canal ficam na página do seu canal, e só nos vídeos longos.'
+
+/**
+ * O fato, sem a causa: vídeos com impressões no relatório de alcance que não estão entre os vídeos guardados do canal. O site não sabe por que
+ * (apagado, privado ou só não sincronizado ainda), então a frase não diz. Uma só para "Como o canal está" e para o ⓘ dos totais do cabeçalho.
+ * `int` é o formatador de inteiros da tela (`obs.fmt.int`).
+ */
+export function foraDosGuardadosFrase(n: number, int: (n: number) => string): string {
+  return n === 1
+    ? '1 vídeo com impressões no relatório não está entre os vídeos guardados deste canal.'
+    : `${int(n)} vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.`
+}

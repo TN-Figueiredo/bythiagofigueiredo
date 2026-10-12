@@ -13,6 +13,7 @@ import { alcancePorVideo, montarDias, resumir, type AlcanceVideo, type Periodo, 
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { DadosDoCanal } from './dados'
 import { nichoDoLink, type PosicaoItens, type PosicaoNoNicho } from './header-model'
+import { foraDosGuardadosFrase } from './extras'
 import { buildImpressoes, ERRO_ALCANCE, int, paradaEm, SEM_PERMISSAO, SEM_RELATORIO, type ImpressoesView } from './impressoes-model'
 import type { OpcaoConcorrente } from './posicao-do-site'
 
@@ -45,7 +46,7 @@ export interface ComoEstaView {
   frase: string
   top: ComoEstaTop[]
   topVazio: string | null
-  /** Vídeos que saíram do canal e tiveram impressões (não têm cartão): dito, nunca somado em silêncio. */
+  /** Vídeos com impressões no relatório que não estão entre os guardados do canal (não têm cartão): o fato dito, sem a causa, nunca somado em silêncio. */
   topNota: string | null
   noNicho: ComoEstaNicho | null
   /** "O que ainda não é medido": rótulo e frase. */
@@ -181,7 +182,7 @@ function topDe(estado: Estado, a: EntradaComoEsta): { top: ComoEstaTop[]; topVaz
   dentro.sort((x, y) => y.r.imp - x.r.imp || (y.r.cliques ?? -1) - (x.r.cliques ?? -1) || titulo(x.v).localeCompare(titulo(y.v), 'pt-BR') || (x.v.id < y.v.id ? -1 : x.v.id > y.v.id ? 1 : 0))
   const escolhidos = dentro.slice(0, TOP_N)
   if (escolhidos.length === 0) {
-    return vazio(fora > 0 ? 'Os vídeos que apareceram saíram do canal e não têm cartão.' : 'Nenhum vídeo com impressão no período lido.')
+    return vazio(fora > 0 ? 'Os vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.' : 'Nenhum vídeo com impressão no período lido.')
   }
   const ids = escolhidos.map(e => e.v.id)
   const top = escolhidos.map(({ v, r }, i): ComoEstaTop => ({
@@ -190,9 +191,7 @@ function topDe(estado: Estado, a: EntradaComoEsta): { top: ComoEstaTop[]; topVaz
     imp: plural(r.imp, 'impressão', 'impressões'), cliques: cliquesDoVideo(r.cliques), dias: `em ${plural(r.diasComImpressao, 'dia', 'dias')} com impressão`,
     thumb: v.thumb ?? null,
   }))
-  const topNota = fora === 0 ? null
-    : fora === 1 ? '1 vídeo que saiu do canal também teve impressões e não tem cartão.'
-      : `${int(fora)} vídeos que saíram do canal também tiveram impressões e não têm cartão.`
+  const topNota = fora === 0 ? null : foraDosGuardadosFrase(fora, int)
   return { top, topVazio: null, topNota }
 }
 

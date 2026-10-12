@@ -271,12 +271,12 @@ describe('legenda e método', () => {
     const v = buildImpressoes([dia('2026-10-01', 3, 1)], periodo, O)
     expect(v.legenda.map(l => l.situacao)).toEqual(['com-impressoes', 'cliques', 'zero-medido', 'nao-medido'])
     expect(v.legenda.map(l => l.texto)).toEqual([
-      'impressões do dia', 'cliques estimados', 'zero medido: relatório vazio', 'não medido: relatório ausente, não baixado, com erro ou expirado',
+      'impressões do dia (barra cheia)', 'cliques estimados', 'zero medido (caixa vazada): relatório vazio', 'não medido (hachura): relatório ausente, não baixado, com erro ou expirado',
     ])
   })
   it('no vídeo, o zero medido da legenda fala do vídeo', () => {
     const v = buildImpressoes([dia('2026-10-01', 3, 1)], periodo, { ...O, escopo: 'video', alturaArea: 110 })
-    expect(v.legenda.find(l => l.situacao === 'zero-medido')!.texto).toBe('zero medido: relatório sem impressão deste vídeo')
+    expect(v.legenda.find(l => l.situacao === 'zero-medido')!.texto).toBe('zero medido (caixa vazada): relatório sem impressão deste vídeo')
   })
   it('o método (ⓘ) explica o dia, a escala, os três estados e os cliques; no vídeo, o zero do vídeo', () => {
     const canal = buildImpressoes([dia('2026-10-01', 3, 1)], periodo, O).metodo.join(' ')
@@ -287,6 +287,21 @@ describe('legenda e método', () => {
     expect(canal).toMatch(/pode diferir da soma/)
     const video = buildImpressoes([dia('2026-10-01', 3, 1)], periodo, { ...O, escopo: 'video' }).metodo.join(' ')
     expect(video).toMatch(/não trouxe este vídeo/)
+  })
+  it('I1 da revisão da T10: o método descreve as três formas como são desenhadas (barra cheia, caixa vazada, hachura) e nunca "traço"', () => {
+    for (const escopo of ['canal', 'video'] as const) {
+      const m = buildImpressoes([dia('2026-10-01', 3, 1)], periodo, { ...O, escopo }).metodo.join(' ')
+      expect(m, escopo).toMatch(/Barra cheia: o relatório do dia trouxe impressões/)
+      expect(m, escopo).toMatch(/Caixa vazada: o relatório foi lido e (veio vazio|não trouxe este vídeo) \(zero medido\)/)
+      expect(m, escopo).toMatch(/Coluna hachurada: o dia não foi medido/)
+      expect(m, escopo).not.toMatch(/traço/i)
+    }
+  })
+  it('nenhum texto de legenda ou de método fala em "traço" (o zero medido não é mais um traço)', () => {
+    for (const escopo of ['canal', 'video'] as const) {
+      const v = buildImpressoes([dia('2026-10-01', 3, 1)], periodo, { ...O, escopo })
+      expect([...v.legenda.map(l => l.texto), ...v.metodo].join(' ')).not.toMatch(/traço/i)
+    }
   })
 })
 

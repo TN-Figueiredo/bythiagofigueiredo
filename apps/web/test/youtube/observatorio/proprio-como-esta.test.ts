@@ -223,15 +223,17 @@ describe('T10 "Vídeos que mais apareceram"', () => {
     expect(x.topVazio).toBe('Nenhum vídeo com impressão no período lido.')
   })
 
-  it('vídeo que saiu do canal tem impressões mas não tem cartão: fica fora da lista e a nota diz quantos', () => {
+  it('vídeo com impressões que não está entre os guardados do canal não tem cartão: fica fora da lista e a nota diz o fato e quantos (sem afirmar a causa)', () => {
     const x = v({ porVideo: mapa(['yt-fora1', 500, 5, 3], ['yt-fora2', 20, 1, 1], ['yt1', 10, 1, 2]) })
     expect(x.top.map(t => t.id)).toEqual(['v1'])
-    expect(x.topNota).toBe('2 vídeos que saíram do canal também tiveram impressões e não têm cartão.')
-    expect(v({ porVideo: mapa(['yt-fora1', 500, 5, 3], ['yt1', 10, 1, 2]) }).topNota).toBe('1 vídeo que saiu do canal também teve impressões e não tem cartão.')
+    expect(x.topNota).toBe('2 vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.')
+    expect(v({ porVideo: mapa(['yt-fora1', 500, 5, 3], ['yt1', 10, 1, 2]) }).topNota).toBe('1 vídeo com impressões no relatório não está entre os vídeos guardados deste canal.')
     // só vídeos de fora: a frase de vazio não finge que o canal não teve impressão
     const so = v({ porVideo: mapa(['yt-fora1', 500, 5, 3]) })
     expect(so.top).toEqual([])
-    expect(so.topVazio).toBe('Os vídeos que apareceram saíram do canal e não têm cartão.')
+    expect(so.topVazio).toBe('Os vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.')
+    // nenhuma das frases afirma POR QUE o vídeo não está guardado (apagado? privado? só não sincronizado?)
+    for (const t of [x.topNota!, so.topVazio ?? '']) expect(t).not.toMatch(/saíram|saiu|apagad|privad/)
   })
 
   it('canal sem nenhum vídeo guardado: a frase diz isso', () => {

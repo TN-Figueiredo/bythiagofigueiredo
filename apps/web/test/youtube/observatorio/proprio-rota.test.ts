@@ -146,6 +146,22 @@ describe('T8 rota canal/[id] do canal próprio', () => {
     expect(state.abrirSite).not.toHaveBeenCalledTimes(1) // só a aba Leitura lê o conjunto do site, e só com nicho
   })
 
+  it('Menor 7 da revisão da T10: o elemento da leitura do nicho (aba Leitura do concorrente) leva `key`, ou o React avisa "unique key" em produção', async () => {
+    const conc = w.obs.channels.find(c => !c.own)!.id
+    const wc = a3World(ds => { const c = ds.channels.find(x => x.id === conc)!; c.niche = 'viagem'; ds.channels = [c]; ds.videos = ds.videos.filter(v => v.ch === conc); ds.scope = 'canal' })
+    state.page = { ...state.page!, obs: wc.obs, ownYtIds: [] }
+    const el = await rota(conc, { tab: 'leitura' })
+    expect(nome(el)).toBe('CanalScreen')
+    const leitura = filho(el).props.leitura as ReactElement
+    expect(leitura).not.toBeNull()
+    expect(leitura.key).not.toBeNull()
+    // o ramo sem nicho também devolve elemento: a mesma regra
+    const wn = a3World(ds => { const c = ds.channels.find(x => x.id === conc)!; c.niche = null; ds.channels = [c]; ds.videos = ds.videos.filter(v => v.ch === conc); ds.scope = 'canal' })
+    state.page = { ...state.page!, obs: wn.obs }
+    const sem = await rota(conc, { tab: 'leitura' })
+    expect((filho(sem).props.leitura as ReactElement).key).not.toBeNull()
+  })
+
   it('id que não é canal do site: "Canal não encontrado" dentro da moldura, sem leitura privada', async () => {
     const el = await rota('nao-existe')
     expect(el.props.crumbs.map(c => c.text)).toEqual(['Canais', 'Canal não encontrado'])
