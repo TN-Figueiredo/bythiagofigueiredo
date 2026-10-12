@@ -38,11 +38,12 @@ function lastReading(readings: readonly FrozenReading[], type: string, niche: Ni
 }
 
 /** O envio congelado com a leitura é o `SentPack` inteiro? (linha antiga e leitura de cenário guardam só a marca e o texto: sem o que comparar.) */
-const temEnvio = (s: FrozenReading['sent']): boolean =>
+type Assinado = Pick<SentPack, 'text' | 'ids' | 'channels' | 'channelsOut' | 'items' | 'capped' | 'nVideos' | 'nOutliers'>
+const temEnvio = (s: FrozenReading['sent']): s is FrozenReading['sent'] & Assinado =>
   typeof s.text === 'string' && s.text !== '' && ['ids', 'items', 'channels', 'channelsOut'].every(k => Array.isArray(s[k]))
 
 /** Assinatura estável do que um envio leva. As chaves saem em ordem (o jsonb do banco não guarda a ordem) e `age` fica de fora: é a idade contada de agora, muda sem o dado mudar. */
-function assinatura(p: Pick<SentPack, 'text' | 'ids' | 'channels' | 'channelsOut' | 'items' | 'capped' | 'nVideos' | 'nOutliers'>): string {
+function assinatura(p: Assinado): string {
   const canon = (x: unknown): unknown => {
     if (Array.isArray(x)) return x.map(canon)
     if (x && typeof x === 'object') return Object.fromEntries(Object.entries(x as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, v]) => [k, canon(v)]))
@@ -85,7 +86,7 @@ export function novidadeDe(ctx: ForjaCtx, readings: readonly FrozenReading[], ty
   // não leva (sent.ts congela tudo no registro diário), então um pedido novo sairia idêntico.
   if (temEnvio(r.sent)) {
     const agora = assinaturaAgora(ctx, r.type, niche, isVid(type) ? video : null, r.fmt)
-    if (agora != null) return agora === assinatura(r.sent as unknown as SentPack) ? { pode: false } : { pode: true, porque: 'dado-novo' }
+    if (agora != null) return agora === assinatura(r.sent) ? { pode: false } : { pode: true, porque: 'dado-novo' }
   }
   // leitura sem o envio congelado (linha antiga, ou o alvo não se monta mais): só o "Desde então" pode dizer que algo mudou
   // (sem a base congelada, ou vídeo fora do observatório, ele não compara, e a marca do registro diário, que existe e é igual, decide)
