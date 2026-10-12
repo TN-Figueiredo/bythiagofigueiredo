@@ -1,21 +1,29 @@
 // Passo 1C (spec, seção 5) — recorte do lote L1a: só listar e baixar o bruto. A normalização é L2.
-// O histórico inicial some em 30 dias: por isso a fila é por prioridade (alcance primeiro) e o
+// O histórico inicial some em 30 dias: por isso a fila é pelo vencimento na origem (fila-relatorios.ts) e o
 // download usa a URL gravada na listagem, renovando-a quando o Google a recusa.
 import * as Sentry from '@sentry/nextjs'
 import { channelNote, describeCronCause } from '@/lib/cron/failure-note'
-import { classificarErro, criarReportingClient, paraBytea, type PacoteCsv, type ReportingClient } from '@/lib/youtube/reporting/client'
-import { ReportingHttpError, SEM_NORMALIZADOR, type Report } from '@/lib/youtube/reporting/types'
+import { classificarErro, criarReportingClient, MAX_GZ_BYTES, paraBytea, type PacoteCsv, type ReportingClient } from '@/lib/youtube/reporting/client'
+import { ArquivoGrandeDemaisError, ReportingHttpError, SEM_NORMALIZADOR, type Report } from '@/lib/youtube/reporting/types'
 import { obterToken } from './autorizacao'
 import { contarPorResultado, registrarTentativa, scopeJob } from './attempts'
 import { emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
+import { DIA_MS, VALIDADE_DIAS, ordenarFila, perdaCobertaPorCriterios, venceEm, type ItemDaFila } from './fila-relatorios'
 import { conferirBanco, pushUnico } from './schema'
 import { descreverErro, HABILITADOS, statusHttp } from './token'
 import type { ColetaChannel, StepCtx, StepResumo } from './types'
 
-export const MAX_DOWNLOADS = 40
-export const MAX_GZ_BYTES = 2 * 1024 * 1024
-const DIA_MS = 86_400_000
+// Tetos da E12 (A5). Medida de produção, 09 a 12/10/2026: até 0,90 s por download (um por vez) e o maior relatório
+// com 564 bytes comprimidos. 100 downloads + a listagem cabem em TETOS_MS.relatorios; reports-step.test.ts refaz a conta.
+export const MAX_DOWNLOADS = 100
+/** Acima disto o relatório vira `erro: grande_demais` e o bruto NÃO é guardado. O teto vale no cliente (Content-Length e
+ *  leitura limitada) e há um segundo, do CSV descomprimido (MAX_CSV_BYTES): reporting/client.ts. Reexportado aqui. */
+export { MAX_GZ_BYTES }
 const MAX_PAGINAS = 50
+/** O PostgREST devolve no máximo 1000 linhas por resposta (max-rows): a fila é lida em páginas, nunca com um `limit` só. */
+const TAMANHO_PAGINA = 1000
+/** Teto de páginas da fila (5000 relatórios; a fila real vai a ~660). Passar disto é leitura cortada, nunca "tudo lido". */
+const MAX_PAGINAS_FILA = 5
 
 export interface RelatoriosResumo extends StepResumo {
   /** Relatórios devolvidos pela listagem nesta execução (inclui os que já existiam). */
@@ -25,6 +33,23 @@ export interface RelatoriosResumo extends StepResumo {
   expirados: number
   erros_download: number
   bruto_apagado: number
+  /** Maior corpo LIDO nesta execução, em bytes (inclui o recusado por tamanho). É a unidade do teto e do aviso de metade do teto;
+   *  a coluna `bytes` do relatório é outra coisa (o gzip guardado). 0 = nenhum download. */
+  maior_bytes: number
+  /** Por tipo, o maior corpo lido e se ele era um .gz de verdade (`null` = não examinado: recusado pelo Content-Length ou pela
+   *  leitura limitada). É a medida de D+3 do tamanho real dos tipos novos e do `Content-Encoding` que o servidor aplica. */
+  maior_lido_por_tipo: Record<string, { bytes: number; gz: boolean | null }>
+  /** Quantos corpos desta execução eram um .gz de verdade (os demais vieram como CSV puro, depois do gzip de transporte). */
+  corpos_gz: number
+  /** Dos `expirados`, quantos por tipo HABILITADO (informação do resumo; a nota é só dos de baixo). */
+  expirados_por_tipo: Record<string, number>
+  /** Dos de `expirados_por_tipo`, os que NENHUM critério persistente cobre: é o que vira a nota da execução em falhas[].
+   *  Os cobertos já têm nota própria em criteria.ts (uma perda, uma nota por execução). */
+  expirados_sem_cobertura_por_tipo: Record<string, number>
+  /** Dias inteiros até vencer o primeiro relatório que ficou `listado`. null = nada ficou para trás (ou a leitura falhou: aí há nota em falhas[]). */
+  vence_primeiro_em_dias: number | null
+  ms_listar: number
+  ms_baixar: number
 }
 
 interface JobRow {
@@ -44,13 +69,22 @@ interface Pendente {
   job_id: string
   download_url: string
   create_time: string
+  is_backfill: boolean
 }
 
 const instante = (s: string): number => new Date(s).getTime()
+/** DD/MM em UTC. */
+const diaMes = (ms: number): string => { const d = new Date(ms).toISOString(); return `${d.slice(8, 10)}/${d.slice(5, 7)}` }
 /** Erro do zlib (bytes que o gzip não aceita): relatório inutilizável, não falha de rede. */
 const ehGzipInvalido = (e: unknown): boolean => {
   const code = (e as { code?: unknown } | null)?.code
   return typeof code === 'string' && code.startsWith('Z_')
+}
+
+/** Abort por sinal (AbortSignal.timeout ou controller): `TimeoutError`/`AbortError`. */
+const ehAbort = (e: unknown): boolean => {
+  const nome = (e as { name?: unknown } | null)?.name
+  return nome === 'TimeoutError' || nome === 'AbortError'
 }
 
 /** Todas as páginas de `reports.list` de um job. */
@@ -89,7 +123,9 @@ async function listarJob(ctx: StepCtx, c: ColetaChannel, api: ReportingClient, j
         create_time: r.createTime,
         job_expire_time: r.jobExpireTime ?? null,
         download_url: r.downloadUrl,
-        is_backfill: criadoEm !== null && instante(r.startTime) < criadoEm,
+        // Sem a data de criação do job não dá para separar histórico de corrente: vale o prazo curto (30 dias).
+        // Ausência nunca alonga prazo: `false` aqui daria 60 dias a um arquivo que pode sumir aos 30.
+        is_backfill: criadoEm === null || !(instante(r.startTime) >= criadoEm), // startTime ilegível (NaN) também cai no prazo curto
         status: 'listado',
       }))
       // ignoreDuplicates: a listagem nunca altera uma linha que já existe.
@@ -131,6 +167,22 @@ async function listarJob(ctx: StepCtx, c: ColetaChannel, api: ReportingClient, j
   }
 }
 
+/** Relatório que venceu sem ser baixado: só o de tipo habilitado conta (o de tipo desligado ninguém ia baixar). */
+function contarVencido(resumo: RelatoriosResumo, p: ItemDaFila, agora: number): void {
+  const tipo = p.report_type_id
+  if (!HABILITADOS.includes(tipo)) return
+  resumo.expirados_por_tipo[tipo] = (resumo.expirados_por_tipo[tipo] ?? 0) + 1
+  if (!perdaCobertaPorCriterios(p, agora)) resumo.expirados_sem_cobertura_por_tipo[tipo] = (resumo.expirados_sem_cobertura_por_tipo[tipo] ?? 0) + 1
+}
+
+/** Registra o corpo lido no resumo: maior por tipo (com a marca de .gz) e a contagem de .gz de verdade. */
+function anotarLido(resumo: RelatoriosResumo, tipo: string, bytes: number, gz: boolean | null): void {
+  resumo.maior_bytes = Math.max(resumo.maior_bytes, bytes)
+  if (gz === true) resumo.corpos_gz++
+  const atual = resumo.maior_lido_por_tipo[tipo]
+  if (!atual || bytes > atual.bytes) resumo.maior_lido_por_tipo[tipo] = { bytes, gz }
+}
+
 /** Baixa um relatório pelo download_url gravado. Nunca lança. */
 async function baixarUm(
   ctx: StepCtx,
@@ -140,8 +192,21 @@ async function baixarUm(
   renovados: Set<string>,
   resumo: RelatoriosResumo,
 ): Promise<'sem_tempo' | void> {
+  // Toda marcação de estado só vale para quem ainda está `listado`: com duas execuções sobrepostas, a que chega depois não
+  // rebaixa (para `erro` ou `expirado_sem_baixar`) nem regrava um relatório que a outra acabou de baixar.
   const marcar = (campos: Record<string, unknown>) =>
-    ctx.supabase.from('yt_reporting_reports').update(campos).eq('report_id', p.report_id)
+    ctx.supabase.from('yt_reporting_reports').update(campos).eq('report_id', p.report_id).eq('status', 'listado')
+  // Recusa por tamanho: sem conserto automático, o bruto não é guardado. Fica vermelho na hora (aqui) e por 14 dias (critérios).
+  const recusarPorTamanho = async (bytes: number, detalhe: string, extra: Record<string, unknown>, gz: boolean | null): Promise<void> => {
+    anotarLido(resumo, p.report_type_id, bytes, gz)
+    resumo.erros_download++
+    // Canal e prazo: o dono precisa saber de quem é e até quando o arquivo existe na origem (é o prazo para subir o teto e
+    // devolver o relatório à fila). create_time ilegível não vira data de 1970: o prazo é dito desconhecido.
+    const nome = ctx.channels.find(c => c.id === p.channel_id)?.name ?? p.channel_id
+    const prazo = Number.isNaN(instante(p.create_time)) ? 'prazo na origem desconhecido' : `vence na origem em ${diaMes(venceEm(p))} (UTC)`
+    pushUnico(ctx.falhas, `relatórios: ${channelNote(nome, `${p.report_type_id} recusado por tamanho (${detalhe}): o bruto NÃO foi guardado; ${prazo}`)}`)
+    conferirBanco(await marcar({ status: 'erro', error: 'grande_demais', bytes, ...extra }), 'yt_reporting_reports', ctx.falhas)
+  }
   try {
     let pacote: PacoteCsv | null = null
     let erro: unknown = null
@@ -180,8 +245,17 @@ async function baixarUm(
       }
     }
 
-    // O prazo do passo acabou no meio do relatório: ele continua `listado`, intocado.
+    // O prazo do passo acabou no meio do relatório: ele continua `listado`, intocado. O abort do prazo durante a LEITURA do
+    // corpo chega como TimeoutError/AbortError (só o `fetch` é embrulhado em SemTempoError): sem prazo sobrando, é falta de tempo.
     if (erro instanceof SemTempoError) return 'sem_tempo'
+    if (erro && ehAbort(erro) && restante(ctx.deadline) <= 0) return 'sem_tempo'
+
+    if (erro instanceof ArquivoGrandeDemaisError) {
+      // O cliente recusou antes de guardar (Content-Length, leitura limitada ou bomba de descompressão): mesmo caminho do
+      // `grande_demais` abaixo. Terminal, nota visível com o tamanho; nunca `gzip_invalido` nem erro de rede (que tentam de novo).
+      await recusarPorTamanho(erro.bytes, erro.detalhe, {}, erro.lado === 'descomprimido' ? true : null)
+      return
+    }
 
     if (erro || !pacote) {
       if (classificarErro(erro) === 'url_inesperada') {
@@ -190,38 +264,59 @@ async function baixarUm(
         resumo.erros_download++
         return
       }
-      if (ehGzipInvalido(erro)) {
-        conferirBanco(await marcar({ status: 'erro', error: 'gzip_invalido' }), 'yt_reporting_reports', ctx.falhas)
-        resumo.erros_download++
-        return
-      }
       if (erro instanceof ReportingHttpError && (erro.status === 404 || erro.status === 410)) {
         conferirBanco(await marcar({ status: 'expirado_sem_baixar', error: `HTTP ${erro.status}` }), 'yt_reporting_reports', ctx.falhas)
         resumo.expirados++
+        contarVencido(resumo, p, Date.now())
         return
       }
-      // Erro passageiro: continua `listado` e tenta amanhã.
+      // Erro passageiro: continua `listado` e tenta amanhã. Gzip que não abre entra aqui: um download cortado no meio
+      // chega assim, e marcá-lo `erro` seria desistir de um relatório que ainda existe na origem.
       resumo.erros_download++
       await registrarTentativa(ctx, {
         site_id: p.site_id, scope_type: 'job', scope_id: scopeJob(p.channel_id, p.report_type_id), kind: 'relatorio',
-        outcome: 'erro_http', http_status: statusHttp(erro), error: descreverErro(erro), channel_id: p.channel_id,
+        outcome: 'erro_http', http_status: statusHttp(erro), error: ehGzipInvalido(erro) ? 'gzip_invalido' : descreverErro(erro), channel_id: p.channel_id,
       })
       return
     }
 
-    if (pacote.gz.length > MAX_GZ_BYTES) {
-      resumo.erros_download++
-      conferirBanco(
-        await marcar({ status: 'erro', error: 'grande_demais', bytes: pacote.gz.length, sha256: pacote.sha256, row_count: pacote.rowCount }),
-        'yt_reporting_reports', ctx.falhas,
-      )
+    // Rede de segurança: o cliente já recusa o que passa do teto de leitura. Cobre o gzip guardado (o que vai para o banco) e,
+    // por via das dúvidas, o corpo lido, sempre na unidade do teto.
+    if (pacote.gz.length > MAX_GZ_BYTES || pacote.lidos > MAX_GZ_BYTES) {
+      const maior = Math.max(pacote.gz.length, pacote.lidos)
+      await recusarPorTamanho(maior, `${maior} bytes lidos do corpo; teto ${MAX_GZ_BYTES}`, { sha256: pacote.sha256, row_count: pacote.rowCount }, pacote.eraGz)
       return
     }
+    anotarLido(resumo, p.report_type_id, pacote.lidos, pacote.eraGz)
 
     const blob = await ctx.supabase
       .from('yt_reporting_report_blobs')
       .upsert({ report_id: p.report_id, site_id: p.site_id, csv_gz: paraBytea(pacote.gz) }, { onConflict: 'report_id' })
-    if (conferirBanco(blob, 'yt_reporting_report_blobs', ctx.falhas) !== 'ok') return
+    // Falha ao gravar o bruto: o relatório fica `listado` (tenta amanhã), mas deixa rastro. Sem a tentativa o alerta de 3 dias
+    // (criterioJobsEmErro) nunca dispararia, e a nota genérica de "erro de banco" não diz canal, tipo nem tamanho.
+    // `outcome` só aceita os valores do check de yt_own_collection_attempts (sem migration): o motivo vai no texto de `error`.
+    const falhasBlob: string[] = []
+    const gravou = conferirBanco(blob, 'yt_reporting_report_blobs', falhasBlob)
+    if (gravou === 'schema_ausente') {
+      for (const f of falhasBlob) pushUnico(ctx.falhas, f)
+      return
+    }
+    if (gravou === 'erro') {
+      // Regra do módulo (schema.ts): a nota e a tentativa levam só o CÓDIGO do erro do banco, nunca o texto do Postgres (que pode
+      // trazer nome de tabela, host ou trecho de dado). O texto inteiro vai para o Sentry.
+      const motivo = blob.error?.code || 'sem código'
+      Sentry.captureException(new Error(`gravação do bruto ${p.report_id} falhou: ${blob.error?.message ?? 'sem texto'}`), {
+        tags: { cron: 'sync-analytics-metrics', passo: 'relatorios' }, extra: { report: p.report_id, tipo: p.report_type_id, codigo: blob.error?.code ?? null },
+      })
+      const nome = ctx.channels.find(c => c.id === p.channel_id)?.name ?? p.channel_id
+      resumo.erros_download++
+      pushUnico(ctx.falhas, `relatórios: ${channelNote(nome, `a GRAVAÇÃO do bruto de ${p.report_type_id} falhou (${pacote.gz.length} bytes comprimidos; banco: ${motivo}); o relatório continua na fila`)}`)
+      await registrarTentativa(ctx, {
+        site_id: p.site_id, scope_type: 'job', scope_id: scopeJob(p.channel_id, p.report_type_id), kind: 'relatorio',
+        outcome: 'erro_http', error: `erro_gravacao: ${p.report_type_id}, ${pacote.gz.length} bytes, ${motivo}`, channel_id: p.channel_id,
+      })
+      return
+    }
 
     const vazio = pacote.rowCount === 0
     const fim = await marcar({
@@ -236,17 +331,74 @@ async function baixarUm(
     if (vazio) resumo.vazios++
     else resumo.baixados++
     resumo.gravados++
+    // Mesma unidade da recusa (bytes lidos do corpo), senão o aviso nunca vem antes dela: com gzip de transporte o gzip guardado
+    // é uma fração do CSV lido.
+    if (pacote.lidos > MAX_GZ_BYTES / 2) {
+      pushUnico(ctx.falhas, `relatórios: ${p.report_type_id} chegou a ${pacote.lidos} bytes lidos do corpo, mais da metade do teto de ${MAX_GZ_BYTES} bytes lidos`)
+    }
   } catch (e) {
     Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', passo: 'relatorios' }, extra: { report: p.report_id } })
     pushUnico(ctx.falhas, `relatórios: ${describeCronCause(e)}`)
   }
 }
 
+interface FilaLida {
+  /** A resposta com erro (a primeira que falhou) ou a última lida: é o que `conferirBanco` examina. */
+  resposta: { error?: { code?: string; message?: string } | null }
+  linhas: Pendente[]
+  /** Total real (count exato da primeira página). null = o banco não devolveu a contagem. */
+  total: number | null
+  /** true = há relatório `listado` que esta leitura não trouxe. Sem contagem e com o limite de páginas cheio, vale true. */
+  cortada: boolean
+}
+
+/**
+ * Lê TODOS os relatórios `listado` dos canais e dos tipos habilitados, em páginas de 1000 ordenadas por (create_time, report_id).
+ * Um `limit(1000)` só cortaria por create_time, e create_time não é a ordem de vencimento (histórico vence em 30 dias, corrente
+ * em 60): acima de 1000 pendentes deixaria de fora justamente um histórico recente que vence antes. Lida a fila inteira, a
+ * ordem por vencimento (`ordenarFila`) vale. Falha em qualquer página = leitura falha (nunca fila parcial em silêncio).
+ */
+async function lerFilaPendente(ctx: StepCtx, idsDosCanais: string[]): Promise<FilaLida> {
+  const linhas: Pendente[] = []
+  let total: number | null = null
+  let ultima: FilaLida['resposta'] = {}
+  let cheia = false
+  for (let p = 0; p < MAX_PAGINAS_FILA; p++) {
+    const r = await ctx.supabase
+      .from('yt_reporting_reports')
+      .select('site_id, report_id, channel_id, report_type_id, job_id, download_url, create_time, is_backfill', p === 0 ? { count: 'exact' } : undefined) // a contagem só na primeira página
+      .eq('status', 'listado')
+      .in('channel_id', idsDosCanais)
+      .in('report_type_id', [...HABILITADOS]) // os `listado` de um tipo desligado ficam como estão (e não são pendência)
+      .order('create_time', { ascending: true })
+      .order('report_id', { ascending: true })
+      .range(p * TAMANHO_PAGINA, (p + 1) * TAMANHO_PAGINA - 1)
+    ultima = r
+    if (r.error) return { resposta: r, linhas: [], total: null, cortada: false }
+    if (p === 0) total = r.count ?? null
+    const pagina = (r.data ?? []) as Pendente[]
+    linhas.push(...pagina)
+    cheia = pagina.length >= TAMANHO_PAGINA
+    if (!cheia) break
+  }
+  // Com contagem: cortada se faltou linha. Sem contagem, ausência não é "tudo lido": a última página cheia conta como corte.
+  const cortada = total === null ? cheia : linhas.length < total
+  return { resposta: ultima, linhas, total, cortada }
+}
+
 export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
   const resumo: RelatoriosResumo = {
     gravados: 0, tentativas: {}, pendentes: 0, vistos: 0, baixados: 0, vazios: 0, expirados: 0, erros_download: 0, bruto_apagado: 0,
+    maior_bytes: 0, maior_lido_por_tipo: {}, corpos_gz: 0, expirados_por_tipo: {}, expirados_sem_cobertura_por_tipo: {}, vence_primeiro_em_dias: null, ms_listar: 0, ms_baixar: 0,
   }
   const fechar = (): RelatoriosResumo => {
+    // Em toda saída do passo: o que venceu sem baixar nesta execução e nenhum critério persistente cobre vira nota, com a
+    // contagem por tipo. O que os critérios cobrem (criteria.ts) tem a nota deles: uma perda, uma nota por execução.
+    const vencidos = Object.entries(resumo.expirados_sem_cobertura_por_tipo)
+    if (vencidos.length > 0) {
+      const total = vencidos.reduce((soma, [, n]) => soma + n, 0)
+      pushUnico(ctx.falhas, `relatórios: ${total} relatório(s) venceram sem baixar nesta execução (${vencidos.map(([t, n]) => `${t}: ${n}`).join(', ')})`)
+    }
     resumo.tentativas = contarPorResultado(ctx.tentativas, ['relatorio'])
     return resumo
   }
@@ -264,6 +416,7 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
   const f = fetchComPrazo(ctx.deadline)
   const clientes = new Map<string, ReportingClient>()
 
+  const t0 = Date.now()
   // ── 1. Listar ────────────────────────────────────────────────────────────
   // Só o relógio conta como `nao_alcancado_orcamento`: quando acaba, o canal em curso e os seguintes
   // ficam pendentes e os downloads são pulados (os `listado` esperam a próxima execução).
@@ -312,55 +465,53 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
     }
   }
 
+  resumo.ms_listar = Date.now() - t0
   // ── 2. Expirar por idade: 60 dias, ou 30 se for backfill ─────────────────
   const agora = Date.now()
-  for (const [backfill, dias] of [[true, 30], [false, 60]] as const) {
+  for (const [backfill, dias] of [[true, VALIDADE_DIAS.historico], [false, VALIDADE_DIAS.corrente]] as const) {
     const r = await ctx.supabase
       .from('yt_reporting_reports')
       .update({ status: 'expirado_sem_baixar', error: 'passou do prazo sem baixar' })
       .eq('status', 'listado')
       .eq('is_backfill', backfill)
       .lt('create_time', new Date(agora - dias * DIA_MS).toISOString())
-      .select('report_id')
+      .select('report_id, report_type_id, create_time, is_backfill')
     const escrita = conferirBanco(r, 'yt_reporting_reports', ctx.falhas)
     if (escrita === 'schema_ausente') return fechar()
-    if (escrita === 'ok') resumo.expirados += ((r.data ?? []) as unknown[]).length
+    if (escrita === 'ok') {
+      const linhas = (r.data ?? []) as Array<ItemDaFila>
+      resumo.expirados += linhas.length
+      for (const l of linhas) contarVencido(resumo, l, agora)
+    }
   }
 
-  // ── 3. Baixar: por prioridade de tipo e create_time crescente, no máximo 40 ──
+  // ── 3. Baixar: pelo vencimento na origem (fila-relatorios.ts), no máximo MAX_DOWNLOADS ──
   const idsDosCanais = canais.map(c => c.id)
-  const filaLida = await ctx.supabase
-    .from('yt_reporting_reports')
-    .select('site_id, report_id, channel_id, report_type_id, job_id, download_url, create_time')
-    .eq('status', 'listado')
-    .in('channel_id', idsDosCanais)
-    .in('report_type_id', [...HABILITADOS]) // os `listado` de um tipo desligado ficam como estão
-    .order('create_time', { ascending: true })
-    .limit(1000)
-  if (conferirBanco(filaLida, 'yt_reporting_reports', ctx.falhas, 'ler') !== 'ok') return fechar()
-  const prioridade = (tipo: string): number => {
-    const i = HABILITADOS.indexOf(tipo)
-    return i === -1 ? HABILITADOS.length : i
+  const filaLida = await lerFilaPendente(ctx, idsDosCanais)
+  if (conferirBanco(filaLida.resposta, 'yt_reporting_reports', ctx.falhas, 'ler') !== 'ok') return fechar()
+  if (filaLida.cortada) {
+    const fora = filaLida.total === null ? 'contagem indisponível: pode haver mais' : `ficaram de fora ${filaLida.total - filaLida.linhas.length}`
+    pushUnico(ctx.falhas, `relatórios: fila de download cortada em ${filaLida.linhas.length} relatórios (${fora}); a ordem por vencimento não cobre o que ficou de fora`)
   }
-  const fila = ((filaLida.data ?? []) as Pendente[])
-    .filter(p => clientes.has(p.channel_id))
-    .sort((a, b) => prioridade(a.report_type_id) - prioridade(b.report_type_id) || instante(a.create_time) - instante(b.create_time))
+  const fila = ordenarFila(filaLida.linhas.filter(p => clientes.has(p.channel_id)), agora)
 
   const urls = new Map<string, string>()
   const renovados = new Set<string>()
   const alvo = fila.slice(0, MAX_DOWNLOADS)
+  const t1 = Date.now()
   for (let i = 0; i < alvo.length && !semTempo; i++) {
     const p = alvo[i]!
     // Um de cada vez: o buffer do relatório anterior já foi liberado.
     const r = restante(ctx.deadline) <= 0 ? 'sem_tempo' : await baixarUm(ctx, clientes.get(p.channel_id)!, p, urls, renovados, resumo)
     if (r === 'sem_tempo') {
       semTempo = true
-      // Só o relógio conta como nao_alcancado_orcamento; o teto de 40 e a fila não.
+      // Só o relógio conta como nao_alcancado_orcamento; o teto de downloads e a fila não.
       const afetados = new Set(alvo.slice(i).map(x => x.channel_id))
       for (const c of canais) if (afetados.has(c.id)) await registrarTentativa(ctx, { ...tCanal(c), outcome: 'nao_alcancado_orcamento' })
     }
   }
 
+  resumo.ms_baixar = Date.now() - t1
   // ── 4. Limpar o bruto ────────────────────────────────────────────────────
   if (restante(ctx.deadline) > 0) {
     const purge = await ctx.supabase.rpc('yt_reporting_blobs_purge', { p_sem_normalizador: SEM_NORMALIZADOR })
@@ -369,14 +520,16 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
     }
   }
 
-  // ── 5. O que ficou para depois ───────────────────────────────────────────
-  const resta = await ctx.supabase
-    .from('yt_reporting_reports')
-    .select('report_id', { count: 'exact', head: true })
-    .eq('status', 'listado')
-    .in('channel_id', idsDosCanais)
-    .in('report_type_id', [...HABILITADOS]) // o que nunca será baixado não é pendência
-  if (conferirBanco(resta, 'yt_reporting_reports', ctx.falhas, 'ler') === 'ok') resumo.pendentes += resta.count ?? 0
+  // ── 5. O que ficou para depois, e quando vence o primeiro ────────────────
+  // A mesma leitura inteira (não só as 1000 primeiras): o primeiro a vencer pode estar em qualquer posição de create_time.
+  const resta = await lerFilaPendente(ctx, idsDosCanais)
+  if (conferirBanco(resta.resposta, 'yt_reporting_reports', ctx.falhas, 'ler') === 'ok') {
+    // Contagem ausente não é zero: vale o número de linhas lidas. A nota de corte já saiu no passo 3, se foi o caso.
+    resumo.pendentes += resta.total ?? resta.linhas.length
+    if (resta.linhas.length > 0) {
+      resumo.vence_primeiro_em_dias = Math.floor((Math.min(...resta.linhas.map(venceEm)) - Date.now()) / DIA_MS)
+    }
+  }
 
   return fechar()
 }

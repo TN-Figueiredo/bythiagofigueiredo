@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', async (orig) => ({
@@ -14,11 +14,12 @@ vi.mock('@/lib/youtube/coleta/alerts', () => ({ avisarEntrada: vi.fn(), avisarSa
 
 import { passoJobs } from '@/lib/youtube/coleta/jobs-step'
 import { ensureFreshToken, TokenRevokedError, NoActiveConnectionError } from '@/lib/social/token-refresh'
-import { criarReportingClient } from '@/lib/youtube/reporting/client'
+import { criarReportingClient, PaginacaoExcedidaError } from '@/lib/youtube/reporting/client'
 import { REPORT_TYPES_ENABLED, ReportingHttpError } from '@/lib/youtube/reporting/types'
 import { avisarEntrada, avisarSaida } from '@/lib/youtube/coleta/alerts'
 import type { StepCtx } from '@/lib/youtube/coleta/types'
 import { SemTempoError } from '@/lib/youtube/coleta/clock'
+import { criteriosRelatorios } from '@/lib/youtube/coleta/criteria'
 import { fakeSupabase, type FakeDb, type Row } from './fake-supabase'
 
 const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true, collection_status: 'ok' as const, video_count: 1 }
@@ -50,17 +51,17 @@ beforeEach(() => {
 })
 
 describe('passoJobs: caminho feliz', () => {
-  it('canal sem job: cria os quatro, grava ativo com job_id e job_create_time, e registra a sondagem', async () => {
+  it('canal sem job: cria todos os habilitados, grava ativo com job_id e job_create_time, e registra a sondagem', async () => {
     const db = fakeSupabase()
     const ctx = ctxDe(db)
     const resumo = await passoJobs(ctx)
-    expect(api.jobsCreate).toHaveBeenCalledTimes(4)
+    expect(api.jobsCreate).toHaveBeenCalledTimes(REPORT_TYPES_ENABLED.length)
     expect(estados(db)).toEqual(Object.fromEntries(REPORT_TYPES_ENABLED.map(t => [t, 'ativo'])))
     expect(job(db, 'channel_reach_basic_a1')).toMatchObject({ site_id: 'site-1', job_id: 'job-channel_reach_basic_a1', job_create_time: '2026-10-07T12:00:01Z', error: null })
-    expect(resumo.gravados).toBe(4)
+    expect(resumo.gravados).toBe(REPORT_TYPES_ENABLED.length)
     expect(resumo.estados['ch-1']).toEqual(Object.fromEntries(REPORT_TYPES_ENABLED.map(t => [t, 'ativo'])))
     expect(tentativaCanal(db)).toMatchObject({ outcome: 'ok', scope_id: 'ch-1' })
-    expect(db.tables.yt_own_collection_attempts!.filter(r => r.scope_type === 'job')).toHaveLength(4)
+    expect(db.tables.yt_own_collection_attempts!.filter(r => r.scope_type === 'job')).toHaveLength(REPORT_TYPES_ENABLED.length)
     expect(avisarSaida).toHaveBeenCalledTimes(1)
     expect(ctx.falhas).toEqual([])
     expect(resumo.acao_do_dono).toEqual([])
@@ -80,7 +81,7 @@ describe('passoJobs: caminho feliz', () => {
     expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo', job_id: 'ja-channel_basic_a3', job_create_time: '2026-09-01T00:00:00Z' })
   })
 
-  it('canal com os quatro jobs ativos: nenhuma chamada, nem de token', async () => {
+  it('canal com todos os jobs habilitados ativos: nenhuma chamada, nem de token', async () => {
     const db = fakeSupabase({ yt_reporting_jobs: REPORT_TYPES_ENABLED.map(linhaAtiva) })
     const resumo = await passoJobs(ctxDe(db))
     expect(ensureFreshToken).not.toHaveBeenCalled()
@@ -109,28 +110,97 @@ describe('passoJobs: caminho feliz', () => {
   })
 })
 
+describe('passoJobs: a lista de 13 tipos (E12, Tarefa 6)', () => {
+  it('E12, como a produção em 12/10: os 4 de sempre ativos e os 9 novos em desativado; cria só os 9 e nenhum habilitado fica em desativado', async () => {
+    const ANTIGOS = ['channel_reach_basic_a1', 'channel_reach_combined_a1', 'channel_traffic_source_a3', 'channel_basic_a3']
+    const NOVOS = REPORT_TYPES_ENABLED.filter(t => !ANTIGOS.includes(t))
+    expect(NOVOS).toHaveLength(9)
+    const desativado = (tipo: string): Row => ({ site_id: 'site-1', channel_id: 'ch-1', report_type_id: tipo, status: 'desativado' })
+    const db = fakeSupabase({ yt_reporting_jobs: [...ANTIGOS.map(linhaAtiva), ...NOVOS.map(desativado), desativado('channel_annotations_a1'), desativado('playlist_basic_a2')] })
+    api.reportTypesList.mockResolvedValue([...REPORT_TYPES_ENABLED.map(id => ({ id })), { id: 'channel_annotations_a1' }, { id: 'playlist_basic_a2' }])
+    api.jobsList.mockResolvedValue(ANTIGOS.map(t => ({ id: `job-${t}`, reportTypeId: t, createTime: '2026-10-01T00:00:00.000Z' })))
+    const ctx = ctxDe(db)
+    await passoJobs(ctx)
+    expect(api.jobsCreate.mock.calls.map(c => (c[0] as { reportTypeId: string }).reportTypeId).sort()).toEqual([...NOVOS].sort())
+    for (const t of REPORT_TYPES_ENABLED) expect(job(db, t)).toMatchObject({ status: 'ativo' })
+    for (const t of NOVOS) expect(job(db, t)!.job_id).toBe(`job-${t}`)
+    expect(job(db, 'channel_annotations_a1')).toMatchObject({ status: 'desativado' })
+    expect(job(db, 'playlist_basic_a2')).toMatchObject({ status: 'desativado' })
+    expect(ctx.falhas).toEqual([])
+  })
+})
+
 describe('passoJobs: tipos', () => {
   it('tipo habilitado ausente da lista: tipo_indisponivel, avisa e fica na resposta; tipo não habilitado: desativado, sem chamada', async () => {
-    api.reportTypesList.mockResolvedValue([{ id: 'channel_basic_a3' }, { id: 'channel_reach_combined_a1' }, { id: 'channel_traffic_source_a3' }, { id: 'channel_demographics_a1' }])
+    api.reportTypesList.mockResolvedValue([
+      ...REPORT_TYPES_ENABLED.filter(t => t !== 'channel_reach_basic_a1').map(id => ({ id })),
+      { id: 'channel_annotations_a1' },
+    ])
     const db = fakeSupabase()
     const ctx = ctxDe(db)
     const resumo = await passoJobs(ctx)
     expect(job(db, 'channel_reach_basic_a1')).toMatchObject({ status: 'tipo_indisponivel' })
     expect(job(db, 'channel_reach_basic_a1')!.job_id).toBeUndefined()
-    expect(job(db, 'channel_demographics_a1')).toMatchObject({ status: 'desativado' })
-    expect(api.jobsCreate).toHaveBeenCalledTimes(3)
-    expect(api.jobsCreate.mock.calls.map(c => (c[0] as { reportTypeId: string }).reportTypeId)).not.toContain('channel_demographics_a1')
-    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel')
+    expect(job(db, 'channel_annotations_a1')).toMatchObject({ status: 'desativado' })
+    expect(api.jobsCreate).toHaveBeenCalledTimes(REPORT_TYPES_ENABLED.length - 1)
+    expect(api.jobsCreate.mock.calls.map(c => (c[0] as { reportTypeId: string }).reportTypeId)).not.toContain('channel_annotations_a1')
+    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel', 'channel_reach_basic_a1')
     expect(resumo.tipo_indisponivel).toEqual(['Canal Um: channel_reach_basic_a1'])
     expect(resumo.acao_do_dono).toEqual([])
     expect(ctx.falhas).toEqual([])
   })
 
+  it('cada tipo indisponível avisa com o seu nome', async () => {
+    api.reportTypesList.mockResolvedValue(REPORT_TYPES_ENABLED.filter(t => t !== 'channel_basic_a3' && t !== 'channel_traffic_source_a3').map(id => ({ id })))
+    const db = fakeSupabase()
+    const resumo = await passoJobs(ctxDe(db))
+    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel', 'channel_basic_a3')
+    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel', 'channel_traffic_source_a3')
+    expect([...resumo.tipo_indisponivel].sort()).toEqual(['Canal Um: channel_basic_a3', 'Canal Um: channel_traffic_source_a3'])
+  })
+
+  it('tipo habilitado com data de descontinuação: o job é criado mesmo assim e a data aparece em acao_do_dono', async () => {
+    const quando = new Date(Date.now() + 90 * 86_400_000).toISOString()
+    api.reportTypesList.mockResolvedValue(REPORT_TYPES_ENABLED.map(id => (id === 'channel_basic_a3' ? { id, deprecateTime: quando } : { id })))
+    const db = fakeSupabase()
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo' })
+    expect(resumo.acao_do_dono).toEqual([`Canal Um: channel_basic_a3 tem data de descontinuação no YouTube (${quando})`])
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('data de descontinuação NO PASSADO: o job é criado mesmo assim e a nota diz que a data já passou', async () => {
+    api.reportTypesList.mockResolvedValue(REPORT_TYPES_ENABLED.map(id => (id === 'channel_basic_a3' ? { id, deprecateTime: '2019-01-15T00:00:00Z' } : { id })))
+    const db = fakeSupabase()
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo' })
+    expect(resumo.acao_do_dono).toEqual(['Canal Um: channel_basic_a3 tem data de descontinuação no YouTube (2019-01-15T00:00:00Z), que já passou'])
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('data de descontinuação ilegível: o passo não quebra e a nota sai com o texto cru', async () => {
+    api.reportTypesList.mockResolvedValue(REPORT_TYPES_ENABLED.map(id => (id === 'channel_basic_a3' ? { id, deprecateTime: 'em breve' } : { id })))
+    const db = fakeSupabase()
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo' })
+    expect(resumo.acao_do_dono).toEqual(['Canal Um: channel_basic_a3 tem data de descontinuação no YouTube (em breve)'])
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('tipo fora da lista com data de descontinuação: nenhuma nota', async () => {
+    api.reportTypesList.mockResolvedValue([...REPORT_TYPES_ENABLED.map(id => ({ id })), { id: 'channel_annotations_a1', deprecateTime: '2019-01-15T00:00:00Z' }])
+    const resumo = await passoJobs(ctxDe(fakeSupabase()))
+    expect(resumo.acao_do_dono).toEqual([])
+  })
+
   it('linha desativado que já existe não é regravada', async () => {
-    api.reportTypesList.mockResolvedValue([...TIPOS, { id: 'channel_demographics_a1' }])
-    const db = fakeSupabase({ yt_reporting_jobs: [{ site_id: 'site-1', channel_id: 'ch-1', report_type_id: 'channel_demographics_a1', status: 'desativado' }] })
+    api.reportTypesList.mockResolvedValue([...TIPOS, { id: 'channel_annotations_a1' }])
+    const db = fakeSupabase({ yt_reporting_jobs: [{ site_id: 'site-1', channel_id: 'ch-1', report_type_id: 'channel_annotations_a1', status: 'desativado' }] })
     await passoJobs(ctxDe(db))
-    expect(db.writes.filter(w => (w.payload as Row).report_type_id === 'channel_demographics_a1')).toEqual([])
+    expect(db.writes.filter(w => (w.payload as Row).report_type_id === 'channel_annotations_a1')).toEqual([])
   })
 })
 
@@ -168,7 +238,7 @@ describe('passoJobs: ação do dono', () => {
     await passoJobs(ctxDe(db))
     expect(api.reportTypesList).toHaveBeenCalledTimes(2)
     expect(avisarEntrada).toHaveBeenCalledTimes(2)
-    expect(db.tables.yt_reporting_jobs).toHaveLength(4)
+    expect(db.tables.yt_reporting_jobs).toHaveLength(REPORT_TYPES_ENABLED.length)
   })
 
   it('a chamada volta a passar: os estados saem sozinhos e avisarSaida é chamado', async () => {
@@ -229,7 +299,7 @@ describe('passoJobs: erros', () => {
     const db = fakeSupabase()
     const ctx = { ...ctxDe(db), channels: [canal, outro] }
     await passoJobs(ctx)
-    expect(db.tables.yt_reporting_jobs!.filter(r => r.channel_id === 'ch-2')).toHaveLength(4)
+    expect(db.tables.yt_reporting_jobs!.filter(r => r.channel_id === 'ch-2')).toHaveLength(REPORT_TYPES_ENABLED.length)
     expect(ctx.falhas).toHaveLength(1)
   })
 
@@ -270,13 +340,49 @@ describe('passoJobs: tempo e 409 sem job', () => {
     expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'erro' })
   })
 
-  it('lista vazia de tipos da API: os quatro viram tipo_indisponivel e o dono é avisado', async () => {
+  it('lista vazia de tipos da API: é "o dado não existe", não "todos indisponíveis": nenhuma linha, nenhum aviso, UMA falha do passo', async () => {
     api.reportTypesList.mockResolvedValue([])
     const db = fakeSupabase()
-    const resumo = await passoJobs(ctxDe(db))
-    expect(estados(db)).toEqual(Object.fromEntries(REPORT_TYPES_ENABLED.map(t => [t, 'tipo_indisponivel'])))
-    expect(resumo.tipo_indisponivel).toHaveLength(4)
-    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel')
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(db.tables.yt_reporting_jobs ?? []).toEqual([])
+    expect(api.jobsCreate).not.toHaveBeenCalled()
+    expect(avisarEntrada).not.toHaveBeenCalled()
+    expect(resumo.tipo_indisponivel).toEqual([])
+    expect(ctx.falhas).toEqual(['jobs: Canal Um: o YouTube não devolveu a lista de tipos de relatório'])
+    expect(tentativaCanal(db)).toMatchObject({ outcome: 'erro_http', scope_id: 'ch-1' })
+  })
+
+  it('lista não vazia mas sem NENHUM tipo habilitado: mesma coisa (nada marcado indisponível, uma falha)', async () => {
+    api.reportTypesList.mockResolvedValue([{ id: 'playlist_basic_a2' }, { id: 'channel_annotations_a1' }])
+    const db = fakeSupabase()
+    const ctx = ctxDe(db)
+    await passoJobs(ctx)
+    expect(estados(db)).toEqual({})
+    expect(avisarEntrada).not.toHaveBeenCalled()
+    expect(ctx.falhas).toEqual(['jobs: Canal Um: o YouTube não devolveu a lista de tipos de relatório'])
+  })
+
+  it('lista vazia num dia e boa no seguinte: a segunda execução cria os jobs e a falha não volta', async () => {
+    const db = fakeSupabase()
+    api.reportTypesList.mockResolvedValueOnce([]).mockResolvedValue(TIPOS)
+    const dia1 = ctxDe(db)
+    await passoJobs(dia1)
+    expect(dia1.falhas).toHaveLength(1)
+    const dia2 = ctxDe(db)
+    await passoJobs(dia2)
+    expect(dia2.falhas).toEqual([])
+    expect(estados(db)).toEqual(Object.fromEntries(REPORT_TYPES_ENABLED.map(t => [t, 'ativo'])))
+  })
+
+  it('um tipo isolado ausente de uma lista não vazia continua sendo tipo_indisponivel (os outros seguem)', async () => {
+    api.reportTypesList.mockResolvedValue(TIPOS.filter(t => t.id !== 'channel_basic_a3'))
+    const db = fakeSupabase()
+    const ctx = ctxDe(db)
+    await passoJobs(ctx)
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'tipo_indisponivel' })
+    expect(job(db, 'channel_reach_basic_a1')).toMatchObject({ status: 'ativo' })
+    expect(ctx.falhas).toEqual([])
   })
 
   it('prazo que acaba no meio da listagem: nao_alcancado_orcamento, jobs intocados, restantes pendentes, sem falha', async () => {
@@ -308,7 +414,7 @@ describe('passoJobs: tempo e 409 sem job', () => {
     expect(ctx.falhas).toEqual([])
   })
 
-  it('canal pulado por já ter os quatro jobs ativos registra sondagem ok', async () => {
+  it('canal pulado por já ter todos os jobs ativos registra sondagem ok', async () => {
     const db = fakeSupabase({ yt_reporting_jobs: REPORT_TYPES_ENABLED.map(linhaAtiva) })
     await passoJobs(ctxDe(db))
     expect(tentativaCanal(db)).toMatchObject({ outcome: 'ok', scope_id: 'ch-1' })
@@ -408,9 +514,9 @@ describe('passoJobs: autorização (L1b)', () => {
 })
 
 describe('passoJobs: tipo tirado de REPORT_TYPES_ENABLED', () => {
-  const FORA = 'channel_demographics_a1'
+  const FORA = 'channel_annotations_a1'
 
-  it('os quatro habilitados ativos e uma linha ativa de tipo fora da lista: ela vira desativado, sem token e sem chamada ao Google', async () => {
+  it('os habilitados ativos e uma linha ativa de tipo fora da lista: ela vira desativado, sem token e sem chamada ao Google', async () => {
     const db = fakeSupabase({ yt_reporting_jobs: [...REPORT_TYPES_ENABLED.map(linhaAtiva), linhaAtiva(FORA)] })
     const ctx = ctxDe(db)
     const resumo = await passoJobs(ctx)
@@ -446,5 +552,180 @@ describe('passoJobs: tipo tirado de REPORT_TYPES_ENABLED', () => {
     await passoJobs(ctxDe(db))
     expect(db.writes.filter(w => w.table === 'yt_reporting_jobs')).toEqual([])
     expect(ensureFreshToken).not.toHaveBeenCalled()
+  })
+})
+
+describe('E12 onda 2, D3: linha desativada que é religada conta os 6 dias a partir da religação', () => {
+  const AGORA = new Date('2026-10-20T12:00:00.000Z')
+  const DIA_MS = 86_400_000
+  const ha = (dias: number) => new Date(AGORA.getTime() - dias * DIA_MS).toISOString()
+  const MSG = 'relatórios: Canal Um está sem relatório novo de channel_basic_a3 há mais de 6 dias'
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+
+  /** A API cria o job SEM devolver createTime (o campo é opcional no tipo `Job`). */
+  const semCreateTime = () =>
+    api.jobsCreate.mockImplementation(async ({ reportTypeId }: { reportTypeId: string }) => ({ id: `job-${reportTypeId}`, reportTypeId }))
+  const linhaVelha = (tipo: string, extra: Row = {}): Row => ({
+    site_id: 'site-1', channel_id: 'ch-1', report_type_id: tipo, status: 'desativado', created_at: ha(10), job_create_time: null, last_create_time: null, ...extra,
+  })
+
+  it('linha desativado criada há 10 dias, job recriado agora sem createTime: job_create_time vira agora e o critério dos 6 dias não alarma no primeiro dia', async () => {
+    semCreateTime()
+    const db = fakeSupabase({ yt_reporting_jobs: [linhaVelha('channel_basic_a3', { last_create_time: ha(20) })] })
+    const ctx = ctxDe(db)
+    await passoJobs(ctx)
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo', job_create_time: AGORA.toISOString() })
+
+    const criterios = { supabase: db.client, falhas: [] as string[], channels: ctx.channels }
+    await criteriosRelatorios(criterios)
+    expect(criterios.falhas).toEqual([])
+
+    // dia 5 depois da religação ainda é cedo; passados os 6 dias, sem relatório novo, alarma
+    vi.setSystemTime(new Date(AGORA.getTime() + 5 * DIA_MS))
+    const dia5 = { supabase: db.client, falhas: [] as string[], channels: ctx.channels }
+    await criteriosRelatorios(dia5)
+    expect(dia5.falhas).toEqual([])
+    vi.setSystemTime(new Date(AGORA.getTime() + 6.5 * DIA_MS))
+    const dia7 = { supabase: db.client, falhas: [] as string[], channels: ctx.channels }
+    await criteriosRelatorios(dia7)
+    expect(dia7.falhas).toContain(MSG)
+  })
+
+  it('o mesmo vale para linha em erro ou tipo_indisponivel que volta a ativo', async () => {
+    semCreateTime()
+    const db = fakeSupabase({ yt_reporting_jobs: [linhaVelha('channel_basic_a3', { status: 'erro' }), linhaVelha('channel_traffic_source_a3', { status: 'tipo_indisponivel' })] })
+    await passoJobs(ctxDe(db))
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo', job_create_time: AGORA.toISOString() })
+    expect(job(db, 'channel_traffic_source_a3')).toMatchObject({ status: 'ativo', job_create_time: AGORA.toISOString() })
+  })
+
+  it('com createTime na resposta, vale o da API', async () => {
+    const db = fakeSupabase({ yt_reporting_jobs: [linhaVelha('channel_basic_a3')] })
+    await passoJobs(ctxDe(db))
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ job_create_time: '2026-10-07T12:00:01Z' })
+  })
+
+  it('job que já estava ativo e continua sem createTime na API NÃO ganha data nova (o relógio do alarme não reinicia)', async () => {
+    semCreateTime()
+    api.jobsList.mockResolvedValue([{ id: 'job-channel_basic_a3', reportTypeId: 'channel_basic_a3' }])
+    const db = fakeSupabase({ yt_reporting_jobs: [linhaVelha('channel_basic_a3', { status: 'ativo', job_id: 'job-channel_basic_a3' })] })
+    await passoJobs(ctxDe(db))
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo', job_create_time: null, created_at: ha(10) })
+  })
+})
+
+describe('E12 onda 6, G3: ausência nunca sobrescreve a data de criação que já está gravada', () => {
+  const AGORA = new Date('2026-10-20T12:00:00.000Z')
+  const GRAVADA = '2026-10-08T12:01:00.000Z'
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+
+  /** Produção no D0: o job já está `ativo` com a data gravada, e o canal não está completo (faltam os tipos novos), então a sondagem passa por ele. */
+  const bancoDeProducao = (): FakeDb => fakeSupabase({
+    yt_reporting_jobs: [{
+      site_id: 'site-1', channel_id: 'ch-1', report_type_id: 'channel_basic_a3', status: 'ativo', job_id: 'job-channel_basic_a3',
+      job_create_time: GRAVADA, last_create_time: '2026-10-19T10:00:00.000Z',
+    }],
+  })
+
+  it('jobs.list devolve o job ativo SEM createTime: a data gravada fica, e o job_id também', async () => {
+    api.jobsList.mockResolvedValue([{ id: 'job-channel_basic_a3', reportTypeId: 'channel_basic_a3' }])
+    const db = bancoDeProducao()
+    await passoJobs(ctxDe(db))
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo', job_id: 'job-channel_basic_a3', job_create_time: GRAVADA })
+  })
+
+  it('jobs.list devolve createTime: vale o da API (corrige o gravado)', async () => {
+    api.jobsList.mockResolvedValue([{ id: 'job-channel_basic_a3', reportTypeId: 'channel_basic_a3', createTime: '2026-10-08T12:01:05Z' }])
+    const db = bancoDeProducao()
+    await passoJobs(ctxDe(db))
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ job_create_time: '2026-10-08T12:01:05Z' })
+  })
+
+  it('o mesmo vale para o job adotado depois de um 409 (a lista de novo vem sem createTime)', async () => {
+    // Linha ativa com data gravada, mas fora da primeira listagem: o create dá 409, a segunda listagem acha o job sem data.
+    api.jobsList.mockResolvedValueOnce([]).mockResolvedValue([{ id: 'job-channel_basic_a3', reportTypeId: 'channel_basic_a3' }])
+    api.jobsCreate.mockRejectedValue(new ReportingHttpError(409, null))
+    const db = bancoDeProducao()
+    await passoJobs(ctxDe(db))
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo', job_create_time: GRAVADA })
+  })
+})
+
+describe('E12 onda 4, E3: tipo que sumiu da lista do YouTube', () => {
+  const SUMIU = 'channel_basic_a3'
+  const MSG = `jobs: Canal Um: o tipo ${SUMIU} sumiu da lista do YouTube; se repetir, foi descontinuado`
+  /** Todos ativos menos `channel_reach_basic_a1`, que não tem linha: o canal não está completo e a sondagem roda. */
+  const bancoIncompleto = () => fakeSupabase({ yt_reporting_jobs: REPORT_TYPES_ENABLED.filter(t => t !== 'channel_reach_basic_a1').map(linhaAtiva) })
+  const listaSem = (...ausentes: string[]) => api.reportTypesList.mockResolvedValue(REPORT_TYPES_ENABLED.filter(t => !ausentes.includes(t)).map(id => ({ id })))
+
+  it('job ATIVO cujo tipo sumiu da lista (lista parcial): não é rebaixado nem avisado como indisponível; vira falha visível', async () => {
+    listaSem(SUMIU)
+    const db = bancoIncompleto()
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(job(db, SUMIU)).toMatchObject({ status: 'ativo', job_id: `job-${SUMIU}` })
+    expect(db.writes.filter(w => (w.payload as Row).report_type_id === SUMIU)).toEqual([])
+    expect(avisarEntrada).not.toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel', SUMIU)
+    expect(resumo.tipo_indisponivel).toEqual([])
+    expect(resumo.estados['ch-1']![SUMIU]).toBe('ativo')
+    expect(ctx.falhas).toEqual([MSG])
+  })
+
+  it('a falha se repete a cada execução e o job NUNCA é rebaixado sozinho (sem evidência persistente sem migration)', async () => {
+    listaSem(SUMIU)
+    const db = bancoIncompleto()
+    for (let i = 0; i < 5; i++) {
+      // A linha do tipo que falta é recriada pela própria sondagem; apaga para o canal seguir incompleto, como no dia anterior.
+      db.tables.yt_reporting_jobs = (db.tables.yt_reporting_jobs ?? []).filter(r => r.report_type_id !== 'channel_reach_basic_a1')
+      const ctx = ctxDe(db)
+      await passoJobs(ctx)
+      expect(ctx.falhas).toEqual([MSG])
+      expect(job(db, SUMIU)).toMatchObject({ status: 'ativo' })
+    }
+    expect(avisarEntrada).not.toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel', SUMIU)
+  })
+
+  it('o tipo volta na lista seguinte: sem falha', async () => {
+    const db = bancoIncompleto()
+    listaSem(SUMIU)
+    await passoJobs(ctxDe(db))
+    db.tables.yt_reporting_jobs = (db.tables.yt_reporting_jobs ?? []).filter(r => r.report_type_id !== 'channel_reach_basic_a1')
+    api.reportTypesList.mockResolvedValue(TIPOS)
+    const ctx = ctxDe(db)
+    await passoJobs(ctx)
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('tipo que NUNCA teve job (sem linha) e não está na lista continua tipo_indisponivel, como antes', async () => {
+    listaSem('channel_reach_basic_a1')
+    const db = bancoIncompleto()
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(job(db, 'channel_reach_basic_a1')).toMatchObject({ status: 'tipo_indisponivel' })
+    expect(resumo.tipo_indisponivel).toEqual(['Canal Um: channel_reach_basic_a1'])
+    expect(avisarEntrada).toHaveBeenCalledWith(expect.anything(), canal, 'tipo_indisponivel', 'channel_reach_basic_a1')
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('job que já NÃO estava ativo (erro) e o tipo sumiu: continua tipo_indisponivel, como antes', async () => {
+    listaSem(SUMIU)
+    const db = fakeSupabase({ yt_reporting_jobs: [{ site_id: 'site-1', channel_id: 'ch-1', report_type_id: SUMIU, status: 'erro', error: 'HTTP 500' }] })
+    const ctx = ctxDe(db)
+    await passoJobs(ctx)
+    expect(job(db, SUMIU)).toMatchObject({ status: 'tipo_indisponivel' })
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('E4: a lista de tipos estoura as 20 páginas: falha visível na hora, nenhum tipo marcado indisponível, jobs ativos intactos', async () => {
+    api.reportTypesList.mockRejectedValue(new PaginacaoExcedidaError('reportTypes'))
+    const db = bancoIncompleto()
+    const ctx = ctxDe(db)
+    const resumo = await passoJobs(ctx)
+    expect(ctx.falhas).toEqual(['jobs: Canal Um: a lista reportTypes passou de 20 páginas; a resposta do YouTube está incompleta'])
+    expect(resumo.tipo_indisponivel).toEqual([])
+    expect(avisarEntrada).not.toHaveBeenCalled()
+    for (const t of REPORT_TYPES_ENABLED.filter(x => x !== 'channel_reach_basic_a1')) expect(job(db, t)).toMatchObject({ status: 'ativo' })
   })
 })

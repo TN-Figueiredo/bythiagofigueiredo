@@ -1,6 +1,7 @@
 // Banco em memória para os testes da coleta. Cobre só o que os passos usam do supabase-js:
 // from().select/insert/upsert/update/delete com eq, neq, in, lt, lte, gt, gte, is, not, or, order,
-// limit, maybeSingle, single, e rpc(). `or()` é ignorado (os testes semeiam só o que interessa).
+// limit, range, maybeSingle, single, e rpc(). `or()` é ignorado (os testes semeiam só o que interessa).
+// Toda resposta de select passa por MAX_LINHAS_RESPOSTA (1000), como o max-rows do PostgREST.
 // Datas são comparadas como texto: use sempre toISOString() ou 'YYYY-MM-DD' nas sementes.
 // Fora de escopo: validação de nomes de coluna (coluna inexistente não dá 42703 aqui).
 // Estrito como o PostgREST: or()/not() com operador não suportado lançam; single() exige 1 linha;
@@ -25,7 +26,38 @@ export interface FakeDb {
   client: SupabaseClient
   /** Chaves únicas por tabela (PK). Usadas por insert (23505) e upsert onConflict (42P10). */
   uniqueKeys: Record<string, string[][]>
+  /** Quantos selects cada tabela já recebeu (1 = o primeiro). */
+  leituras: Record<string, number>
+  /** Devolve um erro para o select de número `n` (1-based) da tabela (`colunas` = o texto do select); undefined deixa passar. */
+  erroNaLeitura?: (tabela: string, n: number, colunas: string) => FakeErr | undefined
+  /** Tabelas cujos selects com count devolvem count nulo (o PostgREST pode omitir a contagem). */
+  semContagem: Record<string, boolean>
+  /** Como o Postgres: linhas EMPATADAS em todo o ORDER BY saem em ordem arbitrária, diferente a cada consulta. Ligado, cada
+   *  select embaralha antes de ordenar (sementes diferentes por leitura); sem desempate total, a paginação repete e perde linhas.
+   *  Desligado (padrão), o empate sai na ordem de inserção, estável, o que esconde a falta de desempate. */
+  embaralharEmpates?: boolean
 }
+
+/** Embaralhamento determinístico (mulberry32): o mesmo n dá a mesma ordem, n diferentes dão ordens diferentes. */
+function embaralhar<T>(linhas: readonly T[], semente: number): T[] {
+  const out = [...linhas]
+  let a = (semente * 0x9e3779b1) >>> 0
+  const rnd = (): number => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1))
+    ;[out[i], out[j]] = [out[j]!, out[i]!]
+  }
+  return out
+}
+
+/** `max-rows` do PostgREST (padrão do Supabase): nenhuma resposta passa disto, com ou sem limit()/range(). */
+export const MAX_LINHAS_RESPOSTA = 1000
 
 export const CHAVES_UNICAS_L1A: Record<string, string[][]> = {
   yt_reporting_jobs: [['channel_id', 'report_type_id']],
@@ -52,6 +84,7 @@ class Consulta implements PromiseLike<Resposta> {
   private ignorarDuplicados = false
   private ordens: Array<{ col: string; asc: boolean; nullsFirst: boolean }> = []
   private max: number | null = null
+  private desde = 0
   private head = false
   private modo: 'lista' | 'um' | 'talvez' = 'lista'
   private retorna = false
@@ -59,6 +92,7 @@ class Consulta implements PromiseLike<Resposta> {
   private promessa: Promise<Resposta> | null = null
   private erroBuilder: Error | null = null
   private querCount = false
+  private colunasTexto = ''
 
   constructor(private db: FakeDb, private tabela: string) {}
 
@@ -66,6 +100,7 @@ class Consulta implements PromiseLike<Resposta> {
     if (this.op !== 'select') this.retorna = true
     this.head = !!o?.head
     this.querCount = !!o?.count
+    this.colunasTexto = cols ?? '*'
     const c = (cols ?? '*').split(',').map(x => x.trim()).filter(Boolean)
     this.colunas = c.length && !c.includes('*') && c.every(x => /^\w+$/.test(x)) ? c : null
     return this
@@ -102,6 +137,8 @@ class Consulta implements PromiseLike<Resposta> {
     return this
   }
   limit(n: number) { this.max = n; return this }
+  /** Como o PostgREST: intervalo fechado [de, ate], 0-based. */
+  range(de: number, ate: number) { this.desde = de; this.max = ate - de + 1; return this }
   maybeSingle() { this.modo = 'talvez'; return this }
   single() { this.modo = 'um'; return this }
 
@@ -117,10 +154,16 @@ class Consulta implements PromiseLike<Resposta> {
     const erro = this.db.errors[this.tabela] ?? (this.op === 'select' ? undefined : this.db.writeErrors[this.tabela])
     if (erro) return { data: null, error: erro, count: null }
     const linhas = (this.db.tables[this.tabela] ??= [])
+    if (this.op === 'select') {
+      const n = (this.db.leituras[this.tabela] = (this.db.leituras[this.tabela] ?? 0) + 1)
+      const erroN = this.db.erroNaLeitura?.(this.tabela, n, this.colunasTexto)
+      if (erroN) return { data: null, error: erroN, count: null }
+    }
     const casa = (r: Row) => this.filtros.every(f => f(r))
 
     if (this.op === 'select') {
       let out = linhas.filter(casa)
+      if (this.db.embaralharEmpates) out = embaralhar(out, this.db.leituras[this.tabela] ?? 0)
       for (const o of [...this.ordens].reverse()) {
         out = [...out].sort((a, b) => {
           const na = a[o.col] == null, nb = b[o.col] == null
@@ -129,10 +172,10 @@ class Consulta implements PromiseLike<Resposta> {
         })
       }
       const total = out.length
-      if (this.max !== null) out = out.slice(0, this.max)
+      out = out.slice(this.desde, this.desde + Math.min(this.max ?? MAX_LINHAS_RESPOSTA, MAX_LINHAS_RESPOSTA))
       if (this.head) return { data: null, error: null, count: total }
       const proj = out.map(r => this.projetar(r))
-      const count = this.querCount ? total : null
+      const count = this.querCount && !this.db.semContagem[this.tabela] ? total : null
       if (this.modo === 'lista') return { data: proj, error: null, count }
       if (proj.length === 1 || (proj.length === 0 && this.modo === 'talvez')) return { data: proj[0] ?? null, error: null, count }
       return { data: null, error: { code: 'PGRST116', message: `JSON object requested, multiple (or no) rows returned (${proj.length})` }, count }
@@ -193,6 +236,7 @@ export function fakeSupabase(
 ): FakeDb {
   const db = {
     tables: structuredClone(seed), errors: {}, writeErrors: {}, rpcCalls: [], rpcHandlers: {}, writes: [], uniqueKeys,
+    leituras: {}, semContagem: {},
   } as unknown as FakeDb
 
   // Mesmo comportamento de public.yt_own_attempt_record: uma linha por escopo, kind e dia UTC; soma attempts.

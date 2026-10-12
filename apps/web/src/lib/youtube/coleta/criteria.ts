@@ -9,6 +9,7 @@
 import { REACH_TYPES, REPORT_TYPES_ENABLED } from '@/lib/youtube/reporting/types'
 import { scopeJob } from './attempts'
 import { addDays, boundsAnalytics, utcDay } from './day-pt'
+import { JANELA_PERDA_DIAS, VALIDADE_DIAS, venceEm } from './fila-relatorios'
 import { conferirBanco, prefixoNotaErroAlcance, pushUnico } from './schema'
 import type { AttemptKind, StepCtx } from './types'
 
@@ -66,6 +67,8 @@ interface JobLinha {
   job_create_time: string | null
   /** not null no banco: a idade de reserva quando a API não informou job_create_time. */
   created_at: string | null
+  /** O maior `createTime` que a listagem já viu neste job. Nulo = nunca listou relatório nenhum. */
+  last_create_time: string | null
 }
 
 const ESTADOS_DO_DONO: readonly string[] = ['sem_acesso', 'api_nao_ativada', 'tipo_indisponivel']
@@ -73,7 +76,7 @@ const ESTADOS_DO_DONO: readonly string[] = ['sem_acesso', 'api_nao_ativada', 'ti
 export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios> {
   const out: CriteriosRelatorios = { perdidos: 0, atrasados: 0, acao_do_dono: [] }
   const agora = Date.now()
-  const corte14 = iso(agora - 14 * DIA_MS)
+  const corte14 = iso(agora - JANELA_PERDA_DIAS * DIA_MS)
   const corte6 = agora - 6 * DIA_MS
   const nome = (id: string): string => ctx.channels.find(c => c.id === id)?.name ?? id
 
@@ -95,6 +98,26 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     }
     publicouCache.set(canalId, v.count > 0)
     return v.count > 0
+  }
+
+  // Canais (entre `ids`) sem token HOJE, pela tentativa de relatório de hoje: `sem_conexao` (nunca conectado) e
+  // `sem_autorizacao` (perdeu a autorização). `null` = a leitura falhou (a nota de avaliação já está em falhas[]).
+  const semTokenHoje = async (ids: string[], criterio: string): Promise<{ semConexao: Set<string>; semAutorizacao: Set<string> } | null> => {
+    const sc = await ctx.supabase
+      .from('yt_own_collection_attempts')
+      .select('scope_id, outcome')
+      .eq('scope_type', 'canal')
+      .eq('kind', 'relatorio')
+      .eq('attempt_day', utcDay(new Date()))
+      .in('outcome', ['sem_conexao', 'sem_autorizacao'])
+      .in('scope_id', ids)
+      .limit(LIMITE_LEITURA)
+    if (!leituraOk(sc, 'yt_own_collection_attempts', criterio, ctx.falhas)) return null
+    const linhas = (sc.data ?? []) as Array<{ scope_id: string; outcome: string }>
+    return {
+      semConexao: new Set(linhas.map(l => l.scope_id)),
+      semAutorizacao: new Set(linhas.filter(l => l.outcome === 'sem_autorizacao').map(l => l.scope_id)),
+    }
   }
 
   // Relatórios de ALCANCE dos últimos 14 dias, do mais novo para o mais velho (2 tipos por canal: cabe em 1000
@@ -153,6 +176,62 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     }
   }
 
+  // Venceu sem baixar (o arquivo já sumiu na origem) há até JANELA_PERDA_DIAS dias, de tipo HABILITADO. A nota por relatório
+  // acima só vê quem foi CRIADO há menos de 14 dias, ou seja, quase nunca quem venceu por idade (30 ou 60 dias de criado):
+  // a nota da execução em que vence dura um dia e, no seguinte, o cron voltava a verde com a perda esquecida. Aqui o aviso
+  // dura até JANELA_PERDA_DIAS depois do vencimento de cada relatório (a classe dele decide: histórico 30, corrente 60) e
+  // acaba por conta própria. Quem foi criado há menos de 14 dias fica só com a nota por relatório (sem duplicar).
+  // A leitura pega create_time entre (60 + janela) e 14 dias atrás; o filtro fino pelo vencimento é feito aqui.
+  const corteVenceu = iso(agora - (VALIDADE_DIAS.corrente + JANELA_PERDA_DIAS) * DIA_MS)
+  const venc = await ctx.supabase
+    .from('yt_reporting_reports')
+    .select('report_id, channel_id, report_type_id, create_time, is_backfill')
+    .eq('status', 'expirado_sem_baixar')
+    .in('report_type_id', [...HABILITADOS])
+    .gte('create_time', corteVenceu)
+    .lt('create_time', corte14)
+    .limit(LIMITE_LEITURA)
+  if (leituraOk(venc, 'yt_reporting_reports', 'relatórios que venceram sem baixar', ctx.falhas)) {
+    const lidos = (venc.data ?? []) as Array<{ report_type_id: string; create_time: string; is_backfill: boolean | null }>
+    if (lidos.length >= LIMITE_LEITURA) {
+      naoAvaliou(ctx.falhas, `relatórios que venceram sem baixar (yt_reporting_reports): leitura cortada em ${LIMITE_LEITURA}`)
+    }
+    const porTipo = new Map<string, number>()
+    for (const r of lidos) {
+      const vence = venceEm(r)
+      if (vence > agora) continue                                // expirou cedo (404/410), o prazo da origem nem chegou: só perdidos
+      if (vence < agora - JANELA_PERDA_DIAS * DIA_MS) continue   // venceu há mais que a janela: só perdidos
+      porTipo.set(r.report_type_id, (porTipo.get(r.report_type_id) ?? 0) + 1)
+    }
+    if (porTipo.size > 0) {
+      const total = [...porTipo.values()].reduce((a, b) => a + b, 0)
+      const detalhe = [...porTipo].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([t, n]) => `${t}: ${n}`).join('; ')
+      pushUnico(ctx.falhas, `relatórios: ${total} relatório(s) venceram sem baixar nos últimos ${JANELA_PERDA_DIAS} dias (${detalhe})`)
+    }
+  }
+
+  // Em erro, de tipo habilitado que NÃO é de alcance (o de alcance está na leitura lá de cima), nos últimos 14 dias.
+  // Esses tipos só guardam o bruto: `erro` aqui é bruto que não foi guardado (grande_demais, url_inesperada).
+  const outros = HABILITADOS.filter(t => !ALCANCE.includes(t))
+  if (outros.length > 0) {
+    const err = await ctx.supabase
+      .from('yt_reporting_reports')
+      .select('report_id, channel_id, report_type_id, status, create_time, error')
+      .eq('status', 'erro')
+      .in('report_type_id', outros)
+      .gte('create_time', corte14)
+      .limit(LIMITE_LEITURA)
+    if (leituraOk(err, 'yt_reporting_reports', 'relatórios em erro', ctx.falhas)) {
+      const lidos = (err.data ?? []) as Array<Recente & { error: string | null }>
+      if (lidos.length >= LIMITE_LEITURA) {
+        naoAvaliou(ctx.falhas, `relatórios em erro (yt_reporting_reports): leitura cortada em ${LIMITE_LEITURA}`)
+      }
+      for (const r of lidos) {
+        pushUnico(ctx.falhas, `relatórios: ${nome(r.channel_id)} tem relatório ${r.report_type_id} em erro (${r.error ?? 'sem texto'})`)
+      }
+    }
+  }
+
   // Listado há mais de 14 dias: tem conserto (baixar), então é falha enquanto durar. Só tipo habilitado: o listado
   // de um tipo desligado nunca será baixado, e contá-lo deixaria o cron vermelho até o relatório expirar.
   const atras = await ctx.supabase
@@ -171,12 +250,12 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
   }
 
   // Perdidos: sem conserto. Manter o vermelho para sempre esconderia as falhas novas.
-  // Erro só conta em tipo de alcance (os outros não entram nos critérios); expirado conta em qualquer tipo.
+  // Erro conta em qualquer tipo habilitado (depois da E12 todos guardam bruto); expirado conta em qualquer tipo.
   const perdErro = await ctx.supabase
     .from('yt_reporting_reports')
     .select('report_id', { count: 'exact', head: true })
     .eq('status', 'erro')
-    .in('report_type_id', [...ALCANCE])
+    .in('report_type_id', [...HABILITADOS])
     .lt('create_time', corte14)
   const perdExp = await ctx.supabase
     .from('yt_reporting_reports')
@@ -193,10 +272,71 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     }
   }
 
+  // Tipo HABILITADO sem job: (a) a linha está em `desativado` (o passo de jobs não passou por este canal: sem token, sem
+  // tempo ou exceção), (a') a linha está em `erro` e NUNCA teve job (`job_id` nulo: a listagem ou a criação falhou no primeiro
+  // dia; o plano de 3 dias de tentativa serve a quem já teve job e deixaria um erro passageiro do D0 verde por 3 execuções,
+  // cada uma custando um dia de histórico) ou (b) NÃO HÁ LINHA nenhuma. Sem job não há relatório, e cada dia sem job é um dia de histórico que
+  // não volta. A ausência da linha é o caso "o dado não existe": só vale depois de o passo de jobs ter rodado ao menos
+  // uma vez para o canal (sondagem `ok` registrada), porque antes disso é só cedo demais e o próprio passo cria a linha.
+  const semJob = await ctx.supabase
+    .from('yt_reporting_jobs')
+    .select('channel_id, report_type_id, status, job_id')
+    .in('report_type_id', [...HABILITADOS])
+    .limit(LIMITE_LEITURA)
+  if (leituraOk(semJob, 'yt_reporting_jobs', 'tipos habilitados sem job', ctx.falhas)) {
+    const linhas = (semJob.data ?? []) as Array<{ channel_id: string; report_type_id: string; status: string; job_id?: string | null }>
+    const cortada = linhas.length >= LIMITE_LEITURA
+    if (cortada) naoAvaliou(ctx.falhas, `tipos habilitados sem job (yt_reporting_jobs): leitura cortada em ${LIMITE_LEITURA}`)
+    const porCanal = new Map<string, Set<string>>()
+    const acrescentar = (canalId: string, tipo: string): void => {
+      porCanal.set(canalId, (porCanal.get(canalId) ?? new Set<string>()).add(tipo))
+    }
+    for (const l of linhas) {
+      const semJobNuncaCriado = l.status === 'erro' && !l.job_id
+      if (l.status !== 'desativado' && !semJobNuncaCriado) continue
+      const canal = ctx.channels.find(c => c.id === l.channel_id)
+      if (!canal || !canal.sync_enabled) continue // canal desligado não pede job
+      acrescentar(l.channel_id, l.report_type_id)
+    }
+    // Sem linha: só com a leitura inteira (cortada, "ausente" poderia ser "não lido").
+    const comLinha = (canalId: string): Set<string> => new Set(linhas.filter(l => l.channel_id === canalId).map(l => l.report_type_id))
+    const comAusencia = cortada
+      ? []
+      : ctx.channels.filter(c => c.sync_enabled && HABILITADOS.some(t => !comLinha(c.id).has(t)))
+    if (comAusencia.length > 0) {
+      const desde = addDays(utcDay(new Date()), -30)
+      const son = await ctx.supabase
+        .from('yt_own_collection_attempts')
+        .select('scope_id')
+        .eq('scope_type', 'canal')
+        .eq('kind', 'sondagem')
+        .eq('outcome', 'ok')
+        .gte('attempt_day', desde)
+        .in('scope_id', comAusencia.map(c => c.id))
+        .limit(LIMITE_LEITURA)
+      if (leituraOk(son, 'yt_own_collection_attempts', 'tipos habilitados sem job', ctx.falhas)) {
+        const rodou = new Set(((son.data ?? []) as Array<{ scope_id: string }>).map(r => r.scope_id))
+        for (const c of comAusencia) {
+          if (!rodou.has(c.id)) continue
+          const tem = comLinha(c.id)
+          for (const t of HABILITADOS) if (!tem.has(t)) acrescentar(c.id, t)
+        }
+      }
+    }
+    for (const [id, conjunto] of porCanal) {
+      const tipos = [...conjunto]
+      const canal = ctx.channels.find(c => c.id === id)!
+      const texto = `${canal.name} tem ${tipos.length} tipo(s) de relatório habilitado(s) sem job: ${[...tipos].sort().join(', ')}`
+      // Canal que perdeu a autorização: só o dono resolve (reconectar); já sai como "<canal>: reautorizar".
+      if (canal.collection_status === 'reautorizar') out.acao_do_dono!.push(`${texto} (o canal precisa ser reconectado)`)
+      else pushUnico(ctx.falhas, `jobs: ${texto}`)
+    }
+  }
+
   // Jobs: uma leitura só (no máximo canais x tipos linhas) serve ao critério de 6 dias e à lista do dono.
   const jobs = await ctx.supabase
     .from('yt_reporting_jobs')
-    .select('channel_id, report_type_id, status, job_create_time, created_at')
+    .select('channel_id, report_type_id, status, job_create_time, created_at, last_create_time')
     .neq('status', 'desativado')
     .limit(LIMITE_LEITURA)
   if (!leituraOk(jobs, 'yt_reporting_jobs', 'jobs de alcance sem relatório novo', ctx.falhas)) return out
@@ -208,6 +348,45 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
 
   for (const j of linhasJob) {
     if (ESTADOS_DO_DONO.includes(j.status)) out.acao_do_dono!.push(`${nome(j.channel_id)}: ${j.report_type_id} em ${j.status}`)
+  }
+
+  // Tipos que só guardam bruto: job ativo há mais de 6 dias cuja listagem não vê relatório novo há mais de 6 dias.
+  // Usa a marca do próprio job (`last_create_time`), sem ler relatórios. Canal desligado (`sync_enabled=false`) ou em
+  // `reautorizar` fica fora, como no critério de alcance. Dois casos, que NÃO são a mesma coisa:
+  //  - marca VELHA ("gerou e parou"): o YouTube já gerou relatório para esse job e parou. Quebrou: falha (vermelho).
+  //  - marca NULA ("nunca gerou"): nenhum relatório chegou desde a criação/religação. A premissa "o YouTube gera
+  //    relatório todo dia" só foi medida nos 4 tipos antigos (leitura de produção de 12/10/2026); para os outros ninguém
+  //    sabe, e um tipo que o YouTube nunca gera para o canal deixaria o cron vermelho para sempre, sem conserto. Vai
+  //    para acao_do_dono, a cada execução enquanto durar (nunca em silêncio e nunca em falhas). Se o dono confirmar que
+  //    o tipo não existe para o canal, o conserto é tirá-lo de REPORT_TYPES_ENABLED.
+  // Por isso NÃO há filtro `publicou` aqui, de propósito.
+  const paradosBruto = linhasJob.filter(j => {
+    if (j.status !== 'ativo' || ALCANCE.includes(j.report_type_id) || !HABILITADOS.includes(j.report_type_id)) return false
+    const canal = ctx.channels.find(c => c.id === j.channel_id)
+    if (!canal || !canal.sync_enabled || canal.collection_status === 'reautorizar') return false
+    const idade = j.job_create_time ?? j.created_at
+    if (!idade || Date.parse(idade) >= corte6) return false
+    return !(j.last_create_time && Date.parse(j.last_create_time) >= corte6)
+  })
+  if (paradosBruto.length > 0) {
+    // Canal sem token hoje: o passo de relatórios não lista, então "sem relatório novo" é consequência, não parada.
+    // Mesma regra do critério de alcance: "sem conexão" vira nota do dono (uma só por canal), "perdeu a autorização"
+    // já sai como "<canal>: reautorizar" em rodarColeta. A leitura que falha é nota de avaliação, nunca verde.
+    const sem = await semTokenHoje([...new Set(paradosBruto.map(j => j.channel_id))], 'jobs de tipos brutos sem relatório novo')
+    if (sem !== null) {
+      for (const id of new Set(paradosBruto.map(j => j.channel_id))) {
+        if (sem.semConexao.has(id) && !sem.semAutorizacao.has(id)) pushUnico(out.acao_do_dono!, `${nome(id)}: sem conexão com o YouTube`)
+      }
+      for (const j of paradosBruto) {
+        if (sem.semConexao.has(j.channel_id)) continue
+        if (!j.last_create_time) {
+          const desde = (j.job_create_time ?? j.created_at ?? '').slice(0, 10)
+          pushUnico(out.acao_do_dono!, `${nome(j.channel_id)}: ${j.report_type_id} nunca gerou relatório desde ${desde}; confira se o YouTube gera esse tipo para este canal`)
+        } else {
+          pushUnico(ctx.falhas, `relatórios: ${nome(j.channel_id)} está sem relatório novo de ${j.report_type_id} há mais de 6 dias`)
+        }
+      }
+    }
   }
 
   // Job de alcance ativo há mais de 6 dias sem relatório novo, em canal que publicou nos últimos 90 dias.
@@ -232,21 +411,11 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
   // "sem relatório novo" é consequência, não parada. Nunca vai para falhas. "Sem conexão" vira nota de
   // acao_do_dono aqui; "perdeu a autorização" já sai como "<canal>: reautorizar" em rodarColeta.
   const canaisSemNovo = [...new Set(semNovo.map(j => j.channel_id))]
-  const sc = await ctx.supabase
-    .from('yt_own_collection_attempts')
-    .select('scope_id, outcome')
-    .eq('scope_type', 'canal')
-    .eq('kind', 'relatorio')
-    .eq('attempt_day', utcDay(new Date()))
-    .in('outcome', ['sem_conexao', 'sem_autorizacao'])
-    .in('scope_id', canaisSemNovo)
-    .limit(LIMITE_LEITURA)
-  if (!leituraOk(sc, 'yt_own_collection_attempts', 'jobs de alcance sem relatório novo', ctx.falhas)) return out
-  const semToken = (sc.data ?? []) as Array<{ scope_id: string; outcome: string }>
-  const semConexao = new Set(semToken.map(l => l.scope_id))
-  const semAutorizacao = new Set(semToken.filter(l => l.outcome === 'sem_autorizacao').map(l => l.scope_id))
+  const sem = await semTokenHoje(canaisSemNovo, 'jobs de alcance sem relatório novo')
+  if (sem === null) return out
+  const { semConexao, semAutorizacao } = sem
   for (const id of canaisSemNovo) {
-    if (semConexao.has(id) && !semAutorizacao.has(id)) out.acao_do_dono!.push(`${nome(id)}: sem conexão com o YouTube`)
+    if (semConexao.has(id) && !semAutorizacao.has(id)) pushUnico(out.acao_do_dono!, `${nome(id)}: sem conexão com o YouTube`)
   }
 
   // Por canal: no máximo uma leitura por canal candidato (<= nº de canais), a mesma do critério dos vazios.

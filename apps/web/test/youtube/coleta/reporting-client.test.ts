@@ -1,19 +1,33 @@
 // @vitest-environment node
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
+import { createServer, type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { createHash } from 'node:crypto'
 import { gzipSync, gunzipSync } from 'node:zlib'
-import { criarReportingClient, classificarErro, empacotarCsv, paraBytea, deBytea, REPORTING_BASE } from '@/lib/youtube/reporting/client'
-import { REPORT_TYPES_ENABLED, REACH_TYPES, SEM_NORMALIZADOR, ReportingHttpError } from '@/lib/youtube/reporting/types'
+import { criarReportingClient, classificarErro, empacotarCsv, paraBytea, deBytea, REPORTING_BASE, MAX_GZ_BYTES, MAX_CSV_BYTES } from '@/lib/youtube/reporting/client'
+import { REPORT_TYPES_ENABLED, REACH_TYPES, SEM_NORMALIZADOR, ReportingHttpError, ArquivoGrandeDemaisError } from '@/lib/youtube/reporting/types'
+import { PaginacaoExcedidaError } from '@/lib/youtube/reporting/client'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const chamada = (f: ReturnType<typeof vi.fn>, i: number) => f.mock.calls[i] as unknown as [string, RequestInit | undefined]
 
 describe('constantes', () => {
-  it('tipos habilitados na ordem de prioridade de download, e os derivados', () => {
-    expect([...REPORT_TYPES_ENABLED]).toEqual(['channel_reach_basic_a1', 'channel_reach_combined_a1', 'channel_traffic_source_a3', 'channel_basic_a3'])
+  it('E12: 13 tipos de canal; os 4 de sempre na frente, depois os 9 que só guardam bruto', () => {
+    const ANTIGOS = ['channel_reach_basic_a1', 'channel_reach_combined_a1', 'channel_traffic_source_a3', 'channel_basic_a3']
+    const NOVOS = [
+      'channel_combined_a3', 'channel_device_os_a3', 'channel_playback_location_a3', 'channel_province_a3', 'channel_demographics_a1',
+      'channel_subtitles_a3', 'channel_cards_a1', 'channel_end_screens_a1', 'channel_sharing_service_a1',
+    ]
+    expect([...REPORT_TYPES_ENABLED]).toEqual([...ANTIGOS, ...NOVOS])
+    expect(new Set(REPORT_TYPES_ENABLED).size).toBe(13)
     expect([...REACH_TYPES]).toEqual(['channel_reach_basic_a1', 'channel_reach_combined_a1'])
-    expect(SEM_NORMALIZADOR).toEqual(['channel_reach_combined_a1', 'channel_traffic_source_a3', 'channel_basic_a3'])
+    expect(SEM_NORMALIZADOR).toEqual([...ANTIGOS, ...NOVOS].filter(t => t !== 'channel_reach_basic_a1'))
     expect(REPORTING_BASE).toBe('https://youtubereporting.googleapis.com/v1')
+  })
+
+  it('E12: fora da lista ficam anotações (recurso extinto) e todos os tipos de playlist', () => {
+    for (const t of REPORT_TYPES_ENABLED) expect(t).toMatch(/^channel_[a-z_]+_a\d$/)
+    expect(REPORT_TYPES_ENABLED as readonly string[]).not.toContain('channel_annotations_a1')
   })
 })
 
@@ -27,6 +41,24 @@ describe('chamadas', () => {
     expect(chamada(f, 0)[0]).toBe('https://youtubereporting.googleapis.com/v1/reportTypes')
     expect(new Headers(chamada(f, 0)[1]!.headers).get('authorization')).toBe('Bearer tok')
     expect(new URL(chamada(f, 1)[0]).searchParams.get('pageToken')).toBe('p2')
+  })
+
+  it('E12 onda 4: lista que ainda tem nextPageToken depois de 20 páginas é erro visível, nunca uma lista curta devolvida em silêncio', async () => {
+    const infinita = () => vi.fn().mockImplementation(async () => json({ reportTypes: [{ id: 'x' }], nextPageToken: 'mais' }))
+    const f = infinita()
+    const e = await criarReportingClient('tok', f as unknown as typeof fetch).reportTypesList().catch(x => x)
+    expect(e).toBeInstanceOf(PaginacaoExcedidaError)
+    expect((e as Error).message).toContain('20')
+    expect(f).toHaveBeenCalledTimes(20)
+    const g = infinita()
+    expect(await criarReportingClient('tok', g as unknown as typeof fetch).jobsList().catch(x => x)).toBeInstanceOf(PaginacaoExcedidaError)
+  })
+
+  it('E12 onda 4: exatamente 20 páginas, a última sem nextPageToken, é lista completa', async () => {
+    let n = 0
+    const f = vi.fn().mockImplementation(async () => { n++; return json(n < 20 ? { reportTypes: [{ id: `t${n}` }], nextPageToken: `p${n}` } : { reportTypes: [{ id: `t${n}` }] }) })
+    const tipos = await criarReportingClient('tok', f as unknown as typeof fetch).reportTypesList()
+    expect(tipos).toHaveLength(20)
   })
 
   it('jobsList devolve [] quando a resposta não traz a chave jobs', async () => {
@@ -169,5 +201,240 @@ describe('download: URL só do Google', () => {
     expect(e).toMatchObject({ reason: 'url_inesperada' })
     expect(classificarErro(e)).toBe('url_inesperada')
     expect(f).not.toHaveBeenCalled()
+  })
+})
+
+describe('download: tetos de tamanho (comprimido no fio, descomprimido na memória)', () => {
+  const URL_OK = 'https://youtubereporting.googleapis.com/v1/media/x?alt=media'
+  const MB = 1024 * 1024
+
+  /** Corpo em pedaços de `chunk` bytes que registra quantos pedaços foram puxados e se foi cancelado. */
+  const corpo = (pedacos: number, chunk: number, headers: Record<string, string> = {}) => {
+    const estado = { puxados: 0, cancelado: false }
+    let i = 0
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) {
+        estado.puxados++
+        if (i++ >= pedacos) c.close()
+        else c.enqueue(new Uint8Array(chunk))
+      },
+      cancel() { estado.cancelado = true },
+    })
+    return { estado, res: new Response(stream, { headers }) }
+  }
+  const baixar = (res: Response) => criarReportingClient('tok', vi.fn().mockResolvedValue(res) as unknown as typeof fetch).download(URL_OK)
+
+  it('os tetos: 2 MB lidos do corpo e 64 MB de CSV descomprimido (decisão do dono, 12/10; memória medida no relatório da onda 5)', () => {
+    expect(MAX_GZ_BYTES).toBe(2 * MB)
+    expect(MAX_CSV_BYTES).toBe(64 * MB)
+  })
+
+  it('empacotarCsv conta as linhas de dado como antes: sem cabeçalho, ignora linha em branco, aceita CRLF e a última linha sem quebra', () => {
+    const conta = (s: string) => empacotarCsv(Buffer.from(s)).rowCount
+    expect(conta('')).toBe(0)
+    expect(conta('date,views\n')).toBe(0)
+    expect(conta('date,views')).toBe(0)
+    expect(conta('date,views\n20261005,1\n20261005,2\n')).toBe(2)
+    expect(conta('date,views\n20261005,1\n20261005,2')).toBe(2)        // sem quebra no fim
+    expect(conta('date,views\r\n20261005,1\r\n20261005,2\r\n')).toBe(2)  // CRLF
+    expect(conta('date,views\n\n  \n\t\r\n20261005,1\n\n')).toBe(1)   // linhas só de espaço não contam
+    expect(conta('date,views\n20261005,\u00e1\u00e9\u00ed\n')).toBe(1)   // multibyte
+    expect(conta('\n\n\n')).toBe(0)
+  })
+
+  it('empacotarCsv não materializa o CSV como string (a memória fica em ~N, não em 5N a 13N): nenhum toString utf8 do CSV', () => {
+    const csv = Buffer.from('date,views\n20261005,1\n20261005,2\n')
+    const espiao = vi.spyOn(Buffer.prototype, 'toString')
+    try {
+      const p = empacotarCsv(gzipSync(csv))
+      expect(p.rowCount).toBe(2)
+      expect(espiao.mock.calls.filter(([enc]) => enc === undefined || enc === 'utf8' || enc === 'utf-8')).toEqual([])
+    } finally {
+      espiao.mockRestore()
+    }
+  })
+
+  it('Content-Length acima do teto: recusa ANTES de ler o corpo (nenhum pedaço puxado) e cancela a resposta', async () => {
+    const { estado, res } = corpo(3, MB, { 'content-length': String(MAX_GZ_BYTES + 1) })
+    const e = await baixar(res).catch(x => x)
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'corpo', bytes: MAX_GZ_BYTES + 1 })
+    expect(e.detalhe).toContain(`${MAX_GZ_BYTES + 1} bytes`)
+    expect(e.detalhe).toContain('Content-Length')
+    expect(estado.cancelado).toBe(true)
+    expect(estado.puxados).toBeLessThanOrEqual(1) // o ReadableStream puxa 1 vez ao nascer; nenhum pedaço foi lido por nós
+    expect(classificarErro(e)).toBe('outro')
+  })
+
+  it('sem Content-Length e corpo que passa do teto no meio do fluxo: aborta ao ultrapassar, sem ler o resto', async () => {
+    const { estado, res } = corpo(200, MB) // 200 MB se fosse lido inteiro
+    const e = await baixar(res).catch(x => x)
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'corpo' })
+    expect(e.bytes).toBeGreaterThan(MAX_GZ_BYTES)
+    expect(e.bytes).toBeLessThanOrEqual(MAX_GZ_BYTES + 2 * MB)
+    expect(e.detalhe).toContain('lidos do corpo')
+    expect(estado.cancelado).toBe(true)
+    expect(estado.puxados).toBeLessThan(20)
+  })
+
+  it('Content-Length ilegível ("abc") não vale como ausência de limite: lê com limite', async () => {
+    const { res } = corpo(200, MB, { 'content-length': 'abc' })
+    await expect(baixar(res)).rejects.toBeInstanceOf(ArquivoGrandeDemaisError)
+  })
+
+  it('gzip pequeno que descomprime acima do teto (bomba): recusa como descomprimido, com o tamanho comprimido, sem erro de zlib', async () => {
+    const bomba = gzipSync(Buffer.alloc(MAX_CSV_BYTES + 1, 'a'))
+    expect(bomba.length).toBeLessThan(MB) // pequeno no fio
+    const e = await baixar(new Response(bomba)).catch(x => x)
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'descomprimido', bytes: bomba.length })
+    expect(e.detalhe).toContain(`${bomba.length} bytes de .gz`)
+    expect(e.detalhe).toContain(`${MAX_CSV_BYTES}`)
+    expect((e as { code?: string }).code).toBeUndefined() // não é erro Z_ do zlib: não pode cair em gzip_invalido
+    expect(classificarErro(e)).toBe('outro')
+  })
+
+  it('exatamente no teto descomprimido passa', async () => {
+    const csv = Buffer.alloc(MAX_CSV_BYTES, 'a')
+    csv.write('date,views\n', 0)
+    const p = await baixar(new Response(gzipSync(csv)))
+    expect(p.sha256).toBe(createHash('sha256').update(csv).digest('hex'))
+  })
+
+  it('caso normal intacto: Content-Length correto e corpo pequeno viram o mesmo pacote de sempre', async () => {
+    const gz = gzipSync(Buffer.from('date,video_id\n20261006,abc\n20261006,def\n'))
+    const p = await baixar(new Response(gz, { headers: { 'content-length': String(gz.length) } }))
+    expect(p.rowCount).toBe(2)
+    expect(p.gz.equals(gz)).toBe(true)
+  })
+
+  it('CSV puro acima do teto descomprimido (sem ser gzip) também é recusado em empacotarCsv', () => {
+    const e = (() => { try { empacotarCsv(Buffer.alloc(MAX_CSV_BYTES + 1, 'a')) } catch (x) { return x } })()
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'descomprimido' })
+  })
+
+  it('corpo vazio (0 byte) NÃO vira relatório "vazio": é falha passageira (corpo_vazio), tenta amanhã', async () => {
+    const e = await baixar(new Response(new Uint8Array(0))).catch(x => x)
+    expect(e).toBeInstanceOf(ReportingHttpError)
+    expect(e).toMatchObject({ reason: 'corpo_vazio' })
+  })
+
+  it('resposta sem corpo (null) também é corpo_vazio', async () => {
+    const e = await baixar(new Response(null, { status: 200 })).catch(x => x)
+    expect(e).toMatchObject({ reason: 'corpo_vazio' })
+  })
+
+  it('erro durante a leitura do corpo (rede cortada, abort) chega a quem chamou, sem virar sucesso', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) { c.enqueue(new Uint8Array(10)); c.error(new DOMException('aborted', 'TimeoutError')) },
+    })
+    const e = await baixar(new Response(stream)).catch(x => x)
+    expect(e).toMatchObject({ name: 'TimeoutError' })
+  })
+})
+
+// O fetch real (undici) descomprime sozinho o gzip de TRANSPORTE (`Content-Encoding: gzip`): o corpo que chega a
+// `lerCorpoLimitado` já é o CSV puro, e o `Content-Length` é o do fio (comprimido). Isso é diferente do arquivo .gz do relatório.
+// Estes testes usam um servidor local e o fetch de verdade para provar o que cada teto mede.
+describe('download com Content-Encoding: o que cada teto mede de fato', () => {
+  const MB = 1024 * 1024
+  const URL_GOOGLE = 'https://youtubereporting.googleapis.com/v1/media/x?alt=media'
+  let servidor: Server
+  let porta = 0
+  let resposta: { corpo: Buffer; headers: Record<string, string> } = { corpo: Buffer.alloc(0), headers: {} }
+
+  beforeAll(async () => {
+    servidor = createServer((_req, res) => {
+      res.writeHead(200, { ...resposta.headers, 'content-length': String(resposta.corpo.length) })
+      res.end(resposta.corpo)
+    })
+    await new Promise<void>(ok => servidor.listen(0, '127.0.0.1', ok))
+    porta = (servidor.address() as AddressInfo).port
+  })
+  afterAll(async () => {
+    await new Promise<void>(ok => servidor.close(() => ok()))
+  })
+
+  const servir = (corpo: Buffer, headers: Record<string, string>) => { resposta = { corpo, headers } }
+  const baixarReal = () => criarReportingClient('tok', ((_url: string, init?: RequestInit) => fetch(`http://127.0.0.1:${porta}/r`, init)) as unknown as typeof fetch).download(URL_GOOGLE)
+  /** CSV compressível de ~`mb` MB (muito mais que o corpo no fio). */
+  const csvDe = (mb: number) => {
+    const linha = '20261005,abcdefghijk,100\n'
+    return Buffer.concat([Buffer.from('date,video_id,views\n'), Buffer.from(linha.repeat(Math.ceil((mb * MB) / linha.length)))])
+  }
+
+  it('gzip de transporte: o fetch entrega o CSV PURO; o teto de leitura mede o CSV já descomprimido, não o gzip do fio', async () => {
+    const csv = csvDe(1.5) // 1,5 MB de CSV, abaixo do teto de 2 MB
+    const fio = gzipSync(csv, { level: 1 }) // nível diferente do padrão: se o fetch NÃO descomprimisse, p.gz seria exatamente isto
+    expect(fio.length).toBeLessThan(0.1 * MB)
+    servir(fio, { 'content-encoding': 'gzip' })
+    const p = await baixarReal()
+    expect(p.sha256).toBe(createHash('sha256').update(csv).digest('hex')) // o hash é do CSV, não do gzip do fio
+    expect(p.rowCount).toBe(csv.toString().split('\n').filter(l => l.length > 0).length - 1)
+    expect(gunzipSync(p.gz).equals(csv)).toBe(true) // o gz guardado é o que o nosso código fez do CSV puro
+    expect(p.gz.equals(fio)).toBe(false)
+  })
+
+  it('o pacote diz quantos bytes foram LIDOS do corpo e se o corpo era um .gz de verdade: com gzip de transporte são os do CSV puro e eraGz é falso', async () => {
+    const csv = csvDe(1.5)
+    servir(gzipSync(csv, { level: 1 }), { 'content-encoding': 'gzip' })
+    const p = await baixarReal()
+    expect(p.lidos).toBe(csv.length) // o que o teto de leitura mede: o CSV já descomprimido pelo fetch
+    expect(p.lidos).toBeGreaterThan(p.gz.length * 5) // e é bem maior que o gzip guardado: as duas medidas NÃO são a mesma
+    expect(p.eraGz).toBe(false)
+  })
+
+  it('sem gzip de transporte e com o corpo sendo o .gz do relatório: lidos é o tamanho do .gz e eraGz é verdadeiro', async () => {
+    const csv = csvDe(1.5)
+    const arquivo = gzipSync(csv)
+    servir(arquivo, {})
+    const p = await baixarReal()
+    expect(p.lidos).toBe(arquivo.length)
+    expect(p.eraGz).toBe(true)
+    expect(p.gz.equals(arquivo)).toBe(true)
+  })
+
+  it('sem gzip algum, o corpo é CSV puro: lidos é o tamanho do CSV, eraGz falso', async () => {
+    const csv = csvDe(0.5)
+    servir(csv, {})
+    const p = await baixarReal()
+    expect(p.lidos).toBe(csv.length)
+    expect(p.eraGz).toBe(false)
+  })
+
+  it('gzip de transporte pequeno no fio mas CSV acima do teto: a leitura aborta, o Content-Length (do fio) NÃO foi o que barrou, e a nota não diz "comprimidos"', async () => {
+    const csv = csvDe(3) // 3 MB descomprimidos > 2 MB
+    const fio = gzipSync(csv)
+    expect(fio.length).toBeLessThan(MAX_GZ_BYTES) // o Content-Length (comprimido) passa pelo teto
+    servir(fio, { 'content-encoding': 'gzip' })
+    const e = await baixarReal().catch(x => x)
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'corpo' })
+    expect(e.bytes).toBeGreaterThan(MAX_GZ_BYTES) // soma do que foi LIDO, já descomprimido
+    expect(e.detalhe).toContain('lidos do corpo')
+    expect(e.detalhe).toContain('gzip de transporte')
+    expect(e.detalhe).not.toContain('Content-Length')
+    expect(e.detalhe).not.toContain('comprimidos')
+  })
+
+  it('sem Content-Encoding, o Content-Length acima do teto barra antes de ler, e a nota diz que é o tamanho do fio', async () => {
+    servir(Buffer.alloc(MAX_GZ_BYTES + 10, 'a'), {})
+    const e = await baixarReal().catch(x => x)
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'corpo', bytes: MAX_GZ_BYTES + 10 })
+    expect(e.detalhe).toContain('Content-Length')
+    expect(e.detalhe).toContain('no fio')
+  })
+
+  it('o teto descomprimido só alcança um .gz de verdade: gzip de transporte por cima de um .gz com bomba é recusado como descomprimido', async () => {
+    const bomba = gzipSync(Buffer.alloc(MAX_CSV_BYTES + 1, 'a')) // o arquivo .gz do relatório
+    servir(gzipSync(bomba), { 'content-encoding': 'gzip' })     // mais uma camada, a de transporte
+    const e = await baixarReal().catch(x => x)
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'descomprimido', bytes: bomba.length })
+    expect(e.detalhe).toContain(`${bomba.length} bytes de .gz`)
+    expect(e.detalhe).toContain(`${MAX_CSV_BYTES}`)
   })
 })
