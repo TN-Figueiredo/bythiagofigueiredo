@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { VIDEO_FIELDS, CHANNEL_FIELDS, assertField } from '@/lib/youtube/observatorio/field-catalog'
-import { canonicalJson, fieldHash, sha256Hex, rawOf, optCount, RAW_MAX_BYTES, videoObservedOf, channelObservedOf } from '@/lib/youtube/competitor-capture'
+import { canonicalJson, fieldHash, sha256Hex, rawOf, optCount, RAW_MAX_BYTES, videoObservedOf, channelObservedOf, sanitizeForDb } from '@/lib/youtube/competitor-capture'
 import { parseIsoDuration } from '@/lib/youtube/competitor-sync'
 
 describe('catálogo de campos', () => {
@@ -31,6 +31,13 @@ describe('rawOf', () => {
   it('tira statistics, etag e concurrentViewers; o resto fica como veio', () => {
     expect(rawOf(item).raw).toEqual({ kind: 'youtube#video', id: 'vid', snippet: { title: 'T', tags: ['a'] }, liveStreamingDetails: { actualStartTime: '2026-01-01T00:00:00Z' } })
   })
+  it('(M-1) não altera o item de ENTRADA: statistics e concurrentViewers continuam nele', () => {
+    const before = structuredClone(item)
+    rawOf(item)
+    expect(item).toEqual(before)
+    expect(item.liveStreamingDetails.concurrentViewers).toBe('10')
+    expect(item.statistics).toEqual({ viewCount: '5' })
+  })
   it('item 4: mudar só statistics, etag ou concurrentViewers não muda o hash; mudar uma tag muda', () => {
     const same = { ...item, etag: 'e2', statistics: { viewCount: '999' }, liveStreamingDetails: { ...item.liveStreamingDetails, concurrentViewers: '77' } }
     expect(rawOf(same).sha).toBe(rawOf(item).sha)
@@ -46,6 +53,61 @@ describe('rawOf', () => {
   it('o que não é objeto vira objeto vazio (nunca lança)', () => {
     expect(rawOf(null).raw).toEqual({})
     expect(rawOf('x').raw).toEqual({})
+  })
+})
+describe('(M-2) undefined no JSON canônico', () => {
+  it('chave com undefined é pulada (como o JSON.stringify); undefined em lista é null', () => {
+    expect(canonicalJson({ b: 1, a: undefined } as never)).toBe('{"b":1}')
+    expect(canonicalJson([1, undefined, 3] as never)).toBe('[1,null,3]')
+    expect(canonicalJson(undefined as never)).toBe('null')
+  })
+  it('rawOf com undefined na entrada não lança e dá o mesmo hash de quando a chave não existe', () => {
+    expect(() => rawOf({ id: 'x', a: undefined })).not.toThrow()
+    expect(rawOf({ id: 'x', a: undefined, snippet: { t: undefined, tags: ['a', undefined] } }).raw).toEqual({ id: 'x', snippet: { tags: ['a', null] } })
+    expect(rawOf({ id: 'x', a: undefined }).sha).toBe(rawOf({ id: 'x' }).sha)
+  })
+  it('o hash de uma entrada SEM undefined não mudou (fixado)', () => {
+    const sample = { kind: 'youtube#video', etag: 'e1', id: 'vid', snippet: { title: 'Título é', tags: ['a', 'b'], publishedAt: '2026-01-01T00:00:00Z' }, contentDetails: { duration: 'PT1M30S' }, liveStreamingDetails: { actualStartTime: '2026-01-01T00:00:00Z', concurrentViewers: '3' } }
+    expect(rawOf(sample).sha).toBe('7cbdf3929c5cb64feead316f1ed53e6923912d815eb7a754605714bb6dec764c')
+    expect(fieldHash(['a', 'b'])).toBe('0473ef2dc0d324ab')
+  })
+})
+describe('(M-4) sanitizeForDb: o que o jsonb e o text do Postgres rejeitam', () => {
+  it('tira NUL do texto e troca substituto solitário por U+FFFD; par válido (emoji) fica', () => {
+    expect(sanitizeForDb('a\u0000b')).toEqual({ value: 'ab', changed: true })
+    expect(sanitizeForDb('x\ud83dy')).toEqual({ value: 'x\ufffdy', changed: true })
+    expect(sanitizeForDb('x\ude00y')).toEqual({ value: 'x\ufffdy', changed: true })
+    expect(sanitizeForDb('fim\ud83d')).toEqual({ value: 'fim\ufffd', changed: true })
+    expect(sanitizeForDb('ok 😀 ok')).toEqual({ value: 'ok 😀 ok', changed: false })
+    expect(sanitizeForDb('\ud83d\ud83d\ude00')).toEqual({ value: '\ufffd😀', changed: true }) // alto solto + par válido
+  })
+  it('percorre listas e objetos (valores e chaves); números, nulos e booleanos passam', () => {
+    expect(sanitizeForDb({ a: ['t\u0000', 1, null, true], 'k\u0000': { d: '\ud83d' } })).toEqual({ value: { a: ['t', 1, null, true], k: { d: '\ufffd' } }, changed: true })
+    expect(sanitizeForDb({ a: [1, 'x'], b: null })).toEqual({ value: { a: [1, 'x'], b: null }, changed: false })
+  })
+  it('rawOf: NUL no título e substituto solitário na descrição são limpos ANTES do hash, e sanitized diz', () => {
+    const dirty = rawOf({ id: 'v', snippet: { title: 'a\u0000b', description: 'corte\ud83d' } })
+    expect(dirty.raw).toEqual({ id: 'v', snippet: { title: 'ab', description: 'corte\ufffd' } })
+    expect(dirty.sanitized).toBe(true)
+    expect(dirty.sha).toBe(rawOf({ id: 'v', snippet: { title: 'ab', description: 'corte\ufffd' } }).sha)
+    expect(JSON.stringify(dirty.raw)).not.toMatch(/\\u0000|\\ud83d"/i)
+  })
+  it('rawOf: emoji intacto; item limpo tem sanitized false e o MESMO hash de antes', () => {
+    const clean = rawOf({ id: 'v', snippet: { title: 'oi 😀', description: 'd' } })
+    expect(clean.sanitized).toBe(false)
+    expect(clean.raw).toEqual({ id: 'v', snippet: { title: 'oi 😀', description: 'd' } })
+  })
+  it('extração: tags, categoria e descrição/nome do canal saem sem NUL nem substituto solitário', () => {
+    const v = videoObservedOf({ id: 'v', snippet: { tags: ['a\u0000', 'b\ud83d'], categoryId: '2\u00002', thumbnails: { high: { url: 'u\u0000' } } } }, '2026-06-10T15:00:00.000Z', () => null)
+    expect(v.fields.find(f => f.field === 'tags')?.value).toEqual(['a', 'b\ufffd'])
+    expect(v.patch.tags).toEqual(['a', 'b\ufffd'])
+    expect(v.patch.category_id).toBe('22')
+    expect(v.patch.thumbnail_url).toBe('u')
+    const c = channelObservedOf({ id: 'UC', snippet: { title: 'N\u0000', description: 'd\ud83d', customUrl: '@c\u0000' }, statistics: {} })
+    expect(c.fields.find(f => f.field === 'name')?.value).toBe('N')
+    expect(c.fields.find(f => f.field === 'description')?.value).toBe('d\ufffd')
+    expect(c.patch.description).toBe('d\ufffd')
+    expect(c.patch.custom_url).toBe('@c')
   })
 })
 describe('optCount', () => {
