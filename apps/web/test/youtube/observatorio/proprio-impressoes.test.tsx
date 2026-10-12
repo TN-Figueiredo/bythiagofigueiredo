@@ -72,14 +72,15 @@ describe('os três estados têm forma própria, além da cor', () => {
     for (const g of por('com-impressoes')) {
       expect(g.querySelector('rect.ic-bar')).not.toBeNull()
       expect(g.querySelector('rect.ic-zero, rect.ic-nm')).toBeNull()
-      expect(g.querySelector('text.ic-val')!.textContent).toBe('17')
     }
+    // o número em cima da barra mora na camada final (depois de todas as colunas), um por dia com impressões
+    expect([...container.querySelectorAll('.ic-topo text.ic-val')].map(t => t.textContent)).toEqual(Array(11).fill('17'))
     // o zero medido: um traço (line), sem barra e sem número em cima
     for (const g of por('zero-medido')) {
       expect(g.querySelector('rect.ic-zero')).not.toBeNull()
       expect(g.querySelector('rect.ic-bar, rect.ic-nm, text.ic-val')).toBeNull()
     }
-    // o não medido: coluna hachurada (pattern) de cima a baixo, também na faixa dos cliques; nenhum número
+    // o não medido: bloco hachurado (pattern) na base da coluna, também na faixa dos cliques; nenhum número
     for (const g of por('nao-medido')) {
       const rs = [...g.querySelectorAll('rect.ic-nm')]
       expect(rs).toHaveLength(2)
@@ -92,18 +93,21 @@ describe('os três estados têm forma própria, além da cor', () => {
     expect(rsFill(container)).toBe(pat.getAttribute('id'))
   })
 
-  it('o não medido tem altura da área inteira; o zero medido 3 px; a barra, a proporção', () => {
+  it('o não medido é o BLOCO do mockup (24 px assentados na base, não a coluna inteira); o zero medido 6 px; a barra, a proporção', () => {
     const v = cheio()
     const { container } = montar(v)
     const area = 180
     const nm = container.querySelector('g[data-situacao="nao-medido"] rect.ic-nm')!
-    expect(Number(nm.getAttribute('height'))).toBe(area)
+    expect(Number(nm.getAttribute('height'))).toBe(24)            // round(min(24, altura da área * 0,25)) do mockup aprovado (A.serieDia)
+    expect(Number(nm.getAttribute('height'))).toBeLessThan(area)  // nunca a coluna inteira de cima a baixo
     const bar = container.querySelector('g[data-situacao="com-impressoes"] rect.ic-bar')!
     expect(Number(bar.getAttribute('height'))).toBeCloseTo(area * 17 / 20, 3)
     // o zero medido é uma caixa VAZADA assentada na linha de base (a barra cheia fica acima dela pela altura)
     const zero = container.querySelector('g[data-situacao="zero-medido"] rect.ic-zero')!
     expect(zero.getAttribute('fill')).toBe('none')
     expect(Number(zero.getAttribute('y')) + Number(zero.getAttribute('height'))).toBeCloseTo(Number(bar.getAttribute('y')) + Number(bar.getAttribute('height')), 3)
+    // o bloco hachurado assenta na MESMA linha de base da barra e do zero medido
+    expect(Number(nm.getAttribute('y')) + Number(nm.getAttribute('height'))).toBeCloseTo(Number(bar.getAttribute('y')) + Number(bar.getAttribute('height')), 3)
   })
 
   it('cliques: um ponto por dia com clique e o número na faixa sob as datas; dia sem CTR e dia não medido não ganham ponto nem número', () => {
@@ -272,19 +276,19 @@ describe('teclado: uma parada de Tab', () => {
     expect(tips().map(t => t.textContent)).toEqual([v.colunas[1]!.dica])
   })
 
-  it('sair do gráfico com Tab fecha a dica e zera o ponto de partida', async () => {
+  it('sair do gráfico (Shift+Tab, para fora dos botões de passo) fecha a dica e zera o ponto de partida', async () => {
     const user = userEvent.setup()
     const v = cheio()
     montar(v)
     await user.tab(); await user.tab()
     await user.keyboard('{End}')
     expect(tips()).toHaveLength(1)
-    await user.tab()
+    await user.tab({ shift: true })
     expect(tips()).toHaveLength(0)
     // a região do dia não fica vazia: volta a dizer como ler um dia (a ajuda de mouse e a de toque)
     expect(viva(document)).toContain('Use os botões para ler um dia de cada vez.')
     expect(viva(document)).not.toContain(v.colunas[v.colunas.length - 1]!.dica)
-    await user.tab({ shift: true })
+    await user.tab()
     expect(tips().map(t => t.textContent)).toEqual([v.colunas[0]!.dica]) // volta pelo começo, não pelo "End" de antes
   })
 
@@ -571,7 +575,7 @@ describe('estados da série', () => {
     const v = de(alcanceCheio('c', ['yt1', 'yt2'], HOJE), { escopo: 'video', alturaArea: 110 })
     const { container } = montar(v, 'Impressões por dia deste vídeo')
     expect(Number(svg().getAttribute('height'))).toBeLessThan(180 + 90)
-    expect(container.querySelector('g[data-situacao="nao-medido"] rect.ic-nm')!.getAttribute('height')).toBe('110')
+    expect(container.querySelector('g[data-situacao="nao-medido"] rect.ic-nm')!.getAttribute('height')).toBe('24')   // round(min(24, 110 * 0,25)): o bloco do mockup
     const iz = v.colunas.findIndex(c => c.situacao === 'zero-medido')
     fireEvent.pointerMove(hit(iz), { pointerType: 'mouse' })
     expect(tips()[0]!.textContent).toMatch(/o relatório do dia não trouxe este vídeo \(nenhuma impressão\)$/)
@@ -658,7 +662,7 @@ describe('13.2: os cliques moram numa faixa própria sob as datas (a altura não
     expect(new Set(nums.map(t => t.getAttribute('y'))).size).toBe(1)
     expect(num(nums[0]!, 'y')).toBeGreaterThan(cy)
     // nada de ponto dentro de uma barra: a antiga posição (4,5 px acima da base) não existe mais
-    expect(container.querySelector('g[data-situacao="com-impressoes"] circle.ic-dot')).not.toBeNull()
+    expect(container.querySelector('.ic-topo circle.ic-dot')).not.toBeNull()
     for (const d of dots) expect(num(d, 'cy')).not.toBeCloseTo(baseBarras - 4.5, 1)
   })
 
@@ -851,7 +855,7 @@ describe('13.2: botões "Dia anterior" e "Dia seguinte" e a frase do dia', () =>
     expect(tips()).toHaveLength(1)
   })
 
-  it('o botão guarda o dia para o teclado continuar dele, e o toque numa coluna seguido do botão anda a partir dela', async () => {
+  it('o toque numa coluna seguido do botão anda a partir dela (o botão não fecha o dia tocado)', async () => {
     const user = userEvent.setup()
     const v = cheio()
     const { container } = montar(v)
@@ -867,6 +871,12 @@ describe('13.2: botões "Dia anterior" e "Dia seguinte" e a frase do dia', () =>
     const user = userEvent.setup()
     const v = cheio()
     const { container, rerender } = montar(v)
+    act(() => grupo(container).focus())
+    await user.keyboard('{ArrowRight}')
+    expect(status(container).textContent).toBe(v.colunas[1]!.dica)
+    await user.keyboard('{Escape}')
+    expect(status(container).textContent).toContain('Use os botões para ler um dia de cada vez.')
+    expect(status(container).textContent).not.toMatch(/\d\d\/\d\d:/)
     await user.click(botoes().seg)
     expect(status(container).textContent).toBe(v.colunas[0]!.dica)
     rerender(<div data-obs=""><Impressoes view={de(alcanceCurto('c', ['yt1'], HOJE))} titulo={TITULO} /></div>)
@@ -989,7 +999,7 @@ describe('13.2: o mesmo gráfico desenha "Views por dia" (sem faixa de cliques)'
     await user.click(screen.getByRole('button', { name: 'Dia seguinte' }))
     expect(container.querySelector('[role="status"]')!.textContent).toBe('01/09: 1.100 views')
     await user.click(screen.getByRole('button', { name: 'Dia seguinte' })); await user.click(screen.getByRole('button', { name: 'Dia seguinte' }))
-    expect(container.querySelector('[role="status"]')!.textContent).toBe('03/09: o YouTube registrou nenhuma view (nenhuma view)')
+    expect(container.querySelector('[role="status"]')!.textContent).toBe('03/09: o YouTube registrou nenhuma view')
   })
 
   it('coleta parada: o aviso de views fala de views, nunca de relatórios', () => {
@@ -1051,8 +1061,10 @@ describe('13.2: regras do CSS do desenho aprovado', () => {
     expect(css).toMatch(/@media \(min-width:901px\) and \(hover:hover\)\{[^}]*\.ic-out-m\{display:inline\}[^}]*\.ic-out-t\{display:none\}/)
   })
 
-  it('o botão no limite não some nem usa cor sozinha (aria-disabled, cursor e opacidade)', () => {
+  it('o botão no limite não some nem usa cor sozinha (aria-disabled, cursor, opacidade e cor do token)', () => {
     expect(css).toMatch(/\.ic-step button\[aria-disabled="true"\]\{[^}]*cursor:not-allowed/)
+    expect(css).toMatch(/\.ic-step button\[aria-disabled="true"\]\{[^}]*opacity:\.7/)
+    expect(css).toMatch(/\.ic-step button\[aria-disabled="true"\]\{[^}]*color:var\(--dim\)/)
   })
 
   it('a faixa, o rótulo e a linha da publicação usam só token (sem color-mix, sem z-index, texto >= 12 px)', () => {
@@ -1068,3 +1080,188 @@ describe('13.2: regras do CSS do desenho aprovado', () => {
     expect(css).toMatch(/@media \(pointer:coarse\)\{[^}]*\.ic-info\{width:44px;height:44px;margin:-10px 0\}/)
   })
 })
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// A4 Tarefa 13.2, ondas de consertos da revisão (I1 a I5 e M1, M4, M5): nada cobre texto; "não medido" é o bloco do mockup; Tab até o botão guarda o dia.
+// ---------------------------------------------------------------------------------------------------------------------------------
+const ordem = (a: Node, b: Node): 'antes' | 'depois' => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? 'antes' : 'depois')
+const status = (c: ParentNode = document) => c.querySelector<HTMLElement>('[role="status"]')!
+const T_TOPO = 30   // o espaço dos números em cima da barra mais alta (constante T do componente)
+
+describe('13.2 consertos: o não medido é o bloco do mockup aprovado (I4)', () => {
+  it('um bloco de até 24 px assentado na base, na largura da barra; nunca a coluna inteira; cor só por token do kit (hachura)', () => {
+    const { container } = montar(serie([diaCom(0, 90, 4), diaNm(1), diaCom(2, 50, 2)]))
+    const g = container.querySelector('g[data-situacao="nao-medido"]')!
+    const [bloco, faixa] = [...g.querySelectorAll('rect.ic-nm')]
+    const base = T_TOPO + 180
+    expect(num(bloco!, 'height')).toBe(24)
+    expect(num(bloco!, 'y') + num(bloco!, 'height')).toBe(base)
+    expect(num(bloco!, 'y')).toBeGreaterThan(T_TOPO)   // não começa no topo da área
+    expect(bloco!.getAttribute('fill')).toMatch(/^url\(#/)
+    // a largura é a da barra do vizinho (a coluna hachurada não vira uma faixa mais larga que a barra)
+    const barra = container.querySelector('rect.ic-bar')!
+    expect(num(bloco!, 'width')).toBeCloseTo(num(barra, 'width'), 3)
+    // a faixa de cliques segue hachurada (não medido nunca vira vazio)
+    expect(num(faixa!, 'y')).toBeGreaterThan(base)
+  })
+
+  it('numa área baixa o bloco é 25% dela (o mesmo arredondamento do mockup: round(min(24, altura * 0,25)))', () => {
+    const { container } = montar(serie([diaCom(0, 90, null), diaNm(1)], { alturaArea: 60, unidade: 'views' }))
+    expect(num(container.querySelector('g[data-situacao="nao-medido"] rect.ic-nm')!, 'height')).toBe(15)
+  })
+
+  it('só o dia escolhido ganha a linha pontilhada que sobe do bloco até o topo da área', () => {
+    const { container } = montar(serie([diaCom(0, 90, 4), diaNm(1), diaCom(2, 50, 2)]))
+    expect(container.querySelector('line.ic-nmlin')).toBeNull()
+    fireEvent.pointerMove(hit(1), { pointerType: 'mouse' })
+    const l = container.querySelector('line.ic-nmlin')!
+    expect(l).not.toBeNull()
+    expect(num(l, 'y1')).toBe(T_TOPO)
+    expect(num(l, 'y2')).toBe(T_TOPO + 180 - 24)
+    fireEvent.pointerMove(hit(0), { pointerType: 'mouse' })
+    expect(container.querySelector('line.ic-nmlin')).toBeNull()
+  })
+
+  it('a hachura tem as cores do mockup nos dois temas, em token literal (fundo --nm-bg, linha --nm, 1,6 px)', () => {
+    const css = fs.readFileSync(path.join(process.cwd(), 'src/app/cms/(authed)/youtube/competitors/_proprio/impressoes.css'), 'utf8')
+    const tokens = fs.readFileSync(path.join(process.cwd(), 'src/app/cms/(authed)/youtube/competitors/_chrome/tokens-telas.css'), 'utf8')
+    expect(css).toMatch(/\.ic-hb\{fill:var\(--nm-bg\)\}/)
+    expect(css).toMatch(/\.ic-hl\{stroke:var\(--nm\);stroke-width:1\.6\}/)
+    expect(css).toMatch(/\.ic-nmlin\{[^}]*stroke:var\(--nm-line\)[^}]*stroke-dasharray:2 3/)
+    expect(tokens).toMatch(/--nm:#E59CC0;--nm-line:#B0678F;--nm-bg:#3A2232/)
+    expect(tokens).toMatch(/\[data-theme="light"\] \[data-obs\]\{--nm:#8E2A62;--nm-line:#A85585;--nm-bg:#F7E1EC\}/)
+    expect(css).not.toMatch(/color-mix\(/)
+  })
+})
+
+describe('13.2 consertos: nada pode cobrir texto (I1, I2) e a linha da publicação não cruza o rótulo (I5)', () => {
+  /** Poucos dias medidos entre muitos não medidos, rótulos de 4 dígitos ("1.234") e cliques de 4 dígitos ("1.139"): o caso real do dono. */
+  const real = (): DiaAlcance[] => Array.from({ length: 30 }, (_, i) => (i === 3 || i === 9 ? diaCom(i, 1234 + i, 1139) : i === 15 ? diaCom(i, 40, 25) : i === 20 ? diaCom(i, 31, null) : diaNm(i)))
+
+  it('a camada final: todo ponto, número de clique e rótulo de valor vem DEPOIS de qualquer barra, caixa e hachura', () => {
+    largura = 390
+    const { container } = montar(serie(real()))
+    const topos = [...container.querySelectorAll('text.ic-val, text.ic-cln, circle.ic-dot')]
+    const baixos = [...container.querySelectorAll('rect.ic-bar, rect.ic-zero, rect.ic-nm, rect.ic-nm-cl, rect.ic-strip')]
+    expect(topos.length).toBeGreaterThan(4)
+    expect(baixos.length).toBeGreaterThan(30)
+    for (const t of topos) for (const b of baixos) expect(ordem(b, t), `${t.getAttribute('class')} deve vir depois de ${b.getAttribute('class')}`).toBe('antes')
+  })
+
+  it('cada rótulo e cada número de clique tem a caixa livre: nenhum retângulo ou ponto desenhado depois cai em cima dele (390 px, rótulos de 2 dígitos ou mais)', () => {
+    largura = 390
+    const { container } = montar(serie(real()))
+    const caixa = (t: Element) => { const w = (t.textContent ?? '').length * 7.4, x = num(t, 'x'), y = num(t, 'y'); return { x0: x - w / 2, x1: x + w / 2, y0: y - 12, y1: y + 3 } }
+    const textos = [...container.querySelectorAll('text.ic-val, text.ic-cln')]
+    expect(textos.length).toBeGreaterThanOrEqual(4)
+    expect(textos.some(t => (t.textContent ?? '').length >= 2)).toBe(true)
+    const depois = (t: Element) => [...container.querySelectorAll('svg.ic-svg rect:not(.ic-hit), svg.ic-svg circle')].filter(e => ordem(t, e) === 'antes' && !e.closest('pattern'))
+    for (const t of textos) {
+      const c = caixa(t)
+      for (const e of depois(t)) {
+        const b = e.tagName === 'circle'
+          ? { x0: num(e, 'cx') - num(e, 'r'), x1: num(e, 'cx') + num(e, 'r'), y0: num(e, 'cy') - num(e, 'r'), y1: num(e, 'cy') + num(e, 'r') }
+          : { x0: num(e, 'x'), x1: num(e, 'x') + num(e, 'width'), y0: num(e, 'y'), y1: num(e, 'y') + num(e, 'height') }
+        const cruza = c.x0 < b.x1 && c.x1 > b.x0 && c.y0 < b.y1 && c.y1 > b.y0
+        expect(cruza, `"${t.textContent}" (${t.getAttribute('class')}) coberto por ${e.getAttribute('class')}`).toBe(false)
+      }
+    }
+  })
+
+  it('o número da faixa ("1.139") não é coberto pela hachura do dia seguinte, mesmo largo', () => {
+    largura = 390
+    const dias = [diaCom(0, 9000, 1139), diaNm(1), diaCom(2, 9000, 1139), diaCom(3, 9000, null), diaNm(4)]
+    const { container } = montar(serie(dias))
+    const n = [...container.querySelectorAll('text.ic-cln')].find(t => t.textContent === '1.139')!
+    expect(n).toBeDefined()
+    for (const h of container.querySelectorAll('rect.ic-nm, rect.ic-nm-cl')) expect(ordem(n, h)).toBe('depois')
+  })
+
+  it('a linha da publicação vem ANTES da barra e do rótulo da própria coluna, e o rótulo ganha um halo literal nos dois temas', () => {
+    const dias = Array.from({ length: 10 }, (_, i) => diaCom(i, 100 + i * 10, 3))
+    const { container } = montar(serie(dias, { publicadoEm: addDays('2026-09-01', 0) }))
+    const linha = container.querySelector('line.ic-pub')!
+    const barra = container.querySelector('g[data-situacao] rect.ic-bar')!
+    const rotulo = container.querySelector('text.ic-val')!
+    expect(ordem(linha, barra)).toBe('antes')
+    expect(ordem(linha, rotulo)).toBe('antes')
+    const css = fs.readFileSync(path.join(process.cwd(), 'src/app/cms/(authed)/youtube/competitors/_proprio/impressoes.css'), 'utf8')
+    expect(css).toMatch(/\.ic-val\{[^}]*paint-order:stroke[^}]*stroke:var\(--ic-halo\)/)
+    expect(css).toMatch(/\.ic\{[^}]*--ic-halo:#[0-9A-Fa-f]{6}/)
+    expect(css).toMatch(/\[data-theme="light"\] \.ic\{[^}]*--ic-halo:#[0-9A-Fa-f]{6}/)
+    expect(css).toMatch(/\.ic-cln\{[^}]*paint-order:stroke/)
+    expect(css).not.toMatch(/color-mix\(/)
+  })
+})
+
+describe('13.2 consertos: Tab do gráfico até os botões de passo guarda o dia (I3)', () => {
+  it('Tab do gráfico para "Dia seguinte" não zera o dia: o botão continua do dia seguinte, não do primeiro', async () => {
+    const user = userEvent.setup()
+    const v = cheio()
+    const { container } = montar(v)
+    await user.tab(); await user.tab()                 // ⓘ, depois o gráfico
+    expect(document.activeElement).toBe(grupo(container))
+    await user.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}')
+    expect(status(container).textContent).toBe(v.colunas[3]!.dica)
+    await user.tab()                                   // "Dia anterior"
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Dia anterior' }))
+    expect(status(container).textContent).toBe(v.colunas[3]!.dica)   // o dia não foi apagado nem a ajuda voltou à região viva
+    await user.tab()                                   // "Dia seguinte"
+    await user.keyboard('{Enter}')
+    expect(status(container).textContent).toBe(v.colunas[4]!.dica)
+    await user.keyboard('{Enter}')
+    expect(status(container).textContent).toBe(v.colunas[5]!.dica)
+  })
+
+  it('e a volta (Shift+Tab até o gráfico) retoma o mesmo dia; sair de verdade (para o ⓘ) ainda zera', async () => {
+    const user = userEvent.setup()
+    const v = cheio()
+    const { container } = montar(v)
+    await user.tab(); await user.tab()
+    await user.keyboard('{End}')
+    await user.tab()
+    await user.tab({ shift: true })
+    expect(document.activeElement).toBe(grupo(container))
+    expect(tips().map(t => t.textContent)).toEqual([v.colunas[v.colunas.length - 1]!.dica])
+    await user.tab({ shift: true })                    // ⓘ: fora dos botões de passo
+    expect(tips()).toHaveLength(0)
+    expect(status(container).textContent).toContain('Use os botões para ler um dia de cada vez.')
+    await user.tab()
+    expect(tips().map(t => t.textContent)).toEqual([v.colunas[0]!.dica])
+  })
+})
+
+describe('13.2 consertos: dia com impressão sem valor (M1) e frases de views (M4, M5)', () => {
+  it('um dia "com impressões" sem valor (imp nulo) é NÃO MEDIDO, nunca uma barra mínima com "0" (impressões e views)', () => {
+    for (const unidade of ['impressoes', 'views'] as const) {
+      const sem: DiaAlcance = { dia: '2026-10-02', situacao: 'com-impressoes', motivo: null, imp: null, cliques: null }
+      const v = buildImpressoes([dia0('2026-10-01', 9), sem], { de: '2026-10-01', ate: '2026-10-02', dias: 2 }, { ...O, unidade })
+      const c = v.colunas[1]!
+      expect(c.situacao).toBe('nao-medido')
+      expect(c.imp).toBeNull()
+      expect(c.cliques).toBeNull()
+      expect(c.alturaPx).toBe(180)
+      expect(c.dica).toMatch(/não medido|relatório ainda não baixado/)
+      expect(c.dica).not.toMatch(/\b0\b/)
+      expect(v.resumo).not.toMatch(/2 dias/)   // o dia sem valor não entra nos dias medidos
+    }
+  })
+
+  it('na tela, esse dia vira coluna hachurada e a tabela diz "não medido" (nunca "0")', () => {
+    const sem: DiaAlcance = { dia: addDays('2026-09-01', 1), situacao: 'com-impressoes', motivo: null, imp: null, cliques: null }
+    const { container } = montar(serie([diaCom(0, 9, 1), sem], { unidade: 'views' }))
+    expect(container.querySelectorAll('g[data-situacao="nao-medido"]')).toHaveLength(1)
+    expect(container.querySelectorAll('rect.ic-bar')).toHaveLength(1)
+  })
+
+  it('M5: views com publicadoEm: a dica do dia da publicação, a linha e o item da legenda aparecem na tela', async () => {
+    const dias = Array.from({ length: 6 }, (_, i) => diaCom(i, 10 + i, null))
+    const { container } = montar(serie(dias, { unidade: 'views', publicadoEm: addDays('2026-09-01', 2) }), 'Views por dia deste vídeo')
+    expect(container.querySelectorAll('line.ic-pub')).toHaveLength(1)
+    fireEvent.pointerMove(hit(2), { pointerType: 'mouse' })
+    expect(tips().map(t => t.textContent)).toEqual(['03/09: 12 views. Dia da publicação do vídeo'])
+    expect([...container.querySelectorAll('.ic-lg')].map(i => i.textContent)).toContain('dia da publicação')
+  })
+})
+
+const dia0 = (d: string, imp: number): DiaAlcance => ({ dia: d as DiaAlcance['dia'], situacao: 'com-impressoes', motivo: null, imp, cliques: 1 })

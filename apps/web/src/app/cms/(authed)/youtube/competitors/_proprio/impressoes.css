@@ -2,8 +2,8 @@
    (--im-zero) e coluna hachurada (--nm, a hachura do kit .obs-ch-nm). Os cliques estimados são uma marca clara neutra (--im-cl, que o tema claro escurece) numa faixa
    própria sob as datas: não é azul e não é escala. Cores só por token; no tema claro o azul do zero medido ganha um tom mais escuro (contraste sobre o cartão claro).
    Sem color-mix, sem z-index numérico, nenhum texto abaixo de 12 px, alvo de toque de 44 px em pointer:coarse. A dica e o ⓘ moram em #flut. */
-.ic{--ic-bar:var(--lado-o);--ic-zero:var(--im-zero);--ic-cl:var(--im-cl);--ic-ring:var(--surface);margin:0;min-width:0;max-width:100%;display:block}
-[data-theme="light"] .ic{--ic-zero:#5B6F86}
+.ic{--ic-bar:var(--lado-o);--ic-zero:var(--im-zero);--ic-cl:var(--im-cl);--ic-ring:var(--surface);--ic-halo:#221E1A;--ic-halo-faixa:#16130F;margin:0;min-width:0;max-width:100%;display:block}
+[data-theme="light"] .ic{--ic-zero:#5B6F86;--ic-halo:#FBF7F0;--ic-halo-faixa:#F2EBDF}
 .ic-t{font:600 14px/20px var(--font-sans),system-ui,sans-serif;color:var(--text);margin:0 0 4px}
 .ic-res{margin:0 0 6px;max-width:860px;font:400 13.5px/20px var(--font-sans),system-ui,sans-serif;color:var(--text)}
 .ic-vazio{margin:0;font:400 13px/19px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
@@ -21,15 +21,17 @@
 .ic-ax-y,.ic-ax-x{font:400 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--muted)}
 .ic-an{font:400 12px var(--font-sans),system-ui,sans-serif;fill:var(--muted)}
 .ic-bar{fill:var(--ic-bar)}
-.ic-val{font:500 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--text)}
+/* o halo (cor de fundo LITERAL, a do cartão em cada tema) deixa o valor legível sobre a linha da publicação e sobre a hachura do vizinho */
+.ic-val{font:500 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--text);paint-order:stroke;stroke:var(--ic-halo);stroke-width:3px;stroke-linejoin:round}
 .ic-dot{fill:var(--ic-cl);stroke:var(--ic-ring);stroke-width:1.6}
-.ic-cln{font:600 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--ic-cl)}
+.ic-cln{font:600 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--ic-cl);paint-order:stroke;stroke:var(--ic-halo-faixa);stroke-width:3px;stroke-linejoin:round}
 .ic-strip{fill:var(--sunk);stroke:var(--border-subtle);stroke-width:1}
 .ic-stl{font:400 12px var(--font-sans),system-ui,sans-serif;fill:var(--muted)}
 .ic-pub{stroke:var(--text);stroke-width:1.5;stroke-dasharray:3 3;fill:none}
 .ic-zero{stroke:var(--ic-zero);fill:none}   /* caixa vazada de 6 px: a barra mínima (3 px) é cheia, e o não medido é hachurado */
 .ic-hb{fill:var(--nm-bg)}
-.ic-hl{stroke:var(--nm);stroke-width:2}
+.ic-hl{stroke:var(--nm);stroke-width:1.6}
+.ic-nmlin{stroke:var(--nm-line);stroke-width:1;stroke-dasharray:2 3;fill:none}
 .ic-nm,.ic-nm-cl{stroke:none}
 .ic-hit{fill:transparent;stroke:none;cursor:default}
 .ic-hit.on{fill:rgba(127,127,127,.16);stroke:var(--accent);stroke-width:2}
