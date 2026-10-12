@@ -1241,7 +1241,7 @@ test('A3.7 o botão do cartão da forja: apagado, focável por Tab, nenhuma requ
   expect(await tela(page).evaluate(e => e.textContent!.match(/depois que a coleta|coleta di[aá]ria[^.;]*(estiver no ar|começa|em breve)/i))).toBeNull()
 })
 
-test('I-A/I-B/I-C na tela real: nenhum item dos mais vistos aponta para um vídeo que o Histórico não acha, nenhum "0" de longos em 90 dias é de canal sem datas, e a tela não se contradiz sobre a coleta', async ({ page }) => {
+test('I-A/I-C na tela real: nenhum item dos mais vistos aponta para um vídeo que o Histórico não acha, e a tela não se contradiz sobre a coleta (o canal só com vídeos sem data não existe na semente: I-B é provado nos testes unitários de numeros-model)', async ({ page }) => {
   const canais = await (async () => { await abrir(page, par(OWN(), LEO())); return todosOsCanais(page) })()
   let links = 0, semLink = 0
   for (const c of canais.slice(0, 8)) {

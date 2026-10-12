@@ -159,6 +159,8 @@ export function numerosDoCanal(obs: Observatory, channelId: string, avisar?: (a:
   }))
 
   const ritmo = seguro('ritmo', () => com(() => {
+    // só vídeos sem data: o ritmo mediria "0 + 0" onde o site não sabe quando ninguém publicou (mesma guarda de `longos90`)
+    if (vids.length === 0) return naoMedido({ k: 'semDataVideo' })
     const kl = obs.cadence(ch.id, 'long'), ks = obs.cadence(ch.id, 'short'), sem = obs.RULES.habit.weeks
     return medido(Math.round((kl.pw + ks.pw) * 10) / 10, `${umaCasa(kl.pw, F.dec1)} + ${umaCasa(ks.pw, F.dec1)}`,
       `${F.plural(kl.n, 'longo', 'longos')} e ${F.plural(ks.n, 'Short', 'Shorts')} em ${sem} semanas`)

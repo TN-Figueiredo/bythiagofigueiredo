@@ -187,6 +187,15 @@ describe('ritmo', () => {
     const n2 = nums(ws.obs, CH).ritmo, ks = ws.obs.cadence(CH, 'short')
     expect(n2.texto).toBe(`0 + ${w(ks.pw)}`)
   })
+  it('I-11-1: canal só com vídeos SEM data → não medido "nenhum vídeo com data de publicação"; nunca "0,0 + 0,0" medido', () => {
+    const w = world(ds => {
+      ds.videos = ds.videos.filter(v => v.ch !== OWN2)
+      ds.channels.find(c => c.id === OWN2)!.undated = [{ id: 'sd-1', ytId: 'abc', title: 'Sem data', url: 'https://youtu.be/abc', isShort: false, dur: 600, views: 10, likes: 1, comments: 0, pinned: false, checkedAt: null }]
+    })
+    const n = nums(w.obs, OWN2).ritmo
+    expect(n.x).toBeNull(); expect(n.texto).toBeNull(); expect(n.nota).toBeNull()
+    expect(n.motivo).toBe('nenhum vídeo com data de publicação')
+  })
   it('canal sem vídeos → "sem vídeos"; primeira sincronização → a frase da sincronização', () => {
     naoMedido(nums(world(semVideos(CH)).obs, CH).ritmo, 'sem vídeos')
     naoMedido(nums(BASE.obs, BF).ritmo, 'a primeira sincronização ainda não terminou')
