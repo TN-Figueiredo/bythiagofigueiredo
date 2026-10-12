@@ -10,7 +10,7 @@ import {
 import { classifyShort, needsShortProbe, probeShortsBatch, newProbeBudget, isYoutubeVideoId, type ProbeBudget, type ShortProbeResult } from '@/lib/youtube/short-classifier'
 import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
-import { optCount, videoObservedOf } from '@/lib/youtube/competitor-capture'
+import { optCount, videoObservedOf, channelObservedOf, rawOf, captureItems, CAPTURE_CHUNK } from '@/lib/youtube/competitor-capture'
 export { optCount } from '@/lib/youtube/competitor-capture'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
@@ -35,6 +35,16 @@ export interface SyncResult {
   sem_destinatario?: boolean
   /** Itens que vieram sem uma parte inteira (snippet, statistics ou contentDetails): os campos dela não foram comparados. */
   partsMissing?: number
+  /** (A5) Canal que veio sem snippet ou sem statistics: os campos da parte ausente não foram comparados nem gravados na linha. */
+  channelPartsMissing?: number
+  /** (A5) Versões de campo abertas (primeira leitura ou mudança), contando canal e vídeos. */
+  fieldsOpened?: number
+  /** (A5) Respostas cruas abertas (primeira leitura ou mudança). */
+  rawOpened?: number
+  /** (A5) Respostas acima do teto de tamanho, não guardadas. */
+  rawTooBig?: number
+  /** (A5) Itens cujo texto trazia NUL ou substituto solitário e foi limpo antes de gravar. */
+  sanitized?: number
 }
 
 const SP_OFFSET_MS = 3 * 3_600_000 // America/Sao_Paulo is UTC−3 with no DST since 2019
@@ -111,7 +121,7 @@ export async function syncCompetitorChannel(
   const api = (url: string): Promise<Response> => { unitsUsed++; return f(url, { signal: AbortSignal.timeout(10_000) }) }
 
   // ── CAS Lock: acquire or skip ──
-  const { data: locked } = await supabase
+  const { data: locked, error: lockError } = await supabase
     .from('competitor_channels')
     .update({
       sync_status: 'syncing',
@@ -122,13 +132,16 @@ export async function syncCompetitorChannel(
     })
     .eq('id', channelRow.id)
     .or(`sync_status.neq.syncing,sync_started_at.lt.${new Date(nowMs - 10 * 60_000).toISOString()}`)
-    .select('id, sync_mode, full_sync_completed_at, video_limit, last_ok_synced_at, sync_error_since')
+    .select('id, sync_mode, full_sync_completed_at, video_limit, last_ok_synced_at, sync_error_since, last_seen_at')
 
+  // Um erro aqui (coluna que não existe, banco fora) não é "outro processo está sincronizando": lança.
+  if (lockError) throw new Error('trava do canal: ' + (lockError.message ?? 'erro do banco'))
   if (!locked || locked.length === 0) {
     return { videosChecked: 0, changesDetected: 0, dailyRecorded: 0, unitsUsed: 0, skipped: true }
   }
   const prevOkAt = (locked[0] as { last_ok_synced_at?: string | null }).last_ok_synced_at ?? null
   const prevErrorSince = (locked[0] as { sync_error_since?: string | null }).sync_error_since ?? null
+  const prevChannelSeenAt = (locked[0] as { last_seen_at?: string | null }).last_seen_at ?? null
 
   const syncMode = (locked[0] as { sync_mode: string }).sync_mode
   const fullSyncDone = (locked[0] as { full_sync_completed_at: string | null }).full_sync_completed_at
@@ -157,21 +170,23 @@ export async function syncCompetitorChannel(
   const loadPinned = async (): Promise<TrackedRow[]> => {
     const { data, error } = await supabase
       .from('competitor_videos')
-      .select('id, video_id, title, thumbnail_url')
+      .select('id, video_id, title, thumbnail_url, last_seen_at, missing_since')
       .eq('competitor_channel_id', channelRow.id)
       .not('pinned_at', 'is', null)
     fail('load pinned videos', error)
+    for (const r of data ?? []) noteRow(r)
     return (data ?? []) as TrackedRow[]
   }
   /** The observed videos: the video_limit most recent ∪ the pinned ones (R118/R119). Throws on a query error. */
   const loadTracked = async (): Promise<TrackedRow[]> => {
     const { data, error } = await supabase
       .from('competitor_videos')
-      .select('id, video_id, title, thumbnail_url')
+      .select('id, video_id, title, thumbnail_url, last_seen_at, missing_since')
       .eq('competitor_channel_id', channelRow.id)
       .order('published_at', { ascending: false, nullsFirst: false })
       .limit(videoLimit)
     fail('load tracked videos', error)
+    for (const r of data ?? []) noteRow(r)
     const top = (data ?? []) as TrackedRow[]
     const seen = new Set(top.map(t => t.id))
     return [...top, ...pinned.filter(p => !seen.has(p.id))]
@@ -210,6 +225,39 @@ export async function syncCompetitorChannel(
     if (!error) return false
     lateFailure ??= new Error(what + ': ' + (error.message ?? 'erro do banco'))
     return true
+  }
+
+  /** A5 (E1): o que se sabia de cada vídeo ANTES desta sincronização (a janela de uma mudança começa na última leitura boa). */
+  const rowInfo = new Map<string, { lastSeenAt: string | null; weeklySince: string | null; missing: boolean }>()
+  const captured = new Set<string>()
+  // A captura nunca impede a série do dia: a falha vai para a mesma `lateFailure` (não há segunda variável).
+  const cap = { fieldsOpened: 0, rawOpened: 0, rawTooBig: 0, sanitized: 0 }
+  let channelPartsMissing = 0
+  const noteRow = (r: { id?: unknown; last_seen_at?: unknown; missing_since?: unknown }): void => {
+    if (typeof r.id !== 'string' || rowInfo.has(r.id)) return
+    rowInfo.set(r.id, { lastSeenAt: typeof r.last_seen_at === 'string' ? r.last_seen_at : null, weeklySince: null, missing: r.missing_since != null })
+  }
+  /** Campos e raw dos vídeos que vieram, em lotes de 50, e só então o carimbo de "visto". */
+  const captureFetched = async (pairs: Array<{ uuid: string; item: unknown }>): Promise<void> => {
+    const todo = pairs.filter(p => !captured.has(p.uuid))
+    for (let i = 0; i < todo.length; i += CAPTURE_CHUNK) {
+      const chunk = todo.slice(i, i + CAPTURE_CHUNK)
+      try {
+        const st = await captureItems(supabase, {
+          siteId: channelRow.site_id, channelId: channelRow.id, scope: 'video', nowIso,
+          items: chunk.map(p => {
+            const info = rowInfo.get(p.uuid)
+            return { videoId: p.uuid, fields: videoObservedOf(p.item, nowIso, parseIsoDuration).fields, raw: rawOf(p.item), prevSeenAt: info?.lastSeenAt ?? null, weeklySince: info?.weeklySince ?? null }
+          }),
+        })
+        cap.fieldsOpened += st.fieldsOpened; cap.rawOpened += st.rawOpened; cap.rawTooBig += st.rawTooBig; cap.sanitized += st.sanitized
+        const { error } = await supabase.from('competitor_videos').update({ last_seen_at: nowIso }).in('id', chunk.map(p => p.uuid))
+        fail('não foi possível guardar a última leitura dos vídeos', error)
+        for (const p of chunk) captured.add(p.uuid)
+      } catch (e) {
+        lateFailure ??= e instanceof Error ? e : new Error(String(e))
+      }
+    }
   }
 
   /** Reconciles one video's versions and applies the plan. Throws on any database error (compensating first). */
@@ -379,15 +427,32 @@ export async function syncCompetitorChannel(
     // Hidden counters are absent from the API: null, never 0 ("sem contagem").
     const subscriberCount = optCount(stats?.hiddenSubscriberCount ? undefined : stats?.subscriberCount)
 
-    await supabase
+    // (A5) campos e raw do canal. `last_seen_at` só é carimbado se a captura deu certo (a janela da próxima mudança depende dele).
+    const chObserved = channelObservedOf(channelData.items[0])
+    if (chObserved.partsMissing.length) channelPartsMissing++
+    let channelCaptured = false
+    try {
+      const st = await captureItems(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, scope: 'canal', nowIso,
+        items: [{ videoId: null, fields: chObserved.fields, raw: rawOf(channelData.items[0]), prevSeenAt: prevChannelSeenAt, weeklySince: null }] })
+      cap.fieldsOpened += st.fieldsOpened; cap.rawOpened += st.rawOpened; cap.rawTooBig += st.rawTooBig; cap.sanitized += st.sanitized
+      channelCaptured = true
+    } catch (e) {
+      lateFailure ??= e instanceof Error ? e : new Error(String(e))
+    }
+
+    const { error: chErr } = await supabase
       .from('competitor_channels')
       .update({
         channel_name: snippet?.title ?? '',
         thumbnail_url: snippet?.thumbnails?.default?.url ?? null,
         subscriber_count: subscriberCount,
         youtube_video_count: youtubeVideoCount,
+        // só as chaves das partes que vieram: parte ausente não grava nulo por cima
+        ...chObserved.patch,
+        ...(channelCaptured ? { last_seen_at: nowIso } : {}),
       })
       .eq('id', channelRow.id)
+    late('não foi possível atualizar a linha do canal', chErr)
 
     // Daily snapshot (non-blocking)
     try {
@@ -399,6 +464,7 @@ export async function syncCompetitorChannel(
           video_count: youtubeVideoCount,
           view_count: optCount(stats?.viewCount),
           snapshot_date: snapDate,
+          subscribers_hidden: chObserved.patch.subscribers_hidden,
         }, { onConflict: 'competitor_channel_id,snapshot_date' })
     } catch {
       // Non-fatal
@@ -441,14 +507,17 @@ export async function syncCompetitorChannel(
       // Batch lookup existing videos
       const { data: existingVideos } = await supabase
         .from('competitor_videos')
-        .select('id, video_id, title, description_hash, thumbnail_url, view_count, is_short')
+        .select('id, video_id, title, description_hash, thumbnail_url, view_count, is_short, last_seen_at, missing_since')
         .eq('competitor_channel_id', channelRow.id)
         .in('video_id', videoIds)
+      for (const v of existingVideos ?? []) noteRow(v)
       const existingMap = new Map((existingVideos ?? []).map(v => [v.video_id, v]))
 
       // Current versions of every known video in this page, one query
       const currentByVideo = await loadCurrent((existingVideos ?? []).map(v => v.id as string))
       const touchIds: string[] = []
+      /** Os vídeos desta página que têm linha (novos e já gravados), para a captura no fim do laço. */
+      const pagePairs: Array<{ uuid: string; item: unknown }> = []
 
       // Smart incremental: stop if we hit a known video
       let hitKnownVideo = false
@@ -514,6 +583,8 @@ export async function syncCompetitorChannel(
           }, currentByVideo.get(videoUuid) ?? [], touchIds)
         }
 
+        if (videoUuid) pagePairs.push({ uuid: videoUuid, item: video })
+
         if (!existing) continue
 
         // Update stats
@@ -535,6 +606,7 @@ export async function syncCompetitorChannel(
         const { error } = await supabase.from('competitor_video_versions').update({ last_seen_at: nowIso }).in('id', touchIds)
         fail('touch versions', error)
       }
+      await captureFetched(pagePairs)
 
       // Update progress
       await supabase
@@ -590,6 +662,7 @@ export async function syncCompetitorChannel(
           // once-a-day pass: reconcile what the incremental pages did not reach
           await reconcileFetched(items, byYt)
           await patchFetched(items, byYt)
+          await captureFetched(items.filter(it => byYt.has(it.id)).map(it => ({ uuid: byYt.get(it.id)!.id, item: it })))
         } catch (e) {
           dailyFailure ??= e instanceof Error ? e : new Error(String(e))
         }
@@ -619,6 +692,7 @@ export async function syncCompetitorChannel(
       const fetched = (body.items ?? []) as FetchedItem[], byYt = new Map(chunk.map(c => [c.video_id, c]))
       await reconcileFetched(fetched, byYt)
       await patchFetched(fetched, byYt)
+      await captureFetched(fetched.filter(it => byYt.has(it.id)).map(it => ({ uuid: byYt.get(it.id)!.id, item: it })))
     }
 
     // ── Re-classificação dos já gravados como longos com 61–180 s (R109), mesmo teto da execução ──
@@ -675,7 +749,10 @@ export async function syncCompetitorChannel(
     }
     await supabase.from('competitor_channels').update(updatePayload).eq('id', channelRow.id)
 
-    return { videosChecked, changesDetected, dailyRecorded, unitsUsed, ...(semDestinatario ? { sem_destinatario: true } : {}), ...(partsMissing ? { partsMissing } : {}) }
+    return { videosChecked, changesDetected, dailyRecorded, unitsUsed, ...(semDestinatario ? { sem_destinatario: true } : {}), ...(partsMissing ? { partsMissing } : {}),
+      ...(channelPartsMissing ? { channelPartsMissing } : {}),
+      ...(cap.fieldsOpened ? { fieldsOpened: cap.fieldsOpened } : {}), ...(cap.rawOpened ? { rawOpened: cap.rawOpened } : {}), ...(cap.rawTooBig ? { rawTooBig: cap.rawTooBig } : {}),
+      ...(cap.sanitized ? { sanitized: cap.sanitized } : {}) }
   } catch (error) {
     // Set error status, preserve partial data
     await supabase
