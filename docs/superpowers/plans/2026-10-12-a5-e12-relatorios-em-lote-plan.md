@@ -1484,7 +1484,7 @@ cd /Users/figueiredo/Workspace/bythiagofigueiredo && npx supabase db query --lin
 Consulta A (jobs por tipo e estado):
 
 ```sql
-select report_type_id || ' | ' || status || ' | n=' || count(*) as l from yt_reporting_jobs group by report_type_id, status order by 1, 2
+select report_type_id || ' | ' || status || ' | n=' || count(*) as l from yt_reporting_jobs group by report_type_id, status order by 1
 ```
 
 Esperado: os 13 tipos da lista com `ativo | n=2`; `channel_annotations_a1` e os 6 `playlist_*` com `desativado | n=2`. Um tipo da lista em `tipo_indisponivel`: anote o tipo e o canal (o aviso chega com o nome). Um tipo da lista em `desativado` ou `erro` **sem `job_id`** (nunca teve job, por exemplo um 500 em `reportTypes.list` ou um 429 em `jobs.create` no D0): o cron tem de estar vermelho **já nesta execução**, com a nota `jobs: <canal> tem N tipo(s) de relatório habilitado(s) sem job: ...`; se estiver verde, é defeito, pare. Cada dia sem job é um dia de histórico que não volta: o cron do dia seguinte tenta criar de novo sozinho, mas confira.
@@ -1502,7 +1502,7 @@ Esperado na primeira execução: `baixados + vazios` perto de 100, `pendentes` c
 Consulta C (a fila, por tipo, com o primeiro vencimento):
 
 ```sql
-select report_type_id || ' | listado=' || count(*) || ' | vence_primeiro=' || to_char(min(create_time + case when is_backfill then interval '30 days' else interval '60 days' end), 'MM-DD HH24:MI') as l from yt_reporting_reports where status = 'listado' group by report_type_id order by 2
+select report_type_id || ' | listado=' || count(*) || ' | vence_primeiro=' || to_char(min(create_time + case when is_backfill then interval '30 days' else interval '60 days' end), 'MM-DD HH24:MI') as l from yt_reporting_reports where status = 'listado' group by report_type_id order by 1
 ```
 
 Esperado: os 9 tipos novos com cerca de 62 cada no pico; `channel_traffic_source_a3` e `channel_basic_a3` de histórico zerados na primeira execução. Zero relatórios de um tipo novo depois de D+3: não é "ok". Se ele **nunca** gerou, a partir do 6º dia o cron o põe em `acao_do_dono` ("nunca gerou relatório desde ..."): **não fica vermelho** (decisão da onda 4: um tipo que o YouTube não gera para o canal deixaria o cron vermelho para sempre, sem conserto). Se gerou o histórico e parou (por volta de D+9), aí sim fica vermelho: ver o runbook, seção 10. Como `acao_do_dono` não notifica ninguém, **a leitura em D+3 (16/10) e em D+7 (20/10) é a única vigilância**: anote o resultado de cada uma no ledger no dia.
