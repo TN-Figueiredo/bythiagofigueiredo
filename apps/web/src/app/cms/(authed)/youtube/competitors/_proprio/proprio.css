@@ -29,8 +29,10 @@
 [data-obs-screen="canal"][data-own="1"] .chead .pos a:hover{text-decoration-color:var(--text)}
 
 /* o cartão: três colunas (a do meio, impressões, é a mais larga) e a terceira linha, que diz o que as impressões permitem afirmar */
-[data-obs-screen="canal"][data-own="1"] .cv-nums3{grid-template-columns:minmax(0,.8fr) minmax(0,1.15fr) minmax(0,1fr);height:auto;min-height:34px;margin-bottom:4px}
-[data-obs-screen="canal"][data-own="1"] .cv-nums3 .cv-c.nd .obs-ch-nm{white-space:normal}
+/* a linha de números quebra em vez de apertar: com o cartão de ~150 px a 1440, três colunas não cabem ("2,2 mil28,7 mil" colados). Cada coluna
+   (valor em cima, rótulo embaixo) fica inteira (nowrap) e a terceira desce para a linha de baixo quando falta largura; vão de 12 px entre as colunas. */
+[data-obs-screen="canal"][data-own="1"] .cv-nums3{display:flex;flex-wrap:wrap;justify-content:flex-start;gap:2px 12px;height:auto;min-height:34px;margin-bottom:4px}
+[data-obs-screen="canal"][data-own="1"] .cv-nums3 .cv-c{flex:none;white-space:nowrap}
 [data-obs-screen="canal"][data-own="1"] .cv-card .cv-n3{margin:0;padding:0 10px 9px;font:400 12px/16px var(--font-sans),system-ui,sans-serif;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 [data-obs-screen="canal"][data-own="1"] .cv-card .cv-vpd{margin:0;padding:0 10px 3px;font:400 12.5px/16px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
