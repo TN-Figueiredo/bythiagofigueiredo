@@ -597,7 +597,7 @@ describe('passoRelatorios: fix round 1', () => {
 })
 
 describe('passoRelatorios: tipo fora da lista habilitada (REPORT_TYPES_ENABLED)', () => {
-  const FORA = 'channel_demographics_a1'
+  const FORA = 'channel_annotations_a1'
 
   it('job ativo de tipo fora da lista não é listado nem baixado; os listado dele ficam como estão e não contam em pendentes', async () => {
     const db = bancoComPurge({
