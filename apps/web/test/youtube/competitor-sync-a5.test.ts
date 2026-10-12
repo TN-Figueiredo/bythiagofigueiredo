@@ -13,7 +13,7 @@ vi.mock('@/lib/youtube/thumb-fingerprint', async (orig) => ({
 import { syncCompetitorChannel, syncStatsOf, VIDEO_PARTS } from '@/lib/youtube/competitor-sync'
 import { probeThumb } from '@/lib/youtube/thumb-fingerprint'
 import { fieldHash, rawOf } from '@/lib/youtube/competitor-capture'
-import { setup, apiFetch, traced, updatesOf, rpcCalls, first, arg, NOW, NOW_ISO, EARLY, ch, recent, quiet, SINAIS, SNIPPET0 } from './competitor-sync-harness'
+import { setup, apiFetch, traced, updatesOf, rpcCalls, first, arg, NOW, NOW_ISO, EARLY, ch, recent, quiet, SINAIS, SNIPPET0, type SetupOpts } from './competitor-sync-harness'
 
 beforeEach(() => {
   vi.mocked(probeThumb).mockReset()
@@ -932,5 +932,170 @@ describe('A5 E2: faixas da série', () => {
     expect(idsOf(calls[3]!)).toHaveLength(50)
     expect(calls[3]).not.toContain('vid-100')
     expect(r.unitsUsed).toBe(4)
+  })
+})
+
+describe('A5 E2: primeiras horas', () => {
+  const H = 3_600_000
+  const iso = (ms: number) => new Date(ms).toISOString()
+  const earlyCalls = (db: ReturnType<typeof setup>) => db.calls.filter(c => c.table === 'competitor_video_early')
+  const withPub = (publishedAt: unknown, over: Record<string, unknown> = {}) => page({ snippet: { ...page().snippet, publishedAt }, ...over })
+
+  it('item 16: vídeo descoberto até 24 h depois de publicado ganha uma leitura por sincronização enquanto tiver menos de 72 h; os outros, nenhuma', async () => {
+    const fresh = { ...ROW1, discovered_at: iso(EARLY.getTime() - 5 * H), published_at: iso(EARLY.getTime() - 10 * H) }
+    const db = setup({ lastDaily: '2026-10-24', existing: [fresh] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page({ snippet: { ...page().snippet, publishedAt: fresh.published_at } })), ...quiet })
+    expect(arg(db.calls.find(c => c.table === 'competitor_video_early')!, 'upsert')).toEqual([{ video_id: 'v-1', taken_at: EARLY.toISOString(), site_id: 'site-1', views: 7, likes: 1, comments: 2 }])
+    expect(r.earlyRecorded).toBe(1)
+    for (const late of [{ ...fresh, discovered_at: null }, { ...fresh, published_at: iso(EARLY.getTime() - 80 * H) }, { ...fresh, discovered_at: iso(EARLY.getTime() - 5 * H), published_at: iso(EARLY.getTime() - 40 * H) }]) {
+      const d2 = setup({ lastDaily: '2026-10-24', existing: [late] })
+      await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page({ snippet: { ...page().snippet, publishedAt: late.published_at } })), ...quiet })
+      expect(d2.calls.some(c => c.table === 'competitor_video_early')).toBe(false)
+    }
+  })
+  it('vídeo novo, descoberto agora com 3 h de vida: a primeira leitura das primeiras horas é a da descoberta', async () => {
+    const pub = new Date(EARLY.getTime() - 3 * 3_600_000).toISOString()
+    const db = setup({ lastDaily: '2026-10-24', existing: [] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page({ snippet: { ...page().snippet, publishedAt: pub } })), ...quiet })
+    expect(arg(db.calls.find(c => c.table === 'competitor_video_early')!, 'upsert')).toEqual([expect.objectContaining({ video_id: 'v-new', views: 7 })])
+  })
+  it('primeiras horas sem contagem de views: nenhuma linha (a coluna é not null), e nada lança', async () => {
+    const fresh = { ...ROW1, discovered_at: new Date(EARLY.getTime() - 3_600_000).toISOString(), published_at: new Date(EARLY.getTime() - 2 * 3_600_000).toISOString() }
+    const db = setup({ lastDaily: '2026-10-24', existing: [fresh] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page({ snippet: { ...page().snippet, publishedAt: fresh.published_at }, statistics: {} })), ...quiet })
+    expect(db.calls.some(c => c.table === 'competitor_video_early')).toBe(false)
+  })
+
+  it('dado ausente: publishedAt nulo, no futuro ou malformado não ganha leitura, e nada lança', async () => {
+    for (const bad of [undefined, null, iso(EARLY.getTime() + 2 * H), 'ontem de manhã', '']) {
+      const fresh = { ...ROW1, discovered_at: iso(EARLY.getTime() - H), published_at: iso(EARLY.getTime() - 2 * H) }
+      const db = setup({ lastDaily: '2026-10-24', existing: [fresh] })
+      await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(withPub(bad)), ...quiet })
+      expect(earlyCalls(db), String(bad)).toEqual([])
+      const db2 = setup({ lastDaily: '2026-10-24', existing: [] })
+      await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(withPub(bad)), ...quiet })
+      expect(earlyCalls(db2), 'novo ' + String(bad)).toEqual([])
+    }
+  })
+  it('descoberta tarde: vídeo novo que já tinha mais de 24 h (ou mais de 72 h) ao ser descoberto não ganha primeiras horas', async () => {
+    for (const ageH of [25, 30, 73, 500]) {
+      const db = setup({ lastDaily: '2026-10-24', existing: [] })
+      await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(withPub(iso(EARLY.getTime() - ageH * H))), ...quiet })
+      expect(earlyCalls(db), ageH + ' h').toEqual([])
+    }
+    // e a fronteira: 24 h exatas ainda vale
+    const db = setup({ lastDaily: '2026-10-24', existing: [] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(withPub(iso(EARLY.getTime() - 24 * H))), ...quiet })
+    expect(earlyCalls(db)).toHaveLength(1)
+  })
+  it('a janela é a de RULES: com 71 h de vida ainda grava, com 72 h não', async () => {
+    for (const [ageH, want] of [[71, 1], [72, 0]] as const) {
+      const fresh = { ...ROW1, discovered_at: iso(EARLY.getTime() - ageH * H), published_at: iso(EARLY.getTime() - ageH * H) }
+      const db = setup({ lastDaily: '2026-10-24', existing: [fresh] })
+      await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(withPub(fresh.published_at)), ...quiet })
+      expect(earlyCalls(db), ageH + ' h').toHaveLength(want)
+    }
+  })
+  it('views ausentes viram nenhuma linha; likes e comentários ausentes viram nulo, nunca zero', async () => {
+    const fresh = { ...ROW1, discovered_at: iso(EARLY.getTime() - H), published_at: iso(EARLY.getTime() - 2 * H) }
+    const db = setup({ lastDaily: '2026-10-24', existing: [fresh] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(withPub(fresh.published_at, { statistics: { viewCount: '7' } })), ...quiet })
+    expect(arg(earlyCalls(db)[0]!, 'upsert')).toEqual([{ video_id: 'v-1', taken_at: EARLY.toISOString(), site_id: 'site-1', views: 7, likes: null, comments: null }])
+  })
+  it('a mesma leitura repetida: o upsert ignora o conflito em (video_id, taken_at), e o vídeo que a resposta traz duas vezes vale uma vez', async () => {
+    const fresh = { ...ROW1, discovered_at: iso(EARLY.getTime() - H), published_at: iso(EARLY.getTime() - 2 * H) }
+    const db = setup({ lastDaily: '2026-10-24', existing: [fresh] })
+    const inner = apiFetch(withPub(fresh.published_at))
+    const twice = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const res = await inner(input, init)
+      if (!String(input).includes('/videos?')) return res
+      const body = await res.json() as { items: unknown[] }
+      return Response.json({ items: [...body.items, ...body.items] })
+    }) as typeof fetch
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: twice, ...quiet })
+    const call = earlyCalls(db)[0]!
+    expect(call.ops.find(o => o[0] === 'upsert')![1][1]).toEqual({ onConflict: 'video_id,taken_at', ignoreDuplicates: true })
+    expect(arg(call, 'upsert')).toHaveLength(1)
+    expect(r.earlyRecorded).toBe(1)
+    // uma nova tentativa com o mesmo `now` manda a mesma chave: o banco a ignora
+    const db2 = setup({ lastDaily: '2026-10-24', existing: [fresh] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(withPub(fresh.published_at)), ...quiet })
+    expect(arg(earlyCalls(db2)[0]!, 'upsert')).toEqual(arg(call, 'upsert'))
+  })
+  it('sem vídeo elegível não há chamada ao banco nem campo no resultado', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })
+    expect(earlyCalls(db)).toEqual([])
+    expect('earlyRecorded' in r).toBe(false)
+  })
+})
+
+// A série do dia só existe hoje (a API dá o valor de agora): nenhuma gravação nova pode lançar na frente da passada diária.
+describe('A5 E2: nenhuma gravação nova fica na frente da série do dia', () => {
+  const H = 3_600_000
+  const idsIn = (u: string) => decodeURIComponent(u.match(/[?&]id=([^&]*)/)![1]!).split(',')
+  const echo = (_n: number, u: string) => idsIn(u).map(id => ({ id, snippet: { title: 'T' }, statistics: { viewCount: '5', likeCount: '1', commentCount: '0' }, contentDetails: { duration: 'PT10M' } }))
+  const tr = (n: number) => ({ id: 'v-' + n, video_id: 'vid-' + n, title: 'T', thumbnail_url: null })
+  const fresh = { ...ROW1, discovered_at: new Date(NOW.getTime() - H).toISOString(), published_at: new Date(NOW.getTime() - 2 * H).toISOString() }
+  const freshPage = page({ snippet: { ...page().snippet, publishedAt: fresh.published_at } })
+  /** Cenas: o que o canal tem e o que a API devolve. `fresh` = um vídeo de 2 h de vida na página; `dois` = mais um só na passada diária; `fixado` = um fixado que só a passada dos fixados lê; `ausente` = um pedido que não volta. */
+  type Scene = { opts: SetupOpts; fetch: typeof fetch }
+  const scenes: Record<'fresh' | 'novo' | 'dois' | 'fixado' | 'ausente', () => Scene> = {
+    fresh: () => ({ opts: { lastDaily: '2026-10-23', existing: [fresh] }, fetch: apiFetch(freshPage) }),
+    novo: () => ({ opts: { lastDaily: '2026-10-23', existing: [] }, fetch: apiFetch(freshPage) }),
+    dois: () => ({ opts: { lastDaily: '2026-10-23', existing: [fresh], tracked: [tr(1), tr(2)] }, fetch: apiFetch(freshPage, 200, { daily: echo }) }),
+    fixado: () => ({ opts: { lastDaily: '2026-10-23', existing: [fresh], tracked: [tr(1), tr(2)], pinned: [PIN], dailyHave: ['v-pin'] }, fetch: apiFetch(freshPage, 200, { daily: echo }) }),
+    ausente: () => ({ opts: { lastDaily: '2026-10-23', existing: [fresh], tracked: [tr(1), tr(2)] }, fetch: apiFetch(freshPage, 200, { daily: (_n, u) => echo(_n, u).filter(i => i.id === 'vid-1') }) }),
+  }
+  // Todas as gravações novas do sync de hoje, uma por vez. `skip` é a ordem da chamada que falha entre as que casam (a captura vai canal, página, passada diária, fixados).
+  type Row = { name: string; scene: keyof typeof scenes; msg: RegExp; opts: Partial<SetupOpts> }
+  const ROWS: Row[] = [
+    { name: 'inserir o vídeo novo', scene: 'novo', msg: /não foi possível gravar o vídeo novo/, opts: { failWrite: 'competitor_videos:insert' } },
+    { name: 'regravar a linha do vídeo (página)', scene: 'fresh', msg: /não foi possível atualizar a linha do vídeo/, opts: { failWrite: 'competitor_videos:update' } },
+    { name: 'regravar a linha do vídeo (passada diária)', scene: 'dois', msg: /não foi possível atualizar a linha do vídeo/, opts: { failUpdateOf: 'v-2' } },
+    { name: 'regravar a linha do vídeo (fixados)', scene: 'fixado', msg: /não foi possível atualizar a linha do vídeo/, opts: { failUpdateOf: 'v-pin' } },
+    { name: 'a linha do canal', scene: 'fresh', msg: /não foi possível atualizar a linha do canal/, opts: { failWrite: 'competitor_channels:patch' } },
+    { name: 'as primeiras horas', scene: 'fresh', msg: /não foi possível gravar as primeiras horas/, opts: { failWrite: 'competitor_video_early' } },
+    { name: 'a gravação das faixas', scene: 'fresh', msg: /não foi possível gravar a faixa da série/, opts: { failWrite: 'rpc:apply_competitor_tier_plan' } },
+    { name: 'a captura do canal (campos)', scene: 'fresh', msg: /histórico de campos/, opts: { failWrite: 'rpc:apply_competitor_field_plan', failWriteSkip: 0 } },
+    { name: 'a captura do canal (texto bruto)', scene: 'fresh', msg: /texto bruto/, opts: { failWrite: 'rpc:apply_competitor_raw_plan', failWriteSkip: 0 } },
+    { name: 'a captura dos vídeos (página, campos)', scene: 'fresh', msg: /histórico de campos/, opts: { failWrite: 'rpc:apply_competitor_field_plan', failWriteSkip: 1 } },
+    { name: 'a captura dos vídeos (página, texto bruto)', scene: 'fresh', msg: /texto bruto/, opts: { failWrite: 'rpc:apply_competitor_raw_plan', failWriteSkip: 1 } },
+    { name: 'a captura dos vídeos (passada diária)', scene: 'dois', msg: /histórico de campos/, opts: { failWrite: 'rpc:apply_competitor_field_plan', failWriteSkip: 2 } },
+    { name: 'a captura dos vídeos (fixados)', scene: 'fixado', msg: /histórico de campos/, opts: { failWrite: 'rpc:apply_competitor_field_plan', failWriteSkip: 3 } },
+    { name: 'o carimbo de última leitura dos vídeos', scene: 'fresh', msg: /não foi possível guardar a última leitura dos vídeos/, opts: { failStamp: true } },
+    { name: 'a marca de ausência', scene: 'ausente', msg: /não foi possível marcar o que deixou de vir do YouTube/, opts: { failWrite: 'rpc:competitor_mark_missing' } },
+  ]
+  it.each(ROWS)('gravação nova falhando ($name): a série do dia é gravada e o canal termina em erro', async ({ scene, msg, opts }) => {
+    const s = scenes[scene]()
+    const db = setup({ ...s.opts, ...opts })
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: s.fetch, ...quiet })).rejects.toThrow(msg)
+    // a passada diária rodou e gravou o ponto de hoje, apesar da falha
+    const up = db.calls.find(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')
+    expect(up, 'a série do dia não foi gravada').toBeDefined()
+    const rows = arg(up!, 'upsert') as unknown as Array<{ video_id: string; snap_date: string; views: number }>
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.every(r => r.snap_date === '2026-10-24' && Number.isFinite(r.views))).toBe(true)
+    if (scene === 'dois' || scene === 'fixado') expect(rows.map(r => r.video_id)).toContain('v-2')
+    // o canal termina em erro, com a frase em português, e não é carimbado como sincronizado
+    const ups = db.calls.filter(c => c.table === 'competitor_channels' && first(c) === 'update').map(c => arg(c, 'update') ?? {})
+    expect(ups.some(u => 'last_ok_synced_at' in u)).toBe(false)
+    expect(ups.at(-1)).toMatchObject({ sync_status: 'error' })
+    expect(String(ups.at(-1)!.sync_error)).toMatch(msg)
+  })
+  it('a falha da gravação da cota é a exceção: a série do dia é gravada, o canal termina bem e o resultado leva quotaError', async () => {
+    const s = scenes.fresh()
+    const db = setup({ ...s.opts, rpcFail: 'youtube_quota_add' })
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: s.fetch, ...quiet })
+    expect(r).toMatchObject({ quotaError: true, quotaUnitsLost: r.unitsUsed, dailyRecorded: 1 })
+    expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toBe(true)
+    const ups = db.calls.filter(c => c.table === 'competitor_channels' && first(c) === 'update').map(c => arg(c, 'update') ?? {})
+    expect(ups.at(-1)).toMatchObject({ sync_status: 'idle', sync_error: null, last_ok_synced_at: NOW_ISO })
+  })
+  it('várias gravações novas falhando de uma vez: o primeiro erro é o que o dono lê, e a série do dia é gravada inteira', async () => {
+    const s = scenes.fresh()
+    const db = setup({ ...s.opts, rpcFail: 'apply_competitor_tier_plan', failWrite: 'competitor_video_early' })
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: s.fetch, ...quiet })).rejects.toThrow(/primeiras horas|faixa da série/)
+    expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toBe(true)
   })
 })
