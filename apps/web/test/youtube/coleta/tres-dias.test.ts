@@ -446,3 +446,80 @@ describe('três dias com alcance e diário de verdade', () => {
     expect(doDia2[0]).toMatchObject({ status: 'erro', error: 'cabecalho_inesperado' })
   })
 })
+
+describe('primeiro dia do deploy da E12: estado de produção (4 tipos ativos, 9 desativados) e erro passageiro da Reporting API', () => {
+  const ANTIGOS = REPORT_TYPES_ENABLED.slice(0, 4)
+  const NOVOS = REPORT_TYPES_ENABLED.slice(4)
+  const canais = [SEM_VIDEO, ANTIGO]
+
+  /** Como a produção estava em 12/10/2026: os 4 tipos antigos com job (criado há 4 dias, relatório de ontem), os 9 novos `desativado` sem job. */
+  function bancoDeProducao(): FakeDb {
+    const db = banco(VIDEOS_ANTIGOS)
+    const criado = new Date(DIA_1.getTime() - 4 * DIA_MS).toISOString()
+    const ontem = new Date(DIA_1.getTime() - 6 * 3_600_000).toISOString()
+    for (const c of canais) {
+      const jobs: Job[] = []
+      for (const t of ANTIGOS) {
+        const id = `job-${c.channel_id}-${t}`
+        jobs.push({ id, reportTypeId: t, createTime: criado })
+        db.tables.yt_reporting_jobs!.push({
+          channel_id: c.id, site_id: c.site_id, report_type_id: t, status: 'ativo', job_id: id, job_create_time: criado, last_create_time: ontem, created_at: criado, error: null,
+        })
+      }
+      google.jobs.set(c.channel_id, jobs)
+      for (const t of NOVOS) {
+        db.tables.yt_reporting_jobs!.push({
+          channel_id: c.id, site_id: c.site_id, report_type_id: t, status: 'desativado', job_id: null, job_create_time: null, last_create_time: null, created_at: criado, error: null,
+        })
+      }
+    }
+    return db
+  }
+  const notaSemJob = (c: { name: string }) => `jobs: ${c.name} tem ${NOVOS.length} tipo(s) de relatório habilitado(s) sem job: ${[...NOVOS].sort().join(', ')}`
+  const estados = (db: FakeDb, canal: string) => (db.tables.yt_reporting_jobs ?? []).filter(j => j.channel_id === canal && NOVOS.includes(j.report_type_id as never)).map(j => j.status)
+
+  it('reportTypes.list devolve 500: os 9 tipos novos ficam em erro SEM job e o cron fica vermelho já na primeira execução', async () => {
+    const db = bancoDeProducao()
+    vi.mocked(criarReportingClient).mockImplementation((token) => ({
+      ...google.cliente(token.slice('tok:'.length)),
+      reportTypesList: async () => { throw new ReportingHttpError(500, null) },
+    }))
+
+    const d1 = await rodarDia(db, DIA_1)
+
+    expect(estados(db, ANTIGO.id)).toEqual(Array(NOVOS.length).fill('erro'))
+    expect(google.chamadas.jobsCreate).toBe(0)
+    expect(d1.falhas).toEqual(expect.arrayContaining(canais.map(notaSemJob)))
+    expect(d1.falhas).toHaveLength(2) // uma nota por canal, nada duplicado pelo passo de jobs
+  })
+
+  it('jobs.create devolve 429 nos 9 tipos novos: erro sem job, vermelho na primeira execução', async () => {
+    const db = bancoDeProducao()
+    vi.mocked(criarReportingClient).mockImplementation((token) => ({
+      ...google.cliente(token.slice('tok:'.length)),
+      reportTypesList: async () => REPORT_TYPES_ENABLED.map(id => ({ id })),
+      jobsCreate: async () => { throw new ReportingHttpError(429, 'rateLimitExceeded') },
+    }))
+
+    const d1 = await rodarDia(db, DIA_1)
+
+    expect(estados(db, SEM_VIDEO.id)).toEqual(Array(NOVOS.length).fill('erro'))
+    expect(d1.falhas).toEqual(expect.arrayContaining(canais.map(notaSemJob)))
+    expect(d1.falhas).toHaveLength(2)
+  })
+
+  it('controle: sem erro nenhum a primeira execução cria os 18 jobs e fica verde', async () => {
+    const db = bancoDeProducao()
+    const d1 = await rodarDia(db, DIA_1)
+    expect(google.chamadas.jobsCreate).toBe(2 * NOVOS.length)
+    expect(estados(db, ANTIGO.id)).toEqual(Array(NOVOS.length).fill('ativo'))
+    expect(d1.falhas).toEqual([])
+  })
+
+  it('erro passageiro num tipo que JÁ teve job (4 antigos, com job_id) segue a regra dos 3 dias: não é "sem job"', async () => {
+    const db = bancoDeProducao()
+    for (const j of db.tables.yt_reporting_jobs!) if (j.report_type_id === ANTIGOS[2]) j.status = 'erro'
+    const d = await rodarDia(db, DIA_1)
+    expect(d.falhas.filter(n => n.includes('sem job'))).toEqual([])
+  })
+})
