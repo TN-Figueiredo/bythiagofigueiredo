@@ -212,16 +212,16 @@ describe('buildRegua · poucos canais', () => {
   it(`menos de ${MIN_REGUA} canais com valor: sem traços e a frase diz o conjunto e a conta`, () => {
     const v = buildRegua([val('a', 10), val('b', 20)], [A('a'), B('b')], O)
     expect(v.tracos).toEqual([])
-    expect(v.vazio).toBe('poucos canais para comparar em Viagem (2; precisa de 3)')
+    expect(v.vazio).toBe('só 2 canais em Viagem: a régua precisa de pelo menos 3')
   })
   it('um canal só (o conjunto tem só o lado): frase, sem traço', () => {
     const v = buildRegua([val('a', 10)], [A('a')], { numero: 'inscritos', conjunto: 'no geral' })
-    expect(v.vazio).toBe('poucos canais para comparar no geral (1; precisa de 3)')
+    expect(v.vazio).toBe('só 1 canal no geral: a régua precisa de pelo menos 3')
     expect(v.tracos).toHaveLength(0)
   })
   it('nenhum canal com valor: a frase diz 0, nunca "NaN" nem traço', () => {
     const v = buildRegua([], [A('a', 'Aa', 'sem vídeos'), B('b', 'Bb', 'sem vídeos')], O)
-    expect(v.vazio).toBe('poucos canais para comparar em Viagem (0; precisa de 3)')
+    expect(v.vazio).toBe('só 0 canais em Viagem: a régua precisa de pelo menos 3')
     expect(v.semTraco.map(s => s.letra)).toEqual(['A', 'B'])
   })
   it('com o mínimo de canais a régua existe e não há frase de falta', () => {

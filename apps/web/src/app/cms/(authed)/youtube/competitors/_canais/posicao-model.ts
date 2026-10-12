@@ -22,10 +22,10 @@ export function motivoTexto(m: MotivoSemMedida): string {
     case 'sem-shorts': return 'Sem Shorts: fora das posições de Shorts.'
     case 'sem-views-dia-proprio': return 'Ainda sem views por dia medidas: a coleta diária do seu canal começa em breve. Sem posição nesta ordenação.'
     case 'aguarda-2o-registro': return 'Aguardando o 2º registro diário: sem contagem diária ainda. Sem posição nesta ordenação.'
-    case 'buscando-videos': return 'Ainda buscando os vídeos: a medida aparece quando a busca terminar. Sem posição nesta ordenação.'
+    case 'buscando-videos': return 'A primeira sincronização ainda não terminou: a medida aparece quando ela terminar. Sem posição nesta ordenação.'
     case 'inscritos-ocultos': return 'Inscritos ocultos pelo canal: sem esta medida e sem posição nesta ordenação.'
     case 'sem-nicho': return 'Sem posição dentro de um nicho: escolha o nicho do canal para ver a posição.'
-    case 'ordenacao-sem-posicao': return 'Sem posição escrita nesta ordenação: ela existe em Inscritos e em Views/dia.'
+    case 'ordenacao-sem-posicao': return 'Esta ordenação não mostra posição. Ordene por Inscritos ou por Views/dia para ver a do seu canal.'
     default: { const nunca: never = m; return nunca }
   }
 }

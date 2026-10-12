@@ -113,7 +113,7 @@ export function buildRegua(vals: ReadonlyArray<ValorRegua>, marcas: ReadonlyArra
     return `Lado ${m.letra}, ${m.nome}: ${p.texto}`
   }
 
-  const vazio = n < MIN_REGUA ? `poucos canais para comparar ${o.conjunto} (${n}; precisa de ${MIN_REGUA})` : null
+  const vazio = n < MIN_REGUA ? `só ${n} ${n === 1 ? 'canal' : 'canais'} ${o.conjunto}: a régua precisa de pelo menos ${MIN_REGUA}` : null
   const es = escalar(d.map(v => v.x))
   const comprimida = !vazio && es.comprimida
 

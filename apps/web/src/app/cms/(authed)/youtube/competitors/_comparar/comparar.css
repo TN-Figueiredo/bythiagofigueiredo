@@ -201,7 +201,6 @@
 [data-obs-screen="comparar"] .cp-fj-what{margin:0;font-size:13px;color:var(--muted);max-width:78ch}
 [data-obs-screen="comparar"] .cp-fj-ask{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
 [data-obs-screen="comparar"] .cp-fj-ask p{margin:0;font-size:13px;color:var(--muted);max-width:78ch}
-[data-obs-screen="comparar"] .cp-fj-novo{margin:0;font-size:13px;color:var(--muted)}
 [data-obs-screen="comparar"] .cp-fj-btn,[data-obs-screen="comparar"] .cp-fj-btn:hover{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:0 13px;border-radius:6px;border:1px dashed var(--border-strong);background:transparent;color:var(--muted);font:500 13px/1.2 var(--font-sans),system-ui,sans-serif;cursor:default;text-align:left}
 [data-obs-screen="comparar"] .cp-fj-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 [data-obs-screen="comparar"] .cp-fj-btn svg{width:15px;height:15px;flex:none}

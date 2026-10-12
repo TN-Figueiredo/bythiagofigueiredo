@@ -1237,7 +1237,7 @@ test('A3.7 o botão do cartão da forja: apagado, focável por Tab, nenhuma requ
   expect(intrusos, 'nenhuma server action tentada').toEqual([])
   await expect(botao).toHaveAttribute('aria-disabled', 'true')
   const porque = await page.locator(`#${await botao.getAttribute('aria-describedby')}`).textContent()
-  expect(porque).toBe('Ainda não dá: a forja ainda não escreve leitura de comparação entre canais.')
+  expect(porque).toBe('Ainda não dá: a forja não sabe escrever uma leitura que compare dois canais.')
   expect(await tela(page).evaluate(e => e.textContent!.match(/depois que a coleta|coleta di[aá]ria[^.;]*(estiver no ar|começa|em breve)/i))).toBeNull()
 })
 

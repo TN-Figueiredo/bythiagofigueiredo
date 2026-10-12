@@ -157,7 +157,7 @@ describe('A3.2 conjunto da posição', () => {
 describe('A3.2 posição só onde existe', () => {
   it('posição só em Inscritos e Views/dia (nas duas escalas); em Ritmo, Outliers, Trocas e Crescimento pos é null em todas as linhas e a frase é a de D4 (b)', () => {
     expect([...POSICIONADAS]).toEqual(['subs', 'vpd'])
-    const FRASE = 'Sem posição escrita nesta ordenação: ela existe em Inscritos e em Views/dia.'
+    const FRASE = 'Esta ordenação não mostra posição. Ordene por Inscritos ou por Views/dia para ver a do seu canal.'
     const obs = BASE.obs
     for (const scale of SCALES) for (const fmt of FMTS) for (const sort of SORTS) {
       const v = view({ sort, scale, fmt })
@@ -465,6 +465,9 @@ describe('A3.2 invariantes', () => {
     const w = mundoSemMedida()
     const textos: string[] = (['sem-videos', 'sem-shorts', 'sem-views-dia-proprio', 'aguarda-2o-registro', 'buscando-videos', 'inscritos-ocultos', 'sem-nicho', 'ordenacao-sem-posicao'] as const).map(motivoTexto)
     expect(new Set(textos).size).toBe(8) // cada motivo tem a sua frase
+    // 11c, D-B.1 itens 5 e 6: "primeira sincronização" é o nome da busca inicial em toda tela; "busca" fica só para o campo de busca
+    expect(motivoTexto('buscando-videos')).toBe('A primeira sincronização ainda não terminou: a medida aparece quando ela terminar. Sem posição nesta ordenação.')
+    expect(motivoTexto('ordenacao-sem-posicao')).toBe('Esta ordenação não mostra posição. Ordene por Inscritos ou por Views/dia para ver a do seu canal.')
     for (const t of textos) expect(t.length).toBeGreaterThan(10)
     const mix = a3World(undefined, 'mix').obs
     for (const obs of [w.obs, mix]) for (const niche of ['todos', 'viagem', 'ia'] as const) for (const sort of SORTS) for (const fmt of FMTS) for (const scale of SCALES) {

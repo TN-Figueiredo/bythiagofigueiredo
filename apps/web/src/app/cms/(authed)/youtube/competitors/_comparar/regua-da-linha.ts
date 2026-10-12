@@ -32,7 +32,7 @@ export function reguaDaLinha(pack: CompararPack, par: ParView, id: NumeroId): Re
     if (n.x != null && Number.isFinite(n.x)) vals.push({ id: x.id, nome: x.name, x: n.x, texto: n.texto && n.texto.trim() ? n.texto : String(n.x) })
   }
   const marca = (letra: 'A' | 'B', lado: ParView['a']): MarcaRegua => ({
-    id: lado.id, letra, nome: lado.name, motivo: lado.numeros[id].motivo ?? 'este número não pôde ser calculado',
+    id: lado.id, letra, nome: lado.name, motivo: lado.numeros[id].motivo ?? 'não foi possível calcular este número agora; recarregue a página',
   })
   return buildRegua(vals, [marca('A', par.a), marca('B', par.b)], { numero: fala.numero, conjunto: conjuntoTexto(c), un: fala.un })
 }

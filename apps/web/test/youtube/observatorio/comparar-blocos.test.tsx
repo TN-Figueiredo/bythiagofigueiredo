@@ -287,19 +287,19 @@ describe('Os 5 mais vistos: vídeo que o Histórico não sabe abrir (I-A)', () =
     expect(itens[2]!.querySelector('a')).not.toBeNull()
     expect(itens[1]!.querySelector('a')).toBeNull()
     expect(itens[1]!.textContent).toContain('Sem data nenhuma')
-    expect(itens[1]!.textContent).toContain('sem data de publicação: o histórico não abre')
+    expect(itens[1]!.textContent).toContain('Sem data de publicação: não tem Histórico do vídeo.')
     // nenhum link da coluna promete o Histórico de um vídeo que ele não acha
     const hrefs = [...container.querySelectorAll<HTMLAnchorElement>('.cp-vc:nth-child(2) a')].map(a => a.getAttribute('href')!)
     expect(hrefs.some(h => h.includes('sd-1'))).toBe(false)
   })
   it('o texto do motivo não aparece em itens que abrem', () => {
     const { container } = dentro(<MaisVistos par={par(PACK, 'eu', 'c1')} />)
-    expect(container.textContent).not.toContain('o histórico não abre')
+    expect(container.textContent).not.toContain('não tem Histórico do vídeo')
   })
 })
 
 describe('Cartão da forja: ainda não disponível', () => {
-  const FRASE_PACOTE = 'A leitura de comparação é um pacote novo para a forja e ainda não existe.'
+  const FRASE_FORJA = 'Ainda não dá: a forja não sabe escrever uma leitura que compare dois canais.'
   const botao = () => screen.getByRole('button', { name: /Pedir leitura desta comparação à forja/ })
 
   it('com canal próprio no par: "ainda não disponível para o seu canal", o que ela leria, o botão apagado e o porquê', () => {
@@ -311,23 +311,26 @@ describe('Cartão da forja: ainda não disponível', () => {
     expect(b.getAttribute('aria-disabled')).toBe('true')
     expect(b.hasAttribute('disabled')).toBe(false) // apagado, mas focável
     const porque = document.getElementById(b.getAttribute('aria-describedby')!)!
-    expect(porque.textContent).toBe('Ainda não dá: a forja ainda não escreve leitura de comparação entre canais.')
+    expect(porque.textContent).toBe(FRASE_FORJA)
     expect(porque.textContent).not.toMatch(/coleta/i) // a mesma tela diz que a coleta diária do seu canal já roda
-    expect(r.textContent).toContain(FRASE_PACOTE)
+    // a frase só existe uma vez (o segundo parágrafo "cp-fj-novo" saiu, D-B.1 item 3) e não usa a palavra interna "pacote"
+    expect(r.textContent!.split(FRASE_FORJA)).toHaveLength(2)
+    expect(r.querySelector('.cp-fj-novo')).toBeNull()
+    expect(r.textContent).not.toMatch(/pacote/i)
     // com o canal próprio do lado B também
     cleanup()
     dentro(<ForjaIndisponivel par={par(PACK, 'c1', 'eu')} />)
     expect(screen.getByRole('region', { name: 'Leitura da forja' }).textContent).toContain('ainda não disponível para o seu canal')
   })
 
-  it('sem canal próprio: o estado de D4 (e), o mesmo botão apagado; nenhuma etapa, nenhuma leitura de exemplo', () => {
+  it('sem canal próprio: o mesmo botão apagado, com a mesma frase; nenhuma etapa, nenhuma leitura de exemplo', () => {
     dentro(<ForjaIndisponivel par={par(PACK, 'c1', 'c2')} />)
     const r = screen.getByRole('region', { name: 'Leitura da forja' })
     expect(r.textContent).toContain('ainda não disponível')
     expect(r.textContent).not.toContain('para o seu canal')
     const b = botao()
     expect(b.getAttribute('aria-disabled')).toBe('true')
-    expect(document.getElementById(b.getAttribute('aria-describedby')!)!.textContent).toBe(FRASE_PACOTE)
+    expect(document.getElementById(b.getAttribute('aria-describedby')!)!.textContent).toBe(FRASE_FORJA)
     expect(r.textContent).toContain('Leo Khev'); expect(r.textContent).toContain('Ana Viaja')
     expect(r.querySelector('ol')).toBeNull()
     expect(r.querySelector('[aria-current="step"]')).toBeNull()
@@ -413,7 +416,7 @@ describe('a tela: ordem das seções e estados vazios', () => {
   it('site com menos de dois canais: só a frase e o caminho de volta; nenhum dos três blocos', () => {
     window.history.replaceState(null, '', '/cms/youtube/competitors/comparar')
     render(<div data-obs=""><CompararScreen pack={pacote(comVideos('so', { name: 'Só' }))} inicial={null} /></div>)
-    expect(screen.getByText('Para comparar é preciso ter dois canais.')).toBeTruthy()
+    expect(screen.getByText('Para comparar, o site precisa acompanhar pelo menos dois canais.')).toBeTruthy()
     expect(screen.queryByRole('heading', { name: /mais vistos|Publicação nos últimos/ })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Leitura da forja' })).toBeNull()
   })
@@ -432,7 +435,7 @@ describe('a tela: ordem das seções e estados vazios', () => {
     wrap(PACK, 'eu', 'c1')
     const textos = [secao('Os 5 vídeos mais vistos de cada canal'), secao('Publicação nos últimos 90 dias'), screen.getByRole('region', { name: 'Leitura da forja' })].map(s => s.textContent! + [...s.querySelectorAll('[aria-label]')].map(e => e.getAttribute('aria-label')).join(' ')).join(' ')
     expect(textos).not.toMatch(/\b(dataset|sentinela|motor|ranking|R73)\b|conjunto do site|escala √/i)
-    // "pacote" só no cartão da forja, onde o spec 18.8 usa "pacote novo"
+    // "pacote" não aparece em nenhum bloco novo (nem no cartão da forja desde a 11c)
     expect(secao('Os 5 vídeos mais vistos de cada canal').textContent).not.toMatch(/pacote|pack/i)
     expect(secao('Publicação nos últimos 90 dias').textContent).not.toMatch(/pacote|pack/i)
   })

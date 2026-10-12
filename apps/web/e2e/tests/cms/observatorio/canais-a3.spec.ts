@@ -397,7 +397,7 @@ test('A3.2 o canal próprio está na posição dele (a do bloco = a da célula =
   const frase = (await blocoLinha(page).locator('.tp').textContent())!.trim()
   const anuncio = await anuncioOrd(page)
   medida(`Ritmo: bloco "${frase}"; anúncio "${anuncio}"`)
-  expect(frase).toContain('Sem posição escrita nesta ordenação')
+  expect(frase).toContain('Esta ordenação não mostra posição')
   expect(anuncio.endsWith(frase)).toBe(true)
   expect(anuncio).not.toContain('ainda sem medida nesta coluna')
   await ordenarPor(page, 'subs')

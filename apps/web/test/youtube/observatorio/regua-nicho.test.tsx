@@ -85,7 +85,7 @@ describe('ReguaNicho · desenho e texto', () => {
     const { container } = render(<ReguaNicho regua={r} cores={CORES} />)
     expect(container.querySelector('[role="group"]')).toBeNull()
     expect(container.querySelector('[tabindex]')).toBeNull()
-    expect(container.textContent).toContain('poucos canais para comparar em Viagem (2; precisa de 3)')
+    expect(container.textContent).toContain('só 2 canais em Viagem: a régua precisa de pelo menos 3')
   })
 
   it('nenhum texto da régua diz "escala √" nem "raiz", nem com escala comprimida', () => {

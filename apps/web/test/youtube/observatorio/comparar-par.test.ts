@@ -315,9 +315,9 @@ describe('título, subtítulo, status e rodapé', () => {
     const v = buildPar(m, 'aa', 'bb')
     expect(v.titulo).toBe('Comparar: Leo Khev e Dale Philip')
     expect(v.subtitulo).toBe('Dois canais de Viagem, lado a lado, com o mesmo peso.')
-    expect(buildPar(m, 'aa', 'cc').subtitulo).toBe('Dois canais de nichos diferentes, lado a lado, com o mesmo peso. A régua e as posições são as gerais.')
+    expect(buildPar(m, 'aa', 'cc').subtitulo).toBe('Dois canais de nichos diferentes, lado a lado, com o mesmo peso. A régua e as posições comparam com todos os canais do site.')
     // um sem nicho: "de nichos diferentes" seria falso; a frase só diz o que vale
-    expect(buildPar(m, 'aa', 'dd').subtitulo).toBe('Dois canais, lado a lado, com o mesmo peso. A régua e as posições são as gerais.')
+    expect(buildPar(m, 'aa', 'dd').subtitulo).toBe('Dois canais, lado a lado, com o mesmo peso. A régua e as posições comparam com todos os canais do site.')
     for (const t of [v.subtitulo, v.titulo]) expect(t).not.toMatch(/relações partem|lado A\./)
   })
   it('rodapé: "Maior não quer dizer melhor…", mais a contagem dos que ficaram de fora e o aviso do bloco de publicação', () => {

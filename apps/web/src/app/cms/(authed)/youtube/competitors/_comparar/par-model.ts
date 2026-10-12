@@ -351,8 +351,8 @@ export function buildPar(pack: CompararPack, idA: string, idB: string): ParView 
   const subtitulo = mesmoNicho
     ? `Dois canais de ${a.nicheLabel ?? a.niche}, lado a lado, com o mesmo peso.`
     : a.niche != null && b.niche != null
-      ? 'Dois canais de nichos diferentes, lado a lado, com o mesmo peso. A régua e as posições são as gerais.'
-      : 'Dois canais, lado a lado, com o mesmo peso. A régua e as posições são as gerais.'
+      ? 'Dois canais de nichos diferentes, lado a lado, com o mesmo peso. A régua e as posições comparam com todos os canais do site.'
+      : 'Dois canais, lado a lado, com o mesmo peso. A régua e as posições comparam com todos os canais do site.'
 
   return { a, b, cores: coresDoPar(a, b), conjunto, subtitulo, titulo: `Comparar: ${a.name} e ${b.name}`, linhas, fora, rodape, leitura, status, publicacao }
 }

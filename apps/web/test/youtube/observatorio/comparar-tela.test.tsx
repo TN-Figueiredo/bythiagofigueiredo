@@ -20,7 +20,7 @@ const ALL = (v: number): OpcoesCanal['n'] => Object.fromEntries(NUMEROS.map(k =>
 /** Um site pequeno: o canal do dono, quatro de Viagem (um com muitos inscritos), um de IA, um sem nicho, e o segundo canal do dono sem vídeos. */
 function pacote() {
   return pacoteDe([
-    mk('eu', 1000, { own: true, name: 'tnFigueiredo', n: { ...ALL(10), inscritos: 1000, vpd: null, vpdPorMil: null, inscritos30: null, trocas30: null }, motivos: { vpd: 'a coleta diária do seu canal já roda', inscritos30: 'sem contagem de 30 dias atrás', trocas30: 'as trocas do seu canal ficam no A/B Lab', vpdPorMil: 'a coleta diária do seu canal já roda' } }),
+    mk('eu', 1000, { own: true, name: 'tnFigueiredo', n: { ...ALL(10), inscritos: 1000, vpd: null, vpdPorMil: null, inscritos30: null, trocas30: null }, motivos: { vpd: 'as views por dia do seu canal ainda não aparecem nesta tela', inscritos30: 'sem contagem de 30 dias atrás', trocas30: 'as trocas do seu canal ficam no A/B Lab', vpdPorMil: 'as views por dia do seu canal ainda não aparecem nesta tela' } }),
     mk('c1', 5000, { name: 'Leo Khev', n: { ...ALL(20), inscritos: 5000 } }),
     mk('c2', 3000, { name: 'Ana Viaja', n: { ...ALL(10), inscritos: 3000 } }),
     mk('c3', 120, { name: 'Beto Rota', n: { ...ALL(12), inscritos: 120 } }),
@@ -48,12 +48,12 @@ describe('a tela não se contradiz sobre a coleta diária (I-C)', () => {
   it('com o canal próprio no par: nenhuma frase diz que a coleta diária ainda vai chegar, enquanto outra diz que ela já roda', () => {
     const { container } = wrap()
     const texto = container.textContent!
-    expect(texto).toContain('a coleta diária do seu canal já roda') // o motivo do "não medido"
+    expect(texto).toContain('as views por dia do seu canal ainda não aparecem nesta tela') // o motivo do "não medido"
     expect(texto).not.toMatch(/depois que a coleta/i)
     expect(texto).not.toMatch(/coleta[^.]*(estiver no ar|ainda não (está|esta)|chega)/i)
     // o cartão da forja diz o motivo verdadeiro, sem prometer data e sem citar a coleta
     const porque = screen.getByText(/Ainda não dá:/)
-    expect(porque.textContent).toBe('Ainda não dá: a forja ainda não escreve leitura de comparação entre canais.')
+    expect(porque.textContent).toBe('Ainda não dá: a forja não sabe escrever uma leitura que compare dois canais.')
   })
 })
 
@@ -175,7 +175,7 @@ describe('"Número a número"', () => {
     const [a, , , rel] = [...l.querySelectorAll('td')] as HTMLElement[]
     const nm = a!.querySelector('.obs-ch-nm')!
     expect(nm.textContent).toBe('não medido')
-    expect(a!.querySelector('small')!.textContent).toBe('a coleta diária do seu canal já roda')
+    expect(a!.querySelector('small')!.textContent).toBe('as views por dia do seu canal ainda não aparecem nesta tela')
     expect(a!.textContent).not.toMatch(/^0|\b0\b/)
     expect(rel!.textContent).toContain('sem relação: um dos lados não foi medido')
     expect(rel!.querySelector('.obs-ch-sr')).not.toBeNull()
@@ -301,7 +301,7 @@ describe('a posição escrita ao lado e a da régua vêm da mesma conta (T7 M5)'
     const tds = linhaDe('Inscritos').querySelectorAll('td')
     expect(tds[0]!.querySelector('.pos')?.textContent).toBe('1º de 2 em Viagem')
     expect(tds[1]!.querySelector('.pos')?.textContent).toBe('2º de 2 em Viagem')
-    expect(linhaDe('Inscritos').textContent).toContain('poucos canais para comparar em Viagem (2; precisa de 3)')
+    expect(linhaDe('Inscritos').textContent).toContain('só 2 canais em Viagem: a régua precisa de pelo menos 3')
   })
 })
 
@@ -356,10 +356,10 @@ describe('Leitura rápida, ⓘ e rodapé', () => {
 })
 
 describe('inicial null e o fixture de verdade', () => {
-  it('inicial null (menos de dois canais): a frase de D4 (d) e o link para Canais; sem seletores', () => {
+  it('inicial null (menos de dois canais): a frase da 11c e o link "Adicionar canal" (o destino do botão das abas); sem seletores', () => {
     wrap(pacoteDe([mk('so', 100, {})]), null)
-    expect(screen.getByText('Para comparar é preciso ter dois canais.')).toBeTruthy()
-    expect((screen.getByRole('link', { name: 'Voltar para Canais' }) as HTMLAnchorElement).getAttribute('href')).toBe(link.canais())
+    expect(screen.getByText('Para comparar, o site precisa acompanhar pelo menos dois canais.')).toBeTruthy()
+    expect((screen.getByRole('link', { name: 'Adicionar canal' }) as HTMLAnchorElement).getAttribute('href')).toBe(link.canais({ add: 1 }))
     expect(document.querySelectorAll('select')).toHaveLength(0)
     expect(screen.getByRole('heading', { level: 1, name: 'Comparar canais' })).toBeTruthy()
   })

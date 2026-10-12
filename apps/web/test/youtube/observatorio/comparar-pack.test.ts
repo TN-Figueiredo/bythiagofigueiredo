@@ -266,7 +266,7 @@ describe('o pacote como um todo', () => {
   it('um número em estado inesperado não derruba o pacote: vira "não medido" e UM aviso vai ao Sentry, com a pilha e os números afetados nos dados', () => {
     const w = world(ds => { ds.channels.find(c => c.id === CH)!.subs = Number.NaN })
     const p = buildCompararPack(w.obs)
-    expect(canal(p, CH).numeros.inscritos).toEqual({ x: null, texto: null, motivo: 'este número não pôde ser calculado', nota: null })
+    expect(canal(p, CH).numeros.inscritos).toEqual({ x: null, texto: null, motivo: 'não foi possível calcular este número agora; recarregue a página', nota: null })
     expect(canal(p, 'nate-herk').numeros.inscritos.x).not.toBeNull()
     expect(sentry.captureMessage).not.toHaveBeenCalled()
     expect(sentry.captureException).toHaveBeenCalledTimes(1)
@@ -289,7 +289,7 @@ describe('o pacote como um todo', () => {
     expect(ctx.extra.canais.length).toBeLessThanOrEqual(10)
   })
   it('nenhum número do pacote sai como inválido no conjunto base (se sair, é bug a consertar, não a esconder)', () => {
-    for (const c of BASE_PACK.canais) for (const k of NUMEROS) expect(c.numeros[k].motivo, `${c.id}/${k}`).not.toBe('este número não pôde ser calculado')
+    for (const c of BASE_PACK.canais) for (const k of NUMEROS) expect(c.numeros[k].motivo, `${c.id}/${k}`).not.toBe('não foi possível calcular este número agora; recarregue a página')
     expect(sentry.captureException).not.toHaveBeenCalled()
   })
   it('nenhum texto do pacote traz palavra interna', () => {

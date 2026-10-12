@@ -290,8 +290,8 @@ describe('views por dia e por mil inscritos', () => {
   it('canal próprio → não medido com o motivo verdadeiro (a coleta já roda; é a tela que ainda não a lê), nos dois números', () => {
     for (const id of [OWN, OWN2]) {
       const n = nums(BASE.obs, id)
-      naoMedido(n.vpd, 'a coleta diária do seu canal já roda, mas esta tela ainda não a lê; os números chegam com a página do canal próprio')
-      naoMedido(n.vpdPorMil, 'a coleta diária do seu canal já roda, mas esta tela ainda não a lê; os números chegam com a página do canal próprio')
+      naoMedido(n.vpd, 'as views por dia do seu canal ainda não aparecem nesta tela; chegam com a página do seu canal')
+      naoMedido(n.vpdPorMil, 'as views por dia do seu canal ainda não aparecem nesta tela; chegam com a página do seu canal')
     }
   })
   it('concorrente sem 2º registro diário → "aguarda o 2º registro diário", nos dois', () => {
@@ -584,7 +584,7 @@ describe('um número em estado inesperado nunca derruba a página (M7)', () => {
     const w = world(ds => { ds.channels.find(c => c.id === CH)!.subs = Number.NaN })
     const avisos: Array<{ canal: string; numero: string; erro: string }> = []
     const n = numerosDoCanal(w.obs, CH, a => avisos.push(a))
-    naoMedido(n.inscritos, 'este número não pôde ser calculado')
+    naoMedido(n.inscritos, 'não foi possível calcular este número agora; recarregue a página')
     expect(n.inscritos.nota).toBeNull()
     expect(avisos.map(a => [a.canal, a.numero])).toEqual([[CH, 'inscritos']])
     expect(avisos[0]!.erro).toMatch(/inválido/)
@@ -596,17 +596,17 @@ describe('um número em estado inesperado nunca derruba a página (M7)', () => {
     const w = world(ds => { ds.channels.find(c => c.id === CH)!.subs = -5 })
     const avisos: Array<{ numero: string; excecao: Error }> = []
     const n = numerosDoCanal(w.obs, CH, a => avisos.push(a))
-    naoMedido(n.inscritos, 'este número não pôde ser calculado')
+    naoMedido(n.inscritos, 'não foi possível calcular este número agora; recarregue a página')
     expect(avisos.map(a => a.numero)).toContain('inscritos')
     expect(avisos[0]!.excecao).toBeInstanceOf(Error); expect(avisos[0]!.excecao.stack).toBeTruthy()
   })
   it('sem avisador, o número também vira "não medido" (não lança)', () => {
     const w = world(ds => { ds.channels.find(c => c.id === CH)!.subs = Number.POSITIVE_INFINITY })
     expect(() => numerosDoCanal(w.obs, CH)).not.toThrow()
-    naoMedido(numerosDoCanal(w.obs, CH).inscritos, 'este número não pôde ser calculado')
+    naoMedido(numerosDoCanal(w.obs, CH).inscritos, 'não foi possível calcular este número agora; recarregue a página')
   })
   it('a frase genérica não traz palavra interna e é verdadeira para qualquer número', () => {
-    expect(motivoTexto({ k: 'invalido' })).toBe('este número não pôde ser calculado')
+    expect(motivoTexto({ k: 'invalido' })).toBe('não foi possível calcular este número agora; recarregue a página')
     expect(motivoTexto({ k: 'invalido' })).not.toMatch(PALAVRAS_INTERNAS)
   })
 })
@@ -639,7 +639,7 @@ describe('invariantes sobre todos os canais', () => {
   it('o mundo extremo tem de verdade nulos de cada tipo (o teste acima não passa por não ter o que olhar)', () => {
     const motivos = new Set(todos(extremo.obs).map(x => x.n.motivo).filter((m): m is string => m != null))
     for (const frase of ['inscritos ocultos pelo canal', 'sem vídeos', 'a primeira sincronização ainda não terminou', 'aguarda o 2º registro diário',
-      'a coleta diária do seu canal já roda, mas esta tela ainda não a lê; os números chegam com a página do canal próprio', 'as trocas do seu canal ficam no A/B Lab', 'sem contagem de 30 dias atrás']) expect(motivos.has(frase), frase).toBe(true)
+      'as views por dia do seu canal ainda não aparecem nesta tela; chegam com a página do seu canal', 'as trocas do seu canal ficam no A/B Lab', 'sem contagem de 30 dias atrás']) expect(motivos.has(frase), frase).toBe(true)
     expect([...motivos].some(m => m.startsWith('sem contagem de 30 dias atrás'))).toBe(true)
   })
   it('nenhum motivo traz palavra interna (todos os motivos possíveis e todos os que saem no fixture)', () => {

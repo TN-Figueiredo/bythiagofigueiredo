@@ -21,14 +21,14 @@ export function CompararScreen({ pack, inicial }: { pack: CompararPack; inicial:
   return inicial ? <ComPar pack={pack} inicial={inicial} /> : <SemPar />
 }
 
-/** Menos de dois canais no site (D4 d): sem seletores, e o caminho para onde se adiciona canal. */
+/** Menos de dois canais no site (D4 d): sem seletores, e o próximo passo: o mesmo destino do botão "Adicionar canal" das abas. */
 function SemPar() {
   return (
     <div data-obs-screen="comparar">
       <header className="cp-head"><h1>Comparar canais</h1></header>
       <section className="cp-sec">
-        <p className="cp-lead">Para comparar é preciso ter dois canais.</p>
-        <p className="cp-open"><Link className="lk" href={link.canais()}>Voltar para Canais</Link></p>
+        <p className="cp-lead">Para comparar, o site precisa acompanhar pelo menos dois canais.</p>
+        <p className="cp-open"><Link className="lk" href={link.canais({ add: 1 })}>Adicionar canal</Link></p>
       </section>
     </div>
   )

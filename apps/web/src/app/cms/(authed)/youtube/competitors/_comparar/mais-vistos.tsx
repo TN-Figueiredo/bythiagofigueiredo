@@ -33,7 +33,7 @@ function Item({ v, back }: { v: Top5Item; back: string }) {
       <span className="cp-vt">
         <b>{v.titulo}</b>
         <small><span className="num">{v.viewsTexto}</span>, {v.idadeTexto}{v.short ? <span className="cp-short"> · Short</span> : null}</small>
-        {v.abre ? null : <small className="cp-sem-link">sem data de publicação: o histórico não abre</small>}
+        {v.abre ? null : <small className="cp-sem-link">Sem data de publicação: não tem Histórico do vídeo.</small>}
       </span>
     </>
   )

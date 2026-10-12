@@ -61,8 +61,8 @@ export function motivoTexto(m: Motivo): string {
     case 'sem30': return m.falta == null ? 'sem contagem de 30 dias atrás' : `sem contagem de 30 dias atrás: ${m.falta}`
     case 'semPercentual': return 'sem percentual: o canal não tinha inscritos na contagem anterior'
     case 'semViewsLongos': return 'nenhum longo com contagem de views'
-    // a coleta diária do canal próprio já roda; o que falta é esta tela lê-la (A4): não é "começa em breve"
-    case 'semDiarioProprio': return 'a coleta diária do seu canal já roda, mas esta tela ainda não a lê; os números chegam com a página do canal próprio'
+    // o que falta é esta tela ler a coleta diária do canal próprio (A4); a frase não cita coleta nem data (D-B.1 item 7)
+    case 'semDiarioProprio': return 'as views por dia do seu canal ainda não aparecem nesta tela; chegam com a página do seu canal'
     case 'semDiarioConcorrente': return 'aguarda o 2º registro diário'
     case 'semLongoAcompanhado': return 'nenhum vídeo longo acompanhado'
     case 'semEngajamento': return 'nenhum longo com curtidas e comentários'
@@ -70,7 +70,7 @@ export function motivoTexto(m: Motivo): string {
     case 'semMultiploProprioRecente': return 'nenhum vídeo seu com múltiplo calculado em 90 dias'
     case 'semDuracao': return 'nenhum longo com duração'
     case 'trocasAbLab': return 'as trocas do seu canal ficam no A/B Lab'
-    case 'invalido': return 'este número não pôde ser calculado'
+    case 'invalido': return 'não foi possível calcular este número agora; recarregue a página'
     default: { const nunca: never = m; return nunca }
   }
 }
