@@ -8,6 +8,14 @@ import { ArquivoGrandeDemaisError, ReportingHttpError, type Job, type Report, ty
 export const REPORTING_BASE = 'https://youtubereporting.googleapis.com/v1'
 const MAX_PAGINAS = 20
 
+/** A lista ainda tinha `nextPageToken` depois do limite de páginas: o que veio é parcial e NÃO pode ser usado como se fosse inteiro. */
+export class PaginacaoExcedidaError extends Error {
+  constructor(recurso: string) {
+    super(`a lista ${recurso} passou de ${MAX_PAGINAS} páginas; a resposta do YouTube está incompleta`)
+    this.name = 'PaginacaoExcedidaError'
+  }
+}
+
 /** Teto do corpo que CHEGA da rede (o gzip). O maior relatório real até hoje tem 564 bytes comprimidos. Vale para o
  *  `Content-Length` e, na falta dele, para a leitura do corpo, que aborta ao ultrapassar. */
 export const MAX_GZ_BYTES = 10 * 1024 * 1024
@@ -140,6 +148,8 @@ export function criarReportingClient(accessToken: string, f: typeof fetch): Repo
       pageToken = typeof body.nextPageToken === 'string' && body.nextPageToken ? body.nextPageToken : undefined
       if (!pageToken) break
     }
+    // Saiu do laço com página seguinte pendente: lista incompleta. Devolvê-la calada faria um tipo ou job sumir sem aviso.
+    if (pageToken) throw new PaginacaoExcedidaError(chave)
     return todos
   }
 

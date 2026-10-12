@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { gzipSync, gunzipSync } from 'node:zlib'
 import { criarReportingClient, classificarErro, empacotarCsv, paraBytea, deBytea, REPORTING_BASE, MAX_GZ_BYTES, MAX_CSV_BYTES } from '@/lib/youtube/reporting/client'
 import { REPORT_TYPES_ENABLED, REACH_TYPES, SEM_NORMALIZADOR, ReportingHttpError, ArquivoGrandeDemaisError } from '@/lib/youtube/reporting/types'
+import { PaginacaoExcedidaError } from '@/lib/youtube/reporting/client'
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 const chamada = (f: ReturnType<typeof vi.fn>, i: number) => f.mock.calls[i] as unknown as [string, RequestInit | undefined]
@@ -27,6 +28,24 @@ describe('chamadas', () => {
     expect(chamada(f, 0)[0]).toBe('https://youtubereporting.googleapis.com/v1/reportTypes')
     expect(new Headers(chamada(f, 0)[1]!.headers).get('authorization')).toBe('Bearer tok')
     expect(new URL(chamada(f, 1)[0]).searchParams.get('pageToken')).toBe('p2')
+  })
+
+  it('E12 onda 4: lista que ainda tem nextPageToken depois de 20 páginas é erro visível, nunca uma lista curta devolvida em silêncio', async () => {
+    const infinita = () => vi.fn().mockImplementation(async () => json({ reportTypes: [{ id: 'x' }], nextPageToken: 'mais' }))
+    const f = infinita()
+    const e = await criarReportingClient('tok', f as unknown as typeof fetch).reportTypesList().catch(x => x)
+    expect(e).toBeInstanceOf(PaginacaoExcedidaError)
+    expect((e as Error).message).toContain('20')
+    expect(f).toHaveBeenCalledTimes(20)
+    const g = infinita()
+    expect(await criarReportingClient('tok', g as unknown as typeof fetch).jobsList().catch(x => x)).toBeInstanceOf(PaginacaoExcedidaError)
+  })
+
+  it('E12 onda 4: exatamente 20 páginas, a última sem nextPageToken, é lista completa', async () => {
+    let n = 0
+    const f = vi.fn().mockImplementation(async () => { n++; return json(n < 20 ? { reportTypes: [{ id: `t${n}` }], nextPageToken: `p${n}` } : { reportTypes: [{ id: `t${n}` }] }) })
+    const tipos = await criarReportingClient('tok', f as unknown as typeof fetch).reportTypesList()
+    expect(tipos).toHaveLength(20)
   })
 
   it('jobsList devolve [] quando a resposta não traz a chave jobs', async () => {

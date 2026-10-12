@@ -236,3 +236,14 @@ describe('aviso reautorizar (L1b)', () => {
     expect(b.apagadas).toEqual([chave])
   })
 })
+
+describe('E12 onda 4, E4: avisarEntrada nunca lança', () => {
+  it('tipo_indisponivel sem o tipo (string vazia): o erro de exigirTipo vira falha, não derruba o passo, e ninguém é avisado', async () => {
+    const { supabase } = novoBanco()
+    const falhas: string[] = []
+    await expect(avisarEntrada({ supabase, falhas }, canal, 'tipo_indisponivel', '')).resolves.toBeUndefined()
+    expect(falhas).toEqual(['aviso tipo_indisponivel (Canal Um): falha no envio'])
+    expect(claimAlert).not.toHaveBeenCalled()
+    expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
+  })
+})

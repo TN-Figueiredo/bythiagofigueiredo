@@ -130,9 +130,11 @@ async function entregar(ctx: Ctx, ch: ColetaChannel, motivo: MotivoAviso | 'said
 export async function avisarEntrada(ctx: Ctx, ch: ColetaChannel, motivo: MotivoDoCanal): Promise<void>
 export async function avisarEntrada(ctx: Ctx, ch: ColetaChannel, motivo: 'tipo_indisponivel', tipo: string): Promise<void>
 export async function avisarEntrada(ctx: Ctx, ch: ColetaChannel, motivo: MotivoAviso, tipo?: string): Promise<void> {
-  const chave = motivo === 'tipo_indisponivel' ? chaveAviso(ch.id, motivo, exigirTipo(motivo, tipo)) : chaveAviso(ch.id, motivo)
   let abriu: boolean
+  let chave: string
   try {
+    // Dentro do try: `exigirTipo` lança sem o tipo, e esta função nunca lança.
+    chave = motivo === 'tipo_indisponivel' ? chaveAviso(ch.id, motivo, exigirTipo(motivo, tipo)) : chaveAviso(ch.id, motivo)
     abriu = await claimAlert(ctx.supabase, chave, JANELA[motivo])
   } catch (e) {
     Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', aviso: motivo } })

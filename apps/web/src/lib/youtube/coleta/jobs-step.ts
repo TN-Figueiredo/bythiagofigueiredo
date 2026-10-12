@@ -2,7 +2,7 @@
 // Erro da Reporting API afeta só os passos 1A e 1C; nunca para a parte da Analytics API.
 import * as Sentry from '@sentry/nextjs'
 import { channelNote, describeCronCause } from '@/lib/cron/failure-note'
-import { classificarErro, criarReportingClient, type ReportingClient } from '@/lib/youtube/reporting/client'
+import { classificarErro, criarReportingClient, PaginacaoExcedidaError, type ReportingClient } from '@/lib/youtube/reporting/client'
 import { ReportingHttpError, type Job } from '@/lib/youtube/reporting/types'
 import { avisarEntrada, avisarSaida } from './alerts'
 import { obterToken } from './autorizacao'
@@ -74,7 +74,8 @@ async function sondarCanal(
     // sabendo: quando o YouTube desligar o tipo, os relatórios param e a versão nova precisa entrar na lista.
     for (const t of tipos) {
       if (t.deprecateTime && HABILITADOS.includes(t.id)) {
-        pushUnico(resumo.acao_do_dono, `${c.name}: ${t.id} tem data de descontinuação no YouTube (${t.deprecateTime})`)
+        const passou = Date.parse(t.deprecateTime) < Date.now() // data ilegível (NaN): nunca "passou", a nota sai com o texto cru
+        pushUnico(resumo.acao_do_dono, `${c.name}: ${t.id} tem data de descontinuação no YouTube (${t.deprecateTime})${passou ? ', que já passou' : ''}`)
       }
     }
     jobs = existentes
@@ -91,6 +92,8 @@ async function sondarCanal(
       await registrarTentativa(ctx, { ...tJob(tipo), outcome: 'erro_http', http_status: statusHttp(e), error: descreverErro(e) })
     }
     await registrarTentativa(ctx, { ...tCanal, outcome: 'erro_http', http_status: statusHttp(e), error: descreverErro(e) })
+    // Lista cortada em 20 páginas não é erro passageiro: a falha aparece na hora (não só depois de 3 dias de `erro`).
+    if (e instanceof PaginacaoExcedidaError) pushUnico(ctx.falhas, `jobs: ${channelNote(c.name, e.message)}`)
     if (estado === 'api_nao_ativada' || estado === 'sem_acesso') {
       pushUnico(resumo.acao_do_dono, `${c.name}: ${estado}`)
       await avisarEntrada(ctx, c, estado)
@@ -116,6 +119,16 @@ async function sondarCanal(
   const falhou = (e: unknown) => { primeiroErro ??= { status: statusHttp(e), texto: descreverErro(e) } }
   await emParalelo(HABILITADOS, PARALELO, async (tipo) => {
     try {
+      if (!oferecidos.has(tipo) && status.get(tipo) === 'ativo') {
+        // Job que já funcionava e cujo tipo sumiu da lista: uma lista PARCIAL da API e um tipo de fato descontinuado são
+        // indistinguíveis numa execução só. Rebaixar aqui carimbaria por 3650 dias um aviso falso e pararia a listagem do
+        // tipo. Nada é gravado: o job fica `ativo` e a falha aparece a cada sondagem. NUNCA se rebaixa sozinho: não há
+        // evidência persistente sem coluna nova (a sondagem nem roda com o canal completo), então quem decide é o dono.
+        // Um tipo realmente descontinuado também aparece pelo critério dos 6 dias sem relatório novo.
+        estados[tipo] = 'ativo'
+        pushUnico(ctx.falhas, `jobs: ${channelNote(c.name, `o tipo ${tipo} sumiu da lista do YouTube; se repetir, foi descontinuado`)}`)
+        return
+      }
       if (!oferecidos.has(tipo)) {
         estados[tipo] = 'tipo_indisponivel'
         await gravarJob(ctx, c, tipo, { status: 'tipo_indisponivel' })
