@@ -9,6 +9,7 @@ import { hydrateRoot } from 'react-dom/client'
 import userEvent from '@testing-library/user-event'
 import { renderToString } from 'react-dom/server'
 import { link } from '@/lib/youtube/observatorio/links'
+import { addDays } from '@/lib/youtube/coleta/day-pt'
 import { ComoEsta } from '@/app/cms/(authed)/youtube/competitors/_proprio/como-esta'
 import { montarComoEsta } from '@/app/cms/(authed)/youtube/competitors/_proprio/como-esta-model'
 import { buildProprioHeader } from '@/app/cms/(authed)/youtube/competitors/_proprio/header-model'
@@ -348,7 +349,7 @@ describe('T10 os estados sem dado dizem o motivo (nada de "0")', () => {
   })
 
   it('coleta parada: a linha recolhida diz "A coleta parou em dd/mm." (visível sem abrir)', () => {
-    const { view } = montar({ hoje: '2027-01-30' })
+    const { view } = montar({ hoje: addDays(W.hoje, 60) }) // relativo: 60 dias depois do último dia lido, sempre acima do limite de coleta parada
     expect(view.recolhida).toMatch(/A coleta parou em \d\d\/\d\d\./)
     expect(screen.getByText(view.recolhida)).toBeTruthy()
   })
