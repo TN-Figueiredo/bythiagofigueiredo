@@ -191,3 +191,22 @@ describe('lista do canal', () => {
     expect(montarLista([...old, sd, a, b], st({ sort: 'vistos', n: 0 })).visiveis).toEqual([b.id, a.id, sd.id])
   })
 })
+
+describe('lista do canal: ordenar por impressões (canal próprio)', () => {
+  it('vídeo sem o campo imp (concorrente) vai para o divisor "sem impressão"; nada quebra e ninguém vira zero', () => {
+    const all = grupo('acompanhado', 3)
+    for (const dir of ['asc', 'desc'] as const) {
+      const l = montarLista(all, st({ sort: 'imp', dir }))
+      expect(l.secoes).toHaveLength(1)
+      expect(l.secoes[0]!.divisor).toEqual({ key: 'sem-valor', label: 'Sem impressão medida no período', count: 3 })
+      expect(l.visiveis).toHaveLength(3)
+    }
+  })
+  it('imp medido ordena; imp null fica no fim nas duas direções', () => {
+    const com = (imp: number | null) => ({ ...vid(), imp })
+    const all = [com(null), com(5), com(50), com(null), com(20)]
+    const imps = (l: ReturnType<typeof montarLista>) => l.secoes.flatMap(x => x.itens).map(v => ('imp' in v ? v.imp : 'sem campo'))
+    expect(imps(montarLista(all, st({ sort: 'imp', dir: 'desc' })))).toEqual([50, 20, 5, null, null])
+    expect(imps(montarLista(all, st({ sort: 'imp', dir: 'asc' })))).toEqual([5, 20, 50, null, null])
+  })
+})

@@ -17,6 +17,8 @@ const ORDEM: Record<CanalState['sort'], Record<CanalState['dir'], string>> = {
   vistos: { desc: 'mais vistos primeiro', asc: 'menos vistos primeiro' },
   multiplo: { desc: 'maior múltiplo primeiro', asc: 'menor múltiplo primeiro' },
   vpd: { desc: 'mais views por dia primeiro', asc: 'menos views por dia primeiro' },
+  // canal próprio: `SORTS` abaixo ainda não deixa passar 'imp' (este módulo lê o estado do concorrente, sem `own`); quem ligar a origem do canal próprio troca as duas pontas
+  imp: { desc: 'mais impressões primeiro', asc: 'menos impressões primeiro' },
 }
 const TROCAS = 'trocas dos últimos 30 dias, da mais recente à mais antiga'
 

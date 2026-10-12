@@ -23,6 +23,10 @@ export const LOTE = 40
 const TABS: readonly CanalTab[] = ['videos', 'trocas', 'leitura']
 const FMTS: readonly CanalFmt[] = ['todos', 'longos', 'shorts', 'fixados']
 const SORTS: readonly CanalSort[] = ['recentes', 'vistos', 'multiplo', 'vpd']
+/* Canal próprio (spec 16.4): ganha a aba Retenção e a ordenação por impressões; não tem fixados nem views por dia por vídeo no motor. */
+const TABS_PROPRIO: readonly CanalTab[] = ['videos', 'trocas', 'leitura', 'retencao']
+const FMTS_PROPRIO: readonly CanalFmt[] = ['todos', 'longos', 'shorts']
+const SORTS_PROPRIO: readonly CanalSort[] = ['recentes', 'vistos', 'multiplo', 'imp']
 const DIRS = ['asc', 'desc'] as const
 const VERS = ['capas', 'lista'] as const
 
@@ -30,14 +34,16 @@ function pick<T extends string>(list: readonly T[], v: string | undefined, fallb
   return list.find(x => x === v) ?? fallback
 }
 
-export function parseCanalState(sp: Record<string, string | undefined>): CanalState {
-  const tab = pick(TABS, sp.tab, CANAL_DEFAULT.tab)
+/** `own`: a página do canal próprio. 'imp' e 'retencao' só valem com ele; 'fixados' e 'vpd' só sem ele; o que não vale cai no padrão. */
+export function parseCanalState(sp: Record<string, string | undefined>, opts: { own?: boolean } = {}): CanalState {
+  const own = opts.own === true
+  const tab = pick(own ? TABS_PROPRIO : TABS, sp.tab, CANAL_DEFAULT.tab)
   const nRaw = Number(sp.n)
   const n = Number.isFinite(nRaw) ? Math.min(100000, Math.max(0, Math.floor(nRaw / LOTE) * LOTE)) : 0
   return {
     tab,
-    fmt: pick(FMTS, sp.fmt, CANAL_DEFAULT.fmt),
-    sort: pick(SORTS, sp.sort, CANAL_DEFAULT.sort),
+    fmt: pick(own ? FMTS_PROPRIO : FMTS, sp.fmt, CANAL_DEFAULT.fmt),
+    sort: pick(own ? SORTS_PROPRIO : SORTS, sp.sort, CANAL_DEFAULT.sort),
     dir: pick(DIRS, sp.dir, CANAL_DEFAULT.dir),
     q: (sp.q ?? '').trim().slice(0, 100),
     ver: pick(VERS, sp.ver, CANAL_DEFAULT.ver),
