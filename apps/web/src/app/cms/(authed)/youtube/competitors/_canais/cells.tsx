@@ -243,7 +243,10 @@ export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string;
         <div className="nmrow">
           {r.href
             ? <Link href={r.href} prefetch={false} className="nmbtn" data-open={r.id} title={r.name} aria-label={`Abrir a página de ${r.name}`} {...intent}>{r.name}</Link>
-            : <button type="button" className="nmbtn" data-open={r.id} title={r.name} aria-label={`Abrir detalhes de ${r.name}`} onClick={onOpen}>{r.name}</button>}
+            : r.semPagina
+              // canal próprio sem vídeos (16.8): não há para onde ir, então o nome é texto, não um botão morto; a frase abaixo diz por quê
+              ? <span className="nmbtn nmtxt" title={r.name} aria-describedby={`sempg-${ctx}-${r.id}`}>{r.name}</span>
+              : <button type="button" className="nmbtn" data-open={r.id} title={r.name} aria-label={`Abrir detalhes de ${r.name}`} onClick={onOpen}>{r.name}</button>}
           {r.lang ? <abbr className="langtag" title={r.lang.title}>{r.lang.code}</abbr> : null}
         </div>
         {r.own ? (
@@ -257,6 +260,7 @@ export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string;
           <span className="num">{r.subs}</span>
           <Tip label="Sobre o número de inscritos">{r.subsTip}</Tip>
         </div>
+        {r.semPagina ? <div className="sub sempg" id={`sempg-${ctx}-${r.id}`}>{r.semPagina}</div> : null}
         {r.semFormato ? (
           <div className="sub semfmt" data-sem-formato="">
             <span>{r.semFormato.label}</span>

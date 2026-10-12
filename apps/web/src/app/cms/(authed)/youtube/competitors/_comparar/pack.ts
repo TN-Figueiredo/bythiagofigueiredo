@@ -10,7 +10,7 @@ import * as Sentry from '@sentry/nextjs'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { link } from '@/lib/youtube/observatorio/links'
 import { DAY } from '@/lib/youtube/observatorio/time'
-import { ownChannelHref } from '../_chrome/own-channels'
+import { canalTemVideos, ownChannelHref } from '../_chrome/own-channels'
 import type { ExtrasProprio } from '../_proprio/extras'
 import { numerosDoCanal, type AvisoNumero, type Numero, type NumeroId } from './numeros-model'
 
@@ -78,7 +78,7 @@ export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero
     const vids = porCanal.get(ch.id) ?? []
     const semData = ch.undated
     const guardados = vids.length + semData.length
-    const semVideos = guardados === 0
+    const semVideos = !canalTemVideos(obs, ch.id)
 
     /* ---- os cinco mais vistos: vídeos com data e vídeos sem data, todos com contagem de views (nunca como 0) */
     type Cand = { id: string; titulo: string; ytId: string; views: number; short: boolean; idade: string; pub: number; abre: boolean }

@@ -16,11 +16,11 @@ describe('Canais view model', () => {
   it('R124: cada linha leva a foto do canal; no oráculo (sem foto) é sempre nulo', () => {
     for (const r of rowsOf(buildCanaisView(obs, { niche: 'todos', limit: 75 }))) expect(r.avatar).toBeNull()
   })
-  it('CanaisRow.href: a página do canal para concorrente, null para canal próprio (que continua abrindo o painel)', () => {
+  it('CanaisRow.href: a página do canal para concorrente e para canal próprio COM vídeos (A4); null só para o próprio sem vídeos', () => {
     const v = buildCanaisView(createObservatory(datasetFromOracle(loadOracleOwns('2'))), { niche: 'todos', limit: 75 })
     const all = rowsOf(v)
     expect(all.some(r => r.own)).toBe(true)
-    for (const r of all) expect(r.href).toBe(r.own ? null : obs.link.canal(r.id))
+    for (const r of all) expect(r.href).toBe(obs.link.canal(r.id)) // no preset 2 os dois canais próprios têm vídeos
     expect(all.find(r => r.id === 'luke-damant')!.href).toBe('/cms/youtube/competitors/canal/luke-damant')
   })
   it('never negative slots', () => expect(buildCanaisView(obs, { niche: 'todos', limit: 10 }).slots.free).toBe(0))

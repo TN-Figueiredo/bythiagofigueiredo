@@ -13,7 +13,7 @@ import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
 import { humanizeSyncError, type ChannelStats } from '@/lib/youtube/observatorio/channels'
 import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
-import { langChip, ownChannelHref, ownTexts, type LangChip } from '../_chrome/own-channels'
+import { canalTemVideos, langChip, ownChannelHref, ownTexts, SEM_PAGINA_LINHA, type LangChip } from '../_chrome/own-channels'
 import { escolherPrincipal, linhasDoMotor, principalDoMotor } from '../_chrome/own-menu'
 import { posicoes, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
 import {
@@ -70,8 +70,10 @@ export interface CanaisRow {
   growth: string; growthTitle: string
   sync: { label: string; phrase: string | null; state: SyncState }
   own: boolean
-  /** A página do canal para um concorrente; null para canal próprio, que continua abrindo o painel lateral. */
+  /** A página do canal: do concorrente e do canal próprio COM vídeos (`canalTemVideos`). null = canal próprio sem vídeos (sem página, 16.8; `semPagina` diz por quê). */
   href: string | null
+  /** Só canal próprio SEM vídeos (sem página, 16.8): o motivo de a linha não abrir nada. O nome vira texto (não botão) e a linha diz isto. */
+  semPagina: string | null
   /** "Comparar" com o canal próprio principal (`escolherPrincipal`); null em canal próprio e quando o site não tem canal próprio com vídeos. `label` é o nome acessível. */
   comparar: { href: string; label: string } | null
   /** Language mark of an own channel; null for competitors and when the site has a single own channel. */
@@ -503,7 +505,8 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const outN = obs.outliers({ channel: c.id, fmt, includeOwn: c.own }).count
     const valor = valoresOf(c), pos = posMap.get(c.id) ?? null
     return {
-      id: c.id, name: c.name, niche: c.niche, own: c.own, href: c.own ? null : obs.link.canal(c.id),
+      id: c.id, name: c.name, niche: c.niche, own: c.own, href: c.own ? (canalTemVideos(obs, c.id) ? ownChannelHref(c.id) : null) : obs.link.canal(c.id),
+      semPagina: c.own && !canalTemVideos(obs, c.id) ? SEM_PAGINA_LINHA : null,
       comparar: !c.own && principal ? { href: obs.link.comparar(principal.id, c.id), label: candidatosN > 1 ? `Comparar ${c.name} com o meu canal (${principal.name})` : `Comparar ${c.name} com o meu canal` } : null,
       lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
       outliers: { n: outN, href: obs.link.outliers({ channel: c.id, fmt }) },
@@ -582,7 +585,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       vizinhos: fraseVizinhos(ac ? { nome: ac.name, valor: valorTxt(ac) } : null, ab ? { nome: ab.name, valor: valorTxt(ab) } : null),
     }
   }
-  const temVideos = (id: string) => obs.videos.some(x => x.ch === id)
+  const temVideos = (id: string) => canalTemVideos(obs, id)
   const ownBlock: OwnBlock | null = allOwns.length ? {
     titulo: many ? 'Seus canais' : 'Seu canal',
     linhas: ownRows.map((r): OwnBlockLinha => {

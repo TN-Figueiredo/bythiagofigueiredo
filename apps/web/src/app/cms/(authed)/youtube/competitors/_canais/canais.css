@@ -139,6 +139,10 @@
 [data-obs-screen="canais"] .youtag,[data-obs-screen="canais"] .langtag{white-space:nowrap;flex:none}
 [data-obs-screen="canais"] .nmrow{display:flex;align-items:center;gap:7px;min-width:0;max-width:163px}
 [data-obs-screen="canais"] .nmrow .nmbtn{min-width:0;flex:0 1 auto}
+/* canal próprio sem vídeos: o nome é texto, sem mão nem sublinhado ao passar; a frase abaixo diz que ainda não há página */
+[data-obs-screen="canais"] .nmbtn.nmtxt{cursor:default}
+[data-obs-screen="canais"] .nmbtn.nmtxt:hover{text-decoration:none}
+[data-obs-screen="canais"] .ch .sub.sempg{font-size:12px;color:var(--muted)}
 [data-obs-screen="canais"] tr.you .ch .sub,[data-obs-screen="canais"] .card.you .ch .sub{flex-wrap:wrap;row-gap:4px;max-width:163px}
 [data-obs-screen="canais"] tr.you .ch .sub + .sub,[data-obs-screen="canais"] .card.you .ch .sub + .sub{margin-top:3px}
 [data-obs-screen="canais"] .nmrow .langtag{height:20px;padding:0 5px}

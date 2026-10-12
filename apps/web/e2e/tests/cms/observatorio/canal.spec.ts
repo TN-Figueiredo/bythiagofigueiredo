@@ -390,7 +390,7 @@ test('A1.7 aba Trocas: N vídeos com troca = N botões; "Abrir nesta troca" só 
 })
 
 /* ================================================================== A1.8 */
-test('A1.8 clique no nome de um concorrente em Canais abre a página; o de canal próprio abre o painel', async ({ page }) => {
+test('A1.8 clique no nome de um concorrente em Canais abre a página; o de canal próprio COM vídeos abre a página dele (A4: sem painel)', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/cms/youtube/competitors?niche=todos')
   await page.locator('[data-obs-screen="canais"] tbody tr').first().waitFor({ timeout: 30_000 })
@@ -400,16 +400,16 @@ test('A1.8 clique no nome de um concorrente em Canais abre a página; o de canal
   await link.click()
   await page.waitForURL(u => u.pathname.endsWith('/canal/' + CH()), { timeout: 30_000 })
   await expect(page.locator(`${SCREEN} .chead h1:visible`).first()).toBeVisible({ timeout: 30_000 })
-  // o canal próprio continua no painel lateral
+  // A4 (I1 da revisão da T8): o canal próprio COM vídeos também é um link para a página; nenhum botão abre mais a gaveta
   await page.goto('/cms/youtube/competitors?niche=todos')
   await page.locator('[data-obs-screen="canais"] tbody tr').first().waitFor({ timeout: 30_000 })
   await page.waitForLoadState('networkidle')
-  const proprio = page.locator('[data-obs-screen="canais"] button.nmbtn[data-open]').first()
-  await expect(async () => {
-    await proprio.click()
-    await expect(page.locator('.cn-drawer')).toBeVisible({ timeout: 1500 })
-  }).toPass({ timeout: 15_000 })
-  expect(new URL(page.url()).pathname).not.toContain('/canal/')
+  await expect(page.locator('[data-obs-screen="canais"] button.nmbtn[data-open]')).toHaveCount(0)
+  const proprio = page.locator('[data-obs-screen="canais"] tr.row.you a.nmbtn[data-open]').first()
+  const idProprio = (await proprio.getAttribute('data-open'))!
+  await proprio.click()
+  await page.waitForURL(u => u.pathname.endsWith('/canal/' + idProprio), { timeout: 30_000 })
+  expect(new URL(page.url()).searchParams.get('channel')).toBeNull()
 })
 
 test('A1.8 /competitors?channel=<concorrente> redireciona para a página', async ({ page }) => {

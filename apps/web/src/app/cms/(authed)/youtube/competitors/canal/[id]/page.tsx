@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import { link } from '@/lib/youtube/observatorio/links'
+import { canalTemVideos } from '../../_chrome/own-channels'
 import { openChannelPage, openObservatoryPage } from '../../_chrome/page-data'
 import type { ObsSearchParams } from '../../_chrome/resolve-niche'
 import { TrailChrome } from '../../_chrome/trail-chrome'
@@ -42,7 +43,7 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
   if (obs && proprio?.own) {
     const crumbs = [{ text: 'Canais', href: link.canais() }, { text: proprio.name }]
     // canal próprio sem vídeos é resolvido ANTES de qualquer leitura privada: nenhuma tabela de alcance é consultada para ele
-    if (!obs.videos.some(v => v.ch === proprio.id) && proprio.undated.length === 0) {
+    if (!canalTemVideos(obs, proprio.id)) {
       return (
         <TrailChrome crumbs={crumbs} owns={owns} atual={proprio.id}>
           <ProprioSemVideos nome={proprio.name} canaisHref={link.canais()} />

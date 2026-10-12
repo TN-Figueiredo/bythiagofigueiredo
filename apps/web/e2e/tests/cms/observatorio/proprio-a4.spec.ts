@@ -227,14 +227,15 @@ test.describe('T8 a página do canal próprio abre com a base de hoje (sem dado 
     await expect(page.locator(`${S}:visible [data-comparar-canal]`)).toBeFocused({ timeout: 10_000 })
   })
 
-  test('a linha de posição: inscritos e views/dia por mil levam à lista de Canais ordenada; os outros dois itens são texto', async ({ page }) => {
+  test('a linha de posição: só o item COM posição é link (inscritos); mediana, longos e views/dia por mil sem posição são texto', async ({ page }) => {
     await abrir(page)
     const pos = tela(page).locator('.chead p.pos')
     await expect(pos).toContainText('Entre ')
     const links = pos.locator('a')
-    await expect(links).toHaveCount(2)
+    // T9 (M1): o banco local não tem diário, então a posição em views/dia por mil não existe e o item não é link; o de inscritos tem posição e é
+    await expect(links).toHaveCount(1)
     expect(await links.nth(0).getAttribute('href')).toMatch(/sort=subs/)
-    expect(await links.nth(1).getAttribute('href')).toMatch(/sort=vpd/)
+    await expect(pos).toContainText('Views/dia por mil inscritos: ')
     await links.nth(0).click()
     await page.waitForURL(/sort=subs/)
     await expect(page.locator('[data-obs-screen="canais"]:visible').first()).toBeVisible()
@@ -278,6 +279,37 @@ test.describe('T8 canais sem página, links antigos e atalho "Meu canal"', () =>
     await page.waitForURL(/\/canal\//)
     await pronta(page)
     await expect(tela(page).locator('.own-seal')).toBeVisible()
+  })
+
+  test('linha do canal próprio na lista de Canais (I1 da revisão da T8): com vídeos é link da página, sem vídeos não é clicável e diz por quê', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`${ROTA}?niche=todos`)
+    await page.locator('[data-obs-screen="canais"]:visible tbody tr.row').first().waitFor({ timeout: 30_000 })
+    await page.waitForLoadState('networkidle')
+    const lista = page.locator('[data-obs-screen="canais"]:visible')
+    // nenhuma linha tem mais o botão que abria a gaveta
+    await expect(lista.locator('button.nmbtn[data-open]')).toHaveCount(0)
+    // sem vídeos: o nome é texto, o avatar não é link, a linha diz o motivo; clicar não muda nada
+    const sem = lista.locator(`tbody tr.row[data-id="${SEM_VIDEOS()}"]`)
+    await sem.scrollIntoViewIfNeeded()
+    await expect(sem.locator('a.nmbtn, button.nmbtn, a[data-avatar-link]')).toHaveCount(0)
+    await expect(sem.locator('.nmtxt')).toHaveText('Mochila Leve (novo)')
+    await expect(sem.getByText('sem vídeos: ainda sem página')).toBeVisible()
+    const antes = page.url()
+    await sem.locator('.nmtxt').click()
+    await page.waitForTimeout(400)
+    expect(page.url(), 'clicar no nome do canal sem vídeos não navega').toBe(antes)
+    await expect(page.locator('aside.cn-drawer')).toHaveCount(0)
+    // com vídeos: link da página, sem lampejo de gaveta; o Voltar volta à lista
+    const com = lista.locator(`tbody tr.row[data-id="${PROPRIO()}"] a.nmbtn`)
+    await com.scrollIntoViewIfNeeded()
+    await expect(com).toHaveAttribute('href', `${ROTA}/canal/${PROPRIO()}`)
+    await com.click()
+    await page.waitForURL(new RegExp(`/canal/${PROPRIO()}`))
+    expect(new URL(page.url()).searchParams.get('channel')).toBeNull()
+    await pronta(page)
+    await page.goBack()
+    await expect.poll(() => new URL(page.url()).pathname).toBe(ROTA)
   })
 
   test('o atalho "Meu canal" de uma página de canal abre a página do canal escolhido', async ({ page }) => {

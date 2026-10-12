@@ -10,6 +10,7 @@ import { render, screen, within, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { loadOracleOwns, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
+import { comGavetaNoProprio } from './canais-gaveta-helper'
 import { buildCanaisView, type CanaisParams } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { CanaisScreen } from '@/app/cms/(authed)/youtube/competitors/_canais/canais-screen'
 import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
@@ -30,7 +31,8 @@ vi.mock('next/navigation', () => ({
 // the drawer only opens for an OWN channel (a competitor has a page of its own): two own channels
 const obs = createObservatory(datasetFromOracle(loadOracleOwns('2')))
 const ok = async () => ({ ok: true })
-const view = (p: Partial<CanaisParams> = {}) => buildCanaisView(obs, { niche: 'todos', limit: 75, fmt: 'longos', ...p })
+// A4 (I1 da T8): o clique na linha do próprio não abre mais a gaveta; a máquina dela segue sob teste com a linha sintética (canais-gaveta-helper.ts)
+const view = (p: Partial<CanaisParams> = {}) => comGavetaNoProprio(buildCanaisView(obs, { niche: 'todos', limit: 75, fmt: 'longos', ...p }))
 const tree = (p: Partial<CanaisParams> = {}) => (
   <ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs="">
     <CanaisScreen view={view(p)} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
@@ -52,8 +54,7 @@ describe('Canais · immediate feedback', () => {
     const user = userEvent.setup()
     const r = render(tree())
     await user.click(screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo' }))
-    // A4: o canal próprio tem página, e o servidor manda o painel para ela; o pedido é um PUSH (o Voltar da página volta à lista, não a antes dela)
-    expect(push).toHaveBeenCalledWith('/cms/youtube/competitors?channel=tnfigueiredo', { scroll: false })
+    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?channel=tnfigueiredo', { scroll: false })
     const d = drawerEl()!
     expect(d).not.toBeNull()
     expect(d).toHaveAttribute('data-drawer', 'tnfigueiredo')
