@@ -35,7 +35,16 @@ describe('assistidoDoVideo: média pesada pelas views', () => {
     expect(r.dias).toBe(2)
     expect(r.motivo).toBeNull()
   })
-  it('a unidade são pontos de 0 a 100: 51,5 de entrada sai 51,5, sem reescala', () => {
+  it('passar de 100 é válido e entra na média pesada sem recorte: 10 views a 139,38 e 10 a 60 = 99,69; 30 a 139,38 e 10 a 60 = 119,535', () => {
+    const r = assistidoDoVideo(canal([l('v', 1, 10, 139.38), l('v', 2, 10, 60)]), 'v')
+    expect(r.pct).toBeCloseTo(99.69, 10)
+    const alto = assistidoDoVideo(canal([l('v', 1, 30, 139.38), l('v', 2, 10, 60)]), 'v')
+    expect(alto.pct).toBeCloseTo((30 * 139.38 + 10 * 60) / 40, 10)
+    expect(alto.pct!).toBeGreaterThan(100)
+    expect(contraNormal(alto.pct, 50)).toMatchObject({ leitura: 'acima' })
+    expect(contraNormal(139.38, 50)!.dif).toBe(89)
+  })
+  it('a unidade são pontos: 51,5 de entrada sai 51,5, sem reescala', () => {
     expect(assistidoDoVideo(canal([l('v', 1, 40, 51.5)]), 'v').pct).toBe(51.5)
   })
   it('um dia de 0 views no meio não entra: nem na soma, nem no peso, nem na contagem de dias (e o pct nulo dele não derruba)', () => {
@@ -191,6 +200,14 @@ describe('normalDaFaixa', () => {
 })
 
 describe('contraNormal: na média = até 2 pontos, em pontos INTEIROS arredondados', () => {
+  it('a decisão vem DEPOIS do arredondamento: a zona "na média" vai até 2,49 pontos (o dono aprovou "até 2" vendo inteiros)', () => {
+    expect(contraNormal(52.01, 50)).toEqual({ dif: 2, leitura: 'na-media' })
+    expect(contraNormal(47.99, 50)).toEqual({ dif: -2, leitura: 'na-media' })
+    expect(contraNormal(52.49, 50)).toEqual({ dif: 2, leitura: 'na-media' })
+    expect(contraNormal(47.51, 50)).toEqual({ dif: -2, leitura: 'na-media' })
+    expect(contraNormal(52.5, 50)).toEqual({ dif: 3, leitura: 'acima' })
+    expect(contraNormal(47.5, 50)).toEqual({ dif: -3, leitura: 'abaixo' })
+  })
   it('exatamente 2 pontos de diferença: na média (para cima e para baixo)', () => {
     expect(contraNormal(52, 50)).toEqual({ dif: 2, leitura: 'na-media' })
     expect(contraNormal(48, 50)).toEqual({ dif: -2, leitura: 'na-media' })

@@ -31,8 +31,8 @@ export interface DiarioLinha {
   dia: DiaYt
   views: number | null
   /**
-   * `avg_view_percentage`: média do percentual assistido DAQUELE dia, em PONTOS de 0 a 100 (a Analytics API entrega 51,5, e a
-   * coleta grava 51,5, sem escala). Nulo = não medido (dia sem view, coluna não pedida, valor fora de 0 a 100). Nunca 0 por ausência.
+   * `avg_view_percentage`: média do percentual assistido DAQUELE dia, em PONTOS (0 em diante; pode passar de 100, trecho revisto) (a Analytics API entrega 51,5, e a
+   * coleta grava 51,5, sem escala). Nulo = não medido (dia sem view, coluna não pedida, valor negativo ou acima de 999,99). Nunca 0 por ausência.
    */
   pctAssistido: number | null
   /** `avg_view_duration_seconds`: duração média assistida do dia, em segundos. Nulo = não medido. */
@@ -54,7 +54,7 @@ export interface DiarioCanal {
   /** o último dia gravado do canal, SEM janela (a série é que é limitada): é ele que diz "parou em dd/mm" */
   ultimoDia: DiaYt | null
   linhas: DiarioLinha[]
-  /** linhas com views negativas, % assistido fora de 0 a 100 ou duração negativa, que viraram nulos: quem chama avisa o Sentry uma vez por requisição */
+  /** linhas com views negativas, % assistido negativo ou acima de 999,99 ou duração negativa, que viraram nulos: quem chama avisa o Sentry uma vez por requisição */
   descartados: number
 }
 
