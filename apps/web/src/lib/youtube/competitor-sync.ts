@@ -3,6 +3,7 @@ import { link } from '@/lib/youtube/observatorio/links'
 import { createNotification } from '@/lib/notifications/create'
 import { getSiteOwners, logSemDestinatario } from '@/lib/notifications/get-site-owners'
 import crypto from 'crypto'
+import * as Sentry from '@sentry/nextjs'
 import { probeThumb, isNewThumb, archiveThumb, type ThumbProbe } from '@/lib/youtube/thumb-fingerprint'
 import {
   reconcileVideoVersions, normalizeDescription, type StoredVersion, type VersionPlan, type VersionField,
@@ -10,7 +11,7 @@ import {
 import { classifyShort, needsShortProbe, probeShortsBatch, newProbeBudget, isYoutubeVideoId, type ProbeBudget, type ShortProbeResult } from '@/lib/youtube/short-classifier'
 import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
-import { optCount, videoObservedOf, channelObservedOf, rawOf, captureItems, CAPTURE_CHUNK } from '@/lib/youtube/competitor-capture'
+import { optCount, videoObservedOf, channelObservedOf, rawOf, captureItems, markMissing, markChannelMissing, CAPTURE_CHUNK } from '@/lib/youtube/competitor-capture'
 export { optCount } from '@/lib/youtube/competitor-capture'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
@@ -45,6 +46,16 @@ export interface SyncResult {
   rawTooBig?: number
   /** (A5) Itens cujo texto trazia NUL ou substituto solitário e foi limpo antes de gravar. */
   sanitized?: number
+  /** (A5) Itens repetidos na mesma resposta (só o primeiro vale). */
+  duplicates?: number
+  /** (A5) Itens de vídeo sem id, deixados fora da captura. */
+  invalid?: number
+  /** (A5) Vídeos pedidos ao YouTube e não devolvidos em nenhuma chamada desta sincronização: cada um soma UMA falta. */
+  missed?: number
+  /** (A5) Vídeos que passaram a "sumiu" (a segunda falta seguida). Vem de `markMissing`; ver o relatório da Tarefa 8 sobre o limite desta contagem. */
+  newlyMissing?: number
+  /** (A5) Vídeos que estavam marcados como ausentes e o YouTube devolveu de novo. */
+  returned?: number
 }
 
 /** (A5) Os contadores de uma sincronização que terminou em erro: o erro lançado não carrega resultado, e o lote só vê o erro. */
@@ -238,8 +249,11 @@ export async function syncCompetitorChannel(
   /** A5 (E1): o que se sabia de cada vídeo ANTES desta sincronização (a janela de uma mudança começa na última leitura boa). */
   const rowInfo = new Map<string, { lastSeenAt: string | null; weeklySince: string | null; missing: boolean }>()
   const captured = new Set<string>()
+  /** uuids pedidos a videos.list numa chamada que RESPONDEU (falha de rede ou HTTP não é sumiço). */
+  const asked = new Set<string>()
+  let missedStats = { missed: 0, newlyMissing: 0 }
   // A captura nunca impede a série do dia: a falha vai para a mesma `lateFailure` (não há segunda variável).
-  const cap = { fieldsOpened: 0, rawOpened: 0, rawTooBig: 0, sanitized: 0 }
+  const cap = { fieldsOpened: 0, rawOpened: 0, rawTooBig: 0, sanitized: 0, duplicates: 0, invalid: 0 }
   let channelPartsMissing = 0
   const noteRow = (r: { id?: unknown; last_seen_at?: unknown; missing_since?: unknown }): void => {
     if (typeof r.id !== 'string' || rowInfo.has(r.id)) return
@@ -252,6 +266,8 @@ export async function syncCompetitorChannel(
     const { thumbnail_url: _semMiniatura, ...patch } = o.patch
     return { ...o, patch }
   }
+  /** Vídeos que estavam marcados como ausentes e vieram de novo nesta sincronização (calculado na hora: vale também quando o canal termina em erro). */
+  const returnedCount = (): number => [...seen].filter(id => rowInfo.get(id)?.missing).length
   /** Os contadores da sincronização até aqui; zero não aparece (como sempre foi no resultado). */
   const counters = (): SyncResult => ({
     videosChecked, changesDetected, dailyRecorded, unitsUsed,
@@ -259,6 +275,9 @@ export async function syncCompetitorChannel(
     ...(channelPartsMissing ? { channelPartsMissing } : {}),
     ...(cap.fieldsOpened ? { fieldsOpened: cap.fieldsOpened } : {}), ...(cap.rawOpened ? { rawOpened: cap.rawOpened } : {}), ...(cap.rawTooBig ? { rawTooBig: cap.rawTooBig } : {}),
     ...(cap.sanitized ? { sanitized: cap.sanitized } : {}),
+    ...(cap.duplicates ? { duplicates: cap.duplicates } : {}), ...(cap.invalid ? { invalid: cap.invalid } : {}),
+    ...(missedStats.missed ? { missed: missedStats.missed } : {}), ...(missedStats.newlyMissing ? { newlyMissing: missedStats.newlyMissing } : {}),
+    ...(returnedCount() ? { returned: returnedCount() } : {}),
   })
   /** Campos e raw dos vídeos que vieram, em lotes de 50, e só então o carimbo de "visto". */
   const captureFetched = async (pairs: Array<{ uuid: string; item: unknown }>): Promise<void> => {
@@ -273,7 +292,7 @@ export async function syncCompetitorChannel(
             return { videoId: p.uuid, fields: videoObservedOf(p.item, nowIso, parseIsoDuration).fields, raw: rawOf(p.item), prevSeenAt: info?.lastSeenAt ?? null, weeklySince: info?.weeklySince ?? null }
           }),
         })
-        cap.fieldsOpened += st.fieldsOpened; cap.rawOpened += st.rawOpened; cap.rawTooBig += st.rawTooBig; cap.sanitized += st.sanitized
+        cap.fieldsOpened += st.fieldsOpened; cap.rawOpened += st.rawOpened; cap.rawTooBig += st.rawTooBig; cap.sanitized += st.sanitized; cap.duplicates += st.duplicates; cap.invalid += st.invalid
         const { error } = await supabase.from('competitor_videos').update({ last_seen_at: nowIso }).in('id', chunk.map(p => p.uuid))
         fail('não foi possível guardar a última leitura dos vídeos', error)
         for (const p of chunk) captured.add(p.uuid)
@@ -441,6 +460,15 @@ export async function syncCompetitorChannel(
     if (!uploadsPlaylistId) {
       // `items: []` = channel removed/closed or a mistyped id. Never stamp last_ok_synced_at; the catch below records the
       // error and humanizeSyncError turns the 404 into "não encontrado no YouTube".
+      if (!channelData.items?.length) {
+        // (A5) a resposta que veio SEM o canal soma a falta dele (a 2ª seguida grava missing_since e a versão 'sumiu'). Falha de rede
+        // ou HTTP já lançou acima e nunca chega aqui; um item sem a lista de uploads também não é sumiço. A marca que falha não some:
+        // vai ao Sentry e entra no texto do erro do canal (o 404 continua sendo o erro).
+        try { await markChannelMissing(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, nowIso }) } catch (e) {
+          Sentry.captureException(e, { tags: { component: 'sync-youtube', mode: 'competitors-missing' }, extra: { channelId: channelRow.channel_id } })
+          throw new Error(`YouTube API 404 for channel ${channelRow.channel_id} (e a falta não foi registrada: ${e instanceof Error ? e.message : String(e)})`)
+        }
+      }
       throw new Error(`YouTube API 404 for channel ${channelRow.channel_id}`)
     }
 
@@ -457,7 +485,7 @@ export async function syncCompetitorChannel(
     try {
       const st = await captureItems(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, scope: 'canal', nowIso,
         items: [{ videoId: null, fields: chObserved.fields, raw: rawOf(channelData.items[0]), prevSeenAt: prevChannelSeenAt, weeklySince: null }] })
-      cap.fieldsOpened += st.fieldsOpened; cap.rawOpened += st.rawOpened; cap.rawTooBig += st.rawTooBig; cap.sanitized += st.sanitized
+      cap.fieldsOpened += st.fieldsOpened; cap.rawOpened += st.rawOpened; cap.rawTooBig += st.rawTooBig; cap.sanitized += st.sanitized; cap.duplicates += st.duplicates; cap.invalid += st.invalid
       channelCaptured = true
     } catch (e) {
       lateFailure ??= e instanceof Error ? e : new Error(String(e))
@@ -475,9 +503,10 @@ export async function syncCompetitorChannel(
       .eq('id', channelRow.id)
     late('não foi possível atualizar a linha do canal', chErr)
 
-    // Daily snapshot (non-blocking)
+    // Daily snapshot (non-blocking). (A5, D2) Sem a parte statistics não há retrato do dia: gravar nulo/0 criaria um "dia medido em zero"
+    // (e o upsert apagaria um retrato bom do mesmo dia). A coluna aceita nulo, mas nulo nos três também lê como dia medido: sem linha é "não medido".
     try {
-      await supabase
+      if (!chObserved.partsMissing.includes('statistics')) await supabase
         .from('competitor_channel_snapshots')
         .upsert({
           competitor_channel_id: channelRow.id,
@@ -533,6 +562,8 @@ export async function syncCompetitorChannel(
         .in('video_id', videoIds)
       for (const v of existingVideos ?? []) noteRow(v)
       const existingMap = new Map((existingVideos ?? []).map(v => [v.video_id, v]))
+      // (A5) os já gravados que a lista de uploads trouxe foram pedidos a videos.list; o lançamento de `!videosRes.ok` vem antes, então uma chamada que falhou não chega aqui
+      for (const v of existingVideos ?? []) asked.add(v.id as string)
 
       // Current versions of every known video in this page, one query
       const currentByVideo = await loadCurrent((existingVideos ?? []).map(v => v.id as string))
@@ -662,6 +693,7 @@ export async function syncCompetitorChannel(
           const res = await api(`${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
           if (!res.ok) throw new Error(`YouTube API ${res.status} for daily statistics`)
           const body = await res.json()
+          for (const c of chunk) asked.add(c.id) // a chamada respondeu: o que não veio nela conta como pedido e não devolvido
           const byYt = new Map(chunk.map(c => [c.video_id, c]))
           const items = ((body.items ?? []) as FetchedItem[]).filter(it => byYt.has(it.id))
           const rows = items
@@ -712,6 +744,7 @@ export async function syncCompetitorChannel(
       const res = await api(`${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
       if (!res.ok) throw new Error(`YouTube API ${res.status} for pinned videos`)
       const body = await res.json()
+      for (const c of chunk) asked.add(c.id)
       const fetched = (body.items ?? []) as FetchedItem[], byYt = new Map(chunk.map(c => [c.video_id, c]))
       await reconcileFetched(fetched, byYt)
       await patchFetched(fetched, byYt)
@@ -754,6 +787,17 @@ export async function syncCompetitorChannel(
       } catch {
         // Non-fatal
       }
+    }
+
+    // ── A5 (E1): o que foi pedido e não veio em NENHUMA chamada desta sincronização soma UMA falta ──
+    // Gravação nova: só depois da série do dia e dos fixados, e falhar aqui vira `lateFailure` (o canal termina em erro, sem perder o resto).
+    try {
+      const missedIds = [...asked].filter(id => !seen.has(id))
+      if (missedIds.length) {
+        missedStats = await markMissing(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, videoIds: missedIds, nowIso, weeklySinceOf: id => rowInfo.get(id)?.weeklySince ?? null })
+      }
+    } catch (e) {
+      lateFailure ??= e instanceof Error ? e : new Error(String(e))
     }
 
     // (A5) O erro da primeira gravação que não é pré-requisito da série do dia: lançado aqui, depois da passada diária, dos

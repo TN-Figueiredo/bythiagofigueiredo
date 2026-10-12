@@ -283,3 +283,159 @@ describe('A5 E1 (consertos da revisão da 6b): parte ausente nunca apaga o grava
     expect(chUpdate(db3)).toMatchObject({ channel_name: '', thumbnail_url: null, subscriber_count: null, youtube_video_count: 0 })
   })
 })
+
+describe('A5 E1: ausência e volta (itens 7 e 221)', () => {
+  const PINROW = { ...PIN, last_seen_at: '2026-10-24T03:00:00.000Z' }
+  const caught = async (p: Promise<unknown>): Promise<unknown> => { try { await p } catch (e) { return e } throw new Error('não lançou') }
+  it('vídeo pedido e não devolvido: uma chamada a competitor_mark_missing com o uuid; nada é apagado nem regravado na linha', async () => {
+    const db = setup({ pinned: [PINROW], existing: [ROW1], missed: [{ id: 'v-pin', miss_streak: 1, miss_first_at: EARLY.toISOString(), missing_since: null, last_seen_at: PINROW.last_seen_at }] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { daily: () => [] }), ...quiet })
+    expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([{ p_channel_id: 'cc-1', p_video_ids: ['v-pin'], p_now: EARLY.toISOString() }])
+    expect(r).toMatchObject({ missed: 1 })
+    expect(r.newlyMissing ?? 0).toBe(0)
+    expect(db.calls.some(c => c.ops.some(o => o[0] === 'delete'))).toBe(false)
+    expect(updatesOf(db, 'v-pin')).toEqual([])
+    expect(rpcCalls(db, 'apply_competitor_field_plan').flatMap(a => a.p_open as Array<{ field: string; value: unknown }>).some(o => o.value === 'sumiu')).toBe(false)
+  })
+  it('segunda leitura seguida sem o vídeo: a versão availability = "sumiu" é aberta no instante da 1ª falta', async () => {
+    const firstMiss = '2026-10-24T03:00:00.000Z'
+    const db = setup({ pinned: [PINROW], existing: [ROW1], fields: [{ id: 9, video_id: 'v-pin', field: 'availability', value_hash: fieldHash('no_ar') }],
+      missed: [{ id: 'v-pin', miss_streak: 2, miss_first_at: firstMiss, missing_since: '2026-10-24', last_seen_at: '2026-10-23T21:00:00.000Z' }] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { daily: () => [] }), ...quiet })
+    expect(r).toMatchObject({ missed: 1, newlyMissing: 1 })
+    const sumiu = rpcCalls(db, 'apply_competitor_field_plan').flatMap(a => a.p_open as Array<Record<string, unknown>>).find(o => o.value === 'sumiu')!
+    expect(sumiu).toMatchObject({ video_id: 'v-pin', field: 'availability', first_seen_at: firstMiss, window_start: '2026-10-23T21:00:00.000Z' })
+  })
+  it('Review Focus 2: pedido duas vezes na mesma sincronização e ausente nas duas → UMA falta (uma chamada, um uuid)', async () => {
+    // v-1 está na página (a lista de uploads o traz) e na passada diária, e não vem em nenhuma das duas respostas
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1] })
+    const f = (async (input: RequestInfo | URL) => {
+      const u = String(input)
+      if (u.includes('/channels?')) return Response.json({ items: [{ id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { subscriberCount: '10' } }] })
+      if (u.includes('/playlistItems?')) return Response.json({ items: [{ snippet: { resourceId: { videoId: 'vid-1' } } }] })
+      return Response.json({ items: [] })
+    }) as typeof fetch
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: f, ...quiet })
+    expect(rpcCalls(db, 'competitor_mark_missing')).toHaveLength(1)
+    expect(rpcCalls(db, 'competitor_mark_missing')[0]!.p_video_ids).toEqual(['v-1'])
+  })
+  it('Review Focus 3: a chamada videos.list falha (HTTP 500) → nenhum vídeo dela conta como ausente', async () => {
+    const db = setup({ pinned: [PINROW], existing: [ROW1] })
+    const f = apiFetch(page(), 200, { daily: () => new Response('x', { status: 500 }) })
+    await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: f, ...quiet })).rejects.toThrow(/500/)
+    expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([])
+  })
+  it('a passada diária que falha com 500 não marca ninguém como ausente, nem o vídeo que a página já pediu', async () => {
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1] })
+    const f = (async (input: RequestInfo | URL) => {
+      const u = String(input)
+      if (u.includes('/channels?')) return Response.json({ items: [{ id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { subscriberCount: '10' } }] })
+      if (u.includes('/playlistItems?')) return Response.json({ items: [{ snippet: { resourceId: { videoId: 'vid-1' } } }] })
+      if (u.includes('/videos?') && f.calls++ > 0) return new Response('x', { status: 500 })
+      return Response.json({ items: [] })
+    }) as typeof fetch & { calls: number }
+    f.calls = 0
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: f, ...quiet })).rejects.toThrow(/500/)
+    expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([])
+  })
+  it('vídeo ausente que volta: a linha zera a sequência, a decisão "manter" é limpa, abre "no_ar", e a execução conta a volta', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [{ ...ROW1, last_seen_at: '2026-10-20T03:00:00.000Z', missing_since: '2026-10-21' }], fields: [{ id: 9, video_id: 'v-1', field: 'availability', value_hash: fieldHash('sumiu') }] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })
+    expect(updatesOf(db, 'v-1').some(u => u.miss_streak === 0 && u.missing_since === null && u.miss_first_at === null && u.removal_decision === null)).toBe(true)
+    // (o canal também abre 'no_ar', com video_id nulo: o plano é o do vídeo)
+    const plan = rpcCalls(db, 'apply_competitor_field_plan').find(a => (a.p_open as Array<{ value: unknown; video_id: unknown }>).some(o => o.value === 'no_ar' && o.video_id === 'v-1'))!
+    expect(plan.p_close).toEqual([{ id: 9, last_seen_at: '2026-10-20T03:00:00.000Z' }])
+    expect((plan.p_open as Array<Record<string, unknown>>).find(o => o.value === 'no_ar')).toMatchObject({ precision: 'gap' }) // 4 dias sem o vídeo: a janela é buraco, não "1 dia"
+    expect(r.returned).toBe(1)
+  })
+  it('item 221, canal: channels.list sem o canal soma a falta do canal e o sync continua terminando em erro "não encontrado"', async () => {
+    const db = setup({ channelMissed: { id: 'cc-1', miss_streak: 2, miss_first_at: '2026-10-24T03:00:00.000Z', missing_since: '2026-10-24', last_seen_at: '2026-10-23T21:00:00.000Z' } })
+    await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [] }), ...quiet })).rejects.toThrow(/404/)
+    expect(rpcCalls(db, 'competitor_channel_mark_missing')).toEqual([{ p_channel_id: 'cc-1', p_now: EARLY.toISOString() }])
+    expect(rpcCalls(db, 'apply_competitor_field_plan').flatMap(a => a.p_open as Array<Record<string, unknown>>).find(o => o.value === 'sumiu')).toMatchObject({ video_id: null, field: 'availability' })
+  })
+  it('canal: falha de rede ou HTTP na channels.list não soma falta do canal', async () => {
+    const db = setup({})
+    await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 500), ...quiet })).rejects.toThrow(/500/)
+    expect(rpcCalls(db, 'competitor_channel_mark_missing')).toEqual([])
+  })
+  it('canal: item sem a lista de uploads (mas com o canal) não é sumiço: não soma falta', async () => {
+    const db = setup({})
+    await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { noUploads: true }), ...quiet })).rejects.toThrow(/404/)
+    expect(rpcCalls(db, 'competitor_channel_mark_missing')).toEqual([])
+  })
+  it('a marca de ausência falhando no banco deixa o canal em erro (não some em silêncio)', async () => {
+    const db = setup({ pinned: [PINROW], existing: [ROW1], rpcFail: 'competitor_mark_missing' })
+    await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { daily: () => [] }), ...quiet })).rejects.toThrow(/deixou de vir do YouTube/)
+    expect(db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')).at(-1)).toMatchObject({ sync_status: 'error' })
+  })
+  it('a marca de ausência do canal falhando: o erro do canal continua sendo o 404 e traz "a falta não foi registrada"', async () => {
+    setup({ rpcFail: 'competitor_channel_mark_missing' })
+    const e = await caught(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [] }), ...quiet }))
+    expect((e as Error).message).toMatch(/404/)
+    expect((e as Error).message).toMatch(/a falta não foi registrada/)
+  })
+  it('a marca de ausência é gravação nova: a série do dia é gravada antes, e a marca falhando não a perde', async () => {
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1], tracked: [{ id: 'v-1', video_id: 'vid-1', title: 'T', thumbnail_url: null }, { id: 'v-2', video_id: 'vid-2', title: 'X', thumbnail_url: null }], rpcFail: 'competitor_mark_missing' })
+    const ids = (u: string) => decodeURIComponent(u.match(/[?&]id=([^&]*)/)![1]!).split(',')
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page(), 200, { daily: (_n, u) => ids(u).filter(i => i === 'vid-1').map(id => ({ id, statistics: { viewCount: '5' } })) }), ...quiet })).rejects.toThrow(/deixou de vir do YouTube/)
+    const iDaily = db.calls.findIndex(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')
+    const iMark = db.calls.findIndex(c => c.table === 'rpc:competitor_mark_missing')
+    expect(iDaily).toBeGreaterThan(-1)
+    expect(iMark).toBeGreaterThan(iDaily)
+  })
+})
+
+describe('A5 E1 (Tarefa 8): os contadores acompanham o resultado e o erro', () => {
+  const PINROW = { ...PIN, last_seen_at: '2026-10-24T03:00:00.000Z' }
+  const caught = async (p: Promise<unknown>): Promise<unknown> => { try { await p } catch (e) { return e } throw new Error('não lançou') }
+  const gone = { id: 'v-pin', miss_streak: 2, miss_first_at: '2026-10-24T00:00:00.000Z', missing_since: '2026-10-24', last_seen_at: PINROW.last_seen_at }
+  it('o sucesso traz faltas, ausentes e voltas; sem nada disso as chaves não aparecem', async () => {
+    setup({ pinned: [PINROW], existing: [{ ...ROW1, missing_since: '2026-10-21', last_seen_at: '2026-10-20T03:00:00.000Z' }], missed: [gone] })
+    const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { daily: () => [] }), ...quiet })
+    expect(r).toMatchObject({ missed: 1, newlyMissing: 1, returned: 1 })
+    setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    const r2 = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })
+    for (const k of ['missed', 'newlyMissing', 'returned', 'duplicates', 'invalid']) expect(k in r2).toBe(false)
+  })
+  it('syncStatsOf: faltas, ausentes e voltas chegam quando o canal termina em erro de gravação', async () => {
+    setup({ pinned: [PINROW], existing: [{ ...ROW1, missing_since: '2026-10-21', last_seen_at: '2026-10-20T03:00:00.000Z' }], missed: [gone], failUpdateOf: 'v-1' })
+    const e = await caught(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { daily: () => [] }), ...quiet }))
+    expect((e as Error).message).toMatch(/atualizar a linha do vídeo/)
+    expect(syncStatsOf(e)).toMatchObject({ missed: 1, newlyMissing: 1, returned: 1 })
+  })
+  it('syncStatsOf: o vídeo que voltou conta mesmo quando o erro vem antes da marca de ausência', async () => {
+    const gone1 = { ...ROW1, missing_since: '2026-10-21', last_seen_at: '2026-10-20T03:00:00.000Z' }
+    setup({ lastDaily: '2026-10-23', existing: [gone1], tracked: [{ id: 'v-1', video_id: 'vid-1', title: 'T', thumbnail_url: null, last_seen_at: gone1.last_seen_at, missing_since: gone1.missing_since }] })
+    const e = await caught(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page(), 200, { daily: () => new Response('x', { status: 500 }) }), ...quiet }))
+    expect(syncStatsOf(e)).toMatchObject({ returned: 1 })
+  })
+  it('duplicates: o item repetido na resposta é contado no resultado e acompanha o erro (invalid segue a mesma via)', async () => {
+    const v2 = { id: 'vid-2', statistics: { viewCount: '5' } }
+    const tracked = [{ id: 'v-1', video_id: 'vid-1', title: 'T', thumbnail_url: null }, { id: 'v-2', video_id: 'vid-2', title: 'X', thumbnail_url: null }]
+    setup({ lastDaily: '2026-10-23', existing: [ROW1], tracked })
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page(), 200, { daily: () => [v2, v2] }), ...quiet })
+    expect(r.duplicates).toBe(1)
+    setup({ lastDaily: '2026-10-23', existing: [ROW1], tracked, failUpdateOf: 'v-1' })
+    const e = await caught(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page(), 200, { daily: () => [v2, v2] }), ...quiet }))
+    expect(syncStatsOf(e)).toMatchObject({ duplicates: 1 })
+  })
+})
+
+describe('A5 E1 (D2 no retrato do canal): resposta sem statistics não grava um dia medido em zero', () => {
+  const base = { id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' } }
+  const snapshots = (db: ReturnType<typeof setup>) => db.calls.filter(c => c.table === 'competitor_channel_snapshots')
+  it('sem a parte statistics: nenhuma linha de retrato do dia (nem zero, nem nulo por cima de um retrato bom)', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [base] }), ...quiet })
+    expect(snapshots(db)).toHaveLength(0)
+  })
+  it('com a parte statistics (mesmo vazia): o retrato é gravado como sempre foi', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics: { subscriberCount: '10', videoCount: '4', viewCount: '99' } }] }), ...quiet })
+    expect(arg(snapshots(db)[0]!, 'upsert')).toMatchObject({ subscriber_count: 10, video_count: 4, view_count: 99 })
+    const db2 = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics: {} }] }), ...quiet })
+    expect(snapshots(db2)).toHaveLength(1)
+  })
+})
