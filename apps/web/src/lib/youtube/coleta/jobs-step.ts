@@ -33,7 +33,7 @@ async function gravarJob(
   ctx: StepCtx,
   c: ColetaChannel,
   tipo: string,
-  campos: { status: JobStatus; error?: string | null; job?: Job },
+  campos: { status: JobStatus; error?: string | null; job?: Job; religado?: boolean },
 ): Promise<boolean> {
   const linha: Record<string, unknown> = {
     site_id: c.site_id,
@@ -44,7 +44,10 @@ async function gravarJob(
   }
   if (campos.job) {
     linha.job_id = campos.job.id
-    linha.job_create_time = campos.job.createTime ?? null
+    // Linha que volta a `ativo` (era `desativado`, `erro`, `tipo_indisponivel`...) mantém o `created_at` antigo, e sem esta
+    // data o critério dos 6 dias contaria a idade da linha, não a do job, e alarmaria no primeiro dia. Se a API não
+    // informou `createTime`, o job nasceu agora. Job que já estava ativo não é tocado (o relógio do alarme não reinicia).
+    linha.job_create_time = campos.job.createTime ?? (campos.religado ? new Date().toISOString() : null)
   }
   const r = await ctx.supabase.from('yt_reporting_jobs').upsert(linha, { onConflict: 'channel_id,report_type_id' })
   return conferirBanco(r, 'yt_reporting_jobs', ctx.falhas) === 'ok'
@@ -147,7 +150,7 @@ async function sondarCanal(
       }
       if (job) {
         estados[tipo] = 'ativo'
-        if (await gravarJob(ctx, c, tipo, { status: 'ativo', job })) resumo.gravados++
+        if (await gravarJob(ctx, c, tipo, { status: 'ativo', job, religado: status.get(tipo) !== 'ativo' })) resumo.gravados++
         await registrarTentativa(ctx, { ...tJob(tipo), outcome: 'ok' })
         return
       }

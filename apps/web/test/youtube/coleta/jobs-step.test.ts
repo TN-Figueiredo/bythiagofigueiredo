@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', async (orig) => ({
@@ -19,6 +19,7 @@ import { REPORT_TYPES_ENABLED, ReportingHttpError } from '@/lib/youtube/reportin
 import { avisarEntrada, avisarSaida } from '@/lib/youtube/coleta/alerts'
 import type { StepCtx } from '@/lib/youtube/coleta/types'
 import { SemTempoError } from '@/lib/youtube/coleta/clock'
+import { criteriosRelatorios } from '@/lib/youtube/coleta/criteria'
 import { fakeSupabase, type FakeDb, type Row } from './fake-supabase'
 
 const canal = { id: 'ch-1', channel_id: 'UC1', site_id: 'site-1', name: 'Canal Um', sync_enabled: true, collection_status: 'ok' as const, video_count: 1 }
@@ -508,5 +509,65 @@ describe('passoJobs: tipo tirado de REPORT_TYPES_ENABLED', () => {
     await passoJobs(ctxDe(db))
     expect(db.writes.filter(w => w.table === 'yt_reporting_jobs')).toEqual([])
     expect(ensureFreshToken).not.toHaveBeenCalled()
+  })
+})
+
+describe('E12 onda 2, D3: linha desativada que é religada conta os 6 dias a partir da religação', () => {
+  const AGORA = new Date('2026-10-20T12:00:00.000Z')
+  const DIA_MS = 86_400_000
+  const ha = (dias: number) => new Date(AGORA.getTime() - dias * DIA_MS).toISOString()
+  const MSG = 'relatórios: Canal Um está sem relatório novo de channel_basic_a3 há mais de 6 dias'
+  beforeEach(() => { vi.useFakeTimers({ now: AGORA, toFake: ['Date'] }) })
+  afterEach(() => { vi.useRealTimers() })
+
+  /** A API cria o job SEM devolver createTime (o campo é opcional no tipo `Job`). */
+  const semCreateTime = () =>
+    api.jobsCreate.mockImplementation(async ({ reportTypeId }: { reportTypeId: string }) => ({ id: `job-${reportTypeId}`, reportTypeId }))
+  const linhaVelha = (tipo: string, extra: Row = {}): Row => ({
+    site_id: 'site-1', channel_id: 'ch-1', report_type_id: tipo, status: 'desativado', created_at: ha(10), job_create_time: null, last_create_time: null, ...extra,
+  })
+
+  it('linha desativado criada há 10 dias, job recriado agora sem createTime: job_create_time vira agora e o critério dos 6 dias não alarma no primeiro dia', async () => {
+    semCreateTime()
+    const db = fakeSupabase({ yt_reporting_jobs: [linhaVelha('channel_basic_a3', { last_create_time: ha(20) })] })
+    const ctx = ctxDe(db)
+    await passoJobs(ctx)
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo', job_create_time: AGORA.toISOString() })
+
+    const criterios = { supabase: db.client, falhas: [] as string[], channels: ctx.channels }
+    await criteriosRelatorios(criterios)
+    expect(criterios.falhas).toEqual([])
+
+    // dia 5 depois da religação ainda é cedo; passados os 6 dias, sem relatório novo, alarma
+    vi.setSystemTime(new Date(AGORA.getTime() + 5 * DIA_MS))
+    const dia5 = { supabase: db.client, falhas: [] as string[], channels: ctx.channels }
+    await criteriosRelatorios(dia5)
+    expect(dia5.falhas).toEqual([])
+    vi.setSystemTime(new Date(AGORA.getTime() + 6.5 * DIA_MS))
+    const dia7 = { supabase: db.client, falhas: [] as string[], channels: ctx.channels }
+    await criteriosRelatorios(dia7)
+    expect(dia7.falhas).toContain(MSG)
+  })
+
+  it('o mesmo vale para linha em erro ou tipo_indisponivel que volta a ativo', async () => {
+    semCreateTime()
+    const db = fakeSupabase({ yt_reporting_jobs: [linhaVelha('channel_basic_a3', { status: 'erro' }), linhaVelha('channel_traffic_source_a3', { status: 'tipo_indisponivel' })] })
+    await passoJobs(ctxDe(db))
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo', job_create_time: AGORA.toISOString() })
+    expect(job(db, 'channel_traffic_source_a3')).toMatchObject({ status: 'ativo', job_create_time: AGORA.toISOString() })
+  })
+
+  it('com createTime na resposta, vale o da API', async () => {
+    const db = fakeSupabase({ yt_reporting_jobs: [linhaVelha('channel_basic_a3')] })
+    await passoJobs(ctxDe(db))
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ job_create_time: '2026-10-07T12:00:01Z' })
+  })
+
+  it('job que já estava ativo e continua sem createTime na API NÃO ganha data nova (o relógio do alarme não reinicia)', async () => {
+    semCreateTime()
+    api.jobsList.mockResolvedValue([{ id: 'job-channel_basic_a3', reportTypeId: 'channel_basic_a3' }])
+    const db = fakeSupabase({ yt_reporting_jobs: [linhaVelha('channel_basic_a3', { status: 'ativo', job_id: 'job-channel_basic_a3' })] })
+    await passoJobs(ctxDe(db))
+    expect(job(db, 'channel_basic_a3')).toMatchObject({ status: 'ativo', job_create_time: null, created_at: ha(10) })
   })
 })
