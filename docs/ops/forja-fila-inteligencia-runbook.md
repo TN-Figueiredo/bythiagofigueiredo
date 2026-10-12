@@ -33,8 +33,10 @@ próprio e o `python -B` sozinho abriu um REPL.
 | Sombras | `/opt/agente/sombra/<CANAL>-<AAAAMMDDThhmmss>.json` |
 | Pulso | `/opt/agente/docs/pulso.sh`, de hora em hora; bloco entre `# >>> fila_intel (F4)` e `# <<< fila_intel (F4)` |
 | Check | `URL_FILA` no healthchecks.io — **Simple, período 1 h, grace 45 min**. Separado do principal (`Forja — Agente`) de propósito: uma task reprovada não pode calar um proxy caído |
-| Chave no site | `pipeline_api_keys` com `name = 'forja (fila)'`, permissões `{read,intelligence}` |
+| Chave no site | `pipeline_api_keys` com `name = 'forja (fila)'`, permissões `{intelligence}` (medido em produção em 12/10/2026) |
 | Escopo da fase 2a | só **views e séries** — sem CTR, sem retenção, sem recomendação por vídeo |
+
+Desde a E19 da A5, chave sem `read` não lê as rotas de leitura do pipeline. A chave `forja (fila)` só passa nas rotas de `authenticateIntel` e em `GET youtube/channels`. A lista da fase 2 do `sitio.py` permite à fila as 13 rotas de leitura da fase 1, mas nenhum código as chama: um cartão futuro que as use com a chave da fila recebe 403; a leitura tem de ir com `SITIO_CHAVE` (a chave `{read}`).
 
 ### A linha viva do crontab
 

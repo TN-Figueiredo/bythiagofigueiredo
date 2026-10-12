@@ -10,6 +10,7 @@ describe('leitura-modo (valor publicado)', () => {
     expect(c.modo).toBe('aviso')
     expect(c.controleFechadoEm).toBeNull()
     expect(c.conferenciaAte).toBeNull()
+    expect(c.avisoDesde).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
   it('as ações e o recurso de leitura são os esperados', () => {
     expect(ACOES_DE_LEITURA).toEqual([ACAO_AVISO, ACAO_RECUSA])

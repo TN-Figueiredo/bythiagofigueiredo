@@ -60,6 +60,7 @@ vi.mock('@/lib/supabase/service', () => ({
 }))
 
 import { registrarLeitura, rotaNormalizada, diaSP, diasCorridos, zerarEstadoDoRegistro, ACAO_AVISO, ACAO_RECUSA, TETO_LINHAS_DIA, TETO_REGISTRO_MS } from '@/lib/pipeline/leitura-registro'
+import { TETO_LINHAS_DIA_DA_JANELA } from '@/lib/pipeline/leitura-janela'
 import type { PipelineAuth } from '@/lib/pipeline/auth'
 
 const AGORA = new Date('2026-10-14T15:00:00.000Z')   // 12:00 em São Paulo, 2º dia corrido
@@ -90,6 +91,9 @@ describe('rotaNormalizada, diaSP, diasCorridos', () => {
   it('o dia é o de São Paulo: 02:59 UTC ainda é o dia anterior', () => {
     expect(diaSP(new Date('2026-10-14T02:59:00Z'))).toBe('2026-10-13')
     expect(diaSP(new Date('2026-10-14T03:00:00Z'))).toBe('2026-10-14')
+  })
+  it('o teto que a janela usa para marcar o dia é o mesmo do registrador', () => {
+    expect(TETO_LINHAS_DIA_DA_JANELA).toBe(TETO_LINHAS_DIA)
   })
   it('o dia do deploy é o dia 1', () => {
     expect(diasCorridos('2026-10-13', '2026-10-13')).toBe(1)
