@@ -233,14 +233,18 @@ beforeEach(() => { window.history.replaceState(null, '', '/cms/youtube/competito
 afterEach(() => { cleanup(); vi.restoreAllMocks(); document.getElementById('flut')?.remove() })
 
 describe('14 tela: o cartão na comparação', () => {
-  it('canal seu × concorrente: o cartão fica logo abaixo dos dois lados e antes de "Número a número"', () => {
+  it('canal seu × concorrente: o cartão fica no fim da página, DEPOIS de "Número a número" (decisão do dono, 12/10; antes ficava logo abaixo dos dois lados)', () => {
     wrap(pacote(DADOS_TELA()), 'eu', 'c1')
     const [c] = cartoes()
     expect(cartoes()).toHaveLength(1)
     const lados = document.querySelector('.cp-sides')!
     const tabela = screen.getByRole('heading', { name: /Número a número/ }).closest('section')!
     expect(lados.compareDocumentPosition(c!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(c!.compareDocumentPosition(tabela) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(tabela.compareDocumentPosition(c!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // e também depois do resto da comparação: os mais vistos e a publicação vêm antes do cartão
+    for (const t of [/Os 5 vídeos mais vistos/, /Publicação nos últimos 90 dias/]) {
+      expect(screen.getByRole('heading', { name: t }).closest('section')!.compareDocumentPosition(c!) & Node.DOCUMENT_POSITION_FOLLOWING, String(t)).toBeTruthy()
+    }
     expect(within(c!).getByRole('heading', { level: 2, name: /Só o seu canal mede/ })).toBeTruthy()
     // a frase, com o trecho em negrito
     expect(c!.textContent).toContain('Impressões, taxa de clique e % assistido só chegam ao dono do canal. Leo Khev não tem esses números aqui porque o YouTube não os entrega, não porque sejam zero.')
@@ -299,6 +303,9 @@ describe('14 tela: o cartão na comparação', () => {
     expect(within(cs[0]!).getByRole('heading', { level: 2 }).textContent).toContain('tnFigueiredo')
     expect(within(cs[1]!).getByRole('heading', { level: 2 }).textContent).toContain('Thiago Figueiredo')
     for (const c of cs) expect(c.querySelector('.so-lead')!.textContent).toBe('Impressões, taxa de clique e % assistido só chegam ao dono do canal.')
+    // os dois no fim, na ordem dos lados, depois de "Número a número"
+    const tabela = screen.getByRole('heading', { name: /Número a número/ }).closest('section')!
+    for (const c of cs) expect(tabela.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('o ⓘ "De onde vêm estes números" abre a explicação na camada única (#flut), fora da tela', () => {
