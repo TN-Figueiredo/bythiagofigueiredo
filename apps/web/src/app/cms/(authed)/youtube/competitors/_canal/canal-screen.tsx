@@ -34,7 +34,7 @@ import { useCanalState } from './use-canal-state'
 import { aposRestaurar, pararRestauracao, useRolagemAoVoltar } from './use-rolagem-ao-voltar'
 import { precisaTrazer } from './cartao-a-vista'
 import { PinMessages } from './video-menu'
-import type { ChannelVideoView } from './videos-model'
+import type { CanalVideosView, ChannelVideoView } from './videos-model'
 import type { CanalView } from './view-model'
 import './canal.css'
 
@@ -48,7 +48,7 @@ export interface CanalActions {
 }
 
 /** Acha um elemento da tela pelo id, a partir da raiz DESTA tela: depois de um Voltar o Next 16 mantém a cópia escondida da rota no documento, com os mesmos ids, e `document.getElementById` devolve a primeira na ordem do documento. */
-function porId(raiz: RefObject<HTMLElement | null>, id: string): HTMLElement | null {
+export function porId(raiz: RefObject<HTMLElement | null>, id: string): HTMLElement | null {
   return raiz.current?.querySelector<HTMLElement>(`[id="${id}"]`) ?? null
 }
 
@@ -129,13 +129,18 @@ function AbasNav({ view, state, resumo, onAba }: { view: CanalView; state: Canal
   )
 }
 
-/** A aba Vídeos: controles, a vista (grade de capas ou tabela), "Carregar mais" e a nota fixa. */
-function AbaVideos({ view, state, lista, set, nome, channelId, onSync, onAmpliar, raiz }: {
-  view: CanalView; state: CanalState; lista: ListaView; set: (patch: Partial<CanalState>) => void; nome: string; channelId: string; onSync: () => void
+/**
+ * A aba Vídeos: controles, a vista (grade de capas ou tabela), "Carregar mais" e a nota fixa. Serve também ao canal próprio (`proprio`: ordenação por
+ * impressões, formato sem Fixados, colunas de alcance; o cartão e a linha escolhem as colunas pelo dado). `onSync` ausente = sem o botão de sincronizar
+ * (o canal próprio sincroniza pelo Painel).
+ */
+export function AbaVideos({ videos, state, lista, set, nome, channelId, onSync, onAmpliar, raiz, proprio = false }: {
+  videos: CanalVideosView; state: CanalState; lista: ListaView; set: (patch: Partial<CanalState>) => void; nome: string; channelId: string; onSync?: () => void
   onAmpliar: (v: ChannelVideoView, trigger: HTMLElement | null) => void
   raiz: RefObject<HTMLElement | null>
+  proprio?: boolean
 }) {
-  const all = view.videos.videos
+  const all = videos.videos
   const listaRef = useRef(lista)
   useEffect(() => { listaRef.current = lista })
 
@@ -245,13 +250,13 @@ function AbaVideos({ view, state, lista, set, nome, channelId, onSync, onAmpliar
       <p className="obs-ch-sr cv-status" role="status" aria-atomic="true">{msg}</p>
       {temControles ? (
         <>
-          <Controles state={state} counts={lista.counts} barRef={barRef} inputRef={inputRef}
+          <Controles state={state} counts={lista.counts} barRef={barRef} inputRef={inputRef} proprio={proprio}
             onFmt={onFmt} onSort={onSort} onQ={onQ} onClearQ={onClearQ} onVer={onVer} />
           <PinMessages />
           {lista.secoes.length ? <a className="lk cv-skip" href="#cv-fim" onClick={e => { e.preventDefault(); porId(raiz, 'cv-fim')?.focus() }}>Pular a lista de vídeos</a> : null}
           {lista.secoes.length
             ? state.ver === 'lista'
-              ? <Tabela lista={lista} state={state} nome={nome} descrito="cv-foot" hrefDe={hrefs} onSort={onColuna} onAmpliar={onAmpliar} onTrocas={verTrocas} />
+              ? <Tabela lista={lista} state={state} nome={nome} descrito="cv-foot" hrefDe={hrefs} onSort={onColuna} onAmpliar={onAmpliar} onTrocas={verTrocas} proprio={proprio} />
               : <Grade lista={lista} sort={state.sort} nome={nome} hrefDe={hrefs} onAmpliar={onAmpliar} onTrocas={verTrocas} />
             : null}
           <div id="cv-fim" tabIndex={-1} />
@@ -267,12 +272,12 @@ function AbaVideos({ view, state, lista, set, nome, channelId, onSync, onAmpliar
             </div>
           ) : null}
           {lista.mais ? <CarregarMais mais={lista.mais} onMais={onMais} /> : null}
-          <p className="cv-foot" id="cv-foot">{view.videos.nota}</p>
+          <p className="cv-foot" id="cv-foot">{videos.nota}</p>
         </>
       ) : (
         <div className="cv-empty">
-          <p>{view.videos.semVideos}</p>
-          <button type="button" className="obs-ch-btn" onClick={onSync}>Sincronizar só este canal</button>
+          <p>{videos.semVideos}</p>
+          {onSync ? <button type="button" className="obs-ch-btn" onClick={onSync}>Sincronizar só este canal</button> : null}
         </div>
       )}
     </section>
@@ -286,7 +291,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
 }) {
   const router = useRouter(), toast = useToast()
   const h = view.header
-  const [state, set] = useCanalState(view.state)
+  const [state, set] = useCanalState(view.state, false)
   const raiz = useRef<HTMLDivElement>(null)
   const todos = view.videos.videos
   /* O visualizador de thumbnail (spec 6.3, gatilhos 5 e 6). Se o gatilho sumir com o diálogo aberto (a aba mudou, a lista mudou), o foco vai ao
@@ -333,7 +338,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
     if (!reg) return
     esquecerUltimoVideo(h.id)
     const id = reg.id
-    const atual = parseCanalState(Object.fromEntries(new URLSearchParams(window.location.search)))
+    const atual = parseCanalState(Object.fromEntries(new URLSearchParams(window.location.search)), { own: false })
     if (atual.tab === 'trocas') { focarUltimo({ reg, tab: 'trocas' }); return }
     if (atual.tab !== 'videos') return
     let n = atual.n
@@ -468,7 +473,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
           <AbasNav view={view} state={state} resumo={resumo} onAba={irParaAba} />
           {h.sync.banner ? <Banner text={h.sync.banner} tone={h.sync.tone} /> : null}
           <PinProvider onPin={actions.onPin} onUnpin={actions.onUnpin}>
-            <AbaVideos view={view} state={state} lista={lista} set={setAba} nome={h.name} channelId={h.id} onSync={() => { void syncOne() }} onAmpliar={ampliarVideo} raiz={raiz} />
+            <AbaVideos videos={view.videos} state={state} lista={lista} set={setAba} nome={h.name} channelId={h.id} onSync={() => { void syncOne() }} onAmpliar={ampliarVideo} raiz={raiz} />
           </PinProvider>
           {state.tab === 'trocas' ? (
             <Trocas view={view.trocas} filtro={filtroTrocas ? { id: filtroTrocas.id, title: filtroTrocas.title } : null} hrefTodas={hrefTodasTrocas}

@@ -7,6 +7,8 @@
  */
 import Link from 'next/link'
 import type { CanalSort } from '@/lib/youtube/observatorio/links'
+import { ehProprio } from '../_proprio/eh-proprio'
+import type { ProprioVideoView } from '../_proprio/videos-model'
 import type { ChannelVideoView } from './videos-model'
 import { VideoMenu } from './video-menu'
 
@@ -23,7 +25,31 @@ function Nd({ rotulo }: { rotulo: string }) {
   return <span className="cv-c nd"><span className="obs-ch-sr">{rotulo}: </span><span className="obs-ch-nm">não medido</span> <i aria-hidden="true">{rotulo}</i></span>
 }
 
+/**
+ * Canal próprio (spec 16.4): três colunas, views, impressões e múltiplo (o do motor). Impressão ausente diz a palavra curta do motivo em
+ * `.obs-ch-nm` (nunca 0). A terceira linha diz o que as impressões permitem afirmar (a contagem de cliques, sem corte e sem percentual); sem
+ * leitura do alcance ela não existe (o motivo mora uma vez, na nota sob a grade).
+ */
+function NumerosProprios({ v, sort }: { v: ProprioVideoView; sort: CanalSort }) {
+  const views = v.viewsText == null
+    ? <span className="cv-c nd"><span className="obs-ch-sr">views: </span><span className="obs-ch-nm">{v.viewsMissing}</span> <i aria-hidden="true">views</i></span>
+    : <Cell valor={v.viewsText} rotulo="views" on={sort === 'vistos'} />
+  const imp = v.impText != null
+    ? <Cell valor={v.impText} rotulo={v.imp === 1 ? 'impressão' : 'impressões'} on={sort === 'imp'} />
+    : <span className="cv-c nd"><span className="obs-ch-sr">impressões: </span><span className="obs-ch-nm">{v.impMissing}</span> <i aria-hidden="true">impressões</i></span>
+  const mult = v.multText != null
+    ? <Cell valor={v.multText} rotulo={v.multWord ?? 'múltiplo'} on={sort === 'multiplo'} tier={v.multTier} sr={v.multWord ? ' (múltiplo)' : undefined} />
+    : <Nd rotulo="múltiplo" />
+  return (
+    <>
+      <p className="cv-nums cv-nums3">{views}{imp}{mult}</p>
+      {v.terceira ? <p className="cv-n3">{v.terceira}</p> : null}
+    </>
+  )
+}
+
 function Numeros({ v, sort }: { v: ChannelVideoView; sort: CanalSort }) {
+  if (ehProprio(v)) return <NumerosProprios v={v} sort={sort} />
   if (v.viewsText == null) {
     return <p className="cv-nums"><span className="cv-c s3 txt"><span className="obs-ch-nm">{v.viewsMissing}</span></span></p>
   }

@@ -347,8 +347,9 @@ describe('CanaisScreen — concorrente leva à página do canal', () => {
     expect(within(row).queryByRole('link', { name: /^Abrir a página de/ })).toBeNull()
     expect(row.querySelector('a[data-avatar-link]')).toBeNull()
     await user.click(within(row).getByRole('button', { name: 'Abrir detalhes de tnFigueiredo' }))
-    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?channel=tnfigueiredo', { scroll: false })
-    expect(push).not.toHaveBeenCalled()
+    // A4: o canal próprio tem página e o servidor manda o painel para ela; o pedido é um PUSH para o Voltar da página voltar à lista
+    expect(push).toHaveBeenCalledWith('/cms/youtube/competitors?channel=tnfigueiredo', { scroll: false })
+    expect(replace).not.toHaveBeenCalled()
   })
   it('o "?" dos inscritos e o menu da linha continuam na linha do concorrente', () => {
     mount()

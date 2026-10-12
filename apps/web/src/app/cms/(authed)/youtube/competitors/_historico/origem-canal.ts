@@ -39,7 +39,7 @@ export function origemDoCanal(back: string | null, canalNome: string): { of: str
   if (back == null || (back !== '' && !back.startsWith('?'))) return null
   const qs = new URLSearchParams(back.slice(1))
   if (!valido(qs.get('tab'), ABAS) || !valido(qs.get('fmt'), FMTS) || !valido(qs.get('sort'), SORTS) || !valido(qs.get('dir'), DIRS)) return null
-  const s = parseCanalState(Object.fromEntries(qs))
+  const s = parseCanalState(Object.fromEntries(qs), { own: false })
   if (s.tab === 'trocas') {
     const d = `trocas de ${canalNome} (${TROCAS})`
     return { of: 'com ' + d, outside: 'fora da lista de vídeos com ' + d }

@@ -52,7 +52,8 @@ describe('Canais · immediate feedback', () => {
     const user = userEvent.setup()
     const r = render(tree())
     await user.click(screen.getByRole('button', { name: 'Abrir detalhes de tnFigueiredo' }))
-    expect(replace).toHaveBeenCalledWith('/cms/youtube/competitors?channel=tnfigueiredo', { scroll: false })
+    // A4: o canal próprio tem página, e o servidor manda o painel para ela; o pedido é um PUSH (o Voltar da página volta à lista, não a antes dela)
+    expect(push).toHaveBeenCalledWith('/cms/youtube/competitors?channel=tnfigueiredo', { scroll: false })
     const d = drawerEl()!
     expect(d).not.toBeNull()
     expect(d).toHaveAttribute('data-drawer', 'tnfigueiredo')

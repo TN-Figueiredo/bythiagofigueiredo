@@ -13,9 +13,16 @@ import { VideoCard } from './video-card'
 export function notaDoDivisor(d: Divisor, sort: CanalSort): string {
   if (d.key === 'antigos') return 'a contagem de views deles é antiga; não há views por dia, e o múltiplo é o de quando foram contados'
   if (d.key === 'sem-data') return 'o YouTube não devolveu a data; ficam no fim em qualquer ordenação'
-  if (sort === 'vistos') return 'o YouTube ainda não devolveu a contagem'
-  if (sort === 'multiplo') return 'formato não confirmado, fixado antigo ou sem contagem'
-  return 'fora dos acompanhados, fixado antigo ou sem contagem'
+  // um `switch` exaustivo: uma ordenação nova não compila sem a frase do seu divisor (a de impressões já ficou com a frase dos concorrentes, falsa)
+  switch (sort) {
+    case 'vistos': return 'o YouTube ainda não devolveu a contagem'
+    case 'multiplo': return 'formato não confirmado, fixado antigo ou sem contagem'
+    // canal próprio: o vídeo que não aparece no relatório de alcance E o alcance que não pôde ser lido caem aqui (o motivo de cada caso está na nota sob a grade)
+    case 'imp': return 'o vídeo não apareceu nos relatórios de alcance lidos, ou o alcance do canal não pôde ser lido'
+    case 'recentes':
+    case 'vpd': return 'fora dos acompanhados, fixado antigo ou sem contagem'
+    default: { const nunca: never = sort; return nunca }
+  }
 }
 
 export function Grade({ lista, sort, nome, hrefDe, onAmpliar, onTrocas }: {

@@ -34,9 +34,13 @@ function pick<T extends string>(list: readonly T[], v: string | undefined, fallb
   return list.find(x => x === v) ?? fallback
 }
 
-/** `own`: a página do canal próprio. 'imp' e 'retencao' só valem com ele; 'fixados' e 'vpd' só sem ele; o que não vale cai no padrão. */
-export function parseCanalState(sp: Record<string, string | undefined>, opts: { own?: boolean } = {}): CanalState {
-  const own = opts.own === true
+/**
+ * `own`: a página do canal próprio. 'imp' e 'retencao' só valem com ele; 'fixados' e 'vpd' só sem ele; o que não vale cai no padrão.
+ * É OBRIGATÓRIO no tipo: quem lê a URL sem dizer de que página fala voltaria `?sort=imp&tab=retencao` ao padrão em silêncio (o hook
+ * que ressincroniza a URL no navegador era o caso). O tsc acusa o próximo esquecimento; em execução, sem o argumento vale "concorrente".
+ */
+export function parseCanalState(sp: Record<string, string | undefined>, opts: { own: boolean }): CanalState {
+  const own = opts?.own === true
   const tab = pick(own ? TABS_PROPRIO : TABS, sp.tab, CANAL_DEFAULT.tab)
   const nRaw = Number(sp.n)
   const n = Number.isFinite(nRaw) ? Math.min(100000, Math.max(0, Math.floor(nRaw / LOTE) * LOTE)) : 0

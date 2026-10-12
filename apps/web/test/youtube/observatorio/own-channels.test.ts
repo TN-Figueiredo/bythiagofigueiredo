@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { langChip, listPt, ownTexts } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-channels'
+import { link } from '@/lib/youtube/observatorio/links'
+import { langChip, listPt, ownChannelHref, ownTexts } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-channels'
 
 describe('own-channels (textos e marcas dos canais próprios)', () => {
   it('ownTexts: um canal próprio (ou nenhum) fala no singular', () => {
@@ -34,5 +35,9 @@ describe('own-channels (textos e marcas dos canais próprios)', () => {
     expect(listPt(['A', 'B'])).toBe('A e B')
     expect(listPt(['A', 'B', 'C'])).toBe('A, B e C')
     expect(listPt(['A', 'B', 'C', 'D'])).toBe('A, B, C e D')
+  })
+  it('A4: ownChannelHref(id) devolve a PÁGINA do canal (antes, o painel lateral de Canais)', () => {
+    expect(ownChannelHref('abc')).toBe(link.canal('abc'))
+    expect(ownChannelHref('abc')).not.toContain('channel=')
   })
 })
