@@ -22,6 +22,7 @@ import { useThumbViewer } from '../_chrome/thumb-viewer/thumb-viewer'
 import { viewerSoAtual } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 import { chegouPelaTrilha, esquecerUltimoVideo, lerUltimoVideo } from '../_chrome/ultimo-video'
 import { ProprioHeader } from './proprio-header'
+import { Retencao } from './retencao'
 import type { ProprioView } from './view-model'
 import '../_canal/canal.css'
 import './proprio.css'
@@ -169,7 +170,8 @@ export function ProprioScreen({ view, comoEsta }: { view: ProprioView; comoEsta?
       {comoEsta ?? null}
       <Abas view={view} state={state} resumo={resumo} onAba={irParaAba} />
       <AbaVideos videos={view.videos} state={state} lista={lista} set={setAba} nome={h.name} channelId={h.id} onAmpliar={ampliarVideo} raiz={raiz} proprio />
-      {state.tab !== 'videos' ? (
+      {state.tab === 'retencao' ? <Retencao view={view.retencao} /> : null}
+      {state.tab === 'trocas' || state.tab === 'leitura' ? (
         <AbaSemConteudo id="pr-h2" titulo={TITULOS[state.tab]} frase={view.abas[state.tab]} nota={view.abasNota[state.tab]} />
       ) : null}
       {viewerNode}

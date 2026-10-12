@@ -126,13 +126,12 @@ describe('T8 abas: Vídeos, Trocas, Leitura e Retenção', () => {
     expect(raiz().querySelector('nav.ctabs a[aria-current="page"]')!.textContent).toMatch(/^Vídeos/)
   })
 
-  it('cada aba vazia diz a frase do spec 16.4 (sem "lote" nem "L3") e a nota; a aba Vídeos some', async () => {
+  it('cada aba vazia diz a frase do spec 16.4 (sem "lote" nem "L3") e a nota; a aba Vídeos some (13.3: a Retenção tem conteúdo e o seu teste é proprio-retencao-tela)', async () => {
     const user = userEvent.setup()
     mountProprio()
-    const casos: Array<['Trocas' | 'Leitura' | 'Retenção', keyof typeof ABAS_PROPRIO, string]> = [
+    const casos: Array<['Trocas' | 'Leitura', keyof typeof ABAS_PROPRIO, string]> = [
       ['Trocas', 'trocas', 'Trocas dos seus vídeos ainda não são lidas nesta tela.'],
       ['Leitura', 'leitura', 'A leitura da forja para o seu canal ainda não existe.'],
-      ['Retenção', 'retencao', 'Retenção ainda não coletada.'],
     ]
     for (const [nome, chave, frase] of casos) {
       await user.click(tabs().getByRole('link', { name: nome }))
@@ -144,7 +143,7 @@ describe('T8 abas: Vídeos, Trocas, Leitura e Retenção', () => {
       expect(raiz().querySelector('ul.cv-grid, table.cv-lst')).toBeNull()
       expect(tabs().getByRole('link', { name: nome }).getAttribute('aria-current')).toBe('page')
     }
-    expect(urlAtual().get('tab')).toBe('retencao')
+    expect(urlAtual().get('tab')).toBe('leitura')
   })
 
   it('a aba é navegação do navegador: o clique simples troca no cliente (push do histórico), o Ctrl+clique segue o link', async () => {

@@ -1,0 +1,58 @@
+/* A aba Retenção = "% assistido" (A4 13.3; mockup 5 de 12/10, a4.css .tb/.mini/.cmp/.rcards). Tudo preso a [data-obs-screen="canal"][data-own="1"].
+   Verde (--dir-up) = acima do normal, âmbar (--dir-dn, ocre no claro) = abaixo, cinza (--dir-eq) = na média: SÓ direção, sempre com sinal (+ − =) e palavra.
+   A cor do dado do seu canal é --lado-o (a barra). Hex e rgba por token; nenhum color-mix, nenhum z-index numérico, texto de 12 px ou mais,
+   alvo de toque de 44 px em pointer:coarse, e a 700 px a tabela de vídeos vira cartões (sem rolagem lateral a 390 px). */
+[data-obs-screen="canal"][data-own="1"] .ret{margin-top:14px;min-width:0}
+[data-obs-screen="canal"][data-own="1"] .ret .ct-h2{display:flex;align-items:center;gap:4px;margin:0}
+[data-obs-screen="canal"][data-own="1"] .ret-info{width:24px;height:24px;border:0;background:none;padding:0;cursor:pointer;display:inline-grid;place-items:center;color:var(--muted);border-radius:50%}
+[data-obs-screen="canal"][data-own="1"] .ret-info:hover{color:var(--text)}
+[data-obs-screen="canal"][data-own="1"] .ret-info:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[data-obs-screen="canal"][data-own="1"] .ret-info svg{width:16px;height:16px}
+[data-obs-screen="canal"][data-own="1"] .ret-nota{margin:4px 0 0;font:400 13px/19px var(--font-sans),system-ui,sans-serif;color:var(--muted);max-width:92ch}
+[data-obs-screen="canal"][data-own="1"] .ret-lead{margin:12px 0 8px;font:400 14px/21px var(--font-sans),system-ui,sans-serif;max-width:88ch}
+[data-obs-screen="canal"][data-own="1"] .ret-lead b{font-weight:600}
+[data-obs-screen="canal"][data-own="1"] .ret-sempct{margin:0 0 8px;font:400 13px/19px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
+[data-obs-screen="canal"][data-own="1"] .ret-vazio{margin-top:10px;border:1px solid var(--border-strong);border-radius:8px;padding:10px 12px;max-width:760px;font:400 13px/19px var(--font-sans),system-ui,sans-serif}
+[data-obs-screen="canal"][data-own="1"] .ret-vazio p{margin:0}
+[data-obs-screen="canal"][data-own="1"] .ret .tbw{margin-top:8px;max-width:100%;overflow-x:auto}
+[data-obs-screen="canal"][data-own="1"] .ret .tb{width:100%;border-collapse:collapse;font:400 13px/18px var(--font-sans),system-ui,sans-serif}
+[data-obs-screen="canal"][data-own="1"] .ret .tb th,[data-obs-screen="canal"][data-own="1"] .ret .tb td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-subtle);vertical-align:middle}
+[data-obs-screen="canal"][data-own="1"] .ret .tb thead th{color:var(--muted);font-weight:500;font-size:12.5px;border-bottom-color:var(--border)}
+[data-obs-screen="canal"][data-own="1"] .ret .tb tbody th{font-weight:500}
+[data-obs-screen="canal"][data-own="1"] .ret .tb td.r,[data-obs-screen="canal"][data-own="1"] .ret .tb th.r{text-align:right}
+[data-obs-screen="canal"][data-own="1"] .ret .tb tr.alvo td,[data-obs-screen="canal"][data-own="1"] .ret .tb tr.alvo th{background:var(--accent-subtle)}
+[data-obs-screen="canal"][data-own="1"] .ret .tb tr.alvo td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+[data-obs-screen="canal"][data-own="1"] .ret .lk{color:var(--text);text-decoration:underline;text-decoration-color:var(--dim);text-underline-offset:3px}
+[data-obs-screen="canal"][data-own="1"] .ret .mut{color:var(--muted)}
+
+/* a barra do % assistido: o que o vídeo assistiu (laranja do seu canal) e a marca do normal da faixa. Passa de 100%: barra cheia e uma seta no fim */
+[data-obs-screen="canal"][data-own="1"] .mini{display:inline-block;width:110px;height:8px;border-radius:4px;background:var(--sunk);border:1px solid var(--border-strong);position:relative;vertical-align:middle;margin-right:8px;box-sizing:content-box}
+[data-obs-screen="canal"][data-own="1"] .mini i{position:absolute;left:0;top:0;bottom:0;background:var(--lado-o);border-radius:3px}
+[data-obs-screen="canal"][data-own="1"] .mini s{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--text);text-decoration:none}
+[data-obs-screen="canal"][data-own="1"] .mini.over{margin-right:14px}
+[data-obs-screen="canal"][data-own="1"] .mini.over::after{content:"";position:absolute;right:-12px;top:50%;margin-top:-5px;border-left:7px solid var(--lado-o);border-top:5px solid transparent;border-bottom:5px solid transparent}
+
+/* contra a faixa: sinal e palavra juntos, a cor só reforça */
+[data-obs-screen="canal"][data-own="1"] .cmp{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+[data-obs-screen="canal"][data-own="1"] .cmp .pt{font-family:var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;white-space:nowrap}
+[data-obs-screen="canal"][data-own="1"] .cmp .w{font-weight:500;color:var(--text)}
+[data-obs-screen="canal"][data-own="1"] .cmp.up .pt{color:var(--dir-up)}
+[data-obs-screen="canal"][data-own="1"] .cmp.dn .pt{color:var(--dir-dn)}
+[data-obs-screen="canal"][data-own="1"] .cmp.eq .pt{color:var(--dir-eq)}
+
+/* cartões (390 px) */
+[data-obs-screen="canal"][data-own="1"] .rcards{display:none;list-style:none;margin:10px 0 0;padding:0;gap:10px}
+[data-obs-screen="canal"][data-own="1"] .rcard{border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:10px 12px;display:grid;gap:6px;min-width:0}
+[data-obs-screen="canal"][data-own="1"] .rcard.alvo{border-left:3px solid var(--accent)}
+[data-obs-screen="canal"][data-own="1"] .rcard a{display:block;font:500 13.5px/18px var(--font-sans),system-ui,sans-serif;text-decoration:none;color:var(--text);padding:13px 0;margin:-13px 0;overflow-wrap:anywhere}
+[data-obs-screen="canal"][data-own="1"] .rcard .l2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font:400 12.5px/18px var(--font-sans),system-ui,sans-serif;color:var(--muted)}
+[data-obs-screen="canal"][data-own="1"] .rleg{font:400 12.5px/18px var(--font-sans),system-ui,sans-serif;color:var(--muted);margin:8px 0 0;display:flex;flex-wrap:wrap;gap:4px 16px}
+[data-obs-screen="canal"][data-own="1"] .rleg>span{display:inline-flex;align-items:center;gap:6px}
+@media (max-width:700px){
+  [data-obs-screen="canal"][data-own="1"] .ret .tbw.rt{display:none}
+  [data-obs-screen="canal"][data-own="1"] .rcards{display:grid}
+}
+@media (pointer:coarse){
+  [data-obs-screen="canal"][data-own="1"] .ret-info{width:44px;height:44px}
+  [data-obs-screen="canal"][data-own="1"] .ret .tb a.lk{display:inline-flex;align-items:center;min-height:44px}
+}

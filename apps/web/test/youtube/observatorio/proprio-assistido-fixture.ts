@@ -34,3 +34,15 @@ export function ultimoVideoHa(dias: number): (ds: import('@/lib/youtube/observat
     for (const v of vs) { v.pub -= delta * DIA_MS; v.ageDays += delta }
   }
 }
+
+/**
+ * Mutação do dataset: dá a duração (em segundos) aos longos acompanhados do primeiro canal próprio, na ordem de `longosAcompanhados` (mais novo primeiro).
+ * `duracoes[i]` vale para o i-ésimo longo; os que passam do fim da lista ficam SEM duração (null).
+ */
+export function duracoesDosLongos(duracoes: readonly number[]): (ds: import('@/lib/youtube/observatorio/types').Dataset) => void {
+  return ds => {
+    const id = ds.channels.find(c => c.own)!.id
+    const longos = ds.videos.filter(v => v.ch === id && v.tracked && v.fmt === 'long').sort((a, b) => b.pub - a.pub || (a.ytId < b.ytId ? -1 : 1))
+    longos.forEach((v, i) => { v.dur = duracoes[i] ?? null })
+  }
+}
