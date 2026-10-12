@@ -13,6 +13,8 @@ export interface PipelineAuth {
   keyHash?: string
   /** pipeline_api_keys.id — set only when source === 'api_key'. */
   keyId?: string
+  /** pipeline_api_keys.name — só para o registro de leitura (E19). Nunca a chave. */
+  keyName?: string | null
 }
 
 const rateLimitMap = new Map<string, { count: number; window_start: number }>()
