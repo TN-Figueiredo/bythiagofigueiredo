@@ -5,6 +5,9 @@ export type Precision = 'min' | '6h' | '1d'
 export type SyncState = 'ok' | 'atrasado' | 'erro' | 'backfill'
 
 export interface SeriesPoint { idx: number; t: number; views: number }
+export type SeriesTier = 'diaria' | 'semanal'
+/** Dias (índices de dia do motor, inclusive) em que o vídeo esteve numa faixa. `to` null = em vigor. */
+export interface TierSpan { from: number; to: number | null; tier: SeriesTier }
 interface VersionBase { id: string; first_seen: number; last_seen: number; current: boolean; prec: Precision | 'first' | null; window: [number, number] | null; F?: number }
 export interface ThumbArt { text: string; bg: string; fg: string; face: string; ink: string }
 export interface TitleVersion extends VersionBase { text: string }
@@ -43,6 +46,16 @@ export interface ObsVideo {
   series: SeriesPoint[]; firstIdx: number | null
   /** The daily read was cut by the lookback cap (ds.dailyCappedFrom): the series does NOT start at publication, so no day-0 baseline may be assumed. */
   truncated?: boolean
+  /** A5 (E2). competitor_videos.series_tier. Ausente = ainda não classificado, conjunto antigo, ou canal próprio. */
+  tier?: SeriesTier | null
+  /** A5 (E2). A faixa no tempo (competitor_video_tier_spans). Ausente ou vazio = nenhuma gravada: o vídeo NUNCA tem intervalo semanal. */
+  tierSpans?: TierSpan[]
+  /**
+   * A5 (E2). Os pontos guardados de um vídeo que NÃO é observado (fora dos N mais recentes e não fixado): semanais, ou os
+   * diários de um vídeo promovido ou de até 30 dias. `series` continua vazia para ele: tudo o que as telas leem hoje fica
+   * igual. Quem lê é series.ts (weeklyRate) e o motivo do efeito; as telas, só na E5.
+   */
+  unobservedSeries?: SeriesPoint[]
   titles: TitleVersion[]; thumbs: ThumbVersion[]; descs: DescVersion[]
 }
 export interface ChannelSnapshot { t: number; date: string; subs: number; views: number }
@@ -67,6 +80,8 @@ export interface ObsChannel {
   lastIdx: number | null; snapshots: ChannelSnapshot[]
   /** Derived by the engine (Task 17). */
   statusLabel?: string; syncAgeHours?: number
+  /** A5 (E2). A série dos não observados não coube no pacote em cache e ficou de fora (pack.ts). */
+  weeklyOmitted?: boolean
 }
 /** A video of the data a reading was made from (dados.js:937 baseAt), frozen with the reading. */
 export interface ReadingBaseVideo { id: string; ch: string; title: string; theme: string | null; formulas: string[]; mult: number; weak: boolean; method?: string | null; n?: number }

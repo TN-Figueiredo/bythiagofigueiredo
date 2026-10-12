@@ -3,7 +3,7 @@ import { isCertainShort } from '@/lib/youtube/short-classifier'
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ReadingBase, ReadingEffect, ForjaRequest, ChannelSnapshot, UndatedVideo } from './types'
+import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ReadingBase, ReadingEffect, ForjaRequest, ChannelSnapshot, UndatedVideo, SeriesTier, TierSpan } from './types'
 import { DAY, H, spDayStart, spDateStart, spDateOf } from './time'
 import { RULES } from './rules'
 import { formulasOf, THEME } from './catalog'
@@ -27,7 +27,11 @@ export interface VideoRow {
   tags: string[] | null; thumbnail_url: string | null
   /** Optional in the type so a row built without it reads as "not pinned"; the DB read always selects it. */
   pinned_at?: string | null
+  /** A5 (E2). competitor_videos.series_tier; ausente = ainda não classificado. */
+  series_tier?: string | null
 }
+/** A5 (E2). Uma faixa no tempo de um vídeo (competitor_video_tier_spans). */
+export interface SpanRow { video_id: string; from_date: string; to_date: string | null; tier: string }
 export interface OwnVideoRow {
   id: string; channel_id: string; youtube_video_id: string; title: string; view_count: number; like_count: number; comment_count: number
   duration_seconds: number; published_at: string; updated_at: string; tags: string[]
@@ -64,6 +68,10 @@ export interface ObservatoryRows {
   readings: ReadingRow[]; tasks: TaskRow[]; heartbeat: HeartbeatRow | null
   /** Os nichos do site (youtube_niches). null / ausente = a tabela ainda não existe neste banco: valem os dois de fábrica. */
   niches?: NicheRow[] | null
+  /** As faixas no tempo. Ausente = nenhuma lida. */
+  spans?: SpanRow[]
+  /** Canais cujo pacote ficou sem a série dos não observados. */
+  weeklyOmitted?: string[]
   /**
    * Present only when `channels` holds ONE channel of the site (loadChannelLiveRows): the values that belong to the whole
    * site and cannot be derived from the rows at hand. When present they win over what would be derived from `channels`
@@ -239,6 +247,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   const dailyBy = groupBy(rows.daily, d => d.video_id)
   const videosBy = groupBy(rows.videos, v => v.competitor_channel_id)
   const snapsBy = groupBy(rows.snapshots, s => s.competitor_channel_id)
+  const spansBy = groupBy(rows.spans ?? [], s => s.video_id), omitted = new Set(rows.weeklyOmitted ?? [])
   const channels: ObsChannel[] = [], videos: ObsVideo[] = []
 
   // the order the channels were added (dados.js lists them so; every per-channel list follows it), never the uuid
@@ -268,12 +277,20 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       // the instant of a record is its real taken_at (any rate / elapsed-time math needs it: a read at 14:40 is not a
       // read at 12:00). The nominal 12:00 SP of the snap_date is only the day label and the fallback for a row without a
       // usable taken_at (missing, unparseable, or outside its own SP day).
-      const series: SeriesPoint[] = (dailyBy.get(v.id) ?? []).map(d => {
+      const observed = k < nTracked || v.pinned_at != null // o mesmo que isObserved: acompanhado ou fixado
+      const points: SeriesPoint[] = (dailyBy.get(v.id) ?? []).map(d => {
         const idx = dayIndex(d.snap_date), nominal = snap0 + idx * DAY
         return { idx, t: realReadAt(d, spDateStart(d.snap_date)) ?? nominal, views: Number(d.views) }
       })
         .sort((a, b) => a.idx - b.idx)
+      // Só o vídeo observado tem `series` (como sempre). Os pontos dos outros vão para um campo à parte: nada que as telas leem muda.
+      const series: SeriesPoint[] = observed ? points : []
       for (const p of series) if (lastIdx == null || p.idx > lastIdx) lastIdx = p.idx
+      const tier: SeriesTier | null = v.series_tier === 'diaria' || v.series_tier === 'semanal' ? v.series_tier : null
+      const tierSpans: TierSpan[] = (spansBy.get(v.id) ?? [])
+        .filter((s): s is SpanRow & { tier: SeriesTier } => s.tier === 'diaria' || s.tier === 'semanal')
+        .map(s => ({ from: dayIndex(s.from_date), to: s.to_date ? dayIndex(s.to_date) : null, tier: s.tier }))
+        .sort((a, b) => a.from - b.from)
       const realTitles: TitleVersion[] = (versionsBy.get(v.id + '|title') ?? []).map(r => ({ ...baseOf(r), text: r.value_text ?? '' }))
       let titles = withLegacy<TitleVersion>(legacyBy.get(v.id + '|title') ?? [], realTitles, pub, now, l => ({ text: l.old_title ?? '' }), l => ({ text: l.new_title ?? '' }), (l, r) => r.text === (l.new_title ?? ''))
       if (!titles.length) titles = [{ id: v.id + '/title', first_seen: pub, last_seen: now, current: true, prec: 'first', window: null, text: v.title ?? '' }]
@@ -298,6 +315,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
         url: fmt === 'short' ? 'https://www.youtube.com/shorts/' + v.video_id : 'https://www.youtube.com/watch?v=' + v.video_id, ytId: v.video_id, dur: v.duration_seconds,
         views: v.view_count, viewsAt: ms(v.last_checked_at) ?? ms(c.last_ok_synced_at) ?? now, likes: v.like_count, comments: v.comment_count,
         series, firstIdx: series.length ? series[0]!.idx : null, titles, thumbs, descs,
+        ...(tier ? { tier } : {}), ...(tierSpans.length ? { tierSpans } : {}), ...(!observed && points.length ? { unobservedSeries: points } : {}),
         ...(cappedFrom != null && pub >= seriesStart && pub < cappedFrom ? { truncated: true } : {}),
       })
     })
@@ -316,6 +334,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       activity: activityOf(vs.map(x => x.pub), now),
       lastIdx: state === 'backfill' ? null : lastIdx,
       snapshots, undated,
+      ...(omitted.has(c.id) ? { weeklyOmitted: true } : {}),
     })
   }
 
