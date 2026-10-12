@@ -81,7 +81,7 @@ export interface SeedOptions {
    */
   ownL2?: OwnL2
 }
-export type OwnL2 = 'cheio' | 'curto' | 'parado' | 'ativo' | 'velho'
+export type OwnL2 = 'cheio' | 'curto' | 'parado' | 'ativo' | 'velho' | 'grande' | 'lacunas'
 /** Os ids de oráculo que `canalCompleto` mexe, em matt-wolfe. */
 export const CANAL_COMPLETO = { canal: 'matt-wolfe', fixadoAntigo: 'matt-wolfe-l150', shortNulo: 'matt-wolfe-l5', comentariosNulo: 'matt-wolfe-l6', semData: 'canal-completo-sem-data' } as const
 export type NicheTone = 'ameixa' | 'rosa' | 'lima' | 'ardosia'
@@ -304,6 +304,12 @@ interface PerfilL2 {
   diarioDias: number
   /** `tres`: só os três longos mais novos têm views; `maioria`: metade dos longos; `zeros`: nenhuma view */
   diario: 'tres' | 'maioria' | 'zeros'
+  /** somado às impressões de toda linha de alcance: números grandes (e improváveis) para a prova do usuário só de leitura e para o layout a 390 px */
+  impBase?: number
+  /** quantos dos longos MAIS ANTIGOS têm só 5 dias de diário (menos de 7: fora da mediana de views por dia), com views altas para o filtro fazer diferença */
+  diarioCurtos?: number
+  /** o primeiro longo entre os 6 vídeos com alcance fica SEM nenhuma linha de diário (impressões sem views por dia) */
+  semDiarioPrimeiro?: boolean
 }
 const REL_CHEIO = 'ILIVVILIVVLIVLIIVLILLILVILVLI'.slice(0, 29)
 export const PERFIS_L2: Record<OwnL2, PerfilL2> = {
@@ -312,6 +318,8 @@ export const PERFIS_L2: Record<OwnL2, PerfilL2> = {
   parado: { fimDias: 3, relatorios: 'V'.repeat(29), ctrNulo: false, diarioDias: 28, diario: 'zeros' },
   ativo: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'maioria' },
   velho: { fimDias: 12, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'tres' },
+  grande: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'maioria', impBase: 2713 },
+  lacunas: { fimDias: 3, relatorios: REL_CHEIO, ctrNulo: false, diarioDias: 28, diario: 'maioria', diarioCurtos: 4, semDiarioPrimeiro: true },
 }
 const PACIFICO = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia do YouTube (Pacífico) em que o instante cai: o mesmo `hoje` que as páginas usam. */
@@ -365,7 +373,7 @@ export async function seedOwnL2(siteId: string, perfil: OwnL2, preset?: OwnPrese
       const vi = (inicio + j) % 6, v = seis[vi]!
       reach.push({
         youtube_video_id: v.ytId, day_pt: dia, site_id: siteId, video_id: vuuid(v), channel_id: canalId,
-        thumbnail_impressions: 40 + ((i * 37 + vi * 91) % 260),
+        thumbnail_impressions: (P.impBase ?? 0) + 40 + ((i * 37 + vi * 91) % 260),
         thumbnail_ctr: P.ctrNulo && i === 11 && vi === 0 ? null : (20 + ((i * 7 + vi * 13) % 55)) / 1000,
         source_report_id: id, report_create_time: create, source: 'reporting_api', metric_version: 'views_desde_2026-08-27',
       })
@@ -378,15 +386,39 @@ export async function seedOwnL2(siteId: string, perfil: OwnL2, preset?: OwnPrese
   const longos = vids.filter(v => v.fmt === 'long').slice(0, 50)
   const comViews = P.diario === 'tres' ? 3 : P.diario === 'maioria' ? Math.floor(longos.length / 2) + 1 : 0
   const diario: object[] = []
+  const semDiario = P.semDiarioPrimeiro ? seis.find(v => v.fmt === 'long') : undefined
+  if (P.semDiarioPrimeiro && !semDiario) throw new Error('observatorio-seed: semDiarioPrimeiro precisa de um vídeo longo entre os 6 com alcance')
   for (let d = 0; d < P.diarioDias; d++) {
     const dia = somaDias(ultimo, -(P.diarioDias - 1 - d))
     longos.forEach((v, li) => {
-      const views = li < comViews && (d + li) % 4 !== 0 ? 15 + ((d * 29 + li * 47) % 70) : 0
+      if (semDiario && v.ytId === semDiario.ytId) return
+      const curto = li >= longos.length - (P.diarioCurtos ?? 0)
+      if (curto && d < P.diarioDias - 5) return
+      const views = curto ? 400 + ((d * 13 + li * 7) % 90) : li < comViews && (d + li) % 4 !== 0 ? 15 + ((d * 29 + li * 47) % 70) : 0
       diario.push({ youtube_video_id: v.ytId, day_pt: dia, site_id: siteId, video_id: vuuid(v), channel_id: canalId, views, source: 'analytics_api', metric_version: 'views_desde_2026-08-27' })
     })
   }
   await insertAll(sb, 'yt_own_video_daily', diario)
   return { canalId, ytIdsAlcance: seis.map(v => v.ytId), ytIdsDiario: longos.map(v => v.ytId), ultimoDia: ultimo, primeiroDia: primeiro }
+}
+
+/**
+ * Põe a data de publicação dos vídeos de um canal próprio em `data do oráculo - dias` (valor ABSOLUTO, a partir do relógio do oráculo: rodar duas vezes dá o mesmo
+ * resultado, ao contrário de um deslocamento sobre o valor atual). Só no banco local. Devolve a publicação mais nova gravada (ms), para o teste conferir a janela.
+ */
+export async function fixarPublicacaoProprio(siteId: string, canalOracle: string, dias: number, preset?: OwnPreset, client?: SupabaseClient): Promise<number> {
+  const sb = clientOf(client)
+  const { O } = loadOracleData(preset)
+  const canal = ownSeedUuid(siteId, canalOracle)
+  const vids = O.videos.filter(v => v.ch === canalOracle)
+  if (!vids.length) throw new Error('observatorio-seed: o canal ' + canalOracle + ' não tem vídeos no oráculo')
+  let maisNovo = 0
+  for (const v of vids) {
+    const alvo = v.pub - dias * DAY
+    maisNovo = Math.max(maisNovo, alvo)
+    await check('fixarPublicacaoProprio', sb.from('youtube_videos').update({ published_at: iso(alvo) }).eq('site_id', siteId).eq('channel_id', canal).eq('youtube_video_id', v.ytId))
+  }
+  return maisNovo
 }
 
 /* ------------------------------------------------------------------ seed */
