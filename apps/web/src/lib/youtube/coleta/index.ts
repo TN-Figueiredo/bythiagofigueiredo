@@ -6,6 +6,7 @@
 import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { describeCronCause } from '@/lib/cron/failure-note'
+import { CONFERENCIAS, DIAS_ATE_O_VERMELHO, conferenciasEmFalha, conferenciasVencidas, hojeSP } from '@/lib/conferencias'
 import { registrarTentativa } from './attempts'
 import { voltarAOk } from './autorizacao'
 import { passoAlcance } from './alcance-step'
@@ -273,6 +274,19 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     ...emReautorizar().map(c => `${c.name}: reautorizar`),
   ])]
   resumo.reautorizar = emReautorizar().map(c => c.id)
+  // Item 246: conferência com data vencida e sem `feitaEm` aparece em toda execução, com o nome. Até 7 dias de atraso fica só
+  // no resumo; com 8 dias ou mais entra em `falhas` e o cron fica vermelho, até alguém preencher `feitaEm` (decisão do
+  // controlador, 12/10/2026). Lista vazia = nenhuma vencida (o campo está sempre presente na fase 'depois').
+  try {
+    const hoje = hojeSP()
+    resumo.conferencias_vencidas = conferenciasVencidas(hoje, CONFERENCIAS).map(c => `${c.id} (${c.etapa}, ${c.data}, ${c.responsavel})`)
+    const emFalha = conferenciasEmFalha(hoje, CONFERENCIAS)
+    if (emFalha.length > 0) {
+      pushUnico(falhas, `conferências vencidas há mais de ${DIAS_ATE_O_VERMELHO} dias: ${emFalha.length} (${emFalha.map(c => `${c.id}, devida em ${c.data}`).join('; ')}): faça a conferência, anote no ledger e preencha feitaEm em apps/web/src/lib/conferencias.ts (runbook da coleta, seção 3)`)
+    }
+  } catch (e) {
+    falhou('conferências', e)
+  }
   resumo.ms = ms
   return { falhas, resumo }
 }

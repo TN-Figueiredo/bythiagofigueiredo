@@ -85,7 +85,7 @@ Rodar à mão é seguro: os passos são idempotentes no dia (a segunda execuçã
 | `coleta.jobs` | `estados` por canal e tipo, `tipo_indisponivel`, `acao_do_dono`, `pendentes` |
 | `coleta.relatorios` | `vistos`, `baixados`, `vazios`, `expirados`, `erros_download`, `bruto_apagado`, `pendentes`, `perdidos`, `atrasados`; desde a E12 também `maior_bytes` (bytes lidos do corpo), `maior_lido_por_tipo`, `corpos_gz`, `expirados_por_tipo`, `vence_primeiro_em_dias` (`null` = nada ficou para trás) e `ms_listar` / `ms_baixar` |
 | `coleta.guarda` | conferido em toda execução (MG13, E20): `blobs_guardados` (brutos no banco; `null` = não conferido, e aí há nota em `falhas`), `blobs_guardados_antes` (o da última execução que tem número; `null` na primeira), `baixados_sem_bruto` (maior que 0 é falha enquanto durar), `brutos_sem_baixado` (bruto cujo relatório não está como baixado; visível, não é falha), `perdas_reconhecidas` (relatórios com `blob_lost_at`) e `expirados_sem_registro` |
-| `coleta.conferencias_vencidas` | lista de conferências com data que já venceram e não foram dadas como feitas (E20, Tarefa 6) |
+| `coleta.conferencias_vencidas` | conferências com data (`apps/web/src/lib/conferencias.ts`, item 246 da A5) cuja data passou e que não têm `feitaEm`, no formato `id (etapa, data, responsável)`. Lista vazia = nenhuma vencida. **Até 7 dias de atraso fica só aqui; vencida há 8 dias ou mais entra também em `falhas` e deixa o cron vermelho** (seção 6, "Conferências com data"). Só na fase `depois` da coleta |
 | `coleta.alcance` | o passo que normaliza o bruto de `channel_reach_basic_a1`: `normalizados` (relatórios com dado), `vazios` (relatórios `vazio` conferidos e marcados), `erros` (viraram `erro` nesta execução), `sem_par` (vídeos sem par em `youtube_videos`), `gravados` (linhas inseridas ou sobrescritas em `yt_own_video_reach_daily`), `pendentes` (ficam para amanhã; fila com mais de 200 soma 1 a mais, o número exato não é conhecido), `tentativas` (sempre vazio: o passo não registra tentativas). `sem_tempo: true` = o passo recebeu 0 s (e `pendentes` fica em 0: ver seção 2). Chave `alcance` ausente = o passo lançou exceção (veja `falhas`) ou está desligado (seção 10). **`normalizados` pode subir com `gravados: 0`**: o relatório era mais velho que as linhas já gravadas e a função do banco não sobrescreve |
 | `coleta.diario` | o passo do diário por vídeo: `gravados` (linhas de dia gravadas em `yt_own_video_daily`), `tentativas` por resultado (conta as tentativas de vídeo **e** a de canal de `kind = 'diario'`: um canal com 35 vídeos mostra uns 36 ao todo), `pendentes` (vídeos que o relógio deixou para amanhã), `ate` (o "hoje" do Pacífico usado como fim da janela), `estendidas_recusadas` (vídeos cuja resposta veio sem as métricas estendidas) e `sem_tempo`. `gravados: 0` com `tentativas.sem_dado_na_janela` alto = a API respondeu vazio para os vídeos: sem atividade na janela, **não** zero. Chave `diario` ausente = o passo lançou exceção ou está desligado |
 | `coleta.perdidos`, `coleta.atrasados` | os mesmos dois números, no nível de cima. `perdidos` = sem conserto; `atrasados` = `listado` há mais de 14 dias (esses viram falha) |
@@ -321,6 +321,20 @@ Cada nota vira texto em `cron_health.last_error` (juntas, até 500 caracteres) e
 | `relatórios: os brutos guardados caíram de N para M desde a última execução conferida: …` | o número de brutos diminuiu. Dura um dia. Esperado quando você remove um canal próprio (a cascata leva relatório e bruto); fora disso é perda | se você não removeu canal: rodar a consulta do topo (seção 13) e a de `yt_reporting_reports` por canal, e levar ao controlador no mesmo dia |
 | `relatórios: guarda do bruto não conferida (…)` | a função de conferência não devolveu número, ou a conferência lançou | resolver a nota de banco que vem junto; se vier sozinha dois dias seguidos, Sentry (tag `passo: guarda do bruto`) |
 | `schema_ausente: yt_reporting_guarda_conferir` | o código novo está no ar sem a MG13 | aplicar a MG13 (`npm run db:push:prod`, fora de 11:55 a 12:15 UTC) |
+
+### Conferências com data (item 246 da A5)
+
+| Nota | Significa | O que fazer |
+|---|---|---|
+| `conferências vencidas há mais de 7 dias: N (<id>, devida em AAAA-MM-DD; ...): …` | há conferência em `apps/web/src/lib/conferencias.ts` cuja data passou há 8 dias ou mais e ainda não tem `feitaEm`. Até 7 dias de atraso ela só aparece em `coleta.conferencias_vencidas`, sem vermelho. **Fica vermelho todo dia até alguém marcar a conferência como feita: é intencional** (conferência esquecida não pode ficar muda) | marcar como feita (abaixo) |
+
+**Marcar uma conferência como feita** é uma edição de código, commitada:
+
+1. Rodar a consulta que a entrada indica em `onde` (o plano da etapa, seção "Conferências depois do envio", ou o ledger) e anotar o resultado no ledger da etapa (`.superpowers/sdd/<etapa>/progress.md`).
+2. Em `apps/web/src/lib/conferencias.ts`, trocar `feitaEm: null` por o dia de hoje (AAAA-MM-DD, dia de São Paulo) na entrada daquela conferência. Marcar a linha também em `.superpowers/sdd/a5/conferencias-com-data.md` (coluna "Feita em").
+3. `git commit -m "chore: conferência <id> feita (<etapa>)" -- apps/web/src/lib/conferencias.ts`, e subir como qualquer outro commit. A linha some do resumo e do vermelho **no deploy seguinte**: até lá o cron continua mostrando a conferência (por isso o vermelho só começa no oitavo dia: dá o tempo de a marcação chegar a produção).
+
+**Criar uma conferência nova** (qualquer etapa): acrescentar uma entrada à lista `CONFERENCIAS` no commit do deploy da etapa, com a data absoluta (nunca "D+N"), `responsavel`, `onde` e `feitaEm: null`. O cron não muda. Se a data da conferência mudar (deploy atrasou), corrigir a data na entrada e no `.md`.
 
 ### Alcance normalizado (L2)
 

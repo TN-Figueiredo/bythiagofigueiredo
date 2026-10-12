@@ -8,6 +8,9 @@ vi.mock('@/lib/youtube/coleta/reports-step', () => ({ passoRelatorios: vi.fn() }
 vi.mock('@/lib/youtube/coleta/alcance-step', () => ({ passoAlcance: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/diario-step', () => ({ passoDiario: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/criteria-l2', () => ({ criteriosL2: vi.fn() }))
+// Item 246: a lista publicada de conferências é trocada por uma lista de teste (mutável, esvaziada a cada teste).
+const conferenciasDeTeste = vi.hoisted(() => [] as Array<{ id: string; etapa: string; data: string; responsavel: 'agente' | 'dono'; onde: string; feitaEm: string | null }>)
+vi.mock('@/lib/conferencias', async (orig) => ({ ...(await orig<typeof import('@/lib/conferencias')>()), CONFERENCIAS: conferenciasDeTeste }))
 vi.mock('@/lib/youtube/coleta/criteria', () => ({
   criteriosRelatorios: vi.fn(),
   criterioJobsEmErro: vi.fn(),
@@ -37,6 +40,7 @@ const resumoVazio = { gravados: 0, tentativas: {}, pendentes: 0 }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  conferenciasDeTeste.length = 0
   vi.useFakeTimers({ now: AGORA, toFake: ['Date'] })
   vi.mocked(passoMetadados).mockResolvedValue({ ...resumoVazio, gravados: 35, day_pt: '2026-10-06', dias_sem_meta: { 'ch-1': 0 } })
   vi.mocked(passoJobs).mockResolvedValue({ ...resumoVazio, acao_do_dono: ['Canal Um: sem_acesso'], tipo_indisponivel: [], estados: {} })
@@ -510,6 +514,57 @@ describe('rodarColeta: L1b', () => {
       const db = fakeSupabase({ youtube_channels: [canalL1b({ id: 'ch-1', name: 'Canal Um' })] })
       await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois', autorizadosAntes: ['ch-1'] })
       expect(db.writes.filter(w => w.table === 'youtube_channels')).toEqual([])
+    })
+  })
+  describe('conferências com data (item 246)', () => {
+    /** Dia de São Paulo `n` dias antes do AGORA do arquivo (2026-10-07). */
+    const haDias = (n: number): string => new Date(AGORA.getTime() - n * 86_400_000).toISOString().slice(0, 10)
+    const conf = (id: string, data: string, feitaEm: string | null = null) => ({ id, etapa: 'ET', data, responsavel: 'agente' as const, onde: 'plano', feitaEm })
+    const rodar = (fase: 'antes' | 'depois' = 'depois') =>
+      rodarColeta({ supabase: fakeSupabase({ youtube_channels: canais }).client, relogio: criarRelogio(), fase })
+
+    it('lista vazia: o campo existe e é lista vazia', async () => {
+      const r = await rodar()
+      expect(r.resumo.conferencias_vencidas).toEqual([])
+      expect(r.falhas).toEqual([])
+    })
+
+    it('vencida há até 7 dias: aparece no resumo, com o nome, e o cron não fica vermelho; a feita e a de amanhã ficam fora', async () => {
+      conferenciasDeTeste.push(conf('vencida-1d', haDias(1)), conf('vencida-7d', haDias(7)), conf('feita', haDias(30), haDias(2)), conf('hoje', haDias(0)), conf('futura', haDias(-3)))
+      const r = await rodar()
+      expect(r.resumo.conferencias_vencidas).toEqual([`vencida-1d (ET, ${haDias(1)}, agente)`, `vencida-7d (ET, ${haDias(7)}, agente)`])
+      expect(r.falhas).toEqual([])
+    })
+
+    it('vencida há 8 dias ou mais: entra no resumo E em falhas, com o nome e o que fazer; a de 7 dias continua só no resumo', async () => {
+      conferenciasDeTeste.push(conf('de-7-dias', haDias(7)), conf('de-8-dias', haDias(8)), conf('de-40-dias', haDias(40)))
+      const r = await rodar()
+      expect(r.resumo.conferencias_vencidas).toEqual([`de-7-dias (ET, ${haDias(7)}, agente)`, `de-8-dias (ET, ${haDias(8)}, agente)`, `de-40-dias (ET, ${haDias(40)}, agente)`])
+      expect(r.falhas).toEqual([
+        `conferências vencidas há mais de 7 dias: 2 (de-8-dias, devida em ${haDias(8)}; de-40-dias, devida em ${haDias(40)}): faça a conferência, anote no ledger e preencha feitaEm em apps/web/src/lib/conferencias.ts (runbook da coleta, seção 3)`,
+      ])
+    })
+
+    it('marcada como feita, a conferência de 40 dias some do resumo e do vermelho', async () => {
+      conferenciasDeTeste.push(conf('de-40-dias', haDias(40), haDias(0)))
+      const r = await rodar()
+      expect(r.resumo.conferencias_vencidas).toEqual([])
+      expect(r.falhas).toEqual([])
+    })
+
+    it('o dia é o de São Paulo: às 02:00 UTC do dia seguinte ainda é o dia anterior (a conferência de ontem em SP ainda não venceu)', async () => {
+      vi.setSystemTime(new Date('2026-10-08T02:00:00.000Z'))   // 23:00 de 07/10 em São Paulo
+      conferenciasDeTeste.push(conf('de-07-10', '2026-10-07'))
+      expect((await rodar()).resumo.conferencias_vencidas).toEqual([])
+      vi.setSystemTime(new Date('2026-10-08T03:00:00.000Z'))   // 00:00 de 08/10
+      expect((await rodar()).resumo.conferencias_vencidas).toEqual(['de-07-10 (ET, 2026-10-07, agente)'])
+    })
+
+    it('a fase antes não traz o campo (ele é da fase depois, que fecha a execução)', async () => {
+      conferenciasDeTeste.push(conf('vencida-9d', haDias(9)))
+      const r = await rodar('antes')
+      expect(r.resumo).not.toHaveProperty('conferencias_vencidas')
+      expect(r.falhas).toEqual([])
     })
   })
 })
