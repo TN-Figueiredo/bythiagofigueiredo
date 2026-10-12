@@ -52,7 +52,7 @@ export interface ReportingClient {
 export function empacotarCsv(bruto: Buffer): PacoteCsv {
   const jaGzip = bruto.length >= 2 && bruto[0] === 0x1f && bruto[1] === 0x8b
   const recusar = (): never => {
-    throw new ArquivoGrandeDemaisError('descomprimido', bruto.length, `${bruto.length} bytes comprimidos descomprimem a mais de ${MAX_CSV_BYTES} bytes; teto ${MAX_CSV_BYTES} descomprimido`)
+    throw new ArquivoGrandeDemaisError('descomprimido', bruto.length, `${bruto.length} bytes de .gz descomprimem a mais de ${MAX_CSV_BYTES} bytes; teto ${MAX_CSV_BYTES} descomprimido`)
   }
   let csv: Buffer
   if (jaGzip) {
@@ -92,12 +92,21 @@ function contarLinhasComConteudo(buf: Buffer): number {
  * Lê o corpo do download com limite. `Content-Length` acima do teto: recusa sem ler o corpo. Sem ele (ou ilegível): lê em
  * pedaços e aborta ao passar do teto, em vez de `arrayBuffer()` cego. Corpo de 0 byte ou ausente NÃO é "relatório vazio":
  * um CSV da API sempre tem ao menos o cabeçalho; 0 byte é resposta cortada, e a falha é passageira (tenta amanhã).
+ *
+ * O que cada medida é (provado com o fetch real em reporting-client.test.ts):
+ *  - `Content-Length` é o tamanho NO FIO. Com `Content-Encoding: gzip` (o `Accept-Encoding: gzip` que mandamos convida a isso)
+ *    é o gzip de transporte, bem menor que o CSV.
+ *  - O fetch descomprime sozinho esse gzip de transporte: o que `getReader()` entrega já é o CSV puro, e a soma lida é de CSV
+ *    descomprimido. Logo o teto de leitura (MAX_GZ_BYTES) limita o CSV que passa por aqui, não "10 MB de gzip".
+ *  - O .gz do próprio relatório (corpo que começa com 1f 8b) só aparece quando o servidor não aplica gzip de transporte; é ele
+ *    que `empacotarCsv` descomprime sob o outro teto (MAX_CSV_BYTES).
+ *  Por isso as notas dizem "bytes lidos do corpo" e só chamam de "comprimidos" o .gz que de fato foi medido como tal.
  */
 async function lerCorpoLimitado(res: Response): Promise<Buffer> {
   const declarado = res.headers.get('content-length')?.trim() ?? ''
   if (/^\d+$/.test(declarado) && Number(declarado) > MAX_GZ_BYTES) {
     await res.body?.cancel().catch(() => undefined)
-    throw new ArquivoGrandeDemaisError('comprimido', Number(declarado), `${declarado} bytes comprimidos (Content-Length); teto ${MAX_GZ_BYTES}`)
+    throw new ArquivoGrandeDemaisError('corpo', Number(declarado), `Content-Length de ${declarado} bytes (tamanho no fio); teto ${MAX_GZ_BYTES} bytes lidos do corpo`)
   }
   if (!res.body) throw new ReportingHttpError(res.status, 'corpo_vazio')
   const leitor = res.body.getReader()
@@ -109,7 +118,7 @@ async function lerCorpoLimitado(res: Response): Promise<Buffer> {
     total += value.byteLength
     if (total > MAX_GZ_BYTES) {
       await leitor.cancel().catch(() => undefined)
-      throw new ArquivoGrandeDemaisError('comprimido', total, `mais de ${MAX_GZ_BYTES} bytes comprimidos lidos sem Content-Length confiável (parou em ${total}); teto ${MAX_GZ_BYTES}`)
+      throw new ArquivoGrandeDemaisError('corpo', total, `mais de ${MAX_GZ_BYTES} bytes lidos do corpo, já depois do gzip de transporte se houver (parou em ${total}); teto ${MAX_GZ_BYTES}`)
     }
     partes.push(value)
   }
