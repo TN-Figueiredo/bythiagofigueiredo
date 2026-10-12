@@ -1,0 +1,21 @@
+/* A faixa da taxa de clique (mockup 12/10, a4.css .ctr-*). Cores só por token: laranja do seu canal (--lado-o), cinza do canal de
+   referência, tracejado cinza quando a faixa é larga demais para concluir. Nada de verde/âmbar aqui (direção é dita em texto por quem usa
+   a faixa). Sem color-mix, sem z-index, texto de 12 px ou mais. */
+.tf{display:block;max-width:760px;min-width:0;padding:0 10px}
+.tf-linha+.tf-linha{margin-top:6px}
+.tf-cab{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:0 12px}
+.tf-lab{font:500 12px/18px var(--font-sans),system-ui,sans-serif;color:var(--text)}
+.tf-nota{font:500 12px/18px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.tf-svg,.tf-eixo{display:block;width:100%;overflow:visible}
+.tf-num{font:600 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--text)}
+.tf-lim,.tf-ax{font:500 12px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--muted)}
+.tf-fio{stroke:var(--border-strong);stroke-width:1}
+.tf-int{fill:var(--lado-o);opacity:.35}
+.tf-intb{fill:none;stroke:var(--lado-o);stroke-width:2}
+.tf-pt{fill:var(--lado-o)}
+.tf-int.ref{fill:var(--muted);opacity:.28}
+.tf-intb.ref{stroke:var(--muted)}
+.tf-pt.ref{fill:var(--muted)}
+.tf-int.inc{fill:var(--dim);opacity:.22}
+.tf-intb.inc{stroke:var(--dim);stroke-dasharray:5 3}
+.tf-pt.inc{fill:var(--surface);stroke:var(--dim);stroke-width:2}
