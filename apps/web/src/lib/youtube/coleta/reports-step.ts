@@ -33,8 +33,14 @@ export interface RelatoriosResumo extends StepResumo {
   expirados: number
   erros_download: number
   bruto_apagado: number
-  /** Maior relatório comprimido visto nesta execução, em bytes (inclui o recusado por tamanho). 0 = nenhum download. */
+  /** Maior corpo LIDO nesta execução, em bytes (inclui o recusado por tamanho). É a unidade do teto e do aviso de metade do teto;
+   *  a coluna `bytes` do relatório é outra coisa (o gzip guardado). 0 = nenhum download. */
   maior_bytes: number
+  /** Por tipo, o maior corpo lido e se ele era um .gz de verdade (`null` = não examinado: recusado pelo Content-Length ou pela
+   *  leitura limitada). É a medida de D+3 do tamanho real dos tipos novos e do `Content-Encoding` que o servidor aplica. */
+  maior_lido_por_tipo: Record<string, { bytes: number; gz: boolean | null }>
+  /** Quantos corpos desta execução eram um .gz de verdade (os demais vieram como CSV puro, depois do gzip de transporte). */
+  corpos_gz: number
   /** Dos `expirados`, quantos por tipo HABILITADO (informação do resumo; a nota é só dos de baixo). */
   expirados_por_tipo: Record<string, number>
   /** Dos de `expirados_por_tipo`, os que NENHUM critério persistente cobre: é o que vira a nota da execução em falhas[].
@@ -169,6 +175,14 @@ function contarVencido(resumo: RelatoriosResumo, p: ItemDaFila, agora: number): 
   if (!perdaCobertaPorCriterios(p, agora)) resumo.expirados_sem_cobertura_por_tipo[tipo] = (resumo.expirados_sem_cobertura_por_tipo[tipo] ?? 0) + 1
 }
 
+/** Registra o corpo lido no resumo: maior por tipo (com a marca de .gz) e a contagem de .gz de verdade. */
+function anotarLido(resumo: RelatoriosResumo, tipo: string, bytes: number, gz: boolean | null): void {
+  resumo.maior_bytes = Math.max(resumo.maior_bytes, bytes)
+  if (gz === true) resumo.corpos_gz++
+  const atual = resumo.maior_lido_por_tipo[tipo]
+  if (!atual || bytes > atual.bytes) resumo.maior_lido_por_tipo[tipo] = { bytes, gz }
+}
+
 /** Baixa um relatório pelo download_url gravado. Nunca lança. */
 async function baixarUm(
   ctx: StepCtx,
@@ -181,8 +195,8 @@ async function baixarUm(
   const marcar = (campos: Record<string, unknown>) =>
     ctx.supabase.from('yt_reporting_reports').update(campos).eq('report_id', p.report_id)
   // Recusa por tamanho: sem conserto automático, o bruto não é guardado. Fica vermelho na hora (aqui) e por 14 dias (critérios).
-  const recusarPorTamanho = async (bytes: number, detalhe: string, extra: Record<string, unknown>): Promise<void> => {
-    resumo.maior_bytes = Math.max(resumo.maior_bytes, bytes)
+  const recusarPorTamanho = async (bytes: number, detalhe: string, extra: Record<string, unknown>, gz: boolean | null): Promise<void> => {
+    anotarLido(resumo, p.report_type_id, bytes, gz)
     resumo.erros_download++
     // Canal e prazo: o dono precisa saber de quem é e até quando o arquivo existe na origem (é o prazo para subir o teto e
     // devolver o relatório à fila). create_time ilegível não vira data de 1970: o prazo é dito desconhecido.
@@ -237,7 +251,7 @@ async function baixarUm(
     if (erro instanceof ArquivoGrandeDemaisError) {
       // O cliente recusou antes de guardar (Content-Length, leitura limitada ou bomba de descompressão): mesmo caminho do
       // `grande_demais` abaixo. Terminal, nota visível com o tamanho; nunca `gzip_invalido` nem erro de rede (que tentam de novo).
-      await recusarPorTamanho(erro.bytes, erro.detalhe, {})
+      await recusarPorTamanho(erro.bytes, erro.detalhe, {}, erro.lado === 'descomprimido' ? true : null)
       return
     }
 
@@ -264,11 +278,14 @@ async function baixarUm(
       return
     }
 
-    if (pacote.gz.length > MAX_GZ_BYTES) {
-      await recusarPorTamanho(pacote.gz.length, `${pacote.gz.length} bytes comprimidos; teto ${MAX_GZ_BYTES}`, { sha256: pacote.sha256, row_count: pacote.rowCount })
+    // Rede de segurança: o cliente já recusa o que passa do teto de leitura. Cobre o gzip guardado (o que vai para o banco) e,
+    // por via das dúvidas, o corpo lido, sempre na unidade do teto.
+    if (pacote.gz.length > MAX_GZ_BYTES || pacote.lidos > MAX_GZ_BYTES) {
+      const maior = Math.max(pacote.gz.length, pacote.lidos)
+      await recusarPorTamanho(maior, `${maior} bytes lidos do corpo; teto ${MAX_GZ_BYTES}`, { sha256: pacote.sha256, row_count: pacote.rowCount }, pacote.eraGz)
       return
     }
-    resumo.maior_bytes = Math.max(resumo.maior_bytes, pacote.gz.length)
+    anotarLido(resumo, p.report_type_id, pacote.lidos, pacote.eraGz)
 
     const blob = await ctx.supabase
       .from('yt_reporting_report_blobs')
@@ -307,8 +324,10 @@ async function baixarUm(
     if (vazio) resumo.vazios++
     else resumo.baixados++
     resumo.gravados++
-    if (pacote.gz.length > MAX_GZ_BYTES / 2) {
-      pushUnico(ctx.falhas, `relatórios: ${p.report_type_id} chegou a ${pacote.gz.length} bytes comprimidos, mais da metade do teto de ${MAX_GZ_BYTES}`)
+    // Mesma unidade da recusa (bytes lidos do corpo), senão o aviso nunca vem antes dela: com gzip de transporte o gzip guardado
+    // é uma fração do CSV lido.
+    if (pacote.lidos > MAX_GZ_BYTES / 2) {
+      pushUnico(ctx.falhas, `relatórios: ${p.report_type_id} chegou a ${pacote.lidos} bytes lidos do corpo, mais da metade do teto de ${MAX_GZ_BYTES} bytes lidos`)
     }
   } catch (e) {
     Sentry.captureException(e, { tags: { cron: 'sync-analytics-metrics', passo: 'relatorios' }, extra: { report: p.report_id } })
@@ -363,7 +382,7 @@ async function lerFilaPendente(ctx: StepCtx, idsDosCanais: string[]): Promise<Fi
 export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
   const resumo: RelatoriosResumo = {
     gravados: 0, tentativas: {}, pendentes: 0, vistos: 0, baixados: 0, vazios: 0, expirados: 0, erros_download: 0, bruto_apagado: 0,
-    maior_bytes: 0, expirados_por_tipo: {}, expirados_sem_cobertura_por_tipo: {}, vence_primeiro_em_dias: null, ms_listar: 0, ms_baixar: 0,
+    maior_bytes: 0, maior_lido_por_tipo: {}, corpos_gz: 0, expirados_por_tipo: {}, expirados_sem_cobertura_por_tipo: {}, vence_primeiro_em_dias: null, ms_listar: 0, ms_baixar: 0,
   }
   const fechar = (): RelatoriosResumo => {
     // Em toda saída do passo: o que venceu sem baixar nesta execução e nenhum critério persistente cobre vira nota, com a

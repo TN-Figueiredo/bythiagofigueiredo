@@ -30,8 +30,13 @@ export const MAX_GZ_BYTES = 2 * 1024 * 1024
 export const MAX_CSV_BYTES = 64 * 1024 * 1024
 
 export interface PacoteCsv {
-  /** Sempre gzip. */
+  /** Sempre gzip. É o que vai para o banco (coluna `bytes`); NÃO é a medida que o teto de leitura usa, veja `lidos`. */
   gz: Buffer
+  /** Bytes lidos do corpo da resposta: a unidade do teto `MAX_GZ_BYTES` e do aviso de metade do teto. Com gzip de transporte é o
+   *  CSV puro (bem maior que `gz`); sem ele é o que veio no fio. */
+  lidos: number
+  /** O corpo lido era um .gz de verdade (começa com 1f 8b), e não CSV puro. */
+  eraGz: boolean
   /** Do CSV descomprimido. */
   sha256: string
   /** Linhas de dado (sem o cabeçalho). */
@@ -67,7 +72,10 @@ export function empacotarCsv(bruto: Buffer): PacoteCsv {
     csv = bruto
   }
   const gz = jaGzip ? bruto : gzipSync(bruto)
-  return { gz, sha256: createHash('sha256').update(csv).digest('hex'), rowCount: Math.max(0, contarLinhasComConteudo(csv) - 1) }
+  return {
+    gz, lidos: bruto.length, eraGz: jaGzip,
+    sha256: createHash('sha256').update(csv).digest('hex'), rowCount: Math.max(0, contarLinhasComConteudo(csv) - 1),
+  }
 }
 
 /** Linhas com algum byte que não seja espaço, tab, CR, VT ou FF, contadas direto no Buffer: sem `toString` nem `split`, a
