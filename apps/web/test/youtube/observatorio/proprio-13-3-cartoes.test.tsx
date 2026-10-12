@@ -18,24 +18,35 @@ const frase = () => document.querySelector('nav.ctabs p.res')!.textContent
 const mundo = (cenario: CenarioDados) => proprioWorld({ cenario })
 
 describe('13.3 cartões: views por dia', () => {
-  it('com o diário cheio: o cartão dos longos leva "N views por dia" (o número do modelo) e a frase do topo é a base', () => {
+  it('com o diário cheio: o cartão dos longos leva "N views por dia" (o número do modelo), os outros não, e a frase do topo é a base', () => {
     const r = mountProprio({ world: mundo('cheio') })
-    const comNumero = r.view.videos.videos.filter(v => v.vpdDiarioText != null)
-    expect(comNumero.length).toBeGreaterThan(0)
-    for (const v of comNumero) {
-      const c = cartoes().find(x => x.getAttribute('data-id') === v.id)
-      if (!c) continue   // o cartão pode estar além do primeiro lote
-      expect(c.querySelector('.cv-vpd')!.textContent).toBe(`${v.vpdDiarioText} views por dia`)
+    const renderizados = cartoes().map(c => ({ c, v: r.view.videos.videos.find(x => x.id === c.getAttribute('data-id'))! }))
+    expect(renderizados.length).toBeGreaterThan(0)
+    // todo cartão desenhado tem o seu modelo; a linha existe exatamente quando o modelo tem o número (incondicional: nenhum cartão fica de fora da conta)
+    for (const { c, v } of renderizados) {
+      expect(v, c.getAttribute('data-id') ?? '').toBeDefined()
+      expect(c.querySelector('.cv-vpd')?.textContent ?? null).toBe(v.vpdDiarioText == null ? null : `${v.vpdDiarioText} views por dia`)
     }
-    expect(cartoes().some(c => c.querySelector('.cv-vpd'))).toBe(true)
+    expect(renderizados.filter(x => x.v.vpdDiarioText != null).length).toBeGreaterThan(0)
     expect(frase()).toBe('Views por dia: média dos últimos 28 dias com medida.')
   })
-  it('um Short não tem views por dia (só os longos são medidos): o cartão não leva a linha', () => {
+  it('um Short não tem views por dia (só os longos são medidos): o cartão desenhado não leva a linha', () => {
     const r = mountProprio({ world: mundo('cheio') })
-    const curto = r.view.videos.videos.find(v => v.vpdDiarioText == null)
-    if (!curto) return
-    const c = cartoes().find(x => x.getAttribute('data-id') === curto.id)
-    if (c) expect(c.querySelector('.cv-vpd')).toBeNull()
+    const curtos = cartoes().filter(c => r.view.videos.videos.find(x => x.id === c.getAttribute('data-id'))?.isShort === true)
+    expect(curtos.length).toBeGreaterThan(0)
+    for (const c of curtos) expect(c.querySelector('.cv-vpd'), c.getAttribute('data-id') ?? '').toBeNull()
+  })
+  it('a ordem do cartão é a do mockup: views, LOGO DEPOIS "N views por dia", e só então a linha das impressões e cliques', () => {
+    mountProprio({ world: mundo('cheio') })
+    const completos = cartoes().filter(c => c.querySelector('.cv-vpd') && c.querySelector('.cv-n3'))
+    expect(completos.length).toBeGreaterThan(0)
+    for (const c of completos) {
+      const filhos = [...c.children].map(x => x.className.split(' ')[0])
+      const nums = filhos.indexOf('cv-nums')
+      expect(nums, c.getAttribute('data-id') ?? '').toBeGreaterThanOrEqual(0)
+      expect(filhos[nums + 1], 'a linha das views por dia vem colada nos números').toBe('cv-vpd')
+      expect(filhos[nums + 2], 'e a das impressões e cliques depois dela').toBe('cv-n3')
+    }
   })
   it.each([
     ['vazio', 'Views por dia: a coleta diária ainda não gravou este canal.'],
