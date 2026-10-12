@@ -404,9 +404,9 @@ for (const [nome, largura, altura] of TAMANHOS) for (const tema of ['dark', 'lig
         if (t.rotulo === 'canal' && largura === 390) {
           // "1.139" ao lado de dia não medido, a 390 px: o rótulo existe, tem halo e cabe (o conferirSvgs já provou: dentro, sem sobrepor)
           const rot = await page.evaluate(() => [...document.querySelectorAll<SVGTextElement>('svg.ic-svg text.ic-cln')].map(t => t.textContent))
-          // a 390 px os rótulos da faixa de cliques são escolhidos da esquerda para a direita (`quaisCabem`): o 1.139 pode ser omitido para não esbarrar no vizinho;
-          // o que importa aqui é que, aparecendo ou não, nada se sobrepõe nem sai do SVG (provado acima) e a leitura por dia traz o valor
-          medida(`${nome}/${tema}: rótulos da faixa de cliques a 390 px: ${rot.join(', ')}; "1.139" ${rot.includes(PT(Math.round(RET_1139.imp * RET_1139.ctr))) ? 'aparece' : 'é omitido (cabe pelo menos o vizinho)'}`)
+          // desde a 15c o MAIOR valor da série tem prioridade para ficar com rótulo (`quaisCabem` com prioridade; provado em jsdom em proprio-impressoes.test.tsx): o 1.139 deve
+          // aparecer; a medida registra (sem afirmar: esta corrida ainda não rodou em navegador depois do conserto)
+          medida(`${nome}/${tema}: rótulos da faixa de cliques a 390 px: ${rot.join(', ')}; "1.139" ${rot.includes(PT(Math.round(RET_1139.imp * RET_1139.ctr))) ? 'aparece' : 'É OMITIDO (esperado: aparece)'}`)
         }
       }
     } finally { await ctx.close() }
