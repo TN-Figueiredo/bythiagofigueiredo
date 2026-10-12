@@ -65,4 +65,14 @@ describe('pacote com a série semanal (item 21)', () => {
     expect(back.daily).toHaveLength(200 * 366)
     expect(back.videos).toHaveLength(1000) // os vídeos ficam todos: só a série dos não observados sai
   })
+  it('I1: pacote que estoura só por descrição, sem semanal a tirar, devolve o cheio e NÃO marca semanal omitida', () => {
+    const { rows, observed } = year(4, 4) // todo vídeo é observado: nada de semanal a retirar
+    const r = rng(7)
+    rows.versions.push({ id: uuid(r), video_id: rows.videos[0]!.id, field: 'desc', value_text: hex(r, 6_000_000), value_hash: hex(r, 16), has_text: true, thumb_blob_url: null, first_seen_at: new Date(NOW).toISOString(), last_seen_at: new Date(NOW).toISOString(), window_start: null, precision: 'first', is_current: true })
+    expect(packChannel(rows).length).toBeGreaterThan(PACK_BUDGET) // premissa
+    const out = packWithinBudget(rows, observed)
+    expect(out.weeklyOmitted).toBe(false)
+    expect(out.packed).toBe(packChannel(rows))
+    expect(unpackChannel(out.packed)!.weeklyOmitted).toBeUndefined()
+  })
 })
