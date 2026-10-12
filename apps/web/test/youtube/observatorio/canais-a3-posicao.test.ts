@@ -364,7 +364,7 @@ describe('A3.2 bloco "Seus canais"', () => {
     expect(v.sort).toBe('vpd')
     for (const id of w.owns) {
       const l = cheia(v, id)
-      expect(l.frase).toBe('Ainda sem views por dia medidas: a coleta diária do seu canal começa em breve. Sem posição nesta ordenação.')
+      expect(l.frase).toBe('Ainda sem views por dia medidas: a coleta diária ainda não gravou este canal. Sem posição nesta ordenação.')
       expect(l.vizinhos).toBeNull()
       expect(byId(v, id).pos).toBeNull()
       expect(v.list.unranked.map(r => r.id)).toContain(id)

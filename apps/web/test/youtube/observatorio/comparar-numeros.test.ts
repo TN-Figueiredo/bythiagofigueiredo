@@ -287,11 +287,11 @@ describe('views por dia e por mil inscritos', () => {
       expect(buildCanalHeader(BASE.obs, r.id)!.todos.find(c => c.key === 'vpdPorMil')!.value, r.id).toBe(cel.big)
     }
   })
-  it('canal próprio → não medido com o motivo verdadeiro (a coleta já roda; é a tela que ainda não a lê), nos dois números', () => {
+  it('canal próprio → não medido com o motivo verdadeiro (a coleta diária ainda não gravou o canal: o dado não foi lido aqui), nos dois números', () => {
     for (const id of [OWN, OWN2]) {
       const n = nums(BASE.obs, id)
-      naoMedido(n.vpd, 'as views por dia do seu canal ainda não aparecem nesta tela; chegam com a página do seu canal')
-      naoMedido(n.vpdPorMil, 'as views por dia do seu canal ainda não aparecem nesta tela; chegam com a página do seu canal')
+      naoMedido(n.vpd, 'a coleta diária ainda não gravou este canal')
+      naoMedido(n.vpdPorMil, 'a coleta diária ainda não gravou este canal')
     }
   })
   it('concorrente sem 2º registro diário → "aguarda o 2º registro diário", nos dois', () => {
@@ -639,7 +639,7 @@ describe('invariantes sobre todos os canais', () => {
   it('o mundo extremo tem de verdade nulos de cada tipo (o teste acima não passa por não ter o que olhar)', () => {
     const motivos = new Set(todos(extremo.obs).map(x => x.n.motivo).filter((m): m is string => m != null))
     for (const frase of ['inscritos ocultos pelo canal', 'sem vídeos', 'a primeira sincronização ainda não terminou', 'aguarda o 2º registro diário',
-      'as views por dia do seu canal ainda não aparecem nesta tela; chegam com a página do seu canal', 'as trocas do seu canal ficam no A/B Lab', 'sem contagem de 30 dias atrás']) expect(motivos.has(frase), frase).toBe(true)
+      'a coleta diária ainda não gravou este canal', 'as trocas do seu canal ficam no A/B Lab', 'sem contagem de 30 dias atrás']) expect(motivos.has(frase), frase).toBe(true)
     expect([...motivos].some(m => m.startsWith('sem contagem de 30 dias atrás'))).toBe(true)
   })
   it('nenhum motivo traz palavra interna (todos os motivos possíveis e todos os que saem no fixture)', () => {
