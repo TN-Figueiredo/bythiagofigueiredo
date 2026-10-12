@@ -170,7 +170,7 @@ function viewsDe(serie: SerieVideo, o: { pubDia: DiaYt | null; dm: (d: DiaYt) =>
   let frase: string
   if (total === 0) {
     const fim = nm > 0 ? `, e ${plural(nm, 'dia', 'dias')} sem medida` : ''
-    frase = `Nenhuma view ${dm === 1 ? 'no 1 dia medido' : `nos ${int(dm)} dias medidos`}${fim}. É zero medido: o YouTube entregou os dias e ninguém viu.`
+    frase = `Nenhuma view ${dm === 1 ? 'em 1 dia medido' : `nos ${int(dm)} dias medidos`}${fim}. É zero medido: o YouTube entregou os dias e ninguém viu.`
   } else {
     const pm = total / dm
     const melhor = medidos.reduce((m, d) => ((d.views ?? 0) > (m.views ?? 0) ? d : m))

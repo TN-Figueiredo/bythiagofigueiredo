@@ -234,7 +234,8 @@ function resumoTexto(r: ResumoAlcance, total: number): string {
   const sem = buracos ? ` (${int(r.diasNaoMedidos)} sem relatório lido)` : ''
   const dias = buracos ? plural(r.diasLidos, 'dia medido', 'dias medidos') : plural(total, 'dia', 'dias')
   if (r.imp === 0) {
-    const onde = buracos ? `${r.diasLidos === 1 ? 'no' : 'nos'} ${dias}` : `em ${dias}`
+    // um único dia medido: "em 1 dia medido" (nunca "no 1 dia medido"); vários: "nos N dias medidos"
+    const onde = buracos && r.diasLidos !== 1 ? `nos ${dias}` : `em ${dias}`
     return `Nenhuma impressão ${onde}${sem}: ${partes}.`
   }
   const imp = plural(r.imp, 'impressão', 'impressões')
@@ -255,7 +256,7 @@ function resumoViews(r: ResumoAlcance, total: number): string {
   const partes = buracos ? `${comView} e ${emZero}` : `${comView}, ${emZero} e ${plural(0, 'dia não medido', 'dias não medidos')}`
   const sem = buracos ? ` (${nm})` : ''
   const dias = buracos ? plural(r.diasLidos, 'dia medido', 'dias medidos') : plural(total, 'dia', 'dias')
-  if (r.imp === 0) return `Nenhuma view ${buracos ? (r.diasLidos === 1 ? 'no' : 'nos') : 'em'} ${dias}${sem}: ${partes}.`
+  if (r.imp === 0) return `Nenhuma view ${buracos && r.diasLidos !== 1 ? 'nos' : 'em'} ${dias}${sem}: ${partes}.`
   return `${plural(r.imp, 'view', 'views')} em ${dias}${sem}: ${partes}.`
 }
 

@@ -41,6 +41,14 @@ describe('views por dia', () => {
     expect(g.resumo).toBe(b.frase)
   })
 
+  it('concordância: um único dia medido diz "em 1 dia medido" (zero ou não), nunca "no 1 dia medido"', () => {
+    const zero = blocos(mundoVideo({ mut: umaFaixa, diario: { viewsFoco: 0, diasFoco: 1 } })).views!
+    expect(zero.frase).toMatch(/^Nenhuma view em 1 dia medido(, e \d+ dias sem medida)?\. É zero medido: o YouTube entregou os dias e ninguém viu\.$/)
+    expect(zero.frase).not.toMatch(/\bno 1 /)
+    const com = blocos(mundoVideo({ mut: umaFaixa, diario: { viewsFoco: 5, diasFoco: 1 } })).views!
+    expect(com.frase).toMatch(/^5 views em 1 dia medido \(5,0 por dia\)\./)
+  })
+
   it('zero medido × não medido: os dias com linha de 0 views são "zero medido" (caixa vazada) e os sem linha são "não medido" (hachura); a frase de tudo zero diz que ninguém viu', () => {
     const w = mundoVideo({ mut: umaFaixa, diario: { viewsFoco: 0 } })
     const b = blocos(w).views!
