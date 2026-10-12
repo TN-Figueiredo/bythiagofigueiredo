@@ -184,14 +184,15 @@ describe('A3.3 bloco "Seus canais"', () => {
     })
     expect(forbiddenVocabulary(sec as HTMLElement)).toEqual([])
   })
-  it('"Abrir meu canal" abre o painel lateral do canal próprio (A3: o mesmo de hoje)', async () => {
+  it('"Abrir meu canal" leva à PÁGINA do canal próprio (A4; na A3 abria o painel lateral)', async () => {
     const user = userEvent.setup()
     mount()
     const alvo = view().own.block!.linhas.find(l => l.tipo === 'cheia')!
     await user.click(screen.getAllByRole('button', { name: /^Abrir meu canal/ })[0]!)
-    expect(replace).toHaveBeenCalledTimes(1)
-    expect(String(replace.mock.calls[0]![0])).toContain(`channel=${alvo.id}`)
-    expect(push).not.toHaveBeenCalled()
+    expect(push).toHaveBeenCalledTimes(1)
+    expect(push.mock.calls[0]![0]).toBe(`/cms/youtube/competitors/canal/${alvo.id}`)
+    expect(String(push.mock.calls[0]![0])).not.toContain('channel=')
+    expect(replace).not.toHaveBeenCalled()
   })
   it('"Ir até a linha" rola o contêiner que rola e põe o foco na linha (tabIndex -1); com busca ativa que esconde a linha, limpa a busca antes', async () => {
     const user = userEvent.setup()

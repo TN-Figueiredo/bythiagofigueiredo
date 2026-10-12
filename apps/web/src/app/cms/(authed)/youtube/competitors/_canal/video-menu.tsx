@@ -9,6 +9,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
 import { PinMessage, usePinControl } from '../_chrome/pin-kit'
+import { ehProprio } from '../_proprio/eh-proprio'
 import type { ChannelVideoView } from './videos-model'
 
 /** A chave da mensagem de fixar deste vídeo no PinProvider. */
@@ -39,9 +40,12 @@ function Itens({ v, onAmpliar, onTrocas, onPin, pinLabel, pinBusy }: {
       {onPin ? <button type="button" role="menuitem" tabIndex={-1} aria-disabled={pinBusy ? true : undefined} onClick={onPin}>{pinLabel}</button> : null}
       <button type="button" role="menuitem" tabIndex={-1} aria-disabled={v.thumbSrc ? undefined : true} onClick={() => { if (v.thumbSrc) onAmpliar() }}>Ampliar thumbnail</button>
       <a role="menuitem" tabIndex={-1} href={v.url} target="_blank" rel="noopener noreferrer">Abrir no YouTube<span className="obs-ch-sr"> (abre em nova aba)</span></a>
-      <button type="button" role="menuitem" tabIndex={-1} aria-disabled={trocas ? undefined : true} onClick={() => { if (trocas) onTrocas() }}>
-        <span>Ver trocas</span><small>{trocas ? `${v.swaps} em 30 d` : 'nenhuma em 30 d'}</small>
-      </button>
+      {/* as trocas do canal próprio ficam no A/B Lab: o item não existe no menu dele */}
+      {ehProprio(v) ? null : (
+        <button type="button" role="menuitem" tabIndex={-1} aria-disabled={trocas ? undefined : true} onClick={() => { if (trocas) onTrocas() }}>
+          <span>Ver trocas</span><small>{trocas ? `${v.swaps} em 30 d` : 'nenhuma em 30 d'}</small>
+        </button>
+      )}
     </div>
   )
 }

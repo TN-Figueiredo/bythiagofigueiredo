@@ -85,7 +85,9 @@ export const link = {
   /**
    * Link to canais screen.
    */
-  canais(p?: { niche?: NicheScope; channel?: string; tab?: 'videos' | 'outliers'; add?: 1; filter?: 'problemas'; nicheEditor?: 1; fmt?: 'todos' | 'longos' | 'shorts' }): string {
+  canais(p?: { niche?: NicheScope; channel?: string; tab?: 'videos' | 'outliers'; add?: 1; filter?: 'problemas'; nicheEditor?: 1; fmt?: 'todos' | 'longos' | 'shorts'
+    /** A lista já ordenada (maior primeiro) pelas duas ordenações que têm posição escrita: inscritos e views/dia. */
+    sort?: 'subs' | 'vpd' }): string {
     const cleaned = cleanLink(p)
     const query = buildQuery(cleaned)
     return OBS_BASE + query

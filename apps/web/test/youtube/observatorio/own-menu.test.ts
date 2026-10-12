@@ -41,6 +41,7 @@ describe('ownMenuOf (telas que leem o site)', () => {
       expect(i.name).toBe(c.name)
       expect(i.nota).toMatch(new RegExp(`^último vídeo (hoje|há \\d+ dias?), ${obs.fmt.subs(c.subs)} inscritos$`)) // 11c: a recência primeiro (D-C.5)
       expect(i.href).toBe(ownChannelHref(i.id))
+      expect(i.href).toBe(link.canal(i.id)) // A4: o atalho abre a PÁGINA do canal, não o painel lateral
     }
     expect(m.itens[0]!.nota).toBe('último vídeo hoje, 3,21 mil inscritos')
     expect(m.listaHref).toBe(link.canais())

@@ -17,7 +17,7 @@ export interface CanalView {
   /** Vídeos e Trocas vêm no mesmo pacote (a troca de aba não vai ao servidor). */
   trocas: CanalTrocasView
   state: CanalState
-  /** Canal próprio: continua no painel lateral de Canais até a A4 (emenda 26); a página redireciona. */
+  /** Canal próprio: a rota já ramifica antes (A4, `_proprio/view-model.ts`); este modelo é o do concorrente e `own` só marca o caso. */
   own: boolean
   /** Para onde o primeiro item da trilha leva: Canais, ou a tela de origem (Outliers, Mudanças) com o filtro que ela tinha. */
   canaisHref: string
@@ -41,7 +41,7 @@ export function buildCanalView(obs: Observatory, channelId: string, sp: Record<s
   if (sp.from === 'outliers') { canaisHref = link.outliers() + backOf(sp.back); origemText = 'Outliers'; origem = { from: 'outliers', back: backOf(sp.back) } }
   else if (sp.from === 'mudancas') { canaisHref = link.mudancas() + backOf(sp.back); origemText = 'Mudanças'; origem = { from: 'mudancas', back: backOf(sp.back) } }
   return {
-    header, videos: buildCanalVideos(obs, channelId), trocas: buildCanalTrocas(obs, channelId), state: parseCanalState(sp), own,
+    header, videos: buildCanalVideos(obs, channelId), trocas: buildCanalTrocas(obs, channelId), state: parseCanalState(sp, { own: false }), own,
     backfilling: obs.channel(channelId)?.sync.state === 'backfill', canaisHref, origemText, origem,
   }
 }
