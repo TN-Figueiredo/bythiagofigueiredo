@@ -1,8 +1,11 @@
 /* Os blocos da tela do vídeo próprio (A4 13.4; mockup MC/a4.css `.sec`, `.ctr`, `.as`, `.dep`). Prefixo vb-. Tokens do [data-obs]; hex e rgba literais;
    sem mistura de cor por função, nenhum z-index numérico, nenhum texto abaixo de 12 px, alvo de toque de 44 px em pointer:coarse, nada que passe de 390 px. */
 [data-obs-screen="video-proprio"] .vb-sec{border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:14px 16px 16px;margin:0 0 14px;min-width:0}
-[data-obs-screen="video-proprio"] .vb-sec h2{margin:0 0 6px;font:600 16px/22px var(--font-sans),system-ui,sans-serif;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
-[data-obs-screen="video-proprio"] .vb-sec h3{margin:0;font:600 14px/20px var(--font-sans),system-ui,sans-serif;display:flex;align-items:center;gap:4px}
+[data-obs-screen="video-proprio"] .vb-sec h2{margin:0;font:600 16px/22px var(--font-sans),system-ui,sans-serif}
+/* o título e o ⓘ lado a lado; o botão fica FORA do h2 (o nome acessível do título é só o texto dele) */
+[data-obs-screen="video-proprio"] .vb-h{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:0 0 6px}
+[data-obs-screen="video-proprio"] .vb-sec > h2{margin:0 0 6px}
+[data-obs-screen="video-proprio"] .vb-sec h3{margin:0;font:600 14px/20px var(--font-sans),system-ui,sans-serif}
 [data-obs-screen="video-proprio"] .vb-fr{margin:0;font-size:14px;line-height:21px;max-width:88ch}
 [data-obs-screen="video-proprio"] .vb-fr b{font-weight:600}
 [data-obs-screen="video-proprio"] .vb-num-pouco{color:var(--muted)}
@@ -19,6 +22,7 @@
 #flut .canal-tip .vb-info-p{margin:4px 0 0;font-size:13px;line-height:19px}
 /* taxa de clique: o texto e a faixa (a faixa é de taxa-faixa.css) */
 [data-obs-screen="video-proprio"] .vb-ctr{margin:14px 0 0;display:grid;gap:6px;max-width:760px}
+[data-obs-screen="video-proprio"] .vb-ctr .vb-h{margin:0}
 /* % assistido: a barra do tamanho do vídeo, a marca do normal da faixa e a leitura contra ele */
 [data-obs-screen="video-proprio"] .vb-as{display:grid;gap:8px;max-width:760px;margin-top:6px}
 [data-obs-screen="video-proprio"] .vb-as-barra{position:relative;height:28px;border-radius:5px;background:var(--sunk,var(--surface-2));border:1px solid var(--border-strong);overflow:hidden}
@@ -28,8 +32,11 @@
 [data-obs-screen="video-proprio"] .vb-as-barra.pouco i{background:var(--dim)}
 [data-obs-screen="video-proprio"] .vb-as-tk{display:flex;justify-content:space-between;font:400 12px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;color:var(--muted)}
 [data-obs-screen="video-proprio"] .vb-as-med{position:relative;height:22px}
-[data-obs-screen="video-proprio"] .vb-as-med span{position:absolute;top:0;transform:translateX(-50%);font-size:12px;line-height:16px;color:var(--text);white-space:nowrap}
-[data-obs-screen="video-proprio"] .vb-as-med span:first-child{max-width:100%}
+[data-obs-screen="video-proprio"] .vb-as-med span{position:absolute;top:0;font-size:12px;line-height:16px;color:var(--text);white-space:nowrap;max-width:100%}
+/* no meio o rótulo fica centrado sob a marca; perto de 0% ou de 100% ele prende na ponta da barra em vez de estourar a tela */
+[data-obs-screen="video-proprio"] .vb-as-med .vb-as-med-meio{transform:translateX(-50%)}
+[data-obs-screen="video-proprio"] .vb-as-med .vb-as-med-inicio{left:0}
+[data-obs-screen="video-proprio"] .vb-as-med .vb-as-med-fim{right:0}
 /* direção: só direção, sempre com forma e palavra (▲ ▼ ＝ e "acima", "abaixo", "perto") */
 [data-obs-screen="video-proprio"] .vb-dir-acima{color:var(--dir-up)}
 [data-obs-screen="video-proprio"] .vb-dir-abaixo{color:var(--dir-dn)}

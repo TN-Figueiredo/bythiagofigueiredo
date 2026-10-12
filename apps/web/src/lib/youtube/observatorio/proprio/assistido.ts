@@ -97,6 +97,22 @@ export function normalDaFaixa(videos: ReadonlyArray<{ dur: number | null; pct: n
   })
 }
 
+export interface NormalDoCanal {
+  /** vídeos com % assistido (tiveram views na janela) */
+  comViews: number
+  /** mediana do % assistido; null com menos de MIN_VIDEOS_FAIXA vídeos com views */
+  normal: number | null
+}
+
+/**
+ * O normal do CANAL (tela do vídeo): a mediana do % assistido dos vídeos que o chamador passar (os OUTROS vídeos do canal, sem o próprio), sem faixa de
+ * duração. Mesmo mínimo de `normalDaFaixa` (MIN_VIDEOS_FAIXA). % nulo (sem views) não conta como vídeo com views nem como zero.
+ */
+export function normalDoCanal(pcts: ReadonlyArray<number | null>): NormalDoCanal {
+  const com = pcts.filter((p): p is number => p != null)
+  return { comViews: com.length, normal: com.length >= MIN_VIDEOS_FAIXA ? medianaDe(com) : null }
+}
+
 export type LeituraContraNormal = 'acima' | 'na-media' | 'abaixo'
 
 /**
