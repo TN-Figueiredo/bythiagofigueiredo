@@ -104,6 +104,26 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     return v.count > 0
   }
 
+  // Canais (entre `ids`) sem token HOJE, pela tentativa de relatório de hoje: `sem_conexao` (nunca conectado) e
+  // `sem_autorizacao` (perdeu a autorização). `null` = a leitura falhou (a nota de avaliação já está em falhas[]).
+  const semTokenHoje = async (ids: string[], criterio: string): Promise<{ semConexao: Set<string>; semAutorizacao: Set<string> } | null> => {
+    const sc = await ctx.supabase
+      .from('yt_own_collection_attempts')
+      .select('scope_id, outcome')
+      .eq('scope_type', 'canal')
+      .eq('kind', 'relatorio')
+      .eq('attempt_day', utcDay(new Date()))
+      .in('outcome', ['sem_conexao', 'sem_autorizacao'])
+      .in('scope_id', ids)
+      .limit(LIMITE_LEITURA)
+    if (!leituraOk(sc, 'yt_own_collection_attempts', criterio, ctx.falhas)) return null
+    const linhas = (sc.data ?? []) as Array<{ scope_id: string; outcome: string }>
+    return {
+      semConexao: new Set(linhas.map(l => l.scope_id)),
+      semAutorizacao: new Set(linhas.filter(l => l.outcome === 'sem_autorizacao').map(l => l.scope_id)),
+    }
+  }
+
   // Relatórios de ALCANCE dos últimos 14 dias, do mais novo para o mais velho (2 tipos por canal: cabe em 1000
   // com dezenas de canais; ler os 4 tipos estouraria o corte nas primeiras semanas). Não depende de haver job ativo.
   const rec = await ctx.supabase
@@ -303,15 +323,31 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
 
   // Tipos que só guardam bruto: job ativo há mais de 6 dias cuja listagem não vê relatório novo há mais de 6 dias.
   // Usa a marca do próprio job (`last_create_time`), sem ler relatórios: o YouTube gera relatório todo dia, mesmo só
-  // com cabeçalho, então job ativo sem relatório é job parado, não "nada a baixar". Marca nula = nunca chegou nenhum.
-  for (const j of linhasJob) {
-    if (j.status !== 'ativo' || ALCANCE.includes(j.report_type_id) || !HABILITADOS.includes(j.report_type_id)) continue
+  // com cabeçalho, inclusive para canal sem publicação (leitura de produção de 12/10/2026), então job ativo sem
+  // relatório é job parado, não "nada a baixar". Por isso NÃO há filtro `publicou` aqui, de propósito. Marca nula =
+  // nunca chegou nenhum. Canal desligado (`sync_enabled=false`) ou em `reautorizar` fica fora, como no critério de alcance.
+  const paradosBruto = linhasJob.filter(j => {
+    if (j.status !== 'ativo' || ALCANCE.includes(j.report_type_id) || !HABILITADOS.includes(j.report_type_id)) return false
     const canal = ctx.channels.find(c => c.id === j.channel_id)
-    if (!canal || !canal.sync_enabled || canal.collection_status === 'reautorizar') continue
+    if (!canal || !canal.sync_enabled || canal.collection_status === 'reautorizar') return false
     const idade = j.job_create_time ?? j.created_at
-    if (!idade || Date.parse(idade) >= corte6) continue
-    if (j.last_create_time && Date.parse(j.last_create_time) >= corte6) continue
-    pushUnico(ctx.falhas, `relatórios: ${nome(j.channel_id)} está sem relatório novo de ${j.report_type_id} há mais de 6 dias`)
+    if (!idade || Date.parse(idade) >= corte6) return false
+    return !(j.last_create_time && Date.parse(j.last_create_time) >= corte6)
+  })
+  if (paradosBruto.length > 0) {
+    // Canal sem token hoje: o passo de relatórios não lista, então "sem relatório novo" é consequência, não parada.
+    // Mesma regra do critério de alcance: "sem conexão" vira nota do dono (uma só por canal), "perdeu a autorização"
+    // já sai como "<canal>: reautorizar" em rodarColeta. A leitura que falha é nota de avaliação, nunca verde.
+    const sem = await semTokenHoje([...new Set(paradosBruto.map(j => j.channel_id))], 'jobs de tipos brutos sem relatório novo')
+    if (sem !== null) {
+      for (const id of new Set(paradosBruto.map(j => j.channel_id))) {
+        if (sem.semConexao.has(id) && !sem.semAutorizacao.has(id)) pushUnico(out.acao_do_dono!, `${nome(id)}: sem conexão com o YouTube`)
+      }
+      for (const j of paradosBruto) {
+        if (sem.semConexao.has(j.channel_id)) continue
+        pushUnico(ctx.falhas, `relatórios: ${nome(j.channel_id)} está sem relatório novo de ${j.report_type_id} há mais de 6 dias`)
+      }
+    }
   }
 
   // Job de alcance ativo há mais de 6 dias sem relatório novo, em canal que publicou nos últimos 90 dias.
@@ -336,21 +372,11 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
   // "sem relatório novo" é consequência, não parada. Nunca vai para falhas. "Sem conexão" vira nota de
   // acao_do_dono aqui; "perdeu a autorização" já sai como "<canal>: reautorizar" em rodarColeta.
   const canaisSemNovo = [...new Set(semNovo.map(j => j.channel_id))]
-  const sc = await ctx.supabase
-    .from('yt_own_collection_attempts')
-    .select('scope_id, outcome')
-    .eq('scope_type', 'canal')
-    .eq('kind', 'relatorio')
-    .eq('attempt_day', utcDay(new Date()))
-    .in('outcome', ['sem_conexao', 'sem_autorizacao'])
-    .in('scope_id', canaisSemNovo)
-    .limit(LIMITE_LEITURA)
-  if (!leituraOk(sc, 'yt_own_collection_attempts', 'jobs de alcance sem relatório novo', ctx.falhas)) return out
-  const semToken = (sc.data ?? []) as Array<{ scope_id: string; outcome: string }>
-  const semConexao = new Set(semToken.map(l => l.scope_id))
-  const semAutorizacao = new Set(semToken.filter(l => l.outcome === 'sem_autorizacao').map(l => l.scope_id))
+  const sem = await semTokenHoje(canaisSemNovo, 'jobs de alcance sem relatório novo')
+  if (sem === null) return out
+  const { semConexao, semAutorizacao } = sem
   for (const id of canaisSemNovo) {
-    if (semConexao.has(id) && !semAutorizacao.has(id)) out.acao_do_dono!.push(`${nome(id)}: sem conexão com o YouTube`)
+    if (semConexao.has(id) && !semAutorizacao.has(id)) pushUnico(out.acao_do_dono!, `${nome(id)}: sem conexão com o YouTube`)
   }
 
   // Por canal: no máximo uma leitura por canal candidato (<= nº de canais), a mesma do critério dos vazios.
