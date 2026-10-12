@@ -23,11 +23,11 @@ Tudo roda dentro do cron `sync-analytics-metrics`, uma vez por dia às 12:00 UTC
 | Estado de autorização de cada canal (L1b) | `youtube_channels.collection_status` (`ok` ou `reautorizar`) e `authorization_verified_at` | — |
 | Cada execução do cron: tempos por passo, falhas, ação do dono, resumo (L1b) | `yt_own_collection_runs` (90 dias; só service role) | — |
 | Diário real por vídeo da Analytics API (L2): `views`, `engaged_views`, `watch_time_minutes`, `avg_view_duration_seconds`, `avg_view_percentage`, `likes`, `comments`, `shares`, `subscribers_gained`, `subscribers_lost`, `card_impressions`, `card_click_rate` | `yt_own_video_daily` (uma linha por vídeo por dia do Pacífico **em que houve atividade**) | Sim: a Analytics API serve o passado. Sem linha para o vídeo, a execução seguinte pede tudo de novo desde a publicação |
-| Impressões e CTR de miniatura por vídeo e dia (L2), normalizados do CSV de `channel_reach_basic_a1` | `yt_own_video_reach_daily` | Em parte: só enquanto o bruto existir. O bruto de um relatório normalizado é apagado 90 dias depois (seção 8) |
+| Impressões e CTR de miniatura por vídeo e dia (L2), normalizados do CSV de `channel_reach_basic_a1` | `yt_own_video_reach_daily` | Sim: o bruto fica guardado (MG13, E20); nenhuma rotina o apaga por prazo (seção 8) |
 
 Tipos de relatório habilitados (`REPORT_TYPES_ENABLED`): os 4 de sempre (`channel_reach_basic_a1`, `channel_reach_combined_a1`, `channel_traffic_source_a3`, `channel_basic_a3`) e, desde a E12 da A5, mais 9 que **só guardam o bruto** (sem normalizador e sem tela): `channel_combined_a3`, `channel_device_os_a3`, `channel_playback_location_a3`, `channel_province_a3`, `channel_demographics_a1`, `channel_subtitles_a3`, `channel_cards_a1`, `channel_end_screens_a1`, `channel_sharing_service_a1`. Os dois primeiros da lista são os "de alcance". Ficam fora de propósito `channel_annotations_a1` (recurso extinto) e os `playlist_*`. A ordem da lista só desempata a fila de download.
 
-Os 12 tipos que não são `channel_reach_basic_a1` guardam só o bruto, e o bruto é apagado 180 dias depois do download (o de `channel_reach_basic_a1`, 90 dias depois de normalizado). **Os 9 tipos novos só valem a partir do deploy**: o YouTube gera apenas os 30 dias anteriores à criação do job, então cada dia de atraso no deploy perde um dia de histórico deles. Se um desses tipos for gerado vazio ou nunca for gerado para o canal, ver "Conferência de D+3 e D+7" na seção 10. **Prazos de apagamento sem exportar (07/01/2027 e 07/04/2027, prazo da E10): seção 13.**
+Os 12 tipos que não são `channel_reach_basic_a1` guardam só o bruto, e o bruto **não é mais apagado por prazo** (MG13, E20). **Os 9 tipos novos só valem a partir do deploy**: o YouTube gera apenas os 30 dias anteriores à criação do job, então cada dia de atraso no deploy perde um dia de histórico deles. Se um desses tipos for gerado vazio ou nunca for gerado para o canal, ver "Conferência de D+3 e D+7" na seção 10.
 
 **O que se perde de vez e o que não.** Impressões e CTR de miniatura só existem a partir da criação do job: o Google guarda o histórico de cada job por 30 dias e os relatórios diários por 60. A linha diária de metadados de um dia em que o cron não rodou nunca é escrita (aparece como `dias_sem_meta`). Todo o resto pode ser buscado de novo depois.
 
@@ -84,6 +84,8 @@ Rodar à mão é seguro: os passos são idempotentes no dia (a segunda execuçã
 | `coleta.autorizados`, `coleta.negados` | `youtube_channels.id` dos canais que tiveram, nesta execução, uma chamada autenticada bem-sucedida / uma negação de autorização. É com esses dois conjuntos que o cron decide, no fim, quem sai de `reautorizar` |
 | `coleta.jobs` | `estados` por canal e tipo, `tipo_indisponivel`, `acao_do_dono`, `pendentes` |
 | `coleta.relatorios` | `vistos`, `baixados`, `vazios`, `expirados`, `erros_download`, `bruto_apagado`, `pendentes`, `perdidos`, `atrasados`; desde a E12 também `maior_bytes` (bytes lidos do corpo), `maior_lido_por_tipo`, `corpos_gz`, `expirados_por_tipo`, `vence_primeiro_em_dias` (`null` = nada ficou para trás) e `ms_listar` / `ms_baixar` |
+| `coleta.guarda` | conferido em toda execução (MG13, E20): `blobs_guardados` (brutos no banco; `null` = não conferido, e aí há nota em `falhas`), `blobs_guardados_antes` (o da última execução que tem número; `null` na primeira), `baixados_sem_bruto` (maior que 0 é falha enquanto durar), `brutos_sem_baixado` (bruto cujo relatório não está como baixado; visível, não é falha), `perdas_reconhecidas` (relatórios com `blob_lost_at`) e `expirados_sem_registro` |
+| `coleta.conferencias_vencidas` | lista de conferências com data que já venceram e não foram dadas como feitas (E20, Tarefa 6) |
 | `coleta.alcance` | o passo que normaliza o bruto de `channel_reach_basic_a1`: `normalizados` (relatórios com dado), `vazios` (relatórios `vazio` conferidos e marcados), `erros` (viraram `erro` nesta execução), `sem_par` (vídeos sem par em `youtube_videos`), `gravados` (linhas inseridas ou sobrescritas em `yt_own_video_reach_daily`), `pendentes` (ficam para amanhã; fila com mais de 200 soma 1 a mais, o número exato não é conhecido), `tentativas` (sempre vazio: o passo não registra tentativas). `sem_tempo: true` = o passo recebeu 0 s (e `pendentes` fica em 0: ver seção 2). Chave `alcance` ausente = o passo lançou exceção (veja `falhas`) ou está desligado (seção 10). **`normalizados` pode subir com `gravados: 0`**: o relatório era mais velho que as linhas já gravadas e a função do banco não sobrescreve |
 | `coleta.diario` | o passo do diário por vídeo: `gravados` (linhas de dia gravadas em `yt_own_video_daily`), `tentativas` por resultado (conta as tentativas de vídeo **e** a de canal de `kind = 'diario'`: um canal com 35 vídeos mostra uns 36 ao todo), `pendentes` (vídeos que o relógio deixou para amanhã), `ate` (o "hoje" do Pacífico usado como fim da janela), `estendidas_recusadas` (vídeos cuja resposta veio sem as métricas estendidas) e `sem_tempo`. `gravados: 0` com `tentativas.sem_dado_na_janela` alto = a API respondeu vazio para os vídeos: sem atividade na janela, **não** zero. Chave `diario` ausente = o passo lançou exceção ou está desligado |
 | `coleta.perdidos`, `coleta.atrasados` | os mesmos dois números, no nível de cima. `perdidos` = sem conserto; `atrasados` = `listado` há mais de 14 dias (esses viram falha) |
@@ -314,6 +316,11 @@ Cada nota vira texto em `cron_health.last_error` (juntas, até 500 caracteres) e
 | `relatórios: listagem truncada em 50 páginas (<canal>: <tipo>)` | `reports.list` devolveu mais de 50 páginas; a marca do job não avança, a listagem recomeça no dia seguinte | nada, a menos que repita por muitos dias |
 | `relatórios: <canal>: <causa>` | exceção ao listar os relatórios de um canal | Sentry |
 | `relatórios: <causa>` | exceção ao baixar um relatório (extra `report`) | Sentry |
+| `relatórios: a limpeza apagou N bruto(s) nesta execução; desde a MG13 o esperado é 0 (…)` | a função `yt_reporting_blobs_purge` voltou a ter o corpo que apaga | não recriar o corpo antigo; reaplicar o SQL da MG13 (é idempotente); os brutos apagados aparecem no dia seguinte como `baixados_sem_bruto` |
+| `relatórios: N relatório(s) baixado(s) estão sem o bruto guardado (…)` | há relatório com `downloaded_at`, sem bruto e sem perda reconhecida. Fica vermelho todo dia até uma das duas saídas | seção 13, "Bruto que falta: as duas saídas" |
+| `relatórios: os brutos guardados caíram de N para M desde a última execução conferida: …` | o número de brutos diminuiu. Dura um dia. Esperado quando você remove um canal próprio (a cascata leva relatório e bruto); fora disso é perda | se você não removeu canal: rodar a consulta do topo (seção 13) e a de `yt_reporting_reports` por canal, e levar ao controlador no mesmo dia |
+| `relatórios: guarda do bruto não conferida (…)` | a função de conferência não devolveu número, ou a conferência lançou | resolver a nota de banco que vem junto; se vier sozinha dois dias seguidos, Sentry (tag `passo: guarda do bruto`) |
+| `schema_ausente: yt_reporting_guarda_conferir` | o código novo está no ar sem a MG13 | aplicar a MG13 (`npm run db:push:prod`, fora de 11:55 a 12:15 UTC) |
 
 ### Alcance normalizado (L2)
 
@@ -406,7 +413,7 @@ O CSV traz ids de vídeo e números do próprio canal; não traz dado pessoal. P
 
 Só vale para `channel_reach_basic_a1` (os outros tipos não têm normalizador). O passo `alcance` pega todo relatório `baixado` ou `vazio` com `normalized_at` nulo, do mais velho para o mais novo, 200 por execução. Re-normalizar é devolver o relatório a essa fila. **Você roda** os `update` (escrevem em produção), um por vez, no SQL Editor do Supabase.
 
-**Antes: confira que o bruto ainda existe** (leitura). O bruto de um relatório normalizado é apagado 90 dias depois; sem ele o relatório volta a `erro` com `bruto_ausente` e o cron fica vermelho **na execução em que isso acontece** (nota `alcance: relatório <id> de <canal> não pôde ser normalizado (bruto_ausente)`, qualquer que seja a idade do relatório). Nos dias seguintes só continua vermelho se o `create_time` tiver até 14 dias; passado isso o erro sai de `falhas` e conta em `perdidos`:
+**Antes: confira que o bruto ainda existe** (leitura). Desde a MG13 o bruto não é apagado por prazo; se mesmo assim faltar, o relatório volta a `erro` com `bruto_ausente` e o cron fica vermelho **na execução em que isso acontece** (nota `alcance: relatório <id> de <canal> não pôde ser normalizado (bruto_ausente)`, qualquer que seja a idade do relatório). Nos dias seguintes só continua vermelho se o `create_time` tiver até 14 dias; passado isso o erro sai de `falhas` e conta em `perdidos`:
 
 ```bash
 npx supabase db query --linked "select r.report_id, r.status, r.row_count, r.normalized_at, r.error, b.report_id is not null as tem_bruto from yt_reporting_reports r left join yt_reporting_report_blobs b using (report_id) where r.report_id = '<REPORT_ID>' limit 1"
@@ -531,7 +538,7 @@ Como ler:
 - **Cerca de D+9: um tipo gerou o histórico e não gera o relatório diário.** É o caso de um canal parado: o YouTube entrega os 30 dias anteriores à criação do job (por isso `last_create_time` fica preenchido) e depois nada. O cron fica **vermelho todo dia**, com `relatórios: <canal> está sem relatório novo de <tipo> há mais de 6 dias`, até o dono agir. A saída é tirar o tipo da lista; não há outra, e esperar não resolve.
   1. Confirme na consulta por canal e tipo (acima) que `last_create_time` não anda há mais de 6 dias para o tipo, e que não é falha do cron (o resto do resumo está normal, `pendentes` caindo).
   2. Decida o tipo e **tire a linha** de `REPORT_TYPES_ENABLED` em `apps/web/src/lib/youtube/reporting/types.ts` (a lista `SEM_NORMALIZADOR` é derivada; não precisa mexer nela). Rode `npx vitest run test/youtube/coleta` antes do push: o teste que falhar por causa do número de tipos mostra o que ajustar.
-  3. Deploy. Na execução seguinte a linha vira `desativado` (só no banco), o tipo sai da listagem, do download e dos critérios, e o cron volta a verde. O bruto que já foi baixado continua guardado (a limpeza de 180 dias, abaixo, ainda vale para ele).
+  3. Deploy. Na execução seguinte a linha vira `desativado` (só no banco), o tipo sai da listagem, do download e dos critérios, e o cron volta a verde. O bruto que já foi baixado continua guardado (desde a MG13 nenhuma limpeza por prazo vale para ele).
   4. O job continua gerando relatório no Google. Para parar, apague-o (`jobs.delete`, seção 9); o dono faz isso, escreve no Google. Se o tipo for religado depois, a sondagem adota o job que ficou.
   5. Anote no ledger o tipo, o canal, a data e que o YouTube só gerou o histórico.
 - Anote no ledger quais dos 9 tipos o YouTube gera de fato. Para o tamanho, **não use `maior`/`bytes_medio` desta consulta como medida do teto**: são do gzip guardado. A medida que justifica manter ou mudar os tetos da seção 2 é `maior_lido_por_tipo` (e `corpos_gz`) do resumo do cron, lido na conferência de D+3 (consulta B do plano, `resumo->'relatorios'`); `maior`/`bytes_medio` só dizem quanto ocupa o banco.
@@ -603,7 +610,8 @@ npm run db:new coleta_canais_proprios_l1a_rollback
 ```
 
 ```sql
-drop function if exists public.yt_reporting_blobs_purge(text[]);
+drop function if exists public.yt_reporting_guarda_conferir();   -- criada pela MG13 (E20); sai antes das tabelas que ela lê
+drop function if exists public.yt_reporting_blobs_purge(text[]);   -- a MG13 a recriou (corpo `return 0`): ver a seção 13
 drop function if exists public.yt_own_attempt_record(uuid, text, text, text, text, integer, text, uuid);
 drop table if exists public.yt_reporting_report_blobs;
 drop table if exists public.yt_reporting_reports;
@@ -656,9 +664,44 @@ A ordem 2 antes de 3 importa só para não ficar vermelho: se a tabela sumir com
 
 ## 13. Limites conhecidos
 
-- **Duas limpezas do bruto apagam dado sem exportar, em datas marcadas. O prazo para trocá-las é o da etapa E10 (spec 9.2, "só apaga o que foi exportado e confirmado"); sem a E10 pronta, elas rodam em verde.** O único sinal é o contador `bruto_apagado` do resumo do passo de relatórios. A origem (YouTube) já terá expirado o arquivo, então a perda é definitiva. A função é `yt_reporting_blobs_purge` (migration L1a), chamada em toda execução do passo de relatórios:
-  1. **Purge de 90 dias do bruto normalizado** (`channel_reach_basic_a1`): apaga o bruto de relatório com `normalized_at` há mais de 90 dias. **A primeira deleção é em 07/01/2027** (bruto baixado em 09/10/2026). O dado de alcance já está em `yt_own_video_reach_daily`; perde-se só o CSV bruto.
-  2. **Limpeza de 180 dias dos 12 tipos sem normalizador** (todos menos `channel_reach_basic_a1`: o `SEM_NORMALIZADOR` tem 12 tipos): apaga o bruto baixado há mais de 180 dias. **A primeira deleção é em 07/04/2027.** Aqui o bruto é o único registro: nenhum desses tipos tem tabela normalizada nem tela. Antes de 01/04/2027, ou a E10 troca a regra por "só apaga o que foi exportado", ou se esvazia a lista passada à função (`reports-step.ts`, o argumento `p_sem_normalizador` do `rpc`; mudança de uma linha) para parar a deleção até a E10.
+- **O bruto não é apagado por prazo (MG13, E20).** `yt_reporting_blobs_purge` devolve 0. Sinais: `relatorios.bruto_apagado` tem de ser 0 e `guarda.baixados_sem_bruto` tem de ser 0; qualquer outro valor deixa o cron vermelho, e uma queda de `guarda.blobs_guardados` deixa vermelho por um dia. Conferências com data: 21/10/2026 e 12/11/2026 (tamanho), 09/01/2027 e 09/04/2027 (as datas em que a limpeza antiga apagaria); elas estão em `apps/web/src/lib/conferencias.ts` (o cron as lista em `coleta.conferencias_vencidas` quando vencem) e em `.superpowers/sdd/a5/conferencias-com-data.md`; as consultas, na seção "Conferências depois do envio" do plano `docs/superpowers/plans/2026-10-12-a5-e20-guarda-do-bruto-plan.md`. Recriar o corpo antigo da função é o que apaga: não fazer.
+  - **O que continua sendo apagado:** tudo de um canal próprio removido (`youtube_channel_remove`, pelo dono, com o slug digitado: o relatório leva o bruto por cascata, sem export nesta fase); tudo de um site apagado (cascata); linhas de `yt_own_collection_runs` com mais de 90 dias; linha de `ops_alert_state` de alerta resolvido. O arquivo **na origem** (YouTube) some 60 dias depois de gerado (30 no histórico): é por isso que o bruto fica aqui. O reenvio de um relatório à fila troca o bruto pelo arquivo novo (substituição, não apagamento).
+  - **Consulta que confere (leitura; qualquer um roda).** Depois da MG13 o esperado é `colunas_mg13 = 4`, `purge_desligado = true`, `funcao_guarda = 1`, `baixados_sem_bruto = 0`, `brutos_sem_baixado = 0`:
+
+```bash
+npx supabase db query --linked "select (select count(*) from information_schema.columns where table_schema='public' and table_name='yt_reporting_reports' and column_name in ('expired_at','download_attempts','last_error_at','blob_lost_at')) as colunas_mg13, (select prosrc not like '%delete from%' from pg_proc where pronamespace='public'::regnamespace and proname='yt_reporting_blobs_purge') as purge_desligado, (select count(*) from pg_proc where pronamespace='public'::regnamespace and proname='yt_reporting_guarda_conferir') as funcao_guarda, (select count(*) from yt_reporting_report_blobs) as blobs, (select count(*) from yt_reporting_reports r where r.downloaded_at is not null and not exists (select 1 from yt_reporting_report_blobs b where b.report_id = r.report_id)) as baixados_sem_bruto, (select count(*) from yt_reporting_report_blobs b where not exists (select 1 from yt_reporting_reports r where r.report_id = b.report_id and r.downloaded_at is not null)) as brutos_sem_baixado"
+```
+
+```bash
+npx supabase db query --linked "select * from public.yt_reporting_guarda_conferir()"
+```
+
+- **Bruto que falta: as duas saídas.** Se o cron ficar vermelho com `baixados_sem_bruto` maior que 0, a saída é sua. Lista de quais são (leitura):
+
+```bash
+npx supabase db query --linked "select r.report_id, r.report_type_id, r.channel_id, r.create_time, r.downloaded_at, (r.create_time + case when r.is_backfill then interval '30 days' else interval '60 days' end) as some_da_origem_em, (r.create_time + case when r.is_backfill then interval '30 days' else interval '60 days' end) > now() as origem_ainda_tem from yt_reporting_reports r where r.downloaded_at is not null and r.blob_lost_at is null and not exists (select 1 from yt_reporting_report_blobs b where b.report_id = r.report_id) order by r.create_time"
+```
+
+  Para cada linha, um dos dois. **Os dois comandos são seus. Nenhum agente os roda.** No SQL Editor do Supabase, um por vez:
+
+  - `origem_ainda_tem = true`: devolver à fila. O cron do dia seguinte baixa de novo e a nota some.
+
+```sql
+update public.yt_reporting_reports set status = 'listado', downloaded_at = null, error = null where report_id = '<REPORT_ID>' and downloaded_at is not null and blob_lost_at is null;
+```
+
+  - `origem_ainda_tem = false`: reconhecer a perda. O relatório sai do alarme e passa a contar em `perdas_reconhecidas`, que fica no resumo do cron para sempre (visível, sem vermelho).
+
+```sql
+update public.yt_reporting_reports set blob_lost_at = now() where report_id = '<REPORT_ID>' and downloaded_at is not null and blob_lost_at is null;
+```
+
+  Perdas já reconhecidas (leitura):
+
+```bash
+npx supabase db query --linked "select report_id, report_type_id, create_time, downloaded_at, blob_lost_at from yt_reporting_reports where blob_lost_at is not null order by blob_lost_at"
+```
+
 - **Morte da função pela plataforma não deixa rastro.** Se o Vercel mata a função (passou de 300 s, falta de memória), nenhum registro de saúde é escrito e o cron só é notado cerca de 12 horas depois, pela checagem de "atrasado". O relógio de 270 s existe para isso não acontecer.
 - **Os critérios supõem poucos canais.** Cada leitura de critério é cortada em 1000 linhas. Acima de uns 25 canais, uma das leituras pode bater no corte e a nota vira `… leitura cortada em 1000` (falha, não verde).
 - **Gzip que não abre no download é tentado de novo, todo dia.** Um download cortado chega assim, e o relatório continua `listado` (com tentativa `erro_http` `gzip_invalido`); se o arquivo da origem estiver mesmo corrompido, ele vence e vira `perdidos`. Só o passo `alcance` marca `erro` por `gzip_invalido` (bruto já guardado que não abre), e esse é definitivo.
