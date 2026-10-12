@@ -131,7 +131,7 @@ describe('% assistido', () => {
     expect(s.querySelector('.vb-as-barra s')!.getAttribute('style')).toContain('left: 60%')
     expect(s.querySelector('.vb-as-med')!.textContent).toContain('normal do canal: 60%')
     const contra = s.querySelector('.vb-dir-acima')!
-    expect(texto(contra)).toBe('▲ Acima do normal do canal (60%, faixa 5 a 15 min): +18 pontos.')
+    expect(texto(contra)).toBe('▲ Acima do normal do canal (60%): +18 pontos.')
   })
 
   it('"Perto do normal do canal" só até 2 pontos (símbolo ＝); 3 pontos já diz acima/abaixo (▲ ▼)', () => {
@@ -156,11 +156,32 @@ describe('% assistido', () => {
     expect(s.querySelector('[class*="vb-dir-"]')).toBeNull()
   })
 
-  it('acima de 100% não estoura a barra e o número é o real', () => {
+  it('acima de 100% não estoura a barra, o número é o real e a frase diz que reviram trechos (nada de "13:56 de 10:00")', () => {
     const { container } = montar(mundoVideo({ mut: umaFaixa, diario: { pctFoco: 139.38 } }))
     const s = secao(container, 'Quanto do vídeo as pessoas assistem')
-    expect(texto(s.querySelector('.vb-fr'))).toMatch(/^Quem assiste vê em média 139% do vídeo/)
+    expect(texto(s.querySelector('.vb-fr'))).toBe('Quem assiste vê em média 139% do vídeo: 13:56 assistidos num vídeo de 10:00, porque as pessoas reviram trechos. Baseado em 24.680 views.')
     expect(s.querySelector('.vb-as-barra i')!.getAttribute('style')).toContain('width: 100%')
+  })
+
+  it('o rótulo "normal do canal" perto das pontas ancora na ponta (classe e nenhum left); no meio fica sob a marca', () => {
+    const rotulo = (pctOutros: number) => {
+      const { container } = montar(mundoVideo({ mut: umaFaixa, diario: { pctOutros } }))
+      const el = secao(container, 'Quanto do vídeo as pessoas assistem').querySelector<HTMLElement>('.vb-as-med span')!
+      const r = { classe: el.className, left: el.style.left, texto: el.textContent }
+      cleanup()
+      return r
+    }
+    expect(rotulo(60)).toMatchObject({ classe: 'vb-as-med-meio', left: '60%', texto: 'normal do canal: 60%' })
+    expect(rotulo(3)).toMatchObject({ classe: 'vb-as-med-inicio', left: '', texto: 'normal do canal: 3%' })
+    expect(rotulo(97)).toMatchObject({ classe: 'vb-as-med-fim', left: '', texto: 'normal do canal: 97%' })
+  })
+
+  it('o botão ⓘ não mora dentro do título (o nome acessível do h2 é só o título)', () => {
+    const { container } = montar()
+    for (const h of container.querySelectorAll('h2, h3')) expect(h.querySelector('button'), h.textContent ?? '').toBeNull()
+    expect(secao(container, 'Quanto do vídeo as pessoas assistem').querySelector('button[aria-label="De onde vem o % assistido"]')).not.toBeNull()
+    expect(secao(container, 'Impressões e cliques').querySelector('button[aria-label="Como a taxa é calculada"]')).not.toBeNull()
+    expect(container.querySelector('#vb-as-h')!.textContent).toBe('Quanto do vídeo as pessoas assistem')
   })
 
   it('sem views, vídeo novo e coleta que não rodou: pastilha e a frase de cada um, sem barra', () => {
@@ -240,6 +261,17 @@ describe('usuário só de leitura e leitura que falhou', () => {
       'Retenção', 'Este vídeo no canal', 'Leitura da forjaainda não disponível para o seu canal', 'O que ainda não há deste vídeo',
     ])
     expect(container.querySelector('.vb-ctr, .vb-as, figure')).toBeNull()
+  })
+
+  it('negado e erro: a nota única e a frase do diário vêm com a pastilha "não medido" (regra 5), e não só como texto solto', () => {
+    for (const dados of [{ acesso: 'negado' } as const, { acesso: 'erro' } as const]) {
+      const { container } = montar(W, dados)
+      const nota = container.querySelector('[data-privado-nota]')!
+      expect(nota.closest('.vb-nml')!.querySelector('.obs-ch-nm')!.textContent, dados.acesso).toBe('não medido')
+      const canal = secao(container, 'Este vídeo no canal')
+      expect(canal.querySelector(':scope > .vb-nml .obs-ch-nm')!.textContent, dados.acesso).toBe('não medido')
+      cleanup()
+    }
   })
 
   it('controle positivo: com acesso o mesmo componente mostra as sentinelas', () => {
