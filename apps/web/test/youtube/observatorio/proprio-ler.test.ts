@@ -229,7 +229,7 @@ describe('lerDiario', () => {
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.dado.ultimoDia).toBe(d(10))
   })
-  it('fronteira da janela do diário (ancorada no último dia gravado): o dia -38 antes dele entra, o -39 não', async () => {
+  it('fronteira da janela do diário (ancorada no último dia medido): o dia -38 antes dele entra, o -39 não', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(10), 1), diario('v1', d(48), 1), diario('v1', d(49), 1)] })
     const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
@@ -347,7 +347,7 @@ describe('leitor do diário + views por dia: canal sem longo acompanhado', () =>
     const vazio = fakeSupabase({ yt_own_video_daily: [] })
     const vb = vpdDoCanal(await lerDiario(vazio.client, { ...pedido, ytIds: [] }), [], HOJE)
     expect(vb).toMatchObject({ valor: null, motivo: 'sem-diario' })
-    expect(motivoVpdTexto(vb.motivo!, vb, dm)).toBe('a coleta diária ainda não gravou este canal')
+    expect(motivoVpdTexto(vb.motivo!, vb, dm)).toBe('ainda não há coleta diária deste canal')
   })
   it('canal parado há semanas e sem longo acompanhado: "parou em dd/mm", não "ainda não gravou"', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('curto', d(60), 4)] })

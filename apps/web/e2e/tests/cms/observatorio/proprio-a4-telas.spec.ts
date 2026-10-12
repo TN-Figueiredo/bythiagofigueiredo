@@ -222,8 +222,10 @@ test.describe('A4 15b · telas 13.3 e 13.4 (antes fixme)', () => {
     const sec2 = page.locator(`${V}:visible section[aria-labelledby="vb-canal-h"]`)
     await expect(page.locator(`${V}:visible section[aria-labelledby="vb-imp-h"]`)).toContainText('Nenhuma impressão nos 19 dias medidos')
     await expect(sec2.locator('.vb-rg-fr')).toContainText('Sem impressão no período')
-    // a régua de impressões (desenho aprovado: valor ausente = pastilha "não medido" + a frase do motivo; a frase diz "sem impressão" porque o relatório foi lido)
-    await expect(sec2.locator('tr.vb-rg-r[data-numero="impressoes"]')).toContainText('sem impressão de 23/09 a 21/10')
+    // a régua de impressões (conserto de UX B2, 12/10): relatório medido sem o vídeo = ZERO MEDIDO (caixa vazada "0", sem hachura) e a frase dos dias medidos
+    await expect(sec2.locator('tr.vb-rg-r[data-numero="impressoes"] td.vb-rg-v .obs-ch-zero')).toContainText('0')
+    await expect(sec2.locator('tr.vb-rg-r[data-numero="impressoes"] td.vb-rg-v .obs-ch-nm')).toHaveCount(0)
+    await expect(sec2.locator('tr.vb-rg-r[data-numero="impressoes"]')).toContainText('Nenhuma impressão nos 19 dias medidos')
     medida(`"Este vídeo no canal" (vídeo alto): linhas ${numeros.join(',')}; views ${await views.locator('.vb-rg-pt').innerText()}`)
   })
 

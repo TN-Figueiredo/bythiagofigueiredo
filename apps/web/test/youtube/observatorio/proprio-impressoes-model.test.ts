@@ -284,7 +284,7 @@ describe('legenda e método', () => {
     expect(canal).toMatch(/Pacífico/)
     expect(canal).toMatch(/linear/)
     expect(canal).toMatch(/não contam como zero|não conta como zero/)
-    expect(canal).toMatch(/impressões × taxa de cliques/)
+    expect(canal).toMatch(/impressões × taxa de clique/)
     expect(canal).toMatch(/pode diferir da soma/)
     const video = buildImpressoes([dia('2026-10-01', 3, 1)], periodo, { ...O, escopo: 'video' }).metodo.join(' ')
     expect(video).toMatch(/não trouxe este vídeo/)

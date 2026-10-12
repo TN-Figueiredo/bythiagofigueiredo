@@ -151,7 +151,7 @@ describe('A4.6 cabeçalho próprio: o alcance (impressões, dias, cliques, víde
     expect(c.sub).not.toMatch(/28|dias/)
     medida(c, String(CHEIO.imp))
     expect(c.base).toContain(`de ${w.dm(de)} a ${w.dm(ate)}`)
-    expect(c.base).toContain('2 dias sem relatório lido ficam fora da soma') // hoje-2 e hoje-1 ainda por baixar
+    expect(c.base).toContain('2 dias sem relatório ficam fora da soma') // hoje-2 e hoje-1 ainda por baixar
     expect(c.base).toContain('horário do Pacífico')
   })
 
@@ -194,7 +194,7 @@ describe('A4.6 cabeçalho próprio: o alcance (impressões, dias, cliques, víde
     const w = BASE
     const h = build(comDados({ alcance: ok(alcanceNadaLido(w.canalId, w.hoje)) }))
     for (const k of PRIVADAS_ALCANCE) naoMedida(por([...h.faixa, ...h.todos], k), FRASE_NADA_LIDO)
-    expect(FRASE_NADA_LIDO).toBe('nenhum dia do período foi lido ainda')
+    expect(FRASE_NADA_LIDO).toBe('nenhum dia do período foi medido ainda')
     // o período existe e é escrito, mesmo sem número
     expect(por(h.faixa, 'impressoes').label).toBe('impressões no período')   // 13.3: sem número não há segunda linha; o período mora na base
   })
@@ -248,7 +248,7 @@ describe('A4.6 cabeçalho próprio: o alcance (impressões, dias, cliques, víde
     const nulo = cl([[3, 20, 0.1], [4, 10, null]], [3, 4])
     naoMedida(nulo, FRASE_CTR)
     expect(FRASE_CTR).toContain('não medido')
-    expect(nulo.base).toContain('sem CTR')
+    expect(nulo.base).toContain('sem a taxa de clique')
     // dias medidos sem impressão: zero medido
     medida(cl([], [3, 4]), '0')
   })
@@ -308,7 +308,7 @@ describe('A4.6 cabeçalho próprio: views por dia, retenção e inscritos em 30 
     const casos: Array<[string, DadosDoCanal['diario'], string]> = [
       ['sem-acesso', { acesso: 'negado' }, 'só quem edita o site vê as views por dia do seu canal'],
       ['leitura-falhou', { acesso: 'erro' }, 'a leitura das views por dia falhou agora; recarregue a página'],
-      ['sem-diario', DADOS.vazio(w.canalId, w.ytIds, hoje).diario, 'a coleta diária ainda não gravou este canal'],
+      ['sem-diario', DADOS.vazio(w.canalId, w.ytIds, hoje).diario, 'ainda não há coleta diária deste canal'],
       ['diario-parado', DADOS.parado(w.canalId, w.ytIds, hoje).diario, `a coleta diária deste canal parou em ${w.dm(addDays(hoje, -20))}`],
       ['poucos-dias', DADOS.curto(w.canalId, w.ytIds, hoje).diario, 'menos de 7 dias medidos nos últimos 28'],
     ]
@@ -367,7 +367,7 @@ describe('A4.6 cabeçalho próprio: canal parado, canal novo e inscritos ocultos
     naoMedida(por(h.todos, 'engajamentoTodos'), 'nenhum vídeo guardado')
     naoMedida(por(h.todos, 'engajamento90'), 'nenhum longo em 90 dias')
     naoMedida(por(h.todos, 'duracaoMediana'), 'sem duração nos longos')
-    naoMedida(por(h.todos, 'vpdVideo'), 'a coleta diária ainda não gravou este canal')
+    naoMedida(por(h.todos, 'vpdVideo'), 'ainda não há coleta diária deste canal')
     medida(por(h.todos, 'ritmo'), 'parado: nenhum em 13 semanas')
     expect(h.sync).toContain(' · nenhum vídeo guardado')
   })
@@ -430,7 +430,7 @@ describe('A4.6 cabeçalho próprio: linha de posição', () => {
     const neg = build(proprioWorld({ cenario: 'negado' }), p).posicaoLinha!
     expect(neg.endsWith('Views/dia por mil inscritos: só quem edita o site vê as views por dia do seu canal.')).toBe(true)
     const vazio = build(proprioWorld({ cenario: 'vazio' }), p).posicaoLinha!
-    expect(vazio.endsWith('Views/dia por mil inscritos: a coleta diária ainda não gravou este canal.')).toBe(true)
+    expect(vazio.endsWith('Views/dia por mil inscritos: ainda não há coleta diária deste canal.')).toBe(true)
   })
 })
 
@@ -630,11 +630,11 @@ describe('A4.6 cabeçalho próprio: vídeos com impressão, cliques e views/dia 
 
   it('cliques sem CTR: a frase do motivo aparece UMA vez na célula (a palavra "não medido" não se repete) e o texto é exato', () => {
     const c = por(build(comDados({ alcance: ok(alcanceComLinhas(BASE.canalId, BASE.hoje, [linha(A, 5, 20, 0.1), linha(A, 6, 10, null)])) })).todos, 'cliques')
-    naoMedida(c, 'não medido: o YouTube não devolveu o CTR de algum dia com impressão')
+    naoMedida(c, 'não medido: o YouTube não informou a taxa de clique de algum dia com impressões')
     expect(FRASE_CTR).toBe(c.missing)
     const todoTexto = [c.missing, c.label, c.base].join(' | ')
     expect(todoTexto.split('não medido')).toHaveLength(2) // uma ocorrência
-    expect(c.base).toContain('Algum dia com impressão veio sem CTR, então o total não é calculado.')
+    expect(c.base).toContain('Algum dia com impressões veio sem a taxa de clique, então o total não é calculado.')
   })
 
   it('views/dia: a coleta que terminou há 7 dias ainda vale, a de 8 dias já "parou" (o `hoje` do modelo chega a vpdDoCanal sem deslocamento)', () => {

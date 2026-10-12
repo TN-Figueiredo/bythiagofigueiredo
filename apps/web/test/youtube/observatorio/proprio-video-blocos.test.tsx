@@ -108,7 +108,7 @@ describe('impressões, cliques e taxa de clique', () => {
     const b = montar(mundoVideo({ mut: umaFaixa, alcance: { impFoco: 500, ctrFoco: null } }))
     const s = secao(b.container, 'Impressões e cliques')
     expect(s.querySelector('.vb-ctr')).toBeNull()
-    expect(texto(s)).toContain('A taxa de clique deste vídeo não é medida')
+    expect(texto(s)).toContain('Não dá para calcular a taxa de clique deste vídeo')
     expect(texto(s)).not.toMatch(/0,0%/)
   })
 
@@ -156,10 +156,10 @@ describe('% assistido', () => {
     expect(s.querySelector('[class*="vb-dir-"]')).toBeNull()
   })
 
-  it('acima de 100% não estoura a barra, o número é o real e a frase diz que reviram trechos (nada de "13:56 de 10:00")', () => {
+  it('acima de 100% não estoura a barra, o número é o real e a frase diz que acontece quando muita gente revê trechos (nada de "13:56 de 10:00")', () => {
     const { container } = montar(mundoVideo({ mut: umaFaixa, diario: { pctFoco: 139.38 } }))
     const s = secao(container, 'Quanto do vídeo as pessoas assistem')
-    expect(texto(s.querySelector('.vb-fr'))).toBe('Quem assiste vê em média 139% do vídeo: 13:56 assistidos num vídeo de 10:00, porque as pessoas reviram trechos. Baseado em 24.680 views.')
+    expect(texto(s.querySelector('.vb-fr'))).toBe('Quem assiste vê em média 139% do vídeo (13:56 num vídeo de 10:00): acontece quando muita gente revê trechos. Baseado em 24.680 views.')
     expect(s.querySelector('.vb-as-barra i')!.getAttribute('style')).toContain('width: 100%')
   })
 

@@ -79,17 +79,17 @@ describe('T8 o total do cabeçalho inclui vídeos que não estão entre os guard
     return { ...base, alcance: { acesso: 'ok', dado: a } }
   }
   const h = (dados: DadosDoCanal) => buildProprioHeader(BASE.obs, BASE.canalId, dados, { ...O, posicao: null })!
-  it('o total de impressões é o do relatório (soma as linhas órfãs) e o ⓘ diz o fato: "2 vídeos com impressões no relatório não estão entre os vídeos guardados deste canal"', () => {
+  it('o total de impressões é o do relatório (soma as linhas órfãs) e o ⓘ diz o fato: "2 vídeos com impressões no relatório não estão na lista de vídeos deste canal"', () => {
     const x = h(comOrfaos(2))
     const imp = x.faixa.find(c => c.key === 'impressoes')!
     expect(imp.value).toBe(BASE.obs.fmt.num(CHEIO.imp + 2 * 99))
-    expect(imp.base).toContain('2 vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.')
+    expect(imp.base).toContain('2 vídeos com impressões no relatório não estão na lista de vídeos deste canal.')
     expect(imp.base).not.toMatch(/saíram|saiu|apagad|privad/)
     const cl = x.todos.find(c => c.key === 'cliques')!
-    expect(cl.base).toContain('2 vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.')
+    expect(cl.base).toContain('2 vídeos com impressões no relatório não estão na lista de vídeos deste canal.')
   })
   it('com um só: singular; sem nenhum: a frase não aparece', () => {
-    expect(h(comOrfaos(1)).faixa.find(c => c.key === 'impressoes')!.base).toContain('1 vídeo com impressões no relatório não está entre os vídeos guardados deste canal.')
+    expect(h(comOrfaos(1)).faixa.find(c => c.key === 'impressoes')!.base).toContain('1 vídeo com impressões no relatório não está na lista de vídeos deste canal.')
     for (const c of [...h(BASE.dados).faixa, ...h(BASE.dados).todos]) expect(c.base, c.key).not.toMatch(/guardados deste canal|saíram|saiu/)
   })
 })
@@ -98,14 +98,14 @@ describe('T8 grade.tsx: a nota do divisor conhece cada ordenação (I1 da Tarefa
   const sem = { key: 'sem-valor', label: 'Sem impressão medida no período', count: 54 }
   it('ordenando por impressões a frase miúda não é a dos concorrentes: diz que o vídeo não apareceu nos relatórios lidos ou que o alcance não foi lido', () => {
     const t = notaDoDivisor(sem, 'imp')
-    expect(t).toBe('o vídeo não apareceu nos relatórios de alcance lidos, ou o alcance do canal não pôde ser lido')
+    expect(t).toBe('o vídeo não teve impressão nos dias medidos, ou o alcance do canal não pôde ser medido')
     expect(t).not.toContain('fixado antigo')
   })
   it('cada ordenação tem a sua frase e a de impressões é só dela', () => {
     const sorts: CanalSort[] = ['recentes', 'vistos', 'multiplo', 'vpd', 'imp']
     const frases = sorts.map(s => notaDoDivisor(sem, s))
     for (const f of frases) expect(f.length).toBeGreaterThan(10)
-    expect(frases.filter(f => f.includes('relatórios de alcance'))).toHaveLength(1)
+    expect(frases.filter(f => f.includes('dias medidos'))).toHaveLength(1)
   })
   it('os dois divisores fixos (antigos, sem data) continuam com a frase de sempre em qualquer ordenação', () => {
     for (const s of ['recentes', 'imp'] as CanalSort[]) {

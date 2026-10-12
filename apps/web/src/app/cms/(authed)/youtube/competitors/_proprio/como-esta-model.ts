@@ -115,7 +115,7 @@ function alcanceFrase(r: ResumoAlcance, p: Periodo): string {
 }
 
 /** "Nenhuma impressão em 10 dias lidos.": só vale quando houve dia lido, e fala só dos dias lidos. */
-const zeroBase = (r: ResumoAlcance): string => `Nenhuma impressão em ${plural(r.diasLidos, 'dia lido', 'dias lidos')}.`
+const zeroBase = (r: ResumoAlcance): string => `Nenhuma impressão em ${plural(r.diasLidos, 'dia medido', 'dias medidos')}.`
 
 function fraseDoTopo(estado: Estado, a: EntradaComoEsta): string {
   const { resumo: r, periodo: p } = a
@@ -125,12 +125,12 @@ function fraseDoTopo(estado: Estado, a: EntradaComoEsta): string {
     case 'sem-relatorio': return SEM_RELATORIO
     case 'nada-lido':
       return p && p.dias === 1
-        ? 'Ainda não há relatório lido: o dia do período não tem impressões nem cliques medidos.'
-        : `Ainda não há relatório lido: nenhum dos ${int(p?.dias ?? 0)} dias do período tem impressões ou cliques medidos.`
+        ? 'Ainda não há dia medido: o dia do período não tem impressões nem cliques medidos.'
+        : `Ainda não há dia medido: nenhum dos ${int(p?.dias ?? 0)} dias do período tem impressões ou cliques medidos.`
     case 'zero': {
       const base = zeroBase(r)
       if (r.diasNaoMedidos === 0) return base
-      return `${base} ${r.diasNaoMedidos === 1 ? 'O 1 dia sem relatório lido não entra' : `Os ${int(r.diasNaoMedidos)} dias sem relatório lido não entram`} na conta.`
+      return `${base} ${r.diasNaoMedidos === 1 ? 'O 1 dia sem relatório não entra' : `Os ${int(r.diasNaoMedidos)} dias sem relatório não entram`} na conta.`
     }
     case 'ok': {
       const imp = plural(r.imp ?? 0, 'impressão', 'impressões')
@@ -181,8 +181,8 @@ function topDe(estado: Estado, a: EntradaComoEsta): { top: ComoEstaTop[]; topVaz
     case 'negado': return vazio(SEM_TOP_NEGADO)
     case 'erro': return vazio(ERRO_ALCANCE)
     case 'sem-relatorio': return vazio('Sem relatório de alcance, não há vídeo para listar.')
-    case 'nada-lido': return vazio('Nenhum dia do período foi lido ainda, então nenhum vídeo aparece aqui.')
-    case 'zero': return vazio(`Nenhum vídeo teve impressão ${a.resumo.diasLidos === 1 ? 'em' : 'nos'} ${plural(a.resumo.diasLidos, 'dia lido', 'dias lidos')}.`)
+    case 'nada-lido': return vazio('Nenhum dia do período foi medido ainda, então nenhum vídeo aparece aqui.')
+    case 'zero': return vazio(`Nenhum vídeo teve impressão ${a.resumo.diasLidos === 1 ? 'em' : 'nos'} ${plural(a.resumo.diasLidos, 'dia medido', 'dias medidos')}.`)
     case 'ok': break
     default: { const nunca: never = estado; return nunca }
   }
@@ -228,13 +228,13 @@ function taxaBloco(estado: Estado, a: EntradaComoEsta): TaxaBlocoView {
     case 'negado': return sem('Só quem edita o site vê a taxa de clique.')
     case 'erro': return sem(ERRO_ALCANCE)
     case 'sem-relatorio': return sem('Sem relatório de alcance não há como calcular a taxa.')
-    case 'nada-lido': return sem('Nenhum dia do período foi lido ainda, então não há taxa.')
-    case 'zero': return sem('Nenhuma impressão nos dias lidos, então não há taxa.')
+    case 'nada-lido': return sem('Nenhum dia do período foi medido ainda, então não há taxa.')
+    case 'zero': return sem('Nenhuma impressão nos dias medidos, então não há taxa.')
     case 'ok': break
     default: { const nunca: never = estado; return nunca }
   }
   const t = taxaDoCanal(a.resumo)
-  if (!t) return sem('A taxa não é calculada: algum dia com impressão veio sem a taxa de cliques.')
+  if (!t) return sem('Não dá para calcular a taxa: o YouTube não informou a taxa de clique de pelo menos um dia com impressões.')
   const frase: TrechoFrase[] = [
     { t: pctUm(t.taxa), b: true }, { t: ` das impressões viraram clique (${int(Math.round(t.cliques))} de ${int(t.imp)}). Com este volume, a taxa real fica entre ` },
     { t: pctUm(t.lo), b: true }, { t: ' e ' }, { t: pctUm(t.hi), b: true },

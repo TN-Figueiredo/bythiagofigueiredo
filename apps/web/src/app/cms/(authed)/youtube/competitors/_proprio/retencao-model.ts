@@ -99,7 +99,7 @@ const pontosTexto = (n: number): string => `${int(n)} ${n === 1 ? 'ponto' : 'pon
 const pctTexto = (x: number): string => `${Math.round(x)}%`
 
 function notaDe(ultimo: DiaYt | null | undefined, dm: (d: DiaYt) => string): string {
-  const ate = ultimo ? `dos 28 dias até ${dm(ultimo)}` : 'dos 28 dias que terminam no último dia gravado'
+  const ate = ultimo ? `dos 28 dias até ${dm(ultimo)}` : 'dos 28 dias que terminam no último dia medido'
   return `Dado do diário do YouTube, dia do YouTube, ${ate}. ${CURVA_NO_VIDEO}`
 }
 
@@ -117,7 +117,7 @@ export function buildRetencao(obs: Observatory, canalId: string, dados: DadosDoC
   const ytIds = longosAcompanhados(obs, canalId)
   const canal = assistidoDoCanal(d, ytIds)
   if (canal.motivo === 'sem-diario') return vazia('sem-diario', 'A coleta diária ainda não rodou para este canal: não há % assistido de nenhum vídeo.', nota)
-  if (canal.motivo === 'sem-views') return vazia('sem-views', `Nenhum vídeo teve views nos 28 dias até ${ultimo ? o.dm(ultimo) : 'o último dia gravado'}. Sem views não há % assistido para comparar. Os vídeos voltam a aparecer aqui assim que tiverem uma.`, nota)
+  if (canal.motivo === 'sem-views') return vazia('sem-views', `Nenhum vídeo teve views nos 28 dias até ${ultimo ? o.dm(ultimo) : 'o último dia medido'}. Sem views não há % assistido para comparar. Os vídeos voltam a aparecer aqui assim que tiverem views.`, nota)
   if (canal.motivo === 'sem-percentual') return vazia('sem-percentual', 'O YouTube ainda não entregou o % assistido de nenhum vídeo.', nota)
 
   const porYt = new Map(obs.videos.filter(v => v.ch === canalId).map(v => [v.ytId, v]))

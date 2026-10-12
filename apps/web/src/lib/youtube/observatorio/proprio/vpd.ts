@@ -69,7 +69,7 @@ export function motivoVpdTexto(m: MotivoSemVpd, c: Pick<VpdCanal, 'ultimoDia'>, 
   switch (m) {
     case 'sem-acesso': return 'só quem edita o site vê as views por dia do seu canal'
     case 'leitura-falhou': return 'a leitura das views por dia falhou agora; recarregue a página'
-    case 'sem-diario': return 'a coleta diária ainda não gravou este canal'
+    case 'sem-diario': return 'ainda não há coleta diária deste canal'
     case 'diario-parado': return c.ultimoDia == null ? 'a coleta diária deste canal parou' : `a coleta diária deste canal parou em ${dm(c.ultimoDia)}`
     case 'sem-longos': return 'nenhum vídeo longo acompanhado'
     case 'poucos-dias': return `menos de ${MIN_DIAS_VPD} dias medidos nos últimos ${JANELA_VPD_DIAS}`

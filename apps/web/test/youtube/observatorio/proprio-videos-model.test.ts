@@ -213,7 +213,7 @@ describe('o dado privado ausente: cada estado, cada coluna', () => {
     })
   }
 
-  it('alcance com relatórios, mas nenhum lido: o motivo é "nenhum dia do período foi lido ainda", imp null em todos', () => {
+  it('alcance com relatórios, mas nenhum lido: o motivo é "nenhum dia do período foi medido ainda", imp null em todos', () => {
     const dados: DadosDoCanal = { alcance: { acesso: 'ok', dado: alcanceNadaLido(BASE.canalId, BASE.hoje) }, diario: BASE.dados.diario }
     const v = build(BASE, dados)
     expect(v.motivoAlcance).toBe(FRASE_NADA_LIDO)
@@ -302,7 +302,7 @@ describe('views por dia de cada vídeo (o número existe; a tela o explica em "A
   const MOTIVOS: Array<[string, CenarioDados, string]> = [
     ['negado', 'negado', 'só quem edita o site vê as views por dia do seu canal'],
     ['erro', 'erro', 'a leitura das views por dia falhou agora; recarregue a página'],
-    ['sem diário', 'vazio', 'a coleta diária ainda não gravou este canal'],
+    ['sem diário', 'vazio', 'ainda não há coleta diária deste canal'],
     ['diário parado', 'parado', `a coleta diária deste canal parou em ${dmDia(d(20))}`],
     ['menos de 7 dias', 'curto', 'menos de 7 dias medidos nos últimos 28'],
   ]
@@ -336,7 +336,7 @@ describe('views por dia de cada vídeo (o número existe; a tela o explica em "A
     const esperado: Record<string, RegExp | string> = {
       cheio: VIEWS_POR_DIA_BASE,
       curto: 'Views por dia: menos de 7 dias medidos nos últimos 28.',
-      vazio: 'Views por dia: a coleta diária ainda não gravou este canal.',
+      vazio: 'Views por dia: ainda não há coleta diária deste canal.',
       parado: /^Views por dia: a coleta diária deste canal parou em \d\d\/\d\d\.$/,
       negado: 'Views por dia: só quem edita o site vê.',
       erro: 'Views por dia: a leitura falhou agora; recarregue a página.',

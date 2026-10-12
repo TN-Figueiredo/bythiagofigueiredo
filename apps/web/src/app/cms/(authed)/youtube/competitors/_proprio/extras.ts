@@ -42,6 +42,6 @@ export const SEM_VPD_PROPRIO_DICA = 'As views por dia do seu canal ficam na pág
  */
 export function foraDosGuardadosFrase(n: number, int: (n: number) => string): string {
   return n === 1
-    ? '1 vídeo com impressões no relatório não está entre os vídeos guardados deste canal.'
-    : `${int(n)} vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.`
+    ? '1 vídeo com impressões no relatório não está na lista de vídeos deste canal.'
+    : `${int(n)} vídeos com impressões no relatório não estão na lista de vídeos deste canal.`
 }
