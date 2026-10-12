@@ -153,6 +153,8 @@ describe('T11 paginador na trilha', () => {
     expect(next().getAttribute('href')).toContain('/video/v2'); expect(next().getAttribute('data-replace')).toBe('true')
     expect(document.querySelector('[data-pager-pos]')!.textContent).toBe('vídeo 2 de 5, na ordem da lista: mais impressões primeiro')
     expect(document.querySelector('.obs-tr-aside')).not.toBeNull()        // mora na linha da trilha
+    // em tela estreita os dois botões ficam lado a lado e a frase desce (a captura de 390 px gastava 140 px com os três empilhados)
+    expect(document.querySelector('[data-pager]')!.hasAttribute('data-pager-compacto')).toBe(true)
   })
 
   it('no primeiro, "Anterior" fica na tela, apagado (aria-disabled), com o motivo no nome e na dica; clicar não faz nada', async () => {

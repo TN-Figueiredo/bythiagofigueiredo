@@ -27,7 +27,7 @@ function Apagado({ motivo, lado, children }: { motivo: string; lado: 'prev' | 'n
 export function Pager({ pager, onPage = (which, href) => marcarPagerUsado(which, videoDoHref(href)), naTrilha = false }: { pager: PagerView | null; onPage?: (which: 'prev' | 'next', href: string) => void; naTrilha?: boolean }) {
   if (!pager) return null
   const corpo = (
-      <div className="pager" data-pager="" role="group" aria-label="Vídeos da lista de origem">
+      <div className="pager" data-pager="" {...(pager.compacto ? { 'data-pager-compacto': '' } : {})} role="group" aria-label="Vídeos da lista de origem">
         {pager.prev ? <Link className="btn ghost" href={pager.prev} replace={pager.replace} onClick={e => { if (cliqueSimples(e)) onPage?.('prev', pager.prev!) }} aria-label={pager.prevLabel} data-pager-prev=""><HIcon name="prev" />Anterior</Link> : pager.prevOff ? <Apagado motivo={pager.prevOff} lado="prev"><HIcon name="prev" />Anterior</Apagado> : null}
         <span data-pager-pos="">{pager.position}</span>
         {pager.next ? <Link className="btn ghost" href={pager.next} replace={pager.replace} onClick={e => { if (cliqueSimples(e)) onPage?.('next', pager.next!) }} aria-label={pager.nextLabel} data-pager-next="">Próximo<HIcon name="next" /></Link> : pager.nextOff ? <Apagado motivo={pager.nextOff} lado="next">Próximo<HIcon name="next" /></Apagado> : null}

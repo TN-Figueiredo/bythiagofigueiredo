@@ -222,6 +222,8 @@ export interface PagerView {
    * Ausente = o botão existe e anda. O Histórico do concorrente não escreve estes campos: nas pontas ele continua sem o botão.
    */
   prevOff?: string; nextOff?: string
+  /** Só a página do vídeo próprio: em tela estreita os dois botões ficam lado a lado e a frase desce (o pager do Histórico segue empilhado como sempre). */
+  compacto?: true
   /** O anúncio depois de trocar de vídeo: "Vídeo 8 de 51: <título>"; vazio quando o vídeo não está na lista de origem. */
   status: string
 }
