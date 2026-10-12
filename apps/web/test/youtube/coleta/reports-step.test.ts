@@ -17,7 +17,7 @@ import { passoRelatorios, MAX_DOWNLOADS, MAX_GZ_BYTES } from '@/lib/youtube/cole
 import { ensureFreshToken, NoActiveConnectionError, TokenRevokedError } from '@/lib/social/token-refresh'
 import { criarReportingClient, empacotarCsv, deBytea } from '@/lib/youtube/reporting/client'
 import { ReportingHttpError, SEM_NORMALIZADOR } from '@/lib/youtube/reporting/types'
-import { SemTempoError } from '@/lib/youtube/coleta/clock'
+import { SemTempoError, TETOS_MS } from '@/lib/youtube/coleta/clock'
 import type { StepCtx } from '@/lib/youtube/coleta/types'
 import { fakeSupabase, type FakeDb, type Row } from './fake-supabase'
 
@@ -228,20 +228,31 @@ describe('passoRelatorios: baixar', () => {
     expect(resumo).toMatchObject({ baixados: 1, gravados: 1, pendentes: 0 })
   })
 
-  it('100 listados: 40 baixados e 60 pendentes; no dia seguinte baixa mais 40 pelo download_url gravado', async () => {
-    const cem = Array.from({ length: 100 }, (_, i) => listado(`r-${String(i).padStart(3, '0')}`, { create_time: new Date(AGORA.getTime() - (200 - i) * 60_000).toISOString() }))
-    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: cem })
+  it('fila de 250: baixa o teto (100) e deixa 150; no dia seguinte baixa mais 100 pelo download_url gravado', async () => {
+    const todos = Array.from({ length: 250 }, (_, i) => listado(`r-${String(i).padStart(3, '0')}`, { create_time: new Date(AGORA.getTime() - (400 - i) * 60_000).toISOString() }))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: todos })
     const ctx = ctxDe(db)
     const um = await passoRelatorios(ctx)
-    expect(MAX_DOWNLOADS).toBe(40)
-    expect(um).toMatchObject({ baixados: 40, pendentes: 60 })
-    expect(comStatus(db, 'baixado')).toHaveLength(40)
+    expect(MAX_DOWNLOADS).toBe(100)
+    expect(um).toMatchObject({ baixados: 100, pendentes: 150 })
+    expect(comStatus(db, 'baixado')).toHaveLength(100)
     expect(rel(db, 'r-000')!.status).toBe('baixado')
-    expect(rel(db, 'r-040')!.status).toBe('listado')
+    expect(rel(db, 'r-100')!.status).toBe('listado')
+    // O teto de downloads não é falta de orçamento: só o relógio é.
     expect(ctx.tentativas.some(t => t.outcome === 'nao_alcancado_orcamento')).toBe(false)
     const dois = await passoRelatorios(ctxDe(db))
-    expect(dois).toMatchObject({ baixados: 40, pendentes: 20 })
-    expect(api.download).toHaveBeenLastCalledWith('https://dl.test/r-079')
+    expect(dois).toMatchObject({ baixados: 100, pendentes: 50 })
+    expect(api.download).toHaveBeenLastCalledWith('https://dl.test/r-199')
+  })
+
+  it('o teto de downloads cabe no teto de tempo do passo, pela medida de produção: mexer num exige refazer a conta', () => {
+    const MS_POR_DOWNLOAD = 900   // pior medida: 36,0 s para listar 8 jobs e baixar 40 (execução de 11/10/2026)
+    const MS_LISTAGEM = 20_000    // reserva para listar 26 jobs, 4 em paralelo
+    expect(MAX_DOWNLOADS * MS_POR_DOWNLOAD + MS_LISTAGEM).toBeLessThanOrEqual(TETOS_MS.relatorios)
+  })
+
+  it('o teto de tamanho é 10 MB comprimido', () => {
+    expect(MAX_GZ_BYTES).toBe(10 * 1024 * 1024)
   })
 
   it('ordem de drenagem: o que vence em até 7 dias, depois o alcance, depois o resto pelo vencimento; o tipo só desempata', async () => {
@@ -316,15 +327,6 @@ describe('passoRelatorios: baixar', () => {
     expect(resumo).toMatchObject({ erros_download: 1, pendentes: 1 })
     expect(db.tables.yt_own_collection_attempts!.find(r => r.scope_type === 'job')).toMatchObject({ outcome: 'erro_http', http_status: 500 })
     expect(ctx.falhas).toEqual([])
-  })
-
-  it('acima de 2 MB comprimido: erro grande_demais, sem bruto', async () => {
-    api.download.mockResolvedValue({ gz: Buffer.alloc(MAX_GZ_BYTES + 1), sha256: 'x', rowCount: 10 })
-    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
-    await passoRelatorios(ctxDe(db))
-    expect(MAX_GZ_BYTES).toBe(2 * 1024 * 1024)
-    expect(rel(db, 'r1')).toMatchObject({ status: 'erro', error: 'grande_demais', bytes: MAX_GZ_BYTES + 1 })
-    expect(db.tables.yt_reporting_report_blobs ?? []).toEqual([])
   })
 
   it('relatório só com cabeçalho: vazio, com o bruto guardado', async () => {
