@@ -91,7 +91,9 @@ export interface SiteScope {
 
 /* ------------------------------------------------------------------ constants */
 const CHANNEL_COLS = 'id, channel_id, channel_name, thumbnail_url, subscriber_count, niche, video_limit, youtube_video_count, sync_status, sync_error, sync_error_since, last_ok_synced_at, last_synced_at, full_sync_completed_at, added_at'
-export const VIDEO_COLS = 'id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url, pinned_at'
+export const VIDEO_COLS = 'id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url, pinned_at, series_tier'
+/** A5 (E2). As colunas de uma faixa no tempo (competitor_video_tier_spans). */
+export const SPAN_COLS = 'video_id, from_date, to_date, tier'
 export const SNAPSHOT_COLS = 'id, competitor_channel_id, snapshot_date, subscriber_count, view_count, video_count'
 export const VERSION_COLS = 'id, video_id, field, value_text, value_hash, has_text, thumb_blob_url, first_seen_at, last_seen_at, window_start, precision, is_current'
 const OWN_VIDEO_COLS = 'id, channel_id, youtube_video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, updated_at, tags'
@@ -528,6 +530,10 @@ export function observedVideoIds(channels: readonly Pick<ChannelRow, 'id' | 'vid
   for (const v of videos) if (v.pinned_at != null && loaded.has(v.competitor_channel_id) && ms(v.published_at) != null) out.add(v.id)
   return [...out]
 }
+/** Os vídeos cuja série é lida: todos os que têm data de publicação (um vídeo sem data não entra no conjunto de dados). */
+export function datedVideoIds(videos: readonly Pick<VideoRow, 'id' | 'published_at'>[]): string[] {
+  return videos.filter(v => ms(v.published_at) != null).map(v => v.id)
+}
 /**
  * The competitor videos of the given channels. A missing column (pinned_at before its migration reached this database)
  * THROWS ObservatoryLoadError: there is deliberately no reread without it, a pin must never read as "not pinned".
@@ -653,14 +659,16 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
       .in('competitor_channel_id', ids).gte('snapshot_date', snapshotReadFrom(now)).order('id')),
   ])
   const videoIds = videos.map(v => v.id)
-  // daily points only for OBSERVED videos (tracked ∪ pinned; the engine ignores the series of the others), from dailyReadFrom to today (SP)
-  const dailyIds = observedVideoIds(channels, videos), dailyFrom = dailyReadFrom(seriesStart, now), dailyTo = spDate(now)
-  const [versions, daily] = await Promise.all([
+  // A5: the series of EVERY dated video is read (the weekly ones too), from dailyReadFrom to today (SP); rowsToDataset separates
+  // the OBSERVED videos (tracked ∪ pinned, whose series the screens read) from the others (unobservedSeries)
+  const dailyIds = datedVideoIds(videos), dailyFrom = dailyReadFrom(seriesStart, now), dailyTo = spDate(now)
+  const [versions, daily, spans] = await Promise.all([
     readIn<VersionRow>('competitor_video_versions', videoIds, ids => sb.from('competitor_video_versions').select(VERSION_COLS).in('video_id', ids).order('id')),
     readIn<DailyRow>('competitor_video_daily', dailyIds, ids => sb.from('competitor_video_daily').select('video_id, snap_date, views, likes, comments, taken_at')
       .in('video_id', ids).gte('snap_date', dailyFrom).lte('snap_date', dailyTo).order('video_id').order('snap_date')),
+    readIn<SpanRow>('competitor_video_tier_spans', dailyIds, ids => sb.from('competitor_video_tier_spans').select(SPAN_COLS).in('video_id', ids).order('video_id').order('from_date')),
   ])
-  return { ...live, videos, versions, daily, snapshots }
+  return { ...live, videos, versions, daily, snapshots, spans }
 }
 
 export async function loadDataset(opts: LoadOptions): Promise<Dataset> {

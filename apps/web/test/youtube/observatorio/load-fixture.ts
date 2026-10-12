@@ -19,6 +19,8 @@ export interface FixtureOpts {
   descChars?: number
   /** true = the OLDEST video of each channel (outside `limit`) is pinned and has a daily record like the tracked ones. */
   pinOldest?: boolean
+  /** true = os vídeos fora de `limit` têm faixa semanal, um ponto por semana, e todo vídeo tem a linha de faixa. */
+  weekly?: boolean
 }
 
 /**
@@ -32,7 +34,7 @@ export function buildTables(o: FixtureOpts): Record<string, Row[]> {
   const seen = iso(now - 2 * H)
   const t: Record<string, Row[]> = {
     competitor_settings: [{ site_id: s, series_started_at: o.seriesStarted === false ? null : iso(now - days * DAY), channel_limit: 75 }],
-    competitor_channels: [], competitor_videos: [], competitor_video_versions: [], competitor_video_daily: [], competitor_channel_snapshots: [],
+    competitor_channels: [], competitor_videos: [], competitor_video_versions: [], competitor_video_daily: [], competitor_channel_snapshots: [], competitor_video_tier_spans: [],
     youtube_channels: [{ id: `${s}-own`, site_id: s, channel_id: 'UCown-' + s, name: 'Canal próprio', handle: '@proprio', subscriber_count: 500, last_synced_at: seen, locale: 'pt-BR', created_at: iso(now - 60 * DAY), niche: 'viagem', thumbnail_url: null }],
     youtube_videos: [{ id: `${s}-ownv`, site_id: s, is_hidden: false, channel_id: `${s}-own`, youtube_video_id: 'ytown-' + s, title: 'Vídeo próprio', view_count: 100, like_count: 5, comment_count: 1, duration_seconds: 500, published_at: iso(now - 3 * DAY), updated_at: seen, tags: [] }],
     competitor_changes: [], competitor_readings: [], youtube_intelligence_tasks: [],
@@ -53,6 +55,7 @@ export function buildTables(o: FixtureOpts): Record<string, Row[]> {
       t.competitor_videos!.push({
         id, competitor_channel_id: ch, video_id: 'yt-' + id, title: 'Título ' + id, view_count: 1000 + v, like_count: 10, comment_count: 1, duration_seconds: 600,
         published_at: iso(pub), is_short: false, last_checked_at: seen, tags: ['viagem', 'vlog'], thumbnail_url: null, pinned_at: pinned ? iso(now - 3 * H) : null,
+        series_tier: o.weekly === true ? (v < limit ? 'diaria' : 'semanal') : null,
       })
       const base = { video_id: id, thumb_blob_url: null, first_seen_at: iso(pub + H), last_seen_at: seen, window_start: null, precision: 'first', is_current: true }
       const changed = v === 0
@@ -62,13 +65,15 @@ export function buildTables(o: FixtureOpts): Record<string, Row[]> {
         { ...base, id: id + '-d1', field: 'desc', value_text: 'linha um\nlinha dois' + pad, value_hash: 'd1', has_text: true, ...(changed ? { is_current: false, last_seen_at: iso(now - DAY) } : {}) },
       )
       if (changed) t.competitor_video_versions!.push({ ...base, id: id + '-d2', field: 'desc', value_text: 'linha um\nlinha dois' + pad + '\nlinha três', value_hash: 'd2', has_text: true, first_seen_at: iso(now - DAY), precision: 'min' })
+      if (o.weekly === true) t.competitor_video_tier_spans!.push({ video_id: id, from_date: spDate(now - days * DAY), to_date: null, tier: v < limit ? 'diaria' : 'semanal' })
+      if (o.weekly === true && v >= limit && !pinned) for (let d = days; d >= 0; d -= 7) t.competitor_video_daily!.push({ video_id: id, snap_date: spDate(now - d * DAY), views: 1000 + (days - d) * 5 + v, likes: null, comments: null, taken_at: iso(now - d * DAY) })
       if (v < limit || pinned) for (let d = days; d >= 0; d--) t.competitor_video_daily!.push({ video_id: id, snap_date: spDate(now - d * DAY), views: 1000 + (days - d) * 37 + v, likes: 10, comments: 1, taken_at: iso(now - d * DAY) })
     }
   }
   return t
 }
 
-export const HEAVY_TABLES = ['competitor_videos', 'competitor_video_versions', 'competitor_video_daily', 'competitor_channel_snapshots']
+export const HEAVY_TABLES = ['competitor_videos', 'competitor_video_versions', 'competitor_video_daily', 'competitor_channel_snapshots', 'competitor_video_tier_spans']
 /**
  * Round trips to the heavy tables so far. The one-channel loader also asks competitor_video_daily for the site's newest
  * record (a single row, selected through the `!inner` join to the site): that is a light read, not a heavy one.
