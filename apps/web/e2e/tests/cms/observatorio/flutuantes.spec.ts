@@ -37,6 +37,15 @@ const TELAS: Array<{ nome: string; url: () => string; familias: Familia[] }> = [
     { id: 'menu da linha', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4, peExato: true },
     { id: 'menu ⋯ da moldura', gatilho: '.obs-ch-menu-wrap [aria-haspopup="menu"]', modo: 'clique', caixa: '#flut #obs-ch-menu', gap: 6 },
     { id: 'frescor por canal', gatilho: '.obs-ch-fresh > button', modo: 'clique', caixa: '#flut #obs-ch-fresh-pop', gap: 6 },
+    // A3 Tarefa 11: o atalho "Meu canal" da moldura (Popover em #flut, pref baixo, gap 4)
+    { id: 'menu Meu canal (moldura)', gatilho: '.obs-ch-actions [data-meu-canal] button', modo: 'clique', caixa: '#flut .mc-m', gap: 4 },
+  ] },
+  // A3 Tarefa 11: a comparação entre dois canais: o ⓘ "Como ler esta tabela" (Popover), a dica da régua do nicho (HoverTip, aberta por teclado: foco no grupo)
+  // e o atalho "Meu canal" da trilha (Popover). A régua tem 46 px de altura e cobre a célula inteira: a caixa fica a 4 px dela.
+  { nome: 'comparar', url: () => '/cms/youtube/competitors/comparar?a=' + ids.own('tnfigueiredo') + '&b=' + ids.channel('leo-khev'), familias: [
+    { id: 'ⓘ da tabela (comparação)', gatilho: '[data-obs-screen="comparar"] .ibtn', modo: 'clique', caixa: '#flut .cp-tip', gap: 6 },
+    { id: 'dica da régua do nicho', gatilho: '[data-obs-screen="comparar"] .obs-rg', modo: 'foco', caixa: '#flut .obs-rg-tip', max: 4, gap: 4 },
+    { id: 'menu Meu canal (trilha)', gatilho: '.obs-tr-top [data-meu-canal] button', modo: 'clique', caixa: '#flut .mc-m', gap: 4 },
   ] },
   // a visão em Cards de Canais: o menu da linha mora em outro contêiner (o cartão), com a mesma função de posição
   { nome: 'canais-cards', url: () => '/cms/youtube/competitors?layout=cards', familias: [

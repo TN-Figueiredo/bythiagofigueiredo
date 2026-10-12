@@ -563,7 +563,9 @@ test('o pager fica no lugar do mockup aprovado: na mesma linha da trilha, à dir
   expect(pager.right, 'o pager não passa da borda da tela').toBeLessThanOrEqual(trilha.right + 1)
   // e não encosta na nota de fuso, que fecha a linha
   const tz = await caixa(page.locator('.obs-tr-tz:visible').first())
-  expect(pager.right, 'o pager não cobre a nota de fuso').toBeLessThanOrEqual(tz.x)
+  // (A3 Tarefa 11) com o atalho "Meu canal" entre a trilha e o pager, um pager largo empurra a nota de fuso para uma segunda linha (a linha da trilha quebra, sem
+  // sobrepor nada): "não cobre" vale com a nota ao lado dele (à direita) ou abaixo dele (outra linha)
+  expect(pager.right <= tz.x || tz.y >= pager.bottom - 1, `o pager não cobre a nota de fuso (pager ${pager.x}..${pager.right} y ${pager.y}..${pager.bottom}; nota ${tz.x} y ${tz.y})`).toBe(true)
   await page.screenshot({ path: path.resolve(__dirname, '../../../../test-results/historico-a2-pager-1440.png'), clip: { x: 200, y: 150, width: 1240, height: 260 } })
 })
 

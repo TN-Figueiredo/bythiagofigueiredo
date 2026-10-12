@@ -1028,3 +1028,86 @@ test('A3.10 o atalho "Meu canal" a 390 px: o rótulo "Meu canal:" some e o nome 
   await page.keyboard.press('Escape')
   await expect(b3).toBeFocused()
 })
+
+/* ================================================================== A3 Tarefa 11: consertos da revisão da Tarefa 10 (I-2, I-3) */
+test('I-2 rolando a tabela na horizontal a 1280 px, o nome preso fica rente à coluna da posição: nenhuma célula aparece entre as duas', async ({ page }) => {
+  await abrir(page, '?fmt=longos&sort=subs', { width: 1280, height: 900 })
+  const r = await page.evaluate(() => {
+    const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
+    const box = raiz.querySelector<HTMLElement>('.tablebox')!
+    box.scrollLeft = 0
+    const max = box.scrollWidth - box.clientWidth
+    box.scrollLeft = Math.min(max, 400)
+    const out: Record<string, number | string> = { max, rolou: box.scrollLeft, caixaX: Math.round(box.getBoundingClientRect().left) }
+    const th1 = raiz.querySelector<HTMLElement>('thead th:nth-child(1)')!.getBoundingClientRect(), th2 = raiz.querySelector<HTMLElement>('thead th:nth-child(2)')!.getBoundingClientRect()
+    out.th1r = Math.round(th1.right * 10) / 10; out.th2l = Math.round(th2.left * 10) / 10
+    const lins = [...raiz.querySelectorAll<HTMLElement>('tbody tr.row')].slice(0, 6)
+    const faixas: string[] = []
+    for (const tr of lins) {
+      const a = tr.querySelector<HTMLElement>('td:nth-child(1)')!.getBoundingClientRect(), b = tr.querySelector<HTMLElement>('td:nth-child(2)')!.getBoundingClientRect()
+      if (Math.abs(a.right - b.left) > 0.5) faixas.push(`${Math.round(b.left - a.right)} px`)
+      // o que está no meio da faixa (se houvesse): o elemento no ponto entre as duas colunas, dentro da linha, é de uma das duas?
+      const y = (a.top + a.bottom) / 2, x = (a.right + b.left) / 2
+      const el = document.elementFromPoint(x, y)
+      const td = el?.closest('td'), idx = td ? [...td.parentElement!.children].indexOf(td) : -1
+      if (idx > 1) faixas.push(`célula ${idx + 1} aparece entre a posição e o nome`)
+    }
+    out.faixas = faixas.join(' | ')
+    out.colw = Math.round(th1.width * 10) / 10
+    return out
+  })
+  medida(`1280 px, tabela rolada ${r.rolou} de ${r.max}: posição termina em ${r.th1r}, nome começa em ${r.th2l}, coluna da posição ${r.colw} px; faixas: ${r.faixas || 'nenhuma'}`)
+  expect(Number(r.max), 'a 1280 px a tabela rola por dentro').toBeGreaterThan(20)
+  expect(Number(r.rolou)).toBeGreaterThan(20)
+  expect(Math.abs(Number(r.th1r) - Number(r.th2l)), 'o nome começa onde a posição termina').toBeLessThanOrEqual(0.5)
+  expect(r.faixas).toBe('')
+  await page.locator(`${S}:visible .tablebox`).first().screenshot({ path: path.join(SHOTS, 'i2-tabela-rolada-1280.png') })
+})
+
+for (const fmt of ['longos', 'shorts', 'todos'] as const) {
+  test(`I-3 o PIOR CASO de texto (Sincronização, Trocas, Views/dia com a ressalva, Crescimento, Parado) ainda cabe em 1.152 px em ${fmt}: sem rolagem, sem corte, sem corpo abaixo de 12 px nos textos que ele alarga`, async ({ page }) => {
+    await abrir(page, `?fmt=${fmt}&sort=subs`)
+    const r = await page.evaluate(() => {
+      const raiz = [...document.querySelectorAll('[data-obs-screen="canais"]')].find(e => e.getClientRects().length > 0)!
+      const t = raiz.querySelector<HTMLElement>('table')!, box = raiz.querySelector<HTMLElement>('.tablebox')!
+      const natural = () => { const antes = t.style.width; t.style.width = '1px'; const w = t.offsetWidth; t.style.width = antes; return w }
+      const antes = natural()
+      const linhas = [...raiz.querySelectorAll<HTMLElement>('tbody tr.row')]
+      const dono = (n: number) => linhas.filter(l => !l.classList.contains('you'))[n]!
+      // os textos mais longos que o modelo produz, com a estrutura de DOM que a tela usa (cells.tsx; view-model.ts: syncCell, groupText, stale, growthCell, cadenceCell)
+      const sync = dono(0).querySelector<HTMLElement>('.sync')!
+      sync.innerHTML = '<div class="st" style="color:var(--danger-text)"><span>Erro desde 10/10 14:00 · última sincronização boa 09/10 12:00 · cota diária da API do YouTube esgotada</span></div>'
+        + '<div class="msg">YouTube API 500 backendError ao ler a lista de uploads do canal UUabcdefghijklmnopqrstuv, tente de novo mais tarde</div>'
+        + '<div class="act"><button type="button" class="btn small">Remover canal…</button></div>'
+      const sync2 = dono(1).querySelector<HTMLElement>('.sync')!
+      sync2.innerHTML = '<div class="st" style="color:var(--warning-text)"><span>Atrasado · última sincronização 09/10 12:00 (há 2 dias)</span></div><div class="msg late">sem resposta do YouTube há 50 h</div><div class="act"><button type="button" class="btn small">Tentar de novo</button></div>'
+      const sw = dono(2).querySelector<HTMLElement>('.swap .last')
+      if (sw) sw.textContent = 'Descrição e thumbnail trocados na mesma janela, vistos pela 1ª vez há 12 dias'
+      const vpd = dono(3)
+      const cap = vpd.querySelector<HTMLElement>('.cap, .cap2')
+      if (cap) cap.insertAdjacentHTML('afterend', '<span class="cap2 ressalva" data-ressalva=""> até o registro diário de 10/10 14:00, nenhum longo novo em 90 d</span>')
+      const g = dono(4).querySelector<HTMLElement>('.cap.capr, [data-k="growth"]')
+      if (g) g.textContent = '+12,3 mil inscritos em 30 d, até 10/10 14:00'
+      const cad = dono(5).querySelector<HTMLElement>('.cad .v')
+      if (cad) cad.insertAdjacentHTML('beforeend', '<span class="paused"><span>Parado: último vídeo em 12/05, há 5 meses e 3 semanas</span></span>')
+      const depois = natural()
+      const folga = box.clientWidth - depois
+      const cortes: string[] = []
+      raiz.querySelectorAll<HTMLElement>('tbody td').forEach(td => {
+        const r = td.getBoundingClientRect()
+        td.querySelectorAll<HTMLElement>('*').forEach(e => { if (e.closest('.tip')) return /* a área de toque do ? tem margem negativa de propósito */; const b = e.getBoundingClientRect(); if (b.width > 0 && b.right > r.right + 1) cortes.push(`${e.tagName}.${String(e.className).slice(0, 20)} passa ${Math.round(b.right - r.right)} px`) })
+      })
+      const pequenos: string[] = []
+      for (const sel of ['.sync .st', '.swap .last', '.ressalva', '.paused', '.sync .act .btn', '.sync .msg']) raiz.querySelectorAll<HTMLElement>(sel).forEach(e => { if (parseFloat(getComputedStyle(e).fontSize) < 11.4) pequenos.push(sel) })
+      const cols = [...t.querySelectorAll('thead th')].map(h => `${(h.textContent ?? '').trim().slice(0, 10)}=${Math.round(h.getBoundingClientRect().width)}`).join(' | ')
+      return { box: box.clientWidth, antes, depois, folga, scroll: box.scrollWidth, cols, cortes: [...new Set(cortes)].slice(0, 6), pequenos: [...new Set(pequenos)], injetou: !!sw && !!cap && !!g && !!cad }
+    })
+    medida(`pior caso ${fmt} 1440: natural ${r.antes} px sem os textos longos, ${r.depois} px com eles (invólucro ${r.box}, folga ${r.folga}); scrollWidth ${r.scroll}; colunas ${r.cols}; cortes: ${r.cortes.join(' | ') || 'nenhum'}`)
+    await page.locator(`${S}:visible .tablebox`).first().screenshot({ path: path.join(SHOTS, `i3-pior-caso-${fmt}.png`) })
+    expect(r.injetou, 'os cinco textos longos entraram na tela (trocas, ressalva, crescimento e parado existem no DOM)').toBe(true)
+    expect(r.depois, `${fmt}: a tabela com os textos mais longos pede ${r.depois} px; cabem ${r.box}`).toBeLessThanOrEqual(r.box)
+    expect(r.scroll, 'o invólucro não rola').toBeLessThanOrEqual(r.box)
+    expect(r.cortes).toEqual([])
+    expect(r.pequenos, 'nenhum texto alargado abaixo de 11,5 px').toEqual([])
+  })
+}
