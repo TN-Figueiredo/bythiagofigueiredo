@@ -3,8 +3,10 @@
  * O gráfico "Impressões por dia" (spec 16.6 e 17.4; mockup M/impressoes.js e impressoes.css): um componente só, usado na página do canal
  * próprio e na do vídeo próprio. Recebe o modelo JÁ montado (`buildImpressoes`): não lê banco, não importa os leitores, não pergunta que dia
  * é hoje. Três estados que nunca se confundem, cada um com forma E cor: barra cheia (dia com impressões), caixa vazada (zero medido), coluna
- * hachurada de cima a baixo, também na faixa dos cliques (não medido). Os cliques NÃO ficam dentro da barra (o dono leu a altura como escala): moram
+ * hachurada (o bloco do mockup aprovado, até 24 px na base), também na faixa dos cliques (não medido). Os cliques NÃO ficam dentro da barra (o dono leu a altura como escala): moram
  * numa faixa própria sob as datas, todos os pontos na mesma linha e o número embaixo. O mesmo componente desenha "Views por dia" (sem a faixa).
+ * Camadas do SVG (nada cobre texto): grade e faixa, as colunas (linha da publicação, hachuras, barras, caixas, datas), UMA camada final com
+ * rótulos de valor, pontos e números dos cliques, e por último as áreas de toque (transparentes).
  * O desenho é SVG na largura em que aparece (o texto fica em 12 px,
  * sem encolher) e é `aria-hidden`: tudo o que ele diz existe como texto (o nome do grupo traz o resumo; cada passo do teclado é falado
  * na região do dia, `role="status"`, entre os botões "Dia anterior" e "Dia seguinte"; "Ver como tabela" traz todos os dias).
@@ -52,6 +54,9 @@ function quaisCabem(xs: readonly number[], textos: ReadonlyArray<string | null>,
   })
 }
 
+/** A altura do bloco hachurado do "não medido": a do mockup aprovado (A.serieDia: round(min(24, altura da área * 0,25))). */
+const blocoNaoMedido = (alturaArea: number): number => Math.round(Math.min(24, alturaArea * 0.25))
+
 function Desenho({ view, W, pid, ativo }: { view: ImpressoesView; W: number; pid: string; ativo: number }) {
   const { colunas, teto, ticks, alturaArea: PH, faixaCliques } = view
   const n = colunas.length
@@ -70,6 +75,7 @@ function Desenho({ view, W, pid, ativo }: { view: ImpressoesView; W: number; pid
   const mostraCl = quaisCabem(xs, colunas.map(c => (comPonto ? c.cliquesFaixa : null)), W)
   const hach = `url(#${pid})`
   const hFaixaNm = CR - 22                    // a hachura da faixa começa abaixo do rótulo
+  const hNm = blocoNaoMedido(PH)
 
   return (
     <svg className="ic-svg" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true" focusable="false">
@@ -98,11 +104,15 @@ function Desenho({ view, W, pid, ativo }: { view: ImpressoesView; W: number; pid
         // a última etiqueta é puxada para dentro do desenho (no máximo ~7 px): nunca sai cortada, no canal e no vídeo
         const meia = c.rotulo.length * PX_DATA / 2
         const xData = entre(x, meia + 1, W - meia - 1)
+        const wNm = Math.max(2, Math.min(Math.max(largBarra, 6), bw - 1))
         return (
           <g key={c.dia} data-situacao={c.situacao} className={'ic-col ic-col-' + c.situacao}>
+            {/* a linha da publicação nasce ANTES da barra e do rótulo: passa por trás deles, nunca por cima dos dígitos */}
+            {c.publicacao ? <line className="ic-pub" x1={x} x2={x} y1={T - 4} y2={T + PH} /> : null}
             {c.situacao === 'nao-medido' ? (
               <>
-                <rect className="ic-nm" x={x0 + 1} y={T} width={Math.max(2, bw - 2)} height={PH} fill={hach} />
+                <rect className="ic-nm" x={x - wNm / 2} y={T + PH - hNm} width={wNm} height={hNm} fill={hach} />
+                {ativo === i ? <line className="ic-nmlin" x1={x} x2={x} y1={T} y2={T + PH - hNm} /> : null}
                 {faixaCliques ? <rect className="ic-nm" x={x0 + 1} y={yFaixa + 20} width={Math.max(2, bw - 2)} height={hFaixaNm} fill={hach} /> : null}
               </>
             ) : c.situacao === 'zero-medido' ? (
@@ -110,23 +120,32 @@ function Desenho({ view, W, pid, ativo }: { view: ImpressoesView; W: number; pid
             ) : (
               <>
                 <rect className="ic-bar" x={x - largBarra / 2} y={topo} width={largBarra} height={c.alturaPx} rx="1.5" />
-                {mostraImp[i] ? <text className="ic-val" x={x} y={topo - 5} textAnchor="middle">{c.imp}</text> : null}
-                {!faixaCliques ? null : c.cliques == null ? (
-                  // impressão sem CTR: os cliques deste dia não foram medidos (a faixa diz com a hachura, não com um zero)
-                  <rect className="ic-nm-cl" x={x0 + 1} y={yFaixa + 20} width={Math.max(2, bw - 2)} height={hFaixaNm} fill={hach} />
-                ) : c.cliquesFaixa != null && comPonto ? (
-                  <>
-                    <circle className="ic-dot" cx={x} cy={yFaixa + 25} r="3.4" />
-                    {mostraCl[i] ? <text className="ic-cln" x={x} y={yFaixa + 43} textAnchor="middle">{c.cliquesFaixa}</text> : null}
-                  </>
-                ) : null}
+                {/* impressão sem CTR: os cliques deste dia não foram medidos (a faixa diz com a hachura, não com um zero) */}
+                {faixaCliques && c.cliques == null ? <rect className="ic-nm-cl" x={x0 + 1} y={yFaixa + 20} width={Math.max(2, bw - 2)} height={hFaixaNm} fill={hach} /> : null}
               </>
             )}
-            {c.publicacao ? <line className="ic-pub" x1={x} x2={x} y1={T - 4} y2={T + PH} /> : null}
             {c.marca ? <text className="ic-ax-x" x={xData} y={yDatas} textAnchor="middle">{c.rotulo}</text> : null}
           </g>
         )
       })}
+      {/* a camada final: rótulos de valor, pontos e números dos cliques. Vem depois de TODAS as colunas (inclusive as hachuradas), então nada os cobre. */}
+      <g className="ic-topo">
+        {colunas.map((c, i) => {
+          if (c.situacao !== 'com-impressoes') return null
+          const x = cx(i), topo = T + PH - c.alturaPx
+          return (
+            <g key={c.dia} data-dia={c.dia}>
+              {mostraImp[i] ? <text className="ic-val" x={x} y={topo - 5} textAnchor="middle">{c.imp}</text> : null}
+              {faixaCliques && c.cliques != null && c.cliquesFaixa != null && comPonto ? (
+                <>
+                  <circle className="ic-dot" cx={x} cy={yFaixa + 25} r="3.4" />
+                  {mostraCl[i] ? <text className="ic-cln" x={x} y={yFaixa + 43} textAnchor="middle">{c.cliquesFaixa}</text> : null}
+                </>
+              ) : null}
+            </g>
+          )
+        })}
+      </g>
       {colunas.map((c, i) => (
         <rect key={'h' + c.dia} className={'ic-hit' + (ativo === i ? ' on' : '')} data-i={i} x={L + i * bw} y={T} width={bw} height={PH + DR + (faixaCliques ? CR : 0)} />
       ))}
@@ -270,6 +289,8 @@ export function Impressoes({ view, titulo }: { view: ImpressoesView; titulo: str
     if (e.target !== e.currentTarget) return
     focoDoPonteiro.current = false
     if (noPasso.current) { noPasso.current = false; return }
+    // Tab até "Dia anterior" / "Dia seguinte": os botões fazem parte do gráfico, o dia continua e o botão parte dele
+    if (e.relatedTarget instanceof Node && passoRef.current?.contains(e.relatedTarget)) return
     ultimo.current = null
     fechar()
   }
