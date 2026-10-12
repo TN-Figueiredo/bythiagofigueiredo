@@ -75,6 +75,6 @@
 #flut .ic-pop p:last-child{margin-bottom:0}
 
 @media (pointer:coarse){
-  .ic-info{width:44px;height:44px}
+  .ic-info{width:44px;height:44px;margin:-10px 0}
   .ic-tab summary{min-height:44px}
 }
