@@ -13,6 +13,7 @@ import { DAY } from '@/lib/youtube/observatorio/time'
 import { canalTemVideos, ownChannelHref } from '../_chrome/own-channels'
 import type { ExtrasProprio } from '../_proprio/extras'
 import { numerosDoCanal, type AvisoNumero, type Numero, type NumeroId } from './numeros-model'
+import type { SoSeuCanalDado } from './so-seu-canal-model'
 
 /** `abre`: o Histórico sabe abrir este vídeo. Vídeo sem data de publicação não está no conjunto do site (`obs.video` não o acha): aparece sem link. O destino do link depende do par e é montado pela tela. */
 export interface Top5Item { id: string; abre: boolean; titulo: string; thumb: string | null; viewsTexto: string; idadeTexto: string; short: boolean }
@@ -46,8 +47,16 @@ export interface CompararPack {
   canais: CanalPack[]
   /** Os canais próprios (ordem do motor), depois os concorrentes por inscritos, maior primeiro (inscritos escondidos por último). */
   ordem: string[]
+  /** "dd/mm": o dia em que a série diária dos concorrentes começa. A linha "Views por dia nos longos" diz a janela de cada lado (28 dias do diário × desde esta data). */
+  serieDesde: string
+  /**
+   * O cartão "Só o seu canal mede": UMA entrada por canal próprio do site (id do canal → dado). Montado no SERVIDOR e já em texto: para quem não edita o
+   * site a entrada é `{ acesso: 'negado', view: null }`, sem nenhum número (o pacote é serializado para o navegador).
+   */
+  soSeuCanal: Record<string, SoSeuCanalDado>
 }
 
+const NEGADO: SoSeuCanalDado = { acesso: 'negado', view: null }
 const thumbDe = (ytId: string) => (ytId ? `https://i.ytimg.com/vi/${encodeURIComponent(ytId)}/mqdefault.jpg` : null)
 
 /**
@@ -64,8 +73,11 @@ const avisarSentry = (avisos: AvisoNumero[]) => {
   Sentry.captureException(avisos[0]!.excecao, { level: 'warning', fingerprint: ['comparar-numero-invalido'], extra: { total: avisos.length, numeros, canais, primeiro: avisos[0]!.erro } })
 }
 
-/** `extras`: as views por dia do canal próprio, lidas no servidor para quem edita o site (ausente = não lidas). */
-export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero[]) => void = avisarSentry, extras?: ExtrasProprio): CompararPack {
+/**
+ * `extras`: as views por dia do canal próprio, lidas no servidor para quem edita o site (ausente = não lidas).
+ * `soSeuCanal`: o cartão de cada canal próprio, já montado no servidor; o canal próprio que não vier aqui entra como 'negado' (nunca com número).
+ */
+export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero[]) => void = avisarSentry, extras?: ExtrasProprio, soSeuCanal: Record<string, SoSeuCanalDado> = {}): CompararPack {
   const avisos: AvisoNumero[] = []
   const owns = obs.ownChannels() // lança no conjunto de um canal: é a guarda de escopo
   const F = obs.fmt, D = obs.date
@@ -129,5 +141,7 @@ export function buildCompararPack(obs: Observatory, avisar: (avisos: AvisoNumero
     now, inicio90, semanasRitmo: obs.RULES.habit.weeks,
     eixo: [D.dm(inicio90), D.dm(inicio90 + 30 * DAY), D.dm(inicio90 + 60 * DAY), `hoje, ${D.dm(now)}`],
     canais, ordem: [...owns.map(c => c.id), ...comps.map(c => c.id)],
+    serieDesde: obs.SERIES_START_LABEL,
+    soSeuCanal: Object.fromEntries(owns.map(c => [c.id, soSeuCanal[c.id] ?? NEGADO] as const)),
   }
 }
