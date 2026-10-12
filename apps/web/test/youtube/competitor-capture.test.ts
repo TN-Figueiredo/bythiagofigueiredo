@@ -120,7 +120,7 @@ describe('videoObservedOf', () => {
   const NOW = '2026-06-10T15:00:00.000Z'
   const full = { id: 'vid', snippet: { title: 'T', tags: ['b', 'a'], categoryId: '19', defaultLanguage: 'pt-BR', defaultAudioLanguage: 'pt', liveBroadcastContent: 'none' }, statistics: { viewCount: '10', likeCount: '2', commentCount: '0' }, contentDetails: { duration: 'PT1M30S' } }
   const valueOf = (o: ReturnType<typeof videoObservedOf>, f: string) => o.fields.find(x => x.field === f)?.value
-  it('resposta completa: os 9 campos do catálogo, nenhum fora dele, tags na ordem da API', () => {
+  it('resposta completa: os 10 campos do catálogo, nenhum fora dele, tags na ordem da API', () => {
     const o = videoObservedOf(full, NOW, parseIsoDuration)
     expect(o.fields.map(f => f.field).sort()).toEqual([...VIDEO_FIELDS].sort())
     expect(valueOf(o, 'tags')).toEqual(['b', 'a'])
@@ -159,6 +159,53 @@ describe('videoObservedOf', () => {
     expect('views_hidden' in noStats.patch).toBe(false)
     expect(noStats.hasViews).toBe(false)
     expect(videoObservedOf({ id: 'vid', snippet: full.snippet, statistics: full.statistics }, NOW, parseIsoDuration).partsMissing).toEqual(['contentDetails'])
+  })
+  it('(D2) zero MEDIDO é zero: viewCount, likeCount e commentCount "0" → 0, sinalizadores desligados, hasViews true', () => {
+    const o = videoObservedOf({ ...full, statistics: { viewCount: '0', likeCount: '0', commentCount: '0' } }, NOW, parseIsoDuration)
+    expect(o.patch).toMatchObject({ view_count: 0, like_count: 0, comment_count: 0, views_hidden: false, likes_hidden: false, comments_disabled: false })
+    expect(o.hasViews).toBe(true)
+    expect(valueOf(o, 'views_hidden')).toBe(false)
+    expect(valueOf(o, 'likes_hidden')).toBe(false)
+    expect(valueOf(o, 'comments_disabled')).toBe(false)
+  })
+  it('(D2) ausente é nulo MAIS o sinalizador certo, um contador por vez, no patch e no histórico', () => {
+    const noLikes = videoObservedOf({ ...full, statistics: { viewCount: '10', commentCount: '1' } }, NOW, parseIsoDuration)
+    expect(noLikes.patch).toMatchObject({ like_count: null, likes_hidden: true, view_count: 10, views_hidden: false, comment_count: 1, comments_disabled: false })
+    expect([valueOf(noLikes, 'likes_hidden'), valueOf(noLikes, 'views_hidden'), valueOf(noLikes, 'comments_disabled')]).toEqual([true, false, false])
+    const noViews = videoObservedOf({ ...full, statistics: { likeCount: '1', commentCount: '1' } }, NOW, parseIsoDuration)
+    expect(noViews.patch).toMatchObject({ view_count: null, views_hidden: true, like_count: 1, likes_hidden: false, comments_disabled: false })
+    expect([valueOf(noViews, 'likes_hidden'), valueOf(noViews, 'views_hidden'), valueOf(noViews, 'comments_disabled')]).toEqual([false, true, false])
+    const noComments = videoObservedOf({ ...full, statistics: { viewCount: '1', likeCount: '1' } }, NOW, parseIsoDuration)
+    expect(noComments.patch).toMatchObject({ comment_count: null, comments_disabled: true, likes_hidden: false, views_hidden: false })
+    expect([valueOf(noComments, 'likes_hidden'), valueOf(noComments, 'views_hidden'), valueOf(noComments, 'comments_disabled')]).toEqual([false, false, true])
+  })
+  it('os valores de idioma, áudio, transmissão e categoria saem no histórico e no patch', () => {
+    for (const lbc of ['none', 'live', 'upcoming']) {
+      const o = videoObservedOf({ ...full, snippet: { ...full.snippet, liveBroadcastContent: lbc } }, NOW, parseIsoDuration)
+      expect(valueOf(o, 'live_broadcast_content')).toBe(lbc)
+      expect(o.patch.live_broadcast_content).toBe(lbc)
+    }
+    const o = videoObservedOf(full, NOW, parseIsoDuration)
+    expect(valueOf(o, 'default_language')).toBe('pt-BR')
+    expect(valueOf(o, 'default_audio_language')).toBe('pt')
+    expect(valueOf(o, 'category_id')).toBe('19')
+    expect(o.patch).toMatchObject({ default_language: 'pt-BR', default_audio_language: 'pt', category_id: '19' })
+    const { defaultLanguage: _a, defaultAudioLanguage: _b, liveBroadcastContent: _c, categoryId: _d, ...bare } = full.snippet
+    const n = videoObservedOf({ ...full, snippet: bare }, NOW, parseIsoDuration)
+    expect([valueOf(n, 'default_language'), valueOf(n, 'default_audio_language'), valueOf(n, 'live_broadcast_content'), valueOf(n, 'category_id')]).toEqual([null, null, null, null])
+  })
+  it('was_live é "tem liveStreamingDetails": só agendamento, objeto vazio e nulo', () => {
+    expect(videoObservedOf({ ...full, liveStreamingDetails: { scheduledStartTime: '2026-06-20T10:00:00Z' } }, NOW, parseIsoDuration).patch).toMatchObject({ was_live: true, live_scheduled_start_at: '2026-06-20T10:00:00Z', live_actual_start_at: null, live_actual_end_at: null })
+    expect(videoObservedOf({ ...full, liveStreamingDetails: {} }, NOW, parseIsoDuration).patch.was_live).toBe(true)
+    expect(videoObservedOf({ ...full, liveStreamingDetails: null }, NOW, parseIsoDuration).patch.was_live).toBe(false)
+  })
+  it('data malformada (texto, vazio, número) vira nulo; data válida sai igual à entrada', () => {
+    for (const bad of ['ontem', '', 42]) {
+      const o = videoObservedOf({ ...full, liveStreamingDetails: { scheduledStartTime: bad, actualStartTime: bad, actualEndTime: bad } }, NOW, parseIsoDuration)
+      expect(o.patch).toMatchObject({ was_live: true, live_scheduled_start_at: null, live_actual_start_at: null, live_actual_end_at: null })
+    }
+    const ok = videoObservedOf({ ...full, liveStreamingDetails: { scheduledStartTime: '2026-06-01T10:00:00Z', actualStartTime: '2026-06-01T10:01:00.123Z', actualEndTime: '2026-06-01T11:00:00+00:00' } }, NOW, parseIsoDuration)
+    expect(ok.patch).toMatchObject({ live_scheduled_start_at: '2026-06-01T10:00:00Z', live_actual_start_at: '2026-06-01T10:01:00.123Z', live_actual_end_at: '2026-06-01T11:00:00+00:00' })
   })
   it('toda leitura zera a sequência de faltas e limpa a decisão "manter" (o vídeo veio)', () => {
     expect(videoObservedOf(full, NOW, parseIsoDuration).patch).toMatchObject({ last_checked_at: NOW, miss_streak: 0, miss_first_at: null, missing_since: null, removal_decision: null, removal_decided_at: null, removal_decided_by: null })
@@ -201,6 +248,49 @@ describe('channelObservedOf', () => {
     const o = channelObservedOf({ id: 'UC', snippet: { title: 'Canal' }, statistics: { subscriberCount: '1' } })
     expect(o.patch).toMatchObject({ custom_url: null, country: null, published_at: null })
   })
+  it('(I1) canal SEM snippet: não compara nem grava custom_url, description, published_at, country; partsMissing diz', () => {
+    const o = channelObservedOf({ id: 'UC', statistics: { subscriberCount: '5' } })
+    expect(o.partsMissing).toEqual(['snippet'])
+    expect(o.fields.map(f => f.field).sort()).toEqual(['availability', 'subscribers_hidden'])
+    for (const k of ['custom_url', 'description', 'published_at', 'country']) expect(k in o.patch).toBe(false)
+    expect(o.patch.subscribers_hidden).toBe(false)
+    expect(o.patch).toMatchObject({ miss_streak: 0, missing_since: null })
+  })
+  it('(I1) canal SEM statistics: não vira subscribers_hidden true nem mexe na contagem', () => {
+    const o = channelObservedOf({ id: 'UC', snippet: item.snippet })
+    expect(o.partsMissing).toEqual(['statistics'])
+    expect('subscribers_hidden' in o.patch).toBe(false)
+    expect(o.fields.map(f => f.field)).not.toContain('subscribers_hidden')
+    expect(o.patch).toMatchObject({ custom_url: '@canal', country: 'BR' })
+  })
+  it('(I1) canal sem nada, null ou [] nas partes: só availability, e as duas partes contadas', () => {
+    for (const bare of [{ id: 'UC' }, { id: 'UC', snippet: null, statistics: [] }, null]) {
+      const o = channelObservedOf(bare)
+      expect(o.partsMissing).toEqual(['snippet', 'statistics'])
+      expect(o.fields).toEqual([{ field: 'availability', value: 'no_ar' }])
+      expect(Object.keys(o.patch).sort()).toEqual(['miss_first_at', 'miss_streak', 'missing_since', 'removal_decided_at', 'removal_decided_by', 'removal_decision'])
+    }
+  })
+  it('(RULING) snippet e statistics vazios valem como presentes: contagem nula, ocultos', () => {
+    const o = channelObservedOf({ id: 'UC', snippet: {}, statistics: {} })
+    expect(o.partsMissing).toEqual([])
+    expect(o.patch).toMatchObject({ subscribers_hidden: true, custom_url: null, country: null })
+  })
+  it('contagem "0" com hiddenSubscriberCount false não é oculto; descrição ausente é nula e vazia fica vazia; avatar e nome saem', () => {
+    expect(channelObservedOf({ ...item, statistics: { subscriberCount: '0', hiddenSubscriberCount: false } }).patch.subscribers_hidden).toBe(false)
+    const v = (o: ReturnType<typeof channelObservedOf>, f: string) => o.fields.find(x => x.field === f)?.value
+    expect(v(channelObservedOf({ id: 'UC', snippet: { title: 'C' }, statistics: { subscriberCount: '1' } }), 'description')).toBeNull()
+    expect(v(channelObservedOf({ id: 'UC', snippet: { title: 'C', description: '' }, statistics: { subscriberCount: '1' } }), 'description')).toBe('')
+    const full = channelObservedOf(item)
+    expect(v(full, 'avatar_url')).toBe('https://yt3/x')
+    expect(v(full, 'name')).toBe('Canal')
+    expect(full.partsMissing).toEqual([])
+  })
+  it('publishedAt malformado do canal vira nulo; válido sai igual', () => {
+    expect(channelObservedOf({ ...item, snippet: { ...item.snippet, publishedAt: 'ontem' } }).patch.published_at).toBeNull()
+    expect(channelObservedOf({ ...item, snippet: { ...item.snippet, publishedAt: 7 } }).patch.published_at).toBeNull()
+    expect(channelObservedOf(item).patch.published_at).toBe('2015-01-01T00:00:00Z')
+  })
 })
 describe('precisionOf (4.1, v2.3)', () => {
   const t = (h: number) => new Date(Date.UTC(2026, 5, 10, 15) + h * 3_600_000).toISOString()
@@ -236,6 +326,17 @@ describe('planFields', () => {
   })
   it('campo fora do catálogo lança, e nada é planejado', () => {
     expect(() => planFields('video', [], [it1([{ field: 'title', value: 'x' }])], NOW)).toThrow(/fora do catálogo/)
+  })
+  it('(I1) canal sem snippet numa execução e com snippet na seguinte: nenhuma versão "mudou para nulo" nem "voltou"', () => {
+    const chItem = {
+      id: 'UC', snippet: { title: 'Canal', customUrl: '@canal', description: 'd', country: 'BR', thumbnails: { default: { url: 'https://yt3/x' } } }, statistics: { subscriberCount: '10' },
+    }
+    const stored = (r: ReturnType<typeof channelObservedOf>) => r.fields.map((f, i) => ({ id: i + 1, video_id: null, field: f.field, value_hash: fieldHash(f.value) }))
+    const full = channelObservedOf(chItem)
+    const partial = channelObservedOf({ id: 'UC', statistics: chItem.statistics })
+    const mk = (o: ReturnType<typeof channelObservedOf>): CaptureItem => ({ videoId: null, fields: o.fields, raw: null, prevSeenAt: PREV, weeklySince: null })
+    expect(planFields('canal', stored(full), [mk(partial)], NOW)).toEqual({ close: [], open: [] }) // parte ausente: nada muda
+    expect(planFields('canal', stored(full), [mk(full)], NOW)).toEqual({ close: [], open: [] }) // e a volta não abre versão
   })
   it('campo do canal usa a chave de video_id nulo', () => {
     const p = planFields('canal', [{ id: 3, video_id: null, field: 'country', value_hash: fieldHash('BR') }], [it1([{ field: 'country', value: 'PT' }], { videoId: null })], NOW)

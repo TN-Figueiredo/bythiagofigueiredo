@@ -9,6 +9,8 @@ export type Json = null | boolean | number | string | Json[] | { [k: string]: Js
 type Obj = Record<string, unknown>
 export const obj = (x: unknown): Obj | undefined => (typeof x === 'object' && x !== null && !Array.isArray(x) ? (x as Obj) : undefined)
 export const str = (x: unknown): string | null => (typeof x === 'string' && x !== '' ? x : null)
+/** Data que vai para coluna timestamptz: o texto como veio se o JS o entende como data, senão nulo (nunca 'ontem' no banco). */
+const ts = (x: unknown): string | null => { const s = str(x); return s !== null && !Number.isNaN(Date.parse(s)) ? s : null }
 /** `str` para texto que vai ao banco: sem NUL nem substituto solitário (ver sanitizeForDb). */
 const strDb = (x: unknown): string | null => { const s = str(x); return s === null ? null : cleanText(s) }
 
@@ -112,7 +114,7 @@ export function videoObservedOf(item: unknown, nowIso: string, durationOf: (iso:
     removal_decision: null, removal_decided_at: null, removal_decided_by: null,
     // liveStreamingDetails só vem para ao vivo e estreia: ausente = não foi nenhum dos dois (a parte é sempre pedida)
     was_live: live !== undefined,
-    live_scheduled_start_at: str(live?.scheduledStartTime), live_actual_start_at: str(live?.actualStartTime), live_actual_end_at: str(live?.actualEndTime),
+    live_scheduled_start_at: ts(live?.scheduledStartTime), live_actual_start_at: ts(live?.actualStartTime), live_actual_end_at: ts(live?.actualEndTime),
   }
   if (sn) {
     const tags: Json = Array.isArray(sn.tags) ? sn.tags.filter((t): t is string => typeof t === 'string').map(cleanText) : null
@@ -143,27 +145,33 @@ export function videoObservedOf(item: unknown, nowIso: string, durationOf: (iso:
 }
 
 export interface ChannelRowPatch {
-  custom_url: string | null; description: string | null; published_at: string | null; country: string | null; subscribers_hidden: boolean
+  // só quando a parte veio: snippet → custom_url, description, published_at, country; statistics → subscribers_hidden
+  custom_url?: string | null; description?: string | null; published_at?: string | null; country?: string | null; subscribers_hidden?: boolean
   miss_streak: 0; miss_first_at: null; missing_since: null; removal_decision: null; removal_decided_at: null; removal_decided_by: null
 }
+export interface ChannelObserved { fields: ObservedField[]; patch: ChannelRowPatch; partsMissing: string[] }
 
-export function channelObservedOf(item: unknown): { fields: ObservedField[]; patch: ChannelRowPatch } {
-  const it = obj(item) ?? {}, sn = obj(it.snippet) ?? {}, st = obj(it.statistics) ?? {}
-  const avatar = strDb(obj(obj(sn.thumbnails)?.default)?.url)
-  const description = typeof sn.description === 'string' ? cleanText(sn.description) : null
-  const hidden = st.hiddenSubscriberCount === true || optCount(st.subscriberCount) === null
-  const customUrl = strDb(sn.customUrl), country = strDb(sn.country)
-  return {
-    fields: [
-      { field: 'name', value: strDb(sn.title) }, { field: 'custom_url', value: customUrl }, { field: 'description', value: description },
-      { field: 'country', value: country }, { field: 'avatar_url', value: avatar }, { field: 'subscribers_hidden', value: hidden },
-      { field: 'availability', value: 'no_ar' },
-    ],
-    patch: {
-      custom_url: customUrl, description, published_at: str(sn.publishedAt), country, subscribers_hidden: hidden,
-      miss_streak: 0, miss_first_at: null, missing_since: null, removal_decision: null, removal_decided_at: null, removal_decided_by: null,
-    },
+export function channelObservedOf(item: unknown): ChannelObserved {
+  const it = obj(item) ?? {}, sn = obj(it.snippet), st = obj(it.statistics)
+  const partsMissing = [...(sn ? [] : ['snippet']), ...(st ? [] : ['statistics'])]
+  const fields: ObservedField[] = []
+  const patch: ChannelRowPatch = { miss_streak: 0, miss_first_at: null, missing_since: null, removal_decision: null, removal_decided_at: null, removal_decided_by: null }
+  // parte ausente não é "mudou para nulo": os campos dela não saem nem vão para a linha (mesma regra do vídeo)
+  if (sn) {
+    const avatar = strDb(obj(obj(sn.thumbnails)?.default)?.url)
+    const description = typeof sn.description === 'string' ? cleanText(sn.description) : null
+    const customUrl = strDb(sn.customUrl), country = strDb(sn.country)
+    fields.push({ field: 'name', value: strDb(sn.title) }, { field: 'custom_url', value: customUrl }, { field: 'description', value: description },
+      { field: 'country', value: country }, { field: 'avatar_url', value: avatar })
+    patch.custom_url = customUrl; patch.description = description; patch.published_at = ts(sn.publishedAt); patch.country = country
   }
+  if (st) {
+    const hidden = st.hiddenSubscriberCount === true || optCount(st.subscriberCount) === null
+    fields.push({ field: 'subscribers_hidden', value: hidden })
+    patch.subscribers_hidden = hidden
+  }
+  fields.push({ field: 'availability', value: 'no_ar' })
+  return { fields, patch, partsMissing }
 }
 
 /* ------------------------------------------------------------------ plano de versões */
