@@ -370,3 +370,163 @@ test('390 px com toque: alvos de 44 px nas abas, no botão de comparar e nos con
     expect(pequenos).toEqual([])
   } finally { await ctx.close() }
 })
+
+/* ---------------------------------------------------------------- T10 "Como o canal está" (a seção e o gráfico MONTADOS na página, sem dado privado no banco local) */
+const SEM_RELATORIO = 'Ainda não há relatório de alcance deste canal.'
+const secao = (page: Page) => tela(page).locator('section.pn')
+const botaoSecao = (page: Page) => secao(page).getByRole('button', { name: /^Como o canal está/ })
+
+test.describe('T10 a seção "Como o canal está" na página do canal próprio', () => {
+  test('nasce RECOLHIDA, acima das abas, com a linha de uma frase: o motivo de não haver alcance e a posição em inscritos', async ({ page }) => {
+    await abrir(page)
+    await expect(secao(page)).toBeVisible()
+    await expect(botaoSecao(page)).toHaveAttribute('aria-expanded', 'false')
+    await expect(secao(page).locator('.pn-b')).toBeHidden()
+    const linha = secao(page).locator('.pn-r')
+    await expect(linha).toContainText(SEM_RELATORIO)
+    await expect(linha).toContainText(/\d+º de \d+ canais .*em inscritos\.|Sem posição em inscritos\./)
+    await expect(linha).not.toContainText(/\b0 impress/)
+    // acima das abas, abaixo do cabeçalho
+    const ordem = await tela(page).evaluate(el => {
+      const filhos = [...el.children].map(c => c.tagName.toLowerCase() + (c.classList.contains('pn') ? '.pn' : c.classList.contains('ctabs') ? '.ctabs' : c.classList.contains('chead') ? '.chead' : ''))
+      return filhos.filter(f => /\.(chead|pn|ctabs)$/.test(f))
+    })
+    expect(ordem).toEqual(['header.chead', 'section.pn', 'nav.ctabs'])
+    // o gráfico nem é desenhado fechado
+    await expect(secao(page).locator('svg.ic-svg')).toHaveCount(0)
+  })
+
+  test('?painel=1 abre: frase do topo, o gráfico diz o motivo, "Vídeos que mais apareceram" diz o motivo, "No nicho" e "O que ainda não é medido"', async ({ page }) => {
+    await abrir(page, '?painel=1')
+    await expect(botaoSecao(page)).toHaveAttribute('aria-expanded', 'true')
+    const corpo = secao(page).locator('.pn-b')
+    await expect(corpo).toBeVisible()
+    await expect(corpo.locator('.pn-lead')).toHaveCount(0)   // o gráfico já diz a frase: não se repete no topo
+    await expect(corpo.locator('.ic-vazio')).toHaveText(SEM_RELATORIO)
+    await expect(corpo.locator('.pn-vazio')).toHaveText('Sem relatório de alcance, não há vídeo para listar.')
+    await expect(corpo.getByRole('heading', { level: 3 })).toHaveText(['Vídeos que mais apareceram', 'No nicho', 'O que ainda não é medido'])
+    await expect(corpo.locator('dl.pn-nm dt')).toHaveText(['Views por dia de cada vídeo', 'Percentual assistido e retenção', 'Origem do tráfego'])
+    await expect(corpo.locator('dl.pn-nm dd').first()).toHaveText('já são coletadas; o desenho delas nesta tela ainda não existe.')
+    await expect(corpo).not.toContainText(/\b(lote|L2|L3|pacote|dataset|day_pt)\b/)
+    await expect(corpo).not.toContainText(/\b0 impress/)
+  })
+
+  test('clicar abre e fecha, escreve ?painel= na URL e lembra em localStorage; ?painel=0 fecha mesmo com "aberta" lembrada; recarregar respeita a URL', async ({ page }) => {
+    await abrir(page)
+    await botaoSecao(page).click()
+    await expect(botaoSecao(page)).toHaveAttribute('aria-expanded', 'true')
+    expect(query(page).get('painel')).toBe('1')
+    const chave = `obs:como-esta:${PROPRIO()}`
+    expect(await page.evaluate(k => localStorage.getItem(k), chave)).toBe('1')
+    // recarregar SEM a URL: vale a lembrança
+    await page.goto(url()); await pronta(page)
+    await expect(botaoSecao(page)).toHaveAttribute('aria-expanded', 'true')
+    // ?painel=0 vence a lembrança
+    await page.goto(url('?painel=0')); await pronta(page)
+    await expect(botaoSecao(page)).toHaveAttribute('aria-expanded', 'false')
+    // fechar com o clique guarda "fechada" e a URL
+    await page.goto(url('?painel=1')); await pronta(page)
+    await botaoSecao(page).click()
+    await expect(botaoSecao(page)).toHaveAttribute('aria-expanded', 'false')
+    expect(query(page).get('painel')).toBe('0')
+    expect(await page.evaluate(k => localStorage.getItem(k), chave)).toBe('0')
+    await page.evaluate(k => localStorage.removeItem(k), chave)
+  })
+
+  test('trocar de aba e voltar não perde a escolha; só a query mudou (Next não remonta): ?painel= segue a URL', async ({ page }) => {
+    await abrir(page, '?painel=1')
+    await tela(page).locator('nav.ctabs').getByRole('link', { name: 'Retenção' }).click()
+    await expect(tela(page).locator('nav.ctabs a[aria-current="page"]')).toHaveText('Retenção')
+    expect(query(page).get('painel')).toBe('1')
+    await expect(botaoSecao(page)).toHaveAttribute('aria-expanded', 'true')
+    await page.goBack()
+    await expect(tela(page).locator('nav.ctabs a[aria-current="page"]')).toHaveText(/^Vídeos/)
+    await expect(botaoSecao(page)).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  test('teclado: Tab chega ao botão da seção, Enter abre e o foco fica nele; o formulário tem DUAS paradas de Tab; mudar o select não navega; o botão leva à comparação', async ({ page }) => {
+    await abrir(page)
+    const btn = botaoSecao(page)
+    await btn.focus()
+    await page.keyboard.press('Enter')
+    await expect(btn).toHaveAttribute('aria-expanded', 'true')
+    await expect(btn).toBeFocused()
+    const form = secao(page).locator('form.cmpf')
+    await expect(form).toHaveAttribute('method', 'get')
+    await expect(form.locator('input[type="hidden"][name="a"]')).toHaveValue(PROPRIO())
+    const select = form.locator('select[name="b"]')
+    await expect(select.locator('option').first()).toContainText('(logo acima de você)')
+    // percorrer o corpo com Tab: as duas paradas do formulário são consecutivas (select, botão)
+    await select.focus()
+    const antes = page.url()
+    await page.keyboard.press('ArrowDown')           // seta num select fechado: pode disparar `change`; não pode navegar
+    await page.waitForTimeout(400)
+    expect(page.url()).toBe(antes)
+    await page.keyboard.press('Tab')
+    await expect(form.getByRole('button', { name: 'Comparar' })).toBeFocused()
+    const escolhido = await select.inputValue()
+    await page.keyboard.press('Enter')
+    await page.waitForURL(/\/comparar\?/)
+    const u = new URL(page.url())
+    expect(u.pathname).toBe(`${ROTA}/comparar`)
+    expect(u.searchParams.get('a')).toBe(PROPRIO())
+    expect(u.searchParams.get('b')).toBe(escolhido)
+  })
+
+  test('"No nicho": só o item com lista ordenada é link; "Ver a lista de Canais" leva à lista', async ({ page }) => {
+    await abrir(page, '?painel=1')
+    const nicho = secao(page).locator('.pn-g.two > div').first()
+    await expect(nicho.getByRole('heading', { level: 3 })).toHaveText('No nicho')
+    const links = await nicho.locator('p.pos a').evaluateAll(as => as.map(a => ({ t: a.textContent, h: a.getAttribute('href') })))
+    for (const l of links) expect(l.h).toMatch(/\/competitors\?.*sort=(subs|vpd)/)
+    await expect(nicho.getByRole('link', { name: 'Ver a lista de Canais' })).toHaveAttribute('href', new RegExp(`${ROTA}(\\?|$)`))
+  })
+})
+
+for (const [nome, size] of [['390', { width: 390, height: 844 }], ['1440', { width: 1440, height: 900 }]] as const) {
+  test.describe(`T10 a seção aberta a ${nome} px`, () => {
+    for (const tema of ['dark', 'light'] as const) {
+      test(`${nome} px, tema ${tema}: sem rolagem para o lado, nenhum texto abaixo de 12 px, captura salva`, async ({ page }) => {
+        await page.context().addCookies([{ name: 'btf_theme', value: tema, url: 'http://localhost:3099' }])
+        await abrir(page, '?painel=1', size)
+        await expect(secao(page).locator('.pn-b')).toBeVisible()
+        const l = await larguras(page)
+        medida(`como-esta ${nome}/${tema}: docScroll ${l.docScroll}, contScroll ${l.contScroll}, tela ${l.telaW}px, menor texto ${l.menor}px (${l.quem}), fora: ${l.fora.join(' | ') || 'nenhum'}`)
+        expect(l.docScroll, 'rolagem horizontal do documento').toBeLessThanOrEqual(0)
+        expect(l.contScroll, 'rolagem horizontal do contêiner').toBeLessThanOrEqual(0)
+        expect(l.fora, 'elementos fora da coluna').toEqual([])
+        expect(l.menor, `menor texto: ${l.quem}`).toBeGreaterThanOrEqual(12)
+        await secao(page).scrollIntoViewIfNeeded()
+        await page.screenshot({ path: path.join(SHOTS, `como-esta-${nome}-${tema === 'light' ? 'claro' : 'escuro'}-aberta.png`) })
+        // recolhida (padrão)
+        await page.goto(url('?painel=0')); await pronta(page)
+        await secao(page).scrollIntoViewIfNeeded()
+        await page.screenshot({ path: path.join(SHOTS, `como-esta-${nome}-${tema === 'light' ? 'claro' : 'escuro'}-recolhida.png`) })
+      })
+    }
+  })
+}
+
+test('T10 390 px com toque: o botão da seção, o select, o botão Comparar e os links têm 44 px', async ({ browser }) => {
+  const ctx = await browser.newContext({ storageState: ADMIN_STATE, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+  await ctx.addCookies([{ name: 'btf_theme', value: 'dark', url: 'http://localhost:3099' }])
+  const page = await ctx.newPage()
+  try {
+    await page.route(/(ytimg|ggpht)\.com/, r => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }))
+    await page.goto(url('?painel=1')); await pronta(page)
+    const alvos = [`${S} section.pn .pn-h button`, `${S} section.pn select`, `${S} section.pn form button`, `${S} section.pn .pn-b a[href]`]
+    const pequenos: string[] = []
+    let vistos = 0
+    for (const sel of alvos) {
+      for (const el of await page.locator(sel).elementHandles()) {
+        const b = await el.boundingBox()
+        if (!b || b.width <= 0) continue
+        vistos++
+        if (Math.min(b.height, b.width) < 43.5) pequenos.push(`${sel} ${Math.round(b.width)}x${Math.round(b.height)}`)
+      }
+    }
+    medida(`como-esta alvos de toque (${vistos} medidos) menores que 44 px: ${pequenos.length ? pequenos.join(' | ') : 'nenhum'}`)
+    expect(vistos).toBeGreaterThanOrEqual(4)
+    expect(pequenos).toEqual([])
+  } finally { await ctx.close() }
+})

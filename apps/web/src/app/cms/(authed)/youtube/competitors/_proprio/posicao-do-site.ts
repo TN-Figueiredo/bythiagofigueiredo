@@ -44,3 +44,24 @@ function acimaDe(ch: ObsChannel, conjunto: readonly ObsChannel[]): ConcorrenteAc
   const maior = [...conc].sort((a, b) => b.subs - a.subs || ordem(a, b))[0]
   return maior ? { id: maior.id, name: maior.name, acima: false } : null
 }
+
+/** Uma opção do formulário "Comparar com…": `acima` só no primeiro, e só quando ele É o logo acima em inscritos. */
+export interface OpcaoConcorrente { id: string; name: string; acima: boolean }
+
+/**
+ * Os concorrentes que o formulário "Comparar com…" oferece: os do MESMO conjunto da posição (o critério do botão do cabeçalho). O concorrente logo
+ * acima em inscritos vem primeiro (é o que o botão do cabeçalho abre); os outros, por inscritos (maior primeiro; sem contagem por último), nome e id.
+ */
+export function concorrentesDoSite(obs: Observatory, canalId: string): OpcaoConcorrente[] {
+  const ch: ObsChannel | undefined = obs.channel(canalId)
+  if (!ch || !ch.own) return []
+  const doConjunto = obs.channels.filter(c => (ch.niche ? c.niche === ch.niche : true))
+  const primeiro = acimaDe(ch, doConjunto)
+  const nome = (a: ObsChannel, b: ObsChannel) => a.name.localeCompare(b.name, 'pt-BR') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  const resto = doConjunto.filter(c => !c.own && c.id !== primeiro?.id)
+    .sort((a, b) => (a.subs == null ? 1 : 0) - (b.subs == null ? 1 : 0) || (b.subs ?? 0) - (a.subs ?? 0) || nome(a, b))
+  return [
+    ...(primeiro ? [{ id: primeiro.id, name: primeiro.name, acima: primeiro.acima }] : []),
+    ...resto.map(c => ({ id: c.id, name: c.name, acima: false })),
+  ]
+}
