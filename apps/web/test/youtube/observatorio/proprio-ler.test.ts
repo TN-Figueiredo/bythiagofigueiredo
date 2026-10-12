@@ -6,6 +6,8 @@ import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
 import { lerAlcance, lerDiario, TIPO_ALCANCE, TETO_VIDEOS_DIARIO } from '@/lib/youtube/observatorio/proprio/ler'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
 import { vpdDoCanal, motivoVpdTexto } from '@/lib/youtube/observatorio/proprio/vpd'
+import { diarioDoVideo } from '@/lib/youtube/coleta/analytics-diario'
+import { assistidoDoVideo } from '@/lib/youtube/observatorio/proprio/assistido'
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
@@ -18,6 +20,7 @@ const relatorio = (dia: string, status: string, norm: boolean, over: Row = {}): 
 })
 const alcance = (yt: string, dia: string, imp: number | null, ctr: number | null, over: Row = {}): Row => ({ youtube_video_id: yt, day_pt: dia, site_id: S, channel_id: C, thumbnail_impressions: imp, thumbnail_ctr: ctr, ...over })
 const diario = (yt: string, dia: string, views: number | null, over: Row = {}): Row => ({ youtube_video_id: yt, day_pt: dia, site_id: S, channel_id: C, views, ...over })
+const SEM_MEDIAS = { pctAssistido: null, duracaoMediaSeg: null }
 let pedido: { edicao: EdicaoDoSite | null; canalId: string; hoje: string }
 beforeAll(async () => { pedido = { edicao: await edicaoDe(S), canalId: C, hoje: HOJE } })
 
@@ -182,20 +185,20 @@ describe('lerDiario', () => {
     const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.dado.ultimoDia).toBe(d(3))
-    expect(r.dado.linhas).toEqual(expect.arrayContaining([{ ytId: 'v1', dia: d(3), views: 0 }, { ytId: 'v1', dia: d(4), views: null }, { ytId: 'v1', dia: d(6), views: 9 }]))
+    expect(r.dado.linhas).toEqual(expect.arrayContaining([{ ytId: 'v1', dia: d(3), views: 0, ...SEM_MEDIAS }, { ytId: 'v1', dia: d(4), views: null, ...SEM_MEDIAS }, { ytId: 'v1', dia: d(6), views: 9, ...SEM_MEDIAS }]))
     expect(r.dado.linhas).toHaveLength(3)
   })
   it('views que vieram como texto viram número; texto que não é número vira nulo (nunca zero)', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), '12' as unknown as number), diario('v1', d(4), 'x' as unknown as number)] })
     const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
-    expect(r.dado.linhas).toEqual(expect.arrayContaining([{ ytId: 'v1', dia: d(3), views: 12 }, { ytId: 'v1', dia: d(4), views: null }]))
+    expect(r.dado.linhas).toEqual(expect.arrayContaining([{ ytId: 'v1', dia: d(3), views: 12, ...SEM_MEDIAS }, { ytId: 'v1', dia: d(4), views: null, ...SEM_MEDIAS }]))
   })
   it('nunca lê o histórico inteiro: fora da janela, de outro vídeo, de outro site ou de outro canal não vem', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 1), diario('v1', d(200), 1), diario('v2', d(3), 1), diario('v1', d(4), 1, { site_id: 'outro' }), diario('v1', d(5), 1, { channel_id: 'outro' })] })
     const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
-    expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), views: 1 }])
+    expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), views: 1, ...SEM_MEDIAS }])
   })
   it('acima do teto de vídeos: lê os primeiros TETO_VIDEOS_DIARIO da lista', async () => {
     const ytIds = Array.from({ length: TETO_VIDEOS_DIARIO + 5 }, (_, k) => 'v' + k)
@@ -237,7 +240,7 @@ describe('lerDiario', () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), -4), diario('v1', d(4), 6)] })
     const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
-    expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(4), views: 6 }, { ytId: 'v1', dia: d(3), views: null }])
+    expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(4), views: 6, ...SEM_MEDIAS }, { ytId: 'v1', dia: d(3), views: null, ...SEM_MEDIAS }])
     expect(r.dado.descartados).toBe(1)
   })
   it('canalId que não é uuid: negado, sem consulta e sem lançar', async () => {
@@ -309,7 +312,7 @@ describe('contrato da fonte (unidade do CTR e linha repetida)', () => {
     ] })
     const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
-    expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), views: 1 }])
+    expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), views: 1, ...SEM_MEDIAS }])
   })
 })
 
@@ -331,5 +334,75 @@ describe('leitor do diário + views por dia: canal sem longo acompanhado', () =>
     const v = vpdDoCanal(await lerDiario(db.client, { ...pedido, ytIds: [] }), [], HOJE)
     expect(v).toMatchObject({ motivo: 'diario-parado', ultimoDia: d(60) })
     expect(motivoVpdTexto(v.motivo!, v, dm)).toBe('a coleta diária deste canal parou em ' + dm(d(60)))
+  })
+})
+
+describe('lerDiario: % assistido e duração média (colunas avg_view_percentage e avg_view_duration_seconds)', () => {
+  const ler = async (rows: Row[]) => {
+    const db = fakeSupabase({ yt_own_video_daily: rows })
+    const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1', 'v2'] })
+    if (r.acesso !== 'ok') throw new Error('esperava ok')
+    return { r, db }
+  }
+  const medias = (extra: Row): Row => extra
+  it('as duas colunas chegam como pctAssistido e duracaoMediaSeg', async () => {
+    const { r } = await ler([diario('v1', d(3), 40, medias({ avg_view_percentage: 51.5, avg_view_duration_seconds: 210 }))])
+    expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), views: 40, pctAssistido: 51.5, duracaoMediaSeg: 210 }])
+  })
+  it('nulo do banco continua nulo e coluna ausente também: nunca 0', async () => {
+    const { r } = await ler([diario('v1', d(3), 0, medias({ avg_view_percentage: null, avg_view_duration_seconds: null })), diario('v1', d(4), 7)])
+    const por = (dia: string) => r.dado.linhas.find(l => l.dia === dia)!
+    expect(por(d(3))).toMatchObject({ pctAssistido: null, duracaoMediaSeg: null })
+    expect(por(d(4))).toMatchObject({ pctAssistido: null, duracaoMediaSeg: null })
+  })
+  it('numeric chega como texto do PostgREST: "51.5" vira 51,5; texto que não é número vira nulo (nunca 0)', async () => {
+    const { r } = await ler([diario('v1', d(3), 5, medias({ avg_view_percentage: '51.5', avg_view_duration_seconds: '210.25' })), diario('v1', d(4), 5, medias({ avg_view_percentage: 'x', avg_view_duration_seconds: '  ' }))])
+    const por = (dia: string) => r.dado.linhas.find(l => l.dia === dia)!
+    expect(por(d(3))).toMatchObject({ pctAssistido: 51.5, duracaoMediaSeg: 210.25 })
+    expect(por(d(4))).toMatchObject({ pctAssistido: null, duracaoMediaSeg: null })
+    expect(r.dado.descartados).toBe(0)
+  })
+  it('as consultas pedem as duas colunas novas (e nada de select *)', async () => {
+    const { db } = await ler([])
+    const diarioSel = db.selects.filter(x => x.table === 'yt_own_video_daily').map(x => x.cols)
+    expect(diarioSel.some(c => c.includes('avg_view_percentage') && c.includes('avg_view_duration_seconds'))).toBe(true)
+    for (const c of diarioSel) expect(c).not.toContain('*')
+  })
+  describe('contrato da unidade de avg_view_percentage: PONTOS de 0 a 100, não fração', () => {
+    it('os extremos 0 e 100 passam; 51,5 passa como 51,5 (sem multiplicar nem dividir por 100)', async () => {
+      const { r } = await ler([diario('v1', d(3), 5, medias({ avg_view_percentage: 0 })), diario('v1', d(4), 5, medias({ avg_view_percentage: 100 })), diario('v1', d(5), 5, medias({ avg_view_percentage: 51.5 }))])
+      expect(r.dado.linhas.map(l => l.pctAssistido)).toEqual([51.5, 100, 0])
+      expect(r.dado.descartados).toBe(0)
+    })
+    it('0,5 é meio ponto percentual (0,5% assistido), não 50%: o leitor não reescala nem adivinha a unidade', async () => {
+      const { r } = await ler([diario('v1', d(3), 5, medias({ avg_view_percentage: 0.5 }))])
+      expect(r.dado.linhas[0]!.pctAssistido).toBe(0.5)
+    })
+    it('acima de 100 ou negativo: nulo (não medido) e conta em descartados, a linha e as views ficam', async () => {
+      const { r } = await ler([diario('v1', d(3), 9, medias({ avg_view_percentage: 100.01 })), diario('v1', d(4), 8, medias({ avg_view_percentage: -1 })), diario('v1', d(5), 7, medias({ avg_view_percentage: 5100 }))])
+      expect(r.dado.linhas.map(l => [l.views, l.pctAssistido])).toEqual([[7, null], [8, null], [9, null]])
+      expect(r.dado.descartados).toBe(3)
+    })
+    it('duração média negativa: nula e descartada; zero fica zero', async () => {
+      const { r } = await ler([diario('v1', d(3), 9, medias({ avg_view_duration_seconds: -3 })), diario('v1', d(4), 9, medias({ avg_view_duration_seconds: 0 }))])
+      expect(r.dado.linhas.map(l => l.duracaoMediaSeg)).toEqual([0, null])
+      expect(r.dado.descartados).toBe(1)
+    })
+    it('linha com três valores ruins (views, % e duração) conta UMA vez em descartados', async () => {
+      const { r } = await ler([diario('v1', d(3), -1, medias({ avg_view_percentage: 300, avg_view_duration_seconds: -9 })), diario('v1', d(4), 5, medias({ avg_view_percentage: 50 }))])
+      expect(r.dado.descartados).toBe(1)
+    })
+    it('a corrente inteira: o que a coleta grava da Analytics API (51,5) é o que o leitor entrega e o que o % assistido calcula', async () => {
+      const resposta = { columnHeaders: ['day', 'views', 'averageViewDuration', 'averageViewPercentage'].map(name => ({ name, columnType: 'METRIC', dataType: 'FLOAT' })), rows: [[d(3), 40, 212, 51.5], [d(4), 60, 190, 41.5]] }
+      const f = (async () => new Response(JSON.stringify(resposta), { status: 200 })) as typeof fetch
+      const { dias } = await diarioDoVideo({ token: 't', canalUc: 'UCabc', videoId: 'vid12345678', inicio: d(4), fim: d(3), f })
+      // o que a coleta decide gravar, coluna a coluna, é o número da API sem escala
+      expect(dias.map(x => x.valores.avg_view_percentage)).toEqual([51.5, 41.5])
+      const { r } = await ler(dias.map(x => diario('v1', x.day, x.valores.views ?? null, medias({ avg_view_percentage: x.valores.avg_view_percentage ?? null, avg_view_duration_seconds: x.valores.avg_view_duration_seconds ?? null }))))
+      expect(r.dado.linhas.map(l => l.pctAssistido).sort()).toEqual([41.5, 51.5])
+      const a = assistidoDoVideo({ acesso: 'ok', dado: r.dado }, 'v1')
+      expect(a.pct).toBeCloseTo((40 * 51.5 + 60 * 41.5) / 100, 10)
+      expect(a.pct).toBeGreaterThan(1) // pontos, nunca fração
+    })
   })
 })

@@ -47,6 +47,23 @@ export async function lerDadosDoCanal(a: { canalId: string; longosAcompanhados: 
   return { alcance, diario }
 }
 
+/** O que a tela do vídeo próprio lê: o alcance e o diário do canal (a taxa do canal, o normal da faixa e o "normal do canal" precisam dos outros vídeos). */
+export interface DadosDoVideo { alcance: AlcanceCanal; diario: DiarioCanal }
+
+/**
+ * Tela do vídeo próprio: UMA leitura (alcance + diário) depois do token, num `Privado` só. `ytId` (o vídeo da tela) vai na FRENTE
+ * da lista pedida ao diário, para o teto de vídeos nunca cortá-lo, e sem duplicar quando já está em `longosAcompanhados`.
+ * Sem token: 'negado' e nenhum cliente de serviço (nenhum número). Erro de leitura é LANÇADO (D5), nunca 'erro' nem vazio.
+ */
+export async function lerDadosDoVideo(a: { canalId: string; ytId: string; longosAcompanhados: readonly string[]; agora: number; edicao: EdicaoDoSite | null }): Promise<Privado<DadosDoVideo>> {
+  if (!edicaoValida(a.edicao)) return { acesso: 'negado' }
+  const ytIds = [a.ytId, ...a.longosAcompanhados.filter(y => y !== a.ytId)]
+  const { alcance, diario } = await lerDadosDoCanal({ canalId: a.canalId, longosAcompanhados: ytIds, agora: a.agora, edicao: a.edicao })
+  // com token válido as duas leituras são 'ok' ou lançam; isto só fecha o tipo (e se um dia não for, é 'erro', nunca 'negado')
+  if (alcance.acesso !== 'ok' || diario.acesso !== 'ok') return { acesso: 'erro' }
+  return { acesso: 'ok', dado: { alcance: alcance.dado, diario: diario.dado } }
+}
+
 /**
  * Lista de Canais e comparação: um canal que falha vira { acesso: 'erro' } (a tela não cai por causa do dado privado) e UM
  * aviso para a requisição inteira, com a contagem de falhas (D5; nunca um por canal nem por linha). Idem para as linhas

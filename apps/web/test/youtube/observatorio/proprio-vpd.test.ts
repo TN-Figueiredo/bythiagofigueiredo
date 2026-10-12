@@ -5,7 +5,7 @@ import { addDays } from '@/lib/youtube/coleta/day-pt'
 
 const HOJE = '2026-10-11', ULT = '2026-10-08'
 const d = (n: number) => addDays(ULT, -n)
-const serie = (ytId: string, views: Array<number | null>): DiarioLinha[] => views.map((v, k) => ({ ytId, dia: d(k), views: v }))
+const serie = (ytId: string, views: Array<number | null>): DiarioLinha[] => views.map((v, k) => ({ ytId, dia: d(k), views: v, pctAssistido: null, duracaoMediaSeg: null }))
 const ok = (linhas: DiarioLinha[], ultimoDia: string | null = ULT): Privado<DiarioCanal> => ({ acesso: 'ok', dado: { canalId: 'c', ultimoDia, linhas, descartados: 0 } })
 const dm = (x: string) => x.slice(8) + '/' + x.slice(5, 7)
 

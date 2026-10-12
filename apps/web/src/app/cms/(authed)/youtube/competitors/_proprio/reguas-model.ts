@@ -15,10 +15,9 @@
 import { createFmt, type Fmt } from '@/lib/youtube/observatorio/fmt'
 import { createClock } from '@/lib/youtube/observatorio/time'
 import type { AlcanceVideo } from '@/lib/youtube/observatorio/proprio/dias'
-import { durText, numNb } from '../_canal/videos-model'
 import { escalar, MIN_REGUA } from '../_chrome/regua/regua-model'
-import { POUCO_VOLUME } from './como-esta-model'
 import { foraDosGuardadosFrase } from './extras'
+import { durText, numNb, POUCO_VOLUME } from './formato'
 
 export type Terco = 'cima' | 'meio' | 'baixo'
 export interface PosVideo { pos: number; de: number; empates: number; terco: Terco }

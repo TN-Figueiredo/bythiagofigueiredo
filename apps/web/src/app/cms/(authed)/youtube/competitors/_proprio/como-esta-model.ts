@@ -15,11 +15,11 @@ import type { DadosDoCanal } from './dados'
 import { nichoDoLink, type PosicaoItens, type PosicaoNoNicho } from './header-model'
 import { BACK_DO_TOP_IMP } from '../_historico/origem-canal'
 import { foraDosGuardadosFrase } from './extras'
+import { POUCO_VOLUME } from './formato'
 import { buildImpressoes, ERRO_ALCANCE, int, paradaEm, SEM_PERMISSAO, SEM_RELATORIO, type ImpressoesView } from './impressoes-model'
 import type { OpcaoConcorrente } from './posicao-do-site'
 
-/** D13: abaixo disto a frase do spec ("ainda é pouco para dizer qual vídeo ou qual capa funciona melhor"); a partir daqui, a de D13. */
-export const POUCO_VOLUME = 1000
+export { POUCO_VOLUME }
 /** Quantos vídeos a lista mostra (spec 16.5). */
 const TOP_N = 5
 /** Altura da área de barras do gráfico do canal (spec 16.6: 180 px para o dia de 71 impressões não apagar o de 1). */
