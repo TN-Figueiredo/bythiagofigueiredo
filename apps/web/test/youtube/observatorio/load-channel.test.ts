@@ -163,6 +163,19 @@ describe('leitura por canal', () => {
     }
     expect(db.ranges.some(r => r.table === 'competitor_video_tier_spans' && r.range != null && r.range[0] >= 1000)).toBe(true)
   })
+  it('A5: o DIÁRIO passa de 1.000 linhas num único lote de ids (40 vídeos): tudo chega, nos dois carregadores', async () => {
+    const tables = buildTables({ siteId: 'a', now: NOW, channels: 1, videosPerChannel: 40, limit: 40, days: 30, weekly: true })
+    const expectedDaily = tables.competitor_video_daily!.length
+    expect(expectedDaily).toBeGreaterThan(1000)
+    const db = fakeSupabase(tables)
+    const site = await loadRows({ siteId: 'a', now: NOW, supabase: db.client })
+    const one = await loadChannelRows(db.client, { channelId: ids.channel('a', 0), videoLimit: 40, seriesStart: NOW - 30 * 864e5, now: NOW })
+    for (const rows of [site, one]) {
+      expect(rows.daily).toHaveLength(expectedDaily)
+      expect(new Set(rows.daily.map(d => d.video_id)).size).toBe(40)
+    }
+    expect(db.ranges.some(r => r.table === 'competitor_video_daily' && r.range != null && r.range[0] >= 1000)).toBe(true)
+  })
   describe('A5: a leitura das faixas ou da coluna series_tier falha (o banco ainda sem a migration): a tela recebe erro, nunca um conjunto vazio em verde', () => {
     const NO_COLUMN = { code: '42703', message: 'column competitor_videos.series_tier does not exist' }
     /** O banco de verdade, salvo `competitor_videos`: lá a leitura devolve o erro de coluna que não existe. */

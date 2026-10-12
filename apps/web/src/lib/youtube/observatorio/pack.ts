@@ -30,7 +30,10 @@ export function packChannel(rows: ChannelRows): string {
 export function packWithinBudget(rows: ChannelRows, observedIds: ReadonlySet<string>): { packed: string; weeklyOmitted: boolean } {
   const full = packChannel(rows)
   if (full.length <= PACK_BUDGET) return { packed: full, weeklyOmitted: false }
-  return { packed: packChannel({ ...rows, daily: rows.daily.filter(d => observedIds.has(d.video_id)), spans: [], weeklyOmitted: true }), weeklyOmitted: true }
+  const kept = rows.daily.filter(d => observedIds.has(d.video_id))
+  // Nada de semanal a retirar (o pacote estoura por descrição ou versões): devolve o cheio, sem marca; quem chama avisa "passou do orçamento".
+  if (kept.length === rows.daily.length) return { packed: full, weeklyOmitted: false }
+  return { packed: packChannel({ ...rows, daily: kept, spans: [], weeklyOmitted: true }), weeklyOmitted: true }
 }
 
 /** null = not a pack of this version (another build wrote it, or it is damaged): the caller reads the database. */
