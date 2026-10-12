@@ -9,7 +9,7 @@
 import { REACH_TYPES, REPORT_TYPES_ENABLED } from '@/lib/youtube/reporting/types'
 import { scopeJob } from './attempts'
 import { addDays, boundsAnalytics, utcDay } from './day-pt'
-import { VALIDADE_DIAS, venceEm } from './fila-relatorios'
+import { JANELA_PERDA_DIAS, VALIDADE_DIAS, venceEm } from './fila-relatorios'
 import { conferirBanco, prefixoNotaErroAlcance, pushUnico } from './schema'
 import type { AttemptKind, StepCtx } from './types'
 
@@ -20,10 +20,6 @@ const HABILITADOS: readonly string[] = REPORT_TYPES_ENABLED
 /** O PostgREST corta em 1000 linhas: bater nesse número é leitura truncada, nunca "tudo lido". */
 const LIMITE_LEITURA = 1000
 const ORCAMENTO = 'nao_alcancado_orcamento'
-/** Quantos dias, depois de o arquivo sumir na origem, o relatório que venceu sem baixar continua pintando o cron de vermelho.
- *  Igual à janela de 14 dias dos critérios vizinhos (listado parado, expirado recente, erro). Passou disto vira só `perdidos`:
- *  vermelho para sempre esconderia as falhas novas. */
-const JANELA_PERDA_DIAS = 14
 type Ctx = Pick<StepCtx, 'supabase' | 'falhas' | 'channels'>
 
 const iso = (ms: number): string => new Date(ms).toISOString()
@@ -80,7 +76,7 @@ const ESTADOS_DO_DONO: readonly string[] = ['sem_acesso', 'api_nao_ativada', 'ti
 export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios> {
   const out: CriteriosRelatorios = { perdidos: 0, atrasados: 0, acao_do_dono: [] }
   const agora = Date.now()
-  const corte14 = iso(agora - 14 * DIA_MS)
+  const corte14 = iso(agora - JANELA_PERDA_DIAS * DIA_MS)
   const corte6 = agora - 6 * DIA_MS
   const nome = (id: string): string => ctx.channels.find(c => c.id === id)?.name ?? id
 

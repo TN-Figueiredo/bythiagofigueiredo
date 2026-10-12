@@ -8,7 +8,7 @@ import { ArquivoGrandeDemaisError, ReportingHttpError, SEM_NORMALIZADOR, type Re
 import { obterToken } from './autorizacao'
 import { contarPorResultado, registrarTentativa, scopeJob } from './attempts'
 import { emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
-import { DIA_MS, VALIDADE_DIAS, ordenarFila, venceEm } from './fila-relatorios'
+import { DIA_MS, VALIDADE_DIAS, ordenarFila, perdaCobertaPorCriterios, venceEm, type ItemDaFila } from './fila-relatorios'
 import { conferirBanco, pushUnico } from './schema'
 import { descreverErro, HABILITADOS, statusHttp } from './token'
 import type { ColetaChannel, StepCtx, StepResumo } from './types'
@@ -35,8 +35,11 @@ export interface RelatoriosResumo extends StepResumo {
   bruto_apagado: number
   /** Maior relatório comprimido visto nesta execução, em bytes (inclui o recusado por tamanho). 0 = nenhum download. */
   maior_bytes: number
-  /** Dos `expirados`, quantos por tipo HABILITADO: é o que vira nota em falhas[]. */
+  /** Dos `expirados`, quantos por tipo HABILITADO (informação do resumo; a nota é só dos de baixo). */
   expirados_por_tipo: Record<string, number>
+  /** Dos de `expirados_por_tipo`, os que NENHUM critério persistente cobre: é o que vira a nota da execução em falhas[].
+   *  Os cobertos já têm nota própria em criteria.ts (uma perda, uma nota por execução). */
+  expirados_sem_cobertura_por_tipo: Record<string, number>
   /** Dias inteiros até vencer o primeiro relatório que ficou `listado`. null = nada ficou para trás (ou a leitura falhou: aí há nota em falhas[]). */
   vence_primeiro_em_dias: number | null
   ms_listar: number
@@ -157,9 +160,11 @@ async function listarJob(ctx: StepCtx, c: ColetaChannel, api: ReportingClient, j
 }
 
 /** Relatório que venceu sem ser baixado: só o de tipo habilitado conta (o de tipo desligado ninguém ia baixar). */
-function contarVencido(resumo: RelatoriosResumo, tipo: string): void {
+function contarVencido(resumo: RelatoriosResumo, p: ItemDaFila, agora: number): void {
+  const tipo = p.report_type_id
   if (!HABILITADOS.includes(tipo)) return
   resumo.expirados_por_tipo[tipo] = (resumo.expirados_por_tipo[tipo] ?? 0) + 1
+  if (!perdaCobertaPorCriterios(p, agora)) resumo.expirados_sem_cobertura_por_tipo[tipo] = (resumo.expirados_sem_cobertura_por_tipo[tipo] ?? 0) + 1
 }
 
 /** Baixa um relatório pelo download_url gravado. Nunca lança. */
@@ -240,7 +245,7 @@ async function baixarUm(
       if (erro instanceof ReportingHttpError && (erro.status === 404 || erro.status === 410)) {
         conferirBanco(await marcar({ status: 'expirado_sem_baixar', error: `HTTP ${erro.status}` }), 'yt_reporting_reports', ctx.falhas)
         resumo.expirados++
-        contarVencido(resumo, p.report_type_id)
+        contarVencido(resumo, p, Date.now())
         return
       }
       // Erro passageiro: continua `listado` e tenta amanhã. Gzip que não abre entra aqui: um download cortado no meio
@@ -333,11 +338,12 @@ async function lerFilaPendente(ctx: StepCtx, idsDosCanais: string[]): Promise<Fi
 export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
   const resumo: RelatoriosResumo = {
     gravados: 0, tentativas: {}, pendentes: 0, vistos: 0, baixados: 0, vazios: 0, expirados: 0, erros_download: 0, bruto_apagado: 0,
-    maior_bytes: 0, expirados_por_tipo: {}, vence_primeiro_em_dias: null, ms_listar: 0, ms_baixar: 0,
+    maior_bytes: 0, expirados_por_tipo: {}, expirados_sem_cobertura_por_tipo: {}, vence_primeiro_em_dias: null, ms_listar: 0, ms_baixar: 0,
   }
   const fechar = (): RelatoriosResumo => {
-    // Em toda saída do passo: o que venceu sem baixar nesta execução vira nota, com a contagem por tipo.
-    const vencidos = Object.entries(resumo.expirados_por_tipo)
+    // Em toda saída do passo: o que venceu sem baixar nesta execução e nenhum critério persistente cobre vira nota, com a
+    // contagem por tipo. O que os critérios cobrem (criteria.ts) tem a nota deles: uma perda, uma nota por execução.
+    const vencidos = Object.entries(resumo.expirados_sem_cobertura_por_tipo)
     if (vencidos.length > 0) {
       const total = vencidos.reduce((soma, [, n]) => soma + n, 0)
       pushUnico(ctx.falhas, `relatórios: ${total} relatório(s) venceram sem baixar nesta execução (${vencidos.map(([t, n]) => `${t}: ${n}`).join(', ')})`)
@@ -418,13 +424,13 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
       .eq('status', 'listado')
       .eq('is_backfill', backfill)
       .lt('create_time', new Date(agora - dias * DIA_MS).toISOString())
-      .select('report_id, report_type_id')
+      .select('report_id, report_type_id, create_time, is_backfill')
     const escrita = conferirBanco(r, 'yt_reporting_reports', ctx.falhas)
     if (escrita === 'schema_ausente') return fechar()
     if (escrita === 'ok') {
-      const linhas = (r.data ?? []) as Array<{ report_type_id: string }>
+      const linhas = (r.data ?? []) as Array<ItemDaFila>
       resumo.expirados += linhas.length
-      for (const l of linhas) contarVencido(resumo, l.report_type_id)
+      for (const l of linhas) contarVencido(resumo, l, agora)
     }
   }
 
