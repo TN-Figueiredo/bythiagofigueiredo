@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { fakeSupabase, type Row } from '../../helpers/fake-supabase'
 import { lerAlcance, lerDiario, TIPO_ALCANCE, TETO_VIDEOS_DIARIO } from '@/lib/youtube/observatorio/proprio/ler'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
+import { vpdDoCanal, motivoVpdTexto } from '@/lib/youtube/observatorio/proprio/vpd'
 
 const S = 'site-a', C = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10', HOJE = dayPt(new Date())
 const d = (n: number) => addDays(HOJE, -n)
@@ -130,11 +131,25 @@ describe('lerAlcance', () => {
 })
 
 describe('lerDiario', () => {
-  it('negado sem consulta; lista de vídeos vazia não consulta', async () => {
+  it('negado: nenhuma consulta', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 4)] })
     expect(await lerDiario(db.client, { ...pedido, podeEditar: false, ytIds: ['v1'] })).toEqual({ acesso: 'negado' })
-    expect(await lerDiario(db.client, { ...pedido, ytIds: [] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: null, linhas: [], descartados: 0 } })
+    expect(await lerDiario(db.client, { ...pedido, podeEditar: false, ytIds: [] })).toEqual({ acesso: 'negado' })
     expect(db.trips).toEqual([])
+  })
+  it('lista de vídeos vazia: não lê linhas, mas lê o último dia do canal (canal sem longo acompanhado com o diário cheio não é "nunca coletado")', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v1', d(3), 4), diario('v1', d(9), 2), diario('v9', d(1), 1, { site_id: 'outro' }), diario('v8', d(1), 1, { channel_id: 'outro' })] })
+    expect(await lerDiario(db.client, { ...pedido, ytIds: [] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: d(3), linhas: [], descartados: 0 } })
+    expect(db.trips).toEqual(['yt_own_video_daily'])
+    expect(db.ranges.map(r => r.range)).toEqual([[0, 0]])
+  })
+  it('lista de vídeos vazia e diário vazio: ultimoDia null (nunca coletado de verdade)', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('v9', d(1), 1, { site_id: 'outro' })] })
+    expect(await lerDiario(db.client, { ...pedido, ytIds: [] })).toEqual({ acesso: 'ok', dado: { canalId: C, ultimoDia: null, linhas: [], descartados: 0 } })
+  })
+  it('lista de vídeos vazia e erro de banco: lança', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [] }, { failOn: 'yt_own_video_daily' })
+    await expect(lerDiario(db.client, { ...pedido, ytIds: [] })).rejects.toThrow()
   })
   it('tabela vazia com vídeos pedidos: ok, ultimoDia null, nenhuma linha', async () => {
     const db = fakeSupabase({ yt_own_video_daily: [] })
@@ -273,5 +288,26 @@ describe('contrato da fonte (unidade do CTR e linha repetida)', () => {
     const r = await lerDiario(db.client, { ...pedido, ytIds: ['v1'] })
     if (r.acesso !== 'ok') throw new Error('esperava ok')
     expect(r.dado.linhas).toEqual([{ ytId: 'v1', dia: d(3), views: 1 }])
+  })
+})
+
+describe('leitor do diário + views por dia: canal sem longo acompanhado', () => {
+  const dm = (x: string) => x.slice(8) + '/' + x.slice(5, 7)
+  it('canal com o diário cheio e nenhum longo acompanhado: sem-longos (a coleta gravou); canal sem vídeo nenhum: sem-diario', async () => {
+    const cheio = fakeSupabase({ yt_own_video_daily: [diario('curto', d(3), 4)] })
+    const a = await lerDiario(cheio.client, { ...pedido, ytIds: [] })
+    const va = vpdDoCanal(a, [], HOJE)
+    expect(va).toMatchObject({ valor: null, motivo: 'sem-longos', ultimoDia: d(3) })
+    expect(motivoVpdTexto(va.motivo!, va, dm)).toBe('nenhum vídeo longo acompanhado')
+    const vazio = fakeSupabase({ yt_own_video_daily: [] })
+    const vb = vpdDoCanal(await lerDiario(vazio.client, { ...pedido, ytIds: [] }), [], HOJE)
+    expect(vb).toMatchObject({ valor: null, motivo: 'sem-diario' })
+    expect(motivoVpdTexto(vb.motivo!, vb, dm)).toBe('a coleta diária ainda não gravou este canal')
+  })
+  it('canal parado há semanas e sem longo acompanhado: "parou em dd/mm", não "ainda não gravou"', async () => {
+    const db = fakeSupabase({ yt_own_video_daily: [diario('curto', d(60), 4)] })
+    const v = vpdDoCanal(await lerDiario(db.client, { ...pedido, ytIds: [] }), [], HOJE)
+    expect(v).toMatchObject({ motivo: 'diario-parado', ultimoDia: d(60) })
+    expect(motivoVpdTexto(v.motivo!, v, dm)).toBe('a coleta diária deste canal parou em ' + dm(d(60)))
   })
 })

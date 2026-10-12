@@ -74,6 +74,16 @@ describe('views por dia do canal', () => {
     expect(c).toMatchObject({ valor: null, motivo: 'diario-parado', ultimoDia: ULT })
     expect(vpdDoCanal(ok(serie('a', Array(7).fill(5))), ['a'], addDays(ULT, 7)).valor).toBe(5)
   })
+  it('diário cheio e nenhum longo acompanhado: sem-longos com a frase certa, nunca "a coleta ainda não gravou"', () => {
+    const c = vpdDoCanal(ok(serie('curto', Array(10).fill(3))), [], HOJE)
+    expect(c).toMatchObject({ valor: null, motivo: 'sem-longos', ultimoDia: ULT })
+    expect(motivoVpdTexto(c.motivo!, c, dm)).toBe('nenhum vídeo longo acompanhado')
+  })
+  it('diário vazio e nenhum longo acompanhado: sem-diario com a frase certa', () => {
+    const c = vpdDoCanal(ok([], null), [], HOJE)
+    expect(c).toMatchObject({ valor: null, motivo: 'sem-diario', ultimoDia: null })
+    expect(motivoVpdTexto(c.motivo!, c, dm)).toBe('a coleta diária ainda não gravou este canal')
+  })
   it('a ordem dos motivos: sem acesso e leitura falhou antes de tudo; parado antes de sem-longos', () => {
     expect(vpdDoCanal(ok([], null), [], HOJE).motivo).toBe('sem-diario')
     expect(vpdDoCanal(ok(serie('a', Array(7).fill(5))), [], addDays(ULT, 20)).motivo).toBe('diario-parado')
