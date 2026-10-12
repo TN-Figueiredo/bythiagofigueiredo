@@ -14,6 +14,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useSyncExternalStore, useTransition, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import { DEFAULT_SORT, type CanaisRow, type CanaisSort, type CanaisView } from './view-model'
+import { FMT_LEMBRADO, FMT_PADRAO, anuncioFmt, parseCanaisFmt, type CanaisFmt } from './formato'
 import { useToast } from '../_chrome/toasts'
 import { useChromeSync } from '../_chrome/sync-context'
 import { ChannelTable, type RowHandlers } from './channel-table'
@@ -27,6 +28,11 @@ import { AddChannelForm, type AddFn } from './add-channel-form'
 import { RowMenu, rowMenuButton } from './row-menu'
 import { NicheEditorDialog, NicheOptionsContext, NichePendingContext, type NichePending } from './niche-editor'
 import { Ic, Tip, type LocalSync } from './cells'
+import { OwnBlockView } from './own-block'
+import { PePreso } from './pe-preso'
+import { useFocoAoVoltar } from '../_chrome/gatilho-volta'
+import { fraseSeuCanal } from './posicao-model'
+import { comportamentoDeRolagem, contentorQueRola } from './rolagem'
 import './canais.css'
 
 export interface CanaisScreenProps {
@@ -64,7 +70,7 @@ function useWide(): boolean {
  * What the screen shows ahead of the server while a navigation is in flight. `channel`: the drawer asked for (null:
  * closed). `busy`: the list's numbers or order are about to change (the list is marked aria-busy, never rewritten).
  */
-interface Optimistic { channel?: string | null; fmt?: CanaisView['fmt']; scale?: CanaisView['scale']; layout?: CanaisView['layout']; add?: boolean; sort?: CanaisSort; dir?: CanaisView['dir']; busy?: boolean }
+interface Optimistic { channel?: string | null; fmt?: CanaisFmt; scale?: CanaisView['scale']; layout?: CanaisView['layout']; add?: boolean; sort?: CanaisSort; dir?: CanaisView['dir']; busy?: boolean }
 const FOCUSABLE = 'button:not([disabled]),a[href],select,input,textarea,[tabindex="0"]'
 /** Tab / Shift+Tab stay inside the dialog (canais.html trapEl). */
 function trapTab(e: KeyboardEvent<HTMLElement>) {
@@ -82,6 +88,13 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const wide = useWide()
   const { running } = useChromeSync()
   const [q, setQ] = useState(search?.get('q') ?? '')
+  const telaRef = useRef<HTMLDivElement | null>(null)
+  /** O bloco "Seus canais" e as linhas dos canais próprios, achados por ref: a árvore antiga da rota fica escondida no DOM depois do Voltar. */
+  const topoRef = useRef<HTMLElement | null>(null)
+  const linhasRef = useRef(new Map<string, HTMLElement>())
+  // o Voltar da comparação põe o foco no "Comparar" que a pessoa usou (spec 3; D18)
+  useFocoAoVoltar('canais', telaRef, (id, raiz) => [...raiz.querySelectorAll<HTMLElement>('a[data-comparar]')].find(a => a.dataset.comparar === id) ?? null)
+  const [irPendente, setIrPendente] = useState<string | null>(null)
   const [closedDrawer, setClosedDrawer] = useState<string | null>(null)
   const [addClosed, setAddClosed] = useState(false)
   const [nicheClosed, setNicheClosed] = useState(false)
@@ -119,8 +132,9 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   if (seenDrawer !== drawerId) { setSeenDrawer(drawerId); setClosedDrawer(null) }
   const [seenAdd, setSeenAdd] = useState(view.addOpen)
   if (seenAdd !== view.addOpen) { setSeenAdd(view.addOpen); setAddClosed(false) }
-  // own.rows too: under "só canais com problema" view.rows leaves the own channels out, and they are still on screen
-  const rowOf = useCallback((id: string) => view.rows.find(r => r.id === id) ?? view.own.rows.find(r => r.id === id) ?? view.groups.flatMap(g => g.rows).find(r => r.id === id) ?? null, [view])
+  // a lista única: com e sem medida, canais próprios na posição deles (o filtro "só com problema" não os tira)
+  const todasLinhas = useMemo(() => [...view.list.ranked, ...view.list.unranked], [view.list])
+  const rowOf = useCallback((id: string) => todasLinhas.find(r => r.id === id) ?? null, [todasLinhas])
   const drawer = view.drawer && closedDrawer !== view.drawer.id && (opt.channel === undefined || opt.channel === view.drawer.id) ? view.drawer : null
   /** The drawer asked for and not yet sent by the server: its head comes from the row that was clicked. */
   const shellRow = opt.channel && !drawer && closedDrawer !== opt.channel ? rowOf(opt.channel) : null
@@ -258,26 +272,80 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   }
 
   const ql = q.trim().toLowerCase()
-  const groups = useMemo(() => view.groups.map(g => ({ ...g, rows: g.rows.filter(r => r.name.toLowerCase().includes(ql)) })).filter(g => g.rows.length), [view.groups, ql])
+  // a busca filtra as linhas e nunca toca na posição: ela é a da lista inteira
+  const ranked = useMemo(() => (ql ? view.list.ranked.filter(r => r.name.toLowerCase().includes(ql)) : view.list.ranked), [view.list.ranked, ql])
+  const unranked = useMemo(() => (ql ? view.list.unranked.filter(r => r.name.toLowerCase().includes(ql)) : view.list.unranked), [view.list.unranked, ql])
   const empty = ql
     ? <>Nenhum canal com “{q}”{view.niche !== 'todos' ? ` em ${view.nicheLabel}` : ''}{view.filter === 'problemas' ? ' entre os que têm problema' : ''}. Para acompanhar um canal novo, use Adicionar canal.</>
     : view.filter === 'problemas' ? <>{view.emptyText} <Link className="btn small link" href={view.problems.clearHref} onClick={e => linkNav(e, view.problems.clearHref, { busy: true })}>Mostrar todos</Link></> : view.emptyLink ? <>{view.emptyText.slice(0, view.emptyText.lastIndexOf(view.emptyLink.text))}<Link className="inl" href={view.emptyLink.href}>{view.emptyLink.text}</Link>.</> : <>{view.emptyText}</>
+
+  /** Rola o contêiner que rola até a linha do canal e põe o foco nela. */
+  const focarLinha = (id: string) => {
+    const el = linhasRef.current.get(id)
+    if (!el) return
+    el.scrollIntoView?.({ block: 'center', behavior: comportamentoDeRolagem() })
+    el.focus({ preventScroll: true })
+  }
+  // "Ir até a linha" com a busca escondendo a linha: limpa a busca e vai quando a linha estiver na tela
+  const irAte = (id: string) => {
+    const r = rowOf(id)
+    if (ql && r && !r.name.toLowerCase().includes(ql)) { setQ(''); setIrPendente(id); return }
+    focarLinha(id)
+  }
+  useEffect(() => {
+    if (irPendente && linhasRef.current.has(irPendente)) { focarLinha(irPendente); setIrPendente(null) }
+  }) // eslint-disable-line react-hooks/exhaustive-deps
+  /** "Voltar ao topo" da linha presa: o contêiner que rola vai ao alto e o foco vai ao título da página (ou à tela). */
+  const voltarAoTopo = () => {
+    const raiz = telaRef.current
+    const rolagem = { top: 0, behavior: comportamentoDeRolagem() } as const
+    const sc = contentorQueRola(raiz)
+    if (sc) sc.scrollTo(rolagem); else window.scrollTo(rolagem)
+    const titulo = [...(raiz?.closest('[data-obs]') ?? document).querySelectorAll<HTMLElement>('h1, h2')].find(x => !raiz?.contains(x)) ?? raiz
+    if (titulo) { if (!titulo.hasAttribute('tabindex')) titulo.setAttribute('tabindex', '-1'); titulo.focus({ preventScroll: true }) }
+  }
 
   const h: RowHandlers = {
     open: openRow, niche: (r, n, ctx) => { void setNiche(r, n, ctx) },
     menu: id => { if (menu === id) closeMenu(true); else setMenu(id) },
     retry: id => { void syncOne(id) }, remove: askRemove, local: id => local[id], roundRunning: running, upnextHref: UPNEXT, menuFor: menu, selected: panel?.id ?? null,
+    irAte, reg: (id, el) => { if (el) linhasRef.current.set(id, el); else linhasRef.current.delete(id) },
   }
   // The order asked for last, even if the server has not answered it yet: a second click on the same header flips it.
   const sort = opt.sort ?? view.sort, dir = opt.sort ? (opt.dir ?? 'desc') : view.dir
+  // O anúncio da ordenação espera a lista nova: a posição do seu canal é a da ordenação nova, não a da antiga
+  const [anuncioOrd, setAnuncioOrd] = useState('')
+  const pedidoOrd = useRef<{ sort: CanaisSort; dir: 'asc' | 'desc' } | null>(null)
+  useEffect(() => {
+    const p = pedidoOrd.current
+    if (!p || view.sort !== p.sort || view.dir !== p.dir) return
+    pedidoOrd.current = null
+    const dono = view.pe ? view.list.ranked.find(r => r.id === view.pe!.canalId) ?? view.list.unranked.find(r => r.id === view.pe!.canalId) : null
+    setAnuncioOrd(`${view.sortNote}.${dono ? ' ' + fraseSeuCanal(dono.pos, view.conjunto, dono.semMedida) : ''}`)
+  }, [view])
   const onSort = (k: CanaisSort) => {
     const asc = sort === k && dir === 'desc'
+    pedidoOrd.current = { sort: k, dir: asc ? 'asc' : 'desc' }
     go({ sort: k === DEFAULT_SORT ? null : k, dir: asc ? 'asc' : null }, { sort: k, dir: asc ? 'asc' : 'desc', busy: true })
   }
-  const onCardSort = (k: CanaisSort) => go({ sort: k === DEFAULT_SORT ? null : k, dir: null }, { sort: k, dir: 'desc', busy: true })
+  const onCardSort = (k: CanaisSort) => { pedidoOrd.current = { sort: k, dir: 'desc' }; go({ sort: k === DEFAULT_SORT ? null : k, dir: null }, { sort: k, dir: 'desc', busy: true }) }
   // Tabela/Cards draws the same rows another way: it swaps at once. Formato and Escala change numbers only the server has.
   const fmt = opt.fmt ?? view.fmt, scale = opt.scale ?? view.scale
-  const pickFmt = (v: CanaisView['fmt']) => go({ fmt: v === 'long' ? null : v }, { fmt: v, busy: true })
+  // Formato: a URL sempre o traz (inclusive Longos) e o navegador o lembra; a escolha é anunciada no status
+  const [anuncio, setAnuncio] = useState('')
+  const pickFmt = (v: CanaisFmt) => {
+    try { localStorage.setItem(FMT_LEMBRADO, v) } catch { /* sem armazenamento a tela funciona com o padrão */ }
+    setAnuncio(anuncioFmt(v))
+    go({ fmt: v }, { fmt: v, busy: true })
+  }
+  // URL sem um formato válido: grava o lembrado (ou Longos) uma vez; roda de novo só se a query voltar a perdê-lo (por valor, não por montagem)
+  const query = search?.toString() ?? ''
+  useEffect(() => {
+    if (view.fmtNaUrl) return
+    let lembrado: CanaisFmt | null = null
+    try { lembrado = parseCanaisFmt(localStorage.getItem(FMT_LEMBRADO) ?? undefined) } catch { lembrado = null }
+    router.replace(urlWith({ fmt: lembrado ?? FMT_PADRAO }), { scroll: false })
+  }, [view.fmtNaUrl, query]) // eslint-disable-line react-hooks/exhaustive-deps
   const pickScale = (v: CanaisView['scale']) => go({ scale: v === 'per-mil' ? null : v }, { scale: v, busy: true })
   const pickLayout = (v: CanaisView['layout']) => go({ layout: v === 'table' ? null : v }, { layout: v })
 
@@ -297,16 +365,16 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   }, [watchName, router])
   useEffect(() => {
     if (!watchName) return
-    const r = [...view.rows, ...view.groups.flatMap(g => g.rows)].find(x => !x.own && x.name === watchName)
+    const r = todasLinhas.find(x => !x.own && x.name === watchName)
     // the first answer after the add may still be the list without the row: only a row that is there and done ends the wait
     if (r && !r.backfill) { setWatch(null); toast('ok', `${watchName} pronto`, 'Os vídeos foram buscados e o canal já entrou na ordem da lista.') }
-  }, [view, watchName, toast])
+  }, [view, watchName, toast, todasLinhas])
 
   const s = view.slots, full = s.free === 0
   return (
     <NicheOptionsContext.Provider value={view.niches}>
     <NichePendingContext.Provider value={pending}>
-    <div data-obs-screen="canais" className={panel ? 'drawer-open' : undefined} data-nav-pending={navPending ? '' : undefined}>
+    <div data-obs-screen="canais" ref={telaRef} className={panel ? 'drawer-open' : undefined} data-nav-pending={navPending ? '' : undefined}>
       {navPending ? <div className="cn-navbar" aria-hidden="true"><i /></div> : null}
       <div className="cn-page">
         <div className={'wrap' + (layout === 'cards' ? ' view-cards' : '')} inert={anyModal || undefined}>
@@ -322,14 +390,18 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           {view.forjaBar ? (
             <details className="fbar" id="forjaBar" data-forja-anchor=""><summary><b>forja</b> <span>{view.forjaBar.lines}</span></summary><p>{view.forjaBar.text}</p></details>
           ) : null}
+          {view.own.block ? <OwnBlockView block={view.own.block} topoRef={topoRef} onIr={irAte} onAbrir={openDrawer} /> : null}
+          <p className="sr" role="status" aria-live="polite" data-k="ord-anuncio">{anuncioOrd}</p>
           <div className="toolbar">
             <div className="search">
               <Ic n="search" />
               <input name="q" type="search" placeholder="Buscar canal" aria-label="Buscar canal" value={q} onChange={e => setQ(e.target.value)} />
             </div>
             <div className="seg" role="group" aria-label="Formato">
-              <button type="button" aria-pressed={fmt === 'long'} onClick={() => pickFmt('long')}>Longos</button>
-              <button type="button" aria-pressed={fmt === 'short'} onClick={() => pickFmt('short')}>Shorts</button>
+              <button type="button" aria-pressed={fmt === 'todos'} onClick={() => pickFmt('todos')}>Todos</button>
+              <button type="button" aria-pressed={fmt === 'longos'} onClick={() => pickFmt('longos')}>Longos</button>
+              <button type="button" aria-pressed={fmt === 'shorts'} onClick={() => pickFmt('shorts')}>Shorts</button>
+              <span className="sr" role="status" aria-live="polite" data-k="fmt-anuncio">{anuncio}</span>
             </div>
             <div className="seg" role="group" aria-label="Escala de views/dia">
               <button type="button" aria-pressed={scale === 'abs'} onClick={() => pickScale('abs')}>Absoluto</button>
@@ -345,8 +417,12 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
               </select>
             </label>
           </div>
+          {view.fmtNota ? <p className="cn-fnota" data-k="fmt-nota">{view.fmtNota}</p> : null}
+          {view.conjuntoAviso ? <p className="cn-fnota" data-k="conjunto-aviso">{view.conjuntoAviso}</p> : null}
+          {view.posicaoNota ? <p className="cn-fnota" data-k="posicao-nota">{view.posicaoNota}</p> : null}
+          {ql ? <p className="cn-fnota" data-k="busca-nota">{view.buscaNota}</p> : null}
           <div className="toolbar2">
-            <span className="sortnote" aria-live="polite">{view.sortNote}</span>
+            <span className="sortnote">{view.sortNote}</span>
             <span>
               {view.filter === 'problemas'
                 ? <span className="chip">Só canais com problema ({view.problems.n}) <Link className="btn small link" href={view.problems.clearHref} onClick={e => linkNav(e, view.problems.clearHref, { busy: true })}>Mostrar todos</Link></span>
@@ -370,8 +446,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           </div>
 
           {layout === 'table'
-            ? <ChannelTable view={view} own={view.own} groups={groups} h={h} onSort={onSort} empty={empty} busy={listBusy} busySort={listBusy ? opt.sort : undefined} />
-            : <ChannelCards view={view} own={view.own} groups={groups} h={h} empty={empty} busy={listBusy} />}
+            ? <ChannelTable view={view} ranked={ranked} unranked={unranked} buscando={!!ql} h={h} onSort={onSort} empty={empty} busy={listBusy} busySort={listBusy ? opt.sort : undefined} />
+            : <ChannelCards view={view} ranked={ranked} unranked={unranked} buscando={!!ql} h={h} empty={empty} busy={listBusy} />}
 
           <div className="legend">
             <span><i aria-hidden="true" /> vídeo longo</span>
@@ -379,6 +455,11 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
             <span><i className="e" aria-hidden="true" /> semana sem upload</span>
             <span>Outlier: <span><b className="mult mid num">{view.legend.mid}</b> <b className="mult high num">{view.legend.high}</b> <b className="mult top num">{view.legend.top}</b></span> contra os outros vídeos do canal na mesma idade, sem contar o próprio vídeo; abaixo de 2× aparece só como “a mediana”</span>
           </div>
+          {view.pe ? (
+            <PePreso pe={view.pe} topoRef={topoRef} linha={() => linhasRef.current.get(view.pe!.canalId) ?? null}
+              versao={`${layout}|${ranked.some(r => r.id === view.pe!.canalId) ? 'com-medida' : unranked.some(r => r.id === view.pe!.canalId) ? 'sem-medida' : 'fora'}`}
+              onIr={() => irAte(view.pe!.canalId)} onTopo={voltarAoTopo} />
+          ) : null}
         </div>
 
         {panel ? (

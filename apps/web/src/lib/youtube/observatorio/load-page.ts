@@ -86,7 +86,7 @@ export async function loadPageRows(siteId: string, now: number): Promise<Observa
  * WHAT IT SERVES: what a channel's own screen computes about that channel: its row, its videos with series, versions,
  * multiplier, phase and effect; `outliers`, `changes`/`changesIn`, channelStats, cadence, SYNC, OBS_START and LAST_IDX (these
  * three carry the site's values through `siteScope` / `lastSeriesAt`), the niche list and labels, and the forja's
- * site-wide parts that do not depend on the channels (`readings`, `requests`, queue, quota, timing).
+ * site-wide parts that do not depend on the channels (`readings`, `requests`, queue, timing).
  * WHAT IT DOES NOT: anything that aggregates ACROSS the site's channels, because the set holds this channel alone. The dataset
  * says so (`scope: 'canal'`) and these THROW (assertSiteScope) instead of returning the channel's number as if it were the
  * site's: channelSlots, heatmap, nicheRef, nicheStats, ownNicheStats, themeTrend, ownCoverage, ownChannels, patternsNow,

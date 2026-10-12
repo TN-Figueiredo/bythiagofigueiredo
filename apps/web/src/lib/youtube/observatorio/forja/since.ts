@@ -4,11 +4,11 @@ import { inNiche } from '../niche'
 import { baseAt } from '../insights'
 import { RULES } from '../rules'
 import { multiplierAt } from '../multiplier'
-import { effect } from '../effect'
+import { effectAt } from '../effect'
 import { DAY } from '../time'
 import type { ObsChange } from '../changes'
 import type { FrozenReading, ReadingBaseVideo } from '../types'
-import { eligibleChannels, type ForjaCtx } from './scope'
+import { eligibleChannels, videoFreezeIdx, type ForjaCtx } from './scope'
 
 type Stale = { id: string; reason: string }
 export interface SinceResult {
@@ -40,6 +40,7 @@ const goneParts = (ctx: ForjaCtx, changes: number, videos: number, channels = 0)
   return { long, short }
 }
 const CANT = 'Não dá para comparar esta leitura com os dados de hoje: '
+const NOTHING = 'Nada mudou desde a leitura.'
 /** The daily record the reading was frozen at: the mockup stores it; production derives it from asOf (snap0 moves with the loaded window). */
 const asOfIdx = (ctx: ForjaCtx, r: FrozenReading) => r.sent.asOfIdx ?? ctx.clock.snapIdxAtOrBefore(r.sent.asOf)
 
@@ -50,9 +51,10 @@ function sinceVideo(ctx: ForjaCtx, r: FrozenReading): Raw {
       shortText: 'desde então: o vídeo não está mais no observatório', text: CANT + 'o vídeo não está mais no observatório.' }
   }
   const goneCh = (r.effects || []).filter(e => !ctx.CHG.get(e.change)).map(e => e.change)
-  const newPts = Math.max(0, (ch.lastIdx ?? 0) - (asOfIdx(ctx, r)))
+  const tFreeze = videoFreezeIdx(ctx, v) // o registro em que um envio de hoje congelaria este vídeo: os vereditos de hoje contam até ele, como no envio
+  const newPts = Math.max(0, tFreeze - asOfIdx(ctx, r)) // o mesmo "registro mais novo" que o envio congela (sent.ts), não o do canal
   const newChanges = changesOf(ctx).filter(c => c.video === v.id && c.at > r.generatedAt).map(c => c.id)
-  const moved = (r.effects || []).filter(e => !goneCh.includes(e.change)).map(e => { const now = effect(ctx, e.change)!; return { change: e.change, then: e.status, now: now.status as string, thenCollected: e.collected, nowCollected: now.collected != null ? now.collected : null } })
+  const moved = (r.effects || []).filter(e => !goneCh.includes(e.change)).map(e => { const now = effectAt(ctx, e.change, tFreeze)!; return { change: e.change, then: e.status, now: now.status as string, thenCollected: e.collected, nowCollected: now.collected != null ? now.collected : null } })
     .filter(x => x.then !== x.now || x.thenCollected !== x.nowCollected)
   const lbl = (st: string) => ({ 'sem-serie': 'sem série', 'sem-antes': 'sem base' } as Record<string, string>)[st] || st
   const flipped = moved.filter(x => x.then !== x.now), waiting = moved.filter(x => x.then === x.now)
@@ -84,7 +86,9 @@ function sinceChanges(ctx: ForjaCtx, r: FrozenReading): Raw {
   const now = changesOf(ctx).filter(c => inNiche(r.niche, c) && !ctx.CH.get(c.ch)?.own && c.at > r.generatedAt)
   const cited = r.sent.changeIds || []
   const goneCh = cited.filter(id => !ctx.CHG.get(id)), sentIds = cited.filter(id => !goneCh.includes(id))
-  const left = sentIds.filter(id => ctx.CHG.get(id)!.at <= ctx.clock.now - (r.sent.windowDays ?? 30) * DAY)
+  // a janela sai do MESMO ponto do envio (sent.ts: `asOf` = o último registro diário), não do relógio, que está até ~36 h à frente: uma leitura recém-feita não nasce "mudou"
+  const refer = ctx.clock.snapTime(ctx.lastIdx)
+  const left = sentIds.filter(id => ctx.CHG.get(id)!.at <= refer - (r.sent.windowDays ?? 30) * DAY)
   const parts: string[] = []
   if (now.length) parts.push('+' + now.length + (now.length === 1 ? ' troca nova' : ' trocas novas'))
   if (left.length) parts.push(left.length + (left.length === 1 ? ' saiu' : ' saíram') + ' da janela de 30 dias')
@@ -168,4 +172,14 @@ export function since(ctx: ForjaCtx, readingId: string): SinceResult | null {
   if (!r) return null
   const x = r.type === 'leitura-video' ? sinceVideo(ctx, r) : r.type === 'resumo-trocas' ? sinceChanges(ctx, r) : sinceOutliers(ctx, r)
   return { ...x, textNoAsk: noAskText(x.text) }
+}
+
+/**
+ * O que o "Desde então" de uma leitura diz, em uma palavra: 'mudou' (há o que dizer), 'igual' ("Nada mudou desde a leitura.") ou
+ * 'nao-compara' (a leitura não traz com que comparar, ou o vídeo saiu do observatório). Só a regra de pedir de novo (novidade.ts) lê isto.
+ */
+export function sinceStatus(ctx: ForjaCtx, readingId: string): 'mudou' | 'igual' | 'nao-compara' | null {
+  const s = since(ctx, readingId)
+  if (!s) return null
+  return s.text.startsWith(CANT) ? 'nao-compara' : s.text === NOTHING ? 'igual' : 'mudou'
 }

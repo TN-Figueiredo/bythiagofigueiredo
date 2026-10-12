@@ -36,7 +36,7 @@ const semLeitura: Mut = ds => { ds.readings = []; ds.requests = [] }
 /** Roda a página de verdade (mocks só nas leituras) e devolve o nó `leitura` que ela entrega a CanalScreen. */
 async function paginaLeitura(mut?: Mut, tab = 'leitura'): Promise<ReactNode> {
   const { obs, chId } = canalWorld(mut)
-  mocks.openChannelPage.mockResolvedValue({ siteId: 's1', now: 0, obs, canEdit: true })
+  mocks.openChannelPage.mockResolvedValue({ siteId: 's1', now: 0, obs, canEdit: true, owns: { itens: [], principal: null, listaHref: '/cms/youtube/competitors' } })
   mocks.openObservatoryPage.mockResolvedValue({ siteId: 's1', now: 0, obs, rows: {}, savedNiche: 'todos', extra: undefined })
   const el = (await CanalPage({ params: Promise.resolve({ id: chId }), searchParams: Promise.resolve({ tab }) })) as ReactElement<{ children: ReactElement<{ leitura: ReactNode }> }>
   return el.props.children.props.leitura

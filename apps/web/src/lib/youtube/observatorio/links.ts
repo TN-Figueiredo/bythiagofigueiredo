@@ -85,7 +85,7 @@ export const link = {
   /**
    * Link to canais screen.
    */
-  canais(p?: { niche?: NicheScope; channel?: string; tab?: 'videos' | 'outliers'; add?: 1; filter?: 'problemas'; nicheEditor?: 1 }): string {
+  canais(p?: { niche?: NicheScope; channel?: string; tab?: 'videos' | 'outliers'; add?: 1; filter?: 'problemas'; nicheEditor?: 1; fmt?: 'todos' | 'longos' | 'shorts' }): string {
     const cleaned = cleanLink(p)
     const query = buildQuery(cleaned)
     return OBS_BASE + query
@@ -148,6 +148,14 @@ export const link = {
   },
 
   /**
+   * Link to the comparison of two channels. Only the data goes in the URL, in the fixed order a, b; an argument that is
+   * missing or empty stays out (the screen then picks the default for that side).
+   */
+  comparar(a?: string, b?: string): string {
+    return OBS_BASE + '/comparar' + buildQuery({ a, b })
+  },
+
+  /**
    * Link to the competitor channel page. Values equal to the default stay out of the URL;
    * key order follows CanalLinkParams.
    */
@@ -179,7 +187,7 @@ export const link = {
   historico(
     videoId: string,
     p?: {
-      from?: 'canais' | 'mudancas' | 'outliers' | 'insights'
+      from?: 'canais' | 'mudancas' | 'outliers' | 'insights' | 'comparar'
       back?: string
       ids?: string[]
       canal?: string

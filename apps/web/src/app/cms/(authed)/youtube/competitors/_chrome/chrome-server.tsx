@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { NicheScope } from '@/lib/youtube/observatorio/niche'
-import { openObservatoryPage } from './page-data'
+import { lerMeuCanalLembrado, openObservatoryPage } from './page-data'
 import { setUserNiche } from '../niche-actions'
 import { syncCompetitorsNow } from '../actions'
 import { askForjaReading } from '../forja-actions'
@@ -14,7 +14,7 @@ import { ObservatoryChrome } from './observatory-chrome'
 import { buildChromeView, coworkText, type ChromeTab } from './view-model'
 import { resolveNiche, type ObsSearchParams } from './resolve-niche'
 
-export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOverride, coworkFor, forja, readingCopy, children }: {
+export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOverride, coworkFor, forja, readingCopy, meuCanalLembrado, children }: {
   tab: ChromeTab; searchParams: ObsSearchParams | undefined
   /** A page that already built the engine passes it to avoid a second load. */
   obs?: Observatory; children: ReactNode
@@ -26,6 +26,8 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   forja?: ForjaView | null
   /** Insights: the shown reading as plain text for the menu's "Copiar texto da leitura". */
   readingCopy?: string | null
+  /** A escolha do dono para "o meu canal" (cookie `obs-meu-canal`); a página que já abriu o site a passa, do contrário o cookie é lido aqui. */
+  meuCanalLembrado?: string | null
 }) {
   const resolved = await resolveNiche(searchParams)
   const engine = obs ?? (await openObservatoryPage()).obs
@@ -33,7 +35,8 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   // removed, a stale link) shows Todos, without error, and a ?niche= naming it is dropped from the URL like an invalid one.
   const wanted = nicheOverride ?? resolved.niche, niche = engine.scopeOf(wanted)
   const dropParam = resolved.dropParam || (nicheOverride == null && niche !== wanted && resolved.fromParam)
-  const view = buildChromeView(engine, { tab, niche, forja })
+  const lembrado = meuCanalLembrado === undefined ? await lerMeuCanalLembrado() : meuCanalLembrado
+  const view = buildChromeView(engine, { tab, niche, forja, lembrado })
   return (
     <ObservatoryChrome view={{ ...view, ...(coworkFor ? { cowork: coworkText(coworkFor, niche, view.nicheLabel) } : {}) }} dropNicheParam={dropParam} onSetNiche={setUserNiche} onSyncNow={syncCompetitorsNow}
       onAskForja={askForjaReading} readingCopy={readingCopy}>

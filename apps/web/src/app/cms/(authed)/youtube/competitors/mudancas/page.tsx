@@ -17,13 +17,13 @@ export default async function MudancasPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
-  const { obs, savedNiche, extra: rows } = await openObservatoryPage(loadSwipeRows)
+  const { obs, savedNiche, meuCanalLembrado, extra: rows } = await openObservatoryPage(loadSwipeRows)
   // parseNiche checks the form; the engine says whether the niche exists (an unknown one opens in Todos)
   const niche = obs.scopeOf(parseNiche(flat.niche) ?? savedNiche)
   const { saved, keys } = savedFromRows(obs, rows)
   const view = buildMudancasView(obs, { ...flat, niche }, saved, keys)
   return (
-    <ObservatoryChromeServer tab="mudancas" searchParams={sp} obs={obs} forja={view.forja}>
+    <ObservatoryChromeServer tab="mudancas" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}>
       <MudancasScreen view={view} onToggleSwipe={toggleChangeBookmark} onAskForja={askForjaReading} onPin={pinVideo} onUnpin={unpinVideo} />
     </ObservatoryChromeServer>
   )

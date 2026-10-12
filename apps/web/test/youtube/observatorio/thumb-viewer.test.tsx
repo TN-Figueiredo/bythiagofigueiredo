@@ -100,7 +100,7 @@ describe('ThumbViewer · diálogo', () => {
     for (const e of fundo) expect(e.hasAttribute('inert')).toBe(true)
     expect(host.hasAttribute('inert')).toBe(false)
     const titulo = document.getElementById(d.getAttribute('aria-labelledby')!)!
-    const ultimo = within(d).getByRole('button', { name: 'Baixar' })
+    const ultimo = mainEl() // 11b B1: com os controles em cima, a caixa da imagem é o último foco do anel
     const fechar = within(d).getByRole('button', { name: 'Fechar' })
     ultimo.focus()
     fireEvent.keyDown(ultimo, { key: 'Tab' })
@@ -437,10 +437,10 @@ describe('ThumbViewer · C1: o foco não se perde quando a versão troca', () =>
     ;[stage(), mainEl()].find(e => { e.focus(); return document.activeElement === e })
     fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
     await waitFor(() => expect(stage().querySelector('img')?.getAttribute('src')).toBe(BLOB_A))
-    const baixar = within(dialog()).getByRole('button', { name: 'Baixar' })
-    baixar.focus()
+    const ultimo = mainEl() // 11b B1: o último foco do anel é a caixa da imagem (os controles ficam em cima dela)
+    ultimo.focus()
     const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
-    baixar.dispatchEvent(ev)
+    ultimo.dispatchEvent(ev)
     expect(ev.defaultPrevented).toBe(true)
     expect(document.activeElement).toBe(within(dialog()).getByRole('button', { name: 'Fechar' }))
   })
@@ -455,10 +455,10 @@ describe('ThumbViewer · I1: o anel de foco', () => {
     const ev = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true })
     fechar.dispatchEvent(ev)
     expect(ev.defaultPrevented).toBe(true)
-    expect(document.activeElement).toBe(within(d).getByRole('button', { name: 'Baixar' }))
+    expect(document.activeElement).toBe(mainEl()) // 11b B1: o último do anel é a caixa da imagem
   })
 
-  it('último focável apagado (aria-disabled): Tab nele volta ao Fechar, Shift+Tab no Fechar volta a ele, e o apagado entra no anel', async () => {
+  it('sem imagem (Baixar e Abrir original apagados): os apagados entram no anel, e o Tab no último (a caixa da imagem) volta ao Fechar', async () => {
     rede = new Map()
     abrir(um())
     await waitFor(() => expect(within(dialog()).getByText('A imagem não carregou.')).toBeTruthy())
@@ -468,13 +468,16 @@ describe('ThumbViewer · I1: o anel de foco', () => {
     const fechar = within(d).getByRole('button', { name: 'Fechar' })
     expect(baixar.getAttribute('aria-disabled')).toBe('true')
     expect(original.getAttribute('aria-disabled')).toBe('true')
-    baixar.focus()
-    fireEvent.keyDown(baixar, { key: 'Tab' })
+    // 11b B1: os controles ficam em cima da imagem; o último do anel é a caixa da imagem, que nunca é apagada
+    mainEl().focus()
+    fireEvent.keyDown(mainEl(), { key: 'Tab' })
     expect(document.activeElement).toBe(fechar)
     fireEvent.keyDown(fechar, { key: 'Tab', shiftKey: true })
-    expect(document.activeElement).toBe(baixar)
-    // o primeiro focável (Fechar) nunca é apagado; os apagados do meio continuam no caminho natural do Tab
+    expect(document.activeElement).toBe(mainEl())
+    // o primeiro focável (Fechar) nunca é apagado; os apagados continuam no caminho natural do Tab, antes da imagem
     expect(fechar.getAttribute('aria-disabled')).toBeNull()
+    expect(original.compareDocumentPosition(baixar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(baixar.compareDocumentPosition(mainEl()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('clicar num texto do diálogo (foco na caixa) não mata o teclado: os atalhos valem e Shift+Tab gira', async () => {
@@ -487,7 +490,7 @@ describe('ThumbViewer · I1: o anel de foco', () => {
     fireEvent.keyDown(caixa, { key: '1' })
     expect(pct()).toBe('100%')
     fireEvent.keyDown(caixa, { key: 'Tab', shiftKey: true })
-    expect(document.activeElement).toBe(within(caixa).getByRole('button', { name: 'Baixar' }))
+    expect(document.activeElement).toBe(mainEl()) // 11b B1: o último do anel é a caixa da imagem
   })
 })
 
@@ -686,6 +689,97 @@ describe('ThumbViewer · "Abrir original" apagado', () => {
   })
 })
 
+describe('ThumbViewer · I-11b-2: Baixar e Abrir original apagados dizem o motivo', () => {
+  const descricao = (el: HTMLElement) => (el.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean).map(id => document.getElementById(id)?.textContent ?? '').join(' ').trim()
+  const aviso = () => dialog().querySelector('.obs-tv-msg')!.textContent
+  const lado = (rotulo: string) => [...dialog().querySelectorAll<HTMLElement>('.obs-tv-side')].find(s => s.querySelector('.obs-tv-lab')!.textContent!.startsWith(rotulo))!
+
+  it('sem imagem: o clique em Baixar e em Abrir original diz "sem imagem nesta versão" na região de aviso, sem navegar nem abrir aba', () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 0 })
+    const abrirAba = vi.spyOn(window, 'open').mockReturnValue(null)
+    expect(aviso()).toBe('')
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Baixar' }))
+    expect(aviso()).toBe('Não dá para baixar: sem imagem nesta versão.')
+    fireEvent.click(within(dialog()).getByRole('link', { name: /Abrir original/ }))
+    expect(aviso()).toBe('Não dá para abrir o original: sem imagem nesta versão.')
+    expect(abrirAba).not.toHaveBeenCalled()
+  })
+
+  it('o Abrir original apagado avisa também com Enter e com espaço (o link sem href não dispara clique sozinho)', () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 0 })
+    const a = within(dialog()).getByRole('link', { name: /Abrir original/ })
+    a.focus()
+    expect(fireEvent.keyDown(a, { key: 'Enter' }), 'Enter cancelado').toBe(false)
+    expect(aviso()).toBe('Não dá para abrir o original: sem imagem nesta versão.')
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Baixar' }))
+    expect(aviso()).toBe('Não dá para baixar: sem imagem nesta versão.')
+    expect(fireEvent.keyDown(a, { key: ' ' }), 'espaço cancelado').toBe(false)
+    expect(aviso()).toBe('Não dá para abrir o original: sem imagem nesta versão.')
+  })
+
+  it('o Baixar apagado, acionado por Enter ou espaço (o navegador converte em clique no botão), diz o motivo; botão continua focável e sem disabled nativo', () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 0 })
+    const b = within(dialog()).getByRole('button', { name: 'Baixar' })
+    expect(b.hasAttribute('disabled')).toBe(false)
+    b.focus()
+    expect(document.activeElement).toBe(b)
+    fireEvent.click(b)
+    expect(aviso()).toBe('Não dá para baixar: sem imagem nesta versão.')
+  })
+
+  it('o motivo também é a descrição acessível dos dois apagados (nome acessível não muda)', () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 0 })
+    const b = within(dialog()).getByRole('button', { name: 'Baixar' })
+    const a = within(dialog()).getByRole('link', { name: /Abrir original/ })
+    expect(descricao(b)).toBe('Sem imagem nesta versão.')
+    expect(descricao(a)).toBe('Sem imagem nesta versão.')
+  })
+
+  it('enquanto a imagem carrega, o motivo é "a imagem ainda está carregando"; quando chega, o botão volta a valer e a descrição some', async () => {
+    rede = new Map([[YT('maxresdefault'), { w: 1280, h: 720 }]])
+    abrir(um())
+    // o sinal de rede ainda não respondeu: está carregando
+    const b = within(dialog()).getByRole('button', { name: 'Baixar' })
+    expect(b.getAttribute('aria-disabled')).toBe('true')
+    expect(descricao(b)).toBe('A imagem ainda está carregando.')
+    fireEvent.click(b)
+    expect(aviso()).toBe('Não dá para baixar: a imagem ainda está carregando.')
+    const a = within(dialog()).getByRole('link', { name: /Abrir original/ })
+    fireEvent.click(a)
+    expect(aviso()).toBe('Não dá para abrir o original: a imagem ainda está carregando.')
+    await carregada()
+    const b2 = within(dialog()).getByRole('button', { name: 'Baixar' })
+    expect(b2.getAttribute('aria-disabled')).not.toBe('true')
+    expect(descricao(b2)).toBe('')
+    expect(descricao(within(dialog()).getByRole('link', { name: /Abrir original/ }))).toBe('')
+  })
+
+  it('imagem que falhou ao carregar: "sem imagem", não "carregando"', async () => {
+    rede = new Map()
+    abrir(um())
+    await waitFor(() => expect(within(dialog()).getByText('A imagem não carregou.')).toBeTruthy())
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Baixar' }))
+    expect(aviso()).toBe('Não dá para baixar: sem imagem nesta versão.')
+  })
+
+  it('no comparar cada lado tem o seu motivo, com ids próprios, e o nome acessível continua "Baixar Capa A"', async () => {
+    rede = new Map([[YT('maxresdefault'), { w: 1280, h: 720 }]])
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 1 })
+    await carregada()
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Comparar lado a lado' }))
+    await waitFor(() => expect(within(lado('Capa B')).getByRole('link', { name: /Abrir original/ }).getAttribute('href')).toBe(YT('maxresdefault')))
+    const bA = within(lado('Capa A')).getByRole('button', { name: 'Baixar Capa A' })
+    const aA = within(lado('Capa A')).getByRole('link', { name: /Abrir original/ })
+    expect(descricao(bA)).toBe('Sem imagem deste lado.')
+    expect(descricao(aA)).toBe('Sem imagem deste lado.')
+    fireEvent.click(aA)
+    expect(aviso()).toBe('Não dá para abrir o original da Capa A: sem imagem deste lado.')
+    const ids = [...dialog().querySelectorAll('[id]')].map(e => e.id)
+    expect(new Set(ids).size, 'ids únicos').toBe(ids.length)
+    expect(descricao(within(lado('Capa B')).getByRole('button', { name: 'Baixar Capa B' }))).toBe('')
+  })
+})
+
 describe('ThumbViewer · arrastar, zoom por versão, inert e carga', () => {
   it('arrastar com o mouse move a imagem; o botão do meio/direito não inicia arrasto', async () => {
     // jsdom não tem PointerEvent: sem ele o evento perde clientX/pointerType
@@ -771,5 +865,195 @@ describe('ThumbViewer · arrastar, zoom por versão, inert e carga', () => {
     rede.set(url, { w: 480, h: 360 })
     abrir({ title: 'T', versions: [velha({ archived: url })], start: 0 })
     await waitFor(() => expect(stage().querySelector('img')?.getAttribute('src')).toBe(url))
+  })
+})
+
+/* ---------------------------------------------------------------- 11b · B1: os controles em cima, como no mockup (viewer.js) */
+describe('ThumbViewer · 11b B1: controles na posição do mockup', () => {
+  const antes = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+  it('uma só barra de ferramentas entre o título e a imagem, com os grupos Versão, Zoom e Arquivo nesta ordem; nada embaixo da imagem', () => {
+    abrir(dois())
+    const d = dialog()
+    const barra = d.querySelector<HTMLElement>('.obs-tv-tools')!
+    expect(barra).not.toBeNull()
+    expect([...barra.querySelectorAll(':scope > [role="group"]')].map(g => g.getAttribute('aria-label'))).toEqual(['Versão da thumbnail', 'Zoom', 'Arquivo'])
+    expect(antes(d.querySelector('.obs-tv-top')!, barra)).toBe(true)
+    expect(antes(barra, mainEl())).toBe(true)
+    // embaixo da imagem ficam só a legenda, a resolução e o status
+    expect(d.querySelector('.obs-tv-foot')).toBeNull()
+    for (const g of ['Zoom', 'Arquivo']) {
+      const grupo = within(d).getByRole('group', { name: g })
+      expect(antes(grupo, mainEl()), g).toBe(true)
+    }
+    const info = d.querySelector('.obs-tv-info')!
+    expect(antes(mainEl(), info)).toBe(true)
+    expect(info.querySelector('[role="group"]')).toBeNull()
+  })
+  it('"Comparar lado a lado" mora no grupo Versão (como no mockup), não solto na barra', () => {
+    abrir(dois())
+    const versao = within(dialog()).getByRole('group', { name: 'Versão da thumbnail' })
+    expect(versao.contains(within(dialog()).getByRole('button', { name: 'Comparar lado a lado' }))).toBe(true)
+  })
+  it('a ordem do Tab é a da tela: Fechar, versões, Comparar, zoom, arquivo e, por último, a caixa da imagem', async () => {
+    abrir(dois())
+    await carregada()
+    const d = dialog()
+    const nomes = [...d.querySelectorAll<HTMLElement>('button, a[href], select, [tabindex="0"]')].map(e => (e.getAttribute('aria-label') ?? e.textContent ?? '').replace(/\s+/g, ' ').trim() || e.className)
+    const esperado = ['Fechar', 'Anterior', 'Próxima', 'Comparar lado a lado', 'Diminuir o zoom', 'Aumentar o zoom', 'Ajustar', '100%', 'Abrir original em nova aba', 'Baixar']
+    expect(nomes.slice(0, esperado.length)).toEqual(esperado)
+    expect(d.querySelectorAll('[tabindex="0"]')).toHaveLength(1)
+    expect(d.querySelector('[tabindex="0"]')).toBe(mainEl()) // a caixa da imagem é o único tabindex=0 e vem depois dos botões
+    expect(nomes.at(-1)).toMatch(/Setas movem a imagem/) // ... e fecha o anel
+  })
+  it('Tab no último focável (a caixa da imagem) volta ao Fechar; Shift+Tab no Fechar vai à caixa da imagem', async () => {
+    abrir(dois())
+    await carregada()
+    const fechar = within(dialog()).getByRole('button', { name: 'Fechar' })
+    mainEl().focus()
+    fireEvent.keyDown(mainEl(), { key: 'Tab' })
+    expect(document.activeElement).toBe(fechar)
+    fireEvent.keyDown(fechar, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(mainEl())
+  })
+  it('com uma versão só a barra tem Versão (só o Comparar apagado e o motivo), Zoom e Arquivo', () => {
+    abrir(um())
+    const barra = dialog().querySelector('.obs-tv-tools')!
+    expect([...barra.querySelectorAll(':scope > [role="group"]')].map(g => g.getAttribute('aria-label'))).toEqual(['Versão da thumbnail', 'Zoom', 'Arquivo'])
+    expect(within(dialog()).queryByRole('button', { name: 'Anterior' })).toBeNull()
+  })
+})
+
+/* ---------------------------------------------------------------- 11b · B2: "Baixar" e "Abrir original" por imagem no modo comparar */
+describe('ThumbViewer · 11b B2: um par (Baixar, Abrir original) por imagem no modo comparar', () => {
+  // dois(1): a esquerda é a Capa B (no ar, do YouTube); a direita é a Capa A (arquivada, Blob)
+  const comparar = async () => {
+    abrir(dois(1))
+    await carregada()
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Comparar lado a lado' }))
+    await waitFor(() => expect(dialog().querySelectorAll('.obs-tv-cmp img')).toHaveLength(2))
+    await waitFor(() => expect(dialog().querySelectorAll('.obs-tv-cmp .obs-tv-cap').length).toBeGreaterThanOrEqual(4)) // as duas medidas chegaram
+  }
+  const lado = (rotulo: string) => [...dialog().querySelectorAll<HTMLElement>('.obs-tv-side')].find(s => s.querySelector('.obs-tv-lab')!.textContent!.startsWith(rotulo))!
+
+  it('cada lado traz o seu par, com o lado no nome acessível; a barra de cima perde o grupo Arquivo (ele não age mais sobre um lado só)', async () => {
+    await comparar()
+    const d = dialog()
+    expect(within(d).queryByRole('group', { name: 'Arquivo' })).toBeNull()
+    expect(d.querySelector('.obs-tv-tools')!.querySelector('a, [aria-label*="Baixar"]')).toBeNull()
+    for (const [rotulo, nome] of [['Capa B', 'Capa B'], ['Capa A', 'Capa A']] as const) {
+      const s = within(lado(rotulo))
+      expect(s.getByRole('group', { name: `Arquivo da ${nome}` })).toBeTruthy()
+      expect(s.getByRole('button', { name: `Baixar ${nome}` })).toBeTruthy()
+      expect(s.getByRole('link', { name: `Abrir original em nova aba, ${nome}` })).toBeTruthy()
+    }
+    // o texto visível continua sendo o de sempre (o nome acessível o contém, sem trocar a palavra)
+    expect(within(lado('Capa A')).getByRole('button', { name: 'Baixar Capa A' }).textContent).toBe('Baixar')
+    expect(within(lado('Capa A')).getByRole('link', { name: /Abrir original/ }).textContent).toBe('Abrir original em nova aba')
+    expect(within(d).getAllByRole('button', { name: /^Baixar/ })).toHaveLength(2)
+    expect(within(d).getAllByRole('link', { name: /^Abrir original/ })).toHaveLength(2)
+  })
+
+  it('cada "Abrir original" aponta para a imagem do SEU lado', async () => {
+    await comparar()
+    expect(within(lado('Capa B')).getByRole('link', { name: /Abrir original/ }).getAttribute('href')).toBe(YT('maxresdefault'))
+    expect(within(lado('Capa A')).getByRole('link', { name: /Abrir original/ }).getAttribute('href')).toBe(BLOB_A)
+    for (const a of dialog().querySelectorAll('.obs-tv-side a')) { expect(a.getAttribute('target')).toBe('_blank'); expect(a.getAttribute('rel')).toContain('noopener') }
+  })
+
+  it('"Baixar" do lado arquivado baixa a imagem DELE (fetch + download); o do lado do YouTube abre a aba na imagem DELE, sem fetch', async () => {
+    await comparar()
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(['x'], { type: 'image/jpeg' }) })
+    vi.stubGlobal('fetch', fetchMock)
+    Object.assign(URL, { createObjectURL: vi.fn().mockReturnValue('blob:fake'), revokeObjectURL: vi.fn() })
+    const baixados: string[] = []
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { baixados.push(this.download) })
+    const abrirAba = vi.spyOn(window, 'open').mockReturnValue({ opener: 'x' } as unknown as Window)
+    // o lado do YouTube: aba na hora (síncrono), nenhum fetch
+    fireEvent.click(within(lado('Capa B')).getByRole('button', { name: 'Baixar Capa B' }))
+    expect(abrirAba).toHaveBeenCalledTimes(1)
+    expect(abrirAba.mock.calls[0]![0]).toBe(YT('maxresdefault'))
+    expect(fetchMock).not.toHaveBeenCalled()
+    // o lado arquivado: o fetch é da imagem DELE, e o arquivo leva o nome DELE
+    fireEvent.click(within(lado('Capa A')).getByRole('button', { name: 'Baixar Capa A' }))
+    await waitFor(() => expect(baixados).toEqual(['thumbnail-capa-a.jpg']))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledWith(BLOB_A, { mode: 'cors' })
+    expect(abrirAba).toHaveBeenCalledTimes(1)
+  })
+
+  it('o retorno do Baixar aparece na linha de status também no modo comparar (antes a frase "Comparando…" o escondia)', async () => {
+    await comparar()
+    const status = () => dialog().querySelector('.obs-tv-msg')!.textContent
+    expect(status()).toBe('Comparando Capa B com Capa A')
+    vi.stubGlobal('fetch', vi.fn())
+    vi.spyOn(window, 'open').mockReturnValue({ opener: 'x' } as unknown as Window)
+    fireEvent.click(within(lado('Capa B')).getByRole('button', { name: 'Baixar Capa B' }))
+    await waitFor(() => expect(status()).toMatch(/salve por lá/))
+    // trocar o "Comparar com" apaga o aviso de um arquivo que já não está na tela e volta a dizer o par
+    fireEvent.change(within(dialog()).getByLabelText('Comparar com'), { target: { value: '0' } })
+    expect(status()).toBe('Comparando Capa B com Capa A')
+  })
+
+  it('aba bloqueada no lado do YouTube: o status diz que bloqueou, sem afirmar que abriu', async () => {
+    await comparar()
+    vi.stubGlobal('fetch', vi.fn())
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    fireEvent.click(within(lado('Capa B')).getByRole('button', { name: 'Baixar Capa B' }))
+    const t = dialog().querySelector('.obs-tv-msg')!.textContent ?? ''
+    expect(t).toMatch(/bloque/i)
+    expect(t).not.toMatch(/abriu em outra aba/)
+  })
+
+  it('lado sem imagem (versão não arquivada): o par DESSE lado fica apagado e o do outro lado continua valendo', async () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 1 })
+    await carregada()
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Comparar lado a lado' }))
+    await waitFor(() => expect(within(lado('Capa B')).getByRole('link', { name: /Abrir original/ }).getAttribute('href')).toBe(YT('maxresdefault')))
+    const semImagem = within(lado('Capa A'))
+    expect(semImagem.getByRole('button', { name: 'Baixar Capa A' }).getAttribute('aria-disabled')).toBe('true')
+    const link = semImagem.getByRole('link', { name: /Abrir original/ })
+    expect(link.getAttribute('aria-disabled')).toBe('true')
+    expect(link.hasAttribute('href')).toBe(false)
+    expect(fireEvent.click(link), 'o clique é cancelado').toBe(false)
+    expect(within(lado('Capa B')).getByRole('button', { name: 'Baixar Capa B' }).getAttribute('aria-disabled')).not.toBe('true')
+  })
+
+  it('o Baixar apagado de um lado não baixa nem abre aba (nem fetch nem aba), mas diz o motivo na região de aviso (I-11b-2: antes era silêncio)', async () => {
+    abrir({ title: 'T', versions: [velha({ archived: null }), atual()], start: 1 })
+    await carregada()
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Comparar lado a lado' }))
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock)
+    const abrirAba = vi.spyOn(window, 'open').mockReturnValue(null)
+    fireEvent.click(within(lado('Capa A')).getByRole('button', { name: 'Baixar Capa A' }))
+    expect(fetchMock).not.toHaveBeenCalled(); expect(abrirAba).not.toHaveBeenCalled()
+    expect(dialog().querySelector('.obs-tv-msg')!.textContent).toBe('Não dá para baixar a Capa A: sem imagem deste lado.')
+  })
+
+  it('fora do modo comparar nada muda: um só grupo Arquivo na barra, com os nomes de sempre; ao sair do comparar ele volta', async () => {
+    abrir(dois(1))
+    await carregada()
+    const d = dialog()
+    expect(within(d).getByRole('group', { name: 'Arquivo' })).toBeTruthy()
+    expect(within(d).getByRole('button', { name: 'Baixar' })).toBeTruthy()
+    expect(within(d).getByRole('link', { name: 'Abrir original em nova aba' })).toBeTruthy()
+    const cmp = within(d).getByRole('button', { name: 'Comparar lado a lado' })
+    fireEvent.click(cmp)
+    await waitFor(() => expect(d.querySelectorAll('.obs-tv-cmp img')).toHaveLength(2))
+    expect(within(d).queryByRole('button', { name: 'Baixar' })).toBeNull()
+    fireEvent.click(cmp)
+    await carregada()
+    expect(within(d).getByRole('group', { name: 'Arquivo' })).toBeTruthy()
+    expect(within(d).getByRole('button', { name: 'Baixar' })).toBeTruthy()
+    expect(d.querySelectorAll('.obs-tv-side')).toHaveLength(0)
+  })
+
+  it('o anel de foco no modo comparar inclui os dois pares: o último é o Baixar do lado direito e dele o Tab volta ao Fechar', async () => {
+    await comparar()
+    const ultimo = within(lado('Capa A')).getByRole('button', { name: 'Baixar Capa A' })
+    ultimo.focus()
+    const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    ultimo.dispatchEvent(ev)
+    expect(ev.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(within(dialog()).getByRole('button', { name: 'Fechar' }))
   })
 })

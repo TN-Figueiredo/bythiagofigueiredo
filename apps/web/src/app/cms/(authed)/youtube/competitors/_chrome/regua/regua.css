@@ -1,0 +1,26 @@
+/* A régua do nicho (spec telas v9, 18.5; mockup M/regua.css, regras .rg.cmp). Prefixo obs-rg-. Sem animação, sem z-index numérico,
+   sem color-mix, nenhum texto abaixo de 12 px. As cores dos lados vêm de --c (= var(--lado-*)), a letra de --on-lado (tokens-telas.css). */
+[data-obs] .obs-rg-wrap{display:block;position:relative;width:100%;min-width:0}
+[data-obs] .obs-rg{position:relative;display:block;width:100%;height:46px;margin:0;padding:0;border:0;border-radius:4px;background:transparent;cursor:default;touch-action:auto}
+[data-obs] .obs-rg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[data-obs] .obs-rg-in{position:absolute;left:6px;right:6px;top:0;bottom:0}
+[data-obs] .obs-rg-base{position:absolute;left:0;right:0;bottom:18px;height:1px;background:var(--border-strong)}
+/* um traço por canal do conjunto; --x é o lugar no eixo (%), --dx o afastamento do empate (px) */
+[data-obs] .obs-rg-t{position:absolute;bottom:19px;left:calc(var(--x,0%) + var(--dx,0px));width:2px;height:12px;margin-left:-1px;background:var(--dim);border-radius:1px}
+[data-obs] .obs-rg-t.obs-rg-pl{width:3px;margin-left:-1.5px}
+[data-obs] .obs-rg-t.obs-rg-on{background:var(--text)}
+/* o lado destacado: mais alto e mais largo, na cor do lado, com contorno para separar do vizinho */
+[data-obs] .obs-rg-t.obs-rg-me{width:4px;height:24px;margin-left:-2px;background:var(--c);border-radius:1px;box-shadow:0 0 0 1px var(--surface);z-index:var(--z-marca)}
+[data-obs] .obs-rg-t.obs-rg-me.obs-rg-on{background:var(--c);box-shadow:0 0 0 1px var(--surface),0 0 0 3px var(--muted)}
+/* a letra do lado, sob a linha de base; --dx a afasta da outra quando os traços colidem (medido por ResizeObserver) */
+[data-obs] .obs-rg-ch{position:absolute;bottom:0;left:var(--x,0%);transform:translateX(calc(-50% + var(--dx,0px)));min-width:16px;height:16px;padding:0 3px;border-radius:3px;background:var(--c);color:var(--on-lado);font:700 12px/16px var(--font-mono),ui-monospace,SFMono-Regular,Menlo,monospace;text-align:center;z-index:var(--z-marca-alta)}
+/* texto só para leitor de tela (a região viva) */
+[data-obs] .obs-rg-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* o lado sem valor: o selo "não medido" (hachura, kit) e a frase com o motivo */
+[data-obs] .obs-rg-falta{display:block;margin-top:2px;font-size:12px;line-height:1.5;color:var(--muted)}
+[data-obs] .obs-rg-falta1{display:block}
+[data-obs] .obs-rg-vazio{display:block;font-size:12px;line-height:1.5;color:var(--muted)}
+/* a dica mora em #flut; a base (cor, borda, sombra, tipografia) é a de flut.css */
+#flut .obs-fl-tip.obs-rg-tip{max-width:300px;line-height:1.4}
+#flut .obs-fl-tip.obs-rg-tip .obs-rg-tip-t{display:block;font-weight:500;margin-bottom:2px}
+#flut .obs-fl-tip.obs-rg-tip .obs-rg-tip-s{display:block;color:var(--muted)}

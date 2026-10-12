@@ -17,7 +17,7 @@ import { DAY } from '../time'
 import type { ObsChange } from '../changes'
 import type { Fmt, Niche, ReadingBase, ReadingEffect } from '../types'
 import type { Observatory } from '../index'
-import { eligibleChannels, type ForjaCtx } from './scope'
+import { eligibleChannels, videoFreezeIdx, type ForjaCtx } from './scope'
 import { canonicalNumberTokens } from './numbers'
 
 export type SentCell = string | null
@@ -124,8 +124,8 @@ function changesPack(ctx: ForjaCtx, niche: Niche): SentPack {
 function videoPack(ctx: ForjaCtx, videoId: string): SentPack {
   const { clock, fmt } = ctx, v = ctx.V.get(videoId)
   if (!v) throw new TargetUnavailableError('buildSent: unknown video ' + videoId)
-  const ch = ctx.CH.get(v.ch)!, lastV = v.series.length ? v.series[v.series.length - 1]!.idx : 0
-  const t = Math.min(ctx.lastIdx, lastV), asOf = clock.snapTime(t)   // stalled channel: up to the video's last point
+  const ch = ctx.CH.get(v.ch)!
+  const t = videoFreezeIdx(ctx, v), asOf = clock.snapTime(t)   // stalled channel: up to the video's last point
   const cs = [...ctx.CHG.values()].filter(c => c.video === videoId && c.at <= clock.now).sort((a, b) => a.at - b.at)
   const allPts = v.series.filter(p => p.idx <= t), max = RULES.forja.maxVideos
   const capped = allPts.length > max, pts = capped ? allPts.slice(-max) : allPts   // the most recent daily records

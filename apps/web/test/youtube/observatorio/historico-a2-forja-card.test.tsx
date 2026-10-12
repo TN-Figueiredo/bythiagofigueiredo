@@ -469,8 +469,8 @@ describe('o botão do cabeçalho', () => {
     expect(ask).toHaveBeenCalledTimes(1)
   })
 
-  it('no limite do dia: "Ver a leitura" com a frase do spec ao lado, e só rola', () => {
-    const FRASE = 'Já houve uma leitura deste vídeo hoje. Libera amanhã às 00:00.'
+  it('com o dado igual: "Ver a leitura" com a frase ao lado, e só rola', () => {
+    const FRASE = 'A leitura deste vídeo já usa o dado mais recente. Dá para pedir de novo quando houver coleta nova.'
     const cardRef = { current: document.createElement('section') }
     cardRef.current.innerHTML = '<h3 tabindex="-1">Leitura da forja</h3>'
     document.body.appendChild(cardRef.current)
@@ -705,7 +705,7 @@ describe('conserto 1, item 4: vídeo de um canal sem nicho (a forja lê por nich
     expect(ask).not.toHaveBeenCalled()
   })
 
-  it('mesmo com leitura guardada de antes: nenhum dos botões promete "limite do dia" e nenhum pedido sai', () => {
+  it('mesmo com leitura guardada de antes: nenhum dos botões promete uma frase de "dado igual" e nenhum pedido sai', () => {
     const { root, card } = mount(semNicho(true), null)
     const doCartao = card()!.querySelector<HTMLElement>('[data-fj="pedir"]')!
     expect(doCartao.getAttribute('aria-disabled')).toBe('true')

@@ -3,8 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { createClock } from '@/lib/youtube/observatorio/time'
 import type { ForjaRequest, Niche, RequestState } from '@/lib/youtube/observatorio/types'
 import { requestStateOf, statusLabel, summarize, machineOf, queueOrder, compose, refusedReasonText } from '@/lib/youtube/observatorio/forja/states'
-import { quotaFor } from '@/lib/youtube/observatorio/forja/quota'
-import { createSession } from '@/lib/youtube/observatorio/forja/session'
+import { createSession, type SessionOpts } from '@/lib/youtube/observatorio/forja/session'
 
 // Every test runs at 24/10 15:02 in São Paulo (the mockup's NOW); fixtures are relative to it.
 const probe = createClock(0, 0, 0)
@@ -71,7 +70,7 @@ describe('statusLabel — the ONLY header format (CONVENCOES line 218)', () => {
 
 describe('summarize — canonical texts', () => {
   it('"sem máquina" with one niche: the singular sentence', () => {
-    const sc = summarize([req('sem máquina', { createdAt: T(14, 48) })], dead, false, clock)
+    const sc = summarize([req('sem máquina', { createdAt: T(14, 48) })], dead, clock)
     expect(sc.statusText).toBe('Seu pedido das 14:48 está na fila e roda quando a máquina voltar.')
     expect(sc.statusLabel).toBe('sem máquina desde 12:55')
     expect(sc.statusLines).toBeNull()
@@ -80,7 +79,7 @@ describe('summarize — canonical texts', () => {
     const sc = summarize([
       req('sem máquina', { createdAt: T(14, 48) }, 'ia'),
       req('sem máquina', { createdAt: T(14, 48), stateNote: 'atrás do de IA', behind: 'req-ia-sem máquina' }, 'viagem'),
-    ], dead, true, clock)
+    ], dead, clock)
     expect(sc.statusText).toBe('Seus pedidos das 14:48 (IA e Viagem) estão na fila e rodam quando a máquina voltar.')
     expect(sc.statusLines).toEqual(['IA: sem máquina desde 12:55', 'Viagem: sem máquina desde 12:55 (atrás do de IA)'])
     expect(sc.split).toBe(true)
@@ -89,7 +88,7 @@ describe('summarize — canonical texts', () => {
     const sc = summarize([
       req('publicado', { createdAt: T(14, 31), claimedAt: T(14, 35), publishedAt: T(14, 50) }, 'ia'),
       req('trabalhando', { createdAt: T(14, 31), claimedAt: T(14, 55), startedAt: T(14, 55) }, 'viagem'),
-    ], alive, true, clock)
+    ], alive, clock)
     expect(sc.statusLabel).toBe('pedido em andamento')
     expect(sc.terminal).toBe(false)
     expect(sc.anyActive).toBe(true)
@@ -98,7 +97,7 @@ describe('summarize — canonical texts', () => {
   it('the input requests are never mutated', () => {
     const r = req('na fila')
     const before = structuredClone(r)
-    summarize([r], alive, false, clock)
+    summarize([r], alive, clock)
     expect(r).toEqual(before)
   })
 })
@@ -114,33 +113,9 @@ describe('queueOrder — one machine, one queue', () => {
 
 describe('compose — a new request over what exists', () => {
   it('lands behind an active request of the other niche', () => {
-    const base = summarize([req('trabalhando', { createdAt: T(14, 41), claimedAt: T(14, 45) })], alive, false, clock)
+    const base = summarize([req('trabalhando', { createdAt: T(14, 41), claimedAt: T(14, 45) })], alive, clock)
     const c = compose(base, { niche: 'viagem' }, {}, clock)
     expect(c.statusLines).toEqual(['IA: trabalhando desde 14:45', 'Viagem: na fila · pedido 15:02 (atrás do de IA)'])
-  })
-})
-
-describe('quotaFor — 1 per niche + type per São Paulo day; failure and refusal do not count', () => {
-  const midnight = clock.sp(2026, 10, 25, 0, 0)
-  it('one completed today → not free, releases at the next SP midnight', () => {
-    const q = quotaFor([req('publicado', { createdAt: T(14, 31), publishedAt: T(14, 50) })], 'padroes-titulo', 'ia', NOW, clock)
-    expect(q).toMatchObject({ free: false, usedToday: 1, releasesAt: midnight, text: 'cota de hoje usada; libera domingo, 25/10 às 00:00' })
-  })
-  it('one failed today → free, and says the failure does not count', () => {
-    const q = quotaFor([req('falhou', { createdAt: T(13, 50), failedAt: T(14, 21) })], 'padroes-titulo', 'ia', NOW, clock)
-    expect(q.free).toBe(true)
-    expect(q.usedToday).toBe(0)
-    expect(q.text).toMatch(/falha não conta na cota/)
-  })
-  it('one refused today → free', () => {
-    const q = quotaFor([req('recusado (dado velho)', { createdAt: T(14, 50), refusedAt: T(14, 56) })], 'padroes-titulo', 'ia', NOW, clock)
-    expect(q.free).toBe(true)
-    expect(q.text).toMatch(/recusa não conta na cota/)
-  })
-  it('yesterday, another niche or another type do not count', () => {
-    const y = clock.sp(2026, 10, 23, 23, 50)
-    const reqs = [req('publicado', { createdAt: y, publishedAt: y + 6e5 }), req('publicado', { publishedAt: T(14, 50) }, 'viagem'), req('publicado', { type: 'temas', publishedAt: T(14, 50) })]
-    expect(quotaFor(reqs, 'padroes-titulo', 'ia', NOW, clock).free).toBe(true)
   })
 })
 
@@ -148,8 +123,11 @@ describe('createSession — the ask planner', () => {
   const videos: Record<string, { niche: Niche; title: string }> = {
     'v-a': { niche: 'ia', title: 'Vídeo A' }, 'v-b': { niche: 'ia', title: 'Vídeo B' },
   }
-  const opts = (capabilities: string[]) => ({
-    capabilities, eligible: () => ({ in: ['c1'], out: [] }), videoOf: (id: string) => videos[id],
+  // sem leituras: a regra de dado novo (novidade.ts) deixa pedir; os casos com leitura estão em forja-novidade.test.ts
+  const nova = () => ({ pode: true, porque: 'sem-leitura' } as const)
+  const semNovidade = () => ({ pode: false } as const)
+  const opts = (capabilities: string[], novidade: SessionOpts['novidade'] = nova) => ({
+    capabilities, eligible: () => ({ in: ['c1'], out: [] }), videoOf: (id: string) => videos[id], novidade,
   })
   it('a type the machine has not announced → nothing sent, with the canonical reason', () => {
     const s = createSession([], alive, clock, opts(['temas']))
@@ -168,20 +146,26 @@ describe('createSession — the ask planner', () => {
     expect(b.blockedBy).toMatchObject({ video: 'v-a', title: 'Vídeo A', statusLabel: 'na fila · pedido 15:02' })
     expect(b.blockedBy?.reason).toBe('Nada enviado: já há uma leitura de vídeo de IA na fila · pedido 15:02, do vídeo “Vídeo A”.')
   })
-  it('asks only free niches, in click order; a published request uses the quota', () => {
+  it('asks only niches with new data, in click order; a published request alone blocks nothing (no daily quota)', () => {
     const pub = req('publicado', { createdAt: T(14, 31), claimedAt: T(14, 35), publishedAt: T(14, 50) }, 'ia')
-    const s = createSession([pub], alive, clock, opts(['padroes-titulo']))
+    const s = createSession([pub], alive, clock, opts(['padroes-titulo'], (_t, n) => (n === 'ia' ? { pode: false } : nova())))
     const r = s.ask('todos', { type: 'padroes-titulo' })
     expect(r.results).toEqual([
-      { niche: 'ia', ok: false, reason: 'cota de hoje usada para IA (libera domingo, 25/10 às 00:00)' },
+      { niche: 'ia', ok: false, reason: 'A leitura de IA já usa o dado mais recente. Dá para pedir de novo quando houver coleta nova.' },
       expect.objectContaining({ niche: 'viagem', ok: true }),
     ])
     expect(r.scenario.statusLines).toEqual(['Viagem: na fila · pedido 15:02', 'IA: publicado às 14:50'])
   })
-  it('history of past days never blocks today', () => {
+  it('a request published today with new data since does not block (the date of the request is not a rule)', () => {
+    const pub = req('publicado', { createdAt: T(14, 31), claimedAt: T(14, 35), publishedAt: T(14, 50) }, 'ia')
+    expect(createSession([pub], alive, clock, opts(['padroes-titulo'])).ask('ia', { type: 'padroes-titulo' }).ok).toBe(true)
+    expect(createSession([pub], alive, clock, opts(['padroes-titulo'], semNovidade)).ask('ia', { type: 'padroes-titulo' }).ok).toBe(false)
+  })
+  it('history of past days neither blocks nor frees: only the data decides', () => {
     const y = clock.sp(2026, 10, 20, 6, 10)
-    const s = createSession([req('publicado', { createdAt: y, publishedAt: y })], alive, clock, opts(['padroes-titulo']))
-    expect(s.ask('ia', { type: 'padroes-titulo' }).ok).toBe(true)
+    const reqs = [req('publicado', { createdAt: y, publishedAt: y })]
+    expect(createSession(reqs, alive, clock, opts(['padroes-titulo'])).ask('ia', { type: 'padroes-titulo' }).ok).toBe(true)
+    expect(createSession(reqs, alive, clock, opts(['padroes-titulo'], semNovidade)).ask('ia', { type: 'padroes-titulo' }).ok).toBe(false)
   })
   it('cancel removes the active request and whoever was behind it loses the suffix', () => {
     const s = createSession([], alive, clock, opts(['padroes-titulo']))
@@ -208,7 +192,7 @@ describe('fix round 1 — DB-shaped rows', () => {
     const sc = summarize([
       req('trabalhando', { createdAt: T(14, 41), claimedAt: T(14, 45), startedAt: T(14, 45) }, 'ia'),
       req('na fila', { createdAt: T(14, 41) }, 'viagem'),
-    ], alive, true, clock)
+    ], alive, clock)
     expect(sc.statusLines).toEqual(['IA: trabalhando desde 14:45', 'Viagem: na fila · pedido 14:41 (atrás do de IA)'])
     expect(sc.statusText).toBe('Pedido de IA em andamento desde 14:45. O pedido de Viagem espera na fila desde 14:41, atrás do de IA (a máquina pega um por consulta).')
     expect(sc.requests.find(q => q.niche === 'viagem')!.behind).toBe('req-ia-trabalhando')
@@ -217,44 +201,42 @@ describe('fix round 1 — DB-shaped rows', () => {
     const sc = summarize([
       req('recusado (dado velho)', { createdAt: T(14, 50), refusedAt: T(14, 56) }, 'ia'),
       req('na fila', { createdAt: T(14, 50) }, 'viagem'),
-    ], alive, true, clock)
+    ], alive, clock)
     expect(sc.statusLines).toEqual(['Viagem: na fila · pedido 14:50', 'IA: recusado às 14:56'])
   })
   it('"nova tentativa" without a retry reason has no trailing space', () => {
-    const one = summarize([req('nova tentativa', { attempt: 2, releasedAt: T(14, 57) })], alive, false, clock)
+    const one = summarize([req('nova tentativa', { attempt: 2, releasedAt: T(14, 57) })], alive, clock)
     expect(one.statusText).toBe('Voltou para a fila (tentativa 2 de 3).')
-    const two = summarize([req('nova tentativa', { attempt: 2 }, 'ia'), req('na fila', {}, 'viagem')], alive, true, clock)
+    const two = summarize([req('nova tentativa', { attempt: 2 }, 'ia'), req('na fila', {}, 'viagem')], alive, clock)
     expect(two.statusText).toBe('O pedido de IA voltou para a fila (tentativa 2 de 3). O pedido de Viagem espera na fila desde 14:58, atrás do de IA (a máquina pega um por consulta).')
   })
   it('"recusado" with no reason is never empty', () => {
-    expect(summarize([req('recusado (dado velho)', { refusedAt: T(14, 56) })], alive, false, clock).statusText).toBe('O pedido foi recusado às 14:56.')
-    const two = summarize([req('recusado (dado velho)', { createdAt: T(14, 50), refusedAt: T(14, 56) }, 'ia'), req('na fila', { createdAt: T(14, 50) }, 'viagem')], alive, true, clock)
-    expect(two.statusText).toBe('O pedido de IA foi recusado às 14:56. O pedido de Viagem segue na fila desde 14:50. A recusa de IA não conta na cota; você pode pedir de novo a de IA agora.')
+    expect(summarize([req('recusado (dado velho)', { refusedAt: T(14, 56) })], alive, clock).statusText).toBe('O pedido foi recusado às 14:56.')
+    const two = summarize([req('recusado (dado velho)', { createdAt: T(14, 50), refusedAt: T(14, 56) }, 'ia'), req('na fila', { createdAt: T(14, 50) }, 'viagem')], alive, clock)
+    expect(two.statusText).toBe('O pedido de IA foi recusado às 14:56. O pedido de Viagem segue na fila desde 14:50. A recusa de IA não gerou leitura.')
   })
   it('"falhou" is driven by the reason: validator, vigia (travou-3x), other code, no code', () => {
-    const f = (failReason: string | null) => summarize([req('falhou', { attempt: 3, failedAt: T(14, 21), failReason })], alive, false, clock).statusText
-    expect(f('o validador recusou a saída da forja nas 3 tentativas')).toBe('Falhou nas 3 tentativas. O validador recusou a saída em todas. Falha não conta na cota.')
-    expect(f('travou-3x')).toBe('O pedido travou nas 3 tentativas: o vigia liberou e a máquina não terminou. Falha não conta na cota.')
-    expect(f('snapshot 500')).toBe('O pedido falhou às 14:21 (código snapshot 500). Falha não conta na cota.')
-    expect(f(null)).toBe('O pedido falhou às 14:21 (sem código). Falha não conta na cota.')
+    const f = (failReason: string | null) => summarize([req('falhou', { attempt: 3, failedAt: T(14, 21), failReason })], alive, clock).statusText
+    expect(f('o validador recusou a saída da forja nas 3 tentativas')).toBe('Falhou nas 3 tentativas. O validador recusou a saída em todas.')
+    expect(f('travou-3x')).toBe('O pedido travou nas 3 tentativas: o vigia liberou e a máquina não terminou.')
+    expect(f('snapshot 500')).toBe('O pedido falhou às 14:21 (código snapshot 500).')
+    expect(f(null)).toBe('O pedido falhou às 14:21 (sem código).')
     const two = summarize([
       req('falhou', { attempt: 3, failedAt: T(14, 21), failReason: 'travou-3x' }, 'ia'),
       req('falhou', { attempt: 3, failedAt: T(14, 51), failReason: 'o validador recusou a saída da forja nas 3 tentativas' }, 'viagem'),
-    ], alive, true, clock)
-    expect(two.statusText).toBe('O pedido de IA travou nas 3 tentativas: o vigia liberou e a máquina não terminou. Falha não conta na cota. O pedido de Viagem falhou às 14:51.')
+    ], alive, clock)
+    expect(two.statusText).toBe('O pedido de IA travou nas 3 tentativas: o vigia liberou e a máquina não terminou. O pedido de Viagem falhou às 14:51.')
   })
   it('ask(null) for a niche type returns a reason', () => {
-    const s = createSession([], alive, clock, { capabilities: ['padroes-titulo'], eligible: () => ({ in: [], out: [] }) })
+    const s = createSession([], alive, clock, { capabilities: ['padroes-titulo'], eligible: () => ({ in: [], out: [] }), novidade: () => ({ pode: true, porque: 'sem-leitura' }) })
     const r = s.ask(null, { type: 'padroes-titulo' })
     expect(r.ok).toBe(false)
     expect(r.reason).toBe('Nada enviado: escolha um nicho (Viagem, IA ou Todos).')
   })
-  it('quotaFor agrees with the planner: an active request asked yesterday still blocks', () => {
+  it('an active request asked yesterday still blocks its target, even with new data', () => {
     const y = clock.sp(2026, 10, 23, 23, 40)
     const reqs = [req('sem máquina', { createdAt: y })]
-    const q = quotaFor(reqs, 'padroes-titulo', 'ia', NOW, clock)
-    expect(q).toEqual({ free: false, usedToday: 0, releasesAt: null, text: 'cota usada pelo pedido de 23/10 23:40, ainda em andamento' })
-    const s = createSession(reqs, dead, clock, { capabilities: ['padroes-titulo'], eligible: () => ({ in: [], out: [] }) })
+    const s = createSession(reqs, dead, clock, { capabilities: ['padroes-titulo'], eligible: () => ({ in: [], out: [] }), novidade: () => ({ pode: true, porque: 'sem-leitura' }) })
     expect(s.ask('ia', { type: 'padroes-titulo' }).ok).toBe(false)
   })
 })
@@ -262,7 +244,7 @@ describe('fix round 1 — DB-shaped rows', () => {
 describe('refused reason codes → canonical sentence (Task 30: the service stores a short code)', () => {
   const sentence = 'A máquina recebeu dados anteriores à última sincronização. Peça de novo.'
   it("'dado-velho' reads as the sentence, one niche", () => {
-    const sc = summarize([req('recusado (dado velho)', { refusedAt: T(14, 56), refusedReason: 'dado-velho' })], alive, false, clock)
+    const sc = summarize([req('recusado (dado velho)', { refusedAt: T(14, 56), refusedReason: 'dado-velho' })], alive, clock)
     expect(sc.statusText).toBe(sentence)
     expect(sc.statusText).not.toContain('dado-velho')
   })
@@ -270,12 +252,12 @@ describe('refused reason codes → canonical sentence (Task 30: the service stor
     const sc = summarize([
       req('recusado (dado velho)', { createdAt: T(14, 50), refusedAt: T(14, 56), refusedReason: 'dado-velho' }, 'ia'),
       req('publicado', { createdAt: T(14, 51), publishedAt: T(14, 59) }, 'viagem'),
-    ], alive, true, clock)
+    ], alive, clock)
     expect(sc.statusText).toContain('O pedido de IA foi recusado. A máquina recebeu dados anteriores à última sincronização.')
     expect(sc.statusText).not.toContain('dado-velho')
   })
   it('a free-text reason (not a code) passes through unchanged', () => {
-    const sc = summarize([req('recusado (dado velho)', { refusedAt: T(14, 56), refusedReason: 'outro motivo qualquer.' })], alive, false, clock)
+    const sc = summarize([req('recusado (dado velho)', { refusedAt: T(14, 56), refusedReason: 'outro motivo qualquer.' })], alive, clock)
     expect(sc.statusText).toBe('Outro motivo qualquer.')
   })
   it('refusedReasonText maps the code and leaves other text alone', () => {

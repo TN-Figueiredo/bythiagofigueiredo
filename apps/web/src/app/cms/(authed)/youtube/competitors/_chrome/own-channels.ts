@@ -2,6 +2,8 @@
  * Own channels on the Observatório screens (port of canais.html LANG / langTag / OWN_TXT). Pure: used by Canais and
  * by Insights. A site may have zero, one or many own channels; the sentences agree with how many there are.
  */
+import { link } from '@/lib/youtube/observatorio/links'
+
 export interface LangChip { code: string; title: string }
 
 const LANG = new Map<string, LangChip>([
@@ -31,4 +33,12 @@ export function ownTexts(many: boolean): OwnTexts {
 export function listPt(xs: readonly string[]): string {
   if (xs.length <= 1) return xs[0] ?? ''
   return `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`
+}
+
+/**
+ * Para onde "Abrir meu canal" leva. A3: o painel lateral da lista de Canais (o canal próprio ainda não tem página);
+ * a A4 troca esta linha por `link.canal(id)`. Todo link para "o meu canal" passa por aqui.
+ */
+export function ownChannelHref(id: string): string {
+  return link.canais({ channel: id })
 }

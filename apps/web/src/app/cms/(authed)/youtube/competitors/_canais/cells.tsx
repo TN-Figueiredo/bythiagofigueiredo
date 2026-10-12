@@ -68,10 +68,10 @@ export function ThumbView({ t, lg }: { t: Thumb | null; lg?: boolean }) {
 export function Strip({ cell }: { cell: CadenceCell }) {
   const W = 130, H = 30
   if (cell.kind === 'na') return (
-    <svg width={W} height={H} aria-hidden="true">{Array.from({ length: 13 }, (_, i) => <rect key={i} x={i * 10 + 3} y={H - 2} width={3} height={2} fill="var(--strip-empty)" />)}</svg>
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">{Array.from({ length: 13 }, (_, i) => <rect key={i} x={i * 10 + 3} y={H - 2} width={3} height={2} fill="var(--strip-empty)" />)}</svg>
   )
   return (
-    <svg width={W} height={H} role="img" aria-label={cell.label}>
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={cell.label}>
       {cell.weeks.map((w, i) => {
         const x = i * 10
         if (!w.long && !w.short) return <rect key={i} x={x + 3} y={H - 2} width={3} height={2} fill="var(--strip-empty)" />
@@ -87,20 +87,52 @@ export function Strip({ cell }: { cell: CadenceCell }) {
   )
 }
 
-export function CadenceView({ c }: { c: CadenceCell }) {
+/**
+ * "Todos": cada medida de uma célula é uma linha (`.fm`). `label` é o rótulo da medida ("longos" / "Shorts"): na tabela só o leitor
+ * de tela o ouve (o cabeçalho da coluna o diz a quem vê); nos cartões, que não têm cabeçalho de coluna, `visible` o mostra.
+ */
+function Fm({ label, visible, children }: { label: string; visible?: boolean; children: ReactNode }) {
+  return <span className="fm">{visible ? <span className="fl">{label}</span> : <span className="sr">{label}: </span>}{children}</span>
+}
+
+export function CadenceView({ c, c2 }: { c: CadenceCell; c2?: CadenceCell }) {
   if (c.kind === 'na') return <div className="cad"><Strip cell={c} /><span className="na" style={{ maxWidth: 150 }} title={c.title}>{c.text}</span></div>
   return (
     <div className="cad">
       <Strip cell={c} />
       <div className="v">
-        <span className="num big" data-k="pw">{c.pw}</span> <span className="u">{c.unit}</span>
+        {/* a unidade ("longos/sem", "Shorts/sem") já rotula cada medida */}
+        <span className={c2 ? 'fm' : undefined}><span className="num big" data-k="pw">{c.pw}</span> <span className="u">{c.unit}</span></span>
+        {c2 ? (
+          <span className="fm">{c2.kind === 'ok'
+            ? <><span className="num">{c2.pw}</span> <span className="u">{c2.unit}</span></>
+            : <span className="nd" title={c2.title}>{c2.text}</span>}</span>
+        ) : null}
         {c.paused ? <span className="paused"><Ic n="pause" /><span>{c.paused}</span></span> : c.sub ? <small>{c.sub}</small> : null}
       </div>
     </div>
   )
 }
 
-export function VpdView({ c }: { c: VpdCell }) {
+/** Uma medida de Views/dia em uma linha (a de "Todos"): o número e a base; o resto vai na dica nativa. */
+function VpdLinha({ c }: { c: VpdCell }) {
+  if (c.kind === 'na') return <span className="nd" title={c.title}>{c.text}</span>
+  const ressalva = c.tail ? c.tail.replace(/^,\s*/, '') : null
+  return (
+    <span>
+      <span className="big num" data-k="vpd">{c.big}</span>{' '}
+      <span className={'cap2' + (c.weak ? ' weak' : '')}>{c.abs ? <><span className="num">{c.abs}</span>/dia, </> : null}n{' '}={' '}<span data-k="n">{c.n}</span>{c.weak ? ', base fraca' : ''}</span>
+      {/* a ressalva de dado velho fica à vista (teclado e toque não leem title): o número não parece atual */}
+      {ressalva ? <span className="cap2 ressalva" data-ressalva="">{' '}{ressalva}</span> : null}
+    </span>
+  )
+}
+
+/** A frase da falta de formato ("sem Shorts", "sem vídeos") já diz o que é: nunca leva rótulo visível na frente. */
+const semRotulo = (c: VpdCell | OutCell) => c.kind === 'na' && c.falta === true
+
+export function VpdView({ c, c2, visible }: { c: VpdCell; c2?: VpdCell; visible?: boolean }) {
+  if (c2) return <><Fm label="longos" visible={visible}><VpdLinha c={c} /></Fm><Fm label="Shorts" visible={visible && !semRotulo(c2)}><VpdLinha c={c2} /></Fm></>
   if (c.kind === 'na') return <span className="na r" title={c.title}>{c.text}</span>
   return (
     <>
@@ -114,7 +146,14 @@ export function VpdView({ c }: { c: VpdCell }) {
   )
 }
 
-export function OutView({ c, upnextHref }: { c: OutCell; upnextHref: string }) {
+/** Uma medida de Outliers em uma linha (a de "Todos"): a contagem com o maior múltiplo, sem thumbnail. */
+function OutLinha({ c, upnextHref }: { c: OutCell; upnextHref: string }) {
+  if (c.kind === 'na') return <span className="nd">{c.text}{c.weak ? <> <span className="weak">{c.weak}</span></> : null}{c.upnext ? <> <a className="btn small link" href={upnextHref}>{c.upnext}</a></> : null}</span>
+  return <span title={`${c.title} ${c.videoTitle}`}><b className={`mult num ${c.tier}`}>{c.mult}</b> <span className="cap2">{c.count}</span></span>
+}
+
+export function OutView({ c, c2, upnextHref, visible }: { c: OutCell; c2?: OutCell; upnextHref: string; visible?: boolean }) {
+  if (c2) return <><Fm label="longos" visible={visible}><OutLinha c={c} upnextHref={upnextHref} /></Fm><Fm label="Shorts" visible={visible && !semRotulo(c2)}><OutLinha c={c2} upnextHref={upnextHref} /></Fm></>
   if (c.kind === 'na') return (
     <span className="na">
       {c.text}{c.weak ? <> <span className="weak">{c.weak}</span></> : null}
@@ -218,6 +257,12 @@ export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string;
           <span className="num">{r.subs}</span>
           <Tip label="Sobre o número de inscritos">{r.subsTip}</Tip>
         </div>
+        {r.semFormato ? (
+          <div className="sub semfmt" data-sem-formato="">
+            <span>{r.semFormato.label}</span>
+            <Tip label="Sobre os vídeos sem formato confirmado">{r.semFormato.tip}</Tip>
+          </div>
+        ) : null}
       </div>
     </div>
   )

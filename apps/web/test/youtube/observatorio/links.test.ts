@@ -132,3 +132,10 @@ describe('link.historico com origem no canal', () => {
       .toBe('/cms/youtube/competitors/video/v1?from=canais&back=%3Ffmt%3Dlongos&canal=abc&troca=chg-9')
   })
 })
+describe('link.comparar', () => {
+  it('a e b na ordem fixa; sem argumentos, a rota sem query', () => {
+    expect(link.comparar()).toBe('/cms/youtube/competitors/comparar')
+    expect(link.comparar('x', 'y')).toBe('/cms/youtube/competitors/comparar?a=x&b=y')
+    expect(link.comparar(undefined, 'y')).toBe('/cms/youtube/competitors/comparar?b=y')
+  })
+})

@@ -13,7 +13,6 @@ import { ObservatoryChrome } from '@/app/cms/(authed)/youtube/competitors/_chrom
 import { buildForjaView } from '@/app/cms/(authed)/youtube/competitors/_chrome/forja-view-model'
 import { buildCanaisView, type CanaisParams } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { CanaisScreen, type CanaisScreenProps } from '@/app/cms/(authed)/youtube/competitors/_canais/canais-screen'
-import { groupColor } from '@/app/cms/(authed)/youtube/competitors/_canais/channel-table'
 import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
 import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrome/sync-context'
 import { buildInsightsView } from '@/app/cms/(authed)/youtube/competitors/_insights/view-model'
@@ -116,22 +115,15 @@ describe('barra de nicho', () => {
 })
 
 describe('Canais', () => {
-  it('Todos: um grupo por nicho que tem canal, na ordem das abas, e "Sem nicho" por último; nicho vazio não ganha grupo', () => {
-    expect(canais(obs4).groups.map(g => [g.key, g.label])).toEqual([['viagem', 'Viagem'], ['ia', 'IA'], ['jogos', 'Jogos'], ['sem', 'Sem nicho']])
+  it('Todos: uma lista só, sem linha de grupo por nicho (A3); o nicho de cada canal continua no seletor da linha', () => {
+    const v = canais(obs4)
+    expect('groups' in v).toBe(false)
+    expect(new Set([...v.list.ranked, ...v.list.unranked].filter(r => !r.own).map(r => r.niche))).toEqual(new Set(['viagem', 'ia', 'jogos', null]))
     const { container } = mountCanais(obs4)
-    expect([...container.querySelectorAll('tr.group:not([data-own-group]) strong')].map(e => e.textContent)).toEqual(['Viagem', 'IA', 'Jogos', 'Sem nicho'])
+    // a única linha de grupo da tabela é o divisor dos canais sem medida (quando há)
+    expect([...container.querySelectorAll('tr.group')].every(t => t.hasAttribute('data-divisor'))).toBe(true)
     expect(junk(container)).toBeNull()
     expect(noJunkText(container)).toEqual([])
-  })
-  it('a cor do grupo: os de fábrica continuam em var(--travel) / var(--ai); o criado usa a cor do nicho por variável CSS', () => {
-    expect(groupColor('viagem')).toBe('var(--travel)')
-    expect(groupColor('ia')).toBe('var(--ai)')
-    expect(groupColor('sem')).toBe('var(--muted)')
-    expect(groupColor('jogos')).toBe('var(--obs-niche)')
-    const { container } = mountCanais()
-    const dot = [...container.querySelectorAll<HTMLElement>('tr.group .dot')].find(d => d.closest('tr')!.textContent!.includes('Jogos'))!
-    expect(dot.style.getPropertyValue('--obs-sw-dark')).toBe('#D29AE8')
-    expect(dot.style.getPropertyValue('--obs-sw-light')).toBe('#7B2A91')
   })
   it('o seletor de nicho da linha tem os nichos do site, na ordem das abas; o canal de Jogos mostra Jogos', () => {
     const { container } = mountCanais()
@@ -202,7 +194,7 @@ describe('Canais', () => {
   })
   it('nicho recém-criado, sem canal nenhum: a aba abre vazia com o texto de vazio de hoje e a forja desabilitada', () => {
     const v = canais(obs4, { niche: 'pessoal' })
-    expect(v.groups).toEqual([])
+    expect([...v.list.ranked, ...v.list.unranked].filter(r => !r.own)).toEqual([])
     expect(v.nicheLabel).toBe('Pessoal')
     expect(v.emptyText).toMatch(/^Nenhum (canal|concorrente) em Pessoal\. /)
     expect(v.forja.button).toMatchObject({ mode: 'disabled', disabledText: 'Nenhum concorrente em Pessoal ainda' })

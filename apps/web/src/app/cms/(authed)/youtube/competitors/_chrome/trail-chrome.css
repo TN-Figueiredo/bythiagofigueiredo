@@ -12,7 +12,10 @@
 @media (pointer:coarse){[data-obs] .obs-tr-top .crumbs a{min-height:44px}}
 
 /* o que a página põe na linha da trilha (o pager do Histórico do vídeo; hist.css do mockup: .crumbs{justify-content:space-between} + .pager) */
-[data-obs] .obs-tr-top .obs-tr-aside{display:flex;justify-content:flex-end;flex:1 1 auto;min-width:0}
+[data-obs] .obs-tr-top .obs-tr-aside{display:flex;justify-content:flex-end;flex:0 1 auto;margin-left:auto;min-width:0}
+/* o atalho "Meu canal" (meu-canal.tsx) fica à direita da trilha, antes do aside; o que sobra da linha vai para a esquerda dele */
+[data-obs] .obs-tr-top .mc{margin-left:auto}
+[data-obs] .obs-tr-top .mc + .obs-tr-aside{margin-left:0}
 [data-obs] .obs-tr-aside .pager{display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end}
 [data-obs] .obs-tr-aside .pager span{padding:0 6px;color:var(--dim);font-size:12.5px}
 [data-obs] .obs-tr-aside .pager .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:0 13px;border-radius:6px;border:1px solid transparent;background:transparent;cursor:pointer;font-size:13px;font-weight:500;text-decoration:none;white-space:nowrap;color:var(--muted)}

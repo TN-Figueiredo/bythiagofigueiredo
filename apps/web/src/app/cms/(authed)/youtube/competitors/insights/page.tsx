@@ -15,11 +15,11 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   const sp = await searchParams
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
-  const { obs, savedNiche } = await openObservatoryPage()
+  const { obs, savedNiche, meuCanalLembrado } = await openObservatoryPage()
   // parseNiche checks the form; the engine says whether the niche exists (an unknown one opens in Todos)
   const view = buildInsightsView(obs, { niche: obs.scopeOf(parseNiche(flat.niche) ?? savedNiche), fmt: flat.fmt })
   return (
-    <ObservatoryChromeServer tab="insights" searchParams={sp} obs={obs} forja={view.forja}
+    <ObservatoryChromeServer tab="insights" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}
       readingCopy={view.hero?.reading ? readingCopyText([view.hero.themes, view.hero.reading], view.hero.noteLabel) : null}>
       <InsightsScreen view={view} heatMode={flat.heat === 'views' ? 'views' : 'uploads'} />
     </ObservatoryChromeServer>

@@ -5,6 +5,7 @@
  * Nenhum botão preenchido. O menu e o ⓘ são Popover de #flut (nunca filhos desta tela). Dado ausente mostra a frase na
  * classe obs-ch-nm, nunca "0" nem "—"; zero medido é "0". Estado (aberto/fechado, rodando) é da CanalScreen.
  */
+import Link from 'next/link'
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/niche'
 import { siteAdminOnlyText } from '@/lib/cms/site-admin-context'
@@ -12,6 +13,8 @@ import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
 import { NicheSelect } from '../_canais/niche-editor'
+import { cliqueSimples } from '../_chrome/clique-simples'
+import { lembrarGatilho } from '../_chrome/gatilho-volta'
 import type { CanalHeaderView, NumCell } from './header-model'
 
 const Ext = () => (
@@ -58,8 +61,10 @@ function MenuItems({ syncing, canAdmin, onSync, onRemove }: { syncing: boolean; 
   )
 }
 
-export function CanalHeader({ h, nums, syncing, canAdmin, menuBtnRef, onToggleNums, onSync, onAskRemove, onNiche }: {
+export function CanalHeader({ h, nums, syncing, canAdmin, menuBtnRef, compararHref = null, onToggleNums, onSync, onAskRemove, onNiche }: {
   h: CanalHeaderView; nums: boolean; syncing: boolean; canAdmin: boolean
+  /** A comparação deste canal com o canal próprio principal (`escolherPrincipal`); null = sem canal próprio com vídeos: o botão não existe. Chega pronto do servidor. */
+  compararHref?: string | null
   menuBtnRef: RefObject<HTMLButtonElement | null>
   onToggleNums: () => void; onSync: () => void; onAskRemove: () => void; onNiche: (n: Niche) => void
 }) {
@@ -79,6 +84,9 @@ export function CanalHeader({ h, nums, syncing, canAdmin, menuBtnRef, onToggleNu
         ) : null}
       </div>
       <div className="acts">
+        {compararHref ? (
+          <Link className="obs-ch-btn" href={compararHref} data-comparar-canal="" onClick={e => { if (cliqueSimples(e)) lembrarGatilho('canal', h.id) }}>Comparar com o meu canal</Link>
+        ) : null}
         <a className="obs-ch-btn" href={h.url} target="_blank" rel="noopener noreferrer">Abrir no YouTube<Ext /><span className="obs-ch-sr"> (abre em nova aba)</span></a>
         <button ref={menuBtnRef} type="button" className="obs-ch-btn obs-ch-ghost obs-ch-icon" aria-haspopup="menu" aria-expanded={menu} aria-label="Ações do canal"
           onClick={() => setMenu(o => !o)}

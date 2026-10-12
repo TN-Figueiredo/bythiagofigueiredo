@@ -103,17 +103,30 @@ describe.skipIf(skipIfNoLocalDb())('forja queue service — real Supabase', () =
     expect(await tasksOf(siteId)).toHaveLength(1)
   })
 
-  it('3. a completed temas/IA today uses the quota; a failed one does not', async () => {
+  it('3. 11d: no daily quota. A completed temas/IA with no reading does not block; with a reading on the latest data it does; once the data moves on it asks again; a failed one never blocks', async () => {
     const siteId = await freshSite()
     await seedHeartbeat(siteId, ['temas'])
     const t = new Date(Date.now() - 60_000).toISOString()
-    await insertTask(siteId, { task_type: 'temas', target_niche: 'ia', status: 'completed', requested_at: t, started_at: t, completed_at: t })
+    const done = await insertTask(siteId, { task_type: 'temas', target_niche: 'ia', status: 'completed', requested_at: t, started_at: t, completed_at: t })
     await insertTask(siteId, { task_type: 'temas', target_niche: 'viagem', status: 'failed', requested_at: t, started_at: t, failed_at: t })
-    const ia = await askReading(ctx(siteId), { type: 'temas', scope: 'ia', userId: USER }, Date.now())
-    expect(ia.data.ok).toBe(false)
-    expect(ia.data.reason).toMatch(/^cota de hoje usada para IA \(libera /)
+    // a completed task today, but no reading to compare with: nothing says the data is the same, so it can be asked
     const viagem = await askReading(ctx(siteId), { type: 'temas', scope: 'viagem', userId: USER }, Date.now())
     expect(viagem.data.ok).toBe(true)
+    await svc.from('youtube_intelligence_tasks').delete().eq('site_id', siteId).eq('target_niche', 'viagem').eq('status', 'pending')
+    // the reading of that task, frozen at the site's latest daily record (the same one the engine reads now)
+    const { loadDataset } = await import('@/lib/youtube/observatorio/load')
+    const { createObservatory } = await import('@/lib/youtube/observatorio')
+    const obs = createObservatory(await loadDataset({ siteId, now: Date.now(), supabase: svc }))
+    const reading = (asOf: number) => ({ site_id: siteId, task_id: done, task_type: 'temas', niche: 'ia', fmt: 'long', model: 'Gemma 12B', generated_at: new Date().toISOString(), sent: { text: 'x', asOf, ids: [], numbers: [] }, analysis: {}, text: { title: 'T', lead: 'L', items: [] }, evidence: [] })
+    const inserted = await svc.from('competitor_readings').insert(reading(obs.date.snapTime(obs.LAST_IDX))).select('id').single()
+    expect(inserted.error).toBeNull()
+    const ia = await askReading(ctx(siteId), { type: 'temas', scope: 'ia', userId: USER }, Date.now())
+    expect(ia.data.ok).toBe(false)
+    expect(ia.data.reason).toBe('A leitura de IA já usa o dado mais recente. Dá para pedir de novo quando houver coleta nova.')
+    expect(ia.data.reason).not.toMatch(/cota|hoje|libera/i)
+    // the reading is from an earlier daily record: new data since, asked again the same day
+    expect((await svc.from('competitor_readings').update({ sent: reading(obs.date.snapTime(obs.LAST_IDX - 1)).sent }).eq('id', inserted.data!.id)).error).toBeNull()
+    expect((await askReading(ctx(siteId), { type: 'temas', scope: 'ia', userId: USER }, Date.now())).data.ok).toBe(true)
   })
 
   it('4. heartbeat without the capability (or none at all) → nothing sent, the canonical sentence', async () => {
@@ -189,7 +202,7 @@ describe.skipIf(skipIfNoLocalDb())('forja queue service — real Supabase', () =
     await expect(completeReading(ctx(siteId), body('Dos 12 longos, um passou de 8,2×.'))).rejects.toMatchObject({ status: 409 })
   })
 
-  it('8. refuseTask → refused with the code; it does not use the quota (ask again the same day → sent)', async () => {
+  it('8. refuseTask → refused with the code; a refusal blocks nothing (ask again the same day → sent)', async () => {
     const siteId = await freshSite()
     await seedHeartbeat(siteId, ['temas'])
     const asked = await askReading(ctx(siteId), { type: 'temas', scope: 'viagem', userId: USER }, Date.now())

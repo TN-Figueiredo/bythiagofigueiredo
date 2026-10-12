@@ -15,7 +15,7 @@ const withoutCompetitors = (b: Dataset, niche: 'viagem' | 'ia'): Dataset => {
   return ds
 }
 const base = () => datasetFromOracle(loadOracle())
-const rowOf = (ds: Dataset, id: string, p = {}) => buildCanaisView(createObservatory(ds), { niche: 'todos', limit: 75, ...p }).groups.flatMap(g => g.rows).find(r => r.id === id)!
+const rowOf = (ds: Dataset, id: string, p = {}) => { const v = buildCanaisView(createObservatory(ds), { niche: 'todos', limit: 75, ...p }); return [...v.list.ranked, ...v.list.unranked].find(r => r.id === id)! }
 
 describe('growthCell: sem percentual calculável não há percentual nem seta', () => {
   const comp = (subs: number | null, prevSubs: number) => {
@@ -81,12 +81,12 @@ describe('R80: lista vazia de um nicho só com canais próprios', () => {
   }
   it('com canal próprio visível: "Nenhum concorrente em Viagem."', () => {
     const v = buildCanaisView(noComp('viagem'), { niche: 'viagem', limit: 75 })
-    expect(v.own.rows.length).toBeGreaterThan(0)
+    expect(v.own.block!.linhas.length).toBeGreaterThan(0)
     expect(v.emptyText).toBe('Nenhum concorrente em Viagem. Para acompanhar um canal novo, use Adicionar canal.')
   })
   it('sem canal próprio visível: continua "Nenhum canal em IA."', () => {
     const v = buildCanaisView(noComp('ia'), { niche: 'ia', limit: 75 })
-    expect(v.own.rows).toHaveLength(0)
+    expect(v.own.block?.linhas ?? []).toHaveLength(0)
     expect(v.emptyText).toBe('Nenhum canal em IA. Para acompanhar um canal novo, use Adicionar canal.')
   })
 })

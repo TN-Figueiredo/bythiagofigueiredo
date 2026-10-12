@@ -30,10 +30,19 @@ const WHY_R85: Exclude = { impl: ['#obs-ch-forja-why'] }
  */
 const LABEL_R85: Allow = /Pedir (?:nova )?leitura à forja/
 
+/**
+ * A3.3 (fase A3, 11/10): the chrome of every Observatório tab got the "Meu canal: <nome>" shortcut (the mockups of 02 and 04/10 predate it). It is the
+ * only element of the chrome the A3 added; it is left out of the text on the implementation side, and the A3 specs (canais-a3, flutuantes) assert it.
+ */
+const MEU_CANAL_A3: Exclude = { impl: ['[data-meu-canal]'] }
+
 /* ------------------------------------------------------------------ 1a. the chrome: niche bar with 3, 4 and 6 niches */
 export const MOLDURA_N: ScreenSpec = {
   name: 'nichos-moldura', mockupFile: MOCK_DIR + 'canais.html', route: '/cms/youtube/competitors',
   mockThumbSelector: '.thumb', implThumbSelector: '[data-thumb]',
+  exclude: MEU_CANAL_A3,
+  // A3.10: the "Comparar" link of each row is 24 px high with a mouse (WCAG 2.2 minimum) and 44 px under pointer:coarse; the audit's 32 px floor predates it
+  targetExempt: ['a[data-comparar]'],
   states: [
     { label: '3 nichos · Todos', seed: seedOf('3'), mockupQuery: mq('3') },
     { label: '4 nichos · Todos', seed: seedOf('4'), mockupQuery: mq('4') },
@@ -51,6 +60,7 @@ runFidelity(MOLDURA_N)
 export const MOLDURA_INSIGHTS_N: ScreenSpec = {
   name: 'nichos-moldura-insights', mockupFile: MOCK_DIR + 'insights-n-canais.html', route: '/cms/youtube/competitors/insights',
   mockThumbSelector: '.thumb', implThumbSelector: '[data-thumb]',
+  exclude: MEU_CANAL_A3,
   states: [
     { label: '4 nichos · Jogos', seed: seedOf('4'), query: '?niche=jogos', mockupQuery: mq('4', '&niche=jogos') },
     { label: '4 nichos · Pessoal', seed: seedOf('4'), query: '?niche=pessoal', mockupQuery: mq('4', '&niche=pessoal'), exclude: WHY_R85 },
@@ -82,7 +92,11 @@ export const CANAIS_N: ScreenSpec = {
   exclude: CANAIS_TABLE_EXCLUDE,
   // F11 / Task 23 ruling: bald and bankrupt's views/day suffix (allowances.ts)
   textAllow: [BALD_ROW_SUFFIX_F11],
-  states: CANAIS_STATES,
+  // fixme (Tarefa 13 da A3): a lista de Canais deixou de ser o que o mockup de 04/10 desenha, de propósito. D2: lista única, sem grupo por nicho (some o cabeçalho
+  // de cada nicho e a contagem dele; as linhas mudam de ordem); A3.2: bloco "Seus canais" com a posição, canal próprio na posição dele e linha presa; A3.10: coluna
+  // "Com o meu canal" e botão "Comparar"; 11b/B3: coluna Trocas conta título e thumbnail ("nenhuma de título ou thumbnail em 30 d"); A3.1: controle Todos | Longos | Shorts.
+  // O que protege a lista hoje: canais-a3.spec, canal.spec e flutuantes.spec. Refazer o mockup de Canais com nichos criados é a tarefa que recoloca esta comparação.
+  states: CANAIS_STATES.map(st => ({ ...st, skip: 'fixme: lista de Canais da A3 (D2 sem grupo por nicho, A3.2 posição e bloco Seus canais, A3.10 Comparar, 11b Trocas); mockup de 04/10 anterior' })),
 }
 runFidelity(CANAIS_N)
 
@@ -205,7 +219,8 @@ test.describe('nichos · um nicho criado pelo dono (Jogos)', () => {
       const rows = live('[data-obs-screen="canais"] tbody tr[data-id]:not(.you)')
       await expect(rows).toHaveCount(1)
       await expect(rows.first()).toContainText('The AI Advantage')
-      await expect(live('tr.group .dot.custom')).toHaveCount(1)
+      // D2 (A3): a lista é uma só, sem cabeçalho de grupo por nicho; o nicho criado aparece no seletor da própria linha
+      await expect(rows.first().locator('select.niche')).toHaveValue('jogos')
       const after = await tabCanais.innerText()
       expect(before).toMatch(/14/); expect(after).toMatch(/1(?!\d)/); expect(after).not.toBe(before)
       await noOverflow(s.page); await clean(s.page)

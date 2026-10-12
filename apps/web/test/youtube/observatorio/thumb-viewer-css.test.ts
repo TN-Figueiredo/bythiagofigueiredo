@@ -26,3 +26,20 @@ describe('thumb-viewer.css', () => {
     for (const m of css.matchAll(/([^{}]*\.obs-tv-msg[^{}]*)\{([^}]*)\}/g)) expect(m[2], m[1]).not.toMatch(/display\s*:\s*none|visibility\s*:\s*hidden/)
   })
 })
+
+describe('thumb-viewer.css · 11b B1 (controles em cima, como o mockup)', () => {
+  it('a caixa tem quatro faixas (título, barra, imagem, informação) e a barra é uma linha que quebra', () => {
+    const box = /\.obs-tv-box\s*\{([^}]*)\}/.exec(css)![1]!
+    expect(/grid-template-rows\s*:\s*([^;]*)/.exec(box)![1]!.trim()).toBe('auto auto minmax(0,1fr) auto')
+    expect(css).toMatch(/\.obs-tv-tools\s*\{[^}]*display\s*:\s*flex[^}]*flex-wrap\s*:\s*wrap/)
+  })
+  it('não sobrou regra do rodapé antigo nem do empurrão do Comparar', () => {
+    expect(css).not.toMatch(/\.obs-tv-foot/)
+    expect(css).not.toMatch(/\.obs-tv-cmpbtn/)
+    expect(css).not.toMatch(/\.obs-tv-nav/)
+  })
+  it('alvos de toque de 44 px em janela estreita e em toque grosseiro continuam valendo', () => {
+    expect(css).toMatch(/@media \(max-width:900px\)\{[\s\S]*?\.obs-tv-b\{min-height:44px\}/)
+    expect(css).toMatch(/@media \(pointer:coarse\)\{\.obs-tv-b\{min-height:44px\}/)
+  })
+})

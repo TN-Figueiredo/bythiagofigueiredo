@@ -18,9 +18,9 @@ import { link } from './links'
 import { FORMULAS, FORMULA, THEMES, THEME, formulasOf, hasThemes, type Formula, type Theme } from './catalog'
 import { heatmap, nicheStats, themeTrend, ownCoverage, patternsNow, ownChannels, nicheRef, ownNicheStats, type NicheRef, type OwnNicheStats } from './insights'
 import type { ForjaRequest, FrozenReading, Niche, RequestState, Fmt as ReadingFmt } from './types'
-import { REQUEST_STATES, STATES, FORJA_QUEUE, quotaScopeText, machineOf, summarize, compose as composeScenario, statusLabel, queueOrder, type Machine, type NicheCtx, type Scenario, type NewRequest } from './forja/states'
+import { REQUEST_STATES, STATES, FORJA_QUEUE, askScopeText, machineOf, summarize, compose as composeScenario, statusLabel, queueOrder, type Machine, type NicheCtx, type Scenario, type NewRequest } from './forja/states'
 import { createSession, type SessionScope, type SessionTarget, type AskOutcome, type SessionOpts } from './forja/session'
-import { quotaFor, type QuotaStatus } from './forja/quota'
+import { novidadeDe, type Novidade } from './forja/novidade'
 import { eligibleChannels, readingScope, readingTypes, readingTypeFor, latest, timing, SHORTS_NOTE, type ForjaCtx, type Eligible, type ReadingScope, type ScopeFilter, type Timing, type ReadingTypeWithTiming } from './forja/scope'
 import { since, type SinceResult } from './forja/since'
 import { preview, type Preview } from './forja/preview'
@@ -53,9 +53,9 @@ export interface FacadeSession {
 }
 export interface ForjaFacade {
   readings: FrozenReading[]; requests: ForjaRequest[]; requestStates: readonly RequestState[]; states: readonly RequestState[]
-  queue: typeof FORJA_QUEUE & { lastPollAt: number | null; capabilities: string[] }; quotaScope: typeof FORJA_QUEUE.quotaScope
+  queue: typeof FORJA_QUEUE & { lastPollAt: number | null; capabilities: string[] }; askScope: typeof FORJA_QUEUE.askScope
   compose(base: Parameters<typeof composeScenario>[0], req: NewRequest, opts?: { niche?: 'todos' | Niche | null; createdAt?: number } | null): Scenario
-  session: FacadeSession; quotaFor(type: string, niche: Niche): QuotaStatus
+  session: FacadeSession; novidade(type: string, niche: Niche, video?: string | null): Novidade; planOpts: SessionOpts
   statusLabel(req: ForjaRequest, o?: { prefixNiche?: boolean; ahead?: ForjaRequest | null }): string; queueOrder: typeof queueOrder
   /** The frozen readings by id (published readings; with test scenarios also the scenario readings). */
   byId: Record<string, FrozenReading>
@@ -252,12 +252,14 @@ function createForja(ctx: ForjaCtx, ds: Dataset, clock: Clock, CH: Map<string, O
     capabilities: ds.queue.capabilities, eligible: n => eligibleChannels(ctx, n),
     // own videos are not in competitor_videos (the request's target): no niche = nothing to ask (final review F1)
     videoOf: id => { const v = V.get(id); return v ? { niche: CH.get(v.ch)?.own ? null : v.niche, title: v.title } : undefined },
-    defaultType: type, defaultVideo: video, niches: nx, askable, hasThemes,
+    defaultType: type, defaultVideo: video, niches: nx, askable, hasThemes, novidade: (t, n, v) => novidadeDe(ctx, ds.readings, t, n, v),
     // the mockup's single-niche scenario has its own times (see SessionOpts.singleBase); only with test scenarios
     singleBase: tests && base !== 'sem pedido' ? (n, t) => tests.build(base, { niche: n, type: t })?.requests ?? null : undefined,
   })
   // What exists: the DB requests; with injected test scenarios the mockup's session starts empty ("sem pedido").
   const initial = tests ? [] : ds.requests
+  // as regras do servidor (services/forja-queue → planAsk) são estas, sem a sessão da tela: um planejador só
+  const { defaultType: _t, defaultVideo: _v, singleBase: _s, ...planOpts } = sessionOpts('sem pedido', 'padroes-titulo', null)
   let st = { base: 'sem pedido', type: 'padroes-titulo', video: null as string | null }
   let s = createSession(initial, machine, clock, sessionOpts(st.base, st.type, st.video))
   const state = () => ({ base: st.base, ...s.state() })
@@ -284,14 +286,14 @@ function createForja(ctx: ForjaCtx, ds: Dataset, clock: Clock, CH: Map<string, O
   let nichesCache: Niche[] | null = null
   const nichesList = (): Niche[] => (nichesCache ??= [...(nx.todos ?? forjaOrder(nx.defs))])
   const requests = [...ds.requests]
-  // the quota sentence names the site's niches (the built-in pair gives the sentence of dados.js)
-  const quotaScope = { ...FORJA_QUEUE.quotaScope, text: quotaScopeText(nx.defs.map(d => d.label)) }
-  if (tests) for (const st0 of tests.requestStates) { const b = tests.build(st0, { type: 'padroes-titulo', niche: 'ia' }); if (b) requests.push(summarize(b.requests, b.machine, false, clock, nx).request!) }
+  // the scope sentence names the site's niches
+  const askScope = { ...FORJA_QUEUE.askScope, text: askScopeText(nx.defs.map(d => d.label)) }
+  if (tests) for (const st0 of tests.requestStates) { const b = tests.build(st0, { type: 'padroes-titulo', niche: 'ia' }); if (b) requests.push(summarize(b.requests, b.machine, clock, nx).request!) }
   return {
     readings: ds.readings, requests, requestStates: tests ? tests.requestStates : REQUEST_STATES, states: STATES,
-    queue: { ...FORJA_QUEUE, quotaScope, lastPollAt, capabilities: ds.queue.capabilities }, quotaScope,
+    queue: { ...FORJA_QUEUE, askScope, lastPollAt, capabilities: ds.queue.capabilities }, askScope,
     compose: (b, r, o) => composeScenario(b, r, { ...(o || {}), machine, niches: nx }, clock),
-    session, quotaFor: (type, niche) => quotaFor(ds.requests, type, niche, clock.now, clock),
+    session, novidade: (type, niche, video = null) => novidadeDe(ctx, ds.readings, type, niche, video), planOpts,
     statusLabel: (r, o) => statusLabel(r, clock, { machine, niches: nx, ...(o || {}) }), queueOrder,
     byId: ctx.READ, latest: (type, niche) => latest(ds.readings, type, niche), since: id => since(ctx, id), eligibleChannels: n => eligibleChannels(ctx, n),
     preview: (type, niche, f) => preview(ctx, type, niche, f), readingScope: (id, filt) => readingScope(ctx, id, filt),
@@ -299,6 +301,6 @@ function createForja(ctx: ForjaCtx, ds: Dataset, clock: Clock, CH: Map<string, O
     get niches() { return nichesList() }, nicheCtx: nx, askable,
     buildSent: (type, target) => buildSentCtx(ctx, type, target),
     ...(tests && tests.scenarioReadings ? { scenarioReadings: tests.scenarioReadings } : {}),
-    ...(tests ? { requestScenario: (st0: string, t?: ScenarioTarget) => { const b = tests.build(st0, t); return b ? summarize(b.requests, b.machine, b.scopeTodos, clock, nx) : null } } : {}),
+    ...(tests ? { requestScenario: (st0: string, t?: ScenarioTarget) => { const b = tests.build(st0, t); return b ? summarize(b.requests, b.machine, clock, nx) : null } } : {}),
   }
 }

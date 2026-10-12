@@ -79,7 +79,6 @@ describe('motor com um nicho criado pelo dono', () => {
     const r = o.forja.session.ask('todos', { type: 'resumo-trocas' })
     expect(r.results.map(x => [x.niche, x.ok])).toEqual([['ia', true], ['viagem', true], ['jogos', true]])
     expect(r.scenario.statusLines!.map(l => l.split(':')[0])).toEqual(['IA', 'Viagem', 'Jogos'])
-    expect(r.scenario.quota.text.split(' · ').map(t => t.split(':')[0])).toEqual(['IA', 'Viagem', 'Jogos'])
     expect(JSON.stringify(r)).not.toMatch(/undefined|NaN/)
   })
   it('pedido para nicho sem concorrentes: nada enviado, com o motivo; a sessão continua vazia', () => {

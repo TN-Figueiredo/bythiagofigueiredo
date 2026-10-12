@@ -5,6 +5,7 @@
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
 import { viewsMissingText } from '../_chrome/views-text'
 import type { Observatory } from '@/lib/youtube/observatorio'
+import { semNovidadeText } from '@/lib/youtube/observatorio/forja/novidade'
 import { joinLabels, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, Niche, ObsChannel, ObsVideo, SyncState } from '@/lib/youtube/observatorio/types'
 import type { OutlierItem } from '@/lib/youtube/observatorio/outliers'
@@ -12,8 +13,16 @@ import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
 import { humanizeSyncError, type ChannelStats } from '@/lib/youtube/observatorio/channels'
 import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
-import { langChip, ownTexts, type LangChip } from '../_chrome/own-channels'
+import { langChip, ownChannelHref, ownTexts, type LangChip } from '../_chrome/own-channels'
+import { escolherPrincipal, linhasDoMotor, principalDoMotor } from '../_chrome/own-menu'
+import { posicoes, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
+import {
+  BUSCA_NOTA, CONJUNTO_AVISO, PROBLEMAS_NOTA, divisorDe, emTexto, fraseDePosicao, fraseVizinhos, motivoSemValor, motivoTexto, temPosicao,
+  type MotivoSemMedida,
+} from './posicao-model'
 import { effView } from '../_chrome/effect-view'
+import { contaComoTroca, trocas30, trocasDe30, vpdText } from '../_canal/numeros'
+import { FMT_PADRAO, fmtDaOrdem, parseCanaisFmt, type CanaisFmt } from './formato'
 
 const NB = ' '
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
@@ -34,10 +43,11 @@ export type CadenceCell =
   | { kind: 'na'; text: string; title: string }
   | { kind: 'ok'; weeks: Array<{ long: number; short: number }>; label: string; pw: string; unit: string; sub: string | null; paused: string | null }
 export type VpdCell =
-  | { kind: 'na'; text: string; title: string }
+  /** `falta`: a frase é a da ausência do formato ("sem Shorts", "sem vídeos"); em "Todos" ela vem sem rótulo na frente. */
+  | { kind: 'na'; text: string; title: string; falta?: true }
   | { kind: 'ok'; big: string; abs: string | null; n: number; weak: boolean; tail: string | null }
 export type OutCell =
-  | { kind: 'na'; text: string; weak: string | null; upnext: string | null }
+  | { kind: 'na'; text: string; weak: string | null; upnext: string | null; falta?: true }
   | { kind: 'ok'; title: string; videoTitle: string; thumb: Thumb; mult: string; tier: Tier; vs: string; n: number; published: string; publishedTitle: string; count: string }
 export type SwapCell = { kind: 'na'; text: string } | { kind: 'ok'; n: number; last: string; lastTitle: string | null }
 export type GrowthCell =
@@ -59,19 +69,43 @@ export interface CanaisRow {
   own: boolean
   /** A página do canal para um concorrente; null para canal próprio, que continua abrindo o painel lateral. */
   href: string | null
+  /** "Comparar" com o canal próprio principal (`escolherPrincipal`); null em canal próprio e quando o site não tem canal próprio com vídeos. `label` é o nome acessível. */
+  comparar: { href: string; label: string } | null
   /** Language mark of an own channel; null for competitors and when the site has a single own channel. */
   lang: LangChip | null
   color: string; ini: string; avatar: string | null; subs: string; subsTip: string; url: string; handle: string; backfill: boolean; paused: boolean
-  sortKeys: Record<CanaisSort, number>
-  cells: { cadence: CadenceCell; vpd: VpdCell; out: OutCell; swap: SwapCell; growth: GrowthCell; sync: SyncCell }
+  /** O valor de cada coluna para ordenar neste formato. null = sem medida: a linha vai para o fim, em qualquer direção; nunca um número de mentira. */
+  valor: Record<CanaisSort, number | null>
+  /** A posição na ordenação atual, no conjunto da lista (`CanaisView.conjunto`); null fora de POSICIONADAS, sem valor ou sem conjunto. */
+  pos: Posicao | null
+  /** Por que não tem posição: sem valor na coluna ordenada, ou (só canal próprio) sem nicho num nicho escolhido, ou ordenação sem posição. */
+  semMedida: MotivoSemMedida | null
+  cells: {
+    cadence: CadenceCell; vpd: VpdCell; out: OutCell; swap: SwapCell; growth: GrowthCell; sync: SyncCell
+    /** Só em "Todos": a medida dos Shorts, com o mesmo tipo da primeira (a primeira é a dos longos). */
+    cadence2?: CadenceCell; vpd2?: VpdCell; out2?: OutCell
+  }
+  /** Vídeos acompanhados sem a marca de Short (is_short nulo): entram nos longos até a confirmação (D7). */
+  semFormato: { n: number; label: string; tip: string } | null
   cowork: string
   /** Toast texts of "Sincronizar só este canal" (the screen builds no text). */
   syncOneText: { start: string; ok: string; okBody: string; fail: string; failBody: string; backfill: string }
 }
-/** One piece of the "Seus canais" group line (canais.html ownParts): a mono number, a sentence, or a warning. */
+/** One piece of the "Seus canais" line (canais.html ownParts): a mono number, a sentence, or a warning. */
 export interface OwnGroupPart { num: string | null; text: string; warn: boolean }
-/** `color`: the niche's own colour (CSS variables) for a niche the owner created; null for the built-in ones (var(--travel) / var(--ai)) and for "Sem nicho". */
-export interface CanaisGroup { key: Niche | 'sem'; label: string; color: NicheVars | null; count: string; flags: Array<{ kind: 'erro' | 'atrasado' | 'backfill' | 'parado'; text: string }>; rows: CanaisRow[] }
+
+/** O bloco "Seus canais" do topo (spec 15.2): uma linha por canal próprio, na ordem do motor (inscritos, maior primeiro). */
+export type OwnBlockLinha =
+  | { tipo: 'cheia'; id: string; name: string; avatar: string | null; ini: string; color: string; pos: Posicao | null; frase: string; vizinhos: string | null; abrirHref: string }
+  | { tipo: 'fina'; id: string; texto: string }
+export interface OwnBlock {
+  titulo: 'Seus canais' | 'Seu canal'
+  linhas: OwnBlockLinha[]
+  /** As partes da linha de grupo de hoje ("1 em outro nicho (aparece em Todos)", "fora do limite de concorrentes"). */
+  partes: OwnGroupPart[]
+}
+/** A lista única: quem tem valor na coluna ordenada, na ordem da direção; depois, sob o divisor, quem não tem. */
+export interface CanaisLista { ranked: CanaisRow[]; unranked: CanaisRow[]; divisor: { titulo: string; nota: string } | null }
 
 export interface EffectView { vd: 'won' | 'lost' | 'neu' | 'inc' | 'wait'; icon: 'up' | 'down' | 'eq' | 'q' | 'wait' | 'nodata'; label: string | null; main: Array<{ t: string; mono?: boolean }>; sub: string | null; subWeak: string | null }
 export interface ViewsText { num: string | null; text: string }
@@ -102,12 +136,30 @@ export interface DrawerView {
 
 export interface CanaisView {
   slots: { used: number; limit: number; free: number; text: string; fullText: string | null; tip: string; nearFull: boolean; unlockText: string; unlockDone: string }
-  scale: 'per-mil' | 'abs'; fmt: 'long' | 'short'; layout: 'table' | 'cards'
+  scale: 'per-mil' | 'abs'; layout: 'table' | 'cards'
+  /** O filtro de formato. A URL o traz sempre (`fmtNaUrl`); sem ele o servidor desenha Longos e o navegador grava o lembrado. */
+  fmt: CanaisFmt; fmtNaUrl: boolean
+  /** O aviso sob o controle (spec 15.3); null em Longos. */
+  fmtNota: string | null
+  /** Só em "Todos": o rótulo que sobe para o cabeçalho das colunas que dependem de formato. */
+  fmtCab: { dois: string; ordenado: string } | null
   sort: CanaisSort; dir: 'asc' | 'desc'; sortNote: string; vpdUnit: string
-  rows: CanaisRow[]
-  /** Every own channel shown under the current niche scope, in the engine's order (R73); never sorted by the clicked column. */
-  own: { rows: CanaisRow[]; group: { label: string; parts: OwnGroupPart[] } | null; many: boolean }
-  groups: CanaisGroup[]
+  /** A lista única (A3): os canais próprios na posição deles entre os concorrentes, em qualquer filtro de nicho. */
+  list: CanaisLista
+  /** A coluna "Com o meu canal" (e o link dos cartões) existe só quando há um canal próprio com vídeos para comparar. */
+  compararColuna: boolean
+  /** O conjunto em que a posição é contada: o nicho escolhido, ou todos os canais do site (emenda 45). */
+  conjunto: Conjunto
+  /** O aviso da posição geral (emenda 45); null dentro de um nicho. */
+  conjuntoAviso: string | null
+  /** A frase sob a busca: a posição é a da lista inteira. */
+  buscaNota: string
+  /** O que o "de N" conta quando a lista mostra outra coisa (canal próprio sem nicho num nicho; filtro "só com problema"); null quando nada a explicar. */
+  posicaoNota: string | null
+  /** A linha presa no pé: fala do mesmo canal que o "Comparar" (`escolherPrincipal`). null sem canal próprio. */
+  pe: { canalId: string; texto: string } | null
+  /** O bloco "Seus canais" do topo; os canais próprios estão também na lista, na posição deles. */
+  own: { many: boolean; block: OwnBlock | null }
   drawer: DrawerView | null
   /** The URL asked for the drawer of a channel that is in another niche than the explicit filter: the screen drops ?channel=. */
   drawerDropped: boolean
@@ -148,6 +200,8 @@ export interface CanaisParams {
   sort?: string; dir?: string; nicheEditor?: string; unlockStep?: number
   /** ?niche= is in the URL (a click on the niche bar), not only the persisted preference. */
   nicheExplicit?: boolean
+  /** A escolha do dono para "o meu canal" (cookie `obs-meu-canal`, lido no servidor); `escolherPrincipal` decide com ela. Ausente = sem escolha. */
+  lembrado?: string | null
 }
 
 const pick = <T extends string>(v: string | undefined, ok: readonly T[], d: T): T => (v && (ok as readonly string[]).includes(v) ? (v as T) : d)
@@ -164,7 +218,11 @@ export function nicheOptions(obs: Observatory): NicheOption[] {
 
 export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const D = obs.date, F = obs.fmt, R = obs.RULES
-  const fmt = pick(p.fmt, ['long', 'short'] as const, 'long')
+  // `filtro` é o que a pessoa escolheu (Todos, Longos, Shorts); `fmt` é o formato que ordena e posiciona (Todos ordena pelos longos)
+  const fmtLido = parseCanaisFmt(p.fmt)
+  const filtro: CanaisFmt = fmtLido ?? FMT_PADRAO
+  const todos = filtro === 'todos'
+  const fmt: Fmt = fmtDaOrdem(filtro)
   const scale = p.scale === 'abs' ? 'abs' : 'per-mil'
   const rel = scale === 'per-mil'
   const layout = pick(p.layout, ['table', 'cards'] as const, 'table')
@@ -177,9 +235,10 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const nicheOpts = nicheOptions(obs), tabIdx = (n: Niche | null) => { const i = n == null ? -1 : nicheOpts.findIndex(o => o.id === n); return i < 0 ? nicheOpts.length : i }
   const stats = (id: string, f: Fmt = fmt) => obs.channelStats(id, f)
   const num = (n: number | null) => F.num(n).replace(/ (mil|mi)$/, NB + '$1')
+  /** Views por dia (absoluto OU por mil inscritos), no formato de todas as telas (spec 19.3, emenda 37; `vpdText`): abaixo de 10 uma casa, "menos de 0,1", "0" exato. */
+  const vpdAbs = (v: number) => (vpdText(v, F.num) ?? F.num(v)).replace(/ (mil|mi)$/, NB + '$1')
   const subsTxt = (n: number) => F.subs(n).replace(/ (mil|mi)$/, NB + '$1')
   const HIDDEN_ROW = 'Inscritos ocultos'
-  const fmtName = fmt === 'long' ? 'longos' : 'Shorts', one = fmt === 'long' ? 'vídeo longo' : 'Short'
   const abs = (t: number) => `${D.dmhm(t)} (São Paulo)`
   /** sync instants may be null (a channel that never synced OK): no date is invented */
   const absN = (t: number | null) => (t == null ? null : abs(t))
@@ -202,11 +261,12 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   }
   const outs = (c: ObsChannel, f: Fmt) => obs.outliers({ channel: c.id, fmt: f, niche: 'todos', includeOwn: c.own })
   const ch30 = (c: ObsChannel) => (c.own ? [] : obs.changesIn({ days: 30, channel: c.id }))
-  const groupsOf = (list: ObsChange[]) => {
+  /** `soTituloEThumb`: o resumo da coluna Trocas da lista não nomeia descrição (nem como par da mesma janela); o painel lateral, que lista cada evento, nomeia. */
+  const groupsOf = (list: ObsChange[], soTituloEThumb = false) => {
     const seen = new Set<string>(), gs: ObsChange[][] = []
     for (const x of list) {
       if (seen.has(x.id)) continue
-      const items = [x, ...x.sameWindow.map(id => obs.change(id)).filter((y): y is ObsChange => !!y)]
+      const items = [x, ...x.sameWindow.map(id => obs.change(id)).filter((y): y is ObsChange => !!y)].filter(i => !soTituloEThumb || contaComoTroca(i))
       items.forEach(i => seen.add(i.id)); gs.push(items)
     }
     return gs
@@ -236,6 +296,11 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   /* ---------------------------------------------------------------- own channels (canais.html:620-627) */
   const allOwns = obs.ownChannels() // R73: subscribers, largest first
   const many = allOwns.length > 1, T = ownTexts(many)
+  // "o meu canal" de "Comparar" e da linha presa no pé: a regra única `escolherPrincipal` (a escolha do dono, ou o canal de publicação mais
+  // recente; design D-C da 11c, no lugar da D16); sem ele não há com quem comparar
+  const principalId = principalDoMotor(obs, p.lembrado)
+  const principal = allOwns.find(o => o.id === principalId) ?? null
+  const candidatosN = allOwns.filter(o => obs.videos.some(v => v.ch === o.id)).length
 
   /* ---------------------------------------------------------------- slots */
   const { used, limit, free } = obs.channelSlots(p.limit)
@@ -272,59 +337,127 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
     const up = g.pct > 0
     return { kind: 'ok', up, big: `${up ? '+' : '−'}${F.dec1(Math.abs(g.pct * 100))}%`, cap: capText, title: 'Calculado sobre inscritos arredondados a 3 algarismos' }
   }
-  function rowOf(c: ObsChannel): CanaisRow {
-    const S = stats(c.id), bf = isBf(c), empty = ownLongEmpty(c) && fmt === 'long'
-    const k = obs.cadence(c.id, fmt), other = obs.cadence(c.id, fmt === 'long' ? 'short' : 'long')
+  /** Nome do formato nas frases e a unidade do ritmo. */
+  const wordOf = (f: Fmt) => (f === 'long' ? 'longos' : 'Shorts')
+  const oneOf = (f: Fmt) => (f === 'long' ? 'vídeo longo' : 'Short')
+  /** O que falta ao canal neste formato, para a segunda medida de "Todos": sem vídeo algum, ou sem Shorts. Nunca zero. */
+  const faltaShorts = (c: ObsChannel): { text: string; title: string } | null => {
+    if (!obs.videos.some(v => v.ch === c.id)) return { text: 'sem vídeos', title: 'O canal não tem vídeos guardados.' }
+    if (!obs.videos.some(v => v.ch === c.id && v.fmt === 'short')) return { text: 'sem Shorts', title: 'O canal não tem Shorts guardados.' }
+    return null
+  }
+  const SEM_FORMATO_TIP = 'Estes vídeos ainda não têm a marca de Short confirmada pelo YouTube. Até a confirmação, entram nos números dos longos.'
+
+  function cadenceCell(c: ObsChannel, f: Fmt, bf: boolean, empty: boolean, second: boolean): CadenceCell {
     const kl = obs.cadence(c.id, 'long'), ks = obs.cadence(c.id, 'short')
-    const cadence: CadenceCell = bf
-      ? { kind: 'na', text: 'Ritmo após a busca', title: kl.partialText ?? '' }
-      : {
-          kind: 'ok', weeks: kl.weeks.map((w, i) => ({ long: w.n, short: ks.weeks[i]?.n ?? 0 })),
-          label: `${kl.n} vídeos longos e ${ks.n} Shorts nas últimas 13 semanas`, pw: F.dec1(k.pw), unit: `${fmtName}/sem`,
-          sub: empty ? 'nenhum em 13 semanas' : c.activity.state === 'parado' ? null : other.pw ? `e ${F.dec1(other.pw)} ${fmt === 'long' ? 'Shorts' : 'longos'}/sem` : `sem ${fmt === 'long' ? 'Shorts' : 'longos'}`,
-          paused: !empty && c.activity.state === 'parado' && kl.lastUpload != null ? `Parado: último vídeo em ${D.dm(kl.lastUpload)}, ${nb(kl.lastUploadAgo ?? '')}` : null,
-        }
-    const v = vpdVal(S)
-    const vpd: VpdCell = bf
-      ? { kind: 'na', text: `1ª contagem ${D.dm(obs.NOW + obs.DAY)}`, title: `Primeira contagem diária de views amanhã, ${D.dm(obs.NOW + obs.DAY)}` }
-      : rel && S.vpdMedian != null && S.perMilSubs == null && c.subs == null
-        // the channel hides its subscriber count: per-thousand is undefined, point to the absolute scale instead of "nenhum acompanhado"
-        ? { kind: 'na', text: 'Inscritos ocultos: veja em Absoluto.', title: 'O canal não informa os inscritos; veja a escala Absoluto.' }
-        : v == null && c.own && S.tracked > 0
-        // the own channel's videos are tracked but the observatory keeps no daily views for them: never "nenhum acompanhado"
-        ? { kind: 'na', text: 'Sem views diárias do seu canal.', title: 'O observatório guarda a contagem diária de views só dos concorrentes.' }
-        // tracked videos of this format but no per-day median yet: say what is really missing (the engine's own wording,
-        // series.ts periodRate), never "nenhum acompanhado" with a title that contradicts it
-        : v == null && S.vpdMedian == null && videosOf(c.id).some(x => x.fmt === fmt && x.tracked)
-          ? { kind: 'na', text: 'Aguardando o 2º registro diário.', title: `${S.tracked} vídeos acompanhados; a média por dia precisa de dois registros diários` }
-          : v == null ? { kind: 'na', text: `Nenhum ${one} acompanhado.`, title: `${S.tracked} vídeos acompanhados` }
-        : { kind: 'ok', big: rel ? F.dec1(v) : num(v), abs: rel ? num(S.vpdMedian) : null, n: S.vpdN, weak: S.vpdN < R.weakBase, tail: empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : null }
-    let out: OutCell
-    const o = S.bestOutlier
-    if (bf) out = { kind: 'na', text: 'Após a busca', weak: null, upnext: null }
-    else if (empty) out = { kind: 'na', text: 'Nada para comparar sem vídeo longo recente.', weak: null, upnext: 'Planejar em Próximos' }
-    else if (!o) {
+    if (bf) return { kind: 'na', text: 'Ritmo após a busca', title: kl.partialText ?? '' }
+    if (second) {
+      const falta = faltaShorts(c)
+      if (falta) return { kind: 'na', text: falta.text, title: falta.title }
+    }
+    const k = f === 'long' ? kl : ks, other = f === 'long' ? ks : kl
+    return {
+      kind: 'ok', weeks: kl.weeks.map((w, i) => ({ long: w.n, short: ks.weeks[i]?.n ?? 0 })),
+      label: `${kl.n} vídeos longos e ${ks.n} Shorts nas últimas 13 semanas`, pw: F.dec1(k.pw), unit: `${wordOf(f)}/sem`,
+      // em "Todos" a outra medida mora na segunda linha da célula: a frase "e N Shorts/sem" seria a mesma coisa duas vezes
+      sub: empty ? 'nenhum em 13 semanas' : todos || c.activity.state === 'parado' || second ? null : other.pw ? `e ${F.dec1(other.pw)} ${wordOf(f === 'long' ? 'short' : 'long')}/sem` : `sem ${wordOf(f === 'long' ? 'short' : 'long')}`,
+      paused: !second && !empty && c.activity.state === 'parado' && kl.lastUpload != null ? `Parado: último vídeo em ${D.dm(kl.lastUpload)}, ${nb(kl.lastUploadAgo ?? '')}` : null,
+    }
+  }
+  function vpdCell(c: ObsChannel, f: Fmt, S: CStats, bf: boolean, empty: boolean, second: boolean): VpdCell {
+    const one = oneOf(f), v = vpdVal(S)
+    if (bf) return { kind: 'na', text: `1ª contagem ${D.dm(obs.NOW + obs.DAY)}`, title: `Primeira contagem diária de views amanhã, ${D.dm(obs.NOW + obs.DAY)}` }
+    if (second) {
+      const falta = faltaShorts(c)
+      if (falta) return { kind: 'na', text: falta.text, title: falta.title, falta: true }
+    }
+    // the channel hides its subscriber count: per-thousand is undefined, point to the absolute scale instead of "nenhum acompanhado"
+    if (rel && S.vpdMedian != null && S.perMilSubs == null && c.subs == null) return { kind: 'na', text: 'Inscritos ocultos: veja em Absoluto.', title: 'O canal não informa os inscritos; veja a escala Absoluto.' }
+    // the own channel's videos are tracked but the observatory keeps no daily views for them: never "nenhum acompanhado"
+    if (v == null && c.own && S.tracked > 0) return { kind: 'na', text: 'Sem views diárias do seu canal.', title: 'O observatório guarda a contagem diária de views só dos concorrentes.' }
+    // tracked videos of this format but no per-day median yet: say what is really missing (the engine's own wording,
+    // series.ts periodRate), never "nenhum acompanhado" with a title that contradicts it
+    if (v == null && S.vpdMedian == null && videosOf(c.id).some(x => x.fmt === f && x.tracked)) return { kind: 'na', text: 'Aguardando o 2º registro diário.', title: `${S.tracked} vídeos acompanhados; a média por dia precisa de dois registros diários` }
+    if (v == null) return { kind: 'na', text: `Nenhum ${one} acompanhado.`, title: `${S.tracked} vídeos acompanhados` }
+    return { kind: 'ok', big: vpdAbs(v), abs: rel && S.vpdMedian != null ? vpdAbs(S.vpdMedian) : null, n: S.vpdN, weak: S.vpdN < R.weakBase, tail: empty ? `, nenhum longo novo em 90${NB}d` : stale(c, S) ? ',' + stale(c, S) : null }
+  }
+  function outCell(c: ObsChannel, f: Fmt, S: CStats, bf: boolean, empty: boolean, second: boolean): OutCell {
+    const fmtName = wordOf(f), one = oneOf(f), o = S.bestOutlier
+    if (bf) return { kind: 'na', text: 'Após a busca', weak: null, upnext: null }
+    if (second) {
+      const falta = faltaShorts(c)
+      if (falta) return { kind: 'na', text: falta.text, weak: null, upnext: null, falta: true }
+    }
+    if (empty) return { kind: 'na', text: 'Nada para comparar sem vídeo longo recente.', weak: null, upnext: 'Planejar em Próximos' }
+    if (!o) {
       const top = S.maxMultBelowMin
-      out = !top ? { kind: 'na', text: `Não publicou ${fmtName} em 90${NB}d.`, weak: null, upnext: null }
+      return !top ? { kind: 'na', text: `Não publicou ${fmtName} em 90${NB}d.`, weak: null, upnext: null }
         : top.weak ? { kind: 'na', text: `Nenhum ${one} com ${R.outlierMin}× ou mais.`, weak: `Base fraca (${NEQ(top.n)}).`, upnext: null }
           : { kind: 'na', text: `Nenhum ${one} com ${R.outlierMin}× ou mais em 90${NB}d. Maior: ${top.label}.`, weak: null, upnext: null }
-    } else {
-      const m = o.mult, a = ageOf(o.video)
-      out = {
-        kind: 'ok', title: `${m.label ?? ''}. ${methodText(m)}; sem contar este vídeo.`, videoTitle: o.video.title, thumb: thumbOf(o.video),
-        mult: F.mult(m.value), tier: tier(m.value), vs: multVs(m), n: m.n, published: a.text, publishedTitle: a.title,
-        count: `${S.outliers90} ${S.outliers90 === 1 ? 'outlier' : 'outliers'} no canal`,
-      }
     }
-    const list = ch30(c), g = groupsOf(list)[0]
+    const m = o.mult, a = ageOf(o.video)
+    return {
+      kind: 'ok', title: `${m.label ?? ''}. ${methodText(m)}; sem contar este vídeo.`, videoTitle: o.video.title, thumb: thumbOf(o.video),
+      mult: F.mult(m.value), tier: tier(m.value), vs: multVs(m), n: m.n, published: a.text, publishedTitle: a.title,
+      count: `${S.outliers90} ${S.outliers90 === 1 ? 'outlier' : 'outliers'} no canal`,
+    }
+  }
+  /**
+   * O valor de cada coluna para ordenar. null = sem medida (nunca -1 nem -99): a linha vai para o fim em qualquer direção
+   * e não recebe posição. O canal próprio não tem trocas aqui (ficam no A/B Lab): null, não 0.
+   */
+  const valCache = new Map<string, Record<CanaisSort, number | null>>()
+  const semShortsDe = (c: ObsChannel) => fmt === 'short' && faltaShorts(c) != null
+  function valoresOf(c: ObsChannel): Record<CanaisSort, number | null> {
+    const hit = valCache.get(c.id)
+    if (hit) return hit
+    const S = stats(c.id), bf = isBf(c), semShorts = semShortsDe(c)
+    const v: Record<CanaisSort, number | null> = {
+      active: semShorts || bf ? null : obs.cadence(c.id, fmt).pw,
+      outliers: semShorts || bf ? null : S.outliers90,
+      growth: S.growth30.pending ? null : S.growth30.pct,
+      vpd: semShorts || bf ? null : vpdVal(S),
+      swaps: bf || c.own ? null : trocas30(obs, c.id), // a mesma conta do cabeçalho do canal e da comparação: título e thumbnail
+      subs: c.subs,
+    }
+    valCache.set(c.id, v)
+    return v
+  }
+  /** Por que o canal não tem posição na ordenação atual; null quando tem posição (ou, num concorrente, quando só falta a ordenação ter posição). */
+  function semMedidaOf(c: ObsChannel, S: CStats, valor: Record<CanaisSort, number | null>, pos: Posicao | null): MotivoSemMedida | null {
+    if (valor[sort] == null) {
+      return motivoSemValor({
+        sort, porMil: rel, bf: isBf(c), own: c.own, semVideos: !obs.videos.some(x => x.ch === c.id), semShorts: semShortsDe(c),
+        subsOcultos: c.subs == null, temMedianaAbsoluta: S.vpdMedian != null,
+        aguarda2o: obs.videos.some(x => x.ch === c.id && x.fmt === fmt && x.tracked),
+      })
+    }
+    if (pos || !c.own) return null
+    return temPosicao(sort) ? 'sem-nicho' : 'ordenacao-sem-posicao'
+  }
+
+  function rowOf(c: ObsChannel): CanaisRow {
+    const S = stats(c.id), bf = isBf(c), empty = ownLongEmpty(c) && fmt === 'long'
+    const k = obs.cadence(c.id, fmt)
+    const cadence = cadenceCell(c, fmt, bf, empty, false)
+    const vpd = vpdCell(c, fmt, S, bf, empty, false)
+    const out = outCell(c, fmt, S, bf, empty, false)
+    // "Todos": a segunda medida é a dos Shorts, calculada como em Shorts; nada é somado nem misturado
+    const S2 = todos ? stats(c.id, 'short') : null
+    const cells2 = S2 ? { cadence2: cadenceCell(c, 'short', bf, false, true), vpd2: vpdCell(c, 'short', S2, bf, false, true), out2: outCell(c, 'short', S2, bf, false, true) } : {}
+    const nulos = obs.videos.filter(x => x.ch === c.id && x.tracked && x.isShort == null).length
+    const trocas = c.own ? [] : trocasDe30(obs, c.id), g = groupsOf(trocas, true)[0]
     const swap: SwapCell = c.own ? { kind: 'na', text: 'Suas trocas ficam no A/B Lab.' }
       : bf ? { kind: 'na', text: 'Trocas são detectadas a partir de agora.' }
-        : { kind: 'ok', n: list.length, last: g ? groupText(g) : `nenhuma em 30${NB}d`, lastTitle: g ? `${g.map(i => i.whenText).join('; ')} (São Paulo)` : null }
+        : { kind: 'ok', n: trocas.length, last: g ? groupText(g) : `nenhuma de título ou thumbnail em 30${NB}d`, lastTitle: g ? `${g.map(i => i.whenText).join('; ')} (São Paulo)` : null }
     const growth = growthCell(c, S.growth30)
     const sync = syncCell(c, S)
     const outN = obs.outliers({ channel: c.id, fmt, includeOwn: c.own }).count
+    const valor = valoresOf(c), pos = posMap.get(c.id) ?? null
     return {
-      id: c.id, name: c.name, niche: c.niche, own: c.own, href: c.own ? null : obs.link.canal(c.id), lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
+      id: c.id, name: c.name, niche: c.niche, own: c.own, href: c.own ? null : obs.link.canal(c.id),
+      comparar: !c.own && principal ? { href: obs.link.comparar(principal.id, c.id), label: candidatosN > 1 ? `Comparar ${c.name} com o meu canal (${principal.name})` : `Comparar ${c.name} com o meu canal` } : null,
+      lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
       outliers: { n: outN, href: obs.link.outliers({ channel: c.id, fmt }) },
       changes: { n: c.own ? 0 : obs.changesIn({ channel: c.id }).length, href: obs.link.mudancas({ channel: c.id }) },
       growth: growth.kind === 'na' ? growth.text : growth.big, growthTitle: growth.kind === 'ok' ? growth.title : growth.kind === 'na' ? growth.title : growth.cap,
@@ -332,11 +465,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
       color: c.color, ini: c.ini, avatar: c.avatar ?? null, subs: c.subs == null ? HIDDEN_ROW : subsTxt(c.subs), url: c.url, handle: c.handle, backfill: bf, paused: c.activity.state === 'parado',
       subsTip: c.subs == null ? 'Este canal esconde a contagem de inscritos no YouTube.'
         : `O YouTube informa inscritos arredondados a 3 algarismos. ${subsTxt(c.subs)} pode estar ${stats(c.id, 'long').growth30.roundingText} do número real.`,
-      sortKeys: {
-        active: bf ? -1 : k.pw, outliers: bf ? -1 : S.outliers90, growth: S.growth30.pending ? -99 : S.growth30.pct ?? -99,
-        vpd: bf ? -1 : v ?? -1, swaps: bf ? -1 : list.length, subs: c.subs ?? -1,
-      },
-      cells: { cadence, vpd, out, swap, growth, sync },
+      valor, pos, semMedida: semMedidaOf(c, S, valor, pos),
+      cells: { cadence, vpd, out, swap, growth, sync, ...cells2 },
+      semFormato: nulos ? { n: nulos, label: `formato não confirmado (${nulos})`, tip: SEM_FORMATO_TIP } : null,
       cowork: coworkOf(c),
       syncOneText: {
         start: `Sincronizando ${c.name}…`, ok: `${c.name} sincronizado`, okBody: 'Dados atualizados agora.', fail: `${c.name} não sincronizou`,
@@ -350,8 +481,29 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const inNiche = (c: ObsChannel) => niche === 'todos' || c.niche === niche
   const comps = all.filter(c => !c.own && inNiche(c))
   const visible = comps.filter(c => filter !== 'problemas' || c.sync.state !== 'ok')
+  // O conjunto da posição (D11, emenda 45): o nicho escolhido, próprios incluídos, ou todos os canais do site. Vem ANTES do
+  // filtro "só com problema" e da busca: eles escondem linhas, nunca renumeram ninguém.
+  const conjunto: Conjunto = niche === 'todos' ? { tipo: 'geral' } : { tipo: 'nicho', niche, label: nicheLabel }
+  /**
+   * O valor de um canal como a célula o mostra (só as ordenações com posição). Sai do valor, não da linha: os vizinhos são
+   * os do conjunto inteiro, também os que o filtro "só com problema" esconde (a posição é a da lista inteira). É também a
+   * chave do empate: quem se escreve igual divide a posição.
+   */
+  const valorTxt = (c: ObsChannel) => {
+    const x = valoresOf(c)[sort]!
+    return sort === 'subs' ? subsTxt(x) : vpdAbs(x)
+  }
+  const posMap: Map<string, Posicao | null> = temPosicao(sort)
+    ? posicoes(all.filter(inNiche).map(c => { const x = valoresOf(c)[sort]; return { id: c.id, x, chave: x == null ? undefined : valorTxt(c) } }))
+    : new Map()
   const sgn = dir === 'desc' ? 1 : -1
-  const compRows = visible.map(rowOf).sort((a, b) => (b.sortKeys[sort] - a.sortKeys[sort]) * sgn)
+  // sem valor (null) vai para o fim em qualquer direção; a ordem entre os que têm valor é a de sempre
+  const byKey = (a: CanaisRow, b: CanaisRow) => {
+    const x = a.valor[sort], y = b.valor[sort]
+    if (x == null || y == null) return x == null && y == null ? 0 : x == null ? 1 : -1
+    return (y - x) * sgn
+  }
+  const compRows = visible.map(rowOf).sort(byKey)
   // own channels: in Todos, all of them; in a niche, the ones of that niche and the ones still without a niche
   const ownShown = allOwns.filter(c => niche === 'todos' || c.niche == null || c.niche === niche)
   const ownNone = ownShown.filter(c => c.niche == null).length, ownIn = ownShown.length - ownNone, ownHidden = allOwns.length - ownShown.length
@@ -361,27 +513,55 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   if (ownNone) ownParts.push({ num: null, text: `${ownNone} sem nicho: escolha o nicho na linha do canal`, warn: true })
   if (ownHidden) ownParts.push({ num: null, text: `${ownHidden} em outro nicho (${ownHidden === 1 ? 'aparece' : 'aparecem'} em Todos)`, warn: false })
   ownParts.push({ num: null, text: 'fora do limite de concorrentes', warn: false })
-  const ownGroup = allOwns.length && (many || ownShown.length !== allOwns.length || ownNone > 0) ? { label: 'Seus canais', parts: ownParts } : null
   const ownRows = ownShown.map(rowOf)
-  // Todos: one group per niche of the site, in the tab order, and "Sem nicho" last (a group without rows is not drawn)
-  const groupKeys: Array<[Niche | 'sem', string]> = niche === 'todos' ? [...nicheOpts.map((o): [Niche, string] => [o.id, o.label]), ['sem', 'Sem nicho']] : [[niche, NL(niche)]]
-  const groups: CanaisGroup[] = groupKeys.map(([key, label]) => {
-    const rows = compRows.filter(r => (key === 'sem' ? r.niche == null : r.niche === key))
-    const chs = rows.map(r => obs.channel(r.id)!)
-    const n = (f: (c: ObsChannel) => boolean) => chs.filter(f).length
-    const flags: CanaisGroup['flags'] = []
-    const e = n(c => c.sync.state === 'erro'), l = n(c => c.sync.state === 'atrasado'), b = n(isBf), pz = n(c => c.activity.state === 'parado')
-    if (e) flags.push({ kind: 'erro', text: `${e} com erro de sincronização` })
-    if (l) flags.push({ kind: 'atrasado', text: `${l} com sincronização atrasada` })
-    if (b) flags.push({ kind: 'backfill', text: `${b} buscando vídeos` })
-    if (pz) flags.push({ kind: 'parado', text: `${pz} parado` })
-    return { key, label, color: key === 'sem' ? null : nicheOpts.find(o => o.id === key)?.color ?? null, count: F.plural(rows.length, 'canal', 'canais'), flags, rows }
-  }).filter(g => g.rows.length)
 
+  /* ---------------------------------------------------------------- lista única (A3): os canais próprios na posição deles */
+  const ordemDoMotor = new Map(all.map((c, i) => [c.id, i]))
+  const baseLista = [...ownRows, ...compRows].sort((a, b) => ordemDoMotor.get(a.id)! - ordemDoMotor.get(b.id)!) // estável nos empates
+  const ranked = baseLista.filter(r => r.valor[sort] != null).sort(byKey)
+  // o fim da lista, sempre: concorrentes antes dos próprios, e dentro de cada grupo os maiores inscritos primeiro
+  const subsDesc = (a: CanaisRow, b: CanaisRow) => (a.valor.subs == null || b.valor.subs == null ? (a.valor.subs == null ? 1 : 0) - (b.valor.subs == null ? 1 : 0) : b.valor.subs - a.valor.subs)
+  const unranked = baseLista.filter(r => r.valor[sort] == null).sort((a, b) => (a.own ? 1 : 0) - (b.own ? 1 : 0) || subsDesc(a, b))
+  const emDaOrdem = emTexto(sort, fmt, rel)
+  const list: CanaisLista = { ranked, unranked, divisor: unranked.length ? divisorDe(unranked.length, emDaOrdem) : null }
+  const fila = temPosicao(sort) ? all.filter(c => inNiche(c) && valoresOf(c)[sort] != null).sort((a, b) => (valoresOf(b)[sort]! - valoresOf(a)[sort]!) * sgn) : []
+  const fraseDe = (r: CanaisRow): { frase: string; vizinhos: string | null } => {
+    const c = obs.channel(r.id)!
+    if (!r.pos) return { frase: r.semMedida ? motivoTexto(r.semMedida) : '', vizinhos: null } // sem motivo seria erro do modelo (testado): nunca inventa um
+    const i = fila.findIndex(x => x.id === r.id), ac = fila[i - 1], ab = fila[i + 1]
+    return {
+      frase: fraseDePosicao(r.pos, conjunto, emDaOrdem, valorTxt(c)),
+      vizinhos: fraseVizinhos(ac ? { nome: ac.name, valor: valorTxt(ac) } : null, ab ? { nome: ab.name, valor: valorTxt(ab) } : null),
+    }
+  }
+  const temVideos = (id: string) => obs.videos.some(x => x.ch === id)
+  const ownBlock: OwnBlock | null = allOwns.length ? {
+    titulo: many ? 'Seus canais' : 'Seu canal',
+    linhas: ownRows.map((r): OwnBlockLinha => {
+      if (!temVideos(r.id)) return { tipo: 'fina', id: r.id, texto: `${r.name}: sem vídeos, fora das posições por vídeo.` }
+      const { frase, vizinhos } = fraseDe(r)
+      return { tipo: 'cheia', id: r.id, name: r.name, avatar: r.avatar, ini: r.ini, color: r.color, pos: r.pos, frase, vizinhos, abrirHref: ownChannelHref(r.id) }
+    }),
+    partes: ownParts,
+  } : null
+  // a linha presa no pé fala do mesmo canal que o "Comparar" (a regra única), com a frase curta (sem os vizinhos)
+  // o que o "de N" conta quando a lista mostra outra coisa: o canal próprio sem nicho (fora do conjunto de um nicho) e o filtro "só com problema"
+  const semNichoNaLista = niche !== 'todos' ? ownRows.filter(r => r.niche == null) : []
+  const posicaoNotas: string[] = []
+  if (temPosicao(sort)) {
+    if (semNichoNaLista.length) posicaoNotas.push(`A posição conta só os canais de ${nicheLabel}; ${semNichoNaLista.length === 1 ? 'o seu canal sem nicho aparece' : `os seus ${semNichoNaLista.length} canais sem nicho aparecem`} na lista, sem posição.`)
+    if (filter === 'problemas') posicaoNotas.push(PROBLEMAS_NOTA)
+  }
+  // o principal pode estar fora da lista (filtro de nicho de outro canal): a linha presa então fala do canal próprio que a lista mostra, pela mesma regra
+  // (I-11c-1); sem isso ela some, e "Ir até a linha" só pode apontar para uma linha que existe
+  const peRow = principal
+    ? ownRows.find(r => r.id === principal.id) ?? ownRows.find(r => r.id === escolherPrincipal(linhasDoMotor(obs).filter(l => ownRows.some(o => o.id === l.id)), p.lembrado, obs.NOW))
+    : undefined
+  const pe = peRow ? { canalId: peRow.id, texto: `seu canal · ${fraseDe(peRow).frase}` } : null
   const np = comps.filter(c => c.sync.state !== 'ok').length
   // F4: competitors with no niche are invisible in a niche tab; say how many and point at the niche editor (same exit as Insights R78)
   const unniched = niche !== 'todos' ? all.filter(c => !c.own && c.niche == null).length : 0
-  const nicheLink = unniched ? { text: unniched === 1 ? 'defina o nicho dele' : 'defina o nicho deles', href: obs.link.canais({ nicheEditor: 1 }) } : null
+  const nicheLink = unniched ? { text: unniched === 1 ? 'defina o nicho dele' : 'defina o nicho deles', href: obs.link.canais({ nicheEditor: 1, fmt: filtro }) } : null
   const emptyFirst = `Nenhum ${ownRows.length ? 'concorrente' : 'canal'}${niche !== 'todos' ? ` em ${nicheLabel}` : ''}.`
   const emptyText = filter === 'problemas'
     ? `Nenhum canal com problema de sincronização${niche !== 'todos' ? ` em ${nicheLabel}` : ''}.`
@@ -420,7 +600,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
         syncStat,
       ]
     } else {
-      const vAbs = S.vpdMedian != null ? num(S.vpdMedian) : '—', vRel = S.perMilSubs != null ? F.dec1(S.perMilSubs) : '—', g = S.growth30
+      const vAbs = S.vpdMedian != null ? vpdAbs(S.vpdMedian) : '—', vRel = S.perMilSubs != null ? vpdAbs(S.perMilSubs) : '—', g = S.growth30
       const until = c.sync.state !== 'ok' && g.to != null ? ', até ' + D.dmhm(g.to) : ''
       statsV = [
         { label: `Ritmo, 13${NB}sem`, labelTitle: null, value: `${F.dec1(kl.pw)} + ${F.dec1(ks.pw)}`,
@@ -541,15 +721,18 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams): CanaisView {
   const t = R.tiers
   return {
     ...forjaOf(obs, niche, drawer),
-    slots, scale, fmt, layout, sort, dir,
-    sortNote: `Ordenado por ${SORTNAME[sort]}${sort === 'vpd' ? (rel ? ' por mil inscritos' : ' em número absoluto') : ''}, ${dir === 'desc' ? 'maior' : 'menor'} primeiro${many ? '; os seus canais ficam sempre no topo' : ''}`,
+    list, conjunto, conjuntoAviso: conjunto.tipo === 'geral' ? CONJUNTO_AVISO : null, buscaNota: BUSCA_NOTA, posicaoNota: posicaoNotas.length ? posicaoNotas.join(' ') : null, pe,
+    slots, scale, fmt: filtro, fmtNaUrl: fmtLido != null, layout, sort, dir,
+    fmtNota: filtro === 'todos' ? 'Longos e Shorts lado a lado, sem mediana única (views de Short e de longo não se comparam); ordem pelos longos.'
+      : filtro === 'shorts' ? 'Só Shorts; quem não publica Shorts fica no fim da lista.' : null,
+    fmtCab: todos ? { dois: 'longos em cima, Shorts embaixo', ordenado: 'ordenado pelos longos' } : null,
+    sortNote: `Ordenado por ${SORTNAME[sort]}${sort === 'vpd' ? (rel ? ' por mil inscritos' : ' em número absoluto') : ''}, ${dir === 'desc' ? 'maior' : 'menor'} primeiro${todos && (sort === 'vpd' || sort === 'active' || sort === 'outliers') ? '; ordenado pelos longos' : ''}`,
     vpdUnit: rel ? `por mil inscritos, mediana ${window}` : `mediana dos vídeos, ${window}`,
-    // the problems filter lists only channels in trouble; the screen still pins the own rows on top (own.rows)
-    rows: [...(filter !== 'problemas' ? ownRows : []), ...compRows],
-    own: { rows: ownRows, group: ownGroup, many },
-    groups, drawer, drawerDropped, filter, addOpen: p.add === '1', nicheEditorOpen: p.nicheEditor === '1',
+    own: { many, block: ownBlock },
+    compararColuna: principal != null,
+    drawer, drawerDropped, filter, addOpen: p.add === '1', nicheEditorOpen: p.nicheEditor === '1',
     niche, nicheLabel,
-    problems: { n: np, filterHref: obs.link.canais({ filter: 'problemas' }), clearHref: obs.link.canais() },
+    problems: { n: np, filterHref: obs.link.canais({ filter: 'problemas', fmt: filtro }), clearHref: obs.link.canais({ fmt: filtro }) },
     emptyText, emptyLink,
     legend: { mid: `${t.mid}–${t.high}×`, high: `${t.high}–${t.top}×`, top: `${t.top}×+` },
     add: {
@@ -609,10 +792,11 @@ function forjaOf(obs: Observatory, niche: NicheScope, drawer: DrawerView | null)
     button = { ...button, label: 'Pedido em andamento', disabled: true }
     const fr = niche === 'todos' ? (forja.ask?.niches ?? []).filter(x => x !== n) : []
     if (fr.length) { const L = joinLabels(fr.map(NL)); why += ' O pedido de ' + NLn + ' está em andamento; ' + L + (fr.length > 1 ? ' estão livres.' : ' está livre.'); free = { label: 'Pedir leitura de ' + L, niches: fr } }
-  } else if (q && q.state === 'publicado') {
+  } else if (!obs.forja.novidade(type, n).pode) {
+    // a leitura já usa o dado mais recente: só se pede de novo quando houver dado novo (forja/novidade.ts), a mesma função do servidor e das abas,
+    // com ou sem pedido na janela do dia (o pedido ativo já saiu antes pelo ramo RUNNING)
     button = { ...button, disabled: true }
-    const qn = sc.quota.byNiche?.[n]
-    why += ' ' + NLn + ': ' + (qn ? qn.text : sc.quota.text) + '.'
+    why += ' ' + semNovidadeText('de ' + NLn)
   }
   return { forja, forjaBar, drawerForja: { niche: n, head, lines: split, chip, stateText, readingHref, why, button, free } }
 }

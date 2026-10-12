@@ -95,8 +95,8 @@
 
 /* table */
 [data-obs-screen="canais"] .tablebox{position:relative;border:1px solid var(--border);border-radius:9px;background:var(--surface);overflow-x:auto}
-[data-obs-screen="canais"] table{border-collapse:collapse;width:100%;min-width:1080px}
-[data-obs-screen="canais"] th,[data-obs-screen="canais"] td{text-align:left;vertical-align:middle;padding:9px 8px;border-bottom:1px solid var(--border-subtle)}
+[data-obs-screen="canais"] table{border-collapse:collapse;width:100%;min-width:940px}
+[data-obs-screen="canais"] th,[data-obs-screen="canais"] td{text-align:left;vertical-align:middle;padding:9px 6px;border-bottom:1px solid var(--border-subtle)}
 [data-obs-screen="canais"] thead th{font-weight:500;font-size:12px;color:var(--muted);background:var(--surface-2);vertical-align:bottom;line-height:1.3}
 [data-obs-screen="canais"] thead th .unit{display:block;color:var(--muted);font-weight:400;font-size:11.5px}
 [data-obs-screen="canais"] th.sortable button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;min-height:32px;margin:-4px 0;color:var(--muted);font-weight:500}
@@ -109,21 +109,18 @@
 [data-obs-screen="canais"] tbody tr.row{cursor:pointer}
 [data-obs-screen="canais"] tbody tr.row:hover td{background:var(--surface-hover)}
 [data-obs-screen="canais"] tbody tr.row.sel td{background:var(--accent-subtle)}
-[data-obs-screen="canais"] td:first-child,[data-obs-screen="canais"] th:first-child{position:sticky;left:0;z-index:1}
-[data-obs-screen="canais"] thead th:first-child{z-index:2;background:var(--surface-2)}
+[data-obs-screen="canais"] td:first-child,[data-obs-screen="canais"] th:first-child,[data-obs-screen="canais"] .tablebox tbody td:nth-child(2),[data-obs-screen="canais"] .tablebox thead th:nth-child(2){position:sticky;left:0;z-index:1}
+[data-obs-screen="canais"] thead th:first-child,[data-obs-screen="canais"] .tablebox thead th:nth-child(2){z-index:2;background:var(--surface-2)}
 [data-obs-screen="canais"] tbody td:first-child{background:var(--surface)}
 [data-obs-screen="canais"] tbody tr.row:hover td:first-child{background:var(--surface-hover)}
-[data-obs-screen="canais"] tr.group td{background:var(--surface-2);padding:7px 0;font-size:12.5px;color:var(--muted);border-bottom:1px solid var(--border)}
-[data-obs-screen="canais"] .cardsep .gin{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
 [data-obs-screen="canais"] tr.group .gin{position:sticky;left:0;display:inline-flex;align-items:center;gap:8px;padding:0 12px;flex-wrap:wrap}
 [data-obs-screen="canais"] tr.group strong{color:var(--text);font-weight:600}
-[data-obs-screen="canais"] tr.group .flag{display:inline-flex;align-items:center;gap:4px}
 [data-obs-screen="canais"] tr.you td{background:var(--you-row)}
 [data-obs-screen="canais"] tr.you td:first-child{box-shadow:inset 3px 0 0 var(--you);background:var(--you-cell)}
 [data-obs-screen="canais"] tr.you:hover td{background:var(--you-row)}
 [data-obs-screen="canais"] tr.you:hover td:first-child{background:var(--you-cell)}
 
-[data-obs-screen="canais"] .ch{display:flex;gap:10px;align-items:center;min-width:205px}
+[data-obs-screen="canais"] .ch{display:flex;gap:10px;align-items:center;min-width:180px}
 [data-obs-screen="canais"] .av{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:12px;color:#fff;letter-spacing:-.02em}
 [data-obs-screen="canais"] .nmbtn{all:unset;cursor:pointer;font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;display:block;min-height:32px;line-height:32px;margin:-5px 0}
 [data-obs-screen="canais"] .avlink{display:contents}
@@ -138,8 +135,6 @@
    variáveis vêm no style do elemento (niche-editor.tsx nicheStyle); o preenchimento é rgba literal, nunca color-mix. */
 [data-obs-screen="canais"] .niche.custom{background-color:var(--obs-sw-dark-subtle);color:var(--obs-sw-dark)}
 [data-theme="light"] [data-obs-screen="canais"] .niche.custom{background-color:var(--obs-sw-light-subtle);color:var(--obs-sw-light)}
-[data-obs-screen="canais"] .dot.custom{--obs-niche:var(--obs-sw-dark)}
-[data-theme="light"] [data-obs-screen="canais"] .dot.custom{--obs-niche:var(--obs-sw-light)}
 [data-obs-screen="canais"] .niche option{color:#231C14;background:#FBF7F0}
 [data-obs-screen="canais"] .youtag,[data-obs-screen="canais"] .langtag{white-space:nowrap;flex:none}
 [data-obs-screen="canais"] .nmrow{display:flex;align-items:center;gap:7px;min-width:0;max-width:163px}
@@ -151,7 +146,7 @@
 [data-obs-screen="canais"] .youtag{font-size:12px;font-weight:600;color:var(--youtag-text);background:var(--youtag-bg);border:1px solid var(--youtag-border);border-radius:5px;padding:0 8px;height:24px;display:inline-flex;align-items:center}
 
 /* cadence strip */
-[data-obs-screen="canais"] .cad{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:135px}
+[data-obs-screen="canais"] .cad{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:130px}
 [data-obs-screen="canais"] .cad svg{flex:none;display:block}
 [data-obs-screen="canais"] .cad .v{font-size:13px;white-space:nowrap}
 [data-obs-screen="canais"] .cad .v .u{font-size:12px;color:var(--muted)}
@@ -162,10 +157,10 @@
 [data-obs-screen="canais"] .big{font-size:14px;font-weight:500}
 [data-obs-screen="canais"] .cap{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap}
 [data-obs-screen="canais"] .weak{color:var(--warning-text)}
-[data-obs-screen="canais"] .out{display:flex;align-items:center;gap:8px;min-width:200px}
+[data-obs-screen="canais"] .out{display:flex;align-items:center;gap:8px;min-width:188px}
 [data-obs-screen="canais"] .out .thumb{width:64px}
-[data-obs-screen="canais"] .out .cap{white-space:normal;max-width:150px}
-[data-obs-screen="canais"] .out .t{font-size:12.5px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:150px}
+[data-obs-screen="canais"] .out .cap{white-space:normal;max-width:128px}
+[data-obs-screen="canais"] .out .t{font-size:12.5px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:128px}
 
 /* thumbnails: 2 solid blocks, big caps text, silhouette */
 [data-obs-screen="canais"] .thumb{display:block;position:relative;width:80px;aspect-ratio:16/9;border-radius:4px;overflow:hidden;flex:none;container-type:inline-size;}
@@ -181,14 +176,14 @@
 [data-obs-screen="canais"] .thumb.ph{display:grid;place-items:center;background:var(--surface-2);border:1px dashed var(--border-strong);color:var(--muted);font-size:11.5px;text-align:center;padding:6px;line-height:1.3}
 [data-obs-screen="canais"] .mult{font-weight:600;font-size:13px}
 [data-obs-screen="canais"] .mult.mid{color:var(--mid)}[data-obs-screen="canais"] .mult.high{color:var(--high)}[data-obs-screen="canais"] .mult.top{color:var(--top)}
-[data-obs-screen="canais"] .swap{min-width:120px;max-width:160px}
+[data-obs-screen="canais"] .swap{min-width:104px;max-width:160px}
 [data-obs-screen="canais"] .swap .k{font-size:14px;font-weight:500}
 [data-obs-screen="canais"] .swap .last{font-size:12px;color:var(--muted);line-height:1.3}
 [data-obs-screen="canais"] .grow .up{color:var(--success)}
 [data-obs-screen="canais"] .grow .down{color:var(--danger-text)}
 [data-obs-screen="canais"] .grow .flat{color:var(--muted)}
 
-[data-obs-screen="canais"] .sync{min-width:160px;max-width:185px}
+[data-obs-screen="canais"] .sync{min-width:140px;max-width:185px}
 [data-obs-screen="canais"] .sync .st{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;font-weight:500}
 [data-obs-screen="canais"] .sync .st .ico,[data-obs-screen="canais"] .sync .st .dot{margin-top:3px}
 [data-obs-screen="canais"] .sync .cov{font-size:11.5px;color:var(--muted);margin-top:1px}
@@ -217,7 +212,7 @@
 [data-obs-screen="canais"] .legend i.e{width:3px;height:2px;background:var(--strip-empty)}
 
 /* cards alt view */
-[data-obs-screen="canais"] .cards{display:none;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+[data-obs-screen="canais"] .cards{display:none;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
 [data-obs-screen="canais"] .view-cards .cards{display:grid}
 [data-obs-screen="canais"] .view-cards .tablebox{display:none}
 @media (min-width:1280px){[data-obs-screen="canais"].drawer-open table{min-width:0}[data-obs-screen="canais"].drawer-open .out .thumb,[data-obs-screen="canais"].drawer-open .cad small{display:none}[data-obs-screen="canais"].drawer-open .out{min-width:120px}[data-obs-screen="canais"].drawer-open .ch{min-width:140px}[data-obs-screen="canais"].drawer-open .ch .sub{flex-wrap:wrap;row-gap:4px}[data-obs-screen="canais"].drawer-open .cad{min-width:104px}[data-obs-screen="canais"].drawer-open .cad > svg{width:104px;height:auto}[data-obs-screen="canais"].drawer-open .cad .v,[data-obs-screen="canais"].drawer-open .cad .paused{white-space:normal}[data-obs-screen="canais"].drawer-open .paused{max-width:118px}[data-obs-screen="canais"].drawer-open thead th,[data-obs-screen="canais"].drawer-open thead th *{white-space:normal}[data-obs-screen="canais"].drawer-open .swap{min-width:100px}[data-obs-screen="canais"].drawer-open th,[data-obs-screen="canais"].drawer-open td{padding-left:10px;padding-right:10px}}
@@ -370,3 +365,96 @@
 [data-obs-screen="canais"] .modal .fx-remove .acts{position:sticky;bottom:0;margin:0 -20px;padding:12px 20px 20px;background:var(--surface);border-top:1px solid var(--border-subtle)}
 [data-obs-screen="canais"] .modal .btn[aria-disabled="true"],[data-obs-screen="canais"] .modal .btn[aria-disabled="true"]:hover,[data-obs-screen="canais"] .modal .btn[aria-disabled="true"]:active{cursor:not-allowed;background:transparent;border-style:dashed;border-color:var(--border-strong);color:var(--muted)}
 @media (pointer:coarse){[data-obs-screen="canais"] .modal .fx-remove .acts .btn.btn{min-height:44px}}
+
+/* ============================================================ A3.1: filtro de formato (Todos | Longos | Shorts), forma de M/canais.css (rodada 12) */
+[data-obs-screen="canais"] .cn-fnota{margin:-4px 0 10px;font-size:12.5px;line-height:18px;color:var(--muted)}
+/* "Todos": duas medidas por célula, uma sobre a outra; o rótulo sobe para o cabeçalho (só o leitor de tela o ouve na tabela) */
+[data-obs-screen="canais"] .fm{display:flex;justify-content:flex-start;align-items:baseline;gap:6px;line-height:16px;white-space:nowrap}
+[data-obs-screen="canais"] td.r .fm{justify-content:flex-end}
+[data-obs-screen="canais"] .fm .cap2{font-size:12px;color:var(--muted)}
+[data-obs-screen="canais"] .fm .ressalva{display:block;color:var(--warning-text);white-space:normal}
+[data-obs-screen="canais"] .fm .nd{font-size:12px;color:var(--muted);white-space:normal;max-width:190px;line-height:1.35}
+[data-obs-screen="canais"] .fl{font-size:12px;line-height:16px;color:var(--dim)}
+[data-obs-screen="canais"] .cad .v .fm + .fm,[data-obs-screen="canais"] .cad .v .fm + small{margin-top:1px}
+[data-obs-screen="canais"] table.todos th,[data-obs-screen="canais"] table.todos td{padding-top:3px;padding-bottom:3px}
+[data-obs-screen="canais"] table.todos td.dois{padding-top:4px;padding-bottom:4px}
+[data-obs-screen="canais"] table.todos thead th{padding-top:6px;padding-bottom:6px}
+[data-obs-screen="canais"] thead th .unit.cab-fmt{font-size:12px;white-space:normal;max-width:150px;color:var(--muted)}
+[data-obs-screen="canais"] thead th .unit.cab-fmt strong{color:var(--text);font-weight:600}
+/* os cartões não têm cabeçalho de coluna: o rótulo é visível e quebra junto com o número, nunca para fora do cartão */
+[data-obs-screen="canais"] .card .fm{flex-wrap:wrap;white-space:normal;gap:0 6px}
+/* "formato não confirmado (N)": mora na linha do canal, com a dica na camada flutuante */
+[data-obs-screen="canais"] .ch .sub.semfmt{font-size:12px;color:var(--warning-text)}
+
+/* ---------------------------------------------------------------- A3: posição, bloco "Seus canais", divisor e linha presa no pé */
+/* a coluna da posição é a primeira e fica presa (a regra de th/td:first-child já a prende); o nome fica preso ao lado dela */
+[data-obs-screen="canais"]{--cn-pos-w:32px}
+[data-obs-screen="canais"] table th.p,[data-obs-screen="canais"] table td.p{width:var(--cn-pos-w);min-width:var(--cn-pos-w);text-align:right;color:var(--muted);font-size:12.5px;padding-left:6px;padding-right:2px;white-space:nowrap}
+[data-obs-screen="canais"] table td.p .sr + [aria-hidden]{color:var(--dim)}
+[data-obs-screen="canais"] tbody tr.you td.p{color:var(--text)}
+[data-obs-screen="canais"] .tablebox thead th:nth-child(2),[data-obs-screen="canais"] .tablebox tbody td:nth-child(2){left:var(--cn-pos-w)}
+[data-obs-screen="canais"] .tablebox tbody td:nth-child(2){background:var(--surface)}
+[data-obs-screen="canais"] .tablebox tbody tr.row:hover td:nth-child(2){background:var(--surface-hover)}
+[data-obs-screen="canais"] .tablebox tr.you td:nth-child(2),[data-obs-screen="canais"] .tablebox tr.you:hover td:nth-child(2){background:var(--you-cell)}
+[data-obs-screen="canais"] tr.row:focus-visible,[data-obs-screen="canais"] .card:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+/* o divisor "Ainda sem medida para ordenar (N)" é uma linha de grupo */
+[data-obs-screen="canais"] tr.group th{background:var(--surface-2);padding:7px 0;font-size:12.5px;font-weight:400;color:var(--muted);border-bottom:1px solid var(--border);text-align:left}
+[data-obs-screen="canais"] tr.group th .gin{position:sticky;left:0;display:inline-flex;align-items:baseline;gap:8px;padding:0 12px;flex-wrap:wrap}
+[data-obs-screen="canais"] tr.group th strong,[data-obs-screen="canais"] .cardsep strong{color:var(--text);font-weight:600}
+[data-obs-screen="canais"] tr.group th small,[data-obs-screen="canais"] .cardsep small{font-size:12.5px;font-weight:400;color:var(--muted)}
+/* o cartão: a posição no canto e a frase do canal próprio */
+[data-obs-screen="canais"] .card{position:relative}
+[data-obs-screen="canais"] .card .cp{position:absolute;top:12px;right:14px;font-size:12.5px;color:var(--muted)}
+[data-obs-screen="canais"] .card .voce{margin:0;font-size:13px;line-height:18px;color:var(--text)}
+/* bloco "Seus canais": a mesma superfície da tabela, o selo laranja e um fio à esquerda; uma linha por canal próprio */
+[data-obs-screen="canais"] .cn-top{margin:0 0 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--surface);box-shadow:inset 2px 0 0 var(--accent);padding:8px 12px 8px 14px}
+[data-obs-screen="canais"] .cn-top h2{margin:0 0 2px;font:500 12px/18px var(--sans, inherit);color:var(--muted)}
+[data-obs-screen="canais"] .cn-top ul{list-style:none;margin:0;padding:0}
+[data-obs-screen="canais"] .cn-top li{display:grid;grid-template-columns:26px minmax(150px,auto) minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:6px 0}
+[data-obs-screen="canais"] .cn-top li + li{border-top:1px solid var(--border-subtle)}
+[data-obs-screen="canais"] .cn-top li .av{width:26px;height:26px;font-size:11.5px}
+[data-obs-screen="canais"] .cn-top li.fina{display:block;padding:3px 0 3px 38px}
+[data-obs-screen="canais"] .cn-top li.fina p{margin:0;font-size:13px;line-height:20px;color:var(--muted)}
+[data-obs-screen="canais"] .cn-top .tn{display:flex;align-items:center;gap:8px;min-width:0;font-weight:500;white-space:nowrap;color:var(--text)}
+[data-obs-screen="canais"] .cn-top .tp{margin:0;font-size:13px;line-height:19px;color:var(--muted);min-width:0}
+[data-obs-screen="canais"] .cn-top .tp b{color:var(--text);font-weight:600}
+[data-obs-screen="canais"] .cn-top .ta{display:flex;gap:8px;justify-content:flex-end}
+[data-obs-screen="canais"] .cn-top .cn-own{margin:6px 0 0;font-size:12.5px;line-height:18px;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 10px}
+[data-obs-screen="canais"] .cn-top .flag{display:inline-flex;align-items:center;gap:4px}
+[data-obs-screen="canais"] .lk{all:unset;cursor:pointer;font-size:12.5px;color:var(--text);text-decoration:underline;text-decoration-color:var(--border-strong);text-underline-offset:3px;min-height:24px;display:inline-flex;align-items:center}
+[data-obs-screen="canais"] .lk:hover{text-decoration-color:var(--text)}
+[data-obs-screen="canais"] .lk:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+@media (max-width:1100px){
+  [data-obs-screen="canais"] .cn-top li{grid-template-columns:26px minmax(0,1fr) auto}
+  [data-obs-screen="canais"] .cn-top .tp{grid-column:1/-1;grid-row:2}
+}
+@media (max-width:600px){
+  [data-obs-screen="canais"] .cn-top li{grid-template-columns:26px minmax(0,1fr)}
+  [data-obs-screen="canais"] .cn-top .ta{grid-column:1/-1;justify-content:flex-start;flex-wrap:wrap}
+}
+/* linha presa no pé, fina (30 px): só quando nem o bloco do topo nem a linha do canal estão na tela. Fica depois da legenda: ao fim
+   da rolagem ocupa o lugar dela e não cobre a última linha da tabela */
+[data-obs-screen="canais"] .cn-pin{position:sticky;bottom:10px;margin-top:10px;min-height:30px;display:flex;align-items:center;gap:4px 14px;flex-wrap:wrap;padding:3px 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-2);box-shadow:var(--shadow);font-size:12.5px;z-index:var(--z-grudado)}
+[data-obs-screen="canais"] .cn-pin[hidden]{display:none}
+/* o Tab não deixa o foco sob a linha presa: o navegador só rola para revelar o que está fora da área, e um controle na faixa que a linha presa cobre
+   já "está à vista". A margem faz o Tab levá-lo para cima da faixa. O valor é a altura REAL da linha presa (e do respiro da casca sob ela), escrito
+   pelo componente em --cn-pin-cobre enquanto ela está à vista; escondida ou inexistente, é 0 e o Tab não rola à toa. */
+[data-obs-screen="canais"] :is(.tablebox, .cards) :is(a, button, select, input, [tabindex]){scroll-margin-bottom:var(--cn-pin-cobre,0px)}
+[data-obs-screen="canais"] .cn-pin p{margin:0;flex:1 1 280px;min-width:0;color:var(--muted)}
+
+/* A3 Tarefa 10: a coluna "Com o meu canal" (spec 15.2) e o link do cartão. Link visível, não menu: a única ação própria da coluna.
+   A coluna nova custa uns 68 px e a tabela cabe em 1.440 px (invólucro de 1.152) e não pode voltar a rolar: o respiro lateral das células cai de 6 para 4 px,
+   o gráfico de ritmo da TABELA de 130 para 100 px (o desenho é o mesmo, em escala: o svg tem viewBox; nos cartões continua com 130) e a coluna da posição de 40 para 32.
+   Com a gaveta aberta valem as regras próprias dela (mais acima). */
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox th,[data-obs-screen="canais"]:not(.drawer-open) .tablebox td{padding-left:4px;padding-right:4px}
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox .cad{min-width:100px}
+[data-obs-screen="canais"]:not(.drawer-open) .tablebox .cad > svg{width:100px;height:auto}
+[data-obs-screen="canais"] table th.p,[data-obs-screen="canais"] table td.p{width:var(--cn-pos-w);min-width:var(--cn-pos-w)}
+[data-obs-screen="canais"] table th.cmp,[data-obs-screen="canais"] table td.cmp{width:64px;min-width:64px;text-align:left;white-space:nowrap}
+[data-obs-screen="canais"] table th.cmp{white-space:normal;line-height:1.25}
+[data-obs-screen="canais"] table td.cmp [aria-hidden]{color:var(--dim)}
+[data-obs-screen="canais"] .cmpl{font-size:12.5px;color:var(--muted);text-decoration:underline;text-underline-offset:2px;display:inline-flex;align-items:center;min-height:24px;white-space:nowrap}
+[data-obs-screen="canais"] .cmpl:hover{color:var(--text)}
+[data-obs-screen="canais"] .cmpl:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+[data-obs-screen="canais"] .card .cmp-card{margin:0}
+@media (pointer:coarse){[data-obs-screen="canais"] .cmpl{min-height:44px}}

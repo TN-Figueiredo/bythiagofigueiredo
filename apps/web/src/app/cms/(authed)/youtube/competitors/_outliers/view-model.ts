@@ -484,17 +484,11 @@ function forjaBarOf(obs: Observatory, niche: NicheScope, fmt: Fmt): Pick<Outlier
   const has = !sc.empty && sc.requests.length > 0
   const rs = forja.niches.filter(b => b.reading).map(b => ({ b, r: b.reading! }))
   if (!rs.length && !has) return { forja, forjaBar: null }
-  const capT = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
   const bad = has && sc.terminal && DEAD_ST.includes(sc.state)
   const anyActive = has && sc.requests.some(x => BUSY_ST.includes(x.state))
   const split = has && sc.split && !!sc.statusLines
-  const quotaTxt = (): string => {
-    const q = sc.quota, by = q.byNiche
-    const differs = sc.split && by && Object.values(by).some(x => x && !x.free)
-    if (!differs && /cota/i.test(sc.statusText || '')) return ''
-    if (sc.split && by) return Object.keys(by).map(n => obs.nicheLabel(n) + ': ' + by[n]!.text).join(' · ') + '.'
-    return capT(q.text) + '.'
-  }
+  // o que não dá para pedir agora (a leitura já usa o dado mais recente) vem da visão da forja, que é a mesma regra do servidor
+  const askTxt = (): string => forja.card.askNote ?? ''
   const sinceBody = (r: ForjaReadingView) => r.since ? r.since.shortText.replace(/^desde então:\s*/i, '') : 'sem comparação com os dados de hoje'
   const pv = forja.niches.filter(b => forja.ask?.niches.includes(b.niche) ?? false)
   const outs = pv.flatMap(b => b.out)
@@ -510,7 +504,7 @@ function forjaBarOf(obs: Observatory, niche: NicheScope, fmt: Fmt): Pick<Outlier
       since: { multi: rs.length > 1, items: rs.map(x => ({ id: x.r.id, label: x.b.label, body: sinceBody(x.r) })) },
       req: has ? {
         cls: bad ? 'refused' : 'forja',
-        text: (sc.split && sc.state !== 'publicado' ? F.plural(sc.requests.length, 'pedido enviado', 'pedidos enviados') + ' à forja (' + joinLabels(sc.requests.map(x => obs.nicheLabel(x.niche))) + '). ' : '') + (bad ? 'A leitura anterior continua valendo. ' : '') + quotaTxt(),
+        text: (sc.split && sc.state !== 'publicado' ? F.plural(sc.requests.length, 'pedido enviado', 'pedidos enviados') + ' à forja (' + joinLabels(sc.requests.map(x => obs.nicheLabel(x.niche))) + '). ' : '') + (bad ? 'A leitura anterior continua valendo. ' : '') + askTxt(),
         trackHref: sc.terminal ? null : obs.link.insights(forja.niche === 'todos' ? undefined : { niche: forja.niche }),
       } : null,
       sideBad: has && !sc.terminal ? sc.requests.filter(x => DEAD_ST.includes(x.state)).map(x => obs.nicheLabel(x.niche) + ': ' + (x.statusLabel ?? x.state) + '. A leitura anterior de ' + obs.nicheLabel(x.niche) + ' continua valendo.') : [],

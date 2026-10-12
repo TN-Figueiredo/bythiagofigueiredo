@@ -4,18 +4,24 @@ import Link from 'next/link'
 import { useEffect, useId, useRef, type KeyboardEvent, type RefObject } from 'react'
 import { Icon } from './icons'
 import { Popover } from './flut/flut'
+import { ItensMeuCanal } from './meu-canal'
+import type { OwnMenu } from './own-menu'
+import { useJanelaEstreita } from './use-janela-estreita'
 
-export function Menu({ open, focusAt, btnRef, cowork, nicheEditorHref, onOpenNicheEditor, onToggle, onOpenAt, onClose, onCopy, onCopyReading }: {
+export function Menu({ open, focusAt, btnRef, cowork, nicheEditorHref, onOpenNicheEditor, onToggle, onOpenAt, onClose, onCopy, onCopyReading, owns }: {
   open: boolean; focusAt: 'first' | 'last'
   btnRef: RefObject<HTMLButtonElement | null>
   cowork: string; nicheEditorHref: string; onOpenNicheEditor?: () => void
   onToggle: () => void; onOpenAt: (at: 'first' | 'last') => void; onClose: (focusBtn: boolean) => void; onCopy: () => void
   /** Insights: "Copiar texto da leitura" (Task 35) — only when a reading is shown. */
   onCopyReading?: () => void
+  /** Os canais próprios: em janela estreita (<= 480 px) o atalho "Meu canal" sai do grupo de ações e as mesmas opções abrem este menu (design D-A.1 da 11c). */
+  owns?: OwnMenu
 }) {
+  const estreita = useJanelaEstreita()
   const menuRef = useRef<HTMLDivElement>(null)
   const prev = useId()
-  const items = () => [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
+  const items = () => [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])') ?? [])]
   useEffect(() => {
     if (!open) return
     const xs = items()
@@ -43,6 +49,12 @@ export function Menu({ open, focusAt, btnRef, cowork, nicheEditorHref, onOpenNic
       {/* the box lives in #flut (one floating layer); click outside, focus outside and Esc are the layer's */}
       <Popover open={open} anchor={() => btnRef.current} onClose={() => onClose(false)} id="obs-ch-menu" className="obs-ch-pop obs-ch-menu" role="menu" label="Mais ações" align="fim">
         <div ref={menuRef} onKeyDown={onMenuKey} style={{ display: 'contents' }}>
+          {estreita && owns && owns.itens.length ? (
+            <>
+              <div className="mc-sec"><ItensMeuCanal owns={owns} aoEscolher={() => onClose(false)} /></div>
+              <hr />
+            </>
+          ) : null}
           <button className="obs-ch-mi" role="menuitem" type="button" tabIndex={-1} aria-label="Copiar pedido para o Cowork" aria-describedby={prev} onClick={onCopy}>
             <strong>{Icon.copy()}Copiar pedido para o Cowork</strong>
             <span className="obs-ch-ctx">Copia este texto, montado a partir desta tela e do nicho atual. Depois, cole no Cowork com ⌘V.</span>

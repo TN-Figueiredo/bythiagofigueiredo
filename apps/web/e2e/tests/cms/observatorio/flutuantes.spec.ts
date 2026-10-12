@@ -20,24 +20,38 @@ type Modo = 'clique' | 'foco'
  *  (a prova põe espaçadores no contêiner que rola, senão um gatilho do alto da tela nunca chega ao pé da janela). `fixo: true` = o
  *  gatilho NÃO rola (sticky/fixed): então a prova AFIRMA o contrário, que o top não se mexeu. Medido em 10/10: nenhuma família é fixa
  *  (o menu ⋯ e o Frescor ficam no alto do conteúdo, que rola). `texto`: o que a caixa tem de dizer. */
-interface Familia { folgaPe?: number; folgaTopo?: number; id: string; gatilho: string; modo: Modo; caixa: string; max?: number; fixo?: boolean; texto?: RegExp
+interface Familia { peExato?: boolean; folgaPe?: number; folgaTopo?: number; id: string; gatilho: string; modo: Modo; caixa: string; max?: number; fixo?: boolean; texto?: RegExp
   /** O `gap` que o código da flutuante passa (px entre a caixa e o gatilho). A caixa tem de ficar a no máximo `gap + TOL_PROX` dele. */
   gap: number
   /** Folga a mais, só com `ref`: a caixa guarda o `gap` do GATILHO e mede o resto no bloco (`posAnchor`), então do bloco ela pode ficar até 2 px mais longe que o `gap`
    *  (o botão de 32 px passa da borda do bloco). Medido em 10/10: 6..8 px do bloco com `gap` 6. Sem `ref` nenhuma família usa folga. */
   folgaProx?: number
+  /** Só vale em janelas MAIS LARGAS que isto (px). O atalho "Meu canal" da moldura sai do grupo de ações a <= 480 px e vai para o menu ⋯ (design D-A.1 da 11c): a flutuante dele só existe acima disso; a do menu ⋯ (que traz a seção) é exercitada em todas as larguras. */
+  soAcimaDe?: number
   /** Quando a flutuante se posiciona por OUTRO elemento (`posAnchor`/âncora diferente do gatilho): o seletor, a partir do gatilho (`closest`), do elemento medido. */
   ref?: string }
 const TELAS: Array<{ nome: string; url: () => string; familias: Familia[] }> = [
   { nome: 'canais', url: () => '/cms/youtube/competitors', familias: [
-    { id: '"?" da tabela', gatilho: '[data-obs-screen="canais"] .tip', modo: 'foco', caixa: '#flut .cn-tt', max: 8, gap: 6 },
-    { id: 'menu da linha', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4 },
+    // peExato: os controles da lista de Canais têm scroll-margin-bottom (a altura real da linha presa, canais.css --cn-pin-cobre): o Tab não deixa o foco sob ela
+    // (canais-a3.spec.ts), e o `scrollIntoView` do navegador respeita a margem, então "colado embaixo" pararia acima do pé. Estas famílias levam o gatilho ao pé
+    // da janela por `scrollTop` (sem folga): o caso do menu e da dica com o gatilho ENCOSTADO no pé (inverter para cima) continua provado inteiro.
+    { id: '"?" da tabela', gatilho: '[data-obs-screen="canais"] .tip', modo: 'foco', caixa: '#flut .cn-tt', max: 8, gap: 6, peExato: true },
+    { id: 'menu da linha', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4, peExato: true },
     { id: 'menu ⋯ da moldura', gatilho: '.obs-ch-menu-wrap [aria-haspopup="menu"]', modo: 'clique', caixa: '#flut #obs-ch-menu', gap: 6 },
     { id: 'frescor por canal', gatilho: '.obs-ch-fresh > button', modo: 'clique', caixa: '#flut #obs-ch-fresh-pop', gap: 6 },
+    // A3 Tarefa 11: o atalho "Meu canal" da moldura (Popover em #flut, pref baixo, gap 4)
+    { id: 'menu Meu canal (moldura)', gatilho: '.obs-ch-actions [data-meu-canal] button', modo: 'clique', caixa: '#flut .mc-m', gap: 4, soAcimaDe: 480 },
+  ] },
+  // A3 Tarefa 11: a comparação entre dois canais: o ⓘ "Como ler esta tabela" (Popover), a dica da régua do nicho (HoverTip, aberta por teclado: foco no grupo)
+  // e o atalho "Meu canal" da trilha (Popover). A régua tem 46 px de altura e cobre a célula inteira: a caixa fica a 4 px dela.
+  { nome: 'comparar', url: () => '/cms/youtube/competitors/comparar?a=' + ids.own('tnfigueiredo') + '&b=' + ids.channel('leo-khev'), familias: [
+    { id: 'ⓘ da tabela (comparação)', gatilho: '[data-obs-screen="comparar"] .ibtn', modo: 'clique', caixa: '#flut .cp-tip', gap: 6 },
+    { id: 'dica da régua do nicho', gatilho: '[data-obs-screen="comparar"] .obs-rg', modo: 'foco', caixa: '#flut .obs-rg-tip', max: 4, gap: 4 },
+    { id: 'menu Meu canal (trilha)', gatilho: '.obs-tr-top [data-meu-canal] button', modo: 'clique', caixa: '#flut .mc-m', gap: 4 },
   ] },
   // a visão em Cards de Canais: o menu da linha mora em outro contêiner (o cartão), com a mesma função de posição
   { nome: 'canais-cards', url: () => '/cms/youtube/competitors?layout=cards', familias: [
-    { id: 'menu da linha (cards)', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4 },
+    { id: 'menu da linha (cards)', gatilho: '[data-obs-screen="canais"] [data-menu]', modo: 'clique', caixa: '#flut .cn-menu', max: 6, gap: 4, peExato: true }, // mesma margem de rolagem de canais.css
   ] },
   // a página do canal do concorrente (A1): o ⓘ dos números, o menu ⋯ do canal e o menu "Ações do vídeo" (de um cartão do alto ao do pé da
   // grade: a amostra espalha 6 gatilhos do primeiro ao último dos ~120) em Capas e em Lista. Todos moram em #flut (Popover).
@@ -79,7 +93,7 @@ const LARGURAS = [1440, 390] as const
 const POSICOES = [['natural', 'nearest'], ['centro', 'center'], ['colado embaixo', 'end'], ['colado em cima', 'start']] as const
 /** Quanto o extremo pode ficar longe do pé da janela / do topo da área visível (px). Medido em 10/10 nas 4 telas, 2 larguras, 2 temas, em
  *  TODOS os gatilhos de todas as famílias: distância 0..0 nas duas pontas (com os espaçadores o scroll encosta exato). 4 px cobre só o
- *  arredondamento; por isso nenhuma família usa `folgaPe`/`folgaTopo` (a folga por família existe para um motivo legítimo, declarado). */
+ *  arredondamento; por isso só as famílias da tela `canal` usam `folgaPe`/`folgaTopo` (cada uma com o motivo declarado na própria linha); as de Canais usam `peExato`. */
 const TOL_EXTREMO = 4
 /** Quanto a caixa pode ficar além do `gap` do código, longe do gatilho (px, distância entre as bordas mais próximas dos dois retângulos).
  *  A posição vem de Math.round() sobre medidas fracionárias (gatilho e caixa): até 1 px de cada lado. 2 px cobre só isso; um defeito de
@@ -166,6 +180,7 @@ for (const tema of THEMES) for (const largura of LARGURAS) for (const tela of TE
     const janelaH = 900
     let total = 0
     for (const f of tela.familias) {
+      if (f.soAcimaDe != null && largura <= f.soAcimaDe) continue
       const modos: Record<string, number> = {}
       // por gatilho (índice): a medida de cada posição, na ordem de POSICOES. topo/pe = do gatilho; areaTopo = topo da área visível do
       // contêiner que rola (0 se a página rola no documento); janela = innerHeight
@@ -181,7 +196,14 @@ for (const tema of THEMES) for (const largura of LARGURAS) for (const tela of TE
         const g = page.locator(f.gatilho).nth(n)
         if (passada.length > 1) await g.evaluate(ESPACOS)
         for (const [pos, bloco] of passada) {
-          await g.evaluate((e, b) => e.scrollIntoView({ block: b as ScrollLogicalPosition, inline: 'nearest', behavior: 'instant' }), bloco)
+          if (bloco === 'end' && f.peExato) {
+            // encosta o gatilho no pé da janela pelo scrollTop do contêiner que rola (o scrollIntoView pararia na scroll-margin-bottom)
+            await g.evaluate(e => {
+              let c: HTMLElement | null = e.parentElement
+              while (c && !(['auto', 'scroll'].includes(getComputedStyle(c).overflowY) && c.scrollHeight > c.clientHeight)) c = c.parentElement
+              ;(c ?? document.scrollingElement as HTMLElement).scrollTop += e.getBoundingClientRect().bottom - window.innerHeight
+            })
+          } else await g.evaluate((e, b) => e.scrollIntoView({ block: b as ScrollLogicalPosition, inline: 'nearest', behavior: 'instant' }), bloco)
           if (!(await g.isVisible())) { pulados++; continue }
           ;(medidas[n] ??= []).push(await g.evaluate((e, pos) => {
             const r = e.getBoundingClientRect(), c = e.closest('[data-prova-espacos]')

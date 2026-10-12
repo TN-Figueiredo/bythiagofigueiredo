@@ -75,6 +75,40 @@ function Frame({ v, state }: { v: ViewerVersion; state: LoadState }): ReactEleme
   if (state.status === 'loading') return v.preview ? <div className="obs-tv-fig"><img src={v.preview} alt={`${v.label}`} draggable={false} /></div> : <Missing load><p>Carregando a imagem…</p></Missing>
   return <div className="obs-tv-fig"><img src={state.url} alt={`${v.label}`} draggable={false} /></div>
 }
+/**
+ * O par "Abrir original / Baixar" de UMA imagem. Fora do modo comparar é o grupo "Arquivo" da barra; no modo comparar, cada lado tem o seu
+ * (`lado` = o rótulo da versão, no nome acessível: "Baixar Capa A"; o texto visível continua o mesmo). Sem imagem (`url` nulo), os dois ficam apagados
+ * (`aria-disabled`, nunca `disabled`: continuam na tabulação) e dizem o motivo: na descrição acessível e, ao serem acionados, na região de aviso.
+ */
+function motivoSemImagem(s: LoadState, lado?: string): string | null {
+  switch (s.status) {
+    case 'ok': return null
+    case 'loading': return 'a imagem ainda está carregando'
+    case 'none':
+    case 'fail': return lado ? 'sem imagem deste lado' : 'sem imagem nesta versão'
+    default: { const nunca: never = s; return nunca }
+  }
+}
+function ArquivoGrupo({ state, id, lado, onDownload, say }: { state: LoadState; id: string; lado?: string; onDownload: () => void; say: (t: string) => void }): ReactElement {
+  const url = state.status === 'ok' ? state.url : null
+  const motivo = motivoSemImagem(state, lado)
+  const dica = motivo ? `${motivo[0]!.toUpperCase()}${motivo.slice(1)}.` : null
+  const recusa = (acao: string) => { if (motivo) say(`Não dá para ${acao}: ${motivo}.`) }
+  return (
+    <div className="obs-tv-grp" role="group" aria-label={lado ? `Arquivo da ${lado}` : 'Arquivo'}>
+      {dica ? <span id={id} className="obs-tv-sr">{dica}</span> : null}
+      <a className="obs-tv-b" role="link" target="_blank" rel="noopener noreferrer" href={url ?? undefined} aria-disabled={url ? undefined : true}
+        aria-label={lado ? `Abrir original em nova aba, ${lado}` : undefined} aria-describedby={dica ? id : undefined}
+        tabIndex={url ? undefined : 0}
+        onClick={url ? undefined : e => { e.preventDefault(); recusa(lado ? `abrir o original da ${lado}` : 'abrir o original') }}
+        onKeyDown={url ? undefined : e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); recusa(lado ? `abrir o original da ${lado}` : 'abrir o original') } }}>
+        <Icon.ext /><span>Abrir original em nova aba</span>
+      </a>
+      <button type="button" className="obs-tv-b" aria-label={lado ? `Baixar ${lado}` : undefined} aria-disabled={!url} aria-describedby={dica ? id : undefined}
+        onClick={url ? onDownload : () => recusa(lado ? `baixar a ${lado}` : 'baixar')}><Icon.download /><span>Baixar</span></button>
+    </div>
+  )
+}
 const resText = (s: LoadState): string => (s.status === 'ok' ? resolutionLine(s.file, s.w, s.h, s.fellBack, s.archived) : '')
 
 const STEP = 1.25
@@ -226,9 +260,10 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
   const downloading = useRef(false)
   const FALLBACK_MSG = 'A imagem abriu em outra aba: salve por lá.'
   const BLOCKED_MSG = 'O navegador bloqueou a nova aba. Use "Abrir original em nova aba" e salve a imagem por lá.'
-  const download = async () => {
-    if (!cur || main.status !== 'ok' || downloading.current) return
-    const nome = downloadName(cur, main.file, main.archived), url = main.url
+  // `v`/`s`: a versão e a carga da imagem que a pessoa quer baixar (no modo comparar, a do lado em que ela clicou)
+  const download = async (v: ViewerVersion | undefined, s: LoadState) => {
+    if (!v || s.status !== 'ok' || downloading.current) return
+    const nome = downloadName(v, s.file, s.archived), url = s.url
     // A imagem do YouTube nunca passa pelo fetch: a política de conteúdo do site (connect-src) a barra sempre, e gastaria a ativação do clique
     // (o navegador só deixa abrir aba no instante do clique). Abre na hora, de forma síncrona, e manda salvar por lá.
     if (isYoutubeUrl(url)) { say(openTab(url) ? FALLBACK_MSG : BLOCKED_MSG); return }
@@ -285,7 +320,6 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
   const multi = n > 1
   const zoomOn = stageOn
   const pct = cmp ? 'sem zoom' : shown ? `${Math.round(shown.scale * 100)}%` : '—'
-  const opened = main.status === 'ok' ? main.url : null
   const noop = (f: () => void) => (zoomOn ? f : undefined)
 
   return createPortal(
@@ -297,24 +331,36 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
           <button type="button" className="obs-tv-b obs-tv-icon" aria-label="Fechar" onClick={onClose}><Icon.x /></button>
         </div>
 
-        <div className="obs-tv-nav" role="group" aria-label="Versão da thumbnail">
-          {multi && cur ? (
-            <>
-              <button type="button" className="obs-tv-b" aria-disabled={i === 0} onClick={() => go(-1)}><Icon.prev /><span>Anterior</span></button>
-              <span className="obs-tv-pos" role="status">{positionLabel(cur.label, i, n)}</span>
-              <button type="button" className="obs-tv-b" aria-disabled={i === n - 1} onClick={() => go(1)}><span>Próxima</span><Icon.next /></button>
-            </>
-          ) : null}
-          <button type="button" className="obs-tv-b obs-tv-cmpbtn" aria-pressed={cmp} aria-disabled={!multi} aria-describedby={multi ? undefined : whyId}
-            onClick={() => { if (multi) { setCmp(c => !c); setCv(null) } }}><Icon.compare /><span>Comparar lado a lado</span></button>
-          {multi ? null : <span id={whyId} className="obs-tv-why">Só há uma versão de thumbnail deste vídeo.</span>}
-          {cmp && multi ? (
-            <label className="obs-tv-sel" htmlFor={cmpId}><span>Comparar com</span>
-              <select id={cmpId} value={o} onChange={e => setOther(Number(e.target.value))}>
-                {versions.map((v, k) => (k === i ? null : <option key={k} value={k}>{v.label}{candidates(v).length || v.current ? '' : ' (não arquivada)'}</option>))}
-              </select>
-            </label>
-          ) : null}
+        {/* Como no mockup (viewer.js): uma barra só, logo abaixo do título, com Versão, Zoom e Arquivo nesta ordem. A ordem do DOM é a do Tab. */}
+        <div className="obs-tv-tools">
+          <div className="obs-tv-grp" role="group" aria-label="Versão da thumbnail">
+            {multi && cur ? (
+              <>
+                <button type="button" className="obs-tv-b" aria-disabled={i === 0} onClick={() => go(-1)}><Icon.prev /><span>Anterior</span></button>
+                <span className="obs-tv-pos" role="status">{positionLabel(cur.label, i, n)}</span>
+                <button type="button" className="obs-tv-b" aria-disabled={i === n - 1} onClick={() => go(1)}><span>Próxima</span><Icon.next /></button>
+              </>
+            ) : null}
+            <button type="button" className="obs-tv-b" aria-pressed={cmp} aria-disabled={!multi} aria-describedby={multi ? undefined : whyId}
+              onClick={() => { if (multi) { setCmp(c => !c); setCv(null); setMsg('') } }}><Icon.compare /><span>Comparar lado a lado</span></button>
+            {multi ? null : <span id={whyId} className="obs-tv-why">Só há uma versão de thumbnail deste vídeo.</span>}
+            {cmp && multi ? (
+              <label className="obs-tv-sel" htmlFor={cmpId}><span>Comparar com</span>
+                <select id={cmpId} value={o} onChange={e => { setOther(Number(e.target.value)); setMsg('') }}>
+                  {versions.map((v, k) => (k === i ? null : <option key={k} value={k}>{v.label}{candidates(v).length || v.current ? '' : ' (não arquivada)'}</option>))}
+                </select>
+              </label>
+            ) : null}
+          </div>
+
+          <div className="obs-tv-grp" role="group" aria-label="Zoom">
+            <button type="button" className="obs-tv-b obs-tv-icon" aria-label="Diminuir o zoom" aria-disabled={!zoomOn} onClick={noop(() => zoomBy(1 / STEP))}><Icon.minus /></button>
+            <span className="obs-tv-pct">{pct}</span>
+            <button type="button" className="obs-tv-b obs-tv-icon" aria-label="Aumentar o zoom" aria-disabled={!zoomOn} onClick={noop(() => zoomBy(STEP))}><Icon.plus /></button>
+            <button type="button" className="obs-tv-b" aria-disabled={!zoomOn} onClick={noop(doFit)}>Ajustar</button>
+            <button type="button" className="obs-tv-b" aria-disabled={!zoomOn} onClick={noop(actual)}>100%</button>
+          </div>
+          {cmp && second ? null : <ArquivoGrupo state={main} id={`${uid}-arq`} onDownload={() => { void download(cur, main) }} say={say} />}
         </div>
 
         {/* O alvo de foco da imagem é ESTA caixa, que nunca desmonta: o palco abaixo sai e volta a cada troca de versão, e com o foco dentro dele o teclado morria. */}
@@ -327,6 +373,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
                   <div className="obs-tv-side" key={v.label + (v === cur ? 'a' : 'b')}>
                     <p className="obs-tv-lab">{v.label}{v.current ? ' (no ar)' : ''}</p>
                     <Frame v={v} state={s} />
+                    <ArquivoGrupo state={s} id={`${uid}-arq-${v === cur ? 'a' : 'b'}`} lado={v.label} onDownload={() => { void download(v, s) }} say={say} />
                     <p className="obs-tv-cap">{v.caption}</p>
                     {s.status === 'ok' ? <p className="obs-tv-cap">{resText(s)}</p> : null}
                   </div>
@@ -346,24 +393,7 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
           {cmp || !cur ? null : <p id={capId} className="obs-tv-cap">{cur.caption}</p>}
           {cmp ? null : <p className="obs-tv-res" role="status" aria-live="polite" aria-atomic="true">{resText(main)}</p>}
           {/* sempre na árvore (e com a altura de uma linha reservada no CSS): uma região viva que nasce já com texto não é anunciada */}
-          <p className="obs-tv-msg" role="status" aria-live="polite" aria-atomic="true">{cmp && cur && second ? `Comparando ${cur.label} com ${second.label}` : msg}</p>
-        </div>
-
-        <div className="obs-tv-foot">
-          <div className="obs-tv-grp" role="group" aria-label="Zoom">
-            <button type="button" className="obs-tv-b obs-tv-icon" aria-label="Diminuir o zoom" aria-disabled={!zoomOn} onClick={noop(() => zoomBy(1 / STEP))}><Icon.minus /></button>
-            <span className="obs-tv-pct">{pct}</span>
-            <button type="button" className="obs-tv-b obs-tv-icon" aria-label="Aumentar o zoom" aria-disabled={!zoomOn} onClick={noop(() => zoomBy(STEP))}><Icon.plus /></button>
-            <button type="button" className="obs-tv-b" aria-disabled={!zoomOn} onClick={noop(doFit)}>Ajustar</button>
-            <button type="button" className="obs-tv-b" aria-disabled={!zoomOn} onClick={noop(actual)}>100%</button>
-          </div>
-          <div className="obs-tv-grp" role="group" aria-label="Arquivo">
-            <a className="obs-tv-b" role="link" target="_blank" rel="noopener noreferrer" href={opened ?? undefined} aria-disabled={opened ? undefined : true}
-              tabIndex={opened ? undefined : 0} onClick={opened ? undefined : e => e.preventDefault()}>
-              <Icon.ext /><span>Abrir original em nova aba</span>
-            </a>
-            <button type="button" className="obs-tv-b" aria-disabled={!opened} onClick={opened ? () => { void download() } : undefined}><Icon.download /><span>Baixar</span></button>
-          </div>
+          <p className="obs-tv-msg" role="status" aria-live="polite" aria-atomic="true">{msg || (cmp && cur && second ? `Comparando ${cur.label} com ${second.label}` : '')}</p>
         </div>
       </div>
     </div>,

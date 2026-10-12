@@ -34,7 +34,7 @@ const obs = createObservatory(datasetFromOracle(loadOracle()))
 const ok = async () => ({ ok: true })
 const mount = (p: Partial<CanaisParams> = {}) => render(
   <ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs="">
-    <CanaisScreen view={buildCanaisView(obs, { niche: 'todos', limit: 75, ...p })} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
+    <CanaisScreen view={buildCanaisView(obs, { niche: 'todos', limit: 75, fmt: 'longos', ...p })} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
   </div></ChromeSyncContext.Provider></ToastProvider>,
 )
 

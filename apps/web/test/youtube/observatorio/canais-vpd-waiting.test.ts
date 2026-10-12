@@ -25,7 +25,7 @@ const daily = (video_id: string, snap_date: string, views: number, taken_at: str
 describe('C — Canais: frase honesta quando há longos acompanhados e ainda não há mediana', () => {
   const vpdOf = (r: ObservatoryRows) => {
     const v = buildCanaisView(createObservatory(rowsToDataset(r, NOW)), { niche: 'todos', limit: 75 })
-    return v.groups.flatMap(g => g.rows).find(x => x.id === 'ch1')!.vpd
+    return [...v.list.ranked, ...v.list.unranked].find(x => x.id === 'ch1')!.vpd
   }
   it('longos acompanhados, um registro diário e vídeo antigo: frase de espera', () => {
     const c = vpdOf(rows({ channels: [channel()], videos: [video({ published_at: iso(sp('2026-10-10T10:00:00')) })], daily: [daily('v1', TODAY, 1000, iso(sp(TODAY + 'T12:30:00')))] }))

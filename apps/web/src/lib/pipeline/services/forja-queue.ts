@@ -10,7 +10,8 @@
  *    requeued attempt (fail with retry, the vigia) reads the same frozen data, so a retry cites the same numbers.
  *  - refuseTask / completeReading: how the forja ends an observatory task.
  *
- * Quota: 1 request per niche + type per São Paulo day; failure and refusal do not count (forja/quota.ts).
+ * No daily quota: a new request for a target is accepted only when its data changed since the last reading of that target (forja/novidade.ts);
+ * failure and refusal do not count. One ACTIVE request per type + niche (idx_yt_intel_obs_active).
  * One request = one type × one target, one claim per tick (coupled budget, CLAUDE.md).
  */
 import * as Sentry from '@sentry/nextjs'
@@ -175,7 +176,7 @@ function validationMessage(e: z.ZodError): string {
 }
 
 /**
- * Ask the forja for a reading. The engine's planAsk decides (capability, free niche, quota, the video's niche busy,
+ * Ask the forja for a reading. The engine's planAsk decides (capability, free niche, new data since the last reading, the video's niche busy,
  * channels out of the request); one `pending` row is written per niche it sent, in click order.
  */
 export async function askReading(ctx: ServiceContext, input: AskInput, now: number): Promise<ServiceResult<AskOutcome>> {
@@ -191,15 +192,10 @@ export async function askReading(ctx: ServiceContext, input: AskInput, now: numb
   // the niche must be one of the site's (the engine's list: youtube_niches, or the two built-in when the table is absent)
   // a refusal like the others (ok: false, the sentence in Portuguese), before any insert
   if (scope !== 'todos' && obs.scopeOf(scope) !== scope) return ok({ ok: false, reason: 'Nada enviado: o nicho “' + scope + '” não existe neste site.', results: [] })
-  const opts: SessionOpts = {
-    capabilities: ds.queue.capabilities,
-    eligible: n => obs.forja.eligibleChannels(n),
-    videoOf: id => { const v = obs.video(id); return v ? { niche: obs.channel(v.ch)?.own ? null : v.niche, title: v.title } : undefined },
-    // the same rules as the screens' session: the site's labels and "Todos" split, no request for a niche without
-    // competitors (built-in or created), and no `temas` request for a niche without a theme list (nothing is inserted for
-    // a refused niche)
-    niches: obs.forja.nicheCtx, askable: n => obs.forja.askable(n), hasThemes: n => obs.hasThemes(n),
-  }
+  // the same rules as the screens' session (one planner): the site's labels and "Todos" split, no request for a niche without
+  // competitors, no `temas` for a niche without a theme list, and the data rule (forja/novidade.ts: no daily limit, a new request needs
+  // new data since the last reading of the same target)
+  const opts: SessionOpts = obs.forja.planOpts
   const known: ReadonlySet<string> = new Set(obs.niches.map(n => n.id))
   const toRequests = (rs: TaskRow[]) => rs.map(r => taskRowToRequest(r, lastPollAt, now, known)).filter((q): q is ForjaRequest => q != null)
   const target = { type, video: videoId ?? null }
@@ -284,7 +280,7 @@ async function heldObsTask(ctx: ServiceContext, taskId: string, cols: string): P
 /**
  * The forja refuses a task (e.g. it received data older than the last sincronização). `reason` is a short code
  * ('dado-velho'); the screen maps it to the canonical sentence (forja/states.ts refusedReasonText). A refusal does not
- * use the quota.
+ * block a new request.
  */
 export async function refuseTask(ctx: ServiceContext, taskId: string, reason: string, now: number = Date.now()): Promise<ServiceResult<{ id: string; status: 'refused' }>> {
   const code = typeof reason === 'string' ? reason.trim() : ''

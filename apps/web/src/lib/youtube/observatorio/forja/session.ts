@@ -1,18 +1,18 @@
 /**
- * The ask planner — a pure port of OBS.forja.session (dados.js:1689-1825 and its quota wrappers at 1887-1893),
+ * The ask planner — a pure port of OBS.forja.session (dados.js:1689-1825), with the daily quota replaced by the data rule of novidade.ts (11d),
  * minus the storage: the mockup kept its state in sessionStorage, here it is an in-memory list.
  *
  * `requests` are the requests that exist (DB rows, already mapped to states); `ask` and `cancel` plan on top of them
  * in click order, the way the DB service will apply them. A request is keyed by (type, target): the target is the
- * niche (padrões, temas, resumo) or the video (leitura-video). Quota and "busy" are per niche + type.
+ * niche (padrões, temas, resumo) or the video (leitura-video). "Busy" is per niche + type; asking again needs new data (novidade.ts).
  */
 import type { Clock } from '../time'
 import type { ForjaRequest, Niche } from '../types'
 import { BUILTIN_NICHES, nicheLabel, tabOrder } from '../niche'
-import { liveRequests } from './quota'
+import { semNovidadeText, type Novidade } from './novidade'
 import {
-  TYPE_SHORT, aheadNote, composeRaw, describeRequests, isActive, nextSpMidnight, queueOrder, resummarize, withQuota,
-  todosNiches, FORJA_QUEUE, type Machine, type NicheCtx, type Scenario,
+  TYPE_SHORT, aheadNote, composeRaw, describeRequests, isActive, nextSpMidnight, queueOrder, resummarize,
+  todosNiches, type Machine, type NicheCtx, type Scenario,
 } from './states'
 
 export type SessionScope = Niche | 'todos' | 'all' | null | undefined
@@ -44,6 +44,11 @@ export interface SessionOpts {
   askable?: (niche: Niche) => boolean
   /** O nicho tem lista de temas? Sem lista, a leitura de temas não tem o que classificar. Ausente = todo nicho tem. */
   hasThemes?: (niche: Niche) => boolean
+  /**
+   * A regra de pedir de novo (novidade.ts): o dado do alvo mudou desde a última leitura concluída? Obrigatória, sem padrão: um
+   * planejador sem ela aceitaria qualquer pedido repetido. `video` só em `leitura-video`.
+   */
+  novidade: (type: string, niche: Niche, video: string | null) => Novidade
 }
 
 export const NOT_ANNOUNCED = 'A forja ainda não lê pedidos do observatório.'
@@ -62,7 +67,17 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const isVid = (t: string) => t === 'leitura-video'
 const vidOf = (q: ForjaRequest) => q.video ?? q.target.video ?? null
 const todosOf = (scope: SessionScope) => scope === 'todos' || scope === 'all'
-const NO_QUOTA = ['falhou', 'recusado (dado velho)']
+/**
+ * O que a tela mostra do pedido: os ativos (de qualquer dia) e os terminados HOJE (SP), o último por (tipo, nicho, vídeo). É janela de
+ * exibição ("publicado às 14:50"), não regra: o que decide se dá para pedir de novo é o dado (novidade.ts), nunca a data do pedido.
+ */
+function liveRequests(requests: ForjaRequest[], now: number, clock: Clock): ForjaRequest[] {
+  const dayStart = nextSpMidnight(now, clock) - 864e5
+  const latest = new Map<string, ForjaRequest>()
+  for (const q of [...requests].sort((a, b) => a.createdAt - b.createdAt))
+    if (isActive(q) || q.createdAt >= dayStart) latest.set(q.type + '|' + q.niche + '|' + (isVid(q.type) ? vidOf(q) : ''), q)
+  return [...latest.values()]
+}
 const stripBehind = (s: string) => s.replace(/ \(atrás do de [^)]+\)$/, '')
 
 interface Ask { niche: Niche; type: string; video: string | null; createdAt: number; seq: number }
@@ -71,7 +86,7 @@ interface Key { type: string; video: string | null }
 
 export function createSession(requests: ForjaRequest[], machine: Machine, clock: Clock, opts: SessionOpts) {
   const NOW = clock.now
-  // What exists: active requests, plus today's finished ones (they decide the quota); the latest per (type, niche, video).
+  // What exists: active requests, plus today's finished ones (only what the screen shows; the data decides whether to ask again); the latest per (type, niche, video).
   const base0 = liveRequests(requests, NOW, clock)
   const st = { type: opts.defaultType ?? 'padroes-titulo', video: opts.defaultVideo ?? null, asks: [] as Ask[], cancels: [] as Cancel[], seq: 0 }
   const typeOf = (o?: SessionTarget) => (o && o.type) || st.type
@@ -84,11 +99,9 @@ export function createSession(requests: ForjaRequest[], machine: Machine, clock:
   /** A lista de um pedido (ou cancelamento) "Todos": a ordem da forja. */
   const split = (scope: SessionScope): Niche[] => todosOf(scope) ? [...todosNiches(nx)] : scope ? [scope as Niche] : []
   const LABELS_RE = nx.defs.map(d => escapeRe(d.label)).join('|')
-  const releaseText = () => { const rel = nextSpMidnight(NOW, clock); return 'libera ' + clock.weekday(rel) + ', ' + clock.dm(rel) + ' às 00:00' }
   const empty = (): Scenario => ({
     state: 'sem pedido', requests: [], request: null, split: false, statusLines: [], statusLabel: null, statusText: 'Nenhum pedido em andamento.',
     active: false, anyActive: false, terminal: false, empty: true, machine,
-    quota: { usedToday: 0, perTypePerNiche: FORJA_QUEUE.quotaPerDayPerType, note: FORJA_QUEUE.quotaNote, releasesAt: null, text: 'cota de hoje livre (' + FORJA_QUEUE.quotaNote + ')' },
   })
 
   function recompose(reqs: ForjaRequest[]): Scenario | null {
@@ -203,7 +216,7 @@ export function createSession(requests: ForjaRequest[], machine: Machine, clock:
       const mine = all(type, video).requests[0], others = nicheReqs(n, type)
       if (mine && isActive(mine)) res.push({ niche: n, video, ok: false, reason: 'Nada enviado: já há um pedido de leitura deste vídeo ' + stripBehind(mine.statusLabel ?? '') + (mine.stateNote ? ', ' + mine.stateNote : '') + '.' })
       else if (others.some(isActive)) res.push({ niche: n, video, ok: false, reason: 'já há uma leitura de vídeo de ' + label(n) + ' em andamento' })
-      else if (others.some(q => !NO_QUOTA.includes(q.state))) res.push({ niche: n, video, ok: false, reason: 'cota de hoje usada para leituras de vídeo de ' + label(n) + ' (' + releaseText() + ')' })
+      else if (!opts.novidade(type, n, video).pode) res.push({ niche: n, video, ok: false, reason: semNovidadeText('deste vídeo') })
       else {
         st.asks = st.asks.filter(a => !sameKey(a, type, video)); st.cancels = st.cancels.filter(c => !sameKey(c, type, video))
         st.asks.push({ niche: n, type, video, createdAt, seq: ++st.seq }); res.push({ niche: n, video, ok: true, reason: null, channelsOut: opts.eligible(n).out })
@@ -224,7 +237,7 @@ export function createSession(requests: ForjaRequest[], machine: Machine, clock:
     for (const n of ns) {
       const q = nicheReqs(n, type)[0]
       if (q && isActive(q)) { res.push({ niche: n, ok: false, reason: 'Nada enviado: já há um pedido de ' + label(n) + ' ' + stripBehind(q.statusLabel ?? '') + (q.stateNote ? ', ' + q.stateNote : '') + '.' }); continue }
-      if (q && !NO_QUOTA.includes(q.state)) { res.push({ niche: n, ok: false, reason: 'cota de hoje usada para ' + label(n) + ' (' + releaseText() + ')' }); continue }
+      if (!opts.novidade(type, n, null).pode) { res.push({ niche: n, ok: false, reason: semNovidadeText('de ' + label(n)) }); continue }
       st.asks = st.asks.filter(a => !(a.niche === n && sameKey(a, type, null))); st.cancels = st.cancels.filter(c => !(c.niche === n && sameKey(c, type, null)))
       st.asks.push({ niche: n, type, video: null, createdAt, seq: ++st.seq }); res.push({ niche: n, ok: true, reason: null, channelsOut: opts.eligible(n).out })
     }
@@ -248,10 +261,9 @@ export function createSession(requests: ForjaRequest[], machine: Machine, clock:
     return current(scope, { type })
   }
   return {
-    /** Per-niche quota wrappers (dados.js:1887-1893). */
-    current: (scope: SessionScope, o?: SessionTarget): Scenario => withQuota(current(scope, o), todosOf(scope) && !(o && o.type === 'leitura-video'), clock, nx),
-    ask: (scope: SessionScope, o?: SessionTarget): AskOutcome => { const r = ask(scope, o); r.scenario = withQuota(r.scenario, todosOf(scope), clock, nx); return r },
-    cancel: (scope: SessionScope, o?: SessionTarget): Scenario => withQuota(cancel(scope, o), todosOf(scope), clock, nx),
+    current: (scope: SessionScope, o?: SessionTarget): Scenario => current(scope, o),
+    ask: (scope: SessionScope, o?: SessionTarget): AskOutcome => ask(scope, o),
+    cancel: (scope: SessionScope, o?: SessionTarget): Scenario => cancel(scope, o),
     /** The plan so far (asks and cancels in click order). */
     state: () => structuredClone({ type: st.type, video: st.video, asks: st.asks, cancels: st.cancels, seq: st.seq }),
   }

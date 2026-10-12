@@ -2,6 +2,7 @@ import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import { TrailChrome } from '../../_chrome/trail-chrome'
 import type { ObsSearchParams } from '../../_chrome/resolve-niche'
 import { openObservatoryPage } from '../../_chrome/page-data'
+import { ownMenuOf } from '../../_chrome/own-menu'
 import { loadSwipeRows, savedFromRows } from '../../_mudancas/swipe-rows'
 import { buildHistoricoView, historicoTrail } from '../../_historico/view-model'
 import { HistoricoScreen } from '../../_historico/historico-screen'
@@ -18,7 +19,7 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
   const [{ id }, sp] = await Promise.all([params, searchParams])
   const flat: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
-  const { siteId, obs, savedNiche } = await openObservatoryPage()
+  const { siteId, obs, savedNiche, meuCanalLembrado } = await openObservatoryPage()
   const formParam = parseNiche(flat.niche) ?? undefined
   // parseNiche checks the form; the engine says whether the niche exists (an unknown one is ignored: the saved niche, else Todos)
   const niche = formParam != null && obs.scopeOf(formParam) === formParam ? formParam : obs.scopeOf(savedNiche)
@@ -30,7 +31,7 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
   // The frame is only the trail (spec A2.6, emenda 25): no section tabs, no niche bar, in every origin. The trail is the way back for whoever
   // came from Mudanças, Outliers, Insights or a channel page. A video of another niche shows it only beside the channel, in the header.
   return (
-    <TrailChrome crumbs={historicoTrail(view.crumbs)} aside={view.pager ? <Pager pager={view.pager} naTrilha /> : undefined}>
+    <TrailChrome crumbs={historicoTrail(view.crumbs)} owns={ownMenuOf(obs, meuCanalLembrado)} aside={view.pager ? <Pager pager={view.pager} naTrilha /> : undefined}>
       <HistoricoScreen view={view} onAskForja={askForjaReading} onCancelForja={cancelForjaReading} onSyncChannel={syncCompetitorNow} onPin={pinVideo} onUnpin={unpinVideo} pagerNaTrilha />
     </TrailChrome>
   )

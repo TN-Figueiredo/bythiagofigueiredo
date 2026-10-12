@@ -9,7 +9,7 @@
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { ObsChannel } from '@/lib/youtube/observatorio/types'
 import { WD } from '@/lib/youtube/observatorio/time'
-import { vpdText } from './numeros'
+import { vpdText, durText, viewsMediana, duracaoMediana, trocas30 as contarTrocas30, acima2x as contarAcima2x } from './numeros'
 
 /** Uma célula de número. `value` null = sem dado: a tela mostra `missing` em .obs-ch-nm. `base` é o texto do ⓘ e nunca é vazio. */
 export interface NumCell { key: string; value: string | null; missing: string | null; label: string; n: string | null; base: string }
@@ -33,12 +33,6 @@ export interface CanalHeaderView {
 }
 
 const WAIT = 'quando a sincronização terminar'
-
-function durText(sec: number): string {
-  const s = Math.round(sec), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60
-  const p2 = (n: number) => (n < 10 ? '0' : '') + n
-  return h ? `${h}:${p2(m)}:${p2(r)}` : `${p2(m)}:${p2(r)}`
-}
 
 export function buildCanalHeader(obs: Observatory, channelId: string): CanalHeaderView | null {
   const ch: ObsChannel | undefined = obs.channel(channelId)
@@ -106,22 +100,23 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
   }
   const engajamento = engOf('long', SL, 'longos', 'longo')
 
+  const a2x = contarAcima2x(SL)
   const acima2x = cell('acima2x', 'vídeos acima de 2× em 90 dias', {
     // sem nenhum longo com múltiplo em 90 dias não há de quê contar: a frase, nunca "0" (o zero medido é "0 de 2")
-    value: SL.pctOutliersN === 0 ? null : String(SL.outliers90), missing: 'sem base: nenhum longo com múltiplo em 90 dias',
-    base: SL.pctOutliersN === 0 ? 'nenhum longo de até 90 dias com múltiplo calculado, então não há o que contar'
-      : `${SL.outliers90} de ${SL.pctOutliersN} longos de até 90 dias com múltiplo de 2× ou mais`,
+    value: a2x == null ? null : String(a2x.k), missing: 'sem base: nenhum longo com múltiplo em 90 dias',
+    base: a2x == null ? 'nenhum longo de até 90 dias com múltiplo calculado, então não há o que contar'
+      : `${a2x.k} de ${a2x.de} longos de até 90 dias com múltiplo de 2× ou mais`,
   })
 
   /* ---------------------------------------------------------------- todos os números */
   /* `SL.changes30` conta também a troca de descrição; o ⓘ e o spec (emenda 44.2) dizem "título e thumbnail" */
-  const trocas30N = obs.changesIn({ days: 30, channel: ch.id }).filter(c => c.type === 'title' || c.type === 'thumb').length
+  const trocas30N = contarTrocas30(obs, ch.id)
   const trocas30 = cell('trocas30', 'trocas em 30 dias', {
     value: String(trocas30N), missing: '', base: 'título e thumbnail, últimos 30 dias',
   })
 
   const vpdPorMil = cell('vpdPorMil', 'views/dia por mil inscritos', {
-    value: SL.perMilSubs == null ? null : F.dec1(SL.perMilSubs), n: SL.vpdN,
+    value: SL.perMilSubs == null ? null : vpdText(SL.perMilSubs, F.num), n: SL.vpdN,
     missing: ch.subs == null ? 'inscritos ocultos pelo canal' : 'sem contagem diária ainda',
     base: 'views/dia nos longos ÷ milhares de inscritos',
   })
@@ -159,11 +154,10 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
       : `nenhum longo publicado em ${R.habit.weeks} semanas`,
   })
 
-  const durs = trackedOf('long').map(v => v.dur).filter((d): d is number => d != null)
-  const durMed = obs.median(durs)
-  const duracaoMediana = cell('duracaoMediana', 'duração mediana dos longos', {
+  const dur = duracaoMediana(obs, vids), durMed = dur.median
+  const duracaoMedianaCell = cell('duracaoMediana', 'duração mediana dos longos', {
     value: durMed == null ? null : durText(durMed), missing: 'sem duração nos longos',
-    base: durMed == null ? 'nenhum longo acompanhado tem a duração guardada' : `mediana em ${noun(durs.length, 'longo acompanhado', 'longos acompanhados')}`,
+    base: durMed == null ? 'nenhum longo acompanhado tem a duração guardada' : `mediana em ${noun(dur.n, 'longo acompanhado', 'longos acompanhados')}`,
   })
 
   const tracked = vids.filter(v => v.tracked)
@@ -173,12 +167,11 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
     base: `soma de ${noun(withViews.length, 'vídeo acompanhado', 'vídeos acompanhados')}; ${tracked.length - withViews.length ? `${tracked.length - withViews.length} sem contagem ficam fora` : 'nenhum fica sem contagem'}`,
   })
 
-  const viewsOf = (f: 'long' | 'short') => trackedOf(f).map(v => v.views).filter((x): x is number => x != null)
-  const vl = viewsOf('long'), vs = viewsOf('short'), ml = obs.median(vl), ms = obs.median(vs)
+  const vl = viewsMediana(obs, vids, 'long'), vs = viewsMediana(obs, vids, 'short'), ml = vl.median, ms = vs.median
   const medParts = [ml != null ? `${F.num(ml)} longos` : null, ms != null ? `${F.num(ms)} Shorts` : null].filter((x): x is string => x != null)
   const medianaViews = cell('medianaViews', 'mediana de views, longos e Shorts', {
     value: medParts.length ? medParts.join(' · ') : null, missing: 'sem contagem',
-    base: `${noun(vl.length, 'longo', 'longos')} e ${noun(vs.length, 'Short', 'Shorts')} acompanhados`,
+    base: `${noun(vl.n, 'longo', 'longos')} e ${noun(vs.n, 'Short', 'Shorts')} acompanhados`,
   })
 
   const longs90 = recent('long'), themeCount = new Map<string, number>()
@@ -239,7 +232,7 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
     id: ch.id, name: ch.name, fullName: ch.fullName, avatar: ch.avatar ?? null, ini: ch.ini, color: ch.color, lang: ch.lang,
     niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null, handle: ch.handle ? ch.handle : null, url: ch.url,
     faixa: [subs, growth30, ritmo, vpd, engajamento, acima2x],
-    todos: [trocas30, vpdPorMil, vpdShorts, engShorts, multTipico, maiorMult, ultimoVideo, habito, duracaoMediana, viewsSomadas, medianaViews, tema],
+    todos: [trocas30, vpdPorMil, vpdShorts, engShorts, multTipico, maiorMult, ultimoVideo, habito, duracaoMedianaCell, viewsSomadas, medianaViews, tema],
     sync: { tone, text, banner, at: last == null || s.state === 'backfill' ? null : new Date(last).toISOString(), atText }, counts, result, backfill: backfill ? s.backfill : null,
   }
 }
