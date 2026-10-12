@@ -543,8 +543,20 @@ describe('rodarColeta: L1b', () => {
       const r = await rodar()
       expect(r.resumo.conferencias_vencidas).toEqual([`de-7-dias (ET, ${haDias(7)}, agente)`, `de-8-dias (ET, ${haDias(8)}, agente)`, `de-40-dias (ET, ${haDias(40)}, agente)`])
       expect(r.falhas).toEqual([
-        `conferências vencidas há mais de 7 dias: 2 (de-8-dias, devida em ${haDias(8)}; de-40-dias, devida em ${haDias(40)}): faça a conferência, anote no ledger e preencha feitaEm em apps/web/src/lib/conferencias.ts (runbook da coleta, seção 3)`,
+        `conferências vencidas há mais de 7 dias: 2 (de-8-dias, devida em ${haDias(8)}; de-40-dias, devida em ${haDias(40)}): faça a conferência, anote no ledger e preencha feitaEm em apps/web/src/lib/conferencias.ts (runbook da coleta, seção 6, "Conferências com data")`,
       ])
+    })
+
+    it('a nota de conferência é SEMPRE a última de falhas: as falhas reais vêm na frente (ela mascara o aviso do vigia, que deduplica por estado)', async () => {
+      conferenciasDeTeste.push(conf('de-9-dias', haDias(9)))
+      vi.mocked(passoRelatorios).mockRejectedValue(new Error('boom'))
+      vi.mocked(criterioOrcamento).mockImplementation(async ({ falhas }) => { falhas.push('orçamento: o passo diario ficou sem tempo') })
+      const db = fakeSupabase({ youtube_channels: canais, yt_reporting_reports: [{ report_id: 'r1', status: 'baixado', downloaded_at: '2026-10-01T12:00:00.000Z' }] })
+      const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+      expect(r.falhas.length).toBe(4)
+      expect(r.falhas.slice(0, 3).some(f => f.startsWith('conferências vencidas'))).toBe(false)
+      expect(r.falhas.at(-1)).toMatch(/^conferências vencidas há mais de 7 dias: 1 \(de-9-dias,/)
+      expect(r.falhas.indexOf('orçamento: o passo diario ficou sem tempo')).toBeLessThan(r.falhas.length - 1)
     })
 
     it('marcada como feita, a conferência de 40 dias some do resumo e do vermelho', async () => {

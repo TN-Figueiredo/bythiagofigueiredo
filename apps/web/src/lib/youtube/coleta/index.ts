@@ -302,13 +302,15 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   resumo.reautorizar = emReautorizar().map(c => c.id)
   // Item 246: conferência com data vencida e sem `feitaEm` aparece em toda execução, com o nome. Até 7 dias de atraso fica só
   // no resumo; com 8 dias ou mais entra em `falhas` e o cron fica vermelho, até alguém preencher `feitaEm` (decisão do
-  // controlador, 12/10/2026). Lista vazia = nenhuma vencida (o campo está sempre presente na fase 'depois').
+  // controlador, 12/10/2026). Lista vazia = nenhuma vencida; campo ausente = não avaliado (a fase 'antes', ou uma das saídas antecipadas
+  // de `rodarColeta`, ou o bloco abaixo lançou: nesse caso há a nota 'conferências: ...'). A nota abaixo é SEMPRE a última de `falhas`
+  // (um teste trava a ordem): ela mascara o aviso do vigia e as falhas reais têm de vir na frente dela.
   try {
     const hoje = hojeSP()
     resumo.conferencias_vencidas = conferenciasVencidas(hoje, CONFERENCIAS).map(c => `${c.id} (${c.etapa}, ${c.data}, ${c.responsavel})`)
     const emFalha = conferenciasEmFalha(hoje, CONFERENCIAS)
     if (emFalha.length > 0) {
-      pushUnico(falhas, `conferências vencidas há mais de ${DIAS_ATE_O_VERMELHO} dias: ${emFalha.length} (${emFalha.map(c => `${c.id}, devida em ${c.data}`).join('; ')}): faça a conferência, anote no ledger e preencha feitaEm em apps/web/src/lib/conferencias.ts (runbook da coleta, seção 3)`)
+      pushUnico(falhas, `conferências vencidas há mais de ${DIAS_ATE_O_VERMELHO} dias: ${emFalha.length} (${emFalha.map(c => `${c.id}, devida em ${c.data}`).join('; ')}): faça a conferência, anote no ledger e preencha feitaEm em apps/web/src/lib/conferencias.ts (runbook da coleta, seção 6, "Conferências com data")`)
     }
   } catch (e) {
     falhou('conferências', e)
