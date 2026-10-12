@@ -9,7 +9,7 @@
 import { REACH_TYPES, REPORT_TYPES_ENABLED } from '@/lib/youtube/reporting/types'
 import { scopeJob } from './attempts'
 import { addDays, boundsAnalytics, utcDay } from './day-pt'
-import { JANELA_PERDA_DIAS, VALIDADE_DIAS, venceEm } from './fila-relatorios'
+import { JANELA_PERDA_DIAS, VALIDADE_DIAS, registroDeVencimento, venceEm } from './fila-relatorios'
 import { conferirBanco, prefixoNotaErroAlcance, pushUnico } from './schema'
 import type { AttemptKind, StepCtx } from './types'
 
@@ -176,7 +176,29 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     }
   }
 
-  // Venceu sem baixar (o arquivo já sumiu na origem) há até JANELA_PERDA_DIAS dias, de tipo HABILITADO. A nota por relatório
+  // MG13 (E20): 404/410 em relatório criado há MAIS de 14 dias. A leitura acima só vê quem foi criado na janela; esta lê o
+  // instante em que a origem recusou (`expired_at`) e dura JANELA_PERDA_DIAS a partir dele. Linha anterior à MG13 tem
+  // expired_at nulo ("sem registro de vencimento"): fica com as duas portas antigas, nenhuma nota é inventada para ela.
+  const expTarde = await ctx.supabase
+    .from('yt_reporting_reports')
+    .select('report_id, channel_id, report_type_id, status, create_time, expired_at')
+    .eq('status', 'expirado_sem_baixar')
+    .in('report_type_id', [...HABILITADOS])
+    .gte('expired_at', corte14)
+    .lt('create_time', corte14)
+    .limit(LIMITE_LEITURA)
+  if (leituraOk(expTarde, 'yt_reporting_reports', 'relatórios recusados pela origem', ctx.falhas)) {
+    const lidos = (expTarde.data ?? []) as Recente[]
+    if (lidos.length >= LIMITE_LEITURA) {
+      naoAvaliou(ctx.falhas, `relatórios recusados pela origem (yt_reporting_reports): leitura cortada em ${LIMITE_LEITURA}`)
+    }
+    for (const r of lidos) {
+      pushUnico(ctx.falhas, `relatórios: ${nome(r.channel_id)} tem relatório ${r.report_type_id} expirado sem baixar`)
+    }
+  }
+
+  // Venceu sem baixar (o arquivo já sumiu na origem) há até JANELA_PERDA_DIAS dias, de tipo HABILITADO, SEM expired_at (venceu
+  // por idade: a origem não respondeu nada; quem tem expired_at é da nota por relatório logo acima). A nota por relatório
   // acima só vê quem foi CRIADO há menos de 14 dias, ou seja, quase nunca quem venceu por idade (30 ou 60 dias de criado):
   // a nota da execução em que vence dura um dia e, no seguinte, o cron voltava a verde com a perda esquecida. Aqui o aviso
   // dura até JANELA_PERDA_DIAS depois do vencimento de cada relatório (a classe dele decide: histórico 30, corrente 60) e
@@ -185,19 +207,22 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
   const corteVenceu = iso(agora - (VALIDADE_DIAS.corrente + JANELA_PERDA_DIAS) * DIA_MS)
   const venc = await ctx.supabase
     .from('yt_reporting_reports')
-    .select('report_id, channel_id, report_type_id, create_time, is_backfill')
+    .select('report_id, channel_id, report_type_id, create_time, is_backfill, expired_at')
     .eq('status', 'expirado_sem_baixar')
     .in('report_type_id', [...HABILITADOS])
     .gte('create_time', corteVenceu)
     .lt('create_time', corte14)
     .limit(LIMITE_LEITURA)
   if (leituraOk(venc, 'yt_reporting_reports', 'relatórios que venceram sem baixar', ctx.falhas)) {
-    const lidos = (venc.data ?? []) as Array<{ report_type_id: string; create_time: string; is_backfill: boolean | null }>
+    const lidos = (venc.data ?? []) as Array<{ report_type_id: string; create_time: string; is_backfill: boolean | null; expired_at?: string | null }>
     if (lidos.length >= LIMITE_LEITURA) {
       naoAvaliou(ctx.falhas, `relatórios que venceram sem baixar (yt_reporting_reports): leitura cortada em ${LIMITE_LEITURA}`)
     }
     const porTipo = new Map<string, number>()
     for (const r of lidos) {
+      // (emenda do portão: D-I3) Quem tem o instante da origem gravado é SÓ da nota por relatório, que dura 14 dias a partir
+      // dele e acaba. Sem olhar a idade do registro: se olhasse, a mesma perda voltaria aqui quando o prazo da origem passasse.
+      if (registroDeVencimento(r).tipo === 'origem') continue
       const vence = venceEm(r)
       if (vence > agora) continue                                // expirou cedo (404/410), o prazo da origem nem chegou: só perdidos
       if (vence < agora - JANELA_PERDA_DIAS * DIA_MS) continue   // venceu há mais que a janela: só perdidos

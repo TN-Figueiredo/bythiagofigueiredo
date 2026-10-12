@@ -10237,16 +10237,20 @@ export type Database = {
       }
       yt_reporting_reports: {
         Row: {
+          blob_lost_at: string | null
           bytes: number | null
           channel_id: string
           create_time: string
+          download_attempts: number
           download_url: string
           downloaded_at: string | null
           end_time: string
           error: string | null
+          expired_at: string | null
           is_backfill: boolean
           job_expire_time: string | null
           job_id: string
+          last_error_at: string | null
           normalized_at: string | null
           report_id: string
           report_type_id: string
@@ -10258,16 +10262,20 @@ export type Database = {
           unmatched_video_ids: Json | null
         }
         Insert: {
+          blob_lost_at?: string | null
           bytes?: number | null
           channel_id: string
           create_time: string
+          download_attempts?: number
           download_url: string
           downloaded_at?: string | null
           end_time: string
           error?: string | null
+          expired_at?: string | null
           is_backfill?: boolean
           job_expire_time?: string | null
           job_id: string
+          last_error_at?: string | null
           normalized_at?: string | null
           report_id: string
           report_type_id: string
@@ -10279,16 +10287,20 @@ export type Database = {
           unmatched_video_ids?: Json | null
         }
         Update: {
+          blob_lost_at?: string | null
           bytes?: number | null
           channel_id?: string
           create_time?: string
+          download_attempts?: number
           download_url?: string
           downloaded_at?: string | null
           end_time?: string
           error?: string | null
+          expired_at?: string | null
           is_backfill?: boolean
           job_expire_time?: string | null
           job_id?: string
+          last_error_at?: string | null
           normalized_at?: string | null
           report_id?: string
           report_type_id?: string
@@ -11194,6 +11206,16 @@ export type Database = {
       yt_reporting_blobs_purge: {
         Args: { p_sem_normalizador: string[] }
         Returns: number
+      }
+      yt_reporting_guarda_conferir: {
+        Args: never
+        Returns: {
+          brutos: number
+          baixados: number
+          baixados_sem_bruto: number
+          brutos_sem_baixado: number
+          perdas_reconhecidas: number
+        }[]
       }
     }
     Enums: {
