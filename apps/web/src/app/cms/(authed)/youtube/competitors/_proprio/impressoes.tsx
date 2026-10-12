@@ -2,7 +2,7 @@
 /**
  * O gráfico "Impressões por dia" (spec 16.6 e 17.4; mockup M/impressoes.js e impressoes.css): um componente só, usado na página do canal
  * próprio e na do vídeo próprio. Recebe o modelo JÁ montado (`buildImpressoes`): não lê banco, não importa os leitores, não pergunta que dia
- * é hoje. Três estados que nunca se confundem, cada um com forma E cor: barra (dia com impressões), traço na base (zero medido), coluna
+ * é hoje. Três estados que nunca se confundem, cada um com forma E cor: barra cheia (dia com impressões), caixa vazada (zero medido), coluna
  * hachurada de cima a baixo, também na faixa dos cliques (não medido). O desenho é SVG na largura em que aparece (o texto fica em 12 px,
  * sem encolher) e é `aria-hidden`: tudo o que ele diz existe como texto (o nome do grupo traz o resumo; cada passo do teclado é falado
  * numa região aria-live; "Ver como tabela" traz todos os dias).
