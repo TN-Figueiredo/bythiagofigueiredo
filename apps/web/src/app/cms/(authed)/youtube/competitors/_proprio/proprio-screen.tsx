@@ -141,7 +141,7 @@ export function ProprioScreen({ view, comoEsta }: { view: ProprioView; comoEsta?
 
   const lista = useMemo(() => montarLista(todos, state), [todos, state.fmt, state.sort, state.dir, state.q, state.n])   // eslint-disable-line react-hooks/exhaustive-deps
   // à direita das abas, na aba Vídeos: a frase das views por dia de cada vídeo (UMA vez, D12 c); com busca, o resultado dela
-  const resumo = state.tab !== 'videos' || !todos.length ? null : state.q.trim() ? (lista.vazio ? null : lista.resultado) : view.videos.semViewsDiarias
+  const resumo = state.tab !== 'videos' || !todos.length ? null : state.q.trim() ? (lista.vazio ? null : lista.resultado) : view.videos.viewsPorDiaFrase
 
   /* trocar de aba move o foco para o título da aba nova; o Voltar do navegador (popstate) não mexe no foco */
   const focoNaAba = useRef(false)
