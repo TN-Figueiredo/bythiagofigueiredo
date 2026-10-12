@@ -459,7 +459,7 @@ describe('T13.0 H1/H2: a frase do paginador diz a ordem que o site sabe, nunca o
   })
   it('back que só abre a seção (?painel=1, link antigo sem marcador) não descreve lista: o paginador não afirma ordem nenhuma', () => {
     const p = pag('v2', { ...origem, back: '?painel=1' })
-    expect(p.position).toBe('vídeo 2 de 3, na ordem em que a lista estava quando você abriu')
+    expect(p.position).toBe('vídeo 2 de 3, na ordem da lista de onde você veio')
     expect(p.position).not.toMatch(/mais novo|a da lista aberta/)
     expect(descricaoDaOrigem('?painel=1')).toBeNull()
     expect(descricaoDaOrigem(BACK_DO_TOP_IMP)).toBeNull()

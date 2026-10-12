@@ -37,10 +37,10 @@ describe('I1: % assistido com menos de 7 dias de dado', () => {
 
   it('6 dias: valor nulo e a nota "só 6 dias com dado; precisa de 7", nunca zero nem 61%', () => {
     const l = assistido(viewDe(alcOk(), diarioDe(6)))
-    expect(l).toMatchObject({ valor: null, nota: 'só 6 dias com dado; precisa de 7', fraco: false })
+    expect(l).toMatchObject({ valor: null, nota: 'Ainda não dá para dizer: só 6 dias com dado; precisa de 7.', fraco: false, aindaNaoDa: true })
   })
   it('1 dia: singular "só 1 dia com dado; precisa de 7"', () => {
-    expect(assistido(viewDe(alcOk(), diarioDe(1))).nota).toBe('só 1 dia com dado; precisa de 7')
+    expect(assistido(viewDe(alcOk(), diarioDe(1))).nota).toBe('Ainda não dá para dizer: só 1 dia com dado; precisa de 7.')
   })
   it('7 dias: já dá número (61%), sem a nota dos dias', () => {
     expect(assistido(viewDe(alcOk(), diarioDe(7)))).toMatchObject({ valor: '61%' })
@@ -51,7 +51,8 @@ describe('I1: % assistido com menos de 7 dias de dado', () => {
       const c = cabecalho(dias)
       const l = assistido(viewDe(alcOk(), diarioDe(dias)))
       expect(l.valor === null, `${dias} dias`).toBe(c.value === null)
-      if (c.value === null) expect(l.nota, `${dias} dias`).toBe(c.sub)
+      // o cartão usa a mesma frase do cabeçalho ("ainda não dá para dizer" + a base), com a maiúscula e o ponto de uma frase própria
+      if (c.value === null) expect(l.nota, `${dias} dias`).toBe(`Ainda não dá para dizer: ${c.sub}.`)
       else expect(l.valor, `${dias} dias`).toBe(c.value)
     }
   })
@@ -75,7 +76,7 @@ describe('M1: a frase de "Não medido" lista só o que não foi medido', () => {
     expect(assistido(viewDe(alcVazio(), diarioDe(20)))).toMatchObject({ valor: '61%' })
   })
   it('nenhum dos dois: % assistido nulo com a nota do estado dele', () => {
-    expect(assistido(viewDe(alcVazio(), semDiario))).toMatchObject({ valor: null, nota: 'a coleta diária ainda não gravou este canal' })
+    expect(assistido(viewDe(alcVazio(), semDiario))).toMatchObject({ valor: null, nota: 'ainda não há coleta diária deste canal' })
   })
   it('só alcance (diário ausente) e os dois presentes: a frase de abertura normal, sem "Não medido"', () => {
     for (const d of [semDiario, diarioDe(20)]) {

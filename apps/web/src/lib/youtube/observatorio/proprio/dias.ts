@@ -131,7 +131,7 @@ export function montarDias(a: AlcanceCanal, ytId?: string): { periodo: Periodo |
     const linhas = linhasPorDia.get(dia) ?? []
     const temMedido = rels.some(medido)
     if (linhas.length > 0) {
-      if (!temMedido) avisos.push(`${dia}: há impressões sem relatório lido nesse dia`)
+      if (!temMedido) avisos.push(`${dia}: há impressões sem relatório nesse dia`)
       let imp = 0
       for (const l of linhas) imp += l.imp ?? 0
       dias.push({ dia, situacao: 'com-impressoes', motivo: null, imp, cliques: cliquesDe(linhas) })

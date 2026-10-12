@@ -130,7 +130,7 @@ export interface EntradaBlocos {
 export const NOTA_NEGADO = 'Só quem edita o site vê as views por dia, as impressões e cliques, o % assistido e a posição deste vídeo nessas medidas.'
 export const NOTA_ERRO = 'A leitura dos números deste vídeo falhou agora; recarregue a página.'
 const NOTA_DIARIO_NEGADO = 'Só quem edita o site vê a posição deste vídeo em views por dia e em % assistido.'
-const NOTA_DIARIO_ERRO = 'A leitura do diário deste vídeo falhou agora; recarregue a página.'
+const NOTA_DIARIO_ERRO = 'A leitura das views por dia deste vídeo falhou agora; recarregue a página.'
 const NOTA_DIARIO_NOVO = 'Vídeo novo: ainda não há leitura diária para posicionar este vídeo entre os outros em views por dia nem em % assistido.'
 const NOTA_DIARIO_VAZIO = 'Sem a leitura diária não há como posicionar este vídeo entre os outros em views por dia nem em % assistido.'
 
@@ -139,7 +139,7 @@ const FRASE_SEM_DIARIO_VIEWS = 'A coleta diária de views ainda não rodou para 
 const FRASE_VIDEO_NOVO_IMPRESSOES = 'Vídeo novo: os números de alcance chegam com 2 a 3 dias de atraso, então ainda não há dia deste vídeo.'
 const POUCO_IMPRESSAO = 100
 const FRASE_POUCA_IMPRESSAO = 'É pouco para dizer se a capa funciona: leia como contagem.'
-const SEM_TAXA_CTR = 'A taxa de clique deste vídeo não é medida: o YouTube não devolveu a taxa de algum dia com impressão.'
+const SEM_TAXA_CTR = 'Não dá para calcular a taxa de clique deste vídeo: o YouTube não informou a taxa de pelo menos um dia com impressões.'
 const ALTURA_GRAFICO = 110
 const MINUS = '−'
 /** Dentro desta distância de 0% ou de 100% o rótulo da marca (cerca de 20% da largura de uma tela de 390 px) deixa de ficar centrado nela. */
@@ -156,7 +156,7 @@ function viewsDe(serie: SerieVideo, o: { pubDia: DiaYt | null; dm: (d: DiaYt) =>
     case 'sem-acesso': case 'leitura-falhou': return { medido: false, frase: NOTA_ERRO, grafico: null }
     case 'sem-medida': {
       const ate = serie.ultimoDia != null ? ` até ${o.dm(serie.ultimoDia)}` : ''
-      return { medido: false, frase: `Este vídeo não tem nenhum dia medido nos 28 dias do diário${ate}. Não é zero: falta medir.`, grafico: null }
+      return { medido: false, frase: `Nenhum dia medido nos 28 dias${ate}. Não é zero: falta medir.`, grafico: null }
     }
     case 'ok': break
     default: { const nunca: never = serie.estado; return nunca }
@@ -246,9 +246,9 @@ function impressoesDe(alcance: DadosDoVideo['alcance'], o: { ytId: string; pubDi
 
 const METODO_ASSISTIDO = [
   '% assistido: do total de tempo de vídeo possível, quanto foi assistido. É a média do percentual de cada dia, pesada pelas views do dia (dá o mesmo valor que o YouTube calcula para o período).',
-  'Janela: os 28 dias que terminam no último dia gravado do canal.',
+  'Janela: os 28 dias que terminam no último dia medido do canal.',
   'Poucas views: abaixo de 10 views o valor sai com a contagem ao lado, em cinza, e sem comparar com o normal do canal.',
-  'O normal do canal é a mediana do % assistido dos outros vídeos do canal que tiveram views, só com 5 ou mais. Perto do normal: até 2 pontos para cima ou para baixo.',
+  'O normal do canal é a mediana do % assistido dos outros vídeos do canal que tiveram views, e só vale com 5 ou mais vídeos. Perto do normal: até 2 pontos para cima ou para baixo.',
   'Acima de 100%: trecho que muita gente voltou para rever.',
 ]
 
@@ -274,7 +274,7 @@ function assistidoDe(
   const pctTexto = o.F.int(pct) + '%'
   // acima de 100% o tempo assistido passa da duração: "(13:56 de 10:00)" pareceria erro; a frase diz por quê
   const duracao = Math.round(pct) > 100
-    ? (o.dur != null ? `: ${durText(pct / 100 * o.dur)} assistidos num vídeo de ${durText(o.dur)}, porque as pessoas reviram trechos` : ': as pessoas reviram trechos')
+    ? (o.dur != null ? ` (${durText(pct / 100 * o.dur)} num vídeo de ${durText(o.dur)}): acontece quando muita gente revê trechos` : ': acontece quando muita gente revê trechos')
     : o.dur != null ? ` (${durText(pct / 100 * o.dur)} de ${durText(o.dur)})` : ''
   const pouco = a.pouco
   const partes: Parte[] = [{ t: 'Quem assiste vê em média ' }, { t: pctTexto, b: true }, { t: ` do vídeo${duracao}.` }]
@@ -319,7 +319,7 @@ const FORJA: ForjaIndisponivelView = {
   porque: 'A forja só recebe dados públicos de concorrente; a leitura de vídeo do seu canal ainda não existe.',
 }
 
-const AINDA = 'Origem do tráfego (esta tela ainda não a lê) e trocas de título e thumbnail (ainda não registradas; gráfico sem marca não quer dizer que não houve troca).'
+const AINDA = 'Origem do tráfego (esta tela ainda não a mostra) e trocas de título e thumbnail (ainda não registradas; gráfico sem marca não quer dizer que não houve troca).'
 
 /* ---------------------------------------------------------------- as réguas */
 

@@ -34,10 +34,10 @@ describe('13.3 linha-resumo sob o nome', () => {
     expect(build(mundo(666, 'erro')).resumo?.resto).toBe('; a leitura do alcance falhou agora; recarregue a página.')
     expect(JSON.stringify(build(mundo(666, 'negado')).resumo)).not.toMatch(/\d{2,}\s+impress/)
   })
-  it('só zeros medidos: "nenhuma impressão em N dias lidos" (zero medido é um valor)', () => {
+  it('só zeros medidos: "nenhuma impressão em N dias medidos" (zero medido é um valor)', () => {
     const w = mundo(666)
     const h = build({ ...w, dados: { ...w.dados, alcance: { acesso: 'ok', dado: { ...alcanceCheio(w.canalId, w.ytIds, w.hoje), linhas: [] } } } })
-    expect(h.resumo?.resto).toBe(`; nenhuma impressão em ${CHEIO.diasLidos} dias lidos.`)
+    expect(h.resumo?.resto).toBe(`; nenhuma impressão em ${CHEIO.diasLidos} dias medidos.`)
   })
 })
 
@@ -140,7 +140,7 @@ describe('13.3 % assistido do canal', () => {
   it('sem views nos 28 dias, % não entregue, diário vazio, sem permissão e leitura com erro: nula com a frase de cada um', () => {
     expect(a(comPct(mundo(12), [{ dias: 10, views: 0, pct: 50 }])).missing).toMatch(/^nenhum vídeo teve views nos 28 dias até \d\d\/\d\d$/)
     expect(a(comPct(mundo(12), [{ dias: 10, views: 5, pct: null }])).missing).toBe('o YouTube ainda não entregou o % assistido')
-    expect(a(mundo(12, 'vazio')).missing).toBe('a coleta diária ainda não gravou este canal')
+    expect(a(mundo(12, 'vazio')).missing).toBe('ainda não há coleta diária deste canal')
     expect(a(mundo(12, 'negado')).missing).toBe('só quem edita o site vê este número')
     expect(a(mundo(12, 'erro')).missing).toBe('a leitura do % assistido falhou agora; recarregue a página')
     for (const w of [mundo(12, 'vazio'), mundo(12, 'negado'), mundo(12, 'erro')]) expect(a(w).value).toBeNull()

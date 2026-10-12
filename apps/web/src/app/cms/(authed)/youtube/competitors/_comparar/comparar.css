@@ -231,6 +231,7 @@
 [data-obs-screen="comparar"] .so-vl{font:500 15px/22px var(--font-jetbrains-var),"JetBrains Mono",ui-monospace,monospace;color:var(--lado-o)}
 [data-obs-screen="comparar"] .so-vl.fraco{color:var(--muted)}
 [data-obs-screen="comparar"] .so-vl small,[data-obs-screen="comparar"] .so-nota{font:400 12.5px var(--font-sans),system-ui,sans-serif;color:var(--muted);margin-left:6px;overflow-wrap:anywhere}
+[data-obs-screen="comparar"] .so-nota.so-ainda{display:block;margin-left:0;line-height:18px}
 [data-obs-screen="comparar"] .so-val .tf{margin-top:6px}
 [data-obs-screen="comparar"] .cp-aviso{display:flex;gap:8px;align-items:flex-start;margin:8px 0 0;font-size:12.5px;line-height:18px;color:var(--muted);max-width:110ch}
 [data-obs-screen="comparar"] .cp-aviso-i{flex:none;display:inline-flex;margin-top:1px}

@@ -26,14 +26,14 @@ describe('views por dia de um vídeo', () => {
     expect(vpdDoVideo({ canalId: 'c', ultimoDia: ULT, linhas: [], descartados: 0 }, 'v1')).toEqual({ vpd: null, dias: 0 })
     expect(vpdDoVideo({ canalId: 'c', ultimoDia: null, linhas: [], descartados: 0 }, 'v1')).toEqual({ vpd: null, dias: 0 })
   })
-  it('só os 28 dias que terminam no último dia gravado', () => {
+  it('só os 28 dias que terminam no último dia medido', () => {
     const dado = { canalId: 'c', ultimoDia: ULT, linhas: [...serie('v1', Array(28).fill(1)), { ytId: 'v1', dia: d(28), views: 1000 }], descartados: 0 }
     expect(vpdDoVideo(dado, 'v1')).toEqual({ vpd: 1, dias: 28 })
   })
   it('sete dias de zero medido dão 0 medido (canal parado), não null', () => {
     expect(vpdDoVideo({ canalId: 'c', ultimoDia: ULT, linhas: serie('v1', Array(7).fill(0)), descartados: 0 }, 'v1')).toEqual({ vpd: 0, dias: 7 })
   })
-  it('linha de outro vídeo e linha depois do último dia gravado não entram', () => {
+  it('linha de outro vídeo e linha depois do último dia medido não entram', () => {
     const dado = { canalId: 'c', ultimoDia: ULT, linhas: [...serie('v1', Array(7).fill(2)), ...serie('v2', Array(7).fill(900)), { ytId: 'v1', dia: addDays(ULT, 1), views: 5000 }], descartados: 0 }
     expect(vpdDoVideo(dado, 'v1')).toEqual({ vpd: 2, dias: 7 })
   })
@@ -82,7 +82,7 @@ describe('views por dia do canal', () => {
   it('diário vazio e nenhum longo acompanhado: sem-diario com a frase certa', () => {
     const c = vpdDoCanal(ok([], null), [], HOJE)
     expect(c).toMatchObject({ valor: null, motivo: 'sem-diario', ultimoDia: null })
-    expect(motivoVpdTexto(c.motivo!, c, dm)).toBe('a coleta diária ainda não gravou este canal')
+    expect(motivoVpdTexto(c.motivo!, c, dm)).toBe('ainda não há coleta diária deste canal')
   })
   it('a ordem dos motivos: sem acesso e leitura falhou antes de tudo; parado antes de sem-longos', () => {
     expect(vpdDoCanal(ok([], null), [], HOJE).motivo).toBe('sem-diario')
@@ -108,7 +108,7 @@ describe('textos', () => {
     expect(motivoVpdTexto('poucos-dias', { ultimoDia: ULT }, dm)).toBe('menos de 7 dias medidos nos últimos 28')
     expect(motivoVpdTexto('sem-acesso', { ultimoDia: null }, dm)).toBe('só quem edita o site vê as views por dia do seu canal')
     expect(motivoVpdTexto('leitura-falhou', { ultimoDia: null }, dm)).toBe('a leitura das views por dia falhou agora; recarregue a página')
-    expect(motivoVpdTexto('sem-diario', { ultimoDia: null }, dm)).toBe('a coleta diária ainda não gravou este canal')
+    expect(motivoVpdTexto('sem-diario', { ultimoDia: null }, dm)).toBe('ainda não há coleta diária deste canal')
     expect(motivoVpdTexto('sem-longos', { ultimoDia: null }, dm)).toBe('nenhum vídeo longo acompanhado')
     for (const m of ['sem-acesso', 'leitura-falhou', 'sem-diario', 'diario-parado', 'sem-longos', 'poucos-dias'] as const) {
       expect(motivoVpdTexto(m, { ultimoDia: ULT }, dm)).not.toMatch(/L2|lote|day_pt|Analytics|dataset|undefined|null/)

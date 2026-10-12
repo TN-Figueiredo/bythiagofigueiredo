@@ -25,6 +25,8 @@ async function load(o: { allowed?: boolean; sync?: () => Promise<unknown>; chann
   vi.doMock('next/server', () => ({ after: () => {} }))
   vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
   vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: syncFn }))
+  // a guarda de schema (MG1 + MG2) das ações que sincronizam tem teste próprio (competitor-actions-schema-guard.test.ts): aqui o schema está pronto
+  vi.doMock('@/lib/youtube/competitor-sync-guard', () => ({ syncSchemaBlock: async () => null }))
   const channel = 'channel' in o ? o.channel : { id: 'c1', channel_id: 'UC1', site_id: 's1' }
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => chain({ data: channel, count: 0, error: null }) }) }))
   return { syncFn, ...(await import('@/app/cms/(authed)/youtube/competitors/actions')) }

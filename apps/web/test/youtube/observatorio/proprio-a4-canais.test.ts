@@ -75,7 +75,7 @@ describe('A4.5 lista: o canal próprio entra na posição de Views/dia', () => {
   const SEIS: Array<[MotivoSemVpd, DiaYt | null, string]> = [
     ['sem-acesso', null, 'só quem edita o site vê as views por dia do seu canal'],
     ['leitura-falhou', null, 'a leitura das views por dia falhou agora; recarregue a página'],
-    ['sem-diario', null, 'a coleta diária ainda não gravou este canal'],
+    ['sem-diario', null, 'ainda não há coleta diária deste canal'],
     ['diario-parado', '2026-10-02', 'a coleta diária deste canal parou em 02/10'],
     ['sem-longos', '2026-10-08', 'nenhum vídeo longo acompanhado'],
     ['poucos-dias', '2026-10-08', 'menos de 7 dias medidos nos últimos 28'],
@@ -114,7 +114,7 @@ describe('A4.5 lista: o canal próprio entra na posição de Views/dia', () => {
         expect(r.valor.vpd, `${id}/${scale}`).toBeNull()
         expect(r.pos).toBeNull()
         expect(r.semMedida).toBe('sem-views-dia-proprio')
-        expect(cheia(v, id).frase).toBe('Ainda sem views por dia medidas: a coleta diária ainda não gravou este canal. Sem posição nesta ordenação.')
+        expect(cheia(v, id).frase).toBe('Ainda sem views por dia medidas: ainda não há coleta diária deste canal. Sem posição nesta ordenação.')
         expect(r.cells.vpd).toMatchObject({ kind: 'na', text: 'Sem views diárias do seu canal.' }) // a célula é a de hoje
       }
     }
