@@ -12,6 +12,7 @@ import { mapLimit } from '@/lib/youtube/observatorio/load'
 import { edicaoValida, provarEdicao, type EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
 import { lerAlcance, lerDiario } from '@/lib/youtube/observatorio/proprio/ler'
 import type { AlcanceCanal, DiarioCanal, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
+import { longosAcompanhados } from './extras'
 
 /** Canais lidos ao mesmo tempo na lista de Canais e na comparação. */
 const CANAIS_EM_VOO = 4
@@ -82,8 +83,5 @@ export async function lerDiarioDosCanais(
 
 /** Os ytIds dos longos acompanhados de um canal próprio, na ordem do motor (mais novo primeiro). */
 export function longosAcompanhadosDe(obs: Pick<Observatory, 'videos'>, canalId: string): string[] {
-  return obs.videos
-    .filter(v => v.ch === canalId && v.tracked && v.fmt === 'long')
-    .sort((a, b) => b.pub - a.pub || (a.ytId < b.ytId ? -1 : 1))
-    .map(v => v.ytId)
+  return longosAcompanhados(obs, canalId)
 }
