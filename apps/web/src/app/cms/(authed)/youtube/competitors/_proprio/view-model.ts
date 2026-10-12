@@ -11,11 +11,14 @@ import { parseCanalState, type CanalState } from '../_canal/params'
 import type { DadosDoCanal } from './dados'
 import { buildProprioHeader, type PosicaoNoNicho, type ProprioHeaderView } from './header-model'
 import type { ConcorrenteAcima } from './posicao-do-site'
+import { buildRetencao, type RetencaoView } from './retencao-model'
 import { buildProprioVideos, type ProprioVideosView } from './videos-model'
 
 export interface ProprioView {
   header: ProprioHeaderView
   videos: ProprioVideosView
+  /** A aba Retenção = "% assistido" (A4 13.3). */
+  retencao: RetencaoView
   state: CanalState
   /** "Comparar com…": a comparação com o concorrente logo acima em inscritos; null = sem concorrente (o botão não existe). */
   compararHref: string | null
@@ -49,7 +52,7 @@ export function buildProprioView(
   if (!header || !videos) return null
   const c = o.concorrenteAcima
   return {
-    header, videos, state: parseCanalState(sp, { own: true }),
+    header, videos, retencao: buildRetencao(obs, canalId, dados, { dm: o.dm, hoje: o.hoje }), state: parseCanalState(sp, { own: true }),
     compararHref: c ? link.comparar(canalId, c.id) : null,
     compararTitulo: c
       ? (c.acima
