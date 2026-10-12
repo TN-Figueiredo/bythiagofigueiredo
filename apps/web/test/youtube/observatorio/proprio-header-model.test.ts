@@ -30,8 +30,9 @@ afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
 type World = ReturnType<typeof proprioWorld>
 const BASE = proprioWorld() // a base do oráculo é lida uma vez por arquivo (a3-fixture guarda por preset)
 
+// `muitosProprios` é obrigatório (T9, M6): o conjunto de cada mundo diz quantos canais próprios tem
 const build = (w: World, posicao: PosicaoNoNicho | null = null): ProprioHeaderView =>
-  buildProprioHeader(w.obs, w.canalId, w.dados, { hoje: w.hoje, dm: w.dm, posicao })!
+  buildProprioHeader(w.obs, w.canalId, w.dados, { hoje: w.hoje, dm: w.dm, posicao, muitosProprios: w.obs.ownChannels().length > 1 })!
 const por = (cs: NumCell[], key: string): NumCell => {
   const c = cs.find(x => x.key === key)
   if (!c) throw new Error('célula inexistente: ' + key)

@@ -162,15 +162,14 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     const l = view.own.block?.linhas.find(x => x.id === id)
     return l?.tipo === 'cheia' ? l.abrirHref : null
   }
-  /** A row's "open": a competitor has a page of its own (no drawer). An own channel's ROW still goes through the drawer, which the server now sends to the page (the drawer leaves with Task 16). */
+  /** A row's "open": a competitor and an own channel with videos have a page of their own (`href`, no drawer). An own channel without videos has neither a page nor a drawer: its row is not clickable (the drawer leaves with Task 16). */
   const openRow = (id: string) => {
     const href = rowOf(id)?.href
-    // own channel with a page: the drawer request is a PUSH, so the server's redirect to the page leaves the list as the previous entry (Voltar returns to it)
-    if (!href) { openDrawer(id, paginaPropria(id) ? 'push' : 'replace'); return }
+    if (!href) { if (!rowOf(id)?.semPagina) openDrawer(id); return }   // canal próprio sem vídeos (`semPagina`) não tem página nem gaveta: não há o que abrir
     setMenu(null)
     router.push(href)
   }
-  const openOwn = (id: string) => { const href = paginaPropria(id); if (href) { setMenu(null); router.push(href) } else openDrawer(id) }
+  const openOwn = (id: string) => { const href = paginaPropria(id); if (href) { setMenu(null); router.push(href) } }
   const closeDrawer = useCallback(() => {
     if (!panel) return
     const id = panel.id
