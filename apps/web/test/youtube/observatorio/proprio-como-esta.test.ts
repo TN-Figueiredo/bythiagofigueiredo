@@ -106,6 +106,8 @@ describe('T10 a linha recolhida e a frase do topo (spec 16.5, D13)', () => {
   it('um dia lido em zero: singular; zero com dias não medidos diz que eles ficam fora da conta', () => {
     const um = v({ resumo: { imp: 0, cliques: 0, diasComImpressao: 0, diasLidos: 1, diasNaoMedidos: 0 }, periodo: { de: '2026-10-07', ate: '2026-10-07', dias: 1 } })
     expect(um.frase).toBe('Nenhuma impressão em 1 dia lido.')
+    // o vazio do topo concorda também: "em 1 dia lido", nunca "no 1 dia lido"
+    expect(um.topVazio).toBe('Nenhum vídeo teve impressão em 1 dia lido.')
     const buraco = v({ resumo: { imp: 0, cliques: 0, diasComImpressao: 0, diasLidos: 6, diasNaoMedidos: 2 }, periodo: { de: '2026-09-30', ate: '2026-10-07', dias: 8 } })
     expect(buraco.frase).toBe('Nenhuma impressão em 6 dias lidos. Os 2 dias sem relatório lido não entram na conta.')
     expect(buraco.topVazio).toBe('Nenhum vídeo teve impressão nos 6 dias lidos.')
