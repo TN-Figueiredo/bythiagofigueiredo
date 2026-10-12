@@ -36,8 +36,6 @@ export const NOT_PORTED_TESTS = new Map<string, string>([
     'R115: production has a fifth kind, troca-seguinte; the closed list is enforced by the INC_TEXT record in _mudancas/view-model.ts and by mudancas-view-model.test.ts'],
   ['[final] quota.releasesAt: 00:00 do dia seguinte quando a cota foi usada; nula em falha e recusa',
     '11d: the daily quota is gone (owner decision 11/10): scenarios have no `quota` field; a new request needs new data (forja/novidade.ts, asserted in forja-novidade.test.ts)'],
-  ['[F8] forja.compose: pedido novo compõe sobre o cenário (substitui o do mesmo nicho, mantém os outros)',
-    '11d: the mockup test reads `quota.usedToday` of the composed scenario; the composition itself (replaces its niche, keeps the others) is asserted in forja-states.test.ts and forja-parity.test.ts'],
   ['[F9] falhou/recusado com outro pedido ativo: o texto diz quem segue e quando pedir de novo (nunca "Peça de novo" solto)',
     '11d: the status text lost the quota clause (\'não conta na cota; você pode pedir de novo...\' became \'não gerou leitura.\'); the rest of the sentence is compared with the oracle in forja-parity.test.ts (semCota) and the new sentence in forja-states.test.ts'],
   ['[F10] quota.byNiche em requestScenario/compose/session; com Todos, quota.text por nicho ("IA: cota livre (recusa não conta) · Viagem: cota usada pelo pedido das 14:50")',
@@ -45,3 +43,13 @@ export const NOT_PORTED_TESTS = new Map<string, string>([
   ['[F11] session.current(nicho) em falhou/recusado leva o motivo completo do próprio pedido',
     '11d: the failure sentence lost \'Falha não conta na cota.\'; the rest is compared with the oracle in forja-parity.test.ts (semCota) and the new sentence in forja-states.test.ts'],
 ])
+
+/**
+ * Assertions of the mockup suite that are about the daily quota, which 11d removed (owner decision 11/10). The test stays ON against the production
+ * engine; only these exact fragments are cut from its source for the production run (the oracle still runs the fragment: it is the mockup's rule).
+ * Every entry must match exactly once, or the suite fails loudly (a changed fixture must not silently re-enable or disable an assertion).
+ */
+export const ADAPTED_ASSERTIONS: ReadonlyArray<{ test: string; cut: string; why: string }> = [
+  { test: '[F8] forja.compose: pedido novo compõe sobre o cenário (substitui o do mesmo nicho, mantém os outros)', cut: ' && c.quota.usedToday === 2',
+    why: '11d: no daily quota, so the composed scenario has no `quota`; everything else the test asserts (split, status lines/label/text, the queue order, replacing the request of the same niche, createdAt, compose(null)) still runs verbatim' },
+]

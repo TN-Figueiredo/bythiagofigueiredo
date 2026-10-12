@@ -10,6 +10,14 @@ import type { Fmt, ForjaRequest, FrozenReading, Niche } from '../types'
 /** The engine context the forja needs on top of the observatory's: the frozen readings by id and the last daily record. */
 export interface ForjaCtx extends EngineCtx { READ: Record<string, FrozenReading>; lastIdx: number }
 
+/**
+ * The daily record a reading about a VIDEO is frozen at (and the one it is compared with later): the site's last record, or the video's own last
+ * point when it stalled before; a video with no point at all is record 0. One formula for the frozen `asOf` (sent.ts), the "new data?" rule
+ * (novidade.ts) and "Desde então" (since.ts): with two formulas a reading just made already looked outdated.
+ */
+export const videoFreezeIdx = (ctx: { lastIdx: number }, v: { series: ReadonlyArray<{ idx: number }> }): number =>
+  Math.min(ctx.lastIdx, v.series.length ? v.series[v.series.length - 1]!.idx : 0)
+
 export interface ReadingType { id: string; label: string; windowDays: number | null; fmt?: Fmt | null; aka?: string; target?: 'video'; shorts: boolean }
 /** The reading types, verbatim (order as the mockup builds them). */
 export const READING_TYPES: ReadonlyArray<ReadingType> = [

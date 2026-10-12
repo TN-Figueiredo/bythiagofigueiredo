@@ -792,8 +792,9 @@ function forjaOf(obs: Observatory, niche: NicheScope, drawer: DrawerView | null)
     button = { ...button, label: 'Pedido em andamento', disabled: true }
     const fr = niche === 'todos' ? (forja.ask?.niches ?? []).filter(x => x !== n) : []
     if (fr.length) { const L = joinLabels(fr.map(NL)); why += ' O pedido de ' + NLn + ' está em andamento; ' + L + (fr.length > 1 ? ' estão livres.' : ' está livre.'); free = { label: 'Pedir leitura de ' + L, niches: fr } }
-  } else if (q && q.state === 'publicado' && !obs.forja.novidade(type, n).pode) {
-    // a leitura publicada já usa o dado mais recente: só se pede de novo quando houver dado novo (forja/novidade.ts)
+  } else if (!obs.forja.novidade(type, n).pode) {
+    // a leitura já usa o dado mais recente: só se pede de novo quando houver dado novo (forja/novidade.ts), a mesma função do servidor e das abas,
+    // com ou sem pedido na janela do dia (o pedido ativo já saiu antes pelo ramo RUNNING)
     button = { ...button, disabled: true }
     why += ' ' + semNovidadeText('de ' + NLn)
   }

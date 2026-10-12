@@ -1,16 +1,37 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { loadOracle, datasetFromOracle, runMockupSuite, createTestObservatory } from './oracle'
-import { PENDING_SECTIONS, PORTED_SECTIONS, NOT_PORTED, NOT_PORTED_TESTS, BROWSER_ONLY_TESTS } from './suite-pending'
+import { PENDING_SECTIONS, PORTED_SECTIONS, NOT_PORTED, NOT_PORTED_TESTS, BROWSER_ONLY_TESTS, ADAPTED_ASSERTIONS } from './suite-pending'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const oracle = loadOracle()
 const onOracle = runMockupSuite(oracle)
-const onProd = runMockupSuite(createTestObservatory(datasetFromOracle(loadOracle())))
+/** The suite source for the production run: verbatim, minus the quota fragments listed in ADAPTED_ASSERTIONS (each cut exactly once, inside its own test). */
+function adaptedHtml(): string {
+  let html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '../../fixtures/observatorio/dados-teste.html'), 'utf8')
+  for (const a of ADAPTED_ASSERTIONS) {
+    const at = html.indexOf(`test('${a.test}'`)
+    const end = html.indexOf("\n  test('", at + 1)
+    const body = html.slice(at, end < 0 ? undefined : end)
+    if (at < 0 || body.split(a.cut).length !== 2) throw new Error('ADAPTED_ASSERTIONS: fragment not found exactly once in ' + a.test)
+    html = html.slice(0, at) + body.replace(a.cut, '') + (end < 0 ? '' : html.slice(end))
+  }
+  return html
+}
+const onProd = runMockupSuite(createTestObservatory(datasetFromOracle(loadOracle())), adaptedHtml())
 
 describe('mockup suite (dados-teste.html) — oracle sanity', () => {
   it('the oracle passes everything except the browser-only tests', () => {
     const fails = onOracle.filter(r => !r.ok).map(r => r.name)
     expect(fails.sort()).toEqual([...BROWSER_ONLY_TESTS].sort())
+  })
+  it('every adapted assertion names an existing test and says why', () => {
+    const names = new Set(onOracle.map(r => r.name))
+    expect(ADAPTED_ASSERTIONS.filter(a => !names.has(a.test))).toEqual([])
+    expect(ADAPTED_ASSERTIONS.every(a => a.why.length > 20)).toBe(true)
+    expect(adaptedHtml()).not.toContain('c.quota.usedToday === 2')
   })
   it('every not-ported test exists in the suite and says why', () => {
     const names = new Set(onOracle.map(r => r.name))

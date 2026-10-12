@@ -288,7 +288,7 @@ function createForja(ctx: ForjaCtx, ds: Dataset, clock: Clock, CH: Map<string, O
   const requests = [...ds.requests]
   // the scope sentence names the site's niches
   const askScope = { ...FORJA_QUEUE.askScope, text: askScopeText(nx.defs.map(d => d.label)) }
-  if (tests) for (const st0 of tests.requestStates) { const b = tests.build(st0, { type: 'padroes-titulo', niche: 'ia' }); if (b) requests.push(summarize(b.requests, b.machine, false, clock, nx).request!) }
+  if (tests) for (const st0 of tests.requestStates) { const b = tests.build(st0, { type: 'padroes-titulo', niche: 'ia' }); if (b) requests.push(summarize(b.requests, b.machine, clock, nx).request!) }
   return {
     readings: ds.readings, requests, requestStates: tests ? tests.requestStates : REQUEST_STATES, states: STATES,
     queue: { ...FORJA_QUEUE, askScope, lastPollAt, capabilities: ds.queue.capabilities }, askScope,
@@ -301,6 +301,6 @@ function createForja(ctx: ForjaCtx, ds: Dataset, clock: Clock, CH: Map<string, O
     get niches() { return nichesList() }, nicheCtx: nx, askable,
     buildSent: (type, target) => buildSentCtx(ctx, type, target),
     ...(tests && tests.scenarioReadings ? { scenarioReadings: tests.scenarioReadings } : {}),
-    ...(tests ? { requestScenario: (st0: string, t?: ScenarioTarget) => { const b = tests.build(st0, t); return b ? summarize(b.requests, b.machine, b.scopeTodos, clock, nx) : null } } : {}),
+    ...(tests ? { requestScenario: (st0: string, t?: ScenarioTarget) => { const b = tests.build(st0, t); return b ? summarize(b.requests, b.machine, clock, nx) : null } } : {}),
   }
 }

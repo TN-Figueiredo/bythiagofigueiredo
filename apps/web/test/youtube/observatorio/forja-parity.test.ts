@@ -32,20 +32,20 @@ describe('forja parity — fixture requests summarised by PRODUCTION code = orac
     ['padroes-titulo', 'resumo-trocas', 'leitura-video'].map(type => [st, niche, type] as const)))
   it.each(cases)('%s × %s × %s', (st, niche, type) => {
     const built = gen.build(st, { type, niche })!
-    const prod = summarize(built.requests, built.machine, built.scopeTodos, clock)
+    const prod = summarize(built.requests, built.machine, clock)
     expect(pick(prod as never)).toEqual(pick(oracle.forja.requestScenario(st, { type, niche })))
   })
   // Beyond the brief: the createdAt variants of the F4 suite test (forecasts, shifted claims).
   const cas = [ds.now, clock.spIso('2026-10-24T13:02'), clock.spIso('2026-10-24T14:31'), clock.spIso('2026-10-24T12:00')]
   it.each(gen.requestStates.flatMap(st => (['ia', 'todos'] as const).flatMap(niche => cas.map(ca => [st, niche, ca] as const))))('%s × %s × createdAt %d', (st, niche, createdAt) => {
     const built = gen.build(st, { niche, createdAt })!
-    const prod = summarize(built.requests, built.machine, built.scopeTodos, clock)
+    const prod = summarize(built.requests, built.machine, clock)
     expect(pick(prod as never)).toEqual(pick(oracle.forja.requestScenario(st, { niche, createdAt })))
   })
   // Fix round 1: DB rows carry no queue relationship — production derives "atrás do …" itself.
   it.each(cases)('without stateNote/behind: %s × %s × %s', (st, niche, type) => {
     const built = gen.build(st, { type, niche })!
-    const prod = summarize(strip(built.requests), built.machine, built.scopeTodos, clock)
+    const prod = summarize(strip(built.requests), built.machine, clock)
     expect(pick(prod as never)).toEqual(pick(oracle.forja.requestScenario(st, { type, niche })))
   })
   it('the facade wires the same thing: forja.requestScenario (test-injected) = oracle', () => {

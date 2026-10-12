@@ -70,7 +70,7 @@ describe('statusLabel — the ONLY header format (CONVENCOES line 218)', () => {
 
 describe('summarize — canonical texts', () => {
   it('"sem máquina" with one niche: the singular sentence', () => {
-    const sc = summarize([req('sem máquina', { createdAt: T(14, 48) })], dead, false, clock)
+    const sc = summarize([req('sem máquina', { createdAt: T(14, 48) })], dead, clock)
     expect(sc.statusText).toBe('Seu pedido das 14:48 está na fila e roda quando a máquina voltar.')
     expect(sc.statusLabel).toBe('sem máquina desde 12:55')
     expect(sc.statusLines).toBeNull()
@@ -79,7 +79,7 @@ describe('summarize — canonical texts', () => {
     const sc = summarize([
       req('sem máquina', { createdAt: T(14, 48) }, 'ia'),
       req('sem máquina', { createdAt: T(14, 48), stateNote: 'atrás do de IA', behind: 'req-ia-sem máquina' }, 'viagem'),
-    ], dead, true, clock)
+    ], dead, clock)
     expect(sc.statusText).toBe('Seus pedidos das 14:48 (IA e Viagem) estão na fila e rodam quando a máquina voltar.')
     expect(sc.statusLines).toEqual(['IA: sem máquina desde 12:55', 'Viagem: sem máquina desde 12:55 (atrás do de IA)'])
     expect(sc.split).toBe(true)
@@ -88,7 +88,7 @@ describe('summarize — canonical texts', () => {
     const sc = summarize([
       req('publicado', { createdAt: T(14, 31), claimedAt: T(14, 35), publishedAt: T(14, 50) }, 'ia'),
       req('trabalhando', { createdAt: T(14, 31), claimedAt: T(14, 55), startedAt: T(14, 55) }, 'viagem'),
-    ], alive, true, clock)
+    ], alive, clock)
     expect(sc.statusLabel).toBe('pedido em andamento')
     expect(sc.terminal).toBe(false)
     expect(sc.anyActive).toBe(true)
@@ -97,7 +97,7 @@ describe('summarize — canonical texts', () => {
   it('the input requests are never mutated', () => {
     const r = req('na fila')
     const before = structuredClone(r)
-    summarize([r], alive, false, clock)
+    summarize([r], alive, clock)
     expect(r).toEqual(before)
   })
 })
@@ -113,7 +113,7 @@ describe('queueOrder — one machine, one queue', () => {
 
 describe('compose — a new request over what exists', () => {
   it('lands behind an active request of the other niche', () => {
-    const base = summarize([req('trabalhando', { createdAt: T(14, 41), claimedAt: T(14, 45) })], alive, false, clock)
+    const base = summarize([req('trabalhando', { createdAt: T(14, 41), claimedAt: T(14, 45) })], alive, clock)
     const c = compose(base, { niche: 'viagem' }, {}, clock)
     expect(c.statusLines).toEqual(['IA: trabalhando desde 14:45', 'Viagem: na fila · pedido 15:02 (atrás do de IA)'])
   })
@@ -192,7 +192,7 @@ describe('fix round 1 — DB-shaped rows', () => {
     const sc = summarize([
       req('trabalhando', { createdAt: T(14, 41), claimedAt: T(14, 45), startedAt: T(14, 45) }, 'ia'),
       req('na fila', { createdAt: T(14, 41) }, 'viagem'),
-    ], alive, true, clock)
+    ], alive, clock)
     expect(sc.statusLines).toEqual(['IA: trabalhando desde 14:45', 'Viagem: na fila · pedido 14:41 (atrás do de IA)'])
     expect(sc.statusText).toBe('Pedido de IA em andamento desde 14:45. O pedido de Viagem espera na fila desde 14:41, atrás do de IA (a máquina pega um por consulta).')
     expect(sc.requests.find(q => q.niche === 'viagem')!.behind).toBe('req-ia-trabalhando')
@@ -201,22 +201,22 @@ describe('fix round 1 — DB-shaped rows', () => {
     const sc = summarize([
       req('recusado (dado velho)', { createdAt: T(14, 50), refusedAt: T(14, 56) }, 'ia'),
       req('na fila', { createdAt: T(14, 50) }, 'viagem'),
-    ], alive, true, clock)
+    ], alive, clock)
     expect(sc.statusLines).toEqual(['Viagem: na fila · pedido 14:50', 'IA: recusado às 14:56'])
   })
   it('"nova tentativa" without a retry reason has no trailing space', () => {
-    const one = summarize([req('nova tentativa', { attempt: 2, releasedAt: T(14, 57) })], alive, false, clock)
+    const one = summarize([req('nova tentativa', { attempt: 2, releasedAt: T(14, 57) })], alive, clock)
     expect(one.statusText).toBe('Voltou para a fila (tentativa 2 de 3).')
-    const two = summarize([req('nova tentativa', { attempt: 2 }, 'ia'), req('na fila', {}, 'viagem')], alive, true, clock)
+    const two = summarize([req('nova tentativa', { attempt: 2 }, 'ia'), req('na fila', {}, 'viagem')], alive, clock)
     expect(two.statusText).toBe('O pedido de IA voltou para a fila (tentativa 2 de 3). O pedido de Viagem espera na fila desde 14:58, atrás do de IA (a máquina pega um por consulta).')
   })
   it('"recusado" with no reason is never empty', () => {
-    expect(summarize([req('recusado (dado velho)', { refusedAt: T(14, 56) })], alive, false, clock).statusText).toBe('O pedido foi recusado às 14:56.')
-    const two = summarize([req('recusado (dado velho)', { createdAt: T(14, 50), refusedAt: T(14, 56) }, 'ia'), req('na fila', { createdAt: T(14, 50) }, 'viagem')], alive, true, clock)
+    expect(summarize([req('recusado (dado velho)', { refusedAt: T(14, 56) })], alive, clock).statusText).toBe('O pedido foi recusado às 14:56.')
+    const two = summarize([req('recusado (dado velho)', { createdAt: T(14, 50), refusedAt: T(14, 56) }, 'ia'), req('na fila', { createdAt: T(14, 50) }, 'viagem')], alive, clock)
     expect(two.statusText).toBe('O pedido de IA foi recusado às 14:56. O pedido de Viagem segue na fila desde 14:50. A recusa de IA não gerou leitura.')
   })
   it('"falhou" is driven by the reason: validator, vigia (travou-3x), other code, no code', () => {
-    const f = (failReason: string | null) => summarize([req('falhou', { attempt: 3, failedAt: T(14, 21), failReason })], alive, false, clock).statusText
+    const f = (failReason: string | null) => summarize([req('falhou', { attempt: 3, failedAt: T(14, 21), failReason })], alive, clock).statusText
     expect(f('o validador recusou a saída da forja nas 3 tentativas')).toBe('Falhou nas 3 tentativas. O validador recusou a saída em todas.')
     expect(f('travou-3x')).toBe('O pedido travou nas 3 tentativas: o vigia liberou e a máquina não terminou.')
     expect(f('snapshot 500')).toBe('O pedido falhou às 14:21 (código snapshot 500).')
@@ -224,7 +224,7 @@ describe('fix round 1 — DB-shaped rows', () => {
     const two = summarize([
       req('falhou', { attempt: 3, failedAt: T(14, 21), failReason: 'travou-3x' }, 'ia'),
       req('falhou', { attempt: 3, failedAt: T(14, 51), failReason: 'o validador recusou a saída da forja nas 3 tentativas' }, 'viagem'),
-    ], alive, true, clock)
+    ], alive, clock)
     expect(two.statusText).toBe('O pedido de IA travou nas 3 tentativas: o vigia liberou e a máquina não terminou. O pedido de Viagem falhou às 14:51.')
   })
   it('ask(null) for a niche type returns a reason', () => {
@@ -244,7 +244,7 @@ describe('fix round 1 — DB-shaped rows', () => {
 describe('refused reason codes → canonical sentence (Task 30: the service stores a short code)', () => {
   const sentence = 'A máquina recebeu dados anteriores à última sincronização. Peça de novo.'
   it("'dado-velho' reads as the sentence, one niche", () => {
-    const sc = summarize([req('recusado (dado velho)', { refusedAt: T(14, 56), refusedReason: 'dado-velho' })], alive, false, clock)
+    const sc = summarize([req('recusado (dado velho)', { refusedAt: T(14, 56), refusedReason: 'dado-velho' })], alive, clock)
     expect(sc.statusText).toBe(sentence)
     expect(sc.statusText).not.toContain('dado-velho')
   })
@@ -252,12 +252,12 @@ describe('refused reason codes → canonical sentence (Task 30: the service stor
     const sc = summarize([
       req('recusado (dado velho)', { createdAt: T(14, 50), refusedAt: T(14, 56), refusedReason: 'dado-velho' }, 'ia'),
       req('publicado', { createdAt: T(14, 51), publishedAt: T(14, 59) }, 'viagem'),
-    ], alive, true, clock)
+    ], alive, clock)
     expect(sc.statusText).toContain('O pedido de IA foi recusado. A máquina recebeu dados anteriores à última sincronização.')
     expect(sc.statusText).not.toContain('dado-velho')
   })
   it('a free-text reason (not a code) passes through unchanged', () => {
-    const sc = summarize([req('recusado (dado velho)', { refusedAt: T(14, 56), refusedReason: 'outro motivo qualquer.' })], alive, false, clock)
+    const sc = summarize([req('recusado (dado velho)', { refusedAt: T(14, 56), refusedReason: 'outro motivo qualquer.' })], alive, clock)
     expect(sc.statusText).toBe('Outro motivo qualquer.')
   })
   it('refusedReasonText maps the code and leaves other text alone', () => {

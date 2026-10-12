@@ -10,7 +10,7 @@
  */
 import type { FrozenReading, Niche } from '../types'
 import { sinceStatus } from './since'
-import type { ForjaCtx } from './scope'
+import { videoFreezeIdx, type ForjaCtx } from './scope'
 
 export type Novidade =
   | { pode: true; porque: 'sem-leitura' | 'sem-marca' | 'dado-novo' }
@@ -39,12 +39,12 @@ function lastReading(readings: readonly FrozenReading[], type: string, niche: Ni
 /** `readings`: as leituras que o site de fato guarda (`ds.readings`); as de cenário do gerador de teste não entram. */
 export function novidadeDe(ctx: ForjaCtx, readings: readonly FrozenReading[], type: string, niche: Niche, video: string | null): Novidade {
   if (isVid(type) && !video) return { pode: true, porque: 'sem-marca' }
-  // o registro diário mais novo que a tela conhece deste alvo: o do canal do vídeo, ou o do site nas leituras de nicho
+  // o registro diário mais novo que a tela conhece deste alvo: o que o envio congelaria agora (o do site nas leituras de nicho; no vídeo, o mínimo com o último ponto dele)
   let current: number | null | undefined = ctx.lastIdx
   if (isVid(type)) {
     const v = video ? ctx.V.get(video) : undefined
     if (!v) return { pode: true, porque: 'sem-marca' }
-    current = ctx.CH.get(v.ch)?.lastIdx
+    current = videoFreezeIdx(ctx, v) // a mesma conta do congelamento do envio (sent.ts): um vídeo parado não fica "dado novo" para sempre
   }
   const r = lastReading(readings, type, niche, isVid(type) ? video : null)
   if (!r) return { pode: true, porque: 'sem-leitura' }

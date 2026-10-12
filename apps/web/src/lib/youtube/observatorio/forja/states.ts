@@ -281,10 +281,9 @@ export function describeRequests(requests: ForjaRequest[], machine: Machine, clo
 }
 /**
  * The canonical summary of requests as they stand (labels, lines, text, terminal). `requests` in creation
- * order, one per niche of the same type and target; `scopeTodos` = the view is "Todos".
+ * order, one per niche of the same type and target.
  */
-export function summarize(requests: ForjaRequest[], machine: Machine, scopeTodos: boolean, clock: Clock, nx?: NicheCtx): Scenario {
-  void scopeTodos
+export function summarize(requests: ForjaRequest[], machine: Machine, clock: Clock, nx?: NicheCtx): Scenario {
   return describeRequests(requests, machine, clock, nx)
 }
 
