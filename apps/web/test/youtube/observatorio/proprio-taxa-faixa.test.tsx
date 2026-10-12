@@ -121,6 +121,40 @@ describe('TaxaFaixa (tela)', () => {
     const num = container.querySelector('.tf-num')
     expect(num?.getAttribute('text-anchor')).toBe('start')
   })
+
+  // A4 13.3 (Menor 1): as bordas de cima. A taxa e o texto "lo a hi" ancoram na borda em vez de sair do desenho, perto de 100% como perto de 0.
+  it.each([[950, 1000], [1000, 1000], [990, 1000]])('perto de 100% (%i de %i): o valor ancora no fim em x=100%% e o texto dos limites também', (k, n) => {
+    const { container } = render(<TaxaFaixa view={buildTaxaFaixa({ alvo: t(k, n), canal: null, alt: 'x' })} />)
+    const num = container.querySelector('.tf-num')!
+    expect(num.getAttribute('text-anchor')).toBe('end')
+    expect(num.getAttribute('x')).toBe('100%')
+    const lim = container.querySelector('.tf-lim')!
+    expect(lim.getAttribute('text-anchor')).toBe('end')
+    expect(lim.getAttribute('x')).toBe('100%')
+    // o eixo vai até 100% e o ponto fica dentro do desenho
+    expect([...container.querySelectorAll('.tf-ax')].at(-1)?.textContent).toBe('100%')
+    const cx = Number.parseFloat(container.querySelector('.tf-pt')!.getAttribute('cx')!)
+    expect(cx).toBeGreaterThan(90)
+    expect(cx).toBeLessThanOrEqual(100)
+  })
+  it('colada em 0: o texto dos limites ancora no começo (x=0%); no meio do eixo, os dois ficam centrados', () => {
+    const zero = render(<TaxaFaixa view={buildTaxaFaixa({ alvo: t(0, 1000), canal: null, alt: 'x' })} />)
+    expect(zero.container.querySelector('.tf-lim')!.getAttribute('text-anchor')).toBe('start')
+    expect(zero.container.querySelector('.tf-lim')!.getAttribute('x')).toBe('0%')
+    cleanup()
+    const meio = render(<TaxaFaixa view={buildTaxaFaixa({ alvo: t(500, 1000), canal: null, alt: 'x' })} />)
+    expect(meio.container.querySelector('.tf-num')!.getAttribute('text-anchor')).toBe('middle')
+    expect(meio.container.querySelector('.tf-lim')!.getAttribute('text-anchor')).toBe('middle')
+  })
+  it('perto de 100%, valor e limites cabem em 12 px e a leitura em texto (aria-label) traz o valor e o intervalo inteiros', () => {
+    const v = buildTaxaFaixa({ alvo: t(950, 1000), canal: null, alt: 'Taxa: 95,0%, de 93,5% a 96,2%' })
+    const { container } = render(<TaxaFaixa view={v} />)
+    expect(container.querySelector('[role="img"]')!.getAttribute('aria-label')).toBe('Taxa: 95,0%, de 93,5% a 96,2%')
+    expect(v.linhas[0]!.valor).toBe('95,0%')
+    expect(v.linhas[0]!.loTxt).toMatch(/^9[0-9],[0-9]%$/)
+    expect(v.linhas[0]!.hiTxt).toMatch(/^9[0-9],[0-9]%$/)
+    expect(v.linhas[0]!.hi).toBeLessThanOrEqual(1)
+  })
 })
 
 describe('taxa-faixa.css (varredura)', () => {
