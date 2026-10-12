@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { VIDEO_FIELDS, CHANNEL_FIELDS, assertField } from '@/lib/youtube/observatorio/field-catalog'
-import { canonicalJson, fieldHash, sha256Hex, rawOf, optCount, RAW_MAX_BYTES, videoObservedOf, channelObservedOf, sanitizeForDb } from '@/lib/youtube/competitor-capture'
+import { canonicalJson, fieldHash, sha256Hex, rawOf, optCount, RAW_MAX_BYTES, videoObservedOf, channelObservedOf, sanitizeForDb, precisionOf, planFields, planRaw, captureItems, markMissing, markChannelMissing, rowsAs, type Json, type CaptureItem, type StoredField, type StoredRaw, type MissedRow } from '@/lib/youtube/competitor-capture'
 import { parseIsoDuration } from '@/lib/youtube/competitor-sync'
 
 describe('catálogo de campos', () => {
@@ -200,5 +200,212 @@ describe('channelObservedOf', () => {
   it('país e handle ausentes ficam nulos', () => {
     const o = channelObservedOf({ id: 'UC', snippet: { title: 'Canal' }, statistics: { subscriberCount: '1' } })
     expect(o.patch).toMatchObject({ custom_url: null, country: null, published_at: null })
+  })
+})
+describe('precisionOf (4.1, v2.3)', () => {
+  const t = (h: number) => new Date(Date.UTC(2026, 5, 10, 15) + h * 3_600_000).toISOString()
+  it('sem janela é buraco; até 8 h é 6h; até 36 h é 1d', () => {
+    expect(precisionOf(null, t(0), null)).toBe('gap')
+    expect(precisionOf(t(-8), t(0), null)).toBe('6h')
+    expect(precisionOf(t(-8.1), t(0), null)).toBe('1d')
+    expect(precisionOf(t(-36), t(0), null)).toBe('1d')
+  })
+  it('até 8 dias só é 7d se o vídeo esteve em faixa semanal a janela inteira; senão é buraco', () => {
+    expect(precisionOf(t(-7 * 24), t(0), '2026-06-01')).toBe('7d')
+    expect(precisionOf(t(-7 * 24), t(0), '2026-06-05')).toBe('gap') // entrou na semanal DEPOIS do começo da janela
+    expect(precisionOf(t(-3 * 24), t(0), null)).toBe('gap')         // vídeo diário com 3 dias sem leitura: buraco, não semana
+    expect(precisionOf(t(-9 * 24), t(0), '2026-06-01')).toBe('gap')
+  })
+})
+describe('planFields', () => {
+  const NOW = '2026-06-10T15:00:00.000Z', PREV = '2026-06-10T09:00:00.000Z'
+  const it1 = (fields: Array<{ field: string; value: Json }>, over: Partial<CaptureItem> = {}): CaptureItem => ({ videoId: 'v1', fields, raw: null, prevSeenAt: PREV, weeklySince: null, ...over })
+  it('primeira leitura: abre "first" sem janela e não fecha nada', () => {
+    expect(planFields('video', [], [it1([{ field: 'tags', value: ['a'] }], { prevSeenAt: null })], NOW)).toEqual({ close: [], open: [{ video_id: 'v1', field: 'tags', value: ['a'], value_hash: fieldHash(['a']), first_seen_at: NOW, window_start: null, precision: 'first' }] })
+  })
+  it('item 223: valor igual → plano vazio (zero escritas)', () => {
+    expect(planFields('video', [{ id: 7, video_id: 'v1', field: 'tags', value_hash: fieldHash(['a']) }], [it1([{ field: 'tags', value: ['a'] }])], NOW)).toEqual({ close: [], open: [] })
+  })
+  it('item 4: valor diferente → fecha a corrente com a última leitura boa e abre a nova com a janela', () => {
+    const p = planFields('video', [{ id: 7, video_id: 'v1', field: 'tags', value_hash: fieldHash(['a']) }], [it1([{ field: 'tags', value: ['b'] }])], NOW)
+    expect(p.close).toEqual([{ id: 7, last_seen_at: PREV }])
+    expect(p.open[0]).toMatchObject({ field: 'tags', window_start: PREV, precision: '6h', first_seen_at: NOW })
+  })
+  it('a mesma lista em outra ordem é mudança', () => {
+    expect(planFields('video', [{ id: 7, video_id: 'v1', field: 'tags', value_hash: fieldHash(['a', 'b']) }], [it1([{ field: 'tags', value: ['b', 'a'] }])], NOW).open).toHaveLength(1)
+  })
+  it('campo fora do catálogo lança, e nada é planejado', () => {
+    expect(() => planFields('video', [], [it1([{ field: 'title', value: 'x' }])], NOW)).toThrow(/fora do catálogo/)
+  })
+  it('campo do canal usa a chave de video_id nulo', () => {
+    const p = planFields('canal', [{ id: 3, video_id: null, field: 'country', value_hash: fieldHash('BR') }], [it1([{ field: 'country', value: 'PT' }], { videoId: null })], NOW)
+    expect(p.close).toEqual([{ id: 3, last_seen_at: PREV }])
+  })
+  it('"sumiu": a versão nova nasce no instante da 1ª falta, não agora', () => {
+    const p = planFields('video', [{ id: 9, video_id: 'v1', field: 'availability', value_hash: fieldHash('no_ar') }], [it1([{ field: 'availability', value: 'sumiu' }], { firstSeenAt: '2026-06-10T03:00:00.000Z', prevSeenAt: '2026-06-09T21:00:00.000Z' })], NOW)
+    expect(p.open[0]).toMatchObject({ first_seen_at: '2026-06-10T03:00:00.000Z', window_start: '2026-06-09T21:00:00.000Z', precision: '6h' })
+  })
+})
+describe('planRaw', () => {
+  const NOW = '2026-06-10T15:00:00.000Z'
+  const item = (sha: string, bytes = 10): CaptureItem => ({ videoId: 'v1', fields: [], raw: { sha, raw: { id: sha }, bytes }, prevSeenAt: '2026-06-10T09:00:00.000Z', weeklySince: null })
+  it('igual: nada; diferente: fecha e abre; primeira: abre', () => {
+    expect(planRaw([{ id: 1, video_id: 'v1', raw_sha256: 'a' }], [item('a')], NOW)).toEqual({ close: [], open: [], tooBig: 0 })
+    expect(planRaw([{ id: 1, video_id: 'v1', raw_sha256: 'a' }], [item('b')], NOW)).toEqual({ close: [{ id: 1, last_seen_at: '2026-06-10T09:00:00.000Z' }], open: [{ video_id: 'v1', raw_sha256: 'b', first_seen_at: NOW, raw: { id: 'b' } }], tooBig: 0 })
+    expect(planRaw([], [item('a')], NOW).open).toHaveLength(1)
+  })
+  it('acima de 100 kB não é guardado e é contado (nunca em silêncio)', () => {
+    expect(planRaw([], [item('a', RAW_MAX_BYTES + 1)], NOW)).toEqual({ close: [], open: [], tooBig: 1 })
+  })
+  it('item sem raw (só campos) é ignorado', () => {
+    expect(planRaw([], [{ ...item('a'), raw: null }], NOW)).toEqual({ close: [], open: [], tooBig: 0 })
+  })
+})
+
+type DbCall = { kind: 'select' | 'rpc'; name: string; args?: unknown }
+function captureDb(state: { fields?: StoredField[]; raws?: StoredRaw[]; fail?: string; missed?: unknown; channelMissed?: unknown; long?: boolean }) {
+  const calls: DbCall[] = []
+  const from = (table: string) => {
+    const chain: Record<string, unknown> = {}
+    const result = () => {
+      if (state.fail === table) return { data: null, error: { message: 'boom' } }
+      const rows = table === 'competitor_field_versions' ? state.fields ?? [] : state.raws ?? []
+      return { data: state.long ? Array.from({ length: 1000 }, () => rows[0] ?? { id: 1, video_id: 'v1', field: 'tags', value_hash: 'x' }) : rows, error: null }
+    }
+    for (const m of ['select', 'eq', 'in', 'is']) chain[m] = () => chain
+    chain.then = (ok: (v: unknown) => unknown) => { calls.push({ kind: 'select', name: table }); return Promise.resolve(result()).then(ok) }
+    return chain
+  }
+  const rpc = (name: string, args: unknown) => {
+    calls.push({ kind: 'rpc', name, args })
+    if (state.fail === name) return Promise.resolve({ data: null, error: { message: 'boom' } })
+    if (name === 'competitor_mark_missing') return Promise.resolve({ data: 'missed' in state ? state.missed : [], error: null })
+    if (name === 'competitor_channel_mark_missing') return Promise.resolve({ data: 'channelMissed' in state ? state.channelMissed : null, error: null })
+    return Promise.resolve({ data: { closed: 0, opened: 0 }, error: null })
+  }
+  return { sb: { from, rpc } as never, calls }
+}
+describe('captureItems', () => {
+  const NOW = '2026-06-10T15:00:00.000Z'
+  const base = { siteId: 's', channelId: 'c', scope: 'video' as const, nowIso: NOW }
+  const item: CaptureItem = { videoId: 'v1', fields: [{ field: 'tags', value: ['a'] }], raw: { sha: 'r1', raw: { id: 'x' }, bytes: 10 }, prevSeenAt: null, weeklySince: null }
+  it('item 223: nada mudou → duas leituras e ZERO gravações', async () => {
+    const db = captureDb({ fields: [{ id: 1, video_id: 'v1', field: 'tags', value_hash: fieldHash(['a']) }], raws: [{ id: 2, video_id: 'v1', raw_sha256: 'r1' }] })
+    expect(await captureItems(db.sb, { ...base, items: [item] })).toEqual({ fieldsOpened: 0, fieldsClosed: 0, rawOpened: 0, rawClosed: 0, rawTooBig: 0, sanitized: 0 })
+    expect(db.calls.filter(c => c.kind === 'rpc')).toEqual([])
+    expect(db.calls.filter(c => c.kind === 'select')).toHaveLength(2)
+  })
+  it('primeira leitura → uma gravação de campos e uma de raw, com o site e o canal', async () => {
+    const db = captureDb({})
+    const st = await captureItems(db.sb, { ...base, items: [item] })
+    expect(st).toMatchObject({ fieldsOpened: 1, rawOpened: 1 })
+    expect(db.calls.filter(c => c.kind === 'rpc').map(c => c.name)).toEqual(['apply_competitor_field_plan', 'apply_competitor_raw_plan'])
+    expect(db.calls.find(c => c.name === 'apply_competitor_field_plan')!.args).toMatchObject({ p_site_id: 's', p_channel_id: 'c', p_close: [] })
+  })
+  it('lista vazia não lê nem grava', async () => {
+    const db = captureDb({})
+    await captureItems(db.sb, { ...base, items: [] })
+    expect(db.calls).toEqual([])
+  })
+  it('mais de 50 itens numa chamada lança (quem chama divide)', async () => {
+    await expect(captureItems(captureDb({}).sb, { ...base, items: Array.from({ length: 51 }, (_, i) => ({ ...item, videoId: 'v' + i })) })).rejects.toThrow(/50/)
+  })
+  it('erro de leitura lança com o nome da tabela; erro de gravação lança; nunca "sem mudança"', async () => {
+    await expect(captureItems(captureDb({ fail: 'competitor_field_versions' }).sb, { ...base, items: [item] })).rejects.toThrow(/captura.*competitor_field_versions/)
+    await expect(captureItems(captureDb({ fail: 'apply_competitor_raw_plan' }).sb, { ...base, items: [item] })).rejects.toThrow(/captura.*apply_competitor_raw_plan/)
+  })
+  it('leitura que bate no teto de 1.000 linhas lança (corte silencioso é proibido)', async () => {
+    await expect(captureItems(captureDb({ long: true }).sb, { ...base, items: [item] })).rejects.toThrow(/1000/)
+  })
+  it('raw grande: vários lotes de gravação, cada um com no máximo 1 MB', async () => {
+    const big = (i: number): CaptureItem => ({ ...item, videoId: 'v' + i, fields: [], raw: { sha: 'r' + i, raw: { id: 'x' }, bytes: 90_000 } })
+    const db = captureDb({})
+    await captureItems(db.sb, { ...base, items: Array.from({ length: 30 }, (_, i) => big(i)) })
+    const sizes = db.calls.filter(c => c.name === 'apply_competitor_raw_plan').map(c => (c.args as { p_open: unknown[] }).p_open.length)
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(30)
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(11) // 11 × 90 kB = 990 kB
+  })
+})
+describe('markMissing', () => {
+  const NOW = '2026-06-10T15:00:00.000Z'
+  it('uma falta só: soma e não abre versão', async () => {
+    const db = captureDb({ missed: [{ id: 'v1', miss_streak: 1, miss_first_at: NOW, missing_since: null, last_seen_at: '2026-06-10T09:00:00.000Z' }] })
+    expect(await markMissing(db.sb, { siteId: 's', channelId: 'c', videoIds: ['v1'], nowIso: NOW, weeklySinceOf: () => null })).toEqual({ missed: 1, newlyMissing: 0 })
+    expect(db.calls.map(c => c.name)).toEqual(['competitor_mark_missing'])
+  })
+  it('segunda falta: abre availability = "sumiu" no instante da 1ª falta; a marca não apaga nada', async () => {
+    const db = captureDb({ fields: [{ id: 5, video_id: 'v1', field: 'availability', value_hash: fieldHash('no_ar') }], missed: [{ id: 'v1', miss_streak: 2, miss_first_at: '2026-06-10T09:00:00.000Z', missing_since: '2026-06-10', last_seen_at: '2026-06-10T03:00:00.000Z' }] })
+    expect(await markMissing(db.sb, { siteId: 's', channelId: 'c', videoIds: ['v1'], nowIso: NOW, weeklySinceOf: () => null })).toEqual({ missed: 1, newlyMissing: 1 })
+    const plan = db.calls.find(c => c.name === 'apply_competitor_field_plan')!.args as { p_close: unknown[]; p_open: Array<Record<string, unknown>> }
+    expect(plan.p_close).toEqual([{ id: 5, last_seen_at: '2026-06-10T03:00:00.000Z' }])
+    expect(plan.p_open[0]).toMatchObject({ field: 'availability', value: 'sumiu', first_seen_at: '2026-06-10T09:00:00.000Z', window_start: '2026-06-10T03:00:00.000Z', precision: '6h' })
+  })
+  it('já ausente e já com a versão "sumiu": nada a gravar (conserto sozinho quando a versão faltou)', async () => {
+    const db = captureDb({ fields: [{ id: 5, video_id: 'v1', field: 'availability', value_hash: fieldHash('sumiu') }], missed: [{ id: 'v1', miss_streak: 5, miss_first_at: '2026-06-09T09:00:00.000Z', missing_since: '2026-06-09', last_seen_at: null }] })
+    expect(await markMissing(db.sb, { siteId: 's', channelId: 'c', videoIds: ['v1'], nowIso: NOW, weeklySinceOf: () => null })).toEqual({ missed: 1, newlyMissing: 0 })
+    expect(db.calls.some(c => c.name === 'apply_competitor_field_plan')).toBe(false)
+  })
+  it('lista vazia não chama o banco; erro da função lança', async () => {
+    const db = captureDb({})
+    expect(await markMissing(db.sb, { siteId: 's', channelId: 'c', videoIds: [], nowIso: NOW, weeklySinceOf: () => null })).toEqual({ missed: 0, newlyMissing: 0 })
+    expect(db.calls).toEqual([])
+    await expect(markMissing(captureDb({ fail: 'competitor_mark_missing' }).sb, { siteId: 's', channelId: 'c', videoIds: ['v1'], nowIso: NOW, weeklySinceOf: () => null })).rejects.toThrow(/ausência/)
+  })
+})
+
+describe('rowsAs (S-I3): leitura do banco com forma conferida', () => {
+  const isNum = (x: unknown): x is { n: number } => typeof x === 'object' && x !== null && typeof (x as { n?: unknown }).n === 'number'
+  it('lista com todas as linhas na forma devolve as mesmas linhas; lista vazia é lista vazia', () => {
+    expect(rowsAs([{ n: 1 }, { n: 2 }], isNum, 'x')).toEqual([{ n: 1 }, { n: 2 }])
+    expect(rowsAs([], isNum, 'x')).toEqual([])
+  })
+  it('uma linha fora da forma lança; resposta que não é lista lança', () => {
+    expect(() => rowsAs([{ n: 1 }, { n: 'a' }], isNum, 'x')).toThrow(/fora da forma esperada/)
+    expect(() => rowsAs({ n: 1 }, isNum, 'x')).toThrow(/não é uma lista/)
+    expect(() => rowsAs('ok', isNum, 'x')).toThrow(/não é uma lista/)
+  })
+  it('resposta nula LANÇA: onde o banco responde lista, nulo não é "nenhuma linha"', () => {
+    expect(() => rowsAs(null, isNum, 'leitura')).toThrow(/leitura.*nula/)
+    expect(() => rowsAs(undefined, isNum, 'leitura')).toThrow(/leitura.*nula/)
+  })
+})
+describe('captureItems: forma das linhas lidas e contagem de texto limpo', () => {
+  const NOW = '2026-06-10T15:00:00.000Z'
+  const base = { siteId: 's', channelId: 'c', scope: 'video' as const, nowIso: NOW }
+  const item: CaptureItem = { videoId: 'v1', fields: [{ field: 'tags', value: ['a'] }], raw: { sha: 'r1', raw: { id: 'x' }, bytes: 10 }, prevSeenAt: null, weeklySince: null }
+  it('linha lida com id que não é número: a captura lança em vez de planejar sobre lixo', async () => {
+    await expect(captureItems(captureDb({ fields: [{ id: 'x' } as never] }).sb, { ...base, items: [item] })).rejects.toThrow(/fora da forma esperada/)
+    await expect(captureItems(captureDb({ raws: [{ id: 1, video_id: 'v1' } as never] }).sb, { ...base, items: [item] })).rejects.toThrow(/fora da forma esperada/)
+  })
+  it('escopo do canal: lê com video_id nulo e grava a versão do canal', async () => {
+    const db = captureDb({})
+    const st = await captureItems(db.sb, { ...base, scope: 'canal', items: [{ videoId: null, fields: [{ field: 'country', value: 'BR' }], raw: null, prevSeenAt: null, weeklySince: null }] })
+    expect(st).toMatchObject({ fieldsOpened: 1, rawOpened: 0 })
+  })
+  it('(M-4) sanitized conta os itens cujo texto foi limpo, tenham ou não gravação', async () => {
+    const dirty = (id: string, sanitized: boolean): CaptureItem => ({ ...item, videoId: id, raw: { sha: 'r' + id, raw: { id }, bytes: 10, sanitized } })
+    const db = captureDb({})
+    const st = await captureItems(db.sb, { ...base, items: [dirty('a', true), dirty('b', false), dirty('c', true)] })
+    expect(st.sanitized).toBe(2)
+    expect((await captureItems(captureDb({}).sb, { ...base, items: [item] })).sanitized).toBe(0)
+  })
+})
+describe('markMissing / markChannelMissing: forma da resposta', () => {
+  const NOW = '2026-06-10T15:00:00.000Z'
+  const args = { siteId: 's', channelId: 'c', videoIds: ['v1'], nowIso: NOW, weeklySinceOf: () => null }
+  it('resposta nula ou linha sem os campos de ausência lança (nunca "ninguém sumiu")', async () => {
+    await expect(markMissing(captureDb({ missed: null }).sb, args)).rejects.toThrow(/ausência.*nula/)
+    await expect(markMissing(captureDb({ missed: [{ id: 'v1', miss_streak: 2 }] }).sb, args)).rejects.toThrow(/ausência.*fora da forma esperada/)
+    await expect(markMissing(captureDb({ missed: [{ id: 'v1', miss_streak: 2, miss_first_at: null, missing_since: 5, last_seen_at: null }] }).sb, args)).rejects.toThrow(/fora da forma esperada/)
+  })
+  it('canal: nulo é "sem canal" (a função documenta); forma estranha lança; com missing_since abre "sumiu" do canal', async () => {
+    const a = { siteId: 's', channelId: 'c', nowIso: NOW }
+    expect(await markChannelMissing(captureDb({ channelMissed: null }).sb, a)).toEqual({ missingSince: null })
+    await expect(markChannelMissing(captureDb({ channelMissed: 'oops' }).sb, a)).rejects.toThrow(/ausência do canal.*fora da forma esperada/)
+    await expect(markChannelMissing(captureDb({ channelMissed: { id: 'c', miss_streak: 1 } }).sb, a)).rejects.toThrow(/fora da forma esperada/)
+    await expect(markChannelMissing(captureDb({ fail: 'competitor_channel_mark_missing' }).sb, a)).rejects.toThrow(/ausência do canal/)
+    const one = captureDb({ channelMissed: { id: 'c', miss_streak: 2, miss_first_at: '2026-06-10T09:00:00.000Z', missing_since: '2026-06-10', last_seen_at: '2026-06-10T03:00:00.000Z' } })
+    expect(await markChannelMissing(one.sb, a)).toEqual({ missingSince: '2026-06-10' })
+    expect(one.calls.find(c => c.name === 'apply_competitor_field_plan')!.args).toMatchObject({ p_open: [{ video_id: null, field: 'availability', value: 'sumiu' }] })
   })
 })
