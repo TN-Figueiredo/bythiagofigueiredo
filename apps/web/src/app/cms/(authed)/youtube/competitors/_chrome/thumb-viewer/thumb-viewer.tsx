@@ -297,24 +297,42 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
           <button type="button" className="obs-tv-b obs-tv-icon" aria-label="Fechar" onClick={onClose}><Icon.x /></button>
         </div>
 
-        <div className="obs-tv-nav" role="group" aria-label="Versão da thumbnail">
-          {multi && cur ? (
-            <>
-              <button type="button" className="obs-tv-b" aria-disabled={i === 0} onClick={() => go(-1)}><Icon.prev /><span>Anterior</span></button>
-              <span className="obs-tv-pos" role="status">{positionLabel(cur.label, i, n)}</span>
-              <button type="button" className="obs-tv-b" aria-disabled={i === n - 1} onClick={() => go(1)}><span>Próxima</span><Icon.next /></button>
-            </>
-          ) : null}
-          <button type="button" className="obs-tv-b obs-tv-cmpbtn" aria-pressed={cmp} aria-disabled={!multi} aria-describedby={multi ? undefined : whyId}
-            onClick={() => { if (multi) { setCmp(c => !c); setCv(null) } }}><Icon.compare /><span>Comparar lado a lado</span></button>
-          {multi ? null : <span id={whyId} className="obs-tv-why">Só há uma versão de thumbnail deste vídeo.</span>}
-          {cmp && multi ? (
-            <label className="obs-tv-sel" htmlFor={cmpId}><span>Comparar com</span>
-              <select id={cmpId} value={o} onChange={e => setOther(Number(e.target.value))}>
-                {versions.map((v, k) => (k === i ? null : <option key={k} value={k}>{v.label}{candidates(v).length || v.current ? '' : ' (não arquivada)'}</option>))}
-              </select>
-            </label>
-          ) : null}
+        {/* Como no mockup (viewer.js): uma barra só, logo abaixo do título, com Versão, Zoom e Arquivo nesta ordem. A ordem do DOM é a do Tab. */}
+        <div className="obs-tv-tools">
+          <div className="obs-tv-grp" role="group" aria-label="Versão da thumbnail">
+            {multi && cur ? (
+              <>
+                <button type="button" className="obs-tv-b" aria-disabled={i === 0} onClick={() => go(-1)}><Icon.prev /><span>Anterior</span></button>
+                <span className="obs-tv-pos" role="status">{positionLabel(cur.label, i, n)}</span>
+                <button type="button" className="obs-tv-b" aria-disabled={i === n - 1} onClick={() => go(1)}><span>Próxima</span><Icon.next /></button>
+              </>
+            ) : null}
+            <button type="button" className="obs-tv-b" aria-pressed={cmp} aria-disabled={!multi} aria-describedby={multi ? undefined : whyId}
+              onClick={() => { if (multi) { setCmp(c => !c); setCv(null) } }}><Icon.compare /><span>Comparar lado a lado</span></button>
+            {multi ? null : <span id={whyId} className="obs-tv-why">Só há uma versão de thumbnail deste vídeo.</span>}
+            {cmp && multi ? (
+              <label className="obs-tv-sel" htmlFor={cmpId}><span>Comparar com</span>
+                <select id={cmpId} value={o} onChange={e => setOther(Number(e.target.value))}>
+                  {versions.map((v, k) => (k === i ? null : <option key={k} value={k}>{v.label}{candidates(v).length || v.current ? '' : ' (não arquivada)'}</option>))}
+                </select>
+              </label>
+            ) : null}
+          </div>
+
+          <div className="obs-tv-grp" role="group" aria-label="Zoom">
+            <button type="button" className="obs-tv-b obs-tv-icon" aria-label="Diminuir o zoom" aria-disabled={!zoomOn} onClick={noop(() => zoomBy(1 / STEP))}><Icon.minus /></button>
+            <span className="obs-tv-pct">{pct}</span>
+            <button type="button" className="obs-tv-b obs-tv-icon" aria-label="Aumentar o zoom" aria-disabled={!zoomOn} onClick={noop(() => zoomBy(STEP))}><Icon.plus /></button>
+            <button type="button" className="obs-tv-b" aria-disabled={!zoomOn} onClick={noop(doFit)}>Ajustar</button>
+            <button type="button" className="obs-tv-b" aria-disabled={!zoomOn} onClick={noop(actual)}>100%</button>
+          </div>
+          <div className="obs-tv-grp" role="group" aria-label="Arquivo">
+            <a className="obs-tv-b" role="link" target="_blank" rel="noopener noreferrer" href={opened ?? undefined} aria-disabled={opened ? undefined : true}
+              tabIndex={opened ? undefined : 0} onClick={opened ? undefined : e => e.preventDefault()}>
+              <Icon.ext /><span>Abrir original em nova aba</span>
+            </a>
+            <button type="button" className="obs-tv-b" aria-disabled={!opened} onClick={opened ? () => { void download() } : undefined}><Icon.download /><span>Baixar</span></button>
+          </div>
         </div>
 
         {/* O alvo de foco da imagem é ESTA caixa, que nunca desmonta: o palco abaixo sai e volta a cada troca de versão, e com o foco dentro dele o teclado morria. */}
@@ -347,23 +365,6 @@ export function ThumbViewer({ input, onClose, trigger, fallback }: { input: View
           {cmp ? null : <p className="obs-tv-res" role="status" aria-live="polite" aria-atomic="true">{resText(main)}</p>}
           {/* sempre na árvore (e com a altura de uma linha reservada no CSS): uma região viva que nasce já com texto não é anunciada */}
           <p className="obs-tv-msg" role="status" aria-live="polite" aria-atomic="true">{cmp && cur && second ? `Comparando ${cur.label} com ${second.label}` : msg}</p>
-        </div>
-
-        <div className="obs-tv-foot">
-          <div className="obs-tv-grp" role="group" aria-label="Zoom">
-            <button type="button" className="obs-tv-b obs-tv-icon" aria-label="Diminuir o zoom" aria-disabled={!zoomOn} onClick={noop(() => zoomBy(1 / STEP))}><Icon.minus /></button>
-            <span className="obs-tv-pct">{pct}</span>
-            <button type="button" className="obs-tv-b obs-tv-icon" aria-label="Aumentar o zoom" aria-disabled={!zoomOn} onClick={noop(() => zoomBy(STEP))}><Icon.plus /></button>
-            <button type="button" className="obs-tv-b" aria-disabled={!zoomOn} onClick={noop(doFit)}>Ajustar</button>
-            <button type="button" className="obs-tv-b" aria-disabled={!zoomOn} onClick={noop(actual)}>100%</button>
-          </div>
-          <div className="obs-tv-grp" role="group" aria-label="Arquivo">
-            <a className="obs-tv-b" role="link" target="_blank" rel="noopener noreferrer" href={opened ?? undefined} aria-disabled={opened ? undefined : true}
-              tabIndex={opened ? undefined : 0} onClick={opened ? undefined : e => e.preventDefault()}>
-              <Icon.ext /><span>Abrir original em nova aba</span>
-            </a>
-            <button type="button" className="obs-tv-b" aria-disabled={!opened} onClick={opened ? () => { void download() } : undefined}><Icon.download /><span>Baixar</span></button>
-          </div>
         </div>
       </div>
     </div>,

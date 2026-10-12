@@ -934,7 +934,8 @@ test.describe('A2.3 o visualizador de thumbnail', () => {
     medida(`Tab: ${visitados.size} paradas distintas, todas dentro do diálogo`)
     await titulo.focus()
     await page.keyboard.press('Shift+Tab')
-    expect((await foco2(page)).texto, 'Shift+Tab do título vai ao Baixar').toContain('Baixar')
+    // 11b B1: os controles ficam em cima da imagem (como no mockup); o último foco do anel é a caixa da imagem
+    expect((await foco2(page)).rotulo, 'Shift+Tab do título vai à caixa da imagem, o último foco do anel').toContain('Setas movem a imagem')
     // ---- D10, a thumbnail ATUAL (i.ytimg.com): o fetch é barrado pela CSP; cai em abrir em outra aba, com o aviso
     const fetchYt = await page.evaluate(() => fetch('https://i.ytimg.com/vi/x/hqdefault.jpg').then(r => 'passou ' + r.status, e => 'recusado: ' + String(e)))
     medida(`D10 fetch(i.ytimg.com) pela página: ${fetchYt}`)
@@ -981,6 +982,21 @@ test.describe('A2.3 o visualizador de thumbnail', () => {
       const pequenos = alvos.filter(a => Math.min(a.w, a.h) < 44)
       const rola = await page.evaluate(() => ({ h: document.documentElement.scrollWidth - document.documentElement.clientWidth, caixa: (document.querySelector('.obs-tv-box') as HTMLElement).scrollHeight - (document.querySelector('.obs-tv-box') as HTMLElement).clientHeight }))
       medida(`${size.width}×${size.height}: caixa ${Math.round(box.x)},${Math.round(box.y)} ${Math.round(box.width)}×${Math.round(box.height)} dentro=${dentro}; fundo coberto=${naoCobre.length === 0}; rolagem horizontal ${rola.h}, rolagem da caixa ${rola.caixa}; alvos < 44 px: ${pequenos.length ? pequenos.map(a => `${a.n} ${a.w}×${a.h}`).join(', ') : 'nenhum'} (de ${alvos.length})`)
+      // 11b B1: a barra de controles (Versão, Zoom, Arquivo) fica ACIMA da imagem, como no mockup; nada de controle abaixo dela
+      const lay = await page.evaluate(() => {
+        const r = (q: string) => { const e = document.querySelector(q); return e ? e.getBoundingClientRect() : null }
+        const tools = r('.obs-tv-tools'), main = r('.obs-tv-main'), info = r('.obs-tv-info'), top = r('.obs-tv-top')
+        const grupos = [...document.querySelectorAll('.obs-tv-tools > [role="group"]')].map(g => g.getAttribute('aria-label'))
+        const abaixo = [...document.querySelectorAll('.obs-tv-box button, .obs-tv-box a[role="link"]')].filter(b => main && b.getBoundingClientRect().top >= main.bottom - 1).map(b => (b.getAttribute('aria-label') ?? b.textContent ?? '').trim())
+        return { top: top && top.bottom, toolsTop: tools && tools.top, toolsBottom: tools && tools.bottom, mainTop: main && main.top, mainH: main && main.height, infoTop: info && info.top, grupos, abaixo, foot: document.querySelectorAll('.obs-tv-foot').length }
+      })
+      medida(`${size.width}: B1 título até ${lay.top}, barra ${lay.toolsTop}–${lay.toolsBottom}, imagem de ${lay.mainTop} (altura ${lay.mainH}), legenda em ${lay.infoTop}; grupos ${lay.grupos?.join(' | ')}; controles abaixo da imagem: ${lay.abaixo.length ? lay.abaixo.join(', ') : 'nenhum'}`)
+      expect(lay.grupos, size.width + ': Versão, Zoom e Arquivo, nesta ordem').toEqual(['Versão da thumbnail', 'Zoom', 'Arquivo'])
+      expect(lay.toolsTop!, size.width + ': a barra vem depois do título').toBeGreaterThanOrEqual(lay.top! - 1)
+      expect(lay.toolsBottom!, size.width + ': a barra termina antes da imagem').toBeLessThanOrEqual(lay.mainTop! + 1)
+      expect(lay.abaixo, size.width + ': nenhum controle embaixo da imagem').toEqual([])
+      expect(lay.foot).toBe(0)
+      expect(lay.mainH!, size.width + ': a imagem ainda tem altura útil com a barra em cima').toBeGreaterThanOrEqual(150)
       expect(dentro, size.width + ': a caixa cabe na janela').toBe(true)
       expect(naoCobre, size.width + ': nada acima do diálogo').toEqual([])
       expect(rola.h, size.width + ': sem rolagem horizontal').toBeLessThanOrEqual(1)

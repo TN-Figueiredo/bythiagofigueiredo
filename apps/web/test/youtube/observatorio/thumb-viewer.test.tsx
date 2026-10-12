@@ -100,7 +100,7 @@ describe('ThumbViewer · diálogo', () => {
     for (const e of fundo) expect(e.hasAttribute('inert')).toBe(true)
     expect(host.hasAttribute('inert')).toBe(false)
     const titulo = document.getElementById(d.getAttribute('aria-labelledby')!)!
-    const ultimo = within(d).getByRole('button', { name: 'Baixar' })
+    const ultimo = mainEl() // 11b B1: com os controles em cima, a caixa da imagem é o último foco do anel
     const fechar = within(d).getByRole('button', { name: 'Fechar' })
     ultimo.focus()
     fireEvent.keyDown(ultimo, { key: 'Tab' })
@@ -437,10 +437,10 @@ describe('ThumbViewer · C1: o foco não se perde quando a versão troca', () =>
     ;[stage(), mainEl()].find(e => { e.focus(); return document.activeElement === e })
     fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
     await waitFor(() => expect(stage().querySelector('img')?.getAttribute('src')).toBe(BLOB_A))
-    const baixar = within(dialog()).getByRole('button', { name: 'Baixar' })
-    baixar.focus()
+    const ultimo = mainEl() // 11b B1: o último foco do anel é a caixa da imagem (os controles ficam em cima dela)
+    ultimo.focus()
     const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
-    baixar.dispatchEvent(ev)
+    ultimo.dispatchEvent(ev)
     expect(ev.defaultPrevented).toBe(true)
     expect(document.activeElement).toBe(within(dialog()).getByRole('button', { name: 'Fechar' }))
   })
@@ -455,10 +455,10 @@ describe('ThumbViewer · I1: o anel de foco', () => {
     const ev = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true })
     fechar.dispatchEvent(ev)
     expect(ev.defaultPrevented).toBe(true)
-    expect(document.activeElement).toBe(within(d).getByRole('button', { name: 'Baixar' }))
+    expect(document.activeElement).toBe(mainEl()) // 11b B1: o último do anel é a caixa da imagem
   })
 
-  it('último focável apagado (aria-disabled): Tab nele volta ao Fechar, Shift+Tab no Fechar volta a ele, e o apagado entra no anel', async () => {
+  it('sem imagem (Baixar e Abrir original apagados): os apagados entram no anel, e o Tab no último (a caixa da imagem) volta ao Fechar', async () => {
     rede = new Map()
     abrir(um())
     await waitFor(() => expect(within(dialog()).getByText('A imagem não carregou.')).toBeTruthy())
@@ -468,13 +468,16 @@ describe('ThumbViewer · I1: o anel de foco', () => {
     const fechar = within(d).getByRole('button', { name: 'Fechar' })
     expect(baixar.getAttribute('aria-disabled')).toBe('true')
     expect(original.getAttribute('aria-disabled')).toBe('true')
-    baixar.focus()
-    fireEvent.keyDown(baixar, { key: 'Tab' })
+    // 11b B1: os controles ficam em cima da imagem; o último do anel é a caixa da imagem, que nunca é apagada
+    mainEl().focus()
+    fireEvent.keyDown(mainEl(), { key: 'Tab' })
     expect(document.activeElement).toBe(fechar)
     fireEvent.keyDown(fechar, { key: 'Tab', shiftKey: true })
-    expect(document.activeElement).toBe(baixar)
-    // o primeiro focável (Fechar) nunca é apagado; os apagados do meio continuam no caminho natural do Tab
+    expect(document.activeElement).toBe(mainEl())
+    // o primeiro focável (Fechar) nunca é apagado; os apagados continuam no caminho natural do Tab, antes da imagem
     expect(fechar.getAttribute('aria-disabled')).toBeNull()
+    expect(original.compareDocumentPosition(baixar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(baixar.compareDocumentPosition(mainEl()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('clicar num texto do diálogo (foco na caixa) não mata o teclado: os atalhos valem e Shift+Tab gira', async () => {
@@ -487,7 +490,7 @@ describe('ThumbViewer · I1: o anel de foco', () => {
     fireEvent.keyDown(caixa, { key: '1' })
     expect(pct()).toBe('100%')
     fireEvent.keyDown(caixa, { key: 'Tab', shiftKey: true })
-    expect(document.activeElement).toBe(within(caixa).getByRole('button', { name: 'Baixar' }))
+    expect(document.activeElement).toBe(mainEl()) // 11b B1: o último do anel é a caixa da imagem
   })
 })
 
@@ -771,5 +774,60 @@ describe('ThumbViewer · arrastar, zoom por versão, inert e carga', () => {
     rede.set(url, { w: 480, h: 360 })
     abrir({ title: 'T', versions: [velha({ archived: url })], start: 0 })
     await waitFor(() => expect(stage().querySelector('img')?.getAttribute('src')).toBe(url))
+  })
+})
+
+/* ---------------------------------------------------------------- 11b · B1: os controles em cima, como no mockup (viewer.js) */
+describe('ThumbViewer · 11b B1: controles na posição do mockup', () => {
+  const antes = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+  it('uma só barra de ferramentas entre o título e a imagem, com os grupos Versão, Zoom e Arquivo nesta ordem; nada embaixo da imagem', () => {
+    abrir(dois())
+    const d = dialog()
+    const barra = d.querySelector<HTMLElement>('.obs-tv-tools')!
+    expect(barra).not.toBeNull()
+    expect([...barra.querySelectorAll(':scope > [role="group"]')].map(g => g.getAttribute('aria-label'))).toEqual(['Versão da thumbnail', 'Zoom', 'Arquivo'])
+    expect(antes(d.querySelector('.obs-tv-top')!, barra)).toBe(true)
+    expect(antes(barra, mainEl())).toBe(true)
+    // embaixo da imagem ficam só a legenda, a resolução e o status
+    expect(d.querySelector('.obs-tv-foot')).toBeNull()
+    for (const g of ['Zoom', 'Arquivo']) {
+      const grupo = within(d).getByRole('group', { name: g })
+      expect(antes(grupo, mainEl()), g).toBe(true)
+    }
+    const info = d.querySelector('.obs-tv-info')!
+    expect(antes(mainEl(), info)).toBe(true)
+    expect(info.querySelector('[role="group"]')).toBeNull()
+  })
+  it('"Comparar lado a lado" mora no grupo Versão (como no mockup), não solto na barra', () => {
+    abrir(dois())
+    const versao = within(dialog()).getByRole('group', { name: 'Versão da thumbnail' })
+    expect(versao.contains(within(dialog()).getByRole('button', { name: 'Comparar lado a lado' }))).toBe(true)
+  })
+  it('a ordem do Tab é a da tela: Fechar, versões, Comparar, zoom, arquivo e, por último, a caixa da imagem', async () => {
+    abrir(dois())
+    await carregada()
+    const d = dialog()
+    const nomes = [...d.querySelectorAll<HTMLElement>('button, a[href], select, [tabindex="0"]')].map(e => (e.getAttribute('aria-label') ?? e.textContent ?? '').replace(/\s+/g, ' ').trim() || e.className)
+    const esperado = ['Fechar', 'Anterior', 'Próxima', 'Comparar lado a lado', 'Diminuir o zoom', 'Aumentar o zoom', 'Ajustar', '100%', 'Abrir original em nova aba', 'Baixar']
+    expect(nomes.slice(0, esperado.length)).toEqual(esperado)
+    expect(d.querySelectorAll('[tabindex="0"]')).toHaveLength(1)
+    expect(d.querySelector('[tabindex="0"]')).toBe(mainEl()) // a caixa da imagem é o único tabindex=0 e vem depois dos botões
+    expect(nomes.at(-1)).toMatch(/Setas movem a imagem/) // ... e fecha o anel
+  })
+  it('Tab no último focável (a caixa da imagem) volta ao Fechar; Shift+Tab no Fechar vai à caixa da imagem', async () => {
+    abrir(dois())
+    await carregada()
+    const fechar = within(dialog()).getByRole('button', { name: 'Fechar' })
+    mainEl().focus()
+    fireEvent.keyDown(mainEl(), { key: 'Tab' })
+    expect(document.activeElement).toBe(fechar)
+    fireEvent.keyDown(fechar, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(mainEl())
+  })
+  it('com uma versão só a barra tem Versão (só o Comparar apagado e o motivo), Zoom e Arquivo', () => {
+    abrir(um())
+    const barra = dialog().querySelector('.obs-tv-tools')!
+    expect([...barra.querySelectorAll(':scope > [role="group"]')].map(g => g.getAttribute('aria-label'))).toEqual(['Versão da thumbnail', 'Zoom', 'Arquivo'])
+    expect(within(dialog()).queryByRole('button', { name: 'Anterior' })).toBeNull()
   })
 })
