@@ -40,8 +40,8 @@ export function resolverPar(pack: CompararPack, a: string | undefined, b: string
     const livres = ordem.filter(id => id !== excluir)
     const proprios = livres.filter(proprio).map((id): LinhaPrincipal => {
       const c = por.get(id)!
-      // a mesma entrada da lista e do menu (`linhasDoMotor`): vídeo com data conta, e a data é a exata (I-11c-2)
-      return { id, videos: c.semVideos || !c.comDatas ? 0 : 1, ultimo: c.ultimo }
+      // a mesma entrada da lista e do menu (`linhasDoMotor`): o critério único `canalTemVideos` (vídeo guardado conta, com ou sem data); a data, quando há, é a exata (I-11c-2)
+      return { id, videos: c.semVideos ? 0 : 1, ultimo: c.ultimo }
     })
     return escolherPrincipal(proprios, lembrado, pack.now) ?? livres.find(id => !proprio(id)) ?? livres[0]
   }

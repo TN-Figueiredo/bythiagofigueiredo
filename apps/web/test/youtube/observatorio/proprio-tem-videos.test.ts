@@ -10,6 +10,7 @@ import { ownMenuOf } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-me
 import { buildCanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { competitorChannelRedirect } from '@/app/cms/(authed)/youtube/competitors/_canais/legacy'
 import { buildCompararPack } from '@/app/cms/(authed)/youtube/competitors/_comparar/pack'
+import { resolverPar } from '@/app/cms/(authed)/youtube/competitors/_comparar/par-model'
 import { link } from '@/lib/youtube/observatorio/links'
 
 vi.mock('next/navigation', () => ({ redirect: (u: string) => { throw new Error('REDIRECT ' + u) } }))
@@ -73,5 +74,51 @@ describe('os cinco pontos concordam (canal próprio só com vídeo sem data TEM 
     const c = buildCompararPack(n.obs, () => {}).canais.find(x => x.id === nid)!
     expect(c.semVideos).toBe(true)
     expect(c.href).toBeNull()
+  })
+})
+
+describe('T10 (M3 da revisão da T9): os quatro pontos que ainda contavam só vídeo datado usam o critério único', () => {
+  /** Dois canais próprios: o PRIMEIRO só com vídeo sem data; o outro com vídeos datados. */
+  const dois = a3World((ds: Dataset) => {
+    const id = ds.channels.filter(c => c.own)[0]!.id
+    ds.videos = ds.videos.filter(v => v.ch !== id)
+    ds.channels.find(c => c.id === id)!.undated = [SEM_DATA]
+  })
+  const idSemData = dois.owns[0]!
+
+  it('lista de Canais: o nome acessível de "Comparar" conta o canal só com vídeo sem data como candidato (candidatosN)', () => {
+    const v = buildCanaisView(dois.obs, { niche: 'todos', limit: 75, fmt: 'longos' })
+    expect(dois.obs.ownChannels().filter(c => canalTemVideos(dois.obs, c.id))).toHaveLength(2)
+    const conc = [...v.list.ranked, ...v.list.unranked].find(r => !r.own && r.comparar)!
+    // dois candidatos: o rótulo diz QUAL é "o meu canal"
+    expect(conc.comparar!.label).toMatch(/com o meu canal \(.+\)$/)
+  })
+
+  it('lista de Canais, "Todos": o canal só com vídeo sem data não é "sem vídeos" (a falta é de Shorts)', () => {
+    const v = buildCanaisView(dois.obs, { niche: 'todos', limit: 75, fmt: 'todos' })
+    const row = [...v.list.ranked, ...v.list.unranked].find(r => r.id === idSemData)!
+    const json = JSON.stringify(row)
+    expect(json).not.toContain('O canal não tem vídeos guardados.')
+    expect(json).toContain('O canal não tem Shorts guardados.')
+  })
+
+  it('lista de Canais, motivo de não ter posição: o canal só com vídeo sem data não diz "sem vídeos"', () => {
+    const v = buildCanaisView(dois.obs, { niche: 'todos', limit: 75, fmt: 'longos' })
+    const row = [...v.list.ranked, ...v.list.unranked].find(r => r.id === idSemData)!
+    expect(JSON.stringify(row.semMedida ?? null)).not.toMatch(/sem v[ií]deos/i)
+  })
+
+  it('comparação: o canal só com vídeo sem data é candidato a "o meu canal" padrão (a mesma entrada da lista e do menu)', () => {
+    const solo = a3World((ds: Dataset) => {
+      const id = ds.channels.filter(c => c.own)[0]!.id
+      ds.videos = ds.videos.filter(v => v.ch !== id)
+      ds.channels.find(c => c.id === id)!.undated = [SEM_DATA]
+    }, '1')
+    const id = solo.owns[0]!
+    expect(ownMenuOf(solo.obs).itens.find(i => i.id === id)!.href).toBe(ownChannelHref(id))
+    const pack = buildCompararPack(solo.obs, () => {})
+    const par = resolverPar(pack, undefined, undefined)
+    expect(par).not.toBeNull()
+    expect(par!.a).toBe(id)
   })
 })
