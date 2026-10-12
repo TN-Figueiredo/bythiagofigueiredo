@@ -98,6 +98,41 @@ export async function lerDiarioDosCanais(
   return out
 }
 
+/**
+ * O alcance de TODOS os canais próprios do site (o cartão "Só o seu canal mede" da comparação). A mesma regra de `lerDiarioDosCanais`: sem token
+ * nada é consultado e o cliente de serviço nem é criado; um canal que falha vira { acesso: 'erro' } (a tela não cai por causa do dado privado) e UM
+ * aviso para a requisição inteira, com a contagem de falhas; no máximo 4 canais em voo. Pede o token (`edicao`), não um booleano: o critério de
+ * edição só nasce em `podeVerPrivado`.
+ */
+export async function lerAlcanceDosCanais(
+  a: { canalIds: readonly string[]; agora: number; edicao: EdicaoDoSite | null },
+  avisar?: (e: unknown, n: number) => void,
+): Promise<Map<string, Privado<AlcanceCanal>>> {
+  const out = new Map<string, Privado<AlcanceCanal>>()
+  if (!edicaoValida(a.edicao)) {
+    for (const id of a.canalIds) out.set(id, { acesso: 'negado' })
+    return out
+  }
+  if (a.canalIds.length === 0) return out
+  const { siteId } = a.edicao
+  const edicao = a.edicao
+  const sb = getSupabaseServiceClient()
+  const hoje = dayPt(new Date(a.agora))
+  const falhas: unknown[] = []
+  const lidos = await mapLimit(a.canalIds, CANAIS_EM_VOO, async (canalId): Promise<Privado<AlcanceCanal>> => {
+    try { return await lerAlcance(sb, { edicao, canalId, hoje }) } catch (e) { falhas.push(e); return { acesso: 'erro' } }
+  })
+  a.canalIds.forEach((id, i) => out.set(id, lidos[i]!))
+  if (falhas.length > 0) {
+    const padrao = (e: unknown, n: number) => Sentry.captureMessage('observatório: leitura do alcance dos canais próprios falhou', {
+      level: 'warning', tags: TAGS, extra: { siteId, falhas: n, primeiroErro: e instanceof Error ? e.message : String(e) },
+    })
+    ;(avisar ?? padrao)(falhas[0], falhas.length)
+  }
+  avisarDescartados(siteId, lidos.reduce((s, l) => s + descartadosDe(l), 0))
+  return out
+}
+
 /** Os ytIds dos longos acompanhados de um canal próprio, na ordem do motor (mais novo primeiro). */
 export function longosAcompanhadosDe(obs: Pick<Observatory, 'videos'>, canalId: string): string[] {
   return longosAcompanhados(obs, canalId)

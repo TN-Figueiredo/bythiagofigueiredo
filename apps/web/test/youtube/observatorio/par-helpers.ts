@@ -48,5 +48,6 @@ export function pacoteDe(canais: CanalPack[], semanasRitmo = 13): CompararPack {
   return {
     now: AGORA, inicio90: AGORA - 90 * 86_400_000, semanasRitmo, eixo: ['01/01', '31/01', '02/03', 'hoje, 01/04'],
     canais, ordem: [...canais.filter(c => c.own).map(c => c.id), ...comps.map(c => c.id)],
+    serieDesde: '03/10', soSeuCanal: {},
   }
 }

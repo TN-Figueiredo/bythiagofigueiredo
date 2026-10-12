@@ -5,9 +5,10 @@ import 'server-only'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
-import type { DiarioCanal, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
+import type { AlcanceCanal, DiarioCanal, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import { vpdDoCanal, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
-import { lerDiarioDosCanais, longosAcompanhadosDe, podeVerPrivado } from './dados'
+import { montarSoSeuCanalDado, type SoSeuCanalDado } from '../_comparar/so-seu-canal-model'
+import { lerAlcanceDosCanais, lerDiarioDosCanais, longosAcompanhadosDe, podeVerPrivado } from './dados'
 import { dmDia, type ExtrasProprio } from './extras'
 
 /**
@@ -29,4 +30,32 @@ export async function carregarExtrasProprio(
   const hoje = dayPt(new Date(agora))
   const vpd = new Map<string, VpdCanal>(owns.map(c => [c.id, vpdDoCanal(diarios.get(c.id) ?? { acesso: 'negado' }, longos.get(c.id) ?? [], hoje)]))
   return { vpd, dm: dmDia }
+}
+
+/**
+ * A página da COMPARAÇÃO: as views por dia (`extras`, como acima) e o cartão "Só o seu canal mede" de cada canal próprio do site, tudo com UMA guarda
+ * de edição e UMA leitura do diário por canal. O alcance é lido DEPOIS do token e só com ele. Sem token cada canal chega como { acesso: 'negado', view: null }
+ * (nenhum número, nenhum cliente de serviço); sem canal próprio no site nada é consultado. A leitura vale para o site, não para o par da URL: trocar o
+ * seletor no navegador não vai ao servidor (D14), então o pacote leva o cartão de todos os canais próprios.
+ */
+export async function carregarProprioDaComparacao(
+  obs: Observatory, siteId: string, agora: number, avisar?: (e: unknown, n: number) => void,
+): Promise<{ extras: ExtrasProprio | undefined; soSeuCanal: Record<string, SoSeuCanalDado> }> {
+  const owns = obs.ownChannels()
+  if (owns.length === 0) return { extras: undefined, soSeuCanal: {} }
+  const edicao = await podeVerPrivado(siteId)
+  const longos = new Map(owns.map(c => [c.id, longosAcompanhadosDe(obs, c.id)]))
+  const [diarios, alcances] = await Promise.all([
+    lerDiarioDosCanais({ canais: owns.map(c => ({ id: c.id, longosAcompanhados: longos.get(c.id) ?? [] })), agora, edicao }, avisar),
+    lerAlcanceDosCanais({ canalIds: owns.map(c => c.id), agora, edicao }, avisar),
+  ])
+  const hoje = dayPt(new Date(agora))
+  const NEGADO = { acesso: 'negado' } as const
+  const vpd = new Map<string, VpdCanal>(owns.map(c => [c.id, vpdDoCanal(diarios.get(c.id) ?? NEGADO, longos.get(c.id) ?? [], hoje)]))
+  const soSeuCanal: Record<string, SoSeuCanalDado> = {}
+  for (const c of owns) {
+    const alcance: Privado<AlcanceCanal> = alcances.get(c.id) ?? NEGADO
+    soSeuCanal[c.id] = montarSoSeuCanalDado({ nome: c.name, alcance, diario: diarios.get(c.id) ?? NEGADO, longos: longos.get(c.id) ?? [], dm: dmDia, F: obs.fmt })
+  }
+  return { extras: { vpd, dm: dmDia }, soSeuCanal }
 }
