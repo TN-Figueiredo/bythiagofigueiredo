@@ -4,7 +4,7 @@ Data: 12/10/2026 · Estado: **v2**, aguarda a leitura do dono (a triagem da seç
 
 Marcas: **VERIFICADO** (arquivo:linha ou consulta) = lido no código ou medido em produção em 12/10 por `supabase db query --linked` (só `SELECT`); **NC** = não confirmado, com o modo de confirmar; **[DONO]** = padrão assumido que o dono pode trocar (seção 13). As migrations propostas chamam-se **MG1 a MG6** (na v1 eram "M1 a M3", que se confundia com as medidas M1 a M10).
 
-**Mapa:** 1 objetivo · 2 fatos conferidos · 3 triagem (aprovada) · 4 coleta dos concorrentes (E1 a E3) e o que saiu do YouTube (E9) · 5 medidas derivadas (E4) · 6 telas (E5) e a etapa de mockups (E13) · 7 canal próprio: dieta do diário (E6), curva de retenção (E8), origem das views em tabelas (E11) e o bruto dos relatórios em lote (E12) · 8 forja e Cowork (E7) · 9 ciclo de vida do dado, volume e cota (E10) · 10 itens de aceite · 11 riscos · 12 fora do escopo, registrado, e as fases seguintes · 13 perguntas ao dono · 14 sequência. **Treze etapas, 102 itens de aceite.**
+**Mapa:** 1 objetivo · 2 fatos conferidos · 3 triagem (aprovada) · 4 coleta dos concorrentes (E1 a E3) e o que saiu do YouTube (E9) · 5 medidas derivadas (E4) · 6 telas (E5) e a etapa de mockups (E13) · 7 canal próprio: dieta do diário (E6), curva de retenção (E8), origem das views em tabelas (E11) e o bruto dos relatórios em lote (E12) · 8 forja e Cowork (E7) · 9 ciclo de vida do dado, volume e cota (E10) · 10 itens de aceite · 11 riscos · 12 fora do escopo, registrado, e as fases seguintes · 13 perguntas ao dono · 14 sequência. **Treze etapas, 106 itens de aceite.**
 
 ### O que mudou da v1 (decisões do dono de 12/10: itens 6 a 10 do arquivo de decisões e quatro recados posteriores do mesmo dia; onde divergem, vale o último)
 
@@ -14,8 +14,8 @@ Marcas: **VERIFICADO** (arquivo:linha ou consulta) = lido no código ou medido e
 4. **O que saiu do YouTube fica guardado por padrão**, numa fila em que o dono decide caso a caso (etapa nova E9, seção 4.5). A "lápide após 30 dias" da v1 saiu.
 5. **Ciclo de vida do dado, sem compactação** (etapa nova E10, seção 9): o dado antigo é exportado, conferido, levado ao NAS pelo dono e só então apagado do banco online. A idade de corte é parâmetro (padrão proposto: 12 meses online, lotes semestrais). **Nesta fase ficam as regras, o comando de export com conferência e o sinal de "banco chegando ao limite"**; arquivar por idade, o banco no NAS e o botão "Ver antigo" são a fase de manutenção, em spec próprio, que o dono pretende fazer na semana que vem.
 6. **A conta de volume foi refeita** (9.3) e traz um achado que corrige a expectativa: o arquivo estabiliza a **série** (dois terços do volume), mas não o banco inteiro; o que nunca sai do online cresce cerca de 2,2 MB por canal por ano. O "teto de 55 canais" deixa de ser padrão e vira saída de emergência. **Folga sem arquivo nenhum, já com a dieta e as tabelas novas do canal próprio:** 38 meses com 15 canais, 30 com 20, 22 com 30, 17 com 40. Nenhum cenário realista fica abaixo de 9 meses; como a fase de manutenção está marcada para a semana que vem, o número é informação e não manda na ordem.
-7. **TikTok** e a **fase de manutenção com NAS** registrados como specs à parte (12.2). **Perguntas** refeitas: sobraram 8 (seção 13). **Sequência** refeita (seção 14), com uma **etapa explícita de mockups** (E13, seção 6.5): quem faz, a lista em ordem, o que cada um tem de mostrar, o rito de aprovação e o que não espera mockup.
-8. Mexidas menores que decorrem das acima: medida M1 passa a ser gravada nas idades 1, 7 e 30 (tabela pequena, MG4), para sobreviver ao arquivamento da série; motivo novo de "não medido": "arquivado"; itens de aceite 54 a 102.
+7. **TikTok** e a **fase de manutenção com NAS** registrados como specs à parte (12.2). **Perguntas** refeitas: sobraram 8 (seção 13). **Sequência** refeita (seção 14), com uma **etapa explícita de mockups** (E13, seção 6.5): quem faz, a lista em ordem, o que cada um tem de mostrar, o rito de aprovação em dois crivos (o agente `revisor-ux-senior` mede e dá veredito antes de o dono abrir) e o que não espera mockup.
+8. Mexidas menores que decorrem das acima: medida M1 passa a ser gravada nas idades 1, 7 e 30 (tabela pequena, MG4), para sobreviver ao arquivamento da série; motivo novo de "não medido": "arquivado"; itens de aceite 54 a 106.
 
 ## 1. Objetivo, não-objetivos, critério de sucesso
 
@@ -464,7 +464,7 @@ Nenhuma tela para playlists sozinha.
 
 ### 6.5 Etapa E13: fazer e validar os mockups (entre a coleta e o código de tela)
 
-Pedido do dono (12/10): "preciso que você adicione uma etapa do spec para fazermos e validarmos o mockup". É uma etapa com entrega e itens de aceite próprios (98 a 102).
+Pedido do dono (12/10): "preciso que você adicione uma etapa do spec para fazermos e validarmos o mockup". É uma etapa com entrega e itens de aceite próprios (98 a 106).
 
 **(a) Quem faz.** Sempre a skill `frontend-design`, dentro da identidade já aprovada do Observatório (os tokens de `chrome.css` e `tokens-telas.css`, a rodada `2026-10-07-pagina-canal/` como referência). Nenhum mockup nasce fora dela, e nenhum usa `color-mix()`. Cada rodada entrega os arquivos em `docs/superpowers/mockups/<data>-<tema>/`, com `index.html`, `REVISAO.md` e as capturas em `shots/`.
 
@@ -501,7 +501,23 @@ Pedido do dono (12/10): "preciso que você adicione uma etapa do spec para fazer
 
 **(c) O que cada mockup tem de mostrar para ser validável.** O **caso cheio e o caso magro com os números reais dos canais do dono** (os dois canais próprios e os concorrentes cadastrados); o **estado sem dado**; cada **"não medido" com o motivo** da lista fechada de 6.1.5; **1440 e 390 px**; **tema claro e escuro**; e, na tela e na `REVISAO.md`, **o que é dado real e o que é exemplo** (todo número de exemplo leva a marca "exemplo"). Mockup de dado que ainda não existe (M10, "Ver antigo") diz isso no topo. Valem os critérios de reprovação do começo desta seção (frase-resumo, régua ou barra, cor estável, método no ⓘ).
 
-**(d) O rito de validação.** O dono abre o mockup e responde uma de três coisas: **aprova**, **pede ajuste** ou **reprova**. Um por vez: o seguinte só é apresentado depois da resposta ao anterior (os que não dependem um do outro podem ser *feitos* em paralelo, não *aprovados* em lote). **Nenhuma tela vira código sem o mockup correspondente aprovado.** Cada resposta fica registrada no ledger da fase com a data, o número do mockup e o veredito; ajuste pedido gera nova versão e nova resposta.
+**(d) O rito de validação: dois crivos, o do revisor e o do dono.** Pedido do dono (12/10): "o frontend-design tem que ser cobrado. Quero um subagente senior frontend UX engineer que foca principalmente na experiência do usuário e em garantir que as cores estejam bem representadas e destacando a informação necessária". O revisor é o agente `revisor-ux-senior` (`~/.claude/agents/revisor-ux-senior.md`): não desenha nem edita, cobra, mede e devolve veredito.
+
+| Passo | Quem | O que acontece |
+|---|---|---|
+| 1 | skill `frontend-design` | desenha o mockup, com tudo de (c) |
+| 2 | `revisor-ux-senior` | abre o mockup **em navegador** (sobre `file://`), a 1440 e 390 px, nos dois temas, em cada estado; tira capturas, mede, e dá **veredito por tela**: *pronto para o dono*, *volta para ajuste* ou *reprovado*. Cada achado tem tela e estado, a evidência (medida, captura), a severidade (**bloqueia**, **corrige** ou **sugestão**) e o conserto em uma frase |
+| 3 | skill `frontend-design` | corrige todo achado "bloqueia" e "corrige" |
+| 4 | `revisor-ux-senior` | confere a correção e fecha cada achado, ou devolve de novo |
+| 5 | **o dono** | só então abre o mockup e responde uma de três coisas: **aprova**, **pede ajuste** ou **reprova**. Ajuste pedido volta ao passo 1 e passa de novo pelo revisor |
+
+- **O que o revisor julga** (os sete critérios da definição dele, nesta ordem): se a tela responde à pergunta de quem abre **no primeiro olhar** (em 3 segundos, sem rolar); se **a cor carrega informação**, uma cor com um significado só em toda tela, o que importa com o maior contraste e o secundário recuando, e cada estado (medido, zero medido, não medido, erro, subindo, descendo, indisponível) distinto por cor **e** por forma ou símbolo, legível em escala de cinza; hierarquia e densidade; texto de interface (nenhuma frase afirma mais do que o dado sustenta); estados e bordas (nulo nunca como zero); uso real (teclado, alvo de toque de 44 px, 390 px sem rolagem horizontal, os dois temas, movimento reduzido); coerência com o que já foi aprovado. As preferências registradas do dono valem como requisito.
+- **A revisão fica em arquivo ao lado do mockup** (`REVISAO-UX.md` na pasta da rodada), com, por tela: a pergunta do usuário, o veredito, os achados por severidade e a **tabela de medidas**: contraste de texto e de elemento gráfico nos **dois temas**, com o número (mínimo de 4,5:1 para texto normal e 3:1 para texto grande e elemento gráfico), **alvos de toque**, e larguras e alturas a **390 px**. E, escrito, **o que o revisor não conseguiu verificar** (leitor de tela, um navegador específico), em vez de omitir.
+- **Nenhum mockup vai ao dono com achado "bloqueia" ou "corrige" aberto.** "Sugestão" pode ir aberta, listada para ele.
+- **Os nove mockups que já existem passam por esse crivo antes de serem levados à aprovação.**
+- **Um por vez para o dono:** o mockup seguinte só é apresentado depois da resposta ao anterior (os que não dependem um do outro podem ser *feitos* e *revisados* em paralelo, não *aprovados* em lote). **Nenhuma tela vira código sem o mockup correspondente aprovado.** Cada resposta fica no ledger da fase com a data, o número do mockup e o veredito.
+- **O mesmo revisor confere a tela implementada contra o mockup aprovado antes de a tela ir a produção** (em navegador, nos mesmos tamanhos e temas); divergência não declarada é achado "corrige".
+- Custo: o revisor roda em Sonnet (é a definição dele) e é o único que abre navegador, como manda a regra de economia do projeto; as capturas ficam em arquivo.
 
 **(e) O que não espera mockup** e pode ser planejado e executado antes: toda a coleta (E12, E1, E2, E3, E8 e E11, sem as telas), as medidas como modelo puro (E4), a dieta (E6), o export e o sinal no retorno do cron (E10), a parte de servidor da fila (E9), o Cowork (E7) e o conserto T0.
 
@@ -901,7 +917,7 @@ A cota não é o limite em nenhum cenário; ela é compartilhada com o A/B Lab e
 
 ## 10. Itens de aceite, por etapa
 
-São 102 itens: 1 a 53 vêm da v1 (dois foram ajustados, o 7 e o 34); 54 a 102 são da v2. Cada item é uma consulta ou uma tela. `:hoje` é a data de São Paulo. Os itens **NP** são os de "nada se perde": rodados no dia seguinte ao deploy e em mais dois dias.
+São 106 itens: 1 a 53 vêm da v1 (dois foram ajustados, o 7 e o 34); 54 a 106 são da v2 (103 a 106 estão junto da E13). Cada item é uma consulta ou uma tela. `:hoje` é a data de São Paulo. Os itens **NP** são os de "nada se perde": rodados no dia seguinte ao deploy e em mais dois dias.
 
 **E1: campos, sinalizadores, `raw`**
 1. Depois de uma rodada completa (4 faixas), todo vídeo lido tem `raw` corrente: `select count(*) from competitor_videos v where last_checked_at > now() - interval '1 day' and not exists (select 1 from competitor_raw r where r.video_id = v.id and r.is_current)` = 0.
@@ -945,7 +961,7 @@ São 102 itens: 1 a 53 vêm da v1 (dois foram ajustados, o 7 e o 34); 54 a 102 s
 
 **E5: telas**
 33. T0: o defeito do contêiner reproduzido em navegador com medidas anotadas; teste e2e vermelho antes e verde depois; a 1440 e 390 px, nos dois temas, a página rola até o fim e não há faixa preta.
-34. Cada tela só começa a ser codificada com o mockup correspondente aprovado (etapa E13, 6.5; itens 98 a 102).
+34. Cada tela só começa a ser codificada com o mockup correspondente aprovado (etapa E13, 6.5; itens 98 a 106).
 35. Em cada tela, cada número novo tem base, janela e ⓘ com a conta e a frase "cálculo do Observatório sobre dados públicos do YouTube".
 36. Cada tela foi vista em navegador nos estados: vazio (banco de antes da E1), parcial (uma semana de dado) e cheio (semente de um ano), a 1440 e 390 px, tema escuro e claro, sem rolagem horizontal e sem erro de console.
 37. "Não medido" usa a cor e a forma únicas, e o motivo vem da lista fechada de 6.1.5; nenhum zero aparece onde a contagem é oculta ou ausente.
@@ -970,7 +986,7 @@ São 102 itens: 1 a 53 vêm da v1 (dois foram ajustados, o 7 e o 34); 54 a 102 s
 52. Os dois documentos do pipeline atualizados e a semente rodada; os testes de estrutura do registro passam com `endpoint_count` inalterado.
 53. Nenhum pacote da forja mudou: o retrato de `buildSent` de antes e de depois é igual (teste).
 
-**Itens novos da v2** (numerados na sequência, de 54 a 102, para não trocar o número dos anteriores; cada um diz a etapa).
+**Itens novos da v2** (numerados na sequência, de 54 a 106, para não trocar o número dos anteriores; cada um diz a etapa).
 
 **E4: marcas e M10**
 54. Marca gravada = cálculo: para todo vídeo com série completa, `competitor_video_marks.views` é igual a M1 calculada sobre a série (teste); com leituras vizinhas além do limite, **nenhuma** linha é gravada e a medida responde o motivo.
@@ -1034,6 +1050,10 @@ São 102 itens: 1 a 53 vêm da v1 (dois foram ajustados, o 7 e o 34); 54 a 102 s
 98. Cada mockup da lista de 6.5 foi feito com a skill `frontend-design`, na identidade aprovada (tokens de `chrome.css` e `tokens-telas.css`; `grep` por `color-mix` nos arquivos do mockup = 0), e a pasta traz `index.html`, `REVISAO.md` e `shots/`.
 99. Cada mockup mostra: caso cheio e caso magro **com os números reais dos canais do dono**, estado sem dado, "não medido" com motivo da lista fechada, 1440 e 390 px, tema claro e escuro (uma captura de cada em `shots/`); e a `REVISAO.md` diz, tela a tela, o que é dado real e o que é exemplo.
 100. O ledger da fase tem uma linha por mockup com data e veredito do dono (aprovado, ajuste pedido, reprovado); nenhum mockup foi apresentado antes da resposta ao anterior.
+103. **Nenhum mockup foi ao dono com achado "bloqueia" ou "corrige" aberto:** para cada mockup, a `REVISAO-UX.md` traz o veredito "pronto para o dono" em todas as telas, com data anterior à da apresentação.
+104. A `REVISAO-UX.md` de cada rodada fica ao lado do mockup e traz, por tela, as medidas (contraste de texto e de elemento gráfico nos dois temas, com o número; alvos de toque; 390 px sem rolagem horizontal) e a lista do que o revisor **não** conseguiu verificar.
+105. Os nove mockups de `2026-10-12-a4-proprio-e-ajustes/` passaram pelo revisor antes de serem levados ao dono.
+106. Cada tela implementada foi conferida pelo `revisor-ux-senior` contra o mockup aprovado, em navegador, antes de ir a produção, e a conferência está registrada (divergência não declarada foi corrigida ou aceita pelo dono por escrito).
 101. **Nenhuma tela virou código sem mockup aprovado:** cada tarefa de tela do plano cita a linha do ledger com a aprovação, e a revisão final da fase confere a lista de telas entregues contra o ledger (o T0 é a única exceção, por ser conserto).
 102. O mockup do "Ver antigo" é um esboço marcado como tal, e nenhuma tarefa de código desta fase depende dele.
 
@@ -1131,7 +1151,7 @@ Padrões assumidos sem pergunta (o dono troca se quiser): as miniaturas continua
 | 8 | **E3: playlists** | sim (MG3) | não | pergunta 1 |
 | 9 | **E10: export com conferência e sinal de limite** | sim (MG6) | só o aviso na tela (mockup 18); os comandos e o sinal no retorno do cron, não | nada; o ensaio com o dono (item 82) pede um canal que ele queira remover. Convém fechar antes da fase de manutenção, que usa o export |
 | 10 | **E4: medidas e marcas** | sim (MG4, marcas) | não (funções e testes) | E2 para M1; M3(a), M4, M6 e M8 "parado" podem começar já; M10 fica pronta e sem dado até 2027 |
-| 11 | **E13: fazer e validar os mockups** (6.5), um por vez | não | é a própria etapa | começa já pelos 9 que existem e pelo mockup 10; os de 11 a 17 pedem o dado das etapas acima |
+| 11 | **E13: fazer, revisar e validar os mockups** (6.5): `frontend-design` desenha, `revisor-ux-senior` cobra, o dono aprova, um por vez | não | é a própria etapa | começa já pelos 9 que existem e pelo mockup 10; os de 11 a 17 pedem o dado das etapas acima |
 | 12 | **E9: fila "Saíram do YouTube"** (a função de apagar pode ir antes; a tela, depois do mockup 10) | não (as colunas e a tabela estão na MG1) | **sim** (mockup 10) | E1 |
 | 13 | **E5: telas** (T0 primeiro, sem mockup) | não | **sim, cada tela com o seu** | E4; E13 |
 | 14 | **E7: Cowork** | não | não | E4 |
@@ -1141,7 +1161,7 @@ Padrões assumidos sem pergunta (o dono troca se quiser): as miniaturas continua
 
 **Podem ser planejadas e executadas já, sem esperar desenho:** toda a coleta (E12, E1, E2, E3, E8 e E11, sem as telas), as medidas como modelo puro e as marcas (E4), a dieta do diário (E6), o export com o sinal de limite (E10), a parte de servidor da E9 (marcar, apagar, registrar), o Cowork (E7) e o T0. A ordem entre E1 e E2 segue "o que se perde por dia": as duas perdem todo dia; a E1 vem antes por custar zero de cota, ser só acréscimo e dar à E2 o escritor de `raw` que a passada semanal usa. As duas cabem na mesma semana.
 
-**Esperam mockup aprovado (E13):** toda a E5 menos o T0, a tela da fila (E9), a seção de retenção com dado real (E8), as seções do canal próprio (E11) e o aviso de limite na tela (E10). Os 9 mockups de 12/10 aguardam aprovação; faltam os de 10 a 19, na ordem de 6.5. A skill `frontend-design` faz todos; o dono aprova um por vez; o "Ver antigo" é só esboço.
+**Esperam mockup aprovado (E13):** toda a E5 menos o T0, a tela da fila (E9), a seção de retenção com dado real (E8), as seções do canal próprio (E11) e o aviso de limite na tela (E10). Os 9 mockups de 12/10 aguardam aprovação; faltam os de 10 a 19, na ordem de 6.5. A skill `frontend-design` faz todos; o `revisor-ux-senior` cobra cada um antes do dono, inclusive os 9 que já existem; o dono aprova um por vez; o "Ver antigo" é só esboço.
 
 **Como se junta à A4 (12 de 17 tarefas feitas localmente).**
 
