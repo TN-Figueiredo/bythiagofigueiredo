@@ -47,6 +47,13 @@ export interface SyncResult {
   sanitized?: number
 }
 
+/** (A5) Os contadores de uma sincronização que terminou em erro: o erro lançado não carrega resultado, e o lote só vê o erro. */
+const failedStats = new WeakMap<object, SyncResult>()
+/** Os contadores (vídeos conferidos, trocas, partes que faltaram, textos limpos…) que a sincronização tinha quando lançou; indefinido se o erro não veio dela. */
+export function syncStatsOf(err: unknown): SyncResult | undefined {
+  return typeof err === 'object' && err !== null ? failedStats.get(err) : undefined
+}
+
 const SP_OFFSET_MS = 3 * 3_600_000 // America/Sao_Paulo is UTC−3 with no DST since 2019
 export function spDate(ms: number): string { return new Date(ms - SP_OFFSET_MS).toISOString().slice(0, 10) }
 export function isDailyRecordDue(nowIso: string, lastRecordDate: string | null): { due: boolean; snapDate: string } {
@@ -161,7 +168,8 @@ export async function syncCompetitorChannel(
   /** A5 (E1): linhas de competitor_videos já regravadas nesta sincronização, e os vídeos que vieram do YouTube nela. */
   const patched = new Set<string>()
   const seen = new Set<string>()
-  let partsMissing = 0
+  /** Vídeos DISTINTOS (id do YouTube) que vieram sem uma parte: o mesmo vídeo pedido na página e na passada diária conta uma vez. */
+  const partsMissingIds = new Set<string>()
 
   type TrackedRow = { id: string; video_id: string; title: string | null; thumbnail_url: string | null }
   /** The channel's pinned videos (R118), read once per sync inside the try below. */
@@ -237,6 +245,21 @@ export async function syncCompetitorChannel(
     if (typeof r.id !== 'string' || rowInfo.has(r.id)) return
     rowInfo.set(r.id, { lastSeenAt: typeof r.last_seen_at === 'string' ? r.last_seen_at : null, weeklySince: null, missing: r.missing_since != null })
   }
+  /** O que a leitura de um vídeo grava na linha; sem miniatura utilizável (só `default`, ou nenhuma) a chave fica de fora: o valor gravado não é anulado. */
+  const observedOf = (item: unknown) => {
+    const o = videoObservedOf(item, nowIso, parseIsoDuration)
+    if (o.patch.thumbnail_url != null) return o
+    const { thumbnail_url: _semMiniatura, ...patch } = o.patch
+    return { ...o, patch }
+  }
+  /** Os contadores da sincronização até aqui; zero não aparece (como sempre foi no resultado). */
+  const counters = (): SyncResult => ({
+    videosChecked, changesDetected, dailyRecorded, unitsUsed,
+    ...(partsMissingIds.size ? { partsMissing: partsMissingIds.size } : {}),
+    ...(channelPartsMissing ? { channelPartsMissing } : {}),
+    ...(cap.fieldsOpened ? { fieldsOpened: cap.fieldsOpened } : {}), ...(cap.rawOpened ? { rawOpened: cap.rawOpened } : {}), ...(cap.rawTooBig ? { rawTooBig: cap.rawTooBig } : {}),
+    ...(cap.sanitized ? { sanitized: cap.sanitized } : {}),
+  })
   /** Campos e raw dos vídeos que vieram, em lotes de 50, e só então o carimbo de "visto". */
   const captureFetched = async (pairs: Array<{ uuid: string; item: unknown }>): Promise<void> => {
     const todo = pairs.filter(p => !captured.has(p.uuid))
@@ -385,8 +408,8 @@ export async function syncCompetitorChannel(
       if (!row) continue
       seen.add(row.id)
       if (patched.has(row.id)) continue
-      const o = videoObservedOf(it, nowIso, parseIsoDuration)
-      if (o.partsMissing.length) partsMissing++
+      const o = observedOf(it)
+      if (o.partsMissing.length) partsMissingIds.add(it.id)
       const { error } = await supabase.from('competitor_videos').update(o.patch).eq('id', row.id)
       // (emenda do portão: S-I5) não lança: a série do dia vem antes; o erro é guardado e o canal termina em erro
       if (late('não foi possível atualizar a linha do vídeo', error)) continue
@@ -443,11 +466,9 @@ export async function syncCompetitorChannel(
     const { error: chErr } = await supabase
       .from('competitor_channels')
       .update({
-        channel_name: snippet?.title ?? '',
-        thumbnail_url: snippet?.thumbnails?.default?.url ?? null,
-        subscriber_count: subscriberCount,
-        youtube_video_count: youtubeVideoCount,
-        // só as chaves das partes que vieram: parte ausente não grava nulo por cima
+        // só as chaves das partes que vieram: parte ausente não grava vazio, nulo nem zero por cima do gravado
+        ...(chObserved.partsMissing.includes('snippet') ? {} : { channel_name: snippet?.title ?? '', thumbnail_url: snippet?.thumbnails?.default?.url ?? null }),
+        ...(chObserved.partsMissing.includes('statistics') ? {} : { subscriber_count: subscriberCount, youtube_video_count: youtubeVideoCount }),
         ...chObserved.patch,
         ...(channelCaptured ? { last_seen_at: nowIso } : {}),
       })
@@ -545,8 +566,8 @@ export async function syncCompetitorChannel(
         const categoryId: string | null = (video.snippet?.categoryId as string) ?? null
 
         const durationSeconds = parseIsoDuration(video.contentDetails?.duration as string | undefined)
-        const observed = videoObservedOf(video, nowIso, parseIsoDuration)
-        if (observed.partsMissing.length) partsMissing++
+        const observed = observedOf(video)
+        if (observed.partsMissing.length) partsMissingIds.add(videoId)
         const probe: ShortProbeResult | undefined = probes.get(videoId)
         const verdict = classifyShort({ durationSeconds, title, probe })
         let isShort = verdict.isShort
@@ -554,6 +575,8 @@ export async function syncCompetitorChannel(
         const keepStored = needsShortProbe(durationSeconds) && !title?.includes('#Shorts') && probe !== 'short' && probe !== 'normal'
         const storedShort = existingMap.get(videoId)?.is_short as boolean | null | undefined
         if (keepStored && storedShort != null && existingMap.has(videoId)) isShort = storedShort
+        // Sem a parte contentDetails a duração não veio: o valor gravado fica (parte ausente não apaga nem reclassifica).
+        if (observed.patch.duration_seconds === undefined && storedShort != null && existingMap.has(videoId)) isShort = storedShort
 
         const existing = existingMap.get(videoId) ?? null
         let videoUuid: string | null = existing ? (existing.id as string) : null
@@ -749,11 +772,10 @@ export async function syncCompetitorChannel(
     }
     await supabase.from('competitor_channels').update(updatePayload).eq('id', channelRow.id)
 
-    return { videosChecked, changesDetected, dailyRecorded, unitsUsed, ...(semDestinatario ? { sem_destinatario: true } : {}), ...(partsMissing ? { partsMissing } : {}),
-      ...(channelPartsMissing ? { channelPartsMissing } : {}),
-      ...(cap.fieldsOpened ? { fieldsOpened: cap.fieldsOpened } : {}), ...(cap.rawOpened ? { rawOpened: cap.rawOpened } : {}), ...(cap.rawTooBig ? { rawTooBig: cap.rawTooBig } : {}),
-      ...(cap.sanitized ? { sanitized: cap.sanitized } : {}) }
+    return { ...counters(), ...(semDestinatario ? { sem_destinatario: true } : {}) }
   } catch (error) {
+    // os contadores acompanham o erro (syncStatsOf): o lote só vê o erro, e o que faltou/limpou não pode sumir junto
+    if (typeof error === 'object' && error !== null) failedStats.set(error, counters())
     // Set error status, preserve partial data
     await supabase
       .from('competitor_channels')

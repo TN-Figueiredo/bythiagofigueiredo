@@ -18,7 +18,7 @@ import { hashValue } from '@/lib/youtube/competitor-versions'
 import type { StoredVersion, VersionPlan } from '@/lib/youtube/competitor-versions'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { createNotification } from '@/lib/notifications/create'
-import { fakeDb, setup, apiFetch, traced, updatesOf, first, arg, rpcs, NOW, NOW_ISO, EARLY, ch, lockRow, recent, quiet, type FetchLog } from './competitor-sync-harness'
+import { fakeDb, setup, apiFetch, traced, updatesOf, first, arg, rpcs, NOW, NOW_ISO, EARLY, ch, lockRow, recent, quiet, SINAIS, SNIPPET0, type FetchLog } from './competitor-sync-harness'
 import { fakeOwnerClient, rootOrgWithAdmin, OWNER_TABLES } from '../helpers/fake-owner-db'
 
 
@@ -588,7 +588,7 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
     expect(withChanges[0]).toMatchObject({ p_video_id: 'v-pin', p_close: ['tvp'] })
     expect(withChanges[0]!.p_changes[0]).toMatchObject({ change_type: 'title', old_title: 'Fixado', new_title: 'Fixado novo' })
     // off the page, fetched by the daily pass: its count is refreshed there too
-    expect(statsOf(db, 'v-pin')).toEqual([expect.objectContaining({ view_count: 3, last_checked_at: NOW_ISO })])
+    expect(statsOf(db, 'v-pin')).toEqual([{ ...SINAIS, ...SNIPPET0, last_checked_at: NOW_ISO, view_count: 3, like_count: null, comment_count: null, views_hidden: false, likes_hidden: true, comments_disabled: true }])
   })
 
   it('vídeo acompanhado mas NÃO fixado, fora da página: o passo diário grava a contagem e os sinalizadores na linha do vídeo', async () => {
@@ -596,7 +596,8 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
     const f = apiFetch(page, 200, { daily: (_n, u) => idsOf(u).map(id => ({ id, statistics: { viewCount: '5' } })) })
     const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: f, ...quiet })
     expect(r.dailyRecorded).toBe(2)
-    expect(statsOf(db, 'v-2')).toEqual([expect.objectContaining({ view_count: 5, last_checked_at: NOW_ISO })])
+    // o item da passada veio sem snippet: as chaves de snippet (idiomas, tags, categoria, miniatura) não entram
+    expect(statsOf(db, 'v-2')).toEqual([{ ...SINAIS, last_checked_at: NOW_ISO, view_count: 5, like_count: null, comment_count: null, views_hidden: false, likes_hidden: true, comments_disabled: true }])
   })
 
   it('R123: fixado com mais de 90 dias, fora da página, é conferido numa sincronização que NÃO é a do passo diário; duas trocas de thumbnail no mesmo dia viram duas versões', async () => {
@@ -621,7 +622,7 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
     expect(c1[0]!.p_changes[0]).toMatchObject({ change_type: 'thumbnail', from_version_id: 'th-a', precision: '6h' })
     expect(c1[0]!.p_open.find(o => o.field === 'thumb')).toMatchObject({ thumb_etag: '"e2"', thumb_dhash: 'ffffffffffffffff' })
     // the count on the video row follows the pinned check (it used to freeze once the video left the uploads page)
-    expect(statsOf(db1, 'v-pin')).toEqual([expect.objectContaining({ view_count: 3, last_checked_at: EARLY.toISOString() })])
+    expect(statsOf(db1, 'v-pin')).toEqual([{ ...SINAIS, ...SNIPPET0, last_checked_at: EARLY.toISOString(), view_count: 3, like_count: null, comment_count: null, views_hidden: false, likes_hidden: true, comments_disabled: true }])
 
     // 11:00 SP, same day: image B → C
     probeAs('"e3"', '0f0f0f0f0f0f0f0f')
@@ -691,22 +692,22 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
     const db = setup({ pinned: [PIN], existing: [ROW1], versions: [V1, VPIN] })
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page, 200, { daily: () => [item] }), ...quiet })
     // without this the video would read as "never checked since it was pinned" forever
-    expect(statsOf(db, 'v-pin')[0]).toMatchObject({ last_checked_at: EARLY.toISOString() })
-    expect('view_count' in statsOf(db, 'v-pin')[0]!).toBe(false)
+    // sem statistics: nenhuma chave de contagem nem de sinalizador de contagem (o gravado fica)
+    expect(statsOf(db, 'v-pin')).toEqual([{ ...SINAIS, ...SNIPPET0, last_checked_at: EARLY.toISOString() }])
   })
 
   it('fixado que o YouTube devolve com statistics vazio (views ocultas): contagem nula e sinalizadores, nunca 0', async () => {
     const item = { id: 'vid-pin', snippet: { title: 'Fixado', publishedAt: OLD }, statistics: {} }
     const db = setup({ pinned: [PIN], existing: [ROW1], versions: [V1, VPIN] })
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page, 200, { daily: () => [item] }), ...quiet })
-    expect(statsOf(db, 'v-pin')[0]).toMatchObject({ view_count: null, views_hidden: true, like_count: null, likes_hidden: true, last_checked_at: EARLY.toISOString() })
+    expect(statsOf(db, 'v-pin')).toEqual([{ ...SINAIS, ...SNIPPET0, last_checked_at: EARLY.toISOString(), view_count: null, like_count: null, comment_count: null, views_hidden: true, likes_hidden: true, comments_disabled: true }])
   })
 
   it('fixado com curtidas visíveis: view_count e like_count gravados junto da conferência', async () => {
     const db = setup({ pinned: [PIN], existing: [ROW1], versions: [V1, VPIN] })
     const item = { id: 'vid-pin', snippet: { title: 'Fixado', publishedAt: OLD }, statistics: { viewCount: '3', likeCount: '2' } }
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page, 200, { daily: () => [item] }), ...quiet })
-    expect(statsOf(db, 'v-pin')).toEqual([expect.objectContaining({ view_count: 3, like_count: 2, last_checked_at: EARLY.toISOString() })])
+    expect(statsOf(db, 'v-pin')).toEqual([{ ...SINAIS, ...SNIPPET0, last_checked_at: EARLY.toISOString(), view_count: 3, like_count: 2, comment_count: null, views_hidden: false, likes_hidden: false, comments_disabled: true }])
   })
 
   it('a chamada dos fixados falha: o sync lança e não marca sincronização boa', async () => {
@@ -719,8 +720,9 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
 
 describe('syncCompetitorChannel — aviso de mudança ao dono do site', () => {
   /** setup() + tabelas de dono (organização raiz) servidas pelo fake de getSiteOwners. */
-  function setupWithOwners(withOwner: boolean) {
+  function setupWithOwners(withOwner: boolean, extra: Parameters<typeof setup>[0] = {}) {
     const db = setup({
+      ...extra,
       lastDaily: '2026-10-24',
       existing: [{ id: 'v-1', video_id: 'vid-1', title: 'Old', description_hash: 'x', thumbnail_url: 'http://t', view_count: 1 }],
       versions: [{ id: 'tv1', video_id: 'v-1', field: 'title', value_text: 'Old', value_hash: hashValue('Old'), thumb_etag: null, thumb_dhash: null }],
@@ -732,6 +734,7 @@ describe('syncCompetitorChannel — aviso de mudança ao dono do site', () => {
       auth: owners.auth,
     }
     vi.mocked(getSupabaseServiceClient).mockReturnValue(client as never)
+    return db
   }
   const changed = () => apiFetch({ id: 'vid-1', snippet: { title: 'New', publishedAt: recent(), thumbnails: {} }, statistics: { viewCount: '9' } })
 
@@ -757,5 +760,16 @@ describe('syncCompetitorChannel — aviso de mudança ao dono do site', () => {
     expect(createNotification).not.toHaveBeenCalled()
     expect(warn.mock.calls.some((c) => String(c[0]).includes('sem_destinatario'))).toBe(true)
     warn.mockRestore()
+  })
+
+  it('o erro guardado é lançado DEPOIS das notificações: uma troca já gravada é avisada mesmo com o canal terminando em erro', async () => {
+    const db = setupWithOwners(true, { failUpdateOf: 'v-1' })
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: changed() })).rejects.toThrow(/não foi possível atualizar a linha do vídeo/)
+    expect(createNotification).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(createNotification).mock.calls[0]![0]).toMatchObject({ type: 'youtube.competitor_change', user_id: 'owner-1' })
+    // o canal termina em erro, sem carimbar a sincronização boa
+    const ups = db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!)
+    expect(ups.at(-1)).toMatchObject({ sync_status: 'error' })
+    expect(ups.some(u => 'last_ok_synced_at' in u)).toBe(false)
   })
 })

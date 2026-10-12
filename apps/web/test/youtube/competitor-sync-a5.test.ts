@@ -10,10 +10,10 @@ vi.mock('@/lib/youtube/thumb-fingerprint', async (orig) => ({
   archiveThumb: vi.fn(async () => 'https://blob.test/t.jpg'),
 }))
 
-import { syncCompetitorChannel, VIDEO_PARTS } from '@/lib/youtube/competitor-sync'
+import { syncCompetitorChannel, syncStatsOf, VIDEO_PARTS } from '@/lib/youtube/competitor-sync'
 import { probeThumb } from '@/lib/youtube/thumb-fingerprint'
 import { fieldHash, rawOf } from '@/lib/youtube/competitor-capture'
-import { setup, apiFetch, traced, updatesOf, rpcCalls, first, arg, NOW, NOW_ISO, EARLY, ch, recent, quiet } from './competitor-sync-harness'
+import { setup, apiFetch, traced, updatesOf, rpcCalls, first, arg, NOW, NOW_ISO, EARLY, ch, recent, quiet, SINAIS, SNIPPET0 } from './competitor-sync-harness'
 
 beforeEach(() => {
   vi.mocked(probeThumb).mockReset()
@@ -64,7 +64,7 @@ describe('A5 E1: partes pedidas e a linha do vídeo', () => {
     const db = setup({ lastDaily: '2026-10-23', existing: [ROW1], tracked: [{ id: 'v-1', video_id: 'vid-1', title: 'T', thumbnail_url: null }, { id: 'v-2', video_id: 'vid-2', title: 'Outro', thumbnail_url: null }] })
     const ids = (u: string) => decodeURIComponent(u.match(/[?&]id=([^&]*)/)![1]!).split(',')
     await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page(), 200, { daily: (_n, u) => ids(u).map(id => ({ id, statistics: { viewCount: '5', likeCount: '1', commentCount: '0' } })) }), ...quiet })
-    expect(updatesOf(db, 'v-2')).toEqual([expect.objectContaining({ view_count: 5, comment_count: 0, comments_disabled: false, last_checked_at: NOW_ISO })])
+    expect(updatesOf(db, 'v-2')).toEqual([{ ...SINAIS, last_checked_at: NOW_ISO, view_count: 5, like_count: 1, comment_count: 0, views_hidden: false, likes_hidden: false, comments_disabled: false }])
     expect(updatesOf(db, 'v-1')).toHaveLength(1) // veio na página e de novo na passada: uma gravação só
   })
   it('falha em verde fechada: erro ao gravar a linha do vídeo lança e o canal fica em erro', async () => {
@@ -89,7 +89,7 @@ describe('A5 E1 (emenda S-I5, S-M2): erro de gravação não custa a série do d
     await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page(), 200, { daily: (_n, u) => ids(u).map(id => ({ id, statistics: { viewCount: '5', likeCount: '1', commentCount: '0' } })) }), ...quiet })).rejects.toThrow(/não foi possível atualizar a linha do vídeo/)
     const dailyRows = db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'upsert').flatMap(c => c.ops[0]![1][0] as Array<{ video_id: string }>)
     expect(dailyRows.map(r => r.video_id).sort()).toEqual(['v-1', 'v-2', 'v-3'])
-    expect(updatesOf(db, 'v-3')).toEqual([expect.objectContaining({ view_count: 5, last_checked_at: NOW_ISO })])
+    expect(updatesOf(db, 'v-3')).toEqual([{ ...SINAIS, last_checked_at: NOW_ISO, view_count: 5, like_count: 1, comment_count: 0, views_hidden: false, likes_hidden: false, comments_disabled: false }])
     expect(db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')).at(-1)).toMatchObject({ sync_status: 'error', sync_error: expect.stringMatching(/não foi possível atualizar a linha do vídeo/) })
   })
   it('resposta sem snippet: a linha do vídeo não perde tags, categoria nem miniatura', async () => {
@@ -102,7 +102,10 @@ describe('A5 E1 (emenda S-I5, S-M2): erro de gravação não custa a série do d
     expect('thumbnail_url' in body).toBe(false)
     const db2 = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })
-    expect(updatesOf(db2, 'v-1').at(-1)).toMatchObject({ tags: ['a'], category_id: '19', thumbnail_url: null })
+    // snippet presente mas sem miniatura utilizável: a coluna gravada também fica (a chave não entra)
+    const body2 = updatesOf(db2, 'v-1').at(-1)!
+    expect(body2).toMatchObject({ tags: ['a'], category_id: '19' })
+    expect('thumbnail_url' in body2).toBe(false)
   })
 })
 
@@ -194,5 +197,89 @@ describe('A5 E1: captura (campos e raw)', () => {
     expect(chUpdates.some(u => 'last_seen_at' in u)).toBe(false)
     expect(chUpdates.some(u => u.custom_url === null)).toBe(true) // o resto da linha do canal foi gravado
     expect(chUpdates.at(-1)).toMatchObject({ sync_status: 'error' })
+  })
+})
+
+describe('A5 E1 (consertos da revisão da 6b): parte ausente nunca apaga o gravado', () => {
+  const ids = (u: string) => decodeURIComponent(u.match(/[?&]id=([^&]*)/)![1]!).split(',')
+  const caught = async (p: Promise<unknown>): Promise<unknown> => { try { await p } catch (e) { return e } throw new Error('não lançou') }
+  it('I1: resposta sem contentDetails não regrava is_short: o Short gravado continua Short', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [{ ...ROW1, is_short: true }] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page({ contentDetails: undefined })), ...quiet })
+    const body = updatesOf(db, 'v-1').at(-1)!
+    expect('duration_seconds' in body).toBe(false)
+    expect(body.is_short).not.toBe(false)
+    // com a parte presente a regra de sempre vale (PT10M não é Short)
+    const db2 = setup({ lastDaily: '2026-10-24', existing: [{ ...ROW1, is_short: true }] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })
+    expect(updatesOf(db2, 'v-1').at(-1)).toMatchObject({ is_short: false, duration_seconds: 600 })
+  })
+  it('I2 (b): o PRIMEIRO erro guardado é o que vale', async () => {
+    const tracked = ['v-1', 'v-2', 'v-3'].map((id, i) => ({ id, video_id: 'vid-' + (i + 1), title: 'T', thumbnail_url: null }))
+    const db = setup({ lastDaily: '2026-10-23', existing: [ROW1], tracked, failUpdates: { 'v-2': 'primeira falha', 'v-3': 'segunda falha' } })
+    const e = await caught(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page(), 200, { daily: (_n, u) => ids(u).map(id => ({ id, statistics: { viewCount: '5' } })) }), ...quiet }))
+    expect((e as Error).message).toBe('não foi possível atualizar a linha do vídeo: primeira falha')
+    expect(db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')).at(-1)).toMatchObject({ sync_status: 'error', sync_error: 'não foi possível atualizar a linha do vídeo: primeira falha' })
+  })
+  it('miniatura: resposta sem miniatura utilizável (só default, ou nenhuma) não anula a gravada, na página, na passada diária e nos fixados', async () => {
+    const onlyDefault = { default: { url: 'https://yt/d.jpg' } }
+    for (const thumbnails of [onlyDefault, {}, undefined]) {
+      const db = setup({ lastDaily: '2026-10-24', existing: [{ ...ROW1, thumbnail_url: 'https://yt/old.jpg' }] })
+      await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page({ snippet: { ...page().snippet, thumbnails } })), ...quiet })
+      expect('thumbnail_url' in updatesOf(db, 'v-1').at(-1)!).toBe(false)
+    }
+    // passada diária (v-2 só vem dela) e fixados (v-pin)
+    const withSn = (id: string) => ({ id, snippet: { title: 'X', publishedAt: OLD, thumbnails: onlyDefault }, statistics: { viewCount: '3' } })
+    const d1 = setup({ lastDaily: '2026-10-23', existing: [ROW1], tracked: [{ id: 'v-1', video_id: 'vid-1', title: 'T', thumbnail_url: null }, { id: 'v-2', video_id: 'vid-2', title: 'X', thumbnail_url: 'https://yt/old.jpg' }] })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page(), 200, { daily: (_n, u) => ids(u).map(withSn) }), ...quiet })
+    expect('thumbnail_url' in updatesOf(d1, 'v-2').at(-1)!).toBe(false)
+    const d2 = setup({ pinned: [{ ...PIN, thumbnail_url: 'https://yt/old.jpg' }], existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { daily: (_n, u) => ids(u).map(withSn) }), ...quiet })
+    expect('thumbnail_url' in updatesOf(d2, 'v-pin').at(-1)!).toBe(false)
+    // com miniatura utilizável a coluna é regravada
+    const d3 = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page({ snippet: { ...page().snippet, thumbnails: { high: { url: 'https://yt/h.jpg' } } } })), ...quiet })
+    expect(updatesOf(d3, 'v-1').at(-1)).toMatchObject({ thumbnail_url: 'https://yt/h.jpg' })
+    // vídeo novo sem miniatura: nasce com nulo (não há o que preservar)
+    const d4 = setup({ lastDaily: '2026-10-24', existing: [] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page({ snippet: { ...page().snippet, thumbnails: onlyDefault } })), ...quiet })
+    expect(inserts(d4)[0]).toMatchObject({ thumbnail_url: null })
+  })
+  it('partsMissing conta vídeo DISTINTO: o mesmo vídeo pedido na página e na passada diária conta uma vez (e o resultado chega mesmo quando o canal termina em erro)', async () => {
+    const { statistics: _s, ...noStats } = page()
+    setup({ lastDaily: '2026-10-23', existing: [ROW1], failUpdateOf: 'v-1' })
+    const e = await caught(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(noStats, 200, { daily: () => [noStats] }), ...quiet }))
+    expect((e as Error).message).toMatch(/atualizar a linha do vídeo/)
+    // a página falhou ao regravar, a passada diária pediu o mesmo vídeo de novo e falhou de novo: um vídeo, uma parte faltando
+    expect(syncStatsOf(e)).toMatchObject({ partsMissing: 1, videosChecked: 1 })
+  })
+  it('os contadores novos (partsMissing, channelPartsMissing, sanitized) acompanham o erro quando o canal termina em erro; sem erro de gravação não há nada anexado', async () => {
+    const { statistics: _s, ...noStats } = page()
+    setup({ lastDaily: '2026-10-24', existing: [ROW1], failUpdateOf: 'v-1' })
+    const chNoStats = [{ id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' } }]
+    const e = await caught(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch({ ...noStats, snippet: { ...page().snippet, description: 'a\u0000b' } }, 200, { channelItems: chNoStats }), ...quiet }))
+    expect(syncStatsOf(e)).toMatchObject({ partsMissing: 1, channelPartsMissing: 1, sanitized: 1 })
+    expect(syncStatsOf(new Error('x'))).toBeUndefined()
+    expect(syncStatsOf('texto')).toBeUndefined()
+  })
+  it('linha do canal: resposta SEM snippet não grava channel_name vazio nem thumbnail_url nulo; SEM statistics não grava subscriber_count nulo nem contagem de vídeos 0', async () => {
+    const base = { id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } } }
+    const chUpdate = (db: ReturnType<typeof setup>) => db.calls.filter(c => c.table === 'competitor_channels').map(c => arg(c, 'update')!).find(u => 'last_seen_at' in u)!
+    const db1 = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, statistics: { subscriberCount: '10', videoCount: '4' } }] }), ...quiet })
+    const u1 = chUpdate(db1)
+    expect('channel_name' in u1).toBe(false)
+    expect('thumbnail_url' in u1).toBe(false)
+    expect(u1).toMatchObject({ subscriber_count: 10, youtube_video_count: 4 })
+    const db2 = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, snippet: { title: 'Canal', thumbnails: { default: { url: 'https://yt/c.jpg' } } } }] }), ...quiet })
+    const u2 = chUpdate(db2)
+    expect('subscriber_count' in u2).toBe(false)
+    expect('youtube_video_count' in u2).toBe(false)
+    expect(u2).toMatchObject({ channel_name: 'Canal', thumbnail_url: 'https://yt/c.jpg' })
+    // snippet presente e vazio: a parte veio (regra já decidida), então as chaves dela são gravadas
+    const db3 = setup({ lastDaily: '2026-10-24', existing: [ROW1] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page(), 200, { channelItems: [{ ...base, snippet: {}, statistics: {} }] }), ...quiet })
+    expect(chUpdate(db3)).toMatchObject({ channel_name: '', thumbnail_url: null, subscriber_count: null, youtube_video_count: 0 })
   })
 })

@@ -207,6 +207,16 @@ describe('videoObservedOf', () => {
     const ok = videoObservedOf({ ...full, liveStreamingDetails: { scheduledStartTime: '2026-06-01T10:00:00Z', actualStartTime: '2026-06-01T10:01:00.123Z', actualEndTime: '2026-06-01T11:00:00+00:00' } }, NOW, parseIsoDuration)
     expect(ok.patch).toMatchObject({ live_scheduled_start_at: '2026-06-01T10:00:00Z', live_actual_start_at: '2026-06-01T10:01:00.123Z', live_actual_end_at: '2026-06-01T11:00:00+00:00' })
   })
+  it('data que o JS aceita mas não existe (30 de fevereiro, 31 de abril, 29/02 de ano comum, mês 13) vira nulo; a que existe sai igual, letra por letra', () => {
+    const at = (x: unknown) => videoObservedOf({ ...full, liveStreamingDetails: { scheduledStartTime: x, actualStartTime: x, actualEndTime: x } }, NOW, parseIsoDuration).patch
+    for (const bad of ['2026-02-30T00:00:00Z', '2026-02-30', '2026-04-31T10:00:00+00:00', '2026-02-29T00:00:00Z', '2026-13-01', '2026-13-01T00:00:00Z', '2026-00-10T00:00:00Z', '2026-01-00T00:00:00Z']) {
+      expect(at(bad), bad).toMatchObject({ live_scheduled_start_at: null, live_actual_start_at: null, live_actual_end_at: null })
+    }
+    for (const ok of ['2024-02-29T00:00:00Z', '2026-02-28T23:59:59Z', '2026-04-30T10:00:00.123Z', '2026-12-31T23:59:59+05:00', '2026-06-01T10:00:00+00:00', '2026-01-01', '2026-01-01T24:00:00Z']) {
+      expect(at(ok), ok).toMatchObject({ live_scheduled_start_at: ok, live_actual_start_at: ok, live_actual_end_at: ok })
+    }
+    expect(channelObservedOf({ id: 'UC', snippet: { title: 'C', publishedAt: '2015-02-30T00:00:00Z' }, statistics: {} }).patch.published_at).toBeNull()
+  })
   it('toda leitura zera a sequência de faltas e limpa a decisão "manter" (o vídeo veio)', () => {
     expect(videoObservedOf(full, NOW, parseIsoDuration).patch).toMatchObject({ last_checked_at: NOW, miss_streak: 0, miss_first_at: null, missing_since: null, removal_decision: null, removal_decided_at: null, removal_decided_by: null })
     expect('last_seen_at' in videoObservedOf(full, NOW, parseIsoDuration).patch).toBe(false)

@@ -74,6 +74,8 @@ export type SetupOpts = {
   pinned?: Array<Record<string, unknown>> | null; pinnedError?: string; trackedError?: string
   /** O `update` de competitor_videos para esta linha (uuid) devolve erro de banco. */
   failUpdateOf?: string
+  /** O `update` de competitor_videos destas linhas (uuid) devolve erro de banco com a mensagem dada (para distinguir qual falhou primeiro). */
+  failUpdates?: Record<string, string>
   /** (A5) Linhas correntes de competitor_field_versions e de competitor_raw que o banco "já tem"; omitido = nenhuma (primeira execução). */
   fields?: Record<string, unknown>[]; raws?: Record<string, unknown>[]
   /** Função SQL (nome sem `rpc:`) que devolve erro de banco. */
@@ -88,6 +90,11 @@ export function setup(opts: SetupOpts = {}) {
   const db = fakeDb((c) => {
     if (opts.selectFail === 'competitor_channels' && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: null, error: { message: 'boom' } }
     if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [lockRow] }
+    if (c.table === 'competitor_videos' && first(c) === 'update' && opts.failUpdates) {
+      const eq = c.ops.find(o => o[0] === 'eq' && o[1][0] === 'id')
+      const msg = eq ? opts.failUpdates[String(eq[1][1])] : undefined
+      if (msg !== undefined) return { data: null, error: { message: msg } }
+    }
     if (c.table === 'competitor_videos' && first(c) === 'update' && opts.failUpdateOf && c.ops.some(o => o[0] === 'eq' && o[1][1] === opts.failUpdateOf)) return { data: null, error: { message: 'boom' } }
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'gt' && o[1][1] === 180)) return { data: opts.longs ?? [] }
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'not')) return opts.pinnedError ? { data: null, error: { message: opts.pinnedError } } : { data: opts.pinned === undefined ? [] : opts.pinned, error: null }
@@ -139,3 +146,12 @@ export const updatesOf = (db: { calls: Call[] }, uuid: string) => db.calls
   .map(c => arg(c, 'update')!)
 /** Os argumentos de cada chamada a uma função SQL, na ordem. */
 export const rpcCalls = (db: { calls: Call[] }, name: string) => db.calls.filter(c => c.table === 'rpc:' + name).map(c => c.ops[0]![1][0] as Record<string, unknown>)
+
+/** Os sinalizadores que TODA leitura de um vídeo grava na linha (o vídeo veio: faltas zeradas, decisão limpa, não é ao vivo). */
+export const SINAIS = {
+  miss_streak: 0, miss_first_at: null, missing_since: null,
+  removal_decision: null, removal_decided_at: null, removal_decided_by: null,
+  was_live: false, live_scheduled_start_at: null, live_actual_start_at: null, live_actual_end_at: null,
+}
+/** O que a linha leva quando a parte snippet veio sem idioma, sem tags e sem categoria. A miniatura NÃO entra: sem miniatura utilizável a chave fica fora. */
+export const SNIPPET0 = { default_language: null, default_audio_language: null, live_broadcast_content: null, tags: [], category_id: null }
