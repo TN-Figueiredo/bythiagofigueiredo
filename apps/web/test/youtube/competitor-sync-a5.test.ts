@@ -10,10 +10,13 @@ vi.mock('@/lib/youtube/thumb-fingerprint', async (orig) => ({
   archiveThumb: vi.fn(async () => 'https://blob.test/t.jpg'),
 }))
 
-import { syncCompetitorChannel, syncStatsOf, VIDEO_PARTS } from '@/lib/youtube/competitor-sync'
-import { probeThumb } from '@/lib/youtube/thumb-fingerprint'
+import { syncCompetitorChannel, syncCompetitorWeekly, syncStatsOf, VIDEO_PARTS } from '@/lib/youtube/competitor-sync'
+import { probeThumb, archiveThumb } from '@/lib/youtube/thumb-fingerprint'
+import { createNotification } from '@/lib/notifications/create'
+import { dayNumber, addDays, weekSlotOf } from '@/lib/youtube/competitor-tiers'
+import { hashValue } from '@/lib/youtube/competitor-versions'
 import { fieldHash, rawOf } from '@/lib/youtube/competitor-capture'
-import { setup, apiFetch, traced, updatesOf, rpcCalls, first, arg, NOW, NOW_ISO, EARLY, ch, recent, quiet, SINAIS, SNIPPET0, type SetupOpts } from './competitor-sync-harness'
+import { setup, apiFetch, traced, rpcs, updatesOf, rpcCalls, first, arg, type Call, NOW, NOW_ISO, EARLY, ch, recent, quiet, SINAIS, SNIPPET0, type SetupOpts } from './competitor-sync-harness'
 
 beforeEach(() => {
   vi.mocked(probeThumb).mockReset()
@@ -25,6 +28,11 @@ const page = (over: Record<string, unknown> = {}) => ({ id: 'vid-1', snippet: { 
 const ROW1 = { id: 'v-1', video_id: 'vid-1', title: 'T', description_hash: 'x', thumbnail_url: null, view_count: 1, is_short: false }
 const PIN = { id: 'v-pin', video_id: 'vid-pin', title: 'Fixado', thumbnail_url: null }
 const inserts = (db: ReturnType<typeof setup>) => db.calls.filter(c => c.table === 'competitor_videos' && first(c) === 'insert').map(c => arg(c, 'insert')!)
+
+// Auxiliares das provas de série (faixas e leitura semanal): uma linha de vídeo do canal como a leitura paginada a devolve, e a resposta de videos.list que repete os ids pedidos.
+const row = (i: number, ageDays: number, over: Record<string, unknown> = {}) => ({ id: 'v-' + i, video_id: 'vid-' + i, title: 'T' + i, thumbnail_url: null, published_at: new Date(NOW.getTime() - ageDays * 86_400_000).toISOString(), pinned_at: null, daily_until: null, series_tier: null, series_tier_since: null, last_seen_at: null, missing_since: null, views_hidden: null, live_broadcast_content: null, discovered_at: null, ...over })
+const idsOf = (u: string) => decodeURIComponent(u.match(/[?&]id=([^&]*)/)![1]!).split(',')
+const echo = (_n: number, u: string) => idsOf(u).map(id => ({ id, snippet: { title: 'T' + id.slice(4) }, statistics: { viewCount: '5', likeCount: '1', commentCount: '0' }, contentDetails: { duration: 'PT10M' } }))
 
 describe('A5 E1: partes pedidas e a linha do vídeo', () => {
   it('toda chamada videos.list pede as quatro partes, e nenhuma chamada é acrescentada (D1)', async () => {
@@ -808,9 +816,6 @@ describe('A5 E1: cota (item 10)', () => {
 
 describe('A5 E2: faixas da série', () => {
   const DAY = 86_400_000
-  const row = (i: number, ageDays: number, over: Record<string, unknown> = {}) => ({ id: 'v-' + i, video_id: 'vid-' + i, title: 'T' + i, thumbnail_url: null, published_at: new Date(NOW.getTime() - ageDays * DAY).toISOString(), pinned_at: null, daily_until: null, series_tier: null, series_tier_since: null, last_seen_at: null, missing_since: null, views_hidden: null, live_broadcast_content: null, discovered_at: null, ...over })
-  const idsOf = (u: string) => decodeURIComponent(u.match(/[?&]id=([^&]*)/)![1]!).split(',')
-  const echo = (_n: number, u: string) => idsOf(u).map(id => ({ id, snippet: { title: 'T' + id.slice(4) }, statistics: { viewCount: '5', likeCount: '1', commentCount: '0' }, contentDetails: { duration: 'PT10M' } }))
   const dailyUpsert = (db: ReturnType<typeof setup>) => db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'upsert').flatMap(c => (c.ops[0]![1][0] as Array<{ video_id: string }>).map(r => r.video_id))
 
   it('item 222: toda sincronização classifica o canal inteiro e grava só o que mudou, numa chamada, com a data de São Paulo', async () => {
@@ -1097,5 +1102,364 @@ describe('A5 E2: nenhuma gravação nova fica na frente da série do dia', () =>
     const db = setup({ ...s.opts, rpcFail: 'apply_competitor_tier_plan', failWrite: 'competitor_video_early' })
     await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: s.fetch, ...quiet })).rejects.toThrow(/primeiras horas|faixa da série/)
     expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toBe(true)
+  })
+})
+
+// A leitura semanal (OP-15): os vídeos em faixa semanal devidos hoje, lidos de UM canal por vez, sem sincronizar o canal.
+describe('A5 E2: leitura semanal (syncCompetitorWeekly)', () => {
+  beforeEach(() => { vi.mocked(createNotification).mockClear(); vi.mocked(archiveThumb).mockClear() })
+  const slotDate = (ytId: string) => { let d = '2026-10-24'; while (dayNumber(d) % 7 !== weekSlotOf(ytId)) d = addDays(d, 1); return d }
+  const at12 = (date: string) => new Date(date + 'T15:00:00.000Z')
+  const weeklyRow = (i: number, over: Record<string, unknown> = {}) => row(i, 400 + i, { series_tier: 'semanal', series_tier_since: '2026-09-01', ...over })
+  const dailyRow = row(1, 1, { series_tier: 'diaria', series_tier_since: '2026-09-01' })
+  const stamp = (db: { calls: Call[] }) => db.calls.filter(c => c.table === 'competitor_channels' && first(c) === 'update' && 'weekly_pass_date' in (arg(c, 'update') ?? {})).map(c => arg(c, 'update'))
+  const pointsOf = (db: { calls: Call[] }) => db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'upsert').flatMap(c => arg(c, 'upsert') as unknown as Array<{ video_id: string }>).map(p => p.video_id)
+  /** Os n primeiros vídeos semanais (em ordem de id) cujo dia fixo é o de `day`; todos são devidos nesse dia. */
+  const dueRows = (day: string, n: number) => Array.from({ length: 3000 }, (_, i) => weeklyRow(1000 + i)).filter(r => dayNumber(day) % 7 === weekSlotOf(r.video_id as string)).slice(0, n)
+
+  it('OP-15: no dia fixo o vídeo semanal é lido: uma chamada, a linha, os campos, o raw, a miniatura conferida, o ponto, e o canal carimbado', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [dailyRow, weeklyRow(7)] })
+    const log = { dailyCalls: [] as string[] }
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+    expect(log.dailyCalls.flatMap(idsOf)).toEqual(['vid-7'])                // só o semanal: o diário não é desta função
+    expect(arg(db.calls.find(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')!, 'upsert')).toEqual([{ video_id: 'v-7', snap_date: day, views: 5, likes: 1, comments: 0, taken_at: at12(day).toISOString() }])
+    expect(r).toMatchObject({ due: 1, recorded: 1, deferred: 0, complete: true, unitsUsed: 1 })
+    expect(updatesOf(db, 'v-7').some(u => u.view_count === 5)).toBe(true)
+    expect(rpcCalls(db, 'apply_competitor_raw_plan').flatMap(a => a.p_open as Array<{ video_id: string }>).some(o => o.video_id === 'v-7')).toBe(true)
+    expect(vi.mocked(probeThumb)).toHaveBeenCalledWith('vid-7', null, expect.anything())   // D-I4: a miniatura do semanal É conferida
+    expect(stamp(db)).toEqual([{ weekly_pass_date: day }])
+    // não é uma sincronização do canal: nem channels.list, nem página, nem cursor, nem estado
+    expect(db.calls.some(c => c.table === 'competitor_channels' && first(c) === 'update' && ('last_synced_at' in (arg(c, 'update') ?? {}) || 'sync_status' in (arg(c, 'update') ?? {})))).toBe(false)
+  })
+  it('só a chamada de videos.list: nada de channels.list nem de página de uploads, e as quatro partes pedidas', async () => {
+    const day = slotDate('vid-7')
+    setup({ all: [weeklyRow(7)] })
+    const t = traced(apiFetch(null, 200, { daily: echo }))
+    await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: t.f })
+    expect(t.api()).toEqual(['videos?part=' + VIDEO_PARTS + '&id=vid-7'])
+  })
+  it('D-I4: a primeira leitura de um vídeo sem versão de miniatura abre a linha de base e guarda a cópia; thumbs: false não sonda', async () => {
+    const day = slotDate('vid-7')
+    vi.mocked(probeThumb).mockResolvedValue({ etag: '"e1"', lastModified: null, dhash: 'abcd', bytes: Buffer.from('x'), url: 'https://i.ytimg.com/vi/vid-7/hqdefault.jpg' })
+    const db = setup({ all: [weeklyRow(7)] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    const plan = rpcs(db).find(p => p.p_video_id === 'v-7')!
+    expect(plan.p_open.find(o => o.field === 'thumb')).toMatchObject({ precision: 'first', thumb_dhash: 'abcd', thumb_blob_url: 'https://blob.test/t.jpg' })
+    expect(plan.p_changes).toEqual([])               // linha de base não é troca
+    expect(r).toMatchObject({ changesDetected: 0, longWindowChanges: 0 })
+    expect(vi.mocked(createNotification)).not.toHaveBeenCalled()
+    expect(vi.mocked(archiveThumb)).toHaveBeenCalledTimes(1)
+    vi.mocked(probeThumb).mockClear()
+    setup({ all: [weeklyRow(7)] })
+    await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }), thumbs: false })
+    expect(vi.mocked(probeThumb)).not.toHaveBeenCalled()
+  })
+  it('a sonda da miniatura lançando: o ponto e a linha do vídeo são gravados, a falha é contada e o canal é carimbado', async () => {
+    const day = slotDate('vid-7')
+    vi.mocked(probeThumb).mockRejectedValue(new Error('rede'))
+    const db = setup({ all: [weeklyRow(7)] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    expect(pointsOf(db)).toEqual(['v-7'])
+    expect(updatesOf(db, 'v-7').some(u => u.view_count === 5)).toBe(true)
+    expect(r).toMatchObject({ recorded: 1, complete: true, thumbFailed: 1 })
+    expect(rpcs(db).find(p => p.p_video_id === 'v-7')!.p_open.some(o => o.field === 'thumb')).toBe(false)
+  })
+  it('o download/arquivo da miniatura falhando: a versão abre sem a cópia, o ponto e a linha do vídeo são gravados, e a falha é contada', async () => {
+    const day = slotDate('vid-7')
+    vi.mocked(probeThumb).mockResolvedValue({ etag: '"e1"', lastModified: null, dhash: 'abcd', bytes: Buffer.from('x'), url: 'u' })
+    vi.mocked(archiveThumb).mockRejectedValueOnce(new Error('blob fora'))
+    const db = setup({ all: [weeklyRow(7)] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    expect(rpcs(db).find(p => p.p_video_id === 'v-7')!.p_open.find(o => o.field === 'thumb')).toMatchObject({ thumb_blob_url: null, thumb_dhash: 'abcd' })
+    expect(pointsOf(db)).toEqual(['v-7'])
+    expect(r).toMatchObject({ recorded: 1, complete: true, thumbFailed: 1 })
+  })
+  it('OP-15: fora do dia fixo e com ponto há menos de 7 dias, não é pedido (e o canal é carimbado na hora); com 7 dias ou mais, é', async () => {
+    const day = addDays(slotDate('vid-7'), 1)
+    const log1 = { dailyCalls: [] as string[] }
+    const db1 = setup({ all: [dailyRow, weeklyRow(7)], recentDaily: [{ video_id: 'v-7', snap_date: addDays(day, -6), views: 100 }] })
+    const r1 = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log: log1 }) })
+    expect(log1.dailyCalls).toEqual([])
+    expect(r1).toMatchObject({ due: 0, complete: true, unitsUsed: 0 })
+    expect(stamp(db1)).toEqual([{ weekly_pass_date: day }])
+    const log2 = { dailyCalls: [] as string[] }
+    setup({ all: [dailyRow, weeklyRow(7)], recentDaily: [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 100 }] })
+    await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log: log2 }) })
+    expect(log2.dailyCalls.flatMap(idsOf)).toEqual(['vid-7'])
+  })
+  it('OP-15, D0: de 70 semanais, só os do dia fixo de hoje são lidos (a carga se espalha)', async () => {
+    const all = Array.from({ length: 70 }, (_, i) => weeklyRow(100 + i, { series_tier_since: '2026-10-24' }))
+    setup({ all })
+    const log = { dailyCalls: [] as string[] }
+    await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+    const got = log.dailyCalls.flatMap(idsOf)
+    expect(got).toEqual(all.filter(r => dayNumber('2026-10-24') % 7 === weekSlotOf(r.video_id as string)).map(r => r.video_id))
+    expect(got.length).toBeLessThan(30)
+  })
+  it('dado ausente: vídeo cujo último ponto é de hoje não é relido, mesmo no dia fixo; o canal é carimbado', async () => {
+    const day = slotDate('vid-7')
+    const log = { dailyCalls: [] as string[] }
+    const db = setup({ all: [weeklyRow(7)], recentDaily: [{ video_id: 'v-7', snap_date: day, views: 100 }] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+    expect(log.dailyCalls).toEqual([])
+    expect(r).toMatchObject({ due: 0, recorded: 0, unitsUsed: 0, complete: true })
+    expect(stamp(db)).toEqual([{ weekly_pass_date: day }])
+  })
+  it('dado ausente: vídeo que mudou de faixa HOJE (faixa desde hoje, sem ponto) fora do dia fixo não é devido; no dia fixo, é', async () => {
+    const day = addDays(slotDate('vid-7'), 1)
+    const log = { dailyCalls: [] as string[] }
+    const db = setup({ all: [weeklyRow(7, { series_tier_since: day })] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+    expect(log.dailyCalls).toEqual([])
+    expect(r).toMatchObject({ due: 0, complete: true })
+    expect(stamp(db)).toEqual([{ weekly_pass_date: day }])
+    const slot = slotDate('vid-7')
+    const log2 = { dailyCalls: [] as string[] }
+    setup({ all: [weeklyRow(7, { series_tier_since: slot })] })
+    await syncCompetitorWeekly(ch, 'k', { now: at12(slot), fetchImpl: apiFetch(null, 200, { daily: echo, log: log2 }) })
+    expect(log2.dailyCalls.flatMap(idsOf)).toEqual(['vid-7'])
+  })
+  it('dado ausente: canal com mais de 1.000 vídeos (duas páginas) é lido inteiro, e os devidos das duas páginas são pedidos; a leitura dos pontos vai em lotes de 100', async () => {
+    const day = '2026-10-24'
+    const total = 1200
+    const everyone = Array.from({ length: total }, (_, i) => weeklyRow(5000 + i, { series_tier_since: day })) // faixa desde hoje: só o dia fixo é devido
+    const expected = everyone.filter(r => dayNumber(day) % 7 === weekSlotOf(r.video_id as string)).map(r => r.video_id)
+    expect(expected.some(id => everyone.findIndex(r => r.video_id === id) >= 1000)).toBe(true) // a prova só vale se há devido na 2ª página
+    const db = setup({ allPages: [everyone.slice(0, 1000), everyone.slice(1000)] })
+    const log = { dailyCalls: [] as string[] }
+    const r = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+    expect(log.dailyCalls.flatMap(idsOf)).toEqual(expected)
+    expect(r.due).toBe(expected.length)
+    expect(db.calls.filter(c => c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'range')).length).toBe(2)
+    expect(db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte')).length).toBe(12) // 1200 ids / 100
+  })
+  it('dado ausente: a leitura dos vídeos falha: lança, nada é pedido ao YouTube, nada é carimbado, o estado do canal não é tocado', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)], allError: 'boom' })
+    const log = { dailyCalls: [] as string[] }
+    await expect(syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })).rejects.toThrow(/não foi possível ler os vídeos do canal/)
+    expect(log.dailyCalls).toEqual([])
+    expect(db.calls.some(c => c.table === 'competitor_channels' && first(c) === 'update')).toBe(false)
+  })
+  it('dado ausente: a leitura dos pontos recentes falha: lança, nunca "nenhum ponto" (que releria tudo), nada é pedido e nada é carimbado', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)], recentDailyError: 'boom' })
+    const log = { dailyCalls: [] as string[] }
+    await expect(syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })).rejects.toThrow(/não foi possível ler os pontos recentes da série: boom/)
+    expect(log.dailyCalls).toEqual([])
+    expect(stamp(db)).toEqual([])
+  })
+  it('a conta de cota: 34 devidos = 1 chamada; 120 devidos = 3 chamadas', async () => {
+    const day = '2026-10-24'
+    for (const [n, calls] of [[34, 1], [120, 3]] as const) {
+      setup({ all: dueRows(day, n) })
+      const r = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo }) })
+      expect(r).toMatchObject({ due: n, recorded: n, unitsUsed: calls, complete: true })
+    }
+  })
+  it('Review Focus 4: o relógio acaba no meio: o vídeo NÃO conferido não ganha ponto (o ponto é o recibo), o canal NÃO é carimbado, e os adiados são contados', async () => {
+    const day = '2026-10-24'
+    const due = dueRows(day, 34)
+    const db = setup({ all: due })
+    let checked = 0
+    vi.mocked(probeThumb).mockImplementation(async () => { checked++; return { etag: null, lastModified: null, dhash: null, bytes: null, url: '' } })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo }), deadline: () => checked >= 10 })
+    expect(r).toMatchObject({ due: 34, recorded: 10, deferred: 24, complete: false })
+    expect(pointsOf(db)).toEqual(due.slice(0, 10).map(x => x.id))        // só os 10 conferidos têm ponto
+    expect(stamp(db)).toEqual([])
+    // os 24 que vieram do YouTube e não foram conferidos NÃO contam como ausentes
+    expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([])
+    // os 10 conferidos tiveram a linha regravada; os 24 não (sem ponto, sem linha, sem captura)
+    expect(due.slice(0, 10).every(x => updatesOf(db, x.id as string).some(u => u.view_count === 5))).toBe(true)
+    expect(due.slice(10).every(x => updatesOf(db, x.id as string).length === 0)).toBe(true)
+    // o teto que cortou registra quantos cortou, na linha do dia
+    expect(rpcCalls(db, 'youtube_quota_add').at(-1)).toMatchObject({ p_units: 1, p_max: { semanais_adiados: 24 } })
+  })
+  it('o relógio corta no meio de um canal de 3 chamadas: lê 2, NÃO faz a 3ª (confere antes da chamada), adia 50, não carimba; o disparo seguinte lê só o que falta e carimba', async () => {
+    const day = '2026-10-24'
+    const due = dueRows(day, 120)                                          // 50 + 50 + 20
+    const log = { dailyCalls: [] as string[] }
+    const db = setup({ all: due })
+    // o relógio fecha depois do 100º vídeo conferido, isto é, entre a 2ª e a 3ª chamada
+    const r = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }), deadline: () => vi.mocked(probeThumb).mock.calls.length >= 100 })
+    expect(log.dailyCalls).toHaveLength(2)
+    expect(r).toMatchObject({ due: 120, recorded: 100, deferred: 20, unitsUsed: 2, complete: false })
+    expect(pointsOf(db)).toEqual(due.slice(0, 100).map(x => x.id))
+    expect(stamp(db)).toEqual([])
+    // retoma de onde parou: os 100 já têm o ponto de hoje (mesmo dia fixo ou não), só os 20 são pedidos
+    const log2 = { dailyCalls: [] as string[] }
+    const db2 = setup({ all: due, recentDaily: due.slice(0, 100).map(x => ({ video_id: x.id, snap_date: day, views: 5 })) })
+    const r2 = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log: log2 }) })
+    expect(log2.dailyCalls.flatMap(idsOf)).toEqual(due.slice(100).map(x => x.video_id))
+    expect(r2).toMatchObject({ due: 20, recorded: 20, deferred: 0, complete: true })
+    expect(stamp(db2)).toEqual([{ weekly_pass_date: day }])
+  })
+  it('relógio fechado desde o começo: nenhuma chamada à API, tudo adiado', async () => {
+    const day = slotDate('vid-7')
+    setup({ all: [weeklyRow(7)] })
+    const log = { dailyCalls: [] as string[] }
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }), deadline: () => true })
+    expect(log.dailyCalls).toEqual([])
+    expect(r).toMatchObject({ due: 1, recorded: 0, deferred: 1, complete: false, unitsUsed: 0 })
+  })
+  it('o canal está sendo sincronizado agora (syncing há menos de 10 minutos): não faz nada e diz skipped', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)], channelStatus: 'syncing', channelStartedAt: new Date(at12(day).getTime() - 60_000).toISOString() })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    expect(r).toMatchObject({ skipped: true, complete: false })
+    expect(db.calls.some(c => first(c) === 'upsert' || c.table.startsWith('rpc:'))).toBe(false)
+  })
+  it('syncing há mais de 10 minutos (trava velha): a leitura segue', async () => {
+    const day = slotDate('vid-7')
+    setup({ all: [weeklyRow(7)], channelStatus: 'syncing', channelStartedAt: new Date(at12(day).getTime() - 11 * 60_000).toISOString() })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    expect(r).toMatchObject({ recorded: 1, complete: true })
+    expect(r.skipped).toBeUndefined()
+  })
+  it('vídeo semanal pedido e não devolvido: uma falta (é assim que se descobre que saiu do ar); o canal é carimbado (ele foi PEDIDO)', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)], missed: [{ id: 'v-7', miss_streak: 1, miss_first_at: at12(day).toISOString(), missing_since: null, last_seen_at: null }] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: () => [] }) })
+    expect(rpcCalls(db, 'competitor_mark_missing')[0]!.p_video_ids).toEqual(['v-7'])
+    expect(r).toMatchObject({ due: 1, recorded: 0, deferred: 0, complete: true })
+  })
+  it('a API falha (HTTP 500): lança, o canal NÃO vai para erro, NÃO é carimbado, e nenhum vídeo conta como ausente', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)] })
+    await expect(syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: () => new Response('x', { status: 500 }) }) })).rejects.toThrow(/500/)
+    expect(db.calls.some(c => c.table === 'competitor_channels' && first(c) === 'update')).toBe(false)
+    expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([])
+  })
+  it.each([
+    ['200 sem a lista de vídeos', () => Response.json({})],
+    ['200 com error no corpo', () => Response.json({ error: { code: 403, message: 'quota' } })],
+    ['200 com items que não é lista', () => Response.json({ items: 'x' })],
+  ])('regra 1: %s é falha da chamada, não sumiço: lança, ninguém ausente, nenhum ponto, não carimba', async (_nome, resposta) => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)] })
+    await expect(syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: resposta }) })).rejects.toThrow(/resposta sem a lista de vídeos/)
+    expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([])
+    expect(pointsOf(db)).toEqual([])
+    expect(stamp(db)).toEqual([])
+  })
+  it('regra 5: a cota é somada na linha do dia na chave competitors_semanal, inclusive as chamadas que falham (a 2ª de 2 chamadas dá 500: 2 unidades)', async () => {
+    const day = '2026-10-24'
+    const due = dueRows(day, 60)                                           // 50 + 10
+    const db = setup({ all: due })
+    await expect(syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: (n, u) => (n === 1 ? echo(n, u) : new Response('x', { status: 500 })) }) })).rejects.toThrow(/500/)
+    expect(rpcCalls(db, 'youtube_quota_add').at(-1)).toMatchObject({ p_day: expect.stringMatching(/^2026-10-2[34]$/), p_units: 2, p_add: { competitors_semanal: 2 } })
+    expect(pointsOf(db)).toEqual(due.slice(0, 50).map(x => x.id))          // o que já foi lido ficou gravado
+    expect(stamp(db)).toEqual([])
+  })
+  it('regra 2: contagem ausente é nulo mais o sinalizador, nunca zero (e sem contagem de views não há ponto); "0" é zero medido', async () => {
+    const day = slotDate('vid-7')
+    // statistics presente e vazio: não medido
+    const db = setup({ all: [weeklyRow(7)] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: (_n, u) => idsOf(u).map(id => ({ id, snippet: { title: 'T' }, statistics: {} })) }) })
+    expect(updatesOf(db, 'v-7').at(-1)).toMatchObject({ view_count: null, views_hidden: true, like_count: null, likes_hidden: true, comment_count: null, comments_disabled: true })
+    expect(pointsOf(db)).toEqual([])
+    expect(r).toMatchObject({ due: 1, recorded: 0, deferred: 0, complete: true })
+    // like e comment ausentes com views presente: ponto com nulo; "0" é zero
+    const db2 = setup({ all: [weeklyRow(7)] })
+    await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: (_n, u) => idsOf(u).map(id => ({ id, snippet: { title: 'T' }, statistics: { viewCount: '0' } })) }) })
+    expect(arg(db2.calls.find(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')!, 'upsert')).toEqual([expect.objectContaining({ views: 0, likes: null, comments: null })])
+    expect(updatesOf(db2, 'v-7').at(-1)).toMatchObject({ view_count: 0, views_hidden: false, like_count: null, likes_hidden: true })
+  })
+  it('regra 3: o vídeo devolvido grava de volta o MESMO patch do diário (faltas e marca de ausência zeradas)', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7, { missing_since: '2026-10-01T00:00:00.000Z' })] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    expect(updatesOf(db, 'v-7')).toEqual([{ ...SINAIS, ...SNIPPET0, last_checked_at: at12(day).toISOString(), view_count: 5, like_count: 1, comment_count: 0, views_hidden: false, likes_hidden: false, comments_disabled: false, duration_seconds: 600 }])
+    expect(r).toMatchObject({ recorded: 1, complete: true })
+  })
+  it('regra 6: sem miniatura utilizável na resposta a chave thumbnail_url fica fora do patch (o gravado não é anulado)', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7, { thumbnail_url: 'https://gravada' })] })
+    await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    expect('thumbnail_url' in updatesOf(db, 'v-7').at(-1)!).toBe(false)
+  })
+  it('regra 4: a captura falhando (disjuntor) não fica na frente do ponto: o ponto é gravado, o resto da captura é pulado e contado, o canal NÃO é carimbado e a leitura lança no fim', async () => {
+    const day = '2026-10-24'
+    const due = dueRows(day, 60)                                           // 2 chamadas: o disjuntor abre na captura da 1ª
+    const db = setup({ all: due, failWrite: 'rpc:apply_competitor_field_plan' })
+    await expect(syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo }) })).rejects.toThrow(/boom/)
+    expect(pointsOf(db)).toEqual(due.map(x => x.id))                       // os 60 têm ponto
+    expect(rpcCalls(db, 'apply_competitor_field_plan')).toHaveLength(1)    // a 2ª captura nem tentou
+    expect(stamp(db)).toEqual([])
+  })
+  it('a linha do vídeo que não grava: o ponto é gravado, o erro sobe no fim e o canal NÃO é carimbado', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)], failUpdateOf: 'v-7' })
+    await expect(syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })).rejects.toThrow(/não foi possível atualizar a linha do vídeo/)
+    expect(pointsOf(db)).toEqual(['v-7'])
+    expect(stamp(db)).toEqual([])
+    expect(db.calls.some(c => c.table === 'competitor_channels' && first(c) === 'update' && 'sync_status' in (arg(c, 'update') ?? {}))).toBe(false)
+  })
+  it('o ponto que não grava lança (com frase em português) e o canal não é carimbado', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)], failWrite: 'competitor_video_daily:upsert' })
+    await expect(syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })).rejects.toThrow(/^não foi possível gravar a leitura semanal/)
+    expect(stamp(db)).toEqual([])
+  })
+  it('S-M8: troca de título vista num semanal com a janela de 7 dias: versão, linha de mudança com a janela, e conta para o aviso', async () => {
+    const day = slotDate('vid-7')
+    const lastSeen = new Date(at12(day).getTime() - 7 * 86_400_000).toISOString()
+    const db = setup({ all: [weeklyRow(7)], versions: [{ id: 'tv7', video_id: 'v-7', field: 'title', value_text: 'Antigo', value_hash: hashValue('Antigo'), thumb_etag: null, thumb_dhash: null, last_seen_at: lastSeen }] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    const plan = rpcs(db).find(p => p.p_video_id === 'v-7')!
+    expect(plan.p_changes).toHaveLength(1)
+    expect(plan.p_changes[0]).toMatchObject({ window_start: lastSeen, window_end: at12(day).toISOString(), precision: '1d' }) // desvio D-12
+    expect(r).toMatchObject({ changesDetected: 1, longWindowChanges: 0 })
+  })
+  it('S-M8, janela longa (60 dias): a versão E a linha de mudança são gravadas com a janela verdadeira (tela e Cowork contam igual), mas não conta para o aviso', async () => {
+    const day = slotDate('vid-7')
+    const lastSeen = new Date(at12(day).getTime() - 60 * 86_400_000).toISOString()
+    const db = setup({ all: [weeklyRow(7)], versions: [{ id: 'tv7', video_id: 'v-7', field: 'title', value_text: 'Antigo', value_hash: hashValue('Antigo'), thumb_etag: null, thumb_dhash: null, last_seen_at: lastSeen }] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    const plan = rpcs(db).find(p => p.p_video_id === 'v-7')!
+    expect(plan.p_open.find(o => o.field === 'title')).toMatchObject({ window_start: lastSeen })
+    expect(plan.p_changes).toHaveLength(1)
+    expect(plan.p_changes[0]).toMatchObject({ window_start: lastSeen })
+    expect(r).toMatchObject({ changesDetected: 0, longWindowChanges: 1 })
+    expect(vi.mocked(createNotification)).not.toHaveBeenCalled()
+    expect(rpcCalls(db, 'youtube_quota_add').at(-1)).toMatchObject({ p_add: { competitors_semanal: 1, mudancas_janela_longa: 1 } })
+  })
+  // o dia do deploy e o canal novo: a fase roda antes de a sincronização gravar as faixas
+  it('fecho F-1: canal em que ainda há vídeo SEM faixa não é carimbado: o que já tem faixa é lido, e complete é falso', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7), row(8, 408)] })                  // row() nasce com series_tier nulo
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    expect(r).toMatchObject({ due: 1, recorded: 1, deferred: 0, complete: false })
+    expect(pointsOf(db)).toEqual(['v-7'])
+    expect(stamp(db)).toEqual([])
+  })
+  it('fecho F-1: canal em que NENHUM vídeo tem faixa (antes da primeira sincronização com o código novo): nenhuma chamada à API, nada carimbado', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [row(1, 1), row(7, 407)] })
+    const log = { dailyCalls: [] as string[] }
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+    expect(log.dailyCalls).toEqual([])
+    expect(r).toMatchObject({ due: 0, recorded: 0, deferred: 0, unitsUsed: 0, complete: false })
+    expect(stamp(db)).toEqual([])
+  })
+  it('fecho F-1: canal sem vídeo nenhum não tem o que esperar: é carimbado', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [] })
+    expect(await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })).toMatchObject({ due: 0, complete: true })
+    expect(stamp(db)).toEqual([{ weekly_pass_date: day }])
+  })
+  it('a cota da leitura semanal vai para a linha do dia, na chave competitors_semanal', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)] })
+    await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    expect(rpcCalls(db, 'youtube_quota_add').at(-1)).toMatchObject({ p_units: 1, p_add: { competitors_semanal: 1 } })
+  })
+  it('a cota que não grava não derruba a leitura (Sentry) e o canal é carimbado', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)], rpcFail: 'youtube_quota_add' })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    expect(r).toMatchObject({ recorded: 1, complete: true })
+    expect(stamp(db)).toEqual([{ weekly_pass_date: day }])
   })
 })

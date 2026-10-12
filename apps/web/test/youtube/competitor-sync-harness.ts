@@ -104,6 +104,12 @@ export type SetupOpts = {
    * Falha só uma chamada: a de ordem `failWriteSkip` (0 = a primeira) entre as que casam.
    */
   failWrite?: string; failWriteSkip?: number
+  /** (A5 E2, leitura semanal) Os pontos de competitor_video_daily dos últimos 8 dias (a leitura com `gte` em snap_date); omitido = nenhum. */
+  recentDaily?: Record<string, unknown>[]; recentDailyError?: string
+  /** (A5 E2, leitura semanal) O estado do canal que a leitura semanal lê (select, sem trava); omitidos = 'idle' e sem início. */
+  channelStatus?: string; channelStartedAt?: string | null
+  /** (A5 E2) As versões de campo abertas recentemente (a leitura com `gte` em first_seen_at; a Tarefa 11c usa). */
+  recentChanges?: Record<string, unknown>[]
 }
 
 /** O `failWrite` casa com esta chamada? */
@@ -123,6 +129,8 @@ export function setup(opts: SetupOpts = {}) {
     if (opts.selectFail === 'competitor_channels' && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: null, error: { message: 'boom' } }
     if (opts.lockTaken && c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [] }
     if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [{ ...lockRow, video_limit: opts.videoLimit ?? lockRow.video_limit, ...opts.lock }] }
+    // (A5 E2) a leitura semanal lê o estado do canal sem tomar a trava
+    if (c.table === 'competitor_channels' && first(c) === 'select') return { data: [{ ...lockRow, sync_status: opts.channelStatus ?? 'idle', sync_started_at: opts.channelStartedAt ?? null, video_limit: opts.videoLimit ?? lockRow.video_limit }] }
     // (A5 E2) a leitura de TODOS os vídeos do canal (paginada por `range`): primeira linha de competitor_videos no roteiro
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'range')) {
       if (opts.allNull) return { data: null, error: null }
@@ -150,12 +158,15 @@ export function setup(opts: SetupOpts = {}) {
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'in')) return { data: opts.existing ?? [] }
     if (c.table === 'competitor_videos' && first(c) === 'select') return { count: 100 }
     if (c.table === 'competitor_videos' && first(c) === 'insert') return { data: { id: 'v-new' } }
+    // (A5 E2) os pontos recentes da leitura semanal (o único select de competitor_video_daily com `gte`)
+    if (c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte')) return opts.recentDailyError ? { data: null, error: { message: opts.recentDailyError } } : { data: opts.recentDaily ?? [] }
     if (c.table === 'competitor_video_daily' && first(c) === 'select') {
       const have = opts.dailyHave ?? (opts.lastDaily === '2026-10-24' ? ['v-1', 'v-new'] : [])
       return { data: have.map(video_id => ({ video_id })) }
     }
     if (c.table === 'competitor_video_daily' && first(c) === 'upsert') return { data: c.ops[0]![1][0] }
     if (c.table === 'competitor_video_early' && first(c) === 'upsert') return { data: c.ops[0]![1][0] }
+    if (c.table === 'competitor_video_versions' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte' && o[1][0] === 'first_seen_at')) return { data: opts.recentChanges ?? [] }
     if (c.table === 'competitor_video_versions' && first(c) === 'select') return { data: opts.versions ?? [] }
     if (c.table === 'rpc:apply_competitor_version_plan') {
       if (opts.rpcError) return { data: null, error: { message: 'boom' } }
