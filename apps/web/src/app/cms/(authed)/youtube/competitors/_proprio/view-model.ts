@@ -25,22 +25,20 @@ export interface ProprioView {
   /** O `title` do botão: diz QUAL concorrente. */
   compararTitulo: string | null
   /** A frase de cada aba que ainda não tem conteúdo (spec 16.4). */
-  abas: { trocas: string; leitura: string; retencao: string }
+  abas: { trocas: string; leitura: string }
   /** A segunda linha de cada uma: o que a pessoa pode fazer ou o que vem depois. */
-  abasNota: { trocas: string; leitura: string; retencao: string }
+  abasNota: { trocas: string; leitura: string }
 }
 
 /** Spec 16.4 (D12 b: sem "lote" nem "L3" em tela). */
 export const ABAS_PROPRIO = {
   trocas: 'Trocas dos seus vídeos ainda não são lidas nesta tela.',
   leitura: 'A leitura da forja para o seu canal ainda não existe.',
-  retencao: 'Retenção ainda não coletada.',
 } as const
 
 export const ABAS_PROPRIO_NOTA = {
   trocas: 'Os testes de título e thumbnail do seu canal ficam no A/B Lab.',
   leitura: 'Hoje a forja lê views públicas, títulos, thumbnails e trocas de concorrentes.',
-  retencao: 'Chega com a coleta de retenção. Quando chegar, esta aba mostra a curva de retenção e o percentual assistido de cada vídeo.',
 } as const
 
 export function buildProprioView(
@@ -52,7 +50,7 @@ export function buildProprioView(
   if (!header || !videos) return null
   const c = o.concorrenteAcima
   return {
-    header, videos, retencao: buildRetencao(obs, canalId, dados, { dm: o.dm, hoje: o.hoje }), state: parseCanalState(sp, { own: true }),
+    header, videos, retencao: buildRetencao(obs, canalId, dados, { dm: o.dm }), state: parseCanalState(sp, { own: true }),
     compararHref: c ? link.comparar(canalId, c.id) : null,
     compararTitulo: c
       ? (c.acima

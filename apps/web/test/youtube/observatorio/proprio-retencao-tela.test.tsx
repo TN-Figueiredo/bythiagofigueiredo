@@ -52,13 +52,29 @@ describe('13.3 aba Retenção: a tela', () => {
     expect(linhas).toEqual([['6', '45%'], ['5', '34%'], ['3', 'poucos vídeos para comparar (3; precisa de 5)']])
   })
 
+  it('as duas áreas com rolagem horizontal (.tbw, overflow-x:auto) entram na ordem do Tab e têm nome: tabindex=0, role=region e aria-label igual à legenda da tabela (13.3, Menor 6)', () => {
+    abrir()
+    const areas = [...secao().querySelectorAll<HTMLElement>('.tbw')]
+    expect(areas).toHaveLength(2)
+    for (const a of areas) {
+      expect(a.getAttribute('tabindex')).toBe('0')
+      expect(a.getAttribute('role')).toBe('region')
+      const legenda = a.querySelector('table > caption')!.textContent
+      expect(legenda).toBeTruthy()
+      expect(a.getAttribute('aria-label')).toBe(legenda)
+    }
+    expect(areas.map(a => a.getAttribute('aria-label'))).toEqual(['Normal de % assistido por faixa de duração', 'Vídeos com % assistido, contra o normal da faixa de duração'])
+    // o nome da tabela continua achável como tabela (a região não a esconde)
+    expect(within(secao()).getAllByRole('table')).toHaveLength(2)
+  })
+
   it('tabela por vídeo ordenada por views em 28 dias, com legenda e escopo; o vídeo alvo leva o destaque e a frase em texto', () => {
     const r = abrir()
     const t = within(secao()).getByRole('table', { name: 'Vídeos com % assistido, contra o normal da faixa de duração' })
     expect([...t.querySelectorAll('thead th')].map(e => e.textContent)).toEqual(['Vídeo', 'Faixa', 'Views, 28 dias', '% assistido', 'Contra a faixa'])
     expect([...t.querySelectorAll('thead th')].every(e => e.getAttribute('scope') === 'col')).toBe(true)
-    const viewsCol = [...t.querySelectorAll('tbody tr')].map(tr => tr.querySelectorAll('td')[2]!.textContent)
-    expect(viewsCol).toEqual(r.view.retencao.videos.map(v => v.views28))
+    const viewsCol = [...t.querySelectorAll('tbody tr')].map(tr => tr.querySelectorAll('td')[2]!.querySelector('.n28')!.textContent)
+    expect(viewsCol).toEqual(r.view.retencao.videos.map(v => v.views28))   // 13.3 (Menor 2): o número fica sozinho no seu elemento; a cobertura mora ao lado dele
     expect(viewsCol[0]).toBe('200')
     const alvos = t.querySelectorAll('tbody tr.alvo')
     expect(alvos).toHaveLength(3)
@@ -99,6 +115,28 @@ describe('13.3 aba Retenção: a tela', () => {
     expect(linha.textContent).toContain('70%')
     expect(linha.textContent).toContain('poucas views para comparar')
     expect(linha.querySelector('.cmp')).toBeNull()
+    // a frase de relance não esconde o vídeo que ficou de fora: diz quantos (I2a)
+    expect(secao().querySelector('.ret-lead')!.textContent!.endsWith(' 1 vídeo com poucas views não entra na comparação.')).toBe(true)
+  })
+  it('sem vídeo de poucas views, a frase de relance não leva a contagem', () => {
+    abrir()
+    expect(secao().querySelector('.ret-lead')!.textContent).not.toContain('poucas views')
+  })
+
+  it('views subcontadas (diário com só parte dos dias): a tabela e os cartões do 390 px dizem "N de M dias medidos" ao lado das views, e só nelas (13.3, Menor 2)', () => {
+    const r = abrir()
+    const modelo = r.view.retencao.videos
+    expect(modelo.some(v => v.cobertura != null)).toBe(true)
+    const linhas = [...secao().querySelectorAll('table.tb-v tbody tr')]
+    expect(linhas).toHaveLength(modelo.length)
+    linhas.forEach((tr, i) => {
+      const nota = tr.querySelectorAll('td')[2]!.querySelector('.ret-cob')
+      expect(nota?.textContent ?? null, modelo[i]!.titulo).toBe(modelo[i]!.cobertura)
+    })
+    const cards = [...secao().querySelectorAll('ul.rcards > li')]
+    cards.forEach((c, i) => expect(c.querySelector('.ret-cob')?.textContent ?? null, modelo[i]!.titulo).toBe(modelo[i]!.cobertura))
+    // todos os do fixture têm 10 dias de diário: os antigos dizem "10 de 28 dias medidos"
+    expect(linhas.some(tr => tr.querySelector('.ret-cob')?.textContent === '10 de 28 dias medidos')).toBe(true)
   })
 
   it('os cartões do 390 px têm o mesmo conteúdo, com o link para a página do vídeo', () => {

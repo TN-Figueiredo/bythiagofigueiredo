@@ -239,8 +239,9 @@ describe('T8 buildProprioView', () => {
     expect(v.abas).toEqual({
       trocas: 'Trocas dos seus vídeos ainda não são lidas nesta tela.',
       leitura: 'A leitura da forja para o seu canal ainda não existe.',
-      retencao: 'Retenção ainda não coletada.',
     })
+    // 13.3 (Menor 7): a Retenção tem conteúdo (% assistido) desde a 13.3; a frase e a nota de "ainda não coletada" saíram, ninguém as lia
+    expect(Object.keys(v.abasNota)).toEqual(['trocas', 'leitura'])
     expect(v.abas).toEqual(ABAS_PROPRIO)
     for (const t of [...Object.values(v.abas), ...Object.values(ABAS_PROPRIO_NOTA)]) expect(t).not.toMatch(/\bL[0-9]\b|lote/i)
     expect(ABAS_PROPRIO_NOTA.trocas).toBe('Os testes de título e thumbnail do seu canal ficam no A/B Lab.')
