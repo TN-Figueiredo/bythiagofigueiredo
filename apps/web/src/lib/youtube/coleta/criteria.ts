@@ -273,16 +273,18 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
   }
 
   // Tipo HABILITADO sem job: (a) a linha está em `desativado` (o passo de jobs não passou por este canal: sem token, sem
-  // tempo ou exceção) ou (b) NÃO HÁ LINHA nenhuma. Sem job não há relatório, e cada dia sem job é um dia de histórico que
+  // tempo ou exceção), (a') a linha está em `erro` e NUNCA teve job (`job_id` nulo: a listagem ou a criação falhou no primeiro
+  // dia; o plano de 3 dias de tentativa serve a quem já teve job e deixaria um erro passageiro do D0 verde por 3 execuções,
+  // cada uma custando um dia de histórico) ou (b) NÃO HÁ LINHA nenhuma. Sem job não há relatório, e cada dia sem job é um dia de histórico que
   // não volta. A ausência da linha é o caso "o dado não existe": só vale depois de o passo de jobs ter rodado ao menos
   // uma vez para o canal (sondagem `ok` registrada), porque antes disso é só cedo demais e o próprio passo cria a linha.
   const semJob = await ctx.supabase
     .from('yt_reporting_jobs')
-    .select('channel_id, report_type_id, status')
+    .select('channel_id, report_type_id, status, job_id')
     .in('report_type_id', [...HABILITADOS])
     .limit(LIMITE_LEITURA)
   if (leituraOk(semJob, 'yt_reporting_jobs', 'tipos habilitados sem job', ctx.falhas)) {
-    const linhas = (semJob.data ?? []) as Array<{ channel_id: string; report_type_id: string; status: string }>
+    const linhas = (semJob.data ?? []) as Array<{ channel_id: string; report_type_id: string; status: string; job_id?: string | null }>
     const cortada = linhas.length >= LIMITE_LEITURA
     if (cortada) naoAvaliou(ctx.falhas, `tipos habilitados sem job (yt_reporting_jobs): leitura cortada em ${LIMITE_LEITURA}`)
     const porCanal = new Map<string, Set<string>>()
@@ -290,7 +292,8 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
       porCanal.set(canalId, (porCanal.get(canalId) ?? new Set<string>()).add(tipo))
     }
     for (const l of linhas) {
-      if (l.status !== 'desativado') continue
+      const semJobNuncaCriado = l.status === 'erro' && !l.job_id
+      if (l.status !== 'desativado' && !semJobNuncaCriado) continue
       const canal = ctx.channels.find(c => c.id === l.channel_id)
       if (!canal || !canal.sync_enabled) continue // canal desligado não pede job
       acrescentar(l.channel_id, l.report_type_id)
