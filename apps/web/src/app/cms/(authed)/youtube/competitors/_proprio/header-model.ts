@@ -168,8 +168,12 @@ export function buildProprioHeader(
     base: cliquesOk && cliquesTotal == null ? `${BASE_CLIQUES} Algum dia com impressão veio sem CTR, então o total não é calculado.` : BASE_CLIQUES,
   })
 
+  // o numerador sai do MESMO conjunto do total: linha de vídeo que saiu do canal (apagado, privado) não conta, senão "5 de 3"
+  const doCanal = new Set<string>([...vids.map(v => v.ytId), ...ch.undated.map(u => u.ytId)])
+  const comImpressao = alc.estado === 'ok' ? [...alc.porVideo.keys()].filter(id => doCanal.has(id)).length : 0
+
   const videosComImpressao = cell('videosComImpressao', 'vídeos com alguma impressão', {
-    value: alc.estado === 'ok' && !nada ? `${alc.porVideo.size} de ${total}` : null,
+    value: alc.estado === 'ok' && !nada ? `${comImpressao} de ${total}` : null,
     missing: faltaAlcance(),
     base: alc.estado === 'ok' ? `Vídeos que apareceram ao menos uma vez nos dias lidos ${periodoTxt}. ${DIA_YT}` : 'Vídeos do canal que apareceram ao menos uma vez nos dias com relatório de alcance lido.',
   })
