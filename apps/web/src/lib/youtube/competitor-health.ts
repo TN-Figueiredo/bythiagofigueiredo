@@ -45,3 +45,147 @@ export async function schemaReady(sb: SupabaseClient, need: 'e1' | 'e1e2'): Prom
   }
   return null
 }
+
+// ───────── Tarefa 12: a prova embutida (o que o cron lê do banco a cada disparo) ─────────
+
+export interface CaptureHealth { videos_vistos_sem_raw: number; canais_vistos_sem_raw: number; canais_vistos_dia_pacifico: number; cota_dia_pacifico: number; videos_ausentes: number; canais_ausentes: number; canais_em_erro_12h: number; canais_em_erro_3d: number }
+export interface SeriesHealth { hoje: string; hora_sp: number; fora_da_prova: number; sem_faixa: number; diaria_sem_ponto_hoje: number; diaria_buracos_3d: number; semanal_atrasados: number; semanal_atrasados_9d: number; semanal_devidos_hoje: number; sem_miniatura_9d: number; diaria_total: number; semanal_total: number }
+export interface HealthVerdict { ok: boolean; problems: string[]; notes: string[] }
+
+/**
+ * As regras de tempo da prova vivem aqui, num lugar só. Horas de São Paulo (`hora_sp` vem do SQL, que usa America/Sao_Paulo).
+ * O "8º dia" e o "9º dia" não têm constante: o SQL só os conta quando a faixa tem 8 ou 9 dias, então no dia do deploy
+ * e nos 7 seguintes eles valem 0 por construção (nenhuma data de deploy mora no código).
+ */
+/** "Vídeo da faixa diária sem ponto hoje" só é cobrado a partir desta hora (e com a faixa inteira tentada). */
+export const DAILY_DUE_FROM_HOUR_SP = 18
+/** "Devidos hoje" e "8º dia sem ponto" da faixa semanal só são cobrados a partir desta hora (e com a faixa inteira tentada). */
+export const WEEKLY_DUE_FROM_HOUR_SP = 19
+
+const CAPTURE_KEYS = ['videos_vistos_sem_raw', 'canais_vistos_sem_raw', 'canais_vistos_dia_pacifico', 'cota_dia_pacifico', 'videos_ausentes', 'canais_ausentes', 'canais_em_erro_12h', 'canais_em_erro_3d'] as const
+const SERIES_KEYS = ['hora_sp', 'fora_da_prova', 'sem_faixa', 'diaria_sem_ponto_hoje', 'diaria_buracos_3d', 'semanal_atrasados', 'semanal_atrasados_9d', 'semanal_devidos_hoje', 'sem_miniatura_9d', 'diaria_total', 'semanal_total'] as const
+const isCount = (x: unknown): x is number => typeof x === 'number' && Number.isInteger(x) && x >= 0
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+type Read<T> = { value: T } | { why: string }
+const shown = (x: unknown): string => (typeof x === 'string' ? '"' + x + '"' : Array.isArray(x) ? 'uma lista' : x === null ? 'nulo' : String(x))
+
+/** O objeto da prova, ou o motivo (em português) de não ser um. Lista, texto e nulo nunca viram objeto. */
+function asObject(x: unknown): Read<Record<string, unknown>> {
+  if (x === null || x === undefined) return { why: 'a resposta veio vazia' }
+  if (Array.isArray(x)) return { why: 'a resposta é uma lista, não um objeto' }
+  if (typeof x !== 'object') return { why: 'a resposta não é um objeto (veio ' + shown(x) + ')' }
+  return { value: Object.fromEntries(Object.entries(x)) }
+}
+
+// (emenda do portão: S-I3) sem cast duplo: o objeto é montado chave a chave, com cada valor conferido.
+/** As contagens de `keys`, todas conferidas. Uma chave faltando, ou um valor que não é inteiro ≥ 0, é o motivo da falha; chave extra é ignorada. */
+function counts<K extends string>(d: Record<string, unknown>, keys: readonly K[]): Read<Record<K, number>> {
+  const out: Partial<Record<K, number>> = {}
+  for (const k of keys) {
+    if (!(k in d) || d[k] === undefined) return { why: 'falta o campo ' + k }
+    const v = d[k]
+    if (!isCount(v)) return { why: 'o campo ' + k + ' não é um número inteiro maior ou igual a zero (veio ' + shown(v) + ')' }
+    out[k] = v
+  }
+  return { value: out as Record<K, number> } // todas as chaves foram preenchidas no laço acima
+}
+
+function readCapture(data: unknown): Read<CaptureHealth> {
+  const o = asObject(data)
+  return 'why' in o ? o : counts(o.value, CAPTURE_KEYS)
+}
+function readSeries(data: unknown): Read<SeriesHealth> {
+  const o = asObject(data)
+  if ('why' in o) return o
+  const d = o.value
+  if (typeof d.hoje !== 'string' || !DATE_RE.test(d.hoje)) return { why: 'o campo hoje não é uma data AAAA-MM-DD (veio ' + shown(d.hoje) + ')' }
+  const c = counts(d, SERIES_KEYS)
+  if ('why' in c) return c
+  if (c.value.hora_sp > 23) return { why: 'o campo hora_sp está fora de 0 a 23 (veio ' + c.value.hora_sp + ')' }
+  return { value: { hoje: d.hoje, ...c.value } }
+}
+
+/** null = a prova não veio inteira. Uma contagem nunca é adivinhada como 0. */
+export function parseCaptureHealth(data: unknown): CaptureHealth | null {
+  const r = readCapture(data)
+  return 'why' in r ? null : r.value
+}
+export function parseSeriesHealth(data: unknown): SeriesHealth | null {
+  const r = readSeries(data)
+  return 'why' in r ? null : r.value
+}
+
+const n = (count: number, one: string, many: string) => count + ' ' + (count === 1 ? one : many)
+
+/**
+ * `slotDone` = nenhum canal ficou devido nesta faixa (só então "sem ponto hoje" pode ser cobrado).
+ * `thumbs: false` = a miniatura dos semanais não é coletada (pergunta 1): `sem_miniatura_9d` não é cobrado.
+ */
+export interface VerdictOpts { slotDone: boolean; e2: boolean; thumbs?: boolean }
+
+/**
+ * O veredito é lido do ESTADO do banco a cada disparo: uma perda fica vermelha até ser consertada (ou, no caso do
+ * buraco de um dia, por 3 dias), e não some no disparo seguinte só porque nele não havia nada a fazer.
+ * Prova que não veio (nulo) é FALHA, nunca verde.
+ */
+export function healthVerdict(c: CaptureHealth | null, s: SeriesHealth | null, o: VerdictOpts): HealthVerdict {
+  const problems: string[] = [], notes: string[] = []
+  if (!c) problems.push('não foi possível ler a prova da captura')
+  else {
+    if (c.videos_vistos_sem_raw) problems.push(n(c.videos_vistos_sem_raw, 'vídeo lido', 'vídeos lidos') + ' sem resposta guardada')
+    if (c.canais_vistos_sem_raw) problems.push(n(c.canais_vistos_sem_raw, 'canal lido', 'canais lidos') + ' sem resposta guardada')
+    if (c.canais_vistos_dia_pacifico > 0 && c.cota_dia_pacifico === 0) problems.push('cota do dia não registrada (' + n(c.canais_vistos_dia_pacifico, 'canal lido', 'canais lidos') + ')')
+    // (emenda do portão: D-I1, CTRL-d) o vermelho tem fim: do 3º dia em diante é nota, e a rota põe o nome do canal em acao_do_dono
+    const errNew = Math.max(0, c.canais_em_erro_12h - c.canais_em_erro_3d)
+    if (errNew) problems.push(n(errNew, 'canal', 'canais') + ' em erro há mais de 12 h')
+    if (c.canais_em_erro_3d) notes.push(n(c.canais_em_erro_3d, 'canal', 'canais') + ' em erro há mais de 3 dias (ver acao_do_dono)')
+    if (c.videos_ausentes || c.canais_ausentes) notes.push(n(c.videos_ausentes, 'vídeo', 'vídeos') + ' e ' + n(c.canais_ausentes, 'canal', 'canais') + ' não vêm mais do YouTube')
+  }
+  if (o.e2) {
+    if (!s) problems.push('não foi possível ler a prova da série')
+    else {
+      if (s.sem_faixa) problems.push(n(s.sem_faixa, 'vídeo', 'vídeos') + ' sem faixa de série')
+      if (s.diaria_buracos_3d) problems.push(n(s.diaria_buracos_3d, 'buraco', 'buracos') + ' na série diária nos últimos 3 dias')
+      // (emenda do portão: D-I3, D-m1) a faixa semanal. O 9º dia é perda e é vermelho a qualquer hora. O 8º dia e os devidos
+      // de hoje só são falha depois das 19:00 de São Paulo com a faixa inteira tentada: antes disso a fase semanal ainda vai ler.
+      const weeklyLate = s.hora_sp >= WEEKLY_DUE_FROM_HOUR_SP && o.slotDone
+      if (s.semanal_atrasados_9d) problems.push(n(s.semanal_atrasados_9d, 'vídeo', 'vídeos') + ' da faixa semanal sem ponto há 9 dias ou mais (intervalo perdido)')
+      const eighth = Math.max(0, s.semanal_atrasados - s.semanal_atrasados_9d)
+      if (eighth) (weeklyLate ? problems : notes).push(n(eighth, 'vídeo', 'vídeos') + ' da faixa semanal no 8º dia sem ponto')
+      if (s.semanal_devidos_hoje && weeklyLate) problems.push(n(s.semanal_devidos_hoje, 'vídeo', 'vídeos') + ' da faixa semanal devidos hoje e ainda sem ponto')
+      // (emenda do portão: D-I4) a imagem que a origem sobrescreve: toda leitura confere a miniatura, então 9 dias sem cópia é falha
+      if (s.sem_miniatura_9d && o.thumbs !== false) problems.push(n(s.sem_miniatura_9d, 'vídeo', 'vídeos') + ' sem cópia da miniatura depois de 9 dias')
+      // só depois das 18:00 de São Paulo e com todos os canais da faixa tentados: antes disso faltar ponto é o esperado
+      if (s.diaria_sem_ponto_hoje && s.hora_sp >= DAILY_DUE_FROM_HOUR_SP && o.slotDone) problems.push(n(s.diaria_sem_ponto_hoje, 'vídeo', 'vídeos') + ' da faixa diária sem ponto hoje')
+      if (s.fora_da_prova) notes.push(s.fora_da_prova + ' fora da prova de série (sem contagem, estreia agendada ou ausente)')
+    }
+  }
+  return { ok: problems.length === 0, problems, notes }
+}
+
+type RpcAnswer = { data?: unknown; error?: { message?: string } | null } | null | undefined
+
+/** Chama a função de prova e a confere; qualquer jeito de "não li" (lança, erro, vazio, forma errada) devolve o motivo, nunca um número. */
+async function readProof<T>(call: () => PromiseLike<RpcAnswer>, parse: (data: unknown) => Read<T>): Promise<Read<T>> {
+  let res: RpcAnswer
+  try {
+    res = await call()
+  } catch (e) {
+    return { why: 'a chamada ao banco falhou (' + (e instanceof Error ? e.message : 'sem detalhe') + ')' }
+  }
+  if (typeof res !== 'object' || res === null) return { why: 'o banco não respondeu' }
+  if (res.error) return { why: 'o banco respondeu com erro (' + (res.error.message ?? 'sem detalhe') + ')' }
+  return parse(res.data)
+}
+
+export async function readSiteHealth(sb: SupabaseClient, siteId: string, nowIso: string, o: VerdictOpts): Promise<HealthVerdict> {
+  const args = { p_site_id: siteId, p_now: nowIso }
+  const cap = await readProof(() => sb.rpc('competitor_capture_health', args), readCapture)
+  const ser = o.e2 ? await readProof(() => sb.rpc('competitor_series_health', args), readSeries) : null
+  const v = healthVerdict('why' in cap ? null : cap.value, !ser || 'why' in ser ? null : ser.value, o)
+  // o motivo da leitura que falhou vai numa nota (o problema continua com a frase fixa), para o dono saber o que consertar
+  if ('why' in cap) v.notes.push('prova da captura: ' + cap.why)
+  if (ser && 'why' in ser) v.notes.push('prova da série: ' + ser.why)
+  return v
+}
