@@ -1,5 +1,13 @@
 // @vitest-environment node
 // E19, item 209: a prova é pela lista de arquivos (glob), não por lista escrita à mão. Rota nova sem autenticação quebra aqui.
+//
+// FORA DO ALCANCE desta varredura (a ausência abaixo NÃO é cobertura):
+//  - O MCP (`app/api/mcp/route.ts`) tem autenticação própria (`resolveMcpAuth`, que exige `read` em route.ts) e não usa os
+//    helpers de `authenticate*`; a chave `observatorio_leitura` ainda fica aberta lá (pendência da E17, item 235). O caso
+//    "o alcance é app/api/pipeline" no fim do arquivo prende esse limite por asserção.
+//  - Os pisos de 91 rotas e 129 handlers são PISOS (>=): rota removida não falha aqui; rota nova entra sozinha pelo glob.
+//  - O rótulo textual do helper é o da primeira chamada dentro do corpo do handler (até o `}` na coluna 0); o fechamento real
+//    é o dinâmico (403 em modo recusa), que não depende do rótulo.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { readFileSync } from 'node:fs'
@@ -67,7 +75,8 @@ async function listarHandlers(): Promise<Handler[]> {
     const partes = fonte.split(/export\s+(?:async\s+)?function\s+(GET|POST|PATCH|PUT|DELETE)\b/)
     const helperDe = new Map<string, Helper>()
     for (let i = 1; i < partes.length; i += 2) {
-      const achado = partes[i + 1]!.match(/\b(authenticateReadOrIntel|authenticateRead|authenticateWrite|authenticateIntel|authenticatePipeline)\(/)
+      const corpo = partes[i + 1]!.split(/\n\}/)[0]!   // só o corpo do handler: função privada declarada depois não empresta o rótulo
+      const achado = corpo.match(/\b(authenticateReadOrIntel|authenticateRead|authenticateWrite|authenticateIntel|authenticatePipeline)\(/)
       helperDe.set(partes[i]!, (achado?.[1] as Helper | undefined) ?? 'NENHUM')
     }
     const mod = (await modulos[arq]!()) as Record<string, unknown>
@@ -215,5 +224,12 @@ describe('E19: todo route.ts de app/api/pipeline', () => {
 
   it('não existe handler do pipeline fora de route.ts (a varredura só lê route.ts)', () => {
     expect(Object.keys(import.meta.glob('../../../src/app/api/pipeline/**/route.{tsx,js,jsx,mjs}'))).toEqual([])
+  })
+
+  it('o alcance é app/api/pipeline: o MCP fica de fora e tem autenticação própria (documentado, não coberto)', () => {
+    const mcp = readFileSync(resolve(__dirname, '../../../src/app/api/mcp/route.ts'), 'utf8')
+    expect(mcp).toContain('resolveMcpAuth')
+    expect(mcp).not.toMatch(/\bauthenticate(Read|Write|Intel|ReadOrIntel|Pipeline)\(/)
+    expect(Object.keys(modulos).some(a => a.includes('/api/mcp/'))).toBe(false)
   })
 })
