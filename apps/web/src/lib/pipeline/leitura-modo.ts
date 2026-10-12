@@ -14,7 +14,7 @@ export interface ConfigLeitura {
 
 const CONFIG: ConfigLeitura = {
   modo: 'aviso',
-  avisoDesde: '2026-10-13',
+  avisoDesde: '2026-10-13',   // data do envio do lote 1; o controlador a confere no dia do envio
   controleFechadoEm: null,
   conferenciaAte: null,
 }

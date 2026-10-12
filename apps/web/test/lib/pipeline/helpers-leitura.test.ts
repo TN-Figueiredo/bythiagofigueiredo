@@ -73,3 +73,20 @@ describe('authenticateRead, modo recusa', () => {
     expect(await authenticateReadOrIntel(req)).toMatchObject({ ok: true })
   })
 })
+
+describe('403 da autenticação sai com o código FORBIDDEN, em todos os helpers (M2)', () => {
+  const helpers = { authenticateRead, authenticateWrite, authenticateIntel, authenticateReadOrIntel } as const
+  for (const [nome, h] of Object.entries(helpers)) {
+    it(`${nome}: 403 do authenticatePipeline (perfil observatorio_leitura) -> FORBIDDEN`, async () => {
+      vi.mocked(authenticatePipeline).mockResolvedValue({ ok: false, status: 403, error: 'Forbidden' })
+      const r = await h(req)
+      expect(r instanceof Response && r.status).toBe(403)
+      expect(r instanceof Response && (await r.json())).toEqual({ error: { code: 'FORBIDDEN', message: 'Forbidden' } })
+    })
+    it(`${nome}: 401 continua UNAUTHORIZED`, async () => {
+      vi.mocked(authenticatePipeline).mockResolvedValue({ ok: false, status: 401, error: 'Unauthorized' })
+      const r = await h(req)
+      expect(r instanceof Response && (await r.json())).toEqual({ error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } })
+    })
+  }
+})

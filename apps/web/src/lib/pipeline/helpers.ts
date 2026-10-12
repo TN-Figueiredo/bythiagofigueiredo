@@ -16,6 +16,11 @@ export function pipelineError(
   return NextResponse.json({ error }, { status, headers: headers ?? {} })
 }
 
+/** 403 da autenticação (perfil de chave recusado, sessão sem escopo) é FORBIDDEN, como nas checagens de permissão; o resto é UNAUTHORIZED. */
+function codigoDaFalha(status: number): 'FORBIDDEN' | 'UNAUTHORIZED' {
+  return status === 403 ? 'FORBIDDEN' : 'UNAUTHORIZED'
+}
+
 export function pipelineSuccess<T>(data: T, status: number, auth: PipelineAuth, meta?: Record<string, unknown>) {
   const headers = buildRateLimitHeaders(auth)
   const body = meta ? { data, meta } : { data }
@@ -26,7 +31,7 @@ export async function authenticateWrite(req: NextRequest): Promise<
   { ok: true; auth: PipelineAuth } | NextResponse
 > {
   const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return pipelineError('UNAUTHORIZED', authResult.error, authResult.status)
+  if (!authResult.ok) return pipelineError(codigoDaFalha(authResult.status), authResult.error, authResult.status)
   if (!requirePermission(authResult.auth, 'write')) return pipelineError('FORBIDDEN', 'Insufficient permissions', 403, authResult.auth)
   return { ok: true, auth: authResult.auth }
 }
@@ -40,7 +45,7 @@ export async function authenticateRead(req: NextRequest): Promise<
   { ok: true; auth: PipelineAuth } | NextResponse
 > {
   const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return pipelineError('UNAUTHORIZED', authResult.error, authResult.status)
+  if (!authResult.ok) return pipelineError(codigoDaFalha(authResult.status), authResult.error, authResult.status)
   const { auth } = authResult
   if (!requirePermission(auth, 'read') && modoLeitura().modo === 'recusa') {
     await registrarLeitura(req, auth, 'recusada')
@@ -61,7 +66,7 @@ export async function authenticateIntel(
   opts?: { apiKeyOnly?: boolean },
 ): Promise<{ ok: true; auth: PipelineAuth } | NextResponse> {
   const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return pipelineError('UNAUTHORIZED', authResult.error, authResult.status)
+  if (!authResult.ok) return pipelineError(codigoDaFalha(authResult.status), authResult.error, authResult.status)
   if (opts?.apiKeyOnly && authResult.auth.source !== 'api_key') {
     return pipelineError('FORBIDDEN', 'API key required', 403, authResult.auth)
   }
@@ -80,7 +85,7 @@ export async function authenticateReadOrIntel(req: NextRequest): Promise<
   { ok: true; auth: PipelineAuth } | NextResponse
 > {
   const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return pipelineError('UNAUTHORIZED', authResult.error, authResult.status)
+  if (!authResult.ok) return pipelineError(codigoDaFalha(authResult.status), authResult.error, authResult.status)
   if (!requirePermission(authResult.auth, 'read') && !requirePermission(authResult.auth, 'intelligence')) {
     return pipelineError('FORBIDDEN', 'Insufficient permissions', 403, authResult.auth)
   }
