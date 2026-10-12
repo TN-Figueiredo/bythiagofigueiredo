@@ -7,6 +7,10 @@
  * dia foi lido e não trouxe impressão) é uma caixa vazada com o texto "0"; NÃO MEDIDO (sem relatório, não baixado, com erro, expirado) é a
  * coluna inteira hachurada, sem número, com o motivo na dica. O não medido nunca é altura zero, nunca entra numa soma e nunca é "0".
  * Cliques são estimados (impressões × CTR) e só arredondam na hora de escrever.
+ *
+ * O mesmo modelo desenha "Views por dia" (`unidade: 'views'`, A4 13.2): os dias chegam no mesmo formato (`DiaAlcance`, com o valor do dia em `imp` e
+ * `cliques` nulo), sem a faixa de cliques e com legendas, dicas e método próprios (ninguém viu × o YouTube não entregou o dia). Nenhum texto de
+ * views fala de relatório, de impressão ou de clique.
  */
 import { diffDias } from '@/lib/youtube/coleta/day-pt'
 import { motivoDiaTexto, resumir, type DiaAlcance, type MotivoDia, type Periodo, type ResumoAlcance, type Situacao } from '@/lib/youtube/observatorio/proprio/dias'
@@ -24,7 +28,7 @@ export interface ColunaView {
   imp: string | null
   /** Cliques estimados do dia; null = não medido (dia não medido OU dia com impressão sem CTR). "menos de 1" quando o valor é maior que 0 e arredonda a 0. */
   cliques: string | null
-  /** O que aparece sob o eixo, na faixa "cliques": null = nada (sem clique, ou não medido). */
+  /** O que aparece na faixa dos cliques, sob as datas: "1.139", "<1"; null = nada (sem clique, ou não medido). Sempre null em views. */
   cliquesFaixa: string | null
   /** A frase do dia (dica, fala do leitor de tela). */
   dica: string
@@ -32,9 +36,11 @@ export interface ColunaView {
   situacaoTexto: string
   /** Esta coluna leva rótulo de data no eixo. */
   marca: boolean
+  /** O vídeo foi publicado neste dia (linha tracejada e item da legenda). */
+  publicacao: boolean
 }
 
-export interface LegendaItem { situacao: Situacao | 'cliques'; texto: string }
+export interface LegendaItem { situacao: Situacao | 'cliques' | 'publicacao'; texto: string }
 
 export interface ImpressoesView {
   teto: number
@@ -53,11 +59,27 @@ export interface ImpressoesView {
   metodo: string[]
   escopo: 'canal' | 'video'
   alturaArea: number
+  /** O que as colunas contam. */
+  unidade: Unidade
+  /** O gráfico leva a faixa própria dos cliques (só em impressões). */
+  faixaCliques: boolean
+  /** Anotação do eixo vertical ("impressões", "views"), cabeçalho da coluna de valor da tabela e da coluna de situação. */
+  rotuloEixo: string
+  rotuloValor: string
+  rotuloSituacao: string
 }
+
+export type Unidade = 'impressoes' | 'views'
 
 export interface OpcoesImpressoes {
   escopo: 'canal' | 'video'
   alturaArea: number
+  /** O que as colunas contam; padrão `impressoes`. `views` não tem faixa de cliques (A4 13.2). */
+  unidade?: Unidade
+  /** O dia em que o vídeo foi publicado: ganha a linha tracejada se cair dentro do período. */
+  publicadoEm?: DiaYt | null
+  /** A frase-resumo trazida por quem chama (a tela do vídeo e a do canal escrevem a sua); `undefined` = a do modelo, `null` = nenhuma. */
+  resumo?: string | null
   dm: (d: DiaYt) => string
   /** 'erro' = a leitura falhou: a frase diz que falhou, nunca "sem relatório" (falha em verde). */
   acesso: 'ok' | 'negado' | 'erro'
@@ -71,6 +93,9 @@ export interface OpcoesImpressoes {
 export const SEM_RELATORIO = 'Ainda não há relatório de alcance deste canal.'
 export const SEM_PERMISSAO = 'Só quem edita o site vê as impressões.'
 export const ERRO_ALCANCE = 'A leitura do alcance falhou agora; recarregue a página.'
+export const SEM_VIEWS = 'Ainda não há dia medido de views.'
+export const SEM_PERMISSAO_VIEWS = 'Só quem edita o site vê as views.'
+export const ERRO_VIEWS = 'A leitura das views falhou agora; recarregue a página.'
 /** Menos dias medidos que isto = "ainda é pouco para ver um padrão". */
 export const DIAS_PARA_PADRAO = 7
 const BARRA_MINIMA_PX = 3
@@ -105,7 +130,8 @@ function cliquesTextoDia(c: number): string {
   return int(c)
 }
 
-function situacaoTexto(d: DiaAlcance, escopo: 'canal' | 'video'): string {
+function situacaoTexto(d: DiaAlcance, escopo: 'canal' | 'video', unidade: Unidade): string {
+  if (unidade === 'views') return d.situacao === 'com-impressoes' ? 'com views' : d.situacao === 'zero-medido' ? 'zero medido: ninguém viu' : NAO_ENTREGUE + ': não medido'
   switch (d.situacao) {
     case 'com-impressoes':
       return 'com impressões'
@@ -119,6 +145,8 @@ function situacaoTexto(d: DiaAlcance, escopo: 'canal' | 'video'): string {
     }
   }
 }
+
+const NAO_ENTREGUE = 'o YouTube não entregou o dia'
 
 function naoMedidoTexto(m: MotivoDia | null): string {
   switch (m) {
@@ -138,7 +166,12 @@ function naoMedidoTexto(m: MotivoDia | null): string {
   }
 }
 
-function dicaDoDia(d: DiaAlcance, rotulo: string, escopo: 'canal' | 'video'): string {
+function dicaDoDia(d: DiaAlcance, rotulo: string, escopo: 'canal' | 'video', unidade: Unidade): string {
+  if (unidade === 'views') {
+    if (d.situacao === 'com-impressoes') return `${rotulo}: ${plural(d.imp ?? 0, 'view', 'views')}`
+    if (d.situacao === 'zero-medido') return `${rotulo}: ${escopo === 'video' ? 'ninguém viu neste dia' : 'o YouTube registrou nenhuma view'} (nenhuma view)`
+    return `${rotulo}: ${NAO_ENTREGUE} (não medido)`
+  }
   switch (d.situacao) {
     case 'com-impressoes':
       return `${rotulo}: ${plural(d.imp ?? 0, 'impressão', 'impressões')}, ${cliquesFrase(d.cliques)}`
@@ -156,11 +189,16 @@ function dicaDoDia(d: DiaAlcance, rotulo: string, escopo: 'canal' | 'video'): st
 function colunaDe(d: DiaAlcance, i: number, n: number, teto: number, o: OpcoesImpressoes): ColunaView {
   const rotulo = o.dm(d.dia)
   const marca = i === 0 || i === n - 1 || (i % 7 === 0 && i < n - 5)
-  const comum = { dia: d.dia, rotulo, situacao: d.situacao, dica: dicaDoDia(d, rotulo, o.escopo), situacaoTexto: situacaoTexto(d, o.escopo), marca }
+  const unidade = o.unidade ?? 'impressoes'
+  const publicacao = o.publicadoEm != null && o.publicadoEm === d.dia
+  const dica = dicaDoDia(d, rotulo, o.escopo, unidade) + (publicacao ? '. Dia da publicação do vídeo' : '')
+  const comum = { dia: d.dia, rotulo, situacao: d.situacao, dica, situacaoTexto: situacaoTexto(d, o.escopo, unidade), marca, publicacao }
   switch (d.situacao) {
     case 'com-impressoes': {
       const imp = d.imp ?? 0
       const cliques = d.cliques
+      // views não têm cliques: nunca "0", nunca "não medido" de clique; a coluna só não tem a faixa
+      if (unidade === 'views') return { ...comum, alturaPx: Math.max(BARRA_MINIMA_PX, imp * o.alturaArea / teto), imp: int(imp), cliques: null, cliquesFaixa: null }
       return {
         ...comum,
         alturaPx: Math.max(BARRA_MINIMA_PX, imp * o.alturaArea / teto),
@@ -170,7 +208,7 @@ function colunaDe(d: DiaAlcance, i: number, n: number, teto: number, o: OpcoesIm
       }
     }
     case 'zero-medido':
-      return { ...comum, alturaPx: ZERO_PX, imp: '0', cliques: '0', cliquesFaixa: null }
+      return { ...comum, alturaPx: ZERO_PX, imp: '0', cliques: unidade === 'views' ? null : '0', cliquesFaixa: null }
     case 'nao-medido':
       // não medido NÃO é barra de altura zero: a coluna ocupa a área inteira, hachurada
       return { ...comum, alturaPx: o.alturaArea, imp: null, cliques: null, cliquesFaixa: null }
@@ -205,16 +243,47 @@ function resumoTexto(r: ResumoAlcance, total: number): string {
   return `${imp} e ${cliques} em ${dias}${sem}: ${partes}.`
 }
 
-function legendaDe(escopo: 'canal' | 'video'): LegendaItem[] {
+function resumoViews(r: ResumoAlcance, total: number): string {
+  if (r.diasLidos === 0 || r.imp == null) {
+    return total === 1 ? 'O dia do período não foi medido: views não medidas.' : `Nenhum dos ${int(total)} dias do período foi medido: views não medidas.`
+  }
+  const buracos = r.diasNaoMedidos > 0
+  const zero = r.diasLidos - r.diasComImpressao
+  const comView = plural(r.diasComImpressao, 'dia com view', 'dias com view')
+  const emZero = plural(zero, 'dia medido em zero', 'dias medidos em zero')
+  const nm = plural(r.diasNaoMedidos, 'dia não medido', 'dias não medidos')
+  const partes = buracos ? `${comView} e ${emZero}` : `${comView}, ${emZero} e ${plural(0, 'dia não medido', 'dias não medidos')}`
+  const sem = buracos ? ` (${nm})` : ''
+  const dias = buracos ? plural(r.diasLidos, 'dia medido', 'dias medidos') : plural(total, 'dia', 'dias')
+  if (r.imp === 0) return `Nenhuma view ${buracos ? (r.diasLidos === 1 ? 'no' : 'nos') : 'em'} ${dias}${sem}: ${partes}.`
+  return `${plural(r.imp, 'view', 'views')} em ${dias}${sem}: ${partes}.`
+}
+
+function legendaDe(escopo: 'canal' | 'video', unidade: Unidade): LegendaItem[] {
+  if (unidade === 'views') {
+    return [
+      { situacao: 'com-impressoes', texto: 'views do dia (barra cheia)' },
+      { situacao: 'zero-medido', texto: escopo === 'video' ? 'zero medido (caixa vazada): ninguém viu neste dia' : 'zero medido (caixa vazada): o YouTube registrou nenhuma view' },
+      { situacao: 'nao-medido', texto: `não medido (hachura): ${NAO_ENTREGUE}` },
+    ]
+  }
   return [
     { situacao: 'com-impressoes', texto: 'impressões do dia (barra cheia)' },
-    { situacao: 'cliques', texto: 'cliques estimados' },
+    { situacao: 'cliques', texto: 'cliques estimados do dia' },
     { situacao: 'zero-medido', texto: escopo === 'video' ? 'zero medido (caixa vazada): relatório sem impressão deste vídeo' : 'zero medido (caixa vazada): relatório vazio' },
     { situacao: 'nao-medido', texto: 'não medido (hachura): relatório ausente, não baixado, com erro ou expirado' },
   ]
 }
 
-function metodoDe(escopo: 'canal' | 'video'): string[] {
+function metodoDe(escopo: 'canal' | 'video', unidade: Unidade): string[] {
+  if (unidade === 'views') {
+    return [
+      'Cada coluna é um dia fechado pelo YouTube no horário do Pacífico, não em São Paulo.',
+      'A escala é linear, de 0 até o teto do eixo (4, 10 ou um múltiplo de 20). Uma barra de 1 view tem no mínimo 3 px, para não sumir ao lado de um dia grande.',
+      'Barra cheia: o YouTube entregou o dia com views. Caixa vazada: o YouTube entregou o dia e ninguém viu (zero medido). Coluna hachurada: o YouTube não entregou o dia (não medido); não conta como zero nem entra em soma.',
+      'Use os botões Dia anterior e Dia seguinte, as setas do teclado ou a tabela para ler um dia de cada vez.',
+    ]
+  }
   return [
     'Cada coluna é um dia fechado pelo YouTube no horário do Pacífico, não em São Paulo.',
     'A escala é linear, de 0 até o teto do eixo (4, 10 ou um múltiplo de 20). Uma barra de 1 impressão tem no mínimo 3 px, para não sumir ao lado de um dia grande.',
@@ -222,6 +291,8 @@ function metodoDe(escopo: 'canal' | 'video'): string[] {
       ? 'Barra cheia: o relatório do dia trouxe impressões deste vídeo. Caixa vazada: o relatório foi lido e não trouxe este vídeo (zero medido). Coluna hachurada: o dia não foi medido (relatório ausente, ainda não baixado, com erro ou expirado) e não conta como zero nem entra em soma.'
       : 'Barra cheia: o relatório do dia trouxe impressões. Caixa vazada: o relatório foi lido e veio vazio (zero medido). Coluna hachurada: o dia não foi medido (relatório ausente, ainda não baixado, com erro ou expirado) e não conta como zero nem entra em soma.',
     'Cliques estimados são impressões × taxa de cliques (CTR) de cada vídeo no dia, somados e arredondados só na hora de escrever. O total pode diferir da soma dos números escritos.',
+    'A faixa sob as datas mostra os cliques estimados do dia: um ponto por dia com clique, todos na mesma linha, e o número embaixo (a altura do ponto não mede nada; quem mede é o número). Dia com impressões e sem taxa de cliques fica hachurado na faixa.',
+    'Use os botões Dia anterior e Dia seguinte, as setas do teclado ou a tabela para ler um dia de cada vez.',
   ]
 }
 
@@ -235,19 +306,29 @@ function avisosDe(r: ResumoAlcance, periodo: Periodo, o: OpcoesImpressoes): stri
   if (r.diasLidos > 0 && r.diasLidos < DIAS_PARA_PADRAO) avisos.push(`Menos de ${DIAS_PARA_PADRAO} dias medidos (${r.diasLidos}): ainda é pouco para ver um padrão.`)
   if (r.diasLidos > 0 && r.diasNaoMedidos > 0) avisos.push('Dias não medidos não contam como zero nem entram nas somas.')
   const parou = paradaEm(periodo, o.hoje)
-  if (parou) avisos.push(`A coleta de relatórios deste canal parou em ${o.dm(parou)}.`)
+  if (parou) avisos.push(o.unidade === 'views' ? `A coleta de views parou em ${o.dm(parou)}.` : `A coleta de relatórios deste canal parou em ${o.dm(parou)}.`)
   return avisos
 }
 
-const vazioView = (vazio: string, o: OpcoesImpressoes): ImpressoesView => ({
-  teto: 4, ticks: [0, 2, 4], colunas: [], periodoTexto: '', vazio, legenda: [], resumo: null, avisos: [], metodo: [], escopo: o.escopo, alturaArea: o.alturaArea,
-})
+const rotulos = (u: Unidade) => (u === 'views'
+  ? { rotuloEixo: 'views', rotuloValor: 'Views', rotuloSituacao: 'Situação do dia' }
+  : { rotuloEixo: 'impressões', rotuloValor: 'Impressões', rotuloSituacao: 'Situação do relatório' })
+
+const vazioView = (vazio: string, o: OpcoesImpressoes): ImpressoesView => {
+  const unidade = o.unidade ?? 'impressoes'
+  return {
+    teto: 4, ticks: [0, 2, 4], colunas: [], periodoTexto: '', vazio, legenda: [], resumo: null, avisos: [], metodo: [], escopo: o.escopo, alturaArea: o.alturaArea,
+    unidade, faixaCliques: unidade === 'impressoes', ...rotulos(unidade),
+  }
+}
 
 export function buildImpressoes(dias: readonly DiaAlcance[], periodo: Periodo | null, o: OpcoesImpressoes): ImpressoesView {
   // sem permissão nada do dado privado entra na view, mesmo que alguém tenha passado os dias
-  if (o.acesso === 'negado') return vazioView(SEM_PERMISSAO, o)
-  if (o.acesso === 'erro') return vazioView(ERRO_ALCANCE, o)
-  if (!periodo || dias.length === 0) return vazioView(SEM_RELATORIO, o)
+  const unidade = o.unidade ?? 'impressoes'
+  const views = unidade === 'views'
+  if (o.acesso === 'negado') return vazioView(views ? SEM_PERMISSAO_VIEWS : SEM_PERMISSAO, o)
+  if (o.acesso === 'erro') return vazioView(views ? ERRO_VIEWS : ERRO_ALCANCE, o)
+  if (!periodo || dias.length === 0) return vazioView(views ? SEM_VIEWS : SEM_RELATORIO, o)
 
   let max = 0
   for (const d of dias) if (d.situacao === 'com-impressoes' && d.imp != null && d.imp > max) max = d.imp
@@ -260,11 +341,14 @@ export function buildImpressoes(dias: readonly DiaAlcance[], periodo: Periodo | 
     colunas: dias.map((d, i) => colunaDe(d, i, n, teto, o)),
     periodoTexto: `de ${o.dm(periodo.de)} a ${o.dm(periodo.ate)} · ${plural(periodo.dias, 'dia', 'dias')} · dia do YouTube`,
     vazio: null,
-    legenda: legendaDe(o.escopo),
-    resumo: resumoTexto(r, n),
+    legenda: legendaDe(o.escopo, unidade).concat(dias.some(d => d.dia === o.publicadoEm) ? [{ situacao: 'publicacao', texto: 'dia da publicação' }] : []),
+    resumo: o.resumo !== undefined ? o.resumo : views ? resumoViews(r, n) : resumoTexto(r, n),
     avisos: avisosDe(r, periodo, o),
-    metodo: metodoDe(o.escopo),
+    metodo: metodoDe(o.escopo, unidade),
     escopo: o.escopo,
     alturaArea: o.alturaArea,
+    unidade,
+    faixaCliques: !views,
+    ...rotulos(unidade),
   }
 }

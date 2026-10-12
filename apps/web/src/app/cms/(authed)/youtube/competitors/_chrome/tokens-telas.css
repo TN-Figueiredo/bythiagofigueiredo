@@ -3,7 +3,7 @@
 [data-obs]{
   --nm:#E59CC0;--nm-line:#B0678F;--nm-bg:#3A2232;
   --lado-o:#FF8240;--lado-b:#7CC8F8;--lado-n:#D9C08F;--on-lado:#16130F;
-  --terco-baixo:#F2C14E;--im-cl:#38BDF8;--im-zero:#7A8FA6;
+  --terco-baixo:#F2C14E;--im-cl:#F5EFE6;--im-zero:#7A8FA6;
 }
 /* "não medido": a hachura é a forma, o rosa é o reforço. Sempre com o texto do motivo dentro ou ao lado. */
 [data-obs] .obs-ch-nm{display:inline-block;padding:1px 6px;border:1px solid var(--nm-line);border-radius:4px;color:var(--nm);
@@ -16,4 +16,4 @@
 /* Cores dos lados no tema claro (plano da A3, Tarefa 7). As do tema escuro, sobre o cartão claro, ficam abaixo de 3:1 (laranja 2,5; azul 1,7):
    aqui são escurecidas até >= 3:1 como traço sobre --surface e >= 4,5:1 com a letra branca (--on-lado) em cima. Contraste calculado no teste
    regua-css.test.ts. O que separa os lados continua sendo o matiz, a letra A/B e o filete: a cor nunca é o único sinal. */
-[data-theme="light"] [data-obs]{--lado-o:#B8481A;--lado-b:#0B6BA8;--lado-n:#7A5C14;--on-lado:#FFFFFF}
+[data-theme="light"] [data-obs]{--lado-o:#B8481A;--lado-b:#0B6BA8;--lado-n:#7A5C14;--on-lado:#FFFFFF;--im-cl:#231C14}
