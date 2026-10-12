@@ -16,14 +16,17 @@ export class PaginacaoExcedidaError extends Error {
   }
 }
 
-/** Teto do corpo que CHEGA da rede (o gzip). O maior relatório real até hoje tem 564 bytes comprimidos. Vale para o
- *  `Content-Length` e, na falta dele, para a leitura do corpo, que aborta ao ultrapassar. */
-export const MAX_GZ_BYTES = 10 * 1024 * 1024
-/** Teto do CSV DESCOMPRIMIDO, em bytes. Os relatórios são CSV (razão de compressão de 10x a 20x): 10 MB de gzip podem ser
- *  100 a 200 MB, e uma bomba, bem mais. Conta de memória (função da Vercel com 1 GB no pior caso): `empacotarCsv` segura ao
- *  mesmo tempo o buffer (N), a string do `toString` (N a 2N) e o array do `split` (até 2N com o custo por linha), cerca de
- *  5N no pico, mais ~300 MB de base do Next. Com N = 64 MB são ~320 MB de pico, ~620 MB no total: cabe com folga. 100 MB
- *  já passaria de 800 MB. Mais de 64 MB de CSV é mais de 100 vezes o maior real (564 bytes comprimidos). */
+/** Teto do que se LÊ do corpo da resposta, em bytes (2 MB; era 10 MB, decisão do dono em 12/10/2026: ninguém provou que o banco
+ *  grava um bruto de 10 MB, que viraria 20 MB em hex no upsert, e o maior relatório real tem 564 bytes). Estourar um teto
+ *  baixo é falha SEGURA: `grande_demais` terminal, cron vermelho, e o dono sobe o teto com prova e devolve o relatório à fila.
+ *  O que ele mede depende do que o `fetch` entrega: com `Content-Encoding: gzip` o fetch descomprime sozinho (gzip de
+ *  TRANSPORTE, não o .gz do relatório) e o corpo lido já é o CSV puro; sem ele o corpo é o que veio no fio. Ver `lerCorpoLimitado`. */
+export const MAX_GZ_BYTES = 2 * 1024 * 1024
+/** Teto do CSV DESCOMPRIMIDO, em bytes, para um corpo que é um .gz de verdade (gzip do relatório, não o de transporte).
+ *  Memória MEDIDA em 12/10/2026 (Node 25, `empacotarCsv` com gunzip + contagem + sha256, CSV de 64 MB, base de 123 MB):
+ *  contando linhas no Buffer o pico sobe +69 MB (~1,1 N) com linhas de 9, 40 ou 200 bytes; com `toString` + `split` era
+ *  +759 MB (linhas de 9 bytes), +265 MB (40 bytes) e +166 MB (200 bytes). Pico absoluto de 192 MB: folga clara num processo
+ *  de 1 GB. O maior relatório real tem 564 bytes comprimidos, ou seja, 64 MB já é ordens de grandeza acima do real. */
 export const MAX_CSV_BYTES = 64 * 1024 * 1024
 
 export interface PacoteCsv {
@@ -64,8 +67,25 @@ export function empacotarCsv(bruto: Buffer): PacoteCsv {
     csv = bruto
   }
   const gz = jaGzip ? bruto : gzipSync(bruto)
-  const linhas = csv.toString('utf8').split('\n').filter(l => l.trim().length > 0).length
-  return { gz, sha256: createHash('sha256').update(csv).digest('hex'), rowCount: Math.max(0, linhas - 1) }
+  return { gz, sha256: createHash('sha256').update(csv).digest('hex'), rowCount: Math.max(0, contarLinhasComConteudo(csv) - 1) }
+}
+
+/** Linhas com algum byte que não seja espaço, tab, CR, VT ou FF, contadas direto no Buffer: sem `toString` nem `split`, a
+ *  memória fica em ~N (um CSV de linhas curtas custava 13 N). Igual ao antigo `split('\n').filter(l => l.trim())` para ASCII;
+ *  só difere numa linha feita apenas de espaço Unicode (NBSP, BOM), que nunca aparece nos relatórios do YouTube. */
+function contarLinhasComConteudo(buf: Buffer): number {
+  let linhas = 0
+  let temConteudo = false
+  for (let i = 0; i < buf.length; i++) {
+    const b = buf[i]!
+    if (b === 0x0a) {
+      if (temConteudo) linhas++
+      temConteudo = false
+    } else if (b !== 0x20 && b !== 0x09 && b !== 0x0d && b !== 0x0b && b !== 0x0c) {
+      temConteudo = true
+    }
+  }
+  return temConteudo ? linhas + 1 : linhas
 }
 
 /**
