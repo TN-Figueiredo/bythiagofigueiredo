@@ -217,6 +217,11 @@ export interface PagerView {
   prev: string | null; next: string | null; backHref: string; position: string; prevLabel: string; nextLabel: string
   /** Anterior/Próximo substituem a entrada do histórico do navegador (spec 3), sempre. */
   replace: true
+  /**
+   * Só a página do vídeo PRÓPRIO usa (spec 17.1): na ponta da lista o botão fica na tela, apagado (`aria-disabled`), e este é o motivo (rótulo e dica).
+   * Ausente = o botão existe e anda. O Histórico do concorrente não escreve estes campos: nas pontas ele continua sem o botão.
+   */
+  prevOff?: string; nextOff?: string
   /** O anúncio depois de trocar de vídeo: "Vídeo 8 de 51: <título>"; vazio quando o vídeo não está na lista de origem. */
   status: string
 }

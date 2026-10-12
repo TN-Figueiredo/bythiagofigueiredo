@@ -105,7 +105,8 @@ describe('moldura do Histórico: só a trilha', () => {
   })
 
   it('o pager mora na linha da trilha (mockup aprovado): um só, dentro de .obs-tr-top, fora da raiz da tela; Próximo e a tecla ] continuam valendo e o foco vai ao botão usado', async () => {
-    const ids = base.videos.filter(v => v.tracked !== false).slice(0, 3).map(v => v.id)
+    // só vídeos de CONCORRENTE: o vídeo de canal próprio abre a tela do vídeo próprio (A4, Tarefa 11), não o Histórico
+    const ids = base.videos.filter(v => v.tracked !== false && !base.channel(v.ch)!.own).slice(0, 3).map(v => v.id)
     const meio = ids[1]!, depois = ids[2]!
     const sp = { from: 'mudancas', ids: ids.join(',') }
     const { container, unmount } = await pagina(meio, sp)
