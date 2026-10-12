@@ -4,6 +4,23 @@
 
 Escrito em 12/10/2026 sobre `staging` local em `f6de92d5` (78 commits à frente de `origin/staging` `4843caef`; a diferença é a A4, docs e duplicatas da E12). Produção: `main` `9478979d`, última migration aplicada `20261009000001`. Nenhuma migration deste plano existe ainda como arquivo.
 
+> **Emenda do portão de fim de plano (12/10/2026, fim da tarde).** Os dois revisores sêniores aprovaram com ressalvas e nenhum deixou o plano ser executado como estava: `.superpowers/sdd/a5/revisao-plano-e1-e2-dados.md` (6 importantes, 12 menores) e `.superpowers/sdd/a5/revisao-plano-e1-e2-software.md` (10 importantes, 14 menores). Os 42 achados foram aceitos; a resposta, uma linha por achado, está em `.superpowers/sdd/a5/resposta-revisao-plano-e1-e2.md`, e o texto novo de cada um, para conferência, em `.superpowers/sdd/a5/plano-e1-e2-emenda-relatorio.md`. Todo trecho mexido leva a marca *(emenda do portão: id)*, com o id da resposta (`D-` dados, `S-` software, `CTRL-` decisão do controlador). **As Tarefas 1, 6, 11 e 14 foram divididas e reescritas** (1a e 1b; 6a e 6b; 11a, 11b e 11c; 14a e 14b), e o Lote 2 ganhou a 17b.
+
+**Como ler os números de tarefa depois da divisão.** Onde um trecho anterior à emenda diz "Tarefa 1", leia 1a (as funções) ou 1b (RLS); "Tarefa 6", 6b; "Tarefa 11", 11a (primeiras horas), 11b (a leitura semanal) ou 11c (a promoção); "Tarefa 14", 14a (integração) ou 14b (API real).
+
+**O que mudou nesta emenda, em dez linhas.**
+
+1. **MG1 e MG2 estão no texto definitivo** (Apêndices A e B): três índices, a guarda de site nas três funções de plano, a 2ª falta só depois de 3 horas, a prova da captura por `last_checked_at`, `canais_em_erro_3d`, `competitor_channels.weekly_pass_date`, a condição a mais em `diaria_buracos_3d` e três chaves novas na prova da série. Aplicadas duas vezes seguidas no banco local, numa transação desfeita, com 35 asserções.
+2. **A passada semanal virou uma fase própria do disparo** (D-I3 e S-I1, uma solução só): a dívida fica no dado, o canal em dívida é lido primeiro, e nada depende da posição do canal nem da duração da faixa das 18:00. O corte de 150 s saiu.
+3. **A miniatura dos vídeos de leitura semanal passa a ser coletada** (regra permanente do dono; pergunta 1, com o padrão "coletar").
+4. **Canal em erro permanente:** vermelho por 3 dias; depois, nota em `acao_do_dono` a cada execução, sem calar os outros crons.
+5. **A série do dia vem antes de toda gravação nova:** as falhas novas são guardadas e lançadas no fim; a promoção a `main` só entre 12:25 e 17:30 de São Paulo.
+6. **A promoção de semanal para diária é decidida pelo estado gravado**, não pelo evento.
+7. **A junção TypeScript × SQL tem teste de integração commitado** (Tarefa 14a); o ensaio com a API real só roda contra o banco local, com a guarda em código (Tarefa 14b).
+8. **Lote 2:** teste de regressão por consumidor de `rowsToDataset` e `loadRows` (cada tela, o Cowork, a fila da forja) com a semente de e2e; retrato sobre linhas congeladas; **nenhum texto de tela muda**; não vai sem o Lote 1 e a MG2.
+9. **Zero `as unknown as` novo em `src`**, e todo `git commit` do plano lista arquivos, nunca pastas.
+10. **As conferências com data** estão em `.superpowers/sdd/a5/conferencias-com-data.md` (seção "E1 e E2") e, onde dá, dentro do cron; a Tarefa 15 as passa para `lib/conferencias.ts`, que a Tarefa 6 do plano da E20 cria.
+
 **O que já foi executado ao escrever este plano, e o que não foi** (para o portão de fim de plano saber em que confiar):
 
 | O quê | Como | Resultado |
@@ -14,44 +31,53 @@ Escrito em 12/10/2026 sobre `staging` local em `f6de92d5` (78 commits à frente 
 | Edições da Tarefa 16 (motor) aplicadas, como o plano descreve, a uma **cópia** de `src/lib` | os 14 testes novos e a pasta `test/youtube/observatorio` inteira, antes e depois | 14 de 14; os 5.266 testes que rodam na cópia continuam passando, e o conjunto de falhas é idêntico ao de antes (110, todas por arquivo de tela que a cópia não tem) |
 | Funções de pacote da Tarefa 17 | o teste de medição do plano, na mesma cópia | maior canal com um ano de série diária e semanal: **665.900** caracteres de 2.000.000; no teto, sem a semanal: 1.641.404 |
 | **Não executado** | o código das Tarefas 6 a 11 e 13 (escrito contra o arquivo lido linha a linha, mas não rodado: é onde a revisão por tarefa mais rende); as edições do carregador e da fixture da Tarefa 17; o bloco de RLS da Tarefa 1; a Tarefa 14 (ensaio com a API real) | — |
+| *(emenda do portão)* SQL **final** da MG1 e da MG2 | banco local, **uma** transação com `rollback`: MG1, MG2, MG1, MG2 (duas vezes seguidas), V1, V3 e 35 asserções (guarda de site nas três funções; A, B, A; 2ª falta aos 20 minutos não conta e às 6 horas conta, vídeo e canal; a prova da captura nos cinco casos de S-I4; canal em erro às 13 h e aos 4 dias; estreia agendada sem ponto = 0 buracos e buraco de verdade = 2; semanal aos 7, 8 e 9 dias; dia fixo; miniatura) | passou. V1 = 21, 13, 5, 5, 9, 9, `'{}'::jsonb`, 0. Depois do `rollback`: 0 coluna e 0 tabela nova, 4 vídeos e 4 canais como antes, `default 0` de `view_count` intacto, `lock_timeout` em 0 |
+| *(emenda do portão)* o dia fixo em SQL × em TypeScript | seis ids no `node` (`sha256`, 4 bytes, módulo 7) e no banco local (a expressão de `competitor_series_health`) | iguais nos seis |
+| *(emenda do portão)* consultas de conferência alteradas ou novas que não dependem das migrations | produção, só `select`, uma por comando: V1 (texto novo), K12, K15b, K16 | V1: 0, 0, 0, 0, 0, 0, `'[]'::jsonb`, 3 (antes de aplicar, como esperado). K12, às 16:57 de São Paulo: ainda a faixa das 12:00 (11 canais no primeiro disparo, o 11º aos 197 s). K15b: de 87 a 118 vídeos por dia fixo, de 6 a 9 canais, maior canal de 30 a 45. K16: 1.390 vídeos, 687 sem versão de miniatura, 703 cópias correntes, 0 sem cópia, 5 trocas |
+| *(emenda do portão)* **Não executado nesta emenda** | o código novo ou alterado das Tarefas 2, 3, 4, 9, 12 e 13 e o das Tarefas 1b, 6b, 11a, 11b, 11c, 14a, 14b e 17b: os "85 de 85 testes" da linha acima são do texto **anterior** à emenda. As consultas que dependem das migrations (V2, K1, K5, K15, K17) rodaram só no banco local. A medição K12 da faixa das 18:00 (depois das 18:45 de São Paulo) ficou como passo da Tarefa 0: a emenda foi fechada às 17:00 | — |
 
 ## 1. Perguntas que só o dono responde
 
-Nenhuma trava o início. Pela regra dele (decisão 44), onde o spec tem padrão vale o padrão; as três abaixo são decisões que este plano tomou onde o spec não fecha, e que ele pode vetar.
+*(emenda do portão: CTRL-a, CTRL-i)* Nenhuma trava o início. Pela regra dele (decisão 44), onde o spec tem padrão vale o padrão; as seis abaixo são decisões que este plano tomou onde o spec não fecha, e que ele pode vetar. Cada uma tem a recomendação e o padrão que vale se ele não responder.
 
-1. **Miniatura dos vídeos antigos (faixa semanal): não é conferida nem arquivada.** O spec diz "o Blob guarda: sem mudança, nada novo é arquivado" (4.2) e ao mesmo tempo quer detectar troca num vídeo semanal (item 17). Medido em produção: 716 vídeos ficam em faixa semanal e **687 deles não têm versão nenhuma guardada** (nunca foram conferidos). Conferir a miniatura deles custaria 687 arquivos novos no Blob (hoje são 707) e cerca de 100 s a mais por dia na faixa das 12:00 durante a primeira semana. **Padrão do plano: a passada semanal confere título e descrição (vêm de graça na resposta) e não a miniatura.** Consequência dita sem suavizar: troca de miniatura num vídeo fora dos 50 mais recentes continua invisível, como é hoje. Se ele quiser a miniatura também, é uma linha (a opção `skipThumb`) e a conta acima.
-2. **Contagem que o YouTube deixa de devolver passa a ser gravada como "não medido" também nos vídeos fixados.** Hoje, só para vídeo fixado, a contagem antiga é mantida quando o YouTube esconde o contador (decisão da fase de fixar vídeo). O spec aprovado (princípio D2 e item 6) manda nulo mais o sinalizador para todos. O plano segue o spec: a tela passa a dizer "não medido" em vez de mostrar um número velho sem data. Três testes mudam por isso (Tarefa 6).
-3. **Um envio para a coleta (E1 e E2 juntas) e outro, depois, para o leitor.** O spec põe a E1 e a E2 em ordens seguidas (3 e 4) e permite aplicar a MG1 e a MG2 juntas. Cada push custa 4 builds da Vercel. O plano entrega em dois lotes: **Lote 1** (a coleta inteira: é o que para de perder dado) e **Lote 2** (o motor e o carregador passam a saber ler a série semanal; não perde dado por esperar). Os commits da E1 não dependem da MG2, então dá para promover a E1 sozinha se ele preferir.
+1. **Miniatura dos vídeos de leitura semanal: passa a ser conferida, e a cópia é guardada quando muda.** *(era "não é conferida"; mudou pela regra permanente dele, "coletar mais dado do que as telas usam, com prioridade ao que a origem sobrescreve", e pelo achado D-I4.)* A miniatura é o único dado deste plano que o YouTube sobrescreve: trocou, a imagem antiga some lá, e o endereço não muda. Medido em produção em 12/10: 703 vídeos têm cópia guardada, **687 não têm nenhuma**; nas cópias de hoje, 0 falha de arquivo; em 10 dias, 5 trocas de miniatura. **Como fica:** toda leitura semanal pergunta ao endereço da imagem se ela mudou (uma requisição de cabeçalho, sem custo de cota: não é a Data API) e só baixa a imagem quando o indício muda, como já é feito nos vídeos diários; a primeira leitura de cada um dos 687 guarda a imagem atual. **A conta:** cota, 0 unidade; Blob, 687 arquivos uma vez, cerca de 26 MB (as cópias de hoje têm 38 kB em média, amostra de 12, de 8 a 126 kB; no pior caso, 87 MB), e depois só as trocas; tempo, cerca de 100 s por dia nos sete primeiros dias e cerca de 30 s por dia depois, gastos na fase semanal, que roda nos disparos sem canal devido (não disputa tempo com a faixa das 12:00). **Recomendação e padrão: coletar.** O custo não é desproporcional, então não há meio-termo a propor. Se ele vetar: a fase semanal passa a rodar sem a sonda (opção `thumbs: false`, uma linha na Tarefa 13) e a Tarefa 12 deixa de cobrar `sem_miniatura_9d` (uma linha). Não verificado: a folga do plano do Blob (a conta do Blob não está no banco).
+2. **Contagem que o YouTube deixa de devolver passa a ser gravada como "não medido" também nos vídeos fixados.** Hoje, só para vídeo fixado, a contagem antiga é mantida quando o YouTube esconde o contador (decisão da fase de fixar vídeo). O spec aprovado (princípio D2 e item 6) manda nulo mais o sinalizador para todos. O plano segue o spec: a tela passa a dizer "não medido" em vez de mostrar um número velho sem data. Três testes mudam por isso (Tarefa 6b). **Padrão: como está aqui** (os dois revisores aceitaram; o último valor medido continua na série, com a data).
+3. **Um envio para a coleta (E1 e E2 juntas) e outro, depois, para o leitor.** O spec põe a E1 e a E2 em ordens seguidas (3 e 4) e permite aplicar a MG1 e a MG2 juntas. Cada push custa 4 builds da Vercel. O plano entrega em dois lotes: **Lote 1** (a coleta inteira: é o que para de perder dado) e **Lote 2** (o motor e o carregador passam a saber ler a série semanal; não perde dado por esperar). **Padrão: dois envios** (os dois revisores aceitaram). *(emenda do portão: S-I8)* O Lote 2 **não vai** sem o Lote 1 em `main` e sem a MG2 aplicada: o carregador novo lê `series_tier`, e sem a coluna todas as telas, o Cowork e a fila da forja cairiam. Promover só a E1 continua possível, mas trava o Lote 2 até a MG2.
+4. **Troca de título, descrição ou miniatura num vídeo antigo, vista com até uma semana de atraso: aparece em "Trocas" como qualquer outra, com a janela escrita ("entre dd/mm e dd/mm").** *(emenda do portão: S-M8)* E a troca cuja janela passa de 8 dias (o vídeo ficou mais de uma semana sem ser conferido, o que só acontece nos 29 vídeos antigos que têm versão guardada de antes, ou depois de uma parada da coleta): **também aparece, na tela e no Cowork, com a janela verdadeira, sem aviso e sem promover o vídeo.** O plano original a mostrava na tela e a escondia do Cowork; os dois lugares dariam números diferentes (contra o princípio D3). **Recomendação e padrão: aparece nos dois, com a janela.** A alternativa, esconder dos dois, pede mexer no leitor das telas e fica para a E5 se ele preferir.
+5. **A frase "inconclusivo: série semanal" não aparece na tela agora.** *(emenda do portão: S-I8, D-6)* O plano original trocava o motivo do efeito de uma troca num vídeo semanal para essa frase, ao lado do rótulo "sem série", sem mockup. Pela regra dele (aprovação visual antes de código), **nenhum texto de tela muda no Lote 2**: o motivo continua o de hoje, e o motor só guarda o fato num campo novo que nenhuma tela lê (`weeklySeries`). A frase entra com o mockup da E5. **Padrão: não aparece.**
+6. **Canal em erro há mais de 12 horas deixa o cron vermelho por 3 dias; depois vira nota.** *(emenda do portão: D-I1, S-M14, CTRL-d)* Hoje isso fica verde. O plano original deixava vermelho para sempre, o que dá 4 avisos por dia sem fim e, como o vigia não repete aviso enquanto o estado é o mesmo, **cala a falha de outro cron** no período. Fica assim: vermelho do 12º hora ao 3º dia; do 3º dia em diante o cron volta a verde e a resposta de **toda execução** traz, em `acao_do_dono`, "canal X em erro desde dd/mm: <motivo>"; o canal segue marcado "erro" na lista de canais. **Sai desse estado** quando o canal sincroniza bem (inclusive por "sincronizar agora"), quando o YouTube deixa de devolvê-lo em duas leituras (vira "ausente", fila da E9), ou quando ele o remove. **Padrão: como está aqui.**
 
-Aviso (não é pergunta): **a primeira semana grava cerca de 8 a 10 MB de uma vez** (a primeira resposta guardada de cada um dos 1.390 vídeos e o primeiro valor de cada campo). O banco vai de 179 para cerca de 189 MB. Conta na seção 5.
+Aviso (não é pergunta): **a primeira semana grava cerca de 8 a 10 MB de uma vez no banco** (a primeira resposta guardada de cada um dos 1.390 vídeos e o primeiro valor de cada campo) **e cerca de 26 MB no Blob** (as 687 miniaturas, pergunta 1). O banco vai de 179 para cerca de 189 MB. Conta na seção 5.
 
 ## 2. O que é do dono
 
-**Uma coisa só: aplicar as duas migrations, antes do código.** Nenhum agente roda `db:push:prod`.
+**Uma coisa só: aplicar as duas migrations, antes do código.** Nenhum agente roda `db:push:prod`. *(emenda do portão: CTRL)* **O SQL dos Apêndices A e B é o texto definitivo**, saído do acordo dos dois revisores (regra dele, decisão 45): ele aplica uma vez e não mexe depois.
 
 | Passo | Quem | O quê |
 |---|---|---|
-| 1 | agente (Tarefa 1) | `npm run db:new observatorio_a5_e1_campos_sinalizadores_raw` e cola o Apêndice A; depois `npm run db:new observatorio_a5_e2_serie_faixas` e cola o Apêndice B. **Nesta ordem** (a MG2 usa colunas da MG1; o carimbo de hora do segundo arquivo tem de ser maior). Commit local. |
-| 2 | agente | prova no banco local (Tarefa 1) e as consultas V1 a V3 abaixo rodadas no banco local |
-| 3 | **dono** | `npm run db:push:prod` (digita `YES`). Aplica as duas no mesmo comando. Se o arquivo da MG13 (etapa E20) já existir e ainda não tiver sido aplicado, vai junto: o spec permite (lote A) |
+| 1 | agente (Tarefa 1a) | `npm run db:new observatorio_a5_e1_campos_sinalizadores_raw` e cola o Apêndice A; depois `npm run db:new observatorio_a5_e2_serie_faixas` e cola o Apêndice B. **Nesta ordem** (a MG2 usa colunas e tabelas da MG1; o carimbo de hora do segundo arquivo tem de ser maior). Commit local |
+| 2 | agente | prova no banco local (Tarefas 1a e 1b) e as consultas V1 a V3 abaixo rodadas no banco local |
+| 3 | **dono** | `npm run db:push:prod` (digita `YES`). Aplica as duas no mesmo comando. *(emenda do portão: S-M12)* O arquivo da MG13 (etapa E20) **já existe** (`20261012000001_observatorio_guarda_do_bruto.sql`); o `db:new` dá às duas daqui um carimbo posterior. Se a MG13 ainda não tiver sido aplicada, vai no mesmo comando, antes delas, e está certo assim (lote A do spec) |
 | 4 | agente | roda V1, V2 e V3 em produção (só leitura) e cola o resultado no ledger |
-| 5 | agente | só então o push do código (seção 9) |
+| 5 | agente | só então o push do código (seção 9), e a promoção a `main` **só entre 12:25 e 17:30 de São Paulo** (Tarefa 15) |
+
+*(emenda do portão: D-m12)* **Quando aplicar.** O cron dos concorrentes dispara nos minutos 00, 20 e 40 de toda hora e escreve em `competitor_videos` e `competitor_channels` por até 5 minutos; nas faixas das 00:00, 06:00, 12:00 e 18:00 de São Paulo escreve mais (até o minuto 25). As duas migrations pedem trava exclusiva nessas duas tabelas por milissegundos. **Janela: qualquer hora, nos minutos 07 a 18, 27 a 38 ou 47 a 58, fora das faixas 12:00 a 12:25 e 18:00 a 18:25 de São Paulo.** Se ainda assim houver sessão presa, a primeira linha de cada arquivo (`set lock_timeout = '5s'`) faz o comando falhar em 5 segundos em vez de esperar: é só rodar de novo (os dois arquivos são idempotentes).
 
 **Compatibilidade, nos dois sentidos.**
 
 - **Migration aplicada, código antigo ainda em `main`** (é o estado normal entre os passos 3 e 5, e pode durar dias): nada quebra. As duas migrations só acrescentam: coluna anulável ou com padrão, tabela nova, função nova. As três exceções, conferidas uma a uma: (a) tirar o `default 0` de `view_count`, `like_count` e `comment_count` não muda o que o código antigo grava, porque o único `insert` em `competitor_videos` (`competitor-sync.ts:484`) manda os três campos (lido no código; as três colunas já são anuláveis em produção, medido); (b) o padrão de `youtube_quota_usage.operations` passa de `'[]'` para `'{}'`: a tabela tem 0 linhas e nenhum escritor (medido e lido); (c) `competitor_channel_removal_impact` é recriada com as mesmas chaves e mais quatro: o leitor (`competitor-removal-impact.ts`) confere só as cinco que usa e ignora o resto (lido). A Tarefa 1 prova isso rodando os testes de integração do código **antigo** contra o schema novo, antes de qualquer mudança de código.
 - **Código novo sem a migration** (ordem invertida por engano): o cron de concorrentes **para em vermelho na primeira linha e não grava nada**, com a mensagem "migrations MG1/MG2 não aplicadas" (guarda `schemaReady`, Tarefas 9 e 13, com teste). O código antigo faria `update` com coluna inexistente e seguiria em verde; por isso a guarda existe.
 
-**V1: a migration entrou inteira?** (testada em 12/10 no banco local, antes e depois, e em produção antes: lá deu 0, 0, 0, 0, 0, `'[]'::jsonb`, 3.) Depois de aplicada tem de dar **21, 12, 5, 5, 9, `'{}'::jsonb`, 0**.
+**V1: a migration entrou inteira?** *(emenda do portão: a consulta ganhou a coluna `weekly_pass_date` e a contagem dos nove índices)* (testada em 12/10 no banco local com as duas aplicadas, e em produção antes de aplicar: lá deu 0, 0, 0, 0, 0, 0, `'[]'::jsonb`, 3.) Depois de aplicada tem de dar **21, 13, 5, 5, 9, 9, `'{}'::jsonb`, 0**.
 
 ```sql
-select (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'competitor_videos' and column_name in ('discovered_at', 'default_language', 'default_audio_language', 'live_broadcast_content', 'live_scheduled_start_at', 'live_actual_start_at', 'live_actual_end_at', 'was_live', 'comments_disabled', 'likes_hidden', 'views_hidden', 'miss_streak', 'miss_first_at', 'missing_since', 'last_seen_at', 'removal_decision', 'removal_decided_at', 'removal_decided_by', 'series_tier', 'series_tier_since', 'daily_until')) as colunas_video_de_21, (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'competitor_channels' and column_name in ('custom_url', 'description', 'published_at', 'country', 'subscribers_hidden', 'miss_streak', 'miss_first_at', 'missing_since', 'last_seen_at', 'removal_decision', 'removal_decided_at', 'removal_decided_by')) as colunas_canal_de_12, (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity and c.relname in ('competitor_field_versions', 'competitor_raw', 'competitor_removed_items', 'competitor_video_early', 'competitor_video_tier_spans')) as tabelas_com_rls_de_5, (select count(*) from pg_policies where schemaname = 'public' and tablename in ('competitor_field_versions', 'competitor_raw', 'competitor_removed_items', 'competitor_video_early', 'competitor_video_tier_spans')) as policies_de_5, (select count(distinct p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('apply_competitor_field_plan', 'apply_competitor_raw_plan', 'competitor_mark_missing', 'competitor_channel_mark_missing', 'youtube_quota_add', 'jsonb_num_merge', 'competitor_capture_health', 'apply_competitor_tier_plan', 'competitor_series_health')) as funcoes_de_9, (select column_default from information_schema.columns where table_schema = 'public' and table_name = 'youtube_quota_usage' and column_name = 'operations') as padrao_operations, (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'competitor_videos' and column_name in ('view_count', 'like_count', 'comment_count') and column_default is not null) as contadores_com_padrao;
+select (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'competitor_videos' and column_name in ('discovered_at', 'default_language', 'default_audio_language', 'live_broadcast_content', 'live_scheduled_start_at', 'live_actual_start_at', 'live_actual_end_at', 'was_live', 'comments_disabled', 'likes_hidden', 'views_hidden', 'miss_streak', 'miss_first_at', 'missing_since', 'last_seen_at', 'removal_decision', 'removal_decided_at', 'removal_decided_by', 'series_tier', 'series_tier_since', 'daily_until')) as colunas_video_de_21, (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'competitor_channels' and column_name in ('custom_url', 'description', 'published_at', 'country', 'subscribers_hidden', 'miss_streak', 'miss_first_at', 'missing_since', 'last_seen_at', 'removal_decision', 'removal_decided_at', 'removal_decided_by', 'weekly_pass_date')) as colunas_canal_de_13, (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity and c.relname in ('competitor_field_versions', 'competitor_raw', 'competitor_removed_items', 'competitor_video_early', 'competitor_video_tier_spans')) as tabelas_com_rls_de_5, (select count(*) from pg_policies where schemaname = 'public' and tablename in ('competitor_field_versions', 'competitor_raw', 'competitor_removed_items', 'competitor_video_early', 'competitor_video_tier_spans')) as policies_de_5, (select count(distinct p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('apply_competitor_field_plan', 'apply_competitor_raw_plan', 'competitor_mark_missing', 'competitor_channel_mark_missing', 'youtube_quota_add', 'jsonb_num_merge', 'competitor_capture_health', 'apply_competitor_tier_plan', 'competitor_series_health')) as funcoes_de_9, (select count(*) from pg_indexes where schemaname = 'public' and indexname in ('idx_cfv_one_current_video', 'idx_cfv_one_current_channel', 'idx_cfv_channel_seen', 'idx_cfv_video_seen', 'idx_craw_one_current_video', 'idx_craw_one_current_channel', 'idx_craw_channel', 'idx_craw_video', 'idx_cvts_one_open')) as indices_de_9, (select column_default from information_schema.columns where table_schema = 'public' and table_name = 'youtube_quota_usage' and column_name = 'operations') as padrao_operations, (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'competitor_videos' and column_name in ('view_count', 'like_count', 'comment_count') and column_default is not null) as contadores_com_padrao;
 ```
 
 **V2: nada foi tocado nos dados?** Esperado, enquanto o código antigo estiver em `main`: `videos = videos_intactos` (1.390 em 12/10), `canais_intactos = 15`, `linhas_nas_5_tabelas_novas = 0`.
 
 ```sql
-select (select count(*) from competitor_videos) as videos, (select count(*) from competitor_videos where miss_streak = 0 and missing_since is null and series_tier is null and last_seen_at is null) as videos_intactos, (select count(*) from competitor_channels where miss_streak = 0 and last_seen_at is null) as canais_intactos, (select count(*) from competitor_field_versions) + (select count(*) from competitor_raw) + (select count(*) from competitor_video_early) + (select count(*) from competitor_video_tier_spans) + (select count(*) from competitor_removed_items) as linhas_nas_5_tabelas_novas;
+select (select count(*) from competitor_videos) as videos, (select count(*) from competitor_videos where miss_streak = 0 and missing_since is null and series_tier is null and last_seen_at is null) as videos_intactos, (select count(*) from competitor_channels where miss_streak = 0 and last_seen_at is null and weekly_pass_date is null) as canais_intactos, (select count(*) from competitor_field_versions) + (select count(*) from competitor_raw) + (select count(*) from competitor_video_early) + (select count(*) from competitor_video_tier_spans) + (select count(*) from competitor_removed_items) as linhas_nas_5_tabelas_novas;
 ```
 
 **V3: quem executa as funções?** Esperado: dez linhas, todas `anon = false`, `autenticado = false`, `servico = true`.
@@ -75,7 +101,11 @@ select p.proname, has_function_privilege('anon', p.oid, 'execute') as anon, has_
 ## Global Constraints
 
 - **Sem branch, sem worktree, sem `git stash`, sem `git reset`.** Tudo em `staging`. Commits por caminho explícito (`git commit -- <caminhos>`). Outros terminais trabalham na mesma árvore.
+- *(emenda do portão: S-I2)* **Todo `git commit` lista ARQUIVOS, nunca pastas.** `git commit -- <pasta>` leva todo arquivo rastreado e modificado debaixo dela, mesmo sem `git add`, e a A4 (local, inacabada) tem arquivos modificados em `apps/web/test/youtube/observatorio/` e em `apps/web/src/lib/youtube/observatorio/`. Antes de todo commit: `git diff --cached --name-only` tem de mostrar **só** arquivos da lista da seção 9; e o commit usa a mesma lista do `git add`. Um arquivo fora da lista é parada: não commite, relate.
+- *(emenda do portão: S-I3)* **Nenhum `as unknown as` novo em `apps/web/src`.** A trava `scripts/check-type-debt.sh` roda no pre-push e na CI e falha se a contagem subir (baseline 148). Leitura do banco com forma conhecida passa por `rowsAs` (Tarefa 4), que confere a forma em vez de afirmar. As Tarefas 4, 10, 11b e 12 rodam `bash scripts/check-type-debt.sh` na verificação. Em arquivo de teste o cast continua livre (a trava não os conta).
 - **Nada escreve em produção.** Migration é do dono. Leitura de produção só por `npx supabase db query --linked "<select>"`.
+- *(emenda do portão: S-I7, CTRL-f)* **`apps/web/.env.local` aponta para PRODUÇÃO** (`NEXT_PUBLIC_SUPABASE_URL` e a chave de serviço). Nenhum script deste plano roda com esse arquivo carregado sem a guarda em código que aborta fora de `127.0.0.1` ou `localhost` (Tarefa 14b). Os testes com banco usam `HAS_LOCAL_DB=1` e o ambiente de teste, como o resto do projeto.
+- *(emenda do portão: D-m11)* O TypeScript calcula o dia de São Paulo com deslocamento fixo de 3 horas (`spDate`, que já existe) e o SQL usa `America/Sao_Paulo`: dão o mesmo dia enquanto o Brasil não tiver horário de verão (não tem desde 2019). Comportamento que já existe; não é mudado aqui.
 - **Migration só por `npm run db:new <nome>`**; idempotente (`if not exists`, `create or replace`, `drop policy if exists` antes de `create policy`); funções com `set search_path = ''` e nomes qualificados (`public.`), `execute` só para `service_role` (OP-2).
 - **Não tocar** em `docs/cowork-*`, `apps/web/data/pipeline-docs/` nem `apps/web/src/lib/pipeline/api-registry.ts`. Este plano não cria nem muda rota de pipeline. Se uma tarefa parecer pedir, pare e relate.
 - **Não tocar nos arquivos que a A4 mexe** (lista na seção 9): em especial `apps/web/test/helpers/fake-supabase.ts`, `apps/web/e2e/fixtures/observatorio-seed.ts`, `lib/youtube/observatorio/links.ts`, `stats.ts` e `proprio/`. Se um teste precisar de algo novo no falso do banco, crie o auxiliar no próprio arquivo de teste.
@@ -96,7 +126,7 @@ Entradas que o spec implica e que mais provavelmente mordem; cada uma tem o test
 1. **A resposta do YouTube vem sem uma parte inteira** (`snippet`, `statistics` ou `contentDetails` ausente no item). Esperado: os campos daquela parte não são comparados (parte ausente não é "mudou para nulo"), nenhuma versão é criada, e a execução conta `partsMissing`. Teste na Tarefa 3.
 2. **O mesmo vídeo é pedido duas vezes na mesma sincronização** (página de uploads e passada diária) e falta nas duas. Esperado: uma falta só (`miss_streak` soma 1, não 2). Teste na Tarefa 8.
 3. **Uma chamada `videos.list` falha com HTTP 500.** Esperado: os vídeos daquela chamada **não** são contados como ausentes (falha de rede não é sumiço). Teste na Tarefa 8.
-4. **O relógio do lote estoura antes da passada semanal.** Esperado: a série diária já foi gravada, os semanais ficam devidos pelo próprio dado e são lidos na faixa seguinte; a execução devolve quantos adiou. Teste na Tarefa 11.
+4. *(emenda do portão: D-I3, S-I1)* **O relógio do disparo acaba no meio da fase semanal, e a ordem dos canais é a mesma todo dia.** Esperado: o vídeo que não chegou a ser conferido não ganha o ponto do dia (o ponto é o recibo), o canal não é carimbado em `weekly_pass_date`, e no disparo seguinte ele é o primeiro da fase. Nenhum canal fica sem a passada do dia por causa da posição. Testes nas Tarefas 11b (o recibo) e 13 (as duas faixas, 15 canais na ordem estável).
 5. **A função de prova devolve nulo ou uma forma inesperada** (função ausente, erro de rede). Esperado: o cron fica vermelho com "não foi possível ler a prova"; nunca verde. Teste na Tarefa 12.
 
 ---
@@ -108,7 +138,7 @@ Entradas que o spec implica e que mais provavelmente mordem; cada uma tem o test
 | Canais concorrentes, sites | 15, 1 | todas as contas |
 | Vídeos guardados | 1.390 (0 sem `published_at`, 0 fixados, 0 com `view_count` nulo) | volume, faixas |
 | Com linha de série no último dia (12/10) | 674 | conjunto diário de hoje |
-| Fora da série (viram faixa semanal) | 716; por canal: 235, 223, 88, 85, 45, 22, 7, 4, 2, 2, 1 e quatro canais com 0 | cota e tempo da passada semanal |
+| Fora da série (viram faixa semanal) | 716; por canal: 235, 223, 88, 85, 45, 22, 7, 6, 2, 2, 1 e quatro canais com 0 *(emenda do portão: D-m6; recontado em produção, soma 716)* | cota e tempo da passada semanal |
 | Publicados em 30 dias; em 72 horas; em 14 dias | 127; 13; 55 | primeiras horas, regra de idade |
 | Vídeos com até 30 dias fora dos 50 mais recentes | **0** (o canal que mais publica tem 45 em 30 dias) | a regra de idade não acrescenta leitura hoje |
 | `comment_count = 0`; `like_count = 0` | 64; 2 | item 6 (não se sabe quantos são "desligado") |
@@ -126,8 +156,12 @@ Entradas que o spec implica e que mais provavelmente mordem; cada uma tem o test
 | **Duração por canal na faixa das 12:00** (diferença entre os inícios seguidos) | 24, 23, 24, 21, 15, 10, 20, 22, 21, 18 s nos dez primeiros; 27, 22, 17 s no segundo disparo. Mediana 21 s | tempo |
 | **A faixa das 12:00 já não cabe num disparo** | o primeiro disparo começou o 1º canal às 12:00:49 e o 11º às 12:04:06 (197 s); os quatro canais restantes saíram no disparo das 12:20 | tempo; item 22 |
 | `cron_runs` não registra este cron | 0 linhas com `sync-youtube` | a duração só se mede pelos inícios dos canais (consulta K12) |
+| *(emenda do portão: S-I1)* **A ordem dos canais na faixa das 12:00 é a mesma todo dia** | medido pelo revisor de software em 10, 11 e 12/10, ao segundo: a posição 7 começa às 12:02:47 (167 s do disparo), a 11 às 12:04:06. As posições 7 a 11 somam 376 dos 716 vídeos semanais (53%) | por que o corte fixo de 150 s do plano original nunca deixaria esses canais lerem os semanais |
+| *(emenda do portão)* Disparos com canal devido, por dia | 8 dos 72: dois por faixa (o da hora cheia e o dos 20 minutos). Entre 12:00 e 23:40 de São Paulo, 4 de 36 | a fase semanal tem 32 disparos por dia sem nenhum canal devido |
+| *(emenda do portão: D-I3)* Vídeos semanais por dia fixo (K15b, em produção) | 118, 99, 116, 92, 87, 99, 105 (soma 716); de 6 a 9 canais com vídeo devido por dia; no maior canal, de 30 a 45 por dia | o trabalho de um dia da fase semanal |
+| *(emenda do portão: D-I4)* Miniaturas (K16, em produção) | 708 versões, 703 correntes, **0 sem cópia no Blob**, 5 trocas em 10 dias; 687 vídeos sem versão nenhuma. Cópias guardadas: média de 38 kB (amostra de 12 por `HEAD`: de 8 a 126 kB) | pergunta 1; a conta do Blob |
 
-**Não medido, declarado estimativa onde aparecer:** o tempo de ida e volta ao banco a partir da Vercel (suposto 50 ms; a Tarefa 14 mede); o tamanho real de uma resposta `videos.list` com as quatro partes (o banco não guarda nenhuma hoje); quantos vídeos antigos trocaram de título desde a última vez que foram vistos; o atraso do disparo da Vercel na hora cheia (o primeiro canal começa 49 s depois das 12:00: inclui o atraso e a sonda de controle; é a conferência C0.5, da E16).
+**Não medido, declarado estimativa onde aparecer:** *(emenda do portão)* a duração por canal na faixa das 18:00 (K12 só guarda a última faixa; medir depois das 18:45 de São Paulo é o Step 4 da Tarefa 0, e o desenho da fase semanal **não depende** desse número); o tempo de uma sonda de miniatura com arquivo (suposto 1 s; a sonda sem arquivo é ≈ 0,3 s, deduzida dos 15 s que ela pesa hoje nos 50 vídeos de um canal); a folga do Blob; o tempo de ida e volta ao banco a partir da Vercel (suposto 50 ms; a Tarefa 14 mede); o tamanho real de uma resposta `videos.list` com as quatro partes (o banco não guarda nenhuma hoje); quantos vídeos antigos trocaram de título desde a última vez que foram vistos; o atraso do disparo da Vercel na hora cheia (o primeiro canal começa 49 s depois das 12:00: inclui o atraso e a sonda de controle; é a conferência C0.5, da E16).
 
 **Medido no banco local, com dado sintético** (1.000 vídeos, resposta de 3,9 kB com descrição repetitiva; transação desfeita): `competitor_field_versions` **296 B por linha** com os três índices; `competitor_raw` **1.507 B por linha** (a descrição sintética comprime melhor que a real: o real fica entre 2 e 3 kB, estimativa); `competitor_video_tier_spans` 246 B; `competitor_video_early` 156 B.
 
@@ -142,13 +176,14 @@ A Data API cobra 1 unidade por chamada `videos.list`, `channels.list` e `playlis
 | Sincronização de hoje: 4 faixas × (canal + página de uploads + detalhes) | 12 | 180 | 240 | lido no código (`video_limit` 50 dá 1 página) |
 | Passada diária: uma chamada por 50 vídeos da faixa diária | 1 | 15 | 20 | 674 vídeos em 15 canais, no máximo 50 por canal |
 | **E1** (partes novas nas mesmas chamadas) | 0 | 0 | 0 | D1 |
-| **E2, passada semanal**: os devidos do dia entram nos mesmos lotes de 50 da passada diária; canal com 50 diários e pelo menos um semanal devido faz 1 chamada a mais | 0 a 1 | **≈ 8** | ≈ 13 | seis canais têm semanal devido todo dia (235, 223, 88, 85, 45 e 22 vídeos); os cinco pequenos, em parte dos dias (7, 4, 2, 2 e 1 vídeos: 0,66 + 0,46 + 0,27 + 0,27 + 0,14) |
+| **E2, fase semanal** *(emenda do portão: D-I3)*: uma chamada `videos.list` por 50 vídeos devidos de cada canal, numa fase própria do disparo | 0 a 1 | **≈ 8** | ≈ 13 | medido (K15b): de 6 a 9 canais têm vídeo devido por dia, e o maior tem de 30 a 45 (cabe numa chamada). A conta não mudou com a emenda: antes era "1 chamada a mais no canal", agora é "1 chamada do canal na fase" |
+| *(emenda do portão: D-I4)* **Miniatura dos semanais** (requisição ao endereço da imagem, `i.ytimg.com`) | 0 | 0 | 0 | não é a Data API: não gasta cota |
 | **E2, primeiras horas** (reaproveita a página de uploads) | 0 | 0 | 0 | 4.3, ponto 4 |
 | **Total** | | **≈ 203 (2,0% de 10.000)** | **≈ 273 (2,7%)** | |
 
 - **Pior caso por canal:** um canal em modo `full` com 2.000 vídeos guardados tem 1.950 semanais, 279 por dia, 6 chamadas. Com 75 canais do tamanho de hoje: ≈ 1.050 por dia (10,5%).
 - A cota é a mesma do A/B Lab, do envio de vídeos e da busca de canais (fato 13 do spec). **O que a E1 passa a registrar em `youtube_quota_usage` é só a parte dos concorrentes** (chave `competitors`); a soma do projeto inteiro continua sem registro. Dito para não se ler a linha do dia como "a cota do dia".
-- A conta é presa por teste: a Tarefa 11 afirma o número de chamadas de uma sincronização com 50 diários e 34 semanais devidos (5 chamadas: canal, página, detalhes e 2 lotes; 4 quando a página não traz vídeo), e a Tarefa 9 afirma que o número gasto é o que vai para a linha do dia.
+- *(emenda do portão)* A conta é presa por teste: a Tarefa 10 afirma o número de chamadas de uma sincronização com 50 diários (4: canal, página, detalhes e 1 lote da passada diária); a Tarefa 11b afirma que a fase semanal de um canal com 34 devidos faz **uma** chamada e a de um canal com 120 devidos faz três; e a Tarefa 9 afirma que o número gasto é o que vai para a linha do dia (a fase semanal soma na mesma linha, na chave `competitors_semanal`).
 
 ## 5. A conta: tempo de função e volume
 
@@ -162,19 +197,36 @@ A Data API cobra 1 unidade por chamada `videos.list`, `channels.list` e `playlis
 | 20 canais | ≈ 410 s, 3 disparos | ≈ 465 s, 3 disparos | ≈ 450 s, 3 disparos |
 | 75 canais | ≈ 1.540 s, 8 disparos (2 h 40) | ≈ 1.700 s, 9 disparos (3 h) | idem |
 
-De onde vem o acréscimo (suposição: 50 ms por ida ao banco, a medir na Tarefa 14 e em D0): por sincronização de canal, cerca de 7 idas a mais (captura do canal, captura da página, carimbo de "visto", cota, leitura de todos os vídeos) ≈ 0,35 s; na faixa das 12:00, os 102 vídeos semanais do dia custam uma chamada à API por lote (≈ 0,4 s), a gravação da linha do vídeo (≈ 50 ms cada) e, só na primeira semana, a linha de base de título e descrição (≈ 60 ms cada): ≈ 22 s na semana 1, ≈ 16 s depois. A sonda de miniatura, que é o que mais pesa hoje (cerca de 15 dos 21 s), **não** é feita para os semanais (pergunta 1).
+*(emenda do portão: D-I3, S-I1, D-I4. A tabela acima vale para a sincronização dos canais devidos; a leitura dos semanais saiu dela e tem conta própria, abaixo.)*
 
-**O que protege se a estimativa estiver errada** (preso por teste na Tarefa 13): a passada semanal só começa um lote enquanto o disparo tem menos de 150 s (`WEEKLY_CUTOFF_MS`); a diária vem sempre antes; o que não coube fica devido pelo dado e é lido na faixa das 18:00. A ordem dos tetos é `150 s < 200 s < 230 s < 300 s`.
+De onde vem o acréscimo na sincronização de um canal (suposição: 50 ms por ida ao banco, a medir na Tarefa 14b e em D0): cerca de 7 idas a mais (captura do canal, captura da página, carimbo de "visto", cota, leitura de todos os vídeos) ≈ 0,35 s. Os vídeos semanais **não** são mais lidos aqui: a linha "maior canal" da tabela fica em ≈ 21,5 s, e a soma da faixa das 12:00 fica em ≈ 310 s com 15 canais (2 disparos, como hoje).
+
+**A fase semanal, que roda depois dos canais devidos, em todo disparo a partir das 12:00 de São Paulo.**
+
+| | Regime (estimativa) | Semana 1 (estimativa) | Base |
+|---|---|---|---|
+| Vídeos devidos por dia | 87 a 118 | idem | K15b, medido |
+| Por vídeo: linha do vídeo, sonda da miniatura sem troca, versões | ≈ 0,35 s | ≈ 1,05 s (a sonda baixa e arquiva a imagem dos 687 que não têm cópia; linha de base de título e descrição) | sonda de hoje: cerca de 15 s por 50 vídeos (0,3 s cada); arquivo: suposto 0,7 s a mais |
+| Por canal visitado: leituras do estado, uma chamada à API por 50 devidos, captura, pontos | ≈ 0,8 s | idem | 6 idas ao banco e 1 à API |
+| **Total do dia** | **≈ 45 s** | **≈ 115 s** | 102 × 0,35 + 9 × 0,8; 102 × 1,05 + 9 × 0,8 |
+| Maior canal num dia (45 devidos) | ≈ 17 s | ≈ 48 s | dentro do orçamento de 60 s por visita |
+| Canal `full` de 2.000 vídeos (279 devidos por dia) | ≈ 100 s (2 visitas) | ≈ 295 s (5 visitas) | o que passa do orçamento da visita continua no disparo seguinte |
+
+**De quanto tempo a fase dispõe** (medido: quais disparos têm canal devido): dos 36 disparos entre 12:00 e 23:40, o das 12:00 usa os 200 s com os canais (a fase não começa); o das 12:20 termina os 4 canais restantes aos ≈ 70 s e deixa ≈ 140 s; **os 16 seguintes, até as 17:40, não têm canal devido e começam com 210 s inteiros**; o mesmo depois das 18:20. Em regime, a fase termina no disparo das 12:20; na semana 1, no das 12:40. Com 75 canais (9 disparos por faixa só para os canais), sobram 9 disparos livres por faixa: 1.890 s, contra ≈ 250 s de trabalho semanal.
+
+**O que protege se a estimativa estiver errada** (preso por teste na Tarefa 13): a série diária vem sempre antes (a fase só começa depois do último canal devido do disparo); a fase para de começar vídeo aos 210 s e nenhuma visita a um canal passa de 60 s; o que o relógio cortou **continua devido pelo próprio dado** (o vídeo sem ponto hoje, o canal com `weekly_pass_date` diferente de hoje) e é o primeiro do disparo seguinte. Não há mais corte que dependa da posição do canal. A ordem dos tetos é `210 s (semanal) < 230 s (backfill de Shorts) < 300 s (função)`, com `200 s` para começar canal.
 
 **Volume, uma vez** (do D0 ao D+6, à medida que cada vídeo é lido pela primeira vez):
 
 | O quê | Linhas | Tamanho | Base |
 |---|---|---|---|
-| Primeiro valor de cada campo (10 por vídeo, 7 por canal) | 14.005 | ≈ 4,1 MB | 296 B por linha, medido local |
+| Primeiro valor de cada campo (10 por vídeo, 7 por canal) | 14.005 | ≈ 4,1 MB | 296 B por linha, medido local. *(emenda do portão: D-m5, D-m8)* O catálogo tinha 9 campos de vídeo quando a conta foi escrita com 10; com `views_hidden` no catálogo são 10 de fato |
 | Primeira resposta guardada (`raw`) | 1.405 | 2,1 a 4,2 MB | 1,5 kB medido com texto sintético; 3 kB é o teto estimado |
 | Faixa inicial de cada vídeo | 1.390 | 0,34 MB | 246 B, medido local |
-| Linha de base de título e descrição dos 687 nunca conferidos | 1.374 | ≈ 1,4 MB | 1.010 B por versão, medido em produção |
-| **Total** | | **≈ 8 a 10 MB** (o banco vai de 179 para ≈ 189 MB) | |
+| Linha de base de título, descrição e miniatura dos 687 nunca conferidos | 2.061 *(emenda do portão: D-I4; eram 1.374 sem a miniatura)* | ≈ 2,1 MB | 1.010 B por versão, medido em produção |
+| Os três índices da emenda (D-I5a) | | ≈ 0,6 MB | estimativa do revisor de dados |
+| **Total no banco** | | **≈ 9 a 11 MB** (o banco vai de 179 para ≈ 190 MB) | |
+| *(emenda do portão: D-I4)* **No Blob:** a miniatura atual dos 687 sem cópia | 687 arquivos (hoje são 708) | ≈ 26 MB (até 87 MB) | 38 kB em média nas cópias de hoje (amostra de 12; a maior, 126 kB) |
 
 **Volume, por dia e por ano, só o que este plano acrescenta:**
 
@@ -197,22 +249,29 @@ O histórico de campo custa mais que a estimativa do spec (0,2 MB por canal por 
 |---|---|---|---|---|
 | O YouTube não devolve `commentCount` | grava 0 | nulo e `comments_disabled` | a tela diz "não medido" | — |
 | Não devolve `viewCount` (estatística oculta, estreia agendada) | a linha diária não é gravada; o vídeo é pedido de novo, sem aviso | `views_hidden`; sem linha de série; **fora das provas**; a execução devolve "N fora da prova" | número na resposta do cron (`fora_da_prova`) | sai sozinho quando a contagem volta |
-| Uma parte inteira da resposta não vem | os campos são sobrescritos com vazio | os campos daquela parte não são comparados; `partsMissing` na resposta | resposta do cron | — |
+| Uma parte inteira da resposta não vem | os campos são sobrescritos com vazio | os campos daquela parte não são comparados **nem regravados na linha do vídeo** (S-M2); o número do dia fica em `youtube_quota_usage.operations.partes_ausentes` | *(emenda do portão: D-I5b)* a linha da cota (K3), que é durável; a resposta do cron ninguém guarda | — |
 | O vídeo deixa de vir de `videos.list` | a linha fica congelada, sem marca | 1ª leitura: `miss_streak = 1`; 2ª seguida: `missing_since` com a data da 1ª e versão `availability = 'sumiu'`. Nada é apagado | `videos_ausentes` na resposta do cron; a fila na tela é a E9 | sai quando volta (abre `no_ar`) ou quando o dono decidir (E9) |
 | A chamada `videos.list` falha (HTTP 500, tempo) | o canal fica em erro | igual, **e nenhum vídeo daquela chamada conta como ausente** | o canal aparece em "erro" na lista de canais | na sincronização seguinte |
 | `channels.list` vem sem o canal | o canal fica em erro "não encontrado" | igual, mais `miss_streak`; na 2ª, `missing_since` | "erro" na lista; `canais_ausentes` na resposta | quando voltar ou na E9 |
-| Um canal fica em erro por mais de 12 horas (duas faixas) | **verde** (o disparo seguinte, sem nada devido, grava sucesso) | **vermelho**: "N canais em erro há mais de 12 h" | vigia | quando o canal sincronizar, ou o dono o remover |
-| A gravação do histórico de campo ou do `raw` falha | — | a série do dia já foi gravada antes; o canal termina em erro ("captura: …"); o "visto" não é carimbado, então a janela da próxima mudança continua certa | "erro" na lista; vermelho se metade dos canais falhar; `videos_vistos_sem_raw` na prova | na sincronização seguinte (o plano é refeito do zero) |
+| Um canal fica em erro por mais de 12 horas (duas faixas) | **verde** (o disparo seguinte, sem nada devido, grava sucesso) | *(emenda do portão: D-I1, CTRL-d)* **vermelho por 3 dias**: "N canais em erro há mais de 12 h"; do 3º dia em diante o cron volta a verde e toda execução devolve em `acao_do_dono`: "canal X em erro desde dd/mm: motivo" | vigia (3 dias); depois, `acao_do_dono` na resposta de toda execução e o canal marcado "erro" na lista | **sim**: o vermelho acaba no 3º dia. A nota acaba quando o canal sincroniza bem, quando some do YouTube em duas leituras (vira "ausente") ou quando o dono o remove |
+| A gravação do histórico de campo ou do `raw` falha | — | a série do dia já foi gravada antes; o canal termina em erro ("não foi possível guardar o histórico de campos: …"); o "visto" não é carimbado, então a janela da próxima mudança continua certa | "erro" na lista; vermelho se metade dos canais falhar; *(emenda do portão: S-I4)* e **vermelho no disparo seguinte**: "N vídeos lidos sem resposta guardada" (a prova agora conta por `last_checked_at`, que é carimbado mesmo quando a captura falha) | na sincronização seguinte (o plano é refeito do zero) |
+| *(emenda do portão: S-I5)* Qualquer outra gravação nova falha (linha do vídeo, linha do canal, primeiras horas, troca de faixa, promoção) | os erros de `insert` e `update` do vídeo são ignorados | o erro é guardado, **a passada diária roda assim mesmo**, e o canal termina em erro com a frase em português | "erro" na lista; vermelho se metade dos canais falhar, ou depois de 12 h | na sincronização seguinte |
 | A resposta de um vídeo passa de 100 kB | — | não é guardada; `rawTooBig` | **vermelho**: "N vídeos lidos sem resposta guardada" | só subindo o teto (uma constante); nunca visto: a descrição máxima é 5 kB |
-| A cota não é gravada | nunca é gravada (0 linhas) | a sincronização segue; **vermelho** se houve canal lido no dia do Pacífico e a linha do dia está em 0 | vigia | quando a gravação voltar |
+| A cota não é gravada | nunca é gravada (0 linhas) | a sincronização segue; *(emenda do portão: D-I5b)* o lote tenta de novo no fim do disparo, com a soma do que faltou e a chave `erros_cota`; se falhar de novo, o disparo fica vermelho ("cota não gravada: N unidades"); e **vermelho** se houve canal lido no dia do Pacífico e a linha do dia está em 0 | vigia | quando a gravação voltar |
+| *(emenda do portão: S-M3)* A função morre por tempo (300 s) no meio de um canal | — | **a cota daquele canal não é gravada** (a gravação é no fim da sincronização); o canal fica `syncing` e é retomado na faixa seguinte | não se vê na linha da cota; a prova "cota em 0 com canal lido" só pega se nada foi gravado no dia. Risco declarado (seção 12, item 8) | na faixa seguinte |
 | Mais de 200 vídeos na regra diária | (não existe) | os mais antigos da regra de idade vão para a semanal; o número fica em `operations.teto_diario_cortados` e na resposta | resposta do cron e linha da cota | — |
 | A passada diária falha para um canal | o canal fica em erro; a sincronização seguinte completa | igual; **e** depois das 18:00, com a faixa inteira tentada: vermelho "N vídeos da faixa diária sem ponto hoje" | vigia | no dia seguinte vira a linha de baixo |
 | Ficou um dia sem ponto na faixa diária | **verde**, e o motor recusa o intervalo | **vermelho por 3 dias**: "N buracos na série diária nos últimos 3 dias" | vigia | sai sozinho no 4º dia (o ponto não volta; o aviso não é eterno) |
-| Um vídeo semanal passa de 8 dias sem ponto | (não existe) | **vermelho**: "N vídeos da faixa semanal sem ponto há mais de 8 dias" | vigia | quando for lido; vídeo ausente ou sem contagem fica fora |
-| O relógio não deixou começar a passada semanal | (não existe) | `weeklyDeferred` na resposta; os vídeos seguem devidos | resposta do cron | na faixa das 18:00; se falhar três dias, vira a linha de cima |
-| Vídeo com `series_tier` sem linha de faixa correspondente, ou sem faixa depois de o canal sincronizar | (não existe) | **vermelho**: "N vídeos sem faixa de série" | vigia | na sincronização seguinte do canal |
+| *(emenda do portão: D-I3, D-m1)* Depois das 19:00 ainda há vídeo semanal do dia sem ponto | (não existe) | **vermelho**: "N vídeos da faixa semanal devidos hoje e ainda sem ponto" (`semanal_devidos_hoje`, só cobrado depois das 19:00 de São Paulo e com a faixa inteira tentada) | vigia | no disparo seguinte (20 minutos) que conseguir ler; à meia-noite vira a linha de baixo |
+| Um vídeo semanal chega ao 8º dia sem ponto | (não existe) | antes das 19:00 é nota (lido hoje, o intervalo de 8 dias ainda vale); depois das 19:00, **vermelho**: "N vídeos da faixa semanal no 8º dia sem ponto" (`semanal_atrasados`) | vigia | quando for lido; vídeo ausente ou sem contagem fica fora |
+| Um vídeo semanal passa de 8 dias sem ponto (9 ou mais) | (não existe) | **vermelho a qualquer hora**: "N vídeos da faixa semanal sem ponto há 9 dias ou mais (intervalo perdido)" (`semanal_atrasados_9d`) | vigia | quando for lido: o ponto volta, o intervalo perdido não (o motor o recusa, como recusa um buraco) |
+| O relógio do disparo acaba no meio da fase semanal | (não existe) | o vídeo não conferido não ganha ponto; o canal fica com `weekly_pass_date` de ontem e é o primeiro do disparo seguinte; o número do dia fica em `operations.semanais_adiados` | linha da cota (K3) e K17; se durar até as 19:00, a primeira linha deste bloco | 20 minutos depois |
+| A fase semanal falha num canal (erro do banco ou da API) | (não existe) | o canal **não** vai para "erro" (a sincronização dele deu certo); `weekly_pass_date` não é carimbado; nova tentativa no disparo seguinte; o erro vai ao Sentry e o número a `operations.erros_semanal` | linha da cota; depois das 19:00, `semanal_devidos_hoje` | quando a causa passar |
+| *(emenda do portão: D-I4)* Vídeo com faixa há 9 dias ou mais e nenhuma versão de miniatura guardada | **verde**: 687 vídeos estão assim hoje | **vermelho**: "N vídeos sem cópia da miniatura depois de 9 dias" (`sem_miniatura_9d`) | vigia | quando a leitura seguinte (no máximo 7 dias) guardar a cópia |
+| Vídeo com `series_tier` sem linha de faixa correspondente, ou sem faixa depois de o canal sincronizar | (não existe) | **vermelho**: "N vídeos sem faixa de série" | vigia | na sincronização seguinte do canal. *(emenda do portão: D-m2)* **Um caso não some sozinho:** `series_tier` gravado e nenhuma linha de faixa aberta (só nasce de edição manual no banco): a função de troca não vê diferença e não reabre. Conserto, do dono: `update competitor_videos set series_tier = null, series_tier_since = null where id in (<ids que a K9b devolve>);` e a sincronização seguinte reabre a faixa |
 | A função de prova não responde, ou responde outra forma | (não existe) | **vermelho**: "não foi possível ler a prova" | vigia | quando responder |
-| As migrations não foram aplicadas | (não se aplica) | o cron para antes de qualquer gravação: "migrations MG1/MG2 não aplicadas" | vigia | quando o dono aplicar |
+| As migrations não foram aplicadas | (não se aplica) | o cron para antes de qualquer gravação: "migration MG1 (ou MG2) não aplicada". *(emenda do portão: S-M4)* Erro de rede ou banco fora na conferência do schema tem outra frase ("não foi possível conferir o schema: …"), para não mandar o dono aplicar o que já está aplicado | vigia | quando o dono aplicar, ou o banco voltar |
+| *(emenda do portão: D-I6, CTRL-h)* Uma conferência com data venceu e ninguém fez | (não existe) | o cron diário da coleta lista as vencidas em `coleta.conferencias_vencidas` (Tarefa 6 do plano da E20); vencida há mais de 7 dias deixa esse cron vermelho, pela regra adotada lá | resposta do cron da coleta; vermelho ao 8º dia | quando a conferência é feita e `feitaEm` é preenchido |
 | Nenhum canal cadastrado | "ok", nada a fazer | igual: as provas contam 0 em tudo e não há alarme | — | — |
 | Canal novo, sem `last_seen_at` | — | a primeira versão de cada campo nasce `first` (não é mudança) | — | — |
 | Vídeo anterior à MG1 (`discovered_at` nulo) | — | nunca ganha "primeiras horas" e a tela dirá "antes de dd/mm"; não é preenchido por palpite | — | — |
@@ -230,21 +289,24 @@ D0 é o dia em que o Lote 1 é promovido a `main`. **A data absoluta de D0, D+1,
 1. `channels.list`: os 7 campos do canal nascem `first`; 1 linha de `raw` do canal; `last_seen_at` do canal.
 2. Página de uploads (50 vídeos, agora com `liveStreamingDetails`): para cada um, 10 campos `first` e 1 `raw` (duas gravações por página, não por vídeo); sinalizadores e contagens na linha do vídeo; vídeo novo ganha `discovered_at`.
 3. Faixas: **todos** os vídeos do canal são classificados (uma gravação por canal): os 50 mais recentes, diária; o resto, semanal. Uma linha de faixa por vídeo.
-4. Se a faixa for a das 12:00 ou a das 18:00: a passada diária como hoje (os vídeos já capturados no passo 2 não são capturados de novo), mais os semanais cujo dia fixo é hoje (cerca de 1 em 7): ponto na série, campos, `raw`, linha de base de título e descrição.
+4. Se a faixa for a das 12:00 ou a das 18:00: a passada diária como hoje (os vídeos já capturados no passo 2 não são capturados de novo).
 5. A linha do dia em `youtube_quota_usage` nasce, com `operations = {"competitors": N}`.
+
+*(emenda do portão: D-I3, D-I4)* **Depois dos canais devidos, no mesmo disparo e nos seguintes (hora de São Paulo ≥ 12): a fase semanal.** Para cada canal com `weekly_pass_date` diferente de hoje, o mais antigo primeiro: os semanais cujo dia fixo é hoje (cerca de 1 em 7) são pedidos numa chamada por 50; cada um tem a linha regravada, os campos e o `raw` capturados, o título, a descrição **e a miniatura** conferidos (a primeira leitura abre a linha de base e guarda a imagem no Blob), e por último o ponto na série. Canal sem semanal devido é carimbado na hora. No D0 isso acontece, para cada canal, no primeiro disparo depois da primeira sincronização dele com o código novo (é ela que grava as faixas).
 
 Se a promoção for depois das 12:21 de São Paulo, os canais já foram lidos pelo código antigo nessa faixa: o primeiro contato do código novo é a faixa das 18:00 (que também passa das 12:00, então a diária e a semanal do dia rodam lá; a diária já tem os pontos de hoje e não regrava).
 
 | | O que roda | O que grava (15 canais) | O que aparece em falha |
 |---|---|---|---|
-| **D0** | o descrito acima | `raw`: 15 + ≈ 776 (674 diários, ≈ 102 semanais); campos: 105 + ≈ 7.760; faixas: 1.390; série: os 674 de sempre mais ≈ 102; versões de título e descrição: ≈ 196; cota: 1 linha | nada esperado. Se vier: "N vídeos lidos sem resposta guardada" (captura falhou), "cota do dia não registrada", "N vídeos sem faixa". "Buracos" e "semanal atrasado" não podem aparecer: as faixas começam hoje |
-| **D+1 a D+6** | cada dia, mais ≈ 102 semanais ganham o primeiro ponto, a primeira resposta e a linha de base | por dia: ≈ 102 `raw`, ≈ 1.020 campos, ≈ 102 pontos, ≈ 196 versões; quase nada nos 674 diários (só o que mudou) | um dia de diária perdido deixa "buracos" por 3 dias |
+| **D0** | o descrito acima | `raw`: 15 + ≈ 776 (674 diários, ≈ 102 semanais); campos: 105 + ≈ 7.760; faixas: 1.390; série: os 674 de sempre mais ≈ 102; versões de título, descrição e miniatura: ≈ 294; ≈ 98 imagens no Blob; cota: 1 linha | nada esperado. Se vier: "N vídeos lidos sem resposta guardada" (captura falhou), "cota do dia não registrada", "N vídeos sem faixa". Depois das 19:00: "N vídeos da faixa semanal devidos hoje e ainda sem ponto" se a fase não tiver rodado. "Buracos" e "semanal atrasado" não podem aparecer: as faixas começam hoje |
+| **D+1 a D+6** | cada dia, mais ≈ 102 semanais ganham o primeiro ponto, a primeira resposta, a linha de base e a cópia da miniatura | por dia: ≈ 102 `raw`, ≈ 1.020 campos, ≈ 102 pontos, ≈ 294 versões, ≈ 98 imagens no Blob; quase nada nos 674 diários (só o que mudou) | um dia de diária perdido deixa "buracos" por 3 dias |
 | **D+3** | primeiro vídeo descoberto depois do deploy completa 72 horas | — | consulta K8 (item 16): tem de voltar vazia |
 | **D+6** | — | todos os 1.390 têm `raw`, campos e pelo menos um ponto | K1 = 0 |
 | **D+7** | os semanais do dia fixo de D0 ganham o **segundo** ponto: primeira vez em que a promoção por ganho (1.000 views e 5%) pode disparar, e primeira vez em que uma troca de título num semanal pode ser detectada | pontos; `daily_until` em quem for promovido | — |
-| **D+8** | a prova "semanal sem ponto há mais de 8 dias" passa a valer (antes, nenhuma faixa tinha 8 dias) | — | "N vídeos da faixa semanal sem ponto há mais de 8 dias" se a passada tiver sido adiada três dias seguidos |
+| **D+8** | a prova "8º dia sem ponto" passa a valer (antes, nenhuma faixa tinha 8 dias) | — | *(emenda do portão: D-m1)* "N vídeos da faixa semanal no 8º dia sem ponto", depois das 19:00, se a fase semanal não tiver lido um vídeo no dia fixo dele nem hoje |
+| **D+9** | as provas "9 dias ou mais sem ponto" e "sem cópia da miniatura depois de 9 dias" passam a valer | — | as duas têm de estar em 0: é a conferência de que os 716 foram lidos e os 687 ganharam cópia (K16) |
 
-**O que não acontece em D0, para ninguém procurar:** nenhuma "troca" falsa em massa (687 dos 716 antigos não têm versão: a primeira leitura abre linha de base); nenhuma notificação em rajada (mudança com janela de mais de 8 dias é gravada como versão, com a janela honesta, mas não vira aviso nem linha de `competitor_changes`: Tarefa 11); nenhuma sonda de miniatura a mais; nenhum arquivo novo no Blob.
+**O que não acontece em D0, para ninguém procurar:** nenhuma "troca" falsa em massa (687 dos 716 antigos não têm versão: a primeira leitura abre linha de base); nenhuma notificação em rajada (*(emenda do portão: S-M8)* mudança com janela de mais de 8 dias é gravada como versão e como linha de `competitor_changes`, com a janela verdadeira, mas **não vira aviso** e não promove: Tarefa 11b; em produção há no máximo 29 vídeos antigos em que isso pode acontecer). **O que passa a acontecer e não acontecia** *(emenda do portão: D-I4)*: cerca de 102 sondas de miniatura a mais por dia, e cerca de 98 arquivos novos no Blob por dia nos sete primeiros dias.
 
 ## 8. Desvios declarados do texto do spec (para os revisores)
 
@@ -257,14 +319,26 @@ O spec é a referência; onde o plano faz diferente, é aqui, com o motivo.
 | D-3 | 4.1 | `value_hash` = sha256 do JSON canônico | os 16 primeiros caracteres hexadecimais (o mesmo corte de `hashValue`, em `competitor-versions.ts`); o `raw` usa o sha256 inteiro | 49 bytes a menos por linha em 14 mil linhas; a chave é a identidade, não o hash (A, B, A não colide) |
 | D-4 | 4.1 | "a primeira linha de cada campo tem `precision = 'first'`" | vale também para `availability` (uma linha `no_ar` por vídeo) | uma regra só: "sumiu" e "voltou" são trocas de um campo como outro qualquer, e uma falha no meio se conserta sozinha |
 | D-5 | 4.3 | faixa do intervalo por horas: até 36 h diário, até 8 dias semanal | diário = dois dias seguidos (como o motor faz hoje); semanal = de 2 a 8 dias **de calendário** de São Paulo, com todos os dias do meio em faixa semanal | pela conta em horas, um intervalo que o motor aceita hoje (publicação às 20:00, primeiro ponto 40 h depois) seria recusado e os números das telas mudariam (item 20); e uma leitura às 12:02 oito dias depois de uma às 12:00 cairia fora por 2 minutos |
-| D-6 | 4.3, efeito 1 e item 19 | efeito de troca sobre série semanal responde "inconclusivo: série semanal" | a frase vai no **motivo**; o estado continua `sem-serie` | as telas contam os `inconclusivo` e indexam uma tabela pelo tipo; estado novo mudaria contadores sem mockup (isso é da E5) |
+| D-6 | 4.3, efeito 1 e item 19 | efeito de troca sobre série semanal responde "inconclusivo: série semanal" | *(emenda do portão: S-I8, pergunta 5)* o estado, o rótulo **e o motivo** continuam os de hoje; o efeito ganha um campo novo, `weeklySeries: true`, que nenhuma tela lê | as telas contam os `inconclusivo` e indexam uma tabela pelo tipo; estado novo mudaria contadores, e frase nova é texto de tela sem mockup (as duas coisas são da E5) |
 | D-7 | 4.3, efeito 2 | `load.ts` lê a série dos observados e dos que têm linha | lê, e põe a dos **não observados** num campo novo (`unobservedSeries`); `series` continua vazia para eles | nenhum campo que as telas leem hoje muda: o item 20 vira consequência da forma do dado, provada por teste, e a E4 e a E5 ligam a leitura com mockup |
 | D-8 | 4.1 | o `comment_count` deixa de receber 0; "as 64 linhas com 0 ficam até a próxima leitura" | idem; **e** os 716 vídeos fora da série só são relidos na semana do deploy | consequência da cadência semanal: parte dos 64 zeros só se corrige até D+6 |
-| D-9 | 4.3 | promoção quando "foi detectada mudança de título, miniatura ou descrição" | num vídeo semanal, só título e descrição (pergunta 1); e mudança cuja janela passa de 8 dias não promove | sem ponto antes da troca não há efeito a medir |
-| D-10 | item 246 | toda conferência "N dias depois" é uma entrada em `lib/conferencias.ts` | este plano **não** cria esse arquivo: as provas NP da E1 e da E2 rodam dentro do próprio cron a cada 20 minutos; as conferências manuais (K1 a K14) têm data absoluta no ledger | a lista do item 246 não cita item da E1 nem da E2; a prova embutida é mais forte que um lembrete. Se os revisores exigirem, é uma tarefa pequena a mais |
-| D-11 | 4.5 | "a sincronização encontra o vídeo em `competitor_removed_items` e não o recoleta" | a tabela é criada (MG1), mas **o sync ainda não a consulta** | nada escreve nela antes da E9 (a função de apagar é de lá). Fica como obrigação escrita para o plano da E9: a consulta entra no laço da página, antes do `insert` |
+| D-9 | 4.3 | promoção quando "foi detectada mudança de título, miniatura ou descrição" | *(emenda do portão: D-I4)* igual ao spec: título, miniatura ou descrição (a miniatura dos semanais passou a ser conferida). Fica o desvio: mudança cuja janela passa de 8 dias não promove | sem ponto antes da troca não há efeito a medir |
+| D-10 | item 246 | toda conferência "N dias depois" é uma entrada em `lib/conferencias.ts` | *(emenda do portão: D-I6, CTRL-h)* este plano **não cria** esse arquivo e **depende** dele: quem cria é a Tarefa 6 do plano da E20 (`docs/superpowers/plans/2026-10-12-a5-e20-guarda-do-bruto-plan.md`). As conferências deste plano que a prova embutida não cobre (K6, K8, K11, K12, K16, o retrato R1 de D+8) estão desde já, com data relativa a D0, em `.superpowers/sdd/a5/conferencias-com-data.md`, seção "E1 e E2"; no commit do deploy (Tarefa 15, Step 5b) ganham data absoluta lá e, **se `lib/conferencias.ts` já existir em `staging`, viram entradas dele no mesmo commit**; se ainda não existir, a etapa que o criar as importa (está escrito no arquivo de conferências) | não duplicar o mecanismo; a regra "vencida há mais de 7 dias deixa o cron vermelho" é a adotada na E20 |
+| D-11 | 4.5 | "a sincronização encontra o vídeo em `competitor_removed_items` e não o recoleta" | a tabela é criada (MG1), mas **o sync ainda não a consulta** | nada escreve nela antes da E9 (a função de apagar é de lá). Fica como obrigação escrita para o plano da E9: a consulta entra no laço da página, antes do `insert`. *(emenda do portão: D-m10)* A obrigação está também em `conferencias-com-data.md`, "Pendências sem data" |
+| D-12 *(emenda do portão: S-M8)* | 4.1 e D3 | (o spec não trata) | a troca de título, descrição ou miniatura vista num vídeo semanal é gravada em `competitor_video_versions` e em `competitor_changes` com `precision = '1d'` e a janela verdadeira em `window_start` e `window_end` (até 8 dias, ou mais na janela longa) | o `check` das duas tabelas só aceita `min`, `6h`, `1d` (e `first`), e o leitor das telas devolve nulo para valor desconhecido. `'1d'` já significa hoje "mais de uma faixa de 6 horas; a janela diz quanto" (é o que um canal que ficou em erro por dias grava). Mudar o `check` mexeria em tabela que as telas leem; fica para a E5, com mockup (pergunta 4) |
+| D-13 *(emenda do portão: D-I3, S-I1)* | 4.3 e OP-15 | a passada semanal roda "de dentro do lote antigo" | roda como **fase do disparo**, depois dos canais devidos, com a dívida gravada em `competitor_channels.weekly_pass_date` (coluna que o spec não tem) | dentro da sincronização de cada canal, a posição do canal na fila decidia se ele lia os semanais, e a ordem é a mesma todo dia (medido): 53% dos vídeos semanais podiam nunca ser lidos |
+| D-14 *(emenda do portão: D-m4)* | 4.5, item 221 | "ausente em duas leituras seguidas" | a 2ª falta só conta 3 horas depois da 1ª | o "sincronizar agora" logo depois do cron não é uma segunda leitura independente; as faixas do cron distam 6 horas, então o comportamento normal não muda |
+| D-15 *(emenda do portão: S-I4)* | item 1 | `last_checked_at > now() - interval '1 day'` sem resposta corrente = 0 | a mesma consulta, contando só o que foi lido **depois** da primeira resposta guardada do site | no dia do deploy, os cerca de 750 vídeos que o código antigo conferiu na faixa anterior não têm resposta guardada: sem o corte, o cron nasceria vermelho por até 6 horas sem perda nenhuma |
 
-**OP-15 (quem dispara a passada semanal entre as ordens 4 e 5).** Escolha: **a segunda saída do spec, chamar a passada de dentro do lote antigo, devida pelo próprio dado.** A passada roda dentro de `syncCompetitorChannel`, na mesma faixa da diária (12:00 e 18:00 de São Paulo), sem entrada nova de cron. Um vídeo semanal é devido quando não tem ponto hoje e (hoje é o dia fixo dele, **ou** o último ponto dele tem 7 dias ou mais, **ou** nunca teve ponto e está na faixa há 7 dias ou mais). Provas por teste (Tarefa 11): devido no dia fixo; não devido no dia seguinte a uma leitura; devido de novo no 7º dia mesmo fora do dia fixo; adiado pelo relógio, continua devido na faixa seguinte; em D0, só 1 em 7 é lido. Quando a E16 chegar, a tarefa `serie_semanal` chama a mesma função (`weeklyDue`), e a passada sai do lote por uma opção (`weekly: false`).
+**OP-15 (quem dispara a passada semanal entre as ordens 4 e 5).** *(emenda do portão: D-I3, S-I1, S-M9, CTRL-e; reescrito.)* Escolha: **a segunda saída do spec, chamar a passada de dentro do lote antigo, devida pelo próprio dado**, mas como **fase própria do disparo**, não dentro da sincronização de cada canal (desvio D-13).
+
+- **O que é devido.** Um vídeo semanal é devido quando não tem ponto hoje e (hoje é o dia fixo dele, **ou** o último ponto dele tem 7 dias ou mais, **ou** nunca teve ponto e está na faixa há 7 dias ou mais): a função pura `weeklyDue` (Tarefa 5), que não mudou.
+- **Quem lê.** `syncCompetitorWeekly(canal)` (Tarefa 11b), função exportada, com parâmetros explícitos: lê os vídeos semanais do canal, acha os devidos, pede ao YouTube em lotes de 50 e, para cada um, grava a linha, os campos, o `raw`, as versões (título, descrição, miniatura) e **por último** o ponto. É a função que a tarefa `serie_semanal` da E16 vai chamar.
+- **Quem dispara.** `runCompetitorBatch` (Tarefa 13), depois do laço dos canais devidos, quando a hora de São Paulo é 12 ou mais: visita os canais com `weekly_pass_date` diferente de hoje, do mais antigo para o mais novo (nulo primeiro), com até 60 s por visita, em rodízio, enquanto o disparo tem menos de 210 s. O canal cuja passada termina sem nada adiado é carimbado com a data de hoje e sai da fila do dia.
+- **Por que é correto por construção.** (1) A dívida não é memória de uma execução: é o dado (`weekly_pass_date` do canal, e a falta do ponto de hoje no vídeo). (2) A prioridade é da dívida mais antiga, não da posição na fila dos canais. (3) O orçamento é por canal: um canal grande não tira a vez dos outros, e o que sobra dele continua no disparo seguinte. (4) O tempo não depende da faixa das 18:00: 32 dos 36 disparos entre 12:00 e 23:40 não têm canal devido (medido) e começam com o relógio inteiro.
+- **O limite, provado por teste (Tarefa 13).** Com 15 canais a 21 s na ordem estável, as duas faixas simuladas (12:00, 12:20, 12:40 e 18:00, 18:20, 18:40) e o trabalho semanal da semana 1: todo canal tem a passada completa até o disparo das 12:40. No caso duro (os disparos com canal devido não deixam tempo nenhum para a fase): todos completos no primeiro disparo sem canal devido. **Todo vídeo devido no dia D é lido em D.** Se D inteiro se perder (cron parado das 12:00 às 23:40), o vídeo é devido de novo em D+1 pela regra dos 7 dias e o intervalo fica em 8 dias de calendário, que o motor ainda aceita. Só há perda no 9º dia, e ela é vermelha (`semanal_atrasados_9d`).
+- **Provas embutidas** (Tarefa 12): `semanal_devidos_hoje` (a consulta K15 do revisor de dados, dentro do cron; vermelha depois das 19:00), `semanal_atrasados` (8º dia; vermelha depois das 19:00) e `semanal_atrasados_9d` (vermelha sempre).
+- **Provas por teste do "devido"** (Tarefas 5 e 11b): devido no dia fixo; não devido no dia seguinte a uma leitura; devido de novo no 7º dia mesmo fora do dia fixo; cortado pelo relógio, continua devido e sem ponto; em D0, só 1 em 7 é lido.
 
 ## 9. Arquivos, ordem, paralelismo e a separação da A4
 
@@ -274,7 +348,9 @@ O spec é a referência; onde o plano faz diferente, é aqui, com o motivo.
 |---|---|---|
 | `supabase/migrations/<carimbo>_observatorio_a5_e1_campos_sinalizadores_raw.sql` | MG1 (Apêndice A) | 1 |
 | `supabase/migrations/<carimbo>_observatorio_a5_e2_serie_faixas.sql` | MG2 (Apêndice B) | 1 |
-| `apps/web/test/integration/observatorio-a5-e1-e2-migration.test.ts` | funções SQL, concorrência da cota, RLS (banco local) | 1 |
+| `apps/web/test/integration/observatorio-a5-e1-e2-migration.test.ts` | funções SQL, concorrência da cota (banco local) | 1a |
+| `apps/web/test/integration/observatorio-a5-e1-e2-rls.test.ts` *(emenda do portão: S-I10)* | RLS das cinco tabelas novas com GUC forjado, e quem executa as funções (banco local) | 1b |
+| `apps/web/test/integration/competitor-sync-a5.test.ts` *(emenda do portão: S-I7)* | `syncCompetitorChannel` e `syncCompetitorWeekly` de verdade contra o banco local, com `fetch` fixo: a junção TypeScript × SQL | 14a |
 | `apps/web/src/lib/youtube/observatorio/field-catalog.ts` | o catálogo fechado de campos com histórico | 2 |
 | `apps/web/src/lib/youtube/competitor-capture.ts` | puro: JSON canônico, hash, `raw`, extração da resposta, plano de versões; e a gravação (`captureItems`, `markMissing`) | 2, 3, 4 |
 | `apps/web/src/lib/youtube/competitor-tiers.ts` | puro: faixa de cada vídeo, dia fixo da semana, devido, promoção, primeiras horas | 5 |
@@ -285,14 +361,15 @@ O spec é a referência; onde o plano faz diferente, é aqui, com o motivo.
 | `apps/web/test/youtube/competitor-sync-a5.test.ts` | testes da integração nova (o arquivo antigo já tem 850 linhas) | 6 a 11 |
 | `apps/web/test/youtube/cron-competitors-prova.test.ts` | a rota: guarda de schema e a prova a cada disparo | 9, 13 |
 | `apps/web/test/youtube/observatorio/serie-semanal.test.ts`, `pack-semanal.test.ts` | o motor e o pacote (Lote 2) | 16, 17 |
+| `apps/web/test/youtube/observatorio/consumidores-semanal.test.ts` *(emenda do portão: S-I8)* | regressão por consumidor de `rowsToDataset` e `loadRows` (telas, Cowork, fila da forja), com a semente de e2e | 17b |
 | `.superpowers/sdd/a5-e1-e2/progress.md` | ledger (OP-15 copiada, estados, medições, datas) | 0 |
 
 **Arquivos modificados**
 
 | Arquivo | O que muda | Tarefa | A A4 toca? |
 |---|---|---|---|
-| `apps/web/src/lib/youtube/competitor-sync.ts` | as quatro partes, a linha do vídeo, captura, ausência, cota, faixas, semanal, primeiras horas | 6 a 11 | não |
-| `apps/web/src/lib/youtube/competitor-sync-batch.ts` | soma dos contadores novos, corte da semanal, sites para a prova | 13 | não |
+| `apps/web/src/lib/youtube/competitor-sync.ts` | as quatro partes, a linha do vídeo, captura, ausência, cota, faixas, primeiras horas, e a função `syncCompetitorWeekly` | 6b a 11c | não |
+| `apps/web/src/lib/youtube/competitor-sync-batch.ts` | soma dos contadores novos, a fase semanal do disparo, `acao_do_dono`, sites para a prova | 13 | não |
 | `apps/web/src/app/api/cron/sync-youtube/route.ts` | guarda de schema, prova, mensagem de falha | 9, 13 | não |
 | `apps/web/src/lib/youtube/observatorio/rules.ts` | `RULES.series`, `RULES.promotion` | 5 | não |
 | `apps/web/test/youtube/competitor-sync.test.ts` | o falso do banco e os testes que mudam de expectativa | 6, 7, 10 | não |
@@ -303,20 +380,20 @@ O spec é a referência; onde o plano faz diferente, é aqui, com o motivo.
 
 **A A4 (local, inacabada, 78 commits à frente) não toca nenhum arquivo desta lista.** Conferido em 12/10 com `git diff --name-only origin/staging..HEAD -- apps/web/src apps/web/test apps/web/e2e`: em `src` ela mexe só em `app/cms/(authed)/youtube/competitors/**`, `lib/youtube/observatorio/links.ts`, `stats.ts` e `proprio/**`; em teste, em `test/helpers/fake-supabase.ts`, `e2e/fixtures/observatorio-seed.ts` e nos testes das telas. **Dois arquivos pedem cuidado, porque este plano os usa sem mexer:** `test/helpers/fake-supabase.ts` (a A4 acrescentou 7 linhas) e `e2e/fixtures/observatorio-seed.ts`. Os testes do Lote 2 têm de passar com a versão de `origin/staging` desses dois arquivos: a prova é rodá-los numa árvore extraída do commit a enviar, como foi feito na E12. O envio segue o roteiro da E12 (`.superpowers/sdd/a5-e12/progress.md`, "Roteiro do envio separado"): remontar os commits deste plano sobre `origin/staging` por `merge-tree` e `commit-tree`, conferir a árvore por duas construções, empurrar por `bash -c 'git push origin "$0:refs/heads/staging"'`, e fazer o merge de volta. A guarda do roteiro (os commits só podem tocar os arquivos da lista acima mais este plano) é a primeira linha.
 
-**Ordem que mantém a árvore verde.** Lote 1: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 → 15. Cada tarefa termina com os testes dela e os vizinhos verdes e com o typecheck limpo.
+**Ordem que mantém a árvore verde.** *(emenda do portão: S-I10)* Lote 1: 1a → 1b → 2 → 3 → 4 → 5 → 6a → 6b → 7 → 8 → 9 → 10 → 11a → 11b → 11c → 12 → 13 → 14a → 14b → 15. Lote 2: 16 → 17 → 17b → 18. Cada tarefa termina com os testes dela e os vizinhos verdes e com o typecheck limpo. As Tarefas 0, 2, 3 e 5 podem começar já; a 1a e a 1b usam o SQL final dos apêndices e também podem; **nenhuma tarefa escreve em produção, e o push espera a Tarefa 15**.
 
 **O que pode rodar em paralelo sem colidir em arquivo** (o padrão é um implementador por vez; se o controlador quiser abrir dois):
 
 - 5 (faixas, `competitor-tiers.ts` e `rules.ts`) com 2 → 3 → 4 (`competitor-capture.ts`).
 - 12 (`competitor-health.ts`, só a parte do veredito) com qualquer uma de 6 a 11 **depois** da 9, que cria o arquivo.
 - **O Lote 2 inteiro (16, 17) com o Lote 1, depois da Tarefa 5:** a 16 usa `RULES.series`, que a 5 cria em `rules.ts`; fora isso os dois lotes não compartilham arquivo de código nem de teste. Só o envio (18) espera o 15.
-- **Nunca em paralelo:** 6 a 11 (todas em `competitor-sync.ts` e no mesmo falso do banco).
+- **Nunca em paralelo:** 6a a 11c (todas em `competitor-sync.ts` e no mesmo falso do banco).
 
 **Interruptor e plano de volta.** O spec não dá variável de ambiente à E1 nem à E2 ("só acrescentam"); a tarefa `serie_semanal` ganha interruptor na E16. Até lá:
 
-- **Proteção sem interruptor:** a passada semanal se corta sozinha aos 150 s do disparo; a diária vem antes; uma captura que falha não impede a série do dia.
+- **Proteção sem interruptor:** *(emenda do portão: D-I3, S-I5)* a fase semanal só começa depois do último canal devido do disparo e para aos 210 s; nenhuma gravação nova fica na frente da passada diária (as falhas novas são guardadas e lançadas no fim).
 - **Volta:** `git revert` dos commits do lote, push em `staging`, CI, promoção (cerca de 15 minutos, 4 builds). As tabelas e colunas ficam, sem uso. O código antigo convive com elas (seção 2). **O que não se desfaz:** nada. As linhas gravadas ficam (são dado verdadeiro); se a coleta voltar depois, o histórico continua de onde parou, com a janela honesta (`gap`).
-- **Volta só da passada semanal** (se ela, e só ela, der problema): reverter o commit da Tarefa 11; os vídeos semanais ficam sem ponto, e a prova "semanal sem ponto há mais de 8 dias" acusa a partir de D+8, que é o aviso certo.
+- **Volta só da fase semanal** *(emenda do portão: S-I10)* (se ela, e só ela, der problema): um commit de uma linha na rota, `weekly: true` → `weekly: false` na chamada a `runCompetitorBatch` (Tarefa 13). **As primeiras horas não são tocadas** (são da Tarefa 11a, em outro commit e em outro trecho). Os vídeos semanais ficam sem ponto, e a prova "devidos hoje e ainda sem ponto" acusa na mesma noite, que é o aviso certo.
 - **Volta do Lote 2:** reverter os commits 16 e 17; `PACK_VERSION` volta a 1 e as entradas de cache da versão 2 são ignoradas (a tela lê o banco).
 
 ---
@@ -328,10 +405,14 @@ O spec é a referência; onde o plano faz diferente, é aqui, com o motivo.
 Sem código. Antes da Tarefa 1.
 
 - [ ] **Step 1:** criar `.superpowers/sdd/a5-e1-e2/progress.md` com a tabela de tarefas (estado, commit, revisão), a linha da OP-15 copiada do spec com a escolha deste plano (seção 8), e a lista "Dívida registrada" vazia.
-- [ ] **Step 2:** confirmar com o dono as três decisões da seção 1 (ou registrar "sem resposta: vale o padrão").
-- [ ] **Step 3:** conferir se o arquivo da MG13 (E20) já existe em `supabase/migrations/`. Se existir e não estiver aplicado, anotar que vai no mesmo `db:push:prod`.
+- [ ] **Step 2:** *(emenda do portão: CTRL-i)* registrar no ledger as seis perguntas da seção 1 com o padrão de cada uma e, quando o dono responder, a resposta (ou "sem resposta: vale o padrão"). Copiá-las para `.superpowers/sdd/a5/perguntas-para-o-dono.md`.
+- [ ] **Step 3:** *(emenda do portão: S-M12)* o arquivo da MG13 (E20) já existe (`supabase/migrations/20261012000001_observatorio_guarda_do_bruto.sql`). Conferir em produção se foi aplicada (`npx supabase db query --linked "select max(version) from supabase_migrations.schema_migrations"`) e anotar: se ainda não, vai no mesmo `db:push:prod`, antes da MG1 (o carimbo dela é menor). **Não criar a MG1 e a MG2 com carimbo anterior ao dela** (o `db:new` já garante).
+- [ ] **Step 4:** *(emenda do portão: D-I3, CTRL-e)* **medir a faixa das 18:00, antes de qualquer execução.** Entre 18:45 e 23:59 de São Paulo (21:45 a 02:59 UTC), rodar a K12 (seção 10) em produção e gravar a saída no ledger: a posição e o segundo em que cada canal começou. O desenho da fase semanal **não depende** desse número (seção 8, OP-15); ele entra na tabela de tempo da seção 5 e diz quanto do disparo das 18:00 sobra para a fase. *(Em 12/10, às 16:57 de São Paulo, a K12 ainda mostrava a faixa das 12:00: a emenda foi fechada antes das 18:45.)*
+- [ ] **Step 5:** *(emenda do portão: S-M11)* avisar o terminal da A4 de que a Tarefa 1a aplica migrations no banco local compartilhado (`migration up --local` leva também o que estiver em `supabase/migrations`, inclusive rascunho de outro terminal) e de que, a partir dela, contagem de vídeo não informada nasce nula no banco local.
 
-### Task 1: migrations MG1 e MG2, com a prova no banco local
+*(emenda do portão: S-I10. A Tarefa 1 foi dividida: 1a, as migrations e as funções; 1b, o bloco de RLS, que era um parágrafo e é a única prova do item 11.)*
+
+### Task 1a: migrations MG1 e MG2, com a prova das funções no banco local
 
 **Files:**
 - Create: `supabase/migrations/<carimbo>_observatorio_a5_e1_campos_sinalizadores_raw.sql` (Apêndice A, inteiro)
@@ -346,9 +427,10 @@ Sem código. Antes da Tarefa 1.
   - `competitor_mark_missing(p_channel_id uuid, p_video_ids uuid[], p_now timestamptz) returns jsonb` → `[{"id", "miss_streak", "miss_first_at", "missing_since", "last_seen_at"}]`.
   - `competitor_channel_mark_missing(p_channel_id uuid, p_now timestamptz) returns jsonb` → o mesmo objeto, ou `null`.
   - `youtube_quota_add(p_site_id uuid, p_day date, p_units integer, p_add jsonb, p_max jsonb) returns integer` (o total do dia depois da soma).
-  - `competitor_capture_health(p_site_id uuid, p_now timestamptz) returns jsonb` → chaves `videos_vistos_sem_raw`, `canais_vistos_sem_raw`, `canais_vistos_dia_pacifico`, `cota_dia_pacifico`, `videos_ausentes`, `canais_ausentes`, `canais_em_erro_12h`.
+  - `competitor_capture_health(p_site_id uuid, p_now timestamptz) returns jsonb` → chaves `videos_vistos_sem_raw`, `canais_vistos_sem_raw`, `canais_vistos_dia_pacifico`, `cota_dia_pacifico`, `videos_ausentes`, `canais_ausentes`, `canais_em_erro_12h`, `canais_em_erro_3d` *(emenda do portão: D-I1)*.
   - `apply_competitor_tier_plan(p_site_id uuid, p_channel_id uuid, p_changes jsonb, p_today date) returns jsonb` → `{"changed": n}`. `p_changes`: `[{"video_id", "tier"}]`.
-  - `competitor_series_health(p_site_id uuid, p_now timestamptz) returns jsonb` → chaves `hoje`, `hora_sp`, `fora_da_prova`, `sem_faixa`, `diaria_sem_ponto_hoje`, `diaria_buracos_3d`, `semanal_atrasados`, `diaria_total`, `semanal_total`.
+  - `competitor_series_health(p_site_id uuid, p_now timestamptz) returns jsonb` → chaves `hoje`, `hora_sp`, `fora_da_prova`, `sem_faixa`, `diaria_sem_ponto_hoje`, `diaria_buracos_3d`, `semanal_atrasados`, `semanal_atrasados_9d`, `semanal_devidos_hoje`, `sem_miniatura_9d` *(emenda do portão: D-I3, D-I4)*, `diaria_total`, `semanal_total`.
+  - *(emenda do portão)* As três funções de plano lançam "canal … não é do site …" quando `p_channel_id` não pertence a `p_site_id` (D-m3). `competitor_channels` ganha `weekly_pass_date date` (D-I3).
 
 - [ ] **Step 1: prova de compatibilidade do código ANTIGO, antes de criar qualquer arquivo.** Guarde a linha de base:
 
@@ -372,6 +454,8 @@ Esperado: dois arquivos novos, o da E1 com carimbo menor que o da E2. Cole o Ap�
 cd /Users/figueiredo/Workspace/bythiagofigueiredo && npx supabase migration up --local 2>&1 | tail -12
 ```
 
+*(emenda do portão: S-M11)* **Antes de rodar:** `ls supabase/migrations | tail -6` e `git status --short supabase/migrations`. Se houver arquivo que não é deste plano nem está em `origin/staging` (rascunho de outro terminal), **pare e relate**: o comando o aplicaria no banco compartilhado. A MG13 (`20261012000001`) é oficial e pode ir.
+
 Esperado: a lista das migrations aplicadas, terminando nas duas novas, sem erro. Depois rode a mesma linha de novo: "Local database is up to date". Para provar a idempotência do SQL (e não só do controle de versão), aplique os dois arquivos mais uma vez à mão:
 
 ```bash
@@ -380,7 +464,7 @@ cd /Users/figueiredo/Workspace/bythiagofigueiredo && for f in $(ls supabase/migr
 
 Esperado: `0` e `0`.
 
-- [ ] **Step 4: o código antigo contra o schema novo.** Rode de novo o comando do Step 1 com saída em `/tmp/a5-e1-depois.txt`. Esperado: o mesmo número de testes passando. É a prova de que a migration pode ir a produção antes do código. Se um teste falhar por esperar 0 numa contagem que ele não informou, é o teste que dependia do padrão antigo: ajuste-o para informar a contagem (o código de produção sempre informa) e diga isso no commit. **Aviso para o controlador:** o banco local é compartilhado; a partir deste passo o terminal da A4 também passa a ver as colunas novas e a contagem nula por padrão (a semente e2e dela informa as contagens, conferido em `e2e/fixtures/observatorio-seed.ts:549` e `:617`).
+- [ ] **Step 4: o código antigo contra o schema novo.** Rode de novo o comando do Step 1 com saída em `/tmp/a5-e1-depois.txt`. Esperado: o mesmo número de testes passando. É a prova de que a migration pode ir a produção antes do código. Se um teste falhar por esperar 0 numa contagem que ele não informou, é o teste que dependia do padrão antigo: ajuste-o para informar a contagem (o código de produção sempre informa) e diga isso no commit. *(emenda do portão: S-M11)* Os únicos testes que podem precisar disso são `test/integration/observatorio-load.test.ts` e `test/integration/competitor-pin-schema.test.ts` (os dois que inserem vídeo sem contagem); se outro falhar, é parada. O arquivo ajustado entra na lista do `git add` e do `git commit` do Step 8, pelo nome. **Aviso para o controlador:** o banco local é compartilhado; a partir deste passo o terminal da A4 também passa a ver as colunas novas e a contagem nula por padrão (a semente e2e dela informa as contagens, conferido em `e2e/fixtures/observatorio-seed.ts:549` e `:617`).
 
 - [ ] **Step 5: escrever o teste de integração.** Arquivo `apps/web/test/integration/observatorio-a5-e1-e2-migration.test.ts`. Molde de preparação e limpeza: `test/integration/competitor-pin-schema.test.ts` (use `seedSite` de `../helpers/db-seed` e apague o canal e os sites no `afterAll`). Molde do cliente `pg` com papel sem superusuário e GUC forjado: `apps/api/test/rls/blog.test.ts:144-210`. Casos, um `it` por linha (o corpo de cada um segue o roteiro SQL já provado; as asserções são as mesmas):
 
@@ -487,10 +571,12 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: funções das migrations (banco 
   })
   it('as duas provas respondem com todas as chaves, em números', async () => {
     const c = (await sb.rpc('competitor_capture_health', { p_site_id: siteId, p_now: at(7) })).data as Record<string, unknown>
-    for (const k of ['videos_vistos_sem_raw', 'canais_vistos_sem_raw', 'canais_vistos_dia_pacifico', 'cota_dia_pacifico', 'videos_ausentes', 'canais_ausentes', 'canais_em_erro_12h']) expect(typeof c[k]).toBe('number')
+    for (const k of ['videos_vistos_sem_raw', 'canais_vistos_sem_raw', 'canais_vistos_dia_pacifico', 'cota_dia_pacifico', 'videos_ausentes', 'canais_ausentes', 'canais_em_erro_12h', 'canais_em_erro_3d']) expect(typeof c[k]).toBe('number')
+    expect(Object.keys(c)).toHaveLength(8)
     expect(c.videos_ausentes).toBe(1) // v1
     const s = (await sb.rpc('competitor_series_health', { p_site_id: siteId, p_now: at(7) })).data as Record<string, unknown>
-    for (const k of ['hora_sp', 'fora_da_prova', 'sem_faixa', 'diaria_sem_ponto_hoje', 'diaria_buracos_3d', 'semanal_atrasados', 'diaria_total', 'semanal_total']) expect(typeof s[k]).toBe('number')
+    for (const k of ['hora_sp', 'fora_da_prova', 'sem_faixa', 'diaria_sem_ponto_hoje', 'diaria_buracos_3d', 'semanal_atrasados', 'semanal_atrasados_9d', 'semanal_devidos_hoje', 'sem_miniatura_9d', 'diaria_total', 'semanal_total']) expect(typeof s[k]).toBe('number')
+    expect(Object.keys(s)).toHaveLength(12)
     expect(s.fora_da_prova).toBe(1) // v1 ausente fica fora de todas as contas
   })
   it('competitor_channel_removal_impact conta as quatro tabelas novas e mantém as chaves antigas', async () => {
@@ -501,7 +587,19 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: funções das migrations (banco 
 })
 ```
 
-Acrescente, no mesmo arquivo, o bloco de RLS (item 11), com `pg` e `set local role authenticated`, no molde de `apps/api/test/rls/blog.test.ts`: (a) usuário sem vínculo com o site, **com `set_config('app.site_id', '<siteId>', true)` forjado**, lê 0 linhas de `competitor_field_versions`, `competitor_raw`, `competitor_removed_items`, `competitor_video_early` e `competitor_video_tier_spans`; (b) usuário com `site_memberships` de papel `reporter` (vê, não edita) lê `competitor_field_versions`, `competitor_video_early` e `competitor_video_tier_spans` e lê **0** de `competitor_raw` e de `competitor_removed_items`; (c) usuário com papel `editor` lê as cinco; (d) nenhum dos três consegue `insert` em nenhuma das cinco; (e) `anon` e `authenticated` recebem erro de permissão ao chamar `apply_competitor_field_plan` e `youtube_quota_add`. Antes de escrever, leia como `can_view_site` e `can_edit_site` decidem (`select pg_get_functiondef('public.can_edit_site(uuid)'::regprocedure)` no banco local) para montar os três usuários certos.
+*(emenda do portão: D-I1, D-I2, D-I3, D-I4, D-m3, D-m4, S-I4, S-M1.)* **Acrescente os casos abaixo ao mesmo `describe`.** São os do roteiro `.superpowers/sdd/a5/plano-e1-e2-emenda-prova.sql`, que o autor rodou em 12/10 no banco local contra o SQL final (35 asserções, todas passaram): o corpo de cada `it` é a tradução direta do trecho do roteiro com o mesmo rótulo. Use um canal e vídeos **próprios de cada caso** (crie no começo do `it` e apague no fim), para um caso não mudar a conta do outro; as provas contam o site inteiro, então o `siteId` semeado no `beforeAll` tem de ser só deste arquivo.
+
+| `it` | O que afirma |
+|---|---|
+| `D-m3: as três funções de plano recusam canal de outro site` | `apply_competitor_field_plan`, `apply_competitor_raw_plan` e `apply_competitor_tier_plan` com `p_site_id: otherSite` e o canal de `siteId`: `error.message` casa `/não é do site/`, e nenhuma linha é gravada |
+| `D-m4: a 2ª falta 20 minutos depois não conta; 6 horas depois conta, com a data da 1ª` | `competitor_mark_missing` em `at(0)`, `at(0.33)` e `at(6)`: depois da segunda, `miss_streak = 1` e `missing_since` nulo; depois da terceira, `miss_streak = 2` e `missing_since = spDate(at(0))`. O mesmo com `competitor_channel_mark_missing` (10 minutos e 6 horas) |
+| `S-M1: marcar ausência não apaga nada` | conte as linhas do vídeo em `competitor_videos`, `competitor_video_daily`, `competitor_video_versions`, `competitor_field_versions` e `competitor_raw` antes e depois de duas marcas: as cinco contagens são iguais |
+| `S-I4: a prova da captura enxerga a captura que falhou, e só o que foi lido depois do começo da E1` | cinco passos, com `p_now = agora`: (a) nenhuma resposta guardada no site e vídeo com `last_checked_at` de 1 hora atrás → `videos_vistos_sem_raw = 0`; (b) grave a resposta do canal com `first_seen_at` de 30 minutos atrás → continua 0 (o vídeo foi conferido antes); (c) ponha `last_checked_at` de um vídeo em 5 minutos atrás, **sem** `last_seen_at` → 1; (d) grave a resposta desse vídeo → 0; (e) um segundo canal com `last_ok_synced_at` de 5 minutos atrás e sem resposta → `canais_vistos_sem_raw = 1` |
+| `D-I1: canal em erro há 13 horas conta em 12h e não em 3d; há 4 dias, nos dois; ausente, em nenhum` | `sync_status = 'error'` e `sync_error_since` em 13 horas, depois em 4 dias, depois com `missing_since` preenchido: (1, 0), (1, 1), (0, 0) |
+| `D-I2: estreia agendada sem ponto não é buraco; dia sem ponto depois de um ponto é` | vídeo em faixa diária aberta há 3 dias e nenhum ponto → `diaria_buracos_3d = 0` e `diaria_sem_ponto_hoje = 1`; com um ponto há 3 dias e nada depois → `diaria_buracos_3d = 2` |
+| `D-I3: semanal aos 7, 8 e 9 dias, e o dia fixo` | vídeo em faixa semanal há 20 dias: último ponto há 7 dias → (`semanal_devidos_hoje`, `semanal_atrasados`, `semanal_atrasados_9d`) = (1, 0, 0); há 8 → (1, 1, 0); há 9 → (1, 1, 1); com ponto hoje → (0, 0, 0). Com ponto há 3 dias: devido só se hoje for o dia fixo do `video_id` (use `weekSlotOf` e `dayNumber` de `@/lib/youtube/competitor-tiers` para escolher um id que cai hoje e outro que não cai: **é a prova de que o SQL e o TypeScript calculam o mesmo dia fixo**). Com `views_hidden = true`: sai das três e entra em `fora_da_prova` |
+| `D-I4: vídeo com faixa há 9 dias e sem versão de miniatura` | `sem_miniatura_9d = 1`; depois de inserir uma linha `field = 'thumb'` em `competitor_video_versions`, 0; vídeo com faixa há 3 dias não conta |
+| `D-I3: weekly_pass_date nasce nula e aceita data` | `select weekly_pass_date` do canal recém-criado é nulo; `update … set weekly_pass_date = <hoje>` passa |
 
 - [ ] **Step 6: rodar.**
 
@@ -511,15 +609,153 @@ cd /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web && HAS_LOCAL_DB=1 npx
 
 Esperado: todos passam. Rode também sem a variável (`npx vitest run test/integration/observatorio-a5-e1-e2-migration.test.ts`): tudo pulado, zero falha.
 
-- [ ] **Step 7: as consultas de conferência.** Rode V1, V2 e V3 (seção 2) e K1 a K14 (seção 10) no banco local por `docker exec -i supabase_db_bythiagofigueiredo psql -U postgres -c "<consulta>"`. Esperado: nenhuma dá erro de SQL; V1 dá 21, 12, 5, 5, 9, `'{}'::jsonb`, 0. (Todas já foram rodadas em 12/10 pelo autor do plano; este passo garante que o arquivo de migration colado é o mesmo.)
+- [ ] **Step 7: as consultas de conferência.** Rode V1, V2 e V3 (seção 2) e K1 a K17 (seção 10) no banco local por `docker exec -i supabase_db_bythiagofigueiredo psql -U postgres -c "<consulta>"`. Esperado: nenhuma dá erro de SQL; V1 dá *(emenda do portão)* 21, 13, 5, 5, 9, 9, `'{}'::jsonb`, 0. (Todas já foram rodadas em 12/10 pelo autor do plano; este passo garante que o arquivo de migration colado é o mesmo.)
 
 - [ ] **Step 8: commit.**
 
 ```bash
-cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add supabase/migrations/*observatorio_a5_e1_campos_sinalizadores_raw.sql supabase/migrations/*observatorio_a5_e2_serie_faixas.sql apps/web/test/integration/observatorio-a5-e1-e2-migration.test.ts && git commit -m "feat: migrations MG1 e MG2 da A5 (campos, sinalizadores, raw, faixas da série) com a prova no banco local" -- supabase/migrations apps/web/test/integration/observatorio-a5-e1-e2-migration.test.ts
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && MG1=$(ls supabase/migrations/*_observatorio_a5_e1_campos_sinalizadores_raw.sql) && MG2=$(ls supabase/migrations/*_observatorio_a5_e2_serie_faixas.sql) && T=apps/web/test/integration/observatorio-a5-e1-e2-migration.test.ts && git add "$MG1" "$MG2" "$T" && git diff --cached --name-only && git commit -m "feat: migrations MG1 e MG2 da A5 (campos, sinalizadores, raw, faixas da série) com a prova no banco local" -- "$MG1" "$MG2" "$T"
 ```
 
+*(emenda do portão: S-I2)* O commit lista os três arquivos pelo nome (o original passava a pasta `supabase/migrations`, que levaria qualquer migration modificada de outro terminal). `git diff --cached --name-only` tem de mostrar exatamente os três. Se o Step 4 ajustou um teste antigo, acrescente o arquivo dele às duas listas.
+
 **Pronto quando:** os dois arquivos existem com o SQL dos apêndices; o teste de integração passa com o banco local e pula sem ele; o código antigo passa nos testes de integração contra o schema novo; nenhuma consulta de conferência dá erro.
+
+### Task 1b: RLS das cinco tabelas novas e quem executa as funções (item 11)
+
+*(emenda do portão: S-I10. Tarefa nova: era um parágrafo dentro da Tarefa 1, e ninguém o executou. É a única prova do item 11.)*
+
+**Files:**
+- Create: `apps/web/test/integration/observatorio-a5-e1-e2-rls.test.ts`
+
+**Interfaces:**
+- Consumes: as tabelas e funções da Tarefa 1a (já aplicadas no banco local); `seedSite` de `../helpers/db-seed`; o molde do cliente `pg` com papel sem superusuário de `apps/api/test/rls/blog.test.ts:144-210`.
+- Produces: nada além do teste.
+
+**Como as policies decidem** (lido no banco local em 12/10 com `pg_get_functiondef`): `can_view_site(site)` = super admin, **ou** admin da organização do site, **ou** qualquer linha em `site_memberships` para o site e o usuário; `can_edit_site(site)` = super admin, **ou** admin da organização, **ou** `site_memberships` com `role = 'editor'`. Nenhuma das duas lê o GUC `app.site_id`: o caso "GUC forjado" prova exatamente isso (o padrão `reference_rls_guc_spoof_pattern` da memória do projeto).
+
+**Os três usuários:** `fora` (em `auth.users`, sem nenhum vínculo), `leitor` (`site_memberships` com `role = 'reporter'`) e `editor` (`site_memberships` com `role = 'editor'`). Nenhum é super admin nem admin da organização.
+
+**A tabela dos casos** (cada célula é uma asserção; 0 = lê zero linhas, N = lê as linhas semeadas, erro = `permission denied` ou violação de policy):
+
+| Quem (com `app.site_id` forjado para o site) | `competitor_field_versions` | `competitor_video_early` | `competitor_video_tier_spans` | `competitor_raw` | `competitor_removed_items` | `insert` em qualquer uma das cinco | `apply_competitor_field_plan`, `youtube_quota_add` |
+|---|---|---|---|---|---|---|---|
+| `anon` | 0 | 0 | 0 | 0 | 0 | erro | erro |
+| `fora` (`authenticated`) | 0 | 0 | 0 | 0 | 0 | erro | erro |
+| `leitor` | N | N | N | **0** | **0** | erro | erro |
+| `editor` | N | N | N | N | N | erro | erro |
+
+São 4 × 5 leituras, 4 × 5 escritas e 4 × 2 funções: 48 asserções. `insert` tem de falhar para todos porque nenhuma das cinco tabelas tem policy de escrita (só o `service_role`, que ignora RLS, escreve).
+
+- [ ] **Step 1: escrever o teste.**
+
+```ts
+// @vitest-environment node
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { Client } from 'pg'
+import { randomUUID } from 'node:crypto'
+import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { seedSite } from '../helpers/db-seed'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+
+const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
+const READ = ['competitor_field_versions', 'competitor_video_early', 'competitor_video_tier_spans'] as const
+const EDIT = ['competitor_raw', 'competitor_removed_items'] as const
+const ALL = [...READ, ...EDIT]
+type Who = 'anon' | 'fora' | 'leitor' | 'editor'
+
+describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: RLS das tabelas novas com GUC forjado (item 11)', () => {
+  const sb = getSupabaseServiceClient()
+  const users: Record<Exclude<Who, 'anon'>, string> = { fora: randomUUID(), leitor: randomUUID(), editor: randomUUID() }
+  let pg: Client, siteId = '', ch = '', vid = ''
+  beforeAll(async () => {
+    pg = new Client({ connectionString: PG_URL }); await pg.connect()
+    siteId = (await seedSite(sb)).siteId
+    // os três usuários e os dois vínculos, direto no banco (o cliente pg conecta como postgres)
+    for (const id of Object.values(users)) await pg.query(`insert into auth.users (id, aud, role, email) values ($1, 'authenticated', 'authenticated', $2)`, [id, id + '@a5.test'])
+    await pg.query(`insert into public.site_memberships (site_id, user_id, role) values ($1, $2, 'reporter'), ($1, $3, 'editor')`, [siteId, users.leitor, users.editor])
+    ch = (await sb.from('competitor_channels').insert({ site_id: siteId, channel_id: 'UCa5rls', channel_name: 'RLS' }).select('id').single()).data!.id
+    vid = (await sb.from('competitor_videos').insert({ competitor_channel_id: ch, video_id: 'a5rlsvid001' }).select('id').single()).data!.id
+    const now = new Date().toISOString(), today = now.slice(0, 10)
+    // uma linha em cada uma das cinco tabelas, pelo cliente de serviço
+    expect((await sb.rpc('apply_competitor_field_plan', { p_site_id: siteId, p_channel_id: ch, p_close: [], p_open: [{ video_id: vid, field: 'tags', value: [], value_hash: 'h', first_seen_at: now, window_start: null, precision: 'first' }] })).error).toBeNull()
+    expect((await sb.rpc('apply_competitor_raw_plan', { p_site_id: siteId, p_channel_id: ch, p_close: [], p_open: [{ video_id: vid, raw_sha256: 'r', first_seen_at: now, raw: { id: 'x' } }] })).error).toBeNull()
+    expect((await sb.rpc('apply_competitor_tier_plan', { p_site_id: siteId, p_channel_id: ch, p_changes: [{ video_id: vid, tier: 'diaria' }], p_today: today })).error).toBeNull()
+    expect((await sb.from('competitor_video_early').insert({ video_id: vid, taken_at: now, site_id: siteId, views: 1 })).error).toBeNull()
+    expect((await sb.from('competitor_removed_items').insert({ site_id: siteId, kind: 'video', youtube_id: 'a5rlsgone01', decided_by: users.editor, rows_deleted: {} })).error).toBeNull()
+  })
+  afterAll(async () => {
+    await sb.from('competitor_removed_items').delete().eq('site_id', siteId)
+    await sb.from('competitor_channels').delete().eq('site_id', siteId)
+    await pg.query('delete from public.site_memberships where site_id = $1', [siteId])
+    await pg.query('delete from auth.users where id = any($1)', [Object.values(users)])
+    await sb.from('sites').delete().eq('id', siteId)
+    await pg.end()
+  })
+
+  /** Roda `sql` como `who`, com o GUC app.site_id FORJADO para o site, numa transação desfeita. Devolve as linhas ou o erro. */
+  async function as(who: Who, sql: string, params: unknown[] = []): Promise<{ rows: number; error: string | null }> {
+    await pg.query('begin')
+    try {
+      if (who !== 'anon') await pg.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: users[who], role: 'authenticated' })])
+      await pg.query(`select set_config('app.site_id', $1, true)`, [siteId])
+      await pg.query(who === 'anon' ? 'set local role anon' : 'set local role authenticated')
+      const r = await pg.query(sql, params)
+      return { rows: r.rowCount ?? 0, error: null }
+    } catch (e) {
+      return { rows: 0, error: e instanceof Error ? e.message : String(e) }
+    } finally {
+      await pg.query('rollback')
+    }
+  }
+  const sees = (who: Who, table: string): boolean => (who === 'editor') || (who === 'leitor' && (READ as readonly string[]).includes(table))
+
+  for (const who of ['anon', 'fora', 'leitor', 'editor'] as const) {
+    for (const table of ALL) {
+      it(`${who} lê ${table}: ${sees(who, table) ? 'a linha do site' : 'nada'}`, async () => {
+        const r = await as(who, `select 1 from public.${table} where site_id = $1`, [siteId])
+        // anon pode receber "permission denied" (sem grant) em vez de zero linhas: os dois são "não lê"
+        if (sees(who, table)) expect(r).toEqual({ rows: 1, error: null })
+        else expect(r.rows).toBe(0)
+      })
+      it(`${who} não insere em ${table}`, async () => {
+        const direct = table === 'competitor_video_early'
+          ? await as(who, `insert into public.competitor_video_early (video_id, taken_at, site_id, views) values ($1, now() + interval '1 second', $2, 1)`, [vid, siteId])
+          : table === 'competitor_video_tier_spans'
+            ? await as(who, `insert into public.competitor_video_tier_spans (video_id, from_date, tier, site_id) values ($1, current_date + 400, 'diaria', $2)`, [vid, siteId])
+            : table === 'competitor_removed_items'
+              ? await as(who, `insert into public.competitor_removed_items (site_id, kind, youtube_id, decided_by, rows_deleted) values ($1, 'video', 'a5rlsnew0001', $2, '{}')`, [siteId, randomUUID()])
+              : table === 'competitor_raw'
+                ? await as(who, `insert into public.competitor_raw (site_id, competitor_channel_id, raw_sha256, first_seen_at, last_seen_at, is_current, raw) values ($1, $2, 'z', now(), now(), false, '{}')`, [siteId, ch])
+                : await as(who, `insert into public.competitor_field_versions (site_id, competitor_channel_id, field, value_hash, first_seen_at, last_seen_at, precision, is_current) values ($1, $2, 'name', 'z', now(), now(), 'first', false)`, [siteId, ch])
+        expect(direct.error, 'insert direto tinha de falhar').not.toBeNull()
+      })
+    }
+    it(`${who} não executa as funções de escrita`, async () => {
+      expect((await as(who, `select public.apply_competitor_field_plan($1, $2, '[]'::jsonb, '[]'::jsonb)`, [siteId, ch])).error).toMatch(/permission denied/)
+      expect((await as(who, `select public.youtube_quota_add($1, current_date, 1)`, [siteId])).error).toMatch(/permission denied/)
+    })
+  }
+})
+```
+
+Notas para o implementador: (1) confira o nome e as colunas obrigatórias de `site_memberships` e de `auth.users` no banco local antes de rodar (`\d public.site_memberships`); se o `insert` em `auth.users` pedir mais colunas, copie as de `test/helpers/db-seed.ts:33`. (2) Se `seedSite` já criar usuário e vínculo de admin da organização, **não** reaproveite esse usuário: admin da organização passa nas duas funções e esconderia a diferença entre `leitor` e `editor`.
+
+- [ ] **Step 2: rodar.**
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web && HAS_LOCAL_DB=1 npx vitest run test/integration/observatorio-a5-e1-e2-rls.test.ts > /tmp/a5-rls.txt 2>&1; grep -E "✓|×|Test Files|Tests " /tmp/a5-rls.txt | tail -60
+```
+
+Esperado: 44 testes (4 × 5 leituras, 4 × 5 escritas, 4 de funções), todos passam. Sem a variável: tudo pulado. **Um `leitor` que leia `competitor_raw` ou `competitor_removed_items` é falha da policy, não do teste: pare e relate** (a migration não vai ao dono assim).
+
+- [ ] **Step 3: commit.**
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/test/integration/observatorio-a5-e1-e2-rls.test.ts && git diff --cached --name-only && git commit -m "test: RLS das cinco tabelas novas da A5 com GUC forjado, e funções de escrita só para o serviço (item 11)" -- apps/web/test/integration/observatorio-a5-e1-e2-rls.test.ts
+```
+
+**Pronto quando:** as 44 passam com o banco local; o resultado (número de testes) está no ledger. **É condição para a MG1 e a MG2 irem ao dono** (Tarefa 15, Step 3).
 
 ### Task 2: catálogo de campos, JSON canônico e `raw`
 
@@ -544,7 +780,7 @@ import { canonicalJson, fieldHash, sha256Hex, rawOf, optCount, RAW_MAX_BYTES } f
 
 describe('catálogo de campos', () => {
   it('é o do spec (4.1), na ordem', () => {
-    expect([...VIDEO_FIELDS]).toEqual(['tags', 'category_id', 'duration_seconds', 'default_language', 'default_audio_language', 'live_broadcast_content', 'comments_disabled', 'likes_hidden', 'availability'])
+    expect([...VIDEO_FIELDS]).toEqual(['tags', 'category_id', 'duration_seconds', 'default_language', 'default_audio_language', 'live_broadcast_content', 'comments_disabled', 'likes_hidden', 'views_hidden', 'availability']) // (emenda do portão: D-m8)
     expect([...CHANNEL_FIELDS]).toEqual(['name', 'custom_url', 'description', 'country', 'avatar_url', 'subscribers_hidden', 'availability'])
   })
   it('campo fora do catálogo lança; título, miniatura e descrição do vídeo NÃO estão nele (D3)', () => {
@@ -604,7 +840,8 @@ Expected: FAIL, "Failed to resolve import".
 // Observatório A5 (E1): o catálogo FECHADO dos campos com histórico em competitor_field_versions.
 // Campo fora daqui não é gravado (assertField lança). Título, miniatura e descrição do vídeo não entram: continuam em
 // competitor_video_versions, para a conta "Trocas" das telas e competitor_changes não mudarem (spec A5, princípio D3).
-export const VIDEO_FIELDS = ['tags', 'category_id', 'duration_seconds', 'default_language', 'default_audio_language', 'live_broadcast_content', 'comments_disabled', 'likes_hidden', 'availability'] as const
+// (emenda do portão: D-m8) views_hidden entra no catálogo: sem ele, a data em que a contagem foi ocultada só se deduzia da série.
+export const VIDEO_FIELDS = ['tags', 'category_id', 'duration_seconds', 'default_language', 'default_audio_language', 'live_broadcast_content', 'comments_disabled', 'likes_hidden', 'views_hidden', 'availability'] as const
 export const CHANNEL_FIELDS = ['name', 'custom_url', 'description', 'country', 'avatar_url', 'subscribers_hidden', 'availability'] as const
 export type VideoField = (typeof VIDEO_FIELDS)[number]
 export type ChannelField = (typeof CHANNEL_FIELDS)[number]
@@ -704,6 +941,9 @@ export interface VideoRowPatch {
   default_language?: string | null; default_audio_language?: string | null; live_broadcast_content?: string | null
   view_count?: number | null; like_count?: number | null; comment_count?: number | null
   views_hidden?: boolean; likes_hidden?: boolean; comments_disabled?: boolean
+  // (emenda do portão: S-M2) o estado atual que o histórico compara também vai para a linha, e SÓ quando a parte veio:
+  // snippet → tags, category_id, thumbnail_url; contentDetails → duration_seconds. Parte ausente não apaga a coluna.
+  tags?: string[]; category_id?: string | null; thumbnail_url?: string | null; duration_seconds?: number | null
 }
 export interface VideoObserved { fields: ObservedField[]; patch: VideoRowPatch; hasViews: boolean; partsMissing: string[] }
 export function videoObservedOf(item: unknown, nowIso: string, durationOf: (iso: string | undefined) => number | null): VideoObserved
@@ -752,7 +992,7 @@ describe('videoObservedOf', () => {
   it('Review Focus 1: parte inteira ausente não vira "mudou para nulo": os campos dela não saem, e partsMissing diz qual', () => {
     const noSnippet = videoObservedOf({ id: 'vid', statistics: full.statistics, contentDetails: full.contentDetails }, NOW, parseIsoDuration)
     expect(noSnippet.partsMissing).toEqual(['snippet'])
-    expect(noSnippet.fields.map(f => f.field).sort()).toEqual(['availability', 'comments_disabled', 'duration_seconds', 'likes_hidden'])
+    expect(noSnippet.fields.map(f => f.field).sort()).toEqual(['availability', 'comments_disabled', 'duration_seconds', 'likes_hidden', 'views_hidden'])
     expect('default_language' in noSnippet.patch).toBe(false)
     const noStats = videoObservedOf({ id: 'vid', snippet: full.snippet, contentDetails: full.contentDetails }, NOW, parseIsoDuration)
     expect(noStats.partsMissing).toEqual(['statistics'])
@@ -807,15 +1047,24 @@ export function videoObservedOf(item: unknown, nowIso: string, durationOf: (iso:
     fields.push({ field: 'tags', value: tags }, { field: 'category_id', value: str(sn.categoryId) }, { field: 'default_language', value: lang },
       { field: 'default_audio_language', value: audio }, { field: 'live_broadcast_content', value: lbc })
     patch.default_language = lang; patch.default_audio_language = audio; patch.live_broadcast_content = lbc
+    // (emenda do portão: S-M2) as mesmas regras que o laço da página usava: sem tags = lista vazia; miniatura = maxres, senão high
+    const th = obj(sn.thumbnails)
+    patch.tags = Array.isArray(sn.tags) ? sn.tags.filter((t): t is string => typeof t === 'string') : []
+    patch.category_id = str(sn.categoryId)
+    patch.thumbnail_url = str(obj(th?.maxres)?.url) ?? str(obj(th?.high)?.url)
   }
-  if (cd) fields.push({ field: 'duration_seconds', value: durationOf(typeof cd.duration === 'string' ? cd.duration : undefined) })
+  if (cd) {
+    const dur = durationOf(typeof cd.duration === 'string' ? cd.duration : undefined)
+    fields.push({ field: 'duration_seconds', value: dur })
+    patch.duration_seconds = dur
+  }
   let hasViews = false
   if (st) {
     const views = optCount(st.viewCount), likes = optCount(st.likeCount), comments = optCount(st.commentCount)
     hasViews = views !== null
     patch.view_count = views; patch.like_count = likes; patch.comment_count = comments
     patch.views_hidden = views === null; patch.likes_hidden = likes === null; patch.comments_disabled = comments === null
-    fields.push({ field: 'comments_disabled', value: comments === null }, { field: 'likes_hidden', value: likes === null })
+    fields.push({ field: 'comments_disabled', value: comments === null }, { field: 'likes_hidden', value: likes === null }, { field: 'views_hidden', value: views === null })
   }
   return { fields, patch, hasViews, partsMissing }
 }
@@ -839,6 +1088,8 @@ export function channelObservedOf(item: unknown): { fields: ObservedField[]; pat
   }
 }
 ```
+
+*(emenda do portão: S-M2, D-m8)* Acrescente ao Step 1 dois testes: (1) `a linha do vídeo leva tags, categoria, miniatura e duração só quando a parte veio`: com o item completo, `patch` casa `{ tags: [...], category_id: '22', duration_seconds: <n>, thumbnail_url: <a maxres> }`; sem `snippet`, `'tags' in patch`, `'category_id' in patch` e `'thumbnail_url' in patch` são falsos; sem `contentDetails`, `'duration_seconds' in patch` é falso; com `snippet` sem `tags`, `patch.tags` é `[]`. (2) `views_hidden entra no histórico`: com `statistics: {}`, `fields` contém `{ field: 'views_hidden', value: true }`; sem `statistics`, não contém o campo. Se `str` devolver `undefined` para ausente (confira na Tarefa 2), troque o `??` da miniatura por um `||` com `null` no fim, para a coluna receber `null` e não `undefined`.
 
 - [ ] **Step 4:** `npx vitest run test/youtube/competitor-capture.test.ts 2>&1 | tail -8 && npm run typecheck 2>&1 | tail -3` → PASS, typecheck limpo. (O teste importa `parseIsoDuration` de `competitor-sync`, que já a exporta.)
 
@@ -1109,11 +1360,28 @@ const fail = (what: string, error: { message?: string } | null | undefined): voi
   if (error) throw new Error('captura: ' + what + ': ' + (error.message ?? 'erro do banco'))
 }
 
-async function readCurrent<T>(sb: SupabaseClient, table: 'competitor_field_versions' | 'competitor_raw', cols: string, channelId: string, scope: FieldScope, ids: string[]): Promise<T[]> {
+// (emenda do portão: S-I3) Nenhum `as unknown as`: a forma de cada linha lida é CONFERIDA, não afirmada.
+/** As linhas de uma resposta do banco, cada uma conferida pela guarda. Resposta nula = nenhuma linha. Lança na primeira linha fora da forma. */
+export function rowsAs<T>(data: unknown, guard: (x: unknown) => x is T, what: string): T[] {
+  if (data == null) return []
+  if (!Array.isArray(data)) throw new Error(what + ': a resposta do banco não é uma lista')
+  const out: T[] = []
+  for (const x of data) {
+    if (!guard(x)) throw new Error(what + ': linha fora da forma esperada')
+    out.push(x)
+  }
+  return out
+}
+export const isRec = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
+const idOk = (x: Record<string, unknown>): boolean => typeof x.id === 'number' && (x.video_id === null || typeof x.video_id === 'string')
+const isStoredField = (x: unknown): x is StoredField => isRec(x) && idOk(x) && typeof x.field === 'string' && typeof x.value_hash === 'string'
+const isStoredRaw = (x: unknown): x is StoredRaw => isRec(x) && idOk(x) && typeof x.raw_sha256 === 'string'
+
+async function readCurrent<T>(sb: SupabaseClient, table: 'competitor_field_versions' | 'competitor_raw', cols: string, channelId: string, scope: FieldScope, ids: string[], guard: (x: unknown) => x is T): Promise<T[]> {
   const q = sb.from(table).select(cols).eq('competitor_channel_id', channelId).eq('is_current', true)
   const { data, error } = await (scope === 'canal' ? q.is('video_id', null) : q.in('video_id', ids))
   fail(table, error)
-  const rows = (data ?? []) as unknown as T[]
+  const rows = rowsAs(data, guard, 'captura: ' + table)
   if (rows.length >= MAX_ROWS) throw new Error('captura: ' + table + ' devolveu ' + MAX_ROWS + ' linhas ou mais numa leitura (1000 é o teto do PostgREST): lote grande demais')
   return rows
 }
@@ -1123,8 +1391,8 @@ export async function captureItems(sb: SupabaseClient, p: { siteId: string; chan
   if (!p.items.length) return stats
   if (p.items.length > CAPTURE_CHUNK) throw new Error('captura: no máximo ' + CAPTURE_CHUNK + ' itens por chamada (vieram ' + p.items.length + ')')
   const ids = p.items.map(i => i.videoId).filter((x): x is string => x != null)
-  const curFields = await readCurrent<StoredField>(sb, 'competitor_field_versions', 'id, video_id, field, value_hash', p.channelId, p.scope, ids)
-  const curRaw = await readCurrent<StoredRaw>(sb, 'competitor_raw', 'id, video_id, raw_sha256', p.channelId, p.scope, ids)
+  const curFields = await readCurrent(sb, 'competitor_field_versions', 'id, video_id, field, value_hash', p.channelId, p.scope, ids, isStoredField)
+  const curRaw = await readCurrent(sb, 'competitor_raw', 'id, video_id, raw_sha256', p.channelId, p.scope, ids, isStoredRaw)
   const fp = planFields(p.scope, curFields, p.items, p.nowIso)
   if (fp.close.length || fp.open.length) {
     const { error } = await sb.rpc('apply_competitor_field_plan', { p_site_id: p.siteId, p_channel_id: p.channelId, p_close: fp.close, p_open: fp.open })
@@ -1154,11 +1422,13 @@ export async function captureItems(sb: SupabaseClient, p: { siteId: string; chan
   return stats
 }
 
+const isMissedRow = (x: unknown): x is MissedRow => isRec(x) && typeof x.id === 'string' && typeof x.miss_streak === 'number'
+
 export async function markMissing(sb: SupabaseClient, p: { siteId: string; channelId: string; videoIds: readonly string[]; nowIso: string; weeklySinceOf: (id: string) => string | null }): Promise<{ missed: number; newlyMissing: number }> {
   if (!p.videoIds.length) return { missed: 0, newlyMissing: 0 }
   const { data, error } = await sb.rpc('competitor_mark_missing', { p_channel_id: p.channelId, p_video_ids: [...p.videoIds], p_now: p.nowIso })
   if (error) throw new Error('ausência: ' + (error.message ?? 'erro do banco'))
-  const rows = (Array.isArray(data) ? data : []) as MissedRow[]
+  const rows = rowsAs(data, isMissedRow, 'ausência')
   // estado desejado, não evento: todo vídeo com missing_since tem de ter a versão 'sumiu' (se a gravação falhou antes, conserta agora)
   const gone = rows.filter(r => r.missing_since != null)
   for (let i = 0; i < gone.length; i += CAPTURE_CHUNK) {
@@ -1172,7 +1442,7 @@ export async function markMissing(sb: SupabaseClient, p: { siteId: string; chann
 export async function markChannelMissing(sb: SupabaseClient, p: { siteId: string; channelId: string; nowIso: string }): Promise<{ missingSince: string | null }> {
   const { data, error } = await sb.rpc('competitor_channel_mark_missing', { p_channel_id: p.channelId, p_now: p.nowIso })
   if (error) throw new Error('ausência do canal: ' + (error.message ?? 'erro do banco'))
-  const r = (data ?? null) as MissedRow | null
+  const r = isMissedRow(data) ? data : null
   if (r?.missing_since) {
     await captureItems(sb, { siteId: p.siteId, channelId: p.channelId, scope: 'canal', nowIso: p.nowIso, items: [{
       videoId: null, fields: [{ field: 'availability', value: 'sumiu' }], raw: null, prevSeenAt: r.last_seen_at, weeklySince: null, firstSeenAt: r.miss_first_at ?? p.nowIso,
@@ -1184,7 +1454,9 @@ export async function markChannelMissing(sb: SupabaseClient, p: { siteId: string
 
 Nota para o implementador: o falso do teste devolve as mesmas linhas para as duas tabelas conforme o nome; `captureItems` com escopo `'video'` e `ids` vazio (só acontece com escopo `'canal'`) nunca chama `.in('video_id', [])`.
 
-- [ ] **Step 4:** `npx vitest run test/youtube/competitor-capture.test.ts 2>&1 | tail -8 && npm run typecheck 2>&1 | tail -3` → PASS.
+*(emenda do portão: S-I3)* Acrescente ao Step 1 o teste de `rowsAs`: resposta nula dá lista vazia; lista com todas as linhas na forma devolve as mesmas linhas; uma linha fora da forma lança `/fora da forma esperada/`; resposta que não é lista lança. E um de `captureItems`: o falso devolvendo `[{ id: 'x' }]` (id que não é número) para `competitor_field_versions` faz a captura lançar em vez de planejar sobre lixo.
+
+- [ ] **Step 4:** `npx vitest run test/youtube/competitor-capture.test.ts 2>&1 | tail -8 && npm run typecheck 2>&1 | tail -3 && bash ../../scripts/check-type-debt.sh | tail -1` → PASS, e a trava de dívida de tipos diz "estável: 148" *(emenda do portão: S-I3)*.
 
 - [ ] **Step 5: commit.**
 
@@ -1443,18 +1715,33 @@ cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/yo
 - **Um teste antigo que falha porque enumera todas as chamadas ao banco ou à API** é atualizado para a lista nova, no mesmo commit, e o commit diz qual. **Um teste antigo que falha porque um comportamento mudou e a mudança não está escrita na tarefa é parada:** não ajuste o teste; relate.
 - O falso do banco devolve `{ data: null, error: null }` para o que não conhece. Código novo que lê `data` nulo tem de tratar como "nenhuma linha" **só onde nenhuma linha é resposta legítima**; nas provas (Tarefa 12), nulo é falha.
 - Linhas citadas (`competitor-sync.ts:NNN`) são as do arquivo em `f6de92d5`; depois da primeira edição, ache o trecho pelo texto.
+- *(emenda do portão: S-I5)* **Nenhuma gravação nova fica na frente da série do dia.** A série diária só existe hoje (a API dá o valor de agora); um defeito no código novo não pode custá-la. Regra: só lança na hora o que é **pré-requisito** da passada diária (a trava do canal, `channels.list`, a página de uploads, a leitura de todos os vídeos). Toda outra gravação nova (inserir o vídeo, regravar a linha do vídeo, a linha do canal, as primeiras horas, a troca de faixa, a promoção, a captura) usa `late`, que guarda o **primeiro** erro e deixa seguir; o erro guardado é lançado **no fim**, depois da passada diária, dos fixados e da marca de ausência, e antes de "Mark completion" (o canal termina em erro e não carimba `last_ok_synced_at`). A Tarefa 6b cria o auxiliar, logo depois de `fail`:
 
-### Task 6: sincronização: as quatro partes, a linha do vídeo e os erros de gravação visíveis
+```ts
+  /** (A5) O primeiro erro de uma gravação que NÃO é pré-requisito da série do dia: guardado aqui e lançado no fim. */
+  let lateFailure: Error | null = null
+  const late = (what: string, error: { message?: string } | null | undefined): boolean => {
+    if (!error) return false
+    lateFailure ??= new Error(what + ': ' + (error.message ?? 'erro do banco'))
+    return true
+  }
+```
+
+  e, imediatamente antes de `// Mark completion`, `if (lateFailure) throw lateFailure`. A `captureFailure` da Tarefa 7 passa a ser a mesma variável (`lateFailure ??= …` nos dois `catch`). **O bloco de notificações sobe para antes desse `throw`**: uma troca já gravada é verdadeira e é avisada mesmo que o canal termine em erro. A Tarefa 11a acrescenta o teste que prende a regra ("cada gravação nova falhando: a série do dia é gravada e o canal termina em erro").
+- *(emenda do portão: S-M6)* **O texto do erro é o que o dono lê na lista de canais** (`humanizeSyncError` devolve a mensagem como veio). Os rótulos novos de `late` e de `fail` são frases em português, sem nome de função SQL na frente: `'não foi possível gravar o vídeo novo'`, `'não foi possível atualizar a linha do vídeo'`, `'não foi possível atualizar a linha do canal'`, `'não foi possível gravar as primeiras horas'`, `'não foi possível gravar a faixa da série'`, `'não foi possível promover o vídeo à leitura diária'`, `'não foi possível ler os vídeos do canal'`; em `competitor-capture.ts`, o prefixo `'captura: '` vira `'não foi possível guardar o histórico de campos: '`. Onde o plano escreve `fail('update video row', …)` e semelhantes nas Tarefas 6b a 11c, use o rótulo desta lista. Os rótulos antigos (em inglês) não são mexidos.
+- *(emenda do portão: S-I2)* **Commit: sempre a lista de arquivos, nunca a pasta.** Os arquivos que estas tarefas podem tocar são: `apps/web/src/lib/youtube/competitor-sync.ts`, `apps/web/test/youtube/competitor-sync.test.ts`, `apps/web/test/youtube/competitor-sync-a5.test.ts`, `apps/web/test/youtube/competitor-sync-harness.ts` e, só se o falso próprio deles precisar da leitura nova, `apps/web/test/youtube/competitor-video-limit.test.ts`, `apps/web/test/youtube/competitor-backfill.test.ts` e `apps/web/test/integration/competitor-sync-versions.test.ts`. Cada tarefa abaixo diz os dela. Antes do commit: `git diff --cached --name-only`; arquivo fora da lista é parada.
+
+*(emenda do portão: S-I10. A Tarefa 6 foi dividida: 6a, mover o falso do banco (um arquivo de 854 linhas muda de lugar: revisão própria); 6b, o comportamento.)*
+
+### Task 6a: o falso do banco do sync de concorrentes vai para um arquivo de apoio (sem mudança de comportamento)
 
 **Files:**
 - Create: `apps/web/test/youtube/competitor-sync-harness.ts` (o falso do banco e os auxiliares, movidos do teste antigo)
-- Create: `apps/web/test/youtube/competitor-sync-a5.test.ts`
-- Modify: `apps/web/test/youtube/competitor-sync.test.ts` (importa o que foi movido; quatro expectativas mudam)
-- Modify: `apps/web/src/lib/youtube/competitor-sync.ts`
+- Modify: `apps/web/test/youtube/competitor-sync.test.ts` (importa o que foi movido; nenhuma asserção muda)
 
 **Interfaces:**
-- Consumes: `optCount`, `videoObservedOf` (Tarefas 2 e 3).
-- Produces: `export const VIDEO_PARTS = 'snippet,statistics,contentDetails,liveStreamingDetails'`; `SyncResult` ganha `partsMissing?: number`; dentro de `syncCompetitorChannel`, os conjuntos `patched` e `seen` e a função `patchFetched(items, byYt)`, que as tarefas seguintes usam. Do arquivo de apoio: `fakeDb`, `setup`, `apiFetch`, `traced`, `updatesOf`, `rpcCalls`, `first`, `arg`, `rpcs`, `NOW`, `NOW_ISO`, `EARLY`, `ch`, `lockRow`, `recent`, `quiet`, `type Call`, `type SetupOpts`.
+- Consumes: nada.
+- Produces (do arquivo de apoio): `fakeDb`, `setup`, `apiFetch`, `traced`, `updatesOf`, `rpcCalls`, `first`, `arg`, `rpcs`, `NOW`, `NOW_ISO`, `EARLY`, `ch`, `lockRow`, `recent`, `quiet`, `type Call`, `type SetupOpts`.
 
 - [ ] **Step 1: mover o falso para um arquivo de apoio, sem mudar comportamento.** Crie `apps/web/test/youtube/competitor-sync-harness.ts` e mova para lá, exportando, o que hoje está em `competitor-sync.test.ts` entre as linhas 78 e 168 (`type Call`, `type Script`, `fakeDb`, `rpcs`, `first`, `arg`, `NOW`, `NOW_ISO`, `ch`, `lockRow`, `apiFetch`, `recent`, `setup`) e, de dentro do `describe` dos fixados (linhas 614 a 640), `traced`, `EARLY` e `quiet`. Acrescente dois auxiliares:
 
@@ -1470,7 +1757,28 @@ export const rpcCalls = (db: { calls: Call[] }, name: string) => db.calls.filter
 O arquivo de apoio importa `vi` de `vitest` e `getSupabaseServiceClient` de `@/lib/supabase/service` (o `vi.mock` continua em cada arquivo de teste, que é onde o Vitest o iça). Em `competitor-sync.test.ts`, troque as definições movidas por `import { … } from './competitor-sync-harness'` e, no `describe` dos fixados, `const statsOf = updatesOf`.
 
 Run: `cd /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web && npx vitest run test/youtube/competitor-sync.test.ts 2>&1 | tail -6`
-Expected: o mesmo número de testes de antes, todos verdes. **Commit só deste passo** (`test: falso do banco do sync de concorrentes em arquivo de apoio (sem mudança de comportamento)`), para a revisão ver a mudança de lugar separada da de conteúdo.
+Expected: o mesmo número de testes de antes, todos verdes (anote o número antes de mover e compare). `git diff --stat` do arquivo de teste antigo tem de mostrar só linhas removidas e a linha de importação.
+
+- [ ] **Step 2: commit.**
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/test/youtube/competitor-sync-harness.ts apps/web/test/youtube/competitor-sync.test.ts && git diff --cached --name-only && git commit -m "test: falso do banco do sync de concorrentes em arquivo de apoio (sem mudança de comportamento)" -- apps/web/test/youtube/competitor-sync-harness.ts apps/web/test/youtube/competitor-sync.test.ts
+```
+
+**Pronto quando:** o arquivo antigo passa com o mesmo número de testes; nenhuma asserção foi tocada; o commit tem os dois arquivos e mais nenhum.
+
+### Task 6b: sincronização: as quatro partes, a linha do vídeo e os erros de gravação visíveis
+
+**Files:**
+- Create: `apps/web/test/youtube/competitor-sync-a5.test.ts`
+- Modify: `apps/web/test/youtube/competitor-sync-harness.ts` (`apiFetch`), `apps/web/test/youtube/competitor-sync.test.ts` (quatro expectativas mudam)
+- Modify: `apps/web/src/lib/youtube/competitor-sync.ts`
+
+**Interfaces:**
+- Consumes: `optCount`, `videoObservedOf` (Tarefas 2 e 3); o arquivo de apoio (Tarefa 6a).
+- Produces: `export const VIDEO_PARTS = 'snippet,statistics,contentDetails,liveStreamingDetails'`; `SyncResult` ganha `partsMissing?: number`; dentro de `syncCompetitorChannel`, os conjuntos `patched` e `seen`, a função `patchFetched(items, byYt)` e *(emenda do portão: S-I5)* `late` e `lateFailure` (o texto está na "Regra das Tarefas 6 a 11"), que as tarefas seguintes usam.
+
+*(Os passos abaixo mantêm a numeração original, de 2 a 8.)*
 
 - [ ] **Step 2: o falso distingue a chamada da página da chamada da passada sem olhar as partes** (elas passam a ser iguais). Em `apiFetch`, no arquivo de apoio, troque o corpo por:
 
@@ -1629,7 +1937,7 @@ export const VIDEO_PARTS = 'snippet,statistics,contentDetails,liveStreamingDetai
   /**
    * A linha do vídeo é regravada toda vez que o YouTube o devolve, em qualquer chamada (página, passada diária, fixados):
    * contagens, sinalizadores (D2: contagem ausente é nulo mais o sinalizador, nunca 0), ao vivo, e a sequência de faltas
-   * zerada. Uma vez por sincronização. Erro de gravação lança: uma linha que não grava nunca é "ok".
+   * zerada. Uma vez por sincronização. Erro de gravação nunca é "ok": é guardado (late) e o canal termina em erro, depois da série do dia.
    */
   const patchFetched = async (items: FetchedItem[], byYt: Map<string, TrackedRow>): Promise<void> => {
     for (const it of items) {
@@ -1640,7 +1948,8 @@ export const VIDEO_PARTS = 'snippet,statistics,contentDetails,liveStreamingDetai
       const o = videoObservedOf(it, nowIso, parseIsoDuration)
       if (o.partsMissing.length) partsMissing++
       const { error } = await supabase.from('competitor_videos').update(o.patch).eq('id', row.id)
-      fail('update video row', error)
+      // (emenda do portão: S-I5) não lança: a série do dia vem antes; o erro é guardado e o canal termina em erro
+      if (late('não foi possível atualizar a linha do vídeo', error)) continue
       patched.add(row.id)
     }
   }
@@ -1656,7 +1965,8 @@ e troque as duas chamadas `await refreshPinnedStats(items, byYt)` (passada diár
             published_at: publishedAt, duration_seconds: durationSeconds, is_short: isShort, tags, category_id: categoryId,
             original_thumbnail_url: thumbnailUrl, ...observed.patch, discovered_at: nowIso,
           }).select('id').single()
-          fail('insert video', insErr)
+          // (emenda do portão: S-I5) um vídeo que não grava não derruba os outros 49 nem a série do dia
+          if (late('não foi possível gravar o vídeo novo', insErr)) continue
           videoUuid = (inserted as { id: string } | null)?.id ?? null
           if (videoUuid) { patched.add(videoUuid); seen.add(videoUuid) }
 ```
@@ -1669,15 +1979,20 @@ No `update` de "Update stats", troque o corpo por (as contagens e `last_checked_
           .update({
             ...(title ? { title } : {}),
             ...(apiDescription !== undefined ? { description_hash: descriptionHash } : {}),
-            thumbnail_url: thumbnailUrl, duration_seconds: durationSeconds, is_short: isShort, tags, category_id: categoryId,
+            is_short: isShort,
+            // (emenda do portão: S-M2) tags, category_id, thumbnail_url e duration_seconds vêm de observed.patch, só quando a parte veio
             ...observed.patch,
           })
           .eq('id', existing.id)
-        fail('update video row', updErr)
-        patched.add(existing.id as string); seen.add(existing.id as string)
+        seen.add(existing.id as string)
+        if (!late('não foi possível atualizar a linha do vídeo', updErr)) patched.add(existing.id as string)
 ```
 
 (g) No `return` de sucesso, acrescente `...(partsMissing ? { partsMissing } : {})`.
+
+(h) *(emenda do portão: S-I5)* Crie `late` e `lateFailure` (texto na "Regra das Tarefas 6 a 11"), o `if (lateFailure) throw lateFailure` antes de `// Mark completion`, e suba o bloco de notificações para antes dele.
+
+*(emenda do portão: S-I5, S-M2)* Dois testes a mais no Step 3: (1) `erro ao regravar a linha de um vídeo: os outros são regravados, a série do dia é gravada, e o canal termina em erro com a frase em português` (o falso devolve erro no `update` de `competitor_videos` para um uuid; afirme `dailyRecorded` no que foi gravado em `competitor_video_daily` e `rejects.toThrow(/não foi possível atualizar a linha do vídeo/)`); (2) `resposta sem snippet: a linha do vídeo não perde tags, categoria nem miniatura` (o corpo do `update` não tem as chaves `tags`, `category_id` nem `thumbnail_url`; com `snippet`, tem as três).
 
 - [ ] **Step 6: as quatro expectativas antigas que mudam** (em `competitor-sync.test.ts`; o motivo de cada uma é o princípio D2 e a pergunta 2 da seção 1):
 
@@ -1695,8 +2010,10 @@ Procure outras ocorrências de `part=snippet,statistics` em `apps/web/test` (`gr
 - [ ] **Step 8: commit.**
 
 ```bash
-cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync.test.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts && git commit -m "feat: sync de concorrentes pede as quatro partes e grava sinalizadores, ao vivo e discovered_at; contagem ausente é nulo, nunca 0 (A5 E1)" -- apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync.test.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts && git diff --cached --name-only && git commit -m "feat: sync de concorrentes pede as quatro partes e grava sinalizadores, ao vivo e discovered_at; contagem ausente é nulo, nunca 0 (A5 E1)" -- apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync.test.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts
 ```
+
+*(emenda do portão: S-I2)* O original terminava em `-- … apps/web/test/youtube`, uma pasta: levaria os testes modificados da A4 que estão debaixo dela. Se o `grep` do Step 6 mudou outro arquivo de teste, acrescente-o pelo nome às duas listas.
 
 **Pronto quando:** itens 6 e 8 provados na sincronização; nenhuma chamada a mais à API; um erro de gravação na linha do vídeo deixa o canal em erro; os quatro testes antigos mudaram só no que a tabela diz.
 
@@ -1740,7 +2057,7 @@ describe('A5 E1: captura (campos e raw)', () => {
     const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })
     const f = opened(db)
     expect(f.filter(x => x.video_id === null).map(x => x.field).sort()).toEqual(['availability', 'avatar_url', 'country', 'custom_url', 'description', 'name', 'subscribers_hidden'])
-    expect(f.filter(x => x.video_id === 'v-1').map(x => x.field).sort()).toEqual(['availability', 'category_id', 'comments_disabled', 'default_audio_language', 'default_language', 'duration_seconds', 'likes_hidden', 'live_broadcast_content', 'tags'])
+    expect(f.filter(x => x.video_id === 'v-1').map(x => x.field).sort()).toEqual(['availability', 'category_id', 'comments_disabled', 'default_audio_language', 'default_language', 'duration_seconds', 'likes_hidden', 'live_broadcast_content', 'tags', 'views_hidden'])
     expect(f.every(x => x.precision === 'first' && x.window_start === null)).toBe(true)
     expect(rawOpened(db).map(x => x.video_id)).toEqual([null, 'v-1'])
     expect(r).toMatchObject({ fieldsOpened: 16, rawOpened: 2 })
@@ -1821,8 +2138,8 @@ e, junto de `prevOkAt`: `const prevChannelSeenAt = (locked[0] as { last_seen_at?
   /** A5 (E1): o que se sabia de cada vídeo ANTES desta sincronização (a janela de uma mudança começa na última leitura boa). */
   const rowInfo = new Map<string, { lastSeenAt: string | null; weeklySince: string | null; missing: boolean }>()
   const captured = new Set<string>()
-  /** A captura nunca impede a série do dia: a primeira falha é guardada e lançada no fim da sincronização. */
-  let captureFailure: Error | null = null
+  // (emenda do portão: S-I5) a captura nunca impede a série do dia: a falha vai para a mesma `lateFailure` da Tarefa 6b
+  // (onde este texto escreve `captureFailure ??= …`, escreva `lateFailure ??= …`; não há segunda variável)
   const cap = { fieldsOpened: 0, rawOpened: 0, rawTooBig: 0 }
   const noteRow = (r: { id?: unknown; last_seen_at?: unknown; missing_since?: unknown }): void => {
     if (typeof r.id !== 'string' || rowInfo.has(r.id)) return
@@ -1869,19 +2186,23 @@ e, junto de `prevOkAt`: `const prevChannelSeenAt = (locked[0] as { last_seen_at?
     }
 ```
 
-No `update` de `competitor_channels` que grava `channel_name`, acrescente `...chObserved.patch, ...(channelCaptured ? { last_seen_at: nowIso } : {}),` e confira o erro (`const { error: chErr } = await …; fail('update channel', chErr)`). No `upsert` de `competitor_channel_snapshots`, acrescente `subscribers_hidden: chObserved.patch.subscribers_hidden,`.
+No `update` de `competitor_channels` que grava `channel_name`, acrescente `...chObserved.patch, ...(channelCaptured ? { last_seen_at: nowIso } : {}),` e confira o erro *(emenda do portão: S-I5)* sem lançar (`const { error: chErr } = await …; late('não foi possível atualizar a linha do canal', chErr)`). No `upsert` de `competitor_channel_snapshots`, acrescente `subscribers_hidden: chObserved.patch.subscribers_hidden,`.
 
 (f) Página: declare `const pagePairs: Array<{ uuid: string; item: unknown }> = []` junto de `const touchIds`; dentro do laço, logo depois de resolvido `videoUuid` (antes do `if (!existing) continue`), `if (videoUuid) pagePairs.push({ uuid: videoUuid, item: video })`; depois do bloco `if (touchIds.length) { … }`, `await captureFetched(pagePairs)`.
 
 (g) Passada diária e fixados: logo depois de cada `await patchFetched(…)`, acrescente `await captureFetched(items.filter(it => byYt.has(it.id)).map(it => ({ uuid: byYt.get(it.id)!.id, item: it })))` (na dos fixados a lista se chama `fetched`).
 
-(h) Fim: imediatamente antes de `// Mark completion`, `if (captureFailure) throw captureFailure`. No `return` de sucesso, acrescente `...(cap.fieldsOpened ? { fieldsOpened: cap.fieldsOpened } : {}), ...(cap.rawOpened ? { rawOpened: cap.rawOpened } : {}), ...(cap.rawTooBig ? { rawTooBig: cap.rawTooBig } : {})`, e os três campos opcionais em `SyncResult`.
+(h) Fim: o `if (lateFailure) throw lateFailure` da Tarefa 6b já cobre a captura (não acrescente outro `throw`). No `return` de sucesso, acrescente `...(cap.fieldsOpened ? { fieldsOpened: cap.fieldsOpened } : {}), ...(cap.rawOpened ? { rawOpened: cap.rawOpened } : {}), ...(cap.rawTooBig ? { rawTooBig: cap.rawTooBig } : {})`, e os três campos opcionais em `SyncResult`.
 
 - [ ] **Step 5:** rodar o comando da regra → verde. Testes antigos que enumeram chamadas ao banco passam a ver as leituras de `competitor_field_versions` e `competitor_raw`: atualize a lista.
 
-- [ ] **Step 6: commit** (`feat: captura de campos e raw do canal e dos vídeos no sync de concorrentes; nada é regravado quando nada muda (A5 E1)`), com os mesmos caminhos da Tarefa 6.
+- [ ] **Step 6: commit.** *(emenda do portão: S-I2)*
 
-**Pronto quando:** itens 1, 2, 3, 4 e 223 provados na sincronização; a falha de captura não perde a série do dia, não carimba o "visto" e deixa o canal em erro.
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync.test.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts && git diff --cached --name-only && git commit -m "feat: captura de campos e raw do canal e dos vídeos no sync de concorrentes; nada é regravado quando nada muda (A5 E1)" -- apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync.test.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts
+```
+
+**Pronto quando:** itens 1, 2, 3, 4 e 223 provados na sincronização; a falha de captura não perde a série do dia, não carimba o "visto" e deixa o canal em erro. *(emenda do portão: S-I4)* O teste "a captura falha" afirma também que a linha do vídeo foi regravada com `last_checked_at` (é por esse carimbo que a prova embutida enxerga a falha no disparo seguinte).
 
 ### Task 8: sincronização: o que deixou de vir do YouTube, e o que voltou
 
@@ -1970,9 +2291,15 @@ describe('A5 E1: ausência e volta (itens 7 e 221)', () => {
 ```ts
       if (!channelData.items?.length) {
         // a 2ª leitura seguida sem o canal grava missing_since e a versão 'sumiu'; a falha desta marca não esconde o 404
-        try { await markChannelMissing(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, nowIso }) } catch { /* o 404 abaixo já deixa o canal em erro */ }
+        // (emenda do portão: S-M5) a marca que falha não some: vai ao Sentry e entra no texto do erro do canal
+        try { await markChannelMissing(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, nowIso }) } catch (e) {
+          Sentry.captureException(e, { tags: { component: 'sync-youtube', mode: 'competitors-missing' }, extra: { channelId: channelRow.channel_id } })
+          throw new Error(`YouTube API 404 for channel ${channelRow.channel_id} (e a falta não foi registrada: ${e instanceof Error ? e.message : String(e)})`)
+        }
       }
 ```
+
+(O arquivo já importa `Sentry`? Se não, `import * as Sentry from '@sentry/nextjs'`; os testes já o trocam por falso.) Teste a mais: `a marca de ausência do canal falhando: o erro do canal continua sendo o 404 e traz "a falta não foi registrada"` (com `rpcFail: 'competitor_channel_mark_missing'` e `channelItems: []`).
 
 (c) Página: depois de `const existingMap = …`, `for (const v of existingVideos ?? []) asked.add(v.id as string)` (os vídeos que a lista de uploads trouxe e que já estão guardados foram pedidos a `videos.list`; o `throw` de `!videosRes.ok` vem antes desta linha, então uma chamada que falhou não chega aqui).
 
@@ -1993,7 +2320,13 @@ No `return` de sucesso: `...(missedStats.missed ? { missed: missedStats.missed }
 
 - [ ] **Step 4: o teste antigo que muda.** Em `competitor-sync.test.ts`, `fixado que sumiu do YouTube (videos.list não devolve o item): nada é gravado e o sync termina ok` passa a se chamar `…: nada é apagado, a linha não é regravada, a falta é contada e o sync termina ok`, e ganha `expect(db.calls.filter(c => c.table === 'rpc:competitor_mark_missing')).toHaveLength(1)`. As outras asserções dele ficam.
 
-- [ ] **Step 5:** rodar o comando da regra → verde. **Step 6: commit** (`feat: vídeo e canal que deixam de vir do YouTube são marcados na segunda leitura seguida, e a volta fica no histórico; nada é apagado (A5 E1)`).
+- [ ] **Step 5:** rodar o comando da regra → verde.
+
+- [ ] **Step 6: commit.** *(emenda do portão: S-I2)*
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync.test.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts && git diff --cached --name-only && git commit -m "feat: vídeo e canal que deixam de vir do YouTube são marcados na segunda leitura seguida, e a volta fica no histórico; nada é apagado (A5 E1)" -- apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync.test.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts
+```
 
 **Pronto quando:** itens 7 e 221 e os Review Focus 2 e 3 passam.
 
@@ -2010,7 +2343,9 @@ No `return` de sucesso: `...(missedStats.missed ? { missed: missedStats.missed }
 ```ts
 // competitor-quota.ts
 export function pacificDate(ms: number): string                       // 'AAAA-MM-DD' no fuso America/Los_Angeles
-export async function recordQuota(sb: SupabaseClient, p: { siteId: string; nowMs: number; units: number; mode: string; cut?: number }): Promise<void>  // lança em erro
+// (emenda do portão: D-I5b) `extra` = contadores do dia somados em operations (partes_ausentes, mudancas_janela_longa, erros_cota…);
+// `max` = chaves que guardam o maior valor do dia (teto_diario_cortados, semanais_adiados)
+export async function recordQuota(sb: SupabaseClient, p: { siteId: string; nowMs: number; units: number; mode: string; cut?: number; extra?: Record<string, number>; max?: Record<string, number> }): Promise<void>  // lança em erro
 // competitor-health.ts
 /** null = pronto. Texto = o que falta (o cron para e fica vermelho com ele). */
 export async function schemaReady(sb: SupabaseClient, need: 'e1' | 'e1e2'): Promise<string | null>
@@ -2125,11 +2460,14 @@ export const pacificDate = (ms: number): string => PACIFIC.format(new Date(ms))
  * Soma numa instrução só (insert … on conflict do update, dentro de youtube_quota_add): dois disparos ao mesmo tempo
  * resultam na soma dos dois. Lança em erro; quem chama decide o que fazer (o sync segue e marca quotaError).
  */
-export async function recordQuota(sb: SupabaseClient, p: { siteId: string; nowMs: number; units: number; mode: string; cut?: number }): Promise<void> {
-  if (p.units <= 0 && !p.cut) return
+export async function recordQuota(sb: SupabaseClient, p: { siteId: string; nowMs: number; units: number; mode: string; cut?: number; extra?: Record<string, number>; max?: Record<string, number> }): Promise<void> {
+  // (emenda do portão: D-I5b) os contadores que só existiam na resposta do cron (que ninguém guarda) vão para a linha do dia
+  const extra = Object.fromEntries(Object.entries(p.extra ?? {}).filter(([, v]) => v > 0))
+  const max = { ...(p.cut ? { teto_diario_cortados: p.cut } : {}), ...Object.fromEntries(Object.entries(p.max ?? {}).filter(([, v]) => v > 0)) }
+  if (p.units <= 0 && !Object.keys(extra).length && !Object.keys(max).length) return
   const { error } = await sb.rpc('youtube_quota_add', {
-    p_site_id: p.siteId, p_day: pacificDate(p.nowMs), p_units: p.units, p_add: { [p.mode]: p.units },
-    p_max: p.cut ? { teto_diario_cortados: p.cut } : {},
+    p_site_id: p.siteId, p_day: pacificDate(p.nowMs), p_units: Math.max(p.units, 0), p_add: { ...(p.units > 0 ? { [p.mode]: p.units } : {}), ...extra },
+    p_max: max,
   })
   if (error) throw new Error('cota: ' + (error.message ?? 'erro do banco'))
 }
@@ -2149,6 +2487,7 @@ const E1: Array<[string, string]> = [
 ]
 const E2: Array<[string, string]> = [
   ['competitor_videos', 'series_tier, series_tier_since, daily_until'],
+  ['competitor_channels', 'weekly_pass_date'], // (emenda do portão: D-I3)
   ['competitor_video_tier_spans', 'video_id'],
   ['competitor_video_early', 'video_id'],
 ]
@@ -2160,7 +2499,12 @@ export async function schemaReady(sb: SupabaseClient, need: 'e1' | 'e1e2'): Prom
   for (const [name, list] of [['MG1', E1], ...(need === 'e1e2' ? [['MG2', E2]] : [])] as Array<[string, Array<[string, string]>]>) {
     for (const [table, cols] of list) {
       const { error } = await sb.from(table).select(cols).limit(1)
-      if (error) return 'migration ' + name + ' não aplicada (' + table + '): ' + (error.message ?? 'erro do banco') + '. Nada foi gravado.'
+      if (!error) continue
+      // (emenda do portão: S-M4) só "coluna ou tabela que não existe" é migration ausente: 42703 e 42P01 (Postgres),
+      // PGRST204 e PGRST205 (o PostgREST não acha a coluna ou a tabela). Rede ou banco fora têm outra frase.
+      const code = (error as { code?: string }).code ?? ''
+      if (['42703', '42P01', 'PGRST204', 'PGRST205'].includes(code)) return 'migration ' + name + ' não aplicada (' + table + '): ' + (error.message ?? code) + '. Nada foi gravado.'
+      return 'não foi possível conferir o schema (' + table + '): ' + (error.message ?? 'erro do banco') + '. Nada foi gravado.'
     }
   }
   return null
@@ -2171,8 +2515,11 @@ Em `competitor-sync.ts`: importe `recordQuota`; `SyncResult` ganha `quotaError?:
 
 ```ts
     let quotaError = false
-    try { await recordQuota(supabase, { siteId: channelRow.site_id, nowMs, units: unitsUsed, mode: 'competitors' }) } catch { quotaError = true }
+    // (emenda do portão: D-I5b) partes_ausentes vai junto: é o único lugar durável desse número
+    try { await recordQuota(supabase, { siteId: channelRow.site_id, nowMs, units: unitsUsed, mode: 'competitors', extra: { partes_ausentes: partsMissing } }) } catch { quotaError = true }
 ```
+
+*(emenda do portão: D-I5b)* `SyncResult` ganha também `quotaUnitsLost?: number` (= `unitsUsed` quando `quotaError`): o lote soma o que não foi gravado e tenta uma vez no fim do disparo (Tarefa 13). Dois testes a mais em `competitor-quota.test.ts`: `extra e max vão para p_add e p_max; chave com 0 não vai` e `units 0 com extra ainda grava (soma 0 unidades)`; e em `competitor-health.test.ts`: `erro com código 42703 diz "migration … não aplicada"; erro sem código (rede) diz "não foi possível conferir o schema"`.
 
 e `...(quotaError ? { quotaError: true as const } : {})` no objeto devolvido. No `catch (error)` do fim, antes de `throw error`: `await recordQuota(supabase, { siteId: channelRow.site_id, nowMs, units: unitsUsed, mode: 'competitors' }).catch(() => undefined)` (o canal já está em erro; a prova da Tarefa 12 acusa a linha do dia em 0).
 
@@ -2246,7 +2593,13 @@ describe('cron de concorrentes: guarda de schema', () => {
 
 - [ ] **Step 4:** rodar: `npx vitest run test/youtube/competitor-quota.test.ts test/youtube/competitor-health.test.ts test/youtube/competitor-sync-a5.test.ts test/youtube/cron-competitors-invalidate.test.ts test/youtube/cron-competitors-prova.test.ts test/youtube/cron-route.test.ts test/api/cron/sync-youtube.test.ts 2>&1 | tail -12` e o comando da regra → verde.
 
-- [ ] **Step 5: commit** (`feat: cota dos concorrentes somada na linha do dia do Pacífico, e guarda de schema no cron (A5 E1)`), com `-- apps/web/src/lib/youtube apps/web/src/app/api/cron/sync-youtube/route.ts apps/web/test`.
+- [ ] **Step 5: commit.** *(emenda do portão: S-I2; o original passava `apps/web/src/lib/youtube` e `apps/web/test`, duas pastas onde a A4 tem arquivo modificado.)*
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/competitor-quota.ts apps/web/src/lib/youtube/competitor-health.ts apps/web/src/lib/youtube/competitor-sync.ts apps/web/src/app/api/cron/sync-youtube/route.ts apps/web/test/youtube/competitor-quota.test.ts apps/web/test/youtube/competitor-health.test.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts apps/web/test/youtube/cron-competitors-prova.test.ts apps/web/test/youtube/cron-competitors-invalidate.test.ts apps/web/test/youtube/cron-route.test.ts apps/web/test/api/cron/sync-youtube.test.ts && git diff --cached --name-only && git commit -m "feat: cota dos concorrentes somada na linha do dia do Pacífico, e guarda de schema no cron (A5 E1)" -- apps/web/src/lib/youtube/competitor-quota.ts apps/web/src/lib/youtube/competitor-health.ts apps/web/src/lib/youtube/competitor-sync.ts apps/web/src/app/api/cron/sync-youtube/route.ts apps/web/test/youtube/competitor-quota.test.ts apps/web/test/youtube/competitor-health.test.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts apps/web/test/youtube/cron-competitors-prova.test.ts apps/web/test/youtube/cron-competitors-invalidate.test.ts apps/web/test/youtube/cron-route.test.ts apps/web/test/api/cron/sync-youtube.test.ts
+```
+
+(Um arquivo da lista que não mudou simplesmente não entra no commit: a lista pode ficar inteira.)
 
 **Pronto quando:** item 10 e a parte unitária do 224 passam (a concorrência está na Tarefa 1); sem a migration, o cron para em vermelho e não chama o lote. **A E1 está completa aqui:** os commits das Tarefas 1 a 9 formam um conjunto que pode ir a produção só com a MG1.
 
@@ -2350,7 +2703,7 @@ describe('A5 E2: faixas da série', () => {
 
 - [ ] **Step 4: implementar.**
 
-(a) Importe `classifyTiers, type Tier` de `@/lib/youtube/competitor-tiers`. `SyncResult` ganha `tierChanges?: number`, `cutByCap?: number`, `excludedNoCount?: number`. As opções de `syncCompetitorChannel` ganham `/** false = não roda a passada semanal (testes; e a tarefa serie_semanal da E16 a chama à parte). */ weekly?: boolean`.
+(a) Importe `classifyTiers, type Tier` de `@/lib/youtube/competitor-tiers` e *(emenda do portão: S-I3)* `rowsAs, isRec` de `@/lib/youtube/competitor-capture`. `SyncResult` ganha `tierChanges?: number`, `cutByCap?: number`, `excludedNoCount?: number`. *(emenda do portão: D-I3)* A opção `weekly?: boolean` do texto original **não existe mais**: a sincronização do canal nunca lê os semanais; quem lê é `syncCompetitorWeekly` (Tarefa 11b).
 
 (b) Troque `loadPinned` e `loadTracked` (e os comentários deles) por:
 
@@ -2362,13 +2715,16 @@ describe('A5 E2: faixas da série', () => {
   }
   const ALL_COLS = 'id, video_id, title, thumbnail_url, published_at, pinned_at, daily_until, series_tier, series_tier_since, last_seen_at, missing_since, views_hidden, live_broadcast_content, discovered_at'
   const PAGE = 1000 // max_rows do PostgREST: uma leitura maior viria cortada sem aviso, então pagina até a página curta
+  // (emenda do portão: S-I3) a guarda confere as duas chaves de que tudo depende (os dois ids); as outras colunas são anuláveis
+  // e chegam como o banco manda. Uma linha sem id é erro, nunca "canal sem vídeos".
+  const isFullRow = (x: unknown): x is FullRow => isRec(x) && typeof x.id === 'string' && typeof x.video_id === 'string'
   /** Lança em erro de consulta: uma leitura que falha nunca é "canal sem vídeos". */
   const loadAll = async (): Promise<FullRow[]> => {
     const out: FullRow[] = []
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await supabase.from('competitor_videos').select(ALL_COLS).eq('competitor_channel_id', channelRow.id).order('id').range(from, from + PAGE - 1)
-      fail('load channel videos', error)
-      const page = (data ?? []) as unknown as FullRow[]
+      fail('não foi possível ler os vídeos do canal', error)
+      const page = rowsAs(data, isFullRow, 'vídeos do canal') // (emenda do portão: S-I3) sem cast
       out.push(...page)
       if (page.length < PAGE) return out
     }
@@ -2414,8 +2770,10 @@ describe('A5 E2: faixas da série', () => {
     tierPlan = classify(all)
     if (tierPlan.changes.length) {
       const { error } = await supabase.rpc('apply_competitor_tier_plan', { p_site_id: channelRow.site_id, p_channel_id: channelRow.id, p_changes: tierPlan.changes, p_today: snapDate })
-      fail('apply tier plan', error)
-      for (const c of tierPlan.changes) { const r = byId.get(c.video_id); if (r) { r.series_tier = c.tier; r.series_tier_since = snapDate } }
+      // (emenda do portão: S-I5) a faixa que não grava não impede a passada diária, que usa o plano em memória; o canal termina em erro
+      if (!late('não foi possível gravar a faixa da série', error)) {
+        for (const c of tierPlan.changes) { const r = byId.get(c.video_id); if (r) { r.series_tier = c.tier; r.series_tier_since = snapDate } }
+      }
     }
 ```
 
@@ -2435,117 +2793,33 @@ No roteiro do falso, apague as linhas de `not` e de `limit` de `competitor_video
 
 - [ ] **Step 6:** rodar o comando da regra, mais `npx vitest run test/youtube/competitor-video-limit.test.ts test/youtube/competitor-backfill.test.ts` → verde. Esses dois arquivos têm falso próprio: se quebrarem por falta da leitura com `range`, acrescente a resposta no falso deles.
 
-- [ ] **Step 7: commit** (`feat: faixa de série de cada vídeo dos concorrentes (diária ou semanal), gravada no tempo; a passada diária segue a faixa (A5 E2)`).
+*(emenda do portão: S-I5, S-I3)* Dois testes a mais: `a troca de faixa falhando no banco: a passada diária grava os pontos e o canal termina em erro` (`rpcFail: 'apply_competitor_tier_plan'`: afirme o `upsert` em `competitor_video_daily` e `rejects.toThrow(/faixa da série/)`); e `uma sincronização às 12:00 com 50 vídeos diários faz 4 chamadas à API (canal, página, detalhes, 1 lote da passada) e NENHUMA para os semanais` (a conta da seção 4). Verificação a mais deste passo: `bash ../../scripts/check-type-debt.sh | tail -1` → "estável".
+
+- [ ] **Step 7: commit.** *(emenda do portão: S-I2)* Se o Step 6 mexeu no falso de `competitor-video-limit.test.ts` ou de `competitor-backfill.test.ts`, eles entram pelo nome.
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync.test.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts apps/web/test/youtube/competitor-video-limit.test.ts apps/web/test/youtube/competitor-backfill.test.ts && git diff --cached --name-only && git commit -m "feat: faixa de série de cada vídeo dos concorrentes (diária ou semanal), gravada no tempo; a passada diária segue a faixa (A5 E2)" -- apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync.test.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts apps/web/test/youtube/competitor-video-limit.test.ts apps/web/test/youtube/competitor-backfill.test.ts
+```
 
 **Pronto quando:** itens 14, 18, 222 (a parte da sincronização) e 225 passam; os testes antigos que descrevem o canal por `tracked` e `pinned` continuam verdes sem serem tocados.
 
-### Task 11: sincronização (E2): a passada semanal, a promoção e as primeiras horas
+*(emenda do portão: S-I10, D-I3, S-I1, S-I6, S-M8, S-M9, D-I4. A Tarefa 11 foi dividida em três, cada uma com o seu commit, e a passada semanal foi redesenhada: 11a, as primeiras horas (perdem dado todo dia: vão primeiro e sozinhas); 11b, a leitura semanal como função própria, `syncCompetitorWeekly`, com a miniatura; 11c, a promoção decidida pelo estado gravado.)*
+
+### Task 11a: sincronização (E2): as primeiras horas, e o teste que prende "a série do dia vem antes"
 
 **Files:**
 - Modify: `apps/web/src/lib/youtube/competitor-sync.ts`, `apps/web/test/youtube/competitor-sync-harness.ts`
 - Test: `apps/web/test/youtube/competitor-sync-a5.test.ts`
 
 **Interfaces:**
-- Consumes: `weeklyDue`, `shouldPromote`, `earlyEligible`, `addDays` (Tarefa 5); `RULES.series`, `RULES.promotion`; `tierPlan`, `byId`, `captureFetched`, `patchFetched` (Tarefas 6, 7 e 10).
-- Produces: opção `weeklyAllowed?: () => boolean` de `syncCompetitorChannel` (o lote passa o relógio; ausente = sempre). `SyncResult` ganha `weeklyRecorded?`, `weeklyDeferred?`, `earlyRecorded?`, `promoted?`, `longWindowChanges?`. O falso ganha `recentDaily?`.
+- Consumes: `earlyEligible` (Tarefa 5); `late` (Tarefa 6b); `pagePairs`, `observed` (Tarefas 6b e 7).
+- Produces: `SyncResult` ganha `earlyRecorded?: number`. O falso ganha a resposta de `competitor_video_early`.
 
-- [ ] **Step 1: o falso.** Opção `recentDaily?: Record<string, unknown>[]` e, **antes** da linha `competitor_video_daily` + `select` que já existe: `if (c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte')) return { data: opts.recentDaily ?? [] }`. E `if (c.table === 'competitor_video_early' && first(c) === 'upsert') return { data: c.ops[0]![1][0] }`.
+- [ ] **Step 1: o falso.** No roteiro de `setup`: `if (c.table === 'competitor_video_early' && first(c) === 'upsert') return { data: c.ops[0]![1][0] }`. E uma opção `failWrite?: string` (nome de tabela ou `'rpc:<função>'`): a primeira gravação (`insert`, `update`, `upsert` ou a função) nessa tabela devolve `{ data: null, error: { message: 'boom' } }`.
 
-- [ ] **Step 2: testes que falham** (dentro de um `describe('A5 E2: passada semanal, promoção e primeiras horas', …)` que reaproveita `row`, `idsOf` e `echo` do `describe` da Tarefa 10; mova os três para o topo do arquivo). `slotDate(ytId)` devolve a data, a partir de `'2026-10-24'`, em que o vídeo cai no dia fixo; `at12(date)` devolve as 12:00 de São Paulo dessa data:
+- [ ] **Step 2: testes que falham** (num `describe('A5 E2: primeiras horas', …)`; `ROW1`, `page`, `EARLY` são os das tarefas anteriores):
 
 ```ts
-  const slotDate = (ytId: string) => { let d = '2026-10-24'; while (dayNumber(d) % 7 !== weekSlotOf(ytId)) d = addDays(d, 1); return d }
-  const at12 = (date: string) => new Date(date + 'T15:00:00.000Z')
-  const weeklyRow = (i: number, over: Record<string, unknown> = {}) => row(i, 400 + i, { series_tier: 'semanal', series_tier_since: '2026-09-01', ...over })
-  const dailyRow = row(1, 1, { series_tier: 'diaria', series_tier_since: '2026-09-01' })
-
-  it('OP-15: no dia fixo o vídeo semanal é lido na passada das 12:00, na mesma tabela da série, com a linha, os campos e o raw', async () => {
-    const day = slotDate('vid-7')
-    const db = setup({ dailyHave: ['v-1'], existing: [], videoLimit: 1, all: [dailyRow, weeklyRow(7)] })
-    const log = { dailyCalls: [] as string[] }
-    const r = await syncCompetitorChannel(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }), ...quiet })
-    expect(log.dailyCalls.flatMap(idsOf)).toEqual(['vid-7'])
-    expect(arg(db.calls.find(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')!, 'upsert')).toEqual([{ video_id: 'v-7', snap_date: day, views: 5, likes: 1, comments: 0, taken_at: at12(day).toISOString() }])
-    expect(r).toMatchObject({ weeklyRecorded: 1 })
-    expect(r.dailyRecorded).toBe(0) // dailyRecorded continua contando só a faixa diária
-    expect(updatesOf(db, 'v-7').some(u => u.view_count === 5)).toBe(true)
-    expect(rpcCalls(db, 'apply_competitor_raw_plan').flatMap(a => a.p_open as Array<{ video_id: string }>).some(o => o.video_id === 'v-7')).toBe(true)
-  })
-  it('OP-15: fora do dia fixo e com ponto há menos de 7 dias, não é pedido; com 7 dias ou mais, é (mesmo fora do dia fixo)', async () => {
-    const day = addDays(slotDate('vid-7'), 1)
-    const log1 = { dailyCalls: [] as string[] }
-    setup({ dailyHave: ['v-1'], existing: [], videoLimit: 1, all: [dailyRow, weeklyRow(7)], recentDaily: [{ video_id: 'v-7', snap_date: addDays(day, -6), views: 100 }] })
-    await syncCompetitorChannel(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log: log1 }), ...quiet })
-    expect(log1.dailyCalls).toEqual([])
-    const log2 = { dailyCalls: [] as string[] }
-    setup({ dailyHave: ['v-1'], existing: [], videoLimit: 1, all: [dailyRow, weeklyRow(7)], recentDaily: [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 100 }] })
-    await syncCompetitorChannel(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log: log2 }), ...quiet })
-    expect(log2.dailyCalls.flatMap(idsOf)).toEqual(['vid-7'])
-  })
-  it('OP-15, D0: de 70 vídeos recém-classificados como semanais, só os do dia fixo de hoje são lidos (a carga se espalha)', async () => {
-    const all = [dailyRow, ...Array.from({ length: 70 }, (_, i) => row(100 + i, 400 + i))] // sem faixa ainda: viram semanais nesta sincronização
-    setup({ dailyHave: ['v-1'], existing: [], videoLimit: 1, all })
-    const log = { dailyCalls: [] as string[] }
-    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }), ...quiet })
-    const asked = log.dailyCalls.flatMap(idsOf)
-    expect(asked).toEqual(all.slice(1).filter(r => dayNumber('2026-10-24') % 7 === weekSlotOf(r.video_id as string)).map(r => r.video_id))
-    expect(asked.length).toBeLessThan(30)
-  })
-  it('antes das 12:00 de São Paulo a passada semanal não roda', async () => {
-    setup({ existing: [], videoLimit: 1, all: [dailyRow, weeklyRow(7)] })
-    const log = { dailyCalls: [] as string[] }
-    await syncCompetitorChannel(ch, 'k', { now: new Date(at12(slotDate('vid-7')).getTime() - 6 * 3_600_000), fetchImpl: apiFetch(null, 200, { daily: echo, log }), ...quiet })
-    expect(log.dailyCalls).toEqual([])
-  })
-  it('Review Focus 4 e conta de cota: 50 diários e 34 semanais devidos → 2 lotes (5 chamadas no total); com o relógio fechado, o 1º lote sai (diários) e os semanais do 2º ficam adiados e contados', async () => {
-    const day = '2026-10-24'
-    const daily = Array.from({ length: 50 }, (_, i) => row(i + 1, i * 0.1, { series_tier: 'diaria', series_tier_since: '2026-09-01' }))
-    const weekly = Array.from({ length: 400 }, (_, i) => weeklyRow(1000 + i)).filter(r => dayNumber(day) % 7 === weekSlotOf(r.video_id as string)).slice(0, 34)
-    expect(weekly).toHaveLength(34)
-    setup({ dailyHave: [], existing: [], all: [...daily, ...weekly] })
-    const t = traced(apiFetch(null, 200, { daily: echo }))
-    const open = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: t.f, ...quiet })
-    expect(t.api().filter(u => u.startsWith('videos?'))).toHaveLength(2)
-    expect(open.unitsUsed).toBe(4) // canal, lista de uploads (vazia), e 2 lotes; com vídeo na página seriam 5
-    expect(open).toMatchObject({ dailyRecorded: 50, weeklyRecorded: 34 })
-    setup({ dailyHave: [], existing: [], all: [...daily, ...weekly] })
-    const t2 = traced(apiFetch(null, 200, { daily: echo }))
-    const closed = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: t2.f, ...quiet, weeklyAllowed: () => false })
-    expect(t2.api().filter(u => u.startsWith('videos?'))).toHaveLength(1)
-    expect(closed).toMatchObject({ dailyRecorded: 50, weeklyDeferred: 34 })
-    expect(closed.weeklyRecorded ?? 0).toBe(0)
-  })
-  it('item 17 (a): semanal que ganhou 1.000 views e 5% numa semana ganha daily_until = hoje + 28', async () => {
-    const day = slotDate('vid-7')
-    const db = setup({ dailyHave: ['v-1'], existing: [], videoLimit: 1, all: [dailyRow, weeklyRow(7)], recentDaily: [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 4000 }] })
-    const up = (_n: number, u: string) => idsOf(u).map(id => ({ id, snippet: { title: 'T7' }, statistics: { viewCount: '5000' }, contentDetails: {} }))
-    const r = await syncCompetitorChannel(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: up }), ...quiet })
-    const promo = db.calls.find(c => c.table === 'competitor_videos' && first(c) === 'update' && 'daily_until' in (arg(c, 'update') ?? {}))!
-    expect(arg(promo, 'update')).toEqual({ daily_until: addDays(day, 28) })
-    expect(promo.ops.find(o => o[0] === 'in')![1]).toEqual(['id', ['v-7']])
-    expect(r.promoted).toBe(1)
-  })
-  it('item 17 (b): troca de título num vídeo semanal promove; a miniatura do semanal NÃO é sondada', async () => {
-    const day = slotDate('vid-7')
-    const lastSeen = new Date(at12(day).getTime() - 7 * 86_400_000).toISOString()
-    const db = setup({ dailyHave: ['v-1'], existing: [], videoLimit: 1, all: [dailyRow, weeklyRow(7)], versions: [{ id: 'tv7', video_id: 'v-7', field: 'title', value_text: 'Antigo', value_hash: hashValue('Antigo'), thumb_etag: null, thumb_dhash: null, last_seen_at: lastSeen }] })
-    const r = await syncCompetitorChannel(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }), ...quiet })
-    expect(r.changesDetected).toBe(1)
-    expect(r.promoted).toBe(1)
-    expect(vi.mocked(probeThumb)).not.toHaveBeenCalled()
-  })
-  it('janela longa: troca num semanal cuja última leitura tem mais de 8 dias vira versão (com a janela honesta), mas não vira aviso, nem linha de mudança, nem promoção', async () => {
-    const day = slotDate('vid-7')
-    const lastSeen = new Date(at12(day).getTime() - 60 * 86_400_000).toISOString()
-    const db = setup({ dailyHave: ['v-1'], existing: [], videoLimit: 1, all: [dailyRow, weeklyRow(7)], versions: [{ id: 'tv7', video_id: 'v-7', field: 'title', value_text: 'Antigo', value_hash: hashValue('Antigo'), thumb_etag: null, thumb_dhash: null, last_seen_at: lastSeen }] })
-    const r = await syncCompetitorChannel(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }), ...quiet })
-    const plan = rpcs(db).find(p => p.p_video_id === 'v-7')!
-    expect(plan.p_close).toEqual(['tv7'])
-    expect(plan.p_open.find(o => o.field === 'title')).toMatchObject({ window_start: lastSeen })
-    expect(plan.p_changes).toEqual([])
-    expect(r).toMatchObject({ changesDetected: 0, longWindowChanges: 1 })
-    expect(r.promoted ?? 0).toBe(0)
-  })
   it('item 16: vídeo descoberto até 24 h depois de publicado ganha uma leitura por sincronização enquanto tiver menos de 72 h; os outros, nenhuma', async () => {
     const H = 3_600_000, iso = (ms: number) => new Date(ms).toISOString()
     const fresh = { ...ROW1, discovered_at: iso(EARLY.getTime() - 5 * H), published_at: iso(EARLY.getTime() - 10 * H) }
@@ -2571,38 +2845,34 @@ No roteiro do falso, apague as linhas de `not` e de `limit` de `competitor_video
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page({ snippet: { ...page().snippet, publishedAt: fresh.published_at }, statistics: {} })), ...quiet })
     expect(db.calls.some(c => c.table === 'competitor_video_early')).toBe(false)
   })
+  // (emenda do portão: S-I5) a regra "nenhuma gravação nova na frente da série do dia", presa para as SEIS gravações novas
+  it.each([
+    ['competitor_video_early', /primeiras horas/],
+    ['rpc:apply_competitor_tier_plan', /faixa da série/],
+    ['rpc:apply_competitor_field_plan', /histórico de campos/],
+    ['rpc:apply_competitor_raw_plan', /histórico de campos/],
+    ['competitor_channels:patch', /linha do canal/],
+    ['competitor_videos:update', /linha do vídeo/],
+  ] as Array<[string, RegExp]>)('gravação nova falhando (%s): a série do dia é gravada inteira e o canal termina em erro', async (failWrite, msg) => {
+    const fresh = { ...ROW1, discovered_at: new Date(NOW.getTime() - 3_600_000).toISOString(), published_at: new Date(NOW.getTime() - 2 * 3_600_000).toISOString() }
+    const db = setup({ lastDaily: '2026-10-23', existing: [fresh], failWrite })
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(page({ snippet: { ...page().snippet, publishedAt: fresh.published_at } })), ...quiet })).rejects.toThrow(msg)
+    // a passada diária rodou e gravou o ponto de hoje, apesar da falha
+    const up = db.calls.find(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')
+    expect(up, 'a série do dia não foi gravada').toBeDefined()
+    expect((arg(up!, 'upsert') as unknown[]).length).toBeGreaterThan(0)
+    // e o canal não foi marcado como sincronizado com sucesso
+    expect(db.calls.some(c => c.table === 'competitor_channels' && first(c) === 'update' && 'last_ok_synced_at' in (arg(c, 'update') ?? {}))).toBe(false)
+  })
 ```
 
-(importe `dayNumber`, `addDays`, `weekSlotOf` de `@/lib/youtube/competitor-tiers`, `hashValue` de `@/lib/youtube/competitor-versions` e `rpcs` do arquivo de apoio.)
+(`'competitor_channels:patch'` é o `update` do canal que leva `custom_url`; `'competitor_videos:update'` é o primeiro `update` de `competitor_videos`: escreva `failWrite` no falso de modo a distinguir esses dois sufixos. `NOW` é 12:00 de São Paulo, então a passada diária é devida.)
 
 - [ ] **Step 3:** rodar → FAIL.
 
-- [ ] **Step 4: implementar.**
+- [ ] **Step 4: implementar.** Importe `earlyEligible` de `@/lib/youtube/competitor-tiers`; `SyncResult` ganha `earlyRecorded?`; declare `let earlyRecorded = 0` junto dos outros contadores, fora do `try`.
 
-(a) Importações: `weeklyDue, shouldPromote, earlyEligible, addDays` de `competitor-tiers`; `RULES` de `@/lib/youtube/observatorio/rules`. Opções: `weeklyAllowed?: () => boolean`. `SyncResult`: `weeklyRecorded?`, `weeklyDeferred?`, `earlyRecorded?`, `promoted?`, `longWindowChanges?`.
-
-(b) Estado, junto dos outros: `const promote = new Set<string>()`, `let longWindowChanges = 0`, `let weeklyRecorded = 0, weeklyDeferred = 0, earlyRecorded = 0`, `const weeklyIds = new Set<string>()`.
-
-(c) `reconcileVideo` ganha um último parâmetro `w: { weekly: boolean } = { weekly: false }`:
-- no começo: se `w.weekly`, não sonda (`probe = null`, `action = 'skip'`): envolva o `try { probe = await probeThumb(…) }` em `if (!w.weekly) { … }`. A miniatura de vídeo semanal não é conferida nem arquivada (decisão 1 da seção 1 do plano; spec 4.2).
-- depois de `const plan = dropFields(rawPlan, current, skip)`, troque `const plan` por `let plan` e acrescente:
-
-```ts
-    if (w.weekly && plan.changes.length) {
-      // Um vídeo semanal é visto a cada 7 dias. Se a versão anterior foi vista há mais de 8, a coleta ficou parada (ou o vídeo
-      // nunca tinha sido relido): a versão nova é gravada com a janela verdadeira, mas não é "troca desta semana": não avisa,
-      // não entra em competitor_changes e não promove (sem ponto antes, não há efeito a medir).
-      const floor = nowMs - RULES.series.weeklyMaxGapDays * 86_400_000
-      const recent = plan.changes.filter(c => c.window_start != null && Date.parse(c.window_start) >= floor)
-      longWindowChanges += plan.changes.length - recent.length
-      plan = { ...plan, changes: recent }
-      if (recent.length) promote.add(videoUuid)
-    }
-```
-
-- `reconcileFetched` não muda de assinatura: dentro dela, a chamada passa a ser `await reconcileVideo(row.id, it.id, { … }, currentMap.get(row.id) ?? [], touch, { weekly: weeklyIds.has(row.id) })` (a função decide por vídeo).
-
-(d) Primeiras horas, no laço da página. O `select` de `existingVideos` ganha `, discovered_at, published_at`. Declare `const earlyRows: Array<{ video_id: string; taken_at: string; site_id: string; views: number; likes: number | null; comments: number | null }> = []` junto de `pagePairs`; dentro do laço, depois de resolvido `videoUuid`:
+(a) No laço da página. O `select` de `existingVideos` ganha `, discovered_at, published_at`. Declare `const earlyRows: Array<{ video_id: string; taken_at: string; site_id: string; views: number; likes: number | null; comments: number | null }> = []` junto de `pagePairs`; dentro do laço, depois de resolvido `videoUuid`:
 
 ```ts
         const discoveredAt = existing ? ((existing as { discovered_at?: string | null }).discovered_at ?? null) : nowIso
@@ -2616,83 +2886,487 @@ e, antes de `await captureFetched(pagePairs)`:
 ```ts
       if (earlyRows.length) {
         const { error } = await supabase.from('competitor_video_early').upsert(earlyRows, { onConflict: 'video_id,taken_at', ignoreDuplicates: true })
-        fail('record early views', error)
-        earlyRecorded += earlyRows.length
+        // (emenda do portão: S-I5) não lança: as primeiras horas não ficam na frente da série do dia
+        if (!late('não foi possível gravar as primeiras horas', error)) earlyRecorded += earlyRows.length
       }
 ```
 
-(e) A passada. Acrescente, junto de `missingDaily`:
+(b) No `return` de sucesso: `...(earlyRecorded ? { earlyRecorded } : {})`.
+
+- [ ] **Step 5:** rodar o comando da regra → verde, com os seis casos do `it.each`. Se um deles falhar porque a gravação lança na hora, é o `fail` que tinha de ser `late`: conserte no código, não no teste.
+
+- [ ] **Step 6: commit.**
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts && git diff --cached --name-only && git commit -m "feat: primeiras horas dos vídeos novos na coleta de concorrentes; nenhuma gravação nova fica na frente da série do dia (A5 E2)" -- apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts
+```
+
+**Pronto quando:** o item 16 passa; os seis casos de "gravação nova falhando" passam; este commit pode ir a produção sem a 11b e sem a 11c.
+
+### Task 11b: a leitura semanal como função própria (`syncCompetitorWeekly`), com a miniatura
+
+**Files:**
+- Modify: `apps/web/src/lib/youtube/competitor-sync.ts`, `apps/web/test/youtube/competitor-sync-harness.ts`
+- Test: `apps/web/test/youtube/competitor-sync-a5.test.ts`
+
+**Interfaces:**
+- Consumes: `weeklyDue`, `addDays` (Tarefa 5); `RULES.series`; `rowsAs`, `isRec` (Tarefa 4); `recordQuota` (Tarefa 9); `loadAll`, `FullRow`, `outOfProof`, `rowInfo`, `patchFetched`, `captureFetched`, `asked`, `seen`, `late` (Tarefas 6b a 10).
+- Produces:
 
 ```ts
-  /** O ponto mais recente de cada vídeo nos últimos 8 dias. 100 ids × até 9 datas = 900 linhas: abaixo do corte de 1.000. */
-  const loadRecentPoints = async (uuids: string[], today: string): Promise<Map<string, { date: string; views: number }>> => {
-    const out = new Map<string, { date: string; views: number }>()
+export interface WeeklyResult {
+  /** vídeos semanais devidos hoje neste canal */
+  due: number
+  /** pontos gravados na série nesta visita */
+  recorded: number
+  /** devidos que o relógio não deixou conferir: continuam devidos pelo dado */
+  deferred: number
+  promoted: number
+  unitsUsed: number
+  changesDetected: number
+  longWindowChanges: number
+  /** true = nada ficou adiado; o canal foi carimbado com weekly_pass_date = hoje */
+  complete: boolean
+  /** o canal está sendo sincronizado agora por outro processo: nada foi feito */
+  skipped?: boolean
+}
+/**
+ * A leitura semanal de UM canal (A5 E2, OP-15): os vídeos em faixa semanal que são devidos hoje. Chamada pela fase semanal do
+ * lote (Tarefa 13) e, na E16, pela tarefa serie_semanal. Não faz channels.list nem lê a página de uploads, não mexe em
+ * last_synced_at nem em sync_status, e não põe o canal em erro: se lançar, quem chama conta o erro e tenta no disparo seguinte.
+ */
+export async function syncCompetitorWeekly(
+  channelRow: { id: string; channel_id: string; site_id: string },
+  apiKey: string,
+  opts?: { now?: Date; fetchImpl?: typeof fetch; /** true = pare de começar vídeo novo */ deadline?: () => boolean; /** false = não confere a miniatura (pergunta 1 da seção 1) */ thumbs?: boolean },
+): Promise<WeeklyResult>
+```
+
+**Como se encaixa no arquivo (S-M9).** `syncCompetitorChannel` tem hoje os auxiliares dentro dela, fechados sobre `supabase`, `nowIso`, `api` e os conjuntos da sincronização. Para a leitura semanal usar **os mesmos** auxiliares (`reconcileVideo`, `patchFetched`, `captureFetched`, a marca de ausência), o corpo vira uma função interna com o modo como parâmetro, e as duas exportadas a chamam:
+
+```ts
+type RunMode = 'slot' | 'weekly'
+type RunOpts = { now?: Date; fetchImpl?: typeof fetch; probeBudget?: ProbeBudget; deferBackfill?: boolean; deadline?: () => boolean; thumbs?: boolean }
+export async function syncCompetitorChannel(channelRow: ChannelRef, apiKey: string, opts: RunOpts = {}): Promise<SyncResult> {
+  const r = await runChannel(channelRow, apiKey, opts, 'slot')
+  if (r.kind !== 'slot') throw new Error('runChannel: modo trocado')
+  return r.result
+}
+export async function syncCompetitorWeekly(channelRow: ChannelRef, apiKey: string, opts: RunOpts = {}): Promise<WeeklyResult> {
+  const r = await runChannel(channelRow, apiKey, opts, 'weekly')
+  if (r.kind !== 'weekly') throw new Error('runChannel: modo trocado')
+  return r.result
+}
+type ChannelRef = { id: string; channel_id: string; site_id: string }
+async function runChannel(channelRow: ChannelRef, apiKey: string, opts: RunOpts, mode: RunMode): Promise<{ kind: 'slot'; result: SyncResult } | { kind: 'weekly'; result: WeeklyResult }> {
+  // … o corpo de hoje. Três diferenças no modo 'weekly', marcadas abaixo.
+}
+```
+
+É uma mudança de embrulho: no modo `'slot'` nada do comportamento muda (os testes das Tarefas 6b a 11a continuam verdes **sem serem tocados**: é a prova). O resto da função (cerca de 900 linhas com conjuntos compartilhados) fica como dívida registrada no ledger, com destino na E16.
+
+- [ ] **Step 1: o falso.** Em `setup`: (1) opção `recentDaily?: Record<string, unknown>[]` e, **antes** da linha `competitor_video_daily` + `select` que já existe, `if (c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte')) return { data: opts.recentDaily ?? [] }`; (2) a leitura do estado do canal no modo semanal: `if (c.table === 'competitor_channels' && first(c) === 'select') return { data: [{ ...lockRow, sync_status: opts.channelStatus ?? 'idle', sync_started_at: opts.channelStartedAt ?? null, video_limit: opts.videoLimit ?? lockRow.video_limit }] }` (opções novas `channelStatus?`, `channelStartedAt?`); (3) opção `recentChanges?: Record<string, unknown>[]`, devolvida para `competitor_video_versions` + `select` com um filtro `gte` em `first_seen_at` (a 11c usa).
+
+- [ ] **Step 2: testes que falham** (num `describe('A5 E2: leitura semanal (syncCompetitorWeekly)', …)` que reaproveita `row`, `idsOf` e `echo` do `describe` da Tarefa 10; mova os três para o topo do arquivo; importe `syncCompetitorWeekly`, e `dayNumber`, `addDays`, `weekSlotOf` de `@/lib/youtube/competitor-tiers`, `hashValue` de `@/lib/youtube/competitor-versions`, `rpcs` do arquivo de apoio):
+
+```ts
+  const slotDate = (ytId: string) => { let d = '2026-10-24'; while (dayNumber(d) % 7 !== weekSlotOf(ytId)) d = addDays(d, 1); return d }
+  const at12 = (date: string) => new Date(date + 'T15:00:00.000Z')
+  const weeklyRow = (i: number, over: Record<string, unknown> = {}) => row(i, 400 + i, { series_tier: 'semanal', series_tier_since: '2026-09-01', ...over })
+  const dailyRow = row(1, 1, { series_tier: 'diaria', series_tier_since: '2026-09-01' })
+  const stamp = (db: { calls: Call[] }) => db.calls.filter(c => c.table === 'competitor_channels' && first(c) === 'update' && 'weekly_pass_date' in (arg(c, 'update') ?? {})).map(c => arg(c, 'update'))
+  const pointsOf = (db: { calls: Call[] }) => db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'upsert').flatMap(c => arg(c, 'upsert') as Array<{ video_id: string }>).map(p => p.video_id)
+
+  it('OP-15: no dia fixo o vídeo semanal é lido: uma chamada, a linha, os campos, o raw, a miniatura conferida, o ponto, e o canal carimbado', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [dailyRow, weeklyRow(7)] })
+    const log = { dailyCalls: [] as string[] }
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+    expect(log.dailyCalls.flatMap(idsOf)).toEqual(['vid-7'])                // só o semanal: o diário não é desta função
+    expect(arg(db.calls.find(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')!, 'upsert')).toEqual([{ video_id: 'v-7', snap_date: day, views: 5, likes: 1, comments: 0, taken_at: at12(day).toISOString() }])
+    expect(r).toMatchObject({ due: 1, recorded: 1, deferred: 0, complete: true, unitsUsed: 1 })
+    expect(updatesOf(db, 'v-7').some(u => u.view_count === 5)).toBe(true)
+    expect(rpcCalls(db, 'apply_competitor_raw_plan').flatMap(a => a.p_open as Array<{ video_id: string }>).some(o => o.video_id === 'v-7')).toBe(true)
+    expect(vi.mocked(probeThumb)).toHaveBeenCalledWith('vid-7', null, expect.anything())   // D-I4: a miniatura do semanal É conferida
+    expect(stamp(db)).toEqual([{ weekly_pass_date: day }])
+    // não é uma sincronização do canal: nem channels.list, nem página, nem cursor, nem estado
+    expect(db.calls.some(c => c.table === 'competitor_channels' && first(c) === 'update' && ('last_synced_at' in (arg(c, 'update') ?? {}) || 'sync_status' in (arg(c, 'update') ?? {})))).toBe(false)
+  })
+  it('D-I4: a primeira leitura de um vídeo sem versão de miniatura abre a linha de base e guarda a cópia; thumbs: false não sonda', async () => {
+    const day = slotDate('vid-7')
+    vi.mocked(probeThumb).mockResolvedValue({ etag: '"e1"', lastModified: null, dhash: 'abcd', bytes: Buffer.from('x'), url: 'https://i.ytimg.com/vi/vid-7/hqdefault.jpg' })
+    const db = setup({ all: [weeklyRow(7)] })
+    await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    const open = rpcs(db).find(p => p.p_video_id === 'v-7')!.p_open.find(o => o.field === 'thumb')!
+    expect(open).toMatchObject({ precision: 'first', thumb_dhash: 'abcd', thumb_blob_url: 'https://blob.test/t.jpg' })
+    expect(vi.mocked(archiveThumb)).toHaveBeenCalledTimes(1)
+    vi.mocked(probeThumb).mockClear()
+    setup({ all: [weeklyRow(7)] })
+    await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }), thumbs: false })
+    expect(vi.mocked(probeThumb)).not.toHaveBeenCalled()
+  })
+  it('OP-15: fora do dia fixo e com ponto há menos de 7 dias, não é pedido (e o canal é carimbado na hora); com 7 dias ou mais, é', async () => {
+    const day = addDays(slotDate('vid-7'), 1)
+    const log1 = { dailyCalls: [] as string[] }
+    const db1 = setup({ all: [dailyRow, weeklyRow(7)], recentDaily: [{ video_id: 'v-7', snap_date: addDays(day, -6), views: 100 }] })
+    const r1 = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log: log1 }) })
+    expect(log1.dailyCalls).toEqual([])
+    expect(r1).toMatchObject({ due: 0, complete: true, unitsUsed: 0 })
+    expect(stamp(db1)).toEqual([{ weekly_pass_date: day }])
+    const log2 = { dailyCalls: [] as string[] }
+    setup({ all: [dailyRow, weeklyRow(7)], recentDaily: [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 100 }] })
+    await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log: log2 }) })
+    expect(log2.dailyCalls.flatMap(idsOf)).toEqual(['vid-7'])
+  })
+  it('OP-15, D0: de 70 semanais, só os do dia fixo de hoje são lidos (a carga se espalha)', async () => {
+    const all = Array.from({ length: 70 }, (_, i) => weeklyRow(100 + i, { series_tier_since: '2026-10-24' }))
+    setup({ all })
+    const log = { dailyCalls: [] as string[] }
+    await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+    const got = log.dailyCalls.flatMap(idsOf)
+    expect(got).toEqual(all.filter(r => dayNumber('2026-10-24') % 7 === weekSlotOf(r.video_id as string)).map(r => r.video_id))
+    expect(got.length).toBeLessThan(30)
+  })
+  it('a conta de cota: 34 devidos = 1 chamada; 120 devidos = 3 chamadas', async () => {
+    const day = '2026-10-24'
+    const dueRows = (n: number) => Array.from({ length: 2000 }, (_, i) => weeklyRow(1000 + i)).filter(r => dayNumber(day) % 7 === weekSlotOf(r.video_id as string)).slice(0, n)
+    for (const [n, calls] of [[34, 1], [120, 3]] as const) {
+      setup({ all: dueRows(n) })
+      const r = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo }) })
+      expect(r).toMatchObject({ due: n, recorded: n, unitsUsed: calls, complete: true })
+    }
+  })
+  it('Review Focus 4: o relógio acaba no meio: o vídeo NÃO conferido não ganha ponto (o ponto é o recibo), o canal NÃO é carimbado, e os adiados são contados', async () => {
+    const day = '2026-10-24'
+    const due = Array.from({ length: 2000 }, (_, i) => weeklyRow(1000 + i)).filter(r => dayNumber(day) % 7 === weekSlotOf(r.video_id as string)).slice(0, 34)
+    const db = setup({ all: due })
+    let checked = 0
+    vi.mocked(probeThumb).mockImplementation(async () => { checked++; return { etag: null, lastModified: null, dhash: null, bytes: null, url: '' } })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo }), deadline: () => checked >= 10 })
+    expect(r).toMatchObject({ due: 34, recorded: 10, deferred: 24, complete: false })
+    expect(pointsOf(db)).toEqual(due.slice(0, 10).map(x => x.id))        // só os 10 conferidos têm ponto
+    expect(stamp(db)).toEqual([])
+    // os 24 que vieram do YouTube e não foram conferidos NÃO contam como ausentes
+    expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([])
+  })
+  it('relógio fechado desde o começo: nenhuma chamada à API, tudo adiado', async () => {
+    const day = slotDate('vid-7')
+    setup({ all: [weeklyRow(7)] })
+    const log = { dailyCalls: [] as string[] }
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }), deadline: () => true })
+    expect(log.dailyCalls).toEqual([])
+    expect(r).toMatchObject({ due: 1, recorded: 0, deferred: 1, complete: false, unitsUsed: 0 })
+  })
+  it('o canal está sendo sincronizado agora (syncing há menos de 10 minutos): não faz nada e diz skipped', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)], channelStatus: 'syncing', channelStartedAt: new Date(at12(day).getTime() - 60_000).toISOString() })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    expect(r).toMatchObject({ skipped: true, complete: false })
+    expect(db.calls.some(c => first(c) === 'upsert' || c.table.startsWith('rpc:'))).toBe(false)
+  })
+  it('vídeo semanal pedido e não devolvido: uma falta (é assim que se descobre que saiu do ar); o canal é carimbado (ele foi PEDIDO)', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)], missed: [{ id: 'v-7', miss_streak: 1, miss_first_at: at12(day).toISOString(), missing_since: null, last_seen_at: null }] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: () => [] }) })
+    expect(rpcCalls(db, 'competitor_mark_missing')[0]!.p_video_ids).toEqual(['v-7'])
+    expect(r).toMatchObject({ due: 1, recorded: 0, deferred: 0, complete: true })
+  })
+  it('a API falha (HTTP 500): lança, o canal NÃO vai para erro, NÃO é carimbado, e nenhum vídeo conta como ausente', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)] })
+    await expect(syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: () => new Response('x', { status: 500 }) }) })).rejects.toThrow(/500/)
+    expect(db.calls.some(c => c.table === 'competitor_channels' && first(c) === 'update')).toBe(false)
+    expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([])
+  })
+  it('S-M8: troca de título vista num semanal com a janela de 7 dias: versão, linha de mudança com a janela, e conta para o aviso', async () => {
+    const day = slotDate('vid-7')
+    const lastSeen = new Date(at12(day).getTime() - 7 * 86_400_000).toISOString()
+    const db = setup({ all: [weeklyRow(7)], versions: [{ id: 'tv7', video_id: 'v-7', field: 'title', value_text: 'Antigo', value_hash: hashValue('Antigo'), thumb_etag: null, thumb_dhash: null, last_seen_at: lastSeen }] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    const plan = rpcs(db).find(p => p.p_video_id === 'v-7')!
+    expect(plan.p_changes).toHaveLength(1)
+    expect(plan.p_changes[0]).toMatchObject({ window_start: lastSeen, window_end: at12(day).toISOString(), precision: '1d' }) // desvio D-12
+    expect(r).toMatchObject({ changesDetected: 1, longWindowChanges: 0 })
+  })
+  it('S-M8, janela longa (60 dias): a versão E a linha de mudança são gravadas com a janela verdadeira (tela e Cowork contam igual), mas não conta para o aviso', async () => {
+    const day = slotDate('vid-7')
+    const lastSeen = new Date(at12(day).getTime() - 60 * 86_400_000).toISOString()
+    const db = setup({ all: [weeklyRow(7)], versions: [{ id: 'tv7', video_id: 'v-7', field: 'title', value_text: 'Antigo', value_hash: hashValue('Antigo'), thumb_etag: null, thumb_dhash: null, last_seen_at: lastSeen }] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    const plan = rpcs(db).find(p => p.p_video_id === 'v-7')!
+    expect(plan.p_open.find(o => o.field === 'title')).toMatchObject({ window_start: lastSeen })
+    expect(plan.p_changes).toHaveLength(1)
+    expect(plan.p_changes[0]).toMatchObject({ window_start: lastSeen })
+    expect(r).toMatchObject({ changesDetected: 0, longWindowChanges: 1 })
+    expect(vi.mocked(createNotification)).not.toHaveBeenCalled()
+  })
+  it('a cota da leitura semanal vai para a linha do dia, na chave competitors_semanal, com os adiados e as mudanças de janela longa', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7)] })
+    await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    expect(rpcCalls(db, 'youtube_quota_add').at(-1)).toMatchObject({ p_units: 1, p_add: { competitors_semanal: 1 } })
+  })
+```
+
+- [ ] **Step 3:** rodar → FAIL (`syncCompetitorWeekly` não existe).
+
+- [ ] **Step 4: implementar.**
+
+(a) O embrulho: `runChannel`, `syncCompetitorChannel` e `syncCompetitorWeekly`, como no bloco "Como se encaixa" acima. No fim do corpo, o `return` de sucesso de hoje vira `return { kind: 'slot', result: { … } }`; os dois `return` de `skipped` também.
+
+(b) **Diferença 1 do modo semanal: a trava.** Logo no começo, antes do CAS:
+
+```ts
+  if (mode === 'weekly') {
+    // Não toma a trava do canal nem mexe no cursor: só não entra enquanto outro processo o sincroniza (o conjunto de vídeos
+    // é disjunto do da sincronização: lá, a faixa diária e a página; aqui, só a faixa semanal).
+    const { data, error } = await supabase.from('competitor_channels').select('sync_status, sync_started_at, video_limit, last_ok_synced_at').eq('id', channelRow.id)
+    if (error) throw new Error('leitura semanal: ' + (error.message ?? 'erro do banco'))
+    const st = rowsAs(data, isRec, 'leitura semanal: canal')[0]
+    if (!st) throw new Error('leitura semanal: canal não encontrado')
+    const busy = st.sync_status === 'syncing' && typeof st.sync_started_at === 'string' && Date.parse(st.sync_started_at) > nowMs - 10 * 60_000
+    if (busy) return { kind: 'weekly', result: { due: 0, recorded: 0, deferred: 0, promoted: 0, unitsUsed: 0, changesDetected: 0, longWindowChanges: 0, complete: false, skipped: true } }
+  }
+```
+
+O CAS de hoje fica dentro de `if (mode === 'slot') { … }`; as variáveis que saem dele (`prevOkAt`, `videoLimit`, `syncMode`, `fullSyncDone`, `prevChannelSeenAt`) passam a `let` com os valores do modo semanal: `prevOkAt` = `last_ok_synced_at` lido acima; `videoLimit` = `video_limit ?? 50`; as outras, os valores neutros (`'incremental'`, `null`, `null`). A contagem `syncedCount` e `needsBackfill` só no modo `'slot'`.
+
+(c) `reconcileVideo` ganha um último parâmetro `w: { weekly: boolean } = { weekly: false }`:
+- **a miniatura é conferida também no semanal** (D-I4): o `try { probe = await probeThumb(…) }` fica como está, envolvido só por `if (opts.thumbs !== false || !w.weekly) { … }` (com `thumbs: false`, o semanal não sonda: `probe = null`, `action = 'skip'`).
+- depois de `const plan = dropFields(rawPlan, current, skip)`:
+
+```ts
+    // (emenda do portão: S-M8) Um vídeo semanal é visto a cada 7 dias. Se a versão anterior foi vista há mais de 8, a coleta
+    // ficou parada (ou o vídeo nunca tinha sido relido): a versão e a linha de mudança são gravadas com a janela verdadeira,
+    // como qualquer outra (a tela e o Cowork contam igual, D3), mas isso não é "troca desta semana": não entra na conta do aviso.
+    let longHere = 0
+    if (w.weekly && plan.changes.length) {
+      const floor = nowMs - RULES.series.weeklyMaxGapDays * 86_400_000
+      longHere = plan.changes.filter(c => c.window_start == null || Date.parse(c.window_start) < floor).length
+      longWindowChanges += longHere
+    }
+```
+
+- e, onde hoje está `changesDetected += (data as { changes?: number } | null)?.changes ?? 0`, desconte: `changesDetected += Math.max(0, ((data as { changes?: number } | null)?.changes ?? 0) - longHere)`. (`let longWindowChanges = 0` junto dos outros contadores.)
+
+(d) `reconcileFetched` ganha um terceiro parâmetro e devolve o que conferiu: `(items, byYt, o: { weekly?: boolean; stop?: () => boolean } = {}): Promise<FetchedItem[]>`. No laço, como primeira linha: `if (o.stop?.()) break`; a chamada vira `await reconcileVideo(row.id, it.id, { … }, currentMap.get(row.id) ?? [], touch, { weekly: o.weekly === true })`; cada item conferido entra numa lista `done`, que é o retorno (o `touch` é gravado como hoje, para os conferidos). As duas chamadas que já existem (passada diária e fixados) não passam o terceiro parâmetro e ignoram o retorno.
+
+(e) Os pontos recentes, junto de `missingDaily`:
+
+```ts
+  type Point = { date: string; views: number }
+  const isPointRow = (x: unknown): x is { video_id: string; snap_date: string; views: number | string } =>
+    isRec(x) && typeof x.video_id === 'string' && typeof x.snap_date === 'string' && (typeof x.views === 'number' || typeof x.views === 'string')
+  /** Os dois pontos mais recentes de cada vídeo nos últimos 8 dias. 100 ids × até 9 datas = 900 linhas: abaixo do corte de 1.000. */
+  const loadRecentPoints = async (uuids: string[], today: string): Promise<Map<string, { last: Point; prev: Point | null }>> => {
+    const out = new Map<string, { last: Point; prev: Point | null }>()
     const from = addDays(today, -RULES.series.weeklyMaxGapDays)
     for (let i = 0; i < uuids.length; i += 100) {
       const { data, error } = await supabase.from('competitor_video_daily').select('video_id, snap_date, views').in('video_id', uuids.slice(i, i + 100)).gte('snap_date', from).order('snap_date', { ascending: true })
       fail('load recent points', error)
-      const rows = (data ?? []) as unknown as Array<{ video_id: string; snap_date: string; views: number }>
+      const rows = rowsAs(data, isPointRow, 'pontos recentes') // (emenda do portão: S-I3) sem cast
       if (rows.length >= 1000) throw new Error('load recent points: 1000 linhas ou mais numa leitura (corte do PostgREST)')
-      for (const r of rows) out.set(r.video_id, { date: r.snap_date, views: Number(r.views) }) // ordem crescente: fica o mais recente
+      for (const r of rows) { // ordem crescente: o último visto é o mais recente, e o anterior a ele fica em prev
+        const p = { date: r.snap_date, views: Number(r.views) }
+        out.set(r.video_id, { last: p, prev: out.get(r.video_id)?.last ?? null })
+      }
     }
     return out
   }
 ```
 
-Dentro do `if (hourOk) {` da passada diária, troque as três linhas que montam `tracked`, `missing` e `todo` por:
+(f) **Diferença 2 do modo semanal: o corpo.** Imediatamente antes do `try {` grande da sincronização:
 
 ```ts
-      const tracked = tierPlan.daily.map(id => byId.get(id)!)
-      const missing = new Set(await missingDaily(tracked.map(t => t.id), snapDate))
-      const dailyTodo = tracked.filter(t => missing.has(t.id))
-      // ── A5 (E2, OP-15): os semanais devidos HOJE entram nos mesmos lotes de 50, depois dos diários ──
-      let weeklyTodo: FullRow[] = []
-      let recentPoints = new Map<string, { date: string; views: number }>()
-      if (opts.weekly !== false && tierPlan.weekly.length) {
-        const weeklyRows = tierPlan.weekly.map(id => byId.get(id)!)
-        recentPoints = await loadRecentPoints(weeklyRows.map(r => r.id), snapDate)
-        weeklyTodo = weeklyRows.filter(r => weeklyDue({ ytId: r.video_id, lastPoint: recentPoints.get(r.id)?.date ?? null, tierSince: r.series_tier_since }, snapDate))
-        for (const r of weeklyTodo) weeklyIds.add(r.id)
+  if (mode === 'weekly') {
+    const today = spDate(nowMs)
+    const stop = (): boolean => opts.deadline?.() === true
+    const all = await loadAll()
+    for (const r of all) if (!rowInfo.has(r.id)) rowInfo.set(r.id, { lastSeenAt: r.last_seen_at, weeklySince: r.series_tier === 'semanal' ? r.series_tier_since : null, missing: r.missing_since != null })
+    const weeklyRows = all.filter(r => r.series_tier === 'semanal')
+    const points = await loadRecentPoints(weeklyRows.map(r => r.id), today)
+    const due = weeklyRows.filter(r => weeklyDue({ ytId: r.video_id, lastPoint: points.get(r.id)?.last.date ?? null, tierSince: r.series_tier_since }, today))
+    let recorded = 0, deferred = 0
+    for (let i = 0; i < due.length; i += 50) {
+      if (stop()) { deferred += due.length - i; break }
+      const chunk = due.slice(i, i + 50)
+      const res = await api(`${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
+      if (!res.ok) throw new Error(`YouTube API ${res.status} for weekly statistics`)
+      const body = await res.json()
+      const byYt = new Map(chunk.map(c => [c.video_id, c]))
+      const items = ((body.items ?? []) as FetchedItem[]).filter(it => byYt.has(it.id))
+      // pedido e devolvido: nunca conta como ausente, mesmo que o relógio não deixe conferir
+      for (const c of chunk) asked.add(c.id)
+      for (const it of items) seen.add(byYt.get(it.id)!.id)
+      // um vídeo por vez, com o relógio conferido antes de cada um (título, descrição e miniatura)
+      const done = await reconcileFetched(items, byYt, { weekly: true, stop })
+      await patchFetched(done, byYt)
+      await captureFetched(done.map(it => ({ uuid: byYt.get(it.id)!.id, item: it })))
+      // O PONTO É O RECIBO: só o vídeo conferido ganha o ponto de hoje. O que o relógio cortou continua "sem ponto hoje",
+      // logo devido, e é lido no disparo seguinte.
+      const rows = done.filter(it => it.statistics?.viewCount !== undefined).map(it => ({
+        video_id: byYt.get(it.id)!.id, snap_date: today, views: parseInt(it.statistics!.viewCount!, 10),
+        likes: it.statistics!.likeCount !== undefined ? parseInt(it.statistics!.likeCount, 10) : null,
+        comments: it.statistics!.commentCount !== undefined ? parseInt(it.statistics!.commentCount, 10) : null,
+        taken_at: nowIso,
+      }))
+      if (rows.length) {
+        const { data: inserted, error } = await supabase.from('competitor_video_daily').upsert(rows, { onConflict: 'video_id,snap_date', ignoreDuplicates: true }).select('video_id')
+        fail('record weekly views', error)
+        recorded += (inserted ?? []).length
       }
-      const todo: FullRow[] = [...dailyTodo, ...weeklyTodo]
+      const cut = items.length - done.length
+      if (cut > 0) { deferred += cut + Math.max(0, due.length - i - chunk.length); break }
+    }
+    // pedido e NÃO devolvido em nenhuma chamada: uma falta (a mesma regra da sincronização, Tarefa 8)
+    const missedIds = [...asked].filter(id => !seen.has(id))
+    if (missedIds.length) await markMissing(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, videoIds: missedIds, nowIso, weeklySinceOf: id => rowInfo.get(id)?.weeklySince ?? null })
+    const promoted = 0 // a Tarefa 11c troca esta linha pela promoção por estado
+    if (lateFailure) throw lateFailure // linha do vídeo ou captura que não gravou: não carimba; o disparo seguinte refaz
+    const complete = deferred === 0
+    if (complete) {
+      const { error } = await supabase.from('competitor_channels').update({ weekly_pass_date: today }).eq('id', channelRow.id)
+      fail('stamp weekly pass', error)
+    }
+    try {
+      await recordQuota(supabase, { siteId: channelRow.site_id, nowMs, units: unitsUsed, mode: 'competitors_semanal', extra: { mudancas_janela_longa: longWindowChanges }, max: { semanais_adiados: deferred } })
+    } catch (e) { Sentry.captureException(e, { tags: { component: 'sync-youtube', mode: 'competitors-weekly-quota' } }) }
+    return { kind: 'weekly', result: { due: due.length, recorded, deferred, promoted, unitsUsed, changesDetected, longWindowChanges, complete } }
+  }
 ```
 
-No laço `for (let i = 0; i < todo.length; i += 50)`, como primeira coisa do corpo:
+**Diferença 3:** o `catch (error)` grande da sincronização (que grava `sync_status: 'error'`) não é alcançado pelo modo semanal, porque este bloco está antes do `try`: um erro aqui sobe a quem chamou, sem tocar no estado do canal. É de propósito (seção 6: "a fase semanal falha num canal").
 
-```ts
-        const chunk = todo.slice(i, i + 50)
-        // Um lote só de semanais só começa enquanto o relógio do disparo permite; o que fica é devido pelo próprio dado
-        // (dia fixo ainda hoje, na faixa das 18:00; ou 7 dias desde o último ponto, amanhã) e é contado, nunca descartado em silêncio.
-        if (chunk.every(c => weeklyIds.has(c.id)) && opts.weeklyAllowed && !opts.weeklyAllowed()) { weeklyDeferred += todo.length - i; break }
+Notas: (1) o aviso de trocas (`createNotification`) continua só na sincronização do canal; a troca vista na leitura semanal aparece em "Trocas" e no Cowork, e o aviso dela sai na sincronização seguinte do canal **se** a tarefa da E5 o quiser (hoje não sai: registrar no ledger como dívida "aviso de troca em vídeo semanal", destino E5). (2) `captureFetched` e `patchFetched` já usam `late`: por isso o `if (lateFailure) throw` antes do carimbo.
+
+- [ ] **Step 5:** rodar o comando da regra → verde; **os testes das Tarefas 6b a 11a passam sem terem sido tocados** (se algum precisar mudar, o embrulho mudou comportamento: pare e relate). `bash ../../scripts/check-type-debt.sh | tail -1` → "estável".
+
+- [ ] **Step 6: commit.**
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts && git diff --cached --name-only && git commit -m "feat: leitura semanal dos concorrentes como função própria, devida pelo próprio dado, com a miniatura conferida e o ponto como recibo (A5 E2, OP-15)" -- apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts
 ```
 
-(apague a linha antiga `const chunk = todo.slice(i, i + 50)`). Depois do `upsert` que grava `rows`, troque `dailyRecorded += (inserted ?? []).length` por:
+**Pronto quando:** os casos da OP-15, o Review Focus 4 e a conta de chamadas (1 para 34, 3 para 120) passam; a miniatura do semanal é conferida e arquivada; nenhum teste anterior foi tocado.
+
+### Task 11c: a promoção de semanal para diária, decidida pelo estado gravado
+
+*(emenda do portão: S-I6. No texto original a promoção era um evento: decidida a partir das linhas inseridas **agora** e das trocas detectadas **agora**, e gravada num `update` separado no fim. Se a função morresse entre o ponto e o `update`, nada voltava a pedi-la. Agora ela é recalculada a cada visita a partir do que está gravado.)*
+
+**Files:**
+- Modify: `apps/web/src/lib/youtube/competitor-sync.ts`
+- Test: `apps/web/test/youtube/competitor-sync-a5.test.ts`
+
+**Interfaces:**
+- Consumes: `shouldPromote`, `addDays` (Tarefa 5); `RULES.promotion`, `RULES.series`; `loadRecentPoints` (Tarefa 11b).
+- Produces: dentro de `runChannel`, `promoteByState(weeklyRows: FullRow[], today: string): Promise<number>`; `WeeklyResult.promoted` passa a ser o número real.
+
+**A regra, pelo estado.** Um vídeo em faixa semanal, dentro da prova (com contagem, no ar), com `daily_until` nulo ou vencido, **que tem ponto hoje**, é promovido (`daily_until = hoje + 28`) quando: (a) os dois últimos pontos gravados dele satisfazem `shouldPromote` (1.000 views e 5% do total, a no máximo 8 dias um do outro); **ou** (b) existe uma versão de título, descrição ou miniatura dele que não é linha de base (`precision <> 'first'`), vista pela primeira vez nos últimos 7 dias, e cuja janela tem no máximo 8 dias (a de janela longa não promove: desvio D-9). Tudo isso é lido do banco: se a visita anterior morreu depois de gravar o ponto, esta chega à mesma conclusão.
+
+- [ ] **Step 1: testes que falham** (no `describe` da leitura semanal):
 
 ```ts
-            for (const r of (inserted ?? []) as Array<{ video_id: string }>) {
-              if (!weeklyIds.has(r.video_id)) { dailyRecorded++; continue }
-              weeklyRecorded++
-              const now = rows.find(x => x.video_id === r.video_id)
-              if (now && shouldPromote(recentPoints.get(r.video_id) ?? null, { views: now.views }, snapDate)) promote.add(r.video_id)
-            }
+  const promoOf = (db: { calls: Call[] }) => db.calls.filter(c => c.table === 'competitor_videos' && first(c) === 'update' && 'daily_until' in (arg(c, 'update') ?? {}))
+  it('item 17 (a): semanal que ganhou 1.000 views e 5% numa semana ganha daily_until = hoje + 28', async () => {
+    const day = slotDate('vid-7')
+    // depois do upsert desta visita, a leitura dos pontos devolve o de hoje e o de 7 dias atrás
+    const db = setup({ all: [weeklyRow(7)], recentDaily: [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 4000 }], recentDailyAfter: [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 4000 }, { video_id: 'v-7', snap_date: day, views: 5000 }] })
+    const up = (_n: number, u: string) => idsOf(u).map(id => ({ id, snippet: { title: 'T7' }, statistics: { viewCount: '5000' }, contentDetails: {} }))
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: up }) })
+    expect(promoOf(db).map(c => arg(c, 'update'))).toEqual([{ daily_until: addDays(day, 28) }])
+    expect(promoOf(db)[0]!.ops.find(o => o[0] === 'in')![1]).toEqual(['id', ['v-7']])
+    expect(r.promoted).toBe(1)
+  })
+  it('S-I6: a visita anterior MORREU depois do ponto (o vídeo já tem ponto hoje e não é mais devido): esta visita promove assim mesmo', async () => {
+    const day = slotDate('vid-7')
+    const pts = [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 4000 }, { video_id: 'v-7', snap_date: day, views: 5000 }]
+    const db = setup({ all: [weeklyRow(7)], recentDaily: pts, recentDailyAfter: pts })
+    const log = { dailyCalls: [] as string[] }
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+    expect(log.dailyCalls).toEqual([])                       // nada devido: nenhuma chamada à API
+    expect(promoOf(db)).toHaveLength(1)                       // e mesmo assim a promoção sai, pelo estado
+    expect(r).toMatchObject({ due: 0, promoted: 1, complete: true })
+  })
+  it('item 17 (b): troca de título, descrição ou miniatura vista nos últimos 7 dias, com janela de até 8, promove; a de janela longa não', async () => {
+    const day = slotDate('vid-7'), now = at12(day).getTime()
+    const pts = [{ video_id: 'v-7', snap_date: day, views: 10 }, { video_id: 'v-8', snap_date: day, views: 10 }]
+    const iso = (ms: number) => new Date(ms).toISOString()
+    const db = setup({ all: [weeklyRow(7), weeklyRow(8)], recentDaily: pts, recentDailyAfter: pts, recentChanges: [
+      { video_id: 'v-7', field: 'thumb', precision: '1d', first_seen_at: iso(now - 3_600_000), window_start: iso(now - 7 * 86_400_000) },
+      { video_id: 'v-8', field: 'title', precision: '1d', first_seen_at: iso(now - 3_600_000), window_start: iso(now - 60 * 86_400_000) },
+    ] })
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    expect(promoOf(db)[0]!.ops.find(o => o[0] === 'in')![1]).toEqual(['id', ['v-7']])
+    expect(r.promoted).toBe(1)
+  })
+  it('já promovido (daily_until no futuro), sem ponto hoje, ou fora da prova: não é promovido de novo', async () => {
+    const day = slotDate('vid-7')
+    const pts = [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 1 }, { video_id: 'v-7', snap_date: day, views: 100_000 }]
+    for (const over of [{ daily_until: addDays(day, 5) }, { views_hidden: true }]) {
+      const db = setup({ all: [weeklyRow(7, over)], recentDaily: pts, recentDailyAfter: pts })
+      await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+      expect(promoOf(db)).toEqual([])
+    }
+  })
+  it('a promoção falhando no banco: a visita lança, o canal não é carimbado (a próxima visita refaz)', async () => {
+    const day = slotDate('vid-7')
+    const pts = [{ video_id: 'v-7', snap_date: addDays(day, -7), views: 4000 }, { video_id: 'v-7', snap_date: day, views: 5000 }]
+    const db = setup({ all: [weeklyRow(7)], recentDaily: pts, recentDailyAfter: pts, failWrite: 'competitor_videos:daily_until' })
+    await expect(syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })).rejects.toThrow(/promover/)
+    expect(stamp(db)).toEqual([])
+  })
 ```
 
-A chamada `await reconcileFetched(items, byYt)` fica como está. Depois do laço dos lotes, antes de `if (dailyRecorded > 0) {`:
+O falso ganha `recentDailyAfter?`: a **segunda** leitura de `competitor_video_daily` com `gte` (a da promoção, depois dos pontos) devolve essa lista; a primeira continua devolvendo `recentDaily`. E `failWrite: 'competitor_videos:daily_until'` falha o `update` que leva `daily_until`.
+
+- [ ] **Step 2:** rodar → FAIL.
+
+- [ ] **Step 3: implementar.** Importe `shouldPromote`. Junto de `loadRecentPoints`:
 
 ```ts
-      if (promote.size) {
-        const { error } = await supabase.from('competitor_videos').update({ daily_until: addDays(snapDate, RULES.promotion.days) }).in('id', [...promote])
-        fail('promote to daily', error)
+  const isChangeRow = (x: unknown): x is { video_id: string; first_seen_at: string; window_start: string | null } =>
+    isRec(x) && typeof x.video_id === 'string' && typeof x.first_seen_at === 'string' && (x.window_start === null || typeof x.window_start === 'string')
+  /** A promoção é decidida pelo que está GRAVADO (dois últimos pontos; versão aberta na última semana), não pelo que esta visita fez. */
+  const promoteByState = async (weeklyRows: FullRow[], today: string): Promise<number> => {
+    const cand = weeklyRows.filter(r => !outOfProof(r) && (r.daily_until == null || r.daily_until < today))
+    if (!cand.length) return 0
+    const pts = await loadRecentPoints(cand.map(r => r.id), today)
+    const withToday = cand.filter(r => pts.get(r.id)?.last.date === today)
+    if (!withToday.length) return 0
+    const ids = new Set<string>()
+    for (const r of withToday) {
+      const p = pts.get(r.id)!
+      if (shouldPromote(p.prev, { views: p.last.views }, today)) ids.add(r.id)
+    }
+    const since = new Date(nowMs - RULES.series.weeklyEveryDays * 86_400_000).toISOString()
+    const maxWindow = RULES.series.weeklyMaxGapDays * 86_400_000
+    const rest = withToday.map(r => r.id).filter(id => !ids.has(id))
+    for (let i = 0; i < rest.length; i += 100) {
+      const { data, error } = await supabase.from('competitor_video_versions').select('video_id, first_seen_at, window_start')
+        .in('video_id', rest.slice(i, i + 100)).gte('first_seen_at', since).neq('precision', 'first')
+      fail('load recent changes', error)
+      for (const c of rowsAs(data, isChangeRow, 'trocas recentes')) {
+        if (c.window_start != null && Date.parse(c.first_seen_at) - Date.parse(c.window_start) <= maxWindow) ids.add(c.video_id)
       }
+    }
+    if (!ids.size) return 0
+    const { error } = await supabase.from('competitor_videos').update({ daily_until: addDays(today, RULES.promotion.days) }).in('id', [...ids])
+    fail('não foi possível promover o vídeo à leitura diária', error)
+    return ids.size
+  }
 ```
 
-A condição `if (dailyRecorded > 0)` do começo da série passa a `if (dailyRecorded + weeklyRecorded > 0)`.
+No bloco do modo semanal (Tarefa 11b, (f)), troque `const promoted = 0 …` por `const promoted = await promoteByState(weeklyRows, today)`. A promoção vem **depois** dos pontos e **antes** do carimbo: se ela lança, o canal não é carimbado e a visita seguinte a refaz (por isso é `fail`, não `late`: aqui não há série do dia a proteger). O vídeo promovido passa a faixa diária na sincronização seguinte do canal (`classifyTiers`, `daily_until >= hoje`), e volta a semanal no 29º dia, sem apagar linha.
 
-(f) Resultado: `...(weeklyRecorded ? { weeklyRecorded } : {}), ...(weeklyDeferred ? { weeklyDeferred } : {}), ...(earlyRecorded ? { earlyRecorded } : {}), ...(promote.size ? { promoted: promote.size } : {}), ...(longWindowChanges ? { longWindowChanges } : {})`. (As variáveis ficam declaradas fora do `if (hourOk)`.)
+- [ ] **Step 4:** rodar o comando da regra → verde; `bash ../../scripts/check-type-debt.sh | tail -1` → "estável".
 
-- [ ] **Step 5:** rodar o comando da regra → verde. **Step 6: commit** (`feat: passada semanal devida pelo próprio dado, promoção por 28 dias e primeiras horas na coleta de concorrentes (A5 E2, OP-15)`).
+- [ ] **Step 5: commit.**
 
-**Pronto quando:** os cinco casos da OP-15, os itens 16 e 17 e o Review Focus 4 passam; a conta de chamadas (2 lotes para 50 diários e 34 semanais) está presa por teste; nenhuma sonda de miniatura para vídeo semanal.
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts && git diff --cached --name-only && git commit -m "feat: promoção de semanal para diária decidida pelo estado gravado (dois últimos pontos, troca na última semana) (A5 E2, item 17)" -- apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts
+```
+
+**Pronto quando:** o item 17 passa nos dois caminhos; o caso "morreu depois do ponto" promove; a promoção que falha não carimba o canal.
 
 ### Task 12: a prova embutida (o que o cron lê do banco a cada disparo)
 
@@ -2705,23 +3379,38 @@ A condição `if (dailyRecorded > 0)` do começo da série passa a `if (dailyRec
 - Produces:
 
 ```ts
-export interface CaptureHealth { videos_vistos_sem_raw: number; canais_vistos_sem_raw: number; canais_vistos_dia_pacifico: number; cota_dia_pacifico: number; videos_ausentes: number; canais_ausentes: number; canais_em_erro_12h: number }
-export interface SeriesHealth { hoje: string; hora_sp: number; fora_da_prova: number; sem_faixa: number; diaria_sem_ponto_hoje: number; diaria_buracos_3d: number; semanal_atrasados: number; diaria_total: number; semanal_total: number }
+export interface CaptureHealth { videos_vistos_sem_raw: number; canais_vistos_sem_raw: number; canais_vistos_dia_pacifico: number; cota_dia_pacifico: number; videos_ausentes: number; canais_ausentes: number; canais_em_erro_12h: number; canais_em_erro_3d: number }
+export interface SeriesHealth { hoje: string; hora_sp: number; fora_da_prova: number; sem_faixa: number; diaria_sem_ponto_hoje: number; diaria_buracos_3d: number; semanal_atrasados: number; semanal_atrasados_9d: number; semanal_devidos_hoje: number; sem_miniatura_9d: number; diaria_total: number; semanal_total: number }
 export interface HealthVerdict { ok: boolean; problems: string[]; notes: string[] }
 export function parseCaptureHealth(data: unknown): CaptureHealth | null
 export function parseSeriesHealth(data: unknown): SeriesHealth | null
-/** `slotDone` = nenhum canal ficou devido nesta faixa (só então "sem ponto hoje" pode ser cobrado). */
-export function healthVerdict(c: CaptureHealth | null, s: SeriesHealth | null, o: { slotDone: boolean; e2: boolean }): HealthVerdict
-export async function readSiteHealth(sb: SupabaseClient, siteId: string, nowIso: string, o: { slotDone: boolean; e2: boolean }): Promise<HealthVerdict>
+/** `slotDone` = nenhum canal ficou devido nesta faixa (só então "sem ponto hoje" pode ser cobrado). `thumbs: false` = a miniatura dos semanais não é coletada (pergunta 1): `sem_miniatura_9d` não é cobrado. */
+export interface VerdictOpts { slotDone: boolean; e2: boolean; thumbs?: boolean }
+export function healthVerdict(c: CaptureHealth | null, s: SeriesHealth | null, o: VerdictOpts): HealthVerdict
+export async function readSiteHealth(sb: SupabaseClient, siteId: string, nowIso: string, o: VerdictOpts): Promise<HealthVerdict>
 ```
+
+*(emenda do portão: D-I1, D-I3, D-I4, D-m1, S-I3. O que muda nesta tarefa: uma chave nova na prova da captura e três na da série; o canal em erro tem fim; o 8º dia do semanal só é vermelho depois das 19:00; o 9º é sempre; a leitura da prova não usa cast.)*
+
+**A tabela do veredito** (cada linha tem um teste com o texto exato):
+
+| Chave | Quando é vermelho | Frase | Quando é nota |
+|---|---|---|---|
+| `canais_em_erro_12h` e `canais_em_erro_3d` | enquanto `12h − 3d > 0` (canal em erro entre 12 horas e 3 dias) | "N canais em erro há mais de 12 h" | `3d > 0`: "N canais em erro há mais de 3 dias (ver acao_do_dono)" |
+| `semanal_atrasados_9d` | sempre que > 0 | "N vídeos da faixa semanal sem ponto há 9 dias ou mais (intervalo perdido)" | — |
+| `semanal_atrasados` (menos os do 9º dia) | depois das 19:00 de São Paulo, com a faixa inteira tentada | "N vídeos da faixa semanal no 8º dia sem ponto" | antes disso (lido hoje, o intervalo ainda vale) |
+| `semanal_devidos_hoje` | depois das 19:00 de São Paulo, com a faixa inteira tentada | "N vídeos da faixa semanal devidos hoje e ainda sem ponto" | — (antes das 19:00 é o esperado: nem nota) |
+| `sem_miniatura_9d` | sempre que > 0 (salvo `thumbs: false`) | "N vídeos sem cópia da miniatura depois de 9 dias" | — |
+
+Por que 19:00: a faixa das 18:00 termina os canais devidos no disparo das 18:20, e os das 18:40 em diante começam com o relógio inteiro para a fase semanal; às 19:00 já houve pelo menos dois disparos livres desde as 12:40.
 
 - [ ] **Step 1: testes que falham** (acrescentar a `competitor-health.test.ts`):
 
 ```ts
 import { healthVerdict, parseCaptureHealth, parseSeriesHealth, readSiteHealth, type CaptureHealth, type SeriesHealth } from '@/lib/youtube/competitor-health'
 
-const C: CaptureHealth = { videos_vistos_sem_raw: 0, canais_vistos_sem_raw: 0, canais_vistos_dia_pacifico: 15, cota_dia_pacifico: 200, videos_ausentes: 0, canais_ausentes: 0, canais_em_erro_12h: 0 }
-const S: SeriesHealth = { hoje: '2026-06-10', hora_sp: 19, fora_da_prova: 0, sem_faixa: 0, diaria_sem_ponto_hoje: 0, diaria_buracos_3d: 0, semanal_atrasados: 0, diaria_total: 674, semanal_total: 716 }
+const C: CaptureHealth = { videos_vistos_sem_raw: 0, canais_vistos_sem_raw: 0, canais_vistos_dia_pacifico: 15, cota_dia_pacifico: 200, videos_ausentes: 0, canais_ausentes: 0, canais_em_erro_12h: 0, canais_em_erro_3d: 0 }
+const S: SeriesHealth = { hoje: '2026-06-10', hora_sp: 19, fora_da_prova: 0, sem_faixa: 0, diaria_sem_ponto_hoje: 0, diaria_buracos_3d: 0, semanal_atrasados: 0, semanal_atrasados_9d: 0, semanal_devidos_hoje: 0, sem_miniatura_9d: 0, diaria_total: 674, semanal_total: 716 }
 const done = { slotDone: true, e2: true }
 
 describe('healthVerdict', () => {
@@ -2747,7 +3436,10 @@ describe('healthVerdict', () => {
   it.each([
     [{ sem_faixa: 4 }, '4 vídeos sem faixa de série'],
     [{ diaria_buracos_3d: 7 }, '7 buracos na série diária nos últimos 3 dias'],
-    [{ semanal_atrasados: 2 }, '2 vídeos da faixa semanal sem ponto há mais de 8 dias'],
+    [{ semanal_atrasados: 2 }, '2 vídeos da faixa semanal no 8º dia sem ponto'],
+    [{ semanal_atrasados: 3, semanal_atrasados_9d: 3 }, '3 vídeos da faixa semanal sem ponto há 9 dias ou mais (intervalo perdido)'],
+    [{ semanal_devidos_hoje: 4 }, '4 vídeos da faixa semanal devidos hoje e ainda sem ponto'],
+    [{ sem_miniatura_9d: 6 }, '6 vídeos sem cópia da miniatura depois de 9 dias'],
     [{ diaria_sem_ponto_hoje: 5 }, '5 vídeos da faixa diária sem ponto hoje'],
   ] as Array<[Partial<SeriesHealth>, string]>)('série %j → %s', (over, msg) => {
     expect(healthVerdict(C, { ...S, ...over }, done)).toMatchObject({ ok: false, problems: [msg] })
@@ -2755,6 +3447,22 @@ describe('healthVerdict', () => {
   it('"sem ponto hoje" só é cobrado depois das 18:00 de São Paulo E com a faixa inteira tentada', () => {
     expect(healthVerdict(C, { ...S, diaria_sem_ponto_hoje: 5, hora_sp: 17 }, done).ok).toBe(true)
     expect(healthVerdict(C, { ...S, diaria_sem_ponto_hoje: 5 }, { slotDone: false, e2: true }).ok).toBe(true)
+  })
+  // (emenda do portão: D-I1, CTRL-d) o vermelho do canal em erro tem fim
+  it('canal em erro: vermelho das 12 horas aos 3 dias; depois é nota e o cron volta a verde', () => {
+    expect(healthVerdict({ ...C, canais_em_erro_12h: 2, canais_em_erro_3d: 0 }, S, done)).toMatchObject({ ok: false, problems: ['2 canais em erro há mais de 12 h'], notes: [] })
+    expect(healthVerdict({ ...C, canais_em_erro_12h: 2, canais_em_erro_3d: 1 }, S, done)).toMatchObject({ ok: false, problems: ['1 canal em erro há mais de 12 h'], notes: ['1 canal em erro há mais de 3 dias (ver acao_do_dono)'] })
+    expect(healthVerdict({ ...C, canais_em_erro_12h: 2, canais_em_erro_3d: 2 }, S, done)).toEqual({ ok: true, problems: [], notes: ['2 canais em erro há mais de 3 dias (ver acao_do_dono)'] })
+  })
+  // (emenda do portão: D-m1, D-I3) antes das 19:00 o 8º dia e os devidos de hoje não são falha; o 9º dia é sempre
+  it('semanal: antes das 19:00 (ou com a faixa incompleta) o 8º dia é nota e os devidos de hoje não aparecem; o 9º dia é vermelho a qualquer hora', () => {
+    const early = { ...S, hora_sp: 13 }
+    expect(healthVerdict(C, { ...early, semanal_atrasados: 2, semanal_devidos_hoje: 30 }, done)).toEqual({ ok: true, problems: [], notes: ['2 vídeos da faixa semanal no 8º dia sem ponto'] })
+    expect(healthVerdict(C, { ...S, semanal_atrasados: 2, semanal_devidos_hoje: 30 }, { slotDone: false, e2: true }).ok).toBe(true)
+    expect(healthVerdict(C, { ...early, semanal_atrasados: 5, semanal_atrasados_9d: 3 }, done)).toEqual({ ok: false, problems: ['3 vídeos da faixa semanal sem ponto há 9 dias ou mais (intervalo perdido)'], notes: ['2 vídeos da faixa semanal no 8º dia sem ponto'] })
+  })
+  it('thumbs: false (pergunta 1 vetada): a falta de cópia da miniatura não é cobrada', () => {
+    expect(healthVerdict(C, { ...S, sem_miniatura_9d: 687 }, { ...done, thumbs: false }).ok).toBe(true)
   })
   it('ausentes e fora da prova são nota (o dono vê o número), não falha', () => {
     expect(healthVerdict({ ...C, videos_ausentes: 2, canais_ausentes: 1 }, { ...S, fora_da_prova: 3 }, done)).toEqual({ ok: true, problems: [], notes: ['2 vídeos e 1 canal não vêm mais do YouTube', '3 fora da prova de série (sem contagem, estreia agendada ou ausente)'] })
@@ -2774,7 +3482,7 @@ describe('parse', () => {
 describe('readSiteHealth', () => {
   const sbOf = (answers: Record<string, { data: unknown; error: { message: string } | null }>) => ({ rpc: (name: string) => Promise.resolve(answers[name] ?? { data: null, error: null }) }) as never
   it('lê as duas provas e devolve o veredito', async () => {
-    expect(await readSiteHealth(sbOf({ competitor_capture_health: { data: C, error: null }, competitor_series_health: { data: { ...S, semanal_atrasados: 1 }, error: null } }), 's', '2026-06-10T22:00:00Z', done)).toMatchObject({ ok: false, problems: ['1 vídeo da faixa semanal sem ponto há mais de 8 dias'] })
+    expect(await readSiteHealth(sbOf({ competitor_capture_health: { data: C, error: null }, competitor_series_health: { data: { ...S, semanal_atrasados: 1 }, error: null } }), 's', '2026-06-10T22:00:00Z', done)).toMatchObject({ ok: false, problems: ['1 vídeo da faixa semanal no 8º dia sem ponto'] })
   })
   it('erro do banco ou resposta vazia (o falso devolve data nula): falha', async () => {
     expect((await readSiteHealth(sbOf({ competitor_capture_health: { data: null, error: { message: 'boom' } } }), 's', '2026-06-10T22:00:00Z', done)).ok).toBe(false)
@@ -2794,25 +3502,37 @@ describe('readSiteHealth', () => {
 - [ ] **Step 3: implementar** (acrescentar a `competitor-health.ts`):
 
 ```ts
-export interface CaptureHealth { videos_vistos_sem_raw: number; canais_vistos_sem_raw: number; canais_vistos_dia_pacifico: number; cota_dia_pacifico: number; videos_ausentes: number; canais_ausentes: number; canais_em_erro_12h: number }
-export interface SeriesHealth { hoje: string; hora_sp: number; fora_da_prova: number; sem_faixa: number; diaria_sem_ponto_hoje: number; diaria_buracos_3d: number; semanal_atrasados: number; diaria_total: number; semanal_total: number }
+export interface CaptureHealth { videos_vistos_sem_raw: number; canais_vistos_sem_raw: number; canais_vistos_dia_pacifico: number; cota_dia_pacifico: number; videos_ausentes: number; canais_ausentes: number; canais_em_erro_12h: number; canais_em_erro_3d: number }
+export interface SeriesHealth { hoje: string; hora_sp: number; fora_da_prova: number; sem_faixa: number; diaria_sem_ponto_hoje: number; diaria_buracos_3d: number; semanal_atrasados: number; semanal_atrasados_9d: number; semanal_devidos_hoje: number; sem_miniatura_9d: number; diaria_total: number; semanal_total: number }
 export interface HealthVerdict { ok: boolean; problems: string[]; notes: string[] }
 
-const CAPTURE_KEYS = ['videos_vistos_sem_raw', 'canais_vistos_sem_raw', 'canais_vistos_dia_pacifico', 'cota_dia_pacifico', 'videos_ausentes', 'canais_ausentes', 'canais_em_erro_12h'] as const
-const SERIES_KEYS = ['hora_sp', 'fora_da_prova', 'sem_faixa', 'diaria_sem_ponto_hoje', 'diaria_buracos_3d', 'semanal_atrasados', 'diaria_total', 'semanal_total'] as const
+const CAPTURE_KEYS = ['videos_vistos_sem_raw', 'canais_vistos_sem_raw', 'canais_vistos_dia_pacifico', 'cota_dia_pacifico', 'videos_ausentes', 'canais_ausentes', 'canais_em_erro_12h', 'canais_em_erro_3d'] as const
+const SERIES_KEYS = ['hora_sp', 'fora_da_prova', 'sem_faixa', 'diaria_sem_ponto_hoje', 'diaria_buracos_3d', 'semanal_atrasados', 'semanal_atrasados_9d', 'semanal_devidos_hoje', 'sem_miniatura_9d', 'diaria_total', 'semanal_total'] as const
 const isCount = (x: unknown): x is number => typeof x === 'number' && Number.isInteger(x) && x >= 0
 const rec = (x: unknown): Record<string, unknown> | null => (typeof x === 'object' && x !== null && !Array.isArray(x) ? (x as Record<string, unknown>) : null)
+
+// (emenda do portão: S-I3) sem `as unknown as`: o objeto é montado chave a chave, com cada valor conferido.
+/** As contagens de `keys`, todas conferidas. null se faltar uma ou se uma não for inteiro ≥ 0. */
+function counts<K extends string>(d: Record<string, unknown>, keys: readonly K[]): Record<K, number> | null {
+  const out: Partial<Record<K, number>> = {}
+  for (const k of keys) {
+    const v = d[k]
+    if (!isCount(v)) return null
+    out[k] = v
+  }
+  return out as Record<K, number> // todas as chaves foram preenchidas no laço acima
+}
 
 /** null = a prova não veio inteira. Uma contagem nunca é adivinhada como 0. */
 export function parseCaptureHealth(data: unknown): CaptureHealth | null {
   const d = rec(data)
-  if (!d || !CAPTURE_KEYS.every(k => isCount(d[k]))) return null
-  return Object.fromEntries(CAPTURE_KEYS.map(k => [k, d[k]])) as unknown as CaptureHealth
+  return d ? counts(d, CAPTURE_KEYS) : null
 }
 export function parseSeriesHealth(data: unknown): SeriesHealth | null {
   const d = rec(data)
-  if (!d || typeof d.hoje !== 'string' || !SERIES_KEYS.every(k => isCount(d[k]))) return null
-  return { hoje: d.hoje, ...(Object.fromEntries(SERIES_KEYS.map(k => [k, d[k]])) as unknown as Omit<SeriesHealth, 'hoje'>) }
+  if (!d || typeof d.hoje !== 'string') return null
+  const c = counts(d, SERIES_KEYS)
+  return c ? { hoje: d.hoje, ...c } : null
 }
 
 const n = (count: number, one: string, many: string) => count + ' ' + (count === 1 ? one : many)
@@ -2821,14 +3541,18 @@ const n = (count: number, one: string, many: string) => count + ' ' + (count ===
  * O veredito é lido do ESTADO do banco a cada disparo: uma perda fica vermelha até ser consertada (ou, no caso do
  * buraco de um dia, por 3 dias), e não some no disparo seguinte só porque nele não havia nada a fazer.
  */
-export function healthVerdict(c: CaptureHealth | null, s: SeriesHealth | null, o: { slotDone: boolean; e2: boolean }): HealthVerdict {
+export interface VerdictOpts { slotDone: boolean; e2: boolean; thumbs?: boolean }
+export function healthVerdict(c: CaptureHealth | null, s: SeriesHealth | null, o: VerdictOpts): HealthVerdict {
   const problems: string[] = [], notes: string[] = []
   if (!c) problems.push('não foi possível ler a prova da captura')
   else {
     if (c.videos_vistos_sem_raw) problems.push(n(c.videos_vistos_sem_raw, 'vídeo lido', 'vídeos lidos') + ' sem resposta guardada')
     if (c.canais_vistos_sem_raw) problems.push(n(c.canais_vistos_sem_raw, 'canal lido', 'canais lidos') + ' sem resposta guardada')
     if (c.canais_vistos_dia_pacifico > 0 && c.cota_dia_pacifico === 0) problems.push('cota do dia não registrada (' + n(c.canais_vistos_dia_pacifico, 'canal lido', 'canais lidos') + ')')
-    if (c.canais_em_erro_12h) problems.push(n(c.canais_em_erro_12h, 'canal', 'canais') + ' em erro há mais de 12 h')
+    // (emenda do portão: D-I1, CTRL-d) o vermelho tem fim: do 3º dia em diante é nota, e a rota põe o nome do canal em acao_do_dono
+    const errNew = Math.max(0, c.canais_em_erro_12h - c.canais_em_erro_3d)
+    if (errNew) problems.push(n(errNew, 'canal', 'canais') + ' em erro há mais de 12 h')
+    if (c.canais_em_erro_3d) notes.push(n(c.canais_em_erro_3d, 'canal', 'canais') + ' em erro há mais de 3 dias (ver acao_do_dono)')
     if (c.videos_ausentes || c.canais_ausentes) notes.push(n(c.videos_ausentes, 'vídeo', 'vídeos') + ' e ' + n(c.canais_ausentes, 'canal', 'canais') + ' não vêm mais do YouTube')
   }
   if (o.e2) {
@@ -2836,7 +3560,15 @@ export function healthVerdict(c: CaptureHealth | null, s: SeriesHealth | null, o
     else {
       if (s.sem_faixa) problems.push(n(s.sem_faixa, 'vídeo', 'vídeos') + ' sem faixa de série')
       if (s.diaria_buracos_3d) problems.push(n(s.diaria_buracos_3d, 'buraco', 'buracos') + ' na série diária nos últimos 3 dias')
-      if (s.semanal_atrasados) problems.push(n(s.semanal_atrasados, 'vídeo', 'vídeos') + ' da faixa semanal sem ponto há mais de 8 dias')
+      // (emenda do portão: D-I3, D-m1) a faixa semanal. O 9º dia é perda e é vermelho a qualquer hora. O 8º dia e os devidos
+      // de hoje só são falha depois das 19:00 de São Paulo com a faixa inteira tentada: antes disso a fase semanal ainda vai ler.
+      const weeklyLate = s.hora_sp >= 19 && o.slotDone
+      if (s.semanal_atrasados_9d) problems.push(n(s.semanal_atrasados_9d, 'vídeo', 'vídeos') + ' da faixa semanal sem ponto há 9 dias ou mais (intervalo perdido)')
+      const eighth = Math.max(0, s.semanal_atrasados - s.semanal_atrasados_9d)
+      if (eighth) (weeklyLate ? problems : notes).push(n(eighth, 'vídeo', 'vídeos') + ' da faixa semanal no 8º dia sem ponto')
+      if (s.semanal_devidos_hoje && weeklyLate) problems.push(n(s.semanal_devidos_hoje, 'vídeo', 'vídeos') + ' da faixa semanal devidos hoje e ainda sem ponto')
+      // (emenda do portão: D-I4) a imagem que a origem sobrescreve: toda leitura confere a miniatura, então 9 dias sem cópia é falha
+      if (s.sem_miniatura_9d && o.thumbs !== false) problems.push(n(s.sem_miniatura_9d, 'vídeo', 'vídeos') + ' sem cópia da miniatura depois de 9 dias')
       // só depois das 18:00 de São Paulo e com todos os canais da faixa tentados: antes disso faltar ponto é o esperado
       if (s.diaria_sem_ponto_hoje && s.hora_sp >= 18 && o.slotDone) problems.push(n(s.diaria_sem_ponto_hoje, 'vídeo', 'vídeos') + ' da faixa diária sem ponto hoje')
       if (s.fora_da_prova) notes.push(s.fora_da_prova + ' fora da prova de série (sem contagem, estreia agendada ou ausente)')
@@ -2845,7 +3577,7 @@ export function healthVerdict(c: CaptureHealth | null, s: SeriesHealth | null, o
   return { ok: problems.length === 0, problems, notes }
 }
 
-export async function readSiteHealth(sb: SupabaseClient, siteId: string, nowIso: string, o: { slotDone: boolean; e2: boolean }): Promise<HealthVerdict> {
+export async function readSiteHealth(sb: SupabaseClient, siteId: string, nowIso: string, o: VerdictOpts): Promise<HealthVerdict> {
   const cap = await sb.rpc('competitor_capture_health', { p_site_id: siteId, p_now: nowIso })
   const ser = o.e2 ? await sb.rpc('competitor_series_health', { p_site_id: siteId, p_now: nowIso }) : null
   return healthVerdict(cap.error ? null : parseCaptureHealth(cap.data), !ser || ser.error ? null : parseSeriesHealth(ser.data), o)
@@ -2854,7 +3586,13 @@ export async function readSiteHealth(sb: SupabaseClient, siteId: string, nowIso:
 
 O teste "1 vídeo da faixa semanal…" fixa o singular: confira que `n(1, 'vídeo', 'vídeos')` dá "1 vídeo".
 
-- [ ] **Step 4:** `npx vitest run test/youtube/competitor-health.test.ts 2>&1 | tail -8 && npm run typecheck 2>&1 | tail -3` → PASS. **Step 5: commit** (`feat: prova embutida da coleta de concorrentes: o veredito lido do banco a cada disparo (A5 E1 e E2)`).
+- [ ] **Step 4:** `npx vitest run test/youtube/competitor-health.test.ts 2>&1 | tail -8 && npm run typecheck 2>&1 | tail -3 && bash ../../scripts/check-type-debt.sh | tail -1` → PASS, e a trava diz "estável" *(emenda do portão: S-I3)*. O teste `it.each` de série que usava "sem ponto há mais de 8 dias" passa a usar as frases da tabela do veredito; o caso `{ semanal_atrasados: 3, semanal_atrasados_9d: 3 }` espera **uma** frase (a do 9º dia), porque os três já estão contados nela.
+
+- [ ] **Step 5: commit.** *(emenda do portão: S-I2)*
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/competitor-health.ts apps/web/test/youtube/competitor-health.test.ts && git diff --cached --name-only && git commit -m "feat: prova embutida da coleta de concorrentes: o veredito lido do banco a cada disparo, com fim para o canal em erro (A5 E1 e E2)" -- apps/web/src/lib/youtube/competitor-health.ts apps/web/test/youtube/competitor-health.test.ts
+```
 
 **Pronto quando:** o Review Focus 5 passa; cada frase de falha da tabela da seção 6 tem um teste com o texto exato.
 
@@ -2870,7 +3608,13 @@ O teste "1 vídeo da faixa semanal…" fixa o singular: confira que `n(1, 'víde
 
 ```ts
 export const BATCH_BUDGET_MS = 200_000     // depois disso o lote não começa canal novo
-export const WEEKLY_CUTOFF_MS = 150_000    // depois disso nenhum lote só de semanais começa
+// (emenda do portão: D-I3, S-I1) o corte fixo de 150 s (WEEKLY_CUTOFF_MS) NÃO existe mais
+export const WEEKLY_DEADLINE_MS = 210_000        // depois disso a fase semanal não começa vídeo novo
+export const WEEKLY_CHANNEL_BUDGET_MS = 60_000   // o máximo de uma visita da fase semanal a um canal
+export interface WeeklyPhaseResult { ran: boolean; visited: number; complete: number; pending: number; recorded: number; deferred: number; promoted: number; errors: number; unitsUsed: number }
+export async function runWeeklyPhase(rows: BatchRow[], o: { apiKey: string; started: number; now: () => number; thumbs?: boolean }): Promise<WeeklyPhaseResult>
+// runCompetitorBatch ganha as opções `weekly?: boolean` (padrão false; a rota passa true) e `thumbs?: boolean`
+// BatchResult ganha: weekly: WeeklyPhaseResult; acao_do_dono: string[]
 export interface BatchTotals { unitsUsed: number; dailyRecorded: number; weeklyRecorded: number; weeklyDeferred: number; earlyRecorded: number; fieldsOpened: number; rawOpened: number; rawTooBig: number; missed: number; newlyMissing: number; returned: number; tierChanges: number; cutByCap: number; excludedNoCount: number; promoted: number; longWindowChanges: number; partsMissing: number; quotaErrors: number }
 // BatchResult ganha: totals: BatchTotals; healthSiteIds: string[] (todo site com canal concorrente, lido ou não neste disparo)
 export const COMPETITORS_MAX_DURATION_S = 300 // o mesmo número de `export const maxDuration` da rota (teste)
@@ -2881,8 +3625,13 @@ export const COMPETITORS_MAX_DURATION_S = 300 // o mesmo número de `export cons
 ```ts
 describe('A5: tetos de tempo do disparo (a conta presa)', () => {
   it('a ordem dos tetos: semanal < começar canal < backfill de Shorts < duração máxima da função, com 60 s de folga para o último canal', async () => {
-    const { WEEKLY_CUTOFF_MS, BATCH_BUDGET_MS, BACKFILL_DEADLINE_MS, COMPETITORS_MAX_DURATION_S } = await import('@/lib/youtube/competitor-sync-batch')
-    expect(WEEKLY_CUTOFF_MS).toBeLessThan(BATCH_BUDGET_MS)
+    const { WEEKLY_DEADLINE_MS, WEEKLY_CHANNEL_BUDGET_MS, BATCH_BUDGET_MS, BACKFILL_DEADLINE_MS, COMPETITORS_MAX_DURATION_S } = await import('@/lib/youtube/competitor-sync-batch')
+    // (emenda do portão: D-I3) começar canal < fase semanal < backfill de Shorts < função; e uma visita cabe com folga no que sobra
+    expect(BATCH_BUDGET_MS).toBeLessThan(WEEKLY_DEADLINE_MS)
+    expect(WEEKLY_DEADLINE_MS).toBeLessThan(BACKFILL_DEADLINE_MS)
+    expect(WEEKLY_CHANNEL_BUDGET_MS).toBeLessThan(WEEKLY_DEADLINE_MS)
+    // o último vídeo da fase começa no máximo aos 210 s; o pior caso de uma sonda com arquivo são 55 s de tempos de espera somados
+    expect(COMPETITORS_MAX_DURATION_S * 1000 - WEEKLY_DEADLINE_MS).toBeGreaterThanOrEqual(55_000 + 30_000)
     expect(BATCH_BUDGET_MS).toBeLessThan(BACKFILL_DEADLINE_MS)
     expect(BACKFILL_DEADLINE_MS).toBeLessThan(COMPETITORS_MAX_DURATION_S * 1000)
     // o último canal começa no máximo aos 200 s; o maior medido em produção leva 27 s (12/10/2026): cabem dois e sobra
@@ -2896,7 +3645,7 @@ describe('A5: tetos de tempo do disparo (a conta presa)', () => {
 })
 describe('A5: o lote passa o relógio à passada semanal e soma os contadores', () => {
   const rowsOf = (n: number) => Array.from({ length: n }, (_, i) => ({ id: 'c' + i, channel_id: 'UC' + i, site_id: i % 2 ? 's2' : 's1', last_synced_at: null, sync_status: 'idle' }))
-  const mockAll = (sync: (r: { id: string }, key: string, o: { weeklyAllowed?: () => boolean }) => Promise<Record<string, unknown>>, rows: unknown[]) => {
+  const mockAll = (sync: (r: { id: string }, key: string, o: Record<string, unknown>) => Promise<Record<string, unknown>>, rows: unknown[]) => {
     vi.resetModules()
     vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
     vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(sync) }))
@@ -2904,19 +3653,19 @@ describe('A5: o lote passa o relógio à passada semanal e soma os contadores', 
     vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: vi.fn(async () => undefined) }))
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
   }
-  it('weeklyAllowed é verdadeiro até 150 s do disparo e falso depois', async () => {
-    let clock = 0
-    const seenAllowed: boolean[] = []
-    mockAll(async (_r, _k, o) => { seenAllowed.push(o.weeklyAllowed!()); clock += 80_000; return {} }, rowsOf(3))
+  // (emenda do portão: D-I3, S-I1) o teste "weeklyAllowed é verdadeiro até 150 s" saiu com o corte fixo; a fase semanal tem o describe próprio, abaixo
+  it('a sincronização de um canal não recebe relógio de semanal nenhum (a leitura semanal não é dela)', async () => {
+    const seen: string[][] = []
+    mockAll(async (_r, _k, o) => { seen.push(Object.keys(o).sort()); return {} }, rowsOf(2))
     const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
-    await runCompetitorBatch({ apiKey: 'k', batchSize: 15, budgetMs: 200_000, now: () => clock })
-    expect(seenAllowed).toEqual([true, true, false]) // 0 s, 80 s, 160 s
+    await runCompetitorBatch({ apiKey: 'k', batchSize: 15, budgetMs: 200_000, now: () => 0 })
+    expect(seen).toEqual([['deferBackfill', 'probeBudget'], ['deferBackfill', 'probeBudget']])
   })
   it('totals soma o que cada canal devolveu; healthSiteIds traz todo site com canal, mesmo sem canal devido', async () => {
-    mockAll(async () => ({ unitsUsed: 4, dailyRecorded: 50, weeklyRecorded: 3, weeklyDeferred: 1, fieldsOpened: 10, rawOpened: 2, missed: 1, quotaError: true }), [...rowsOf(2), { id: 'x', channel_id: 'UCx', site_id: 's3', last_synced_at: new Date(Date.UTC(2026, 9, 24, 15, 1)).toISOString(), sync_status: 'idle' }])
+    mockAll(async () => ({ unitsUsed: 4, dailyRecorded: 50, fieldsOpened: 10, rawOpened: 2, missed: 1, quotaError: true }), [...rowsOf(2), { id: 'x', channel_id: 'UCx', site_id: 's3', last_synced_at: new Date(Date.UTC(2026, 9, 24, 15, 1)).toISOString(), sync_status: 'idle' }])
     const { runCompetitorBatch } = await import('@/lib/youtube/competitor-sync-batch')
     const r = await runCompetitorBatch({ apiKey: 'k', batchSize: 15, budgetMs: 200_000, now: () => Date.UTC(2026, 9, 24, 15, 2) })
-    expect(r.totals).toMatchObject({ unitsUsed: 8, dailyRecorded: 100, weeklyRecorded: 6, weeklyDeferred: 2, fieldsOpened: 20, rawOpened: 4, missed: 2, quotaErrors: 2, earlyRecorded: 0 })
+    expect(r.totals).toMatchObject({ unitsUsed: 8, dailyRecorded: 100, weeklyRecorded: 0, weeklyDeferred: 0, fieldsOpened: 20, rawOpened: 4, missed: 2, quotaErrors: 2, earlyRecorded: 0 })
     expect(r.healthSiteIds.sort()).toEqual(['s1', 's2', 's3'])
   })
   it('item 22: 75 canais a 20 s cada → 11 por disparo, o resto fica devido, e a faixa fecha em 7 disparos (menos que os 18 de uma faixa de 6 h), cada canal uma vez', async () => {
@@ -2940,6 +3689,121 @@ describe('A5: o lote passa o relógio à passada semanal e soma os contadores', 
   })
 })
 ```
+
+*(emenda do portão: D-I3, S-I1, CTRL-e.)* **O teste que prova a fase semanal por construção.** No mesmo arquivo (`competitor-sync-batch.test.ts`), um mundo simulado: canais na ordem estável, um relógio só, a sincronização de um canal custa `syncMs`, conferir um vídeo semanal custa `videoMs`, e os disparos são chamadas seguidas a `runCompetitorBatch` com o relógio posto na hora do disparo. As duas funções de sincronização são falsas e **obedecem ao relógio que o lote lhes passa**: é o lote que está sendo provado.
+
+```ts
+describe('A5: a fase semanal não depende da posição do canal nem da faixa das 18:00 (D-I3, S-I1)', () => {
+  const SP = 3 * 3_600_000
+  const at = (day: string, hhmm: string) => Date.parse(day + 'T' + hhmm + ':00.000Z') + SP        // hora de São Paulo → UTC
+  const DAY = '2026-10-24'
+  type Row = { id: string; channel_id: string; channel_name: string; site_id: string; last_synced_at: string | null; sync_status: string; sync_error: string | null; sync_error_since: string | null; missing_since: string | null; weekly_pass_date: string | null }
+  /** `due[i]` = vídeos semanais devidos hoje no canal da posição i (a ordem de last_synced_at é a ordem do índice, estável). */
+  const world = (o: { syncMs: number; videoMs: number; due: number[]; failWeeklyUntil?: number }) => {
+    let clock = 0
+    const rows: Row[] = o.due.map((_, i) => ({ id: 'c' + String(i).padStart(2, '0'), channel_id: 'UC' + i, channel_name: 'Canal ' + i, site_id: 's1', last_synced_at: new Date(at(DAY, '06:00') + i * 1000).toISOString(), sync_status: 'idle', sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null }))
+    const left = new Map(rows.map((r, i) => [r.id, o.due[i]!]))
+    const order: string[] = []
+    vi.resetModules()
+    vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+    vi.doMock('@/lib/youtube/short-guard', () => ({ runControlProbe: vi.fn(async () => undefined), warnIfProbeBlocked: vi.fn() }))
+    vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: vi.fn(async () => undefined) }))
+    vi.doMock('@/lib/youtube/competitor-quota', () => ({ recordQuota: vi.fn(async () => undefined), pacificDate: () => DAY }))
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: [...rows].sort((a, b) => (a.last_synced_at ?? '').localeCompare(b.last_synced_at ?? '')), error: null }) }) }) }) }))
+    vi.doMock('@/lib/youtube/competitor-sync', () => ({
+      syncCompetitorChannel: vi.fn(async (r: { id: string }) => { rows.find(x => x.id === r.id)!.last_synced_at = new Date(clock).toISOString(); clock += o.syncMs; return { unitsUsed: 3 } }),
+      syncCompetitorWeekly: vi.fn(async (r: { id: string }, _k: string, w: { deadline?: () => boolean }) => {
+        order.push(r.id)
+        if (o.failWeeklyUntil != null && clock < o.failWeeklyUntil) { clock += 2_000; throw new Error('boom') }
+        let n = left.get(r.id)!, recorded = 0
+        while (n > 0 && !w.deadline?.()) { clock += o.videoMs; n--; recorded++ }
+        left.set(r.id, n)
+        if (n === 0) rows.find(x => x.id === r.id)!.weekly_pass_date = DAY
+        return { due: n + recorded, recorded, deferred: n, promoted: 0, unitsUsed: recorded ? 1 : 0, changesDetected: 0, longWindowChanges: 0, complete: n === 0 }
+      }),
+    }))
+    const fire = async (hhmm: string, weekly = true) => {
+      clock = at(DAY, hhmm)
+      const { runCompetitorBatch, BATCH_BUDGET_MS } = await import('@/lib/youtube/competitor-sync-batch')
+      return runCompetitorBatch({ apiKey: 'k', batchSize: 15, budgetMs: BATCH_BUDGET_MS, now: () => clock, ...(weekly ? { weekly: true } : {}) })
+    }
+    const pending = () => rows.filter(r => r.weekly_pass_date !== DAY).map(r => r.id)
+    return { rows, left, order, fire, pending }
+  }
+  // o que foi medido em produção em 12/10: 15 canais a 21 s; devidos por canal num dia da semana 1 (K15b: 87 a 118 no total)
+  const MEASURED = [1, 13, 0, 34, 1, 0, 32, 7, 12, 3, 1, 0, 0, 0, 0]
+
+  it('antes das 12:00 de São Paulo a fase não roda', async () => {
+    const w = world({ syncMs: 21_000, videoMs: 1_050, due: MEASURED })
+    const r = await w.fire('06:00')
+    expect(r.weekly).toMatchObject({ ran: false, visited: 0 })
+    expect(w.order).toEqual([])
+  })
+  it('as duas faixas, ordem estável, 15 canais a 21 s, trabalho da semana 1: TODO canal tem a passada completa até o disparo das 12:40, inclusive as posições 7 a 11', async () => {
+    const w = world({ syncMs: 21_000, videoMs: 1_050, due: MEASURED })
+    const r1 = await w.fire('12:00')                    // 10 canais (210 s): não sobra tempo para a fase
+    expect(r1.synced).toBe(10)
+    expect(r1.weekly.visited).toBe(0)
+    await w.fire('12:20')                               // os 5 restantes (105 s) e a fase até os 210 s
+    await w.fire('12:40')                               // nenhum canal devido: a fase tem o disparo inteiro
+    expect(w.pending()).toEqual([])
+    expect([...w.left.values()].every(n => n === 0)).toBe(true)
+    // a faixa das 18:00 não tem nada a fazer na fase (e não precisa ser mais rápida para o desenho estar certo)
+    const r4 = await w.fire('18:00')
+    expect(r4.weekly).toMatchObject({ visited: 0, pending: 0 })
+  })
+  it('caso duro: os disparos com canal devido não deixam tempo NENHUM (45 s por canal): tudo completo no primeiro disparo sem canal devido', async () => {
+    const w = world({ syncMs: 45_000, videoMs: 1_050, due: MEASURED })
+    for (const t of ['12:00', '12:20', '12:40']) { const r = await w.fire(t); expect(r.synced).toBe(5); expect(r.weekly.recorded).toBe(0) }   // 5 canais por disparo, 225 s: passa dos 210 s da fase
+    expect(w.pending()).toHaveLength(15)
+    const r = await w.fire('13:00')                     // 104 vídeos × 1,05 s = 109 s, num disparo de 210 s
+    expect(w.pending()).toEqual([])
+    expect(r.weekly).toMatchObject({ complete: 15, pending: 0, errors: 0 })
+  })
+  it('a dívida mais antiga é lida primeiro: quem ficou sem a passada de ontem vai antes de quem a teve', async () => {
+    const w = world({ syncMs: 21_000, videoMs: 1_050, due: [5, 5, 5, 5] })
+    w.rows[0]!.weekly_pass_date = '2026-10-23'; w.rows[1]!.weekly_pass_date = '2026-10-23'
+    w.rows[2]!.weekly_pass_date = '2026-10-22'          // anteontem: o mais antigo
+    w.rows[3]!.weekly_pass_date = null                  // nunca: antes de todos
+    await w.fire('12:40')
+    expect(w.order.slice(0, 4)).toEqual(['c03', 'c02', 'c00', 'c01'])
+  })
+  it('orçamento por canal: um canal com 279 devidos não tira a vez dos outros, e o que sobra dele continua no disparo seguinte', async () => {
+    const w = world({ syncMs: 21_000, videoMs: 1_050, due: [279, 3, 3, 3] })
+    w.rows[0]!.weekly_pass_date = null
+    const r = await w.fire('12:40')
+    expect(w.pending()).toEqual(['c00'])                // os três pequenos terminaram no mesmo disparo
+    expect(w.left.get('c00')).toBeGreaterThan(0)
+    expect(r.weekly.deferred).toBeGreaterThan(0)
+    await w.fire('13:00')
+    expect(w.pending()).toEqual([])                     // 279 × 1,05 s = 293 s: cabe em dois disparos
+  })
+  it('a fase semanal falhando num canal não derruba o disparo nem os outros canais, e o canal é tentado de novo no disparo seguinte', async () => {
+    const w = world({ syncMs: 21_000, videoMs: 1_050, due: [2, 2], failWeeklyUntil: at(DAY, '12:50') })
+    const r = await w.fire('12:40')
+    expect(r.weekly).toMatchObject({ errors: 2, complete: 0, pending: 2 })
+    expect(r.errors).toBe(0)                            // erro de fase semanal não é canal em erro
+    const r2 = await w.fire('13:00')
+    expect(r2.weekly).toMatchObject({ errors: 0, complete: 2, pending: 0 })
+  })
+  it('weekly: false (a volta de uma linha): a fase não roda', async () => {
+    const w = world({ syncMs: 21_000, videoMs: 1_050, due: [2] })
+    expect((await w.fire('12:40', false)).weekly).toMatchObject({ ran: false, visited: 0 })
+    expect(w.order).toEqual([])
+  })
+  it('D-I1: canal em erro há mais de 3 dias vai para acao_do_dono, com o nome, a data e o motivo; com menos, não', async () => {
+    const w = world({ syncMs: 21_000, videoMs: 1_050, due: [0, 0, 0] })
+    const ago = (d: number) => new Date(at(DAY, '12:40') - d * 86_400_000).toISOString()
+    Object.assign(w.rows[0]!, { sync_status: 'error', sync_error: 'YouTube API 404 for channel UC0', sync_error_since: ago(4) })
+    Object.assign(w.rows[1]!, { sync_status: 'error', sync_error: 'boom', sync_error_since: ago(1) })
+    Object.assign(w.rows[2]!, { sync_status: 'error', sync_error: 'boom', sync_error_since: ago(9), missing_since: '2026-10-16' })   // ausente: é da fila da E9
+    const r = await w.fire('12:40')
+    expect(r.acao_do_dono).toEqual(['canal Canal 0 em erro desde 20/10 (há 4 dias): YouTube API 404 for channel UC0'])
+  })
+})
+```
+
+**O que este teste prova, em uma frase:** com a ordem dos canais igual todo dia e o disparo das 12:00 cheio, todo vídeo semanal devido no dia é lido no mesmo dia, e o resultado não muda se a faixa das 18:00 for tão lenta quanto a das 12:00. **O que ele não prova** (e por isso está nas Tarefas 11b e 14a): que `syncCompetitorWeekly` de verdade obedece ao relógio e grava o que diz.
 
 Em `cron-competitors-prova.test.ts` (criado na Tarefa 9), troque `'e1'` por `'e1e2'` no segundo teste e acrescente:
 
@@ -3014,8 +3878,12 @@ Em `cron-competitors-invalidate.test.ts`, o auxiliar `result` ganha `healthSiteI
 ```ts
 /** Depois disso o lote não começa canal novo. (Era o literal 200_000 da rota.) */
 export const BATCH_BUDGET_MS = 200_000
-/** Depois disso nenhum lote só de vídeos semanais começa: a série diária tem a preferência do relógio. */
-export const WEEKLY_CUTOFF_MS = 150_000
+// (emenda do portão: D-I3, S-I1) O corte fixo de 150 s saiu: ele era contado do início do disparo, e a ordem dos canais é a
+// mesma todo dia, então os canais das posições 7 a 11 nunca leriam os semanais. A leitura semanal é uma FASE do disparo.
+/** Depois disso a fase semanal não começa vídeo novo. Fica entre "começar canal" (200 s) e o backfill de Shorts (230 s). */
+export const WEEKLY_DEADLINE_MS = 210_000
+/** O máximo de uma visita da fase semanal a um canal: um canal grande não tira a vez dos outros. */
+export const WEEKLY_CHANNEL_BUDGET_MS = 60_000
 /** A duração máxima da função do cron (`export const maxDuration` da rota). Um teste confere os dois. */
 export const COMPETITORS_MAX_DURATION_S = 300
 
@@ -3023,7 +3891,7 @@ export interface BatchTotals { unitsUsed: number; dailyRecorded: number; weeklyR
 const ZERO: BatchTotals = { unitsUsed: 0, dailyRecorded: 0, weeklyRecorded: 0, weeklyDeferred: 0, earlyRecorded: 0, fieldsOpened: 0, rawOpened: 0, rawTooBig: 0, missed: 0, newlyMissing: 0, returned: 0, tierChanges: 0, cutByCap: 0, excludedNoCount: 0, promoted: 0, longWindowChanges: 0, partsMissing: 0, quotaErrors: 0 }
 ```
 
-`BatchResult` ganha `totals: BatchTotals` e `/** Todo site com canal concorrente, sincronizado ou não neste disparo: a prova é lida para todos. */ healthSiteIds: string[]`. Em `runCompetitorBatch`: `res` nasce com `totals: { ...ZERO }, healthSiteIds: [...new Set((data ?? []).map(r => r.site_id))]`; a chamada vira `syncCompetitorChannel(row, opts.apiKey, { probeBudget, deferBackfill: true, weeklyAllowed: () => now() - started < WEEKLY_CUTOFF_MS })`; e, no ramo que não é `skipped`:
+`BatchResult` ganha `totals: BatchTotals` e `/** Todo site com canal concorrente, sincronizado ou não neste disparo: a prova é lida para todos. */ healthSiteIds: string[]`. Em `runCompetitorBatch`: `res` nasce com `totals: { ...ZERO }, healthSiteIds: [...new Set((data ?? []).map(r => r.site_id))]`; *(emenda do portão: D-I3)* a chamada **não muda** (`syncCompetitorChannel(row, opts.apiKey, { probeBudget, deferBackfill: true })`: a sincronização do canal não lê semanais); e, no ramo que não é `skipped`:
 
 ```ts
         const t = res.totals, rr = r as Partial<Record<keyof BatchTotals, number>> & { quotaError?: boolean }
@@ -3033,15 +3901,116 @@ const ZERO: BatchTotals = { unitsUsed: 0, dailyRecorded: 0, weeklyRecorded: 0, w
 
 (`cutByCap` é somado entre canais: é "vídeos cortados neste disparo", o que a resposta do cron mostra; o maior do dia fica na linha da cota.)
 
-Em `route.ts`, no ramo `competitors`: a guarda vira `schemaReady(supabase, 'e1e2')`; `budgetMs: BATCH_BUDGET_MS` (importe); e, depois de `const health = batchHealth(result)`, troque o bloco que grava sucesso ou falha por:
+*(emenda do portão: D-I3, S-I1, D-I1, D-I5b. O que entra a mais em `competitor-sync-batch.ts`.)*
+
+(1) A leitura dos canais ganha as colunas de que a fase e a nota precisam: `.select('id, channel_id, channel_name, site_id, last_synced_at, sync_status, sync_error, sync_error_since, missing_since, weekly_pass_date')`, e o tipo da linha ganha nome: `export type BatchRow = { id: string; channel_id: string; channel_name: string | null; site_id: string; last_synced_at: string | null; sync_status: string | null; sync_error: string | null; sync_error_since: string | null; missing_since: string | null; weekly_pass_date: string | null }` (use `rowsAs` com uma guarda que confere `id`, `channel_id` e `site_id`; nenhum cast).
+
+(2) A fase semanal:
+
+```ts
+import { syncCompetitorChannel, syncCompetitorWeekly, spDate } from '@/lib/youtube/competitor-sync'
+import { recordQuota } from '@/lib/youtube/competitor-quota'
+
+export interface WeeklyPhaseResult { ran: boolean; visited: number; complete: number; pending: number; recorded: number; deferred: number; promoted: number; errors: number; unitsUsed: number }
+const spHour = (ms: number): number => new Date(ms - SP_OFFSET).getUTCHours()
+
+/**
+ * A fase semanal do disparo (A5 E2, OP-15). Roda DEPOIS dos canais devidos, a partir das 12:00 de São Paulo. Visita os canais
+ * cuja passada semanal de hoje ainda não está completa (weekly_pass_date diferente de hoje), a dívida mais antiga primeiro,
+ * com até WEEKLY_CHANNEL_BUDGET_MS por visita, em rodízio, enquanto o disparo tem menos de WEEKLY_DEADLINE_MS.
+ * Nada aqui depende da posição do canal na fila da sincronização nem de qual faixa é: o que não coube continua devido pelo
+ * dado e é o primeiro do disparo seguinte.
+ */
+export async function runWeeklyPhase(rows: BatchRow[], o: { apiKey: string; started: number; now: () => number; thumbs?: boolean }): Promise<WeeklyPhaseResult> {
+  const out: WeeklyPhaseResult = { ran: false, visited: 0, complete: 0, pending: 0, recorded: 0, deferred: 0, promoted: 0, errors: 0, unitsUsed: 0 }
+  const today = spDate(o.now())
+  const eligible = rows.filter(r => r.missing_since == null)
+  const doneToday = new Set(eligible.filter(r => r.weekly_pass_date === today).map(r => r.id))
+  out.pending = eligible.length - doneToday.size
+  if (spHour(o.now()) < 12) return out
+  out.ran = true
+  const key = (r: BatchRow): string => r.weekly_pass_date ?? ''   // nulo (nunca) antes de qualquer data
+  let queue = eligible.filter(r => !doneToday.has(r.id)).sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  const overall = (): boolean => o.now() - o.started >= WEEKLY_DEADLINE_MS
+  const lastDeferred = new Map<string, number>()
+  while (queue.length && !overall()) {
+    const again: BatchRow[] = []
+    let progressed = false
+    for (const row of queue) {
+      if (overall()) { again.push(row); continue }
+      const visitStart = o.now()
+      try {
+        const r = await syncCompetitorWeekly(row, o.apiKey, { thumbs: o.thumbs, deadline: () => overall() || o.now() - visitStart >= WEEKLY_CHANNEL_BUDGET_MS })
+        out.visited++
+        out.recorded += r.recorded; out.promoted += r.promoted; out.unitsUsed += r.unitsUsed
+        if (r.skipped) continue                       // sendo sincronizado agora: fica para o disparo seguinte
+        if (r.complete) { doneToday.add(row.id); out.complete++; lastDeferred.delete(row.id); continue }
+        lastDeferred.set(row.id, r.deferred)
+        again.push(row)
+        if (r.recorded > 0) progressed = true
+      } catch (err) {
+        // erro da fase semanal NÃO põe o canal em erro (a sincronização dele deu certo) e não volta à fila neste disparo
+        out.errors++
+        Sentry.captureException(err, { tags: { component: 'sync-youtube', mode: 'competitors-weekly' }, extra: { channelId: row.channel_id, siteId: row.site_id } })
+      }
+    }
+    queue = again
+    if (!progressed) break                            // ninguém andou nesta volta: não gira em falso
+  }
+  out.deferred = [...lastDeferred.values()].reduce((a, b) => a + b, 0)
+  out.pending = eligible.length - doneToday.size
+  return out
+}
+```
+
+Em `runCompetitorBatch`: as opções ganham `weekly?: boolean` e `thumbs?: boolean`; **depois do laço dos canais devidos e antes do backfill de Shorts**:
+
+```ts
+  // ── A5 (E2): a fase semanal. Depois dos canais devidos (a série diária vem sempre antes), antes do backfill de Shorts. ──
+  res.weekly = opts.weekly === true
+    ? await runWeeklyPhase(rows, { apiKey: opts.apiKey, started, now, thumbs: opts.thumbs })
+    : { ran: false, visited: 0, complete: 0, pending: 0, recorded: 0, deferred: 0, promoted: 0, errors: 0, unitsUsed: 0 }
+  res.totals.weeklyRecorded += res.weekly.recorded; res.totals.weeklyDeferred += res.weekly.deferred
+  res.totals.promoted += res.weekly.promoted; res.totals.unitsUsed += res.weekly.unitsUsed
+  if (res.weekly.errors) {
+    // (D-I5b) o número de erros da fase fica na linha da cota do dia, que é durável; a resposta do cron ninguém guarda
+    for (const siteId of res.healthSiteIds) await recordQuota(sb, { siteId, nowMs: now(), units: 0, mode: 'competitors_semanal', extra: { erros_semanal: res.weekly.errors } }).catch(() => undefined)
+  }
+```
+
+(`rows` é a lista inteira lida no começo, não só os devidos. `res` nasce com `weekly` zerado e `acao_do_dono: []`.) O padrão de `weekly` é **falso** para que os testes antigos do lote, que não conhecem a fase, não mudem; quem liga é a rota.
+
+(3) *(D-I1, CTRL-d)* A nota do canal em erro há mais de 3 dias, logo depois de ler os canais:
+
+```ts
+  const DAY_MS = 86_400_000
+  const dm = (iso: string): string => { const d = new Date(Date.parse(iso) - SP_OFFSET); return String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') }
+  res.acao_do_dono = rows
+    .filter(r => r.sync_status === 'error' && r.missing_since == null && r.sync_error_since != null && started - Date.parse(r.sync_error_since) > 3 * DAY_MS)
+    .map(r => 'canal ' + (r.channel_name ?? r.channel_id) + ' em erro desde ' + dm(r.sync_error_since!) + ' (há ' + Math.floor((started - Date.parse(r.sync_error_since!)) / DAY_MS) + ' dias): ' + (r.sync_error ?? 'sem mensagem registrada').slice(0, 160))
+```
+
+A nota é recalculada do banco **a cada execução** (não é memória de um disparo), e some sozinha quando o canal deixa de estar em erro.
+
+(4) *(D-I5b)* A cota que um canal não conseguiu gravar: some `quotaUnitsLost` de cada resultado em `lostBySite: Map<string, number>` e, depois do laço, uma tentativa por site: `await recordQuota(sb, { siteId, nowMs: now(), units: lost, mode: 'competitors', extra: { erros_cota: n } })`; se **essa** falhar, `res.quotaLost = (res.quotaLost ?? 0) + lost` (campo novo em `BatchResult`), e a rota põe "cota não gravada: N unidades" na mensagem de falha do disparo. Teste: `a gravação da cota falha num canal e passa na nova tentativa: quotaLost fica indefinido e a linha leva erros_cota: 1`.
+
+Em `route.ts`, no ramo `competitors`: a guarda vira `schemaReady(supabase, 'e1e2')`; `budgetMs: BATCH_BUDGET_MS` (importe); *(emenda do portão: D-I3)* a chamada ganha `weekly: true` (**é esta a linha da "volta só da fase semanal"**: trocar por `false` desliga a fase sem tocar em mais nada); e, depois de `const health = batchHealth(result)`, troque o bloco que grava sucesso ou falha por:
 
 ```ts
       // A prova é lida do banco a CADA disparo (mesmo sem canal devido): uma perda fica vermelha até ser consertada.
       const nowIso = new Date().toISOString()
       const unread = { ok: false, problems: ['não foi possível ler a prova da captura e da série'], notes: [] as string[] }
-      const verdicts = await Promise.all(result.healthSiteIds.map(siteId => readSiteHealth(supabase, siteId, nowIso, { slotDone: result.remainingDue === 0 && !result.stoppedForTime, e2: true }).catch(() => unread)))
+      // (emenda do portão: S-M10) a prova tem teto de tempo: se a consulta demorar, o disparo grava a FALHA em vez de morrer mudo aos 300 s
+      const PROOF_TIMEOUT_MS = 20_000
+      const slow = { ok: false, problems: ['não foi possível ler a prova da captura e da série (passou de 20 s)'], notes: [] as string[] }
+      const withTimeout = (p: Promise<HealthVerdict>): Promise<HealthVerdict> => Promise.race([p, new Promise<HealthVerdict>(resolve => setTimeout(() => resolve(slow), PROOF_TIMEOUT_MS))])
+      const verdicts = await Promise.all(result.healthSiteIds.map(siteId => withTimeout(readSiteHealth(supabase, siteId, nowIso, { slotDone: result.remainingDue === 0 && !result.stoppedForTime, e2: true })).catch(() => unread)))
       const prova = { ok: verdicts.every(v => v.ok), problems: verdicts.flatMap(v => v.problems), notes: verdicts.flatMap(v => v.notes) }
-      const parts = [...(health.ok ? [] : [health.message ?? 'batch failed']), ...(prova.ok ? [] : ['série e captura: ' + prova.problems.join('; ')])]
+      const parts = [
+        ...(health.ok ? [] : [health.message ?? 'batch failed']),
+        ...(prova.ok ? [] : ['série e captura: ' + prova.problems.join('; ')]),
+        ...(result.quotaLost ? ['cota não gravada: ' + result.quotaLost + ' unidades'] : []), // (emenda do portão: D-I5b)
+      ]
       if (parts.length) {
         const msg = parts.join(' | ')
         await recordCronFailure('sync-youtube-competitors', msg.length > 480 ? msg.slice(0, 479) + '…' : msg)
@@ -3050,7 +4019,9 @@ Em `route.ts`, no ramo `competitors`: a guarda vira `schemaReady(supabase, 'e1e2
       }
 ```
 
-e, no `return`, tire `healthSiteIds` da resposta junto de `siteIds` (`const { siteIds, healthSiteIds: _h, ...summary } = result`) e acrescente `prova`. (`cron_health.last_error` é cortado em 500 caracteres mais adiante; por isso os 480.)
+e, no `return`, tire `healthSiteIds` da resposta junto de `siteIds` (`const { siteIds, healthSiteIds: _h, ...summary } = result`) e acrescente `prova`. (`cron_health.last_error` é cortado em 500 caracteres mais adiante; por isso os 480.) *(emenda do portão: D-I1, CTRL-d)* `acao_do_dono` e `weekly` já estão em `summary` e saem na resposta de toda execução, no nome de campo que o cron da coleta já usa (`acao_do_dono`). Importe o tipo `HealthVerdict`.
+
+*(emenda do portão)* Quatro testes a mais em `cron-competitors-prova.test.ts` (o auxiliar `result` ganha `weekly` zerado e `acao_do_dono: []`): (1) `a rota liga a fase semanal`: `runCompetitorBatch` é chamado com `expect.objectContaining({ weekly: true })`; (2) `canal em erro há mais de 3 dias: o cron fica VERDE e a resposta traz acao_do_dono`: o lote devolve `acao_do_dono: ['canal X em erro desde 08/10 (há 4 dias): boom']` e a prova `{ ok: true, problems: [], notes: ['1 canal em erro há mais de 3 dias (ver acao_do_dono)'] }` → `recordCronSuccess` chamado, `recordCronFailure` não, e `body.acao_do_dono` igual à lista; (3) `a prova que demora mais de 20 s: falha gravada com "passou de 20 s"` (com `vi.useFakeTimers()` e `readSiteHealth` que nunca resolve; avance 20 s); (4) `cota não gravada depois da nova tentativa: falha com "cota não gravada: 12 unidades"` (o lote devolve `quotaLost: 12`).
 
 - [ ] **Step 4:** rodar: `npx vitest run test/youtube/competitor-sync-batch.test.ts test/youtube/cron-competitors-invalidate.test.ts test/youtube/cron-route.test.ts test/api/cron/sync-youtube.test.ts 2>&1 | tail -12` → verde. Os testes antigos do lote que comparam `BatchResult` inteiro com `toEqual` ganham `totals` e `healthSiteIds`.
 
@@ -3062,28 +4033,125 @@ cd /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web && npx vitest run > /
 
 Esperado: nenhuma falha que este plano tenha criado. Se houver falha em arquivo da A4 (`proprio-*`, `canal-*`), anote no ledger e não conserte aqui.
 
-- [ ] **Step 6: commit** (`feat: cron de concorrentes lê a prova da coleta a cada disparo, corta a passada semanal pelo relógio e devolve os totais (A5 E1 e E2)`).
+- [ ] **Step 6: commit.** *(emenda do portão: S-I2)*
 
-**Pronto quando:** item 22 e a conta de tempo estão presos por teste; a prova roda mesmo sem canal devido; a mensagem de falha cabe em `cron_health`.
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/competitor-sync-batch.ts apps/web/src/app/api/cron/sync-youtube/route.ts apps/web/test/youtube/competitor-sync-batch.test.ts apps/web/test/youtube/cron-competitors-prova.test.ts apps/web/test/youtube/cron-competitors-invalidate.test.ts apps/web/test/youtube/cron-route.test.ts apps/web/test/api/cron/sync-youtube.test.ts && git diff --cached --name-only && git commit -m "feat: cron de concorrentes lê a prova da coleta a cada disparo, roda a fase semanal pela dívida mais antiga e devolve os totais e a ação do dono (A5 E1 e E2)" -- apps/web/src/lib/youtube/competitor-sync-batch.ts apps/web/src/app/api/cron/sync-youtube/route.ts apps/web/test/youtube/competitor-sync-batch.test.ts apps/web/test/youtube/cron-competitors-prova.test.ts apps/web/test/youtube/cron-competitors-invalidate.test.ts apps/web/test/youtube/cron-route.test.ts apps/web/test/api/cron/sync-youtube.test.ts
+```
 
-### Task 14: ensaio local com a API real (nada medido só no falso)
+**Pronto quando:** item 22 e a conta de tempo estão presos por teste; a prova roda mesmo sem canal devido e tem teto de tempo; a mensagem de falha cabe em `cron_health`; *(emenda do portão)* os oito testes da fase semanal passam (as duas faixas, o caso duro, a prioridade da dívida, o orçamento por canal, a falha isolada, a volta de uma linha, antes das 12:00, `acao_do_dono`).
 
-Sem código de produção. Mede, com a API verdadeira do YouTube e o banco **local**, o que as Tarefas 6 a 11 custam, antes de qualquer push. Custo de cota: cerca de 12 unidades. **Nada aqui toca produção.**
+*(emenda do portão: S-I7, CTRL-f. A Tarefa 14 foi dividida e reescrita. O texto original era um script em prosa, não commitado, com a guarda "aborte se não for local" também em prosa, ao lado de um `.env.local` que aponta para produção, e fazia uma sincronização `full` de até 2.000 vídeos. 14a: o teste de integração commitado, que é a prova durável da junção TypeScript × SQL. 14b: o ensaio com a API real, só contra o banco local, com a guarda em código.)*
+
+### Task 14a: teste de integração do sync contra o banco local (a junção TypeScript × SQL)
+
+O falso do banco das Tarefas 6b a 11c é um roteiro por tabela: não executa filtro, não guarda estado e devolve `{}` para função desconhecida. O teste de banco da Tarefa 1a chama as funções com argumentos montados à mão. **Os nomes dos parâmetros, a forma dos `jsonb`, o `upsert … ignoreDuplicates … select` (de que dependem os pontos e a promoção) e a trava com `.or()` só se encontram aqui.** É a lição da E12 ("gravação nunca verificada"): este arquivo fica no repositório e roda sempre que alguém tiver o banco local de pé.
 
 **Files:**
-- Create: `apps/web/scripts/a5-ensaio-sync.ts` (apagado no fim da tarefa; não é commitado)
+- Create: `apps/web/test/integration/competitor-sync-a5.test.ts`
 
-- [ ] **Step 1: garantias antes de rodar.** O script roda com as variáveis do banco **local** (`npm run db:env` mostra quais; confira que `NEXT_PUBLIC_SUPABASE_URL` aponta para `127.0.0.1` ou `localhost`, e **aborte se não apontar**) e com `BLOB_READ_WRITE_TOKEN` **vazio** (o arquivamento de miniatura falha em silêncio e nada vai para o Blob de produção). A `YOUTUBE_API_KEY` é a de `.env.local` (só leitura da API).
+**Interfaces:**
+- Consumes: `syncCompetitorChannel`, `syncCompetitorWeekly` (Tarefas 6b a 11c); `readSiteHealth` (Tarefa 12); as migrations da Tarefa 1a no banco local; o molde de `test/integration/competitor-sync-versions.test.ts` (que já roda `syncCompetitorChannel` de verdade contra o banco local com `fetch` fixo: copie dele a preparação, o `vi.mock` da sonda de miniatura e do Blob, e a limpeza).
+- Produces: nada além do teste.
 
-- [ ] **Step 2: o script.** Faz, em ordem: (1) recusa rodar se a URL do banco não for local; (2) cria no banco local um site de teste e um canal concorrente com o `channel_id` do maior canal em produção (leia-o com `npx supabase db query --linked "select channel_id from competitor_channels order by (select count(*) from competitor_videos v where v.competitor_channel_id = competitor_channels.id) desc limit 1"`), `sync_mode = 'full'`, `video_limit = 50`; (3) roda `syncCompetitorChannel` uma vez às 06:00 de São Paulo simuladas (`opts.now`) para encher o catálogo (modo `full`, até 2.000 vídeos: é o custo de entrada, não é o que se mede); (4) roda de novo com `opts.now` às 12:00 de São Paulo do mesmo dia (D0: classifica, passada diária, semanais do dia fixo) medindo o tempo de parede, o número de chamadas à API e o número de idas ao banco (embrulhe `fetch` do cliente Supabase num contador: `createClient(url, key, { global: { fetch: contado } })` e injete com `vi`-less: exporte o cliente por variável de ambiente como os outros scripts do repositório fazem; se não houver jeito limpo, conte as requisições pelo log do PostgREST local: `docker logs --since 2m supabase_rest_bythiagofigueiredo | grep -c '"POST\|"GET\|"PATCH'`); (5) roda uma terceira vez às 18:00 simuladas (nada mudou: mede o regime) e (6) imprime, para cada rodada: segundos, chamadas à API, idas ao banco, e as contagens de `competitor_raw`, `competitor_field_versions`, `competitor_video_tier_spans`, `competitor_video_daily`; (7) apaga o site de teste (cascata).
+- [ ] **Step 1: escrever o teste.** `describe.skipIf(skipIfNoLocalDb())`. Um site semeado (`seedSite`), um canal, e um `fetch` fixo que responde `channels`, `playlistItems` e `videos` a partir de uma lista de vídeos em memória (cada teste muda a lista). A sonda de miniatura (`probeThumb`) e o arquivo (`archiveThumb`) são falsos, como no molde: **nenhuma requisição sai da máquina**. O relógio é `opts.now`. Sete passos, na ordem, no mesmo canal (o estado de um é a entrada do seguinte: é de propósito):
 
-- [ ] **Step 3: rodar, com saída em arquivo e sem esperar mais de 4 minutos** (se a rodada de enchimento do passo 3 passar disso, rode-a em segundo plano com saída em arquivo e volte ao controlador).
+| # | Passo | O que se lê **nas tabelas** depois (não no retorno) |
+|---|---|---|
+| 1 | Primeira sincronização às 12:00 de São Paulo, canal com 3 vídeos na página e `video_limit = 2` | 3 linhas em `competitor_videos` com `discovered_at`, `last_checked_at`, `last_seen_at`, `series_tier` (2 `diaria`, 1 `semanal`); 3 linhas abertas em `competitor_video_tier_spans`; uma linha corrente em `competitor_raw` por vídeo e uma do canal; os 10 campos `first` de cada vídeo e os 7 do canal em `competitor_field_versions`; 2 pontos em `competitor_video_daily` (os diários); `youtube_quota_usage` com `operations.competitors` = unidades gastas; o canal com `sync_status = 'idle'` e `last_ok_synced_at` |
+| 2 | Segunda sincronização, 6 horas depois, **nada mudou** | **zero linha nova** em `competitor_raw`, `competitor_field_versions`, `competitor_video_tier_spans` e `competitor_video_versions` (contagens iguais às do passo 1; item 223); `last_seen_at` dos vídeos avançou |
+| 3 | Uma tag muda num vídeo | uma versão fechada e uma aberta de `tags` (`precision = '6h'`, `window_start` = o `last_seen_at` anterior), uma resposta fechada e uma corrente em `competitor_raw` desse vídeo; nos outros, nada |
+| 4 | Um vídeo deixa de vir, em duas sincronizações com 6 horas de distância | depois da 1ª: `miss_streak = 1`, `missing_since` nulo; depois da 2ª: `missing_since` com a data de São Paulo da 1ª e a versão `availability = 'sumiu'`; **nenhuma linha apagada** (contagens de `competitor_videos`, `competitor_video_daily` e `competitor_raw` iguais). Volta a vir: `miss_streak = 0`, `missing_since` nulo, versão `no_ar` aberta |
+| 5 | `syncCompetitorWeekly` no dia fixo do vídeo semanal (escolha o `now` com `weekSlotOf` e `dayNumber`), às 12:40 | 1 ponto do semanal em `competitor_video_daily` com `snap_date` = hoje; versões `first` de título, descrição **e miniatura** em `competitor_video_versions` (com `thumb_blob_url`); `competitor_channels.weekly_pass_date` = hoje; `operations.competitors_semanal` na linha da cota; `sync_status` e `last_synced_at` do canal **iguais** aos de antes |
+| 6 | `syncCompetitorWeekly` de novo no mesmo dia; depois, 7 dias mais tarde com views 5.000 a mais (de 4.000 para 9.000) | no mesmo dia: nenhuma chamada a `videos` (conte no `fetch` fixo), nenhuma linha nova. Sete dias depois: segundo ponto, e `daily_until` = hoje + 28 (promoção pelo estado) |
+| 7 | As duas provas, lidas por `readSiteHealth(sb, siteId, now, { slotDone: true, e2: true })` às 19:30 de São Paulo do último dia | `ok: true`, sem problema: é a prova de que o que o código grava é o que o SQL das provas espera encontrar |
 
-- [ ] **Step 4: escrever no ledger** (`.superpowers/sdd/a5-e1-e2/progress.md`, seção "Ensaio"): os três tempos; as idas ao banco da rodada das 12:00 e da de regime; **a estimativa para produção** = (tempo da API medido) + (idas ao banco × latência de produção), onde a latência de produção sai da calibração: a mesma rodada de regime com o código **antigo** leva 21 s em produção (medido) e X s no ensaio; a diferença dividida pelas idas ao banco do código antigo é a latência por ida. Compare com a tabela da seção 5 do plano. **Critério:** se o maior canal passar de 45 s na rodada das 12:00 estimada para produção, pare e volte ao controlador antes do push (a faixa passaria de 2 para 3 disparos com 15 canais; não perde dado, mas muda a conta que o dono leu). Confirme também: zero linha nova em `competitor_raw` e em `competitor_field_versions` na terceira rodada (item 223, agora com resposta real: é aqui que aparece um campo da resposta que muda sozinho a cada leitura; se aparecer, o nome do campo vai para o ledger e a exclusão dele em `rawOf` vira uma tarefa de conserto antes do push).
+Dois casos à parte, em canais próprios: (8) `com o relógio fechado a meio (deadline verdadeiro depois do 1º vídeo), só o vídeo conferido tem ponto, weekly_pass_date continua nulo, e a visita seguinte lê o resto`; (9) `canal de outro site passado às funções de plano: o sync lança "não é do site" e nada é gravado` (chame `captureItems` com `siteId` trocado).
 
-- [ ] **Step 5:** apagar o script (`rm apps/web/scripts/a5-ensaio-sync.ts`) e conferir `git status --short apps/web/scripts` vazio.
+Limpeza no `afterAll`: `delete` do canal (cascata), de `youtube_quota_usage` do site e do site. **O teste nunca escreve fora do site que semeou.**
 
-**Pronto quando:** o ledger tem os números, a estimativa para produção e a resposta à pergunta "o `raw` real é estável entre duas leituras?".
+- [ ] **Step 2: rodar.**
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web && HAS_LOCAL_DB=1 npx vitest run test/integration/competitor-sync-a5.test.ts > /tmp/a5-integra.txt 2>&1; grep -E "✓|×|Test Files|Tests " /tmp/a5-integra.txt | tail -20
+```
+
+Esperado: 9 testes passam. Sem a variável: tudo pulado, zero falha. **Um passo que falha aqui e passa no falso é um defeito de junção (nome de parâmetro, forma do `jsonb`, filtro): conserte no código da tarefa dona e acrescente o caso ao falso dela.**
+
+- [ ] **Step 3: commit.**
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/test/integration/competitor-sync-a5.test.ts && git diff --cached --name-only && git commit -m "test: sync e leitura semanal dos concorrentes contra o banco local, do primeiro contato à promoção (A5 E1 e E2)" -- apps/web/test/integration/competitor-sync-a5.test.ts
+```
+
+**Pronto quando:** os 9 passam com o banco local; o ledger registra o número. **É condição do envio (Tarefa 15, Step 4).**
+
+### Task 14b: ensaio com a API real, contra o banco LOCAL (o que só a API de verdade diz)
+
+Sem código de produção. Responde a três perguntas que nenhum falso responde: o `raw` real é estável entre duas leituras? Quanto tempo leva de verdade? A estreia agendada vem mesmo sem `viewCount`? **Nunca contra produção.**
+
+**Quem roda:** o implementador da tarefa (Sonnet), no terminal; o controlador confere o ledger. **Custo de cota, declarado certo** *(o original dizia 12)*: cada rodada faz 1 `channels.list`, 1 `playlistItems.list` e 1 `videos.list` da página, mais 1 `videos.list` por 50 vídeos da passada diária e da leitura semanal. Com os 285 vídeos do maior canal semeados: rodada das 06:00, 3 unidades; das 12:00, 4; leitura semanal, 1 a 5 (os devidos do dia; se todos os 235 semanais fossem devidos, 5); regime, 3 e 1; a rodada do código antigo, 4. **Total: de 16 a 20 unidades** (0,2% da cota do dia), saindo do IP da casa do dono. As sondas de miniatura não gastam cota; são cerca de 60 requisições a `i.ytimg.com`.
+
+**Files:**
+- Create: `apps/web/scripts/a5-ensaio-sync.ts` (apagado no fim da tarefa; **não é commitado**: a prova durável é a Tarefa 14a)
+
+- [ ] **Step 1: a guarda, em código, nas primeiras linhas do script.** Antes de importar qualquer módulo do aplicativo:
+
+```ts
+// a5-ensaio-sync.ts: SÓ contra o banco local. apps/web/.env.local aponta para PRODUÇÃO: este script não o lê.
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+const host = (() => { try { return new URL(url).hostname } catch { return '' } })()
+if (host !== '127.0.0.1' && host !== 'localhost') {
+  console.error('a5-ensaio: recusando rodar: NEXT_PUBLIC_SUPABASE_URL não é local (' + (host || 'vazia') + ')')
+  process.exit(1)
+}
+if (process.env.BLOB_READ_WRITE_TOKEN) {
+  console.error('a5-ensaio: recusando rodar: BLOB_READ_WRITE_TOKEN está definido (o ensaio não pode escrever no Blob de produção)')
+  process.exit(1)
+}
+if (!process.env.YOUTUBE_API_KEY) { console.error('a5-ensaio: falta YOUTUBE_API_KEY'); process.exit(1) }
+```
+
+É a mesma regra de `assertLocal`, de `apps/web/e2e/fixtures/observatorio-seed.ts:197`; chame-a também, depois de importar, sobre a URL do cliente (`assertLocal(url)`), para o caso de alguém mudar o cliente de serviço. O script roda com as variáveis do banco local **passadas na linha de comando** (não por `.env.local`):
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web && eval "$(cd ../.. && npm run -s db:env 2>/dev/null | grep -E '^(API_URL|SERVICE_ROLE_KEY)=')" && NEXT_PUBLIC_SUPABASE_URL="$API_URL" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" BLOB_READ_WRITE_TOKEN= YOUTUBE_API_KEY="$(grep '^YOUTUBE_API_KEY=' .env.local | cut -d= -f2-)" npx tsx scripts/a5-ensaio-sync.ts > /tmp/a5-ensaio.txt 2>&1; tail -40 /tmp/a5-ensaio.txt
+```
+
+(Confira antes, com `npm run db:env`, os nomes exatos das duas variáveis que o comando imprime e ajuste o `grep`; a única coisa lida de `.env.local` é a chave do YouTube, que só lê a API.) **Prova da guarda, antes de tudo:** rode uma vez com `NEXT_PUBLIC_SUPABASE_URL=https://exemplo.supabase.co` e confira que sai com "recusando rodar" e código 1.
+
+- [ ] **Step 2: o script.** Em ordem:
+
+1. A guarda acima.
+2. Cria no banco local um site de teste (`seedSite`) e um canal concorrente com o `channel_id` do maior canal de produção, `sync_mode` incremental (**nunca `full`**), `video_limit = 50`. O `channel_id` e os ids dos vídeos vêm de **uma leitura de produção, só `select`, feita à mão antes**, pelo caminho permitido: `npx supabase db query --linked "select c.channel_id, v.video_id, v.published_at from competitor_videos v join competitor_channels c on c.id = v.competitor_channel_id where c.id = (select competitor_channel_id from competitor_videos group by 1 order by count(*) desc limit 1)"`, gravada em `/tmp/a5-ensaio-ids.json`. O script insere essas 285 linhas em `competitor_videos` do banco local (só `video_id` e `published_at`): o catálogo nasce semeado, sem chamar a API.
+3. **Rodada A (código antigo, para calibrar):** o código antigo vem de uma **cópia** do arquivo de `origin/staging`, nunca de `git stash` nem de troca de branch (proibidos): `git show origin/staging:apps/web/src/lib/youtube/competitor-sync.ts > apps/web/scripts/a5-sync-antigo.ts` (dentro de `apps/web`, para os caminhos `@/` resolverem; apagado no Step 5) e o script importa `syncCompetitorChannel` dele. Uma sincronização às 12:00 de São Paulo simuladas (`opts.now`), `probeBudget: { remaining: 0 }` (sem sonda de Shorts): tempo de parede e idas ao banco. É o que em produção leva 21 s.
+4. **Rodada B (código novo, 06:00 simuladas):** primeira sincronização: classifica as faixas, captura a página.
+5. **Rodada C (código novo, 12:00):** a passada diária. Tempo, chamadas à API, idas ao banco.
+6. **Rodada D (`syncCompetitorWeekly`, 12:40):** a leitura semanal do dia. Tempo, chamadas, quantos devidos, quantos pontos, quantas miniaturas conferidas.
+7. **Rodada E (regime):** C e D de novo com o relógio 6 horas adiante e nada mudado.
+8. Imprime, por rodada: segundos, chamadas à API, idas ao banco, e as contagens de `competitor_raw`, `competitor_field_versions`, `competitor_video_tier_spans`, `competitor_video_daily`, `competitor_video_versions`; e o veredito de `readSiteHealth`.
+9. Apaga o site de teste (cascata).
+
+As idas ao banco: conte pelo log do PostgREST local (`docker logs --since 3m supabase_rest_bythiagofigueiredo 2>&1 | grep -c '"POST\|"GET\|"PATCH'`) entre uma rodada e outra.
+
+- [ ] **Step 3: rodar, com saída em arquivo e sem esperar mais de 4 minutos.** Se a soma das rodadas passar disso, rode em segundo plano com saída em arquivo e volte ao controlador.
+
+- [ ] **Step 4: o critério, completo** *(o original só olhava o tempo)*. Escrever no ledger (`.superpowers/sdd/a5-e1-e2/progress.md`, seção "Ensaio") e **parar e voltar ao controlador se qualquer linha falhar**:
+
+| O quê | Esperado |
+|---|---|
+| Canal em erro em alguma rodada | 0 |
+| Pontos gravados na rodada C | igual ao tamanho da faixa diária (50, menos os que vieram sem contagem, listados) |
+| Linhas de faixa | uma aberta por vídeo (285) |
+| Rodada D | `recorded` = devidos menos os sem contagem; `complete: true`; `weekly_pass_date` = o dia simulado |
+| Rodada E | **zero** linha nova em `competitor_raw` e em `competitor_field_versions` (item 223 com resposta real). Se houver, o nome do campo que mudou sozinho vai para o ledger, e excluí-lo em `rawOf` é tarefa de conserto **antes** do push |
+| `readSiteHealth` depois da rodada E | `ok: true` |
+| Estreia agendada (se o canal tiver uma; senão, "não observado") | vem sem `viewCount`? (premissa do achado D-I2) |
+| Tempo estimado para produção | a latência por ida = (21 s de produção − tempo da rodada A no ensaio) ÷ idas ao banco da rodada A; estimativa = tempo da API medido + idas × latência. **Se o maior canal passar de 45 s na rodada C, ou a rodada D passar de 60 s, pare** (a faixa passaria de 2 para 3 disparos; não perde dado, mas muda a conta que o dono leu) |
+
+- [ ] **Step 5:** apagar o script e os arquivos de apoio (`rm apps/web/scripts/a5-ensaio-sync.ts apps/web/scripts/a5-sync-antigo.ts /tmp/a5-ensaio-ids.json`) e conferir `git status --short apps/web/scripts` vazio.
+
+**Pronto quando:** o ledger tem a tabela do critério preenchida, a estimativa para produção e a resposta à pergunta "o `raw` real é estável entre duas leituras?". Nenhuma linha de produção foi escrita (a guarda foi provada no Step 1).
 
 ### Task 15 (controlador): o envio do Lote 1 e as conferências
 
@@ -3091,19 +4159,20 @@ Sem código. Só o controlador executa; nenhum comando do dono além do que a se
 
 - [ ] **Step 1: revisão final do lote** pelos dois especialistas (`revisor-engenharia-dados-senior` e `revisor-engenharia-software-senior`), com o diff do lote em arquivo, até o acordo (regra do dono, decisão 38).
 - [ ] **Step 2: o retrato "antes" (item 247).** Com `D` = véspera do dia do deploy e o corte em `D 23:59:59` de São Paulo (`<D+1>T02:59:59Z`), rode R1 (seção 10) em produção e grave o resultado em `.superpowers/sdd/a5/retratos/e1-e2-antes.json`, com o instante da leitura e o corte.
-- [ ] **Step 3: o dono aplica as migrations** (seção 2, passos 3 e 4). Rode V1, V2 e V3 em produção e cole no ledger. **Não siga sem V1 = 21, 12, 5, 5, 9, `'{}'::jsonb`, 0.**
-- [ ] **Step 4: o envio separado da A4**, pelo roteiro da E12 (seção 9). Antes do push: extrair a árvore a enviar para uma pasta fora do repositório e rodar lá `npx vitest run test/youtube test/api/cron test/unit/test-hygiene.test.ts` e `npm run typecheck -w apps/web`.
-- [ ] **Step 5:** push em `staging`, CI verde, promoção a `main`. **Anote no ledger a hora da promoção e as datas absolutas de D0, D+1, D+3, D+7 e D+8.** Regra operacional do D0: não disparar o cron à mão.
-- [ ] **Step 6: D0, depois do primeiro disparo que sincronizar canal** (o das 12:00 ou o das 18:00 de São Paulo, o que vier primeiro): K3 (a linha da cota existe e `operations.competitors` > 0), K5 (as duas provas), K12 (a duração por canal: compare com 21 s), K9 e K14 (as faixas: cerca de 674 diária e 716 semanal, uma linha aberta por vídeo), K13. E `select * from cron_health where cron_name = 'sync-youtube-competitors'` (sem falha).
-- [ ] **Step 7: D+1 e D+3:** K1, K2, K4 (com a hora da promoção), K5, K6 (o `raw` fechado tem de ser uma fração pequena: se passar de 5% dos correntes em D+3, um campo está mudando sozinho: investigue com K7 e com a diferença entre duas respostas guardadas do mesmo vídeo), K8 (em D+3), K11.
-- [ ] **Step 8: D+7 e D+8:** K5 (agora com `semanal_atrasados` valendo), K9 (promovidos), K10, K11 (o tamanho real das tabelas novas: corrige a seção 5 do plano e a 9.6 do spec), e o retrato "depois": R1 com o mesmo corte do Step 2, gravado em `e1-e2-depois.json`; **os dois arquivos têm de ser iguais** (itens 9 e 20: o código do leitor não mudou no Lote 1, e a série e as versões até o corte não podem ter mudado).
+- [ ] **Step 3: o dono aplica as migrations** (seção 2, passos 3 e 4). *(emenda do portão)* **Condições para pedir a ele:** a Tarefa 1a e a 1b (RLS, 44 testes) verdes no banco local, e o SQL dos dois arquivos idêntico aos Apêndices A e B (`diff` do arquivo contra o bloco do plano: vazio). Diga a ele a janela (seção 2: minutos 07 a 18, 27 a 38 ou 47 a 58, fora de 12:00 a 12:25 e 18:00 a 18:25 de São Paulo). Depois, rode V1, V2 e V3 em produção e cole no ledger. **Não siga sem V1 = 21, 13, 5, 5, 9, 9, `'{}'::jsonb`, 0.**
+- [ ] **Step 4: o envio separado da A4**, pelo roteiro da E12 (seção 9). *(emenda do portão: S-I7, S-I3)* Antes do push: (a) a Tarefa 14a verde no banco local **com o código a enviar** e a 14b com a tabela do critério preenchida; (b) extrair a árvore a enviar para uma pasta fora do repositório e rodar lá `npx vitest run test/youtube test/api/cron test/unit/test-hygiene.test.ts`, `npm run typecheck -w apps/web` e `bash scripts/check-type-debt.sh` (tem de dizer "estável: 148"); (c) `git log --name-only` dos commits a enviar: só arquivos da lista da seção 9.
+- [ ] **Step 5:** push em `staging`, CI verde, promoção a `main`. *(emenda do portão: S-I5)* **A promoção a `main` só entre 12:25 e 17:30 de São Paulo.** Motivo: nessa janela o código antigo já gravou a série do dia (a faixa das 12:00 termina às 12:21, medido), e o código novo estreia na faixa das 18:00, em que a passada diária não tem ponto novo a gravar: um defeito no código novo aparece (canal em erro, prova vermelha) sem custar a série de dia nenhum, e ainda há o resto da tarde para reverter. Fora da janela, espere o dia seguinte. **Anote no ledger a hora da promoção e as datas absolutas de D0, D+1, D+3, D+7, D+8 e D+9.** Regra operacional do D0: não disparar o cron à mão.
+- [ ] **Step 5b: as conferências com data, no commit do deploy** *(emenda do portão: D-I6, CTRL-h)*. Em `.superpowers/sdd/a5/conferencias-com-data.md`, seção "E1 e E2", troque cada "D+N" pela data absoluta. **Se `apps/web/src/lib/conferencias.ts` já existir em `staging`** (Tarefa 6 do plano da E20), acrescente no mesmo envio uma entrada por linha da seção que tem id (`e1e2-d1`, `e1e2-d3`, `e1e2-d8`, `e1e2-d9`, `e1e2-30d`), com `etapa: 'E1+E2'`, a data, `responsavel: 'agente'` e `onde` apontando para a seção 10 deste plano; o arquivo é da E20, a mudança é só acrescentar entradas ao fim de `CONFERENCIAS`, e ele entra na lista do commit pelo nome. **Se ainda não existir**, registre no ledger "conferências da E1 e E2 a importar quando `lib/conferencias.ts` existir" (a pendência já está escrita no arquivo de conferências).
+- [ ] **Step 6: D0, depois do primeiro disparo que sincronizar canal** (o das 12:00 ou o das 18:00 de São Paulo, o que vier primeiro): K3 (a linha da cota existe e `operations.competitors` > 0), K5 (as duas provas), K12 (a duração por canal: compare com 21 s), K9 e K14 (as faixas: cerca de 674 diária e 716 semanal, uma linha aberta por vídeo), K13. E `select * from cron_health where cron_name = 'sync-youtube-competitors'` (sem falha). *(emenda do portão: D-I3)* **Depois das 19:00 de São Paulo do D0: K15 (esperado: vazia) e K17 (todo canal com `completa_hoje` verdadeiro).** Se a K15 trouxer linha, a fase semanal não leu: é a conferência que a prova embutida `semanal_devidos_hoje` também faz, a cada disparo.
+- [ ] **Step 7: D+1 e D+3:** K1, K2, K4 (com a hora da promoção), K5, K6 (o `raw` fechado tem de ser uma fração pequena: se passar de 5% dos correntes em D+3, um campo está mudando sozinho: investigue com K7 e com a diferença entre duas respostas guardadas do mesmo vídeo), K8 (em D+3), K11, *(emenda do portão)* K15 e K17 (depois das 19:00), K16 (os vídeos sem versão de miniatura caem cerca de 98 por dia: 687 no D0, perto de 590 em D+1).
+- [ ] **Step 8: D+7, D+8 e D+9:** K5 (agora com `semanal_atrasados` valendo; em D+9, `semanal_atrasados_9d` e `sem_miniatura_9d` em 0), K9 (promovidos), K10, K11 (o tamanho real das tabelas novas: corrige a seção 5 do plano e a 9.6 do spec), *(emenda do portão: D-I4)* **K16 em D+9: `videos_sem_versao_de_miniatura` só pode contar vídeo ausente ou sem contagem, e `correntes_sem_copia` = 0**, e o retrato "depois": R1 com o mesmo corte do Step 2, gravado em `e1-e2-depois.json`; **os dois arquivos têm de ser iguais** (itens 9 e 20: o código do leitor não mudou no Lote 1, e a série e as versões até o corte não podem ter mudado).
 - [ ] **Step 9:** cada conferência feita ganha a data no ledger. Conferência vencida sem data é pendência aberta do controlador na conversa seguinte com o dono.
 
 ---
 
 ## Lote 2: o leitor (motor, carregador e pacote)
 
-Não perde dado por esperar: pode ser feito em paralelo ao Lote 1 e enviado depois dele. **Regra do lote: nenhum campo que as telas leem hoje muda.** A série dos vídeos não observados entra em campos novos (`unobservedSeries`, `tier`, `tierSpans`); quem liga a leitura nas telas é a E4 e a E5, com mockup.
+Não perde dado por esperar: pode ser feito em paralelo ao Lote 1 e enviado depois dele. **Regra do lote: nenhum campo que as telas leem hoje muda**, *(emenda do portão: S-I8)* **nenhum texto de tela muda, e a regra vale para todo consumidor de `rowsToDataset` e `loadRows`, não só para as telas**: os serviços do Cowork (`lib/pipeline/services/competitors.ts:280`), a fila da forja (`lib/pipeline/services/forja-queue.ts:188` e `:328`, que monta o pacote enviado ao modelo), o "sincronizar agora" (`competitors/actions.ts:377`) e `forja-actions.ts:76`. A Tarefa 17b prova isso consumidor por consumidor. **O Lote 2 não vai sem o Lote 1 em `main` e sem a MG2 aplicada** (o carregador novo lê `series_tier`: sem a coluna, todos esses consumidores cairiam). A série dos vídeos não observados entra em campos novos (`unobservedSeries`, `tier`, `tierSpans`); quem liga a leitura nas telas é a E4 e a E5, com mockup.
 
 ### Task 16: o motor aceita intervalo semanal pela faixa gravada, e o conjunto de dados ganha os campos novos
 
@@ -3235,9 +4304,10 @@ describe('efeito de troca e múltiplo sobre série semanal (item 19)', () => {
     version({ id: 'w2', value_text: 'Dois', value_hash: 'h2', first_seen_at: iso(sp('2026-10-18T09:00:00')), window_start: iso(sp('2026-10-11T09:00:00')), precision: '1d' }),
   ]
   const withWeekly = base({ videos: [video('w', 400, { series_tier: 'semanal' })], daily: [pt('w', 17, 50_000), pt('w', 24, 57_000)], spans: [span('w', 10, null, 'semanal')], versions: CHANGE })
-  it('troca num vídeo semanal: o motivo é "inconclusivo: série semanal"; o estado e o rótulo continuam os de hoje (as contagens das telas não se mexem)', () => {
+  // (emenda do portão: S-I8, pergunta 5) nenhum texto de tela muda: o estado, o rótulo E o motivo são os de hoje; o fato novo vai num campo que nenhuma tela lê
+  it('troca num vídeo semanal: o estado, o rótulo e o motivo continuam os de hoje; o efeito ganha weeklySeries: true', () => {
     const obs = obsOf(withWeekly)
-    expect(obs.effect(obs.changes.find(x => x.video === 'w')!.id)).toMatchObject({ status: 'sem-serie', label: 'sem série', reason: 'inconclusivo: série semanal' })
+    expect(obs.effect(obs.changes.find(x => x.video === 'w')!.id)).toMatchObject({ status: 'sem-serie', label: 'sem série', reason: 'Fora dos vídeos acompanhados: sem série diária de views.', weeklySeries: true })
   })
   it('troca num vídeo não observado SEM ponto nenhum: a frase de hoje', () => {
     const obs = obsOf(base({ videos: [video('w', 400)], versions: CHANGE }))
@@ -3407,7 +4477,9 @@ export function weeklyRate(ctx: EngineCtx, videoId: string, fromMs: number, toMs
   // R37 + R119: the daily record is read only for observed videos (tracked ∪ pinned). A5 (E2): um vídeo não observado em faixa
   // semanal TEM pontos, mas semanais: o efeito de troca exige pontos diários. O estado continua 'sem-serie' (as telas contam
   // os 'inconclusivo'); a frase é a do spec.
-  if (!isObserved(v)) return done({ status: 'sem-serie', label: 'sem série', reason: v.tier === 'semanal' && v.unobservedSeries?.length ? 'inconclusivo: série semanal' : 'Fora dos vídeos acompanhados: sem série diária de views.' })
+  if (!isObserved(v)) return done({ status: 'sem-serie', label: 'sem série', reason: 'Fora dos vídeos acompanhados: sem série diária de views.', ...(v.tier === 'semanal' && v.unobservedSeries?.length ? { weeklySeries: true as const } : {}) })
+  // (emenda do portão: S-I8, pergunta 5) o motivo NÃO muda: a frase "inconclusivo: série semanal" é texto de tela e entra com o mockup
+  // da E5. O tipo do efeito (types.ts) ganha o campo opcional `weeklySeries?: true`, que nenhuma tela lê.
 ```
 
 `index.ts`: importe `weeklyRate, type WeeklyRate` de `./series`; na interface `Observatory`, ao lado de `periodRate`: `weeklyRate(id: string, fromMs: number, toMs: number): WeeklyRate`; no objeto devolvido, ao lado de `periodRate: …`: `weeklyRate: (id, f, t) => weeklyRate(ctx, id, f, t),`.
@@ -3596,30 +4668,78 @@ e em `unpackChannel`: exija também `Array.isArray(p.spans)` e devolva `spans: p
 
 - [ ] **Step 6:** `npx vitest run test/youtube/observatorio 2>&1 | tail -15 && npm run typecheck 2>&1 | tail -3` → verde. Depois a suíte inteira com saída em arquivo (como na Tarefa 13, Step 5).
 
-- [ ] **Step 7: commit** (`feat: carregador do Observatório lê a série de todo vídeo e as faixas; pacote em cache na versão 2, com a série semanal fora quando não cabe (A5 E2)`), com `-- apps/web/src/lib/youtube/observatorio apps/web/test/youtube/observatorio`.
+- [ ] **Step 7: commit.** *(emenda do portão: S-I2; o original passava as duas pastas `observatorio`, exatamente onde a A4 tem arquivos modificados.)* Liste os arquivos que **esta** tarefa mudou, pelo nome. O conjunto máximo é o abaixo; tire os de teste de carga que não precisaram mudar, e não acrescente nenhum outro:
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/observatorio/load.ts apps/web/src/lib/youtube/observatorio/load-channel.ts apps/web/src/lib/youtube/observatorio/load-page.ts apps/web/src/lib/youtube/observatorio/pack.ts apps/web/test/youtube/observatorio/load-fixture.ts apps/web/test/youtube/observatorio/pack-shape.test.ts apps/web/test/youtube/observatorio/pack-semanal.test.ts apps/web/test/youtube/observatorio/pack.test.ts apps/web/test/youtube/observatorio/load-measure.test.ts apps/web/test/youtube/observatorio/load-page.test.ts apps/web/test/youtube/observatorio/load.test.ts apps/web/test/youtube/observatorio/load-live.test.ts && git diff --cached --name-only && git commit -m "feat: carregador do Observatório lê a série de todo vídeo e as faixas; pacote em cache na versão 2, com a série semanal fora quando não cabe (A5 E2)" -- apps/web/src/lib/youtube/observatorio/load.ts apps/web/src/lib/youtube/observatorio/load-channel.ts apps/web/src/lib/youtube/observatorio/load-page.ts apps/web/src/lib/youtube/observatorio/pack.ts apps/web/test/youtube/observatorio/load-fixture.ts apps/web/test/youtube/observatorio/pack-shape.test.ts apps/web/test/youtube/observatorio/pack-semanal.test.ts apps/web/test/youtube/observatorio/pack.test.ts apps/web/test/youtube/observatorio/load-measure.test.ts apps/web/test/youtube/observatorio/load-page.test.ts apps/web/test/youtube/observatorio/load.test.ts apps/web/test/youtube/observatorio/load-live.test.ts
+```
+
+Antes do commit, `git status --short apps/web/test/youtube/observatorio/ apps/web/src/lib/youtube/observatorio/` vai mostrar também os arquivos da A4 (`proprio-*`, `links.ts`, `stats.ts`): **eles não entram**. `git diff --cached --name-only` tem de mostrar só os da lista.
 
 **Pronto quando:** item 21 está provado por medição determinística (os dois números ficam no ledger); `pack-shape.test.ts` passa com a versão 2; `loadRows` e `loadChannelRows` continuam dando o mesmo conjunto.
 
+### Task 17b: regressão por consumidor de `rowsToDataset` e `loadRows` (telas, Cowork, fila da forja)
+
+*(emenda do portão: S-I8, S-I9, CTRL-g. Tarefa nova. A prova de "nada muda" do texto original era a igualdade do conjunto de dados numa fixture de 3 vídeos, sem fixado não observado, sem canal próprio e sem troca legada, e nenhum teste olhava o que cada consumidor entrega.)*
+
+**Files:**
+- Create: `apps/web/test/youtube/observatorio/consumidores-semanal.test.ts`
+
+**Interfaces:**
+- Consumes: `rowsToDataset`, `createObservatory` (ou o nome que `index.ts` exporta) e as funções de tela; a semente de e2e `apps/web/e2e/fixtures/observatorio-seed.ts` (**só leitura: este plano não a edita**; o teste importa a função que monta as linhas a partir do oráculo, a mesma que a semente grava no banco); `buildTables` de `load-fixture.ts` (Tarefa 17, com e sem `weekly`); os serviços de `lib/pipeline/services/competitors.ts` e `buildSent` de `forja-queue.ts`.
+- Produces: nada além do teste.
+
+**A ideia.** Duas entradas com os **mesmos** vídeos, versões e série diária: `A`, as linhas como são hoje; `B`, as mesmas linhas **mais** o que o Lote 1 passa a gravar (faixa de cada vídeo, faixas no tempo, pontos semanais para todos os não observados, `series_tier` nas linhas). Cada consumidor é rodado sobre `A` e sobre `B`, e a saída tem de ser **idêntica**: o que o Lote 1 grava não pode mudar nada do que já é mostrado ou enviado. E `B` roda no motor de `origin/staging` e no motor novo? Não: o motor antigo não conhece as colunas novas; a comparação é `A` × `B` **no motor novo** (mais o retrato da Tarefa 18, que compara motor antigo × novo sobre linhas congeladas de produção).
+
+- [ ] **Step 1: as duas entradas.** (1) A semente de e2e inteira (todos os canais do oráculo, com canal próprio, fixados e trocas legadas: é o que o item 247 manda); (2) `buildTables` grande (o maior canal sintético da Tarefa 17). Para cada uma, `B` = `A` + `spans` (uma faixa aberta por vídeo: `diaria` para os observados, `semanal` para os outros, desde 30 dias antes do relógio) + pontos semanais (um a cada 7 dias, 8 por vídeo não observado) + `series_tier`. Um auxiliar `withWeekly(rows)` no próprio arquivo de teste (não em `load-fixture.ts`, que a Tarefa 17 já mexe).
+
+- [ ] **Step 2: o teste, um `it` por consumidor.** A lista de consumidores vem do `grep` (rode e confira que não apareceu um novo: `grep -rn "loadRows\|loadDataset\|rowsToDataset\|loadChannelRows" apps/web/src --include=*.ts --include=*.tsx -l`):
+
+| Consumidor | O que é comparado entre `A` e `B` (`toEqual`) |
+|---|---|
+| O conjunto de dados (`rowsToDataset`) | tudo, tirando só os três campos novos (`tier`, `tierSpans`, `unobservedSeries`) e `weeklyOmitted` |
+| Lista de canais (`obs.channels`, `channelStats` de cada canal) | tudo: `trocas`, `vpdMedian`, `vpd7Median`, `vpdN`, o estado de sincronização |
+| Trocas (`obs.changes`) e o efeito de **toda** troca (`obs.effect(id)`) | tudo, tirando `weeklySeries`. Em especial `status`, `label` e `reason` (nenhum texto muda) |
+| Página do canal: `multiplier` e `vpd` de **todo** vídeo, `outliers` | tudo |
+| Página do vídeo: a série e as marcas do vídeo observado; para o não observado, o que a tela recebe hoje (série vazia) | tudo: `series` de um não observado continua `[]` em `B` |
+| Cowork: o corpo de `competitors/changes`, de `outliers` e dos demais serviços de `lib/pipeline/services/competitors.ts` que passam por `loadRows` | o objeto devolvido pelo serviço, inteiro (item 9) |
+| Fila da forja: `buildSent` (o pacote enviado ao modelo) | o pacote inteiro, **e o tamanho em caracteres** (`JSON.stringify(...).length` igual: o campo novo não pode viajar para o modelo) |
+| O que as páginas mandam ao cliente | para cada objeto que uma página servidor passa a um componente `'use client'` (ache por `grep -rn "unobservedSeries\|tierSpans" apps/web/src` → tem de dar só `lib/youtube/observatorio/`), `JSON.stringify(...).length` em `B` ≤ em `A` + 2% |
+
+Os serviços do Cowork e `buildSent` leem do banco por `loadRows`: troque o cliente pelo falso de `test/helpers/fake-supabase.ts` **na versão de `origin/staging`** (o teste tem de passar com ela: a A4 acrescentou 7 linhas a esse arquivo e este plano não depende delas), alimentado com as linhas de `A` e de `B`.
+
+Um teste a mais, o do `grep` como asserção: `nenhum arquivo fora de lib/youtube/observatorio lê unobservedSeries, tierSpans ou weeklySeries` (leia a árvore `apps/web/src` com `node:fs` e falhe se achar; quando a E4 ou a E5 ligarem a leitura, é este teste que elas mudam, de propósito).
+
+- [ ] **Step 3: rodar.** `cd apps/web && npx vitest run test/youtube/observatorio/consumidores-semanal.test.ts > /tmp/a5-consumidores.txt 2>&1; grep -E "✓|×|Test Files|Tests " /tmp/a5-consumidores.txt | tail -20` → todos passam. **Uma diferença entre `A` e `B` em qualquer consumidor é parada:** não ajuste a expectativa; o campo novo vazou para um caminho que as telas leem.
+
+- [ ] **Step 4: commit.**
+
+```bash
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/test/youtube/observatorio/consumidores-semanal.test.ts && git diff --cached --name-only && git commit -m "test: o que o Lote 1 grava não muda nada do que as telas, o Cowork e a fila da forja entregam (A5 E2, itens 9, 20 e 247)" -- apps/web/test/youtube/observatorio/consumidores-semanal.test.ts
+```
+
+**Pronto quando:** um `it` por consumidor da tabela, todos verdes, com a semente de e2e e com a fixture grande; o teste do `grep` passa.
+
 ### Task 18 (controlador): o envio do Lote 2
 
-- [ ] **Step 1:** só depois de o Lote 1 estar em `main` e de D+1 conferido (as tabelas da MG2 existem e têm linha).
+- [ ] **Step 1:** só depois de o Lote 1 estar em `main` e de D+1 conferido (as tabelas da MG2 existem e têm linha). *(emenda do portão: S-I8)* **Condição escrita, conferida na hora: V1 em produção dá 21 colunas de vídeo** (a MG2 está aplicada). Sem isso, não envie: o carregador novo lê `series_tier` e derrubaria as telas, o Cowork e a fila da forja.
 - [ ] **Step 2:** revisão final do lote pelos dois especialistas, até o acordo.
-- [ ] **Step 3: o retrato pelo motor, antes** (item 247): um script descartável (`apps/web/scripts/a5-retrato.ts`, não commitado) que lê produção **só com `select`** pelo cliente de serviço, monta o conjunto de dados com `loadRows` e um corte (`now` = véspera do deploy, 23:59 de São Paulo; série e versões até o corte) e grava, por canal, `{ trocas, vpdMedian, vpd7Median, vpdN }` de `channelStats` e, por vídeo observado, `vpd`, `vpd7` e o múltiplo, em `.superpowers/sdd/a5/retratos/e2-leitor-antes.json`. Rode com o código de `origin/staging` (antes do lote).
+- [ ] **Step 3: o retrato pelo motor, sobre linhas congeladas** *(emenda do portão: S-I9; reescrito. O original lia produção duas vezes pelo cliente de serviço, o que contraria a regra "leitura de produção só por `db query --linked`" e não é determinístico: entre o "antes" e o "depois" um canal publica, `view_count` e o conjunto dos 50 mais recentes mudam, e os arquivos difeririam por um falso positivo.)* **Uma** leitura de produção, pelo caminho permitido, congela as linhas num arquivo: para cada uma das tabelas que `loadRows` lê (`competitor_channels`, `competitor_videos`, `competitor_video_versions`, `competitor_video_daily`, `competitor_channel_snapshots`, `competitor_changes`, `competitor_video_tier_spans`), um `npx supabase db query --linked "select … from <tabela> order by <chave>"` com as colunas que o carregador pede, gravado em `.superpowers/sdd/a5/retratos/e2-linhas/<tabela>.json` (são cerca de 12 mil linhas ao todo; pagine com `limit` e `offset` de 1.000, e confira a contagem contra `select count(*)`). **A partir daí nada mais lê produção.** Um script descartável (`apps/web/scripts/a5-retrato.ts`, não commitado) carrega esses arquivos, fixa o relógio no instante da leitura, e roda **localmente** o motor duas vezes sobre as mesmas linhas: com o código de `origin/staging` (extraído para uma pasta fora do repositório) → `e2-leitor-antes.json`; com o código do lote → `e2-leitor-depois.json`. O retrato tem, por canal, `{ trocas, vpdMedian, vpd7Median, vpdN }` de `channelStats`; por vídeo observado, `vpd`, `vpd7` e o múltiplo; **o corpo de `competitors/changes` e o de `outliers`** (item 9); e, por vídeo, a data da primeira versão de título (S-M13: os 687 que ganharam linha de base entre D0 e D+6 não podem mudar nenhum "título desde" que uma tela mostre).
 - [ ] **Step 4:** envio separado da A4 (roteiro da E12), provado em árvore extraída com a versão de `origin/staging` de `test/helpers/fake-supabase.ts`: `npx vitest run test/youtube/observatorio test/unit/test-hygiene.test.ts` e o typecheck.
 - [ ] **Step 5:** push, CI, promoção. O cache antigo (versão 1) é ignorado sozinho: a primeira abertura de cada canal lê o banco e grava a versão 2.
-- [ ] **Step 6: o retrato depois:** o mesmo script, o mesmo corte, com o código novo, em `e2-leitor-depois.json`. **Os dois arquivos têm de ser iguais.** Se não forem, reverta os commits 16 e 17 e relate a primeira diferença.
+- [ ] **Step 6: comparar os dois retratos** *(emenda do portão: S-I9; passa a ser feito **antes** do push, no Step 3, porque não depende mais do deploy)*: `diff e2-leitor-antes.json e2-leitor-depois.json` vazio. Se não for, **não envie** e relate a primeira diferença (não há o que reverter em produção: nada foi enviado). Depois do deploy, este passo é só a conferência de que o que está em produção é o commit do retrato.
 - [ ] **Step 7:** abra a lista de canais e a página do maior canal (um subagente Sonnet com o navegador, no CMS autenticado: `docs/ops/runbook-cms-e2e-local.md`), e confira no Sentry que não há o aviso "não coube no pacote" nem "passou do orçamento" para nenhum canal.
 
 ---
 
 ## 10. Consultas de conferência (todas testadas em 12/10/2026 no banco local com as migrations aplicadas; R1 também em produção)
 
-Rodar com `npx supabase db query --linked "<consulta>"`. Só `select`.
+Rodar com `npx supabase db query --linked "<consulta>"`. Só `select`. *(emenda do portão)* Alteradas: K1, K5 (o esperado), K6. Novas: K9b, K15, K15b, K16, K17. As que não dependem das migrations (K12, K15b, K16) foram rodadas em produção em 12/10; as outras, no banco local com o SQL final.
 
-**K1** (item 1). Vídeo que veio nas últimas 24 h sem resposta guardada. Esperado: 0.
+**K1** (item 1). *(emenda do portão: S-I4)* Vídeo **conferido** nas últimas 24 h (e depois da primeira resposta guardada do site) sem resposta guardada. Esperado: 0. É a mesma conta de `videos_vistos_sem_raw` da prova embutida.
 
 ```sql
-select count(*) as videos_vistos_sem_raw from competitor_videos v where v.last_seen_at > now() - interval '1 day' and not exists (select 1 from competitor_raw r where r.video_id = v.id and r.is_current);
+select count(*) as videos_lidos_sem_raw from competitor_videos v join competitor_channels c on c.id = v.competitor_channel_id where v.last_checked_at > greatest(now() - interval '1 day', (select min(r.first_seen_at) from competitor_raw r where r.site_id = c.site_id)) and exists (select 1 from competitor_raw r0 where r0.site_id = c.site_id) and not exists (select 1 from competitor_raw r where r.video_id = v.id and r.is_current);
 ```
 
 **K2** (itens 2 e 12). Canais sem resposta guardada, sem handle, sem data de criação, nunca vistos. Esperado depois da primeira faixa: `sem_raw = 0` e `nunca_vistos = 0`; `sem_handle` e `sem_criacao` só onde a resposta não trouxe (conferir no `raw`).
@@ -3640,16 +4760,16 @@ select date, units_used, operations, to_char(updated_at at time zone 'America/Sa
 select count(*) as novos_sem_discovered from competitor_videos where discovered_at is null and published_at > '2026-10-13T18:00:00Z';
 ```
 
-**K5** (itens 13, 15, 23 e 222). As duas provas, como o cron as lê. Esperado: `videos_vistos_sem_raw`, `canais_vistos_sem_raw`, `canais_em_erro_12h`, `sem_faixa`, `diaria_buracos_3d` e `semanal_atrasados` em 0; depois das 18:00 de São Paulo, `diaria_sem_ponto_hoje` em 0.
+**K5** (itens 13, 15, 23 e 222). As duas provas, como o cron as lê. Esperado: `videos_vistos_sem_raw`, `canais_vistos_sem_raw`, `canais_em_erro_12h`, `sem_faixa`, `diaria_buracos_3d`, `semanal_atrasados_9d` e `sem_miniatura_9d` em 0; depois das 18:00 de São Paulo, `diaria_sem_ponto_hoje` em 0; *(emenda do portão)* depois das 19:00, `semanal_devidos_hoje` e `semanal_atrasados` em 0 (antes das 12:00, `semanal_devidos_hoje` é a carga do dia, de 87 a 118).
 
 ```sql
 select public.competitor_capture_health(s.id, now()) as captura, public.competitor_series_health(s.id, now()) as serie from (select distinct site_id as id from competitor_channels) s;
 ```
 
-**K6** (risco 1). O `raw`: quantas respostas correntes e quantas fechadas, e o tamanho. Esperado em D+3: `fechadas` abaixo de 5% de `correntes`; `maior_bytes` muito abaixo de 100.000.
+**K6** (risco 1). O `raw`: quantas respostas correntes e quantas fechadas, e o tamanho. Esperado em D+3: `fechadas` abaixo de 5% de `correntes`; `maior_texto_bytes` muito abaixo de 100.000. *(emenda do portão: D-m7)* `maior_bytes` é o tamanho **comprimido** no banco; o teto de 100.000 do código é sobre o texto, que é `maior_texto_bytes`.
 
 ```sql
-select count(*) filter (where is_current) as correntes, count(*) filter (where not is_current) as fechadas, max(pg_column_size(raw)) as maior_bytes, avg(pg_column_size(raw))::int as media_bytes, pg_total_relation_size('public.competitor_raw') as tabela_bytes from competitor_raw;
+select count(*) filter (where is_current) as correntes, count(*) filter (where not is_current) as fechadas, max(pg_column_size(raw)) as maior_bytes, max(octet_length(raw::text)) as maior_texto_bytes, avg(pg_column_size(raw))::int as media_bytes, pg_total_relation_size('public.competitor_raw') as tabela_bytes from competitor_raw;
 ```
 
 **K7** (volume). Histórico de campo por campo: linhas, mudanças de verdade e mudanças em buraco.
@@ -3670,6 +4790,12 @@ select v.video_id, to_char(v.published_at at time zone 'America/Sao_Paulo', 'DD/
 select coalesce(series_tier, '(sem faixa)') as faixa, count(*) as videos, count(*) filter (where daily_until >= (now() at time zone 'America/Sao_Paulo')::date) as promovidos from competitor_videos where missing_since is null group by 1 order by 1;
 ```
 
+**K9b** *(emenda do portão: D-m2)*. Vídeo com `series_tier` gravado e nenhuma linha de faixa aberta com essa faixa (o caso que não se conserta sozinho; seção 6). Esperado: vazia.
+
+```sql
+select v.id, v.video_id, v.series_tier, left(c.channel_name, 22) as canal from competitor_videos v join competitor_channels c on c.id = v.competitor_channel_id where v.series_tier is not null and not exists (select 1 from competitor_video_tier_spans s where s.video_id = v.id and s.to_date is null and s.tier = v.series_tier) order by 4, 2;
+```
+
 **K10** (item 23). Por canal: quantos em cada faixa e quantos têm ponto hoje.
 
 ```sql
@@ -3682,10 +4808,10 @@ select c.channel_name, count(*) filter (where v.series_tier = 'diaria') as diari
 select t.relname as tabela, pg_total_relation_size(t.oid) as bytes, (select reltuples::bigint from pg_class where oid = t.oid) as linhas_est from pg_class t join pg_namespace n on n.oid = t.relnamespace where n.nspname = 'public' and t.relname in ('competitor_field_versions', 'competitor_raw', 'competitor_video_early', 'competitor_video_tier_spans', 'competitor_video_daily', 'competitor_videos', 'competitor_removed_items') order by 2 desc;
 ```
 
-**K12** (tempo). Quanto cada canal levou na última sincronização (a diferença até o início do seguinte, dentro do mesmo disparo). Compare com 21 s.
+**K12** (tempo). Quanto cada canal levou na última sincronização (a diferença até o início do seguinte, dentro do mesmo disparo), **com a posição na fila**. Compare com 21 s. *(emenda do portão: D-I3)* Só guarda a última faixa: para medir a das 18:00, rodar entre 18:45 e 23:59 de São Paulo (Tarefa 0, Step 4). Rodada em produção em 12/10 às 16:57: a faixa das 12:00, 11 canais no primeiro disparo (o 11º aos 197 s), 4 no das 12:20.
 
 ```sql
-select left(channel_name, 22) as canal, to_char(last_ok_synced_at at time zone 'America/Sao_Paulo', 'DD/MM HH24:MI:SS') as inicio_sp, round(extract(epoch from lead(last_ok_synced_at) over (order by last_ok_synced_at) - last_ok_synced_at)) as segundos_ate_o_proximo, sync_status from competitor_channels order by last_ok_synced_at;
+select row_number() over (order by last_synced_at) as pos, left(channel_name, 22) as canal, to_char(last_synced_at at time zone 'America/Sao_Paulo', 'DD/MM HH24:MI:SS') as tentativa_sp, to_char(last_ok_synced_at at time zone 'America/Sao_Paulo', 'DD/MM HH24:MI:SS') as fim_bom_sp, round(extract(epoch from lead(last_synced_at) over (order by last_synced_at) - last_synced_at)) as segundos_ate_o_proximo, sync_status from competitor_channels order by last_synced_at;
 ```
 
 **K13** (itens 6, 7, 8 e 225). Os sinalizadores: uma falta, ausentes, sem contagem, comentários desligados, curtidas ocultas, ao vivo, e quantos `comment_count = 0` restam (eram 64).
@@ -3700,6 +4826,30 @@ select count(*) filter (where miss_streak = 1) as uma_falta, count(*) filter (wh
 select tier, count(*) as linhas, count(*) filter (where to_date is null) as abertas, min(from_date) as primeira, max(from_date) as ultima from competitor_video_tier_spans group by 1 order by 1;
 ```
 
+**K15** *(emenda do portão: D-I3; a consulta do revisor de dados)*. Vídeos semanais cujo dia fixo é hoje e que ainda não têm ponto hoje, por canal. **Esperado depois das 19:00 de São Paulo: vazia.** Antes das 12:00 é a carga do dia. A prova embutida `semanal_devidos_hoje` faz esta conta (mais os atrasados de 7 dias) a cada disparo.
+
+```sql
+select c.channel_name, count(*) as devidos_sem_ponto from competitor_videos v join competitor_channels c on c.id = v.competitor_channel_id where v.series_tier = 'semanal' and v.missing_since is null and coalesce(v.views_hidden, false) = false and (('x' || substr(encode(sha256(convert_to(v.video_id, 'UTF8')), 'hex'), 1, 8))::bit(32)::bigint % 7) = (((now() at time zone 'America/Sao_Paulo')::date - date '1970-01-01') % 7) and not exists (select 1 from competitor_video_daily d where d.video_id = v.id and d.snap_date = (now() at time zone 'America/Sao_Paulo')::date) group by 1 order by 2 desc;
+```
+
+**K15b** *(emenda do portão; não depende das migrations)*. A carga da fase semanal por dia fixo, antes do deploy: os vídeos que hoje estão fora da série, pelo dia do ciclo em que cairão. Em produção em 12/10: 118, 99, 116, 92, 87, 99, 105 (soma 716); de 6 a 9 canais por dia; no maior canal, de 30 a 45.
+
+```sql
+select (('x' || substr(encode(sha256(convert_to(v.video_id, 'UTF8')), 'hex'), 1, 8))::bit(32)::bigint % 7) as dia_fixo, (((now() at time zone 'America/Sao_Paulo')::date - date '1970-01-01') % 7) as dia_fixo_de_hoje, count(*) as videos_fora_da_serie, count(distinct v.competitor_channel_id) as canais from competitor_videos v where not exists (select 1 from competitor_video_daily d where d.video_id = v.id and d.snap_date = (select max(snap_date) from competitor_video_daily)) group by 1 order by 1;
+```
+
+**K16** *(emenda do portão: D-I4; não depende das migrations)*. As miniaturas: vídeos sem nenhuma versão guardada, cópias correntes, cópias que faltam no Blob, trocas. Em produção em 12/10: 1.390 vídeos, **687 sem versão**, 703 correntes, 0 sem cópia, 5 trocas. **Esperado em D+9: `videos_sem_versao_de_miniatura` só conta vídeo ausente ou sem contagem; `correntes_sem_copia` = 0** (se não for 0, o arquivo no Blob falhou e a versão ficou sem cópia: registrar como dívida, porque o código não tenta de novo).
+
+```sql
+select (select count(*) from competitor_videos) as videos, (select count(*) from competitor_videos v where not exists (select 1 from competitor_video_versions x where x.video_id = v.id and x.field = 'thumb')) as videos_sem_versao_de_miniatura, count(*) filter (where is_current) as miniaturas_correntes, count(*) filter (where is_current and thumb_blob_url is null) as correntes_sem_copia, count(*) filter (where precision <> 'first') as trocas_de_miniatura from competitor_video_versions where field = 'thumb';
+```
+
+**K17** *(emenda do portão: D-I3)*. A passada semanal por canal: o dia da última completa, e se a de hoje já foi. **Esperado depois das 19:00 de São Paulo: `completa_hoje` verdadeiro em todo canal.** O canal no topo é o próximo a ser lido.
+
+```sql
+select left(c.channel_name, 22) as canal, c.weekly_pass_date, (c.weekly_pass_date = (now() at time zone 'America/Sao_Paulo')::date) as completa_hoje, (select count(*) from competitor_videos v where v.competitor_channel_id = c.id and v.series_tier = 'semanal') as semanais from competitor_channels c where c.missing_since is null order by c.weekly_pass_date nulls first, 1;
+```
+
 **R1** (item 247). O retrato por canal, com corte fixo. **Troque as duas datas pelo corte** (`<D+1>T02:59:59Z` e `D`). Rodar antes do deploy e em D+8, com o mesmo corte: os dois resultados têm de ser iguais.
 
 ```sql
@@ -3711,51 +4861,57 @@ select c.channel_name, count(*) filter (where x.field in ('title', 'thumb') and 
 
 | Item | Onde é provado |
 |---|---|
-| 1, 2 | Tarefa 7 (teste); em produção: K1, K2 e a prova embutida (`videos_vistos_sem_raw`, `canais_vistos_sem_raw`) |
+| 1, 2 | Tarefa 7 (teste); Tarefa 14a (com o banco de verdade); em produção: K1, K2 e a prova embutida (`videos_vistos_sem_raw`, `canais_vistos_sem_raw`), *(emenda do portão: S-I4)* que agora conta por `last_checked_at`, como o texto do item, e enxerga a captura que falhou |
 | 3, 4, 5 | Tarefas 2 e 4 (JSON canônico, plano); Tarefa 7 (segunda rodada); Tarefa 1 (A, B, A no banco) |
 | 6 | Tarefas 3 e 6 |
 | 7 | Tarefas 4 e 8; Tarefa 1 (a função no banco) |
 | 8 | Tarefas 3 e 6 |
-| 9 | Tarefa 15, Step 8 (retrato R1 antes e depois); D3 cumprido por construção (nenhum tipo novo em `competitor_video_versions.field`); o corpo de `competitors/changes` não muda porque nenhum arquivo de `lib/pipeline` é tocado |
+| 9 | Tarefa 15, Step 8 (retrato R1 antes e depois); D3 cumprido por construção (nenhum tipo novo em `competitor_video_versions.field`); *(emenda do portão: S-I8)* no Lote 1 o corpo de `competitors/changes` não muda porque nenhum arquivo de `lib/pipeline` é tocado; no Lote 2, que muda `loadRows` (e o serviço do Cowork o chama), a prova é a Tarefa 17b (o corpo do serviço igual com e sem o dado novo) e o retrato da Tarefa 18 (o corpo sobre linhas congeladas de produção) |
 | 10 | Tarefa 9; K3 |
-| 11 | Tarefa 1 (bloco de RLS) |
+| 11 | *(emenda do portão: S-I10)* Tarefa 1b (48 asserções em 44 testes: quatro papéis × cinco tabelas, leitura e escrita, com o GUC forjado, e as funções de escrita) |
 | 12 | K2 e K4 (com a hora da promoção); a parte "todo canal visto tem `raw`" também na prova embutida |
 | 13 | Tarefa 10 (exclusões); a prova embutida (`diaria_sem_ponto_hoje`), Tarefas 12 e 13 |
 | 14 | Tarefas 5 e 10 |
-| 15 | a prova embutida (`semanal_atrasados`) a partir de D+8; K5 |
-| 16 | Tarefa 11; K8 em D+3. **Com a E15 o número passa de 8 para 60 leituras** (emenda v2.1): fica para o plano da E15 |
-| 17 | Tarefas 5 e 11 (promoção por ganho e por troca); a volta a semanal no dia 29 é a regra `daily_until >= hoje` (Tarefa 5), sem apagar linha |
+| 15 | *(emenda do portão: D-I3, D-m1)* por construção e por teste: a fase semanal lê todo devido no dia (Tarefas 11b e 13); em produção, as provas embutidas `semanal_devidos_hoje` (desde o D0), `semanal_atrasados` (a partir de D+8) e `semanal_atrasados_9d` (a partir de D+9); K5, K15, K17 |
+| 16 | Tarefa 11a; K8 em D+3. **Com a E15 o número passa de 8 para 60 leituras** (emenda v2.1): fica para o plano da E15 |
+| 17 | Tarefas 5 e 11c (promoção por ganho e por troca, *(emenda do portão: S-I6)* decidida pelo estado gravado: o teste "morreu depois do ponto" promove na visita seguinte); Tarefa 14a (a promoção com o banco de verdade); a volta a semanal no dia 29 é a regra `daily_until >= hoje` (Tarefa 5), sem apagar linha |
 | 18 | Tarefas 5 e 10; `operations.teto_diario_cortados` (Tarefa 9) |
 | 19 | Tarefa 16 |
-| 20 | Tarefa 16 (conjunto de dados idêntico nos campos antigos); Tarefa 18 (retrato pelo motor) |
+| 20 | Tarefa 16 (conjunto de dados idêntico nos campos antigos); *(emenda do portão: S-I8, S-I9)* Tarefa 17b (um teste por consumidor, com a semente de e2e); Tarefa 18 (retrato pelo motor antigo e pelo novo sobre as mesmas linhas congeladas) |
 | 21 | Tarefa 17 |
 | 22 | Tarefa 13 |
-| 23 | K9, K10 e a prova embutida (`semanal_atrasados`, que é a consulta corrigida do item) |
+| 23 | K9, K10, K15, K17 e a prova embutida (`semanal_atrasados`, que é a consulta corrigida do item, mais `semanal_devidos_hoje` e `semanal_atrasados_9d`) |
 | 221 | Tarefas 1 e 8 |
 | 222 | Tarefa 1 (a função, inclusive duas trocas no mesmo dia); Tarefa 10 (a sincronização); Tarefa 16 (o motor); `sem_faixa` na prova embutida (a consulta do item) |
-| 223 | Tarefas 4 e 7; Tarefa 14 (com resposta real) |
+| 223 | Tarefas 4 e 7; Tarefa 14a (segunda rodada sem mudança = zero linha nova, no banco de verdade); Tarefa 14b (com resposta real da API) |
 | 224 | Tarefa 1 (concorrência no banco); Tarefa 9 (dia do Pacífico, total por modo) |
 | 225 | Tarefas 3 e 10; `fora_da_prova` na resposta do cron |
 | 245 | não se aplica: este plano não cria variável de ambiente |
-| 246 | desvio D-10: provas dentro do cron; datas absolutas no ledger (Tarefa 15, Step 5) |
-| 247 | Tarefa 15 (R1) e Tarefa 18 (retrato pelo motor) |
-| OP-15 | seção 8 e Tarefa 11 |
+| 246 | *(emenda do portão: D-I6, CTRL-h)* desvio D-10: provas dentro do cron; o que elas não cobrem, em `.superpowers/sdd/a5/conferencias-com-data.md` (seção "E1 e E2") e, na Tarefa 15 (Step 5b), em `lib/conferencias.ts` (dependência declarada da Tarefa 6 do plano da E20) |
+| 247 | Tarefa 15 (R1); Tarefa 17b (em teste, com a semente de e2e); Tarefa 18 (retrato pelo motor sobre linhas congeladas) |
+| OP-15 | seção 8; Tarefa 11b (a função e o "devido"); Tarefa 13 (a fase e o teste das duas faixas) |
 
 **O que este plano não faz, por ser de outra etapa:** a fila "Saíram do YouTube" e a função de apagar (E9; a tabela `competitor_removed_items` já nasce na MG1); as medidas M1 a M10 e as marcas (E4); qualquer tela (E5); a leitura de hora em hora (E15) e a agenda (E16); o `campos=todos` do Cowork (E7).
 
 ## 12. Riscos que ficam, ditos sem suavizar
 
 1. **O `raw` real pode mudar sozinho entre duas leituras** (um campo da resposta que o YouTube varia sem o criador mexer). Não dá para saber sem ler a API: a Tarefa 14 testa num canal antes do push, e K6 acompanha em D+1 e D+3. Se acontecer em produção, o custo é volume (cerca de 3 kB por vídeo por leitura), não perda; o conserto é excluir o campo em `rawOf`.
-2. **O tempo por canal é estimativa até a Tarefa 14 e o D0.** A faixa das 12:00 já usa dois disparos hoje. Se o acréscimo for o dobro do estimado, continua em dois disparos com 15 canais e passa a três com 17 ou mais; a série diária é protegida pelo corte dos 150 s.
+2. **O tempo por canal é estimativa até a Tarefa 14b e o D0.** A faixa das 12:00 já usa dois disparos hoje. Se o acréscimo for o dobro do estimado, continua em dois disparos com 15 canais e passa a três com 17 ou mais. *(emenda do portão: D-I3)* A série diária não disputa mais tempo com a semanal: a fase semanal só começa depois do último canal devido do disparo. **A duração da faixa das 18:00 continua sem medida** (Tarefa 0, Step 4), e o desenho não depende dela.
 3. **A primeira semana grava de 8 a 10 MB**, e o plano gratuito tem 500 MB (hoje 179). Não muda o mês em que o banco enche de forma relevante (cerca de 2 semanas de crescimento normal), mas é um degrau visível.
-4. **Um canal que fique em erro para sempre deixa o cron vermelho para sempre** (a prova "canais em erro há mais de 12 h"). É de propósito: hoje isso fica verde. O fim é o dono remover o canal, ou o canal sumir duas vezes seguidas (aí é "ausente" e sai da prova).
-5. **A miniatura dos vídeos antigos continua sem conferência** (pergunta 1), e as trocas de título anteriores ao deploy em vídeos nunca conferidos não aparecem (não há com o que comparar).
+4. *(emenda do portão: D-I1, CTRL-d)* **Um canal que fique em erro para sempre deixa o cron vermelho por 3 dias e depois vira nota** (`acao_do_dono` em toda execução, e "erro" na lista de canais). A nota só existe na resposta do cron, que ninguém guarda: quem não olhar a resposta nem a lista de canais não a vê. É a troca escolhida: um vermelho sem fim cala a falha dos outros crons.
+5. *(emenda do portão: D-I4)* **A miniatura dos vídeos antigos passa a ser conferida, mas só uma vez por semana**: duas trocas na mesma semana aparecem como uma (a imagem do meio se perde). E a cópia que falhar ao ser gravada no Blob deixa a versão sem imagem e **o código não tenta de novo** (em produção hoje: 0 em 708; a K16 confere em D+9). As trocas de título e de miniatura anteriores ao deploy em vídeos nunca conferidos não aparecem (não há com o que comparar).
 6. **O Lote 2 muda `rowsToDataset`**: é a função por onde todas as telas do Observatório passam. A proteção é o teste de igualdade do conjunto de dados, os testes de paridade com o oráculo e o retrato pelo motor antes e depois; ainda assim é o ponto de maior raio de alcance do plano, e por isso vai em envio separado.
 7. **As 64 linhas com `comment_count = 0` de hoje** só são corrigidas quando cada vídeo for relido: os 716 semanais, ao longo dos 7 primeiros dias.
+8. *(emenda do portão: S-M3)* **A cota de um disparo morto por tempo (300 s) não é gravada**: a gravação é no fim da sincronização de cada canal. A linha do dia fica abaixo do gasto real nesse caso, sem aviso (a prova só acusa a linha em 0). Aceito como risco: a função nunca morreu por tempo neste cron, e a cota dos concorrentes é 2% do dia.
+9. *(emenda do portão)* **O código novo desta emenda não foi executado** (Tarefas 1b, 6b, 11a, 11b, 11c, 13, 14a, 17b, e as mudanças nas Tarefas 2, 3, 4, 9, 10 e 12): foi escrito contra os arquivos lidos, e o que foi rodado é o SQL. O embrulho `runChannel` da Tarefa 11b mexe na função mais sensível do plano; a proteção é a regra "os testes das Tarefas 6b a 11a passam sem serem tocados" e a Tarefa 14a.
+10. *(emenda do portão: D-I3)* **A regra do "devido" existe em dois lugares**: em TypeScript (`weeklyDue`, que decide o que é lido) e em SQL (`semanal_devidos_hoje`, que só confere). Se divergirem, a leitura continua certa e a prova erra para um lado. O teste da Tarefa 1a ("o dia fixo") e o passo 7 da Tarefa 14a prendem as duas uma à outra.
+11. *(emenda do portão: S-M8)* **A troca vista num vídeo semanal não gera aviso** (o aviso é da sincronização do canal, e a leitura semanal é outra função): ela aparece em "Trocas" e no Cowork. Dívida registrada, destino E5.
 
 ## Apêndice A: MG1 (`npm run db:new observatorio_a5_e1_campos_sinalizadores_raw`)
 
-Provada em 12/10/2026 no banco local: aplicada duas vezes seguidas sem erro, com o roteiro de asserções da Tarefa 1, dentro de transação desfeita.
+*(emenda do portão)* **Este é o texto DEFINITIVO, saído do acordo dos dois revisores: o dono aplica uma vez.** Mudou em relação ao texto anterior à emenda: `set lock_timeout` no começo e `reset` no fim (D-m12); `idx_cfv_video_seen`, `idx_craw_channel` e `idx_craw_video` (D-I5a); a guarda de site em `apply_competitor_field_plan` e `apply_competitor_raw_plan` (D-m3); a 2ª falta só 3 horas depois da 1ª, no vídeo e no canal (D-m4); `competitor_capture_health` conta por `last_checked_at` e `last_ok_synced_at`, só depois da primeira resposta guardada do site (S-I4), e devolve `canais_em_erro_3d` (D-I1). O resto é o texto que os revisores leram.
+
+Provada em 12/10/2026 no banco local, **com este texto**: MG1, MG2, MG1, MG2 numa única transação desfeita, sem erro, com as 35 asserções de `.superpowers/sdd/a5/plano-e1-e2-emenda-prova.sql`.
 
 ```sql
 -- =============================================================================
@@ -3775,6 +4931,13 @@ Provada em 12/10/2026 no banco local: aplicada duas vezes seguidas sem erro, com
 -- três contadores no insert, então tirar o default 0 não muda o que ele grava; youtube_quota_usage tem 0
 -- linhas e nenhum escritor; competitor_channel_removal_impact só ganha chaves (o leitor ignora as extras).
 -- Segurança: funções security invoker, search_path vazio, nomes qualificados; execute só para service_role.
+-- Emenda do portão de fim de plano (12/10/2026): três índices (cascata e histórico por vídeo e por canal), guarda
+-- de site nas duas funções de plano, a 2ª falta só conta 3 horas depois da 1ª, a prova usa last_checked_at e o
+-- começo da E1 no site, e a chave canais_em_erro_3d.
+
+-- Falha rápido se houver sessão presa segurando competitor_videos (o alter table pede trava exclusiva por
+-- milissegundos); reexecutar é seguro. Devolvido ao padrão na última linha.
+set lock_timeout = '5s';
 
 -- 1. Estado atual do vídeo (nulo = a API não devolveu / ainda não lido pelo código novo)
 alter table public.competitor_videos
@@ -3845,6 +5008,9 @@ create unique index if not exists idx_cfv_one_current_channel
   on public.competitor_field_versions (competitor_channel_id, field) where is_current and video_id is null;
 create index if not exists idx_cfv_channel_seen
   on public.competitor_field_versions (competitor_channel_id, first_seen_at);
+-- histórico de UM vídeo (leitor da E5) e a cascata de apagar vídeo (E9): sem este índice, uma varredura por vídeo
+create index if not exists idx_cfv_video_seen
+  on public.competitor_field_versions (video_id, first_seen_at) where video_id is not null;
 alter table public.competitor_field_versions enable row level security;
 drop policy if exists "competitor_field_versions_select" on public.competitor_field_versions;
 create policy "competitor_field_versions_select" on public.competitor_field_versions
@@ -3866,6 +5032,9 @@ create unique index if not exists idx_craw_one_current_video
   on public.competitor_raw (video_id) where is_current and video_id is not null;
 create unique index if not exists idx_craw_one_current_channel
   on public.competitor_raw (competitor_channel_id) where is_current and video_id is null;
+-- as respostas fechadas não estão nos índices parciais acima: a cascata de apagar canal ou vídeo precisa destes dois
+create index if not exists idx_craw_channel on public.competitor_raw (competitor_channel_id);
+create index if not exists idx_craw_video on public.competitor_raw (video_id) where video_id is not null;
 alter table public.competitor_raw enable row level security;
 drop policy if exists "competitor_raw_select" on public.competitor_raw;
 create policy "competitor_raw_select" on public.competitor_raw
@@ -3908,6 +5077,11 @@ declare
   v_opened integer := 0;
   v_asked integer := jsonb_array_length(coalesce(p_open, '[]'::jsonb));
 begin
+  -- o canal tem de ser do site informado: as linhas levam p_site_id, e a RLS destas tabelas é por site_id
+  if not exists (select 1 from public.competitor_channels c where c.id = p_channel_id and c.site_id = p_site_id) then
+    raise exception '%: canal % não é do site %', 'apply_competitor_field_plan', p_channel_id, p_site_id;
+  end if;
+
   update public.competitor_field_versions f
      set is_current = false,
          last_seen_at = greatest(f.last_seen_at, coalesce(c.seen, f.last_seen_at))
@@ -3943,6 +5117,11 @@ declare
   v_opened integer := 0;
   v_asked integer := jsonb_array_length(coalesce(p_open, '[]'::jsonb));
 begin
+  -- o canal tem de ser do site informado: as linhas levam p_site_id, e a RLS destas tabelas é por site_id
+  if not exists (select 1 from public.competitor_channels c where c.id = p_channel_id and c.site_id = p_site_id) then
+    raise exception '%: canal % não é do site %', 'apply_competitor_raw_plan', p_channel_id, p_site_id;
+  end if;
+
   update public.competitor_raw r
      set is_current = false,
          last_seen_at = greatest(r.last_seen_at, coalesce(c.seen, r.last_seen_at))
@@ -3969,17 +5148,21 @@ end $$;
 -- 8. Ausência: soma 1 na sequência de cada vídeo pedido e não devolvido; na 2ª leitura seguida grava
 --    missing_since com a data (São Paulo) da PRIMEIRA. Uma instrução só: duas execuções não se atropelam.
 --    Devolve o estado de cada vídeo depois da marca (o chamador abre a versão availability = 'sumiu').
+--    A 2ª falta só conta 3 HORAS depois da 1ª: o "sincronizar agora" logo depois do cron, ou uma nova tentativa
+--    minutos depois, não são uma segunda leitura independente (as faixas do cron distam 6 horas).
 create or replace function public.competitor_mark_missing(
   p_channel_id uuid, p_video_ids uuid[], p_now timestamptz
 ) returns jsonb
 language sql security invoker set search_path = '' as $$
   with u as (
     update public.competitor_videos v
-       set miss_streak = least(v.miss_streak + 1, 32000),
+       set miss_streak = case when v.miss_first_at is not null and p_now - v.miss_first_at < interval '3 hours'
+                              then v.miss_streak else least(v.miss_streak + 1, 32000) end,
            miss_first_at = coalesce(v.miss_first_at, p_now),
            missing_since = case
              when v.missing_since is not null then v.missing_since
-             when v.miss_streak + 1 >= 2 then (coalesce(v.miss_first_at, p_now) at time zone 'America/Sao_Paulo')::date
+             when v.miss_first_at is not null and p_now - v.miss_first_at >= interval '3 hours'
+               then (v.miss_first_at at time zone 'America/Sao_Paulo')::date
              else null end
      where v.id = any(coalesce(p_video_ids, '{}'::uuid[])) and v.competitor_channel_id = p_channel_id
     returning v.id, v.miss_streak, v.miss_first_at, v.missing_since, v.last_seen_at
@@ -3996,11 +5179,13 @@ create or replace function public.competitor_channel_mark_missing(
 language sql security invoker set search_path = '' as $$
   with u as (
     update public.competitor_channels c
-       set miss_streak = least(c.miss_streak + 1, 32000),
+       set miss_streak = case when c.miss_first_at is not null and p_now - c.miss_first_at < interval '3 hours'
+                              then c.miss_streak else least(c.miss_streak + 1, 32000) end,
            miss_first_at = coalesce(c.miss_first_at, p_now),
            missing_since = case
              when c.missing_since is not null then c.missing_since
-             when c.miss_streak + 1 >= 2 then (coalesce(c.miss_first_at, p_now) at time zone 'America/Sao_Paulo')::date
+             when c.miss_first_at is not null and p_now - c.miss_first_at >= interval '3 hours'
+               then (c.miss_first_at at time zone 'America/Sao_Paulo')::date
              else null end
      where c.id = p_channel_id
     returning c.id, c.miss_streak, c.miss_first_at, c.missing_since, c.last_seen_at
@@ -4043,18 +5228,29 @@ language sql security invoker set search_path = '' as $$
 $$;
 
 -- 10. Prova embutida da captura (itens de aceite 1, 2, 10 e 12): o cron lê a cada execução. Só leitura.
+--     'videos_vistos_sem_raw' usa last_checked_at (carimbado em TODA leitura do vídeo, com ou sem captura), como o
+--     item 1 do spec; last_seen_at só é carimbado quando a captura dá certo e deixaria a prova cega justamente na
+--     falha. 'canais_vistos_sem_raw' usa last_ok_synced_at pelo mesmo motivo. As duas só contam o que foi lido
+--     DEPOIS da primeira resposta guardada do site (e1.desde): o que o código anterior à E1 leu no dia do deploy
+--     não tem resposta guardada e não é falha. Sem nenhuma resposta guardada no site as duas dão 0 (a captura
+--     falhando para tudo deixa todo canal em erro, que é outro alarme).
 --     'canais_em_erro_12h' não conta canal ausente (missing_since): esse está na fila da E9, não é falha de coleta.
+--     'canais_em_erro_3d' é o fim do vermelho: quem lê fica vermelho enquanto 12h > 3d e depois vira nota.
 create or replace function public.competitor_capture_health(p_site_id uuid, p_now timestamptz)
 returns jsonb language sql stable security invoker set search_path = '' as $$
+  with e1 as (select min(r.first_seen_at) as desde from public.competitor_raw r where r.site_id = p_site_id)
   select jsonb_build_object(
     'videos_vistos_sem_raw', (
       select count(*) from public.competitor_videos v
         join public.competitor_channels c on c.id = v.competitor_channel_id
-       where c.site_id = p_site_id and v.last_seen_at > p_now - interval '1 day'
+        cross join e1
+       where c.site_id = p_site_id and e1.desde is not null
+         and v.last_checked_at > greatest(p_now - interval '1 day', e1.desde)
          and not exists (select 1 from public.competitor_raw r where r.video_id = v.id and r.is_current)),
     'canais_vistos_sem_raw', (
-      select count(*) from public.competitor_channels c
-       where c.site_id = p_site_id and c.last_seen_at > p_now - interval '1 day'
+      select count(*) from public.competitor_channels c cross join e1
+       where c.site_id = p_site_id and e1.desde is not null
+         and c.last_ok_synced_at > greatest(p_now - interval '1 day', e1.desde)
          and not exists (select 1 from public.competitor_raw r
                           where r.competitor_channel_id = c.id and r.video_id is null and r.is_current)),
     'canais_vistos_dia_pacifico', (
@@ -4073,7 +5269,11 @@ returns jsonb language sql stable security invoker set search_path = '' as $$
     'canais_em_erro_12h', (
       select count(*) from public.competitor_channels c
        where c.site_id = p_site_id and c.sync_status = 'error' and c.missing_since is null
-         and c.sync_error_since < p_now - interval '12 hours')
+         and c.sync_error_since < p_now - interval '12 hours'),
+    'canais_em_erro_3d', (
+      select count(*) from public.competitor_channels c
+       where c.site_id = p_site_id and c.sync_status = 'error' and c.missing_since is null
+         and c.sync_error_since < p_now - interval '3 days')
   );
 $$;
 
@@ -4120,9 +5320,13 @@ grant execute on function public.youtube_quota_add(uuid, date, integer, jsonb, j
 grant execute on function public.jsonb_num_merge(jsonb, jsonb, jsonb) to service_role;
 grant execute on function public.competitor_capture_health(uuid, timestamptz) to service_role;
 grant execute on function public.competitor_channel_removal_impact(uuid, uuid) to service_role;
+
+reset lock_timeout;
 ```
 
 ## Apêndice B: MG2 (`npm run db:new observatorio_a5_e2_serie_faixas`)
+
+*(emenda do portão)* **Texto DEFINITIVO.** Mudou em relação ao texto anterior à emenda: `set lock_timeout` e `reset` (D-m12); `competitor_channels.weekly_pass_date` (D-I3, S-I1); a guarda de site em `apply_competitor_tier_plan` (D-m3); em `competitor_series_health`, a condição a mais de `diaria_buracos_3d` (D-I2, o texto do revisor de dados) e três chaves novas, `semanal_atrasados_9d`, `semanal_devidos_hoje` (D-I3) e `sem_miniatura_9d` (D-I4). `semanal_atrasados` não mudou (D-m1: muda a leitura dela, na Tarefa 12).
 
 Provada junto com a MG1, nas mesmas condições. **Só depois da MG1.**
 
@@ -4138,11 +5342,21 @@ Provada junto com a MG1, nas mesmas condições. **Só depois da MG1.**
 -- a prova embutida da série (competitor_series_health); e a contagem de remoção com as duas tabelas novas.
 --
 -- Idempotência e compatibilidade: como a MG1. competitor_video_daily NÃO muda de forma.
+-- Emenda do portão de fim de plano (12/10/2026): competitor_channels.weekly_pass_date (a dívida da passada
+-- semanal fica no dado, e o canal em dívida é lido primeiro no disparo seguinte), guarda de site na troca de
+-- faixa, a condição a mais em diaria_buracos_3d (estreia agendada não é buraco) e três chaves novas na prova:
+-- semanal_devidos_hoje, semanal_atrasados_9d e sem_miniatura_9d.
+
+set lock_timeout = '5s';
 
 alter table public.competitor_videos
   add column if not exists series_tier text check (series_tier in ('diaria', 'semanal')),
   add column if not exists series_tier_since date,
   add column if not exists daily_until date;
+
+alter table public.competitor_channels
+  add column if not exists weekly_pass_date date;
+comment on column public.competitor_channels.weekly_pass_date is 'Dia (São Paulo) da última passada semanal COMPLETA do canal: todo vídeo semanal devido naquele dia foi pedido ao YouTube. Diferente de hoje = há passada a fazer; o mais antigo é lido primeiro. Nulo = nunca.';
 
 create table if not exists public.competitor_video_early (
   video_id uuid not null references public.competitor_videos(id) on delete cascade,
@@ -4186,6 +5400,10 @@ declare
   r record;
   v_changed integer := 0;
 begin
+  if not exists (select 1 from public.competitor_channels c where c.id = p_channel_id and c.site_id = p_site_id) then
+    raise exception 'apply_competitor_tier_plan: canal % não é do site %', p_channel_id, p_site_id;
+  end if;
+
   for r in
     select x.video_id, x.tier
       from jsonb_to_recordset(coalesce(p_changes, '[]'::jsonb)) as x(video_id uuid, tier text)
@@ -4214,11 +5432,22 @@ end $$;
 -- Prova embutida da série (itens de aceite 13, 15, 23 e 222): o cron lê a cada execução. Só leitura.
 -- Ficam FORA de todas as contas: vídeo sem contagem de views (views_hidden), estreia agendada, vídeo
 -- ausente (missing_since) e vídeo de canal ausente. 'fora_da_prova' diz quantos são.
+-- 'diaria_buracos_3d': só é buraco o dia POSTERIOR a um ponto que já existe (uma estreia agendada ganha faixa
+--   diária no dia em que é descoberta e só tem ponto quando estreia: os dias de espera não são perda).
+-- 'semanal_devidos_hoje': os vídeos semanais que a passada de hoje tem de ler e ainda não leu. É a regra de
+--   weeklyDue (competitor-tiers.ts) escrita em SQL: sem ponto hoje E (hoje é o dia fixo do vídeo, OU o último
+--   ponto tem 7 ou 8 dias, OU não há ponto nos últimos 8 dias e a faixa tem 7 dias ou mais). O dia fixo é o
+--   mesmo de weekSlotOf: os 4 primeiros bytes do sha256 do id do YouTube, módulo 7, contra o dia desde 1970.
+-- 'semanal_atrasados': 8º dia sem ponto (lido hoje, o intervalo de 8 dias ainda vale).
+-- 'semanal_atrasados_9d': 9 dias ou mais sem ponto: o intervalo já não é mais "semanal" (perda).
+-- 'sem_miniatura_9d': vídeo com faixa há 9 dias ou mais e NENHUMA versão de miniatura guardada (a imagem que
+--   a origem sobrescreve: toda leitura, diária ou semanal, confere a miniatura).
 create or replace function public.competitor_series_health(p_site_id uuid, p_now timestamptz)
 returns jsonb language sql stable security invoker set search_path = '' as $$
   with hoje as (select (p_now at time zone 'America/Sao_Paulo')::date as d),
   vid as (
-    select v.id, v.series_tier,
+    select v.id, v.series_tier, v.series_tier_since,
+           (('x' || substr(encode(sha256(convert_to(v.video_id, 'UTF8')), 'hex'), 1, 8))::bit(32)::bigint % 7) as dia_fixo,
            (coalesce(v.views_hidden, false) or coalesce(v.live_broadcast_content, 'none') = 'upcoming'
             or v.missing_since is not null or c.missing_since is not null) as fora,
            -- o canal já foi lido pelo código da E2 e terminou uma sincronização boa nas últimas 24 h
@@ -4249,13 +5478,36 @@ returns jsonb language sql stable security invoker set search_path = '' as $$
          and exists (select 1 from public.competitor_video_tier_spans s
                       where s.video_id = vid.id and s.tier = 'diaria'
                         and s.from_date <= x.dia and (s.to_date is null or s.to_date >= x.dia))
-         and not exists (select 1 from public.competitor_video_daily d where d.video_id = vid.id and d.snap_date = x.dia)),
+         and not exists (select 1 from public.competitor_video_daily d where d.video_id = vid.id and d.snap_date = x.dia)
+         and exists (select 1 from public.competitor_video_daily d0 where d0.video_id = vid.id and d0.snap_date < x.dia)),
     'semanal_atrasados', (
       select count(*) from vid, hoje
        where not fora and series_tier = 'semanal'
          and exists (select 1 from public.competitor_video_tier_spans s
                       where s.video_id = vid.id and s.to_date is null and s.tier = 'semanal' and s.from_date <= hoje.d - 8)
          and not exists (select 1 from public.competitor_video_daily d where d.video_id = vid.id and d.snap_date > hoje.d - 8)),
+    'semanal_atrasados_9d', (
+      select count(*) from vid, hoje
+       where not fora and series_tier = 'semanal'
+         and exists (select 1 from public.competitor_video_tier_spans s
+                      where s.video_id = vid.id and s.to_date is null and s.tier = 'semanal' and s.from_date <= hoje.d - 9)
+         and not exists (select 1 from public.competitor_video_daily d where d.video_id = vid.id and d.snap_date > hoje.d - 9)),
+    'semanal_devidos_hoje', (
+      select count(*) from vid, hoje
+       where not fora and series_tier = 'semanal'
+         and not exists (select 1 from public.competitor_video_daily d where d.video_id = vid.id and d.snap_date = hoje.d)
+         and (
+           vid.dia_fixo = ((hoje.d - date '1970-01-01') % 7)
+           or (not exists (select 1 from public.competitor_video_daily d
+                            where d.video_id = vid.id and d.snap_date > hoje.d - 7)
+               and (exists (select 1 from public.competitor_video_daily d
+                             where d.video_id = vid.id and d.snap_date between hoje.d - 8 and hoje.d - 7)
+                    or vid.series_tier_since <= hoje.d - 7)))),
+    'sem_miniatura_9d', (
+      select count(*) from vid, hoje
+       where not fora
+         and exists (select 1 from public.competitor_video_tier_spans s where s.video_id = vid.id and s.from_date <= hoje.d - 9)
+         and not exists (select 1 from public.competitor_video_versions x where x.video_id = vid.id and x.field = 'thumb')),
     'diaria_total', (select count(*) from vid where not fora and series_tier = 'diaria'),
     'semanal_total', (select count(*) from vid where not fora and series_tier = 'semanal')
   );
@@ -4296,4 +5548,6 @@ revoke all on function public.competitor_channel_removal_impact(uuid, uuid) from
 grant execute on function public.apply_competitor_tier_plan(uuid, uuid, jsonb, date) to service_role;
 grant execute on function public.competitor_series_health(uuid, timestamptz) to service_role;
 grant execute on function public.competitor_channel_removal_impact(uuid, uuid) to service_role;
+
+reset lock_timeout;
 ```
