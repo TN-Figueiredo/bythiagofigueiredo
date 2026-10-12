@@ -64,6 +64,9 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); docume
 
 const linksComparar = (root: ParentNode) => [...root.querySelectorAll<HTMLAnchorElement>('a[data-comparar]')]
 
+/** O foco chega num quadro de animação depois do Voltar; no CI (máquina lenta, cartões pesados) o segundo padrão do waitFor não basta. */
+const FOCO_ESPERA = { timeout: 5000 }
+
 describe('"Comparar" na tabela', () => {
   it('cada linha de concorrente tem "Comparar" na coluna "Com o meu canal", com o nome acessível "Comparar <canal> com o meu canal"', () => {
     const w = DOIS(), v = view(w.obs)
@@ -250,8 +253,6 @@ describe('o gatilho de "Comparar" e o Voltar (D18)', () => {
   /** O jsdom não tem layout: a raiz "está à vista" quando devolve um retângulo. */
   const comLayout = () => vi.spyOn(Element.prototype, 'getClientRects').mockImplementation(function (this: Element) { return [{}] as unknown as DOMRectList })
   const voltar = () => act(() => { window.dispatchEvent(new PopStateEvent('popstate')) })
-  /** O foco chega num quadro de animação depois do Voltar; no CI (máquina lenta, cartões pesados) o segundo padrão do waitFor não basta. */
-  const FOCO_ESPERA = { timeout: 5000 }
 
   it('o gatilho usado é lembrado; ao voltar (popstate) a lista põe o foco no "Comparar" daquela linha', async () => {
     comLayout()
