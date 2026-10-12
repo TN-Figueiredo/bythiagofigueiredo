@@ -1490,7 +1490,8 @@ test('C2 "meu canal" com dois canais próprios: clicar no outro item do menu gra
   await expect(menu.locator('.mc-ok')).toHaveCount(1)
   // clicar no outro canal próprio o torna o principal
   await menu.getByRole('menuitem', { name: /tnFigueiredo EN/ }).click()
-  await page.waitForURL(/channel=/, { timeout: 60_000 })
+  // A4 (D9): o item do menu leva à PÁGINA do canal próprio (`canal/<id>`), não mais à lista com `?channel=`; o cookie é gravado do mesmo jeito
+  await page.waitForURL(new RegExp('/canal/' + EN), { timeout: 60_000 })
   const c = await cookie()
   expect(c?.value).toBe(EN)
   expect(c?.path).toBe('/cms'); expect(c?.sameSite).toBe('Lax'); expect(c?.httpOnly).toBe(false)
