@@ -14,12 +14,12 @@ import { baseVpdTexto, motivoVpdTexto, type MotivoSemVpd, type VpdCanal } from '
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { Dataset } from '@/lib/youtube/observatorio/types'
 
-const dados = vi.hoisted(() => ({ podeVerPrivado: vi.fn(), lerDiarioDosCanais: vi.fn(), longosAcompanhadosDe: vi.fn(), abrir: vi.fn() }))
+const dados = vi.hoisted(() => ({ podeVerPrivado: vi.fn(), lerDiarioDosCanais: vi.fn(), lerAlcanceDosCanais: vi.fn(), longosAcompanhadosDe: vi.fn(), abrir: vi.fn() }))
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({ openObservatoryPage: dados.abrir }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
-  podeVerPrivado: dados.podeVerPrivado, lerDiarioDosCanais: dados.lerDiarioDosCanais, longosAcompanhadosDe: dados.longosAcompanhadosDe,
+  podeVerPrivado: dados.podeVerPrivado, lerDiarioDosCanais: dados.lerDiarioDosCanais, lerAlcanceDosCanais: dados.lerAlcanceDosCanais, longosAcompanhadosDe: dados.longosAcompanhadosDe,
 }))
 
 afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
@@ -175,6 +175,7 @@ describe('A4.5 comparação: a página lê o diário só quando há canal própr
     dados.longosAcompanhadosDe.mockImplementation((_obs: unknown, id: string) => [`yt-${id}`])
     dados.podeVerPrivado.mockImplementation(async () => { ordem.push('prova'); return { siteId: 'site-1' } })
     dados.lerDiarioDosCanais.mockImplementation(async () => { ordem.push('diario'); return new Map() })
+    dados.lerAlcanceDosCanais.mockImplementation(async () => new Map()) // o alcance do cartão "Só o seu canal mede" (Tarefa 14) não é o assunto deste arquivo
   })
 
   it('sem canal próprio no site: lerDiarioDosCanais não é chamado (nem a prova de edição)', async () => {
