@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { DIA_MS, URGENTE_DIAS, VALIDADE_DIAS, ordenarFila, venceEm } from '@/lib/youtube/coleta/fila-relatorios'
+import { DIA_MS, URGENTE_DIAS, VALIDADE_DIAS, ordenarFila, perdaCobertaPorCriterios, registroDeVencimento, venceEm } from '@/lib/youtube/coleta/fila-relatorios'
 
 // A função é pura: recebe o "agora" por parâmetro e nunca lê o relógio.
 const AGORA = Date.UTC(2026, 9, 7, 12, 0, 0)
@@ -86,5 +86,24 @@ describe('ordenarFila', () => {
     expect(ordenarFila(fila, AGORA)).toHaveLength(2)
     expect(fila).toEqual(copia)
     expect(ordenarFila([], AGORA)).toEqual([])
+  })
+})
+
+describe('E20: registro de vencimento (MG13)', () => {
+  it('linha sem o campo (anterior à MG13) é "sem registro de vencimento", nunca "não venceu"', () => {
+    const linha: Record<string, unknown> = { report_type_id: 'channel_basic_a3', create_time: new Date(AGORA - 20 * DIA_MS).toISOString(), expired_at: '2026-10-01T00:00:00.000Z' }
+    delete linha.expired_at
+    expect(registroDeVencimento(linha)).toEqual({ tipo: 'sem_registro' })
+    expect(registroDeVencimento({ expired_at: null })).toEqual({ tipo: 'sem_registro' })
+    expect(registroDeVencimento({ expired_at: 'lixo' })).toEqual({ tipo: 'sem_registro' })
+  })
+  it('com a data da origem devolve o instante', () => {
+    expect(registroDeVencimento({ expired_at: '2026-10-05T12:00:00Z' })).toEqual({ tipo: 'origem', em: '2026-10-05T12:00:00.000Z' })
+  })
+  it('404 em corrente criado há 20 dias passa a ser coberto pelos critérios enquanto expired_at estiver na janela', () => {
+    const p = { report_type_id: 'channel_basic_a3', create_time: new Date(AGORA - 20 * DIA_MS).toISOString(), is_backfill: false }
+    expect(perdaCobertaPorCriterios(p, AGORA)).toBe(false)
+    expect(perdaCobertaPorCriterios({ ...p, expired_at: new Date(AGORA).toISOString() }, AGORA)).toBe(true)
+    expect(perdaCobertaPorCriterios({ ...p, expired_at: new Date(AGORA - 15 * DIA_MS).toISOString() }, AGORA)).toBe(false)
   })
 })

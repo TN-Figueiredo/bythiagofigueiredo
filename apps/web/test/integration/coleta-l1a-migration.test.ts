@@ -99,19 +99,65 @@ describe.skipIf(skipIfNoLocalDb())('coleta L1a: schema (banco local)', () => {
     expect(f.error).not.toBeNull()
   })
 
-  it('yt_reporting_blobs_purge apaga o bruto normalizado há mais de 90 dias e o de tipo sem normalizador com mais de 180 dias; o alcance básico não normalizado fica', async () => {
+  it('MG13 (E20): a limpeza não apaga nada, nem o normalizado há 91 dias nem o sem normalizador baixado há 181', async () => {
     const velho = (dias: number) => new Date(Date.now() - dias * DIA).toISOString()
-    const a = relatorio('purge-a', { report_type_id: 'channel_basic_a3', status: 'baixado', downloaded_at: velho(181) })
-    const b = relatorio('purge-b', { status: 'baixado', downloaded_at: velho(400) })
-    const c = relatorio('purge-c', { status: 'baixado', downloaded_at: velho(120), normalized_at: velho(91) })
-    const d = relatorio('purge-d', { report_type_id: 'channel_basic_a3', status: 'baixado', downloaded_at: velho(10) })
-    expect((await sb.from('yt_reporting_reports').insert([a, b, c, d])).error).toBeNull()
+    const a = relatorio('guarda-a', { report_type_id: 'channel_basic_a3', status: 'baixado', downloaded_at: velho(181) })
+    const c = relatorio('guarda-c', { status: 'baixado', downloaded_at: velho(120), normalized_at: velho(91) })
+    expect((await sb.from('yt_reporting_reports').insert([a, c])).error).toBeNull()
     const blob = (id: string) => ({ report_id: id, site_id: siteId, csv_gz: `\\x${gzipSync(Buffer.from('h\n')).toString('hex')}` })
-    expect((await sb.from('yt_reporting_report_blobs').insert([a, b, c, d].map(r => blob(r.report_id)))).error).toBeNull()
-    const purge = await sb.rpc('yt_reporting_blobs_purge', { p_sem_normalizador: SEM_NORMALIZADOR })
-    expect(purge.error).toBeNull()
-    expect(purge.data as number).toBeGreaterThanOrEqual(2)
-    const restam = await sb.from('yt_reporting_report_blobs').select('report_id').in('report_id', [a, b, c, d].map(r => r.report_id))
-    expect(restam.data!.map(r => r.report_id).sort()).toEqual([b.report_id, d.report_id].sort())
+    expect((await sb.from('yt_reporting_report_blobs').insert([a, c].map(r => blob(r.report_id)))).error).toBeNull()
+    const contar = async () => (await sb.from('yt_reporting_report_blobs').select('report_id', { count: 'exact', head: true }).eq('site_id', siteId)).count
+    const antes = await contar()
+    for (const lista of [SEM_NORMALIZADOR, [], ['channel_reach_basic_a1', 'channel_basic_a3']]) {
+      const purge = await sb.rpc('yt_reporting_blobs_purge', { p_sem_normalizador: lista })
+      expect(purge.error).toBeNull()
+      expect(purge.data).toBe(0)
+    }
+    expect(await contar()).toBe(antes)
+    const restam = await sb.from('yt_reporting_report_blobs').select('report_id').in('report_id', [a.report_id, c.report_id])
+    expect(restam.data!.map(r => r.report_id).sort()).toEqual([a.report_id, c.report_id].sort())
+  })
+
+  it('MG13: as quatro colunas de estado existem, com o padrão certo', async () => {
+    const r = relatorio('guarda-col')
+    expect((await sb.from('yt_reporting_reports').insert(r)).error).toBeNull()
+    const lido = await sb.from('yt_reporting_reports').select('expired_at, download_attempts, last_error_at, blob_lost_at').eq('report_id', r.report_id).single()
+    expect(lido.error).toBeNull()
+    expect(lido.data).toEqual({ expired_at: null, download_attempts: 0, last_error_at: null, blob_lost_at: null })
+  })
+
+  // (emenda do portão: D-I1, D-I2) A conferência é anti-junção: um bruto sobrando não esconde um bruto faltando.
+  // O banco local é compartilhado: as afirmações são sobre a DIFERENÇA em relação à leitura de antes, não sobre o total.
+  it('MG13: yt_reporting_guarda_conferir acusa o baixado sem bruto E o bruto sem baixado, e desconta a perda reconhecida', async () => {
+    const ler = async () => {
+      const r = await sb.rpc('yt_reporting_guarda_conferir')
+      expect(r.error).toBeNull()
+      const l = (r.data as Array<Record<string, unknown>>)[0]!
+      return { brutos: Number(l.brutos), baixados: Number(l.baixados), sem_bruto: Number(l.baixados_sem_bruto), sem_baixado: Number(l.brutos_sem_baixado), perdas: Number(l.perdas_reconhecidas) }
+    }
+    const antes = await ler()
+    const semBruto = relatorio('guarda-sem-bruto', { status: 'baixado', downloaded_at: new Date().toISOString() })
+    const semBaixado = relatorio('guarda-sem-baixado', { status: 'listado' })   // `listado`, sem downloaded_at, mas com bruto: o resíduo da execução sobreposta
+    expect((await sb.from('yt_reporting_reports').insert([semBruto, semBaixado])).error).toBeNull()
+    expect((await sb.from('yt_reporting_report_blobs').insert({ report_id: semBaixado.report_id, site_id: siteId, csv_gz: `\\x${gzipSync(Buffer.from('h\n')).toString('hex')}` })).error).toBeNull()
+    const meio = await ler()
+    expect(meio.brutos - antes.brutos).toBe(1)
+    expect(meio.baixados - antes.baixados).toBe(1)
+    expect(meio.sem_bruto - antes.sem_bruto).toBe(1)        // a subtração "baixados menos brutos" daria 0 aqui
+    expect(meio.sem_baixado - antes.sem_baixado).toBe(1)
+    expect((await sb.from('yt_reporting_reports').update({ blob_lost_at: new Date().toISOString() }).eq('report_id', semBruto.report_id)).error).toBeNull()
+    const fim = await ler()
+    expect(fim.sem_bruto - antes.sem_bruto).toBe(0)         // perda reconhecida pelo dono sai do alarme
+    expect(fim.perdas - antes.perdas).toBe(1)               // e continua contada
+  })
+
+  it('MG13: anon não executa a conferência da guarda', async () => {
+    const anon = createClient(SUPABASE_URL, ANON_KEY)
+    expect((await anon.rpc('yt_reporting_guarda_conferir')).error).not.toBeNull()
+  })
+
+  it('MG13: anon não executa a limpeza', async () => {
+    const anon = createClient(SUPABASE_URL, ANON_KEY)
+    expect((await anon.rpc('yt_reporting_blobs_purge', { p_sem_normalizador: [] })).error).not.toBeNull()
   })
 })

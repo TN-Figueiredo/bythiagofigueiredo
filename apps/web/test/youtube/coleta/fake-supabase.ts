@@ -21,7 +21,8 @@ export interface FakeDb {
   /** Só as escritas na tabela devolvem este erro. */
   writeErrors: Record<string, FakeErr | undefined>
   rpcCalls: Array<{ name: string; args: Row }>
-  rpcHandlers: Record<string, (args: Row) => { data: unknown; error: FakeErr | null }>
+  /** Pode devolver uma promessa (que nunca resolve, num teste de prazo). */
+  rpcHandlers: Record<string, (args: Row) => { data: unknown; error: FakeErr | null } | Promise<{ data: unknown; error: FakeErr | null }>>
   writes: Array<{ table: string; op: string; payload: unknown }>
   client: SupabaseClient
   /** Chaves únicas por tabela (PK). Usadas por insert (23505) e upsert onConflict (42P10). */
@@ -257,6 +258,25 @@ export function fakeSupabase(
     const n = (t[i]!.attempts as number) + 1
     t[i] = { ...linha, attempts: n }
     return { data: n, error: null }
+  }
+
+  // E20 (MG13): a anti-junção de yt_reporting_guarda_conferir() sobre as tabelas em memória. Teste que semeia relatório
+  // com downloaded_at e sem bruto é acusado, como em produção: o conserto é semear o bruto, nunca tirar esta resposta.
+  db.rpcHandlers.yt_reporting_guarda_conferir = () => {
+    const rel = db.tables.yt_reporting_reports ?? []
+    const comBruto = new Set((db.tables.yt_reporting_report_blobs ?? []).map(b => b.report_id))
+    const baixados = rel.filter(r => r.downloaded_at != null)
+    const idsBaixados = new Set(baixados.map(r => r.report_id))
+    return {
+      data: [{
+        brutos: comBruto.size,
+        baixados: baixados.length,
+        baixados_sem_bruto: baixados.filter(r => r.blob_lost_at == null && !comBruto.has(r.report_id)).length,
+        brutos_sem_baixado: [...comBruto].filter(id => !idsBaixados.has(id)).length,
+        perdas_reconhecidas: rel.filter(r => r.blob_lost_at != null).length,
+      }],
+      error: null,
+    }
   }
 
   db.client = {

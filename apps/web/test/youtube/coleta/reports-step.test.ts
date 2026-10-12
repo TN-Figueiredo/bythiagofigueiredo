@@ -389,12 +389,22 @@ describe('passoRelatorios: baixar', () => {
 })
 
 describe('passoRelatorios: limpeza, orçamento e schema', () => {
-  it('chama a limpeza do bruto com os tipos sem normalizador', async () => {
+  it('chama a limpeza do bruto com os tipos sem normalizador; desde a MG13 qualquer bruto apagado é falha', async () => {
     const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')] })
     db.rpcHandlers.yt_reporting_blobs_purge = () => ({ data: 3, error: null })
-    const resumo = await passoRelatorios(ctxDe(db))
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
     expect(db.rpcCalls.find(c => c.name === 'yt_reporting_blobs_purge')!.args).toEqual({ p_sem_normalizador: SEM_NORMALIZADOR })
     expect(resumo.bruto_apagado).toBe(3)
+    expect(ctx.falhas).toContain('relatórios: a limpeza apagou 3 bruto(s) nesta execução; desde a MG13 o esperado é 0 (a função foi recriada com o corpo antigo?)')
+  })
+
+  it('limpeza que devolve 0 (o esperado desde a MG13): nenhuma nota', async () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')] })
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    expect(resumo.bruto_apagado).toBe(0)
+    expect(ctx.falhas.filter(n => n.includes('limpeza'))).toEqual([])
   })
 
   it('passo que recebe 0 s: nao_alcancado_orcamento por canal, pendentes > 0, nenhuma chamada', async () => {
@@ -662,7 +672,7 @@ describe('passoRelatorios: tipo fora da lista habilitada (REPORT_TYPES_ENABLED)'
 })
 
 describe('passoRelatorios: E12, perda nunca fica em verde', () => {
-  it('perda que NENHUM critério persistente cobre (404 em corrente criado há 20 dias) vira a nota da execução; o resumo conta todas as vencidas', async () => {
+  it('404 em corrente criado há 20 dias agora é do critério persistente: o passo não anota; o resumo conta todas as vencidas', async () => {
     api.download.mockImplementation(async (url: string) => {
       if (url.endsWith('/sumiu')) throw new ReportingHttpError(404, null)
       return empacotarCsv(CSV)
@@ -679,7 +689,8 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
     const resumo = await passoRelatorios(ctx)
     expect(resumo.expirados).toBe(3)
     expect(resumo.expirados_por_tipo).toEqual({ channel_traffic_source_a3: 2, channel_reach_basic_a1: 1 })
-    expect(ctx.falhas).toEqual(['relatórios: 1 relatório(s) venceram sem baixar nesta execução (channel_traffic_source_a3: 1)'])
+    expect(resumo.expirados_sem_cobertura_por_tipo).toEqual({})
+    expect(ctx.falhas).toEqual([])
   })
 
   it('o passo não anota o que os critérios persistentes já cobrem: vencido por idade, ou 404 em relatório criado há menos de 14 dias', async () => {
@@ -1090,13 +1101,106 @@ describe('uma perda, uma nota por execução (passo + critérios juntos, como no
     expect(await rodar(db)).toEqual(['relatórios: Canal Um tem relatório channel_reach_basic_a1 expirado sem baixar'])
   })
 
-  it('404 em corrente criado há 20 dias (nenhum critério persistente enxerga): UMA nota no dia, a da execução', async () => {
+  it('404 em corrente criado há 20 dias: UMA nota no dia (a por relatório, pelo expired_at), que dura 14 dias e acaba sozinha', async () => {
     api.download.mockRejectedValue(new ReportingHttpError(404, null))
     const db = bancoComPurge({
       yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
       yt_reporting_reports: [listado('sumiu', { create_time: ha(20) })],
     })
-    expect(await rodar(db)).toEqual(['relatórios: 1 relatório(s) venceram sem baixar nesta execução (channel_reach_basic_a1: 1)'])
+    const nota = ['relatórios: Canal Um tem relatório channel_reach_basic_a1 expirado sem baixar']
+    expect(await rodar(db)).toEqual(nota)
+    vi.setSystemTime(new Date(AGORA.getTime() + 13 * DIA_MS))
+    expect(await rodar(db)).toEqual(nota)
+    vi.setSystemTime(new Date(AGORA.getTime() + 15 * DIA_MS))
+    expect(await rodar(db)).toEqual([])
+  })
+
+  it('404 em relatório criado há 10 dias: a nota segue UMA só, sem trocar de dono em C+14 nem duplicar, e acaba em T+14', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(404, null))
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('sumiu', { create_time: ha(10) })],
+    })
+    const nota = ['relatórios: Canal Um tem relatório channel_reach_basic_a1 expirado sem baixar']
+    expect(await rodar(db)).toEqual(nota)
+    vi.setSystemTime(new Date(AGORA.getTime() + 3 * DIA_MS))                // antes de C+14
+    expect(await rodar(db)).toEqual(nota)
+    vi.setSystemTime(new Date(AGORA.getTime() + 5 * DIA_MS))                // depois de C+14 (regra antiga já calaria)
+    expect(await rodar(db)).toEqual(nota)
+    vi.setSystemTime(new Date(AGORA.getTime() + 13 * DIA_MS))               // expired_at há 13 dias
+    expect(await rodar(db)).toEqual(nota)
+    vi.setSystemTime(new Date(AGORA.getTime() + 15 * DIA_MS))               // expired_at há 15 dias: acabou
+    expect(await rodar(db)).toEqual([])
+  })
+
+  it('o 404 chega mas a gravação (marcar) falha: a perda não some, fica a nota do passo hoje; amanhã grava expired_at e o critério assume sem nota dupla', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(404, null))
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('sumiu', { create_time: ha(20) })],    // nenhuma outra porta cobre: só a MG13 cobriria
+    })
+    const doPasso = /venceram sem baixar nesta execução/
+    db.writeErrors.yt_reporting_reports = { code: '08006', message: 'conexão caiu' }
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'sumiu')!.status).toBe('listado')
+    expect(rel(db, 'sumiu')!.expired_at ?? null).toBeNull()
+    const ctx = ctxDe(db)
+    await passoRelatorios(ctx)
+    expect(ctx.falhas.filter(f => doPasso.test(f))).toEqual(['relatórios: 1 relatório(s) venceram sem baixar nesta execução (channel_reach_basic_a1: 1)'])
+    db.writeErrors.yt_reporting_reports = undefined
+    vi.setSystemTime(new Date(AGORA.getTime() + 1 * DIA_MS))
+    const amanha = ctxDe(db)
+    await passoRelatorios(amanha)
+    await criteriosRelatorios(amanha)
+    expect(rel(db, 'sumiu')).toMatchObject({ status: 'expirado_sem_baixar', expired_at: new Date(AGORA.getTime() + DIA_MS).toISOString() })
+    expect(amanha.falhas.filter(f => doPasso.test(f))).toEqual([])
+    expect(amanha.falhas.filter(f => NOTAS_DE_PERDA.test(f))).toEqual(['relatórios: Canal Um tem relatório channel_reach_basic_a1 expirado sem baixar'])
+  })
+
+  it('404 tardio cujo prazo da origem também passa dentro da janela: continua UMA nota (a agregada não soma o mesmo relatório)', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(404, null))
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('sumiu', { create_time: ha(55) })],   // corrente: vence na origem daqui a 5 dias
+    })
+    expect(await rodar(db)).toHaveLength(1)
+    vi.setSystemTime(new Date(AGORA.getTime() + 7 * DIA_MS))               // o prazo da origem passou há 2 dias; expired_at há 7
+    expect(await rodar(db)).toEqual(['relatórios: Canal Um tem relatório channel_reach_basic_a1 expirado sem baixar'])
+  })
+
+  // (emenda do portão: D-I3) A mesma perda não volta a alarmar: 404 aos 20 dias de criado avisa do dia 20 ao 34 e ACABA.
+  // Sem o conserto, a nota agregada reabria do dia 60 ao 74 (quando o prazo da origem passa), com outro texto.
+  it('404 aos 20 dias de criado: depois da janela de 14 dias, silêncio; e continua silêncio quando o prazo da origem passa (+41 dias)', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(404, null))
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('sumiu', { create_time: ha(20) })],   // corrente: vence na origem daqui a 40 dias
+    })
+    expect(await rodar(db)).toHaveLength(1)
+    vi.setSystemTime(new Date(AGORA.getTime() + 15 * DIA_MS))               // expired_at há 15 dias: a nota por relatório acabou
+    expect(await rodar(db)).toEqual([])
+    // Daqui em diante só interessam as notas desta perda: 41 dias depois outros critérios (relatório novo atrasado) podem falar.
+    const destaPerda = (notas: string[]) => notas.filter(n => n.includes('venceram sem baixar') || n.includes('expirado sem baixar'))
+    vi.setSystemTime(new Date(AGORA.getTime() + 41 * DIA_MS))               // criado há 61 dias: o prazo da origem passou ontem
+    expect(destaPerda(await rodar(db))).toEqual([])
+    vi.setSystemTime(new Date(AGORA.getTime() + 47 * DIA_MS))               // meio da janela em que a agregada reabria
+    expect(destaPerda(await rodar(db))).toEqual([])
+  })
+
+  it('vencido por IDADE (sem expired_at) continua na nota agregada: o conserto não a calou', async () => {
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('velho', { create_time: ha(63), status: 'expirado_sem_baixar', error: 'passou do prazo sem baixar' })],
+    })
+    expect(await rodar(db)).toEqual(['relatórios: 1 relatório(s) venceram sem baixar nos últimos 14 dias (channel_reach_basic_a1: 1)'])
+  })
+
+  it('expirado antes da MG13 (expired_at nulo), criado há 20 dias: sem registro de vencimento, nenhuma nota nova inventada', async () => {
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('antigo', { create_time: ha(20), status: 'expirado_sem_baixar', error: 'HTTP 404' })],
+    })
+    expect(await rodar(db)).toEqual([])
   })
 
   it('na fronteira dos 14 dias (relatório criado há 14 dias e uns segundos) ninguém fica sem nota: no mínimo uma, nunca zero', async () => {
@@ -1230,5 +1334,75 @@ describe('E12 onda 5, F3: a nota de arquivo grande demais diz o canal e até qua
     expect(nota).toContain('prazo na origem desconhecido')
     expect(nota).not.toMatch(/\d{2}\/\d{2} \(UTC\)/)
     expect(nota).not.toContain('1970')
+  })
+})
+
+describe('E20: estado do download gravado no relatório (MG13)', () => {
+  it('404 grava expired_at e last_error_at com a hora da execução e soma a tentativa', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(404, null))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('sumiu', { download_attempts: 2 })] })
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'sumiu')).toMatchObject({ status: 'expirado_sem_baixar', expired_at: AGORA.toISOString(), last_error_at: AGORA.toISOString(), download_attempts: 3 })
+  })
+  it('410 também grava expired_at e last_error_at e soma a tentativa', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(410, null))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('sumiu', { download_attempts: 1 })] })
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'sumiu')).toMatchObject({ status: 'expirado_sem_baixar', error: 'HTTP 410', expired_at: AGORA.toISOString(), last_error_at: AGORA.toISOString(), download_attempts: 2 })
+  })
+  it('url_inesperada grava a tentativa e last_error_at; expired_at fica nulo', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(0, 'url_inesperada'))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'r1')).toMatchObject({ status: 'erro', error: 'url_inesperada', download_attempts: 1, last_error_at: AGORA.toISOString() })
+    expect(rel(db, 'r1')!.expired_at ?? null).toBeNull()
+  })
+  it('grande_demais grava a tentativa e last_error_at; expired_at fica nulo', async () => {
+    api.download.mockResolvedValue({ gz: Buffer.alloc(MAX_GZ_BYTES + 1), sha256: 'x', rowCount: 10, lidos: MAX_GZ_BYTES + 1, eraGz: true })
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1', { download_attempts: 4 })] })
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'r1')).toMatchObject({ status: 'erro', error: 'grande_demais', download_attempts: 5, last_error_at: AGORA.toISOString() })
+    expect(rel(db, 'r1')!.expired_at ?? null).toBeNull()
+  })
+  it('vencido por idade NÃO ganha expired_at (a origem não respondeu nada): continua "sem registro"', async () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('velho', { create_time: ha(61) })] })
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'velho')!.status).toBe('expirado_sem_baixar')
+    expect(rel(db, 'velho')!.expired_at ?? null).toBeNull()
+  })
+  it('download com 500: continua listado, soma a tentativa e grava last_error_at; expired_at fica nulo', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(500, null))
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'r1')).toMatchObject({ status: 'listado', download_attempts: 1, last_error_at: AGORA.toISOString() })
+    expect(rel(db, 'r1')!.expired_at ?? null).toBeNull()
+  })
+  it('download que dá certo soma a tentativa e não grava last_error_at', async () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'r1')).toMatchObject({ status: 'baixado', download_attempts: 1 })
+    expect(rel(db, 'r1')!.last_error_at ?? null).toBeNull()
+  })
+  it('falha ao gravar o bruto soma a tentativa e grava last_error_at', async () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    db.writeErrors.yt_reporting_report_blobs = { code: '08006', message: 'conexão caiu' }
+    await passoRelatorios(ctxDe(db))
+    expect(rel(db, 'r1')).toMatchObject({ status: 'listado', download_attempts: 1, last_error_at: AGORA.toISOString() })
+  })
+  it('o prazo acaba dentro do download: não conta tentativa (não houve resposta da origem)', async () => {
+    api.download.mockRejectedValue(new SemTempoError())
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    await passoRelatorios(ctxDe(db))
+    expect(api.download).toHaveBeenCalled()   // o caminho foi exercitado: sem isto o teste passaria com o prazo esgotado antes
+    expect(rel(db, 'r1')!.download_attempts ?? 0).toBe(0)
+  })
+  it('MG13 não aplicada (a coluna não existe): schema_ausente em falhas, nada é baixado, nada lança', async () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    db.erroNaLeitura = (tabela, _n, colunas) => (tabela === 'yt_reporting_reports' && colunas.includes('expired_at') ? { code: '42703', message: 'column does not exist' } : undefined)
+    const ctx = ctxDe(db)
+    await expect(passoRelatorios(ctx)).resolves.toBeDefined()
+    expect(ctx.falhas).toContain('schema_ausente: yt_reporting_reports')
+    expect(rel(db, 'r1')!.status).toBe('listado')
+    expect(api.download).not.toHaveBeenCalled()
   })
 })

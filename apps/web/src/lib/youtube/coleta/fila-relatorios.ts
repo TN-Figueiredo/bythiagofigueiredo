@@ -20,6 +20,16 @@ export interface ItemDaFila {
   report_type_id: string
   create_time: string
   is_backfill?: boolean | null
+  /** MG13. Instante em que a origem respondeu 404 ou 410. Ausente ou nulo = sem registro de vencimento, nunca "não venceu". */
+  expired_at?: string | null
+}
+
+export type RegistroDeVencimento = { tipo: 'origem'; em: string } | { tipo: 'sem_registro' }
+
+/** O que o banco sabe sobre o vencimento na origem. Linha anterior à MG13, campo nulo ou ilegível: sem registro. */
+export function registroDeVencimento(p: { expired_at?: string | null }): RegistroDeVencimento {
+  const t = p.expired_at ? new Date(p.expired_at).getTime() : Number.NaN
+  return Number.isNaN(t) ? { tipo: 'sem_registro' } : { tipo: 'origem', em: new Date(t).toISOString() }
 }
 
 const ALCANCE: readonly string[] = REACH_TYPES
@@ -56,10 +66,10 @@ export function ordenarFila<T extends ItemDaFila>(fila: readonly T[], agora: num
 }
 
 /**
- * Os critérios persistentes (criteria.ts) já avisam desta perda, a cada execução, durante JANELA_PERDA_DIAS? Duas portas:
+ * Os critérios persistentes (criteria.ts) já avisam desta perda, a cada execução, durante JANELA_PERDA_DIAS? Três portas:
  * (a) nota por relatório: `create_time` dentro da janela; (b) nota agregada: o arquivo venceu na origem (`venceEm` já passou)
- * há até JANELA_PERDA_DIAS dias. Ficam de fora o que expirou cedo (404/410) e foi criado há mais de 14 dias, e o que venceu
- * há mais de 14 dias (cron parado). Dono único da nota: quem cobre avisa, o passo só anota o que ninguém cobre.
+ * há até JANELA_PERDA_DIAS dias; (c) MG13: a origem recusou (404/410) e `expired_at` está dentro da janela. Ficam de fora
+ * só o que venceu há mais de 14 dias (cron parado, ou recusa registrada há mais de 14 dias). Dono único da nota: quem cobre avisa, o passo só anota o que ninguém cobre.
  * Dado ilegível nunca conta como coberto (cai na nota do passo).
  */
 export function perdaCobertaPorCriterios(p: ItemDaFila, agora: number): boolean {
@@ -67,6 +77,9 @@ export function perdaCobertaPorCriterios(p: ItemDaFila, agora: number): boolean 
   if (Number.isNaN(criado)) return false
   const janela = JANELA_PERDA_DIAS * DIA_MS
   if (criado >= agora - janela + MARGEM_COBERTURA_MS) return true
+  // (c) MG13: a origem recusou (404/410) e o instante está gravado; o critério por expired_at avisa durante a janela.
+  const venc = registroDeVencimento(p)
+  if (venc.tipo === 'origem' && Date.parse(venc.em) >= agora - janela + MARGEM_COBERTURA_MS) return true
   const vence = venceEm(p)
   return vence <= agora && vence >= agora - janela + MARGEM_COBERTURA_MS
 }

@@ -70,6 +70,9 @@ interface Pendente {
   download_url: string
   create_time: string
   is_backfill: boolean
+  /** MG13. Nulo/ausente = zero tentativas / sem registro de vencimento. */
+  download_attempts?: number | null
+  expired_at?: string | null
 }
 
 const instante = (s: string): number => new Date(s).getTime()
@@ -196,6 +199,10 @@ async function baixarUm(
   // rebaixa (para `erro` ou `expirado_sem_baixar`) nem regrava um relatório que a outra acabou de baixar.
   const marcar = (campos: Record<string, unknown>) =>
     ctx.supabase.from('yt_reporting_reports').update(campos).eq('report_id', p.report_id).eq('status', 'listado')
+  // MG13: a tentativa é somada a partir do valor lido na fila (o PostgREST não soma num update). Duas execuções
+  // sobrepostas podem contar uma só: o `.eq('status', 'listado')` de `marcar` garante que nenhuma rebaixa a outra.
+  const tentativa = (p.download_attempts ?? 0) + 1
+  const falhou = () => ({ download_attempts: tentativa, last_error_at: new Date().toISOString() })
   // Recusa por tamanho: sem conserto automático, o bruto não é guardado. Fica vermelho na hora (aqui) e por 14 dias (critérios).
   const recusarPorTamanho = async (bytes: number, detalhe: string, extra: Record<string, unknown>, gz: boolean | null): Promise<void> => {
     anotarLido(resumo, p.report_type_id, bytes, gz)
@@ -205,7 +212,7 @@ async function baixarUm(
     const nome = ctx.channels.find(c => c.id === p.channel_id)?.name ?? p.channel_id
     const prazo = Number.isNaN(instante(p.create_time)) ? 'prazo na origem desconhecido' : `vence na origem em ${diaMes(venceEm(p))} (UTC)`
     pushUnico(ctx.falhas, `relatórios: ${channelNote(nome, `${p.report_type_id} recusado por tamanho (${detalhe}): o bruto NÃO foi guardado; ${prazo}`)}`)
-    conferirBanco(await marcar({ status: 'erro', error: 'grande_demais', bytes, ...extra }), 'yt_reporting_reports', ctx.falhas)
+    conferirBanco(await marcar({ status: 'erro', error: 'grande_demais', bytes, ...extra, ...falhou() }), 'yt_reporting_reports', ctx.falhas)
   }
   try {
     let pacote: PacoteCsv | null = null
@@ -260,19 +267,24 @@ async function baixarUm(
     if (erro || !pacote) {
       if (classificarErro(erro) === 'url_inesperada') {
         // URL fora do Google: nunca é tentada de novo nem leva token.
-        conferirBanco(await marcar({ status: 'erro', error: 'url_inesperada' }), 'yt_reporting_reports', ctx.falhas)
+        conferirBanco(await marcar({ status: 'erro', error: 'url_inesperada', ...falhou() }), 'yt_reporting_reports', ctx.falhas)
         resumo.erros_download++
         return
       }
       if (erro instanceof ReportingHttpError && (erro.status === 404 || erro.status === 410)) {
-        conferirBanco(await marcar({ status: 'expirado_sem_baixar', error: `HTTP ${erro.status}` }), 'yt_reporting_reports', ctx.falhas)
+        // MG13: a origem RESPONDEU 404/410, e só nesse caso o instante é gravado (vencido por idade não ganha expired_at).
+        const quando = falhou()
+        const gravou = conferirBanco(await marcar({ status: 'expirado_sem_baixar', error: `HTTP ${erro.status}`, expired_at: quando.last_error_at, ...quando }), 'yt_reporting_reports', ctx.falhas)
         resumo.expirados++
-        contarVencido(resumo, p, Date.now())
+        // O critério persistente só cobre esta perda se `expired_at` ficou gravado: com a gravação falhando, a nota do passo
+        // avisa hoje e amanhã o 404 se repete e grava (o relatório continua `listado`).
+        contarVencido(resumo, gravou === 'ok' ? { ...p, expired_at: quando.last_error_at } : p, Date.now())
         return
       }
       // Erro passageiro: continua `listado` e tenta amanhã. Gzip que não abre entra aqui: um download cortado no meio
       // chega assim, e marcá-lo `erro` seria desistir de um relatório que ainda existe na origem.
       resumo.erros_download++
+      conferirBanco(await marcar(falhou()), 'yt_reporting_reports', ctx.falhas)
       await registrarTentativa(ctx, {
         site_id: p.site_id, scope_type: 'job', scope_id: scopeJob(p.channel_id, p.report_type_id), kind: 'relatorio',
         outcome: 'erro_http', http_status: statusHttp(erro), error: ehGzipInvalido(erro) ? 'gzip_invalido' : descreverErro(erro), channel_id: p.channel_id,
@@ -310,6 +322,7 @@ async function baixarUm(
       })
       const nome = ctx.channels.find(c => c.id === p.channel_id)?.name ?? p.channel_id
       resumo.erros_download++
+      conferirBanco(await marcar(falhou()), 'yt_reporting_reports', ctx.falhas)
       pushUnico(ctx.falhas, `relatórios: ${channelNote(nome, `a GRAVAÇÃO do bruto de ${p.report_type_id} falhou (${pacote.gz.length} bytes comprimidos; banco: ${motivo}); o relatório continua na fila`)}`)
       await registrarTentativa(ctx, {
         site_id: p.site_id, scope_type: 'job', scope_id: scopeJob(p.channel_id, p.report_type_id), kind: 'relatorio',
@@ -326,6 +339,7 @@ async function baixarUm(
       bytes: pacote.gz.length,
       sha256: pacote.sha256,
       downloaded_at: new Date().toISOString(),
+      download_attempts: tentativa,
     })
     if (conferirBanco(fim, 'yt_reporting_reports', ctx.falhas) !== 'ok') return
     if (vazio) resumo.vazios++
@@ -366,7 +380,7 @@ async function lerFilaPendente(ctx: StepCtx, idsDosCanais: string[]): Promise<Fi
   for (let p = 0; p < MAX_PAGINAS_FILA; p++) {
     const r = await ctx.supabase
       .from('yt_reporting_reports')
-      .select('site_id, report_id, channel_id, report_type_id, job_id, download_url, create_time, is_backfill', p === 0 ? { count: 'exact' } : undefined) // a contagem só na primeira página
+      .select('site_id, report_id, channel_id, report_type_id, job_id, download_url, create_time, is_backfill, download_attempts, expired_at', p === 0 ? { count: 'exact' } : undefined) // a contagem só na primeira página
       .eq('status', 'listado')
       .in('channel_id', idsDosCanais)
       .in('report_type_id', [...HABILITADOS]) // os `listado` de um tipo desligado ficam como estão (e não são pendência)
@@ -512,11 +526,12 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
   }
 
   resumo.ms_baixar = Date.now() - t1
-  // ── 4. Limpar o bruto ────────────────────────────────────────────────────
+  // ── 4. Limpeza do bruto: desde a MG13 devolve 0 (a MG6 da E10 reabre só para lote confirmado no NAS) ──
   if (restante(ctx.deadline) > 0) {
     const purge = await ctx.supabase.rpc('yt_reporting_blobs_purge', { p_sem_normalizador: SEM_NORMALIZADOR })
     if (conferirBanco(purge, 'yt_reporting_blobs_purge', ctx.falhas) === 'ok' && typeof purge.data === 'number') {
       resumo.bruto_apagado = purge.data
+      if (purge.data > 0) pushUnico(ctx.falhas, `relatórios: a limpeza apagou ${purge.data} bruto(s) nesta execução; desde a MG13 o esperado é 0 (a função foi recriada com o corpo antigo?)`)
     }
   }
 

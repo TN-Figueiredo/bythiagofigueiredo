@@ -6,6 +6,7 @@
 import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { describeCronCause } from '@/lib/cron/failure-note'
+import { CONFERENCIAS, DIAS_ATE_O_VERMELHO, conferenciasEmFalha, conferenciasVencidas, hojeSP } from '@/lib/conferencias'
 import { registrarTentativa } from './attempts'
 import { voltarAOk } from './autorizacao'
 import { passoAlcance } from './alcance-step'
@@ -14,6 +15,7 @@ import { criterioJobsEmErro, criterioMetadados, criterioOrcamento, criteriosRela
 import { criteriosL2 } from './criteria-l2'
 import { ontemPt } from './day-pt'
 import { passoDiario } from './diario-step'
+import { conferirGuarda, contarBrutosAoAbrir } from './guarda'
 import { passoJobs, type JobsResumo } from './jobs-step'
 import { passoMetadados } from './meta-step'
 import { passoRelatorios } from './reports-step'
@@ -193,10 +195,35 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
 
   // `rel` e `resumo.relatorios` são montados depois do critério; o critério roda DEPOIS do alcance, para que um
   // cabeçalho inesperado achado hoje (relatório marcado `erro` pelo alcance) já fique vermelho hoje.
+  // E20 (I2 da revisão final): os brutos são contados ANTES do passo de relatórios, para a queda ser comparada com a base
+  // sem os downloads do dia no meio. Prazo próprio curto (guarda.ts); falha vira nota e a comparação usa o total do fim.
+  const tAbertura = Date.now()
+  let brutosAoAbrir: number | null = null
+  try {
+    brutosAoAbrir = await contarBrutosAoAbrir({ supabase: ctx.supabase, falhas })
+  } catch (e) {
+    falhou('guarda do bruto (abertura)', e)
+    pushUnico(falhas, 'relatórios: brutos não contados antes do passo de relatórios; a queda de hoje foi comparada só depois dos downloads')
+  }
+  ms.guarda = Date.now() - tAbertura
   let relPasso: Record<string, unknown> | undefined
   if (PASSOS_LIGADOS.relatorios) {
     const r = await passo('relatorios', TETOS_MS.relatorios, 'relatorio', ativos, passoRelatorios)
     relPasso = r ? { ...r } : undefined
+  }
+
+  // E20 (MG13): a guarda do bruto é conferida em TODA execução desta fase, mesmo se o passo de relatórios não rodou (sem
+  // tempo) ou lançou: por isso está aqui, fora do passo. Tem prazo próprio (guarda.ts). Falha da conferência nunca vira
+  // "0 órfãos": vira nota, e o campo `guarda` fica ausente. Duas saídas de `executar` não chegam aqui, ambas já vermelhas:
+  // a leitura de `youtube_channels` falha (return acima) e a rede de segurança de `rodarColeta` (executar lançou).
+  const tGuarda = Date.now()
+  try {
+    resumo.guarda = await conferirGuarda({ supabase: ctx.supabase, falhas, brutosAoAbrir })
+  } catch (e) {
+    falhou('guarda do bruto', e)
+    pushUnico(falhas, 'relatórios: guarda do bruto não conferida (a conferência lançou)')
+  } finally {
+    ms.guarda = (ms.guarda ?? 0) + (Date.now() - tGuarda)   // abertura + fim: a latência real, lida depois do envio (M-8)
   }
 
   // Alcance: normaliza o bruto que o passo de relatórios acabou de baixar. `servidos` vazio de propósito: sem tempo,
@@ -273,6 +300,21 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     ...emReautorizar().map(c => `${c.name}: reautorizar`),
   ])]
   resumo.reautorizar = emReautorizar().map(c => c.id)
+  // Item 246: conferência com data vencida e sem `feitaEm` aparece em toda execução, com o nome. Até 7 dias de atraso fica só
+  // no resumo; com 8 dias ou mais entra em `falhas` e o cron fica vermelho, até alguém preencher `feitaEm` (decisão do
+  // controlador, 12/10/2026). Lista vazia = nenhuma vencida; campo ausente = não avaliado (a fase 'antes', ou uma das saídas antecipadas
+  // de `rodarColeta`, ou o bloco abaixo lançou: nesse caso há a nota 'conferências: ...'). A nota abaixo é SEMPRE a última de `falhas`
+  // (um teste trava a ordem): ela mascara o aviso do vigia e as falhas reais têm de vir na frente dela.
+  try {
+    const hoje = hojeSP()
+    resumo.conferencias_vencidas = conferenciasVencidas(hoje, CONFERENCIAS).map(c => `${c.id} (${c.etapa}, ${c.data}, ${c.responsavel})`)
+    const emFalha = conferenciasEmFalha(hoje, CONFERENCIAS)
+    if (emFalha.length > 0) {
+      pushUnico(falhas, `conferências vencidas há mais de ${DIAS_ATE_O_VERMELHO} dias: ${emFalha.length} (${emFalha.map(c => `${c.id}, devida em ${c.data}`).join('; ')}): faça a conferência, anote no ledger e preencha feitaEm em apps/web/src/lib/conferencias.ts (runbook da coleta, seção 6, "Conferências com data")`)
+    }
+  } catch (e) {
+    falhou('conferências', e)
+  }
   resumo.ms = ms
   return { falhas, resumo }
 }

@@ -51,6 +51,10 @@ const ALLOWLIST = new Set([
   // pure date math over an explicit `from` input (leap-year slot expansion);
   // neither test nor source touches Date.now()
   'lib/newsletter/cadence-slots.test.ts',
+  // confere a lista de produção (lib/conferencias.ts), cujas datas reais incluem 2027 (conferências de 90 e 180 dias da E20);
+  // as funções puras do mesmo arquivo usam datas relativas a um AGORA com timers falsos, e nenhuma data aqui é
+  // comparada com o relógio (a única comparação com "hoje" usa o relógio real, para feitaEm)
+  'test/lib/conferencias.test.ts',
   // this guardian's own patterns
   'test/unit/test-hygiene.test.ts',
 ])
