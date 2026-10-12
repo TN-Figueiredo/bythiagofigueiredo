@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { z } from 'zod'
 import { authenticatePipeline, buildRateLimitHeaders, requirePermission, type PipelineAuth } from './auth'
+import { modoLeitura } from './leitura-modo'
+import { registrarLeitura } from './leitura-registro'
 
 export function pipelineError(
   code: string,
@@ -29,12 +31,23 @@ export async function authenticateWrite(req: NextRequest): Promise<
   return { ok: true, auth: authResult.auth }
 }
 
+/**
+ * Leitura do pipeline. Sessão de usuário passa como sempre. Chave de API precisa de `read` (ou `write`, `admin`).
+ * E19 (A5): em modo `aviso` a chave sem `read` ainda lê, e toda leitura por chave é registrada (com controle positivo);
+ * em modo `recusa` ela recebe 403 e a recusa é registrada. O modo é o de `leitura-modo.ts`.
+ */
 export async function authenticateRead(req: NextRequest): Promise<
   { ok: true; auth: PipelineAuth } | NextResponse
 > {
   const authResult = await authenticatePipeline(req)
   if (!authResult.ok) return pipelineError('UNAUTHORIZED', authResult.error, authResult.status)
-  return { ok: true, auth: authResult.auth }
+  const { auth } = authResult
+  if (!requirePermission(auth, 'read') && modoLeitura().modo === 'recusa') {
+    await registrarLeitura(req, auth, 'recusada')
+    return pipelineError('FORBIDDEN', 'Insufficient permissions', 403, auth)
+  }
+  await registrarLeitura(req, auth, 'aviso')
+  return { ok: true, auth }
 }
 
 /**

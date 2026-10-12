@@ -1,13 +1,13 @@
 import { NextRequest } from 'next/server'
-import { authenticatePipeline, buildRateLimitHeaders } from '@/lib/pipeline/auth'
-import { pipelineError } from '@/lib/pipeline/helpers'
+import { buildRateLimitHeaders } from '@/lib/pipeline/auth'
+import { authenticateRead } from '@/lib/pipeline/helpers'
 import { authToServiceContext, serviceErrorToResponse } from '@/lib/pipeline/services/http-adapter'
 import { listContext } from '@/lib/pipeline/services/utilities'
 
 export async function GET(req: NextRequest) {
-  const authResult = await authenticatePipeline(req)
-  if (!authResult.ok) return pipelineError('UNAUTHORIZED', authResult.error, authResult.status)
-  const { auth } = authResult
+  const result = await authenticateRead(req)
+  if (result instanceof Response) return result
+  const { auth } = result
 
   try {
     const ctx = authToServiceContext(auth)
