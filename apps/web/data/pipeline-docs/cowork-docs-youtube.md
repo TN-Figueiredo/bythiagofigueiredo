@@ -378,7 +378,7 @@ Fecha explicitamente uma task `running` que o worker não conseguiu terminar —
 ```
 `retry: true` reenfileira a task (até 2 vezes); omitido ou `false` fecha como `failed` definitivo.
 
-`refuse: true` (só pedidos do observatório): a forja **recusa** a task — status `refused`, `reason` vira o código da recusa (≤200 chars, ex.: `dado-velho`). A recusa não impede um novo pedido. `refuse` e `retry` juntos são 400.
+`refuse: true` (só pedidos do observatório): a forja **recusa** a task — status `refused`, `reason` vira o código da recusa (≤200 chars, ex.: `dado-velho`). A recusa não gera leitura e, por si só, não bloqueia um novo pedido: ele segue a regra de "Novo pedido" (só é aceito se o dado mudou desde a última leitura publicada do alvo). `refuse` e `retry` juntos são 400.
 ```json
 { "reason": "dado-velho", "refuse": true }
 ```
@@ -872,7 +872,7 @@ A forja (Gemma 12B local) lê pedidos do observatório de concorrentes feitos na
 
 **Regras:**
 - **Um pedido = um tipo × um alvo** (um nicho, ou um vídeo em `leitura-video`); uma claim por ciclo. O orçamento acoplado da forja (20 min do claim ao último request < 25 min do cron < 30 min do vigia) cobre GET + modelo + POST — a rota tem `maxDuration` 60 s.
-- **Novo pedido:** não há limite por dia. O site só aceita um pedido novo de um alvo (tipo × nicho; tipo × nicho × vídeo em `leitura-video`) quando o dado mudou desde a última leitura publicada do mesmo alvo, e só um pedido ativo por tipo e nicho. Falha e recusa não geram leitura e não impedem um novo pedido.
+- **Novo pedido:** não há limite por dia. O site só aceita um pedido novo de um alvo (tipo × nicho; tipo × nicho × vídeo em `leitura-video`) quando o dado mudou desde a última leitura publicada do mesmo alvo, e só um pedido ativo por tipo e nicho. Falha e recusa não geram leitura e, por si só, não bloqueiam: depois delas vale a mesma regra. Se o alvo nunca teve leitura publicada, ou se o dado mudou desde a última, o pedido novo é aceito; se já existe leitura publicada com o mesmo dado, continua recusado até a próxima coleta.
 - **Recusa:** `fail` com `{"reason": "dado-velho", "refuse": true}` quando `sent.asOf` tem mais de 24 h (dado mais velho que a última sincronização). O código vai para `refused_reason`; a tela mostra "recusado às HH:MM" com a frase canônica do código. Códigos de recusa: `dado-velho` → "a máquina recebeu dados anteriores à última sincronização. Peça de novo." Um código desconhecido aparece literal na tela — use só os códigos desta lista.
 - Todo número citado em `title`, `lead`, `items` e `evidence[].note` tem de estar em `sent.numbers` (forma canônica: `1,5 mil`, `8,2×`, `−41%`, `12 pp`, `3 h`, `2º`, `60s`, `1.230`); todo `evidence[].id` tem de estar em `sent.ids`.
 
