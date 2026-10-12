@@ -167,11 +167,11 @@ describe('lerDadosDoVideo (a leitura da tela do vídeo próprio)', () => {
     com(fakeSupabase({ yt_reporting_reports: [], yt_own_video_reach_daily: [], yt_own_video_daily: [] }, { failOn: 'yt_own_video_daily' }))
     await expect(lerDadosDoVideo({ canalId: BOM, ytId: 'v1', longosAcompanhados: ['v1'], agora: AGORA, edicao: await token() })).rejects.toThrow()
   })
-  it('valores ruins (% fora de 0 a 100, CTR fora de 0 a 1): UM aviso ao Sentry com a soma', async () => {
+  it('valores ruins (% acima do teto ou negativo, CTR fora de 0 a 1): UM aviso ao Sentry com a soma', async () => {
     com(fakeSupabase({
       yt_reporting_reports: [relatorio(d(3))],
       yt_own_video_reach_daily: [alcance('v1', d(3), 100, 7)],
-      yt_own_video_daily: [{ ...diario('v1', d(3), 5), avg_view_percentage: 140 }, diario('v1', d(4), -1)],
+      yt_own_video_daily: [{ ...diario('v1', d(3), 5), avg_view_percentage: 1000 }, diario('v1', d(4), -1)],
     }))
     await lerDadosDoVideo({ canalId: BOM, ytId: 'v1', longosAcompanhados: ['v1'], agora: AGORA, edicao: await token() })
     expect(captureMessage).toHaveBeenCalledTimes(1)
