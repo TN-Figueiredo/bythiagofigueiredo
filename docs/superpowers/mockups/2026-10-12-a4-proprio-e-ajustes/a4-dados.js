@@ -13,6 +13,8 @@
     var por = {}; var vids = R.videos.map(function(v){ var o = { id: v.id, t: v.t, ytId: v.id, dur: v.d, pub: v.p, views: v.v, likes: v.l, com: v.c, imp: 0, cl: 0, impDias: 0 }; por[v.id] = o; return o; });
     var dia = {}; R.reach.forEach(function(r){ var o = por[r[1]]; if (o) { o.imp += r[2]; o.cl += r[2] * r[3]; o.impDias++; } var x = dia[r[0]] || (dia[r[0]] = { imp: 0, cl: 0 }); x.imp += r[2]; x.cl += r[2] * r[3]; });
     vids.forEach(function(o){ o.clR = Math.round(o.cl); });
+    /* troca de título (EXEMPLO) no vídeo real em destaque; o título de antes é inventado */
+    por['S1iMQVIOFL4'].trocas = [{ d: '2026-09-25', tipo: 't', n: 1, antes: 'MBK Center em Bangkok: o que esperar', depois: por['S1iMQVIOFL4'].t }];
     var imp = A.faixaDias(R.periodo[0], R.periodo[1]).map(function(d){ return dia[d] ? { d: d, v: dia[d].imp, e: 'com', cl: dia[d].cl } : R.diasVazios.indexOf(d) >= 0 ? { d: d, v: 0, e: 'zero', cl: 0 } : { d: d, v: null, e: 'nm' }; });
     /* diário de views (EXEMPLO): quase tudo zero, como é o canal parado. Os dias 17 e 18/09 vêm sem linha. */
     var ini = A.addDias(ult, -27), dias28 = A.faixaDias(ini, ult), sem = ['2026-09-17', '2026-09-18'];
@@ -45,10 +47,20 @@
     /* o vídeo em destaque (o mais novo) tem as séries completas e a curva */
     var f = vids[0], pdia = A.faixaDias(f.pub, ult), impD = pdia.map(function(d, i){ var dd = i, v = Math.round((9200 * Math.exp(-dd / 4.2) + 1100) * (0.8 + r() * .4)), c = .053 - dd * .00055 + (r() - .5) * .006; return { d: d, v: v, e: 'com', cl: v * c, ctr: c }; });
     impD[impD.length - 1] = { d: impD[impD.length - 1].d, v: null, e: 'nm' };
+    /* trocas do vídeo em destaque (EXEMPLO): título em 27/09 (sem efeito além do que o vídeo já fazia ao envelhecer) e thumbnail em 02/10 (a taxa sobe depois) */
+    f.trocas = [{ d: '2026-09-27', tipo: 't', n: 1, antes: 'Hanói: quanto um brasileiro gasta em 7 dias', depois: f.t }, { d: '2026-10-02', tipo: 'm', n: 2, antes: { tom: 0 }, depois: { tom: 1 } }];
     f.impSerie = impD; f.imp = impD.reduce(function(a, x){ return a + (x.e === 'com' ? x.v : 0); }, 0); f.cl = impD.reduce(function(a, x){ return a + (x.e === 'com' ? x.cl : 0); }, 0); f.clR = Math.round(f.cl); f.impDias = impD.filter(function(x){ return x.e === 'com'; }).length;
     var vdF = pdia.map(function(d, i){ var imp = impD[i].e === 'com' ? impD[i].cl : impD[i - 1].cl; var v = Math.round(imp * 1.4 * (0.9 + r() * .2)); return { d: d, v: v, e: 'com', pc: .43 + (r() - .5) * .05 }; });
     f.vdSerie = vdF; f.views = vdF.reduce(function(a, x){ return a + x.v; }, 0); f.views28 = f.views; f.diasLinha = vdF.length; f.vpd = f.views / vdF.length;
     f.pct = { p: vdF.reduce(function(a, x){ return a + x.pc * x.v; }, 0) / f.views, n: f.views };
+    /* Taxa de clique do exemplo de trocas (EXEMPLO). Só redistribui os cliques POR DIA do vídeo em destaque: a soma de cliques e de impressões não muda, então views, taxa do vídeo e tudo o que o canal lê
+       ficam exatamente como antes. Trechos (índice do dia desde a publicação): 1 a 4 antes da troca de título, 6 a 9 entre as trocas, 11 a 17 depois da troca de thumbnail; o resto (dias 0, 5 e 10) absorve a diferença. */
+    (function(){
+      var alvo = [[1, 4, .049], [6, 9, .045], [11, 17, .058]], total = impD.reduce(function(a, x){ return a + (x.e === 'com' ? x.cl : 0); }, 0), fixo = {}, usado = 0, resto = 0;
+      alvo.forEach(function(a){ var si = 0, sc = 0; for (var i = a[0]; i <= a[1]; i++) { si += impD[i].v; sc += impD[i].cl; } var k = a[2] * si / sc; for (i = a[0]; i <= a[1]; i++) { impD[i].cl *= k; impD[i].ctr *= k; fixo[i] = 1; usado += impD[i].cl; } });
+      impD.forEach(function(x, i){ if (x.e === 'com' && !fixo[i]) resto += x.cl; });
+      var g = (total - usado) / resto; impD.forEach(function(x, i){ if (x.e === 'com' && !fixo[i]) { x.cl *= g; x.ctr *= g; } });
+    })();
     f.likes = Math.round(f.views * .047); f.com = Math.round(f.views * .0048);
     var ptsN = 100, pts = []; for (var i = 0; i < ptsN; i++) { var x = i / (ptsN - 1); var v = 1 - .34 * (1 - Math.exp(-x / .035)) - .36 * x + .14 * Math.exp(-Math.pow((x - .38) / .035, 2)) + .1 * Math.exp(-Math.pow((x - .62) / .02, 2)) + (r() - .5) * .012; pts.push(i === 0 ? 1 : v); }
     f.curva = pts;

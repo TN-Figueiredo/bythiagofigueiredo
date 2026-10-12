@@ -92,6 +92,8 @@
   A.nm = function(t){ return '<span class="nm">' + esc(t || 'não medido') + '</span>'; };
   /* ausência explicada uma vez: a pastilha curta (sempre "não medido") e o motivo na linha de baixo */
   A.nml = function(motivo){ return '<div class="nml">' + A.nm() + '<p>' + motivo + '</p></div>'; };
+  /* "não registrado": os dois marcadores de troca só em contorno pontilhado (aqui iriam as marcas, e o sistema não as registra). Forma própria: não é a hachura de "não medido" */
+  A.fantasmas = function(cls){ return '<svg class="' + cls + '" width="32" height="14" viewBox="0 0 32 14" aria-hidden="true" focusable="false"><path d="M7 1.2 12.8 7 7 12.8 1.2 7Z"/><path d="M24 1.4 30.2 12.6H17.8Z"/></svg>'; };
   A.nmSw = function(){ return '<span class="nm-h" role="img" aria-label="não medido"></span>'; };
 
   /* faixa de números: células { v: valor (texto) | null, l: rótulo, sub: segunda linha, nm: 'texto curto' quando não medido } */
@@ -108,24 +110,29 @@
   function mk(tag, attrs, txt){ var e = document.createElementNS(NS, tag); Object.keys(attrs || {}).forEach(function(k){ e.setAttribute(k, attrs[k]); }); if (txt != null) e.textContent = txt; return e; }
   var VAZIO = '<span class="m">Passe o mouse sobre o gráfico ou use as setas para ler um dia.</span><span class="t">Use os botões para ler um dia de cada vez.</span>';
   A.serieDia = function(host, cfg){
-    var dias = cfg.dias, n = dias.length, sel = cfg.sel == null ? -1 : cfg.sel, uid = cfg.id || 'g' + Math.random().toString(36).slice(2, 6);
-    var cont = { com: 0, zero: 0, nm: 0 }; dias.forEach(function(d){ cont[d.e]++; });
+    var dias = cfg.dias, n = dias.length, trocas = (cfg.trocas || []).filter(function(t){ return dias.some(function(d){ return d.d === t.d; }); }), sel = cfg.sel == null ? -1 : cfg.sel, uid = cfg.id || 'g' + Math.random().toString(36).slice(2, 6);
+    var ex = cfg.trocasEx && trocas.length ? ' (exemplo)' : '', cont = { com: 0, zero: 0, nm: 0 }; dias.forEach(function(d){ cont[d.e]++; });
     var legenda = '<div class="ic-leg"><span class="ic-lg"><i class="ic-sw imp" aria-hidden="true"></i>' + esc(cfg.legBarra || 'dia com valor') + '</span>' +
-      (cfg.cliques ? '<span class="ic-lg"><i class="ic-sw cl" aria-hidden="true"></i>cliques estimados</span>' : '') +
+      (cfg.cliques ? '<span class="ic-lg"><i class="ic-sw cl" aria-hidden="true"></i>cliques estimados do dia</span>' : '') +
       '<span class="ic-lg"><i class="ic-sw zero" aria-hidden="true"></i>' + esc(cfg.legZero || 'zero medido') + '</span>' +
       '<span class="ic-lg"><i class="nm-h" aria-hidden="true"></i>' + esc(cfg.legNm || 'não medido') + '</span>' +
-      (cfg.pub && dias.some(function(d){ return d.d === cfg.pub; }) ? '<span class="ic-lg"><i class="ic-sw pub" aria-hidden="true"></i>dia da publicação</span>' : '') + '</div>';
-    host.innerHTML = '<figure class="ic" aria-labelledby="' + uid + 't" style="margin:0">' +
+      (cfg.pub && dias.some(function(d){ return d.d === cfg.pub; }) ? '<span class="ic-lg"><i class="ic-sw pub" aria-hidden="true"></i>dia da publicação</span>' : '') +
+      (trocas.some(function(t){ return t.tipo === 't'; }) ? '<span class="ic-lg"><i class="ic-sw trt" aria-hidden="true"></i>troca de título' + ex + '</span>' : '') +
+      (trocas.some(function(t){ return t.tipo === 'm'; }) ? '<span class="ic-lg"><i class="ic-sw trm" aria-hidden="true"></i>troca de thumbnail' + ex + '</span>' : '') +
+      (trocas.length ? '<a class="ic-lg ic-lk" href="#trocas">o número é a ordem em “Trocas deste vídeo”</a>' : '') +
+      (cfg.legTrocas ? '<span class="ic-lg">' + A.fantasmas('ic-sw nr') + esc(cfg.legTrocas) + '</span>' : '') + '</div>';
+    host.innerHTML = '<figure class="ic' + (trocas.length ? ' tem-trocas' : '') + '" aria-labelledby="' + uid + 't" style="margin:0">' +
       '<h3 class="' + (cfg.semTitulo ? 'sr' : 'ic-t') + '" id="' + uid + 't">' + esc(cfg.titulo) + '</h3>' +
       '<p class="ic-res">' + cfg.frase + '</p>' +
       '<p class="ic-meta"><span>' + esc(cfg.meta) + '</span>' + (cfg.ajuda ? A.ibtn(uid + 'i', 'Como ler este gráfico', true) : '') + '</p>' +
       '<div class="ic-sc"><div class="ic-grupo" role="group" tabindex="0" aria-label="' + esc(cfg.titulo) + ': ' + n + ' dias. Setas andam de dia em dia.">' + '</div></div>' + legenda +
       '<div class="ic-step"><button type="button" data-p="-1" aria-label="Dia anterior">' + A.L + '</button><p class="ic-out vazio" role="status" aria-live="polite">' + VAZIO + '</p><button type="button" data-p="1" aria-label="Dia seguinte">' + A.R + '</button></div>' +
-      '<details class="ic-tab"><summary>Ver como tabela</summary><div class="ic-tw" role="region" tabindex="0" aria-label="' + esc(cfg.titulo) + ', tabela dia a dia"><table><thead><tr><th scope="col">Dia</th><th scope="col" class="r">' + esc(cfg.um[1].charAt(0).toUpperCase() + cfg.um[1].slice(1)) + '</th>' + (cfg.cliques ? '<th scope="col" class="r">Cliques estimados</th>' : '') + '<th scope="col">Situação</th></tr></thead><tbody>' +
-      dias.map(function(d){ return '<tr><th scope="row" class="num">' + A.dm(d.d) + '</th><td class="r num">' + (d.e === 'nm' ? A.nm() : A.n(d.v)) + '</td>' + (cfg.cliques ? '<td class="r num">' + (d.e === 'nm' || d.cl == null ? '' : d.cl < 1 && d.cl > 0 ? '&lt;1' : A.n(Math.round(d.cl))) + '</td>' : '') + '<td>' + (d.e === 'com' ? 'com ' + cfg.um[1] : d.e === 'zero' ? 'zero medido' : 'não medido') + '</td></tr>'; }).join('') + '</tbody></table></div></details></figure>';
+      '<details class="ic-tab"><summary>Ver como tabela</summary><div class="ic-tw" role="region" tabindex="0" aria-label="' + esc(cfg.titulo) + ', tabela dia a dia"><table><thead><tr><th scope="col">Dia</th><th scope="col" class="r">' + esc(cfg.um[1].charAt(0).toUpperCase() + cfg.um[1].slice(1)) + '</th>' + (cfg.cliques ? '<th scope="col" class="r">Cliques estimados</th>' : '') + '<th scope="col">Situação</th>' + (trocas.length ? '<th scope="col">Troca</th>' : '') + '</tr></thead><tbody>' +
+      dias.map(function(d){ return '<tr><th scope="row" class="num">' + A.dm(d.d) + '</th><td class="r num">' + (d.e === 'nm' ? A.nm() : A.n(d.v)) + '</td>' + (cfg.cliques ? '<td class="r num">' + (d.e === 'nm' || d.cl == null ? '' : d.cl < 1 && d.cl > 0 ? '&lt;1' : A.n(Math.round(d.cl))) + '</td>' : '') + '<td>' + (d.e === 'com' ? 'com ' + cfg.um[1] : d.e === 'zero' ? 'zero medido' : 'não medido') + '</td>' + (trocas.length ? '<td>' + trocas.filter(function(t){ return t.d === d.d; }).map(function(t){ return (t.tipo === 't' ? '◆ título' : '▲ thumbnail') + ' (' + t.n + (ex ? ', exemplo' : '') + ')'; }).join(', ') + '</td>' : '') + '</tr>'; }).join('') + '</tbody></table></div></details></figure>';
     if (cfg.ajuda) { var h = document.createElement('template'); h.id = uid + 'i'; h.setAttribute('data-titulo', 'Como ler este gráfico'); h.innerHTML = cfg.ajuda; host.appendChild(h); A.ligarInfos(host); }
     var grupo = host.querySelector('.ic-grupo'), out = host.querySelector('.ic-out'), prev = host.querySelector('[data-p="-1"]'), next = host.querySelector('[data-p="1"]'), hits = [];
-    function fala(i){ var d = dias[i]; if (cfg.fala) return cfg.fala(d); return A.ds(d.d) + ': ' + (d.e === 'nm' ? 'não medido' : d.v + ' ' + (d.v === 1 ? cfg.um[0] : cfg.um[1])); }
+    function fala0(i){ var d = dias[i]; if (cfg.fala) return cfg.fala(d); return A.ds(d.d) + ': ' + (d.e === 'nm' ? 'não medido' : d.v + ' ' + (d.v === 1 ? cfg.um[0] : cfg.um[1])); }
+    function fala(i){ var tx = trocas.filter(function(t){ return t.d === dias[i].d; }).map(function(t){ return (t.tipo === 't' ? 'Título trocado' : 'Thumbnail trocada') + ' neste dia (troca ' + t.n + (ex ? ', exemplo' : '') + ')'; }); return fala0(i) + (tx.length ? '. ' + tx.join('; ') : ''); }
     function pinta(){
       hits.forEach(function(r, k){ r.setAttribute('class', 'ic-hit' + (k === sel ? ' on' : '')); });
       host.querySelectorAll('.ic-nmlin').forEach(function(l){ l.style.display = Number(l.getAttribute('data-i')) === sel ? '' : 'none'; });
@@ -135,25 +142,36 @@
     }
     function ir(i){ sel = Math.max(0, Math.min(n - 1, i)); pinta(); }
     function draw(){
-      var W = Math.max(280, Math.floor(host.clientWidth || 600)), estreito = W < 520, L = 12 + 7.4 * A.n(nice(Math.max.apply(null, dias.map(function(d){ return d.e === 'com' ? d.v : 0; }).concat([1])))).length, R = 6, T = 20, PH = estreito ? 120 : 160, AX = 20, CL = cfg.cliques ? 20 : 0, H = T + PH + AX + CL + 2;
+      var W = Math.max(280, Math.floor(host.clientWidth || 600)), estreito = W < 520, L = 12 + 7.4 * A.n(nice(Math.max.apply(null, dias.map(function(d){ return d.e === 'com' ? d.v : 0; }).concat([1])))).length, R = 6, TX = trocas.length && cfg.trocasEx ? 16 : 0, T = (trocas.length ? 40 : 20) + TX, PH = estreito ? 120 : 160, AX = 20;
       var cw = (W - L - R) / n, bw = Math.max(4, Math.min(24, cw * .62)), max = nice(Math.max.apply(null, dias.map(function(d){ return d.e === 'com' ? d.v : 0; }).concat([1])));
+      /* número de cliques sob cada ponto, guloso: desenha sempre que não encosta no anterior já desenhado da mesma linha (folga 3 px; o vídeo usa 2 e uma segunda linha, com fio até o ponto) */
+      var nums = [], fim = [-1e9, -1e9], folga = cfg.folgaNum == null ? 3 : cfg.folgaNum;
+      if (cfg.cliques && cw >= 7.5) dias.forEach(function(d, i){ if (d.e !== 'com' || d.cl == null || d.cl <= 0) return; var tx = d.cl < 1 ? '<1' : A.n(Math.round(d.cl)), x = L + cw * i + cw / 2, w2 = 7.2 * tx.length / 2; if (x + w2 > W) return; for (var r = 0; r < (cfg.escalonar ? 2 : 1); r++) if (x - w2 >= fim[r] + folga) { fim[r] = x + w2; nums.push({ tx: tx, x: x, r: r }); return; } });
+      var CL = cfg.cliques ? 48 + (nums.some(function(m){ return m.r === 1; }) ? 14 : 0) : 0, H = T + PH + AX + CL + 2;
       var svg = mk('svg', { 'class': 'ic-svg', width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, 'aria-hidden': 'true', focusable: 'false' }); hits = [];
       var defs = mk('defs'), pat = mk('pattern', { id: uid + 'h', width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' });
       pat.appendChild(mk('rect', { width: 6, height: 6, 'class': 'ic-hb' })); pat.appendChild(mk('line', { x1: 0, y1: 0, x2: 0, y2: 6, 'class': 'ic-hl' })); defs.appendChild(pat); svg.appendChild(defs);
       [0, .5, 1].forEach(function(f){ var y = T + PH - f * PH; svg.appendChild(mk('line', { x1: L, x2: W - R, y1: y, y2: y, 'class': 'ic-grid' })); var t = mk('text', { x: L - 6, y: y + 4, 'text-anchor': 'end', 'class': 'ic-ax' }, A.n(Math.round(max * f * 100) / 100)); svg.appendChild(t); });
+      if (cfg.cliques) { svg.appendChild(mk('rect', { x: L, y: T + PH + AX, width: W - L - R, height: CL, rx: 4, 'class': 'ic-strip' })); svg.appendChild(mk('text', { x: L + 8, y: T + PH + AX + 14, 'class': 'ic-stl' }, 'cliques estimados por dia')); }
+      trocas.forEach(function(t){ var x = L + cw * dias.map(function(d){ return d.d; }).indexOf(t.d) + cw / 2; svg.appendChild(mk('line', { x1: x, x2: x, y1: 26 + TX, y2: T + PH, 'class': 'ic-trl ' + (t.tipo === 't' ? 'ic-trt' : 'ic-trm') })); });
       dias.forEach(function(d, i){
         var x = L + cw * i + cw / 2, base = T + PH;
         if (d.e === 'com') {
           var h = Math.max(3, d.v / max * PH); svg.appendChild(mk('rect', { x: x - bw / 2, y: base - h, width: bw, height: h, rx: 1.5, 'class': 'ic-bar' }));
           if (cw >= 7.4 * String(A.n(d.v)).length + 4) svg.appendChild(mk('text', { x: x, y: base - h - 5, 'text-anchor': 'middle', 'class': 'ic-val' }, A.n(d.v)));
-          if (cfg.cliques && d.cl != null && d.cl > 0 && cw >= 9) svg.appendChild(mk('circle', { cx: x, cy: base - Math.min(h - 2, 6), r: 3.6, 'class': 'ic-dot' }));
+          if (cfg.cliques && d.cl != null && d.cl > 0 && cw >= 7.5) svg.appendChild(mk('circle', { cx: x, cy: T + PH + AX + 25, r: 3.4, 'class': 'ic-dot' }));
         } else if (d.e === 'zero') svg.appendChild(mk('rect', { x: x - bw / 2, y: base - 6, width: bw, height: 6, rx: 1, 'class': 'ic-zero' }));
         else { var hN = Math.round(Math.min(24, PH * .25)); svg.appendChild(mk('rect', { x: x - Math.max(bw / 2, 3), y: base - hN, width: Math.max(bw, 6), height: hN, fill: 'url(#' + uid + 'h)', 'class': 'ic-nm' })); var ln = mk('line', { x1: x, x2: x, y1: T, y2: base - hN, 'class': 'ic-nmlin' }); ln.style.display = 'none'; ln.setAttribute('data-i', i); svg.appendChild(ln); }
         if (cfg.pub === d.d) { svg.appendChild(mk('line', { x1: x, x2: x, y1: T - 4, y2: base, 'class': 'ic-pub' })); }
       });
-      var passo = Math.max(1, Math.ceil(56 / cw)); dias.forEach(function(d, i){ var ult = i === n - 1; if (ult || (i % passo === 0 && n - 1 - i >= passo * .9)) svg.appendChild(mk('text', { x: L + cw * i + cw / 2, y: T + PH + 15, 'text-anchor': 'middle', 'class': 'ic-ax' }, A.dm(d.d))); });
-      if (cfg.cliques) dias.forEach(function(d, i){ if (d.e === 'com' && d.cl != null && d.cl > 0 && cw >= 7.4 * (d.cl < 1 ? 2 : String(Math.round(d.cl)).length) + 4) svg.appendChild(mk('text', { x: L + cw * i + cw / 2, y: T + PH + AX + 13, 'text-anchor': 'middle', 'class': 'ic-cln' }, d.cl < 1 ? '<1' : String(Math.round(d.cl)))); });
-      if (cfg.cliques) svg.appendChild(mk('text', { x: 2, y: T + PH + AX + 13, 'class': 'ic-an' }, estreito ? '' : ''));
+      var passo = Math.max(1, Math.ceil(56 / cw)); dias.forEach(function(d, i){ var ult = i === n - 1; if (ult || (i % passo === 0 && n - 1 - i >= passo * .9)) svg.appendChild(mk('text', { x: (cfg.bordaFinal || q.get('borda') === 'sim') ? Math.min(L + cw * i + cw / 2, W - 19) : L + cw * i + cw / 2, y: T + PH + 15, 'text-anchor': 'middle', 'class': 'ic-ax' }, A.dm(d.d))); });
+      nums.forEach(function(m){ if (m.r) svg.appendChild(mk('line', { x1: m.x, x2: m.x, y1: T + PH + AX + 31, y2: T + PH + AX + 47, 'class': 'ic-cllf' })); svg.appendChild(mk('text', { x: m.x, y: T + PH + AX + 43 + m.r * 14, 'text-anchor': 'middle', 'class': 'ic-cln' }, m.tx)); });
+      if (TX) svg.appendChild(mk('text', { x: L, y: 12, 'class': 'ic-exl' }, 'marcas de exemplo: trocas inventadas'));
+      trocas.forEach(function(t){
+        var i = dias.map(function(d){ return d.d; }).indexOf(t.d), x = L + cw * i + cw / 2, cy = 14 + TX, c = t.tipo === 't' ? 'ic-trt' : 'ic-trm';
+        svg.appendChild(mk('polygon', { points: t.tipo === 't' ? [x, cy - 13, x + 13, cy, x, cy + 13, x - 13, cy].join(' ') : [x, cy - 12, x + 13, cy + 11, x - 13, cy + 11].join(' '), 'class': 'ic-trp ' + c }));
+        svg.appendChild(mk('text', { x: x, y: cy + (t.tipo === 't' ? 4 : 8), 'text-anchor': 'middle', 'class': 'ic-trn' }, String(t.n)));
+      });
       dias.forEach(function(d, i){ var r = mk('rect', { x: L + cw * i, y: T - 2, width: cw, height: PH + AX + CL, 'class': 'ic-hit' }); r.addEventListener('pointerdown', function(){ ir(i); }); r.addEventListener('pointerenter', function(e){ if (e.pointerType === 'mouse') ir(i); }); svg.appendChild(r); hits.push(r); });
       grupo.innerHTML = ''; grupo.appendChild(svg); pinta();
     }
@@ -171,7 +189,7 @@
     var s = '', y = 0;
     /* uma linha da faixa: título (opcional), valor acima do ponto, barra e os dois limites ABAIXO dela (nunca dentro) */
     function linha(titulo, wi, pp, cls, nota){
-      if (titulo) { s += '<text class="ctr-lab" x="' + L + '" y="' + (y + 12) + '">' + esc(titulo) + '</text>'; if (nota) s += '<text class="ctr-lim" x="' + (W - R) + '" y="' + (y + 12) + '" text-anchor="end">' + esc(nota) + '</text>'; y += 18; }
+      if (titulo) { s += '<text class="ctr-lab" x="' + L + '" y="' + (y + 12) + '">' + esc(titulo) + '</text>'; if (nota) { if (W < 480) { y += 16; s += '<text class="ctr-lim" x="' + L + '" y="' + (y + 12) + '">' + esc(nota) + '</text>'; } else s += '<text class="ctr-lim" x="' + (W - R) + '" y="' + (y + 12) + '" text-anchor="end">' + esc(nota) + '</text>'; } y += 18; }
       var x0 = X(wi[0]), x1 = Math.max(X(wi[1]), x0 + 3), cx = X(pp), clamp = function(v, a, b){ return Math.max(a, Math.min(b, v)); };
       s += '<text class="ctr-num" x="' + clamp(cx, L + 18, W - R - 18) + '" y="' + (y + 11) + '" text-anchor="middle">' + A.pct(pp, 1) + '</text>'; y += 16;
       s += '<rect class="ctr-int ' + cls + '" x="' + x0 + '" y="' + y + '" width="' + (x1 - x0) + '" height="22" rx="3"/><rect class="ctr-intb ' + cls + '" x="' + x0 + '" y="' + y + '" width="' + (x1 - x0) + '" height="22" rx="3"/><circle class="ctr-pt ' + cls + '" cx="' + cx + '" cy="' + (y + 11) + '" r="6"/>'; y += 22;
@@ -186,6 +204,46 @@
     var H = yAx + 26;
     host.innerHTML = '<svg class="ctr-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(cfg.alt) + '">' + s + '</svg>';
     if (!cfg._ro && window.ResizeObserver) { var ult = host.clientWidth; new ResizeObserver(function(){ if (Math.abs(host.clientWidth - ult) > 2) { ult = host.clientWidth; A.faixaTaxa(host, Object.assign({ _ro: 1 }, cfg)); } }).observe(host); }
+  };
+
+  /* ---------------------------------------------------------------- antes × depois de uma troca: a taxa de clique dos dois lados, cada uma com o intervalo de 95% (Wilson).
+     Menos de 100 impressões num dos lados: não há faixa nem número, só "ainda não dá para dizer". Faixas que se tocam ou se cruzam: "não dá para separar". Não é teste A/B. */
+  A.MIN_IMP = 100; A.JANELA = 7;
+  A.veredito = function(a, d){
+    if (a.imp < A.MIN_IMP || d.imp < A.MIN_IMP) return { k: 'poucas' };
+    var wa = A.wilson(a.cliques, a.imp), wd = A.wilson(d.cliques, d.imp);
+    return wd[0] > wa[1] ? { k: 'sobe', wa: wa, wd: wd, gap: wd[0] - wa[1] } : wd[1] < wa[0] ? { k: 'cai', wa: wa, wd: wd, gap: wa[0] - wd[1] } : { k: 'igual', wa: wa, wd: wd, gap: 0 };
+  };
+  A.topoTaxa = function(lados){
+    var hi = 0; lados.forEach(function(l){ if (l.imp >= A.MIN_IMP) hi = Math.max(hi, A.wilson(l.cliques, l.imp)[1]); });
+    var tops = [5, 10, 20, 40, 100]; return tops.filter(function(t){ return t >= hi * 112; })[0] || 100;
+  };
+  A.antesDepois = function(host, cfg){
+    var W = Math.max(280, Math.floor(host.clientWidth || 560)), L = 10, R = 10, top = cfg.top || A.topoTaxa([cfg.antes, cfg.depois]), uid = cfg.uid || 'ad';
+    function X(f){ return L + (W - L - R) * (f * 100 / top); }
+    var s = '', y = 0, clamp = function(v, a, b){ return Math.max(a, Math.min(b, v)); };
+    function linha(l, cls){
+      s += '<text class="ctr-lab" x="' + L + '" y="' + (y + 12) + '">' + esc(l.rot) + '</text>'; y += 18;
+      if (l.nm) {
+        s += '<rect class="ctr-nmbox" x="' + L + '" y="' + (y + 2) + '" width="' + (W - L - R) + '" height="22" rx="3" fill="url(#' + uid + 'nm)"/><text class="ctr-nmt" x="' + (L + (W - L - R) / 2) + '" y="' + (y + 17) + '" text-anchor="middle">não medido: ainda sem dia fechado</text>'; y += 2 + 22 + 10; return;
+      }
+      if (l.imp < A.MIN_IMP) {
+        s += '<rect class="ctr-vazio" x="' + L + '" y="' + (y + 2) + '" width="' + (W - L - R) + '" height="22" rx="3"/><text class="ctr-lim" x="' + (L + (W - L - R) / 2) + '" y="' + (y + 17) + '" text-anchor="middle">só ' + A.n(l.imp) + (l.imp === 1 ? ' impressão' : ' impressões') + ': sem faixa</text>'; y += 2 + 22 + 10; return;
+      }
+      var w = A.wilson(l.cliques, l.imp), p = l.cliques / l.imp, x0 = X(w[0]), x1 = Math.max(X(w[1]), x0 + 3), cx = X(p);
+      s += '<text class="ctr-num" x="' + clamp(cx, L + 18, W - R - 18) + '" y="' + (y + 11) + '" text-anchor="middle">' + A.pct(p, 1) + '</text>'; y += 16;
+      s += '<rect class="ctr-int ' + cls + '" x="' + x0 + '" y="' + y + '" width="' + (x1 - x0) + '" height="22" rx="3"/><rect class="ctr-intb ' + cls + '" x="' + x0 + '" y="' + y + '" width="' + (x1 - x0) + '" height="22" rx="3"/><circle class="ctr-pt ' + cls + '" cx="' + cx + '" cy="' + (y + 11) + '" r="6"/>'; y += 22;
+      s += x1 - x0 >= 84 ? '<text class="ctr-lim" x="' + x0 + '" y="' + (y + 14) + '" text-anchor="start">' + A.pct(w[0], 1) + '</text><text class="ctr-lim" x="' + x1 + '" y="' + (y + 14) + '" text-anchor="end">' + A.pct(w[1], 1) + '</text>'
+        : '<text class="ctr-lim" x="' + clamp((x0 + x1) / 2, L + 40, W - R - 40) + '" y="' + (y + 14) + '" text-anchor="middle">' + A.pct(w[0], 1) + ' a ' + A.pct(w[1], 1) + '</text>';
+      y += 22;
+    }
+    linha(cfg.antes, 'ref'); y += 4; linha(cfg.depois, '');
+    var yAx = y + 6, semEixo = (cfg.antes.imp < A.MIN_IMP || cfg.antes.nm) && (cfg.depois.imp < A.MIN_IMP || cfg.depois.nm);
+    if (!semEixo) s = '<line class="ctr-fio" x1="' + L + '" x2="' + (W - R) + '" y1="' + yAx + '" y2="' + yAx + '"/>' + [0, top / 2, top].map(function(t, i){ return '<line class="ctr-fio" x1="' + X(t / 100) + '" x2="' + X(t / 100) + '" y1="' + (yAx - 4) + '" y2="' + (yAx + 4) + '"/><text class="ctr-ax" x="' + X(t / 100) + '" y="' + (yAx + 19) + '" text-anchor="' + (i === 0 ? 'start' : i === 2 ? 'end' : 'middle') + '">' + A.dec(t, t % 1 ? 1 : 0) + '%</text>'; }).join('') + s;
+    var H = semEixo ? y : yAx + 26;
+    s = '<defs><pattern id="' + uid + 'nm" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" class="ic-hb"/><line x1="0" y1="0" x2="0" y2="6" class="ic-hl"/></pattern></defs>' + s;
+    host.innerHTML = '<svg class="ctr-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(cfg.alt) + '">' + s + '</svg>';
+    if (!cfg._ro && window.ResizeObserver) { var ult = host.clientWidth; new ResizeObserver(function(){ if (Math.abs(host.clientWidth - ult) > 2) { ult = host.clientWidth; A.antesDepois(host, Object.assign({ _ro: 1 }, cfg)); } }).observe(host); }
   };
 
   /* ---------------------------------------------------------------- régua de um número: um traço por vídeo do canal, este destacado, a mediana marcada */
