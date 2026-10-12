@@ -6,6 +6,31 @@ Escrito em 12/10/2026 sobre `staging` local em `f6de92d5` (78 commits à frente 
 
 > **Emenda do portão de fim de plano (12/10/2026, fim da tarde).** Os dois revisores sêniores aprovaram com ressalvas e nenhum deixou o plano ser executado como estava: `.superpowers/sdd/a5/revisao-plano-e1-e2-dados.md` (6 importantes, 12 menores) e `.superpowers/sdd/a5/revisao-plano-e1-e2-software.md` (10 importantes, 14 menores). Os 42 achados foram aceitos; a resposta, uma linha por achado, está em `.superpowers/sdd/a5/resposta-revisao-plano-e1-e2.md`, e o texto novo de cada um, para conferência, em `.superpowers/sdd/a5/plano-e1-e2-emenda-relatorio.md`. Todo trecho mexido leva a marca *(emenda do portão: id)*, com o id da resposta (`D-` dados, `S-` software, `CTRL-` decisão do controlador). **As Tarefas 1, 6, 11 e 14 foram divididas e reescritas** (1a e 1b; 6a e 6b; 11a, 11b e 11c; 14a e 14b), e o Lote 2 ganhou a 17b.
 
+> **Fecho do portão (12/10/2026, noite).** Na conferência de fecho os dois revisores disseram "não concordo ainda" por poucos consertos e escreveram que, aplicados com o texto deles, o acordo está dado sem nova rodada (as seções "Fecho (emenda do portão)" dos dois arquivos de revisão). Estão todos aplicados; a resposta, uma linha por achado, é a seção "Fecho" de `.superpowers/sdd/a5/resposta-revisao-plano-e1-e2.md`, e o texto novo de cada um, para conferência por busca, está em `.superpowers/sdd/a5/plano-e1-e2-fecho-relatorio.md`. Todo trecho mexido leva a marca *(fecho do portão: id)*: `DF-` (fecho de dados), `SF-` (fecho de software), `M-n` (menores novos), `D-decl-` e `S-decl-` (o que os revisores pediram que fosse declarado), `CTRL-F1` (decisão do controlador).
+
+**O que mudou no fecho, em nove linhas.**
+
+1. **MG1: final, sem mudança.** **MG2: final, com dois trechos em função**, o texto exato do revisor de dados: `apply_competitor_tier_plan` zera `weekly_pass_date` quando um vídeo entra em semanal (DF-1), e `semanal_devidos_hoje` não conta vídeo pedido e não devolvido (DF-2). Provadas de novo no banco local, nas duas ordens de reaplicação, com 44 asserções.
+2. **O defeito do dia do deploy está fechado por dois lados** (decisão do controlador): no banco (item 1), para qualquer chamador; e no código, em que a leitura semanal não carimba canal com vídeo ainda sem faixa (Tarefa 11b, uma linha e três testes).
+3. **A Tarefa 13 simula o dia do deploy**: promoção à tarde, a fase semanal rodando antes de as faixas existirem, a faixa das 18:00 classificando. Afirma que os 104 vídeos com o dia fixo em D0 são lidos em D0, antes das 19:00, com cada conserto sozinho; um caso reproduz o defeito sem nenhum dos dois.
+4. **O teste da fase semanal passa a rodar** (SF-3): o falso do módulo exporta `spDate`, e o lote recebe uma cópia das linhas, como em produção.
+5. **O commit da Tarefa 16 lista os seis arquivos** (SF-2).
+6. **A Tarefa 17b diz como tirar as linhas da semente de e2e** sem editá-la e sem banco: um cliente gravador com endereço local (SF-4); a lista de consumidores virou asserção (M-n6).
+7. **Seção 7 e as conferências com data: o D0 foi reescrito hora a hora** (DF-3). A seção 2 ganhou a consulta V1b, que diz se a MG2 aplicada é a do fecho.
+8. **Menores de uma linha, feitos:** o comando da 14b lê as variáveis do banco local de onde elas saem (M-n1); o teste de RLS exige erro de RLS ou de permissão (M-n2); a conta dos 300 s inclui a prova, presa por teste (M-n3). **O resto virou nota na tarefa dona** (11a: sétimo caso; 13: a opção de adiantar a linha de base da miniatura) ou risco declarado (seção 12, itens 12 e 13).
+9. **A cópia das miniaturas mede cerca de 21 MB, não 26** (60 cópias medidas pelo revisor de dados).
+
+**O que o dono precisa saber, porque os dois revisores pediram que fosse dito** *(fecho do portão: M-n4, D-decl-1 a D-decl-5, S-decl-3, S-decl-4)*:
+
+1. **Canal em erro: depois do 3º dia, só a lista de canais avisa.** O cron fica vermelho da 12ª hora ao 3º dia; depois volta a verde e não há mais push. A nota `acao_do_dono` sai na resposta do cron, que ninguém guarda. O único sinal durável é o canal marcado "erro" na lista de canais do CMS (pergunta 6).
+2. **A primeira semana pode perder 1 a 2 trocas de miniatura** (estimativa do revisor de dados, não medida). Cada um dos 687 vídeos antigos só ganha a cópia da miniatura no dia fixo dele, de D0 a D+6; uma troca antes desse dia não é vista e a imagem antiga some no YouTube. Hoje perde-se tudo. Dá para encurtar adiantando a linha de base com o relógio que sobra da fase semanal (0 cota, sem migration): não está no plano; é uma tarefa a mais se ele quiser.
+3. **A cópia das miniaturas ocupa cerca de 21 MB no Blob**, não os 26 que a emenda dizia (medido em 60 cópias: média de 31 kB).
+4. **`sem_miniatura_9d` não vê a versão cuja cópia falhou no Blob.** A prova acusa o vídeo que nunca foi sondado; a versão aberta sem arquivo (`thumb_blob_url` nulo) passa, e o código não refaz a cópia. Em produção em 12/10: 0 em 708. Conferência K16 em D+9; conserto com destino na E5.
+5. **No dia do deploy a leitura semanal começa às 18:00, não na hora da promoção** (as faixas nascem na sincronização das 18:00). O esperado é terminar às 18:40. Se a faixa das 18:00 for lenta, o cron pode ficar vermelho por 20 a 40 minutos depois das 19:00 e voltar sozinho, sem perda (seção 7).
+6. **O tempo da fase semanal na semana 1 é suposição** (1,05 s por vídeo, com o arquivo da miniatura); o ensaio da Tarefa 14b roda sem o Blob e não o mede. Só o D0 mede. O desenho aguenta o erro.
+7. **Sem a etapa E20 em produção, conferência com data vencida não acende nada**: fica só em `.superpowers/sdd/a5/conferencias-com-data.md` e no ledger.
+8. Na leitura semanal, se a captura de um vídeo falha depois de o ponto ser gravado, ela só é refeita na semana seguinte (risco 12).
+
 **Como ler os números de tarefa depois da divisão.** Onde um trecho anterior à emenda diz "Tarefa 1", leia 1a (as funções) ou 1b (RLS); "Tarefa 6", 6b; "Tarefa 11", 11a (primeiras horas), 11b (a leitura semanal) ou 11c (a promoção); "Tarefa 14", 14a (integração) ou 14b (API real).
 
 **O que mudou nesta emenda, em dez linhas.**
@@ -34,31 +59,33 @@ Escrito em 12/10/2026 sobre `staging` local em `f6de92d5` (78 commits à frente 
 | *(emenda do portão)* SQL **final** da MG1 e da MG2 | banco local, **uma** transação com `rollback`: MG1, MG2, MG1, MG2 (duas vezes seguidas), V1, V3 e 35 asserções (guarda de site nas três funções; A, B, A; 2ª falta aos 20 minutos não conta e às 6 horas conta, vídeo e canal; a prova da captura nos cinco casos de S-I4; canal em erro às 13 h e aos 4 dias; estreia agendada sem ponto = 0 buracos e buraco de verdade = 2; semanal aos 7, 8 e 9 dias; dia fixo; miniatura) | passou. V1 = 21, 13, 5, 5, 9, 9, `'{}'::jsonb`, 0. Depois do `rollback`: 0 coluna e 0 tabela nova, 4 vídeos e 4 canais como antes, `default 0` de `view_count` intacto, `lock_timeout` em 0 |
 | *(emenda do portão)* o dia fixo em SQL × em TypeScript | seis ids no `node` (`sha256`, 4 bytes, módulo 7) e no banco local (a expressão de `competitor_series_health`) | iguais nos seis |
 | *(emenda do portão)* consultas de conferência alteradas ou novas que não dependem das migrations | produção, só `select`, uma por comando: V1 (texto novo), K12, K15b, K16 | V1: 0, 0, 0, 0, 0, 0, `'[]'::jsonb`, 3 (antes de aplicar, como esperado). K12, às 16:57 de São Paulo: ainda a faixa das 12:00 (11 canais no primeiro disparo, o 11º aos 197 s). K15b: de 87 a 118 vídeos por dia fixo, de 6 a 9 canais, maior canal de 30 a 45. K16: 1.390 vídeos, 687 sem versão de miniatura, 703 cópias correntes, 0 sem cópia, 5 trocas |
+| *(fecho do portão)* SQL **final** da MG2 (com DF-1 e DF-2) e a MG1, de novo | banco local, 12/10 às 17:44 de São Paulo. Transação 1 (desfeita): MG1, MG2, MG1, MG2, V1, V1b, V3 e **44 asserções** (as 35 da emenda; 3 do DF-2: no dia fixo sem ponto 1, depois da 1ª falta 0, voltou 1; 6 do DF-1: a 1ª classificação depois do carimbo reabre, a mesma chamada de novo não desfaz o carimbo, promoção não reabre, rebaixamento reabre, canal já nulo passa, carimbo de outro canal intacto). Transação 2 (desfeita): MG1, MG1, MG2, MG2, V1, V1b. Roteiro: `.superpowers/sdd/a5/plano-e1-e2-fecho-prova.sql`; saída: `plano-e1-e2-fecho-prova-saida.txt` | passou nas duas. V1 = 21, 13, 5, 5, 9, 9, `'{}'::jsonb`, 0; V1b = `true`, `true`; 2 `check` em vídeos e 3 em canais nas duas ordens (não duplica). Depois de cada `rollback`: 0 coluna e 0 tabela nova, 3.639 vídeos e 18 canais como antes (a semente de e2e de outro terminal), `default 0` intacto, `lock_timeout` 0. **As asserções mordem:** com o `update` do DF-1 trocado por `null`, o roteiro para em "F-1 caso 1"; sem `and miss_streak = 0`, para em "F-2: depois da 1ª falta" |
+| *(fecho do portão)* **Não executado no fecho** | nenhum TypeScript do plano foi compilado nem rodado pelo Vitest. Os quatro testes novos da Tarefa 13 (e os dois maiores da emenda, com a cópia das linhas) foram conferidos por uma **transcrição em JavaScript** de `runWeeklyPhase` e do laço de canais, rodada com `node` (`.superpowers/sdd/a5/plano-e1-e2-fecho-simulacao.mjs`; saída ao lado: às 18:20 são lidos 100 dos 104, às 18:40 os 4 restantes, o último às 18:40:04; sem os dois consertos, 104 não lidos): é a conta conferida, não o teste do plano rodando. Os três testes novos da Tarefa 11b foram só lidos contra o corpo do modo semanal; o `recordingClient` da 17b foi escrito contra a semente lida, não rodado; o passo 10 da 14a, idem. K12 da faixa das 18:00: ver a Tarefa 0, Step 4 | — |
 | *(emenda do portão)* **Não executado nesta emenda** | o código novo ou alterado das Tarefas 2, 3, 4, 9, 12 e 13 e o das Tarefas 1b, 6b, 11a, 11b, 11c, 14a, 14b e 17b: os "85 de 85 testes" da linha acima são do texto **anterior** à emenda. As consultas que dependem das migrations (V2, K1, K5, K15, K17) rodaram só no banco local. A medição K12 da faixa das 18:00 (depois das 18:45 de São Paulo) ficou como passo da Tarefa 0: a emenda foi fechada às 17:00 | — |
 
 ## 1. Perguntas que só o dono responde
 
 *(emenda do portão: CTRL-a, CTRL-i)* Nenhuma trava o início. Pela regra dele (decisão 44), onde o spec tem padrão vale o padrão; as seis abaixo são decisões que este plano tomou onde o spec não fecha, e que ele pode vetar. Cada uma tem a recomendação e o padrão que vale se ele não responder.
 
-1. **Miniatura dos vídeos de leitura semanal: passa a ser conferida, e a cópia é guardada quando muda.** *(era "não é conferida"; mudou pela regra permanente dele, "coletar mais dado do que as telas usam, com prioridade ao que a origem sobrescreve", e pelo achado D-I4.)* A miniatura é o único dado deste plano que o YouTube sobrescreve: trocou, a imagem antiga some lá, e o endereço não muda. Medido em produção em 12/10: 703 vídeos têm cópia guardada, **687 não têm nenhuma**; nas cópias de hoje, 0 falha de arquivo; em 10 dias, 5 trocas de miniatura. **Como fica:** toda leitura semanal pergunta ao endereço da imagem se ela mudou (uma requisição de cabeçalho, sem custo de cota: não é a Data API) e só baixa a imagem quando o indício muda, como já é feito nos vídeos diários; a primeira leitura de cada um dos 687 guarda a imagem atual. **A conta:** cota, 0 unidade; Blob, 687 arquivos uma vez, cerca de 26 MB (as cópias de hoje têm 38 kB em média, amostra de 12, de 8 a 126 kB; no pior caso, 87 MB), e depois só as trocas; tempo, cerca de 100 s por dia nos sete primeiros dias e cerca de 30 s por dia depois, gastos na fase semanal, que roda nos disparos sem canal devido (não disputa tempo com a faixa das 12:00). **Recomendação e padrão: coletar.** O custo não é desproporcional, então não há meio-termo a propor. Se ele vetar: a fase semanal passa a rodar sem a sonda (opção `thumbs: false`, uma linha na Tarefa 13) e a Tarefa 12 deixa de cobrar `sem_miniatura_9d` (uma linha). Não verificado: a folga do plano do Blob (a conta do Blob não está no banco).
+1. **Miniatura dos vídeos de leitura semanal: passa a ser conferida, e a cópia é guardada quando muda.** *(era "não é conferida"; mudou pela regra permanente dele, "coletar mais dado do que as telas usam, com prioridade ao que a origem sobrescreve", e pelo achado D-I4.)* A miniatura é o único dado deste plano que o YouTube sobrescreve: trocou, a imagem antiga some lá, e o endereço não muda. Medido em produção em 12/10: 703 vídeos têm cópia guardada, **687 não têm nenhuma**; nas cópias de hoje, 0 falha de arquivo; em 10 dias, 5 trocas de miniatura. **Como fica:** toda leitura semanal pergunta ao endereço da imagem se ela mudou (uma requisição de cabeçalho, sem custo de cota: não é a Data API) e só baixa a imagem quando o indício muda, como já é feito nos vídeos diários; a primeira leitura de cada um dos 687 guarda a imagem atual. **A conta:** cota, 0 unidade; Blob, 687 arquivos uma vez, **cerca de 21 MB** *(fecho do portão: D-decl-1; medido pelo revisor de dados em 60 cópias de produção: média de 31 kB, mediana de 26 kB, a maior com 178 kB; o texto anterior dizia 26 MB, de uma amostra de 12; no pior caso, todas do tamanho da maior, 122 MB)*, e depois só as trocas; tempo, cerca de 100 s por dia nos sete primeiros dias e cerca de 30 s por dia depois, gastos na fase semanal, que roda nos disparos sem canal devido (não disputa tempo com a faixa das 12:00). **Recomendação e padrão: coletar.** O custo não é desproporcional, então não há meio-termo a propor. Se ele vetar: a fase semanal passa a rodar sem a sonda (opção `thumbs: false`, uma linha na Tarefa 13) e a Tarefa 12 deixa de cobrar `sem_miniatura_9d` (uma linha). Não verificado: a folga do plano do Blob (a conta do Blob não está no banco).
 2. **Contagem que o YouTube deixa de devolver passa a ser gravada como "não medido" também nos vídeos fixados.** Hoje, só para vídeo fixado, a contagem antiga é mantida quando o YouTube esconde o contador (decisão da fase de fixar vídeo). O spec aprovado (princípio D2 e item 6) manda nulo mais o sinalizador para todos. O plano segue o spec: a tela passa a dizer "não medido" em vez de mostrar um número velho sem data. Três testes mudam por isso (Tarefa 6b). **Padrão: como está aqui** (os dois revisores aceitaram; o último valor medido continua na série, com a data).
 3. **Um envio para a coleta (E1 e E2 juntas) e outro, depois, para o leitor.** O spec põe a E1 e a E2 em ordens seguidas (3 e 4) e permite aplicar a MG1 e a MG2 juntas. Cada push custa 4 builds da Vercel. O plano entrega em dois lotes: **Lote 1** (a coleta inteira: é o que para de perder dado) e **Lote 2** (o motor e o carregador passam a saber ler a série semanal; não perde dado por esperar). **Padrão: dois envios** (os dois revisores aceitaram). *(emenda do portão: S-I8)* O Lote 2 **não vai** sem o Lote 1 em `main` e sem a MG2 aplicada: o carregador novo lê `series_tier`, e sem a coluna todas as telas, o Cowork e a fila da forja cairiam. Promover só a E1 continua possível, mas trava o Lote 2 até a MG2.
 4. **Troca de título, descrição ou miniatura num vídeo antigo, vista com até uma semana de atraso: aparece em "Trocas" como qualquer outra, com a janela escrita ("entre dd/mm e dd/mm").** *(emenda do portão: S-M8)* E a troca cuja janela passa de 8 dias (o vídeo ficou mais de uma semana sem ser conferido, o que só acontece nos 29 vídeos antigos que têm versão guardada de antes, ou depois de uma parada da coleta): **também aparece, na tela e no Cowork, com a janela verdadeira, sem aviso e sem promover o vídeo.** O plano original a mostrava na tela e a escondia do Cowork; os dois lugares dariam números diferentes (contra o princípio D3). **Recomendação e padrão: aparece nos dois, com a janela.** A alternativa, esconder dos dois, pede mexer no leitor das telas e fica para a E5 se ele preferir.
 5. **A frase "inconclusivo: série semanal" não aparece na tela agora.** *(emenda do portão: S-I8, D-6)* O plano original trocava o motivo do efeito de uma troca num vídeo semanal para essa frase, ao lado do rótulo "sem série", sem mockup. Pela regra dele (aprovação visual antes de código), **nenhum texto de tela muda no Lote 2**: o motivo continua o de hoje, e o motor só guarda o fato num campo novo que nenhuma tela lê (`weeklySeries`). A frase entra com o mockup da E5. **Padrão: não aparece.**
-6. **Canal em erro há mais de 12 horas deixa o cron vermelho por 3 dias; depois vira nota.** *(emenda do portão: D-I1, S-M14, CTRL-d)* Hoje isso fica verde. O plano original deixava vermelho para sempre, o que dá 4 avisos por dia sem fim e, como o vigia não repete aviso enquanto o estado é o mesmo, **cala a falha de outro cron** no período. Fica assim: vermelho do 12º hora ao 3º dia; do 3º dia em diante o cron volta a verde e a resposta de **toda execução** traz, em `acao_do_dono`, "canal X em erro desde dd/mm: <motivo>"; o canal segue marcado "erro" na lista de canais. **Sai desse estado** quando o canal sincroniza bem (inclusive por "sincronizar agora"), quando o YouTube deixa de devolvê-lo em duas leituras (vira "ausente", fila da E9), ou quando ele o remove. **Padrão: como está aqui.**
+6. **Canal em erro há mais de 12 horas deixa o cron vermelho por 3 dias; depois vira nota.** *(emenda do portão: D-I1, S-M14, CTRL-d)* Hoje isso fica verde. O plano original deixava vermelho para sempre, o que dá 4 avisos por dia sem fim e, como o vigia não repete aviso enquanto o estado é o mesmo, **cala a falha de outro cron** no período. Fica assim: vermelho do 12º hora ao 3º dia; do 3º dia em diante o cron volta a verde e a resposta de **toda execução** traz, em `acao_do_dono`, "canal X em erro desde dd/mm: <motivo>"; o canal segue marcado "erro" na lista de canais. **Sai desse estado** quando o canal sincroniza bem (inclusive por "sincronizar agora"), quando o YouTube deixa de devolvê-lo em duas leituras (vira "ausente", fila da E9), ou quando ele o remove. **Padrão: como está aqui.** *(fecho do portão: M-n4, D-decl-4)* **O que isso custa, dito claro:** depois do 3º dia não há mais aviso por push. A nota `acao_do_dono` só existe na resposta do cron, que ninguém guarda; o único sinal durável é o canal marcado "erro" na lista de canais do CMS. Quem não abrir a lista não fica sabendo.
 
-Aviso (não é pergunta): **a primeira semana grava cerca de 8 a 10 MB de uma vez no banco** (a primeira resposta guardada de cada um dos 1.390 vídeos e o primeiro valor de cada campo) **e cerca de 26 MB no Blob** (as 687 miniaturas, pergunta 1). O banco vai de 179 para cerca de 189 MB. Conta na seção 5.
+Aviso (não é pergunta): **a primeira semana grava cerca de 8 a 10 MB de uma vez no banco** (a primeira resposta guardada de cada um dos 1.390 vídeos e o primeiro valor de cada campo) **e cerca de 21 MB no Blob** *(fecho do portão: D-decl-1; era 26)* (as 687 miniaturas, pergunta 1). O banco vai de 179 para cerca de 189 MB. Conta na seção 5.
 
 ## 2. O que é do dono
 
-**Uma coisa só: aplicar as duas migrations, antes do código.** Nenhum agente roda `db:push:prod`. *(emenda do portão: CTRL)* **O SQL dos Apêndices A e B é o texto definitivo**, saído do acordo dos dois revisores (regra dele, decisão 45): ele aplica uma vez e não mexe depois.
+**Uma coisa só: aplicar as duas migrations, antes do código.** Nenhum agente roda `db:push:prod`. *(emenda do portão: CTRL)* **O SQL dos Apêndices A e B é o texto definitivo**, saído do acordo dos dois revisores (regra dele, decisão 45): ele aplica uma vez e não mexe depois. *(fecho do portão: DF-1, DF-2, CTRL-F1)* **MG1: FINAL, sem mudança desde a emenda** (o revisor de dados: "pode ir ao dono como está"). **MG2: FINAL depois de dois trechos em função** pedidos no fecho e aplicados com o texto exato dele (a passada semanal reabre quando um vídeo entra em semanal; `semanal_devidos_hoje` não conta vídeo pedido e não devolvido). Nomes para o `npm run db:new`, nesta ordem: `observatorio_a5_e1_campos_sinalizadores_raw` (MG1) e `observatorio_a5_e2_serie_faixas` (MG2). Conferência depois de aplicar: V1, V1b, V2 e V3, abaixo, com o resultado esperado de cada uma.
 
 | Passo | Quem | O quê |
 |---|---|---|
 | 1 | agente (Tarefa 1a) | `npm run db:new observatorio_a5_e1_campos_sinalizadores_raw` e cola o Apêndice A; depois `npm run db:new observatorio_a5_e2_serie_faixas` e cola o Apêndice B. **Nesta ordem** (a MG2 usa colunas e tabelas da MG1; o carimbo de hora do segundo arquivo tem de ser maior). Commit local |
 | 2 | agente | prova no banco local (Tarefas 1a e 1b) e as consultas V1 a V3 abaixo rodadas no banco local |
 | 3 | **dono** | `npm run db:push:prod` (digita `YES`). Aplica as duas no mesmo comando. *(emenda do portão: S-M12)* O arquivo da MG13 (etapa E20) **já existe** (`20261012000001_observatorio_guarda_do_bruto.sql`); o `db:new` dá às duas daqui um carimbo posterior. Se a MG13 ainda não tiver sido aplicada, vai no mesmo comando, antes delas, e está certo assim (lote A do spec) |
-| 4 | agente | roda V1, V2 e V3 em produção (só leitura) e cola o resultado no ledger |
+| 4 | agente | roda V1, V1b, V2 e V3 em produção (só leitura) e cola o resultado no ledger |
 | 5 | agente | só então o push do código (seção 9), e a promoção a `main` **só entre 12:25 e 17:30 de São Paulo** (Tarefa 15) |
 
 *(emenda do portão: D-m12)* **Quando aplicar.** O cron dos concorrentes dispara nos minutos 00, 20 e 40 de toda hora e escreve em `competitor_videos` e `competitor_channels` por até 5 minutos; nas faixas das 00:00, 06:00, 12:00 e 18:00 de São Paulo escreve mais (até o minuto 25). As duas migrations pedem trava exclusiva nessas duas tabelas por milissegundos. **Janela: qualquer hora, nos minutos 07 a 18, 27 a 38 ou 47 a 58, fora das faixas 12:00 a 12:25 e 18:00 a 18:25 de São Paulo.** Se ainda assim houver sessão presa, a primeira linha de cada arquivo (`set lock_timeout = '5s'`) faz o comando falhar em 5 segundos em vez de esperar: é só rodar de novo (os dois arquivos são idempotentes).
@@ -72,6 +99,12 @@ Aviso (não é pergunta): **a primeira semana grava cerca de 8 a 10 MB de uma ve
 
 ```sql
 select (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'competitor_videos' and column_name in ('discovered_at', 'default_language', 'default_audio_language', 'live_broadcast_content', 'live_scheduled_start_at', 'live_actual_start_at', 'live_actual_end_at', 'was_live', 'comments_disabled', 'likes_hidden', 'views_hidden', 'miss_streak', 'miss_first_at', 'missing_since', 'last_seen_at', 'removal_decision', 'removal_decided_at', 'removal_decided_by', 'series_tier', 'series_tier_since', 'daily_until')) as colunas_video_de_21, (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'competitor_channels' and column_name in ('custom_url', 'description', 'published_at', 'country', 'subscribers_hidden', 'miss_streak', 'miss_first_at', 'missing_since', 'last_seen_at', 'removal_decision', 'removal_decided_at', 'removal_decided_by', 'weekly_pass_date')) as colunas_canal_de_13, (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity and c.relname in ('competitor_field_versions', 'competitor_raw', 'competitor_removed_items', 'competitor_video_early', 'competitor_video_tier_spans')) as tabelas_com_rls_de_5, (select count(*) from pg_policies where schemaname = 'public' and tablename in ('competitor_field_versions', 'competitor_raw', 'competitor_removed_items', 'competitor_video_early', 'competitor_video_tier_spans')) as policies_de_5, (select count(distinct p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('apply_competitor_field_plan', 'apply_competitor_raw_plan', 'competitor_mark_missing', 'competitor_channel_mark_missing', 'youtube_quota_add', 'jsonb_num_merge', 'competitor_capture_health', 'apply_competitor_tier_plan', 'competitor_series_health')) as funcoes_de_9, (select count(*) from pg_indexes where schemaname = 'public' and indexname in ('idx_cfv_one_current_video', 'idx_cfv_one_current_channel', 'idx_cfv_channel_seen', 'idx_cfv_video_seen', 'idx_craw_one_current_video', 'idx_craw_one_current_channel', 'idx_craw_channel', 'idx_craw_video', 'idx_cvts_one_open')) as indices_de_9, (select column_default from information_schema.columns where table_schema = 'public' and table_name = 'youtube_quota_usage' and column_name = 'operations') as padrao_operations, (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'competitor_videos' and column_name in ('view_count', 'like_count', 'comment_count') and column_default is not null) as contadores_com_padrao;
+```
+
+**V1b: a MG2 aplicada é a do fecho?** *(fecho do portão: DF-1, DF-2)* (testada em 12/10 no banco local com as duas aplicadas, nas duas ordens de reaplicação.) Esperado: **`true`, `true`**. `false` em qualquer uma = foi aplicado o texto anterior ao fecho: como as duas funções são `create or replace`, basta aplicar de novo o arquivo certo.
+
+```sql
+select (select p.prosrc like '%v_reopen%' from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'apply_competitor_tier_plan') as tier_plan_reabre_a_passada, (select p.prosrc like '%miss_streak = 0%' from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'competitor_series_health') as devidos_sem_os_faltosos;
 ```
 
 **V2: nada foi tocado nos dados?** Esperado, enquanto o código antigo estiver em `main`: `videos = videos_intactos` (1.390 em 12/10), `canais_intactos = 15`, `linhas_nas_5_tabelas_novas = 0`.
@@ -127,6 +160,7 @@ Entradas que o spec implica e que mais provavelmente mordem; cada uma tem o test
 2. **O mesmo vídeo é pedido duas vezes na mesma sincronização** (página de uploads e passada diária) e falta nas duas. Esperado: uma falta só (`miss_streak` soma 1, não 2). Teste na Tarefa 8.
 3. **Uma chamada `videos.list` falha com HTTP 500.** Esperado: os vídeos daquela chamada **não** são contados como ausentes (falha de rede não é sumiço). Teste na Tarefa 8.
 4. *(emenda do portão: D-I3, S-I1)* **O relógio do disparo acaba no meio da fase semanal, e a ordem dos canais é a mesma todo dia.** Esperado: o vídeo que não chegou a ser conferido não ganha o ponto do dia (o ponto é o recibo), o canal não é carimbado em `weekly_pass_date`, e no disparo seguinte ele é o primeiro da fase. Nenhum canal fica sem a passada do dia por causa da posição. Testes nas Tarefas 11b (o recibo) e 13 (as duas faixas, 15 canais na ordem estável).
+6. *(fecho do portão: DF-1, SF-1)* **O dia do deploy: a fase semanal roda antes de qualquer vídeo ter faixa** (da promoção até a faixa das 18:00), e o mesmo com canal novo antes da primeira sincronização. Esperado: nada é pedido ao YouTube, o canal com vídeo sem faixa **não** é carimbado (o canal novo, ainda sem vídeo gravado, é carimbado e a gravação das faixas o reabre no banco), e os vídeos com o dia fixo em D0 são lidos em D0 depois que a sincronização grava as faixas. Testes nas Tarefas 11b (não carimba), 13 (o dia inteiro simulado, três casos), 1a (o banco reabre) e 14a (a junção).
 5. **A função de prova devolve nulo ou uma forma inesperada** (função ausente, erro de rede). Esperado: o cron fica vermelho com "não foi possível ler a prova"; nunca verde. Teste na Tarefa 12.
 
 ---
@@ -159,7 +193,7 @@ Entradas que o spec implica e que mais provavelmente mordem; cada uma tem o test
 | *(emenda do portão: S-I1)* **A ordem dos canais na faixa das 12:00 é a mesma todo dia** | medido pelo revisor de software em 10, 11 e 12/10, ao segundo: a posição 7 começa às 12:02:47 (167 s do disparo), a 11 às 12:04:06. As posições 7 a 11 somam 376 dos 716 vídeos semanais (53%) | por que o corte fixo de 150 s do plano original nunca deixaria esses canais lerem os semanais |
 | *(emenda do portão)* Disparos com canal devido, por dia | 8 dos 72: dois por faixa (o da hora cheia e o dos 20 minutos). Entre 12:00 e 23:40 de São Paulo, 4 de 36 | a fase semanal tem 32 disparos por dia sem nenhum canal devido |
 | *(emenda do portão: D-I3)* Vídeos semanais por dia fixo (K15b, em produção) | 118, 99, 116, 92, 87, 99, 105 (soma 716); de 6 a 9 canais com vídeo devido por dia; no maior canal, de 30 a 45 por dia | o trabalho de um dia da fase semanal |
-| *(emenda do portão: D-I4)* Miniaturas (K16, em produção) | 708 versões, 703 correntes, **0 sem cópia no Blob**, 5 trocas em 10 dias; 687 vídeos sem versão nenhuma. Cópias guardadas: média de 38 kB (amostra de 12 por `HEAD`: de 8 a 126 kB) | pergunta 1; a conta do Blob |
+| *(emenda do portão: D-I4)* Miniaturas (K16, em produção) | 708 versões, 703 correntes, **0 sem cópia no Blob**, 5 trocas em 10 dias; 687 vídeos sem versão nenhuma. Cópias guardadas: *(fecho do portão: D-decl-1)* média de 31 kB, mediana de 26 kB, maior de 178 kB (60 cópias medidas por `HEAD` pelo revisor de dados; a amostra de 12 do autor dava 38 kB) | pergunta 1; a conta do Blob |
 
 **Não medido, declarado estimativa onde aparecer:** *(emenda do portão)* a duração por canal na faixa das 18:00 (K12 só guarda a última faixa; medir depois das 18:45 de São Paulo é o Step 4 da Tarefa 0, e o desenho da fase semanal **não depende** desse número); o tempo de uma sonda de miniatura com arquivo (suposto 1 s; a sonda sem arquivo é ≈ 0,3 s, deduzida dos 15 s que ela pesa hoje nos 50 vídeos de um canal); a folga do Blob; o tempo de ida e volta ao banco a partir da Vercel (suposto 50 ms; a Tarefa 14 mede); o tamanho real de uma resposta `videos.list` com as quatro partes (o banco não guarda nenhuma hoje); quantos vídeos antigos trocaram de título desde a última vez que foram vistos; o atraso do disparo da Vercel na hora cheia (o primeiro canal começa 49 s depois das 12:00: inclui o atraso e a sonda de controle; é a conferência C0.5, da E16).
 
@@ -226,7 +260,7 @@ De onde vem o acréscimo na sincronização de um canal (suposição: 50 ms por 
 | Linha de base de título, descrição e miniatura dos 687 nunca conferidos | 2.061 *(emenda do portão: D-I4; eram 1.374 sem a miniatura)* | ≈ 2,1 MB | 1.010 B por versão, medido em produção |
 | Os três índices da emenda (D-I5a) | | ≈ 0,6 MB | estimativa do revisor de dados |
 | **Total no banco** | | **≈ 9 a 11 MB** (o banco vai de 179 para ≈ 190 MB) | |
-| *(emenda do portão: D-I4)* **No Blob:** a miniatura atual dos 687 sem cópia | 687 arquivos (hoje são 708) | ≈ 26 MB (até 87 MB) | 38 kB em média nas cópias de hoje (amostra de 12; a maior, 126 kB) |
+| *(emenda do portão: D-I4)* **No Blob:** a miniatura atual dos 687 sem cópia | 687 arquivos (hoje são 708) | ≈ 21 MB (até 122 MB) *(fecho do portão: D-decl-1; era 26 e 87)* | 31 kB em média nas cópias de hoje (60 medidas; a maior, 178 kB) |
 
 **Volume, por dia e por ano, só o que este plano acrescenta:**
 
@@ -262,12 +296,12 @@ O histórico de campo custa mais que a estimativa do spec (0,2 MB por canal por 
 | Mais de 200 vídeos na regra diária | (não existe) | os mais antigos da regra de idade vão para a semanal; o número fica em `operations.teto_diario_cortados` e na resposta | resposta do cron e linha da cota | — |
 | A passada diária falha para um canal | o canal fica em erro; a sincronização seguinte completa | igual; **e** depois das 18:00, com a faixa inteira tentada: vermelho "N vídeos da faixa diária sem ponto hoje" | vigia | no dia seguinte vira a linha de baixo |
 | Ficou um dia sem ponto na faixa diária | **verde**, e o motor recusa o intervalo | **vermelho por 3 dias**: "N buracos na série diária nos últimos 3 dias" | vigia | sai sozinho no 4º dia (o ponto não volta; o aviso não é eterno) |
-| *(emenda do portão: D-I3, D-m1)* Depois das 19:00 ainda há vídeo semanal do dia sem ponto | (não existe) | **vermelho**: "N vídeos da faixa semanal devidos hoje e ainda sem ponto" (`semanal_devidos_hoje`, só cobrado depois das 19:00 de São Paulo e com a faixa inteira tentada) | vigia | no disparo seguinte (20 minutos) que conseguir ler; à meia-noite vira a linha de baixo |
+| *(emenda do portão: D-I3, D-m1)* Depois das 19:00 ainda há vídeo semanal do dia sem ponto | (não existe) | **vermelho**: "N vídeos da faixa semanal devidos hoje e ainda sem ponto" (`semanal_devidos_hoje`, só cobrado depois das 19:00 de São Paulo e com a faixa inteira tentada) | vigia | no disparo seguinte (20 minutos) que conseguir ler; à meia-noite vira a linha de baixo. *(fecho do portão: DF-2)* Não conta o vídeo que foi **pedido e não veio** (`miss_streak` maior que 0): esse é da linha "o vídeo deixa de vir", e contá-lo aqui daria vermelho falso até a meia-noite |
 | Um vídeo semanal chega ao 8º dia sem ponto | (não existe) | antes das 19:00 é nota (lido hoje, o intervalo de 8 dias ainda vale); depois das 19:00, **vermelho**: "N vídeos da faixa semanal no 8º dia sem ponto" (`semanal_atrasados`) | vigia | quando for lido; vídeo ausente ou sem contagem fica fora |
 | Um vídeo semanal passa de 8 dias sem ponto (9 ou mais) | (não existe) | **vermelho a qualquer hora**: "N vídeos da faixa semanal sem ponto há 9 dias ou mais (intervalo perdido)" (`semanal_atrasados_9d`) | vigia | quando for lido: o ponto volta, o intervalo perdido não (o motor o recusa, como recusa um buraco) |
 | O relógio do disparo acaba no meio da fase semanal | (não existe) | o vídeo não conferido não ganha ponto; o canal fica com `weekly_pass_date` de ontem e é o primeiro do disparo seguinte; o número do dia fica em `operations.semanais_adiados` | linha da cota (K3) e K17; se durar até as 19:00, a primeira linha deste bloco | 20 minutos depois |
-| A fase semanal falha num canal (erro do banco ou da API) | (não existe) | o canal **não** vai para "erro" (a sincronização dele deu certo); `weekly_pass_date` não é carimbado; nova tentativa no disparo seguinte; o erro vai ao Sentry e o número a `operations.erros_semanal` | linha da cota; depois das 19:00, `semanal_devidos_hoje` | quando a causa passar |
-| *(emenda do portão: D-I4)* Vídeo com faixa há 9 dias ou mais e nenhuma versão de miniatura guardada | **verde**: 687 vídeos estão assim hoje | **vermelho**: "N vídeos sem cópia da miniatura depois de 9 dias" (`sem_miniatura_9d`) | vigia | quando a leitura seguinte (no máximo 7 dias) guardar a cópia |
+| A fase semanal falha num canal (erro do banco ou da API) | (não existe) | o canal **não** vai para "erro" (a sincronização dele deu certo); `weekly_pass_date` não é carimbado; nova tentativa no disparo seguinte; o erro vai ao Sentry e o número a `operations.erros_semanal` | linha da cota; depois das 19:00, `semanal_devidos_hoje` | quando a causa passar. *(fecho do portão: M-n5)* Exceção declarada: se o que falhou foi a **captura** (campos ou `raw`) de um vídeo já conferido, o ponto dele foi gravado e ele deixa de ser devido; a captura só é refeita na leitura da semana seguinte (risco 12) |
+| *(emenda do portão: D-I4)* Vídeo com faixa há 9 dias ou mais e nenhuma versão de miniatura guardada | **verde**: 687 vídeos estão assim hoje | **vermelho**: "N vídeos sem cópia da miniatura depois de 9 dias" (`sem_miniatura_9d`) | vigia | quando a leitura seguinte (no máximo 7 dias) guardar a cópia. *(fecho do portão: D-decl-3)* **Ponto cego declarado:** a chave só vê o vídeo que **nunca foi sondado**. A versão aberta cuja gravação no Blob falhou (`thumb_blob_url` nulo) não entra, e o código não refaz a cópia (só refaz quando falta o `dhash`). Em produção em 12/10: 0 em 708. Conferência K16 em D+9; conserto com destino na E5 |
 | Vídeo com `series_tier` sem linha de faixa correspondente, ou sem faixa depois de o canal sincronizar | (não existe) | **vermelho**: "N vídeos sem faixa de série" | vigia | na sincronização seguinte do canal. *(emenda do portão: D-m2)* **Um caso não some sozinho:** `series_tier` gravado e nenhuma linha de faixa aberta (só nasce de edição manual no banco): a função de troca não vê diferença e não reabre. Conserto, do dono: `update competitor_videos set series_tier = null, series_tier_since = null where id in (<ids que a K9b devolve>);` e a sincronização seguinte reabre a faixa |
 | A função de prova não responde, ou responde outra forma | (não existe) | **vermelho**: "não foi possível ler a prova" | vigia | quando responder |
 | As migrations não foram aplicadas | (não se aplica) | o cron para antes de qualquer gravação: "migration MG1 (ou MG2) não aplicada". *(emenda do portão: S-M4)* Erro de rede ou banco fora na conferência do schema tem outra frase ("não foi possível conferir o schema: …"), para não mandar o dono aplicar o que já está aplicado | vigia | quando o dono aplicar, ou o banco voltar |
@@ -276,6 +310,7 @@ O histórico de campo custa mais que a estimativa do spec (0,2 MB por canal por 
 | Canal novo, sem `last_seen_at` | — | a primeira versão de cada campo nasce `first` (não é mudança) | — | — |
 | Vídeo anterior à MG1 (`discovered_at` nulo) | — | nunca ganha "primeiras horas" e a tela dirá "antes de dd/mm"; não é preenchido por palpite | — | — |
 | Vídeo anterior à MG2 (sem linha de faixa) | — | ganha a faixa na primeira sincronização do canal; antes disso nunca tem intervalo semanal | — | — |
+| *(fecho do portão: DF-1, SF-1)* A fase semanal visita um canal em que ainda há vídeo **sem faixa** (do deploy até a faixa das 18:00 do D0; troca de faixa que falhou), ou um canal novo que ainda não tem vídeo gravado | (não existe) | os vídeos que já têm faixa são lidos; **o canal com vídeo sem faixa não é carimbado** (`complete: false`), então continua na fila. O canal novo sem vídeo nenhum **é** carimbado (não há o que esperar). Nos dois casos, quando a sincronização grava as faixas, o vídeo que entra em semanal **zera** `weekly_pass_date` no banco (MG2): o canal volta à fila mesmo que tenha sido carimbado antes | K17 (`weekly_pass_date` nulo, `completa_hoje` falso) até a sincronização do canal; não é vermelho | na primeira sincronização boa do canal, e a leitura acontece nos disparos seguintes do mesmo dia |
 | A série semanal não cabe no pacote em cache (Lote 2) | — | o pacote é refeito sem ela, com a marca `weeklyOmitted`, e um aviso no Sentry | Sentry; a tela continua como hoje | quando o canal encolher ou o teto mudar |
 
 ## 7. Simulação do dia do deploy e dos seguintes
@@ -292,13 +327,28 @@ D0 é o dia em que o Lote 1 é promovido a `main`. **A data absoluta de D0, D+1,
 4. Se a faixa for a das 12:00 ou a das 18:00: a passada diária como hoje (os vídeos já capturados no passo 2 não são capturados de novo).
 5. A linha do dia em `youtube_quota_usage` nasce, com `operations = {"competitors": N}`.
 
-*(emenda do portão: D-I3, D-I4)* **Depois dos canais devidos, no mesmo disparo e nos seguintes (hora de São Paulo ≥ 12): a fase semanal.** Para cada canal com `weekly_pass_date` diferente de hoje, o mais antigo primeiro: os semanais cujo dia fixo é hoje (cerca de 1 em 7) são pedidos numa chamada por 50; cada um tem a linha regravada, os campos e o `raw` capturados, o título, a descrição **e a miniatura** conferidos (a primeira leitura abre a linha de base e guarda a imagem no Blob), e por último o ponto na série. Canal sem semanal devido é carimbado na hora. No D0 isso acontece, para cada canal, no primeiro disparo depois da primeira sincronização dele com o código novo (é ela que grava as faixas).
+*(emenda do portão: D-I3, D-I4)* **Depois dos canais devidos, no mesmo disparo e nos seguintes (hora de São Paulo ≥ 12): a fase semanal.** Para cada canal com `weekly_pass_date` diferente de hoje, o mais antigo primeiro: os semanais cujo dia fixo é hoje (cerca de 1 em 7) são pedidos numa chamada por 50; cada um tem a linha regravada, os campos e o `raw` capturados, o título, a descrição **e a miniatura** conferidos (a primeira leitura abre a linha de base e guarda a imagem no Blob), e por último o ponto na série. Canal sem semanal devido é carimbado na hora, **desde que todo vídeo dele já tenha faixa**.
 
-Se a promoção for depois das 12:21 de São Paulo, os canais já foram lidos pelo código antigo nessa faixa: o primeiro contato do código novo é a faixa das 18:00 (que também passa das 12:00, então a diária e a semanal do dia rodam lá; a diária já tem os pontos de hoje e não regrava).
+*(fecho do portão: DF-1, SF-1, DF-3, CTRL-F1. O parágrafo anterior dizia que no D0 a leitura acontecia "no primeiro disparo depois da primeira sincronização do canal com o código novo", e nada no código impunha isso: os dois revisores mostraram que os canais seriam carimbados antes de ter faixa e os devidos de D0 só seriam lidos em D+7. O que segue é o comportamento com os dois consertos, preso por teste na Tarefa 13.)*
+
+**O D0, hora a hora** (a promoção é obrigatoriamente entre 12:25 e 17:30 de São Paulo; exemplo com a promoção às 13:00):
+
+| Hora de São Paulo | O que acontece | O que a prova e as consultas mostram |
+|---|---|---|
+| 12:00 a 12:21 | o código **antigo** faz a faixa das 12:00: a série diária de D0 é gravada como sempre | — |
+| da promoção até 17:40 (até 16 disparos) | nenhum canal é devido (todos foram sincronizados às 12:00). A guarda `schemaReady` passa. A fase semanal roda (hora ≥ 12) e visita os 15 canais: **nenhum vídeo tem faixa ainda** (quem a grava é a sincronização do canal), então nada é devido, nada é pedido ao YouTube (0 unidade de cota) e **nenhum canal é carimbado** (Tarefa 11b: canal com vídeo sem faixa não fecha a passada). Cada disparo gasta cerca de 5 s nisso | cron verde. K17: `weekly_pass_date` nulo e `completa_hoje` falso em todos (**é o esperado nesse intervalo**). K9: tudo "(sem faixa)". `sem_faixa` da prova = 0 (o canal ainda não foi lido pelo código novo: `last_seen_at` nulo). `semanal_devidos_hoje` = 0 (nenhum vídeo é semanal ainda) |
+| 18:00 | primeiro contato do código novo com os canais: os primeiros 10 ou 11 são sincronizados (passos 1 a 5 acima; a passada diária não regrava os pontos de hoje). **As faixas nascem aqui**: nesses canais, os vídeos fora dos 50 mais recentes viram semanais, cerca de 1 em 7 com o dia fixo em D0. A troca de faixa zera `weekly_pass_date` do canal no banco (MG2; já estava nulo). Se sobrar relógio (a faixa das 12:00 não deixa; a das 18:00 nunca foi medida), a fase já lê os devidos desses canais | K9 e K14 começam a encher; `semanal_devidos_hoje` sobe para a carga do dia (de 87 a 118 no total), **sem vermelho**: essa chave só é cobrada depois das 19:00 |
+| 18:20 | os canais restantes são sincronizados (cerca de 105 s) e a fase tem o resto do disparo (cerca de 105 s): lê os devidos de D0, o canal em dívida mais antiga primeiro; canal lido por inteiro é carimbado | `semanal_devidos_hoje` caindo; K17 com canais em `completa_hoje` |
+| 18:40 | nenhum canal devido: a fase tem os 210 s e termina o que faltou (o trabalho do dia na semana 1 é de cerca de 115 s) | **`semanal_devidos_hoje` = 0 e todo canal com `completa_hoje` verdadeiro, antes das 19:00** |
+| 19:00 em diante | a prova passa a cobrar `semanal_devidos_hoje`: está em 0. Se ainda houver resto (a estimativa de 1,05 s por vídeo estava errada), o disparo das 19:00 lê **antes** de a prova ser lida, e os seguintes continuam | cron verde. K15 vazia, K17 completa |
+
+**Por que não depende de sorte.** (1) A fase não carimba canal em que ainda há vídeo sem faixa (código, Tarefa 11b). (2) Se algum chamador carimbar mesmo assim, a gravação das faixas desfaz o carimbo na mesma transação (banco, MG2): vale para o cron, para o "sincronizar agora" e para a tarefa `serie_semanal` da E16. (3) O teste "dia do deploy" da Tarefa 13 roda as duas situações (com a defesa do código; e sem ela, só com o banco) e afirma que os 104 devidos de D0 são lidos em D0, antes das 19:00; um terceiro caso reproduz o defeito (sem nenhum dos dois consertos, zero lido). **Canal novo com carga completa**, e canal que passa a `full` à tarde: antes da primeira sincronização o canal novo não tem vídeo gravado, então a fase o carimba (a regra 1 não o segura); é a regra 2 que o reabre quando a carga grava as faixas, e ele é lido no disparo seguinte do mesmo dia (teste "canal novo no meio da tarde", Tarefa 13).
+
+**Se a faixa das 18:00 for mais lenta que a das 12:00** (não medida): a leitura dos devidos escorrega um disparo (19:00, 19:20). Entre as 19:00 e o disparo que terminar, o cron fica vermelho com "N vídeos da faixa semanal devidos hoje e ainda sem ponto", e volta a verde sozinho. Não há perda: é o aviso certo, e some em 20 a 40 minutos.
 
 | | O que roda | O que grava (15 canais) | O que aparece em falha |
 |---|---|---|---|
-| **D0** | o descrito acima | `raw`: 15 + ≈ 776 (674 diários, ≈ 102 semanais); campos: 105 + ≈ 7.760; faixas: 1.390; série: os 674 de sempre mais ≈ 102; versões de título, descrição e miniatura: ≈ 294; ≈ 98 imagens no Blob; cota: 1 linha | nada esperado. Se vier: "N vídeos lidos sem resposta guardada" (captura falhou), "cota do dia não registrada", "N vídeos sem faixa". Depois das 19:00: "N vídeos da faixa semanal devidos hoje e ainda sem ponto" se a fase não tiver rodado. "Buracos" e "semanal atrasado" não podem aparecer: as faixas começam hoje |
+| **D0** | o descrito acima; *(fecho do portão: DF-3)* tudo o que é do código novo acontece **a partir das 18:00** (a faixa das 12:00 foi do código antigo) | `raw`: 15 + ≈ 776 (674 diários, ≈ 102 semanais); campos: 105 + ≈ 7.760; faixas: 1.390; série: os 674 de sempre mais ≈ 102; versões de título, descrição e miniatura: ≈ 294; ≈ 98 imagens no Blob; cota: 1 linha | nada esperado. Se vier: "N vídeos lidos sem resposta guardada" (captura falhou), "cota do dia não registrada", "N vídeos sem faixa". *(fecho do portão: DF-3)* Depois das 19:00: "N vídeos da faixa semanal devidos hoje e ainda sem ponto" só se a fase não tiver terminado de ler até o disparo das 19:00 (o esperado é terminar às 18:40; tabela "O D0, hora a hora", acima); some no disparo que terminar. "Buracos" e "semanal atrasado" não podem aparecer: as faixas começam hoje |
 | **D+1 a D+6** | cada dia, mais ≈ 102 semanais ganham o primeiro ponto, a primeira resposta, a linha de base e a cópia da miniatura | por dia: ≈ 102 `raw`, ≈ 1.020 campos, ≈ 102 pontos, ≈ 294 versões, ≈ 98 imagens no Blob; quase nada nos 674 diários (só o que mudou) | um dia de diária perdido deixa "buracos" por 3 dias |
 | **D+3** | primeiro vídeo descoberto depois do deploy completa 72 horas | — | consulta K8 (item 16): tem de voltar vazia |
 | **D+6** | — | todos os 1.390 têm `raw`, campos e pelo menos um ponto | K1 = 0 |
@@ -334,7 +384,7 @@ O spec é a referência; onde o plano faz diferente, é aqui, com o motivo.
 
 - **O que é devido.** Um vídeo semanal é devido quando não tem ponto hoje e (hoje é o dia fixo dele, **ou** o último ponto dele tem 7 dias ou mais, **ou** nunca teve ponto e está na faixa há 7 dias ou mais): a função pura `weeklyDue` (Tarefa 5), que não mudou.
 - **Quem lê.** `syncCompetitorWeekly(canal)` (Tarefa 11b), função exportada, com parâmetros explícitos: lê os vídeos semanais do canal, acha os devidos, pede ao YouTube em lotes de 50 e, para cada um, grava a linha, os campos, o `raw`, as versões (título, descrição, miniatura) e **por último** o ponto. É a função que a tarefa `serie_semanal` da E16 vai chamar.
-- **Quem dispara.** `runCompetitorBatch` (Tarefa 13), depois do laço dos canais devidos, quando a hora de São Paulo é 12 ou mais: visita os canais com `weekly_pass_date` diferente de hoje, do mais antigo para o mais novo (nulo primeiro), com até 60 s por visita, em rodízio, enquanto o disparo tem menos de 210 s. O canal cuja passada termina sem nada adiado é carimbado com a data de hoje e sai da fila do dia.
+- **Quem dispara.** `runCompetitorBatch` (Tarefa 13), depois do laço dos canais devidos, quando a hora de São Paulo é 12 ou mais: visita os canais com `weekly_pass_date` diferente de hoje, do mais antigo para o mais novo (nulo primeiro), com até 60 s por visita, em rodízio, enquanto o disparo tem menos de 210 s. O canal cuja passada termina sem nada adiado é carimbado com a data de hoje e sai da fila do dia. *(fecho do portão: DF-1, SF-1)* Duas regras fecham o buraco do dia do deploy e do canal novo: **o canal em que ainda há vídeo sem faixa não é carimbado** (Tarefa 11b), e **o vídeo que entra em semanal reabre a passada do canal** (`apply_competitor_tier_plan` zera `weekly_pass_date`, MG2).
 - **Por que é correto por construção.** (1) A dívida não é memória de uma execução: é o dado (`weekly_pass_date` do canal, e a falta do ponto de hoje no vídeo). (2) A prioridade é da dívida mais antiga, não da posição na fila dos canais. (3) O orçamento é por canal: um canal grande não tira a vez dos outros, e o que sobra dele continua no disparo seguinte. (4) O tempo não depende da faixa das 18:00: 32 dos 36 disparos entre 12:00 e 23:40 não têm canal devido (medido) e começam com o relógio inteiro.
 - **O limite, provado por teste (Tarefa 13).** Com 15 canais a 21 s na ordem estável, as duas faixas simuladas (12:00, 12:20, 12:40 e 18:00, 18:20, 18:40) e o trabalho semanal da semana 1: todo canal tem a passada completa até o disparo das 12:40. No caso duro (os disparos com canal devido não deixam tempo nenhum para a fase): todos completos no primeiro disparo sem canal devido. **Todo vídeo devido no dia D é lido em D.** Se D inteiro se perder (cron parado das 12:00 às 23:40), o vídeo é devido de novo em D+1 pela regra dos 7 dias e o intervalo fica em 8 dias de calendário, que o motor ainda aceita. Só há perda no 9º dia, e ela é vermelha (`semanal_atrasados_9d`).
 - **Provas embutidas** (Tarefa 12): `semanal_devidos_hoje` (a consulta K15 do revisor de dados, dentro do cron; vermelha depois das 19:00), `semanal_atrasados` (8º dia; vermelha depois das 19:00) e `semanal_atrasados_9d` (vermelha sempre).
@@ -407,7 +457,7 @@ Sem código. Antes da Tarefa 1.
 - [ ] **Step 1:** criar `.superpowers/sdd/a5-e1-e2/progress.md` com a tabela de tarefas (estado, commit, revisão), a linha da OP-15 copiada do spec com a escolha deste plano (seção 8), e a lista "Dívida registrada" vazia.
 - [ ] **Step 2:** *(emenda do portão: CTRL-i)* registrar no ledger as seis perguntas da seção 1 com o padrão de cada uma e, quando o dono responder, a resposta (ou "sem resposta: vale o padrão"). Copiá-las para `.superpowers/sdd/a5/perguntas-para-o-dono.md`.
 - [ ] **Step 3:** *(emenda do portão: S-M12)* o arquivo da MG13 (E20) já existe (`supabase/migrations/20261012000001_observatorio_guarda_do_bruto.sql`). Conferir em produção se foi aplicada (`npx supabase db query --linked "select max(version) from supabase_migrations.schema_migrations"`) e anotar: se ainda não, vai no mesmo `db:push:prod`, antes da MG1 (o carimbo dela é menor). **Não criar a MG1 e a MG2 com carimbo anterior ao dela** (o `db:new` já garante).
-- [ ] **Step 4:** *(emenda do portão: D-I3, CTRL-e)* **medir a faixa das 18:00, antes de qualquer execução.** Entre 18:45 e 23:59 de São Paulo (21:45 a 02:59 UTC), rodar a K12 (seção 10) em produção e gravar a saída no ledger: a posição e o segundo em que cada canal começou. O desenho da fase semanal **não depende** desse número (seção 8, OP-15); ele entra na tabela de tempo da seção 5 e diz quanto do disparo das 18:00 sobra para a fase. *(Em 12/10, às 16:57 de São Paulo, a K12 ainda mostrava a faixa das 12:00: a emenda foi fechada antes das 18:45.)*
+- [ ] **Step 4:** *(emenda do portão: D-I3, CTRL-e)* **medir a faixa das 18:00, antes de qualquer execução.** Entre 18:45 e 23:59 de São Paulo (21:45 a 02:59 UTC), rodar a K12 (seção 10) em produção e gravar a saída no ledger: a posição e o segundo em que cada canal começou. O desenho da fase semanal **não depende** desse número (seção 8, OP-15); ele entra na tabela de tempo da seção 5 e diz quanto do disparo das 18:00 sobra para a fase. *(Em 12/10, às 16:57 de São Paulo, a K12 ainda mostrava a faixa das 12:00: a emenda foi fechada antes das 18:45.)* *(fecho do portão)* O fecho também terminou antes das 18:45 de São Paulo (a prova local rodou às 17:44; às 17:50 a faixa das 18:00 ainda não tinha acontecido): **a K12 das 18:00 continua não medida e continua sendo este passo.** Com o fecho, o número ganhou um uso a mais: é ele que diz se, no D0, a leitura dos devidos termina às 18:40 ou escorrega para as 19:00 (seção 7, "O D0, hora a hora").
 - [ ] **Step 5:** *(emenda do portão: S-M11)* avisar o terminal da A4 de que a Tarefa 1a aplica migrations no banco local compartilhado (`migration up --local` leva também o que estiver em `supabase/migrations`, inclusive rascunho de outro terminal) e de que, a partir dela, contagem de vídeo não informada nasce nula no banco local.
 
 *(emenda do portão: S-I10. A Tarefa 1 foi dividida: 1a, as migrations e as funções; 1b, o bloco de RLS, que era um parágrafo e é a única prova do item 11.)*
@@ -430,7 +480,7 @@ Sem código. Antes da Tarefa 1.
   - `competitor_capture_health(p_site_id uuid, p_now timestamptz) returns jsonb` → chaves `videos_vistos_sem_raw`, `canais_vistos_sem_raw`, `canais_vistos_dia_pacifico`, `cota_dia_pacifico`, `videos_ausentes`, `canais_ausentes`, `canais_em_erro_12h`, `canais_em_erro_3d` *(emenda do portão: D-I1)*.
   - `apply_competitor_tier_plan(p_site_id uuid, p_channel_id uuid, p_changes jsonb, p_today date) returns jsonb` → `{"changed": n}`. `p_changes`: `[{"video_id", "tier"}]`.
   - `competitor_series_health(p_site_id uuid, p_now timestamptz) returns jsonb` → chaves `hoje`, `hora_sp`, `fora_da_prova`, `sem_faixa`, `diaria_sem_ponto_hoje`, `diaria_buracos_3d`, `semanal_atrasados`, `semanal_atrasados_9d`, `semanal_devidos_hoje`, `sem_miniatura_9d` *(emenda do portão: D-I3, D-I4)*, `diaria_total`, `semanal_total`.
-  - *(emenda do portão)* As três funções de plano lançam "canal … não é do site …" quando `p_channel_id` não pertence a `p_site_id` (D-m3). `competitor_channels` ganha `weekly_pass_date date` (D-I3).
+  - *(emenda do portão)* As três funções de plano lançam "canal … não é do site …" quando `p_channel_id` não pertence a `p_site_id` (D-m3). `competitor_channels` ganha `weekly_pass_date date` (D-I3). *(fecho do portão: DF-1)* `apply_competitor_tier_plan` tem um efeito a mais: quando algum vídeo da chamada **entra** em `semanal`, grava `weekly_pass_date = null` no canal. *(fecho do portão: DF-2)* `semanal_devidos_hoje` não conta vídeo com `miss_streak` maior que 0.
 
 - [ ] **Step 1: prova de compatibilidade do código ANTIGO, antes de criar qualquer arquivo.** Guarde a linha de base:
 
@@ -600,6 +650,10 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: funções das migrations (banco 
 | `D-I3: semanal aos 7, 8 e 9 dias, e o dia fixo` | vídeo em faixa semanal há 20 dias: último ponto há 7 dias → (`semanal_devidos_hoje`, `semanal_atrasados`, `semanal_atrasados_9d`) = (1, 0, 0); há 8 → (1, 1, 0); há 9 → (1, 1, 1); com ponto hoje → (0, 0, 0). Com ponto há 3 dias: devido só se hoje for o dia fixo do `video_id` (use `weekSlotOf` e `dayNumber` de `@/lib/youtube/competitor-tiers` para escolher um id que cai hoje e outro que não cai: **é a prova de que o SQL e o TypeScript calculam o mesmo dia fixo**). Com `views_hidden = true`: sai das três e entra em `fora_da_prova` |
 | `D-I4: vídeo com faixa há 9 dias e sem versão de miniatura` | `sem_miniatura_9d = 1`; depois de inserir uma linha `field = 'thumb'` em `competitor_video_versions`, 0; vídeo com faixa há 3 dias não conta |
 | `D-I3: weekly_pass_date nasce nula e aceita data` | `select weekly_pass_date` do canal recém-criado é nulo; `update … set weekly_pass_date = <hoje>` passa |
+| *(fecho do portão: DF-1)* `fecho F-1: o vídeo que entra em semanal reabre a passada do canal` | canal com dois vídeos sem faixa e `weekly_pass_date = <hoje>` (carimbado antes de ter faixa: o dia do deploy). Cinco passos, lendo `weekly_pass_date` na tabela depois de cada chamada a `apply_competitor_tier_plan`: (1) a primeira classificação (um vídeo para `semanal`, outro para `diaria`) devolve `changed: 2` e deixa **nulo**; (2) carimbe de novo e repita a mesma chamada: `changed: 0` e o carimbo **fica**; (3) promoção (o semanal vai para `diaria`): `changed: 1` e o carimbo **fica**; (4) rebaixamento (volta para `semanal`): `changed: 1` e fica **nulo**; (5) com o canal já nulo, outra entrada em semanal passa sem erro. E o carimbo de **outro** canal do mesmo site não é tocado |
+| *(fecho do portão: DF-2)* `fecho F-2: vídeo semanal pedido e não devolvido não conta como devido` | vídeo semanal no dia fixo, último ponto há 3 dias, sem ponto hoje: `semanal_devidos_hoje = 1`; com `miss_streak = 1`: **0**, e `fora_da_prova` continua 0 (uma falta não é ausência); de volta a `miss_streak = 0`: 1 |
+
+*(fecho do portão)* O roteiro com esses dois casos é `.superpowers/sdd/a5/plano-e1-e2-fecho-prova.sql` (as 35 asserções da emenda mais 9 do fecho; rodado em 12/10 à noite contra o SQL final, nas ordens MG1, MG2, MG1, MG2 e MG1, MG1, MG2, MG2; saída em `plano-e1-e2-fecho-prova-saida.txt`). Trocando o SQL pelo anterior ao fecho, o roteiro falha em "F-1 caso 1" e em "F-2: depois da 1ª falta" (conferido).
 
 - [ ] **Step 6: rodar.**
 
@@ -609,7 +663,7 @@ cd /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web && HAS_LOCAL_DB=1 npx
 
 Esperado: todos passam. Rode também sem a variável (`npx vitest run test/integration/observatorio-a5-e1-e2-migration.test.ts`): tudo pulado, zero falha.
 
-- [ ] **Step 7: as consultas de conferência.** Rode V1, V2 e V3 (seção 2) e K1 a K17 (seção 10) no banco local por `docker exec -i supabase_db_bythiagofigueiredo psql -U postgres -c "<consulta>"`. Esperado: nenhuma dá erro de SQL; V1 dá *(emenda do portão)* 21, 13, 5, 5, 9, 9, `'{}'::jsonb`, 0. (Todas já foram rodadas em 12/10 pelo autor do plano; este passo garante que o arquivo de migration colado é o mesmo.)
+- [ ] **Step 7: as consultas de conferência.** Rode V1, V1b *(fecho do portão: esperado `true`, `true`)*, V2 e V3 (seção 2) e K1 a K17 (seção 10) no banco local por `docker exec -i supabase_db_bythiagofigueiredo psql -U postgres -c "<consulta>"`. Esperado: nenhuma dá erro de SQL; V1 dá *(emenda do portão)* 21, 13, 5, 5, 9, 9, `'{}'::jsonb`, 0. (Todas já foram rodadas em 12/10 pelo autor do plano; este passo garante que o arquivo de migration colado é o mesmo.)
 
 - [ ] **Step 8: commit.**
 
@@ -728,7 +782,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: RLS das tabelas novas com GUC fo
               : table === 'competitor_raw'
                 ? await as(who, `insert into public.competitor_raw (site_id, competitor_channel_id, raw_sha256, first_seen_at, last_seen_at, is_current, raw) values ($1, $2, 'z', now(), now(), false, '{}')`, [siteId, ch])
                 : await as(who, `insert into public.competitor_field_versions (site_id, competitor_channel_id, field, value_hash, first_seen_at, last_seen_at, precision, is_current) values ($1, $2, 'name', 'z', now(), now(), 'first', false)`, [siteId, ch])
-        expect(direct.error, 'insert direto tinha de falhar').not.toBeNull()
+        // (fecho do portão: M-n2) não basta "qualquer erro": coluna com nome errado passaria como se fosse RLS
+        expect(direct.error, 'insert direto tinha de falhar por RLS ou por falta de permissão').toMatch(/row-level security|permission denied/)
       })
     }
     it(`${who} não executa as funções de escrita`, async () => {
@@ -2893,7 +2948,9 @@ e, antes de `await captureFetched(pagePairs)`:
 
 (b) No `return` de sucesso: `...(earlyRecorded ? { earlyRecorded } : {})`.
 
-- [ ] **Step 5:** rodar o comando da regra → verde, com os seis casos do `it.each`. Se um deles falhar porque a gravação lança na hora, é o `fail` que tinha de ser `late`: conserte no código, não no teste.
+*(fecho do portão: SF-nota; menor do revisor de software sobre o I-5)* **Sétimo caso do `it.each`, a acrescentar nesta tarefa:** `['competitor_videos:insert', /linha do vídeo/]`, o `insert` do vídeo novo na página, que a regra também manda passar por `late` (o falso distingue `insert` de `update` pelo sufixo, como já faz com `patch`). Com ele são sete casos.
+
+- [ ] **Step 5:** rodar o comando da regra → verde, com os seis casos do `it.each` (sete com o do fecho). Se um deles falhar porque a gravação lança na hora, é o `fail` que tinha de ser `late`: conserte no código, não no teste.
 
 - [ ] **Step 6: commit.**
 
@@ -2925,7 +2982,8 @@ export interface WeeklyResult {
   unitsUsed: number
   changesDetected: number
   longWindowChanges: number
-  /** true = nada ficou adiado; o canal foi carimbado com weekly_pass_date = hoje */
+  /** true = nada ficou adiado E todo vídeo do canal já tem faixa; o canal foi carimbado com weekly_pass_date = hoje.
+   *  (fecho do portão: SF-1) canal com vídeo ainda sem faixa nunca é carimbado: a passada dele não está completa. */
   complete: boolean
   /** o canal está sendo sincronizado agora por outro processo: nada foi feito */
   skipped?: boolean
@@ -3100,6 +3158,30 @@ async function runChannel(channelRow: ChannelRef, apiKey: string, opts: RunOpts,
     expect(r).toMatchObject({ changesDetected: 0, longWindowChanges: 1 })
     expect(vi.mocked(createNotification)).not.toHaveBeenCalled()
   })
+  // (fecho do portão: SF-1, DF-1) o dia do deploy e o canal novo: a fase roda antes de a sincronização gravar as faixas
+  it('fecho F-1: canal em que ainda há vídeo SEM faixa não é carimbado: o que já tem faixa é lido, e complete é falso', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [weeklyRow(7), row(8, 408)] })                  // row() nasce com series_tier nulo
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })
+    expect(r).toMatchObject({ due: 1, recorded: 1, deferred: 0, complete: false })
+    expect(pointsOf(db)).toEqual(['v-7'])
+    expect(stamp(db)).toEqual([])
+  })
+  it('fecho F-1: canal em que NENHUM vídeo tem faixa (antes da primeira sincronização com o código novo): nenhuma chamada à API, nada carimbado', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [row(1, 1), row(7, 407)] })
+    const log = { dailyCalls: [] as string[] }
+    const r = await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo, log }) })
+    expect(log.dailyCalls).toEqual([])
+    expect(r).toMatchObject({ due: 0, recorded: 0, deferred: 0, unitsUsed: 0, complete: false })
+    expect(stamp(db)).toEqual([])
+  })
+  it('fecho F-1: canal sem vídeo nenhum não tem o que esperar: é carimbado', async () => {
+    const day = slotDate('vid-7')
+    const db = setup({ all: [] })
+    expect(await syncCompetitorWeekly(ch, 'k', { now: at12(day), fetchImpl: apiFetch(null, 200, { daily: echo }) })).toMatchObject({ due: 0, complete: true })
+    expect(stamp(db)).toEqual([{ weekly_pass_date: day }])
+  })
   it('a cota da leitura semanal vai para a linha do dia, na chave competitors_semanal, com os adiados e as mudanças de janela longa', async () => {
     const day = slotDate('vid-7')
     const db = setup({ all: [weeklyRow(7)] })
@@ -3223,7 +3305,10 @@ O CAS de hoje fica dentro de `if (mode === 'slot') { … }`; as variáveis que s
     if (missedIds.length) await markMissing(supabase, { siteId: channelRow.site_id, channelId: channelRow.id, videoIds: missedIds, nowIso, weeklySinceOf: id => rowInfo.get(id)?.weeklySince ?? null })
     const promoted = 0 // a Tarefa 11c troca esta linha pela promoção por estado
     if (lateFailure) throw lateFailure // linha do vídeo ou captura que não gravou: não carimba; o disparo seguinte refaz
-    const complete = deferred === 0
+    // (fecho do portão: SF-1, DF-1) Canal em que ainda há vídeo SEM faixa não fecha a passada: quem grava a faixa é a sincronização
+    // do canal, e até lá não se sabe o que é devido (dia do deploy, canal novo, troca de faixa que falhou). Sem isto o canal seria
+    // carimbado "completo hoje" e os vídeos com o dia fixo de hoje só seriam lidos 7 dias depois. A MG2 cobre o mesmo caso no banco.
+    const complete = deferred === 0 && !all.some(r => r.series_tier == null)
     if (complete) {
       const { error } = await supabase.from('competitor_channels').update({ weekly_pass_date: today }).eq('id', channelRow.id)
       fail('stamp weekly pass', error)
@@ -3247,7 +3332,7 @@ Notas: (1) o aviso de trocas (`createNotification`) continua só na sincronizaç
 cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts && git diff --cached --name-only && git commit -m "feat: leitura semanal dos concorrentes como função própria, devida pelo próprio dado, com a miniatura conferida e o ponto como recibo (A5 E2, OP-15)" -- apps/web/src/lib/youtube/competitor-sync.ts apps/web/test/youtube/competitor-sync-a5.test.ts apps/web/test/youtube/competitor-sync-harness.ts
 ```
 
-**Pronto quando:** os casos da OP-15, o Review Focus 4 e a conta de chamadas (1 para 34, 3 para 120) passam; a miniatura do semanal é conferida e arquivada; nenhum teste anterior foi tocado.
+**Pronto quando:** os casos da OP-15, o Review Focus 4 e a conta de chamadas (1 para 34, 3 para 120) passam; a miniatura do semanal é conferida e arquivada; *(fecho do portão: SF-1)* os três testes "fecho F-1" passam (canal com vídeo sem faixa não é carimbado); nenhum teste anterior foi tocado.
 
 ### Task 11c: a promoção de semanal para diária, decidida pelo estado gravado
 
@@ -3631,7 +3716,11 @@ describe('A5: tetos de tempo do disparo (a conta presa)', () => {
     expect(WEEKLY_DEADLINE_MS).toBeLessThan(BACKFILL_DEADLINE_MS)
     expect(WEEKLY_CHANNEL_BUDGET_MS).toBeLessThan(WEEKLY_DEADLINE_MS)
     // o último vídeo da fase começa no máximo aos 210 s; o pior caso de uma sonda com arquivo são 55 s de tempos de espera somados
+    // (fecho do portão: M-n3) esta conta NÃO inclui o teto da prova (PROOF_TIMEOUT_MS, 20 s, na rota): no pior caso (o último vídeo
+    // começa aos 210 s, a sonda dele espera os 55 s e a prova usa os 20 s inteiros) a função chega a 285 s e sobram cerca de 15 s.
+    // Risco declarado (seção 12, item 8); o teste seguinte prende a soma para ninguém subir um dos três sem ver.
     expect(COMPETITORS_MAX_DURATION_S * 1000 - WEEKLY_DEADLINE_MS).toBeGreaterThanOrEqual(55_000 + 30_000)
+    expect(WEEKLY_DEADLINE_MS + 55_000 + 20_000).toBeLessThan(COMPETITORS_MAX_DURATION_S * 1000)
     expect(BATCH_BUDGET_MS).toBeLessThan(BACKFILL_DEADLINE_MS)
     expect(BACKFILL_DEADLINE_MS).toBeLessThan(COMPETITORS_MAX_DURATION_S * 1000)
     // o último canal começa no máximo aos 200 s; o maior medido em produção leva 27 s (12/10/2026): cabem dois e sobra
@@ -3648,7 +3737,8 @@ describe('A5: o lote passa o relógio à passada semanal e soma os contadores', 
   const mockAll = (sync: (r: { id: string }, key: string, o: Record<string, unknown>) => Promise<Record<string, unknown>>, rows: unknown[]) => {
     vi.resetModules()
     vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
-    vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(sync) }))
+    // (fecho do portão: SF-3) o lote importa spDate deste módulo: o falso tem de exportá-la, senão o primeiro acesso lança
+    vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn(sync), syncCompetitorWeekly: vi.fn(), spDate: (ms: number) => new Date(ms - 3 * 3_600_000).toISOString().slice(0, 10) }))
     vi.doMock('@/lib/youtube/short-guard', () => ({ runControlProbe: vi.fn(async () => undefined), warnIfProbeBlocked: vi.fn() }))
     vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: vi.fn(async () => undefined) }))
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows, error: null }) }) }) }) }))
@@ -3699,26 +3789,52 @@ describe('A5: a fase semanal não depende da posição do canal nem da faixa das
   const DAY = '2026-10-24'
   type Row = { id: string; channel_id: string; channel_name: string; site_id: string; last_synced_at: string | null; sync_status: string; sync_error: string | null; sync_error_since: string | null; missing_since: string | null; weekly_pass_date: string | null }
   /** `due[i]` = vídeos semanais devidos hoje no canal da posição i (a ordem de last_synced_at é a ordem do índice, estável). */
-  const world = (o: { syncMs: number; videoMs: number; due: number[]; failWeeklyUntil?: number }) => {
+  /**
+   * (fecho do portão: SF-1, DF-1) Opções do dia do deploy:
+   *  - lastSync: a hora (São Paulo) da última sincronização dos canais (padrão 06:00; '12:00' = o código antigo já fez a faixa do meio-dia);
+   *  - unclassified: nenhum vídeo tem faixa ainda; a sincronização do canal é quem classifica;
+   *  - stampUnclassified: a leitura semanal SEM a defesa da Tarefa 11b (carimba o canal mesmo sem faixa): o defeito F-1;
+   *  - noReopen: o banco SEM o conserto da MG2 (a troca de faixa não zera weekly_pass_date).
+   */
+  const world = (o: { syncMs: number; videoMs: number; due: number[]; failWeeklyUntil?: number; lastSync?: string; unclassified?: boolean; stampUnclassified?: boolean; noReopen?: boolean }) => {
     let clock = 0
-    const rows: Row[] = o.due.map((_, i) => ({ id: 'c' + String(i).padStart(2, '0'), channel_id: 'UC' + i, channel_name: 'Canal ' + i, site_id: 's1', last_synced_at: new Date(at(DAY, '06:00') + i * 1000).toISOString(), sync_status: 'idle', sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null }))
+    const rows: Row[] = o.due.map((_, i) => ({ id: 'c' + String(i).padStart(2, '0'), channel_id: 'UC' + i, channel_name: 'Canal ' + i, site_id: 's1', last_synced_at: new Date(at(DAY, o.lastSync ?? '06:00') + i * 1000).toISOString(), sync_status: 'idle', sync_error: null, sync_error_since: null, missing_since: null, weekly_pass_date: null }))
     const left = new Map(rows.map((r, i) => [r.id, o.due[i]!]))
     const order: string[] = []
+    const classified = new Set(o.unclassified ? [] : rows.map(r => r.id))   // canais cujos vídeos já têm faixa
+    const readAt = new Map<string, number>()                                  // canal → o relógio em que o último devido dele foi lido
     vi.resetModules()
     vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
     vi.doMock('@/lib/youtube/short-guard', () => ({ runControlProbe: vi.fn(async () => undefined), warnIfProbeBlocked: vi.fn() }))
     vi.doMock('@/lib/youtube/short-backfill', () => ({ reclassifyStoredShortsRoundRobin: vi.fn(async () => undefined) }))
     vi.doMock('@/lib/youtube/competitor-quota', () => ({ recordQuota: vi.fn(async () => undefined), pacificDate: () => DAY }))
-    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: [...rows].sort((a, b) => (a.last_synced_at ?? '').localeCompare(b.last_synced_at ?? '')), error: null }) }) }) }) }))
+    // (fecho do portão: SF-1) o lote recebe uma CÓPIA das linhas, como em produção: o que a sincronização grava no meio do disparo
+    // (last_synced_at, weekly_pass_date) só é visto no disparo seguinte. Com o mesmo objeto, o teste esconderia a leitura velha.
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: () => ({ select: () => ({ order: () => Promise.resolve({ data: rows.map(r => ({ ...r })).sort((a, b) => (a.last_synced_at ?? '').localeCompare(b.last_synced_at ?? '')), error: null }) }) }) }) }))
     vi.doMock('@/lib/youtube/competitor-sync', () => ({
-      syncCompetitorChannel: vi.fn(async (r: { id: string }) => { rows.find(x => x.id === r.id)!.last_synced_at = new Date(clock).toISOString(); clock += o.syncMs; return { unitsUsed: 3 } }),
+      // (fecho do portão: SF-3) spDate é importada pelo lote (runWeeklyPhase): sem ela aqui, 7 dos 8 testes lançavam antes de provar algo
+      spDate: (ms: number) => new Date(ms - SP).toISOString().slice(0, 10),
+      syncCompetitorChannel: vi.fn(async (r: { id: string }) => {
+        const row = rows.find(x => x.id === r.id)!
+        row.last_synced_at = new Date(clock).toISOString(); clock += o.syncMs
+        // a sincronização grava as faixas; na MG2, o vídeo que ENTRA em semanal zera weekly_pass_date do canal (apply_competitor_tier_plan)
+        if (!classified.has(r.id)) { classified.add(r.id); if (!o.noReopen) row.weekly_pass_date = null }
+        return { unitsUsed: 3 }
+      }),
       syncCompetitorWeekly: vi.fn(async (r: { id: string }, _k: string, w: { deadline?: () => boolean }) => {
         order.push(r.id)
+        const row = rows.find(x => x.id === r.id)!
         if (o.failWeeklyUntil != null && clock < o.failWeeklyUntil) { clock += 2_000; throw new Error('boom') }
+        if (!classified.has(r.id)) {
+          // nenhum vídeo do canal tem faixa: nada é devido. Com a defesa da Tarefa 11b o canal NÃO é carimbado (complete: false).
+          clock += 300
+          if (o.stampUnclassified) row.weekly_pass_date = DAY
+          return { due: 0, recorded: 0, deferred: 0, promoted: 0, unitsUsed: 0, changesDetected: 0, longWindowChanges: 0, complete: o.stampUnclassified === true }
+        }
         let n = left.get(r.id)!, recorded = 0
         while (n > 0 && !w.deadline?.()) { clock += o.videoMs; n--; recorded++ }
         left.set(r.id, n)
-        if (n === 0) rows.find(x => x.id === r.id)!.weekly_pass_date = DAY
+        if (n === 0) { row.weekly_pass_date = DAY; readAt.set(r.id, clock) }
         return { due: n + recorded, recorded, deferred: n, promoted: 0, unitsUsed: recorded ? 1 : 0, changesDetected: 0, longWindowChanges: 0, complete: n === 0 }
       }),
     }))
@@ -3728,7 +3844,9 @@ describe('A5: a fase semanal não depende da posição do canal nem da faixa das
       return runCompetitorBatch({ apiKey: 'k', batchSize: 15, budgetMs: BATCH_BUDGET_MS, now: () => clock, ...(weekly ? { weekly: true } : {}) })
     }
     const pending = () => rows.filter(r => r.weekly_pass_date !== DAY).map(r => r.id)
-    return { rows, left, order, fire, pending }
+    /** O que `semanal_devidos_hoje` conta: devidos de hoje ainda sem ponto, nos canais que já têm faixa. */
+    const devidosHoje = () => rows.filter(r => classified.has(r.id)).reduce((a, r) => a + left.get(r.id)!, 0)
+    return { rows, left, order, fire, pending, devidosHoje, readAt }
   }
   // o que foi medido em produção em 12/10: 15 canais a 21 s; devidos por canal num dia da semana 1 (K15b: 87 a 118 no total)
   const MEASURED = [1, 13, 0, 34, 1, 0, 32, 7, 12, 3, 1, 0, 0, 0, 0]
@@ -3748,6 +3866,7 @@ describe('A5: a fase semanal não depende da posição do canal nem da faixa das
     await w.fire('12:40')                               // nenhum canal devido: a fase tem o disparo inteiro
     expect(w.pending()).toEqual([])
     expect([...w.left.values()].every(n => n === 0)).toBe(true)
+    expect(new Set(w.order).size).toBe(15)              // (fecho do portão: SF-3) a fase visitou os 15 canais de verdade
     // a faixa das 18:00 não tem nada a fazer na fase (e não precisa ser mais rápida para o desenho estar certo)
     const r4 = await w.fire('18:00')
     expect(r4.weekly).toMatchObject({ visited: 0, pending: 0 })
@@ -3786,6 +3905,45 @@ describe('A5: a fase semanal não depende da posição do canal nem da faixa das
     const r2 = await w.fire('13:00')
     expect(r2.weekly).toMatchObject({ errors: 0, complete: 2, pending: 0 })
   })
+  // (fecho do portão: SF-1, DF-1, CTRL-F1) O DIA DO DEPLOY. A promoção é entre 12:25 e 17:30: o código antigo fez a faixa das 12:00,
+  // nenhum vídeo tem faixa, e a fase semanal roda em todo disparo até as 17:40 sem ter o que ler. Às 18:00 a sincronização grava as
+  // faixas (104 vídeos com o dia fixo em D0). Os dois consertos são provados em separado: a defesa do código e a reabertura da MG2.
+  it.each([
+    [false, 'com a defesa da Tarefa 11b (canal sem faixa não é carimbado)'],
+    [true, 'SEM a defesa, só com a MG2 (a troca de faixa zera weekly_pass_date)'],
+  ] as Array<[boolean, string]>)('fecho F-1, dia do deploy (stampUnclassified = %s: %s): os devidos de D0 são lidos em D0, antes das 19:00, e a prova não fica vermelha', async (stampUnclassified) => {
+    const w = world({ syncMs: 21_000, videoMs: 1_050, due: MEASURED, lastSync: '12:00', unclassified: true, stampUnclassified })
+    // da promoção até as 17:40: nenhum canal devido; a fase roda e não há o que ler
+    for (const t of ['13:00', '13:20', '15:00', '17:40']) { const r = await w.fire(t); expect(r.synced).toBe(0); expect(r.weekly).toMatchObject({ ran: true, recorded: 0 }) }
+    expect(w.pending()).toHaveLength(stampUnclassified ? 0 : 15)   // sem a defesa os 15 foram carimbados sem ter faixa: é o defeito, que a MG2 desfaz às 18:00
+    const r18 = await w.fire('18:00')                   // 10 canais (210 s) ganham as faixas; não sobra relógio para a fase
+    expect(r18.synced).toBe(10)
+    expect(r18.weekly.recorded).toBe(0)
+    expect(w.devidosHoje()).toBeGreaterThan(0)          // a carga de D0 apareceu: antes das 19:00 isto não é vermelho
+    await w.fire('18:20')                               // os 5 restantes (105 s) e a fase até os 210 s
+    await w.fire('18:40')                               // nenhum canal devido: a fase tem o disparo inteiro
+    expect([...w.left.values()].every(n => n === 0)).toBe(true)   // os 104 devidos de D0 foram lidos NO PRÓPRIO D0
+    expect(w.pending()).toEqual([])                     // K17: todo canal com a passada completa
+    expect(w.devidosHoje()).toBe(0)                     // o que semanal_devidos_hoje conta: a prova das 19:00 nasce verde
+    expect(Math.max(...w.readAt.values())).toBeLessThan(at(DAY, '19:00'))
+    const r19 = await w.fire('19:00')
+    expect(r19.weekly).toMatchObject({ pending: 0, errors: 0 })
+  })
+  it('fecho F-1, o defeito reproduzido: sem a defesa E sem a MG2, nenhum devido de D0 é lido em D0 (é o que os dois consertos impedem)', async () => {
+    const w = world({ syncMs: 21_000, videoMs: 1_050, due: MEASURED, lastSync: '12:00', unclassified: true, stampUnclassified: true, noReopen: true })
+    for (const t of ['13:00', '18:00', '18:20', '18:40', '19:00', '23:40']) await w.fire(t)
+    expect(w.devidosHoje()).toBe(104)                   // os 104 ficariam para D+7, com o cron vermelho das 19:00 à meia-noite
+    expect(w.pending()).toEqual([])                     // e K17 diria "completa hoje" em todos: o recibo falso
+  })
+  it('fecho F-1, canal novo no meio da tarde: carimbado ou não antes da primeira sincronização, é lido no dia em que ganha as faixas', async () => {
+    const w = world({ syncMs: 21_000, videoMs: 1_050, due: [3, 5], lastSync: '12:00' })
+    w.rows.push({ ...w.rows[0]!, id: 'c99', channel_id: 'UC99', channel_name: 'Novo', last_synced_at: null, weekly_pass_date: DAY })   // nunca sincronizado, e já carimbado (o pior caso)
+    w.left.set('c99', 40)
+    await w.fire('15:00')                               // o canal novo é devido (last_synced_at nulo): é sincronizado, e a fase o lê no mesmo disparo ou no seguinte
+    await w.fire('15:20')
+    expect(w.left.get('c99')).toBe(0)
+    expect(w.pending()).toEqual([])
+  })
   it('weekly: false (a volta de uma linha): a fase não roda', async () => {
     const w = world({ syncMs: 21_000, videoMs: 1_050, due: [2] })
     expect((await w.fire('12:40', false)).weekly).toMatchObject({ ran: false, visited: 0 })
@@ -3803,7 +3961,7 @@ describe('A5: a fase semanal não depende da posição do canal nem da faixa das
 })
 ```
 
-**O que este teste prova, em uma frase:** com a ordem dos canais igual todo dia e o disparo das 12:00 cheio, todo vídeo semanal devido no dia é lido no mesmo dia, e o resultado não muda se a faixa das 18:00 for tão lenta quanto a das 12:00. **O que ele não prova** (e por isso está nas Tarefas 11b e 14a): que `syncCompetitorWeekly` de verdade obedece ao relógio e grava o que diz.
+**O que este teste prova, em uma frase:** com a ordem dos canais igual todo dia e o disparo das 12:00 cheio, todo vídeo semanal devido no dia é lido no mesmo dia, e o resultado não muda se a faixa das 18:00 for tão lenta quanto a das 12:00. **O que ele não prova** (e por isso está nas Tarefas 11b e 14a): que `syncCompetitorWeekly` de verdade obedece ao relógio e grava o que diz. *(fecho do portão: SF-1, SF-3)* Os casos "fecho F-1" provam o lote diante das duas regras do dia do deploy; que a função de verdade não carimba canal sem faixa é a Tarefa 11b, e que o banco de verdade reabre o carimbo é a Tarefa 1a e o passo 10 da 14a. **O falso do módulo agora exporta `spDate`** (o lote a importa): sem isso, sete dos oito testes da emenda lançavam "No spDate export is defined on the mock" antes de afirmar qualquer coisa.
 
 Em `cron-competitors-prova.test.ts` (criado na Tarefa 9), troque `'e1'` por `'e1e2'` no segundo teste e acrescente:
 
@@ -3978,7 +4136,7 @@ Em `runCompetitorBatch`: as opções ganham `weekly?: boolean` e `thumbs?: boole
   }
 ```
 
-(`rows` é a lista inteira lida no começo, não só os devidos. `res` nasce com `weekly` zerado e `acao_do_dono: []`.) O padrão de `weekly` é **falso** para que os testes antigos do lote, que não conhecem a fase, não mudem; quem liga é a rota.
+(`rows` é a lista inteira lida no começo, não só os devidos. `res` nasce com `weekly` zerado e `acao_do_dono: []`.) *(fecho do portão: DF-1, SF-1)* **`rows` é lida uma vez por disparo, de propósito:** o canal que a sincronização deste disparo reabriu (a troca de faixa zerou `weekly_pass_date`) é visto como aberto no disparo seguinte, 20 minutos depois. É o que o teste "dia do deploy" simula (o falso entrega uma cópia das linhas), e cabe no N = 1 dia. *(fecho do portão: D-decl-6)* Notas desta tarefa, sem código agora: (a) o `.catch(() => undefined)` da gravação de `erros_semanal` engole a própria falha (o erro original da fase já foi ao Sentry; se a linha da cota não gravar, o número do dia se perde): aceito; (b) opção declarada pelo revisor de dados e **não feita**: usar o relógio que sobra da fase para adiantar a linha de base da miniatura de quem não tem versão (687 × cerca de 1 s, 0 cota), o que encurtaria a exposição da semana 1; se o dono quiser, é uma tarefa nova depois da 13, sem migration. O padrão de `weekly` é **falso** para que os testes antigos do lote, que não conhecem a fase, não mudem; quem liga é a rota.
 
 (3) *(D-I1, CTRL-d)* A nota do canal em erro há mais de 3 dias, logo depois de ler os canais:
 
@@ -4039,7 +4197,7 @@ Esperado: nenhuma falha que este plano tenha criado. Se houver falha em arquivo 
 cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/competitor-sync-batch.ts apps/web/src/app/api/cron/sync-youtube/route.ts apps/web/test/youtube/competitor-sync-batch.test.ts apps/web/test/youtube/cron-competitors-prova.test.ts apps/web/test/youtube/cron-competitors-invalidate.test.ts apps/web/test/youtube/cron-route.test.ts apps/web/test/api/cron/sync-youtube.test.ts && git diff --cached --name-only && git commit -m "feat: cron de concorrentes lê a prova da coleta a cada disparo, roda a fase semanal pela dívida mais antiga e devolve os totais e a ação do dono (A5 E1 e E2)" -- apps/web/src/lib/youtube/competitor-sync-batch.ts apps/web/src/app/api/cron/sync-youtube/route.ts apps/web/test/youtube/competitor-sync-batch.test.ts apps/web/test/youtube/cron-competitors-prova.test.ts apps/web/test/youtube/cron-competitors-invalidate.test.ts apps/web/test/youtube/cron-route.test.ts apps/web/test/api/cron/sync-youtube.test.ts
 ```
 
-**Pronto quando:** item 22 e a conta de tempo estão presos por teste; a prova roda mesmo sem canal devido e tem teto de tempo; a mensagem de falha cabe em `cron_health`; *(emenda do portão)* os oito testes da fase semanal passam (as duas faixas, o caso duro, a prioridade da dívida, o orçamento por canal, a falha isolada, a volta de uma linha, antes das 12:00, `acao_do_dono`).
+**Pronto quando:** item 22 e a conta de tempo estão presos por teste; a prova roda mesmo sem canal devido e tem teto de tempo; a mensagem de falha cabe em `cron_health`; *(emenda do portão)* os oito testes da fase semanal passam (as duas faixas, o caso duro, a prioridade da dívida, o orçamento por canal, a falha isolada, a volta de uma linha, antes das 12:00, `acao_do_dono`); *(fecho do portão: SF-1)* e os quatro do dia do deploy (com a defesa; só com a MG2; o defeito reproduzido; canal novo à tarde).
 
 *(emenda do portão: S-I7, CTRL-f. A Tarefa 14 foi dividida e reescrita. O texto original era um script em prosa, não commitado, com a guarda "aborte se não for local" também em prosa, ao lado de um `.env.local` que aponta para produção, e fazia uma sincronização `full` de até 2.000 vídeos. 14a: o teste de integração commitado, que é a prova durável da junção TypeScript × SQL. 14b: o ensaio com a API real, só contra o banco local, com a guarda em código.)*
 
@@ -4066,7 +4224,7 @@ O falso do banco das Tarefas 6b a 11c é um roteiro por tabela: não executa fil
 | 6 | `syncCompetitorWeekly` de novo no mesmo dia; depois, 7 dias mais tarde com views 5.000 a mais (de 4.000 para 9.000) | no mesmo dia: nenhuma chamada a `videos` (conte no `fetch` fixo), nenhuma linha nova. Sete dias depois: segundo ponto, e `daily_until` = hoje + 28 (promoção pelo estado) |
 | 7 | As duas provas, lidas por `readSiteHealth(sb, siteId, now, { slotDone: true, e2: true })` às 19:30 de São Paulo do último dia | `ok: true`, sem problema: é a prova de que o que o código grava é o que o SQL das provas espera encontrar |
 
-Dois casos à parte, em canais próprios: (8) `com o relógio fechado a meio (deadline verdadeiro depois do 1º vídeo), só o vídeo conferido tem ponto, weekly_pass_date continua nulo, e a visita seguinte lê o resto`; (9) `canal de outro site passado às funções de plano: o sync lança "não é do site" e nada é gravado` (chame `captureItems` com `siteId` trocado).
+Três casos à parte *(fecho do portão: eram dois)*, em canais próprios: (8) `com o relógio fechado a meio (deadline verdadeiro depois do 1º vídeo), só o vídeo conferido tem ponto, weekly_pass_date continua nulo, e a visita seguinte lê o resto`; (9) `canal de outro site passado às funções de plano: o sync lança "não é do site" e nada é gravado` (chame `captureItems` com `siteId` trocado); *(fecho do portão: DF-1, SF-1)* (10) `fecho F-1 com o banco de verdade: canal carimbado antes de ter faixas`: canal com `video_limit = 2` e 3 vídeos **já gravados sem faixa** (insira as três linhas de `competitor_videos` à mão, só `video_id` e `published_at`: é como o código antigo as deixou, e é o estado de produção no D0); grave `weekly_pass_date = <ontem>` na tabela; rode `syncCompetitorWeekly` → `complete: false`, nenhuma chamada a `videos`, e o carimbo na tabela **continua `<ontem>`** (a defesa: canal com vídeo sem faixa não é carimbado); agora grave `weekly_pass_date = <hoje>` à mão (o pior caso: carimbado sem ter faixa); rode a primeira `syncCompetitorChannel` → na tabela, `series_tier` nos 3 vídeos e **`weekly_pass_date` nulo** (a MG2 reabriu, porque um vídeo entrou em semanal); rode `syncCompetitorWeekly` no dia fixo do semanal → o ponto de hoje e `weekly_pass_date = <hoje>`; rode outra `syncCompetitorChannel` 6 horas depois, sem troca de faixa → o carimbo **continua** `<hoje>` (`changed: 0` não reabre).
 
 Limpeza no `afterAll`: `delete` do canal (cascata), de `youtube_quota_usage` do site e do site. **O teste nunca escreve fora do site que semeou.**
 
@@ -4076,7 +4234,7 @@ Limpeza no `afterAll`: `delete` do canal (cascata), de `youtube_quota_usage` do 
 cd /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web && HAS_LOCAL_DB=1 npx vitest run test/integration/competitor-sync-a5.test.ts > /tmp/a5-integra.txt 2>&1; grep -E "✓|×|Test Files|Tests " /tmp/a5-integra.txt | tail -20
 ```
 
-Esperado: 9 testes passam. Sem a variável: tudo pulado, zero falha. **Um passo que falha aqui e passa no falso é um defeito de junção (nome de parâmetro, forma do `jsonb`, filtro): conserte no código da tarefa dona e acrescente o caso ao falso dela.**
+Esperado: 10 testes passam *(fecho do portão: eram 9)*. Sem a variável: tudo pulado, zero falha. **Um passo que falha aqui e passa no falso é um defeito de junção (nome de parâmetro, forma do `jsonb`, filtro): conserte no código da tarefa dona e acrescente o caso ao falso dela.**
 
 - [ ] **Step 3: commit.**
 
@@ -4084,7 +4242,7 @@ Esperado: 9 testes passam. Sem a variável: tudo pulado, zero falha. **Um passo 
 cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/test/integration/competitor-sync-a5.test.ts && git diff --cached --name-only && git commit -m "test: sync e leitura semanal dos concorrentes contra o banco local, do primeiro contato à promoção (A5 E1 e E2)" -- apps/web/test/integration/competitor-sync-a5.test.ts
 ```
 
-**Pronto quando:** os 9 passam com o banco local; o ledger registra o número. **É condição do envio (Tarefa 15, Step 4).**
+**Pronto quando:** os 10 passam com o banco local; o ledger registra o número. **É condição do envio (Tarefa 15, Step 4).**
 
 ### Task 14b: ensaio com a API real, contra o banco LOCAL (o que só a API de verdade diz)
 
@@ -4115,10 +4273,10 @@ if (!process.env.YOUTUBE_API_KEY) { console.error('a5-ensaio: falta YOUTUBE_API_
 É a mesma regra de `assertLocal`, de `apps/web/e2e/fixtures/observatorio-seed.ts:197`; chame-a também, depois de importar, sobre a URL do cliente (`assertLocal(url)`), para o caso de alguém mudar o cliente de serviço. O script roda com as variáveis do banco local **passadas na linha de comando** (não por `.env.local`):
 
 ```bash
-cd /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web && eval "$(cd ../.. && npm run -s db:env 2>/dev/null | grep -E '^(API_URL|SERVICE_ROLE_KEY)=')" && NEXT_PUBLIC_SUPABASE_URL="$API_URL" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" BLOB_READ_WRITE_TOKEN= YOUTUBE_API_KEY="$(grep '^YOUTUBE_API_KEY=' .env.local | cut -d= -f2-)" npx tsx scripts/a5-ensaio-sync.ts > /tmp/a5-ensaio.txt 2>&1; tail -40 /tmp/a5-ensaio.txt
+cd /Users/figueiredo/Workspace/bythiagofigueiredo/apps/web && eval "$(cd ../.. && npx supabase status -o env 2>/dev/null | grep -E '^(API_URL|SERVICE_ROLE_KEY)=')" && NEXT_PUBLIC_SUPABASE_URL="$API_URL" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" BLOB_READ_WRITE_TOKEN= YOUTUBE_API_KEY="$(grep '^YOUTUBE_API_KEY=' .env.local | cut -d= -f2-)" npx tsx scripts/a5-ensaio-sync.ts > /tmp/a5-ensaio.txt 2>&1; tail -40 /tmp/a5-ensaio.txt
 ```
 
-(Confira antes, com `npm run db:env`, os nomes exatos das duas variáveis que o comando imprime e ajuste o `grep`; a única coisa lida de `.env.local` é a chave do YouTube, que só lê a API.) **Prova da guarda, antes de tudo:** rode uma vez com `NEXT_PUBLIC_SUPABASE_URL=https://exemplo.supabase.co` e confira que sai com "recusando rodar" e código 1.
+*(fecho do portão: M-n1)* (O comando original usava `npm run db:env`, que **não imprime** variáveis: escreve `.env.local-db`; o `grep` voltava vazio e a guarda abortava. `npx supabase status -o env` imprime `API_URL="http://127.0.0.1:54321"` e `SERVICE_ROLE_KEY="…"`: nomes conferidos em 12/10 neste repositório. É só leitura do estado do banco local. A única coisa lida de `.env.local` é a chave do YouTube, que só lê a API.) **Prova da guarda, antes de tudo:** rode uma vez com `NEXT_PUBLIC_SUPABASE_URL=https://exemplo.supabase.co` e confira que sai com "recusando rodar" e código 1.
 
 - [ ] **Step 2: o script.** Em ordem:
 
@@ -4159,11 +4317,11 @@ Sem código. Só o controlador executa; nenhum comando do dono além do que a se
 
 - [ ] **Step 1: revisão final do lote** pelos dois especialistas (`revisor-engenharia-dados-senior` e `revisor-engenharia-software-senior`), com o diff do lote em arquivo, até o acordo (regra do dono, decisão 38).
 - [ ] **Step 2: o retrato "antes" (item 247).** Com `D` = véspera do dia do deploy e o corte em `D 23:59:59` de São Paulo (`<D+1>T02:59:59Z`), rode R1 (seção 10) em produção e grave o resultado em `.superpowers/sdd/a5/retratos/e1-e2-antes.json`, com o instante da leitura e o corte.
-- [ ] **Step 3: o dono aplica as migrations** (seção 2, passos 3 e 4). *(emenda do portão)* **Condições para pedir a ele:** a Tarefa 1a e a 1b (RLS, 44 testes) verdes no banco local, e o SQL dos dois arquivos idêntico aos Apêndices A e B (`diff` do arquivo contra o bloco do plano: vazio). Diga a ele a janela (seção 2: minutos 07 a 18, 27 a 38 ou 47 a 58, fora de 12:00 a 12:25 e 18:00 a 18:25 de São Paulo). Depois, rode V1, V2 e V3 em produção e cole no ledger. **Não siga sem V1 = 21, 13, 5, 5, 9, 9, `'{}'::jsonb`, 0.**
+- [ ] **Step 3: o dono aplica as migrations** (seção 2, passos 3 e 4). *(emenda do portão)* **Condições para pedir a ele:** a Tarefa 1a e a 1b (RLS, 44 testes) verdes no banco local, e o SQL dos dois arquivos idêntico aos Apêndices A e B (`diff` do arquivo contra o bloco do plano: vazio). Diga a ele a janela (seção 2: minutos 07 a 18, 27 a 38 ou 47 a 58, fora de 12:00 a 12:25 e 18:00 a 18:25 de São Paulo). Depois, rode V1, V1b, V2 e V3 em produção e cole no ledger. **Não siga sem V1 = 21, 13, 5, 5, 9, 9, `'{}'::jsonb`, 0** *(fecho do portão: DF-1, DF-2)* **e sem V1b = `true`, `true`** (a MG2 aplicada é a do fecho; com o texto anterior, o D0 teria o defeito F-1 se a defesa do código falhasse).
 - [ ] **Step 4: o envio separado da A4**, pelo roteiro da E12 (seção 9). *(emenda do portão: S-I7, S-I3)* Antes do push: (a) a Tarefa 14a verde no banco local **com o código a enviar** e a 14b com a tabela do critério preenchida; (b) extrair a árvore a enviar para uma pasta fora do repositório e rodar lá `npx vitest run test/youtube test/api/cron test/unit/test-hygiene.test.ts`, `npm run typecheck -w apps/web` e `bash scripts/check-type-debt.sh` (tem de dizer "estável: 148"); (c) `git log --name-only` dos commits a enviar: só arquivos da lista da seção 9.
 - [ ] **Step 5:** push em `staging`, CI verde, promoção a `main`. *(emenda do portão: S-I5)* **A promoção a `main` só entre 12:25 e 17:30 de São Paulo.** Motivo: nessa janela o código antigo já gravou a série do dia (a faixa das 12:00 termina às 12:21, medido), e o código novo estreia na faixa das 18:00, em que a passada diária não tem ponto novo a gravar: um defeito no código novo aparece (canal em erro, prova vermelha) sem custar a série de dia nenhum, e ainda há o resto da tarde para reverter. Fora da janela, espere o dia seguinte. **Anote no ledger a hora da promoção e as datas absolutas de D0, D+1, D+3, D+7, D+8 e D+9.** Regra operacional do D0: não disparar o cron à mão.
 - [ ] **Step 5b: as conferências com data, no commit do deploy** *(emenda do portão: D-I6, CTRL-h)*. Em `.superpowers/sdd/a5/conferencias-com-data.md`, seção "E1 e E2", troque cada "D+N" pela data absoluta. **Se `apps/web/src/lib/conferencias.ts` já existir em `staging`** (Tarefa 6 do plano da E20), acrescente no mesmo envio uma entrada por linha da seção que tem id (`e1e2-d1`, `e1e2-d3`, `e1e2-d8`, `e1e2-d9`, `e1e2-30d`), com `etapa: 'E1+E2'`, a data, `responsavel: 'agente'` e `onde` apontando para a seção 10 deste plano; o arquivo é da E20, a mudança é só acrescentar entradas ao fim de `CONFERENCIAS`, e ele entra na lista do commit pelo nome. **Se ainda não existir**, registre no ledger "conferências da E1 e E2 a importar quando `lib/conferencias.ts` existir" (a pendência já está escrita no arquivo de conferências).
-- [ ] **Step 6: D0, depois do primeiro disparo que sincronizar canal** (o das 12:00 ou o das 18:00 de São Paulo, o que vier primeiro): K3 (a linha da cota existe e `operations.competitors` > 0), K5 (as duas provas), K12 (a duração por canal: compare com 21 s), K9 e K14 (as faixas: cerca de 674 diária e 716 semanal, uma linha aberta por vídeo), K13. E `select * from cron_health where cron_name = 'sync-youtube-competitors'` (sem falha). *(emenda do portão: D-I3)* **Depois das 19:00 de São Paulo do D0: K15 (esperado: vazia) e K17 (todo canal com `completa_hoje` verdadeiro).** Se a K15 trouxer linha, a fase semanal não leu: é a conferência que a prova embutida `semanal_devidos_hoje` também faz, a cada disparo.
+- [ ] **Step 6: D0, depois do primeiro disparo que sincronizar canal** (o das 12:00 ou o das 18:00 de São Paulo, o que vier primeiro): K3 (a linha da cota existe e `operations.competitors` > 0), K5 (as duas provas), K12 (a duração por canal: compare com 21 s), K9 e K14 (as faixas: cerca de 674 diária e 716 semanal, uma linha aberta por vídeo), K13. E `select * from cron_health where cron_name = 'sync-youtube-competitors'` (sem falha). *(emenda do portão: D-I3)* **Depois das 19:00 de São Paulo do D0: K15 (esperado: vazia) e K17 (todo canal com `completa_hoje` verdadeiro).** Se a K15 trouxer linha, a fase semanal não leu: é a conferência que a prova embutida `semanal_devidos_hoje` também faz, a cada disparo. *(fecho do portão: DF-3)* **O que é normal antes disso** (seção 7, "O D0, hora a hora"): da promoção até as 18:00, K17 mostra `weekly_pass_date` nulo em todos os canais e K9 mostra tudo "(sem faixa)": a fase semanal roda e não carimba, porque as faixas só nascem na sincronização das 18:00. **Se, nesse intervalo, K17 mostrar com `completa_hoje` verdadeiro um canal que tem vídeo gravado, a defesa do código falhou**: não é perda (a MG2 reabre o canal às 18:00; confira V1b), mas é defeito a relatar. Entre 18:00 e 19:00, `semanal_devidos_hoje` é a carga do dia caindo até 0.
 - [ ] **Step 7: D+1 e D+3:** K1, K2, K4 (com a hora da promoção), K5, K6 (o `raw` fechado tem de ser uma fração pequena: se passar de 5% dos correntes em D+3, um campo está mudando sozinho: investigue com K7 e com a diferença entre duas respostas guardadas do mesmo vídeo), K8 (em D+3), K11, *(emenda do portão)* K15 e K17 (depois das 19:00), K16 (os vídeos sem versão de miniatura caem cerca de 98 por dia: 687 no D0, perto de 590 em D+1).
 - [ ] **Step 8: D+7, D+8 e D+9:** K5 (agora com `semanal_atrasados` valendo; em D+9, `semanal_atrasados_9d` e `sem_miniatura_9d` em 0), K9 (promovidos), K10, K11 (o tamanho real das tabelas novas: corrige a seção 5 do plano e a 9.6 do spec), *(emenda do portão: D-I4)* **K16 em D+9: `videos_sem_versao_de_miniatura` só pode contar vídeo ausente ou sem contagem, e `correntes_sem_copia` = 0**, e o retrato "depois": R1 com o mesmo corte do Step 2, gravado em `e1-e2-depois.json`; **os dois arquivos têm de ser iguais** (itens 9 e 20: o código do leitor não mudou no Lote 1, e a série e as versões até o corte não podem ter mudado).
 - [ ] **Step 9:** cada conferência feita ganha a data no ledger. Conferência vencida sem data é pendência aberta do controlador na conversa seguinte com o dono.
@@ -4489,8 +4647,10 @@ export function weeklyRate(ctx: EngineCtx, videoId: string, fromMs: number, toMs
 - [ ] **Step 5: commit.**
 
 ```bash
-cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/observatorio/types.ts apps/web/src/lib/youtube/observatorio/load.ts apps/web/src/lib/youtube/observatorio/series.ts apps/web/src/lib/youtube/observatorio/effect.ts apps/web/src/lib/youtube/observatorio/index.ts apps/web/test/youtube/observatorio/serie-semanal.test.ts && git commit -m "feat: o motor do Observatório aceita intervalo semanal pela faixa gravada no tempo; buraco continua buraco; os campos que as telas leem não mudam (A5 E2)" -- apps/web/src/lib/youtube/observatorio apps/web/test/youtube/observatorio/serie-semanal.test.ts
+cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/src/lib/youtube/observatorio/types.ts apps/web/src/lib/youtube/observatorio/load.ts apps/web/src/lib/youtube/observatorio/series.ts apps/web/src/lib/youtube/observatorio/effect.ts apps/web/src/lib/youtube/observatorio/index.ts apps/web/test/youtube/observatorio/serie-semanal.test.ts && git diff --cached --name-only && git commit -m "feat: o motor do Observatório aceita intervalo semanal pela faixa gravada no tempo; buraco continua buraco; os campos que as telas leem não mudam (A5 E2)" -- apps/web/src/lib/youtube/observatorio/types.ts apps/web/src/lib/youtube/observatorio/load.ts apps/web/src/lib/youtube/observatorio/series.ts apps/web/src/lib/youtube/observatorio/effect.ts apps/web/src/lib/youtube/observatorio/index.ts apps/web/test/youtube/observatorio/serie-semanal.test.ts
 ```
+
+*(fecho do portão: SF-2)* O `--` do commit repete os **seis arquivos** do `git add` (o original terminava na pasta `apps/web/src/lib/youtube/observatorio`, em que a A4 mexe em `links.ts`, `stats.ts` e `proprio/**`, e em que as Tarefas 2 e 5 deste plano escrevem). `git diff --cached --name-only` tem de mostrar exatamente os seis.
 
 **Pronto quando:** itens 19, 20 (em teste) e 222 (a parte do motor) passam; os testes de paridade continuam verdes; o teste de busca garante que nenhuma tela lê os campos novos.
 
@@ -4691,9 +4851,33 @@ Antes do commit, `git status --short apps/web/test/youtube/observatorio/ apps/we
 
 **A ideia.** Duas entradas com os **mesmos** vídeos, versões e série diária: `A`, as linhas como são hoje; `B`, as mesmas linhas **mais** o que o Lote 1 passa a gravar (faixa de cada vídeo, faixas no tempo, pontos semanais para todos os não observados, `series_tier` nas linhas). Cada consumidor é rodado sobre `A` e sobre `B`, e a saída tem de ser **idêntica**: o que o Lote 1 grava não pode mudar nada do que já é mostrado ou enviado. E `B` roda no motor de `origin/staging` e no motor novo? Não: o motor antigo não conhece as colunas novas; a comparação é `A` × `B` **no motor novo** (mais o retrato da Tarefa 18, que compara motor antigo × novo sobre linhas congeladas de produção).
 
+- [ ] **Step 0: como tirar as linhas da semente sem editar a semente e sem banco** *(fecho do portão: SF-4)*. `apps/web/e2e/fixtures/observatorio-seed.ts` **não exporta** função que monte as linhas: só `seedObservatory(siteId, opts, client)`, que grava num cliente e recusa cliente que não seja local (`clientOf` lê `client.supabaseUrl` e exige `127.0.0.1` ou `localhost`; conferido no arquivo de `origin/staging`, linhas 200 a 207 e 318). O teste passa um **cliente gravador**: um objeto com `supabaseUrl` local que não fala com banco nenhum e guarda o que a semente manda inserir. A semente usa `delete`, `insert` e `upsert`, de que só lê `{ error }` (conferido: `insertAll`, `check`), e **um** `select` em `clearObservatory` (`youtube_channels.niche`, para saber que nichos manter), que aceita `data` nulo (`kept.data ?? []`): o gravador responde `{ data: null, error: null }` a toda leitura. No arquivo de teste:
+
+```ts
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { seedObservatory } from '../../../e2e/fixtures/observatorio-seed'
+
+/** Cliente que só GRAVA EM MEMÓRIA o que a semente de e2e insere (tabela → linhas). Não fala com banco nenhum. */
+function recordingClient() {
+  const tables = new Map<string, Record<string, unknown>[]>()
+  const push = (t: string, rows: unknown) => { const a = tables.get(t) ?? []; a.push(...(Array.isArray(rows) ? rows : [rows]) as Record<string, unknown>[]); tables.set(t, a) }
+  const done = { data: null, error: null }
+  // toda cadeia (delete().eq().neq(), select().eq().not(), insert(), upsert()) termina num thenable que resolve { data: null, error: null }
+  const chain = (): Record<string, unknown> => new Proxy({}, { get: (_t, k) => k === 'then' ? (ok: (v: typeof done) => unknown) => Promise.resolve(done).then(ok) : () => chain() })
+  const client = {
+    supabaseUrl: 'http://127.0.0.1:54321', // a guarda da semente lê este campo: é local, e nada sai da máquina
+    from: (t: string) => ({ insert: (rows: unknown) => { push(t, rows); return chain() }, upsert: (rows: unknown) => { push(t, rows); return chain() }, delete: () => chain(), select: () => chain() }),
+  }
+  return { client: client as unknown as SupabaseClient, tables } // cast em arquivo de teste: fora do alcance da trava de dívida de tipo
+}
+const seedRows = async (siteId: string) => { const r = recordingClient(); await seedObservatory(siteId, {}, r.client); return r.tables }
+```
+
+`seedRows('<uuid fixo>')` devolve as linhas de `competitor_channels`, `competitor_videos`, `competitor_video_versions`, `competitor_video_daily`, `competitor_changes`, `competitor_channel_snapshots` e as do canal próprio, com os ids que a semente gera. **Primeiro teste do arquivo, antes de qualquer consumidor:** `a semente entregou linhas`: `competitor_channels`, `competitor_videos` e `competitor_video_daily` com mais de 0 linhas e pelo menos um vídeo com `pinned_at` (se a semente mudar de forma e o gravador deixar de capturar, é este teste que acusa, em vez de os consumidores compararem vazio com vazio). Se `seedObservatory` passar a chamar um método que o gravador não tem (`update`, `rpc`), ou a depender de uma linha lida de volta, o teste lança "… is not a function": acrescente o método ao gravador, não edite a semente. **Não use `HAS_LOCAL_DB` aqui**: o teste tem de rodar na CI, que não tem banco.
+
 - [ ] **Step 1: as duas entradas.** (1) A semente de e2e inteira (todos os canais do oráculo, com canal próprio, fixados e trocas legadas: é o que o item 247 manda); (2) `buildTables` grande (o maior canal sintético da Tarefa 17). Para cada uma, `B` = `A` + `spans` (uma faixa aberta por vídeo: `diaria` para os observados, `semanal` para os outros, desde 30 dias antes do relógio) + pontos semanais (um a cada 7 dias, 8 por vídeo não observado) + `series_tier`. Um auxiliar `withWeekly(rows)` no próprio arquivo de teste (não em `load-fixture.ts`, que a Tarefa 17 já mexe).
 
-- [ ] **Step 2: o teste, um `it` por consumidor.** A lista de consumidores vem do `grep` (rode e confira que não apareceu um novo: `grep -rn "loadRows\|loadDataset\|rowsToDataset\|loadChannelRows" apps/web/src --include=*.ts --include=*.tsx -l`):
+- [ ] **Step 2: o teste, um `it` por consumidor.** A lista de consumidores vem do `grep` (`grep -rn "loadRows\|loadDataset\|rowsToDataset\|loadChannelRows" apps/web/src --include=*.ts --include=*.tsx -l`), *(fecho do portão: M-n6)* **e o `grep` vira asserção**: um teste `a lista de arquivos que chamam loadRows, loadDataset, rowsToDataset ou loadChannelRows é a esperada` lê `apps/web/src` com `node:fs`, monta a lista dos arquivos que contêm um desses quatro nomes e a compara (`toEqual`, ordenada) com uma constante `CONSUMIDORES` escrita no teste a partir do `grep` rodado na hora de escrevê-lo. Consumidor novo = o teste falha e quem o criou acrescenta o `it` dele:
 
 | Consumidor | O que é comparado entre `A` e `B` (`toEqual`) |
 |---|---|
@@ -4718,7 +4902,7 @@ Um teste a mais, o do `grep` como asserção: `nenhum arquivo fora de lib/youtub
 cd /Users/figueiredo/Workspace/bythiagofigueiredo && git add apps/web/test/youtube/observatorio/consumidores-semanal.test.ts && git diff --cached --name-only && git commit -m "test: o que o Lote 1 grava não muda nada do que as telas, o Cowork e a fila da forja entregam (A5 E2, itens 9, 20 e 247)" -- apps/web/test/youtube/observatorio/consumidores-semanal.test.ts
 ```
 
-**Pronto quando:** um `it` por consumidor da tabela, todos verdes, com a semente de e2e e com a fixture grande; o teste do `grep` passa.
+**Pronto quando:** um `it` por consumidor da tabela, todos verdes, com a semente de e2e e com a fixture grande; o teste do `grep` passa; *(fecho do portão: SF-4, M-n6)* o teste "a semente entregou linhas" e o da lista de consumidores passam, sem banco.
 
 ### Task 18 (controlador): o envio do Lote 2
 
@@ -4760,7 +4944,7 @@ select date, units_used, operations, to_char(updated_at at time zone 'America/Sa
 select count(*) as novos_sem_discovered from competitor_videos where discovered_at is null and published_at > '2026-10-13T18:00:00Z';
 ```
 
-**K5** (itens 13, 15, 23 e 222). As duas provas, como o cron as lê. Esperado: `videos_vistos_sem_raw`, `canais_vistos_sem_raw`, `canais_em_erro_12h`, `sem_faixa`, `diaria_buracos_3d`, `semanal_atrasados_9d` e `sem_miniatura_9d` em 0; depois das 18:00 de São Paulo, `diaria_sem_ponto_hoje` em 0; *(emenda do portão)* depois das 19:00, `semanal_devidos_hoje` e `semanal_atrasados` em 0 (antes das 12:00, `semanal_devidos_hoje` é a carga do dia, de 87 a 118).
+**K5** (itens 13, 15, 23 e 222). As duas provas, como o cron as lê. Esperado: `videos_vistos_sem_raw`, `canais_vistos_sem_raw`, `canais_em_erro_12h`, `sem_faixa`, `diaria_buracos_3d`, `semanal_atrasados_9d` e `sem_miniatura_9d` em 0; depois das 18:00 de São Paulo, `diaria_sem_ponto_hoje` em 0; *(emenda do portão)* depois das 19:00, `semanal_devidos_hoje` e `semanal_atrasados` em 0 (antes das 12:00, `semanal_devidos_hoje` é a carga do dia, de 87 a 118). *(fecho do portão: DF-3, DF-2)* **No D0**, `semanal_devidos_hoje` é 0 até as 18:00 (nenhum vídeo é semanal ainda), sobe para a carga do dia quando a sincronização das 18:00 grava as faixas e volta a 0 até as 19:00. Em qualquer dia, a chave não conta vídeo com `miss_streak` maior que 0 (pedido e não devolvido).
 
 ```sql
 select public.competitor_capture_health(s.id, now()) as captura, public.competitor_series_health(s.id, now()) as serie from (select distinct site_id as id from competitor_channels) s;
@@ -4844,7 +5028,7 @@ select (('x' || substr(encode(sha256(convert_to(v.video_id, 'UTF8')), 'hex'), 1,
 select (select count(*) from competitor_videos) as videos, (select count(*) from competitor_videos v where not exists (select 1 from competitor_video_versions x where x.video_id = v.id and x.field = 'thumb')) as videos_sem_versao_de_miniatura, count(*) filter (where is_current) as miniaturas_correntes, count(*) filter (where is_current and thumb_blob_url is null) as correntes_sem_copia, count(*) filter (where precision <> 'first') as trocas_de_miniatura from competitor_video_versions where field = 'thumb';
 ```
 
-**K17** *(emenda do portão: D-I3)*. A passada semanal por canal: o dia da última completa, e se a de hoje já foi. **Esperado depois das 19:00 de São Paulo: `completa_hoje` verdadeiro em todo canal.** O canal no topo é o próximo a ser lido.
+**K17** *(emenda do portão: D-I3)*. A passada semanal por canal: o dia da última completa, e se a de hoje já foi. **Esperado depois das 19:00 de São Paulo: `completa_hoje` verdadeiro em todo canal.** O canal no topo é o próximo a ser lido. *(fecho do portão: DF-3)* No D0, da promoção até as 18:00, o esperado é `weekly_pass_date` nulo em todos (canal sem faixa não é carimbado). Um canal volta a nulo no meio do dia quando um vídeo dele entra em semanal (a MG2 reabre a passada): é normal, e ele é lido de novo no disparo seguinte.
 
 ```sql
 select left(c.channel_name, 22) as canal, c.weekly_pass_date, (c.weekly_pass_date = (now() at time zone 'America/Sao_Paulo')::date) as completa_hoje, (select count(*) from competitor_videos v where v.competitor_channel_id = c.id and v.series_tier = 'semanal') as semanais from competitor_channels c where c.missing_since is null order by c.weekly_pass_date nulls first, 1;
@@ -4889,23 +5073,25 @@ select c.channel_name, count(*) filter (where x.field in ('title', 'thumb') and 
 | 245 | não se aplica: este plano não cria variável de ambiente |
 | 246 | *(emenda do portão: D-I6, CTRL-h)* desvio D-10: provas dentro do cron; o que elas não cobrem, em `.superpowers/sdd/a5/conferencias-com-data.md` (seção "E1 e E2") e, na Tarefa 15 (Step 5b), em `lib/conferencias.ts` (dependência declarada da Tarefa 6 do plano da E20) |
 | 247 | Tarefa 15 (R1); Tarefa 17b (em teste, com a semente de e2e); Tarefa 18 (retrato pelo motor sobre linhas congeladas) |
-| OP-15 | seção 8; Tarefa 11b (a função e o "devido"); Tarefa 13 (a fase e o teste das duas faixas) |
+| OP-15 | seção 8; Tarefa 11b (a função e o "devido"); Tarefa 13 (a fase e o teste das duas faixas); *(fecho do portão: DF-1, SF-1)* o dia do deploy: Tarefa 1a (o banco reabre a passada), Tarefa 11b (canal sem faixa não é carimbado), Tarefa 13 (o D0 simulado) e Tarefa 14a (passo 10) |
 
 **O que este plano não faz, por ser de outra etapa:** a fila "Saíram do YouTube" e a função de apagar (E9; a tabela `competitor_removed_items` já nasce na MG1); as medidas M1 a M10 e as marcas (E4); qualquer tela (E5); a leitura de hora em hora (E15) e a agenda (E16); o `campos=todos` do Cowork (E7).
 
 ## 12. Riscos que ficam, ditos sem suavizar
 
 1. **O `raw` real pode mudar sozinho entre duas leituras** (um campo da resposta que o YouTube varia sem o criador mexer). Não dá para saber sem ler a API: a Tarefa 14 testa num canal antes do push, e K6 acompanha em D+1 e D+3. Se acontecer em produção, o custo é volume (cerca de 3 kB por vídeo por leitura), não perda; o conserto é excluir o campo em `rawOf`.
-2. **O tempo por canal é estimativa até a Tarefa 14b e o D0.** A faixa das 12:00 já usa dois disparos hoje. Se o acréscimo for o dobro do estimado, continua em dois disparos com 15 canais e passa a três com 17 ou mais. *(emenda do portão: D-I3)* A série diária não disputa mais tempo com a semanal: a fase semanal só começa depois do último canal devido do disparo. **A duração da faixa das 18:00 continua sem medida** (Tarefa 0, Step 4), e o desenho não depende dela.
+2. **O tempo por canal é estimativa até a Tarefa 14b e o D0.** A faixa das 12:00 já usa dois disparos hoje. Se o acréscimo for o dobro do estimado, continua em dois disparos com 15 canais e passa a três com 17 ou mais. *(emenda do portão: D-I3)* A série diária não disputa mais tempo com a semanal: a fase semanal só começa depois do último canal devido do disparo. **A duração da faixa das 18:00 continua sem medida** (Tarefa 0, Step 4), e o desenho não depende dela. *(fecho do portão: S-decl-3)* **O tempo por vídeo da fase semanal na semana 1 (1,05 s, com o arquivo da miniatura) é suposição, e a Tarefa 14b não o mede** (ela roda sem o Blob): só o D0 mede. O desenho aguenta o erro: o relógio corta, o resto continua devido e é lido no disparo seguinte; se passar das 19:00, o cron fica vermelho até terminar.
 3. **A primeira semana grava de 8 a 10 MB**, e o plano gratuito tem 500 MB (hoje 179). Não muda o mês em que o banco enche de forma relevante (cerca de 2 semanas de crescimento normal), mas é um degrau visível.
 4. *(emenda do portão: D-I1, CTRL-d)* **Um canal que fique em erro para sempre deixa o cron vermelho por 3 dias e depois vira nota** (`acao_do_dono` em toda execução, e "erro" na lista de canais). A nota só existe na resposta do cron, que ninguém guarda: quem não olhar a resposta nem a lista de canais não a vê. É a troca escolhida: um vermelho sem fim cala a falha dos outros crons.
-5. *(emenda do portão: D-I4)* **A miniatura dos vídeos antigos passa a ser conferida, mas só uma vez por semana**: duas trocas na mesma semana aparecem como uma (a imagem do meio se perde). E a cópia que falhar ao ser gravada no Blob deixa a versão sem imagem e **o código não tenta de novo** (em produção hoje: 0 em 708; a K16 confere em D+9). As trocas de título e de miniatura anteriores ao deploy em vídeos nunca conferidos não aparecem (não há com o que comparar).
+5. *(emenda do portão: D-I4)* **A miniatura dos vídeos antigos passa a ser conferida, mas só uma vez por semana**: duas trocas na mesma semana aparecem como uma (a imagem do meio se perde). E a cópia que falhar ao ser gravada no Blob deixa a versão sem imagem e **o código não tenta de novo** (em produção hoje: 0 em 708; a K16 confere em D+9); *(fecho do portão: D-decl-3)* a prova `sem_miniatura_9d` **não vê esse caso** (só vê o vídeo que nunca foi sondado). *(fecho do portão: D-decl-2)* **Na primeira semana a linha de base atrasa até 6 dias:** o vídeo com dia fixo em D+6 só ganha a cópia em D+6, e uma troca de miniatura nele entre D0 e D+6 não é vista (a imagem antiga some no YouTube). Estimativa do revisor de dados, não medida: no máximo 1 a 2 trocas não vistas nos 687 vídeos (hoje perde-se tudo). As trocas de título e de miniatura anteriores ao deploy em vídeos nunca conferidos não aparecem (não há com o que comparar).
 6. **O Lote 2 muda `rowsToDataset`**: é a função por onde todas as telas do Observatório passam. A proteção é o teste de igualdade do conjunto de dados, os testes de paridade com o oráculo e o retrato pelo motor antes e depois; ainda assim é o ponto de maior raio de alcance do plano, e por isso vai em envio separado.
 7. **As 64 linhas com `comment_count = 0` de hoje** só são corrigidas quando cada vídeo for relido: os 716 semanais, ao longo dos 7 primeiros dias.
-8. *(emenda do portão: S-M3)* **A cota de um disparo morto por tempo (300 s) não é gravada**: a gravação é no fim da sincronização de cada canal. A linha do dia fica abaixo do gasto real nesse caso, sem aviso (a prova só acusa a linha em 0). Aceito como risco: a função nunca morreu por tempo neste cron, e a cota dos concorrentes é 2% do dia.
+8. *(emenda do portão: S-M3)* **A cota de um disparo morto por tempo (300 s) não é gravada**: a gravação é no fim da sincronização de cada canal. A linha do dia fica abaixo do gasto real nesse caso, sem aviso (a prova só acusa a linha em 0). Aceito como risco: a função nunca morreu por tempo neste cron, e a cota dos concorrentes é 2% do dia. *(fecho do portão: M-n3)* **A folga contra os 300 s é menor do que a conta da emenda dizia:** o último vídeo da fase semanal pode começar aos 210 s, a sonda dele pode esperar 55 s, e a prova tem teto de 20 s: 285 s no pior caso, 15 s de folga (a conta `300 − 210 ≥ 85` não incluía a prova). Preso por teste na Tarefa 13; se a função morrer aí, o disparo não grava sucesso nem falha e o seguinte refaz.
 9. *(emenda do portão)* **O código novo desta emenda não foi executado** (Tarefas 1b, 6b, 11a, 11b, 11c, 13, 14a, 17b, e as mudanças nas Tarefas 2, 3, 4, 9, 10 e 12): foi escrito contra os arquivos lidos, e o que foi rodado é o SQL. O embrulho `runChannel` da Tarefa 11b mexe na função mais sensível do plano; a proteção é a regra "os testes das Tarefas 6b a 11a passam sem serem tocados" e a Tarefa 14a.
-10. *(emenda do portão: D-I3)* **A regra do "devido" existe em dois lugares**: em TypeScript (`weeklyDue`, que decide o que é lido) e em SQL (`semanal_devidos_hoje`, que só confere). Se divergirem, a leitura continua certa e a prova erra para um lado. O teste da Tarefa 1a ("o dia fixo") e o passo 7 da Tarefa 14a prendem as duas uma à outra.
+10. *(emenda do portão: D-I3)* **A regra do "devido" existe em dois lugares**: em TypeScript (`weeklyDue`, que decide o que é lido) e em SQL (`semanal_devidos_hoje`, que só confere). Se divergirem, a leitura continua certa e a prova erra para um lado. O teste da Tarefa 1a ("o dia fixo") e o passo 7 da Tarefa 14a prendem as duas uma à outra. *(fecho do portão: DF-2)* **Uma diferença é de propósito:** o SQL deixa de fora o vídeo com `miss_streak` maior que 0 (pedido e não devolvido), e `weeklyDue` não: o TypeScript o pede de novo no dia seguinte pela regra dos 7 dias (é a segunda leitura que decide se ele saiu do ar), e a prova não o acusa nesse meio-tempo.
 11. *(emenda do portão: S-M8)* **A troca vista num vídeo semanal não gera aviso** (o aviso é da sincronização do canal, e a leitura semanal é outra função): ela aparece em "Trocas" e no Cowork. Dívida registrada, destino E5.
+12. *(fecho do portão: M-n5, D-decl-5)* **"O ponto é o recibo" vale para a leitura, não para a captura.** Na leitura semanal, se a captura dos campos ou do `raw` de um vídeo falha depois de conferido, o ponto é gravado assim mesmo (por `late`: a falha é lançada no fim e o canal não é carimbado naquela visita), o vídeo deixa de ser devido, e a captura dele só é refeita na leitura da semana seguinte. A janela da mudança continua certa. Fica visível em `operations.erros_semanal` e, se a resposta nunca foi guardada, em `videos_vistos_sem_raw`.
+13. *(fecho do portão: D-decl-6, DF-1)* **Três restos da fase semanal, declarados pelos revisores e aceitos:** (a) **a corrida com o "sincronizar agora"**: uma visita da fase que leu os vídeos antes de a sincronização trocar uma faixa pode carimbar o canal depois de a MG2 tê-lo reaberto; o vídeo rebaixado naquele instante atrasa até 7 dias, e a prova `semanal_devidos_hoje` o acusa depois das 19:00 se o dia fixo dele for hoje. No dia do deploy a corrida não existe para o caso grave (a visita que viu vídeo sem faixa não carimba). Destino: Tarefa 11b, se aparecer na K17. (b) **mais de cerca de 57 vídeos sem contagem** (`views_hidden`) na frente da fila do mesmo canal nunca ganham ponto, são pedidos em toda visita e podem consumir os 60 s do canal antes dos outros: a passada dele não fecha e `semanal_devidos_hoje` fica vermelho. Nunca visto (hoje: 0 vídeo sem contagem). Destino: Tarefa 11b. (c) **canal que nunca sincroniza bem** (em erro desde o cadastro) nunca ganha faixa, nunca é carimbado e é visitado pela fase em todo disparo a partir das 12:00 (cerca de 0,3 s por visita, 0 cota): o sinal é o canal em "erro", não a fase.
 
 ## Apêndice A: MG1 (`npm run db:new observatorio_a5_e1_campos_sinalizadores_raw`)
 
@@ -5326,6 +5512,8 @@ reset lock_timeout;
 
 ## Apêndice B: MG2 (`npm run db:new observatorio_a5_e2_serie_faixas`)
 
+*(fecho do portão: DF-1, DF-2, CTRL-F1)* **Texto FINAL, depois da conferência de fecho.** Em relação ao texto da emenda mudaram **dois trechos, os dois em função** (coluna, tabelas, índices, policies e grants ficam como estavam), com o texto exato do revisor de dados: (1) `apply_competitor_tier_plan` ganha `v_reopen` e zera `competitor_channels.weekly_pass_date` quando um vídeo **entra** em semanal; (2) `competitor_series_health` lê `v.miss_streak` no CTE `vid` e `semanal_devidos_hoje` ganha `and miss_streak = 0`. Os comentários SQL que descrevem as duas coisas são do autor. Provado de novo no banco local (`.superpowers/sdd/a5/plano-e1-e2-fecho-prova.sql`).
+
 *(emenda do portão)* **Texto DEFINITIVO.** Mudou em relação ao texto anterior à emenda: `set lock_timeout` e `reset` (D-m12); `competitor_channels.weekly_pass_date` (D-I3, S-I1); a guarda de site em `apply_competitor_tier_plan` (D-m3); em `competitor_series_health`, a condição a mais de `diaria_buracos_3d` (D-I2, o texto do revisor de dados) e três chaves novas, `semanal_atrasados_9d`, `semanal_devidos_hoje` (D-I3) e `sem_miniatura_9d` (D-I4). `semanal_atrasados` não mudou (D-m1: muda a leitura dela, na Tarefa 12).
 
 Provada junto com a MG1, nas mesmas condições. **Só depois da MG1.**
@@ -5346,6 +5534,9 @@ Provada junto com a MG1, nas mesmas condições. **Só depois da MG1.**
 -- semanal fica no dado, e o canal em dívida é lido primeiro no disparo seguinte), guarda de site na troca de
 -- faixa, a condição a mais em diaria_buracos_3d (estreia agendada não é buraco) e três chaves novas na prova:
 -- semanal_devidos_hoje, semanal_atrasados_9d e sem_miniatura_9d.
+-- Fecho do portão (12/10/2026, noite): o vídeo que ENTRA na faixa semanal reabre a passada do canal
+-- (apply_competitor_tier_plan zera weekly_pass_date), e semanal_devidos_hoje não conta vídeo pedido e não devolvido
+-- (miss_streak > 0).
 
 set lock_timeout = '5s';
 
@@ -5391,6 +5582,7 @@ create policy "competitor_video_tier_spans_select" on public.competitor_video_ti
 -- Troca de faixa de vários vídeos de UM canal, numa transação: fecha a faixa anterior no dia de ontem,
 -- abre a nova hoje e grava o estado no vídeo. A 2ª troca do mesmo dia troca a faixa da linha aberta de
 -- hoje (sem fechar nem abrir linha): o dia vale pela faixa em que terminou.
+-- Se algum vídeo ENTRA em semanal, o canal volta à fila da passada semanal de hoje (weekly_pass_date = null).
 --   p_changes: [{"video_id": "<uuid>", "tier": "diaria" | "semanal"}]
 create or replace function public.apply_competitor_tier_plan(
   p_site_id uuid, p_channel_id uuid, p_changes jsonb, p_today date
@@ -5399,6 +5591,7 @@ language plpgsql security invoker set search_path = '' as $$
 declare
   r record;
   v_changed integer := 0;
+  v_reopen boolean := false;
 begin
   if not exists (select 1 from public.competitor_channels c where c.id = p_channel_id and c.site_id = p_site_id) then
     raise exception 'apply_competitor_tier_plan: canal % não é do site %', p_channel_id, p_site_id;
@@ -5425,7 +5618,13 @@ begin
        set series_tier = r.tier, series_tier_since = p_today
      where id = r.video_id;
     v_changed := v_changed + 1;
+    if r.tier = 'semanal' then v_reopen := true; end if;
   end loop;
+  -- Um vídeo que ENTRA na faixa semanal reabre a passada semanal do canal: o recibo de hoje (weekly_pass_date) foi dado
+  -- sem ele. Sem isto, o canal carimbado antes de ganhar faixas (dia do deploy, canal novo, backfill) só o leria 7 dias depois.
+  if v_reopen then
+    update public.competitor_channels set weekly_pass_date = null where id = p_channel_id and weekly_pass_date is not null;
+  end if;
   return jsonb_build_object('changed', v_changed);
 end $$;
 
@@ -5438,6 +5637,7 @@ end $$;
 --   weeklyDue (competitor-tiers.ts) escrita em SQL: sem ponto hoje E (hoje é o dia fixo do vídeo, OU o último
 --   ponto tem 7 ou 8 dias, OU não há ponto nos últimos 8 dias e a faixa tem 7 dias ou mais). O dia fixo é o
 --   mesmo de weekSlotOf: os 4 primeiros bytes do sha256 do id do YouTube, módulo 7, contra o dia desde 1970.
+--   Fica de fora o vídeo com miss_streak > 0: foi PEDIDO e não veio (a leitura seguinte decide se ele saiu do ar).
 -- 'semanal_atrasados': 8º dia sem ponto (lido hoje, o intervalo de 8 dias ainda vale).
 -- 'semanal_atrasados_9d': 9 dias ou mais sem ponto: o intervalo já não é mais "semanal" (perda).
 -- 'sem_miniatura_9d': vídeo com faixa há 9 dias ou mais e NENHUMA versão de miniatura guardada (a imagem que
@@ -5446,7 +5646,7 @@ create or replace function public.competitor_series_health(p_site_id uuid, p_now
 returns jsonb language sql stable security invoker set search_path = '' as $$
   with hoje as (select (p_now at time zone 'America/Sao_Paulo')::date as d),
   vid as (
-    select v.id, v.series_tier, v.series_tier_since,
+    select v.id, v.series_tier, v.series_tier_since, v.miss_streak,
            (('x' || substr(encode(sha256(convert_to(v.video_id, 'UTF8')), 'hex'), 1, 8))::bit(32)::bigint % 7) as dia_fixo,
            (coalesce(v.views_hidden, false) or coalesce(v.live_broadcast_content, 'none') = 'upcoming'
             or v.missing_since is not null or c.missing_since is not null) as fora,
@@ -5494,7 +5694,7 @@ returns jsonb language sql stable security invoker set search_path = '' as $$
          and not exists (select 1 from public.competitor_video_daily d where d.video_id = vid.id and d.snap_date > hoje.d - 9)),
     'semanal_devidos_hoje', (
       select count(*) from vid, hoje
-       where not fora and series_tier = 'semanal'
+       where not fora and series_tier = 'semanal' and miss_streak = 0
          and not exists (select 1 from public.competitor_video_daily d where d.video_id = vid.id and d.snap_date = hoje.d)
          and (
            vid.dia_fixo = ((hoje.d - date '1970-01-01') % 7)
