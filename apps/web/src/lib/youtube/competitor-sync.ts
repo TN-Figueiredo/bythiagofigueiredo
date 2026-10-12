@@ -169,6 +169,18 @@ export interface WeeklyResult {
   skipped?: boolean
   /** miniaturas que não puderam ser conferidas ou guardadas nesta visita (sonda ou download falharam): contadas, sem custar o ponto nem a linha do vídeo */
   thumbFailed?: number
+  /** vídeos cuja reconciliação de versões falhou nesta visita: o ponto foi gravado, a linha ficou sem a miniatura, e a leitura termina com `WeeklyVersionError` */
+  versionFailed?: number
+}
+/**
+ * (A5 E2) A leitura semanal TERMINOU (os pontos devidos estão gravados e o canal foi carimbado, porque o recibo é o ponto), mas a
+ * versão de ao menos um vídeo não gravou. Quem chama conta o erro como o de qualquer outra falha da fase; `result` é o que foi feito.
+ */
+export class WeeklyVersionError extends Error {
+  constructor(message: string, readonly result: WeeklyResult) {
+    super(message)
+    this.name = 'WeeklyVersionError'
+  }
 }
 
 type ChannelRef = { id: string; channel_id: string; site_id: string }
@@ -392,6 +404,9 @@ async function runChannel(
   let earlyRecorded = 0
   /** (A5 E2, leitura semanal) Mudanças vistas com a janela de mais de 8 dias (gravadas, mas fora do aviso) e miniaturas que não puderam ser conferidas. */
   let longWindowChanges = 0, thumbFailed = 0
+  /** (A5 E2, leitura semanal) Vídeos cuja reconciliação de versões falhou: o ponto sai, mas a linha NÃO leva os campos que a versão cobre (miniatura). */
+  const versionFailedIds = new Set<string>()
+  let versionFailure: Error | null = null
   /** (A5) A cota é gravada UMA vez, no fim (sucesso ou erro); se a gravação falhar, a sincronização não muda de destino: só marca quotaError. */
   let quotaError = false
   const flushQuota = async (): Promise<void> => {
@@ -575,7 +590,7 @@ async function runChannel(
       const row = byYt.get(it.id)!
       const sn = it.snippet ?? {}
       const thumbs = sn.thumbnails as { maxres?: { url?: string }; high?: { url?: string } } | undefined
-      await reconcileVideo(row.id, it.id, {
+      const reconcile = () => reconcileVideo(row.id, it.id, {
         apiTitle: (sn.title as string | undefined) ?? '',
         apiDescription: sn.description as string | undefined,
         thumbnailUrl: thumbs?.maxres?.url ?? thumbs?.high?.url ?? null,
@@ -583,11 +598,22 @@ async function runChannel(
         existingTitle: row.title,
         existingThumbUrl: row.thumbnail_url,
       }, currentMap.get(row.id) ?? [], touch, { weekly: o.weekly === true })
+      if (o.weekly) {
+        // Leitura semanal: a falha da versão de UM vídeo não custa os pontos dos outros 49 da chamada nem o dele próprio (o ponto é contagem,
+        // não depende da versão). A linha dele não leva a miniatura (ver patchFetched), então a troca é vista de novo na próxima leitura.
+        try { await reconcile() } catch (e) {
+          versionFailedIds.add(row.id)
+          versionFailure ??= new Error(`não foi possível gravar as versões do vídeo ${it.id}: ${e instanceof Error ? e.message : String(e)}`)
+        }
+      } else {
+        await reconcile()
+      }
       done.push(it)
     }
     if (touch.length) {
       const { error } = await supabase.from('competitor_video_versions').update({ last_seen_at: nowIso }).in('id', touch)
-      fail('touch versions', error)
+      // só carimba a última leitura das versões: se falhar, a janela da próxima mudança fica mais larga, nunca errada; não custa a série do dia nem o ponto
+      late('não foi possível carimbar as versões', error)
     }
     return done
   }
@@ -604,7 +630,11 @@ async function runChannel(
       if (patched.has(row.id)) continue
       const o = observedOf(it)
       if (o.partsMissing.length) partsMissingIds.add(it.id)
-      const { error } = await supabase.from('competitor_videos').update(o.patch).eq('id', row.id)
+      // vídeo cuja versão não gravou: a linha NÃO muda nos campos que a versão cobre (nada de miniatura nova sem a versão que a registra).
+      // A linha do vídeo só tem a miniatura entre eles: título e descrição só a página regrava, e a leitura semanal não passa por ela.
+      const patch: Record<string, unknown> = { ...o.patch }
+      if (versionFailedIds.has(row.id)) delete patch.thumbnail_url
+      const { error } = await supabase.from('competitor_videos').update(patch).eq('id', row.id)
       // (emenda do portão: S-I5) não lança: a série do dia vem antes; o erro é guardado e o canal termina em erro
       if (late('não foi possível atualizar a linha do vídeo', error)) continue
       patched.add(row.id)
@@ -669,7 +699,10 @@ async function runChannel(
         const { error } = await supabase.from('competitor_channels').update({ weekly_pass_date: today }).eq('id', channelRow.id)
         fail('não foi possível carimbar a passada semanal do canal', error)
       }
-      return { kind: 'weekly', result: { due: dueCount, recorded, deferred, promoted, unitsUsed, changesDetected, longWindowChanges, complete, ...(thumbFailed ? { thumbFailed } : {}) } }
+      const result: WeeklyResult = { due: dueCount, recorded, deferred, promoted, unitsUsed, changesDetected, longWindowChanges, complete, ...(thumbFailed ? { thumbFailed } : {}), ...(versionFailedIds.size ? { versionFailed: versionFailedIds.size } : {}) }
+      // a versão de algum vídeo não gravou: o ponto dele saiu e o canal está carimbado (o recibo é o ponto), mas o erro não passa em verde
+      if (versionFailure) throw new WeeklyVersionError((versionFailure as Error).message, result)
+      return { kind: 'weekly', result }
     } finally {
       // a cota gasta é gravada mesmo quando a leitura falha (a chamada que falhou também custou); o teto que cortou registra quantos cortou
       try {
@@ -774,18 +807,23 @@ async function runChannel(
     // Só contagem mede: `hiddenSubscriberCount` sozinho (true ou false), sem número nenhum, grava uma linha toda nula que o upsert poria por cima de um retrato bom do dia.
     const snapshotMeasured = subscriberCount !== null || youtubeVideoCount !== null || snapshotViews !== null
     try {
-      if (!chObserved.partsMissing.includes('statistics') && snapshotMeasured) await supabase
-        .from('competitor_channel_snapshots')
-        .upsert({
-          competitor_channel_id: channelRow.id,
-          subscriber_count: subscriberCount,
-          video_count: youtubeVideoCount,
-          view_count: snapshotViews,
-          snapshot_date: snapDate,
-          subscribers_hidden: chObserved.patch.subscribers_hidden,
-        }, { onConflict: 'competitor_channel_id,snapshot_date' })
-    } catch {
-      // Non-fatal
+      if (!chObserved.partsMissing.includes('statistics') && snapshotMeasured) {
+        const { error: snapErr } = await supabase
+          .from('competitor_channel_snapshots')
+          .upsert({
+            competitor_channel_id: channelRow.id,
+            subscriber_count: subscriberCount,
+            video_count: youtubeVideoCount,
+            view_count: snapshotViews,
+            snapshot_date: snapDate,
+            subscribers_hidden: chObserved.patch.subscribers_hidden,
+          }, { onConflict: 'competitor_channel_id,snapshot_date' })
+        // o erro que o banco DEVOLVE nunca é "ok" (dia sem retrato e canal verde): guardado, e o canal termina em erro depois da série do dia
+        late('não foi possível gravar o retrato diário do canal', snapErr)
+      }
+    } catch (e) {
+      // não derruba a sincronização, mas também não passa em verde
+      late('não foi possível gravar o retrato diário do canal', { message: e instanceof Error ? e.message : String(e) })
     }
 
     // ── 2. Decide sync strategy ──
@@ -936,7 +974,8 @@ async function runChannel(
 
       if (touchIds.length) {
         const { error } = await supabase.from('competitor_video_versions').update({ last_seen_at: nowIso }).in('id', touchIds)
-        fail('touch versions', error)
+        // roda em toda sincronização de todo canal, na frente da série do dia: só carimba a última leitura, então não lança (ver acima)
+        late('não foi possível carimbar as versões', error)
       }
       if (earlyRows.size) {
         const rows = [...earlyRows.values()]

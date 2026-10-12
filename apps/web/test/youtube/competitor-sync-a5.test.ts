@@ -10,7 +10,7 @@ vi.mock('@/lib/youtube/thumb-fingerprint', async (orig) => ({
   archiveThumb: vi.fn(async () => 'https://blob.test/t.jpg'),
 }))
 
-import { syncCompetitorChannel, syncCompetitorWeekly, syncStatsOf, VIDEO_PARTS } from '@/lib/youtube/competitor-sync'
+import { syncCompetitorChannel, syncCompetitorWeekly, syncStatsOf, VIDEO_PARTS, WeeklyVersionError } from '@/lib/youtube/competitor-sync'
 import { probeThumb, archiveThumb } from '@/lib/youtube/thumb-fingerprint'
 import { createNotification } from '@/lib/notifications/create'
 import { dayNumber, addDays, weekSlotOf } from '@/lib/youtube/competitor-tiers'
@@ -858,6 +858,18 @@ describe('A5 E2: faixas da série', () => {
     expect(r.excludedNoCount).toBe(2)
     expect(updatesOf(db, 'v-2').at(-1)).toMatchObject({ views_hidden: true, view_count: null })
   })
+  it('revisão da Tarefa 10: a passada "devida" só conta vídeo que entra na prova; o que está fora (sem contagem, estreia agendada, ausente) não faz a página reconciliar os antigos', async () => {
+    // v-1 (antigo, já com o ponto de hoje) vem na página; v-2 e v-3 estão fora da prova e SEM ponto. Se o filtro não existisse, v-2 e v-3
+    // manteriam a passada devida e o vídeo antigo da página seria reconciliado (a regra: antigo só quando a passada diária é devida).
+    const old = page({ snippet: { ...page().snippet, publishedAt: OLD } })
+    const all = [row(1, 400, { series_tier: 'diaria', series_tier_since: '2026-09-01' }), row(2, 2, { views_hidden: true }), row(3, 0, { live_broadcast_content: 'upcoming' }), row(4, 3, { missing_since: '2026-10-20' })]
+    const noCount = (_n: number, u: string) => idsOf(u).map(id => ({ id, snippet: { title: 'x' }, statistics: {}, contentDetails: {} }))
+    const db = setup({ dailyHave: ['v-1'], existing: [{ ...ROW1, discovered_at: OLD }], all })
+    const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(old, 200, { daily: noCount }), ...quiet })
+    expect(r.excludedNoCount).toBe(3)                                           // os três foram pedidos (é como se descobre que voltaram)...
+    expect(rpcs(db).some(p => p.p_video_id === 'v-1')).toBe(false)              // ...mas a página não reconciliou o antigo
+    expect(vi.mocked(probeThumb)).not.toHaveBeenCalledWith('vid-1', expect.anything(), expect.anything())
+  })
   it('erro na leitura dos vídeos do canal lança (nunca "canal sem vídeos") e o canal fica em erro', async () => {
     const db = setup({ allError: 'boom' })
     await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(null), ...quiet })).rejects.toThrow('não foi possível ler os vídeos do canal: boom')
@@ -1043,23 +1055,51 @@ describe('A5 E2: nenhuma gravação nova fica na frente da série do dia', () =>
   const tr = (n: number) => ({ id: 'v-' + n, video_id: 'vid-' + n, title: 'T', thumbnail_url: null })
   const fresh = { ...ROW1, discovered_at: new Date(NOW.getTime() - H).toISOString(), published_at: new Date(NOW.getTime() - 2 * H).toISOString() }
   const freshPage = page({ snippet: { ...page().snippet, publishedAt: fresh.published_at } })
-  /** Cenas: o que o canal tem e o que a API devolve. `fresh` = um vídeo de 2 h de vida na página; `dois` = mais um só na passada diária; `fixado` = um fixado que só a passada dos fixados lê; `ausente` = um pedido que não volta. */
-  type Scene = { opts: SetupOpts; fetch: typeof fetch }
-  const scenes: Record<'fresh' | 'novo' | 'dois' | 'fixado' | 'ausente', () => Scene> = {
-    fresh: () => ({ opts: { lastDaily: '2026-10-23', existing: [fresh] }, fetch: apiFetch(freshPage) }),
-    novo: () => ({ opts: { lastDaily: '2026-10-23', existing: [] }, fetch: apiFetch(freshPage) }),
-    dois: () => ({ opts: { lastDaily: '2026-10-23', existing: [fresh], tracked: [tr(1), tr(2)] }, fetch: apiFetch(freshPage, 200, { daily: echo }) }),
-    fixado: () => ({ opts: { lastDaily: '2026-10-23', existing: [fresh], tracked: [tr(1), tr(2)], pinned: [PIN], dailyHave: ['v-pin'] }, fetch: apiFetch(freshPage, 200, { daily: echo }) }),
-    ausente: () => ({ opts: { lastDaily: '2026-10-23', existing: [fresh], tracked: [tr(1), tr(2)] }, fetch: apiFetch(freshPage, 200, { daily: (_n, u) => echo(_n, u).filter(i => i.id === 'vid-1') }) }),
+  /** Cenas: o que o canal tem e o que a API devolve. `fresh` = um vídeo de 2 h de vida na página; `novo` = o mesmo, ainda sem linha; `dois` = mais um só na passada diária; `fixado` = um fixado que só a passada dos fixados lê; `ausente` = um pedido que não volta; `completa` = passada diária de três, um fixado e um pedido que não volta (v-3): tudo o que vem DEPOIS de uma linha da passada diária ou dos fixados existe nela. */
+  type Scene = { opts: SetupOpts; fetch: typeof fetch; log: { dailyCalls: string[] } }
+  const scene = (opts: SetupOpts, daily?: (n: number, u: string) => Response | Record<string, unknown>[]): Scene => {
+    const log = { dailyCalls: [] as string[] }
+    return { opts, log, fetch: apiFetch(freshPage, 200, { ...(daily ? { daily } : {}), log }) }
+  }
+  const scenes: Record<'fresh' | 'novo' | 'dois' | 'fixado' | 'ausente' | 'completa', () => Scene> = {
+    fresh: () => scene({ lastDaily: '2026-10-23', existing: [fresh] }),
+    novo: () => scene({ lastDaily: '2026-10-23', existing: [] }),
+    dois: () => scene({ lastDaily: '2026-10-23', existing: [fresh], tracked: [tr(1), tr(2)] }, echo),
+    fixado: () => scene({ lastDaily: '2026-10-23', existing: [fresh], tracked: [tr(1), tr(2)], pinned: [PIN], dailyHave: ['v-pin'] }, echo),
+    ausente: () => scene({ lastDaily: '2026-10-23', existing: [fresh], tracked: [tr(1), tr(2)] }, (_n, u) => echo(_n, u).filter(i => i.id === 'vid-1')),
+    completa: () => scene({ lastDaily: '2026-10-23', existing: [fresh], tracked: [tr(1), tr(2), tr(3)], pinned: [PIN], dailyHave: ['v-pin'] }, (_n, u) => echo(_n, u).filter(i => i.id !== 'vid-3')),
+  }
+  /** O ponto do dia que cada cena grava (exato: ids e valores). `echo` dá 5/1/0; a passada de `fresh`/`novo` devolve o vídeo da página com `viewCount` 7 e mais nada (o falso do `apiFetch` troca as estatísticas): curtidas e comentários nulos, nunca 0. */
+  const P = (video_id: string, views: number, likes: number | null, comments: number | null) => ({ video_id, snap_date: '2026-10-24', views, likes, comments, taken_at: NOW_ISO })
+  const SERIE: Record<keyof typeof scenes, Array<ReturnType<typeof P>>> = {
+    fresh: [P('v-1', 7, null, null)],
+    novo: [P('v-1', 7, null, null)],
+    dois: [P('v-1', 5, 1, 0), P('v-2', 5, 1, 0)],
+    fixado: [P('v-1', 5, 1, 0), P('v-2', 5, 1, 0)],
+    ausente: [P('v-1', 5, 1, 0)],
+    completa: [P('v-1', 5, 1, 0), P('v-2', 5, 1, 0)],
+  }
+  /** O que só vem DEPOIS da linha que falhou, e só existe porque ela é `late` e não `fail` (`fail` cairia no `dailyFailure`/lançaria e pularia tudo isto). */
+  const depoisDaFalha = (db: ReturnType<typeof setup>, log: { dailyCalls: string[] }): void => {
+    // os fixados ainda são lidos (uma chamada só deles, depois da passada diária)
+    expect(log.dailyCalls.flatMap(idsOf)).toContain('vid-pin')
+    // a captura do bloco ainda roda: canal, página, passada diária e fixados = quatro leituras de campos
+    expect(rpcCalls(db, 'apply_competitor_field_plan')).toHaveLength(4)
+    // a marca de ausência ainda acontece, uma só vez, com o que não voltou
+    expect(rpcCalls(db, 'competitor_mark_missing')).toEqual([{ p_channel_id: 'cc-1', p_video_ids: ['v-3'], p_now: NOW_ISO }])
   }
   // Todas as gravações novas do sync de hoje, uma por vez. `skip` é a ordem da chamada que falha entre as que casam (a captura vai canal, página, passada diária, fixados).
-  type Row = { name: string; scene: keyof typeof scenes; msg: RegExp; opts: Partial<SetupOpts> }
+  type Row = { name: string; scene: keyof typeof scenes; msg: RegExp; opts: Partial<SetupOpts>; after?: (db: ReturnType<typeof setup>, log: { dailyCalls: string[] }) => void }
+  const verAntigas = (id: string) => [{ id: 'ver-' + id, video_id: id, field: 'title', value_text: 'T', value_hash: hashValue('T'), thumb_etag: null, thumb_dhash: null, first_seen_at: OLD, last_seen_at: OLD }]
   const ROWS: Row[] = [
     { name: 'inserir o vídeo novo', scene: 'novo', msg: /não foi possível gravar o vídeo novo/, opts: { failWrite: 'competitor_videos:insert' } },
     { name: 'regravar a linha do vídeo (página)', scene: 'fresh', msg: /não foi possível atualizar a linha do vídeo/, opts: { failWrite: 'competitor_videos:update' } },
-    { name: 'regravar a linha do vídeo (passada diária)', scene: 'dois', msg: /não foi possível atualizar a linha do vídeo/, opts: { failUpdateOf: 'v-2' } },
-    { name: 'regravar a linha do vídeo (fixados)', scene: 'fixado', msg: /não foi possível atualizar a linha do vídeo/, opts: { failUpdateOf: 'v-pin' } },
+    { name: 'regravar a linha do vídeo (passada diária)', scene: 'completa', msg: /não foi possível atualizar a linha do vídeo/, opts: { failUpdateOf: 'v-2' }, after: (db, log) => depoisDaFalha(db, log) },
+    { name: 'regravar a linha do vídeo (fixados)', scene: 'completa', msg: /não foi possível atualizar a linha do vídeo/, opts: { failUpdateOf: 'v-pin' }, after: (db, log) => depoisDaFalha(db, log) },
     { name: 'a linha do canal', scene: 'fresh', msg: /não foi possível atualizar a linha do canal/, opts: { failWrite: 'competitor_channels:patch' } },
+    { name: 'o retrato diário do canal', scene: 'fresh', msg: /não foi possível gravar o retrato diário do canal/, opts: { failWrite: 'competitor_channel_snapshots' } },
+    { name: 'carimbar as versões (página)', scene: 'fresh', msg: /não foi possível carimbar as versões/, opts: { failWrite: 'competitor_video_versions:update', versions: verAntigas('v-1') } },
+    { name: 'carimbar as versões (passada diária)', scene: 'dois', msg: /não foi possível carimbar as versões/, opts: { failWrite: 'competitor_video_versions:update', versions: verAntigas('v-2') } },
     { name: 'as primeiras horas', scene: 'fresh', msg: /não foi possível gravar as primeiras horas/, opts: { failWrite: 'competitor_video_early' } },
     { name: 'a gravação das faixas', scene: 'fresh', msg: /não foi possível gravar a faixa da série/, opts: { failWrite: 'rpc:apply_competitor_tier_plan' } },
     { name: 'a captura do canal (campos)', scene: 'fresh', msg: /histórico de campos/, opts: { failWrite: 'rpc:apply_competitor_field_plan', failWriteSkip: 0 } },
@@ -1071,22 +1111,20 @@ describe('A5 E2: nenhuma gravação nova fica na frente da série do dia', () =>
     { name: 'o carimbo de última leitura dos vídeos', scene: 'fresh', msg: /não foi possível guardar a última leitura dos vídeos/, opts: { failStamp: true } },
     { name: 'a marca de ausência', scene: 'ausente', msg: /não foi possível marcar o que deixou de vir do YouTube/, opts: { failWrite: 'rpc:competitor_mark_missing' } },
   ]
-  it.each(ROWS)('gravação nova falhando ($name): a série do dia é gravada e o canal termina em erro', async ({ scene, msg, opts }) => {
-    const s = scenes[scene]()
+  it.each(ROWS)('gravação nova falhando ($name): a série do dia é gravada e o canal termina em erro', async ({ scene: sc, msg, opts, after }) => {
+    const s = scenes[sc]()
     const db = setup({ ...s.opts, ...opts })
     await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: s.fetch, ...quiet })).rejects.toThrow(msg)
-    // a passada diária rodou e gravou o ponto de hoje, apesar da falha
-    const up = db.calls.find(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')
-    expect(up, 'a série do dia não foi gravada').toBeDefined()
-    const rows = arg(up!, 'upsert') as unknown as Array<{ video_id: string; snap_date: string; views: number }>
-    expect(rows.length).toBeGreaterThan(0)
-    expect(rows.every(r => r.snap_date === '2026-10-24' && Number.isFinite(r.views))).toBe(true)
-    if (scene === 'dois' || scene === 'fixado') expect(rows.map(r => r.video_id)).toContain('v-2')
+    // a passada diária rodou e gravou o ponto de hoje, apesar da falha: os mesmos vídeos e os mesmos valores
+    const ups = db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')
+    expect(ups.length, 'a série do dia não foi gravada').toBeGreaterThan(0)
+    expect(arg(ups[0]!, 'upsert')).toEqual(SERIE[sc])
+    after?.(db, s.log)
     // o canal termina em erro, com a frase em português, e não é carimbado como sincronizado
-    const ups = db.calls.filter(c => c.table === 'competitor_channels' && first(c) === 'update').map(c => arg(c, 'update') ?? {})
-    expect(ups.some(u => 'last_ok_synced_at' in u)).toBe(false)
-    expect(ups.at(-1)).toMatchObject({ sync_status: 'error' })
-    expect(String(ups.at(-1)!.sync_error)).toMatch(msg)
+    const chUps = db.calls.filter(c => c.table === 'competitor_channels' && first(c) === 'update').map(c => arg(c, 'update') ?? {})
+    expect(chUps.some(u => 'last_ok_synced_at' in u)).toBe(false)
+    expect(chUps.at(-1)).toMatchObject({ sync_status: 'error' })
+    expect(String(chUps.at(-1)!.sync_error)).toMatch(msg)
   })
   it('a falha da gravação da cota é a exceção: a série do dia é gravada, o canal termina bem e o resultado leva quotaError', async () => {
     const s = scenes.fresh()
@@ -1100,7 +1138,7 @@ describe('A5 E2: nenhuma gravação nova fica na frente da série do dia', () =>
   it('várias gravações novas falhando de uma vez: o primeiro erro é o que o dono lê, e a série do dia é gravada inteira', async () => {
     const s = scenes.fresh()
     const db = setup({ ...s.opts, rpcFail: 'apply_competitor_tier_plan', failWrite: 'competitor_video_early' })
-    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: s.fetch, ...quiet })).rejects.toThrow(/primeiras horas|faixa da série/)
+    await expect(syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: s.fetch, ...quiet })).rejects.toThrow('não foi possível gravar as primeiras horas: boom')
     expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')).toBe(true)
   })
 })
@@ -1233,6 +1271,55 @@ describe('A5 E2: leitura semanal (syncCompetitorWeekly)', () => {
     expect(r.due).toBe(expected.length)
     expect(db.calls.filter(c => c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'range')).length).toBe(2)
     expect(db.calls.filter(c => c.table === 'competitor_video_daily' && first(c) === 'select' && c.ops.some(o => o[0] === 'gte')).length).toBe(12) // 1200 ids / 100
+  })
+  describe('a reconciliação de versões de UM vídeo falhando (11b, preocupação 1): isolada por vídeo', () => {
+    const DIA = '2026-10-24'
+    const comMiniatura = (n: number, u: string) => echo(n, u).map(it => ({ ...it, snippet: { ...it.snippet, thumbnails: { high: { url: 'https://i.ytimg.com/vi/' + it.id + '/hq.jpg' } } } }))
+    const lidos = (db: ReturnType<typeof setup>, uuid: string) => updatesOf(db, uuid).filter(u => 'view_count' in u)
+    const rodar = async (db: ReturnType<typeof setup>): Promise<WeeklyVersionError> => {
+      const e = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: comMiniatura }) }).then(() => null, (x: unknown) => x)
+      expect(e).toBeInstanceOf(WeeklyVersionError)
+      void db
+      return e as WeeklyVersionError
+    }
+    it('3 vídeos numa chamada, o do meio falha na versão: 3 pontos, 2 linhas inteiras, a do meio sem a miniatura, versionFailed 1, e o canal é carimbado mesmo assim', async () => {
+      const [a, b, c] = dueRows(DIA, 3)
+      const db = setup({ all: [a!, b!, c!], versionPlanFailOf: [b!.id as string] })
+      const e = await rodar(db)
+      expect(pointsOf(db).sort()).toEqual([a!.id, b!.id, c!.id].sort())                       // (a) o ponto do vídeo que falhou é gravado
+      for (const r of [a!, c!]) expect(lidos(db, r.id as string).at(-1)).toMatchObject({ view_count: 5, thumbnail_url: 'https://i.ytimg.com/vi/' + r.video_id + '/hq.jpg' }) // (c) os outros por inteiro
+      expect(lidos(db, b!.id as string)).toHaveLength(1)                                      // (b) a linha do meio é regravada...
+      expect(lidos(db, b!.id as string)[0]).toMatchObject({ view_count: 5, ...SINAIS })      //     ...com as contagens e os sinais...
+      expect(lidos(db, b!.id as string)[0]).not.toHaveProperty('thumbnail_url')               //     ...e SEM a miniatura que a versão cobre
+      expect(e.result).toMatchObject({ due: 3, recorded: 3, deferred: 0, complete: true, versionFailed: 1 }) // (d)
+      expect(e.message).toMatch(new RegExp('^não foi possível gravar as versões do vídeo ' + (b!.video_id as string) + ': ')) // (e) português, a primeira falha
+      expect(stamp(db)).toEqual([{ weekly_pass_date: DIA }])                                  // (e) carimbado: o recibo é o ponto
+    })
+    it('dois vídeos falhando: versionFailed 2 e o erro é o do PRIMEIRO; os dois pontos saem', async () => {
+      const [a, b, c] = dueRows(DIA, 3)
+      const db = setup({ all: [a!, b!, c!], versionPlanFailOf: [a!.id as string, c!.id as string] })
+      const e = await rodar(db)
+      expect(e.result).toMatchObject({ recorded: 3, versionFailed: 2, complete: true })
+      expect(e.message).toContain(a!.video_id as string)
+      expect(e.message).not.toContain(c!.video_id as string)
+      expect(lidos(db, b!.id as string).at(-1)).toHaveProperty('thumbnail_url')
+      expect(lidos(db, a!.id as string)[0]).not.toHaveProperty('thumbnail_url')
+      expect(lidos(db, c!.id as string)[0]).not.toHaveProperty('thumbnail_url')
+    })
+    it('sem falha de versão: a linha leva a miniatura, o resultado volta (não lança) e não traz versionFailed', async () => {
+      const [a] = dueRows(DIA, 1)
+      const db = setup({ all: [a!] })
+      const r = await syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: comMiniatura }) })
+      expect(r).toMatchObject({ recorded: 1, complete: true })
+      expect(r).not.toHaveProperty('versionFailed')
+      expect(lidos(db, a!.id as string)[0]).toHaveProperty('thumbnail_url')
+    })
+    it('falha de captura (gravação que não é de versão) continua sem carimbar: só a versão isolada tem o recibo pelo ponto', async () => {
+      const [a, b] = dueRows(DIA, 2)
+      const db = setup({ all: [a!, b!], versionPlanFailOf: [a!.id as string], failWrite: 'rpc:apply_competitor_field_plan' })
+      await expect(syncCompetitorWeekly(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: comMiniatura }) })).rejects.toThrow(/histórico de campos/)
+      expect(stamp(db)).toEqual([])
+    })
   })
   it('dado ausente: a leitura dos vídeos falha: lança, nada é pedido ao YouTube, nada é carimbado, o estado do canal não é tocado', async () => {
     const day = slotDate('vid-7')

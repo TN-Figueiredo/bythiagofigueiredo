@@ -88,6 +88,8 @@ export type SetupOpts = {
   lock?: Record<string, unknown>
   /** Esta função SQL devolve erro de banco só quando algum item de `p_open` é deste vídeo (uuid): a falha de UM vídeo, não do canal. */
   rpcFailFor?: { fn: string; videoId: string }
+  /** (A5 E2) `apply_competitor_version_plan` devolve erro de banco para estes vídeos (uuid): a falha da reconciliação de versões de UM vídeo. */
+  versionPlanFailOf?: string[]
   /** O carimbo `update competitor_videos set last_seen_at ... in(id)` devolve erro de banco. */
   failStamp?: boolean
   /** O `update` da linha do canal (o que leva `miss_streak`) devolve erro de banco. */
@@ -170,6 +172,7 @@ export function setup(opts: SetupOpts = {}) {
     if (c.table === 'competitor_video_versions' && first(c) === 'select') return { data: opts.versions ?? [] }
     if (c.table === 'rpc:apply_competitor_version_plan') {
       if (opts.rpcError) return { data: null, error: { message: 'boom' } }
+      if (opts.versionPlanFailOf?.includes((c.ops[0]![1][0] as { p_video_id: string }).p_video_id)) return { data: null, error: { message: 'boom' } }
       return { data: { opened: {}, changes: (c.ops[0]![1][0] as { p_changes: unknown[] }).p_changes.length } }
     }
     // (A5) leituras e funções da captura: o que o falso não conhece é nulo, e a captura trata nulo como falha ("nenhuma linha" é lista vazia)
