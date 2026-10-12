@@ -11,7 +11,7 @@ vi.mock('@/lib/youtube/thumb-fingerprint', async (orig) => ({
   archiveThumb: vi.fn(async () => 'https://blob.test/t.jpg'),
 }))
 
-import { isDailyRecordDue, classifyThumb, dropFields, syncCompetitorChannel, optCount, reclassifyStoredShorts } from '@/lib/youtube/competitor-sync'
+import { isDailyRecordDue, classifyThumb, dropFields, syncCompetitorChannel, optCount, reclassifyStoredShorts, VIDEO_PARTS } from '@/lib/youtube/competitor-sync'
 import { reclassifyStoredShortsRoundRobin } from '@/lib/youtube/short-backfill'
 import { probeThumb } from '@/lib/youtube/thumb-fingerprint'
 import { hashValue } from '@/lib/youtube/competitor-versions'
@@ -528,7 +528,7 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
   const idsOf = (url: string) => decodeURIComponent(url.match(/[?&]id=([^&]*)/)![1]!).split(',')
   const CH_CALL = 'channels?part=contentDetails,snippet,statistics&id=UC_test'
   const PL_CALL = 'playlistItems?part=snippet&playlistId=UU&maxResults=50'
-  const DETAILS = 'videos?part=snippet,statistics,contentDetails&id=vid-1'
+  const DETAILS = 'videos?part=' + VIDEO_PARTS + '&id=vid-1'
   const page = { id: 'vid-1', snippet: { title: 'T', description: '', publishedAt: recent() }, statistics: {} }
   const ROW1 = { id: 'v-1', video_id: 'vid-1', title: 'T', description_hash: 'x', thumbnail_url: null, view_count: 1 }
   const V1 = { id: 'tv1', video_id: 'v-1', field: 'title', value_text: 'T', value_hash: hashValue('T'), thumb_etag: null, thumb_dhash: null, last_seen_at: '2026-10-24T03:00:00.000Z' }
@@ -548,7 +548,7 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
     setup({ lastDaily: '2026-10-23', existing: [ROW1], versions: [V1] })
     const t2 = traced(apiFetch(page))
     const r2 = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: t2.f, ...quiet })
-    expect(t2.api()).toEqual([CH_CALL, PL_CALL, DETAILS, 'videos?part=snippet,statistics&id=vid-1'])
+    expect(t2.api()).toEqual([CH_CALL, PL_CALL, DETAILS, 'videos?part=' + VIDEO_PARTS + '&id=vid-1'])
     expect(r2.unitsUsed).toBe(4)
   })
 
@@ -579,7 +579,7 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
     const db = setup({ lastDaily: '2026-10-23', pinned: [PIN], existing: [ROW1], versions: [V1, VPIN] })
     const t = traced(apiFetch(page, 200, { daily: (_n, u) => idsOf(u).map(id => (id === 'vid-pin' ? pinApi('Fixado novo') : { ...page, statistics: { viewCount: '7' } })) }))
     const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: t.f, ...quiet })
-    expect(t.api()).toEqual([CH_CALL, PL_CALL, DETAILS, 'videos?part=snippet,statistics&id=vid-1,vid-pin'])
+    expect(t.api()).toEqual([CH_CALL, PL_CALL, DETAILS, 'videos?part=' + VIDEO_PARTS + '&id=vid-1,vid-pin'])
     expect(r).toMatchObject({ dailyRecorded: 2, changesDetected: 1, unitsUsed: 4 })
     const up = db.calls.find(c => c.table === 'competitor_video_daily' && first(c) === 'upsert')!
     expect((up.ops[0]![1][0] as Array<{ video_id: string; views: number }>).map(x => [x.video_id, x.views])).toEqual([['v-1', 7], ['v-pin', 3]])
@@ -588,15 +588,15 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
     expect(withChanges[0]).toMatchObject({ p_video_id: 'v-pin', p_close: ['tvp'] })
     expect(withChanges[0]!.p_changes[0]).toMatchObject({ change_type: 'title', old_title: 'Fixado', new_title: 'Fixado novo' })
     // off the page, fetched by the daily pass: its count is refreshed there too
-    expect(statsOf(db, 'v-pin')).toEqual([{ view_count: 3, last_checked_at: NOW_ISO }])
+    expect(statsOf(db, 'v-pin')).toEqual([expect.objectContaining({ view_count: 3, last_checked_at: NOW_ISO })])
   })
 
-  it('vídeo acompanhado mas NÃO fixado, fora da página: o passo diário não grava contagem na linha do vídeo (só o registro diário)', async () => {
+  it('vídeo acompanhado mas NÃO fixado, fora da página: o passo diário grava a contagem e os sinalizadores na linha do vídeo', async () => {
     const db = setup({ lastDaily: '2026-10-23', tracked: [{ id: 'v-1', video_id: 'vid-1', title: 'T', thumbnail_url: null }, { id: 'v-2', video_id: 'vid-2', title: 'Outro', thumbnail_url: null }], existing: [ROW1], versions: [V1] })
     const f = apiFetch(page, 200, { daily: (_n, u) => idsOf(u).map(id => ({ id, statistics: { viewCount: '5' } })) })
     const r = await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: f, ...quiet })
     expect(r.dailyRecorded).toBe(2)
-    expect(statsOf(db, 'v-2')).toEqual([])
+    expect(statsOf(db, 'v-2')).toEqual([expect.objectContaining({ view_count: 5, last_checked_at: NOW_ISO })])
   })
 
   it('R123: fixado com mais de 90 dias, fora da página, é conferido numa sincronização que NÃO é a do passo diário; duas trocas de thumbnail no mesmo dia viram duas versões', async () => {
@@ -605,7 +605,7 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
       ? { etag, lastModified: null, dhash, bytes: Buffer.from('x'), url: 'u' }
       : { etag: null, lastModified: null, dhash: null, bytes: null, url: 'u' }))
     const fetchFor = () => traced(apiFetch(page, 200, { daily: (_n, u) => idsOf(u).map(() => pinApi('Fixado')) }))
-    const PINNED_CALL = 'videos?part=snippet,statistics&id=vid-pin'
+    const PINNED_CALL = 'videos?part=' + VIDEO_PARTS + '&id=vid-pin'
 
     // 06:00 SP: image A → B
     probeAs('"e2"', 'ffffffffffffffff')
@@ -621,7 +621,7 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
     expect(c1[0]!.p_changes[0]).toMatchObject({ change_type: 'thumbnail', from_version_id: 'th-a', precision: '6h' })
     expect(c1[0]!.p_open.find(o => o.field === 'thumb')).toMatchObject({ thumb_etag: '"e2"', thumb_dhash: 'ffffffffffffffff' })
     // the count on the video row follows the pinned check (it used to freeze once the video left the uploads page)
-    expect(statsOf(db1, 'v-pin')).toEqual([{ view_count: 3, last_checked_at: EARLY.toISOString() }])
+    expect(statsOf(db1, 'v-pin')).toEqual([expect.objectContaining({ view_count: 3, last_checked_at: EARLY.toISOString() })])
 
     // 11:00 SP, same day: image B → C
     probeAs('"e3"', '0f0f0f0f0f0f0f0f')
@@ -676,7 +676,7 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
     const db = setup({ pinned: [PIN], existing: [ROW1], versions: [V1, VPIN] })
     const t = traced(apiFetch(page, 200, { daily: () => [] }))
     const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: t.f, ...quiet })
-    expect(t.api()).toEqual([CH_CALL, PL_CALL, DETAILS, 'videos?part=snippet,statistics&id=vid-pin'])
+    expect(t.api()).toEqual([CH_CALL, PL_CALL, DETAILS, 'videos?part=' + VIDEO_PARTS + '&id=vid-pin'])
     expect(r.changesDetected).toBe(0)
     expect(rpcs(db).some(p => p.p_video_id === 'v-pin')).toBe(false)
     expect(lastChannelUpdate(db)).toMatchObject({ sync_status: 'idle' })
@@ -686,20 +686,27 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
     expect(db.calls.some(c => c.table === 'competitor_videos' && first(c) === 'update' && 'pinned_at' in (arg(c, 'update') ?? {}))).toBe(false)
   })
 
-  it('fixado que o YouTube devolve SEM contagem (views ocultas): a conferência é registrada, a contagem gravada não é tocada', async () => {
-    for (const item of [{ id: 'vid-pin', snippet: { title: 'Fixado', publishedAt: OLD } }, { id: 'vid-pin', snippet: { title: 'Fixado', publishedAt: OLD }, statistics: {} }]) {
-      const db = setup({ pinned: [PIN], existing: [ROW1], versions: [V1, VPIN] })
-      await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page, 200, { daily: () => [item] }), ...quiet })
-      // without this the video would read as "never checked since it was pinned" forever
-      expect(statsOf(db, 'v-pin')).toEqual([{ last_checked_at: EARLY.toISOString() }])
-    }
+  it('fixado que o YouTube devolve SEM a parte statistics: a conferência é registrada, a contagem gravada não é tocada', async () => {
+    const item = { id: 'vid-pin', snippet: { title: 'Fixado', publishedAt: OLD } }
+    const db = setup({ pinned: [PIN], existing: [ROW1], versions: [V1, VPIN] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page, 200, { daily: () => [item] }), ...quiet })
+    // without this the video would read as "never checked since it was pinned" forever
+    expect(statsOf(db, 'v-pin')[0]).toMatchObject({ last_checked_at: EARLY.toISOString() })
+    expect('view_count' in statsOf(db, 'v-pin')[0]!).toBe(false)
+  })
+
+  it('fixado que o YouTube devolve com statistics vazio (views ocultas): contagem nula e sinalizadores, nunca 0', async () => {
+    const item = { id: 'vid-pin', snippet: { title: 'Fixado', publishedAt: OLD }, statistics: {} }
+    const db = setup({ pinned: [PIN], existing: [ROW1], versions: [V1, VPIN] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page, 200, { daily: () => [item] }), ...quiet })
+    expect(statsOf(db, 'v-pin')[0]).toMatchObject({ view_count: null, views_hidden: true, like_count: null, likes_hidden: true, last_checked_at: EARLY.toISOString() })
   })
 
   it('fixado com curtidas visíveis: view_count e like_count gravados junto da conferência', async () => {
     const db = setup({ pinned: [PIN], existing: [ROW1], versions: [V1, VPIN] })
     const item = { id: 'vid-pin', snippet: { title: 'Fixado', publishedAt: OLD }, statistics: { viewCount: '3', likeCount: '2' } }
     await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page, 200, { daily: () => [item] }), ...quiet })
-    expect(statsOf(db, 'v-pin')).toEqual([{ view_count: 3, like_count: 2, last_checked_at: EARLY.toISOString() }])
+    expect(statsOf(db, 'v-pin')).toEqual([expect.objectContaining({ view_count: 3, like_count: 2, last_checked_at: EARLY.toISOString() })])
   })
 
   it('a chamada dos fixados falha: o sync lança e não marca sincronização boa', async () => {

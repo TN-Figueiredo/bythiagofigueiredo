@@ -42,16 +42,17 @@ export const ch = { id: 'cc-1', channel_id: 'UC_test', site_id: 'site-1' }
 export const lockRow = { id: 'cc-1', sync_mode: 'incremental', full_sync_completed_at: null, video_limit: 50, last_ok_synced_at: '2026-10-24T09:00:00.000Z', sync_error_since: null }
 
 export interface FetchLog { dailyCalls: string[] }
-export function apiFetch(video: Record<string, unknown> | null, status = 200, extra: { daily?: (call: number, url: string) => Response | Record<string, unknown>[]; noUploads?: boolean; log?: FetchLog } = {}): typeof fetch {
-  let dailyN = 0
+export function apiFetch(video: Record<string, unknown> | null, status = 200, extra: { daily?: (call: number, url: string) => Response | Record<string, unknown>[]; noUploads?: boolean; log?: FetchLog; channelItems?: unknown[] } = {}): typeof fetch {
+  let dailyN = 0, pageNext = false
   return (async (input: RequestInfo | URL) => {
     const u = String(input)
     if (status !== 200) return { ok: false, status }
     if (u.includes('/channels?')) {
-      return Response.json({ items: [{ contentDetails: { relatedPlaylists: extra.noUploads ? {} : { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { subscriberCount: '10' } }] })
+      return Response.json({ items: extra.channelItems ?? [{ id: 'UC_test', contentDetails: { relatedPlaylists: extra.noUploads ? {} : { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { subscriberCount: '10' } }] })
     }
-    if (u.includes('/playlistItems?')) return Response.json({ items: video ? [{ snippet: { resourceId: { videoId: video.id } } }] : [] })
-    if (u.includes('part=snippet,statistics&')) {
+    // a chamada de detalhes da página vem logo depois da lista de uploads (quando ela trouxe vídeo); qualquer outra videos.list é da passada
+    if (u.includes('/playlistItems?')) { pageNext = video != null; return Response.json({ items: video ? [{ snippet: { resourceId: { videoId: video.id } } }] : [] }) }
+    if (u.includes('/videos?') && !pageNext) {
       dailyN++
       extra.log?.dailyCalls.push(u)
       if (extra.daily) {
@@ -60,6 +61,7 @@ export function apiFetch(video: Record<string, unknown> | null, status = 200, ex
       }
       return Response.json({ items: video ? [{ ...video, statistics: { viewCount: '7' } }] : [] })
     }
+    pageNext = false
     return Response.json({ items: video ? [video] : [] })
   }) as typeof fetch
 }
@@ -70,11 +72,14 @@ export type SetupOpts = {
   tracked?: Array<Record<string, unknown>>; dailyHave?: string[]; rpcError?: boolean; longs?: Array<{ video_id: string }>
   /** Pinned rows of the channel; null = the query answered without data. Omitted = no pins. */
   pinned?: Array<Record<string, unknown>> | null; pinnedError?: string; trackedError?: string
+  /** O `update` de competitor_videos para esta linha (uuid) devolve erro de banco. */
+  failUpdateOf?: string
 }
 
 export function setup(opts: SetupOpts = {}) {
   const db = fakeDb((c) => {
     if (c.table === 'competitor_channels' && c.ops.some(o => o[0] === 'or')) return { data: [lockRow] }
+    if (c.table === 'competitor_videos' && first(c) === 'update' && opts.failUpdateOf && c.ops.some(o => o[0] === 'eq' && o[1][1] === opts.failUpdateOf)) return { data: null, error: { message: 'boom' } }
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'gt' && o[1][1] === 180)) return { data: opts.longs ?? [] }
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'not')) return opts.pinnedError ? { data: null, error: { message: opts.pinnedError } } : { data: opts.pinned === undefined ? [] : opts.pinned, error: null }
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'in')) return { data: opts.existing ?? [] }

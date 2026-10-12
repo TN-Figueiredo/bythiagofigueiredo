@@ -10,6 +10,8 @@ import {
 import { classifyShort, needsShortProbe, probeShortsBatch, newProbeBudget, isYoutubeVideoId, type ProbeBudget, type ShortProbeResult } from '@/lib/youtube/short-classifier'
 import { reclassifyStoredShorts } from '@/lib/youtube/short-backfill'
 import { runControlProbe, warnIfProbeBlocked } from '@/lib/youtube/short-guard'
+import { optCount, videoObservedOf } from '@/lib/youtube/competitor-capture'
+export { optCount } from '@/lib/youtube/competitor-capture'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
 const MAX_FULL_SYNC_VIDEOS = 2000
@@ -17,15 +19,11 @@ const MAX_INCREMENTAL_PAGES = 5
 const CHANGE_DETECTION_WINDOW_DAYS = 90
 const PAGE_DELAY_MS = 300
 
+/** As partes pedidas em TODA chamada videos.list. O quadro de cota cobra 1 unidade por chamada, qualquer que seja o número de partes. */
+export const VIDEO_PARTS = 'snippet,statistics,contentDetails,liveStreamingDetails'
+
 /** provisional until spike S1 (Last-Modified granularity) */
 const LAST_MODIFIED_MINUTE = true
-
-/** A counter the API may omit (hidden likes/subscribers): null when absent or not numeric, never 0. */
-export function optCount(v: unknown): number | null {
-  if (v === undefined || v === null || v === '') return null
-  const n = parseInt(String(v), 10)
-  return Number.isFinite(n) ? n : null
-}
 
 export interface SyncResult {
   videosChecked: number
@@ -35,6 +33,8 @@ export interface SyncResult {
   skipped?: boolean
   /** Houve mudança a avisar e nenhum org_admin da organização raiz para receber. */
   sem_destinatario?: boolean
+  /** Itens que vieram sem uma parte inteira (snippet, statistics ou contentDetails): os campos dela não foram comparados. */
+  partsMissing?: number
 }
 
 const SP_OFFSET_MS = 3 * 3_600_000 // America/Sao_Paulo is UTC−3 with no DST since 2019
@@ -145,6 +145,10 @@ export async function syncCompetitorChannel(
   let changesDetected = 0
   let dailyRecorded = 0
   const reconciled = new Set<string>()
+  /** A5 (E1): linhas de competitor_videos já regravadas nesta sincronização, e os vídeos que vieram do YouTube nela. */
+  const patched = new Set<string>()
+  const seen = new Set<string>()
+  let partsMissing = 0
 
   type TrackedRow = { id: string; video_id: string; title: string | null; thumbnail_url: string | null }
   /** The channel's pinned videos (R118), read once per sync inside the try below. */
@@ -199,6 +203,13 @@ export async function syncCompetitorChannel(
   }
   const fail = (what: string, error: { message?: string } | null | undefined): void => {
     if (error) throw new Error(`${what}: ${error.message ?? 'database error'}`)
+  }
+  /** (A5) O primeiro erro de uma gravação que NÃO é pré-requisito da série do dia: guardado aqui e lançado no fim. */
+  let lateFailure: Error | null = null
+  const late = (what: string, error: { message?: string } | null | undefined): boolean => {
+    if (!error) return false
+    lateFailure ??= new Error(what + ': ' + (error.message ?? 'erro do banco'))
+    return true
   }
 
   /** Reconciles one video's versions and applies the plan. Throws on any database error (compensating first). */
@@ -316,24 +327,22 @@ export async function syncCompetitorChannel(
     }
   }
   /**
-   * A pinned video outside the uploads page never reaches the stats update of the page loop, so its row would keep the
-   * count and the check date of the day it left the page. last_checked_at is written whenever YouTube returns the item
-   * (that is what "checked since it was pinned" reads); view_count / like_count only when the answer carries them, so a
-   * hidden counter never erases the stored one. Only pinned rows: an unobserved video keeps a frozen row on purpose.
+   * A linha do vídeo é regravada toda vez que o YouTube o devolve, em qualquer chamada (página, passada diária, fixados):
+   * contagens, sinalizadores (D2: contagem ausente é nulo mais o sinalizador, nunca 0), ao vivo, e a sequência de faltas
+   * zerada. Uma vez por sincronização. Erro de gravação nunca é "ok": é guardado (late) e o canal termina em erro, depois da série do dia.
    */
-  const refreshPinnedStats = async (items: FetchedItem[], byYt: Map<string, TrackedRow>): Promise<void> => {
+  const patchFetched = async (items: FetchedItem[], byYt: Map<string, TrackedRow>): Promise<void> => {
     for (const it of items) {
       const row = byYt.get(it.id)
-      if (!row || !pinned.some(p => p.id === row.id)) continue
-      const st = it.statistics
-      const { error } = await supabase.from('competitor_videos')
-        .update({
-          ...(st?.viewCount !== undefined ? { view_count: optCount(st.viewCount) } : {}),
-          ...(st?.likeCount !== undefined ? { like_count: optCount(st.likeCount) } : {}),
-          last_checked_at: nowIso,
-        })
-        .eq('id', row.id)
-      fail('update pinned video stats', error)
+      if (!row) continue
+      seen.add(row.id)
+      if (patched.has(row.id)) continue
+      const o = videoObservedOf(it, nowIso, parseIsoDuration)
+      if (o.partsMissing.length) partsMissing++
+      const { error } = await supabase.from('competitor_videos').update(o.patch).eq('id', row.id)
+      // (emenda do portão: S-I5) não lança: a série do dia vem antes; o erro é guardado e o canal termina em erro
+      if (late('não foi possível atualizar a linha do vídeo', error)) continue
+      patched.add(row.id)
     }
   }
 
@@ -423,7 +432,7 @@ export async function syncCompetitorChannel(
 
       // Fetch video details
       const videosRes = await api(
-        `${YOUTUBE_API_BASE}/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&key=${apiKey}`,
+        `${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${videoIds.join(',')}&key=${apiKey}`,
       )
       if (!videosRes.ok) throw new Error(`YouTube API ${videosRes.status} for video details`)
 
@@ -463,12 +472,12 @@ export async function syncCompetitorChannel(
         const thumbnailUrl = (video.snippet?.thumbnails?.maxres?.url ?? video.snippet?.thumbnails?.high?.url ?? null) as string | null
         const viewCount = optCount(video.statistics?.viewCount)
         const publishedAt = (video.snippet?.publishedAt as string) ?? null
-        const likeCount = optCount(video.statistics?.likeCount)
-        const commentCount = parseInt(video.statistics?.commentCount ?? '0', 10)
         const tags: string[] = (video.snippet?.tags as string[]) ?? []
         const categoryId: string | null = (video.snippet?.categoryId as string) ?? null
 
         const durationSeconds = parseIsoDuration(video.contentDetails?.duration as string | undefined)
+        const observed = videoObservedOf(video, nowIso, parseIsoDuration)
+        if (observed.partsMissing.length) partsMissing++
         const probe: ShortProbeResult | undefined = probes.get(videoId)
         const verdict = classifyShort({ durationSeconds, title, probe })
         let isShort = verdict.isShort
@@ -481,23 +490,15 @@ export async function syncCompetitorChannel(
         let videoUuid: string | null = existing ? (existing.id as string) : null
 
         if (!existing) {
-          const { data: inserted } = await supabase.from('competitor_videos').insert({
-            competitor_channel_id: channelRow.id,
-            video_id: videoId,
-            title,
-            description_hash: descriptionHash,
-            thumbnail_url: thumbnailUrl,
-            view_count: viewCount,
-            published_at: publishedAt,
-            like_count: likeCount,
-            comment_count: commentCount,
-            duration_seconds: durationSeconds,
-            is_short: isShort,
-            tags,
-            category_id: categoryId,
-            original_thumbnail_url: thumbnailUrl,
+          const { data: inserted, error: insErr } = await supabase.from('competitor_videos').insert({
+            competitor_channel_id: channelRow.id, video_id: videoId, title, description_hash: descriptionHash, thumbnail_url: thumbnailUrl,
+            published_at: publishedAt, duration_seconds: durationSeconds, is_short: isShort, tags, category_id: categoryId,
+            original_thumbnail_url: thumbnailUrl, ...observed.patch, discovered_at: nowIso,
           }).select('id').single()
+          // (emenda do portão: S-I5) um vídeo que não grava não derruba os outros 49 nem a série do dia
+          if (late('não foi possível gravar o vídeo novo', insErr)) continue
           videoUuid = (inserted as { id: string } | null)?.id ?? null
+          if (videoUuid) { patched.add(videoUuid); seen.add(videoUuid) }
         } else {
           // Mark as known for smart incremental
           hitKnownVideo = true
@@ -516,22 +517,18 @@ export async function syncCompetitorChannel(
         if (!existing) continue
 
         // Update stats
-        await supabase
+        const { error: updErr } = await supabase
           .from('competitor_videos')
           .update({
             ...(title ? { title } : {}),
             ...(apiDescription !== undefined ? { description_hash: descriptionHash } : {}),
-            thumbnail_url: thumbnailUrl,
-            view_count: viewCount,
-            last_checked_at: nowIso,
-            like_count: likeCount,
-            comment_count: commentCount,
-            duration_seconds: durationSeconds,
             is_short: isShort,
-            tags,
-            category_id: categoryId,
+            // (emenda do portão: S-M2) tags, category_id, thumbnail_url e duration_seconds vêm de observed.patch, só quando a parte veio
+            ...observed.patch,
           })
           .eq('id', existing.id)
+        seen.add(existing.id as string)
+        if (!late('não foi possível atualizar a linha do vídeo', updErr)) patched.add(existing.id as string)
       }
 
       if (touchIds.length) {
@@ -567,7 +564,7 @@ export async function syncCompetitorChannel(
       for (let i = 0; i < todo.length; i += 50) {
         const chunk = todo.slice(i, i + 50)
         try {
-          const res = await api(`${YOUTUBE_API_BASE}/videos?part=snippet,statistics&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
+          const res = await api(`${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
           if (!res.ok) throw new Error(`YouTube API ${res.status} for daily statistics`)
           const body = await res.json()
           const byYt = new Map(chunk.map(c => [c.video_id, c]))
@@ -592,7 +589,7 @@ export async function syncCompetitorChannel(
           }
           // once-a-day pass: reconcile what the incremental pages did not reach
           await reconcileFetched(items, byYt)
-          await refreshPinnedStats(items, byYt)
+          await patchFetched(items, byYt)
         } catch (e) {
           dailyFailure ??= e instanceof Error ? e : new Error(String(e))
         }
@@ -616,12 +613,12 @@ export async function syncCompetitorChannel(
     const pinnedLeft = pinned.filter(p => !reconciled.has(p.id))
     for (let i = 0; i < pinnedLeft.length; i += 50) {
       const chunk = pinnedLeft.slice(i, i + 50)
-      const res = await api(`${YOUTUBE_API_BASE}/videos?part=snippet,statistics&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
+      const res = await api(`${YOUTUBE_API_BASE}/videos?part=${VIDEO_PARTS}&id=${chunk.map(c => c.video_id).join(',')}&key=${apiKey}`)
       if (!res.ok) throw new Error(`YouTube API ${res.status} for pinned videos`)
       const body = await res.json()
       const fetched = (body.items ?? []) as FetchedItem[], byYt = new Map(chunk.map(c => [c.video_id, c]))
       await reconcileFetched(fetched, byYt)
-      await refreshPinnedStats(fetched, byYt)
+      await patchFetched(fetched, byYt)
     }
 
     // ── Re-classificação dos já gravados como longos com 61–180 s (R109), mesmo teto da execução ──
@@ -633,18 +630,6 @@ export async function syncCompetitorChannel(
     } catch {
       // a sonda nunca derruba o sync
     }
-
-    // Mark completion
-    const updatePayload: Record<string, unknown> = {
-      sync_status: 'idle',
-      sync_error: null,
-      last_ok_synced_at: nowIso,
-      sync_error_since: null,
-    }
-    if (isFullSync) {
-      updatePayload.full_sync_completed_at = nowIso
-    }
-    await supabase.from('competitor_channels').update(updatePayload).eq('id', channelRow.id)
 
     // Notifications (unchanged from original)
     let semDestinatario = false
@@ -674,7 +659,23 @@ export async function syncCompetitorChannel(
       }
     }
 
-    return { videosChecked, changesDetected, dailyRecorded, unitsUsed, ...(semDestinatario ? { sem_destinatario: true } : {}) }
+    // (A5) O erro da primeira gravação que não é pré-requisito da série do dia: lançado aqui, depois da passada diária, dos
+    // fixados e das notificações; o canal termina em erro e não carimba last_ok_synced_at.
+    if (lateFailure) throw lateFailure
+
+    // Mark completion
+    const updatePayload: Record<string, unknown> = {
+      sync_status: 'idle',
+      sync_error: null,
+      last_ok_synced_at: nowIso,
+      sync_error_since: null,
+    }
+    if (isFullSync) {
+      updatePayload.full_sync_completed_at = nowIso
+    }
+    await supabase.from('competitor_channels').update(updatePayload).eq('id', channelRow.id)
+
+    return { videosChecked, changesDetected, dailyRecorded, unitsUsed, ...(semDestinatario ? { sem_destinatario: true } : {}), ...(partsMissing ? { partsMissing } : {}) }
   } catch (error) {
     // Set error status, preserve partial data
     await supabase
