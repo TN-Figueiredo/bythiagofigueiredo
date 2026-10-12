@@ -25,7 +25,9 @@ Tudo roda dentro do cron `sync-analytics-metrics`, uma vez por dia às 12:00 UTC
 | Diário real por vídeo da Analytics API (L2): `views`, `engaged_views`, `watch_time_minutes`, `avg_view_duration_seconds`, `avg_view_percentage`, `likes`, `comments`, `shares`, `subscribers_gained`, `subscribers_lost`, `card_impressions`, `card_click_rate` | `yt_own_video_daily` (uma linha por vídeo por dia do Pacífico **em que houve atividade**) | Sim: a Analytics API serve o passado. Sem linha para o vídeo, a execução seguinte pede tudo de novo desde a publicação |
 | Impressões e CTR de miniatura por vídeo e dia (L2), normalizados do CSV de `channel_reach_basic_a1` | `yt_own_video_reach_daily` | Em parte: só enquanto o bruto existir. O bruto de um relatório normalizado é apagado 90 dias depois (seção 8) |
 
-Tipos de relatório habilitados (`REPORT_TYPES_ENABLED`, a ordem é a prioridade de download): `channel_reach_basic_a1`, `channel_reach_combined_a1`, `channel_traffic_source_a3`, `channel_basic_a3`. Os dois primeiros são os "de alcance".
+Tipos de relatório habilitados (`REPORT_TYPES_ENABLED`): os 4 de sempre (`channel_reach_basic_a1`, `channel_reach_combined_a1`, `channel_traffic_source_a3`, `channel_basic_a3`) e, desde a E12 da A5, mais 9 que **só guardam o bruto** (sem normalizador e sem tela): `channel_combined_a3`, `channel_device_os_a3`, `channel_playback_location_a3`, `channel_province_a3`, `channel_demographics_a1`, `channel_subtitles_a3`, `channel_cards_a1`, `channel_end_screens_a1`, `channel_sharing_service_a1`. Os dois primeiros da lista são os "de alcance". Ficam fora de propósito `channel_annotations_a1` (recurso extinto) e os `playlist_*`. A ordem da lista só desempata a fila de download.
+
+Os 12 tipos que não são `channel_reach_basic_a1` guardam só o bruto, e o bruto é apagado 180 dias depois do download (o de `channel_reach_basic_a1`, 90 dias depois de normalizado). **Os 9 tipos novos só valem a partir do deploy**: o YouTube gera apenas os 30 dias anteriores à criação do job, então cada dia de atraso no deploy perde um dia de histórico deles. Se um desses tipos for gerado vazio ou nunca for gerado para o canal, ver "Conferência de D+3 e D+7" na seção 10.
 
 **O que se perde de vez e o que não.** Impressões e CTR de miniatura só existem a partir da criação do job: o Google guarda o histórico de cada job por 30 dias e os relatórios diários por 60. A linha diária de metadados de um dia em que o cron não rodou nunca é escrita (aparece como `dias_sem_meta`). Todo o resto pode ser buscado de novo depois.
 
@@ -37,7 +39,7 @@ Ainda **não** existe: a retenção (lote L3).
 - **Nulo nunca é zero.** Métrica que a API não trouxe fica nula na linha. Dia sem atividade **não tem linha**: a ausência de linha é "sem atividade ou não medido", nunca um zero gravado. Para separar os dois casos use `yt_own_collection_attempts` (seção 4): tentativa `sem_dado_na_janela` = a API respondeu e não havia nada; sem tentativa = nunca perguntado.
 - **`yt_own_video_daily.views` é a contagem do DIA.** `youtube_video_analytics.views` (a parte antiga do cron) é o total da janela de 90 dias, não a contagem do dia. Não compare nem some um com o outro.
 - Alcance: o relatório traz uma linha por vídeo e dia, só para vídeo com impressão. Vídeo sem impressão no dia **não aparece** e dia sem impressão vem como relatório `vazio` (só cabeçalho): nos dois casos não há linha em `yt_own_video_reach_daily`, e isso não é zero medido. `thumbnail_ctr` fica na unidade do relatório (0–1). **Cliques não são gravados**: o CSV não tem a coluna; impressões × CTR reconstroem o número.
-- Só `channel_reach_basic_a1` é normalizado. `channel_reach_combined_a1`, `channel_traffic_source_a3` e `channel_basic_a3` ficam só como bruto.
+- Só `channel_reach_basic_a1` é normalizado. Os outros 12 tipos habilitados (`channel_reach_combined_a1`, `channel_traffic_source_a3`, `channel_basic_a3` e os 9 da E12) ficam só como bruto.
 - Relatório mais novo (`create_time` maior) **substitui a linha de alcance por inteiro**, inclusive levando o CTR de não nulo a nulo. Relatório mais velho que a linha gravada não sobrescreve nada; o mesmo relatório pode regravar as suas linhas (seção 8).
 - Linha de alcance de vídeo que não está em `youtube_videos` é gravada com `video_id` nulo, e o id vai para `yt_reporting_reports.unmatched_video_ids` (`{ count, ids }`; nulo quando todos têm par).
 - `metric_version` (nas duas tabelas) deriva de `day_pt`: `views_ate_2025-03-30` até 30/03/2025, `views_2025-03-31_a_2026-08-26` até 26/08/2026 e `views_desde_2026-08-27` depois.
@@ -47,14 +49,21 @@ Ainda **não** existe: a retenção (lote L3).
 ## 2. Orçamento e tetos
 
 - Relógio global do pedido: 270 s (`maxDuration` = 300 s). Cada passo recebe `min(teto, o que resta do relógio)`.
-- Tetos: metadados 30 s, jobs 20 s, relatórios 60 s, **alcance 20 s, diário 50 s**. Cada chamada ao Google tem no máximo 15 s; até 4 em paralelo.
+- Tetos: metadados 30 s, jobs 20 s, **relatórios 120 s**, alcance 20 s, diário 50 s. Cada chamada ao Google tem no máximo 15 s; até 4 em paralelo.
+- A soma dos tetos é 240 s; com 30 s de reserva para a parte antiga (medida: 20 a 24 s) fecha os 270 s. `clock.test.ts` trava essa conta: mexer num teto quebra o teste até a conta ser refeita.
 - Ordem: metadados, jobs (fase "antes"), a parte antiga (analytics por janela), relatórios, **alcance**, critérios de relatórios, **diário**, critérios do L2 e demais critérios (fase "depois"). O alcance roda antes dos critérios de relatórios de propósito: um cabeçalho inesperado achado hoje já deixa o cron vermelho hoje.
-- No máximo **40 downloads de relatório por execução**. Bater nesse teto é normal e **não é falha**: na primeira semana a fila inicial tem cerca de 240 relatórios de histórico, ou seja, uns 6 dias para esvaziar. `pendentes` em `coleta.relatorios` vai caindo.
-- Só o **relógio** produz `nao_alcancado_orcamento`. O teto de 40 não.
+- No máximo **100 downloads de relatório por execução**, um por vez. Medida de produção (09 a 12/10/2026): até 0,90 s por download; 100 downloads mais a listagem de 26 jobs cabem nos 120 s (`reports-step.test.ts` trava a conta). Bater nesse teto é normal e **não é falha** enquanto a fila estiver caindo: `coleta.relatorios.pendentes` diz quantos ficaram e `coleta.relatorios.vence_primeiro_em_dias` diz em quantos dias vence o primeiro deles (`null` = nada ficou para trás). `ms_listar` e `ms_baixar` dão o tempo de cada parte. A fila dos 9 tipos novos (cerca de 558 relatórios de histórico) esvazia em cerca de 9 execuções.
+- **Ordem da fila** (`coleta/fila-relatorios.ts`): primeiro o que vence na origem em até 7 dias, de qualquer tipo; depois os de alcance; depois o resto, pelo vencimento. O arquivo vence 60 dias depois de gerado, ou 30 se for de histórico (`is_backfill`).
+- Só o **relógio** produz `nao_alcancado_orcamento`. O teto de 100 não. Três execuções seguidas sem alcançar um canal viram a nota `orçamento: N escopo(s) de relatorio sem alcançar nas 3 últimas tentativas`; aí a conta do teto de downloads precisa ser refeita (o teste obriga).
 - No máximo **200 relatórios normalizados por execução** (passo `alcance`, do mais velho para o mais novo). O que passa disso fica para o dia seguinte e aparece em `coleta.alcance.pendentes`.
 - O diário faz **uma chamada à Analytics API por vídeo** (duas quando a API recusa as métricas estendidas) e lê no máximo 1000 vídeos por execução. Sem tempo, os vídeos que sobram viram `nao_alcancado_orcamento` e entram em `coleta.diario.pendentes`; os mais antigos de coletar vão primeiro no dia seguinte.
 - O passo `alcance` **não registra tentativas** (não há `kind` para ele). Sem tempo ele devolve `sem_tempo: true` com `pendentes: 0`: o zero ali é "não olhou", não "nada pendente". O estado de cada relatório mora na própria linha de `yt_reporting_reports` (`normalized_at`, `status`, `error`), e o sinal de um normalizador parado é a nota "baixado(s) há mais de 2 dias sem normalizar" (seção 6).
-- Bruto comprimido acima de 2 MB vira relatório em `erro` com `error = 'grande_demais'`.
+- **Teto de tamanho do bruto, duas constantes** (`apps/web/src/lib/youtube/reporting/client.ts`):
+  - `MAX_GZ_BYTES` = **2 MB** (era 10 MB até 12/10/2026: ninguém provou que o banco grava um bruto de 10 MB, que vira 20 MB em hex no upsert; o maior relatório real tem 564 bytes). Mede os **bytes lidos do corpo da resposta**, e o que isso é depende do servidor: com `Content-Encoding: gzip` (gzip de **transporte**) o fetch descomprime sozinho e a leitura mede o CSV já puro; o `Content-Length` é sempre o tamanho no fio. Sem gzip de transporte, é o que veio no fio.
+  - `MAX_CSV_BYTES` = **64 MB**, o CSV descomprimido de um corpo que é um `.gz` de verdade (o gzip do próprio relatório). Memória medida em 12/10/2026 (Node 25, CSV de 64 MB): o pico sobe cerca de 69 MB com qualquer tamanho de linha (o código conta as linhas no Buffer); a contagem antiga por `split` chegava a +759 MB com linhas de 9 bytes.
+  - Acima de qualquer um dos dois o relatório vira `erro` com `error = 'grande_demais'`, **o bruto não é guardado** e o cron fica vermelho na hora e por 14 dias. Acima de metade de `MAX_GZ_BYTES` (1 MB de gzip **guardado**) o bruto é guardado e a execução avisa; com gzip de transporte o corpo lido é o CSV puro e o gzip guardado é bem menor que ele, então esse aviso quase nunca aparece antes da recusa em 2 MB de CSV (o vermelho da recusa é o aviso). `coleta.relatorios.maior_bytes` é o maior relatório da execução.
+  - A recusa antes de ler o corpo (Content-Length) e a recusa de bomba de descompressão **não gravam `sha256` nem `row_count`** (o conteúdo não foi lido por inteiro); só `bytes`.
+  - Os três textos da nota (ver seção 6) dizem qual teto estourou; subir só `MAX_GZ_BYTES` **não** resolve uma recusa "descomprimem a mais de".
 
 ## 3. Ler a resposta do cron
 
@@ -70,11 +79,11 @@ Rodar à mão é seguro: os passos são idempotentes no dia (a segunda execuçã
 | `sem_autorizacao` | canais pulados pela parte antiga porque perderam a autorização do YouTube (seção 5, `reautorizar`). Não é erro |
 | `ms_existente` | quanto a parte antiga levou, em ms. O relógio global é de 270 s |
 | `coleta.metadados` | `gravados`, `tentativas` por resultado, `pendentes`, `day_pt`, `dias_sem_meta` por canal (chave ausente = a leitura falhou, não é zero). `sem_tempo: true` = o passo recebeu 0 s. Desde o L1b: `sem_privacidade` (linhas gravadas sem `privacy_status`) e `sem_is_short` (linhas com `is_short` nulo). **`sem_privacidade` igual a `gravados` num canal com conexão viva é falha em verde: olhe a tentativa `meta` de escopo `canal`** |
-| `coleta.ms` | milissegundos de cada passo (`metadados`, `jobs`, `relatorios`, `alcance`, `diario`). Os tetos são 30 000, 20 000, 60 000, 20 000 e 50 000 |
+| `coleta.ms` | milissegundos de cada passo (`metadados`, `jobs`, `relatorios`, `alcance`, `diario`). Os tetos são 30 000, 20 000, 120 000, 20 000 e 50 000 |
 | `coleta.reautorizar` | `youtube_channels.id` dos canais em `reautorizar` |
 | `coleta.autorizados`, `coleta.negados` | `youtube_channels.id` dos canais que tiveram, nesta execução, uma chamada autenticada bem-sucedida / uma negação de autorização. É com esses dois conjuntos que o cron decide, no fim, quem sai de `reautorizar` |
 | `coleta.jobs` | `estados` por canal e tipo, `tipo_indisponivel`, `acao_do_dono`, `pendentes` |
-| `coleta.relatorios` | `vistos`, `baixados`, `vazios`, `expirados`, `erros_download`, `bruto_apagado`, `pendentes`, `perdidos`, `atrasados` |
+| `coleta.relatorios` | `vistos`, `baixados`, `vazios`, `expirados`, `erros_download`, `bruto_apagado`, `pendentes`, `perdidos`, `atrasados`; desde a E12 também `maior_bytes`, `expirados_por_tipo`, `vence_primeiro_em_dias` (`null` = nada ficou para trás) e `ms_listar` / `ms_baixar` |
 | `coleta.alcance` | o passo que normaliza o bruto de `channel_reach_basic_a1`: `normalizados` (relatórios com dado), `vazios` (relatórios `vazio` conferidos e marcados), `erros` (viraram `erro` nesta execução), `sem_par` (vídeos sem par em `youtube_videos`), `gravados` (linhas inseridas ou sobrescritas em `yt_own_video_reach_daily`), `pendentes` (ficam para amanhã; fila com mais de 200 soma 1 a mais, o número exato não é conhecido), `tentativas` (sempre vazio: o passo não registra tentativas). `sem_tempo: true` = o passo recebeu 0 s (e `pendentes` fica em 0: ver seção 2). Chave `alcance` ausente = o passo lançou exceção (veja `falhas`) ou está desligado (seção 10). **`normalizados` pode subir com `gravados: 0`**: o relatório era mais velho que as linhas já gravadas e a função do banco não sobrescreve |
 | `coleta.diario` | o passo do diário por vídeo: `gravados` (linhas de dia gravadas em `yt_own_video_daily`), `tentativas` por resultado (conta as tentativas de vídeo **e** a de canal de `kind = 'diario'`: um canal com 35 vídeos mostra uns 36 ao todo), `pendentes` (vídeos que o relógio deixou para amanhã), `ate` (o "hoje" do Pacífico usado como fim da janela), `estendidas_recusadas` (vídeos cuja resposta veio sem as métricas estendidas) e `sem_tempo`. `gravados: 0` com `tentativas.sem_dado_na_janela` alto = a API respondeu vazio para os vídeos: sem atividade na janela, **não** zero. Chave `diario` ausente = o passo lançou exceção ou está desligado |
 | `coleta.perdidos`, `coleta.atrasados` | os mesmos dois números, no nível de cima. `perdidos` = sem conserto; `atrasados` = `listado` há mais de 14 dias (esses viram falha) |
@@ -199,9 +208,18 @@ O Google recusou o token na Reporting API (401, ou 403 `insufficientPermissions`
 2. A execução seguinte tenta de novo sozinha.
 
 ### `tipo_indisponivel`
-Texto do aviso: "O YouTube não oferece o relatório de alcance para o canal <nome>."
-O YouTube não oferece aquele tipo para o canal. Avisa uma vez. Não há o que fazer; o estado fica em `coleta.jobs.tipo_indisponivel`. Anote no ledger quais tipos faltam.
+Texto do aviso: "O YouTube não oferece o relatório <tipo> para o canal <nome>."
+O YouTube não oferece aquele tipo para o canal. Avisa uma vez **por tipo** (o nome do tipo vai no texto). Não há o que fazer; o estado fica em `coleta.jobs.tipo_indisponivel`. Anote no ledger quais tipos faltam.
 Quais tipos o canal recebe só a primeira execução responde; anote aqui: (preencher depois da primeira execução em produção).
+
+### `<canal>: <tipo> tem data de descontinuação no YouTube (<data>)`
+Entra em `acao_do_dono` (nunca em falha) na execução em que o passo de jobs sonda os tipos (quando falta job para algum). Se a data já passou, o texto acrescenta ", que já passou". O job é criado mesmo assim. Anote a data no ledger: quando o YouTube desligar o tipo, a versão nova precisa entrar em `REPORT_TYPES_ENABLED`.
+
+### `<canal>: <tipo> nunca gerou relatório desde <AAAA-MM-DD>; confira se o YouTube gera esse tipo para este canal`
+Entra em `acao_do_dono` a cada execução, **não** em falha. É um tipo que só guarda bruto, com job ativo há mais de 6 dias e nenhum relatório chegou desde a criação (`yt_reporting_jobs.last_create_time` nulo). A premissa "o YouTube gera relatório todo dia" só foi medida nos 4 tipos antigos; para estes ninguém sabe se o YouTube gera algo para o canal. Faça a conferência de D+3 e D+7 (seção 10). Se o tipo não existe para o canal, tire-o de `REPORT_TYPES_ENABLED` (seção 10) e apague o job do lado do Google (seção 9).
+
+### `<canal> tem N tipo(s) de relatório habilitado(s) sem job: ... (o canal precisa ser reconectado)`
+Mesma nota da seção 6 (`jobs: ...`), mas em `acao_do_dono` quando o canal está em `reautorizar`: o canal perdeu a autorização e o job desses tipos não pôde ser criado. Reconecte o canal: o job é criado na execução seguinte. Cada dia sem job é um dia de histórico que não volta.
 
 ### `<canal>: reautorizar`
 Texto do aviso: "O canal <nome> perdeu a autorização do YouTube. A coleta parou. Reconecte o canal em Configurações."
@@ -267,18 +285,32 @@ Cada nota vira texto em `cron_health.last_error` (juntas, até 500 caracteres) e
 |---|---|---|
 | `jobs: <canal>: <causa>` | exceção ao sondar ou criar jobs de um canal | Sentry (extra `canal`, `tipo`) |
 | `jobs: <canal> está com o job <tipo> em erro há 3 dias` | erro persistente na Reporting API | ver `error` em `yt_reporting_jobs`; se foi `job_removido`, a execução seguinte recria sozinha |
-| `jobs: <canal> não consegue baixar o relatório <tipo> há 3 dias (último erro: …)` | o job está ativo mas o download falha todo dia | ver as tentativas `kind = 'relatorio'` do escopo `job` |
+| `jobs: <canal> não consegue baixar o relatório <tipo> há 3 dias (último erro: …)` | o job está ativo mas o download falha todo dia. O `último erro` diz a causa: `HTTP 5xx`, `gzip_invalido` (o arquivo chega e não abre: download cortado; o relatório continua `listado` e é tentado de novo todo dia), `HTTP 200 corpo_vazio` (a resposta veio com 0 byte: resposta cortada, **não** é relatório vazio) ou `erro_gravacao: <tipo>, <bytes> bytes, <erro do banco>` (o download deu certo e o banco recusou gravar o bruto) | ver as tentativas `kind = 'relatorio'` do escopo `job`. `gzip_invalido` e `corpo_vazio` por 3 dias: exportar a URL e tentar à mão; se o arquivo da origem estiver mesmo corrompido, ele vence e vira `perdidos`. `erro_gravacao`: ver a nota `a GRAVAÇÃO do bruto` abaixo |
+| `jobs: <canal> tem N tipo(s) de relatório habilitado(s) sem job: <tipos>` | a linha do tipo segue `desativado` (ou não existe): o passo de jobs não passou pelo canal (sem conexão, sem tempo ou exceção). Com o canal em `reautorizar` a nota vai para `acao_do_dono` (seção 5) | ver as tentativas `sondagem` do canal; resolvido, o job nasce na execução seguinte |
+| `jobs: <canal>: o tipo <tipo> sumiu da lista do YouTube; se repetir, foi descontinuado` | o job do tipo já funcionava e a lista de tipos da API não o trouxe. Nada é gravado (o job fica `ativo`): uma lista parcial e um tipo descontinuado não se distinguem numa execução só | se repetir por dias, o tipo foi descontinuado: tire-o de `REPORT_TYPES_ENABLED` (seção 10). O critério dos 6 dias sem relatório novo também acusa |
+| `jobs: <canal>: o YouTube não devolveu a lista de tipos de relatório` | a lista de tipos veio vazia ou sem nenhum tipo habilitado. É "o dado não existe": nenhuma linha vira `tipo_indisponivel`, nenhum aviso é mandado e a próxima execução tenta de novo | transitório; se repetir por 3 dias, ver a resposta de `reportTypes.list` à mão |
+| `jobs: <canal>: a lista reportTypes passou de 20 páginas; a resposta do YouTube está incompleta` (ou `jobs`) | a lista passou do limite de páginas e foi recusada inteira, em vez de usada pela metade | Sentry; só acontece se a API mudar de comportamento |
 
 ### Relatórios (passo 1C e critérios)
 
 | Nota | Significa | O que fazer |
 |---|---|---|
-| `relatórios: <canal> tem relatório de alcance <tipo> em erro` | relatório de alcance de até 14 dias em `erro`. Do passo de relatórios: `url_inesperada`, `gzip_invalido` ou `grande_demais` (não tem conserto: a nota sai sozinha em 14 dias e passa a contar em `perdidos`). Do passo `alcance` (L2): `cabecalho_inesperado` (o Google mudou as colunas do CSV), `linha_invalida` (uma linha que não se lê, **CTR fora de 0–1** ou data que não existe no calendário), `canal_inesperado` (o CSV traz `channel_id` de outro canal), `bruto_ausente` (relatório `baixado` sem bruto) e `gzip_invalido` | ver `error` em `yt_reporting_reports` (seção 4). O bruto fica guardado. `cabecalho_inesperado` e `linha_invalida`: corrija o leitor (`reach-csv.ts`) e a seção 8 devolve o relatório à fila. `canal_inesperado`: confira `youtube_channels.channel_id` do canal antes de devolver à fila. `bruto_ausente` e `gzip_invalido` do `alcance`: sem bruto legível não há o que normalizar. Em todos esses casos nenhuma linha de alcance do relatório foi gravada |
+| `relatórios: <canal> tem relatório de alcance <tipo> em erro` | relatório de alcance de até 14 dias em `erro`. Do passo de relatórios: `url_inesperada` ou `grande_demais` (a nota sai sozinha em 14 dias e passa a contar em `perdidos`; `grande_demais` dentro do prazo da origem tem conserto, seção 8). Gzip que não abre no download **não** é mais `erro`: o relatório fica `listado` e é tentado de novo Do passo `alcance` (L2): `cabecalho_inesperado` (o Google mudou as colunas do CSV), `linha_invalida` (uma linha que não se lê, **CTR fora de 0–1** ou data que não existe no calendário), `canal_inesperado` (o CSV traz `channel_id` de outro canal), `bruto_ausente` (relatório `baixado` sem bruto) e `gzip_invalido` | ver `error` em `yt_reporting_reports` (seção 4). O bruto fica guardado. `cabecalho_inesperado` e `linha_invalida`: corrija o leitor (`reach-csv.ts`) e a seção 8 devolve o relatório à fila. `canal_inesperado`: confira `youtube_channels.channel_id` do canal antes de devolver à fila. `bruto_ausente` e `gzip_invalido` do `alcance`: sem bruto legível não há o que normalizar. Em todos esses casos nenhuma linha de alcance do relatório foi gravada |
 | `relatórios: <canal> recebeu 4 relatórios <tipo> vazios seguidos` | alcance vindo sem linhas 4 vezes seguidas, **em canal que publicou nos últimos 90 dias**. Canal sem publicação nesse prazo não gera esta nota: aparece em `coleta.vazios_sem_publicacao` (o spec, seção 9, não trazia esse filtro; a divergência é deliberada) | conferir no Studio se o canal teve visualizações |
 | `critérios: não foi possível avaliar vídeos recentes do canal <canal> (youtube_videos)` | a contagem de publicações dos últimos 90 dias falhou; sem ela o cron não decide se "vazios seguidos" ou "sem relatório novo" é falha | resolva a nota `erro de banco ao ler youtube_videos` que vem junto |
-| `relatórios: <canal> tem relatório <tipo> expirado sem baixar` | passou do prazo (60 dias; 30 se for histórico) ou o download devolveu 404/410 | nada; sai em 14 dias e vira `perdidos` |
+| `relatórios: <canal> tem relatório <tipo> expirado sem baixar` | passou do prazo (60 dias; 30 se for histórico) ou o download devolveu 404/410. Vale só para relatório criado há menos de 14 dias (404/410 cedo); o vencimento por idade aparece nas duas notas `venceram sem baixar` abaixo | nada; sai em 14 dias e vira `perdidos` |
+| `relatórios: N relatório(s) venceram sem baixar nesta execução (<tipo>: n, ...)` | nesta execução, N relatórios de tipo habilitado passaram do prazo da origem (30 dias de histórico, 60 dos demais) ou o download devolveu 404/410, e nenhum critério persistente os cobre. **O dado não volta** | ver por que a fila não andou: `pendentes`, `ms_baixar`, tentativas `relatorio`. Anote no ledger o tipo e o período perdido |
+| `relatórios: N relatório(s) venceram sem baixar nos últimos 14 dias (<tipo>: n; ...)` | a mesma perda, vista pelos critérios nos 14 dias seguintes ao vencimento (relatório vencido por idade). O vermelho dura 14 dias do vencimento. **O dado não volta** | idem. Depois dos 14 dias só conta em `perdidos` |
+| `relatórios: <canal> tem relatório <tipo> em erro (<motivo>)` | relatório de até 14 dias em `erro`, de tipo que só guarda bruto. Motivos: `grande_demais`, `url_inesperada` | `grande_demais`: subir o teto certo (próxima linha) e recolocar na fila (seção 8) enquanto o arquivo existe na origem; `url_inesperada`: não tem conserto |
+| `relatórios: <canal>: <tipo> recusado por tamanho (Content-Length de N bytes (tamanho no fio); teto M bytes lidos do corpo): o bruto NÃO foi guardado; vence na origem em DD/MM (UTC)` | o servidor declarou, antes de qualquer leitura, mais que `MAX_GZ_BYTES` no fio | subir `MAX_GZ_BYTES` **com prova de que o banco grava o novo tamanho** (o bruto vira hex: o dobro em memória no upsert), deploy, e recolocar na fila (seção 8) **antes da data DD/MM**; depois dela o arquivo some na origem |
+| `relatórios: <canal>: <tipo> recusado por tamanho (mais de M bytes lidos do corpo, já depois do gzip de transporte se houver (parou em N); teto M): o bruto NÃO foi guardado; vence na origem em DD/MM (UTC)` | a leitura do corpo passou de `MAX_GZ_BYTES` (com gzip de transporte, é o CSV já descomprimido) | idem: `MAX_GZ_BYTES` |
+| `relatórios: <canal>: <tipo> recusado por tamanho (N bytes de .gz descomprimem a mais de M bytes; teto M descomprimido): o bruto NÃO foi guardado; vence na origem em DD/MM (UTC)` | o corpo é um `.gz` de verdade que descomprime acima de `MAX_CSV_BYTES` (64 MB). Pode ser bomba de descompressão ou relatório realmente enorme | subir só `MAX_GZ_BYTES` **não resolve**: é `MAX_CSV_BYTES`, e só depois de medir a memória (a conta está na seção 2). Se o prazo for `prazo na origem desconhecido`, o `create_time` do relatório está ilegível: conferir a linha no banco |
+| `relatórios: <canal>: <tipo> recusado por tamanho (N bytes comprimidos; teto M): o bruto NÃO foi guardado; ...` | o corpo foi lido por inteiro e o gzip que ia ser guardado passou de `MAX_GZ_BYTES` (aqui são mesmo bytes comprimidos; neste caso `sha256` e `row_count` foram gravados na linha) | idem: `MAX_GZ_BYTES` |
+| `relatórios: <tipo> chegou a <bytes> bytes comprimidos, mais da metade do teto de <teto>` | o bruto **foi** guardado; aviso para subir o teto antes de perder | subir `MAX_GZ_BYTES` (com a prova de gravação) |
+| `relatórios: <canal>: a GRAVAÇÃO do bruto de <tipo> falhou (N bytes comprimidos; banco: <erro>); o relatório continua na fila` | o download deu certo e o `upsert` em `yt_reporting_report_blobs` foi recusado. O relatório fica `listado` e é tentado todo dia; cada dia grava uma tentativa `erro_http` com `error = 'erro_gravacao: <tipo>, <bytes> bytes, <erro>'`, e no 3º dia seguido sai a nota `jobs: … não consegue baixar … (último erro: erro_gravacao: …)` | ver o log do Supabase (timeout? tamanho do corpo? disco?). Se o tamanho for a causa, baixar `MAX_GZ_BYTES`. Enquanto o arquivo existir na origem nada se perde; depois vence |
+| `relatórios: fila de download cortada em 1000 relatórios; …` | há mais de 1000 `listado`; a ordem por vencimento não enxerga o que passou do corte | conferir o que vence primeiro pela consulta da seção 4 e baixar a fila |
 | `relatórios: N relatório(s) listado(s) há mais de 14 dias sem baixar` | downloads falhando ou a fila não anda | ver tentativas `relatorio` com `erro_http` |
-| `relatórios: <canal> está sem relatório novo de <tipo> há mais de 6 dias` | job de alcance ativo, canal que publicou nos últimos 90 dias, sem relatório novo | ver `yt_reporting_jobs`; se preciso, recriar o job (seção 9) |
+| `relatórios: <canal> está sem relatório novo de <tipo> há mais de 6 dias` | (a) job de alcance ativo, canal que publicou nos últimos 90 dias, sem relatório novo; ou (b) tipo que só guarda bruto que **já gerou** relatório (`yt_reporting_jobs.last_create_time` preenchido) e parou há mais de 6 dias. Para (b) vale a marca do job e **não há** o filtro de publicação. Job de tipo bruto que **nunca** gerou (`last_create_time` nulo) **não** vem para cá: vai para `acao_do_dono` (seção 5, "nunca gerou relatório") | ver `yt_reporting_jobs`; se preciso, recriar o job (seção 9). Para (b), se o YouTube parou de gerar o tipo, tirá-lo de `REPORT_TYPES_ENABLED` |
 | `relatórios: listagem truncada em 50 páginas (<canal>: <tipo>)` | `reports.list` devolveu mais de 50 páginas; a marca do job não avança, a listagem recomeça no dia seguinte | nada, a menos que repita por muitos dias |
 | `relatórios: <canal>: <causa>` | exceção ao listar os relatórios de um canal | Sentry |
 | `relatórios: <causa>` | exceção ao baixar um relatório (extra `report`) | Sentry |
@@ -402,8 +434,22 @@ Depois, rode o cron (seção 3) ou espere as 09:00. Confira com a consulta de fi
 
 Cuidados:
 - Um relatório devolvido à fila que já tinha sido baixado há mais de 2 dias fica "baixado há mais de 2 dias sem normalizar" até ser refeito. O passo `alcance` roda antes desse critério na mesma execução, então um ou dois relatórios saem verdes no mesmo dia. Devolver **muitos** de uma vez passa do teto de 200 por execução e deixa o cron vermelho até a fila esvaziar: devolva poucos por dia.
-- O estado `erro` por `bruto_ausente`, `gzip_invalido`, `url_inesperada` ou `grande_demais` não se resolve com estes `update`: não há bruto legível.
+- O estado `erro` por `bruto_ausente`, `gzip_invalido` (do passo `alcance`) ou `url_inesperada` não se resolve com estes `update`: não há bruto legível. A exceção é `grande_demais`, logo abaixo.
 - Relatório `vazio` também é conferido: devolvê-lo à fila só confere o cabeçalho de novo e remarca `normalized_at`, sem gravar linha.
+
+**Exceção: `grande_demais` dentro do prazo da origem.** O bruto não foi guardado, mas o relatório ainda existe no YouTube até `create_time` + 30 dias (histórico) ou + 60 dias. Primeiro veja o canal, o tamanho e o prazo (leitura):
+
+```bash
+npx supabase db query --linked "select c.name, r.report_type_id, r.report_id, r.bytes, r.create_time, r.create_time + (case when r.is_backfill then interval '30 days' else interval '60 days' end) as vence_na_origem from yt_reporting_reports r join youtube_channels c on c.id = r.channel_id where r.status = 'erro' and r.error = 'grande_demais' order by vence_na_origem limit 50"
+```
+
+Depois suba a constante certa (`MAX_GZ_BYTES` ou `MAX_CSV_BYTES`, ver a seção 2 e a nota que acusou), com a prova de gravação e de memória, faça o deploy e, **só então**, recoloque na fila. Escrita em produção, **é do dono**, uma por vez:
+
+```sql
+update yt_reporting_reports set status = 'listado', error = null where status = 'erro' and error = 'grande_demais';
+```
+
+`download_url` e `bytes` ficam na linha; se a URL tiver vencido, o passo de relatórios a renova sozinho na execução seguinte. Se o arquivo continuar acima do novo teto, ele volta a `erro` no dia seguinte. Passado o `vence_na_origem`, o arquivo não existe mais: o `update` devolve à fila um relatório que o YouTube responde com 404 e ele vira `expirado_sem_baixar`.
 
 ## 9. Recriar um job
 
@@ -453,10 +499,36 @@ Não há variável de ambiente. É um commit de uma linha, seguido de deploy:
   - o job **continua existindo do lado do Google** e gerando relatórios lá; para parar isso também, apague-o (`jobs.delete`, seção 9);
   - os relatórios desse tipo que já estavam `listado` ficam como estão: não são baixados, não contam em `pendentes` nem em `atrasados`, e não geram nota de "listado há mais de 14 dias" nem de "expirado sem baixar". Passado o prazo (60 dias; 30 se histórico) viram `expirado_sem_baixar` e contam em `perdidos`. O que já foi baixado continua guardado;
   - religar o tipo (repor a linha na lista) faz a sondagem seguinte adotar o job que ficou no Google, com o mesmo `job_id`, e os `listado` que ainda não expiraram voltam para a fila.
-- **Habilitar um tipo:** acrescentar a linha em `REPORT_TYPES_ENABLED`. A posição na lista é a prioridade de download.
+- **Habilitar um tipo:** acrescentar a linha em `REPORT_TYPES_ENABLED`. A posição na lista só desempata a fila. **Antes** de habilitar, refaça a conta da seção 2: cada tipo novo traz cerca de 62 relatórios de histórico (2 canais) que vencem em 30 dias.
 - **Orçamento apertado:** os tetos estão em `apps/web/src/lib/youtube/coleta/clock.ts` (`TETOS_MS`, `RELOGIO_GLOBAL_MS`). Mexer neles exige refazer a conta com `maxDuration` da rota.
 
 Desligar `metadados` custa caro: cada dia sem linha não volta.
+
+### Conferência de D+3 e D+7 depois do deploy dos tipos novos
+
+Os 9 tipos da E12 só guardam bruto, e nada garante que o YouTube gere os 9 para estes canais (a premissa "gera todo dia" só foi medida nos 4 antigos). D = dia da primeira execução do cron com o deploy no ar. Faça a conferência em **D+3** e em **D+7**; é só leitura:
+
+```bash
+npx supabase db query --linked "select j.report_type_id, count(*) filter (where j.status = 'ativo') as ativos, count(*) filter (where j.status = 'ativo' and j.last_create_time is null) as ativos_sem_relatorio, max(j.last_create_time) as ultimo_relatorio, string_agg(distinct j.status, ', ') as estados from yt_reporting_jobs j where j.report_type_id not in ('channel_reach_basic_a1', 'channel_reach_combined_a1', 'channel_traffic_source_a3', 'channel_basic_a3', 'channel_annotations_a1') group by 1 order by 1 limit 20"
+```
+
+Por canal e tipo (`last_create_time` nulo = **nunca** chegou relatório):
+
+```bash
+npx supabase db query --linked "select c.name, j.report_type_id, j.status, j.job_create_time, j.last_create_time, now() - coalesce(j.job_create_time, j.created_at) as idade_do_job from yt_reporting_jobs j join youtube_channels c on c.id = j.channel_id where j.report_type_id not in ('channel_reach_basic_a1', 'channel_reach_combined_a1', 'channel_traffic_source_a3', 'channel_basic_a3', 'channel_annotations_a1') order by j.report_type_id, c.name limit 100"
+```
+
+E o que de fato foi baixado, por tipo e estado (`vazio` = o YouTube gerou o arquivo só com cabeçalho):
+
+```bash
+npx supabase db query --linked "select report_type_id, status, count(*) as relatorios, min(create_time) as primeiro, max(create_time) as ultimo, round(avg(bytes)) as bytes_medio, max(bytes) as maior from yt_reporting_reports where report_type_id not in ('channel_reach_basic_a1', 'channel_reach_combined_a1', 'channel_traffic_source_a3', 'channel_basic_a3') group by 1, 2 order by 1, 2 limit 100"
+```
+
+Como ler:
+- **D+3:** o histórico dos 30 dias anteriores aparece até D+2 e a fila esvazia em cerca de 9 execuções. Um tipo com job `ativo` e `ativos_sem_relatorio` igual ao nº de canais ainda pode estar só atrasado. Tipo em `tipo_indisponivel`: o YouTube não o oferece ao canal (já avisou uma vez; anote no ledger).
+- **D+7:** tipo ativo com `last_create_time` nulo em todos os canais **nunca gera** relatório para o canal. A partir do 6º dia o cron já o põe em `acao_do_dono` ("nunca gerou relatório desde ..."). Decisão: tirá-lo de `REPORT_TYPES_ENABLED` (acima) e apagar o job (seção 9), ou deixá-lo ligado e anotar que não gera. Tipo que gerou e parou vira falha (`está sem relatório novo ... há mais de 6 dias`).
+- Relatório `vazio` em tipo que só guarda bruto é normal para canal pequeno; não é falha.
+- Anote no ledger quais dos 9 tipos o YouTube gera de fato e `maior` (bytes) de cada um: é a medida que justifica manter ou mudar os tetos da seção 2.
 
 ## 11. Apagar a série de um canal
 
@@ -580,7 +652,8 @@ A ordem 2 antes de 3 importa só para não ficar vermelho: se a tabela sumir com
 
 - **Morte da função pela plataforma não deixa rastro.** Se o Vercel mata a função (passou de 300 s, falta de memória), nenhum registro de saúde é escrito e o cron só é notado cerca de 12 horas depois, pela checagem de "atrasado". O relógio de 270 s existe para isso não acontecer.
 - **Os critérios supõem poucos canais.** Cada leitura de critério é cortada em 1000 linhas. Acima de uns 25 canais, uma das leituras pode bater no corte e a nota vira `… leitura cortada em 1000` (falha, não verde).
-- **Gzip corrompido é definitivo.** Um relatório cujo gzip não abre vira `erro` (`gzip_invalido`) e nunca é baixado de novo.
+- **Gzip que não abre no download é tentado de novo, todo dia.** Um download cortado chega assim, e o relatório continua `listado` (com tentativa `erro_http` `gzip_invalido`); se o arquivo da origem estiver mesmo corrompido, ele vence e vira `perdidos`. Só o passo `alcance` marca `erro` por `gzip_invalido` (bruto já guardado que não abre), e esse é definitivo.
+- **Relatório que venceu por idade com mais de 14 dias de vencido** só conta em `perdidos`: a nota `venceram sem baixar` dura 14 dias. O 404/410 num relatório criado há mais de 14 dias avisa uma única vez (na execução em que acontece), pelo passo; não há coluna para guardar a data do vencimento.
 - **Bug dormente na fadiga.** `youtube_fatigue_alerts.expected_ctr` e `actual_ctr` são `numeric(6,4)` e a rota grava contagens de visualizações neles. No dia em que um vídeo "fadigar" o insert vai falhar e este cron fica vermelho (`erro de banco ao gravar youtube_fatigue_alerts`), até uma migration corrigir as colunas. Não é do L1a, mas aparece nele.
 - **O critério de thumbnail só sabe quem é privado hoje.** Vídeo privado, ou ausente da `videos.list`, sai da conta de "metade ou mais" do dia; as tentativas de ontem entram todas, porque ontem não se guardou quem era privado.
 - **`is_short` de vídeo de 61 a 180 s depende de uma sonda** a `youtube.com/shorts/<id>`, feita depois de todas as linhas do dia gravadas. Sem confirmação fica nulo e o vídeo é sondado de novo no dia seguinte; uma vez confirmado, não é sondado mais.
