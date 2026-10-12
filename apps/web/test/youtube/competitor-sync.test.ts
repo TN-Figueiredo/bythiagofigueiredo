@@ -673,7 +673,7 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
     expect(t.api()).toHaveLength(4)
   })
 
-  it('fixado que sumiu do YouTube (videos.list não devolve o item): nada é gravado e o sync termina ok', async () => {
+  it('fixado que sumiu do YouTube (videos.list não devolve o item): nada é apagado, a linha não é regravada, a falta é contada e o sync termina ok', async () => {
     const db = setup({ pinned: [PIN], existing: [ROW1], versions: [V1, VPIN] })
     const t = traced(apiFetch(page, 200, { daily: () => [] }))
     const r = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: t.f, ...quiet })
@@ -684,6 +684,7 @@ describe('syncCompetitorChannel — vídeos fixados', () => {
     // nothing is deleted, the pin is not touched (it keeps its slot) and no count is written for it (D12)
     expect(db.calls.some(c => c.ops.some(o => o[0] === 'delete'))).toBe(false)
     expect(statsOf(db, 'v-pin')).toEqual([])
+    expect(db.calls.filter(c => c.table === 'rpc:competitor_mark_missing')).toHaveLength(1)
     expect(db.calls.some(c => c.table === 'competitor_videos' && first(c) === 'update' && 'pinned_at' in (arg(c, 'update') ?? {}))).toBe(false)
   })
 
