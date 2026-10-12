@@ -9,6 +9,13 @@ export const VALIDADE_DIAS = { historico: 30, corrente: 60 } as const
 /** Faltando isto ou menos para vencer, o relatório passa na frente de tudo, inclusive do alcance. */
 export const URGENTE_DIAS = 7
 
+/** Quantos dias uma perda de relatório continua pintando o cron de vermelho (critérios): contados da criação do relatório
+ *  (nota por relatório, criteria.ts) ou do vencimento na origem (nota agregada). Passou disto vira só `perdidos`. */
+export const JANELA_PERDA_DIAS = 14
+/** Folga entre o passo (que decide se um critério cobre a perda) e os critérios (que rodam minutos depois): na fronteira,
+ *  mais vale uma nota repetida do que perda sem nota. Maior que o relógio global do cron (270 s). */
+const MARGEM_COBERTURA_MS = 15 * 60_000
+
 export interface ItemDaFila {
   report_type_id: string
   create_time: string
@@ -46,4 +53,20 @@ export function ordenarFila<T extends ItemDaFila>(fila: readonly T[], agora: num
     || venceEm(a) - venceEm(b)
     || prioridade(a.report_type_id) - prioridade(b.report_type_id)
     || criadoEm(a) - criadoEm(b))
+}
+
+/**
+ * Os critérios persistentes (criteria.ts) já avisam desta perda, a cada execução, durante JANELA_PERDA_DIAS? Duas portas:
+ * (a) nota por relatório: `create_time` dentro da janela; (b) nota agregada: o arquivo venceu na origem (`venceEm` já passou)
+ * há até JANELA_PERDA_DIAS dias. Ficam de fora o que expirou cedo (404/410) e foi criado há mais de 14 dias, e o que venceu
+ * há mais de 14 dias (cron parado). Dono único da nota: quem cobre avisa, o passo só anota o que ninguém cobre.
+ * Dado ilegível nunca conta como coberto (cai na nota do passo).
+ */
+export function perdaCobertaPorCriterios(p: ItemDaFila, agora: number): boolean {
+  const criado = new Date(p.create_time).getTime()
+  if (Number.isNaN(criado)) return false
+  const janela = JANELA_PERDA_DIAS * DIA_MS
+  if (criado >= agora - janela + MARGEM_COBERTURA_MS) return true
+  const vence = venceEm(p)
+  return vence <= agora && vence >= agora - janela + MARGEM_COBERTURA_MS
 }

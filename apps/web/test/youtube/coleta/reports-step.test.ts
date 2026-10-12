@@ -19,6 +19,7 @@ import { criarReportingClient, empacotarCsv, deBytea } from '@/lib/youtube/repor
 import { ArquivoGrandeDemaisError, ReportingHttpError, SEM_NORMALIZADOR } from '@/lib/youtube/reporting/types'
 import { SemTempoError, TETOS_MS } from '@/lib/youtube/coleta/clock'
 import type { StepCtx } from '@/lib/youtube/coleta/types'
+import { criteriosRelatorios } from '@/lib/youtube/coleta/criteria'
 import { fakeSupabase, type FakeDb, type Row } from './fake-supabase'
 
 const AGORA = new Date('2026-10-07T12:05:00.000Z')
@@ -631,7 +632,27 @@ describe('passoRelatorios: tipo fora da lista habilitada (REPORT_TYPES_ENABLED)'
 })
 
 describe('passoRelatorios: E12, perda nunca fica em verde', () => {
-  it('relatório que vence sem baixar (por idade e por 404): a execução ganha uma nota com a contagem por tipo', async () => {
+  it('perda que NENHUM critério persistente cobre (404 em corrente criado há 20 dias) vira a nota da execução; o resumo conta todas as vencidas', async () => {
+    api.download.mockImplementation(async (url: string) => {
+      if (url.endsWith('/sumiu')) throw new ReportingHttpError(404, null)
+      return empacotarCsv(CSV)
+    })
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [
+        listado('velho', { report_type_id: 'channel_traffic_source_a3', create_time: ha(31), is_backfill: true }), // por idade: o critério persistente é o dono
+        listado('sumiu', { report_type_id: 'channel_traffic_source_a3', create_time: ha(20) }),                      // 404: nem por relatório (>14 d) nem agregado (vence daqui a 40)
+        listado('alcance-velho', { create_time: ha(61) }),                                                            // por idade: critério persistente
+      ],
+    })
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    expect(resumo.expirados).toBe(3)
+    expect(resumo.expirados_por_tipo).toEqual({ channel_traffic_source_a3: 2, channel_reach_basic_a1: 1 })
+    expect(ctx.falhas).toEqual(['relatórios: 1 relatório(s) venceram sem baixar nesta execução (channel_traffic_source_a3: 1)'])
+  })
+
+  it('o passo não anota o que os critérios persistentes já cobrem: vencido por idade, ou 404 em relatório criado há menos de 14 dias', async () => {
     api.download.mockImplementation(async (url: string) => {
       if (url.endsWith('/sumiu')) throw new ReportingHttpError(404, null)
       return empacotarCsv(CSV)
@@ -641,14 +662,12 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
       yt_reporting_reports: [
         listado('velho', { report_type_id: 'channel_traffic_source_a3', create_time: ha(31), is_backfill: true }),
         listado('sumiu', { report_type_id: 'channel_traffic_source_a3', create_time: ha(3) }),
-        listado('alcance-velho', { create_time: ha(61) }),
       ],
     })
     const ctx = ctxDe(db)
     const resumo = await passoRelatorios(ctx)
-    expect(resumo.expirados).toBe(3)
-    expect(resumo.expirados_por_tipo).toEqual({ channel_traffic_source_a3: 2, channel_reach_basic_a1: 1 })
-    expect(ctx.falhas).toEqual(['relatórios: 3 relatório(s) venceram sem baixar nesta execução (channel_traffic_source_a3: 2, channel_reach_basic_a1: 1)'])
+    expect(resumo.expirados_por_tipo).toEqual({ channel_traffic_source_a3: 2 })
+    expect(ctx.falhas).toEqual([])
   })
 
   it('vencido de tipo fora da lista habilitada não vira nota (ninguém ia baixá-lo); nada vencido = nenhuma nota', async () => {
@@ -883,5 +902,64 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
     const resumo = await passoRelatorios(ctxDe(db))
     expect(resumo.ms_listar).toBe(700)
     expect(resumo.ms_baixar).toBe(3000)
+  })
+})
+
+describe('uma perda, uma nota por execução (passo + critérios juntos, como no cron)', () => {
+  const NOTAS_DE_PERDA = /venceram sem baixar|expirado sem baixar/
+  const rodar = async (db: FakeDb): Promise<string[]> => {
+    const ctx = ctxDe(db)
+    await passoRelatorios(ctx)
+    await criteriosRelatorios(ctx)
+    return ctx.falhas.filter(f => NOTAS_DE_PERDA.test(f))
+  }
+
+  it('vence por idade: no dia do vencimento sai exatamente UMA nota (a persistente, com a contagem) e no dia seguinte também', async () => {
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [
+        listado('h', { report_type_id: 'channel_traffic_source_a3', create_time: ha(31), is_backfill: true }),
+        listado('c', { report_type_id: 'channel_basic_a3', create_time: ha(61) }),
+      ],
+    })
+    const dia0 = await rodar(db)
+    expect(comStatus(db, 'expirado_sem_baixar')).toHaveLength(2)
+    expect(dia0).toEqual(['relatórios: 2 relatório(s) venceram sem baixar nos últimos 14 dias (channel_basic_a3: 1; channel_traffic_source_a3: 1)'])
+    vi.setSystemTime(new Date(AGORA.getTime() + DIA_MS))
+    expect(await rodar(db)).toEqual(dia0)
+  })
+
+  it('404 em relatório criado há 3 dias: UMA nota no dia (a por relatório), nenhuma a mais da execução', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(404, null))
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('sumiu', { create_time: ha(3) })],
+    })
+    expect(await rodar(db)).toEqual(['relatórios: Canal Um tem relatório channel_reach_basic_a1 expirado sem baixar'])
+  })
+
+  it('404 em corrente criado há 20 dias (nenhum critério persistente enxerga): UMA nota no dia, a da execução', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(404, null))
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+      yt_reporting_reports: [listado('sumiu', { create_time: ha(20) })],
+    })
+    expect(await rodar(db)).toEqual(['relatórios: 1 relatório(s) venceram sem baixar nesta execução (channel_reach_basic_a1: 1)'])
+  })
+
+  it('na fronteira dos 14 dias (relatório criado há 14 dias e uns segundos) ninguém fica sem nota: no mínimo uma, nunca zero', async () => {
+    api.download.mockRejectedValue(new ReportingHttpError(404, null))
+    for (const segundos of [-5, 5, 600, 3600]) {
+      const db = bancoComPurge({
+        yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
+        yt_reporting_reports: [listado('sumiu', { create_time: new Date(AGORA.getTime() - 14 * DIA_MS + segundos * 1000).toISOString() })],
+      })
+      const ctx = ctxDe(db)
+      await passoRelatorios(ctx)
+      vi.setSystemTime(new Date(AGORA.getTime() + 120_000)) // os critérios rodam minutos depois do passo
+      await criteriosRelatorios(ctx)
+      vi.setSystemTime(AGORA)
+      expect(ctx.falhas.filter(f => NOTAS_DE_PERDA.test(f)).length, `segundos=${segundos}`).toBeGreaterThanOrEqual(1)
+    }
   })
 })
