@@ -85,7 +85,7 @@ describe('R121: testRun em deriveChanges', () => {
     expect(runs).toEqual([['matt-opus55/thumb/seq1', 3], ['matt-opus55/title/seq1', 2], ['nomade-turcomenistao/thumb/seq1', 2]])
   })
   it('testRun é derivado depois de desempacotar: o pacote em cache não muda de versão', () => {
-    expect(PACK_VERSION).toBe(1)
+    expect(PACK_VERSION).toBe(2)
   })
 })
 

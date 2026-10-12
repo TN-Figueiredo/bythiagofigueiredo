@@ -10,7 +10,7 @@ const uuid = () => 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => Ma
 
 /** A channel with realistic row shapes: `nVideos` videos, the first `tracked` with one daily record per day. */
 function channel(nVideos: number, tracked: number, days: number): ChannelRows {
-  const rows: ChannelRows = { videos: [], versions: [], daily: [], snapshots: [] }
+  const rows: ChannelRows = { videos: [], versions: [], daily: [], snapshots: [], spans: [] }
   for (let i = 0; i < nVideos; i++) {
     const id = uuid(), seen = new Date(NOW - i * DAY).toISOString()
     rows.videos.push({ id, competitor_channel_id: 'c', video_id: 'yt' + i + 'abcdefg', title: 'Um título de vídeo razoavelmente longo número ' + i, view_count: Math.floor(rnd() * 1e6), like_count: 1234, comment_count: 56, duration_seconds: 600, published_at: seen, is_short: false, last_checked_at: seen, tags: ['viagem', 'brasil', 'mochilão', 'vlog', 'tag' + i], thumbnail_url: 'https://i.ytimg.com/vi/yt' + i + 'abcdefg/maxresdefault.jpg', pinned_at: i % 40 === 39 ? seen : null })
@@ -26,15 +26,16 @@ describe('pacote de um canal', () => {
     expect(unpackChannel(packChannel(rows))).toEqual(rows)
   })
   it('canal sem vídeo: pacote vazio válido, nunca nulo', () => {
-    expect(unpackChannel(packChannel({ videos: [], versions: [], daily: [], snapshots: [] }))).toEqual({ videos: [], versions: [], daily: [], snapshots: [] })
+    expect(unpackChannel(packChannel({ videos: [], versions: [], daily: [], snapshots: [], spans: [] }))).toEqual({ videos: [], versions: [], daily: [], snapshots: [], spans: [] })
   })
   it('entrada que não é um pacote devolve nulo', () => {
     for (const bad of [null, undefined, 42, '', 'lixo', '{}', Buffer.from('não é gzip').toString('base64')]) expect(unpackChannel(bad)).toBeNull()
   })
   it('pacote de outra versão ou sem uma das listas devolve nulo', () => {
     const z = (o: unknown) => gzipSync(JSON.stringify(o)).toString('base64')
-    expect(unpackChannel(z({ v: PACK_VERSION + 1, videos: [], versions: [], daily: [], snapshots: [] }))).toBeNull()
-    expect(unpackChannel(z({ v: PACK_VERSION, videos: [], versions: [], daily: [] }))).toBeNull()
+    expect(unpackChannel(z({ v: PACK_VERSION + 1, videos: [], versions: [], daily: [], snapshots: [], spans: [] }))).toBeNull()
+    expect(unpackChannel(z({ v: PACK_VERSION, videos: [], versions: [], daily: [], spans: [] }))).toBeNull()
+    expect(unpackChannel(z({ v: PACK_VERSION, videos: [], versions: [], daily: [], snapshots: [] }))).toBeNull()
     expect(unpackChannel(z([1, 2, 3]))).toBeNull()
   })
   it('o orçamento fica abaixo do limite de 2 MB do cache do Next', () => {
