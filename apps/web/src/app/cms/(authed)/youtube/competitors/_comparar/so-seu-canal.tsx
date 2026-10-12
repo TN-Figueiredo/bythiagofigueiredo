@@ -14,7 +14,7 @@ import { taxaComIntervalo } from '@/lib/youtube/observatorio/proprio/taxa'
 import type { CompararPack } from './pack'
 import type { ParView } from './par-model'
 import {
-  buildSoSeuCanal, INFO_SO_SEU_CANAL, NEGRITO_NAO_ZERO, PREFIXO_NAO_MEDIDO, type SoSeuCanalView,
+  buildSoSeuCanal, INFO_SO_SEU_CANAL, NEGRITO_NAO_ZERO, PREFIXO_NAO_MEDIDO, type SoSeuCanalCartao, type SoSeuCanalView,
 } from './so-seu-canal-model'
 
 /** A frase com o seu negrito: "Não medido." na abertura do estado sem dado, "não porque sejam zero" no fim do estado normal. */
@@ -32,7 +32,7 @@ function FaixaDaTaxa({ taxa }: { taxa: NonNullable<SoSeuCanalView['taxa']> }) {
   return <TaxaFaixa view={buildTaxaFaixa({ alvo: t, canal: null, alt: taxa.alt })} />
 }
 
-function Cartao({ v, unico }: { v: SoSeuCanalView; unico: boolean }) {
+function Cartao({ v, unico }: { v: SoSeuCanalCartao; unico: boolean }) {
   const base = useId().replace(/[^A-Za-z0-9_-]/g, '')
   const tid = 'so' + base, dica = 'sod' + base
   const [aberta, setAberta] = useState(false)
@@ -74,5 +74,5 @@ export function SoSeuCanal({ pack, par }: { pack: CompararPack; par: ParView }) 
   // a View é escolhida aqui, no navegador, a partir do pacote já montado no servidor: trocar o seletor ou inverter os lados não vai à rede
   const views = useMemo(() => buildSoSeuCanal({ a: par.a, b: par.b }, pack.soSeuCanal), [par.a, par.b, pack.soSeuCanal])
   if (views.length === 0) return null
-  return <>{views.map(v => <Cartao key={v.canal} v={v} unico={views.length === 1} />)}</>
+  return <>{views.map(v => <Cartao key={v.id} v={v} unico={views.length === 1} />)}</>
 }
