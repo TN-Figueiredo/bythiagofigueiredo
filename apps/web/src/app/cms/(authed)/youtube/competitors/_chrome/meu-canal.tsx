@@ -49,7 +49,8 @@ function Atalho({ owns, atual }: { owns: OwnMenu; atual?: string }) {
     <div className="mc" data-meu-canal="">
       <button ref={botao} type="button" className="mc-b" aria-haspopup="menu" aria-expanded={aberto} aria-controls={aberto ? 'mc-menu' : undefined}
         onClick={() => { setOnde('first'); setAberto(o => !o) }} onKeyDown={aoTeclarBotao}>
-        {nome ? <><span className="mc-l">Meu canal: </span><b>{nome}</b></> : <b>Meus canais</b>}
+        <svg className="mc-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8.5" r="3.5" /><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" /></svg>
+        {nome ? <><span className="mc-l">Meu canal: </span><b title={nome}>{nome}</b></> : <b>Meus canais</b>}
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" /></svg>
       </button>
       <Popover open={aberto} anchor={() => botao.current} onClose={() => setAberto(false)} id="mc-menu" role="menu" labelledBy="mc-menu-t" className="mc-m" pref="baixo" align="fim" gap={4}>

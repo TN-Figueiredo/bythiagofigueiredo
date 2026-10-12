@@ -563,10 +563,33 @@ test('o pager fica no lugar do mockup aprovado: na mesma linha da trilha, à dir
   expect(pager.right, 'o pager não passa da borda da tela').toBeLessThanOrEqual(trilha.right + 1)
   // e não encosta na nota de fuso, que fecha a linha
   const tz = await caixa(page.locator('.obs-tr-tz:visible').first())
-  // (A3 Tarefa 11) com o atalho "Meu canal" entre a trilha e o pager, um pager largo empurra a nota de fuso para uma segunda linha (a linha da trilha quebra, sem
-  // sobrepor nada): "não cobre" vale com a nota ao lado dele (à direita) ou abaixo dele (outra linha)
-  expect(pager.right <= tz.x || tz.y >= pager.bottom - 1, `o pager não cobre a nota de fuso (pager ${pager.x}..${pager.right} y ${pager.y}..${pager.bottom}; nota ${tz.x} y ${tz.y})`).toBe(true)
+  expect(pager.right, 'o pager não cobre a nota de fuso').toBeLessThanOrEqual(tz.x)
   await page.screenshot({ path: path.resolve(__dirname, '../../../../test-results/historico-a2-pager-1440.png'), clip: { x: 200, y: 150, width: 1240, height: 260 } })
+})
+
+test('11c D-A.4: a 1440 px a trilha do Histórico é UMA linha de até 36 px (o atalho "Meu canal" é só o glifo e o nome em 14 caracteres) e a nota de fuso fica na linha do pager', async ({ page }) => {
+  await abrirDaGrade(page, 3)
+  const trilha = await caixa(page.locator('.obs-tr-top:visible').first())
+  const pager = await caixa(page.locator(`${PG} [data-pager]`).first())
+  const tz = await caixa(page.locator('.obs-tr-tz:visible').first())
+  const atalho = page.locator('.obs-tr-top:visible [data-meu-canal] button').first()
+  const ab = await caixa(atalho)
+  const medidas = await atalho.evaluate(e => ({
+    rotulo: (() => { const r = e.querySelector('.mc-l')!.getBoundingClientRect(); return { w: r.width, h: r.height } })(),
+    glifo: (() => { const r = e.querySelector('.mc-ic')!.getBoundingClientRect(); return { w: r.width, h: r.height } })(),
+    nome: e.querySelector('b')!.textContent!, nomeW: e.querySelector('b')!.getBoundingClientRect().width,
+  }))
+  medida(`1440, Histórico com pager largo: linha da trilha ${trilha.w}×${trilha.h}; atalho ${ab.w}×${ab.h} em x ${ab.x}; glifo ${medidas.glifo.w}×${medidas.glifo.h}; rótulo ${medidas.rotulo.w}×${medidas.rotulo.h}; pager ${pager.x}..${pager.right} y ${pager.y}; nota de fuso x ${tz.x} y ${tz.y}`)
+  expect(trilha.h, 'a linha da trilha tem uma faixa só (alvo 34 px)').toBeLessThanOrEqual(36)
+  // a mesma linha: a nota (mais baixa que o pager, centrada nele) cabe na faixa vertical do pager
+  expect(tz.y, 'a nota de fuso está na linha do pager (topo)').toBeGreaterThanOrEqual(pager.y - 1)
+  expect(tz.bottom, 'a nota de fuso está na linha do pager (base)').toBeLessThanOrEqual(pager.bottom + 1)
+  expect(medidas.glifo.w, 'o glifo aparece').toBeGreaterThanOrEqual(15)
+  expect(medidas.rotulo.w, 'o rótulo "Meu canal:" fica fora da vista').toBeLessThanOrEqual(1)
+  await expect(atalho).toHaveAccessibleName(/^Meu canal: .+/)
+  expect(ab.w, 'o botão com glifo e nome truncado é bem mais estreito que o antigo (184 px)').toBeLessThan(170)
+  // o nome de 14 caracteres: o texto completo continua no DOM e no title
+  expect(await atalho.locator('b').getAttribute('title')).toBe(medidas.nome)
 })
 
 test('o pager na linha da trilha tem contraste legível nos dois temas (texto de posição e botões)', async ({ page }) => {

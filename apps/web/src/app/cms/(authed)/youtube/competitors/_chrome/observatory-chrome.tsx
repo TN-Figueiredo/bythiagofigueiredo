@@ -206,7 +206,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
               cowork={view.cowork} nicheEditorHref={view.nicheEditorHref} onOpenNicheEditor={onOpenNicheEditor}
               onToggle={() => { setMenuAt('first'); setPop(p => (p === 'menu' ? null : 'menu')) }}
               onOpenAt={at => { setMenuAt(at); setPop('menu') }}
-              onClose={close} onCopy={copy} onCopyReading={readingCopy ? copyReading : undefined}
+              onClose={close} onCopy={copy} onCopyReading={readingCopy ? copyReading : undefined} owns={view.owns}
             />
           </div>
         </div>

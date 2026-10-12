@@ -26,6 +26,8 @@ interface Familia { peExato?: boolean; folgaPe?: number; folgaTopo?: number; id:
   /** Folga a mais, só com `ref`: a caixa guarda o `gap` do GATILHO e mede o resto no bloco (`posAnchor`), então do bloco ela pode ficar até 2 px mais longe que o `gap`
    *  (o botão de 32 px passa da borda do bloco). Medido em 10/10: 6..8 px do bloco com `gap` 6. Sem `ref` nenhuma família usa folga. */
   folgaProx?: number
+  /** Só vale em janelas MAIS LARGAS que isto (px). O atalho "Meu canal" da moldura sai do grupo de ações a <= 480 px e vai para o menu ⋯ (design D-A.1 da 11c): a flutuante dele só existe acima disso; a do menu ⋯ (que traz a seção) é exercitada em todas as larguras. */
+  soAcimaDe?: number
   /** Quando a flutuante se posiciona por OUTRO elemento (`posAnchor`/âncora diferente do gatilho): o seletor, a partir do gatilho (`closest`), do elemento medido. */
   ref?: string }
 const TELAS: Array<{ nome: string; url: () => string; familias: Familia[] }> = [
@@ -38,7 +40,7 @@ const TELAS: Array<{ nome: string; url: () => string; familias: Familia[] }> = [
     { id: 'menu ⋯ da moldura', gatilho: '.obs-ch-menu-wrap [aria-haspopup="menu"]', modo: 'clique', caixa: '#flut #obs-ch-menu', gap: 6 },
     { id: 'frescor por canal', gatilho: '.obs-ch-fresh > button', modo: 'clique', caixa: '#flut #obs-ch-fresh-pop', gap: 6 },
     // A3 Tarefa 11: o atalho "Meu canal" da moldura (Popover em #flut, pref baixo, gap 4)
-    { id: 'menu Meu canal (moldura)', gatilho: '.obs-ch-actions [data-meu-canal] button', modo: 'clique', caixa: '#flut .mc-m', gap: 4 },
+    { id: 'menu Meu canal (moldura)', gatilho: '.obs-ch-actions [data-meu-canal] button', modo: 'clique', caixa: '#flut .mc-m', gap: 4, soAcimaDe: 480 },
   ] },
   // A3 Tarefa 11: a comparação entre dois canais: o ⓘ "Como ler esta tabela" (Popover), a dica da régua do nicho (HoverTip, aberta por teclado: foco no grupo)
   // e o atalho "Meu canal" da trilha (Popover). A régua tem 46 px de altura e cobre a célula inteira: a caixa fica a 4 px dela.
@@ -178,6 +180,7 @@ for (const tema of THEMES) for (const largura of LARGURAS) for (const tela of TE
     const janelaH = 900
     let total = 0
     for (const f of tela.familias) {
+      if (f.soAcimaDe != null && largura <= f.soAcimaDe) continue
       const modos: Record<string, number> = {}
       // por gatilho (índice): a medida de cada posição, na ordem de POSICOES. topo/pe = do gatilho; areaTopo = topo da área visível do
       // contêiner que rola (0 se a página rola no documento); janela = innerHeight

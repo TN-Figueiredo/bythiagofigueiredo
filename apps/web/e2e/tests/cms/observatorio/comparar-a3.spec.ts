@@ -456,6 +456,12 @@ for (const largura of [1440, 390] as const) {
     expect(await semRolagemH(page), 'canal: rolagem horizontal').toEqual([])
     const atalho = page.locator('.obs-tr-top:visible [data-meu-canal] button').first()
     await expect(atalho).toHaveAccessibleName('Meu canal: tnFigueiredo')
+    // 11c D-A.2 e D-A.4: o atalho da trilha é só o glifo (34 x 26 px); a trilha da página do canal volta a 26 px (a 390 px com o nome fora da vista)
+    expect(m.partes.atalho.w, 'canal: o atalho com glifo é estreito').toBeLessThanOrEqual(largura === 390 ? 36 : 170)
+    expect(m.linha.h, `canal ${largura} px: a linha da trilha volta a 26 px`).toBeLessThanOrEqual(28)
+    expect(await atalho.locator('.mc-ic').evaluate(e => e.getBoundingClientRect().width), 'o glifo aparece').toBeGreaterThanOrEqual(15)
+    expect(await atalho.locator('.mc-l').evaluate(e => e.getBoundingClientRect().width), 'o rótulo "Meu canal:" fica fora da vista').toBeLessThanOrEqual(1)
+    if (largura === 390) { expect(m.partes.atalho.w).toBe(34); expect(m.partes.atalho.h).toBeLessThanOrEqual(28) }
     // abre, anda, fecha com Esc devolvendo o foco
     await atalho.click()
     const itens = page.locator('#flut [role="menu"] [role="menuitem"]')
@@ -478,6 +484,8 @@ for (const largura of [1440, 390] as const) {
     m = await medirTrilha(page, largura)
     medida(`${largura} px, comparação: linha da trilha ${m.linha.w} x ${m.linha.h}; atalho x ${m.partes.atalho.x}..${m.partes.atalho.r}; sobreposições: ${m.sobrepoe.join(', ') || 'nenhuma'}`)
     expect(m.sobrepoe).toEqual([]); expect(m.fora).toEqual([])
+    expect(m.linha.h, `comparação ${largura} px: a linha da trilha volta a 26 px`).toBeLessThanOrEqual(28)
+    expect(m.partes.atalho.h).toBeLessThanOrEqual(28)
     expect(await rolaNaHorizontal(page), 'comparação: rolagem horizontal').toEqual([])
     // 3) o Histórico do vídeo, a partir da grade do canal (com pager)
     await aberturaDoCanal(page, LEO(), tam)
@@ -489,6 +497,9 @@ for (const largura of [1440, 390] as const) {
     medida(`${largura} px, Histórico do vídeo: linha da trilha ${m.linha.w} x ${m.linha.h}; trilha ${JSON.stringify(m.partes.trilha)}; atalho ${JSON.stringify(m.partes.atalho)}; pager ${JSON.stringify(m.partes.pager)}; fuso ${JSON.stringify(m.partes.fuso)}; sobreposições: ${m.sobrepoe.join(', ') || 'nenhuma'}`)
     expect(m.partes.pager, 'o pager do Histórico está na trilha').not.toBeNull()
     expect(m.sobrepoe).toEqual([]); expect(m.fora).toEqual([])
+    // 11c D-A.3: a 390 px, no máximo 3 faixas (trilha com o atalho / fuso / pager), 138 px no caso medido; a 1440 px, uma linha de 34 px
+    if (largura === 390) expect(m.linha.h, 'Histórico 390 px: no máximo 3 faixas').toBeLessThanOrEqual(140)
+    if (largura === 1440) expect(m.linha.h, 'Histórico 1440 px: a trilha é uma linha só').toBeLessThanOrEqual(36)
     if (largura === 1440) {
       // numa linha só: trilha, atalho, pager, fuso (da esquerda para a direita), todos na mesma faixa vertical
       expect(m.partes.atalho.x).toBeGreaterThanOrEqual(m.partes.trilha.r - 1)
@@ -1540,6 +1551,9 @@ test('o topo (moldura) a 390 px nas sete telas: altura medida e comparada com a 
     linhasMedidas.push(`${nome}: antes (sem o atalho) ${antes.h} px, depois ${depois.h} px (${depois.h - antes.h >= 0 ? '+' : ''}${depois.h - antes.h}); fora da janela depois: ${depois.fora.join(',') || 'nada'}`)
     expect(depois.fora, `${nome} a 390 px: nada do topo sai da janela`).toEqual([])
     expect(depois.h - antes.h, `${nome}: o atalho não pode custar mais que uma linha de botão (44 px)`).toBeLessThanOrEqual(46)
+    // 11c D-A: as medidas-alvo por tela (390 px): abas 67 px (o atalho foi para o menu ⋯), trilha de canal e de comparação 26 px
+    if (sel === '.obs-ch-head') expect(depois.h, `${nome} a 390 px: o cabeçalho volta a ~67 px`).toBeLessThanOrEqual(70)
+    else expect(depois.h, `${nome} a 390 px: a trilha volta a 26 px`).toBeLessThanOrEqual(28)
   }
   medida(`topo a 390 px: ${linhasMedidas.join(' | ')}`)
   // Histórico do vídeo (com pager)
@@ -1553,6 +1567,7 @@ test('o topo (moldura) a 390 px nas sete telas: altura medida e comparada com a 
   const h0 = await page.locator('.obs-tr-top:visible').first().evaluate(e => Math.round(e.getBoundingClientRect().height))
   medida(`topo a 390 px, Histórico do vídeo: antes (sem o atalho) ${h0} px, depois ${h} px`)
   expect(h - h0).toBeLessThanOrEqual(46)
+  expect(h, 'Histórico do vídeo a 390 px: no máximo 3 faixas (138 px no caso medido)').toBeLessThanOrEqual(140)
 })
 
 test('a trilha do Histórico com nome de canal longo ainda cabe ao lado do pager e do atalho entre 1181 e 1400 px de janela (sem sobreposição, sem sair da janela)', async ({ page }) => {
