@@ -9,8 +9,23 @@ export type Json = null | boolean | number | string | Json[] | { [k: string]: Js
 type Obj = Record<string, unknown>
 export const obj = (x: unknown): Obj | undefined => (typeof x === 'object' && x !== null && !Array.isArray(x) ? (x as Obj) : undefined)
 export const str = (x: unknown): string | null => (typeof x === 'string' && x !== '' ? x : null)
-/** Data que vai para coluna timestamptz: o texto como veio se o JS o entende como data, senão nulo (nunca 'ontem' no banco). */
-const ts = (x: unknown): string | null => { const s = str(x); return s !== null && !Number.isNaN(Date.parse(s)) ? s : null }
+/**
+ * Data que vai para coluna timestamptz: o texto como veio se o JS o entende como data E o dia existe, senão nulo (nunca 'ontem' nem
+ * '2026-02-30' no banco: o JS rola o dia para março e o Postgres rejeita, e a linha inteira do vídeo deixaria de ser gravada).
+ * Ida e volta: ano, mês e dia do texto têm de ser os da data que eles formam.
+ */
+const ts = (x: unknown): string | null => {
+  const s = str(x)
+  if (s === null || Number.isNaN(Date.parse(s))) return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?![\d])/.exec(s)
+  if (m) {
+    const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3])
+    const back = new Date(0)
+    back.setUTCFullYear(y, mo - 1, d) // ao contrário de Date.UTC, não trata os anos 0 a 99 como 19xx
+    if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) return null
+  }
+  return s
+}
 /** `str` para texto que vai ao banco: sem NUL nem substituto solitário (ver sanitizeForDb). */
 const strDb = (x: unknown): string | null => { const s = str(x); return s === null ? null : cleanText(s) }
 
