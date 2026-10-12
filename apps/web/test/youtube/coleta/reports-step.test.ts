@@ -316,6 +316,31 @@ describe('passoRelatorios: baixar', () => {
     expect(ctx.falhas).toEqual([])
   })
 
+  it('G6: o prazo do passo acaba DURANTE a renovação da URL: nenhuma URL nova é gravada, o relatório não é baixado de novo e continua listado (sem_tempo, não erro de download)', async () => {
+    api.reportsList.mockImplementation(async (_job: string, o?: { createdAfter?: string }) => {
+      if (o?.createdAfter) return { reports: [], nextPageToken: null } // a listagem do passo 1
+      vi.setSystemTime(new Date(Date.now() + 120_000)) // a renovação: o prazo acaba enquanto as URLs chegam
+      return { reports: [doGoogle('r1', { downloadUrl: 'https://dl.test/r1-nova' })], nextPageToken: null }
+    })
+    api.download.mockImplementation(async (url: string) => {
+      if (url.endsWith('-nova')) return empacotarCsv(CSV)
+      throw new ReportingHttpError(403, null)
+    })
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1', { last_create_time: ha(1) })],
+      yt_reporting_reports: [listado('r1', { create_time: ha(3) })],
+    })
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    expect(api.download.mock.calls.map(c => c[0])).toEqual(['https://dl.test/r1']) // a URL nova NUNCA foi tentada
+    expect(rel(db, 'r1')).toMatchObject({ status: 'listado', download_url: 'https://dl.test/r1' }) // e não foi gravada
+    expect(resumo.erros_download).toBe(0)
+    expect(resumo.baixados).toBe(0)
+    const t = db.tables.yt_own_collection_attempts ?? []
+    expect(t.find(x => x.scope_type === 'canal' && x.outcome === 'nao_alcancado_orcamento')).toBeTruthy()
+    expect(t.filter(x => x.scope_type === 'job' && x.outcome === 'erro_http')).toEqual([])
+  })
+
   it.each([404, 410])('download com %i: expirado_sem_baixar', async (status) => {
     api.download.mockRejectedValue(new ReportingHttpError(status, null))
     const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
