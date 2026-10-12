@@ -1,11 +1,27 @@
 // Tipos e constantes da YouTube Reporting API (relatórios em lote). API separada da Analytics API.
 
-/** Tipos de relatório que o site pede. A ORDEM é a prioridade de download. Habilitar um tipo é um commit de uma linha. */
+/**
+ * Tipos de relatório que o site pede. Habilitar um tipo é um commit de uma linha: o passo de jobs cria o job na
+ * execução seguinte e o YouTube gera os 30 dias anteriores, que vencem 30 dias depois de gerados.
+ * A ORDEM só desempata a fila de download (quem manda é o vencimento: coleta/fila-relatorios.ts).
+ * Os 9 depois de `channel_basic_a3` entraram na E12 da A5 e só guardam o bruto (sem normalizador, sem tela).
+ * Ids como o YouTube os ofereceu aos dois canais em 12/10/2026 (linhas `desativado` de yt_reporting_jobs).
+ * Fora de propósito: `channel_annotations_a1` (recurso extinto) e os tipos `playlist_*`.
+ */
 export const REPORT_TYPES_ENABLED = [
   'channel_reach_basic_a1',
   'channel_reach_combined_a1',
   'channel_traffic_source_a3',
   'channel_basic_a3',
+  'channel_combined_a3',
+  'channel_device_os_a3',
+  'channel_playback_location_a3',
+  'channel_province_a3',
+  'channel_demographics_a1',
+  'channel_subtitles_a3',
+  'channel_cards_a1',
+  'channel_end_screens_a1',
+  'channel_sharing_service_a1',
 ] as const
 export type ReportTypeId = (typeof REPORT_TYPES_ENABLED)[number]
 
