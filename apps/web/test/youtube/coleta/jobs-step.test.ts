@@ -110,6 +110,26 @@ describe('passoJobs: caminho feliz', () => {
   })
 })
 
+describe('passoJobs: a lista de 13 tipos (E12, Tarefa 6)', () => {
+  it('E12, como a produção em 12/10: os 4 de sempre ativos e os 9 novos em desativado; cria só os 9 e nenhum habilitado fica em desativado', async () => {
+    const ANTIGOS = ['channel_reach_basic_a1', 'channel_reach_combined_a1', 'channel_traffic_source_a3', 'channel_basic_a3']
+    const NOVOS = REPORT_TYPES_ENABLED.filter(t => !ANTIGOS.includes(t))
+    expect(NOVOS).toHaveLength(9)
+    const desativado = (tipo: string): Row => ({ site_id: 'site-1', channel_id: 'ch-1', report_type_id: tipo, status: 'desativado' })
+    const db = fakeSupabase({ yt_reporting_jobs: [...ANTIGOS.map(linhaAtiva), ...NOVOS.map(desativado), desativado('channel_annotations_a1'), desativado('playlist_basic_a2')] })
+    api.reportTypesList.mockResolvedValue([...REPORT_TYPES_ENABLED.map(id => ({ id })), { id: 'channel_annotations_a1' }, { id: 'playlist_basic_a2' }])
+    api.jobsList.mockResolvedValue(ANTIGOS.map(t => ({ id: `job-${t}`, reportTypeId: t, createTime: '2026-10-01T00:00:00.000Z' })))
+    const ctx = ctxDe(db)
+    await passoJobs(ctx)
+    expect(api.jobsCreate.mock.calls.map(c => (c[0] as { reportTypeId: string }).reportTypeId).sort()).toEqual([...NOVOS].sort())
+    for (const t of REPORT_TYPES_ENABLED) expect(job(db, t)).toMatchObject({ status: 'ativo' })
+    for (const t of NOVOS) expect(job(db, t)!.job_id).toBe(`job-${t}`)
+    expect(job(db, 'channel_annotations_a1')).toMatchObject({ status: 'desativado' })
+    expect(job(db, 'playlist_basic_a2')).toMatchObject({ status: 'desativado' })
+    expect(ctx.falhas).toEqual([])
+  })
+})
+
 describe('passoJobs: tipos', () => {
   it('tipo habilitado ausente da lista: tipo_indisponivel, avisa e fica na resposta; tipo não habilitado: desativado, sem chamada', async () => {
     api.reportTypesList.mockResolvedValue([

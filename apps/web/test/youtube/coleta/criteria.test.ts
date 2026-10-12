@@ -999,6 +999,12 @@ describe('E12 onda 4, E1: "nunca gerou relatório" é aviso do dono; "gerou e pa
     expect(b.ctx.falhas).toEqual([])
   })
 
+  it('Tarefa 6: os 9 tipos novos entram nos dois casos (cards nunca gerou: aviso; subtitles gerou e parou: falha)', async () => {
+    const { ctx, r } = await rodar({ yt_reporting_jobs: [job('channel_cards_a1', 10, null), job('channel_subtitles_a3', 10, ha(8))] })
+    expect(ctx.falhas).toEqual([PAROU('channel_subtitles_a3')])
+    expect(r.acao_do_dono).toEqual([NUNCA('channel_cards_a1', ha(10).slice(0, 10))])
+  })
+
   it('tipos de alcance não mudam: job de alcance há 10 dias, marca nula, sem relatório e canal que publicou, continua falha', async () => {
     const { ctx, r } = await rodar({
       yt_reporting_jobs: [{ ...jobAtivo(10), last_create_time: null }],
