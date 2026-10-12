@@ -4,7 +4,7 @@ import type { AlcanceCanal, RelatorioDia, AlcanceLinha } from '@/lib/youtube/obs
 
 const rel = (dia: string, status: RelatorioDia['status'] = 'baixado', normalizado = true): RelatorioDia => ({ dia, status, normalizado })
 const lin = (ytId: string, dia: string, imp: number | null, ctr: number | null): AlcanceLinha => ({ ytId, dia, imp, ctr })
-const canal = (relatorios: RelatorioDia[], linhas: AlcanceLinha[]): AlcanceCanal => ({ canalId: 'c1', relatorios, linhas })
+const canal = (relatorios: RelatorioDia[], linhas: AlcanceLinha[]): AlcanceCanal => ({ canalId: 'c1', relatorios, linhas, ctrDescartados: 0 })
 
 describe('período do alcance', () => {
   it('sem relatório nenhum: null (nunca um período inventado)', () => {
