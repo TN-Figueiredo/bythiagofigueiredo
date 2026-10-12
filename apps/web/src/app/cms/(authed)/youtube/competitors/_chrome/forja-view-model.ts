@@ -202,6 +202,19 @@ function evidenceOf(obs: Observatory, r: FrozenReading): ForjaReadingView['evide
 function videoReading(obs: Observatory, videoId: string): FrozenReading | null {
   return obs.forja.readings.filter(r => r.type === 'leitura-video' && r.target?.video === videoId).sort((a, b) => b.generatedAt - a.generatedAt)[0] ?? null
 }
+/**
+ * O texto do "Desde então". Com pedido em andamento, sem o convite a pedir. Sem pedido, mas com o botão apagado porque o envio de agora seria igual
+ * ao que a leitura enviou (novidade.ts: título trocado depois do último registro diário, vídeos fora do corte, troca de depois do registro), o
+ * convite contradiria o botão: o texto diz que o que mudou só entra numa leitura nova depois da próxima coleta.
+ */
+const ENTRA_DEPOIS = ' O que mudou só entra numa leitura nova depois da próxima coleta.'
+function sinceText(obs: Observatory, r: FrozenReading, s: { text: string; textNoAsk: string }, active: boolean): string {
+  if (active) return s.textNoAsk
+  if (s.textNoAsk === s.text) return s.text // "Nada mudou…" ou "Não dá para comparar…": sem convite a trocar
+  const video = r.target?.video ?? null
+  if (r.niche == null || obs.forja.novidade(r.type, r.niche, video).pode) return s.text
+  return s.textNoAsk + ENTRA_DEPOIS
+}
 export function forjaReadingView(obs: Observatory, r: FrozenReading, o: { active: boolean; isNew: boolean; activeNote: string | null }): ForjaReadingView {
   // since() says it when the reading cites data that no longer exists (engine `gone`), never throws
   const s = obs.forja.since(r.id)
@@ -234,7 +247,7 @@ export function forjaReadingView(obs: Observatory, r: FrozenReading, o: { active
     // the frozen data sent with the reading; missing on an old row → said, never invented
     sentText: r.sent.text ? cap(r.sent.text).replace(/\.$/, '') + '.' : 'Os dados enviados à forja não ficaram registrados com esta leitura.',
     // "Desde então" on its own line, capitalised, no final period (CONVENCOES F11 conjunto, ruling 20b)
-    since: s ? { shortText: cap(s.shortText).replace(/\.$/, ''), text: o.active ? s.textNoAsk : s.text } : null,
+    since: s ? { shortText: cap(s.shortText).replace(/\.$/, ''), text: sinceText(obs, r, s, o.active) } : null,
     siteNotes,
     evidenceLinks: evidenceOf(obs, r),
     when: obs.date.dm(r.generatedAt) + ' ' + obs.date.hm(r.generatedAt), isNew: o.isNew,

@@ -10,6 +10,7 @@
  */
 import type { FrozenReading, Niche } from '../types'
 import { sinceStatus } from './since'
+import { buildSentCtx, type SentPack } from './sent'
 import { videoFreezeIdx, type ForjaCtx } from './scope'
 
 export type Novidade =
@@ -36,6 +37,34 @@ function lastReading(readings: readonly FrozenReading[], type: string, niche: Ni
   return best
 }
 
+/** O envio congelado com a leitura é o `SentPack` inteiro? (linha antiga e leitura de cenário guardam só a marca e o texto: sem o que comparar.) */
+const temEnvio = (s: FrozenReading['sent']): boolean =>
+  typeof s.text === 'string' && s.text !== '' && ['ids', 'items', 'channels', 'channelsOut'].every(k => Array.isArray(s[k]))
+
+/** Assinatura estável do que um envio leva. As chaves saem em ordem (o jsonb do banco não guarda a ordem) e `age` fica de fora: é a idade contada de agora, muda sem o dado mudar. */
+function assinatura(p: Pick<SentPack, 'text' | 'ids' | 'channels' | 'channelsOut' | 'items' | 'capped' | 'nVideos' | 'nOutliers'>): string {
+  const canon = (x: unknown): unknown => {
+    if (Array.isArray(x)) return x.map(canon)
+    if (x && typeof x === 'object') return Object.fromEntries(Object.entries(x as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, v]) => [k, canon(v)]))
+    return x
+  }
+  const items = p.items.map(({ age: _age, ...resto }) => resto)
+  return JSON.stringify(canon({ text: p.text, ids: p.ids, channels: p.channels, channelsOut: p.channelsOut, items, capped: p.capped, nVideos: p.nVideos, nOutliers: p.nOutliers }))
+}
+
+/** O envio de agora por alvo, guardado por conjunto de dados: o painel pergunta por todo alvo visível (a conta de `buildSent` custa). */
+const montadosAgora = new WeakMap<object, Map<string, string | null>>()
+function assinaturaAgora(ctx: ForjaCtx, type: string, niche: Niche, video: string | null, fmt: FrozenReading['fmt']): string | null {
+  const chave = [type, niche, video ?? '', fmt ?? ''].join('|')
+  let m = montadosAgora.get(ctx)
+  if (!m) montadosAgora.set(ctx, m = new Map())
+  if (m.has(chave)) return m.get(chave)!
+  let a: string | null
+  try { a = assinatura(buildSentCtx(ctx, type, { niche, videoId: video, fmt: fmt ?? null })) } catch { a = null } // alvo que não se monta: sem o que comparar
+  m.set(chave, a)
+  return a
+}
+
 /** `readings`: as leituras que o site de fato guarda (`ds.readings`); as de cenário do gerador de teste não entram. */
 export function novidadeDe(ctx: ForjaCtx, readings: readonly FrozenReading[], type: string, niche: Niche, video: string | null): Novidade {
   if (isVid(type) && !video) return { pode: true, porque: 'sem-marca' }
@@ -51,7 +80,14 @@ export function novidadeDe(ctx: ForjaCtx, readings: readonly FrozenReading[], ty
   const asOfIdx = typeof r.sent.asOfIdx === 'number' ? r.sent.asOfIdx : Number.isFinite(r.sent.asOf) ? ctx.clock.snapIdxAtOrBefore(r.sent.asOf) : Number.NaN
   if (!Number.isFinite(asOfIdx) || current == null || asOfIdx > current) return { pode: true, porque: 'sem-marca' }
   if (current > asOfIdx) return { pode: true, porque: 'dado-novo' }
-  // mesmo registro diário: só o "Desde então" da leitura pode dizer que algo mudou
-  // (leitura sem a base congelada, ou vídeo fora do observatório: o "Desde então" não compara, e a marca do registro diário, que existe e é igual, decide)
+  // mesmo registro diário: há novidade só se o envio que se montaria agora difere do que a leitura enviou. O texto do "Desde então" NÃO decide:
+  // ele compara com o relógio (título trocado depois do registro, vídeos fora do corte de 400, troca nova de depois do registro), coisas que o envio novo
+  // não leva (sent.ts congela tudo no registro diário), então um pedido novo sairia idêntico.
+  if (temEnvio(r.sent)) {
+    const agora = assinaturaAgora(ctx, r.type, niche, isVid(type) ? video : null, r.fmt)
+    if (agora != null) return agora === assinatura(r.sent as unknown as SentPack) ? { pode: false } : { pode: true, porque: 'dado-novo' }
+  }
+  // leitura sem o envio congelado (linha antiga, ou o alvo não se monta mais): só o "Desde então" pode dizer que algo mudou
+  // (sem a base congelada, ou vídeo fora do observatório, ele não compara, e a marca do registro diário, que existe e é igual, decide)
   return sinceStatus(ctx, r.id) === 'mudou' ? { pode: true, porque: 'dado-novo' } : { pode: false }
 }

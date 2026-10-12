@@ -14,7 +14,8 @@ import { machineOf } from '@/lib/youtube/observatorio/forja/states'
 import { planAsk } from '@/lib/youtube/observatorio/forja/session'
 import { semNovidadeText } from '@/lib/youtube/observatorio/forja/novidade'
 import { buildCanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
-import { buildForjaView } from '@/app/cms/(authed)/youtube/competitors/_chrome/forja-view-model'
+import { buildForjaView, forjaReadingView } from '@/app/cms/(authed)/youtube/competitors/_chrome/forja-view-model'
+import { RULES } from '@/lib/youtube/observatorio/rules'
 import type { Dataset, FrozenReading } from '@/lib/youtube/observatorio/types'
 
 const J = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T
@@ -147,7 +148,12 @@ describe('I-3: o "Desde então" mede a janela de 30 dias contra a mesma referên
     // a leitura fica 'velha': foi escrita antes da troca mais nova do nicho
     const novas = o.changesIn({}).filter(c => c.niche === 'ia')
     expect(novas.length).toBeGreaterThan(0)
-    const w = mundoCom({ ...r, generatedAt: Math.min(...novas.map(c => c.at)) - 1 })
+    // (onda final, I-1) a leitura de antes não levou a troca mais nova do nicho: o envio de agora a leva, então é novidade de verdade
+    const maisNova = novas.reduce((a, b) => (b.at > a.at ? b : a))
+    const sem = J(r)
+    sem.sent.changeIds = (sem.sent.changeIds as string[]).filter(id => id !== maisNova.id)
+    sem.sent.ids = (sem.sent.ids as string[]).filter(id => id !== maisNova.id)
+    const w = mundoCom({ ...sem, generatedAt: maisNova.at - 1 })
     expect(w.obs.forja.novidade('resumo-trocas', 'ia', null)).toMatchObject({ pode: true })
   })
 })
@@ -194,5 +200,121 @@ describe('I-1: o painel lateral de Canais usa a mesma função do servidor', () 
       expect(drawerDe(w).button.disabled, `painel, novo=${novo}`).toBe(!novo)
       expect(cab.button.mode === 'disabled', `cabeçalho, novo=${novo}`).toBe(!novo)
     }
+  })
+})
+
+/* ------------------------------------------------------------------------------------------------------------------------------------ */
+/* Onda final, I-1: no mesmo registro diário, o botão acende só se o envio de agora difere do envio congelado da leitura                  */
+/* ------------------------------------------------------------------------------------------------------------------------------------ */
+describe('I-1 (onda final): mesmo registro diário — decide o envio de agora contra o congelado, não o texto do "Desde então"', () => {
+  const H = 36e5
+  const asOfDe = (ds: Dataset) => createClock(ds.now, ds.seriesStart, ds.snap0).snapTime(createObservatory(ds).LAST_IDX)
+  /** Uma troca de título do vídeo, vista em `at` (o relógio da semente está ~3 h à frente do último registro diário). */
+  function trocaTitulo(ds: Dataset, videoId: string, at: number, texto = 'Título novo de teste') {
+    const v = ds.videos.find(x => x.id === videoId)!
+    const ult = v.titles[v.titles.length - 1]!
+    ult.current = false
+    v.titles.push({ ...ult, id: videoId + '/title/novo', first_seen: at, last_seen: ds.now, current: true, prec: 'min', window: null, text: texto })
+    v.title = texto
+  }
+  const idsEnviados = (r: FrozenReading) => (r.sent.ids as string[])
+
+  it('(a) título trocado depois do último registro diário: a leitura recém-feita diz "1 título trocado" no Desde então, mas o botão fica apagado e o servidor recusa', () => {
+    const ds0 = plain(baseDs())
+    const r = lerAgora(ds0, 'padroes-titulo', { niche: 'ia' })
+    const alvo = idsEnviados(r)[0]!
+    const at = asOfDe(ds0) + H
+    expect(at).toBeLessThan(ds0.now) // a troca caiu depois do último registro diário e antes de agora
+    const w = mundoCom(r, ds => trocaTitulo(ds, alvo, at))
+    expect(w.obs.forja.since(r.id)!.shortText).toContain('1 título trocado') // o texto da tela continua existindo
+    expect(w.obs.forja.novidade('padroes-titulo', 'ia', null)).toEqual({ pode: false })
+    const res = askServidor(w, 'ia', { type: 'padroes-titulo' })
+    expect(res.ok).toBe(false)
+    expect(res.reason).toBe(semNovidadeText('de IA'))
+    expect(w.obs.forja.session.ask('ia', { type: 'padroes-titulo' }).ok).toBe(false)
+  })
+  it('(a) e o envio que se montaria agora é, de fato, igual ao congelado (a premissa do conserto)', () => {
+    const ds0 = plain(baseDs())
+    const r = lerAgora(ds0, 'padroes-titulo', { niche: 'ia' })
+    const w = mundoCom(r, ds => trocaTitulo(ds, idsEnviados(r)[0]!, asOfDe(ds0) + H))
+    const agora = J(w.obs.forja.buildSent('padroes-titulo', { niche: 'ia' }))
+    expect(agora.ids).toEqual(r.sent.ids)
+    expect(agora.text).toBe(r.sent.text)
+  })
+  it('(b) leitura com corte (mais de 400 vídeos, aqui com o teto em 3): "antigos entraram" no Desde então, botão apagado, servidor recusa', () => {
+    const teto = RULES.forja as { maxVideos: number }, original = teto.maxVideos
+    teto.maxVideos = 3
+    try {
+      const r = lerAgora(plain(baseDs()), 'padroes-titulo', { niche: 'ia' })
+      expect(r.sent.capped).toBe(true)
+      const w = mundoCom(r)
+      expect(w.obs.forja.since(r.id)!.shortText).toMatch(/antigos? entra/)
+      expect(w.obs.forja.novidade('padroes-titulo', 'ia', null)).toEqual({ pode: false })
+      expect(askServidor(w, 'ia', { type: 'padroes-titulo' }).ok).toBe(false)
+    } finally { teto.maxVideos = original }
+  })
+  it('(c) troca nova depois da leitura, no mesmo registro: o Desde então conta "+1 troca nova", mas o envio novo não a leva — botão apagado, servidor recusa', () => {
+    const ds0 = plain(baseDs())
+    const r = lerAgora(ds0, 'resumo-trocas', { niche: 'ia' })
+    // um vídeo do nicho sem nenhuma troca antes: a troca nova é a única diferença (num vídeo com trocas, o veredito das anteriores também mudaria o envio)
+    const o0 = createObservatory(ds0), comTroca = new Set(o0.changesIn({}).map(c => c.video))
+    const solto = ds0.videos.find(v => v.niche === 'ia' && !comTroca.has(v.id) && !ds0.channels.find(c => c.id === v.ch)!.own && (r.sent.channels as string[]).includes(v.ch))!.id
+    const w = mundoCom(r, ds => trocaTitulo(ds, solto, ds.now - 30e3))
+    expect(w.obs.forja.since(r.id)!.shortText).toContain('+1 troca nova')
+    const cab = buildForjaView(w.obs, { screen: 'mudancas', niche: 'ia' })
+    expect(w.obs.forja.novidade('resumo-trocas', 'ia', null)).toEqual({ pode: false })
+    expect(cab.button.mode).toBe('disabled')
+    expect(askServidor(w, 'ia', { type: 'resumo-trocas' }).ok).toBe(false)
+    const drawer = buildCanaisView(w.obs, { niche: 'todos', limit: 75, channel: baseDs().channels.find(c => !c.own && c.niche === 'ia')!.id }).drawerForja!
+    expect(drawer.button.disabled).toBe(true)
+  })
+  it('o cartão da leitura não manda "pedir nova leitura" quando o botão está apagado: diz que o que mudou só entra depois da próxima coleta', () => {
+    const ds0 = plain(baseDs())
+    const r = lerAgora(ds0, 'padroes-titulo', { niche: 'ia' })
+    const w = mundoCom(r, ds => trocaTitulo(ds, idsEnviados(r)[0]!, asOfDe(ds0) + H))
+    const v = forjaReadingView(w.obs, w.obs.forja.byId[r.id]!, { active: false, isNew: false, activeNote: null })
+    expect(v.since!.shortText).toContain('1 título trocado')
+    expect(v.since!.text).not.toContain('Peça nova leitura')
+    expect(v.since!.text).toContain('só entra numa leitura nova depois da próxima coleta')
+  })
+
+  // o que continua sendo novidade de verdade
+  it('canal que ficaria fora do pedido novo: há novidade (o envio muda) e o cartão continua mandando pedir', () => {
+    const r = lerAgora(plain(baseDs()), 'padroes-titulo', { niche: 'ia' })
+    const canal = (r.sent.channels as string[])[0]!
+    const w = mundoCom(r, ds => { ds.channels.find(c => c.id === canal)!.sync.last = ds.now - 10 * 864e5 })
+    expect(w.obs.forja.novidade('padroes-titulo', 'ia', null)).toMatchObject({ pode: true, porque: 'dado-novo' })
+    expect(askServidor(w, 'ia', { type: 'padroes-titulo' }).ok).toBe(true)
+    const v = forjaReadingView(w.obs, w.obs.forja.byId[r.id]!, { active: false, isNew: false, activeNote: null })
+    expect(v.since!.text).toContain('Peça nova leitura à forja')
+  })
+  it('vídeo enviado que saiu do observatório: há novidade', () => {
+    const r = lerAgora(plain(baseDs()), 'padroes-titulo', { niche: 'ia' })
+    const sumiu = idsEnviados(r)[0]!
+    const w = mundoCom(r, ds => { ds.videos = ds.videos.filter(v => v.id !== sumiu) })
+    expect(w.obs.forja.novidade('padroes-titulo', 'ia', null)).toMatchObject({ pode: true, porque: 'dado-novo' })
+  })
+  it('leitura de vídeo + troca nova do vídeo (o pacote do vídeo vai até agora): há novidade', () => {
+    const r = lerAgora(plain(baseDs()), 'leitura-video', { videoId: 'matt-opus55' })
+    const w = mundoCom(r, ds => trocaTitulo(ds, 'matt-opus55', ds.now - 30e3))
+    expect(w.obs.forja.novidade('leitura-video', 'ia', 'matt-opus55')).toMatchObject({ pode: true, porque: 'dado-novo' })
+    expect(askServidor(w, 'ia', { type: 'leitura-video', video: 'matt-opus55' }).ok).toBe(true)
+  })
+
+  // dado ausente: a leitura sem envio congelado completo (linha antiga) mantém o comportamento de antes
+  it('leitura sem o envio congelado (sem ids/itens): volta ao Desde então — título trocado ainda libera (comportamento anterior)', () => {
+    const ds0 = plain(baseDs())
+    const r = lerAgora(ds0, 'padroes-titulo', { niche: 'ia' }, sent => { delete sent.ids; delete sent.items })
+    expect(r.sent.ids).toBeUndefined()
+    const w = mundoCom(r, ds => trocaTitulo(ds, (lerAgora(ds0, 'padroes-titulo', { niche: 'ia' }).sent.ids as string[])[0]!, asOfDe(ds0) + H))
+    expect(w.obs.forja.novidade('padroes-titulo', 'ia', null)).toEqual({ pode: true, porque: 'dado-novo' })
+  })
+  it('o envio congelado guardado pelo banco (chaves em outra ordem, como no jsonb) continua igual ao de agora', () => {
+    const ds0 = plain(baseDs())
+    const r = lerAgora(ds0, 'resumo-trocas', { niche: 'ia' })
+    const embaralhado = (x: unknown): unknown => Array.isArray(x) ? x.map(embaralhado)
+      : x && typeof x === 'object' ? Object.fromEntries(Object.entries(x as Record<string, unknown>).reverse().map(([k, v]) => [k, embaralhado(v)])) : x
+    r.sent = embaralhado(r.sent) as FrozenReading['sent']
+    expect(mundoCom(r).obs.forja.novidade('resumo-trocas', 'ia', null)).toEqual({ pode: false })
   })
 })
