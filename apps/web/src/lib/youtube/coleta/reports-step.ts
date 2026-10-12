@@ -192,8 +192,10 @@ async function baixarUm(
   renovados: Set<string>,
   resumo: RelatoriosResumo,
 ): Promise<'sem_tempo' | void> {
+  // Toda marcação de estado só vale para quem ainda está `listado`: com duas execuções sobrepostas, a que chega depois não
+  // rebaixa (para `erro` ou `expirado_sem_baixar`) nem regrava um relatório que a outra acabou de baixar.
   const marcar = (campos: Record<string, unknown>) =>
-    ctx.supabase.from('yt_reporting_reports').update(campos).eq('report_id', p.report_id)
+    ctx.supabase.from('yt_reporting_reports').update(campos).eq('report_id', p.report_id).eq('status', 'listado')
   // Recusa por tamanho: sem conserto automático, o bruto não é guardado. Fica vermelho na hora (aqui) e por 14 dias (critérios).
   const recusarPorTamanho = async (bytes: number, detalhe: string, extra: Record<string, unknown>, gz: boolean | null): Promise<void> => {
     anotarLido(resumo, p.report_type_id, bytes, gz)
