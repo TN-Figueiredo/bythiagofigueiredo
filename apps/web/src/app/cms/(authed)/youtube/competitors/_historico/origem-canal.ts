@@ -53,13 +53,27 @@ export function origemDoCanal(back: string | null, canalNome: string): { of: str
 }
 
 /**
+ * O `back=` do top de "Como o canal está" (os vídeos com mais impressões): abre a seção na página do canal (`painel=1`) e leva o marcador
+ * próprio `origem=top-imp`, que é como o paginador do vídeo sabe que a ordem é a do TOP e não a de uma lista da grade.
+ */
+export const BACK_DO_TOP_IMP = '?painel=1&origem=top-imp'
+/** O `back` veio do top de impressões da seção "Como o canal está". */
+export const veioDoTopDeImpressoes = (back: string | null): boolean => back != null && back.startsWith('?') && new URLSearchParams(back.slice(1)).get('origem') === 'top-imp'
+
+/** Os parâmetros que a página do canal escreve para descrever a lista de vídeos (`canalQuery`). Só `painel` e `origem` NÃO descrevem lista. */
+const CHAVES_DA_LISTA = ['tab', 'fmt', 'sort', 'dir', 'q', 'ver', 'n', 'video', 'nums'] as const
+
+/**
  * A frase da lista de origem de um canal PRÓPRIO, sem o nome do canal ("longos, mais impressões primeiro"): a página do vídeo próprio a usa
  * em "na ordem da lista: …". `null` quando `back` não descreve uma lista de vídeos que a página do canal próprio escreveria (aba sem lista,
- * Fixados, views por dia, valor desconhecido): quem chama não afirma ordem nenhuma. `{ own: true }` é a única forma suportada.
+ * Fixados, views por dia, valor desconhecido) e também quando ele só abre uma seção (`?painel=1`, o top de impressões): quem chama não afirma
+ * ordem nenhuma. `''` e `?` são a grade no estado padrão.
  */
-export function descricaoDaOrigem(back: string | null, _o: { own: true }): string | null {
+export function descricaoDaOrigem(back: string | null): string | null {
   if (back == null || (back !== '' && !back.startsWith('?'))) return null
   const qs = new URLSearchParams(back.slice(1))
+  if (qs.get('origem') != null) return null
+  if (back !== '' && back !== '?' && !CHAVES_DA_LISTA.some(k => qs.has(k))) return null
   if (!valido(qs.get('tab'), ABAS_PROPRIO) || !valido(qs.get('fmt'), FMTS_PROPRIO) || !valido(qs.get('sort'), SORTS_PROPRIO) || !valido(qs.get('dir'), DIRS)) return null
   const s = parseCanalState(Object.fromEntries(qs), { own: true })
   return [FMT[s.fmt], s.q ? `busca “${s.q}”` : null, ORDEM[s.sort][s.dir]].filter((x): x is string => x != null).join(', ')

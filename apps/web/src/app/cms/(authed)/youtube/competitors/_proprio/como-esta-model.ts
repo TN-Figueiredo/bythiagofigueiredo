@@ -13,6 +13,7 @@ import { alcancePorVideo, montarDias, resumir, type AlcanceVideo, type Periodo, 
 import type { DiaYt } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { DadosDoCanal } from './dados'
 import { nichoDoLink, type PosicaoItens, type PosicaoNoNicho } from './header-model'
+import { BACK_DO_TOP_IMP } from '../_historico/origem-canal'
 import { foraDosGuardadosFrase } from './extras'
 import { buildImpressoes, ERRO_ALCANCE, int, paradaEm, SEM_PERMISSAO, SEM_RELATORIO, type ImpressoesView } from './impressoes-model'
 import type { OpcaoConcorrente } from './posicao-do-site'
@@ -23,8 +24,6 @@ export const POUCO_VOLUME = 1000
 const TOP_N = 5
 /** Altura da área de barras do gráfico do canal (spec 16.6: 180 px para o dia de 71 impressões não apagar o de 1). */
 const ALTURA_CANAL = 180
-/** A seção aberta volta ao canal aberta: o `back` do paginador do vídeo (`link.historico` só aceita `back` que começa com `?`). */
-const VOLTAR_ABERTA = '?painel=1'
 
 export interface ComoEstaTop { id: string; titulo: string; href: string; imp: string; cliques: string; dias: string; thumb: string | null }
 export interface ComoEstaNicho {
@@ -182,12 +181,12 @@ function topDe(estado: Estado, a: EntradaComoEsta): { top: ComoEstaTop[]; topVaz
   dentro.sort((x, y) => y.r.imp - x.r.imp || (y.r.cliques ?? -1) - (x.r.cliques ?? -1) || titulo(x.v).localeCompare(titulo(y.v), 'pt-BR') || (x.v.id < y.v.id ? -1 : x.v.id > y.v.id ? 1 : 0))
   const escolhidos = dentro.slice(0, TOP_N)
   if (escolhidos.length === 0) {
-    return vazio(fora > 0 ? 'Os vídeos com impressões no relatório não estão entre os vídeos guardados deste canal.' : 'Nenhum vídeo com impressão no período lido.')
+    return vazio(fora > 0 ? foraDosGuardadosFrase(fora, int) : 'Nenhum vídeo com impressão no período lido.')
   }
   const ids = escolhidos.map(e => e.v.id)
   const top = escolhidos.map(({ v, r }, i): ComoEstaTop => ({
     id: v.id, titulo: titulo(v),
-    href: link.historico(v.id, { from: 'canais', canal: a.canalId, back: VOLTAR_ABERTA, ids, pos: i + 1, tot: ids.length }),
+    href: link.historico(v.id, { from: 'canais', canal: a.canalId, back: BACK_DO_TOP_IMP, ids, pos: i + 1, tot: ids.length }),
     imp: plural(r.imp, 'impressão', 'impressões'), cliques: cliquesDoVideo(r.cliques), dias: `em ${plural(r.diasComImpressao, 'dia', 'dias')} com impressão`,
     thumb: v.thumb ?? null,
   }))

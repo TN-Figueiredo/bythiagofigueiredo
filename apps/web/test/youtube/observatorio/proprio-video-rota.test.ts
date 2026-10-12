@@ -9,25 +9,36 @@ import { link } from '@/lib/youtube/observatorio/links'
 import { buildHistoricoView, historicoTrail } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
 import type { ObservatoryPage } from '@/app/cms/(authed)/youtube/competitors/_chrome/page-data'
 import type { OwnMenu } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
-import type { EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
-import type { Dataset } from '@/lib/youtube/observatorio/types'
+import { provarEdicao, type EdicaoDoSite } from '@/lib/youtube/observatorio/proprio/edicao'
 
 const w = proprioWorld({
   mut: ds => {
+    // T13.0 H7: um vídeo de CONCORRENTE sem data (guardado, mas sem data de publicação)
+    ds.channels.find(c => !c.own)!.undated.push({ id: 'conc-sem-data-1', ytId: 'ytcsd1', title: 'Concorrente sem data', url: 'https://youtu.be/ytcsd1', isShort: false, dur: 90, views: 10, likes: 1, comments: 0, pinned: false, checkedAt: null })
     primeiroProprio(ds).undated.push({ id: 'sem-data-1', ytId: 'ytsd1', title: 'Sem data', url: 'https://youtu.be/ytsd1', isShort: false, dur: 125, views: 50, likes: 5, comments: 1, pinned: false, checkedAt: null })
-    void (null as unknown as Dataset)
   },
 })
 const proprioVideo = w.obs.videos.find(v => v.ch === w.canalId)!
 const concorrente = w.obs.videos.find(v => !w.obs.channel(v.ch)!.own)!
-const EDICAO = { siteId: 'site-secreto-t11' } as unknown as EdicaoDoSite
+// o token é o REAL (o que nasce em `provarEdicao`, com a guarda de edição simulada a dizer sim): nada de objeto forjado com cast
+const guarda = vi.hoisted(() => ({ ok: true }))
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => (guarda.ok ? { ok: true, user: { id: 'u1' } } : { ok: false, reason: 'insufficient_access' }) }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+const EDICAO: EdicaoDoSite = await (async () => {
+  const t = await provarEdicao('site-secreto-t11')
+  if (!t) throw new Error('a fixture esperava o token de edição')
+  return t
+})()
 const OWNS: OwnMenu = { itens: [{ id: w.canalId, name: 'Meu', nota: 'n', href: '/x' }], principal: null, listaHref: '/l' }
 
 const state = {
   abrir: vi.fn(),
-  edicao: vi.fn(async (_s: string) => EDICAO as EdicaoDoSite | null),
+  edicao: vi.fn(async (_s: string): Promise<EdicaoDoSite | null> => EDICAO),
   dados: vi.fn(async (_a: unknown) => w.dados),
   swipe: vi.fn(async () => []),
+  /** `buildProprioVideoBase` da vez: por padrão o de verdade (a factory do mock o guarda em `real`); um teste troca para simular o cartão que não se achou. */
+  base: vi.fn(),
+  real: { base: null as null | typeof import('@/app/cms/(authed)/youtube/competitors/_proprio/video-model').buildProprioVideoBase },
 }
 
 vi.mock('server-only', () => ({}))
@@ -41,6 +52,11 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
   longosAcompanhadosDe: (_obs: unknown, id: string) => ['yt-longos-de-' + id],
 }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows', async orig => ({ ...(await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows')>()), loadSwipeRows: () => state.swipe() }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/video-model', async orig => {
+  const m = await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_proprio/video-model')>()
+  state.real.base = m.buildProprioVideoBase
+  return { ...m, buildProprioVideoBase: (...a: Parameters<typeof m.buildProprioVideoBase>) => state.base(...a) }
+})
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/trail-chrome', () => ({ TrailChrome: () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_historico/historico-screen', () => ({ HistoricoScreen: () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/video-screen', () => ({ ProprioVideoScreen: () => null }))
@@ -59,6 +75,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   state.edicao.mockImplementation(async () => EDICAO)
   state.dados.mockImplementation(async () => w.dados)
+  state.base.mockImplementation((...a: Parameters<NonNullable<typeof state.real.base>>) => state.real.base!(...a))
 })
 
 describe('T11 rota video/[id]: o dono do canal decide', () => {
@@ -149,5 +166,39 @@ describe('T11 rota: quem só lê o site, e a leitura que falha', () => {
     state.dados.mockImplementation(async () => DADOS.vazio(w.canalId, w.ytIds, w.hoje))
     const el = await rota(proprioVideo.id)
     expect((filho(el).props as { alcanceNota: string }).alcanceNota).toBe('Impressões e cliques deste vídeo: ainda sem relatório de alcance deste canal.')
+  })
+})
+
+describe('T13.0 H5/H7/H8 rota: título, concorrente sem data, modelo antes do dado', () => {
+  it('H5: a aba do navegador diz "Vídeo · Competidores" para o vídeo próprio e continua "Histórico do vídeo · Competidores" para o resto', async () => {
+    const { generateMetadata } = await import('@/app/cms/(authed)/youtube/competitors/video/[id]/page')
+    expect(await generateMetadata({ params: Promise.resolve({ id: proprioVideo.id }) })).toEqual({ title: 'Vídeo · Competidores' })
+    expect(await generateMetadata({ params: Promise.resolve({ id: 'sem-data-1' }) })).toEqual({ title: 'Vídeo · Competidores' })
+    expect(await generateMetadata({ params: Promise.resolve({ id: concorrente.id }) })).toEqual({ title: 'Histórico do vídeo · Competidores' })
+    expect(await generateMetadata({ params: Promise.resolve({ id: 'nao-existe' }) })).toEqual({ title: 'Histórico do vídeo · Competidores' })
+    // o título não lê dado privado nem pede a guarda de edição
+    expect(state.edicao).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
+  })
+
+  it('H7: vídeo de CONCORRENTE sem data continua "Vídeo não encontrado" na moldura (como em produção), sem tocar a guarda nem o dado privado', async () => {
+    const { canalProprioDoVideo } = await import('@/app/cms/(authed)/youtube/competitors/_proprio/video-model')
+    expect(canalProprioDoVideo(w.obs, 'conc-sem-data-1')).toBeNull()
+    const el = await rota('conc-sem-data-1', { from: 'canais' })
+    expect(nome(el)).toBe('HistoricoScreen')
+    expect((filho(el).props as { view: { state: string; video: unknown } }).view).toMatchObject({ state: 'not-found', video: null })
+    expect(state.edicao).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
+  })
+
+  it('H8: o modelo da página nasce ANTES de qualquer leitura privada (a guarda e o diário só rodam com o modelo na mão)', async () => {
+    await rota(proprioVideo.id)
+    expect(state.base).toHaveBeenCalledTimes(1)
+    expect(state.base.mock.invocationCallOrder[0]!).toBeLessThan(state.edicao.mock.invocationCallOrder[0]!)
+    expect(state.base.mock.invocationCallOrder[0]!).toBeLessThan(state.dados.mock.invocationCallOrder[0]!)
+  })
+
+  it('H8: se o modelo não se acha para um vídeo próprio, a rota LANÇA (nunca cai no Histórico) e nenhum dado privado foi lido', async () => {
+    state.base.mockImplementation(() => null)
+    await expect(rota(proprioVideo.id)).rejects.toThrow(/vídeo próprio/i)
+    expect(state.edicao).not.toHaveBeenCalled(); expect(state.dados).not.toHaveBeenCalled()
   })
 })
