@@ -46,8 +46,11 @@ async function gravarJob(
     linha.job_id = campos.job.id
     // Linha que volta a `ativo` (era `desativado`, `erro`, `tipo_indisponivel`...) mantém o `created_at` antigo, e sem esta
     // data o critério dos 6 dias contaria a idade da linha, não a do job, e alarmaria no primeiro dia. Se a API não
-    // informou `createTime`, o job nasceu agora. Job que já estava ativo não é tocado (o relógio do alarme não reinicia).
-    linha.job_create_time = campos.job.createTime ?? (campos.religado ? new Date().toISOString() : null)
+    // informou `createTime`, o job nasceu agora. Job que já estava ativo e vem sem `createTime` NÃO recebe a coluna no upsert
+    // (só as colunas enviadas mudam): a data gravada fica, porque ausência nunca sobrescreve valor presente e o relógio do
+    // alarme não reinicia. Só o `createTime` da API (valor presente) corrige uma data gravada.
+    const criadoEm = campos.job.createTime ?? (campos.religado ? new Date().toISOString() : undefined)
+    if (criadoEm !== undefined) linha.job_create_time = criadoEm
   }
   const r = await ctx.supabase.from('yt_reporting_jobs').upsert(linha, { onConflict: 'channel_id,report_type_id' })
   return conferirBanco(r, 'yt_reporting_jobs', ctx.falhas) === 'ok'
