@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { randomBytes } from 'node:crypto'
 import { gunzipSync, gzipSync } from 'node:zlib'
+import * as Sentry from '@sentry/nextjs'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', async (orig) => ({
@@ -55,8 +56,9 @@ const ctxDe = (db: FakeDb, prazoMs = 60_000): StepCtx => ({
   supabase: db.client, channels: [{ ...canal }], deadline: Date.now() + prazoMs, falhas: [], tentativas: [],
 })
 const rel = (db: FakeDb, id: string) => db.tables.yt_reporting_reports?.find(r => r.report_id === id)
-const NOTA_GRAVACAO = (bytes: number, motivo: string, tipo = 'channel_reach_basic_a1') =>
-  `relatórios: Canal Um: a GRAVAÇÃO do bruto de ${tipo} falhou (${bytes} bytes comprimidos; banco: ${motivo}); o relatório continua na fila`
+/** A nota leva só o CÓDIGO do erro do banco, nunca o texto (schema.ts, regra do módulo); o texto vai para o Sentry. */
+const NOTA_GRAVACAO = (bytes: number, codigo: string, tipo = 'channel_reach_basic_a1') =>
+  `relatórios: Canal Um: a GRAVAÇÃO do bruto de ${tipo} falhou (${bytes} bytes comprimidos; banco: ${codigo}); o relatório continua na fila`
 const comStatus = (db: FakeDb, status: string) => (db.tables.yt_reporting_reports ?? []).filter(r => r.status === status)
 
 beforeEach(() => {
@@ -579,7 +581,7 @@ describe('passoRelatorios: fix round 1', () => {
     const resumo = await passoRelatorios(ctx)
     expect(rel(db, 'r1')!.status).toBe('listado')
     expect(comStatus(db, 'baixado')).toHaveLength(0)
-    expect(ctx.falhas).toEqual([NOTA_GRAVACAO(empacotarCsv(CSV).gz.length, 'conexão caiu')]) // específica: a genérica "erro de banco" sai
+    expect(ctx.falhas).toEqual([NOTA_GRAVACAO(empacotarCsv(CSV).gz.length, '08006')]) // específica: a genérica "erro de banco" sai
     expect(resumo).toMatchObject({ baixados: 0, pendentes: 1 })
   })
 
@@ -1108,10 +1110,33 @@ describe('E12 onda 5, F2: falha ao gravar o bruto deixa rastro e chega ao alerta
     expect(String(t[0]!.error)).toMatch(/^erro_gravacao: /)
     expect(String(t[0]!.error)).toContain('channel_reach_basic_a1')
     expect(String(t[0]!.error)).toContain(`${BYTES} bytes`)
-    expect(ctx.falhas).toEqual([NOTA_GRAVACAO(BYTES, 'statement timeout')])
+    expect(ctx.falhas).toEqual([NOTA_GRAVACAO(BYTES, '57014')])
     expect(rel(db, 'r1')!.status).toBe('listado')
     expect(db.tables.yt_reporting_report_blobs ?? []).toEqual([])
     expect(resumo).toMatchObject({ baixados: 0, gravados: 0, erros_download: 1, pendentes: 1 })
+  })
+
+  it('o texto do Postgres não vai para a nota nem para a tentativa (só o código); vai inteiro para o Sentry', async () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    const TEXTO = 'canceling statement due to statement timeout (host db.interno.exemplo:5432, usuário secreto)'
+    db.writeErrors.yt_reporting_report_blobs = { code: '57014', message: TEXTO }
+    const ctx = ctxDe(db)
+    await passoRelatorios(ctx)
+    expect(ctx.falhas.join('\n')).not.toContain('statement timeout')
+    expect(ctx.falhas.join('\n')).not.toContain('db.interno')
+    expect(String(tentativasDoJob(db)[0]!.error)).toBe(`erro_gravacao: channel_reach_basic_a1, ${BYTES} bytes, 57014`)
+    expect(vi.mocked(Sentry.captureException)).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining(TEXTO) }),
+      expect.objectContaining({ tags: expect.objectContaining({ passo: 'relatorios' }), extra: expect.objectContaining({ report: 'r1' }) }),
+    )
+  })
+
+  it('erro do banco sem código: a nota diz "sem código" e o texto continua fora dela', async () => {
+    const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
+    db.writeErrors.yt_reporting_report_blobs = { code: '', message: 'boom interno' }
+    const ctx = ctxDe(db)
+    await passoRelatorios(ctx)
+    expect(ctx.falhas).toEqual([NOTA_GRAVACAO(BYTES, 'sem código')])
   })
 
   it('3 dias seguidos de falha de gravação: o critério de jobs alarma, com o motivo; no 2º dia ainda não', async () => {

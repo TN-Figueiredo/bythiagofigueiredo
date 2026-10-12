@@ -302,7 +302,12 @@ async function baixarUm(
       return
     }
     if (gravou === 'erro') {
-      const motivo = (blob.error?.message ?? blob.error?.code ?? 'sem texto').replace(/\s+/g, ' ').slice(0, 120)
+      // Regra do módulo (schema.ts): a nota e a tentativa levam só o CÓDIGO do erro do banco, nunca o texto do Postgres (que pode
+      // trazer nome de tabela, host ou trecho de dado). O texto inteiro vai para o Sentry.
+      const motivo = blob.error?.code || 'sem código'
+      Sentry.captureException(new Error(`gravação do bruto ${p.report_id} falhou: ${blob.error?.message ?? 'sem texto'}`), {
+        tags: { cron: 'sync-analytics-metrics', passo: 'relatorios' }, extra: { report: p.report_id, tipo: p.report_type_id, codigo: blob.error?.code ?? null },
+      })
       const nome = ctx.channels.find(c => c.id === p.channel_id)?.name ?? p.channel_id
       resumo.erros_download++
       pushUnico(ctx.falhas, `relatórios: ${channelNote(nome, `a GRAVAÇÃO do bruto de ${p.report_type_id} falhou (${pacote.gz.length} bytes comprimidos; banco: ${motivo}); o relatório continua na fila`)}`)
