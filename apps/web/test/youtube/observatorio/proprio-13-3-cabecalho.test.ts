@@ -23,6 +23,7 @@ describe('13.3 linha-resumo sob o nome', () => {
     expect(build(mundo(60)).resumo).toMatchObject({ destaque: 'Último vídeo há 60 dias', parado: false })
     expect(build(mundo(61)).resumo).toMatchObject({ destaque: 'Canal parado há 61 dias', parado: true })
     expect(build(mundo(1)).resumo?.destaque).toBe('Último vídeo há 1 dia')
+    expect(build(mundo(0)).resumo?.destaque).toBe('Último vídeo hoje')   // nunca "há 0 dias"
   })
   it('sem relatório: "; ainda sem números de alcance." (nunca "0 impressões")', () => {
     const h = build(mundo(666, 'vazio'))
