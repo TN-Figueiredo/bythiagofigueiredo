@@ -66,6 +66,15 @@ const linksComparar = (root: ParentNode) => [...root.querySelectorAll<HTMLAnchor
 
 /** O foco chega num quadro de animação depois do Voltar; no CI (máquina lenta, cartões pesados) o segundo padrão do waitFor não basta. */
 const FOCO_ESPERA = { timeout: 5000 }
+/**
+ * Deixa a montagem assentar antes de agir. A tela montada até 10 s depois de um `popstate` (o do teste anterior) se trata como "voltou" e agenda, para o
+ * quadro seguinte, a leitura do gatilho; um clique que chega antes desse quadro grava o registro e o quadro o consome antes do Voltar do teste (visto no CI).
+ */
+const assentar = () => act(async () => {
+  await new Promise<void>(r => setTimeout(r, 0))
+  await new Promise<void>(r => requestAnimationFrame(() => r()))
+  await new Promise<void>(r => requestAnimationFrame(() => r()))
+})
 
 describe('"Comparar" na tabela', () => {
   it('cada linha de concorrente tem "Comparar" na coluna "Com o meu canal", com o nome acessível "Comparar <canal> com o meu canal"', () => {
@@ -262,6 +271,7 @@ describe('o gatilho de "Comparar" e o Voltar (D18)', () => {
     const links = linksComparar(container)
     const alvo = links[3]!, id = alvo.closest('tr')!.dataset.id!
     alvo.addEventListener('click', e => e.preventDefault())
+    await assentar()
     await user.click(alvo)
     expect(window.sessionStorage.getItem('obs:gatilho-comparar')).toContain(id)
     ;(document.activeElement as HTMLElement | null)?.blur()
@@ -276,6 +286,7 @@ describe('o gatilho de "Comparar" e o Voltar (D18)', () => {
     const primeira = mount(w.obs)
     const alvo0 = linksComparar(primeira.container)[4]!, id = alvo0.dataset.comparar!
     alvo0.addEventListener('click', e => e.preventDefault())
+    await assentar()
     await user.click(alvo0)
     primeira.unmount(); cleanup() // a pessoa foi para a comparação: a lista saiu da tela
     voltar() // o Voltar...
@@ -315,6 +326,7 @@ describe('o gatilho de "Comparar" e o Voltar (D18)', () => {
     const { container } = mount(w.obs)
     const alvo = linksComparar(container)[3]!
     alvo.addEventListener('click', e => e.preventDefault())
+    await assentar()
     await user.click(alvo) // gravou com a URL ?fmt=longos
     window.history.replaceState(null, '', '/cms/youtube/competitors?fmt=longos&sort=vpd') // saiu pela trilha e voltou a uma lista de outra URL
     ;(document.activeElement as HTMLElement | null)?.blur()
@@ -338,6 +350,7 @@ describe('o gatilho de "Comparar" e o Voltar (D18)', () => {
     const { container } = mount(DOIS().obs, { layout: 'cards' })
     const alvo = linksComparar(container)[2]!
     alvo.addEventListener('click', e => e.preventDefault())
+    await assentar()
     await user.click(alvo)
     ;(document.activeElement as HTMLElement | null)?.blur()
     voltar()
@@ -424,6 +437,7 @@ describe('cabeçalho do concorrente', () => {
     const { chId } = mountCanal(HREF)
     const b = screen.getByRole('link', { name: 'Comparar com o meu canal' })
     b.addEventListener('click', e => e.preventDefault())
+    await assentar()
     await user.click(b)
     expect(window.sessionStorage.getItem('obs:gatilho-comparar')).toContain(chId)
     ;(document.activeElement as HTMLElement | null)?.blur()
