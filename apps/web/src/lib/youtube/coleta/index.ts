@@ -15,7 +15,7 @@ import { criterioJobsEmErro, criterioMetadados, criterioOrcamento, criteriosRela
 import { criteriosL2 } from './criteria-l2'
 import { ontemPt } from './day-pt'
 import { passoDiario } from './diario-step'
-import { conferirGuarda } from './guarda'
+import { conferirGuarda, contarBrutosAoAbrir } from './guarda'
 import { passoJobs, type JobsResumo } from './jobs-step'
 import { passoMetadados } from './meta-step'
 import { passoRelatorios } from './reports-step'
@@ -195,6 +195,17 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
 
   // `rel` e `resumo.relatorios` são montados depois do critério; o critério roda DEPOIS do alcance, para que um
   // cabeçalho inesperado achado hoje (relatório marcado `erro` pelo alcance) já fique vermelho hoje.
+  // E20 (I2 da revisão final): os brutos são contados ANTES do passo de relatórios, para a queda ser comparada com a base
+  // sem os downloads do dia no meio. Prazo próprio curto (guarda.ts); falha vira nota e a comparação usa o total do fim.
+  const tAbertura = Date.now()
+  let brutosAoAbrir: number | null = null
+  try {
+    brutosAoAbrir = await contarBrutosAoAbrir({ supabase: ctx.supabase, falhas })
+  } catch (e) {
+    falhou('guarda do bruto (abertura)', e)
+    pushUnico(falhas, 'relatórios: brutos não contados antes do passo de relatórios; a queda de hoje foi comparada só depois dos downloads')
+  }
+  ms.guarda = Date.now() - tAbertura
   let relPasso: Record<string, unknown> | undefined
   if (PASSOS_LIGADOS.relatorios) {
     const r = await passo('relatorios', TETOS_MS.relatorios, 'relatorio', ativos, passoRelatorios)
@@ -205,11 +216,14 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   // tempo) ou lançou: por isso está aqui, fora do passo. Tem prazo próprio (guarda.ts). Falha da conferência nunca vira
   // "0 órfãos": vira nota, e o campo `guarda` fica ausente. Duas saídas de `executar` não chegam aqui, ambas já vermelhas:
   // a leitura de `youtube_channels` falha (return acima) e a rede de segurança de `rodarColeta` (executar lançou).
+  const tGuarda = Date.now()
   try {
-    resumo.guarda = await conferirGuarda({ supabase: ctx.supabase, falhas })
+    resumo.guarda = await conferirGuarda({ supabase: ctx.supabase, falhas, brutosAoAbrir })
   } catch (e) {
     falhou('guarda do bruto', e)
     pushUnico(falhas, 'relatórios: guarda do bruto não conferida (a conferência lançou)')
+  } finally {
+    ms.guarda = (ms.guarda ?? 0) + (Date.now() - tGuarda)   // abertura + fim: a latência real, lida depois do envio (M-8)
   }
 
   // Alcance: normaliza o bruto que o passo de relatórios acabou de baixar. `servidos` vazio de propósito: sem tempo,

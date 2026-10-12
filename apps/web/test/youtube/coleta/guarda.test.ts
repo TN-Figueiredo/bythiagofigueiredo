@@ -1,18 +1,20 @@
 // @vitest-environment node
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { fakeSupabase, type FakeDb } from './fake-supabase'
-import { conferirGuarda, GUARDA_PRAZO_MS } from '@/lib/youtube/coleta/guarda'
+import { conferirGuarda, contarBrutosAoAbrir, GUARDA_PRAZO_MS, GUARDA_ABERTURA_PRAZO_MS } from '@/lib/youtube/coleta/guarda'
 
 type Linha = Record<string, unknown>
 const baixado = (id: string, extra: Linha = {}): Linha => ({ report_id: id, status: 'baixado', downloaded_at: '2026-10-01T12:00:00.000Z', ...extra })
 const bruto = (id: string): Linha => ({ report_id: id, site_id: 'site-1', csv_gz: '\\x00' })
 /** Uma execução anterior do cron. `blobs = null`: execução que não conferiu a guarda (resumo sem o número). */
 const execucao = (ran_at: string, blobs: number | null): Linha => ({ ran_at, resumo: blobs === null ? { relatorios: {} } : { guarda: { blobs_guardados: blobs } } })
-const rodar = async (db: FakeDb, prazoMs?: number) => {
+const rodar = async (db: FakeDb, prazoMs?: number, brutosAoAbrir?: number | null) => {
   const falhas: string[] = []
-  const guarda = await conferirGuarda({ supabase: db.client, falhas, ...(prazoMs !== undefined && { prazoMs }) })
+  const guarda = await conferirGuarda({ supabase: db.client, falhas, ...(prazoMs !== undefined && { prazoMs }), ...(brutosAoAbrir !== undefined && { brutosAoAbrir }) })
   return { guarda, falhas }
 }
+const brutosEmMemoria = (n: number): Linha[] => Array.from({ length: n }, (_, i) => bruto(`r${i}`))
+const NOTA_ABERTURA = 'relatórios: brutos não contados antes do passo de relatórios; a queda de hoje foi comparada só depois dos downloads'
 const dormir = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
 afterEach(() => {
@@ -169,6 +171,97 @@ describe('E20: conferirGuarda', () => {
     expect(guarda).toMatchObject({ expirados_sem_registro: null, blobs_guardados: 1 })
   })
 
+  describe('queda contada ANTES dos downloads do dia (I2 da revisão final: perda menor que a entrada do dia)', () => {
+    const ontem160 = [execucao('2026-10-11T12:02:00.000Z', 160)]
+    /** O fim da execução: 176 brutos (150 que sobraram + 26 baixados hoje), anti-junção em dia. */
+    const fimDaExecucao = (db: FakeDb) => {
+      db.rpcHandlers.yt_reporting_guarda_conferir = () => ({ data: [{ brutos: 176, baixados: 176, baixados_sem_bruto: 0, brutos_sem_baixado: 0, perdas_reconhecidas: 0 }], error: null })
+    }
+
+    it('cenário do revisor: ontem 160, somem 10, o passo baixa 26, o fim dá 176: a contagem de ABERTURA (150) acusa a queda', async () => {
+      const db = fakeSupabase({ yt_own_collection_runs: ontem160 })
+      fimDaExecucao(db)
+      const { guarda, falhas } = await rodar(db, undefined, 150)
+      expect(guarda).toMatchObject({ blobs_guardados: 176, blobs_guardados_ao_abrir: 150, blobs_guardados_antes: 160 })
+      expect(falhas).toEqual(['relatórios: os brutos guardados caíram de 160 para 150 desde a última execução conferida: canal próprio removido ou perda (confira qual)'])
+    })
+
+    it('sem perda: abertura igual à base e o fim maior (entrou o dia): nenhuma falha, e o que fica gravado é o total do fim', async () => {
+      const db = fakeSupabase({ yt_own_collection_runs: ontem160 })
+      fimDaExecucao(db)
+      const { guarda, falhas } = await rodar(db, undefined, 160)
+      expect(guarda).toMatchObject({ blobs_guardados: 176, blobs_guardados_ao_abrir: 160 })
+      expect(falhas).toEqual([])
+    })
+
+    it('perda DURANTE a execução (o fim abaixo da abertura) também é acusada, com o menor número', async () => {
+      const db = fakeSupabase({ yt_own_collection_runs: [execucao('2026-10-11T12:02:00.000Z', 100)] })
+      db.rpcHandlers.yt_reporting_guarda_conferir = () => ({ data: [{ brutos: 150, baixados: 150, baixados_sem_bruto: 0, brutos_sem_baixado: 0, perdas_reconhecidas: 0 }], error: null })
+      const { falhas } = await rodar(db, undefined, 160)
+      expect(falhas).toEqual(['relatórios: os brutos guardados caíram de 160 para 150 desde a última execução conferida: canal próprio removido ou perda (confira qual)'])   // acima da base 100, mas abaixo do que a própria execução viu ao abrir
+      const db2 = fakeSupabase({ yt_own_collection_runs: ontem160 })
+      db2.rpcHandlers.yt_reporting_guarda_conferir = () => ({ data: [{ brutos: 155, baixados: 155, baixados_sem_bruto: 0, brutos_sem_baixado: 0, perdas_reconhecidas: 0 }], error: null })
+      expect((await rodar(db2, undefined, 165)).falhas).toEqual(['relatórios: os brutos guardados caíram de 160 para 155 desde a última execução conferida: canal próprio removido ou perda (confira qual)'])
+    })
+
+    it('abertura não informada ou não contada: cai para o total do fim (comportamento anterior), sem inventar número', async () => {
+      for (const aberta of [undefined, null]) {
+        const db = fakeSupabase({ yt_own_collection_runs: ontem160 })
+        db.rpcHandlers.yt_reporting_guarda_conferir = () => ({ data: [{ brutos: 150, baixados: 150, baixados_sem_bruto: 0, brutos_sem_baixado: 0, perdas_reconhecidas: 0 }], error: null })
+        const { guarda, falhas } = await rodar(db, undefined, aberta)
+        expect(guarda.blobs_guardados_ao_abrir).toBeNull()
+        expect(falhas).toEqual(['relatórios: os brutos guardados caíram de 160 para 150 desde a última execução conferida: canal próprio removido ou perda (confira qual)'])
+      }
+    })
+
+    describe('contarBrutosAoAbrir', () => {
+      it('devolve a contagem dos brutos, sem nota', async () => {
+        const db = fakeSupabase({ yt_reporting_report_blobs: brutosEmMemoria(7) })
+        const falhas: string[] = []
+        expect(await contarBrutosAoAbrir({ supabase: db.client, falhas })).toBe(7)
+        expect(falhas).toEqual([])
+      })
+      it('tabela vazia é zero de verdade (a contagem veio)', async () => {
+        const falhas: string[] = []
+        expect(await contarBrutosAoAbrir({ supabase: fakeSupabase({}).client, falhas })).toBe(0)
+        expect(falhas).toEqual([])
+      })
+      it('erro de banco: null, com a nota do erro e a nota do que isso significa', async () => {
+        const db = fakeSupabase({})
+        db.erroNaLeitura = (tabela) => (tabela === 'yt_reporting_report_blobs' ? { code: '57014', message: 'statement timeout' } : undefined)
+        const falhas: string[] = []
+        expect(await contarBrutosAoAbrir({ supabase: db.client, falhas })).toBeNull()
+        expect(falhas).toEqual(['erro de banco ao ler yt_reporting_report_blobs', NOTA_ABERTURA])
+      })
+      it('o banco não devolve a contagem (nula): null com nota, nunca zero', async () => {
+        const db = fakeSupabase({ yt_reporting_report_blobs: brutosEmMemoria(3) })
+        const original = db.client.from.bind(db.client)
+        db.client.from = ((tabela: string) => (tabela === 'yt_reporting_report_blobs'
+          ? { select: () => Promise.resolve({ data: null, error: null, count: null }) }
+          : original(tabela))) as typeof db.client.from
+        const falhas: string[] = []
+        expect(await contarBrutosAoAbrir({ supabase: db.client, falhas })).toBeNull()
+        expect(falhas).toEqual([NOTA_ABERTURA])
+      })
+      it('estouro do prazo próprio: null, nota com o prazo, e a resposta tardia não mexe em nada', async () => {
+        const db = fakeSupabase({})
+        db.client.from = (() => ({ select: () => new Promise<never>(() => {}) })) as typeof db.client.from
+        const falhas: string[] = []
+        expect(await contarBrutosAoAbrir({ supabase: db.client, falhas, prazoMs: 20 })).toBeNull()
+        expect(falhas).toEqual([`${NOTA_ABERTURA} (passou do prazo de 20 ms)`])
+      })
+      it('o prazo padrão é curto e cabe folgado dentro do da conferência do fim', () => {
+        expect(GUARDA_ABERTURA_PRAZO_MS).toBeGreaterThan(0)
+        expect(GUARDA_ABERTURA_PRAZO_MS).toBeLessThan(GUARDA_PRAZO_MS)
+      })
+      it('terminando a tempo, não deixa timer pendente', async () => {
+        vi.useFakeTimers()
+        await contarBrutosAoAbrir({ supabase: fakeSupabase({}).client, falhas: [] })
+        expect(vi.getTimerCount()).toBe(0)
+      })
+    })
+  })
+
   describe('prazo próprio (o relógio de 270 s da coleta não pode ser estourado pela conferência)', () => {
     it('o prazo padrão é curto: cabe nos 30 s de reserva que o relógio global deixa para o veredito', () => {
       expect(GUARDA_PRAZO_MS).toBeGreaterThan(0)
@@ -181,7 +274,7 @@ describe('E20: conferirGuarda', () => {
       const { guarda, falhas } = await rodar(db, 20)
       expect(falhas).toEqual(['relatórios: guarda do bruto não conferida (passou do prazo de 20 ms)'])
       expect(guarda).toEqual({
-        blobs_guardados: null, blobs_guardados_antes: null, baixados_sem_bruto: null, brutos_sem_baixado: null, perdas_reconhecidas: null, expirados_sem_registro: null,
+        blobs_guardados: null, blobs_guardados_ao_abrir: null, blobs_guardados_antes: null, baixados_sem_bruto: null, brutos_sem_baixado: null, perdas_reconhecidas: null, expirados_sem_registro: null,
       })
     })
 

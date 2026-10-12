@@ -241,7 +241,7 @@ describe('rodarColeta: L2 (alcance e diário)', () => {
     expect(seq).toEqual([...seq].sort((a, b) => a - b))
     expect(new Set(seq).size).toBe(5)
     expect(r.resumo).toMatchObject({ alcance: { normalizados: 2 }, diario: { gravados: 9 } })
-    expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['alcance', 'diario', 'relatorios'])
+    expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['alcance', 'diario', 'guarda', 'relatorios'])
     expect(r.falhas).toEqual([])
   })
 
@@ -444,7 +444,7 @@ describe('rodarColeta: L1b', () => {
   it('fase depois: ms dos passos relatorios, alcance e diario; reautorizar e a nota somam ao acao_do_dono do critério', async () => {
     const db = fakeSupabase({ youtube_channels: [canalL1b({ id: 'ch-1', name: 'Canal Um', collection_status: 'reautorizar' })] })
     const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
-    expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['alcance', 'diario', 'relatorios'])
+    expect(Object.keys(r.resumo.ms as object).sort()).toEqual(['alcance', 'diario', 'guarda', 'relatorios'])
     expect(r.resumo.reautorizar).toEqual(['ch-1'])
     expect(r.resumo.acao_do_dono).toEqual(['Canal Um: x em sem_acesso', 'Canal Um: reautorizar'])
   })
@@ -578,7 +578,7 @@ describe('rodarColeta: L1b', () => {
     it('fase depois: resumo.guarda traz números; sem execução anterior a base é nula; nenhuma falha', async () => {
       const r = await rodarColeta({ supabase: comBruto().client, relogio: criarRelogio(), fase: 'depois' })
       expect(r.resumo.guarda).toEqual({
-        blobs_guardados: 1, blobs_guardados_antes: null, baixados_sem_bruto: 0, brutos_sem_baixado: 0, perdas_reconhecidas: 0, expirados_sem_registro: 0,
+        blobs_guardados: 1, blobs_guardados_ao_abrir: 1, blobs_guardados_antes: null, baixados_sem_bruto: 0, brutos_sem_baixado: 0, perdas_reconhecidas: 0, expirados_sem_registro: 0,
       })
       expect(r.falhas).toEqual([])
     })
@@ -635,6 +635,91 @@ describe('rodarColeta: L1b', () => {
       expect(r.falhas).toEqual([`relatórios: guarda do bruto não conferida (passou do prazo de ${GUARDA_PRAZO_MS} ms)`])
       expect(r.resumo.guarda).toMatchObject({ blobs_guardados: null, baixados_sem_bruto: null })
       expect(criterioOrcamento).toHaveBeenCalledTimes(1)
+    })
+
+    describe('queda contada ANTES dos downloads do dia (I2 da revisão final) e o tempo da guarda (M-8)', () => {
+      const relatorio = (i: number) => ({ report_id: `r${i}`, status: 'baixado', downloaded_at: '2026-10-01T12:00:00.000Z' })
+      const blob = (i: number) => ({ report_id: `r${i}`, site_id: 'site-1', csv_gz: '\\x00' })
+      const faixa = (de: number, ate: number) => Array.from({ length: ate - de }, (_, k) => de + k)
+
+      it('cenário do revisor de ponta a ponta: ontem 160, entre as execuções somem 10 (relatório e bruto juntos), o passo baixa 26: acusa a queda de 160 para 150', async () => {
+        const db = fakeSupabase({
+          youtube_channels: canais,
+          yt_reporting_reports: faixa(10, 160).map(relatorio),   // a cascata levou 0..9 antes desta execução abrir
+          yt_reporting_report_blobs: faixa(10, 160).map(blob),
+          yt_own_collection_runs: [{ ran_at: '2026-10-06T12:02:00.000Z', resumo: { guarda: { blobs_guardados: 160 } } }],
+        })
+        vi.mocked(passoRelatorios).mockImplementation(async () => {
+          db.tables.yt_reporting_reports!.push(...faixa(200, 226).map(relatorio))   // o passo baixa 26
+          db.tables.yt_reporting_report_blobs!.push(...faixa(200, 226).map(blob))
+          return { ...resumoVazio, baixados: 26 }
+        })
+        const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+        expect(r.resumo.guarda).toMatchObject({ blobs_guardados: 176, blobs_guardados_ao_abrir: 150, blobs_guardados_antes: 160, baixados_sem_bruto: 0 })
+        expect(r.falhas).toEqual(['relatórios: os brutos guardados caíram de 160 para 150 desde a última execução conferida: canal próprio removido ou perda (confira qual)'])
+      })
+
+      it('sem perda, com a entrada do dia: verde (a abertura é igual à base)', async () => {
+        const db = fakeSupabase({
+          youtube_channels: canais,
+          yt_reporting_reports: faixa(0, 160).map(relatorio),
+          yt_reporting_report_blobs: faixa(0, 160).map(blob),
+          yt_own_collection_runs: [{ ran_at: '2026-10-06T12:02:00.000Z', resumo: { guarda: { blobs_guardados: 160 } } }],
+        })
+        vi.mocked(passoRelatorios).mockImplementation(async () => {
+          db.tables.yt_reporting_reports!.push(...faixa(200, 226).map(relatorio))
+          db.tables.yt_reporting_report_blobs!.push(...faixa(200, 226).map(blob))
+          return { ...resumoVazio, baixados: 26 }
+        })
+        const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+        expect(r.resumo.guarda).toMatchObject({ blobs_guardados: 186, blobs_guardados_ao_abrir: 160, blobs_guardados_antes: 160 })
+        expect(r.falhas).toEqual([])
+      })
+
+      it('a contagem de abertura roda ANTES do passo de relatórios (uma leitura dos brutos quando o passo começa)', async () => {
+        const db = comBruto()
+        let leiturasNoPasso = -1
+        vi.mocked(passoRelatorios).mockImplementation(async () => {
+          leiturasNoPasso = db.leituras.yt_reporting_report_blobs ?? 0
+          return { ...resumoVazio }
+        })
+        await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+        expect(leiturasNoPasso).toBe(1)
+      })
+
+      it('a contagem de abertura falha: nota, a guarda segue e a queda é comparada com o total do fim', async () => {
+        const db = comBruto({ yt_own_collection_runs: [{ ran_at: '2026-10-06T12:02:00.000Z', resumo: { guarda: { blobs_guardados: 4 } } }] })
+        db.erroNaLeitura = (tabela) => (tabela === 'yt_reporting_report_blobs' ? { code: '57014', message: 'statement timeout' } : undefined)
+        const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+        expect(r.resumo.guarda).toMatchObject({ blobs_guardados: 1, blobs_guardados_ao_abrir: null, blobs_guardados_antes: 4 })
+        expect(r.falhas).toEqual([
+          'erro de banco ao ler yt_reporting_report_blobs',
+          'relatórios: brutos não contados antes do passo de relatórios; a queda de hoje foi comparada só depois dos downloads',
+          'relatórios: os brutos guardados caíram de 4 para 1 desde a última execução conferida: canal próprio removido ou perda (confira qual)',
+        ])
+      })
+
+      it('a contagem de abertura LANÇA: Sentry avisado, nota, e a execução segue até o fim', async () => {
+        const db = comBruto()
+        const original = db.client.from.bind(db.client)
+        db.client.from = ((tabela: string) => {
+          if (tabela === 'yt_reporting_report_blobs') throw new Error('x')
+          return original(tabela)
+        }) as typeof db.client.from
+        const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+        expect(r.falhas).toContain('guarda do bruto (abertura): unexpected error (Error)')
+        expect(r.falhas).toContain('relatórios: brutos não contados antes do passo de relatórios; a queda de hoje foi comparada só depois dos downloads')
+        expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error), { tags: { cron: 'sync-analytics-metrics', passo: 'guarda do bruto (abertura)' } })
+        expect(criterioOrcamento).toHaveBeenCalledTimes(1)
+        expect(passoRelatorios).toHaveBeenCalledTimes(1)
+      })
+
+      it('o tempo da guarda (abertura + fim) é gravado em ms.guarda; a fase antes não o grava', async () => {
+        const depois = await rodarColeta({ supabase: comBruto().client, relogio: criarRelogio(), fase: 'depois' })
+        expect(typeof (depois.resumo.ms as Record<string, unknown>).guarda).toBe('number')
+        const antes = await rodarColeta({ supabase: comBruto().client, relogio: criarRelogio(), fase: 'antes' })
+        expect(antes.resumo.ms).not.toHaveProperty('guarda')
+      })
     })
 
     it('a fase antes não confere a guarda', async () => {
