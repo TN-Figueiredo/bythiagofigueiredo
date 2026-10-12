@@ -22,11 +22,11 @@ import {
 } from './posicao-model'
 import { effView } from '../_chrome/effect-view'
 import { contaComoTroca, trocas30, trocasDe30, vpdText } from '../_canal/numeros'
+import { NB, nbMilMi, numNb } from '../_canal/formato'
 import { FMT_PADRAO, fmtDaOrdem, parseCanaisFmt, type CanaisFmt } from './formato'
 import { SEM_LEITURA, SEM_VPD_PROPRIO_DICA, VPD_SO_LONGOS, type ExtrasProprio } from '../_proprio/extras'
 import { baseVpdTexto, motivoVpdTexto, type VpdCanal } from '@/lib/youtube/observatorio/proprio/vpd'
 
-const NB = ' '
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
 const nb = (s: string) => s.replace(/(\d) (h|d|dias?|min)\b/g, '$1' + NB + '$2').replace(/há /g, 'há' + NB)
 const NEQ = (n: number) => `n${NB}=${NB}${n}`
@@ -245,10 +245,10 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
   const nicheLabel = niche === 'todos' ? 'Todos' : NL(niche)
   const nicheOpts = nicheOptions(obs), tabIdx = (n: Niche | null) => { const i = n == null ? -1 : nicheOpts.findIndex(o => o.id === n); return i < 0 ? nicheOpts.length : i }
   const stats = (id: string, f: Fmt = fmt) => obs.channelStats(id, f)
-  const num = (n: number | null) => F.num(n).replace(/ (mil|mi)$/, NB + '$1')
+  const num = (n: number | null) => numNb(F, n)
   /** Views por dia (absoluto OU por mil inscritos), no formato de todas as telas (spec 19.3, emenda 37; `vpdText`): abaixo de 10 uma casa, "menos de 0,1", "0" exato. */
-  const vpdAbs = (v: number) => (vpdText(v, F.num) ?? F.num(v)).replace(/ (mil|mi)$/, NB + '$1')
-  const subsTxt = (n: number) => F.subs(n).replace(/ (mil|mi)$/, NB + '$1')
+  const vpdAbs = (v: number) => nbMilMi(vpdText(v, F.num) ?? F.num(v))
+  const subsTxt = (n: number) => nbMilMi(F.subs(n))
   const HIDDEN_ROW = 'Inscritos ocultos'
   const abs = (t: number) => `${D.dmhm(t)} (São Paulo)`
   /** sync instants may be null (a channel that never synced OK): no date is invented */
