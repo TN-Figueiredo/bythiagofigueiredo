@@ -32,7 +32,7 @@ function secao(dados: DadosDoCanal = W.dados, o: { semConcorrente?: boolean; hoj
 type Props = Parameters<typeof ComoEsta>[0]
 function montar(o: { painel?: Props['painel']; dados?: DadosDoCanal; semConcorrente?: boolean; hoje?: string } = {}) {
   const s = secao(o.dados, o)
-  const props = (painel: Props['painel']): Props => ({ view: s.view, grafico: s.grafico, painel, canalId: W.canalId })
+  const props = (painel: Props['painel']): Props => ({ view: s.view, grafico: s.grafico, graficoViews: s.graficoViews, painel, canalId: W.canalId })
   const r = render(<ComoEsta {...props(o.painel ?? null)} />)
   return { ...r, ...s, props, rerenderCom: (painel: Props['painel']) => r.rerender(<ComoEsta {...props(painel)} />) }
 }
@@ -174,14 +174,14 @@ describe('T10 recolhida por padrão, ?painel= e a escolha lembrada', () => {
   })
 
   it('no servidor (sem window) nasce recolhida e não lança', () => {
-    const html = renderToString(<ComoEsta view={secao().view} grafico={secao().grafico} painel={null} canalId={W.canalId} />)
+    const html = renderToString(<ComoEsta view={secao().view} grafico={secao().grafico} graficoViews={secao().graficoViews} painel={null} canalId={W.canalId} />)
     expect(html).toContain('aria-expanded="false"')
     expect(html).not.toContain('ic-svg')
   })
 
   it('duas seções na página (a árvore antiga fica escondida depois do Voltar) não dividem o id de aria-controls', () => {
     const a = secao(), b = secao()
-    render(<><ComoEsta view={a.view} grafico={a.grafico} painel="1" canalId="c1" /><ComoEsta view={b.view} grafico={b.grafico} painel="1" canalId="c2" /></>)
+    render(<><ComoEsta view={a.view} grafico={a.grafico} graficoViews={a.graficoViews} painel="1" canalId="c1" /><ComoEsta view={b.view} grafico={b.grafico} graficoViews={b.graficoViews} painel="1" canalId="c2" /></>)
     const ids = [...document.querySelectorAll('.pn-b')].map(e => e.id)
     expect(new Set(ids).size).toBe(2)
     for (const btn of screen.getAllByRole('button', { name: /Como o canal está/ })) expect(document.getElementById(btn.getAttribute('aria-controls')!)).not.toBeNull()
@@ -192,7 +192,7 @@ describe('T10 o React não reclama de nada (aninhamento inválido de HTML, chave
   it('?painel=1: renderToString + hydrateRoot sem console.error (um <form> dentro de <p> derrubava a hidratação no navegador)', async () => {
     const erro = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = secao()
-    const el = <ComoEsta view={s.view} grafico={s.grafico} painel="1" canalId={W.canalId} />
+    const el = <ComoEsta view={s.view} grafico={s.grafico} graficoViews={s.graficoViews} painel="1" canalId={W.canalId} />
     const alvo = document.createElement('div')
     document.body.appendChild(alvo)
     alvo.innerHTML = renderToString(el)
@@ -238,7 +238,7 @@ describe('T10 o corpo aberto', () => {
     expect(within(bloco).getByRole('link', { name: 'Ver a lista de Canais' }).getAttribute('href')).toBe(n.listaHref)
   })
 
-  it('"O que ainda não é medido": as três linhas do modelo, em lista de definições', () => {
+  it('"O que ainda não é medido": as duas linhas do modelo (13.3: curva de retenção e origem do tráfego), em lista de definições', () => {
     const { view } = montar({ painel: '1' })
     const dts = [...corpo().querySelectorAll('dl.pn-nm dt')].map(e => e.textContent)
     const dds = [...corpo().querySelectorAll('dl.pn-nm dd')].map(e => e.textContent)
@@ -250,9 +250,11 @@ describe('T10 o corpo aberto', () => {
     const { grafico } = montar({ painel: '1' })
     expect(corpo().querySelector('.ic-t')!.textContent).toBe('Impressões por dia do canal')
     expect(within(corpo()).getByText(grafico.resumo!)).toBeTruthy()
-    expect(document.querySelectorAll('svg.ic-svg g[data-situacao]')).toHaveLength(grafico.colunas.length)
-    expect(screen.getByText('Ver como tabela')).toBeTruthy()
-    expect(document.querySelectorAll('.ic-tab tbody tr')).toHaveLength(grafico.colunas.length)
+    // 13.3: a seção tem dois gráficos (impressões e views por dia); este teste fala do primeiro
+    const g1 = document.querySelectorAll<HTMLElement>('.pn-c .ic')[0]!
+    expect(g1.querySelectorAll('svg.ic-svg g[data-situacao]')).toHaveLength(grafico.colunas.length)
+    expect(within(g1).getByText('Ver como tabela')).toBeTruthy()
+    expect(g1.querySelectorAll('.ic-tab tbody tr')).toHaveLength(grafico.colunas.length)
   })
 
   it('o gráfico ganha UMA parada de Tab (role=group) e a seção não esconde o foco: botão, gráfico, links, ... na ordem do documento', async () => {
@@ -262,14 +264,16 @@ describe('T10 o corpo aberto', () => {
     expect(document.activeElement).toBe(botao())
     const grupo = document.querySelector<HTMLElement>('[role="group"]')!
     expect(grupo.getAttribute('tabindex')).toBe('0')
-    expect(document.querySelectorAll('[role="group"][tabindex="0"]')).toHaveLength(1)
+    // uma parada de Tab por gráfico (13.3: impressões e views por dia)
+    for (const g of document.querySelectorAll('.pn-c .ic')) expect(g.querySelectorAll('[role="group"][tabindex="0"]')).toHaveLength(1)
+    expect(document.querySelectorAll('[role="group"][tabindex="0"]')).toHaveLength(2)
   })
 
   it('o ⓘ do gráfico traz o método e a seção diz "dia do YouTube" uma vez só (no período do gráfico)', () => {
     montar({ painel: '1' })
     const todo = corpo().textContent ?? ''
-    expect(todo.match(/dia do YouTube/g)).toHaveLength(1)
-    expect(screen.getByRole('button', { name: 'Como ler este gráfico' })).toBeTruthy()
+    expect(todo.match(/dia do YouTube/g)).toHaveLength(2)   // 13.3: uma vez em cada gráfico (impressões e views por dia)
+    expect(screen.getAllByRole('button', { name: 'Como ler este gráfico' })).toHaveLength(2)
   })
 })
 
@@ -330,7 +334,7 @@ describe('T10 os estados sem dado dizem o motivo (nada de "0")', () => {
     expect(corpo().querySelector('.pn-lead')).toBeNull()
     expect(view.top).toEqual([])
     expect(within(corpo()).getByText(view.topVazio!)).toBeTruthy()
-    expect(document.querySelector('svg.ic-svg')).toBeNull()
+    expect(document.querySelectorAll('.pn-c .ic')[0]!.querySelector('svg.ic-svg')).toBeNull()   // o das impressões; o de views vem do diário
     expect(corpo().textContent).not.toMatch(/\b0 impress|nenhuma impress/i)
   })
 
