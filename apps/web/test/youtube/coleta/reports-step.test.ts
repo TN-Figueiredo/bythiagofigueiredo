@@ -827,6 +827,29 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
       expect(comStatus(db, 'listado')).toHaveLength(n - 100)
     })
 
+    it('empates de create_time atravessando a fronteira da página (1000): o desempate por report_id mantém a leitura sem repetir nem perder linha', async () => {
+      // 1500 relatórios com o MESMO create_time (o Google cria todos de um job na mesma madrugada). Os 100 de alcance têm o
+      // id mais alto (z-…): com o desempate ficam nas posições 1400-1499, ou seja, na SEGUNDA página, e a prioridade do alcance
+      // os baixa primeiro. Sem o desempate o Postgres devolve os empates em ordem arbitrária a cada consulta (o banco em
+      // memória, com embaralharEmpates, faz o mesmo): as páginas se sobrepõem, linhas somem, e nem todos os 100 chegam.
+      const t = ha(40)
+      const comuns = Array.from({ length: 1400 }, (_, i) => listado(`r-${String(i).padStart(5, '0')}`, { report_type_id: 'channel_traffic_source_a3', create_time: t }))
+      const alcance = Array.from({ length: 100 }, (_, i) => listado(`z-${String(i).padStart(3, '0')}`, { create_time: t }))
+      const db = bancoComPurge({
+        yt_reporting_jobs: [jobRow('channel_traffic_source_a3'), jobRow('channel_reach_basic_a1')],
+        yt_reporting_reports: [...comuns, ...alcance],
+      })
+      db.embaralharEmpates = true
+      const ctx = ctxDe(db)
+      const resumo = await passoRelatorios(ctx)
+      const baixados = api.download.mock.calls.map(c => String(c[0]).replace('https://dl.test/', ''))
+      expect(baixados).toHaveLength(100)
+      expect(new Set(baixados).size).toBe(100)
+      expect([...baixados].sort()).toEqual(alcance.map(r => r.report_id as string)) // os 100 de alcance, todos, e nenhum de outro tipo
+      expect(ctx.falhas.filter(f => NOTA_CORTE.test(f))).toEqual([])
+      expect(resumo).toMatchObject({ baixados: 100, pendentes: 1400 })
+    })
+
     it('5000 pendentes (o limite de leitura) ainda não é corte; 5001 é, e a nota diz quantos ficaram de fora', async () => {
       const cheia = banco(pendentesDe(5000))
       const c1 = ctxDe(cheia)

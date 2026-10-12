@@ -32,6 +32,28 @@ export interface FakeDb {
   erroNaLeitura?: (tabela: string, n: number, colunas: string) => FakeErr | undefined
   /** Tabelas cujos selects com count devolvem count nulo (o PostgREST pode omitir a contagem). */
   semContagem: Record<string, boolean>
+  /** Como o Postgres: linhas EMPATADAS em todo o ORDER BY saem em ordem arbitrária, diferente a cada consulta. Ligado, cada
+   *  select embaralha antes de ordenar (sementes diferentes por leitura); sem desempate total, a paginação repete e perde linhas.
+   *  Desligado (padrão), o empate sai na ordem de inserção, estável, o que esconde a falta de desempate. */
+  embaralharEmpates?: boolean
+}
+
+/** Embaralhamento determinístico (mulberry32): o mesmo n dá a mesma ordem, n diferentes dão ordens diferentes. */
+function embaralhar<T>(linhas: readonly T[], semente: number): T[] {
+  const out = [...linhas]
+  let a = (semente * 0x9e3779b1) >>> 0
+  const rnd = (): number => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1))
+    ;[out[i], out[j]] = [out[j]!, out[i]!]
+  }
+  return out
 }
 
 /** `max-rows` do PostgREST (padrão do Supabase): nenhuma resposta passa disto, com ou sem limit()/range(). */
@@ -141,6 +163,7 @@ class Consulta implements PromiseLike<Resposta> {
 
     if (this.op === 'select') {
       let out = linhas.filter(casa)
+      if (this.db.embaralharEmpates) out = embaralhar(out, this.db.leituras[this.tabela] ?? 0)
       for (const o of [...this.ordens].reverse()) {
         out = [...out].sort((a, b) => {
           const na = a[o.col] == null, nb = b[o.col] == null

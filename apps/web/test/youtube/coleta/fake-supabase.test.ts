@@ -19,6 +19,24 @@ describe('fakeSupabase estrito', () => {
     await db.client.rpc('yt_own_attempt_record', { ...rpcArgs, p_error: 'a'.repeat(600) })
     expect((db.tables.yt_own_collection_attempts![0]!.error as string).length).toBe(500)
   })
+  it('embaralharEmpates: empates saem em ordem diferente a cada leitura; com desempate total a ordem é sempre a mesma; desligado é estável', async () => {
+    const linhas = Array.from({ length: 50 }, (_, i) => ({ k: 1, id: `id-${String(i).padStart(2, '0')}` }))
+    const ids = async (db: ReturnType<typeof fakeSupabase>, desempate: boolean) => {
+      let q = db.client.from('t').select('k, id').order('k')
+      if (desempate) q = q.order('id')
+      return ((await q).data as Array<{ id: string }>).map(r => r.id)
+    }
+    const estavel = fakeSupabase({ t: linhas })
+    expect(await ids(estavel, false)).toEqual(linhas.map(r => r.id)) // padrão: ordem de inserção
+    const db = fakeSupabase({ t: linhas })
+    db.embaralharEmpates = true
+    const a = await ids(db, false)
+    const b = await ids(db, false)
+    expect(a).not.toEqual(b)
+    expect([...a].sort()).toEqual(linhas.map(r => r.id)) // só embaralha: nada some nem repete
+    expect(await ids(db, true)).toEqual(linhas.map(r => r.id)) // desempate total vence o embaralhamento
+    expect(await ids(db, true)).toEqual(linhas.map(r => r.id))
+  })
   it('order: asc põe nulos por último, desc por primeiro, nullsFirst respeitado', async () => {
     const db = fakeSupabase({ t: [{ a: 2 }, { a: null }, { a: 1 }] })
     const ord = async (o: { ascending?: boolean; nullsFirst?: boolean }) =>
