@@ -1,10 +1,27 @@
 # Observatório, fase A5: desempenho dos concorrentes (coleta, medidas, telas), canal próprio (dieta do diário, retenção, origem das views em tabelas) e ciclo de vida do dado
 
-Data: 12/10/2026 · Estado: **v2**, aguarda a leitura do dono (a triagem da seção 3 já está aprovada) · Base: `staging` bf6dec37 · Decisões do dono, em ordem: `.superpowers/sdd/a5/decisoes-do-dono.md` · Matéria-prima: `.superpowers/sdd/a5/inventario-coleta.md` ("inventário"; este spec aponta para ele e não o repete) · Mockups já feitos: `docs/superpowers/mockups/2026-10-12-a4-proprio-e-ajustes/` (`REVISAO.md`, Partes C e D) · Specs irmãos: `2026-10-07-observatorio-canal-video-ui-design.md` ("spec de telas"), `2026-10-07-coleta-canais-proprios-design.md` ("spec de coleta"), `2026-10-02-observatorio-competidores-design.md`. `lib/` é `apps/web/src/lib/youtube/observatorio/`; `C/` é `apps/web/src/app/cms/(authed)/youtube/competitors/`.
+Data: 12/10/2026 · Estado: **v2.1** (emenda de 12/10: comentários de destaque dos vídeos de concorrentes, etapa E14, e ritmo por hora, etapa E15), aguarda a leitura do dono (a triagem da seção 3 está aprovada, **com as mudanças de 3.1 e 3.3 pedidas por ele e as perguntas 9 a 20 abertas**) · Base: `staging` bf6dec37 · Decisões do dono, em ordem: `.superpowers/sdd/a5/decisoes-do-dono.md` · Matéria-prima: `.superpowers/sdd/a5/inventario-coleta.md` ("inventário"; este spec aponta para ele e não o repete) · Mockups já feitos: `docs/superpowers/mockups/2026-10-12-a4-proprio-e-ajustes/` (`REVISAO.md`, Partes C e D) · Specs irmãos: `2026-10-07-observatorio-canal-video-ui-design.md` ("spec de telas"), `2026-10-07-coleta-canais-proprios-design.md` ("spec de coleta"), `2026-10-02-observatorio-competidores-design.md`. `lib/` é `apps/web/src/lib/youtube/observatorio/`; `C/` é `apps/web/src/app/cms/(authed)/youtube/competitors/`.
 
-Marcas: **VERIFICADO** (arquivo:linha ou consulta) = lido no código ou medido em produção em 12/10 por `supabase db query --linked` (só `SELECT`); **NC** = não confirmado, com o modo de confirmar; **[DONO]** = padrão assumido que o dono pode trocar (seção 13). As migrations propostas chamam-se **MG1 a MG6** (na v1 eram "M1 a M3", que se confundia com as medidas M1 a M10).
+Marcas: **VERIFICADO** (arquivo:linha ou consulta) = lido no código ou medido em produção em 12/10 por `supabase db query --linked` (só `SELECT`); **NC** = não confirmado, com o modo de confirmar; **[DONO]** = padrão assumido que o dono pode trocar (seção 13). As migrations propostas chamam-se **MG1 a MG9** (na v1 eram "M1 a M3", que se confundia com as medidas M1 a M10).
 
-**Mapa:** 1 objetivo · 2 fatos conferidos · 3 triagem (aprovada) · 4 coleta dos concorrentes (E1 a E3) e o que saiu do YouTube (E9) · 5 medidas derivadas (E4) · 6 telas (E5) e a etapa de mockups (E13) · 7 canal próprio: dieta do diário (E6), curva de retenção (E8), origem das views em tabelas (E11) e o bruto dos relatórios em lote (E12) · 8 forja e Cowork (E7) · 9 ciclo de vida do dado, volume e cota (E10) · 10 itens de aceite · 11 riscos · 12 fora do escopo, registrado, e as fases seguintes · 13 perguntas ao dono · 14 sequência. **Treze etapas, 106 itens de aceite.**
+**Mapa:** 1 objetivo · 2 fatos conferidos · 3 triagem (aprovada) · 4 coleta dos concorrentes (E1 a E3), o que saiu do YouTube (E9), os comentários de destaque (E14, seção 4.6) e o ritmo por hora (E15, seção 4.7) · 5 medidas derivadas (E4) · 6 telas (E5) e a etapa de mockups (E13) · 7 canal próprio: dieta do diário (E6), curva de retenção (E8), origem das views em tabelas (E11) e o bruto dos relatórios em lote (E12) · 8 forja e Cowork (E7) · 9 ciclo de vida do dado, volume e cota (E10) · 10 itens de aceite · 11 riscos · 12 fora do escopo, registrado, e as fases seguintes · 13 perguntas ao dono · 14 sequência. **Quinze etapas, 143 itens de aceite.**
+
+### O que mudou da v2 (v2.1, emenda de 12/10: decisão 19 do arquivo de decisões e dois recados posteriores do mesmo dia)
+
+**Três decisões do dono. Só o que está listado aqui mudou; o resto do spec é o da v2.**
+
+- **Comentários:** "Eu quero que agora a gente colete também os comentários nos vídeos de terceiro. Achei que não precisava, mas acho que podemos tirar valor. Vamos coletar cerca de 12 comentários, divididos da seguinte forma: comentários mais curtidos, e interagidos por canais verificados ou o próprio criador." Desfaz a linha "Texto e autor de comentários: não coletar" da triagem aprovada no mesmo dia.
+- **Identidade de quem comentou:** "para a LGPD ficar feliz, vamos guardar o nome + comentário e foto pelos 30 dias, ou seja, uns 28 dias a gente guarda, depois deleta estes dados e fica nullable ou algo assim. A gente lê o comentário, mas não sabe de quem foi."
+- **Ritmo por hora:** "Dá para a gente descobrir o pico de curtidas meu e dos outros? Se aumentarmos a frequência do cron… eu quero saber se das 21 às 23 horas tem mais likes do que das 3 às 5 da manhã."
+
+1. **Triagem:** a linha de comentários sai de 3.3 e entra em 3.1, com ressalvas; a leitura de hora em hora entra em 3.1. O não-objetivo (f) da seção 1 foi reescrito.
+2. **Etapa nova E14, seção 4.6** (migration MG8), comentários de destaque: o que a API permite e não permite de cada critério (conferido na documentação oficial em 12/10, com o link de cada afirmação), a regra de seleção dos 12, os marcos de coleta (idades 1, 7 e 30 dias do vídeo), o que se grava, o DDL, duas medidas sem IA (M11 e M12) e o mockup 20.
+3. **O que a API não dá para comentários, dito sem rodeio:** não existe ordenação por curtidas (só "relevância", que a documentação não define); não existe campo de **coração do criador** nem de **comentário fixado**; e **não existe campo de "canal verificado"**, nem no comentário nem no canal. O critério "interagido por canal verificado" **não pode ser cumprido como foi dito**; 4.6.2 traz os substitutos e a escolha é a pergunta 9.
+4. **Identidade do autor com prazo (4.6.6):** nome, id do canal e URL da foto ficam em colunas anuláveis e são apagados 28 dias depois da primeira coleta, por uma rotina diária idempotente que falha em vermelho; o texto, as contagens e os sinalizadores ficam; o criador não é anonimizado. É desenho de minimização decidido pelo dono, sem parecer jurídico, e **é pseudonimização, não anonimização** (risco 19).
+5. **Etapa nova E15, seção 4.7** (migration MG9), ritmo por hora. **A API não entrega nada por hora**, nem para terceiros (só o contador acumulado de agora) nem para o canal do dono (a Analytics API só tem dia e mês; o "tempo real" de 48 horas do Studio não existe na API). O desenho é por amostragem: ler os contadores de hora em hora e guardar a diferença, **sem linha crua por vídeo e hora** (custaria de 3,5 a 46 MB por canal por ano): fica a curva das primeiras 72 horas, hora a hora, e um mapa pequeno por canal e mês (hora × dia da semana); o resto é descartado. Duas medidas (M13 e M14) e o mockup 21. **O limite principal:** a diferença mostra quando o YouTube atualizou o contador, não quando a pessoa curtiu; se o contador andar em lotes de várias horas, o mapa daquele contador não é mostrado, e isso só se sabe depois de 14 dias de leitura (item 140).
+6. **Volume e cota refeitos só nas linhas afetadas, em 9.5:** cada canal passa de cerca de 5,8 para cerca de 8,0 MB por ano (comentários 1,3; ritmo por hora 0,85; estimativas, a medir) e a cota, de cerca de 240 para cerca de 310 unidades por dia com 15 canais. **A folga do plano gratuito sem arquivo cai de 38 para cerca de 30 meses com 15 canais e de 30 para 24 com 20; com corte de 12 meses, os 15 canais de hoje deixam de caber em cinco anos.** Onde 9.1, 9.3, 9.4 e o item 6 do bloco abaixo divergirem de 9.5, vale 9.5.
+7. **Itens de aceite 107 a 143** (seção 10); **riscos abertos 19 a 26** (seção 11.2). O "seguir" de 11.1 foi dado para estatística pública de canal e de vídeo; o texto de comentários é conteúdo de usuário e o risco 20 pede a confirmação dele (pergunta 14).
+8. **Perguntas novas ao dono: 9 a 20** (seção 13; a 15 já foi respondida). **Sequência:** a E14 e a E15 entram depois da E2 (seção 14).
 
 ### O que mudou da v1 (decisões do dono de 12/10: itens 6 a 10 do arquivo de decisões e quatro recados posteriores do mesmo dia; onde divergem, vale o último)
 
@@ -36,7 +53,7 @@ Marcas: **VERIFICADO** (arquivo:linha ou consulta) = lido no código ou medido e
 
 E duas perguntas sobre o **canal próprio**, pedidas pelo dono em 12/10: **onde as pessoas saem de cada vídeo meu?** (curva de retenção, seção 7.2) e **de onde vêm as views de cada vídeo, o que pesquisaram, em que aparelho e de que país?** (seção 7.3).
 
-**Não-objetivos.** (a) Nenhuma coleta nova do canal próprio **além do bruto dos relatórios em lote (7.4), da curva de retenção (7.2) e das cinco famílias de 7.3**; o diário ampliado e a demografia em tabela seguem fora (12.1). (b) Nada que a API não dê para canal de terceiro (seção 3.3); raspagem de página não é proposta. (c) Nenhuma IA nas medidas: são contas fixas, com a conta escrita no ⓘ. (d) Nenhuma mudança no kit da forja (seção 8). (e) Nenhum contorno técnico da política de 30 dias (seção 11.1). (f) Texto e autor de comentários: nunca.
+**Não-objetivos.** (a) Nenhuma coleta nova do canal próprio **além do bruto dos relatórios em lote (7.4), da curva de retenção (7.2) e das cinco famílias de 7.3**; o diário ampliado e a demografia em tabela seguem fora (12.1). (b) Nada que a API não dê para canal de terceiro (seção 3.3); raspagem de página não é proposta. (c) Nenhuma IA nas medidas: são contas fixas, com a conta escrita no ⓘ. (d) Nenhuma mudança no kit da forja (seção 8). (e) Nenhum contorno técnico da política de 30 dias (seção 11.1). (f) Comentários de terceiros: **mudou em 12/10 (v2.1)**. Entra uma amostra de cerca de 12 comentários de destaque por vídeo (seção 4.6). Continuam fora: todos os comentários de um vídeo, as respostas de quem não é o criador, a identidade do autor além de 28 dias, e qualquer leitura do texto por IA (decisão à parte, 4.6.8).
 
 **Critério de sucesso da fase.** (1) Depois de E1 e E2, nenhum dia passa sem a leitura dos dados da triagem, provado por consulta (itens "nada se perde"). (2) Cada pergunta P1 a P7 tem na tela um número com base, janela e viés escritos, ou um "não medido" com motivo e a data em que passa a existir. (3) O banco fica dentro dos 500 MB do plano gratuito: há um sinal que avisa com meses de antecedência um export conferido que já serve para remover canais (exportar, conferir, o dono confirma que está no NAS, só então apaga), e as regras do arquivamento por idade prontas para a fase de manutenção (seção 9). (4) O diário próprio cai de 72 MB para menos de 2 MB sem que nenhuma tela da A4 mude de número. (5) A página de cada vídeo próprio mostra a curva de retenção real, ou "não coletada" com o motivo. (6) Nada que saiu do YouTube é apagado sem uma resposta do dono. (7) Para cada vídeo próprio, a origem das views, o aparelho, o país e a divisão entre inscritos e não inscritos existem por dia desde a publicação (ou desde o limite que a API der, escrito na tela), e os termos de pesquisa desde 08/09/2026, sem perder nenhum relatório que ainda esteja disponível na origem.
 
@@ -85,6 +102,8 @@ Regra: um dado entra se responde a uma pergunta de desempenho (P1 a P7). "Custo"
 | Canal: nome, handle, descrição, país, data de criação, imagem | uma vez e quando muda, com histórico | P3, identificação, busca no seletor | 0 | |
 | A resposta da API, **só das partes pedidas** (`snippet`, `contentDetails`, `liveStreamingDetails`; canal: `snippet`, `contentDetails`), sem `statistics` | `raw jsonb`, gravado só quando o conteúdo muda | rede de segurança: campo que a triagem deixou de tipar não se perde | 0 un.; 0,8 MB | nunca lido por tela |
 | Unidades de cota gastas por dia | `youtube_quota_usage` (tabela existe, vazia) | controle do risco 11.1 | 0 | |
+| **Comentários de destaque: cerca de 12 por vídeo** (texto, curtidas, número de respostas, datas, se é do criador, se o criador respondeu e o texto da resposta dele). **Entrou em 12/10 (v2.1), com ressalvas:** dado pessoal de terceiros (riscos 19 a 23), com o nome, o id do canal e a foto do autor guardados por 28 dias e depois apagados; "canal verificado" não existe na API (pergunta 9); "mais curtidos" é "os mais curtidos entre os 100 primeiros por relevância" | `commentThreads.list` nas idades 1, 7 e 30 dias do vídeo (4.6, etapa E14) | P5, e três novas: o que o público destacou, do que reclamou, o que o criador escolheu responder | ≈ 1,35 un./canal/dia; ≈ 1,3 MB/canal/ano (9.5) | "12 de N lidos"; "comentários desligados" × "sem comentários" × "não coletado"; o texto é de terceiros, sem filtro |
+| **Ritmo por hora: views, curtidas e número de comentários lidos de hora em hora** nos vídeos de até 14 dias (dos concorrentes e do canal do dono), guardados como curva das primeiras 72 horas e como mapa do canal por mês (hora × dia da semana). **Entrou em 12/10 (v2.1)** | `videos.list` a cada hora, 50 vídeos por chamada (4.7, etapa E15) | P7, e duas novas: em que horas o público reage; a que horas os vídeos ganham tração | 48 a 384 un./dia no total; ≈ 0,85 MB/canal/ano (9.5) | **"quando o contador mudou, não quando a pessoa curtiu"**; horário de São Paulo; "não medido: poucos vídeos recentes" |
 
 ### 3.2 Coletar depois, se barato (E3, decisão na pergunta 1)
 
@@ -96,7 +115,7 @@ Regra: um dado entra se responde a uma pergunta de desempenho (P1 a P7). "Custo"
 
 | Dado | Por quê |
 |---|---|
-| Texto e autor de comentários | dado pessoal de terceiros; o dono não se importa com comentário alheio; o número basta como sinal |
+| ~~Texto e autor de comentários~~ | **Deixou de valer em 12/10 (v2.1).** O dono mudou a decisão: "achei que não precisava, mas acho que podemos tirar valor". Passou para 3.1 como amostra de cerca de 12 por vídeo (4.6). O motivo antigo ("dado pessoal de terceiros") continua verdadeiro e virou risco (11.2, itens 19 a 23). Seguem fora: **todos** os comentários de um vídeo, as respostas de quem não é o criador, e a identidade do autor (nome, id do canal, foto) além de 28 dias |
 | `localizations` | traduções de título: não explicam desempenho no nicho acompanhado; dobram o `raw` |
 | `brandingSettings` (palavras-chave, trailer) | o que identifica o canal já vem em `snippet`; o resto não responde a nenhuma pergunta |
 | `topicDetails` | categorias genéricas da Wikipédia; a categoria do vídeo já entra |
@@ -279,6 +298,8 @@ create policy "competitor_video_early_select" on public.competitor_video_early
 
 **Retroação:** nenhuma. Vídeo antigo ganha o primeiro ponto na semana do deploy.
 
+> **Emenda v2.1:** com a E15 (4.7) a faixa "Primeiras horas" passa de 4 leituras por dia para **uma por hora**, na mesma tabela `competitor_video_early`, e o item de aceite 16 passa a exigir 60 leituras em 72 horas.
+
 ### 4.4 Etapa E3: playlists (só se a pergunta 1 for "sim"; migration MG3)
 
 `playlists.list?part=snippet,contentDetails&channelId=…` e `playlistItems.list?part=snippet,contentDetails` de cada playlist, uma vez por semana e canal (mesmo espalhamento por `hash mod 7`). Teto de 50 playlists por canal e de 500 itens por playlist por semana; o que passar entra na semana seguinte e a execução registra o corte.
@@ -369,6 +390,423 @@ create policy "competitor_removed_items_select" on public.competitor_removed_ite
 - **Registro.** Cada resposta grava em `audit_log` (com `set_audit_context`): ação (`competitor_missing_keep` / `competitor_missing_purge`), quem, alvo (id do YouTube), contagem por tabela; **sem título nem conteúdo** no caso de apagar.
 - **Se o vídeo apagado voltar ao ar:** a sincronização o encontra em `competitor_removed_items`, **não o recoleta** e põe um item na fila: "voltou ao ar; você apagou em dd/mm. Voltar a acompanhar?".
 - **O que a E9 não faz:** não tenta descobrir o motivo; não lê a página do YouTube; não avisa por e-mail (só o contador na aba).
+
+### 4.6 Etapa E14: comentários de destaque dos vídeos de concorrentes (emenda v2.1; migration MG8)
+
+**Decisão do dono (12/10, item 19 do arquivo de decisões):** coletar "cerca de 12 comentários" por vídeo de terceiro, "divididos da seguinte forma: comentários mais curtidos, e interagidos por canais verificados ou o próprio criador".
+
+**O que se perde a cada dia sem ela:** o retrato dos comentários de cada vídeo novo nas idades 1, 7 e 30 dias. A API só devolve o estado de agora; o que estava no topo no primeiro dia não volta.
+
+**Exceção declarada ao princípio D1** ("nada de chamada nova por vídeo"): comentário só vem por uma chamada por vídeo. O custo está em 9.5 e é pequeno; a exceção vale só para esta etapa.
+
+#### 4.6.1 O que a API permite e o que não permite (documentação oficial, lida em 12/10)
+
+Lido por ferramenta que devolve trechos das páginas; cada linha traz a página. **NC** = a documentação não diz; a coluna diz como confirmar com **uma chamada de leitura**, que é o primeiro passo da etapa (item de aceite 107) e não foi feita para este spec (nenhuma chamada com credenciais do projeto). Páginas: [commentThreads.list](https://developers.google.com/youtube/v3/docs/commentThreads/list), [recurso commentThread](https://developers.google.com/youtube/v3/docs/commentThreads), [recurso comment](https://developers.google.com/youtube/v3/docs/comments), [comments.list](https://developers.google.com/youtube/v3/docs/comments/list), [custo de cota](https://developers.google.com/youtube/v3/determine_quota_cost), [recurso channel](https://developers.google.com/youtube/v3/docs/channels), [guia de comentários](https://developers.google.com/youtube/v3/guides/implementation/comments), [histórico de revisões](https://developers.google.com/youtube/v3/revision_history).
+
+| # | Pergunta | O que a documentação diz | Consequência |
+|---|---|---|---|
+| 1 | Dá para ordenar por curtidas? | **Não.** `order` aceita dois valores: `time` ("This is the default behavior") e `relevance` ("Comment threads are ordered by relevance"). Não há valor de curtidas, e a página **não define** "relevance" ([commentThreads.list](https://developers.google.com/youtube/v3/docs/commentThreads/list)) | "Relevância" **não é** "mais curtidos". A regra é ler a primeira página por relevância (até 100 conversas) e ordenar por `likeCount` do nosso lado. **Garante:** os mais curtidos **entre os lidos**; e, quando a resposta vem sem `nextPageToken`, os mais curtidos do vídeo inteiro. **Não garante:** que um comentário muito curtido fora dos 100 primeiros por relevância esteja na amostra. A tela diz "entre os N lidos" |
+| 2 | Itens por página e custo | `maxResults` de 1 a 100 (padrão 20) nas duas listas; `commentThreads.list` custa 1 unidade e `comments.list` custa 1 unidade ([commentThreads.list](https://developers.google.com/youtube/v3/docs/commentThreads/list), [comments.list](https://developers.google.com/youtube/v3/docs/comments/list), [custo de cota](https://developers.google.com/youtube/v3/determine_quota_cost)) | uma chamada de 1 unidade por vídeo e marco |
+| 3 | Campos do comentário | `textDisplay`, `textOriginal`, `likeCount`, `publishedAt`, `updatedAt`, `authorDisplayName`, `authorProfileImageUrl`, `authorChannelUrl`, `authorChannelId.value`, `parentId`; da conversa: `totalReplyCount`, `canReply`, `isPublic`, `topLevelComment` ([recurso comment](https://developers.google.com/youtube/v3/docs/comments), [recurso commentThread](https://developers.google.com/youtube/v3/docs/commentThreads)). `authorChannelId` e `authorChannelUrl` vêm "if available". O histórico de revisões cita, em 30/09/2026, uma propriedade nova `snippet.imageUrl` (**NC**: lido de relance; se existir, é imagem anexada ao comentário e **não é gravada**) | todos os campos que a regra usa existem |
+| 4 | `textDisplay` × `textOriginal` | `textOriginal`: "The original text is only returned to the authenticated user if they are the comment's author". `textDisplay` pode vir em HTML ou texto puro (`textFormat=plainText`), e "Even the plain text may differ from the original comment text" ([recurso comment](https://developers.google.com/youtube/v3/docs/comments)) | grava-se `textDisplay` com `textFormat=plainText`. **NC:** se `textOriginal` vem com chave de API (a página diz que não; a chamada de leitura mostra). Não se depende dele |
+| 5 | Respostas dentro da conversa | `replies.comments[]` "contains a limited number of replies" e é "only a subset of the total number of replies"; para todas, `comments.list` com `parentId` ([recurso commentThread](https://developers.google.com/youtube/v3/docs/commentThreads)). **NC:** quantas vêm (a página não dá o número) e em que ordem (a página de `comments.list` não fala de ordem). Confirma-se na chamada de leitura, numa conversa com mais de 20 respostas | a resposta do criador pode estar **fora** do subconjunto: ver a linha 6 |
+| 6 | "Interagido pelo próprio criador": **(a) o criador respondeu** | **Dá para detectar, com uma lacuna.** Cada resposta é um recurso `comment` com `authorChannelId.value`; se for igual ao id do canal do vídeo (que já temos em `competitor_channels`), a resposta é do criador. **Isto é inferência nossa: a documentação não tem um campo "resposta do dono do canal"** | exato quando `replies` traz todas as respostas (`totalReplyCount` = número de respostas vindas); quando vem só parte, "o criador não respondeu" **não pode ser afirmado**: o estado é "não se sabe", a menos que se gaste 1 unidade por conversa em `comments.list?parentId=` (pergunta 11) |
+| 7 | **(b) o comentário é do próprio criador** | mesmo teste, no comentário de topo | exato |
+| 8 | **(c) coração do criador** | **Não existe.** O recurso `comment` não tem campo de coração; o histórico de revisões (primeiros 100 mil caracteres lidos) não cita "heart" ([recurso comment](https://developers.google.com/youtube/v3/docs/comments)) | não entra. Nenhuma tela usa a palavra "coração" |
+| 9 | **(d) comentário fixado** | **Não existe.** Nenhum campo de fixado nos recursos `comment` e `commentThread` | não entra. É comum o fixado ser o do próprio criador, e esse é pego pela linha 7; um comentário de terceiro fixado pelo criador **não é distinguível** |
+| 10 | "Canal verificado" | **Não existe.** O recurso `comment` não diz nada sobre o autor além de nome, foto, URL e id do canal; o recurso `channel` não tem campo de selo de verificação (a única menção a "verification" é a verificação por telefone para envio de vídeos longos, em `status.longUploadsStatus`) ([recurso comment](https://developers.google.com/youtube/v3/docs/comments), [recurso channel](https://developers.google.com/youtube/v3/docs/channels)) | o critério do dono **não pode ser cumprido como dito**. Substitutos em 4.6.2 (pergunta 9) |
+| 11 | Comentários desligados | erro `commentsDisabled` (403): "The video identified by the videoId parameter has disabled comments" ([commentThreads.list](https://developers.google.com/youtube/v3/docs/commentThreads/list)) | vira o estado `desligados` da coleta e confirma o sinalizador `comments_disabled` da E1. **Nunca zero** |
+| 12 | Outros erros | `videoNotFound` (404); `forbidden` (403); `processingFailure` (histórico de revisões, 16/03/2016) | `videoNotFound` não grava nada (o sumiço é da E1); os demais gravam `erro` com o motivo |
+| 13 | Chave de API basta? | **NC.** As páginas lidas só exigem OAuth para inserir, alterar e apagar ([guia de comentários](https://developers.google.com/youtube/v3/guides/implementation/comments)); não achei a frase que diga que a leitura por `videoId` aceita chave | a chamada de leitura responde. Se exigir acesso autorizado, **a etapa para e volta ao dono**: o dado passaria a ser lido com a conta dele, o que muda a natureza da coleta |
+| 14 | Conferir se um comentário ainda existe | `comments.list?id=` aceita "a comma-separated list of comment IDs"; erro `commentNotFound` (404): "One or more of the specified comments cannot be found"; e um erro `operationNotSupported` cujo texto fala de comentários "based on Google+" ([comments.list](https://developers.google.com/youtube/v3/docs/comments/list)). **NC:** quantos ids por chamada; se um id ausente derruba a chamada inteira (404) ou só some da lista; se o filtro por id funciona para comentário de vídeo | a chamada de leitura responde (um id real e um inventado na mesma chamada). Pior caso: uma chamada por comentário guardado (até 12 unidades por vídeo e marco, em vez de 1) |
+| 15 | Por que um comentário some | a API devolve a mesma ausência para comentário apagado pelo autor, removido pelo criador, retido pelo YouTube ou de conta encerrada; `moderationStatus` só vem para o dono do canal ([recurso comment](https://developers.google.com/youtube/v3/docs/comments)) | "motivo: o YouTube não diz", como na fila de 4.5 |
+
+**Resumo dos três critérios do dono.** *Mais curtidos:* sim, entre os 100 primeiros por relevância, ordenados por nós. *Interagido pelo criador:* sim para "o criador escreveu" e "o criador respondeu" (com a lacuna da linha 6); **não** para coração e para fixado. *Canal verificado:* **não existe na API.**
+
+#### 4.6.2 "Canal verificado": os substitutos honestos (pergunta 9; o spec não escolhe)
+
+| Opção | O que é | Custo | A favor | Contra |
+|---|---|---|---|---|
+| **A. Canal que o Observatório acompanha** | o autor do comentário (ou de uma resposta vista) é um dos canais cadastrados: concorrentes ou os do dono | 0 unidade; **nenhum dado novo de terceiros** (a comparação é feita na coleta e só o vínculo com o canal já cadastrado é gravado) | exato, explicável ("comentou aqui: canal X, que você acompanha") e responde a uma pergunta real: os criadores do nicho conversam entre si? | raro: com 15 canais, quase nenhum vídeo terá um. Não é "verificado" |
+| **B. Autor com muitos inscritos** | `channels.list?part=statistics` para os autores do lote (50 ids por chamada, 1 unidade), e "de destaque" = inscritos ≥ um limiar (por exemplo 10.000) | até 2 unidades por vídeo e marco; traz **mais dado de terceiros** (o número de inscritos de até 100 pessoas por vídeo, a maioria gente comum) | aproxima "canal relevante" | inscritos vêm arredondados e podem estar ocultos ("não medido"); o limiar é arbitrário; é exatamente o tipo de dado que a minimização manda não buscar; não é "verificado" |
+| **C. A + B** | A sempre; B só para os autores dos 20 mais curtidos do lote | até 1 unidade por vídeo e marco | menos dado de terceiros que B | os mesmos de B, em menor escala |
+| **D. Abandonar o critério** | as vagas dele vão para "mais curtidos" | 0 | nada é prometido que a API não dê | perde a ideia de "quem é relevante comentou" |
+
+Até a resposta, a regra abaixo é escrita com a vaga "autor de destaque" **vazia** (comporta-se como D), e o volume e a cota de 9.5 são contados com A (custo zero). A tela **nunca** usa a palavra "verificado".
+
+#### 4.6.3 A regra de seleção (reproduzível, explicável na tela)
+
+Parâmetros em `rules.ts`: `commentsTarget = 12` (o alvo do dono), `commentsCreatorMax = 4`, `commentsFeaturedMax = 2`, `commentsPool = 100`, `commentsCreatorRepliesMax = 3`. A divisão 6 + 4 + 2 é proposta do spec: o dono deu os critérios, não os números (pergunta 10).
+
+1. **Lote.** Uma chamada: `commentThreads.list?part=snippet,replies&videoId=…&order=relevance&maxResults=100&textFormat=plainText`. As até 100 conversas devolvidas são o lote. Cada uma recebe a **posição** em que veio (1 a 100).
+2. **Sinalizadores de cada conversa**, calculados na coleta: `do_criador` (o comentário de topo é do canal do vídeo); `criador_respondeu` (`sim`: há resposta do canal do vídeo entre as respostas vistas; `não`: todas as respostas foram vistas e nenhuma é dele; `não se sabe`: vieram menos respostas que `totalReplyCount` e nenhuma das vistas é dele); `autor_de_destaque` (conforme a resposta à pergunta 9).
+3. **Três grupos, preenchidos nesta ordem, cada comentário em um só:**
+   - **Criador** (até 4): conversas com `do_criador` ou `criador_respondeu = sim`.
+   - **Autor de destaque** (até 2): conversas com `autor_de_destaque`, fora as já escolhidas.
+   - **Mais curtidos** (o que faltar para 12): as demais, por curtidas.
+4. **Ordem dentro de cada grupo e desempate, sempre os mesmos:** `likeCount` do comentário de topo, do maior para o menor; empate, `totalReplyCount` maior; empate, posição menor na relevância; empate, id do comentário em ordem alfabética. Com a mesma resposta da API, a seleção é sempre a mesma (item de aceite 109).
+5. **Sobreposição.** Um comentário que é o mais curtido **e** tem resposta do criador entra uma vez, no grupo "criador", e leva os dois sinalizadores; a vaga de "mais curtidos" passa ao seguinte. A tela mostra os sinalizadores, não o grupo: o grupo só explica por que ele foi escolhido.
+6. **Falta.** Vaga não preenchida de "criador" ou "destaque" vai para "mais curtidos". Lote com menos de 12 conversas: grava todas. Lote vazio: 4.6.5.
+7. **O que acompanha o comentário escolhido:** até 3 respostas **do criador** naquela conversa (as mais antigas entre as vistas), com o texto. **Nenhuma resposta de outra pessoa é gravada.**
+8. **Frase da tela** (o mockup fecha o texto): "12 comentários de 100 lidos por relevância · 7 mais curtidos · 4 com o criador · 1 de canal que você acompanha". Com lote completo: "de todos os 37 comentários". O ⓘ explica a regra e o que ela não garante (linha 1 de 4.6.1).
+
+**Vale para longos e para Shorts** (61% dos vídeos guardados são Shorts), com a mesma regra [DONO, pergunta 12]. Ao vivo e estreia: comentário de vídeo entra; o **chat** da transmissão não é comentário e continua fora (12.1).
+
+#### 4.6.4 Quando coletar
+
+Comentário muda: curtidas sobem, o criador responde depois, gente apaga. **Um retrato em cada marco de idade do vídeo: 1, 7 e 30 dias**, os mesmos de `competitor_video_marks` (seção 5), para que views, curtidas e comentários de um vídeo sejam lidos na mesma idade.
+
+- **Quando roda:** na primeira sincronização diária (12:00 de São Paulo) em que o vídeo tem a idade do marco e ainda não tem o retrato dele. A idade real na coleta é gravada em horas.
+- **Tolerância:** o marco 1 vale até a idade de 3 dias; o 7, até 10; o 30, até 37. Passou disso, o retrato **não é feito** e a tela diz "não coletado na idade N" (com o motivo: "descoberto tarde" ou "coleta falhou em dd/mm"). Um retrato tirado fora da idade com o rótulo do marco seria dado falso.
+- **Vídeo com `comments_disabled` (E1):** a chamada é feita mesmo assim no marco (1 unidade), porque confirma o motivo; o estado gravado é `desligados`.
+- **Vídeo com `missing_since`:** não se coleta.
+- **Conferência do que já está guardado.** Nos marcos 7 e 30, todo comentário guardado do vídeo que **não** voltou no lote é conferido por id (`comments.list?id=`, linha 14 de 4.6.1): se vier, atualiza curtidas e texto; se não vier, ganha `missing_since` (4.6.7). **Depois do marco 30 nada é relido** nesta proposta; a alternativa de reconferir todo mês está na pergunta 13, e a falta dela é o risco 21.
+- **Teto e registro.** O passo tem teto de tempo próprio dentro do cron e de chamadas por execução (`RULES.commentsCallsMax`, proposto 60); o que não coube entra primeiro na execução seguinte, **e a execução registra quantos ficaram para trás** (em `youtube_quota_usage.operations` e no retorno do cron). Corte silencioso é proibido. O plano mede o tempo com 75 canais simulados antes de promover, como na E2.
+- **Retroação:** padrão **nenhuma**: só vídeos que fazem 1, 7 ou 30 dias depois do deploy. A alternativa (um retrato avulso, de hoje, dos 1.389 vídeos já guardados; marco `0`, "lido em dd/mm, com N dias de idade") é a pergunta 12.
+
+#### 4.6.5 Os estados da coleta (nunca verde por falta)
+
+Um retrato tem sempre uma linha com o estado. **Sem linha = "não coletado"**, que a tela distingue dos outros três.
+
+| Estado | Quando | Na tela |
+|---|---|---|
+| `ok` | a API devolveu pelo menos uma conversa | os comentários, com "N de M lidos" |
+| `sem_comentarios` | resposta 200 com zero conversas **e** a contagem do vídeo (`commentCount` da mesma sincronização) é 0 | "nenhum comentário aos N dias" |
+| `desligados` | erro `commentsDisabled` | "comentários desligados pelo canal" |
+| `erro` | qualquer outra falha, **ou** zero conversas com `commentCount` maior que 0 (a contagem diz que há e a lista veio vazia: não é "sem comentários") | "não coletado: <motivo>", com nova tentativa dentro da tolerância |
+| (sem linha) | o marco ainda não chegou, passou da tolerância, ou a etapa não existia | "fecha em dd/mm", "não coletado na idade N", ou "a coleta de comentários começou em dd/mm" |
+
+#### 4.6.6 O que gravar e o que não gravar
+
+| Grava | Por quê |
+|---|---|
+| texto do comentário (`textDisplay` em texto puro, até 2.000 caracteres; o que passar é cortado e marcado) | é o dado |
+| curtidas, número de respostas e posição na relevância, **por marco** | "o que subiu entre o dia 1 e o dia 30" |
+| data de publicação e de edição do comentário | ordem dos fatos; "editado" |
+| os sinalizadores: do criador, o criador respondeu (sim, não, não se sabe), autor de destaque | os critérios do dono |
+| o grupo pelo qual foi escolhido, por marco | explica a seleção |
+| o texto de até 3 respostas **do criador** | "como ele conversa com o público": é o que tem valor, e é fala pública do dono do canal acompanhado |
+| o id do comentário no YouTube | única forma de não duplicar entre marcos e de conferir se foi apagado. É um identificador que leva ao comentário público: conta como dado pessoal indireto |
+| a idade do vídeo na coleta, o tamanho do lote, se o lote era o vídeo inteiro, a versão e os parâmetros da regra | reproduzir e explicar a amostra |
+
+| **Não grava, ou grava com prazo** | Por quê |
+|---|---|
+| **identidade do autor além de 28 dias** (nome, id do canal, foto) | **decisão do dono (12/10), abaixo:** fica 28 dias e é apagada; o texto fica |
+| o arquivo da foto de perfil | guarda-se só a **URL** (`authorProfileImageUrl`), nunca uma cópia: uma cópia no Blob teria URL pública e seria mais um lugar de onde apagar; com a URL, apagar a coluna basta. Custo: se o autor trocar a foto, a URL pode quebrar antes dos 28 dias, e a tela mostra a inicial |
+| a URL do canal do autor (`authorChannelUrl`) | deriva do id |
+| respostas de quem não é o criador | fora do pedido; multiplicaria o volume e o dado pessoal |
+| o lote inteiro (os até 100) e a resposta bruta da API | **não vai para `competitor_raw`**: guardaria texto, nome, foto e id de até 100 pessoas por vídeo para usar 12 |
+| versões antigas de um comentário editado | fica o texto da última leitura e a data de edição |
+| imagem anexada ao comentário, se a API a devolver | fora do pedido |
+
+**Identidade do autor: 28 dias, depois apagada (decisão do dono, 12/10; responde à pergunta 15).** "Para a LGPD ficar feliz, vamos guardar o nome + comentário e foto pelos 30 dias, ou seja, uns 28 dias a gente guarda, depois deleta estes dados e fica nullable ou algo assim. A gente lê o comentário, mas não sabe de quem foi." É um **desenho de minimização decidido pelo dono**, registrado como tal, sem parecer jurídico. O limite dele está no risco 19: é pseudonimização, não anonimização.
+
+1. **O que expira:** `author_display_name`, `author_channel_id` e `author_avatar_url`, três colunas anuláveis, com `author_expires_at` = primeira coleta do comentário + `RULES.commentsIdentityDays` (28). O que **fica**: texto, datas, contagens por marco, sinalizadores e o id do comentário.
+2. **O prazo não se renova.** Conta da **primeira** vez em que o comentário foi gravado. Um comentário visto no marco 1 perde a identidade na idade 29 do vídeo; quando ele volta no lote do marco 30, **a identidade não é regravada** (a coluna `author_purged_at` preenchida impede: item de aceite 126). Sem isso, cada marco reiniciaria o relógio e o nome ficaria até 58 dias.
+3. **O sinalizador é resolvido antes, na própria coleta.** `is_creator`, `creator_replied`, `featured_reason` e `featured_channel_id` são calculados e gravados na mesma transação em que o comentário entra. A rotina de apagar nunca precisa da identidade para decidir nada: a identidade some, o sinalizador fica. Se a pergunta 9 escolher a opção B (inscritos do autor), o número de inscritos é usado na coleta e **não é gravado**; fica só `featured_reason = 'inscritos'`.
+4. **O criador não é anonimizado.** Comentário e resposta do canal do vídeo (`is_creator`) nunca têm as três colunas preenchidas: o autor é o canal acompanhado, dado público do próprio concorrente, e o nome e a imagem vêm de `competitor_channels`. O mesmo vale para o canal acompanhado que comentou (`featured_channel_id`, opção A): o vínculo com o cadastro fica, por ser um canal que o dono escolheu acompanhar, não um espectador.
+5. **A rotina.** Uma função `competitor_comment_identity_purge()` (security definer, `search_path` fixo, `execute` só para `service_role`), chamada todo dia pelo cron diário de concorrentes que já existe (rota `GET`, disparada pela Vercel): anula as três colunas e grava `author_purged_at` onde `author_expires_at <= now()` e alguma delas ainda tem valor. **Idempotente:** rodar duas vezes seguidas altera zero linhas na segunda. Devolve quantas linhas anulou e **quantas estavam vencidas há mais de um dia** (o sinal de que ela deixou de rodar).
+6. **Falha em vermelho.** A rotina tem chave própria em `cron_health` (`competitor-comment-identity`); 36 horas sem sucesso é falha no vigia que já existe. E, independente dela, o passo de coleta de comentários roda no começo a consulta de prova do item 125: se houver identidade com mais de 29 dias, a execução devolve `status: 'error'`, **não coleta comentário novo** e o cabeçalho do Observatório mostra "identidade de autores vencida e não apagada: N" para quem edita. Não coletar é de propósito: sem a rotina, cada coleta aumentaria o que está fora da regra.
+7. **Na leitura:** os leitores de tela nunca devolvem identidade com `author_expires_at` vencido, mesmo que a rotina tenha falhado (defesa a mais; o alerta do passo 6 continua aparecendo).
+8. **Fora do banco:** o export de 9.2 **nunca** leva as três colunas (o `SELECT` do export não as lê; item 127); nenhum log grava nome, id ou URL de foto; nenhum pacote do pipeline as contém.
+9. **Na tela (4.6.9):** enquanto a identidade existe, o comentário mostra nome e foto com "identidade guardada até dd/mm"; depois, "um espectador".
+
+#### 4.6.7 DDL proposto (migration MG8) e o histórico
+
+**Histórico: o texto fica uma vez; as contagens ficam por marco.** Regravar o texto em cada marco triplicaria a maior parcela para guardar a mesma frase; atualizar tudo na mesma linha perderia o que mudou entre o dia 1 e o dia 30. Por isso três tabelas: o retrato (uma linha por vídeo e marco), o comentário (uma linha por comentário, com o texto da última leitura) e a leitura (uma linha por comentário e marco).
+
+```sql
+-- 1. O retrato: uma linha por vídeo e marco. É ela que separa "sem comentários", "desligados", "erro" e "não coletado" (sem linha).
+create table if not exists public.competitor_video_comment_snaps (
+  video_id uuid not null references public.competitor_videos(id) on delete cascade,
+  mark smallint not null check (mark in (0, 1, 7, 30)),      -- idade em dias; 0 = leitura avulsa (só se a pergunta 12 for "sim")
+  site_id uuid not null references public.sites(id) on delete cascade,
+  competitor_channel_id uuid not null references public.competitor_channels(id) on delete cascade,
+  taken_at timestamptz not null,
+  video_age_hours numeric not null,
+  status text not null check (status in ('ok', 'sem_comentarios', 'desligados', 'erro')),
+  error_reason text,                    -- só com status = 'erro'
+  pool_size smallint,                   -- conversas devolvidas (0 a 100); nulo se a chamada falhou
+  pool_complete boolean,                -- a resposta veio sem nextPageToken: o lote é o vídeo inteiro
+  video_comment_count bigint,           -- commentCount do vídeo na mesma sincronização; nulo = ausente
+  selected_count smallint,
+  rule_version smallint not null,
+  rule_params jsonb not null,           -- alvo, tetos por grupo, tamanho do lote, critério de "destaque" em vigor
+  units_used smallint not null,
+  primary key (video_id, mark)
+);
+create index if not exists idx_cvcs_channel_taken on public.competitor_video_comment_snaps (competitor_channel_id, taken_at);
+
+-- 2. O comentário: uma linha por comentário guardado; o texto é o da última leitura.
+create table if not exists public.competitor_video_comments (
+  id bigint generated always as identity primary key,
+  site_id uuid not null references public.sites(id) on delete cascade,
+  competitor_channel_id uuid not null references public.competitor_channels(id) on delete cascade,
+  video_id uuid not null references public.competitor_videos(id) on delete cascade,
+  youtube_comment_id text not null,
+  parent_id bigint references public.competitor_video_comments(id) on delete cascade,  -- nulo = comentário de topo; preenchido = resposta DO CRIADOR a ele
+  body text not null,                    -- textDisplay em texto puro, até 2.000 caracteres
+  body_truncated boolean not null default false,
+  published_at timestamptz not null,
+  edited_at timestamptz,                 -- updatedAt, quando diferente de publishedAt
+  is_creator boolean not null,           -- o autor é o canal do vídeo (sempre true quando parent_id não é nulo)
+  creator_replied boolean,               -- só no topo; nulo = não se sabe (respostas vieram cortadas e nenhuma vista é dele)
+  featured_reason text,                  -- nulo | 'canal_acompanhado' | 'inscritos' (catálogo no código; depende da pergunta 9)
+  featured_channel_id uuid references public.competitor_channels(id) on delete set null,  -- opção A: o canal acompanhado que comentou
+  author_display_name text,              -- identidade do autor: as três colunas são anuladas aos 28 dias (4.6.6); sempre nulas quando is_creator
+  author_channel_id text,
+  author_avatar_url text,                -- só a URL; nenhum arquivo é copiado
+  author_expires_at timestamptz,         -- first_seen_at + 28 dias; não se renova
+  author_purged_at timestamptz,          -- preenchido pela rotina; impede regravar a identidade num marco posterior
+  first_seen_at timestamptz not null,
+  last_seen_at timestamptz not null,     -- última leitura em que o comentário VEIO
+  missing_since date,                    -- 1ª conferência por id sem ele; nulo = veio
+  removal_decision text check (removal_decision in ('manter')),
+  removal_decided_at timestamptz,
+  removal_decided_by uuid,
+  unique (video_id, youtube_comment_id),
+  check (not is_creator or (author_display_name is null and author_channel_id is null and author_avatar_url is null)),
+  check (author_purged_at is null or (author_display_name is null and author_channel_id is null and author_avatar_url is null))
+);
+create index if not exists idx_cvc_identity_due on public.competitor_video_comments (author_expires_at)
+  where author_display_name is not null or author_channel_id is not null or author_avatar_url is not null;
+create index if not exists idx_cvc_channel on public.competitor_video_comments (competitor_channel_id, first_seen_at);
+create index if not exists idx_cvc_missing on public.competitor_video_comments (site_id, missing_since) where missing_since is not null and removal_decision is null;
+
+-- 3. A leitura: uma linha por comentário e marco.
+create table if not exists public.competitor_video_comment_marks (
+  comment_id bigint not null references public.competitor_video_comments(id) on delete cascade,
+  mark smallint not null check (mark in (0, 1, 7, 30)),
+  site_id uuid not null references public.sites(id) on delete cascade,
+  likes integer not null,
+  reply_count integer,                   -- só no topo
+  relevance_rank smallint,               -- posição 1 a 100 no lote; nulo = fora do lote, lido por id
+  slot text check (slot in ('criador', 'destaque', 'curtidos')),  -- nulo = não escolhido neste marco (lido só para acompanhar)
+  primary key (comment_id, mark)
+);
+
+alter table public.competitor_video_comment_snaps enable row level security;
+alter table public.competitor_video_comments enable row level security;
+alter table public.competitor_video_comment_marks enable row level security;
+drop policy if exists "competitor_video_comment_snaps_select" on public.competitor_video_comment_snaps;
+create policy "competitor_video_comment_snaps_select" on public.competitor_video_comment_snaps
+  for select using (public.can_view_site(site_id));        -- só estado e contagens: mesmo nível das outras tabelas
+drop policy if exists "competitor_video_comments_select" on public.competitor_video_comments;
+create policy "competitor_video_comments_select" on public.competitor_video_comments
+  for select using (public.can_edit_site(site_id));        -- texto de terceiros: nível do raw, não o de leitura
+drop policy if exists "competitor_video_comment_marks_select" on public.competitor_video_comment_marks;
+create policy "competitor_video_comment_marks_select" on public.competitor_video_comment_marks
+  for select using (public.can_edit_site(site_id));
+```
+
+- **RLS (diverge de D6 de propósito):** o texto e as leituras por comentário usam `can_edit_site`, não `can_view_site`. `can_view_site` confia no GUC `app.site_id`, que o cliente pode forjar (regra do projeto para leitura sensível); dado pessoal de terceiros é leitura sensível. O retrato, que só tem estado e contagens, fica em `can_view_site`. Nenhuma policy de escrita (só service role). Os leitores de tela usam o mesmo token de edição dos termos de pesquisa (7.3): usuário só de leitura vê o estado e as contagens, **não o texto**.
+- **Escrita atômica:** uma função `apply_competitor_comment_snap(p_video uuid, p_mark smallint, p_snap jsonb, p_comments jsonb)` (security invoker, `search_path` fixo, `execute` só para `service_role`) grava o retrato, os comentários e as leituras na mesma transação. Retrato sem os comentários dele, ou o contrário, não existe.
+- **Comentário que deixou de vir (apagado, removido, retido: a API não diz qual).** Marca `missing_since` na **segunda** conferência seguida sem ele quando há duas (entre os marcos 7 e 30); no marco 30, que é a última, uma ausência basta e a tela diz "uma conferência só". **Proposta: vai para a mesma fila "Saíram do YouTube" (4.5), com a mesma regra do dono** (sem resposta, o dado fica; ele decide entre manter e apagar), **agrupado por vídeo** ("3 comentários deste vídeo não vieram mais"), para a fila não virar uma lista de centenas de linhas. "Apagar" remove a linha (as leituras caem em cascata) e deixa em `competitor_removed_items` só o id (acrescentar `'comentario'` ao `check` de `kind`). **O spec propõe isto porque foi a regra que o dono deu para vídeo; para comentário de pessoa comum a alternativa mais prudente é apagar o texto sozinho quando ele deixa de vir, sem pergunta. É a pergunta 14.**
+- **O que apaga os comentários junto:** a resposta "apagar" de um vídeo (4.5) e a remoção de um canal levam os comentários por cascata; `competitor_video_purge` e `competitor_channel_removal_impact` passam a contar as três tabelas.
+- **Export (9.2):** as três tabelas entram no export por canal e mês. O arquivo no NAS passa a conter texto de terceiros; uma decisão de apagar alcança o arquivo pelos mesmos comandos de expurgo.
+- **Zero × não medido:** `creator_replied` nulo é "não se sabe", nunca "não". `likes` é sempre número (a API devolve `likeCount` para comentário; se vier ausente, a leitura não é gravada e a execução registra).
+
+#### 4.6.8 Para que serve, e o que se mede sem IA
+
+Perguntas que o dono passa a responder sobre um vídeo de concorrente, lendo: **o que o público destacou** (os mais curtidos), **do que reclamou ou o que pediu** (idem; a leitura é dele), **o que o criador escolheu responder e como** (as conversas com resposta dele e o texto dela), **quem do nicho apareceu** (opção A).
+
+Duas medidas entram na etapa E4, com as regras comuns da seção 5 (estado medido ou não medido com motivo; cálculo nosso, dito no ⓘ; longos e Shorts separados):
+
+| # | Medida | Definição exata | Janela | "Não medido" quando | Viés dito na tela |
+|---|---|---|---|---|---|
+| **M11** | **O criador responde** | fração dos vídeos do canal com retrato `ok` no marco 30 em que pelo menos um dos comentários guardados tem `criador_respondeu = sim`. Sempre "5 de 14"; percentual só com 10 ou mais | publicados nos últimos 90 dias | menos de 5 vídeos com retrato `ok` no marco 30; a coleta começou há menos de 30 dias ("fecha em dd/mm") | **é um piso:** só vê as respostas dele nos cerca de 12 comentários guardados e nas respostas que a API devolveu; "não respondeu" em tela é sempre "não vimos resposta". Canal que responde a todos e canal que responde só aos mais curtidos dão o mesmo número |
+| **M12** | **Peso do comentário de topo** | curtidas do comentário mais curtido do retrato ÷ curtidas do vídeo na mesma idade (`competitor_video_marks.likes`), por vídeo; do canal, a mediana | marcos 7 e 30 | curtidas do vídeo ocultas; retrato diferente de `ok`; vídeo com menos de 100 curtidas | "mais curtido **entre os lidos**"; um comentário polêmico e um elogio dão o mesmo número: a medida diz que um comentário concentrou atenção, não se foi bom ou ruim |
+
+Ressalva de política: III.E.4.h dá como exemplo do que não é permitido usar "the number of likes returned in the API Data to calculate other metrics"; M12 é exatamente esse caso, como M7 já era. Entra no mesmo risco de 11.1 (medida própria, com aviso), e pode ser cortada sem afetar o resto.
+
+**Leitura do texto por IA: decisão à parte, não desta fase.** Classificar tema, tom ou pedido de cada comentário é o passo natural e fica **registrado como opção**. Ressalvas para quando for decidido: (1) **texto de terceiro não entra em pacote da forja nem do Cowork sem o dono decidir** (padrão desta emenda: não entra; seção 8); (2) as duas rotas não são iguais: a forja roda um modelo local, na casa do dono, e o texto não sai de lá; o Cowork é um modelo na nuvem, e mandar o texto para ele é entregar dado pessoal de terceiros a mais um operador; (3) comentário é texto escrito por desconhecidos e pode conter instrução dirigida ao modelo ("ignore o que veio antes…"): qualquer leitura por IA trata o texto como dado, nunca como instrução, e o validador confere o que o modelo citar contra o texto guardado.
+
+#### 4.6.9 Tela: o que o mockup 20 tem de considerar (seção 6.5)
+
+1. **O texto é de terceiros e não foi filtrado:** pode ser ofensivo, conter palavrão, discurso de ódio, spam, golpe, e-mail ou telefone. A tela mostra como veio (é o dado), sem destaque de cor para o conteúdo, e **nunca** como link clicável: endereço dentro do texto é texto.
+2. **Pode ser longo** (até 2.000 caracteres guardados, com a marca "cortado"): mostrar poucas linhas com "ver tudo", sem empurrar o resto da página; a 390 px, sem rolagem horizontal mesmo com palavra longa ou endereço.
+3. **Outro idioma, emoji, texto da direita para a esquerda, sequências de emoji:** sem tradução automática; a fonte tem de cobrir emoji; `dir="auto"` no bloco do texto.
+4. **Os três estados sem comentário, mais o quarto,** cada um com cor e símbolo próprios (regra do dono): "nenhum comentário aos N dias" (zero medido), "comentários desligados pelo canal" (não medido, motivo do canal), "não coletado" (não medido, motivo nosso, com a data), e "fecha em dd/mm" (o marco ainda não chegou).
+5. **O comentário pode ter saído depois:** pastilha "não veio mais do YouTube desde dd/mm" (o YouTube não diz por quê), e o atalho para a fila.
+6. **A amostra é dita no topo, sempre:** "12 de 100 lidos por relevância" ou "todos os 37"; e por que cada um está ali (mais curtido, com o criador, canal que você acompanha) por cor **e** símbolo.
+7. **Três idades:** o retrato de 1, 7 e 30 dias como abas ou como uma linha por comentário com as curtidas nas três idades; o que entrou e o que saiu do topo entre uma e outra.
+8. **A resposta do criador** aparece presa ao comentário a que responde, com a marca do canal dele; "o criador respondeu: não se sabe" tem forma própria e não se confunde com "não respondeu".
+9. **Dois estados do autor:** com identidade (nome, foto pela URL, e "identidade guardada até dd/mm"; foto que não carrega vira a inicial) e sem identidade ("um espectador"), que é o estado de quase todo comentário com mais de 28 dias. O criador e o canal acompanhado aparecem sempre com nome, vindos do cadastro. A foto é carregada direto do YouTube pelo navegador de quem vê; não há cópia nossa.
+10. **Quem vê:** só quem edita o site. Usuário só de leitura vê a contagem e o estado, não o texto, e a tela diz que há texto que ele não vê (não é tela vazia).
+11. **Onde aparece:** na página do vídeo de concorrente (mockup 13 ganha a seção, desenhada no 20); na página do canal, M11 no cabeçalho e uma lista "o que o criador respondeu"; nada na lista de Canais nem em Comparar nesta fase.
+12. Acrescenta à lista fechada de motivos de 6.1.5: "comentários desligados pelo canal" (já existia para a contagem), "a coleta de comentários começou em dd/mm", "não coletado na idade N", "o YouTube não diz se o criador respondeu (respostas cortadas)".
+
+### 4.7 Etapa E15: ritmo por hora (emenda v2.1; migration MG9)
+
+**Pedido do dono (12/10):** "Dá para a gente descobrir o pico de curtidas meu e dos outros? Se aumentarmos a frequência do cron… eu quero saber se das 21 às 23 horas tem mais likes do que das 3 às 5 da manhã. Não sei se a API nos entrega isso, mas se colocarmos os crons no momento certinho, podemos inferir estas janelas."
+
+**Resposta curta: a API não entrega nada por hora, nem para terceiros nem para o canal do dono. Dá para inferir por amostragem**, lendo o contador de hora em hora e guardando a diferença, com os limites de 4.7.6, que a tela tem de dizer.
+
+**O que se perde a cada dia sem ela:** as diferenças hora a hora daquele dia. O contador só diz o total de agora; a hora em que ele subiu não volta.
+
+#### 4.7.1 O que a API entrega por hora (documentação oficial, lida em 12/10)
+
+| Fonte | O que a documentação diz | Consequência |
+|---|---|---|
+| Vídeo de terceiro, Data API | `videos.list` devolve em `statistics` só o **total acumulado de agora**: `viewCount` ("The number of times the video has been viewed"), `likeCount`, `commentCount`. Nenhuma série, nenhum horário ([recurso video](https://developers.google.com/youtube/v3/docs/videos)). Custo: 1 unidade por chamada ([custo de cota](https://developers.google.com/youtube/v3/determine_quota_cost)), com até 50 ids por chamada (como o spec já usa, 3.1) | por hora só existe o que nós amostrarmos |
+| Canal próprio, Analytics API | as únicas dimensões de tempo são `day` e `month`; **não há `hour`**, nem dimensão de "tempo real" ou de 48 horas. O dia é o do Pacífico ("All dates refer to the time period beginning at 12:00AM Pacific time") ([dimensões](https://developers.google.com/youtube/analytics/dimensions)) | o "tempo real" de 48 horas do Studio **não existe na API** |
+| Canal próprio, Reporting API (relatórios em lote) | a única dimensão de tempo dos relatórios de canal é `date` ([relatórios de canal](https://developers.google.com/youtube/reporting/v1/reports/channel_reports)) | idem |
+| O "tempo real" do Studio | a Ajuda do YouTube diz que ele "only shows estimates of potential view activity" e pode não bater com a página do vídeo ([Ajuda: como as métricas são contadas](https://support.google.com/youtube/answer/2991785?hl=en)) | mesmo se existisse na API, seria estimativa |
+| De quanto em quanto tempo o contador público muda | **a página do recurso não diz nada** sobre frequência, lote ou atraso. A Ajuda diz: "It takes our systems some time to figure out which views, likes, dislikes, and subscriptions are legitimate"; "The timing of these changes varies depending on a video or channel's popularity and views"; o YouTube pode "temporarily slow down, freeze, or change your metric count"; e nas primeiras horas de um vídeo "It may take time for your metrics to appear" | **NC, a medir nas primeiras semanas** (item de aceite 140): de quanto em quanto tempo cada contador de fato anda; se as views chegam em degraus; se a resposta da API vem de cache |
+
+**Para o canal próprio a mesma amostragem serve**, sem depender da Analytics API: os contadores públicos dos vídeos do dono são lidos pela mesma chamada, e a comparação "o meu × o deles" fica no mesmo relógio e na mesma fonte (regra de 6.1.6). O canal do dono entra como mais um canal acompanhado em `competitor_*`.
+
+#### 4.7.2 O desenho: amostrar de hora em hora e guardar a diferença
+
+- **Uma execução por hora, no minuto zero.** Lê views, curtidas e comentários de cada vídeo da lista com `videos.list?part=statistics&id=…`, **50 ids por chamada, juntando vídeos de canais diferentes na mesma chamada** (a chamada é por id de vídeo, não por canal; é isso que deixa a cota em dezenas de unidades por dia, 9.5).
+- **A diferença** entre duas leituras seguidas do mesmo vídeo é o que entra no mapa. Cada leitura guarda o instante real (`taken_at`); o intervalo é atribuído à hora de São Paulo em que **começou**.
+- **Intervalo de 1 hora como padrão** [DONO, pergunta 17]. O que mudaria: **30 minutos** dobra a cota e as linhas da curva das primeiras 72 horas (mais 0,75 MB por canal por ano) e só rende se o contador de fato andar mais de uma vez por hora, que é justamente o que não está confirmado; **2 horas** corta os dois pela metade e ainda responde à pergunta do dono (ele comparou janelas de 2 horas, "21 às 23" contra "3 às 5"), mas borra a curva de lançamento, em que a primeira hora pesa. Começar em 1 hora e decidir com a medição do item 140.
+- **Para quais vídeos:** os publicados nos últimos **14 dias** (`RULES.hourlyAgeDays`), até **25 por canal** (`RULES.hourlyVideosMax`), os mais novos primeiro, de todos os canais acompanhados e dos canais do dono; ao vivo em andamento fica fora. **Por quê:** é onde há movimento. Um vídeo de seis meses ganha poucas curtidas por dia, a diferença de hora em hora é quase sempre zero, e somá-lo só acrescenta ruído e chamadas. O canal médio tem 3,8 vídeos nessa janela (98 por ano); o que mais publica teve 152 em 90 dias, cerca de 24 em 14 dias, e é para ele o teto. Acima do teto a execução **registra quantos ficaram fora** (corte silencioso é proibido).
+- **A descoberta de vídeo novo continua sendo a da sincronização que já existe** (até 6 horas depois da publicação). A curva de lançamento começa na primeira leitura depois da descoberta, e a tela diz a idade do vídeo nessa leitura. Descobrir de hora em hora custa 24 unidades por canal por dia e é a pergunta 19.
+
+#### 4.7.3 Armazenamento: o que fica, o que é descartado
+
+**A conta do desenho ingênuo** (uma linha por vídeo e por hora, cerca de 105 B com o índice): os 50 vídeos acompanhados de um canal dariam 438.000 linhas e **cerca de 46 MB por canal por ano** (690 MB por ano com 15 canais: estoura o plano gratuito em menos de um ano, sozinho); só os vídeos de até 14 dias, 33.000 linhas e **cerca de 3,5 MB por canal por ano**, mais da metade de tudo o que a v2 previa para um canal. **Não é proposto.** O que é:
+
+| Peça | O que guarda | Quanto tempo | Por canal e ano |
+|---|---|---|---|
+| **1. Curva das primeiras 72 horas**, hora a hora | os três contadores **acumulados** de cada vídeo, a cada leitura, enquanto a idade for menor que 72 horas. É a tabela `competitor_video_early` da E2 (4.3), sem mudar de forma: passa de 4 leituras por dia para 24 | fica; vai para o arquivo pela idade (9.2) | 98 vídeos × 72 = 7.060 linhas, **≈ 0,75 MB** (eram 1.200 linhas e 0,13 na v2) |
+| **2. Mapa de horas do canal** | as diferenças **somadas** numa grade de 168 casas (7 dias da semana × 24 horas de São Paulo), **por mês**, separando views, curtidas e comentários, longo × Short, e duas fases do vídeo: **lançamento** (idade até 72 horas) e **depois** (do dia 4 ao 14). Quatro linhas por canal e mês, cada uma com vetores de 168 posições | fica online (é pequeno e é o que a tela lê) | 48 linhas, **≈ 0,25 MB** |
+| **3. Leituras cruas, de passagem** | os contadores acumulados de cada vídeo da lista, por hora | **3 dias** (`RULES.hourlyBufferDays`): só o tempo de fechar o dia e somar no mapa; depois são apagadas | não cresce: cerca de 270 linhas por canal, 0,03 MB, em regime |
+| **Descartado** | a diferença hora a hora de cada vídeo depois das 72 horas | | |
+
+**Por que duas fases no mapa.** Sem separar, o mapa mostraria a hora em que o **canal publica**, não a hora em que o **público reage**: um canal que publica sempre às 18:00 teria o pico às 18:00 por causa do lançamento. A fase "depois" (dia 4 ao 14) é a leitura do hábito do público; a fase "lançamento" e a curva de 72 horas são a leitura da tração. A tela nunca soma as duas.
+
+**Por que guardar também a fatia, e não só a soma.** Um vídeo que estoura ganha num dia mais curtidas que todos os outros no mês e sozinho desenharia o mapa. Por isso cada casa guarda duas coisas: a **soma** das diferenças (o volume) e a **soma das fatias** (a parte que aquela hora teve do total daquele vídeo naquele dia), em que cada vídeo e dia pesa igual. A medida M13 usa a fatia; o volume é mostrado ao lado. A fatia só é calculada para vídeo e dia com as 24 horas lidas e com movimento mínimo (4.7.6).
+
+**Por mês, e não por semana** [DONO, pergunta 18]: por semana custa 4,3 vezes mais (cerca de 1,1 MB por canal por ano) e cada casa teria uma amostra só (uma terça às 21:00 por semana); a leitura de "nas últimas 4 semanas" continua possível somando o mês corrente e o anterior, com a tela dizendo a janela.
+
+#### 4.7.4 DDL proposto (migration MG9)
+
+```sql
+-- 1. Leituras cruas, de passagem (apagadas depois de 3 dias)
+create table if not exists public.competitor_video_hourly (
+  video_id uuid not null references public.competitor_videos(id) on delete cascade,
+  hour_slot timestamptz not null,           -- date_trunc('hour', taken_at): duas execuções na mesma hora não duplicam
+  taken_at timestamptz not null,            -- instante real da leitura
+  site_id uuid not null references public.sites(id) on delete cascade,
+  views bigint not null,
+  likes bigint,                             -- nulo = oculto
+  comments bigint,                          -- nulo = desligado
+  primary key (video_id, hour_slot)
+);
+create index if not exists idx_cvh_slot on public.competitor_video_hourly (hour_slot);
+
+-- 2. Mapa de horas: 4 linhas por canal e mês (formato × fase)
+create table if not exists public.competitor_channel_hour_map (
+  competitor_channel_id uuid not null references public.competitor_channels(id) on delete cascade,
+  month date not null,                      -- 1º dia do mês, data de São Paulo
+  format text not null check (format in ('longo', 'short')),
+  phase text not null check (phase in ('lancamento', 'depois')),   -- idade até 72 h | do dia 4 ao 14
+  site_id uuid not null references public.sites(id) on delete cascade,
+  -- vetores de 168 posições; índice = (dia da semana, 0 = domingo) × 24 + hora de São Paulo, + 1
+  views_sum bigint[] not null,              -- soma das diferenças POSITIVAS de intervalos limpos
+  likes_sum integer[] not null,
+  comments_sum integer[] not null,
+  views_share real[] not null,              -- soma das fatias (diferença da hora ÷ diferença do dia do mesmo vídeo)
+  likes_share real[] not null,
+  comments_share real[] not null,
+  n_intervals integer[] not null,           -- intervalos limpos de 1 hora que caíram na casa
+  -- por linha, não por casa:
+  video_days_views integer not null default 0,     -- dias de vídeo completos que entraram na fatia, por contador
+  video_days_likes integer not null default 0,
+  video_days_comments integer not null default 0,
+  videos integer not null default 0,               -- vídeos distintos que contribuíram no mês
+  long_intervals integer not null default 0,       -- intervalos maiores que 1 hora (buraco): ficam FORA das casas
+  long_views bigint not null default 0,            -- e a diferença que eles cobriam, para a tela dizer quanto ficou fora
+  long_likes bigint not null default 0,
+  long_comments bigint not null default 0,
+  neg_views_n integer not null default 0,          -- leituras em que o contador DIMINUIU, e de quanto (soma, número negativo)
+  neg_views_sum bigint not null default 0,
+  neg_likes_n integer not null default 0,
+  neg_likes_sum bigint not null default 0,
+  neg_comments_n integer not null default 0,
+  neg_comments_sum bigint not null default 0,
+  updated_at timestamptz not null default now(),
+  primary key (competitor_channel_id, month, format, phase),
+  check (cardinality(views_sum) = 168 and cardinality(likes_sum) = 168 and cardinality(comments_sum) = 168
+     and cardinality(views_share) = 168 and cardinality(likes_share) = 168 and cardinality(comments_share) = 168
+     and cardinality(n_intervals) = 168)
+);
+
+-- 3. Registro do que já foi somado: é o que torna a soma idempotente
+create table if not exists public.competitor_hour_fold_log (
+  video_id uuid not null references public.competitor_videos(id) on delete cascade,
+  day date not null,                        -- dia de São Paulo já somado no mapa
+  site_id uuid not null references public.sites(id) on delete cascade,
+  intervals_clean smallint not null,
+  intervals_long smallint not null,
+  folded_at timestamptz not null default now(),
+  primary key (video_id, day)
+);
+
+alter table public.competitor_video_hourly enable row level security;
+alter table public.competitor_channel_hour_map enable row level security;
+alter table public.competitor_hour_fold_log enable row level security;
+drop policy if exists "competitor_video_hourly_select" on public.competitor_video_hourly;
+create policy "competitor_video_hourly_select" on public.competitor_video_hourly for select using (public.can_view_site(site_id));
+drop policy if exists "competitor_channel_hour_map_select" on public.competitor_channel_hour_map;
+create policy "competitor_channel_hour_map_select" on public.competitor_channel_hour_map for select using (public.can_view_site(site_id));
+drop policy if exists "competitor_hour_fold_log_select" on public.competitor_hour_fold_log;
+create policy "competitor_hour_fold_log_select" on public.competitor_hour_fold_log for select using (public.can_view_site(site_id));
+```
+
+- **`competitor_video_early` (MG2) não muda de forma**: chave `(video_id, taken_at)`, contadores acumulados. A E15 só passa a escrever nela de hora em hora, e a condição "descoberto com menos de 24 horas" da E2 continua (para vídeo descoberto tarde a curva de lançamento não existe: "descoberto tarde").
+- **A soma no mapa** é uma função `competitor_hour_fold(p_day date)` (security invoker, `search_path` fixo, `execute` só para `service_role`), chamada pela execução horária para todo dia de São Paulo **fechado há pelo menos 3 horas** e ainda sem linha no registro. Numa transação só: grava a linha do registro (se já existe, não soma de novo), soma os vetores, e atualiza os contadores da linha. Depois, e só depois, a execução apaga as leituras cruas com mais de 3 dias **de dias que já têm registro**: leitura crua de dia ainda não somado nunca é apagada (se a soma parar, as leituras se acumulam e o alerta de 4.7.5 aparece; o dado não se perde em silêncio).
+- **O registro de dias somados** tem 98 vídeos × 14 dias, cerca de 1.400 linhas por canal por ano (0,07 MB), e é podado pela mesma execução depois de 60 dias (o vídeo já saiu da janela), ficando em cerca de 230 linhas por canal.
+- **RLS no padrão D6** (`can_view_site`): são contagens públicas, sem texto e sem pessoa. Nenhuma policy de escrita.
+- **Zero × não medido:** casa com `n_intervals = 0` é "não medido naquela hora", **não** "zero curtidas naquela hora"; casa com intervalos e soma zero é zero medido. São dois estados com forma diferente na tela.
+- **Remoção de canal e "apagar" de 4.5** levam as três tabelas por cascata; `competitor_channel_removal_impact` passa a contá-las. O mapa do mês **não** é recalculado quando um vídeo é apagado (as somas não guardam de qual vídeo vieram): a tela do mapa diz "inclui vídeos que saíram do YouTube ou foram apagados do painel".
+
+#### 4.7.5 Infra: de onde sai a execução horária
+
+- **Vercel Cron, rota `GET`.** O projeto está no plano Pro (intervalo mínimo de 1 minuto; 49 dos 100 crons do projeto em uso, lido em `apps/web/vercel.json`). Entra **uma** linha: `/api/cron/sync-youtube?mode=hourly` em `0 * * * *`. A rota já exporta `GET` (`apps/web/src/app/api/cron/sync-youtube/route.ts:20`) e já tem um modo horário (`ab-poll`, `30 * * * *`).
+- **Nenhum job de `pg_cron`.** O problema registrado do projeto é o agendamento em dois lugares (a Vercel chama por `GET`, o `pg_cron` por `POST`; rota só `POST` morre calada na Vercel; rota nos dois dispara em dobro; e um job de `pg_cron` criado só no painel derrubou a produção em 05/09). Esta etapa fica **só na Vercel**, e o item de aceite 141 confere que não existe job de `pg_cron` com o nome.
+- **Duração esperada:** de 2 chamadas (15 a 20 canais) a 16 (200 canais) por execução, mais uma gravação em lote e, uma vez por dia, a soma: segundos, bem abaixo do teto de 300 s da rota. O plano mede com 75 canais simulados.
+- **Execução que atrasa e encavala na seguinte.** (a) **Trava:** a rota usa `withCronLock` com a chave `sync-youtube-hourly`; a segunda execução responde "já rodando" e sai. **Achado a tratar no plano:** existem duas implementações de `withCronLock`, a de `apps/web/src/lib/logger.ts` (trava **em memória**, que não vale entre instâncias da Vercel) e a de `apps/web/lib/logger.ts` (trava no banco, `cron_try_lock`); o modo horário tem de usar a do banco, e o plano confere qual a rota importa hoje. (b) **Sem duplicar:** a chave `(video_id, hour_slot)` com `on conflict do nothing` faz duas execuções na mesma hora gravarem uma leitura só. (c) **Execução pulada vira buraco, não erro escondido:** a diferença seguinte cobre duas horas e é tratada como intervalo longo (4.7.6). A Vercel não repete cron que falhou.
+- **Falha em vermelho.** Chave própria em `cron_health` (`sync-youtube-hourly`), com entrada em `resolveCronName` da rota de saúde; mais de 2 horas sem sucesso é falha. A execução devolve e registra: vídeos lidos, vídeos fora do teto, intervalos longos, dias somados, leituras cruas à espera de soma. E o mapa mostra a própria cobertura ("lidas 702 de 720 horas do mês"), de modo que cron parado aparece na tela como falta, nunca como mapa vazio.
+- **Cota** gravada em `youtube_quota_usage.operations`, modo `horario`.
+
+#### 4.7.6 Limites que a tela tem de dizer, sem suavizar
+
+1. **A diferença mostra quando o YouTube atualizou o contador, não o minuto em que a pessoa curtiu.** O YouTube valida views e curtidas antes de contar, ajusta depois, pode segurar ou congelar a contagem, e não publica de quanto em quanto tempo o número público anda (4.7.1). O que é **NC e será medido** (item 140): a proporção de intervalos de 1 hora com diferença zero seguidos de um salto (contador que anda em degraus), separada por contador e por tamanho do vídeo. Se as views andarem em degraus de várias horas, o mapa de views por hora **não é mostrado** e a tela diz por quê; o de curtidas é o mais provável de servir, e também é hipótese até a medição. Texto fixo no corpo do mapa: *"Mostra quando o contador público mudou, lido de hora em hora. O YouTube atualiza os contadores com atraso e em lotes; a hora real da curtida pode ser anterior."*
+2. **Buraco:** leitura que falha faz a diferença seguinte cobrir duas horas ou mais. **Nunca é dividida ao meio.** Intervalo "limpo" é o que começa a até 5 minutos da hora cheia e dura de 50 a 70 minutos; qualquer outro é "longo": fica **fora** das casas, entra em `long_intervals` com a diferença que cobria, e a tela diz "N intervalos sem leitura horária, com X curtidas, fora do mapa". Um dia com intervalo longo não entra na fatia.
+3. **Contador que diminui** (curtida retirada, limpeza de views, comentário apagado): **proposta: guardar como é, à parte.** A diferença negativa não entra na casa (uma limpeza de 5.000 views às 4:00 apagaria a casa; uma curtida retirada às 3:00 não é "menos uma reação às 3:00") e também **não vira zero em silêncio**: vai para os contadores `neg_*` da linha, com número e soma, e a tela diz "N leituras em que o contador diminuiu (soma −X), fora do mapa". Na curva das 72 horas o contador é guardado como veio, com a queda à vista. Dia com queda não entra na fatia daquele contador.
+4. **Fuso.** O mapa é em **horário de São Paulo** (D5; o Brasil não tem horário de verão hoje, e a regra é "data e hora de São Paulo", não um deslocamento fixo). O público de um canal pode estar em outro fuso, ou espalhado: "21 às 23" é a hora de São Paulo em que o contador subiu, não a hora local de quem curtiu. A tela diz isso e mostra o país declarado do canal (E1) ao lado.
+5. **Amostra mínima.** A fatia de um vídeo e dia só conta com as 24 horas limpas e movimento mínimo naquele dia: 200 views, 20 curtidas ou 10 comentários (cada contador com o seu) [DONO, pergunta 20]. O mapa de um canal, formato e contador é "medido" só com pelo menos **28 dias de vídeo** e **3 vídeos distintos** na janela; abaixo disso é "não medido: poucos vídeos recentes (N dias de vídeo de 28)". Para a maioria dos canais pequenos, e para o canal do dono hoje (36 views em 90 dias), **o estado real é "não medido"**, por meses.
+6. **Só vê vídeos de até 14 dias.** O mapa é o ritmo do público **dos vídeos recentes**; quem assiste ao catálogo antigo não aparece.
+7. **Curtidas ocultas e comentários desligados:** "não medido: oculto pelo canal", nunca zero.
+8. **A regra de contagem de views** mudou em 24/08/2026; todo o mapa nasce depois dela.
+9. **É cálculo nosso** sobre dado público, dito no ⓘ (III.E.4.h, seção 11.1).
+
+#### 4.7.7 O que isso responde, e as medidas (entram na E4)
+
+Perguntas: **em que horas o público deste canal reage** (M13, fase "depois"); **a que horas os vídeos dele ganham tração depois de publicados** (M14); **e a comparação com o canal do dono**, pela mesma amostragem.
+
+| # | Medida | Definição exata | Janela | "Não medido" quando | Viés dito na tela |
+|---|---|---|---|---|---|
+| **M13** | **Horas em que o público reage** (por canal, formato e contador: views, curtidas ou comentários) | **perfil de 24 horas:** para cada hora h de São Paulo, p(h) = soma das fatias da hora h em todos os dias da semana ÷ número de dias de vídeo, na fase "depois"; a soma de p(h) nas 24 horas é 1. **Janela de pico:** as 2 horas seguidas com a maior soma de p; mostrada com "quantas vezes a média" (soma da janela ÷ 2/24). **Comparação de duas janelas** (a pergunta do dono, "21 às 23 contra 3 às 5"): razão entre as somas de p nas duas. **Mapa 7 × 24:** a mesma fatia por dia da semana, só para dia da semana com 4 dias de vídeo ou mais | o mês corrente e o anterior (padrão), ou os últimos 3, 6 ou 12 meses | menos de 28 dias de vídeo ou de 3 vídeos; contador oculto; mais de 20% das horas do período sem leitura; contador que a medição do item 140 mostrou andar em degraus | os nove limites de 4.7.6, com o primeiro no corpo da tela; "é quando o contador mudou"; canal que publica muito em um dia da semana tem aquele dia mais bem medido |
+| **M14** | **Tração depois de publicar** (por canal e formato) | para cada hora k desde a publicação (1 a 72), a mediana, entre os vídeos, de views na hora k ÷ views na hora 72 (curva de 72 horas, com as leituras hora a hora); e **"metade em N horas"**: a primeira hora em que a mediana chega a 0,5. O mesmo para curtidas | publicados nos últimos 90 dias | menos de 3 vídeos com curva; vídeo descoberto com mais de 6 horas fica fora da mediana (a tela diz quantos); ao vivo e estreia fora (regra b da seção 5) | a primeira leitura depende de quando o vídeo foi descoberto; a hora de publicação do canal e o dia da semana pesam; views chegam com atraso nas primeiras horas, segundo o próprio YouTube |
+
+M1 na idade de 1 dia (seção 5) passa a usar as leituras de hora em hora no lugar das de 6 em 6 horas, sem mudar de definição; a tolerância de "leituras vizinhas a mais de 8 h" cai para 2 h.
+
+#### 4.7.8 Tela: o que o mockup 21 tem de considerar (seção 6.5)
+
+1. **O mapa de horas × dias** (7 × 24) e, acima dele, o perfil de 24 horas com a janela de pico: frase-resumo no topo ("As curtidas deste canal sobem mais entre 20:00 e 22:00, 2,3 vezes a média; base: 41 dias de vídeo, 6 vídeos"), régua ou barra, cor estável.
+2. **Três estados de casa, distintos por cor e por símbolo:** medido com valor, **zero medido** (caixa vazada, como no gráfico do canal próprio), **não medido** (rosa com hachura). Nunca um degradê em que "sem leitura" pareça "pouco".
+3. **Caso magro, que é o caso real por meses:** canal com quase nada ("não medido: 6 dias de vídeo de 28"), com o que já existe à vista e a data provável em que passa a existir; canal do dono com 36 views em 90 dias; canal só com Shorts.
+4. **O texto fixo do limite 1** no corpo, não só no ⓘ; fuso de São Paulo escrito no eixo; "N intervalos fora do mapa" e "N leituras em que o contador diminuiu" visíveis.
+5. **Seletores:** contador (curtidas primeiro, que foi o pedido), formato, fase ("hábito do público: do dia 4 ao 14" × "lançamento: primeiras 72 horas", nunca somadas), período.
+6. **Comparar com o meu canal:** os dois perfis de 24 horas lado a lado, cada um com a sua base, e "não comparável" quando um dos dois é não medido.
+7. **A curva de 72 horas** (M14) na página do canal e na do vídeo (mockup 13, que já previa as primeiras 72 horas: passa a ser hora a hora), com a marca da hora de publicação em São Paulo.
+8. **A 390 px** um mapa de 24 colunas não cabe: o mockup resolve (blocos de 2 ou 3 horas, ou o perfil de 24 horas no lugar do mapa) sem rolagem horizontal da página.
+9. **Cobertura do cron à vista:** "lidas N de M horas no período".
+10. Acrescenta à lista fechada de 6.1.5: "poucos vídeos recentes (N dias de vídeo de 28)", "sem leitura horária nesta hora", "o contador do YouTube anda em degraus: mapa de views por hora não mostrado", "a leitura por hora começou em dd/mm".
 
 ## 5. Medidas derivadas (etapa E4): contas fixas sobre o que a Parte 1 grava
 
@@ -498,6 +936,8 @@ Pedido do dono (12/10): "preciso que você adicione uma etapa do spec para fazer
 | 17 | **Comparar (estados novos), Outliers e Insights:** M3(a), M4 e M8; ordenação por V7 e V30; selo "ao vivo ou estreia"; régua de direção do nicho | E4 |
 | 18 | **O aviso de "banco chegando ao limite"** (9.2): verde, amarelo, vermelho, "sem leitura hoje", lotes exportados e não confirmados | E10 |
 | 19 | **"Ver antigo" e o estado "arquivado": só esboço**, por serem da fase de manutenção; serve para as telas de série não fecharem a porta | nada |
+| 20 | **Comentários de destaque do vídeo de concorrente** (emenda v2.1; o que considerar: 4.6.9): a amostra dita no topo, os três retratos por idade, a resposta do criador, os quatro estados sem comentário, texto longo, ofensivo, em outro idioma e com emoji, e os comentários que saíram do YouTube dentro da fila do mockup 10. **Fica logo depois do 13**, de que é uma seção; só é desenhado depois das respostas às perguntas 9 e 10 | E14 (uma semana de dado: retratos de 1 e 7 dias) |
+| 21 | **Ritmo por hora** (emenda v2.1; o que considerar: 4.7.8): o mapa de horas × dias, o perfil de 24 horas com a janela de pico, a comparação com o canal do dono, a curva de 72 horas; **caso magro: canal com quase nada** ("não medido: poucos vídeos recentes"), que é o caso real por meses. Só é levado ao dono depois da medição do item 140, que diz quais contadores podem ser mostrados | E15 (30 dias de leitura para o caso cheio com dado real; antes disso, exemplo marcado) |
 
 **(c) O que cada mockup tem de mostrar para ser validável.** O **caso cheio e o caso magro com os números reais dos canais do dono** (os dois canais próprios e os concorrentes cadastrados); o **estado sem dado**; cada **"não medido" com o motivo** da lista fechada de 6.1.5; **1440 e 390 px**; **tema claro e escuro**; e, na tela e na `REVISAO.md`, **o que é dado real e o que é exemplo** (todo número de exemplo leva a marca "exemplo"). Mockup de dado que ainda não existe (M10, "Ver antigo") diz isso no topo. Valem os critérios de reprovação do começo desta seção (frase-resumo, régua ou barra, cor estável, método no ⓘ).
 
@@ -760,13 +1200,15 @@ create table if not exists public.yt_own_video_reach_dim_daily (
 
 **O que entra para o Cowork (aditivo, sem rota nova, `endpoint_count` igual):** em `competitors/channels`, por canal: direção M3(a) e (b), estado M8, ritmo M6, taxa de acerto M4, handle, país, data de criação. Em `competitors/changes`: um parâmetro opcional `campos=todos` devolve também as mudanças de campo; **sem o parâmetro a resposta é a de hoje** (com teste que chama sem o parâmetro e afirma isso). Atualizar `apps/web/data/pipeline-docs/cowork-docs-youtube.md` e `docs/cowork-pipeline-reference.md`, e rodar a semente da referência.
 
-**O que não entra em pacote nenhum:** `raw jsonb`; a descrição do canal (costuma trazer e-mail de contato do criador); a lista de vídeos de playlists; as leituras das primeiras horas em bruto (entra só M1); **a leitura M10** (um indício sem o texto obrigatório ao lado vira afirmação num texto gerado; reabrir quando houver dado para conferir os limiares); a curva de retenção do canal próprio; **os termos de pesquisa e os sites externos do canal próprio** (7.3: só quem edita o site, pelo token de edição; teste que varre as respostas do pipeline); o conteúdo de vídeo que o dono mandou apagar (some de todo endpoint no mesmo instante, por ter saído do banco).
+**O que não entra em pacote nenhum:** `raw jsonb`; a descrição do canal (costuma trazer e-mail de contato do criador); a lista de vídeos de playlists; as leituras das primeiras horas em bruto (entra só M1); **a leitura M10** (um indício sem o texto obrigatório ao lado vira afirmação num texto gerado; reabrir quando houver dado para conferir os limiares); a curva de retenção do canal próprio; **os termos de pesquisa e os sites externos do canal próprio** (7.3: só quem edita o site, pelo token de edição; teste que varre as respostas do pipeline); o conteúdo de vídeo que o dono mandou apagar (some de todo endpoint no mesmo instante, por ter saído do banco); **o texto dos comentários de terceiros e das respostas do criador (4.6, emenda v2.1): não entra em nenhum pacote da forja nem do Cowork sem o dono decidir** (teste que varre as respostas do pipeline com um comentário sentinela na semente, item 119). A identidade do autor (nome, id, foto) também nunca entra. M11 pode entrar em `competitors/channels` como as outras medidas, porque é uma contagem sem texto.
 
 **Quando o dado novo ainda não existe (a regra contra "falha em verde").** Toda medida sai como objeto com `estado`; uma medida não medida sai **com** `estado: 'nao_medido'`, `motivo` e, quando há, `desde`: nunca é omitida, nunca é `null`, `0` ou lista vazia. O endpoint acrescenta `medidas_indisponiveis` (contagem por motivo). Teste obrigatório por medida: banco sem nenhuma linha das tabelas novas devolve `nao_medido` com motivo, e o texto que o Cowork recebe contém a frase do motivo. Se um dia um pacote da forja ganhar uma medida, a linha "não medido: <motivo>" vai escrita no pacote; um pacote sem a linha é erro, não "ok".
 
 ## 9. Ciclo de vida do dado, volume e cota (etapa E10)
 
 ### 9.1 Quanto pesa um canal concorrente por ano
+
+> **Emenda v2.1:** os comentários de destaque (E14) somam cerca de 1,3 MB por canal por ano e o ritmo por hora (E15), cerca de 0,85; o total passa de ≈ 5,8 para ≈ 8,0. Linhas refeitas em 9.5.
 
 Médias medidas nos 15 canais: 93 vídeos guardados, 98 novos por ano, 61% Shorts; 166 B por linha de série com índices. O dono considera razoável a ordem de 6 MB por canal por ano (12/10).
 
@@ -871,6 +1313,8 @@ Consequência: nesta fase o export é usado para **remover canais** com seguran�
 
 ### 9.3 Tamanho do banco: sem arquivo, com corte de 12 meses e com corte de 6
 
+> **Emenda v2.1:** as duas tabelas abaixo são as da v2, **sem** os comentários (E14) e **sem** o ritmo por hora (E15). Com os dois a folga sem arquivo cai de 4 a 8 meses (15 canais: mês 30; 20: mês 24; 30: mês 17; 40: mês 13), e com corte de 12 meses os 15 canais de hoje deixam de caber em cinco anos. Tabelas refeitas em 9.5.
+
 Base: 179 MB hoje; menos 70 MB da dieta; mais cerca de 7 MB, uma vez, da retroação do canal próprio (7.3); o resto do site cresce cerca de 22 MB por ano (20 do site, mais a retenção e as tabelas do canal próprio no ritmo de views de hoje). Cada canal concorrente: 5,8 MB no primeiro ano (9.1).
 
 **Achado que corrige a expectativa: o arquivo estabiliza a série, não o banco inteiro.** A série diária fica em patamar (3,0 MB por canal com 12 meses online). Duas coisas continuam crescendo: o que nunca sai (cerca de 1,4 MB por canal por ano) e a série semanal, que é lida para um catálogo cada vez maior (mais 0,8 MB por canal a cada ano). Depois do primeiro ano, cada canal cresce cerca de **2,2 MB por ano com arquivo**, contra 6,6 e subindo sem ele. O banco passa a crescer três vezes mais devagar; não para.
@@ -906,6 +1350,8 @@ São estimativas: o canal mediano publica 14 vídeos em 90 dias e o maior, 152; 
 
 ### 9.4 Cota
 
+> **Emenda v2.1:** a E14 soma cerca de 1,35 unidade por canal por dia e a E15, de 48 a 384 unidades por dia no total (≈ 310, 395, 1.445 e 3.855 nos quatro cenários). Tabela refeita em 9.5.
+
 | Canais | Cota por dia (de 10.000) |
 |---|---|
 | 15 (hoje) | ≈ 240 |
@@ -915,9 +1361,80 @@ São estimativas: o canal mediano publica 14 vídeos em 90 dias e o maior, 152; 
 
 A cota não é o limite em nenhum cenário; ela é compartilhada com o A/B Lab e o envio de vídeos do canal próprio (trocar miniatura ou título custa 50 unidades por chamada) e com a busca de canais (100 por busca). A retenção do canal próprio usa a cota da Analytics API, que é outra.
 
+### 9.5 Emenda v2.1: o que os comentários (E14) e o ritmo por hora (E15) mudam no volume, no tamanho do banco e na cota
+
+Só as linhas afetadas. **Onde 9.1, 9.3 e 9.4 divergirem daqui, vale esta seção.** Tudo abaixo é estimativa sobre suposições escritas: nenhum comentário e nenhuma leitura horária existem ainda. Os itens de aceite 122 e 139 mandam medir e corrigir esta seção.
+
+**Suposições da E14.** 98 vídeos novos por canal por ano (9.1), três retratos cada; por vídeo, cerca de 20 comentários distintos ao longo dos três marcos (12 por marco, com troca entre um e outro) mais cerca de 4 respostas do criador; texto médio de 300 B; linha de comentário com índices de cerca de 580 B; linha de leitura por marco de cerca de 110 B; preenchimento médio de 70% (Shorts e canais pequenos têm menos de 12 comentários). As colunas de identidade do autor só existem nos primeiros 28 dias de cada linha e não pesam (menos de 0,02 MB por canal em regime).
+
+**Suposições da E15.** Leitura de hora em hora; curva de 72 horas para os 98 vídeos novos (72 linhas de cerca de 105 B cada); quatro linhas de mapa por canal e mês, de cerca de 5 kB cada depois da compressão dos vetores (7 kB sem ela); leituras cruas e registro de dias somados em regime, sem crescer.
+
+**9.1, linhas novas e total:**
+
+| Parcela | Linhas por canal por ano | MB no 1º ano | Vai para o arquivo? |
+|---|---|---|---|
+| E14: comentários (`competitor_video_comments`, cerca de 17 por vídeo já com o preenchimento de 70%) | ≈ 1.650 | ≈ 0,95 | **sim**, pela idade (todo comentário é lido nos primeiros 37 dias do vídeo); **sem** as colunas de identidade |
+| E14: leituras por marco (`competitor_video_comment_marks`) | ≈ 2.500 | ≈ 0,3 | **sim** |
+| E14: retratos (`competitor_video_comment_snaps`) | ≈ 300 | ≈ 0,03 | **não** |
+| **Soma da E14** | | **≈ 1,3** (faixa plausível: 0,8 a 1,8) | |
+| E15: curva das primeiras 72 horas, hora a hora (**substitui** a linha "Primeiras horas" de 9.1: eram 1.200 linhas e 0,1 MB) | ≈ 7.060 | ≈ 0,75 (**+0,6**) | **sim** |
+| E15: mapa de horas (`competitor_channel_hour_map`) | 48 | ≈ 0,25 | **não** (pequeno, e é o que a tela lê) |
+| E15: leituras cruas de passagem e registro de dias somados | em regime: ≈ 500 | ≈ 0,05, **sem crescer** | não: são apagadas |
+| **Soma da E15 (o que ela acrescenta)** | | **≈ 0,85** | |
+| **Total por canal no 1º ano** (era ≈ 5,8) | | **≈ 8,0** (7,1 só com a E14) | série: 4,5 (57%, já com a curva horária); comentários: 1,3; o resto: 2,2 |
+
+Para comparar, o que **não** foi proposto na E15: uma linha por vídeo e por hora para os 50 acompanhados custaria cerca de **46 MB por canal por ano**; só para os vídeos de até 14 dias, cerca de **3,5 MB** (4.7.3).
+
+Nenhuma das duas parcelas acelera: são sempre os vídeos novos do ano. Sem arquivo, o canal passa a crescer 8,0 MB no primeiro ano, 8,8 no segundo, 9,6 no terceiro (a subida é a da série semanal, 9.3). Com arquivo, comentários e curva horária ficam num patamar (juntos, 1,9 a 2,9 MB por canal, corte de 6 e de 12 meses, no pico) e só o mapa segue crescendo, 0,25 MB por canal por ano: **o que nunca sai do online passa de cerca de 1,4 para cerca de 1,7 MB por canal por ano**, e o crescimento com arquivo, de 2,2 para cerca de 2,5. A retroação de comentários (pergunta 12), se for "sim", soma cerca de 0,6 MB por canal, uma vez.
+
+**9.3, as duas tabelas refeitas** (mesmas bases: 179 MB hoje, menos 70 da dieta, mais 7 da retroação do canal próprio, mais 22 por ano do resto do site).
+
+Banco inteiro, no pico, em MB:
+
+| Canais | Mês 12 (igual nos três): v2 → com E14 → **com E14 e E15** | Mês 36, com E14 e E15: sem arquivo / corte 12 / corte 6 | Mês 60, com E14 e E15: sem arquivo / corte 12 / corte 6 |
+|---|---|---|---|
+| 15 (hoje) | 225 → 245 → **≈ 257** | 576 / 425 / 375 (v2: 480 / 370 / 335) | 942 / 557 / 498 (v2: 785 / 495 / 450) |
+| 20 | 255 → 280 → **≈ 297** | 707 / 508 / 442 (v2: 580 / 435 / 390) | 1.181 / 668 / 582 (v2: 970 / 585 / 520) |
+| 75 | 575 → 670 → **≈ 734** | 2.151 / 1.389 / 1.151 (v2: 1.670 / 1.120 / 950) | 3.807 / 1.866 / 1.564 (v2: 3.000 / 1.560 / 1.325) |
+| 200 | 1.300 → 1.560 → **≈ 1.728** | 5.432 / 3.405 / 2.755 (v2: 4.145 / 2.685 / 2.225) | 9.776 / 4.600 / 3.780 (v2: 7.630 / 3.780 / 3.150) |
+
+Quando cada cenário cruza 500 MB (mês contado de outubro de 2026):
+
+| Canais | **Sem arquivo:** v2 → com E14 → **com E14 e E15** | Com corte de 12 meses: v2 → **com as duas** | Com corte de 6 meses: v2 → **com as duas** |
+|---|---|---|---|
+| 15 (hoje) | 38 → 33 → **mês 30**, abr/2029 | ≈ 61 → **≈ 49** | ≈ 71 → **≈ 60** |
+| 20 | 30 → 26 → **mês 24**, out/2028 | ≈ 46 → **≈ 35** | ≈ 56 → **≈ 46** |
+| 30 | 22 → 19 → **mês 17**, mar/2028 | ≈ 29 → **≈ 18** | ≈ 37 → **≈ 28** |
+| 40 | 17 → 15 → **mês 13**, nov/2027 | ≈ 18 → **≈ 13: cruza antes do primeiro lote** | ≈ 28 → **≈ 19** |
+| 75 | 10 → 8 → **mês 7**, mai/2027 | 10 → **7** | ≈ 14 → **≈ 9** |
+| 200 | 4 → 3 → **mês 3** | 4 → **3** | 4 → **3** |
+
+Como ler:
+
+1. **Juntas, as duas etapas tiram de 4 a 8 meses da folga sem arquivo** nos cenários de 15 a 40 canais (15 canais: de 38 para 30 meses; 20: de 30 para 24). A conclusão de 9.3 se mantém com menos margem: nenhum cenário realista fica abaixo de 9 meses (só a partir de cerca de 60 canais, antes 80), e o que decide o tamanho continua sendo o número de canais.
+2. **O que muda de verdade é o longo prazo com arquivo.** Com corte de 12 meses cabiam, no pico, cerca de 25 canais por três anos e 15 por cinco; passam a caber cerca de **19 por três anos e 12 por cinco**. **Os 15 canais de hoje deixam de caber em cinco anos com corte de 12 meses** (557 MB no mês 60); cabem, no limite, com corte de 6 (498 MB).
+3. **Onde cortar, se for preciso:** a curva hora a hora das 72 horas é a parcela nova mais cara (0,6 MB por canal por ano) e a mais fácil de reduzir (hora a hora só nas primeiras 24 horas e de 2 em 2 depois: cerca de 0,35); o mapa por mês é barato; os comentários dependem do alvo de 12.
+4. Se a estimativa de comentários estiver errada para cima (faixa até 1,8 MB), cada linha perde mais um a dois meses.
+
+**9.4, a tabela de cota refeita.**
+
+- **E14, por canal e dia:** 0,81 unidade dos retratos (98 vídeos × 3 marcos ÷ 365) mais 0,54 da conferência por id nos marcos 7 e 30 (supondo uma chamada por vídeo: linha 14 de 4.6.1) = **1,35**.
+- **E15, por execução e não por canal:** `videos.list` custa 1 unidade por chamada, com até 50 vídeos. Os vídeos de até 14 dias de todos os canais vão juntos: com 3,8 por canal, são 57 vídeos com 15 canais (2 chamadas por hora), 76 com 20 (2), 285 com 75 (6) e 760 com 200 (16). Vezes 24 horas: **48, 48, 144 e 384 unidades por dia**.
+
+| Canais | Cota por dia na v2 | Com a E14 | **Com a E14 e a E15 (padrão proposto)** | Com todas as opções ligadas |
+|---|---|---|---|---|
+| 15 (hoje) | ≈ 240 | ≈ 260 | **≈ 310** | ≈ 820 |
+| 20 | ≈ 320 | ≈ 347 | **≈ 395** | ≈ 1.065 |
+| 75 | ≈ 1.200 | ≈ 1.300 | **≈ 1.445** | ≈ 3.920 |
+| 200 | ≈ 3.200 | ≈ 3.470 | **≈ 3.855** | **≈ 10.440: passa do teto de 10.000** |
+
+O que cada opção soma. Da E14, por canal e dia: respostas completas das conversas escolhidas (pergunta 11), até +2,4; inscritos do autor, opção B (pergunta 9), +1,6; reconferência mensal dos comentários guardados por 12 meses (pergunta 13), ≈ +3,0. Da E15: leitura de 30 em 30 minutos (pergunta 17) dobra a parcela dela (96, 96, 288 e 768 por dia; de 2 em 2 horas, a metade); **descobrir vídeo novo de hora em hora (pergunta 19) é a opção cara: 24 unidades por canal por dia** (360, 480, 1.800 e 4.800). A retroação de comentários (pergunta 12) custa 1.389 unidades uma vez. Se a conferência por id exigir uma chamada por comentário (pior caso da linha 14 de 4.6.1), a parcela de 0,54 vira até 6,4 por canal e dia.
+
+**No padrão proposto a cota continua não sendo o limite em nenhum cenário** (61% de folga com 200 canais). Com todas as opções ligadas ela **passa do teto com 200 canais**; até 75 canais, sobra. O que pesa no dia a dia é o número de chamadas HTTP no relógio de cada cron, e por isso os dois passos têm teto próprio (4.6.4 e 4.7.5).
+
 ## 10. Itens de aceite, por etapa
 
-São 106 itens: 1 a 53 vêm da v1 (dois foram ajustados, o 7 e o 34); 54 a 106 são da v2 (103 a 106 estão junto da E13). Cada item é uma consulta ou uma tela. `:hoje` é a data de São Paulo. Os itens **NP** são os de "nada se perde": rodados no dia seguinte ao deploy e em mais dois dias.
+São 143 itens: 1 a 53 vêm da v1 (dois foram ajustados, o 7 e o 34); 54 a 106 são da v2 (103 a 106 estão junto da E13); 107 a 143 são da emenda v2.1, no fim da seção (E14: 107 a 127; E15: 128 a 143). Cada item é uma consulta ou uma tela. `:hoje` é a data de São Paulo. Os itens **NP** são os de "nada se perde": rodados no dia seguinte ao deploy e em mais dois dias.
 
 **E1: campos, sinalizadores, `raw`**
 1. Depois de uma rodada completa (4 faixas), todo vídeo lido tem `raw` corrente: `select count(*) from competitor_videos v where last_checked_at > now() - interval '1 day' and not exists (select 1 from competitor_raw r where r.video_id = v.id and r.is_current)` = 0.
@@ -1057,6 +1574,48 @@ São 106 itens: 1 a 53 vêm da v1 (dois foram ajustados, o 7 e o 34); 54 a 106 s
 101. **Nenhuma tela virou código sem mockup aprovado:** cada tarefa de tela do plano cita a linha do ledger com a aprovação, e a revisão final da fase confere a lista de telas entregues contra o ledger (o T0 é a única exceção, por ser conserto).
 102. O mockup do "Ver antigo" é um esboço marcado como tal, e nenhuma tarefa de código desta fase depende dele.
 
+**E14: comentários de destaque (emenda v2.1)**
+107. **Antes da migration**, a chamada de leitura de 4.6.1 foi feita pelo dono ou com a autorização dele, e as respostas estão guardadas como fixture e anotadas no ledger: a chave de API basta ou não; quantas respostas vêm em `replies` e em que ordem; `textOriginal` vem ou não; `comments.list?id=` com um id real e um inventado (quantos ids por chamada; o ausente derruba a chamada ou some da lista); o corpo exato do erro `commentsDisabled`. **Se a chave não bastar, a etapa para.**
+108. As perguntas 9 e 10 têm resposta do dono registrada no arquivo de decisões **antes** de qualquer comentário ser gravado em produção; a 14 tem resposta antes de a fila mostrar comentários.
+109. Seleção reproduzível: a mesma resposta fixa da API, com a ordem dos itens embaralhada dentro do mesmo `likeCount`, dá a mesma lista de escolhidos (teste da função pura); bordas: empate em curtidas, lote de 5, lote de 100, nenhum com o criador, mais de 4 com o criador, comentário que é o mais curtido **e** tem resposta do criador (entra uma vez, com os dois sinalizadores).
+110. `criador_respondeu`: `sim` com resposta do canal do vídeo entre as vistas; `não` só quando o número de respostas vistas é igual a `totalReplyCount`; nulo ("não se sabe") quando vieram menos e nenhuma é dele (teste com as três respostas fixas). Nenhuma tela escreve "não respondeu" para o nulo.
+111. Estados: resposta fixa com erro `commentsDisabled` grava `desligados`; 200 com zero conversas e `commentCount` 0 grava `sem_comentarios`; **200 com zero conversas e `commentCount` 57 grava `erro`**, não `sem_comentarios`; falha de rede grava `erro` e tenta de novo dentro da tolerância; vídeo sem retrato lê como "não coletado" com motivo (teste do leitor com o banco **sem nenhuma linha** das três tabelas).
+112. Tolerância: vídeo descoberto com 12 dias não ganha os retratos 1 e 7 e ganha o 30; retrato do marco 7 nunca é gravado com idade maior que 10 dias (teste com relógio falso).
+113. **Identidade só nas três colunas e só de quem não é o criador:** as colunas de autor de `competitor_video_comments` são exatamente `author_display_name`, `author_channel_id`, `author_avatar_url`, `author_expires_at` e `author_purged_at` (consulta em `information_schema.columns`); `select count(*) from competitor_video_comments where is_creator and (author_display_name is not null or author_channel_id is not null or author_avatar_url is not null)` = 0; nenhum arquivo de foto de autor existe no Blob (nenhum caminho novo sob `observatorio/`).
+114. A resposta bruta da API e o lote de 100 não são gravados em lugar nenhum: `competitor_raw` não ganha linha na coleta de comentários (contagem igual antes e depois), e nenhum log da execução contém o texto sentinela.
+115. Só respostas do criador são gravadas: `select count(*) from competitor_video_comments where parent_id is not null and not is_creator` = 0; no máximo 3 por conversa.
+116. Texto com mais de 2.000 caracteres é cortado e marcado; texto com emoji, quebra de linha, HTML e um `<script>` é gravado como texto puro e aparece na tela como texto (teste do componente em `// @vitest-environment jsdom`; nenhum endereço vira link).
+117. RLS: papel sem `can_edit_site` não lê `competitor_video_comments` nem `competitor_video_comment_marks`, com o GUC `app.site_id` forjado por papel sem superusuário; lê `competitor_video_comment_snaps` só com `can_view_site`. Usuário só de leitura não recebe o texto no HTML nem no RSC, e a tela diz que há texto que ele não vê.
+118. Comentário que deixa de vir: ausente do lote **e** da conferência por id ganha `missing_since` e aparece na fila agrupado por vídeo; presente só na conferência por id tem as curtidas atualizadas e `relevance_rank` nulo; marcar **não apaga nada**. "Apagar" na fila remove a linha e as leituras, deixa só o id em `competitor_removed_items`, e o texto some de toda tela no mesmo instante. (Se a pergunta 14 escolher apagar sozinho: o item passa a ser "o texto é apagado na mesma execução e resta só o id", com teste.)
+119. Nenhuma resposta de endpoint do pipeline (Cowork e forja) nem pacote da forja contém o comentário sentinela (teste que varre as respostas).
+120. Apagar um vídeo (4.5) ou remover um canal leva os comentários: `competitor_channel_removal_impact` conta as três tabelas, e depois da remoção `select count(*)` nas três para o canal = 0.
+121. Cota e relógio: `youtube_quota_usage.operations` traz o total do modo `comentarios` por dia; a execução que bate no teto registra quantos retratos ficaram para trás e eles entram primeiro na seguinte (teste que conta as chamadas); o tempo do passo com 75 canais simulados está anotado.
+122. **Uma semana depois do deploy**, o tamanho real das três tabelas e as unidades reais por canal e dia estão anotados e comparados com 9.5 (≈ 1,3 MB por canal por ano; 1,35 unidade por canal por dia); se a diferença passar de 30%, 9.5 é corrigida.
+123. **NP-E14:** todo vídeo que fez 1, 7 ou 30 dias ontem tem o retrato do marco: `select count(*) from competitor_videos v where missing_since is null and discovered_at > '<deploy>' and published_at::date = :hoje - (1 + N) and not exists (select 1 from competitor_video_comment_snaps s where s.video_id = v.id and s.mark = N)` = 0 para N = 1, 7 e 30 (o vídeo descoberto depois da tolerância fica fora, com o motivo).
+124. M11 e M12: testes de borda (menos de 5 vídeos; curtidas do vídeo ocultas; retrato `desligados`; exatamente 10 vídeos para o percentual), e o texto de M11 em tela diz "não vimos resposta", nunca "não respondeu".
+
+125. **Não existe identidade de autor com mais de 28 dias** (a prova, rodada todo dia e em todo aceite): `select count(*) from competitor_video_comments where (author_display_name is not null or author_channel_id is not null or author_avatar_url is not null) and first_seen_at < now() - interval '29 days'` = 0. O dia a mais é o ciclo da rotina diária: a identidade vence aos 28 dias e é apagada, no máximo, 24 horas depois, sempre antes dos 30. E `select count(*) … where author_expires_at is distinct from first_seen_at + interval '28 days' and author_purged_at is null and not is_creator` = 0 (o prazo nunca foi renovado).
+126. A rotina é idempotente e não regrava: rodada duas vezes seguidas, a segunda altera 0 linhas; um comentário com `author_purged_at` que volta no lote do marco 30 continua com as três colunas nulas (teste com relógio falso); depois de anular, `is_creator`, `creator_replied`, `featured_reason` e `featured_channel_id` são iguais aos de antes (teste que compara a linha antes e depois).
+127. **A rotina falha em vermelho:** com a rotina desligada num teste (a chamada removida do cron), no segundo dia `cron_health` marca falha para `competitor-comment-identity`, o passo de comentários devolve `status: 'error'` e **não coleta**, e o cabeçalho mostra "identidade de autores vencida e não apagada: N"; teste que **apaga** a linha de `cron_health` e afirma que o estado é "sem leitura", nunca verde. O leitor de tela não devolve identidade vencida mesmo com a rotina parada. O export de um canal não contém nome, id nem URL de foto de autor (teste com sentinelas na semente).
+
+**E15: ritmo por hora (emenda v2.1)**
+128. **NP-E15:** todo vídeo da lista horária tem leitura em pelo menos 22 das últimas 24 horas: `select count(*) from competitor_videos v where missing_since is null and published_at > now() - interval '13 days' and published_at < now() - interval '1 day' and (select count(*) from competitor_video_hourly h where h.video_id = v.id and h.hour_slot > now() - interval '24 hours') < 22` = 0 (fora os vídeos cortados pelo teto, que a execução lista).
+129. A lista: vídeo com 15 dias não é lido; canal com 40 vídeos em 14 dias tem 25 lidos e a execução registra 15 fora; ao vivo em andamento fica fora; os canais do dono estão na lista (teste da função que monta a lista).
+130. As chamadas juntam vídeos de canais diferentes: com 57 vídeos de 15 canais a execução faz 2 chamadas, não 15 (teste que conta as chamadas).
+131. Duas execuções na mesma hora gravam uma leitura só por vídeo (teste que chama duas vezes).
+132. Intervalo limpo × longo: 50 e 70 minutos são limpos, 49 e 71 não; começo a 6 minutos da hora cheia não é limpo; um buraco de 2 horas **não é dividido**: nenhuma casa recebe a diferença, `long_intervals` sobe 1 e `long_likes` recebe o valor (teste com leituras fixas).
+133. Contador que diminui: a diferença negativa não entra em nenhuma casa, **não vira zero** (a casa da hora seguinte não a absorve), sobe `neg_*_n` e soma em `neg_*_sum`; a curva de 72 horas guarda o contador como veio; o dia fica fora da fatia daquele contador.
+134. A soma é idempotente: `competitor_hour_fold` chamada duas vezes para o mesmo dia deixa os vetores iguais; leitura crua de dia sem registro nunca é apagada (teste que desliga a soma por dois dias: as leituras continuam lá, e a execução devolve quantas esperam).
+135. A fatia: para todo mapa medido, a soma de p(h) nas 24 horas é 1 (±0,001); dia com intervalo longo ou abaixo do movimento mínimo não entra; **um vídeo com cem vezes mais curtidas que os outros muda o perfil no peso de um dia de vídeo, não de cem** (teste com dados fixos).
+136. Fases: leitura de vídeo com 2 dias vai para "lancamento"; com 5 dias, para "depois"; nenhuma leitura entra nas duas; nenhuma tela soma as duas.
+137. Zero × não medido: casa com `n_intervals = 0` lê como "sem leitura nesta hora", casa com intervalos e soma 0 lê como zero medido; com o banco **sem nenhuma linha** das tabelas novas, M13 e M14 devolvem `nao_medido` com motivo e a data de início.
+138. M13 e M14: testes de borda (exatamente 28 dias de vídeo e 3 vídeos; 27 e 2 são não medido; exatamente 20% de horas sem leitura); a comparação de duas janelas devolve a razão e as duas bases; M14 exclui vídeo descoberto com mais de 6 horas e diz quantos.
+139. Armazenamento: `select count(*) from competitor_video_hourly where hour_slot < now() - interval '4 days'` = 0 em todo dia; trinta dias depois do deploy, o tamanho das três tabelas novas e de `competitor_video_early` está anotado e comparado com 9.5 (≈ 0,85 MB por canal por ano); diferença acima de 30% corrige 9.5. O item 16 da E2 passa a exigir pelo menos 60 leituras em 72 horas para vídeo descoberto com menos de 24 horas.
+140. **A medição que decide o que se mostra, 14 dias depois do deploy,** anotada no ledger: para cada contador, a proporção de intervalos de 1 hora com diferença zero seguidos de salto, por faixa de tamanho de vídeo; de quanto em quanto tempo cada contador de fato anda; e se duas leituras com 5 minutos de distância devolvem o mesmo número (cache). Com ela o dono decide se o mapa de views por hora é mostrado, e se 30 minutos ou 2 horas servem melhor (pergunta 17).
+141. Infra: `apps/web/vercel.json` tem exatamente uma linha nova (`sync-youtube?mode=hourly`, `0 * * * *`); `select count(*) from cron.job where command ilike '%mode=hourly%'` = 0 (nenhum job de `pg_cron`); a rota responde ao `GET` com o segredo do cron; a trava usada é a do banco (`cron_try_lock`), provada por teste que dispara duas execuções simultâneas; chamar a rota **sem** `mode` e com os modos antigos devolve o mesmo de antes (teste).
+142. **Falha em vermelho:** `cron_health` tem a chave `sync-youtube-hourly`; duas horas sem sucesso é falha na rota de saúde; teste que **apaga** a linha e afirma "sem leitura", nunca verde; a tela do mapa mostra "lidas N de M horas" e, com o cron parado em teste, mostra a falta. `youtube_quota_usage.operations` traz o modo `horario`, e a duração da execução com 75 canais simulados está anotada.
+143. RLS das três tabelas com o GUC forjado; `competitor_channel_removal_impact` conta as três; remover um canal zera as três para ele; o mapa foi visto em navegador, com mockup 21 aprovado antes, nos casos cheio, magro e "não medido", a 1440 e 390 px, nos dois temas.
+
 ## 11. Riscos
 
 ### 11.1 Riscos aceitos pelo dono
@@ -1078,6 +1637,8 @@ São 106 itens: 1 a 53 vêm da v1 (dois foram ajustados, o 7 e o 34); 54 a 106 s
 
 **O arquivo fora do banco.** Exportar o dado de concorrentes e guardá-lo no NAS por anos é a mesma retenção além de 30 dias, em outro lugar: não muda o risco para melhor nem para pior, e continua sendo dado que não sai da casa do dono. O que muda é o dever de apagar: uma decisão de "apagar" (4.5) ou uma revogação alcançam também o arquivo, e lá só o dono escreve.
 
+> **Emenda v2.1:** o "seguir" do dono acima foi dado para estatística e metadado público de canal e de vídeo. O ritmo por hora (E15) é estatística pública e entra nele (risco 25). **O texto de comentários de terceiros (E14) é outra coisa:** o dono decidiu o desenho de minimização (identidade apagada aos 28 dias), e os limites dele estão em 11.2, itens 19 a 23; o risco 20 espera a confirmação da pergunta 14.
+
 ### 11.2 Riscos abertos
 
 1. **Plano gratuito × número de canais** (9.3): com 15 a 20 canais há anos de folga; a partir de 25 a 30 o sinal de limite passa a mandar. O arquivo desacelera o crescimento, não o zera.
@@ -1098,6 +1659,16 @@ São 106 itens: 1 a 53 vêm da v1 (dois foram ajustados, o 7 e o 34); 54 a 106 s
 16. **Duas coisas de 7.3 não estão confirmadas** e mudam o desenho: se a API dá país por dia numa consulta, e se o relatório em lote traz o termo pesquisado. Se a segunda for "não", os termos por dia **não existem em lugar nenhum** e a família fica só com os 25 maiores por período; a tela diria isso.
 17. **Limiar do YouTube no canal pequeno:** com 36 views em 90 dias, quase toda origem e todo termo ficam abaixo do limiar e são omitidos. A E11 pode entregar tabelas quase vazias para o canal de hoje; o valor está no histórico e no dia em que o canal crescer.
 18. **Relógio do cron do canal próprio:** hoje 200 s de tetos em 270 s; o passo novo e a retenção disputam o que sobra. O plano refaz a soma antes de ligar.
+
+19. **(v2.1) Texto de comentário é dado pessoal de terceiros; apagar o nome aos 28 dias é pseudonimização, não anonimização.** O dono decidiu o desenho de minimização em 12/10 (4.6.6): nome, id do canal e foto do autor ficam 28 dias e são apagados; o texto fica. **O limite, dito sem suavizar:** (a) o texto continua podendo identificar quem o escreveu: o comentário segue público no YouTube, com o nome ao lado, e é localizável copiando uma frase na busca; o id do comentário, que fica guardado para conferir se ele ainda existe, leva direto a ele. Depois dos 28 dias o Observatório não **mostra** de quem foi, mas quem tiver o texto consegue descobrir. (b) O texto pode trazer dado sensível (saúde, religião, opinião política), nome de terceiros, telefone, e fala de menor de idade; nada disso é filtrado. (c) O comentarista não sabe que o texto foi guardado e não tem canal para pedir que seja apagado (o aparato de LGPD do site atende os usuários do site, não estas pessoas). (d) O texto fica sem prazo e vai para o arquivo no NAS (sem as colunas de identidade). (e) Durante os 28 dias, nome, foto e id de pessoas comuns estão no banco. **O que o desenho faz:** 12 por vídeo e não todos; identidade com prazo curto, rotina idempotente que falha em vermelho, e uma consulta que prova que não há identidade vencida (item 125); sem respostas de terceiros; sem o lote bruto; texto só para quem edita o site; nada em pacote de IA; nada público. Registrado como **desenho de minimização decidido pelo dono, sem parecer jurídico**: este spec não afirma que ele basta para a LGPD (a base que caberia é o legítimo interesse, art. 7º, IX, e o art. 7º, § 4º dispensa consentimento para dado tornado público pelo titular sem dispensar finalidade, necessidade e os direitos dele; a exceção de uso "exclusivamente particular e não econômico" do art. 4º, I provavelmente não vale para um painel que serve a um canal monetizado). **Comentário que o autor apagou no YouTube:** conferido nos marcos de coleta e levado à fila do dono (4.6.7); enquanto ele não responde, o texto de alguém que quis tirá-lo do ar continua guardado (pergunta 14).
+20. **(v2.1) A regra dos 30 dias, agora com conteúdo gerado por usuário.** O dono aceitou guardar além de 30 dias **estatística e metadado público** de canal e de vídeo (11.1). Comentário é outra coisa: é conteúdo escrito por terceiros, "Non-Authorized Data" do mesmo jeito (III.E.4.d: apagar ou atualizar em 30 dias), e III.E.4.e pede que o guardado seja coerente com o que o YouTube mostra hoje. A página de políticas lida em 12/10 **não tem frase específica sobre comentários**; tem, nos princípios (II.4), "Don't store user data indefinitely". Guardar por anos o texto de um comentário que o autor já apagou é o caso mais exposto de todo o spec, mais que o vídeo removido de 11.1. O que pesa a favor continua sendo o de 11.1 (cota padrão, sem pedido de aumento, nada redistribuído), e nada disso é conformidade.
+21. **(v2.1) Depois do marco 30 ninguém confere se o comentário ainda existe.** Um comentário apagado no dia 45 fica guardado como se existisse, para sempre, e a fila nunca o mostra. A reconferência mensal (pergunta 13) fecha isso ao custo de cerca de 3 unidades por canal por dia. Sem ela, a tela escreve em cada comentário "conferido pela última vez em dd/mm".
+22. **(v2.1) A amostra pode enganar.** "Mais curtidos" é "os mais curtidos entre os 100 que o YouTube pôs na frente", por um critério que ele não publica; 12 comentários não representam o público (quem comenta é uma fração de quem assiste, e os mais curtidos tendem ao elogio, à piada e à polêmica). "O criador não respondeu" nunca é afirmável (respostas cortadas). M11 é um piso. Mitigação: a amostra dita no topo de toda tela, o ⓘ, e nenhuma frase de tela que generalize ("o público achou…").
+23. **(v2.1) Texto de desconhecidos dentro do painel.** Conteúdo ofensivo aparece como veio; endereço e HTML dentro do texto nunca são executados nem viram link (item 116); e, se um dia o texto for lido por IA, é dado e não instrução (4.6.8). O critério "canal verificado" do dono **não é atendido** por nenhuma opção: as quatro da pergunta 9 são substitutos, e a tela não pode usar a palavra.
+
+24. **(v2.1) O mapa de horas pode ser lido como "a hora em que as pessoas curtem".** Ele mostra quando o contador público mudou, lido de hora em hora, de vídeos de até 14 dias, em horário de São Paulo (4.7.6). Se o YouTube atualizar os contadores em lotes de várias horas, **a etapa entrega um mapa que não se deve mostrar**, e isso só se sabe depois de 14 dias de leitura (item 140). O pedido do dono pode ter como resposta honesta "para curtidas, sim, com esta margem; para views, não". Mitigação: o texto fixo no corpo, a cobertura à vista, a fase "depois" separada do lançamento, a fatia no lugar da soma, e a regra de não mostrar o contador que anda em degraus.
+25. **(v2.1) Leitura 24 vezes por dia e mais uma medida derivada guardada sem prazo.** O mapa é dado derivado de contagens de terceiros (III.E.4.h) e fica guardado além de 30 dias, como as séries: entra no risco de 11.1 sem mudá-lo de natureza, mas aumenta a frequência de leitura do projeto. A cota fica longe do teto no padrão (9.5); a opção de descoberta horária é a única que a aproxima dele.
+26. **(v2.1) Mais um cron, de hora em hora.** É o 50º do projeto na Vercel. Os riscos conhecidos: agendar em dois lugares (não se cria job de `pg_cron`; item 141); a trava em memória de `src/lib/logger.ts`, que não protege entre instâncias (o plano usa a do banco); e execução pulada, que vira buraco medido e não erro escondido. A E15 também muda a E2: as primeiras 72 horas passam a ter 24 leituras por dia, e a tabela `competitor_video_early` cresce seis vezes (9.5).
 
 ## 12. Fora do escopo, registrado (para o dono poder reabrir)
 
@@ -1133,11 +1704,29 @@ Já respondidas e fora da lista: o plano do banco (gratuito); a triagem (aprovad
 7. **Buscar o catálogo inteiro dos canais (6.089 vídeos, hoje 1.389 guardados)?** Padrão: não; a série semanal cobre só o que já está guardado. Trava: o volume (quadruplica a parcela que mais cresce, 9.3).
 8. **Como o site vai alcançar o NAS para o "Ver antigo"?** Recomendação: a casa puxa, como a forja (opção A de 9.2). Trava: nada desta fase; é a primeira decisão do spec da fase de manutenção.
 
-Padrões assumidos sem pergunta (o dono troca se quiser): as miniaturas continuam em URL pública no Blob; as sondas de Short ficam como estão; a retenção é coletada só para o público orgânico; país e inscrito são gravados por vídeo (não só por canal); o nome de tela de M10 fecha no mockup; M10, a retenção, os termos de pesquisa e os sites externos não vão para o Cowork nem para a forja.
+**Perguntas da emenda v2.1 (comentários de destaque, 4.6).** As de número 9 e 10 travam a migration MG8; as outras têm padrão e não travam; a 15 já foi respondida.
+
+9. **"Canal verificado" não existe na API. Qual substituto?** (4.6.2) **A:** o autor é um canal que o Observatório acompanha (custo zero, nenhum dado novo de terceiros, raro). **B:** o autor tem muitos inscritos (até 2 unidades por vídeo e marco; busca o número de inscritos de até 100 pessoas por vídeo; precisa de um limiar). **C:** A, mais B só para os autores dos 20 mais curtidos. **D:** abandonar o critério e dar as vagas aos mais curtidos. O spec não escolhe; a regra está escrita com a vaga vazia (igual a D) e o custo contado com A. Trava: o significado de `featured_reason` e a frase da tela.
+10. **A divisão dos 12.** Proposta: até 4 "com o criador" (ele escreveu ou respondeu), até 2 "autor de destaque" (conforme a 9), e o resto "mais curtidos" (no mínimo 6; vaga que sobra vem para cá). O dono deu os critérios, não os números. E o alvo fica em 12? Trava: os parâmetros da regra.
+11. **Gastar cota para saber com certeza se o criador respondeu?** A API devolve só parte das respostas de uma conversa. Padrão: **não** (0 chamada a mais; onde as respostas vieram cortadas a tela diz "não se sabe"). Alternativa: até 3 chamadas a mais por vídeo e marco, para as conversas mais curtidas com respostas cortadas (até +2,4 unidades por canal por dia). Trava: nada.
+12. **Alcance: Shorts entram? E os 1.389 vídeos já guardados ganham um retrato de hoje?** Padrão: Shorts **sim**, com a mesma regra (são 61% dos vídeos); retroação **não** (só vídeos que fizerem 1, 7 ou 30 dias depois do deploy). A retroação custa 1.389 unidades uma vez e cerca de 0,6 MB por canal, e daria comentários para ler já na primeira semana, em vez de só dos vídeos novos. Trava: nada.
+13. **Reconferir todo mês se os comentários guardados ainda existem?** Padrão: **não** (conferência só nos marcos 7 e 30; risco 21). Alternativa: uma conferência a cada 30 dias, por 12 meses depois da publicação do vídeo (cerca de +3 unidades por canal por dia). **O autor deste spec recomenda a alternativa** se a resposta à 14 for "guardar": é o que mantém a fila fiel ao que o YouTube mostra. Trava: nada.
+14. **O que fazer quando um comentário deixa de vir do YouTube?** (i) vai para a fila "Saíram do YouTube", agrupado por vídeo, e fica guardado até você decidir, como os vídeos (é o padrão proposto em 4.6.7, por ser a regra que você deu); ou (ii) **o texto é apagado sozinho**, sem pergunta, e fica só o registro de que existiu. O argumento de (ii): o vídeo removido é obra pública de um criador que você estuda; o comentário apagado é de uma pessoa comum que quis tirá-lo do ar, e o risco 19 mostra que tirar o nome não o torna anônimo. Junto: confirmar que o risco 20 (regra dos 30 dias com conteúdo de usuário) entra no "seguir" de 11.1. Padrão: (i). Trava: o item de aceite 118 e o mockup 10.
+15. **Respondida em 12/10:** nome, id do canal e foto do autor ficam 28 dias e são apagados; o texto fica (4.6.6). O prazo é o parâmetro `commentsIdentityDays`.
+16. **Leitura do texto por IA (tema, tom, pedido)?** Não é desta fase. Fica registrada como opção (4.6.8), com a diferença entre a forja (modelo local, o texto não sai de casa) e o Cowork (modelo na nuvem). Padrão: nenhum texto de comentário em pacote nenhum. Trava: nada.
+
+**Perguntas da emenda v2.1 (ritmo por hora, 4.7).** Nenhuma trava a migration MG9; todas têm padrão.
+
+17. **De quanto em quanto tempo ler?** Padrão: **1 hora**. 30 minutos dobra a cota da etapa e a curva de 72 horas (mais 0,75 MB por canal por ano) e só rende se o contador andar mais de uma vez por hora; 2 horas corta os dois pela metade e ainda responde "21 às 23 contra 3 às 5", mas borra a curva de lançamento. Sugestão: começar em 1 hora e decidir com a medição do item 140.
+18. **Mapa por mês ou por semana?** Padrão: **mês** (0,25 MB por canal por ano). Por semana custa cerca de 1,1 MB e cada casa teria uma amostra só.
+19. **Descobrir vídeo novo de hora em hora?** Padrão: **não** (a descoberta segue a de hoje, até 6 horas depois da publicação, e a curva de lançamento começa aí). Sim custa 24 unidades por canal por dia (360 com 15 canais, 1.800 com 75) e faria a curva começar na primeira hora, que é onde ela mais informa.
+20. **Limiares e janela.** Vídeos de até 14 dias, até 25 por canal; fatia só com 200 views, 20 curtidas ou 10 comentários no dia; mapa medido com 28 dias de vídeo e 3 vídeos; hora a hora por 72 horas (reduzir para 24 horas economiza cerca de 0,25 MB por canal por ano). Padrão: esses, conferidos contra os dados reais depois de 14 dias. Cada um é um número em `rules.ts`.
+
+Padrões assumidos sem pergunta (o dono troca se quiser): as miniaturas continuam em URL pública no Blob; as sondas de Short ficam como estão; a retenção é coletada só para o público orgânico; país e inscrito são gravados por vídeo (não só por canal); o nome de tela de M10 fecha no mockup; M10, a retenção, os termos de pesquisa e os sites externos não vão para o Cowork nem para a forja; **(v2.1)** comentários são lidos nas idades 1, 7 e 30 dias do vídeo, o texto é cortado em 2.000 caracteres, só as respostas do criador são guardadas (até 3 por conversa), e o texto só é visto por quem edita o site; a foto do autor é guardada como URL, sem cópia; no ritmo por hora, diferença negativa fica fora do mapa e é contada à parte, intervalo com buraco nunca é dividido, o mapa é em horário de São Paulo, e os canais do dono entram como canais acompanhados para serem lidos pela mesma amostragem.
 
 ## 14. Sequência proposta
 
-**Treze etapas** (E1 a E13). A lógica da ordem: **primeiro o que para de perder dado**, depois o resto da coleta, depois os mockups, e só então código de tela. Cada etapa vai à produção sozinha, com CI verde; push e promoção são do agente; migration e qualquer comando em produção são do dono; nenhuma escrita na forja nem no NAS. A fase de manutenção (NAS) e o TikTok são specs à parte (12.2).
+**Quinze etapas** (E1 a E15; a E14 e a E15 são a emenda v2.1). A lógica da ordem: **primeiro o que para de perder dado**, depois o resto da coleta, depois os mockups, e só então código de tela. Cada etapa vai à produção sozinha, com CI verde; push e promoção são do agente; migration e qualquer comando em produção são do dono; nenhuma escrita na forja nem no NAS. A fase de manutenção (NAS) e o TikTok são specs à parte (12.2).
 
 | Ordem | Etapa | Migration | Espera mockup? | Depende de |
 |---|---|---|---|---|
@@ -1145,6 +1734,8 @@ Padrões assumidos sem pergunta (o dono troca se quiser): as miniaturas continua
 | 2 | **E6 (P1 e P2): dieta, parte aditiva** | sim (cobertura, já com os conjuntos da E11) | não | nada |
 | 3 | **E1: campos, sinalizadores, `raw`, e a marcação do que saiu do YouTube** | sim (MG1) | não | nada (a triagem está aprovada) |
 | 4 | **E2: série** | sim (MG2) | não | E1 (reusa o escritor) |
+| 4b | **E14: comentários de destaque** (4.6): primeiro a chamada de leitura (item 107), depois a coleta, já com a rotina que apaga a identidade aos 28 dias | sim (MG8) | só a tela (mockup 20) | E1 (o sinalizador de comentários desligados, `discovered_at`, o registro de cota) e E2 (o passo diário e as idades); **as respostas às perguntas 9 e 10**. Perde dado todo dia (o retrato de 1, 7 e 30 dias de cada vídeo novo não volta). As medidas M11 e M12 entram com a E4 |
+| 4c | **E15: ritmo por hora** (4.7): leitura horária, curva de 72 horas, mapa por mês | sim (MG9) | só a tela (mockup 21) | E2 (a tabela das primeiras horas e a lista de vídeos com idade). **Perde dado todo dia** e não depende de resposta do dono: pode ir logo depois da E2. O que se mostra só é decidido depois de 14 dias de leitura (item 140). As medidas M13 e M14 entram com a E4 |
 | 5 | **E8: coleta e leitor da retenção** | sim (MG5) | só a tela (mockup 11) | a conferência de leitura. **No caso B sobe para junto da ordem 2** |
 | 6 | **E11: canal próprio em tabelas** (normalizadores, coleta diária, retroação) | sim (MG7) | só as telas (mockup 12) | as conferências; E6 P1 (a tabela de cobertura); o bruto da E12 |
 | 7 | **E6 (P3): apagar as linhas vazias**, com o dono | sim | não | 3 execuções limpas de P2 |
@@ -1159,7 +1750,7 @@ Padrões assumidos sem pergunta (o dono troca se quiser): as miniaturas continua
 
 **O que a ordem protege.** O que vence: a E12 não tem migration nem desenho e é a primeira. A folga de espaço **não manda mais na ordem**: o dono pretende fazer a fase de manutenção na semana que vem, e mesmo sem ela nenhum cenário realista cruza 500 MB antes de 17 meses (9.3). A dieta continua nesta fase e cedo, porque é o que mantém as telas da A4 leves e porque a tabela de cobertura dela é reusada pela E11.
 
-**Podem ser planejadas e executadas já, sem esperar desenho:** toda a coleta (E12, E1, E2, E3, E8 e E11, sem as telas), as medidas como modelo puro e as marcas (E4), a dieta do diário (E6), o export com o sinal de limite (E10), a parte de servidor da E9 (marcar, apagar, registrar), o Cowork (E7) e o T0. A ordem entre E1 e E2 segue "o que se perde por dia": as duas perdem todo dia; a E1 vem antes por custar zero de cota, ser só acréscimo e dar à E2 o escritor de `raw` que a passada semanal usa. As duas cabem na mesma semana.
+**Podem ser planejadas e executadas já, sem esperar desenho:** toda a coleta (E12, E1, E2, E3, E8 e E11, sem as telas; a E14 e a E15 também não esperam desenho; a E14 espera as respostas do dono às perguntas 9 e 10), as medidas como modelo puro e as marcas (E4), a dieta do diário (E6), o export com o sinal de limite (E10), a parte de servidor da E9 (marcar, apagar, registrar), o Cowork (E7) e o T0. A ordem entre E1 e E2 segue "o que se perde por dia": as duas perdem todo dia; a E1 vem antes por custar zero de cota, ser só acréscimo e dar à E2 o escritor de `raw` que a passada semanal usa. As duas cabem na mesma semana.
 
 **Esperam mockup aprovado (E13):** toda a E5 menos o T0, a tela da fila (E9), a seção de retenção com dado real (E8), as seções do canal próprio (E11) e o aviso de limite na tela (E10). Os 9 mockups de 12/10 aguardam aprovação; faltam os de 10 a 19, na ordem de 6.5. A skill `frontend-design` faz todos; o `revisor-ux-senior` cobra cada um antes do dono, inclusive os 9 que já existem; o dono aprova um por vez; o "Ver antigo" é só esboço.
 
