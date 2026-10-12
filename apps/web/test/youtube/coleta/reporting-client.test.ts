@@ -1,5 +1,7 @@
 // @vitest-environment node
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
+import { createServer, type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { createHash } from 'node:crypto'
 import { gzipSync, gunzipSync } from 'node:zlib'
 import { criarReportingClient, classificarErro, empacotarCsv, paraBytea, deBytea, REPORTING_BASE, MAX_GZ_BYTES, MAX_CSV_BYTES } from '@/lib/youtube/reporting/client'
@@ -256,8 +258,9 @@ describe('download: tetos de tamanho (comprimido no fio, descomprimido na memór
     const { estado, res } = corpo(3, MB, { 'content-length': String(MAX_GZ_BYTES + 1) })
     const e = await baixar(res).catch(x => x)
     expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
-    expect(e).toMatchObject({ lado: 'comprimido', bytes: MAX_GZ_BYTES + 1 })
-    expect(e.detalhe).toContain(`${MAX_GZ_BYTES + 1} bytes comprimidos`)
+    expect(e).toMatchObject({ lado: 'corpo', bytes: MAX_GZ_BYTES + 1 })
+    expect(e.detalhe).toContain(`${MAX_GZ_BYTES + 1} bytes`)
+    expect(e.detalhe).toContain('Content-Length')
     expect(estado.cancelado).toBe(true)
     expect(estado.puxados).toBeLessThanOrEqual(1) // o ReadableStream puxa 1 vez ao nascer; nenhum pedaço foi lido por nós
     expect(classificarErro(e)).toBe('outro')
@@ -267,10 +270,10 @@ describe('download: tetos de tamanho (comprimido no fio, descomprimido na memór
     const { estado, res } = corpo(200, MB) // 200 MB se fosse lido inteiro
     const e = await baixar(res).catch(x => x)
     expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
-    expect(e).toMatchObject({ lado: 'comprimido' })
+    expect(e).toMatchObject({ lado: 'corpo' })
     expect(e.bytes).toBeGreaterThan(MAX_GZ_BYTES)
     expect(e.bytes).toBeLessThanOrEqual(MAX_GZ_BYTES + 2 * MB)
-    expect(e.detalhe).toContain('sem Content-Length')
+    expect(e.detalhe).toContain('lidos do corpo')
     expect(estado.cancelado).toBe(true)
     expect(estado.puxados).toBeLessThan(20)
   })
@@ -286,7 +289,7 @@ describe('download: tetos de tamanho (comprimido no fio, descomprimido na memór
     const e = await baixar(new Response(bomba)).catch(x => x)
     expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
     expect(e).toMatchObject({ lado: 'descomprimido', bytes: bomba.length })
-    expect(e.detalhe).toContain(`${bomba.length} bytes comprimidos`)
+    expect(e.detalhe).toContain(`${bomba.length} bytes de .gz`)
     expect(e.detalhe).toContain(`${MAX_CSV_BYTES}`)
     expect((e as { code?: string }).code).toBeUndefined() // não é erro Z_ do zlib: não pode cair em gzip_invalido
     expect(classificarErro(e)).toBe('outro')
@@ -329,5 +332,82 @@ describe('download: tetos de tamanho (comprimido no fio, descomprimido na memór
     })
     const e = await baixar(new Response(stream)).catch(x => x)
     expect(e).toMatchObject({ name: 'TimeoutError' })
+  })
+})
+
+// O fetch real (undici) descomprime sozinho o gzip de TRANSPORTE (`Content-Encoding: gzip`): o corpo que chega a
+// `lerCorpoLimitado` já é o CSV puro, e o `Content-Length` é o do fio (comprimido). Isso é diferente do arquivo .gz do relatório.
+// Estes testes usam um servidor local e o fetch de verdade para provar o que cada teto mede.
+describe('download com Content-Encoding: o que cada teto mede de fato', () => {
+  const MB = 1024 * 1024
+  const URL_GOOGLE = 'https://youtubereporting.googleapis.com/v1/media/x?alt=media'
+  let servidor: Server
+  let porta = 0
+  let resposta: { corpo: Buffer; headers: Record<string, string> } = { corpo: Buffer.alloc(0), headers: {} }
+
+  beforeAll(async () => {
+    servidor = createServer((_req, res) => {
+      res.writeHead(200, { ...resposta.headers, 'content-length': String(resposta.corpo.length) })
+      res.end(resposta.corpo)
+    })
+    await new Promise<void>(ok => servidor.listen(0, '127.0.0.1', ok))
+    porta = (servidor.address() as AddressInfo).port
+  })
+  afterAll(async () => {
+    await new Promise<void>(ok => servidor.close(() => ok()))
+  })
+
+  const servir = (corpo: Buffer, headers: Record<string, string>) => { resposta = { corpo, headers } }
+  const baixarReal = () => criarReportingClient('tok', ((_url: string, init?: RequestInit) => fetch(`http://127.0.0.1:${porta}/r`, init)) as unknown as typeof fetch).download(URL_GOOGLE)
+  /** CSV compressível de ~`mb` MB (muito mais que o corpo no fio). */
+  const csvDe = (mb: number) => {
+    const linha = '20261005,abcdefghijk,100\n'
+    return Buffer.concat([Buffer.from('date,video_id,views\n'), Buffer.from(linha.repeat(Math.ceil((mb * MB) / linha.length)))])
+  }
+
+  it('gzip de transporte: o fetch entrega o CSV PURO; o teto de leitura mede o CSV já descomprimido, não o gzip do fio', async () => {
+    const csv = csvDe(1.5) // 1,5 MB de CSV, abaixo do teto de 2 MB
+    const fio = gzipSync(csv, { level: 1 }) // nível diferente do padrão: se o fetch NÃO descomprimisse, p.gz seria exatamente isto
+    expect(fio.length).toBeLessThan(0.1 * MB)
+    servir(fio, { 'content-encoding': 'gzip' })
+    const p = await baixarReal()
+    expect(p.sha256).toBe(createHash('sha256').update(csv).digest('hex')) // o hash é do CSV, não do gzip do fio
+    expect(p.rowCount).toBe(csv.toString().split('\n').filter(l => l.length > 0).length - 1)
+    expect(gunzipSync(p.gz).equals(csv)).toBe(true) // o gz guardado é o que o nosso código fez do CSV puro
+    expect(p.gz.equals(fio)).toBe(false)
+  })
+
+  it('gzip de transporte pequeno no fio mas CSV acima do teto: a leitura aborta, o Content-Length (do fio) NÃO foi o que barrou, e a nota não diz "comprimidos"', async () => {
+    const csv = csvDe(3) // 3 MB descomprimidos > 2 MB
+    const fio = gzipSync(csv)
+    expect(fio.length).toBeLessThan(MAX_GZ_BYTES) // o Content-Length (comprimido) passa pelo teto
+    servir(fio, { 'content-encoding': 'gzip' })
+    const e = await baixarReal().catch(x => x)
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'corpo' })
+    expect(e.bytes).toBeGreaterThan(MAX_GZ_BYTES) // soma do que foi LIDO, já descomprimido
+    expect(e.detalhe).toContain('lidos do corpo')
+    expect(e.detalhe).toContain('gzip de transporte')
+    expect(e.detalhe).not.toContain('Content-Length')
+    expect(e.detalhe).not.toContain('comprimidos')
+  })
+
+  it('sem Content-Encoding, o Content-Length acima do teto barra antes de ler, e a nota diz que é o tamanho do fio', async () => {
+    servir(Buffer.alloc(MAX_GZ_BYTES + 10, 'a'), {})
+    const e = await baixarReal().catch(x => x)
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'corpo', bytes: MAX_GZ_BYTES + 10 })
+    expect(e.detalhe).toContain('Content-Length')
+    expect(e.detalhe).toContain('no fio')
+  })
+
+  it('o teto descomprimido só alcança um .gz de verdade: gzip de transporte por cima de um .gz com bomba é recusado como descomprimido', async () => {
+    const bomba = gzipSync(Buffer.alloc(MAX_CSV_BYTES + 1, 'a')) // o arquivo .gz do relatório
+    servir(gzipSync(bomba), { 'content-encoding': 'gzip' })     // mais uma camada, a de transporte
+    const e = await baixarReal().catch(x => x)
+    expect(e).toBeInstanceOf(ArquivoGrandeDemaisError)
+    expect(e).toMatchObject({ lado: 'descomprimido', bytes: bomba.length })
+    expect(e.detalhe).toContain(`${bomba.length} bytes de .gz`)
+    expect(e.detalhe).toContain(`${MAX_CSV_BYTES}`)
   })
 })

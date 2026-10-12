@@ -698,7 +698,7 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
   })
 
   it('o cliente recusa por Content-Length/leitura (comprimido): vira grande_demais terminal com o tamanho na nota, não erro de rede', async () => {
-    api.download.mockRejectedValue(new ArquivoGrandeDemaisError('comprimido', MAX_GZ_BYTES + 5, `${MAX_GZ_BYTES + 5} bytes comprimidos (Content-Length); teto ${MAX_GZ_BYTES}`))
+    api.download.mockRejectedValue(new ArquivoGrandeDemaisError('corpo', MAX_GZ_BYTES + 5, `${MAX_GZ_BYTES + 5} bytes comprimidos (Content-Length); teto ${MAX_GZ_BYTES}`))
     const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
     const ctx = ctxDe(db)
     const resumo = await passoRelatorios(ctx)
@@ -1055,7 +1055,7 @@ describe('E12 onda 5, F2: falha ao gravar o bruto deixa rastro e chega ao alerta
 
 describe('E12 onda 5, F3: a nota de arquivo grande demais diz o canal e até quando o arquivo existe na origem', () => {
   const recusa = async (extra: Row) => {
-    api.download.mockRejectedValue(new ArquivoGrandeDemaisError('comprimido', MAX_GZ_BYTES + 5, `${MAX_GZ_BYTES + 5} bytes (Content-Length); teto ${MAX_GZ_BYTES}`))
+    api.download.mockRejectedValue(new ArquivoGrandeDemaisError('corpo', MAX_GZ_BYTES + 5, `${MAX_GZ_BYTES + 5} bytes (Content-Length); teto ${MAX_GZ_BYTES}`))
     const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1', extra)] })
     const ctx = ctxDe(db)
     await passoRelatorios(ctx)

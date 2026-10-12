@@ -68,12 +68,14 @@ export class ReportingHttpError extends Error {
 
 /**
  * O arquivo passou de um teto de tamanho: o bruto NÃO é guardado e não há conserto automático (tentar de novo baixaria o
- * mesmo arquivo). `lado` diz qual teto estourou; `bytes` é o tamanho comprimido que se sabe (declarado, lido até parar ou
- * o do gzip que descomprime demais). Nunca é erro de zlib (`Z_*`): quem trata gzip inválido como passageiro não pode pegá-lo.
+ * mesmo arquivo). `lado` diz qual teto estourou: `corpo` = bytes LIDOS do corpo da resposta (o `Content-Length`, que é o tamanho
+ * no fio, ou a soma lida já depois do gzip de TRANSPORTE que o fetch descomprime sozinho), `descomprimido` = o CSV que sai de
+ * um .gz de verdade passou de MAX_CSV_BYTES. `bytes` é o tamanho que se sabe (declarado, lido até parar ou o do .gz que
+ * descomprime demais). Nunca é erro de zlib (`Z_*`): quem trata gzip inválido como passageiro não pode pegá-lo.
  */
 export class ArquivoGrandeDemaisError extends Error {
   constructor(
-    public readonly lado: 'comprimido' | 'descomprimido',
+    public readonly lado: 'corpo' | 'descomprimido',
     public readonly bytes: number,
     /** Texto para a nota visível: o tamanho e o teto. */
     public readonly detalhe: string,
