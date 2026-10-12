@@ -8,7 +8,7 @@ import { ReportingHttpError, SEM_NORMALIZADOR, type Report } from '@/lib/youtube
 import { obterToken } from './autorizacao'
 import { contarPorResultado, registrarTentativa, scopeJob } from './attempts'
 import { emParalelo, fetchComPrazo, PARALELO, restante, SemTempoError } from './clock'
-import { DIA_MS, VALIDADE_DIAS, ordenarFila, venceEm, type ItemDaFila } from './fila-relatorios'
+import { DIA_MS, VALIDADE_DIAS, ordenarFila, venceEm } from './fila-relatorios'
 import { conferirBanco, pushUnico } from './schema'
 import { descreverErro, HABILITADOS, statusHttp } from './token'
 import type { ColetaChannel, StepCtx, StepResumo } from './types'
@@ -20,8 +20,10 @@ export const MAX_DOWNLOADS = 100
  *  em memória antes desta conferência: subir este número pede conferir a memória da função. */
 export const MAX_GZ_BYTES = 10 * 1024 * 1024
 const MAX_PAGINAS = 50
-/** O PostgREST corta em 1000 linhas: bater nisso é leitura cortada, nunca "tudo lido". */
-const LIMITE_FILA = 1000
+/** O PostgREST devolve no máximo 1000 linhas por resposta (max-rows): a fila é lida em páginas, nunca com um `limit` só. */
+const TAMANHO_PAGINA = 1000
+/** Teto de páginas da fila (5000 relatórios; a fila real vai a ~660). Passar disto é leitura cortada, nunca "tudo lido". */
+const MAX_PAGINAS_FILA = 5
 
 export interface RelatoriosResumo extends StepResumo {
   /** Relatórios devolvidos pela listagem nesta execução (inclui os que já existiam). */
@@ -268,6 +270,50 @@ async function baixarUm(
   }
 }
 
+interface FilaLida {
+  /** A resposta com erro (a primeira que falhou) ou a última lida: é o que `conferirBanco` examina. */
+  resposta: { error?: { code?: string; message?: string } | null }
+  linhas: Pendente[]
+  /** Total real (count exato da primeira página). null = o banco não devolveu a contagem. */
+  total: number | null
+  /** true = há relatório `listado` que esta leitura não trouxe. Sem contagem e com o limite de páginas cheio, vale true. */
+  cortada: boolean
+}
+
+/**
+ * Lê TODOS os relatórios `listado` dos canais e dos tipos habilitados, em páginas de 1000 ordenadas por (create_time, report_id).
+ * Um `limit(1000)` só cortaria por create_time, e create_time não é a ordem de vencimento (histórico vence em 30 dias, corrente
+ * em 60): acima de 1000 pendentes deixaria de fora justamente um histórico recente que vence antes. Lida a fila inteira, a
+ * ordem por vencimento (`ordenarFila`) vale. Falha em qualquer página = leitura falha (nunca fila parcial em silêncio).
+ */
+async function lerFilaPendente(ctx: StepCtx, idsDosCanais: string[]): Promise<FilaLida> {
+  const linhas: Pendente[] = []
+  let total: number | null = null
+  let ultima: FilaLida['resposta'] = {}
+  let cheia = false
+  for (let p = 0; p < MAX_PAGINAS_FILA; p++) {
+    const r = await ctx.supabase
+      .from('yt_reporting_reports')
+      .select('site_id, report_id, channel_id, report_type_id, job_id, download_url, create_time, is_backfill', p === 0 ? { count: 'exact' } : undefined) // a contagem só na primeira página
+      .eq('status', 'listado')
+      .in('channel_id', idsDosCanais)
+      .in('report_type_id', [...HABILITADOS]) // os `listado` de um tipo desligado ficam como estão (e não são pendência)
+      .order('create_time', { ascending: true })
+      .order('report_id', { ascending: true })
+      .range(p * TAMANHO_PAGINA, (p + 1) * TAMANHO_PAGINA - 1)
+    ultima = r
+    if (r.error) return { resposta: r, linhas: [], total: null, cortada: false }
+    if (p === 0) total = r.count ?? null
+    const pagina = (r.data ?? []) as Pendente[]
+    linhas.push(...pagina)
+    cheia = pagina.length >= TAMANHO_PAGINA
+    if (!cheia) break
+  }
+  // Com contagem: cortada se faltou linha. Sem contagem, ausência não é "tudo lido": a última página cheia conta como corte.
+  const cortada = total === null ? cheia : linhas.length < total
+  return { resposta: ultima, linhas, total, cortada }
+}
+
 export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
   const resumo: RelatoriosResumo = {
     gravados: 0, tentativas: {}, pendentes: 0, vistos: 0, baixados: 0, vazios: 0, expirados: 0, erros_download: 0, bruto_apagado: 0,
@@ -368,19 +414,13 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
 
   // ── 3. Baixar: pelo vencimento na origem (fila-relatorios.ts), no máximo MAX_DOWNLOADS ──
   const idsDosCanais = canais.map(c => c.id)
-  const filaLida = await ctx.supabase
-    .from('yt_reporting_reports')
-    .select('site_id, report_id, channel_id, report_type_id, job_id, download_url, create_time, is_backfill')
-    .eq('status', 'listado')
-    .in('channel_id', idsDosCanais)
-    .in('report_type_id', [...HABILITADOS]) // os `listado` de um tipo desligado ficam como estão
-    .order('create_time', { ascending: true })
-    .limit(LIMITE_FILA)
-  if (conferirBanco(filaLida, 'yt_reporting_reports', ctx.falhas, 'ler') !== 'ok') return fechar()
-  if (((filaLida.data ?? []) as unknown[]).length >= LIMITE_FILA) {
-    pushUnico(ctx.falhas, `relatórios: fila de download cortada em ${LIMITE_FILA} relatórios; a ordem por vencimento não cobre o que ficou de fora`)
+  const filaLida = await lerFilaPendente(ctx, idsDosCanais)
+  if (conferirBanco(filaLida.resposta, 'yt_reporting_reports', ctx.falhas, 'ler') !== 'ok') return fechar()
+  if (filaLida.cortada) {
+    const fora = filaLida.total === null ? 'contagem indisponível: pode haver mais' : `ficaram de fora ${filaLida.total - filaLida.linhas.length}`
+    pushUnico(ctx.falhas, `relatórios: fila de download cortada em ${filaLida.linhas.length} relatórios (${fora}); a ordem por vencimento não cobre o que ficou de fora`)
   }
-  const fila = ordenarFila(((filaLida.data ?? []) as Pendente[]).filter(p => clientes.has(p.channel_id)), agora)
+  const fila = ordenarFila(filaLida.linhas.filter(p => clientes.has(p.channel_id)), agora)
 
   const urls = new Map<string, string>()
   const renovados = new Set<string>()
@@ -408,20 +448,13 @@ export async function passoRelatorios(ctx: StepCtx): Promise<RelatoriosResumo> {
   }
 
   // ── 5. O que ficou para depois, e quando vence o primeiro ────────────────
-  const resta = await ctx.supabase
-    .from('yt_reporting_reports')
-    .select('report_type_id, create_time, is_backfill', { count: 'exact' })
-    .eq('status', 'listado')
-    .in('channel_id', idsDosCanais)
-    .in('report_type_id', [...HABILITADOS]) // o que nunca será baixado não é pendência
-    .order('create_time', { ascending: true })
-    .limit(LIMITE_FILA)
-  if (conferirBanco(resta, 'yt_reporting_reports', ctx.falhas, 'ler') === 'ok') {
-    const linhas = (resta.data ?? []) as ItemDaFila[]
-    // Contagem ausente não é zero: vale o número de linhas lidas.
-    resumo.pendentes += resta.count ?? linhas.length
-    if (linhas.length > 0) {
-      resumo.vence_primeiro_em_dias = Math.floor((Math.min(...linhas.map(venceEm)) - Date.now()) / DIA_MS)
+  // A mesma leitura inteira (não só as 1000 primeiras): o primeiro a vencer pode estar em qualquer posição de create_time.
+  const resta = await lerFilaPendente(ctx, idsDosCanais)
+  if (conferirBanco(resta.resposta, 'yt_reporting_reports', ctx.falhas, 'ler') === 'ok') {
+    // Contagem ausente não é zero: vale o número de linhas lidas. A nota de corte já saiu no passo 3, se foi o caso.
+    resumo.pendentes += resta.total ?? resta.linhas.length
+    if (resta.linhas.length > 0) {
+      resumo.vence_primeiro_em_dias = Math.floor((Math.min(...resta.linhas.map(venceEm)) - Date.now()) / DIA_MS)
     }
   }
 

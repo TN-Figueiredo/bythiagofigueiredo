@@ -9,6 +9,7 @@
 import { REACH_TYPES, REPORT_TYPES_ENABLED } from '@/lib/youtube/reporting/types'
 import { scopeJob } from './attempts'
 import { addDays, boundsAnalytics, utcDay } from './day-pt'
+import { VALIDADE_DIAS, venceEm } from './fila-relatorios'
 import { conferirBanco, prefixoNotaErroAlcance, pushUnico } from './schema'
 import type { AttemptKind, StepCtx } from './types'
 
@@ -19,6 +20,10 @@ const HABILITADOS: readonly string[] = REPORT_TYPES_ENABLED
 /** O PostgREST corta em 1000 linhas: bater nesse número é leitura truncada, nunca "tudo lido". */
 const LIMITE_LEITURA = 1000
 const ORCAMENTO = 'nao_alcancado_orcamento'
+/** Quantos dias, depois de o arquivo sumir na origem, o relatório que venceu sem baixar continua pintando o cron de vermelho.
+ *  Igual à janela de 14 dias dos critérios vizinhos (listado parado, expirado recente, erro). Passou disto vira só `perdidos`:
+ *  vermelho para sempre esconderia as falhas novas. */
+const JANELA_PERDA_DIAS = 14
 type Ctx = Pick<StepCtx, 'supabase' | 'falhas' | 'channels'>
 
 const iso = (ms: number): string => new Date(ms).toISOString()
@@ -152,6 +157,40 @@ export async function criteriosRelatorios(ctx: Ctx): Promise<CriteriosRelatorios
     }
     for (const r of lidos) {
       pushUnico(ctx.falhas, `relatórios: ${nome(r.channel_id)} tem relatório ${r.report_type_id} expirado sem baixar`)
+    }
+  }
+
+  // Venceu sem baixar (o arquivo já sumiu na origem) há até JANELA_PERDA_DIAS dias, de tipo HABILITADO. A nota por relatório
+  // acima só vê quem foi CRIADO há menos de 14 dias, ou seja, quase nunca quem venceu por idade (30 ou 60 dias de criado):
+  // a nota da execução em que vence dura um dia e, no seguinte, o cron voltava a verde com a perda esquecida. Aqui o aviso
+  // dura até JANELA_PERDA_DIAS depois do vencimento de cada relatório (a classe dele decide: histórico 30, corrente 60) e
+  // acaba por conta própria. Quem foi criado há menos de 14 dias fica só com a nota por relatório (sem duplicar).
+  // A leitura pega create_time entre (60 + janela) e 14 dias atrás; o filtro fino pelo vencimento é feito aqui.
+  const corteVenceu = iso(agora - (VALIDADE_DIAS.corrente + JANELA_PERDA_DIAS) * DIA_MS)
+  const venc = await ctx.supabase
+    .from('yt_reporting_reports')
+    .select('report_id, channel_id, report_type_id, create_time, is_backfill')
+    .eq('status', 'expirado_sem_baixar')
+    .in('report_type_id', [...HABILITADOS])
+    .gte('create_time', corteVenceu)
+    .lt('create_time', corte14)
+    .limit(LIMITE_LEITURA)
+  if (leituraOk(venc, 'yt_reporting_reports', 'relatórios que venceram sem baixar', ctx.falhas)) {
+    const lidos = (venc.data ?? []) as Array<{ report_type_id: string; create_time: string; is_backfill: boolean | null }>
+    if (lidos.length >= LIMITE_LEITURA) {
+      naoAvaliou(ctx.falhas, `relatórios que venceram sem baixar (yt_reporting_reports): leitura cortada em ${LIMITE_LEITURA}`)
+    }
+    const porTipo = new Map<string, number>()
+    for (const r of lidos) {
+      const vence = venceEm(r)
+      if (vence > agora) continue                                // expirou cedo (404/410), o prazo da origem nem chegou: só perdidos
+      if (vence < agora - JANELA_PERDA_DIAS * DIA_MS) continue   // venceu há mais que a janela: só perdidos
+      porTipo.set(r.report_type_id, (porTipo.get(r.report_type_id) ?? 0) + 1)
+    }
+    if (porTipo.size > 0) {
+      const total = [...porTipo.values()].reduce((a, b) => a + b, 0)
+      const detalhe = [...porTipo].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([t, n]) => `${t}: ${n}`).join('; ')
+      pushUnico(ctx.falhas, `relatórios: ${total} relatório(s) venceram sem baixar nos últimos ${JANELA_PERDA_DIAS} dias (${detalhe})`)
     }
   }
 

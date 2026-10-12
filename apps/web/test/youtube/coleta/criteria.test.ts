@@ -35,12 +35,14 @@ describe('criteriosRelatorios', () => {
     expect(ctx.falhas).toEqual([])
   })
 
-  it('expirado_sem_baixar há 2 dias é falha; há 15 dias sai de falhas e aparece em perdidos', async () => {
+  it('expirado_sem_baixar criado há 2 dias é falha por relatório; expirado cedo e criado há 15 dias sai de falhas e aparece em perdidos', async () => {
     const recente = fakeSupabase({ yt_reporting_reports: [rel('a', 'expirado_sem_baixar', 2)] })
     const c1 = ctxDe(recente)
     expect(await criteriosRelatorios(c1)).toEqual({ perdidos: 0, atrasados: 0, acao_do_dono: [] })
     expect(c1.falhas).toEqual(['relatórios: Canal Um tem relatório channel_reach_basic_a1 expirado sem baixar'])
 
+    // Corrente criado há 15 dias vence só daqui a 45: expirou cedo (404/410 na origem). Fica fora da nota por relatório
+    // (criado há mais de 14 dias) e da agregada (só quem JÁ passou do prazo da origem), e conta em perdidos.
     const antigo = fakeSupabase({ yt_reporting_reports: [rel('a', 'expirado_sem_baixar', 15)] })
     const c2 = ctxDe(antigo)
     expect(await criteriosRelatorios(c2)).toEqual({ perdidos: 1, atrasados: 0, acao_do_dono: [] })
@@ -180,6 +182,98 @@ describe('criteriosRelatorios', () => {
     expect(await criteriosRelatorios(ctx)).toEqual({ perdidos: 0, atrasados: 0, acao_do_dono: [] })
     expect(ctx.falhas).toContain('schema_ausente: yt_reporting_reports')
     expect(ctx.falhas).toContain('critérios: não foi possível avaliar relatórios com problema (yt_reporting_reports)')
+  })
+})
+
+describe('criteriosRelatorios: venceu sem baixar, aviso que persiste e termina', () => {
+  const NOTA = (corpo: string) => `relatórios: ${corpo}`
+  const vencido = (id: string, criadoHa: number, tipo: string, historico: boolean, status = 'expirado_sem_baixar'): Row =>
+    ({ ...rel(id, status, criadoHa, tipo), is_backfill: historico })
+
+  it('histórico (30 dias) que venceu há 10 dias: a nota aparece em CADA execução durante 14 dias e some no 15º, com o relógio andando', async () => {
+    // criado há 40 dias; vence aos 30; venceu há 10. A nota dura até 14 dias depois do vencimento (criado há 44 dias).
+    const db = fakeSupabase({ yt_reporting_reports: [vencido('a', 40, 'channel_basic_a3', true)] })
+    const textos: string[][] = []
+    for (let dia = 0; dia <= 5; dia++) {
+      vi.setSystemTime(new Date(AGORA.getTime() + dia * DIA_MS))
+      const ctx = ctxDe(db)
+      const r = await criteriosRelatorios(ctx)
+      textos.push(ctx.falhas)
+      expect(r.perdidos).toBe(1) // o contador de perdidos segue igual: a nota agregada não o substitui
+    }
+    const nota = NOTA('1 relatório(s) venceram sem baixar nos últimos 14 dias (channel_basic_a3: 1)')
+    expect(textos.slice(0, 4)).toEqual([[nota], [nota], [nota], [nota]]) // dias 0 a 3: venceu há 10 a 13 dias
+    expect(textos[4]).toEqual([nota])            // dia 4: venceu há exatamente 14 dias: o último dia da janela (inclusivo)
+    expect(textos[5]).toEqual([])                // dia 5: venceu há 15 dias: o aviso acabou, não é alarme eterno
+  })
+
+  it('a fronteira é exata: venceu há 14 dias menos 1 hora avisa; há 14 dias mais 1 hora não avisa (histórico e corrente)', async () => {
+    const dentro = fakeSupabase({ yt_reporting_reports: [
+      vencido('h', 30 + 14 - 1 / 24, 'channel_basic_a3', true),
+      vencido('c', 60 + 14 - 1 / 24, 'channel_traffic_source_a3', false),
+    ] })
+    const c1 = ctxDe(dentro)
+    await criteriosRelatorios(c1)
+    expect(c1.falhas).toEqual([NOTA('2 relatório(s) venceram sem baixar nos últimos 14 dias (channel_basic_a3: 1; channel_traffic_source_a3: 1)')])
+
+    const fora = fakeSupabase({ yt_reporting_reports: [
+      vencido('h', 30 + 14 + 1 / 24, 'channel_basic_a3', true),
+      vencido('c', 60 + 14 + 1 / 24, 'channel_traffic_source_a3', false),
+    ] })
+    const c2 = ctxDe(fora)
+    const r = await criteriosRelatorios(c2)
+    expect(c2.falhas).toEqual([])
+    expect(r.perdidos).toBe(2)
+  })
+
+  it('o prazo certo é o da classe do relatório: corrente criado há 40 dias ainda nem venceu (60), então não há o que avisar', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [vencido('c', 40, 'channel_traffic_source_a3', false)] })
+    const ctx = ctxDe(db)
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual([]) // expirado cedo (404/410) com mais de 14 dias de criado: só conta em perdidos
+  })
+
+  it('conta por tipo, em ordem estável, e soma o total', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [
+      vencido('a', 40, 'channel_traffic_source_a3', true), vencido('b', 41, 'channel_basic_a3', true), vencido('c', 42, 'channel_basic_a3', true),
+    ] })
+    const ctx = ctxDe(db)
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual([NOTA('3 relatório(s) venceram sem baixar nos últimos 14 dias (channel_basic_a3: 2; channel_traffic_source_a3: 1)')])
+  })
+
+  it('nada venceu, ou só tipo fora da lista, ou só baixado/erro: sem nota (ausência de perda é o estado saudável, dito aqui)', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [
+      vencido('a', 40, 'channel_demographics_a1', true),                 // tipo desligado: ninguém baixaria
+      vencido('b', 40, 'channel_basic_a3', true, 'baixado'),
+      vencido('c', 40, 'channel_basic_a3', true, 'listado'),
+    ] })
+    const ctx = ctxDe(db)
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas.filter(f => f.includes('venceram sem baixar'))).toEqual([])
+  })
+
+  it('criado há menos de 14 dias não entra na nota agregada (já há a nota por relatório): sem duplicar', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [vencido('a', 3, 'channel_basic_a3', true)] })
+    const ctx = ctxDe(db)
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toEqual(['relatórios: Canal Um tem relatório channel_basic_a3 expirado sem baixar'])
+  })
+
+  it('leitura que falha: não avalia, nunca verde', async () => {
+    const db = fakeSupabase({ yt_reporting_reports: [vencido('a', 40, 'channel_basic_a3', true)] })
+    db.erroNaLeitura = (tabela, _n, colunas) => (tabela === 'yt_reporting_reports' && colunas.includes('is_backfill') ? { code: '57014', message: 'timeout' } : undefined)
+    const ctx = ctxDe(db)
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toContain('critérios: não foi possível avaliar relatórios que venceram sem baixar (yt_reporting_reports)')
+  })
+
+  it('leitura cortada em 1000: não afirma verde', async () => {
+    const mil = Array.from({ length: 1000 }, (_, i) => vencido(`r-${i}`, 40, 'channel_basic_a3', true))
+    const db = fakeSupabase({ yt_reporting_reports: mil })
+    const ctx = ctxDe(db)
+    await criteriosRelatorios(ctx)
+    expect(ctx.falhas).toContain('critérios: não foi possível avaliar relatórios que venceram sem baixar (yt_reporting_reports): leitura cortada em 1000')
   })
 })
 
