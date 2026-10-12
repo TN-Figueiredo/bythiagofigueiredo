@@ -99,3 +99,51 @@ describe('resumo e por vídeo', () => {
     for (const m of ['sem-relatorio', 'nao-baixado', 'erro', 'expirado'] as const) expect(motivoDiaTexto(m)).toMatch(/não medido/)
   })
 })
+
+describe('buracos da revisão da Tarefa 1', () => {
+  it('resumir: dia com impressão e cliques null deixa o TOTAL de cliques null (não soma como 0), em qualquer ordem', () => {
+    const com = { situacao: 'com-impressoes' as const, motivo: null }
+    const a = { dia: '2026-10-01', ...com, imp: 10, cliques: 3 }
+    const b = { dia: '2026-10-02', ...com, imp: 20, cliques: null }
+    for (const dias of [[a, b], [b, a]]) {
+      expect(resumir(dias)).toEqual({ imp: 30, cliques: null, diasComImpressao: 2, diasLidos: 2, diasNaoMedidos: 0 })
+    }
+    expect(resumir([b]).cliques).toBeNull()
+    expect(resumir([a]).cliques).toBe(3)
+  })
+  it('alcancePorVideo: um dia com impressão e CTR nulo deixa os cliques do vídeo null; as impressões continuam somando; outro vídeo não é afetado', () => {
+    const a = canal([rel('2026-10-01'), rel('2026-10-02'), rel('2026-10-03')], [
+      lin('v1', '2026-10-01', 10, 0.1), lin('v1', '2026-10-02', 20, null), lin('v1', '2026-10-03', 10, 0.1),
+      lin('v2', '2026-10-01', 10, 0.5),
+    ])
+    const m = alcancePorVideo(a)
+    expect(m.get('v1')).toEqual({ imp: 40, cliques: null, diasComImpressao: 3 })
+    expect(m.get('v2')).toEqual({ imp: 10, cliques: 5, diasComImpressao: 1 })
+    // o CTR nulo vindo primeiro ou por último dá o mesmo
+    const b = canal([rel('2026-10-01'), rel('2026-10-02')], [lin('v1', '2026-10-01', 20, null), lin('v1', '2026-10-02', 10, 0.1)])
+    expect(alcancePorVideo(b).get('v1')?.cliques).toBeNull()
+  })
+  it('dois relatórios não medidos no mesmo dia: nao-baixado vence erro, que vence expirado (as três combinações, nas duas ordens)', () => {
+    const motivo = (...status: RelatorioDia['status'][]) => {
+      const dia = '2026-10-02'
+      const { dias } = montarDias(canal([rel('2026-10-01'), ...status.map(s => rel(dia, s, false))], []))
+      return dias.find(x => x.dia === dia)?.motivo
+    }
+    expect(motivo('listado', 'erro')).toBe('nao-baixado')
+    expect(motivo('erro', 'listado')).toBe('nao-baixado')
+    expect(motivo('erro', 'expirado_sem_baixar')).toBe('erro')
+    expect(motivo('expirado_sem_baixar', 'erro')).toBe('erro')
+    expect(motivo('listado', 'expirado_sem_baixar')).toBe('nao-baixado')
+    expect(motivo('expirado_sem_baixar', 'listado')).toBe('nao-baixado')
+  })
+  it('motivoDiaTexto: o texto literal de erro e de expirado', () => {
+    expect(motivoDiaTexto('erro')).toBe('o relatório deste dia deu erro (não medido)')
+    expect(motivoDiaTexto('expirado')).toBe('o relatório deste dia expirou sem ser baixado (não medido)')
+  })
+  it('série só de zero medido: o resumo diz zero (0 e 0), não "não medido"', () => {
+    const a = canal([rel('2026-10-01', 'vazio'), rel('2026-10-02', 'baixado'), rel('2026-10-03', 'vazio')], [])
+    const { dias } = montarDias(a)
+    expect(dias.every(d => d.situacao === 'zero-medido')).toBe(true)
+    expect(resumir(dias)).toEqual({ imp: 0, cliques: 0, diasComImpressao: 0, diasLidos: 3, diasNaoMedidos: 0 })
+  })
+})
