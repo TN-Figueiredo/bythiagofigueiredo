@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { gunzipSync } from 'node:zlib'
+import { randomBytes } from 'node:crypto'
+import { gunzipSync, gzipSync } from 'node:zlib'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', async (orig) => ({
@@ -685,7 +686,7 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
   })
 
   it('acima do teto: erro grande_demais, sem bruto, e a execução diz que o bruto não foi guardado', async () => {
-    api.download.mockResolvedValue({ gz: Buffer.alloc(MAX_GZ_BYTES + 1), sha256: 'x', rowCount: 10 })
+    api.download.mockResolvedValue({ gz: Buffer.alloc(MAX_GZ_BYTES + 1), sha256: 'x', rowCount: 10, lidos: MAX_GZ_BYTES + 1, eraGz: true })
     const db = bancoComPurge({ yt_reporting_jobs: [jobRow('channel_reach_basic_a1')], yt_reporting_reports: [listado('r1')] })
     const ctx = ctxDe(db)
     const resumo = await passoRelatorios(ctx)
@@ -693,7 +694,7 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
     expect(db.tables.yt_reporting_report_blobs ?? []).toEqual([])
     expect(resumo.maior_bytes).toBe(MAX_GZ_BYTES + 1)
     expect(ctx.falhas).toEqual([
-      `relatórios: Canal Um: channel_reach_basic_a1 recusado por tamanho (${MAX_GZ_BYTES + 1} bytes comprimidos; teto ${MAX_GZ_BYTES}): o bruto NÃO foi guardado; vence na origem em 05/12 (UTC)`,
+      `relatórios: Canal Um: channel_reach_basic_a1 recusado por tamanho (${MAX_GZ_BYTES + 1} bytes lidos do corpo; teto ${MAX_GZ_BYTES}): o bruto NÃO foi guardado; vence na origem em 05/12 (UTC)`,
     ])
   })
 
@@ -761,11 +762,22 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
     expect(resumo.erros_download).toBe(1)
   })
 
-  it('mais da metade do teto: o bruto é guardado e a execução avisa antes de perder; exatamente a metade não avisa', async () => {
+  // O corpo passa pelo cliente DE VERDADE (lerCorpoLimitado + empacotarCsv): só o `fetch` é simulado, com o que o fetch entrega
+  // depois de descomprimir o gzip de transporte. Injetar um `gz` pronto provaria a implementação, não o caminho de produção.
+  const baixarDeVerdade = async (corpo: Buffer) => {
+    const real = await vi.importActual<typeof import('@/lib/youtube/reporting/client')>('@/lib/youtube/reporting/client')
+    const f: typeof fetch = async () => new Response(corpo, { headers: { 'content-length': String(corpo.length) } })
+    return real.criarReportingClient('tok', f).download('https://youtubereporting.googleapis.com/v1/media/x')
+  }
+  /** CSV puro de exatamente `n` bytes, bem compressível (o gzip guardado fica minúsculo perto de `n`). */
+  const csvDeBytes = (n: number): Buffer => Buffer.from(`date,video_id\n${'a'.repeat(n - 15)}\n`)
+  const NOTA_METADE = (tipo: string, lidos: number) => `relatórios: ${tipo} chegou a ${lidos} bytes lidos do corpo, mais da metade do teto de ${MAX_GZ_BYTES} bytes lidos`
+
+  it('mais da metade do teto, medido em bytes LIDOS do corpo (CSV puro por gzip de transporte): o gzip guardado é minúsculo e o aviso sai assim mesmo; exatamente a metade não avisa', async () => {
     const metade = MAX_GZ_BYTES / 2
-    api.download
-      .mockResolvedValueOnce({ gz: Buffer.alloc(metade + 1), sha256: 'x', rowCount: 10 })
-      .mockResolvedValueOnce({ gz: Buffer.alloc(metade), sha256: 'y', rowCount: 10 })
+    const grande = csvDeBytes(metade + 1)
+    const noLimite = csvDeBytes(metade)
+    api.download.mockImplementationOnce(() => baixarDeVerdade(grande)).mockImplementationOnce(() => baixarDeVerdade(noLimite))
     const db = bancoComPurge({
       yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
       yt_reporting_reports: [listado('grande', { create_time: ha(3) }), listado('no-limite', { create_time: ha(2) })],
@@ -774,9 +786,54 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
     const resumo = await passoRelatorios(ctx)
     expect(rel(db, 'grande')!.status).toBe('baixado')
     expect(rel(db, 'no-limite')!.status).toBe('baixado')
+    expect(rel(db, 'grande')!.bytes).toBeLessThan(10_000) // a coluna `bytes` continua sendo o gzip GUARDADO
     expect(db.tables.yt_reporting_report_blobs).toHaveLength(2)
-    expect(resumo.maior_bytes).toBe(metade + 1)
-    expect(ctx.falhas).toEqual([`relatórios: channel_reach_basic_a1 chegou a ${metade + 1} bytes comprimidos, mais da metade do teto de ${MAX_GZ_BYTES}`])
+    expect(resumo.maior_bytes).toBe(metade + 1) // a MESMA unidade da recusa: bytes lidos do corpo, não o gzip guardado
+    expect(ctx.falhas).toEqual([NOTA_METADE('channel_reach_basic_a1', metade + 1)])
+  })
+
+  it('o resumo registra o maior corpo lido por tipo e se ele veio como .gz de verdade (a conferência de D+3 não depende de adivinhar o Content-Encoding)', async () => {
+    const puro = csvDeBytes(300_000)
+    // .gz de verdade com mais de 1 MiB: dados aleatórios não comprimem, então o arquivo lido passa da metade do teto.
+    const arquivoGz = gzipSync(randomBytes(1_100_000))
+    expect(arquivoGz.length).toBeGreaterThan(MAX_GZ_BYTES / 2)
+    api.download.mockImplementation(async (url: string) => baixarDeVerdade(url.endsWith('/gz') ? arquivoGz : puro))
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1'), jobRow('channel_basic_a3')],
+      yt_reporting_reports: [
+        listado('a1', { create_time: ha(4), download_url: 'https://dl.test/a1' }),
+        listado('a2', { create_time: ha(3), download_url: 'https://dl.test/a2' }),
+        listado('b-gz', { create_time: ha(2), job_id: 'job-channel_basic_a3', report_type_id: 'channel_basic_a3', download_url: 'https://dl.test/gz' }),
+      ],
+    })
+    const ctx = ctxDe(db)
+    const resumo = await passoRelatorios(ctx)
+    expect(resumo.maior_lido_por_tipo).toEqual({
+      channel_reach_basic_a1: { bytes: puro.length, gz: false },
+      channel_basic_a3: { bytes: arquivoGz.length, gz: true },
+    })
+    expect(resumo.corpos_gz).toBe(1)
+    expect(resumo.maior_bytes).toBe(arquivoGz.length)
+    // O .gz lido passou da metade do teto, o CSV puro de 300 kB não.
+    expect(ctx.falhas).toEqual([NOTA_METADE('channel_basic_a3', arquivoGz.length)])
+  })
+
+  it('recusa por tamanho também entra no maior corpo lido do tipo; "veio gz" só se sabe quando o teto descomprimido barrou (.gz de verdade)', async () => {
+    api.download.mockRejectedValueOnce(new ArquivoGrandeDemaisError('corpo', MAX_GZ_BYTES + 5, 'x'))
+    api.download.mockRejectedValueOnce(new ArquivoGrandeDemaisError('descomprimido', 812, 'y'))
+    const db = bancoComPurge({
+      yt_reporting_jobs: [jobRow('channel_reach_basic_a1'), jobRow('channel_basic_a3')],
+      yt_reporting_reports: [
+        listado('r1', { create_time: ha(4) }),
+        listado('r2', { create_time: ha(3), job_id: 'job-channel_basic_a3', report_type_id: 'channel_basic_a3' }),
+      ],
+    })
+    const resumo = await passoRelatorios(ctxDe(db))
+    expect(resumo.maior_lido_por_tipo).toEqual({
+      channel_reach_basic_a1: { bytes: MAX_GZ_BYTES + 5, gz: null },
+      channel_basic_a3: { bytes: 812, gz: true },
+    })
+    expect(resumo.corpos_gz).toBe(1)
   })
 
   it('nenhum download: maior_bytes é 0 e nada ficou para trás (vence_primeiro_em_dias nulo)', async () => {

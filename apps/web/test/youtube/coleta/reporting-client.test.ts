@@ -377,6 +377,33 @@ describe('download com Content-Encoding: o que cada teto mede de fato', () => {
     expect(p.gz.equals(fio)).toBe(false)
   })
 
+  it('o pacote diz quantos bytes foram LIDOS do corpo e se o corpo era um .gz de verdade: com gzip de transporte são os do CSV puro e eraGz é falso', async () => {
+    const csv = csvDe(1.5)
+    servir(gzipSync(csv, { level: 1 }), { 'content-encoding': 'gzip' })
+    const p = await baixarReal()
+    expect(p.lidos).toBe(csv.length) // o que o teto de leitura mede: o CSV já descomprimido pelo fetch
+    expect(p.lidos).toBeGreaterThan(p.gz.length * 5) // e é bem maior que o gzip guardado: as duas medidas NÃO são a mesma
+    expect(p.eraGz).toBe(false)
+  })
+
+  it('sem gzip de transporte e com o corpo sendo o .gz do relatório: lidos é o tamanho do .gz e eraGz é verdadeiro', async () => {
+    const csv = csvDe(1.5)
+    const arquivo = gzipSync(csv)
+    servir(arquivo, {})
+    const p = await baixarReal()
+    expect(p.lidos).toBe(arquivo.length)
+    expect(p.eraGz).toBe(true)
+    expect(p.gz.equals(arquivo)).toBe(true)
+  })
+
+  it('sem gzip algum, o corpo é CSV puro: lidos é o tamanho do CSV, eraGz falso', async () => {
+    const csv = csvDe(0.5)
+    servir(csv, {})
+    const p = await baixarReal()
+    expect(p.lidos).toBe(csv.length)
+    expect(p.eraGz).toBe(false)
+  })
+
   it('gzip de transporte pequeno no fio mas CSV acima do teto: a leitura aborta, o Content-Length (do fio) NÃO foi o que barrou, e a nota não diz "comprimidos"', async () => {
     const csv = csvDe(3) // 3 MB descomprimidos > 2 MB
     const fio = gzipSync(csv)
